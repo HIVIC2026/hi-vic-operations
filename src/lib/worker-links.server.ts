@@ -5,7 +5,7 @@ import type { Database } from "@/integrations/supabase/types";
 import { myBusinesses } from "./pilot.server";
 import { assignBlocker, linkState } from "./worker-links.core";
 import { early } from "./early-read";
-import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { jobAdmin as admin } from "./job-facts.server"; // speed (Task 11): the admin client; inside the job page bundle it answers from the job's rows
 
 type Sb = Pick<SupabaseClient<Database>, "rpc">;
 
@@ -18,7 +18,7 @@ export async function isAdminCaller(sb: Sb) {
 
 /** Businesses with an active assignment on the job. */
 export async function jobBusinesses(jobId: string) {
-  const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+  const { jobAdmin: admin } = await import("./job-facts.server");
   const { data } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("active", true).not("business_id", "is", null);
   return [...new Set((data ?? []).map((r) => r.business_id!))];
 }

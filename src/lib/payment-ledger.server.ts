@@ -2,7 +2,7 @@
 // gates on the stage/auto-advance import graph — electrical-clearance.server (review R08) — can count money received
 // without pulling payments.server's senders, Stripe or Xero follow-ups into that graph (tests/comms.test.ts).
 // payments.server re-exports everything here; the rules are unchanged (audit F01 reconciliation).
-import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { jobAdmin as admin } from "./job-facts.server"; // speed (Task 11): the admin client; inside the job page bundle it answers from the job's rows
 import { cumulativePaidCents, effectiveLedger, ledgerRecordFromEvent, toCents, withSeparateMarks, type PaymentRecord } from "./payments.core";
 
 export const PAYMENT_EVENT = "owner_payment_recorded";

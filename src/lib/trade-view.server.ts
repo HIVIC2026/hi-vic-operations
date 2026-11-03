@@ -1,6 +1,6 @@
 // Trade view reads + the few trade actions (Jo-approved designs, 6 Oct 2026). Every read is scoped to the signed-in
 // person's own business. Trades never see customer prices, margins, the office's electrician list or other partners.
-import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { jobAdmin as admin } from "./job-facts.server"; // speed (Task 11): the admin client; inside the job page bundle it answers from the job's rows
 import { WorkflowError, logEvent } from "./workflow.server";
 import { fullAddress, shortAddress } from "./address";
 import { isTestPartner } from "./test-send.core";
@@ -18,6 +18,10 @@ import { installerQuoteLine } from "./installer-quote-status.core";
 import { inHouseTradeBookingText } from "./in-house-message.core";
 import { withoutRetiredInstallDayPhotos } from "./ready-check-chase.core";
 import { early } from "./early-read";
+import { sharedFor, type SharedJobReads } from "./job-shared-reads";
+import { PIESA_BOOKERS, type PiesaBooker } from "./piesa-booker.core";
+import { isMissingDbObject } from "./schema-compat.core";
+import { readPiesaBooker } from "./piesa-booker.server";
 // Speed (installer screens, Task 6): the job page's modules, imported at module scope (namespaces, as above).
 import * as allocationServer from "./allocation.server";
 import * as mittiJobPresentationServer from "./mitti-job-presentation.server";
@@ -101,7 +105,8 @@ type HomeJob = { id: string; job_number: string; stage: string; source: string; 
 export async function tradeHome(userId: string) {
   // Speed (installer screens, Task 5): three rounds of reads — (1) sign-in context, (2) everything that needs only the
   // business (offers, assignments with their jobs embedded, ended assignments, owner money rows), (3) everything that
-  // needs the job ids. The owner's money rows run their own short chain alongside rounds 2–3. Same reads, same value.
+  // needs the job ids. The owner's money rows run their own short chain alongside rounds 2–4, and the deposit facts and the
+  // Mitti electrician question (round 3) need one more round each (round 4). Same reads, same value.
   const c = await ctxOrThrow(userId);
   const now = new Date();
   // Business owner only, own pay only. Started now, awaited after round 3; a failure still fails the page (money path).
@@ -130,6 +135,15 @@ export async function tradeHome(userId: string) {
   // Decisions 278/279: the one status line needs two more facts per installer job — has the Mitti form any installer
   // answers (latest ready_check_basics event) and, on the installer's own jobs, has the boss entered the price.
   const formReads = c.kind === "installer" && live.length > 0;
+  // Speed (portal speed step 1, Task 5): the install-deposit facts and the Mitti electrician question start with round 3
+  // instead of after it. The deposit facts are read for every live job at install scheduling and kept only for the jobs held
+  // by an in-house partner (known from round 3), as before. Both keep their display catch; a failed module load still fails.
+  const depositCandidates = c.kind === "installer" ? live.filter((j) => j.stage === "installation_scheduling").map((j) => j.id) : [];
+  const depositsP = import("./install-deposit-list.server").then((m) => m.installDepositPaidForJobs(depositCandidates).catch(() => null));
+  depositsP.catch(() => undefined); // awaited below; this only stops an early rejection being reported as unhandled
+  // Jo 3 Nov 2026: Mitti pickups still waiting for the installer's one electrician answer (own electricians only).
+  const askElectricianP = c.kind === "installer" ? import("./mitti-electrician.server").then((m) => m.openMittiElectricianQuestions(live.map((j) => j.id)).catch(() => new Set<string>())) : Promise.resolve(new Set<string>());
+  askElectricianP.catch(() => undefined);
   // Round 3: every read that needs the job ids, together.
   const [{ data: books }, { data: missing }, { data: deadlines }, sf, rcQuotes, { data: ms }, { data: basics }, prices, { data: histJobs }] = await Promise.all([
     admin.from("bookings").select("job_id, kind, status, scheduled_start, scheduled_end").in("job_id", ids).in("status", ["confirmed", "completed"]).order("scheduled_start"),
@@ -147,7 +161,8 @@ export async function tradeHome(userId: string) {
   ]);
   const moneyAll = await moneyP;
   const depositIds = c.kind === 'installer' ? live.filter(j => j.stage === 'installation_scheduling' && !!sf.get(j.id)?.inHouseDispatch).map(j => j.id) : [];
-  const installDeposits = await (await import('./install-deposit-list.server')).installDepositPaidForJobs(depositIds).catch(() => new Map<string, boolean | null>(depositIds.map(id => [id, null])));
+  const depositFacts = await depositsP;
+  const installDeposits = new Map<string, boolean | null>(depositIds.map((id) => [id, depositFacts?.get(id) ?? null]));
   // Decision 396: rows the retired install-day photo chase created are not missing photos.
   const miss = new Map<string, number>(); for (const r of withoutRetiredInstallDayPhotos(missing ?? [])) miss.set(r.job_id, (miss.get(r.job_id) ?? 0) + 1);
   const deadline = new Map<string, string>(); for (const d of deadlines ?? []) if (d.job_id && d.install_deadline) deadline.set(d.job_id, String(d.install_deadline));
@@ -211,10 +226,12 @@ export async function tradeHome(userId: string) {
   ];
   // Installer home (mock-up M1): one "Next:" line and one group per job, from the pure rules only.
   const upcomingTile = (id: string) => { const b = upcomingOf(id)[0]; return b ? { what: VISIT[b.kind] ?? "Visit", start: b.scheduled_start } : null; };
+  const askElectrician = await askElectricianP;
   const home = c.kind === "installer" ? installerHomeGroups(jobsTabbed.map((j) => ({
     jobId: j.jobId, jobNumber: j.jobNumber, street: j.street, suburb: j.suburb, channel: j.channel, stage: j.stage, place: j.place, placeTitle: placeOf.get(j.jobId)?.title ?? null,
     inHouseDispatch: sf.get(j.jobId)?.inHouseDispatch ?? null,
     ...(installDeposits.has(j.jobId)?{installDepositPaid:installDeposits.get(j.jobId)??null}:{}),
+    ...(askElectrician.has(j.jobId) ? { chooseElectrician: true } : {}),
     nextAction: (byId.get(j.jobId) as { next_action?: string | null } | undefined)?.next_action ?? null, quoteLine: j.quoteLine, status: j.line ? { text: j.line.text, who: j.line.who } : null,
     upcoming: upcomingTile(j.jobId), installDeadline: deadline.get(j.jobId) ?? null, endedAt: byId.get(j.jobId)?.updated_at ?? null, waitedSince: byId.get(j.jobId)?.updated_at ?? null,
     formLinked: formFacts.get(j.jobId)?.linked === true, formCompleted: formFacts.get(j.jobId)?.completed === true, formHasAnswers: formFacts.get(j.jobId)?.hasAnswers ?? null,
@@ -481,7 +498,9 @@ export async function confirmHivicReadyCheckPricing(jobId: string, userId: strin
 
 /** Money rows: own pay only. Paid = office marked paid; Coming = installers 7 days after AP approval (decisions 30/109/344),
  *  electricians within 7 days of the office approving the completed Mitti form (decision 410; never waits for the owner); else Being checked. */
-async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean) {
+/** `only` (speed, Task 11): just this job's installation rows, for the job page — the same rows the full list gives for it
+ *  (each installation row depends only on its own job's facts), without reading every job of the business. */
+async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean, only?: { jobId: string }) {
   const mine = kind === "installer" ? ["ready_check", "installation"] : ["assessment", "rectification"];
   // Night run 25 Oct 2026: the safety check booking stays "confirmed" after the PIESA (only the fixes / install visits are
   // marked completed), so the electrician's Money showed the Fixes row only. A confirmed safety check counts as done once
@@ -500,33 +519,36 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
     const safetyDone = new Set(books.filter((b) => b.status === "confirmed" && b.kind === "assessment" && formComplete(b)).map((b) => b.job_id));
     return books.filter((b) => b.status === "completed" || (b.kind === "assessment" && safetyDone.has(b.job_id)));
   };
-  const checkJobsOf = (done: Book[]) => [...new Map(done.filter((b) => b.kind === "assessment").map((b) => [b.job_id, { id: b.job_id, originating_installer_business_id: (b.jobs as { originating_installer_business_id?: string | null }).originating_installer_business_id ?? null }])).values()];
+  const checkJobsOf = (done: Book[]) => [...new Map(done.filter((b) => b.kind === "assessment").map((b) => [b.job_id, { id: b.job_id, channel: (b.jobs as { channel?: string | null }).channel ?? null, originating_installer_business_id: (b.jobs as { originating_installer_business_id?: string | null }).originating_installer_business_id ?? null }])).values()];
   // Jo 26 Oct 2026: an installer that pays its own electricians (Reinsulate) is paid for the safety checks they did.
-  const displayP = kind === "installer" ? readInstallerPaidElectricians(bizId).catch((error: unknown) => {
+  // (Both read only for safety-check rows, which `only` never returns.)
+  const displayP = kind === "installer" && !only ? readInstallerPaidElectricians(bizId).catch((error: unknown) => {
     console.error("In-house partner display read failed", error);
     return null;
   }) : Promise.resolve(null);
   // Those safety checks are read now and kept only when the display payer allows them (as before; a read error = none).
-  const theirP: PromiseLike<{ data: Book[] | null }> = kind === "installer"
+  const theirP: PromiseLike<{ data: Book[] | null }> = kind === "installer" && !only
     ? admin.from("bookings").select(sel).is("jobs.deleted_at", null).eq("jobs.originating_installer_business_id", bizId).eq("kind", "assessment").in("status", ["completed", "confirmed"]).order("scheduled_start", { ascending: false }) as unknown as PromiseLike<{ data: Book[] | null }>
     : Promise.resolve({ data: [] });
   // An installer's safety-check payees come only from those checks, so their read starts as soon as the checks are in.
   const theirPayeesP = kind === "installer" ? Promise.resolve(theirP).then(({ data }) => safetyCheckPayeesFor(checkJobsOf(doneOf(data ?? [])))) : null;
   theirPayeesP?.catch(() => undefined); // used (with its logged catch) only when those checks are kept
   const [{ data: ownBooks }, displayPayer, { data: theirAll }, { data: piesaRates }] = await Promise.all([
-    admin.from("bookings").select(sel).is("jobs.deleted_at", null).eq("business_id", bizId).in("status", kind === "electrician" ? ["completed", "confirmed"] : ["completed"]).in("kind", mine as never).order("scheduled_start", { ascending: false }) as unknown as PromiseLike<{ data: Book[] | null }>,
+    (only ? admin.from("bookings").select(sel).is("jobs.deleted_at", null).eq("business_id", bizId).in("status", kind === "electrician" ? ["completed", "confirmed"] : ["completed"]).in("kind", mine as never).eq("job_id", only.jobId).eq("kind", "installation") : admin.from("bookings").select(sel).is("jobs.deleted_at", null).eq("business_id", bizId).in("status", kind === "electrician" ? ["completed", "confirmed"] : ["completed"]).in("kind", mine as never)).order("scheduled_start", { ascending: false }) as unknown as PromiseLike<{ data: Book[] | null }>,
     displayP,
     theirP,
     kind === "electrician" ? admin.from("electrician_rates").select("rate_inc_gst, effective_from").eq("business_id", bizId).eq("service_type", "piesa").in("status", ["active", "approved"]).order("effective_from", { ascending: false }).limit(1) : Promise.resolve({ data: [] as { rate_inc_gst: number | string | null }[] }),
   ]);
-  const keepTheirs = !!displayPayer && !displayPayer.release_hold_reason;
-  const books = [...(ownBooks ?? []), ...(keepTheirs ? theirAll ?? [] : [])];
+  const theirSourceJobs = (theirAll ?? []).filter(b => b.kind === "assessment" && (b.jobs as { channel?: string | null }).channel === "installer_sourced");
+  const keepTheirs = (!!displayPayer && !displayPayer.release_hold_reason) || theirSourceJobs.length > 0;
+  const books = [...(ownBooks ?? []), ...(displayPayer && !displayPayer.release_hold_reason ? theirAll ?? [] : theirSourceJobs)];
   const done = doneOf(books);
   const checkJobs = checkJobsOf(done);
   // One safety check row per job (a completed and a confirmed booking for the same job are one payout).
   const seenSafety = new Set<string>();
   const rows = done.filter((b) => b.kind !== "ready_check" && (!testOnly || (b.jobs as { source: string }).source === "qa_test") && (b.kind !== "assessment" || (seenSafety.has(b.job_id) ? false : (seenSafety.add(b.job_id), true))));
   const ids = [...new Set(rows.map((r) => r.job_id))];
+  if (only && !ids.length) return []; // the job has no pay row yet: the follow-up reads below would only describe rows that aren't there
   const none = ["00000000-0000-0000-0000-000000000000"];
   // Speed (decision 280): every follow-up read depends only on the job ids — one round trip.
   const [payees, { data: paid }, { data: ap }, { data: offers }, { data: invs }, { data: accQ }, gate, safety, ep] = await Promise.all([
@@ -582,7 +604,8 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
     const of = (offers ?? []).find((o) => o.job_id === b.job_id && (o.kind === "piesa" ? "assessment" : o.kind === "installer" ? "installation" : o.kind) === b.kind);
     const sum = (of?.summary ?? {}) as { electrician_rate_inc_gst?: number; installer_pay_inc_gst?: number; fixes_pay_inc_gst?: number };
     const payee = b.kind === "assessment" ? payees.get(b.job_id) ?? null : null;
-    const amount = payee ? payee.piesaIncGst : Number((pe?.details as { amount?: number })?.amount ?? (b.kind === "assessment" ? sum.electrician_rate_inc_gst ?? piesaRate : b.kind === "rectification" ? sum.fixes_pay_inc_gst ?? fixesPay(b.job_id) : sum.installer_pay_inc_gst ?? ((b.jobs as { channel?: string }).channel === "hivic_sourced" ? ratePay(b.job_id) : null)) ?? 0) || null;
+    const recordedAmount = (pe?.details as { amount?: number })?.amount;
+    const amount = recordedAmount != null ? Number(recordedAmount) : payee ? payee.piesaIncGst : Number((b.kind === "assessment" ? sum.electrician_rate_inc_gst ?? piesaRate : b.kind === "rectification" ? sum.fixes_pay_inc_gst ?? fixesPay(b.job_id) : sum.installer_pay_inc_gst ?? ((b.jobs as { channel?: string }).channel === "hivic_sourced" ? ratePay(b.job_id) : null)) ?? 0) || null;
     const gf0 = gate.get(b.job_id);
     const gf = gf0 && b.kind === "assessment" ? visitGateFacts(gf0, safety.get(b.job_id), b.id) : gf0;
     const elecKind = b.kind === "assessment" || b.kind === "rectification" ? b.kind : null;
@@ -647,12 +670,16 @@ export async function tradeMoney(userId: string) {
  * insurance expiries, agreement, notice summary. The NEXT panel is derived by pure `businessNext`. Never quotes,
  * prices or other partners.
  */
+/** Speed (portal speed step 1, Task 7): set once this server has seen `partner_workers.declarations_due` missing, so later
+ *  loads read the team once, without it, instead of failing first and reading again. A new server instance checks again. */
+let declarationsDueMissing = false;
 /** The team rows with `declarations_due`. Until 0230 is live the column is missing: re-read without it (nobody is due). */
 async function loadTeamWorkers(businessId: string): Promise<{ data: { id: string; full_legal_name: string; trade_role: string; profile_id: string | null; email: string | null; mobile: string | null; certification: unknown; worker_role?: string | null; declarations_due?: boolean; licence_expires_on: string | null }[] | null; error?: { code?: string } | null }> {
   const load = (cols: string) => (admin as unknown as { from: (t: string) => any }).from("partner_workers").select(cols).eq("business_id", businessId).is("removed_at", null); // eslint-disable-line @typescript-eslint/no-explicit-any
   const base = "id, full_legal_name, trade_role, approval_status, licence_expires_on, profile_id, email, mobile, certification_status, certification, worker_role";
+  if (declarationsDueMissing) return await load(base);
   const first = await load(`${base}, declarations_due`);
-  if (first.error && schemaCompatCore.isMissingDbObject(first.error)) return await load(base);
+  if (first.error && schemaCompatCore.isMissingDbObject(first.error)) { declarationsDueMissing = true; return await load(base); }
   return first;
 }
 
@@ -661,11 +688,11 @@ export async function tradeBusiness(userId: string) {
   const today = melbourneToday();
   // Staff logins get only the business name and job-taking status: no rates, bank, agreement, insurance or team.
   const staffOnly = { kind: c.kind, boss: false as boolean, name: c.biz.name, taking: c.biz.accepting_new_jobs !== false, approvedSince: null as string | null, area: null as string | null, licenceExpires: null as string | null, liabilityExpires: null as string | null, rate: null as number | null, agreementSigned: false, bankSaved: false,
-    team: [] as TeamMemberView[], next: null as BusinessNext, usualElectrician: null as UsualElectrician | null, details: null as null | { legal: string | null; name: string; abn: string | null; baseSuburb: string | null; allVictoria: boolean }, ratesAgreedAt: null as string | null, hasRates: false, bankLine: null as string | null, credentials: [] as CredentialView[], agreement: null as null | { version: string; signer: string; signedAt: string }, notice: [] as { name: string; state: string }[] };
+    piesaBooker: null as PiesaBooker | null, team: [] as TeamMemberView[], next: null as BusinessNext, usualElectrician: null as UsualElectrician | null, details: null as null | { legal: string | null; name: string; abn: string | null; baseSuburb: string | null; allVictoria: boolean }, ratesAgreedAt: null as string | null, hasRates: false, bankLine: null as string | null, credentials: [] as CredentialView[], agreement: null as null | { version: string; signer: string; signedAt: string }, notice: [] as { name: string; state: string }[] };
   if (!c.boss) return staffOnly;
   // Speed (installer screens, Task 9): three rounds — (1) sign-in context and the owner check above, (2) every owner read that
   // needs only the business (started only after the owner check, as before), (3) the reads that need the team rows (profiles,
-  // Mitti records) alongside the second step of the CII and notice records. Same reads, same value, same failure rules.
+  // Mitti records, dates of birth) alongside the second step of the CII and notice records. Same reads, same value, same failure rules.
   const r = admin as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
   type CiiRow = { workerId: string; eecVerified: boolean; clearanceReason?: string | null; level?: string | null; expiresOn?: string | null };
   type NoticeRow = { workerId: string | null; name: string; state: string };
@@ -683,6 +710,7 @@ export async function tradeBusiness(userId: string) {
     admin.from("partner_activations").select("application_id").eq("business_id", c.biz.id).limit(1).maybeSingle(),
   ]).then(async ([bzRes, actRes]) => ({ bzRes, actRes, appRes: !actRes.error && actRes.data?.application_id ? await admin.from("rec_onboarding_applications").select("data").eq("id", actRes.data.application_id).maybeSingle() : { data: null, error: null } }))) : null;
   // The usual electrician's failure fails the page (as before); started now, awaited after round 3 like before (last read).
+  const bookerEarly = c.kind === "installer" ? readPiesaBooker(c.biz.id) : null; // never rejects: a missing column reads as office
   const usualEarly = c.kind === "installer" ? early(usualElectricianServer.readUsualElectrician(c.biz.id)) : null;
   const [{ data: creds, error: credsError }, { data: workers, error: workersError }, { data: rate }, { data: agr }, { data: bank }, { data: biz }, { data: cards }, { data: members }] = await Promise.all([
     admin.from("business_credentials").select("kind, label, expires_at, verification").eq("business_id", c.biz.id),
@@ -699,11 +727,14 @@ export async function tradeBusiness(userId: string) {
   const staffRows = (workers ?? []) as { id: string; full_legal_name: string; trade_role: string; profile_id: string | null; email: string | null; mobile: string | null; certification: unknown; worker_role?: string | null; declarations_due?: boolean }[];
   const needCrew = c.kind === "installer" || staffRows.some((w) => w.trade_role === "installer");
   // Round 3. Office Mitti records (linked, invited, reactivated, marked done) per worker: Crew show "Mitti ✓" once the office has added them.
-  const [{ data: profs }, recsRes, cii, notice] = await Promise.all([
+  // Speed (portal speed step 1, Task 7): the dates of birth (yes/no) are read here for every team row and used only for the
+  // staff rows (owner rows excluded, below), instead of in a round of their own.
+  const [{ data: profs }, recsRes, cii, notice, dobRes] = await Promise.all([
     profileIds.length ? admin.from("profiles").select("id, full_name, phone, email, mitti_user_id, mitti_checked_email, mitti_checked_at").in("id", profileIds) : Promise.resolve({ data: [] as never[] }),
     staffRows.length ? admin.from("admin_config_events").select("details").in("event_type", ["mitti_user_linked", "mitti_user_invited", "mitti_invite_linked", "mitti_user_reactivated", "mitti_invite_office_done"]).in("details->>worker_id", staffRows.map((w) => w.id)) : Promise.resolve(null),
     needCrew ? crewEarly ?? crewRead() : Promise.resolve([] as CiiRow[]),
     needCrew ? noticeEarly ?? noticeRead() : Promise.resolve([] as NoticeRow[]),
+    staffRows.length ? admin.from("partner_worker_identity" as never).select("worker_id").in("worker_id", staffRows.map((w) => w.id)).not("date_of_birth", "is", null) : Promise.resolve({ data: [], error: null }),
   ]);
   const profile = (id: string | null | undefined) => (profs ?? []).find((p) => p.id === id) ?? null;
   const mittiLogin = (id: string | null | undefined): MittiLogin => { const p = profile(id); if (!p) return "not_set"; const a = mittiAccessOf(p as never); return a === "member" ? "linked" : a === "email_changed" ? "email_changed" : "not_set"; };
@@ -738,6 +769,17 @@ export async function tradeBusiness(userId: string) {
       mittiLogin: mittiLogin(w.profile_id), mittiRecorded: mittiRecordsKnown ? mittiRecordedIds.has(w.id) : null, noticeAcknowledged: noticeOf(w.id, w.trade_role), cii: ciiFacts(w.id, w.trade_role), whiteCard: whiteCardOfRow(w), workerRole: roles.get(w.id) ?? null, declarationsDue: w.declarations_due === true,
     })),
   ];
+  // Jo 3 Nov: which required details each person is missing (owner row excluded). Date of birth is read as yes/no only.
+  {
+    const staffIds = team.filter((m) => m.role !== "owner" && m.id).map((m) => m.id!);
+    const { data: ids, error: idErr } = staffIds.length ? dobRes : { data: [], error: null };
+    if (idErr) console.error("tradeBusiness: date of birth facts could not be read", (idErr as { code?: string }).code ?? "unknown");
+    else {
+      const has = new Set(((ids ?? []) as { worker_id: string }[]).map((r) => r.worker_id));
+      const { teamMissingDetails } = await import("./team-required.core");
+      for (const m of team) if (m.role !== "owner" && m.id) m.missingDetails = teamMissingDetails(m.role === "electrician" ? "electrician" : "installer", { mobile: m.mobile, email: m.email, hasDateOfBirth: has.has(m.id) });
+    }
+  }
   const credentials: CredentialView[] = (creds ?? []).map((x) => ({ kind: x.kind, label: x.label, expires: x.expires_at, verified: x.verification === "verified" }));
   const liability = latestExpiry(credentials, "public_liability_insurance");
   const licence = c.kind === "electrician" ? (workers ?? []).map((w) => w.licence_expires_on).filter(Boolean).sort()[0] ?? null : null;
@@ -767,7 +809,7 @@ export async function tradeBusiness(userId: string) {
     area: c.biz.covers_all_victoria ? "Anywhere in Victoria" : `Up to ${c.biz.coverage_radius_km ?? "?"} km from ${c.biz.base_suburb ?? "your base"}`,
     licenceExpires: licence, liabilityExpires: liability, rate: rate ? Number((rate as { rate_inc_gst: number }).rate_inc_gst) : null,
     agreementSigned: !!agr?.signed_at, bankSaved: !!bank,
-    team, next, usualElectrician: usual, details, ratesAgreedAt, hasRates, bankLine: bankLine(bank ?? null), credentials,
+    piesaBooker: bookerEarly ? await bookerEarly : null, team, next, usualElectrician: usual, details, ratesAgreedAt, hasRates, bankLine: bankLine(bank ?? null), credentials,
     agreement: agr ? { version: String(agr.version), signer: agr.signer_name, signedAt: agr.signed_at } : null, notice: noticeStatuses,
   };
 }
@@ -778,6 +820,20 @@ export async function tradeSetTaking(userId: string, taking: boolean) {
   await admin.from("businesses").update({ accepting_new_jobs: taking }).eq("id", c.biz.id);
   await admin.from("admin_config_events").insert({ actor_id: userId, event_type: "trade_taking_new_jobs", summary: `${c.biz.name}: ${taking ? "taking new jobs" : "paused new offers"}`, details: { business_id: c.biz.id, taking } });
   return { taking };
+}
+
+/** Who books the safety check (PIESA) for the installer's own jobs: boss only, installers only; audited like the taking switch. */
+export async function tradeSetPiesaBooker(userId: string, booker: PiesaBooker) {
+  const c = await ctxOrThrow(userId);
+  if (!c.boss) throw new WorkflowError("Only the business boss can change this.");
+  if (c.kind !== "installer") throw new WorkflowError("This setting is for installers.");
+  if (!PIESA_BOOKERS.includes(booker)) throw new WorkflowError("Pick who books the safety check.");
+  // Local schema overlay: the column is pending SQL, so a missing column is a clear message, not a crash.
+  const db = admin as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
+  const { error } = await db.from("businesses").update({ piesa_booked_by: booker }).eq("id", c.biz.id);
+  if (error) throw new WorkflowError(isMissingDbObject(error) || /piesa_booked_by/.test(error.message ?? "") ? "This setting isn't available yet." : "Could not save. Try again.");
+  await admin.from("admin_config_events").insert({ actor_id: userId, event_type: "trade_piesa_booker", summary: `${c.biz.name}: safety check booked by ${booker}`, details: { business_id: c.biz.id, booker } });
+  return { booker };
 }
 
 /** Quick setup: each tick is stored (append-only) so it follows the person across phones. */
@@ -908,23 +964,50 @@ export async function tradeSetWorkerMobile(userId: string, workerId: string, raw
   return { ok: true, mobile: v.mobile };
 }
 
-/** Jo 29 Oct: the boss adds a person with no email needed (mobile can come later). Installers start as Lead or Crew with
- *  the CII certificate unchecked; electricians need a licence number. Always pending, and they must sign the worker
- *  declarations (declarations_due) before any job. Sends nothing. */
-export async function tradeAddTeamPerson(userId: string, p: { name: string; workerRole: import("./worker-role.core").WorkerRole; mobile: string | null; email: string | null; licenceNumber: string | null; dateOfBirth?:string|null|undefined }): Promise<{ workerId: string }> {
+/** Own-business boss fills a missing private date of birth or email for either trade.
+ *  Installer email stays optional. Never overwrites saved values; sends nothing. Rules in `team-required.core`. */
+export async function tradeFillWorkerMissing(userId: string, workerId: string, p: { dateOfBirth: string | null; email: string | null }) {
+  const c = await bossOrThrow(userId);
+  const { data: w } = await admin.from("partner_workers").select("id, business_id, email").eq("id", workerId).is("removed_at", null).maybeSingle();
+  if (!w || w.business_id !== c.biz.id) throw new WorkflowError("Team member not found.");
+  const { data: idRow, error: idErr } = await admin.from("partner_worker_identity" as never).select("worker_id, date_of_birth").eq("worker_id", w.id).maybeSingle();
+  if (idErr) throw new WorkflowError("Their details couldn't be checked. Try again.");
+  const row = idRow as { date_of_birth: string | null } | null;
+  const { teamFillMissing } = await import("./team-required.core");
+  const v = teamFillMissing(c.kind, { hasDateOfBirth: !!row?.date_of_birth, email: w.email ?? null }, p, (await import("./melbourne-time.core")).melbourneToday());
+  if (!v.ok) throw new WorkflowError(v.error);
+  if (v.dateOfBirth) {
+    const { error } = row
+      ? await admin.from("partner_worker_identity" as never).update({ date_of_birth: v.dateOfBirth, updated_by: userId } as never).eq("worker_id", w.id).is("date_of_birth", null)
+      : await admin.from("partner_worker_identity" as never).insert({ worker_id: w.id, date_of_birth: v.dateOfBirth, updated_by: userId } as never);
+    if (error) throw new WorkflowError("The date of birth couldn't be saved. Try again.");
+  }
+  if (v.email) {
+    const { error } = await admin.from("partner_workers").update({ email: v.email }).eq("id", w.id).eq("business_id", c.biz.id).is("email", null);
+    if (error) throw new WorkflowError(error.code === "23505" ? "Someone in your team already uses that email." : "The email couldn't be saved. Try again.");
+    // Jo 3 Nov: a Lead waiting for their own email is invited once the boss adds it (switch/pause/TEST rules unchanged).
+    await import("./mitti-invite.server").then((m) => m.onPartnerPersonApproved(w.id, userId)).catch((e) => console.error("Mitti invite after email added skipped", (e as Error).message));
+  }
+  return { ok: true };
+}
+
+/** Jo 3 Nov 2:37pm (replaces 29 Oct): installers need an Australian mobile + date of birth (email optional); electricians
+ *  need mobile + date of birth + email (`team-required.core`). Installers start as Lead or Crew with the CII certificate
+ *  unchecked; electricians need a licence number. Always pending, declarations_due before any job. Sends nothing. */
+export async function tradeAddTeamPerson(userId: string, p: { name: string; workerRole?: import("./worker-role.core").WorkerRole; mobile: string | null; email: string | null; licenceNumber: string | null; dateOfBirth?:string|null|undefined }): Promise<{ workerId: string }> {
   const c = await bossOrThrow(userId);
   const name = p.name.trim();
   if (!name) throw new WorkflowError("Add their full name.");
   const licence = p.licenceNumber?.trim() || null;
   if (c.kind === "electrician" && !licence) throw new WorkflowError("Add their electrical licence number.");
-  const { crewMobileInput } = await import("./swms-sign-text.core");
-  const v = crewMobileInput(p.mobile);
+  const { teamMemberDetails, teamWorkerRoleProblem } = await import("./team-required.core");
+  const roleProblem = teamWorkerRoleProblem(c.kind, p.workerRole);
+  if (roleProblem) throw new WorkflowError(roleProblem);
+  const v = teamMemberDetails(c.kind, { mobile: p.mobile, email: p.email, dateOfBirth: p.dateOfBirth }, (await import("./melbourne-time.core")).melbourneToday());
   if (!v.ok) throw new WorkflowError(v.error);
-  const email = p.email?.trim().toLowerCase() || null;
+  const email = v.email;
   if(c.kind==='installer'){
-    const problem=(await import('./worker-identity.core')).dateOfBirthProblem(p.dateOfBirth,(await import('./melbourne-time.core')).melbourneToday());
-    if(problem)throw new WorkflowError(problem);
-    const r=await (admin as unknown as import('@supabase/supabase-js').SupabaseClient).rpc('add_team_installer_with_identity',{_business:c.biz.id,_actor:userId,_name:name,_role:p.workerRole,_mobile:v.mobile,_email:email,_dob:p.dateOfBirth});
+    const r=await (admin as unknown as import('@supabase/supabase-js').SupabaseClient).rpc('add_team_installer_with_identity',{_business:c.biz.id,_actor:userId,_name:name,_role:p.workerRole,_mobile:v.mobile,_email:email,_dob:v.dateOfBirth});
     if(r.error){
       if(['PGRST202','42883'].includes(r.error.code))throw new WorkflowError('Private ESC registration details need the pending database update before this person can be added.');
       if(['23502','PGRST204','42703'].includes(r.error.code))throw new WorkflowError("Adding someone without an email needs the office's database update first.");
@@ -943,7 +1026,15 @@ export async function tradeAddTeamPerson(userId: string, p: { name: string; work
     if (error.code === "23505") throw new WorkflowError("Someone with that email is already on your team.");
     throw new WorkflowError("Couldn't add them. Please try again.");
   }
-  return { workerId: (data as { id: string }).id };
+  const workerId = (data as { id: string }).id;
+  // Electrician date of birth: private identity row (same table/RLS as installers). If it can't be saved the new person is
+  // removed again, so nobody is ever left without their required date of birth.
+  const { error: ie } = await admin.from("partner_worker_identity" as never).insert({ worker_id: workerId, date_of_birth: v.dateOfBirth, updated_by: userId } as never);
+  if (ie) {
+    await admin.from("partner_workers").delete().eq("id", workerId);
+    throw new WorkflowError("Couldn't add them. Please try again.");
+  }
+  return { workerId };
 }
 
 /** Whether the caller's business has been invited to Mitti by the office (false when unknown). */
@@ -983,11 +1074,15 @@ export async function tradeSetReadyCheckTime(userId: string, jobId: string, pick
 }
 
 /** Own in-house business membership, not an offer or a customer's time-picking action. */
-export async function inHouseBookingAccess(userId: string, jobId: string, client = admin): Promise<{ allowed: boolean; blockers: string[]; bookings?: { id: string; kind: string; scheduled_start: string | null; status: string }[] }> {
+export async function inHouseBookingAccess(userId: string, jobId: string, client = admin): Promise<{ allowed: boolean; blockers: string[]; ownJob?: true; bookings?: { id: string; kind: string; scheduled_start: string | null; status: string }[] }> {
   const { readInHouseDispatchState } = await import("./in-house-suppression.server");
   const state = await readInHouseDispatchState([jobId]);
   if (state.failed) return { allowed: false, blockers: ["Couldn't check the job's partner — please try again."] };
-  if (!state.held.has(jobId)) return { allowed: false, blockers: ["forbidden"] };
+  if (!state.held.has(jobId)) {
+    // Part 2 (Jo 3 Nov 2026): the installer's office may book the safety check (PIESA) on its own job when its "who books" setting is office or either.
+    const own = await (await import("./own-job-piesa.server")).ownJobOfficeBookingAccess(userId, jobId, client as never);
+    return own.allowed ? { allowed: true, blockers: [], ownJob: true, bookings: own.bookings ?? [] } : { allowed: false, blockers: ["forbidden"] };
+  }
   const { data: assignment, error: assignmentError } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
   if (assignmentError) throw new Error(assignmentError.message);
   if (!assignment?.business_id) return { allowed: false, blockers: ["forbidden"] };
@@ -1006,6 +1101,8 @@ export async function inHouseBookingAccess(userId: string, jobId: string, client
 export async function inHouseBookVisit(userId: string, input: { jobId: string; kind: import("./booking.server").BookingKind; start: string; workerId?: string; crewIds?: string[] }, client = admin): Promise<{ ok: true; bookingId: string } | { ok: false; blockers: string[] }> {
   const access = await inHouseBookingAccess(userId, input.jobId, client);
   if (!access.allowed) return { ok: false, blockers: access.blockers };
+  // Part 2: an installer's own job books its safety check ONLY through bookOwnJobPiesa (claim, 30-day check, owner notice); never this in-house writer.
+  if (access.ownJob) return { ok: false, blockers: ["forbidden"] };
   if(!input.workerId)return {ok:false,blockers:[input.kind==='installation'?(await import('./in-house-booking.core')).LEAD_INSTALLER_BOOKING_REASON:'Choose the person going before booking.']};
   try {
     const result=await (await import('./in-house-atomic-save.server')).saveInHouseVisit(input.jobId,userId,{
@@ -1078,8 +1175,10 @@ async function ownerReadyFacts(jobId: string): Promise<import("./installer-scree
   return { consent: consent ? (consent.owner_signed_at ? "signed" : "waiting") : null, deposit };
 }
 
-export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJobAccess) {
+export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJobAccess, sharedReads?: SharedJobReads) {
   const c = await requireTradeJob(userId, jobId, pre);
+  // Speed (Task 6): the job page bundle's one quote read and one clearance read, when they were taken for this caller and job.
+  const shared = sharedFor(sharedReads, userId, jobId);
   // Speed (installer screens, Task 6): every read that needs only the job id starts in ONE round — the page facts, the
   // panel dates/names, the notes and the boss's own pay rows. The reads that are gated on another fact keep their gate and
   // start the moment that fact is in: the owner's side once the install booking is read (decision 251), the PIESA owner
@@ -1087,7 +1186,7 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
   // channel is read. Modules are imported at module scope.
   const jobP = early(admin.from("jobs").select("job_number, stage, channel, next_action, installation_completed_at").eq("id", jobId).single());
   const inBookP = early(admin.from("bookings").select("scheduled_start, status").eq("job_id", jobId).eq("kind", "installation").neq("status", "cancelled").order("created_at", { ascending: false }).limit(1).maybeSingle());
-  const clearanceP = early(allocationServer.clearanceFacts(jobId).then(electricalClearance));
+  const clearanceP = early(shared ? shared.clearance() : allocationServer.clearanceFacts(jobId).then(electricalClearance));
   // Decision 251: the owner's side is read only once the install is booked (the M2-install-booked state); nothing is read before that.
   const ownerReadyP = early(inBookP.then(async ({ data: inBook }) => inBook?.status === "confirmed" ? await ownerReadyFacts(jobId).catch(() => null) : null));
   // Decision 278: only whether the boss has entered the price (true/false on the installer's own jobs, null otherwise).
@@ -1104,12 +1203,12 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
     admin.from("ceiling_measurements").select("measured_area_m2, removal_m2, removal_required").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
     admin.from("assessments").select("status, piesa_outcome, completed_at").eq("job_id", jobId).maybeSingle(),
     rebateSignedByInstaller(jobId),
-    loadInstallerQuote(jobId),
+    shared ? shared.quote() : loadInstallerQuote(jobId),
     installerPayForJob(jobId),
     installFormFacts(jobId),
     clearanceP,
-    c.kind === "installer" ? mittiJobPresentationServer.mittiJobPresentation(jobId, userId, c).catch(() => ({ applies: false as const })) : Promise.resolve({ applies: false as const }),
-    c.boss ? tradeMoneyRows(c.biz.id, c.kind, c.isTest).then((rows) => rows.filter((r) => r.jobId === jobId && r.kind === "installation")) : Promise.resolve([] as Awaited<ReturnType<typeof tradeMoneyRows>>),
+    c.kind === "installer" ? mittiJobPresentationServer.mittiJobPresentation(jobId, userId, c, shared).catch(() => ({ applies: false as const })) : Promise.resolve({ applies: false as const }),
+    c.boss ? tradeMoneyRows(c.biz.id, c.kind, c.isTest, { jobId }).then((rows) => rows.filter((r) => r.jobId === jobId && r.kind === "installation")) : Promise.resolve([] as Awaited<ReturnType<typeof tradeMoneyRows>>),
     // Approved states (decision 234): the dates and names each panel prints, every one a recorded fact.
     admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", "quote_declined").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", "ready_check_basics").contains("details", { completed: true }).order("created_at", { ascending: false }).limit(1).maybeSingle(),
@@ -1466,4 +1565,25 @@ export async function tradeOfferPiesaTimes(offerId: string, userId: string, pick
   const { data: o } = await admin.from("partner_offers").select("id, business_id, kind").eq("id", offerId).maybeSingle();
   if (!o || o.business_id !== c.biz.id || o.kind !== "piesa") throw new WorkflowError("This offer isn't for your business.");
   return (await import("./piesa-times.server")).acceptPiesaOfferWithTimes(offerId, userId, picks);
+}
+
+/** Part 2: the business boss of the installer who supplied an own job (not crew). */
+async function swapBossFor(userId: string) {
+  const c = await ctxOrThrow(userId);
+  if (c.kind !== "installer" || !c.boss) throw new WorkflowError("Only the business owner can change the electrician.");
+  return c;
+}
+
+/** The "Change electrician" picker's data: nothing unless this is the signed-in boss's own job and the safety check isn't done. */
+export async function tradeSwapElectricianOptions(userId: string, jobId: string) {
+  const c = await tradeContext(userId);
+  if (!c || c.kind !== "installer" || !c.boss) return { allowed: false, current: null, options: [] as { businessId: string; name: string }[] };
+  return (await import("./electrician-swap.server")).swapOptions(jobId, c.biz.id);
+}
+
+/** The installer changes the electrician on its own job before the safety check (PIESA) is done. */
+export async function tradeSwapElectrician(userId: string, jobId: string, newElectricianBusinessId: string) {
+  const c = await swapBossFor(userId);
+  await (await import("./electrician-swap.server")).installerSwapElectrician(jobId, c.biz.id, newElectricianBusinessId, userId);
+  return { ok: true as const };
 }

@@ -22,7 +22,7 @@ describe("Jo 7 Oct: Add one job + each Upload jobs card", () => {
     expect(electricianPlanBlocker({ mode: "mine" })).toBe("Choose your electrician");
     expect(electricianPlanBlocker({ mode: "mine", business_id: "b" })).toBeNull();
     expect(electricianPlanBlocker({ mode: "mine", nomination_id: "n" })).toBeNull();
-    expect(electricianPlanBlocker({ mode: "hivic" })).toBeNull();
+    expect(electricianPlanBlocker({ mode: "hivic" })).toBe("Choose your electrician");
   });
   test("usual electrician is preselected (Main first)", () => {
     expect(usualElectrician([{ businessId: "a" }, { businessId: "b", primary: true }])?.businessId).toBe("b");
@@ -44,7 +44,7 @@ describe("Jo 7 Oct: Add one job + each Upload jobs card", () => {
   test("job label: invited until approved", () => {
     expect(jobElectricianLabel({ choice: "nominated", invitedName: "Sam" })).toBe(ELECTRICIAN_INVITED_LABEL);
     expect(jobElectricianLabel({ choice: "preferred", chosenName: "Spark Co" })).toBe("Your electrician: Spark Co");
-    expect(jobElectricianLabel({ choice: "hivic_organise" })).toBe("Home Insulation Victoria arranges");
+    expect(jobElectricianLabel({ choice: "hivic_organise" })).toBe("Choose your own electrician");
     expect(jobElectricianLabel({ choice: "preferred", chosenName: "Spark Co", assignedName: "Spark Co" })).toBe("Electrician: Spark Co");
   });
   test("invite email carries the electrician application link and the installer's name", () => {

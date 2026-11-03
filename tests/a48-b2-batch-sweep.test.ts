@@ -108,14 +108,16 @@ const T0 = Date.parse("2026-10-20T01:00:00.000Z"); // 12pm Melbourne
 const at = (hours: number) => new Date(T0 + hours * H).toISOString();
 const GOOD = { declared: { property_type: "house", over_five_years: "yes" }, answers: { insulation: "none" } };
 
-function addJob(id: string, o: { source?: string; stage?: string; name?: string } = {}) {
+function addJob(id: string, o: { source?: string; stage?: string; name?: string; email?: string | null; consent?: boolean } = {}) {
   tables["jobs"]!.push({
     id, job_number: `HV-${id}`, stage: o.stage ?? "ready_check_ready_to_schedule", source: o.source ?? "website", channel: "hivic_sourced",
     deleted_at: null, qa_archived_at: null, property_id: `p-${id}`, created_at: "2026-10-01T00:00:00Z",
-    owners: { full_name: o.name ?? `Owner ${id}`, phone: `04000000${id.length}`, email: `owner-${id}@example.com` },
+    owners: { full_name: o.name ?? `Owner ${id}`, phone: `04000000${id.length}`, email: o.email === undefined ? `owner-${id}@example.com` : o.email },
     properties: { address_line: "1 Sample Street", suburb: "Melbourne", postcode: "3000", ...GOOD },
   });
   tables["lead_campaign_responses"]!.push({ job_id: id, spot_saved_at: "2026-10-01T00:00:00Z", opted_out_at: null, saved_insulation: null });
+  // Final review 1: owner contact consent on record (real jobs need it before any email).
+  if (o.consent !== false) (tables["owner_contact_consents"] ??= []).push({ job_id: id, consent_status: "granted", created_at: "2026-10-01T00:00:00Z" });
   tables["property_facts"]!.push({ property_id: `p-${id}`, fact_key: "coordinates", value: [145, -37.8], is_current: true });
 }
 const ev = (jobId: string, type: string, hours: number, details: Row) => tables["workflow_events"]!.push({ id: crypto.randomUUID(), job_id: jobId, event_type: type, created_at: at(hours), details });
@@ -128,7 +130,7 @@ const answer = (jobId: string, batchId: string, outcome: string, hours = 1) => e
 function seed() {
   for (const k of Object.keys(tables)) delete tables[k];
   sent.length = 0; emails.length = 0; finished.length = 0; cancels.length = 0; realAttempts.length = 0; smsStatus = "sent"; smsDetail = "held"; finishResult = "finished"; cancelLeavesOpen = false;
-  tables["workflow_settings"] = [{ id: 1, customer_comms_enabled: true, sms_message_switches: { spot_released: true } }];
+  tables["workflow_settings"] = [{ id: 1, customer_comms_enabled: true, sms_message_switches: { spot_released: true, quick_taps_reminder: true } }];
   for (const t of ["jobs", "lead_campaign_responses", "property_facts", "job_assignments", "partner_offers", "workflow_events"]) tables[t] = [];
   tables["businesses"] = [{ id: "biz-1", name: "Sample Insulation", onboarding_notes: null }, { id: "biz-t", name: "[TEST PARTNER] Co", onboarding_notes: "[TEST PARTNER]" }];
 }
@@ -485,5 +487,37 @@ describe("day-2 reminder follows how the batch was first sent", () => {
     tables["sms_messages"] = [{ id: "sm-1", job_id: "b", message_type: "spot_released", idempotency_key: "spot-release:v1:b:b1:released:sms", status: "sent" }];
     await S.sweepAreaBatches(at(49), { v2Approved: true });
     expect(sent.map((x) => x.type)).toEqual(["spot_released"]);
+  });
+});
+
+// ---- Jo 2 Nov 2026: the reminder email goes with the reminder text (ported at the 4 Nov join to the "It's your turn"
+// reminder, decision #22: same rule — text and email independent, email once by its own key) --------------------------
+describe("day-2 reminder email", () => {
+  beforeEach(seed);
+  test("day-2 reminder sends the reminder email once", async () => {
+    addJob("b", { email: "b@example.com" }); sendBatch("b1", ["b"]);
+    await S.sweepAreaBatches(at(49), { v2Approved: true });
+    await S.sweepAreaBatches(at(49), { v2Approved: true });
+    expect(sent.map((x) => x.key)).toEqual(["spot-release:v1:b:b1:reminder:sms"]);
+    expect(emails.map((e) => [e.to, e.key, e.purpose])).toEqual([["b@example.com", "spot-release:v1:b:b1:reminder", "spot_released:reminder"]]);
+    expect(emails[0]!.text).toContain("/my-job/T-b?screen=taps");
+  });
+  test("no email before day 2, and none in quiet hours", async () => {
+    addJob("b", { email: "b@example.com" }); sendBatch("b1", ["b"]);
+    await S.sweepAreaBatches(at(47), { v2Approved: true });
+    await S.sweepAreaBatches(at(57), { v2Approved: true }); // 9pm Melbourne
+    expect(emails).toEqual([]);
+  });
+  test("no email on file → reminder text only", async () => {
+    addJob("b", { email: null }); sendBatch("b1", ["b"]);
+    await S.sweepAreaBatches(at(49), { v2Approved: true });
+    expect(sent.length).toBe(1);
+    expect(emails).toEqual([]);
+  });
+  test("owner who can't be texted (STOP) still gets the reminder email", async () => {
+    addJob("b", { email: "b@example.com" }); sendBatch("b1", ["b"]);
+    smsStatus = "blocked"; smsDetail = "This number replied STOP";
+    await S.sweepAreaBatches(at(49), { v2Approved: true });
+    expect(emails.map((e) => e.key)).toEqual(["spot-release:v1:b:b1:reminder"]);
   });
 });

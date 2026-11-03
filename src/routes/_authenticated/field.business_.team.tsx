@@ -5,12 +5,14 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
 import { TradeShell, card } from "@/components/trade/TradeShell";
 import { BackToBusiness, Chevron, M7, SectionHead } from "@/components/trade/business-kit";
-import { addTeamPerson, getTradeBusiness, requestTeamLoginInvite, setTeamMemberMobile } from "@/lib/trade-view.functions";
+import { addTeamPerson, getTradeBusiness, requestTeamLoginInvite, setTeamMemberMissing, setTeamMemberMobile } from "@/lib/trade-view.functions";
 import { removeWorker } from "@/lib/worker-links.functions";
 import { ROLE_LABEL, TEAM_ADD_SHEET, TEAM_LOGIN, TEAM_MOBILE_NOTE, TEAM_RULE, TEAM_SIGN, teamMobileButton, teamCiiLine, teamCountLine, teamFactsLine, teamWhiteCardLine } from "@/lib/trade-view.core";
 import { melbourneToday } from "@/lib/melbourne-time.core";
+import { teamMemberDetails, teamMissingPrompt } from "@/lib/team-required.core";
 import { CertLinkInline, SendNoticeLinkInline, WhiteCardUploadInline } from "@/components/portal/worker-compliance";
 import { WorkerRoleSwitch } from "@/components/portal/worker-role-switch";
+import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/_authenticated/field/business_/team")({
   head: () => ({ meta: [{ title: "Team – Home Insulation Victoria" }, { name: "description", content: "The people in your business who can take Ready Checks and install days." }, { property: "og:title", content: "Team – Home Insulation Victoria" }, { property: "og:description", content: "The people in your business who can take Ready Checks and install days." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex" }] }),
@@ -48,6 +50,7 @@ function Team() {
                 <li key={id ?? `owner-${m.email ?? m.name}`} id={id ? `w-${id}` : "owner"} className="border-b border-estimate-line py-3">
                   <p className="text-base font-semibold text-estimate-navy">{m.name} <span className="text-[13px] font-medium text-estimate-sub">· {ROLE_LABEL[m.role]}</span></p>
                   <p className="mt-0.5 text-[13px] text-estimate-sub">{teamFactsLine(m)}{m.email ? ` · ${m.email}` : ""}</p>
+                  {(() => { const ask = teamMissingPrompt(m.name, m.missingDetails ?? []); return ask ? <p data-team-missing className="mt-1 rounded-[10px] border border-estimate-amber px-2.5 py-1.5 text-[13px] font-semibold text-estimate-amber">{ask}</p> : null; })()}
                   {m.dateOfBirth&&<p className="text-[13px] text-estimate-sub">Date of birth: {m.dateOfBirth}</p>}
                   {m.declarationsDue && <p data-sign-due className="mt-0.5 text-[13px] font-semibold text-[#8A3B4A]">{TEAM_SIGN.due}</p>}
                   {cii && <p className={`mt-0.5 text-[13px] font-semibold ${cii.tone === "green" ? "text-estimate-green" : "text-[#8A3B4A]"}`}>{cii.text}</p>}
@@ -55,6 +58,8 @@ function Team() {
                   {id && <div className="mt-2 flex flex-wrap items-center gap-2">
                     {m.workerRole && <WorkerRoleSwitch workerId={id} role={m.workerRole} onDone={() => { void qc.invalidateQueries({ queryKey: ["trade-business"] }); }} />}
                     <MobileInline workerId={id} mobile={m.mobile} onSaved={() => { void qc.invalidateQueries({ queryKey: ["trade-business"] }); }} />
+                    {(m.missingDetails ?? []).includes("date of birth") && <MissingInline workerId={id} field="dateOfBirth" onSaved={() => { void qc.invalidateQueries({ queryKey: ["trade-business"] }); }} />}
+                    {!m.email?.trim() && <MissingInline workerId={id} field="email" onSaved={() => { void qc.invalidateQueries({ queryKey: ["trade-business"] }); }} />}
                     {!m.hasLogin && (asked[id] ? <span className="text-[13px] font-semibold text-estimate-green">{asked[id]}</span> : <button type="button" className="min-h-11 rounded-[10px] border border-estimate-line bg-white px-3 text-[13px] font-semibold text-estimate-blue" onClick={async () => { try { await invite({ data: { workerId: id } }); setAsked((a) => ({ ...a, [id]: TEAM_LOGIN.asked })); } catch (e) { setAsked((a) => ({ ...a, [id]: (e as Error).message })); } }}>{TEAM_LOGIN.button}</button>)}
                     {m.declarationsDue && (m.mobile?.trim() || m.email?.trim() ? <CertLinkInline workerId={id} name={m.name} label={TEAM_SIGN.link} /> : <span className="text-[13px] text-estimate-sub">{TEAM_SIGN.needContact}</span>)}
                     {m.noticeAcknowledged === false && <SendNoticeLinkInline workerId={id} />}
@@ -76,6 +81,35 @@ function Team() {
 }
 
 /** Decision 377: the business owner saves each person's mobile once; their own safety plan sign link is texted there. */
+/** Fill a missing private date of birth or email; installer email remains optional. */
+function MissingInline({ workerId, field, onSaved }: { workerId: string; field: "dateOfBirth" | "email"; onSaved: () => void }) {
+  const save = useServerFn(setTeamMemberMissing);
+  const [open, setOpen] = useState(false);
+  const [v, setV] = useState("");
+  const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const dob = field === "dateOfBirth";
+  if (!open) return (
+    <button type="button" data-team-fill={field} className="min-h-11 rounded-[10px] border border-estimate-line bg-white px-3 text-[13px] font-semibold text-estimate-blue" onClick={() => { setV(""); setMsg(null); setOpen(true); }}>{dob ? "Add date of birth" : "Add email"}</button>
+  );
+  return (
+    <div className="w-full">
+      <label className="block text-[13px] font-semibold text-estimate-navy">{dob ? "Date of birth" : "Email"}
+        <input className="mt-1 block min-h-11 w-full rounded-[10px] border-2 border-estimate-line bg-white px-3 text-base" value={v} type={dob ? "date" : "email"} autoComplete={dob ? "off" : "email"} onChange={(e) => setV(e.target.value)} />
+      </label>
+      {dob && <p className="mt-1 text-[13px] text-estimate-sub">Kept private. Used only for ESC registration.</p>}
+      {msg && <p role="alert" className="mt-1 text-[13px] font-semibold text-[#8A3B4A]">{msg}</p>}
+      <div className="mt-2 flex gap-2">
+        <button type="button" disabled={busy} className="min-h-11 rounded-[10px] bg-estimate-blue px-4 text-[13px] font-semibold text-white" onClick={async () => {
+          setBusy(true); setMsg(null);
+          try { await save({ data: { workerId, [field]: v } }); setOpen(false); onSaved(); } catch (e) { setMsg((e as Error).message); } finally { setBusy(false); }
+        }}>Save</button>
+        <button type="button" className="min-h-11 px-3 text-[13px] font-semibold text-estimate-blue" onClick={() => setOpen(false)}>Cancel</button>
+      </div>
+    </div>
+  );
+}
+
 function MobileInline({ workerId, mobile, onSaved }: { workerId: string; mobile: string | null; onSaved: () => void }) {
   const save = useServerFn(setTeamMemberMobile);
   const [open, setOpen] = useState(false);
@@ -103,12 +137,12 @@ function MobileInline({ workerId, mobile, onSaved }: { workerId: string; mobile:
   );
 }
 
-/** Jo 29 Oct: name · (Lead or Crew for installers) · (licence number for electricians) · mobile · email, all contact optional.
+/** Jo 3 Nov: installers actively choose Lead or Crew; contact requirements remain in team-required.core.
  *  Adding sends nothing: the new row shows the signing line and the owner makes their signing link. */
 function AddTeamMember({ count, kind, onAdded }: { count: number; kind: "installer" | "electrician"; onAdded: () => void }) {
   const add = useServerFn(addTeamPerson);
   const [open, setOpen] = useState(false);
-  const [f, setF] = useState({ name: "", mobile: "", email: "", licence: "",dateOfBirth:"", role: "lead" as "lead" | "crew" });
+  const [f, setF] = useState({ name: "", mobile: "", email: "", licence: "",dateOfBirth:"", role: "" as "" | "lead" | "crew" });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const input = "mt-1.5 block min-h-[52px] w-full rounded-[12px] border-2 border-estimate-line bg-white px-3.5 text-base";
@@ -132,6 +166,7 @@ function AddTeamMember({ count, kind, onAdded }: { count: number; kind: "install
           {kind === "installer" && (
             <fieldset className="mt-3">
               <legend className="text-sm font-bold text-estimate-navy">{TEAM_ADD_SHEET.role}</legend>
+              <p className="mt-1 whitespace-pre-line text-sm leading-[1.45] text-estimate-sub">{TEAM_ADD_SHEET.roleExplanation}</p>
               {(["lead", "crew"] as const).map((r) => (
                 <label key={r} className="mt-1.5 flex min-h-11 items-center gap-2 text-[15px] text-estimate-navy">
                   <input type="radio" name="team-role" checked={f.role === r} onChange={() => setF({ ...f, role: r })} />{r === "lead" ? TEAM_ADD_SHEET.lead : TEAM_ADD_SHEET.crew}
@@ -139,21 +174,26 @@ function AddTeamMember({ count, kind, onAdded }: { count: number; kind: "install
               ))}
             </fieldset>
           )}
-          {kind==='installer'&&<label className={label}>Date of birth<input type="date" required max={melbourneToday()} className={input} value={f.dateOfBirth} onChange={e=>setF({...f,dateOfBirth:e.target.value})}/></label>}
+          <label className={label}>Date of birth<input type="date" required max={melbourneToday()} className={input} value={f.dateOfBirth} onChange={e=>setF({...f,dateOfBirth:e.target.value})}/></label>
           <label className={label}>{TEAM_ADD_SHEET.mobile}
             <input className={input} value={f.mobile} inputMode="tel" autoComplete="tel" onChange={(e) => setF({ ...f, mobile: e.target.value })} />
           </label>
-          <label className={label}>{TEAM_ADD_SHEET.email}
+          <label className={label}>{kind === "electrician" ? TEAM_ADD_SHEET.emailElectrician : TEAM_ADD_SHEET.email}
             <input className={input} value={f.email} inputMode="email" autoComplete="email" onChange={(e) => setF({ ...f, email: e.target.value })} />
           </label>
           {err && <p role="alert" className="mt-2 text-sm font-semibold text-[#8A3B4A]">{err}</p>}
-          <button type="button" disabled={busy || f.name.trim().length < 2 || (kind === "electrician" && !f.licence.trim()) || (kind==='installer'&&!f.dateOfBirth)} className="mt-4 flex min-h-14 w-full items-center justify-center rounded-[14px] bg-estimate-blue text-[17px] font-bold text-white disabled:opacity-45" onClick={async () => {
-            setBusy(true); setErr(null);
+          <Button type="button" disabled={busy || (kind === "installer" && !f.role) || f.name.trim().length < 2 || (kind === "electrician" && !f.licence.trim()) || !f.mobile.trim() || !f.dateOfBirth || (kind === "electrician" && !f.email.trim())} className="mt-4 flex min-h-14 w-full items-center justify-center rounded-[14px] bg-estimate-blue text-[17px] font-bold text-primary-foreground disabled:opacity-45" onClick={async () => {
+            setErr(null);
+            const workerRole = kind === "installer" ? f.role : "lead";
+            if (!workerRole) { setErr("Choose Lead or Crew."); return; }
+            const check = teamMemberDetails(kind, { mobile: f.mobile, email: f.email, dateOfBirth: f.dateOfBirth }, melbourneToday());
+            if (!check.ok) { setErr(check.error); return; }
+            setBusy(true);
             try {
-              await add({ data: { name: f.name.trim(), workerRole: kind === "installer" ? f.role : "lead", mobile: f.mobile.trim() || null, email: f.email.trim() || null, licenceNumber: kind === "electrician" ? f.licence.trim() : null,dateOfBirth:kind==='installer'?f.dateOfBirth:null } });
-              setOpen(false); setF({ name: "", mobile: "", email: "", licence: "",dateOfBirth:"", role: "lead" }); onAdded();
+              await add({ data: { name: f.name.trim(), workerRole, mobile: f.mobile.trim() || null, email: f.email.trim() || null, licenceNumber: kind === "electrician" ? f.licence.trim() : null,dateOfBirth:f.dateOfBirth } });
+              setOpen(false); setF({ name: "", mobile: "", email: "", licence: "",dateOfBirth:"", role: "" }); onAdded();
             } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
-          }}>{busy ? "Adding…" : TEAM_ADD_SHEET.button}</button>
+          }}>{busy ? "Adding…" : TEAM_ADD_SHEET.button}</Button>
           <button type="button" className="mt-2 flex min-h-11 w-full items-center justify-center text-[15px] font-semibold text-estimate-sub" onClick={() => setOpen(false)}>{TEAM_ADD_SHEET.cancel}</button>
         </section>
       )}

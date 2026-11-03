@@ -16,6 +16,8 @@ import { melbourneYmd } from "./piesa-windows.core";
 import { melbourneToday } from "@/lib/melbourne-time.core";
 import { inHouseDispatchSkip, readInHouseDispatchState, type InHouseDispatchState } from "./in-house-suppression.server";
 import { inHouseSkippedAction } from "./in-house.core";
+import { OWN_JOB_CALL_AND_BOOK, OWN_JOB_OFFER_MESSAGE, isOwnJobCallAndBook, type OwnJobCallAndBookReason } from "./own-job-piesa.core";
+import { hivLeadElectricianCandidates } from "./my-electricians.core";
 
 const NONE = ["00000000-0000-0000-0000-000000000000"];
 
@@ -30,7 +32,10 @@ export async function recCandidatesFor(jobId: string): Promise<{ postcode: strin
   const postcode = (job?.properties as { postcode: string | null } | null)?.postcode ?? null;
   const installerSourced = job?.channel === "installer_sourced";
   const { data: allBizs } = await admin.from("businesses").select("*").or("business_type.eq.rec,capabilities.cs.{electrician}");
-  const bizs = (allBizs ?? []).filter((b) => partnerAllowedForJob(b, job?.source));
+  // Part 2b (Jo 3 Nov 2026): an electrician an installer added works on that installer's jobs only — never offered our leads.
+  type BizDb = NonNullable<typeof allBizs>[number];
+  const notInstallerAdded: BizDb[] = installerSourced ? (allBizs ?? []) : hivLeadElectricianCandidates<BizDb>(allBizs ?? []);
+  const bizs = notInstallerAdded.filter((b) => partnerAllowedForJob(b, job?.source));
   const ids = (bizs ?? []).map((b) => b.id);
   const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
   // Owner's current PIESA windows (if any): availability, daily limit and "nearby that day" are judged on these.
@@ -171,6 +176,12 @@ export async function healStrandedPiesaStage(jobId: string, actorId: string | nu
 export async function startPiesaAllocation(jobId: string, actorId: string | null, kind: "piesa" | "rectification" = "piesa", opts: { rateToConfirm?: boolean; onlyBusiness?: string | string[]; adding?: boolean; repeat?: boolean; auto?: import("./ready-check-times.server").AutoOfferMeta } = {}, inHouseState?: InHouseDispatchState): Promise<PiesaAllocationResult> {
   const skipped = await inHouseDispatchSkip(jobId, inHouseState);
   if (skipped) return { offered: 0, exhausted: false, ...inHouseSkippedAction(skipped) };
+  // Part 2 (Jo 3 Nov 2026): an installer's own job is never offered — its electrician calls and books. Unreadable = refused.
+  if (kind === "piesa") {
+    const own = await (await import("./own-job-piesa.server")).ownJobCallAndBook(jobId, inHouseState);
+    if (own === null) throw new WorkflowError("Couldn't check whose job this is — please try again.");
+    if (own) return { offered: 0, exhausted: false, ok: false, reason: OWN_JOB_CALL_AND_BOOK, message: OWN_JOB_OFFER_MESSAGE };
+  }
   // Catch up a job whose acceptance was taken but never moved the stage (see healStrandedPiesaStage).
   // Without this the office's next click was refused with "An electrician has already accepted this PIESA."
   // and the job had no way back to piesa_scheduled.
@@ -228,7 +239,7 @@ async function claimRecOfferBatch(jobId: string, kind: "piesa" | "rectification"
 /** What one allocation attempt actually did. `reason` explains a zero-offer result (P1 UAT DEF-08). */
 export type OfferBatchResult = { offered: number; exhausted: boolean; reason?: "owner_times" | "coverage" };
 /** `healed` = the call repaired a stranded acceptance instead of sending new offers (P1 UAT DEF-09). */
-export type PiesaAllocationResult = OfferBatchResult & { healed?: boolean; skipped?: "in_house" | "in_house_read_failed"; ok?: false; message?: string };
+export type PiesaAllocationResult = Omit<OfferBatchResult, "reason"> & { reason?: OfferBatchResult["reason"] | OwnJobCallAndBookReason; healed?: boolean; skipped?: "in_house" | "in_house_read_failed"; ok?: false; message?: string };
 
 async function offerNextBatch(jobId: string, actorId: string | null, kind: "piesa" | "rectification", rateToConfirm = false, onlyBusiness?: string | string[], auto?: import("./ready-check-times.server").AutoOfferMeta, repeatSince?: string): Promise<OfferBatchResult> {
   const { businessHours, batchSize } = await settings();
@@ -237,7 +248,18 @@ async function offerNextBatch(jobId: string, actorId: string | null, kind: "pies
     admin.from("partner_offers").select("business_id, batch, offered_at").eq("job_id", jobId).eq("kind", kind),
   ]);
   const batchNo = Math.max(0, ...(prior ?? []).map((o) => o.batch)) + 1;
-  const rates = await agreedElectricianRates(candidates.map((c) => c.business_id), kind);
+  const agreed = await agreedElectricianRates(candidates.map((c) => c.business_id), kind);
+  // Jo 3 Nov 2026: on our own website leads we pay every electrician the one office safety-check payout ($275 inc GST),
+  // whoever they are. Installer jobs and electrical rectification offers keep their agreed rates. Existing offers keep
+  // their recorded snapshot (HV-3682 stays $349).
+  let rates = agreed;
+  if (kind === "piesa" && !installerSourced) {
+    const { data: pricing, error: pe } = await admin.from("pricing_settings").select("piesa_rec_cost_ex_gst, gst_rate").eq("is_active", true).maybeSingle();
+    if (pe) throw new Error("Could not read the safety check payout setting.");
+    const { hivElectricianPayoutIncGst } = await import("./safety-check-price.core");
+    const payout = hivElectricianPayoutIncGst(pricing?.piesa_rec_cost_ex_gst ?? null, pricing?.gst_rate != null ? Number(pricing.gst_rate) : 0.1);
+    rates = new Map(candidates.map((c) => [c.business_id, { id: agreed.get(c.business_id)?.id ?? null, rate: payout }] as const)) as typeof agreed;
+  }
   // Decision 374: no usual-electrician preference on our leads — every electrician is paid their own agreed onboarding rate.
   const { offerRateBlocker } = await import("./allocation.core");
   const summary = await offerFacts(jobId);
@@ -321,10 +343,12 @@ export async function sweepRecOffers(actorId: string | null = null) {
 /** Jobs that have genuinely reached PIESA (gate cleared) with no electrician and no offers yet get the first batch automatically.
  *  startPiesaAllocation re-checks every upstream gate; any blocker means the job is skipped, never forced. */
 async function autoStartPiesaOffers(actorId: string | null, inHouseState: InHouseDispatchState) {
-  const { data: waiting } = await admin.from("jobs").select("id").eq("stage", "piesa_and_install_window_pending").is("deleted_at", null).neq("source", "qa_test");
+  const { data: waiting } = await admin.from("jobs").select("id, channel").eq("stage", "piesa_and_install_window_pending").is("deleted_at", null).neq("source", "qa_test");
   let started = 0;
   for (const j of waiting ?? []) {
     if (await inHouseDispatchSkip(j.id, inHouseState)) continue;
+    // Part 2: installers' own jobs were handed to their electrician (sweepOwnJobPiesaHandoffs) — no offer, no office hand-back.
+    if (isOwnJobCallAndBook({ channel: j.channel, heldInHouse: false })) continue;
     // Already allocated once (since the latest reopen); refill/exhaustion handles the rest.
     if (await (await import("./repeat-piesa.server")).piesaOffersSinceReopen(j.id)) continue;
     if (await (await import("./offer-dispatch.server")).jobOfficePicks(j.id)) continue; // waits in Needs me: "Choose trades for this job"

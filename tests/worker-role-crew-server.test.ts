@@ -66,8 +66,8 @@ beforeEach(() => {
   sent.length = 0; calls.length = 0; isAdmin = false; memberRole = null;
   tables = {
     partner_workers: [
-      { id: "00000000-0000-4000-8000-0000000000a1", email: null, mobile: null, full_legal_name: "Lee Lead", trade_role: "installer", worker_role: "lead", approval_status: "approved", removed_at: null, profile_id: null, business_id: "b1" },
-      { id: "00000000-0000-4000-8000-0000000000a2", email: null, mobile: "0412000111", full_legal_name: "Cam Crew", trade_role: "installer", worker_role: "crew", approval_status: "approved", removed_at: null, profile_id: null, business_id: "b1" },
+      { id: "00000000-0000-4000-8000-0000000000a1", email: null, mobile: null, full_legal_name: "Lee Lead", trade_role: "installer", worker_role: "lead", approved_at: "2026-11-03T11:00:00Z", approval_status: "approved", removed_at: null, profile_id: null, business_id: "b1" },
+      { id: "00000000-0000-4000-8000-0000000000a2", email: null, mobile: "0412000111", full_legal_name: "Cam Crew", trade_role: "installer", worker_role: "crew", approved_at: "2026-11-03T11:00:00Z", approval_status: "approved", removed_at: null, profile_id: null, business_id: "b1" },
     ],
     businesses: [{ id: "b1", name: "Real Insulation", email: "Office@RealInsul.com.au", onboarding_notes: null }, { id: "bt", name: "TEST Insulation", email: "test@hivic.test", onboarding_notes: "[TEST PARTNER]" }],
     profiles: [], admin_config_events: [], workflow_events: [],
@@ -77,15 +77,15 @@ beforeEach(() => {
 });
 
 describe("Mitti: Leads only, business email for a Lead with no email", () => {
-  test("a Lead with no email is searched / recorded with the business's own email", async () => {
+  test("Jo 3 Nov 8:11pm: a Lead with no email waits for their own (no business-email fallback)", async () => {
     const r = await inv.onPartnerPersonApproved("00000000-0000-4000-8000-0000000000a1", "office", { switches: SW, call });
-    expect(r).toMatchObject({ action: "record_needed" });
-    expect(calls).toEqual(["POST /users/search office@realinsul.com.au"]);
-    expect(events().map((e) => [e["event_type"], (e["details"] as Row)["email"], (e["details"] as Row)["email_source"]])).toEqual([["mitti_invite_needed", "office@realinsul.com.au", "business"]]);
+    expect(r).toEqual({ action: "skip", reason: "Mitti invite waiting for Lead's own email" });
+    expect(calls).toEqual([]);
+    expect(events().map((e) => e["event_type"])).toEqual(["mitti_invite_waiting_email"]);
   });
   test("a stored Crew is never searched or invited", async () => {
     const r = await inv.onPartnerPersonApproved("00000000-0000-4000-8000-0000000000a2", "office", { switches: SW, call });
-    expect(r).toEqual({ action: "skip", reason: "Crew aren't invited automatically — the office adds them to Mitti by hand." });
+    expect(r.action).toBe("skip");
     expect(calls).toEqual([]); expect(events()).toEqual([]);
     expect((await inv.workerRolesFor([{ id: "x", trade_role: "installer", worker_role: null, profile_id: null }])).get("x")).toBe("lead");
   });

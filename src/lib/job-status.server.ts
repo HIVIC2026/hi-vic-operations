@@ -1,5 +1,5 @@
 // Facts for the trade "where is this job up to?" line and timeline. Scoped to the signed-in trade's own jobs.
-import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { jobAdmin as admin } from "./job-facts.server"; // speed (Task 11): the admin client; inside the job page bundle it answers from the job's rows
 import { WorkflowError, logEvent } from "./workflow.server";
 import { electricianPayState, payState, contactVisible } from "./trade-view.core";
 import { chaseMode, paymentDates, forViewer, jobStatusLine, jobTimeline, reminderRequestMessage, type StatusFacts } from "./job-status.core";
@@ -9,6 +9,7 @@ import type { DueSettings } from "./waiting.core";
 import * as inHouseSuppression from "./in-house-suppression.server";
 import * as payoutGate from "./trade-payout-gate.server";
 import { electricianPayTiming } from "./electrician-pay.core";
+import { readJobAccess } from "./quick-taps-access.server";
 
 const none = ["00000000-0000-0000-0000-000000000000"];
 type Ctx = { biz: { id: string; name: string }; boss: boolean; kind: "installer" | "electrician" };
@@ -115,9 +116,14 @@ export async function tradeJobStatus(userId: string, jobId: string) {
   const { data: asked } = await admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", "trade_reminder_requested").order("created_at", { ascending: false }).limit(1).maybeSingle();
   // Owner contact follows this business's own visits only: gone once every one of them is done (contactVisible).
   // If this read fails the contact stays hidden (fail closed); only the error code is logged.
-  const { data: mine, error: mineErr } = await admin.from("bookings").select("status").eq("job_id", jobId).eq("business_id", c.biz.id);
+  // Quick taps (Jo 2 Nov 2026): who will be at the home, shown only while owner contact is shown; read failures show nothing.
+  const [{ data: mine, error: mineErr }, access] = await Promise.all([
+    admin.from("bookings").select("status").eq("job_id", jobId).eq("business_id", c.biz.id),
+    readJobAccess(jobId),
+  ]);
   if (mineErr) console.error("tradeJobStatus: own bookings read failed", mineErr.code ?? "unknown");
-  return { line: statusView(c, f), timeline: jobTimeline(f), chase: { coordinationSuppressed: !!f.inHouseDispatch && !!(await import("./in-house-message.core")).inHouseVisitForStage(f.stage), mode, contact, askedAt: asked?.created_at ?? null }, ownerContactVisible: mineErr ? false : contactVisible(mine ?? []) };
+  const out = { line: statusView(c, f), timeline: jobTimeline(f), chase: { coordinationSuppressed: !!f.inHouseDispatch && !!(await import("./in-house-message.core")).inHouseVisitForStage(f.stage), mode, contact, askedAt: asked?.created_at ?? null }, ownerContactVisible: mineErr ? false : contactVisible(mine ?? []) };
+  return { ...out, access: out.ownerContactVisible ? access.line : null };
 }
 
 /** "Ask Home Insulation Victoria to send a reminder": recorded for the office's Needs me. Never an automatic send. */

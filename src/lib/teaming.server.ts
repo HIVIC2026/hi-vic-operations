@@ -52,10 +52,13 @@ export async function autoAssignTeamElectrician(
 }
 
 export async function electricianCandidates(jobId: string) {
-  const { data: j } = await admin.from("jobs").select("originating_installer_business_id, properties(postcode, suburb)").eq("id", jobId).single();
+  const { data: j } = await admin.from("jobs").select("channel, originating_installer_business_id, properties(postcode, suburb)").eq("id", jobId).single();
   const { data: inst } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
   const installerBiz = inst?.business_id ?? j?.originating_installer_business_id ?? null;
-  const { data: bizs } = await admin.from("businesses").select("*").or("business_type.eq.rec,capabilities.cs.{electrician}");
+  const { data: allBizs } = await admin.from("businesses").select("*").or("business_type.eq.rec,capabilities.cs.{electrician}");
+  // Part 2b (Jo 3 Nov 2026): an electrician an installer added works on that installer's jobs only — never our leads.
+  const { hivLeadElectricianCandidates } = await import("./my-electricians.core");
+  const bizs = j?.channel === "installer_sourced" ? allBizs : hivLeadElectricianCandidates(allBizs ?? []);
   const ids = (bizs ?? []).map((b) => b.id);
   const [{ data: creds }, { data: rels }, { data: cards }, { data: load }] = await Promise.all([
     admin.from("business_credentials").select("business_id,kind,label,expires_at,critical,verification").in("business_id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]),

@@ -9,6 +9,8 @@
 //   batch (area-batch.server leaveBatchIfMoved) and goes back in the pool — the owner is not told and carries on.
 // - saveQuickTaps: the answers. ONE `quick_taps_answered {batch_id, answers, consent_share, outcome}` per job + batch,
 //   claimed before anything else happens (a second save, or a second device, gets the same outcome and nothing more).
+//   `answers.access` = who lets the installer in, normalised (tenant name trimmed, mobile +61…), stored on a pass only;
+//   a given but invalid answer is refused (even on a decline) and nothing is saved. The tenant is never texted or emailed.
 //   Blank website answers are written onto enrichment.base44.declared (blanks only, never overwriting). Pass → the
 //   existing `trade_contact_share` owner gate (the "Yes, let's go" tap is the consent) and, first, ONE
 //   owner_contact_consents row (source `quick_taps_reconsent`, given at the answer's time) naming Home Insulation Victoria
@@ -27,10 +29,10 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { WorkflowError, logEvent } from "./workflow.server";
-import { AREA_BATCH_EVENTS, AREA_BATCH_SENT_EVENT, tapsBatchId, type AreaBatchEventRow } from "./area-batch.core";
+import { AREA_BATCH_EVENTS, AREA_BATCH_LEFT_EVENT, AREA_BATCH_SENT_EVENT, tapsBatchId, type AreaBatchEventRow } from "./area-batch.core";
 import { contactConsentRecord, contactConsentSnapshot, phoneConsentCurrent } from "./contact-consent-record.core";
 import {
-  QUICK_TAPS_ANSWERED_EVENT, QUICK_TAPS_DECLINE_REASON, QUICK_TAPS_RECONSENT_SOURCE, quickTapsGoLabel, locationAddress, locationNeedsRefresh, tapOutcome, websiteQuestions,
+  QUICK_TAPS_ANSWERED_EVENT, QUICK_TAPS_COPY, reaskText, QUICK_TAPS_DECLINE_REASON, QUICK_TAPS_RECONSENT_SOURCE, quickTapsGoLabel, locationAddress, normaliseAccess, locationNeedsRefresh, tapOutcome, websiteQuestions,
   type AddressParts, type FinalOutcome, type QuickTapAnswers, type QuickTapsView, type WebsiteAnswers, type WebsiteFacts, type WebsiteKey,
 } from "./quick-taps.core";
 import { formatPropertyAddress } from "./address";
@@ -46,6 +48,7 @@ const loose = admin as unknown as SupabaseClient;
 const DEAD = "This link isn't working any more. Please reply to our email.";
 const NAME_NEEDED = "Please type your full name.";
 const NOT_FOUND = "We couldn't find that address. Please try again.";
+const TENANT_NEEDED = QUICK_TAPS_COPY.access.needBoth;
 
 type Owner = { full_name: string | null; email: string | null; phone?: string | null } | null;
 type Prop = { id: string; address_line: string | null; suburb: string | null; state: string | null; postcode: string | null; enrichment: Record<string, unknown> | null } | null;
@@ -197,11 +200,34 @@ async function finishSharing(jobId: string, c: Ctx, meta: { ip: string | null; u
   if (await sharingSignature(jobId)) return;
   const { signGateDoc } = await import("./owner-gates.server");
   try {
-    await signGateDoc({ jobId, key: "trade_contact_share", signatoryName: d.answers.name, ticked: true, answers: {}, method: "link_code", signedBy: null, ip: meta.ip, userAgent: meta.userAgent, ...(d.batch_id ? { quickTapsBatchId: d.batch_id } : {}) });
+    await signGateDoc({ jobId, key: "trade_contact_share", signatoryName: d.answers.name, ticked: true, answers: {}, method: "quick_tap_link", signedBy: null, ip: meta.ip, userAgent: meta.userAgent, ...(d.batch_id ? { quickTapsBatchId: d.batch_id } : {}) });
   } catch (error) {
     await logEvent(jobId, null, "quick_taps_share_not_recorded", `Quick taps: sharing consent could not be saved: ${error instanceof Error ? error.message : "error"}`, { batch_id: d.batch_id }, { internal: true });
     throw error;
   }
+}
+
+/** Jo 2 Nov 2026 (HV-2730): owners whose "Yes, let's go" was saved but whose OK to share details was refused by the
+ *  database before the quick_tap_link fix. Lists them (dry run) or saves each OK once from the recorded answer, through
+ *  the same finishSharing path as the owner's own tap. Never touches declines, cancelled/deleted jobs or saved OKs. */
+export async function repairQuickTapsSharing(opts: { apply: boolean }): Promise<{ jobId: string; name: string; batchId: string }[]> {
+  const { data, error } = await loose.from("workflow_events").select("job_id, details").eq("event_type", QUICK_TAPS_ANSWERED_EVENT).contains("details", { outcome: "pass", consent_share: true });
+  if (error) throw new Error(`Could not read quick taps answers: ${error.message}`);
+  const out: { jobId: string; name: string; batchId: string }[] = [];
+  for (const jobId of [...new Set((data ?? []).map((r) => str((r as { job_id?: unknown }).job_id)).filter((j): j is string => !!j))]) {
+    if (await sharingSignature(jobId)) continue;
+    const c = await load(jobId);
+    if (!c || c.job.stage === "cancelled" || c.job.deleted_at) continue;
+    const { answered } = batchOf(c);
+    const d = answered?.details as { outcome?: unknown; consent_share?: unknown; answers?: { name?: unknown }; batch_id?: unknown } | null;
+    const name = str(d?.answers?.name); const batchId = str(d?.batch_id);
+    if (d?.outcome !== "pass" || d.consent_share !== true || !name || !batchId) continue;
+    out.push({ jobId, name, batchId });
+    if (!opts.apply) continue;
+    await finishSharing(jobId, c, { ip: null, userAgent: "quick-taps repair" });
+    await logEvent(jobId, null, "quick_taps_share_repaired", "Quick taps: owner's OK to share details saved from their recorded yes", { batch_id: batchId }, { internal: true });
+  }
+  return out;
 }
 
 async function asking(token: string): Promise<{ jobId: string; c: Ctx; batchId: string } | null> {
@@ -339,8 +365,12 @@ export async function saveQuickTaps(token: string, answers: QuickTapAnswers, met
   if (!view.name) throw new WorkflowError(NAME_NEEDED);
   if (!view.address) throw new WorkflowError(FULL_STREET_NEEDED);
   const batchId = batchOf(c).batchId!;
+  // Who lets the installer in: a given answer must be valid (a bad tenant name or mobile saves nothing), and is saved
+  // normalised (name trimmed, mobile +61…). The tenant is never texted or emailed.
+  const access = answers.access === undefined ? null : normaliseAccess(answers.access);
+  if (answers.access !== undefined && !access) throw new WorkflowError(TENANT_NEEDED);
   const blanks = websiteQuestions(view.website, answers.website ?? {});
-  const outcome = tapOutcome(answers, blanks, { rental: askRental });
+  const outcome = tapOutcome({ ...answers, access: access ?? undefined }, blanks, { rental: askRental });
   if (outcome === "incomplete") throw new WorkflowError("Please answer each question.");
   const website = Object.fromEntries(blanks.filter((k) => answers.website?.[k]).map((k) => [k, answers.website![k]!]));
   await storeWebsiteAnswers(c, website, blanks);
@@ -349,6 +379,8 @@ export async function saveQuickTaps(token: string, answers: QuickTapAnswers, met
     ...(Object.keys(website).length ? { website } : {}),
     // Task 19: a decline never reaches the rental questions.
     ...(askRental && (outcome === "pass" || outcome === "no_thanks") ? { rental: buildRentalAnswers(answers.rental ?? {}, { name: view.name, phone: c.job.owners?.phone ?? null }) } : {}),
+    // Final review 4: kept only on a pass (the installer needs it); a decline never stores the tenant's details.
+    ...(access && outcome === "pass" ? { access } : {}),
   };
   // The go label the owner tapped (and the installer it names) — recorded with the answer so the consent row says exactly that.
   const consent = outcome === "pass" ? { go_label: quickTapsGoLabel(view), consent_installer: view.installer } : {};
@@ -440,3 +472,65 @@ async function emailDecline(c: Ctx, batchId: string, outcome: Exclude<FinalOutco
   await logEvent(jobId, null, "quick_taps_email", `Quick taps email (${outcome.replace("_", " ")}): ${status}`, { batch_id: batchId, outcome, status }, { internal: true });
 }
 
+// ---- One-off re-ask (Jo 3 Nov 2026, Mia HV-1405) --------------------------------------------------------------------
+export type ReaskResult = { oldBatchId: string | null; answered: string | null; installerId: string | null; installer: string | null; reopened: boolean; newBatchId: string | null; text: string | null };
+
+/** Let an owner answer the quick taps again. History can't be changed (workflow_events is append-only), so the owner gets a
+ *  FRESH batch for the same installer: reopen a cancelled job, mark it as having left its old batch, then the normal
+ *  sendBatch with Jo's approved re-ask text and no email. Their old answer stays with the old batch. Dry run unless
+ *  `apply`. Once done, the old batch is no longer the open one, so a second run finds nothing to re-ask. */
+/** The owner's My job link works now, or — for a cancelled job — will work again once it's reopened: the live rule
+ *  trg_owner_links_follow_cancel revokes links on cancel (reason `job_cancelled`) and restores the latest one on reopen. */
+async function linkWorksAfterReopen(jobId: string, cancelled: boolean, now: Date): Promise<boolean> {
+  if (!cancelled) return !!await (await import("./veec-copy-email.server")).ownerMyJobLink(jobId);
+  const { LINK_PURPOSE } = await import("./estimatelink.core");
+  const { data, error } = await loose.from("customer_estimate_links").select("expires_at").eq("job_id", jobId).eq("purpose", LINK_PURPOSE).eq("status", "revoked").eq("revocation_reason", "job_cancelled");
+  if (error) throw new Error(`Could not check the owner's link: ${error.message}`);
+  return ((data ?? []) as { expires_at: string | null }[]).some((l) => !l.expires_at || Date.parse(l.expires_at) > now.getTime());
+}
+
+export async function reaskQuickTaps(jobId: string, opts: { apply: boolean; actorId: string; now?: Date }): Promise<ReaskResult> {
+  const now = opts.now ?? new Date();
+  const c = await load(jobId);
+  if (!c) throw new WorkflowError("Job not found.");
+  // Her LATEST answer decides (review I1: the old batch may already be closed). Only a Flat-roof decline is re-asked
+  // (review I2), and only once: a batch sent after that answer means it was already re-asked.
+  const answer = c.events.filter((e) => e.event_type === QUICK_TAPS_ANSWERED_EVENT).sort((a, b) => b.created_at.localeCompare(a.created_at))[0] ?? null;
+  const ad = (answer?.details ?? {}) as { outcome?: unknown; answers?: { roof?: unknown } | null };
+  if (!answer || ad.outcome !== "decline_access" || ad.answers?.roof !== "flat")
+    throw new WorkflowError("This re-ask is only for an owner who tapped Flat for the roof — nothing to re-ask.");
+  if (c.events.some((e) => e.event_type === AREA_BATCH_SENT_EVENT && e.created_at > answer.created_at))
+    throw new WorkflowError("Already re-asked (a newer batch was sent after the Flat answer) — nothing to re-ask.");
+  const oldBatchId = bid(answer);
+  const sent = oldBatchId ? c.events.find((e) => e.event_type === AREA_BATCH_SENT_EVENT && bid(e) === oldBatchId) : undefined;
+  const sd = (sent?.details ?? {}) as { installer_business_id?: unknown; installer_name?: unknown };
+  const out: ReaskResult = {
+    oldBatchId, answered: "decline_access", installerId: str(sd.installer_business_id), installer: str(sd.installer_name),
+    reopened: c.job.stage === "cancelled", newBatchId: null, text: null,
+  };
+  if (!out.installerId) throw new WorkflowError("Can't find the installer the owner's batch was sent for — nothing to re-ask.");
+  // Review I3: the checks sendBatch would refuse on, BEFORE anything is changed.
+  const { smsQuietReason } = await import("./quote-hold.core");
+  if (c.job.source !== "qa_test") {
+    if (smsQuietReason(now.toISOString())) throw new WorkflowError("It's quiet hours (8pm–7am) — run it again after 7am. Nothing was changed.");
+    const { data: ws } = await admin.from("workflow_settings").select("customer_comms_enabled, sms_message_switches").eq("id", 1).maybeSingle();
+    const w = ws as { customer_comms_enabled?: boolean | null; sms_message_switches?: Record<string, boolean> | null } | null;
+    if (w?.customer_comms_enabled !== true || w?.sms_message_switches?.["quick_taps"] !== true) throw new WorkflowError("Customer messages or the quick taps texts are switched off. Nothing was changed.");
+  }
+  if (!await linkWorksAfterReopen(jobId, c.job.stage === "cancelled", now)) throw new WorkflowError("The owner has no working My job link. Nothing was changed.");
+  if (!opts.apply) return out;
+
+  if (c.job.stage === "cancelled") {
+    const { reopenJob } = await import("./office-actions.server");
+    await reopenJob(jobId, "Quick taps re-asked: flat roof tapped by mistake (Jo 3 Nov 2026)", opts.actorId);
+  }
+  await claimOnce(jobId, AREA_BATCH_LEFT_EVENT, { batch_id: oldBatchId, reason: "quick_taps_reask", idempotency_key: `quick-taps-reask:v1:${oldBatchId}:${jobId}:left` },
+    "Quick taps re-asked (owner tapped flat roof by mistake) — out of the old batch, into a fresh one for the same installer");
+  const { sendBatch } = await import("./area-batch.server");
+  const { firstName } = await import("./worker-links.core");
+  // If this send is refused after the reopen, running the script again (e.g. after 7am) finishes it.
+  const r = await sendBatch([jobId], out.installerId, opts.actorId, { now, ownerText: (name, link) => reaskText(firstName(name) || "there", link), emailOwner: false, reask: true });
+  out.newBatchId = r.batchId;
+  out.text = r.texts.map((t) => `${t.status}: ${t.detail}`).join("; ") || null;
+  return out;
+}

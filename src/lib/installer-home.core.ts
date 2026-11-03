@@ -25,6 +25,8 @@ export type InstallerHomeJob = {
   placeTitle: string | null;
   /** jobs.next_action — "Needs finishing: price, owner mobile… on the Mitti form" means the Mitti basics are missing. */
   nextAction: string | null;
+  /** Jo 3 Nov 2026: Mitti pickup still waiting for the installer's one electrician answer. */
+  chooseElectrician?: boolean;
   /** installerQuoteLine(...) for a Ready Check quote on the job, else null. */
   quoteLine: string | null;
   /** The shared status line (job-status.core) as the viewer sees it. */
@@ -86,6 +88,7 @@ export function installerNext(j: InstallerHomeJob): { group: HomeGroup; next: st
   if (status.kind === "ready_check") return { group: "action", next: status.home };
   const missing = needsFinishingItems(j.nextAction);
   if (missing) return { group: "action", next: `Next: finish the Mitti form (${missing} missing)` };
+  if (j.chooseElectrician) return { group: "action", next: "Next: choose your electrician" };
   if (status.kind === "price") return { group: "action", next: status.home };
   if (status.kind === "waiting_boss") return { group: "progress", next: status.home };
   if (j.quoteLine === PRESS_COMPLETE_LINE) return { group: "action", next: "Next: press Complete in Mitti when the Ready Check is finished" };

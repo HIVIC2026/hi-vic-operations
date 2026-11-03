@@ -110,7 +110,7 @@ function addJob(id: string, o: { source?: string; stage?: string; area?: number 
   tables["property_facts"]!.push({ property_id: `p-${id}`, job_id: id, fact_key: "coordinates", value: coords, is_current: true });
 }
 const ev = (jobId: string, type: string, hours: number, details: Row) => tables["workflow_events"]!.push({ id: crypto.randomUUID(), job_id: jobId, event_type: type, created_at: at(hours), details });
-const ANSWERS = { name: "x", address: "y", hatch: "yes", roof: "some", five_years: "not_sure", go: "yes" };
+const ANSWERS = { name: "x", address: "y", hatch: "yes", roof: "some", five_years: "not_sure", access: { who: "owner" as const }, go: "yes" };
 /** A batch sent to `installer`, every owner passed (consent to share), closed on day 3. */
 function closedBatch(batchId: string, jobIds: string[], installer = "biz-1", o: { noShare?: string[] } = {}) {
   for (const j of jobIds) ev(j, "area_batch_sent", -80, { batch_id: batchId, installer_business_id: installer, installer_name: "Sample Insulation", job_ids: jobIds, idempotency_key: `area-batch:v1:${j}:1` });
@@ -557,7 +557,7 @@ describe("wiring", () => {
   test("final review: Send again / Back to suggestions / installer choice are office-only and wired", () => {
     const src = (p: string) => readFileSync(p, "utf8");
     const ui = src("src/components/portal/choose-installer.tsx");
-    for (const s of ["Text didn't go — Send again", "Send again", "Back to suggestions", "returnBatchFn"]) expect(ui).toContain(s);
+    for (const s of ["Text didn't go — Send again", "Send again", "Back to To release", "returnBatchFn"]) expect(ui).toContain(s);
     const fns = src("src/lib/installer-run.functions.ts");
     expect(fns).toMatch(/export const returnBatchFn = createServerFn\(\{ method: "POST" \}\)\.middleware\(\[requireSupabaseAuth\]\)/);
     expect(fns.slice(fns.indexOf("export const returnBatchFn"))).toMatch(/requireOfficeIdentity[\s\S]*qa_office/);

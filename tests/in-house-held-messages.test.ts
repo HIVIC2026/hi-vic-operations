@@ -39,6 +39,7 @@ function fixture(held: boolean, payee = false, failed = false) {
     const code=ts.transpile(readFileSync(`src/lib/${name}.ts`,'utf8')+extra,{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}); const out:any={};
     new Function('exports','require',code)(out,(dep:string)=>{
       if(dep in modules)return modules[dep];
+      if(dep.startsWith('node:'))return require(dep); // #135 job-facts.server uses AsyncLocalStorage (join 4 Nov 2026)
       if(dep.startsWith('./')&&dep.endsWith('.core'))return require(`../src/lib/${dep.slice(2)}.ts`);
       if(dep.startsWith('./')) {const key=dep.slice(2);return cache[key]??(cache[key]=load(key));}
       throw new Error(`Unexpected dependency ${dep}`);

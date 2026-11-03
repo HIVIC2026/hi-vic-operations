@@ -1,32 +1,44 @@
-# HV-3682: why no PIESA offer went out (read-only findings)
+# Automatic Mitti invite for Leads — plan
 
-1. **Allocation tick at 17:45 / 18:00:** I couldn't confirm it. I'm not allowed to read the timer history, and the server log has no lines at all for the last hour. That's expected here: when a job isn't ready, the tick skips it quietly ("job_not_ready") and logs nothing. No offer or hand-back event was written for HV-3682.
+## What I found (read-only)
+- The code is ready but switched off three ways: the "Mitti calls checked" flag is off in the code, the auto-invite setting isn't saved, and the HIV trades group ID isn't saved either. The Mitti login secrets (token + user ID) are saved.
+- With the switch off, approving a Lead does nothing: no Mitti call, no message, no record.
 
-2. **Automatic offer decision:** it stops before looking at any electricians, with the reason **job_not_ready**. The job is still at "quote accepted", so the tick first checks whether it can move into the PIESA stage. That check fails (see 3), so no candidates are ranked and nothing is sent.
-   Candidates for postcode 3141 (none were actually ranked). I didn't work out distances, so I can't give km:
-   - Tom Lowe Electrical Services: eligible. Covers 3141, licence/REC OK, 1 approved worker, not paused, PIESA rate on file.
-   - All Powered Electrical: not eligible. No current licence/REC on file.
-   - Western Suburbs Electrical: not eligible. No current licence/REC on file.
-   - Spark Right Electrical: not eligible. Not an approved, active REC.
-   - ORLANDO POWERED: not eligible. Not accepting new jobs.
+## 1) Checking the Mitti user API safely (TEST person only)
+- One-off script, dry run by default, that refuses to run unless the person is a reserved TEST identity (TEST domain / TEST business). It would only ever use the persistent Mitti simulator otherwise.
+- Steps on Jo's "go", one at a time: (a) find by email for an existing TEST user (TEST Bravo Lead, already in Mitti) — read only; (b) create one new TEST Lite user at the TEST inbox jolowexo@hotmail.com (Mitti emails that inbox only); (c) add it to the trades group; (d) deactivate it again. Each step's result shown to Jo before the next.
+- MITTI_TRADES_GROUP_ID is NOT set. Jo/office needs to give us the HIV trades group ID from Mitti and add it in Settings → Secrets first.
 
-3. **Blockers:**
-   - The PIESA request check is clear (nothing blocking there).
-   - The check for moving into the PIESA stage fails on **Owner paperwork B**:
-     - "Customer agreement + consumer rights was signed on DRAFT wording — real jobs need Jo-approved wording."
-     - "The agreement not signed yet."
-     - "Your rebate (VEEC assignment) not signed yet."
-     - "Payment not signed yet."
-   - Likely cause (not confirmed): today's new payment wording version was never marked approved. The rule is that it doesn't approve itself.
+## 2) Switching it on
+- Needs all three: Mitti-checked flag turned on in code (after step 1 passes), MITTI_AUTO_INVITE_ENABLED=true added as a secret, group ID saved. Then publish (Jo publishes).
+- What a new Lead gets, when the office approves them:
+  - Mitti's own email (Mitti's wording, from Mitti) asking them to set a password — we don't control it.
+  - Our one message, by text if they have an Australian mobile, otherwise email. Wording: "You've been invited to Mitti, the app you'll use for Home Insulation Victoria job forms. Check your email from Mitti, set your password, and download the Mitti app." Email subject: "You've been invited to Mitti".
+  - Sent once only (recorded before sending), normal quiet hours/STOP/switches apply. Crew get nothing.
 
-4. **Tom Lowe Electrical:** yes on both. Tom is an approved worker, and the business is offerable for 3141 with no blocker. Nothing is wrong with the electrician.
+## 3) Lead with no email of their own — question for Jo
+Today it uses the business's email (Jo 28 Oct). Then Mitti's set-password email goes to the boss, and the Lead's Mitti login is the business email. Options:
+- A) Keep business email fallback (as today).
+- B) Wait: record "Mitti invite waiting for Lead's own email" on the office/Team page, invite as soon as the boss adds it (the new "Add email" box).
+I'd recommend B, but won't decide.
 
-5. **Smallest safe fix (to describe only, not done):**
-   - First confirm which wording version the owner signed and whether that version is approved.
-   - Then Jo picks one:
-     - (a) Approve the current owner paperwork wording through the normal admin approval, then have the owner sign the remaining Paperwork B items.
-     - (b) Treat this as a live test only and use an admin override with a reason, which leaves a permanent audit entry.
-   - After that, the next 15-minute tick would offer the job to Tom Lowe Electrical automatically.
-   - No code change is needed. Office could also use "Choose electrician", but the same paperwork check would still block it.
+## 4) Existing Leads not in Mitti (live, nothing sent)
+- Approved, marked Lead: none live (only TEST Bravo, already in Mitti).
+- Approved with no Lead/Crew set (older records): Silver Spirit Investments — Dominic Doherty (not in Mitti). Chris Lowe is already in Mitti.
+- Pending Leads (would be invited when approved): RAPID — James Sachinidis; Reinsulate — Manminder Singh, Wayne Fletcher (no own email, so question 3 applies).
+- Turning it on does NOT invite already-approved people; only new approvals. Any catch-up for Dominic would be a separate step for Jo's OK.
 
-No changes were made.
+## 5) Trade-message pause
+While "pause all trade messages" is on (it is now), nothing happens on approval — no Mitti user, no message, nothing recorded — and it does not auto-retry when unpaused. The office would need to re-approve or invite in Mitti. Question for Jo: keep that, or have paused Leads listed in office Needs me as "Mitti invite waiting for pause to lift" (still nothing sent until she un-pauses and confirms)?
+
+## 6) Tests (before any switch-on)
+- Switch off → nothing read/called/sent.
+- Lead approved → one create, one group add, one message; approved twice → no second invite or message.
+- Crew approved → no invite.
+- Paused → no create, no message.
+- No own email → behaviour per Jo's answer to Q3.
+- TEST people only reach the simulator; checker script refuses real people.
+- Removal deactivates once.
+
+## Not doing in this plan
+No code, sends, Mitti calls, data changes or publishing until Jo approves each step.

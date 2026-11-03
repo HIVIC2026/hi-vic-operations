@@ -92,7 +92,7 @@ export const createTestEnquiry = createServerFn({ method: "POST" })
     // 31 Oct: requireOfficeIdentity, not rpc/has_role (the database wall refuses that for the TEST office). It refuses
     // anyone who is neither admin nor a verified, single-role TEST office login.
     const { requireOfficeIdentity } = await import("./qa-office-access.server");
-    const who = await requireOfficeIdentity(context.supabase);
+    const who = await requireOfficeIdentity(context.supabase, context);
     const roles = { admin: who === "admin", qaOffice: who === "qa_office" };
     let emailHasAccount = false;
     if (roles.qaOffice && !roles.admin) {
@@ -3169,9 +3169,9 @@ export const getQaJourneys = createServerFn({ method: "POST" })
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const { requireOfficeIdentity, officeTestJobIds } = await import("./qa-office-access.server");
     let ids: { id: string }[];
-    if ((await requireOfficeIdentity(context.supabase)) === "qa_office") {
+    if ((await requireOfficeIdentity(context.supabase, context)) === "qa_office") {
       // Review 30 Oct: the TEST office only sees fully isolated TEST jobs (TEST owner, people and partners).
-      ids = (await officeTestJobIds(context.supabase)).map((id) => ({ id }));
+      ids = (await officeTestJobIds(context.supabase, context)).map((id) => ({ id }));
     } else {
       const { data: rows, error: idError } = await admin
         .from("jobs")

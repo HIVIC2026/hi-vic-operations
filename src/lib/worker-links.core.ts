@@ -1,5 +1,6 @@
 // Worker magic links: one company account, approved workers listed under it, and a
 // per-job secure link per worker. Pure rules only — persistence in worker-links.server.ts.
+import { displayName } from "./display-name.core";
 
 export const LINK_DAYS = 30;
 const DAY = 86_400_000;
@@ -56,4 +57,4 @@ export function needsReapproval(before: Record<string, unknown>, after: Record<s
 export const senderLabel = (workerName: string, businessName: string | null) =>
   businessName ? `${workerName} — ${businessName}` : workerName;
 
-export const firstName = (full: string | null | undefined) => (full ?? "").trim().split(/\s+/)[0] || null;
+export const firstName = (full: string | null | undefined) => displayName(full).split(" ")[0] || null;

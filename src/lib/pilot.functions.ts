@@ -52,6 +52,7 @@ export const saveBusiness = createServerFn({ method: "POST" }).middleware([requi
     if (sb) throw new WorkflowError(sb);
     const { id, verify_coverage, ...patch } = data;
     delete (patch as Record<string, unknown>)["pays_own_electricians"]; // Defence in depth, including office creates.
+    delete (patch as Record<string, unknown>)["piesa_booked_by"]; // Set only by the installer boss through tradeSetPiesaBooker.
     if (patch.service_postcodes) {
       const invalid = patch.service_postcodes.filter((entry) => !/^3\d{3}$/.test(entry) && !/^3\d{0,2}\*$/.test(entry));
       if (invalid.length) throw new WorkflowError(`Invalid Victorian postcode coverage: ${invalid.join(", ")}`);
@@ -109,6 +110,11 @@ export const setOnboardingStatus = createServerFn({ method: "POST" }).middleware
     const { business, credentials } = await loadBusiness(data.businessId);
     if (!business) throw new WorkflowError("Business not found");
     if (data.status === "approved") {
+      // Part 2b: an installer-added electrician is approved ONLY through its own hard checklist (my-electricians.server
+      // officeApproveInstallerElectrician: credentials verified, person approved, profile, link on, welcome text). The
+      // generic Approve must not bypass it. `select("*")` carries the pending column when it exists; absent = not installer-added.
+      const { isInstallerAddedElectrician } = await import("./my-electricians.core");
+      if (isInstallerAddedElectrician(business)) throw new WorkflowError("Use the electrician card on this page to approve an installer-added electrician.");
       const { count } = await admin.from("partner_agreements").select("id", { count: "exact", head: true }).eq("business_id", data.businessId);
       const missing = onboardingChecklist(business as BusinessLike, credentials, !!count).filter((i) => !i.done);
       if (missing.length) throw new WorkflowError(`Cannot approve yet: ${missing.map((m) => m.label).join(" • ")}`);
@@ -409,8 +415,8 @@ export const electricianOptions = createServerFn({ method: "POST" }).middleware(
     const ranked = rankElectricians(cands, site);
     const { data: members } = await admin.from("business_members").select("business_id, user_id, profiles!business_members_user_id_fkey(full_name)").in("business_id", ranked.map((r) => r.id).length ? ranked.map((r) => r.id) : ["00000000-0000-0000-0000-000000000000"]).eq("active", true);
     const { data: noms } = await admin.from("electrician_nominations").select("id, contact_name, business_name, status, created_at").eq("job_id", data.jobId);
-    const { data: j } = await admin.from("jobs").select("electrician_choice").eq("id", data.jobId).single();
-    return { ranked: ranked.map((r) => ({ ...r, preferred: cands.find((c) => c.id === r.id)?.preferred ?? false, people: (members ?? []).filter((m) => m.business_id === r.id).map((m) => ({ id: m.user_id, name: (m.profiles as unknown as { full_name: string | null } | null)?.full_name ?? "Electrician" })) })), nominations: noms ?? [], choice: j?.electrician_choice ?? null };
+    const { data: j } = await admin.from("jobs").select("electrician_choice,channel").eq("id", data.jobId).single();
+    return { installerSourced: j?.channel === "installer_sourced", ranked: ranked.map((r) => ({ ...r, preferred: cands.find((c) => c.id === r.id)?.preferred ?? false, people: (members ?? []).filter((m) => m.business_id === r.id).map((m) => ({ id: m.user_id, name: (m.profiles as unknown as { full_name: string | null } | null)?.full_name ?? "Electrician" })) })), nominations: noms ?? [], choice: j?.electrician_choice ?? null };
   });
 
 export const chooseElectrician = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
@@ -420,6 +426,9 @@ export const chooseElectrician = createServerFn({ method: "POST" }).middleware([
   }).parse(d))
   .handler(async ({ data, context }) => {
     const role = await requireJobRole(context.supabase, data.jobId, ["admin", "installer"]);
+    const { data: jobChannel, error: channelError } = await context.supabase.from("jobs").select("channel").eq("id", data.jobId).single();
+    if (channelError || !jobChannel) throw new WorkflowError("Couldn't check this job.");
+    if (jobChannel.channel === "installer_sourced" && data.choice === "hivic_organise") throw new WorkflowError("Use one of your own electricians.");
     const { cands } = await electricianCandidates(data.jobId);
     const cand = data.businessId ? cands.find((c) => c.id === data.businessId) ?? null : null;
     const blocker = electricianSelectionBlocker(data.choice, cand);

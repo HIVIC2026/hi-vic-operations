@@ -4,6 +4,8 @@ import ts from "typescript";
 import * as pricing from "../src/lib/installer-paid-electricians.core";
 import * as rec from "../src/lib/rec-onboarded.core";
 import * as usual from "../src/lib/usual-electrician.core";
+import * as safetyPrice from "../src/lib/safety-check-price.core";
+import { buildInstallerQuoteDraft } from "../src/lib/installer-led.core";
 
 // Evaluate the actual server code against local read fixtures. No hosted clients or delivery imports.
 function moduleAt(path: string, dependencies: Record<string, unknown>) {
@@ -25,10 +27,10 @@ function reads(rows: Record<string, unknown[]>, failedTable?: string) {
     return q;
   } } };
 }
-function priceModule(fixture: ReturnType<typeof reads>) {
+function priceModule(fixture: ReturnType<typeof reads>, today = "2026-10-30") {
   return moduleAt("src/lib/installer-paid-electricians.server.ts", {
     "@/integrations/supabase/client.server": { supabaseAdmin: fixture.admin },
-    "./sweep-batch.core": { chunkIds: (ids: unknown[], n: number) => Array.from({length:Math.ceil(ids.length/n)},(_,i)=>ids.slice(i*n,(i+1)*n)) }, "./mitti-membership.core": { mittiAccessOf: () => "member" }, "./installer-paid-electricians.core": pricing, "./melbourne-time.core": { melbourneToday: () => "2026-10-30" },
+    "./sweep-batch.core": { chunkIds: (ids: unknown[], n: number) => Array.from({length:Math.ceil(ids.length/n)},(_,i)=>ids.slice(i*n,(i+1)*n)) }, "./mitti-membership.core": { mittiAccessOf: () => "member" }, "./installer-paid-electricians.core": pricing, "./melbourne-time.core": { melbourneToday: () => today },
   });
 }
 test("payee batch reads both flags and any active effective card with a PIESA line", async () => {
@@ -37,7 +39,6 @@ test("payee batch reads both flags and any active effective card with a PIESA li
   expect(result.get("a").piesaIncGst).toBe(110);
   expect(result.get("b").piesaIncGst).toBe(220);
   expect(f.calls.map(c => c.table)).toEqual(["businesses", "rate_cards", "rate_card_items"]);
-  expect(f.calls[0]?.filters).toContainEqual(["or", "in_house.eq.true,pays_own_electricians.eq.true"]);
   expect(f.calls[1]?.filters).not.toContainEqual(["eq", "kind", "electrical"]);
   expect(f.calls[1]?.filters).toContainEqual(["eq", "is_active", true]);
   expect(f.calls[1]?.filters).toContainEqual(["lte", "effective_from", "2026-10-30"]);
@@ -60,8 +61,9 @@ function usualModule(priceRead: () => Promise<unknown>, candidates: rec.Approved
     "@/integrations/supabase/client.server": { supabaseAdmin: f.admin }, "./usual-electrician.core": usual,
     "./mitti.core": { contactAnswersFromEntries: () => ({}) }, "./workflow.server": { logEvent: async () => {} },
     "./electrician-choice.core": { resolveElectricianChoice: () => "usual" }, "./electrician-choice.server": { readElectricianChoice: async () => "usual" },
-    "./rec-onboarded.core": rec, "./rec-onboarded.server": { loadApprovedRecCandidates: async () => candidates },
-    "./installer-paid-electricians.server": { readInstallerPaidElectricians: priceRead },
+    "./rec-onboarded.core": rec, "./rec-onboarded.server": { loadApprovedRecCandidates: async () => candidates }, "./job-electrician.server": { jobChosenElectrician: async () => null },
+    "./installer-paid-electricians.server": { readInstallerPaidElectricians: priceRead, installerSafetyCheckPrice: async () => (await priceRead() as { piesaIncGst?: number } | null)?.piesaIncGst ?? 999 },
+    "./safety-check-price.core": safetyPrice, "./installer-paid-electricians.core": pricing,
   });
 }
 test("usual-electrician refuses a failed configuration read instead of pricing", async () => {
@@ -158,4 +160,52 @@ test("actual in-house facts read the business Mitti invitation, failing closed w
     expect(f.calls.find(c=>c.table==="businesses")?.filters).toContainEqual(["select","mitti_account_invited"]);
   }
   await expect(priceModule(reads({},"businesses")).inHouseFactsFor("a")).rejects.toThrow("Mitti invitation");
+});
+
+test("actual price-list reader prices Rapid $275 and Reinsulate $349 independently of payee flags", async () => {
+  const f = reads({ businesses: [{ id: "rapid", name: "Rapid", in_house: false, pays_own_electricians: false }, { id: "reinsulate", name: "Reinsulate", in_house: false, pays_own_electricians: true }],
+    rate_cards: [{ id: "cr", business_id: "rapid" }, { id: "cs", business_id: "reinsulate" }],
+    rate_card_items: [{ rate_card_id: "cr", unit_price_ex_gst: 250 }, { rate_card_id: "cs", unit_price_ex_gst: 317.27 }] });
+  const result = await priceModule(f).installerSafetyCheckBusinessesFor(["rapid", "reinsulate"]);
+  expect(result.get("rapid").piesaIncGst).toBe(275);
+  expect(result.get("reinsulate").piesaIncGst).toBe(349);
+});
+
+test("actual installer resolver uses Rapid's $275 list instead of the REC's $999 rate", async () => {
+  const candidates = [{ business_id: "rec", name: "REC", rec_number: "A1", worker_licences: [], onboarding_status: "approved", is_active: true, approved_electricians: 1, piesa_rate: { id: "rate", rate_inc_gst: 999 } }];
+  const m = usualModule(async () => ({ businessId: "a", name: "Rapid", piesaIncGst: 275 }), candidates);
+  expect(await m.mittiElectricianForJob("j", null, [], "audit")).toMatchObject({ ready: true, priceIncGst: 275 });
+});
+
+test("installer-source payout passes Rapid's whole $275 even with both payee flags off", async () => {
+  const f = reads({ businesses: [{ id: "rapid", name: "Rapid", in_house: false, pays_own_electricians: false }], rate_cards: [{ id: "cr", business_id: "rapid" }], rate_card_items: [{ rate_card_id: "cr", unit_price_ex_gst: 250 }], workflow_events: [] });
+  const payees = await priceModule(f).safetyCheckPayeesFor([{ id: "j", channel: "installer_sourced", originating_installer_business_id: "rapid" }]);
+  expect(payees.get("j")).toEqual({ businessId: "rapid", name: "Rapid", piesaIncGst: 275 });
+});
+
+test("installer-source payout preserves the recorded quote fee rather than today's list", async () => {
+  const f = reads({ businesses: [{ id: "rapid", name: "Rapid", in_house: false, pays_own_electricians: false }], rate_cards: [{ id: "cr", business_id: "rapid" }], rate_card_items: [{ rate_card_id: "cr", unit_price_ex_gst: 250 }], quotes: [{ job_id: "j", quote_items: [{ code: "PIESA", line_total_inc_gst: 300 }] }] });
+  const payees = await priceModule(f).safetyCheckPayeesFor([{ id: "j", channel: "installer_sourced", originating_installer_business_id: "rapid" }]);
+  expect(payees.get("j")?.piesaIncGst).toBe(300);
+});
+
+test("Rapid's saved 3 Nov electrical card feeds a $275 owner quote and $275 Rapid payee", async () => {
+  // Read-only verified live card facts; all execution stays local and cannot write or send.
+  const rapid = "e7efa7b8-8f5a-486e-b439-de1b39b911b5";
+  const card = "73d15d0d-11e0-448d-bcd1-dc045f49dda1";
+  const f = reads({
+    businesses: [{ id: rapid, name: "RAPID INSULATION", in_house: true }],
+    rate_cards: [{ id: card, business_id: rapid, name: "In-house PIESA", kind: "electrical", version: 1, is_active: true, effective_from: "2026-11-03" }],
+    rate_card_items: [{ rate_card_id: card, code: "PIESA", unit_price_ex_gst: 250 }],
+    quotes: [],
+  });
+  const api = priceModule(f, "2026-11-03");
+  const fee = await api.installerSafetyCheckPrice(rapid);
+  expect(fee).toBe(275);
+  const quote = buildInstallerQuoteDraft({ price: { ok: true, issues: [], price: { totalIncGst: 3000, included: ["Insulation"], otherDescription: "", agreedWithOwner: false } }, measuredM2: 100, wholeVeec: { veecs: 0, raw: 0 }, piesaIncGst: fee, apFeeIncGst: 349, caps: { metropolitan: true, minCopay: 200 } });
+  const ownerFee = quote.lines.find(l => l.code === "PIESA")?.line_total_inc_gst;
+  expect(ownerFee).toBe(275);
+  const payee = (await api.safetyCheckPayeesFor([{ id: "rapid-local-fixture", channel: "installer_sourced", originating_installer_business_id: rapid }])).get("rapid-local-fixture");
+  expect(payee).toEqual({ businessId: rapid, name: "RAPID INSULATION", piesaIncGst: 275 });
+  expect(Number(ownerFee) - Number(payee?.piesaIncGst)).toBe(0);
 });

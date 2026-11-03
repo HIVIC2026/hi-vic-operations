@@ -2,17 +2,21 @@
 // job bundle (trade-job-bundle.server). One body, called from both. Jo 24 Oct 2026: there is no installer approval step;
 // on our leads the installer sees the status only, and on their own jobs the figures are the business owner's.
 import { early } from "./early-read";
+import { sharedFor, type SharedJobReads } from "./job-shared-reads";
 
 type Rpc = { rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }> };
 
-export async function myOwnerQuoteFor(sb: Rpc, userId: string, jobId: string) {
+export async function myOwnerQuoteFor(sb: Rpc, userId: string, jobId: string, sharedReads?: SharedJobReads) {
+  // Speed (Task 6): the job page bundle's quote read and trade context, when taken for this caller and job. The two access
+  // checks below still run.
+  const shared = sharedFor(sharedReads, userId, jobId);
   // Speed (installer screens, Task 6): the two access checks, the quote facts and the caller's business context need only
   // the caller and the job, so they are read together. Each is awaited in the old order, so a refusal still comes first
   // and nothing read is used or returned before both checks pass.
   const okP = early(sb.rpc("can_access_job", { _job: jobId }));
   const instP = early(sb.rpc("has_role", { _user_id: userId, _role: "installer" }));
-  const quoteP = early(import("./installer-quote-status.server").then((m) => m.loadInstallerQuote(jobId)));
-  const ctxP = early(import("./trade-view.server").then((m) => m.tradeContext(userId)).catch(() => null));
+  const quoteP = early(shared ? shared.quote() : import("./installer-quote-status.server").then((m) => m.loadInstallerQuote(jobId)));
+  const ctxP = early(shared ? Promise.resolve(shared.access) : import("./trade-view.server").then((m) => m.tradeContext(userId)).catch(() => null));
   const { data: ok, error } = await okP;
   if (error || !ok) throw new Error("Not your job.");
   const { data: inst } = await instP;

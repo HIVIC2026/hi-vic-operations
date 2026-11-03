@@ -5,7 +5,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import { type LocationVariables } from "./activity48.core";
 import { wholeVeecDiscount } from "./estimate.core";
-import { buildInstallerQuoteDraft, quotedPriceFromEntries, piesaChargeIncGst } from "./installer-led.core";
+import { buildInstallerQuoteDraft, quotedPriceFromEntries } from "./installer-led.core";
 import { installerQuoteReleaseBlockers, payerFromChoice } from "./installer-intake.core";
 import { IN_HOUSE_PIESA_HOLD_REASON } from "./installer-paid-electricians.core";
 
@@ -46,7 +46,7 @@ export async function quoteBillingBlocker(quoteId: string): Promise<string | nul
 }
 
 export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: string | null, formEntries: { label: string; value: string | null }[], auditId: string, intakePrice?: { totalIncGst: number; includes: string; areaM2?: number; separateLines?: { code: string; description: string; amountIncGst: number }[]; exclusions?: string | null }) {
-  const { data: job } = await admin.from("jobs").select("channel, stage, deleted_at, qa_archived_at, ap_fee_override_inc_gst, electrician_choice, properties(postcode)").eq("id", jobId).single();
+  const { data: job } = await admin.from("jobs").select("channel, stage, deleted_at, qa_archived_at, ap_fee_override_inc_gst, electrician_choice, originating_installer_business_id, properties(postcode)").eq("id", jobId).single();
   if (!job || job.channel !== "installer_sourced") return null;
   if ((await import("./mitti.core")).isClosedOrArchivedJob(job)) return null; // HV-1351: no draft, no hold, no events
   // Decision 278: price, inclusions and electrician come from the business owner's portal entry (`installer_price_set`,
@@ -84,11 +84,12 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   // installer line and taken out only for the per-m² price check.
   const accessFee = !intakePrice ? answers.difficultAccessFee(entries) : { amountIncGst: null, reason: null };
   const apFee = job.ap_fee_override_inc_gst != null ? Number(job.ap_fee_override_inc_gst) : rs ? Number(rs.ap_management_inc_gst) : null;
+  const installerPiesa = intakePrice ? await (await import("./installer-paid-electricians.server")).installerSafetyCheckPrice(job.originating_installer_business_id) : mittiElectrician?.priceIncGst ?? null;
   const draftInput = {
     price: intakePrice ? { ok: true, issues: [], price: { included: [intakePrice.exclusions ? `${intakePrice.includes} (excludes: ${intakePrice.exclusions})` : intakePrice.includes], otherDescription: "", totalIncGst: Math.round(intakePrice.totalIncGst * 100) / 100, agreedWithOwner: false } } : quotedPriceFromEntries(entries, m?.removal_required ?? null), measuredM2: m2, wholeVeec,
     // CURRENT recorded payer: HIV = standard; own electrician (billed through us, Jo 26 Oct) or undecided = held until the Ready Check gives the price.
     separateLines: intakePrice?.separateLines ?? [],
-    piesaIncGst: piesaChargeIncGst(job.electrician_choice ?? null, rs ? Number(rs.piesa_assessment_inc_gst) : null), apFeeIncGst: apFee,
+    piesaIncGst: installerPiesa, apFeeIncGst: apFee,
     caps: {
       metropolitan: loc ? (loc as unknown as LocationVariables).metropolitan_or_regional === "Metropolitan" : null,
       minCopay: rs ? Number(rs.minimum_customer_copayment_inc_gst) : 200,

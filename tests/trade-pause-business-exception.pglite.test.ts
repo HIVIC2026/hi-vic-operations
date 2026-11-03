@@ -39,6 +39,9 @@ await db.exec(readFileSync("docs/pending-migrations/trade-messages-paused.sql", 
 await db.exec(readFileSync("docs/pending-migrations/business-messages-while-paused.sql", "utf8"));
 const TOM = "55555555-5555-5555-5555-555555555555";
 await db.exec(`insert into public.businesses(id, name, email, is_active, approved_at, messages_while_paused) values ('${TOM}', 'Tom Electrical', 'tom@tom.example', true, now(), true)`);
+await db.exec(`alter table public.jobs add column originating_installer_business_id uuid;
+  create table public.partner_relationships(id uuid primary key default gen_random_uuid(), installer_business_id uuid, electrician_business_id uuid, active boolean not null default true);
+  create table public.job_assignments(id uuid primary key default gen_random_uuid(), job_id uuid, business_id uuid, role text, active boolean not null default true)`);
 await db.exec(`update public.workflow_settings set sms_message_switches = '{"job_offer":true,"team_member_invite":true,"install_tomorrow":true,"swms_sign_link":true,"quote_ready":true,"owner_code":true}' where id = 1`);
 
 const twilio: string[] = [];
@@ -94,9 +97,79 @@ describe("per-business exception (messages_while_paused)", () => {
     expect(await tradeMessagesPausedNow({ businessId: TOM })).toBeNull();
     expect((await db.query<{ p: boolean }>("select trade_messages_paused p from public.workflow_settings where id=1")).rows[0]!.p).toBe(true);
   });
-  test("a partner text to the flagged business is still held (emails only)", async () => {
+  test("a partner text to the flagged business now goes (Jo 31 Oct: texts and emails)", async () => {
     const r = await sendRealSms({ type: "swms_sign_link", idempotencyKey: "swms-sign:v1:tom", to: "0412 000 111", body: "x", jobId: JOB, businessId: TOM });
-    expect(r).toMatchObject({ status: "blocked", detail: "Trade messages paused" });
+    expect(r.status).toBe("sent");
+    const held = await sendRealSms({ type: "swms_sign_link", idempotencyKey: "swms-sign:v1:acme", to: "0412 345 678", body: "x", jobId: JOB, businessId: BIZ });
+    expect(held).toMatchObject({ status: "blocked", detail: "Trade messages paused" });
   });
 });
 
+
+describe("related businesses lift the pause", () => {
+  const HELD = "Trade messages paused";
+  const J1 = "aaaaaaaa-0000-0000-0000-000000000001", J2 = "aaaaaaaa-0000-0000-0000-000000000002", J3 = "aaaaaaaa-0000-0000-0000-000000000003";
+  const ELEC = "bbbbbbbb-0000-0000-0000-000000000001", INST2 = "bbbbbbbb-0000-0000-0000-000000000002", ELEC2 = "bbbbbbbb-0000-0000-0000-000000000003";
+  beforeEach(async () => { await db.exec("delete from public.job_assignments; delete from public.partner_relationships; delete from public.jobs where id in ('" + [J1, J2, J3].join("','") + "')"); });
+  test("job_lifts_via_originating_installer", async () => {
+    const { tradeMessagesPausedNow } = await import("../src/lib/trade-pause.server");
+    await db.exec(`insert into public.jobs(id, originating_installer_business_id) values ('${J1}', '${TOM}')`);
+    expect(await tradeMessagesPausedNow({ jobId: J1 })).toBeNull();
+  });
+  test("job_lifts_via_active_assignment", async () => {
+    const { tradeMessagesPausedNow } = await import("../src/lib/trade-pause.server");
+    await db.exec(`insert into public.jobs(id) values ('${J2}'); insert into public.job_assignments(job_id, business_id, role, active) values ('${J2}', '${TOM}', 'installer', true)`);
+    expect(await tradeMessagesPausedNow({ jobId: J2 })).toBeNull();
+    await db.exec("update public.job_assignments set active = false");
+    expect(await tradeMessagesPausedNow({ jobId: J2 })).toBe(HELD);
+  });
+  test("electrician_lifts_via_linked_installer", async () => {
+    const { tradeMessagesPausedNow } = await import("../src/lib/trade-pause.server");
+    await db.exec(`insert into public.businesses(id, name, is_active) values ('${ELEC}', 'Elec', true), ('${INST2}', 'Inst2', true), ('${ELEC2}', 'Elec2', true);
+      insert into public.partner_relationships(installer_business_id, electrician_business_id, active) values ('${TOM}', '${ELEC}', true), ('${INST2}', '${ELEC}', true), ('${TOM}', '${ELEC2}', false)`);
+    expect(await tradeMessagesPausedNow({ businessId: ELEC })).toBeNull();
+    expect(await tradeMessagesPausedNow({ businessId: ELEC2 })).toBe(HELD);
+    await db.exec(`delete from public.businesses where id in ('${ELEC}','${INST2}','${ELEC2}')`);
+  });
+  test("unflagged_and_unassigned_stay_held", async () => {
+    const { tradeMessagesPausedNow } = await import("../src/lib/trade-pause.server");
+    await db.exec(`insert into public.jobs(id) values ('${J3}')`);
+    expect(await tradeMessagesPausedNow({ jobId: J3 })).toBe(HELD);
+    expect(await tradeMessagesPausedNow({ businessId: BIZ })).toBe(HELD);
+    expect(await tradeMessagesPausedNow({ businessId: BIZ, jobId: J3 })).toBe(HELD);
+  });
+  test("narrowed_rule_3_nov", async () => {
+    // R = TOM (flagged installer), X = INST2 (unflagged installer), E = ELEC linked to both; U = ELEC2 unflagged, unlinked.
+    const { tradeMessagesPausedNow } = await import("../src/lib/trade-pause.server");
+    await db.exec(`insert into public.businesses(id, name, is_active) values ('${ELEC}', 'Elec', true), ('${INST2}', 'Inst2', true), ('${ELEC2}', 'Elec2', true);
+      insert into public.partner_relationships(installer_business_id, electrician_business_id, active) values ('${TOM}', '${ELEC}', true), ('${INST2}', '${ELEC}', true);
+      insert into public.jobs(id, originating_installer_business_id) values ('${J1}', '${TOM}'), ('${J2}', '${INST2}');`);
+    try {
+      expect(await tradeMessagesPausedNow({ businessId: ELEC, jobId: J2 })).toBe(HELD); // E about X's job
+      expect(await tradeMessagesPausedNow({ businessId: ELEC, jobId: J1 })).toBeNull(); // E about R's job
+      expect(await tradeMessagesPausedNow({ businessId: ELEC })).toBeNull(); // E, no job
+      expect(await tradeMessagesPausedNow({ businessId: ELEC2, jobId: J1 })).toBe(HELD); // unlinked electrician offered R's job
+      expect(await tradeMessagesPausedNow({ businessId: TOM, jobId: J2 })).toBeNull(); // flagged R as recipient
+      expect(await tradeMessagesPausedNow({ businessId: TOM })).toBeNull();
+      expect(await tradeMessagesPausedNow({ jobId: J1 })).toBeNull(); // job only, R's job
+      expect(await tradeMessagesPausedNow({ jobId: J2 })).toBe(HELD); // job only, X's job
+      // E on X's job where R is an active assignee: lifted (R is on the job).
+      await db.exec(`insert into public.job_assignments(job_id, business_id, role, active) values ('${J2}', '${TOM}', 'installer', true)`);
+      expect(await tradeMessagesPausedNow({ businessId: ELEC, jobId: J2 })).toBeNull();
+      // ...but never for the unrelated, unlinked electrician.
+      expect(await tradeMessagesPausedNow({ businessId: ELEC2, jobId: J2 })).toBe(HELD);
+      // The job read failing keeps a linked electrician's job message held (fail closed).
+      await db.exec("alter table public.job_assignments rename to ja_tmp");
+      try { expect(await tradeMessagesPausedNow({ businessId: ELEC, jobId: J1 })).toBe(HELD); }
+      finally { await db.exec("alter table public.ja_tmp rename to job_assignments"); }
+    } finally { await db.exec(`delete from public.businesses where id in ('${ELEC}','${INST2}','${ELEC2}')`); }
+  });
+  test("read_failure_holds", async () => {
+    const { tradeMessagesPausedNow } = await import("../src/lib/trade-pause.server");
+    await db.exec(`insert into public.jobs(id, originating_installer_business_id) values ('${J1}', '${TOM}')`);
+    await db.exec("alter table public.businesses rename column messages_while_paused to mwp_tmp");
+    try { expect(await tradeMessagesPausedNow({ jobId: J1 })).toBe(HELD); expect(await tradeMessagesPausedNow({ businessId: TOM })).toBe(HELD); }
+    finally { await db.exec("alter table public.businesses rename column mwp_tmp to messages_while_paused"); }
+    expect(await tradeMessagesPausedNow({ jobId: J1 })).toBeNull();
+  });
+});

@@ -1,3 +1,23 @@
+## Jo 3 Nov 7:52pm active installer Team role choice
+- [x] Test-first: no preselected Lead/Crew, Add disabled until chosen, server requires installer workerRole, exact explanation; existing Mitti behaviour unchanged. 112 related tests pass, including missing-role zero-write and two-business email isolation; automatic checks build OK. Actual form extracted into a write-blocked browser fixture confirms neither selected initially and either choice enables Add; authenticated save not run (no data changes permitted). No data changes, sends or publishing.
+
+## Jo 3 Nov 10:39am Rapid recorded price
+- [x] Jo reports approved direct save 3 Nov 10:42am Sydney; read-only verified Rapid's new active electrical `In-house PIESA` v1 (effective 3 Nov), PIESA $250 ex / $275 inc, and `safety_check_prices_jo_3nov` audit. Local actual-reader → owner quote → payee regression added using those card facts; full $275 to Rapid, zero markup. No data changes, sends or publishing in this check; authenticated live job UI proof remains NOT RUN.
+
+## Jo 3 Nov 10:30am installer safety-check correction
+- [x] Test-first restored installer-owned price-list owner fee and whole-fee pass-through, preserving recorded quote/payout values; website owner/payout unchanged. Requested examples and related focused tests pass. Broader historical suites have identical baseline failures (13/16/4). Subsequent 10:42am approved saves verified below; Rapid saved-card regression passes (17/17 reader tests plus 14/14 pricing tests). No data changes, sends or publishing during verification.
+- [ ] Authenticated pricing flow proof: BLOCKED by unavailable Jo admin session; no new TEST/live data created to bypass it.
+
+## Jo 3 Nov 10:20am safety-check recorded data saves
+- [x] Jo reports approved direct saves 3 Nov 10:42am Sydney, logged in `admin_config_events` as `safety_check_prices_jo_3nov`; read-only verified ORLANDO POWERED new active rate $349 (old $350 superseded), Orlando and Reinsulate PIESA list lines $317.27 ex, office payout setting $250 ex. TEST Reinsulate line remains $318.18 ex. No repeat saves; Rapid fifth value verified above.
+
+## Jo 3 Nov installer-only electrician correction
+- [x] Red-first own-only rules; installer intake/editor/job/price inputs and server guards updated; website-lead route and agreement unchanged. Unanswered/legacy defaults use approved usual or office hold.
+- [x] Automatic type/build checks clean; practice recorded-writer two-business nomination isolation passes. Related results documented in docs/installer-own-electrician-results.md; authenticated browser flow NOT RUN (Jo's session unavailable).
+- [ ] Separate recorded data step HV-3136–HV-3150: BLOCKED, Jo admin session unavailable; no direct SQL bypass. All live/TEST records untouched.
+- [ ] HV-3193 LAST, save awaits Jo's approval AND available normal authenticated recorded path. Read-only price preview: $2,078 → $2,079 inc GST; PIESA $349 → $350 from Reinsulate active rate; other lines unchanged.
+- [ ] Repeat safety-check hint remains open by Jo's decision; no change.
+
 ## Jo 2 Nov full published in-house test tool
 - [x] Test-first fail-closed runner/published probe scaffolding: 5 new tests and related 18/0; separate canonical portal-qa dispatch. Endpoint returns incomplete capabilities, not permission to run.
 - [ ] Implement/prove complete deployed provider capture, run-bound TEST scope and unchanged launch hold.
@@ -894,3 +914,24 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [x] Journey not-eligible 1.4: T7 only from office close on early enquiries; never sent after a Ready Check
 - [x] Mitti Ready Check form switch ON (Jo 27 Oct), checked on TEST HV-3346
 - [ ] Silver Spirit: Chris added on TEMPORARY TEST CII (Dom's C11-083) — replace with Chris's own CII when Jo has it
+
+- [x] Mitti pickup electrician question (built 3 Nov, not published)
+- [ ] HV-3722 address check: show result only, save waits for Jo OK
+- [x] HV-3722: saved verified address 9 Shelley Street, Spring Gully VIC 3550 via normal recorded path (Jo OK 3 Nov)
+
+## Safety check $349 / $275 (Jo 3 Nov 9:56am Sydney)
+- [x] Owner always $349 on new quotes; installer jobs pass $349 to installer; HIV leads pay electrician $275; recorded offers/quotes unchanged (built, not published)
+- [ ] Data step: Orlando rate $350→$349, Orlando + Reinsulate PIESA lines $350→$349, office payout setting empty→$275 — waits for Jo's OK
+
+## Team required details (Jo 3 Nov 2:37pm) — DONE
+- [x] Jo 3 Nov 7:46pm: optional installer Add email box and shared missing-only save; email still optional with no required-detail prompt. Red-first rules and actual-handler two-boss/duplicate/no-overwrite tests passed; related Team/privacy tests 80/0, automatic checks clean. Authenticated live save not run because data changes prohibited; no live data, sends or publishing.
+- Installers: Australian mobile + date of birth required, email optional. Electricians: mobile + date of birth + email. Form + Team add + office/boss add enforce it; Team page shows "Add X's …" prompts. No data changed.
+- [x] Jo 3 Nov ~3pm: Team page boxes to fill a missing date of birth (anyone, private) and missing email (electricians only); sign-up link asks date of birth (required, private). Tests pass; no data changed.
+
+## Mitti auto-invite for Leads (Jo 3 Nov 8:11pm)
+- [x] Q3: Lead with no own email waits ("Mitti invite waiting for Lead's own email"); invited when the boss adds it
+- [x] Q5: Leads approved while paused → Needs me "Mitti invite waiting for pause to lift"; Send only on Jo's confirm
+- [x] Step 1(a) find-by-email checked (real Mitti)
+- [x] Step 1(b)/(d): created and deactivated user_bd7248f091294ec2a729988354f2febf at Jo's approved alternate email; real results confirmed
+- [x] Step 1(c): not required — Jo confirms there is no trades group
+- [x] Jo 3 Nov 9:56pm: verified API true and auto-invite secret saved; new approved Leads only from 10:56 UTC, no groups, own-email and pause-confirmation guards preserved. Existing approvals/edit/renewal/repeated approval excluded; TEST never reaches live provider. Red-first and related tests passed, including PGlite repeated-approval and two-boss isolation. Automatic portal checks clean; no live invitation exercised (sending prohibited), no record changes or publishing.

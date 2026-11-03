@@ -130,6 +130,7 @@ function load(name: string, cache: Record<string, any> = {}): any {
     if (path.startsWith("./")) return load(path.slice(2), cache);
     // Trade-view's static pure imports are irrelevant to this new member-scoped wrapper.
     if (name === "trade-view.server") return {};
+    if (path.startsWith("node:")) return require(path); // #135 job-facts.server uses AsyncLocalStorage (join 4 Nov 2026)
     throw new Error(`Unexpected dependency ${path}`);
   };
   new Function("exports","require",...Object.keys(extra),ts.transpile(source,{ module: ts.ModuleKind.CommonJS,target: ts.ScriptTarget.ES2022 }))(out,req,...Object.values(extra));

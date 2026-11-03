@@ -69,6 +69,7 @@ function fixture() {
         return cache[dep];
       }
       if (name === "@/lib/melbourne-time.core") return { melbourneToday: () => "2026-10-30" };
+      if (name.startsWith("node:")) return require(name); // #135 job-facts.server uses AsyncLocalStorage (join 4 Nov 2026)
       throw new Error(`Unexpected dependency ${name}`);
     });
     return out;

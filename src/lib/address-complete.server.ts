@@ -22,7 +22,7 @@ const ENQUIRY_SOURCES = ["base44", "portal", "email"];
 export type CompletionOutcome = { jobId: string; outcome: "completed" | "unresolved" | "nothing_missing" | "skipped" | "failed"; detail?: string };
 
 /** Look the stored address up (autocomplete → details for the shortlisted labels) and decide, purely. */
-export async function resolveAddress(stored: StoredAddress, lookup: AddressLookup): Promise<{ decision: AddressCompletion; query: string }> {
+export async function resolveAddress(stored: StoredAddress, lookup: AddressLookup, opts: { useCandidateStreet?: boolean } = {}): Promise<{ decision: AddressCompletion; query: string }> {
   const query = lookupQuery(stored);
   if (!addressMissing(stored)) return { decision: { kind: "nothing_missing" }, query };
   if (query.length < 4) return { decision: { kind: "unresolved", reason: "no_street", candidates: [] }, query };
@@ -35,7 +35,7 @@ export async function resolveAddress(stored: StoredAddress, lookup: AddressLooku
     if (d) candidates.push({ label: d.label || s.label, street: d.street ?? null, suburb: d.suburb ?? null, postcode: d.postcode ?? null, state: d.state ?? null });
   }
   // Unshortlisted labels are still reported so the office can see what the lookup offered.
-  const decision = decideAddressCompletion(stored, candidates);
+  const decision = decideAddressCompletion(stored, candidates, opts);
   if (decision.kind === "unresolved" && !decision.candidates.length) decision.candidates = suggestions.map((s) => s.label).slice(0, 6);
   return { decision, query };
 }
@@ -44,22 +44,25 @@ export async function resolveAddress(stored: StoredAddress, lookup: AddressLooku
  * Complete one job's address now (intake, or one sweep item). `trigger` is recorded on the event. Skips jobs whose
  * address is complete and installer-entered addresses (kept exactly as typed, decision 216); never throws.
  */
-export async function completeJobAddress(jobId: string, opts: { trigger: "intake" | "tick"; lookup?: AddressLookup; actorId?: string | null }): Promise<CompletionOutcome> {
+export async function completeJobAddress(jobId: string, opts: { trigger: "intake" | "tick" | "mitti_pickup"; lookup?: AddressLookup; actorId?: string | null }): Promise<CompletionOutcome> {
   try {
     const { data: job, error } = await admin.from("jobs").select("id, channel, source, owners(full_name), properties(address_line, suburb, postcode)").eq("id", jobId).maybeSingle();
     if (error) throw new Error(error.message);
     if (!job) return { jobId, outcome: "skipped", detail: "job not found" };
-    if (job.channel === "installer_sourced") return { jobId, outcome: "skipped", detail: "installer-entered address is kept as typed" };
+    // Jo 2 Nov 2026: jobs the portal created from a Mitti form are verified too; other installer-entered addresses stay as typed.
+    const mitti = job.source === "installer_mitti";
+    if (job.channel === "installer_sourced" && !mitti) return { jobId, outcome: "skipped", detail: "installer-entered address is kept as typed" };
     const prop = job.properties as { address_line: string | null; suburb: string | null; postcode: string | null } | null;
     const stored: StoredAddress = { addressLine: prop?.address_line ?? null, suburb: prop?.suburb ?? null, postcode: prop?.postcode ?? null };
     if (!addressMissing(stored)) return { jobId, outcome: "nothing_missing" };
-    const lookup = opts.lookup ?? (await import("./address-lookup.server")).serverAddressLookup(opts.trigger === "intake" ? 4000 : 8000);
-    const { decision, query } = await resolveAddress(stored, lookup);
+    const lookup = opts.lookup ?? (await import("./address-lookup.server")).serverAddressLookup(opts.trigger === "tick" ? 8000 : 4000);
+    const { decision, query } = await resolveAddress(stored, lookup, { useCandidateStreet: mitti });
+    const mittiDetails = mitti ? { mitti_pickup: true, typed: stored.addressLine } : {};
     if (decision.kind === "nothing_missing") return { jobId, outcome: "nothing_missing" };
     if (decision.kind === "unresolved") {
       await logEvent(jobId, opts.actorId ?? null, ADDRESS_UNRESOLVED_EVENT,
         `Address lookup could not complete the suburb / postcode (${decision.reason.replace(/_/g, " ")}) — shown as stored; edit it on the job page if needed.`,
-        { reason: decision.reason, query, candidates: decision.candidates, stored, trigger: opts.trigger, provider: "google_places_au", decision: 281 }, { internal: true });
+        { reason: decision.reason, query, candidates: decision.candidates, stored, trigger: opts.trigger, provider: "google_places_au", decision: 281, ...mittiDetails, ...(mitti ? { needs_office: true } : {}) }, { internal: true });
       return { jobId, outcome: "unresolved", detail: decision.reason };
     }
     const { saveEnquiryDetails } = await import("./office-actions.server");
@@ -67,7 +70,7 @@ export async function completeJobAddress(jobId: string, opts: { trigger: "intake
     await saveEnquiryDetails(jobId, opts.actorId ?? null, { fullName, street: decision.street, suburb: decision.suburb, postcode: decision.postcode }, {
       type: ADDRESS_COMPLETED_EVENT,
       summary: `Address completed from the lookup: ${decision.street}, ${decision.suburb} ${decision.postcode} (filled ${decision.filled.join(", ")}).`,
-      details: { filled: decision.filled, candidate: decision.candidate, query, trigger: opts.trigger, provider: "google_places_au", decision: 281 },
+      details: { filled: decision.filled, candidate: decision.candidate, query, trigger: opts.trigger, provider: "google_places_au", decision: 281, ...mittiDetails },
     });
     return { jobId, outcome: "completed", detail: decision.filled.join(",") };
   } catch (e) {
@@ -105,9 +108,27 @@ export async function findIncompleteEnquiryAddresses(now = Date.now(), batch = A
   return due;
 }
 
+/** Jo 2 Nov 2026: open jobs created from a Mitti form whose suburb/postcode is still missing (same 7-day rule). */
+export async function findIncompleteMittiAddresses(now = Date.now(), batch = ADDRESS_COMPLETE_BATCH): Promise<string[]> {
+  const { data: jobs, error } = await admin.from("jobs").select("id, stage, created_at, properties(address_line, suburb, postcode)").eq("source", "installer_mitti").is("deleted_at", null).order("created_at", { ascending: true }).limit(500);
+  if (error) throw new Error(`Could not read Mitti jobs for address completion: ${error.message}`);
+  const open = (jobs ?? []).filter((j) => {
+    const p = (j.properties ?? null) as { address_line: string | null; suburb: string | null; postcode: string | null } | null;
+    return !["complete", "cancelled"].includes(String(j.stage)) && !!p && !!(p.address_line ?? "").trim() && addressMissing({ addressLine: p.address_line, suburb: p.suburb, postcode: p.postcode });
+  }).map((j) => String(j.id));
+  if (!open.length) return [];
+  const { data: events, error: ee } = await loose.from("workflow_events").select("job_id, created_at").in("job_id", open.slice(0, 200)).in("event_type", [ADDRESS_COMPLETED_EVENT, ADDRESS_UNRESOLVED_EVENT]).order("created_at", { ascending: false });
+  if (ee) throw new Error(`Could not read Mitti address lookups: ${ee.message}`);
+  const last = new Map<string, string>();
+  for (const e of (events ?? []) as { job_id: string; created_at: string }[]) if (!last.has(e.job_id)) last.set(e.job_id, e.created_at);
+  return open.slice(0, 200).filter((id) => lookupDue(last.get(id), now)).slice(0, batch);
+}
+
 /** The 15-minute tick entry: counts only, never PII. */
 export async function completeEnquiryAddresses(opts: { lookup?: AddressLookup; now?: number; batch?: number } = {}) {
   const ids = await findIncompleteEnquiryAddresses(opts.now ?? Date.now(), opts.batch ?? ADDRESS_COMPLETE_BATCH);
+  const mittiIds = await findIncompleteMittiAddresses(opts.now ?? Date.now(), opts.batch ?? ADDRESS_COMPLETE_BATCH).catch((e) => { console.error("Mitti address sweep read failed", e instanceof Error ? e.message : e); return [] as string[]; });
+  for (const id of mittiIds) if (!ids.includes(id)) ids.push(id);
   const out = { checked: ids.length, completed: 0, unresolved: 0, failed: 0 };
   for (const id of ids) {
     const r = await completeJobAddress(id, opts.lookup ? { trigger: "tick", lookup: opts.lookup } : { trigger: "tick" });

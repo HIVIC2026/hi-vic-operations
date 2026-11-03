@@ -28,19 +28,36 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
   const now = opts.now ?? new Date();
   const problems = onsiteProblems(input);
   const { electricianPlanBlocker, OWNER_CONTACT_PERMISSION } = await import("./job-electrician.core");
-  const eb = electricianPlanBlocker(electrician); if (eb) problems.push(eb);
+  const eb = electrician ? electricianPlanBlocker(electrician) : null; if (eb) problems.push(eb);
   const lop = (await import("./onsite-ready-check.core")).leadOriginProblem(opts.leadOrigin); if (lop) problems.push(lop);
   // Decision 289: "Electrical safety check by" is chosen once here; "my usual electrician" needs one saved in My business.
   // A3: "my usual electrician" can be picked only once that electrician is onboarded (checked here as well as on the form).
-  const { defaultElectricianChoice, addJobUsual, addJobElectricianProblem } = await import("./electrician-choice.core");
+  // Part 2b (Task 5): the phone may instead name one of the installer's approved, linked electricians (`electrician.business_id`,
+  // My electricians); it must be on the pickable list (fail closed) and then stands in for the usual-electrician checks.
+  const { defaultElectricianChoice, addJobUsual, addJobElectricianProblem, NOT_ON_YOUR_LIST } = await import("./electrician-choice.core");
   const usualStatus = await (await import("./usual-electrician.server")).readUsualElectricianStatus(businessId);
   const status = usualStatus.electrician ? { name: usualStatus.electrician.name, onboarded: usualStatus.onboarded } : null;
-  const electricianChoice = opts.electricianChoice ?? defaultElectricianChoice(addJobUsual(status));
-  const ecp = addJobElectricianProblem(electricianChoice, status); if (ecp) problems.push(ecp);
+  const pickedId = electrician?.mode === "mine" && electrician.business_id ? electrician.business_id : null;
+  let picked: { name: string } | null = null;
+  let electricianChoice = opts.electricianChoice ?? defaultElectricianChoice(addJobUsual(status));
+  if (pickedId) {
+    const list = await (await import("./my-electricians.server")).pickableOwnElectricians(businessId);
+    picked = list.find((e) => e.businessId === pickedId) ?? null;
+    if (!picked) problems.push(NOT_ON_YOUR_LIST); else electricianChoice = "usual";
+  } else { const ecp = addJobElectricianProblem(electricianChoice, status); if (ecp) problems.push(ecp); }
   // Decision 116: the optional visit time follows the job page's rules (exact times, business days, 24h+ ahead) and is
   // checked BEFORE anything is saved, so a bad time never leaves a job behind.
   if (opts.visit) problems.push(...(await import("./ready-check-times.core")).a1ReadyCheckTimeBlockers(opts.visit, now));
   if (problems.length) throw new WorkflowError(problems.join(" • "));
+  if (!electricianChoice) throw new WorkflowError("Choose your own electrician.");
+  // The existing atomic intake RPC only stores the retired HIV arrangement. Own electricians use its
+  // existing canonical own-plan path instead, until that separately pending writer supports nominations.
+  if (!electrician && usualStatus.electrician) {
+    const approved = await (await import("./rec-onboarded.server")).loadApprovedRecCandidates();
+    const business = (await import("./our-lead-piesa-electrician.core")).ourLeadUsualRecId(usualStatus.electrician, approved);
+    if (!business) throw new WorkflowError("Your usual electrician must be approved before they can be chosen.");
+    electrician = { mode: "mine", business_id: business };
+  }
 
   // A6: one request key per phone draft. A key an earlier tap already saved means the signal dropped after the save:
   // finish THAT job (visit + form steps below) instead of checking the address or saving again.
@@ -95,9 +112,9 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
         }).select("id, job_number").single();
         if (je || !job) throw new WorkflowError(je?.message ?? "Job could not be saved.");
         await admin.from("job_assignments").insert({ job_id: job.id, user_id: userId, role: "installer", business_id: businessId, assigned_by: userId, first_response_at: new Date().toISOString() });
-        await (await import("./job-electrician.server")).recordJobElectricianChoice(job.id, businessId, electrician ?? { mode: "hivic" }, userId);
+        await (await import("./job-electrician.server")).recordJobElectricianChoice(job.id, businessId, electrician ?? { mode: "later" } as never, userId);
         // Decision 289: the one electrician choice for this job (append-only event; the quote pipeline reads it).
-        await (await import("./electrician-choice.server")).recordElectricianChoice(job.id, businessId, userId, electricianChoice, "add_job");
+        await (await import("./electrician-choice.server")).recordElectricianChoice(job.id, businessId, userId, electricianChoice, "add_job", picked ? { picked } : {});
         if (flag) await logEvent(job.id, userId, DUPLICATE_ADDRESS_EVENT, flag.summary, flag.details, { internal: true });
         await logEvent(job.id, userId, "installer_job_added", "Installer added this customer (Add a job: name, address, mobile, email, contact permission); the Mitti Ready Check form is created next", { business_id: businessId, visit_requested: !!opts.visit, lead_origin: opts.leadOrigin });
         const nowIso = new Date().toISOString();
@@ -148,6 +165,16 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
   catch (e) { console.error("rental questions text not sent", (e as Error).message); }
   const state = await onsiteFormFor(job.id, userId, call, false);
   return { jobId: job.id, jobNumber: job.job_number, booking, formCreation, state };
+}
+
+/** What the Add a job electrician card needs (read-only): the usual-electrician status it showed before, plus every
+ *  approved, linked electrician the installer may pick (Part 2b, Task 5; usual first and marked). */
+export async function addJobElectricianChoices(businessId: string): Promise<{ usualElectrician: { name: string; onboarded: boolean } | null; electricians: import("./electrician-choice.core").PickableElectrician[]; /** Why the list is empty when the installer can fix it (ask the office to switch on "pays own electricians"); null otherwise. */ hint: string | null }> {
+  const [{ electrician, onboarded }, pick] = await Promise.all([
+    (await import("./usual-electrician.server")).readUsualElectricianStatus(businessId),
+    (await import("./my-electricians.server")).ownElectricianPick(businessId),
+  ]);
+  return { usualElectrician: electrician ? { name: electrician.name, onboarded } : null, electricians: pick.electricians, hint: pick.hint };
 }
 
 /**

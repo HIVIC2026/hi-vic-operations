@@ -102,10 +102,10 @@ const STEPS: Step[] = [
   { step: "Installer accepts the ESC privacy notice (My business → ESC privacy notice)", person: "installer owner", path: () => "/field", wait: "My business", button: "My business|ESC privacy notice|tick:|Save acknowledgements", severity: "Stop launch", next: "acknowledg",
     expect: async () => (await noticeAcked()) ? null : "no acknowledgement recorded for the TEST Bravo installer" },
   // A48 batch 2 (Jo 30 Oct): website owners no longer get the one-by-one Release ("It's your turn"). Jo sends an AREA BATCH
-  // (Choose installer → Suggested batches → Send), owners answer the quick taps, the batch closes on day 3, Jo taps "Send to
+  // (Choose installer → To release › By area: tick the homes → Send), owners answer the quick taps, the batch closes on day 3, Jo taps "Send to
   // installer", the installer picks the run day (Portal books) and the owner confirms their window on My job.
-  { step: "Office batch Send (Choose installer → Suggested batches → Send)", person: "office", path: () => `/admin/jobs/${ctx!.jobId}`, wait: ctx?.jobNumber ?? "HV-", severity: "Stop launch", next: "Choose installer",
-    blocked: "The TEST office login doesn't show Suggested batches (A48 batch 2 ruling: no access change without Jo), so a person can't send this TEST home's batch from the page. No batch was made behind the page." },
+  { step: "Office batch Send (Choose installer → To release › By area: tick → Send)", person: "office", path: () => `/admin/jobs/${ctx!.jobId}`, wait: ctx?.jobNumber ?? "HV-", severity: "Stop launch", next: "Choose installer",
+    blocked: "The TEST office login doesn't show the To release ticks and Send bar (A48 batch 2 ruling: no access change without Jo), so a person can't send this TEST home's batch from the page. No batch was made behind the page." },
   { step: "Owner quick taps (name, address, 4 taps on My job)", person: "homeowner", path: () => `/my-job/${ctx!.token}?screen=taps`, wait: "Is this your full name", button: "Yes|Yes|Yes|Sloped|No|Yes, let's go", severity: "Stop launch", next: "",
     expect: async () => (await admin.from("workflow_events").select("id").eq("job_id", ctx!.jobId!).eq("event_type", "quick_taps_answered").contains("details", { outcome: "pass" }).limit(1).maybeSingle()).data ? null : "no quick taps pass recorded" },
   { step: "Day-3 batch close (15-minute tick, 72 hours after Send)", person: "system", path: () => null, wait: "", severity: "Stop launch", next: "",

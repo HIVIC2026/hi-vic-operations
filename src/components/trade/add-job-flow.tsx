@@ -14,7 +14,7 @@ import { OWNER_CONTACT_PERMISSION } from "@/lib/job-electrician.core";
 import { LEAD_ORIGINS, LEAD_ORIGIN_QUESTION, leadOriginProblem, type LeadOrigin, type OnsiteInput, type OnsiteState } from "@/lib/onsite-ready-check.core";
 import { a1ReadyCheckTimeBlockers, allowedReadyCheckDays, allowedReadyCheckTimes } from "@/lib/ready-check-times.core";
 import { installTimeLabel } from "@/lib/install-days.core";
-import { ELECTRICIAN_CHOICE_QUESTION, defaultElectricianChoice, addJobElectricianProblem, addJobUsual, electricianChoiceOptions, type ElectricianChoice } from "@/lib/electrician-choice.core";
+import { ELECTRICIAN_CHOICE_QUESTION, addJobElectricianOptions, addJobPickProblem, addJobUsual, defaultAddJobElectrician, type ElectricianChoice, type PickableElectrician } from "@/lib/electrician-choice.core";
 import {
   ADD_JOB_OFFLINE_NOTE, BUSY_LABEL, ELECTRICIAN_CARD, OWNER_CARD_TITLE, SAVE_LABEL, TRY_AGAIN_LABEL, VISIT_CARD, VISIT_FIELD_HINT, WHAT_HAPPENS_NEXT, addedView, blankCustomer, customerProblems, dayOptionLabel, errorSummary, fieldErrors, formLabel, outcomeFor, restoreCustomer, restoreRequestKey,
   saveErrorMessage, visitPayload, visitProblems, type AddJobBooking, type VisitPick,
@@ -41,18 +41,19 @@ export function AddJobFlow({ businessId, onReset, onSavedChange }: { businessId:
   useEffect(() => { onSavedChange?.(saved !== null); }, [saved]); // eslint-disable-line react-hooks/exhaustive-deps
   const bannerRef = useRef<HTMLParagraphElement>(null);
   const inFlight = useRef(false);
-  // Decision 289: the one electrician question. "My usual electrician (<name>)" exists only while one is saved in My
-  // business and is the default then; otherwise Home Insulation Victoria's electrician is the only (and default) choice.
+  // Decision 289: the one electrician question. Part 2b (Jo 3 Nov): every approved electrician linked to the installer is
+  // offered — the usual one (My business) first and preselected, the rest (My electricians) by name. Nobody approved = nothing to pick.
   const loadOptions = useServerFn(addJobOptions);
   const options = useQuery({ queryKey: ["add-job-options", businessId], queryFn: () => loadOptions({ data: { businessId } }), retry: 1 });
   const usual = options.data?.usualElectrician ?? null;
-  const pickable = addJobUsual(usual); // A3: only an onboarded usual electrician can be picked
-  const [electrician, setElectrician] = useState<ElectricianChoice | null>(null);
+  const pickable = addJobUsual(usual); // A3: the usual electrician's own status line
+  const electricians: PickableElectrician[] = options.data?.electricians ?? [];
+  const [electrician, setElectrician] = useState<string | null>(null); // the picked electrician's business id
   // A1: asked fresh every time (not kept in the phone draft).
   const [leadOrigin, setLeadOrigin] = useState<LeadOrigin | null>(null);
   // A6: one request key per draft, kept across Try again and reloads (in the phone draft); a new one on "Add another job".
   const [requestKey, setRequestKey] = useState<string>(() => crypto.randomUUID());
-  useEffect(() => { if (options.isSuccess && electrician === null) setElectrician(defaultElectricianChoice(pickable)); }, [options.isSuccess]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (options.isSuccess && electrician === null) setElectrician(defaultAddJobElectrician(electricians)); }, [options.isSuccess]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Poor signal on site: typed details stay on the phone (never the consent tick) until saved.
   useEffect(() => { try { const d = localStorage.getItem(DRAFT_KEY); if (d) { const raw = JSON.parse(d); setCustomer(restoreCustomer(raw)); const k = restoreRequestKey(raw); if (k) setRequestKey(k); } } catch { /* ignore */ } }, []);
@@ -63,11 +64,11 @@ export function AddJobFlow({ businessId, onReset, onSavedChange }: { businessId:
 
   const start = useServerFn(startOnsiteReadyCheck);
 
-  if (saved) return <SavedResult saved={saved} onAddAnother={() => { setSaved(null); setCustomer(blankCustomer()); setVisit({ day: "", time: "" }); setElectrician(defaultElectricianChoice(pickable)); setLeadOrigin(null); setRequestKey(crypto.randomUUID()); onReset?.(); }} />;
+  if (saved) return <SavedResult saved={saved} onAddAnother={() => { setSaved(null); setCustomer(blankCustomer()); setVisit({ day: "", time: "" }); setElectrician(defaultAddJobElectrician(electricians)); setLeadOrigin(null); setRequestKey(crypto.randomUUID()); onReset?.(); }} />;
 
   const problems = (): string[] => {
     const v = visitPayload(visit);
-    const ecp = addJobElectricianProblem(electrician, usual);
+    const ecp = addJobPickProblem(electrician, electricians);
     const lop = leadOriginProblem(leadOrigin);
     return [...(lop ? [lop] : []), ...customerProblems(customer), ...(ecp ? [ecp] : []), ...visitProblems(visit), ...(v ? a1ReadyCheckTimeBlockers(v) : [])];
   };
@@ -78,10 +79,12 @@ export function AddJobFlow({ businessId, onReset, onSavedChange }: { businessId:
     if (p.length) return;
     inFlight.current = true; setBusy(true);
     try {
-      const choice: ElectricianChoice = electrician ?? defaultElectricianChoice(pickable);
-      const r = await start({ data: { businessId, owner: customer, visit: visitPayload(visit), leadOrigin, requestKey, electricianChoice: choice } });
+      const picked = electricians.find((e) => e.businessId === electrician);
+      if (!picked) throw new Error("Add your usual electrician under My business › Electrician first.");
+      const choice: ElectricianChoice = "usual";
+      const r = await start({ data: { businessId, owner: customer, visit: visitPayload(visit), leadOrigin, requestKey, electricianChoice: choice, electrician: { mode: "mine", business_id: picked.businessId } } });
       try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
-      setSaved({ jobId: r.jobId, jobNumber: r.jobNumber ?? null, booking: r.booking, state: r.state, customer, visit, electrician: { choice, usualName: pickable?.name ?? null } });
+      setSaved({ jobId: r.jobId, jobNumber: r.jobNumber ?? null, booking: r.booking, state: r.state, customer, visit, electrician: { choice, usualName: picked.name } });
     } catch (e) { setErr(saveErrorMessage(e instanceof Error ? e.message : null)); }
     finally { setBusy(false); inFlight.current = false; }
   };
@@ -110,12 +113,12 @@ export function AddJobFlow({ businessId, onReset, onSavedChange }: { businessId:
         <p className={CARD_TITLE} aria-hidden>{ELECTRICIAN_CARD.title}</p>
         <p className="mt-0.5 text-[13px] leading-[1.45] text-sub">{ELECTRICIAN_CARD.sub}</p>
         <p className="mt-3 text-[15px] font-bold">{ELECTRICIAN_CHOICE_QUESTION}</p>
-        {options.isLoading ? <p className="mt-2 text-sm text-sub">Loading…</p> : electricianChoiceOptions(pickable).map((o) => (
-          <label key={o.value} className="flex min-h-12 items-center gap-3 text-[15px]">
-            <input type="radio" name="add-job-electrician" value={o.value} checked={electrician === o.value} disabled={busy} onChange={() => { setElectrician(o.value); setErr(null); }} />{o.label}
+        {options.isLoading ? <p className="mt-2 text-sm text-sub">Loading…</p> : addJobElectricianOptions(electricians).map((o) => (
+          <label key={o.businessId} className="flex min-h-12 items-center gap-3 text-[15px]">
+            <input type="radio" name="add-job-electrician" value={o.businessId} checked={electrician === o.businessId} disabled={busy} onChange={() => { setElectrician(o.businessId); setErr(null); }} />{o.label}
           </label>
         ))}
-        {options.isSuccess && !pickable && <p className="mt-1 text-[13px] leading-[1.45] text-sub">{usual ? ELECTRICIAN_CARD.notOnboarded(usual.name) : ELECTRICIAN_CARD.noUsual}</p>}
+        {options.isSuccess && !electricians.length && <p className="mt-1 text-[13px] leading-[1.45] text-sub">{options.data?.hint ?? (usual ? ELECTRICIAN_CARD.notOnboarded(usual.name) : ELECTRICIAN_CARD.noUsual)}</p>}
         <FieldError>{errors.electrician}</FieldError>
       </fieldset>
       <VisitField value={visit} onChange={setVisit} disabled={busy} error={errors.visit} />

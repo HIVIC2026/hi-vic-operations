@@ -15,6 +15,7 @@ export const startPiesaOffers = createServerFn({ method: "POST" }).middleware([r
     const { rateToConfirmReasonBlocker } = await import("./allocation.core");
     const reasonBlock = rateToConfirmReasonBlocker(!!data.rateToConfirm, data.reason);
     if (reasonBlock) throw new WorkflowError(reasonBlock);
+    await (await import("./own-job-piesa.server")).refuseOfficeOfferForOwnJob(data.jobId);
     if (data.rateToConfirm) await logEvent(data.jobId, context.userId, "rec_offer_rate_to_confirm", "Office chose to offer the PIESA with the electrician rate to be confirmed", { reason: data.reason!.trim() }, { internal: true });
     return startPiesaAllocation(data.jobId, context.userId, "piesa", { rateToConfirm: !!data.rateToConfirm });
   });

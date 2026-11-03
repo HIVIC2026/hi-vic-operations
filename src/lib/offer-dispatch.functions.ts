@@ -5,6 +5,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { requireAdmin, WorkflowError, logEvent } from "./workflow.server";
 import { requireOfficeJob, requireOfficeBusiness, officeTestBusinessIds, officeTestJobIds } from "./qa-office-access.server";
+import { displayName } from "./display-name.core";
 
 const kind = z.enum(["ready_check", "piesa"]);
 const NONE = ["00000000-0000-0000-0000-000000000000"];
@@ -42,9 +43,9 @@ export const setJobOfficePicks = createServerFn({ method: "POST" }).middleware([
 export const listChooseTrades = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: z.string().uuid(), kind }).parse(d))
   .handler(async ({ data, context }) => {
-    const officeRole = await requireOfficeJob(context.supabase, data.jobId);
-    const testBusinesses = officeRole === "qa_office" ? await officeTestBusinessIds(context.supabase) : null;
-    const testJobs = officeRole === "qa_office" ? await officeTestJobIds(context.supabase) : null;
+    const officeRole = await requireOfficeJob(context.supabase, data.jobId, context);
+    const testBusinesses = officeRole === "qa_office" ? await officeTestBusinessIds(context.supabase, context) : null;
+    const testJobs = officeRole === "qa_office" ? await officeTestJobIds(context.supabase, context) : null;
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const { chooseWarnings, distanceKm, officePicks } = await import("./offer-dispatch.core");
     const { installerOfferable } = await import("./readycheck-booking.core");
@@ -93,7 +94,7 @@ export const listChooseTrades = createServerFn({ method: "POST" }).middleware([r
       const rate = rates.get(c.business_id) ?? null;
       const accepted = c.acceptance_rate;
       return {
-        id: c.business_id, business: b?.trading_name || c.name, contact: b?.signer_name ?? null,
+        id: c.business_id, business: displayName(b?.trading_name || c.name), contact: b?.signer_name ?? null,
         distanceKm: distanceKm({ lat: null, lng: null }, { lat: b?.coverage_lat ?? null, lng: b?.coverage_lng ?? null }),
         areaNote: c.exact_postcode ? `Covers ${r.postcode}` : b?.base_suburb ? `Based in ${b.base_suburb}` : "Nearby",
         rate, rateUnit: isRc ? "per m²" : "per visit",
@@ -131,8 +132,8 @@ export const listChooseTrades = createServerFn({ method: "POST" }).middleware([r
 export const sendChosenOffers = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: z.string().uuid(), kind, businessIds: z.array(z.string().uuid()).min(1).max(50) }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireOfficeJob(context.supabase, data.jobId);
-    for (const businessId of data.businessIds) await requireOfficeBusiness(context.supabase, businessId);
+    await requireOfficeJob(context.supabase, data.jobId, context);
+    for (const businessId of data.businessIds) await requireOfficeBusiness(context.supabase, businessId, context);
     // Decision 389: a Ready Check is never offered to an installer before the owner confirms — the office Releases the
     // spot (owner "It's your turn"), and the offer runs on the owner's Confirm (or straight away for a confirmed owner).
     if (data.kind === "ready_check") {
@@ -142,6 +143,7 @@ export const sendChosenOffers = createServerFn({ method: "POST" }).middleware([r
       const r = await (await import("./spot-release.server")).releaseSpot(data.jobId, context.userId, businessId);
       return { offered: r.mode === "offered" ? 1 : 0, released: r.mode === "released" };
     }
+    await (await import("./own-job-piesa.server")).refuseOfficeOfferForOwnJob(data.jobId);
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const { newRecipients } = await import("./offer-dispatch.core");
     const { data: prior } = await admin.from("partner_offers").select("business_id, status").eq("job_id", data.jobId).eq("kind", data.kind).in("status", ["pending", "declined", "accepted"]);

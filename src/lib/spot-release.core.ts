@@ -123,7 +123,7 @@ export const NO_RATE_CARD_REASON = "This installer has no rate card yet";
  *  in area batches (quick taps) instead. Releases already made stay readable (history, the owner's `?screen=turn` page,
  *  the sweep for ones still pending), and an owner who already confirmed still goes straight to the installer. */
 export const SPOT_RELEASE_RETIRED = true;
-export const RELEASE_RETIRED_REASON = "Website owners now go in area batches — use Suggested batches on Choose installer.";
+export const RELEASE_RETIRED_REASON = "Website owners now go in area batches — tick them on Choose installer › To release and tap Send.";
 
 export type ReleasePlan = { mode: "release" } | { mode: "direct_offer" } | { mode: "refused"; reason: string };
 /** What pressing Release does. A confirmed owner → straight to the installer offer (never asked twice). Anything else is

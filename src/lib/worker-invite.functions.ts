@@ -143,7 +143,7 @@ export const submitWorkerInvite = createServerFn({ method: "POST" }).middleware(
     full_legal_name: z.string().trim().max(200), mobile: z.string().trim().max(30), email: z.string().trim().toLowerCase().max(254),
     licence_number: z.string().trim().max(60).optional(), qualification: z.string().trim().max(200).optional(),
     certificate_path: z.string().trim().max(300).optional(), certificate_number: z.string().trim().max(60).optional(),
-    accepted: z.array(z.string().max(40)).max(20), signed_name: z.string().trim().max(200),
+    accepted: z.array(z.string().max(40)).max(20), signed_name: z.string().trim().max(200), date_of_birth: z.string().trim().max(10).optional(),
   }).parse(d))
   .handler(async ({ data, context }) => {
     if (!isTokenShape(data.token)) return { ok: false as const, errors: ["This invite link isn't valid."] };
@@ -213,6 +213,10 @@ export const submitWorkerInvite = createServerFn({ method: "POST" }).middleware(
     const biz = inv.businesses as { name: string; trading_name: string | null } | null;
     const decls = workerDeclarations(t, biz?.trading_name || biz?.name || "your business");
     const errors = workerSubmissionErrors(t, data, decls.map((x) => x.key));
+    // Jo 3 Nov ~3pm: the sign-up link asks the worker's date of birth (required), stored privately for ESC registration.
+    const { joinDateOfBirthProblem } = await import("./team-required.core");
+    const dobProblem = joinDateOfBirthProblem(data.date_of_birth, (await import("./melbourne-time.core")).melbourneToday());
+    if (dobProblem) errors.push(dobProblem);
     if (errors.length) return { ok: false as const, errors };
     if (t === "installer") {
       try {
@@ -235,6 +239,12 @@ export const submitWorkerInvite = createServerFn({ method: "POST" }).middleware(
     if (error) {
       await admin.from("partner_worker_invites").update({ used_at: null }).eq("id", inv.id);
       return { ok: false as const, errors: [error.code === "23505" ? "Someone with that email is already registered under this business." : "We couldn't save your details. Please try again."] };
+    }
+    const { error: ide } = await admin.from("partner_worker_identity" as never).insert({ worker_id: w.id, date_of_birth: data.date_of_birth, updated_by: inv.created_by } as never);
+    if (ide) {
+      await admin.from("partner_workers").delete().eq("id", w.id);
+      await admin.from("partner_worker_invites").update({ used_at: null }).eq("id", inv.id);
+      return { ok: false as const, errors: ["We couldn't save your details. Please try again."] };
     }
     await admin.from("partner_worker_invites").update({
       worker_id: w.id, signed_name: data.signed_name, signed_ip: context.ip, signed_user_agent: context.userAgent,

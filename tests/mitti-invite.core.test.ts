@@ -17,7 +17,7 @@ const electrician: InvitePerson = { ...installer, workerId: "w2", tradeRole: "el
 describe("switches", () => {
   test("off by default: env must say exactly true; off = no-op", () => {
     expect(MITTI_AUTO_INVITE_ENABLED).toBe(false);
-    expect(MITTI_USER_API_VERIFIED).toBe(false);
+    expect(MITTI_USER_API_VERIFIED).toBe(true);
     expect([undefined, "", "1", "yes", "TRUE "].map(autoInviteEnabled)).toEqual([false, false, false, false, true]);
     expect(mittiInviteStep(installer, null, { enabled: false })).toEqual({ action: "skip", reason: "Mitti auto-invite is switched off." });
   });
@@ -31,19 +31,19 @@ describe("who gets Mitti", () => {
   test("installers only once their CII is verified and current; electricians once approved", () => {
     expect(inviteEligibility(installer)).toBeNull();
     expect(inviteEligibility({ ...installer, ciiCleared: false })).toMatch(/CII/);
-    expect(inviteEligibility(electrician)).toBeNull();
+    expect(inviteEligibility(electrician)).toMatch(/No automatic Lead invite/);
     expect(inviteEligibility({ ...electrician, approvalStatus: "pending" })).toMatch(/Not approved/);
     expect(inviteEligibility({ ...installer, removedAt: "2026-10-24T00:00:00Z" })).toMatch(/Removed/);
     expect(inviteEligibility({ ...installer, email: " " })).toMatch(/No email/);
-    expect(inviteEligibility({ ...installer, tradeRole: "assessor" })).toMatch(/No Mitti access/);
+    expect(inviteEligibility({ ...installer, tradeRole: "assessor" })).toMatch(/No automatic Lead invite/);
   });
   test("one HIV trades group, configured seat per trade (lite)", () => {
-    expect(mittiInviteStep(installer, null, ON)).toEqual({ action: "lookup", group: MITTI_TRADES_GROUP, seat: "lite", key: inviteKey("w1") });
+    expect(mittiInviteStep(installer, null, ON)).toEqual({ action: "lookup", group: null, seat: "lite", key: inviteKey("w1") });
     expect(MITTI_SEAT_FOR_ROLE).toEqual({ installer: "lite", electrician: "lite" });
     expect(MITTI_TRADES_GROUP).toBe("HIV trades");
   });
   test("decision 340: Lite seats for installers and electricians, Home Insulation Victoria pays, no charge-back", () => {
-    expect(mittiInviteStep(electrician, null, ON)).toMatchObject({ seat: "lite" });
+    expect(mittiInviteStep(installer, null, ON)).toMatchObject({ seat: "lite" });
     expect(MITTI_SEATS_PAID_BY).toBe("Home Insulation Victoria");
     const doc = readFileSync("docs/MITTI_ACCESS.md", "utf8");
     expect(doc).toContain("Decision 340");
@@ -55,12 +55,12 @@ describe("who gets Mitti", () => {
 describe("lookup → link / create / invite needed", () => {
   test("found → link (group add only with a verified API and a group id)", () => {
     expect(mittiInviteStep(installer, null, ON, { mittiUserId: "user_9" })).toMatchObject({ action: "record_linked", mittiUserId: "user_9", addToGroup: null });
-    expect(mittiInviteStep(installer, null, LIVE, { mittiUserId: "user_9" })).toMatchObject({ action: "record_linked", addToGroup: "group_trades" });
+    expect(mittiInviteStep(installer, null, LIVE, { mittiUserId: "user_9" })).toMatchObject({ action: "record_linked", addToGroup: null });
     expect(mittiInviteStep(installer, null, { ...LIVE, groupId: " " }, { mittiUserId: "user_9" })).toMatchObject({ addToGroup: null });
   });
   test("not found → create when the API is verified, else 'invite needed' for the office", () => {
     expect(mittiInviteStep(installer, null, ON, { mittiUserId: null })).toMatchObject({ action: "record_needed", seat: "lite" });
-    expect(mittiInviteStep(installer, null, LIVE, { mittiUserId: null })).toMatchObject({ action: "create", seat: "lite", addToGroup: "group_trades" });
+    expect(mittiInviteStep(installer, null, LIVE, { mittiUserId: null })).toMatchObject({ action: "create", seat: "lite", addToGroup: null });
   });
   test("idempotent: never twice per person; a failure may retry (search first); already a member → nothing", () => {
     for (const type of ["mitti_invite_needed", "mitti_invite_linked", "mitti_user_linked", "mitti_user_invited", "mitti_user_reactivated", "mitti_invite_office_done"] as const)
@@ -127,10 +127,9 @@ describe("Office list", () => {
   ];
   test("open = latest record per person that still needs the office, newest first, plain reason for failures", () => {
     const open = openInvites(records);
-    expect(open.map((r) => r.workerId)).toEqual(["e", "b", "a"]);
+    expect(open.map((r) => r.workerId)).toEqual(["e", "a"]);
     expect(open[0]!.todo).toEqual(["Mitti could not create a user for e@x.com.au — invite them in Mitti by hand"]);
-    expect(open[1]!.todo).toEqual(["Add them to the HIV trades group in Mitti."]);
-    expect(open[2]!.todo[0]).toMatch(/Invite a@x.com.au to Mitti with that exact email \(lite seat\)/);
+    expect(open[1]!.todo[0]).toMatch(/Invite a@x.com.au to Mitti with that exact email \(lite seat\)/);
   });
   test("prior record per person + latest known Mitti user id feed idempotency and deactivation", () => {
     expect(priorInviteFor("c", records)).toEqual({ type: "mitti_invite_office_done", at: "2026-10-24T03:00:00Z", mittiUserId: null, email: "c@x.com.au" });

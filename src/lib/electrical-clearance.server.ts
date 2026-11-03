@@ -1,7 +1,7 @@
 // Electrical clearance facts (read-only). Kept lean — admin reads + pure cores, the payment gate from workflow.server — so
 // stageEntryBlockers and autoAdvanceJob can read the decision-314 on-site-only clearance without pulling senders, Xero or
 // Mitti into their import graph (tests/comms.test.ts). allocation.server re-exports `clearanceFacts` for its callers.
-import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { jobAdmin as admin } from "./job-facts.server"; // speed (Task 11): the admin client; inside the job page bundle it answers from the job's rows
 import { electricalClearance, onsiteStartAtInstall, type ClearanceFacts } from "./allocation.core";
 
 /** Decision 314: the stored A3 PIESA snapshot's ONLY repair tick is "Be on site at the start of the install day"

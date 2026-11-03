@@ -1,12 +1,13 @@
 // Install days, installer offers first (Jo 24 Oct 2026): installer offers 3 → owner takes one or suggests days →
 // installer takes one or offers 3 new ones, until a day is agreed. Agreement books it. The office is never involved
 // (only the 10-days-left alert below). Never auto-replaces the installer.
-import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { jobAdmin as admin } from "./job-facts.server"; // speed (Task 11): the admin client; inside the job page bundle it answers from the job's rows
 import { WorkflowError, logEvent, piesaStatus } from "./workflow.server";
 import {
   INSTALL_DAY_LEAD_HOURS, allowedInstallDays, dayOfferBlockers, installDayBounds, installStartAt, isInstallTime, installDayOutsideWindow, installDayTurn, installDaysLeft, installWindowDeadline, shouldFlagTenDaysLeft,
 } from "./install-days.core";
 import { melbourneYmd } from "./piesa-windows.core";
+import { sharedFor, type SharedJobReads } from "./job-shared-reads";
 import { ATTENDANCE_CONFIRMED_EVENT, ATTENDANCE_DECLINED_EVENT, ELECTRICIAN_DAYS_ONLY, canDoRestriction, dayAllowedByElectrician, restrictInstallDays, type AttendanceEv } from "./install-attendance.core";
 
 /** Decision 327: the days the electrician said they can do after "Can't make it" limit this job's install days (read-only). */
@@ -15,12 +16,12 @@ async function electricianLimit(jobId: string) {
   return canDoRestriction((data ?? []) as unknown as AttendanceEv[]);
 }
 
-async function context(jobId: string) {
+async function context(jobId: string, shared?: SharedJobReads) {
   const { clearanceFacts } = await import("./allocation.server");
   const { electricalClearance } = await import("./allocation.core");
   const [{ data: job }, clearance, piesa, { data: asg }, { data: booked }, { data: rows }] = await Promise.all([
     admin.from("jobs").select("stage, install_10day_flagged_at").eq("id", jobId).single(),
-    clearanceFacts(jobId).then(electricalClearance),
+    shared ? shared.clearance() : clearanceFacts(jobId).then(electricalClearance),
     piesaStatus(jobId),
     admin.from("job_assignments").select("id, user_id, business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle(),
     admin.from("bookings").select("id, scheduled_start").eq("job_id", jobId).eq("kind", "installation").eq("status", "confirmed").limit(1).maybeSingle(),
@@ -63,9 +64,9 @@ async function requireInstaller(jobId: string, userId: string) {
 }
 
 /** Installer view. `days` = days the installer may offer when it's their move. */
-export async function installerInstallDayState(jobId: string, userId: string) {
+export async function installerInstallDayState(jobId: string, userId: string, sharedReads?: SharedJobReads) {
   // Speed (decision 280): the access check and the read-only context run together; a refused check still throws first.
-  const [, c] = await Promise.all([requireInstaller(jobId, userId), context(jobId)]);
+  const [, c] = await Promise.all([requireInstaller(jobId, userId), context(jobId, sharedFor(sharedReads, userId, jobId))]);
   const canOffer = c.turn === "installer_to_offer" || c.turn === "installer_to_answer";
   return { ...view(c), days: canOffer ? windowDays(c) : [] };
 }

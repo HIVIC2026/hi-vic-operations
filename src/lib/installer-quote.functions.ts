@@ -9,7 +9,7 @@ export const getInstallerQuoteDraft = createServerFn({ method: "POST" }).middlew
   .inputValidator((d) => z.object({ jobId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     // Admin, or the TEST office on a fully isolated TEST job only.
-    await requireOfficeJob(context.supabase, data.jobId);
+    await requireOfficeJob(context.supabase, data.jobId, context);
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const { data: job, error: je } = await admin.from("jobs").select("channel").eq("id", data.jobId).single();
     if (je) throw new Error(je.message);
@@ -35,7 +35,7 @@ export const getInstallerQuoteDraft = createServerFn({ method: "POST" }).middlew
 export const sendInstallerQuote = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: z.string().uuid(), quoteId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireOfficeJob(context.supabase, data.jobId);
+    await requireOfficeJob(context.supabase, data.jobId, context);
     return (await import("./office-quote-review.server")).sendOfficeReviewedQuote(data.jobId, data.quoteId, context.userId);
   });
 

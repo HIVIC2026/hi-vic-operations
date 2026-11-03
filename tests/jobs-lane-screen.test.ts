@@ -48,7 +48,7 @@ test("saved view: read and written only inside try/catch, per lane", () => {
 
 test("query key and refresh pattern", () => {
   const src = lane();
-  expect(src).toContain('queryKey: ["office-jobs", lane, view, search, page]');
+  expect(src).toContain("queryKey: jobsListKey(lane, view, search, page)"); // = ["office-jobs", lane, view, search, page], office-list-keys.core.ts
   expect(src).toContain("placeholderData: keepPreviousData");
   expect(src).toContain("refetchInterval: (x) => (x.state.data?.refreshing ? 5_000 : false)");
   expect(src).toContain('readOfficeList("jobs"');

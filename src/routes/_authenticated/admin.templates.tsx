@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/portal/AppShell";
 import { TemplatesHub } from "@/components/portal/template-hub";
-import { TEMPLATE_SECTIONS, parseTemplateSearch, type TemplateSection } from "@/lib/template-hub.core";
+import { TEMPLATE_SECTIONS, parseTemplateSearch, type TemplateSection } from "@/lib/template-sections.core";
 
 const title = "Templates — Home Insulation Victoria";
 const description =

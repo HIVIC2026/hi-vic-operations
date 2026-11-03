@@ -42,6 +42,7 @@ function fixture(held: boolean) {
       if (dep in modules) return modules[dep];
       if (dep.startsWith("./") && dep.endsWith(".core")) return require(`../src/lib/${dep.slice(2)}.ts`);
       if (dep.startsWith("./")) { const key = dep.slice(2); return cache[key] ?? (cache[key] = load(key)); }
+      if (dep.startsWith("node:")) return require(dep); // #135 job-facts.server uses AsyncLocalStorage (join 4 Nov 2026)
       throw new Error(`Unexpected dependency ${dep}`);
     }); return out as Record<string, (...a: unknown[]) => Promise<string>>;
   }

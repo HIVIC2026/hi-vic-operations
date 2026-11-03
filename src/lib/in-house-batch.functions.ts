@@ -21,3 +21,9 @@ export const allocateInHouseBatch = createServerFn({ method: "POST" }).middlewar
     await requireAdmin(context.supabase);
     return (await import("./in-house-batch.server")).sendInHouseBatch({ ...data, actorId: context.userId });
   });
+export const getInHouseGiveForJob = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ jobId: z.string().uuid() }))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    return (await import("./in-house-batch.server")).inHouseGiveForJob(data.jobId);
+  });

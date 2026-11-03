@@ -597,12 +597,14 @@ async function freshCtx() {
   ctx.notes["mitti_guard_routes"] = [] as string[][]; // default steps 6/7 record their simulator routes here
   return ctx;
 }
-async function toQuoteAccepted(rec: Recorder, ctx: JourneyCtx, setup: StepResult[], jobs: BranchResult["jobs"]) {
+async function toQuoteAccepted(rec: Recorder, ctx: JourneyCtx, setup: StepResult[], jobs: BranchResult["jobs"], beforeAccept?: (c: JourneyCtx) => Promise<void>) {
   const s = await setupSteps(ctx, 5, defaultReadyCheck, async (c) => {
     const { data: q0 } = await admin.from("quotes").select("id, status").eq("id", c.quoteId!).single();
-    if (q0?.status !== "draft") return;
-    try { await (await import("./office-quote-review.server")).sendOfficeReviewedQuote(c.jobId!, c.quoteId!, c.actorId); }
-    catch (e) { const m = e instanceof Error ? e.message : String(e); if (!commsOff(m)) throw e; await simulateQuoteRelease(c, c.quoteId!, "office"); rec.simulated("S5", "office presses Send quote", SIMULATED_SEND_LABEL, { quote_id: c.quoteId! }); }
+    if (q0?.status === "draft") {
+      try { await (await import("./office-quote-review.server")).sendOfficeReviewedQuote(c.jobId!, c.quoteId!, c.actorId); }
+      catch (e) { const m = e instanceof Error ? e.message : String(e); if (!commsOff(m)) throw e; await simulateQuoteRelease(c, c.quoteId!, "office"); rec.simulated("S5", "office presses Send quote", SIMULATED_SEND_LABEL, { quote_id: c.quoteId! }); }
+    }
+    if (beforeAccept) await beforeAccept(c); // runs after the quote is sent, just before the owner accepts and pays
   });
   setup.push(...s.out);
   jobs.push({ jobNumber: ctx.jobNumber, jobId: ctx.jobId, archived: false });
@@ -1572,6 +1574,118 @@ async function r158RepeatPiesa(rec: Recorder, jobs: BranchResult["jobs"], setup:
   } finally { await finish(ctx, jobs); }
 }
 
+// ---------- Part 2 (Jo 3 Nov 2026): installer's own job — the electrician calls the owner and books the safety check ----------
+// hand over → electrician's link books → owner booking notice → installer swaps the electrician → new electrician "can't do this one".
+// TEST job + TEST trades only. The TEST job is made the installer's own job (channel installer_sourced) just before the owner pays.
+// Held wording stays held: the run reports what was held ("not_approved") instead of sending it.
+const ECHO = "qa.rec.echo@hivic-test.example";
+async function m159OwnJobCallAndBook(rec: Recorder, jobs: BranchResult["jobs"], setup: StepResult[]) {
+  const ctx = await freshCtx();
+  const addedLinks: { installer: string; electrician: string; reactivated: boolean }[] = [];
+  const ensureLinked = async (electricianBusinessId: string) => {
+    await (await import("./journey-setup.server")).assertTestBusiness(electricianBusinessId);
+    const { data: rel } = await admin.from("partner_relationships").select("id, active").eq("installer_business_id", ctx.installer.business_id).eq("electrician_business_id", electricianBusinessId).maybeSingle();
+    if (rel?.active) return;
+    if (rel) { await admin.from("partner_relationships").update({ active: true }).eq("id", rel.id); addedLinks.push({ installer: ctx.installer.business_id, electrician: electricianBusinessId, reactivated: true }); return; }
+    const { error } = await admin.from("partner_relationships").insert({ installer_business_id: ctx.installer.business_id, electrician_business_id: electricianBusinessId, active: true, created_by: ctx.actorId } as never);
+    if (error) throw new Error(`TEST link to the electrician: ${error.message}`);
+    addedLinks.push({ installer: ctx.installer.business_id, electrician: electricianBusinessId, reactivated: false });
+  };
+  try {
+    const s = await toQuoteAccepted(rec, ctx, setup, jobs, async (c) => {
+      // Make this TEST job the installer's own, with TEST Delta as its chosen electrician, before the owner pays.
+      await J.assertOwnTestJob(c);
+      await ensureLinked(c.electrician.business_id);
+      const { error } = await admin.from("jobs").update({ channel: "installer_sourced", originating_installer_business_id: c.installer.business_id, originating_installer_user_id: c.installer.id } as never).eq("id", c.jobId!).eq("source", "qa_test");
+      if (error) throw new Error(`TEST job could not be made the installer's own: ${error.message}`);
+      await (await import("./job-electrician.server")).recordJobElectricianChoice(c.jobId!, c.installer.business_id, { mode: "mine", business_id: c.electrician.business_id }, c.installer.id);
+    });
+    if (!s.ok) { BLOCKED_REASON = `setup failed: ${s.out.at(-1)?.error}`; return; }
+    await J.assertOwnTestJob(ctx);
+    const jobId = ctx.jobId!;
+    const piesaStage = "piesa_and_install_window_pending";
+    const own = await import("./own-job-piesa.server");
+    const lk = await import("./electrician-link.server");
+    const lcore = await import("./electrician-link.core");
+    const { addYmd, melbourneToday } = await import("./melbourne-time.core");
+    const tokenOf = (url: string) => url.split("/").filter(Boolean).pop()!;
+    const bookingTime = () => { let day = addYmd(melbourneToday(new Date()), 2); for (let i = 0; i < 7 && [0, 6].includes(new Date(`${day}T00:00:00Z`).getUTCDay()); i++) day = addYmd(day, 1); return lcore.melbourneWallToIso(day, "10:00")!; };
+    const events = async (type: string) => (await admin.from("workflow_events").select("id, details, created_at").eq("job_id", jobId).eq("event_type", type).order("created_at")).data ?? [];
+
+    // 1. Hand over: no offer, straight to the installer's electrician.
+    const handed = await own.handOwnJobPiesa(jobId);
+    let allocation = "not tried";
+    try { const r = await (await import("./allocation.server")).startPiesaAllocation(jobId, ctx.actorId, "piesa", { onlyBusiness: ctx.electrician.business_id, rateToConfirm: true }); allocation = `returned ${(r as { reason?: string }).reason ?? "offered"}`; } catch (e) { allocation = `refused: ${(e as Error).message.slice(0, 160)}`; }
+    const { count: offers } = await admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("kind", "piesa");
+    const { data: a1 } = await admin.from("job_assignments").select("id, business_id").eq("job_id", jobId).eq("role", "electrician").eq("active", true);
+    const stage1 = await J.stageOf(ctx);
+    const handedEvents = await events("own_job_piesa_handed");
+    rec.checks.push({ n: "O.1", name: "paid own job is handed to the installer's electrician (no offer)", status: ["handed", "already"].includes(handed) && (offers ?? 0) === 0 && a1?.length === 1 && a1[0]!.business_id === ctx.electrician.business_id && stage1 === piesaStage && handedEvents.length === 1 ? "passed" : "failed", detail: `hand-over ${handed}; stage ${stage1}; piesa offers ${offers}; active electricians ${a1?.length}; hand-over events ${handedEvents.length}`, ids: { job_id: jobId } });
+    rec.checks.push({ n: "O.2", name: "the old offer path says 'own job: call and book'", status: /own job: call and book/.test(allocation) ? "passed" : "failed", detail: allocation, ids: {} });
+    answer("stops", rec.checks.filter((c) => c.n === "O.1" || c.n === "O.2").every((c) => c.status === "passed"), `hand-over ${handed}; ${allocation}; piesa offers=${offers}; stage=${stage1}`);
+
+    // 2. The electrician books from the link (no login); 3. the owner gets the booking notice.
+    const link1 = await lk.createElectricianJobLink(jobId, ctx.electrician.business_id);
+    const token1 = tokenOf(link1.url);
+    const view1 = await lk.electricianLinkView(token1);
+    const before = await counts(jobId); const t0 = new Date().toISOString();
+    let booked = "booked"; let start = "";
+    try { start = bookingTime(); await lk.linkBookPiesa(token1, start); } catch (e) { booked = `failed: ${(e as Error).message}`; }
+    const { data: bk } = await admin.from("bookings").select("id, status").eq("job_id", jobId).eq("kind", "assessment").eq("status", "confirmed");
+    const stage2 = await J.stageOf(ctx);
+    const view2 = await lk.electricianLinkView(token1);
+    rec.checks.push({ n: "O.3", name: "electrician's link shows 'book', then books the safety check", status: view1.ok && view1.step === "book_piesa" && booked === "booked" && (bk ?? []).length === 1 && view2.ok && view2.step !== "book_piesa" ? "passed" : "failed", detail: `link step before=${view1.ok ? view1.step : view1.reason}; ${booked}; confirmed bookings ${(bk ?? []).length}; stage ${stage2}; link step after=${view2.ok ? view2.step : view2.reason}`, ids: {} });
+    const notices = (await admin.from("workflow_events").select("event_type").eq("job_id", jobId).gte("created_at", t0).like("event_type", "in_house_booked_notice%")).data ?? [];
+    const em = await emailsSince(jobId, t0); const after = await counts(jobId);
+    const ownerTold = notices.length > 0 || em.ces.length + em.comm.length > 0;
+    if (ownerTold) rec.checks.push({ n: "O.4", name: "owner gets the booking notice", status: "passed", detail: `${notices.map((n) => n.event_type).join(", ") || "email logged"}; ${diff(before, after)}`, ids: {} });
+    else rec.simulated("O.4", "owner gets the booking notice", `no owner notice recorded (customer messages off or quiet hours in TEST): ${diff(before, after)}`, {});
+    answer("reason", booked === "booked" && (bk ?? []).length === 1 && stage2 === "piesa_scheduled", `${booked}; stage ${stage2}; owner notice: ${ownerTold ? "recorded" : "not recorded in TEST (simulated)"}`);
+
+    // 4. The installer swaps the electrician: a booked safety check is cancelled and the new electrician books fresh.
+    const echo = (await admin.from("profiles").select("id, business_id").eq("email", ECHO).maybeSingle()).data;
+    if (!echo?.business_id) { BLOCKED_REASON = "TEST Echo electrician is missing, so the swap and can't-do steps could not run"; return; }
+    await ensureLinked(echo.business_id as string);
+    const sw = await import("./electrician-swap.server");
+    const pre = await sw.swapPreflight(jobId, ctx.installer.business_id, echo.business_id as string);
+    if (pre.problem) { BLOCKED_REASON = `swap not possible with TEST Echo: ${pre.problem}`; rec.checks.push({ n: "O.5", name: "installer swaps the electrician", status: "blocked", detail: pre.problem, ids: {} }); return; }
+    let swapped = "swapped";
+    try { await sw.installerSwapElectrician(jobId, ctx.installer.business_id, echo.business_id as string, ctx.installer.id); } catch (e) { swapped = `failed: ${(e as Error).message}`; }
+    const stage3 = await J.stageOf(ctx);
+    const { data: a2 } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "electrician").eq("active", true);
+    const { count: liveBookings } = await admin.from("bookings").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("kind", "assessment").in("status", ["proposed", "confirmed"]);
+    const oldLink = await lk.resolveElectricianLink(token1);
+    const swappedEv = (await events("own_job_electrician_swapped")).at(-1);
+    const handed2 = await events("own_job_piesa_handed");
+    const sw2 = swappedEv?.details as { booking_cancelled?: boolean; old_electrician_email?: string } | undefined;
+    rec.checks.push({ n: "O.5", name: "swap: booked check cancelled, old link off, new electrician on, fresh hand-over", status: swapped === "swapped" && stage3 === piesaStage && a2?.length === 1 && a2[0]!.business_id === echo.business_id && (liveBookings ?? 0) === 0 && !oldLink.ok && sw2?.booking_cancelled === true && handed2.length === 2 ? "passed" : "failed", detail: `${swapped}; stage ${stage3}; active ${a2?.map((x) => x.business_id === echo.business_id ? "Echo" : "other").join(",")}; live safety check bookings ${liveBookings}; old link ${oldLink.ok ? "STILL WORKS" : "off"}; booking cancelled ${sw2?.booking_cancelled}; hand-over events ${handed2.length}`, ids: {} });
+    rec.checks.push({ n: "O.6", name: "old electrician's email is held until Jo approves the wording", status: sw2?.old_electrician_email === "not_approved" || sw2?.old_electrician_email === "no_email" || sw2?.old_electrician_email === "test_sent" ? "passed" : "failed", detail: `old electrician email: ${sw2?.old_electrician_email ?? "none recorded"}`, ids: {} });
+    const formNote = (await events("own_job_swap_form_not_moved")).at(-1);
+    if (formNote) rec.simulated("O.7", "Mitti safety check form moves to the new electrician", `the simulator-only run cannot move the real form: ${(formNote.details as { reason?: string } | null)?.reason ?? "no reason"} (office item raised)`, {});
+    answer("carries_on", rec.checks.filter((c) => c.n === "O.5" || c.n === "O.6").every((c) => c.status === "passed"), `${swapped}; stage ${stage3}; new electrician's fresh hand-over events=${handed2.length}; old link ${oldLink.ok ? "still works" : "off"}`);
+
+    // 5. The new electrician says "Can't do this one": the job goes back to the installer office once.
+    const link2 = await lk.createElectricianJobLink(jobId, echo.business_id as string);
+    let cant = "sent back"; let officeEmail = "";
+    try { officeEmail = (await lk.linkCantDo(tokenOf(link2.url), "busy")).officeEmail; } catch (e) { cant = `failed: ${(e as Error).message}`; }
+    const { data: a3 } = await admin.from("job_assignments").select("id").eq("job_id", jobId).eq("role", "electrician").eq("active", true);
+    const handBack = await events("own_job_piesa_handed_back");
+    const link2After = await lk.resolveElectricianLink(tokenOf(link2.url));
+    const sig = await officeSignals(jobId);
+    const shots = await shoot("m159-cant-do", officePages(ctx));
+    const rows = sig.needsMeText.filter((t) => /can't do this one/i.test(t)).length;
+    rec.checks.push({ n: "O.8", name: "can't do this one: electrician off the job, link off, one hand-back", status: cant === "sent back" && (a3 ?? []).length === 0 && handBack.length === 1 && !link2After.ok ? "passed" : "failed", detail: `${cant}; active electricians ${(a3 ?? []).length}; hand-back events ${handBack.length}; link ${link2After.ok ? "STILL WORKS" : "off"}; office email: ${officeEmail || "-"}`, ids: {} });
+    answer("office_once", cant === "sent back" && rows === 1, `Needs me rows saying the electrician can't do this one=${rows} (${sig.needsMeText.join(" | ").slice(0, 300) || "none"}); office job page shows it=${sees(shots[0], /can't do this one|busy/i)}; office email: ${officeEmail || "-"}`);
+  } finally {
+    // Put the TEST links back as they were: delete the ones this run added, switch off the ones it switched on.
+    for (const l of addedLinks) {
+      const q = l.reactivated ? admin.from("partner_relationships").update({ active: false }) : admin.from("partner_relationships").delete();
+      await q.eq("installer_business_id", l.installer).eq("electrician_business_id", l.electrician);
+    }
+    await finish(ctx, jobs);
+  }
+}
+
 // ---------- Jo 28 Oct (decision 233) + batch 3b: owner pays the repeat PIESA on its OWN Xero invoice (Demo Company) ----------
 async function r158OwnerPays(rec: Recorder, jobs: BranchResult["jobs"], setup: StepResult[]) {
   const ctx = await freshCtx();
@@ -1623,11 +1737,11 @@ async function r158OwnerPays(rec: Recorder, jobs: BranchResult["jobs"], setup: S
   } finally { await finish(ctx, jobs); }
 }
 
-export type Phase4Name = "m8-quote-payment" | "m10-deposit" | "m11-fixes-payment" | "m22-payout-form" | "m23-electrician-payout" | "m24-installer-payout" | "m9-piesa-prereqs" | "m7-quote-release" | "m42-comms-lock" | "m43-consent" | "m158-repeat-piesa" | "m158-owner-pays";
+export type Phase4Name = "m8-quote-payment" | "m10-deposit" | "m11-fixes-payment" | "m22-payout-form" | "m23-electrician-payout" | "m24-installer-payout" | "m9-piesa-prereqs" | "m7-quote-release" | "m42-comms-lock" | "m43-consent" | "m158-repeat-piesa" | "m158-owner-pays" | "m159-own-job-call-and-book";
 export const PHASE4: Record<Phase4Name, (rec: Recorder, jobs: BranchResult["jobs"], setup: StepResult[]) => Promise<void>> = {
   "m8-quote-payment": m8QuotePayment, "m10-deposit": m10Deposit, "m11-fixes-payment": m11FixesPayment, "m22-payout-form": m22PayoutForm,
   "m23-electrician-payout": m23ElectricianPayout, "m24-installer-payout": m24InstallerPayout, "m9-piesa-prereqs": m9PiesaPrereqs,
-  "m7-quote-release": m7QuoteRelease, "m42-comms-lock": m42CommsLock, "m43-consent": m43Consent, "m158-repeat-piesa": r158RepeatPiesa, "m158-owner-pays": r158OwnerPays,
+  "m7-quote-release": m7QuoteRelease, "m42-comms-lock": m42CommsLock, "m43-consent": m43Consent, "m158-repeat-piesa": r158RepeatPiesa, "m158-owner-pays": r158OwnerPays, "m159-own-job-call-and-book": m159OwnJobCallAndBook,
 };
 export async function runPhase4(name: Phase4Name, shotDir: string): Promise<Phase3Result> {
   SHOT_DIR = shotDir; SHOTS.length = 0; ANSWERS.length = 0; BLOCKED_REASON = null;

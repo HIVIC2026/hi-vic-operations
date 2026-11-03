@@ -1,5 +1,6 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { AppShell } from "@/components/portal/AppShell";
+import { startEnquiriesList } from "@/lib/office-route-prefetch";
 import { EnquiriesScreen } from "@/components/portal/EnquiriesScreen";
 
 // O4 Enquiries (decisions 238/281/285: one list, one search box). Old ?status= bookmarks keep working: a saved spot is
@@ -11,6 +12,7 @@ export const Route = createFileRoute("/_authenticated/admin/enquiries")({
     if (status === "ineligible" || status === "removed") throw redirect({ to: "/admin/jobs/closed", replace: true });
   },
   validateSearch: (s: Record<string, unknown>): { status?: string } => (typeof s["status"] === "string" ? { status: s["status"] } : {}),
+  loader: ({ context, preload }) => startEnquiriesList(context, preload),
   head: () => ({
     meta: [
       { title: "Enquiries — Home Insulation Victoria Office" },

@@ -1,30 +1,11 @@
 // Area batches (A48 batch 2). PURE: no I/O. Owner answers and the roof fact come in as plain values.
+import { displayName } from "./display-name.core";
 import { distanceM } from "./geo.core";
 import { installerCanBeOffered, type WaitingInstaller } from "./installer-waiting-columns.core";
 import { QUICK_TAPS_ANSWERED_EVENT, QUICK_TAPS_DECLINE_REASON } from "./quick-taps.core";
 import { RUN_RELEASE_EVENTS } from "./run-route.core";
 
 const norm = (v: string | null | undefined) => (v ?? "").trim().toLowerCase();
-
-export type LikelyFacts = {
-  propertyType: string | null;
-  topFloor: string | null;
-  overFiveYears: string | null;
-  insulation: string | null;
-  insulationThickness: string | null;
-  roofForm: string | null;
-};
-
-/** Most likely eligible: house/townhouse (or top-floor unit), over 5 years, no insulation or "thin", roof not fully flat (unknown is fine). */
-export function likelyEligible(f: LikelyFacts): boolean {
-  const type = norm(f.propertyType);
-  const homeOk = type === "house" || type === "townhouse" || (type === "apartment" && norm(f.topFloor) === "yes");
-  if (!homeOk) return false;
-  if (norm(f.overFiveYears) !== "yes") return false;
-  if (norm(f.roofForm) === "low_slope_flat") return false;
-  const ins = norm(f.insulation);
-  return ins === "none" || (ins === "present" && norm(f.insulationThickness) === "thin");
-}
 
 export type BatchHome = { jobId: string; lat: number; lng: number; postcode: string; spotSavedAt: string };
 
@@ -86,7 +67,7 @@ export const QUICK_TAPS_REMINDER_SMS_TYPE = "quick_taps_reminder" as const;
 
 /** The owner's own My job link, on the quick taps screen. */
 export const quickTapsLink = (myJobLink: string) => `${myJobLink}?screen=taps`;
-const hiName = (fullName: string | null | undefined) => (fullName ?? "").trim().split(/\s+/)[0] || "there";
+const hiName = (fullName: string | null | undefined) => displayName(fullName).split(" ")[0] || "there";
 /** RETIRED 2 Nov 2026 (decision #22) — no longer sent; kept for history/tests. Jo approved 30 Oct 2026 (replaces the spec's first wording). Verbatim. No name → "Hi there," (Jo approved). */
 export const quickTapsText = (fullName: string | null | undefined, link: string) =>
   `Hi ${hiName(fullName)}, great news - it's almost time for your free Ready Check! Please confirm a few quick details for your quote: ${link} - Home Insulation Victoria`;
@@ -246,3 +227,46 @@ export const standingPass = (events: readonly AreaBatchEventRow[], jobId: string
   const latest = events.filter((e) => e.event_type === ANSWERED).sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
   return !!latest && outcomeOf(latest) === PASS && !passHandedOn(events, jobId);
 };
+
+/** Choose installer, after Send (Jo 2 Nov 2026): one home's text or email result in plain words. */
+export function sendResultWords(kind: "text" | "email", r: { status: string; detail: string }): string {
+  if (r.status === "sent") return "sent";
+  if (r.status === "already") return "already sent";
+  if (r.status === "not_texted" || r.status === "not_emailed") return "not sent — the owner already said yes";
+  if (kind === "email" && r.status === "no_email") return "no email on file";
+  if (kind === "email" && r.status === "unsubscribed") return "not sent — unsubscribed";
+  if (kind === "email" && r.status === "held") return r.detail.startsWith("No contact consent") ? "not sent — no permission to contact" : `not sent — blocked: ${r.detail}`;
+  if (kind === "email" && r.status === "blocked") return `not sent — blocked: ${r.detail.replace(/^blocked — /, "")}`;
+  if (kind === "email" && r.status === "uncertain") return "may have gone — not resent";
+  return `didn't go — ${r.detail || r.status}`;
+}
+
+// ---- To release: batch status per row, tick to Send (Task 6, Jo 2 Nov 2026). PURE. ------------------------------------
+/** Most homes one To release Send can carry (the same cap as the batch Send). */
+export const AREA_BATCH_MAX_HOMES = 10;
+/** A saved spot's batch status on Choose installer › To release: texted and no answer yet, said yes (before or after the
+ *  batch closed), or null = plain (never texted, declined, or freed with no answer). */
+export type BatchRowState = { kind: "waiting"; installerName: string } | { kind: "said_yes" } | null;
+/** `events` = the job's batch events and quick-taps answers. A yes (latest answer "pass") wins; otherwise the batch whose
+ *  quick taps the owner answers (`tapsBatchId`) with no answer for it yet = waiting. */
+export function batchRowState(events: readonly AreaBatchEventRow[]): BatchRowState {
+  const latest = events.filter((e) => e.event_type === ANSWERED).sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+  if (latest && outcomeOf(latest) === PASS) return { kind: "said_yes" };
+  const open = tapsBatchId(events);
+  if (!open || events.some((e) => e.event_type === ANSWERED && bid(e) === open)) return null;
+  const sent = events.find((e) => e.event_type === AREA_BATCH_SENT_EVENT && bid(e) === open);
+  const name = (sent?.details as { installer_name?: unknown } | null)?.installer_name;
+  return { kind: "waiting", installerName: displayName(typeof name === "string" ? name : null) };
+}
+/** The row's status line (verbatim copy), or null for a plain row. */
+export function batchRowLine(state: BatchRowState, ownerName: string | null | undefined): string | null {
+  if (!state) return null;
+  if (state.kind === "waiting") return `Waiting for owner (sent for ${state.installerName || "the installer"})`;
+  return `${displayName(ownerName) || "Owner"} said yes · free Ready Check`;
+}
+/** Why Send can't go with this many ticked homes, or null. */
+export function tickSendBlocker(ticked: number): string | null {
+  if (ticked < 1) return "Tick at least one saved spot.";
+  if (ticked > AREA_BATCH_MAX_HOMES) return `Up to ${AREA_BATCH_MAX_HOMES} homes per Send.`;
+  return null;
+}

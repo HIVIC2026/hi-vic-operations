@@ -17,6 +17,7 @@ import { OWNER_WILL_CALL_APPROVED, OWNER_WILL_CALL_HELD_EVENT, OWNER_WILL_CALL_S
 import { STAGE_ORDER } from "./workflow";
 import { smsQuietReason } from "./quote-hold.core";
 import type { RealSmsInput, RealSmsResult } from "./sms.server";
+import { displayName } from "./display-name.core";
 
 const PURPOSE = "in_house_partner_call";
 const PENDING = "in_house_partner_call_email_pending";
@@ -39,7 +40,11 @@ const defaults = (): WillCallDeps => ({
   db: admin as unknown as WillCallDeps["db"],
   approved: OWNER_WILL_CALL_APPROVED,
   now: () => new Date(),
-  contactFor: async (jobId) => (await import("./owner-contact.server")).businessContactForJob(jobId, "installer"),
+  // Jo 2 Nov 2026 (#126): names the owner reads show in normal case ("RAPID INSULATION" → "Rapid Insulation"); display only.
+  contactFor: async (jobId) => {
+    const c = await (await import("./owner-contact.server")).businessContactForJob(jobId, "installer");
+    return c ? { ...c, name: displayName(c.name), tradingName: c.tradingName ? displayName(c.tradingName) : null } : null;
+  },
   assertAllowed: async (jobId, what) => (await import("./comms.server")).assertCustomerDeliveryAllowed(jobId, what),
   sendEmail: async (p) => (await import("./owner-email-send.server")).sendGuardedOwnerEmail(p),
   sendSms: async (input) => (await import("./sms.server")).sendRealSms(input),

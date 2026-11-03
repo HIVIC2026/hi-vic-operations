@@ -2,10 +2,11 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { queryOptions, useSuspenseQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { readPracticeForm, completePracticeForm } from "@/lib/mitti-practice.functions";
+import { completePracticeForm } from "@/lib/mitti-practice.functions";
 import { PRACTICE_FIELDS } from "@/lib/mitti-practice.core";
 import { Button } from "@/components/ui/button";
-const options = (jobId: string, auditId: string) => queryOptions({ queryKey: ["practice-form", jobId, auditId], queryFn: () => readPracticeForm({ data: { jobId, auditId } }) });
+// The loader is part of the app's first download, so the server call module is fetched only when the page opens.
+const options = (jobId: string, auditId: string) => queryOptions({ queryKey: ["practice-form", jobId, auditId], queryFn: async () => (await import("@/lib/mitti-practice.functions")).readPracticeForm({ data: { jobId, auditId } }) });
 export const Route = createFileRoute("/_authenticated/field/practice/$jobId/$auditId")({
   head: () => ({ meta: [{ title: "TEST Ready Check – Home Insulation Victoria" }, { name: "description", content: "Isolated TEST Ready Check form." }, { property: "og:title", content: "TEST Ready Check – Home Insulation Victoria" }, { property: "og:description", content: "Isolated TEST Ready Check form." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex" }] }),
   loader: ({ params, context }) => context.queryClient.ensureQueryData(options(params.jobId, params.auditId)), component: Practice,

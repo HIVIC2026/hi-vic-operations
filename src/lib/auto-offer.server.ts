@@ -16,6 +16,7 @@ import { logEvent, piesaRequestFacts, stageEntryBlockers } from "./workflow.serv
 import { isTestPartner } from "./test-send.core";
 import { ourLeadPreferredId } from "./our-lead-piesa-electrician.core";
 import { inHouseSkippedAction } from "./in-house.core";
+import { OWN_JOB_CALL_AND_BOOK } from "./own-job-piesa.core";
 import { inHouseDispatchSkip, readInHouseDispatchState, type InHouseDispatchState } from "./in-house-suppression.server";
 import {
   AUTO_OFFER_FLAG, AUTO_OFFER_READY_STAGES, AUTO_OFFER_RETURNED_EVENT, autoOfferBlocked, autoOfferInstallerElectrician, autoOfferPreferredElectrician, autoOfferReturnedSummary, autoOfferStageReady, autoOfferStep, autoOfferSwitchOn,
@@ -75,7 +76,7 @@ async function installerCandidates(jobId: string): Promise<AutoOfferCandidate[]>
   }));
 }
 
-async function electricianCandidates(jobId: string, channel: string | null, jobIsTest: boolean): Promise<{ candidates: AutoOfferCandidate[]; usualBusinessId: string | null }> {
+async function electricianCandidates(jobId: string, channel: string | null, jobIsTest: boolean, source: string | null = null): Promise<{ candidates: AutoOfferCandidate[]; usualBusinessId: string | null; held?: boolean }> {
   const alloc = await import("./allocation.server");
   const { postcode, candidates } = await alloc.recCandidatesFor(jobId);
   const ids = candidates.map((c) => c.business_id);
@@ -97,6 +98,12 @@ async function electricianCandidates(jobId: string, channel: string | null, jobI
   if (channel === "installer_sourced") {
     const chosen = await (await import("./job-electrician.server")).jobChosenElectrician(jobId);
     preferredIds = chosen ? [chosen] : candidates.filter((c) => c.preferred).map((c) => c.business_id);
+    // Jo 3 Nov 2026: a Mitti pickup the installer never answered uses their approved usual electrician; none → hold.
+    if (!chosen) {
+      const m = await (await import("./mitti-electrician.server")).mittiElectricianAtSafetyCheck(jobId);
+      if (m.action === "hold") return { candidates: mapped, usualBusinessId: null, held: true };
+      if (m.action === "use_usual") preferredIds = [m.businessId];
+    }
   }
   // Our leads (29 Oct 2026): the Ready Check installer's usual electrician, when they are an approved REC covering the job.
   // Matched against the approved REC list (rec_number, trading name, workers' licences). Any read error = none.
@@ -122,6 +129,12 @@ export type AutoOfferOutcome = { jobId: string; kind: AutoOfferKind; step: AutoO
 export async function autoOfferForJob(jobId: string, kind: AutoOfferKind, switches?: Awaited<ReturnType<typeof readAutoOfferSwitches>>, inHouseState?: InHouseDispatchState): Promise<AutoOfferOutcome> {
   const skipped = await inHouseDispatchSkip(jobId, inHouseState);
   if (skipped) return { jobId, kind, step: "none", reason: skipped, ...inHouseSkippedAction(skipped) };
+  // Part 2 (Jo 3 Nov 2026): an installer's own job never gets a safety check offer — its electrician calls and books.
+  // Checked before the switch so the "switch off" hand-back to the office never fires for these jobs. Unreadable = no offer.
+  if (kind === "piesa") {
+    const own = await (await import("./own-job-piesa.server")).ownJobCallAndBook(jobId, inHouseState);
+    if (own !== false) return { jobId, kind, step: "none", reason: own ? OWN_JOB_CALL_AND_BOOK : "own_job_read_failed" };
+  }
   const sw = switches ?? await readAutoOfferSwitches();
   if (!sw[kind]) return { jobId, kind, step: "none", reason: "switch_off" };
   if (kind === "ready_check" && !sw.readyCheckBooking) return { jobId, kind, step: "none", reason: "ready_check_booking_off" };
@@ -153,7 +166,7 @@ export async function autoOfferForJob(jobId: string, kind: AutoOfferKind, switch
   let step: AutoOfferStep;
   if (pre) step = pre;
   else if (kind === "ready_check") step = autoOfferStep({ ...facts, candidates: await installerCandidates(jobId) });
-  else { const e = await electricianCandidates(jobId, job.channel, facts.jobIsTest); step = autoOfferStep({ ...facts, candidates: e.candidates, usualBusinessId: e.usualBusinessId, preferredRule: job.channel === "installer_sourced" ? "installer_job" : "our_lead" }); }
+  else { const e = await electricianCandidates(jobId, job.channel, facts.jobIsTest, job.source); if (e.held) return { jobId, kind, step: "none", reason: "installer_to_choose_electrician" }; step = autoOfferStep({ ...facts, candidates: e.candidates, usualBusinessId: e.usualBusinessId, preferredRule: job.channel === "installer_sourced" ? "installer_job" : "our_lead" }); }
 
   if (step.action === "none") return { jobId, kind, step: "none", reason: step.reason };
   if (step.action === "return_to_office") {

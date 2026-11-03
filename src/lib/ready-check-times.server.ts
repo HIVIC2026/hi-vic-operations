@@ -4,7 +4,7 @@
 // Storage: appointment_proposals (kind ready_check, note READY_CHECK_TIME_NOTE) — no new table. Acceptance reuses the
 // atomic SQL accept_ready_check_offer (approval, Full EEC, area, stage and "nobody assigned yet" checks); every booking
 // goes through confirmBooking(…, "ready_check", …) and then onReadyCheckBooked (Mitti form).
-import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { jobAdmin as admin } from "./job-facts.server"; // speed (Task 11): the admin client; inside the job page bundle it answers from the job's rows
 import { WorkflowError, logEvent } from "./workflow.server";
 import { ACCEPT_OUTCOME_MESSAGE } from "./allocation.core";
 import {

@@ -163,6 +163,9 @@ export async function sweepMittiPickupAuto(opts: { dryRun?: boolean; call?: Mitt
       }
       // Factual record only — the owner's tick is a fact about contact, never a marketing consent record.
       if (r.contactPermission === true) await logEvent(created.job_id, null, "mitti_contact_permission", `Owner ticked contact permission on the Mitti Ready Check form (audit ${r.auditId})`, { audit_id: r.auditId, permission: true, source: "mitti_form" }, { internal: true });
+      // Jo 2 Nov 2026: verify the typed site address (same lookup as enquiries). Never throws or blocks the pickup;
+      // no confident match keeps the typed address and flags "Address to confirm"; a failed lookup is retried by the tick.
+      if (source !== "qa_test") { const { completeJobAddress } = await import("./address-complete.server"); await completeJobAddress(created.job_id, { trigger: "mitti_pickup" }); }
       const link = await linkMittiReadyCheckToJob(null, { auditId: r.auditId, jobId: created.job_id }, call);
       // Safety net: if post-intake finished after the link, the job still lands at ready_check_scheduled.
       const { holdAtMittiReadyCheck } = await import("./mitti-pickup.server");

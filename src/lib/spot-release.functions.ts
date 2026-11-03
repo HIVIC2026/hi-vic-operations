@@ -13,7 +13,7 @@ const token = z.string().max(200);
 export const getSpotRelease = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireOfficeJob(context.supabase, data.jobId);
+    await requireOfficeJob(context.supabase, data.jobId, context);
     const { spotReleaseStateFor } = await import("./spot-release.server");
     const { releaseStatusLine, releasable } = await import("./spot-release.core");
     const s = await spotReleaseStateFor(data.jobId);
@@ -24,8 +24,8 @@ export const getSpotRelease = createServerFn({ method: "POST" }).middleware([req
 export const releaseSpotFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: z.string().uuid(), businessId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireOfficeJob(context.supabase, data.jobId);
-    await requireOfficeBusiness(context.supabase, data.businessId);
+    await requireOfficeJob(context.supabase, data.jobId, context);
+    await requireOfficeBusiness(context.supabase, data.businessId, context);
     const r = await (await import("./spot-release.server")).releaseSpot(data.jobId, context.userId, data.businessId);
     return { mode: r.mode, installer: r.installer };
   });

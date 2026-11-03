@@ -14,7 +14,7 @@ const plain = <T,>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 export const offerRunFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ batchId: uuid, businessId: uuid.nullable().optional() }).parse(d))
   .handler(async ({ data, context }) => {
-    const role = await requireOfficeIdentity(context.supabase);
+    const role = await requireOfficeIdentity(context.supabase, context);
     if (role === "qa_office") throw new Error("The TEST office login can't send runs to installers.");
     return plain(await (await import("./installer-run.server")).offerRun(data.batchId, context.userId, { businessId: data.businessId ?? null }));
   });
@@ -23,7 +23,7 @@ export const offerRunFn = createServerFn({ method: "POST" }).middleware([require
 export const returnBatchFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ batchId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
-    const role = await requireOfficeIdentity(context.supabase);
+    const role = await requireOfficeIdentity(context.supabase, context);
     if (role === "qa_office") throw new Error("The TEST office login can't change batches.");
     return (await import("./installer-run.server")).returnBatchToSuggestions(data.batchId, context.userId);
   });

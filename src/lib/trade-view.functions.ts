@@ -66,6 +66,10 @@ export const setTradeTaking = createServerFn({ method: "POST" }).middleware([req
   .inputValidator((d) => z.object({ taking: z.boolean() }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSetTaking(context.userId, data.taking));
 
+export const setTradePiesaBooker = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ booker: z.enum(["office", "electrician", "either"]) }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSetPiesaBooker(context.userId, data.booker));
+
 export const getTradeSetupView = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .handler(async ({ context }) => plain(await (await import("./trade-view.server")).tradeSetup(context.userId)));
 
@@ -118,10 +122,15 @@ export const setTeamMemberMobile = createServerFn({ method: "POST" }).middleware
   .inputValidator((d) => z.object({ workerId: z.string().uuid(), mobile: z.string().trim().max(30) }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSetWorkerMobile(context.userId, data.workerId, data.mobile));
 
+/** Jo 3 Nov ~3pm: the business fills a missing date of birth (anyone) or missing email (electricians) from the Team page. */
+export const setTeamMemberMissing = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ workerId: z.string().uuid(), dateOfBirth: z.string().trim().max(10).nullable().optional(), email: z.string().trim().max(254).nullable().optional() }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeFillWorkerMissing(context.userId, data.workerId, { dateOfBirth: data.dateOfBirth ?? null, email: data.email ?? null }));
+
 /** Jo 29 Oct: add a person to the team with no email needed; they sign their declarations by link before any job. */
 export const addTeamPerson = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({
-    name: z.string().trim().min(1).max(120), workerRole: z.enum(["lead", "crew"]), mobile: z.string().trim().max(30).nullable(),
+    name: z.string().trim().min(1).max(120), workerRole: z.enum(["lead", "crew"], { message: "Choose Lead or Crew." }), mobile: z.string().trim().max(30).nullable(),
     email: z.string().trim().max(200).email().or(z.literal("")).nullable().transform((v) => v || null), licenceNumber: z.string().trim().max(60).nullable(),dateOfBirth:z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeAddTeamPerson(context.userId, data));
@@ -134,6 +143,11 @@ export const setA1ReadyCheckTimeFn = createServerFn({ method: "POST" }).middlewa
 export const getInHouseBookingAccess = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).inHouseBookingAccess(context.userId, data.jobId, context.supabase));
+
+/** Part 2: the installer office books the safety check (PIESA) on its own job (same booking function as the electrician's link). */
+export const ownJobOfficeBookPiesa = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, start: z.string().datetime({ offset: true }) }).parse(d))
+  .handler(async ({ data, context }) => (await import("./own-job-piesa.server")).officeBookOwnJobPiesa(context.userId, data.jobId, data.start, new Date(), context.supabase as never));
 
 export const getInHouseBookingList = createServerFn({method:'POST'}).middleware([requireSupabaseAuth])
   .inputValidator(z.object({jobIds:z.array(uuid).max(1000)}))
@@ -313,3 +327,12 @@ export const getTradeSafetyCheckPdf = createServerFn({ method: "POST" }).middlew
 export const checkTradeInstallForm = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => plain(await (await import("./trade-view.server")).tradeCheckInstallForm(data.jobId, context.userId)));
+
+/** Part 2: the installer's boss changes the electrician on its own job before the safety check (PIESA) is done. */
+export const getTradeSwapElectricianOptions = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => plain(await (await import("./trade-view.server")).tradeSwapElectricianOptions(context.userId, data.jobId)));
+
+export const tradeSwapElectrician = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, electricianBusinessId: uuid }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSwapElectrician(context.userId, data.jobId, data.electricianBusinessId));

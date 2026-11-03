@@ -4,13 +4,11 @@
 // refused and the card returns null for them. Append-only event; never sends anything.
 // Decision 289: price + what is included only; the electrician was chosen at Add a job and is shown read-only.
 // Decision 290 (corrected): the card shows the Ready Check's access rating and issue notes as the flag (no fee question).
-import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { jobAdmin as admin } from "./job-facts.server"; // speed (Task 11): the admin client; inside the job page bundle it answers from the job's rows
 import { WorkflowError, logEvent } from "./workflow.server";
 import {
-  HIV_SWITCH,
   INSTALLER_PRICE_EVENT,
   PRICE_LOCKED,
-  hivSwitchOffered,
   priceCardLocked,
   priceEventSummary,
   priceFromPortal,
@@ -19,6 +17,7 @@ import {
 } from "./installer-price.core";
 import { readInstallerPriceState, type StoredInstallerPrice } from "./installer-price.server";
 import { early } from "./early-read";
+import { sharedFor, type SharedJobReads } from "./job-shared-reads";
 // Namespaces: tests replace these modules with partial mocks; a namespace never fails on a missing export.
 import * as pilotServer from "./pilot.server";
 import * as usualElectricianServer from "./usual-electrician.server";
@@ -95,7 +94,8 @@ async function currentReadyCheck(jobId: string): Promise<{
 }
 
 /** The boss's "Your price" card: the saved price, the job's electrician choice (read-only) and the access flag. Team members: null (nothing shown). */
-export async function installerPriceView(jobId: string, userId: string) {
+export async function installerPriceView(jobId: string, userId: string, sharedReads?: SharedJobReads) {
+  const shared = sharedFor(sharedReads, userId, jobId);
   // Speed (installer screens, Task 6): the job, the caller's memberships and every card read that needs only the job id
   // start together; the usual electrician follows the job's business. Nothing is used or returned until the job and the
   // business-owner checks pass, in the same order as before (a refused caller gets null; read errors surface as before).
@@ -129,7 +129,7 @@ export async function installerPriceView(jobId: string, userId: string) {
       removalM2: null,
     })),
   );
-  const quoteP = early(loadInstallerQuote(jobId));
+  const quoteP = early(shared ? shared.quote() : loadInstallerQuote(jobId));
   const sentAtP = early(
     latestQuoteSentAt(jobId).then(
       (at) => ({ at, failed: false }),
@@ -168,29 +168,13 @@ export async function installerPriceView(jobId: string, userId: string) {
   const { formatPropertyAddress } = await import("./address");
   const product = resolveMittiProduct(contactAnswersFromEntries(entries).productOption).product;
   const address = formatPropertyAddress(j.properties);
-  const quote = await quoteP;
-  const held = quote.electricianNotOnboarded === true;
+  await quoteP;
   const sent = await sentAtP;
   const locked =
     sent.failed ||
     priceCardLocked({ quoteSentAt: sent.at, newQuoteRequestedAt: state.newQuoteRequestedAt });
   const { APPROVED_PRODUCTS } = await import("./insulation-product.core");
-  let hivSwitch: { priceIncGst: number } | null = null;
-  if (
-    hivSwitchOffered({
-      quoteHeldNotOnboarded: held,
-      choice: choice === "hivic" ? "hivic" : "usual",
-    })
-  ) {
-    const { data: rs } = await admin
-      .from("retail_estimator_settings")
-      .select("piesa_assessment_inc_gst")
-      .eq("is_current", true)
-      .maybeSingle();
-    hivSwitch = {
-      priceIncGst: rs?.piesa_assessment_inc_gst == null ? 349 : Number(rs.piesa_assessment_inc_gst),
-    };
-  }
+  const hivSwitch: { priceIncGst: number } | null = null;
   return {
     canSet: true as const,
     current: stored,
@@ -315,26 +299,5 @@ export async function switchToHivElectrician(jobId: string, userId: string): Pro
   const j = await a1JobOrThrow(jobId);
   const { requireMember } = await import("./pilot.server");
   await requireMember(userId, j.originating_installer_business_id, true);
-  const held =
-    (await (await import("./installer-quote-status.server")).loadInstallerQuote(jobId))
-      .electricianNotOnboarded === true;
-  const recorded = await (await import("./electrician-choice.server")).readElectricianChoice(jobId);
-  if (
-    !hivSwitchOffered({
-      quoteHeldNotOnboarded: held,
-      choice: recorded === "hivic" ? "hivic" : "usual",
-    })
-  )
-    throw new WorkflowError(HIV_SWITCH.refused);
-  await (
-    await import("./electrician-choice.server")
-  ).recordElectricianChoice(
-    jobId,
-    j.originating_installer_business_id,
-    userId,
-    "hivic",
-    "installer_switch",
-  );
-  await prepareQuoteFromPortal(jobId, userId);
-  return { ok: true };
+  throw new WorkflowError("Use one of your own electricians.");
 }

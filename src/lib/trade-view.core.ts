@@ -317,6 +317,8 @@ export type TeamMemberView = {
   workerRole?: "lead" | "crew" | null;
   /** Jo 29 Oct: added on Team and not yet signed the worker declarations; can't go on jobs until they do. */
   declarationsDue: boolean;
+  /** Jo 3 Nov: required details still missing ("mobile", "date of birth", "email"); undefined = owner or unknown. */
+  missingDetails?: string[];
 };
 export const ROLE_LABEL: Record<TeamMemberView["role"], string> = { owner: "owner", installer: "installer", electrician: "electrician" };
 
@@ -456,15 +458,17 @@ export function businessNext(f: BusinessNextFacts, today: string): BusinessNext 
 /** Team → Add a team member sheet (Jo 29 Oct: no email needed; they sign their declarations by link). */
 export const TEAM_ADD_SHEET = {
   title: "Add a team member",
-  bodyInstaller: "Email and mobile can wait. They sign their declarations by link, and we check their CII certificate, before they go on a job.",
-  bodyElectrician: "Email and mobile can wait. They sign their declarations by link before they go on a job. Each electrician needs a current electrical licence.",
+  bodyInstaller: "Mobile and date of birth are needed. They sign their declarations by link, and we check their CII certificate, before they go on a job.",
+  bodyElectrician: "Mobile, date of birth and email are needed. They sign their declarations by link before they go on a job. Each electrician needs a current electrical licence.",
   name: "Full name",
   licence: "Electrical licence number",
   role: "Lead or Crew",
   lead: "Lead · can run install days",
   crew: "Crew · can't lead an install day",
-  mobile: "Mobile (optional)",
+  roleExplanation: "Lead: runs the install day and fills in the job forms in Mitti, so we set them up with a Mitti login.\nCrew: works with a Lead. No Mitti login needed.",
+  mobile: "Mobile",
   email: "Email (optional)",
+  emailElectrician: "Email",
   button: "Add to team",
   cancel: "Cancel",
 } as const;

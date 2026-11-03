@@ -1,39 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { excludedAreaName, likelyEligible, suggestBatches, type BatchHome } from "../src/lib/area-batch.core";
-
-const base = { propertyType: "house", topFloor: "", overFiveYears: "yes", insulation: "none", insulationThickness: "unknown", roofForm: "pitched" };
-const f = (o: Partial<typeof base> = {}) => ({ ...base, ...o });
-
-describe("likelyEligible", () => {
-  test("house, over 5 years, no insulation, pitched roof", () => expect(likelyEligible(f())).toBe(true));
-  test("townhouse counts", () => expect(likelyEligible(f({ propertyType: "townhouse" }))).toBe(true));
-  test("top-floor apartment with thin insulation", () =>
-    expect(likelyEligible(f({ propertyType: "apartment", topFloor: "yes", insulation: "present", insulationThickness: "thin" }))).toBe(true));
-  test("unknown or mixed roof still counts", () => {
-    expect(likelyEligible(f({ roofForm: "unknown" }))).toBe(true);
-    expect(likelyEligible(f({ roofForm: "mixed" }))).toBe(true);
-    expect(likelyEligible(f({ roofForm: null }))).toBe(true);
-  });
-  test("fully flat roof is out", () => expect(likelyEligible(f({ roofForm: "low_slope_flat" }))).toBe(false));
-  test("over five years no / blank / unknown is out", () => {
-    expect(likelyEligible(f({ overFiveYears: "no" }))).toBe(false);
-    expect(likelyEligible(f({ overFiveYears: "" }))).toBe(false);
-    expect(likelyEligible(f({ overFiveYears: null }))).toBe(false);
-    expect(likelyEligible(f({ overFiveYears: "unknown" }))).toBe(false);
-  });
-  test("insulation present without thin is out", () => {
-    for (const t of ["hand", "thicker", "unknown", null]) expect(likelyEligible(f({ insulation: "present", insulationThickness: t as string | null }))).toBe(false);
-  });
-  test("unknown insulation is out", () => expect(likelyEligible(f({ insulation: "unknown" }))).toBe(false));
-  test("apartment not on top floor is out", () => {
-    expect(likelyEligible(f({ propertyType: "apartment", topFloor: "no" }))).toBe(false);
-    expect(likelyEligible(f({ propertyType: "apartment", topFloor: "" }))).toBe(false);
-  });
-  test("property type blank / other / unknown is out", () => {
-    for (const p of ["", null, "other", "unknown"]) expect(likelyEligible(f({ propertyType: p }))).toBe(false);
-  });
-  test("case and spaces are ignored", () => expect(likelyEligible(f({ propertyType: " House ", overFiveYears: "YES" }))).toBe(true));
-});
+import { excludedAreaName, suggestBatches, type BatchHome } from "../src/lib/area-batch.core";
 
 const NOW = "2026-10-30T00:00:00.000Z";
 const daysAgo = (d: number) => new Date(Date.parse(NOW) - d * 86400000).toISOString();
@@ -94,4 +60,43 @@ describe("suggestBatches", () => {
 describe("excludedAreaName", () => {
   test.each(["Garage", "double carport", "Shed 1", "Car port", "the SHED", "Garage/workshop"])("%s is excluded", (n) => expect(excludedAreaName(n)).toBe(true));
   test.each(["Shedding room", "Lounge", "", "Garaged"])("%s is not excluded", (n) => expect(excludedAreaName(n)).toBe(false));
+});
+
+// ---- Task 6 (Jo 2 Nov 2026): To release shows batch status; tick to Send ------------------------------------------------
+describe("To release: batch status per row", async () => {
+  const { AREA_BATCH_MAX_HOMES, batchRowState, batchRowLine, tickSendBlocker } = await import("../src/lib/area-batch.core");
+  const ev = (event_type: string, batch_id: string, created_at: string, extra: Record<string, unknown> = {}) => ({ event_type, created_at, details: { batch_id, ...extra } });
+  const sent = (b = "b1", at = "2026-11-01T01:00:00Z") => ev("area_batch_sent", b, at, { installer_name: "RAPID INSULATION" });
+  test("texted, no answer → waiting for owner with the installer's name in normal case", () => {
+    const s = batchRowState([sent()]);
+    expect(s).toEqual({ kind: "waiting", installerName: "Rapid Insulation" });
+    expect(batchRowLine(s, "WAYNE WILSON")).toBe("Waiting for owner (sent for Rapid Insulation)");
+  });
+  test("said yes before the batch closes → said yes", () => {
+    const s = batchRowState([sent(), ev("quick_taps_answered", "b1", "2026-11-01T02:00:00Z", { outcome: "pass" })]);
+    expect(s).toEqual({ kind: "said_yes" });
+    expect(batchRowLine(s, "WAYNE WILSON")).toBe("Wayne Wilson said yes · free Ready Check");
+  });
+  test("said yes and the batch closed → still said yes; blank owner name → Owner", () => {
+    const s = batchRowState([sent(), ev("quick_taps_answered", "b1", "2026-11-01T02:00:00Z", { outcome: "pass" }), ev("area_batch_closed", "b1", "2026-11-04T02:00:00Z", { pass_job_ids: ["j1"] })]);
+    expect(s).toEqual({ kind: "said_yes" });
+    expect(batchRowLine(s, "  ")).toBe("Owner said yes · free Ready Check");
+    expect(batchRowLine(s, null)).toBe("Owner said yes · free Ready Check");
+  });
+  test("declined or never texted → plain row (null)", () => {
+    expect(batchRowState([])).toBeNull();
+    expect(batchRowState([sent(), ev("quick_taps_answered", "b1", "2026-11-01T02:00:00Z", { outcome: "decline_5yr" })])).toBeNull();
+    expect(batchRowLine(null, "Wayne")).toBeNull();
+  });
+  test("texted, closed with no answer (freed back to the pool) → plain row", () =>
+    expect(batchRowState([sent(), ev("area_batch_closed", "b1", "2026-11-04T02:00:00Z", { pass_job_ids: [], freed_job_ids: ["j1"] })])).toBeNull());
+  test("no installer name on the batch → 'the installer'", () =>
+    expect(batchRowLine(batchRowState([ev("area_batch_sent", "b1", "2026-11-01T01:00:00Z")]), "x")).toBe("Waiting for owner (sent for the installer)"));
+  test("tick to Send: at least one, at most 10", () => {
+    expect(AREA_BATCH_MAX_HOMES).toBe(10);
+    expect(tickSendBlocker(0)).toBe("Tick at least one saved spot.");
+    expect(tickSendBlocker(1)).toBeNull();
+    expect(tickSendBlocker(10)).toBeNull();
+    expect(tickSendBlocker(11)).toBe("Up to 10 homes per Send.");
+  });
 });

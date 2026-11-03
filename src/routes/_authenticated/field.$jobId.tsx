@@ -138,6 +138,8 @@ import { SafetyCheckDocRow } from "@/components/trade/SafetyCheckDocRow";
 import { InstallAttendanceCard } from "@/components/trade/InstallAttendanceCard";
 import { ELECTRICIAN_ATTENDANCE_CONFIRMED } from "@/lib/trade-view.core";
 import { InHouseBookingCard, useInHouseBookingAccess } from "@/components/trade/InHouseBookingCard";
+import { MittiElectricianCard } from "@/components/trade/mitti-electrician-card";
+import { ChangeElectricianCard } from "@/components/trade/ChangeElectricianCard";
 
 export const Route = createFileRoute("/_authenticated/field/$jobId")({
   head: () => ({
@@ -321,6 +323,7 @@ function FieldJobBody({ jobId }: { jobId: string }) {
               : []
           }
           action={
+            <div className="space-y-2">
             <div className="flex flex-wrap gap-2">
               {showOwnerContact && job.owner_phone && (
                 <a href={`tel:${job.owner_phone}`} className={btnClass("primary")}>
@@ -338,6 +341,7 @@ function FieldJobBody({ jobId }: { jobId: string }) {
                 </a>
               )}
             </div>
+            </div>
           }
         />
         {role === "electrician" && <JobStatusCard jobId={jobId} />}
@@ -346,6 +350,8 @@ function FieldJobBody({ jobId }: { jobId: string }) {
         </div>
         <div className="space-y-4">
           {/* Decision 333: the electrician offers the owner 3 safety check times (the owner picks one or suggests days). */}
+          {role !== "electrician" && <MittiElectricianCard jobId={jobId} />}
+          {role !== "electrician" && <ChangeElectricianCard jobId={jobId} />}
           <InHouseBookingCard jobId={jobId} />
           {role === "electrician" && inHouseAccess.data?.allowed !== true && (
             <ElectricianPiesaTimesCard jobId={jobId} />
@@ -768,6 +774,10 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
   });
   const { data: days } = useInstallerInstallDays(jobId);
   const { data: rc } = useInstallerReadyCheckTimes(jobId);
+  // Quick taps (Jo 2 Nov 2026): who will be at the home. Read only while the owner's phone is shown, and shown only while
+  // owner contact is shown (fails closed: hidden while loading or on error).
+  const jobStatus = useTradeJobStatus(jobId, !!job.owner_phone);
+  const showOwnerContact = !!job.owner_phone && jobStatus.data?.ownerContactVisible === true;
   const done = useAction(completeInstallation);
   const mittiInvited = useMittiInvited();
   const owner = firstName(job.owner_name);
@@ -954,6 +964,11 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
           phone={job.owner_phone}
           address={job.owner_name ? job.property_address : null}
         />
+        {showOwnerContact && jobStatus.data?.access && (
+          <p className="mt-2 text-sm text-ink" data-at-the-home>
+            {jobStatus.data.access}
+          </p>
+        )}
       </ScreenHead>
 
       {page && next && (
@@ -1070,6 +1085,8 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
       )}
 
       <InHouseBookingCard jobId={jobId} />
+
+      {page?.channel === "installer_sourced" && <MittiElectricianCard jobId={jobId} />}
 
       {/* AI replies step 2: notes the office saved for the installer (e.g. the owner wants R7.0). Older answers carry none. */}
       {page && (page.notes ?? []).length > 0 && (

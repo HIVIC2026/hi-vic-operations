@@ -29,7 +29,7 @@ function Join() {
   const submit = useServerFn(submitWorkerInvite);
   const slot = useServerFn(workerInviteCertSlot);
   const [inv, setInv] = useState<Invite | null>(null);
-  const [f, setF] = useState({ full_legal_name: "", mobile: "", email: "", licence_number: "", qualification: "", certificate_number: "", signed_name: "" });
+  const [f, setF] = useState({ full_legal_name: "", mobile: "", email: "", licence_number: "", qualification: "", certificate_number: "", signed_name: "", date_of_birth: "" });
   const [cert, setCert] = useState<File | null>(null);
   const [ticks, setTicks] = useState<string[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
@@ -126,6 +126,7 @@ function Join() {
         <label className="text-sm font-medium">Your full legal name<Input value={f.full_legal_name} onChange={set("full_legal_name")} className="mt-1 h-12" /></label>
         <label className="text-sm font-medium">Your mobile<Input inputMode="tel" value={f.mobile} onChange={set("mobile")} className="mt-1 h-12" /></label>
         <label className="text-sm font-medium">Your email<Input type="email" value={f.email} onChange={set("email")} className="mt-1 h-12" /></label>
+        <label className="text-sm font-medium">Your date of birth<Input type="date" value={f.date_of_birth} onChange={set("date_of_birth")} className="mt-1 h-12" /><span className="mt-1 block text-xs text-sub">Kept private. Used only for ESC registration.</span></label>
         {inv.trade === "electrician"
           ? <label className="text-sm font-medium">Your Victorian electrician licence number (ESV)<Input value={f.licence_number} onChange={(e) => setF({ ...f, licence_number: e.target.value.toUpperCase() })} className="mt-1 h-12" /></label>
           : (<>

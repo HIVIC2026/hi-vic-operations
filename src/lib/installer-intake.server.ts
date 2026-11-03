@@ -315,9 +315,24 @@ export async function installerUpdateIntake(jobId: string, actorId: string, busi
     const lock = await intakePayerLock(jobId, st.electricianPayer, actorId, businessId);
     if (lock) throw new WorkflowError(lock);
   }
-  // Own -> a different own electrician has no atomic swap yet: refused (never silently "Saved"); Office changes it.
-  if (!pc.change && st.electricianPayer === "own" && p.electrician && (p.electrician.business_id || p.electrician.nomination_id))
-    throw new WorkflowError(OWN_ELECTRICIAN_OFFICE_CHANGE);
+  // Own -> a different own electrician is the swap (Part 2): checked here, before any write; done at the end of the save.
+  // Picking the electrician already on the job is no change. An electrician who hasn't signed up yet (a nomination) still goes to the office.
+  let swapTo: string | null = null;
+  if (!pc.change && st.electricianPayer === "own" && p.electrician && (p.electrician.business_id || p.electrician.nomination_id)) {
+    if (!p.electrician.business_id) throw new WorkflowError(OWN_ELECTRICIAN_OFFICE_CHANGE);
+    // Only the installer's own job swaps; anything else (or a job we can't check) goes to the office as before.
+    if ((await (await import("./own-job-piesa.server")).ownJobCallAndBook(jobId)) !== true) throw new WorkflowError(OWN_ELECTRICIAN_OFFICE_CHANGE);
+    const { swapPreflight } = await import("./electrician-swap.server");
+    const { SWAP_SAME } = await import("./electrician-swap.core");
+    const f = await swapPreflight(jobId, businessId, p.electrician.business_id);
+    if (f.problem && f.problem !== SWAP_SAME) throw new WorkflowError(f.problem);
+    if (!f.problem) {
+      // Same rule as the job page's "Change electrician": only the business owner (not crew) makes the change.
+      const { data: mem, error: me } = await admin.from("business_members").select("member_role").eq("business_id", businessId).eq("user_id", actorId).eq("active", true).maybeSingle();
+      if (me || mem?.member_role !== "business_admin") throw new WorkflowError("Only your business owner can change the electrician.");
+      swapTo = p.electrician.business_id; // includes finishing a swap that stopped part way
+    }
+  }
   const { data: m, error: mErr } = await admin.from("ceiling_measurements").select("id, provenance, supplied_area_m2").eq("job_id", jobId).eq("is_current", true).maybeSingle();
   if (mErr) throw new WorkflowError("The current measurement could not load. Please retry.");
   // Not attended and no measurement: an entered area is a PRELIMINARY estimate (event only), never a measure-up.
@@ -397,6 +412,7 @@ export async function installerUpdateIntake(jobId: string, actorId: string, busi
     await logEvent(jobId, actorId, "installer_electrician_payer_changed", `Installer changed the electrician arrangement: ${st.electricianPayer} → ${pc.nextPayer}`, { from: st.electricianPayer, to: pc.nextPayer, choice: electrician }, { internal: true });
     if (st.feeAwarenessRecorded && !p.feeAwareness) await logEvent(jobId, actorId, "installer_owner_fee_awareness_invalidated", "Earlier owner fee declaration no longer covers the new electrician arrangement — a new declaration is needed", { previous_payer: st.feeAwarenessPayer, new_payer: pc.nextPayer }, { internal: true });
   }
+  if (swapTo) await (await import("./electrician-swap.server")).installerSwapElectrician(jobId, businessId, swapTo, actorId);
   let feeRecorded = false;
   if (p.feeAwareness) {
     const { FEE_AWARENESS_VERSION } = await import("./installer-intake.core");

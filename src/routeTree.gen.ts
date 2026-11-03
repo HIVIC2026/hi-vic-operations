@@ -26,6 +26,7 @@ import { Route as AuthenticatedFieldRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
 import { Route as AuthenticatedOwnerRouteImport } from './routes/_authenticated/owner'
 import { Route as AuthenticatedPartnerRouteImport } from './routes/_authenticated/partner'
+import { Route as ETokenRouteImport } from './routes/e.$token'
 import { Route as EligibilityTokenRouteImport } from './routes/eligibility.$token'
 import { Route as EstimateTokenRouteImport } from './routes/estimate.$token'
 import { Route as JoinTokenRouteImport } from './routes/join.$token'
@@ -90,6 +91,7 @@ import { Route as AuthenticatedFieldBusinessAgreementRouteImport } from './route
 import { Route as AuthenticatedFieldBusinessBankRouteImport } from './routes/_authenticated/field.business_.bank'
 import { Route as AuthenticatedFieldBusinessDetailsRouteImport } from './routes/_authenticated/field.business_.details'
 import { Route as AuthenticatedFieldBusinessElectricianRouteImport } from './routes/_authenticated/field.business_.electrician'
+import { Route as AuthenticatedFieldBusinessElectriciansRouteImport } from './routes/_authenticated/field.business_.electricians'
 import { Route as AuthenticatedFieldBusinessEscNoticeRouteImport } from './routes/_authenticated/field.business_.esc-notice'
 import { Route as AuthenticatedFieldBusinessInsuranceRouteImport } from './routes/_authenticated/field.business_.insurance'
 import { Route as AuthenticatedFieldBusinessRatesRouteImport } from './routes/_authenticated/field.business_.rates'
@@ -103,6 +105,7 @@ import { Route as ApiPublicHooksBacklogSendRouteImport } from './routes/api/publ
 import { Route as ApiPublicHooksCustomerFollowupsRouteImport } from './routes/api/public/hooks/customer-followups'
 import { Route as ApiPublicHooksEscRobotRouteImport } from './routes/api/public/hooks/esc-robot'
 import { Route as ApiPublicHooksExternalActionsRouteImport } from './routes/api/public/hooks/external-actions'
+import { Route as ApiPublicHooksListingFactsRouteImport } from './routes/api/public/hooks/listing-facts'
 import { Route as ApiPublicHooksMittiAuditRouteImport } from './routes/api/public/hooks/mitti-audit'
 import { Route as ApiPublicHooksMittiPullRouteImport } from './routes/api/public/hooks/mitti-pull'
 import { Route as ApiPublicHooksMittiRetryRouteImport } from './routes/api/public/hooks/mitti-retry'
@@ -203,6 +206,11 @@ const AuthenticatedPartnerRoute = AuthenticatedPartnerRouteImport.update({
   id: '/partner',
   path: '/partner',
   getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const ETokenRoute = ETokenRouteImport.update({
+  id: '/e/$token',
+  path: '/e/$token',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const EligibilityTokenRoute = EligibilityTokenRouteImport.update({
   id: '/eligibility/$token',
@@ -556,6 +564,12 @@ const AuthenticatedFieldBusinessElectricianRoute =
     path: '/business/electrician',
     getParentRoute: () => AuthenticatedFieldRoute,
   } as any)
+const AuthenticatedFieldBusinessElectriciansRoute =
+  AuthenticatedFieldBusinessElectriciansRouteImport.update({
+    id: '/business_/electricians',
+    path: '/business/electricians',
+    getParentRoute: () => AuthenticatedFieldRoute,
+  } as any)
 const AuthenticatedFieldBusinessEscNoticeRoute =
   AuthenticatedFieldBusinessEscNoticeRouteImport.update({
     id: '/business_/esc-notice',
@@ -631,6 +645,12 @@ const ApiPublicHooksExternalActionsRoute =
   ApiPublicHooksExternalActionsRouteImport.update({
     id: '/api/public/hooks/external-actions',
     path: '/api/public/hooks/external-actions',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicHooksListingFactsRoute =
+  ApiPublicHooksListingFactsRouteImport.update({
+    id: '/api/public/hooks/listing-facts',
+    path: '/api/public/hooks/listing-facts',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiPublicHooksMittiAuditRoute =
@@ -744,6 +764,7 @@ export interface FileRoutesByFullPath {
   '/home': typeof AuthenticatedHomeRoute
   '/owner': typeof AuthenticatedOwnerRouteWithChildren
   '/partner': typeof AuthenticatedPartnerRouteWithChildren
+  '/e/$token': typeof ETokenRoute
   '/eligibility/$token': typeof EligibilityTokenRoute
   '/estimate/$token': typeof EstimateTokenRoute
   '/join/$token': typeof JoinTokenRoute
@@ -808,6 +829,7 @@ export interface FileRoutesByFullPath {
   '/field/business/bank': typeof AuthenticatedFieldBusinessBankRoute
   '/field/business/details': typeof AuthenticatedFieldBusinessDetailsRoute
   '/field/business/electrician': typeof AuthenticatedFieldBusinessElectricianRoute
+  '/field/business/electricians': typeof AuthenticatedFieldBusinessElectriciansRoute
   '/field/business/esc-notice': typeof AuthenticatedFieldBusinessEscNoticeRoute
   '/field/business/insurance': typeof AuthenticatedFieldBusinessInsuranceRoute
   '/field/business/rates': typeof AuthenticatedFieldBusinessRatesRoute
@@ -821,6 +843,7 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
   '/api/public/hooks/esc-robot': typeof ApiPublicHooksEscRobotRoute
   '/api/public/hooks/external-actions': typeof ApiPublicHooksExternalActionsRoute
+  '/api/public/hooks/listing-facts': typeof ApiPublicHooksListingFactsRoute
   '/api/public/hooks/mitti-audit': typeof ApiPublicHooksMittiAuditRoute
   '/api/public/hooks/mitti-pull': typeof ApiPublicHooksMittiPullRoute
   '/api/public/hooks/mitti-retry': typeof ApiPublicHooksMittiRetryRoute
@@ -851,6 +874,7 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/save-spot': typeof SaveSpotRoute
   '/home': typeof AuthenticatedHomeRoute
+  '/e/$token': typeof ETokenRoute
   '/eligibility/$token': typeof EligibilityTokenRoute
   '/estimate/$token': typeof EstimateTokenRoute
   '/join/$token': typeof JoinTokenRoute
@@ -915,6 +939,7 @@ export interface FileRoutesByTo {
   '/field/business/bank': typeof AuthenticatedFieldBusinessBankRoute
   '/field/business/details': typeof AuthenticatedFieldBusinessDetailsRoute
   '/field/business/electrician': typeof AuthenticatedFieldBusinessElectricianRoute
+  '/field/business/electricians': typeof AuthenticatedFieldBusinessElectriciansRoute
   '/field/business/esc-notice': typeof AuthenticatedFieldBusinessEscNoticeRoute
   '/field/business/insurance': typeof AuthenticatedFieldBusinessInsuranceRoute
   '/field/business/rates': typeof AuthenticatedFieldBusinessRatesRoute
@@ -928,6 +953,7 @@ export interface FileRoutesByTo {
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
   '/api/public/hooks/esc-robot': typeof ApiPublicHooksEscRobotRoute
   '/api/public/hooks/external-actions': typeof ApiPublicHooksExternalActionsRoute
+  '/api/public/hooks/listing-facts': typeof ApiPublicHooksListingFactsRoute
   '/api/public/hooks/mitti-audit': typeof ApiPublicHooksMittiAuditRoute
   '/api/public/hooks/mitti-pull': typeof ApiPublicHooksMittiPullRoute
   '/api/public/hooks/mitti-retry': typeof ApiPublicHooksMittiRetryRoute
@@ -964,6 +990,7 @@ export interface FileRoutesById {
   '/_authenticated/home': typeof AuthenticatedHomeRoute
   '/_authenticated/owner': typeof AuthenticatedOwnerRouteWithChildren
   '/_authenticated/partner': typeof AuthenticatedPartnerRouteWithChildren
+  '/e/$token': typeof ETokenRoute
   '/eligibility/$token': typeof EligibilityTokenRoute
   '/estimate/$token': typeof EstimateTokenRoute
   '/join/$token': typeof JoinTokenRoute
@@ -1028,6 +1055,7 @@ export interface FileRoutesById {
   '/_authenticated/field/business_/bank': typeof AuthenticatedFieldBusinessBankRoute
   '/_authenticated/field/business_/details': typeof AuthenticatedFieldBusinessDetailsRoute
   '/_authenticated/field/business_/electrician': typeof AuthenticatedFieldBusinessElectricianRoute
+  '/_authenticated/field/business_/electricians': typeof AuthenticatedFieldBusinessElectriciansRoute
   '/_authenticated/field/business_/esc-notice': typeof AuthenticatedFieldBusinessEscNoticeRoute
   '/_authenticated/field/business_/insurance': typeof AuthenticatedFieldBusinessInsuranceRoute
   '/_authenticated/field/business_/rates': typeof AuthenticatedFieldBusinessRatesRoute
@@ -1041,6 +1069,7 @@ export interface FileRoutesById {
   '/api/public/hooks/customer-followups': typeof ApiPublicHooksCustomerFollowupsRoute
   '/api/public/hooks/esc-robot': typeof ApiPublicHooksEscRobotRoute
   '/api/public/hooks/external-actions': typeof ApiPublicHooksExternalActionsRoute
+  '/api/public/hooks/listing-facts': typeof ApiPublicHooksListingFactsRoute
   '/api/public/hooks/mitti-audit': typeof ApiPublicHooksMittiAuditRoute
   '/api/public/hooks/mitti-pull': typeof ApiPublicHooksMittiPullRoute
   '/api/public/hooks/mitti-retry': typeof ApiPublicHooksMittiRetryRoute
@@ -1077,6 +1106,7 @@ export interface FileRouteTypes {
     | '/home'
     | '/owner'
     | '/partner'
+    | '/e/$token'
     | '/eligibility/$token'
     | '/estimate/$token'
     | '/join/$token'
@@ -1141,6 +1171,7 @@ export interface FileRouteTypes {
     | '/field/business/bank'
     | '/field/business/details'
     | '/field/business/electrician'
+    | '/field/business/electricians'
     | '/field/business/esc-notice'
     | '/field/business/insurance'
     | '/field/business/rates'
@@ -1154,6 +1185,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/customer-followups'
     | '/api/public/hooks/esc-robot'
     | '/api/public/hooks/external-actions'
+    | '/api/public/hooks/listing-facts'
     | '/api/public/hooks/mitti-audit'
     | '/api/public/hooks/mitti-pull'
     | '/api/public/hooks/mitti-retry'
@@ -1184,6 +1216,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/save-spot'
     | '/home'
+    | '/e/$token'
     | '/eligibility/$token'
     | '/estimate/$token'
     | '/join/$token'
@@ -1248,6 +1281,7 @@ export interface FileRouteTypes {
     | '/field/business/bank'
     | '/field/business/details'
     | '/field/business/electrician'
+    | '/field/business/electricians'
     | '/field/business/esc-notice'
     | '/field/business/insurance'
     | '/field/business/rates'
@@ -1261,6 +1295,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/customer-followups'
     | '/api/public/hooks/esc-robot'
     | '/api/public/hooks/external-actions'
+    | '/api/public/hooks/listing-facts'
     | '/api/public/hooks/mitti-audit'
     | '/api/public/hooks/mitti-pull'
     | '/api/public/hooks/mitti-retry'
@@ -1296,6 +1331,7 @@ export interface FileRouteTypes {
     | '/_authenticated/home'
     | '/_authenticated/owner'
     | '/_authenticated/partner'
+    | '/e/$token'
     | '/eligibility/$token'
     | '/estimate/$token'
     | '/join/$token'
@@ -1360,6 +1396,7 @@ export interface FileRouteTypes {
     | '/_authenticated/field/business_/bank'
     | '/_authenticated/field/business_/details'
     | '/_authenticated/field/business_/electrician'
+    | '/_authenticated/field/business_/electricians'
     | '/_authenticated/field/business_/esc-notice'
     | '/_authenticated/field/business_/insurance'
     | '/_authenticated/field/business_/rates'
@@ -1373,6 +1410,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/customer-followups'
     | '/api/public/hooks/esc-robot'
     | '/api/public/hooks/external-actions'
+    | '/api/public/hooks/listing-facts'
     | '/api/public/hooks/mitti-audit'
     | '/api/public/hooks/mitti-pull'
     | '/api/public/hooks/mitti-retry'
@@ -1404,6 +1442,7 @@ export interface RootRouteChildren {
   QaAccessRoute: typeof QaAccessRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SaveSpotRoute: typeof SaveSpotRoute
+  ETokenRoute: typeof ETokenRoute
   EligibilityTokenRoute: typeof EligibilityTokenRoute
   EstimateTokenRoute: typeof EstimateTokenRoute
   JoinTokenRoute: typeof JoinTokenRoute
@@ -1432,6 +1471,7 @@ export interface RootRouteChildren {
   ApiPublicHooksCustomerFollowupsRoute: typeof ApiPublicHooksCustomerFollowupsRoute
   ApiPublicHooksEscRobotRoute: typeof ApiPublicHooksEscRobotRoute
   ApiPublicHooksExternalActionsRoute: typeof ApiPublicHooksExternalActionsRoute
+  ApiPublicHooksListingFactsRoute: typeof ApiPublicHooksListingFactsRoute
   ApiPublicHooksMittiAuditRoute: typeof ApiPublicHooksMittiAuditRoute
   ApiPublicHooksMittiPullRoute: typeof ApiPublicHooksMittiPullRoute
   ApiPublicHooksMittiRetryRoute: typeof ApiPublicHooksMittiRetryRoute
@@ -1567,6 +1607,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/partner'
       preLoaderRoute: typeof AuthenticatedPartnerRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/e/$token': {
+      id: '/e/$token'
+      path: '/e/$token'
+      fullPath: '/e/$token'
+      preLoaderRoute: typeof ETokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/eligibility/$token': {
       id: '/eligibility/$token'
@@ -2016,6 +2063,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFieldBusinessElectricianRouteImport
       parentRoute: typeof AuthenticatedFieldRoute
     }
+    '/_authenticated/field/business_/electricians': {
+      id: '/_authenticated/field/business_/electricians'
+      path: '/business/electricians'
+      fullPath: '/field/business/electricians'
+      preLoaderRoute: typeof AuthenticatedFieldBusinessElectriciansRouteImport
+      parentRoute: typeof AuthenticatedFieldRoute
+    }
     '/_authenticated/field/business_/esc-notice': {
       id: '/_authenticated/field/business_/esc-notice'
       path: '/business/esc-notice'
@@ -2105,6 +2159,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/hooks/external-actions'
       fullPath: '/api/public/hooks/external-actions'
       preLoaderRoute: typeof ApiPublicHooksExternalActionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/hooks/listing-facts': {
+      id: '/api/public/hooks/listing-facts'
+      path: '/api/public/hooks/listing-facts'
+      fullPath: '/api/public/hooks/listing-facts'
+      preLoaderRoute: typeof ApiPublicHooksListingFactsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/hooks/mitti-audit': {
@@ -2316,6 +2377,7 @@ interface AuthenticatedFieldRouteChildren {
   AuthenticatedFieldBusinessBankRoute: typeof AuthenticatedFieldBusinessBankRoute
   AuthenticatedFieldBusinessDetailsRoute: typeof AuthenticatedFieldBusinessDetailsRoute
   AuthenticatedFieldBusinessElectricianRoute: typeof AuthenticatedFieldBusinessElectricianRoute
+  AuthenticatedFieldBusinessElectriciansRoute: typeof AuthenticatedFieldBusinessElectriciansRoute
   AuthenticatedFieldBusinessEscNoticeRoute: typeof AuthenticatedFieldBusinessEscNoticeRoute
   AuthenticatedFieldBusinessInsuranceRoute: typeof AuthenticatedFieldBusinessInsuranceRoute
   AuthenticatedFieldBusinessRatesRoute: typeof AuthenticatedFieldBusinessRatesRoute
@@ -2342,6 +2404,8 @@ const AuthenticatedFieldRouteChildren: AuthenticatedFieldRouteChildren = {
     AuthenticatedFieldBusinessDetailsRoute,
   AuthenticatedFieldBusinessElectricianRoute:
     AuthenticatedFieldBusinessElectricianRoute,
+  AuthenticatedFieldBusinessElectriciansRoute:
+    AuthenticatedFieldBusinessElectriciansRoute,
   AuthenticatedFieldBusinessEscNoticeRoute:
     AuthenticatedFieldBusinessEscNoticeRoute,
   AuthenticatedFieldBusinessInsuranceRoute:
@@ -2419,6 +2483,7 @@ const rootRouteChildren: RootRouteChildren = {
   QaAccessRoute: QaAccessRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SaveSpotRoute: SaveSpotRoute,
+  ETokenRoute: ETokenRoute,
   EligibilityTokenRoute: EligibilityTokenRoute,
   EstimateTokenRoute: EstimateTokenRoute,
   JoinTokenRoute: JoinTokenRoute,
@@ -2447,6 +2512,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHooksCustomerFollowupsRoute: ApiPublicHooksCustomerFollowupsRoute,
   ApiPublicHooksEscRobotRoute: ApiPublicHooksEscRobotRoute,
   ApiPublicHooksExternalActionsRoute: ApiPublicHooksExternalActionsRoute,
+  ApiPublicHooksListingFactsRoute: ApiPublicHooksListingFactsRoute,
   ApiPublicHooksMittiAuditRoute: ApiPublicHooksMittiAuditRoute,
   ApiPublicHooksMittiPullRoute: ApiPublicHooksMittiPullRoute,
   ApiPublicHooksMittiRetryRoute: ApiPublicHooksMittiRetryRoute,

@@ -41,8 +41,8 @@ describe("2. Lead / Crew", () => {
   test("(a) the Mitti invite only invites Leads", () => {
     expect(mittiInviteStep(person({ crew: true }), null, ON)).toEqual({ action: "skip", reason: CREW_SKIP });
     expect(mittiInviteStep(person({ crew: false }), null, ON).action).toBe("lookup");
-    // Electricians are not Lead/Crew and keep their existing rule.
-    expect(mittiInviteStep(person({ tradeRole: "electrician", crew: true }), null, ON).action).toBe("lookup");
+    // Jo 3 Nov: this activation is Lead-only, not automatic electrician invites.
+    expect(mittiInviteStep(person({ tradeRole: "electrician", crew: true }), null, ON).action).toBe("skip");
   });
   test("(b) a Lead with no email of their own uses the business's own email; Crew gets none", () => {
     expect(mittiEmailFor({ role: "lead", ownEmail: null, businessEmail: "Office@Biz.com.au" })).toEqual({ email: "office@biz.com.au", source: "business" });

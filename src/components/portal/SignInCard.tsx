@@ -2,10 +2,11 @@ import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
-import { greenBtn, ghostBtn, inputCls } from "@/components/trade/TradeShell";
 import { LINK_SENT_SAFE, badLinkMessage, linkErrorMessage, normaliseLoginEmail, safeNextPath, signInErrorMessage } from "@/lib/login.core";
 import { cn } from "@/lib/utils";
+import { clearLastCopies } from "@/lib/trade-cache";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
+import { greenBtn, ghostBtn, inputCls } from "@/components/trade/trade-classes";
 
 
 /** Shared staff/trade sign-in card used by /auth and /portal. After sign-in everyone goes to /portal, which routes by role. */
@@ -56,6 +57,7 @@ export function SignInCard() {
     const em = checked(); if (!em) return;
     if (!password) { fail("Type your password, or use \"Email me a sign-in link\".", "password"); return; }
     setBusy("signin");
+    clearLastCopies(); // an earlier person's copies on this phone must not linger
     const res = await supabase.auth.signInWithPassword({ email: em, password });
     setBusy(null);
     if (res.error) fail(signInErrorMessage(res.error));

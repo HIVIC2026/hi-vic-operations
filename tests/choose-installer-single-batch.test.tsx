@@ -14,12 +14,15 @@ mock.module("@/lib/spot-release.functions", () => ({
 }));
 mock.module("@/lib/area-batch.functions", () => ({
   sendAreaBatchFn: stub("batch"),
-  getAreaBatchSuggestions: stub("suggestions"),
   getBatchesReadyToSend: stub("ready"),
 }));
 mock.module("@/lib/installer-run.functions", () => ({
   offerRunFn: stub("offer"),
   returnBatchFn: stub("return"),
+}));
+mock.module("@/lib/in-house-batch.functions", () => ({
+  allocateInHouseBatch: stub("give"),
+  getInHouseGiveForJob: stub("loadGive"),
 }));
 mock.module("@/components/portal/panels", () => ({
   Section: ({ children }: { children: React.ReactNode }) => children,
@@ -73,7 +76,9 @@ mock.module("@tanstack/react-query", () => ({
               { ...trade, id: "blocked", business: "Blocked TEST", blocker: "No certificate" },
             ],
           }
-        : { state: releaseState, line: "Owner confirmation" },
+        : queryKey[0] === "in-house-give"
+          ? null
+          : { state: releaseState, line: "Owner confirmation" },
     isError: false,
     isPending: false,
   }),

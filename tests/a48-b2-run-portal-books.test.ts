@@ -146,7 +146,7 @@ function addJob(id: string, o: { source?: string } = {}) {
   tables["property_facts"]!.push({ property_id: `p-${id}`, job_id: id, fact_key: "coordinates", value: COORDS[id] ?? [145.1 + id.charCodeAt(0) / 1000, -37.8], is_current: true });
 }
 const ev = (jobId: string, type: string, hours: number, details: Row) => tables["workflow_events"]!.push({ id: crypto.randomUUID(), job_id: jobId, event_type: type, created_at: at(hours), details });
-const ANSWERS = { name: "x", address: "y", hatch: "yes", roof: "some", five_years: "not_sure", go: "yes" };
+const ANSWERS = { name: "x", address: "y", hatch: "yes", roof: "some", five_years: "not_sure", access: { who: "owner" as const }, go: "yes" };
 function closedBatch(batchId: string, jobIds: string[], installer = "biz-1") {
   for (const j of jobIds) ev(j, "area_batch_sent", -80, { batch_id: batchId, installer_business_id: installer, installer_name: "Sample Insulation", job_ids: jobIds, idempotency_key: `area-batch:v1:${j}:1` });
   for (const j of jobIds) ev(j, "quick_taps_answered", -70, { batch_id: batchId, answers: ANSWERS, consent_share: true, outcome: "pass" });
@@ -909,5 +909,15 @@ describe("wiring", () => {
     // Retired (Part 3 Task 16): no hub entry for the run-window texts any more.
     expect(hub).not.toContain('smsType: "run_time"');
     expect(hub).not.toContain('smsType: "run_time_reminder"');
+  });
+});
+
+// Jo 3 Nov 2026: quick taps no longer ask the roof or 5 years — new owners only have the hatch line; old answers still show theirs.
+describe("tapRows after the roof / 5-year questions were removed", () => {
+  test("tapRows shows only the hatch for a new owner", async () => {
+    const { tapRows } = await import("../src/lib/run-route.core");
+    const { QUICK_TAPS_COPY } = await import("../src/lib/quick-taps.core");
+    expect(tapRows({ hatch: "yes" })).toEqual([[QUICK_TAPS_COPY.hatch.question, "Yes"]]);
+    expect(tapRows({ hatch: "yes", roof: "sloped" })).toHaveLength(2);
   });
 });

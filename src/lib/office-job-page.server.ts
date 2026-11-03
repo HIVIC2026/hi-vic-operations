@@ -7,9 +7,11 @@ import { jobsStage, surnameOf } from "./office-jobs.core";
 import { buildStageCards, type StageCardFacts } from "./office-stage-cards.core";
 import { mergeContactHistory, lastHeardFromUs, type CommRow, type EmailSendRow, type OwnerActionRow, type PortalMessageRow, type SmsRow } from "./contact-history.core";
 import { splitAddress } from "./name-address-tidy.core";
+import { displayName } from "./display-name.core";
 import { ELIGIBILITY_WORDS } from "./job-wording";
 import { withoutRetiredInstallDayPhotos } from "./ready-check-chase.core";
 import { installDaysLeft } from "./install-days.core";
+import { readJobAccess } from "./quick-taps-access.server";
 
 const s = (v: unknown) => (v == null ? null : String(v));
 const n = (v: unknown) => (v == null || v === "" ? null : Number(v));
@@ -43,7 +45,7 @@ export async function loadJobPage(jobId: string, testOffice = false) {
   const prop = job.properties as { address_line: string | null; suburb: string | null; postcode: string | null; state: string | null; occupancy: string | null; enrichment: Record<string, unknown> | null } | null;
   const addr = splitAddress(prop?.address_line, prop?.suburb, prop?.postcode);
 
-  const [gathered, consent, asg, offers, bookings, meas, diagram, quotes, piesa, rect, escConsent, escNotice, assignment, evidence, veec, campaign, links, media, readyForVeec, originBiz, proposals, contacts] = await Promise.all([
+  const [gathered, consent, asg, offers, bookings, meas, diagram, quotes, piesa, rect, escConsent, escNotice, assignment, evidence, veec, campaign, links, media, readyForVeec, originBiz, proposals, contacts, access] = await Promise.all([
     gatherNeedsFacts({ includeTest: true, onlyIds: [jobId], testOffice }),
     admin.from("owner_contact_consents").select("consent_status, consented_at, created_at").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("job_assignments").select("role, business_id, assigned_at, active, businesses(name)").eq("job_id", jobId).eq("active", true),
@@ -66,10 +68,12 @@ export async function loadJobPage(jobId: string, testOffice = false) {
     job.originating_installer_business_id ? admin.from("businesses").select("name").eq("id", job.originating_installer_business_id).maybeSingle() : Promise.resolve({ data: null as { name: string } | null }),
     admin.from("appointment_proposals").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("install_day", true).eq("status", "proposed"),
     contactRows(jobId, { created_at: job.created_at, source: job.source, channel: job.channel }),
+    // Quick taps (Jo 2 Nov 2026): who will be at the home; fails closed (a failed read shows nothing).
+    readJobAccess(jobId),
   ]);
   const bizOf = (role: string) => ((asg.data ?? []).find((a) => a.role === role)?.businesses as { name?: string } | null)?.name ?? null;
   const ownJob = job.channel === "installer_sourced";
-  const installer = bizOf("installer") ?? (ownJob ? originBiz.data?.name ?? null : null);
+  const installer = displayName(bizOf("installer") ?? (ownJob ? originBiz.data?.name ?? null : null)) || null;
   const officeJob = gathered.jobs.find((j) => j.id === jobId) ?? null;
   const status = officeJob?.status ?? null;
   const facts = gathered.facts.get(jobId) ?? null;
@@ -107,7 +111,7 @@ export async function loadJobPage(jobId: string, testOffice = false) {
     quote: { sentAt: s(instQ?.sent_at), held: instQ?.release_state === "held" ? instQ.release_hold_reason ?? "held" : null, subtotal: n(instQ?.subtotal_inc_gst), incentive: n(instQ?.veec_discount_inc_gst), ownerPays: n(instQ?.customer_total_inc_gst), acceptedAt: s(instQ?.accepted_at), signer: null,
       // The $349 is the first step, so it was paid by the earliest recorded payment (append-only ledger).
       safetyPaidAt: step("safety_check")?.state === "paid" ? ([...(pay?.ledger ?? [])].map((l) => l.paidAt).sort()[0] ?? null) : null, safetyCheckCents: step("safety_check")?.amountCents ?? null, declined: instQ?.status === "declined" ? "owner said not for them" : null },
-    piesa: { electrician: bizOf("electrician"), offer: piesaOffer ? `${(piesaOffer.businesses as { name?: string } | null)?.name ?? "Electrician"} · ${piesaOffer.status === "pending" ? `offered ${day(piesaOffer.offered_at)}` : piesaOffer.status}` : null, visitAt: book("assessment"),
+    piesa: { electrician: displayName(bizOf("electrician")) || null, offer: piesaOffer ? `${displayName((piesaOffer.businesses as { name?: string } | null)?.name) || "Electrician"} · ${piesaOffer.status === "pending" ? `offered ${day(piesaOffer.offered_at)}` : piesaOffer.status}` : null, visitAt: book("assessment"),
       outcome: piesa.data ? `${piesa.data.outcome === "pass" ? "Passed" : piesa.data.outcome === "fail" ? "Fixes needed" : String(piesa.data.outcome)} ${day(String(piesa.data.completed_date))}` : null,
       fixes: rect.data ? `${rect.data.status === "accepted" ? "Approved" : rect.data.sent_at ? "Quote sent" : "Quote being checked"} · $${Number(rect.data.customer_total_inc_gst).toLocaleString("en-AU", { maximumFractionDigits: 0 })}` : null },
     install: { deadline, daysLeft, deposit: deposit ? `$${(deposit.amountCents / 100).toLocaleString("en-AU", { maximumFractionDigits: 0 })} (10%) · ${deposit.state === "paid" ? "paid" : deposit.state === "requested" ? `held until ${pay?.provisional.expiresAt ? dayTime(pay.provisional.expiresAt) : "paid"}` : deposit.state === "overdue" ? "overdue" : "to book · bank transfer"}` : null,
@@ -129,7 +133,8 @@ export async function loadJobPage(jobId: string, testOffice = false) {
       doNotContact: dnc.on, doNotContactStop: dnc.source === "sms_stop",
       jobId, jobNumber: job.job_number, isTest: job.source === "qa_test", ownJob, installerName: installer, stage: job.stage, deleted: !!job.deleted_at,
       inHouseHeld: !testOffice && !!facts?.inHouse,
-      ownerName: owner?.full_name ?? null, surname: surnameOf(owner?.full_name), phone: owner?.phone ?? null, email: owner?.email ?? null,
+      ownerName: displayName(owner?.full_name) || null, surname: surnameOf(owner?.full_name), phone: owner?.phone ?? null, email: owner?.email ?? null,
+      access: access.line,
       street: addr.street || prop?.address_line || null, suburb: addr.suburb || null, postcode: addr.postcode || null,
       sourceLabel: ownJob ? `Installer's own customer · ${installer ?? "installer"}` : job.source === "base44" ? "Website enquiry" : job.source === "qa_test" ? "TEST job" : "Phone / office enquiry",
       receivedAt: job.created_at, permissionAt: consent.data?.consent_status === "granted" ? s(consent.data.consented_at ?? consent.data.created_at) : null, permissionState: consent.data?.consent_status ?? null,
@@ -150,8 +155,8 @@ export async function loadJobMoney(jobId: string, testOffice = false) {
   const db = admin as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
   const [view, job, quote, rect, offers, payouts, lodg, ws, inv, elecAsg, acceptedQ] = await Promise.all([
     jobPaymentView(jobId),
-    admin.from("jobs").select("stage, channel, installer_led, electrician_choice, estimated_area_m2").eq("id", jobId).maybeSingle(),
-    admin.from("quotes").select("id, subtotal_inc_gst, gst_amount, veec_count, veec_discount_inc_gst, veec_unit_value_inc_gst, status, quote_items(code), quote_internals(cost_ex_gst)").eq("job_id", jobId).eq("kind", "installation").in("status", ["accepted", "issued", "draft"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("jobs").select("stage, channel, installer_led, electrician_choice, originating_installer_business_id, estimated_area_m2").eq("id", jobId).maybeSingle(),
+    admin.from("quotes").select("id, subtotal_inc_gst, gst_amount, veec_count, veec_discount_inc_gst, veec_unit_value_inc_gst, status, quote_items(code,line_total_inc_gst), quote_internals(cost_ex_gst)").eq("job_id", jobId).eq("kind", "installation").in("status", ["accepted", "issued", "draft"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("quotes").select("customer_total_inc_gst, quote_internals(calc_snapshot)").eq("job_id", jobId).eq("kind", "rectification").eq("status", "accepted").order("accepted_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("partner_offers").select("kind, summary, business_id").eq("job_id", jobId).eq("status", "accepted"),
     admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "payout_marked_paid"),
@@ -187,7 +192,22 @@ export async function loadJobMoney(jobId: string, testOffice = false) {
   if (rateRes.error) throw new Error(`Could not read the electrician's rate card: ${rateRes.error.message}`);
   const rateRow = rateRes.data;
   const { piesaCostExFor } = await import("./job-margin.core");
-  const piesaCostEx = piesaCostExFor({ ownerDirect: piesaOwnerDirect, paidOutInc: paidOut("assessment"), offerRateInc: sum("piesa").electrician_rate_inc_gst ?? null, rateCardInc: rateRow?.rate_inc_gst != null ? Number(rateRow.rate_inc_gst) : null });
+  // Jo 3 Nov 2026: a recorded payout/offer rate wins; otherwise installer jobs pass the owner's $349 to the installer and
+  // our leads pay the office safety-check payout ($275) — the electrician's own saved rate no longer sets it.
+  void rateRow;
+  const [{ data: rsStd, error: rsErr }, { data: pset, error: psErr }] = await Promise.all([
+    db.from("retail_estimator_settings").select("piesa_assessment_inc_gst").eq("is_current", true).maybeSingle(),
+    db.from("pricing_settings").select("piesa_rec_cost_ex_gst, gst_rate").eq("is_active", true).maybeSingle(),
+  ]);
+  if (rsErr || psErr) throw new Error("Could not read the safety check price settings.");
+  const scp = await import("./safety-check-price.core");
+  const gstJ = pset?.gst_rate != null ? Number(pset.gst_rate) : 0.1;
+  const recordedFee = q?.quote_items?.find(i => i.code === "PIESA")?.line_total_inc_gst;
+  const ownerFee = job.data?.channel === "installer_sourced" ? recordedFee != null ? Number(recordedFee)
+    : await (await import("./installer-paid-electricians.server")).installerSafetyCheckPrice(job.data.originating_installer_business_id)
+    : scp.ownerSafetyCheckIncGst(rsStd?.piesa_assessment_inc_gst ?? null);
+  const defaultPiesaInc = ownerFee == null ? null : scp.safetyCheckPayoutIncGst({ channel: job.data?.channel ?? null, ownerPriceIncGst: ownerFee, hivPayoutIncGst: scp.hivElectricianPayoutIncGst(pset?.piesa_rec_cost_ex_gst ?? null, gstJ) });
+  const piesaCostEx = piesaCostExFor({ ownerDirect: piesaOwnerDirect, paidOutInc: paidOut("assessment"), offerRateInc: sum("piesa").electrician_rate_inc_gst ?? null, rateCardInc: electricianChosen || job.data?.channel === "installer_sourced" ? defaultPiesaInc : null, gstRate: gstJ });
   const fixesPrice = rect.data ? Number(rect.data.customer_total_inc_gst) : null;
   // The $100 on fixes stays ours (decision 142) — only with OUR electrician (decision 349: the installer's own electrician
   // is passed through, margin 0). Without a recorded payout the electrician's cost is the price less the margin the

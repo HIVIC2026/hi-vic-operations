@@ -31,8 +31,8 @@ const tell = { tellOwner: z.boolean().default(false), tellInstaller: z.boolean()
 export const getNeedsMePage = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ includeTest: z.boolean().default(false), refresh: z.boolean().default(false) }).parse(d ?? {}))
   .handler(async ({ data, context }) => {
-    if (await requireOfficeIdentity(context.supabase) === "qa_office") {
-      const ids = await officeTestJobIds(context.supabase);
+    if (await requireOfficeIdentity(context.supabase, context) === "qa_office") {
+      const ids = await officeTestJobIds(context.supabase, context);
       const { loadNeedsMePage } = await import("./office-needs.server");
       return { ...await loadNeedsMePage(true, ids), computedAt: new Date().toISOString(), refreshing: false };
     }
@@ -44,7 +44,7 @@ export const getNeedsMePage = createServerFn({ method: "POST" }).middleware([req
 export const getOfficeJobPage = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
-    const role = await requireOfficeJob(context.supabase, data.jobId);
+    const role = await requireOfficeJob(context.supabase, data.jobId, context);
     const { loadJobPage } = await import("./office-job-page.server");
     return loadJobPage(data.jobId, role === "qa_office");
   });
@@ -52,7 +52,7 @@ export const getOfficeJobPage = createServerFn({ method: "POST" }).middleware([r
 export const getOfficeJobMoney = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
-    const role = await requireOfficeJob(context.supabase, data.jobId);
+    const role = await requireOfficeJob(context.supabase, data.jobId, context);
     const { loadJobMoney } = await import("./office-job-page.server");
     return loadJobMoney(data.jobId, role === "qa_office");
   });
@@ -68,8 +68,8 @@ export const getEnquiriesList = createServerFn({ method: "POST" }).middleware([r
     view: z.enum(ENQUIRY_VIEWS).optional(), wantIds: z.boolean().optional(),
   }).parse(d))
   .handler(async ({ data, context }) => {
-    if (await requireOfficeIdentity(context.supabase) === "qa_office") {
-      const ids = await officeTestJobIds(context.supabase);
+    if (await requireOfficeIdentity(context.supabase, context) === "qa_office") {
+      const ids = await officeTestJobIds(context.supabase, context);
       const { loadEnquiriesList } = await import("./office-lists.server");
       return { ...await loadEnquiriesList(data, ids), computedAt: new Date().toISOString(), refreshing: false, fromCopy: false };
     }
@@ -86,8 +86,8 @@ export const getActiveJobsList = createServerFn({ method: "POST" }).middleware([
     page: z.number().int().min(1).max(10_000).default(1), filters: jobsFilters, includeTest: z.boolean().default(false), refresh: z.boolean().default(false),
   }).parse(d))
   .handler(async ({ data, context }) => {
-    if (await requireOfficeIdentity(context.supabase) === "qa_office") {
-      const ids = await officeTestJobIds(context.supabase);
+    if (await requireOfficeIdentity(context.supabase, context) === "qa_office") {
+      const ids = await officeTestJobIds(context.supabase, context);
       const { loadActiveJobsList } = await import("./office-lists.server");
       return { ...await loadActiveJobsList(data as JobsListParams, ids), computedAt: new Date().toISOString(), refreshing: false, fromCopy: false };
     }
@@ -102,7 +102,7 @@ export const getJobsLaneCounts = createServerFn({ method: "POST" }).middleware([
   .inputValidator((d) => z.object({}).parse(d ?? {}))
   .handler(async ({ context }) => {
     const { loadJobsLaneCounts } = await import("./office-lists.server");
-    if (await requireOfficeIdentity(context.supabase) === "qa_office") return loadJobsLaneCounts(await officeTestJobIds(context.supabase));
+    if (await requireOfficeIdentity(context.supabase, context) === "qa_office") return loadJobsLaneCounts(await officeTestJobIds(context.supabase, context));
     return loadJobsLaneCounts();
   });
 
@@ -164,7 +164,7 @@ export const markOfficeJobTest = createServerFn({ method: "POST" }).middleware([
 export const clearOfficeEmailBounce = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireOfficeJob(context.supabase, data.jobId);
+    await requireOfficeJob(context.supabase, data.jobId, context);
     const { clearEmailBounce } = await import("./office-actions.server");
     return clearEmailBounce(data.jobId, context.userId);
   });
@@ -175,7 +175,7 @@ export const logOfficeCallOrNote = createServerFn({ method: "POST" }).middleware
     party: z.string().trim().max(200).optional(), said: z.string().trim().min(2).max(5000), waitingFor: z.enum(["us", "owner", "installer", "electrician", "nothing"]),
   }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireOfficeJob(context.supabase, data.jobId);
+    await requireOfficeJob(context.supabase, data.jobId, context);
     const { logCallOrNote } = await import("./office-actions.server");
     return logCallOrNote(data.jobId, context.userId, { what: data.what, who: data.who, party: data.party ?? null, said: data.said, waitingFor: data.waitingFor });
   });

@@ -7,6 +7,7 @@
 // sits in its own section. Retired templates are simply not listed (their files stay in git).
 // tests/templates-hub.test.ts proves every entry comes from a live code path and every live builder / text type is here.
 import { renderQuoteExpiredEmail } from "./quote-expired-email.core";
+import { renderInHouseGiveEmail } from "./in-house-give-email.core";
 import { bookingNotice, ownerBookedMessage } from './in-house-booking.core';
 import { renderJoOutcomeEmail } from "./jo-outcome-email.core";
 import { withUnsubscribe } from "./emailsafety.core";
@@ -90,17 +91,9 @@ import { tenantNotice } from "./tenant-notice.core";
 
 /* ---------------------------------------------------------------- types */
 
-export type TemplateSection = "owner" | "installer" | "electrician" | "office" | "mitti" | "compliance" | "invoices" | "waiting";
-export const TEMPLATE_SECTIONS: { key: TemplateSection; label: string; hint: string }[] = [
-  { key: "owner", label: "Owner", hint: "Emails, texts, My job pages and paperwork the homeowner gets" },
-  { key: "installer", label: "Installer", hint: "Emails and texts to installer businesses and their crews" },
-  { key: "electrician", label: "Electrician", hint: "Emails and texts to electricians" },
-  { key: "office", label: "Office", hint: "What the office itself sends or reviews" },
-  { key: "mitti", label: "Mitti forms", hint: "The five Mitti forms A1–A5, questions as the portal reads them" },
-  { key: "compliance", label: "VEU / compliance", hint: "Official forms and documents the owner, installer or ESC receives" },
-  { key: "invoices", label: "Invoices", hint: "The final invoice email and the Xero invoice layout" },
-  { key: "waiting", label: "Waiting for Jo's approval", hint: "Drafts that send nothing until Jo approves the wording" },
-];
+// Section list and search parser live in template-sections.core so the route can read the address without loading every template.
+import type { TemplateSection } from "./template-sections.core";
+export { TEMPLATE_SECTIONS, parseTemplateSearch, type TemplateSection } from "./template-sections.core";
 
 export type TemplateStep = "enquiry" | "ready_check" | "quote" | "safety_check" | "fixes" | "install" | "rebate" | "paid" | "any";
 export const STEP_ORDER: TemplateStep[] = ["enquiry", "ready_check", "quote", "safety_check", "fixes", "install", "rebate", "paid", "any"];
@@ -780,6 +773,13 @@ const INVOICES: TemplateEntry[] = [
 /* ---------------------------------------------------------------- WAITING FOR JO */
 
 const WAITING: TemplateEntry[] = [
+  // Plan 2026-11-02: ONE email to the installer's office per Give tap; off for real installers until Jo approves (TEST partners use test-send).
+  ENTRY({ id: "waiting:in-house-give", section: "waiting", step: "ready_check", kind: "email", code: "", name: "New free Ready Check jobs (one email per Give)", when: "Jo taps Give on ticked jobs — one email per tap", who: "Installer office", approval: "waiting", approvalNote: "Plan 2026-11-02 (obvious yes, tick to send); off until Jo approves (IN_HOUSE_GIVE_EMAIL_APPROVED)", gate: { kind: "code_off", flag: "IN_HOUSE_GIVE_EMAIL_APPROVED" },
+    source: { builder: "src/lib/in-house-give-email.core.ts", fn: "renderInHouseGiveEmail", sender: "src/lib/in-house-give-email.server.ts" },
+    render: () => email(renderInHouseGiveEmail({ jobs: [
+      { jobId: "TEST-1", jobNumber: "HV-TEST", ownerName: "Helen Yang", ownerMobile: "0400 000 000", address: ADDRESS },
+      { jobId: "TEST-2", jobNumber: "HV-TEST2", ownerName: null, ownerMobile: null, address: null },
+    ] })) }),
   ENTRY({ id: "installer:trade-invite", section: "installer", step: "enquiry", kind: "email", code: "", name: "Trade sign-in invite", when: "Goes when the office gives an approved trade worker their own sign-in", who: "Installer / electrician worker", approvalNote: "Jo 27 Oct 2026, decision 406 (the whole email refresh suite)", gate: { kind: "email" },
     source: { builder: "src/lib/trade-access.core.ts", fn: "renderTradeInviteEmail", sender: "src/lib/trade-access.functions.ts" },
     render: () => email(renderTradeInviteEmail({ firstName: "Sam", business: "Sample Insulation Co", setPasswordUrl: `${BASE}/reset-password?token_hash=TEST&type=invite`, signInUrl: `${BASE}/auth` })) }),
@@ -813,11 +813,6 @@ export function selectTemplate(section: TemplateSection, id: string | undefined)
   return list.find((e) => e.id === id) ?? list[0]!;
 }
 
-export function parseTemplateSearch(s: Record<string, unknown>): { cat: TemplateSection; t?: string } {
-  const cat = TEMPLATE_SECTIONS.some((c) => c.key === s["cat"]) ? (s["cat"] as TemplateSection) : "owner";
-  const t = typeof s["t"] === "string" && s["t"].length < 80 ? s["t"] : undefined;
-  return { cat, ...(t ? { t } : {}) };
-}
 
 /** Text types with a named Settings switch (office-settings.core SWITCHES); every other type is `sms:<type>`. */
 const NAMED_SMS_SWITCHES = new Set(["spot_saved", "install_no_access"]);
@@ -847,6 +842,8 @@ export function templateStatus(e: TemplateEntry, sw: SwitchStates | null): { lab
  */
 export const NOT_LISTED_BUILDERS: Record<string, string> = {
   quickTapsText: "Retired 2 Nov 2026 (decision #22): the batch send now opens the quick taps with the O77 email + the \"It's your turn\" text",
+  renderQuickTapsEmail: "Retired at the 4 Nov 2026 join (decision #22): the O77 \"It's your turn\" email opens the quick taps; nothing sends this one",
+  reaskText: "One-off quick taps re-ask script (Jo 3 Nov 2026, HV-1405), not a flow message",
   renderConsentBody: "Shown inside the ESC Owner's Consent document entry",
   renderJoEstimateEmail: "Internal step of renderJoOutcomeEmail",
   renderJoIneligibleEmail: "Internal step of renderJoOutcomeEmail",

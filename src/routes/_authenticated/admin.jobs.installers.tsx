@@ -1,9 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/portal/AppShell";
+import { startJobsList } from "@/lib/office-route-prefetch";
 import { JobsLaneScreen } from "@/components/portal/JobsLaneScreen";
 
 // O3 Jobs › Installer jobs: jobs an installer brought to us.
 export const Route = createFileRoute("/_authenticated/admin/jobs/installers")({
+  loader: ({ context, preload }) => startJobsList(context, "installer", undefined, preload),
   head: () => ({ meta: [
     { title: "Installer jobs — Home Insulation Victoria Office" },
     { name: "description", content: "Jobs brought to us by installers, with the next step for each." },

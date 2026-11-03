@@ -1,13 +1,13 @@
 // A48 batch 2, Task 3: the owner's quick taps on My job (?screen=taps), on an in-memory fake database with recorded
 // fake senders. Covers: the pure outcome rule (every tap incl. "Not sure"; name + address required), the step order
-// (name, address, hatch, roof, 5 years, any blank website answer, "let's go"), the exact Jo-approved wording, the owner
+// (name, address, hatch, any blank website answer except over 5 years, "let's go"), the exact Jo-approved wording, the owner
 // page state (not in an open batch → not shown), saving name/address through the existing audited save, a moved address
 // leaving the batch (> 10 km from the batch centre), postcode-only homes batched by their postcode's centre, the pass
 // (event + trade_contact_share), the three declines (cancelJobFully reason + the matching email) and a double answer.
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import {
-  QUICK_TAPS_COPY, QUICK_TAPS_DECLINE_REASON, QUICK_TAPS_RECONSENT_SOURCE, nextTapStep, quickTapsGoLabel, quickTapsPassLine, tapOutcome, websiteQuestions, type QuickTapAnswers,
+  QUICK_TAPS_COPY, QUICK_TAPS_DECLINE_REASON, QUICK_TAPS_RECONSENT_SOURCE, accessLine, normaliseAuMobile, validAccess, nextTapStep, quickTapsGoLabel, quickTapsPassLine, tapOutcome, websiteQuestions, type QuickTapAnswers,
 } from "../src/lib/quick-taps.core";
 import { AREA_BATCH_EVENTS, AREA_BATCH_LEFT_EVENT, openBatchId, tapsBatchId } from "../src/lib/area-batch.core";
 import { renderQuickTapsDeclineEmail } from "../src/lib/quick-taps-email.core";
@@ -115,8 +115,27 @@ mock.module("../src/lib/owner-gates.server", () => ({ signGateDoc: async (i: Row
 const mails: { via: string; to: string; subject: string; text: string; key?: string }[] = [];
 mock.module("../src/lib/test-send.server", () => ({
   sendTestEmail: async (_c: Row, to: string, subject: string, _html: string, text: string) => { mails.push({ via: "test-email", to, subject, text }); return { status: "sent", detail: "ok" }; },
-  sendTestSms: async () => { throw new Error("no texts in Task 3"); },
+  sendTestSms: async (_c: Row, to: string) => { texts.push({ via: "test-sms", to }); return { status: "sent", detail: "ok" }; },
 }));
+// Quick taps send no texts at all; recorded so a test can prove the tenant's number is never texted.
+const texts: { via: string; to: string }[] = [];
+mock.module("../src/lib/sms.server", () => ({
+  sendRealSms: async (i: { to?: string; phone?: string }) => { texts.push({ via: "real-sms", to: String(i.to ?? i.phone ?? "") }); return { status: "sent", detail: "ok", sid: "s" }; },
+}));
+// Server fns run their handler directly (same stand-in as other server-fn tests), so the input validator is exercised.
+mock.module("@tanstack/react-start", () => ({
+  createServerFn: () => {
+    let validate: (d: unknown) => unknown = (d) => d;
+    const b = {
+      middleware: () => b,
+      inputValidator: (f: typeof validate) => { validate = f; return b; },
+      handler: (h: (a: { data: unknown; context: unknown }) => Promise<unknown>) => (a: { data: unknown }) => h({ data: validate(a.data), context: { ip: null, userAgent: null } }),
+    };
+    return b;
+  },
+  createMiddleware: () => ({ server: () => ({}) }),
+}));
+mock.module("../src/lib/request-meta", () => ({ withRequestMeta: {} }));
 mock.module("../src/lib/owner-email-send.server", () => ({
   sendGuardedOwnerEmail: async (p: { to: string; key: string; build: (u: string | null) => { subject: string; text: string } }) => {
     if (mails.some((m) => m.key === p.key)) return "already attempted — not resent";
@@ -152,6 +171,7 @@ mock.module("../src/lib/property-coordinates.server", () => ({
 const S = await import("../src/lib/quick-taps.server");
 const B = await import("../src/lib/area-batch.server");
 const H = await import("../src/lib/in-house-batch.server");
+const F = await import("../src/lib/quick-taps.functions");
 
 // ---- fixtures -------------------------------------------------------------------------------------------------------
 const NOW = new Date("2026-10-30T01:00:00.000Z");
@@ -182,21 +202,28 @@ function seed() {
   for (const k of Object.keys(lookupCoords)) delete lookupCoords[k];
   for (const k of Object.keys(places)) delete places[k];
   cancelFails = false; shareFails = false; failUpdates.clear();
-  cancels.length = 0; detailSaves.length = 0; gates.length = 0; mails.length = 0; located.length = 0; partnerCalls.length = 0;
+  cancels.length = 0; detailSaves.length = 0; gates.length = 0; mails.length = 0; located.length = 0; partnerCalls.length = 0; texts.length = 0;
   for (const t of ["jobs", "owners", "properties", "customer_estimate_links", "lead_campaign_responses", "property_facts", "job_assignments", "partner_offers", "workflow_events", "owner_contact_consents"]) tables[t] = [];
   tables["businesses"] = [{ id: "biz-1", name: "Sample Insulation", trading_name: null, onboarding_notes: null }];
   tables["workflow_settings"] = [{ id: 1, customer_comms_enabled: true, sms_message_switches: { quick_taps: true } }];
 }
 const events = (type?: string, jobId?: string) => (tables["workflow_events"] ?? []).filter((e) => (!type || e["event_type"] === type) && (!jobId || e["job_id"] === jobId));
-const ALL_GOOD = (o: Partial<QuickTapAnswers> = {}): QuickTapAnswers => ({ name: "Helen a", address: "1 Sample Street, Melbourne, VIC 3000", hatch: "yes", roof: "sloped", five_years: "no", go: "yes", ...o });
+const ALL_GOOD = (o: Partial<QuickTapAnswers> = {}): QuickTapAnswers => ({ name: "Helen a", address: "1 Sample Street, Melbourne, VIC 3000", hatch: "yes", roof: "sloped", five_years: "no", access: { who: "owner" }, go: "yes", ...o });
 
 // ---- pure ---------------------------------------------------------------------------------------------------------
 describe("tapOutcome", () => {
-  test("hatch No → decline_access; roof Flat → decline_access; 5 years Yes → decline_5yr; No thanks → no_thanks", () => {
+  test("hatch No → decline_access; No thanks → no_thanks (only these two close a job — Jo 3 Nov 2026)", () => {
     expect(tapOutcome(ALL_GOOD({ hatch: "no", roof: undefined, five_years: undefined, go: undefined }))).toBe("decline_access");
-    expect(tapOutcome(ALL_GOOD({ roof: "flat", five_years: undefined, go: undefined }))).toBe("decline_access");
-    expect(tapOutcome(ALL_GOOD({ five_years: "yes", go: undefined }))).toBe("decline_5yr");
     expect(tapOutcome(ALL_GOOD({ go: "no_thanks" }))).toBe("no_thanks");
+  });
+  test("flat roof no longer closes (Jo 3 Nov 2026: Mia HV-1405)", () => {
+    expect(tapOutcome({ name: "Mia", address: "17 Hilda Ave, Boronia VIC 3155", hatch: "yes", roof: "flat", access: { who: "owner" }, go: "yes" })).toBe("pass");
+  });
+  test("5 years yes no longer closes", () => {
+    expect(tapOutcome({ name: "Mia", address: "17 Hilda Ave, Boronia VIC 3155", hatch: "yes", five_years: "yes", access: { who: "owner" }, go: "yes" })).toBe("pass");
+  });
+  test("hatch no still closes", () => {
+    expect(tapOutcome({ name: "A", address: "B", hatch: "no" })).toBe("decline_access");
   });
   test("every \"Not sure\" + yes → pass; \"Some of each\" passes", () => {
     expect(tapOutcome(ALL_GOOD({ hatch: "not_sure", roof: "not_sure", five_years: "not_sure", go: "yes" }))).toBe("pass");
@@ -210,40 +237,97 @@ describe("tapOutcome", () => {
   });
   test("an unanswered tap → incomplete; a blank website answer still to give → incomplete", () => {
     expect(tapOutcome(ALL_GOOD({ go: undefined }))).toBe("incomplete");
-    expect(tapOutcome(ALL_GOOD({ roof: undefined }))).toBe("incomplete");
+    expect(tapOutcome(ALL_GOOD({ roof: undefined, five_years: undefined }))).toBe("pass");
     expect(tapOutcome(ALL_GOOD(), ["property_type"])).toBe("incomplete");
     expect(tapOutcome(ALL_GOOD({ website: { property_type: "house" } }), ["property_type"])).toBe("pass");
     expect(tapOutcome(ALL_GOOD({ website: { property_type: "castle" } }), ["property_type"])).toBe("incomplete");
   });
 });
 
+describe("access question", () => {
+  const base: QuickTapAnswers = { name: "H", address: "A", hatch: "yes", roof: "sloped", five_years: "no" };
+  test("copy", () => {
+    expect(QUICK_TAPS_COPY.access.question).toBe("Who will be at the home to let the installer in?");
+    expect(QUICK_TAPS_COPY.access.options).toEqual([{ value: "owner", label: "Me" }, { value: "tenant", label: "My tenant" }]);
+    expect(QUICK_TAPS_COPY.access.tenantName).toBe("Tenant's name");
+    expect(QUICK_TAPS_COPY.access.tenantMobile).toBe("Tenant's mobile");
+    expect(QUICK_TAPS_COPY.access.needBoth).toBe("Add your tenant's name and mobile so the installer can call them");
+    expect(QUICK_TAPS_COPY.access.back).toBe("Back");
+  });
+  test("asked after the taps (and after blank website answers), before go", () => {
+    expect(nextTapStep(base, [])).toBe("access");
+    expect(nextTapStep({ ...base, access: { who: "owner" } }, [])).toBe("go");
+    expect(nextTapStep({ ...base, access: { who: "tenant", name: " ", mobile: "0412345678" } }, [])).toBe("access");
+    const order: string[] = [];
+    const a: QuickTapAnswers = { ...base };
+    const answer: Record<string, () => void> = { property_type: () => (a.website = { property_type: "house" }), access: () => (a.access = { who: "owner" }), go: () => (a.go = "yes") };
+    for (let s = nextTapStep(a, ["property_type"]); s; s = nextTapStep(a, ["property_type"])) { order.push(s); answer[s]!(); }
+    expect(order).toEqual(["property_type", "access", "go"]);
+  });
+  test("pass needs a valid access; declines are unchanged with or without it", () => {
+    expect(tapOutcome({ ...base, go: "yes" })).toBe("incomplete");
+    expect(tapOutcome({ ...base, go: "yes", access: { who: "owner" } })).toBe("pass");
+    for (const access of [undefined, { who: "owner" } as const]) {
+      expect(tapOutcome({ ...base, hatch: "no", access })).toBe("decline_access");
+      expect(tapOutcome({ ...base, go: "no_thanks", access })).toBe("no_thanks");
+    }
+  });
+  test("normaliseAuMobile", () => {
+    expect(normaliseAuMobile("0412 345 678")).toBe("+61412345678");
+    expect(normaliseAuMobile("+61 412 345 678")).toBe("+61412345678");
+    expect(normaliseAuMobile("03 9123 4567")).toBeNull();
+    expect(normaliseAuMobile("0412")).toBeNull();
+  });
+  test("validAccess", () => {
+    expect(validAccess(undefined)).toBe(false);
+    expect(validAccess({ who: "owner" })).toBe(true);
+    expect(validAccess({ who: "tenant", name: " ", mobile: "0412345678" })).toBe(false);
+    expect(validAccess({ who: "tenant", name: "Sam Lee", mobile: "0412" })).toBe(false);
+    expect(validAccess({ who: "tenant", name: "Sam Lee", mobile: "0412345678" })).toBe(true);
+  });
+  test("accessLine", () => {
+    expect(accessLine({ who: "owner" })).toBe("At the home: owner");
+    expect(accessLine({ who: "tenant", name: "Sam Lee", mobile: "+61412345678" })).toBe("At the home: tenant — Sam Lee, +61412345678");
+    expect(accessLine(undefined)).toBeNull();
+    expect(accessLine(null)).toBeNull();
+  });
+});
+
 describe("step order and blank website answers", () => {
   const facts = { property_type: "house", top_floor: null, over_five_years: "yes", insulation: "none" };
-  test("name, address, hatch, roof, 5 years, then \"let's go\"", () => {
+  test("name, address, hatch, then \"let's go\" (no roof or 5 years — Jo 3 Nov 2026)", () => {
     const a: QuickTapAnswers = {};
     const order: string[] = [];
     const answer: Record<string, () => void> = {
       name: () => (a.name = "Helen"), address: () => (a.address = "1 Sample Street"), hatch: () => (a.hatch = "yes"),
-      roof: () => (a.roof = "sloped"), five_years: () => (a.five_years = "no"), go: () => (a.go = "yes"),
+      roof: () => (a.roof = "sloped"), five_years: () => (a.five_years = "no"), access: () => (a.access = { who: "owner" }), go: () => (a.go = "yes"),
     };
     for (let s = nextTapStep(a, []); s; s = nextTapStep(a, [])) { order.push(s); answer[s]!(); }
-    expect(order).toEqual(["name", "address", "hatch", "roof", "five_years", "go"]);
+    expect(order).toEqual(["name", "address", "hatch", "access", "go"]);
   });
   test("a decline tap ends the questions", () => {
     expect(nextTapStep({ name: "H", address: "A", hatch: "no" }, [])).toBeNull();
-    expect(nextTapStep({ name: "H", address: "A", hatch: "yes", roof: "sloped", five_years: "yes" }, ["property_type"])).toBeNull();
   });
-  test("blank website answers are asked after the 5-year tap, before \"let's go\"", () => {
+  test("steps skip roof and 5 years", () => {
+    expect(nextTapStep({ name: "A", address: "B", hatch: "yes" })).toBe("access");
+  });
+  test("blank insulation still asked", () => {
+    expect(nextTapStep({ name: "A", address: "B", hatch: "yes" }, ["insulation"])).toBe("insulation");
+  });
+  test("over 5 years never asked", () => {
+    expect(websiteQuestions({ property_type: null, top_floor: null, over_five_years: null, insulation: null })).toEqual(["property_type", "insulation"]);
+  });
+  test("blank website answers are asked after the hatch tap, before \"let's go\"", () => {
     expect(websiteQuestions(facts, {})).toEqual([]);
     expect(websiteQuestions({ ...facts, property_type: null }, {})).toEqual(["property_type"]);
     expect(nextTapStep({ name: "H", address: "A", hatch: "yes", roof: "sloped", five_years: "no" }, ["property_type"])).toBe("property_type");
-    expect(nextTapStep({ name: "H", address: "A", hatch: "yes", roof: "sloped", five_years: "no", website: { property_type: "house" } }, ["property_type"])).toBe("go");
+    expect(nextTapStep({ name: "H", address: "A", hatch: "yes", roof: "sloped", five_years: "no", website: { property_type: "house" } }, ["property_type"])).toBe("access");
   });
   test("a unit or apartment with no top-floor answer is asked it (also when the owner just said unit)", () => {
     expect(websiteQuestions({ ...facts, property_type: "apartment" }, {})).toEqual(["top_floor"]);
     expect(websiteQuestions({ ...facts, property_type: null }, { property_type: "apartment" })).toEqual(["property_type", "top_floor"]);
     expect(websiteQuestions({ ...facts, property_type: null }, { property_type: "house" })).toEqual(["property_type"]);
-    expect(websiteQuestions({ property_type: null, top_floor: null, over_five_years: null, insulation: null }, {})).toEqual(["property_type", "over_five_years", "insulation"]);
+    expect(websiteQuestions({ property_type: null, top_floor: null, over_five_years: null, insulation: null }, {})).toEqual(["property_type", "insulation"]);
   });
   test("website questions use the portal's existing owner question wording", () => {
     expect(QUICK_TAPS_COPY.website.property_type.label).toBe("What type of home is it?");
@@ -363,7 +447,7 @@ describe("saveQuickTaps: pass", () => {
     expect(ev).toHaveLength(1);
     expect(ev[0]!["details"]).toMatchObject({ batch_id: "b1", consent_share: true, outcome: "pass", answers: { hatch: "not_sure", roof: "not_sure", five_years: "not_sure", go: "yes", name: "Helen a" } });
     expect(gates).toHaveLength(1);
-    expect(gates[0]).toMatchObject({ jobId: "a", key: "trade_contact_share", signatoryName: "Helen a", ticked: true, method: "link_code", ip: "1.2.3.4" });
+    expect(gates[0]).toMatchObject({ jobId: "a", key: "trade_contact_share", signatoryName: "Helen a", ticked: true, method: "quick_tap_link", ip: "1.2.3.4" });
     expect(cancels).toEqual([]); expect(mails).toEqual([]);
     expect(await S.quickTapsState(tok("a"))).toEqual({ kind: "done", outcome: "pass", installer: "Sample Insulation" });
   });
@@ -371,7 +455,7 @@ describe("saveQuickTaps: pass", () => {
     addJob("t", { source: "qa_test" }); sendBatchEvent("b1", ["t"]);
     expect(await S.saveQuickTaps(tok("t"), ALL_GOOD(), { ip: null, userAgent: null })).toEqual({ kind: "done", outcome: "pass", installer: "Sample Insulation" });
     expect(gates).toHaveLength(1);
-    expect(gates[0]).toMatchObject({ jobId: "t", key: "trade_contact_share", signatoryName: "Helen t", method: "link_code" });
+    expect(gates[0]).toMatchObject({ jobId: "t", key: "trade_contact_share", signatoryName: "Helen t", method: "quick_tap_link" });
     expect(mails).toEqual([]); expect(cancels).toEqual([]);
     expect(events("quick_taps_answered", "t")[0]!["details"]).toMatchObject({ outcome: "pass", consent_share: true });
   });
@@ -400,8 +484,6 @@ describe("saveQuickTaps: declines", () => {
   beforeEach(seed);
   const cases = [
     ["decline_access", { hatch: "no" as const, roof: undefined, five_years: undefined, go: undefined }],
-    ["decline_access", { roof: "flat" as const, five_years: undefined, go: undefined }],
-    ["decline_5yr", { five_years: "yes" as const, go: undefined }],
     ["no_thanks", { go: "no_thanks" as const }],
   ] as const;
   for (const [outcome, a] of cases) {
@@ -618,6 +700,80 @@ describe("saveQuickTapsDetails", () => {
   });
 });
 
+// ---- who lets the installer in (Task 4) ---------------------------------------------------------------------------------
+describe("saveQuickTaps: who lets the installer in", () => {
+  beforeEach(seed);
+  const TENANT = { who: "tenant" as const, name: " Sam Lee ", mobile: "0412 345 678" };
+  test("a tenant is saved trimmed, with the mobile as +61…, on the quick_taps_answered event", async () => {
+    addJob("a"); sendBatchEvent("b1", ["a"]);
+    expect(await S.saveQuickTaps(tok("a"), ALL_GOOD({ access: TENANT }))).toMatchObject({ kind: "done", outcome: "pass" });
+    const ev = events("quick_taps_answered", "a");
+    expect(ev).toHaveLength(1);
+    expect((ev[0]!["details"] as Row)["answers"]).toMatchObject({ access: { who: "tenant", name: "Sam Lee", mobile: "+61412345678" } });
+  });
+  test("the owner themselves → { who: owner } saved", async () => {
+    addJob("a"); sendBatchEvent("b1", ["a"]);
+    await S.saveQuickTaps(tok("a"), ALL_GOOD());
+    expect(((events("quick_taps_answered", "a")[0]!["details"] as Row)["answers"] as Row)["access"]).toEqual({ who: "owner" });
+  });
+  test("a pass with a bad tenant mobile, a blank tenant name or no access is refused and nothing is saved", async () => {
+    addJob("a"); sendBatchEvent("b1", ["a"]);
+    for (const access of [{ ...TENANT, mobile: "03 9123 4567" }, { ...TENANT, mobile: "12" }, { ...TENANT, name: "  " }, undefined]) {
+      await expect(S.saveQuickTaps(tok("a"), ALL_GOOD({ access }))).rejects.toThrow();
+    }
+    await expect(S.saveQuickTaps(tok("a"), ALL_GOOD({ access: { who: "tenant", name: "Sam", mobile: 412345678 } as never }))).rejects.toThrow();
+    await expect(S.saveQuickTaps(tok("a"), ALL_GOOD({ access: { who: "landlord" } as never }))).rejects.toThrow();
+    expect(events("quick_taps_answered")).toEqual([]); expect(gates).toEqual([]);
+  });
+  test("a bad tenant is refused even on a decline answer (nothing saved, nothing closed)", async () => {
+    addJob("a"); sendBatchEvent("b1", ["a"]);
+    await expect(S.saveQuickTaps(tok("a"), ALL_GOOD({ go: "no_thanks", access: { ...TENANT, mobile: "nope" } }))).rejects.toThrow();
+    expect(events("quick_taps_answered")).toEqual([]); expect(cancels).toEqual([]); expect(mails).toEqual([]);
+  });
+  test("final review 4: tenant details + No thanks → the decline is saved without access", async () => {
+    addJob("a"); sendBatchEvent("b1", ["a"]);
+    expect(await S.saveQuickTaps(tok("a"), ALL_GOOD({ go: "no_thanks", access: TENANT }))).toEqual({ kind: "done", outcome: "no_thanks" });
+    const ev = events("quick_taps_answered", "a");
+    expect(ev).toHaveLength(1);
+    const answers = (ev[0]!["details"] as Row)["answers"] as Row;
+    expect("access" in answers).toBe(false);
+    expect(JSON.stringify(ev[0])).not.toContain("Sam Lee");
+    expect(JSON.stringify(ev[0])).not.toContain("+61412345678");
+  });
+  test("final review 4: a decline on the hatch question saves no access either", async () => {
+    addJob("a"); sendBatchEvent("b1", ["a"]);
+    await S.saveQuickTaps(tok("a"), ALL_GOOD({ hatch: "no", roof: undefined, five_years: undefined, go: undefined, access: TENANT }));
+    for (const id of ["a"]) expect("access" in (((events("quick_taps_answered", id)[0]!["details"] as Row)["answers"]) as Row)).toBe(false);
+  });
+  test("the tenant is never texted or emailed (real job and TEST job, pass and decline)", async () => {
+    addJob("a"); addJob("t", { source: "qa_test" }); addJob("d"); sendBatchEvent("b1", ["a", "t", "d"]);
+    await S.saveQuickTaps(tok("a"), ALL_GOOD({ access: TENANT }));
+    await S.saveQuickTaps(tok("t"), ALL_GOOD({ access: TENANT }));
+    await S.saveQuickTaps(tok("d"), ALL_GOOD({ go: "no_thanks", access: TENANT }));
+    expect(texts).toEqual([]);
+    const all = JSON.stringify(mails);
+    for (const n of ["0412345678", "412345678", "+61412345678", "0412 345 678", "Sam Lee"]) expect(all).not.toContain(n);
+    expect(mails.map((m) => m.to)).toEqual(["d@example.com"]);
+  });
+  test("the server function keeps access (not stripped) and trims the tenant name", async () => {
+    addJob("a"); sendBatchEvent("b1", ["a"]);
+    await F.ownerQuickTapsSaveFn({ data: { token: tok("a"), answers: ALL_GOOD({ access: TENANT }) } } as never);
+    expect(((events("quick_taps_answered", "a")[0]!["details"] as Row)["answers"] as Row)["access"]).toEqual({ who: "tenant", name: "Sam Lee", mobile: "+61412345678" });
+  });
+  test("the server function refuses a non-string or over-long tenant", async () => {
+    addJob("a"); sendBatchEvent("b1", ["a"]);
+    const call = async (access: unknown) => F.ownerQuickTapsSaveFn({ data: { token: tok("a"), answers: ALL_GOOD({ access: access as never }) } } as never);
+    await expect(call({ who: "tenant", name: "Sam", mobile: 412345678 })).rejects.toThrow();
+    await expect(call({ who: "tenant", name: "x".repeat(101), mobile: "0412345678" })).rejects.toThrow();
+    await expect(call({ who: "tenant", name: "Sam", mobile: "0".repeat(31) })).rejects.toThrow();
+    await expect(call({ who: "nobody" })).rejects.toThrow();
+    expect(events("quick_taps_answered")).toEqual([]);
+  });
+  test("normaliseAuMobile is safe on non-string input", () => {
+    for (const v of [undefined, null, 412345678, {}]) expect(normaliseAuMobile(v as never)).toBeNull();
+  });
+});
+
 // ---- postcode-only homes in batch suggestions ---------------------------------------------------------------------------
 describe("postcode-only homes are batched by their postcode's centre", () => {
   beforeEach(seed);
@@ -670,7 +826,8 @@ describe("3-month phone consent: hand-off only after the tap", () => {
   const consent = (jobId: string, at: string, source = "base44") => tables["owner_contact_consents"]!.push({
     id: crypto.randomUUID(), job_id: jobId, owner_id: `o-${jobId}`, source, consent_key: `${source}:${jobId}`, consent_status: "granted", contact_consent: true, consented_at: at, created_at: at, snapshot: {},
   });
-  const handOff = (jobIds: string[]) => H.sendInHouseBatch({ businessId: "biz-1", jobIds, actorId: "office" }, { now: NOW });
+  // Main #126 (join 4 Nov 2026): a Give also answers `installerEmail` (the installer's job-list email, off until approved) — not under test here.
+  const handOff = async (jobIds: string[]) => { const { installerEmail: _e, ...r } = await H.sendInHouseBatch({ businessId: "biz-1", jobIds, actorId: "office" }, { now: NOW }); return r; };
   const WAITING = "Waiting for the owner to say the installer can call";
   const reconsents = (jobId: string) => tables["owner_contact_consents"]!.filter((r) => r["job_id"] === jobId && r["source"] === QUICK_TAPS_RECONSENT_SOURCE);
 
@@ -747,6 +904,29 @@ describe("My job ?screen=taps", () => {
   });
 });
 
+describe("My job access screen (Task 4)", () => {
+  const src = readFileSync(new URL("../src/routes/my-job.$token.tsx", import.meta.url), "utf8");
+  const block = src.slice(src.indexOf('step === "access"'), src.indexOf('step === "go"'));
+  test("its own screen before the website branch, with Me / My tenant big buttons and the approved copy", () => {
+    expect(src.indexOf('step === "access"')).toBeGreaterThan(0);
+    expect(src.indexOf('step === "access"')).toBeLessThan(src.indexOf("QUICK_TAPS_COPY.website[step]"));
+    expect(block).toContain("QUICK_TAPS_COPY.access.question");
+    expect(block).toContain("QUICK_TAPS_COPY.access.options");
+    expect(block).toContain("QUICK_TAPS_COPY.access.tenantName");
+    expect(block).toContain("QUICK_TAPS_COPY.access.tenantMobile");
+  });
+  test("Next is greyed out until validAccess, and says what's needed while it is", () => {
+    expect(block).toContain("validAccess(");
+    expect(block).toContain("QUICK_TAPS_COPY.access.needBoth");
+    expect(block).toMatch(/disabled=\{[^}]*!tenantOk/);
+  });
+  test("the tenant view has a Back link that returns to Me / My tenant and clears the tenant fields (Jo 2 Nov)", () => {
+    const tenantView = block.slice(block.indexOf("tenantName}"));
+    expect(tenantView).toContain("QUICK_TAPS_COPY.access.back");
+    expect(tenantView).toMatch(/onClick=\{\(\) => \{[^}]*setAskTenant\(false\)[^}]*setTenantName\(""\)[^}]*setTenantMobile\(""\)/);
+  });
+});
+
 describe("My job pass screen (Jo 2 Nov 2026)", () => {
   const src = readFileSync(new URL("../src/routes/my-job.$token.tsx", import.meta.url), "utf8");
   test("the go tap's yes label comes from quickTapsGoLabel with the server's view (3-month re-ask)", () => {
@@ -767,7 +947,7 @@ const RENTED: RentalAnswersInput = { lives: "rented", tenantName: "Tina Lee", te
 const ASK = { rental: true };
 
 describe("rental questions in the quick taps (pure)", () => {
-  const base: QuickTapAnswers = { name: "H", address: "A", hatch: "yes", roof: "sloped", five_years: "no" };
+  const base: QuickTapAnswers = { name: "H", address: "A", hatch: "yes", access: { who: "owner" } };
   test("asked after the website answers and before \"let's go\"", () => {
     expect(nextTapStep(base, [], ASK)).toBe("lives");
     expect(nextTapStep(base, ["property_type"], ASK)).toBe("property_type");
@@ -788,7 +968,8 @@ describe("rental questions in the quick taps (pure)", () => {
     expect(nextTapStep({ ...base, rental: { ...RENTED, who: "tenant", accessName: undefined, accessMobile: undefined } }, [], ASK)).toBe("go");
     expect(nextTapStep({ ...base, rental: { ...RENTED, who: "owner", accessName: undefined, accessMobile: undefined } }, [], ASK)).toBe("go");
   });
-  test("rental needed for a pass or a no thanks when asked; not at all when off", () => {
+  test("rental needed for a pass or a no thanks when asked; not at all when off; who lets the installer in comes after the rental group", () => {
+    expect(nextTapStep({ ...base, access: undefined, rental: LIVES }, [], ASK)).toBe("access");
     expect(tapOutcome(ALL_GOOD(), [], ASK)).toBe("incomplete");
     expect(tapOutcome(ALL_GOOD({ rental: LIVES }), [], ASK)).toBe("pass");
     expect(tapOutcome(ALL_GOOD({ go: "no_thanks", rental: RENTED }), [], ASK)).toBe("no_thanks");
@@ -798,7 +979,7 @@ describe("rental questions in the quick taps (pure)", () => {
   });
   test("a decline tap decides before any rental question", () => {
     expect(nextTapStep({ ...base, hatch: "no" }, [], ASK)).toBeNull();
-    expect(tapOutcome(ALL_GOOD({ five_years: "yes", go: undefined }), [], ASK)).toBe("decline_5yr");
+    expect(tapOutcome(ALL_GOOD({ hatch: "no", go: undefined }), [], ASK)).toBe("decline_access");
   });
   test("Jo's question is the screen's wording", () => { expect(RENTAL_TAPS.livesThere).toBe("Do you live there or is it rented?"); });
 });
@@ -914,3 +1095,39 @@ describe("own customer: only the rental questions (?only=rental, Jo 2 Nov, answe
     expect(events("quick_taps_answered", "a")).toHaveLength(0);
   });
 });
+describe("repairQuickTapsSharing (Jo 2 Nov 2026, HV-2730)", () => {
+  beforeEach(seed);
+  const failedYes = async (id: string, o: Partial<QuickTapAnswers> = {}) => {
+    addJob(id); sendBatchEvent(`b-${id}`, [id]); shareFails = true;
+    await expect(S.saveQuickTaps(tok(id), ALL_GOOD({ name: `Helen ${id}`, ...o }))).rejects.toThrow();
+    shareFails = false;
+  };
+  test("dry run lists a saved yes with no OK and writes nothing", async () => {
+    await failedYes("a");
+    expect(await S.repairQuickTapsSharing({ apply: false })).toEqual([{ jobId: "a", name: "Helen a", batchId: "b-a" }]);
+    expect(gates).toHaveLength(0); expect(events("quick_taps_share_repaired")).toHaveLength(0);
+  });
+  test("apply saves the OK as a tapped link from the recorded answer, once", async () => {
+    await failedYes("a");
+    await S.repairQuickTapsSharing({ apply: true });
+    expect(gates).toHaveLength(1);
+    expect(gates[0]).toMatchObject({ jobId: "a", key: "trade_contact_share", signatoryName: "Helen a", method: "quick_tap_link", quickTapsBatchId: "b-a" });
+    expect(events("quick_taps_share_repaired", "a")).toHaveLength(1);
+    expect(await S.repairQuickTapsSharing({ apply: true })).toEqual([]);
+    expect(gates).toHaveLength(1);
+    expect(mails).toEqual([]); expect(cancels).toEqual([]);
+  });
+  test("skips owners who already have their OK saved", async () => {
+    addJob("a"); sendBatchEvent("b1", ["a"]);
+    await S.saveQuickTaps(tok("a"), ALL_GOOD());
+    expect(await S.repairQuickTapsSharing({ apply: true })).toEqual([]);
+    expect(gates).toHaveLength(1);
+  });
+  test("skips owners who said no", async () => {
+    addJob("a"); sendBatchEvent("b1", ["a"]);
+    await S.saveQuickTaps(tok("a"), ALL_GOOD({ go: "no_thanks" }));
+    expect(await S.repairQuickTapsSharing({ apply: true })).toEqual([]);
+    expect(gates).toHaveLength(0);
+  });
+});
+

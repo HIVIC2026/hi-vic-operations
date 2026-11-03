@@ -1,6 +1,6 @@
 // Mitti access for partner people (decision 188; automatic since decision 331). Rules are pure in mitti-invite.core.ts;
-// this file reads the person, makes the Mitti calls (search; and, once MITTI_USER_API_VERIFIED, create / add to the HIV
-// trades group / deactivate) and records each outcome as ONE append-only admin_config_events row (person-level:
+// this file reads the person, makes the Mitti calls (search / Lite create / deactivate; no groups)
+// and records each outcome as ONE append-only admin_config_events row (person-level:
 // workflow_events needs a job). A newly created person gets ONE message through the existing partner senders and guards.
 // Callers never let it fail the approval/removal; Mitti failures become one office item (`mitti_access_failed`).
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
@@ -8,17 +8,17 @@ import type { Json } from "@/integrations/supabase/types";
 import { WorkflowError } from "./workflow.server";
 import type { MittiCall } from "./mitti.core";
 import {
-  MITTI_AUTO_INVITE_ENV, MITTI_INVITE_EVENTS, MITTI_INVITE_MESSAGE, MITTI_INVITE_SUBJECT, renderMittiInviteEmail, MITTI_TEMPLATE_ACCESS_NOTE, MITTI_TRADES_GROUP_ENV, MITTI_USER_API, MITTI_USER_API_VERIFIED,
-  addToGroupBody, autoInviteEnabled, createUserBody, createdUserId, groupPath, mittiInviteMessageKey, mittiInviteStep, mittiRemovalStep, openInvites, plainMittiReason,
-  priorInviteFor, userPath, userStatusBody, type InvitePerson, type InviteRecord, type InviteSwitches, type MittiInviteEventType,
+  MITTI_AUTO_INVITE_ENV, MITTI_INVITE_EVENTS, MITTI_INVITE_MESSAGE, MITTI_INVITE_SUBJECT, renderMittiInviteEmail, MITTI_TEMPLATE_ACCESS_NOTE, MITTI_USER_API, MITTI_USER_API_VERIFIED,
+  autoInviteEnabled, createUserBody, createdUserId, mittiInviteMessageKey, mittiInviteStep, mittiRemovalStep, openInvites, plainMittiReason,
+  priorInviteFor, userPath, inviteEligibility, isNewMittiApproval, mittiWaitingPauseItems, MITTI_WAITING_EMAIL, MITTI_WAITING_PAUSE, NO_EMAIL_SKIP, userStatusBody, type InvitePerson, type InviteRecord, type InviteSwitches, type MittiInviteEventType,
 } from "./mitti-invite.core";
 
 const EVENT_TYPES = Object.values(MITTI_INVITE_EVENTS);
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Melbourne" });
 
-/** Live switches: env MITTI_AUTO_INVITE_ENABLED (default off), the verified-API constant, env MITTI_TRADES_GROUP_ID. */
+/** Live switches: explicit auto-invite opt-in and verified API. No group configuration. */
 export function currentInviteSwitches(): InviteSwitches {
-  return { enabled: autoInviteEnabled(process.env[MITTI_AUTO_INVITE_ENV]), apiVerified: MITTI_USER_API_VERIFIED, groupId: process.env[MITTI_TRADES_GROUP_ENV]?.trim() || null };
+  return { enabled: autoInviteEnabled(process.env[MITTI_AUTO_INVITE_ENV]), apiVerified: MITTI_USER_API_VERIFIED, groupId: null };
 }
 
 async function loadInviteRecords(workerId?: string): Promise<InviteRecord[]> {
@@ -41,21 +41,21 @@ async function isTestPerson(email: string | null, biz: { name?: string | null; o
 }
 
 async function loadPerson(workerId: string) {
-  const { data: w, error } = await admin.from("partner_workers").select("id, email, mobile, full_legal_name, trade_role, worker_role, approval_status, removed_at, profile_id, business_id").eq("id", workerId).maybeSingle();
+  const { data: w, error } = await admin.from("partner_workers").select("id, email, mobile, full_legal_name, trade_role, worker_role, approval_status, approved_at, removed_at, profile_id, business_id").eq("id", workerId).maybeSingle();
   if (error) throw new WorkflowError(`This person could not be read: ${error.message}`);
   if (!w) throw new WorkflowError("Partner person not found.");
   const [{ data: b }, { data: p }] = await Promise.all([
     admin.from("businesses").select("name, email, onboarding_notes").eq("id", w.business_id).maybeSingle(),
     w.profile_id ? admin.from("profiles").select("email, mitti_user_id, mitti_checked_email, mitti_checked_at").eq("id", w.profile_id).maybeSingle() : Promise.resolve({ data: null }),
   ]);
-  const { workerEmailKey, effectiveWorkerRole, mittiEmailFor, certOrFilter } = await import("./worker-role.core");
+  const { workerEmailKey, effectiveWorkerRole, certOrFilter } = await import("./worker-role.core");
   const own = workerEmailKey(w.email) || null;
   const { mittiAccessOf } = await import("./mitti-membership.core");
   const mittiAccess = p ? mittiAccessOf(p) : null;
   // Jo 29 Oct: Lead / Crew. A null role counts as Lead; Crew only when stored.
   const role = effectiveWorkerRole({ tradeRole: w.trade_role, stored: (w as { worker_role?: string | null }).worker_role });
-  // A Lead with no email of their own is invited / linked with the business's own email.
-  const target = w.trade_role === "installer" ? mittiEmailFor({ role, ownEmail: own, businessEmail: (b as { email?: string | null } | null)?.email }) : { email: own, source: own ? "own" as const : null };
+  // Jo 3 Nov 8:11pm (replaces 28 Oct): invites use the person's OWN email only — a Lead without one waits for it.
+  const target = { email: own, source: own ? "own" as const : null };
   const email = target.email;
   // Decision 153: an installer counts once the office-verified CII check is recorded with level + unexpired expiry.
   let ciiCleared = false;
@@ -72,7 +72,7 @@ async function loadPerson(workerId: string) {
   };
   // The portal-login check only applies when the person's own email is used (a business email never matches their login).
   const profileMismatch = !!own && !!w.profile_id && (!p || p.email?.trim().toLowerCase() !== own);
-  return { person, profileMismatch, name: w.full_legal_name as string | null, mobile: (w.mobile ?? null) as string | null, business: b?.name ?? null, businessId: w.business_id as string,
+  return { person, approvedAt: w.approved_at, profileMismatch, name: w.full_legal_name as string | null, mobile: (w.mobile ?? null) as string | null, business: b?.name ?? null, businessId: w.business_id as string,
     profileId: target.source === "own" ? (w.profile_id as string | null) : null, emailSource: target.source };
 }
 
@@ -117,31 +117,47 @@ export const realInviteMessenger: InviteMessenger = async (p) => {
   } catch (e) { return `message not sent — ${(e as Error).message}`; }
 };
 
-type Opts = { switches?: InviteSwitches; call?: MittiCall; message?: InviteMessenger; password?: () => string };
+type Opts = { switches?: InviteSwitches; call?: MittiCall; message?: InviteMessenger; password?: () => string; confirmed?: boolean };
 
 /**
  * Called after the office approves a partner person (worker approved, or an installer's CII verified). Switch OFF → returns
- * at once, nothing read or written. ON → at most one Mitti search, then link / create (+ HIV trades group, + one message) /
+ * at once, nothing read or written. ON → at most one Mitti search, then link / create (+ one message) /
  * "invite needed", recorded once. Re-approval after a removal reactivates the same Mitti user.
  */
 export async function onPartnerPersonApproved(workerId: string, actorId: string | null, opts: Opts = {}) {
   const sw = opts.switches ?? currentInviteSwitches();
   if (!sw.enabled) return { action: "skip" as const, reason: "Mitti auto-invite is switched off." };
-  const { person, profileMismatch, name, mobile, business, businessId, profileId, emailSource } = await loadPerson(workerId);
+  const { person, approvedAt, profileMismatch, name, mobile, business, businessId, profileId } = await loadPerson(workerId);
+  if (!isNewMittiApproval(approvedAt)) return { action: "skip" as const, reason: "Existing approval — no Mitti invite catch-up." };
+  if (person.tradeRole !== "installer" || person.crew || person.isTest) return { action: "skip" as const, reason: "Automatic Mitti invites are for new real Leads only." };
   if (profileMismatch && !person.isTest) {
     const reason = "The worker's email does not match their linked portal login — the office must correct the person link before Mitti access is changed.";
     await record(actorId, MITTI_INVITE_EVENTS.failed, reason, { worker_id: workerId, email: person.email, reason });
     return { action: "fail" as const, reason };
   }
   const prior = priorInviteFor(workerId, await loadInviteRecords(workerId));
+  // Jo 3 Nov: a Lead approved while paused is only invited when Jo presses Send (never automatically on unpause/edit).
+  if (prior?.type === MITTI_INVITE_EVENTS.waitingPause && !opts.confirmed) return { action: "skip" as const, reason: `${MITTI_WAITING_PAUSE} — Jo confirms from the office list.` };
+  if (!person.isTest && !person.crew && person.tradeRole === "installer" && mittiInviteStep(person, prior, sw).action === "skip" && inviteEligibility(person) === NO_EMAIL_SKIP) {
+    if (prior?.type !== MITTI_INVITE_EVENTS.waitingEmail) await record(actorId, MITTI_INVITE_EVENTS.waitingEmail, `${MITTI_WAITING_EMAIL}: ${name ?? "Lead"} (${business ?? "business"})`, { worker_id: workerId, email: null, name, business, trade_role: person.tradeRole });
+    return { action: "skip" as const, reason: MITTI_WAITING_EMAIL };
+  }
+  const initialStep = mittiInviteStep(person, prior, sw);
+  if (initialStep.action === "skip") return initialStep;
+  // Creating a user can send Mitti's email; paused approvals must not even search/link/reactivate.
+  const tradePaused = await (await import("./trade-pause.server")).tradeMessagesPausedNow({ businessId });
+  if (tradePaused) {
+    if (prior?.type !== MITTI_INVITE_EVENTS.waitingPause) await record(actorId, MITTI_INVITE_EVENTS.waitingPause, `${MITTI_WAITING_PAUSE}: ${person.email}`, { worker_id: workerId, email: person.email, name, business, trade_role: person.tradeRole, reason: tradePaused, mitti_user_id: null, group: null });
+    return { action: "skip" as const, reason: MITTI_WAITING_PAUSE };
+  }
   const call = opts.call ?? await realCall();
-  const base = { worker_id: workerId, email: person.email, name, business, trade_role: person.tradeRole, ...(emailSource === "business" ? { email_source: "business" } : {}) };
+  const base = { worker_id: workerId, email: person.email, name, business, trade_role: person.tradeRole };
   let step = mittiInviteStep(person, prior, sw);
   if (step.action === "lookup") {
     const looking = step;
     try {
       const { findMittiUserByEmail } = await import("./mitti.server");
-      step = mittiInviteStep(person, prior, sw, { mittiUserId: await findMittiUserByEmail(person.email!, call) });
+      step = mittiInviteStep(person, prior, sw, { mittiUserId: await findMittiUserByEmail(person.email ?? "", call) });
     } catch (e) {
       const reason = plainMittiReason(e, `Mitti could not be searched for ${person.email}`);
       await record(actorId, MITTI_INVITE_EVENTS.failed, reason, { ...base, key: looking.key, group: looking.group, seat: looking.seat, reason, mitti_user_id: null });
@@ -150,24 +166,18 @@ export async function onPartnerPersonApproved(workerId: string, actorId: string 
   }
   if (step.action === "skip" || step.action === "lookup") return step;
   const details = { ...base, key: step.key, group: step.group, seat: step.seat };
-  const addGroup = async (mittiUserId: string, groupId: string | null) => {
-    if (!groupId) return { added: false, note: "no group ID configured (MITTI_TRADES_GROUP_ID) or Mitti user calls not verified" };
-    try { await call("POST", groupPath(groupId), addToGroupBody(mittiUserId)); return { added: true, note: null }; }
-    catch (e) { return { added: false, note: plainMittiReason(e, "Group add failed") }; }
-  };
 
   if (step.action === "fail") {
     await record(actorId, MITTI_INVITE_EVENTS.failed, step.reason, { ...details, reason: step.reason, mitti_user_id: prior?.mittiUserId ?? null });
     return step;
   }
   if (step.action === "record_needed") {
-    await record(actorId, MITTI_INVITE_EVENTS.needed, `Mitti invite needed for ${person.email} (${step.seat} seat, ${step.group} group) — the portal's Mitti user calls are not verified yet`, { ...details, mitti_user_id: null, group_added: false, template_access: MITTI_TEMPLATE_ACCESS_NOTE });
+    await record(actorId, MITTI_INVITE_EVENTS.needed, `Mitti invite needed for ${person.email} (${step.seat} seat) — the portal's Mitti user calls are not verified yet`, { ...details, mitti_user_id: null, group_added: false, template_access: MITTI_TEMPLATE_ACCESS_NOTE });
     return step;
   }
   if (step.action === "record_linked") {
-    await linkProfile(profileId, step.mittiUserId, person.email!);
-    const g = await addGroup(step.mittiUserId, step.addToGroup);
-    await record(actorId, MITTI_INVITE_EVENTS.userLinked, `Mitti user found for ${person.email} and linked${g.added ? ` — added to ${step.group}` : ""}`, { ...details, mitti_user_id: step.mittiUserId, group_added: g.added, group_note: g.note });
+    await linkProfile(profileId, step.mittiUserId, person.email ?? "");
+    await record(actorId, MITTI_INVITE_EVENTS.userLinked, `Mitti user found for ${person.email} and linked`, { ...details, mitti_user_id: step.mittiUserId, group_added: false, group_note: null });
     return step;
   }
   if (step.action === "reactivate") {
@@ -177,32 +187,34 @@ export async function onPartnerPersonApproved(workerId: string, actorId: string 
       await record(actorId, MITTI_INVITE_EVENTS.failed, reason, { ...details, reason, mitti_user_id: step.mittiUserId });
       return { action: "fail" as const, reason };
     }
-    await linkProfile(profileId, step.mittiUserId, person.email!);
-    await record(actorId, MITTI_INVITE_EVENTS.reactivated, `Mitti user for ${person.email} reactivated (approved again)`, { ...details, mitti_user_id: step.mittiUserId, group_added: true });
+    await linkProfile(profileId, step.mittiUserId, person.email ?? "");
+    await record(actorId, MITTI_INVITE_EVENTS.reactivated, `Mitti user for ${person.email} reactivated (approved again)`, { ...details, mitti_user_id: step.mittiUserId, group_added: false });
     return step;
   }
   // Jo 30 Oct 2026: creating the Mitti user makes Mitti email the person, and our ONE invite message follows — both go to
   // a trade, so nothing is created or recorded while "Pause all trade messages" is on (TEST people never reach here).
-  const tradePaused = await (await import("./trade-pause.server")).tradeMessagesPausedNow();
-  if (tradePaused) return { action: "skip" as const, reason: `${tradePaused} — Mitti user not created yet; approve again or invite in Mitti once unpaused.` };
+  const pausedBeforeCreate = await (await import("./trade-pause.server")).tradeMessagesPausedNow({ businessId });
+  if (pausedBeforeCreate) {
+    if (prior?.type !== MITTI_INVITE_EVENTS.waitingPause) await record(actorId, MITTI_INVITE_EVENTS.waitingPause, `${MITTI_WAITING_PAUSE}: ${person.email}`, { ...details, reason: pausedBeforeCreate, mitti_user_id: null });
+    return { action: "skip" as const, reason: MITTI_WAITING_PAUSE };
+  }
   // create: the throwaway password is never stored or logged.
   let mittiUserId: string | null = null;
   try {
     const password = opts.password ? opts.password() : `${crypto.randomUUID()}Aa1!`;
-    mittiUserId = createdUserId(await call(MITTI_USER_API.create.method, MITTI_USER_API.create.path, createUserBody({ fullName: name, email: person.email!, seat: step.seat, password })));
+    mittiUserId = createdUserId(await call(MITTI_USER_API.create.method, MITTI_USER_API.create.path, createUserBody({ fullName: name, email: person.email ?? "", seat: step.seat, password })));
     if (!mittiUserId) throw new Error("Mitti did not return the new user's ID.");
   } catch (e) {
-    const reason = plainMittiReason(e, `Mitti could not create a user for ${person.email} — invite them in Mitti by hand (${step.seat} seat, ${step.group} group)`);
+    const reason = plainMittiReason(e, `Mitti could not create a user for ${person.email} — invite them in Mitti by hand (${step.seat} seat)`);
     await record(actorId, MITTI_INVITE_EVENTS.failed, reason, { ...details, reason, mitti_user_id: mittiUserId });
     return { action: "fail" as const, reason };
   }
   await linkProfile(profileId, mittiUserId, person.email ?? "");
-  const g = await addGroup(mittiUserId, step.addToGroup);
   const at = new Date().toISOString();
   // Recorded BEFORE the message, so a second approval finds it and never invites or messages again.
-  await record(actorId, MITTI_INVITE_EVENTS.invited, `Mitti user created for ${person.email} (${step.seat} seat${g.added ? `, ${step.group} group` : ""})`, { ...details, mitti_user_id: mittiUserId, group_added: g.added, group_note: g.note, message_key: mittiInviteMessageKey(workerId) });
-  const message = await (opts.message ?? realInviteMessenger)({ workerId, businessId, to: { mobile, email: person.email! }, name, at, actorId });
-  return { ...step, mittiUserId, groupAdded: g.added, message };
+  await record(actorId, MITTI_INVITE_EVENTS.invited, `Mitti user created for ${person.email} (${step.seat} seat)`, { ...details, mitti_user_id: mittiUserId, group_added: false, group_note: null, message_key: mittiInviteMessageKey(workerId) });
+  const message = await (opts.message ?? realInviteMessenger)({ workerId, businessId, to: { mobile, email: person.email ?? "" }, name, at, actorId });
+  return { ...step, mittiUserId, groupAdded: false, message };
 }
 
 /**
@@ -236,6 +248,18 @@ export async function onPartnerPersonRemoved(workerId: string, actorId: string |
   }
   await record(actorId, MITTI_INVITE_EVENTS.deactivated, `Mitti user for ${email} deactivated (removed in the portal) — reduce the licence count in Mitti if the seat is not reused`, details);
   return step;
+}
+
+/** Jo presses "Send Mitti invite" on a Lead waiting for the pause to lift. Still refused (nothing sent) while paused. */
+export async function sendWaitingMittiInvite(workerId: string, actorId: string, opts: Opts = {}) {
+  const prior = priorInviteFor(workerId, await loadInviteRecords(workerId));
+  if (prior?.type !== MITTI_INVITE_EVENTS.waitingPause) throw new WorkflowError("This person is not waiting for the pause to lift.");
+  return onPartnerPersonApproved(workerId, actorId, { ...opts, confirmed: true });
+}
+
+/** Office Needs me rows for Leads waiting for the pause to lift. */
+export async function mittiWaitingPauseNeeds() {
+  return mittiWaitingPauseItems(await loadInviteRecords());
 }
 
 /** Staff approvals (People): people the office still has to finish in Mitti. */

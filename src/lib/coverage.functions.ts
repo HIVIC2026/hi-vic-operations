@@ -82,10 +82,10 @@ export const getJobCoverage = createServerFn({ method: "POST" }).middleware([req
   .handler(async ({ data, context }) => {
     // TEST office (Jo 27 Oct): qa_test jobs only, TEST partners only; admin unchanged.
     const { requireOfficeJob, officeTestBusinessIds } = await import("./qa-office-access.server");
-    const officeRole = await requireOfficeJob(context.supabase, data.jobId);
+    const officeRole = await requireOfficeJob(context.supabase, data.jobId, context);
     if (officeRole !== "qa_office") await requireAdmin(context.supabase);
     const loaded = await loadCoverageData(data.jobId);
-    const testIds = officeRole === "qa_office" ? new Set(await officeTestBusinessIds(context.supabase)) : null;
+    const testIds = officeRole === "qa_office" ? new Set(await officeTestBusinessIds(context.supabase, context)) : null;
     const partners = testIds ? loaded.partners.filter((p) => testIds.has(p.id)) : loaded.partners;
     const job = loaded.jobs.find((candidate) => candidate.id === data.jobId);
     if (!job) throw new Error("Job not found.");

@@ -23,7 +23,7 @@ const chain = (table: string): Record<string, unknown> => {
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: (t: string) => chain(t), rpc: async () => {inserts++;return {data:insertError?null:'w1',error:insertError};} } }));
 
 const { tradeAddTeamPerson } = await import("../src/lib/trade-view.server");
-const add = () => tradeAddTeamPerson("u1", { name: "Sam Crew", workerRole: "crew", mobile: null, email: null, licenceNumber: null,dateOfBirth:'1990-01-01' });
+const add = () => tradeAddTeamPerson("u1", { name: "Sam Crew", workerRole: "crew", mobile: "0412 345 678", email: null, licenceNumber: null,dateOfBirth:'1990-01-01' });
 const DB_UPDATE = "Adding someone without an email needs the office's database update first.";
 
 test("missing declarations_due column (PostgREST schema cache) gives the database-update message, no retry", async () => {
@@ -48,4 +48,10 @@ test("existing cases unchanged", async () => {
   await expect(add()).rejects.toThrow("Someone with that email is already on your team.");
   insertError = null;
   expect(await add()).toEqual({ workerId: "w1" });
+});
+
+test("installer add requires an active Lead/Crew choice before any write", async () => {
+  insertError = null; inserts = 0;
+  await expect(tradeAddTeamPerson("u1", { name: "Sam Crew", mobile: "0412 345 678", email: null, licenceNumber: null, dateOfBirth: "1990-01-01" })).rejects.toThrow("Choose Lead or Crew.");
+  expect(inserts).toBe(0);
 });

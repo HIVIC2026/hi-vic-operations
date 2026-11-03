@@ -2,12 +2,12 @@
 // Rules in trade-pause.core.ts. Missing column (SQL not live) = NOT paused + a warning; any other read failure holds.
 // Never sends; safe to import from sender modules only.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
-import { businessPauseException, readTradePause } from "./trade-pause.core";
+import { readTradePause } from "./trade-pause.core";
 
 let missingWarned = false;
 
 /** The hold reason while trade messages are paused, else null. */
-export async function tradeMessagesPausedNow(opts?: { businessId?: string | null }): Promise<string | null> {
+export async function tradeMessagesPausedNow(opts?: { businessId?: string | null; jobId?: string | null }): Promise<string | null> {
   let r: { data: unknown; error: { code?: string | null; message?: string | null } | null };
   try {
     r = await (admin as any).from("workflow_settings").select("trade_messages_paused").eq("id", 1).maybeSingle(); // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -17,11 +17,49 @@ export async function tradeMessagesPausedNow(opts?: { businessId?: string | null
   const out = readTradePause({ data: r.data as { trade_messages_paused?: boolean | null } | null, error: r.error });
   // The missing-column warning is logged once per process (it would repeat on every send); real read failures every time.
   if (out.warning && (out.reason !== null || !missingWarned)) { if (out.reason === null) missingWarned = true; console.warn(out.warning); }
-  if (!out.reason || !opts?.businessId) return out.reason;
-  // Per-business exception (Jo 31 Oct): any read failure or missing column keeps the hold.
+  if (!out.reason || (!opts?.businessId && !opts?.jobId)) return out.reason;
+  // Per-business exception (Jo 31 Oct; narrowed 3 Nov). Any read failure keeps the hold.
+  // - Recipient business known: lifted only if it is flagged, or it is an electrician actively linked to a flagged
+  //   installer AND (no job given, or that installer is the job's originating installer or an active assignee).
+  //   The job's other businesses never lift a message to a known, uncovered recipient.
+  // - Only a job given: lifted if the job's originating installer or an active assignee is flagged.
   try {
-    const b = await (admin as any).from("businesses").select("messages_while_paused").eq("id", opts.businessId).maybeSingle(); // eslint-disable-line @typescript-eslint/no-explicit-any
-    if (b.error) return out.reason;
-    return businessPauseException(out.reason, (b.data as { messages_while_paused?: boolean | null } | null)?.messages_while_paused);
+    if (opts.businessId) {
+      const pr = await (admin as any).from("partner_relationships").select("installer_business_id").eq("electrician_business_id", opts.businessId).eq("active", true); // eslint-disable-line @typescript-eslint/no-explicit-any
+      if (pr.error) return out.reason;
+      const ids = new Set<string>([opts.businessId]);
+      for (const r of (pr.data ?? []) as { installer_business_id: string | null }[]) if (r.installer_business_id) ids.add(r.installer_business_id);
+      const flagged = await flaggedAmong([...ids]);
+      if (!flagged) return out.reason;
+      if (flagged.has(opts.businessId)) return null;
+      if (!flagged.size) return out.reason; // neither it nor any linked installer is flagged
+      if (!opts.jobId) return null;
+      const onJob = await jobBusinessIds(opts.jobId);
+      return onJob && [...flagged].some((id) => onJob.has(id)) ? null : out.reason;
+    }
+    const onJob = await jobBusinessIds(opts.jobId!);
+    if (!onJob || !onJob.size) return out.reason;
+    const flagged = await flaggedAmong([...onJob]);
+    return flagged && flagged.size ? null : out.reason;
   } catch { return out.reason; }
+}
+
+/** Ids among `ids` whose messages_while_paused is exactly true; null when the read failed. */
+async function flaggedAmong(ids: string[]): Promise<Set<string> | null> {
+  const b = await (admin as any).from("businesses").select("id, messages_while_paused").in("id", ids); // eslint-disable-line @typescript-eslint/no-explicit-any
+  if (b.error) return null;
+  return new Set(((b.data ?? []) as { id: string; messages_while_paused?: boolean | null }[]).filter((x) => x.messages_while_paused === true).map((x) => x.id));
+}
+
+/** The job's originating installer + active assignees; null when a read failed. */
+async function jobBusinessIds(jobId: string): Promise<Set<string> | null> {
+  const ids = new Set<string>();
+  const j = await (admin as any).from("jobs").select("originating_installer_business_id").eq("id", jobId).maybeSingle(); // eslint-disable-line @typescript-eslint/no-explicit-any
+  if (j.error) return null;
+  const orig = (j.data as { originating_installer_business_id?: string | null } | null)?.originating_installer_business_id;
+  if (orig) ids.add(orig);
+  const ja = await (admin as any).from("job_assignments").select("business_id").eq("job_id", jobId).eq("active", true); // eslint-disable-line @typescript-eslint/no-explicit-any
+  if (ja.error) return null;
+  for (const r of (ja.data ?? []) as { business_id: string | null }[]) if (r.business_id) ids.add(r.business_id);
+  return ids;
 }

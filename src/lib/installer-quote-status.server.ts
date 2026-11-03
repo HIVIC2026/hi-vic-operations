@@ -1,6 +1,6 @@
 // Jo 24 Oct 2026: the latest Ready Check owner quote and its status for the installer (no approval step). Read-only;
 // callers authorise first. Never sends to owners and never reads or writes the retired installer approval events.
-import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { jobAdmin as admin } from "./job-facts.server"; // speed (Task 11): the admin client; inside the job page bundle it answers from the job's rows
 import { WorkflowError } from "./workflow.server";
 import { isReadyCheckQuote, type InstallerQuoteFacts } from "./installer-quote-status.core";
 import { isNotOnboardedReason } from "./rec-onboarded.core";

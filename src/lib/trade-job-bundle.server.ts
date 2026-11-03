@@ -25,6 +25,11 @@ import * as piisaServer from "./piisa-a3.server";
 import type { JobRole } from "./workflow";
 import type { CrewSelection, StaffOption } from "./piisa-a3.core";
 import { visitsForStage } from "./visit-allocation.core";
+import { sharedJobReads, type SharedJobReads } from "./job-shared-reads";
+import { withJobFacts } from "./job-facts.server";
+import { electricalClearance } from "./allocation.core";
+import * as quoteStatusServer from "./installer-quote-status.server";
+import * as clearanceServer from "./electrical-clearance.server";
 
 type Sb = SupabaseClient<Database>;
 type Out<F extends (...a: never[]) => unknown> = Awaited<ReturnType<F>>;
@@ -44,14 +49,14 @@ export type Crew = { staff: StaffOption[]; selection: CrewSelection | null };
 export type BundleDeps = {
   overview: (sb: Sb, userId: string, jobId: string) => Promise<{ role: JobRole; row: Overview }>;
   access: (userId: string, jobId: string) => Promise<TradeJobAccess>;
-  page: (jobId: string, userId: string, pre: TradeJobAccess) => Promise<PageFacts>;
-  installDays: (jobId: string, userId: string) => Promise<InstallDays>;
+  page: (jobId: string, userId: string, pre: TradeJobAccess, shared: SharedJobReads) => Promise<PageFacts>;
+  installDays: (jobId: string, userId: string, shared: SharedJobReads) => Promise<InstallDays>;
   readyCheckTimes: (jobId: string, userId: string, pre: TradeJobAccess) => Promise<ReadyCheckTimes>;
   allocation: (jobId: string, userId: string, pre: TradeJobAccess) => Promise<Allocation>;
   swms: (jobId: string, userId: string, pre: TradeJobAccess) => Promise<Swms>;
   workerLinks: (sb: Sb, userId: string, jobId: string) => Promise<WorkerLinks>;
-  price: (jobId: string, userId: string) => Promise<Price>;
-  ownerQuote: (sb: Sb, userId: string, jobId: string) => Promise<OwnerQuote>;
+  price: (jobId: string, userId: string, shared: SharedJobReads) => Promise<Price>;
+  ownerQuote: (sb: Sb, userId: string, jobId: string, shared: SharedJobReads) => Promise<OwnerQuote>;
   crew: (jobId: string) => Promise<Crew>;
 };
 
@@ -59,14 +64,14 @@ function realDeps(): BundleDeps {
   return {
     overview: (sb, userId, jobId) => overviewServer.jobOverviewFor(sb, userId, jobId),
     access: (userId, jobId) => tv.requireTradeJob(userId, jobId),
-    page: (jobId, userId, pre) => tv.tradeJobPage(jobId, userId, pre),
-    installDays: (jobId, userId) => installDaysServer.installerInstallDayState(jobId, userId),
+    page: (jobId, userId, pre, shared) => tv.tradeJobPage(jobId, userId, pre, shared),
+    installDays: (jobId, userId, shared) => installDaysServer.installerInstallDayState(jobId, userId, shared),
     readyCheckTimes: (jobId, userId, pre) => tv.tradeReadyCheckTimes(jobId, userId, pre),
     allocation: (jobId, userId, pre) => allocationServer.visitAllocationView(jobId, userId, pre),
     swms: (jobId, userId, pre) => tv.tradeSwms(jobId, userId, pre),
     workerLinks: (sb, userId, jobId) => workerLinksServer.workerLinksFor(sb, userId, jobId),
-    price: (jobId, userId) => priceServer.installerPriceView(jobId, userId),
-    ownerQuote: (sb, userId, jobId) => ownerQuoteServer.myOwnerQuoteFor(sb as unknown as Parameters<typeof ownerQuoteServer.myOwnerQuoteFor>[0], userId, jobId),
+    price: (jobId, userId, shared) => priceServer.installerPriceView(jobId, userId, shared),
+    ownerQuote: (sb, userId, jobId, shared) => ownerQuoteServer.myOwnerQuoteFor(sb as unknown as Parameters<typeof ownerQuoteServer.myOwnerQuoteFor>[0], userId, jobId, shared),
     crew: (jobId) => piisaServer.loadCrew(jobId),
   };
 }
@@ -108,21 +113,30 @@ export async function tradeJobBundle(sb: Sb, userId: string, jobId: string, deps
     return { overview, role, page: refused, installDays: refused, readyCheckTimes: refused, allocation: refused, swms: refused, workerLinks: refused, price: refused, ownerQuote: refused, crew: refused, mittiInvited: refused };
   }
   const pre = access;
+  // Speed (Task 11): from here on, the sections' own queries about this job are answered from ONE read of the job's rows,
+  // taken after the access check above passed for this user and job (see job-facts.server.ts). Same queries, same answers.
+  return withJobFacts(jobId, pre, () => trustedSections(sb, userId, jobId, d, pre, ovP));
+}
+
+async function trustedSections(sb: Sb, userId: string, jobId: string, d: BundleDeps, pre: TradeJobAccess, ovP: Promise<{ role: JobRole; row: Overview } | SectionError>): Promise<TradeJobBundle> {
+  // Speed (Task 6): the quote and the electrical clearance are each read once for THIS verified user and job and shared by the
+  // sections that need them (they used to read them four and two times). Server-side only; every section keeps its own checks.
+  const shared = sharedJobReads(pre, userId, jobId, { quote: (id) => quoteStatusServer.loadInstallerQuote(id), clearance: async (id) => electricalClearance(await clearanceServer.clearanceFacts(id)) });
   // Speed (installer screens, Task 6): the sections no longer wait for the overview. An installer business's sections
   // start the moment the trade access check passes; the overview's role (`my_job_role`) still decides which of them the
   // bundle returns, exactly as before — a section it rules out is dropped (each section's own guard ran as usual; nothing
   // here writes). Any other business waits for the overview first, as before. The staff links never depended on it.
   const workerLinksP = section(d.workerLinks(sb, userId, jobId));
   const startInstaller = () => ({
-    page: section(d.page(jobId, userId, pre)),
-    installDays: section(d.installDays(jobId, userId)),
+    page: section(d.page(jobId, userId, pre, shared)),
+    installDays: section(d.installDays(jobId, userId, shared)),
     readyCheckTimes: section(d.readyCheckTimes(jobId, userId, pre)),
     allocation: section(d.allocation(jobId, userId, pre)),
     swms: section(d.swms(jobId, userId, pre)),
     // Decision 278: the price card is the business owner's. The helper itself returns null for anyone else; the
     // bundle does not even ask for a staff login.
-    price: pre.boss ? section(d.price(jobId, userId)) : null,
-    ownerQuote: section(d.ownerQuote(sb, userId, jobId)),
+    price: pre.boss ? section(d.price(jobId, userId, shared)) : null,
+    ownerQuote: section(d.ownerQuote(sb, userId, jobId, shared)),
   });
   let startedEarly = pre.kind === "installer" ? startInstaller() : null;
   const ov = await ovP;

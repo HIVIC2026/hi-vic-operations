@@ -5,13 +5,15 @@ import { type ElectricianPlan } from "./job-electrician.core";
 
 /** Records the installer's choice on a new job. A chosen approved electrician is offered the owner's times first
  *  (never assigned directly); an invited one shows "Electrician invited – waiting to onboard". */
-export async function recordJobElectricianChoice(jobId: string, installerBusinessId: string, plan: ElectricianPlan | null | undefined, actorId: string) {
+export async function recordJobElectricianChoice(jobId: string, installerBusinessId: string, plan: ElectricianPlan | null | undefined, actorId: string, opts: { summary?: string } = {}) {
   if ((plan as { mode?: string } | null)?.mode === "later") {
     // "To be arranged": no electrician chosen, nothing booked or offered. Office/installer chooses later.
     await logEvent(jobId, actorId, "electrician_to_be_arranged", "Electrician to be arranged — none chosen yet", {}, { internal: true });
     return { choice: null };
   }
   if (!plan || plan.mode !== "mine") {
+    const { data: job, error } = await admin.from("jobs").select("channel").eq("id", jobId).single();
+    if (error || !job || job.channel === "installer_sourced") throw new WorkflowError("Use one of your own electricians.");
     await admin.from("jobs").update({ electrician_choice: "hivic_organise" }).eq("id", jobId);
     return { choice: "hivic_organise" as const };
   }
@@ -19,9 +21,11 @@ export async function recordJobElectricianChoice(jobId: string, installerBusines
     const { data: rel } = await admin.from("partner_relationships").select("electrician_business_id").eq("installer_business_id", installerBusinessId).eq("electrician_business_id", plan.business_id).eq("active", true).maybeSingle();
     if (!rel) throw new WorkflowError("That electrician isn't one of your approved electricians.");
     const { data: eb } = await admin.from("businesses").select("name, trading_name, email, phone").eq("id", plan.business_id).maybeSingle();
-    await admin.from("electrician_nominations").insert({ job_id: jobId, business_id: plan.business_id, nominating_business_id: installerBusinessId, nominated_by: actorId, nominated_for: "installer", contact_name: eb?.trading_name || eb?.name || "Your electrician", business_name: eb?.name ?? null, email: eb?.email ?? null, phone: eb?.phone ?? null, status: "approved" });
-    await admin.from("jobs").update({ electrician_choice: "preferred" }).eq("id", jobId);
-    await logEvent(jobId, actorId, "electrician_chosen_by_installer", `Installer chose ${eb?.trading_name || eb?.name || "their electrician"} — offered the owner's Pre Insulation Electrical Safety Assessment (PIESA) times first`, { business_id: plan.business_id });
+    const { error: ne } = await admin.from("electrician_nominations").insert({ job_id: jobId, business_id: plan.business_id, nominating_business_id: installerBusinessId, nominated_by: actorId, nominated_for: "installer", contact_name: eb?.trading_name || eb?.name || "Your electrician", business_name: eb?.name ?? null, email: eb?.email ?? null, phone: eb?.phone ?? null, status: "approved" });
+    if (ne) throw new WorkflowError(`The electrician couldn't be saved: ${ne.message}`);
+    const { error: je } = await admin.from("jobs").update({ electrician_choice: "preferred" }).eq("id", jobId);
+    if (je) throw new WorkflowError(`The electrician couldn't be saved: ${je.message}`);
+    await logEvent(jobId, actorId, "electrician_chosen_by_installer", opts.summary ?? `Installer chose ${eb?.trading_name || eb?.name || "their electrician"} — offered the owner's Pre Insulation Electrical Safety Assessment (PIESA) times first`, { business_id: plan.business_id });
     return { choice: "preferred" as const };
   }
   if (plan.nomination_id) {
@@ -37,7 +41,7 @@ export async function recordJobElectricianChoice(jobId: string, installerBusines
 /** The job's current electrician choice, for the job page. */
 export async function jobElectricianState(jobId: string) {
   const [{ data: job }, { data: noms }, { data: asg }] = await Promise.all([
-    admin.from("jobs").select("electrician_choice").eq("id", jobId).maybeSingle(),
+    admin.from("jobs").select("electrician_choice,channel").eq("id", jobId).maybeSingle(),
     admin.from("electrician_nominations").select("id, contact_name, business_id, status").eq("job_id", jobId).is("ended_at", null).order("created_at", { ascending: false }).limit(1),
     admin.from("job_assignments").select("business_id, businesses(name, trading_name)").eq("job_id", jobId).eq("role", "electrician").eq("active", true).limit(1),
   ]);
@@ -46,6 +50,7 @@ export async function jobElectricianState(jobId: string) {
   const { isIntakeJob } = await import("./installer-intake.server");
   return {
     intake: await isIntakeJob(jobId),
+    installerSourced: job?.channel === "installer_sourced",
     choice: (job?.electrician_choice as string | null) ?? null,
     assignedName: a ? a.businesses?.trading_name || a.businesses?.name || "Electrician" : null,
     chosenName: n?.business_id ? n.contact_name : null,
@@ -79,6 +84,8 @@ export async function switchJobToHivic(jobId: string, userId: string) {
 
 /** Internal: callers must already have applied the guards (legacy switch above, or installerUpdateIntake). */
 export async function applyHivicArrangement(jobId: string, userId: string) {
+  const { data: job, error } = await admin.from("jobs").select("channel").eq("id", jobId).single();
+  if (error || !job || job.channel === "installer_sourced") throw new WorkflowError("Use one of your own electricians.");
   const { data: mine } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("user_id", userId).eq("active", true).maybeSingle();
   if (!mine?.business_id) throw new WorkflowError("Only the installer on this job can change this.");
   const { data: biz } = await admin.from("business_members").select("member_role").eq("business_id", mine.business_id).eq("user_id", userId).eq("active", true).maybeSingle();

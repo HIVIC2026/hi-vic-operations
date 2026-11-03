@@ -8,17 +8,19 @@
 // haven't answered and links to Emails. Gone quiet and Opted out can be closed in one go (they move to Jobs › Closed
 // with the reason; history kept, reopen any time). Actions ▾ Close (the reason files it). No phone-enquiry button
 // (Jo 30 Oct 2026); the count line reads "48 enquiries · updated 5 min ago".
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Mail } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { useAction } from "@/hooks/use-me";
+import { useAction, useMe } from "@/hooks/use-me";
 import { Input } from "@/components/ui/input";
 import { bulkCancelOfficeJobs, getEnquiriesList } from "@/lib/office-screens.functions";
 import { checkedLabel, isDefaultListView } from "@/lib/office-needs-snapshot.core";
+import { enquiriesListKey } from "@/lib/office-list-keys.core";
+import { isLastCopy, useRememberLastCopy } from "@/lib/office-last-copy";
 import { readOfficeList } from "@/lib/office-list-refresh";
 import { removeLeadsFn } from "@/lib/enquiry-groups.functions";
 import { CLOSE_REASONS, closeRouteFor, enquiryCountLine, keepTicked, removeOutcomeToast, removeReasonText } from "@/lib/enquiries-screen.core";
@@ -68,16 +70,29 @@ export function EnquiriesScreen() {
   // Decision 383: the opening view (Offered a spot) comes from the server's saved copy (worked out now after an office action
   // in this tab); while the server refreshes it, ask again in 5 s. One retry, not three.
   const q = useQuery({
-    queryKey: ["office-enquiries", view, search, filters, sort, page],
+    queryKey: enquiriesListKey(view, search, filters, sort, page),
     queryFn: () => {
       const v = { search, sort: sort.k, dir: sort.d, page, filters, view };
       return readOfficeList("enquiries", isDefaultListView(v), (refresh) => load({ data: { ...v, refresh } }));
     },
     placeholderData: keepPreviousData, staleTime: 30_000, retry: 1, refetchInterval: (x) => (x.state.data?.refreshing ? 5_000 : false),
   });
+  const { data: me } = useMe();
+  const listKey = enquiriesListKey(view, search, filters, sort, page);
+  useRememberLastCopy(me?.user.id, "enquiries", JSON.stringify(listKey) === JSON.stringify(enquiriesListKey("offered", "", {}, { k: "", d: "asc" }, 1)), listKey, q);
+  const copyShown = !!q.data && isLastCopy(listKey, q.dataUpdatedAt); // actions and ticks wait while true
+  const showingLastCopy = copyShown && !q.isError; // the "Updating…" line
   const cancel = useAction(bulkCancelOfficeJobs);
   const remove = useAction(removeLeadsFn);
   const d = q.data;
+  // Task 9 fix: while the old copy shows, ticks and bulk actions wait; when the fresh rows arrive, ticks not in them are dropped.
+  const wasCopy = useRef(false);
+  useEffect(() => {
+    const was = wasCopy.current; wasCopy.current = copyShown;
+    if (!was || copyShown || !d) return;
+    const fresh = new Set(d.rows.map((r) => r.id));
+    setPicked((p) => ([...p].every((i) => fresh.has(i)) ? p : new Set([...p].filter((i) => fresh.has(i)))));
+  }, [copyShown, d]); // eslint-disable-line react-hooks/exhaustive-deps
   const counts = (d?.counts as { byCategory?: CategoryCounts } | undefined)?.byCategory ?? null;
   const ids = [...picked];
   const active = activeColumnFilters(filters);
@@ -103,22 +118,23 @@ export function EnquiriesScreen() {
           {closeReason && !!viewCount && (
             <div className="mb-3 flex flex-wrap items-center gap-3 rounded-[14px] border border-mist-line bg-mist p-3 text-sm">
               <span className="min-w-0 flex-1 text-ink">Close all {viewCount.toLocaleString("en-AU")}? They move to Jobs › Closed with “{closeReason}”, reminders stop, history is kept and any can be reopened.</span>
-              <button type="button" className={btnClass("secondary")} onClick={() => setDialog("close-all")}>Close all {viewCount.toLocaleString("en-AU")}</button>
+              <button type="button" className={btnClass("secondary")} disabled={copyShown} onClick={() => setDialog("close-all")}>Close all {viewCount.toLocaleString("en-AU")}</button>
             </div>
           )}
           <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2" data-why="decision 285 one search box; 286 headings sort and filter; 283 no priority number; Jo 26-27 Oct groups and look">
             <p className="w-full text-[13px] text-sub lg:w-auto lg:flex-1">{meta.hint}</p>
             <Input type="search" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Search owner name, address or job number" aria-label="Search enquiries" className="h-11 w-full rounded-[12px] bg-paper sm:max-w-[320px]" />
             <div className="flex items-center gap-3">
-              <span className="text-sm text-sub">{d ? enquiryCountLine(d.total, d.fromCopy ? checkedLabel(d.computedAt, false) : null) + ((q.isFetching || d.refreshing) ? " · updating…" : "") : "Loading…"}</span>
+              {showingLastCopy && <span data-last-copy-updating className="text-xs text-sub">Updating…</span>}
+              <span className="text-sm text-sub">{d ? enquiryCountLine(d.total, d.fromCopy ? checkedLabel(d.computedAt, false) : null) + ((q.isFetching || d.refreshing) && !showingLastCopy ? " · updating…" : "") : "Loading…"}</span>
               {active.length > 0 && <button type="button" className="text-sm font-semibold text-hiv-blue underline" onClick={() => { setFilters({}); setPage(1); }}>Clear {active.length} filter{active.length === 1 ? "" : "s"}</button>}
-              <ActionsMenu selected={picked.size} onPick={setDialog} actions={[{ key: "close", label: "Close", danger: true }]} />
+              <ActionsMenu disabled={copyShown} selected={picked.size} onPick={setDialog} actions={[{ key: "close", label: "Close", danger: true }]} />
             </div>
           </div>
           {q.isError ? <div role="alert" className="rounded-[14px] border border-danger/40 bg-danger-soft p-4 text-sm">Enquiries could not load — this does not mean there are none. {(q.error as Error).message} <button type="button" className="font-semibold underline" onClick={() => void q.refetch()}>Try again</button></div> : (
             <div className={listCard}>
               <div className={cn("hidden gap-x-3 border-b border-line bg-table-head px-5 py-2.5 lg:grid", cols)}>
-                <input type="checkbox" className="h-4 w-4 self-center accent-[var(--hiv-blue)]" aria-label="Select all on this page" checked={!!d?.rows.length && d.rows.every((r) => picked.has(r.id))} onChange={(e) => setPicked(e.target.checked ? new Set(d?.rows.map((r) => r.id)) : new Set())} />
+                <input type="checkbox" className="h-4 w-4 self-center accent-[var(--hiv-blue)]" aria-label="Select all on this page" disabled={copyShown} checked={!!d?.rows.length && d.rows.every((r) => picked.has(r.id))} onChange={(e) => setPicked(e.target.checked ? new Set(d?.rows.map((r) => r.id)) : new Set())} />
                 {ENQUIRY_COLUMNS.map((c) => <ColumnHead key={c.key} col={c} sort={sort.k} dir={sort.d} value={filters[c.key]} onSort={(k, dd) => { setSort({ k, d: dd }); setPage(1); }} onFilter={onFilter} />)}
               </div>
               {!d ? <p role="status" className="p-6 text-center text-sm text-sub">Loading enquiries…</p> : d.rows.length === 0 ? <p className="p-6 text-center text-sm text-sub">{search || active.length ? "No enquiry matches that search." : "Nothing in this group."}</p> : (
@@ -130,7 +146,7 @@ export function EnquiriesScreen() {
                     const bounced = r.emailBounced ? <Pill tone="rose" className="shrink-0">Email bounced</Pill> : null;
                     const est = estimateLabel({ dollars: r.estimateDollars, kind: r.estimateKind });
                     const tick = (cls: string) => (
-                      <input type="checkbox" className={cn("shrink-0 accent-[var(--hiv-blue)]", cls)} aria-label={`Select ${r.jobNumber}`} checked={picked.has(r.id)} onChange={(e) => { const n = new Set(picked); if (e.target.checked) n.add(r.id); else n.delete(r.id); setPicked(n); }} />
+                      <input type="checkbox" className={cn("shrink-0 accent-[var(--hiv-blue)]", cls)} aria-label={`Select ${r.jobNumber}`} disabled={copyShown} checked={picked.has(r.id)} onChange={(e) => { const n = new Set(picked); if (e.target.checked) n.add(r.id); else n.delete(r.id); setPicked(n); }} />
                     );
                     // Phone: a 20px box inside a 44px tap area (the negative margin keeps the row's spacing).
                     const selPhone = <label className="-m-2.5 flex h-11 w-11 shrink-0 items-center justify-center">{tick("h-5 w-5")}</label>;
@@ -181,7 +197,7 @@ export function EnquiriesScreen() {
           // Keep the ones not done ticked so they can be closed with another reason; the dialog stays open.
           const before = (d?.rows ?? []).map((x) => x.id);
           await qc.invalidateQueries({ queryKey: ["office-enquiries"] });
-          const fresh = qc.getQueryData<typeof d>(["office-enquiries", view, search, filters, sort, page]);
+          const fresh = qc.getQueryData<typeof d>([...enquiriesListKey(view, search, filters, sort, page)]);
           setPicked(keepTicked(ids, before, (fresh?.rows ?? d?.rows ?? []).map((x) => x.id)));
           return false;
         } const r = await cancel({ jobIds: ids, reason }); if (!r) return false; if (r.failed.length) toast.error(`${r.done} cancelled; ${r.failed.length} not: ${r.failed[0]!.error}`); else toast.success(`${r.done} cancelled`); refresh(); return true; }} />

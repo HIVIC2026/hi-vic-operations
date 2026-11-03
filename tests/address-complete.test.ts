@@ -246,3 +246,75 @@ describe("address-complete server (decision 281)", () => {
     expect(search).not.toContain("fetch(");
   });
 });
+
+// Jo 2 Nov 2026 (approved plan): Mitti pickup addresses are verified with the same lookup; no confident match keeps the
+// typed address and raises "Address to confirm" for the office. Never blocks the pickup.
+describe("Mitti pickup address verification (Jo 2 Nov)", () => {
+  const MITTI_RESULTS = { "9 shelley St spring gully": [{ id: "m1", label: "9 Shelley Street, Spring Gully VIC, Australia" }] };
+  const MITTI_DETAILS: Record<string, Row> = { m1: { label: "9 Shelley Street, Spring Gully VIC, Australia", street: "9 Shelley Street", suburb: "Spring Gully", postcode: "3550", state: "VIC" } };
+  const seedMitti = (address: string) => {
+    seed();
+    tables["properties"]!.push({ id: "p-mitti", address_line: address, suburb: null, postcode: null });
+    tables["owners"]!.push({ id: "o-mitti", full_name: "Sam Owner" });
+    tables["jobs"]!.push({ id: "j-mitti", channel: "installer_sourced", source: "installer_mitti", stage: "ready_check_scheduled", deleted_at: null, created_at: "2026-10-20T00:00:00Z", owner_id: "o-mitti", property_id: "p-mitti", owners: tables["owners"]!.at(-1), properties: tables["properties"]!.at(-1) });
+  };
+
+  test("one Victorian match saves the verified street, suburb, postcode and state", async () => {
+    seedMitti("9 shelley St spring gully");
+    const { completeJobAddress } = await import("../src/lib/address-complete.server");
+    expect(await completeJobAddress("j-mitti", { trigger: "mitti_pickup", lookup: lookup(MITTI_RESULTS, MITTI_DETAILS) })).toMatchObject({ outcome: "completed" });
+    expect(updates.find((u) => u.table === "properties")?.patch).toEqual({ address_line: "9 Shelley Street", suburb: "Spring Gully", postcode: "3550", state: "VIC" });
+    expect(events[0]).toMatchObject({ type: "address_completed", details: { trigger: "mitti_pickup", mitti_pickup: true, typed: "9 shelley St spring gully" } });
+  });
+
+  test("no confident match keeps the typed address and flags Address to confirm for the office", async () => {
+    seedMitti("9 shelley St spring gully");
+    const { completeJobAddress } = await import("../src/lib/address-complete.server");
+    const other = lookup({ "9 shelley St spring gully": [{ id: "m2", label: "19 Shelley Street, Spring Gully VIC, Australia" }] }, { m2: { label: "19 Shelley Street, Spring Gully VIC, Australia", street: "19 Shelley Street", suburb: "Spring Gully", postcode: "3550", state: "VIC" } });
+    expect(await completeJobAddress("j-mitti", { trigger: "mitti_pickup", lookup: other })).toMatchObject({ outcome: "unresolved" });
+    expect(updates).toHaveLength(0);
+    expect(events[0]).toMatchObject({ type: "address_lookup_unresolved", details: { mitti_pickup: true, needs_office: true } });
+    // A NSW-only match is never accepted either.
+    seedMitti("9 shelley St spring gully");
+    const nsw = lookup(MITTI_RESULTS, { m1: { ...MITTI_DETAILS["m1"], postcode: "2000", state: "NSW" } });
+    expect(await completeJobAddress("j-mitti", { trigger: "mitti_pickup", lookup: nsw })).toMatchObject({ outcome: "unresolved" });
+    expect(updates).toHaveLength(0);
+  });
+
+  test("a lookup failure never throws or records a verdict; the sweep retries Mitti jobs", async () => {
+    seedMitti("9 shelley St spring gully");
+    const { completeJobAddress, findIncompleteMittiAddresses } = await import("../src/lib/address-complete.server");
+    const broken = { search: async () => { throw new Error("timeout"); }, details: async () => null };
+    expect(await completeJobAddress("j-mitti", { trigger: "mitti_pickup", lookup: broken })).toMatchObject({ outcome: "failed" });
+    expect(events).toHaveLength(0);
+    expect(await findIncompleteMittiAddresses(NOW)).toEqual(["j-mitti"]);
+  });
+
+  test("other installer-entered addresses stay as typed; office-fixed addresses are never overwritten", async () => {
+    seedMitti("9 shelley St spring gully");
+    const { completeJobAddress, findIncompleteMittiAddresses } = await import("../src/lib/address-complete.server");
+    expect(await completeJobAddress("j-installer", { trigger: "mitti_pickup", lookup: lookup(RESULTS, DETAILS) })).toMatchObject({ outcome: "skipped" });
+    const p = tables["properties"]!.find((r) => r["id"] === "p-mitti")!;
+    p["suburb"] = "Spring Gully"; p["postcode"] = "3550";
+    expect(await completeJobAddress("j-mitti", { trigger: "tick", lookup: lookup(MITTI_RESULTS, MITTI_DETAILS) })).toEqual({ jobId: "j-mitti", outcome: "nothing_missing" });
+    expect(await findIncompleteMittiAddresses(NOW)).toEqual([]);
+    expect(updates).toHaveLength(0);
+  });
+
+  test("wiring: the pickup verifies after creating the job, TEST pickups never reach the real lookup", () => {
+    const src = readFileSync("src/lib/mitti-pickup-auto.server.ts", "utf8");
+    expect(src).toContain('completeJobAddress(created.job_id, { trigger: "mitti_pickup"');
+    expect(src).toMatch(/source !== "qa_test"[^\n]*completeJobAddress/);
+    expect(src.indexOf("completeJobAddress(")).toBeLessThan(src.indexOf("linkMittiReadyCheckToJob(null, { auditId: r.auditId, jobId: created.job_id }"));
+  });
+});
+
+describe("Address to confirm office row (Jo 2 Nov)", () => {
+  test("shows while unresolved and clears with a full address", async () => {
+    const { needsCandidates: needsRows } = await import("../src/lib/office-needs.core");
+    const base = { jobId: "j", jobNumber: "HV-1", surname: "Owner", suburb: null };
+    const rows = needsRows({ ...base, addressToConfirm: { at: "2026-11-02T00:00:00Z", candidates: ["9 Shelley Street, Spring Gully VIC"] } } as never, Date.parse("2026-11-02T01:00:00Z"));
+    expect(rows.find((r) => r.kind === "address_to_confirm")?.line).toBe("Address to confirm · 9 Shelley Street, Spring Gully VIC");
+    expect(needsRows(base as never, Date.parse("2026-11-02T01:00:00Z")).find((r) => r.kind === "address_to_confirm")).toBeUndefined();
+  });
+});

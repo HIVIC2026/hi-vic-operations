@@ -1,9 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/portal/AppShell";
+import { startInstallerWaitingList } from "@/lib/office-route-prefetch";
 import { InstallerWaitingScreen } from "@/components/portal/InstallerWaitingScreen";
 
 // Decision 378: Jobs › Choose installer — our-lead jobs with a saved spot waiting for the office to pick an installer.
 export const Route = createFileRoute("/_authenticated/admin/jobs/choose-installer")({
+  loader: ({ context, preload }) => startInstallerWaitingList(context, preload),
   head: () => ({
     meta: [
       { title: "Choose installer — Home Insulation Victoria Office" },

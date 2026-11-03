@@ -1,0 +1,112 @@
+import { describe, expect, test } from "bun:test";
+import { addElectricianProblems, approveChecklist, myElectricianStatus, type AddElectricianInput, type ChecklistFacts } from "../src/lib/my-electricians.core";
+import * as core from "../src/lib/my-electricians.core";
+
+const today = "2026-11-03";
+const good: AddElectricianInput = {
+  name: "Sam Sparks", email: "sam@x.test", mobile: "0400000000", recNumber: "REC1234", licenceNumber: "L12345", licenceExpiry: "2027-01-01",
+  licenceFilePath: "a/b.jpg", plFilePath: "a/c.pdf", plAmount: 5_000_000, plExpiry: "2027-01-01", employsAnyone: false, soleTraderTick: true,
+};
+const problems = (o: Partial<AddElectricianInput>) => addElectricianProblems({ ...good, ...o }, today);
+
+describe("addElectricianProblems", () => {
+  test("a complete sole trader has no problems", () => expect(problems({})).toEqual([]));
+  test("a complete employer has no problems", () => expect(problems({ employsAnyone: true, soleTraderTick: false, workcoverFilePath: "w.pdf", workcoverExpiry: "2027-02-01" })).toEqual([]));
+  const cases: [string, Partial<AddElectricianInput>][] = [
+    ["Add their name", { name: "  " }], ["Add their email", { email: "" }], ["Add their mobile", { mobile: "" }], ["Add their REC number", { recNumber: "" }],
+    ["Add their licence number", { licenceNumber: "" }], ["Licence expiry must be in the future", { licenceExpiry: "2026-11-03" }],
+    ["Licence expiry must be in the future", { licenceExpiry: "" }], ["Add a photo of their licence", { licenceFilePath: "" }],
+    ["Add the public liability certificate", { plFilePath: "" }], ["Public liability must be at least $5 million", { plAmount: 4_999_999 }],
+    ["Public liability expiry must be in the future", { plExpiry: "2026-01-01" }],
+    ["Tick that they're a sole trader with no staff", { soleTraderTick: false }],
+    ["Add the WorkCover certificate", { employsAnyone: true, workcoverFilePath: null, workcoverExpiry: "2027-02-01" }],
+    ["WorkCover expiry must be in the future", { employsAnyone: true, workcoverFilePath: "w.pdf", workcoverExpiry: "2026-10-01" }],
+  ];
+  for (const [msg, o] of cases) test(msg + " " + JSON.stringify(o), () => expect(problems(o)).toEqual([msg]));
+  test("employer ignores the sole trader tick", () => expect(problems({ employsAnyone: true, soleTraderTick: true, workcoverFilePath: "w", workcoverExpiry: "2027-02-01" })).toEqual([]));
+  test("one message per problem", () => expect(problems({ name: "", email: "" })).toEqual(["Add their name", "Add their email"]));
+});
+
+describe("myElectricianStatus", () => {
+  const base = { onboardingStatus: "approved", workerApproval: "approved", rejectedReason: null, licenceExpiry: "2027-01-01", plExpiry: "2027-01-01", workcoverExpiry: "2027-01-01", workcoverExempt: false, installerAdded: true, today };
+  const table: [string, Partial<typeof base>, string][] = [
+    ["approved", {}, "approved"],
+    ["submitted business", { onboardingStatus: "submitted" }, "waiting"],
+    ["pending worker", { workerApproval: "pending" }, "waiting"],
+    ["rejected", { rejectedReason: "Blurry licence", onboardingStatus: "submitted" }, "not_approved"],
+    ["licence lapsed", { licenceExpiry: "2026-11-02" }, "expired"],
+    ["licence missing", { licenceExpiry: null as unknown as string }, "expired"],
+    ["PL lapsed", { plExpiry: "2026-10-01" }, "expired"],
+    ["WorkCover lapsed", { workcoverExpiry: "2026-10-01" }, "expired"],
+    ["WorkCover lapsed but exempt", { workcoverExpiry: null as unknown as string, workcoverExempt: true }, "approved"],
+    ["expires today still ok", { licenceExpiry: today }, "approved"],
+    // A normally onboarded REC (not installer-added): the office's own checklist already passed, so no date on file is not
+    // a block and WorkCover is not checked here. A date that HAS lapsed still shows "expired".
+    ["REC: no licence expiry on file = approved", { installerAdded: false, licenceExpiry: null as unknown as string }, "approved"],
+    ["REC: no PL expiry on file = approved", { installerAdded: false, plExpiry: null as unknown as string }, "approved"],
+    ["REC: no WorkCover row, not declared exempt = approved", { installerAdded: false, workcoverExpiry: null as unknown as string, workcoverExempt: false }, "approved"],
+    ["REC: lapsed WorkCover is not checked", { installerAdded: false, workcoverExpiry: "2020-01-01" }, "approved"],
+    ["REC: licence actually lapsed = expired", { installerAdded: false, licenceExpiry: "2026-11-02" }, "expired"],
+    ["REC: PL actually lapsed = expired", { installerAdded: false, plExpiry: "2026-10-01" }, "expired"],
+  ];
+  for (const [name, o, want] of table) test(name, () => expect(myElectricianStatus({ ...base, ...o })).toBe(want as never));
+});
+
+describe("approveChecklist", () => {
+  const ok: ChecklistFacts = { recNumber: "REC1", licenceNumber: "L1", licenceExpiry: "2027-01-01", licenceFilePresent: true, plAmount: 5_000_000, plExpiry: "2027-01-01", plFilePresent: true, workcoverExpiry: "2027-01-01", workcoverFilePresent: true, workcoverExempt: false, today };
+  test("all good", () => expect(approveChecklist(ok)).toEqual([]));
+  test("expired PL", () => expect(approveChecklist({ ...ok, plExpiry: "2026-10-01" })).toEqual(["Public liability has expired"]));
+  test("expired licence", () => expect(approveChecklist({ ...ok, licenceExpiry: "2026-10-01" })).toEqual(["Licence has expired"]));
+  test("small PL", () => expect(approveChecklist({ ...ok, plAmount: 2_000_000 })).toEqual(["Public liability is under $5 million"]));
+  test("no REC", () => expect(approveChecklist({ ...ok, recNumber: " " })).toEqual(["REC number is missing"]));
+  test("exempt skips WorkCover", () => expect(approveChecklist({ ...ok, workcoverExempt: true, workcoverFilePresent: false, workcoverExpiry: null })).toEqual([]));
+  test("WorkCover needed when not exempt", () => expect(approveChecklist({ ...ok, workcoverFilePresent: false, workcoverExpiry: null })).toEqual(["WorkCover certificate is missing", "WorkCover expiry is missing"]));
+  test("missing files", () => expect(approveChecklist({ ...ok, licenceFilePresent: false, plFilePresent: false })).toEqual(["Licence photo is missing", "Public liability certificate is missing"]));
+});
+
+describe("My electricians screen rules (Task 3)", () => {
+  const { statusChip, draftProblems, draftToInput, PROBLEM_FIELD, ANSWER_WORKCOVER } = core;
+  const draft = (o: Partial<core.ElectricianDraft> = {}): core.ElectricianDraft => ({
+    name: "Sam", email: "s@x.test", mobile: "0400111222", recNumber: "REC1", licenceNumber: "L1", licenceExpiry: "2099-01-01", licenceFile: { name: "l.jpg" },
+    plFile: { name: "pl.pdf" }, plAmount: "5,000,000", plExpiry: "2099-01-01", employs: "no", workcoverFile: null, workcoverExpiry: "", soleTraderTick: true, ...o,
+  });
+  test("chip wording", () => {
+    expect(statusChip("waiting", null)).toEqual({ text: "Waiting for approval", tone: "blue" });
+    expect(statusChip("approved", null)).toEqual({ text: "Approved", tone: "green" });
+    expect(statusChip("expired", null)).toEqual({ text: "Expired — update their documents", tone: "pink" });
+    expect(statusChip("not_approved", "Blurry licence photo")).toEqual({ text: "Not approved: Blurry licence photo", tone: "pink" });
+    expect(statusChip("not_approved", null).text).toBe("Not approved: ask Home Insulation Victoria");
+  });
+  test("a complete draft has no problems; $ and commas in the cover amount are fine", () => {
+    expect(draftProblems(draft(), "2026-11-03")).toEqual([]);
+    expect(draftToInput(draft({ plAmount: "$5,000,000" }), { licence: "a", pl: "b", workcover: "" }).plAmount).toBe(5_000_000);
+  });
+  test("the WorkCover question comes first when unanswered, without faking WorkCover problems", () => {
+    expect(draftProblems(draft({ employs: "", soleTraderTick: false, name: "" }), "2026-11-03")).toEqual([ANSWER_WORKCOVER, "Add their name"]);
+  });
+  test("Yes without a certificate, No without the tick, and no picked files", () => {
+    expect(draftProblems(draft({ employs: "yes" }), "2026-11-03")).toEqual(["Add the WorkCover certificate", "WorkCover expiry must be in the future"]);
+    expect(draftProblems(draft({ soleTraderTick: false }), "2026-11-03")).toEqual(["Tick that they're a sole trader with no staff"]);
+    expect(draftProblems(draft({ licenceFile: null, plFile: null }), "2026-11-03")).toEqual(["Add a photo of their licence", "Add the public liability certificate"]);
+  });
+  test("every problem message has a field to sit under", () => {
+    const all = core.addElectricianProblems({ name: "", email: "", mobile: "", recNumber: "", licenceNumber: "", licenceExpiry: "", licenceFilePath: "", plFilePath: "", plAmount: 0, plExpiry: "", employsAnyone: true }, "2026-11-03");
+    for (const p of [...all, "Tick that they're a sole trader with no staff", ANSWER_WORKCOVER]) expect(PROBLEM_FIELD[p], p).toBeDefined();
+  });
+});
+
+describe("Fix and resend (Task 5 carried item): the form is prefilled from what is on file", () => {
+  const onFile: core.MyElectricianDetails = { name: "Sam Sparks", email: "sam@sparks.test", mobile: "+61400111222", recNumber: "REC5555", licenceNumber: "L-5555", licenceExpiry: "2099-01-01", plAmount: 5_000_000, plExpiry: "2099-01-01", employsAnyone: false, workcoverExpiry: null, reason: "Blurry licence photo" };
+  test("details come back; every document must be uploaded again; the sole-trader tick is asked again", () => {
+    const d = core.prefillDraft(onFile);
+    expect(d).toMatchObject({ name: "Sam Sparks", email: "sam@sparks.test", mobile: "+61400111222", recNumber: "REC5555", licenceNumber: "L-5555", licenceExpiry: "2099-01-01", plAmount: "5000000", plExpiry: "2099-01-01", employs: "no", workcoverExpiry: "", soleTraderTick: false });
+    expect(d.licenceFile).toBeNull(); expect(d.plFile).toBeNull(); expect(d.workcoverFile).toBeNull();
+    expect(core.draftProblems(d, "2026-11-03")).toEqual(["Add a photo of their licence", "Add the public liability certificate", "Tick that they're a sole trader with no staff"]);
+  });
+  test("an employer keeps Yes and their WorkCover expiry; a missing amount/expiry stays blank", () => {
+    expect(core.prefillDraft({ ...onFile, employsAnyone: true, workcoverExpiry: "2099-02-02", plAmount: null, plExpiry: null })).toMatchObject({ employs: "yes", workcoverExpiry: "2099-02-02", plAmount: "", plExpiry: "" });
+  });
+  test("the resend button and heading wording", () => {
+    expect(core.RESUBMIT_FORM).toEqual({ title: "Fix and resend", button: "Send again", note: "Upload every document again, even the ones that were fine." });
+  });
+});

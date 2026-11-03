@@ -5,10 +5,7 @@
 // How it works (docs/MITTI_ACCESS.md):
 //  - Switch: env MITTI_AUTO_INVITE_ENABLED=true (default OFF → approvals/removals do nothing Mitti-related).
 //  - FIND/LINK an existing Mitti user by email — `POST /users/search` (already used by Check Mitti access).
-//  - CREATE / ADD TO GROUP / DEACTIVATE — the Mitti (SafetyCulture) user endpoints in MITTI_USER_API. Their paths come from
-//    the public reference (sources below) but the request bodies could not be confirmed against a live token, so these
-//    calls stay refused until MITTI_USER_API_VERIFIED is set to true after one probe on a real (non-synthetic) address.
-//    Until then the portal links found users and records "invite needed" / "deactivate by hand" for the office.
+//  - CREATE / DEACTIVATE — proven on Jo's approved email on 3 Nov. Plain users, no group membership.
 //  - TEST people (@hivic.test etc. or a TEST partner) are skipped: Mitti rejects synthetic emails and TEST forms go to the
 //    test assignee.
 import { mjEmail, esc } from "./mail-mjml.core";
@@ -22,12 +19,17 @@ export const MITTI_AUTO_INVITE_ENV = "MITTI_AUTO_INVITE_ENABLED";
 export const autoInviteEnabled = (v: string | null | undefined): boolean => (v ?? "").trim().toLowerCase() === "true";
 
 /**
- * The create/group/deactivate request bodies below are taken from the public reference but were NOT exercised against
- * Mitti (no token in the build environment). Set to true only after a developer has run one probe with the real token on a
- * real address and confirmed (1) the user is created with the configured seat, (2) Mitti emails them to set a password,
- * (3) group add and deactivate work. False = never create/group/deactivate; the office does those steps by hand.
+ * Jo approved verification after successful find, Lite create and deactivate on 3 Nov.
+ * Groups are not part of this flow. False refuses create/deactivate if verification is withdrawn.
  */
-export const MITTI_USER_API_VERIFIED = false as boolean;
+// Jo 3 Nov 9:56pm Sydney: find, Lite create and deactivate proven; group membership is not used.
+export const MITTI_USER_API_VERIFIED = true as boolean;
+/** Activation boundary: existing approvals must never be caught up by edits or certificate renewals. */
+export const MITTI_INVITE_NEW_APPROVALS_FROM = "2026-11-03T10:56:00Z";
+export function isNewMittiApproval(approvedAt: string | null | undefined): boolean {
+  const at = approvedAt ? Date.parse(approvedAt) : NaN;
+  return Number.isFinite(at) && at >= Date.parse(MITTI_INVITE_NEW_APPROVALS_FROM);
+}
 
 export type MittiSeat = "full" | "lite" | "free";
 /** Seat requested per trade. Decision 340 (Jo 25 Oct 2026): Lite seats for installers AND electricians; see docs/MITTI_ACCESS.md for the limits. */
@@ -68,8 +70,8 @@ export function createdUserId(res: unknown): string | null {
 
 export function splitName(full: string | null | undefined, email: string): { first: string; last: string } {
   const parts = (full ?? "").trim().split(/\s+/).filter(Boolean);
-  if (parts.length >= 2) return { first: parts[0]!, last: parts.slice(1).join(" ") };
-  if (parts.length === 1) return { first: parts[0]!, last: "-" };
+  if (parts.length >= 2) return { first: parts[0] ?? "Trade", last: parts.slice(1).join(" ") };
+  if (parts.length === 1) return { first: parts[0] ?? "Trade", last: "-" };
   return { first: email.split("@")[0] || "Trade", last: "-" };
 }
 
@@ -97,8 +99,8 @@ export function renderMittiInviteEmail(i: { name: string | null; test?: boolean 
   return { subject: MITTI_INVITE_SUBJECT, html, text };
 }
 
-/** Decision 188/331: template access is through the HIV trades group (share the templates with that group once in Mitti). */
-export const MITTI_TEMPLATE_ACCESS_NOTE = `Template access comes from the ${MITTI_TRADES_GROUP} group: share the A1–A5 templates with that group once in Mitti.`;
+/** Forms are shared directly with the person's user; no group requirement. */
+export const MITTI_TEMPLATE_ACCESS_NOTE = "Mitti job forms are shared with the person's own Mitti user.";
 
 export const MITTI_INVITE_EVENTS = {
   needed: "mitti_invite_needed", // no Mitti user and the portal may not create one yet: office invites by hand
@@ -109,7 +111,12 @@ export const MITTI_INVITE_EVENTS = {
   deactivated: "mitti_user_deactivated", // removed/rejected in the portal → Mitti seat deactivated
   failed: "mitti_access_failed", // one office item with the plain reason
   done: "mitti_invite_office_done", // office confirmed it was finished in Mitti
+  waitingEmail: "mitti_invite_waiting_email", // Jo 3 Nov: Lead has no own email yet — invite once the boss adds it
+  waitingPause: "mitti_invite_waiting_pause", // Jo 3 Nov: approved while trade messages paused — Jo confirms after unpause
 } as const;
+export const MITTI_WAITING_EMAIL = "Mitti invite waiting for Lead's own email";
+export const MITTI_WAITING_PAUSE = "Mitti invite waiting for pause to lift";
+export const NO_EMAIL_SKIP = "No email on file — Mitti invites go to an exact email address.";
 export type MittiInviteEventType = (typeof MITTI_INVITE_EVENTS)[keyof typeof MITTI_INVITE_EVENTS];
 const HAS_MITTI_USER: MittiInviteEventType[] = [MITTI_INVITE_EVENTS.linked, MITTI_INVITE_EVENTS.userLinked, MITTI_INVITE_EVENTS.invited, MITTI_INVITE_EVENTS.reactivated];
 
@@ -132,7 +139,7 @@ export type InvitePerson = {
 export type PriorInvite = { type: MittiInviteEventType; at: string; mittiUserId?: string | null; email?: string | null } | null;
 export type InviteSwitches = { enabled: boolean; apiVerified?: boolean; groupId?: string | null };
 
-type Base = { group: string; seat: MittiSeat; key: string };
+type Base = { group: string | null; seat: MittiSeat; key: string };
 export type InviteStep =
   | { action: "skip"; reason: string }
   | ({ action: "lookup" } & Base)
@@ -153,10 +160,10 @@ export const TEST_SKIP = "TEST person: TEST forms go to the test assignee and Mi
 export function inviteEligibility(p: InvitePerson): string | null {
   if (p.removedAt) return "Removed from the business.";
   if (p.approvalStatus !== "approved") return "Not approved by the office yet.";
-  if (p.tradeRole !== "installer" && p.tradeRole !== "electrician") return `No Mitti access for the ${p.tradeRole} role.`;
+  if (p.tradeRole !== "installer") return `No automatic Lead invite for the ${p.tradeRole} role.`;
   if (p.tradeRole === "installer" && p.crew) return CREW_SKIP;
   if (p.tradeRole === "installer" && !p.ciiCleared) return "Installer's CII certificate is not verified and current yet.";
-  if (!p.email?.trim()) return "No email on file — Mitti invites go to an exact email address.";
+  if (!p.email?.trim()) return NO_EMAIL_SKIP;
   return null;
 }
 
@@ -171,8 +178,8 @@ export function mittiInviteStep(p: InvitePerson, prior: PriorInvite, sw: InviteS
   const why = inviteEligibility(p);
   if (why) return { action: "skip", reason: why };
   const role = p.tradeRole as MittiTradeRole;
-  const base: Base = { group: MITTI_TRADES_GROUP, seat: MITTI_SEAT_FOR_ROLE[role], key: inviteKey(p.workerId) };
-  const group = sw.apiVerified && sw.groupId?.trim() ? sw.groupId.trim() : null;
+  const base: Base = { group: null, seat: MITTI_SEAT_FOR_ROLE[role], key: inviteKey(p.workerId) };
+  const group = null; // Jo: plain users, never group additions (even if legacy configuration exists).
   if (prior?.mittiUserId && prior.email?.trim().toLowerCase() !== p.email?.trim().toLowerCase())
     return { action: "fail", ...base, reason: "This person's email no longer matches the recorded Mitti identity — the office must check their account before reusing it." };
   if (prior?.type === MITTI_INVITE_EVENTS.deactivated) {
@@ -181,7 +188,8 @@ export function mittiInviteStep(p: InvitePerson, prior: PriorInvite, sw: InviteS
     return { action: "reactivate", ...base, mittiUserId: prior.mittiUserId };
   }
   // A failure is the only earlier record that may be retried (the search runs first, so nothing is created twice).
-  if (prior && prior.type !== MITTI_INVITE_EVENTS.failed) return { action: "skip", reason: `Already handled (${prior.type.replace(/_/g, " ")}) — never invited twice.` };
+  // Waiting records (Jo 3 Nov) are retryable too; the server only lets a pause wait through on Jo's confirm.
+  if (prior && prior.type !== MITTI_INVITE_EVENTS.failed && prior.type !== MITTI_INVITE_EVENTS.waitingEmail && prior.type !== MITTI_INVITE_EVENTS.waitingPause) return { action: "skip", reason: `Already handled (${prior.type.replace(/_/g, " ")}) — never invited twice.` };
   if (p.mittiAccess === "member") return { action: "skip", reason: "Already in Mitti." };
   if (lookup === undefined) return { action: "lookup", ...base };
   if (lookup.mittiUserId) return { action: "record_linked", ...base, mittiUserId: lookup.mittiUserId, addToGroup: group };
@@ -213,10 +221,10 @@ export function inviteTodo(r: Pick<InviteRecord, "type" | "email" | "group"> & {
   const E = MITTI_INVITE_EVENTS;
   if (r.type === E.done || r.type === E.deactivated) return [];
   if (r.type === E.failed) return [r.reason ?? "Mitti set-up failed — finish it in Mitti by hand."];
+  if (r.type === E.waitingEmail) return [MITTI_WAITING_EMAIL];
+  if (r.type === E.waitingPause) return [MITTI_WAITING_PAUSE];
   const t: string[] = [];
   if (r.type === E.needed) t.push(`Invite ${r.email ?? "this person"} to Mitti with that exact email (${MITTI_DEFAULT_SEAT} seat).`);
-  if (!r.groupAdded) t.push(`Add them to the ${r.group ?? MITTI_TRADES_GROUP} group in Mitti.`);
-  if (t.length && (r.type === E.needed || r.type === E.linked)) t.push(MITTI_TEMPLATE_ACCESS_NOTE);
   return t;
 }
 
@@ -228,6 +236,15 @@ export function openInvites(records: InviteRecord[]): OpenInvite[] {
     if (!cur || r.at > cur.at) latest.set(r.workerId, r);
   }
   return [...latest.values()].map((r) => ({ ...r, todo: inviteTodo(r) })).filter((r) => r.todo.length > 0).sort((a, b) => b.at.localeCompare(a.at));
+}
+
+/** Office Needs me (Jo 3 Nov): one partner row per Lead approved while trade messages were paused. */
+export function mittiWaitingPauseItems(records: InviteRecord[]): { key: string; title: string; why: string; dueAt: string | null; href: string }[] {
+  return openInvites(records).filter((r) => r.type === MITTI_INVITE_EVENTS.waitingPause).map((r) => ({
+    key: `mitti-pause:${r.workerId}`, title: MITTI_WAITING_PAUSE,
+    why: `${r.name ?? r.email ?? "A Lead"}${r.business ? ` (${r.business})` : ""} — nothing is sent until you unpause and press Send Mitti invite.`,
+    dueAt: null, href: "/admin/partners",
+  }));
 }
 
 /** The latest stored record for one worker (idempotency input), with the latest Mitti user id the portal knows. */

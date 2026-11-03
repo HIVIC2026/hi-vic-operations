@@ -5,6 +5,12 @@
 
 export const WORKFLOW_DECISIONS = {
   version: "2026-10-03",
+  safetyCheckPricingCorrection: {
+    decided: "2026-11-03T10:30:00+11:00",
+    installerSource: "installer_active_price_list_no_markup_whole_fee_to_installer",
+    websiteOwnerIncGst: 349, websiteElectricianPayoutIncGst: 275,
+    preserveRecordedQuotesAndOffers: true,
+  },
   xeroReference: "Home Insulation Victoria <job>",
   brand: { name: "Home Insulation Victoria", retiredVisibleNames: ["HI VIC!", "HI VIC", "HIVIC"] },
   eligibility: {

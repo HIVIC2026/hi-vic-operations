@@ -5,7 +5,7 @@
 //   text once (TEST job / TEST partner → test-send; real → the one real sender `sendRealSms`, type `run_offered`).
 // - tradeRun / removeRunHome / declineRun: the installer's run page, business-scoped (trade-view ctxOrThrow — only the
 //   run's own business). Owner contact only where the owner agreed to share. Removing / declining sends nothing to owners.
-// - returnBatchToSuggestions: Jo's office "Back to suggestions" on a closed batch (final review I2) — passers back in the pool.
+// - returnBatchToSuggestions: Jo's office "Back to To release" on a closed batch (final review I2) — passers back in the pool.
 // - sweepRunOffers (15-minute tick): no reply in 24 h (or no text went within 24 h of the offer) → `run_expired` per home. Released homes are batch candidates again
 //   with their standing pass (area-batch.core passHandedOn); owners are not asked again. Nothing lands in Needs me.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
@@ -83,9 +83,9 @@ export async function offerRun(batchId: string, actorId: string | null, opts: { 
   if (existing) {
     if (!existingState || existingState.status !== "offered" || existingState.textWent) throw new WorkflowError("This batch has already been sent to the installer — nothing was sent.");
     // 24 hours from the offer with no text: the run is expiring (the tick puts its owners back in the pool).
-    if (runExpiryDue(existingState, now.toISOString())) throw new WorkflowError("This run's 24 hours are up without the text going, so its owners go back in the suggestions — nothing was sent.");
-    // Send again goes to the run's own installer (final review I2: another installer = Back to suggestions first).
-    if (opts.businessId && opts.businessId !== existingState.businessId) throw new WorkflowError("Send again goes to the installer this run was given to — tap Back to suggestions to choose another installer — nothing was sent.");
+    if (runExpiryDue(existingState, now.toISOString())) throw new WorkflowError("This run's 24 hours are up without the text going, so its owners go back on To release — nothing was sent.");
+    // Send again goes to the run's own installer (final review I2: another installer = Back to To release first).
+    if (opts.businessId && opts.businessId !== existingState.businessId) throw new WorkflowError("Send again goes to the installer this run was given to — tap Back to To release to choose another installer — nothing was sent.");
   }
 
   const members = existingState ? existingState.memberIds.filter(waiting) : passIds.filter(waiting);
@@ -289,7 +289,7 @@ async function releaseAll(state: RunState, type: typeof RUN_DECLINED_EVENT | typ
 
 // ---- office: Back to suggestions (final review I2) -------------------------------------------------------------------------
 
-/** Jo taps "Back to suggestions" on a closed batch waiting for Send to installer (e.g. no installer can take the homes): ONE
+/** Jo taps "Back to To release" on a closed batch waiting for Send to installer (e.g. no installer can take the homes): ONE
  *  `area_batch_returned {batch_id}` per passer still waiting releases the batch's pass, so each owner is a batch candidate
  *  again with their standing pass (not asked again). A run of this batch whose installer text never went is ended first
  *  (`run_expired`, reason office_returned). Refused once the run's text went (the installer has it). Nothing is sent. Twice →
@@ -308,7 +308,7 @@ export async function returnBatchToSuggestions(batchId: string, actorId: string 
   const runIds = [...new Set(ev.filter((e) => e.event_type === RUN_OFFERED_EVENT && !isFillRow(e) && (e.details as { batch_id?: unknown } | null)?.batch_id === batchId).map(runIdOf).filter((x): x is string => !!x))];
   const runs = runIds.map((r) => runState(r, ev)).filter((x): x is RunState => !!x);
   if (runs.some((r) => r.status !== "offered" || r.textWent)) throw new WorkflowError("This batch has already been sent to the installer — nothing changed.");
-  for (const r of runs) await releaseAll(r, RUN_EXPIRED_EVENT, actorId, "Run text never went — the office put this home back in the suggestions (owner not asked again)", { reason: "office_returned" });
+  for (const r of runs) await releaseAll(r, RUN_EXPIRED_EVENT, actorId, "Run text never went — the office put this home back on To release (owner not asked again)", { reason: "office_returned" });
   const withInstaller = new Set(assigned.map((a) => String(a["job_id"])));
   const jobBy = new Map(jobs.map((j) => [String(j["id"]), j]));
   const waiting = passIds.filter((id) => {
@@ -317,7 +317,7 @@ export async function returnBatchToSuggestions(batchId: string, actorId: string 
   });
   let homes = 0;
   for (const jobId of waiting) {
-    if (await claimBatchEvent(jobId, actorId, AREA_BATCH_RETURNED_EVENT, "Office put this home back in the suggestions — it can go in a new batch without the owner being asked again",
+    if (await claimBatchEvent(jobId, actorId, AREA_BATCH_RETURNED_EVENT, "Office put this home back on To release — it can go in a new batch without the owner being asked again",
       { batch_id: batchId, returned_by: actorId, returned_at: now.toISOString(), idempotency_key: areaBatchReturnedKey(batchId, jobId) })) homes++;
   }
   return { homes };

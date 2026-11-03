@@ -5,6 +5,7 @@
 // (tests/helpers/memory-postgrest.ts). Run on its own (bun shares mock.module across files in one process).
 import { afterAll, beforeAll, describe, expect, mock, setSystemTime, test } from "bun:test";
 import { memoryPostgrest, type Tables } from "./helpers/memory-postgrest";
+import { factReadTakes, fillLiveColumns } from "./helpers/live-columns";
 
 const tables: Tables = {};
 
@@ -23,7 +24,8 @@ function where() {
 function later<T>(table: string, sel: string, run: () => Promise<T> | T, failed: T, at = where()): Promise<T> {
   return new Promise((resolve) => {
     log.push({ table, sel, wave, where: at });
-    const fail = failWhen?.(table, sel) ?? false;
+    // Task 11: a job-facts read takes the failing table's rows too, so it fails with it (the sections then read for themselves).
+    const fail = failWhen ? failWhen(table, sel) || factReadTakes(sel, (t) => failWhen!(t, "*")) : false;
     pending.push(() => resolve(fail ? failed : run()));
     if (!scheduled) { scheduled = true; setTimeout(flush, 0); }
   });
@@ -131,6 +133,7 @@ function seed(opts: { test?: boolean; inHouse?: boolean } = {}) {
     rate_card_items: [{ id: "rci1", rate_card_id: "rc1", code: "PIESA", unit_price_ex_gst: 300 }],
     electrician_rates: [{ id: "er1", business_id: B2, service_type: "piesa", status: "active", rate_inc_gst: 330, effective_from: "2026-01-01" }],
   });
+  fillLiveColumns(tables); // Task 11: live rows carry every column (see helpers/live-columns.ts)
 }
 
 const access = (userId: string, jobId: string) => requireTradeJob(userId, jobId);
