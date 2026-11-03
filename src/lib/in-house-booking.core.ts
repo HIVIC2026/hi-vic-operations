@@ -1,5 +1,8 @@
 import { addYmd, melbourneToday } from './melbourne-time.core';
 import { IN_HOUSE_ELECTRICIAN_BOOKING_BLOCKER } from './worker-compliance.core';
+import { OWNER_BOOKED_V2_APPROVED, ownerBookedNotice, type BookedKind } from './owner-booked-notice.core';
+import type { TradeContact } from './owner-will-call.core';
+export { OWNER_BOOKED_V2_APPROVED };
 export function emptyBookingTeamBlocker(kind:string,workers:BookingWorker[]):string|null {
   if((kind==='assessment'||kind==='rectification')&&!workers.some(w=>w.tradeRole==='electrician'&&w.electricianVerified))return IN_HOUSE_ELECTRICIAN_BOOKING_BLOCKER;
   if(kind==='installation'&&!workers.some(w=>bookingWorkerBlocker(kind,w)===null)){
@@ -32,6 +35,20 @@ export function bookingNotice(i:{kind:'ready_check'|'piesa'|'install';start:stri
   const person=`${i.who.name}${i.kind==='install'?' (Lead Installer)':''}${i.who.phone?`, phone ${i.who.phone}`:''}`;
   const text=`You're booked for your ${label}: ${when}. Who's coming: ${person}. Need a different time? Call ${i.installer} on ${i.phone||'the number in your booking details'}.`;
   return {subject:`You're booked — ${label}`,text,sms:`You're booked for your ${label}: ${when}. ${person} is coming. Details in your email.`};
+}
+/** Owner "You're booked" message for an in-house visit. Ready Check with OWNER_BOOKED_V2_APPROVED.ready_check on →
+ *  the approved #24 + Fix 5 wording (owner-booked-notice.core: office phone only, held when the office phone or business
+ *  email is missing); otherwise the current bookingNotice wording. PIESA / install stay on bookingNotice (Part 4). */
+export type OwnerBookedInput = Parameters<typeof bookingNotice>[0] & { ownerName: string|null; business: TradeContact|null; changed: boolean; test?: boolean };
+export function ownerBookedMessage(i:OwnerBookedInput,approved:Record<BookedKind,boolean>=OWNER_BOOKED_V2_APPROVED):
+  {version:'v1';subject:string;text:string;sms:string}|{version:'v2';subject:string;text:string;html:string;sms:string}|{held:string} {
+  if(i.kind==='ready_check'&&approved.ready_check){
+    if(!i.business)return{held:'No installer business on file'};
+    const n=ownerBookedNotice({kind:'ready_check',firstName:i.ownerName,startIso:i.start,whoName:i.who.name,business:i.business,changed:i.changed},{test:i.test===true});
+    return 'held' in n?n:{version:'v2',...n};
+  }
+  const old=bookingNotice(i);
+  return{version:'v1',subject:old.subject,text:old.text,sms:old.sms};
 }
 export type DigestInstall={jobId:string;jobNumber:string;start:string;name:string;url:string};
 export function tomorrowInstallDigest(rows:DigestInstall[],now=new Date()):DigestInstall[]{

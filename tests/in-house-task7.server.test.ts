@@ -46,4 +46,73 @@ for(const lodged of [false,true])test(`Lead Installer swap ${lodged?'after':'bef
  expect(f.sends.filter(s=>s.channel==='robot-queue')).toHaveLength(lodged?1:0);
  if(lodged)expect(f.sends.find(s=>s.channel==='office-email')?.line).toBe('Update ESC: Lead Installer for HV-1 is now Pat Smith.');
  else expect(await f.api.leadNoticeBlocker('j',new Date('2026-11-02T21:00:00Z'))).toBeNull();
+});// Decision #24 + Fix 5 (Jo 2 Nov 2026): the Ready Check "You're booked" uses the approved wording once
+// OWNER_BOOKED_V2_APPROVED.ready_check is on; same purpose + key either way, so a booking gets one version.
+function readyCheckFixture(){
+ const f=fixture();
+ f.rows.bookings[0]={id:'b',job_id:'j',kind:'ready_check',status:'confirmed',scheduled_start:'2026-11-03T22:00:00Z',created_at:f.now.toISOString()};
+ f.rows.owners[0].full_name='Sarah Jones';
+ f.rows.businesses[0]={id:'biz',name:'Rapid Insulation',trading_name:null,phone:'03 9000 0000',email:'office@rapid.example'};
+ const built:any[]=[];
+ f.deps['./owner-email-send.server']={sendGuardedOwnerEmail:async(p:any)=>{if(f.sends.some((x:any)=>x.key===p.key))return 'already attempted — not resent';const m=p.build();built.push(m);f.sends.push({channel:'email',key:p.key,purpose:p.purpose,subject:m.subject,html:m.html,text:m.text});return 'sent';}};
+ f.deps['./sms.server']={sendRealSms:async(p:any)=>{if(!f.sends.some((x:any)=>x.key===p.idempotencyKey))f.sends.push({channel:'sms',key:p.idempotencyKey,type:p.type,to:p.to,body:p.body});return{status:'sent'};}};
+ return{...f,built};
+}
+const ON={v2Approved:{ready_check:true,piesa:false,install:false}};
+const who={id:'w',name:'John Smith',phone:'0411 111 111'};
+test('Ready Check with the new wording on: approved #24 email + text, office phone only, same purpose and key',async()=>{
+ const f=readyCheckFixture();
+ expect(await f.api.notifyOwnerBooked('j','ready_check','2026-11-03T22:00:00Z',who,f.now,ON)).toBe('sent; sent');
+ const [email,sms]=f.sends;
+ expect(email).toMatchObject({channel:'email',key:'in-house-booked:v1:b:w',purpose:'in_house_booked',subject:"You're booked for your free Ready Check"});
+ expect(email.text).toContain('Rapid Insulation · 03 9000 0000 · office@rapid.example');
+ expect(email.text).toContain('Rebate certificates created by Home Insulation Victoria (Accredited Person A003654).');
+ expect(email.html).toContain('Who');
+ expect(sms).toMatchObject({key:'in-house-booked:v1:b:w:sms',type:'in_house_booked_owner',to:'0400000000'});
+ expect(sms.body).toBe('Home Insulation Victoria: Hi Sarah, you\'re booked for your free Ready Check: Wed 4 Nov, 9:00am. John Smith from Rapid Insulation is coming. Need to change it? Call Rapid Insulation on 03 9000 0000.');
+ expect(JSON.stringify(f.sends)).not.toContain('0411 111 111');
+ expect(f.rows.workflow_events.some((e:any)=>e.event_type==='in_house_booked_notice_delivered')).toBe(true);
+});
+test('new wording off (as shipped): the Ready Check gets the current wording, same purpose and key',async()=>{
+ const f=readyCheckFixture();
+ expect(await f.api.notifyOwnerBooked('j','ready_check','2026-11-03T22:00:00Z',who,f.now)).toBe('sent; sent');
+ const old=core.bookingNotice({kind:'ready_check',start:'2026-11-03T22:00:00Z',who,installer:'Rapid Insulation',phone:'03 9000 0000'});
+ expect(f.sends[0]).toMatchObject({key:'in-house-booked:v1:b:w',purpose:'in_house_booked',subject:old.subject});
+ expect(f.sends[1].body).toBe(old.sms);
+});
+test('a job that already had the old wording for this booking gets nothing more when the new wording turns on',async()=>{
+ const f=readyCheckFixture();
+ await f.api.notifyOwnerBooked('j','ready_check','2026-11-03T22:00:00Z',who,f.now);
+ await f.api.notifyOwnerBooked('j','ready_check','2026-11-03T22:00:00Z',who,f.now,ON);
+ expect(f.sends.filter((s:any)=>s.channel==='email')).toHaveLength(1);
+ expect(f.sends.filter((s:any)=>s.channel==='sms')).toHaveLength(1);
+});
+test('new wording on, no office phone or business email → held with one office note per reason; sent once fixed',async()=>{
+ const f=readyCheckFixture();
+ f.rows.businesses[0].phone=null;
+ for(let i=0;i<2;i++)expect(await f.api.notifyOwnerBooked('j','ready_check','2026-11-03T22:00:00Z',who,f.now,ON)).toBe('held: No office phone for Rapid Insulation');
+ f.rows.businesses[0].phone='03 9000 0000';f.rows.businesses[0].email=null;
+ expect(await f.api.notifyOwnerBooked('j','ready_check','2026-11-03T22:00:00Z',who,f.now,ON)).toBe('held: No business email for Rapid Insulation');
+ expect(f.sends).toEqual([]);
+ const notes=f.rows.workflow_events.filter((e:any)=>e.event_type==='owner_booked_held');
+ // One note per reason: repeats reuse the same stable id (the real table's primary key refuses the copy; this shim doesn't).
+ const byId=new Map(notes.map((e:any)=>[e.id,e.details.reason]));
+ expect([...byId.values()]).toEqual(['No office phone for Rapid Insulation','No business email for Rapid Insulation']);
+ expect(notes.every((e:any)=>e.internal===true)).toBe(true);
+ f.rows.businesses[0].email='office@rapid.example';
+ await f.api.sweepOwnerBookedNotices(f.now,ON);
+ expect(f.sends.map((s:any)=>s.channel)).toEqual(['email','sms']);
+ expect(f.sends[1].body).toContain('Call Rapid Insulation on 03 9000 0000.');
+});
+test('Change time (an earlier Ready Check booking was cancelled) → "Your time has changed"',async()=>{
+ const f=readyCheckFixture();
+ f.rows.bookings.push({id:'old',job_id:'j',kind:'ready_check',status:'cancelled',scheduled_start:'2026-11-02T22:00:00Z',created_at:'2026-11-01T00:00:00Z'});
+ await f.api.notifyOwnerBooked('j','ready_check','2026-11-03T22:00:00Z',who,f.now,ON);
+ expect(f.sends[0].subject).toBe('Your time has changed');
+});
+test('PIESA and install keep the current wording even with the Ready Check wording on (Part 4)',async()=>{
+ const f=readyCheckFixture();
+ f.rows.bookings[0]={id:'b',job_id:'j',kind:'installation',status:'confirmed',scheduled_start:'2026-11-03T22:00:00Z',created_at:f.now.toISOString()};
+ await f.api.notifyOwnerBooked('j','install','2026-11-03T22:00:00Z',who,f.now,ON);
+ expect(f.sends[0].subject).toBe("You're booked — install");
 });

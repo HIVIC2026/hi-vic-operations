@@ -7,7 +7,7 @@
 // sits in its own section. Retired templates are simply not listed (their files stay in git).
 // tests/templates-hub.test.ts proves every entry comes from a live code path and every live builder / text type is here.
 import { renderQuoteExpiredEmail } from "./quote-expired-email.core";
-import { bookingNotice } from './in-house-booking.core';
+import { bookingNotice, ownerBookedMessage } from './in-house-booking.core';
 import { renderJoOutcomeEmail } from "./jo-outcome-email.core";
 import { withUnsubscribe } from "./emailsafety.core";
 import { renderCoverageUnavailableEmail } from "./coverage-email";
@@ -176,6 +176,9 @@ const QUOTE = {
   quoteUrl: `${JOB}?screen=quote`, validUntil: new Date("2026-11-07T12:59:59.999Z"), officePhone: null, unsubscribeUrl: UNSUB,
 };
 const WILL_CALL_SAMPLE = { name: "Sample Insulation Co", tradingName: null, officePhone: "03 9000 0000", email: "office@sample-insulation.example" };
+// The sample renders the new wording (as it will read once OWNER_BOOKED_READY_CHECK_APPROVED is on).
+const BOOKED_ON = { ready_check: true, piesa: false, install: false };
+const BOOKED_SAMPLE = { kind: "ready_check" as const, start: "2026-11-03T22:00:00Z", who: { name: "Sample Installer", phone: null }, installer: "Sample Insulation Co", phone: "03 9000 0000", ownerName: "Helen", business: WILL_CALL_SAMPLE, changed: false };
 const PARTNER_JOB = { installerFirstName: "Sam", ownerName: "Helen Yang", address: SHORT_ADDRESS, jobNumber: "HV-TEST", jobUrl: FIELD };
 const BANK = { accountName: "Home Insulation Victoria", bsb: "082902", accountNumber: "777966349", payId: null, configured: true };
 
@@ -450,6 +453,15 @@ const OWNER: TemplateEntry[] = [
   ENTRY({ id: "owner:sms-owner_will_call", section: "owner", step: "ready_check", kind: "text", code: "", name: "{Installer} will call you (text)", when: "With the \"will call you\" email", who: "Owner", approvalNote: "Wording: Jo 2 Nov 2026, decision #23 (OWNER_WILL_CALL_APPROVED stays false until Jo OKs the pictures)", gate: { kind: "text", smsType: "owner_will_call" },
     source: { builder: "src/lib/owner-will-call.core.ts", fn: "ownerWillCallText", sender: "src/lib/in-house-batch-email.server.ts" },
     render: () => text(ownerWillCallText("Helen", WILL_CALL_SAMPLE) as string) }),
+  // Decision #24 + Fix 5 (Jo 2 Nov 2026): in-house Ready Check booked → "You're booked" (email + text) with the installer's
+  // OFFICE phone, contact block and AP line; same purpose/key as the current in-house wording, which keeps going out
+  // until OWNER_BOOKED_READY_CHECK_APPROVED is on. Held with an office note if the office phone or business email is missing.
+  ENTRY({ id: "owner:booked-ready-check", section: "owner", step: "ready_check", kind: "email", code: "", name: "You're booked for your free Ready Check", when: "The installer books the Ready Check (or changes its time — \"Your time has changed\"); held with an office note if the installer has no office phone or business email", who: "Owner", approvalNote: "Wording: Jo 2 Nov 2026, decision #24 + Fix 5 (OWNER_BOOKED_READY_CHECK_APPROVED stays false until Jo OKs the pictures)", gate: { kind: "code_off", flag: "OWNER_BOOKED_READY_CHECK_APPROVED" },
+    source: { builder: "src/lib/in-house-booking.core.ts", fn: "ownerBookedMessage", sender: "src/lib/in-house-booking.server.ts" },
+    render: () => email(ownerBookedMessage(BOOKED_SAMPLE, BOOKED_ON) as { subject: string; html: string }) }),
+  ENTRY({ id: "owner:sms-booked-ready-check", section: "owner", step: "ready_check", kind: "text", code: "", name: "You're booked for your free Ready Check (text)", when: "With the Ready Check \"You're booked\" email", who: "Owner", approvalNote: "Wording: Jo 2 Nov 2026, decision #24 (OWNER_BOOKED_READY_CHECK_APPROVED stays false until Jo OKs the pictures)", gate: { kind: "text", smsType: "in_house_booked_owner" },
+    source: { builder: "src/lib/in-house-booking.core.ts", fn: "ownerBookedMessage", sender: "src/lib/in-house-booking.server.ts" },
+    render: () => text((ownerBookedMessage(BOOKED_SAMPLE, BOOKED_ON) as { sms: string }).sms) }),
   // Fix round 1 (controller ruling 2 Nov 2026): releases made with the old Release step keep the wording Jo approved for
   // them (decision 389, 25 Oct 2026) for their day-2 reminder / 7am text — unchanged, not behind IT_IS_YOUR_TURN_V2_APPROVED.
   ENTRY({ id: "owner:O77-legacy", section: "owner", step: "ready_check", kind: "email", code: "O77", name: "It's your turn — confirm your free Ready Check (old Release step)", when: "Releases Jo made with the old Release step before 2 Nov 2026: their day-2 reminder (the page opens ?screen=turn)", who: "Owner", approvalNote: "Jo 25 Oct 2026, decision 389", gate: { kind: "email" },
