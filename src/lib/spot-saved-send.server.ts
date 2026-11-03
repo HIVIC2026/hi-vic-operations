@@ -50,7 +50,7 @@ export type SpotSavedSendResult = { jobId: string; email: { status: string; deta
 /** Send (or, with dry, only plan) the confirmation for one job. Never throws for an individual channel. */
 export async function sendSpotSavedConfirmation(jobId: string, opts: { dry?: boolean; token?: string | undefined; emailOnly?: boolean } = {}): Promise<SpotSavedSendResult> {
   const [{ data: job }, { data: resp }, { data: ws }, { data: eopt }, { count: supp }] = await Promise.all([
-    admin.from("jobs").select("source, stage, deleted_at, qa_archived_at, owners(phone, email)").eq("id", jobId).maybeSingle(),
+    admin.from("jobs").select("source, stage, channel, deleted_at, qa_archived_at, owners(phone, email)").eq("id", jobId).maybeSingle(),
     admin.from("lead_campaign_responses").select("spot_saved_at, opted_out_at").eq("job_id", jobId).maybeSingle(),
     admin.from("workflow_settings").select("customer_comms_enabled, sms_message_switches").eq("id", 1).maybeSingle(),
     admin.from("customer_email_optouts").select("opted_out_at").eq("job_id", jobId).maybeSingle(),
@@ -67,7 +67,7 @@ export async function sendSpotSavedConfirmation(jobId: string, opts: { dry?: boo
   }
   const sw = ((ws?.sms_message_switches ?? {}) as Record<string, unknown>);
   const plan = planSpotSaved({
-    source: job?.source ?? null, stage: job?.stage ?? null, deletedAt: job?.deleted_at ?? null, qaArchivedAt: job?.qa_archived_at ?? null,
+    source: job?.source ?? null, stage: job?.stage ?? null, channel: (job as { channel?: string | null } | null)?.channel ?? null, deletedAt: job?.deleted_at ?? null, qaArchivedAt: job?.qa_archived_at ?? null,
     spotSavedAt: resp?.spot_saved_at ?? null, campaignOptedOutAt: resp?.opted_out_at ?? null,
     consent: await (await import("./comms.server")).hasCurrentOwnerContactConsent(jobId), commsEnabled: ws?.customer_comms_enabled === true,
     email: owner?.email ?? null, phone: owner?.phone ?? null, emailOptedOut: !!eopt?.opted_out_at, emailSuppressed: (supp ?? 0) > 0, smsStopped,

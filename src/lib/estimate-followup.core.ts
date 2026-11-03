@@ -12,6 +12,7 @@
 // (O66 day 2, O67 day 7, O68 day 21). Real owners still need `customer_comms_enabled` (and consent); if the flag were
 // ever false, real owners get nothing and nothing is closed (a close needs a recorded day-21 send); TEST (qa_test) jobs
 // use test-send so the flow can be checked.
+import { ownCustomerPreQuoteBlocker } from "./own-customer-messages.core";
 import { oneTapSaveUrl } from "./one-tap-save.core";
 import * as K from "./email-kit.core";
 import { mjEmail } from "./mail-mjml.core";
@@ -47,6 +48,8 @@ const t = (iso: string) => Date.parse(iso);
 
 export type EstimateFollowupFacts = {
   stage: string | null; source: string | null; deletedAt: string | null; qaArchivedAt: string | null;
+  /** Part 10 Task 8: installer's own customers (installer_sourced) never get estimate reminders. Absent = unknown = unchanged. */
+  channel?: string | null;
   /** When the Save my spot estimate email was sent (customer_email_sends.sent_at); null = never offered. */
   estimateEmailedAt: string | null;
   spotSavedAt: string | null;
@@ -78,6 +81,7 @@ export function estimateFollowupStop(f: EstimateFollowupFacts): string | null {
   if (f.qaArchivedAt) return STOP.archived;
   if (f.stage !== ESTIMATE_FOLLOWUP_STAGE) return STOP.moved;
   if (!f.estimateEmailedAt) return STOP.not_offered;
+  { const own = ownCustomerPreQuoteBlocker(f.channel); if (own) return own; }
   if (f.spotSavedAt) return STOP.saved;
   if (f.optedOut) return STOP.opted_out;
   if (f.repliedAt && t(f.repliedAt) >= t(f.estimateEmailedAt)) return STOP.replied;

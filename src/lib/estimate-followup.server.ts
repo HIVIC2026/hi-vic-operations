@@ -27,7 +27,7 @@ import type { JoEstimateFigures } from "./jo-email-templates.core";
 const db = admin as any;
 const chunks = <T,>(xs: T[], n = 100) => Array.from({ length: Math.ceil(xs.length / n) }, (_, i) => xs.slice(i * n, i * n + n));
 
-type JobRow = { id: string; job_number: string | null; source: string | null; stage: string | null; deleted_at: string | null; qa_archived_at: string | null; owner_id: string | null; property_id: string | null; estimated_area_m2: number | string | null; estimated_area_unknown: boolean | null; owners: { full_name: string | null; email: string | null } | null };
+type JobRow = { id: string; job_number: string | null; source: string | null; stage: string | null; channel?: string | null; deleted_at: string | null; qa_archived_at: string | null; owner_id: string | null; property_id: string | null; estimated_area_m2: number | string | null; estimated_area_unknown: boolean | null; owners: { full_name: string | null; email: string | null } | null };
 
 /** Is this customer_email_sends row the owner's Save my spot estimate email (office_enquiry_index.spot_offered rule)? */
 export function isEstimateOfferSend(s: { purpose: string; idempotency_key: string | null; status: string }): boolean {
@@ -77,7 +77,7 @@ export async function loadEstimateFollowupFacts(jobs: JobRow[]): Promise<Map<str
     for (const j of c) {
       const r = resp.get(j.id);
       out.set(j.id, {
-        stage: j.stage, source: j.source, deletedAt: j.deleted_at, qaArchivedAt: j.qa_archived_at,
+        stage: j.stage, source: j.source, channel: j.channel ?? null, deletedAt: j.deleted_at, qaArchivedAt: j.qa_archived_at,
         estimateEmailedAt: emailedAt.get(j.id) ?? null, spotSavedAt: r?.spot_saved_at ?? null,
         optedOut: !!r?.opted_out_at || emailOpt.has(j.id), repliedAt: replied.get(j.id) ?? null,
         ownerEmail: j.owners?.email ?? null, done: done.get(j.id) ?? [], sent: sentSteps.get(j.id) ?? [],
@@ -163,7 +163,7 @@ export async function sweepEstimateFollowups(now = new Date()): Promise<Estimate
   const rows: JobRow[] = [];
   for (let from = 0; ; from += 1000) {
     const { data: jobs, error } = await db.from("jobs")
-      .select("id,job_number,source,stage,deleted_at,qa_archived_at,owner_id,property_id,estimated_area_m2,estimated_area_unknown,owners(full_name,email)")
+      .select("id,job_number,source,stage,channel,deleted_at,qa_archived_at,owner_id,property_id,estimated_area_m2,estimated_area_unknown,owners(full_name,email)")
       .eq("stage", ESTIMATE_FOLLOWUP_STAGE).is("deleted_at", null).is("qa_archived_at", null).order("id").range(from, from + 999);
     if (error) throw new Error(`Could not read estimate-only leads: ${error.message}`);
     rows.push(...((jobs ?? []) as JobRow[]));
