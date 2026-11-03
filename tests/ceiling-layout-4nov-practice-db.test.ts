@@ -1,8 +1,8 @@
-// Practice-DB (PGlite) proof for docs/pending-migrations/ceiling-layout-4nov.sql. Fake data only; never live.
+// Practice-DB (PGlite) proof for drizzle/migrations/0188_ceiling_layout_retail_prices.sql (archived in docs/applied-migrations). Fake data only; never live.
 import { describe, expect, it } from "vitest";
 import { PGlite } from "@electric-sql/pglite";
 import { readFileSync } from "node:fs";
-const read = (f: string) => readFileSync(new URL(`../docs/pending-migrations/${f}`, import.meta.url), "utf8");
+const read = (f: string) => readFileSync(new URL(`../docs/${f.endsWith("rollback.sql") ? "pending-migrations" : "applied-migrations"}/${f}`, import.meta.url), "utf8");
 
 describe("ceiling-layout-4nov.sql on a practice database", () => {
   it("adds blank retail prices, the switch ON by default, refuses $0, and rolls back", async () => {
