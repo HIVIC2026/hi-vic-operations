@@ -34,6 +34,30 @@ describe("jobMoneyRows", () => {
   });
 });
 
+describe("I3: the installer's pay on an own customer = their own lines on the quote that counts", () => {
+  test("INSTALLER_PRICE + INSTALLER_REMOVAL + INSTALLER_EXTRA; never the fee, PIESA or the owner's total", async () => {
+    const { ownCustomerQuoteFigures } = await import("../src/lib/own-customer-price.core");
+    const q = { status: "issued", created_at: "2026-11-01T00:00:00Z", customer_total_inc_gst: 2548, items: [
+      { code: "INSTALLER_PRICE", line_total_inc_gst: 2000 }, { code: "INSTALLER_REMOVAL", line_total_inc_gst: 300 }, { code: "INSTALLER_EXTRA", line_total_inc_gst: "150" },
+      { code: "AP_FEE", line_total_inc_gst: 349 }, { code: "PIESA", line_total_inc_gst: 349 } ] };
+    expect(ownCustomerQuoteFigures([q])).toEqual({ installerPayIncGst: 2450, ownerPriceIncGst: 2548 });
+  });
+  test("an accepted quote wins over a newer draft (as installerPayForJob does); otherwise the newest; nothing → nulls", async () => {
+    const { ownCustomerQuoteFigures } = await import("../src/lib/own-customer-price.core");
+    const accepted = { status: "accepted", created_at: "2026-11-01T00:00:00Z", customer_total_inc_gst: 2098, items: [{ code: "INSTALLER_PRICE", line_total_inc_gst: 2000 }, { code: "AP_FEE", line_total_inc_gst: 349 }, { code: "PIESA", line_total_inc_gst: 349 }] };
+    const draft = { status: "draft", created_at: "2026-11-03T00:00:00Z", customer_total_inc_gst: 2598, items: [{ code: "INSTALLER_PRICE", line_total_inc_gst: 2500 }, { code: "AP_FEE", line_total_inc_gst: 349 }, { code: "PIESA", line_total_inc_gst: 349 }] };
+    expect(ownCustomerQuoteFigures([draft, accepted])).toEqual({ installerPayIncGst: 2000, ownerPriceIncGst: 2098 });
+    expect(ownCustomerQuoteFigures([draft, { ...accepted, status: "issued" }])).toEqual({ installerPayIncGst: 2500, ownerPriceIncGst: 2598 });
+    expect(ownCustomerQuoteFigures([])).toEqual({ installerPayIncGst: null, ownerPriceIncGst: null });
+    expect(ownCustomerQuoteFigures([{ ...draft, items: [{ code: "AP_FEE", line_total_inc_gst: 349 }] }])).toEqual({ installerPayIncGst: null, ownerPriceIncGst: 2598 });
+  });
+  test("the job page reads several quotes and picks with the pure helper", () => {
+    const s = readFileSync("src/lib/trade-view.server.ts", "utf8");
+    expect(s).toContain("ownCustomerQuoteFigures(");
+    expect(s).toContain('.in("status", ["issued", "accepted", "draft"]).order("created_at", { ascending: false }).limit(5)');
+  });
+});
+
 describe("labels and the pay rule", () => {
   test("one source label, shared by My work and the Job page", () => {
     expect(sourceLabel("installer_sourced")).toBe("Your customer");
