@@ -6,8 +6,10 @@ import { NO_RATE_CARD_REASON,
   SPOT_RELEASE_CONFIRMED_EVENT, SPOT_RELEASE_DECLINED_EVENT, SPOT_RELEASE_LAPSED_EVENT, SPOT_RELEASE_PAGE, SPOT_RELEASE_REMINDED_EVENT, SPOT_RELEASE_UNAPPROVED, WHAT_HAPPENS_NEXT,
   jobWaitingForInstaller, nextReleaseSeq, officeItemWithRelease, ownerTurnView, releasable, releasePlan, releaseStatusLine, spotReleaseDue, spotReleaseKey,
   spotReleasePageLink, spotReleaseState, spotReleasedText, type SpotReleaseEventRow, type SpotReleaseState,
+  LEGACY_CONFIRM_BUTTON, LEGACY_WHAT_HAPPENS_NEXT, legacySpotReleasedText,
 } from "../src/lib/spot-release.core";
-import { renderSpotReleasedEmail } from "../src/lib/spot-release-email.core";
+import { renderLegacySpotReleasedEmail, renderSpotReleasedEmail } from "../src/lib/spot-release-email.core";
+import LEGACY from "./fixtures/spot-release-legacy-fc2a8a3.json";
 import { SMS_FRESHNESS, SMS_MESSAGE_TYPES } from "../src/lib/sms.core";
 import { buildNeedsRows, needsCandidates } from "../src/lib/office-needs.core";
 
@@ -205,5 +207,33 @@ describe("owner page and wording", () => {
   test("SMS type: owner, quiet hours, window freshness, approved", () => {
     expect(SMS_MESSAGE_TYPES.spot_released).toMatchObject({ audience: "owner", wordingApproved: true, quietHours: true });
     expect(SMS_FRESHNESS.spot_released).toEqual({ kind: "window" });
+  });
+});
+
+// Fix round 1 (controller ruling 2 Nov 2026): releases made before the switch (the old Release path and the owner's
+// ?screen=turn page) keep the OLD approved wording, byte for byte as at fc2a8a3 (fixture generated from that commit).
+describe("legacy Release wording (unchanged from fc2a8a3)", () => {
+  test("steps, button and texts are the old ones", () => {
+    expect(LEGACY_WHAT_HAPPENS_NEXT).toEqual(LEGACY.whatHappensNext);
+    expect(LEGACY_CONFIRM_BUTTON).toBe(LEGACY.confirmButton);
+    const link = "https://estimate.homeinsulationvictoria.com.au/my-job/TOKEN?screen=turn";
+    expect(legacySpotReleasedText(link)).toBe(LEGACY.text.released);
+    expect(legacySpotReleasedText(link, true)).toBe(LEGACY.text.reminder);
+  });
+  test("the O77 email is byte-identical to fc2a8a3 for the same inputs", () => {
+    for (const { input, subject, html, text } of LEGACY.emails) {
+      const e = renderLegacySpotReleasedEmail(input);
+      expect(e.subject).toBe(subject); expect(e.text).toBe(text); expect(e.html).toBe(html);
+    }
+  });
+});
+
+describe("owner ?screen=turn page belongs to the legacy Release flow", () => {
+  test("it shows the old steps (LEGACY_WHAT_HAPPENS_NEXT), not the new quick taps steps", async () => {
+    const src = await Bun.file(new URL("../src/routes/my-job.$token.tsx", import.meta.url)).text();
+    const turn = src.slice(src.indexOf('data-testid="owner-turn" data-turn="ask"'));
+    expect(turn).toContain("LEGACY_WHAT_HAPPENS_NEXT.title");
+    expect(turn).toContain("LEGACY_WHAT_HAPPENS_NEXT.steps.map");
+    expect(src).not.toMatch(/[^_]WHAT_HAPPENS_NEXT\.(title|steps)/);
   });
 });

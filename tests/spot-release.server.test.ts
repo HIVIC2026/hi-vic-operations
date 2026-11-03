@@ -5,7 +5,8 @@
 // kept, one stage_changed, nothing sent), the day-2 reminder, the day-5 lapse (one event, nothing sent) and a confirmed
 // owner going straight to the installer on the next Release.
 import { beforeEach, describe, expect, mock, test } from "bun:test";
-import { RELEASE_RETIRED_REASON, SPOT_RELEASE_EVENTS, SPOT_RELEASE_UNAPPROVED } from "../src/lib/spot-release.core";
+import { IT_IS_YOUR_TURN_V2_APPROVED, RELEASE_RETIRED_REASON, SPOT_RELEASE_EVENTS, SPOT_RELEASE_UNAPPROVED } from "../src/lib/spot-release.core";
+import LEGACY from "./fixtures/spot-release-legacy-fc2a8a3.json";
 
 type Row = Record<string, unknown>;
 const tables: Record<string, Row[]> = {};
@@ -64,9 +65,9 @@ mock.module("../src/lib/comms.server", () => ({
   assertCustomerDeliveryAllowed: async () => { if (!deliveryAllowed) throw new Error("Customer messages are switched off"); },
   customerCommsEnabled: async () => deliveryAllowed,
 }));
-const sent: { via: string; to: string; subject?: string; body?: string; key?: string }[] = [];
+const sent: { via: string; to: string; subject?: string; body?: string; key?: string; text?: string; html?: string | undefined }[] = [];
 mock.module("../src/lib/owner-email-send.server", () => ({
-  sendGuardedOwnerEmail: async (p: { to: string; key: string; build: (u: string | null) => { subject: string; text: string } }) => { const m = p.build("https://u"); sent.push({ via: "live-email", to: p.to, subject: m.subject, key: p.key }); return "sent"; },
+  sendGuardedOwnerEmail: async (p: { to: string; key: string; build: (u: string | null) => { subject: string; text: string } }) => { const m = p.build("https://u") as { subject: string; text: string; html?: string }; sent.push({ via: "live-email", to: p.to, subject: m.subject, key: p.key, text: m.text, html: m.html }); return "sent"; },
 }));
 mock.module("../src/lib/sms.server", () => ({
   sendRealSms: async (i: { to: string; body: string; idempotencyKey: string }) => { sent.push({ via: "real-sms", to: i.to, body: i.body, key: i.idempotencyKey }); return { status: "blocked", detail: "wording not approved", sid: null }; },
@@ -258,5 +259,29 @@ describe("15-minute tick", () => {
     const m = await S.spotReleaseStates(["job-1", "job-2"]);
     expect(m.get("job-1")?.state).toBe("pending");
     expect(m.get("job-2")?.state).toBe("none");
+  });
+});
+
+// Fix round 1 (controller ruling 2 Nov 2026): the legacy Release path keeps the OLD approved wording (fc2a8a3) and is NOT
+// gated by IT_IS_YOUR_TURN_V2_APPROVED — real releases still pending get their old day-2 reminder.
+describe("legacy Release: old wording, not gated by the V2 flag", () => {
+  beforeEach(() => { seed(null); clock = Date.parse("2026-10-26T00:00:00.000Z"); });
+  const at = (hours: number) => new Date(Date.parse("2026-10-26T00:00:00.000Z") + hours * 3_600_000);
+  test("with production approvals (V2 flag false) a real Release sends the old email + text, byte-identical", async () => {
+    expect(IT_IS_YOUR_TURN_V2_APPROVED).toBe(false);
+    const r = await S.releaseSpot("job-1", "jo", "biz-1", { retired: false, now: at(0) });
+    expect(r.mode).toBe("released");
+    expect(sent.map((s) => s.via)).toEqual(["live-email", "real-sms"]);
+    const mail = LEGACY.emails[0]!;
+    expect({ subject: sent[0]!.subject, text: sent[0]!.text, html: sent[0]!.html }).toEqual({ subject: mail.subject, text: mail.text, html: mail.html });
+    expect(sent[1]!.body).toBe(LEGACY.text.released);
+  });
+  test("the day-2 reminder of a pending legacy release goes out with the old wording (V2 flag false)", async () => {
+    await S.releaseSpot("job-1", "jo", "biz-1", { retired: false, now: at(0) }); sent.length = 0;
+    expect((await S.sweepSpotReleases(at(48.1))).reminded).toBe(1);
+    expect(sent.map((s) => s.via)).toEqual(["live-email", "real-sms"]);
+    const mail = LEGACY.emails[1]!;
+    expect({ subject: sent[0]!.subject, text: sent[0]!.text, html: sent[0]!.html }).toEqual({ subject: mail.subject, text: mail.text, html: mail.html });
+    expect(sent[1]!.body).toBe(LEGACY.text.reminder);
   });
 });

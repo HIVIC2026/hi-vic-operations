@@ -9,8 +9,10 @@
 //   job (append-only workflow_events), then the owner's ONE "It's your turn" message per job (O77 email + `spot_released`
 //   text, both opening the quick taps; decisions #21/#22, behind IT_IS_YOUR_TURN_V2_APPROVED): TEST → test-send, real →
 //   the guarded owner email + the one real SMS sender (`spot_released` switch, consent, STOP). The old `quick_taps` texts
-//   are retired (a home already texted under them is in an open batch, so Send refuses it). Never automatic.
-// - sweepAreaBatches (15-minute tick, Task 4): day-2 reminder, day-3 close, decline retries, day-14 no-answer close (rules
+//   are retired (a home already texted under them is in an open batch, so Send refuses it). Never automatic. The claim
+//   records `owner_message: "spot_released"` so the sweep knows how the batch was first sent.
+// - sweepAreaBatches (15-minute tick, Task 4): day-2 reminder (the one matching how the batch was first sent: old quick
+//   taps reminder for batches sent before 2 Nov 2026, else the "It's your turn" reminder), day-3 close, decline retries, day-14 no-answer close (rules
 //   in area-batch.core planBatchSweep). Passers wait for Jo's OK ("Send to installer" on Choose installer,
 //   batchesReadyToSend): a run NEVER goes to an installer automatically (Jo 30 Oct). Nothing lands in Needs me.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
@@ -18,8 +20,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { WorkflowError, logEvent } from "./workflow.server";
 import {
   AREA_BATCH_CLOSED_EVENT, AREA_BATCH_EVENTS, AREA_BATCH_LEFT_EVENT, AREA_BATCH_RETURNED_EVENT, AREA_BATCH_SENT_EVENT, NO_ANSWER_CLOSE_REASON, QUICK_TAPS_REMINDED_EVENT,
-  areaBatchClosedKey, areaBatchKey, batchInstallers, batchSpanKm, likelyEligible, nextBatchSeq,
-  openBatchId, outsideBatch, passHandedOn, planBatchSweep, standingPass, STAGE_CHANGED_EVENT, quickTapsLink, quickTapsSmsKey, suggestBatches,
+  QUICK_TAPS_REMINDER_SMS_TYPE, areaBatchClosedKey, areaBatchKey, batchInstallers, batchSpanKm, likelyEligible, nextBatchSeq,
+  openBatchId, outsideBatch, passHandedOn, planBatchSweep, standingPass, STAGE_CHANGED_EVENT, quickTapsLink, quickTapsReminderText, quickTapsSmsKey, suggestBatches,
   type AreaBatchEventRow, type BatchHome, type SweepJob,
 } from "./area-batch.core";
 import { QUICK_TAPS_ANSWERED_EVENT } from "./quick-taps.core";
@@ -277,7 +279,7 @@ export async function sendBatch(jobIdsIn: string[], businessId: string, actorId:
   for (const h of homes) {
     const key = areaBatchKey(h.jobId, nextBatchSeq(evs.get(h.jobId) ?? []));
     const won = await claim(h.jobId, actorId, AREA_BATCH_SENT_EVENT, `Area batch sent (${homes.length} ${homes.length === 1 ? "home" : "homes"}, ${installer.name}) — "It's your turn" sent to the owner`,
-      { batch_id: batchId, installer_business_id: businessId, installer_name: installer.name, job_ids: jobIds, centre_job_id: centreHome.jobId, centre, sent_by: actorId, idempotency_key: key, ...(h.carriedPass ? { carried_pass: true } : {}) });
+      { batch_id: batchId, installer_business_id: businessId, installer_name: installer.name, job_ids: jobIds, centre_job_id: centreHome.jobId, centre, sent_by: actorId, idempotency_key: key, owner_message: SPOT_RELEASED_PURPOSE, ...(h.carriedPass ? { carried_pass: true } : {}) });
     if (!won) {
       // Someone else batched this home at the same moment: undo ours (append-only close) and send nothing.
       for (const c of claimed) await claim(c.jobId, actorId, AREA_BATCH_CLOSED_EVENT, "Area batch stopped before any text went (another batch took a home)", { batch_id: batchId, pass_job_ids: [], freed_job_ids: claimed.map((x) => x.jobId), reason: "send_interrupted" });
@@ -346,6 +348,23 @@ async function messageOwner(h: TextTo, batchId: string, myJobLink: string, busin
   const { sendRealSms } = await import("./sms.server");
   const r = await sendRealSms({ type: SPOT_RELEASED_SMS_TYPE, idempotencyKey: `${key}:sms`, to: h.phone, body, jobId: h.jobId });
   return { status: r.status, detail: r.detail, email };
+}
+
+/** A batch sent BEFORE 2 Nov 2026 got the old quick taps text, so its day-2 reminder stays the old approved quick taps
+ *  reminder (Jo 30 Oct 2026), under its old type, key and switch — exactly as at fc2a8a3 (controller ruling 2 Nov 2026).
+ *  Not gated by IT_IS_YOUR_TURN_V2_APPROVED. TEST → test-send. */
+async function legacyQuickTapsReminder(h: TextTo, batchId: string, myJobLink: string, businessId: string | null): Promise<{ status: string; detail: string }> {
+  const body = quickTapsReminderText(h.ownerName, quickTapsLink(myJobLink));
+  if (h.isTest) {
+    const { data: biz } = businessId ? await admin.from("businesses").select("onboarding_notes").eq("id", businessId).maybeSingle() : { data: null };
+    const { isTestPartner } = await import("./test-send.core");
+    const { sendTestSms } = await import("./test-send.server");
+    const r = await sendTestSms({ jobId: h.jobId, jobSource: h.source, partnerIsTest: isTestPartner(biz ?? null), label: `${QUICK_TAPS_REMINDER_SMS_TYPE}:${batchId}`, actorId: null }, h.phone ?? "", body);
+    return { status: r.status, detail: r.detail };
+  }
+  const { sendRealSms } = await import("./sms.server");
+  const r = await sendRealSms({ type: QUICK_TAPS_REMINDER_SMS_TYPE, idempotencyKey: quickTapsSmsKey(batchId, h.jobId, "reminder"), to: h.phone, body, jobId: h.jobId });
+  return { status: r.status, detail: r.detail };
 }
 
 // ---- a home whose address changed (Task 3, Jo 30 Oct) -------------------------------------------------------------------
@@ -438,18 +457,50 @@ export async function sweepAreaBatches(nowIso: string = new Date().toISOString()
   // stays unclaimed so a later tick tries again — the real sender's own key never sends it twice. Final review m5: while
   // customer messages or the reminder switch are off, a real reminder isn't tried at all (no held row per tick); one held
   // for the owner themselves (STOP, no consent, not a mobile) is recorded once as not sent and never tried again.
-  let remindersOff: boolean | null = null;
-  const realRemindersOff = async () => {
-    if (remindersOff !== null) return remindersOff;
-    const { data, error } = await loose.from("workflow_settings").select("customer_comms_enabled, sms_message_switches").eq("id", 1).maybeSingle();
-    if (error) throw new Error(`Could not read the message switches: ${error.message}`);
-    const w = (data ?? null) as { customer_comms_enabled?: boolean | null; sms_message_switches?: Record<string, boolean> | null } | null;
-    return (remindersOff = !(opts.v2Approved ?? IT_IS_YOUR_TURN_V2_APPROVED) || w?.customer_comms_enabled !== true || w?.sms_message_switches?.[SPOT_RELEASED_SMS_TYPE] !== true);
+  // Fix round 1 (controller ruling 2 Nov 2026): the reminder follows how the batch was FIRST sent. New = the claim names the
+  // "It's your turn" message, or a `spot-release:v1:{job}:{batch}:released` email / text send record exists → the new
+  // reminder (behind IT_IS_YOUR_TURN_V2_APPROVED + `spot_released`). Otherwise the batch went out with the old quick taps
+  // text → the old quick taps reminder (`quick_taps_reminder` switch, old key), never gated by the V2 flag.
+  const sentEvent = (jobId: string, batchId: string) => (eventsBy.get(jobId) ?? []).find((e) => e.event_type === AREA_BATCH_SENT_EVENT && (e.details as { batch_id?: unknown } | null)?.batch_id === batchId);
+  const newStyle = new Set<string>();
+  const styleUnknown = new Set<string>();
+  const releasedKey = (jobId: string, batchId: string) => spotReleaseKey(jobId, batchId, "released");
+  const unmarked = plan.reminders.filter(({ batchId, jobId }) => {
+    const marked = (sentEvent(jobId, batchId)?.details as { owner_message?: unknown } | null)?.owner_message === SPOT_RELEASED_PURPOSE;
+    if (marked) newStyle.add(releasedKey(jobId, batchId));
+    return !marked;
+  });
+  if (unmarked.length) {
+    const keys = unmarked.map(({ batchId, jobId }) => releasedKey(jobId, batchId));
+    try {
+      const [mails, texts] = await Promise.all([
+        byIds("It's your turn email records", keys, (c, f, t) => loose.from("customer_email_sends").select("idempotency_key").in("idempotency_key", c).range(f, t)),
+        byIds("It's your turn text records", keys.map((k) => `${k}:sms`), (c, f, t) => loose.from("sms_messages").select("idempotency_key").in("idempotency_key", c).range(f, t)),
+      ]);
+      for (const r of [...mails, ...texts]) newStyle.add(String(r["idempotency_key"]).replace(/:sms$/, ""));
+    } catch (e) {
+      // Can't tell which message the owner got → no reminder this tick (the next tick tries again).
+      console.error("area batch reminder style read failed", (e as Error).message);
+      for (const k of keys) styleUnknown.add(k);
+    }
+  }
+  let switches: { comms: boolean; on: Record<string, boolean> } | null = null;
+  const realRemindersOff = async (isNew: boolean) => {
+    if (!switches) {
+      const { data, error } = await loose.from("workflow_settings").select("customer_comms_enabled, sms_message_switches").eq("id", 1).maybeSingle();
+      if (error) throw new Error(`Could not read the message switches: ${error.message}`);
+      const w = (data ?? null) as { customer_comms_enabled?: boolean | null; sms_message_switches?: Record<string, boolean> | null } | null;
+      switches = { comms: w?.customer_comms_enabled === true, on: w?.sms_message_switches ?? {} };
+    }
+    if (!switches.comms) return true;
+    return isNew ? !(opts.v2Approved ?? IT_IS_YOUR_TURN_V2_APPROVED) || switches.on[SPOT_RELEASED_SMS_TYPE] !== true : switches.on[QUICK_TAPS_REMINDER_SMS_TYPE] !== true;
   };
   await inFours(plan.reminders, ({ batchId, jobId }) => step("reminder", jobId, async () => {
     const j = rows.get(jobId)!;
-    if (j.source !== "qa_test" && await realRemindersOff()) return false;
-    const sent = (eventsBy.get(jobId) ?? []).find((e) => e.event_type === AREA_BATCH_SENT_EVENT && (e.details as { batch_id?: unknown } | null)?.batch_id === batchId);
+    if (styleUnknown.has(releasedKey(jobId, batchId))) { out.failed++; return false; }
+    const isNew = newStyle.has(releasedKey(jobId, batchId));
+    if (j.source !== "qa_test" && await realRemindersOff(isNew)) return false;
+    const sent = sentEvent(jobId, batchId);
     const businessId = s((sent?.details as { installer_business_id?: unknown } | null)?.installer_business_id);
     const details = { batch_id: batchId, idempotency_key: quickTapsSmsKey(batchId, jobId, "reminder") };
     const link = await (await import("./veec-copy-email.server")).ownerMyJobLink(jobId);
@@ -458,13 +509,14 @@ export async function sweepAreaBatches(nowIso: string = new Date().toISOString()
       if (won) await logEvent(jobId, null, "quick_taps_reminder_not_sent", "No working owner job link, so the owner could not be reminded about their quick taps", { batch_id: batchId }, { internal: true });
       return false;
     }
-    const r = await messageOwner({ jobId, ownerName: (j.owners?.full_name ?? "").trim(), phone: j.owners?.phone ?? null, email: j.owners?.email ?? null, isTest: j.source === "qa_test", source: j.source }, batchId, link, businessId, null, "reminder");
+    const to = { jobId, ownerName: (j.owners?.full_name ?? "").trim(), phone: j.owners?.phone ?? null, email: j.owners?.email ?? null, isTest: j.source === "qa_test", source: j.source };
+    const r = isNew ? await messageOwner(to, batchId, link, businessId, null, "reminder") : await legacyQuickTapsReminder(to, batchId, link, businessId);
     if (j.source !== "qa_test" && (smsHeldForRecipient(r) || !j.owners?.phone)) {
       await claim(jobId, null, QUICK_TAPS_REMINDED_EVENT, "Day-2 reminder not sent: the owner's number can't be texted (STOP, no consent or not a mobile)", { ...details, status: "not_textable" });
       return false;
     }
     if (!REMINDER_WENT.includes(r.status)) return false;
-    return claim(jobId, null, QUICK_TAPS_REMINDED_EVENT, "Day-2 reminder: \"It's your turn\" email and text to the owner", { ...details, status: r.status });
+    return claim(jobId, null, QUICK_TAPS_REMINDED_EVENT, isNew ? "Day-2 reminder: \"It's your turn\" email and text to the owner" : "Day-2 reminder: quick taps text to the owner", { ...details, status: r.status });
   }, "reminded"));
 
   // A decline whose close failed: close + email again (finishDecline is idempotent), once per job + batch. A close that

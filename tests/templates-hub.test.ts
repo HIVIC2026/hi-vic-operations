@@ -128,8 +128,8 @@ describe("nothing live is missing from the page", () => {
   const listedFns = new Set(TEMPLATE_ENTRIES.map((e) => e.source.fn));
   test("every approved text type is on the page", () => {
     const listed = new Set(TEMPLATE_ENTRIES.flatMap((e) => (e.gate.kind === "text" ? [e.gate.smsType] : [])));
-    for (const [type, t] of Object.entries(SMS_MESSAGE_TYPES)) // quick_taps / quick_taps_reminder: retired 2 Nov 2026 (decision #22), nothing sends them any more
-    if (t.wordingApproved && !["piesa_owner_confirm", "quick_taps", "quick_taps_reminder"].includes(type)) expect({ type, listed: listed.has(type) }).toEqual({ type, listed: true });
+    for (const [type, t] of Object.entries(SMS_MESSAGE_TYPES)) // quick_taps: retired 2 Nov 2026 (decision #22), nothing sends it any more (quick_taps_reminder still goes to batches sent the old way)
+    if (t.wordingApproved && !["piesa_owner_confirm", "quick_taps"].includes(type)) expect({ type, listed: listed.has(type) }).toEqual({ type, listed: true });
     for (const type of listed) expect({ type, known: type in SMS_MESSAGE_TYPES }).toEqual({ type, known: true });
   });
   test("every email builder in src/lib is on the page or explicitly not listed (with a reason)", () => {
@@ -143,6 +143,11 @@ describe("nothing live is missing from the page", () => {
       if (NOT_BUILDERS.has(name)) continue;
       expect({ name, accounted: listedFns.has(name) || name in NOT_LISTED_BUILDERS }).toEqual({ name, accounted: true });
     }
+  });
+  test("fix round 1: wording still sent to in-flight jobs keeps its own entry (legacy Release O77 + text, old quick taps reminder)", () => {
+    for (const fn of ["renderLegacySpotReleasedEmail", "legacySpotReleasedText", "quickTapsReminderText"]) expect({ fn, listed: listedFns.has(fn) }).toEqual({ fn, listed: true });
+    expect("quickTapsReminderText" in NOT_LISTED_BUILDERS).toBe(false);
+    expect("quickTapsText" in NOT_LISTED_BUILDERS).toBe(true);
   });
   test("builders left off as retired really have no live caller", () => {
     const srcFiles = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap((d) => (d.isDirectory() ? srcFiles(`${dir}/${d.name}`) : /\.tsx?$/.test(d.name) ? [`${dir}/${d.name}`] : []));

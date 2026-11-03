@@ -192,6 +192,24 @@ export function spotReleasedText(firstName: string | null, link: string, reminde
   const hi = (firstName ?? "").trim() || "there";
   return `Home Insulation Victoria: Hi ${hi}, ${reminder ? "just checking — " : ""}it's your turn! Confirm a few quick details for your free Ready Check: ${link}`;
 }
+/** LEGACY Release wording (decision 389, Jo 25 Oct 2026), byte for byte as at fc2a8a3. Used ONLY by the old Release path
+ *  (`spot-release.server` releaseSpot / sweepSpotReleases) and the owner's `?screen=turn` page, so releases already made
+ *  keep the wording Jo approved for them. Not gated by IT_IS_YOUR_TURN_V2_APPROVED (controller ruling 2 Nov 2026). */
+export const LEGACY_WHAT_HAPPENS_NEXT = {
+  title: "What happens next:",
+  steps: [
+    "Press Confirm.",
+    "Within a day or so, your installer will text and email you 3 times for your free Ready Check.",
+    "Tap the time that suits you (or suggest other days). They'll check your ceiling and measure up, and your fixed quote follows.",
+  ],
+} as const;
+export const LEGACY_CONFIRM_BUTTON = "Confirm";
+/** LEGACY Release text (short, no "What happens next"), as at fc2a8a3. */
+export function legacySpotReleasedText(link: string, reminder = false): string {
+  return reminder
+    ? `Home Insulation Victoria: just checking — it's your turn! Confirm you'd still like your free Ready Check and one of our EEC-certified installers will be in touch: ${link}`
+    : `Home Insulation Victoria: it's your turn! Confirm you'd still like your free Ready Check and one of our EEC-certified installers will be in touch: ${link}`;
+}
 /** The owner's secure page: their own My job link on the "turn" screen. */
 export const spotReleasePageLink = (myJobLink: string) => `${myJobLink}?screen=turn`;
 

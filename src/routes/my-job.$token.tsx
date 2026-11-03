@@ -32,7 +32,7 @@ import { AuthorityChoice, FactRows, FormCard, InfoBox, LockHint, LockedButton, O
 import { OFFICE_EMAIL, P2, P3, P4, P6, P6F, centsAud, dayMonth, declarationBullets, longDate, sentence, shortAud, weekdayDate } from "@/lib/owner-pages.core";
 import { OWNER_DECLARATIONS, type OwnerDeclarationKey } from "@/lib/consent.core";
 import { ownerConfirmTurnFn, ownerDeclineTurnFn, ownerTurnStateFn } from "@/lib/spot-release.functions";
-import { SPOT_RELEASE_PAGE, WHAT_HAPPENS_NEXT, type OwnerTurnView } from "@/lib/spot-release.core";
+import { LEGACY_WHAT_HAPPENS_NEXT, SPOT_RELEASE_PAGE, type OwnerTurnView } from "@/lib/spot-release.core";
 import { ownerRequestNewQuoteFn } from "@/lib/new-quote-request.functions";
 import { NEW_QUOTE_THANKS } from "@/lib/new-quote-request.core";
 import { ownerQuickTapsAddressSearchFn, ownerQuickTapsDetailsFn, ownerQuickTapsSaveFn, ownerQuickTapsStateFn } from "@/lib/quick-taps.functions";
@@ -276,8 +276,8 @@ function TurnScreen({ token }: { token: string }) {
       <h1 className="font-display text-2xl font-extrabold">{SPOT_RELEASE_PAGE.title}</h1>
       <p className="text-sm">{SPOT_RELEASE_PAGE.lead}</p>
       <InfoBox>
-        <p className="font-bold">{WHAT_HAPPENS_NEXT.title}</p>
-        <ol className="mt-1 list-decimal space-y-1 pl-5">{WHAT_HAPPENS_NEXT.steps.map((s) => <li key={s}>{s}</li>)}</ol>
+        <p className="font-bold">{LEGACY_WHAT_HAPPENS_NEXT.title}</p>
+        <ol className="mt-1 list-decimal space-y-1 pl-5">{LEGACY_WHAT_HAPPENS_NEXT.steps.map((s) => <li key={s}>{s}</li>)}</ol>
       </InfoBox>
       <button type="button" className={signBtn} disabled={!!busy} onClick={() => void act("confirm")}>{busy === "confirm" ? SPOT_RELEASE_PAGE.confirming : SPOT_RELEASE_PAGE.confirm}</button>
       {!sure

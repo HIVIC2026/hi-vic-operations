@@ -188,7 +188,7 @@ describe("batchCandidates", () => {
   beforeEach(seed);
   test("a waiting website job with a saved spot and likely eligible answers is a candidate", async () => {
     addJob("ok");
-    const r = await S.batchCandidates({ now: NOW, v2Approved: true });
+    const r = await S.batchCandidates({ now: NOW });
     expect(r.candidates.map((c) => c.jobId)).toEqual(["ok"]);
     expect(r.candidates[0]).toMatchObject({ postcode: "3000", isTest: false, lat: -37.8, lng: 145 });
   });
@@ -202,30 +202,30 @@ describe("batchCandidates", () => {
     addJob("assigned"); tables["job_assignments"]!.push({ job_id: "assigned", role: "installer", active: true });
     addJob("test", { source: "qa_test" });
     addJob("ok");
-    expect((await S.batchCandidates({ now: NOW, v2Approved: true })).candidates.map((c) => c.jobId)).toEqual(["ok"]);
+    expect((await S.batchCandidates({ now: NOW })).candidates.map((c) => c.jobId)).toEqual(["ok"]);
     expect((await S.batchCandidates({ now: NOW, includeTest: true })).candidates.map((c) => c.jobId).sort()).toEqual(["ok", "test"]);
   });
   test("thin existing insulation and a top-floor unit are candidates (website answers)", async () => {
     addJob("thin", { facts: { declared: { property_type: "house", over_five_years: "yes" }, answers: { insulation: "yes", insulation_thickness: "thin" } } });
     addJob("unit", { facts: { declared: { property_type: "apartment", over_five_years: "yes" }, answers: { insulation: "none", top_floor: "yes" } } });
-    expect((await S.batchCandidates({ now: NOW, v2Approved: true })).candidates.map((c) => c.jobId).sort()).toEqual(["thin", "unit"]);
+    expect((await S.batchCandidates({ now: NOW })).candidates.map((c) => c.jobId).sort()).toEqual(["thin", "unit"]);
   });
   test("a job already in an open batch is not a candidate; once its batch closes it is again", async () => {
     addJob("a");
     tables["workflow_events"]!.push({ job_id: "a", event_type: "area_batch_sent", created_at: daysAgo(1), details: { batch_id: "b1" } });
-    expect((await S.batchCandidates({ now: NOW, v2Approved: true })).candidates).toEqual([]);
+    expect((await S.batchCandidates({ now: NOW })).candidates).toEqual([]);
     tables["workflow_events"]!.push({ job_id: "a", event_type: "area_batch_closed", created_at: daysAgo(0.5), details: { batch_id: "b1" } });
-    expect((await S.batchCandidates({ now: NOW, v2Approved: true })).candidates.map((c) => c.jobId)).toEqual(["a"]);
+    expect((await S.batchCandidates({ now: NOW })).candidates.map((c) => c.jobId)).toEqual(["a"]);
   });
   test("a job whose owner is being asked to confirm a released spot is not a candidate", async () => {
     addJob("rel");
     tables["workflow_events"]!.push({ job_id: "rel", event_type: "spot_released", created_at: daysAgo(1), details: { release_seq: 1, business_id: "biz-1" } });
-    expect((await S.batchCandidates({ now: NOW, v2Approved: true })).candidates).toEqual([]);
+    expect((await S.batchCandidates({ now: NOW })).candidates).toEqual([]);
   });
   test("coordinates are filled (ensurePropertyCoordinates) before clustering; a home still not found is left out", async () => {
     addJob("found", { coords: null }); lookupCoords["p-found"] = pt(1);
     addJob("lost", { coords: null });
-    const r = await S.batchCandidates({ now: NOW, v2Approved: true });
+    const r = await S.batchCandidates({ now: NOW });
     expect(located.sort()).toEqual(["found", "lost"]);
     expect(r.candidates.map((c) => c.jobId)).toEqual(["found"]);
     expect(r.unlocated).toBe(1);
@@ -238,7 +238,7 @@ describe("batchSuggestions", () => {
   test("8 nearby homes → one suggestion with suburbs, span and the installers covering every home", async () => {
     for (const [i, id] of ids(8).entries()) addJob(id, { coords: pt(i * 0.5), postcode: i < 4 ? "3000" : "3001" });
     installers = [installer({ id: "biz-1" }), installer({ id: "biz-2", name: "Only 3000", service_postcodes: ["3000"] })];
-    const r = await S.batchSuggestions({ now: NOW, v2Approved: true });
+    const r = await S.batchSuggestions({ now: NOW });
     expect(r.batches.length).toBe(1);
     const b = r.batches[0]!;
     expect(b.homes.length).toBe(8);
@@ -248,7 +248,7 @@ describe("batchSuggestions", () => {
   });
   test("too few homes and none waited 14 days → no suggestion", async () => {
     for (const id of ids(3)) addJob(id);
-    expect((await S.batchSuggestions({ now: NOW, v2Approved: true })).batches).toEqual([]);
+    expect((await S.batchSuggestions({ now: NOW })).batches).toEqual([]);
   });
   test("TEST and real homes are never in the same suggestion", async () => {
     for (const id of ids(8)) addJob(id);
@@ -271,7 +271,7 @@ describe("sendBatch", () => {
     const ev = events("area_batch_sent");
     expect(ev.length).toBe(8);
     expect(new Set(ev.map((e) => (e["details"] as Row)["batch_id"])).size).toBe(1);
-    for (const e of ev) expect(e["details"]).toMatchObject({ batch_id: r.batchId, installer_business_id: "biz-1", job_ids: ids(8) });
+    for (const e of ev) expect(e["details"]).toMatchObject({ batch_id: r.batchId, installer_business_id: "biz-1", job_ids: ids(8), owner_message: "spot_released" });
     // Task 3: the batch centre (first home, as suggestBatches lists it) and its location are kept for a moved address.
     for (const e of ev) expect(e["details"]).toMatchObject({ centre_job_id: "j1", centre: { lat: -37.8, lng: 145 } });
     expect(ev.map((e) => e["job_id"]).sort()).toEqual(ids(8).sort());

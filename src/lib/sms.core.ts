@@ -108,7 +108,7 @@ export const SMS_MESSAGE_TYPES = {
   // A48 batch 2 (Jo 29–30 Oct 2026, wording approved in the part 1 spec): Jo taps Send on an area batch → the OWNER gets the
   // quick taps link (area-batch.core quickTapsText), plus the day-2 reminder. Own switches, off until Jo switches them on.
   quick_taps: { audience: "owner", label: "RETIRED 2 Nov 2026 (decision #22: the batch send is the 'It's your turn' text, spot_released) – Confirm a few quick details, area batch sent (A48 batch 2)", wordingApproved: true, quietHours: true },
-  quick_taps_reminder: { audience: "owner", label: "RETIRED 2 Nov 2026 (decision #22: the day-2 reminder is the 'It's your turn' reminder text, spot_released) – Confirm a few quick details, day-2 reminder (A48 batch 2)", wordingApproved: true, quietHours: true },
+  quick_taps_reminder: { audience: "owner", label: "Confirm a few quick details – day-2 reminder, only for batches first sent with the old quick taps text before 2 Nov 2026 (A48 batch 2; newer batches get the 'It's your turn' reminder, spot_released)", wordingApproved: true, quietHours: true },
   // A48 batch 2 part 2 (Jo 30 Oct 2026, wording approved in the part 2 spec): Jo taps "Send to installer" on a closed batch →
   // the INSTALLER gets the run link (run-route.core runOfferedText). Own switch, off until Jo switches it on.
   run_offered: { audience: "partner", label: "You've got a run of Ready Checks – pick your day (A48 batch 2 runs)", wordingApproved: true, quietHours: true },

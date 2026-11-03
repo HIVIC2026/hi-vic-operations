@@ -7,7 +7,7 @@
 // Also: "It's your turn" retired for website owners (Release refused unless the owner already confirmed).
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { AREA_BATCH_EVENTS, NO_ANSWER_CLOSE_REASON } from "../src/lib/area-batch.core";
+import { AREA_BATCH_EVENTS, NO_ANSWER_CLOSE_REASON, quickTapsReminderText } from "../src/lib/area-batch.core";
 import { spotReleasedText } from "../src/lib/spot-release.core";
 import { RELEASE_RETIRED_REASON, releasePlan } from "../src/lib/spot-release.core";
 
@@ -119,8 +119,10 @@ function addJob(id: string, o: { source?: string; stage?: string; name?: string 
   tables["property_facts"]!.push({ property_id: `p-${id}`, fact_key: "coordinates", value: [145, -37.8], is_current: true });
 }
 const ev = (jobId: string, type: string, hours: number, details: Row) => tables["workflow_events"]!.push({ id: crypto.randomUUID(), job_id: jobId, event_type: type, created_at: at(hours), details });
-function sendBatch(batchId: string, jobIds: string[], hours = 0, installer = { id: "biz-1", name: "Sample Insulation" }, carried: string[] = []) {
-  for (const j of jobIds) ev(j, "area_batch_sent", hours, { batch_id: batchId, installer_business_id: installer.id, installer_name: installer.name, job_ids: jobIds, idempotency_key: `area-batch:v1:${j}:${batchId}`, ...(carried.includes(j) ? { carried_pass: true } : {}) });
+/** `style`: "new" = sent with the "It's your turn" message (decisions #21/#22; the claim names it); "old" = an in-flight batch
+ *  sent before the switch with the old quick taps text (no marker, no `spot-release:…:released` send record). */
+function sendBatch(batchId: string, jobIds: string[], hours = 0, installer = { id: "biz-1", name: "Sample Insulation" }, carried: string[] = [], style: "new" | "old" = "new") {
+  for (const j of jobIds) ev(j, "area_batch_sent", hours, { batch_id: batchId, installer_business_id: installer.id, installer_name: installer.name, job_ids: jobIds, idempotency_key: `area-batch:v1:${j}:${batchId}`, ...(carried.includes(j) ? { carried_pass: true } : {}), ...(style === "new" ? { owner_message: "spot_released" } : {}) });
 }
 const answer = (jobId: string, batchId: string, outcome: string, hours = 1) => ev(jobId, "quick_taps_answered", hours, { batch_id: batchId, outcome, consent_share: outcome === "pass" });
 function seed() {
@@ -436,5 +438,52 @@ describe("day-2 reminder claimed only once it went", () => {
     tables["workflow_settings"]![0]!["sms_message_switches"] = {};
     await S.sweepAreaBatches(at(49), { v2Approved: true });
     expect(sent.map((x) => x.via)).toEqual(["test-sms"]);
+  });
+});
+
+// Fix round 1 (controller ruling 2 Nov 2026): the day-2 reminder follows how the batch was FIRST sent. A batch sent before
+// the switch (old quick taps text: no "It's your turn" marker and no `spot-release:v1:{job}:{batch}:released` send record)
+// gets the old approved quick taps reminder, under its old type, key and switch, NOT gated by IT_IS_YOUR_TURN_V2_APPROVED.
+describe("day-2 reminder follows how the batch was first sent", () => {
+  beforeEach(seed);
+  const LINK = "https://estimate.homeinsulationvictoria.com.au/my-job/T-b?screen=taps";
+  test("old-style batch, V2 flag false → the old quick taps reminder text (quick_taps_reminder, old key), no email, once", async () => {
+    tables["workflow_settings"]![0]!["sms_message_switches"] = { quick_taps_reminder: true };
+    addJob("b"); sendBatch("b1", ["b"], 0, undefined, [], "old");
+    await S.sweepAreaBatches(at(49));
+    await S.sweepAreaBatches(at(50));
+    expect(sent).toEqual([{ via: "real-sms", type: "quick_taps_reminder", to: "040000001", key: "quick-taps:v1:b1:b:reminder", body: quickTapsReminderText("Owner b", LINK) }]);
+    expect(sent[0]!.body).toBe(`Hi Owner, just a reminder - please confirm a few quick details so we can book your free Ready Check: ${LINK}`);
+    expect(emails).toEqual([]);
+    expect(events("quick_taps_reminded").map((e) => [e["job_id"], e["summary"]])).toEqual([["b", "Day-2 reminder: quick taps text to the owner"]]);
+  });
+  test("old-style batch: the old reminder switch decides (off → the sender isn't called; the spot_released switch doesn't matter)", async () => {
+    tables["workflow_settings"]![0]!["sms_message_switches"] = { spot_released: true, quick_taps_reminder: false };
+    addJob("b"); sendBatch("b1", ["b"], 0, undefined, [], "old");
+    await S.sweepAreaBatches(at(49), { v2Approved: true });
+    expect(realAttempts).toEqual([]); expect(events("quick_taps_reminded")).toEqual([]);
+  });
+  test("old-style TEST batch → the old reminder through test-send", async () => {
+    addJob("t", { source: "qa_test" }); sendBatch("bt", ["t"], 0, { id: "biz-t", name: "[TEST PARTNER] Co" }, [], "old");
+    await S.sweepAreaBatches(at(49));
+    expect(sent.map((x) => [x.via, x.label])).toEqual([["test-sms", "quick_taps_reminder:bt"]]);
+    expect(sent[0]!.body).toStartWith("Hi Owner, just a reminder - please confirm a few quick details");
+    expect(emails).toEqual([]);
+  });
+  test("no marker but a `spot-release:v1:{job}:{batch}:released` email send record → the new reminder (gated by the V2 flag)", async () => {
+    tables["workflow_settings"]![0]!["sms_message_switches"] = { spot_released: true, quick_taps_reminder: true };
+    addJob("b"); sendBatch("b1", ["b"], 0, undefined, [], "old");
+    tables["customer_email_sends"] = [{ id: "ces-1", job_id: "b", purpose: "spot_released", idempotency_key: "spot-release:v1:b:b1:released", status: "sent" }];
+    await S.sweepAreaBatches(at(49));
+    expect(realAttempts).toEqual([]); expect(emails).toEqual([]);
+    await S.sweepAreaBatches(at(50), { v2Approved: true });
+    expect(sent.map((x) => [x.type, x.key])).toEqual([["spot_released", "spot-release:v1:b:b1:reminder:sms"]]);
+    expect(emails.map((m) => m.key)).toEqual(["spot-release:v1:b:b1:reminder"]);
+  });
+  test("no marker but the `…:released:sms` text record → the new reminder", async () => {
+    addJob("b"); sendBatch("b1", ["b"], 0, undefined, [], "old");
+    tables["sms_messages"] = [{ id: "sm-1", job_id: "b", message_type: "spot_released", idempotency_key: "spot-release:v1:b:b1:released:sms", status: "sent" }];
+    await S.sweepAreaBatches(at(49), { v2Approved: true });
+    expect(sent.map((x) => x.type)).toEqual(["spot_released"]);
   });
 });

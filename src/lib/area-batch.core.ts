@@ -79,8 +79,8 @@ export const AREA_BATCH_RETURNED_EVENT = "area_batch_returned";
 export const areaBatchReturnedKey = (batchId: string, jobId: string) => `area-batch-returned:v1:${batchId}:${jobId}`;
 export const AREA_BATCH_EVENTS = [AREA_BATCH_SENT_EVENT, AREA_BATCH_CLOSED_EVENT, AREA_BATCH_LEFT_EVENT, AREA_BATCH_RETURNED_EVENT] as const;
 
-/** RETIRED 2 Nov 2026 (decision #22): the batch send and its day-2 reminder are now the `spot_released` text + O77 email
- *  (spot-release.core). These types stay for history only; their sms.core entries have wordingApproved:false. */
+/** 2 Nov 2026 (decision #22): the batch send and its day-2 reminder are now the `spot_released` text + O77 email
+ *  (spot-release.core). `quick_taps` is no longer sent; `quick_taps_reminder` still reminds batches first sent the old way. */
 export const QUICK_TAPS_SMS_TYPE = "quick_taps" as const;
 export const QUICK_TAPS_REMINDER_SMS_TYPE = "quick_taps_reminder" as const;
 
@@ -90,7 +90,8 @@ const hiName = (fullName: string | null | undefined) => (fullName ?? "").trim().
 /** RETIRED 2 Nov 2026 (decision #22) — no longer sent; kept for history/tests. Jo approved 30 Oct 2026 (replaces the spec's first wording). Verbatim. No name → "Hi there," (Jo approved). */
 export const quickTapsText = (fullName: string | null | undefined, link: string) =>
   `Hi ${hiName(fullName)}, great news - it's almost time for your free Ready Check! Please confirm a few quick details for your quote: ${link} - Home Insulation Victoria`;
-/** RETIRED 2 Nov 2026 (decision #22) — no longer sent. Day-2 reminder (was sent by Task 4's sweep). Jo approved 30 Oct 2026. */
+/** Day-2 reminder for batches sent BEFORE 2 Nov 2026 with the old quick taps text (area-batch.server legacyQuickTapsReminder;
+ *  batches sent since get the "It's your turn" reminder, decision #22). Jo approved 30 Oct 2026. Verbatim. */
 export const quickTapsReminderText = (fullName: string | null | undefined, link: string) =>
   `Hi ${hiName(fullName)}, just a reminder - please confirm a few quick details so we can book your free Ready Check: ${link}`;
 

@@ -51,7 +51,7 @@ import { MITTI_INVITE_MESSAGE, renderMittiInviteEmail } from "./mitti-invite.cor
 import { officeEmailLayout, electricianInviteLayout } from "./office-email.core";
 import { composeReply } from "./email-reply.core";
 import { brandSmsBody } from "./sms.core";
-import { quickTapsLink } from "./area-batch.core";
+import { quickTapsLink, quickTapsReminderText } from "./area-batch.core";
 import { runOfferedText } from "./run-route.core";
 import { exactTimeWords, runSlotCancelledText, runTeamTimeText, runTimeReminderText, runTimeText, windowWords } from "./run-portal.core";
 import { blastMessage } from "./save-spot-reminder-blast.core";
@@ -85,8 +85,8 @@ import { renderPaperworkCopyEmail } from "./paperwork-copy-email.core";
 import { piesaTimesReminderText, renderPiesaTimesReminderEmail } from "./piesa-times-reminder.core";
 import { installerPlanningText, renderInstallerPlanningEmail } from "./installer-planning-notice.core";
 import { ANSWER_CODES, ANSWER_SAMPLES, ANSWER_TYPES, renderOwnerAutoReplyEmail } from "./owner-email-auto-reply.core";
-import { renderSpotReleasedEmail } from "./spot-release-email.core";
-import { spotReleasedText } from "./spot-release.core";
+import { renderLegacySpotReleasedEmail, renderSpotReleasedEmail } from "./spot-release-email.core";
+import { legacySpotReleasedText, spotReleasedText } from "./spot-release.core";
 import { renderAddressRequestEmail } from "./address-request-email.core";
 import { addressRequestText } from "./address-request.core";
 import { renderInstallDepositOwnerEmail, renderInstallerDepositPaidEmail, depositOwnerText, type DepositMessageFacts } from './deposit-request-email.core';
@@ -440,6 +440,14 @@ const OWNER: TemplateEntry[] = [
   ENTRY({ id: "owner:sms-spot_released", section: "owner", step: "ready_check", kind: "text", code: "", name: "It's your turn (text)", when: "With O77 and its day-2 reminder (opens the quick taps)", who: "Owner", approvalNote: "Wording: Jo 2 Nov 2026, decision #22 (IT_IS_YOUR_TURN_V2_APPROVED stays false until Jo OKs the pictures)", gate: { kind: "text", smsType: "spot_released" },
     source: { builder: "src/lib/spot-release.core.ts", fn: "spotReleasedText", sender: "src/lib/area-batch.server.ts" },
     render: () => texts([{ label: "Released", body: spotReleasedText("Helen", quickTapsLink(JOB)) }, { label: "Day-2 reminder", body: spotReleasedText("Helen", quickTapsLink(JOB), true) }]) }),
+  // Fix round 1 (controller ruling 2 Nov 2026): releases made with the old Release step keep the wording Jo approved for
+  // them (decision 389, 25 Oct 2026) for their day-2 reminder / 7am text — unchanged, not behind IT_IS_YOUR_TURN_V2_APPROVED.
+  ENTRY({ id: "owner:O77-legacy", section: "owner", step: "ready_check", kind: "email", code: "O77", name: "It's your turn — confirm your free Ready Check (old Release step)", when: "Releases Jo made with the old Release step before 2 Nov 2026: their day-2 reminder (the page opens ?screen=turn)", who: "Owner", approvalNote: "Jo 25 Oct 2026, decision 389", gate: { kind: "email" },
+    source: { builder: "src/lib/spot-release-email.core.ts", fn: "renderLegacySpotReleasedEmail", sender: "src/lib/spot-release.server.ts" },
+    render: () => email(renderLegacySpotReleasedEmail({ firstName: "Helen", confirmUrl: `${JOB}?screen=turn`, unsubscribeUrl: UNSUB, reminder: false })) }),
+  ENTRY({ id: "owner:sms-spot_released-legacy", section: "owner", step: "ready_check", kind: "text", code: "", name: "It's your turn (text, old Release step)", when: "With the old-Release O77 and its day-2 reminder", who: "Owner", approvalNote: "Jo 25 Oct 2026, decision 389", gate: { kind: "text", smsType: "spot_released" },
+    source: { builder: "src/lib/spot-release.core.ts", fn: "legacySpotReleasedText", sender: "src/lib/spot-release.server.ts" },
+    render: () => texts([{ label: "Released", body: legacySpotReleasedText(`${JOB}?screen=turn`) }, { label: "Day-2 reminder", body: legacySpotReleasedText(`${JOB}?screen=turn`, true) }]) }),
   // Plan 2026-10-28 (full address required): a website/email enquiry with no street → the owner is asked to pick their
   // full address on their secure page, then ONE reminder 24h later. Wording approved by Jo 28 Oct 2026.
   ENTRY({ id: "owner:address-request", section: "owner", step: "enquiry", kind: "email", code: "", name: "We need your full address (+ 24h reminder)", when: "A website/email enquiry arrives with no street (after go-live); ONE reminder 24h later if still not answered", who: "Owner", approvalNote: "Jo 28 Oct 2026 (full address required)", gate: { kind: "email" },
@@ -455,7 +463,11 @@ const OWNER: TemplateEntry[] = [
     source: { builder: "src/lib/address-request.core.ts", fn: "addressRequestText", sender: "src/lib/address-request.server.ts" },
     render: () => text(addressRequestText(`${BASE}/my-address/TEST`, true)) }),
   // A48 batch 2 (Jo 29–30 Oct 2026): Jo taps Send on an area batch. The owner's message is now O77 + the "It's your turn"
-  // text above (decisions #21/#22); the separate quick_taps / quick_taps_reminder texts are retired (see NOT_LISTED_BUILDERS).
+  // text above (decisions #21/#22); the quick_taps text is retired (see NOT_LISTED_BUILDERS). Batches first sent with it
+  // (before 2 Nov 2026) still get its day-2 reminder (fix round 1, controller ruling 2 Nov 2026).
+  ENTRY({ id: "owner:sms-quick_taps_reminder", section: "owner", step: "ready_check", kind: "text", code: "", name: "Confirm a few quick details — day-2 reminder (text, batches sent before 2 Nov)", when: "Day 2 of a batch first sent with the old quick taps text, if the owner hasn't answered", who: "Owner", approvalNote: "Jo 30 Oct 2026 (A48 batch 2)", gate: { kind: "text", smsType: "quick_taps_reminder" },
+    source: { builder: "src/lib/area-batch.core.ts", fn: "quickTapsReminderText", sender: "src/lib/area-batch.server.ts" },
+    render: () => text(quickTapsReminderText("Helen Sample", `${JOB}?screen=taps`)) }),
   // A48 batch 2 part 2 (Jo 30 Oct 2026), Portal books: the installer picked the run's day → each owner's 1-hour window to
   // confirm, plus one reminder at 12 hours.
   ENTRY({ id: "owner:sms-run_time", section: "owner", step: "ready_check", kind: "text", code: "", name: "Your free Ready Check time — confirm (text)", when: "The installer picks the run's day (Portal books)", who: "Owner", approvalNote: "Jo 30 Oct 2026 (A48 batch 2 part 2 spec)", gate: { kind: "text", smsType: "run_time" },
@@ -821,7 +833,6 @@ export function templateStatus(e: TemplateEntry, sw: SwitchStates | null): { lab
 export const NOT_LISTED_BUILDERS: Record<string, string> = {
   renderPiesaOwnerConfirmEmail: "Retired by Task 5: combined signed-copy/declaration email is O28",
   quickTapsText: "Retired 2 Nov 2026 (decision #22): the batch send now opens the quick taps with the O77 email + the \"It's your turn\" text",
-  quickTapsReminderText: "Retired 2 Nov 2026 (decision #22): the day-2 reminder is the O77 reminder email + the \"just checking — it's your turn\" text",
   renderConsentBody: "Shown inside the ESC Owner's Consent document entry",
   renderJoEstimateEmail: "Internal step of renderJoOutcomeEmail",
   renderJoIneligibleEmail: "Internal step of renderJoOutcomeEmail",
