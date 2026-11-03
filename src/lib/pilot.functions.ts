@@ -110,6 +110,11 @@ export const setOnboardingStatus = createServerFn({ method: "POST" }).middleware
     const { business, credentials } = await loadBusiness(data.businessId);
     if (!business) throw new WorkflowError("Business not found");
     if (data.status === "approved") {
+      // Part 2b: an installer-added electrician is approved ONLY through its own hard checklist (my-electricians.server
+      // officeApproveInstallerElectrician: credentials verified, person approved, profile, link on, welcome text). The
+      // generic Approve must not bypass it. `select("*")` carries the pending column when it exists; absent = not installer-added.
+      const { isInstallerAddedElectrician } = await import("./my-electricians.core");
+      if (isInstallerAddedElectrician(business)) throw new WorkflowError("Use the electrician card on this page to approve an installer-added electrician.");
       const { count } = await admin.from("partner_agreements").select("id", { count: "exact", head: true }).eq("business_id", data.businessId);
       const missing = onboardingChecklist(business as BusinessLike, credentials, !!count).filter((i) => !i.done);
       if (missing.length) throw new WorkflowError(`Cannot approve yet: ${missing.map((m) => m.label).join(" • ")}`);

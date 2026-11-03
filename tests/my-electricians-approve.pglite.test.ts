@@ -14,7 +14,7 @@ CREATE TABLE partner_workers (id uuid primary key default gen_random_uuid(), bus
 CREATE TABLE profiles (id uuid primary key, email text, full_name text, business_id uuid);
 CREATE TABLE user_roles (id uuid primary key default gen_random_uuid(), user_id uuid not null, role text not null, UNIQUE (user_id, role));
 CREATE TABLE business_members (id uuid primary key default gen_random_uuid(), business_id uuid not null, user_id uuid not null, member_role text not null, active boolean not null default true, added_by uuid, UNIQUE (business_id, user_id));
-CREATE TABLE business_credentials (id uuid primary key default gen_random_uuid(), business_id uuid, kind text, label text, number text, expires_at date, document_path text, verification text not null default 'pending' CHECK (verification IN ('pending','verified','rejected')), critical boolean, created_by uuid, verified_by uuid, verified_at timestamptz, created_at timestamptz default now());
+CREATE TABLE business_credentials (id uuid primary key default gen_random_uuid(), business_id uuid, kind text, label text, number text, expires_at date, document_path text, profile_id uuid, verification text not null default 'pending' CHECK (verification IN ('pending','verified','rejected')), critical boolean, created_by uuid, verified_by uuid, verified_at timestamptz, created_at timestamptz default now());
 CREATE TABLE partner_relationships (id uuid primary key default gen_random_uuid(), installer_business_id uuid not null, electrician_business_id uuid not null, active boolean not null default true, preferred boolean default false, is_primary boolean default false, source text, notes text, created_by uuid, UNIQUE (installer_business_id, electrician_business_id));
 CREATE TABLE admin_config_events (id uuid primary key default gen_random_uuid(), actor_id uuid, event_type text, summary text, details jsonb, created_at timestamptz default now());
 CREATE TABLE sms_messages (id uuid primary key default gen_random_uuid(), message_type text, idempotency_key text, business_id uuid, job_id uuid, status text, created_at timestamptz default now());
@@ -68,6 +68,19 @@ mock.module("../src/lib/worker-approval.server", () => ({
     return true;
   },
 }));
+
+// The generic office business Approve (pilot.functions setOnboardingStatus) is called like a server function: the admin check passes.
+mock.module("@tanstack/react-start", () => ({
+  createServerFn: () => {
+    let validate: (d: unknown) => unknown = (d) => d;
+    const b = { middleware: () => b, inputValidator: (fn: typeof validate) => { validate = fn; return b; },
+      handler: (h: (a: { data: unknown; context: unknown }) => Promise<unknown>) => async (a: { data?: unknown }) =>
+        h({ data: validate(a?.data), context: { userId: OFFICE, supabase: { rpc: async () => ({ data: true, error: null }) } } }) };
+    return b;
+  },
+  createMiddleware: () => ({ server: () => ({}) }),
+}));
+mock.module("@/integrations/supabase/auth-middleware", () => ({ requireSupabaseAuth: {} }));
 
 const els = await import("../src/lib/my-electricians.server");
 const core = await import("../src/lib/my-electricians.core");
@@ -347,6 +360,29 @@ describe("after approval", () => {
     expect(alloc).toMatch(/hivLeadElectricianCandidates(<\w+>)?\(allBizs/);
   });
 
+  test("final review C1: the office opens the uploaded licence / PL from the ELECTRICIAN's page — the credential row proves the path is theirs; another business can't", async () => {
+    const { partnerFileBucket } = await import("../src/lib/partner-file.core");
+    const paths = (await db.query<{ document_path: string }>("select document_path from business_credentials where business_id=$1 and document_path is not null", [SAM])).rows.map((r) => r.document_path);
+    expect(paths.length).toBeGreaterThan(0);
+    for (const path of paths) {
+      expect(path.startsWith(`partners/${INST}/electrician-uploads/`)).toBe(true); // uploaded under the INSTALLER's prefix
+      // The same lookup partnerFileUrl runs (business being viewed + exact path): found for Sam, not for anyone else.
+      const mine = (await db.query("select 1 from business_credentials where business_id=$1 and document_path=$2", [SAM, path])).rows.length > 0;
+      const theirs = (await db.query("select 1 from business_credentials where business_id=$1 and document_path=$2", [INST2, path])).rows.length > 0;
+      expect(partnerFileBucket(SAM, path, mine)).toBe("job-files");
+      expect(partnerFileBucket(INST2, path, theirs)).toBeNull();
+    }
+  });
+  test("final review minor 7: the generic business Approve refuses an installer-added electrician (the hard checklist can't be bypassed)", async () => {
+    const { setOnboardingStatus } = await import("../src/lib/pilot.functions");
+    const { businessId: GENA } = await els.installerAddElectrician(U_BOSS, input({ name: "Gena Generic", email: "gena@generic.test", mobile: "0455666777", licenceNumber: "L-4242" }));
+    const read = async () => (await db.query<{ onboarding_status: string; is_active: boolean | null }>("select onboarding_status, is_active from businesses where id=$1", [GENA])).rows[0]!;
+    const before = await read();
+    expect(before).toEqual({ onboarding_status: "submitted", is_active: false });
+    expect(await reject(setOnboardingStatus({ data: { businessId: GENA, status: "approved" } }))).toBe("Use the electrician card on this page to approve an installer-added electrician.");
+    expect(await read()).toEqual(before);
+    expect((await db.query("select 1 from partner_relationships where electrician_business_id=$1 and active", [GENA])).rows).toHaveLength(0);
+  });
   test("the office functions are admin-only", () => {
     const fns = readFileSync(new URL("../src/lib/my-electricians.functions.ts", import.meta.url), "utf8");
     for (const name of ["approveInstallerElectrician", "rejectInstallerElectrician", "getInstallerElectricianReview"]) {

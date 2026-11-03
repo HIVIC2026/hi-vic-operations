@@ -11,7 +11,7 @@ import { sameWorkerEmail } from "./worker-role.core";
 import { isMissingDbObject } from "./schema-compat.core";
 import { allowedUpload } from "./upload-safety.core";
 import { melbourneToday } from "./worker-compliance.core";
-import { addElectricianProblems, approveChecklist, approveElectricianLine, finishApprovingElectricianLine, myElectricianStatus, rejectionEmail, REJECTION_EMAIL_APPROVED, welcomeSmsKey, welcomeSmsText, type AddElectricianInput, type MyElectricianStatus } from "./my-electricians.core";
+import { addElectricianProblems, approveChecklist, approveElectricianLine, finishApprovingElectricianLine, myElectricianStatus, PAYS_OWN_ELECTRICIANS_HINT, rejectionEmail, REJECTION_EMAIL_APPROVED, welcomeSmsKey, welcomeSmsText, type AddElectricianInput, type MyElectricianStatus } from "./my-electricians.core";
 import { stableUuid } from "./mitti-create-claim.core";
 import { TEST_PARTNER_MARK, isTestPartner, normaliseAuMobile } from "./test-send.core";
 
@@ -185,7 +185,7 @@ const CRED_KINDS = ["electrical_licence", "public_liability_insurance", "workers
 
 /** Where an electrician stands from its rows: rejected, still waiting, lapsed paperwork, or approved. Shared by the add
  *  path (gradeMatch) and the installer's list so the two never disagree. */
-function gradeRows(b: Pick<BizRow, "id" | "onboarding_status" | "is_active" | "installer_added_rejected_reason" | "workcover_exempt_declared_at">, ws: Pick<WorkerRow, "approval_status" | "licence_expires_on">[], creds: CredRow[], today: string): Grade & { licenceExpiry: string | null; plExpiry: string | null } {
+function gradeRows(b: Pick<BizRow, "id" | "onboarding_status" | "is_active" | "installer_added_rejected_reason" | "workcover_exempt_declared_at" | "added_by_installer_business_id">, ws: Pick<WorkerRow, "approval_status" | "licence_expires_on">[], creds: CredRow[], today: string): Grade & { licenceExpiry: string | null; plExpiry: string | null } {
   const reason = b.installer_added_rejected_reason?.trim() || null;
   const day = (v: unknown) => (v ? String(v).slice(0, 10) : null);
   const latest = (kind: string) => creds.filter((x) => x.kind === kind && x.verification !== "rejected").map((x) => day(x.expires_at)).filter((x): x is string => !!x).sort().pop() ?? null;
@@ -195,7 +195,7 @@ function gradeRows(b: Pick<BizRow, "id" | "onboarding_status" | "is_active" | "i
   const st = myElectricianStatus({
     onboardingStatus: b.onboarding_status, workerApproval: workerApproved ? "approved" : "pending", rejectedReason: reason,
     licenceExpiry: licence, plExpiry, workcoverExpiry: latest("workers_comp_insurance"),
-    workcoverExempt: !!b.workcover_exempt_declared_at, today,
+    workcoverExempt: !!b.workcover_exempt_declared_at, installerAdded: !!b.added_by_installer_business_id, today,
   });
   // Approved but switched off by the office counts as "can't use" with the same plain message as lapsed paperwork.
   const state = st === "approved" && b.is_active === false ? "expired" : st;
@@ -225,7 +225,7 @@ export async function installerMyElectricians(userId: string): Promise<MyElectri
   if (!links.length) return [];
   const ids = [...new Set(links.map((r) => r.electrician_business_id))];
   const [bz, ws, cr] = await Promise.all([
-    admin.from("businesses").select("id, name, onboarding_status, is_active, installer_added_rejected_reason, workcover_exempt_declared_at").in("id", ids) as unknown as Promise<{ data: (Pick<BizRow, "id" | "onboarding_status" | "is_active" | "installer_added_rejected_reason" | "workcover_exempt_declared_at"> & { name: string | null })[] | null; error: unknown }>,
+    admin.from("businesses").select("id, name, onboarding_status, is_active, installer_added_rejected_reason, workcover_exempt_declared_at, added_by_installer_business_id").in("id", ids) as unknown as Promise<{ data: (Pick<BizRow, "id" | "onboarding_status" | "is_active" | "installer_added_rejected_reason" | "workcover_exempt_declared_at" | "added_by_installer_business_id"> & { name: string | null })[] | null; error: unknown }>,
     admin.from("partner_workers").select("business_id, approval_status, licence_expires_on").in("business_id", ids).eq("trade_role", "electrician").is("removed_at", null),
     admin.from("business_credentials").select("business_id, kind, expires_at, verification").in("business_id", ids).in("kind", CRED_KINDS),
   ]);
@@ -445,10 +445,20 @@ export async function ownJobDocsBlocker(electricianBusinessId: string, today = m
  * `usual` marks the one saved in My business. Usual first, then by name. Read-only.
  */
 export async function pickableOwnElectricians(installerBusinessId: string): Promise<import("./electrician-choice.core").PickableElectrician[]> {
+  return (await ownElectricianPick(installerBusinessId)).electricians;
+}
+
+/** The pickable list plus the one plain hint for an empty list that has a reason the installer can act on (final review
+ *  minor 3): an installer that does NOT pay its own electricians (`readInstallerPaidElectricians` gives no flat PIESA
+ *  price) gets no list at all — picking one would only hold the quote "not onboarded" — and the hint to ask the office. */
+export async function ownElectricianPick(installerBusinessId: string): Promise<{ electricians: import("./electrician-choice.core").PickableElectrician[]; hint: string | null }> {
+  const { readInstallerPaidElectricians } = await import("./installer-paid-electricians.server");
+  const paid = await readInstallerPaidElectricians(installerBusinessId);
+  if (!paid || paid.piesaIncGst == null) return { electricians: [], hint: PAYS_OWN_ELECTRICIANS_HINT };
   const rels = await admin.from("partner_relationships").select("electrician_business_id").eq("installer_business_id", installerBusinessId).eq("active", true);
   if (rels.error) throw new WorkflowError("Could not load your electricians. Please try again.");
   const ids = [...new Set((rels.data ?? []).map((r) => r.electrician_business_id as string))];
-  if (!ids.length) return [];
+  if (!ids.length) return { electricians: [], hint: null };
   const [{ loadApprovedRecCandidates }, { approvedRecBlocker }, { readUsualElectrician }, { ourLeadUsualRecId }, { displayName }] = await Promise.all([
     import("./rec-onboarded.server"), import("./rec-onboarded.core"), import("./usual-electrician.server"), import("./our-lead-piesa-electrician.core"), import("./display-name.core"),
   ]);
@@ -461,7 +471,7 @@ export async function pickableOwnElectricians(installerBusinessId: string): Prom
     if (await ownJobDocsBlocker(bid)) continue;
     out.push({ businessId: bid, name: displayName(cand.trading_name || cand.name) || "Your electrician", usual: bid === usualId });
   }
-  return out.sort((a, b) => Number(b.usual) - Number(a.usual) || a.name.localeCompare(b.name, "en-AU"));
+  return { electricians: out.sort((a, b) => Number(b.usual) - Number(a.usual) || a.name.localeCompare(b.name, "en-AU")), hint: null };
 }
 
 /**

@@ -92,7 +92,8 @@ const notices: string[] = [];
 mock.module("../src/lib/own-job-piesa-notices.server", () => ({ sendOwnJobPiesaNotices: async (j: string) => { notices.push(j); return "stub"; } }));
 // The installer pays its own electricians (Reinsulate-style flat PIESA line), so no REC rate is needed anywhere.
 const realPaid = await import("../src/lib/installer-paid-electricians.server");
-mock.module("../src/lib/installer-paid-electricians.server", () => ({ ...realPaid, readInstallerPaidElectricians: async () => ({ businessId: INST, name: "Insul One", piesaIncGst: 350 }), installerSafetyCheckPrice: async () => 350 }));
+let paidResult: { businessId: string; name: string; piesaIncGst: number | null; release_hold_reason?: string } | null = { businessId: INST, name: "Insul One", piesaIncGst: 350 };
+mock.module("../src/lib/installer-paid-electricians.server", () => ({ ...realPaid, readInstallerPaidElectricians: async () => paidResult, installerSafetyCheckPrice: async () => paidResult?.piesaIncGst ?? null }));
 
 const els = await import("../src/lib/my-electricians.server");
 const core = await import("../src/lib/electrician-choice.core");
@@ -141,6 +142,25 @@ describe("pickableOwnElectricians", () => {
     await db.query("update partner_relationships set active=false where electrician_business_id=$1", [SAM]);
     expect((await els.pickableOwnElectricians(INST)).map((e) => e.businessId)).toEqual([USUAL]);
     await db.query("update partner_relationships set active=true where electrician_business_id=$1", [SAM]);
+  });
+  test("final review minor 3: an installer that does NOT pay its own electricians gets no list and the plain hint (not a misleading hold later)", async () => {
+    const { PAYS_OWN_ELECTRICIANS_HINT } = await import("../src/lib/my-electricians.core");
+    const { addJobElectricianChoices } = await import("../src/lib/onsite-ready-check.server");
+    const was = paidResult;
+    try {
+      paidResult = null; // flag off
+      expect(await els.pickableOwnElectricians(INST)).toEqual([]);
+      expect(await els.ownElectricianPick(INST)).toEqual({ electricians: [], hint: PAYS_OWN_ELECTRICIANS_HINT });
+      expect(await addJobElectricianChoices(INST)).toMatchObject({ electricians: [], hint: "Ask Home Insulation Victoria to switch on 'pays own electricians' for your business" });
+      paidResult = { businessId: INST, name: "Insul One", piesaIncGst: null, release_hold_reason: "held" }; // flag on, no PIESA price on the list
+      expect(await els.ownElectricianPick(INST)).toEqual({ electricians: [], hint: PAYS_OWN_ELECTRICIANS_HINT });
+      // And the pick itself is refused before anything is saved.
+      const before = (await db.query<{ n: string }>("select count(*)::text as n from jobs")).rows[0]!.n;
+      expect(await reject(onsite.startOnsiteReadyCheckFor(U_BOSS, INST, { ...owner, address_line: "9 Example St" }, { mode: "mine", business_id: SAM }, undefined, { electricianChoice: "usual", leadOrigin: "owner_contacted" }))).toBe("That electrician isn't on your list.");
+      expect((await db.query<{ n: string }>("select count(*)::text as n from jobs")).rows[0]!.n).toBe(before);
+    } finally { paidResult = was; }
+    expect((await els.ownElectricianPick(INST)).hint).toBeNull();
+    expect((await els.pickableOwnElectricians(INST)).map((e) => e.businessId)).toEqual([USUAL, SAM]);
   });
 });
 
@@ -236,5 +256,24 @@ describe("quote pipeline (review fix round 1): the PICKED electrician names the 
     } finally {
       for (const row of saved) await db.query("insert into admin_config_events (id, actor_id, event_type, summary, details) values ($1,$2,'installer_usual_electrician_saved','usual',$3)", [row.id, U_BOSS, JSON.stringify(row.details)]);
     }
+  });
+});
+
+describe("final review minor 5: a saved usual electrician never resolves to ANOTHER installer's installer-added electrician", () => {
+  // Insul Two saved "Sam Sparks / L-5555" as its usual electrician — the same name and licence as Insul One's installer-added Sam.
+  const INST2 = id(2), U_BOSS2 = id(12), J1 = id(510), J2 = id(511);
+  test("the safety-check fallback holds for Insul Two (no link) and uses Sam for Insul One (actively linked)", async () => {
+    await db.query(`insert into businesses (id, business_type, name, email, onboarding_status, is_active, capabilities) values ($1,'eec_installer','Insul Two','office@insultwo.test','approved',true,'[]')`, [INST2]);
+    await db.query(`insert into admin_config_events (actor_id, event_type, summary, details) values ($1,'installer_usual_electrician_saved','usual',$2)`, [U_BOSS2, JSON.stringify({ business_id: INST2, electrician: { name: "Sam Sparks", licence: "L-5555", priceIncGst: 0 } })]);
+    // Two Mitti pickups with the electrician question still open: one for each installer.
+    await db.query("insert into jobs (id, stage, channel, source, originating_installer_business_id) values ($1,'measured_quote_accepted','installer_sourced','installer_mitti',$2), ($3,'measured_quote_accepted','installer_sourced','installer_mitti',$4)", [J1, INST, J2, INST2]);
+    await db.query("insert into job_assignments (job_id, role, business_id, user_id) values ($1,'installer',$2,$3), ($4,'installer',$5,$6)", [J1, INST, U_BOSS, J2, INST2, U_BOSS2]);
+    const { mittiElectricianAtSafetyCheck } = await import("../src/lib/mitti-electrician.server");
+    expect(await mittiElectricianAtSafetyCheck(J2)).toEqual({ action: "hold" });
+    expect((await db.query<{ n: string }>("select count(*)::text as n from workflow_events where job_id=$1 and event_type='mitti_electrician_choice_needed'", [J2])).rows[0]!.n).toBe("1");
+    expect((await db.query<{ n: string }>("select count(*)::text as n from workflow_events where job_id=$1 and event_type='mitti_usual_electrician_used'", [J2])).rows[0]!.n).toBe("0");
+    // Insul One saved "Usual Volts"; swap its saved usual to Sam for this check: Sam IS linked to Insul One, so Sam is used.
+    await db.query(`insert into admin_config_events (actor_id, event_type, summary, details) values ($1,'installer_usual_electrician_saved','usual',$2)`, [U_BOSS, JSON.stringify({ business_id: INST, electrician: { name: "Sam Sparks", licence: "L-5555", priceIncGst: 0 } })]);
+    expect(await mittiElectricianAtSafetyCheck(J1)).toEqual({ action: "use_usual", businessId: SAM });
   });
 });

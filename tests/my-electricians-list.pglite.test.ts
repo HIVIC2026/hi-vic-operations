@@ -17,7 +17,7 @@ const INST = id(1), INST2 = id(2), U_BOSS = id(11), U_BOSS2 = id(12), U_STAFF = 
 await db.query(`insert into businesses (id, business_type, name, onboarding_status, is_active, capabilities) values ($1,'eec_installer','Insul One','approved',true,'[]'), ($2,'eec_installer','Insul Two','approved',true,'[]')`, [INST, INST2]);
 
 /** One electrician business + person + PL (+ optional WorkCover) credential, linked to an installer. */
-const mk = async (n: number, name: string, o: { status: string; active?: boolean; licExp: string; plExp?: string; wcExp?: string | null; exempt?: boolean; rejected?: string; addedBy?: string; linkTo?: string; linkActive?: boolean }) => {
+const mk = async (n: number, name: string, o: { status: string; active?: boolean; licExp: string | null; plExp?: string; wcExp?: string | null; exempt?: boolean; rejected?: string; addedBy?: string; linkTo?: string; linkActive?: boolean }) => {
   await db.query(`insert into businesses (id, business_type, name, onboarding_status, is_active, capabilities, installer_added_rejected_reason, added_by_installer_business_id, workcover_exempt_declared_at) values ($1,'rec',$2,$3,$4,'["electrician"]',$5,$6,$7)`,
     [id(n), name, o.status, o.active ?? true, o.rejected ?? null, o.addedBy ?? null, o.exempt === false ? null : new Date().toISOString()]);
   await db.query(`insert into partner_workers (business_id, trade_role, full_legal_name, email, licence_number, licence_expires_on, approval_status) values ($1,'electrician',$2,$3,$4,$5,$6)`, [id(n), name, `e${n}@x.test`, `L${n}`, o.licExp, o.status === "approved" ? "approved" : "pending"]);
@@ -30,7 +30,9 @@ await mk(20, "Wendy Waiting", { status: "submitted", active: false, licExp: "209
 await mk(21, "Alan Approved", { status: "approved", licExp: "2099-03-04", plExp: "2098-05-06", linkTo: INST, linkActive: true });
 await mk(22, "Nina Nope", { status: "submitted", active: false, licExp: "2099-01-01", rejected: "Blurry licence photo", addedBy: INST, linkTo: INST });
 await mk(23, "Eddie Expired", { status: "approved", licExp: "2020-01-01", linkTo: INST, linkActive: true });
-await mk(24, "Wally WorkCover", { status: "approved", licExp: "2099-01-01", wcExp: "2020-01-01", exempt: false, linkTo: INST, linkActive: true });
+await mk(24, "Wally WorkCover", { status: "approved", licExp: "2099-01-01", wcExp: "2020-01-01", exempt: false, addedBy: INST, linkTo: INST, linkActive: true });
+// A normally onboarded sole-trader REC (not installer-added): no WorkCover row, not "declared exempt", no licence expiry on file. Approved, not "expired".
+await mk(25, "Solo Rec", { status: "approved", licExp: null, exempt: false, linkTo: INST, linkActive: true });
 // Other installer's electrician, and an electrician with no link at all: never on Insul One's list.
 await mk(30, "Other Installer's", { status: "submitted", active: false, licExp: "2099-01-01", addedBy: INST2, linkTo: INST2 });
 await mk(31, "Nobody's", { status: "approved", licExp: "2099-01-01" });
@@ -55,6 +57,7 @@ describe("installerMyElectricians", () => {
       ["Alan Approved", "approved", null],
       ["Eddie Expired", "expired", null],
       ["Nina Nope", "not_approved", "Blurry licence photo"],
+      ["Solo Rec", "approved", null],
       ["Wally WorkCover", "expired", null],
       ["Wendy Waiting", "waiting", null],
     ]);

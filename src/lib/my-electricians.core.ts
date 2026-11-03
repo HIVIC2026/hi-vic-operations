@@ -38,14 +38,19 @@ export type MyElectricianStatus = "waiting" | "approved" | "expired" | "not_appr
 export type StatusFacts = {
   onboardingStatus: string | null; workerApproval: string | null; rejectedReason: string | null;
   licenceExpiry: string | null; plExpiry: string | null; workcoverExpiry: string | null; workcoverExempt: boolean; today: string;
+  /** Added by an installer (businesses.added_by_installer_business_id set). Only these use the strict Part 2b rule: a missing
+   *  date counts as lapsed and WorkCover is needed unless declared exempt. A normally onboarded REC (the office's own
+   *  checklist already passed) follows the portal convention: no date on file = not blocked, and WorkCover is not checked here. */
+  installerAdded: boolean;
 };
 
 /** What the installer's "My electricians" list shows. Rejected wins; approved electricians whose paperwork has lapsed show "expired". */
 export function myElectricianStatus(f: StatusFacts): MyElectricianStatus {
   if (!blank(f.rejectedReason)) return "not_approved";
   if (f.onboardingStatus !== "approved" || f.workerApproval !== "approved") return "waiting";
-  if (lapsed(f.licenceExpiry, f.today) || lapsed(f.plExpiry, f.today)) return "expired";
-  if (!f.workcoverExempt && lapsed(f.workcoverExpiry, f.today)) return "expired";
+  const gone = f.installerAdded ? lapsed : (d: string | null | undefined, today: string) => !!d && d < today;
+  if (gone(f.licenceExpiry, f.today) || gone(f.plExpiry, f.today)) return "expired";
+  if (f.installerAdded && !f.workcoverExempt && lapsed(f.workcoverExpiry, f.today)) return "expired";
   return "approved";
 }
 
@@ -100,6 +105,10 @@ export function rejectionEmail(i: { electricianName: string; reason: string }): 
 export const approveElectricianLine = (electricianName: string, installerName: string) => `Approve electrician ${electricianName.trim() || "name not given"} — added by ${installerName.trim() || "an installer"}`;
 /** The same item when the business is approved but a step (person, link, welcome text) didn't finish. */
 export const finishApprovingElectricianLine = (electricianName: string, installerName: string) => `Finish approving electrician ${electricianName.trim() || "name not given"} — added by ${installerName.trim() || "an installer"}`;
+
+/** Add a job, own electricians: an installer that does not pay its own electricians (no "pays own electricians" flag with a
+ *  PIESA price on its list) can't pick one — the quote would hold "not onboarded" with no way out. Plain hint instead. */
+export const PAYS_OWN_ELECTRICIANS_HINT = "Ask Home Insulation Victoria to switch on 'pays own electricians' for your business";
 
 // ---- "My electricians" screen rules (pure; the component in components/trade/my-electricians.tsx only renders these) ----
 

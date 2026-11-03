@@ -118,7 +118,7 @@ export function AddJobFlow({ businessId, onReset, onSavedChange }: { businessId:
             <input type="radio" name="add-job-electrician" value={o.businessId} checked={electrician === o.businessId} disabled={busy} onChange={() => { setElectrician(o.businessId); setErr(null); }} />{o.label}
           </label>
         ))}
-        {options.isSuccess && !electricians.length && <p className="mt-1 text-[13px] leading-[1.45] text-sub">{usual ? ELECTRICIAN_CARD.notOnboarded(usual.name) : ELECTRICIAN_CARD.noUsual}</p>}
+        {options.isSuccess && !electricians.length && <p className="mt-1 text-[13px] leading-[1.45] text-sub">{options.data?.hint ?? (usual ? ELECTRICIAN_CARD.notOnboarded(usual.name) : ELECTRICIAN_CARD.noUsual)}</p>}
         <FieldError>{errors.electrician}</FieldError>
       </fieldset>
       <VisitField value={visit} onChange={setVisit} disabled={busy} error={errors.visit} />

@@ -99,6 +99,19 @@ describe("installerAddElectrician", () => {
     expect(await reject(els.installerAddElectrician(U_BOSS, input({ email: "vic@volt.test" })))).toBe("Already on your list");
   });
 
+  test("final review I2: an approved sole-trader REC with no WorkCover row and no licence expiry on file links (not 'Expired')", async () => {
+    const SOLE = id(5);
+    await db.query(`insert into businesses (id, business_type, name, onboarding_status, is_active, capabilities) values ($1,'rec','Solo Sparks','approved',true,'["electrician"]')`, [SOLE]);
+    await db.query(`insert into partner_workers (business_id, trade_role, full_legal_name, email, licence_number, licence_expires_on, approval_status) values ($1,'electrician','Sol Solo','sol@solo.test','SOLO-1',null,'approved')`, [SOLE]);
+    await db.query(`insert into business_credentials (business_id, kind, expires_at, verification) values ($1,'public_liability_insurance','2099-01-01','verified')`, [SOLE]);
+    const r = await els.installerAddElectrician(U_BOSS, input({ name: "Sol", email: "sol@solo.test", licenceNumber: "solo1" }));
+    expect(r).toEqual({ result: "linked", businessId: SOLE });
+    expect((await db.query<{ active: boolean }>("select active from partner_relationships where installer_business_id=$1 and electrician_business_id=$2", [INST, SOLE])).rows).toEqual([{ active: true }]);
+    const row = (await els.installerMyElectricians(U_BOSS)).find((e) => e.id === SOLE)!;
+    expect(row.status).toBe("approved");
+    expect(row.licenceExpiry).toBeNull();
+  });
+
   test("an approved electrician matched by email links the second installer too", async () => {
     const r = await els.installerAddElectrician(U_BOSS2, input({ email: "VIC@volt.test", licenceNumber: "nope", licenceFilePath: `partners/${INST2}/electrician-uploads/a.jpg`, plFilePath: `partners/${INST2}/electrician-uploads/b.pdf` }));
     expect(r.result).toBe("linked");

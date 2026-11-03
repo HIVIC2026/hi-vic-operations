@@ -28,7 +28,7 @@ describe("addElectricianProblems", () => {
 });
 
 describe("myElectricianStatus", () => {
-  const base = { onboardingStatus: "approved", workerApproval: "approved", rejectedReason: null, licenceExpiry: "2027-01-01", plExpiry: "2027-01-01", workcoverExpiry: "2027-01-01", workcoverExempt: false, today };
+  const base = { onboardingStatus: "approved", workerApproval: "approved", rejectedReason: null, licenceExpiry: "2027-01-01", plExpiry: "2027-01-01", workcoverExpiry: "2027-01-01", workcoverExempt: false, installerAdded: true, today };
   const table: [string, Partial<typeof base>, string][] = [
     ["approved", {}, "approved"],
     ["submitted business", { onboardingStatus: "submitted" }, "waiting"],
@@ -40,6 +40,14 @@ describe("myElectricianStatus", () => {
     ["WorkCover lapsed", { workcoverExpiry: "2026-10-01" }, "expired"],
     ["WorkCover lapsed but exempt", { workcoverExpiry: null as unknown as string, workcoverExempt: true }, "approved"],
     ["expires today still ok", { licenceExpiry: today }, "approved"],
+    // A normally onboarded REC (not installer-added): the office's own checklist already passed, so no date on file is not
+    // a block and WorkCover is not checked here. A date that HAS lapsed still shows "expired".
+    ["REC: no licence expiry on file = approved", { installerAdded: false, licenceExpiry: null as unknown as string }, "approved"],
+    ["REC: no PL expiry on file = approved", { installerAdded: false, plExpiry: null as unknown as string }, "approved"],
+    ["REC: no WorkCover row, not declared exempt = approved", { installerAdded: false, workcoverExpiry: null as unknown as string, workcoverExempt: false }, "approved"],
+    ["REC: lapsed WorkCover is not checked", { installerAdded: false, workcoverExpiry: "2020-01-01" }, "approved"],
+    ["REC: licence actually lapsed = expired", { installerAdded: false, licenceExpiry: "2026-11-02" }, "expired"],
+    ["REC: PL actually lapsed = expired", { installerAdded: false, plExpiry: "2026-10-01" }, "expired"],
   ];
   for (const [name, o, want] of table) test(name, () => expect(myElectricianStatus({ ...base, ...o })).toBe(want as never));
 });

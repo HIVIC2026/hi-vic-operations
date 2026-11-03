@@ -81,7 +81,23 @@ async function usualApprovedBusinessId(jobId: string): Promise<string | null> {
   const status = await (await import("./usual-electrician.server")).readUsualElectricianStatus(biz);
   if (!status.electrician || !status.onboarded) return null;
   const approved = await (await import("./rec-onboarded.server")).loadApprovedRecCandidates();
-  return (await import("./our-lead-piesa-electrician.core")).ourLeadUsualRecId(status.electrician, approved);
+  return (await import("./our-lead-piesa-electrician.core")).ourLeadUsualRecId(status.electrician, await withoutOtherInstallersElectricians(approved, biz));
+}
+
+/** Part 2b (final review minor 5): an electrician another installer added is that installer's only. The saved usual is
+ *  matched by name/licence, so it must never land on an installer-added REC unless THIS installer is actively linked to it.
+ *  The added-by column is pending SQL: when it is missing nobody is installer-added. Any other read error fails closed (none kept). */
+async function withoutOtherInstallersElectricians<T extends { business_id: string }>(candidates: T[], installerBusinessId: string): Promise<T[]> {
+  if (!candidates.length) return candidates;
+  const ids = candidates.map((c) => c.business_id);
+  const added = (await admin.from("businesses").select("id, added_by_installer_business_id").in("id", ids).not("added_by_installer_business_id", "is", null)) as unknown as { data: { id: string }[] | null; error: { message: string; code?: string } | null };
+  if (added.error) { const { isMissingDbObject } = await import("./schema-compat.core"); return isMissingDbObject(added.error) ? candidates : []; }
+  const addedIds = new Set((added.data ?? []).map((b) => b.id));
+  if (!addedIds.size) return candidates;
+  const rels = await admin.from("partner_relationships").select("electrician_business_id").eq("installer_business_id", installerBusinessId).eq("active", true).in("electrician_business_id", [...addedIds]);
+  if (rels.error) return [];
+  const linked = new Set((rels.data ?? []).map((r) => r.electrician_business_id as string));
+  return candidates.filter((c) => !addedIds.has(c.business_id) || linked.has(c.business_id));
 }
 
 /**

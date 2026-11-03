@@ -164,12 +164,12 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
 
 /** What the Add a job electrician card needs (read-only): the usual-electrician status it showed before, plus every
  *  approved, linked electrician the installer may pick (Part 2b, Task 5; usual first and marked). */
-export async function addJobElectricianChoices(businessId: string): Promise<{ usualElectrician: { name: string; onboarded: boolean } | null; electricians: import("./electrician-choice.core").PickableElectrician[] }> {
-  const [{ electrician, onboarded }, electricians] = await Promise.all([
+export async function addJobElectricianChoices(businessId: string): Promise<{ usualElectrician: { name: string; onboarded: boolean } | null; electricians: import("./electrician-choice.core").PickableElectrician[]; /** Why the list is empty when the installer can fix it (ask the office to switch on "pays own electricians"); null otherwise. */ hint: string | null }> {
+  const [{ electrician, onboarded }, pick] = await Promise.all([
     (await import("./usual-electrician.server")).readUsualElectricianStatus(businessId),
-    (await import("./my-electricians.server")).pickableOwnElectricians(businessId),
+    (await import("./my-electricians.server")).ownElectricianPick(businessId),
   ]);
-  return { usualElectrician: electrician ? { name: electrician.name, onboarded } : null, electricians };
+  return { usualElectrician: electrician ? { name: electrician.name, onboarded } : null, electricians: pick.electricians, hint: pick.hint };
 }
 
 /**
