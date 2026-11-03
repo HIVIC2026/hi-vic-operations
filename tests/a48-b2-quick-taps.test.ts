@@ -11,6 +11,7 @@ import {
 } from "../src/lib/quick-taps.core";
 import { AREA_BATCH_EVENTS, AREA_BATCH_LEFT_EVENT, openBatchId, tapsBatchId } from "../src/lib/area-batch.core";
 import { renderQuickTapsDeclineEmail } from "../src/lib/quick-taps-email.core";
+import { RENTAL_TAPS, type RentalAnswersInput } from "../src/lib/rental-answers.core";
 
 type Row = Record<string, unknown>;
 const tables: Record<string, Row[]> = {};
@@ -757,5 +758,159 @@ describe("My job pass screen (Jo 2 Nov 2026)", () => {
   test("keeps the view the server returned after Save (not a locally built one)", () => {
     expect(src).not.toContain('{ kind: "done", outcome: done }');
     expect(src).not.toContain("setDone(r.outcome)");
+  });
+});
+
+// ---- Task 19: rentals in the quick taps (Jo 2 Nov 2026, answers 7 and 22) ----------------------------------------------
+const LIVES: RentalAnswersInput = { lives: "live" };
+const RENTED: RentalAnswersInput = { lives: "rented", tenantName: "Tina Lee", tenantMobile: "0400 111 222", tenantEmail: "tina@example.com", who: "property_manager", accessName: "Pat Ng", accessMobile: "0400 333 444" };
+const ASK = { rental: true };
+
+describe("rental questions in the quick taps (pure)", () => {
+  const base: QuickTapAnswers = { name: "H", address: "A", hatch: "yes", roof: "sloped", five_years: "no" };
+  test("asked after the website answers and before \"let's go\"", () => {
+    expect(nextTapStep(base, [], ASK)).toBe("lives");
+    expect(nextTapStep(base, ["property_type"], ASK)).toBe("property_type");
+    expect(nextTapStep({ ...base, website: { property_type: "house" } }, ["property_type"], ASK)).toBe("lives");
+    expect(nextTapStep({ ...base, rental: LIVES }, [], ASK)).toBe("go");
+  });
+  test("rented: tenant name, mobile, email, who lets us in, then (property manager) their name and mobile, then go", () => {
+    const order: string[] = [];
+    const a: QuickTapAnswers = { ...base, rental: { lives: "rented" } };
+    const fill: Record<string, () => void> = {
+      tenant_name: () => (a.rental!.tenantName = "Tina Lee"), tenant_mobile: () => (a.rental!.tenantMobile = "0400111222"), tenant_email: () => (a.rental!.tenantEmail = "t@e.co"),
+      who: () => (a.rental!.who = "property_manager"), access_name: () => (a.rental!.accessName = "Pat Ng"), access_mobile: () => (a.rental!.accessMobile = "0400333444"),
+    };
+    for (let s = nextTapStep(a, [], ASK); s && s !== "go"; s = nextTapStep(a, [], ASK)) { order.push(s); fill[s]!(); }
+    expect(order).toEqual(["tenant_name", "tenant_mobile", "tenant_email", "who", "access_name", "access_mobile"]);
+  });
+  test("the tenant or the owner letting us in needs no more questions", () => {
+    expect(nextTapStep({ ...base, rental: { ...RENTED, who: "tenant", accessName: undefined, accessMobile: undefined } }, [], ASK)).toBe("go");
+    expect(nextTapStep({ ...base, rental: { ...RENTED, who: "owner", accessName: undefined, accessMobile: undefined } }, [], ASK)).toBe("go");
+  });
+  test("rental needed for a pass or a no thanks when asked; not at all when off", () => {
+    expect(tapOutcome(ALL_GOOD(), [], ASK)).toBe("incomplete");
+    expect(tapOutcome(ALL_GOOD({ rental: LIVES }), [], ASK)).toBe("pass");
+    expect(tapOutcome(ALL_GOOD({ go: "no_thanks", rental: RENTED }), [], ASK)).toBe("no_thanks");
+    expect(tapOutcome(ALL_GOOD({ rental: { ...RENTED, tenantEmail: "" } }), [], ASK)).toBe("incomplete");
+    expect(tapOutcome(ALL_GOOD())).toBe("pass");
+    expect(nextTapStep({ ...base }, [])).toBe("go");
+  });
+  test("a decline tap decides before any rental question", () => {
+    expect(nextTapStep({ ...base, hatch: "no" }, [], ASK)).toBeNull();
+    expect(tapOutcome(ALL_GOOD({ five_years: "yes", go: undefined }), [], ASK)).toBe("decline_5yr");
+  });
+  test("Jo's question is the screen's wording", () => { expect(RENTAL_TAPS.livesThere).toBe("Do you live there or is it rented?"); });
+});
+
+describe("rental questions in the quick taps (saved)", () => {
+  beforeEach(seed);
+  const R = () => import("../src/lib/rental-answers.server");
+  const savedAnswers = () => events("quick_taps_answered", "a")[0]!["details"] as { answers: { rental?: unknown } };
+  test("the view says whether the rental questions are asked (off by default)", async () => {
+    addJob("a"); sendBatchEvent("b1", ["a"]);
+    expect(await S.quickTapsState(tok("a"))).toMatchObject({ kind: "ask", rental: false });
+    expect(await S.quickTapsState(tok("a"), ASK)).toMatchObject({ kind: "ask", rental: true });
+  });
+  test("off: the taps save as before, with no rental answers", async () => {
+    addJob("a"); sendBatchEvent("b1", ["a"]);
+    expect(await S.saveQuickTaps(tok("a"), ALL_GOOD())).toMatchObject({ kind: "done", outcome: "pass" });
+    expect(savedAnswers().answers.rental).toBeUndefined();
+    expect(await (await R()).rentalAnswersFor("a")).toBeNull();
+  });
+  test("asked but not answered → refused, nothing recorded", async () => {
+    addJob("a"); sendBatchEvent("b1", ["a"]);
+    await expect(S.saveQuickTaps(tok("a"), ALL_GOOD(), undefined, ASK)).rejects.toThrow("Please answer each question.");
+    expect(events("quick_taps_answered", "a")).toHaveLength(0);
+  });
+  test("\"I live there\" passes with rented false and no access person", async () => {
+    addJob("a"); sendBatchEvent("b1", ["a"]);
+    expect(await S.saveQuickTaps(tok("a"), ALL_GOOD({ rental: LIVES }), undefined, ASK)).toMatchObject({ kind: "done", outcome: "pass" });
+    const r = await R();
+    expect(await r.rentalAnswersFor("a")).toEqual({ rented: false, tenant: null, access: null });
+    expect(await r.accessPersonFor("a")).toBeNull();
+    expect(gates).toHaveLength(1); // the consent tap is unchanged
+  });
+  test("rented with a property manager: stored in the same quick_taps_answered event; read back by the readers", async () => {
+    addJob("a"); sendBatchEvent("b1", ["a"]);
+    await S.saveQuickTaps(tok("a"), ALL_GOOD({ rental: RENTED }), undefined, ASK);
+    expect(events("quick_taps_answered", "a")).toHaveLength(1);
+    const r = await R();
+    expect((await r.tenantFor("a"))?.email).toBe("tina@example.com");
+    expect(await r.accessPersonFor("a")).toEqual({ who: "property_manager", name: "Pat Ng", mobile: "+61400333444" });
+    expect(partnerCalls).toEqual([]); // hand-off rules untouched (needs the consent + in-house partner)
+  });
+  test("\"The tenant\" lets us in → access is Tina's; \"Me\" → the owner on file", async () => {
+    addJob("a"); sendBatchEvent("b1", ["a"]);
+    await S.saveQuickTaps(tok("a"), ALL_GOOD({ rental: { ...RENTED, who: "tenant" } }), undefined, ASK);
+    expect(await (await R()).accessPersonFor("a")).toEqual({ who: "tenant", name: "Tina Lee", mobile: "+61400111222" });
+    addJob("b"); sendBatchEvent("b2", ["b"]);
+    await S.saveQuickTaps(tok("b"), ALL_GOOD({ name: "Helen b", rental: { ...RENTED, who: "owner" } }), undefined, ASK);
+    expect((await (await R()).rentalAnswersFor("b"))?.access).toEqual({ who: "owner", name: "Helen b", mobile: "+61400000000" });
+  });
+  test("a landline for the tenant is refused", async () => {
+    addJob("a"); sendBatchEvent("b1", ["a"]);
+    await expect(S.saveQuickTaps(tok("a"), ALL_GOOD({ rental: { ...RENTED, tenantMobile: "03 9123 4567" } }), undefined, ASK)).rejects.toThrow();
+  });
+  test("a decline never needs (or stores) rental answers", async () => {
+    addJob("a"); sendBatchEvent("b1", ["a"]);
+    expect(await S.saveQuickTaps(tok("a"), ALL_GOOD({ hatch: "no", roof: undefined, five_years: undefined, go: undefined }), undefined, ASK)).toEqual({ kind: "done", outcome: "decline_access" });
+    expect(savedAnswers().answers.rental).toBeUndefined();
+  });
+  test("a pass recorded before this change (no rental answers) still reads as done and is not asked again", async () => {
+    addJob("a"); sendBatchEvent("b1", ["a"]);
+    await S.saveQuickTaps(tok("a"), ALL_GOOD());
+    expect(await S.quickTapsState(tok("a"), ASK)).toEqual({ kind: "done", outcome: "pass", installer: "Sample Insulation" });
+    expect(await S.saveQuickTaps(tok("a"), {}, undefined, ASK)).toEqual({ kind: "done", outcome: "pass", installer: "Sample Insulation" });
+  });
+});
+
+describe("My job taps screen: rental wiring (source)", () => {
+  const src = readFileSync(new URL("../src/routes/my-job.$token.tsx", import.meta.url), "utf8");
+  test("the screen reads the rental wording and the ?only=rental search", () => {
+    expect(src).toContain("RENTAL_TAPS");
+    expect(src).toContain("nextRentalStep");
+    expect(src).toContain('"only"');
+  });
+});
+
+describe("own customer: only the rental questions (?only=rental, Jo 2 Nov, answer 24)", () => {
+  beforeEach(seed);
+  const ONLY = { only: "rental" as const };
+  const own = (id: string, o: Parameters<typeof addJob>[1] = {}) => { addJob(id, o); (tables["jobs"]!.find((j) => j["id"] === id)!)["channel"] = "installer_sourced"; };
+  test("shows only the rental questions; no batch needed", async () => {
+    own("a");
+    expect(await S.quickTapsState(tok("a"), ONLY)).toEqual({ kind: "rental_ask" });
+    expect(await S.quickTapsState(tok("a"))).toEqual({ kind: "none" }); // the normal taps never show for them
+  });
+  test("a Home Insulation Victoria lead, a closed job or a bad link gets nothing", async () => {
+    addJob("h");
+    expect(await S.quickTapsState(tok("h"), ONLY)).toEqual({ kind: "none" });
+    own("c", { stage: "cancelled" });
+    expect(await S.quickTapsState(tok("c"), ONLY)).toEqual({ kind: "none" });
+    expect(await S.quickTapsState("bad", ONLY)).toEqual({ kind: "none" });
+    await expect(S.saveQuickTaps(tok("h"), { rental: LIVES }, undefined, ONLY)).rejects.toThrow();
+  });
+  test("saves through saveQuickTaps; rentalAnswersFor returns them; nothing else happens", async () => {
+    own("a");
+    expect(await S.saveQuickTaps(tok("a"), { rental: RENTED }, undefined, ONLY)).toEqual({ kind: "rental_done" });
+    const r = await import("../src/lib/rental-answers.server");
+    expect(await r.accessPersonFor("a")).toEqual({ who: "property_manager", name: "Pat Ng", mobile: "+61400333444" });
+    expect(events("quick_taps_answered", "a")).toHaveLength(1);
+    expect(gates).toHaveLength(0); expect(mails).toHaveLength(0); expect(cancels).toHaveLength(0); expect(partnerCalls).toEqual([]);
+    expect(await S.quickTapsState(tok("a"), ONLY)).toEqual({ kind: "rental_done" });
+  });
+  test("answered twice → the first answer stands", async () => {
+    own("a");
+    await S.saveQuickTaps(tok("a"), { rental: LIVES }, undefined, ONLY);
+    expect(await S.saveQuickTaps(tok("a"), { rental: RENTED }, undefined, ONLY)).toEqual({ kind: "rental_done" });
+    expect(await (await import("../src/lib/rental-answers.server")).rentalAnswersFor("a")).toEqual({ rented: false, tenant: null, access: null });
+    expect(events("quick_taps_answered", "a")).toHaveLength(1);
+  });
+  test("incomplete rental answers are refused and nothing is recorded", async () => {
+    own("a");
+    await expect(S.saveQuickTaps(tok("a"), { rental: { ...RENTED, tenantEmail: "" } }, undefined, ONLY)).rejects.toThrow("Please answer each question.");
+    await expect(S.saveQuickTaps(tok("a"), {}, undefined, ONLY)).rejects.toThrow();
+    expect(events("quick_taps_answered", "a")).toHaveLength(0);
   });
 });

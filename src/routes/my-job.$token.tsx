@@ -37,6 +37,7 @@ import { ownerRequestNewQuoteFn } from "@/lib/new-quote-request.functions";
 import { NEW_QUOTE_THANKS } from "@/lib/new-quote-request.core";
 import { ownerQuickTapsAddressSearchFn, ownerQuickTapsDetailsFn, ownerQuickTapsSaveFn, ownerQuickTapsStateFn } from "@/lib/quick-taps.functions";
 import { QUICK_TAPS_COPY, nextTapStep, quickTapsGoLabel, quickTapsPassLine, tapOutcome, websiteQuestions, type QuickTapAnswers, type QuickTapsView } from "@/lib/quick-taps.core";
+import { RENTAL_DONE_LINE, RENTAL_LIVES_VALUES, RENTAL_TAPS, RENTAL_WHO_VALUES, nextRentalStep, rentalFieldProblem, type RentalAnswersInput, type RentalStep } from "@/lib/rental-answers.core";
 import { createAddressPicker, type PickResult } from "@/lib/address-pick.core";
 import { assertInHouseActionSucceeded } from "@/lib/in-house.core";
 import { completeOwnerQuoteAcceptance, ownerQuoteCanAccept } from "@/lib/owner-quote-visibility.core";
@@ -53,12 +54,14 @@ export const Route = createFileRoute("/my-job/$token")({
   ssr: false,
   // Same rule as the former zod schema (optional enum, anything else rejected) without pulling zod into every page's first load (decision 280).
   // SCREENS mirrors the OwnerScreen union in owner-myjob.core.
-  validateSearch: (s: Record<string, unknown>): { screen?: OwnerScreen; stars?: number } => {
+  validateSearch: (s: Record<string, unknown>): { screen?: OwnerScreen; stars?: number; only?: "rental" } => {
     const screen = s["screen"];
     if (screen === undefined) return {};
     if (typeof screen === "string" && (SCREENS as readonly string[]).includes(screen)) {
       // Decision 335: ?stars=1..5 only on the review screen; anything else is ignored (never an error page from an email).
       const stars = screen === "review" ? parseStars(s["stars"]) : null;
+      // Task 19 (answer 24): ?screen=taps&only=rental = an installer's own customer answering only the rental questions.
+      if (screen === "taps" && s["only"] === "rental") return { screen: "taps", only: "rental" };
       return stars ? { screen: screen as OwnerScreen, stars } : { screen: screen as OwnerScreen };
     }
     throw new Error("Invalid screen");
@@ -84,7 +87,7 @@ const day = (iso: string) => new Date(iso).toLocaleDateString("en-AU", { weekday
 
 function MyJobPage() {
   const { token } = Route.useParams();
-  const { screen: requestedScreen, stars } = Route.useSearch();
+  const { screen: requestedScreen, stars, only } = Route.useSearch();
   const load = useServerFn(getOwnerMyJob);
   const { data, isLoading } = useQuery({ queryKey: ["my-job", token], queryFn: () => load({ data: { token } }) as Promise<View | null>, staleTime: 30_000, retry: false, refetchOnWindowFocus: false });
   const screen = resolveOwnerScreen(requestedScreen, data ?? {});
@@ -97,7 +100,7 @@ function MyJobPage() {
           : !data ? <Unavailable />
           : screen === "review" ? <ReviewScreen token={token} initialStars={stars ?? null} />
           : screen === "turn" ? <TurnScreen token={token} />
-          : screen === "taps" ? <TapsScreen v={data} token={token} />
+          : screen === "taps" ? <TapsScreen v={data} token={token} only={only} />
           : screen === "newquote" ? <NewQuoteScreen v={data} token={token} />
           : screen === "quote" ? <QuoteScreen v={data} token={token} />
           : screen === "pay" ? <><RepeatPiesaCard token={token} /><PayNowCard v={data} token={token} /></>
@@ -295,13 +298,13 @@ const tapPrimary = "flex min-h-14 w-full items-center justify-center rounded-ful
  *  answer left blank, then "Yes, let's go" / "No thanks". A decline tap ends it. Name/address changes are saved as they
  *  are given (a typed name waits for the address when there is no full address on file yet); the answers are saved once.
  *  Not in a batch asking for taps → the normal My job page. The link token is the only credential. */
-function TapsScreen({ v, token }: { v: View; token: string }) {
+function TapsScreen({ v, token, only }: { v: View; token: string; only?: "rental" | undefined }) {
   const load = useServerFn(ownerQuickTapsStateFn);
   const save = useServerFn(ownerQuickTapsSaveFn);
   const saveDetails = useServerFn(ownerQuickTapsDetailsFn);
   const qc = useQueryClient();
-  const { data: st, isLoading } = useQuery({ queryKey: ["owner-taps", token], queryFn: () => load({ data: { token } }) as Promise<QuickTapsView>, retry: false, refetchOnWindowFocus: false });
-  const [done, setDone] = useState<Extract<QuickTapsView, { kind: "done" }> | null>(null);
+  const { data: st, isLoading } = useQuery({ queryKey: ["owner-taps", token, only ?? null], queryFn: () => load({ data: { token, ...(only ? { only } : {}) } }) as Promise<QuickTapsView>, retry: false, refetchOnWindowFocus: false });
+  const [done, setDone] = useState<Extract<QuickTapsView, { kind: "done" | "rental_done" }> | null>(null);
   const [a, setA] = useState<QuickTapAnswers>({});
   const [onFile, setOnFile] = useState<{ name: string | null; address: string | null } | null>(null);
   const [pendingName, setPendingName] = useState<string | null>(null);
@@ -313,6 +316,8 @@ function TapsScreen({ v, token }: { v: View; token: string }) {
   const view: QuickTapsView | null = done ?? st ?? null;
   if (!view || view.kind === "none") return v.spotSaved ? <SpotSavedHome v={v} token={token} /> : <Home v={v} token={token} />;
   const card = "space-y-4 rounded-[22px] bg-card p-6 shadow-sm";
+  if (view.kind === "rental_done") return <section data-testid="owner-taps" data-outcome="rental_done" className={card}><p className="flex items-start gap-2 font-display text-xl font-extrabold"><Check className="mt-1 h-5 w-5 shrink-0 text-estimate-green" aria-hidden />{RENTAL_DONE_LINE}</p></section>;
+  if (view.kind === "rental_ask") return <RentalOnlyTaps token={token} only={only} onDone={(r) => { setDone(r); }} card={card} />;
   if (view.kind === "done") return <section data-testid="owner-taps" data-outcome={view.outcome} className={card}><p className="flex items-start gap-2 font-display text-xl font-extrabold">{view.outcome === "pass" && <Check className="mt-1 h-5 w-5 shrink-0 text-estimate-green" aria-hidden />}{view.outcome === "pass" ? quickTapsPassLine(view.installer) : QUICK_TAPS_COPY.outcome[view.outcome]}</p></section>;
   if (view.kind === "retry") return <section data-testid="owner-taps" className={card}><button type="button" className={tapPrimary} disabled={busy} onClick={async () => {
     setErr(""); setBusy(true);
@@ -323,7 +328,8 @@ function TapsScreen({ v, token }: { v: View; token: string }) {
   const name = onFile?.name ?? view.name;
   const address = onFile?.address ?? view.address;
   const blanksFor = (x: QuickTapAnswers) => websiteQuestions(view.website, x.website ?? {});
-  const step = nextTapStep(a, blanksFor(a));
+  const ask = { rental: view.rental };
+  const step = nextTapStep(a, blanksFor(a), ask);
   const submit = async (x: QuickTapAnswers) => {
     setErr(""); setBusy(true);
     try {
@@ -333,7 +339,7 @@ function TapsScreen({ v, token }: { v: View; token: string }) {
   };
   const answer = (x: QuickTapAnswers) => {
     setA(x); setEditing(false); setTyped(""); setErr("");
-    if (tapOutcome(x, blanksFor(x)) !== "incomplete") void submit(x);
+    if (tapOutcome(x, blanksFor(x), ask) !== "incomplete") void submit(x);
   };
   const details = async (input: { fullName?: string | null; placeId?: string | null }, then: (r: { name: string; address: string }) => void): Promise<PickResult> => {
     const r = await saveDetails({ data: { token, fullName: input.fullName ?? null, placeId: input.placeId ?? null } });
@@ -375,9 +381,56 @@ function TapsScreen({ v, token }: { v: View; token: string }) {
   else if (step === "five_years") body = <><h1 className="font-display text-2xl font-extrabold">{QUICK_TAPS_COPY.five_years.question}</h1>{options(QUICK_TAPS_COPY.five_years.options, (five_years) => answer({ ...a, five_years }))}</>;
   // Task 5 (Jo 2 Nov 2026): phone consent over 3 months old → "Yes, {installer} can call me".
   else if (step === "go") { const yes = quickTapsGoLabel(view); body = options(QUICK_TAPS_COPY.go.options.map((o) => (o.value === "yes" ? { ...o, label: yes } : o)), (go) => answer({ ...a, go })); }
+  // Task 19: "Do you live there or is it rented?" and what follows (only while the server says to ask).
+  else if (step === "lives" || step === "tenant_name" || step === "tenant_mobile" || step === "tenant_email" || step === "who" || step === "access_name" || step === "access_mobile")
+    body = <RentalStepBody key={step} step={step} busy={busy} set={(patch) => answer({ ...a, rental: { ...a.rental, ...patch } })} />;
   else if (step) { const w = QUICK_TAPS_COPY.website[step]; body = <><h1 className="font-display text-2xl font-extrabold">{w.label}</h1>{options(w.options, (value) => answer({ ...a, website: { ...a.website, [step]: value } }))}</>; }
   else body = <button type="button" className={tapPrimary} disabled={busy} onClick={() => void submit(a)}>Try again</button>;
   return <section data-testid="owner-taps" data-step={step ?? "saving"} className={card}>{body}{err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}</section>;
+}
+
+/** Task 19: one rental question. Buttons for "live or rented" and "who lets us in", a box for the typed details. */
+const RENTAL_TEXT: Record<"tenant_name" | "tenant_mobile" | "tenant_email" | "access_name" | "access_mobile", { label: string; field: keyof RentalAnswersInput; type: string; mode: "text" | "tel" | "email"; auto: string }> = {
+  tenant_name: { label: RENTAL_TAPS.tenantName, field: "tenantName", type: "text", mode: "text", auto: "off" },
+  tenant_mobile: { label: RENTAL_TAPS.tenantMobile, field: "tenantMobile", type: "tel", mode: "tel", auto: "off" },
+  tenant_email: { label: RENTAL_TAPS.tenantEmail, field: "tenantEmail", type: "email", mode: "email", auto: "off" },
+  access_name: { label: RENTAL_TAPS.accessName, field: "accessName", type: "text", mode: "text", auto: "off" },
+  access_mobile: { label: RENTAL_TAPS.accessMobile, field: "accessMobile", type: "tel", mode: "tel", auto: "off" },
+};
+function RentalStepBody({ step, busy, set }: { step: RentalStep; busy: boolean; set: (patch: Partial<RentalAnswersInput>) => void }) {
+  const [typed, setTyped] = useState("");
+  const [problem, setProblem] = useState("");
+  const choices = <T extends string>(values: readonly T[], labels: readonly string[], pick: (v: T) => void) =>
+    <div className="space-y-3">{values.map((value, i) => <button key={value} type="button" className={tapBtn} disabled={busy} onClick={() => pick(value)}>{labels[i]}</button>)}</div>;
+  if (step === "lives") return <><h1 className="font-display text-2xl font-extrabold">{RENTAL_TAPS.livesThere}</h1>{choices(RENTAL_LIVES_VALUES, RENTAL_TAPS.livesOptions, (lives) => set({ lives }))}</>;
+  if (step === "who") return <><h1 className="font-display text-2xl font-extrabold">{RENTAL_TAPS.whoLetsIn}</h1>{choices(RENTAL_WHO_VALUES, RENTAL_TAPS.whoOptions, (who) => set({ who }))}</>;
+  const t = RENTAL_TEXT[step];
+  const next = () => { const p = rentalFieldProblem(step, typed); if (p) { setProblem(p); return; } set({ [t.field]: typed.trim() }); };
+  return <>
+    <h1 className="font-display text-2xl font-extrabold"><label htmlFor="rental-text">{t.label}</label></h1>
+    <input id="rental-text" type={t.type} inputMode={t.mode} autoComplete={t.auto} className="h-14 w-full rounded-2xl border border-estimate-line bg-card px-4 text-lg" value={typed} disabled={busy} onChange={(e) => { setTyped(e.target.value); setProblem(""); }} />
+    {problem && <p role="alert" className="text-sm font-semibold text-destructive">{problem}</p>}
+    <button type="button" className={tapPrimary} disabled={busy} onClick={next}>Next</button>
+  </>;
+}
+
+/** Task 19 (answer 24): an installer's own customer answers ONLY the rental questions (`?screen=taps&only=rental`). */
+function RentalOnlyTaps({ token, only, onDone, card }: { token: string; only: "rental" | undefined; onDone: (r: { kind: "rental_done" }) => void; card: string }) {
+  const save = useServerFn(ownerQuickTapsSaveFn);
+  const [r, setR] = useState<RentalAnswersInput>({});
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const step = nextRentalStep(r);
+  const submit = async (x: RentalAnswersInput) => {
+    setErr(""); setBusy(true);
+    try { const res = (await save({ data: { token, answers: { rental: x }, ...(only ? { only } : {}) } })) as QuickTapsView; if (res.kind === "rental_done") onDone(res); }
+    catch (e) { setErr(errText(e)); } finally { setBusy(false); }
+  };
+  const set = (patch: Partial<RentalAnswersInput>) => { const next = { ...r, ...patch }; setR(next); if (nextRentalStep(next) === null) void submit(next); };
+  return <section data-testid="owner-taps" data-step={step ?? "saving"} className={card}>
+    {step ? <RentalStepBody key={step} step={step} busy={busy} set={set} /> : busy ? <p role="status" className="py-6 text-center text-sm">Saving…</p> : <button type="button" className={tapPrimary} onClick={() => void submit(r)}>Try again</button>}
+    {err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}
+  </section>;
 }
 
 /** The address tap's search (the same search-and-pick as the owner's address page, my-address.$token): the address can

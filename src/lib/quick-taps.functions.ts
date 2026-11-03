@@ -13,12 +13,19 @@ const answers = z.object({
   five_years: z.enum(["no", "yes", "not_sure"]).optional(),
   go: z.enum(["yes", "no_thanks"]).optional(),
   website: z.object({ property_type: z.string().max(40), top_floor: z.string().max(40), over_five_years: z.string().max(40), insulation: z.string().max(40) }).partial().optional(),
+  // Task 19: the rental questions.
+  rental: z.object({
+    lives: z.enum(["live", "rented"]), tenantName: z.string().max(200), tenantMobile: z.string().max(40), tenantEmail: z.string().max(200),
+    who: z.enum(["owner", "tenant", "property_manager"]), accessName: z.string().max(200), accessMobile: z.string().max(40),
+  }).partial().optional(),
 });
+/** Task 19 (answer 24): `rental` = an installer's own customer answering only the rental questions (`?only=rental`). */
+const only = z.literal("rental").optional();
 
 /** Owner: what `?screen=taps` shows (`none` = not in a batch asking for taps). */
 export const ownerQuickTapsStateFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
-  .inputValidator((d) => z.object({ token }).parse(d))
-  .handler(async ({ data }) => (await import("./quick-taps.server")).quickTapsState(data.token));
+  .inputValidator((d) => z.object({ token, only }).parse(d))
+  .handler(async ({ data }) => (await import("./quick-taps.server")).quickTapsState(data.token, data.only ? { only: data.only } : {}));
 
 /** Owner: address search on the address tap. */
 export const ownerQuickTapsAddressSearchFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
@@ -32,5 +39,5 @@ export const ownerQuickTapsDetailsFn = createServerFn({ method: "POST" }).middle
 
 /** Owner: the answers (once; a repeat gets the first outcome). */
 export const ownerQuickTapsSaveFn = createServerFn({ method: "POST" }).middleware([withRequestMeta])
-  .inputValidator((d) => z.object({ token, answers }).parse(d))
-  .handler(async ({ data, context }) => (await import("./quick-taps.server")).saveQuickTaps(data.token, data.answers, { ip: context.ip, userAgent: context.userAgent }));
+  .inputValidator((d) => z.object({ token, answers, only }).parse(d))
+  .handler(async ({ data, context }) => (await import("./quick-taps.server")).saveQuickTaps(data.token, data.answers, { ip: context.ip, userAgent: context.userAgent }, data.only ? { only: data.only } : {}));

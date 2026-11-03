@@ -51,6 +51,7 @@ import { composeReply } from "./email-reply.core";
 import { brandSmsBody } from "./sms.core";
 import { ownerWillCallEmail, ownerWillCallText } from "./owner-will-call.core";
 import { quickTapsLink, quickTapsReminderText } from "./area-batch.core";
+import { ownCustomerRentalTapsText, rentalOnlyLink } from "./rental-answers.core";
 import { runOfferedText } from "./run-route.core";
 import { runSlotCancelledText, windowWords } from "./run-portal.core";
 import { blastMessage } from "./save-spot-reminder-blast.core";
@@ -440,6 +441,11 @@ const OWNER: TemplateEntry[] = [
   ENTRY({ id: "owner:sms-owner_will_call", section: "owner", step: "ready_check", kind: "text", code: "", name: "{Installer} will call you (text)", when: "With the \"will call you\" email", who: "Owner", approvalNote: "Wording: Jo 2 Nov 2026, decision #23 (OWNER_WILL_CALL_APPROVED stays false until Jo OKs the pictures)", gate: { kind: "text", smsType: "owner_will_call" },
     source: { builder: "src/lib/owner-will-call.core.ts", fn: "ownerWillCallText", sender: "src/lib/in-house-batch-email.server.ts" },
     render: () => text(ownerWillCallText("Helen", WILL_CALL_SAMPLE) as string) }),
+  // Task 19 (Jo 2 Nov 2026, answer 24): an installer's OWN customer is texted the rental quick taps right after Add a job.
+  // DRAFT wording: OWN_CUSTOMER_RENTAL_TAPS_APPROVED stays false and the SMS type is wordingApproved:false (new switch off).
+  ENTRY({ id: "owner:sms-own_customer_rental_taps", section: "owner", step: "ready_check", kind: "text", code: "", name: "A few quick questions about your home (text, installer's own customer)", when: "Right after the installer adds the job (Add a job); opens only the rental questions: \"Do you live there or is it rented?\" and what follows", who: "Owner", approvalNote: "DRAFT wording for Jo to approve (answer 24, 2 Nov 2026); OWN_CUSTOMER_RENTAL_TAPS_APPROVED stays false", gate: { kind: "text", smsType: "own_customer_rental_taps" },
+    source: { builder: "src/lib/rental-answers.core.ts", fn: "ownCustomerRentalTapsText", sender: "src/lib/own-customer-rental-taps.server.ts" },
+    render: () => text(ownCustomerRentalTapsText({ firstName: "Helen", installer: "Sample Insulation", link: rentalOnlyLink(quickTapsLink(`${EST}/my-job/TOKEN`)) })) }),
   // Decision #24 + Fix 5 (Jo 2 Nov 2026): in-house Ready Check booked → "You're booked" (email + text) with the installer's
   // OFFICE phone, contact block and AP line; same purpose/key as the current in-house wording, which keeps going out
   // until OWNER_BOOKED_READY_CHECK_APPROVED is on. Held with an office note if the office phone or business email is missing.

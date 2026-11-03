@@ -5,6 +5,7 @@
 // straight away through the existing claim-guarded createAssignMittiAudit path (decision 115: no booking needed).
 // Decision 116: an optional visit day + time is saved through the same path as the job page (tradeSetReadyCheckTime).
 // Mitti stays hidden until the office ticks "Mitti account invited" for the business.
+// Task 19: after the save the customer is texted the rental quick taps (own-customer-rental-taps.server; off until Jo approves).
 // A6 (Jo 29 Oct): the save is one transaction (`add_installer_job`, add-installer-job.server) keyed by the phone's request
 // key, so Try again finishes the same job; until that function is live the step-by-step save below is used.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
@@ -141,6 +142,10 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
   // the atomic claim; an existing form skips. The tick remains the backup after a failure.
   const { onReadyCheckJobAdded } = await import("./mitti-create.server");
   const formCreation = await onReadyCheckJobAdded(job.id, userId, call).catch((e) => { console.error("ready check form not scheduled", (e as Error).message); return "skipped" as const; });
+  // Task 19 (Jo 2 Nov 2026, answer 24): the installer's own customer is texted the rental questions (draft wording, off until
+  // Jo approves it). Not on this form; a failure here never fails Add a job.
+  try { await (await import("./own-customer-rental-taps.server")).textOwnRentalTaps(job.id); }
+  catch (e) { console.error("rental questions text not sent", (e as Error).message); }
   const state = await onsiteFormFor(job.id, userId, call, false);
   return { jobId: job.id, jobNumber: job.job_number, booking, formCreation, state };
 }

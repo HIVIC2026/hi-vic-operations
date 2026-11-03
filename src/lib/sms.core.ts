@@ -126,6 +126,10 @@ export const SMS_MESSAGE_TYPES = {
   // "{Installer} will call you soon from {office phone}" (owner-will-call.core ownerWillCallText), with the email. Sent only
   // while OWNER_WILL_CALL_APPROVED; own switch, off until Jo switches it on.
   owner_will_call: { audience: "owner", label: "{Installer} will call you soon to book your free Ready Check – job given to the installer (decision #23; sent only while OWNER_WILL_CALL_APPROVED)", wordingApproved: true, quietHours: true },
+  // Task 19 (Jo 2 Nov 2026, answer 24): an installer's OWN customer gets the rental quick taps by text right after the
+  // installer adds the job (no "It's your turn" text for them). Wording is a DRAFT: never sends until Jo approves it (also
+  // behind OWN_CUSTOMER_RENTAL_TAPS_APPROVED); own switch, off until Jo switches it on.
+  own_customer_rental_taps: { audience: "owner", label: "A few quick questions about your home – installer's own customer, after the installer adds the job (answer 24; DRAFT wording, OWN_CUSTOMER_RENTAL_TAPS_APPROVED)", wordingApproved: false, quietHours: true },
 } as const;
 export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;
 
@@ -213,6 +217,7 @@ export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
   run_time_reminder: { kind: "window" }, // key = run + job + window; due 12h after the time text, recomputed by the tick
   run_slot_cancelled: { kind: "window" }, // key = run + job + window; `run_slot_cancelled` recorded once per window before any send; held → the tick retries while that time is still unfilled and ahead
   owner_will_call: { kind: "window" }, // key = job (one per job); sent only with the email while the job still waits for its Ready Check booking (in-house-batch-email.server)
+  own_customer_rental_taps: { kind: "window" }, // key = job (one per job); sent once right after Add a job (own-customer-rental-taps.server)
 };
 
 export type SmsEventInput = {

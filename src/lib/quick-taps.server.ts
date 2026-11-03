@@ -19,6 +19,10 @@
 //   The email goes only AFTER the job is closed: a failed close sends nothing and records `quick_taps_close_failed`.
 // - finishDecline(jobId): close + email for a decline answer, idempotent — what saveQuickTaps runs, and what a later
 //   sweep calls again for decline answers whose job isn't cancelled yet.
+// - Task 19 (Jo 2 Nov 2026, answers 7, 22, 24): while RENTAL_TAPS_APPROVED, the owner is also asked "Do you live there or is
+//   it rented?" (+ tenant, who lets us in) after the website answers and before the go tap; the answers are stored in the
+//   same `quick_taps_answered` details (`answers.rental`), read by rental-answers.server. An installer's own customer
+//   (no batch) answers ONLY those questions via `?only=rental` (`opts.only`), stored the same way.
 // Nothing here raises a Needs me row.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -31,6 +35,7 @@ import {
 } from "./quick-taps.core";
 import { formatPropertyAddress } from "./address";
 import { declaredExtras } from "./enquiry.core";
+import { RENTAL_TAPS_APPROVED, buildRentalAnswers, rentalAnswersFromTaps, rentalAnswersProblems } from "./rental-answers.core";
 import { normaliseInsulation } from "./eligibility.core";
 import { parseStreet } from "./address-complete.core";
 import { FULL_STREET_NEEDED } from "./address-request.core";
@@ -42,14 +47,21 @@ const DEAD = "This link isn't working any more. Please reply to our email.";
 const NAME_NEEDED = "Please type your full name.";
 const NOT_FOUND = "We couldn't find that address. Please try again.";
 
-type Owner = { full_name: string | null; email: string | null } | null;
+type Owner = { full_name: string | null; email: string | null; phone?: string | null } | null;
 type Prop = { id: string; address_line: string | null; suburb: string | null; state: string | null; postcode: string | null; enrichment: Record<string, unknown> | null } | null;
 type Job = { id: string; owner_id: string | null; stage: string; source: string | null; channel: string | null; deleted_at: string | null; property_id: string | null; owners: Owner; properties: Prop };
 type Ev = AreaBatchEventRow & { job_id?: string };
 type Consent = { consent_key: string; consent_status: string; consented_at: string | null; snapshot: unknown; source: string };
 type Ctx = { job: Job; events: Ev[]; savedInsulation: string | null; consents: Consent[] };
 /** Injected clock (tests); defaults to now. */
-export type QuickTapsOpts = { now?: Date };
+export type QuickTapsOpts = {
+  now?: Date;
+  /** Ask the rental questions (default: RENTAL_TAPS_APPROVED). */
+  rental?: boolean;
+  /** An installer's own customer answering only the rental questions (Jo 2 Nov, answer 24). */
+  only?: "rental";
+};
+const rentalAsked = (opts: QuickTapsOpts) => opts.rental ?? RENTAL_TAPS_APPROVED;
 
 const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
 const bid = (e: Ev) => str((e.details as { batch_id?: unknown } | null)?.batch_id);
@@ -63,7 +75,7 @@ async function jobForToken(token: string): Promise<string | null> {
 
 async function load(jobId: string): Promise<Ctx | null> {
   const [{ data: job, error }, { data: events, error: ee }, { data: saved }, { data: consents, error: ce }] = await Promise.all([
-    admin.from("jobs").select("id, owner_id, stage, source, channel, deleted_at, property_id, owners(full_name, email), properties(id, address_line, suburb, state, postcode, enrichment)").eq("id", jobId).maybeSingle(),
+    admin.from("jobs").select("id, owner_id, stage, source, channel, deleted_at, property_id, owners(full_name, email, phone), properties(id, address_line, suburb, state, postcode, enrichment)").eq("id", jobId).maybeSingle(),
     loose.from("workflow_events").select("job_id, event_type, created_at, details").eq("job_id", jobId).in("event_type", [...AREA_BATCH_EVENTS, QUICK_TAPS_ANSWERED_EVENT]),
     admin.from("lead_campaign_responses").select("saved_insulation").eq("job_id", jobId).maybeSingle(),
     admin.from("owner_contact_consents").select("consent_key, consent_status, consented_at, snapshot, source").eq("job_id", jobId),
@@ -111,7 +123,7 @@ function consentCurrent(c: Ctx, now: Date): boolean {
   return phoneConsentCurrent(record?.consentedAt ?? null, now.toISOString());
 }
 
-function viewOf(c: Ctx, now: Date = new Date()): QuickTapsView {
+function viewOf(c: Ctx, now: Date = new Date(), rental = false): QuickTapsView {
   const { batchId, answered, installer } = batchOf(c);
   if (answered) {
     const o = str((answered.details as { outcome?: unknown } | null)?.outcome);
@@ -120,7 +132,15 @@ function viewOf(c: Ctx, now: Date = new Date()): QuickTapsView {
   }
   const j = c.job;
   if (!batchId || j.stage === "cancelled" || j.deleted_at || j.channel !== "hivic_sourced") return { kind: "none" };
-  return { kind: "ask", name: str(j.owners?.full_name), address: addressText(j.properties), website: websiteFacts(c), installer: batchOf(c).installer, consentCurrent: consentCurrent(c, now) };
+  return { kind: "ask", name: str(j.owners?.full_name), address: addressText(j.properties), website: websiteFacts(c), installer: batchOf(c).installer, consentCurrent: consentCurrent(c, now), rental };
+}
+
+/** Answer 24: an installer's own customer (no batch) answers only the rental questions. Open while the job is live;
+ *  once any rental answers are recorded the first answer stands. */
+function rentalOnlyView(c: Ctx): QuickTapsView {
+  const j = c.job;
+  if (j.channel !== "installer_sourced" || j.stage === "cancelled" || j.deleted_at) return { kind: "none" };
+  return c.events.some((e) => e.event_type === QUICK_TAPS_ANSWERED_EVENT && rentalAnswersFromTaps(e.details)) ? { kind: "rental_done" } : { kind: "rental_ask" };
 }
 
 /** What My job `?screen=taps` shows. */
@@ -129,7 +149,8 @@ export async function quickTapsState(token: string, opts: QuickTapsOpts = {}): P
   if (!jobId) return { kind: "none" };
   const c = await load(jobId);
   if (!c) return { kind: "none" };
-  const view = viewOf(c, opts.now);
+  if (opts.only === "rental") return rentalOnlyView(c);
+  const view = viewOf(c, opts.now, rentalAsked(opts));
   if (view.kind === "done" && view.outcome === "pass" && (reconsentMissing(c) || !await sharingSignature(jobId))) return { kind: "retry" };
   return view;
 }
@@ -307,7 +328,9 @@ export async function saveQuickTaps(token: string, answers: QuickTapAnswers, met
   const jobId = await jobForToken(token);
   const c = jobId ? await load(jobId) : null;
   if (!jobId || !c) throw new WorkflowError(DEAD);
-  const view = viewOf(c, opts.now);
+  if (opts.only === "rental") return saveRentalOnly(jobId, c, answers);
+  const askRental = rentalAsked(opts);
+  const view = viewOf(c, opts.now, askRental);
   if (view.kind === "done") {
     if (view.outcome === "pass") await finishSharing(jobId, c, meta);
     return view;
@@ -317,13 +340,15 @@ export async function saveQuickTaps(token: string, answers: QuickTapAnswers, met
   if (!view.address) throw new WorkflowError(FULL_STREET_NEEDED);
   const batchId = batchOf(c).batchId!;
   const blanks = websiteQuestions(view.website, answers.website ?? {});
-  const outcome = tapOutcome(answers, blanks);
+  const outcome = tapOutcome(answers, blanks, { rental: askRental });
   if (outcome === "incomplete") throw new WorkflowError("Please answer each question.");
   const website = Object.fromEntries(blanks.filter((k) => answers.website?.[k]).map((k) => [k, answers.website![k]!]));
   await storeWebsiteAnswers(c, website, blanks);
   const stored = {
     name: view.name, address: view.address, hatch: answers.hatch ?? null, roof: answers.roof ?? null, five_years: answers.five_years ?? null, go: answers.go ?? null,
     ...(Object.keys(website).length ? { website } : {}),
+    // Task 19: a decline never reaches the rental questions.
+    ...(askRental && (outcome === "pass" || outcome === "no_thanks") ? { rental: buildRentalAnswers(answers.rental ?? {}, { name: view.name, phone: c.job.owners?.phone ?? null }) } : {}),
   };
   // The go label the owner tapped (and the installer it names) — recorded with the answer so the consent row says exactly that.
   const consent = outcome === "pass" ? { go_label: quickTapsGoLabel(view), consent_installer: view.installer } : {};
@@ -344,6 +369,17 @@ export async function saveQuickTaps(token: string, answers: QuickTapAnswers, met
   }
   await finishDecline(jobId);
   return { kind: "done", outcome };
+}
+
+/** Answer 24: the rental questions only, for an installer's own customer. One `quick_taps_answered` per job (claimed first). */
+async function saveRentalOnly(jobId: string, c: Ctx, answers: QuickTapAnswers): Promise<QuickTapsView> {
+  const view = rentalOnlyView(c);
+  if (view.kind !== "rental_ask") { if (view.kind === "rental_done") return view; throw new WorkflowError(DEAD); }
+  if (rentalAnswersProblems(answers.rental).length) throw new WorkflowError("Please answer each question.");
+  const rental = buildRentalAnswers(answers.rental ?? {}, { name: c.job.owners?.full_name ?? null, phone: c.job.owners?.phone ?? null });
+  await claimAnswer(jobId, { answers: { rental }, rental_only: true, outcome: "rental_only", idempotency_key: `rental-taps:v1:${jobId}:answered` },
+    rental.rented ? "Owner answered the rental questions: rented" : "Owner answered the rental questions: lives there");
+  return { kind: "rental_done" };
 }
 
 export type FinishDeclineResult = "finished" | "cancel_failed" | "nothing_to_do";

@@ -1,9 +1,10 @@
 // A48 batch 2 (spec part 1 + Jo's 30 Oct amendment): the owner's quick taps on My job `?screen=taps`. PURE: no I/O.
 // One question per screen, in this order: full name, address, hatch, roof, 5 years, any website answer the owner left
-// blank, then "Yes, let's go" / "No thanks". A decline tap ends the questions. "Not sure" always passes (the installer
+// blank, then (Task 19, only while RENTAL_TAPS_APPROVED) the rental questions, then "Yes, let's go" / "No thanks". A decline tap ends the questions. "Not sure" always passes (the installer
 // checks on the day). Wording is Jo's, verbatim (29–30 Oct 2026); the website questions reuse the portal's existing owner
 // question wording (owner-eligibility.core OWNER_QUESTIONS).
 import { OWNER_QUESTIONS } from "./owner-eligibility.core";
+import { nextRentalStep, rentalAnswersProblems, type RentalAnswersInput, type RentalStep } from "./rental-answers.core";
 
 export const QUICK_TAPS_ANSWERED_EVENT = "quick_taps_answered";
 
@@ -26,10 +27,14 @@ export type QuickTapAnswers = {
   five_years?: FiveYears | undefined;
   go?: GoAhead | undefined;
   website?: WebsiteAnswers | undefined;
+  /** Task 19: "Do you live there or is it rented?" and what follows (asked only when the view says so). */
+  rental?: RentalAnswersInput | undefined;
 };
+/** Which optional question groups this owner is asked. */
+export type TapAsk = { rental?: boolean | undefined };
 export type TapOutcome = "pass" | "decline_access" | "decline_5yr" | "no_thanks" | "incomplete";
 export type FinalOutcome = Exclude<TapOutcome, "incomplete">;
-export type TapStep = "name" | "address" | "hatch" | "roof" | "five_years" | "go" | WebsiteKey;
+export type TapStep = "name" | "address" | "hatch" | "roof" | "five_years" | "go" | WebsiteKey | RentalStep;
 
 type Opt<V extends string> = { value: V; label: string };
 const opts = <V extends string>(pairs: readonly (readonly [V, string])[]): Opt<V>[] => pairs.map(([value, label]) => ({ value, label }));
@@ -99,7 +104,7 @@ const validWebsite = (k: WebsiteKey, v: string | undefined) => !!v && QUICK_TAPS
 
 /** The outcome so far. Name and address are required; a decline tap decides at once; otherwise every tap, every blank
  *  website answer and the final "let's go" are needed. */
-export function tapOutcome(a: QuickTapAnswers, blanks: readonly WebsiteKey[] = []): TapOutcome {
+export function tapOutcome(a: QuickTapAnswers, blanks: readonly WebsiteKey[] = [], ask: TapAsk = {}): TapOutcome {
   if (blank(a.name) || blank(a.address)) return "incomplete";
   if (a.hatch === "no") return "decline_access";
   if (!a.hatch) return "incomplete";
@@ -108,26 +113,31 @@ export function tapOutcome(a: QuickTapAnswers, blanks: readonly WebsiteKey[] = [
   if (a.five_years === "yes") return "decline_5yr";
   if (!a.five_years) return "incomplete";
   if (blanks.some((k) => !validWebsite(k, a.website?.[k]))) return "incomplete";
+  if (ask.rental && rentalAnswersProblems(a.rental).length) return "incomplete";
   if (a.go === "no_thanks") return "no_thanks";
   return a.go === "yes" ? "pass" : "incomplete";
 }
 
 /** The next question to show, or null when the answers are decided (a decline, or everything answered). */
-export function nextTapStep(a: QuickTapAnswers, blanks: readonly WebsiteKey[] = []): TapStep | null {
-  if (tapOutcome(a, blanks) !== "incomplete") return null;
+export function nextTapStep(a: QuickTapAnswers, blanks: readonly WebsiteKey[] = [], ask: TapAsk = {}): TapStep | null {
+  if (tapOutcome(a, blanks, ask) !== "incomplete") return null;
   if (blank(a.name)) return "name";
   if (blank(a.address)) return "address";
   if (!a.hatch) return "hatch";
   if (!a.roof) return "roof";
   if (!a.five_years) return "five_years";
   const w = blanks.find((k) => !validWebsite(k, a.website?.[k]));
-  return w ?? "go";
+  if (w) return w;
+  return (ask.rental ? nextRentalStep(a.rental) : null) ?? "go";
 }
 
 /** What My job `?screen=taps` shows. `none` = not in a batch asking for taps (the normal My job page shows instead). */
 export type QuickTapsView =
   | { kind: "none" }
-  | { kind: "ask"; name: string | null; address: string | null; website: WebsiteFacts; installer: string | null; consentCurrent: boolean }
+  | { kind: "ask"; name: string | null; address: string | null; website: WebsiteFacts; installer: string | null; consentCurrent: boolean; /** Task 19: the rental questions are asked. */ rental: boolean }
+  /** Task 19 (answer 24): an installer's own customer, answering ONLY the rental questions (`?only=rental`). */
+  | { kind: "rental_ask" }
+  | { kind: "rental_done" }
   | { kind: "retry" }
   | { kind: "done"; outcome: FinalOutcome; installer?: string | null };
 

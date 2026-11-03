@@ -108,7 +108,8 @@ describe("approved message switches are on (Jo 24 Oct 2026)", () => {
     // Decision 389 (25 Oct 2026): the "It's your turn" text is approved (Jo saw the O77 picture).
     // Jo approved the address request texts and email on 28 Oct 2026 (full address required).
     // Part 3 Task 16 (Jo 2 Nov 2026): these four are retired on purpose (label "Retired 2 Nov 2026 —"); nothing else is unapproved.
-    expect(off).toEqual(["ready_check_times_owner", "ready_check_booked_owner", "run_time", "run_time_reminder"]);
+    // Part 3 Task 19 (Jo 2 Nov 2026, answer 24): the installer's own customer rental questions text is a DRAFT until Jo approves it.
+    expect(off).toEqual(["ready_check_times_owner", "ready_check_booked_owner", "run_time", "run_time_reminder", "own_customer_rental_taps"]);
     expect(ADDRESS_REQUEST_EMAIL_APPROVED).toBe(true);
     expect("ready_check_booking" in SMS_MESSAGE_TYPES).toBe(false);
   });
