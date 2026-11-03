@@ -113,46 +113,64 @@ async function seed(choice: string | null) {
   await db.query("insert into rate_card_items (rate_card_id, code, unit_price_ex_gst, unit) values ($1,'PIESA',250,'flat')", [RATE_CARD]);
 }
 
-describe("Jo 22 Oct Mitti three-option quote persistence on practice Postgres", () => {
-  beforeEach(async () => { await seed("hivic_organise"); await db.query("update ceiling_measurements set measured_area_m2=142 where job_id=$1", [JOB]); });
+// Jo 22 Oct's three Mitti electrician options, re-pinned to the rules that replaced them: decision 303 (25 Oct: only an
+// approved REC may be quoted; a free-text "different electrician" holds "Electrician not onboarded"), Jo 2–3 Nov (no Home
+// Insulation Victoria electrician on installer jobs; installers pick their own) and Jo 4 Nov 2026 (two boxes — final: the
+// own-customer PIESA line is the INSTALLER's own rate-card PIESA price — $275 here — never the REC's rate or a fixed $349).
+describe("Mitti electrician answers on an installer's own job, on practice Postgres", () => {
+  const WORKER = "00000000-0000-0000-0000-00000000f201";
+  beforeEach(async () => {
+    await seed("hivic_organise");
+    await db.query("update ceiling_measurements set measured_area_m2=142 where job_id=$1", [JOB]);
+    // Sample Electrical is an approved REC: an approved electrician worker (licence TEST-PROFILE-LIC) and an active onboarded PIESA rate ($220).
+    await db.query("insert into partner_workers (id, business_id, trade_role, approval_status, licence_number) values ($1,$2,'electrician','approved','TEST-PROFILE-LIC')", [WORKER, EL]);
+    await db.query("insert into electrician_rates (business_id, service_type, rate_inc_gst, status, effective_from) values ($1,'piesa',220,'active','2026-01-01')", [EL]);
+  });
   const entries = (choice: string) => [
     { label: "What's included in your quote?", value: "R5.0 supply and install" },
     { label: "Total quoted price (inc GST)", value: "3450" },
+    { label: "Insulation product", value: "Bradford Gold R5" },
     { label: "Who is doing the electrical safety check?", value: choice },
     { label: "Electrician name", value: "TEST Form REC" },
     { label: "Electrician licence number", value: "TEST-FORM-LIC" },
     { label: "Electrician price (inc GST)", value: "$450.50" },
   ];
-  test("Home Insulation Victoria electrician: saved electrical349 and AP349, held unsent", async () => {
+  const held = async () => (await db.query<{ details: { blockers: string[] } }>("select details from workflow_events where job_id=$1 and event_type='installer_quote_held' order by created_at desc limit 1", [JOB])).rows[0]?.details.blockers ?? [];
+  test("legacy 'Home Insulation Victoria electrician' answer with no usual electrician saved: no quote — the arrangement is not decided (Jo 2–3 Nov 2026: installers pick their own electrician)", async () => {
     await draftInstallerQuoteFromReadyCheck(JOB, U, entries("Home Insulation Victoria electrician"), "audit_test");
-    const q = (await current())[0]; expect(q).toBeDefined(); if (!q) return;
-    expect(await items(q.id)).toEqual(["INSTALLER_PRICE:3450", "PIESA:349", "AP_FEE:349"]);
-    expect(Number(q.subtotal_inc_gst)).toBe(4148);
-    expect(await quoteBillingBlocker(q.id)).toBeNull();
-    const state = (await db.query<{release_state: string; sent_at: unknown}>("select release_state,sent_at from quotes where id=$1", [q.id])).rows[0];
-    expect(state).toEqual({release_state: "held", sent_at: null});
+    expect(await current()).toEqual([]);
+    expect(await held()).toContain("Electrician arrangement is not decided");
+    expect(await held()).not.toContain("Installer business has no PIESA rate on its rate card"); // the rate is there; it is the electrician that is missing
   });
-  test("usual profile $275 used, compliance name/licence saved, repeat does not duplicate", async () => {
-    await db.query("insert into admin_config_events(event_type,details) values ('installer_usual_electrician_saved',$1)", [JSON.stringify({business_id: BIZ, electrician: {name: "TEST Profile REC", licence: "TEST-PROFILE-LIC", priceIncGst: 275}})]);
+  test("usual profile that resolves to an approved REC: quote drafted with the INSTALLER's $275 PIESA (never the REC's $220 or $349), identity saved, repeat does not duplicate, profile change holds", async () => {
+    await db.query("insert into admin_config_events(event_type,details) values ('installer_usual_electrician_saved',$1)", [JSON.stringify({business_id: BIZ, electrician: {name: "TEST Profile REC", licence: "TEST-PROFILE-LIC"}})]);
     await draftInstallerQuoteFromReadyCheck(JOB, U, entries("My usual electrician"), "audit_test");
     const q = (await current())[0]; expect(q).toBeDefined(); if (!q) return;
-    expect(await items(q.id)).toEqual(["INSTALLER_PRICE:3450", "PIESA:275", "AP_FEE:349"]);
+    expect(await items(q.id)).toEqual(["INSTALLER_PRICE:3450", "AP_FEE:349", "PIESA:275"]);
     expect(Number(q.subtotal_inc_gst)).toBe(4074); expect(await quoteBillingBlocker(q.id)).toBeNull();
-    const facts = (await db.query<{details: {name: string; licence: string; source: string}}>("select details from workflow_events where event_type='mitti_electrician_recorded'", [])).rows[0]?.details;
-    expect(facts).toMatchObject({name: "TEST Profile REC", licence: "TEST-PROFILE-LIC", source: "installer_profile"});
+    const facts = (await db.query<{details: {name: string; licence: string; source: string; priceIncGst: number; recBusinessId: string}}>("select details from workflow_events where event_type='mitti_electrician_recorded'", [])).rows[0]?.details;
+    expect(facts).toMatchObject({name: "TEST Profile REC", licence: "TEST-PROFILE-LIC", source: "approved_rec", priceIncGst: 275, recBusinessId: EL});
     await draftInstallerQuoteFromReadyCheck(JOB, U, entries("My usual electrician"), "audit_test");
     expect((await current()).length).toBe(1);
     expect((await db.query("select id from workflow_events where event_type='mitti_electrician_recorded'", [])).rows.length).toBe(1);
-    await db.query("insert into admin_config_events(event_type,details) values ('installer_usual_electrician_saved',$1)", [JSON.stringify({business_id: BIZ, electrician: {name: "TEST Profile REC", licence: "TEST-PROFILE-LIC", priceIncGst: 300}})]);
+    await db.query("insert into admin_config_events(event_type,details) values ('installer_usual_electrician_saved',$1)", [JSON.stringify({business_id: BIZ, electrician: {name: "TEST Other REC", licence: "TEST-OTHER-LIC"}})]);
     expect(await quoteBillingBlocker(q.id)).toContain("profile changed");
   });
-  test("different form $450.50 used, saved identity and quote snapshot", async () => {
-    await draftInstallerQuoteFromReadyCheck(JOB, U, entries("A different electrician"), "audit_test");
+  test("the installer's PIESA rate changes after the draft: the old draft holds 'does not match' and is never sent at the old amount (Jo 4 Nov 2026)", async () => {
+    await db.query("insert into admin_config_events(event_type,details) values ('installer_usual_electrician_saved',$1)", [JSON.stringify({business_id: BIZ, electrician: {name: "TEST Profile REC", licence: "TEST-PROFILE-LIC"}})]);
+    await draftInstallerQuoteFromReadyCheck(JOB, U, entries("My usual electrician"), "audit_test");
     const q = (await current())[0]; expect(q).toBeDefined(); if (!q) return;
-    expect(await items(q.id)).toEqual(["INSTALLER_PRICE:3450", "PIESA:450.5", "AP_FEE:349"]);
-    expect(Number(q.subtotal_inc_gst)).toBe(4249.5); expect(await quoteBillingBlocker(q.id)).toBeNull();
-    const facts = (await db.query<{details: {name: string; licence: string}}>("select details from workflow_events where event_type='mitti_electrician_recorded'", [])).rows[0]?.details;
-    expect(facts).toMatchObject({name: "TEST Form REC", licence: "TEST-FORM-LIC"});
+    await db.query("update rate_card_items set unit_price_ex_gst = 300"); // $330 inc now
+    await draftInstallerQuoteFromReadyCheck(JOB, U, entries("My usual electrician"), "audit_test"); // re-records the resolution at $330
+    expect(await quoteBillingBlocker(q.id)).toBe("Ready Check electrician details changed or are incomplete — prepare a new quote");
+  });
+  test("free-text 'A different electrician' (retired form answer) holds 'Electrician not onboarded' — decision 303; the $450.50 typed price is never used", async () => {
+    await draftInstallerQuoteFromReadyCheck(JOB, U, entries("A different electrician"), "audit_test");
+    expect(await current()).toEqual([]);
+    expect(await held()).toContain("Electrician not onboarded: TEST Form REC");
+    const facts = (await db.query<{details: {name: string; licence: string; priceIncGst: number | null}}>("select details from workflow_events where event_type='mitti_electrician_recorded'", [])).rows[0]?.details;
+    expect(facts).toMatchObject({name: "TEST Form REC", licence: "TEST-FORM-LIC", priceIncGst: null});
+    expect(await evs()).toContain("electrician_onboarding_needed");
   });
   test("missing usual profile: no quote, exact Office reason, reminder OFF, no duplicate office item", async () => {
     for (let i=0; i<2; i++) await draftInstallerQuoteFromReadyCheck(JOB, U, entries("My usual electrician"), "audit_test");

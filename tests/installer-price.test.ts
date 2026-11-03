@@ -420,7 +420,8 @@ describe("Enter your price step (Task 4)", () => {
 });
 
 describe("wiring (source facts)", () => {
-  const read = (f: string) => readFileSync(f, "utf8");
+  // Part 10 (d89d335) reformatted these modules onto several lines: the pins read them with whitespace collapsed.
+  const read = (f: string) => readFileSync(f, "utf8").replace(/\s+/g, " ").replace(/\( /g, "(").replace(/ \)/g, ")");
   test("server: Boss or Office only, append-only event, prepares through the existing guarded paths, never sends by itself", () => {
     const s = read("src/lib/installer-price-set.server.ts");
     // Task 4: the price entry check is the Part 5 role rule (seesPrices), not business_admin-only; the HIV switch stays boss-only.
@@ -447,7 +448,7 @@ describe("wiring (source facts)", () => {
   test("functions: literal createServerFn chains, no react-start/server import, no electrician fields", () => {
     const s = read("src/lib/installer-price.functions.ts");
     expect(
-      s.match(/createServerFn\(\{ method: "POST" \}\)\.middleware\(\[requireSupabaseAuth\]\)/g)
+      s.match(/createServerFn\(\{ method: "POST" \}\) ?\.middleware\(\[requireSupabaseAuth\]\)/g)
         ?.length,
     ).toBe(3);
     expect(s).not.toContain("@tanstack/react-start/server");
@@ -479,7 +480,8 @@ describe("wiring (source facts)", () => {
     );
     expect(page).toContain("{showPrice && <div className=\"mt-4\"><InstallerPriceCard jobId={jobId} /></div>}");
     expect(page).not.toContain("Your price goes in the Mitti form");
-    expect(read("src/lib/trade-view.server.ts")).toContain("pay: { amount: c.boss ? pay : null");
+    // Part 5 role rule (seesMoney): the pay amount shows for Money readers, not business_admin alone.
+    expect(read("src/lib/trade-view.server.ts")).toContain("pay: { amount: c.money ? pay : null");
     // The owner's quote (with the boss's figures) is status-only for team members on installer jobs.
     // (Speed, decision 280: the read body lives in my-owner-quote.server.ts so the installer job bundle shares it.)
     expect(read("src/lib/installer-quote-status.functions.ts")).toContain("myOwnerQuoteFor(");

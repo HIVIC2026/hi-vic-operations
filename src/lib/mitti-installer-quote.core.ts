@@ -14,7 +14,10 @@ import { MITTI_INSTALLER_FEE_INC_GST, type MittiElectricianResolution } from "./
  * `electrician.reasons` (not onboarded, no PIESA rate, no usual electrician saved…) still hold the quote.
  */
 export function buildMittiInstallerQuote(input: OwnCustomerDraftInput, electrician: MittiElectricianResolution) {
-  const draft = buildOwnCustomerQuoteDraft(input, electrician.ready ? electrician.priceIncGst : null);
+  const draft = buildOwnCustomerQuoteDraft(input, electrician.priceIncGst);
+  // A held resolution (not onboarded, no usual electrician…) carries no price; that is its own reason, not "no PIESA rate" —
+  // the rate hold stands only when the resolution itself says the business has none.
+  if (!electrician.ready && !electrician.reasons.includes(IN_HOUSE_PIESA_HOLD_REASON)) draft.blockers = draft.blockers.filter((b) => b !== IN_HOUSE_PIESA_HOLD_REASON);
   for (const r of electrician.reasons) if (!draft.blockers.includes(r)) draft.blockers.push(r);
   draft.ready = draft.blockers.length === 0;
   return draft;

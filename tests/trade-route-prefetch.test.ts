@@ -367,7 +367,8 @@ describe("source pins: every listed route declares the loader for its own screen
     });
   }
   test("the job page keeps its seeding, evict-on-refusal and remount rules", () => {
-    const src = readFileSync("src/routes/_authenticated/field.$jobId.tsx", "utf8");
+    // Part 10 (d89d335) reformatted the page onto several lines: read with whitespace collapsed.
+    const src = readFileSync("src/routes/_authenticated/field.$jobId.tsx", "utf8").replace(/\s+/g, " ");
     expect(src).toContain("remountDeps: ({ params }) => params");
     expect(src).toContain("catch (e) { if (seed) evict(null); throw e; }");
     expect(src).toContain("if (seed) evict(bundle);");

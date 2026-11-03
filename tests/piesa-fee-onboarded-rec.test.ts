@@ -242,6 +242,7 @@ describe("decision 303 — only onboarded electricians", () => {
     expect(link).toContain("source: AUTO_LINK_SOURCE");
     expect(link).not.toMatch(/sendElectricianInvite|maybeAutoSendInstallerQuote|releaseQuoteToOwner|sendRealSms|office-email\.server/);
     // the retired free-text path: the price card validates price + inclusions only
-    expect(read("src/lib/installer-price.core.ts")).toContain("electrician: null } };");
+    // (Part 10 reformatted the record onto several lines; read with whitespace collapsed.)
+    expect(read("src/lib/installer-price.core.ts").replace(/\s+/g, " ")).toContain("notes: notes || null, electrician: null, }, };");
   });
 });

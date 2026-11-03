@@ -91,6 +91,8 @@ beforeEach(() => {
     businesses: [{ id: "B1", name: "Rapid Insulation", email: "office@rapid.example", onboarding_notes: null }],
     partner_workers: [{ id: "w1", full_legal_name: "John Smith" }],
     workflow_events: [{ id: "e1", job_id: "J1", event_type: "visit_allocated", created_at: "2026-11-09T01:00:00Z", details: { visit: "install", worker_id: "w1" } }],
+    // ecde49a (Part 7): a real office's email is held while customer comms are off — on here, so the sweep reaches the send.
+    workflow_settings: [{ id: 1, customer_comms_enabled: true }],
   };
 });
 

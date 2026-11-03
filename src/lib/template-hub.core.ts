@@ -7,6 +7,12 @@
 // sits in its own section. Retired templates are simply not listed (their files stay in git).
 // tests/templates-hub.test.ts proves every entry comes from a live code path and every live builder / text type is here.
 import { electricianLinkText } from "./electrician-link.core";
+import { electricianLinkText as ownJobElectricianLinkText } from "./own-job-electrician-link.core";
+import { rejectionEmail, welcomeSmsText } from "./my-electricians.core";
+import { officeCantDoEmail, officeNotBookedEmail, officeToBookEmail } from "./own-job-electrician-link.core";
+import { oldElectricianEmail, ownerSwapCancelledEmail } from "./electrician-swap.core";
+import { alertEmail } from "./mitti-retry.core";
+import { renderQuickTapsDeclineEmail } from "./quick-taps-email.core";
 import { renderQuoteExpiredEmail } from "./quote-expired-email.core";
 import { renderInHouseGiveEmail } from "./in-house-give-email.core";
 import { bookingNotice, ownerBookedMessage } from './in-house-booking.core';
@@ -185,6 +191,9 @@ const SAMPLE_BIZ = { name: "Sample Insulation Co", tradingName: null, officePhon
 const S = (r: string | { held: string }) => (typeof r === "string" ? r : null);
 const text = (body: string | null): TemplatePreview => ({ kind: "text", body: brandSmsBody(body ?? "") });
 const texts = (variants: { label: string; body: string | null }[]): TemplatePreview => ({ kind: "texts", variants: variants.map((v) => ({ label: v.label, body: brandSmsBody(v.body ?? "") })) });
+/** Installer-office emails sent through emailInstallerOffice (own-job-piesa-notices.server): its exact partnerEmailLayout blocks. */
+const installerOfficeEmail = (m: { subject: string; text: string }, jobUrl: string | null) =>
+  email({ subject: m.subject, ...partnerEmailLayout({ subject: m.subject, test: false, blocks: [...m.text.split("\n").filter(Boolean).map((t) => ({ kind: "p" as const, text: t })), ...(jobUrl ? [{ kind: "button" as const, label: "Open the job", url: jobUrl }] : [])] }) });
 /** Partner/applicant emails that the office sender lays out itself (no html passed): exactly what sendOfficeEmail builds. */
 const officeLaidOut = (contactName: string | null, subject: string, message: string) => officeEmailLayout({ contactName, subject, message });
 const jo = (input: Parameters<typeof renderJoOutcomeEmail>[0]) => {
@@ -423,6 +432,11 @@ const OWNER: TemplateEntry[] = [
     ENTRY({ id: `owner:paperwork:${d.key}`, section: "owner", step: "quote", kind: "paperwork", code: "", name: `Paperwork: ${d.title}`, when: d.signer === "office" ? "Gate B (before the install is booked) — the office records it" : "Gate B: signed or ticked by the owner on My job before the install is booked", who: d.signer === "office" ? "Office records (owner's landlord)" : "Owner", approvalNote: d.approvalNote ?? `Version ${d.version}: approval stored in Settings › Owner paperwork`, gate: { kind: "always" },
       source: { builder: "src/lib/owner-gates.core.ts", fn: "GATE_DOCS", sender: "src/lib/owner-gates.server.ts" }, paperworkKey: d.key,
       render: () => ({ kind: "doc", title: `${d.title} — ${ownerVersionLabel(d.version)}`, body: `${d.key === "payment_terms" ? paymentTermsText(paymentTermsMoney({ quoteTotalCents: 220000, safetyCheckCents: 34900, installDepositCents: 18510, balanceCents: 166590 })) : fillTemplate(d.body, SAMPLE_VARS)}\n\n[ ] ${d.tick}`, note: "Sample values filled in. The tick label is what the owner presses." }) })),
+  // Main #125 (Jo 30 Oct / 2 Nov 2026): the owner's email after a quick-taps decline — one entry per outcome (same builder). Listed at the 4 Nov join.
+  ...([["decline_access", "no roof access"], ["decline_5yr", "built or ceiling replaced in the last 5 years"], ["no_thanks", "no thanks"]] as const).map(([outcome, label]) => ENTRY({
+    id: `owner:quick-taps-decline-${outcome}`, section: "owner", step: "ready_check", kind: "email", code: "", name: `Your free Ready Check — after a quick-taps decline (${label})`, when: `The owner's quick taps end with "${label}"; once per job and batch`, who: "Owner", approvalNote: "Body line Jo's verbatim (spec part 1); subject and greeting approved by Jo 30 Oct 2026", gate: { kind: "email" },
+    source: { builder: "src/lib/quick-taps-email.core.ts", fn: "renderQuickTapsDeclineEmail", sender: "src/lib/quick-taps.server.ts" },
+    render: () => email(renderQuickTapsDeclineEmail({ outcome, firstName: "Helen", unsubscribeUrl: UNSUB })) })),
   // Decision 389: Jo releases a saved spot → "It's your turn" to the owner (email + text, day-2 reminder). Approved by Jo 25 Oct 2026.
   ENTRY({ id: "owner:O77", section: "owner", step: "ready_check", kind: "email", code: "O77", name: "It's your turn — confirm your free Ready Check", when: "Jo taps Send on a suggested batch (Jobs › Choose installer) and the day-2 reminder; the button opens the quick taps; the installer is offered the job only after the owner answers", who: "Owner", approvalNote: "Wording: Jo 2 Nov 2026, decisions #21/#22 (IT_IS_YOUR_TURN_V2_APPROVED stays false until Jo OKs the pictures)", gate: { kind: "email" },
     source: { builder: "src/lib/spot-release-email.core.ts", fn: "renderSpotReleasedEmail", sender: "src/lib/area-batch.server.ts" }, design: "docs/templates/mjml/owner_O77.mjml",
@@ -669,6 +683,38 @@ const ELECTRICIAN: TemplateEntry[] = [
   ENTRY({ id: "electrician:sms-owner_changed_visit", section: "electrician", step: "safety_check", kind: "text", code: "", name: "Owner changed the booked safety check (text)", when: "The owner changes a booked safety check on My job", who: "Electrician", approvalNote: "Jo 25 Oct 2026, decision 337", gate: { kind: "text", smsType: "owner_changed_visit" },
     source: { builder: "src/lib/installer-texts.core.ts", fn: "ownerChangedVisitText", sender: "src/lib/installer-texts.server.ts" },
     render: () => text(ownerChangedVisitText({ kind: "assessment", suburb: "Glen Waverley", jobNumber: "HV-TEST", wasIso: PIESA_ISO, link: FIELD })) }),
+  // Main #130/131 (Part 2, Jo 3 Nov 2026) + #134 (Part 2b): the installer office emails around an own job's safety check
+  // and My electricians — laid out by emailInstallerOffice / sendOfficeEmail (partnerEmailLayout). Listed at the 4 Nov join.
+  ENTRY({ id: "installer:own-job-piesa-to-book", section: "installer", step: "safety_check", kind: "email", code: "", name: "Safety check to book (own job, installer office)", when: "An installer's own job: the owner has paid; who books depends on My business (office / electrician / either)", who: "Installer office", approvalNote: "Jo 3 Nov 2026 (OWN_JOB_PIESA_TO_BOOK_EMAIL_APPROVED)", gate: { kind: "email" },
+    source: { builder: "src/lib/own-job-electrician-link.core.ts", fn: "officeToBookEmail", sender: "src/lib/own-job-piesa-notices.server.ts" },
+    render: () => installerOfficeEmail(officeToBookEmail({ address: SHORT_ADDRESS, electrician: "Spark Electrical", booker: "electrician", jobUrl: FIELD }), FIELD) }),
+  ENTRY({ id: "installer:own-job-piesa-cant-do", section: "installer", step: "safety_check", kind: "email", code: "", name: "Electrician can't do the safety check (own job, installer office)", when: "The electrician presses \"Can't do this one\" on their link", who: "Installer office", approvalNote: "Jo 3 Nov 2026 (OWN_JOB_PIESA_CANT_DO_EMAIL_APPROVED)", gate: { kind: "email" },
+    source: { builder: "src/lib/own-job-electrician-link.core.ts", fn: "officeCantDoEmail", sender: "src/lib/own-job-electrician-link.server.ts" },
+    render: () => installerOfficeEmail(officeCantDoEmail({ address: SHORT_ADDRESS, electrician: "Spark Electrical", reason: "Too busy this week", jobUrl: FIELD }), FIELD) }),
+  ENTRY({ id: "installer:own-job-piesa-not-booked", section: "installer", step: "safety_check", kind: "email", code: "", name: "Safety check not booked yet (own job, installer office)", when: "2 business days after the hand-over with the safety check still unbooked", who: "Installer office", approvalNote: "Jo 3 Nov 2026 (OWN_JOB_PIESA_NOT_BOOKED_EMAIL_APPROVED)", gate: { kind: "email" },
+    source: { builder: "src/lib/own-job-electrician-link.core.ts", fn: "officeNotBookedEmail", sender: "src/lib/own-job-piesa.server.ts" },
+    render: () => installerOfficeEmail(officeNotBookedEmail({ address: SHORT_ADDRESS, jobUrl: FIELD }), FIELD) }),
+  ENTRY({ id: "electrician:own-job-swap-old-electrician", section: "electrician", step: "safety_check", kind: "email", code: "", name: "You're no longer on this job (electrician swapped)", when: "The installer picks another electrician for an own job's safety check", who: "Electrician (the old one)", approvalNote: "Jo 3 Nov 2026 (OWN_JOB_SWAP_OLD_ELECTRICIAN_EMAIL_APPROVED)", gate: { kind: "email" },
+    source: { builder: "src/lib/electrician-swap.core.ts", fn: "oldElectricianEmail", sender: "src/lib/electrician-swap.server.ts" },
+    render: () => installerOfficeEmail(oldElectricianEmail({ address: SHORT_ADDRESS }), null) }),
+  ENTRY({ id: "owner:own-job-swap-booking-cancelled", section: "owner", step: "safety_check", kind: "email", code: "", name: "Your safety check needs a new time (electrician swapped)", when: "A swap cancels a booked safety check on an installer's own job; once per cancelled booking", who: "Owner", approvalNote: "Jo 3 Nov 2026, message 7 (OWN_JOB_SWAP_OWNER_EMAIL_APPROVED; docs/wording/2026-11-03-part2-messages.md)", gate: { kind: "email" },
+    source: { builder: "src/lib/electrician-swap.core.ts", fn: "ownerSwapCancelledEmail", sender: "src/lib/electrician-swap.server.ts" },
+    render: () => email(ownerSwapCancelledEmail({ firstName: "Helen", address: SHORT_ADDRESS, unsubscribeUrl: UNSUB })) }),
+  ENTRY({ id: "installer:electrician-not-approved", section: "installer", step: "enquiry", kind: "email", code: "", name: "Your electrician wasn't approved (installer office)", when: "The office rejects an electrician the installer added under My electricians", who: "Installer office", approvalNote: "Jo 3 Nov 2026 (REJECTION_EMAIL_APPROVED; docs/wording/2026-11-03-part2b-messages.md)", gate: { kind: "email" },
+    source: { builder: "src/lib/my-electricians.core.ts", fn: "rejectionEmail", sender: "src/lib/my-electricians.server.ts" },
+    render: () => { const m = rejectionEmail({ electricianName: "Will Casdorff", reason: "Licence has expired" }); return email(officeLaidOut("Sample Insulation Co", m.subject, m.message)); } }),
+  ENTRY({ id: "office:mitti-form-not-made", section: "office", step: "any", kind: "email", code: "", name: "Mitti form not made (office alert)", when: "The Mitti form creation retries ran out — the office makes the form by hand", who: "Office (info@)", approvalNote: "Internal office alert, not customer wording", gate: { kind: "email" },
+    source: { builder: "src/lib/mitti-retry.core.ts", fn: "alertEmail", sender: "src/lib/mitti-retry.server.ts" },
+    render: () => email(alertEmail({ kind: "ready_check", jobNumber: "HV-TEST", address: SHORT_ADDRESS, tradeName: "Sample Insulation Co", tradeEmail: "office@sample.test", bookingAt: "2026-11-05T22:00:00Z", error: "Mitti returned 500", jobUrl: `${BASE}/admin/jobs/TEST` })) }),
+  // Part 2b Task 4 (Jo 3 Nov 2026, #134, main): the office approves an electrician an installer added → ONE welcome text.
+  ENTRY({ id: "electrician:sms-installer_added_electrician_welcome", section: "electrician", step: "enquiry", kind: "text", code: "", name: "Welcome — your installer added you (text)", when: "The office approves an electrician an installer added under My electricians", who: "Electrician", approvalNote: "Jo 3 Nov 2026 (Part 2b, docs/wording/2026-11-03-part2b-messages.md)", gate: { kind: "text", smsType: "installer_added_electrician_welcome" },
+    source: { builder: "src/lib/my-electricians.core.ts", fn: "welcomeSmsText", sender: "src/lib/my-electricians.server.ts" },
+    render: () => text(welcomeSmsText({ electricianName: "Will Casdorff", installerName: "Example Insulation" })) }),
+  // Part 2 (Jo #130/131, main): an installer's OWN job — the electrician's no-login link to call the owner and book the safety
+  // check. Listed at the 4 Nov 2026 join (templates-hub pin); it keeps working beside Part 6's link until Part 2 minting is retired at go-live.
+  ENTRY({ id: "electrician:sms-own_job_piesa_link", section: "electrician", step: "safety_check", kind: "text", code: "", name: "Own job: your link to book the safety check (text)", when: "An installer's own job: the owner has paid and the electrician books the safety check", who: "Electrician", approvalNote: "Jo 3 Nov 2026 (Part 2, #130/131)", gate: { kind: "text", smsType: "own_job_piesa_link" },
+    source: { builder: "src/lib/own-job-electrician-link.core.ts", fn: "electricianLinkText", sender: "src/lib/own-job-piesa-notices.server.ts" },
+    render: () => text(ownJobElectricianLinkText({ installer: "Example Insulation", address: SHORT_ADDRESS, url: "https://estimate.homeinsulationvictoria.com.au/e/EXAMPLE" })) }),
   // DRAFT wording: ELECTRICIAN_LINK_TEXT_APPROVED stays false and the SMS type is wordingApproved:false (switch off).
   ENTRY({ id: "electrician:sms-electrician_job_link", section: "electrician", step: "safety_check", kind: "text", code: "", name: "Your job link (text)", when: "Right after the installer picks the electrician for a new safety check job", who: "Electrician", approvalNote: "DRAFT wording for Jo to approve (new job flow Part 6); ELECTRICIAN_LINK_TEXT_APPROVED stays false", gate: { kind: "text", smsType: "electrician_job_link" },
     source: { builder: "src/lib/electrician-link.core.ts", fn: "electricianLinkText", sender: "src/lib/electrician-link.server.ts" },
@@ -861,6 +907,13 @@ export function templateStatus(e: TemplateEntry, sw: SwitchStates | null): { lab
  * like a message builder must be listed above — tests/templates-hub.test.ts fails otherwise.
  */
 export const NOT_LISTED_BUILDERS: Record<string, string> = {
+  isTestMittiEmail: "Not a template: the TEST Mitti identity check (mitti-test-route.core) — its name only ends in Email",
+  unansweredOwnerEmail: "Not a template: the 'owner wrote and nobody replied' predicate behind the Enquiries piles (enquiry-categories.core)",
+  qaOfficeReservedEmail: "Not a template: the reserved TEST office address check (qa-office.core)",
+  sameWorkerEmail: "Not a template: compares two worker emails (worker-role.core)",
+  markTestEmail: "Not a template: stamps a TEST label/route onto any email bound for the QA inbox (qa-inbox.core) — its name only ends in Email",
+  stripQuotedEmail: "Not a template: strips quoted history from an inbound owner email (emails-tab.core) — its name only ends in Email",
+  isQaTestEmail: "Not a template: the TEST-address check (qa-email.core) behind the TEST guards — its name only ends in Email",
   quickTapsText: "Retired 2 Nov 2026 (decision #22): the batch send now opens the quick taps with the O77 email + the \"It's your turn\" text",
   renderQuickTapsEmail: "Retired at the 4 Nov 2026 join (decision #22): the O77 \"It's your turn\" email opens the quick taps; nothing sends this one",
   reaskText: "One-off quick taps re-ask script (Jo 3 Nov 2026, HV-1405), not a flow message",

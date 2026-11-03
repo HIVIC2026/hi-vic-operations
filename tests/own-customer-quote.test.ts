@@ -83,11 +83,10 @@ describe("own-customer quote: $349 fee + the installer's PIESA rate, approved li
     expect(d.subtotal).toBe(2704);
   });
 
-  test("not-onboarded electrician still holds the quote (no rate → no PIESA line, never a guessed $349)", () => {
+  test("not-onboarded electrician still holds the quote with ITS reason only (no price on a held resolution → no PIESA line, never a guessed $349)", () => {
     const d = buildMittiInstallerQuote(baseInput, notOnboarded);
     expect(d.ready).toBe(false);
-    expect(d.blockers).toContain(notOnboarded.reasons[0]!);
-    expect(d.blockers).toContain(IN_HOUSE_PIESA_HOLD_REASON);
+    expect(d.blockers).toEqual([notOnboarded.reasons[0]!]);
     expect(d.lines.find((l) => l.code === "PIESA")).toBeUndefined();
   });
 
@@ -205,7 +204,7 @@ describe("own-customer draft without a Mitti electrician (intake fallback) — s
     expect(JSON.stringify(withElectrician)).toBe(JSON.stringify(plain));
     const held = buildMittiInstallerQuote(baseInput, notOnboarded);
     expect(held.lines).toEqual(buildOwnCustomerQuoteDraft(baseInput, null).lines);
-    expect(held.blockers).toEqual([IN_HOUSE_PIESA_HOLD_REASON, ...notOnboarded.reasons]);
+    expect(held.blockers).toEqual([...notOnboarded.reasons]);
     expect(held.ready).toBe(false);
   });
 
