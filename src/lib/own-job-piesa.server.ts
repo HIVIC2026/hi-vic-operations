@@ -6,7 +6,7 @@
 // Static imports stay light (no workflow import graph); the rest is loaded when used.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { inHouseDispatchSkip, readInHouseDispatchState, type InHouseDispatchState } from "./in-house-suppression.server";
-import { OWN_JOB_PIESA_HANDED_EVENT, OWN_JOB_PIESA_HELD_EVENT, isOwnJobCallAndBook, ownJobHandoffKey, ownJobHandoffPlan } from "./own-job-piesa.core";
+import { OWN_JOB_HANDOFF_STAGES, OWN_JOB_OFFER_MESSAGE, OWN_JOB_PIESA_HANDED_EVENT, OWN_JOB_PIESA_HELD_EVENT, isOwnJobCallAndBook, ownJobHandoffKey, ownJobHandoffPlan } from "./own-job-piesa.core";
 
 export type OwnJobHandoffOutcome = "handed" | "waiting" | "held" | "already";
 
@@ -58,59 +58,135 @@ async function holdOnce(jobId: string, handKey: string, reason: string, electric
     { key, reason, electrician_business_id: electricianBusinessId, needs_office: true }, { internal: true });
 }
 
-/** Hand one own job's safety check to the installer's chosen electrician. Idempotent per job and round. */
+type Electrician = { kind: "found"; businessId: string } | { kind: "none"; notSignedUp: boolean } | { kind: "mitti_hold" };
+
+/** The installer's chosen electrician; else, like the old offer path, a Mitti pickup's approved usual electrician
+ *  (mittiElectricianAtSafetyCheck, which raises its own "Installer to choose electrician" office item on a hold). */
+async function resolveElectrician(jobId: string): Promise<Electrician> {
+  const chosen = await (await import("./job-electrician.server")).jobChosenElectrician(jobId);
+  if (chosen) return { kind: "found", businessId: chosen };
+  // An open nomination for an electrician not onboarded yet (no business): say so instead of "no electrician".
+  const { data: pending, error } = await admin.from("electrician_nominations").select("id").eq("job_id", jobId).is("ended_at", null).is("business_id", null).limit(1);
+  if (error) throw new Error(error.message);
+  if ((pending ?? []).length) return { kind: "none", notSignedUp: true };
+  const m = await (await import("./mitti-electrician.server")).mittiElectricianAtSafetyCheck(jobId);
+  if (m.action === "use_usual") return { kind: "found", businessId: m.businessId };
+  if (m.action === "hold") return { kind: "mitti_hold" };
+  return { kind: "none", notSignedUp: false };
+}
+
+type ActiveElectrician = { id: string; business_id: string | null; user_id: string; assigned_at: string; booking_confirmed_at: string | null };
+
+/** Log the hand-over (due 2 business days from `now`) and send the notices. The event key makes this once per round. */
+async function recordHandoff(jobId: string, key: string, a: { business_id: string | null; user_id: string }, now: Date, repaired: boolean) {
+  const [{ logEvent }, { addMelbourneBusinessDays }] = await Promise.all([import("./workflow.server"), import("./melbourne-time.core")]);
+  await logEvent(jobId, null, OWN_JOB_PIESA_HANDED_EVENT, "Safety check (PIESA) handed to the installer's electrician to book within 2 business days",
+    { key, electrician_business_id: a.business_id, electrician_user_id: a.user_id, due_at: addMelbourneBusinessDays(now.toISOString(), 2), ...(repaired ? { repaired: true } : {}) }, { internal: true });
+  const { sendOwnJobPiesaNotices } = await import("./own-job-piesa-notices.server");
+  await sendOwnJobPiesaNotices(jobId).catch((e) => console.error("own job safety check notices skipped", jobId, (e as Error).message));
+}
+
+/** Hand one own job's safety check to the installer's chosen electrician. Idempotent per job and round. Covers:
+ *  - first time: paid job in measured_quote_accepted → assignment, stage move, event, notices;
+ *  - a new round (reopen / repeat check) or an in-flight job at the PIESA stage with no electrician for this round →
+ *    once the PIESA request gate is clear (incl. a repeat check's payment): assignment, event, notices;
+ *  - repair: at the PIESA stage with this round's electrician assigned (not yet booked) but no hand-over event (a
+ *    half-done hand-over) → the event and notices, once. */
 export async function handOwnJobPiesa(jobId: string, now: Date = new Date(), inHouseState?: InHouseDispatchState): Promise<OwnJobHandoffOutcome> {
   const { data: job, error: je } = await admin.from("jobs").select("id, stage, deleted_at").eq("id", jobId).maybeSingle();
   if (je || !job || job.deleted_at) return "waiting";
+  const stage = job.stage as string;
+  if (!(OWN_JOB_HANDOFF_STAGES as readonly string[]).includes(stage)) return "waiting";
   if ((await ownJobCallAndBook(jobId, inHouseState)) !== true) return "waiting";
-  const { latestReopenAt } = await import("./repeat-piesa.server");
-  const key = ownJobHandoffKey(jobId, await latestReopenAt(jobId));
+  const roundStart = await (await import("./repeat-piesa.server")).latestReopenAt(jobId);
+  const key = ownJobHandoffKey(jobId, roundStart);
   if (await eventWithKey(jobId, OWN_JOB_PIESA_HANDED_EVENT, key)) return "already";
-  const paid = await safetyCheckFeePaid(jobId, now);
-  // Cheap checks first: only look up the electrician for a paid job still waiting for its safety check.
-  const ready = paid && job.stage === "measured_quote_accepted";
-  const electricianBusinessId = ready ? await (await import("./job-electrician.server")).jobChosenElectrician(jobId) : null;
+  const { data: activeRows, error: ae } = await admin.from("job_assignments").select("id, business_id, user_id, assigned_at, booking_confirmed_at").eq("job_id", jobId).eq("role", "electrician").eq("active", true);
+  if (ae) return "waiting";
+  const active = (activeRows ?? []) as ActiveElectrician[];
+  const thisRound = active.filter((a) => !roundStart || a.assigned_at >= roundStart);
+  const atPiesa = stage === "piesa_and_install_window_pending";
+  if (atPiesa && thisRound.length) {
+    // Repair a half-done hand-over. Already booked (e.g. an in-flight offer the electrician took and booked) → nothing to hand.
+    if (thisRound.some((a) => a.booking_confirmed_at)) return "waiting";
+    await recordHandoff(jobId, key, thisRound[0]!, now, true);
+    return "handed";
+  }
+  if (!atPiesa && active.length) return "waiting"; // someone is already on it before the PIESA stage: the office decides
+  if (atPiesa) {
+    // An in-flight offer from the old path: let it run out first (no two electricians on one job).
+    const { count: open, error: oe } = await admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("kind", "piesa").eq("status", "pending");
+    if (oe || open) return "waiting";
+  }
+  // Paid: first time = the safety check step on the installation invoice; at the PIESA stage = the full PIESA request
+  // gate (original payment, or a repeat check's choice/acceptance/payment) — the same gate the old refill uses.
+  let paid: boolean;
+  if (!atPiesa) paid = await safetyCheckFeePaid(jobId, now);
+  else {
+    const [{ piesaRequestFacts }, { piesaRequestBlockers }] = await Promise.all([import("./workflow.server"), import("./payment-gate.core")]);
+    paid = await piesaRequestFacts(jobId).then((f) => piesaRequestBlockers(f).length === 0).catch(() => false);
+  }
+  if (!paid) return "waiting";
+  const el = await resolveElectrician(jobId);
+  if (el.kind === "mitti_hold") return "held";
+  const electricianBusinessId = el.kind === "found" ? el.businessId : null;
   const electricianUserId = electricianBusinessId ? await electricianProfile(electricianBusinessId) : null;
-  const plan = ownJobHandoffPlan({ paid, stage: job.stage as string, electricianBusinessId, electricianUserId, alreadyHanded: false });
+  const plan = ownJobHandoffPlan({ paid, stage, electricianBusinessId, electricianUserId, alreadyHanded: false, electricianNotSignedUp: el.kind === "none" && el.notSignedUp });
   if (plan.kind === "wait") return "waiting";
   if (plan.kind === "hold") { await holdOnce(jobId, key, plan.reason, electricianBusinessId); return "held"; }
   const wf = await import("./workflow.server");
-  // The job must be able to enter the PIESA stage (quote accepted, gates clear); otherwise wait like the offer path does.
-  if ((await wf.stageEntryBlockers(jobId, "piesa_and_install_window_pending", null).catch(() => ["unreadable"])).length) return "waiting";
-  const { data: existing, error: ee } = await admin.from("job_assignments").select("id, business_id").eq("job_id", jobId).eq("role", "electrician").eq("active", true);
-  if (ee) return "waiting";
-  if ((existing ?? []).some((a) => a.business_id !== electricianBusinessId)) return "waiting"; // someone else is already on it: the office decides
-  let insertedId: string | null = null;
-  if (!(existing ?? []).length) {
-    const { data: ins, error: ie } = await admin.from("job_assignments")
-      .insert({ job_id: jobId, role: "electrician", business_id: electricianBusinessId, user_id: electricianUserId as string, active: true })
-      .select("id").single();
-    if (ie || !ins) throw new Error(ie?.message ?? "Could not assign the electrician");
-    insertedId = ins.id as string;
+  // First time: the job must be able to enter the PIESA stage (quote accepted, gates clear), like the offer path.
+  if (!atPiesa && (await wf.stageEntryBlockers(jobId, "piesa_and_install_window_pending", null).catch(() => ["unreadable"])).length) return "waiting";
+  const assignment = { business_id: electricianBusinessId, user_id: electricianUserId as string };
+  if (atPiesa) {
+    // A new round: the earlier round's electrician no longer holds the job (same as an office reassignment).
+    const old = active.map((a) => a.id);
+    if (old.length) {
+      const { error: ue } = await admin.from("job_assignments").update({ active: false, ended_at: now.toISOString(), end_reason: "reassigned" }).in("id", old).eq("active", true);
+      if (ue) throw new Error(ue.message);
+    }
   }
-  try {
-    // The guarded stage move is the claim: of two hand-overs racing, only one moves the job.
-    await wf.transition(jobId, "piesa_and_install_window_pending", null, "Safety check (PIESA) handed to the installer's electrician to book", { own_job: true, electrician_business_id: electricianBusinessId });
-  } catch (e) {
-    if (insertedId) await admin.from("job_assignments").delete().eq("id", insertedId);
-    if (await eventWithKey(jobId, OWN_JOB_PIESA_HANDED_EVENT, key).catch(() => false)) return "already";
-    console.warn("own job safety check not handed yet", jobId, (e as Error).message);
-    return "waiting";
+  const { data: ins, error: ie } = await admin.from("job_assignments")
+    .insert({ job_id: jobId, role: "electrician", business_id: electricianBusinessId, user_id: assignment.user_id, active: true })
+    .select("id").single();
+  if (ie || !ins) throw new Error(ie?.message ?? "Could not assign the electrician");
+  const insertedId = ins.id as string;
+  if (atPiesa) {
+    // No stage move to claim with: of two racing hand-overs the earliest row wins; the other removes its own.
+    const { data: rows } = await admin.from("job_assignments").select("id, assigned_at").eq("job_id", jobId).eq("role", "electrician").eq("active", true).order("assigned_at").order("id");
+    const winner = (rows ?? [])[0]?.id;
+    if (winner && winner !== insertedId) { await admin.from("job_assignments").delete().eq("id", insertedId); return "already"; }
+  } else {
+    try {
+      // The guarded stage move is the claim: of two hand-overs racing, only one moves the job.
+      await wf.transition(jobId, "piesa_and_install_window_pending", null, "Safety check (PIESA) handed to the installer's electrician to book", { own_job: true, electrician_business_id: electricianBusinessId });
+    } catch (e) {
+      await admin.from("job_assignments").delete().eq("id", insertedId);
+      if (await eventWithKey(jobId, OWN_JOB_PIESA_HANDED_EVENT, key).catch(() => false)) return "already";
+      console.warn("own job safety check not handed yet", jobId, (e as Error).message);
+      return "waiting";
+    }
   }
-  const { addMelbourneBusinessDays } = await import("./melbourne-time.core");
-  await wf.logEvent(jobId, null, OWN_JOB_PIESA_HANDED_EVENT, "Safety check (PIESA) handed to the installer's electrician to book within 2 business days",
-    { key, electrician_business_id: electricianBusinessId, electrician_user_id: electricianUserId, due_at: addMelbourneBusinessDays(now.toISOString(), 2) }, { internal: true });
-  const { sendOwnJobPiesaNotices } = await import("./own-job-piesa-notices.server");
-  await sendOwnJobPiesaNotices(jobId).catch((e) => console.error("own job safety check notices skipped", jobId, (e as Error).message));
+  // If this fails after the move, the next sweep's repair branch logs it and sends the notices.
+  await recordHandoff(jobId, key, assignment, now, false);
   return "handed";
 }
 
-/** 15-minute tick: own jobs in measured_quote_accepted whose safety check fee has cleared go to their electrician. */
+/** Office offer buttons: an installer's own job is never offered — say so plainly. Unreadable = refused. */
+export async function refuseOfficeOfferForOwnJob(jobId: string): Promise<void> {
+  const own = await ownJobCallAndBook(jobId);
+  const { WorkflowError } = await import("./workflow.server");
+  if (own === null) throw new WorkflowError("Couldn't check whose job this is — please try again.");
+  if (own) throw new WorkflowError(OWN_JOB_OFFER_MESSAGE);
+}
+
+/** 15-minute tick: own jobs whose safety check fee has cleared go to their electrician — first time (measured quote
+ *  accepted), a new round or in-flight job at the PIESA stage, and any half-done hand-over (repair). */
 export async function sweepOwnJobPiesaHandoffs(now: Date = new Date()): Promise<Record<OwnJobHandoffOutcome | "failed", number>> {
   const out = { handed: 0, waiting: 0, held: 0, already: 0, failed: 0 };
   const inHouseState = await readInHouseDispatchState();
   if (inHouseState.failed) return out;
-  const { data: jobs, error } = await admin.from("jobs").select("id").eq("channel", "installer_sourced").eq("stage", "measured_quote_accepted").is("deleted_at", null).order("created_at").limit(200);
+  const { data: jobs, error } = await admin.from("jobs").select("id").eq("channel", "installer_sourced").in("stage", [...OWN_JOB_HANDOFF_STAGES]).is("deleted_at", null).order("created_at").limit(500);
   if (error) throw new Error(error.message);
   for (const j of jobs ?? []) {
     if (inHouseState.held.has(j.id)) continue;

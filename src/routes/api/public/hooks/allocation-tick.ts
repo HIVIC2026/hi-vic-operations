@@ -49,6 +49,7 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['ownJobPiesa'] = await timed("sweepOwnJobPiesaHandoffs", () => sweepOwnJobPiesaHandoffs());
         } catch (e) {
           console.error("allocation tick: own job safety check hand-over failed", (e as Error).message);
+          out['ok'] = false;
           (out as Record<string, unknown>)['ownJobPiesa'] = "failed";
         }
         try {

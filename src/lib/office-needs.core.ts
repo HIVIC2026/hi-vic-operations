@@ -125,7 +125,7 @@ export type NeedsFacts = {
   addressToConfirm?: { at: string; candidates: string[] } | null;
   /** Jo 3 Nov: Mitti pickup held at the safety check — no answer and no approved usual electrician. */
   mittiElectricianHeld?: { at: string } | null;
-  /** Part 2 (Jo 3 Nov): an installer's own job, safety check paid, not handed to the electrician (no electrician / no profile). */
+  /** Part 2 (Jo 3 Nov): an installer's own job, safety check paid, not handed to the electrician (no electrician / not signed up / no profile). */
   ownJobPiesaHeld?: { at: string; reason: string } | null;
   veecDay10?: { at: string } | null;
   lapsedWindow?: { deadline: string } | null;

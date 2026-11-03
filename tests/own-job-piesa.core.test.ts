@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { HOLD_NO_ELECTRICIAN, HOLD_NO_PROFILE, isOwnJobCallAndBook, ownJobHandoffKey, ownJobHandoffPlan } from "@/lib/own-job-piesa.core";
+import { HOLD_NOT_SIGNED_UP, HOLD_NO_ELECTRICIAN, HOLD_NO_PROFILE, isOwnJobCallAndBook, ownJobHandoffKey, ownJobHandoffPlan } from "@/lib/own-job-piesa.core";
 
 describe("isOwnJobCallAndBook", () => {
   test("installer's own job, not in-house → call and book", () => expect(isOwnJobCallAndBook({ channel: "installer_sourced", heldInHouse: false })).toBe(true));
@@ -16,7 +16,10 @@ describe("ownJobHandoffPlan", () => {
   test("paid, electrician with no profile → hold", () => expect(ownJobHandoffPlan({ ...ok, electricianUserId: null })).toEqual({ kind: "hold", reason: HOLD_NO_PROFILE }));
   test("hold wording is exact", () => { expect(HOLD_NO_ELECTRICIAN).toBe("No electrician chosen for this job"); expect(HOLD_NO_PROFILE).toBe("Electrician has no portal profile"); });
   test("already handed → wait", () => expect(ownJobHandoffPlan({ ...ok, alreadyHanded: true }).kind).toBe("wait"));
-  test("wrong stage → wait", () => expect(ownJobHandoffPlan({ ...ok, stage: "piesa_and_install_window_pending" }).kind).toBe("wait"));
+  test("wrong stage → wait", () => expect(ownJobHandoffPlan({ ...ok, stage: "piesa_scheduled" }).kind).toBe("wait"));
+  test("a new round at the PIESA stage → hand", () => expect(ownJobHandoffPlan({ ...ok, stage: "piesa_and_install_window_pending" })).toEqual({ kind: "hand" }));
+  test("nominated electrician not signed up → hold with its own reason", () => expect(ownJobHandoffPlan({ ...ok, electricianBusinessId: null, electricianUserId: null, electricianNotSignedUp: true })).toEqual({ kind: "hold", reason: HOLD_NOT_SIGNED_UP }));
+  test("not-signed-up wording is exact", () => expect(HOLD_NOT_SIGNED_UP).toBe("Electrician hasn't finished signing up"));
   test("happy path → hand", () => expect(ownJobHandoffPlan(ok)).toEqual({ kind: "hand" }));
 });
 

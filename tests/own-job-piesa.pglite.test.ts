@@ -10,7 +10,7 @@ CREATE TABLE jobs (id uuid primary key, channel text, stage text, deleted_at tim
 CREATE TABLE workflow_events (id uuid primary key default gen_random_uuid(), job_id uuid, actor_id uuid, event_type text, summary text, details jsonb, created_at timestamptz default clock_timestamp());
 CREATE TABLE electrician_nominations (id uuid primary key default gen_random_uuid(), job_id uuid, business_id uuid, ended_at timestamptz, created_at timestamptz default clock_timestamp());
 CREATE TABLE partner_workers (id uuid primary key default gen_random_uuid(), business_id uuid, trade_role text, approval_status text, removed_at timestamptz, profile_id uuid, created_at timestamptz default clock_timestamp());
-CREATE TABLE job_assignments (id uuid primary key default gen_random_uuid(), job_id uuid not null, role text not null, business_id uuid, user_id uuid not null, active boolean not null default true, booking_confirmed_at timestamptz, assigned_at timestamptz default now());
+CREATE TABLE job_assignments (id uuid primary key default gen_random_uuid(), job_id uuid not null, role text not null, business_id uuid, user_id uuid not null, active boolean not null default true, booking_confirmed_at timestamptz, assigned_at timestamptz default clock_timestamp(), ended_at timestamptz, end_reason text);
 CREATE TABLE partner_offers (id uuid primary key default gen_random_uuid(), job_id uuid, business_id uuid, kind text, status text, offered_at timestamptz default now(), summary jsonb, expires_at timestamptz, batch int);
 `);
 const id = (n: number) => `00000000-0000-0000-0000-${String(n).padStart(12, "0")}`;
@@ -19,6 +19,10 @@ const E1 = id(21), E_NOPROFILE = id(22), U1 = id(31);
 const paid = new Set([OWN, OWN2, NO_ELEC, NO_PROFILE, LEAD, INHOUSE]);
 const heldInHouse = new Set([INHOUSE]);
 const notices: string[] = [];
+const gateClear = new Set<string>(); // PIESA request gate (original or repeat payment) for jobs at the PIESA stage
+const reopenAt = new Map<string, string>();
+const mitti = new Map<string, { action: "proceed" } | { action: "use_usual"; businessId: string } | { action: "hold" }>();
+let failHandedOnce = false;
 
 await db.query(`insert into jobs (id, channel, stage, source) values
   ($1,'installer_sourced','measured_quote_accepted','real'), ($2,'installer_sourced','measured_quote_accepted','real'),
@@ -41,8 +45,12 @@ mock.module("../src/lib/payments.server", () => ({ ...realPayments, jobPaymentVi
 const realWorkflow = await import("../src/lib/workflow.server");
 mock.module("../src/lib/workflow.server", () => ({
   ...realWorkflow,
-  logEvent: async (job: string, actor: string | null, type: string, summary: string, details?: unknown) => { await db.query("insert into workflow_events (job_id, actor_id, event_type, summary, details) values ($1,$2,$3,$4,$5)", [job, actor, type, summary, JSON.stringify(details ?? {})]); },
+  logEvent: async (job: string, actor: string | null, type: string, summary: string, details?: unknown) => {
+    if (failHandedOnce && type === "own_job_piesa_handed") { failHandedOnce = false; throw new Error("database blip"); }
+    await db.query("insert into workflow_events (job_id, actor_id, event_type, summary, details) values ($1,$2,$3,$4,$5)", [job, actor, type, summary, JSON.stringify(details ?? {})]); },
   stageEntryBlockers: async () => [],
+  piesaRequestFacts: async (job: string) => ({ readyCheckComplete: true, verifiedEligible: true, currentQuoteApproved: true, installerIntakeQualified: true, repeatBlocker: null,
+    payment: gateClear.has(job) ? { cleared: true, blocker: "" } : { cleared: false, blocker: "Repeat safety check not paid." } }),
   // Same guard as commit_guarded_stage: the move only happens from the stage that was read.
   transition: async (job: string, to: string) => {
     const from = (await db.query<{ stage: string }>("select stage from jobs where id=$1", [job])).rows[0]!.stage;
@@ -53,7 +61,13 @@ mock.module("../src/lib/workflow.server", () => ({
   },
 }));
 const realRepeat = await import("../src/lib/repeat-piesa.server");
-mock.module("../src/lib/repeat-piesa.server", () => ({ ...realRepeat, latestReopenAt: async () => null }));
+mock.module("../src/lib/repeat-piesa.server", () => ({ ...realRepeat, latestReopenAt: async (j: string) => reopenAt.get(j) ?? null }));
+const realMitti = await import("../src/lib/mitti-electrician.server");
+mock.module("../src/lib/mitti-electrician.server", () => ({ ...realMitti, mittiElectricianAtSafetyCheck: async (j: string) => {
+  const m = mitti.get(j) ?? { action: "proceed" };
+  if (m.action === "hold") await db.query("insert into workflow_events (job_id, event_type, summary, details) values ($1,'mitti_electrician_choice_needed','Installer to choose electrician','{\"needs_office\":true}')", [j]);
+  return m;
+} }));
 mock.module("../src/lib/own-job-piesa-notices.server", () => ({ sendOwnJobPiesaNotices: async (j: string) => { notices.push(j); return "stub"; } }));
 
 const { handOwnJobPiesa, sweepOwnJobPiesaHandoffs } = await import("../src/lib/own-job-piesa.server");
@@ -140,6 +154,92 @@ describe("own job safety check hand-over", () => {
     const { onSafetyCheckTimesOffered } = await import("../src/lib/owner-email-triggers.server");
     expect(await onSafetyCheckTimesOffered(OWN, ["2026-11-10T00:00:00Z"])).toBe("own_job");
     expect(await onSafetyCheckTimesOffered(INHOUSE, ["2026-11-10T00:00:00Z"])).toBe("in_house");
+  });
+
+  // ---- fix round 1 ----
+  const newJob = async (n2: number, stg: string, opts: { nominate?: string | null; paidFee?: boolean } = {}) => {
+    const j = id(n2);
+    await db.query("insert into jobs (id, channel, stage, source) values ($1,'installer_sourced',$2,'real')", [j, stg]);
+    if (opts.nominate !== undefined) await db.query("insert into electrician_nominations (job_id, business_id) values ($1,$2)", [j, opts.nominate]);
+    if (opts.paidFee !== false) paid.add(j);
+    return j;
+  };
+
+  test("a reopened own job is handed to the electrician again; the repeat round is keyed separately", async () => {
+    const J = await newJob(40, "measured_quote_accepted", { nominate: E1 });
+    expect(await handOwnJobPiesa(J, now)).toBe("handed");
+    // Office reopens: the job is back waiting for a safety check, the first electrician's row is still active.
+    reopenAt.set(J, new Date(Date.now() + 1000).toISOString());
+    await new Promise((r) => setTimeout(r, 1100));
+    expect(await handOwnJobPiesa(J, now)).toBe("waiting"); // repeat check not paid yet
+    gateClear.add(J);
+    expect(await handOwnJobPiesa(J, now)).toBe("handed");
+    expect(await handOwnJobPiesa(J, now)).toBe("already");
+    const keys = (await db.query<{ k: string }>("select details->>'key' k from workflow_events where job_id=$1 and event_type='own_job_piesa_handed' order by created_at", [J])).rows.map((r) => r.k);
+    expect(keys).toEqual([`own_job_piesa:${J}:first`, `own_job_piesa:${J}:${reopenAt.get(J)}`]);
+    expect(await assignments(J)).toBe(1);
+    expect(await n("select count(*)::int n from job_assignments where job_id=$1 and not active and end_reason='reassigned'", [J])).toBe(1);
+    expect(notices.filter((x) => x === J)).toHaveLength(2);
+  });
+
+  test("an in-flight own job at the PIESA stage (old path, no electrician) is handed once its pending offer is gone", async () => {
+    const J = await newJob(41, "piesa_and_install_window_pending", { nominate: E1 });
+    gateClear.add(J);
+    await db.query("insert into partner_offers (job_id, business_id, kind, status) values ($1,$2,'piesa','pending')", [J, E1]);
+    expect(await handOwnJobPiesa(J, now)).toBe("waiting");
+    await db.query("update partner_offers set status='expired' where job_id=$1", [J]);
+    expect(await handOwnJobPiesa(J, now)).toBe("handed");
+    expect(await assignments(J)).toBe(1);
+  });
+
+  test("half-done hand-over (event write failed after the move) is completed by the next sweep, once", async () => {
+    const J = await newJob(42, "measured_quote_accepted", { nominate: E1 });
+    failHandedOnce = true;
+    await expect(handOwnJobPiesa(J, now)).rejects.toThrow("database blip");
+    expect(await stage(J)).toBe("piesa_and_install_window_pending");
+    expect(await assignments(J)).toBe(1);
+    expect(await events(J, "own_job_piesa_handed")).toBe(0);
+    expect(notices.filter((x) => x === J)).toHaveLength(0);
+    const later = new Date("2026-11-05T01:00:00Z"); // Thu → due end of Mon 9 Nov
+    await sweepOwnJobPiesaHandoffs(later);
+    await sweepOwnJobPiesaHandoffs(later);
+    expect(await events(J, "own_job_piesa_handed")).toBe(1);
+    expect(notices.filter((x) => x === J)).toHaveLength(1);
+    expect(await assignments(J)).toBe(1);
+    const d = (await db.query<{ details: Record<string, unknown> }>("select details from workflow_events where job_id=$1 and event_type='own_job_piesa_handed'", [J])).rows[0]!.details;
+    expect(d).toMatchObject({ electrician_business_id: E1, electrician_user_id: U1, due_at: "2026-11-09T12:59:59.999Z", repaired: true });
+  });
+
+  test("no nomination: a Mitti pickup uses the installer's approved usual electrician", async () => {
+    const J = await newJob(43, "measured_quote_accepted");
+    mitti.set(J, { action: "use_usual", businessId: E1 });
+    expect(await handOwnJobPiesa(J, now)).toBe("handed");
+    expect((await db.query("select business_id from job_assignments where job_id=$1 and active", [J])).rows).toEqual([{ business_id: E1 }]);
+  });
+
+  test("no nomination and the Mitti fallback holds: its own office item, not ours, and no assignment", async () => {
+    const J = await newJob(44, "measured_quote_accepted");
+    mitti.set(J, { action: "hold" });
+    expect(await handOwnJobPiesa(J, now)).toBe("held");
+    expect(await events(J, "mitti_electrician_choice_needed")).toBe(1);
+    expect(await events(J, "own_job_piesa_held")).toBe(0);
+    expect(await assignments(J)).toBe(0);
+  });
+
+  test("nominated electrician not onboarded (no business) → 'Electrician hasn't finished signing up'", async () => {
+    const J = await newJob(45, "measured_quote_accepted", { nominate: null });
+    expect(await handOwnJobPiesa(J, now)).toBe("held");
+    const held = (await db.query<{ details: Record<string, unknown> }>("select details from workflow_events where job_id=$1 and event_type='own_job_piesa_held'", [J])).rows;
+    expect(held).toHaveLength(1);
+    expect(held[0]!.details).toMatchObject({ reason: "Electrician hasn't finished signing up" });
+    expect(await assignments(J)).toBe(0);
+  });
+
+  test("office offer buttons refuse own jobs with a plain message", async () => {
+    const { refuseOfficeOfferForOwnJob } = await import("../src/lib/own-job-piesa.server");
+    await expect(refuseOfficeOfferForOwnJob(UNPAID)).rejects.toThrow("This is the installer's own job — it goes straight to their electrician");
+    await expect(refuseOfficeOfferForOwnJob(LEAD)).resolves.toBeUndefined();
+    await expect(refuseOfficeOfferForOwnJob(INHOUSE)).resolves.toBeUndefined();
   });
 
   test("HIV lead and in-house partner jobs keep their current flow", async () => {
