@@ -114,7 +114,27 @@ export function expandPiesa(short: ShortAnswers, ctx: ExpandContext): ExpandResu
 
   // Part 2 mains: all safe → every item Yes; problems → only the ticked items No.
   const p2ids = ["p2.mains", "p2.switchAccessible", "p2.switchIsolates", "p2.switchSecured", "p2.tested", "p2.rcdPresent", "p2.rcdTested"];
-  if (isYes(short["mainsSafe"]) || isNo(short["mainsSafe"])) {
+  if (isYes(short['splitMains'])) {
+    for (const [shortId, officialId] of [['mainsMarked', 'p2.mains'], ['ceilingTested', 'p2.tested']]) {
+      if (!shortId || !officialId) continue;
+      if (isYes(short[shortId]) || isNo(short[shortId])) out[officialId] = isYes(short[shortId]) ? 'Yes' : 'No';
+      else flagged.push(`${officialId}: not answered (mains cable / tested dead).`);
+    }
+    for (const [question, detail, options, name] of [
+      ['switchSafe', 'switchProblems', MAINS_PROBLEMS.slice(1, 4), 'Main switch'],
+      ['rcdSafe', 'rcdProblems', MAINS_PROBLEMS.slice(5, 7), 'RCDs'],
+    ] as const) {
+      const rawDetail = txt(short[detail]).replace('The main switch cannot isolate all of the cables in the ceiling space safely (excluding the mains cables).', MAINS_PROBLEMS[2]);
+      const ticks = ticksOf(rawDetail, options, name, flagged);
+      if (!isYes(short[question]) && !isNo(short[question])) { flagged.push(`${name}: not answered.`); continue; }
+      if (isNo(short[question]) && !ticks.length) { flagged.push(`${name}: No without problem details.`); continue; }
+      if (isYes(short[question]) && ticks.length) { flagged.push(`${name}: Yes conflicts with problem details.`); continue; }
+      for (const option of options) for (const [id] of MAINS_MAP[option] ?? []) out[id] = ticks.includes(option) ? 'No' : 'Yes';
+    }
+    const switchIds = ['p2.switchAccessible', 'p2.switchIsolates', 'p2.switchSecured'];
+    if (isNo(short['switchSafe'])) out['p2.switch'] = 'No';
+    else if (switchIds.every(id => out[id] === 'Yes')) out['p2.switch'] = 'Yes';
+  } else if (isYes(short["mainsSafe"]) || isNo(short["mainsSafe"])) {
     for (const id of p2ids) out[id] = "Yes";
     if (isNo(short["mainsSafe"])) for (const p of ticksOf(short["mainsProblems"], MAINS_PROBLEMS, "Mains power", flagged)) for (const [id, v] of MAINS_MAP[p] ?? []) out[id] = v;
     out["p2.switch"] = ["p2.switchAccessible", "p2.switchIsolates", "p2.switchSecured"].some((k) => out[k] === "No") ? "No" : "Yes";

@@ -4,6 +4,14 @@
 // (official-docx.core.ts). PURE: no I/O. Questions are full plain sentences — never shorthand.
 import type { FormField } from "./mitti-forms.core";
 import { B2_OPTIONS } from "./official-forms.core";
+import { canonicalMittiLabel, mittiLabelAliases } from "./mitti-rebuild-labels.core";
+
+export const SPLIT_MAINS_Q = {
+ switchSafe: 'Does the main switch work, can you reach it, does it switch off every cable in the ceiling, and can it be locked off?',
+ rcdSafe: 'Are safety switches (RCDs) fitted for the ceiling circuits, and have you tested them?',
+ mainsMarked: 'Have you found and marked the mains cable in the ceiling?',
+ ceilingTested: 'With the main switch off, have you tested that the ceiling is dead?',
+} as const;
 
 const yn = (id: string, label: string, when?: string): FormField => ({ id, label, type: "yesno", required: true, choices: ["Yes", "No"], ...(when ? { when } : {}), source: "short onsite form" });
 const pre = (id: string, label: string, type: FormField["type"] = "text", when?: string): FormField => ({ id, label, type, required: true, prefill: true, ...(when ? { when } : {}), source: "portal prefill — signer confirms" });
@@ -55,7 +63,7 @@ export function noPriceTalkIssue(i: { completed: boolean; entries: { label: stri
   if (!i.completed) return null;
   const nrm = (x: string) => x.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
   const first = (l: string) => nrm(String(l ?? "").split("\n")[0] ?? "");
-  const tick = i.entries.find((e) => first(e.label) === nrm(NO_PRICE_TALK_LABEL));
+  const tick = i.entries.find((e) => first(canonicalMittiLabel(e.label)) === nrm(NO_PRICE_TALK_LABEL));
   if (!tick) return null;
   const v = tick.value;
   const ok = v === true || /^(yes|true|ticked|checked)$/i.test(String(v ?? "").trim());
@@ -379,6 +387,10 @@ export const SHORT_PIISA_FIELDS: FormField[] = [
 ];
 
 export const SHORT_FIELDS: Record<"piesa" | "piisa", FormField[]> = { piesa: SHORT_PIESA_FIELDS, piisa: SHORT_PIISA_FIELDS };
+for (const f of SHORT_PIESA_FIELDS) f.aliases = [...(f.aliases ?? []), ...mittiLabelAliases(f.label)];
+SHORT_PIESA_FIELDS.find(f => f.id === 'lifeSupportPresent')?.aliases?.push('Does anyone living here use life support equipment?');
+SHORT_PIESA_FIELDS.find(f => f.id === 'lifeSupportConsent')?.aliases?.push('Do you have their written consent or medical plan?');
+SHORT_PIESA_FIELDS.find(f => f.id === 'lifeSupportAttachment')?.aliases?.push('Photo of every page of the consent or medical plan');
 
 /** A stored PIESA snapshot from the live A3 (decisions 294–338): the electrician answered the Yes/No repair question.
  *  Older PIESA forms (B1 outcome, switchboard / RCD questions) return false. Pure. */
@@ -388,7 +400,7 @@ export function isLiveA3Snapshot(snapshot: unknown): boolean {
   return snapshot.some((e) => {
     const x = e as { label?: unknown; value?: unknown } | null;
     // First line only: Mitti appends a question's help text after a line break.
-    return !!x && typeof x.label === "string" && x.label.split("\n")[0]!.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim() === k && /^\s*(yes|no)\b/i.test(String(x.value ?? ""));
+    return !!x && typeof x.label === "string" && canonicalMittiLabel(x.label).split("\n")[0]?.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim() === k && /^\s*(yes|no)\b/i.test(String(x.value ?? ""));
   });
 }
 
@@ -398,18 +410,34 @@ export function shortAnswersFromEntries(key: "piesa" | "piisa", entries: { label
   const fields = SHORT_FIELDS[key];
   const used = new Map<string, number>();
   const out: Record<string, string> = {};
+  let splitContext: 'switchProblems' | 'rcdProblems' | 'solarProblems' | null = null;
   const formKey = key;
   let blockRow = -1;
   const blockSeen = new Set<string>();
   for (const e of entries) {
-    const k = nrm(e.label ?? "");
+    const raw = String(e.label ?? '').split('\n')[0] ?? '';
+    if (key === 'piesa') {
+      const split = Object.entries(SPLIT_MAINS_Q).find(([, label]) => nrm(raw) === nrm(label) || (label === SPLIT_MAINS_Q.switchSafe && nrm(raw) === nrm('Does the main switch work, can you reach it, does it safely isolate the ceiling circuits (excluding the mains cables), and can it be locked off?')));
+      if (split) {
+        out['splitMains'] = 'Yes';
+        if (e.value != null) out[split[0]] = e.value;
+        splitContext = split[0] === 'switchSafe' ? 'switchProblems' : split[0] === 'rcdSafe' ? 'rcdProblems' : null;
+        continue;
+      }
+      if (nrm(canonicalMittiLabel(raw)) === nrm('Can it be safely shut down, and are its cables in the ceiling labelled, in conduit and protected?')) splitContext = 'solarProblems';
+      if (nrm(raw) === nrm("Tick everything that's not right.")) {
+        if (splitContext && e.value != null) out[splitContext] = e.value;
+        continue;
+      }
+    }
+    const k = nrm(canonicalMittiLabel(e.label ?? ""));
     if (!k) continue;
     let cands = fields.filter((f) => nrm(f.label) === k || (f.aliases ?? []).some((a) => nrm(a) === k));
     // Mitti may append help text after a line break (decision 305's "What's included in that price?"): when the full label
     // matches nothing, the first line decides.
     if (!cands.length) {
       const first = nrm(String(e.label ?? "").split("\n")[0] ?? "");
-      if (first && first !== k) cands = fields.filter((f) => nrm(f.label) === first);
+      if (first && first !== k) cands = fields.filter((f) => nrm(f.label) === first || (f.aliases ?? []).some(a => nrm(a) === first));
     }
     if (!cands.length) continue;
     // Decision 336: the repeating hazard block is numbered by ROW (a new row starts when a question repeats), so "What is the
@@ -429,7 +457,15 @@ export function shortAnswersFromEntries(key: "piesa" | "piisa", entries: { label
     const slot = cands[seen] ?? (cands.length ? { ...cands[cands.length - 1]!, id: `${cands[cands.length - 1]!.id}#${seen - cands.length + 1}` } : undefined);
     if (slot && e.value != null && e.value !== "") out[slot.id!] = e.value;
   }
-  if (key === "piesa") { deriveOfficialRepairTicks(out); deriveRectificationOutcome(out); }
+  if (key === "piesa") {
+    if (out['splitMains']) {
+      const facts = Object.keys(SPLIT_MAINS_Q).map(id => out[id]);
+      if (facts.some(v => /^no$/i.test(v ?? ''))) out['mainsSafe'] = 'No';
+      else if (facts.every(v => /^yes$/i.test(v ?? ''))) out['mainsSafe'] = 'Yes';
+      out['mainsProblems'] = [out['switchProblems'], out['rcdProblems'], /^no$/i.test(out['mainsMarked'] ?? '') ? MAINS_PROBLEMS[0] : null, /^no$/i.test(out['ceilingTested'] ?? '') ? MAINS_PROBLEMS[4] : null].filter(Boolean).join(' | ');
+    }
+    deriveOfficialRepairTicks(out); deriveRectificationOutcome(out);
+  }
   return out;
 }
 
