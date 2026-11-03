@@ -379,6 +379,9 @@ function priceRebate(f: OwnerFacts): Built {
 /** Approved installer-guide pay rule (GUIDE_WORDS.pay: "your customers when the owner pays the balance; our leads 7 days
  *  after we approve the job"), written as a sentence. */
 export const PARTNER_PAY_RULE = "For your own customers you're paid when the owner pays the balance, and for our leads 7 days after we approve the job.";
+/** DRAFT (Jo 3 Nov 2026 22:14 ruling, Part 4): the quote is never sent by Complete itself — the business owner enters the price
+ *  after Complete, and only then does the quote go to the owner. Nothing may say or imply the quote is sent automatically on Complete. */
+export const PARTNER_MITTI_COMPLETE_LINE_DRAFT = "Fill in as much as you can and press Complete when it's finished, then the business owner enters the price in the portal and we send the owner their quote."; // DRAFT
 function partnerReply(p: PartnerFacts | null, text: string, now: Date): Built {
   const flags: string[] = [];
   const lines: string[] = [];
@@ -388,7 +391,7 @@ function partnerReply(p: PartnerFacts | null, text: string, now: Date): Built {
   if (mitti) {
     const example = p?.ownJobNumbers[0] ?? "HV-3117";
     lines.push(`The job's Ready Check form appears in Mitti within about 15 minutes of the job being added, named with the customer's address and job number (for example ${example}), under your inspections.`);
-    lines.push("Fill in as much as you can and press Complete only when it's finished, because that's what sends the owner their quote.");
+    lines.push(PARTNER_MITTI_COMPLETE_LINE_DRAFT);
   }
   if (pay) {
     const rows = p?.pay ?? [];

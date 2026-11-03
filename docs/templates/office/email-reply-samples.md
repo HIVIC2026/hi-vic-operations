@@ -66,7 +66,7 @@ Check before sending: no
 ```text
 Hi Mark,
 
-Your quote's full price is $4,050 incl. GST, and the $1,850 VEU rebate comes straight off, so you pay $2,200 with nothing for you to claim. That includes the free Ready Check, the licensed electrician's safety check, premium R5.0 ceiling batts fitted by an EEC-certified installer, and all the rebate paperwork. Electrical fixes aren't included and are only needed if the safety check finds any; they're quoted separately and nothing is done without your OK. The rebate is for homes over 5 years old where any insulation already in the ceiling is below R2.0. You can see the full breakdown here: https://estimate.homeinsulationvictoria.com.au/estimate/SAMPLETOKEN
+Your quote's full price is $4,050 incl. GST, and the $1,850 VEU rebate comes straight off, so you pay $2,200 with nothing for you to claim. That includes the free Ready Check, the licensed electrician's safety check, premium R5.0 ceiling batts fitted by an EEC-certified installer, and all the rebate paperwork. Electrical upgrades aren't included and are only needed if the safety check finds any; they're quoted separately and nothing is done without your OK. The rebate is for homes over 5 years old where any insulation already in the ceiling is below R2.0. You can see the full breakdown here: https://estimate.homeinsulationvictoria.com.au/estimate/SAMPLETOKEN
 
 Jo, Home Insulation Victoria
 ```
@@ -89,7 +89,7 @@ Check before sending: no
 ```text
 Hi Sam,
 
-Your estimate is $3,798 incl. GST, and the $1,610 VEU rebate comes straight off, so you'd pay $2,188 for the 137 m² ceiling you told us about. That includes the licensed electrician's safety check, premium R5.0 ceiling batts fitted by an EEC-certified installer, and all the rebate paperwork. Not included, only if needed: removing old insulation, a ceiling access fee, electrical fixes, or a bigger ceiling than you told us. The rebate is for homes over 5 years old where any insulation already in the ceiling is below R2.0. You can see the full breakdown here: https://estimate.homeinsulationvictoria.com.au/estimate/SAMPLETOKEN3
+Your estimate is $3,798 incl. GST, and the $1,610 VEU rebate comes straight off, so you'd pay $2,188 for the 137 m² ceiling you told us about. That includes the licensed electrician's safety check, premium R5.0 ceiling batts fitted by an EEC-certified installer, and all the rebate paperwork. Not included, only if needed: removing old insulation, a ceiling access fee, electrical upgrades, or a bigger ceiling than you told us. The rebate is for homes over 5 years old where any insulation already in the ceiling is below R2.0. You can see the full breakdown here: https://estimate.homeinsulationvictoria.com.au/estimate/SAMPLETOKEN3
 
 Jo, Home Insulation Victoria
 ```
@@ -112,7 +112,7 @@ Check before sending: yes — Owner has (or isn't sure about) existing insulatio
 ```text
 Hi Dan,
 
-The job's Ready Check form appears in Mitti within about 15 minutes of the job being added, named with the customer's address and job number (for example HV-3171), under your inspections. Fill in as much as you can and press Complete only when it's finished, because that's what sends the owner their quote. Your next payment is due Friday 30 October for HV-3102. For your own customers you're paid when the owner pays the balance, and for our leads 7 days after we approve the job. Everything is in your portal: https://estimate.homeinsulationvictoria.com.au/field
+The job's Ready Check form appears in Mitti within about 15 minutes of the job being added, named with the customer's address and job number (for example HV-3171), under your inspections. Fill in as much as you can and press Complete when it's finished, then the business owner enters the price in the portal and we send the owner their quote. Your next payment is due Friday 30 October for HV-3102. For your own customers you're paid when the owner pays the balance, and for our leads 7 days after we approve the job. Everything is in your portal: https://estimate.homeinsulationvictoria.com.au/field
 
 Jo, Home Insulation Victoria
 ```
