@@ -1,7 +1,9 @@
 import { lazy, Suspense } from "react";
 import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
+import { useEffect } from "react";
 import { loadAccess, userIdOf } from "@/lib/route-guards";
 import { startTradeScreenForPath } from "@/lib/trade-route-prefetch";
+import { registerInstallerAppCache } from "@/lib/installer-app-cache";
 
 // The layout that shows the "you don't need to sign in" page loads on its own, so the guard below stays light.
 const FieldLayout = lazy(() => import("@/components/trade/FieldLayout"));
@@ -19,5 +21,12 @@ export const Route = createFileRoute("/_authenticated/field")({
   },
   // The layout reads the same access memo: an electrician-only app role (a.electrician && !a.installer && !a.admin)
   // gets the plain NO_LOGIN_NEEDED line (trade-access-role.core), never a blank page.
-  component: () => <Suspense fallback={<Outlet />}><FieldLayout /></Suspense>,
+  component: FieldArea,
 });
+
+// Installer app cache (Jo, 3 Nov 2026): the service worker that keeps the app shell on the phone registers here, on the
+// trade routes only, and only while the switch in installer-app-cache.core is on (off today).
+function FieldArea() {
+  useEffect(() => { registerInstallerAppCache(); }, []);
+  return <Suspense fallback={<Outlet />}><FieldLayout /></Suspense>;
+}

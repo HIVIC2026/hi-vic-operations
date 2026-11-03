@@ -2,7 +2,7 @@
 // tiles (COMING TO YOU / PAID THIS MONTH) and one row per pay item with its plain rule, each opening the job's pay page.
 // The installer's own pay only — never the owner's price. No statement download (Jo 2 Nov, answer 14). Only installer
 // businesses reach it (boss always; Office with "Can see Money"); electricians have no Money page.
-import { readTradeCache, writeTradeCache } from "@/lib/trade-cache";
+import { forgetRefusedCopy, readTradeCache, writeTradeCache } from "@/lib/trade-cache";
 import { headStartOr, startTradeScreen } from "@/lib/trade-route-prefetch";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -24,7 +24,7 @@ function Money() {
   const load = useServerFn(getTradeMoneyView);
   const uid = Route.useRouteContext().user.id;
   const seed = useMemo(() => readTradeCache<Awaited<ReturnType<typeof load>>>(uid, "money"), [uid]);
-  const { data, error } = useQuery({ queryKey: ["trade-money-v2"], queryFn: async () => { const d = await headStartOr(uid, ["trade-money-v2"], () => load()); if (d) writeTradeCache(uid, "money", d); return d; }, retry: false, staleTime: 30_000, ...(seed ? { initialData: seed.data, initialDataUpdatedAt: seed.at } : {}) }); // a refusal shows at once, not after retries
+  const { data, error } = useQuery({ queryKey: ["trade-money-v2"], queryFn: async () => { try { const d = await headStartOr(uid, ["trade-money-v2"], () => load()); if (d) writeTradeCache(uid, "money", d); return d; } catch (e) { forgetRefusedCopy(uid, "money", e); throw e; } }, retry: false, staleTime: 30_000, ...(seed ? { initialData: seed.data, initialDataUpdatedAt: seed.at } : {}) }); // a refusal shows at once, not after retries
   if (error) return <TradeShell installer><p role="alert" className="rounded-[18px] border border-line bg-paper p-4 text-sm">{(error as Error).message}</p><Link to="/field" className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold text-hiv-blue">Back to My work</Link></TradeShell>;
   if (!data) return <TradeShell installer><p className="text-sm">Loading…</p></TradeShell>;
   const s = data.screen;

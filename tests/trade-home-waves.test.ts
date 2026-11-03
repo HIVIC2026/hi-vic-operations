@@ -177,15 +177,17 @@ describe("My work (Task 5): same value as before", () => {
     expect(out).toMatchSnapshot();
   });
 
-  test("the fixture exercises the deposit line and the electrician question", async () => {
+  // Join (Parts 5–7): tradeHome's `home` groups became Part 5's `myWork` (step/reason from the Next step box) and Part 6
+  // retired the installer's "choose your electrician" question. #133's fixture seeds no Ready Check records, so Part 5's
+  // box reads these jobs as "Book the Ready Check" — the deposit wording is covered by next-step-box's own tests, not here.
+  // Same output on the pre-speed join commit, so this is the fixture, not the speed rewrite of tradeHome.
+  test("every fixture job still gets a My work card, and nobody is asked to choose an electrician", async () => {
     wc.state.failWhen = null; seedAll({ inHouse: true });
-    const nextOf = async (u: string) => Object.fromEntries(Object.values((await tradeHome(u)).home!).flat().map((x) => [(x as { jobNumber: string }).jobNumber, (x as { next: string }).next]));
-    const boss = await nextOf(U_BOSS), staff = await nextOf(U_STAFF);
-    expect(boss["HV-1011"]).toBe("Next: owner to pay the 10% install deposit");
-    expect(boss["HV-1012"]).toBe("Next: install deposit confirmation is being checked");
-    expect(boss["HV-1014"]).toBe("Next: Book the install in the portal");
-    expect(staff["HV-1015"]).toBe("Next: choose your electrician");
-    expect(staff["HV-1013"]).not.toBe("Next: choose your electrician"); // electrician already nominated
+    const cardsOf = async (u: string) => { const w = (await tradeHome(u)).myWork!; return [...w.yourTurn, ...w.all]; };
+    const boss = await cardsOf(U_BOSS), staff = await cardsOf(U_STAFF);
+    for (const n of [11, 12, 14]) expect(boss.some((c) => c.jobId === j(n))).toBe(true);
+    expect(staff.some((c) => c.jobId === j(15))).toBe(true);
+    for (const c of [...boss, ...staff]) expect(c.step.toLowerCase()).not.toContain("electrician");
   });
 });
 

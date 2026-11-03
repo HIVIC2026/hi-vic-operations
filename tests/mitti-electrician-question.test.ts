@@ -62,8 +62,10 @@ describe("wiring", () => {
   test("nothing in the question path sends", () => {
     for (const src of [server, card]) expect(src).not.toMatch(/sendSms|sendEmail|send-email|partner-sender/i);
   });
-  test("installer home and office Needs me show it", () => {
-    expect(readFileSync("src/lib/trade-view.server.ts", "utf8")).toContain("openMittiElectricianQuestions");
+  test("office Needs me shows it; the installer's My work no longer asks (Parts 5–6)", () => {
+    // Join (4 Nov 2026): Part 5's My work takes its cards from the Next step box and Part 6 retired the installer choosing
+    // an electrician, so tradeHome no longer reads the Mitti question. The office's Needs me item keeps it.
+    expect(readFileSync("src/lib/trade-view.server.ts", "utf8")).not.toContain("openMittiElectricianQuestions");
     expect(readFileSync("src/lib/office-needs.server.ts", "utf8")).toContain("mitti_electrician_choice_needed");
   });
 });

@@ -10,7 +10,12 @@ import { readableError } from "@/lib/readable-error.core";
 
 export const Route = createFileRoute("/_authenticated/field/business_/details")({
   head: () => ({ meta: [{ title: "Business details – Home Insulation Victoria" }, { name: "description", content: "Your business details on file with Home Insulation Victoria." }, { property: "og:title", content: "Business details – Home Insulation Victoria" }, { property: "og:description", content: "Your business details on file with Home Insulation Victoria." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex" }] }),
-  component: () => (
+  component: Details,
+});
+
+/** Named (not inline) so the route splitter puts it and LogoUpload in the lazy chunk; inline, LogoUpload's uploadTradeLogo import dragged trade-view.functions into the entry chunk. */
+function Details() {
+  return (
     <BizPage title="Business details" intro="What we have on file. Ask us if anything needs changing.">
       {(d, refetch) => (<>
         <Rows rows={[["Business name", d.details.name], ["Legal name", d.details.legal], ["ABN", d.details.abn], ["Phone", d.details.phone], ["Email", d.details.email], ["Address", d.details.address], ["Where you work", d.details.area], ["Usual days", d.details.days], ["Lead time", d.details.leadTime]]} />
@@ -18,8 +23,8 @@ export const Route = createFileRoute("/_authenticated/field/business_/details")(
         {d.kind === "installer" && d.boss && <LogoUpload />}
       </>)}
     </BizPage>
-  ),
-});
+  );
+}
 
 /** Installer screens Task 9: the logo for co-branded quotes (boss only; PNG/JPEG ≤ 2 MB, checked here and on the server). */
 function LogoUpload() {

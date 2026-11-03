@@ -15,7 +15,8 @@ export function isReadyCheckQuote(optionCode: string | null | undefined, mitti: 
 
 /** Jo 3 Nov 2026: after Complete the installer's BOSS enters the price in the portal; only then does the quote go to the
  *  owner. Nothing here may say or imply the quote is sent automatically on Complete. */
-export const PRESS_COMPLETE_LINE = "Press Complete in Mitti when the Ready Check is finished. Your boss then enters the price, and we send the owner their quote."; // DRAFT
+export { PRESS_COMPLETE_LINE } from "./installer-status-line.core"; // DRAFT line; lives in the import-free status-line module (speed step 2B)
+import { PRESS_COMPLETE_LINE } from "./installer-status-line.core";
 /** After Complete / while held: the boss's price is the next step. */
 export const QUOTE_PRICE_NEXT_LINE = "Your boss enters the price next, then we send the owner their quote."; // DRAFT
 /** Shown while the quote is held for the office after the price is in. */

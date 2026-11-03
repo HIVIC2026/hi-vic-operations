@@ -5,7 +5,7 @@ import { inHouseTradeBookingText } from "./in-house-message.core";
 // It never moves a job, never decides workflow, eligibility, allocation or pay, and never carries an owner price.
 import { PRESS_COMPLETE_LINE, QUOTE_ACCEPTED_LINE, QUOTE_DECLINED_LINE, QUOTE_HELD_LINE, QUOTE_SENT_LINE } from "./installer-quote-status.core";
 import { isPriceNextAction } from "./ready-check-basics.core";
-import { installerStatusLine } from "./installer-screens.core";
+import { installerStatusLine } from "./installer-status-line.core"; // speed (portal speed step 2B): the line only, not all of installer-screens.core
 
 export type HomeGroup = "action" | "coming" | "progress" | "done" | "offer";
 export type InstallerHomeJob = {

@@ -34,8 +34,8 @@ function seed() {
   });
   Object.assign(tables, {
     businesses: [
-      { id: B1, name: "Inst Co", trading_name: null, business_type: "eec_installer", capabilities: ["installer"], base_suburb: "Geelong", coverage_radius_km: 50, covers_all_victoria: false, accepting_new_jobs: true, onboarding_notes: null, mitti_account_invited: true },
-      { id: B2, name: "Sparky Co", trading_name: "Sparky", business_type: "rec", capabilities: ["electrician"], base_suburb: "Geelong", coverage_radius_km: 50, covers_all_victoria: false, accepting_new_jobs: true, onboarding_notes: null, mitti_account_invited: false },
+      { id: B1, name: "Inst Co", trading_name: null, in_house: false, business_type: "eec_installer", capabilities: ["installer"], base_suburb: "Geelong", coverage_radius_km: 50, covers_all_victoria: false, accepting_new_jobs: true, onboarding_notes: null, mitti_account_invited: true },
+      { id: B2, name: "Sparky Co", trading_name: "Sparky", in_house: false, business_type: "rec", capabilities: ["electrician"], base_suburb: "Geelong", coverage_radius_km: 50, covers_all_victoria: false, accepting_new_jobs: true, onboarding_notes: null, mitti_account_invited: false },
     ],
     business_members: [
       { id: "m1", business_id: B1, user_id: U_BOSS, member_role: "business_admin", active: true },

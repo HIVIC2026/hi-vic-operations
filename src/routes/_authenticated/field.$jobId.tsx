@@ -19,7 +19,7 @@ const streetAndSuburb = (a?: string | null) =>
     .trim();
 import { useJob } from "@/components/portal/panels";
 import { useServerFn } from "@tanstack/react-start";
-import { getMyMittiInvited, getTradeJobBundle, getTradeJobPage } from "@/lib/trade-view.functions";
+import { getTradeJobBundle, getTradeJobPage } from "@/lib/trade-view.functions";
 import {
   BUNDLE_QUERY_KEYS,
   bundleUsable,
@@ -28,14 +28,6 @@ import {
   type BundleSection,
 } from "@/lib/trade-job-bundle.core";
 
-/** Partners never see Mitti until the office ticks "Mitti account invited". */
-function useMittiInvited() {
-  const load = useServerFn(getMyMittiInvited);
-  return (
-    useQuery({ queryKey: ["mitti-invited"], queryFn: () => load(), staleTime: 300_000 }).data
-      ?.invited === true
-  );
-}
 import { useAction } from "@/hooks/use-me";
 import { InstallerFinalDeclaration } from "@/components/portal/assignment";
 import { OwnerQuoteCard } from "@/components/trade/OwnerQuoteCard";

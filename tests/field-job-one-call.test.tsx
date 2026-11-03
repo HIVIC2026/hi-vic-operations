@@ -26,7 +26,7 @@ mock.module("@tanstack/react-start", () => ({
 mock.module("@tanstack/react-start/server", () => ({ getRequest: () => undefined, getCookie: () => undefined, setCookie: () => undefined, setResponseStatus: () => undefined }));
 mock.module("@tanstack/react-router", () => ({
   RouterProvider: () => null, Outlet: () => null,
-  createFileRoute: () => (opts: Record<string, unknown>) => ({ ...opts, options: opts, useParams: () => ({ jobId: JOB_ID }) }),
+  createFileRoute: () => (opts: Record<string, unknown>) => ({ ...opts, options: opts, useParams: () => ({ jobId: JOB_ID }), useRouteContext: () => ({ user: { id: "user-1" } }), useSearch: () => ({}) }),
   Link: ({ to, children, className }: { to: string; children: ReactNode; className?: string }) => <a href={to} className={className}>{children}</a>,
   useNavigate: () => () => undefined,
   useRouterState: () => "/field",
@@ -52,7 +52,7 @@ mock.module("@/lib/trade-view.functions", () => ({
   getTradeJobBundle: fake("getTradeJobBundle", () => bundle),
   getTradeJobPage: refused("getTradeJobPage"), getMyMittiInvited: refused("getMyMittiInvited"), getTradeReadyCheckTimes: refused("getTradeReadyCheckTimes"), getTradeSwms: fake("getTradeSwms", () => ({ show: false })),
   setA1ReadyCheckTimeFn: refused("setA1ReadyCheckTimeFn"), offerTradeReadyCheckNewTimes: refused("offerTradeReadyCheckNewTimes"), takeTradeReadyCheckDay: refused("takeTradeReadyCheckDay"), changeTradeReadyCheckTime: refused("changeTradeReadyCheckTime"),
-  saveTradeSwmsNote: refused("saveTradeSwmsNote"), signTradeSwms: refused("signTradeSwms"), getTradeJobStatus: refused("getTradeJobStatus"), askTradeReminder: refused("askTradeReminder"), getMittiJobPresentation: refused("getMittiJobPresentation"),
+  saveTradeSwmsNote: refused("saveTradeSwmsNote"), signTradeSwms: refused("signTradeSwms"), leadPhoneSwmsLink: refused("leadPhoneSwmsLink"), changeInHouseLeadInstaller: refused("changeInHouseLeadInstaller"), inHouseBookVisit: refused("inHouseBookVisit"), getInHouseBookingTeam: refused("getInHouseBookingTeam"), tradeOwnerCancelled: refused("tradeOwnerCancelled"), tradeHandBack: refused("tradeHandBack"), getInHouseBookingAccess: refused("getInHouseBookingAccess"), getTradeJobStatus: refused("getTradeJobStatus"), askTradeReminder: refused("askTradeReminder"), getMittiJobPresentation: refused("getMittiJobPresentation"),
   getTradeHome: refused("getTradeHome"), getTradeDayView: refused("getTradeDayView"), getTradeDayExtras: refused("getTradeDayExtras"), getTradeMoneyJob: refused("getTradeMoneyJob"), confirmHivicReadyCheckPricingFn: refused("confirmHivicReadyCheckPricingFn"),
   // Electrician-only cards (decisions 315/317/327): never rendered on the installer page under test.
   getTradeFixesTimes: refused("getTradeFixesTimes"), saveTradeFixesTimes: refused("saveTradeFixesTimes"), getTradeSafetyCheckDoc: refused("getTradeSafetyCheckDoc"), getTradeSafetyCheckPdf: refused("getTradeSafetyCheckPdf"),
@@ -60,7 +60,7 @@ mock.module("@/lib/trade-view.functions", () => ({
   // Decision 328: "Check my form now" — only called by a tap, never on first paint.
   checkTradeInstallForm: refused("checkTradeInstallForm"),
 }));
-mock.module("@/lib/visit-allocation.functions", () => ({ getVisitAllocation: fake("getVisitAllocation", () => ({ canAllocate: false, visits: [] })), allocateVisitFn: refused("allocateVisitFn") }));
+mock.module("@/lib/visit-allocation.functions", () => ({ getVisitAllocation: fake("getVisitAllocation", () => ({ canAllocate: false, visits: [] })), allocateVisitFn: refused("allocateVisitFn"), getTeamElectricians: refused("getTeamElectricians"), allocateElectricianFn: refused("allocateElectricianFn") }));
 mock.module("@/lib/installer-price.functions", () => ({ getInstallerPriceFn: refused("getInstallerPriceFn"), setInstallerPriceFn: refused("setInstallerPriceFn"), switchToHivElectricianFn: refused("switchToHivElectricianFn") }));
 mock.module("@/lib/installer-quote-status.functions", () => ({ getMyOwnerQuote: refused("getMyOwnerQuote") }));
 

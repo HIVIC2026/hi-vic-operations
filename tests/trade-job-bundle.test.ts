@@ -146,7 +146,10 @@ describe("section errors and the seed plan (pure)", () => {
     expect(src("src/components/portal/panels.tsx")).toContain(`queryKey: ["job", jobId]`);
     expect(route).toContain(`queryKey: ["myrole", jobId]`);
     expect(route).toContain(`queryKey: ["trade-job-page", jobId]`);
-    expect(route).toContain(`queryKey: ["mitti-invited"]`);
+    // Join (Parts 5–7): the page no longer gates Mitti per card (useMittiInvited went with the electrician flows; the
+    // installer page reads page.mittiInvited from the bundle's own page section). The mittiInvited seed costs no read and
+    // stays harmless, but it has no reader on this route any more — pinned so a reader coming back is a deliberate change.
+    expect(route).not.toContain(`queryKey: ["mitti-invited"]`);
     expect(src("src/components/portal/install-days.tsx")).toContain(`queryKey: ["installer-install-days", jobId]`);
     expect(src("src/components/portal/ready-check-times-installer.tsx")).toContain(`queryKey: ["installer-rc-times", jobId]`);
     expect(src("src/components/trade/visit-allocation.tsx")).toContain(`queryKey: ["visit-allocation", jobId]`);

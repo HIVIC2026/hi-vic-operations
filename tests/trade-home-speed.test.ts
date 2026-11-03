@@ -32,7 +32,7 @@ mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { f
 const { tradeHome } = await import("../src/lib/trade-view.server");
 const { installStartDate, installStartDates } = await import("../src/lib/install-evidence.server");
 const { loadInstallerQuotes } = await import("../src/lib/installer-quote-status.server");
-const { safetyCheckPayeesFor } = await import("../src/lib/installer-paid-electricians.server");
+const { safetyCheckPayeesFor, installerSafetyCheckBusinessesFor } = await import("../src/lib/installer-paid-electricians.server");
 
 async function measured(userId: string) {
   wave = 0; log = []; pending = []; scheduled = false;
@@ -159,38 +159,35 @@ describe("tradeHome speed (Task 5)", () => {
     expect(out).toMatchSnapshot();
   });
 
-  test("staff: the installer home loads in at most 3 sequential rounds of reads", async () => {
-    failWhen = null; seed({ inHouse: true });
-    const r = await measured(U_STAFF);
-    expect(r.out.myWork).not.toBeNull();
-    if (r.rounds > 3) console.log(`staff rounds = ${r.rounds}\n${roundsOf(r.log)}`);
-    expect(r.rounds).toBeLessThanOrEqual(3);
-  });
-
-  test("owner of an ordinary installer business: at most 3 sequential rounds", async () => {
-    failWhen = null; seed({ inHouse: false });
-    const r = await measured(U_BOSS);
-    expect(r.out.month).not.toBeNull();
-    if (r.rounds > 3) console.log(`owner (ordinary) rounds = ${r.rounds}\n${roundsOf(r.log)}`);
-    expect(r.rounds).toBeLessThanOrEqual(3);
-  });
-
-  // The brief's target of at most 2 rounds is deferred: it needs a read-only database function (context, offers and
-  // assignments in one call), held until the live timing shows whether it is needed.
-  test("owner of an in-house installer business (pays its own electricians): at most 4 sequential rounds", async () => {
-    failWhen = null; seed({ inHouse: true });
-    const r = await measured(U_BOSS);
-    expect(r.out.month).not.toBeNull();
-    if (r.rounds > 4) console.log(`owner (in-house) rounds = ${r.rounds}\n${roundsOf(r.log)}`);
-    expect(r.rounds).toBeLessThanOrEqual(4);
-  });
-
-  test("electrician owner: at most 3 sequential rounds", async () => {
-    failWhen = null; seed({ inHouse: false });
-    const r = await measured(U_ELEC);
-    if (r.rounds > 3) console.log(`electrician rounds = ${r.rounds}\n${roundsOf(r.log)}`);
-    expect(r.rounds).toBeLessThanOrEqual(3);
-  });
+  // Portal speed step 2B (home flatten): three rounds for everyone — (1) sign-in context, (2) everything that needs only
+  // the business, (3) everything that needs the job ids — and no fourth round from the money chain (display payer's rate
+  // card) or the Mitti electrician question. Read counts: the job rows the assignment read already carries are not read
+  // again (status facts, quote status, the electrician question), and the Ready Check form facts are read once.
+  // At most 2 rounds needs a read-only database function (context + offers + assignments in one call): not done here.
+  // Join 4 Nov 2026: Part 5's My work (Next step box per job) adds exactly SIX reads per installer context on top of the
+  // speed branch's counts — round 2: who-books (businesses), the Team electricians (partner_workers); round 3: PIESA
+  // results (assessments), the owner's payments (ledger), the CoES documents, the electrician allocation events. Same
+  // three rounds. The caps below are the speed branch's +6 for those; anything above that is a regression.
+  const P5_MY_WORK_READS = 6;
+  const CONTEXTS: { name: string; seed: Parameters<typeof seed>[0]; uid: string; reads: number }[] = [
+    { name: "owner, in-house installer business (pays its own electricians)", seed: { inHouse: true }, uid: U_BOSS, reads: 53 + P5_MY_WORK_READS },
+    { name: "owner, ordinary installer business", seed: { inHouse: false }, uid: U_BOSS, reads: 49 + P5_MY_WORK_READS },
+    { name: "staff, in-house installer business", seed: { inHouse: true }, uid: U_STAFF, reads: 30 + P5_MY_WORK_READS },
+    { name: "staff, ordinary installer business", seed: { inHouse: false }, uid: U_STAFF, reads: 30 + P5_MY_WORK_READS },
+    { name: "electrician owner", seed: { inHouse: false }, uid: U_ELEC, reads: 45 },
+    { name: "owner, TEST in-house business", seed: { test: true, inHouse: true }, uid: U_BOSS, reads: 53 + P5_MY_WORK_READS },
+    { name: "staff, TEST in-house business", seed: { test: true, inHouse: true }, uid: U_STAFF, reads: 30 + P5_MY_WORK_READS },
+  ];
+  for (const ctx of CONTEXTS) {
+    test(`${ctx.name}: at most 3 sequential rounds and at most ${ctx.reads} reads`, async () => {
+      failWhen = null; seed(ctx.seed);
+      const r = await measured(ctx.uid);
+      if (ctx.uid !== U_ELEC) expect(r.out.myWork).not.toBeNull(); // Part 5: My work replaces the M1 home groups
+      if (r.rounds > 3 || r.log.length > ctx.reads) console.log(`${ctx.name}: rounds = ${r.rounds}, reads = ${r.log.length}\n${roundsOf(r.log)}`);
+      expect(r.rounds).toBeLessThanOrEqual(3);
+      expect(r.log.length).toBeLessThanOrEqual(ctx.reads);
+    });
+  }
 
   test("TEST business: only the qa_test job shows, never the real one", async () => {
     failWhen = null; seed({ test: true });
@@ -263,6 +260,27 @@ describe("shared reads moved into an earlier round keep their answers and failur
     expect([...fine.values()].every((q) => !q.applies)).toBe(true);
     failWhen = null;
     expect((await loadInstallerQuotes([j(8)])).get(j(8))?.held).toBe(true);
+  });
+
+  test("installer business configuration: one round (business flags, rate cards and PIESA lines together), same answers and errors", async () => {
+    failWhen = null; seed({ inHouse: true });
+    wave = 0; log = []; pending = []; scheduled = false;
+    const got = await installerSafetyCheckBusinessesFor([B1, B2, "00000000-0000-4000-8000-0000000000ff"]);
+    expect(log.length ? Math.max(...log.map((l) => l.wave)) + 1 : 0).toBe(1);
+    expect([...got.entries()]).toEqual([
+      [B1, { id: B1, name: "Inst Co", in_house: true, pays_own_electricians: true, piesaIncGst: 330 }],
+      [B2, { id: B2, name: "Sparky Co", in_house: false, pays_own_electricians: false, piesaIncGst: null }],
+    ]);
+    expect([...(await installerSafetyCheckBusinessesFor([])).entries()]).toEqual([]);
+    failWhen = (t, s) => t === "businesses" && s.includes("pays_own_electricians");
+    await expect(installerSafetyCheckBusinessesFor([B1])).rejects.toThrow("Could not read installer electrician-payment configuration.");
+    failWhen = (t) => t === "rate_cards";
+    await expect(installerSafetyCheckBusinessesFor([B1])).rejects.toThrow("Could not read the in-house PIESA rate cards.");
+    expect([...(await installerSafetyCheckBusinessesFor(["00000000-0000-4000-8000-0000000000ff"])).entries()]).toEqual([]); // no business found: the card read is never a failure, as before
+    failWhen = (t) => t === "rate_card_items";
+    await expect(installerSafetyCheckBusinessesFor([B1])).rejects.toThrow("Could not read the in-house PIESA prices.");
+    expect((await installerSafetyCheckBusinessesFor([B2])).get(B2)?.piesaIncGst).toBeNull(); // no card for B2: a failed lines read is not an error, as before
+    failWhen = null;
   });
 
   test("safety-check payee choices: a failed read fails only when a job needs it", async () => {

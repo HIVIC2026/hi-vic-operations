@@ -13,25 +13,29 @@ export async function installerSafetyCheckBusinessesFor(ids: string[]): Promise<
   if (!ids.length) return out;
   // Local schema overlay until Jo applies the pending SQL; generated types are not deployment proof.
   const db = admin as unknown as SupabaseClient;
-  const { data: businesses, error } = await db.from("businesses").select("id,name,in_house,pays_own_electricians").in("id", [...new Set(ids)]);
+  // Speed (portal speed step 2B, home flatten): the business flags, the cards and their PIESA lines are read together —
+  // one round instead of two. The card reads are keyed by the ids asked for (the only input), and their rows are kept
+  // only for the businesses found, which is exactly what reading them for the found businesses gave. Errors fail as
+  // before: a configuration read error first; card/line errors only when a business was found.
+  const askedIds = [...new Set(ids)];
+  const today = melbourneToday();
+  const [{ data: businesses, error }, { data: cards0, error: ce }, { data: cardLines0, error: le }] = await Promise.all([
+    db.from("businesses").select("id,name,in_house,pays_own_electricians").in("id", askedIds),
+    admin.from("rate_cards").select("id,business_id,version,effective_from")
+      .in("business_id", askedIds).eq("is_active", true).lte("effective_from", today).order("version", { ascending: false }),
+    db.from("rate_card_items").select("rate_card_id,code,unit_price_ex_gst,rate_cards!inner(business_id)")
+      .in("rate_cards.business_id", askedIds).eq("rate_cards.is_active", true).lte("rate_cards.effective_from", today).ilike("code", "piesa"),
+  ]);
   if (error) throw new Error("Could not read installer electrician-payment configuration.");
   const enabled = (businesses ?? []) as InHousePiesaBusiness[];
   if (!enabled.length) return out;
-  // Speed (installer screens, Task 5): the cards and their PIESA lines are read side by side (the lines through the same
-  // card filters) — one round instead of two. Lines are kept only for the cards read; errors fail as before.
-  const today = melbourneToday();
-  const enabledIds = enabled.map(b => b.id);
-  const [{ data: cards, error: ce }, { data: cardLines, error: le }] = await Promise.all([
-    admin.from("rate_cards").select("id,business_id,version,effective_from")
-      .in("business_id", enabledIds).eq("is_active", true).lte("effective_from", today).order("version", { ascending: false }),
-    db.from("rate_card_items").select("rate_card_id,code,unit_price_ex_gst,rate_cards!inner(business_id)")
-      .in("rate_cards.business_id", enabledIds).eq("rate_cards.is_active", true).lte("rate_cards.effective_from", today).ilike("code", "piesa"),
-  ]);
+  const enabledIds = new Set<string | null>(enabled.map(b => b.id));
+  const cards = (cards0 ?? []).filter(c => enabledIds.has(c.business_id));
   // Jo's 10:30am correction: the installer's active list owns the installer-source fee, without markup.
   if (ce) throw new Error("Could not read the in-house PIESA rate cards.");
-  if (cards?.length && le) throw new Error("Could not read the in-house PIESA prices.");
-  const cardIds = new Set((cards ?? []).map(c => c.id));
-  const lines = ((cardLines ?? []) as { rate_card_id: string; code: string | null; unit_price_ex_gst: number }[]).filter(l => cardIds.has(l.rate_card_id));
+  if (cards.length && le) throw new Error("Could not read the in-house PIESA prices.");
+  const cardIds = new Set(cards.map(c => c.id));
+  const lines = ((cardLines0 ?? []) as { rate_card_id: string; code: string | null; unit_price_ex_gst: number }[]).filter(l => cardIds.has(l.rate_card_id));
   for (const b of enabled) {
     const card = (cards ?? []).find(c => c.business_id === b.id && (lines ?? []).some(l => l.rate_card_id === c.id));
     const line = card ? (lines ?? []).find(l => l.rate_card_id === card.id) : null;

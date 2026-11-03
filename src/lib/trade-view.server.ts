@@ -69,7 +69,12 @@ import * as recOnboardedServer from "./rec-onboarded.server";
 import * as installerPaidServer from "./installer-paid-electricians.server";
 import * as schemaCompatCore from "./schema-compat.core";
 import { mittiAccessOf } from "./mitti-membership.core";
-const loadInstallerQuotes = (ids: string[]) => quoteStatusServer.loadInstallerQuotes(ids);
+import { OWNER_ONLY_REFUSALS } from "./owner-only.core";
+const loadInstallerQuotes = (ids: string[], shared?: import("./installer-quote-status.server").SharedQuoteReads) => quoteStatusServer.loadInstallerQuotes(ids, shared);
+// Speed (portal speed step 2B, home flatten): the home's deposit facts and Mitti electrician question load at module
+// scope too (namespaces, read at call time), instead of an awaited import() inside the loader.
+import * as installDepositListServer from "./install-deposit-list.server";
+import * as mittiElectricianServer from "./mitti-electrician.server";
 const readInstallerPrices = (ids: string[]) => installerPriceServer.readInstallerPrices(ids);
 
 type Biz = { id: string; name: string; business_type: string | null; capabilities: string[] | null; base_suburb: string | null; coverage_radius_km: number | null; covers_all_victoria: boolean | null; accepting_new_jobs: boolean | null; onboarding_notes: string | null; mitti_account_invited?: boolean | null };
@@ -130,12 +135,12 @@ export async function ctxOrThrow(userId: string) {
 /** Business-owner-only data (rates, bank, agreement, insurance, team). Staff logins are refused here, not just hidden in the page. */
 export async function bossOrThrow(userId: string) {
   const c = await ctxOrThrow(userId);
-  if (!c.boss) throw new WorkflowError("Only the business owner can see this.");
+  if (!c.boss) throw new WorkflowError(OWNER_ONLY_REFUSALS[0]!);
   return c;
 }
 
 /** Money screens: the boss, or an Office person the boss turned "Can see Money" on for. Refused here, not just hidden in the page. */
-export async function moneyOrThrow(userId: string, message = "Only the business owner can see this.") {
+export async function moneyOrThrow(userId: string, message: string = OWNER_ONLY_REFUSALS[0]!) {
   const c = await ctxOrThrow(userId);
   if (!c.money) throw new WorkflowError(message);
   return c;
@@ -150,8 +155,10 @@ export async function pricesOrThrow(userId: string) {
 
 const VISIT: Record<string, string> = { assessment: "Pre Insulation Electrical Safety Assessment (PIESA)", rectification: "Fixes", ready_check: "Ready Check", installation: "Install" };
 
-const HOME_JOB_COLS = "id, job_number, stage, source, channel, qa_archived_at, deleted_at, updated_at, next_action, owners(full_name), properties(address_line, suburb, postcode)";
-type HomeJob = { id: string; job_number: string; stage: string; source: string; channel: string | null; qa_archived_at: string | null; deleted_at: string | null; updated_at: string | null; next_action: string | null; owners: unknown; properties: unknown };
+// Speed (portal speed step 2B): `created_at`, `originating_installer_business_id` and `electrician_choice` ride along so the
+// status facts and the Mitti electrician question do not read the same job rows again in round 3.
+const HOME_JOB_COLS = "id, job_number, stage, source, channel, qa_archived_at, deleted_at, updated_at, next_action, created_at, originating_installer_business_id, electrician_choice, owners(full_name), properties(address_line, suburb, postcode)";
+type HomeJob = { id: string; job_number: string; stage: string; source: string; channel: string | null; qa_archived_at: string | null; deleted_at: string | null; updated_at: string | null; next_action: string | null; created_at: string | null; originating_installer_business_id: string | null; electrician_choice: string | null; owners: unknown; properties: unknown };
 
 // ---- Fix wave I4: the facts My work and the Job page must agree on, read the same way on both -----------------------------
 import { whoBooksFor } from "./who-books.server"; // the one who-books reader (join 4 Nov 2026)
@@ -171,10 +178,11 @@ const electricianNameOf = (allocated: { full_legal_name: string } | null, profil
 
 /** My work: open offers, things that need this trade, booked visits, and this month. */
 export async function tradeHome(userId: string) {
-  // Speed (installer screens, Task 5): three rounds of reads — (1) sign-in context, (2) everything that needs only the
-  // business (offers, assignments with their jobs embedded, ended assignments, owner money rows), (3) everything that
-  // needs the job ids. The owner's money rows run their own short chain alongside rounds 2–4, and the deposit facts and the
-  // Mitti electrician question (round 3) need one more round each (round 4). Same reads, same value.
+  // Speed (installer screens, Task 5; portal speed step 2B): three rounds of reads — (1) sign-in context, (2) everything
+  // that needs only the business (offers, assignments with their jobs embedded, ended assignments, the owner's money rows'
+  // visits and payer configuration), (3) everything that needs the job ids, the money rows' follow-up reads included. The
+  // job rows from round 2 answer the status facts, the quote status and the Mitti electrician question (no second jobs
+  // read), and the Ready Check form facts are read once for the status line and the quote status. Same value.
   const c = await ctxOrThrow(userId);
   const now = new Date();
   // Business owner only, own pay only. Started now, awaited after round 3; a failure still fails the page (money path).
@@ -206,22 +214,25 @@ export async function tradeHome(userId: string) {
   // Decisions 278/279: the one status line needs two more facts per installer job — has the Mitti form any installer
   // answers (latest ready_check_basics event) and, on the installer's own jobs, has the boss entered the price.
   const formReads = c.kind === "installer" && live.length > 0;
-  // Speed (portal speed step 1, Task 5): the install-deposit facts start with round 3 instead of after it. They are read for
-  // every live job at install scheduling and kept only for the jobs held by an in-house partner (known from round 3), as before.
-  const depositModule = import('./install-deposit-list.server');
-  const depositCandidates = c.kind === "installer" ? live.filter((j) => j.stage === "installation_scheduling").map((j) => j.id) : [];
-  const depositsP = depositModule.then((m) => m.installDepositPaidForJobs(depositCandidates).catch(() => null));
-  depositsP.catch(() => undefined); // awaited below; this only stops an early rejection being reported as unhandled
+  // Speed (portal speed step 1, Task 5; step 2B): the install-deposit facts start with round 3 instead of after it. They are
+  // read ONCE for every live installer job (one query) and kept for the jobs held by an in-house partner at install
+  // scheduling and, for My work's "Deposit paid" line (Part 5 Task 4), for the jobs the owner has accepted — both known
+  // only after round 3, so the one read covers both without a fourth round. Keeps its display catch.
+  const depositsP = installDepositListServer.installDepositPaidForJobs(c.kind === "installer" ? liveIds : []).catch(() => null);
+  // The Ready Check form facts (decisions 278/279), read once here and shared with the quote status below. Wrapped in a
+  // real Promise: a query builder is a thenable that runs its query again for every `then`, so sharing it as-is would read twice.
+  const msP = Promise.resolve(formReads ? admin.from("ceiling_measurements").select("job_id, external_source, external_id").in("job_id", liveIds).eq("is_current", true) : { data: [] as { job_id: string; external_source: string | null; external_id: string | null }[] });
+  const basicsP = Promise.resolve(formReads ? admin.from("workflow_events").select("job_id, details, created_at").in("job_id", liveIds).eq("event_type", "ready_check_basics").order("created_at", { ascending: false }) : { data: [] as { job_id: string | null; details: unknown; created_at: string }[] });
   // Round 3: every read that needs the job ids, together.
   const [{ data: books }, { data: missing }, { data: deadlines }, sf, rcQuotes, { data: ms }, { data: basics }, prices, { data: histJobs }, { data: assessRows }, ledgers, coesOnFile, { data: allocEvents }] = await Promise.all([
     admin.from("bookings").select("job_id, kind, status, scheduled_start, scheduled_end").in("job_id", ids).in("status", ["confirmed", "completed"]).order("scheduled_start"),
     admin.from("evidence_requirements").select("job_id, category, gate, label").in("job_id", ids).eq("required", true).in("status", ["outstanding", "rejected"]),
     admin.from("job_piesa_deadlines").select("job_id, install_deadline").in("job_id", ids),
-    statusFactsFor(c, liveIds),
+    statusFactsFor(c, liveIds, { jobs: live.map((j) => ({ id: j.id, job_number: j.job_number, stage: j.stage, channel: j.channel, originating_installer_business_id: j.originating_installer_business_id, created_at: j.created_at })) }),
     // Installer quote status — one plain line, no approval step (Jo 24 Oct). A failed read drops the lines, never the page.
-    c.kind === "installer" ? loadInstallerQuotes(liveIds).catch(() => new Map<string, InstallerQuote>()) : Promise.resolve(new Map<string, InstallerQuote>()),
-    formReads ? admin.from("ceiling_measurements").select("job_id, external_source, external_id").in("job_id", liveIds).eq("is_current", true) : Promise.resolve({ data: [] as { job_id: string; external_source: string | null; external_id: string | null }[] }),
-    formReads ? admin.from("workflow_events").select("job_id, details, created_at").in("job_id", liveIds).eq("event_type", "ready_check_basics").order("created_at", { ascending: false }) : Promise.resolve({ data: [] as { job_id: string | null; details: unknown; created_at: string }[] }),
+    c.kind === "installer" ? loadInstallerQuotes(liveIds, { channels: new Map(live.map((j) => [j.id, j.channel])), measurements: msP, basics: basicsP }).catch(() => new Map<string, InstallerQuote>()) : Promise.resolve(new Map<string, InstallerQuote>()),
+    msP,
+    basicsP,
     formReads ? readInstallerPrices(liveIds) : Promise.resolve(new Map<string, unknown>()),
     histIds.length
       ? admin.from("jobs").select("id, job_number, stage, source, channel, qa_archived_at, deleted_at, updated_at, properties(suburb)").in("id", histIds).in("stage", ["complete", "cancelled"])
@@ -230,7 +241,7 @@ export async function tradeHome(userId: string) {
     formReads ? admin.from("assessments").select("job_id, status, piesa_outcome").in("job_id", liveIds) : Promise.resolve({ data: [] as { job_id: string; status: string | null; piesa_outcome: string | null }[] }),
     // Fix wave I4 (same reads as the Job page, batched): the owner's payments (deposit date), the CoES document (certificate
     // in) and the electrician allocation events (the electrician's name). A failed read fails the page, like the rest of this round.
-    formReads ? depositModule.then((m) => m.paymentLedgersForJobs(liveIds)) : Promise.resolve(new Map<string, { paidAt: string }[]>()),
+    formReads ? installDepositListServer.paymentLedgersForJobs(liveIds) : Promise.resolve(new Map<string, { paidAt: string }[]>()),
     formReads ? coesOnFileForJobs(liveIds) : Promise.resolve(new Set<string>()),
     formReads ? admin.from("workflow_events").select("job_id, details, created_at").in("job_id", liveIds).eq("event_type", "in_house_electrician_allocated").order("created_at", { ascending: false }) : Promise.resolve({ data: [] as { job_id: string | null; details: unknown; created_at: string }[] }),
   ]);
@@ -238,9 +249,9 @@ export async function tradeHome(userId: string) {
   const depositIds = c.kind === 'installer' ? live.filter(j => j.stage === 'installation_scheduling' && !!sf.get(j.id)?.inHouseDispatch).map(j => j.id) : [];
   const depositFacts = await depositsP;
   const installDeposits = new Map<string, boolean | null>(depositIds.map((id) => [id, depositFacts?.get(id) ?? null]));
-  // My work (Task 4): the deposit is also read for jobs the owner has accepted, so the Next step box can say "Deposit paid". Same call.
+  // My work (Task 4): the deposit fact for the jobs the owner has accepted, so the Next step box can say "Deposit paid" — from the same one read.
   const acceptedIds = c.kind === 'installer' ? live.filter(j => !depositIds.includes(j.id) && rcQuotes.get(j.id)?.accepted === true).map(j => j.id) : [];
-  const acceptedDeposits = acceptedIds.length ? await depositModule.then((m) => m.installDepositPaidForJobs(acceptedIds)).catch(() => new Map<string, boolean | null>(acceptedIds.map(id => [id, null]))) : new Map<string, boolean | null>();
+  const acceptedDeposits = new Map<string, boolean | null>(acceptedIds.map((id) => [id, depositFacts?.get(id) ?? null]));
   // Decision 396: rows the retired install-day photo chase created are not missing photos.
   const miss = new Map<string, number>(); for (const r of withoutRetiredInstallDayPhotos(missing ?? [])) miss.set(r.job_id, (miss.get(r.job_id) ?? 0) + 1);
   const deadline = new Map<string, string>(); for (const d of deadlines ?? []) if (d.job_id && d.install_deadline) deadline.set(d.job_id, String(d.install_deadline));
@@ -752,7 +763,7 @@ export async function partnerPayStates(bizId: string, kind: TradeKind, testOnly:
 }
 
 export async function tradeMoney(userId: string) {
-  const c = await moneyOrThrow(userId, "Money is only shown to the business owner.");
+  const c = await moneyOrThrow(userId, OWNER_ONLY_REFUSALS[1]!);
   // Jo 3 Nov 2026: electricians have no Money page (Part 6 removed their sign-in) — only installer businesses reach it.
   if (c.kind !== "installer") throw new WorkflowError(MONEY_WORDS.notForElectricians);
   // Speed (installer screens, Task 8): the saved account is read with the money rows' first round (owner only, after the
@@ -1297,7 +1308,7 @@ export async function tradeSetWorkerDob(userId: string, workerId: string, dateOf
   if (error) {
     if (["PGRST202", "42883"].includes(error.code ?? "") || schemaCompatCore.isMissingDbObject(error)) throw new WorkflowError("This setting isn't switched on yet. Home Insulation Victoria is finishing it; nothing has changed."); // DRAFT (Task 9 wording)
     if (/not found/i.test(error.message)) throw new WorkflowError("Team member not found.");
-    if (/business admin/i.test(error.message)) throw new WorkflowError("Only the business owner can see this.");
+    if (/business admin/i.test(error.message)) throw new WorkflowError(OWNER_ONLY_REFUSALS[0]!);
     if (/Date of birth/i.test(error.message)) throw new WorkflowError("Enter a valid date of birth.");
     throw new WorkflowError("Couldn't save that. Check your connection and try again."); // DRAFT (Task 6 wording)
   }
@@ -1315,7 +1326,7 @@ export async function tradeSetMoneyAccess(userId: string, workerId: string, on: 
   if (error) {
     if (["PGRST202", "42883"].includes(error.code ?? "") || schemaCompatCore.isMissingDbObject(error)) throw new WorkflowError("This setting isn't switched on yet. Home Insulation Victoria is finishing it; nothing has changed."); // DRAFT (Task 9 wording)
     if (/Office person not found/i.test(error.message)) throw new WorkflowError((await import("./team-screen.core")).TEAM_WORDS.moneyNeedsLogin);
-    if (/business admin/i.test(error.message)) throw new WorkflowError("Only the business owner can see this.");
+    if (/business admin/i.test(error.message)) throw new WorkflowError(OWNER_ONLY_REFUSALS[0]!);
     throw new WorkflowError("Couldn't save that. Check your connection and try again."); // DRAFT (Task 6 wording)
   }
   return { ok: true, canSeeMoney: on };

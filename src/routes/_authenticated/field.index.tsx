@@ -8,7 +8,6 @@ import { ChevronRight } from "lucide-react";
 import { Pill, PillTabs } from "@/components/portal/kit";
 import { useMemo, useState } from "react";
 import { getTradeHome } from "@/lib/trade-view.functions";
-import { dayTile, goneIn, tradeGreeting } from "@/lib/trade-view.core";
 import { NO_LOGIN_NEEDED } from "@/lib/trade-access-role.core";
 import { sourceLabel } from "@/lib/installer-home.core";
 import { matchesSearch, type MyWorkCard } from "@/lib/my-work.core";
@@ -39,7 +38,6 @@ function MyWork() {
   if (data === undefined) return <TradeShell installer={false}><p className="text-sm">Loading your work…</p></TradeShell>;
   if (data === null) return <TradeShell installer={false}><p className={`${card} text-sm`}>Your sign-in isn't linked to an approved business yet. Home Insulation Victoria will sort this out.</p></TradeShell>;
   const installer = data.kind === "installer";
-  const g = tradeGreeting(data.firstName, data.week);
   if (installer && data.myWork) {
     const myWork = data.myWork;
     const list = (tab === "turn" ? myWork.yourTurn : myWork.all).filter((c) => matchesSearch(c, q));

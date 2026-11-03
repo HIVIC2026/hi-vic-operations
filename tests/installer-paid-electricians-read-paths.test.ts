@@ -30,6 +30,7 @@ function reads(rows: Record<string, unknown[]>, failedTable?: string) {
 function priceModule(fixture: ReturnType<typeof reads>, today = "2026-10-30") {
   return moduleAt("src/lib/installer-paid-electricians.server.ts", {
     "@/integrations/supabase/client.server": { supabaseAdmin: fixture.admin },
+    "./job-facts.server": { jobAdmin: fixture.admin }, // #135: the module reads through jobAdmin (the admin client outside a job bundle)
     "./sweep-batch.core": { chunkIds: (ids: unknown[], n: number) => Array.from({length:Math.ceil(ids.length/n)},(_,i)=>ids.slice(i*n,(i+1)*n)) }, "./mitti-membership.core": { mittiAccessOf: () => "member" }, "./installer-paid-electricians.core": pricing, "./melbourne-time.core": { melbourneToday: () => today },
   });
 }
@@ -43,10 +44,12 @@ test("payee batch reads both flags and any active effective card with a PIESA li
   expect(f.calls[1]?.filters).toContainEqual(["eq", "is_active", true]);
   expect(f.calls[1]?.filters).toContainEqual(["lte", "effective_from", "2026-10-30"]);
 });
-test("non-in-house read costs only one businesses read", async () => {
+// Portal speed step 2B (home flatten): the flags, the cards and their PIESA lines are read side by side in ONE round, keyed
+// by the ids asked for, so a non-in-house business costs one round of three reads (was one read, two rounds when in-house).
+test("non-in-house read costs one round: the business flags, cards and PIESA lines together", async () => {
   const f = reads({});
   expect(await priceModule(f).readInstallerPaidElectricians("ordinary")).toBeNull();
-  expect(f.calls.map(c => c.table)).toEqual(["businesses"]);
+  expect(f.calls.map(c => c.table)).toEqual(["businesses", "rate_cards", "rate_card_items"]);
 });
 test("each configuration read failure propagates, including the safety-check money path", async () => {
   for (const table of ["businesses", "rate_cards", "rate_card_items"]) {
@@ -58,7 +61,7 @@ test("each configuration read failure propagates, including the safety-check mon
 function usualModule(priceRead: () => Promise<unknown>, candidates: rec.ApprovedRecCandidate[] = []) {
   const f = reads({ jobs: [{ channel: "installer_sourced", originating_installer_business_id: "a" }], admin_config_events: [{ id: "revision", details: { electrician: { name: "REC", licence: "A1" } } }] });
   return moduleAt("src/lib/usual-electrician.server.ts", {
-    "@/integrations/supabase/client.server": { supabaseAdmin: f.admin }, "./usual-electrician.core": usual,
+    "@/integrations/supabase/client.server": { supabaseAdmin: f.admin }, "./job-facts.server": { jobAdmin: f.admin }, "./usual-electrician.core": usual,
     "./mitti.core": { contactAnswersFromEntries: () => ({}) }, "./workflow.server": { logEvent: async () => {} },
     "./electrician-choice.core": { resolveElectricianChoice: () => "usual" }, "./electrician-choice.server": { readElectricianChoice: async () => "usual" },
     "./rec-onboarded.core": rec, "./rec-onboarded.server": { loadApprovedRecCandidates: async () => candidates }, "./job-electrician.server": { jobChosenElectrician: async () => null },

@@ -13,7 +13,7 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
       "overview": {
         "channel": "installer_sourced",
         "id": "00000000-0000-4000-8000-000000000001",
-        "inHouseDispatch": "in_house_read_failed",
+        "inHouseDispatch": null,
         "job_number": "HV-1001",
         "owner_email": null,
         "owner_name": null,
@@ -47,7 +47,7 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
       "overview": {
         "channel": "hivic_sourced",
         "id": "00000000-0000-4000-8000-000000000002",
-        "inHouseDispatch": "in_house_read_failed",
+        "inHouseDispatch": null,
         "job_number": "HV-1002",
         "owner_email": null,
         "owner_name": null,
@@ -132,7 +132,7 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
       "overview": {
         "channel": "hivic_sourced",
         "id": "00000000-0000-4000-8000-000000000002",
-        "inHouseDispatch": "in_house_read_failed",
+        "inHouseDispatch": null,
         "job_number": "HV-1002",
         "owner_email": null,
         "owner_name": null,
@@ -159,6 +159,7 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
           "piisaSignedAt": null,
           "product": null,
         },
+        "countdown": null,
         "electricianAttendance": null,
         "form": {
           "auditId": null,
@@ -188,9 +189,27 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
           "rebateSigned": false,
           "recordedAt": null,
         },
+        "installBy": null,
         "jobNumber": "HV-1002",
+        "kind": "installer",
+        "label": "Home Insulation Victoria lead",
         "mittiInvited": true,
+        "nextStep": {
+          "alsoBookInstall": null,
+          "bookBy": null,
+          "button": null,
+          "kind": "install_locked",
+          "lines": [
+            "Locked: ESC has been told. Email us to move this install.",
+          ],
+          "overdue": false,
+          "phone": null,
+          "sub": "Install · Fri 30 Oct, 2:00pm",
+          "title": "Install locked in",
+          "yours": false,
+        },
         "notes": [],
+        "ownerFirst": null,
         "ownerPiesaConfirmed": null,
         "pay": {
           "amount": null,
@@ -207,10 +226,76 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
         "price": {
           "entered": null,
         },
+        "progress": [
+          {
+            "label": "Ready Check",
+            "state": "now",
+          },
+          {
+            "label": "PIESA",
+            "state": "later",
+          },
+          {
+            "label": "Deposit",
+            "state": "later",
+          },
+          {
+            "label": "Install",
+            "state": "later",
+          },
+        ],
         "quote": null,
         "readyCheck": {
           "bookedAt": null,
           "done": false,
+        },
+        "role": "boss",
+        "rows": {
+          "jobDetails": [],
+          "owner": [],
+          "ownerTold": [],
+          "paperwork": [
+            {
+              "label": "Ready Check report (Mitti, with photos)",
+              "note": "Not in yet",
+              "ready": false,
+            },
+            {
+              "label": "Signed PIESA",
+              "note": "Not in yet",
+              "ready": false,
+            },
+            {
+              "label": "Owner's ESC consent",
+              "note": null,
+              "ready": true,
+            },
+            {
+              "label": "Safety plan (SWMS)",
+              "note": null,
+              "ready": true,
+            },
+            {
+              "label": "Install form (Mitti)",
+              "note": "Not in yet",
+              "ready": false,
+            },
+          ],
+          "siteNotes": [],
+          "visits": [
+            [
+              "Ready Check",
+              "Not booked yet",
+            ],
+            [
+              "PIESA",
+              "Not booked yet",
+            ],
+            [
+              "Install",
+              "Fri 30 Oct, 2:00pm",
+            ],
+          ],
         },
         "stage": "installation_booked",
       },
@@ -358,7 +443,7 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
       "overview": {
         "channel": "hivic_sourced",
         "id": "00000000-0000-4000-8000-000000000004",
-        "inHouseDispatch": "in_house_read_failed",
+        "inHouseDispatch": null,
         "job_number": "HV-1004",
         "owner_email": null,
         "owner_name": null,
@@ -390,6 +475,7 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
           "piisaSignedAt": null,
           "product": null,
         },
+        "countdown": null,
         "electricianAttendance": null,
         "form": {
           "auditId": null,
@@ -416,9 +502,25 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
           "rebateSigned": false,
           "recordedAt": "2026-10-28T03:00:00.000Z",
         },
+        "installBy": null,
         "jobNumber": "HV-1004",
+        "kind": "installer",
+        "label": "Home Insulation Victoria lead",
         "mittiInvited": true,
+        "nextStep": {
+          "alsoBookInstall": null,
+          "bookBy": null,
+          "button": null,
+          "kind": "after_install",
+          "lines": [],
+          "overdue": false,
+          "phone": null,
+          "sub": "Your pay is paid 7 days after we approve the install paperwork.",
+          "title": "Install done",
+          "yours": false,
+        },
         "notes": [],
+        "ownerFirst": null,
         "ownerPiesaConfirmed": null,
         "pay": {
           "amount": null,
@@ -435,10 +537,76 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
         "price": {
           "entered": null,
         },
+        "progress": [
+          {
+            "label": "Ready Check",
+            "state": "now",
+          },
+          {
+            "label": "PIESA",
+            "state": "later",
+          },
+          {
+            "label": "Deposit",
+            "state": "later",
+          },
+          {
+            "label": "Install",
+            "state": "done",
+          },
+        ],
         "quote": null,
         "readyCheck": {
           "bookedAt": null,
           "done": false,
+        },
+        "role": "boss",
+        "rows": {
+          "jobDetails": [],
+          "owner": [],
+          "ownerTold": [],
+          "paperwork": [
+            {
+              "label": "Ready Check report (Mitti, with photos)",
+              "note": "Not in yet",
+              "ready": false,
+            },
+            {
+              "label": "Signed PIESA",
+              "note": "Not in yet",
+              "ready": false,
+            },
+            {
+              "label": "Owner's ESC consent",
+              "note": "Not in yet",
+              "ready": false,
+            },
+            {
+              "label": "Safety plan (SWMS)",
+              "note": null,
+              "ready": true,
+            },
+            {
+              "label": "Install form (Mitti)",
+              "note": "Not in yet",
+              "ready": false,
+            },
+          ],
+          "siteNotes": [],
+          "visits": [
+            [
+              "Ready Check",
+              "Not booked yet",
+            ],
+            [
+              "PIESA",
+              "Not booked yet",
+            ],
+            [
+              "Install",
+              "Wed 28 Oct, 2:00pm",
+            ],
+          ],
         },
         "stage": "complete",
       },
@@ -624,7 +792,7 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
       "overview": {
         "channel": "installer_sourced",
         "id": "00000000-0000-4000-8000-000000000001",
-        "inHouseDispatch": "in_house_read_failed",
+        "inHouseDispatch": null,
         "job_number": "HV-1001",
         "owner_email": "owner@example.com",
         "owner_name": "Owner Name",
@@ -670,6 +838,10 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
           "piisaSignedAt": null,
           "product": null,
         },
+        "countdown": {
+          "daysLeft": 22,
+          "line": "⏱ 22 days left to install · must be done by Fri 20 Nov (30 days from the PIESA)",
+        },
         "electricianAttendance": null,
         "form": {
           "auditId": "audit-1",
@@ -696,9 +868,25 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
           "rebateSigned": false,
           "recordedAt": null,
         },
+        "installBy": "2026-11-20",
         "jobNumber": "HV-1001",
+        "kind": "installer",
+        "label": "Your customer",
         "mittiInvited": true,
+        "nextStep": {
+          "alsoBookInstall": null,
+          "bookBy": null,
+          "button": null,
+          "kind": "waiting_deposit",
+          "lines": [],
+          "overdue": false,
+          "phone": null,
+          "sub": "Waiting for Owner to pay the deposit. Nothing for you to do.",
+          "title": "Waiting for the deposit",
+          "yours": false,
+        },
         "notes": [],
+        "ownerFirst": "Owner",
         "ownerPiesaConfirmed": null,
         "pay": {
           "amount": null,
@@ -715,6 +903,24 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
         "price": {
           "entered": false,
         },
+        "progress": [
+          {
+            "label": "Ready Check",
+            "state": "now",
+          },
+          {
+            "label": "PIESA",
+            "state": "done",
+          },
+          {
+            "label": "Deposit",
+            "state": "later",
+          },
+          {
+            "label": "Install",
+            "state": "later",
+          },
+        ],
         "quote": {
           "accepted": true,
           "acceptedAt": null,
@@ -729,6 +935,64 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
         "readyCheck": {
           "bookedAt": null,
           "done": false,
+        },
+        "role": "boss",
+        "rows": {
+          "jobDetails": [
+            [
+              "Area",
+              "80 m²",
+            ],
+          ],
+          "owner": [
+            [
+              "Name",
+              "Owner Number1",
+            ],
+          ],
+          "ownerTold": [],
+          "paperwork": [
+            {
+              "label": "Ready Check report (Mitti, with photos)",
+              "note": "Ready once the install is booked",
+              "ready": false,
+            },
+            {
+              "label": "Signed PIESA",
+              "note": null,
+              "ready": true,
+            },
+            {
+              "label": "Owner's ESC consent",
+              "note": "Ready once the install is booked",
+              "ready": false,
+            },
+            {
+              "label": "Safety plan (SWMS)",
+              "note": "Ready once the install is booked",
+              "ready": false,
+            },
+            {
+              "label": "Install form (Mitti)",
+              "note": "Ready once the install is booked",
+              "ready": false,
+            },
+          ],
+          "siteNotes": [],
+          "visits": [
+            [
+              "Ready Check",
+              "Not booked yet",
+            ],
+            [
+              "PIESA",
+              "Mon 26 Oct, 2:00pm",
+            ],
+            [
+              "Install",
+              "Not booked yet",
+            ],
+          ],
         },
         "stage": "installation_scheduling",
       },
@@ -859,7 +1123,7 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
       "overview": {
         "channel": "hivic_sourced",
         "id": "00000000-0000-4000-8000-000000000002",
-        "inHouseDispatch": "in_house_read_failed",
+        "inHouseDispatch": null,
         "job_number": "HV-1002",
         "owner_email": null,
         "owner_name": null,
@@ -886,6 +1150,7 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
           "piisaSignedAt": null,
           "product": null,
         },
+        "countdown": null,
         "electricianAttendance": null,
         "form": {
           "auditId": null,
@@ -915,9 +1180,27 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
           "rebateSigned": false,
           "recordedAt": null,
         },
+        "installBy": null,
         "jobNumber": "HV-1002",
+        "kind": "installer",
+        "label": "Home Insulation Victoria lead",
         "mittiInvited": true,
+        "nextStep": {
+          "alsoBookInstall": null,
+          "bookBy": null,
+          "button": null,
+          "kind": "install_locked",
+          "lines": [
+            "Locked: ESC has been told. Email us to move this install.",
+          ],
+          "overdue": false,
+          "phone": null,
+          "sub": "Install · Fri 30 Oct, 2:00pm",
+          "title": "Install locked in",
+          "yours": false,
+        },
         "notes": [],
+        "ownerFirst": null,
         "ownerPiesaConfirmed": null,
         "pay": {
           "amount": null,
@@ -934,10 +1217,76 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
         "price": {
           "entered": null,
         },
+        "progress": [
+          {
+            "label": "Ready Check",
+            "state": "now",
+          },
+          {
+            "label": "PIESA",
+            "state": "later",
+          },
+          {
+            "label": "Deposit",
+            "state": "later",
+          },
+          {
+            "label": "Install",
+            "state": "later",
+          },
+        ],
         "quote": null,
         "readyCheck": {
           "bookedAt": null,
           "done": false,
+        },
+        "role": "none",
+        "rows": {
+          "jobDetails": [],
+          "owner": [],
+          "ownerTold": [],
+          "paperwork": [
+            {
+              "label": "Ready Check report (Mitti, with photos)",
+              "note": "Not in yet",
+              "ready": false,
+            },
+            {
+              "label": "Signed PIESA",
+              "note": "Not in yet",
+              "ready": false,
+            },
+            {
+              "label": "Owner's ESC consent",
+              "note": null,
+              "ready": true,
+            },
+            {
+              "label": "Safety plan (SWMS)",
+              "note": null,
+              "ready": true,
+            },
+            {
+              "label": "Install form (Mitti)",
+              "note": "Not in yet",
+              "ready": false,
+            },
+          ],
+          "siteNotes": [],
+          "visits": [
+            [
+              "Ready Check",
+              "Not booked yet",
+            ],
+            [
+              "PIESA",
+              "Not booked yet",
+            ],
+            [
+              "Install",
+              "Fri 30 Oct, 2:00pm",
+            ],
+          ],
         },
         "stage": "installation_booked",
       },
@@ -1095,7 +1444,7 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
       "overview": {
         "channel": "installer_sourced",
         "id": "00000000-0000-4000-8000-000000000003",
-        "inHouseDispatch": "in_house_read_failed",
+        "inHouseDispatch": null,
         "job_number": "HV-1003",
         "owner_email": "owner@example.com",
         "owner_name": "Owner Name",
@@ -1122,6 +1471,7 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
           "piisaSignedAt": null,
           "product": null,
         },
+        "countdown": null,
         "electricianAttendance": null,
         "form": {
           "auditId": null,
@@ -1148,9 +1498,25 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
           "rebateSigned": false,
           "recordedAt": null,
         },
+        "installBy": null,
         "jobNumber": "HV-1003",
+        "kind": "installer",
+        "label": "Your customer",
         "mittiInvited": true,
+        "nextStep": {
+          "alsoBookInstall": null,
+          "bookBy": null,
+          "button": "Book",
+          "kind": "book_ready_check",
+          "lines": [],
+          "overdue": false,
+          "phone": null,
+          "sub": "Give Owner a call and agree a day, then add it here.",
+          "title": "Book the Ready Check",
+          "yours": true,
+        },
         "notes": [],
+        "ownerFirst": "Owner",
         "ownerPiesaConfirmed": null,
         "pay": {
           "amount": null,
@@ -1167,10 +1533,81 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
         "price": {
           "entered": false,
         },
+        "progress": [
+          {
+            "label": "Ready Check",
+            "state": "now",
+          },
+          {
+            "label": "PIESA",
+            "state": "later",
+          },
+          {
+            "label": "Deposit",
+            "state": "later",
+          },
+          {
+            "label": "Install",
+            "state": "later",
+          },
+        ],
         "quote": null,
         "readyCheck": {
           "bookedAt": null,
           "done": false,
+        },
+        "role": "none",
+        "rows": {
+          "jobDetails": [],
+          "owner": [
+            [
+              "Name",
+              "Owner Number3",
+            ],
+          ],
+          "ownerTold": [],
+          "paperwork": [
+            {
+              "label": "Ready Check report (Mitti, with photos)",
+              "note": "Ready once the install is booked",
+              "ready": false,
+            },
+            {
+              "label": "Signed PIESA",
+              "note": "Ready once the install is booked",
+              "ready": false,
+            },
+            {
+              "label": "Owner's ESC consent",
+              "note": "Ready once the install is booked",
+              "ready": false,
+            },
+            {
+              "label": "Safety plan (SWMS)",
+              "note": "Ready once the install is booked",
+              "ready": false,
+            },
+            {
+              "label": "Install form (Mitti)",
+              "note": "Ready once the install is booked",
+              "ready": false,
+            },
+          ],
+          "siteNotes": [],
+          "visits": [
+            [
+              "Ready Check",
+              "Not booked yet",
+            ],
+            [
+              "PIESA",
+              "Not booked yet",
+            ],
+            [
+              "Install",
+              "Not booked yet",
+            ],
+          ],
         },
         "stage": "ready_check_ready_to_schedule",
       },

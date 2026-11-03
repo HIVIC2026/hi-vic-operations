@@ -150,7 +150,9 @@ describe("screen files follow the mock-ups and the audit removals", () => {
     const page = readFileSync("src/routes/_authenticated/field.index.tsx", "utf8");
     for (const gone of ["8–10am", "first to accept", "Quoted?", "Site check?", "InstallerFactsLine", "SourceBadge", "bulk-import", "Upload multiple jobs", "PlusCircle", "Installer customer"]) expect(page).not.toContain(gone);
     for (const kept of ["my-work.core", "data-my-work"]) expect(page).toContain(kept);
-    expect(readFileSync("src/lib/my-work.core.ts", "utf8")).toContain("View offer");
+    // Part 7 (join 4 Nov 2026): job offers left My work (no offer cards, no /field/offer links), so "View offer" is gone too.
+    expect(readFileSync("src/lib/my-work.core.ts", "utf8")).not.toContain("View offer");
+    expect(page).not.toContain("/field/offer");
     expect(readFileSync("src/lib/trade-view.server.ts", "utf8")).not.toMatch(/intakeQuoteAnswers|installer_quoted|o\.kind === "ready_check" \|\| o\.kind === "installer"/);
   });
   test("Add a job: one screen, picked address, permission tick, optional visit, one Add job button, no bulk link or electrician choice", () => {
