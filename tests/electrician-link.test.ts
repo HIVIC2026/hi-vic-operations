@@ -108,3 +108,21 @@ describe("ELECTRICIAN_LINK_WORDS", () => {
     expect(JSON.stringify(ELECTRICIAN_LINK_WORDS)).not.toMatch(/fixes|Rectification|HIV\b|log ?in|password/i);
   });
 });
+
+// Fix round 2, R1: approved #39 says "then update it on the job" — a booked day can be changed from the link when the setting allows.
+describe("canChange on a booked day", () => {
+  const base = { handedBack: false, certificateIn: false, now: new Date("2026-11-03T02:00:00Z"), upgrades: { start: null, formUrl: null, formDone: false } } as const;
+  test("piesa_day: canChange follows the who-books setting; office = no", () => {
+    const booked = { start: "2026-11-06T23:00:00Z", formUrl: "https://m/a3", outcome: null, upgradesSameDay: false };
+    expect(electricianStep({ ...base, whoBooks: "electrician", piesa: booked }).canChange).toBe(true);
+    expect(electricianStep({ ...base, whoBooks: "either", piesa: booked }).canChange).toBe(true);
+    expect(electricianStep({ ...base, whoBooks: "office", piesa: booked }).canChange).toBe(false);
+  });
+  test("upgrades_day: the same; every other step is false", () => {
+    const up = { start: "2026-11-06T23:00:00Z", formUrl: "https://m/a3", outcome: "upgrades" as const, upgradesSameDay: false };
+    expect(electricianStep({ ...base, whoBooks: "electrician", piesa: up, upgrades: { start: "2026-11-09T23:00:00Z", formUrl: null, formDone: false } }).canChange).toBe(true);
+    expect(electricianStep({ ...base, whoBooks: "office", piesa: up, upgrades: { start: "2026-11-09T23:00:00Z", formUrl: null, formDone: false } }).canChange).toBe(false);
+    expect(electricianStep({ ...base, whoBooks: "electrician", piesa: { ...up, start: null, outcome: null } }).canChange).toBe(false); // book_piesa: the Book step itself
+    expect(electricianStep({ ...base, whoBooks: "electrician", piesa: { ...up, outcome: "pass" } }).canChange).toBe(false);
+  });
+});

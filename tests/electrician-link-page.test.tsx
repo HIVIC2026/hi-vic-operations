@@ -113,3 +113,22 @@ test("not offered once the job is done or handed back, or when the route gives n
   }
   expect(body()).not.toContain("data-electrician-cant-do");
 });
+
+// Fix round 2, R1: changing a booked time from the page.
+test("a booked day with canChange shows a DRAFT 'Change the time' ghost control (never the green button) that opens the day-and-time form; without canChange nothing", () => {
+  const v = electricianStep(facts()); // piesa_day, whoBooks electrician → canChange
+  expect(v.canChange).toBe(true);
+  const h = renderToStaticMarkup(<ElectricianLinkBody d={{ business: "Spark Co", firstName: "Sam", jobNumber: "HV-5001", owner: null, address: null, buttonUrl: "https://app.au.safetyculture.com/inspection/a3", view: v }} onBook={async () => ({ ok: true })} />);
+  expect(h).toContain("data-electrician-change-time");
+  expect(h).toContain("Change the time");
+  expect(h.match(/bg-action/g)).toHaveLength(1); // the Mitti form button stays the one green button
+  expect(h).not.toContain("data-electrician-book"); // the form opens on tap
+  const src = readFileSync("src/components/trade/ElectricianLinkBody.tsx", "utf8");
+  expect(src).toContain("<BookForm label={ELECTRICIAN_CHANGE_TIME_SAVE}");
+  const off = renderToStaticMarkup(<ElectricianLinkBody d={{ business: "Spark Co", firstName: "Sam", jobNumber: "HV-5001", owner: null, address: null, buttonUrl: null, view: electricianStep(facts({ whoBooks: "office" })) }} onBook={async () => ({ ok: true })} />);
+  expect(off).not.toContain("data-electrician-change-time");
+});
+test("the route gives the Book handler to a booked day too and maps the step to the visit kind", () => {
+  expect(route).toContain('q.data.view.step === "set_upgrades_day" || q.data.view.step === "upgrades_day" ? "rectification" : "assessment"');
+  expect(route).toContain("q.data.view.canBook || q.data.view.canChange");
+});

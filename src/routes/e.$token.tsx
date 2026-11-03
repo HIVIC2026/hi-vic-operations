@@ -28,7 +28,7 @@ function ElectricianLink() {
   if (q.error) return <TradePublicShell><section className="rounded-[18px] border border-rose bg-pink p-5 text-ink" data-electrician-link-invalid><h1 className="font-display text-2xl font-bold">This link can't be opened.</h1><p className="mt-1 text-sm">{readableError(q.error, E_LINK_PROBLEM)}</p></section></TradePublicShell>;
   if (!q.data) return <TradePublicShell><p className="text-sm text-sub">Loading your job…</p></TradePublicShell>;
   // Which visit the Book button makes comes from the step the server returned; the server re-checks everything.
-  const kind = q.data.view.step === "set_upgrades_day" ? "rectification" : "assessment";
+  const kind = q.data.view.step === "set_upgrades_day" || q.data.view.step === "upgrades_day" ? "rectification" : "assessment";
   const onBook = async (start: string) => {
     const r = await bookElectricianLinkVisit({ data: { token, kind, start } });
     if (r.ok) await qc.invalidateQueries({ queryKey: ["electrician-link", token] });
@@ -52,5 +52,5 @@ function ElectricianLink() {
     if (r.ok) await qc.invalidateQueries({ queryKey: ["electrician-link", token] });
     return r;
   };
-  return <TradePublicShell><ElectricianLinkBody d={q.data} {...(q.data.view.canBook ? { onBook } : {})} onUpload={onUpload} onCantDo={onCantDo} /></TradePublicShell>;
+  return <TradePublicShell><ElectricianLinkBody d={q.data} {...(q.data.view.canBook || q.data.view.canChange ? { onBook } : {})} onUpload={onUpload} onCantDo={onCantDo} /></TradePublicShell>;
 }

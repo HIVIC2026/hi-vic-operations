@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { card, ghostBtn, greenBtn, inputCls } from "@/components/trade/TradeShell";
 import type { ElectricianLinkView } from "@/lib/electrician-link.server";
-import { ELECTRICIAN_CANT_DO_BUTTON, ELECTRICIAN_CANT_DO_CONFIRM, ELECTRICIAN_CANT_DO_REASON_LABEL, ELECTRICIAN_CANT_DO_REASON_NEEDED, electricianCantDoReasonOk } from "@/lib/electrician-link.core";
+import { ELECTRICIAN_CANT_DO_BUTTON, ELECTRICIAN_CANT_DO_CONFIRM, ELECTRICIAN_CANT_DO_REASON_LABEL, ELECTRICIAN_CANT_DO_REASON_NEEDED, ELECTRICIAN_CHANGE_TIME_BUTTON, ELECTRICIAN_CHANGE_TIME_SAVE, electricianCantDoReasonOk } from "@/lib/electrician-link.core";
 
 type Shown = Pick<ElectricianLinkView, "business" | "firstName" | "jobNumber" | "owner" | "address" | "view" | "buttonUrl"> & Partial<Pick<ElectricianLinkView, "access">>;
 
@@ -84,6 +84,14 @@ function CantDo({ onCantDo }: { onCantDo: (reason: string) => Promise<Result> })
   );
 }
 
+/** A booked day the electrician may change (approved #39: "then update it on the job"): a ghost control opens the day-and-time
+ *  form; the server re-checks the setting and the step and re-books through the one canonical path. DRAFT wording. */
+function ChangeTime({ onBook }: { onBook: (startIso: string) => Promise<Result> }) {
+  const [open, setOpen] = useState(false);
+  if (!open) return <button type="button" className={ghostBtn} onClick={() => setOpen(true)} data-electrician-change-time>{ELECTRICIAN_CHANGE_TIME_BUTTON}</button>;
+  return <BookForm label={ELECTRICIAN_CHANGE_TIME_SAVE} onBook={onBook} />;
+}
+
 const CANT_DO_STEPS = new Set(["book_piesa", "waiting_office_book", "piesa_day", "set_upgrades_day", "waiting_office_upgrades", "upgrades_day", "upload_certificate"]);
 
 export function ElectricianLinkBody({ d, onBook, onUpload, onCantDo }: { d: Shown; onBook?: (startIso: string) => Promise<Result>; onUpload?: (file: File) => Promise<Result>; onCantDo?: (reason: string) => Promise<Result> }) {
@@ -110,6 +118,7 @@ export function ElectricianLinkBody({ d, onBook, onUpload, onCantDo }: { d: Show
       {d.view.canBook && d.view.button && onBook && <BookForm label={d.view.button} onBook={onBook} />}
       {d.view.step === "upload_certificate" && d.view.button && onUpload && <UploadForm label={d.view.button} onUpload={onUpload} />}
       {d.view.button && d.buttonUrl && <a className={greenBtn} href={d.buttonUrl} data-electrician-button>{d.view.button}</a>}
+      {d.view.canChange && onBook && <ChangeTime onBook={onBook} />}
       {onCantDo && CANT_DO_STEPS.has(d.view.step) && <CantDo onCantDo={onCantDo} />}
     </>
   );

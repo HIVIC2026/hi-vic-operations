@@ -112,7 +112,9 @@ export async function sweepUpgradesWatch(now = new Date(), over: Partial<Upgrade
       }
       // The nudge.
       const formDone = fixesFormOutcome(evs as never).outcome === "done";
-      const due = upgradesNudgeDue({ upgradesYmd: ymd, formDone, now, nudgedElectrician: has(UPGRADES_NUDGE_EVENT, keys.nudge), emailedOffice: has(UPGRADES_OFFICE_EMAIL_EVENT, keys.office) });
+      // The electrician counts as nudged only once a text was reported sent (the record is written sent:false first).
+      const nudged = evs.some((e) => e["event_type"] === UPGRADES_NUDGE_EVENT && (e["details"] as { key?: string; sent?: boolean } | null)?.key === keys.nudge && (e["details"] as { sent?: boolean } | null)?.sent === true);
+      const due = upgradesNudgeDue({ upgradesYmd: ymd, formDone, now, nudgedElectrician: nudged, emailedOffice: has(UPGRADES_OFFICE_EMAIL_EVENT, keys.office) });
       if (due === "electrician" && (await nudgeElectrician(d, ctx)) === "sent") out.nudges++;
       if (due === "office" && (await emailOffice(d, ctx)) === "sent") out.officeEmails++;
     } catch (e) { console.error("upgrades watch: job skipped", b.job_id, (e as Error).message); }
@@ -178,7 +180,10 @@ async function nudgeElectrician(d: UpgradesWatchDeps, c: Ctx): Promise<"sent" | 
   const link = await d.mintLink(c.jobId, w.id);
   if (!link) return "held";
   const body = upgradesNudgeText({ jobNumber: c.job.job_number, url: link.url });
-  await d.record(c.jobId, UPGRADES_NUDGE_EVENT, "Electrician nudged: upgrades form not in", { key: c.keys.nudge, worker_id: w.id, booking_id: c.booking.id, upgrades_ymd: c.ymd, test });
+  // One record per key, written sent:false before the first try (a retry after a held/failed send reuses it).
+  const { data: prior, error: pe } = await admin.from("workflow_events").select("id").eq("job_id", c.jobId).eq("event_type", UPGRADES_NUDGE_EVENT).contains("details", { key: c.keys.nudge }).limit(1).maybeSingle();
+  if (pe) throw new Error(`Could not read the nudge record: ${pe.message}`);
+  if (!prior) await d.record(c.jobId, UPGRADES_NUDGE_EVENT, "Electrician nudged: upgrades form not in", { key: c.keys.nudge, worker_id: w.id, booking_id: c.booking.id, upgrades_ymd: c.ymd, test, sent: false });
   let went: boolean;
   if (test) {
     const r = await d.sendTestSms({ jobId: c.jobId, jobSource: c.job.source, partnerIsTest, label: `${UPGRADES_NUDGE_SMS_TYPE}:${c.jobId}:${c.ymd}`, actorId: null }, w.mobile, body);
@@ -187,8 +192,12 @@ async function nudgeElectrician(d: UpgradesWatchDeps, c: Ctx): Promise<"sent" | 
     const r = await d.sendSms({ type: UPGRADES_NUDGE_SMS_TYPE, idempotencyKey: c.keys.nudge, to: w.mobile, body, storedBody: maskUpgradesLink(body), jobId: c.jobId, businessId: w.business_id });
     went = r.status === "sent" || r.status === "sent_unknown";
   }
-  if (went) await d.retireOlderLinks(c.jobId, w.id, link.id).catch((e) => console.error("upgrades watch: older link not retired", (e as Error).message));
-  else await d.revokeLink(link.id).catch((e) => console.error("upgrades watch: unsent link not revoked", (e as Error).message));
+  if (went) {
+    await d.retireOlderLinks(c.jobId, w.id, link.id).catch((e) => console.error("upgrades watch: older link not retired", (e as Error).message));
+    // The same record is marked sent (one row per key); until then the next tick tries the electrician again and the office is not due.
+    const { error } = await admin.from("workflow_events").update({ details: { key: c.keys.nudge, worker_id: w.id, booking_id: c.booking.id, upgrades_ymd: c.ymd, test, sent: true } }).eq("job_id", c.jobId).eq("event_type", UPGRADES_NUDGE_EVENT).contains("details", { key: c.keys.nudge });
+    if (error) console.error("upgrades watch: nudge not marked sent", error.message);
+  } else await d.revokeLink(link.id).catch((e) => console.error("upgrades watch: unsent link not revoked", (e as Error).message));
   return went ? "sent" : "held";
 }
 

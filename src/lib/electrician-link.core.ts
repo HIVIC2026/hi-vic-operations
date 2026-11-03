@@ -20,7 +20,10 @@ export type ElectricianStep =
   | "book_piesa" | "waiting_office_book" | "piesa_day" | "set_upgrades_day" | "waiting_office_upgrades"
   | "upgrades_day" | "upload_certificate" | "all_done" | "closed";
 
-export type ElectricianStepView = { step: ElectricianStep; title: string; sub: string | null; button: string | null; canBook: boolean };
+export type ElectricianStepView = { step: ElectricianStep; title: string; sub: string | null; button: string | null; canBook: boolean; /** A booked day (piesa_day / upgrades_day) the electrician may change from the link (approved #39: "then update it on the job"), when the who-books setting allows. */ canChange: boolean };
+/** DRAFT control wording for changing a booked time from the link. */
+export const ELECTRICIAN_CHANGE_TIME_BUTTON = "Change the time";
+export const ELECTRICIAN_CHANGE_TIME_SAVE = "Save the new time";
 
 /** Approved buttons: "Open safety check form", "Open upgrades form", "Enter day and time". Everything else is DRAFT (Jo has not approved the wording). */
 export const ELECTRICIAN_LINK_WORDS: Record<ElectricianStep, { title: string; sub?: string; button?: string }> = {
@@ -61,9 +64,9 @@ export function dayTime(iso: string | null): string | null {
   return `${p["weekday"]} ${p["day"]} ${p["month"]}, ${p["hour"]}:${p["minute"]}${String(p["dayPeriod"]).toLowerCase()}`;
 }
 
-function view(step: ElectricianStep, canBook: boolean, sub?: string | null): ElectricianStepView {
+function view(step: ElectricianStep, canBook: boolean, sub?: string | null, canChange = false): ElectricianStepView {
   const w = ELECTRICIAN_LINK_WORDS[step];
-  return { step, title: w.title, sub: sub ?? w.sub ?? null, button: w.button ?? null, canBook };
+  return { step, title: w.title, sub: sub ?? w.sub ?? null, button: w.button ?? null, canBook, canChange };
 }
 
 export function electricianStep(f: ElectricianLinkFacts): ElectricianStepView {
@@ -73,10 +76,10 @@ export function electricianStep(f: ElectricianLinkFacts): ElectricianStepView {
   if (f.piesa.outcome === "pass") return view("all_done", false);
   if (f.piesa.outcome === "upgrades") {
     if (f.piesa.upgradesSameDay || f.upgrades.formDone) return view("upload_certificate", false);
-    if (f.upgrades.start) return view("upgrades_day", false, dayTime(f.upgrades.start));
+    if (f.upgrades.start) return view("upgrades_day", false, dayTime(f.upgrades.start), can);
     return can ? view("set_upgrades_day", true) : view("waiting_office_upgrades", false);
   }
-  if (f.piesa.start) return view("piesa_day", false, dayTime(f.piesa.start));
+  if (f.piesa.start) return view("piesa_day", false, dayTime(f.piesa.start), can);
   return can ? view("book_piesa", true) : view("waiting_office_book", false);
 }
 

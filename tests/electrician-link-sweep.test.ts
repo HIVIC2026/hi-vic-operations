@@ -24,10 +24,13 @@ function seed() {
   for (const k of Object.keys(tables)) delete tables[k];
   calls.length = 0; outcome = "held";
   tables["jobs"] = [{ id: J, job_number: "HV-5001", source: "website", stage: "piesa_and_install_window_pending", deleted_at: null }, { id: J2, job_number: "HV-5002", source: "website", stage: "cancelled", deleted_at: null }];
+  tables["businesses"] = [{ id: ELEC, name: "Spark Co", trading_name: null, piesa_booked_by: "electrician" }];
   tables["job_assignments"] = [
-    { id: "a2", job_id: J, business_id: ELEC, role: "electrician", active: true, user_id: null },
-    { id: "a9", job_id: J2, business_id: ELEC, role: "electrician", active: true, user_id: null },
+    { id: "a2", job_id: J, business_id: ELEC, role: "electrician", active: true, user_id: null, created_at: "2026-11-04T00:00:00Z" },
+    { id: "a9", job_id: J2, business_id: ELEC, role: "electrician", active: true, user_id: null, created_at: "2026-11-04T00:00:00Z" },
   ];
+  tables["assessments"] = [{ id: "as1", job_id: J, external_mitti_id: "audit-a3", completed_at: null, piesa_outcome: "pending", mitti_raw_snapshot: null }];
+  tables["bookings"] = []; tables["documents"] = [];
   tables["partner_workers"] = [
     { id: WA, business_id: ELEC, full_legal_name: "Alex Amp", mobile: "0422 222 222", trade_role: "electrician", approval_status: "approved", removed_at: null, profile_id: null },
     { id: WB, business_id: ELEC, full_legal_name: "Bea Bolt", mobile: "0433 333 333", trade_role: "electrician", approval_status: "approved", removed_at: null, profile_id: "u-bea" },
@@ -64,11 +67,24 @@ describe("sweepElectricianLinks", () => {
     expect(await server.sweepElectricianLinks(new Date(), deps())).toEqual({ checked: 1, sent: 1, held: 0 });
     expect(held()).toHaveLength(0);
   });
-  test("a legacy assignment with a profile and no allocation event finds the worker by profile", async () => {
+  test("a legacy assignment with a profile and no allocation event finds the worker by profile — but only if it was made from the cut-over date", async () => {
     tables["workflow_events"] = [];
     tables["job_assignments"]![0]!["user_id"] = "u-bea";
     await server.sweepElectricianLinks(new Date(), deps());
     expect(calls).toEqual([[J, WB]]);
+  });
+  test("R4: an old assignment (before ELECTRICIAN_LINK_SWEEP_FROM_ISO, no allocation event) is never texted at switch-on", async () => {
+    tables["workflow_events"] = [];
+    tables["job_assignments"]![0]!["user_id"] = "u-bea";
+    tables["job_assignments"]![0]!["created_at"] = "2026-10-01T00:00:00Z";
+    expect(await server.sweepElectricianLinks(new Date(), deps())).toEqual({ checked: 0, sent: 0, held: 0 });
+    expect(calls).toHaveLength(0);
+    expect(server.ELECTRICIAN_LINK_SWEEP_FROM_ISO).toBe("2026-11-03T00:00:00Z");
+  });
+  test("R4: an assignment whose link step is all done (safety check passed) gets no text", async () => {
+    tables["assessments"]![0] = { ...tables["assessments"]![0]!, completed_at: "2026-11-02T00:00:00Z", piesa_outcome: "pass" };
+    expect(await server.sweepElectricianLinks(new Date(), deps())).toEqual({ checked: 0, sent: 0, held: 0 });
+    expect(calls).toHaveLength(0);
   });
   test("no worker can be found: skipped, nothing recorded", async () => {
     tables["workflow_events"] = [];

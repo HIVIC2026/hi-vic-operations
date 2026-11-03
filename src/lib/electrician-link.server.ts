@@ -351,6 +351,8 @@ export async function bookFromElectricianLink(token: string, kind: "assessment" 
       const mine = (evs ?? []).some((e) => Date.parse(String((e.details as { start?: string } | null)?.start ?? "")) === existingMs);
       if (!mine) return { ok: false as const, message: electricianLinkAlreadyBooked(existing) };
       if (existingMs === startMs) return { ok: true as const, start: existing };
+      // A change of time only while the link is still on that visit's day (a done A4 or a passed PIESA never gets a second form).
+      if (step !== (kind === "assessment" ? "piesa_day" : "upgrades_day")) return { ok: false as const, message: ELECTRICIAN_LINK_NOTHING_TO_BOOK };
     } else if (step !== (kind === "assessment" ? "book_piesa" : "set_upgrades_day")) return { ok: false as const, message: ELECTRICIAN_LINK_NOTHING_TO_BOOK };
     try {
       const booking = await import("./booking.server");
@@ -599,6 +601,9 @@ export async function sweepHeldElectricianCantDoEmails(now = new Date(), over: P
 
 // ---------- the tick: every active electrician assignment gets its link text (fix wave I2) ----------
 export const ELECTRICIAN_LINK_TEXT_HELD_EVENT = "electrician_link_text_held";
+/** The sweep only ever texts assignments made from this instant on (or any with a Team allocation event), so switching the
+ *  wording on never texts old jobs. Deploy-date placeholder: Part 11 sets it to the go-live instant. */
+export const ELECTRICIAN_LINK_SWEEP_FROM_ISO = "2026-11-03T00:00:00Z";
 export type ElectricianLinkSweepDeps = {
   /** The link + text step (linkAfterAllocation): returns how it went. */
   link: (jobId: string, workerId: string) => Promise<Awaited<ReturnType<typeof linkAfterAllocation>>>;
@@ -624,13 +629,13 @@ const chunk = <T,>(xs: T[], n = 200): T[][] => { const o: T[][] = []; for (let i
 export async function sweepElectricianLinks(now = new Date(), over: Partial<ElectricianLinkSweepDeps> = {}): Promise<{ checked: number; sent: number; held: number }> {
   const d: ElectricianLinkSweepDeps = { link: (jobId, workerId) => linkAfterAllocation(jobId, workerId, null), ...over };
   const out = { checked: 0, sent: 0, held: 0 };
-  void now;
   try {
-    const asgs = await pagedRows("electrician assignments", (a, b) => admin.from("job_assignments").select("id, job_id, business_id, user_id").eq("role", "electrician").eq("active", true).order("id").range(a, b));
+    const asgs = await pagedRows("electrician assignments", (a, b) => admin.from("job_assignments").select("id, job_id, business_id, user_id, created_at").eq("role", "electrician").eq("active", true).order("id").range(a, b));
     const jobIds = [...new Set(asgs.map((a) => String(a["job_id"])))];
     if (!jobIds.length) return out;
     const jobs = new Map<string, { stage: string; deleted_at: string | null }>();
     const events: Record<string, unknown>[] = [];
+    const cutoff = Date.parse(ELECTRICIAN_LINK_SWEEP_FROM_ISO);
     for (const c of chunk(jobIds)) {
       for (const j of await pagedRows("jobs", (a, b) => admin.from("jobs").select("id, stage, deleted_at").in("id", c).range(a, b))) jobs.set(String(j["id"]), { stage: String(j["stage"]), deleted_at: (j["deleted_at"] as string | null) ?? null });
       events.push(...(await pagedRows("link events", (a, b) => admin.from("workflow_events").select("job_id, event_type, details, created_at").in("job_id", c).in("event_type", ["in_house_electrician_allocated", ELECTRICIAN_LINK_TEXT_SENT_EVENT, ELECTRICIAN_LINK_TEXT_HELD_EVENT]).order("created_at", { ascending: false }).range(a, b))));
@@ -647,10 +652,18 @@ export async function sweepElectricianLinks(now = new Date(), over: Partial<Elec
       if (!job || job.deleted_at || CLOSED_STAGES.has(job.stage)) continue;
       const mine = events.filter((e) => String(e["job_id"]) === jobId);
       const allocated = mine.find((e) => e["event_type"] === "in_house_electrician_allocated");
+      // Scope: a Team allocation (new flow), or an assignment made from the cut-over instant; older ones are never texted.
+      if (!allocated && !(Date.parse(String(a["created_at"] ?? "")) >= cutoff)) continue;
       const workerId = (allocated && det(allocated).worker_id) || (a["user_id"] ? byProfile.get(String(a["user_id"])) : null) || null;
       if (!workerId) continue;
       const key = electricianLinkTextKey(jobId, workerId);
       if (mine.some((e) => e["event_type"] === ELECTRICIAN_LINK_TEXT_SENT_EVENT && det(e).key === key)) continue;
+      try {
+        // Only a live step gets a text: All done / closed jobs are left alone.
+        const installerBiz = (await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle()).data?.business_id ?? null;
+        const stepNow = electricianStep((await factsFor(jobId, await whoBooksFor(installerBiz), job.stage === "cancelled", now.getTime())).facts).step;
+        if (stepNow === "all_done" || stepNow === "closed") continue;
+      } catch (e) { console.error("electrician link sweep: step not read, job skipped", jobId, (e as Error).message); continue; }
       budget--; out.checked++;
       try {
         const r = await d.link(jobId, workerId);

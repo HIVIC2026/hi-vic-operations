@@ -148,6 +148,14 @@ describe("bookFromElectricianLink: who books", () => {
     expect(tables["workflow_events"]!.filter((e) => e["event_type"] === "electrician_link_booked").map((e) => (e["details"] as { start: string }).start)).toEqual([START, START2]);
     expect(calls.notify).toHaveLength(2);
   });
+  test("R2: a change of time is only for the step that is still that visit — the upgrades day with the A4 already done is refused (a done A4 never gets a second form)", async () => {
+    seed({ outcome: "fail" });
+    const t = await token();
+    expect((await server.bookFromElectricianLink(t, "rectification", START, NOW)).ok).toBe(true);
+    tables["workflow_events"]!.push({ id: "fc", job_id: J, event_type: "fixes_form_created", summary: "", details: { audit_id: "a4" }, created_at: "2026-11-03T03:00:00Z" }, { id: "fd", job_id: J, event_type: "fixes_form_completed", summary: "", details: { audit_id: "a4" }, created_at: "2026-11-07T03:00:00Z" });
+    expect(await server.bookFromElectricianLink(t, "rectification", START2, NOW)).toEqual({ ok: false, message: "There's nothing to book on this job right now." });
+    expect(calls.confirm).toHaveLength(1);
+  });
   test("a booking made by someone else (the office, or another electrician) is still 'Already booked…' for this link", async () => {
     seed({ piesaBookedBy: "either" });
     const t = await token();
@@ -235,6 +243,6 @@ describe("the page and server function", () => {
   test("the route offers Book only when the server says the step can book", () => {
     expect(route).toContain("bookElectricianLinkVisit");
     // Fix wave I5: the prop is spread in only when the step can book (an explicit `undefined` fails exactOptionalPropertyTypes).
-    expect(route).toContain("{...(q.data.view.canBook ? { onBook } : {})}");
+    expect(route).toContain("{...(q.data.view.canBook || q.data.view.canChange ? { onBook } : {})}"); // R1: a booked day may be changed too
   });
 });

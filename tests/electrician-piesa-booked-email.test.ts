@@ -40,10 +40,10 @@ test("job link: 'update it on the job' links to the electrician's /e/ page; with
   expect(wo.text).not.toContain("/e/");
 });
 
-test("DRAFT team greeting for the office recipient; one person's greeting stays the approved default", () => {
-  expect(core.renderElectricianPiesaBooked({ ...base, team: "Spark Co" }).text).toContain("Hi Spark Co team,");
-  expect(core.renderElectricianPiesaBooked({ ...base, team: "Spark Co" }).text).not.toContain("Hi Will,");
-  expect(core.renderElectricianPiesaBooked(base).text).toContain("Hi Will,");
+test("R3: no team greeting — the approved greeting stays whoever the recipient is", () => {
+  const src = readFileSync("src/lib/electrician-piesa-booked-email.core.ts", "utf8");
+  expect(src).not.toContain("team");
+  expect(readFileSync("src/lib/in-house-electrician-booked.server.ts", "utf8")).not.toContain("team:");
 });
 
 test("a TEST job is labelled", () => {
@@ -102,7 +102,7 @@ test("flag on: approved email to the electrician's OFFICE email, same key, store
   expect(s.to).toBe("office@spark.test");
   expect(s.subject).toBe("HV-1234: PIESA booked, Fri 6 Nov 10:00am");
   expect(s.idempotencyKey).toBe("in-house-electrician-booked:v1:b:e");
-  expect(s.text).toContain("Hi Spark Co team,"); // DRAFT: the email goes to the business office, so the greeting is the team's, not one person's
+  expect(s.text).toContain("Hi Will,"); // approved #39 wording, unchanged whoever the recipient is
   expect(s.text).toContain("Sarah Brown, 0400 000 000");
   expect(s.text).toContain("/e/tok123");
   expect(s.html).toContain("/e/tok123");

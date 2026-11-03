@@ -114,7 +114,7 @@ describe("sweepUpgradesWatch: the electrician nudge", () => {
     expect(calls.testSms[0]![2]).toBe("Home Insulation Victoria: HV-5001 upgrades were booked for yesterday. Open your job link to fill in the upgrades form: https://x/e/NEW");
     const ev = events("upgrades_nudge");
     expect(ev).toHaveLength(1);
-    expect(ev[0]!["details"]).toMatchObject({ key: "upgrades-nudge:v1:" + J + ":2026-11-11", worker_id: W, booking_id: "bk1" });
+    expect(ev[0]!["details"]).toMatchObject({ key: "upgrades-nudge:v1:" + J + ":2026-11-11", worker_id: W, booking_id: "bk1", sent: true });
     expect(await server.sweepUpgradesWatch(THU, deps())).toEqual({ nudges: 0, officeEmails: 0, redFlags: 0 });
     expect(calls.testSms).toHaveLength(1);
     expect(events("upgrades_nudge")).toHaveLength(1);
@@ -129,6 +129,12 @@ describe("sweepUpgradesWatch: the electrician nudge", () => {
     expect(order).toEqual(["mint", "send", "revoke"]);
     expect(calls.revoke[0]).toEqual(["link-new"]);
     expect(calls.retire).toHaveLength(0);
+    // Minor: the record says sent:false, so the next tick tries the electrician again and the office is not yet due.
+    expect(events("upgrades_nudge")[0]!["details"]).toMatchObject({ sent: false });
+    smsStatus = "sent";
+    expect(await server.sweepUpgradesWatch(FRI, deps())).toEqual({ nudges: 1, officeEmails: 0, redFlags: 0 });
+    expect(events("upgrades_nudge").map((e) => (e["details"] as { sent: boolean }).sent)).toEqual([true]); // the one record, now marked sent
+    expect(calls.testMail).toHaveLength(0);
   });
   test("real job, flag off: held — nothing sent, nothing recorded, no link minted", async () => {
     seed({ source: "website" });
