@@ -128,6 +128,25 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['sameDayPartC'] = "failed";
         }
         try {
+          // Part 3 Task 5 (Jo 3 Nov 2026): upgrades needed, no upgrades day entered → day 1 text to the electrician (link),
+          // day 2 email to the installer office, red office flag at 7 days left on the 30-day clock. Once per job + PIESA.
+          const { sweepUpgradesDayChase } = await import("@/lib/certificate-later.server");
+          (out as Record<string, unknown>)['upgradesDayChase'] = await timed("sweepUpgradesDayChase", () => sweepUpgradesDayChase());
+        } catch (e) {
+          console.error("allocation tick: upgrades day chase failed", (e as Error).message);
+          out['ok'] = false;
+          (out as Record<string, unknown>)['upgradesDayChase'] = "failed";
+        }
+        try {
+          // Part 3 Task 5: Part C recorded, no Certificate of Electrical Safety file → day 2 text (link), day 4 office flag.
+          const { sweepCertificateChase } = await import("@/lib/certificate-later.server");
+          (out as Record<string, unknown>)['certificateChase'] = await timed("sweepCertificateChase", () => sweepCertificateChase());
+        } catch (e) {
+          console.error("allocation tick: certificate chase failed", (e as Error).message);
+          out['ok'] = false;
+          (out as Record<string, unknown>)['certificateChase'] = "failed";
+        }
+        try {
           const { sweepInstallHolds } = await import("@/lib/install-holds.server");
           (out as Record<string, unknown>)['installHolds'] = await timed("sweepInstallHolds", () => sweepInstallHolds());
         } catch (e) {

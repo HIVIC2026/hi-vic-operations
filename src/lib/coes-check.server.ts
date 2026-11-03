@@ -219,6 +219,9 @@ export async function coesBlockerFor(jobId: string): Promise<string | null> {
 export async function coesNeedsFor(jobId: string, now = new Date()): Promise<{ at: string; why: string; eventId: string | null } | null> {
   const c = await currentCoes(jobId);
   if (!c.needed || !c.ref) return null;
+  // Part 3 Task 5: no file on the job → no Tick/Reject row (Tick would refuse: a dead end). The 4-business-day
+  // "Certificate not in" chase flag covers it.
+  if (!c.ref.files.length) return null;
   const s = coesState(await coesEvents(jobId), c.ref.key);
   if (s.state === "ticked") return null;
   return { at: s.at ?? c.since ?? now.toISOString(), why: s.why ?? COES_WHY.not_checked, eventId: s.eventId };
@@ -234,7 +237,11 @@ export async function coesNeedsForJobs(jobs: readonly { id: string; stage: strin
   const liveIds = new Set(live.map((j) => j.id));
   for (const j of jobs) {
     if (liveIds.has(j.id)) continue;
-    const fact = coesNeedsFact(eventsByJob.get(j.id) ?? []);
+    const evs = eventsByJob.get(j.id) ?? [];
+    const fact = coesNeedsFact(evs);
+    // Part 3 Task 5: a check that found no file on the job (its `files` list is empty) is a dead end — hidden, as above.
+    const ev = fact?.eventId ? evs.find((e) => e.id === fact.eventId) : null;
+    if (fact && Array.isArray(ev?.details?.["files"]) && (ev!.details!["files"] as unknown[]).length === 0) continue;
     if (fact) out.set(j.id, fact);
   }
   const facts = await Promise.all(live.map(async (j) => [j.id, await coesNeedsFor(j.id)] as const));

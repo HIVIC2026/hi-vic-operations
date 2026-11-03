@@ -668,6 +668,14 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     const facts = await coesNeedsForJobs(jobs.filter((j) => byJob.has(j.id) || j.stage === "installation_scheduling").map((j) => ({ id: j.id, stage: j.stage })), byJob);
     for (const [id, fact] of facts) { const x = f(id); if (x) x.coesCheck = fact; }
   } catch { unavailable.push("electrical certificate checks"); }
+  // Part 3 Task 5 (Jo 3 Nov 2026): upgrades day not set (week; red at 7 days left) and certificate not in (4 business days).
+  // Raised by the chase sweeps; each clears by itself once the day is entered / the file is on the job (live facts).
+  try {
+    const { CHASE_STAGES, chaseFlagsForJobs } = await import("./certificate-later.server");
+    const chaseStages = new Set<string>(CHASE_STAGES);
+    const flags = await chaseFlagsForJobs(jobs.filter((j) => chaseStages.has(j.stage)).map((j) => j.id));
+    for (const [id, fl] of flags) { const x = f(id); if (x) Object.assign(x, fl); }
+  } catch { unavailable.push("upgrades day and certificate chases"); }
   // A48 batch 1 final fix (Jo 29 Oct): life support yes / unknown with no plan on file → one row until the owner's upload or
   // the office record is on file (the safety check offers and visit wait for it).
   try {

@@ -450,3 +450,23 @@ describe("wiring", () => {
     expect(fns.match(/requireAdmin\(context\.supabase\)/g)?.length).toBe(3);
   });
 });
+
+describe("Part 3 Task 5: no Tick/Reject row while no certificate file is on the job (the 4-business-day chase covers it)", () => {
+  test("repairs done, no file → no live row at installation_scheduling (Tick would refuse); the check itself still blocks", async () => {
+    seed(repaired(), []);
+    expect(await server.coesNeedsFor(J)).toBeNull();
+    expect((await server.coesNeedsForJobs([{ id: J, stage: "installation_scheduling" }], new Map())).get(J) ?? null).toBeNull();
+    expect((await coesBlocked()).length).toBe(1);
+  });
+  test("a check that found no file (event files: []) → no row at other stages either; a file brings the row back", async () => {
+    seed(repaired(), []);
+    await server.checkCurrentCoes(J, null);
+    const ev = evRows();
+    expect(ev.at(-1)!.details).toMatchObject({ files: [] });
+    expect((await server.coesNeedsForJobs([{ id: J, stage: "installation_booked" }], new Map([[J, ev]]))).get(J) ?? null).toBeNull();
+    seed(repaired(), ["m1"]);
+    ai.reply = reply("unsure", null);
+    await server.checkCurrentCoes(J, null);
+    expect((await server.coesNeedsForJobs([{ id: J, stage: "installation_booked" }], new Map([[J, evRows()]]))).get(J)).toMatchObject({ why: core.COES_WHY.unsure });
+  });
+});

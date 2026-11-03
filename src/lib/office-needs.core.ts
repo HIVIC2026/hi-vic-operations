@@ -13,6 +13,7 @@ import { piesaRulesOfficeLine } from "./piesa-rules-notice.core";
 import { ownJobPiesaCompleteHeldLine } from "./own-job-piesa.core";
 import { sameDayPartCFailedRowLine } from "./same-day-part-c.core";
 import { coesOfficeLine } from "./coes-check.core";
+import { UPGRADES_DAY_RED_LINE, certificateNotInLine, upgradesDayNotSetLine } from "./certificate-chase.core";
 import { LIFE_SUPPORT_PLAN_ROW } from "./compliance-timeline.core";
 import { addVicBusinessDays, melbourneToday } from "./melbourne-time.core";
 import { paidGateWarningLine, type PaidGateWarning } from "./paid-gate-warning.core";
@@ -31,7 +32,8 @@ export type NeedsKind =
   | "choose_again" | "quote_check" | "fixes_quote_check" | "sign_consent" | "esc_window" | "final_check" | "send_failed" | "email_change" | "email_unmatched" | "robot_failed" | "piisa_form_failed"
   | "choose_installer" | "choose_electrician" | "veec_a_held" | "piesa_owner_unsigned" | "piesa_fixes_owner_unsigned" | "fixes_times_missing"
   | "payment_not_in_xero" | "payment_overdue" | "ten_days_left" | "second_no_access" | "veec_day_10" | "lapsed_window"
-  | "release_lapsed" | "piesa_form_failed" | "prestart_failed" | "eligibility_review" | "payment_reversed" | "mitti_form_problem" | "booking_overdue" | "piesa_fixes_found" | "repeat_piesa_choose" | "payment_stalled" | "invoice_failed" | "old_fixes_invoice_unpaid" | "old_fixes_invoice_paid" | "stop_release_failed" | "quote_expired_blocked" | "new_quote_installer" | "new_quote_unfinished" | "piesa_rules_failed" | "coes_check" | "life_support_plan";
+  | "release_lapsed" | "piesa_form_failed" | "prestart_failed" | "eligibility_review" | "payment_reversed" | "mitti_form_problem" | "booking_overdue" | "piesa_fixes_found" | "repeat_piesa_choose" | "payment_stalled" | "invoice_failed" | "old_fixes_invoice_unpaid" | "old_fixes_invoice_paid" | "stop_release_failed" | "quote_expired_blocked" | "new_quote_installer" | "new_quote_unfinished" | "piesa_rules_failed" | "coes_check" | "life_support_plan"
+  | "upgrades_day_not_set" | "upgrades_day_red" | "certificate_not_in";
 
 /** Where the one button takes the office. `section` is the Job page stage card id; `act` are inline row actions. */
 export type NeedsButton =
@@ -133,6 +135,12 @@ export type NeedsFacts = {
   ownJobPiesaCompleteHeld?: { at: string; reason: string } | null;
   /** Part 3 Task 4b fix 1: the PIESA completed but its same-day Part C record couldn't be written (the portal retries it each tick). */
   sameDayPartCFailed?: { at: string; reason: string } | null;
+  /** Part 3 Task 5: no upgrades day 2 business days after the PIESA said upgrades are needed (the installer office was emailed). */
+  upgradesDayNotSet?: { at: string; electrician: string | null; address: string } | null;
+  /** Part 3 Task 5: still no upgrades day with 7 days or fewer left on the 30-day clock — RED (today). */
+  upgradesDayRed?: { at: string } | null;
+  /** Part 3 Task 5: Part C recorded 4 business days ago and no Certificate of Electrical Safety file on the job. */
+  certificateNotIn?: { at: string; electrician: string | null; phone: string | null } | null;
   /** Part 2 Task 3: the electrician said "Can't do this one" on an installer's own job; the installer picks another or books it. */
   ownJobPiesaHandedBack?: { at: string; reason: string } | null;
   /** Part 2 Task 5: an electrician swap couldn't move the Mitti safety check form to the new electrician. */
@@ -269,6 +277,10 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   if (f.piesaFormFailed) add({ rank: 15, group: "today", kind: "piesa_form_failed", line: f.piesaFormFailed.text, since: f.piesaFormFailed.at, button: { label: "Open job", to: "job", section: "piesa" } });
   if (f.piesaRulesFailed) add({ rank: 16, group: "today", kind: "piesa_rules_failed", line: piesaRulesOfficeLine(f.piesaRulesFailed.reasons), since: f.piesaRulesFailed.at, button: { label: "Open job", to: "job", section: "piesa" } });
   if (f.coesCheck) add({ rank: 17, group: "today", kind: "coes_check", line: coesOfficeLine(f.coesCheck.why), since: f.coesCheck.at, ...(f.coesCheck.eventId ? { eventId: f.coesCheck.eventId } : {}), button: { label: "Tick", to: "act", act: "coes_tick" }, secondary: { label: "Reject", to: "act", act: "coes_reject" } });
+  // Part 3 Task 5: the upgrades day / certificate chase flags (certificate-chase.core); each clears once the day is entered / a file is on the job.
+  if (f.upgradesDayRed) add({ rank: 22, group: "today", kind: "upgrades_day_red", line: UPGRADES_DAY_RED_LINE, since: f.upgradesDayRed.at, button: { label: "Open job", to: "job", section: "piesa" } });
+  if (f.certificateNotIn) add({ rank: 23, group: "today", kind: "certificate_not_in", line: certificateNotInLine(f.certificateNotIn.electrician, f.certificateNotIn.phone), since: f.certificateNotIn.at, button: { label: "Open job", to: "job", section: "piesa" } });
+  if (f.upgradesDayNotSet) add({ rank: 112, group: "week", kind: "upgrades_day_not_set", line: upgradesDayNotSetLine(f.upgradesDayNotSet.electrician, f.upgradesDayNotSet.address), since: f.upgradesDayNotSet.at, button: { label: "Open job", to: "job", section: "piesa" } });
   if (f.lifeSupportPlanNeeded) add({ rank: 18, group: "today", kind: "life_support_plan", line: LIFE_SUPPORT_PLAN_ROW, since: f.lifeSupportPlanNeeded.at, button: { label: "Open job", to: "job", section: "piesa" } });
   if (f.piisaFormFailed) add({ rank: 14, group: "today", kind: "piisa_form_failed", line: f.piisaFormFailed.text, since: f.piisaFormFailed.at, button: { label: "Open job", to: "job", section: "install" } });
   if (!held && f.offerLapsed) add({ rank: 20, group: "today", kind: "choose_again", line: f.offerLapsed.note ? f.offerLapsed.note : `${f.offerLapsed.role === "installer" ? "Installer" : "Electrician"} offer ${f.offerLapsed.declined ? `declined${f.offerLapsed.name ? ` by ${f.offerLapsed.name}` : ""}` : "lapsed · no reply in 24h"}`, since: f.offerLapsed.at, button: { label: "Choose again", to: "job", section: f.offerLapsed.role === "installer" ? "ready-check" : "piesa" } });
