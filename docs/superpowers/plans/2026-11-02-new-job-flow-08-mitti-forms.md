@@ -363,6 +363,18 @@ Already on the A5 and Ready Check (checked in code 2 Nov): Q40 `Did the install 
 
 ---
 
+## Task 12: Ceiling areas — area name drop-down and m² or length × width (Jo 3 Nov)
+
+**Decision:** docs/hiv-touchpoint-decisions-2026-11-02.md "MITTI CEILING AREAS (Jo 3 Nov ~4:50pm)".
+
+**Files:** `src/lib/ready-check-lean.core.ts` (LEAN_Q), `src/lib/mitti-forms.core.ts` (READY_CHECK_FIELDS per-area block), the Ready Check readers/parsers (`mitti.core.ts`, measurement planning), `src/lib/area-diagram.core.ts`; tests.
+
+- [ ] Area name: single choice "Main house" / "Extension" / "Upstairs" / "Other", with "Other → type the area name" shown when Other. The reader takes the choice, or the typed text for Other; old free-text answers on forms already in progress still read.
+- [ ] Area size: per area, "How do you want to give the size?" — "Enter area (m²)" / "Length × width". m² → one number field; L × W → the existing Length (m) and Width (m). The reader computes m² from L × W or takes the m² answer; exactly one must be present per area (else the Ready Check holds as incomplete, existing "Nearly there" path).
+- [ ] Diagram: m²-only areas draw a square of that area, labelled with the name and "{m²} m²" (no length/width labels).
+- [ ] The paste-to-Mitti prompt (Task 11) includes both changes; Jo approves the wording in Task 1's gate.
+- [ ] Tests: each choice + Other text; m² only; L × W only; both missing → incomplete; old form answers still parse; diagram for m²-only.
+
 ## Self-review notes
 
 - Spec coverage (overview row 8): photo-ID tick → T2; PIESA adult → T3; life support attachment → T4; install form Part B at end → T6/T7/T8; day-2+ re-check, Lead Installer whole install, premises type → T9 (already built, pinned); adult present (install) → T5; records checklist → T9; ECOWOOL → T2; signature on official VEEC PDF → T8; SWMS changes during the job → T10; paste → T11. Rental/tenant questions moved to Part 3 Task 19 (answer 22).
