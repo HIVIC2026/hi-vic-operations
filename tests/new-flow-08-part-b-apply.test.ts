@@ -136,9 +136,18 @@ describe("applyMittiPartB fix round", () => {
     expect(JSON.stringify(tables.customer_assignments![0])).toBe(snap);
     expect(fetches).toBe(1);
   });
-  test("an assignment prepared after the Mitti signature holds for the office and writes nothing", async () => {
+  test("an assignment prepared by this same sync is signable even though prepared after the Mitti signature", async () => {
     preparedAt = "2026-10-31T00:00:00Z";
+    expect(await applyMittiPartB("j1", "aud-1", auditWith(), fetchMedia)).toBe("applied");
+    expect(prepared).toBe(1);
+    expect(tables.customer_assignments![0]!.installer_signed_at).toBe(AT);
+  });
+  test("an assignment already prepared after the Mitti signature holds for the office and writes nothing", async () => {
+    tables.customer_assignments = [
+      { id: "a2", job_id: "j1", status: "awaiting_installer_signature", final_facts: { template_version: "v1.1" }, final_facts_sha256: "f2", consumer_declaration_version: "v1.1", installer_signed_at: null, prepared_at: "2026-10-31T00:00:00Z" },
+    ];
     expect(await applyMittiPartB("j1", "aud-1", auditWith(), fetchMedia)).toBe("held");
+    expect(prepared).toBe(0);
     expect(fetches).toBe(0);
     expect(tables.customer_assignments![0]!.installer_signed_at).toBeNull();
     expect(heldEvents()[0]!.details).toMatchObject({ needs_office: true, reason: REASON });

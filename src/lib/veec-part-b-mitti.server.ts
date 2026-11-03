@@ -43,6 +43,7 @@ export async function applyMittiPartB(jobId: string, auditId: string, audit: unk
   if (d.action === "hold") return hold(jobId, auditId, d.reason, true);
   const sig = partB.signature;
   try {
+    let preparedHere = false;
     if (!a) {
       const { data: inst } = await admin.from("job_assignments").select("user_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
       if (!inst?.user_id) return hold(jobId, auditId, "No installer is assigned to this job yet", false);
@@ -51,9 +52,11 @@ export async function applyMittiPartB(jobId: string, auditId: string, audit: unk
       a = await asg.currentAssignment(jobId);
       if (!a) return hold(jobId, auditId, "The VEEC assignment isn't ready yet", false);
       if (a.installer_signed_at) return "skipped";
+      preparedHere = true;
     }
-    // Facts must be what the Lead Installer saw: prepared before the Mitti signature, and this image never used on an earlier row.
-    if (!a.prepared_at || Date.parse(a.prepared_at as string) >= Date.parse(sig.signedAt!)) return hold(jobId, auditId, FACTS_CHANGED, true);
+    // Facts must be what the Lead Installer saw. An assignment prepared by this very call is built from this audit's completed facts, so it is signable;
+    // one that already existed and was prepared after the Mitti signature is not. This image must also never have been used on an earlier row.
+    if (!preparedHere && (!a.prepared_at || Date.parse(a.prepared_at as string) >= Date.parse(sig.signedAt!))) return hold(jobId, auditId, FACTS_CHANGED, true);
     const { data: rows } = await admin.from("customer_assignments").select("id, installer_snapshot").eq("job_id", jobId);
     if ((rows ?? []).some((r) => r.id !== a!.id && (r.installer_snapshot as { media_id?: string } | null)?.media_id === sig.mediaId)) return hold(jobId, auditId, FACTS_CHANGED, true);
     const { count: openVar } = await admin.from("assignment_variations").select("id", { count: "exact", head: true }).eq("assignment_id", a.id).eq("status", "pending");
