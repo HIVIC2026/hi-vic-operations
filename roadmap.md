@@ -1,5 +1,5 @@
 ## Jo 4 Nov A1/A2 Ready Check forms: ceiling layout, top-ups, approved products, quotes
-- [x] Pure core `ceiling-layout.core.ts`: exact wording, approved ESC 48A list with model numbers, rules 1–5, A2 options, A1 choices/validation, exact line wording, per-option VEU and 15% hold. 20 new tests + practice-DB proof pass; 181 related Ready Check tests pass.
+- [x] Pure core `ceiling-layout.core.ts`: exact wording, approved ESC 48A list with model numbers, rules 1–5, A2 options, A1 choices/validation, exact line wording, per-option VEU and 15% hold. 18 new tests + 1 practice-DB proof pass; 181 related Ready Check tests pass.
 - [x] Mitti reader: new area answers replace old ones on new forms only; "Can the job go ahead?" No = failed; R2.0-or-more stop.
 - [x] A2 quote builder: retail prices, installer paid TOPUP_R5/R5/R6/R7/removal, main + thicker option rows, all held for office review.
 - [x] A1 price card: area facts, approved-only brand+batt picks per area with totals, main total + thicker total; server validates.
