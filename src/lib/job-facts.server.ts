@@ -70,6 +70,11 @@ export function jobFactsClient(sources: readonly FactSource[], base: Admin = sup
     const ops: QueryOp[] = [];
     const send = () => { let q = base.from(table as never) as unknown as Record<string, (...a: unknown[]) => unknown>; for (const o of ops) q = q[o.m]!(...o.a) as typeof q; return q as unknown as PromiseLike<unknown>; };
     const run = (): Promise<unknown> => {
+      // A write through this client (jobAdmin inside the bundle) stops answering from memory for the rest of the bundle.
+      // Only writes through this client are seen: a write made with `supabaseAdmin` directly or with the signed-in user's
+      // client does not clear the in-memory answers, so a later read of that table in the same bundle could still be
+      // answered from the pre-write facts. Nothing on the bundle's read path writes that way today; keep it so, or write
+      // through jobAdmin.
       if (ops.some((o) => WRITES.has(o.m))) { wrote = true; return Promise.resolve(send()); }
       if (wrote || !ops.every((o) => READS.has(o.m))) return Promise.resolve(send());
       let key: string;
