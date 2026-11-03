@@ -18,9 +18,10 @@ const HOME_ROUTE = join(SRC, "routes", "_authenticated", "field.index.tsx");
 
 /** Source bytes of the home route's static import graph: 335,328 on 3 Nov 2026 before this step; budget = 40% under. */
 const SOURCE_BUDGET = 200_000;
-/** Gzip bytes a cold /field visit downloads (entry + route chunks): 307,381 on 3 Nov 2026 before this step, 276,378
- *  after (246,000 of it the entry: react-dom, router, query, supabase-js, root). Budget = the result after this step + 3%. */
-const COLD_PATH_GZ_BUDGET = 285_000;
+/** Gzip bytes a cold /field visit downloads (entry + route chunks): 307,381 on 3 Nov 2026 before this step; 276,374 after
+ *  the home's own imports were cut; 259,338 after the chunk groups in vite.config.ts (232,489 of it the entry: react-dom,
+ *  router, query, start client, supabase-js, root). Budget = the result after this step + 3%. */
+const COLD_PATH_GZ_BUDGET = 267_000;
 /** Gzip bytes of the /field route chunks beyond the entry (the part the home's own imports decide): 60,400 before this
  *  step, 30,300 after; budget = 34% under before. */
 const ROUTE_GZ_BUDGET = 40_000;
@@ -128,6 +129,46 @@ describe("installer My work: first load stays small (build scan)", () => {
     if (p.totalGz > COLD_PATH_GZ_BUDGET) console.log(`entry ${p.entryGz} + route ${p.routeGz} = ${p.totalGz} bytes gz\n--- entry\n${show(p.entry)}\n--- route\n${show(p.route)}`);
     expect(p.totalGz).toBeLessThanOrEqual(COLD_PATH_GZ_BUDGET);
     expect(p.routeGz).toBeLessThanOrEqual(ROUTE_GZ_BUDGET);
+  });
+
+  /** The chunks the HTML preloads for a cold /field visit: the manifest's preloads of the matched routes. */
+  function fieldPreloads(): Set<string> {
+    const man = readFileSync(join(ROOT, ".output", "server", MANIFEST!), "utf8");
+    const out = new Set<string>();
+    for (const route of ["__root__", "/_authenticated", "/_authenticated/field", "/_authenticated/field/"]) {
+      const i = route === "__root__" ? man.indexOf("__root__: {") : man.indexOf(`"${route}": {`);
+      if (i < 0) continue;
+      const seg = man.slice(i, man.indexOf("\n\t}", i));
+      for (const m of seg.matchAll(/\/assets\/([^"]+\.js)/g)) out.add(m[1]!);
+    }
+    return out;
+  }
+
+  // Portal speed step 2B(ii): the manifest preloads only a chunk's direct imports, so a chunk two levels down is fetched one
+  // round trip later. On the /field critical path that was supabase-js (needed before auth, so before the server call can
+  // start) and the server-function runtime + auth middleware (needed to make the call). They are kept one level down.
+  (built ? test : test.skip)("the HTML preloads supabase-js (it gates auth, so the server call)", () => {
+    const p = coldFieldPath(ASSETS);
+    const pre = fieldPreloads();
+    const code = (f: string) => readFileSync(join(ASSETS, f), "utf8");
+    const supabase = [...p.entry, ...p.route].filter((f) => code(f).includes("supabase-js/blob/master/package"));
+    expect(supabase.length).toBeGreaterThan(0);
+    expect(supabase.filter((f) => !pre.has(f))).toEqual([]);
+  });
+
+  (built ? test : test.skip)("the HTML preloads everything the home's server calls need (server-fn runtime, auth middleware)", () => {
+    const pre = fieldPreloads();
+    const fns = readdirSync(ASSETS).find((f) => /^trade-view\.functions-.*\.js$/.test(f))!;
+    expect(pre.has(fns)).toBe(true);
+    const deps = [...readFileSync(join(ASSETS, fns), "utf8").matchAll(/from\s*["']\.\/([^"']+\.js)["']/g)].map((m) => m[1]!);
+    expect(deps.length).toBeGreaterThan(0);
+    expect(deps.filter((d) => !pre.has(d))).toEqual([]);
+  });
+
+  (built ? test : test.skip)("the entry (every page) no longer carries the office lists' column and filter rules", () => {
+    const p = coldFieldPath(ASSETS);
+    const bad = [...p.entry].filter((f) => /^(office-jobs\.core|jobs-columns\.core|office-filters\.core|owner-review\.core)-/.test(f));
+    expect(bad).toEqual([]);
   });
 
   (built ? test : test.skip)("the moved modules are not in the /field route chunks", () => {

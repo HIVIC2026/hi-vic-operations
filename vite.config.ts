@@ -119,6 +119,19 @@ function ignoreClientDisconnects(): Plugin {
   };
 }
 
+// Speed (portal speed step 2B): the HTML preloads a route chunk and its DIRECT imports only (TanStack's manifest goes one
+// level deep), so a shared chunk two levels down is fetched one round trip later. Two of those sat on every signed-in
+// page's critical path: supabase-js (needed before the saved session is read, so before any server call can start) and
+// the server-function runtime (needed to make the call). Each is kept in a chunk of its own that the entry and the route
+// chunks import directly, so it is in the preload list. Behaviour unchanged: only which file holds which module.
+const CLIENT_CHUNK_GROUPS = {
+  // The deprecated name is `advancedChunks`; Vite 8 passes `codeSplitting` through to rolldown.
+  groups: [
+    { name: "supabase", test: (id: string) => /[\\/]node_modules[\\/]@supabase[\\/]/.test(id) || /[\\/]src[\\/]integrations[\\/]supabase[\\/](client|previewAuthStorage)\.ts$/.test(id) },
+    { name: "start-client", test: (id: string) => /[\\/]node_modules[\\/]@tanstack[\\/](react-start|react-start-client|start-client-core|start-storage-context)[\\/]/.test(id) || /[\\/]src[\\/]integrations[\\/]supabase[\\/]auth-middleware\.ts$/.test(id) },
+  ],
+};
+
 export default defineConfig({
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
@@ -127,5 +140,6 @@ export default defineConfig({
   },
   vite: {
     plugins: [ignoreClientDisconnects(), pruneOrphanServerChunks()],
+    environments: { client: { build: { rolldownOptions: { output: { codeSplitting: CLIENT_CHUNK_GROUPS } } } } },
   },
 });

@@ -17,6 +17,16 @@ What was pulled in and is not any more (all moved behind a smaller module or a l
 - `installer-screens.core` (25 kB raw / 8.1 kB gz) + `job-wording`'s display-name chain for one function (`installerStatusLine`) → now `installer-status-line.core`, re-exported.
 - `InHouseBookingCard` + `installer-kit` + `install-days.core` + `piesa-windows.core` + `in-house-booking.core` + `worker-compliance.core` + `input` (~14 kB gz) for the in-house booking row, which only draws after the in-house Team/deposit server check answers → `React.lazy`, with the same "Checking your Team and deposit before booking." line standing in while its code arrives (the code starts loading alongside that check).
 
+Second step (same day, `vite.config.ts` chunk groups + three more small modules):
+
+| | before | after |
+|---|---|---|
+| entry chunk + static imports | 240.3 kB gz, 38 files | 227.0 kB gz, 3 files (index, rolldown runtime, supabase) |
+| /field route chunks beyond the entry | 29.6 kB gz, 24 files | 26.2 kB gz, 21 files |
+| whole cold path | 269.9 kB gz (276,374 B) | 253.3 kB gz (259,338 B) |
+| chunks on the critical path NOT in the HTML preload list | supabase-js (54 kB gz, needed before the saved session is read), server-fn runtime + auth middleware (needed for the first call) — one round trip each | none: the HTML preloads `supabase-*.js` (a chunk group of @supabase/* + the client module, a direct import of the entry) and the server-function runtime now sits in the entry chunk (the `start-client` group absorbed @tanstack/react-start's client side, which the entry imports); `trade-view.functions-*.js` imports only the entry and the runtime helper |
+| office code in the entry (every page) | office-jobs.core, jobs-columns.core, office-filters.core, owner-review.core (~3.7 kB gz) | gone: the Jobs routes' `validateSearch`/loaders read `office-jobs-stage.core` and `jobs-saved-view.core`, My job's reads `owner-review-screen.core` (all import-free; the old modules re-export them). `set-password-link.core` (0.6 kB gz, import-free) stays: it is the sign-in destination logic itself. `admin.jobs.$jobId`'s 7 kB non-split part is its component's preload list, intrinsic to that route. |
+
 What stays and why: the entry is 90% framework (react-dom 203 kB raw, router core 52 kB, seroval 25 kB, query core 10 kB) plus supabase-js (214 kB raw / 54 kB gz, needed for the saved session before any page draws). `tailwind-merge` (8.5 kB gz) is the portal kit's class merger. `sonner` (9 kB gz) is the root's toaster, on every page. About 8 kB gz of office code sits in the entry because office routes' `validateSearch` parsers import `office-jobs.core`, `jobs-columns.core`, `office-filters.core`, `owner-review.core`, `set-password-link.core`; splitting those parsers out (as `template-sections.core` was) would take it off every page.
 
 Pinned by `tests/trade-home-first-load.test.ts`: the home route's static source graph ≤ 200,000 bytes (was 335,328; now 168,429) and the heavy modules absent — always; the built cold path ≤ 285,000 bytes gz and the route chunks ≤ 40,000 bytes gz — when `.output` exists (skipped, never passed, otherwise).

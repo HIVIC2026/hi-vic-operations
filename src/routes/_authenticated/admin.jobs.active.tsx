@@ -1,5 +1,5 @@
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { JOBS_STAGE_KEYS, type JobsStage } from "@/lib/office-jobs.core";
+import { JOBS_STAGE_KEYS, type JobsStage } from "@/lib/office-jobs-stage.core"; // speed (portal speed step 2B): keys only on first download
 
 // Old bookmark: Jobs › Active is now Our jobs. Keeps `?stage=` so old Quote approvals links still land on Quote.
 export const Route = createFileRoute("/_authenticated/admin/jobs/active")({

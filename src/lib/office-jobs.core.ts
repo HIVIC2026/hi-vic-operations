@@ -5,17 +5,10 @@
 // plus Closed (Completed · Cancelled · Ineligible · Removed / test). PURE: labels and piles only, never moves a job.
 import type { Stage } from "./workflow";
 
-export type JobsStage = "choose_installer" | "ready_check" | "quote" | "piesa" | "install" | "final_check";
-export const JOBS_STAGES: { key: JobsStage; label: string }[] = [
-  { key: "choose_installer", label: "Choose installer" },
-  { key: "ready_check", label: "Ready Check" },
-  { key: "quote", label: "Quote" },
-  { key: "piesa", label: "PIESA" },
-  { key: "install", label: "Install" },
-  { key: "final_check", label: "Final check" },
-];
-export const JOBS_STAGE_LABEL = Object.fromEntries(JOBS_STAGES.map((s) => [s.key, s.label])) as Record<JobsStage, string>;
-export const JOBS_STAGE_KEYS = JOBS_STAGES.map((s) => s.key);
+// Speed (portal speed step 2B): the six stage keys/labels live in office-jobs-stage.core (no imports) because the Jobs
+// routes' `validateSearch` needs them on every page's first download; same values, re-exported here.
+export { JOBS_STAGES, JOBS_STAGE_LABEL, JOBS_STAGE_KEYS, type JobsStage } from "./office-jobs-stage.core";
+import { JOBS_STAGES, type JobsStage } from "./office-jobs-stage.core";
 
 const PRE_INSTALLER = new Set(["new_enquiry", "eligibility_review", "preliminary_estimate_ready", "ready_check_awaiting_acceptance", "ready_check_awaiting_payment", "ready_check_ready_to_schedule"]);
 const READY_CHECK = new Set(["ready_check_awaiting_acceptance", "ready_check_awaiting_payment", "ready_check_ready_to_schedule", "ready_check_scheduled"]);

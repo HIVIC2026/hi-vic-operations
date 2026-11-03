@@ -9,8 +9,9 @@
 // function still checks access itself, and the /admin guard has already run when a loader starts.
 // The server call modules are imported when a list opens, not up front, to keep the first download small.
 import type { QueryClient } from "@tanstack/react-query";
-import { DEFAULT_VIEW, openingView, parseSavedView, savedViewKey, type JobsLane } from "./jobs-columns.core";
-import type { JobsStage } from "./office-jobs.core";
+import { DEFAULT_VIEW, openingView, parseSavedView, savedViewKey } from "./jobs-saved-view.core"; // speed (portal speed step 2B): the saved-view rules only, not the whole column rulebook
+import type { JobsLane } from "./jobs-columns.core";
+import type { JobsStage } from "./office-jobs-stage.core";
 import { isDefaultListView } from "./office-needs-snapshot.core";
 import { enquiriesListKey, installerWaitingKey, jobsListKey } from "./office-list-keys.core";
 import { readOfficeList } from "./office-list-refresh";
