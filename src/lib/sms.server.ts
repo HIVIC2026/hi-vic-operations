@@ -196,6 +196,8 @@ export async function recordInboundReply(from: string, body: string, sid?: strin
   if (k === "stop") {
     const { error } = await db.from("sms_optouts").upsert({ phone, opted_out_at: now, opted_in_at: null, source: "stop_reply", last_message: body.slice(0, 160) });
     if (error) throw new Error("Could not record SMS opt-out");
+    const { setDoNotContactFromStop } = await import("./do-not-contact-stop.server");
+    await setDoNotContactFromStop(db, phone, sid ?? null, now);
     const { closeStoppedEnquiries } = await import("./sms-stop.server");
     await closeStoppedEnquiries(db, phone, sid ?? null, now);
   }
