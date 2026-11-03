@@ -381,7 +381,7 @@ export type ElectricianLinkUploadResult = { ok: true } | { ok: false; message: s
 /** Upload the Certificate of Electrical Safety. Everything comes from the token: the job, the electrician and the business are
  *  never sent by the browser. The file goes through the one upload path the installer office uses (coes-upload.server), so the
  *  link, the office's Next step and the install gate all read the same record. Plain messages, never the raw error. */
-export async function uploadCoesFromElectricianLink(token: string, file: { name: string; type: string; bytes: Uint8Array }, now = Date.now()): Promise<ElectricianLinkUploadResult> {
+export async function uploadCoesFromElectricianLink(token: string, file: { name: string; type: string; /** The bytes, or a function that decodes them — called only once the token and link checks passed. */ bytes: Uint8Array | (() => Uint8Array) }, now = Date.now()): Promise<ElectricianLinkUploadResult> {
   if (!isTokenShape(token)) return { ok: false, message: ELECTRICIAN_LINK_NOT_VALID };
   const { data: l, error } = await admin.from("worker_job_links").select("id, job_id, worker_id, business_id, expires_at, revoked_at").eq("token_hash", await hashToken(token)).maybeSingle();
   if (error) { console.error("Electrician link upload could not read the link", error.message); return { ok: false, message: ELECTRICIAN_LINK_NOT_VALID }; }
@@ -402,7 +402,8 @@ export async function uploadCoesFromElectricianLink(token: string, file: { name:
     const asg = await electricianAssignment(l.job_id, l.business_id);
     if (!asg || !sameElectrician(asg, w)) return off;
     const { saveUploadedCoes, CoesUploadError } = await import("./coes-upload.server");
-    try { await saveUploadedCoes(l.job_id, file, { kind: "electrician_link", workerId: w.id }); return { ok: true }; }
+    const bytes = typeof file.bytes === "function" ? file.bytes() : file.bytes;
+    try { await saveUploadedCoes(l.job_id, { name: file.name, type: file.type, bytes }, { kind: "electrician_link", workerId: w.id }); return { ok: true }; }
     catch (e) { if (e instanceof CoesUploadError) return { ok: false, message: e.message }; throw e; }
   } catch (e) {
     console.error("Electrician link upload failed", (e as Error).message);
@@ -476,7 +477,7 @@ export async function electricianCantDo(token: string, reason: string, now = Dat
   if (state === "expired") return { ok: false, message: electricianLinkExpired(installer.name) };
   // approval_status / certificationBlocker are deliberately NOT checked: an unapproved or lapsed electrician can still hand a job back.
   const [{ data: w, error: we }, { data: job, error: je }] = await Promise.all([
-    admin.from("partner_workers").select("id, email, trade_role, removed_at, profile_id").eq("id", l.worker_id).maybeSingle(),
+    admin.from("partner_workers").select("id, email, full_legal_name, trade_role, removed_at, profile_id").eq("id", l.worker_id).maybeSingle(),
     admin.from("jobs").select("job_number, source, stage, deleted_at").eq("id", jobId).maybeSingle(),
   ]);
   if (we) throw dbErr("the electrician", we);
@@ -530,21 +531,24 @@ export async function electricianCantDo(token: string, reason: string, now = Dat
     // 4. The owner, straight away, once per cancelled booking (Part 4's email; its own key stops a repeat). Never undoes the hand-back.
     for (const id of claim.cancelled_booking_ids) await d.ownerNotice(jobId, id, "electrician").catch((e) => console.error("Visit cancelled owner email skipped", (e as Error).message));
     // 5. The installer office (DRAFT wording; real jobs held until approved; keyed, so a retry never sends twice).
-    await tellInstallerOfficeCantDo(d, { jobId, jobNumber: job.job_number, source: job.source ?? null, assignmentId: claim.assignment_id, electricianBusinessId: l.business_id, installerBusinessId: installer.id, reason: why })
+    await tellInstallerOfficeCantDo(d, { jobId, jobNumber: job.job_number, source: job.source ?? null, assignmentId: claim.assignment_id, electrician: w.full_legal_name ?? "", electricianBusinessId: l.business_id, installerBusinessId: installer.id, reason: why })
       .catch((e) => console.error("Can't do this one: installer office email skipped", (e as Error).message));
     await d.record(jobId, ELECTRICIAN_CANT_DO_FINISHED_EVENT, "Hand-back finished", { link_id: l.id, worker_id: l.worker_id }).catch((e) => console.error("Can't do this one: finish mark not written", (e as Error).message));
     return { ok: true as const };
   });
 }
 
-async function tellInstallerOfficeCantDo(d: ElectricianCantDoDeps, i: { jobId: string; jobNumber: string; source: string | null; assignmentId: string; electricianBusinessId: string; installerBusinessId: string | null; reason: string }): Promise<"sent" | "test_sent" | "held"> {
+type CantDoEmailInput = { jobId: string; jobNumber: string; source: string | null; assignmentId: string; electrician: string; electricianBusinessId: string; installerBusinessId: string | null; reason: string };
+/** The installer office email (DRAFT wording, names the PERSON). Recorded once per key before the send. Held = one
+ *  `electrician_cant_do_email_held` trace per key carrying what is needed to send it later: the tick's
+ *  sweepHeldElectricianCantDoEmails retries "awaiting approval" holds once the flag is on. */
+async function tellInstallerOfficeCantDo(d: ElectricianCantDoDeps, i: CantDoEmailInput): Promise<"sent" | "test_sent" | "held"> {
   const key = electricianCantDoEmailKey(i.jobId, i.assignmentId);
   const { data: done } = await admin.from("workflow_events").select("id").eq("job_id", i.jobId).eq("event_type", ELECTRICIAN_CANT_DO_EMAIL_EVENT).contains("details", { key }).limit(1).maybeSingle();
   if (done) return "held";
-  // Held with no one to send to: one trace on the job (keyed), like the other held senders.
   const held = async (reason: string) => {
     const { data: prior } = await admin.from("workflow_events").select("id").eq("job_id", i.jobId).eq("event_type", ELECTRICIAN_CANT_DO_EMAIL_HELD_EVENT).contains("details", { key }).limit(1).maybeSingle();
-    if (!prior) await d.record(i.jobId, ELECTRICIAN_CANT_DO_EMAIL_HELD_EVENT, `Installer office not told the electrician can't do this one: ${reason}`, { key, assignment_id: i.assignmentId, reason });
+    if (!prior) await d.record(i.jobId, ELECTRICIAN_CANT_DO_EMAIL_HELD_EVENT, `Installer office not told the electrician can't do this one: ${reason}`, { key, reason, job_number: i.jobNumber, source: i.source, assignment_id: i.assignmentId, electrician: i.electrician, electrician_business_id: i.electricianBusinessId, installer_business_id: i.installerBusinessId, text: i.reason });
     return "held" as const;
   };
   if (!i.installerBusinessId) return held("no installer on the job");
@@ -559,9 +563,9 @@ async function tellInstallerOfficeCantDo(d: ElectricianCantDoDeps, i: { jobId: s
   const { isTestPartner } = await import("./test-send.core");
   const partnerIsTest = isTestPartner(ib) || isTestPartner(eb);
   const test = i.source === "qa_test" || partnerIsTest;
-  if (!test && !d.emailApproved) return "held";
+  if (!test && !d.emailApproved) return held("awaiting approval");
   const { electricianCantDoEmail } = await import("./electrician-cant-do-email.core");
-  const mail = electricianCantDoEmail({ jobNumber: i.jobNumber, electrician: bizName(eb) ?? "The electrician", reason: i.reason, test });
+  const mail = electricianCantDoEmail({ jobNumber: i.jobNumber, electrician: i.electrician.trim() || bizName(eb) || "The electrician", reason: i.reason, test });
   // Recorded BEFORE the send, once per key.
   await d.record(i.jobId, ELECTRICIAN_CANT_DO_EMAIL_EVENT, "Installer office told the electrician can't do this one", { key, assignment_id: i.assignmentId, test });
   if (test) {
@@ -570,6 +574,27 @@ async function tellInstallerOfficeCantDo(d: ElectricianCantDoDeps, i: { jobId: s
   }
   const r = await d.sendOfficeEmail({ actorId: null, recipient: "partner", to, contactName: bizName(ib), subject: mail.subject, message: mail.text, html: mail.html, text: mail.text, label: "electrician_cant_do", record: { businessId: i.installerBusinessId }, idempotencyKey: key });
   return r.status === "sent" ? "sent" : "held";
+}
+
+/** The tick: can't-do emails held "awaiting approval" go once the flag is on (once per key; the sent event stops further tries). */
+export async function sweepHeldElectricianCantDoEmails(now = new Date(), over: Partial<ElectricianCantDoDeps> = {}): Promise<{ sent: number }> {
+  const d = { ...cantDoDeps(), ...over };
+  const out = { sent: 0 };
+  void now;
+  if (!d.emailApproved) return out;
+  try {
+    const held = await pagedRows("held can't-do emails", (a, b) => admin.from("workflow_events").select("job_id, details").eq("event_type", ELECTRICIAN_CANT_DO_EMAIL_HELD_EVENT).contains("details", { reason: "awaiting approval" }).order("created_at", { ascending: true }).range(a, b));
+    for (const h of held) {
+      const det = h["details"] as Partial<{ key: string; job_number: string; source: string | null; assignment_id: string; electrician: string; electrician_business_id: string; installer_business_id: string | null; text: string }>;
+      const jobId = String(h["job_id"]);
+      if (!det.key || !det.assignment_id || !det.electrician_business_id || !det.job_number) continue;
+      try {
+        const r = await tellInstallerOfficeCantDo(d, { jobId, jobNumber: det.job_number, source: det.source ?? null, assignmentId: det.assignment_id, electrician: det.electrician ?? "", electricianBusinessId: det.electrician_business_id, installerBusinessId: det.installer_business_id ?? null, reason: det.text ?? "" });
+        if (r === "sent" || r === "test_sent") out.sent++;
+      } catch (e) { console.error("held can't-do email: job skipped", jobId, (e as Error).message); }
+    }
+  } catch (e) { console.error("held can't-do email sweep: read failed, nothing sent", (e as Error).message); }
+  return out;
 }
 
 // ---------- the tick: every active electrician assignment gets its link text (fix wave I2) ----------

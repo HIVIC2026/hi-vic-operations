@@ -123,8 +123,9 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
         }
         try {
           // New job flow Part 6 (fix wave I2): every active electrician assignment gets its job link text once (held = one trace per reason).
-          const { sweepElectricianLinks } = await import("@/lib/electrician-link.server");
+          const { sweepElectricianLinks, sweepHeldElectricianCantDoEmails } = await import("@/lib/electrician-link.server");
           (out as Record<string, unknown>)['electricianLinks'] = await timed("sweepElectricianLinks", () => sweepElectricianLinks());
+          (out as Record<string, unknown>)['electricianCantDoEmails'] = await timed("sweepHeldElectricianCantDoEmails", () => sweepHeldElectricianCantDoEmails());
         } catch (e) {
           console.error("allocation tick: electrician link sweep failed", (e as Error).message);
           (out as Record<string, unknown>)['electricianLinks'] = "failed";

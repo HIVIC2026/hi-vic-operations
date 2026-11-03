@@ -25,9 +25,9 @@ describe("upgrades-watch.core: rules", () => {
     expect(upgradesNudgeDue({ ...f, now: mel("2026-11-13T09:00:00+11:00") })).toBe("electrician");
     expect(upgradesNudgeDue({ ...f, now: mel("2026-11-13T09:00:00+11:00"), formDone: true })).toBeNull();
   });
-  test("upgradesPastWindow: after the 30-day install deadline = true, on it = false", () => {
+  test("upgradesPastWindow: on or after the 30-day install deadline = true (an upgrades day ON the deadline can't install in time), before it = false", () => {
     expect(upgradesPastWindow({ upgradesYmd: "2026-12-08", installDeadlineYmd: "2026-12-06" })).toBe(true);
-    expect(upgradesPastWindow({ upgradesYmd: "2026-12-06", installDeadlineYmd: "2026-12-06" })).toBe(false);
+    expect(upgradesPastWindow({ upgradesYmd: "2026-12-06", installDeadlineYmd: "2026-12-06" })).toBe(true);
     expect(upgradesPastWindow({ upgradesYmd: "2026-12-05", installDeadlineYmd: "2026-12-06" })).toBe(false);
   });
   test("installBeforeUpgradesWarning: the DRAFT line when the install is before the upgrades day, never a block", () => {
@@ -203,19 +203,26 @@ describe("sweepUpgradesWatch: the 30-day red flag", () => {
     expect(events("upgrades_past_30_days")).toHaveLength(1);
     expect(calls.testMail).toHaveLength(1);
   });
-  test("real job: the row is written, the email is held with the flag off; with it on, the installer office gets it and info@ gets a copy", async () => {
+  test("real job: the row is written, the email is held with the flag off; a later tick with the flag on sends it ONCE (recorded first), then never again", async () => {
     seed({ source: "website", deadline: "2026-11-06" });
     expect(await server.sweepUpgradesWatch(mel("2026-11-05T10:00:00+11:00"), deps())).toEqual({ nudges: 0, officeEmails: 0, redFlags: 1 });
     expect(calls.office).toHaveLength(0);
     expect(events("upgrades_past_30_days")).toHaveLength(1);
+    expect(events("upgrades_red_flag_email")).toHaveLength(0);
+    expect(await server.sweepUpgradesWatch(mel("2026-11-05T10:15:00+11:00"), deps({ redFlagApproved: true }))).toEqual({ nudges: 0, officeEmails: 0, redFlags: 0 });
+    expect(calls.office.map((o) => o["to"])).toEqual(["office@smith.test", "info@homeinsulationvictoria.com.au"]);
+    expect(events("upgrades_red_flag_email")).toHaveLength(1);
+    expect(events("upgrades_past_30_days")).toHaveLength(1);
+    await server.sweepUpgradesWatch(mel("2026-11-05T10:30:00+11:00"), deps({ redFlagApproved: true }));
+    expect(calls.office).toHaveLength(2);
     seed({ source: "website", deadline: "2026-11-06" });
     expect(await server.sweepUpgradesWatch(mel("2026-11-05T10:00:00+11:00"), deps({ redFlagApproved: true }))).toEqual({ nudges: 0, officeEmails: 0, redFlags: 1 });
     expect(calls.office.map((o) => o["to"])).toEqual(["office@smith.test", "info@homeinsulationvictoria.com.au"]);
     expect(calls.office[0]).toMatchObject({ subject: "HV-5001: upgrades day is past the 30-day rule", idempotencyKey: `upgrades-red-flag:v1:${J}:2026-11-11` });
     expect(calls.office[1]!["idempotencyKey"]).toBe(`upgrades-red-flag:v1:${J}:2026-11-11:copy`);
   });
-  test("upgrades day on or before the deadline: no flag", async () => {
-    seed({ deadline: "2026-11-11" });
+  test("upgrades day before the deadline: no flag", async () => {
+    seed({ deadline: "2026-11-12" });
     expect(await server.sweepUpgradesWatch(mel("2026-11-05T10:00:00+11:00"), deps())).toEqual({ nudges: 0, officeEmails: 0, redFlags: 0 });
   });
   test("a moved upgrades day gets its own flag (one per job + day)", async () => {

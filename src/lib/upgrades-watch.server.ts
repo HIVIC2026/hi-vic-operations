@@ -11,7 +11,7 @@ import type { RealSmsInput, RealSmsResult } from "./sms.server";
 import type { SendResult } from "./test-send.server";
 import {
   OFFICE_COPY_EMAIL, UPGRADES_NUDGE_EVENT, UPGRADES_NUDGE_SMS_TYPE, UPGRADES_NUDGE_TEXT_APPROVED, UPGRADES_OFFICE_EMAIL_APPROVED, UPGRADES_OFFICE_EMAIL_EVENT,
-  UPGRADES_PAST_30_DAYS_EVENT, UPGRADES_RED_FLAG_EMAIL_APPROVED, maskUpgradesLink, upgradesNudgeDue, upgradesNudgeText, upgradesOfficeEmail, upgradesPastWindow, upgradesRedFlagEmail, upgradesWatchKeys, upgradesYmdOf,
+  UPGRADES_PAST_30_DAYS_EVENT, UPGRADES_RED_FLAG_EMAIL_APPROVED, UPGRADES_RED_FLAG_EMAIL_EVENT, maskUpgradesLink, upgradesNudgeDue, upgradesNudgeText, upgradesOfficeEmail, upgradesPastWindow, upgradesRedFlagEmail, upgradesWatchKeys, upgradesYmdOf,
 } from "./upgrades-watch.core";
 
 export type UpgradesWatchDeps = {
@@ -78,7 +78,7 @@ export async function sweepUpgradesWatch(now = new Date(), over: Partial<Upgrade
     const [jobRows, dlRows, evRows] = await Promise.all([
       byIds("jobs", ids, (c, a, b) => admin.from("jobs").select("id, job_number, source, stage, deleted_at").in("id", c).range(a, b)),
       byIds("install deadlines", ids, (c, a, b) => admin.from("job_piesa_deadlines").select("job_id, install_deadline").in("job_id", c).range(a, b)),
-      byIds("upgrades events", ids, (c, a, b) => admin.from("workflow_events").select("job_id, event_type, created_at, details").in("job_id", c).in("event_type", ["fixes_form_created", "fixes_form_completed", "fixes_form_not_done", "fixes_form_held", UPGRADES_NUDGE_EVENT, UPGRADES_OFFICE_EMAIL_EVENT, UPGRADES_PAST_30_DAYS_EVENT]).order("created_at", { ascending: false }).range(a, b)),
+      byIds("upgrades events", ids, (c, a, b) => admin.from("workflow_events").select("job_id, event_type, created_at, details").in("job_id", c).in("event_type", ["fixes_form_created", "fixes_form_completed", "fixes_form_not_done", "fixes_form_held", UPGRADES_NUDGE_EVENT, UPGRADES_OFFICE_EMAIL_EVENT, UPGRADES_PAST_30_DAYS_EVENT, UPGRADES_RED_FLAG_EMAIL_EVENT]).order("created_at", { ascending: false }).range(a, b)),
     ]);
     jobs = new Map((jobRows as unknown as Job[]).map((j) => [j.id, j]));
     deadlines = new Map(dlRows.flatMap((r) => (r["install_deadline"] ? [[String(r["job_id"]), String(r["install_deadline"]).slice(0, 10)] as [string, string]] : [])));
@@ -100,12 +100,15 @@ export async function sweepUpgradesWatch(now = new Date(), over: Partial<Upgrade
     const has = (type: string, key: string) => evs.some((e) => e["event_type"] === type && (e["details"] as { key?: string } | null)?.key === key);
     const ctx = { jobId: b.job_id, job, booking: b, ymd, keys, now };
     try {
-      // The red flag: one per job + upgrades day, always recorded (Needs me reads it); the email is DRAFT.
+      // The red flag: one per job + upgrades day, always recorded (Needs me reads it). The email is DRAFT: held while its flag
+      // is off and tried again every tick until it is recorded sent (so flipping the flag later still sends it, once).
       const deadline = deadlines.get(b.job_id);
-      if (deadline && upgradesPastWindow({ upgradesYmd: ymd, installDeadlineYmd: deadline }) && !has(UPGRADES_PAST_30_DAYS_EVENT, keys.redFlag)) {
-        await d.record(b.job_id, UPGRADES_PAST_30_DAYS_EVENT, `Upgrades day ${ymd} is past the 30-day install deadline ${deadline}`, { key: keys.redFlag, upgrades_ymd: ymd, install_deadline: deadline, booking_id: b.id, needs_office: true });
-        out.redFlags++;
-        await redFlagEmail(d, ctx, deadline).catch((e) => console.error("upgrades watch: red flag email skipped", b.job_id, (e as Error).message));
+      if (deadline && upgradesPastWindow({ upgradesYmd: ymd, installDeadlineYmd: deadline })) {
+        if (!has(UPGRADES_PAST_30_DAYS_EVENT, keys.redFlag)) {
+          await d.record(b.job_id, UPGRADES_PAST_30_DAYS_EVENT, `Upgrades day ${ymd} is on or after the 30-day install deadline ${deadline}`, { key: keys.redFlag, upgrades_ymd: ymd, install_deadline: deadline, booking_id: b.id, needs_office: true });
+          out.redFlags++;
+        }
+        if (!has(UPGRADES_RED_FLAG_EMAIL_EVENT, keys.redFlag)) await redFlagEmail(d, ctx, deadline).catch((e) => console.error("upgrades watch: red flag email skipped", b.job_id, (e as Error).message));
       }
       // The nudge.
       const formDone = fixesFormOutcome(evs as never).outcome === "done";
@@ -213,6 +216,8 @@ async function redFlagEmail(d: UpgradesWatchDeps, c: Ctx, deadline: string): Pro
   const { test, partnerIsTest } = await isTest(c.job, ib, eb);
   if (!test && !d.redFlagApproved) return "held";
   const mail = upgradesRedFlagEmail({ jobNumber: c.job.job_number, electrician: bizName(eb) ?? "The electrician", upgradesStart: c.booking.scheduled_start, installDeadlineYmd: deadline, test });
+  // Recorded BEFORE the send, once per key: the sweep stops retrying from here.
+  await d.record(c.jobId, UPGRADES_RED_FLAG_EMAIL_EVENT, "Installer office emailed: upgrades day is past the 30-day rule", { key: c.keys.redFlag, booking_id: c.booking.id, upgrades_ymd: c.ymd, test });
   if (test) {
     const r = await d.sendTestEmail({ jobId: c.jobId, jobSource: c.job.source, partnerIsTest, label: `upgrades_red_flag:${c.jobId}:${c.ymd}`, actorId: null }, to, mail.subject, mail.html, mail.text);
     return r.status === "sent" ? "sent" : "held";

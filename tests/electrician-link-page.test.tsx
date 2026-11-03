@@ -89,6 +89,8 @@ test("the route sends the file through the token-only upload function and reload
   expect(route).toContain("onUpload");
   expect(fns).toContain("export const uploadCoesByLink");
   expect(fns).toMatch(/uploadCoesByLink[\s\S]*token: z\.string\(\)\.max\(100\)/);
+  // The body (up to ~20 MB of text) is decoded only after the token and link checks passed (a bad link costs nothing).
+  expect(fns).toMatch(/uploadCoesByLink[\s\S]*bytes: \(\) => new Uint8Array\(Buffer\.from\(data\.data, "base64"\)\)/);
   expect(fns).not.toContain(".middleware(");
 });
 

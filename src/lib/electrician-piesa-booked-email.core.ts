@@ -19,6 +19,8 @@ export type ElectricianPiesaBookedInput = {
   jobUrl?: string | null;
   /** Task 9: who lets the trades in when it isn't the owner (a tenant or the property manager). Shown only with ELECTRICIAN_ACCESS_ROWS_APPROVED. */
   access?: { name: string; role: string; phone: string } | null;
+  /** DRAFT: the email goes to the electrician business's OFFICE, so the greeting is the team's ("Hi {business} team,"), not one person's. */
+  team?: string | null;
   test?: boolean;
 };
 
@@ -34,7 +36,7 @@ export const maskPiesaBookedLink = (s: string) => s.replace(/(\/e\/)[^\s"'<>]+/g
 export function renderElectricianPiesaBooked(i: ElectricianPiesaBookedInput, opts: { accessRowsApproved?: boolean } = {}): { subject: string; html: string; text: string } {
   const { day, time } = melbourneDayAndTime(i.startIso);
   const subject = `${i.jobNumber}: PIESA booked, ${day} ${time}`;
-  const greeting = i.firstName?.trim() ? `Hi ${i.firstName.trim()},` : "Hi,";
+  const greeting = i.team?.trim() ? `Hi ${i.team.trim()} team,` : i.firstName?.trim() ? `Hi ${i.firstName.trim()},` : "Hi,";
   const heading = `PIESA booked: ${i.jobNumber}`;
   const ownerLine = [i.owner.name, i.owner.phone?.trim()].filter(Boolean).join(", ");
   // Task 9 (DRAFT, flag off = Task 4's email exactly): the person who lets the electrician in, and the change line names them.

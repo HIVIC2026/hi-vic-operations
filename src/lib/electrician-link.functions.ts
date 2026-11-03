@@ -14,7 +14,8 @@ export const bookElectricianLinkVisit = createServerFn({ method: "POST" })
 /** The certificate is sent as base64 text (15 MB of file is about 20 MB of text). Only the token names the job. */
 export const uploadCoesByLink = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ token: z.string().max(100), name: z.string().max(200), type: z.string().max(100), data: z.string().max(21_000_000) }).parse(d))
-  .handler(async ({ data }) => (await import("./electrician-link.server")).uploadCoesFromElectricianLink(data.token, { name: data.name, type: data.type, bytes: new Uint8Array(Buffer.from(data.data, "base64")) }));
+  // The body is decoded only after the server has checked the token and the link (a bad link costs nothing).
+  .handler(async ({ data }) => (await import("./electrician-link.server")).uploadCoesFromElectricianLink(data.token, { name: data.name, type: data.type, bytes: () => new Uint8Array(Buffer.from(data.data, "base64")) }));
 
 /** "Can't do this one": the token names the job and the electrician; the reason is the only other input. */
 export const electricianCantDoByLink = createServerFn({ method: "POST" })

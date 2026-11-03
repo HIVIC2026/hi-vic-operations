@@ -16,6 +16,8 @@ export const UPGRADES_NUDGE_EVENT = "upgrades_nudge";
 export const UPGRADES_OFFICE_EMAIL_EVENT = "upgrades_office_email";
 /** The red flag (Needs me row, always on): one per job + upgrades day. */
 export const UPGRADES_PAST_30_DAYS_EVENT = "upgrades_past_30_days";
+/** Recorded (once per key) right before the red-flag email goes; its absence beside a red flag means "still to send" (the tick retries once the flag is on). */
+export const UPGRADES_RED_FLAG_EMAIL_EVENT = "upgrades_red_flag_email";
 export const OFFICE_COPY_EMAIL = "info@homeinsulationvictoria.com.au";
 
 export const upgradesWatchKeys = (jobId: string, ymd: string) => ({ nudge: `upgrades-nudge:v1:${jobId}:${ymd}`, office: `upgrades-office:v1:${jobId}:${ymd}`, redFlag: `upgrades-red-flag:v1:${jobId}:${ymd}` });
@@ -47,9 +49,10 @@ export function upgradesNudgeDue(f: { upgradesYmd: string; formDone: boolean; no
   return "office";
 }
 
-/** True when the upgrades day is after the 30-day install deadline (both Melbourne dates). */
+/** True when the upgrades day is ON or after the 30-day install deadline (both Melbourne dates): the install can't happen
+ *  in time, because it needs the upgrades done AND the certificate in first. */
 export function upgradesPastWindow(f: { upgradesYmd: string; installDeadlineYmd: string }): boolean {
-  return f.upgradesYmd > f.installDeadlineYmd;
+  return f.upgradesYmd >= f.installDeadlineYmd;
 }
 
 export const upgradesYmdOf = (startIso: string) => melbourneYmd(new Date(startIso));
@@ -75,7 +78,7 @@ export function upgradesOfficeEmail(i: { jobNumber: string; electrician: string;
 export function upgradesRedFlagEmail(i: { jobNumber: string; electrician: string; upgradesStart: string; installDeadlineYmd: string; test: boolean }): { subject: string; html: string; text: string } {
   const subject = `${i.jobNumber}: upgrades day is past the 30-day rule`;
   const { html, text } = partnerEmailLayout({ subject, blocks: [
-    { kind: "p", text: `The upgrades for ${i.jobNumber} are booked for ${melbourneDay(i.upgradesStart)} with ${i.electrician}. The 30-day install deadline is ${ymdDay(i.installDeadlineYmd)}, so the install can't happen in time.` },
+    { kind: "p", text: `The upgrades for ${i.jobNumber} are booked for ${melbourneDay(i.upgradesStart)} with ${i.electrician}. The 30-day install deadline is ${ymdDay(i.installDeadlineYmd)}, so the install can't happen in time (it needs the upgrades done and the certificate in first).` },
     { kind: "p", text: "Please move the upgrades day earlier, or call the office so we can sort out what happens next." },
   ], test: i.test });
   return { subject, html, text };
