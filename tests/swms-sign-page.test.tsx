@@ -52,6 +52,14 @@ const html = (s: string) => s.replace(/'/g, "&#x27;");
 function inOrder(hay: string, needles: string[]) { let at = 0; for (const n of needles) { const i = hay.indexOf(n, at); expect(i, `"${n}" after ${at}`).toBeGreaterThanOrEqual(0); at = i + n.length; } }
 
 describe("pure page rules (swms-sign-page.core)", () => {
+  test("every SIGN_PAGE_TEXT line Jo hasn't approved is marked DRAFT (incl. the high-risk heading); the view's rule is the SwmsRule type, no cast on the route", () => {
+    const core = readFileSync("src/lib/swms-sign-page.core.ts", "utf8");
+    expect(core).toMatch(/highRisk: "High-risk work on this job", \/\/ DRAFT/);
+    expect(core).toContain("rule: SwmsRule;");
+    expect(core).toContain('import type { SwmsRule } from "./swms.core";');
+    expect(core.match(/^import (?!type )/m)).toBeNull(); // pure: type-only imports
+    expect(SRC).not.toContain("as SwmsRule");
+  });
   test("title: for tomorrow only when the install is the next Melbourne day; otherwise the DRAFT plain title", () => {
     expect(signPageTitle(INSTALL_START, Date.parse("2026-11-12T06:00:00Z"))).toBe("Safety plan for tomorrow"); // 12 Nov 5pm Melbourne
     expect(signPageTitle(INSTALL_START, Date.parse("2026-11-12T13:30:00Z"))).toBe(SIGN_PAGE_TEXT.title); // 13 Nov 0:30am Melbourne = the install day itself

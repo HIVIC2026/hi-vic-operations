@@ -143,7 +143,8 @@ export async function textTeamMemberInvite(p: { inviteId: string; businessId: st
 /** 15-minute tick: tomorrow's installs (from the afternoon before) and the crew's safety plan sign links. */
 export async function sweepInstallerTexts(now = new Date()): Promise<{ installTomorrow: number; swmsSignLinks: number }> {
   const out = { installTomorrow: 0, swmsSignLinks: 0 };
-  // Decision 377: each crew member's own safety plan sign link first, so the install-tomorrow text below can list them by name.
+  // Each crew member's own safety plan sign link first (decision 377, #48). Since decision #47 (Part 7 Task 5) the
+  // install-tomorrow text below goes to the Lead Installer only and lists nobody else by name.
   try { out.swmsSignLinks = await (await import("./swms-sign-text.server")).sweepSwmsSignLinks(now); } catch (e) { console.error("safety plan sign link sweep failed", (e as Error).message); }
   const { melbourneMidnight } = await import("./daily-brief.core");
   const { addYmd } = await import("./melbourne-time.core");

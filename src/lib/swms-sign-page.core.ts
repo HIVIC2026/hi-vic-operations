@@ -1,10 +1,11 @@
 // Part 7 Task 3 (Jo 2 Nov 2026): the no-login SWMS signing page (/sp/<token>) — its words and the two small rules the
-// page needs (title for tomorrow, the when-line, when the Sign button is allowed). PURE, no imports: the route must stay
-// light on a weak phone signal. Approved wording from the plan (Task 3); anything else is marked DRAFT.
+// page needs (title for tomorrow, the when-line, when the Sign button is allowed). PURE, type-only imports: the route must
+// stay light on a weak phone signal. Approved wording from the plan (Task 3); anything else is marked DRAFT.
+import type { SwmsRule } from "./swms.core";
 export type SwmsSignPageView = {
   jobNumber: string; address: string | null; installDate: string | null; installStart: string | null; businessName: string | null;
   /** The plan's rule: the page prints the words the person is signing (swmsWordingFor), never the module default. */
-  rule: string; highRiskWork: string[]; hazards: { name: string; control: string }[]; howInPlace: string;
+  rule: SwmsRule; highRiskWork: string[]; hazards: { name: string; control: string }[]; howInPlace: string;
   siteNote: string | null; house: string[];
   signer: { name: string; role: "lead" | "crew" }; signedAt: string | null; open: boolean;
   /** Part 7 Task 4: only on the Lead Installer's own link — who has signed, and the real Mitti install form (null until it exists). */
@@ -19,7 +20,7 @@ export const SIGN_PAGE_TEXT = {
   house: "Specific to this house",
   houseNone: "None recorded",
   controlsSummary: "The 9 standard controls", // DRAFT
-  highRisk: "High-risk work on this job", // inside the fold only
+  highRisk: "High-risk work on this job", // DRAFT (inside the fold only)
   readPdf: "Read the full safety plan (PDF)",
   pdfBusy: "Getting the PDF…", // DRAFT
   pdfFailed: "The PDF didn't load. Check your connection and try again.", // DRAFT

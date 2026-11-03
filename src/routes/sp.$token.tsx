@@ -9,7 +9,7 @@ import { useState } from "react";
 import { TradePublicShell, inputCls } from "@/components/trade/TradeShell";
 import { getSwmsLinkPdf, getSwmsLinkView, openCrewSignOnLeadPhone, signSwmsByLink } from "@/lib/swms-link.functions";
 import { readableError } from "@/lib/readable-error.core";
-import { SWMS_SIGN_STATEMENT, swmsDateTime, swmsRoleLabel, type SwmsRule } from "@/lib/swms.core";
+import { SWMS_SIGN_STATEMENT, swmsDateTime, swmsRoleLabel } from "@/lib/swms.core";
 import { SIGN_PAGE_TEXT as T, signBlocker, signPageTitle, signPageWhen } from "@/lib/swms-sign-page.core";
 
 const SP_LINK_PROBLEM = "We couldn't open this safety plan. Check you have the whole link from the text, or ask your business owner to send it again.";
@@ -113,7 +113,7 @@ function SafetyPlanLink() {
           <ul className="mt-2 divide-y divide-line">
             {d.lead.signers.map((s) => (
               <li key={s.key} className="flex min-h-11 items-center justify-between gap-3 py-2">
-                <span>{s.name} ({swmsRoleLabel(d.rule as SwmsRule, s.role)})</span>
+                <span>{s.name} ({swmsRoleLabel(d.rule, s.role)})</span>
                 {s.signed ? <span className="font-semibold text-[#07bf61]">{T.leadRowSigned} ✓</span>
                   : s.role === "crew" && d.open ? <button type="button" className="rounded-[10px] border border-[#3c51c4] bg-paper px-3 py-2 text-[13px] font-bold text-[#3c51c4] disabled:opacity-60" disabled={phoneBusy === s.key} data-swms-lead-phone
                       onClick={async () => { setPhoneBusy(s.key); setPhoneErr(null); try { const r = await openCrewSignOnLeadPhone({ data: { token, crewKey: s.key } }); window.location.assign(r.url); } catch (e) { setPhoneErr(readableError(e, T.signOnMyPhoneFailed)); setPhoneBusy(null); } }}>
