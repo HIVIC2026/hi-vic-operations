@@ -151,6 +151,7 @@ describe("Job page bundle (Task 6): waves", () => {
       console.log(`WAVES ${name}: ${r.waves} waves, ${r.log.length} reads (sign-in client calls: ${s.calls.join(",")})`);
       if (process.env["SHOW_DUPES"]) { const c: Record<string, number> = {}; for (const l of r.log) c[l.table] = (c[l.table] ?? 0) + 1; console.log(JSON.stringify(c)); }
       if (process.env["SHOW_WAVES"]) console.log(wc.wavesOf(r.log));
+      if (process.env["SHOW_READS"]) { const c: Record<string, number> = {}; for (const l of r.log) { const k = `${l.table} | ${l.sel} |${l.info}`; c[k] = (c[k] ?? 0) + 1; } for (const [k, n] of Object.entries(c).sort()) console.log(`READ ${n}x ${k}`); }
       expect(r.waves).toBeLessThanOrEqual(WAVES_BEFORE[name]!);
       if (READS_BEFORE[name]) expect(r.log.length).toBeLessThan(READS_BEFORE[name]!);
     });

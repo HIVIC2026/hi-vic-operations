@@ -29,6 +29,7 @@ export function waveCounter(tables: Tables, backKeys: Record<string, string> = {
     const q = memoryPostgrest(tables, backKeys).from(table);
     let sel = "*";
     let info = "";
+    const stack = process.env["SHOW_STACK"] ? (new Error().stack ?? "").split("\n").filter((l) => l.includes("/src/")).map((l) => l.replace(/.*\/src\/lib\//, "").replace(/:\d+\)?$/, "")).slice(0, 2).join(" < ") : "";
     const jsonIn: { col: string; key: string; vals: unknown[] }[] = [];
     const select = q.select;
     q.select = (c?: string, o?: unknown) => { sel = c ?? "*"; return select(c, o); };
@@ -48,7 +49,7 @@ export function waveCounter(tables: Tables, backKeys: Record<string, string> = {
       if (!jsonIn.length || !Array.isArray(r.data)) return r;
       return { ...r, data: r.data.filter((row: Record<string, unknown>) => jsonIn.every((f) => f.vals.includes(String((row[f.col] as Record<string, unknown> | null)?.[f.key] ?? "")))) };
     };
-    q.then = (res: (v: unknown) => unknown, rej?: (e: unknown) => unknown) => later(table, sel, info, () => q.run(), { data: null, count: null, error: { message: "read failed", code: "XX000" } }).then(res, rej);
+    q.then = (res: (v: unknown) => unknown, rej?: (e: unknown) => unknown) => later(table, sel, info + (stack ? ` @ ${stack}` : ""), () => q.run(), { data: null, count: null, error: { message: "read failed", code: "XX000" } }).then(res, rej);
     return q;
   }
   const client = {
