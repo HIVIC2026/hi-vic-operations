@@ -81,7 +81,8 @@ describe("decision 396: the A5 ruler questions (wording, paste file, form health
     expect(health.issues.join(" ")).toContain(RQ.newDepth);
     const built = { items: [...tpl.items, { item_id: "r1", label: RQ.existingDepth, type: "media" }, { item_id: "r2", label: RQ.newDepth, type: "media" }] };
     expect(installDayRulerMissingQuestions(built)).toEqual([]);
-    expect(validateSavedDefinition("piisa", built).issues).toEqual([]);
+    // Only the 2 Nov adult item (advisory, Part 8 Task 5) is still listed; the ruler items are not.
+    expect(validateSavedDefinition("piisa", built).issues.filter((i) => i.includes("ruler"))).toEqual([]);
   });
 });
 

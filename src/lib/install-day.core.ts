@@ -9,7 +9,7 @@
 // come from the stored PIESA (piesaPart5Answers) and official Part 6 (existing insulation) from the Ready Check record
 // (piisa-a3.core readyCheckPart6Answers) — never from this form.
 import { norm } from "./mitti.core";
-import { onsiteStartTicked } from "./official-short.core";
+import { ADULT_PRESENT_LABEL, onsiteStartTicked } from "./official-short.core";
 import { B1_OPTIONS, type OfficialAnswers } from "./official-forms.core";
 import { sectionCSigned } from "./piesa-rules-notice.core";
 import { mittiMediaFile, type MittiMediaFile } from "./piesa-evidence.core";
@@ -149,6 +149,30 @@ export function installDayRulerPhotos(audit: unknown): InstallDayRulerRead {
 export function installDayRulerMissingQuestions(template: unknown): string[] {
   const items = labelledItems(template);
   return Object.values(INSTALL_DAY_RULER_Q).filter((l) => !allWithLabel(items, l).length);
+}
+
+/**
+ * New job flow Part 8 (Jo 2 Nov 2026, Code of Conduct): items added to the A5 on 2 Nov. Kept OUT of INSTALL_DAY_QUESTIONS
+ * (Q1–Q48 are never renumbered, and a form built before the paste can still be created). A form without the item reads
+ * as "not asked" and is never blocked for it. The Part B labels are added by Task 6.
+ */
+export const INSTALL_DAY_NOV2_Q = {
+  /** DRAFT wording shared with A3 (Jo has not approved it yet). */
+  adultPresent: ADULT_PRESENT_LABEL,
+} as const;
+/** Does the saved A5 carry the adult question at all? (false = built before the paste: not asked.) */
+export function installDayAdultOnForm(audit: unknown): boolean {
+  return allWithLabel(labelledItems(audit), INSTALL_DAY_NOV2_Q.adultPresent).length > 0;
+}
+/** The adult-at-home answer: "Yes" / "No"; null = not on this form, or on it and not answered yet. */
+export function installDayAdultPresent(audit: unknown): "Yes" | "No" | null {
+  const v = allWithLabel(labelledItems(audit), INSTALL_DAY_NOV2_Q.adultPresent).map((i) => i.value?.trim() ?? "").find((x) => x);
+  return v == null ? null : /^yes\b/i.test(v) ? "Yes" : /^no\b/i.test(v) ? "No" : null;
+}
+/** The 2 Nov items the template does not carry yet (exact wording). Advisory — see INSTALL_DAY_NOV2_Q. */
+export function installDayNov2MissingQuestions(template: unknown): string[] {
+  const items = labelledItems(template);
+  return Object.values(INSTALL_DAY_NOV2_Q).filter((l) => !allWithLabel(items, l).length);
 }
 
 export type InstallDayType = "text" | "number" | "date" | "yes_no" | "pick_one" | "photo" | "video" | "checkbox" | "signature";
