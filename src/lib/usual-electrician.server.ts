@@ -15,7 +15,8 @@ export async function readUsualElectrician(businessId: string) {
 /** Decision 289 (Jo 25 Oct 2026): the electrician is chosen once at Add a job (`electrician_choice_set`, latest wins) and
  *  never asked in Mitti or on the price card. Resolution order: the recorded choice → an old form / old price-card answer
  *  (forms before 25 Oct could say "a different electrician") → the usual electrician when saved → Home Insulation
- *  Victoria's. Installer-supplied jobs only; our leads return null as before. */
+ *  Victoria's. Task 5: an electrician PICKED for the job (its nomination) is resolved from that business first.
+ *  Installer-supplied jobs only; our leads return null as before. */
 export async function mittiElectricianForJob(jobId: string, actorId: string | null, entries: { label: string; value: string | null }[], auditId: string) {
   const answers = contactAnswersFromEntries(entries);
   const { data: job, error } = await admin.from("jobs").select("channel, originating_installer_business_id, source, job_number").eq("id", jobId).maybeSingle();
@@ -34,12 +35,17 @@ export async function mittiElectricianForJob(jobId: string, actorId: string | nu
     standardPiesaIncGst: rs?.piesa_assessment_inc_gst == null ? null : Number(rs.piesa_assessment_inc_gst) });
   // Decision 303: a usual / legacy "different" electrician is READY only as an approved REC (price = their onboarded PIESA
   // rate); otherwise the quote holds "Electrician not onboarded: <name>" and the tick issues ONE onboarding invite.
-  const { onboardedElectricianResolution, ELECTRICIAN_ONBOARDING_NEEDED_EVENT } = await import("./rec-onboarded.core");
-  const candidates = legacy.choice === "hivic" || legacy.needsProfile ? [] : await (await import("./rec-onboarded.server")).loadApprovedRecCandidates();
+  const { onboardedElectricianResolution, chosenRecResolution, ELECTRICIAN_ONBOARDING_NEEDED_EVENT } = await import("./rec-onboarded.core");
+  // Task 5 (3 Nov 2026): an electrician PICKED for this job (the nomination the hand-over and the swap use) wins over the
+  // saved usual one — a non-usual pick names the right electrician, and an installer with no saved usual is not held.
+  const chosenId = await (await import("./job-electrician.server")).jobChosenElectrician(jobId);
+  const candidates = chosenId || !(legacy.choice === "hivic" || legacy.needsProfile) ? await (await import("./rec-onboarded.server")).loadApprovedRecCandidates() : [];
+  const chosen = chosenId ? candidates.find((c) => c.business_id === chosenId) ?? null : null;
   // pays_own_electricians OR in_house → the business's flat PIESA line, no REC rate needed; not a held-visit decision.
   const paysOwn = await (await import("./installer-paid-electricians.server")).readInstallerPaidElectricians(job.originating_installer_business_id);
   const resolvedRaw = paysOwn?.release_hold_reason
     ? { ...legacy, ready: false, priceIncGst: null, reasons: [paysOwn.release_hold_reason], needsProfile: false, notOnboarded: null }
+    : chosen ? chosenRecResolution(legacy, chosen, paysOwn?.piesaIncGst ?? null)
     : onboardedElectricianResolution({ legacy, usual: saved?.electrician ?? null, candidates, flatPiesaIncGst: paysOwn?.piesaIncGst ?? null });
   const listPrice = await (await import("./installer-paid-electricians.server")).installerSafetyCheckPrice(job.originating_installer_business_id);
   const priced = (await import("./safety-check-price.core")).withOwnerSafetyCheckPrice(resolvedRaw, rs?.piesa_assessment_inc_gst ?? null, job.channel, listPrice);
@@ -53,7 +59,7 @@ export async function mittiElectricianForJob(jobId: string, actorId: string | nu
     const same = lastNeed && ["installer_business_id", "name", "licence", "email", "choice"].every((k) => ((lastNeed.details as Record<string, unknown> | null)?.[k] ?? null) === ((need as Record<string, unknown>)[k] ?? null));
     if (!same) await logEvent(jobId, actorId, ELECTRICIAN_ONBOARDING_NEEDED_EVENT, `${resolved.reasons[0]} — REC onboarding invite to be issued once (decision 303)`, need, { internal: true });
   }
-  const details = { audit_id: auditId, ...resolved, profile_revision: choice === "usual" ? saved?.revision ?? null : null, choice_source: recorded ? "add_job" : answers.electricianChoice ? "legacy_answer" : "default", declared_not_verified: resolved.source !== "approved_rec" };
+  const details = { audit_id: auditId, ...resolved, profile_revision: !chosen && choice === "usual" ? saved?.revision ?? null : null, choice_source: chosen ? "add_job_pick" : recorded ? "add_job" : answers.electricianChoice ? "legacy_answer" : "default", declared_not_verified: resolved.source !== "approved_rec" };
   const { data: previous, error: pe } = await admin.from("workflow_events").select("details").eq("job_id", jobId)
     .eq("event_type", "mitti_electrician_recorded").order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (pe) throw new Error("Could not check the job's electrician history.");

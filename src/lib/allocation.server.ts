@@ -17,6 +17,7 @@ import { melbourneToday } from "@/lib/melbourne-time.core";
 import { inHouseDispatchSkip, readInHouseDispatchState, type InHouseDispatchState } from "./in-house-suppression.server";
 import { inHouseSkippedAction } from "./in-house.core";
 import { OWN_JOB_CALL_AND_BOOK, OWN_JOB_OFFER_MESSAGE, isOwnJobCallAndBook, type OwnJobCallAndBookReason } from "./own-job-piesa.core";
+import { hivLeadElectricianCandidates } from "./my-electricians.core";
 
 const NONE = ["00000000-0000-0000-0000-000000000000"];
 
@@ -31,7 +32,10 @@ export async function recCandidatesFor(jobId: string): Promise<{ postcode: strin
   const postcode = (job?.properties as { postcode: string | null } | null)?.postcode ?? null;
   const installerSourced = job?.channel === "installer_sourced";
   const { data: allBizs } = await admin.from("businesses").select("*").or("business_type.eq.rec,capabilities.cs.{electrician}");
-  const bizs = (allBizs ?? []).filter((b) => partnerAllowedForJob(b, job?.source));
+  // Part 2b (Jo 3 Nov 2026): an electrician an installer added works on that installer's jobs only — never offered our leads.
+  type BizDb = NonNullable<typeof allBizs>[number];
+  const notInstallerAdded: BizDb[] = installerSourced ? (allBizs ?? []) : hivLeadElectricianCandidates<BizDb>(allBizs ?? []);
+  const bizs = notInstallerAdded.filter((b) => partnerAllowedForJob(b, job?.source));
   const ids = (bizs ?? []).map((b) => b.id);
   const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
   // Owner's current PIESA windows (if any): availability, daily limit and "nearby that day" are judged on these.

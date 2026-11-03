@@ -24,6 +24,16 @@ describe("private insurance files", () => {
   test("another business/unrecorded onboarding file is denied", () => expect(partnerFileBucket(business, onboard, false)).toBeNull());
   test("own renewed certificate uses job-files", () => expect(partnerFileBucket(business, `partners/${business}/credentials/test.pdf`, false)).toBe("job-files"));
   test("path traversal and another business prefix rejected", () => { expect(partnerFileBucket(business, `partners/${business}/../test.pdf`, true)).toBeNull(); expect(partnerFileBucket(business, "partners/other/credentials/test.pdf", true)).toBeNull(); });
+  // Part 2b: the installer uploads its electrician's documents under the INSTALLER's prefix; the credential is the electrician's.
+  const installer = "00000000-0000-4000-8000-000000000003";
+  const upload = `partners/${installer}/electrician-uploads/abc-licence.jpg`;
+  test("an electrician's recorded upload (installer prefix) opens from job-files on the electrician's page", () => expect(partnerFileBucket(business, upload, true)).toBe("job-files"));
+  test("the same upload with no credential on the business being viewed is denied (another installer's files stay private)", () => expect(partnerFileBucket(business, upload, false)).toBeNull());
+  test("electrician-uploads rule needs a real uuid prefix and no traversal", () => {
+    expect(partnerFileBucket(business, "partners/not-a-uuid/electrician-uploads/x.jpg", true)).toBeNull();
+    expect(partnerFileBucket(business, `partners/${installer}/electrician-uploads/../x.jpg`, true)).toBeNull();
+    expect(partnerFileBucket(business, `partners/${installer}/electrician-uploads/`, true)).toBeNull();
+  });
 });
 function dbFor(ownerId: string | null, insertCode: string | null = "23505") {
   const calls: string[] = [];

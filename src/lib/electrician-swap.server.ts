@@ -40,7 +40,10 @@ export async function eligibility(installerBusinessId: string, electricianBusine
   if (!linkedActive) return { linkedActive, onboarded: false, userId: null };
   const [{ loadApprovedRecCandidates }, { approvedRecBlocker }, { electricianProfile }] = await Promise.all([import("./rec-onboarded.server"), import("./rec-onboarded.core"), import("./own-job-piesa.server")]);
   const cand = (await loadApprovedRecCandidates()).find((c) => c.business_id === electricianBusinessId) ?? null;
-  const userId = cand && !approvedRecBlocker(cand, { rateNotNeeded: true }) ? await electricianProfile(electricianBusinessId) : null;
+  // Decision 371 / Part 2b: a lapsed public liability or REC registration (and, for an installer-added electrician, the
+  // business-level electrical licence) stops the pick for the installer's own jobs too.
+  const lapsed = cand ? await (await import("./my-electricians.server")).ownJobDocsBlocker(electricianBusinessId) : null;
+  const userId = cand && !lapsed && !approvedRecBlocker(cand, { rateNotNeeded: true }) ? await electricianProfile(electricianBusinessId) : null;
   return { linkedActive, onboarded: !!userId, userId };
 }
 

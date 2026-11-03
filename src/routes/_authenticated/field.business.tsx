@@ -89,6 +89,7 @@ function Business() {
       {data.boss && data.details && <section>
         <SectionHead>Business file</SectionHead>
         {installer && <FileRow to="/field/business/electrician" title="My usual electrician" sub={usualElectricianLine(data.usualElectrician)} testId="electrician" />}
+        {installer && <FileRow to="/field/business/electricians" title="My electricians" sub="Add electricians for your own jobs and see where each one stands" testId="my-electricians" />}
         <FileRow to="/field/business/details" title="Business details" sub={detailsLine(data.details)} testId="details" />
         <FileRow to="/field/business/rates" title="Your rates" sub={ratesLine(data.ratesAgreedAt, data.hasRates)} testId="rates" />
         <FileRow to="/field/business/bank" title="Bank details" sub={data.bankLine} testId="bank" />

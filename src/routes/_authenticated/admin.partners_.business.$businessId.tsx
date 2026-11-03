@@ -21,6 +21,7 @@ import { getBusinessFile, resolvePartnerChangeRequest, revealPartnerBank } from 
 import { getPartnerProfile, partnerFileUrl, saveBusiness } from "@/lib/pilot.functions";
 import { reviewHigherRates } from "@/lib/rate-requests.functions";
 import { inHouseEnableBlockers, type InHouseFacts } from "@/lib/in-house.core";
+import { approveInstallerElectrician, getInstallerElectricianReview, rejectInstallerElectrician } from "@/lib/my-electricians.functions";
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
@@ -65,6 +66,7 @@ function BusinessFile() {
         </div>
       </section>
       <div className="grid gap-5 lg:grid-cols-2">
+        <InstallerElectricianCard businessId={businessId} onDone={refresh} />
         <Panel title="Agreement" action={latest ? <Btn tone="secondary" onClick={() => setAgreementOpen(true)}>View agreement</Btn> : undefined}>
           <dl data-why="installer agreement rule; 121 ESC collection notice">
             {latest ? <>
@@ -123,6 +125,36 @@ function BusinessFile() {
 }
 
 type FileData = NonNullable<Awaited<ReturnType<typeof getBusinessFile>>>;
+
+/** Part 2b: an electrician an installer added for their own jobs. Approve (hard checklist, no override) or Reject with a
+ *  reason the installer sees. Shows nothing for every other business. No agreement is needed: they never get our leads. */
+function InstallerElectricianCard({ businessId, onDone }: { businessId: string; onDone: () => Promise<void> }) {
+  const load = useServerFn(getInstallerElectricianReview);
+  const q = useQuery({ queryKey: ["installer-electrician-review", businessId], queryFn: () => load({ data: { businessId } }) });
+  const approve = useAction(approveInstallerElectrician);
+  const rejectFn = useAction(rejectInstallerElectrician);
+  const reason = useReasonDialog();
+  const r = q.data;
+  if (!r) return null;
+  const waiting = r.status === "waiting" || r.status === "not_approved";
+  return (
+    <Panel className="lg:col-span-2" title={`Added by ${r.installerName}`}>
+      <dl data-why="Part 2b: installer-added electricians work on that installer's jobs only; the office checks the paperwork, never overrides a gap">
+        <Row k="Works for">{r.installerName} only · not offered Home Insulation Victoria's own leads · no agreement needed</Row>
+        <Row k="Status">{r.status === "approved" ? <Pill tone="green">Approved</Pill> : r.status === "not_approved" ? <><Pill tone="rose">Not approved</Pill> <span className="text-sub">{r.rejectedReason}</span></> : r.status === "expired" ? <Pill tone="rose">Paperwork expired</Pill> : <Pill tone="amber">Waiting for approval</Pill>}</Row>
+        {r.unfinished && <Row k="Checks"><span className="text-rose">Approved, but not finished — the electrician's approval, their portal profile, the installer's link or the welcome text is still missing. Finish approval completes it.</span></Row>}
+        {waiting && <Row k="Checks">{r.problems.length === 0 ? <span className="text-estimate-green">Paperwork complete and in date</span> : <ul className="list-disc pl-4">{r.problems.map((p) => <li key={p} className="text-rose">{p}</li>)}</ul>}</Row>}
+      </dl>
+      {r.unfinished && <div className="mt-3"><Btn onClick={async () => { if (await approve({ businessId }, "Approval finished")) await onDone(); }}>Finish approval</Btn></div>}
+      {waiting && <div className="mt-3 flex flex-wrap gap-2">
+        <Btn disabled={r.problems.length > 0} onClick={async () => { if (await approve({ businessId }, "Electrician approved")) await onDone(); }}>Approve</Btn>
+        <Btn tone="secondary" onClick={async () => { const why = await reason.ask({ title: "Not approving this electrician?", description: "The installer sees this reason in My electricians and can fix it and resubmit.", placeholder: "What needs fixing", minLength: 3, confirmLabel: "Reject" }); if (why && await rejectFn({ businessId, reason: why }, "Not approved — the installer has been told")) await onDone(); }}>Reject</Btn>
+        {r.problems.length > 0 && <span className="self-center text-xs text-sub">Approve unlocks when every check passes. There is no override.</span>}
+      </div>}
+      {reason.dialog}
+    </Panel>
+  );
+}
 
 function InHousePanel({ businessId, business, facts, onDone }: { businessId: string; business: { name: string; in_house?: boolean; rectification_billed_by?: "partner" | "hivic" }; facts: InHouseFacts; onDone: () => Promise<void> }) {
   const save = useServerFn(saveBusiness);
