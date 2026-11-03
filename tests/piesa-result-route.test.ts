@@ -1,12 +1,13 @@
 // Part 4 Task 2 (Jo 2 Nov 2026, answers 21 + touchpoints 40/42): one owner message per PIESA result.
 import { describe, expect, test } from "bun:test";
-import { piesaResultRoute, depositOpenAfterPiesa } from "../src/lib/piesa-result-route.core";
+import { piesaResultRoute, depositOpenAfterPiesa, CLEAR_TO_INSTALL_EMAIL_APPROVED, UPGRADES_NEEDED_EMAIL_APPROVED } from "../src/lib/piesa-result-route.core";
 import { piesaDeliveryPlan, type PiesaDeliveryFacts } from "../src/lib/piesa-delivery.core";
 import { depositRequestEligible } from "../src/lib/deposit-request.core";
 import { installDepositDueNow } from "../src/lib/payments.core";
 
-const r = (o: Partial<Parameters<typeof piesaResultRoute>[0]>) =>
-  piesaResultRoute({ outcome: "all_clear", upgradesDoneSameDay: false, doNotContact: false, newFlow: true, ...o });
+const ON = { clearToInstall: true, upgradesNeeded: true };
+const r = (o: Partial<Parameters<typeof piesaResultRoute>[0]>, approvals = ON) =>
+  piesaResultRoute({ outcome: "all_clear", upgradesDoneSameDay: false, doNotContact: false, newFlow: true, ...o }, approvals);
 
 describe("piesaResultRoute", () => {
   test("new flow: all clear -> the 'clear to install' email", () => { expect(r({})).toEqual(["clear_to_install"]); });
@@ -22,6 +23,34 @@ describe("piesaResultRoute", () => {
   test("always exactly one message", () => {
     for (const outcome of ["all_clear", "upgrades_needed"] as const) for (const d of [true, false]) for (const n of [true, false]) for (const s of [true, false])
       expect(r({ outcome, doNotContact: d, newFlow: n, upgradesDoneSameDay: s })).toHaveLength(1);
+  });
+});
+
+describe("email approval flags (owners must never lose the legal PIESA copy)", () => {
+  const OFF = { clearToInstall: false, upgradesNeeded: false };
+  test("both flags ship off", () => { expect(CLEAR_TO_INSTALL_EMAIL_APPROVED).toBe(false); expect(UPGRADES_NEEDED_EMAIL_APPROVED).toBe(false); });
+  test("default (constants, off): every new-flow result keeps the standalone copy", () => {
+    for (const outcome of ["all_clear", "upgrades_needed"] as const) for (const s of [true, false])
+      expect(piesaResultRoute({ outcome, upgradesDoneSameDay: s, doNotContact: false, newFlow: true })).toEqual(["standalone_copy"]);
+  });
+  test("flags off: standalone copy for every new-flow result", () => {
+    for (const outcome of ["all_clear", "upgrades_needed"] as const) for (const s of [true, false])
+      expect(r({ outcome, upgradesDoneSameDay: s }, OFF)).toEqual(["standalone_copy"]);
+  });
+  test("clear-to-install flag on: its route (all clear, or upgrades done on the day); upgrades-needed still standalone", () => {
+    const a = { clearToInstall: true, upgradesNeeded: false };
+    expect(r({}, a)).toEqual(["clear_to_install"]);
+    expect(r({ outcome: "upgrades_needed", upgradesDoneSameDay: true }, a)).toEqual(["clear_to_install"]);
+    expect(r({ outcome: "upgrades_needed" }, a)).toEqual(["standalone_copy"]);
+  });
+  test("upgrades-needed flag on: its route; all clear still standalone", () => {
+    const a = { clearToInstall: false, upgradesNeeded: true };
+    expect(r({ outcome: "upgrades_needed" }, a)).toEqual(["upgrades_needed"]);
+    expect(r({}, a)).toEqual(["standalone_copy"]);
+  });
+  test("Do not contact / old flow: standalone copy whatever the flags", () => {
+    expect(r({ doNotContact: true }, ON)).toEqual(["standalone_copy"]);
+    expect(r({ newFlow: false }, ON)).toEqual(["standalone_copy"]);
   });
 });
 
