@@ -15,6 +15,8 @@ import {
   installerVisitFromSiteCheck,
   fillTemplate,
   gateDoc,
+  ownerVersionLabel,
+  signedTextHeader,
   ownerGateBlockers,
   ownerToSign,
   quoteAcceptanceReady,
@@ -302,7 +304,7 @@ export async function ownerPaperworkToSign(jobId: string) {
         key: t.key,
         title: d.title,
         tick: d.tick,
-        version: d.version,
+        version: ownerVersionLabel(d.version),
         draft: !facts.approved[t.key],
         text:
           t.key === "payment_terms" && money ? paymentTermsText(money) : fillTemplate(d.body, vars),
@@ -371,7 +373,7 @@ export async function signGateDoc(i: SignInput) {
     );
   const text = fillTemplate(d.body, { ...vars, ...answerVars(i.answers, money) });
   const emailConsent = i.quoteSittingKey ? `\n[x] ${(await import('./owner-quote-sign.core')).OWNER_EMAIL_DOCUMENT_CONSENT}` : '';
-  const signedText = `${d.title} (version ${d.version}${draft ? ", DRAFT" : ""})\n\n${text}\n\n[x] ${d.tick}${emailConsent}\nSigned: ${i.signatoryName.trim()}${d.gate === "B" ? (await import("./owner-confirm.core")).signedSummaryNote() : ""}`;
+  const signedText = `${signedTextHeader(d.title, d.version, draft)}\n\n${text}\n\n[x] ${d.tick}${emailConsent}\nSigned: ${i.signatoryName.trim()}${d.gate === "B" ? (await import("./owner-confirm.core")).signedSummaryNote() : ""}`;
   let quickTapId: string | null = null;
   if (i.quickTapsBatchId && i.key === "trade_contact_share") {
     const h = await sha256(`quick-taps-share:${i.jobId}:${i.quickTapsBatchId}:${d.version}`);

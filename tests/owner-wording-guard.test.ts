@@ -48,12 +48,9 @@ test("rendered owner emails carry no retired wording", () => {
 // Every owner template in the Templates hub, rendered: no retired term, no "lawyer", no standalone "HIV".
 import { TEMPLATE_ENTRIES } from "../src/lib/template-hub.core";
 // Part 3/4 rewrite: owner touchpoints that still hold old wording until Part 3/4 replaces them (id -> why).
-// These four are the signed owner gate texts (src/lib/owner-gates.core.ts, exact signed wording kept until a new version is approved).
+// This one is the signed owner gate texts (src/lib/owner-gates.core.ts, exact signed wording kept until a new version is approved).
 const PART_3_4_ALLOWLIST: Record<string, string> = {
-  "owner:paperwork:tenancy_details": "Part 3/4 rewrite: signed gate text says lawyer",
-  "owner:paperwork:landlord_consent": "Part 3/4 rewrite: signed gate text says lawyer",
-  "owner:paperwork:visit_permission": "Part 3/4 rewrite: signed gate text says lawyer",
-  "owner:paperwork:quote_acceptance": "Part 3/4 rewrite: signed gate text says VEU discount and lawyer",
+  "owner:paperwork:quote_acceptance": "Part 3/4 rewrite: signed gate text says VEU discount (new version needed)",
 };
 const previewText = (p: ReturnType<(typeof TEMPLATE_ENTRIES)[number]["render"]>): string => {
   switch (p.kind) {

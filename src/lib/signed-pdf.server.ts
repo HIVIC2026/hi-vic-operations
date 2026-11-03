@@ -1,6 +1,7 @@
 // One way to turn a signed record's exact text into a PDF copy for the job file. Server-only.
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { pdfSafeText } from "./pdf-text.core";
+import { ownerVersionLabel } from "./owner-gates.core";
 import { LOGO_PNG } from "./email-hero-assets";
 import type { PdfBlock, PdfLayoutReport } from "./pdf-look.core";
 import { acceptancePage1, agreementSignedLine, type SignedAcceptanceInput } from "./signed-acceptance.core";
@@ -51,7 +52,7 @@ export async function signedAcceptancePdf(copy: SignedAcceptanceCopy): Promise<U
   const time = new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", hour: "numeric", minute: "2-digit", hour12: true, timeZoneName: "short" }).format(new Date(copy.signedAt));
   print(`Signed: ${date}, ${time} (Melbourne time)`); y -= 18;
   for (const item of copy.items) {
-    print(`${item.title} (version ${item.version})`, 11, true);
+    print(`${item.title} (version ${ownerVersionLabel(item.version)})`, 11, true);
     print(item.text); y -= 16;
   }
   return pdf.save();

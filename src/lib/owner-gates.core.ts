@@ -73,6 +73,14 @@ export function paymentTermsPlain(markup: string): string {
 }
 export const PAYMENT_TERMS_BODY = paymentTermsPlain(paymentTermsPart(CUSTOMER_AGREEMENT_V1_3));
 
+/** What an owner sees for a document version: the stored id without a leading "lawyer-" (owner paperwork never says lawyer). Display only; never use for matching. */
+export function ownerVersionLabel(v: string | null | undefined): string {
+  return (v ?? "").replace(/^lawyer-/i, "");
+}
+/** First line of an owner's signed copy, e.g. "Contact and privacy (version 2026-10-06-v1)". */
+export function signedTextHeader(title: string, version: string, draft: boolean): string {
+  return `${title} (version ${ownerVersionLabel(version)}${draft ? ", DRAFT" : ""})`;
+}
 /** Placeholder bodies are deliberately marked DRAFT; never present them as approved wording. {placeholders} are filled at signing. */
 export const LAWYER_V = "lawyer-2026-10-06-v1";
 export const LAWYER_APPROVAL_NOTE = "Jo Lowe — lawyer sign-off 6 Oct 2026";

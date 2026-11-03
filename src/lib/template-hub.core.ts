@@ -72,7 +72,7 @@ import { installDayResultText, installDayReminderText } from "./install-day-conf
 import { FORMS, type FormField } from "./mitti-forms.core";
 import { INSTALL_DAY_QUESTIONS, INSTALL_DAY_TEMPLATE_NAME } from "./install-day.core";
 import { FIXES_DAY_QUESTIONS, FIXES_DAY_TEMPLATE_NAME } from "./fixes-day.core";
-import { GATE_DOCS, RETIRED_DOC_KEYS, fillTemplate, paymentTermsText, paymentTermsMoney, type GateDocKey } from "./owner-gates.core";
+import { GATE_DOCS, RETIRED_DOC_KEYS, fillTemplate, ownerVersionLabel, paymentTermsText, paymentTermsMoney, type GateDocKey } from "./owner-gates.core";
 import { renderConsentBody, ESC_CONSENT_TEMPLATE_VERSION, OWNER_DECLARATIONS } from "./consent.core";
 import { SWMS_HAZARDS, SWMS_PREPARED_FOR, SWMS_SIGN_STATEMENT } from "./swms.core";
 import { PRODUCT_WARRANTIES, warrantyTermText } from "./product-warranty.core";
@@ -428,7 +428,7 @@ const OWNER: TemplateEntry[] = [
   ...GATE_DOCS.filter((d) => d.gate === "B" && !RETIRED_DOC_KEYS.has(d.key)).map((d) =>
     ENTRY({ id: `owner:paperwork:${d.key}`, section: "owner", step: "quote", kind: "paperwork", code: "", name: `Paperwork: ${d.title}`, when: d.signer === "office" ? "Gate B (before the install is booked) — the office records it" : "Gate B: signed or ticked by the owner on My job before the install is booked", who: d.signer === "office" ? "Office records (owner's landlord)" : "Owner", approvalNote: d.approvalNote ?? `Version ${d.version}: approval stored in Settings › Owner paperwork`, gate: { kind: "always" },
       source: { builder: "src/lib/owner-gates.core.ts", fn: "GATE_DOCS", sender: "src/lib/owner-gates.server.ts" }, paperworkKey: d.key,
-      render: () => ({ kind: "doc", title: `${d.title} — ${d.version}`, body: `${d.key === "payment_terms" ? paymentTermsText(paymentTermsMoney({ quoteTotalCents: 220000, safetyCheckCents: 34900, installDepositCents: 18510, balanceCents: 166590 })) : fillTemplate(d.body, SAMPLE_VARS)}\n\n[ ] ${d.tick}`, note: "Sample values filled in. The tick label is what the owner presses." }) })),
+      render: () => ({ kind: "doc", title: `${d.title} — ${ownerVersionLabel(d.version)}`, body: `${d.key === "payment_terms" ? paymentTermsText(paymentTermsMoney({ quoteTotalCents: 220000, safetyCheckCents: 34900, installDepositCents: 18510, balanceCents: 166590 })) : fillTemplate(d.body, SAMPLE_VARS)}\n\n[ ] ${d.tick}`, note: "Sample values filled in. The tick label is what the owner presses." }) })),
   // Decision 389: Jo releases a saved spot → "It's your turn" to the owner (email + text, day-2 reminder). Approved by Jo 25 Oct 2026.
   ENTRY({ id: "owner:O77", section: "owner", step: "ready_check", kind: "email", code: "O77", name: "It's your turn — confirm your free Ready Check", when: "Jo presses Release on Jobs › Choose installer (and the day-2 reminder); the installer is offered the job only after the owner confirms", who: "Owner", approvalNote: "Jo 25 Oct 2026, decision 389", gate: { kind: "email" },
     source: { builder: "src/lib/spot-release-email.core.ts", fn: "renderSpotReleasedEmail", sender: "src/lib/spot-release.server.ts" }, design: "docs/templates/mjml/owner_O77.mjml",
