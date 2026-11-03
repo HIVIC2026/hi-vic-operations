@@ -13,7 +13,7 @@ import { SET_PASSWORD_BASE } from "./set-password-link.core";
 import { hashToken, isTokenShape, linkState, newToken, certificationBlocker, firstName } from "./worker-links.core";
 import {
   ELECTRICIAN_LINK_SMS_TYPE, ELECTRICIAN_LINK_TEXT_APPROVED, ELECTRICIAN_LINK_NOT_VALID, electricianLinkExpired, electricianLinkExpiry, electricianLinkSwitchedOff,
-  electricianLinkText, electricianLinkTextKey, electricianStep, canBookFromLink, dayTime,
+  electricianLinkText, electricianLinkTextKey, maskElectricianLinkInText, electricianStep, canBookFromLink, dayTime,
   ELECTRICIAN_LINK_OFFICE_BOOKS, electricianLinkAlreadyBooked, ELECTRICIAN_LINK_NOTHING_TO_BOOK, ELECTRICIAN_LINK_BAD_TIME, electricianLinkBookFailed, type ElectricianLinkFacts, type ElectricianStepView, type WhoBooks,
 } from "./electrician-link.core";
 import type { RealSmsInput, RealSmsResult } from "./sms.server";
@@ -22,7 +22,9 @@ import type { BusinessContact } from "./owner-wording.core";
 export const ELECTRICIAN_LINK_TEXT_SENT_EVENT = "electrician_link_text_sent";
 export const ELECTRICIAN_LINK_TEXT_FAILED_EVENT = "electrician_link_text_failed";
 
-const dbErr = (what: string, e: { message: string }) => new Error(`Could not read ${what}: ${e.message}`);
+/** A failed database read. Its text is for the logs only; the public page never shows it. */
+class ReadError extends Error {}
+const dbErr = (what: string, e: { message: string }) => new ReadError(`Could not read ${what}: ${e.message}`);
 const bizName = (b: { name: string | null; trading_name: string | null } | null | undefined) => ((b?.trading_name ?? "").trim() || (b?.name ?? "").trim()) || null;
 
 async function installerOf(jobId: string): Promise<{ id: string | null; name: string }> {
@@ -95,7 +97,7 @@ export async function textElectricianLink(jobId: string, workerId: string, url: 
     await d.record(jobId, ELECTRICIAN_LINK_TEXT_SENT_EVENT, "Electrician job link texted (test)", { key, worker_id: workerId, test: true });
     return "test_sent";
   }
-  const r = await d.sendSms({ type: ELECTRICIAN_LINK_SMS_TYPE, idempotencyKey: key, to: w.mobile, body, jobId, businessId: w.business_id });
+  const r = await d.sendSms({ type: ELECTRICIAN_LINK_SMS_TYPE, idempotencyKey: key, to: w.mobile, body, storedBody: maskElectricianLinkInText(body), jobId, businessId: w.business_id });
   if (r.status !== "sent" && r.status !== "sent_unknown") return "held";
   await d.record(jobId, ELECTRICIAN_LINK_TEXT_SENT_EVENT, "Electrician job link texted", { key, worker_id: workerId });
   return "sent";
@@ -110,8 +112,17 @@ export async function linkAfterAllocation(jobId: string, workerId: string, actor
   };
   let url: string;
   try {
-    const { data: live } = await admin.from("worker_job_links").select("id, expires_at").eq("job_id", jobId).eq("worker_id", workerId).is("revoked_at", null);
-    if ((live ?? []).some((l) => linkState({ revoked_at: null, expires_at: l.expires_at }, Date.now()) === "active")) return "already_has_link";
+    const { data: live, error: le } = await admin.from("worker_job_links").select("id, expires_at").eq("job_id", jobId).eq("worker_id", workerId).is("revoked_at", null);
+    if (le) throw dbErr("the links", le);
+    if ((live ?? []).some((l) => linkState({ revoked_at: null, expires_at: l.expires_at }, Date.now()) === "active")) {
+      // The link is already made. Only the text may be missing (held while the flag was off, or it failed). The URL can't be
+      // rebuilt from the stored hash, so a new link is made ONLY when no text was ever sent for this job and person;
+      // a link already in someone's phone is never replaced.
+      if (!d.approved) return "already_has_link";
+      const { data: sentBefore, error: se } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", ELECTRICIAN_LINK_TEXT_SENT_EVENT).contains("details", { key: electricianLinkTextKey(jobId, workerId) }).limit(1).maybeSingle();
+      if (se) throw dbErr("the text history", se);
+      if (sentBefore) return "already_has_link";
+    }
     url = (await mintElectricianLink(jobId, workerId, actorId)).url;
   } catch (e) { await fail("the link could not be made", e); return "link_failed"; }
   try { return await textElectricianLink(jobId, workerId, url, over); } catch (e) { await fail("the text was not sent", e); return "text_failed"; }
@@ -188,6 +199,13 @@ async function factsFor(jobId: string, whoBooks: WhoBooks, handedBack: boolean, 
 
 /** Everything the page shows, resolved from the token alone. Throws the plain message for a link that can't be opened. */
 export async function electricianLinkView(token: string, now = Date.now()): Promise<ElectricianLinkView> {
+  try { return await readElectricianLinkView(token, now); } catch (e) {
+    if (!(e instanceof ReadError)) throw e;
+    console.error("Electrician link read failed", e.message);
+    throw new Error(ELECTRICIAN_LINK_NOT_VALID);
+  }
+}
+async function readElectricianLinkView(token: string, now: number): Promise<ElectricianLinkView> {
   if (!isTokenShape(token)) throw new Error(ELECTRICIAN_LINK_NOT_VALID);
   const { data: l, error } = await admin.from("worker_job_links").select("id, job_id, worker_id, business_id, expires_at, revoked_at, open_count").eq("token_hash", await hashToken(token)).maybeSingle();
   if (error) throw dbErr("the link", error);
@@ -199,7 +217,7 @@ export async function electricianLinkView(token: string, now = Date.now()): Prom
   const [{ data: w, error: we }, { data: eb, error: ebe }, { data: job, error: je }] = await Promise.all([
     admin.from("partner_workers").select("full_legal_name, trade_role, approval_status, certification_status, removed_at, profile_id").eq("id", l.worker_id).maybeSingle(),
     admin.from("businesses").select("name, trading_name").eq("id", l.business_id).maybeSingle(),
-    admin.from("jobs").select("job_number, stage, deleted_at").eq("id", l.job_id).maybeSingle(),
+    admin.from("jobs").select("job_number, stage, deleted_at, updated_at").eq("id", l.job_id).maybeSingle(),
   ]);
   if (we) throw dbErr("the electrician", we);
   if (ebe) throw dbErr("the business", ebe);
@@ -213,7 +231,9 @@ export async function electricianLinkView(token: string, now = Date.now()): Prom
   const f = await factsFor(l.job_id, whoBooks, job.stage === "cancelled", now);
   const view = electricianStep(f.facts);
   // Open: before All done every open renews the link; after, it ends 14 days after All done and is not pushed again.
-  const expires = view.step === "all_done" ? (f.allDoneAt ? electricianLinkExpiry({ allDoneAt: f.allDoneAt, now }) : l.expires_at) : electricianLinkExpiry({ allDoneAt: null, now });
+  // A closed or cancelled job ends the link 14 days after the close (the job's last change) and is never renewed.
+  const closedAt = view.step === "closed" && job.updated_at && !Number.isNaN(new Date(job.updated_at).getTime()) ? job.updated_at : null;
+  const expires = view.step === "closed" ? (closedAt ? electricianLinkExpiry({ allDoneAt: closedAt, now }) : l.expires_at) : view.step === "all_done" ? (f.allDoneAt ? electricianLinkExpiry({ allDoneAt: f.allDoneAt, now }) : l.expires_at) : electricianLinkExpiry({ allDoneAt: null, now });
   if (new Date(expires).getTime() <= now) throw new Error(electricianLinkExpired(installer.name));
   const { error: ue } = await admin.from("worker_job_links").update({ last_opened_at: new Date(now).toISOString(), open_count: (l.open_count ?? 0) + 1, expires_at: expires }).eq("id", l.id);
   if (ue) console.error("Electrician link open not recorded", ue.message);

@@ -188,6 +188,29 @@ describe("electricianLinkView", () => {
     const { token } = await mint();
     expect((await server.electricianLinkView(token, NOW)).view.step).toBe("closed");
   });
+  test("a cancelled job's link ends 14 days after the close and is not renewed on open", async () => {
+    tables["jobs"]![0]!["stage"] = "cancelled";
+    tables["jobs"]![0]!["updated_at"] = new Date(NOW - 2 * DAY).toISOString();
+    const { token } = await mint();
+    await server.electricianLinkView(token, NOW);
+    const want = new Date(NOW - 2 * DAY + 14 * DAY).toISOString();
+    expect(linkRow()["expires_at"]).toBe(want);
+    await server.electricianLinkView(token, NOW + 3 * DAY);
+    expect(linkRow()["expires_at"]).toBe(want);
+    await expect(server.electricianLinkView(token, NOW + 13 * DAY)).rejects.toThrow("This link has expired.");
+  });
+  test("a database error never reaches the page: the generic message comes back", async () => {
+    const { token } = await mint();
+    const real = tables["job_overview"];
+    // Make the owner read fail by swapping in a table the memory db errors on.
+    const mod = await import("@/integrations/supabase/client.server");
+    const orig = mod.supabaseAdmin.from;
+    (mod.supabaseAdmin as any).from = (t: string) => t === "job_overview" ? { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: { message: 'relation "secret_table" does not exist' } }) }) }) } : orig(t);
+    try {
+      await expect(server.electricianLinkView(token, NOW)).rejects.toThrow("This link isn't valid.");
+      await server.electricianLinkView(token, NOW).catch((e: Error) => expect(e.message).not.toContain("secret_table"));
+    } finally { (mod.supabaseAdmin as any).from = orig; tables["job_overview"] = real; }
+  });
   test("never returns prices or other businesses' contact details", async () => {
     const { token } = await mint();
     const s = JSON.stringify(await server.electricianLinkView(token, NOW));
@@ -266,7 +289,7 @@ describe("linkAfterAllocation", () => {
       approved: true,
       sendSms: async (i: { body: string }) => { sent.push(i.body); return { status: "sent" as const, detail: "ok", sid: "SM1" }; },
       sendTestSms: async () => ({ status: "sent", detail: "ok" }),
-      record: async (_j: string, type: string) => { events.push(type); },
+      record: async (_j: string, type: string, _s: string, details: Record<string, unknown>) => { events.push(type); tables["workflow_events"]!.push({ id: `e${events.length}`, job_id: J, event_type: type, details }); },
     } };
   };
   test("mints one link and texts its url", async () => {
@@ -297,6 +320,36 @@ describe("linkAfterAllocation", () => {
     tables["job_assignments"]![1]!["active"] = false;
     expect(await server.linkAfterAllocation(J, W, "actor-1", x.over)).toBe("link_failed");
     expect(x.events).toContain("electrician_link_text_failed");
+  });
+  test("held while the flag is off, a later retry with the flag on texts the link once", async () => {
+    const x = mk();
+    expect(await server.linkAfterAllocation(J, W, "actor-1", { ...x.over, approved: false })).toBe("held");
+    expect(x.sent).toHaveLength(0);
+    const sentOver = { ...x.over, record: async (_j: string, type: string, _s: string, details: Record<string, unknown>) => { x.events.push(type); tables["workflow_events"]!.push({ id: `e${x.events.length}`, job_id: J, event_type: type, details }); } };
+    expect(await server.linkAfterAllocation(J, W, "actor-1", sentOver)).toBe("sent");
+    expect(x.sent).toHaveLength(1);
+    const live = tables["worker_job_links"]!.filter((l) => !l["revoked_at"]);
+    expect(live).toHaveLength(1);
+    expect(x.sent[0]).toContain("/e/");
+    expect(await server.linkAfterAllocation(J, W, "actor-1", sentOver)).toBe("already_has_link");
+    expect(x.sent).toHaveLength(1);
+  });
+  test("a link that was already texted is never re-minted", async () => {
+    const x = mk();
+    const over = { ...x.over, record: async (_j: string, type: string, _s: string, details: Record<string, unknown>) => { tables["workflow_events"]!.push({ id: `e${tables["workflow_events"]!.length}`, job_id: J, event_type: type, details }); } };
+    expect(await server.linkAfterAllocation(J, W, "actor-1", over)).toBe("sent");
+    const hash = linkRow()["token_hash"];
+    expect(await server.linkAfterAllocation(J, W, "actor-1", over)).toBe("already_has_link");
+    expect(tables["worker_job_links"]).toHaveLength(1);
+    expect(linkRow()["token_hash"]).toBe(hash);
+  });
+  test("the stored copy of the text hides the link, the provider gets the real one", async () => {
+    const seen: { body: string; storedBody?: string }[] = [];
+    const x = mk();
+    await server.linkAfterAllocation(J, W, "actor-1", { ...x.over, sendSms: async (i: any) => { seen.push({ body: i.body, storedBody: i.storedBody }); return { status: "sent" as const, detail: "ok", sid: "S" }; } });
+    expect(seen[0]!.body).toMatch(/\/e\/[A-Za-z0-9_-]{20,}/);
+    expect(seen[0]!.storedBody).toContain("/e/••••");
+    expect(seen[0]!.storedBody).not.toMatch(/\/e\/[A-Za-z0-9_-]{8,}/);
   });
   test("allocateElectrician calls it after the atomic assignment succeeds", () => {
     const src = readFileSync("src/lib/in-house-electrician.server.ts", "utf8");

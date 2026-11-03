@@ -82,7 +82,7 @@ export function electricianStep(f: ElectricianLinkFacts): ElectricianStepView {
 
 // ---- The link itself (Task 2): lifetime, the text, and the plain messages -------------------------------------------
 const DAY = 86_400_000;
-/** After All done the link stays open this long (Jo's plan), then it expires. */
+/** After All done, or after the job is closed/cancelled, the link stays open this long (Jo's plan), then it expires. */
 export const ELECTRICIAN_LINK_DAYS_AFTER_DONE = 14;
 /** Before All done the link stays open: every open pushes the expiry this far out. */
 export const ELECTRICIAN_LINK_OPEN_DAYS = 60;
@@ -107,6 +107,9 @@ export function electricianLinkText(i: { jobNumber: string; suburb: string | nul
   const suburb = tidy(i.suburb);
   return `Home Insulation Victoria: New PIESA job ${tidy(i.jobNumber)}${suburb ? `, ${suburb}` : ""}, for ${tidy(i.installer)}. Your job link: ${i.url}`;
 }
+
+/** The copy of the text we keep on the job: the link token is the only credential, so the path is masked ("…/e/••••"). */
+export const maskElectricianLinkInText = (body: string) => body.replace(/(\/e\/)[^\s]+/g, "$1••••");
 
 /** DRAFT messages on a link that cannot be opened. */
 export const electricianLinkSwitchedOff = (installer: string) => `This link has been switched off. Ask ${installer} for a new one.`;
