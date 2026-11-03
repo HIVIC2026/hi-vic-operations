@@ -184,16 +184,16 @@ export async function oldFixesInvoicePaidFacts(jobIds: string[], pre?: Row[]): P
   return out;
 }
 
-/** Batch 3a: base facts for jobs still closed by an expired quote ("Quote expired (14 days)"). They are not in the
+/** Batch 3a: base facts for jobs still closed by an expired quote ("Quote expired (30 days)", or "(14 days)" before the 30-day change). They are not in the
  *  open-jobs list, but their expired-quote / new-quote office rows still need to show. Deleted (and, unless asked, TEST)
  *  jobs are left out. */
 export async function expiryClosedJobFacts(jobIds: string[], includeTest: boolean): Promise<Map<string, NeedsFacts>> {
   const out = new Map<string, NeedsFacts>();
   if (!jobIds.length) return out;
-  const { QUOTE_EXPIRED_CANCEL_REASON } = await import("./quote-expiry.core");
+  const { isQuoteExpiredCancelReason } = await import("./quote-expiry.core");
   const rows = await byIds("jobs closed by an expired quote", jobIds, (c, a, b) => admin.from("jobs").select("id, job_number, source, deleted_at, stage, cancelled_reason, owners(full_name), properties(suburb)").in("id", c).range(a, b));
   for (const j of rows) {
-    if (j["deleted_at"] || j["stage"] !== "cancelled" || j["cancelled_reason"] !== QUOTE_EXPIRED_CANCEL_REASON) continue;
+    if (j["deleted_at"] || j["stage"] !== "cancelled" || !isQuoteExpiredCancelReason(j["cancelled_reason"] as string | null)) continue;
     if (!includeTest && j["source"] === "qa_test") continue;
     out.set(String(j["id"]), { jobId: String(j["id"]), jobNumber: String(j["job_number"]), surname: surnameOf((j["owners"] as { full_name?: string } | null)?.full_name), suburb: (j["properties"] as { suburb?: string } | null)?.suburb ?? null, ...(j["source"] === "qa_test" ? { isTest: true } : {}) });
   }

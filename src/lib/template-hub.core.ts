@@ -290,10 +290,10 @@ const OWNER: TemplateEntry[] = [
   ENTRY({ id: "owner:sms-quote_ready", section: "owner", step: "quote", kind: "text", code: "", name: "Your quote is ready (text)", when: "Quote released to the owner", who: "Owner", approvalNote: "Jo 24 Oct 2026, decision 87 (text B)", gate: { kind: "text", smsType: "quote_ready" },
     source: { builder: "src/lib/owner-quote-email.core.ts", fn: "ownerQuoteSms", sender: "src/lib/quote-ready-notify.server.ts" },
     render: () => text(ownerQuoteSms("Helen", `${JOB}?screen=quote`)) }),
-  ENTRY({ id: "owner:O19", section: "owner", step: "quote", kind: "email", code: "O19", name: "Quote reminder", when: "3 days after the quote, and 2 days before the price expires", who: "Owner", approvalNote: "Jo 24 Oct 2026, decisions 88/89", gate: { kind: "email" },
+  ENTRY({ id: "owner:O19", section: "owner", step: "quote", kind: "email", code: "O19", name: "Quote reminder", when: "3 days after the quote, and 2 days before the quote expires (quotes valid 30 days; 14 if sent before the 30-day change)", who: "Owner", approvalNote: "Jo 24 Oct 2026, decisions 88/89; Jo 2 Nov 2026 (#30): \"Your rebate\", 30-day quotes say \"Your quote is valid for 30 days, until {date}\"", gate: { kind: "email" },
     source: { builder: "src/lib/owner-quote-email.core.ts", fn: "renderQuoteReminderEmail", sender: "src/lib/approved-owner-emails.server.ts" }, design: "docs/templates/mjml/owner_O19.mjml",
-    render: () => email(renderQuoteReminderEmail({ ...QUOTE, kind: "day3" })) }),
-  ENTRY({ id: "owner:sms-quote_reminder", section: "owner", step: "quote", kind: "text", code: "", name: "Quote reminder (text)", when: "3 days after the quote, and 2 days before the price expires", who: "Owner", approvalNote: "Jo 24 Oct 2026, decisions 88/89", gate: { kind: "text", smsType: "quote_reminder" },
+    render: () => email(renderQuoteReminderEmail({ ...QUOTE, validUntil: new Date("2026-12-10T12:59:59.999Z"), validDays: 30, kind: "day3" })) }),
+  ENTRY({ id: "owner:sms-quote_reminder", section: "owner", step: "quote", kind: "text", code: "", name: "Quote reminder (text)", when: "3 days after the quote, and 2 days before the quote expires", who: "Owner", approvalNote: "Jo 24 Oct 2026, decisions 88/89; approved as is (#32, Jo 2 Nov 2026)", gate: { kind: "text", smsType: "quote_reminder" },
     source: { builder: "src/lib/approved-texts.core.ts", fn: "quoteReminderDay3Text", sender: "src/lib/approved-texts.server.ts" },
     render: () => texts([
       { label: "Day 3", body: quoteReminderDay3Text({ firstName: "Helen", rebate: 1850, link: `${JOB}?screen=quote` }) },
@@ -441,7 +441,7 @@ const OWNER: TemplateEntry[] = [
     source: { builder: "src/lib/spot-release-email.core.ts", fn: "renderSpotReleasedEmail", sender: "src/lib/area-batch.server.ts" }, design: "docs/templates/mjml/owner_O77.mjml",
     render: () => email(renderSpotReleasedEmail({ firstName: "Helen", confirmUrl: quickTapsLink(JOB), unsubscribeUrl: UNSUB, reminder: false })) }),
   // Batch 3a: an expired installation quote closes the job; the owner gets one email with "Send me a new quote". Approved by Jo 29 Oct 2026.
-  ENTRY({ id: "owner:O78", section: "owner", step: "quote", kind: "email", code: "O78", name: "Your quote has expired", when: "The day-14 quote timer expires an installation quote and the job has no other live quote (the job closes; sent once)", who: "Owner", approvalNote: "Jo 29 Oct 2026", gate: { kind: "email" },
+  ENTRY({ id: "owner:O78", section: "owner", step: "quote", kind: "email", code: "O78", name: "Your quote has expired", when: "The quote timer expires an installation quote at the end of day 30 (day 14 if sent before the 30-day change) and the job has no other live quote (the job closes; sent once)", who: "Owner", approvalNote: "Jo 29 Oct 2026", gate: { kind: "email" },
     source: { builder: "src/lib/quote-expired-email.core.ts", fn: "renderQuoteExpiredEmail", sender: "src/lib/quote-expired-email.server.ts" }, design: "docs/templates/mjml/owner_O78.mjml",
     render: () => email(renderQuoteExpiredEmail({ firstName: "Helen", address: "12 Example St, Sampletown", link: `${JOB}?screen=newquote`, unsubscribeUrl: UNSUB })) }),
   ENTRY({ id: "owner:sms-spot_released", section: "owner", step: "ready_check", kind: "text", code: "", name: "It's your turn (text)", when: "With O77 and its day-2 reminder (opens the quick taps)", who: "Owner", approvalNote: "Wording: Jo 2 Nov 2026, decision #22 (IT_IS_YOUR_TURN_V2_APPROVED stays false until Jo OKs the pictures)", gate: { kind: "text", smsType: "spot_released" },

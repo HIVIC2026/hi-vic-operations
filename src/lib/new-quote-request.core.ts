@@ -1,7 +1,7 @@
 // Batch 3a Task 2: the owner's "Send me a new quote" (O78's button → My job `?screen=newquote`). PURE rules only;
 // I/O lives in new-quote-request.server.ts. Wording: the thanks line is approved by Jo (29 Oct 2026, spec section 2);
 // every other line here is office-only.
-import { QUOTE_EXPIRED_CANCELLED_EVENT, QUOTE_EXPIRED_CANCEL_REASON, QUOTE_EXPIRED_CLOSED_EVENT } from "./quote-expiry.core";
+import { QUOTE_EXPIRED_CANCELLED_EVENT, QUOTE_EXPIRED_CANCEL_REASON, QUOTE_EXPIRED_CLOSED_EVENT, isQuoteExpiredCancelReason } from "./quote-expiry.core";
 
 /** One claim per expired quote (details.idempotency_key = the expired quote's id). */
 export const NEW_QUOTE_REQUESTED_EVENT = "new_quote_requested";
@@ -52,7 +52,7 @@ export type NewQuoteFacts = { stage: string | null; cancelledReason: string | nu
 export function newQuoteRequestBlocker(f: NewQuoteFacts): string | null {
   const close = expiredQuoteClose(f.events);
   if (!close) return "No expired quote closed this job.";
-  if (f.stage !== "cancelled" || f.cancelledReason !== QUOTE_EXPIRED_CANCEL_REASON) return "The job is no longer closed by its expired quote.";
+  if (f.stage !== "cancelled" || !isQuoteExpiredCancelReason(f.cancelledReason)) return "The job is no longer closed by its expired quote.";
   // Reopened and cancelled again after the expiry close (same reason text): the expiry close is no longer the current one.
   const lastCancel = f.events.filter((e) => e.event_type === "stage_changed" && e.to_stage === "cancelled").map((e) => e.created_at).sort().pop();
   const lastReopen = f.events.filter((e) => e.event_type === "stage_changed" && e.to_stage && e.to_stage !== "cancelled").map((e) => e.created_at).sort().pop();

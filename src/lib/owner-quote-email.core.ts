@@ -5,11 +5,14 @@
 // (every line, m² × rate and cent amount); not included; one-line Next; held-until line. Subject, SMS and every delivery guard are unchanged (OWNER_QUOTE_EMAIL_APPROVED, customer_comms_enabled).
 // Reminder emails (decisions 88/89/134, docs/templates/mjml/owner_O19.mjml): rebate + price boxes + button with a reminder line, no breakdown.
 // Approved (decisions 89/134): QUOTE_REMINDER_EMAIL_APPROVED is on; the sender is approved-owner-emails.server.ts behind customer_comms_enabled.
+// Decision #30 (Jo 2 Nov 2026): reminders say "Your rebate" (never "Your VEU rebate"); a 30-day quote's reminders say
+// "Your quote is valid for 30 days, until {date}". A quote sent before the 30-day change keeps the held-until wording.
 // Quote text (decision 87, B): ownerQuoteSms below — brand prefix added by the sender.
 import { currentFeeWording } from "./hiv-quote.core";
 import { aud } from "./workflow";
 import * as K from "./email-kit.core";
 import { esc, mjEmail } from "./mail-mjml.core";
+import { QUOTE_VALID_DAYS, quoteValidLine } from "./quote-expiry.core";
 
 /** v3 approved 24 Oct 2026; design applied under decision 137. */
 export const OWNER_QUOTE_EMAIL_APPROVED = true as boolean;
@@ -48,6 +51,8 @@ export type OwnerQuoteEmailInput = {
   /** Assigned installer business; EEC wording only when the installer is approved (CII verification is required for that). */
   installerName?: string | null;
   installerCertified?: boolean;
+  /** quote-expiry.core `quoteValidDaysFor(sent_at)`: 30 = "valid for 30 days, until" wording in the reminders; 14/absent = held-until. */
+  validDays?: 14 | 30;
 };
 
 const money = (n: number) => aud(n);
@@ -79,7 +84,7 @@ const NOT_FOR_YOU = "Not ready, or not for you? You can tell us on the same page
 const lineTitle = (d: string) => currentFeeWording(d);
 
 /** Shared figures: rebate, full price, headline and the approved rebate + price boxes (MJML). */
-function quoteFigures(i: OwnerQuoteEmailInput) {
+function quoteFigures(i: OwnerQuoteEmailInput, rebateLabel = "Your VEU rebate") {
   if (!Number.isFinite(i.totalIncGst) || i.totalIncGst < 0) throw new Error("Quote total is unavailable.");
   if (!/^https:\/\//.test(i.quoteUrl)) throw new Error("Owner quote link is unavailable.");
   const name = cleanName(i.firstName);
@@ -90,11 +95,11 @@ function quoteFigures(i: OwnerQuoteEmailInput) {
   const headline = rebate ? `You save ${K.whole(rebate)} on ceiling insulation` : "Your ceiling insulation quote is ready";
   const both = !!(rebate && full);
   const rebateBox = both
-    ? `<mj-section><mj-column mj-class="panel-mint"><mj-text mj-class="eyebrow center" padding="18px 12px 6px">Your VEU rebate</mj-text><mj-text mj-class="big-green">You save ${esc(K.whole(rebate!))}</mj-text><mj-text mj-class="center" font-size="14px" line-height="20px" padding="0 16px 18px">Taken off upfront. Nothing for you to claim.</mj-text></mj-column></mj-section>`
+    ? `<mj-section><mj-column mj-class="panel-mint"><mj-text mj-class="eyebrow center" padding="18px 12px 6px">${esc(rebateLabel)}</mj-text><mj-text mj-class="big-green">You save ${esc(K.whole(rebate!))}</mj-text><mj-text mj-class="center" font-size="14px" line-height="20px" padding="0 16px 18px">Taken off upfront. Nothing for you to claim.</mj-text></mj-column></mj-section>`
     : "";
   const priceBox = `<mj-section><mj-column mj-class="panel"><mj-text mj-class="eyebrow center" padding="18px 12px 6px">Your price</mj-text><mj-text mj-class="big-blue">${esc(total)}</mj-text><mj-text mj-class="center" font-size="14px" line-height="20px" font-weight="700">incl. GST${both ? ` · full price before rebate <span class="strike">${esc(money(full!))}</span>` : ""}</mj-text><mj-text mj-class="small center" padding="0 16px 18px">${address ? `${esc(address)}<br />` : ""}Measured at your Ready Check</mj-text></mj-column></mj-section>`;
   const box = rebateBox + priceBox;
-  const boxText = [rebate ? `Your VEU rebate: you save ${K.whole(rebate)}. Taken off upfront. Nothing for you to claim.` : null, `Your price: ${total} incl. GST${both ? ` (full price before rebate ${money(full!)})` : ""}`, address, "Measured at your Ready Check"].filter((l): l is string => !!l);
+  const boxText = [rebate ? `${rebateLabel}: you save ${K.whole(rebate)}. Taken off upfront. Nothing for you to claim.` : null, `Your price: ${total} incl. GST${both ? ` (full price before rebate ${money(full!)})` : ""}`, address, "Measured at your Ready Check"].filter((l): l is string => !!l);
   return { name, address, rebate, full, total, headline, box, boxText };
 }
 const mjButton = (href: string) => `<mj-button href="${esc(href)}" padding="14px 12px 14px">View and accept your quote</mj-button>`;
@@ -158,14 +163,19 @@ export function renderOwnerQuoteEmail(i: OwnerQuoteEmailInput): { subject: strin
 export type QuoteReminderKind = "day3" | "expiry";
 /** Decisions 88/89/134: a short reminder 3 days after the quote is sent, and again 2 days before the price expires. */
 export function renderQuoteReminderEmail(i: OwnerQuoteEmailInput & { kind: QuoteReminderKind }): { subject: string; html: string; text: string } {
-  const f = quoteFigures(i);
+  const f = quoteFigures(i, "Your rebate");
   const first = f.name ?? "there";
   const held = i.validUntil ? formatQuoteValidUntilShort(i.validUntil) : null;
+  const thirty = i.validDays === 30 && i.validUntil ? i.validUntil : null;
   const subject = i.kind === "expiry" && held ? `${first}, your quote price is held until ${held}` : `${first}, your quote is waiting`;
   const headline = `${first}, your quote is waiting`;
   const off = f.rebate ? ` with ${esc(K.whole(f.rebate))} off` : "";
   // The main line (also the inbox preview), then "Just checking you saw it." (day 3) and the questions line.
-  const coreHtml = i.kind === "expiry"
+  const coreHtml = thirty
+    ? i.kind === "expiry"
+      ? `Your quote is valid for ${QUOTE_VALID_DAYS} days, until <strong>${esc(formatQuoteValidUntil(thirty))}</strong>. Accept by then to keep your price${off}.`
+      : `${f.rebate ? `Your ${esc(K.whole(f.rebate))} rebate is ready to go. ` : ""}${esc(quoteValidLine(thirty))}`
+    : i.kind === "expiry"
     ? held ? `Your price is held until <strong>${esc(held)}</strong>. Accept by then to keep your price${off}.` : `Your price won't be held much longer. Accept soon to keep your price${off}.`
     : f.rebate
       ? `Your ${esc(K.whole(f.rebate))} rebate is ready to go${held ? `, and your price is held until ${esc(held)}.` : "."}`

@@ -77,7 +77,7 @@ export async function loadOwnerQuoteFacts(
   const { CUSTOMER_BASE } = await import("./engagement.core");
   const { fullAddress } = await import("./address");
   const { firstName } = await import("./worker-links.core");
-  const { quoteExpiresAt } = await import("./quote-expiry.core");
+  const { quoteExpiresAt, quoteValidDaysFor } = await import("./quote-expiry.core");
   const { lastValidInstant, safetyCheckPriceFromLines } = await import("./owner-quote-email.core");
   // Lines/address are best-effort presentation: a failed read shows fewer details, never a wrong number.
   const lines = ie
@@ -152,6 +152,8 @@ export async function loadOwnerQuoteFacts(
         quote.kind === "installation" && quote.sent_at
           ? lastValidInstant(quoteExpiresAt(quote.sent_at))
           : null,
+      // Decision #30: 30-day quotes get the "valid for 30 days, until" wording in the reminders; older quotes keep 14 days.
+      ...(quote.kind === "installation" && quote.sent_at ? { validDays: quoteValidDaysFor(quote.sent_at) } : {}),
       officePhone: null,
       safetyCheckPrice: safetyCheckPriceFromLines(lines),
       subtotalIncGst: quote.subtotal_inc_gst == null ? null : Number(quote.subtotal_inc_gst),

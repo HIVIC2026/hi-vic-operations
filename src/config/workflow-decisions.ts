@@ -77,6 +77,17 @@ export const WORKFLOW_DECISIONS = {
     mustBe: "installation_commenced_within_window",
     status: "operational_rule_pending_written_confirmation",
   },
+  // Decision #30 (Jo 2 Nov 2026): quotes valid 30 days; quotes sent before the change keep 14 (quote-expiry.core).
+  quoteValidity: {
+    validDays: 30,
+    beforeChangeValidDays: 14,
+    changeStartsAt: "QUOTE_30_DAY_FROM_ISO (null until the release commit sets it)",
+    ownerReminders: ["3_days_after_sent", "2_days_before_expiry"],
+    onExpiry: "job_closes_and_quote_expired_email_once",
+    cancelReasons: ["Quote expired (30 days)", "Quote expired (14 days)"],
+    emailWording: "Your quote is valid for 30 days, until {date}",
+    reminderTextsKeep: "held until (decision 32, approved as is)",
+  },
   partnerPeople: {
     // Decision 402 (Jo 26 Oct 2026): approving/activating a business approves its pending people whose certification is office-verified.
     autoApproveWithBusiness: {

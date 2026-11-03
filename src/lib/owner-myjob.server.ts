@@ -108,8 +108,8 @@ export async function resolveOwnerJob(token: unknown) {
   } : null;
   const limits = (ws?.office_time_limits ?? {}) as Record<string, unknown>;
   let currentAction: Exclude<import('./owner-myjob.core').OwnerScreen,'home'|'done'> | null = null;
-  const {QUOTE_EXPIRED_CANCEL_REASON,quoteIsExpired}=await import('./quote-expiry.core');
-  if (stage === 'cancelled' && j.cancelled_reason === QUOTE_EXPIRED_CANCEL_REASON) currentAction='newquote';
+  const {isQuoteExpiredCancelReason,quoteIsExpired}=await import('./quote-expiry.core');
+  if (stage === 'cancelled' && isQuoteExpiredCancelReason(j.cancelled_reason)) currentAction='newquote';
   if (!['cancelled','on_hold'].includes(stage)) {
     const taps = await (await import('./quick-taps.server')).quickTapsState(String(token));
     const turn = stage === 'ready_check_ready_to_schedule' && !inHouseDispatch ? await (await import('./spot-release.server')).ownerTurnState(jobId) : {kind:'closed'};
