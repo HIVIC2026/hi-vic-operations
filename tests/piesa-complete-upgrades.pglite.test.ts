@@ -66,6 +66,23 @@ async function seedJob(o: { snap: Snap; channel?: string; stage?: string; assess
 }
 
 const admin = postgrestShim(db);
+// Fix round 1: database faults a test can switch on — the same-day record insert, or the earlier-records count read.
+const faults = { postInsert: null as string | null, priorRead: false };
+const failing = (message: string) => {
+  const r = { data: null, count: null, error: { message } };
+  const p: unknown = new Proxy({}, { get: (_t, k) => (k === "then" ? (res: (v: unknown) => void) => res(r) : () => p) });
+  return p;
+};
+const realFrom = admin.from.bind(admin);
+(admin as { from: (t: string) => unknown }).from = (t: string) => {
+  const b = realFrom(t) as unknown as Record<string, (...a: unknown[]) => unknown>;
+  if (t === "piesa_records") {
+    const ins = b["insert"]!.bind(b), sel = b["select"]!.bind(b);
+    b["insert"] = (row: unknown) => (faults.postInsert && (row as { kind?: string })?.kind === "post_rectification" ? failing(faults.postInsert) : ins(row));
+    b["select"] = (cols: unknown, o: unknown) => (faults.priorRead && (o as { head?: boolean } | undefined)?.head ? failing("read timeout") : sel(cols, o));
+  }
+  return b;
+};
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: admin }));
 const realWorkflow = await import("../src/lib/workflow.server");
 const stageOf = async (job: string) => (await db.query<{ stage: string }>("select stage from jobs where id=$1", [job])).rows[0]!.stage;
@@ -106,6 +123,8 @@ const cls = await import("../src/lib/certificate-later.server");
 const auto = await import("../src/lib/own-job-piesa-complete.server");
 const ownCore = await import("../src/lib/own-job-piesa.core");
 const needsCore = await import("../src/lib/office-needs.core");
+const pc = await import("../src/lib/piesa-complete.server");
+const sameDay = await import("../src/lib/same-day-part-c.core");
 
 const records = async (j: string, kind?: string) => (await db.query<{ kind: string; outcome: string; completed_date: string; section_c_signed_at: string | null; signed_off_by: string | null; is_current: boolean }>(
   `select kind, outcome, completed_date::text, section_c_signed_at::text, signed_off_by, is_current from piesa_records where job_id=$1 ${kind ? "and kind=$2" : ""} order by created_at`, kind ? [j, kind] : [j])).rows;
@@ -151,7 +170,7 @@ describe("Complete PIESA — upgrades needed, electrician quotes the owner direc
   });
 
   test("(b) the Part C date is the certificate date on the answers when given", async () => {
-    const { j } = await seedJob({ snap: { upgrades: "Yes", today: "Yes", certNow: "No", certDate: "2026-11-02" } });
+    const { j } = await seedJob({ snap: { upgrades: "Yes", today: "Yes", certNow: "No", certDate: "2026-11-02" }, assessedOn: "2026-11-01" });
     expect(await run(j)).toBe("");
     expect(await records(j, "post_rectification")).toMatchObject([{ completed_date: "2026-11-02" }]);
   });
@@ -194,13 +213,13 @@ describe("Complete PIESA — upgrades needed, electrician quotes the owner direc
 describe("Installer's own job: the Mitti sync completes the PIESA itself", () => {
   test("(d) a Complete A3 at PIESA booked auto-completes once, signed off by the electrician", async () => {
     const { j, auditId } = await seedJob({ snap: { upgrades: "Yes", today: "Yes", certNow: "No" } });
-    expect(await auto.autoCompleteOwnJobPiesa(j, auditId, null)).toBe("completed");
+    expect(await auto.autoCompleteOwnJobPiesa(j, auditId, null, "2026-11-04T01:00:00Z")).toBe("completed");
     expect(await stageOf(j)).toBe("installation_scheduling");
     expect(await records(j, "initial")).toMatchObject([{ signed_off_by: U_ELEC }]);
     expect(await records(j, "post_rectification")).toHaveLength(1);
     expect(await events(j, ownCore.PIESA_AUTO_COMPLETED_EVENT)).toHaveLength(1);
     // A re-sync of the same form does nothing (the PIESA is no longer at booked).
-    expect(await auto.autoCompleteOwnJobPiesa(j, auditId, null)).toBe("not_due");
+    expect(await auto.autoCompleteOwnJobPiesa(j, auditId, null, "2026-11-04T01:00:00Z")).toBe("not_due");
     expect(await records(j)).toHaveLength(2);
   });
 
@@ -208,8 +227,8 @@ describe("Installer's own job: the Mitti sync completes the PIESA itself", () =>
     const { j, auditId } = await seedJob({ snap: { upgrades: "Yes", today: "No" } });
     entryBlock = "Owner paperwork not signed";
     try {
-      expect(await auto.autoCompleteOwnJobPiesa(j, auditId, null)).toBe("held");
-      expect(await auto.autoCompleteOwnJobPiesa(j, auditId, null)).toBe("already");
+      expect(await auto.autoCompleteOwnJobPiesa(j, auditId, null, "2026-11-04T01:00:00Z")).toBe("held");
+      expect(await auto.autoCompleteOwnJobPiesa(j, auditId, null, "2026-11-04T01:00:00Z")).toBe("already");
     } finally { entryBlock = null; }
     expect(await stageOf(j)).toBe("piesa_scheduled");
     const held = await events(j, ownCore.OWN_JOB_PIESA_COMPLETE_HELD_EVENT);
@@ -228,7 +247,7 @@ describe("Installer's own job: the Mitti sync completes the PIESA itself", () =>
 
   test("(e) an HIV lead is not auto-completed (the electrician or office presses Complete PIESA)", async () => {
     const { j, auditId } = await seedJob({ snap: { upgrades: "No" }, channel: "hivic_sourced" });
-    expect(await auto.autoCompleteOwnJobPiesa(j, auditId, null)).toBe("not_own_job");
+    expect(await auto.autoCompleteOwnJobPiesa(j, auditId, null, "2026-11-04T01:00:00Z")).toBe("not_own_job");
     expect(await stageOf(j)).toBe("piesa_scheduled");
     expect(await events(j, ownCore.PIESA_AUTO_COMPLETED_EVENT)).toHaveLength(0);
   });
@@ -236,22 +255,140 @@ describe("Installer's own job: the Mitti sync completes the PIESA itself", () =>
   test("(e) an in-house partner job is not auto-completed", async () => {
     const { j, auditId } = await seedJob({ snap: { upgrades: "No" } });
     inHouseJobs.add(j);
-    expect(await auto.autoCompleteOwnJobPiesa(j, auditId, null)).toBe("not_own_job");
+    expect(await auto.autoCompleteOwnJobPiesa(j, auditId, null, "2026-11-04T01:00:00Z")).toBe("not_own_job");
     expect(await stageOf(j)).toBe("piesa_scheduled");
   });
 
   test("not at PIESA booked → nothing claimed", async () => {
     const { j, auditId } = await seedJob({ snap: { upgrades: "No" }, stage: "piesa_and_install_window_pending" });
-    expect(await auto.autoCompleteOwnJobPiesa(j, auditId, null)).toBe("not_due");
+    expect(await auto.autoCompleteOwnJobPiesa(j, auditId, null, "2026-11-04T01:00:00Z")).toBe("not_due");
     expect(await events(j, ownCore.PIESA_AUTO_COMPLETED_EVENT)).toHaveLength(0);
   });
 
   test("wiring: the A3 sync calls the auto-complete on a Complete form only; the office reads the held row", () => {
     const sync = readFileSync("src/lib/mitti.server.ts", "utf8");
-    expect(sync).toMatch(/if \(completed\) await \(await import\("\.\/own-job-piesa-complete\.server"\)\)\.autoCompleteOwnJobPiesa\(jobId, a\.external_mitti_id, actorId\)/);
+    expect(sync).toMatch(/if \(completed\) await \(await import\("\.\/own-job-piesa-complete\.server"\)\)\.autoCompleteOwnJobPiesa\(jobId, a\.external_mitti_id, actorId, plan\.modifiedAt \?\? null\)/);
     const needs = readFileSync("src/lib/office-needs.server.ts", "utf8");
     expect(needs).toContain("ownJobPiesaCompleteHeldOpen");
     const link = readFileSync("src/lib/electrician-link.server.ts", "utf8");
     expect(link).toContain("const piesaDone = piesaDoneAtStage(stage);");
+  });
+});
+
+describe("Fix round 1", () => {
+  test("1. the held row is internal (never on the no-login worker job link)", async () => {
+    const { j, auditId } = await seedJob({ snap: { upgrades: "Yes", today: "No" } });
+    entryBlock = "Owner paperwork not signed";
+    try { expect(await auto.autoCompleteOwnJobPiesa(j, auditId, null, "m1")).toBe("held"); } finally { entryBlock = null; }
+    const rows = (await db.query<{ internal: boolean }>("select internal from workflow_events where job_id=$1 and event_type=$2", [j, ownCore.OWN_JOB_PIESA_COMPLETE_HELD_EVENT])).rows;
+    expect(rows).toEqual([{ internal: true }]);
+    // The office Needs read does not filter on internal, so the row still shows there.
+    const needs = readFileSync("src/lib/office-needs.server.ts", "utf8");
+    const read = needs.slice(needs.indexOf("own job safety check not completed"), needs.indexOf("own job safety check not completed") + 400);
+    expect(read).not.toContain("internal");
+  });
+
+  test("2. a database error on the same-day record → PIESA complete stands, next step set, ONE office row; a retry writes it once", async () => {
+    const { j, auditId } = await seedJob({ snap: { upgrades: "Yes", today: "Yes", certNow: "No" }, item: { description: "Replace split conduit" } });
+    faults.postInsert = "database timeout";
+    try {
+      expect(await run(j)).toBe("");
+      // A retry that fails again adds no second office row.
+      expect(await pc.retrySameDayPartC(j, null)).toBe("failed");
+    } finally { faults.postInsert = null; }
+    expect((await db.query("select status from assessments where job_id=$1", [j])).rows).toEqual([{ status: "complete" }]);
+    expect(await stageOf(j)).toBe("piesa_complete");
+    expect((await db.query("select next_action from jobs where id=$1", [j])).rows).toEqual([{ next_action: "Same-day Part C record failed — database timeout" }]);
+    const failed = (await db.query<{ internal: boolean; details: Record<string, unknown> }>("select internal, details from workflow_events where job_id=$1 and event_type=$2", [j, sameDay.SAME_DAY_PART_C_FAILED_EVENT])).rows;
+    expect(failed).toHaveLength(1);
+    expect(failed[0]).toMatchObject({ internal: true, details: { audit_id: auditId, reason: "database timeout", needs_office: true } });
+    expect(await records(j, "post_rectification")).toHaveLength(0);
+    // The office sees it.
+    const evRows = async () => (await db.query<{ event_type: string; created_at: string; details: Record<string, unknown> }>("select event_type, created_at::text, details from workflow_events where job_id=$1 and event_type = any($2)", [j, [sameDay.SAME_DAY_PART_C_FAILED_EVENT, sameDay.SAME_DAY_PART_C_RECOVERED_EVENT]])).rows;
+    const open = sameDay.sameDayPartCFailedOpen(await evRows());
+    expect(open).toMatchObject({ reason: "database timeout" });
+    const rows = needsCore.needsCandidates({ jobId: j, jobNumber: "HV-1", sameDayPartCFailed: open } as never, Date.now());
+    expect(rows.find((r) => r.kind === "same_day_part_c_failed")).toMatchObject({ line: "Same-day Part C record failed — database timeout", button: { label: "Open job" } });
+    // A later sync writes the missing record once and the job moves on.
+    expect(await pc.retrySameDayPartC(j, null)).toBe("recorded");
+    expect(await records(j, "post_rectification")).toHaveLength(1);
+    expect(await stageOf(j)).toBe("installation_scheduling");
+    expect((await db.query("select status from rectification_items where job_id=$1", [j])).rows).toEqual([{ status: "completed" }]);
+    expect((await db.query<{ next_action: string | null }>("select next_action from jobs where id=$1", [j])).rows[0]!.next_action).toBeNull();
+    expect(sameDay.sameDayPartCFailedOpen(await evRows())).toBeNull();
+    expect(await pc.retrySameDayPartC(j, null)).toBe("none");
+    expect(await records(j, "post_rectification")).toHaveLength(1);
+  });
+
+  test("2. the office Complete PIESA press also writes a missing same-day record", async () => {
+    const { j } = await seedJob({ snap: { upgrades: "Yes", today: "Yes", certNow: "No" } });
+    faults.postInsert = "database timeout";
+    try { expect(await run(j)).toBe(""); } finally { faults.postInsert = null; }
+    expect(await records(j, "post_rectification")).toHaveLength(0);
+    expect(await run(j)).toBe("");
+    expect(await records(j, "post_rectification")).toHaveLength(1);
+    expect(await stageOf(j)).toBe("installation_scheduling");
+    expect(await run(j)).toMatch(/already complete/);
+  });
+
+  test("2. nothing to retry: not a same-day form, or the record is already there", async () => {
+    const { j } = await seedJob({ snap: { upgrades: "Yes", today: "No" } });
+    expect(await run(j)).toBe("");
+    expect(await pc.retrySameDayPartC(j, null)).toBe("none");
+    const b = await seedJob({ snap: { upgrades: "Yes", today: "Yes", certNow: "No" } });
+    expect(await run(b.j)).toBe("");
+    expect(await pc.retrySameDayPartC(b.j, null)).toBe("none");
+    expect(await records(b.j, "post_rectification")).toHaveLength(1);
+  });
+
+  test("2. wiring: a sync of a completed assessment retries the missing same-day record", () => {
+    const sync = readFileSync("src/lib/mitti.server.ts", "utf8");
+    expect(sync).toMatch(/if \(a\.status === "complete"\) \{\s*locked = true;\s*await \(await import\("\.\/piesa-complete\.server"\)\)\.retrySameDayPartC\(jobId, actorId\)/);
+    const needs = readFileSync("src/lib/office-needs.server.ts", "utf8");
+    expect(needs).toContain("sameDayPartCFailedOpen");
+  });
+
+  test("3. a refusal is retried when the form is edited (new modified time), never on an unchanged re-sync", async () => {
+    const { j, auditId } = await seedJob({ snap: { upgrades: "Yes", today: "No" } });
+    entryBlock = "Owner paperwork not signed";
+    try {
+      expect(await auto.autoCompleteOwnJobPiesa(j, auditId, null, "2026-11-04T01:00:00Z")).toBe("held");
+      expect(await auto.autoCompleteOwnJobPiesa(j, auditId, null, "2026-11-04T01:00:00Z")).toBe("already");
+      entryBlock = "Owner paperwork still not signed";
+      expect(await auto.autoCompleteOwnJobPiesa(j, auditId, null, "2026-11-04T02:00:00Z")).toBe("held");
+      expect(await auto.autoCompleteOwnJobPiesa(j, auditId, null, "2026-11-04T02:00:00Z")).toBe("already");
+    } finally { entryBlock = null; }
+    const held = (await db.query<{ event_type: string; created_at: string; details: Record<string, unknown> }>("select event_type, created_at::text, details from workflow_events where job_id=$1 and event_type=$2", [j, ownCore.OWN_JOB_PIESA_COMPLETE_HELD_EVENT])).rows;
+    expect(held).toHaveLength(2);
+    // One office row: the newest reason.
+    expect(ownCore.ownJobPiesaCompleteHeldOpen(held, "piesa_scheduled")).toMatchObject({ reason: "PIESA cannot be completed yet: Owner paperwork still not signed" });
+    expect(await auto.autoCompleteOwnJobPiesa(j, auditId, null, "2026-11-04T03:00:00Z")).toBe("completed");
+    expect(await stageOf(j)).toBe("piesa_complete");
+  });
+
+  test("4. an unreadable earlier-records read leaves the assessment incomplete and retryable", async () => {
+    const { j } = await seedJob({ snap: { upgrades: "Yes", today: "No" } });
+    faults.priorRead = true;
+    try { expect(await run(j)).toMatch(/earlier PIESA records could not be read/); } finally { faults.priorRead = false; }
+    expect((await db.query("select status from assessments where job_id=$1", [j])).rows).toEqual([{ status: "draft" }]);
+    expect(await stageOf(j)).toBe("piesa_scheduled");
+    expect(await records(j)).toHaveLength(0);
+    expect(await run(j)).toBe("");
+    expect(await stageOf(j)).toBe("piesa_complete");
+  });
+
+  test("5. the sync header names its two exceptions", () => {
+    const head = readFileSync("src/lib/mitti.server.ts", "utf8").split("\n").slice(0, 8).join("\n");
+    expect(head).toMatch(/A4/);
+    expect(head).toMatch(/post_rectification/);
+    expect(head).toMatch(/own job/i);
+    expect(head).toMatch(/Complete PIESA/);
+  });
+
+  test("6. a certificate date before the safety check date uses the safety check date", () => {
+    expect(pc.partCDate({ certDate: "2026-10-30" }, "2026-11-01")).toBe("2026-11-01");
+    expect(pc.partCDate({ certDate: "2026-11-02" }, "2026-11-01")).toBe("2026-11-02");
+    expect(pc.partCDate({ certDate: "2026-11-01" }, "2026-11-01")).toBe("2026-11-01");
+    expect(pc.partCDate({}, "2026-11-01")).toBe("2026-11-01");
   });
 });

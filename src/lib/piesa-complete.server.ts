@@ -20,6 +20,8 @@ export async function completePiesaAssessment(data: CompletePiesaInput, userId: 
   if (a.status === "complete") {
     // Batch 1 task 6: after a reopen the earlier check no longer counts; the new one is recorded as a reassessment.
     if (await (await import("./repeat-piesa.server")).currentPiesaSupersededByReopen(data.jobId)) throw new WorkflowError((await import("./repeat-piesa.core")).SUPERSEDED_USE_REASSESSMENT);
+    // Fix 1: a same-day Part C record that failed after completion is written by pressing Complete PIESA again.
+    if ((await retrySameDayPartC(data.jobId, userId)) === "recorded") return { advanced: true, scope: (await (await import("./requirements.server")).jobScope(data.jobId)).scope };
     throw new WorkflowError("Electrical assessment is already complete.");
   }
   const { jobScope, advanceSiteRequirements } = await import("./requirements.server");
@@ -91,11 +93,12 @@ export async function completePiesaAssessment(data: CompletePiesaInput, userId: 
     const entry = await stageEntryBlockers(data.jobId, "piesa_complete", userId);
     if (entry.length) throw new WorkflowError(`PIESA cannot be completed yet: ${entry.join(" ")}`);
   }
-  const now = new Date().toISOString();
-  await admin.from("assessments").update({ status: "complete", completed_at: now, assessor_id: a.assessor_id ?? userId, mitti_sync_status: a.external_mitti_id ? "synced" : "not_synced" }).eq("id", a.id);
   // Jo 29 Oct 2026: a repeat PIESA (its own new Mitti form) is recorded as a reassessment; the first check stays on record.
+  // Read BEFORE the assessment is marked complete, so an unreadable read leaves nothing half-written and it can be retried.
   const { count: prior, error: priorError } = await admin.from("piesa_records").select("id", { count: "exact", head: true }).eq("job_id", data.jobId).in("kind", ["initial", "reassessment"]);
   if (priorError) throw new WorkflowError("The earlier PIESA records could not be read, so the PIESA was not recorded. Please try again.");
+  const now = new Date().toISOString();
+  await admin.from("assessments").update({ status: "complete", completed_at: now, assessor_id: a.assessor_id ?? userId, mitti_sync_status: a.external_mitti_id ? "synced" : "not_synced" }).eq("id", a.id);
   await admin.from("piesa_records").update({ is_current: false }).eq("job_id", data.jobId).eq("is_current", true);
   await admin.from("piesa_records").insert({ job_id: data.jobId, assessment_id: a.id, kind: piesaCompletionKind(prior ?? 0), outcome: a.piesa_outcome, completed_date: a.assessed_on!, signed_off_by: userId, external_mitti_id: a.external_mitti_id });
   // The safety check visit is done: mark the confirmed assessment booking completed so the electrician's pay line shows in the
@@ -132,20 +135,82 @@ export async function completePiesaAssessment(data: CompletePiesaInput, userId: 
 }
 
 /** Part 3 Task 4b: the Part C date on a same-day A3 — the certificate date when the answers give a valid one (not in the
- *  future), else the safety check date. Melbourne calendar dates. */
+ *  future, not before the safety check), else the safety check date. Melbourne calendar dates. */
 export function partCDate(short: Record<string, unknown>, assessedOn: string): string {
+  const checked = assessedOn.slice(0, 10);
   const d = String(short["certDate"] ?? "").trim().slice(0, 10);
-  return /^\d{4}-\d{2}-\d{2}$/.test(d) && piesaDateBlockers(d).length === 0 ? d : assessedOn.slice(0, 10);
+  // Fix 1: Part C can't be signed before the safety check itself, so an earlier certificate date uses the check date.
+  return /^\d{4}-\d{2}-\d{2}$/.test(d) && piesaDateBlockers(d).length === 0 && d >= checked ? d : checked;
 }
 
 /** The same-day Part C record (once per A3 form; a repeat is a no-op in applyPiesaRecord). A standing stage guard on the move
- *  to installation scheduling keeps the job where it is with the reason as its next step — the PIESA completion stands. */
-async function recordSameDayPartC(jobId: string, userId: string, auditId: string, date: string) {
-  const { applyPiesaRecord } = await import("./piesa-record.server");
+ *  to installation scheduling keeps the job where it is with the reason as its next step — the PIESA completion stands.
+ *  Fix 1: ANY other error never strands the job either: the reason goes in the next step and ONE internal office row
+ *  (`same_day_part_c_failed`, one per form) is logged; the completion carries on, and a later sync or Complete PIESA press
+ *  writes the record (retrySameDayPartC). Never throws. */
+async function recordSameDayPartC(jobId: string, userId: string | null, auditId: string, date: string): Promise<"recorded" | "failed"> {
   try {
-    await applyPiesaRecord({ jobId, actorId: userId, kind: "post_rectification", outcome: "pass", completedDate: date, sectionCSignedDate: date, notes: `Electrical upgrades done on the safety check visit (Part C on the Mitti PIESA form ${auditId}).`, source: { kind: "mitti_a3_same_day", auditId } });
+    const { applyPiesaRecord } = await import("./piesa-record.server");
+    try {
+      await applyPiesaRecord({ jobId, actorId: userId, kind: "post_rectification", outcome: "pass", completedDate: date, sectionCSignedDate: date, notes: `Electrical upgrades done on the safety check visit (Part C on the Mitti PIESA form ${auditId}).`, source: { kind: "mitti_a3_same_day", auditId } });
+    } catch (e) {
+      if (!(e instanceof WorkflowError)) throw e;
+      await admin.from("jobs").update({ next_action: e.message.replace(/^Blocked:\s*/, "") }).eq("id", jobId);
+    }
+    return "recorded";
   } catch (e) {
-    if (!(e instanceof WorkflowError)) throw e;
-    await admin.from("jobs").update({ next_action: e.message.replace(/^Blocked:\s*/, "") }).eq("id", jobId);
+    const reason = (e instanceof Error ? e.message : "").trim() || "unknown error";
+    console.error("same-day Part C record failed", jobId, reason);
+    try {
+      const { SAME_DAY_PART_C_FAILED_EVENT, sameDayPartCFailedLine } = await import("./same-day-part-c.core");
+      const line = sameDayPartCFailedLine(reason);
+      const { error: naErr } = await admin.from("jobs").update({ next_action: line }).eq("id", jobId);
+      if (naErr) console.error("same-day Part C next step not set", jobId, naErr.message);
+      const { stableUuid, isUniqueViolation } = await import("./mitti-create-claim.core");
+      const { error: evErr } = await admin.from("workflow_events").insert({
+        id: await stableUuid(`same-day-part-c-failed:${jobId}:${auditId}`), job_id: jobId, actor_id: userId, event_type: SAME_DAY_PART_C_FAILED_EVENT,
+        summary: line, details: { audit_id: auditId, reason, needs_office: true }, internal: true,
+      });
+      if (evErr && !isUniqueViolation(evErr)) console.error("same-day Part C office row not recorded", jobId, evErr.message);
+    } catch (e2) { console.error("same-day Part C failure not recorded", jobId, e2 instanceof Error ? e2.message : "error"); }
+    return "failed";
+  }
+}
+
+/** Fix 1: write a missing same-day Part C record. Runs on every sync of a completed A3 and on a repeat Complete PIESA press.
+ *  Only when the stored A3 is a live same-day form (upgrades needed, done today with Part C), the job is past PIESA complete
+ *  but before installation scheduling, and either no same-day record exists for this form or its failure row is open.
+ *  Signed off by whoever signed the PIESA. Fail-closed (an unreadable read does nothing) and never throws. */
+export async function retrySameDayPartC(jobId: string, actorId: string | null): Promise<"recorded" | "failed" | "none"> {
+  try {
+    const { data: a, error } = await admin.from("assessments").select("status, external_mitti_id, mitti_raw_snapshot, assessed_on").eq("job_id", jobId).maybeSingle();
+    if (error || !a || a.status !== "complete" || !a.external_mitti_id || !a.assessed_on) return "none";
+    const { isLiveA3Snapshot, shortAnswersFromEntries } = await import("./official-short.core");
+    if (!electricianBillsUpgrades() || !isLiveA3Snapshot(a.mitti_raw_snapshot)) return "none";
+    const short = shortAnswersFromEntries("piesa", (a.mitti_raw_snapshot as { label: string; value: string | null }[] | null) ?? []);
+    if (!/^yes\b/i.test(String(short["rectificationNeeded"] ?? "").trim()) || !piesaRectificationDone(short)) return "none";
+    const core = await import("./same-day-part-c.core");
+    if (!(core.SAME_DAY_PART_C_RETRY_STAGES as readonly string[]).includes(await getStage(jobId))) return "none";
+    const auditId = a.external_mitti_id;
+    const [{ data: rec, error: recErr }, { data: evs, error: evErr }, { data: signer, error: sErr }] = await Promise.all([
+      admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "piesa_recorded").contains("details", { source: "mitti_a3_same_day", audit_id: auditId }).limit(1),
+      admin.from("workflow_events").select("event_type, created_at, details").eq("job_id", jobId).in("event_type", [core.SAME_DAY_PART_C_FAILED_EVENT, core.SAME_DAY_PART_C_RECOVERED_EVENT]),
+      admin.from("piesa_records").select("signed_off_by").eq("job_id", jobId).in("kind", ["initial", "reassessment"]).order("created_at", { ascending: false }).limit(1),
+    ]);
+    if (recErr || evErr || sErr) return "none";
+    const failedOpen = core.sameDayPartCFailedOpen(((evs ?? []) as { event_type: string; created_at: string; details: Record<string, unknown> | null }[]).filter((e) => e.details?.["audit_id"] === auditId));
+    if ((rec ?? []).length && !failedOpen) return "none";
+    const userId = ((signer ?? []) as { signed_off_by: string | null }[])[0]?.signed_off_by ?? actorId;
+    const r = await recordSameDayPartC(jobId, userId, auditId, partCDate(short, a.assessed_on));
+    if (r === "recorded" && failedOpen) {
+      await logEvent(jobId, actorId, core.SAME_DAY_PART_C_RECOVERED_EVENT, "Same-day Part C record written", { audit_id: auditId }, { internal: true });
+      // Clear our own next step only (a stage guard's reason, set just now, stays).
+      const { data: j } = await admin.from("jobs").select("next_action").eq("id", jobId).maybeSingle();
+      if (String(j?.next_action ?? "").startsWith(core.SAME_DAY_PART_C_FAILED_PREFIX)) await admin.from("jobs").update({ next_action: null }).eq("id", jobId);
+    }
+    return r;
+  } catch (e) {
+    console.error("same-day Part C retry skipped", jobId, e instanceof Error ? e.message : "error");
+    return "none";
   }
 }

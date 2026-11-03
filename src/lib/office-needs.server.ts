@@ -642,6 +642,17 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
       const x = f(id); if (x && open) x.ownJobPiesaCompleteHeld = open;
     }
   } catch { unavailable.push("own job safety check not completed"); }
+  // Part 3 Task 4b fix 1: the PIESA completed but its same-day Part C record failed → one row until a retry writes it.
+  try {
+    const { SAME_DAY_PART_C_FAILED_EVENT, SAME_DAY_PART_C_RECOVERED_EVENT, sameDayPartCFailedOpen } = await import("./same-day-part-c.core");
+    const ev = await all("same-day Part C record failures", (a, b) => scoped(admin.from("workflow_events").select("job_id, event_type, created_at, details")).in("event_type", [SAME_DAY_PART_C_FAILED_EVENT, SAME_DAY_PART_C_RECOVERED_EVENT]).order("created_at").range(a, b));
+    const byJob = new Map<string, Row[]>();
+    for (const e of ev) { const id = String(e["job_id"]); if (idSet.has(id)) byJob.set(id, [...(byJob.get(id) ?? []), e]); }
+    for (const [id, list] of byJob) {
+      const open = sameDayPartCFailedOpen(list.map((e) => ({ event_type: String(e["event_type"]), created_at: String(e["created_at"]), details: (e["details"] ?? null) as Record<string, unknown> | null })));
+      const x = f(id); if (x && open) x.sameDayPartCFailed = open;
+    }
+  } catch { unavailable.push("same-day Part C record failures"); }
   // A48 batch 1 task 5: the electrical certificate after the repairs waits for the office (AI unsure / not ceiling / error, or rejected).
   try {
     const { COES_CHECKED_EVENT, COES_REJECTED_EVENT } = await import("./coes-check.core");

@@ -1,6 +1,9 @@
 // The ONLY Mitti network boundary. Callers must already be authorised (see portal.functions.ts).
 // Token is read per call, never logged or returned. Sync populates assessment / measure-up data only —
-// never completes a requirement, approves compliance, moves stages or issues quotes.
+// never completes a requirement, approves compliance, moves stages or issues quotes. Two exceptions, both through the
+// one existing write path with its own checks: the A4 fixes-form sync writes the post_rectification PIESA record
+// (piesa-record.server), and on an installer's own job a Complete A3 runs Complete PIESA through its own gate
+// (own-job-piesa-complete.server → completePiesaAssessment, which may write the same-day Part C record).
 import type { Json } from "@/integrations/supabase/types";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
@@ -429,8 +432,10 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
   let locked = false;
 
   if (a?.external_mitti_id) {
-    if (a.status === "complete") locked = true;
-    else {
+    if (a.status === "complete") {
+      locked = true;
+      await (await import("./piesa-complete.server")).retrySameDayPartC(jobId, actorId);
+    } else {
       let plan;
       let audit: unknown = null;
       try {
@@ -529,7 +534,7 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
         if (completed) await (await import("./auto-fixes-quote-send.server")).maybeAutoSendFixesQuote(jobId, { actorId, generate: true });
         // Part 3 Task 4b (Jo 4 Nov 2026): installers' own jobs only — their electrician has no login, so a Complete A3 at PIESA
         // booked completes the PIESA itself, once per form; a refusal is one office row. HIV leads / in-house: pressed as before.
-        if (completed) await (await import("./own-job-piesa-complete.server")).autoCompleteOwnJobPiesa(jobId, a.external_mitti_id, actorId);
+        if (completed) await (await import("./own-job-piesa-complete.server")).autoCompleteOwnJobPiesa(jobId, a.external_mitti_id, actorId, plan.modifiedAt ?? null);
       }
     }
   }
