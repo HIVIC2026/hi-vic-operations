@@ -13,7 +13,8 @@ import { PIESA_OWNER_CONFIRMED_EVENT, PIESA_OWNER_CONFIRM_OFFICE_ALERT_EVENT } f
 import { FIXES_PAUSED_STAGES } from "./installer-screens.core";
 import { PIESA_FIXES_CONFIRMED_EVENT, PIESA_FIXES_CONFIRM_OFFICE_ALERT_EVENT } from "./piesa-fixes-confirm.core";
 import { FIXES_TIMES_GIVEN_EVENT, FIXES_TIMES_LINK_EVENT, fixesTimesMissing } from "./fixes-times.core";
-import { AUTO_FIXES_QUOTE_HELD_EVENT } from "./auto-fixes-quote-send.core";
+/** History only (Part 4 Task 14): the automatic fixes quote send is retired; rows it held earlier still show until resolved. */
+const AUTO_FIXES_QUOTE_HELD_EVENT = "fixes_quote_auto_send_held";
 import { PIESA_AUTOFORM_FAILED_EVENT, piesaFormFailedOpen } from "./piesa-autoform.core";
 import { prestartFailedFor } from "./prestart.core";
 import { endOfMelbourneYmd } from "./melbourne-time.core";

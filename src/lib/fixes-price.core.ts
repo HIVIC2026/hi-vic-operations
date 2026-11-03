@@ -12,7 +12,7 @@
  * decision 374 (we always choose the electrician there) (`fixesMarginFor`).
  * Decision 310 (Jo 25 Oct 2026): office-added fixes items are NOT added on top of the electrician's A3 total.
  * Decision 354: when the A3 is complete and every existing check passes, the fixes quote goes to the owner automatically
- * (auto-fixes-quote-send.{core,server}.ts); otherwise it stays a held draft on Needs me with the reason.
+ * (the automatic send was retired 2 Nov 2026, Part 4 Task 14); otherwise it stays a held draft on Needs me with the reason.
  */
 import { applyRectificationMargin, RECTIFICATION_MARGIN_INC_GST, type RectificationLine } from "./rectification-pricing.core";
 import { FIXES_DOWNLIGHT_OPTION, FIXES_OTHER_OPTION, FIXES_RCD_OPTION, fixesWorkTicks, fixesWorkWithOnsite } from "./official-short.core";

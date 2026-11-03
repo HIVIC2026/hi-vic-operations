@@ -13,7 +13,7 @@ test("old estimate and calculator links open Save my spot", () => {
 test("3-questions page has no photos box", () => { expect(code("src/routes/estimate_.$token.video.tsx")).not.toContain("photosTitle"); });
 test("My job home never shows", () => { expect(resolveOwnerScreen("home", {})).toBe("all_set"); });
 test("no owner message links to My job home", () => {
-  for (const f of ["veec-emails", "visit-new-times", "deposit-release-notice", "install-no-access-notice", "thirty-day-rule", "spot-saved-messages", "ready-check-booked-email", "safety-check-emails"]) expect(code(`src/lib/${f}.core.ts`)).not.toMatch(/See my job|See where you're up to/);
+  for (const f of ["veec-emails", "visit-new-times", "deposit-release-notice", "install-no-access-notice", "thirty-day-rule", "spot-saved-messages", "ready-check-booked-email", "install-days-email", "install-booked-email"]) expect(code(`src/lib/${f}.core.ts`)).not.toMatch(/See my job|See where you're up to/);
 });
 test("on-the-way SMS has no My job link (decisions 54-58 item 4)", async () => {
   const { visitNewTimesText } = await import("../src/lib/visit-new-times.core");

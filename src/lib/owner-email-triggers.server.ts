@@ -9,7 +9,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import { inHouseDispatchSkip } from "./in-house-suppression.server";
 import {
-  OWNER_EMAIL_LABEL, OWNER_EMAIL_TRIGGER_EVENT, OWNER_REVIEW_SCREEN_READY, REVIEW_REQUEST_AFTER_DAYS, REVIEW_REQUEST_LAST_DAY, dayMonthLabel, directMoveFrom, installDayMove, ownerEmailKey, quoteReminderDue,
+  OWNER_EMAIL_LABEL, OWNER_EMAIL_TRIGGER_EVENT, OWNER_REVIEW_SCREEN_READY, REVIEW_REQUEST_AFTER_DAYS, REVIEW_REQUEST_LAST_DAY, directMoveFrom, installDayMove, ownerEmailKey, quoteReminderDue,
   reviewRequestBlocker, reviewRequestDue, safetyCheckPaidAt, weekdayDayMonthLabel, youreInDue, type OwnerEmailCode, type QuoteReminderKind,
 } from "./owner-email-triggers.core";
 
@@ -29,98 +29,11 @@ export async function fireOwnerEmailOnce(jobId: string, code: OwnerEmailCode, ke
   }
 }
 
-/** The job's electrician as the owner sees them: trading name and the business OFFICE phone + email (never a worker's mobile). */
-async function electricianFor(jobId: string): Promise<{ name: string | null; phone: string | null; email: string | null }> {
-  const { businessContactForJob } = await import("./owner-contact.server");
-  const c = await businessContactForJob(jobId, "electrician");
-  if (!c) return { name: null, phone: null, email: null };
-  return { name: (c.tradingName || c.name || null)?.replace(/^\[TEST PARTNER\]\s*/, "") ?? null, phone: c.officePhone || null, email: c.email || null };
-}
+// Retired 2 Nov 2026 (Part 4 Task 14): O26 safety check times / booked, O29 fixes quote and O33 install days. The owner is
+// now told by the "You're booked" messages (in-house-booking.server), "upgrades needed" (upgrades-needed email) and the
+// installer calling to book the install day.
 
-/** Safety check amount the owner has paid (dollars), or null while it is not paid. */
-async function safetyCheckPaid(jobId: string): Promise<number | null> {
-  const { jobPaymentView } = await import("./payments.server");
-  const v = await jobPaymentView(jobId).catch(() => null);
-  const s = v?.steps.find((x) => x.key === "safety_check");
-  return v && s?.state === "paid" && v.plan.safetyCheckCents > 0 ? v.plan.safetyCheckCents / 100 : null;
-}
-
-// ---------- O26: safety check times / booked ----------
-
-/** O26: the electrician offered PIESA time(s) to the owner (piesa-times.server.ts, decision 333; old pilot.functions.ts proposeTime). */
-export async function onSafetyCheckTimesOffered(jobId: string, startsAt: string[]): Promise<string> {
-  const skipped = await inHouseDispatchSkip(jobId);
-  if (skipped) return skipped;
-  return fireOwnerEmailOnce(jobId, "O26", ownerEmailKey.safetyCheckTimes(jobId, startsAt), async () => {
-    const [el, paid] = await Promise.all([electricianFor(jobId), safetyCheckPaid(jobId)]);
-    const { emailOwnerSafetyCheckTimes } = await import("./approved-owner-emails.server");
-    return emailOwnerSafetyCheckTimes(jobId, startsAt, el.name, paid);
-  });
-}
-
-/** O26 booked version: the PIESA visit is booked (booking.server.ts confirmBooking, kind assessment). */
-export async function onSafetyCheckBooked(jobId: string, startIso: string, changed: boolean): Promise<string> {
-  const skipped = await inHouseDispatchSkip(jobId);
-  if (skipped) return skipped;
-  const el = await electricianFor(jobId).catch((e) => { console.error("owner email O26_booked: electrician read failed", jobId, errText(e)); return null; });
-  if (!el) return "not sent — electrician not read";
-  if (!el.name || !el.phone || !el.email) {
-    // Never a blank phone: no electrician office phone / business email → nothing sent, one internal office note.
-    const why = !el.name ? "No electrician on the job" : !el.phone ? `No office phone for ${el.name}` : `No business email for ${el.name}`;
-    await logEvent(jobId, null, "owner_booked_held", `"You're booked" (safety check) not sent: ${why}`, { kind: "piesa", startIso, reason: why }, { internal: true }).catch(() => {});
-    return `held — ${why}`;
-  }
-  return fireOwnerEmailOnce(jobId, "O26_booked", ownerEmailKey.safetyCheckBooked(jobId, startIso), async () => {
-    const { emailOwnerSafetyCheckBooked } = await import("./approved-owner-emails.server");
-    return emailOwnerSafetyCheckBooked(jobId, startIso, el, changed);
-  }, { changed });
-}
-
-// ---------- O29: electrical fixes quote ----------
-
-/** O29: the office sent the reviewed electrical fixes quote (allocation.functions.ts sendRectificationQuote). */
-export async function onFixesQuoteIssued(jobId: string, quoteId: string): Promise<string> {
-  const skipped = await inHouseDispatchSkip(jobId);
-  if (skipped) return skipped;
-  return fireOwnerEmailOnce(jobId, "O29", ownerEmailKey.fixesQuote(quoteId), async () => {
-    const { piesaStatus } = await import("./workflow.server");
-    const [{ data: q }, { data: items }, { data: found }, el, ps] = await Promise.all([
-      admin.from("quotes").select("customer_total_inc_gst, kind").eq("id", quoteId).eq("job_id", jobId).maybeSingle(),
-      admin.from("quote_items").select("description, line_total_inc_gst, sort").eq("quote_id", quoteId),
-      admin.from("rectification_items").select("description").eq("job_id", jobId).eq("status", "required"),
-      electricianFor(jobId),
-      piesaStatus(jobId),
-    ]);
-    if (!q || q.kind !== "rectification") return "not sent — fixes quote not found";
-    const lines = [...(items ?? [])].sort((a, b) => Number(a.sort ?? 0) - Number(b.sort ?? 0)).map((l) => ({ description: String(l.description ?? ""), lineTotalIncGst: Number(l.line_total_inc_gst) }));
-    const p = ps as { piesa_date?: string | null; install_deadline?: string | null } | null;
-    const { emailOwnerFixesQuote } = await import("./approved-owner-emails.server");
-    return emailOwnerFixesQuote(jobId, quoteId, {
-      electricianName: el.name, checkedOn: weekdayDayMonthLabel(p?.piesa_date ?? null),
-      found: (found ?? []).map((r) => String(r.description ?? "").trim()).filter(Boolean),
-      lines, totalIncGst: Number(q.customer_total_inc_gst), expiresOn: dayMonthLabel(p?.install_deadline ?? null),
-    });
-  });
-}
-
-// ---------- O33 / O42: install days ----------
-
-/** Owner's remaining balance after the safety check (the 10% deposit base), dollars; null without an invoice. */
-async function balanceAfterSafetyCheck(jobId: string): Promise<number | null> {
-  const v = await (await import("./payments.server")).jobPaymentView(jobId).catch(() => null);
-  return v ? Math.max(0, v.plan.quoteTotalCents - v.plan.safetyCheckCents) / 100 : null;
-}
-
-/** O33: the installer offered install days (install-days.server.ts installerOfferDays). `deadline` = YYYY-MM-DD install-by. */
-export async function onInstallDaysOffered(jobId: string, startsAt: string[], deadline: string | null): Promise<string> {
-  const skipped = await inHouseDispatchSkip(jobId);
-  if (skipped) return skipped;
-  return fireOwnerEmailOnce(jobId, "O33", ownerEmailKey.installDays(jobId, startsAt), async () => {
-    const balance = await balanceAfterSafetyCheck(jobId);
-    const { emailOwnerInstallDays } = await import("./approved-owner-emails.server");
-    return emailOwnerInstallDays(jobId, startsAt, balance, dayMonthLabel(deadline));
-  });
-}
+// ---------- O42: install day changed ----------
 
 /** The earlier booked start when this new installation booking follows an installer's day change; null otherwise. */
 export async function installDayMoveFor(jobId: string, newStart: string): Promise<string | null> {
@@ -227,88 +140,6 @@ export async function onSafetyCheckPaid(jobId: string, invoiceId: string): Promi
     console.error("owner email O22 skipped", jobId, errText(e));
     return `not sent — ${errText(e)}`;
   }
-}
-
-// ---------- O45: final invoice (decision 334) ----------
-
-/** Facts + due check for one job's final invoice; null when it is not due (with the reason). Read-only. */
-type FinalInvoiceDue = { ok: false; reason: string } | { ok: true; invoiceId: string; facts: ReturnType<typeof import("./final-invoice-email.core").finalInvoiceFacts> };
-async function finalInvoiceFor(jobId: string, now: Date): Promise<FinalInvoiceDue> {
-  const { finalInvoiceBlocker, finalInvoiceFacts } = await import("./final-invoice-email.core");
-  const [{ data: job }, { data: inv }] = await Promise.all([
-    admin.from("jobs").select("stage, deleted_at, qa_archived_at, installation_completed_at").eq("id", jobId).maybeSingle(),
-    admin.from("invoices").select("id, quote_id, total_inc_gst, total_paid, xero_invoice_id, xero_invoice_number, quotes(veec_discount_inc_gst, quote_items(code, description, quantity, unit_price_inc_gst, line_total_inc_gst, sort))").eq("job_id", jobId).eq("kind", "installation").order("created_at", { ascending: false }).limit(1).maybeSingle(),
-  ]);
-  if (!job) return { ok: false, reason: "Job not found" };
-  const { paymentLedger } = await import("./payments.server");
-  const ledger = inv ? await paymentLedger(jobId, inv.id) : [];
-  const quote = (inv?.quotes ?? null) as { veec_discount_inc_gst: number | string | null; quote_items: { code: string | null; description: string; quantity: number; unit_price_inc_gst: number; line_total_inc_gst: number; sort: number | null }[] } | null;
-  // Decision 209: the same itemised insulation wording as the Xero invoice (amounts untouched).
-  const { itemiseInvoiceLines } = await import("./invoice-itemisation.core");
-  const { installedProductFacts } = await import("./invoice-itemisation.server");
-  const items = quote ? itemiseInvoiceLines(quote.quote_items.map((q) => ({ ...q, sort: Number(q.sort ?? 0) })).sort((a, b) => a.sort - b.sort), await installedProductFacts(jobId)).items : [];
-  const facts = inv && job.installation_completed_at ? finalInvoiceFacts({
-    invoiceNumber: inv.xero_invoice_number ?? "", completedAt: job.installation_completed_at, items, invoiceTotalIncGst: inv.total_inc_gst,
-    veecIncentiveIncGst: quote?.veec_discount_inc_gst ?? null, ledger, totalPaid: inv.total_paid,
-  }) : null;
-  const done = inv ? (await recordedKeys([jobId], "O45")).has(ownerEmailKey.finalInvoice(inv.id)) : false;
-  const reason = finalInvoiceBlocker({
-    installationCompletedAt: job.installation_completed_at, stage: job.stage as string, deletedAt: job.deleted_at, qaArchivedAt: job.qa_archived_at,
-    invoice: inv ? { id: inv.id, xeroInvoiceId: inv.xero_invoice_id, xeroInvoiceNumber: inv.xero_invoice_number } : null,
-    balanceDueCents: facts?.balanceDueCents ?? 0, done,
-  }, now);
-  if (reason || !inv || !facts) return { ok: false, reason: reason ?? "No invoice facts" };
-  return { ok: true, invoiceId: inv.id as string, facts };
-}
-
-/**
- * O45 (decision 334): install recorded complete with a balance due → the final invoice email, once per invoice
- * (install-complete.server.ts recordInstallationComplete; the 15-minute sweep retries once the Xero invoice number exists).
- * Bank transfer only: the bank details come from HIV_BANK_* (payments.server bankDetails), the invoice number is the
- * reference. No Xero PDF is fetched (the Xero integration reads JSON only), so "Invoice PDF attached" is never printed.
- */
-export async function onFinalInvoiceDue(jobId: string, now = new Date()): Promise<string> {
-  try {
-    // Touchpoint 52: with the new All done email (tax invoice, rebate form and the balance in ONE email) there is no separate final-invoice email.
-    if ((await import("./completion-emails.core")).ALL_DONE_V2_APPROVED) return "not due — the balance is in the All done email";
-    const due = await finalInvoiceFor(jobId, now);
-    if (!due.ok) return `not due — ${due.reason}`;
-    const invoiceId = due.invoiceId;
-    const { balanceDueCents: _b, ...facts } = due.facts;
-    return fireOwnerEmailOnce(jobId, "O45", ownerEmailKey.finalInvoice(invoiceId), async () => {
-      const { bankDetails } = await import("./payments.server");
-      const { emailOwnerFinalInvoice } = await import("./approved-owner-emails.server");
-      return emailOwnerFinalInvoice(jobId, invoiceId, { ...facts, bank: bankDetails(), invoicePdfAttached: false });
-    }, { invoice_id: invoiceId, balance_due: facts.balanceDue });
-  } catch (e) {
-    console.error("owner email O45 skipped", jobId, errText(e));
-    return `not sent — ${errText(e)}`;
-  }
-}
-
-/** O45 retry on the 15-minute tick: installs recorded complete in the last FINAL_INVOICE_WITHIN_DAYS days. */
-export async function sweepFinalInvoices(now = new Date()): Promise<{ checked: number; sent: number }> {
-  const { FINAL_INVOICE_WITHIN_DAYS } = await import("./final-invoice-email.core");
-  const from = new Date(now.getTime() - FINAL_INVOICE_WITHIN_DAYS * 86_400_000).toISOString();
-  const { data: jobs, error } = await admin.from("jobs").select("id").gte("installation_completed_at", from).is("deleted_at", null).limit(500);
-  if (error) throw new Error(error.message);
-  // Perf 25 Oct 2026: a job whose latest installation invoice already has its O45 key recorded is "done" (the same
-  // `done` finalInvoiceFor computes after five reads per job); read both for every candidate at once and skip those.
-  const ids = (jobs ?? []).map((j) => j.id);
-  const { readByJobIds } = await import("./sweep-batch.server");
-  const { latestPerJob } = await import("./sweep-batch.core");
-  const [invoices, done] = await Promise.all([
-    readByJobIds<{ id: string; job_id: string | null; created_at: string }>("installation invoices", ids, (c) => admin.from("invoices").select("id, job_id, created_at").in("job_id", c).eq("kind", "installation")),
-    recordedKeysBatched(ids, "O45"),
-  ]);
-  const latestInvoice = latestPerJob(invoices);
-  let sent = 0;
-  for (const j of jobs ?? []) {
-    const inv = latestInvoice.get(j.id);
-    if (inv && done.has(ownerEmailKey.finalInvoice(inv.id))) continue;
-    if (/^sent\b/.test(await onFinalInvoiceDue(j.id, now))) sent++;
-  }
-  return { checked: (jobs ?? []).length, sent };
 }
 
 // ---------- 15-minute tick: O19 quote reminders, O51 review request ----------

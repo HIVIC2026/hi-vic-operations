@@ -8,7 +8,6 @@ import { DEFAULT_PIESA_INSTALL_GAP_DAYS, OWNER_STEPS, ownerAction, ownerCanCance
 import { splitForOption } from "./payment-gate.core";
 import { stepInvoiceKind } from "./payments.core";
 import { safetyCheckIncGstFor } from "./safety-check-amount.core";
-import { section1FromFacts } from "./consent.core";
 import { SPOT_RELEASE_EVENTS } from "./spot-release.core";
 
 const n = (v: unknown) => Number(v ?? 0) || 0;
@@ -43,10 +42,9 @@ export async function resolveOwnerJob(token: unknown) {
     admin.from("workflow_settings").select("office_time_limits, piesa_install_window_days, safety_check_payment_inc_gst").eq("id", 1).maybeSingle(),
   ]);
   if (!j) return null;
-  const [{ data: rc }, { data: spot }, { data: consent }, { data: cancellableBookings }, { data: veecRows }, released] = await Promise.all([
+  const [{ data: rc }, { data: spot }, { data: cancellableBookings }, { data: veecRows }, released] = await Promise.all([
     admin.from("ready_check_acceptances").select("accepted_at").eq("job_id", jobId).limit(1).maybeSingle(),
     admin.from("lead_campaign_responses").select("spot_saved_at, opted_out_at, media_received_at, video_requested, saved_veu_discount, saved_total").eq("job_id", jobId).maybeSingle(),
-    admin.from("owner_esc_consents").select("status").eq("job_id", jobId).eq("status", "awaiting_owner").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("bookings").select("kind").eq("job_id", jobId).in("status", ["proposed", "confirmed"]),
     admin.from("customer_assignments").select("status, consumer_signed_at").eq("job_id", jobId).eq("record_kind", "final_veec_assignment").order("created_at", { ascending: false }),
     // Jo 29 Oct (HV-3542): once the spot is released the spot-saved page stops saying "we'll be in touch". Lapsed = back in the queue. A failed read = not released. (Six reads in this wave: at the cap.)
@@ -181,8 +179,7 @@ export async function resolveOwnerJob(token: unknown) {
     // heldUntil: the "price held" date (30 days for a 30-day quote, else the 14-day date the action card already uses (approved P2 page shows it in the sub line).
     quote: quote ? { id: quote.id, status: quote.status, accepted_at: quote.accepted_at, label: quote.option_label, total, rebate: n(quote.veec_discount_inc_gst), version: quote.version, heldUntil: quoteValid?.until ?? quoteOpen?.expiresAt ?? null, validLine: quoteValid?.line ?? null, changes: quoteChanges, lines: [...(quote.quote_items ?? [])].sort((a, b) => a.sort - b.sort).map((i) => ({ description: currentFeeWording(i.description), amount: n(i.line_total_inc_gst) })), split: total != null ? splitForOption(total, safetyCheckIncGstFor({ lines: quote.quote_items ?? [], settingIncGst: ws?.safety_check_payment_inc_gst ?? null })) : null } : null,
     payment,
-    // Approved P3 page (decision 128): Section 1 is prefilled from the owner + property, never typed again by the owner.
-    consent: consent ? { scheduledStart: null, section1: section1FromFacts({ owner: { name: owner?.full_name ?? null, email: owner?.email ?? null, phone: owner?.phone ?? null }, premises_address: formatPropertyAddress(j.properties as never) }) } : null,
+    // Part 4 Task 14: the separate P3 consent step is gone — the ESC consent is signed on the confirm-and-pay page (?screen=clear).
     spotSaved: isSpotSavedStage(stage, spot ?? null, !!upcoming || (bookings ?? []).some((b) => b.kind === "ready_check")) ? {
       rebate: spot?.saved_veu_discount != null ? n(spot.saved_veu_discount) : rebate,
       cost: spot?.saved_total != null ? n(spot.saved_total) : null,
@@ -196,8 +193,6 @@ export async function resolveOwnerJob(token: unknown) {
     // Decision 119: after the install the owner signs the official VEEC assignment form here (never before install).
     veecAssignment: ["evidence_outstanding", "ap_review", "ready_for_veec", "complete"].includes(stage) ? { status: veec?.status ?? "not_prepared", signedAt: veec?.consumer_signed_at ?? null } : null,
     // Decision 296: between the electrician's PIESA and the install day the owner confirms the PIESA here (the card reads its own facts via ownerPiesaConfirmFn).
-    // Decision 330: after the A4 electrical fixes the owner confirms them here (the card reads its own facts; nothing without a fixes record).
-    fixesConfirm: ["rectification_booked", "installation_scheduling", "installation_booked", "evidence_outstanding", "ap_review", "ready_for_veec"].includes(stage),
     piesaConfirm: ["piesa_complete", "electrical_variation_pending", "awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked"].includes(stage),
   };
 }

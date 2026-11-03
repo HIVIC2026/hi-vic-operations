@@ -490,10 +490,9 @@ export async function completeFixesForm(jobId: string, auditId: string, opts: { 
   catch (e) { copies = `PIESA copies not sent: ${e instanceof Error ? e.message : "error"}`; }
   // Decision 317: the electrician gets the regenerated official PIESA once (keyed to the post-fixes PIESA record; never throws).
   const elecCopy = await (await import("./electrician-piesa-copy.server")).sendElectricianPiesaCopy(jobId);
-  // Decision 330: the owner is asked ONCE (email O72 + text) to confirm the fixes on the secure link; reminders from the tick.
-  let ownerAsk: string;
-  try { ownerAsk = await (await import("./piesa-fixes-confirm-send.server")).sendFixesConfirmStep(jobId, "request"); }
-  catch (e) { ownerAsk = `owner fixes confirmation not sent: ${e instanceof Error ? e.message : "error"}`; }
+  // Part 4 Task 14 (Jo 2 Nov 2026): the separate "confirm your electrical fixes" email/text/page (decision 330) is retired —
+  // the upgrades declaration is covered by the confirm-and-pay page once the Part C + certificate are in.
+  const ownerAsk = "retired 2 Nov 2026 (confirm-and-pay page covers the upgrades declaration)";
   await logEvent(jobId, actorId, FIXES_FORM_COMPLETED_EVENT, `Electrical fixes form complete: CoES ${plan.coesNumber} certified ${plan.certDate}; Section C recorded, ${saved.length} file(s) kept; ${official}; ${copies}`.slice(0, 500),
     { audit_id: auditId, version, coes_number: plan.coesNumber, cert_date: plan.certDate, files: saved, official, copies, electrician_copy: elecCopy, owner_fixes_confirm: ownerAsk, signer: signerName, signed_at: plan.signedAt, rule: FIXES_DAY_RULE });
   // A48 batch 1 task 5: last, once every record above is written — the certificate kept with the job is read by the AI

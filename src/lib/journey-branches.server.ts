@@ -249,6 +249,43 @@ async function simulateQuoteRelease(ctx: JourneyCtx, quoteId: string, how: "offi
   await wf.logEvent(ctx.jobId!, ctx.actorId, "journey_send_simulated", `TEST journey: ${SIMULATED_SEND_LABEL}`, { quote_id: quoteId, step: how, simulated: true }, { internal: true });
 }
 
+
+/** Part 4 Task 14 (Jo 2 Nov 2026): the automatic HIV fixes quote send to the owner (decision 354) is retired with the O29
+ *  email. These Test Centre journeys keep their old money / payout checks as a record: this journey-only shim prepares the
+ *  electrician-priced draft (same `generateRectificationQuote` path) and releases it through `releaseFixesQuote(…, "auto")`
+ *  — no owner message is sent (there is none any more); a hold reason is returned instead of recorded. */
+async function journeyFixesQuote(jobId: string, actorId: string | null): Promise<{ result: "sent" | "held" | "waiting" | "error"; reason: string | null; quoteId: string | null }> {
+  const out = (result: "sent" | "held" | "waiting" | "error", reason: string | null, quoteId: string | null) => ({ result, reason, quoteId });
+  try {
+    const [{ data: a }, { data: quotes }] = await Promise.all([
+      admin.from("assessments").select("mitti_completed, mitti_raw_snapshot").eq("job_id", jobId).maybeSingle(),
+      admin.from("quotes").select("id, job_id, kind, status, sent_at, office_reviewed_at").eq("job_id", jobId).eq("kind", "rectification").neq("status", "superseded").order("created_at", { ascending: false }),
+    ]);
+    let quote = (quotes ?? [])[0] ?? null;
+    if (!quote) {
+      if (a?.mitti_completed !== true) return out("waiting", "no fixes quote", null);
+      const entries = Array.isArray(a?.mitti_raw_snapshot) ? (a!.mitti_raw_snapshot as { label: string; value: string | null }[]).filter((e) => e && typeof e.label === "string") : [];
+      const { shortAnswersFromEntries } = await import("./official-short.core");
+      const { fixesPriceSource } = await import("./fixes-price.core");
+      if (fixesPriceSource(shortAnswersFromEntries("piesa", entries)).path !== "a4_price") return out("waiting", "no electrician repair price on the A3", null);
+      const quoteId = await (await import("./quotes.server")).generateRectificationQuote(jobId, actorId);
+      if (typeof quoteId !== "string") return out("waiting", "in_house_partner_bills", null);
+      const { data: fresh } = await admin.from("quotes").select("id, job_id, kind, status, sent_at, office_reviewed_at").eq("id", quoteId).maybeSingle();
+      quote = fresh;
+      if (!quote) return out("waiting", "no fixes quote", null);
+    }
+    if (quote.status !== "draft" || quote.sent_at) return out("waiting", "already released", quote.id);
+    const rel = await import("./fixes-quote-release.server");
+    if (await (await import("./rectification.server")).fixesTimesHoldFor(jobId)) return out("waiting", "Waiting for the electrician's fixes times", quote.id);
+    const blocker = await rel.fixesQuoteSendBlocker(quote, "auto", { ignoreTimesHold: true });
+    if (blocker) return out("held", blocker, quote.id);
+    await rel.releaseFixesQuote(quote.id, actorId, "auto");
+    return out("sent", null, quote.id);
+  } catch (e) {
+    return out("error", (e as Error).message, null);
+  }
+}
+
 async function piesaFixes(rec: Recorder, jobs: BranchResult["jobs"], setup: StepResult[]) {
   const ctx = await newJourneyCtx();
   // Unique address so the case never links to an older kept TEST job (Jo 27 Oct: HV-3239/HV-3274 collision).
@@ -335,8 +372,7 @@ async function piesaFixes(rec: Recorder, jobs: BranchResult["jobs"], setup: Step
       await J.assertOwnTestJob(ctx);
       const b = await counts(ctx.jobId!);
       const since = new Date().toISOString();
-      const af = await import("./auto-fixes-quote-send.server");
-      const o = await af.maybeAutoSendFixesQuote(ctx.jobId!, { actorId: ctx.actorId, generate: true });
+      const o = await journeyFixesQuote(ctx.jobId!, ctx.actorId);
       rectQuoteId = o.quoteId;
       const a = await counts(ctx.jobId!);
       const e = await emailsSince(ctx.jobId!, since);
@@ -347,7 +383,7 @@ async function piesaFixes(rec: Recorder, jobs: BranchResult["jobs"], setup: Step
       return { ok: heldWithReason && e.ces.length + e.comm.length === 0 && q?.status === "draft", detail: `result=${o.result} reason=${o.reason ?? "-"}; quote status=${q?.status ?? "none"}; held events=${held}; owner emails=${e.ces.length + e.comm.length}; ${diff(b, a)}. Failing check used: no fixes times from the electrician yet`, ids: { quote_id: o.quoteId } };
     }, ["2.1"]);
 
-    await rec.run("2.2", "maybeAutoSendFixesQuote sent when every check passes; one owner email; price = electrician's price + margin by whose electrician", async () => {
+    await rec.run("2.2", "fixes quote released when every check passes (journey shim; no owner email since 2 Nov 2026); price = electrician's price + margin by whose electrician", async () => {
       await J.assertOwnTestJob(ctx);
       const rs = await import("./rectification.server");
       // Business days at least 2 business days away (calendar +3..+5 hit weekends on some dates).
@@ -355,7 +391,7 @@ async function piesaFixes(rec: Recorder, jobs: BranchResult["jobs"], setup: Step
       await rs.recordRectificationWindows(ctx.jobId!, ctx.electrician.id, 3, days.map((date) => ({ date, slot: "10-12" as const })));
       const b = await counts(ctx.jobId!);
       const since = new Date().toISOString();
-      const o = await (await import("./auto-fixes-quote-send.server")).maybeAutoSendFixesQuote(ctx.jobId!, { actorId: ctx.actorId, generate: true });
+      const o = await journeyFixesQuote(ctx.jobId!, ctx.actorId);
       rectQuoteId = o.quoteId ?? rectQuoteId;
       let simulatedSend = false;
       if (o.result === "held" && o.reason && commsOff(o.reason) && rectQuoteId) {
@@ -372,7 +408,7 @@ async function piesaFixes(rec: Recorder, jobs: BranchResult["jobs"], setup: Step
       const expected = FIXES_PRICE + fixesMarginFor(src);
       const total = Number(q?.customer_total_inc_gst ?? NaN);
       const emails = e.ces.length + e.comm.length;
-      return { ok: (simulatedSend || (o.result === "sent" && emails === 1)) && q?.status === "issued" && Math.abs(total - expected) < 0.01, detail: `result=${o.result}${o.reason ? ` (${o.reason})` : ""}; saved quote status=${q?.status}, total $${total}; expected $${FIXES_PRICE} + margin $${fixesMarginFor(src)} (${src} electrician) = $${expected}; owner emails=${emails}${simulatedSend ? " (send simulated — email skipped)" : ""}; ${diff(b, a)}`, ids: { quote_id: rectQuoteId } };
+      return { ok: (simulatedSend || (o.result === "sent" && emails === 0)) && q?.status === "issued" && Math.abs(total - expected) < 0.01, detail: `result=${o.result}${o.reason ? ` (${o.reason})` : ""}; saved quote status=${q?.status}, total $${total}; expected $${FIXES_PRICE} + margin $${fixesMarginFor(src)} (${src} electrician) = $${expected}; owner emails=${emails}${simulatedSend ? " (send simulated — email skipped)" : ""}; ${diff(b, a)}`, ids: { quote_id: rectQuoteId } };
     }, ["2.1"]);
 
     await rec.run("2.4", "owner accepts and pays the fixes (Demo Company); still no install booking", async () => {
@@ -444,10 +480,10 @@ async function piesaFixes(rec: Recorder, jobs: BranchResult["jobs"], setup: Step
       return { ok: res.status === "done" && !!pr?.section_c_signed_at && pr.outcome === "pass", detail: `result=${res.status} (${res.detail ?? "-"}); post-fixes PIESA record outcome=${pr?.outcome ?? "none"}, Section C signed=${pr?.section_c_signed_at ?? "none"}; ${diff(b, a)}`, ids: { piesa_record_id: pr?.id ?? null } };
     }, ["2.5"]);
 
-    await rec.run("2.7", "only now install scheduling opens; installer told once; 30-day clock from the official PIESA date, not Section C", async () => {
+    await rec.run("2.7", "only now install scheduling opens (the installer calls to book; no clearance notice since 2 Nov 2026); 30-day clock from the official PIESA date, not Section C", async () => {
       await J.assertOwnTestJob(ctx);
       const stage = await J.stageOf(ctx);
-      const { INSTALL_CLEARANCE_EVENT } = await import("./install-clearance.core");
+      const INSTALL_CLEARANCE_EVENT = "install_clearance_notified"; // history only: the I65 clearance notice was retired 2 Nov 2026 (Part 4 Task 14)
       const { count: told } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("event_type", INSTALL_CLEARANCE_EVENT);
       const { data: dl } = await admin.from("job_piesa_deadlines").select("piesa_date, install_deadline").eq("job_id", ctx.jobId!).maybeSingle();
       // Decision 316: read the official initial/reassessment independently of the deadline view.
@@ -455,7 +491,7 @@ async function piesaFixes(rec: Recorder, jobs: BranchResult["jobs"], setup: Step
       const officialDate = pr?.completed_date ? String(pr.completed_date).slice(0, 10) : null;
       const want = officialDate ? new Date(Date.parse(`${officialDate}T00:00:00Z`) + 30 * 86_400_000).toISOString().slice(0, 10) : null;
       const got = dl?.install_deadline ? String(dl.install_deadline).slice(0, 10) : null;
-      return { ok: stage === "installation_scheduling" && told === 1 && !!want && String(dl?.piesa_date ?? "").slice(0, 10) === officialDate && got === want, detail: `stage=${stage}; installer clearance notices=${told}; official PIESA ${officialDate}; deadline saved ${got} (from date ${dl?.piesa_date ?? "?"}), expected ${want}` };
+      return { ok: stage === "installation_scheduling" && told === 0 && !!want && String(dl?.piesa_date ?? "").slice(0, 10) === officialDate && got === want, detail: `stage=${stage}; installer clearance notices=${told}; official PIESA ${officialDate}; deadline saved ${got} (from date ${dl?.piesa_date ?? "?"}), expected ${want}` };
     }, ["2.6"]);
 
     if (P2_HOOK) await P2_HOOK("carried-on", ctx).catch(() => undefined);
@@ -1076,7 +1112,7 @@ async function fixesChain(rec: Recorder, ctx: JourneyCtx, setup: StepResult[], j
   await (await import("./piesa-complete.server")).completePiesaAssessment({ jobId: ctx.jobId! }, ctx.electrician.id);
   const days = (await import("./piesa-windows.core")).allowedPiesaDays().slice(0, 3);
   await (await import("./rectification.server")).recordRectificationWindows(ctx.jobId!, ctx.electrician.id, 3, days.map((date) => ({ date, slot: "10-12" as const })));
-  const o = await (await import("./auto-fixes-quote-send.server")).maybeAutoSendFixesQuote(ctx.jobId!, { actorId: ctx.actorId, generate: true });
+  const o = await journeyFixesQuote(ctx.jobId!, ctx.actorId);
   let rectQuoteId = o.quoteId;
   if (o.result === "held" && o.reason && commsOff(o.reason) && rectQuoteId) { await simulateQuoteRelease(ctx, rectQuoteId, "fixes"); rec.simulated("F.quote", "fixes quote email to the owner", SIMULATED_SEND_LABEL, { quote_id: rectQuoteId }); }
   return { sim, mitti, fetchMedia, el, tplFixes, auditId, rectQuoteId, a3Synced: synced.completed };

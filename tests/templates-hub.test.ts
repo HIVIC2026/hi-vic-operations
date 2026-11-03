@@ -51,13 +51,12 @@ describe("Templates navigation", () => {
     expect(body("owner:address-request")).toContain("We need your full address to check your home.");
     expect(body("owner:address-request-reminder")).toContain("Just a reminder — we need your full address to check your home.");
   });
-  test("decision 384: the decision 376 messages are listed under who gets them, approved, with their designs filed there", () => {
+  test("decision 384: the decision 376 messages still in use are listed under who gets them, approved, with their designs filed there (E14 / I71 retired 2 Nov 2026, Part 4 Task 14)", () => {
     const where: Record<string, [string, string | null]> = {
       "owner:O74": ["owner", "docs/templates/mjml/owner_O74.mjml"], "owner:O74b": ["owner", "docs/templates/mjml/owner_O74b.mjml"],
       "owner:sms-visit_new_times": ["owner", null],
-      "electrician:E14": ["electrician", "docs/templates/mjml/electrician_E14.mjml"], "electrician:sms-piesa_times_reminder": ["electrician", null],
-      "installer:I71": ["installer", "docs/templates/mjml/installer_I71.mjml"], "installer:sms-installer_planning_notice": ["installer", null],
     };
+    for (const id of ["electrician:E14", "electrician:sms-piesa_times_reminder", "installer:I71", "installer:sms-installer_planning_notice"]) expect(TEMPLATE_ENTRIES.find((x) => x.id === id)).toBeUndefined();
     for (const [id, [section, design]] of Object.entries(where)) {
       const e = TEMPLATE_ENTRIES.find((x) => x.id === id);
       expect({ id, section: e?.section, approval: e?.approval, design: e?.design ?? null, gate: e?.gate.kind }).toEqual({ id, section, approval: "approved", design, gate: design ? "email" : "text" });
@@ -70,7 +69,7 @@ describe("Templates navigation", () => {
     const byId = (id: string) => TEMPLATE_ENTRIES.find((x) => x.id === id)!;
     expect(templateStatus(byId("owner:O74"), { customer_comms: false }).label).toBe("Waits for customer messages switch");
     expect(templateStatus(byId("owner:O74"), { customer_comms: true }).label).toBe("Live");
-    for (const t of ["owner:sms-visit_new_times", "electrician:sms-piesa_times_reminder", "installer:sms-installer_planning_notice"]) {
+    for (const t of ["owner:sms-visit_new_times"]) {
       expect(templateStatus(byId(t), { customer_comms: true }).label).toBe("Waits for its text switch");
       const type = (byId(t).gate as { smsType: string }).smsType;
       expect(templateStatus(byId(t), { customer_comms: true, [`sms:${type}`]: true }).label).toBe("Live");

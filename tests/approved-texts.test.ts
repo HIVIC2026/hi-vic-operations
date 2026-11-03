@@ -3,12 +3,11 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync, existsSync } from "fs";
 import { dirname, resolve } from "path";
 import {
-  APPROVED_TEXT_SMS_TYPE, approvedTextKey, installMovedFrom, installMovedText, piesaBookedOwnerText, piesaOfferText,
+  APPROVED_TEXT_SMS_TYPE, approvedTextKey, installMovedFrom, installMovedText,
   quoteHeldUntil, quoteReminderDay3Text, quoteReminderDue, quoteReminderExpiryText,
   visitTomorrowDue, wholeDollars,
 } from "../src/lib/approved-texts.core";
 import { SMS_FRESHNESS, SMS_MESSAGE_TYPES, brandSmsBody, smsStaleReason } from "../src/lib/sms.core";
-import { renderElectricianOfferEmail } from "../src/lib/electrician-offer-email.core";
 import { applicationReceivedFacts, splitDeclineReason } from "../src/lib/trade-messages.core";
 import { declineReasonText } from "../src/lib/quote-decline.core";
 import { sendLabel } from "../src/lib/send-failed.core";
@@ -22,12 +21,6 @@ describe("wording is the decisions-log sentence, verbatim (the sender adds the b
     expect(quoteReminderExpiryText({ firstName: "Helen", rebate: 1610, heldUntilIso: "2026-11-07T01:00:00.000Z", link: "https://x/q" }))
       .toBe("Hi Helen, your quote price is held until Saturday 7 November. Accept by then to keep your $1,610 rebate price: https://x/q Reply STOP to opt out.");
     expect(quoteReminderDay3Text({ firstName: "Helen", rebate: null, link: "https://x/q" })).toBeNull();
-  });
-  test("93 electrician offer (B), owner booked (A)", () => {
-    expect(piesaOfferText({ suburb: "Glen Waverley", jobNumber: "HV-3117", pay: 200, link: "https://x/o" })).toBe("New PIESA job near Glen Waverley (HV-3117), $200. Offer the owner 3 times within 24 hours: https://x/o");
-    expect(piesaOfferText({ suburb: "Glen Waverley", jobNumber: "HV-3117", pay: null, link: "https://x/o" })).toBeNull();
-    expect(piesaBookedOwnerText({ startIso: START, electrician: "Sparky Co", phone: "0400 333 444", link: "https://x/j" }))
-      .toBe("Booked! Your electrical safety check is Wednesday 28 October, 11am with Sparky Co (0400 333 444). Details: https://x/j");
   });
   test("135 install moved", () => {
     expect(installMovedText({ startIso: START, link: "https://x/j" })).toBe("Your install has moved to Wednesday 28 October, 11am. Details: https://x/j");
@@ -84,31 +77,20 @@ describe("SMS types: approved, own switch, freshness declared", () => {
       expect(SMS_MESSAGE_TYPES[type].quietHours).toBe(true);
       expect(SMS_FRESHNESS[type]).toBeDefined();
     }
-    expect(SMS_MESSAGE_TYPES.piesa_offer.audience).toBe("partner");
+    // Part 4 Task 14: the electrician offer text and the owner "safety check booked" text are retired (kept as history, unapproved).
+    for (const t of ["piesa_offer", "safety_check_booked_owner"] as const) expect(SMS_MESSAGE_TYPES[t].wordingApproved).toBe(false);
   });
   test("one-off types never go late (24h use-by), window types are recomputed", () => {
     expect(smsStaleReason("spot_saved", { at: "2026-10-26T00:00:00Z" }, "2026-10-27T01:00:00Z")).toMatch(/Too late/);
-    expect(smsStaleReason("piesa_offer", { at: "2026-10-27T00:00:00Z", current: false }, "2026-10-27T01:00:00Z")).toMatch(/no longer current/);
+    expect(smsStaleReason("install_moved", { at: "2026-10-27T00:00:00Z", current: false }, "2026-10-27T01:00:00Z")).toMatch(/no longer current/);
     expect(smsStaleReason("quote_reminder", null, "2026-10-27T01:00:00Z")).toBeNull();
   });
   test("failed sends get a plain Needs me label", () => {
     expect(sendLabel("quote_reminder", "sms")).toBe("Quote reminder text");
-    expect(sendLabel("piesa_offer", "sms")).toBe("Safety check job offer text");
   });
 });
 
 describe("trade messages", () => {
-  test("E1 electrician offer email: approved wording, own rate only, no owner details", () => {
-    const m = renderElectricianOfferEmail({ suburb: "Glen Waverley", rate: 200, areaM2: 120, ownerTimesOpen: true, offerUrl: "https://x/o" })!;
-    expect(m.subject).toBe("New job in Glen Waverley — $200");
-    expect(m.text).toContain("Pre Insulation Electrical Safety Assessment (PIESA). About 120 m² of ceiling.\nThe owner has offered three times.");
-    expect(m.text).toContain("Your rate: $200\n\nThe first trade to accept gets the job.");
-    expect(m.html).toContain(">$200<");
-    expect(m.text).toContain("See the job: https://x/o");
-    expect(m.text).not.toContain("TEST");
-    expect(renderElectricianOfferEmail({ suburb: "Glen Waverley", rate: 200, areaM2: null, ownerTimesOpen: false, offerUrl: "https://x/o" })!.text).toContain("Pre Insulation Electrical Safety Assessment (PIESA).\n\nYour rate: $200\n\nThe first trade to accept gets the job.");
-    expect(renderElectricianOfferEmail({ suburb: null, rate: 200, areaM2: 120, ownerTimesOpen: true, offerUrl: "https://x/o" })).toBeNull();
-  });
   test("I24: the stored decline reason splits back into label + the owner's words", () => {
     expect(splitDeclineReason(declineReasonText("price", "Too dear"))).toEqual({ label: "The price", note: "Too dear" });
     expect(splitDeclineReason(declineReasonText("timing", null))).toEqual({ label: "Not the right time", note: null });
@@ -145,14 +127,13 @@ describe("source pins", () => {
     expect(deliver.indexOf("logEvent(")).toBeLessThan(deliver.indexOf("sendTestSms"));
     expect(deliver.indexOf("sendTestSms")).toBeLessThan(deliver.indexOf("sendRealSms"));
     const t = src("src/lib/trade-messages.server.ts");
-    const text = t.split("export async function textElectricianAboutOffer")[1]!.split("\nexport async function")[0]!;
-    expect(text.indexOf("logEvent(")).toBeLessThan(text.indexOf("sendRealSms"));
+    expect(t).not.toContain("textElectricianAboutOffer"); // retired 2 Nov 2026 (Part 4 Task 14)
     const app = t.split("export async function emailApplicationReceived")[1]!.split("\nexport async function")[0]!;
     expect(app.indexOf('from("admin_config_events").insert')).toBeLessThan(app.indexOf("sendOfficeEmail"));
   });
   test("quiet hours are checked before the event is recorded (a text due overnight goes after 7am)", () => {
     const s = src("src/lib/approved-texts.server.ts");
-    for (const fn of ["textOwnerSafetyCheckBooked", "textOwnerVisitTomorrow", "textOwnerQuoteReminder", "textOwnerInstallMoved"]) {
+    for (const fn of ["textOwnerVisitTomorrow", "textOwnerQuoteReminder", "textOwnerInstallMoved"]) {
       const body = s.split(`export async function ${fn}`)[1]!.split("\nexport async function")[0]!;
       expect(body.indexOf("quietNow(")).toBeGreaterThan(0);
       expect(body.indexOf("quietNow(")).toBeLessThan(body.indexOf("deliver("));

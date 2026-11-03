@@ -8,9 +8,12 @@ import { myJobScreen } from "./mail-mjml.core";
 import { INSTALL_WINDOW_DAYS, installDaysLeft } from "./install-days.core";
 import * as K from "./email-kit.core";
 import { esc, mjEmail } from "./mail-mjml.core";
-import { mjThirtyDayClock } from "./safety-check-emails.core";
 import { endOfMelbourneYmd, addYmd } from "./melbourne-time.core";
 import { melbourneMidnight } from "./daily-brief.core";
+
+/** Amber "⏰ The 30-day clock" box (was shared with the retired O26 / O29 emails). `bodyHtml` is already safe HTML. */
+export const mjThirtyDayClock = (bodyHtml: string) =>
+  `<mj-section><mj-column mj-class="panel-amber"><mj-text mj-class="h2" color="#8A5200" padding="18px 18px 6px">&#9200; The 30-day clock</mj-text><mj-text font-size="15px" line-height="23px" padding="0 18px 18px">${bodyHtml}</mj-text></mj-column></mj-section>`;
 
 /** Jo must approve the wording below before this turns on. */
 export const THIRTY_DAY_REMINDER_APPROVED = true as boolean; // Jo 24 Oct 2026 (decision 167): texts and emails approved.

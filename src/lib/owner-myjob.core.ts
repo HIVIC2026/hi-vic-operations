@@ -1,6 +1,6 @@
 // Owner "My job" page (Jo-approved 5 Oct). Pure presentation: labels existing facts, never moves a job.
 import { houseLevelForStage, type HouseLevel } from "./owner-house.core";
-import { stageWording, PIESA_FULL } from "./job-wording";
+import { stageWording } from "./job-wording";
 import { ownerHeadline, type OwnerHeadlineStep } from "./owner-headlines.core";
 import { spotReleaseState, type SpotReleaseEventRow } from "./spot-release.core";
 
@@ -15,9 +15,13 @@ export function currentOwnerAction(facts: Record<Exclude<OwnerScreen,'home'|'don
   const priority = ['newquote','turn','taps','quote','clear','fixes','pay','piesa','veec','book','spot','review'] as const;
   return priority.find(action=>facts[action]) ?? null;
 }
+/** Part 4 Task 14 (Jo 2 Nov 2026): the old fixes and pick-a-day screens open ONLY for a job still mid-way through that step
+ *  (its current action); any other old link falls through to the job's current single-action screen. */
+const OLD_STEP_SCREENS: readonly OwnerScreen[] = ['fixes', 'book'];
 export function resolveOwnerScreen(screen: OwnerScreen | undefined, facts: { currentAction?: Exclude<OwnerScreen, 'home' | 'done'> | null; clearStepsUnsigned?: boolean }): Exclude<OwnerScreen, 'home'> | 'all_set' {
   // Old links to the pay / PIESA screens land on the one confirm-and-pay page while a step there is still unsigned.
   if ((screen === 'pay' || screen === 'piesa') && facts.currentAction === 'clear' && facts.clearStepsUnsigned === true) return 'clear';
+  if (screen && OLD_STEP_SCREENS.includes(screen) && facts.currentAction !== screen) return facts.currentAction ?? 'all_set';
   if (screen && screen !== 'home') return screen;
   return facts.currentAction ?? 'all_set';
 }
@@ -58,8 +62,8 @@ export function ownerAction(f: OwnerFacts): OwnerAction {
   if (s === "on_hold") return none(stageWording("on_hold").owner!, "We'll let you know as soon as it's moving again.");
   if (f.visit) return none(f.visit.kind === "installation" ? stageWording("installation_booked").owner! : f.visit.kind === "ready_check" ? stageWording("ready_check_scheduled").owner! : f.visit.kind === "rectification" ? stageWording("rectification_booked").owner! : stageWording("piesa_scheduled").owner!, "We'll text you the day before.", visitPill(f.visit.startsAt));
   if (f.quoteOpen) return todo(stageWording("measured_estimate_ready").owner!, "Have a look at your quote and say yes when you're ready.", "See my quote", "quote", f.quoteOpen.expiresAt ? `Please approve by ${fmtDay(f.quoteOpen.expiresAt)}` : null);
-  // Decision 333: the electrician (PIESA) and installer (install) offer the times; the owner picks one of them.
-  if (f.bookingOpen) return todo(stageWording("piesa_and_install_window_pending").owner!, `Pick one of the times offered for the ${PIESA_FULL} and the install.`, "Pick times", "book");
+  // Part 4 Task 14 (Jo 2 Nov 2026): the trades call the owner to book; the owner never picks times on the page.
+  if (f.bookingOpen) return none(stageWording("ready_check_ready_to_schedule").owner!, "We'll be in touch with your next step.");
   if (["new_enquiry", "eligibility_review", "preliminary_estimate_ready", "ready_check_awaiting_acceptance"].includes(s) && !f.readyCheckRequested)
     // Decision 388: before release, spot-only wording (no Ready Check, times or speed).
     return todo("Save your spot", "It's free, with no obligation. Spots are released in the order they were saved.", "Save my spot", "spot");

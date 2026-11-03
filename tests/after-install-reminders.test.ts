@@ -214,15 +214,14 @@ function balanceSweep(flag: boolean) {
   });
   return { api, captured, dates: () => dates };
 }
-test('old balance day-5 / due emails: unchanged flag off, stopped flag on (the due-date retry still runs)', async () => {
-  const off = balanceSweep(false);
-  await off.api.sweepBalanceQ21(new Date('2026-11-06T23:00:00Z'));
-  expect(off.captured).toEqual(['Your balance is due in 2 days']);
-  const on = balanceSweep(true);
-  await on.api.sweepBalanceQ21(new Date('2026-11-06T23:00:00Z'));
-  await on.api.sweepBalanceQ21(new Date('2026-11-08T23:00:00Z'));
-  expect(on.captured).toEqual([]);
-  expect(on.dates()).toBe(2);
+test('old balance day-5 / due emails are gone (Part 4 Task 14): only the due-date retry runs, flag on or off', async () => {
+  for (const flag of [false, true]) {
+    const sweep = balanceSweep(flag);
+    await sweep.api.sweepBalanceQ21(new Date('2026-11-06T23:00:00Z'));
+    await sweep.api.sweepBalanceQ21(new Date('2026-11-08T23:00:00Z'));
+    expect(sweep.captured).toEqual([]);
+    expect(sweep.dates()).toBe(2);
+  }
 });
 
 function veecSweep(flag: boolean, nowIso: string) {
@@ -237,16 +236,15 @@ function veecSweep(flag: boolean, nowIso: string) {
   });
   return { run: () => api.sweepVeecReminders(new Date(nowIso)), logged };
 }
-test('old rebate-form reminders (O61 days 1/3/7): unchanged flag off, stopped flag on; day-10 office alert kept', async () => {
-  const off = veecSweep(false, '2026-11-03T02:00:00Z'); // 2 days after: reminder_1 due
-  await off.run();
-  expect(off.logged[0]).toBe('veec_sign_reminder:reminder_1');
-  const on = veecSweep(true, '2026-11-03T02:00:00Z');
-  await on.run();
-  expect(on.logged).toEqual([]);
-  const day10 = veecSweep(true, '2026-11-12T02:00:00Z');
-  await day10.run();
-  expect(day10.logged).toEqual(['veec_sign_reminder:office_alert_10', 'veec_assignment_unsigned_10_days:office_alert_10']);
+test('old rebate-form reminders (O61 days 1/3/7) are gone (Part 4 Task 14), flag on or off; day-10 office alert kept', async () => {
+  for (const flag of [false, true]) {
+    const day2 = veecSweep(flag, '2026-11-03T02:00:00Z'); // 2 days after: the old reminder_1 would have been due
+    await day2.run();
+    expect(day2.logged).toEqual([]);
+    const day10 = veecSweep(flag, '2026-11-12T02:00:00Z');
+    await day10.run();
+    expect(day10.logged).toEqual(['veec_sign_reminder:office_alert_10', 'veec_assignment_unsigned_10_days:office_alert_10']);
+  }
 });
 
 // ---- office row, texts, register, source of truth ----

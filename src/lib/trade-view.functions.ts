@@ -260,11 +260,8 @@ export const saveTradeFixesTimes = createServerFn({ method: "POST" }).middleware
     windows: z.array(z.object({ date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), slot: z.enum(["8-10", "10-12", "12-14", "14-16"]) })).max(5),
   }).parse(d))
   .handler(async ({ data, context }) => {
-    const r = await (await import("./trade-view.server")).tradeSaveFixesTimes(data.jobId, context.userId, data.hours, data.windows);
-    // Decision 354: with the times in, the electrician-priced fixes quote can go to the owner automatically (best-effort;
-    // never throws; the 15-minute tick catches up).
-    await (await import("./auto-fixes-quote-send.server")).maybeAutoSendFixesQuote(data.jobId, { actorId: context.userId, generate: true });
-    return r;
+    // Part 4 Task 14: the automatic fixes quote send to the owner is retired (the electrician quotes upgrades with the owner directly).
+    return (await import("./trade-view.server")).tradeSaveFixesTimes(data.jobId, context.userId, data.hours, data.windows);
   });
 
 /** Decision 327: the electrician's "Start of the install day" card (electricians only; business-scoped read). */

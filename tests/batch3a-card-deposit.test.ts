@@ -125,7 +125,7 @@ describe("owner wording", () => {
     expect(text).toContain("The rest: $3,285.90");
     expect(text).toContain("By card or bank transfer. No fees.");
   });
-  test("install-booked and deposit-release emails say card, bank transfer or PayID", () => {
+  test("deposit-release email says card, bank transfer or PayID; the install-booked email no longer has a deposit-owed version (answer 21, Part 4 Task 14)", () => {
     const booked = renderInstallBookedEmail({
       firstName: "Sam",
       when: "Tuesday 27 October at 7:30am",
@@ -134,9 +134,8 @@ describe("owner wording", () => {
       installerPhone: null,
       removal: false,
       myJobUrl: "https://x.test/my-job/t",
-      deposit: { amount: "$185.10", holdUntil: null, bankLines: ["Account name: HIV"] },
-    } as unknown as Parameters<typeof renderInstallBookedEmail>[0]);
-    expect(`${booked.html} ${booked.text}`.toLowerCase()).toContain(DEPOSIT_PHRASE);
+    });
+    expect(`${booked.html} ${booked.text}`).not.toMatch(/48 hours|held until/i);
     const rel = renderDepositReleasedEmail({
       firstName: "Sam",
       day: "Tuesday 11 November",

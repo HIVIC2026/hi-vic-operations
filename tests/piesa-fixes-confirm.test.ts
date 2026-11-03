@@ -1,6 +1,7 @@
 // Decision 330 (Jo, 25 Oct 2026): after the A4 electrical fixes the owner confirms the FIXES on the secure link (one tick +
-// typed name, no code): pure rules, approved wording (email O72 + text), the server facts/sign path, and the request /
-// day 1 / day 3 / office day-5 sweep against an in-memory database. Every sender is a recorder; nothing is sent anywhere.
+// typed name, no code): pure rules, the server facts/sign path. Part 4 Task 14 (Jo 2 Nov 2026): the request email O72, the
+// `piesa_owner_fixes_confirm` text, the day 1/3 reminders and the P6F page are retired; the record and its readers stay
+// (official form, Needs me history). Every sender is a recorder; nothing is sent anywhere.
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 
 type Row = Record<string, unknown>;
@@ -87,9 +88,7 @@ mock.module("../src/lib/comms.server", () => ({ assertCustomerDeliveryAllowed: a
 
 
 const S = await import("../src/lib/piesa-fixes-confirm.server");
-const { sendFixesConfirmStep, sweepOwnerFixesConfirmations } = await import("../src/lib/piesa-fixes-confirm-send.server");
 const C = await import("../src/lib/piesa-fixes-confirm.core");
-const { renderPiesaFixesConfirmEmail } = await import("../src/lib/piesa-fixes-confirm-email.core");
 const { SMS_MESSAGE_TYPES } = await import("../src/lib/sms.core");
 const { needsCandidates } = await import("../src/lib/office-needs.core");
 const events = (type: string, job = J) => (tables["workflow_events"] ?? []).filter((e) => e["event_type"] === type && e["job_id"] === job);
@@ -98,14 +97,8 @@ const signRobert = (job = J) => S.signOwnerFixesConfirmation({ jobId: job, fullN
 beforeEach(() => { reset(); guarded.length = 0; tests.length = 0; sms.length = 0; deliveryBlocked = null; });
 
 describe("pure rules + approved wording", () => {
-  test("approved email + text wording, exactly", () => {
-    expect(C.piesaFixesConfirmText(LINK)).toBe(`Your electrical fixes are done. Please confirm (takes a minute): ${LINK} Reply STOP to opt out.`);
-    const m = renderPiesaFixesConfirmEmail({ firstName: "Robert", fixesDate: "3 November 2026", electricianLine: "Sam Spark (Spark Electrical Pty Ltd)", confirmUrl: LINK, unsubscribeUrl: null });
-    expect(m.subject).toBe("Robert, your electrical fixes are done — please confirm");
-    expect(m.text).toContain("Sam Spark (Spark Electrical Pty Ltd) finished the electrical fixes at your home on 3 November 2026. Please confirm on your job page. It takes a minute.");
-    expect(m.html).toContain(LINK);
-    expect(C.PIESA_FIXES_CONFIRM_EMAIL_APPROVED).toBe(true);
-    expect(SMS_MESSAGE_TYPES[C.PIESA_FIXES_CONFIRM_SMS_TYPE]).toMatchObject({ audience: "owner", wordingApproved: true, quietHours: true });
+  test("retired 2 Nov 2026: the text type can never send again", () => {
+    expect(SMS_MESSAGE_TYPES[C.PIESA_FIXES_CONFIRM_SMS_TYPE]).toMatchObject({ audience: "owner", wordingApproved: false, quietHours: true });
   });
   test("page: one tick 'The electrical fixes were completed on <date>' standing for the official declaration", () => {
     const p = C.piesaFixesConfirmPage({ recordId: POST, fixesDate: "2026-11-03", completedAt: T0, electrician: { name: "Sam Spark", recName: null }, confirmation: null });
@@ -145,40 +138,5 @@ describe("server: facts + sign", () => {
     expect((await signRobert()).already).toBe(true);
     expect(events(C.PIESA_FIXES_CONFIRMED_EVENT)).toHaveLength(1);
     expect(await S.ownerFixesConfirmationForExpand(J)).toEqual({ name: "Robert Ellis", date: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/) });
-  });
-});
-
-describe("request + reminders + office alert (same schedule as O71)", () => {
-  test("request: step recorded first, guarded email O72 + the one real text sender, same key", async () => {
-    const out = await sendFixesConfirmStep(J, "request");
-    expect(out).toContain("email sent");
-    expect(events(C.PIESA_FIXES_CONFIRM_STEP_EVENT)[0]!["details"]).toEqual({ step: "request", piesa_record_id: POST });
-    expect(guarded).toHaveLength(1);
-    expect(guarded[0]).toMatchObject({ purpose: "piesa_owner_fixes_confirm_request", key: `piesa-owner-fixes-confirm:v1:${J}:${POST}:request`, to: "robert@example.com" });
-    expect(guarded[0]!.mail.subject).toBe("Robert, your electrical fixes are done — please confirm");
-    expect(sms).toEqual([{ type: "piesa_owner_fixes_confirm", idempotencyKey: `piesa-owner-fixes-confirm:v1:${J}:${POST}:request`, to: "0400111222", body: C.piesaFixesConfirmText(LINK), jobId: J }]);
-    expect(await sendFixesConfirmStep(J, "request")).toBe("already handled");
-    expect(guarded).toHaveLength(1);
-  });
-  test("TEST job → test-send only; delivery lock → email held, step still recorded once", async () => {
-    await sendFixesConfirmStep(T, "request");
-    expect(tests.map((t) => t.kind)).toEqual(["email", "sms"]);
-    expect(guarded).toEqual([]); expect(sms).toEqual([]);
-    deliveryBlocked = "Customer comms are off";
-    expect(await sendFixesConfirmStep(J, "request")).toContain("email not sent — Customer comms are off");
-  });
-  test("sweep: request now, day 1, day 3, office alert day 5; nothing once confirmed", async () => {
-    const at = (h: number) => new Date(Date.parse(T0) + h * 3600_000);
-    await sweepOwnerFixesConfirmations(at(0.1));
-    await sweepOwnerFixesConfirmations(at(1));
-    await sweepOwnerFixesConfirmations(at(25));
-    await sweepOwnerFixesConfirmations(at(73));
-    await sweepOwnerFixesConfirmations(at(121));
-    expect(events(C.PIESA_FIXES_CONFIRM_STEP_EVENT).map((e) => (e["details"] as Row)["step"])).toEqual(["request", "reminder_1", "reminder_3", "office_alert_5"]);
-    expect(events(C.PIESA_FIXES_CONFIRM_OFFICE_ALERT_EVENT)).toHaveLength(1);
-    reset(); guarded.length = 0; sms.length = 0;
-    await signRobert();
-    await sweepOwnerFixesConfirmations(at(30));
-    expect(events(C.PIESA_FIXES_CONFIRM_STEP_EVENT)).toEqual([]);
   });
 });

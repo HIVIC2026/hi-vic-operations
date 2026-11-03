@@ -642,43 +642,8 @@ export const ownerSignPiesaConfirmFn = createServerFn({ method: "POST" })
     });
   });
 
-/** Decision 330: what the owner confirms about the electrical fixes (date, electrician) — null when no fixes are recorded. Link token only (read). */
-export const ownerFixesConfirmFn = createServerFn({ method: "POST" })
-  .middleware([withRequestMeta])
-  .inputValidator((d) => z.object({ token }).parse(d))
-  .handler(async ({ data }) => {
-    const jobId = await ownerJobId(data.token);
-    if (!jobId) return null;
-    const { ownerFixesConfirmFacts } = await import("./piesa-fixes-confirm.server");
-    const { piesaFixesConfirmPage } = await import("./piesa-fixes-confirm.core");
-    const facts = await ownerFixesConfirmFacts(jobId);
-    return facts
-      ? (JSON.parse(JSON.stringify(piesaFixesConfirmPage(facts))) as ReturnType<
-          typeof piesaFixesConfirmPage
-        >)
-      : null;
-  });
-
-/** Decision 330: the owner confirms the electrical fixes via the secure link (one tick + typed full name, no code). Idempotent per fixes record. */
-export const ownerSignFixesConfirmFn = createServerFn({ method: "POST" })
-  .middleware([withRequestMeta])
-  .inputValidator((d) => z.object({ token, ...signer, confirmed: z.boolean() }).parse(d))
-  .handler(async ({ data, context }) => {
-    const jobId = await ownerJobId(data.token);
-    const { WorkflowError } = await import("./workflow.server");
-    if (!jobId)
-      throw new WorkflowError("This link isn't working any more. Please reply to our email.");
-    const { signOwnerFixesConfirmation } = await import("./piesa-fixes-confirm.server");
-    return signOwnerFixesConfirmation({
-      jobId,
-      fullName: data.signatoryName,
-      signatureName: data.signatureName,
-      authority: data.authorityType,
-      confirmed: data.confirmed,
-      ip: context.ip,
-      userAgent: context.userAgent,
-    });
-  });
+// Part 4 Task 14 (Jo 2 Nov 2026): the separate "confirm your electrical fixes" page (decision 330, P6F) is retired — the
+// confirm-and-pay page covers the upgrades declaration. The old confirmation records stay readable (piesa-fixes-confirm.server).
 
 // ---------- Decision 366 (audit F03): electrical fixes on My job (?screen=fixes) ----------
 /** The latest fixes quote (lines + total), the step the owner is on and, once paid, the electrician's offered times. Link token only (read). */

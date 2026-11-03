@@ -5,7 +5,7 @@ import * as K from "../src/lib/email-kit.core";
 import { mjReadyCheckEstimate } from "../src/lib/ready-check-times-email.core";
 import { renderJoOutcomeEmail } from "../src/lib/jo-outcome-email.core";
 
-const OWNER_TERMS = ["Thousands of Victorians", "lower power bills", "VEU discount", "old price label", "fixes wording to owners", "mandatory PIESA", "install duration", "Wrong time link", "See where you're up to", "7-day balance", "Just checking you got your estimate", "owner picks a Ready Check time"];
+const OWNER_TERMS = ["Thousands of Victorians", "lower power bills", "VEU discount", "old price label", "fixes wording to owners", "mandatory PIESA", "install duration", "Wrong time link", "See where you're up to", "7-day balance", "Just checking you got your estimate", "owner picks a Ready Check time", "owner picks install days / safety check times", "held for 48 hours while the deposit arrives"];
 
 test("the scan exports every owner wording term as strict", () => {
   expect(OWNER_WORDING_TERMS.map((t) => t.term).sort()).toEqual([...OWNER_TERMS].sort());

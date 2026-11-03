@@ -1,16 +1,19 @@
-// The ONE release of an electrical fixes (rectification) quote to the owner: draft → issued, the decision-315 hours
-// copy, the `rectification_quote_issued` event and the O29 owner email through the guarded owner path
-// (owner-email-triggers `onFixesQuoteIssued`: TEST jobs → test-send; real owners behind the template flag,
-// `customer_comms_enabled` and consent; once per quote by idempotency key). Shared by the office Send button
-// (allocation.functions `sendRectificationQuote`) and the decision-354 automatic send (auto-fixes-quote-send.server).
-// Idempotent: the status flips only from draft, so a quote is issued (and its email triggered) at most once.
+// The ONE release of an electrical fixes (rectification) quote: draft → issued, the decision-315 hours copy and the
+// `rectification_quote_issued` event. Part 4 Task 14 (Jo 2 Nov 2026): the HIV fixes quote to OWNERS is retired — the O29
+// owner email is gone, the office Send button is refused (`FIXES_QUOTE_RETIRED`), and only the Test Centre journeys still
+// release a quote (`how: "auto"`, no message) so the old money/payout checks keep a record. Idempotent: the status
+// flips only from draft.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
 
 export type FixesReleaseHow = "office" | "auto";
 
+/** Jo 2 Nov 2026 (touchpoint decisions, Stage 8): no more HIV fixes quotes to owners. */
+export const FIXES_QUOTE_RETIRED = "Electrical fixes quotes to owners were retired on 2 Nov 2026: the electrician quotes and books the upgrades with the owner directly.";
+
 /** The office Send checks for this quote (null = may be sent). `auto` stands in for the office review (decision 354). */
 export async function fixesQuoteSendBlocker(q: { id: string; job_id: string; kind: string; status: string; office_reviewed_at: string | null }, how: FixesReleaseHow, opts: { ignoreTimesHold?: boolean } = {}): Promise<string | null> {
+  if (how === "office") return FIXES_QUOTE_RETIRED;
   const { rectificationSendBlocker } = await import("./allocation.core");
   const { count, error } = await admin.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", q.job_id).eq("needs_office_pricing", true);
   if (error) throw new Error(`Could not check the electrical fixes items: ${error.message}`);
@@ -39,7 +42,6 @@ export async function releaseFixesQuote(quoteId: string, actorId: string | null,
   await logEvent(q.job_id, actorId, "rectification_quote_issued",
     how === "auto" ? "Electrical fixes quote sent to the owner automatically — A3 complete and every check passed (decision 354)" : "Office sent the reviewed electrical fixes quote to the owner for approval",
     { quote_id: q.id, ...(how === "auto" ? { auto: true, rule: "decision 354" } : {}) });
-  // Decision 325: O29 "Your safety check found something to fix first" to the owner (guarded; best-effort, never undoes the send).
-  await (await import("./owner-email-triggers.server")).onFixesQuoteIssued(q.job_id, q.id).catch((e) => console.error("fixes quote email skipped", (e as Error).message));
+  // Part 4 Task 14: no O29 owner email any more.
   return { jobId: q.job_id };
 }

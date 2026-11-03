@@ -56,7 +56,7 @@ function fixture() {
     "./spot-release.server": { spotReleaseStateFor: async () => ({ state: "confirmed" }) },
     "./readycheck-booking.server": { installerCandidatesFor: async () => ({ postcode: null, candidates: [{ business_id: "b", name: "Rapid", coverage_verified: true, covers_postcode: true, has_valid_licence: true, approved_workers: 1 }] }) },
     "@/data/vic-postcode-centroids.json": { default: {} }, "./test-send.core": { isTestPartner: () => false },
-    "./approved-owner-emails.server": { emailOwnerSafetyCheckTimes: async () => { sends.push("piesa"); return "sent"; } },
+    "./approved-owner-emails.server": { emailOwnerInstallDayChanged: async () => { sends.push("install_moved"); return "sent"; } },
   };
   function load(file: string, extra = "") {
     const source = ts.transpile(readFileSync(`src/lib/${file}.ts`, "utf8") + extra, { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 });
@@ -103,15 +103,10 @@ test("stale Ready Check offer cannot accept or email an in-house owner", async (
   expect(await f.load("ready-check-times.server").acceptOfferWithTimes("offer", "installer", [])).toMatchObject({ skipped: "in_house" });
   expect(f.writes).toEqual([]); expect(f.sends).toEqual([]);
 });
-test("the PIESA trigger is suppressed before logging (the Ready Check times email was removed, Part 3 Task 16)", async () => {
+test("the owner email trigger is suppressed before logging (O42 install day moved; the O26 PIESA times email was removed, Part 4 Task 14)", async () => {
   const f = fixture();
-  expect(await f.load("owner-email-triggers.server").onSafetyCheckTimesOffered("j", ["2026-11-04T00:00:00Z"])).toBe("in_house");
+  expect(await f.load("owner-email-triggers.server").onInstallDayMoved("j", "2026-11-04T00:00:00Z", "2026-11-03T00:00:00Z")).toBe("in_house");
   expect(f.sends).toEqual([]); expect(f.writes).toEqual([]);
-});
-test("trade times reminder stops before provider reads", async () => {
-  const f = fixture();
-  expect(await f.load("piesa-times-reminder.server").remindTradeToOfferTimes({ jobId: "j", assignmentId: "asg", visitKind: "piesa", remindedAt: "2026-10-30" })).toBe("in_house");
-  expect(f.writes).toEqual([]); expect(f.sends).toEqual([]);
 });
 test("coordination sweep batches the state and records no in-house reminder", async () => {
   const f = fixture();
@@ -170,7 +165,7 @@ test("TEST and deleted in-house jobs are held even when the double honours joine
     const f = fixture(); Object.assign(f.data.jobs?.[0] ?? {}, job);
     expect(await f.load("auto-offer.server").autoOfferForJob("j", "ready_check", switches)).toMatchObject({ skipped: "in_house" });
     expect(await f.load("allocation.server").startPiesaAllocation("j", null)).toMatchObject({ skipped: "in_house" });
-    expect(await f.load("owner-email-triggers.server").onSafetyCheckTimesOffered("j", [])).toBe("in_house");
+    expect(await f.load("owner-email-triggers.server").onInstallDayMoved("j", "2026-11-04T00:00:00Z", "2026-11-03T00:00:00Z")).toBe("in_house");
     expect(f.writes).toEqual([]); expect(f.sends).toEqual([]);
   }
 });
@@ -277,8 +272,8 @@ test("Reinsulate-style payee-only assignment stays unheld and owner time emails 
   f.data.partner_offers = [];
   f.overrides["./ready-check-times.server"] = { officePickReadyCheckInstaller: async () => { f.writes.push("partner_offers"); } };
   expect(await f.load("auto-offer.server").autoOfferForJob("j", "ready_check", switches)).toMatchObject({ step: "offer", businessId: "b" });
-  expect(await f.load("owner-email-triggers.server").onSafetyCheckTimesOffered("j", ["2026-11-04T00:00:00Z"])).toBe("sent");
-  expect(f.sends).toEqual(["piesa"]);
+  expect(await f.load("owner-email-triggers.server").onInstallDayMoved("j", "2026-11-04T00:00:00Z", "2026-11-03T00:00:00Z")).toBe("sent");
+  expect(f.sends).toEqual(["install_moved"]);
 });
 test("payee-only PIESA allocation reaches the normal booked-stage healing, never the in-house skip", async () => {
   const f = fixture(); f.setFlag(false);

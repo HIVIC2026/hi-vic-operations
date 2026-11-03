@@ -51,6 +51,12 @@ export const WORKFLOW_DECISIONS = {
     // trigger, no installer button; one email per note; compliance purpose, so Do not contact and Unsubscribe never block it.
     nonComplianceNotice: { purpose: "non_compliance_notice", trigger: "office_button", sameDay: true, flag: "NON_COMPLIANCE_NOTICE_APPROVED" },
     afterInstallReminders: { days: [1, 3, 7] as const, officeRowAfterDay: 7, officeRowLabel: "Balance overdue", flag: "AFTER_INSTALL_REMINDERS_APPROVED" },
+    // Part 4 Task 14 (Jo 2 Nov 2026): the old after-acceptance messages and screens are gone — electrician PIESA offer (E1 + piesa_offer),
+    // E14, O26, I71, fixes_times_link, the HIV fixes quote to owners (O29 + automatic send + office Send), the confirm-fixes
+    // email/text/page, O71 + piesa_owner_confirm, the separate P3 consent step, I65/install_clearance + O33 (installer calls to book;
+    // deposit paid before booking, no 48-hour hold), O45, the balance day-5/due emails and O61 + veec_sign_reminder. Retired text
+    // types stay as "Retired 2 Nov 2026 —" with wordingApproved:false. A job mid-way through an old step keeps its old screen.
+    oldAfterAcceptanceFlowRemoved: { on: "2026-11-02", keptForInFlight: ["fixes", "book"] as const, countScript: "scripts/old-flow-inflight-count.ts" },
     safetyCheck: { settingColumn: "safety_check_payment_inc_gst", defaultIncGst: 349, decided: "2026-10-07", balance: [] as string[], balanceNote: "Decision 365 (Jo 25 Oct 2026): no balance option — one payment statement of the paymentPlan() steps (safety check, 10% to book, balance on install day (Jo 2 Nov 2026); overdue after 7 days). Electrical upgrades are paid to the electrician directly (Customer Agreement v1.3 payment terms, version customer-agreement-1.3)" },
     // Jo 26 Oct: flat 10% install deposit on the install price only (not the PIESA fee or fixes). 5% tier removed.
     deposit: { installPct: 10, base: "install_price_excluding_piesa_and_fixes" },

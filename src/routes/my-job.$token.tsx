@@ -11,7 +11,7 @@ import { ownerHeadline } from "@/lib/owner-headlines.core";
 import { gateACard, SPOT_SAVED_PROGRESS, spotSavedLayout, resolveOwnerScreen } from "@/lib/owner-myjob.core";
 import { quoteSittingBlockers } from '@/lib/owner-quote-sign.core';
 import { ownerPaperworkFn } from "@/lib/owner-gates.functions";
-import { earliestInstall, installDeadline, TWO_HOUR_WINDOWS, visitPill, type OwnerScreen } from "@/lib/owner-myjob.core";
+import { visitPill, type OwnerScreen } from "@/lib/owner-myjob.core";
 import { SPOT_FREE, SPOT_PRICE_NOTE, SPOT_RELEASE_LINE, SPOT_WAIT_LINE } from "@/lib/spot-only-copy.core";
 import { paymentPlan } from "@/lib/payments.core";
 import { QUOTE_CHANGES_FOOTNOTE, QUOTE_CHANGES_HEADING } from "@/lib/quote-changes.core";
@@ -21,7 +21,7 @@ import { OwnerPaperwork } from "@/components/owner/OwnerPaperwork";
 import { OwnerConfirmSignPay } from "@/components/owner/OwnerConfirmSignPay";
 import { OwnerSignAndPay } from "@/components/owner/OwnerSignAndPay";
 import { OwnerCodeGate, signBtn } from "@/components/owner/OwnerSign";
-import { ownerAcceptQuoteFn, ownerAgreementFn, ownerQuoteDocumentFn, ownerBookingStateFn, ownerCardCheckoutFn, ownerChoosePiesaFn, ownerDeclineQuoteFn, ownerChangeInstallDayFn, ownerChangePiesaFn, ownerSignConsentFn, ownerSuggestInstallDaysFn, ownerTakeInstallDayFn, ownerVeecAssignmentFn, ownerSignVeecAssignmentFn, ownerPiesaConfirmFn, ownerSignPiesaConfirmFn, ownerFixesConfirmFn, ownerSignFixesConfirmFn, ownerTakePiesaTimeLinkFn, ownerSuggestPiesaDaysLinkFn, ownerReviewStateFn, ownerReviewStarsFn, ownerReviewFeedbackFn, ownerFixesStateFn, ownerApproveFixesFn, ownerPickFixesTimeFn, ownerRepeatPiesaFn, ownerAcceptRepeatPiesaFn } from "@/lib/owner-link.functions";
+import { ownerAcceptQuoteFn, ownerAgreementFn, ownerQuoteDocumentFn, ownerBookingStateFn, ownerCardCheckoutFn, ownerChoosePiesaFn, ownerDeclineQuoteFn, ownerSuggestInstallDaysFn, ownerTakeInstallDayFn, ownerVeecAssignmentFn, ownerSignVeecAssignmentFn, ownerPiesaConfirmFn, ownerSignPiesaConfirmFn, ownerTakePiesaTimeLinkFn, ownerSuggestPiesaDaysLinkFn, ownerReviewStateFn, ownerReviewStarsFn, ownerReviewFeedbackFn, ownerFixesStateFn, ownerApproveFixesFn, ownerPickFixesTimeFn, ownerRepeatPiesaFn, ownerAcceptRepeatPiesaFn } from "@/lib/owner-link.functions";
 import { OWNER_FIXES_COPY, ownerFixesNeedsOwner } from "@/lib/owner-fixes.core";
 import { REVIEW_COPY, REVIEW_FEEDBACK_MAX, parseStars, reviewScreen } from "@/lib/owner-review.core";
 import { DECLINE_REASONS, OWNER_DECLINED_SCREEN, type DeclineReason } from "@/lib/quote-decline.core";
@@ -31,8 +31,7 @@ import { PIESA_OWNER_SUGGEST_MAX, formatPiesaTime } from "@/lib/piesa-times.core
 import { OwnerReadyCheckTimes } from "@/components/owner/OwnerReadyCheckTimes";
 import { OwnerRunTime } from "@/components/owner/OwnerRunTime";
 import { AuthorityChoice, FactRows, FormCard, InfoBox, LockHint, LockedButton, OwnerFooter, OwnerPageHeader, PageIntro, SectionTitle, SmallNote, ThirtyDayClock, TickCard, TypedField } from "@/components/owner/OwnerPageKit";
-import { OFFICE_EMAIL, P2, P3, P4, P6, P6F, centsAud, dayMonth, declarationBullets, longDate, sentence, shortAud, weekdayDate } from "@/lib/owner-pages.core";
-import { OWNER_DECLARATIONS, type OwnerDeclarationKey } from "@/lib/consent.core";
+import { OFFICE_EMAIL, P2, P3, P4, P6, centsAud, dayMonth, declarationBullets, longDate, shortAud, weekdayDate } from "@/lib/owner-pages.core";
 import { ownerConfirmTurnFn, ownerDeclineTurnFn, ownerTurnStateFn } from "@/lib/spot-release.functions";
 import { LEGACY_WHAT_HAPPENS_NEXT, SPOT_RELEASE_PAGE, type OwnerTurnView } from "@/lib/spot-release.core";
 import { ownerRequestNewQuoteFn } from "@/lib/new-quote-request.functions";
@@ -166,19 +165,14 @@ function Home({ v, token }: { v: View; token: string }) {
   const { data: repeat } = useQuery({ queryKey: ["owner-repeat-piesa", token], queryFn: () => loadRepeat({ data: { token } }) });
   if (repeat) return <><RepeatPiesaCard token={token} /><Hero v={v} level={v.hero.level} headline={v.hero.headline} /></>;
   return <>
-    {/* Approved P3 (decision 128): when the ESC consent is waiting, it is the page; everything else follows below. */}
-    {v.consent && <ConsentCard v={v} token={token} />}
+    {/* Part 4 Task 14 (Jo 2 Nov 2026): the separate P3 consent step, the fixes home card and the P6F confirm-fixes page are gone —
+        the consent is signed on the confirm-and-pay page (?screen=clear); a job mid-way through an old fixes quote opens ?screen=fixes directly. */}
     {/* Decision 296 (P6): between the electrician's PIESA and the install day the owner confirms the safety check here; unsigned = the page. */}
     {v.piesaConfirm && <PiesaConfirmCard v={v} token={token} />}
-    {v.fixesConfirm && <FixesConfirmCard token={token} />}
-    {/* Decision 366: an electrical fixes quote waiting on the owner (approve / pay / pick a time) links to its screen. */}
-    <FixesHomeCard token={token} />
     <LifeSupportPlanCard token={token} />
     <Hero v={v} level={v.hero.level} headline={v.hero.headline} />
     <OwnerRunTime token={token} />
     <OwnerReadyCheckTimes token={token} />
-    {/* Decision 137: the 30-day clock on the owner's job page while the install is being booked. */}
-    {a.button?.screen === "book" && <ThirtyDayClock />}
     <StatusSnapshot v={v} />
     <PayNowCard v={v} token={token} />
     <section className="rounded-[22px] bg-estimate-navy p-5 text-estimate-canvas">
@@ -630,14 +624,10 @@ function BookPickers({ token }: { token: string }) {
   const choosePiesa = useServerFn(ownerChoosePiesaFn);
   const takeDay = useServerFn(ownerTakeInstallDayFn);
   const suggestDays = useServerFn(ownerSuggestInstallDaysFn);
-  const changeDay = useServerFn(ownerChangeInstallDayFn);
   const takePiesa = useServerFn(ownerTakePiesaTimeLinkFn);
   const suggestPiesa = useServerFn(ownerSuggestPiesaDaysLinkFn);
-  const [changing, setChanging] = useState(false);
   const [piesaSuggesting, setPiesaSuggesting] = useState(false);
   const [piesaDays, setPiesaDays] = useState<string[]>([]);
-  const changePiesa = useServerFn(ownerChangePiesaFn);
-  const [changingPiesa, setChangingPiesa] = useState(false);
   const { data, refetch } = useQuery({ queryKey: ["owner-booking", token], queryFn: () => load({ data: { token } }) });
   // Jo 28 Oct (decision 158): a lapsed 30-day window replaces the booking pickers with the repeat safety check card.
   const loadRepeat = useServerFn(ownerRepeatPiesaFn);
@@ -657,21 +647,15 @@ function BookPickers({ token }: { token: string }) {
   const piesaMove = !!pt?.applies && pt.turn === "owner_to_answer";
   const ackBlock = !!pt?.thirtyDayAck?.needed && !understands;
   const piesaBooked = data.piesa.booked as { startsAt: string; canChange: boolean; late: boolean } | null;
-  const any = data.piesa.canPick || piesaMove || installMove || changing || changingPiesa;
+  const any = data.piesa.canPick || piesaMove || installMove;
   const tile = (on: boolean) => `min-h-12 rounded-2xl border px-2 text-sm font-bold ${on ? "border-estimate-green bg-estimate-mint" : "border-estimate-line bg-card"}`;
   const go = async (f: () => Promise<unknown>) => { setErr(""); setBusy(true); try { await f(); setPicks([]); setDays([]); setSuggesting(false); setPiesaDays([]); setPiesaSuggesting(false); await refetch(); } catch (e) { setErr(errText(e)); } finally { setBusy(false); } };
-  const piesaWaiting = pt?.applies && !data.piesa.windows.length ? (pt.turn === "electrician_to_offer" ? "Your electrician will offer you 3 safety check times shortly." : pt.turn === "electrician_to_answer" ? "Your days are with your electrician. They'll take one and choose the time, or offer you new times." : pt.turn === "no_electrician" ? "We're arranging your electrician. They'll offer you 3 safety check times to choose from." : null) : null;
   return <>
-    {/* Decision 337: a booked safety check can be changed here; the electrician is told and new times go out as a new offer. */}
+    {/* Decision #24 (Jo 2 Nov 2026): no change buttons — the owner calls the business to change a booked time. */}
     {piesaBooked && <section data-testid="piesa-booked" className="rounded-[22px] bg-card p-5 text-sm shadow-sm">
       <p className="font-bold">Your Pre Insulation Electrical Safety Assessment (PIESA) is booked for {visitPill(piesaBooked.startsAt)}.</p>
-      {piesaBooked.canChange && (!changingPiesa ? <button className="mt-3 min-h-12 w-full rounded-2xl border border-estimate-line px-3 text-sm font-bold" onClick={() => setChangingPiesa(true)}>Change time</button> : session ? <>
-        <p className="mt-3">This cancels the booked time and your electrician is told straight away. You then pick new times{piesaBooked.late ? ". It's less than 24 hours away, so this uses your one free change" : ""}.</p>
-        <button className={`${signBtn} mt-3`} disabled={busy} onClick={() => go(async () => { await changePiesa({ data: { token, session } }); setChangingPiesa(false); })}>Yes, change the time</button>
-        <button className="mt-2 min-h-12 w-full text-sm font-bold" disabled={busy} onClick={() => setChangingPiesa(false)}>Keep it</button>
-      </> : null)}
     </section>}
-    {!any && !piesaBooked && data.install.turn !== "booked" && <section className="rounded-[22px] bg-card p-5 text-sm shadow-sm">{data.piesa.windows.length ? <><p className="font-bold">Your Pre Insulation Electrical Safety Assessment (PIESA) times are with our electricians.</p><ul className="mt-2 space-y-1">{data.piesa.windows.map((w: any) => <li key={w.starts_at}>{visitPill(w.starts_at)}</li>)}</ul></> : piesaWaiting ? <p className="font-bold" data-piesa-times-waiting>{piesaWaiting}</p> : data.install.turn === "installer_to_answer" ? <><p className="font-bold">Your days are with your installer.</p><p className="mt-1">They'll take one, or offer you new days.</p></> : data.install.turn === "installer_to_offer" ? <p className="font-bold">Your installer will offer you 3 install days shortly.</p> : <p className="font-bold">Nothing to pick right now. We'll let you know.</p>}</section>}
+    {!any && !piesaBooked && data.install.turn !== "booked" && data.piesa.windows.length > 0 && <section className="rounded-[22px] bg-card p-5 text-sm shadow-sm"><p className="font-bold">Your Pre Insulation Electrical Safety Assessment (PIESA) times are with our electricians.</p><ul className="mt-2 space-y-1">{data.piesa.windows.map((w: any) => <li key={w.starts_at}>{visitPill(w.starts_at)}</li>)}</ul></section>}
     {any && !session && <OwnerCodeGate token={token} onVerified={setSession} />}
     {any && session && data.piesa.canPick && <section className="rounded-[22px] bg-card p-5 shadow-sm">
       <h3 className="font-display text-lg font-extrabold">Pre Insulation Electrical Safety Assessment (PIESA) times</h3>
@@ -712,64 +696,9 @@ function BookPickers({ token }: { token: string }) {
     </section>}
     {data.install.turn === "booked" && <section className="rounded-[22px] bg-card p-5 text-sm shadow-sm">
       <p className="font-bold">Your install is booked{data.install.bookedAt ? ` for ${formatInstallDay(data.install.bookedAt)}` : ""}.</p>
-      {!changing ? <button className="mt-3 min-h-12 w-full rounded-2xl border border-estimate-line px-3 text-sm font-bold" onClick={() => setChanging(true)}>Change day</button> : session ? <>
-        <p className="mt-3">This cancels the booked day. Your installer will then offer you 3 new days{data.install.deadline ? `, on or before ${day(data.install.deadline + "T02:00:00Z")}` : ""}.</p>
-        <button className={`${signBtn} mt-3`} disabled={busy} onClick={() => go(async () => { await changeDay({ data: { token, session } }); setChanging(false); })}>Yes, change the day</button>
-        <button className="mt-2 min-h-12 w-full text-sm font-bold" disabled={busy} onClick={() => setChanging(false)}>Keep it</button>
-      </> : null}
     </section>}
     {err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}
   </>;
-}
-
-/** Approved P3 (decision 128): the ESC Owner's Consent Form verbatim — Section 1 prefilled, the four Section 2 ticks,
- *  typed-name signature. Same server function and 24-hour/template guards; the 6-digit code is asked for on the button. */
-function ConsentCard({ v, token }: { v: View; token: string }) {
-  const c = v.consent as { scheduledStart: string | null; section1?: Record<string, string> | null };
-  const sign = useServerFn(ownerSignConsentFn);
-  const qc = useQueryClient();
-  const [session, setSession] = useSession();
-  const [needCode, setNeedCode] = useState(false);
-  const [f, setF] = useState({ name: "", authority: "owner" as "owner" | "authorised_representative" });
-  const [ticks, setTicks] = useState<Partial<Record<OwnerDeclarationKey, boolean>>>({});
-  const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
-  const all = OWNER_DECLARATIONS.every((d) => ticks[d.key] === true);
-  const ready = all && f.name.trim().length >= 2;
-  const q = v.quote as { total: number; split?: { deposit: number } | null } | null;
-  // Jo 26 Oct 2026: a booked day means the 10% deposit is already paid — only an unbooked install asks for it.
-  const deposit = v.payment?.provisional?.deposit ?? (q && !c.scheduledStart ? paymentPlan({ quoteTotalCents: Math.round(q.total * 100), safetyCheckCents: q.split ? Math.round(q.split.deposit * 100) : null }).installDepositCents / 100 : null);
-  const s1 = c.section1 ?? null;
-  const doSign = async () => {
-    if (!session) { setNeedCode(true); return; }
-    setErr(""); setBusy(true);
-    try {
-      await sign({ data: { token, session, signatoryName: f.name, authorityType: f.authority, signatureName: f.name, accept: all, declarations: { owner_or_authorised: !!ticks.owner_or_authorised, details_accurate: !!ticks.details_accurate, consent_ap_sends: !!ticks.consent_ap_sends, consent_commission_shares: !!ticks.consent_commission_shares } } });
-      await qc.invalidateQueries({ queryKey: ["my-job", token] });
-    } catch (e) { setErr(errText(e)); } finally { setBusy(false); }
-  };
-  return <section data-testid="owner-consent" className="space-y-4">
-    <PageIntro kicker={P3.kicker} title={c.scheduledStart ? P3.title(c.scheduledStart) : "Sign your install consent"}>{P3.sub(deposit != null && deposit > 0 ? centsAud(deposit) : null)}</PageIntro>
-    <InfoBox><b>{P3.whyLead}</b>{P3.why}</InfoBox>
-    <FormCard eyebrow={P3.formEyebrow}>
-      <SectionTitle className="mt-1.5 mb-1">{P3.section1}</SectionTitle>
-      {s1 && <FactRows rows={P3.rows.map(([k, label]) => ({ label, value: s1[k] || "—" }))} />}
-      <p className="mt-2 text-xs text-estimate-sub">{P3.wrong} <a className="font-bold text-estimate-blue" href={`mailto:${OFFICE_EMAIL}?subject=${encodeURIComponent(`Correct my details${v.jobNumber ? ` – ${v.jobNumber}` : ""}`)}`}>{P3.correct}</a></p>
-      <SectionTitle className="mt-[18px]">{P3.section2}</SectionTitle>
-      <p className="text-[13px] text-estimate-sub">{P3.declare}</p>
-      {OWNER_DECLARATIONS.map((d) => <TickCard key={d.key} on={ticks[d.key] === true} set={(b) => setTicks({ ...ticks, [d.key]: b })} title={sentence(d.text)} bold={false} />)}
-      <AuthorityChoice value={f.authority} onChange={(authority) => setF({ ...f, authority })} />
-      <TypedField label={P3.signLabel} value={f.name} onChange={(name) => setF({ ...f, name })} placeholder={P3.typeHere} autoComplete="name" />
-      <p className="mt-1.5 text-xs leading-relaxed text-estimate-sub">{P3.dateLine(longDate(new Date().toISOString()))}</p>
-    </FormCard>
-    {needCode && !session && <OwnerCodeGate token={token} onVerified={(s) => { setSession(s); setNeedCode(false); }} />}
-    {err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}
-    <div>
-      <LockedButton ready={ready} busy={busy} busyLabel={P3.signing} onClick={() => void doSign()}>{P3.button}</LockedButton>
-      {!ready && <LockHint>{P3.lockHint}</LockHint>}
-      <SmallNote>{P3.afterNote}</SmallNote>
-      <OwnerFooter />
-    </div>
-  </section>;
 }
 
 function Numbers({ v }: { v: View }) {
@@ -894,7 +823,6 @@ function PayNowCard({ v, token }: { v: View; token: string }) {
   return <section data-testid="pay-now" className="rounded-[22px] border-2 border-estimate-green bg-card p-5">
     <p className="text-xs font-bold uppercase tracking-wide text-estimate-green">Payment</p>
     <h3 className="mt-1 font-display text-lg font-extrabold">{p.payNow.title}</h3>
-    {p.provisional && <p className="mt-1 text-sm font-semibold">Your install day is held for 48 hours{p.provisional.expiresAt ? ` (until ${visitPill(p.provisional.expiresAt)})` : ""} while your {aud(p.provisional.deposit)} deposit arrives.</p>}
     {p.payNow.card && <button type="button" disabled={busy} className="mt-3 flex h-12 w-full items-center justify-center rounded-full bg-estimate-green font-bold text-estimate-canvas disabled:opacity-60" onClick={async () => {
       setErr(""); setBusy(true);
       try { const r = await checkout({ data: { token } }); if ("url" in r && r.url) window.location.assign(r.url); else setErr(("blocker" in r && r.blocker) || "Please pay by bank transfer."); }
@@ -934,18 +862,6 @@ function LifeSupportPlanCard({ token }: { token: string }) {
     <input ref={input} type="file" accept="application/pdf,image/*" className="sr-only" tabIndex={-1} aria-hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); }} />
     {err && <p role="alert" className="mt-2 text-sm font-bold text-destructive">{err}</p>}
     <button type="button" className={`${signBtn} mt-4`} disabled={busy} onClick={() => input.current?.click()} aria-busy={busy}>Upload file</button>
-  </section>;
-}
-
-function FixesHomeCard({ token }: { token: string }) {
-  const load = useServerFn(ownerFixesStateFn);
-  const { data } = useQuery({ queryKey: ["owner-fixes", token], queryFn: () => load({ data: { token } }), retry: false });
-  if (!data || !ownerFixesNeedsOwner(data.step) || (data.inHouseDispatch && data.step === "pick")) return null;
-  return <section data-testid="fixes-home" className="rounded-[22px] border-2 border-estimate-blue bg-card p-5">
-    <p className="text-xs font-bold uppercase tracking-wide text-estimate-blue">{OWNER_FIXES_COPY.kicker}</p>
-    <h2 className="mt-1 font-display text-lg font-extrabold">{OWNER_FIXES_COPY.title}</h2>
-    <p className="mt-1 text-sm">{data.step === "approve" ? OWNER_FIXES_COPY.approve : data.step === "pay" ? OWNER_FIXES_COPY.pay : OWNER_FIXES_COPY.pick}</p>
-    <Link to="/my-job/$token" params={{ token }} search={{ screen: "fixes" }} className="mt-4 flex h-12 w-full items-center justify-center rounded-full bg-estimate-green font-bold text-estimate-canvas">{OWNER_FIXES_COPY.homeButton}</Link>
   </section>;
 }
 
@@ -1006,22 +922,16 @@ function FixesScreen({ v, token }: { v: View; token: string }) {
   </>;
 }
 
+/** Part 4 Task 14: only a job already mid-way through the old pick-a-day step reaches this screen (resolveOwnerScreen falls
+ *  through otherwise). It shows the times/days already offered and nothing else: no "pick windows" intro, no change buttons. */
 function BookScreen({ v, token }: { v: View; token: string }) {
-  const today = melbourneToday();
   if (v.inHouseDispatch) return <><Back token={token} /><PayNowCard v={v} token={token} /><BookPickers token={token} /></>;
   return <>
     <Back token={token} />
     <Hero v={v} level={HOUSE_LEVEL.book_visits} size="sm" headline={ownerHeadline("booking_visits", v.numbers.rebate)} />
-    <section className="rounded-[22px] bg-card p-5 shadow-sm">
-      <h2 className="font-display text-xl font-extrabold">Book your Pre Insulation Electrical Safety Assessment (PIESA) and install</h2>
-      <p className="mt-1 text-sm">First the electrician does a quick Pre Insulation Electrical Safety Assessment (PIESA). Your install can be from {v.piesaInstallGapDays} days after that, and must be within 30 days.</p>
-      <p className="mt-2 text-sm">For example, a Pre Insulation Electrical Safety Assessment (PIESA) on {day(today)} means an install between {day(earliestInstall(today, v.piesaInstallGapDays))} and {day(installDeadline(today))}.</p>
-      <p className="mt-2 text-sm">Pick 2-hour windows that suit you: {TWO_HOUR_WINDOWS.join(", ")}.</p>
-    </section>
     <ThirtyDayClock />
     <BookPickers token={token} />
     <PayNowCard v={v} token={token} />
-    {/* Decision 337: the change-day email says "you can cancel on the same page" — while the owner may cancel, it is here too. */}
     {v.canCancel && <CancelMyJob token={token} />}
   </>;
 }
@@ -1075,44 +985,6 @@ function PiesaConfirmCard({ v, token }: { v: View; token: string }) {
       <LockedButton ready={ready} busy={busy} busyLabel={P6.signing} onClick={() => void doSign()}>{P6.button}</LockedButton>
       {!ready && <LockHint>{P6.lockHint}</LockHint>}
       <SmallNote>{P6.afterNote}</SmallNote>
-      <OwnerFooter />
-    </div>
-  </section>;
-}
-
-/** Decision 330: "Your electrical fixes — please confirm" (P6 pattern, no code): one tick "The electrical fixes were completed on
- *  <date>" + typed full name. Nothing when no fixes are recorded; "Confirmed on <date>" afterwards. Never holds the booking. */
-function FixesConfirmCard({ token }: { token: string }) {
-  const load = useServerFn(ownerFixesConfirmFn);
-  const sign = useServerFn(ownerSignFixesConfirmFn);
-  const qc = useQueryClient();
-  const { data } = useQuery({ queryKey: ["owner-fixes-confirm", token], queryFn: () => load({ data: { token } }) });
-  const [f, setF] = useState({ name: "", authority: "owner" as "owner" | "authorised_representative" });
-  const [tick, setTick] = useState(false);
-  const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
-  if (!data) return null;
-  if (data.confirmed) return <section data-testid="fixes-confirmed" className="flex items-start gap-3 rounded-[22px] bg-estimate-mint p-5">
-    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-estimate-green text-estimate-canvas"><Check className="h-5 w-5" /></span>
-    <div><p className="font-display text-lg font-extrabold">{P6F.confirmedTitle}</p><p className="text-sm">{P6F.confirmedOn(data.confirmed.signedOn, data.confirmed.name)}</p></div>
-  </section>;
-  const ready = tick && f.name.trim().length >= 2;
-  const doSign = async () => {
-    setErr(""); setBusy(true);
-    try { await sign({ data: { token, signatoryName: f.name, authorityType: f.authority, signatureName: f.name, confirmed: tick } }); await qc.invalidateQueries({ queryKey: ["owner-fixes-confirm", token] }); }
-    catch (e) { setErr(errText(e)); } finally { setBusy(false); }
-  };
-  return <section data-testid="fixes-confirm" className="space-y-4">
-    <PageIntro kicker={P6F.kicker} title={P6F.title}>{P6F.sub(data.electricianLine, data.fixesDate)}</PageIntro>
-    <FormCard eyebrow={P6F.formEyebrow}>
-      <TickCard on={tick} set={setTick} title={data.tick} sub={P6F.declare} read="Read the declaration ›" readBody={`• ${data.declaration}`} />
-      <AuthorityChoice value={f.authority} onChange={(authority) => setF({ ...f, authority })} />
-      <TypedField label={P6F.signLabel} value={f.name} onChange={(name) => setF({ ...f, name })} placeholder={P6.typeHere} autoComplete="name" />
-      <p className="mt-1.5 text-xs leading-relaxed text-estimate-sub">{P6F.dateLine(longDate(new Date().toISOString()))}</p>
-    </FormCard>
-    {err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}
-    <div>
-      <LockedButton ready={ready} busy={busy} busyLabel={P6F.signing} onClick={() => void doSign()}>{P6F.button}</LockedButton>
-      {!ready && <LockHint>{P6F.lockHint}</LockHint>}
       <OwnerFooter />
     </div>
   </section>;

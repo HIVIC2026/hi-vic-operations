@@ -19,32 +19,26 @@ import { ownerCodeEmail, ownerCodeSmsBody } from "./owner-code-delivery.core";
 import { renderOwnerQuoteEmail, renderQuoteReminderEmail, ownerQuoteSms } from "./owner-quote-email.core";
 import { quoteChangeRows } from "./quote-changes.core";
 import { renderYoureInEmail } from "./acceptance-email.core";
-import { renderSafetyCheckTimesEmail, renderSafetyCheckBookedEmail } from "./safety-check-emails.core";
 import { renderPiesaCopyEmail } from "./piesa-delivery.core";
-import { renderPiesaFixesConfirmEmail } from "./piesa-fixes-confirm-email.core";
-import { piesaFixesConfirmText } from "./piesa-fixes-confirm.core";
 import { ownerInstallWindowEmail, installerInstallWindowEmail, ownerInstallWindowText, installerInstallWindowText } from "./thirty-day-rule.core";
-import { renderFixesQuoteEmail } from "./rectification-quote-email.core";
-import { renderInstallDaysEmail, renderInstallDayChangedEmail } from "./install-days-email.core";
+import { renderInstallDayChangedEmail } from "./install-days-email.core";
 import { renderInstallBookedEmail } from "./install-booked-email.core";
 import { renderConsentCopyEmail } from "./consent-copy-email.core";
 import { renderDepositReleasedEmail, depositReleaseText } from "./deposit-release-notice.core";
 import { renderInstallNoAccessEmail, installNoAccessText } from "./install-no-access-notice.core";
 import { renderOwnerCancelledEmail, renderInstallerCancelledEmail } from "./cancel-notice.core";
-import { HIV_AP_CONTACT, renderInstallCompleteEmail, renderFinalInvoiceEmail, renderCompletionPackEmail, renderReviewRequestEmail } from "./completion-emails.core";
-import { renderVeecReminderEmail, renderVeecCopyEmail } from "./veec-emails.core";
+import { HIV_AP_CONTACT, renderInstallCompleteEmail, renderCompletionPackEmail, renderReviewRequestEmail } from "./completion-emails.core";
+import { renderVeecCopyEmail } from "./veec-emails.core";
 import { afterInstallReminder } from "./after-install-reminders.core";
-import { veecSignRequestText, veecSignReminderText, VEEC_FORM_BODY, VEEC_FORM_TITLE, VEEC_FORM_EDITION, VEEC_FORM_ORIGINAL_FILE } from "./veec-assignment-form.core";
+import { veecSignRequestText, VEEC_FORM_BODY, VEEC_FORM_TITLE, VEEC_FORM_EDITION, VEEC_FORM_ORIGINAL_FILE } from "./veec-assignment-form.core";
 import { renderWarrantyFollowupEmail } from "./warranty-followup.core";
 import { bankDetailLines, HIV_BANK_DETAILS } from "./payments.core";
 import { renderInstallerAcceptedEmail, renderInstallerDeclinedEmail } from "./installer-accepted-email.core";
 import { renderApplicationReceivedEmail, changesEmail, declineEmail } from "./application-review.core";
 import { partnerWelcomeEmail, partnerEmailLayout } from "./partner-email.core";
 import { collectionNoticeEmail, noticeLinkEmail, noticeLinkSmsBody, COLLECTION_NOTICE_PARAGRAPHS } from "./esc-collection-notice.core";
-import { renderInstallClearanceEmail, installClearanceText } from "./install-clearance.core";
 import { renderReadyCheckOfferEmail } from "./ready-check-offer-email.core";
 import { readyCheckOfferText } from "./ready-check-times.core";
-import { renderElectricianOfferEmail } from "./electrician-offer-email.core";
 import { renderElectricianPiesaEmail } from "./electrician-piesa-copy.core";
 import { MITTI_INVITE_MESSAGE, renderMittiInviteEmail } from "./mitti-invite.core";
 import { officeEmailLayout, electricianInviteLayout } from "./office-email.core";
@@ -58,8 +52,8 @@ import { runSlotCancelledText, windowWords } from "./run-portal.core";
 import { blastMessage } from "./save-spot-reminder-blast.core";
 import { threeQuestionsSms } from "./three-questions-reminder.core";
 import {
-  visitTomorrowText, piesaBookedOwnerText,
-  quoteReminderDay3Text, quoteReminderExpiryText, installMovedText, piesaOfferText,
+  visitTomorrowText,
+  quoteReminderDay3Text, quoteReminderExpiryText, installMovedText,
 } from "./approved-texts.core";
 import { melbourneClock, readyCheckDaysSuggestedText, readyCheckBookedInstallerText, installTomorrowText, teamMemberInviteText, ownerChangedVisitText } from "./installer-texts.core";
 import { usualElectricianReminderBody } from "./usual-electrician.core";
@@ -82,8 +76,6 @@ import { buildInvoicePayload } from "./xero.core";
 import { TRADE_INVITE_DRAFT, renderTradeInviteEmail } from "./trade-access.core";
 import { swmsSignLinkText } from "./swms-sign-text.core";
 import { renderVisitNewTimesEmail, visitNewTimesText } from "./visit-new-times.core";
-import { piesaTimesReminderText, renderPiesaTimesReminderEmail } from "./piesa-times-reminder.core";
-import { installerPlanningText, renderInstallerPlanningEmail } from "./installer-planning-notice.core";
 import { ANSWER_CODES, ANSWER_SAMPLES, ANSWER_TYPES, renderOwnerAutoReplyEmail } from "./owner-email-auto-reply.core";
 import { renderLegacySpotReleasedEmail, renderSpotReleasedEmail } from "./spot-release-email.core";
 import { legacySpotReleasedText, spotReleasedText } from "./spot-release.core";
@@ -298,15 +290,6 @@ const OWNER: TemplateEntry[] = [
     source: { builder: "src/lib/acceptance-email.core.ts", fn: "renderYoureInEmail", sender: "src/lib/approved-owner-emails.server.ts" }, design: "docs/templates/mjml/owner_O22.mjml",
     render: () => email(renderYoureInEmail({ firstName: "Helen", rebate: 1850, totalIncGst: 2200, payment: { amount: 349, paidOn: "24 Oct 2026", cardLast4: "4242" }, installerName: "Sample Insulation Co", myJobUrl: JOB })) }),
   // Safety check
-  ENTRY({ id: "owner:O26", section: "owner", step: "safety_check", kind: "email", code: "O26", name: "Pick a time for your safety check", when: "The electrician offers 3 safety check times", who: "Owner", approvalNote: "Jo 24 Oct 2026, decision 93", gate: { kind: "email" },
-    source: { builder: "src/lib/safety-check-emails.core.ts", fn: "renderSafetyCheckTimesEmail", sender: "src/lib/approved-owner-emails.server.ts" }, design: "docs/templates/mjml/owner_O26.mjml",
-    render: () => email(renderSafetyCheckTimesEmail({ firstName: "Helen", electricianName: "Spark Electrical", times: ["Thursday 5 November at 8:00am", "Friday 6 November at 12:30pm", "Monday 9 November at 7:30am"], myJobUrl: JOB, paid: 349 })) }),
-  ENTRY({ id: "owner:safety-check-booked", section: "owner", step: "safety_check", kind: "email", code: "", name: "Safety check booked", when: "The owner picks a safety check time (or it changes)", who: "Owner", approvalNote: "Jo 24 Oct 2026, decision 93", gate: { kind: "email" },
-    source: { builder: "src/lib/safety-check-emails.core.ts", fn: "renderSafetyCheckBookedEmail", sender: "src/lib/approved-owner-emails.server.ts" },
-    render: () => email(renderSafetyCheckBookedEmail({ firstName: "Helen", when: "Thursday 5 November at 8:00am", electricianName: "Spark Electrical", electricianPhone: "0400 111 222", address: SHORT_ADDRESS, changed: false, myJobUrl: JOB })) }),
-  ENTRY({ id: "owner:sms-safety_check_booked_owner", section: "owner", step: "safety_check", kind: "text", code: "", name: "Safety check booked (text)", when: "The owner picks a safety check time", who: "Owner", approvalNote: "Jo 24 Oct 2026, decision 93 (text A)", gate: { kind: "text", smsType: "safety_check_booked_owner" },
-    source: { builder: "src/lib/approved-texts.core.ts", fn: "piesaBookedOwnerText", sender: "src/lib/approved-texts.server.ts" },
-    render: () => text(piesaBookedOwnerText({ startIso: PIESA_ISO, electrician: "Spark Electrical", phone: "0400 111 222", link: JOB })) }),
   ENTRY({ id: "owner:O28", section: "owner", step: "safety_check", kind: "email", code: "O28", name: "Your safety check copy and declaration", when: "The signed PIESA is filed — only for old-flow jobs and owners on Do not contact; a new-flow owner gets the PIESA attached to \"You're clear to install\" or the electrical upgrades email instead (piesa-result-route.core)", who: "Owner", approvalNote: "Jo 24 Oct 2026, decision 131", gate: { kind: "email" },
     source: { builder: "src/lib/piesa-delivery.core.ts", fn: "renderPiesaCopyEmail", sender: "src/lib/piesa-delivery.server.ts" }, design: "docs/templates/mjml/owner_O28.mjml",
     render: () => email(renderPiesaCopyEmail({ recipient: "owner", firstName: "Helen", address: SHORT_ADDRESS, jobNumber: "HV-TEST", signatureDate: "2026-11-05", installStart: INSTALL_ISO, link: `${JOB}?screen=piesa`, electrician: { name: "Spark Electrical", licence: "12345", rec: "67890" } })) }),
@@ -320,15 +303,6 @@ const OWNER: TemplateEntry[] = [
       { label: "10 days left", body: ownerInstallWindowText({ step: "reminder_10", deadline: "2026-12-04", daysLeft: 10, link: JOB, firstName: "Helen", installerName: "Sample Insulation Co" }) },
     ]) }),
   // Fixes
-  ENTRY({ id: "owner:O29", section: "owner", step: "fixes", kind: "email", code: "O29", name: "Your electrical fixes quote", when: "The safety check finds repair work: fixes quote released (automatically when priced on the A3, decision 354)", who: "Owner", approvalNote: "Jo 24 Oct 2026", gate: { kind: "email" },
-    source: { builder: "src/lib/rectification-quote-email.core.ts", fn: "renderFixesQuoteEmail", sender: "src/lib/approved-owner-emails.server.ts" }, design: "docs/templates/mjml/owner_O29.mjml",
-    render: () => email(renderFixesQuoteEmail({ firstName: "Helen", electricianName: "Spark Electrical", checkedOn: "Thursday 5 November", found: ["4 old downlights that can't be covered by insulation", "One ceiling cable joint that isn't enclosed"], lines: [{ description: "Replace 4 downlights with IC-rated LEDs", detail: "4 × $120.00, supplied and installed", lineTotalIncGst: 480 }, { description: "Enclose cable joint in a junction box", detail: "Labour and parts", lineTotalIncGst: 200 }], totalIncGst: 680, expiresOn: "5 December", approveUrl: `${JOB}?screen=fixes` })) }),
-  ENTRY({ id: "owner:fixes-confirm", section: "owner", step: "fixes", kind: "email", code: "", name: "Please confirm your electrical fixes", when: "The electrician completes the A4 fixes form; reminders days 1 and 3", who: "Owner", approvalNote: "Jo 25 Oct 2026, decision 330", gate: { kind: "email" },
-    source: { builder: "src/lib/piesa-fixes-confirm-email.core.ts", fn: "renderPiesaFixesConfirmEmail", sender: "src/lib/piesa-fixes-confirm-send.server.ts" },
-    render: () => email(renderPiesaFixesConfirmEmail({ firstName: "Helen", fixesDate: "9 November 2026", electricianLine: "Sam Spark (Spark Electrical Pty Ltd)", confirmUrl: JOB, unsubscribeUrl: UNSUB })) }),
-  ENTRY({ id: "owner:sms-piesa_owner_fixes_confirm", section: "owner", step: "fixes", kind: "text", code: "", name: "Confirm your electrical fixes (text)", when: "With the fixes confirmation email and its reminders", who: "Owner", approvalNote: "Jo 25 Oct 2026, decision 330", gate: { kind: "text", smsType: "piesa_owner_fixes_confirm" },
-    source: { builder: "src/lib/piesa-fixes-confirm.core.ts", fn: "piesaFixesConfirmText", sender: "src/lib/piesa-fixes-confirm-send.server.ts" },
-    render: () => text(piesaFixesConfirmText(JOB)) }),
   // Install
   ENTRY({id:'owner:sms-in-house-booked',section:'owner',step:'install',kind:'text',code:'',name:"You're booked (in-house)",when:'A current in-house visit is booked',who:'Owner',approvalNote:'Jo 1 Nov Task 7',gate:{kind:'text',smsType:'in_house_booked_owner'},source:{builder:'src/lib/in-house-booking.core.ts',fn:'bookingNotice',sender:'src/lib/in-house-booking.server.ts'},render:()=>text(bookingNotice({kind:'install',start:'2026-11-05T21:00:00Z',who:{name:'Sample Lead Installer',phone:'0399999999'},installer:'Sample Insulation Co',phone:'0399999999'}).sms)}),
   ...(['request','day3','day7','paid'] as const).flatMap(step=>[
@@ -337,14 +311,11 @@ const OWNER: TemplateEntry[] = [
   ]),
   ENTRY({id:'owner:install-deposit-reminder-v2',section:'owner',step:'install',kind:'email',code:'',name:'One last step to book your install (reminder, days 3 and 7)',when:'3 and 7 days after the deposit request, if unpaid. Replaces the wording of the two reminders above once Jo flips DEPOSIT_MESSAGES_V2_APPROVED (same purpose and key). Jobs with electrical upgrades still to come leave out the opening "You\'re clear to install." sentence',who:'Owner',approvalNote:'Jo 2 Nov 2026, touchpoint 43 (dep-rem-p.png); the amount line is "{amount} inc GST" (draft for Jo)',gate:{kind:'email'},source:{builder:'src/lib/deposit-request-email.core.ts',fn:'renderInstallDepositOwnerEmail',sender:'src/lib/deposit-request.server.ts'},render:()=>email(renderInstallDepositOwnerEmail({...DEPOSIT_SAMPLE,link:`${JOB}?screen=clear`},'day3',false,true))}),
   ENTRY({id:'owner:install-deposit-received-v2',section:'owner',step:'install',kind:'email',code:'',name:'Deposit received, thanks!',when:'Deposit confirmed on the installation invoice. Replaces the Install deposit received wording once Jo flips DEPOSIT_MESSAGES_V2_APPROVED. Attaches the receipt (only with PDF_LOOK_APPROVED.receipts) and the owner-confirmed PIESA; never the ESC consent (that goes on its own at signing). Held when the installer office phone is missing. Email only',who:'Owner',approvalNote:'Jo 2 Nov 2026, touchpoint 44 (dep-paid-p.png); line order is a draft for Jo (picture not in the repo)',gate:{kind:'email'},source:{builder:'src/lib/deposit-request-email.core.ts',fn:'renderInstallDepositOwnerEmail',sender:'src/lib/deposit-request.server.ts'},render:()=>email(renderInstallDepositOwnerEmail({...DEPOSIT_SAMPLE,officePhone:'03 9000 0000',balanceCents:141200,depositCents:15700},'paid',false,true,{receiptAttached:true}))}),
-  ENTRY({id:'owner:after-install-reminder',section:'owner',step:'rebate',kind:'email',code:'',name:'Just 2 things left (after-install reminder, days 1, 3 and 7)',when:'Days 1, 3 and 7 after install day, for whatever is still undone (rebate form, balance, or both), until both are done. Replaces the balance day-5 / due emails and the separate rebate-form reminders (O61) once Jo flips AFTER_INSTALL_REMINDERS_APPROVED. After day 7 the owner hears nothing more; the office sees "Balance overdue". Shown here: both undone, day 1; the day 3 and day 7 versions and the one-thing-left versions are listed in after-install-reminders.core.ts',who:'Owner',approvalNote:'Jo 2 Nov 2026, touchpoint 53 (bal.png): the key phrases are verbatim; the full emails, one-thing-left versions, subjects, greeting and button labels are drafts for Jo',gate:{kind:'email'},source:{builder:'src/lib/after-install-reminders.core.ts',fn:'afterInstallReminder',sender:'src/lib/after-install-reminders.server.ts'},render:()=>email(afterInstallReminder({day:1,firstName:'Sarah',balance:'$1,412.00',veecSigned:false,balancePaid:false,link:`${JOB}?screen=finish`}))}),
+  ENTRY({id:'owner:after-install-reminder',section:'owner',step:'rebate',kind:'email',code:'',name:'Just 2 things left (after-install reminder, days 1, 3 and 7)',when:'Days 1, 3 and 7 after install day, for whatever is still undone (rebate form, balance, or both), until both are done. The balance day-5 / due emails and the separate rebate-form reminders (O61) were removed 2 Nov 2026; nothing reminds the owner until Jo flips AFTER_INSTALL_REMINDERS_APPROVED. After day 7 the owner hears nothing more; the office sees "Balance overdue". Shown here: both undone, day 1; the day 3 and day 7 versions and the one-thing-left versions are listed in after-install-reminders.core.ts',who:'Owner',approvalNote:'Jo 2 Nov 2026, touchpoint 53 (bal.png): the key phrases are verbatim; the full emails, one-thing-left versions, subjects, greeting and button labels are drafts for Jo',gate:{kind:'email'},source:{builder:'src/lib/after-install-reminders.core.ts',fn:'afterInstallReminder',sender:'src/lib/after-install-reminders.server.ts'},render:()=>email(afterInstallReminder({day:1,firstName:'Sarah',balance:'$1,412.00',veecSigned:false,balancePaid:false,link:`${JOB}?screen=finish`}))}),
   ENTRY({id:'owner:sms-after_install_reminder',section:'owner',step:'rebate',kind:'text',code:'',name:'Just 2 things left (after-install reminder, text)',when:'With each after-install reminder email, during daytime. Needs its own text switch (After-install reminders · text)',who:'Owner',approvalNote:'Jo 2 Nov 2026, touchpoint 53 (bal.png): key phrases verbatim, rest a draft for Jo',gate:{kind:'text',smsType:'after_install_reminder'},source:{builder:'src/lib/after-install-reminders.core.ts',fn:'afterInstallReminder',sender:'src/lib/after-install-reminders.server.ts'},render:()=>text(afterInstallReminder({day:3,firstName:'Sarah',balance:'$1,412.00',veecSigned:false,balancePaid:false,link:`${JOB}?screen=finish`}).sms)}),
   ENTRY({id:'owner:upgrades-needed',section:'owner',step:'safety_check',kind:'email',code:'',name:'Your safety check found electrical upgrades needed',when:'New-flow PIESA found electrical upgrades still to come: the one email with the signed PIESA attached and the confirm-and-pay button. Sent instead of the standalone PIESA copy once Jo flips UPGRADES_NEEDED_EMAIL_APPROVED',who:'Owner',approvalNote:'Jo 2 Nov 2026, touchpoint 42 (upg-both.png); step 2 and the button are drafts for Jo (answer 21), as are the subject, intro line and 30-day sentence',gate:{kind:'email'},source:{builder:'src/lib/upgrades-needed.core.ts',fn:'upgradesNeededEmail',sender:'src/lib/upgrades-needed.server.ts'},render:()=>email(upgradesNeededEmail({firstName:'Helen',found:['Old wiring near the manhole','Missing safety switch'],electrician:{name:'Spark Electrical',tradingName:null,officePhone:'03 9000 0000',email:'office@spark.example'},installer:'Sample Insulation Co',installBy:'2026-12-04',depositCents:15700,confirmUrl:`${JOB}?screen=clear`}))}),
   ENTRY({id:'owner:sms-upgrades-needed',section:'owner',step:'safety_check',kind:'text',code:'',name:'Electrical upgrades needed (text)',when:'With the upgrades-needed email, during daytime',who:'Owner',approvalNote:'Jo 2 Nov 2026, touchpoint 42 (verbatim)',gate:{kind:'text',smsType:'upgrades_needed'},source:{builder:'src/lib/upgrades-needed.core.ts',fn:'upgradesNeededText',sender:'src/lib/upgrades-needed.server.ts'},render:()=>text(upgradesNeededText('Helen','Spark Electrical'))}),
   ENTRY({id:'owner:clear-to-install',section:'owner',step:'install',kind:'email',code:'',name:"You're clear to install",when:'New-flow PIESA all clear (or upgrades done on the day): the one email with the signed PIESA and ESC consent form attached and the confirm-and-pay button. Sent instead of the 10% deposit request once Jo flips CLEAR_TO_INSTALL_EMAIL_APPROVED',who:'Owner',approvalNote:'Jo 2 Nov 2026, touchpoint 40 (clear.png); greeting, Checked on and Electrician rows are drafts for Jo',gate:{kind:'email'},source:{builder:'src/lib/deposit-request-email.core.ts',fn:'renderInstallDepositOwnerEmail',sender:'src/lib/deposit-request.server.ts'},render:()=>email(renderInstallDepositOwnerEmail({...DEPOSIT_SAMPLE,firstName:'Helen',checkedOn:'2026-11-05',electrician:'Spark Electrical',upgrades:'None',link:`${JOB}?screen=clear`,amountCents:15700},'request',true))}),
-  ENTRY({ id: "owner:O33", section: "owner", step: "install", kind: "email", code: "O33", name: "Pick your install day", when: "The installer offers 3 install days after clearance", who: "Owner", approvalNote: "Jo 24 Oct 2026", gate: { kind: "email" },
-    source: { builder: "src/lib/install-days-email.core.ts", fn: "renderInstallDaysEmail", sender: "src/lib/approved-owner-emails.server.ts" }, design: "docs/templates/mjml/owner_O33.mjml",
-    render: () => email(renderInstallDaysEmail({ firstName: "Helen", installerName: "Sample Insulation Co", days: ["Wednesday 11 November at 7:30am", "Thursday 12 November at 12:30pm", "Monday 16 November at 7:30am"], myJobUrl: JOB, balanceIncGst: 1851, installBy: "4 December" })) }),
   ENTRY({ id: "owner:O35", section: "owner", step: "install", kind: "email", code: "O35", name: "Your install is booked", when: "Consent signed and the install deposit received", who: "Owner", approvalNote: "Jo 24 Oct 2026, decision 98", gate: { kind: "email" },
     source: { builder: "src/lib/install-booked-email.core.ts", fn: "renderInstallBookedEmail", sender: "src/lib/install-booked-email.server.ts" }, design: "docs/templates/mjml/owner_O35.mjml",
     render: () => email(renderInstallBookedEmail({ firstName: "Helen", when: "Wednesday 11 November at 7:30am", address: SHORT_ADDRESS, installerName: "Sample Insulation Co", installerPhone: "0400 000 000", removal: true, myJobUrl: JOB, consentSigned: true, payment: { depositPaid: 185.1, cardLast4: null, balanceDue: 1665.9 } })) }),
@@ -385,7 +356,7 @@ const OWNER: TemplateEntry[] = [
   ENTRY({ id: "owner:O44", section: "owner", step: "rebate", kind: "email", code: "O44", name: "All done! Sign your rebate form", when: "Install complete (day 0 of the rebate form asks). Replaced by the one All done email below once Jo flips ALL_DONE_V2_APPROVED", who: "Owner", approvalNote: "Jo 24 Oct 2026, decision 169", gate: { kind: "email" },
     source: { builder: "src/lib/completion-emails.core.ts", fn: "renderInstallCompleteEmail", sender: "src/lib/approved-owner-emails.server.ts" }, design: "docs/templates/mjml/owner_O44.mjml",
     render: () => email(renderInstallCompleteEmail({ firstName: "Helen", installer: REINSULATE, product: "Bradford Gold R5.0", areaM2: 137.6, rebate: 1850, balancePaid: true, signRebateFormUrl: `${JOB}?screen=done` }, false)) }),
-  ENTRY({ id: "owner:all-done-v2", section: "owner", step: "rebate", kind: "email", code: "", name: "All done. Enjoy a warmer home! (one email, paid or not)", when: "Install complete. Replaces O44 above AND the O45 final invoice once Jo flips ALL_DONE_V2_APPROVED (same purpose and key). Carries the tax invoice, the rebate form to read, the product warranty and the manufacturer's instructions (only the PDFs that exist), whether or not the balance is paid. Held when the installer's or electrician's office phone/email is missing", who: "Owner", approvalNote: "Jo 2 Nov 2026, touchpoint 52 (done2.png); the \"Attached:\" line, the \"Your contacts\" box, \"One last thing\" when nothing is owed and \"Takes about a minute.\" are drafts for Jo (ALL_DONE_V2_APPROVED, off)", gate: { kind: "code_off", flag: "ALL_DONE_V2_APPROVED" },
+  ENTRY({ id: "owner:all-done-v2", section: "owner", step: "rebate", kind: "email", code: "", name: "All done. Enjoy a warmer home! (one email, paid or not)", when: "Install complete. Replaces O44 above once Jo flips ALL_DONE_V2_APPROVED (same purpose and key); the separate O45 final invoice email was removed 2 Nov 2026, so until the flag is on the owner gets O44 and no invoice email. Carries the tax invoice, the rebate form to read, the product warranty and the manufacturer's instructions (only the PDFs that exist), whether or not the balance is paid. Held when the installer's or electrician's office phone/email is missing", who: "Owner", approvalNote: "Jo 2 Nov 2026, touchpoint 52 (done2.png); the \"Attached:\" line, the \"Your contacts\" box, \"One last thing\" when nothing is owed and \"Takes about a minute.\" are drafts for Jo (ALL_DONE_V2_APPROVED, off)", gate: { kind: "code_off", flag: "ALL_DONE_V2_APPROVED" },
     source: { builder: "src/lib/completion-emails.core.ts", fn: "renderInstallCompleteEmail", sender: "src/lib/approved-owner-emails.server.ts" },
     render: () => email(renderInstallCompleteEmail({ firstName: "Sarah", installer: REINSULATE, product: "Bradford Gold R5.0", areaM2: 120, rebate: 2380, balancePaid: false, balanceCents: 141200, signRebateFormUrl: `${JOB}?screen=finish`, signAndPayUrl: `${JOB}?screen=finish`,
       contacts: { ap: HIV_AP_CONTACT, installer: { name: "Sample Insulation Co", tradingName: null, officePhone: "03 9000 0001", email: "office@sample.example" }, electrician: { name: "Sample Electrical", tradingName: null, officePhone: "03 9000 0002", email: "office@sparks.example" } },
@@ -393,12 +364,6 @@ const OWNER: TemplateEntry[] = [
   ENTRY({ id: "owner:sms-veec_sign_request", section: "owner", step: "rebate", kind: "text", code: "", name: "Sign your rebate form (text)", when: "Install complete", who: "Owner", approvalNote: "Jo 24 Oct 2026, decision 166", gate: { kind: "text", smsType: "veec_sign_request" },
     source: { builder: "src/lib/veec-assignment-form.core.ts", fn: "veecSignRequestText", sender: "src/lib/veec-reminders.server.ts" },
     render: () => text(veecSignRequestText(1850, `${JOB}?screen=done`)) }),
-  ENTRY({ id: "owner:O61", section: "owner", step: "rebate", kind: "email", code: "O61", name: "Your rebate form still needs your signature", when: "Days 1, 3 and 7 after the install while unsigned (day 10 → office)", who: "Owner", approvalNote: "Jo 24 Oct 2026, decisions 168/169", gate: { kind: "email" },
-    source: { builder: "src/lib/veec-emails.core.ts", fn: "renderVeecReminderEmail", sender: "src/lib/veec-reminders.server.ts" }, design: "docs/templates/mjml/owner_O61.mjml",
-    render: () => email(renderVeecReminderEmail({ firstName: "Helen", rebate: 1850, signUrl: `${JOB}?screen=done`, unsubscribeUrl: UNSUB })) }),
-  ENTRY({ id: "owner:sms-veec_sign_reminder", section: "owner", step: "rebate", kind: "text", code: "", name: "Rebate form reminder (text)", when: "Days 1, 3 and 7 after the install while unsigned", who: "Owner", approvalNote: "Jo 24 Oct 2026, decision 168", gate: { kind: "text", smsType: "veec_sign_reminder" },
-    source: { builder: "src/lib/veec-assignment-form.core.ts", fn: "veecSignReminderText", sender: "src/lib/veec-reminders.server.ts" },
-    render: () => text(veecSignReminderText(1850, `${JOB}?screen=done`)) }),
   ENTRY({ id: "owner:O62", section: "owner", step: "rebate", kind: "email", code: "O62", name: "Here's your signed rebate form", when: "Within 10 business days of the owner signing (executed PDF attached)", who: "Owner", approvalNote: "Jo 24 Oct 2026", gate: { kind: "email" },
     source: { builder: "src/lib/veec-emails.core.ts", fn: "renderVeecCopyEmail", sender: "src/lib/veec-copy-email.server.ts" }, design: "docs/templates/mjml/owner_O62.mjml",
     render: () => email(renderVeecCopyEmail({ firstName: "Helen", jobNumber: "HV-TEST", signedAt: "2026-11-21T03:00:00.000Z", myJobUrl: `${JOB}?screen=done`, unsubscribeUrl: UNSUB })) }),
@@ -441,9 +406,8 @@ const OWNER: TemplateEntry[] = [
   // My job pages (approved mock-ups the live page copies byte-for-byte; owner-pages.core.test proves the wording)
   ...([["P1", "enquiry", "Tell us about your insulation (questions page)", "The O2 questions link", "P1-questions-page.html"],
     ["P2", "quote", "View and accept your quote", "The O18 quote link (?screen=quote)", "P2-quote-accept-page.html"],
-    ["P6", "safety_check", "Confirm your safety check", "The O71 link after the electrician completes the PIESA", "P6-piesa-confirm-page.html"],
-    ["P3", "install", "Owner's consent form (ESC)", "After the install day is agreed, at least 24 hours before work", "P3-owner-consent-page.html"],
-    ["P4", "rebate", "Sign your rebate form (VEEC assignment)", "The O44 / O61 link after the install", "P4-veec-sign-page.html"]] as const).map(([code, step, name, when, file]) =>
+    ["P6", "safety_check", "Confirm your safety check", "Old ?screen=piesa links; the confirm-and-pay page (?screen=clear) covers it for new jobs", "P6-piesa-confirm-page.html"],
+    ["P4", "rebate", "Sign your rebate form (VEEC assignment)", "The O44 link after the install (old ?screen=done links; the All done sign-and-pay page covers it for new jobs)", "P4-veec-sign-page.html"]] as const).map(([code, step, name, when, file]) =>
     ENTRY({ id: `owner:${code}`, section: "owner", step, kind: "page", code, name, when, who: "Owner (My job link)", approvalNote: code === "P2" ? "Jo 2 Nov 2026, decisions #29/#33 (two ticks, typed name, 30-day line; design mock-up updated to match)" : "Jo 24 Oct 2026, decisions 125–130", gate: { kind: "always" },
       source: { builder: "src/lib/owner-pages.core.ts", fn: code, sender: "src/routes/my-job.$token.tsx" }, design: `docs/templates/owner/${file}`,
       render: () => ({ kind: "file", path: `docs/templates/owner/${file}`, as: "html", note: "Jo's approved page design. The live My job page uses this wording byte-for-byte (owner-pages.core.ts, tested by tests/owner-pages.core.test.ts)." }) })),
@@ -607,21 +571,9 @@ const INSTALLER: TemplateEntry[] = [
     render: () => email(renderInstallerDeclinedEmail({ ...PARTNER_JOB, reasonLabel: "Price too high", reasonNote: "We've decided to wait until next year." })) }),
   // Safety check
   // Decision 384 (Jo 25 Oct 2026): approved as drafted in decision 376.
-  ENTRY({ id: "installer:I71", section: "installer", step: "safety_check", kind: "email", code: "I71", name: "Safety check booked (for your planning)", when: "The safety check is booked: the installer is told the date for planning only", who: "Installer", approvalNote: "Jo 25 Oct 2026, decision 384 (drafted in decision 376)", gate: { kind: "email" },
-    source: { builder: "src/lib/installer-planning-notice.core.ts", fn: "renderInstallerPlanningEmail", sender: "src/lib/installer-planning-notice.server.ts" }, design: "docs/templates/mjml/installer_I71.mjml",
-    render: () => email(renderInstallerPlanningEmail({ jobNumber: "HV-TEST", address: SHORT_ADDRESS, piesaStartIso: PIESA_ISO, link: FIELD, ownerFirstName: "Helen" })) }),
-  ENTRY({ id: "installer:sms-installer_planning_notice", section: "installer", step: "safety_check", kind: "text", code: "", name: "Safety check booked (for your planning) (text)", when: "With I71", who: "Installer", approvalNote: "Jo 25 Oct 2026, decision 384 (drafted in decision 376)", gate: { kind: "text", smsType: "installer_planning_notice" },
-    source: { builder: "src/lib/installer-planning-notice.core.ts", fn: "installerPlanningText", sender: "src/lib/installer-planning-notice.server.ts" },
-    render: () => text(installerPlanningText({ jobNumber: "HV-TEST", address: SHORT_ADDRESS, piesaStartIso: PIESA_ISO, link: FIELD })) }),
   ENTRY({ id: "installer:piesa-copy", section: "installer", step: "safety_check", kind: "email", code: "O28", name: "Safety check copy (installer)", when: "The signed PIESA is filed (at least 24 hours before the install)", who: "Installer", approvalNote: "Jo 24 Oct 2026, decision 131", gate: { kind: "email" },
     source: { builder: "src/lib/piesa-delivery.core.ts", fn: "renderPiesaCopyEmail", sender: "src/lib/piesa-delivery.server.ts" },
     render: () => email(renderPiesaCopyEmail({ recipient: "installer", firstName: "Sam", address: SHORT_ADDRESS, jobNumber: "HV-TEST", signatureDate: "2026-11-05", installStart: INSTALL_ISO, link: FIELD, electrician: { name: "Spark Electrical", licence: "12345", rec: "67890" } })) }),
-  ENTRY({ id: "installer:I65", section: "installer", step: "safety_check", kind: "email", code: "I65", name: "Cleared for install — offer 3 days", when: "The safety check (and any fixes) are done", who: "Installer", approvalNote: "Jo 24 Oct 2026, decision 186", gate: { kind: "email" },
-    source: { builder: "src/lib/install-clearance.core.ts", fn: "renderInstallClearanceEmail", sender: "src/lib/install-clearance.server.ts" }, design: "docs/templates/mjml/installer_I65.mjml",
-    render: () => email(renderInstallClearanceEmail({ jobNumber: "HV-TEST", ownerFirstName: "Helen", fixesSignedOff: false, deadlineLabel: "4 December 2026", jobUrl: FIELD })) }),
-  ENTRY({ id: "installer:sms-install_clearance", section: "installer", step: "safety_check", kind: "text", code: "", name: "Cleared for install (text)", when: "With I65", who: "Installer", approvalNote: "Jo 24 Oct 2026, decision 186", gate: { kind: "text", smsType: "install_clearance" },
-    source: { builder: "src/lib/install-clearance.core.ts", fn: "installClearanceText", sender: "src/lib/install-clearance.server.ts" },
-    render: () => text(installClearanceText({ jobNumber: "HV-TEST", deadlineLabel: "4 December 2026", link: FIELD })) }),
   ENTRY({ id: "installer:install-window", section: "installer", step: "safety_check", kind: "email", code: "", name: "Days left in the 30-day install window", when: "20 and 10 days left while no install day is booked", who: "Installer", approvalNote: "Jo 24 Oct 2026, decision 167", gate: { kind: "email" },
     source: { builder: "src/lib/thirty-day-rule.core.ts", fn: "installerInstallWindowEmail", sender: "src/lib/thirty-day-rule.server.ts" },
     render: () => email(installerInstallWindowEmail({ step: "reminder_10", deadline: "2026-12-04", daysLeft: 10, link: FIELD, jobNumber: "HV-TEST", firstName: "Sam", ownerSuburb: "Glen Waverley" })) }),
@@ -675,25 +627,10 @@ const ELECTRICIAN: TemplateEntry[] = [
   ENTRY({ id: "electrician:E13", section: "electrician", step: "enquiry", kind: "email", code: "E13", name: "Welcome aboard — set your password", when: "Office approves the electrician's application", who: "Electrician", approvalNote: "Jo 24 Oct 2026, decision 107", gate: { kind: "email" },
     source: { builder: "src/lib/partner-email.core.ts", fn: "partnerWelcomeEmail", sender: "src/lib/partner-activation.functions.ts" }, design: "docs/templates/mjml/electrician_E13.mjml",
     render: () => email(partnerWelcomeEmail({ firstName: "Sam", businessName: "Spark Electrical", trade: "electrician", email: "sam@example.com", link: `${BASE}/reset-password?token_hash=TEST&type=recovery&next=%2Ffield%2Fwelcome`, test: false })) }),
-  ENTRY({ id: "electrician:E1", section: "electrician", step: "safety_check", kind: "email", code: "E1", name: "New safety check job (offer email)", when: "A PIESA job is offered to the electrician", who: "Electrician", approvalNote: "Jo 24 Oct 2026, decision 93", gate: { kind: "email" },
-    source: { builder: "src/lib/electrician-offer-email.core.ts", fn: "renderElectricianOfferEmail", sender: "src/lib/trade-messages.server.ts" }, design: "docs/templates/mjml/electrician_E1.mjml",
-    render: () => email(renderElectricianOfferEmail({ suburb: "Glen Waverley", rate: 220, areaM2: 137, ownerTimesOpen: false, offerUrl: `${BASE}/field/offer/TEST` })!) }),
-  ENTRY({ id: "electrician:sms-piesa_offer", section: "electrician", step: "safety_check", kind: "text", code: "", name: "New safety check job (text)", when: "With E1", who: "Electrician", approvalNote: "Jo 24 Oct 2026, decision 93 (text B)", gate: { kind: "text", smsType: "piesa_offer" },
-    source: { builder: "src/lib/approved-texts.core.ts", fn: "piesaOfferText", sender: "src/lib/trade-messages.server.ts" },
-    render: () => text(piesaOfferText({ suburb: "Glen Waverley", jobNumber: "HV-TEST", pay: 220, link: `${BASE}/field/offer/TEST` })) }),
   // Decision 384 (Jo 25 Oct 2026): approved as drafted in decision 376.
-  ENTRY({ id: "electrician:E14", section: "electrician", step: "safety_check", kind: "email", code: "E14", name: "Offer the owner your safety check times", when: "24 hours after the electrician accepted a safety check and offered no times", who: "Electrician", approvalNote: "Jo 25 Oct 2026, decision 384 (drafted in decision 376)", gate: { kind: "email" },
-    source: { builder: "src/lib/piesa-times-reminder.core.ts", fn: "renderPiesaTimesReminderEmail", sender: "src/lib/piesa-times-reminder.server.ts" }, design: "docs/templates/mjml/electrician_E14.mjml",
-    render: () => email(renderPiesaTimesReminderEmail({ jobNumber: "HV-TEST", address: SHORT_ADDRESS, link: FIELD, firstName: "Sam" })) }),
-  ENTRY({ id: "electrician:sms-piesa_times_reminder", section: "electrician", step: "safety_check", kind: "text", code: "", name: "Offer the owner your safety check times (text)", when: "With E14", who: "Electrician", approvalNote: "Jo 25 Oct 2026, decision 384 (drafted in decision 376)", gate: { kind: "text", smsType: "piesa_times_reminder" },
-    source: { builder: "src/lib/piesa-times-reminder.core.ts", fn: "piesaTimesReminderText", sender: "src/lib/piesa-times-reminder.server.ts" },
-    render: () => text(piesaTimesReminderText({ jobNumber: "HV-TEST", address: SHORT_ADDRESS, link: FIELD })) }),
   ENTRY({ id: "electrician:piesa-copy", section: "electrician", step: "safety_check", kind: "email", code: "", name: "Your safety check for the property (PIESA copy)", when: "The official PIESA is filed (again after fixes)", who: "Electrician", approvalNote: "Jo 25 Oct 2026, decision 317", gate: { kind: "email" },
     source: { builder: "src/lib/electrician-piesa-copy.core.ts", fn: "renderElectricianPiesaEmail", sender: "src/lib/electrician-piesa-copy.server.ts" },
     render: () => email(renderElectricianPiesaEmail({ address: SHORT_ADDRESS, jobNumber: "HV-TEST", version: "initial" })) }),
-  ENTRY({ id: "electrician:sms-fixes_times_link", section: "electrician", step: "fixes", kind: "text", code: "", name: "Pick times for the electrical fixes (text)", when: "The A3 says fixes are needed and no fixes times exist yet", who: "Electrician", approvalNote: "Jo 25 Oct 2026, decision 315", gate: { kind: "text", smsType: "fixes_times_link" },
-    source: { builder: "src/lib/fixes-times.core.ts", fn: "fixesTimesLinkText", sender: "src/lib/fixes-times-link.server.ts" },
-    render: () => text(fixesTimesLinkText({ address: SHORT_ADDRESS, link: FIELD })) }),
   // A48 batch 1 (Jo 29 Oct 2026, wording approved): the A3 safety check breaks the official PIESA rules.
   ENTRY({ id: "electrician:piesa-rules", section: "electrician", step: "safety_check", kind: "email", code: "", name: "Safety check can't go ahead yet (official rules)", when: "The A3 safety check breaks the official PIESA rules — once per form version", who: "Electrician", approvalNote: "Jo 29 Oct 2026, A48 batch 1", gate: { kind: "email" },
     source: { builder: "src/lib/piesa-rules-notice.core.ts", fn: "renderPiesaRulesEmail", sender: "src/lib/piesa-rules-notice.server.ts" },
@@ -779,7 +716,7 @@ const COMPLIANCE: TemplateEntry[] = [
     render: () => ({ kind: "files", items: [
       { label: "Signed SWMS sample (PDF)", path: "docs/templates/compliance/swms/swms-sample.pdf", note: `Made by scripts/render-swms-sample.ts. Prepared for ${SWMS_PREPARED_FOR}; ${SWMS_HAZARDS.length} standard hazards; signers tick "${SWMS_SIGN_STATEMENT}".` },
     ] }) }),
-  ENTRY({ id: "compliance:esc-consent", section: "compliance", step: "install", kind: "document", code: "", name: "ESC Owner's Consent Form (Template v1)", when: "Signed by the owner on My job (P3), then the AP; copy emailed (O63)", who: "Owner, AP", approvalNote: "Decision 123 (0226)", gate: { kind: "always" },
+  ENTRY({ id: "compliance:esc-consent", section: "compliance", step: "install", kind: "document", code: "", name: "ESC Owner's Consent Form (Template v1)", when: "Signed by the owner on the confirm-and-pay page (?screen=clear), then the AP; copy emailed (O63)", who: "Owner, AP", approvalNote: "Decision 123 (0226)", gate: { kind: "always" },
     source: { builder: "src/lib/consent.core.ts", fn: "renderConsentBody", sender: "src/lib/consent.server.ts" },
     render: () => ({ kind: "doc", title: `ESC Owner's Consent Form — ${ESC_CONSENT_TEMPLATE_VERSION}`, body: consentSample(), note: "Signed sample; the official file is docs/official-forms/ESC-Owners-Consent-Form-Template-v1-20260414.docx" }) }),
   ENTRY({ id: "compliance:veec", section: "compliance", step: "rebate", kind: "document", code: "", name: "VEEC assignment form (ESC v1.1)", when: "After the install: lead installer → AP (automatic) → owner (P4)", who: "Installer, AP, owner", approvalNote: "Decisions 119/120 (ESC form verbatim)", gate: { kind: "always" },
@@ -799,9 +736,6 @@ const COMPLIANCE: TemplateEntry[] = [
 /* ---------------------------------------------------------------- INVOICES */
 
 const INVOICES: TemplateEntry[] = [
-  ENTRY({ id: "invoices:O45", section: "invoices", step: "paid", kind: "invoice", code: "O45", name: "Final invoice (balance due today)", when: "Install day: the tax invoice with the balance due, pay by bank transfer. Stops being sent once Jo flips ALL_DONE_V2_APPROVED (the balance is in the All done email)", who: "Owner", approvalNote: "Jo 24–25 Oct 2026, decisions 209, 334", gate: { kind: "email" },
-    source: { builder: "src/lib/completion-emails.core.ts", fn: "renderFinalInvoiceEmail", sender: "src/lib/approved-owner-emails.server.ts" }, design: "docs/templates/mjml/invoices_O45.mjml",
-    render: () => email(renderFinalInvoiceEmail({ firstName: "Helen", ownerName: "Helen Yang", address: ADDRESS, installer: REINSULATE, invoiceNumber: "HIV-TEST", invoiceDate: "11 November 2026", lines: [{ description: "Bradford Gold R5.0 ceiling batts, 137.6 m² supplied and installed", amount: 2752 }, { description: "Old insulation removed and taken away, 40 m²", amount: 600 }, { description: "Electrical safety check (PIESA)", amount: 349 }, { description: "Accredited Person fee", amount: 349 }], totalIncGst: 4050, gst: 368.18, rebate: 1850, payments: [{ label: "safety check (24 Oct)", amount: 349 }, { label: "deposit (4 Nov)", amount: 185.1 }], balanceDue: 1665.9, bank: BANK, installed: { description: "Ceiling insulation — Bradford Gold Ceiling Batt R5.0 — 137.6 m²", escModelCodes: ["467911"] } })) }),
   ENTRY({ id: "invoices:xero", section: "invoices", step: "quote", kind: "invoice", code: "", name: "Xero invoice (one per job)", when: "Created at quote acceptance: every accepted quote line once, plus the VEEC incentive as a negative line", who: "Owner (via Xero)", approvalNote: "Decision 209 (Activity Guide v1.2 Table 4)", gate: { kind: "always" },
     source: { builder: "src/lib/xero.core.ts", fn: "buildInvoicePayload", sender: "src/lib/xero.server.ts" },
     render: () => {
@@ -856,7 +790,7 @@ export function parseTemplateSearch(s: Record<string, unknown>): { cat: Template
 }
 
 /** Text types with a named Settings switch (office-settings.core SWITCHES); every other type is `sms:<type>`. */
-const NAMED_SMS_SWITCHES = new Set(["spot_saved", "install_no_access", "veec_sign_reminder"]);
+const NAMED_SMS_SWITCHES = new Set(["spot_saved", "install_no_access"]);
 /** Live switch states from Settings (getOfficeSwitches): key → on. */
 export type SwitchStates = Record<string, boolean | null>;
 export type StatusTone = "green" | "amber" | "rose" | "neutral";
@@ -882,7 +816,6 @@ export function templateStatus(e: TemplateEntry, sw: SwitchStates | null): { lab
  * like a message builder must be listed above — tests/templates-hub.test.ts fails otherwise.
  */
 export const NOT_LISTED_BUILDERS: Record<string, string> = {
-  renderPiesaOwnerConfirmEmail: "Retired by Task 5: combined signed-copy/declaration email is O28",
   quickTapsText: "Retired 2 Nov 2026 (decision #22): the batch send now opens the quick taps with the O77 email + the \"It's your turn\" text",
   renderConsentBody: "Shown inside the ESC Owner's Consent document entry",
   renderJoEstimateEmail: "Internal step of renderJoOutcomeEmail",

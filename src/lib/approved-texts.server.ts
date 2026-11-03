@@ -15,7 +15,7 @@ import { melbourneClock } from "./installer-texts.core";
 import type { BusinessContact } from "./owner-wording.core";
 import {
   APPROVED_TEXT_EVENT, APPROVED_TEXT_SMS_TYPE, APPROVED_TEXT_SWEEP_HOURS, QUIET_HOURS_WAIT, approvedTextKey, installMovedFrom, installMovedText,
-  piesaBookedOwnerText, quoteHeldUntil, quoteReminderDay3Text, quoteReminderDue, quoteReminderExpiryText, visitTomorrowDue, visitTomorrowText, type ApprovedTextKind, type InstallBookingRow, type VisitTextKind,
+  quoteHeldUntil, quoteReminderDay3Text, quoteReminderDue, quoteReminderExpiryText, visitTomorrowDue, visitTomorrowText, type ApprovedTextKind, type InstallBookingRow, type VisitTextKind,
 } from "./approved-texts.core";
 
 type JobRow = {
@@ -74,24 +74,6 @@ async function deliver(p: { kind: ApprovedTextKind; key: string; job: JobRow; bo
 /** Shared "not sent" outcomes (the sweeps count everything else as handled). */
 export const NOT_HANDLED = ["in_house", "in_house_read_failed", "skipped", "already handled", "not due", "not an our-lead job", "no longer current", "owner link missing", "missing facts", QUIET_HOURS_WAIT] as const;
 const handled = (r: string) => !(NOT_HANDLED as readonly string[]).includes(r) && !r.startsWith("held — ");
-
-/** Decision 93 (A): safety check (PIESA) booked → one text per booked start. */
-export async function textOwnerSafetyCheckBooked(jobId: string, startIso: string, bookedAt: string, now = new Date()): Promise<string> {
-  const skipped = await inHouseDispatchSkip(jobId);
-  if (skipped) return skipped;
-  const job = await loadJob(jobId);
-  if (!job) return "skipped";
-  const key = approvedTextKey.piesaBookedOwner(jobId, startIso);
-  if (await alreadyPrepared(jobId, key)) return "already handled";
-  if (!(await stillBooked(jobId, "assessment", startIso))) return "no longer current";
-  if (await quietNow("piesa_booked_owner", now)) return QUIET_HOURS_WAIT;
-  const link = await ownerLink(jobId);
-  if (!link) return "owner link missing";
-  const trade = await tradeFor(jobId, "electrician");
-  const body = piesaBookedOwnerText({ startIso, electrician: trade.name, phone: trade.phone, link });
-  if (!body) return "missing facts";
-  return deliver({ kind: "piesa_booked_owner", key, job, body, summary: "Owner texted: electrical safety check booked (decision 93)", details: { starts_at: startIso, booked_at: bookedAt }, event: { at: bookedAt, current: true }, tradeIsTest: trade.isTest });
-}
 
 /** Decisions 82 / 93 / 99: the afternoon before a booked Ready Check (our leads), safety check or install → "See you tomorrow". */
 export async function textOwnerVisitTomorrow(kind: VisitTextKind, jobId: string, booking: { id: string; scheduled_start: string }, now = new Date(), deps: { businessContact?: (jobId: string, role: "installer" | "electrician") => Promise<BusinessContact | null> } = {}): Promise<string> {
@@ -172,7 +154,7 @@ async function stillBooked(jobId: string, kind: "ready_check" | "assessment" | "
 
 /** 15-minute tick: due day-before texts, quote reminders, and a 24h catch-up for every one-off text above. */
 export async function sweepApprovedTexts(now = new Date()) {
-  const out = { safetyCheckBooked: 0, tomorrow: 0, quoteReminders: 0, installMoved: 0 };
+  const out = { tomorrow: 0, quoteReminders: 0, installMoved: 0 };
   const since = new Date(now.getTime() - APPROVED_TEXT_SWEEP_HOURS * 3_600_000).toISOString();
   const in48h = new Date(now.getTime() + 48 * 3_600_000).toISOString();
   const [recent, upcoming, quotes] = await Promise.all([
@@ -184,13 +166,12 @@ export async function sweepApprovedTexts(now = new Date()) {
   const run = async (label: string, f: () => Promise<string>, count: keyof typeof out) => {
     try { if (handled(await f())) out[count]++; } catch (e) { console.error(`${label} text failed`, (e as Error).message); }
   };
+  // Part 4 Task 14: the old "safety check booked" owner text is retired (the owner gets the "You're booked" PIESA text instead).
   for (const b of recent.data ?? []) {
-    if (b.kind === "assessment") await run("safety check booked", () => textOwnerSafetyCheckBooked(b.job_id, b.scheduled_start, b.created_at, now), "safetyCheckBooked");
-    else {
-      const { data: all } = await admin.from("bookings").select("id, scheduled_start, status, created_at").eq("job_id", b.job_id).eq("kind", "installation");
-      const was = installMovedFrom(b as InstallBookingRow, (all ?? []) as InstallBookingRow[]);
-      if (was) await run("install moved", () => textOwnerInstallMoved(b.job_id, b as InstallBookingRow, was, now), "installMoved");
-    }
+    if (b.kind !== "installation") continue;
+    const { data: all } = await admin.from("bookings").select("id, scheduled_start, status, created_at").eq("job_id", b.job_id).eq("kind", "installation");
+    const was = installMovedFrom(b as InstallBookingRow, (all ?? []) as InstallBookingRow[]);
+    if (was) await run("install moved", () => textOwnerInstallMoved(b.job_id, b as InstallBookingRow, was, now), "installMoved");
   }
   for (const b of upcoming.data ?? []) await run("see you tomorrow", () => textOwnerVisitTomorrow(b.kind as VisitTextKind, b.job_id, b, now), "tomorrow");
   for (const q of (quotes.data ?? []) as QuoteRow[]) await run("quote reminder", () => textOwnerQuoteReminder(q, now), "quoteReminders");

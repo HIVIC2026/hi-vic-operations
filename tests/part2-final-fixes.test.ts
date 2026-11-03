@@ -3,8 +3,6 @@
 import { expect, test } from "bun:test";
 import * as K from "../src/lib/email-kit.core";
 import { renderJoOutcomeEmail } from "../src/lib/jo-outcome-email.core";
-import { renderInstallDaysEmail } from "../src/lib/install-days-email.core";
-import { REST_DUE_SENTENCE, restDueWithAmount } from "../src/lib/owner-wording.core";
 
 const EST = "https://estimate.homeinsulationvictoria.com.au/estimate/tok";
 const FIG = { veuRebate: 1610, customerTotal: 2188, totalBeforeRebate: 3798, installation: 3100, piesaFee: 349, apFee: 349, ceilingAreaM2: 137, areaEstimated: false, removalUpTo: 2055 };
@@ -33,11 +31,4 @@ test("save-my-spot emails carry no 'See your full estimate' link", () => {
   expect(mail("likely_eligible", "none").html).toContain("You'll see your exact price before you agree to anything.");
 });
 
-test("install days email uses the approved shared rest-of-payment sentence", () => {
-  const base = { firstName: "Helen", installerName: "Reinsulate", days: ["Tuesday 11 November at 8:00am"], myJobUrl: "https://x/my-job/T", installBy: "4 December" };
-  const withAmt = renderInstallDaysEmail({ ...base, balanceIncGst: 1851 });
-  expect(withAmt.text).toContain(`${restDueWithAmount("$1,665.90")} Or you can pay in full now.`);
-  expect(withAmt.html).toContain(`${restDueWithAmount("$1,665.90")} Or you can pay in full now.`);
-  const noAmt = renderInstallDaysEmail({ ...base, balanceIncGst: null });
-  expect(noAmt.text).toContain(`${REST_DUE_SENTENCE} Or you can pay in full now.`);
-});
+// (The O33 install days email was removed 2 Nov 2026, Part 4 Task 14; its rest-of-payment test went with it.)

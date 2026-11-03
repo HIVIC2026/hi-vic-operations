@@ -297,12 +297,10 @@ export function nextVeecReminderStep(x: { installCompletedAt: string | null; con
 
 const money = (n: number) => n.toLocaleString("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 });
 
-/** Approved texts (decisions 166/168). Under 2 SMS segments; secure link; STOP line. The brand prefix is added by brandSmsBody. */
+/** Approved text (decision 166). Under 2 SMS segments; secure link; STOP line. The brand prefix is added by brandSmsBody.
+ *  (The decision 168 day 1/3/7 reminder text `veec_sign_reminder` was retired 2 Nov 2026, Part 4 Task 14.) */
 export function veecSignRequestText(rebate: number, link: string): string {
   return `Your install is done! One last thing: please sign your rebate form so we can claim your ${money(rebate)} rebate: ${link} Reply STOP to opt out.`;
-}
-export function veecSignReminderText(rebate: number, link: string): string {
-  return `Your rebate form still needs your signature so we can claim your ${money(rebate)} rebate. It takes a minute: ${link} Reply STOP to opt out.`;
 }
 export const SMS_SEGMENT_LIMIT = 2 * 153;
 

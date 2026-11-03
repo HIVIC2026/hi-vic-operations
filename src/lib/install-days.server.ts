@@ -91,9 +91,7 @@ export async function installerOfferDays(jobId: string, userId: string, picks: {
   await propose(jobId, userId, "installer", picks, windowDays(c));
   await logEvent(jobId, userId, "install_days_offered_by_installer", `Installer offered ${picks.length} install day${picks.length === 1 ? "" : "s"} to the owner`, { days: picks, instead_of_owner_days: c.turn === "installer_to_answer" }, { internal: true });
   await admin.from("jobs").update({ next_action: "Waiting for the owner to pick one of the installer's install days" }).eq("id", jobId);
-  // Decision 325: O33 "Pick your install day" to the owner (guarded; best-effort, the offer stands either way).
-  const starts = picks.map((p) => installDayBounds(p.day, p.time).starts_at);
-  await (await import("./owner-email-triggers.server")).onInstallDaysOffered(jobId, starts, c.deadline).catch((e) => console.error("install days email skipped", (e as Error).message));
+  // Part 4 Task 14: the O33 "pick your install day" owner email is retired (the installer calls the owner and books the day).
   return { ok: true };
 }
 
@@ -102,7 +100,7 @@ export async function ownerSuggestDays(jobId: string, userId: string, picks: str
   const c = await context(jobId);
   if (c.expired) throw new WorkflowError("New PIESA needed: the 30-day installation window has passed.");
   if (c.turn !== "owner_to_answer") throw new WorkflowError("Install days can't be suggested right now.");
-  { const db = await (await import("./payments.server")).installDepositBlockerFor(jobId); if (db) throw new WorkflowError("Please pay your 10% deposit first — then you can pick your install day."); }
+  { const db = await (await import("./payments.server")).installDepositBlockerFor(jobId); if (db) throw new WorkflowError("Please pay your 10% deposit first."); }
   await propose(jobId, userId, "owner", picks.map((day) => ({ day })), windowDays(c));
   await logEvent(jobId, userId, "install_days_offered", `Owner suggested ${picks.length} other install day${picks.length === 1 ? "" : "s"} for the installer`, { days: picks }, { internal: true });
   await admin.from("jobs").update({ next_action: "Waiting for the installer to take one of the owner's days or offer new ones" }).eq("id", jobId);

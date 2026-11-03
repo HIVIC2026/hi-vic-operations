@@ -90,6 +90,6 @@ export async function applyPiesaRecord(r: PostRectificationRecord): Promise<{ re
   await autoAdvanceJob(r.jobId, r.actorId, "PIESA recorded");
   if(r.kind==='reassessment' && r.outcome==='pass')await (await import('./deposit-request.server')).requestInstallDeposit(r.jobId).catch(e=>console.error('Install deposit request held',e instanceof Error?e.message:'read failed'));
   // Decision 186: fixes complete + Section C signed is electrical clearance — tell the installer once (nothing when not cleared).
-  try { await (await import("./install-clearance.server")).notifyInstallerClearance(r.jobId); } catch (e) { console.error("install clearance notice failed", (e as Error).message); }
+  // Part 4 Task 14: the decision 186 "cleared — offer 3 install days" installer notice is retired (the installer calls the owner to book).
   return { recordId };
 }

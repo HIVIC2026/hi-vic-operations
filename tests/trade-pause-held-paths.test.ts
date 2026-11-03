@@ -1,9 +1,9 @@
 // "Pause all trade messages" fix round 1 (Jo 30 Oct 2026): messages that are not tied to one day are HELD, not lost.
 // While paused, each of these returns "held" BEFORE writing its once-only claim, so the existing retry (sweep / re-sync /
-// next trigger) sends it once unpaused: safety plan (SWMS) sign link, boss price link, fixes-times link, PIESA offer
-// text, ESC notice link (a paused attempt never counts as one of the 3 tries). In-memory fake database; senders faked.
+// next trigger) sends it once unpaused: safety plan (SWMS) sign link, boss price link, ESC notice link (a paused attempt
+// never counts as one of the 3 tries). The fixes-times link and the PIESA offer text were retired 2 Nov 2026 (Part 4 Task 14).
+// In-memory fake database; senders faked.
 import { beforeEach, describe, expect, mock, setSystemTime, test } from "bun:test";
-import { RECTIFICATION_OUTCOMES } from "../src/lib/official-short.core";
 
 setSystemTime(new Date("2026-10-22T02:00:00Z")); // 1pm Melbourne: outside SMS quiet hours
 
@@ -69,9 +69,7 @@ mock.module("../src/lib/esc-collection-notice.server", () => ({
 }));
 
 const { textBossPriceLink } = await import("../src/lib/boss-price-link.server");
-const { textFixesTimesLink } = await import("../src/lib/fixes-times-link.server");
 const { textSwmsSignLinks } = await import("../src/lib/swms-sign-text.server");
-const { textElectricianAboutOffer } = await import("../src/lib/trade-messages.server");
 const { sweepCollectionNoticeLinks } = await import("../src/lib/esc-collection-notice-send.server");
 const { COLLECTION_NOTICE_SEND_EVENT, COLLECTION_NOTICE_LINK_EVENT } = await import("../src/lib/esc-collection-notice.core");
 
@@ -102,15 +100,6 @@ describe("held before the claim while paused; sent once unpaused", () => {
     expect(sms.map((s) => s.type)).toEqual(["boss_price_link"]);
   });
 
-  test("fixes-times link", async () => {
-    const i = { auditId: "A3", completedAt: new Date().toISOString(), short: { rectificationOutcome: RECTIFICATION_OUTCOMES[1] } };
-    expect(await textFixesTimesLink("J1", i)).toBe("held: Trade messages paused");
-    expect((tables["workflow_events"] ?? []).length + sms.length).toBe(0);
-    paused = null;
-    expect(await textFixesTimesLink("J1", i)).toMatch(/^fixes times sms sent/);
-    expect(sms.map((s) => s.type)).toEqual(["fixes_times_link"]);
-  });
-
   test("safety plan (SWMS) sign link", async () => {
     const booking = { id: "BK1", scheduled_start: new Date(Date.now() + 3 * 86_400_000).toISOString() };
     expect(await textSwmsSignLinks("J1", booking)).toEqual(["held: Trade messages paused"]);
@@ -118,14 +107,6 @@ describe("held before the claim while paused; sent once unpaused", () => {
     paused = null;
     expect(await textSwmsSignLinks("J1", booking)).toEqual(["Crew One: sent"]);
     expect(sms.map((s) => s.type)).toEqual(["swms_sign_link"]);
-  });
-
-  test("PIESA offer text", async () => {
-    expect(await textElectricianAboutOffer("O1")).toBe("held: Trade messages paused");
-    expect((tables["workflow_events"] ?? []).length + sms.length).toBe(0);
-    paused = null;
-    expect(await textElectricianAboutOffer("O1")).toMatch(/^electrician sms sent/);
-    expect(sms.map((s) => s.type)).toEqual(["piesa_offer"]);
   });
 
   test("ESC notice link: a paused sweep issues nothing and records no attempt; unpaused → attempt 1", async () => {

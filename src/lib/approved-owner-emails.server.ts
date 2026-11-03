@@ -2,8 +2,9 @@
 // nothing sent). Each one renders the approved design and goes through `sendOwnerTemplateEmail`, so a real owner can only
 // receive it once its *_APPROVED flag is true and customer messages are on; TEST jobs get it through test-send now.
 // Workflow callers: `emailOwnerInstallComplete` (VEEC day-0 request), `emailOwnerCompletionPack` (completion-pack.server.ts) and,
-// since decision 325, owner-email-triggers.server.ts for O19/O22/O26/O29/O33/O42/O51 and, since decision 334, O45 (final
-// invoice at install complete with a balance due, once per invoice; bank transfer only — no card wording).
+// since decision 325, owner-email-triggers.server.ts for O19/O22/O42/O51. Retired 2 Nov 2026 (Part 4 Task 14): O26 pick a
+// time / safety check booked, O29 fixes quote, O33 pick your install day and the O45 final invoice (the All done email
+// carries the tax invoice and balance).
 import { sendOwnerTemplateEmail } from "./owner-template-send.server";
 import { ownerEmailKey } from "./owner-email-triggers.core";
 import { COMPLETION_PACK_EMAIL_KEY } from "./completion-pack.core";
@@ -25,34 +26,6 @@ export async function emailOwnerYoureIn(jobId: string, quoteId: string, i: Omit<
   const { ownerEmailSent } = await import("./completion-pack.core");
   await recordFactsheetGiven(jobId, { sent: ownerEmailSent(r), attached: !!fs.attachment, via: "You're in email (O22)", result: r });
   return r;
-}
-
-export async function emailOwnerSafetyCheckTimes(jobId: string, startsAt: string[], electricianName: string | null, paid: number | null) {
-  const { SAFETY_CHECK_EMAILS_APPROVED, renderSafetyCheckTimesEmail } = await import("./safety-check-emails.core");
-  const { formatReadyCheckTime } = await import("./ready-check-times.core");
-  return sendOwnerTemplateEmail({ jobId, purpose: "safety_check_times", key: ownerEmailKey.safetyCheckTimes(jobId, startsAt), approved: SAFETY_CHECK_EMAILS_APPROVED, label: "Safety check times email", notSentEvent: "safety_check_times_email_not_sent",
-    render: (f) => renderSafetyCheckTimesEmail({ firstName: f.firstName, electricianName, times: [...startsAt].sort().map((s) => formatReadyCheckTime(s)), myJobUrl: f.myJobUrl, paid, test: f.test }) });
-}
-
-export async function emailOwnerSafetyCheckBooked(jobId: string, startIso: string, electrician: { name: string | null; phone?: string | null }, changed: boolean) {
-  const { SAFETY_CHECK_EMAILS_APPROVED, renderSafetyCheckBookedEmail } = await import("./safety-check-emails.core");
-  const { formatReadyCheckTime } = await import("./ready-check-times.core");
-  return sendOwnerTemplateEmail({ jobId, purpose: "safety_check_booked", key: ownerEmailKey.safetyCheckBooked(jobId, startIso), approved: SAFETY_CHECK_EMAILS_APPROVED, label: "Safety check booked email", notSentEvent: "safety_check_booked_email_not_sent",
-    render: (f) => renderSafetyCheckBookedEmail({ firstName: f.firstName, when: formatReadyCheckTime(startIso), electricianName: electrician.name, electricianPhone: electrician.phone ?? null, address: f.address, changed, myJobUrl: f.myJobUrl, test: f.test }) });
-}
-
-export async function emailOwnerFixesQuote(jobId: string, quoteId: string, i: Omit<import("./rectification-quote-email.core").FixesQuoteEmailInput, "firstName" | "approveUrl" | "test">) {
-  const { FIXES_QUOTE_EMAIL_APPROVED, renderFixesQuoteEmail } = await import("./rectification-quote-email.core");
-  return sendOwnerTemplateEmail({ jobId, purpose: "fixes_quote", key: ownerEmailKey.fixesQuote(quoteId), approved: FIXES_QUOTE_EMAIL_APPROVED, label: "Electrical fixes quote email", notSentEvent: "fixes_quote_email_not_sent",
-    render: (f) => renderFixesQuoteEmail({ ...i, firstName: f.firstName, approveUrl: `${f.myJobUrl}?screen=fixes`, test: f.test }) }); // decision 366: the My job fixes screen
-
-}
-
-export async function emailOwnerInstallDays(jobId: string, startsAt: string[], balanceIncGst: number | null, installBy: string | null) {
-  const { INSTALL_DAYS_EMAIL_APPROVED, renderInstallDaysEmail } = await import("./install-days-email.core");
-  const { formatInstallDay } = await import("./install-days.core");
-  return sendOwnerTemplateEmail({ jobId, purpose: "install_days", key: ownerEmailKey.installDays(jobId, startsAt), approved: INSTALL_DAYS_EMAIL_APPROVED, label: "Install days email", notSentEvent: "install_days_email_not_sent",
-    render: (f) => renderInstallDaysEmail({ firstName: f.firstName, installerName: f.installerName, days: [...startsAt].sort().map((s) => formatInstallDay(s)), myJobUrl: f.myJobUrl, balanceIncGst, installBy, test: f.test }) });
 }
 
 export async function emailOwnerInstallDayChanged(jobId: string, startIso: string, wasIso: string) {
@@ -112,14 +85,6 @@ async function installedLineFor(jobId: string, given: import("./completion-email
 }
 
 /** Decision 334: once per invoice (key by invoice id); bank details from HIV_BANK_* env (payments.server bankDetails). */
-export async function emailOwnerFinalInvoice(jobId: string, invoiceId: string, i: Omit<import("./completion-emails.core").FinalInvoiceInput, "firstName" | "ownerName" | "address" | "installer" | "test">) {
-  const { COMPLETION_EMAILS_APPROVED, renderFinalInvoiceEmail } = await import("./completion-emails.core");
-  const installed = await installedLineFor(jobId, i.installed);
-  return sendOwnerTemplateEmail({ jobId, purpose: "final_invoice", key: ownerEmailKey.finalInvoice(invoiceId), approved: COMPLETION_EMAILS_APPROVED, label: "Final invoice email", notSentEvent: "final_invoice_email_not_sent",
-    render: (f) => renderFinalInvoiceEmail({ ...i, payUrl:`${f.myJobUrl}?screen=pay`, installed, firstName: f.firstName, ownerName: f.ownerName, address: f.address, installer: { name: f.installerName, phone: f.installerPhone }, test: f.test }) });
-}
-
-/** Workflow caller: completion-pack.server.ts (install complete + invoice paid), which passes the manufacturer warranty PDF(s) for the installed product(s). */
 export async function emailOwnerCompletionPack(jobId: string, downloads: import("./completion-emails.core").CompletionPackInput["downloads"], installedGiven?: import("./completion-emails.core").InstalledLine | null,
   extras: { attachments?: import("./email-kit.core").EmailAttachment[]; attachedWarranties?: string[]; attachedCoes?: boolean; retryAfterDefiniteFailure?: boolean } = {}) {
   const { COMPLETION_EMAILS_APPROVED, renderCompletionPackEmail } = await import("./completion-emails.core");

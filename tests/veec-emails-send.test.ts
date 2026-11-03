@@ -135,38 +135,17 @@ describe("day-0 request (decision 169): the All done email is the request", () =
   });
 });
 
-describe("reminders (days 1/3/7): O61 + the approved reminder text", () => {
-  test("real job: O61 through the guarded path under the step key, reminder text through the one real sender", async () => {
-    expect(await sendVeecSignStep(J, "reminder_1")).toBe("email sent; sms sent: recorded");
-    expect(guarded.map((g) => [g.purpose, g.key, g.to])).toEqual([["veec_sign_reminder_1", `veec-sign:v1:${J}:reminder_1`, "helen@example.com"]]);
-    const mail = guarded[0]!.mail;
-    expect(mail.subject).toBe("Helen, your rebate form still needs your signature");
-    for (const s of ["We can't claim your $1,850 Victorian Energy Upgrades rebate", `href="${LINK}"`, "Sign your rebate form</a>", 'href="https://estimate.homeinsulationvictoria.com.au/u/x" style="color:#5A6785">Unsubscribe</a>']) expect(mail.html).toContain(s);
-    expect(mail.html).not.toContain("All done");
-    expect(sms).toEqual([{ type: "veec_sign_reminder", idempotencyKey: `veec-sign:v1:${J}:reminder_1`, to: "0400111222", body: expect.stringContaining("still needs your signature"), jobId: J }]);
-    expect(await sendVeecSignStep(J, "reminder_1")).toBe("already handled");
-    expect(guarded).toHaveLength(1);
+describe("reminders (days 1/3/7): retired 2 Nov 2026 (Part 4 Task 14) — nothing is sent or recorded from here", () => {
+  test("each old reminder step is refused without an email, a text or a step event; the day-0 request still works afterwards", async () => {
+    for (const step of ["reminder_1", "reminder_3", "reminder_7"] as const) expect(await sendVeecSignStep(J, step)).toMatch(/^retired 2 Nov 2026/);
+    expect(guarded).toEqual([]); expect(sms).toEqual([]); expect(tests).toEqual([]);
+    expect(events("veec_sign_reminder")).toEqual([]);
+    expect(await sendVeecSignStep(T, "reminder_1")).toMatch(/^retired 2 Nov 2026/);
+    expect(tests).toEqual([]);
   });
-  test("each reminder day is its own step and key", async () => {
-    for (const step of ["reminder_1", "reminder_3", "reminder_7"] as const) await sendVeecSignStep(J, step);
-    expect(guarded.map((g) => g.key)).toEqual([`veec-sign:v1:${J}:reminder_1`, `veec-sign:v1:${J}:reminder_3`, `veec-sign:v1:${J}:reminder_7`]);
-    expect(sms.map((s) => s.idempotencyKey)).toEqual(guarded.map((g) => g.key));
-  });
-  test("customer messages locked: the step is recorded, no email, the text is left to the real sender's own gate", async () => {
-    deliveryBlocked = "Customer communications are switched off";
-    expect(await sendVeecSignStep(J, "reminder_3")).toBe("email not sent — Customer communications are switched off; sms sent: recorded");
-    expect(guarded).toEqual([]);
-    expect(events("veec_sign_reminder")).toHaveLength(1);
-  });
-  test("TEST job: O61 and the text through test-send only", async () => {
-    await sendVeecSignStep(T, "reminder_1");
-    expect(guarded).toEqual([]); expect(sms).toEqual([]);
-    expect(tests.map((t) => [t.kind, t.label])).toEqual([["email", "veec_sign:reminder_1"], ["sms", "veec_sign:reminder_1"]]);
-    expect(tests[0]!.subject).toBe("Jo, your rebate form still needs your signature");
-  });
-  test("no working owner link: nothing sent, recorded for the office", async () => {
+  test("no working owner link on the request: nothing sent, recorded for the office", async () => {
     tables["customer_estimate_links"] = [];
-    expect(await sendVeecSignStep(J, "reminder_1")).toBe("not sent — owner link missing");
+    expect(await sendVeecSignStep(J, "request")).toBe("not sent — owner link missing");
     expect(guarded).toEqual([]); expect(sms).toEqual([]);
     expect(events("veec_sign_request_not_sent")).toHaveLength(1);
   });

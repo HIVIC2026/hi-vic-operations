@@ -126,16 +126,13 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
     if(held.held.has(jobId))await (await import('./in-house-electrician-booked.server')).notifyInHouseElectricianBooked(jobId,inserted.id).catch(e=>console.error('Electrician booked notice pending',e));
     const { INSTALLER_PLANNING_NOTICE } = await import("./allocation.core");
     const { data: inst } = await admin.from("job_assignments").select("id, user_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
-    // F13: no outbox row. Decision 376: the installer is told the date once per PIESA time (I71 + text, approved by Jo
-    // in decision 384); the approved clearance email + text (186) is still the "offer install days" message once cleared.
-    if (inst) {
-      await logEvent(jobId, actorId, "installer_planning_notice", INSTALLER_PLANNING_NOTICE, { assignment_id: inst.id, installer_user_id: inst.user_id, piesa_start: start });
-      await (await import("./installer-planning-notice.server")).notifyInstallerPlanning({ jobId, assignmentId: inst.id, piesaStartIso: start }).catch((e) => console.error("installer planning notice skipped", (e as Error).message));
-    }
+    // F13: no outbox row. The installer is told the date on the job (event only): the decision 376 I71 email + text and the
+    // decision 186 clearance "offer install days" message were retired 2 Nov 2026 (Part 4 Task 14; the installer calls the owner to book).
+    if (inst) await logEvent(jobId, actorId, "installer_planning_notice", INSTALLER_PLANNING_NOTICE, { assignment_id: inst.id, installer_user_id: inst.user_id, piesa_start: start });
     const { recordBookingCompleted } = await import("./engagement.server");
     await recordBookingCompleted(jobId).catch((e) => console.error("engagement booking record failed", (e as Error).message));
-    // Decision 325: O26 booked version ("safety check booked") to the owner; `changed` when an existing PIESA booking moved. Best-effort.
-    await (await import("./owner-email-triggers.server")).onSafetyCheckBooked(jobId, start, stage === target).catch((e) => console.error("safety check booked email skipped", (e as Error).message));
+    // Part 4 Task 14: the old O26 "safety check booked" owner email is gone; in-house jobs get the "You're booked" PIESA message
+    // from in-house-booking.server (notifyOwnerBooked).
     // Decision 398: the electrician's A3 PIESA Mitti form is made now, through the office "Create Mitti form" path (never
     // twice; a failure is one Needs me row and the office button stays as the backup). Never a booking failure.
     await (await import("./piesa-autoform.server")).onPiesaBooked(jobId, inserted.id, actorId).catch((e) => console.error("PIESA form creation skipped", (e as Error).message));

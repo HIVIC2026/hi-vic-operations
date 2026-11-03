@@ -2,8 +2,8 @@
 // (booked) or suggests 1–5 days; the electrician takes one at a time they choose (booked) or offers 3 new times — back and
 // forth until agreed, no office step. Rules: piesa-times.core.ts. Storage: appointment_proposals (kind assessment, note
 // PIESA_TIME_NOTE). Every booking goes through confirmBooking(…, "assessment", …) — the same stage, payment-gate and
-// assignment guards as before — which also sends the O26 booked email. Offering times sends O26 "safety check times"
-// (owner-email-triggers.server onSafetyCheckTimesOffered, best-effort). Old jobs mid-flow under the owner-window way
+// assignment guards as before. The old O26 "pick a time" / "safety check booked" owner emails were retired 2 Nov 2026
+// (Part 4 Task 14). Old jobs mid-flow under the owner-window way
 // (allocation.server submitOwnerPiesaWindows / accept_partner_offer_slot) are untouched and still finish that way.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
@@ -114,8 +114,7 @@ export async function electricianOfferPiesaTimes(jobId: string, userId: string, 
   await admin.from("job_assignments").update({ first_response_at: new Date().toISOString() }).eq("id", a.id).is("first_response_at", null);
   await logEvent(jobId, userId, "piesa_times_offered", `Electrician offered the owner ${starts.length} safety check times`, { starts_at: starts, instead_of_owner_days: c.turn === "electrician_to_answer" }, { internal: true });
   await admin.from("jobs").update({ next_action: PIESA_TIMES_NEXT_ACTION.owner_to_answer }).eq("id", jobId);
-  // O26 "Pick a time for your electrical safety check" (best-effort; the offer stands either way).
-  await (await import("./owner-email-triggers.server")).onSafetyCheckTimesOffered(jobId, starts).catch((e) => console.error("safety check times email skipped", (e as Error).message));
+  // Part 4 Task 14: the O26 "pick a time" owner email is retired (the electrician books the safety check with the owner by phone).
   return { ok: true };
 }
 

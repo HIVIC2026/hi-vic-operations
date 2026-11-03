@@ -23,7 +23,7 @@ export const SMS_MESSAGE_TYPES = {
   owner_code: { audience: "owner", label: "Owner 6-digit sign-in / signing code", wordingApproved: true, quietHours: false },
   quote_ready: { audience: "owner", label: "Installation quote ready for the owner", wordingApproved: true /* decision 87 (Jo 24 Oct 2026), text B: ownerQuoteSms in owner-quote-email.core.ts */, quietHours: true },
   veec_sign_request: { audience: "owner", label: "Sign your rebate (VEEC assignment) form – install done (decision 120; wording approved 24 Oct, decision 166)", wordingApproved: true, quietHours: true },
-  veec_sign_reminder: { audience: "owner", label: "Rebate form still needs your signature – days 1/3/7 (decision 120; wording approved 24 Oct, decision 168)", wordingApproved: true, quietHours: true },
+  veec_sign_reminder: { audience: "owner", label: "Retired 2 Nov 2026 — Rebate form still needs your signature – days 1/3/7 (decision 120; wording approved 24 Oct, decision 168)", wordingApproved: false, quietHours: true },
   usual_electrician_missing: { audience: "partner", label: "Add usual electrician details", wordingApproved: true /* decision 83 (Jo 24 Oct 2026), kept by decision 113: usualElectricianReminderBody */, quietHours: true },
   // Decision #27: with READY_CHECK_CHASE_EMAIL_APPROVED on, this chase is an office email and no new text is sent (type kept for history).
   ready_check_incomplete: { audience: "partner", label: "Ready Check form missing answers/photos", wordingApproved: true /* Jo 22 Oct 22:57 */, quietHours: true },
@@ -37,7 +37,7 @@ export const SMS_MESSAGE_TYPES = {
   install_window_reminder_installer: { audience: "partner", label: "30-day install window reminder (20/10 days left) to the installer", wordingApproved: true, quietHours: true },
   deposit_release: { audience: "owner", label: "Install day released – deposit not received within 48h (decision 170, deposit-release-notice.core.ts)", wordingApproved: true, quietHours: true },
   install_no_access: { audience: "owner", label: "We couldn't get in today – install day no access (decision 215, install-no-access-notice.core.ts). approved by Jo 24 Oct 2026 (decision 217)", wordingApproved: true, quietHours: true },
-  install_clearance: { audience: "partner", label: "Installer told the job is cleared for install – offer 3 install days (decision 186, install-clearance.core.ts)", wordingApproved: true, quietHours: true },
+  install_clearance: { audience: "partner", label: "Retired 2 Nov 2026 — Installer told the job is cleared for install – offer 3 install days (decision 186, install-clearance.core.ts)", wordingApproved: false, quietHours: true },
   // Decisions 79 / 82 / 99 (Jo 24 Oct 2026; built per decision 193): wording verbatim in installer-texts.core.ts.
   ready_check_days_suggested: { audience: "partner", label: "Owner suggested other Ready Check days – installer to pick one and set a time (decision 79)", wordingApproved: true, quietHours: true },
   ready_check_booked_installer: { audience: "partner", label: "Ready Check booked – owner details on the job (decision 82, installer text A)", wordingApproved: true, quietHours: true },
@@ -50,13 +50,13 @@ export const SMS_MESSAGE_TYPES = {
   boss_price_link: { audience: "partner", label: "Ready Check done – business owner's link to enter the price (decision 288)", wordingApproved: true, quietHours: true },
   // Decision 296 (Jo 25 Oct 2026): the owner confirms the PIESA on their secure link — request text after the electrician
   // completes, reminders days 1/3 (piesa-owner-confirm.core.ts). DRAFT wording: held until Jo approves it.
-  piesa_owner_confirm: { audience: "owner", label: "Confirm your electrical safety check – request + days 1/3 (decision 296; approved decision 311)", wordingApproved: true, quietHours: true },
+  piesa_owner_confirm: { audience: "owner", label: "Retired 2 Nov 2026 — Confirm your electrical safety check – request + days 1/3 (decision 296; approved decision 311)", wordingApproved: false, quietHours: true },
   // Decision 330 (Jo 25 Oct 2026, wording approved): the owner confirms the ELECTRICAL FIXES on their secure link — request
   // when the A4 fixes form is complete, reminders days 1/3 (piesa-fixes-confirm.core.ts).
-  piesa_owner_fixes_confirm: { audience: "owner", label: "Confirm your electrical fixes – request + days 1/3 (decision 330)", wordingApproved: true, quietHours: true },
+  piesa_owner_fixes_confirm: { audience: "owner", label: "Retired 2 Nov 2026 — Confirm your electrical fixes – request + days 1/3 (decision 330)", wordingApproved: false, quietHours: true },
   // Decision 315 (Jo 25 Oct 2026, route approved): the A3 PIESA says electrical fixes are needed and no fixes times exist →
   // the assigned electrician gets ONE text with the link to pick 3–5 times on their job page. Wording: fixesTimesLinkText (fixes-times.core.ts).
-  fixes_times_link: { audience: "partner", label: "Electrical fixes needed – electrician's link to pick 3 to 5 fixes times (decision 315)", wordingApproved: true, quietHours: true },
+  fixes_times_link: { audience: "partner", label: "Retired 2 Nov 2026 — Electrical fixes needed – electrician's link to pick 3 to 5 fixes times (decision 315)", wordingApproved: false, quietHours: true },
   // A48 batch 1 (Jo 29 Oct 2026, wording approved): the A3 safety check breaks the official PIESA rules → the electrician is
   // told once per form version (text + email). Wording: piesaRulesMessage (piesa-rules-notice.core.ts).
   piesa_rules_failed: { audience: "partner", label: "Safety check breaks the official rules – electrician asked to correct the form or book the repairs (A48 batch 1)", wordingApproved: true, quietHours: true },
@@ -75,13 +75,16 @@ export const SMS_MESSAGE_TYPES = {
   install_day_form_reminder: { audience: "partner", label: "Install day form not complete at 5pm – reminder to the lead installer (decision 328)", wordingApproved: true, quietHours: true },
   // Decision 326 (25 Oct 2026): approved wordings that had no sender. Wording verbatim in approved-texts.core.ts; each text
   // records one `approved_text_prepared` event before sending (approved-texts.server.ts). Switches start off (fail closed).
+  // Part 4 Task 14 (Jo 2 Nov 2026): the "Retired 2 Nov 2026 —" types below (and veec_sign_reminder, install_clearance,
+  // piesa_owner_confirm, piesa_owner_fixes_confirm, fixes_times_link above) keep their key so history stays readable;
+  // wordingApproved:false means the real sender refuses them for good.
   ready_check_times_owner: { audience: "owner", label: "Retired 2 Nov 2026 — Ready Check times are ready – owner picks one (decision 78)", wordingApproved: false, quietHours: true },
   ready_check_booked_owner: { audience: "owner", label: "Retired 2 Nov 2026 — Ready Check booked – owner (decision 82, text B)", wordingApproved: false, quietHours: true },
   visit_tomorrow_owner: { audience: "owner", label: "See you tomorrow – Ready Check / safety check / install, the afternoon before (decisions 82, 93, 99)", wordingApproved: true, quietHours: true },
-  safety_check_booked_owner: { audience: "owner", label: "Electrical safety check booked – owner (decision 93, text A)", wordingApproved: true, quietHours: true },
+  safety_check_booked_owner: { audience: "owner", label: "Retired 2 Nov 2026 — Electrical safety check booked – owner (decision 93, text A)", wordingApproved: false, quietHours: true },
   quote_reminder: { audience: "owner", label: "Quote reminder – 3 days after the quote and 2 days before the price expires (decisions 88/89)", wordingApproved: true, quietHours: true },
   install_moved: { audience: "owner", label: "Your install has moved – the agreed install day changed (decision 135)", wordingApproved: true, quietHours: true },
-  piesa_offer: { audience: "partner", label: "New safety check (PIESA) job offer to an electrician (decision 93, text B)", wordingApproved: true, quietHours: true },
+  piesa_offer: { audience: "partner", label: "Retired 2 Nov 2026 — New safety check (PIESA) job offer to an electrician (decision 93, text B)", wordingApproved: false, quietHours: true },
   // Decision 331 (Jo 25 Oct 2026, route approved): an approved trade the portal has just created a Mitti user for gets ONE
   // text to look for Mitti's email and download the app. Wording: MITTI_INVITE_MESSAGE (mitti-invite.core.ts).
   mitti_invite: { audience: "partner", label: "Invited to Mitti – check Mitti's email, set a password, get the app (decision 331)", wordingApproved: true, quietHours: true },
@@ -97,9 +100,9 @@ export const SMS_MESSAGE_TYPES = {
   // The trade cancelled a booked visit → the owner (O74 text, visit-new-times.core visitNewTimesText).
   visit_new_times: { audience: "owner", label: "Trade cancelled the booked visit – choose new times / new times on the way (decisions 376/384)", wordingApproved: true, quietHours: true },
   // 24h after accepting a safety check job with no times offered → the electrician (E14 text, piesa-times-reminder.core).
-  piesa_times_reminder: { audience: "partner", label: "Safety check job accepted 24h ago, no times offered – electrician reminder (decisions 376/384)", wordingApproved: true, quietHours: true },
+  piesa_times_reminder: { audience: "partner", label: "Retired 2 Nov 2026 — Safety check job accepted 24h ago, no times offered – electrician reminder (decisions 376/384)", wordingApproved: false, quietHours: true },
   // Safety check booked → the job's installer, planning only (I71 text, installer-planning-notice.core).
-  installer_planning_notice: { audience: "partner", label: "Safety check booked – installer told the date for planning only (decisions 376/384)", wordingApproved: true, quietHours: true },
+  installer_planning_notice: { audience: "partner", label: "Retired 2 Nov 2026 — Safety check booked – installer told the date for planning only (decisions 376/384)", wordingApproved: false, quietHours: true },
   // Decision 389 (Jo 25 Oct 2026): Jo released the owner's saved spot → "It's your turn" to the OWNER (release + day-2
   // reminder; spot-release.core spotReleasedText). DRAFT until Jo sees the rendered picture (rendered O77 picture).
   spot_released: { audience: "owner", label: "It's your turn – confirm a few quick details for your free Ready Check, area batch sent + day-2 reminder (decisions 389, #21/#22; sent only while IT_IS_YOUR_TURN_V2_APPROVED)", wordingApproved: true, quietHours: true },

@@ -3,7 +3,7 @@
 // exist; 24h with no times → one Needs me row. Plus the decision-314 follow-up: "Be on site at the start of the install
 // day" alone clears on the accepted + paid fixes quote (basis electrician_at_start, 30 days from the official PIESA).
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import {
   FIXES_TIMES_ANCHOR, FIXES_TIMES_GIVEN_EVENT, FIXES_TIMES_HOLD_REASON, FIXES_TIMES_LINK_EVENT, FIXES_TIMES_MISSING_LINE, FIXES_TIMES_SMS_TYPE,
   fixesTimesCardState, fixesTimesHoldReason, fixesTimesLink, fixesTimesLinkBlocker, fixesTimesLinkKey, fixesTimesLinkText, fixesTimesMissing, fixesTimesNeeded, onsiteStartOnly,
@@ -77,7 +77,8 @@ describe("wording, key, link and SMS type", () => {
   });
   test("SMS type: trade audience, approved, quiet hours, 24h event freshness", () => {
     expect(FIXES_TIMES_SMS_TYPE).toBe("fixes_times_link");
-    expect(SMS_MESSAGE_TYPES.fixes_times_link).toMatchObject({ audience: "partner", wordingApproved: true, quietHours: true });
+    // Part 4 Task 14 (Jo 2 Nov 2026): the text is retired — kept as history, never approved again.
+    expect(SMS_MESSAGE_TYPES.fixes_times_link).toMatchObject({ audience: "partner", wordingApproved: false, quietHours: true });
     expect(SMS_FRESHNESS.fixes_times_link).toEqual({ kind: "event", maxAgeMinutes: 24 * 60 });
     expect(smsStaleReason("fixes_times_link", { at: "2026-10-24T01:00:00.000Z", current: true }, "2026-10-26T02:00:00.000Z")).toMatch(/Too late/);
   });
@@ -132,23 +133,13 @@ describe("decision 314 follow-up: on site at the start only → cleared on the a
 });
 
 describe("source pins", () => {
-  test("sender: event claimed BEFORE sending; TEST → test-send; real → sendRealSms fixes_times_link with the job+audit key; no raw gateway", () => {
-    const s = read("src/lib/fixes-times-link.server.ts");
-    const idx = (t: string) => { const i = s.indexOf(t); expect(i, t).toBeGreaterThan(-1); return i; };
-    expect(idx("fixesTimesLinkBlocker({")).toBeLessThan(idx("logEvent(jobId, null, FIXES_TIMES_LINK_EVENT"));
-    expect(idx("logEvent(jobId, null, FIXES_TIMES_LINK_EVENT")).toBeLessThan(idx("sendTestSms("));
-    expect(idx("sendTestSms(")).toBeLessThan(idx("sendRealSms("));
-    expect(s).toContain('const test = j.source === "qa_test" || partnerIsTest;');
-    expect(s).toContain("sendRealSms({ type: FIXES_TIMES_SMS_TYPE, idempotencyKey: key, to, body, jobId, businessId: asg!.business_id, event: { at: completedAt, current: !windowsExist } })");
-    expect(s).toContain("fixesTimesLink(test ? TEST_APP_BASE : SET_PASSWORD_BASE, jobId)");
-    expect(s).not.toMatch(/fetch\(|twilio/i);
-  });
-  test("the A3 sync calls it only when the PIESA is completed", () => {
-    expect(read("src/lib/mitti.server.ts")).toContain('if (completed) await (await import("./fixes-times-link.server")).textFixesTimesLink(jobId, { auditId: a.external_mitti_id, completedAt: plan.modifiedAt ?? now, short: shortAnswers });');
+  test("the A3 sync no longer texts the electrician a fixes-times link (retired 2 Nov 2026, Part 4 Task 14)", () => {
+    expect(existsSync("src/lib/fixes-times-link.server.ts")).toBe(false);
+    expect(read("src/lib/mitti.server.ts")).not.toContain("fixes-times-link.server");
   });
   test("new literal createServerFn chain → trade-view.server → the ONE shared write; the old portal path uses the same write", () => {
     const f = read("src/lib/trade-view.functions.ts");
-    expect(f).toMatch(/export const saveTradeFixesTimes = createServerFn\(\{ method: "POST" \}\)\.middleware\(\[requireSupabaseAuth\]\)\n\s+\.inputValidator\([\s\S]+?\)\n\s+\.handler\(async \(\{ data, context \}\) => \{\n\s+const r = await \(await import\("\.\/trade-view\.server"\)\)\.tradeSaveFixesTimes\(/);
+    expect(f).toMatch(/export const saveTradeFixesTimes = createServerFn\(\{ method: "POST" \}\)\.middleware\(\[requireSupabaseAuth\]\)\n\s+\.inputValidator\([\s\S]+?\)\n\s+\.handler\(async \(\{ data, context \}\) => \{[\s\S]*?tradeSaveFixesTimes\(data\.jobId, context\.userId, data\.hours, data\.windows\)/);
     expect(f).toMatch(/export const getTradeFixesTimes = createServerFn\(\{ method: "POST" \}\)\.middleware\(\[requireSupabaseAuth\]\)\n\s+\.inputValidator/);
     expect(f).not.toContain("@tanstack/react-start/server");
     const tv = read("src/lib/trade-view.server.ts");
@@ -167,8 +158,9 @@ describe("source pins", () => {
   test("the hold goes through the existing fixes-quote send check; the office card shows it", () => {
     const af = read("src/lib/allocation.functions.ts");
     expect(af.slice(af.indexOf("export const sendRectificationQuote"))).toContain('releaseFixesQuote(data.quoteId, context.userId, "office")');
-    // Decision 354: the one shared release (office Send + automatic send) carries the check.
+    // Part 4 Task 14: the office Send is refused (HIV fixes quotes to owners are retired); the journey-only release still carries the check.
     const send = read("src/lib/fixes-quote-release.server.ts");
+    expect(send).toContain('if (how === "office") return FIXES_QUOTE_RETIRED;');
     expect(send.indexOf("fixesTimesHoldFor(q.job_id)")).toBeLessThan(send.indexOf("rectificationSendBlocker({"));
     expect(send).toContain("fixes_times_hold: fixesTimesHold");
     expect(read("src/components/portal/allocation.tsx")).toContain("data-fixes-times-hold");

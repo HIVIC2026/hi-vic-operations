@@ -2,7 +2,7 @@
 // O51 review request, O42 install day moved, O22 paid date) and source pins that every trigger calls its sender exactly
 // once with its key, through the guarded owner path. Run: bun test tests/owner-email-triggers.test.ts
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import {
   OWNER_EMAIL_TRIGGER_EVENT, OWNER_REVIEW_SCREEN_READY, QUOTE_OPEN_STAGES, dayMonthLabel, directMoveFrom, installDayMove, ownerEmailKey, quoteReminderDue,
   reviewRequestBlocker, reviewRequestDue, safetyCheckPaidAt, weekdayDayMonthLabel, youreInDue, type QuoteReminderFacts,
@@ -118,28 +118,20 @@ describe("O22 receipt date and labels", () => {
   test("keys are per quote / job / start set", () => {
     expect(ownerEmailKey.quoteReminder("q1", "day3")).toBe("quote-reminder:v1:q1:day3");
     expect(ownerEmailKey.youreIn("q1")).toBe("youre-in:v1:q1");
-    expect(ownerEmailKey.safetyCheckTimes("j", ["b", "a"])).toBe("safety-check-times:v1:j:a,b");
-    expect(ownerEmailKey.installDays("j", ["b", "a"])).toBe("install-days:v1:j:a,b");
+    expect(ownerEmailKey.installDayChanged("j", "2026-11-04T00:00:00Z")).toBe("install-day-changed:v1:j:2026-11-04T00:00:00Z");
     expect(ownerEmailKey.reviewRequest("j")).toBe("review-request:v1:j");
-    expect(ownerEmailKey.finalInvoice("inv1")).toBe("final-invoice:v1:inv1");
+    // Part 4 Task 14: the O26 / O29 / O33 / O45 keys are gone with their senders (recorded rows stay as history).
+    expect(Object.keys(ownerEmailKey).sort()).toEqual(["installDayChanged", "quoteReminder", "reviewRequest", "youreIn"]);
   });
 });
 
 const src = (p: string) => readFileSync(p, "utf8");
 const count = (s: string, needle: string) => s.split(needle).length - 1;
 
-describe("electrician contact (Part 4 Task 1): office phone via businessContactForJob, held when missing", () => {
+describe("Part 4 Task 14: the O26 safety check times / booked triggers are gone (the in-house \"You're booked\" message replaces them)", () => {
   const t = src("src/lib/owner-email-triggers.server.ts");
-  const fn = (name: string) => t.slice(t.indexOf(`async function ${name}(`), t.indexOf("\n}\n", t.indexOf(`async function ${name}(`)));
-  test("electricianFor reads the business contact, never its own phone query", () => {
-    const body = fn("electricianFor");
-    expect(body).toContain("businessContactForJob(jobId, \"electrician\")");
-    expect(body).not.toContain("job_assignments");
-  });
-  test("the booked email is held (office note, nothing sent, key not used) when the electrician has no office phone or email", () => {
-    const body = fn("onSafetyCheckBooked");
-    expect(body.indexOf("owner_booked_held")).toBeGreaterThan(-1);
-    expect(body.indexOf("owner_booked_held")).toBeLessThan(body.indexOf("fireOwnerEmailOnce("));
+  test("no safety-check trigger, no electrician contact read, no fixes quote or install days trigger", () => {
+    for (const gone of ["onSafetyCheckTimesOffered", "onSafetyCheckBooked", "electricianFor", "onFixesQuoteIssued", "onInstallDaysOffered", "onFinalInvoiceDue", "sweepFinalInvoices"]) expect(t).not.toContain(gone);
   });
 });
 
@@ -147,15 +139,10 @@ describe("source pins: each trigger calls its sender exactly once with its key",
   const t = src("src/lib/owner-email-triggers.server.ts");
   test("every trigger goes through fireOwnerEmailOnce (event recorded before the send) and one approved sender", () => {
     const pairs: [string, string, string][] = [
-      ["onSafetyCheckTimesOffered", "emailOwnerSafetyCheckTimes(", "ownerEmailKey.safetyCheckTimes("],
-      ["onSafetyCheckBooked", "emailOwnerSafetyCheckBooked(", "ownerEmailKey.safetyCheckBooked("],
-      ["onFixesQuoteIssued", "emailOwnerFixesQuote(", "ownerEmailKey.fixesQuote("],
-      ["onInstallDaysOffered", "emailOwnerInstallDays(", "ownerEmailKey.installDays("],
       ["onInstallDayMoved", "emailOwnerInstallDayChanged(", "ownerEmailKey.installDayChanged("],
       ["onSafetyCheckPaid", "emailOwnerYoureIn(", "ownerEmailKey.youreIn("],
       ["sweepQuoteReminders", "emailOwnerQuoteReminder(", "ownerEmailKey.quoteReminder(q.id, kind)"],
       ["sweepReviewRequests", "emailOwnerReviewRequest(", "ownerEmailKey.reviewRequest(j.id)"],
-      ["onFinalInvoiceDue", "emailOwnerFinalInvoice(", "ownerEmailKey.finalInvoice(invoiceId)"],
     ];
     for (const [fn, sender, key] of pairs) {
       expect(count(t, `export async function ${fn}(`)).toBe(1);
@@ -168,22 +155,18 @@ describe("source pins: each trigger calls its sender exactly once with its key",
   });
   test("the guarded sender reserves the same keys", () => {
     const a = src("src/lib/approved-owner-emails.server.ts");
-    for (const k of ["quoteReminder(quoteId, kind)", "youreIn(quoteId)", "safetyCheckTimes(jobId, startsAt)", "safetyCheckBooked(jobId, startIso)", "fixesQuote(quoteId)", "installDays(jobId, startsAt)", "installDayChanged(jobId, startIso)", "reviewRequest(jobId)", "finalInvoice(invoiceId)"])
+    for (const k of ["quoteReminder(quoteId, kind)", "youreIn(quoteId)", "installDayChanged(jobId, startIso)", "reviewRequest(jobId)"])
       expect(a).toContain(`key: ownerEmailKey.${k}`);
     expect(src("src/lib/owner-template-send.server.ts")).toContain("sendGuardedOwnerEmail");
   });
   test("workflow call sites: each fires once, best-effort (.catch) so the action never breaks", () => {
     const sites: [string, string][] = [
-      ["src/lib/allocation.functions.ts", "onFixesQuoteIssued(q.job_id, q.id)"],
-      ["src/lib/pilot.functions.ts", "onSafetyCheckTimesOffered(data.jobId, [data.start])"],
-      ["src/lib/booking.server.ts", "onSafetyCheckBooked(jobId, start, stage === target)"],
       ["src/lib/booking.server.ts", "onInstallBookingRescheduled(jobId, start, priorInstallStart)"],
-      ["src/lib/install-days.server.ts", "onInstallDaysOffered(jobId, starts, c.deadline)"],
       ["src/lib/install-days.server.ts", "onInstallDayMoved(jobId, startsAt, movedFrom)"],
       ["src/lib/payments.server.ts", "onSafetyCheckPaid(jobId, invoiceId)"],
-      ["src/lib/piesa-times.server.ts", "onSafetyCheckTimesOffered(jobId, starts)"],
-      ["src/lib/install-complete.server.ts", "onFinalInvoiceDue(jobId)"],
     ];
+    // Part 4 Task 14: the old call sites are gone.
+    for (const [file, gone] of [["src/lib/pilot.functions.ts", "onSafetyCheckTimesOffered"], ["src/lib/booking.server.ts", "onSafetyCheckBooked"], ["src/lib/install-days.server.ts", "onInstallDaysOffered"], ["src/lib/piesa-times.server.ts", "onSafetyCheckTimesOffered"], ["src/lib/install-complete.server.ts", "onFinalInvoiceDue"], ["src/lib/fixes-quote-release.server.ts", "onFixesQuoteIssued"]] as const) expect({ file, has: src(file).includes(gone) }).toEqual({ file, has: false });
     for (const [file, call] of sites) {
       const s = src(file);
       expect(count(s, call)).toBe(1);
@@ -193,16 +176,12 @@ describe("source pins: each trigger calls its sender exactly once with its key",
     const tick = src("src/routes/api/public/hooks/allocation-tick.ts");
     expect(count(tick, "sweepQuoteReminders()")).toBe(1);
     expect(count(tick, "sweepReviewRequests()")).toBe(1);
-    expect(count(tick, "sweepFinalInvoices()")).toBe(1);
+    expect(count(tick, "sweepFinalInvoices()")).toBe(0);
   });
-  test("decision 334: O45 is wired (install complete + 15-minute retry), bank transfer only, no card wording, no invented PDF", () => {
+  test("Part 4 Task 14 (touchpoint 52): the separate O45 final invoice email is gone — the All done email carries the tax invoice", () => {
     const core = src("src/lib/completion-emails.core.ts");
-    for (const gone of ["Secure card payment by Stripe", "Tap the button to pay by card", "payUrl"]) expect(core).not.toContain(gone);
-    expect(core).toContain("Pay by bank transfer");
-    const t = src("src/lib/owner-email-triggers.server.ts");
-    expect(t).toContain("bank: bankDetails()");
-    expect(t).toContain("invoicePdfAttached: false");
-    expect(count(src("src/lib/install-complete.server.ts"), "emailOwnerFinalInvoice(")).toBe(0);
-    expect(src("src/lib/approved-owner-emails.server.ts")).toContain("key: ownerEmailKey.finalInvoice(invoiceId)");
+    for (const gone of ["renderFinalInvoiceEmail", "Secure card payment by Stripe", "Tap the button to pay by card", "payUrl"]) expect(core).not.toContain(gone);
+    expect(existsSync("src/lib/final-invoice-email.core.ts")).toBe(false);
+    for (const f of ["src/lib/install-complete.server.ts", "src/lib/approved-owner-emails.server.ts", "src/lib/owner-email-triggers.server.ts"]) expect(src(f)).not.toMatch(/emailOwnerFinalInvoice|finalInvoice\(/);
   });
 });

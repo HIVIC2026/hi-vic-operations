@@ -28,7 +28,7 @@ export async function emailOwnerInstallBooked(jobId: string, startIso: string, o
   const { firstName } = await import("./worker-links.core");
   const { formatInstallDay } = await import("./install-days.core");
   const { renderInstallBookedEmail, INSTALL_BOOKED_EMAIL_APPROVED } = await import("./install-booked-email.core");
-  // Decision 139: the 10% install deposit (card, bank transfer or PayID, 48h hold) when it is still owing under the payment rule.
+  // Answer 21 (Jo 2 Nov 2026): the 10% deposit is paid BEFORE the install day is booked, so this email never shows a held day.
   const pay = await (await import("./payments.server")).jobPaymentView(jobId).catch(() => null);
   const depositStep = pay?.steps.find((s) => s.key === "install_deposit");
   // Jo 26 Oct 2026: never "Your install is booked" while the 10% deposit is unpaid.
@@ -36,13 +36,10 @@ export async function emailOwnerInstallBooked(jobId: string, startIso: string, o
     await logEvent(jobId, null, "install_booked_email_not_sent", "Install booked email not sent — the 10% install deposit is not paid", { starts_at: startIso }, { internal: true });
     return "not sent — deposit not paid";
   }
-  const deposit = pay && depositStep && (depositStep.state === "requested" || depositStep.state === "overdue") && pay.provisional.decision === "provisional"
-    ? { amount: `$${(depositStep.outstandingCents / 100).toFixed(2)}`, holdUntil: pay.provisional.expiresAt ? formatInstallDay(pay.provisional.expiresAt) : null, bankLines: (await import("./payments.core")).bankDetailLines(pay.bank, pay.reference) }
-    : null;
   // Decision 151: once the deposit has cleared, the same email says "Deposit received ✓" with the balance due on the day.
   const paidDeposit = opts.depositReceived && pay && depositStep ? { depositPaid: depositStep.amountCents / 100, balanceDue: Math.max(0, (pay.plan.thresholds.balance - pay.paid.install) / 100) } : null; // batch 3b: the install invoice's balance
   const input = {
-    firstName: firstName(owner?.full_name ?? null), when: formatInstallDay(startIso), deposit: opts.depositReceived ? null : deposit, payment: paidDeposit,
+    firstName: firstName(owner?.full_name ?? null), when: formatInstallDay(startIso), payment: paidDeposit,
     address: prop ? fullAddress(prop.address_line, prop.suburb, prop.postcode) || null : null,
     installerName: biz?.trading_name ?? biz?.name ?? null, installerPhone: biz?.phone ?? null,
     removal: m?.removal_required === true, myJobUrl: `${CUSTOMER_BASE}/my-job/${link.token}`,

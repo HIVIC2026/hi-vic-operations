@@ -533,9 +533,9 @@ export async function releaseInstallationContacts(jobId: string, actorId: string
 // Decision 314 follow-up: moved to the lean electrical-clearance.server (read by stageEntryBlockers / autoAdvanceJob too).
 export { clearanceFacts } from "./electrical-clearance.server";
 
-/** 24h "no time proposed yet" points for released visits (F13: no outbox row). Decision 376: for an accepted safety check
- *  the electrician gets ONE reminder (E14 + text, piesa-times-reminder.server; approved by Jo, decision 384) after the event
- *  below is recorded; every other visit kind stays record-only (piesa-times-reminder.core says why). */
+/** 24h "no time proposed yet" points for released visits (F13: no outbox row). Record-only for every visit kind: the
+ *  decision 376 electrician reminder (E14 + text) was retired 2 Nov 2026 (Part 4 Task 14 — the electrician no longer
+ *  offers times; the installer's electrician books the safety check with the owner). */
 export async function sweepCoordination(actorId: string | null = null, testJobId?: string) {
   // An explicitly scoped QA sweep is fail-closed, record-only and cannot read another job's releases.
   if (testJobId !== undefined) {
@@ -579,10 +579,7 @@ export async function sweepCoordination(actorId: string | null = null, testJobId
     const remAt = reminded.get(`${r.job_id}|${r.assignment_id}|${r.visit_kind}`) ?? null;
     const s = coordinationState({ releasedAt: r.released_at, firstProposalAt: propAt, confirmedAt: a.booking_confirmed_at, reminderSentAt: remAt });
     if (s.state === "remind") {
-      const { coordinationReminderSends } = await import("./piesa-times-reminder.core");
-      const sends = testJobId === undefined && coordinationReminderSends(r.visit_kind);
-      await logEvent(r.job_id, actorId, "coordination_reminder", `24h: no ${r.visit_kind} time proposed yet${sends ? " — electrician reminder prepared (E14 + text)" : " (record only)"}`, { assignment_id: r.assignment_id, visit_kind: r.visit_kind }, { internal: true });
-      if (sends) await (await import("./piesa-times-reminder.server")).remindTradeToOfferTimes({ jobId: r.job_id, assignmentId: r.assignment_id, visitKind: r.visit_kind, remindedAt: new Date().toISOString() }, inHouseState).catch((e) => console.error("PIESA times reminder skipped", (e as Error).message));
+      await logEvent(r.job_id, actorId, "coordination_reminder", `24h: no ${r.visit_kind} time proposed yet (record only)`, { assignment_id: r.assignment_id, visit_kind: r.visit_kind }, { internal: true });
       reminders++;
     }
   }
@@ -664,7 +661,7 @@ export async function submitOwnerPiesaWindows(jobId: string, userId: string, pic
   if (w.futureOpen > 0) throw new WorkflowError("Your PIESA times are already with our electricians.");
   // Decision 333: new jobs never pick windows — the electrician offers the owner 3 times. Only a job that already
   // started the old way (round ≥ 1) may send more times, when asked or when its times were reopened.
-  if (w.round === 0) throw new WorkflowError("Your electrician will offer you 3 safety check times to choose from.");
+  if (w.round === 0) throw new WorkflowError("Your licensed electrician will call you to book it.");
   const reopened = await (await import("./visit-events.server")).timesReopenedSince(jobId, "assessment", w.roundStart);
   if (!reopened && w.round >= PIESA_MAX_ROUNDS) throw new WorkflowError("Home Insulation Victoria will contact you to arrange this visit.");
   if (!reopened && w.round === 1) {

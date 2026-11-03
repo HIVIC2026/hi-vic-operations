@@ -124,10 +124,9 @@ describe("old owner window picker: old jobs only", () => {
 
 describe("source pins", () => {
   const server = src("src/lib/piesa-times.server.ts");
-  test("agreement books through confirmBooking kind assessment; offering sends O26 once, best-effort", () => {
+  test("agreement books through confirmBooking kind assessment; offering sends no owner email (O26 retired 2 Nov 2026, Part 4 Task 14)", () => {
     expect(server).toContain('confirmBooking(jobId, "assessment", startsAt');
-    expect(server.split("onSafetyCheckTimesOffered(jobId, starts)").length - 1).toBe(1);
-    expect(server.split("\n").find((l) => l.includes("onSafetyCheckTimesOffered(jobId, starts)"))).toMatch(/\.catch\(/);
+    expect(server).not.toContain("onSafetyCheckTimesOffered");
     expect(server).not.toMatch(/sendRealSms|sendGuardedOwnerEmail|sendTestEmail|fetch\(/);
   });
   test("the owner's take/suggest checks the 30-day tick and records it once per cycle", () => {

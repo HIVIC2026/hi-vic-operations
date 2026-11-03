@@ -73,8 +73,8 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           // Decision 325: O19 quote reminder emails (3 days after the quote, 2 days before the price expires) and the O51
           // review request a week after the install (held until the review screen + Google link exist). One
           // `owner_email_triggered` event per email before sending; TEST → test-send; real → guarded owner path.
-          const { sweepQuoteReminders, sweepReviewRequests, sweepFinalInvoices } = await import("@/lib/owner-email-triggers.server");
-          (out as Record<string, unknown>)['ownerEmails'] = { quoteReminders: await timed("sweepQuoteReminders", () => sweepQuoteReminders()), reviewRequests: await timed("sweepReviewRequests", () => sweepReviewRequests()), finalInvoices: await timed("sweepFinalInvoices", () => sweepFinalInvoices()) };
+          const { sweepQuoteReminders, sweepReviewRequests } = await import("@/lib/owner-email-triggers.server");
+          (out as Record<string, unknown>)['ownerEmails'] = { quoteReminders: await timed("sweepQuoteReminders", () => sweepQuoteReminders()), reviewRequests: await timed("sweepReviewRequests", () => sweepReviewRequests()) };
         } catch (e) {
           console.error("allocation tick: owner email sweep failed", (e as Error).message);
           (out as Record<string, unknown>)['ownerEmails'] = "failed";
@@ -186,14 +186,6 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['addressRequests'] = "failed";
         }
         try {
-          // Decision 330: owner asked to confirm the ELECTRICAL FIXES (email O72 + text) after the A4 fixes form; days 1/3, office day 5.
-          const { sweepOwnerFixesConfirmations } = await import("@/lib/piesa-fixes-confirm-send.server");
-          (out as Record<string, unknown>)['piesaFixesConfirm'] = await timed("sweepOwnerFixesConfirmations", () => sweepOwnerFixesConfirmations());
-        } catch (e) {
-          console.error("allocation tick: electrical fixes owner confirmation sweep failed", (e as Error).message);
-          (out as Record<string, unknown>)['piesaFixesConfirm'] = "failed";
-        }
-        try {
           // Decision 120: owner asked to sign the VEEC assignment form (email + text) at install completion, days 1/3/7, office alert day 10.
           const { sweepVeecReminders } = await import("@/lib/veec-reminders.server");
           (out as Record<string, unknown>)['veecReminders'] = await timed("sweepVeecReminders", () => sweepVeecReminders());
@@ -251,16 +243,6 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
         } catch (e) {
           console.error("allocation tick: electrician attendance sweep failed", (e as Error).message);
           (out as Record<string, unknown>)['electricianAttendance'] = "failed";
-        }
-        try {
-          // Decision 186: installer told once when electrical clearance is in (text + email, offer 3 install days).
-          // Catch-up only: jobs cleared in the last 7 days with nothing booked and no notice yet; the live trigger is
-          // the PIESA completion / Section C sign-off itself.
-          const { sweepInstallClearance } = await import("@/lib/install-clearance.server");
-          (out as Record<string, unknown>)['installClearance'] = await timed("sweepInstallClearance", () => sweepInstallClearance());
-        } catch (e) {
-          console.error("allocation tick: install clearance sweep failed", (e as Error).message);
-          (out as Record<string, unknown>)['installClearance'] = "failed";
         }
         try {
           // Decisions 79/82/99 (built per 193): "Install tomorrow" to the installer from the afternoon before, and a 24h
@@ -479,14 +461,6 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
         } catch (e) {
           console.error("allocation tick: trade messages sweep failed", (e as Error).message);
           (out as Record<string, unknown>)['tradeMessages'] = "failed";
-        }
-        try {
-          // Decision 354: catch-up for the automatic electrical fixes quote send (A3 complete + every check passed).
-          const { sweepAutoFixesQuotes } = await import("@/lib/auto-fixes-quote-send.server");
-          (out as Record<string, unknown>)['autoFixesQuotes'] = await timed("sweepAutoFixesQuotes", () => sweepAutoFixesQuotes());
-        } catch (e) {
-          console.error("allocation tick: automatic fixes quote sweep failed", (e as Error).message);
-          (out as Record<string, unknown>)['autoFixesQuotes'] = "failed";
         }
         try {
           const { sweepDailyBrief } = await import("@/lib/daily-brief.server");

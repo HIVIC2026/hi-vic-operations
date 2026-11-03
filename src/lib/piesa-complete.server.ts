@@ -115,6 +115,6 @@ export async function completePiesaAssessment(data: CompletePiesaInput, userId: 
     await (await import("./in-house-forms.server")).closeUnneededForms(data.jobId, "no_upgrades", userId).catch(e=>console.error("Unused in-house rectification closure failed", e instanceof Error ? e.message : "Form read failed"));
   }
   // Decision 186: a pass with no fixes is electrical clearance — tell the installer once (nothing when not cleared).
-  try { await (await import("./install-clearance.server")).notifyInstallerClearance(data.jobId); } catch (e) { console.error("install clearance notice failed", (e as Error).message); }
+  // Part 4 Task 14: the decision 186 "cleared — offer 3 install days" installer notice is retired (the installer calls the owner to book).
   return res;
 }

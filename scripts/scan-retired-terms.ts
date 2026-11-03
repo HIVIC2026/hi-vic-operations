@@ -26,6 +26,9 @@ export const OWNER_WORDING_TERMS: Term[] = [
   { term: "Just checking you got your estimate", re: /Just checking you got your estimate/g, action: "Delete (the day 2/7/21 reminders cover it)", strict: true },
   { term: "owner picks a Ready Check time", re: /[Ii]nstaller will offer you 3 times|will offer you 3 times to pick from|offer you 3 times for your (?:free|Free) Ready Check/g, action: "Delete (the installer will call instead)", strict: true },
   { term: "See where you're up to", re: /See where you're up to/g, action: "Delete the button (no My job home links)", strict: true },
+  // Part 4 Task 14 (Jo 2 Nov 2026): no owner picks install days or safety check times, no HIV fixes quote, no held-day deposit.
+  { term: "owner picks install days / safety check times", re: /Your installer will offer you 3 (?:new |install )?days|will offer you 3 (?:safety check )?times to choose from|then you can pick your install day|Pick one of the times offered/g, action: "Delete (the installer / electrician calls to book)", strict: true },
+  { term: "held for 48 hours while the deposit arrives", re: /is held for 48 hours|deposit within 48 hours|Your day is held until/g, action: "Delete (answer 21: the deposit is paid before the install day is booked)", strict: true },
   {
     term: "7-day balance",
     re: /7 days after (?:your |the )?install(?:ation)? (?:is )?recorded complete|7 days after recorded install completion|due 7 days after install(?:ation)? completion/g,
