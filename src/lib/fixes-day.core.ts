@@ -19,15 +19,15 @@ export const FIXES_DAY_RULE = "fixes-day-2026-10-25";
 /** workflow_settings column holding the connected template id (pending migration docs/pending-migrations/mitti-fixes-template.sql). */
 export const FIXES_TEMPLATE_COLUMN = "mitti_fixes_template_id";
 export const FIXES_TEMPLATE_MIGRATION = "docs/pending-migrations/mitti-fixes-template.sql";
-export const FIXES_TEMPLATE_MISSING = "Electrical fixes Mitti form is not set up. Connect the \"A4 – Electrical fixes\" form in Compliance → Mitti forms; until then the electrician records the fixes on the portal job page.";
-export const FIXES_TEMPLATE_PENDING_DB = `Electrical fixes Mitti form: waiting for the database change (${FIXES_TEMPLATE_MIGRATION}). The electrician records the fixes on the portal job page until then.`;
+export const FIXES_TEMPLATE_MISSING = "Electrical upgrades Mitti form is not set up. Connect the A4 electrical upgrades form in Compliance → Mitti forms.";
+export const FIXES_TEMPLATE_PENDING_DB = `Electrical upgrades Mitti form: waiting for the database change (${FIXES_TEMPLATE_MIGRATION}).`;
 /** Workflow events (append-only history; the latest per audit wins). */
 export const FIXES_FORM_CREATED_EVENT = "fixes_form_created";
 export const FIXES_FORM_HELD_EVENT = "fixes_form_held";
 export const FIXES_FORM_COMPLETED_EVENT = "fixes_form_completed";
 export const FIXES_FORM_NOT_DONE_EVENT = "fixes_form_not_done";
 /** Office item title when the form could not be created (template missing, electrician not in Mitti, Mitti error). */
-export const FIXES_FORM_NOT_SET_UP = "Fixes form not set up";
+export const FIXES_FORM_NOT_SET_UP = "Upgrades form not set up";
 /** Job-file title of the CoES file(s) kept from the A4 form (documents kind piesa_evidence, source mitti). Decision 322:
  *  the completion pack finds the CoES to attach by this exact title, so keep the two in step. */
 export const FIXES_COES_DOC_TITLE = "PIESA evidence – Certificate of Electrical Safety (photo or PDF)";
