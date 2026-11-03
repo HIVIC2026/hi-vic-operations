@@ -28,6 +28,20 @@ async function requireTeam(jobId: string, userId: string): Promise<string> {
   if (!member) throw new Error("This job is not assigned to your business");
   return businessId;
 }
+/** Electricians never log in (fix wave C1; same rule as Part 6): the assignment's user_id is NULL for them, so the person is
+ *  the worker named by the latest `in_house_electrician_allocated` event (null = no allocation event, e.g. a legacy assignment
+ *  made by profile). JOIN: Part 6's allocate_team_electrician v2 SQL removes the profile check in the RPC
+ *  (docs/pending-migrations/2026-11-03_allocate_team_electrician_v2.sql on Part 6's branch) — not duplicated here. */
+export async function allocatedWorkerId(jobId: string): Promise<string | null> {
+  const ev = await read<{ details: { worker_id?: string } | null } | null>(db.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "in_house_electrician_allocated").order("created_at", { ascending: false }).limit(1).maybeSingle());
+  const id = ev?.details?.worker_id;
+  return typeof id === "string" && id ? id : null;
+}
+/** The assignment names this worker: by the allocation event, else (legacy) by the profile on the assignment. */
+export const isAllocated = (w: { id: string; profile_id: string | null }, assignment: { user_id: string | null } | null, allocatedId: string | null): boolean =>
+  !!assignment && (allocatedId ? allocatedId === w.id : !!assignment.user_id && assignment.user_id === w.profile_id);
+/** Allowed = verified + office-approved. No profile or Team login is needed: electricians never log in (their forms are handed to them in Mitti). */
+const choiceOf = (w: Worker) => { const result = electricianVerified(w); return { id: w.id, name: w.full_legal_name, allowed: result.ok && w.approval_status === "approved", reason: result.reason ?? (w.approval_status !== "approved" ? "Waiting for office approval" : null) }; };
 async function teamWorkers(businessId: string): Promise<Worker[]> {
   const workers: Worker[] = [];
   for (let offset = 0; ; offset += 200) {
@@ -38,26 +52,30 @@ async function teamWorkers(businessId: string): Promise<Worker[]> {
 }
 export async function electricianPicker(jobId: string, userId: string) {
   const businessId = await requireTeam(jobId, userId);
-  const [workers, assignment] = await Promise.all([
+  const [workers, assignment, allocatedId] = await Promise.all([
     teamWorkers(businessId),
     read<{ user_id: string | null } | null>(db.from("job_assignments").select("user_id").eq("job_id", jobId).eq("business_id", businessId).eq("role", "electrician").eq("active", true).maybeSingle()),
+    allocatedWorkerId(jobId),
   ]);
-  return { workers: workers.map(w => { const result = electricianVerified(w); return { id: w.id, name: w.full_legal_name, allowed: result.ok && w.approval_status === "approved" && !!w.profile_id, reason: result.reason ?? (w.approval_status !== "approved" ? "Waiting for office approval" : !w.profile_id ? "Electrician needs active Team access" : null), selected: assignment?.user_id === w.profile_id }; }) };
+  return { workers: workers.map(w => ({ ...choiceOf(w), selected: isAllocated(w, assignment, allocatedId) })) };
 }
 /** Installer screens Task 7: the business's Team electricians for Add a job (no job yet, so business-scoped; the caller has
  *  already checked the person may add jobs for this business). Same allowed/reason rule as `electricianPicker`. */
 export async function teamElectricianChoices(businessId: string): Promise<{ id: string; name: string; allowed: boolean; reason: string | null }[]> {
   const workers = await teamWorkers(businessId);
-  return workers.map((w) => { const result = electricianVerified(w); return { id: w.id, name: w.full_legal_name, allowed: result.ok && w.approval_status === "approved" && !!w.profile_id, reason: result.reason ?? (w.approval_status !== "approved" ? "Waiting for office approval" : !w.profile_id ? "Electrician needs active Team access" : null) }; });
+  return workers.map(choiceOf);
 }
 export async function inHousePiesaBookingBlockerFor(jobId: string): Promise<string | null> {
   const businessId = await heldBusiness(jobId);
   if (!businessId) return null; // non-in-house behaviour unchanged
-  const workers = (await teamWorkers(businessId)).filter(w => w.approval_status === "approved" && !!w.profile_id);
+  const workers = (await teamWorkers(businessId)).filter(w => w.approval_status === "approved");
   const missing = inHouseElectricianBookingBlocker(workers, melbourneToday());
   if (missing) return missing;
-  const assignment = await read<{ user_id: string | null } | null>(db.from("job_assignments").select("user_id").eq("job_id", jobId).eq("business_id", businessId).eq("role", "electrician").eq("active", true).maybeSingle());
-  if (!assignment || !workers.some(w => w.profile_id === assignment.user_id && electricianVerified(w).ok)) return "Choose a verified electrician from your Team before booking the safety check.";
+  const [assignment, allocatedId] = await Promise.all([
+    read<{ user_id: string | null } | null>(db.from("job_assignments").select("user_id").eq("job_id", jobId).eq("business_id", businessId).eq("role", "electrician").eq("active", true).maybeSingle()),
+    allocatedWorkerId(jobId),
+  ]);
+  if (!assignment || !workers.some(w => isAllocated(w, assignment, allocatedId) && electricianVerified(w).ok)) return "Choose a verified electrician from your Team before booking the safety check.";
   return null;
 }
 export async function allocateElectrician(jobId: string, userId: string, workerId: string, call?: MittiCall) {
@@ -65,7 +83,9 @@ export async function allocateElectrician(jobId: string, userId: string, workerI
   const worker = await read<Worker | null>(db.from("partner_workers").select(COLS).eq("id", workerId).eq("business_id", businessId).eq("trade_role", "electrician").is("removed_at", null).maybeSingle());
   if (!worker || worker.business_id !== businessId) throw new Error("That electrician is not on your Team");
   if (!electricianVerified(worker).ok || worker.approval_status !== "approved") throw new Error("Electrician not verified");
-  if (!worker.profile_id || !worker.email?.trim()) throw new Error("Electrician needs active Team access and a Mitti email");
+  // Electricians never log in: no profile or Team login is needed, only the Mitti email the forms are handed to.
+  // JOIN: Part 6's allocate_team_electrician v2 SQL removes the profile check in the RPC.
+  if (!worker.email?.trim()) throw new Error("Electrician needs a Mitti email");
   const job = await read<{ source: string } | null>(db.from("jobs").select("source").eq("id", jobId).is("deleted_at", null).maybeSingle());
   if (!job) throw new Error("Job unavailable");
   const mitti = await import("./mitti.server");
