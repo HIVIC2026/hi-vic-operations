@@ -110,6 +110,8 @@ export const WORKFLOW_DECISIONS = {
         veuBox: "owner-wording.core veuBoxMj (Fix 1) at the bottom",
         hivLeadsUnchanged: true,
       },
+      // Part 10 Task 6: the My job quote page for an own customer — same switch, same rows, installer logo in the header.
+      ownCustomerQuotePage: { cobrandFlag: "OWN_CUSTOMER_COBRAND_APPROVED", view: "ownCustomerQuoteView", header: "OwnerPageHeader partnerLogo", rows: "quote.ownRows (null = generic rows)" },
       paymentRule: "not_assumed",
       leadFee: "none",
       marginOnInstallerPrice: "none",

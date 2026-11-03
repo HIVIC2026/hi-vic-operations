@@ -95,7 +95,7 @@ function MyJobPage() {
   return (
     <div className="estimate-brand min-h-screen bg-estimate-canvas pb-10 text-estimate-navy">
       {/* Approved pages P2–P4 (Jo 24 Oct): white bar, logo left, job number right. */}
-      <OwnerPageHeader right={data?.jobNumber ? (data.spotSaved ? `Job ${data.jobNumber}` : data.jobNumber) : undefined} />
+      <OwnerPageHeader right={data?.jobNumber ? (data.spotSaved ? `Job ${data.jobNumber}` : data.jobNumber) : undefined} partnerLogo={data?.cobrand ?? null} />
       <main className="mx-auto max-w-[560px] space-y-4 px-4 pt-5 sm:px-5">
         {isLoading ? <p role="status" className="py-10 text-center text-sm">Opening your job…</p>
           : !data ? <Unavailable />
@@ -858,13 +858,19 @@ function QuoteScreen({ v, token }: { v: View; token: string }) {
       </section>}
       <section className="rounded-[14px] border border-estimate-line bg-card px-4 pt-3.5 pb-1.5">
         <h2 className="mb-1 text-[15px] font-bold">{P2.itemsTitle}</h2>
-        <ul data-testid="quote-lines">
+        {/* Part 10 Task 6: an installer's own customer (co-brand approved) sees the approved rows — Insulation · extras · fee · PIESA · Rebate · Your price. */}
+        {q.ownRows ? <ul data-testid="quote-lines-own">
+          <li className="flex items-start justify-between gap-2.5 py-2.5"><span className="text-sm font-bold">Ready Check</span><span className="shrink-0 text-sm font-bold text-estimate-green">FREE</span></li>
+          {q.ownRows.map((r: { key: string; label: string; detail: string | null; amountIncGst: number }, i: number) => r.key === "total"
+            ? <li key={i} className="flex items-center justify-between gap-2.5 border-t-2 border-estimate-navy py-3"><span className="text-base font-bold">{r.label}</span><span className="font-display text-lg font-extrabold text-estimate-blue">{centsAud(r.amountIncGst)}</span></li>
+            : <li key={i} className="flex items-start justify-between gap-2.5 border-t border-estimate-line py-2.5"><span className="min-w-0 break-words"><span className="block text-sm font-bold">{r.label}</span>{r.detail && <span className="block text-xs text-estimate-sub">{r.detail}</span>}{r.key === "rebate" && <span className="block text-xs text-estimate-sub">{P2.rebateLineSub}</span>}</span><span className={`shrink-0 text-sm tabular-nums ${r.key === "rebate" ? "font-bold text-estimate-green" : ""}`}>{r.key === "rebate" ? `−${centsAud(Math.abs(r.amountIncGst))}` : centsAud(r.amountIncGst)}</span></li>)}
+        </ul> : <ul data-testid="quote-lines">
           <li className="flex items-start justify-between gap-2.5 py-2.5"><span className="text-sm font-bold">Ready Check</span><span className="shrink-0 text-sm font-bold text-estimate-green">FREE</span></li>
           {q.lines.map((l: { description: string; amount: number }, i: number) => <li key={i} className="flex items-start justify-between gap-2.5 border-t border-estimate-line py-2.5"><span className="min-w-0 break-words text-sm font-bold">{l.description}</span><span className="shrink-0 text-sm tabular-nums">{centsAud(l.amount)}</span></li>)}
           {q.rebate > 0 && full != null && <li className="flex items-start justify-between gap-2.5 border-t border-estimate-line py-2.5"><span><span className="block text-sm font-bold">{P2.fullPrice}</span><span className="block text-xs text-estimate-sub">{P2.fullPriceSub}</span></span><span className="shrink-0 text-sm font-bold tabular-nums">{centsAud(full)}</span></li>}
           {q.rebate > 0 && <li className="flex items-start justify-between gap-2.5 border-t border-estimate-line py-2.5"><span><span className="block text-sm font-bold">{P2.rebateLine}</span><span className="block text-xs text-estimate-sub">{P2.rebateLineSub}</span></span><span className="shrink-0 text-sm font-bold tabular-nums text-estimate-green">−{centsAud(q.rebate)}</span></li>}
           <li className="flex items-center justify-between gap-2.5 border-t-2 border-estimate-navy py-3"><span className="text-base font-bold">{P2.youPay}</span><span className="font-display text-lg font-extrabold text-estimate-blue">{centsAud(q.total)}</span></li>
-        </ul>
+        </ul>}
         <p className="border-t border-estimate-line py-2 text-[13px] leading-relaxed text-estimate-sub">{P2.notIncluded}</p>
       </section>
       {ownerQuoteCanAccept(q, acknowledged)

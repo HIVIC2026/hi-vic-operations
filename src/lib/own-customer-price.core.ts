@@ -1,4 +1,5 @@
 import { MITTI_INSTALLER_FEE_INC_GST } from "./usual-electrician.core";
+import { cobrandLogos, type CobrandLogo } from "./cobrand.core";
 
 /**
  * Own-customer (installer-sourced) quote and tax-invoice lines — Part 10 Task 1 (Jo 2 Nov 2026, "FEES … CORRECTION" +
@@ -84,4 +85,21 @@ export function ownCustomerRows(items: readonly OwnCustomerQuoteItem[], rebateIn
     { key: "rebate", label: OWN_CUSTOMER_LABELS.rebate, detail: null, amountIncGst: rebate },
     { key: "total", label: OWN_CUSTOMER_LABELS.total, detail: null, amountIncGst: totalIncGst },
   ];
+}
+
+/**
+ * Part 10 Task 6: the owner's quote page (and anything else that shows an own customer's quote) — the installer's logo
+ * beside ours and the approved rows. Both null unless the job is an installer's own customer AND the one co-brand switch
+ * (`approved` = OWN_CUSTOMER_COBRAND_APPROVED) is on. A missing / non-https logo → `cobrand` null (our logo alone); a
+ * malformed line set → `rows` null (the page keeps its generic rows; never a guessed label or fee).
+ */
+export function ownCustomerQuoteView(f: {
+  channel: string | null; approved: boolean; installerName: string | null; logoUrl: string | null;
+  items: readonly OwnCustomerQuoteItem[]; rebateIncGst: number; totalIncGst: number;
+}): { cobrand: CobrandLogo | null; rows: OwnCustomerRow[] | null } {
+  if (f.channel !== "installer_sourced" || !f.approved) return { cobrand: null, rows: null };
+  const cobrand = cobrandLogos({ installerName: f.installerName, logoUrl: f.logoUrl }).installer;
+  let rows: OwnCustomerRow[] | null;
+  try { rows = ownCustomerRows(f.items, f.rebateIncGst, f.totalIncGst); } catch { rows = null; }
+  return { cobrand, rows };
 }
