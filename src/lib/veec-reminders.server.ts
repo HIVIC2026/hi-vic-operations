@@ -65,7 +65,9 @@ export async function sendVeecSignStep(jobId: string, step: VeecReminderStep): P
       if (hold) { await ad.logAllDoneHeld(jobId, hold); return `held — ${hold}`; }
     }
   }
-  await logEvent(jobId, null, VEEC_REMINDER_EVENT, request ? `VEEC assignment signing request (${step}) prepared for the owner: ${REQUEST_CARRIED_BY_ALL_DONE} plus the approved text` : `VEEC assignment signing reminder (${step}) prepared for the owner`, { step, ...(request ? { email: REQUEST_CARRIED_BY_ALL_DONE } : {}) }, { internal: true });
+  // Fix wave (Part 4 final review): the day-0 step is recorded only once the All done send result is known — a `held —`
+  // result (contacts / tax invoice / rebate-form PDF not ready) leaves the step open so the next tick tries again.
+  const recordStep = () => logEvent(jobId, null, VEEC_REMINDER_EVENT, request ? `VEEC assignment signing request (${step}) prepared for the owner: ${REQUEST_CARRIED_BY_ALL_DONE} plus the approved text` : `VEEC assignment signing reminder (${step}) prepared for the owner`, { step, ...(request ? { email: REQUEST_CARRIED_BY_ALL_DONE } : {}) }, { internal: true });
   const { data: job } = await admin.from("jobs").select("owner_id, source").eq("id", jobId).maybeSingle();
   if (!job) return "skipped";
   const [{ data: owner }, { data: asg }, link, facts] = await Promise.all([
@@ -74,7 +76,7 @@ export async function sendVeecSignStep(jobId: string, step: VeecReminderStep): P
     (await import("./veec-copy-email.server")).ownerMyJobLink(jobId),
     installCompleteFacts(jobId),
   ]);
-  if (!link) { await logEvent(jobId, null, "veec_sign_request_not_sent", "No working owner job link, so the owner could not be asked to sign the VEEC assignment form", { step }, { internal: true }); return "not sent — owner link missing"; }
+  if (!link) { await recordStep(); await logEvent(jobId, null, "veec_sign_request_not_sent", "No working owner job link, so the owner could not be asked to sign the VEEC assignment form", { step }, { internal: true }); return "not sent — owner link missing"; }
   const url = `${link}?screen=done`;
   const rebate = facts.rebate ?? 0;
   const { firstName } = await import("./worker-links.core");
@@ -85,8 +87,12 @@ export async function sendVeecSignStep(jobId: string, step: VeecReminderStep): P
   if (request) {
     // The All done email IS the request (decision 169). One per job by its own key, TEST → test-send, real → guarded path.
     const { emailOwnerInstallComplete } = await import("./approved-owner-emails.server");
-    out.push(`All done email ${await emailOwnerInstallComplete(jobId, { product: facts.product, areaM2: facts.areaM2, rebate: facts.rebate, balancePaid: facts.balancePaid, balanceCents: facts.balanceCents, signRebateFormUrl: url })}`);
+    const r = await emailOwnerInstallComplete(jobId, { product: facts.product, areaM2: facts.areaM2, rebate: facts.rebate, balancePaid: facts.balancePaid, balanceCents: facts.balanceCents, signRebateFormUrl: url });
+    if (r.startsWith("held")) return `All done email ${r}`; // not done: no step recorded, no text, next tick retries
+    out.push(`All done email ${r}`);
   }
+  // Recorded before any text (decision 165: a switch flip never re-fires it); the email above has its own once-per-job key.
+  await recordStep();
   if (job.source === "qa_test") {
     const { isTestPartner } = await import("./test-send.core");
     const { sendTestEmail, sendTestSms } = await import("./test-send.server");
