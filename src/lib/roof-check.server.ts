@@ -3,7 +3,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { Json } from "@/integrations/supabase/types";
-import { logEvent } from "./workflow.server";
 import { parseStreet } from "./address-complete.core";
 import {
   defaultProviderHttp,
@@ -37,15 +36,40 @@ const chunks = <T>(a: T[]) => {
   for (let i = 0; i < a.length; i += CHUNK) out.push(a.slice(i, i + CHUNK));
   return out;
 };
-const failed = async (jobId: string, reason: string) => {
-  await logEvent(
-    jobId,
-    null,
-    "roof_check_failed",
-    `Roof check couldn't run: ${reason}`,
-    { reason },
-    { internal: true },
-  );
+const NO_COVERAGE_RETRY_MS = 7 * 24 * 3600 * 1000;
+/** Backstop if the event row can't be written: remember in memory so this process doesn't re-call Google. */
+const memoryBackoff = new Map<string, number>();
+export const clearRoofCheckBackoff = () => memoryBackoff.clear();
+/** Writes the workflow event directly (not logEvent, which also bumps jobs.last_activity_at). Never throws. */
+const writeEvent = async (
+  jobId: string,
+  type: string,
+  summary: string,
+  details: Record<string, unknown>,
+) => {
+  try {
+    const { error } = await admin.from("workflow_events").insert({
+      job_id: jobId,
+      actor_id: null,
+      event_type: type,
+      summary,
+      details: details as Json,
+      from_stage: null,
+      to_stage: null,
+      internal: true,
+    });
+    return !error;
+  } catch {
+    return false;
+  }
+};
+const failed = async (jobId: string, reason: string, noCoverage = false) => {
+  const saved = await writeEvent(jobId, "roof_check_failed", `Roof check couldn't run: ${reason}`, {
+    reason,
+    ...(noCoverage ? { no_coverage: true } : {}),
+  });
+  if (!saved)
+    memoryBackoff.set(jobId, Date.now() + (noCoverage ? NO_COVERAGE_RETRY_MS : RETRY_AFTER_MS));
   return "failed" as const;
 };
 
@@ -101,7 +125,11 @@ export async function runRoofCheck(
   }
   const chk = out.checks[0];
   if (!chk || chk.status !== "ok")
-    return failed(jobId, chk ? `${chk.status}${chk.error ? `: ${chk.error}` : ""}` : "no answer");
+    return failed(
+      jobId,
+      chk ? `${chk.status}${chk.error ? `: ${chk.error}` : ""}` : "no answer",
+      chk?.status === "no_coverage",
+    );
 
   const facts = out.facts.filter((f) => (ROOF_KEYS as readonly string[]).includes(f.key));
   if (!facts.length) return failed(jobId, "no roof facts in the answer");
@@ -134,13 +162,11 @@ export async function runRoofCheck(
   const { error } = await admin.from("property_facts").insert(rows);
   if (error) return failed(jobId, "couldn't save the roof facts");
   const form = facts.find((f) => f.key === "roof_form")?.value;
-  await logEvent(
+  await writeEvent(
     jobId,
-    null,
     "roof_checked",
     `Roof check done (roof: ${typeof form === "string" ? form : "unknown"})`,
     { roof_form: form ?? null },
-    { internal: true },
   );
   return "done";
 }
@@ -179,7 +205,8 @@ async function pickJobs(): Promise<string[]> {
   const eligible = jobs.filter((j) => j.property_id && parseStreet(j.properties?.address_line));
   const hasRoof = new Set<string>();
   const recentFail = new Set<string>();
-  const since = new Date(Date.now() - RETRY_AFTER_MS).toISOString();
+  const now = Date.now();
+  const since = new Date(now - NO_COVERAGE_RETRY_MS).toISOString();
   for (const c of chunks(eligible.map((j) => j.property_id!))) {
     const { data } = await loose
       .from("property_facts")
@@ -192,14 +219,26 @@ async function pickJobs(): Promise<string[]> {
   for (const c of chunks(eligible.map((j) => j.id))) {
     const { data } = await loose
       .from("workflow_events")
-      .select("job_id")
+      .select("job_id, details, created_at")
       .in("job_id", c)
       .eq("event_type", "roof_check_failed")
       .gte("created_at", since);
-    for (const r of (data ?? []) as { job_id: string }[]) recentFail.add(r.job_id);
+    for (const r of (data ?? []) as {
+      job_id: string;
+      details: { no_coverage?: boolean } | null;
+      created_at: string;
+    }[]) {
+      const window = r.details?.no_coverage ? NO_COVERAGE_RETRY_MS : RETRY_AFTER_MS;
+      if (now - Date.parse(r.created_at) < window) recentFail.add(r.job_id);
+    }
   }
   return eligible
-    .filter((j) => !hasRoof.has(j.property_id!) && !recentFail.has(j.id))
+    .filter(
+      (j) =>
+        !hasRoof.has(j.property_id!) &&
+        !recentFail.has(j.id) &&
+        (memoryBackoff.get(j.id) ?? 0) < now,
+    )
     .sort((a, b) => String(savedAt.get(b.id)).localeCompare(String(savedAt.get(a.id))))
     .map((j) => j.id);
 }
@@ -224,8 +263,11 @@ export async function roofCheckTick(opts: {
   const room = DAILY_ROOF_CHECK_CAP - (await usedToday());
   if (room <= 0) return res;
   const max = Math.min(opts.limit, room);
+  const attempted = new Set<string>();
   for (const id of await pickJobs()) {
     if (res.done + res.failed >= max) break;
+    if (attempted.has(id)) continue;
+    attempted.add(id);
     try {
       const r = await runRoofCheck(id, opts.http);
       if (r === "done") res.done++;

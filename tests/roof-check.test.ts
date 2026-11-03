@@ -5,30 +5,11 @@ const db = memoryPostgrest(tables);
 mock.module("../src/integrations/supabase/client.server", () => ({
   supabaseAdmin: { from: (t: string) => db.from(t) },
 }));
-mock.module("../src/lib/workflow.server", () => ({
-  logEvent: async (
-    job: string,
-    _a: unknown,
-    type: string,
-    summary: string,
-    details: unknown,
-    opts: { internal?: boolean } | undefined,
-  ) => {
-    tables.workflow_events?.push({
-      id: `e${tables.workflow_events.length}`,
-      job_id: job,
-      event_type: type,
-      summary,
-      details,
-      internal: opts?.internal,
-      created_at: new Date().toISOString(),
-    });
-  },
-}));
 mock.module("../src/lib/property-coordinates.server", () => ({
   ensurePropertyCoordinates: async () => null,
 }));
-const { runRoofCheck, roofCheckTick } = await import("../src/lib/roof-check.server");
+const { runRoofCheck, roofCheckTick, clearRoofCheckBackoff } =
+  await import("../src/lib/roof-check.server");
 const solar = {
   name: "buildings/x",
   center: { latitude: -37.8, longitude: 144.9 },
@@ -82,6 +63,7 @@ const setup = () => {
   });
 };
 beforeEach(() => {
+  clearRoofCheckBackoff();
   setup();
   calls = 0;
   process.env.GOOGLE_SOLAR_API_KEY = "k";
@@ -190,4 +172,28 @@ test("checks from before Melbourne midnight do not count", async () => {
       created_at: old,
     });
   expect(await roofCheckTick({ limit: 5, http: ok })).toEqual({ done: 1, failed: 0 });
+});
+test("if the event row cannot be written, the failure still throttles and nothing throws", async () => {
+  const ev = tables.workflow_events!;
+  (ev as unknown as { push: () => never }).push = () => {
+    throw new Error("db down");
+  };
+  expect(await roofCheckTick({ limit: 5, http: notFound })).toEqual({ done: 0, failed: 1 });
+  expect(calls).toBe(1);
+  expect(await roofCheckTick({ limit: 5, http: notFound })).toEqual({ done: 0, failed: 0 });
+  expect(calls).toBe(1);
+});
+test("a 404 (no coverage) backs off 7 days, other failures 24 hours", async () => {
+  expect(await runRoofCheck("a", notFound)).toBe("failed");
+  const ev = tables.workflow_events!.find((e) => e.event_type === "roof_check_failed")!;
+  ev.created_at = new Date(Date.now() - 3 * 24 * 3600_000).toISOString();
+  expect(await roofCheckTick({ limit: 5, http: ok })).toEqual({ done: 0, failed: 0 });
+  ev.created_at = new Date(Date.now() - 8 * 24 * 3600_000).toISOString();
+  expect(await roofCheckTick({ limit: 5, http: ok })).toEqual({ done: 1, failed: 0 });
+  const boom = async () => ({ status: 500, json: null });
+  tables.property_facts = tables.property_facts!.filter((f) => f.fact_key !== "roof_form");
+  tables.workflow_events!.length = 0;
+  expect(await runRoofCheck("a", boom)).toBe("failed");
+  tables.workflow_events![0]!.created_at = new Date(Date.now() - 25 * 3600_000).toISOString();
+  expect((await roofCheckTick({ limit: 5, http: ok })).done).toBe(1);
 });
