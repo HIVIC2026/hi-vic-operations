@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { FORMS, PRICING_FIELDS, readyCheckVariant, validateQuotedPrice, validateTemplate, mittiAiPrompt } from "../src/lib/mitti-forms.core";
 import { buildInstallerQuoteDraft, ownerPriceFromQuoted, quotedPriceFromEntries } from "../src/lib/installer-led.core";
 import { parseAudit } from "../src/lib/mitti.core";
+import { A2_NO_PRICING_NOTE, LEAN_Q } from "../src/lib/ready-check-lean.core";
 
 const ELECTRICIAN_FIELDS = ["Who is doing the electrical safety check?", "Electrician name", "Electrician licence number", "Electrician price (inc GST)"];
 const ELECTRICIAN_MISSING = ELECTRICIAN_FIELDS.map((label) => `Missing: ${label}`);
@@ -26,15 +27,19 @@ describe("Ready Check variants", () => {
   test("both variants share identical evidence fields; A2 adds the no-pricing tick, A1 has NO quote page (decision 278)", () => {
     const base = FORMS.ready_check.fields.map((f) => f.label);
     const priced = FORMS.ready_check_priced.fields.map((f) => f.label);
-    const shared = base.slice(0, -2);
+    // Jo 3 Nov 2026: A2 also has the top note and the optional different-R-value pair (office note only).
+    const A2_ONLY = [A2_NO_PRICING_NOTE, LEAN_Q.otherRAsked, LEAN_Q.otherRWhich];
+    const shared = base.filter((l) => !A2_ONLY.includes(l)).slice(0, -2);
     expect(base.slice(-2)).toEqual([A2_TICK, SIGN_A2]);
+    expect(base[0]).toBe(A2_NO_PRICING_NOTE);
+    expect(priced.filter((l) => A2_ONLY.includes(l))).toEqual([]);
     expect(priced.slice(0, shared.length)).toEqual(shared);
     expect(priced.slice(shared.length)).toEqual([SIGN_A1]);
     // Decision 278: the price is the business owner's portal entry; the old quote-page specs survive only as readers.
     for (const gone of [...PRICING_FIELDS.map((f) => f.label), ...ELECTRICIAN_FIELDS]) expect(priced).not.toContain(gone);
     // Evidence-only form must never ask for a customer price (our leads are quoted at our set price); the A2 access
     // fee is the installer's charge to Home Insulation Victoria and the A2 tick says pricing was not discussed.
-    expect(base.filter((l) => /pric/i.test(l))).toEqual([A2_TICK]);
+    expect(base.filter((l) => /pric/i.test(l) && l !== A2_NO_PRICING_NOTE)).toEqual([A2_TICK]); // the note tells the installer NOT to discuss pricing
     expect(base).not.toContain("Total quoted price (inc GST)");
   });
 
@@ -47,8 +52,9 @@ describe("Ready Check variants", () => {
     expect(labels).not.toContain("Upgrade area diagram or floor plan");
     expect(labels).not.toContain("Measured area m2");
     const m2 = FORMS.ready_check.fields.find((f) => f.label === "Enter the measured ceiling area (m²)");
-    expect(m2?.required).toBe(false); // old-form fallback only
-    expect(m2?.portalOnly).toBe(true);
+    expect(m2?.required).toBe(true); // Jo 3 Nov 2026: asked when "Enter area (m²)" is chosen
+    expect(m2?.when).toBe("How do you want to give the size? = Enter area (m²)");
+    expect(m2?.portalOnly).toBeFalsy();
   });
 
   test("A1 validates clean WITHOUT the quote section (decision 278) and still with it (old published template)", () => {

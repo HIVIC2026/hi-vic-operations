@@ -33,9 +33,13 @@ export const LEAN_Q = {
   accessPhoto: "Upload a clear photo of the ceiling access point",
   // Page 4 — Ceiling areas (ONE repeating group "Add a ceiling area")
   areaName: "Which part of the home does this ceiling area cover?",
+  /** Jo 3 Nov 2026: shown when the area name choice is "Other" (live on A1/A2 since 3 Nov). */
+  areaNameOther: "Type the area name",
+  /** Jo 3 Nov 2026 (second paste, not live yet): per area, m² OR length × width. Forms without it keep reading as before. */
+  areaSizeHow: "How do you want to give the size?",
   lengthM: "Length (m)",
   widthM: "Width (m)",
-  /** Old forms only (22–24 Oct): the single m² entry. Still read as the fallback when no Length/Width. */
+  /** The one m² number, shown when "Enter area (m²)" is chosen. Also the 22–24 Oct single m² entry: still read when there is no Length/Width. */
   measuredM2: "Enter the measured ceiling area (m²)",
   measuredHow: "How was this ceiling area measured?",
   measuredHowOther: "Tell us how you measured it",
@@ -54,7 +58,8 @@ export const LEAN_Q = {
   /** Only when the area's existing insulation is "Top up". */
   existingKeepReason: "Why is the existing insulation being kept?",
   /** Decision 264: the before video the rebate needs (replaces the optional overview photo); per area, before install. */
-  beforeVideo: "Slow 360° video of this ceiling area, lit, saying its name",
+  /** Jo 3 Nov 2026: video only, no photos. The 2 Nov wording is kept as an alias so forms in progress still read. */
+  beforeVideo: "Take a video of this ceiling area. Turn a light on, say the area's name, then film slowly all the way round.",
   downlights: "Are there recessed downlights in this ceiling area?",
   downlightsCount: "How many recessed downlights?",
   issues: "Are there any issues that could affect the insulation installation? Example: exposed wiring, vermin, restricted access or other hazards",
@@ -65,6 +70,9 @@ export const LEAN_Q = {
   product: "What insulation product will you be using on this job?",
   outcome: "Based on your onsite assessment, does this property meet the Ready Check requirements to proceed?",
   failReasons: "Why did the property fail the ready check? Select all that apply",
+  /** A2 only (Jo 3 Nov 2026), live: optional, near the end. Yes → "Which R value?". Office note only, never sent to the owner. */
+  otherRAsked: "Did the owner ask about a different R value?",
+  otherRWhich: "Which R value?",
   noPricingTick: "I confirm I have not discussed or agreed pricing with the homeowner during this Ready Check. All quotes and pricing come from Home Insulation Victoria.",
   // OLD A1 forms only (decision 278, Jo 25 Oct 2026): the "Your quote to the homeowner" page is deleted from A1 — the
   // business owner enters the price in the portal. The readers keep these labels so forms built before 25 Oct still parse.
@@ -99,7 +107,7 @@ export const LEAN_ALIASES: Partial<Record<keyof typeof LEAN_Q, readonly string[]
   depthPhoto: ["Photo with tape measure showing depth"],
   existingAction: ["What needs to happen to it?"],
   removeM2: ["Area to remove (m2)"],
-  beforeVideo: ["Upload an overview photo of this ceiling area", "Photo of the empty ceiling space"],
+  beforeVideo: ["Slow 360° video of this ceiling area, lit, saying its name", "Upload an overview photo of this ceiling area", "Photo of the empty ceiling space"],
   downlights: ["Recessed downlights in this area?"],
   downlightsCount: ["How many?"],
   issues: ["Are there any issues that could affect the insulation installation?", "Hazards in this area?"],
@@ -121,6 +129,16 @@ export type PremisesTypeCode = "owner_occupied" | "private_rental" | "public_hou
 export const ROOF_OPTIONS = ["Tiles", "Metal sheet", "Other"] as const;
 export const NO_SAFE_ACCESS = "No safe access";
 export const ACCESS_OPTIONS = ["Easy", "Standard", "Difficult", NO_SAFE_ACCESS] as const;
+/** Jo 3 Nov 2026: the area name is one choice; "Other" asks for the name. Old free-text names still read. */
+export const AREA_NAME_OTHER = "Other";
+export const AREA_NAME_OPTIONS = ["Whole home (excluding garage)", "Extension", "Upstairs", AREA_NAME_OTHER] as const;
+/** Jo 3 Nov 2026: per area the installer gives the size as m² or as length × width. */
+export const AREA_SIZE_M2 = "Enter area (m²)";
+export const AREA_SIZE_LW = "Length × width";
+export const AREA_SIZE_OPTIONS = [AREA_SIZE_M2, AREA_SIZE_LW] as const;
+export const OTHER_R_OPTIONS = ["R5", "R6", "R7"] as const;
+/** Jo 3 Nov 2026, A2 only: the note at the top of the form (a printed instruction, never answered). */
+export const A2_NO_PRICING_NOTE = "This is a Home Insulation Victoria customer. Don't discuss or give any pricing. If the owner asks about a different R value, note it below and we'll quote them.";
 export const MEASURED_HOW_OPTIONS = ["Laser measure", "Tape measure", "Floor plan", "Other"] as const;
 export const EXISTING_TYPE_OPTIONS = ["Batts", "Loose fill", "Other"] as const;
 export const R_BELOW = "Below R2.0";
@@ -149,6 +167,9 @@ export const LEAN_HELP = {
   beforeVideo: "This is the before video the rebate needs. Show any existing insulation.",
   outcome: "The portal also applies the eligibility rules from your answers above.",
 } as const;
+
+/** Jo 3 Nov 2026: the help line under every photo and video question on every Mitti form (camera only, no gallery uploads). */
+export const LIVE_ONLY_HELP = "Take it live — uploads not allowed.";
 
 /** Decision 278: the A1 quote page ("Your quote to the homeowner") and its seven questions, deleted from the A1 template.
  *  Named here so the delete prompt (docs/MITTI_READY_CHECK_PRICE_PROMPT.md) and the build prompt can never disagree. */
@@ -207,4 +228,31 @@ export function premisesTypeOption(occupancy: unknown): string | null {
   if (s === "public housing") return PREMISES_TYPE_OPTIONS[2];
   if (s === "community housing") return PREMISES_TYPE_OPTIONS[3];
   return null;
+}
+
+// ---------- Jo 3 Nov 2026 readers (pure) ----------
+/** The area name: the choice, or the typed text when the choice is "Other". Old free-text names read as they are. Unnamed → null. */
+export function areaNameFromAnswers(choice: unknown, typed: unknown): string | null {
+  const first = (v: unknown) => t(v).split("\n")[0]!.trim();
+  const c = first(choice), other = first(typed);
+  if (!c) return other || null;
+  if (c.toLowerCase() === AREA_NAME_OTHER.toLowerCase()) return other || null;
+  return c;
+}
+/** Which size the installer chose for an area: "m2", "lw", or null (older forms never asked). */
+export function areaSizeBasis(answer: unknown): "m2" | "lw" | null {
+  const s = t(answer).toLowerCase().replace(/\s+/g, " ");
+  if (!s) return null;
+  if (/^enter area|m²|m2/.test(s) && !/length/.test(s)) return "m2";
+  if (/^length/.test(s)) return "lw";
+  return null;
+}
+/** A2: did the owner ask about a different R value? asked = null when the question is not on the form or unanswered. */
+export function ownerOtherRValue(asked: unknown, which: unknown): { asked: boolean | null; r: 5 | 6 | 7 | null; note: string | null } {
+  const a = t(asked).toLowerCase();
+  const yes = /^(yes|true)$/.test(a) ? true : /^(no|false)$/.test(a) ? false : null;
+  if (yes !== true) return { asked: yes, r: null, note: null };
+  const m = /^r?\s*([567])(\.0)?$/i.exec(t(which));
+  const r = m ? (Number(m[1]) as 5 | 6 | 7) : null;
+  return { asked: true, r, note: r ? `Owner asked about R${r}` : "Owner asked about a different R value (which one was not said)" };
 }

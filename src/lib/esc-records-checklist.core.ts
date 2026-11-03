@@ -1,7 +1,7 @@
 // New job flow Part 8 Task 9: the records the ESC wants per job (VEET Guidelines v16), each pinned to the live form label that
 // collects it. Labels are imported, never retyped, so a reworded question shows up as a gap here.
 import { INSTALL_DAY_QUESTIONS, INSTALL_DAY_RULER_Q } from "./install-day.core";
-import { LEAN_Q } from "./ready-check-lean.core";
+import { LEAN_ALIASES, LEAN_Q } from "./ready-check-lean.core";
 import { PIESA_EVIDENCE_BY_ID } from "./piesa-evidence.core";
 
 export type EscRecord = { record: string; form: "A1/A2" | "A3" | "A5" | "portal"; labels: readonly string[] };
@@ -37,7 +37,9 @@ export function recordsChecklistGaps(defs: { a1a2: string[]; a3: string[]; a5: s
     A3: new Set(defs.a3.map(key)), A5: new Set(defs.a5.map(key)),
   };
   const out: string[] = [];
+  // Jo 3 Nov 2026: a live form still carrying the old before video wording counts until the new wording is pasted.
+  const alsoAccepted = (l: string): string[] => (l === LEAN_Q.beforeVideo ? [...(LEAN_ALIASES.beforeVideo ?? [])] : []);
   for (const r of ESC_RECORDS_CHECKLIST)
-    for (const l of r.labels) if (!have[r.form].has(key(l))) out.push(`${r.record}: ${l}`);
+    for (const l of r.labels) if (![l, ...alsoAccepted(l)].some((x) => have[r.form].has(key(x)))) out.push(`${r.record}: ${l}`);
   return out;
 }

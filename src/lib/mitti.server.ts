@@ -343,6 +343,19 @@ async function applyPremisesType(jobId: string, actorId: string | null, entries:
   await logEvent(jobId, actorId, PREMISES_TYPE_EVENT, `Ready Check: who lives at the property — ${p.answer}${p.code ? "" : " (wording not recognised – office to confirm the premises type)"}`, { audit_id: auditId, answer: p.answer, premises_type: p.code, question: "Who lives at the property?" }, { internal: true });
 }
 
+/** Jo 3 Nov 2026 (A2): "Did the owner ask about a different R value?" → "Which R value?". An office note only ("Owner asked about
+ *  R6" on the job); nothing is sent to the owner. Append-only internal event, a new row only when the note changes. Absent → nothing. */
+export const OWNER_OTHER_R_EVENT = "mitti_owner_other_r_value"; // mitti_owner_other_r_value
+async function applyOwnerOtherRValue(jobId: string, actorId: string | null, entries: { label: string; value: string | null }[], auditId: string) {
+  const { ownerOtherRFromEntries } = await import("./ready-check-answers.core");
+  const r = ownerOtherRFromEntries(entries);
+  if (!r.note) return;
+  const { data: last } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", OWNER_OTHER_R_EVENT).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const prev = (last?.details ?? null) as { note?: string | null } | null;
+  if (prev && prev.note === r.note) return;
+  await logEvent(jobId, actorId, OWNER_OTHER_R_EVENT, r.note, { audit_id: auditId, note: r.note, r_value: r.r, question: "Did the owner ask about a different R value?" }, { internal: true });
+}
+
 /** Save Mitti's finished PDF report to the job's private files, once per completed audit version. Never throws. */
 export async function saveMittiReport(jobId: string, actorId: string | null, auditId: string, modifiedAt: string | null, label: string, call: MittiCall) {
   const key = `${auditId}:${modifiedAt ?? "completed"}`;
@@ -571,6 +584,7 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
         await (await import("./excluded-areas.server")).recordExcludedAreas(jobId, actorId, plan.excludedAreas ?? []).catch(() => undefined); // idempotent: the next sync tries again
         await applyContactAnswers(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: string | null }[], measureAudit);
         await applyPremisesType(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: string | null }[], measureAudit).catch(() => undefined);
+        await applyOwnerOtherRValue(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: string | null }[], measureAudit).catch(() => undefined);
         // Jo 23 Oct: draft for "Quotes to check" as soon as the basics are in — no need to wait for the whole form.
         const basics = await (await import("./ready-check-basics.server")).checkReadyCheckBasics(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: string | null }[], plan.completed, measureAudit).catch(() => null);
         const draftNow = plan.completed || !!basics?.ready;

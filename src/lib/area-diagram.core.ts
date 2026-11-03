@@ -5,6 +5,7 @@
 import { stableJson } from "./assignment.core";
 import { excludedAreaName } from "./excluded-areas.core";
 import { insulationProduct } from "./insulation-product.core";
+import { areaNameFromAnswers, areaSizeBasis } from "./ready-check-lean.core";
 
 export const AREA_DIAGRAM_KIND = "area_diagram";
 export const FINAL_AREA_DIAGRAM_KIND = "final_area_diagram";
@@ -63,6 +64,8 @@ const no = (v: unknown) => /^\s*(no|false)\s*$/i.test(String(v ?? ""));
 const L = {
   heading: /^[\s─\-–—]*ceiling area \d+/i,
   name: ["Where is this area?", "Which part of the home does this ceiling area cover?"],
+  nameOther: ["Type the area name"],
+  sizeHow: ["How do you want to give the size?"],
   length: ["Length (m)"],
   width: ["Width (m)"],
   m2: ["Enter the measured ceiling area (m²)", "Measured area m2"],
@@ -88,7 +91,7 @@ export function existingNote(existing: boolean | null, action: string | null, re
   return "Existing insulation present";
 }
 
-type Group = { name: string | null; lengthM: number | null; widthM: number | null; m2: number | null; existing: boolean | null; action: string | null; removeM2: number | null };
+type Group = { name: string | null; sizeBasis: "m2" | "lw" | null; lengthM: number | null; widthM: number | null; m2: number | null; existing: boolean | null; action: string | null; removeM2: number | null };
 
 /**
  * Areas from a Ready Check answer list in form order (the stored raw snapshot: label + value, help text after a line break).
@@ -99,7 +102,7 @@ export function areasFromReadyCheckEntries(entries: { label: string; value: unkn
   const groups: Group[] = [];
   const st: { cur: Group | null } = { cur: null }; // holder: assignments inside helpers keep TS narrowing honest
   let product: string | null = opts.productOption ?? null;
-  const fresh = (): Group => { const g: Group = { name: null, lengthM: null, widthM: null, m2: null, existing: null, action: null, removeM2: null }; groups.push(g); st.cur = g; return g; };
+  const fresh = (): Group => { const g: Group = { name: null, sizeBasis: null, lengthM: null, widthM: null, m2: null, existing: null, action: null, removeM2: null }; groups.push(g); st.cur = g; return g; };
   for (const e of entries) {
     const label = normLabel(e.label);
     const raw = String(e.label ?? "").split("\n")[0]!.trim();
@@ -107,7 +110,10 @@ export function areasFromReadyCheckEntries(entries: { label: string; value: unkn
     if (L.heading.test(raw)) { fresh(); continue; }
     if (is(label, L.product)) { if (v != null && !product) product = String(v).trim(); continue; }
     const cur = st.cur;
-    if (is(label, L.name)) { const g = !cur || cur.name != null || cur.lengthM != null || cur.widthM != null || cur.m2 != null ? fresh() : cur; g.name = v == null ? null : String(v).trim() || null; continue; }
+    if (is(label, L.name)) { const g = !cur || cur.name != null || cur.lengthM != null || cur.widthM != null || cur.m2 != null ? fresh() : cur; g.name = areaNameFromAnswers(v, null); continue; }
+    // Jo 3 Nov 2026: "Other" on the name choice is followed by the typed name; the size choice says which size is read.
+    if (is(label, L.nameOther)) { if (cur && v != null) cur.name = areaNameFromAnswers(cur.name ?? "Other", v); continue; }
+    if (is(label, L.sizeHow)) { if (cur && v != null) cur.sizeBasis = areaSizeBasis(v); continue; }
     const dim = is(label, L.length) ? "lengthM" : is(label, L.width) ? "widthM" : is(label, L.m2) ? "m2" : null;
     if (dim) { const g = !cur || cur[dim] != null ? fresh() : cur; g[dim] = num(v); continue; }
     if (!cur) continue;
@@ -117,10 +123,10 @@ export function areasFromReadyCheckEntries(entries: { label: string; value: unkn
   }
   const kept = groups.filter((g) => g.name != null || g.m2 != null || g.lengthM != null || g.widthM != null);
   return kept.map((g, i) => {
-    const area = g.m2 != null ? g.m2 : g.lengthM != null && g.widthM != null && g.lengthM > 0 && g.widthM > 0 ? r2(g.lengthM * g.widthM) : null;
+    const area = g.sizeBasis === "lw" && g.lengthM != null && g.widthM != null && g.lengthM > 0 && g.widthM > 0 ? r2(g.lengthM * g.widthM) : g.sizeBasis === "lw" ? null : g.m2 != null ? g.m2 : g.lengthM != null && g.widthM != null && g.lengthM > 0 && g.widthM > 0 ? r2(g.lengthM * g.widthM) : null;
     return {
       name: g.name ?? (kept.length === 1 ? "Main ceiling" : `Area ${i + 1}`),
-      lengthM: g.lengthM, widthM: g.widthM, areaM2: area,
+      lengthM: g.sizeBasis === "m2" ? null : g.lengthM, widthM: g.sizeBasis === "m2" ? null : g.widthM, areaM2: area,
       productOption: product, rValue: productRValue(product),
       existingNote: existingNote(g.existing, g.action, g.removeM2),
     };
@@ -199,9 +205,12 @@ function edges(a: DiagramArea): { l: number; w: number } {
 }
 
 export function boxLines(a: DiagramArea): string[] {
+  const m2Only = (a.lengthM == null || a.widthM == null) && a.areaM2 != null;
   const dims = a.lengthM != null && a.widthM != null ? `${fmtNum(a.lengthM)} × ${fmtNum(a.widthM)} m` : "Dimensions: measured m² only";
   // "Bradford Gold · R5.0": brand/family from the approved option, the R-value stated once (Table 4: products and R value).
   const product = a.productOption ? (a.rValue ? `${a.productOption.replace(/\s+R\d+(\.\d+)?$/i, "")} · ${a.rValue}` : a.productOption) : "Product: to be confirmed";
+  // Jo 3 Nov 2026: an area given as m² only is drawn as a square of that size, labelled "{name} · {m²} m²" (no length/width).
+  if (m2Only) return [`${a.name} · ${fmtNum(a.areaM2)} m²`, product, ...(a.existingNote ? [a.existingNote] : [])];
   return [a.name, dims, `${fmtNum(a.areaM2)} m²`, product, ...(a.existingNote ? [a.existingNote] : [])];
 }
 
