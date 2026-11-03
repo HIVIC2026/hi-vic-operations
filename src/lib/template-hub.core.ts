@@ -46,6 +46,7 @@ import { renderReadyCheckOfferEmail } from "./ready-check-offer-email.core";
 import { readyCheckOfferText } from "./ready-check-times.core";
 import { renderElectricianOfferEmail } from "./electrician-offer-email.core";
 import { renderElectricianPiesaEmail } from "./electrician-piesa-copy.core";
+import { renderElectricianPiesaBooked } from "./electrician-piesa-booked-email.core";
 import { MITTI_INVITE_MESSAGE, renderMittiInviteEmail } from "./mitti-invite.core";
 import { officeEmailLayout, electricianInviteLayout } from "./office-email.core";
 import { composeReply } from "./email-reply.core";
@@ -677,6 +678,9 @@ const ELECTRICIAN: TemplateEntry[] = [
   ENTRY({ id: "electrician:sms-piesa_times_reminder", section: "electrician", step: "safety_check", kind: "text", code: "", name: "Offer the owner your safety check times (text)", when: "With E14", who: "Electrician", approvalNote: "Jo 25 Oct 2026, decision 384 (drafted in decision 376)", gate: { kind: "text", smsType: "piesa_times_reminder" },
     source: { builder: "src/lib/piesa-times-reminder.core.ts", fn: "piesaTimesReminderText", sender: "src/lib/piesa-times-reminder.server.ts" },
     render: () => text(piesaTimesReminderText({ jobNumber: "HV-TEST", address: SHORT_ADDRESS, link: FIELD })) }),
+  ENTRY({ id: "electrician:piesa-booked", section: "electrician", step: "safety_check", kind: "email", code: "", name: "PIESA booked (office email)", when: "A safety check is booked for the electrician; goes to the electrician business's office email (held with nothing sent if none on file) and links the electrician's job page", who: "Electrician business office", approvalNote: "Wording: Jo 2 Nov 2026, decision #39 (PIESA_BOOKED_EMAIL_APPROVED stays false until Jo OKs the picture; until then the earlier plain email goes out, so one booking is one version)", gate: { kind: "email" },
+    source: { builder: "src/lib/electrician-piesa-booked-email.core.ts", fn: "renderElectricianPiesaBooked", sender: "src/lib/in-house-electrician-booked.server.ts" },
+    render: () => email(renderElectricianPiesaBooked({ jobNumber: "HV-TEST", firstName: "Sam", startIso: PIESA_ISO, address: SHORT_ADDRESS, owner: { name: "Helen Example", phone: "0400 000 000" }, mittiUrl: FIELD, jobUrl: FIELD })) }),
   ENTRY({ id: "electrician:piesa-copy", section: "electrician", step: "safety_check", kind: "email", code: "", name: "Your safety check for the property (PIESA copy)", when: "The official PIESA is filed (again after fixes)", who: "Electrician", approvalNote: "Jo 25 Oct 2026, decision 317", gate: { kind: "email" },
     source: { builder: "src/lib/electrician-piesa-copy.core.ts", fn: "renderElectricianPiesaEmail", sender: "src/lib/electrician-piesa-copy.server.ts" },
     render: () => email(renderElectricianPiesaEmail({ address: SHORT_ADDRESS, jobNumber: "HV-TEST", version: "initial" })) }),

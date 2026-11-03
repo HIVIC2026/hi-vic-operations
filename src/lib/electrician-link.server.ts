@@ -103,6 +103,15 @@ export async function textElectricianLink(jobId: string, workerId: string, url: 
   return "sent";
 }
 
+/** A link for an email: made only when this person has no live link for the job, so the one already in their phone keeps working
+ *  (the URL can't be rebuilt from the stored hash). Returns the URL, or null when a live link already exists. */
+export async function ensureElectricianLink(jobId: string, workerId: string, actorId: string | null = null): Promise<string | null> {
+  const { data: live, error } = await admin.from("worker_job_links").select("id, expires_at").eq("job_id", jobId).eq("worker_id", workerId).is("revoked_at", null);
+  if (error) throw dbErr("the links", error);
+  if ((live ?? []).some((l) => linkState({ revoked_at: null, expires_at: l.expires_at }, Date.now()) === "active")) return null;
+  return (await mintElectricianLink(jobId, workerId, actorId)).url;
+}
+
 /** After a successful allocation: give the electrician their link and text it. Never throws; a failure is logged on the job.
  *  A person who already has a live link for this job (a retry) keeps it, so the link already in their phone keeps working. */
 export async function linkAfterAllocation(jobId: string, workerId: string, actorId: string | null, over: Partial<ElectricianLinkTextDeps> = {}): Promise<"sent" | "held" | "test_sent" | "no_mobile" | "already_has_link" | "link_failed" | "text_failed"> {
