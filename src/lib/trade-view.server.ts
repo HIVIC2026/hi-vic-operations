@@ -54,6 +54,7 @@ import * as mittiInviteServer from "./mitti-invite.server";
 import * as usualElectricianServer from "./usual-electrician.server";
 import * as schemaCompatCore from "./schema-compat.core";
 import { mittiAccessOf } from "./mitti-membership.core";
+import { OWNER_ONLY_REFUSALS } from "./owner-only.core";
 const loadInstallerQuotes = (ids: string[], shared?: import("./installer-quote-status.server").SharedQuoteReads) => quoteStatusServer.loadInstallerQuotes(ids, shared);
 // Speed (portal speed step 2B, home flatten): the home's deposit facts and Mitti electrician question load at module
 // scope too (namespaces, read at call time), instead of an awaited import() inside the loader.
@@ -96,7 +97,7 @@ export async function ctxOrThrow(userId: string) {
 /** Business-owner-only data (rates, bank, agreement, insurance, team). Staff logins are refused here, not just hidden in the page. */
 export async function bossOrThrow(userId: string) {
   const c = await ctxOrThrow(userId);
-  if (!c.boss) throw new WorkflowError("Only the business owner can see this.");
+  if (!c.boss) throw new WorkflowError(OWNER_ONLY_REFUSALS[0]!);
   return c;
 }
 
@@ -651,7 +652,7 @@ export async function partnerPayStates(bizId: string, kind: TradeKind, testOnly:
 
 export async function tradeMoney(userId: string) {
   const c = await ctxOrThrow(userId);
-  if (!c.boss) throw new WorkflowError("Money is only shown to the business owner.");
+  if (!c.boss) throw new WorkflowError(OWNER_ONLY_REFUSALS[1]!);
   // Speed (installer screens, Task 8): the saved account is read with the money rows' first round (owner only, after the
   // refusal above) instead of after them. Only the last 4 digits of the saved account: enough to recognise it, never the
   // full number.

@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { clearTradeCache, readTradeCache, writeTradeCache } from "../src/lib/trade-cache";
+import { clearTradeCache, forgetRefusedCopy, readTradeCache, writeTradeCache } from "../src/lib/trade-cache";
+import { OWNER_ONLY_REFUSALS } from "../src/lib/owner-only.core";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 class FakeStorage {
   m = new Map<string, string>();
@@ -94,5 +97,37 @@ describe("sign-out race", () => {
     resetTradeCacheSignOut();
     writeTradeCache("u1", "home", 3);
     expect(readTradeCache("u1", "home")?.data).toBe(3);
+  });
+});
+
+// Plan Task 3 / review focus 1: a copy is only ever written for the signed-in user who received the data, so staff never
+// hold a money copy. The one way a stale owner-only copy could show is a person who WAS the business owner and no
+// longer is: the server now refuses, and the refusal must take the kept copy with it so the next visit shows nothing.
+describe("owner-only screens: a refusal drops the kept copy", () => {
+  test("the owner-only refusals drop the copy; any other failure keeps it (offline use)", () => {
+    for (const text of OWNER_ONLY_REFUSALS) {
+      writeTradeCache("u1", "money", { rows: [1] });
+      forgetRefusedCopy("u1", "money", new Error(text));
+      expect(readTradeCache("u1", "money")).toBeNull();
+    }
+    writeTradeCache("u1", "money", { rows: [1] });
+    forgetRefusedCopy("u1", "money", new Error("Failed to fetch"));
+    forgetRefusedCopy("u1", "money", "not an error");
+    forgetRefusedCopy("u1", "money", null);
+    expect(readTradeCache("u1", "money")?.data).toEqual({ rows: [1] });
+    expect(() => forgetRefusedCopy("", "money", new Error(OWNER_ONLY_REFUSALS[0]!))).not.toThrow();
+  });
+  test("the refusal texts are the ones the server throws (bossOrThrow, tradeMoney), from one import-free module", () => {
+    const server = readFileSync(join(import.meta.dir, "..", "src", "lib", "trade-view.server.ts"), "utf8");
+    expect(server).toMatch(/from\s+["']\.\/owner-only\.core["']/);
+    for (const text of OWNER_ONLY_REFUSALS) expect(server).not.toContain(`"${text}"`);
+    expect(OWNER_ONLY_REFUSALS).toEqual(["Only the business owner can see this.", "Money is only shown to the business owner."]);
+    expect(readFileSync(join(import.meta.dir, "..", "src", "lib", "owner-only.core.ts"), "utf8")).not.toMatch(/(?:^|\n)\s*(?:import|export)\s[^;]*\sfrom\s/);
+  });
+  test("the owner-only screens forget a refused copy in their fetch", () => {
+    for (const f of ["src/routes/_authenticated/field.money.tsx", "src/routes/_authenticated/field.money_.$jobId.tsx", "src/components/trade/business-pages.tsx"]) {
+      const code = readFileSync(join(import.meta.dir, "..", f), "utf8");
+      expect(code).toContain("forgetRefusedCopy(uid,");
+    }
   });
 });

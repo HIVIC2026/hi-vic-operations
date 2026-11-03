@@ -1,7 +1,7 @@
 // Money = approved mock-up M6 (Jo 24 Oct 2026, decision 203): the installer's own pay only — Coming / Being checked /
 // This month / Last month, per-job rows with payPill states, how pay works by job type, bank account on file,
 // Download statement. Pay states come from trade-view.core payPill; totals from installer-screens.core.
-import { readTradeCache, writeTradeCache } from "@/lib/trade-cache";
+import { forgetRefusedCopy, readTradeCache, writeTradeCache } from "@/lib/trade-cache";
 import { headStartOr, startTradeScreen } from "@/lib/trade-route-prefetch";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -32,7 +32,7 @@ function Money() {
   const [monthFilter, setMonthFilter] = useState<string | null>(null);
   const uid = Route.useRouteContext().user.id;
   const seed = useMemo(() => readTradeCache<Awaited<ReturnType<typeof load>>>(uid, "money"), [uid]); // eslint-disable-line react-hooks/exhaustive-deps
-  const { data, error } = useQuery({ queryKey: ["trade-money-v2"], queryFn: async () => { const d = await headStartOr(uid, ["trade-money-v2"], () => load()); if (d) writeTradeCache(uid, "money", d); return d; }, retry: false, staleTime: 30_000, ...(seed ? { initialData: seed.data, initialDataUpdatedAt: seed.at } : {}) }); // a refusal (staff) shows at once, not after retries
+  const { data, error } = useQuery({ queryKey: ["trade-money-v2"], queryFn: async () => { try { const d = await headStartOr(uid, ["trade-money-v2"], () => load()); if (d) writeTradeCache(uid, "money", d); return d; } catch (e) { forgetRefusedCopy(uid, "money", e); throw e; } }, retry: false, staleTime: 30_000, ...(seed ? { initialData: seed.data, initialDataUpdatedAt: seed.at } : {}) }); // a refusal (staff) shows at once, not after retries
   const { data: x } = useQuery({ queryKey: ["trade-money-extras"], queryFn: () => loadExtras(), retry: false, staleTime: 30_000 });
   if (error) return <TradeShell installer={false}><p role="alert" className="rounded-[18px] border border-line bg-paper p-4 text-sm">{(error as Error).message}</p></TradeShell>;
   if (!data) return <TradeShell installer={false}><p className="text-sm">Loading…</p></TradeShell>;

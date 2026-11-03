@@ -1,6 +1,8 @@
 // Last copy of an installer screen, kept on this phone so a return visit draws at once while a fresh copy loads.
 // Speed only: keyed per signed-in user, ignored after 24 hours, cleared on sign-out. Any storage failure = no cache.
 // Office lists keep theirs the same way under "hiv-last:v1:" (readLastCopy / writeLastCopy); sign-out clears both.
+import { isOwnerOnlyRefusal } from "./owner-only.core";
+
 const PREFIX = "hiv-trade:v1:";
 const LAST_PREFIX = "hiv-last:v1:";
 const MAX_AGE_MS = 24 * 60 * 60 * 1000;
@@ -45,6 +47,12 @@ export function writeLastCopy(userId: string, key: string, data: unknown): void 
 /** Drop one entry (a screen the server no longer answers for this user). */
 export function dropTradeCache(userId: string, key: string): void {
   try { store()?.removeItem(`${PREFIX}${userId}:${key}`); } catch { /* nothing to drop */ }
+}
+
+/** An owner-only screen's fetch was refused (this person is no longer the business owner): drop the kept copy so it
+ *  never shows again. Any other failure (no signal, server down) keeps the copy. Never throws. */
+export function forgetRefusedCopy(userId: string, key: string, error: unknown): void {
+  if (isOwnerOnlyRefusal(error)) dropTradeCache(userId, key);
 }
 
 export function clearTradeCache(): void {
