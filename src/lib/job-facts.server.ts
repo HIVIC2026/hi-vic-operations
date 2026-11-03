@@ -14,6 +14,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { answerFromFacts, BUSINESS_FACT_TABLES, BUSINESS_FACTS_SELECT, businessFactsFrom, factsCanTry, JOB_FACT_TABLES, JOB_FACTS_SELECT, jobFactsFrom, settingsFactsFrom, type Facts, type FactTable, type QueryOp } from "./job-facts.core";
+import { FACT_COLUMNS } from "./job-facts.columns";
 import type { TradeJobAccess } from "./trade-view.server";
 
 export type JobFacts = Facts;
@@ -26,7 +27,7 @@ export async function loadJobFacts(jobId: string, access: TradeJobAccess): Promi
   const { data, error } = await supabaseAdmin.from("jobs").select(JOB_FACTS_SELECT).eq("id", jobId).maybeSingle();
   // On a failed read the sections read for themselves, exactly as before.
   if (error) console.error("job facts read failed; sections read for themselves", error.message);
-  return error || !data ? null : jobFactsFrom(jobId, data as unknown as Row);
+  return error || !data ? null : jobFactsFrom(jobId, data as unknown as Row, FACT_COLUMNS);
 }
 
 /** The caller's own business row, its partner workers and members, in ONE request — only the business the access check verified. */
@@ -34,7 +35,7 @@ export async function loadBusinessFacts(businessId: string, access: TradeJobAcce
   if (access.biz.id !== businessId) throw new Error("Business facts are read only for the caller's verified business.");
   const { data, error } = await supabaseAdmin.from("businesses").select(BUSINESS_FACTS_SELECT).eq("id", businessId).maybeSingle();
   if (error) console.error("business facts read failed; sections read for themselves", error.message);
-  return error || !data ? null : businessFactsFrom(businessId, data as unknown as Row);
+  return error || !data ? null : businessFactsFrom(businessId, data as unknown as Row, FACT_COLUMNS);
 }
 
 /** The portal settings row (`workflow_settings` id 1), once. */

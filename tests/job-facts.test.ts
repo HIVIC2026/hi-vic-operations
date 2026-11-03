@@ -2,7 +2,9 @@
 // `answerFromFacts` must give exactly the database's answer, or null (the query then goes to the database as written).
 // Run on its own (mock.module leaks).
 import { describe, expect, mock, test } from "bun:test";
-import { answerFromFacts, factsCanTry, jobFactsFrom, type Facts, type QueryOp } from "../src/lib/job-facts.core";
+import { answerFromFacts, BUSINESS_FACT_TABLES, factsCanTry, JOB_FACT_TABLES, jobFactsFrom, NESTED, type Facts, type QueryOp } from "../src/lib/job-facts.core";
+import { FACT_COLUMNS } from "../src/lib/job-facts.columns";
+import { columnsOf } from "./helpers/live-columns";
 
 const J = "00000000-0000-4000-8000-000000000001", J2 = "00000000-0000-4000-8000-000000000002";
 const q = (...ops: [string, ...unknown[]][]): QueryOp[] => ops.map(([m, ...a]) => ({ m, a }));
@@ -92,6 +94,34 @@ describe("answerFromFacts: anything it can't be sure of goes to the database (nu
     no("bookings", ["select", "id, jobs!inner(stage)"], ["eq", "job_id", J]);
     no("bookings", ["select", "id, businesses(*)"], ["eq", "job_id", J]);
     no("bookings", ["select", "id, businesses(email)"], ["eq", "job_id", J]);
+  });
+  test("an empty table: a column is known only from its column list (or the scope column); unknown columns go to the database", () => {
+    // M2: with no rows there is no row to check a column against; the database would still refuse a column that doesn't exist.
+    const bare = jobFactsFrom(J, { id: J, invoices: [] });
+    expect(answerFromFacts(bare, "invoices", q(["select", "id"], ["eq", "job_id", J]))).toBeNull();
+    expect(answerFromFacts(bare, "invoices", q(["select", "*"], ["eq", "job_id", J], ["order", "created_at"]))).toBeNull();
+    expect(answerFromFacts(bare, "invoices", q(["select", "*"], ["eq", "job_id", J]))!.data).toEqual([]);
+    expect(answerFromFacts(bare, "invoices", q(["select", "*"], ["eq", "job_id", J], ["maybeSingle"]))!.data).toBeNull();
+    const known = jobFactsFrom(J, { id: J, invoices: [], quotes: [] }, { invoices: ["id", "job_id", "created_at"], quotes: ["id", "job_id"] });
+    expect(answerFromFacts(known, "invoices", q(["select", "id"], ["eq", "job_id", J], ["order", "created_at"]))!.data).toEqual([]);
+    expect(answerFromFacts(known, "invoices", q(["select", "id"], ["eq", "job_id", J], ["eq", "no_such_column", 1]))).toBeNull();
+    expect(answerFromFacts(known, "invoices", q(["select", "no_such_column"], ["eq", "job_id", J]))).toBeNull();
+    // Embeds on an empty table: the facts read fixed the embed's columns (bookings → businesses(name, trading_name)), so those
+    // are known; an embed read whole (quotes → quote_items(*)) needs its own column list for a named column, else the database.
+    const empties = jobFactsFrom(J, { id: J, bookings: [], quotes: [] }, { bookings: ["id", "job_id"], quotes: ["id", "job_id"], quote_items: ["id", "code"] });
+    expect(answerFromFacts(empties, "bookings", q(["select", "id, businesses(name)"], ["eq", "job_id", J]))!.data).toEqual([]);
+    expect(answerFromFacts(empties, "quotes", q(["select", "id, quote_items(*)"], ["eq", "job_id", J]))!.data).toEqual([]);
+    expect(answerFromFacts(empties, "quotes", q(["select", "id, quote_items(code)"], ["eq", "job_id", J]))!.data).toEqual([]);
+    expect(answerFromFacts(empties, "quotes", q(["select", "id, quote_items(nope)"], ["eq", "job_id", J]))).toBeNull();
+    expect(answerFromFacts(empties, "quotes", q(["select", "id, quote_internals(cost_ex_gst)"], ["eq", "job_id", J]))).toBeNull();
+    // Rows present: the row itself is the column list, whatever was given.
+    const rows = jobFactsFrom(J, { id: J, invoices: [{ id: "i1", job_id: J, extra: 1 }] }, { invoices: ["id", "job_id"] });
+    expect(answerFromFacts(rows, "invoices", q(["select", "extra"], ["eq", "job_id", J]))!.data).toEqual([{ extra: 1 }]);
+    expect(factsCanTry("invoices", { col: "job_id", value: J }, q(["select", "id"], ["eq", "job_id", J]))).toBe(true);
+  });
+  test("the shipped column lists are the generated types' columns for every table that can come back empty", () => {
+    const whole = Object.values(NESTED).flat().filter((n) => n.cols === "*").map((n) => n.name);
+    for (const t of [...JOB_FACT_TABLES, ...BUSINESS_FACT_TABLES, ...whole]) expect([t, FACT_COLUMNS[t]]).toEqual([t, columnsOf(t)]);
   });
   test("text order (collation), dates compared by eq, JSON path filters, or(), unknown methods", () => {
     no("workflow_events", ["select", "id"], ["eq", "job_id", J], ["order", "event_type"]);

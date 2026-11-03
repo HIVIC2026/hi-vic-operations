@@ -5,7 +5,8 @@
 // `null` when it can't be sure, and the section's query then goes to the database exactly as before.
 // Rules that keep the answer identical: only this job's rows (the query must be scoped to this job id); only simple filters
 // (eq, neq, in, is, contains), orders on dates/numbers/true-false, limit, maybeSingle/single; a column the rows don't have
-// (missing live) goes to the database so it errors as before; anything else goes to the database.
+// (missing live) goes to the database so it errors as before — and with no rows at all, a column not on the table's known
+// column list (`FactTable.columns`, else only the scope column) goes to the database too; anything else goes to the database.
 
 /** Tables read whole for the job (`<table>.job_id = job`); `jobs` itself is the job's own row. */
 export const JOB_FACT_TABLES = [
@@ -40,26 +41,29 @@ export const BUSINESS_FACT_TABLES = ["partner_workers", "business_members", "par
 export const BUSINESS_FACTS_SELECT = ["*", ...BUSINESS_FACT_TABLES.map((t) => `${t}!${t}_business_id_fkey(*${nestSel(t)})`)].join(", ");
 
 type Row = Record<string, unknown>;
-/** Rows of one table, all of them for one scope value (`col = value`): a query must filter on exactly that to be answered. */
-export type FactTable = { readonly rows: readonly Row[]; readonly scope: { readonly col: string; readonly value: string } };
+/** Rows of one table, all of them for one scope value (`col = value`): a query must filter on exactly that to be answered.
+ *  `columns`: the table's live columns, when known — the only way to tell, with no rows, whether a column exists. */
+export type FactTable = { readonly rows: readonly Row[]; readonly scope: { readonly col: string; readonly value: string }; readonly columns?: readonly string[] | undefined; readonly embedColumns?: ColumnLists | undefined };
 export type Facts = Readonly<Record<string, FactTable>>;
+/** Live column lists by table, for tables (and embeds read whole) that may come back empty. */
+export type ColumnLists = Readonly<Record<string, readonly string[]>>;
 
 const asRows = (v: unknown): Row[] => (Array.isArray(v) ? (v as Row[]) : v && typeof v === "object" ? [v as Row] : []);
 
 /** The one-select answer for a job, as fact tables: `jobs` (the job's row) and each job table (a one-to-one embed comes back as an object). */
-export function jobFactsFrom(jobId: string, data: Row): Facts {
+export function jobFactsFrom(jobId: string, data: Row, columns: ColumnLists = {}): Facts {
   const job: Row = { ...data };
   const out: Record<string, FactTable> = {};
-  for (const t of JOB_FACT_TABLES) { out[t] = { rows: asRows(data[t]), scope: { col: "job_id", value: jobId } }; delete job[t]; }
+  for (const t of JOB_FACT_TABLES) { out[t] = { rows: asRows(data[t]), scope: { col: "job_id", value: jobId }, columns: columns[t], embedColumns: columns }; delete job[t]; }
   out["jobs"] = { rows: [job], scope: { col: "id", value: jobId } };
   return out;
 }
 
 /** The one-select answer for a business: `businesses` (its row), its partner workers and its members. */
-export function businessFactsFrom(businessId: string, data: Row): Facts {
+export function businessFactsFrom(businessId: string, data: Row, columns: ColumnLists = {}): Facts {
   const biz: Row = { ...data };
   const out: Record<string, FactTable> = {};
-  for (const t of BUSINESS_FACT_TABLES) { out[t] = { rows: asRows(data[t]), scope: { col: "business_id", value: businessId } }; delete biz[t]; }
+  for (const t of BUSINESS_FACT_TABLES) { out[t] = { rows: asRows(data[t]), scope: { col: "business_id", value: businessId }, columns: columns[t], embedColumns: columns }; delete biz[t]; }
   out["businesses"] = { rows: [biz], scope: { col: "id", value: businessId } };
   return out;
 }
@@ -189,15 +193,21 @@ function answer(t: FactTable, nested: readonly Nest[], ops: readonly QueryOp[], 
   const sel = parseSel(first.a.length ? String(first.a[0]) : "*", nested);
   if (!sel) return null;
   const scopeCol = t.scope.col, scopeVal = t.scope.value.toLowerCase();
+  // Does a column exist? A row says so (a column missing live is missing from the row, so that query goes to the database
+  // and errors as before). With no rows, only the table's column list (when given) and the scope column are known —
+  // the database would still refuse a column that doesn't exist, so an unknown one goes to the database.
   const sample = all[0];
-  const has = (c: string) => !sample || Object.prototype.hasOwnProperty.call(sample, c);
-  if (![...sel.cols, ...sel.embeds.map((e) => e.name)].every(has)) return null;
-  // Embedded rows: their columns must exist too (checked on the first embedded row met).
-  if (sel.embeds.length && sample) {
-    for (const e of sel.embeds) {
+  const known = new Set(sample ? Object.keys(sample) : [...(t.columns ?? []), scopeCol]);
+  const has = (c: string) => shapeOnly || known.has(c);
+  if (!sel.cols.every(has)) return null;
+  for (const e of sel.embeds) {
+    const nest = nested.find((n) => n.name === e.name)!;
+    if (sample) {
+      // Embedded rows: their columns must exist too (checked on the first embedded row met).
+      if (!has(e.name)) return null;
       const inner = all.flatMap((r) => { const v = r[e.name]; return Array.isArray(v) ? v : v ? [v] : []; })[0] as Row | undefined;
       if (inner && !e.sel.cols.every((c) => Object.prototype.hasOwnProperty.call(inner, c))) return null;
-    }
+    } else if (!shapeOnly && nest.cols === "*" && !e.sel.cols.every((c) => t.embedColumns?.[nest.name]?.includes(c))) return null; // an embed read whole: only its column list can vouch for a column
   }
 
   const filters: ((r: Row) => boolean | null)[] = [];
