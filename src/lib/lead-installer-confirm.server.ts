@@ -1,10 +1,12 @@
 // Part 7 Task 6: the 9am two-days-before Lead Installer email (sweep, 15-minute allocation tick) and the 5pm lock the
 // install writers check. Wording/timing: lead-installer-confirm.core.ts; the clock: prestart.core (Part 9's rule).
 // Every confirmed installation booking within LEAD_CONFIRM_LOOKAHEAD_DAYS, ALL installers (not only in-house), ONE email
-// per job + install date to the installer business's office email. Recorded (`lead_installer_confirm_email`, with the
-// key) BEFORE any send; TEST job / TEST partner → test-send; real → nothing until LEAD_INSTALLER_CONFIRM_EMAIL_APPROVED
-// (held, recorded once as `lead_installer_confirm_held`, key not claimed) and the trade pause; then the existing guarded
-// partner sender. A read failure logs and sends nothing. Never changes a booking, a crew or a stage.
+// per job + install date to the installer business's office email. TEST job / TEST partner → test-send; real → nothing
+// until LEAD_INSTALLER_CONFIRM_EMAIL_APPROVED, customer comms on and the trade pause lifted (held, recorded once as
+// `lead_installer_confirm_held`, key not claimed); then the existing guarded partner sender. The claim
+// (`lead_installer_confirm_email`, with the key) is written only after the sender reports `sent` — the sender's own
+// Resend Idempotency-Key (= the key) guards a double send, so a blocked/failed send claims nothing, records the hold
+// once and is retried next tick. A read failure logs and sends nothing. Never changes a booking, a crew or a stage.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
 import {
@@ -109,14 +111,18 @@ async function confirmOne(b: Booking, now: Date, approved: boolean): Promise<str
   const { isTestPartner } = await import("./test-send.core");
   const partnerIsTest = isTestPartner(bz ?? {});
   const test = j.source === "qa_test" || partnerIsTest;
+  const hold = async (reason: string) => {
+    if (!(await once(j.id, LEAD_CONFIRM_HELD_EVENT, key))) await logEvent(j.id, null, LEAD_CONFIRM_HELD_EVENT, `Lead Installer confirm email held: ${reason}`, { key, install_date: day, booking_id: b.id, business_id: bz!.id, reason }, { internal: true });
+    return `held: ${reason}`;
+  };
   if (!test) {
-    // Real installer offices: held (recorded once per key) until Jo approves the wording and while trade messages are paused.
-    const paused = await (await import("./trade-pause.server")).tradeMessagesPausedNow({ businessId: bz!.id });
-    const reason = !approved ? "wording not approved yet" : paused;
-    if (reason) {
-      if (!(await once(j.id, LEAD_CONFIRM_HELD_EVENT, key))) await logEvent(j.id, null, LEAD_CONFIRM_HELD_EVENT, `Lead Installer confirm email held: ${reason}`, { key, install_date: day, booking_id: b.id, business_id: bz!.id, reason }, { internal: true });
-      return `held: ${reason}`;
-    }
+    // Real installer offices: held (recorded once per key) until Jo approves the wording, while customer comms are off
+    // (the sender would block the email anyway) and while trade messages are paused.
+    const { customerCommsEnabled } = await import("./comms.server");
+    const reason = !approved ? "wording not approved yet"
+      : !(await customerCommsEnabled()) ? "customer communications are off"
+      : await (await import("./trade-pause.server")).tradeMessagesPausedNow({ businessId: bz!.id });
+    if (reason) return hold(reason);
   }
   const p = j.properties;
   const address = [p?.address_line?.trim(), [p?.suburb?.trim(), p?.postcode?.trim()].filter(Boolean).join(" ")].filter(Boolean).join(", ") || j.job_number;
@@ -124,15 +130,20 @@ async function confirmOne(b: Booking, now: Date, approved: boolean): Promise<str
   const { TEST_APP_BASE } = await import("./test-send.server");
   const { SET_PASSWORD_BASE } = await import("./set-password-link.core");
   const mail = renderLeadInstallerConfirm({ jobNumber: j.job_number, owner, startIso: b.scheduled_start, address, lead, crew, jobUrl: `${test ? TEST_APP_BASE : SET_PASSWORD_BASE}/field/${j.id}`, lockLabel: leadInstallerLock(b.scheduled_start).lockLabel, test });
-  // Claimed once, before any send: the next tick finds this event and stops.
-  await logEvent(j.id, null, LEAD_CONFIRM_EVENT, `Lead Installer confirm email to the installer office for the ${day} install`, { key, install_date: day, booking_id: b.id, business_id: bz!.id, to, test, lead_worker_id: leadId }, { internal: true });
+  const claim = () => logEvent(j.id, null, LEAD_CONFIRM_EVENT, `Lead Installer confirm email to the installer office for the ${day} install`, { key, install_date: day, booking_id: b.id, business_id: bz!.id, to, test, lead_worker_id: leadId }, { internal: true });
   if (test) {
+    // TEST sends are recorded once before the send (the test sender has no idempotency key of its own).
+    await claim();
     const { sendTestEmail } = await import("./test-send.server");
     const r = await sendTestEmail({ jobId: j.id, jobSource: j.source, partnerIsTest, label: `lead_installer_confirm:${day}`, actorId: null }, to, mail.subject, mail.html, mail.text);
     return `email (test) ${r.status}: ${r.detail}`;
   }
   const { sendOfficeEmail } = await import("./office-email.server");
   const r = await sendOfficeEmail({ actorId: null, recipient: "partner", to, contactName: bz!.name, subject: mail.subject, message: mail.text, html: mail.html, text: mail.text, label: key, record: { businessId: bz!.id }, idempotencyKey: key });
+  // Fix I1: the sender can still block (comms off, trade pause, recipient rule) or fail; only a sent email claims the key.
+  // The sender's Idempotency-Key = key keeps a retry from sending twice.
+  if (r.status !== "sent") return hold(r.status === "blocked" ? r.detail : `send failed: ${r.detail}`);
+  await claim();
   return `email ${r.status}: ${r.detail}`;
 }
 

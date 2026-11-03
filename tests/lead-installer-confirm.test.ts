@@ -122,7 +122,10 @@ mock.module("../src/lib/workflow.server", () => ({
 let paused: string | null = null;
 mock.module("../src/lib/trade-pause.server", () => ({ tradeMessagesPausedNow: async () => paused }));
 const office: { to: string; subject: string; key: string | undefined }[] = [];
-mock.module("../src/lib/office-email.server", () => ({ sendOfficeEmail: async (p: { to: string; subject: string; idempotencyKey?: string }) => { office.push({ to: p.to, subject: p.subject, key: p.idempotencyKey }); return { status: "sent", detail: "faked" }; } }));
+let officeResult: { status: string; detail: string } = { status: "sent", detail: "faked" };
+mock.module("../src/lib/office-email.server", () => ({ sendOfficeEmail: async (p: { to: string; subject: string; idempotencyKey?: string }) => { office.push({ to: p.to, subject: p.subject, key: p.idempotencyKey }); return officeResult; } }));
+let commsOn = true;
+mock.module("../src/lib/comms.server", () => ({ customerCommsEnabled: async () => commsOn }));
 const testMail: { to: string; subject: string }[] = [];
 mock.module("../src/lib/test-send.server", () => ({ TEST_APP_BASE: "https://test.p", sendTestEmail: async (_c: unknown, to: string, subject: string) => { testMail.push({ to, subject }); return { status: "sent", detail: "test" }; } }));
 mock.module("../src/lib/set-password-link.core", () => ({ SET_PASSWORD_BASE: "https://p" }));
@@ -131,7 +134,7 @@ const { sweepLeadInstallerConfirm, assertLeadInstallerUnlocked, leadInstallerLoc
 const events = (type: string) => (tables["workflow_events"] ?? []).filter((e) => e["event_type"] === type);
 
 beforeEach(() => {
-  office.length = 0; testMail.length = 0; paused = null;
+  office.length = 0; testMail.length = 0; paused = null; commsOn = true; officeResult = { status: "sent", detail: "faked" };
   tables = {
     bookings: [{ id: "BK1", job_id: "J1", kind: "installation", status: "confirmed", scheduled_start: START, created_at: BOOKED }],
     jobs: [{ id: "J1", job_number: "HV-1234", source: "website", deleted_at: null, owners: { full_name: "Sarah Brown" }, properties: { address_line: "12 Example St", suburb: "Box Hill", postcode: "3128" } }],
@@ -188,6 +191,44 @@ describe("sweepLeadInstallerConfirm", () => {
     expect(await sweepLeadInstallerConfirm(at(WED_1100), { approved: true })).toEqual({ checked: 1, sent: 0, held: 1 });
     expect(events("lead_installer_confirm_held").filter((e) => (e["details"] as Row)["reason"] === "Trade messages paused")).toHaveLength(1);
     expect(office).toHaveLength(0);
+  });
+  test("fix I1: customer comms off → held once, key not claimed, nothing sent; sends once comms are on", async () => {
+    commsOn = false;
+    expect(await sweepLeadInstallerConfirm(at(WED_0900), { approved: true })).toEqual({ checked: 1, sent: 0, held: 1 });
+    expect(await sweepLeadInstallerConfirm(at(WED_1100), { approved: true })).toEqual({ checked: 1, sent: 0, held: 1 });
+    expect(office).toHaveLength(0);
+    expect(events("lead_installer_confirm_held")).toHaveLength(1);
+    expect(events("lead_installer_confirm_held")[0]!["details"]).toMatchObject({ key: "lead-confirm:v1:J1:2026-11-13", reason: "customer communications are off" });
+    expect(events("lead_installer_confirm_email")).toHaveLength(0);
+    commsOn = true;
+    expect(await sweepLeadInstallerConfirm(at(WED_1100), { approved: true })).toEqual({ checked: 1, sent: 1, held: 0 });
+    expect(office).toHaveLength(1);
+    expect(events("lead_installer_confirm_email")).toHaveLength(1);
+  });
+  test("fix I1: a failed send claims nothing and is retried next tick; the claim is written only after a sent result", async () => {
+    officeResult = { status: "failed", detail: "Couldn't reach the email service" };
+    expect(await sweepLeadInstallerConfirm(at(WED_0900), { approved: true })).toEqual({ checked: 1, sent: 0, held: 1 });
+    expect(office).toHaveLength(1);
+    expect(events("lead_installer_confirm_email")).toHaveLength(0);
+    expect(events("lead_installer_confirm_held")).toHaveLength(1);
+    expect(events("lead_installer_confirm_held")[0]!["details"]).toMatchObject({ key: "lead-confirm:v1:J1:2026-11-13", reason: "send failed: Couldn't reach the email service" });
+    officeResult = { status: "sent", detail: "faked" };
+    expect(await sweepLeadInstallerConfirm(at(WED_1100), { approved: true })).toEqual({ checked: 1, sent: 1, held: 0 });
+    expect(office).toHaveLength(2);
+    expect(office.map((o) => o.key)).toEqual(["lead-confirm:v1:J1:2026-11-13", "lead-confirm:v1:J1:2026-11-13"]); // same Idempotency-Key guards a double send
+    expect(events("lead_installer_confirm_email")).toHaveLength(1);
+    expect(await sweepLeadInstallerConfirm(at(WED_1659), { approved: true })).toEqual({ checked: 1, sent: 0, held: 0 });
+    expect(office).toHaveLength(2);
+  });
+  test("fix I1: a blocked send (sender's own hold) claims nothing and records the hold once", async () => {
+    officeResult = { status: "blocked", detail: "Emails are paused" };
+    expect(await sweepLeadInstallerConfirm(at(WED_0900), { approved: true })).toEqual({ checked: 1, sent: 0, held: 1 });
+    expect(await sweepLeadInstallerConfirm(at(WED_1100), { approved: true })).toEqual({ checked: 1, sent: 0, held: 1 });
+    expect(events("lead_installer_confirm_email")).toHaveLength(0);
+    expect(events("lead_installer_confirm_held")).toHaveLength(1);
+    expect(events("lead_installer_confirm_held")[0]!["details"]).toMatchObject({ reason: "Emails are paused" });
+    const src = readFileSync("src/lib/lead-installer-confirm.server.ts", "utf8");
+    expect(src).toContain('if (r.status !== "sent") return hold(');
   });
   test("every installer, not only in-house; the email lists the Lead and crew by name", async () => {
     await sweepLeadInstallerConfirm(at(WED_0900), { approved: true });
