@@ -5,15 +5,12 @@ const requestedAt = '2026-11-01T00:00:00Z';
 test('deposit request uses the existing installation invoice once', () => {
   expect(installDepositRequestKey('invoice-1')).toBe('install-deposit:v1:invoice-1');
 });
-test('PIESA pass enables deposit request', () => {
-  expect(depositRequestEligible({ cleared:true, basis:'initial_piesa', paid:false, booked:false, deadline:'2026-11-30', now:new Date(requestedAt) })).toBe(true);
+test('any recorded PIESA result enables the deposit request (Jo 2 Nov, answer 21)', () => {
+  expect(depositRequestEligible({ piesaOutcome:'all_clear', paid:false, booked:false, deadline:'2026-11-30', now:new Date(requestedAt) })).toBe(true);
+  expect(depositRequestEligible({ piesaOutcome:'upgrades_needed', paid:false, booked:false, deadline:'2026-11-30', now:new Date(requestedAt) })).toBe(true);
 });
-test('rectification needed or electrician at install start cannot request deposit', () => {
-  expect(depositRequestEligible({ cleared:false, basis:null, paid:false, booked:false, deadline:'2026-11-30', now:new Date(requestedAt) })).toBe(false);
-  expect(depositRequestEligible({ cleared:true, basis:'electrician_at_start', paid:false, booked:false, deadline:'2026-11-30', now:new Date(requestedAt) })).toBe(false);
-});
-test('completed rectification with Section C enables deposit', () => {
-  expect(depositRequestEligible({ cleared:true, basis:'section_c', paid:false, booked:false, deadline:'2026-11-30', now:new Date(requestedAt) })).toBe(true);
+test('no PIESA result yet cannot request deposit', () => {
+  expect(depositRequestEligible({ piesaOutcome:null, paid:false, booked:false, deadline:'2026-11-30', now:new Date(requestedAt) })).toBe(false);
 });
 test('day 3 reminder and not before', () => {
   expect(depositReminderDue({requestedAt,paid:false,now:new Date('2026-11-03T00:00:00Z')})).toBeNull();

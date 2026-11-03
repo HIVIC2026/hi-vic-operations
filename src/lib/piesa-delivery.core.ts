@@ -30,6 +30,8 @@ export type PiesaDeliveryFacts = {
   delivered: Record<PiesaCopyRecipient, boolean>;
   email: Record<PiesaCopyRecipient, string | null>;
   closed: boolean;
+  /** Part 4 Task 2: false when the owner's PIESA arrives attached to the result email (piesa-result-route.core), so no standalone owner copy. Default true. */
+  ownerStandalone?: boolean;
 };
 
 export type PiesaDeliveryPlan = {
@@ -53,7 +55,7 @@ export function piesaDeliveryPlan(f: PiesaDeliveryFacts, now = new Date()): Pies
   if (start !== null && !Number.isFinite(start)) return none("install start unreadable");
   if (start !== null && start <= now.getTime()) return none("install day has already started");
   const late = !!f.installStart && now.getTime() > Date.parse(escDueBy(f.installStart));
-  const pending = (["owner", "installer"] as const).filter((r) => !f.delivered[r] && (r === 'owner' || !!f.installStart));
+  const pending = (["owner", "installer"] as const).filter((r) => !f.delivered[r] && (r === 'owner' ? f.ownerStandalone !== false : !!f.installStart));
   if (!pending.length) return { ...none("both copies already recorded"), late };
   const send = pending.filter((r) => !!f.email[r]?.trim());
   const noAddress = pending.filter((r) => !f.email[r]?.trim());

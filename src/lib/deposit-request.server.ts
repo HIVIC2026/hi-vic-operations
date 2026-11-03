@@ -29,6 +29,12 @@ async function factsFor(jobId:string,now:Date) {
   const f:DepositMessageFacts={name:owner.full_name?.split(' ')[0]||'there',installer:biz.trading_name||biz.name,jobNumber:job.job_number??'',address:prop?fullAddress(prop.address_line,prop.suburb,prop.postcode):'',ownerPhone:owner.phone,deadline:c.deadline,amountCents:v.steps.find(s=>s.key==='install_deposit')?.outstandingCents??v.plan.installDepositCents,link:link?`${link}${link.includes('?')?'&':'?'}screen=pay`:'',bank:v.bank,reference:v.reference,card:v.stripe.available};
   return{job,assignment,owner,biz,c,v,paid,f};
 }
+/** Jo 2 Nov (answer 21): the deposit opens on the recorded PIESA result, whatever it found. */
+async function piesaOutcomeFor(jobId:string){
+  const {clearanceFacts}=await import('./allocation.server');
+  const o=(await clearanceFacts(jobId)).piesaOutcome;
+  return o==='pass'?'all_clear' as const:o==='fail'?'upgrades_needed' as const:null;
+}
 async function requestRecord(jobId:string,invoiceId:string){
   const r=await admin.from('workflow_events').select('created_at,details').eq('job_id',jobId).eq('event_type',INSTALL_DEPOSIT_REQUEST_EVENT).contains('details',{invoice_id:invoiceId}).limit(1).maybeSingle();
   if(r.error)throw Error('Could not read deposit request history.');
@@ -71,7 +77,7 @@ export async function requestInstallDeposit(jobId:string,now=new Date()):Promise
   try{
     const c=await factsFor(jobId,now);
     if(!c)throw Error('Installation invoice or deposit facts not available yet.');
-    if(!depositRequestEligible({cleared:c.c.clearance.cleared,basis:c.c.clearance.basis,paid:c.paid,booked:c.c.booked,deadline:c.c.deadline,now}))return 'not due';
+    if(!depositRequestEligible({piesaOutcome:await piesaOutcomeFor(jobId),paid:c.paid,booked:c.c.booked,deadline:c.c.deadline,now}))return 'not due';
     const prior=await requestRecord(jobId,c.v.invoiceId);
     if(!prior)await recordRequest(jobId,c.v.invoiceId,now,c.f.deadline);
     const record=prior??await requestRecord(jobId,c.v.invoiceId);
@@ -133,7 +139,7 @@ export async function sweepDepositRequests(now=new Date()){
       if(pending.data)await requestInstallDeposit(jobId,now);
       const c=await factsFor(jobId,now);if(!c)continue;checked++;
       if(c.paid){await notifyInstallerDepositPaid(jobId,now);continue;}
-      if(!depositRequestEligible({cleared:c.c.clearance.cleared,basis:c.c.clearance.basis,paid:c.paid,booked:c.c.booked,deadline:c.c.deadline,now}))continue;
+      if(!depositRequestEligible({piesaOutcome:await piesaOutcomeFor(jobId),paid:c.paid,booked:c.c.booked,deadline:c.c.deadline,now}))continue;
       const r=await requestRecord(jobId,c.v.invoiceId);
       // Retry only recorded intents; never release a historical clearance backlog on deployment.
       if(!r)continue;

@@ -157,12 +157,10 @@ export function stepPaidAt(plan: PaymentPlan, key: PaymentStepKey, records: { am
 export const INSTALL_DEPOSIT_BLOCKER = "The 10% install deposit must be paid before the install is booked.";
 /** Stages where the install is the next thing to book, so the 10% deposit is due now. */
 export const INSTALL_DEPOSIT_DUE_STAGES: ReadonlySet<string> = new Set(["piesa_complete", "installation_scheduling", "installation_booked"]);
-/** Locked order (Jo 26 Oct): fixes approved, paid and signed off BEFORE the 10% deposit. At "piesa_complete" the deposit is
- *  due only when the current PIESA passed or its fixes are signed off (Section C); a PIESA that found fixes asks for nothing yet. */
-export function installDepositDueNow(stage: string | null | undefined, piesa: { outcome?: string | null; section_c_signed_at?: string | null } | null | undefined): boolean {
-  if (!INSTALL_DEPOSIT_DUE_STAGES.has(stage ?? "")) return false;
-  if (stage !== "piesa_complete" || !piesa) return true;
-  return piesa.outcome === "pass" || !!piesa.section_c_signed_at;
+/** Jo 2 Nov 2026 (answer 21, replaces the 26 Oct "fixes first" order): at "piesa_complete" the PIESA result is in, so the deposit
+ *  is due now whatever it found (pass, or upgrades still to come). The install day still needs the deposit paid (installDepositBlocker). */
+export function installDepositDueNow(stage: string | null | undefined, _piesa?: { outcome?: string | null; section_c_signed_at?: string | null } | null): boolean {
+  return INSTALL_DEPOSIT_DUE_STAGES.has(stage ?? "");
 }
 export function installDepositBlocker(plan: Pick<PaymentPlan, "installDepositCents">, steps: PaymentStep[]): string | null {
   if (plan.installDepositCents <= 0) return null;

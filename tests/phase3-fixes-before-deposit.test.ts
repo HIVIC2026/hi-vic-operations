@@ -1,11 +1,11 @@
-// Phase 3 path 2 (Jo 27 Oct 2026): a PIESA that found electrical fixes never reads "PIESA passed" for the office, and the
-// owner is not asked for the 10% install deposit until the fixes are signed off (locked order: fixes → deposit → install).
+// Phase 3 path 2 (Jo 27 Oct 2026): a PIESA that found electrical fixes never reads "PIESA passed" for the office.
+// Jo 2 Nov 2026 (answer 21) replaced the "deposit waits for the fixes" order: the deposit is due straight after the PIESA result.
 import { describe, expect, test } from "bun:test";
 import { installDepositDueNow } from "../src/lib/payments.core";
 
-describe("10% deposit waits for the fixes", () => {
-  test("PIESA found fixes, no Section C → deposit not due", () => {
-    expect(installDepositDueNow("piesa_complete", { outcome: "fail", section_c_signed_at: null })).toBe(false);
+describe("10% deposit is due straight after the PIESA result", () => {
+  test("PIESA found upgrades, no Section C yet → deposit due (answer 21)", () => {
+    expect(installDepositDueNow("piesa_complete", { outcome: "fail", section_c_signed_at: null })).toBe(true);
   });
   test("PIESA passed → deposit due", () => {
     expect(installDepositDueNow("piesa_complete", { outcome: "pass", section_c_signed_at: null })).toBe(true);
