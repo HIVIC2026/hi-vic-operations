@@ -1,3 +1,13 @@
+## Jo 4 Nov A1/A2 Ready Check forms: ceiling layout, top-ups, approved products, quotes
+- [ ] Read new area answers (old insulation None/taking out/topping up, old R value, removal m²) replacing old ones; old-wording Ready Checks unchanged.
+- [ ] Outcome page: go ahead, "thicker too" R6.0/R7.0; ignore Mitti scores.
+- [ ] Approved ESC product list (26 Oct 2026, 48A) with model numbers; brand+batt resolution.
+- [ ] Rules: old under R2.0, total >= R5.0, approved match, thicker reachable, top-up counting switch (ON by default) -> Needs me.
+- [ ] A2: brand + per-area batts; HIV fixed retail price (new blank top-up/R6/R7 retail settings hold if blank); installer paid rate card (TOPUP_R5 etc.); thicker second option.
+- [ ] A1: business-owner price link shows areas, approved-only choices with totals, one main total + thicker total; never rate card/retail.
+- [ ] Exact quote wording, VEU per option, 15% hold rule.
+- [ ] Report exact matched wording A1/A2, example A2 top-up quote, example A1 price link, tests. No Mitti template change, sends or publishing.
+
 ## Jo 3 Nov 7:52pm active installer Team role choice
 - [x] Test-first: no preselected Lead/Crew, Add disabled until chosen, server requires installer workerRole, exact explanation; existing Mitti behaviour unchanged. 112 related tests pass, including missing-role zero-write and two-business email isolation; automatic checks build OK. Actual form extracted into a write-blocked browser fixture confirms neither selected initially and either choice enables Add; authenticated save not run (no data changes permitted). No data changes, sends or publishing.
 

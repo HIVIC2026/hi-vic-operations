@@ -8,6 +8,7 @@ import { splitEligibleAreas, type ExcludedArea } from "./excluded-areas.core";
 import { A3_REPAIR_NEEDED_LABEL, LIFE_SUPPORT_PRESENT } from "./official-short.core";
 import { EXISTING_DEPTH_Q, isNoSafeAccess, isR2OrAbove, isRValueBandAnswer, LEAN_ALIASES, LEAN_Q, premisesTypeOption } from "./ready-check-lean.core";
 import { norm } from "./trade-shared-consts.core";
+import { isLayoutForm, readLayoutArea, type LayoutArea } from "./ceiling-layout.core";
 
 export const MITTI_TEMPLATE_ID = "template_fd20c6437f4e4db2b49b2d6dbe0d3f91";
 /** Electrical rate codes Lovable can price. Everything else from Mitti is manual office review. */
@@ -407,6 +408,8 @@ export type MittiArea = {
   /** Decision 375: this area's existing insulation depth in mm (official PIISA Part 6 height); null = not recorded. */
   depthMm?: number | null;
   product: string | null; scope: string | null; sources: Record<string, never>;
+  /** Jo 4 Nov 2026 forms only: the new per-area answers (old insulation, old R value, batts). */
+  layout?: LayoutArea;
 };
 export type OtherItem = { external_key: string; description: string; quantity: number; unit_price_inc_gst: number | null; explanation: string; needs_office_pricing: boolean; unsupported: boolean };
 
@@ -461,17 +464,22 @@ export function parseAudit(audit: Any) {
     if (m2.issue) issues.push(m2.issue);
     // Decision 222 / 211: the area NAME is kept (diagram box label, install-day zone name). Help text after a line break is not part of it.
     const name = val(kids, [LEAN_Q.areaName, ...(LEAN_ALIASES.areaName ?? [])])?.split("\n")[0]?.trim() || null;
-    const present = yesNo(val(kids, ["Is there existing insulation?", "Is there existing insulation in this ceiling area?"]));
+    // Jo 4 Nov 2026: "Old insulation in this area?" (None / Yes, taking it out / Yes, topping up) replaces the two old
+    // questions on new forms; old-wording forms keep reading exactly as before.
+    const layout = isLayoutForm(kids) ? readLayoutArea(kids, m2.value) : null;
+    const present = layout ? (layout.old === "none" ? false : layout.old ? true : null) : yesNo(val(kids, ["Is there existing insulation?", "Is there existing insulation in this ceiling area?"]));
     const state = norm(val(kids, ["Existing insulation"])) || (present === true ? "under-insulated" : present === false ? "uninsulated" : "");
-    const action = norm(val(kids, ["What needs to happen to it?", "What is required for the existing insulation?", "What happens to the existing insulation"]));
-    const removal = /^(remove|must be removed)/.test(action) ? true : /^(top up|can be topped up)/.test(action) ? false : yesNo(val(kids, ["Removal required"]));
+    const action = layout ? "" : norm(val(kids, ["What needs to happen to it?", "What is required for the existing insulation?", "What happens to the existing insulation"]));
+    const removal = layout ? (layout.old === "out" ? true : layout.old ? false : null) : /^(remove|must be removed)/.test(action) ? true : /^(top up|can be topped up)/.test(action) ? false : yesNo(val(kids, ["Removal required"]));
     if (/not sure/.test(action)) issues.push("A ceiling area's existing insulation is marked 'Not sure' – office review required.");
+    if (layout && !layout.old) issues.push(`A ceiling area's "Old insulation in this area?" answer is missing – office review required.`);
+    if (layout?.oldFailed) issues.push(`${layout.name ?? "A ceiling area"}: old insulation is R2.0 or more – fails (must be under R2.0); office review required.`);
     // The insulation type can arrive as one multichoice (A1) or as separate Batts / Loose fill checkboxes (A2).
     const tickTypes = ["Batts", "Loose fill"].filter((l) => { const e = find(kids, [l]); return e?.value != null && !/^(false|no|n a|na)$/.test(norm(e.value)); });
     const mc = val(kids, ["Insulation type (tick all that apply)", "What type of existing insulation is installed? Select all that apply", "Existing insulation type", "Insulation type to remove"]);
     const removalType = [mc, ...tickTypes].filter(Boolean).join(", ") || null;
-    const rvRaw = val(kids, [LEAN_Q.rValue, "Existing R-value", "Measured R-value"]);
-    const rv = rValue(rvRaw, "R value").value;
+    const rvRaw = layout ? null : val(kids, [LEAN_Q.rValue, "Existing R-value", "Measured R-value"]);
+    const rv = layout ? layout.oldR : rValue(rvRaw, "R value").value;
     // Jo 23 Oct: photos are optional in Mitti — note which are missing so they move to the install-day lock.
     const has = (labels: string[]) => !!find(kids, labels, { withValue: true });
     const photos = { depth: has([LEAN_Q.depthPhoto, ...(LEAN_ALIASES.depthPhoto ?? [])]), overview: has([LEAN_Q.beforeVideo, ...(LEAN_ALIASES.beforeVideo ?? [])]) };
@@ -489,12 +497,12 @@ export function parseAudit(audit: Any) {
     const conductive = present === true ? yesNo(val(kids, [LEAN_Q.existingConductive])) : null;
     const condPhoto = present === true ? find(kids, [LEAN_Q.existingConductivePhoto], { withValue: true }) : undefined;
     const conductiveEvidence = condPhoto ? `mitti:${auditId}:item:${condPhoto.id}` : null;
-    const keepReason = present === true ? val(kids, [LEAN_Q.existingKeepReason])?.trim().slice(0, 2000) || null : null;
+    const keepReason = present === true && !layout ? val(kids, [LEAN_Q.existingKeepReason])?.trim().slice(0, 2000) || null : null;
     // Decision 375: the live free-text depth question (kept by Jo, asked whenever there is insulation) → official PIISA
     // Part 6 height. Only a clean number counts; anything else stays not recorded (listed missing for Part 6).
     const depthRaw = present === true ? num(val(kids, [EXISTING_DEPTH_Q])) : null;
     const depthMm = depthRaw != null && depthRaw >= 0 ? depthRaw : null;
-    return { parent: p, suitable, depthMm, conductive, conductiveEvidence, keepReason, name, m2: m2.value, lengthM: len.value, widthM: wid.value, state, present, removal, removalType, rv, rvBand: rvRaw && isRValueBand(rvRaw) ? (isR2OrAbove(rvRaw) ? "at_or_above_r2" as const : "below_r2" as const) : null, photos, insulated: present === true || /under-insulated/.test(state), remAnswer: remAnswer.value, hazardFlag, hazardEvidence, hazardNote, downlights };
+    return { parent: p, suitable, depthMm, conductive, conductiveEvidence, keepReason, name, m2: m2.value, lengthM: len.value, widthM: wid.value, state, present, removal, removalType, rv, rvBand: layout ? (layout.oldFailed ? "at_or_above_r2" as const : layout.old && layout.old !== "none" ? "below_r2" as const : null) : rvRaw && isRValueBand(rvRaw) ? (isR2OrAbove(rvRaw) ? "at_or_above_r2" as const : "below_r2" as const) : null, layout, photos, insulated: present === true || /under-insulated/.test(state), remAnswer: remAnswer.value, hazardFlag, hazardEvidence, hazardNote, downlights };
   });
   // Garage / carport / shed areas stay in the per-area record but never count toward the eligible m² or the removal m².
   const { eligible: counted, excluded: leftOut } = splitEligibleAreas(rooms, (r) => r.name);
@@ -646,7 +654,9 @@ export function parseAudit(audit: Any) {
   // Multi pick list (Jo 23 Oct): every selected option is kept.
   const failReasons = splitSelected(val(entries, ["Why did the property fail the ready check? Select all that apply", "Why did the property fail the ready check"]));
   const rcOutcome = norm(val(entries, ["Based on your onsite assessment, does this property meet the Ready Check requirements to proceed?"]));
-  if (/failed|^no\b/.test(rcOutcome)) {
+  // Jo 4 Nov 2026 forms: "Can the job go ahead?" No is the failed outcome (existing reasons list).
+  const goAheadNo = norm(val(entries, ["Can the job go ahead?"])) === "no";
+  if (goAheadNo || /failed|^no\b/.test(rcOutcome)) {
     issues.push("Installer marked the Ready Check as failed – office review required.");
     const reason = failReasons.length ? failReasons.join(", ") : null;
     if (reason) patch.notes = [patch.notes, `Ready Check failed – installer reasons: ${reason}`].filter(Boolean).join(". ").slice(0, 4000);
@@ -664,6 +674,7 @@ export function parseAudit(audit: Any) {
     removalM2: r.remAnswer, downlights: r.downlights, hazardFlag: r.hazardFlag, hazardEvidence: r.hazardEvidence, hazardNote: r.hazardNote, beforeVideo: r.photos.overview,
     suitable: r.suitable, conductive: r.conductive, conductiveEvidence: r.conductiveEvidence, keepReason: r.keepReason, depthMm: r.depthMm,
     product: null, scope: null, sources: {},
+    ...(r.layout ? { layout: r.layout } : {}),
   }));
   // A2 tick (Jo 23 Oct): installer confirms pricing was not discussed with the homeowner — recorded on the Ready Check record.
   const noPricing = val(entries, ["I confirm I have not discussed or agreed pricing with the homeowner"]);
