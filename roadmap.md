@@ -1,5 +1,5 @@
 ## Jo 3 Nov 7:52pm active installer Team role choice
-- [ ] Test-first: no preselected Lead/Crew, Add disabled until chosen, server requires installer workerRole, exact explanation; existing Mitti behaviour unchanged. Related Team tests and automatic typecheck; no data changes, sends or publishing.
+- [x] Test-first: no preselected Lead/Crew, Add disabled until chosen, server requires installer workerRole, exact explanation; existing Mitti behaviour unchanged. 112 related tests pass, including missing-role zero-write and two-business email isolation; automatic checks build OK. Actual form extracted into a write-blocked browser fixture confirms neither selected initially and either choice enables Add; authenticated save not run (no data changes permitted). No data changes, sends or publishing.
 
 ## Jo 3 Nov 10:39am Rapid recorded price
 - [x] Jo reports approved direct save 3 Nov 10:42am Sydney; read-only verified Rapid's new active electrical `In-house PIESA` v1 (effective 3 Nov), PIESA $250 ex / $275 inc, and `safety_check_prices_jo_3nov` audit. Local actual-reader → owner quote → payee regression added using those card facts; full $275 to Rapid, zero markup. No data changes, sends or publishing in this check; authenticated live job UI proof remains NOT RUN.
