@@ -7,8 +7,8 @@ done keep working; `tests/piesa-wording-part3.test.ts` fails if this file and th
 first, then paste this.
 
 Why: electricians now quote and bill the electrical upgrades with the owner directly (no Home Insulation Victoria price), and
-the Certificate of Electrical Safety can come later — the electrician has up to 30 days to issue it, so the form must not
-make them wait for it. The portal texts them a link to add it.
+the Certificate of Electrical Safety can come later — the electrician has up to 30 days to issue it, so the form asks
+whether they have it now; if not, the portal texts them a link to add it.
 
 ---
 
@@ -33,20 +33,20 @@ Keep it Yes/No, Required, only show when `Are electrical upgrades needed?` = Yes
 If this question is NOT on the form (the published form may not have the after-repair page), ADD it, on its own page after
 the electrician declaration and signature, as Yes/No, Required, only show when `Are electrical upgrades needed?` = Yes.
 
-### 2. Part C and the certificate only show when the upgrades are done today
-Every Part C question (questions 31–37, whichever of them your form has) and the certificate question 45 must have ONE
-"only show when" rule: show only when `Are you doing the electrical upgrades today?` = Yes. Remove any rule on them that
-points at question 20 instead. The Part C questions are:
+### 2. Add the "have you got it now?" question
+Right after `Are you doing the electrical upgrades today?` (and after any other Part C work questions your form has), add a
+NEW question with exactly this wording: `Do you have the Certificate of Electrical Safety now?`
+Yes/No, Required, only show when `Are you doing the electrical upgrades today?` = Yes, with this help text exactly:
+`No? We'll text you a link to add it later.`
+
+### 3. The certificate questions show, and are Required, only when the answer above is Yes
+These questions stay Required, but change their "only show when" rule to ONE rule: show only when
+`Do you have the Certificate of Electrical Safety now?` = Yes. Remove any rule on them that points at question 20 or question 30 instead.
 - `Certificate of Electrical Safety number (required for any electrical works completed):`
 - `Date of Certification:`
-- any other after-upgrades question your form has
-and question 45 is `Certificate of Electrical Safety (photo or PDF)`.
-If question 45 `Certificate of Electrical Safety (photo or PDF)` is not on the form, add it after `Date of Certification:` as
-a Photo/attachment that also accepts a PDF, with the same "only show when" rule.
-
-### 3. The certificate is NOT Required, with a help line
-Set `Certificate of Electrical Safety (photo or PDF)` to NOT Required, and give it this help text exactly:
-`Don't have it yet? Leave this blank — we'll text you a link to add it.`
+- question 45 `Certificate of Electrical Safety (photo or PDF)`
+If question 45 is not on the form, add it after `Date of Certification:` as a Photo/attachment that also accepts a PDF,
+Required, with the same "only show when" rule. No help text on these three.
 
 ### 4. Delete the price questions
 4a. Delete the question `Your total price for all the repair work, including GST` (it was the last question on the Repair
@@ -60,13 +60,17 @@ Republish the template. The template ID does not change, so nothing needs reconn
 
 ## Template 2: `A4 – Electrical fixes`
 
-### 5. The certificate is NOT Required, with a help line
-Set these three questions to NOT Required (keep their wording and keep them showing only when Q9 = Yes):
+### 5. Add the "have you got it now?" question
+Right after Q10 `Anything not done or changed?`, add a NEW question with exactly this wording:
+`Do you have the Certificate of Electrical Safety now?`
+Yes/No, Required, only show when Q9 = `Yes`, with this help text exactly:
+`No? We'll text you a link to add it later.`
+Then change the "only show when" rule on these three questions so they show only when
+`Do you have the Certificate of Electrical Safety now?` = `Yes` (not Q9). They stay Required. The photo question keeps its own
+help text (`A photo or the PDF of the certificate.`); the new help line above goes on the new question only.
 - `Certificate of Electrical Safety number`
 - `Date of certification`
 - `Certificate of Electrical Safety (photo or PDF)`
-Replace the help text on `Certificate of Electrical Safety (photo or PDF)` with exactly:
-`Don't have it yet? Leave this blank — we'll text you a link to add it.`
 
 ### 6. Everything else stays Required
 Do not change these; they stay Required:
@@ -77,8 +81,9 @@ Do not change these; they stay Required:
 Republish the template.
 
 ## When you have given me the steps
-Finish with a short checklist I can use on each republished template: the two new wordings on the A3, the Part C questions
-and the certificate showing only when `Are you doing the electrical upgrades today?` = Yes, the certificate questions NOT
-Required with the help line on both forms, the price question gone, and a form already in progress still opening.
+Finish with a short checklist I can use on each republished template: the two new wordings on the A3, the new
+`Do you have the Certificate of Electrical Safety now?` question (Required, with its help line) on both forms, the three certificate
+questions (number, date, photo) Required and showing only when that question = Yes on both forms, the price question gone,
+and a form already in progress still opening.
 
 ---

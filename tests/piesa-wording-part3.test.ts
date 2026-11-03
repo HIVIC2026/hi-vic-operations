@@ -1,24 +1,26 @@
-// Part 3 Task 2 (Jo 3 Nov 2026): new A3 wording for q20/q30 (old labels stay as aliases), the Certificate of Electrical
-// Safety is optional on the A3 (q45) and the A4 (number / date / file), and the A3 price questions are no longer asked.
+// Part 3 Task 2 (Jo 3 Nov 2026): new A3 wording for q20/q30 (old labels stay as aliases); on both forms a new question "Do you
+// have the Certificate of Electrical Safety now?" — Yes → number / date / file show and are required, No → certificate to come;
+// the A3 price questions are no longer asked.
 // Pure rules + the paste-ready edit prompt for Jo (docs/MITTI_PART3_EDIT_PROMPT.md) — a drift test keeps the two in step.
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import {
-  A3_REPAIR_NEEDED_LABEL, A3_REPAIR_NEEDED_LEGACY_LABEL, A3_UPGRADES_TODAY_LABEL, A3_UPGRADES_TODAY_LEGACY_LABEL, FIXES_PRICE_LABEL, FIXES_WORK_LABEL,
-  NO_PRICE_TALK_LABEL, RECTIFICATION_OUTCOMES, SHORT_PIESA_FIELDS, isLiveA3Snapshot, shortAnswersFromEntries,
+  A3_REPAIR_NEEDED_LABEL, A3_REPAIR_NEEDED_LEGACY_LABEL, A3_UPGRADES_TODAY_LABEL, A3_UPGRADES_TODAY_LEGACY_LABEL, CERTIFICATE_NOW_ADDED, CERTIFICATE_NOW_HELP,
+  CERTIFICATE_NOW_LABEL, FIXES_PRICE_LABEL, FIXES_WORK_LABEL, NO_PRICE_TALK_LABEL, RECTIFICATION_OUTCOMES, SHORT_PIESA_FIELDS, isLiveA3Snapshot, shortAnswersFromEntries,
 } from "../src/lib/official-short.core";
 import {
-  CERTIFICATE_LATER_HELP, PIESA_EVIDENCE_BY_ID, attachPiesaMedia, piesaCertificateToCome, piesaEvidenceBlockers, piesaEvidenceRequirements,
+  PIESA_EVIDENCE_BY_ID, attachPiesaMedia, piesaCertificateToCome, piesaEvidenceBlockers, piesaEvidenceRequirements,
   piesaMediaFromSnapshot, piesaRectificationDone,
 } from "../src/lib/piesa-evidence.core";
-import { FIXES_DAY_Q, FIXES_DAY_QUESTIONS, fixesCompletionPlan, mergeFixesIntoPiesaSnapshot, readFixesDay } from "../src/lib/fixes-day.core";
-import { FORMS, mittiAiPrompt, validateTemplate } from "../src/lib/mitti-forms.core";
+import { FIXES_DAY_Q, FIXES_DAY_QUESTIONS, fixesCompletionPlan, fixesDayMissingQuestions, mergeFixesIntoPiesaSnapshot, readFixesDay } from "../src/lib/fixes-day.core";
+import { FORMS, flattenDefinition, mittiAiPrompt, validateTemplate } from "../src/lib/mitti-forms.core";
 
 const NEW_Q20 = "Are electrical upgrades needed?";
 const NEW_Q30 = "Are you doing the electrical upgrades today?";
 const OLD_Q20 = "Is any electrical repair work needed before insulation can be installed?";
 const OLD_Q30 = "Have you completed all of the repair work listed above, and is the ceiling now safe for insulation?";
-const HELP = "Don't have it yet? Leave this blank — we'll text you a link to add it.";
+const NOW = "Do you have the Certificate of Electrical Safety now?";
+const HELP = "No? We'll text you a link to add it later.";
 const CES = PIESA_EVIDENCE_BY_ID.ces_file.label;
 
 describe("exact wording (verbatim, Jo 3 Nov 2026)", () => {
@@ -27,13 +29,19 @@ describe("exact wording (verbatim, Jo 3 Nov 2026)", () => {
     expect(A3_UPGRADES_TODAY_LABEL).toBe(NEW_Q30);
     expect(A3_REPAIR_NEEDED_LEGACY_LABEL).toBe(OLD_Q20);
     expect(A3_UPGRADES_TODAY_LEGACY_LABEL).toBe(OLD_Q30);
-    expect(CERTIFICATE_LATER_HELP).toBe(HELP);
+    expect(CERTIFICATE_NOW_LABEL).toBe(NOW);
+    expect(CERTIFICATE_NOW_HELP).toBe(HELP);
   });
   test("the A3 fields carry the new labels with the old ones as aliases", () => {
     const q20 = SHORT_PIESA_FIELDS.find((f) => f.id === "rectificationNeeded")!;
     const q30 = SHORT_PIESA_FIELDS.find((f) => f.id === "rectificationComplete")!;
     expect(q20).toMatchObject({ label: NEW_Q20, aliases: [OLD_Q20], required: true });
     expect(q30).toMatchObject({ label: NEW_Q30, aliases: [OLD_Q30] });
+    const now = SHORT_PIESA_FIELDS.find((f) => f.id === "certificateNow")!;
+    expect(now).toMatchObject({ label: NOW, type: "yesno", required: true, when: "rectificationComplete = Yes", addedByDecision: CERTIFICATE_NOW_ADDED });
+    expect(now.aliases).toBeUndefined();
+    for (const id of ["coesNumber", "certDate"]) expect(SHORT_PIESA_FIELDS.find((f) => f.id === id)).toMatchObject({ required: true, when: `${NOW} = Yes`, addedByDecision: CERTIFICATE_NOW_ADDED });
+    expect(FORMS.piesa.fields.find((f) => f.label === CES)).toMatchObject({ required: true, when: `${NOW} = Yes`, addedByDecision: CERTIFICATE_NOW_ADDED, supplemental: true });
   });
 });
 
@@ -72,100 +80,146 @@ describe("old and new labels read identically", () => {
   });
 });
 
-// ---------- A3: same-day upgrades, no certificate → Part C counts, certificate to come ----------
+// ---------- A3: same-day upgrades — "have it now?" decides ----------
 const geo = (id: string) => ({ media_id: id, location: { latitude: -37.8, longitude: 145.0 } });
 const Q = (item_id: string, label: string, answer: string | null) => ({ item_id, label, type: "question", responses: answer == null ? {} : { selected: [{ label: answer }] } });
 const M = (item_id: string, label: string, media: unknown[]) => ({ item_id, label, type: "media", media });
+const T = (item_id: string, label: string, text: string) => ({ item_id, label, type: "textsingle", responses: { text } });
 const SB = PIESA_EVIDENCE_BY_ID.switchboard_photo.label;
 const ON = PIESA_EVIDENCE_BY_ID.onsite_photo.label;
-function a3(o: { needed: "Yes" | "No"; today?: "Yes" | "No"; ces?: unknown[] }) {
+const L31 = SHORT_PIESA_FIELDS.find((f) => f.id === "coesNumber")!.label;
+const L32 = SHORT_PIESA_FIELDS.find((f) => f.id === "certDate")!.label;
+function a3(o: { needed: "Yes" | "No"; today?: "Yes" | "No"; now?: "Yes" | "No"; ces?: unknown[]; number?: string; date?: string }) {
   const items = [
     Q("q20", NEW_Q20, o.needed),
     ...(o.today ? [Q("q30", NEW_Q30, o.today)] : []),
+    ...(o.now ? [Q("q30a", NOW, o.now)] : []),
+    ...(o.number ? [T("q31", L31, o.number)] : []),
+    ...(o.date ? [T("q32", L32, o.date)] : []),
     M("q42", SB, [geo("s1")]), M("q43", ON, [geo("o1")]),
     M("q45", CES, o.ces ?? []),
   ];
-  const snapshot = attachPiesaMedia({ items }, items.map((i) => ({ id: i.item_id, label: i.label, value: "responses" in i && "selected" in i.responses ? i.responses.selected[0]!.label : i.media.length ? `${i.media.length} file` : null })));
+  const snapshot = attachPiesaMedia({ items }, items.map((i) => ({ id: i.item_id, label: i.label, value: "responses" in i ? ("selected" in i.responses ? i.responses.selected[0]!.label : (i.responses as { text: string }).text) : i.media.length ? `${i.media.length} file` : null })));
   const short = shortAnswersFromEntries("piesa", snapshot);
   const media = piesaMediaFromSnapshot(snapshot);
   return { short, media, blockers: piesaEvidenceBlockers(short, media), toCome: piesaCertificateToCome(short, media) };
 }
-describe("A3 certificate optional (spec §2)", () => {
-  test("the certificate is never a required evidence item", () => {
+describe("A3 certificate (spec §2, Jo 3 Nov 2026: 'Do you have the Certificate of Electrical Safety now?')", () => {
+  test("the certificate is a required evidence item only when the answer is Yes", () => {
     const done = { rectificationOutcome: RECTIFICATION_OUTCOMES[1], rectificationComplete: "Yes" };
+    expect(piesaEvidenceRequirements({ ...done, certificateNow: "Yes" }).map((r) => r.id)).toContain("ces_file");
+    expect(piesaEvidenceRequirements({ ...done, certificateNow: "No" }).map((r) => r.id)).not.toContain("ces_file");
     expect(piesaEvidenceRequirements(done).map((r) => r.id)).not.toContain("ces_file");
-    expect(FORMS.piesa.fields.find((f) => f.label === CES)).toMatchObject({ required: false, supplemental: true });
+    expect(piesaEvidenceRequirements({ ...done, rectificationComplete: "No", certificateNow: "Yes" }).map((r) => r.id)).not.toContain("ces_file");
   });
-  test("upgrades done today, no q45 → no blockers, certificateToCome", () => {
-    const r = a3({ needed: "Yes", today: "Yes" });
+  test("No → no blockers, certificateToCome (the job waits for it)", () => {
+    const r = a3({ needed: "Yes", today: "Yes", now: "No" });
     expect(r.blockers).toEqual([]);
     expect(r.toCome).toBe(true);
   });
-  test("upgrades done today with q45 → no blockers, certificate in", () => {
-    const r = a3({ needed: "Yes", today: "Yes", ces: [{ media_id: "c1" }] });
+  test("Yes → the file is required to complete; with it, certificate in", () => {
+    const missing = a3({ needed: "Yes", today: "Yes", now: "Yes", number: "C1", date: "2026-11-03" });
+    expect(missing.blockers).toEqual(["Certificate of Electrical Safety missing (photo or PDF)"]);
+    expect(missing.toCome).toBe(false);
+    const r = a3({ needed: "Yes", today: "Yes", now: "Yes", ces: [{ media_id: "c1" }], number: "C1", date: "2026-11-03" });
     expect(r.blockers).toEqual([]);
     expect(r.toCome).toBe(false);
   });
+  test("an old form without the question: certificate present if a file exists, else to come", () => {
+    expect(a3({ needed: "Yes", today: "Yes" }).toCome).toBe(true);
+    expect(a3({ needed: "Yes", today: "Yes" }).blockers).toEqual([]);
+    expect(a3({ needed: "Yes", today: "Yes", ces: [{ media_id: "c1" }] }).toCome).toBe(false);
+  });
   test("no upgrades, or upgrades on a later day → not waiting for a certificate from this form", () => {
     expect(a3({ needed: "No" }).toCome).toBe(false);
-    expect(a3({ needed: "Yes", today: "No" }).toCome).toBe(false);
+    expect(a3({ needed: "Yes", today: "No", now: "No" }).toCome).toBe(false);
     expect(a3({ needed: "Yes" }).toCome).toBe(false);
+  });
+  test("a template from before 3 Nov 2026 (no q30a / q31 / q32 / q45) still validates", () => {
+    const items = FORMS.piesa.fields.filter((f) => !["certificateNow", "coesNumber", "certDate"].includes(f.id ?? "") && f.label !== CES && f.label !== FIXES_PRICE_LABEL).map((f) => ({ label: f.label, type: f.type === "yesno" ? "question" : f.type === "choice" || f.type === "multichoice" || f.type === "tick" ? "list" : f.type === "date" ? "datetime" : f.type === "text" || f.type === "number" ? "textsingle" : f.type }));
+    expect(validateTemplate("piesa", items).ok).toBe(true);
   });
 });
 
-// ---------- A4: Q9 Yes, work photo, signature, no certificate → done with certificate: null ----------
+// ---------- A4: Q11 "have it now?" ----------
 const FQ = FIXES_DAY_Q;
 const item = (label: string, v: unknown, extra: Record<string, unknown> = {}) => ({ item_id: label.slice(0, 8), label, responses: v == null ? {} : typeof v === "string" ? { text: v } : v, ...extra });
 const media = (lat?: number) => [{ media_id: "m1", ...(lat != null ? { location: { latitude: lat, longitude: 145.0 } } : {}) }];
-const a4 = (cert: boolean) => ({ items: [
+const yn = (label: string, v: "Yes" | "No") => item(label, { selected: [{ label: v }] });
+const a4 = (o: { now?: "Yes" | "No"; cert?: boolean }) => ({ items: [
   item(FQ.jobNumber, "HV-3001"), item(FQ.electricianName, "Sam Sparks"), item(FQ.licence, "A1"), item(FQ.recName, "Sparks P/L"), item(FQ.recNo, "REC9"), item(FQ.phone, "0400"),
-  item(FQ.done, { selected: [{ label: "Yes" }] }),
-  ...(cert ? [item(FQ.coesNumber, "C123"), item(FQ.certDate, "2026-10-20"), item(FQ.coesFile, null, { media: media() })] : []),
+  yn(FQ.done, "Yes"),
+  ...(o.now ? [yn(FQ.certificateNow, o.now)] : []),
+  ...(o.cert ? [item(FQ.coesNumber, "C123"), item(FQ.certDate, "2026-10-20"), item(FQ.coesFile, null, { media: media() })] : []),
   item(FQ.workPhoto, null, { media: media(-37.8) }),
   item(FQ.signature, { image: { media_id: "0123456789abcdef0123456789abcdef", timestamp: "2026-10-20T03:00:00Z" }, name: "Sam Sparks" }),
 ] });
-describe("A4 certificate optional (spec §1)", () => {
-  test("Q11–Q13 are not Required; the help line sits under the certificate question; Q9, the work photo and the signature stay Required", () => {
+const plan = (o: { now?: "Yes" | "No"; cert?: boolean }) => fixesCompletionPlan(readFixesDay(a4(o)), { completed: true, today: "2026-10-25" });
+describe("A4 certificate (spec §1, Jo 3 Nov 2026)", () => {
+  test("Q11 is the new question (Required, help text, only when Q9 = Yes); Q12–Q14 Required only when Q11 = Yes; Q9, work photo, signature stay Required", () => {
     const byLabel = Object.fromEntries(FIXES_DAY_QUESTIONS.map((q) => [q.label, q]));
-    expect(byLabel[FQ.coesNumber]).toMatchObject({ required: false });
-    expect(byLabel[FQ.certDate]).toMatchObject({ required: false });
-    expect(byLabel[FQ.coesFile]).toMatchObject({ required: false, help: HELP });
+    const now = byLabel[NOW]!;
+    expect(now).toMatchObject({ n: 11, type: "yes_no", required: true, help: HELP, showWhen: { n: 9, is: ["Yes"] }, addedByDecision: CERTIFICATE_NOW_ADDED });
+    for (const l of [FQ.coesNumber, FQ.certDate, FQ.coesFile]) expect(byLabel[l]).toMatchObject({ required: true, showWhen: { n: 11, is: ["Yes"] } });
+    expect(byLabel[FQ.coesFile]!.help).not.toBe(HELP);
     expect(byLabel[FQ.done]).toMatchObject({ required: true });
-    expect(byLabel[FQ.workPhoto]).toMatchObject({ required: true });
-    expect(byLabel[FQ.signature]).toMatchObject({ required: true });
-    expect(FORMS.fixes.fields.find((f) => f.label === FQ.coesFile)).toMatchObject({ required: false });
+    expect(byLabel[FQ.workPhoto]).toMatchObject({ required: true, n: 15 });
+    expect(byLabel[FQ.signature]).toMatchObject({ required: true, n: 16 });
+    expect(FORMS.fixes.fields.find((f) => f.label === NOW)).toMatchObject({ required: true, addedByDecision: CERTIFICATE_NOW_ADDED });
   });
-  test("no certificate → done with certificate: null; with it → the certificate", () => {
-    const none = fixesCompletionPlan(readFixesDay(a4(false)), { completed: true, today: "2026-10-25" });
-    expect(none).toMatchObject({ kind: "done", certificate: null, signerName: "Sam Sparks" });
-    const withIt = fixesCompletionPlan(readFixesDay(a4(true)), { completed: true, today: "2026-10-25" });
-    expect(withIt).toMatchObject({ kind: "done", certificate: { number: "C123", date: "2026-10-20" } });
-    expect((withIt as Extract<typeof withIt, { kind: "done" }>).certificate!.files).toHaveLength(1);
+  test("a template from before 3 Nov 2026 (no Q11) still creates forms and validates", () => {
+    const def = { template: { items: FIXES_DAY_QUESTIONS.filter((q) => q.label !== NOW).map((q) => ({ item_id: `i${q.n}`, label: q.label, type: q.type === "photo" ? "media" : q.type === "signature" ? "signature" : q.type === "date" ? "datetime" : q.type === "yes_no" ? "question" : "textsingle" })) } };
+    expect(fixesDayMissingQuestions(def)).toEqual([]);
+    expect(validateTemplate("fixes", flattenDefinition(def)).issues.filter((i) => /^Missing/.test(i))).toEqual([]);
+  });
+  test("No → done with certificate: null, certificateToCome", () => {
+    expect(plan({ now: "No" })).toMatchObject({ kind: "done", certificate: null, certificateToCome: true, signerName: "Sam Sparks" });
+    // a certificate typed in anyway while answering No is not counted (Mitti hides the questions; the link text follows)
+    expect(plan({ now: "No", cert: true })).toMatchObject({ kind: "done", certificate: null, certificateToCome: true });
+  });
+  test("Yes → number, date and file are required exactly as before; with them, the certificate", () => {
+    expect(plan({ now: "Yes" })).toMatchObject({ kind: "missing", missing: [FQ.coesNumber, FQ.certDate, FQ.coesFile] });
+    const p = plan({ now: "Yes", cert: true });
+    expect(p).toMatchObject({ kind: "done", certificate: { number: "C123", date: "2026-10-20" }, certificateToCome: false });
+    expect((p as Extract<typeof p, { kind: "done" }>).certificate!.files).toHaveLength(1);
+  });
+  test("an old A4 without Q11: certificate present if a file exists, else to come", () => {
+    expect(plan({ cert: true })).toMatchObject({ kind: "done", certificate: { number: "C123", date: "2026-10-20" }, certificateToCome: false });
+    expect(plan({})).toMatchObject({ kind: "done", certificate: null, certificateToCome: true });
   });
   test("a future certification date is still refused; the work photo and signature are still needed", () => {
-    const base = a4(true);
+    const base = a4({ now: "Yes", cert: true });
     const swap = (label: string, replace: unknown) => ({ items: base.items.map((i) => (i.label === label ? (replace as typeof i) : i)) });
     expect(fixesCompletionPlan(readFixesDay(swap(FQ.certDate, item(FQ.certDate, "2026-12-01"))), { completed: true, today: "2026-10-25" })).toMatchObject({ kind: "missing", missing: [`${FQ.certDate} (cannot be in the future)`] });
     expect(fixesCompletionPlan(readFixesDay(swap(FQ.workPhoto, item(FQ.workPhoto, null))), { completed: true, today: "2026-10-25" })).toMatchObject({ kind: "missing", missing: [FQ.workPhoto] });
     expect(fixesCompletionPlan(readFixesDay(swap(FQ.signature, item(FQ.signature, null))), { completed: true, today: "2026-10-25" })).toMatchObject({ kind: "missing", missing: [FQ.signature] });
   });
-  test("merge without a certificate records Part C done and leaves the certificate fields blank", () => {
+  test("merge with No records Part C done, writes the No onto the A3 id and leaves the certificate fields blank", () => {
     const L = (id: string) => SHORT_PIESA_FIELDS.find((f) => f.id === id)!.label;
     const snapshot = [
       { label: NEW_Q20, value: "Yes" }, { label: SB, value: "1 file", media: [{ mediaId: "s1", capturedAt: null, lat: -37.8, lng: 145 }] }, { label: ON, value: "1 file", media: [{ mediaId: "o1", capturedAt: null, lat: -37.8, lng: 145 }] },
       { label: L("rectificationComplete"), value: null }, { label: L("coesNumber"), value: null }, { label: L("certDate"), value: null }, { label: CES, value: null },
     ];
-    const r = readFixesDay(a4(false));
-    const plan = fixesCompletionPlan(r, { completed: true, today: "2026-10-25" }) as Extract<ReturnType<typeof fixesCompletionPlan>, { kind: "done" }>;
-    const merged = mergeFixesIntoPiesaSnapshot(snapshot, r, plan);
+    const r = readFixesDay(a4({ now: "No" }));
+    const p = fixesCompletionPlan(r, { completed: true, today: "2026-10-25" }) as Extract<ReturnType<typeof fixesCompletionPlan>, { kind: "done" }>;
+    const merged = mergeFixesIntoPiesaSnapshot(snapshot, r, p);
     const short = shortAnswersFromEntries("piesa", merged as { label: string; value: string | null }[]);
     expect(short["rectificationComplete"]).toBe("Yes");
+    expect(short["certificateNow"]).toBe("No");
     expect(short["coesNumber"]).toBeUndefined();
     expect(short["certDate"]).toBeUndefined();
     expect(short["fixesSignedOn"]).toBe("2026-10-20");
     expect(piesaRectificationDone(short)).toBe(true);
     expect(piesaCertificateToCome(short, piesaMediaFromSnapshot(merged))).toBe(true);
     expect(piesaEvidenceBlockers(short, piesaMediaFromSnapshot(merged))).toEqual([]);
+    // Yes with the certificate: number / date / file land on the A3 ids and the certificate is in
+    const r2 = readFixesDay(a4({ now: "Yes", cert: true }));
+    const p2 = fixesCompletionPlan(r2, { completed: true, today: "2026-10-25" }) as Extract<ReturnType<typeof fixesCompletionPlan>, { kind: "done" }>;
+    const m2 = mergeFixesIntoPiesaSnapshot(snapshot, r2, p2);
+    const s2 = shortAnswersFromEntries("piesa", m2 as { label: string; value: string | null }[]);
+    expect(s2).toMatchObject({ certificateNow: "Yes", coesNumber: "C123", certDate: "2026-10-20" });
+    expect(piesaCertificateToCome(s2, piesaMediaFromSnapshot(m2))).toBe(false);
+    expect(piesaEvidenceBlockers(s2, piesaMediaFromSnapshot(m2))).toEqual([]);
   });
 });
 
@@ -190,10 +244,13 @@ describe("drift: docs/MITTI_PART3_EDIT_PROMPT.md carries the code's exact wordin
   test("q20 / q30 new wording and the old wording to find", () => {
     for (const s of [`\`${NEW_Q20}\``, `\`${NEW_Q30}\``, `\`${OLD_Q20}\``, `\`${OLD_Q30}\``]) expect(doc, s).toContain(s);
   });
-  test("the certificate questions on both forms, not Required, with the help text", () => {
-    for (const s of [`\`${CES}\``, `\`${FQ.coesNumber}\``, `\`${FQ.certDate}\``, `\`${FQ.coesFile}\``, `\`${HELP}\``]) expect(doc, s).toContain(s);
-    expect(doc.split(HELP).length - 1).toBeGreaterThanOrEqual(2);
+  test("the new question with its help text on both forms; the certificate questions stay Required and follow it", () => {
+    expect(doc.split(`\`${NOW}\``).length - 1).toBeGreaterThanOrEqual(2);
+    expect(doc.split(`\`${HELP}\``).length - 1).toBeGreaterThanOrEqual(2);
+    for (const s of [`\`${CES}\``, `\`${L31}\``, `\`${L32}\``, `\`${FQ.coesNumber}\``, `\`${FQ.certDate}\``, `\`${FQ.coesFile}\``]) expect(doc, s).toContain(s);
     for (const s of [`\`${FQ.done}\``, `\`${FQ.workPhoto}\``, `\`${FQ.signature}\``]) expect(doc, s).toContain(s);
+    expect(doc).not.toContain("NOT Required");
+    expect(doc).not.toContain("Don't have it yet?");
   });
   test("the price questions to delete, and both template names", () => {
     expect(doc).toContain(`\`${FIXES_PRICE_LABEL}\``);

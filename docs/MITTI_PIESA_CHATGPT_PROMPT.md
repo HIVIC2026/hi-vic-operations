@@ -90,9 +90,10 @@ Text item (not a question), first item on this page (decision 318): `Paid only w
 ## Group 9: After the electrical upgrades (same visit only)
 30. `Are you doing the electrical upgrades today?` — Yes/No — Required — only show when question 20 = Yes
    - Part 3 (Jo 3 Nov 2026): reworded from `Have you completed all of the repair work listed above, and is the ceiling now safe for insulation?` (old forms still read the same). Yes = the upgrades are done on this visit and Part C (31–37) and the certificate (45) are filled on this form; No = the electrician enters the upgrades day in the portal and the A4 form is made for that visit.
-31. `Certificate of Electrical Safety number (required for any electrical works completed):` — Text — Required — only show when question 30 = Yes
-32. `Date of Certification:` — Date — Required — only show when question 30 = Yes
-32a. `Certificate of Electrical Safety (photo or PDF)` — Photo/attachment, PDF allowed — NOT required (Part 3: the certificate can come later; the portal texts the electrician a link to add it) — only show when question 30 = Yes — help text: `Don't have it yet? Leave this blank — we'll text you a link to add it.`
+30a. `Do you have the Certificate of Electrical Safety now?` — Yes/No — Required — only show when question 30 = Yes — help text: `No? We'll text you a link to add it later.` (Part 3, Jo 3 Nov 2026: No = the portal records "certificate to come" and texts the electrician a link to add it later)
+31. `Certificate of Electrical Safety number (required for any electrical works completed):` — Text — Required — only show when question 30a = Yes
+32. `Date of Certification:` — Date — Required — only show when question 30a = Yes
+32a. `Certificate of Electrical Safety (photo or PDF)` — Photo/attachment, PDF allowed — Required — only show when question 30a = Yes
 
 Note: the official form repeats the electrician details in Section C; the portal copies them from questions 23–27, so the form does not ask twice.
 

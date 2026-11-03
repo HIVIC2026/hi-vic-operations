@@ -84,6 +84,15 @@ export const A3_REPAIR_NEEDED_LEGACY_LABEL = "Is any electrical repair work need
  *  ("completed all of the repair work…") is an alias: both land on `rectificationComplete`. */
 export const A3_UPGRADES_TODAY_LABEL = "Are you doing the electrical upgrades today?";
 export const A3_UPGRADES_TODAY_LEGACY_LABEL = "Have you completed all of the repair work listed above, and is the ceiling now safe for insulation?";
+/** Part 3 (Jo 3 Nov 2026, verbatim): on BOTH forms, right after the Part C work questions. Yes → the certificate number, date
+ *  and photo/PDF show and are Required; No → hidden, the portal records "certificate to come" and texts the link later (Task 3).
+ *  No alias: an old form without it reads as "certificate present if a file exists, else to come". */
+export const CERTIFICATE_NOW_LABEL = "Do you have the Certificate of Electrical Safety now?";
+/** Help text under that question (both forms). */
+export const CERTIFICATE_NOW_HELP = "No? We'll text you a link to add it later.";
+/** `FormField.addedByDecision` marker for the Part 3 certificate questions: asked as written on new builds, but a template
+ *  published before 3 Nov 2026 still validates without them (its old forms read as "not recorded"). */
+export const CERTIFICATE_NOW_ADDED = 20261103;
 export const LIFE_SUPPORT_NOT_RECEIVED = "No – not received";
 const LIFE_SUPPORT_PRESENT_WHEN = "Life support = Yes";
 const LIFE_SUPPORT_CONSENT_WHEN = "Consent or medical plan received";
@@ -347,9 +356,14 @@ export const SHORT_PIESA_FIELDS: FormField[] = [
   // A4 fixes form writes via fixes-day.core mergeFixesIntoPiesaSnapshot); the decision-298 wording is an alias. Not Required
   // of a connected template (the 25 Oct published A3 has no after-upgrades page); Jo adds it with docs/MITTI_PART3_EDIT_PROMPT.md.
   { ...yn("rectificationComplete", A3_UPGRADES_TODAY_LABEL, "rectificationNeeded = Yes"), required: false, aliases: [A3_UPGRADES_TODAY_LEGACY_LABEL], source: "A3 same-day upgrades (Part 3) or the A4 fixes form (decision 298)" },
-  // The certificate number and date: optional on both forms (Part 3: the certificate can come later, certificate-later design).
-  { id: "coesNumber", label: "Certificate of Electrical Safety number (required for any electrical works completed):", type: "text", required: false, when: "rectificationComplete = Yes", source: "A3 same-day upgrades or the A4 fixes form (decision 298); optional since Part 3" },
-  { id: "certDate", label: "Date of Certification:", type: "date", required: false, when: "rectificationComplete = Yes", source: "A3 same-day upgrades or the A4 fixes form (decision 298); optional since Part 3" },
+  // Part 3 (Jo 3 Nov 2026): "Do you have the Certificate of Electrical Safety now?" — Required when Part C is being filled in
+  // (q30 = Yes). Yes → q31/q32/q45 show and are Required; No → hidden, certificate to come (piesa-evidence.core). The A4 fixes
+  // form asks the same question and the merge writes its answer here. No alias; a template from before 3 Nov 2026 validates without it.
+  { ...yn("certificateNow", CERTIFICATE_NOW_LABEL, "rectificationComplete = Yes"), addedByDecision: CERTIFICATE_NOW_ADDED, source: "Part 3 (Jo 3 Nov 2026) – A3 same-day upgrades / A4 fixes form; not part of the official form" },
+  // The certificate number (q31) and date (q32): Required only when the electrician has the certificate now (Part 3). A
+  // template from before 3 Nov 2026 validates without them (decision 298 had them off the A3).
+  { id: "coesNumber", label: "Certificate of Electrical Safety number (required for any electrical works completed):", type: "text", required: true, when: `${CERTIFICATE_NOW_LABEL} = Yes`, addedByDecision: CERTIFICATE_NOW_ADDED, source: "A3 same-day upgrades or the A4 fixes form (decision 298 / Part 3)" },
+  { id: "certDate", label: "Date of Certification:", type: "date", required: true, when: `${CERTIFICATE_NOW_LABEL} = Yes`, addedByDecision: CERTIFICATE_NOW_ADDED, source: "A3 same-day upgrades or the A4 fixes form (decision 298 / Part 3)" },
   // Decision 329: who signed the A4 fixes form and when (Melbourne date) — written into the stored answers by
   // fixes-day.core mergeFixesIntoPiesaSnapshot and used for the official Section C typed signature. Never asked on A3.
   { id: "fixesSignedBy", label: FIXES_SIGNED_BY_LABEL, type: "text", required: false, portalOnly: true, when: "rectificationNeeded = Yes", source: "A4 fixes form signature (decision 329)" },

@@ -5,9 +5,9 @@
 //   q42 geotagged photo of the cables at the switchboard         (always)
 //   q43 geotagged photo of the electrician on site with photo ID (always)
 //   q44 a photo of each hazard listed                            (only when a hazard was answered Yes)
-//   q45 the Certificate of Electrical Safety, photo or PDF        (OPTIONAL since Part 3, Jo 3 Nov 2026: electricians have
-//       up to 30 days to issue it, so upgrades done on the visit count as recorded without it and the job waits for the
-//       certificate instead — `piesaCertificateToCome`; the install can't START without a ticked certificate, Task 4)
+//   q45 the Certificate of Electrical Safety, photo or PDF        (only when "Do you have the Certificate of Electrical
+//       Safety now?" = Yes — Part 3, Jo 3 Nov 2026: electricians have up to 30 days to issue it; No = upgrades recorded,
+//       job waits for the certificate — `piesaCertificateToCome`; the install can't START without a ticked certificate, Task 4)
 // Sources: ESC 30 Jul 2026 update (switchboard photo by the licensed electrician during the PIESA), DEECA
 // industry pack (electrician identity at the premises), records kept 6 years.
 //
@@ -16,7 +16,7 @@
 // `mittiMediaFile`: lat/lng only when Mitti actually recorded them — nothing is inferred). The stored
 // `assessments.mitti_raw_snapshot` carries the same media metadata per entry (`attachPiesaMedia`), so the
 // completion gates re-run the identical rule from the stored snapshot without another Mitti call.
-import { applianceRows, CEILING_PROBLEMS, MAINS_PROBLEMS, RECTIFICATION_OUTCOMES, SOLAR_PROBLEMS } from "./official-short.core";
+import { applianceRows, CEILING_PROBLEMS, CERTIFICATE_NOW_HELP, CERTIFICATE_NOW_LABEL, MAINS_PROBLEMS, RECTIFICATION_OUTCOMES, SOLAR_PROBLEMS } from "./official-short.core";
 
 export type PiesaEvidenceId = "switchboard_photo" | "onsite_photo" | "hazard_photos" | "ces_file";
 
@@ -63,8 +63,8 @@ export const PIESA_EVIDENCE: PiesaEvidenceSpec[] = [
   { id: "hazard_photos", q: 44, label: "Photo of the problem", aliases: ["Photo of each hazard listed (one per hazard; geotagged)"], geotagged: true, short: "Hazard photo" },
   { id: "ces_file", q: 45, label: "Certificate of Electrical Safety (photo or PDF)", aliases: [], geotagged: false, short: "Certificate of Electrical Safety" },
 ];
-/** Part 3 (Jo 3 Nov 2026, verbatim): the help line under the certificate question on BOTH forms (A3 q45, A4 Q13). */
-export const CERTIFICATE_LATER_HELP = "Don't have it yet? Leave this blank — we'll text you a link to add it.";
+/** Part 3 (Jo 3 Nov 2026): the question that decides whether q45 is asked, and its help line (both forms). */
+export { CERTIFICATE_NOW_HELP, CERTIFICATE_NOW_LABEL };
 export const PIESA_EVIDENCE_BY_ID: Record<PiesaEvidenceId, PiesaEvidenceSpec> = Object.fromEntries(PIESA_EVIDENCE.map((e) => [e.id, e])) as Record<PiesaEvidenceId, PiesaEvidenceSpec>;
 
 const nrm = (x: unknown) => String(x ?? "").split("\n")[0]!.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
@@ -106,7 +106,7 @@ export function piesaRectificationDone(a: PiesaEvidenceAnswers): boolean {
 export type PiesaEvidenceRequirement = PiesaEvidenceSpec & { /** Minimum number of files. */ count: number; hazards: string[] };
 
 /** Which items this form must carry to COMPLETE, from the answers alone. Deterministic. Part 3 (Jo 3 Nov 2026): the
- *  certificate (q45) is never required to complete — see `piesaCertificateToCome`. */
+ *  certificate (q45) is required only when the electrician said they have it now — otherwise see `piesaCertificateToCome`. */
 export function piesaEvidenceRequirements(a: PiesaEvidenceAnswers): PiesaEvidenceRequirement[] {
   const out: PiesaEvidenceRequirement[] = [
     { ...PIESA_EVIDENCE_BY_ID.switchboard_photo, count: 1, hazards: [] },
@@ -116,13 +116,19 @@ export function piesaEvidenceRequirements(a: PiesaEvidenceAnswers): PiesaEvidenc
     const hazards = piesaHazardsListed(a);
     out.push({ ...PIESA_EVIDENCE_BY_ID.hazard_photos, count: Math.max(1, hazards.length), hazards });
   }
+  if (piesaRectificationDone(a) && isYes(a["certificateNow"])) out.push({ ...PIESA_EVIDENCE_BY_ID.ces_file, count: 1, hazards: [] });
   return out;
 }
 
-/** Part 3 (Jo 3 Nov 2026): upgrades done on this form but no certificate file yet → the job is "Waiting for certificate"
- *  (Task 3 builds the state and the chase on this). False when no upgrades were done here or the file is attached. */
+/** Part 3 (Jo 3 Nov 2026): upgrades done on this form and the certificate is still to come → the job is "Waiting for
+ *  certificate" (Task 3 builds the state and the chase on this). "Do you have the Certificate of Electrical Safety now?" = No
+ *  → true; = Yes → false (the file is then a completion requirement instead); not asked (old form) → true only when no q45
+ *  file is attached. False when no upgrades were done on this form. */
 export function piesaCertificateToCome(a: PiesaEvidenceAnswers, media: PiesaEvidenceMedia): boolean {
-  return piesaRectificationDone(a) && (media.ces_file ?? []).length === 0;
+  if (!piesaRectificationDone(a)) return false;
+  if (isNo(a["certificateNow"])) return true;
+  if (isYes(a["certificateNow"])) return false;
+  return (media.ces_file ?? []).length === 0;
 }
 
 export const emptyPiesaEvidenceMedia = (): PiesaEvidenceMedia => ({ switchboard_photo: [], onsite_photo: [], hazard_photos: [], ces_file: [] });
@@ -194,7 +200,7 @@ export function piesaMediaFromSnapshot(snapshot: PiesaSnapshotEntry[] | null | u
 const geotagged = (f: PiesaMediaFile) => f.lat != null && f.lng != null;
 
 /** Plain blocker messages. Empty = every required evidence item is present (and geotagged where required). The certificate
- *  is never listed (Part 3); readers that need it use `piesaCertificateToCome`. */
+ *  is listed only when the electrician said they have it now (Part 3); otherwise `piesaCertificateToCome` applies. */
 export function piesaEvidenceBlockers(a: PiesaEvidenceAnswers, media: PiesaEvidenceMedia): string[] {
   const out: string[] = [];
   for (const req of piesaEvidenceRequirements(a)) {
@@ -208,7 +214,7 @@ export function piesaEvidenceBlockers(a: PiesaEvidenceAnswers, media: PiesaEvide
       if (files.length && untagged) out.push(`Hazard photos must be geotagged (${untagged} without a location)`);
       continue;
     }
-    if (!files.length) { out.push(`${req.short} missing`); continue; }
+    if (!files.length) { out.push(req.id === "ces_file" ? "Certificate of Electrical Safety missing (photo or PDF)" : `${req.short} missing`); continue; }
     if (req.geotagged && !files.some(geotagged)) out.push(`${req.short} must be geotagged`);
   }
   return out;
