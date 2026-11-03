@@ -1,6 +1,6 @@
-// Decision 330 (Jo, 25 Oct 2026): when the A4 electrical fixes form is Complete (fixes-day.server completeFixesForm → the
+// Decision 330 (Jo, 25 Oct 2026): when the A4 electrical upgrades form is Complete (fixes-day.server completeFixesForm → the
 // post_rectification PIESA record), the owner is asked ONCE (email O72 + text) to confirm on the same secure My job page
-// (decision 296's P6 card, decision 306: no code) that the electrical fixes were done: one tick "The electrical fixes were
+// (decision 296's P6 card, decision 306: no code) that the electrical upgrades were done: one tick "The electrical upgrades were
 // completed on {date}" + typed full name. Reminders on days 1 and 3, office row only if still unconfirmed 5 days after (as O71).
 // That confirmation fills the official PIESA owner declaration "I confirm that any electrical rectification works were
 // completed on the above date" (official-expand ctx.ownerFixesConfirmation; o.date = the date the owner confirmed).
@@ -19,8 +19,8 @@ export const PIESA_FIXES_CONFIRM_SMS_TYPE = "piesa_owner_fixes_confirm" as const
 /** Decision 330: wording approved by Jo (email + text). Delivery still behind customer_comms_enabled + consent. */
 export const PIESA_FIXES_CONFIRM_EMAIL_APPROVED = true as boolean;
 export const O72_TEMPLATE_CODE = "O72";
-/** Flag the official-form expansion raises when repairs were needed and the owner has not confirmed them after the fixes. */
-export const OWNER_FIXES_NOT_CONFIRMED_FLAG = "Owner hasn't confirmed the electrical fixes";
+/** Flag the official-form expansion raises when repairs were needed and the owner has not confirmed them after the upgrades. */
+export const OWNER_FIXES_NOT_CONFIRMED_FLAG = "Owner hasn't confirmed the electrical upgrades";
 /** The official owner declaration this confirmation stands for. */
 export const OFFICIAL_FIXES_DECLARATION = "I confirm that any electrical rectification works were completed on the above date.";
 
@@ -28,13 +28,13 @@ export type OwnerFixesConfirmation = { name: string; authority: "owner" | "autho
 export type PiesaFixesConfirmFacts = {
   /** The latest `post_rectification` piesa_records row (the A4 fixes record). */
   recordId: string;
-  /** Date the fixes were certified (YYYY-MM-DD) and when the record was written (ISO) — the reminder clock starts here. */
+  /** Date the upgrades were certified (YYYY-MM-DD) and when the record was written (ISO) — the reminder clock starts here. */
   fixesDate: string; completedAt: string;
   electrician: { name: string | null; recName: string | null };
   confirmation: OwnerFixesConfirmation | null;
 };
 
-export const fixesTickText = (longDate: string) => `The electrical fixes were completed on ${longDate}`;
+export const fixesTickText = (longDate: string) => `The electrical upgrades were completed on ${longDate}`;
 export type PiesaFixesConfirmPage = { fixesDate: string; electricianLine: string; tick: string; declaration: string; confirmed: { name: string; signedOn: string } | null };
 export function piesaFixesConfirmPage(f: PiesaFixesConfirmFacts): PiesaFixesConfirmPage {
   const date = confirmLongDate(f.fixesDate);
@@ -47,7 +47,7 @@ export function validateOwnerFixesConfirmation(i: PiesaFixesConfirmInput): strin
   const errs: string[] = [];
   const name = i.fullName.trim().replace(/\s+/g, " ");
   if (name.length < 2 || !/\s/.test(name)) errs.push("Type your full name (first and last).");
-  if (!i.confirmed) errs.push("Tick to confirm the electrical fixes were completed on that date.");
+  if (!i.confirmed) errs.push("Tick to confirm the electrical upgrades were completed on that date.");
   if (i.signatureName.trim().replace(/\s+/g, " ").toLowerCase() !== name.toLowerCase()) errs.push("Your typed signature must match your full name.");
   if (!["owner", "authorised_representative"].includes(i.authority)) errs.push("Say whether you are the owner or signing for the owner.");
   return errs;
@@ -60,7 +60,7 @@ export type PiesaFixesConfirmedDetails = {
 export function buildPiesaFixesConfirmation(i: { facts: PiesaFixesConfirmFacts; name: string; authority: "owner" | "authorised_representative"; signedAt: string; ipHash: string | null; uaHash: string | null }): PiesaFixesConfirmedDetails {
   return { version: PIESA_FIXES_CONFIRM_VERSION, piesa_record_id: i.facts.recordId, fixes_date: i.facts.fixesDate, name: i.name.trim().replace(/\s+/g, " "), authority: i.authority, signed_at: i.signedAt, ip_hash: i.ipHash, ua_hash: i.uaHash };
 }
-export const piesaFixesConfirmedSummary = (d: PiesaFixesConfirmedDetails) => `Owner confirmed the electrical fixes (certified ${d.fixes_date}) on their secure link: ${d.name}${d.authority === "authorised_representative" ? " (signing for the owner)" : ""}`;
+export const piesaFixesConfirmedSummary = (d: PiesaFixesConfirmedDetails) => `Owner confirmed the electrical upgrades (certified ${d.fixes_date}) on their secure link: ${d.name}${d.authority === "authorised_representative" ? " (signing for the owner)" : ""}`;
 
 /** The confirmation for THIS post_rectification record (latest wins); another record's confirmation never counts. */
 export function fixesConfirmationFromEvents(events: { details: unknown }[], recordId: string | null): OwnerFixesConfirmation | null {
@@ -81,6 +81,6 @@ export const piesaFixesConfirmKey = (jobId: string, recordId: string, step: Pies
 export const piesaFixesConfirmPurpose = (step: PiesaConfirmStep) => `piesa_owner_fixes_confirm_${step}`;
 
 // ---------- wording (approved by Jo, decision 330; the brand prefix is added by the sender) ----------
-export const piesaFixesConfirmText = (link: string) => `Your electrical fixes are done. Please confirm (takes a minute): ${link} Reply STOP to opt out.`;
-export const piesaFixesConfirmSubject = (first: string) => `${first}, your electrical fixes are done — please confirm`;
-export const piesaFixesConfirmBody = (electrician: string, longDate: string) => `${electrician} finished the electrical fixes at your home on ${longDate}. Please confirm on your job page. It takes a minute.`;
+export const piesaFixesConfirmText = (link: string) => `Your electrical upgrades are done. Please confirm (takes a minute): ${link} Reply STOP to opt out.`;
+export const piesaFixesConfirmSubject = (first: string) => `${first}, your electrical upgrades are done — please confirm`;
+export const piesaFixesConfirmBody = (electrician: string, longDate: string) => `${electrician} finished the electrical upgrades at your home on ${longDate}. Please confirm on your job page. It takes a minute.`;

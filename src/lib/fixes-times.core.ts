@@ -1,5 +1,5 @@
 // Decision 315 (Jo 25 Oct 2026): electricians do the PIESA in the Mitti A3 form, so the old portal "Complete PIESA" step that
-// asked for the electrical fixes times (3–5 windows + estimated hours) is never reached. When the A3 sync sees the PIESA
+// asked for the electrical upgrades times (3–5 windows + estimated hours) is never reached. When the A3 sync sees the PIESA
 // completed AND repair work is needed (and not fixed on the same visit) AND no electrician fixes windows exist yet, the
 // assigned electrician gets ONE text with a link to their job page (/field/{jobId}#fixes-times) to pick the times there.
 // Pure: the decision, the key, the wording, the link, the quote hold and the 24h Needs me rule. No I/O.
@@ -19,12 +19,12 @@ export { FIXES_TIMES_ANCHOR };
 /** One text per job and PIESA form (a re-sync or the 15-minute tick never texts again; a re-done PIESA has a new audit). */
 export const fixesTimesLinkKey = (jobId: string, piesaAuditId: string) => `fixes-times-link:v1:${jobId}:${piesaAuditId}`;
 
-/** The authenticated electrician job page, scrolled to the fixes times card. */
+/** The authenticated electrician job page, scrolled to the upgrades times card. */
 export const fixesTimesLink = (base: string, jobId: string) => `${base.replace(/\/+$/, "")}/field/${jobId}#${FIXES_TIMES_ANCHOR}`;
 
 /** Decision 315 wording (Jo approved the route, 25 Oct 2026). The sender adds "Home Insulation Victoria: ". */
 export function fixesTimesLinkText(f: { address: string | null; link: string }): string {
-  return `Your safety check at ${f.address?.trim() || "the property"} needs electrical fixes. Please pick 3 to 5 times you can do the work: ${f.link}`;
+  return `Your safety check at ${f.address?.trim() || "the property"} needs electrical upgrades. Please pick 3 to 5 times you can do the work: ${f.link}`;
 }
 
 // ---- Decision 314: "Be on site at the start of the install day" as the ONLY repair tick = no fixes visit, no times ----
@@ -35,7 +35,7 @@ export function onsiteStartOnly(short: Record<string, unknown>): boolean {
   return onsiteStartTicked(short) && !repairWorkBesidesOnsite(short) && !part4to6Problem(short);
 }
 
-/** Does this PIESA need the electrician's fixes times? The existing rectification-needed reading (fixes-day.core
+/** Does this PIESA need the electrician's upgrades times? The existing rectification-needed reading (fixes-day.core
  *  `fixesFormNeeded`: repair work needed and not fixed on the same visit), never for the decision-314 on-site-only answer. */
 export function fixesTimesNeeded(short: Record<string, string | null | undefined>): boolean {
   return fixesFormNeeded(short) && !onsiteStartOnly(short);
@@ -56,15 +56,15 @@ export type FixesTimesLinkFacts = {
 export function fixesTimesLinkBlocker(f: FixesTimesLinkFacts): string | null {
   if (f.deleted) return "job closed";
   if (!f.piesaCompleted) return "PIESA not completed in Mitti";
-  if (!f.timesNeeded) return "no electrical fixes visit needed";
-  if (f.windowsExist) return "fixes times already given";
+  if (!f.timesNeeded) return "no electrical upgrades visit needed";
+  if (f.windowsExist) return "upgrades times already given";
   if (f.alreadySent) return "already texted";
   if (!f.electricianAssigned) return "no electrician assigned";
   return null;
 }
 
 /** Quote hold (shown on the office fixes quote card; Send refuses while it applies). */
-export const FIXES_TIMES_HOLD_REASON = "Waiting for the electrician's fixes times";
+export const FIXES_TIMES_HOLD_REASON = "Waiting for the electrician's upgrades times";
 export function fixesTimesHoldReason(f: { timesNeeded: boolean; windowsExist: boolean }): string | null {
   return f.timesNeeded && !f.windowsExist ? FIXES_TIMES_HOLD_REASON : null;
 }
@@ -80,7 +80,7 @@ export function fixesTimesCardState(f: { electrician: boolean; timesNeeded: bool
 
 // ---- Needs me: 24h after the link with no times → ONE row (derived from events, cleared by the times) ----
 export const FIXES_TIMES_OVERDUE_HOURS = 24;
-export const FIXES_TIMES_MISSING_LINE = "Electrician hasn't given fixes times";
+export const FIXES_TIMES_MISSING_LINE = "Electrician hasn't given upgrades times";
 type Ev = { job_id: string; created_at: string };
 /** Jobs whose latest fixes-times link is 24h+ old and has no `rectification_windows_given` at or after it. */
 export function fixesTimesMissing(i: { links: readonly Ev[]; given: readonly Ev[]; now: number }): Map<string, { at: string }> {

@@ -57,7 +57,7 @@ export const P2 = {
   fullPrice: "Full price", fullPriceSub: "incl. GST",
   rebateLine: "VEU rebate", rebateLineSub: "Taken off upfront, nothing to claim",
   youPay: "You pay",
-  notIncluded: "Not included: electrical fixes, only if the safety check finds any. Quoted separately, nothing done without your OK.",
+  notIncluded: "Not included: electrical upgrades, only if the safety check finds any. Quoted separately, nothing done without your OK.",
   sayYes: "SAY YES",
   twoThings: "Two quick things, then accept",
   tapEach: "Tap each one to read it in full. Plain English, no surprises.",
@@ -165,20 +165,20 @@ export const P6 = {
   confirmedOn: (date: string, name: string) => `Confirmed on ${date} by ${name}. Your installer can now offer you install days.`,
 } as const;
 
-/* ---------- P6F: the owner confirms the electrical fixes (decision 330; same page pattern as P6, no code) ---------- */
+/* ---------- P6F: the owner confirms the electrical upgrades (decision 330; same page pattern as P6, no code) ---------- */
 export const P6F = {
-  kicker: "YOUR ELECTRICAL FIXES",
-  title: "Your electrical fixes — please confirm",
-  /** Decision 330 approved sentence: "{Electrician} finished the electrical fixes at your home on {date}. Please confirm on your job page. It takes a minute." */
-  sub: (electrician: string, date: string) => `${electrician} finished the electrical fixes at your home on ${date}. Please confirm here. It takes a minute.`,
+  kicker: "YOUR ELECTRICAL UPGRADES",
+  title: "Your electrical upgrades — please confirm",
+  /** Decision 330 approved sentence: "{Electrician} finished the electrical upgrades at your home on {date}. Please confirm on your job page. It takes a minute." */
+  sub: (electrician: string, date: string) => `${electrician} finished the electrical upgrades at your home on ${date}. Please confirm here. It takes a minute.`,
   formEyebrow: "PRE-INSTALLATION ELECTRICAL SAFETY ASSESSMENT · OWNER'S DECLARATION",
   declare: "By confirming you declare that:",
   signLabel: "Owner signature: type your full name",
-  dateLine: (today: string) => `Date: ${today} · Typing your name is your signature. We record the time, your confirmation and the electrical fixes it refers to.`,
-  button: "Confirm my electrical fixes",
+  dateLine: (today: string) => `Date: ${today} · Typing your name is your signature. We record the time, your confirmation and the electrical upgrades it refers to.`,
+  button: "Confirm my electrical upgrades",
   signing: "Confirming…",
   lockHint: "Tick the confirmation and type your name",
-  confirmedTitle: "Electrical fixes: Confirmed ✓",
+  confirmedTitle: "Electrical upgrades: Confirmed ✓",
   confirmedOn: (date: string, name: string) => `Confirmed on ${date} by ${name}.`,
 } as const;
 
@@ -202,9 +202,9 @@ export const P5 = {
 export const THIRTY_DAY_CLOCK = {
   title: "⏰ The 30-day clock",
   lead: "Your install must happen within 30 days of this safety check.",
-  body: " After 30 days the check expires and has to be done again, and a new check may be charged. So once it's done, please book your install day as soon as the installer offers times, and approve any electrical fixes quickly.",
+  body: " After 30 days the check expires and has to be done again, and a new check may be charged. So once it's done, please book your install day as soon as the installer offers times, and approve any electrical upgrades quickly.",
   fixesLead: "Please approve this quickly.",
-  /** Fixes-quote variant: "Your safety check expires 30 days after it was done (on 5 December), and the fixes and the install both need to happen before then. If it expires, a new safety check is needed and may be charged." */
+  /** Fixes-quote variant: "Your safety check expires 30 days after it was done (on 5 December), and the upgrades and the install both need to happen before then. If it expires, a new safety check is needed and may be charged." */
   fixesBefore: " Your safety check expires 30 days after it was done (on ",
-  fixesAfter: "), and the fixes and the install both need to happen before then. If it expires, a new safety check is needed and may be charged.",
+  fixesAfter: "), and the upgrades and the install both need to happen before then. If it expires, a new safety check is needed and may be charged.",
 } as const;

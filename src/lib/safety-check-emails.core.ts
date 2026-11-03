@@ -22,10 +22,10 @@ export type SafetyCheckTimesInput = {
 /** Amber "⏰ The 30-day clock" box (O26, safety check booked, O29, install window). `bodyHtml` is already safe HTML. */
 export const mjThirtyDayClock = (bodyHtml: string) =>
   `<mj-section><mj-column mj-class="panel-amber"><mj-text mj-class="h2" color="#8A5200" padding="18px 18px 6px">&#9200; The 30-day clock</mj-text><mj-text font-size="15px" line-height="23px" padding="0 18px 18px">${bodyHtml}</mj-text></mj-column></mj-section>`;
-/** Decision 137 wording; `expiresOn` (e.g. "5 December") gives the fixes-quote variant. Same words as THIRTY_DAY_CLOCK_TEXT. */
+/** Decision 137 wording; `expiresOn` (e.g. "5 December") gives the upgrades-quote variant. Same words as THIRTY_DAY_CLOCK_TEXT. */
 export const thirtyDayClockHtml = (expiresOn?: string | null) => expiresOn
-  ? `<strong>Please approve this quickly.</strong> Your safety check expires 30 days after it was done (on <strong>${esc(expiresOn)}</strong>), and the fixes and the install both need to happen before then. If it expires, a new safety check is needed and may be charged.`
-  : "<strong>Your install must happen within 30 days of this safety check.</strong> After 30 days the check expires and has to be done again, and a new check may be charged. So once it's done, please book your install day as soon as the installer offers times, and approve any electrical fixes quickly.";
+  ? `<strong>Please approve this quickly.</strong> Your safety check expires 30 days after it was done (on <strong>${esc(expiresOn)}</strong>), and the upgrades and the install both need to happen before then. If it expires, a new safety check is needed and may be charged.`
+  : "<strong>Your install must happen within 30 days of this safety check.</strong> After 30 days the check expires and has to be done again, and a new check may be charged. So once it's done, please book your install day as soon as the installer offers times, and approve any electrical upgrades quickly.";
 
 export function renderSafetyCheckTimesEmail(i: SafetyCheckTimesInput) {
   const first = K.cleanName(i.firstName) ?? "there";
