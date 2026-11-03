@@ -10,8 +10,25 @@ export const ESTIMATE_STAGES = new Set(["new_enquiry", "eligibility_review", "aw
 /** One-time preliminary outcome email is only relevant before the job moves on. */
 export const INELIGIBLE_STAGES = new Set(["new_enquiry", "eligibility_review", "on_hold"]);
 export const BACKLOG_MAX_AGE_MS = 14 * 86_400_000;
-/** Engagement events that permanently stop marketing/follow-up email for a job. */
-export const SUPPRESSING_EVENTS = ["email_bounced", "email_complained", "complaint", "opted_out", "payment_received", "quote_declined", "booking_completed"];
+/** Engagement events that mean the owner's address must not be emailed at all (bounce, complaint, opt-out). */
+export const DELIVERY_SUPPRESSIONS = ["email_bounced", "email_complained", "complaint", "opted_out"] as const;
+/** Engagement events that mean the owner has moved on (paid, declined, booked): they stop marketing/follow-up email only.
+ *  `booking_completed` is written when the safety check is booked, so it must never stop the job's own emails. */
+export const ENGAGEMENT_STOPS = ["payment_received", "quote_declined", "booking_completed"] as const;
+/** Engagement events that permanently stop marketing/follow-up email for a job (both lists). */
+export const SUPPRESSING_EVENTS: string[] = [...DELIVERY_SUPPRESSIONS, ...ENGAGEMENT_STOPS];
+
+/** Guarded owner email purposes that are marketing / follow-up nudges before the owner goes ahead. Only these are stopped
+ *  by an ENGAGEMENT_STOPS event; every other purpose (booked job, payment, paperwork, compliance, replies) still sends.
+ *  - estimate_followup_day_2/7/21: reminders to save a spot after the estimate email (decision 238).
+ *  - three_questions_reminder: one-off nudge to answer the three insulation questions (decision 172).
+ *  - quote_reminder: nudge to accept the quote before it expires (decisions 88/89). */
+export const MARKETING_OWNER_EMAIL_PURPOSES = ["estimate_followup_day_2", "estimate_followup_day_7", "estimate_followup_day_21", "three_questions_reminder", "quote_reminder"] as const;
+
+/** True when an engagement stop (paid / declined / booked) must block this purpose: marketing purposes only. */
+export function engagementStopBlocks(purpose: string, hasEngagementStop: boolean): boolean {
+  return hasEngagementStop && (MARKETING_OWNER_EMAIL_PURPOSES as readonly string[]).includes(purpose);
+}
 
 const TEST_EMAIL = /@(?:[^@]*\.)?(?:example\.(?:com|org|net)|test|invalid|localhost)$|@mailinator\.com$|\+qa@|^qa[._-]/i;
 export const isTestRecipient = (email: string | null | undefined) => !email || TEST_EMAIL.test(email.trim());

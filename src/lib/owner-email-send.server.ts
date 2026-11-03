@@ -10,10 +10,13 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 export async function sendGuardedOwnerEmail(p: { jobId: string; jobSource: string | null; to: string; purpose: string; key: string; build: (unsubscribeUrl: string | null) => { subject: string; html: string; text: string; attachments?: import("./email-kit.core").EmailAttachment[] }; retryAfterDefiniteFailure?: boolean; beforeSend?: () => Promise<void>; transport?: "resend" | { kind: "outlook"; replyToMessageId: string | null }; onSent?: (r: { provider: "outlook" | "resend"; messageId: string | null; internetMessageId: string | null }) => void }): Promise<string> {
   if (await (await import("./qa-inbox.server")).qaDeliveryHeld(p.jobId)) return "blocked — TEST browser run: no delivery";
   const dncCore = await import("./do-not-contact.core");
-  const [{ data: opt, error: oe }, { data: response, error: re }, { count: suppressed, error: se }, { data: dncEvents, error: de }] = await Promise.all([
+  const safety = await import("./emailsafety.core");
+  // Bounce/complaint/opt-out blocks every purpose; paid/declined/booked (engagement stops) block marketing purposes only.
+  const [{ data: opt, error: oe }, { data: response, error: re }, { count: suppressed, error: se }, { count: stops, error: ste }, { data: dncEvents, error: de }] = await Promise.all([
     admin.from("customer_email_optouts").select("opted_out_at").eq("job_id", p.jobId).maybeSingle(),
     admin.from("lead_campaign_responses").select("opted_out_at").eq("job_id", p.jobId).maybeSingle(),
-    admin.from("customer_engagement_events").select("id", { count: "exact", head: true }).eq("job_id", p.jobId).in("event_type", (await import("./emailsafety.core")).SUPPRESSING_EVENTS),
+    admin.from("customer_engagement_events").select("id", { count: "exact", head: true }).eq("job_id", p.jobId).in("event_type", [...safety.DELIVERY_SUPPRESSIONS]),
+    admin.from("customer_engagement_events").select("id", { count: "exact", head: true }).eq("job_id", p.jobId).in("event_type", [...safety.ENGAGEMENT_STOPS]),
     admin.from("workflow_events").select("event_type, created_at").eq("job_id", p.jobId).in("event_type", [dncCore.DO_NOT_CONTACT_SET_EVENT, dncCore.DO_NOT_CONTACT_CLEARED_EVENT]),
   ]);
   // "Do not contact" stops automatic owner mail, never the compliance copies. An unreadable flag counts as on (fails closed for automatic mail only).
@@ -26,7 +29,7 @@ export async function sendGuardedOwnerEmail(p: { jobId: string; jobSource: strin
   const to = route?.to ?? p.to;
   const boundary = (await import("./comms-test-recipient.core")).testRecipientBoundary(to, p.jobSource);
   const unsubscribed = !!(opt?.opted_out_at || response?.opted_out_at);
-  if (oe || re || se || suppressed == null || dncCore.unsubscribeBlocks({ purpose: p.purpose, unsubscribed, suppressed: suppressed > 0 }) || boundary.status === "blocked") return "blocked — not sent";
+  if (oe || re || se || ste || suppressed == null || stops == null || safety.engagementStopBlocks(p.purpose, stops > 0) || dncCore.unsubscribeBlocks({ purpose: p.purpose, unsubscribed, suppressed: suppressed > 0 }) || boundary.status === "blocked") return "blocked — not sent";
   let { data: reserved, error } = await admin.from("customer_email_sends").insert({ job_id: p.jobId, purpose: p.purpose, idempotency_key: p.key }).select("id").single();
   if ((error || !reserved) && p.retryAfterDefiniteFailure) {
     // Conditional claim: only a row whose last attempt definitely failed, and only one caller wins it.
