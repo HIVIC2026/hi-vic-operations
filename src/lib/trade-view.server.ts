@@ -104,7 +104,8 @@ type HomeJob = { id: string; job_number: string; stage: string; source: string; 
 export async function tradeHome(userId: string) {
   // Speed (installer screens, Task 5): three rounds of reads — (1) sign-in context, (2) everything that needs only the
   // business (offers, assignments with their jobs embedded, ended assignments, owner money rows), (3) everything that
-  // needs the job ids. The owner's money rows run their own short chain alongside rounds 2–3. Same reads, same value.
+  // needs the job ids. The owner's money rows run their own short chain alongside rounds 2–4, and the deposit facts and the
+  // Mitti electrician question (round 3) need one more round each (round 4). Same reads, same value.
   const c = await ctxOrThrow(userId);
   const now = new Date();
   // Business owner only, own pay only. Started now, awaited after round 3; a failure still fails the page (money path).
@@ -133,6 +134,15 @@ export async function tradeHome(userId: string) {
   // Decisions 278/279: the one status line needs two more facts per installer job — has the Mitti form any installer
   // answers (latest ready_check_basics event) and, on the installer's own jobs, has the boss entered the price.
   const formReads = c.kind === "installer" && live.length > 0;
+  // Speed (portal speed step 1, Task 5): the install-deposit facts and the Mitti electrician question start with round 3
+  // instead of after it. The deposit facts are read for every live job at install scheduling and kept only for the jobs held
+  // by an in-house partner (known from round 3), as before. Both keep their display catch; a failed module load still fails.
+  const depositCandidates = c.kind === "installer" ? live.filter((j) => j.stage === "installation_scheduling").map((j) => j.id) : [];
+  const depositsP = import("./install-deposit-list.server").then((m) => m.installDepositPaidForJobs(depositCandidates).catch(() => null));
+  depositsP.catch(() => undefined); // awaited below; this only stops an early rejection being reported as unhandled
+  // Jo 3 Nov 2026: Mitti pickups still waiting for the installer's one electrician answer (own electricians only).
+  const askElectricianP = c.kind === "installer" ? import("./mitti-electrician.server").then((m) => m.openMittiElectricianQuestions(live.map((j) => j.id)).catch(() => new Set<string>())) : Promise.resolve(new Set<string>());
+  askElectricianP.catch(() => undefined);
   // Round 3: every read that needs the job ids, together.
   const [{ data: books }, { data: missing }, { data: deadlines }, sf, rcQuotes, { data: ms }, { data: basics }, prices, { data: histJobs }] = await Promise.all([
     admin.from("bookings").select("job_id, kind, status, scheduled_start, scheduled_end").in("job_id", ids).in("status", ["confirmed", "completed"]).order("scheduled_start"),
@@ -150,7 +160,8 @@ export async function tradeHome(userId: string) {
   ]);
   const moneyAll = await moneyP;
   const depositIds = c.kind === 'installer' ? live.filter(j => j.stage === 'installation_scheduling' && !!sf.get(j.id)?.inHouseDispatch).map(j => j.id) : [];
-  const installDeposits = await (await import('./install-deposit-list.server')).installDepositPaidForJobs(depositIds).catch(() => new Map<string, boolean | null>(depositIds.map(id => [id, null])));
+  const depositFacts = await depositsP;
+  const installDeposits = new Map<string, boolean | null>(depositIds.map((id) => [id, depositFacts?.get(id) ?? null]));
   // Decision 396: rows the retired install-day photo chase created are not missing photos.
   const miss = new Map<string, number>(); for (const r of withoutRetiredInstallDayPhotos(missing ?? [])) miss.set(r.job_id, (miss.get(r.job_id) ?? 0) + 1);
   const deadline = new Map<string, string>(); for (const d of deadlines ?? []) if (d.job_id && d.install_deadline) deadline.set(d.job_id, String(d.install_deadline));
@@ -214,8 +225,7 @@ export async function tradeHome(userId: string) {
   ];
   // Installer home (mock-up M1): one "Next:" line and one group per job, from the pure rules only.
   const upcomingTile = (id: string) => { const b = upcomingOf(id)[0]; return b ? { what: VISIT[b.kind] ?? "Visit", start: b.scheduled_start } : null; };
-  // Jo 3 Nov 2026: Mitti pickups still waiting for the installer's one electrician answer (own electricians only).
-  const askElectrician = c.kind === "installer" ? await (await import("./mitti-electrician.server")).openMittiElectricianQuestions(jobsTabbed.map((j) => j.jobId)).catch(() => new Set<string>()) : new Set<string>();
+  const askElectrician = await askElectricianP;
   const home = c.kind === "installer" ? installerHomeGroups(jobsTabbed.map((j) => ({
     jobId: j.jobId, jobNumber: j.jobNumber, street: j.street, suburb: j.suburb, channel: j.channel, stage: j.stage, place: j.place, placeTitle: placeOf.get(j.jobId)?.title ?? null,
     inHouseDispatch: sf.get(j.jobId)?.inHouseDispatch ?? null,
