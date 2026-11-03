@@ -111,7 +111,11 @@ mock.module("../src/lib/installer-waiting.server", () => ({ installerFacts: asyn
 
 const reopens: string[] = [];
 mock.module("../src/lib/office-actions.server", () => ({
-  reopenJob: async (jobId: string) => { reopens.push(jobId); tables["jobs"]!.find((r) => r["id"] === jobId)!["stage"] = "ready_check_ready_to_schedule"; },
+  // Like the real reopenJob: the stage moves and a stage_changed event is logged.
+  reopenJob: async (jobId: string) => {
+    reopens.push(jobId); tables["jobs"]!.find((r) => r["id"] === jobId)!["stage"] = "ready_check_ready_to_schedule";
+    clock += 1000; tables["workflow_events"]!.push({ id: crypto.randomUUID(), job_id: jobId, event_type: "stage_changed", created_at: new Date(clock).toISOString(), details: { to_stage: "ready_check_ready_to_schedule" } });
+  },
 }));
 const S = await import("../src/lib/area-batch.server");
 
@@ -597,7 +601,7 @@ describe("reaskQuickTaps", () => {
     await S.sendBatch(["m"], "biz-1", "jo", { now: NOW });
     const b1 = String((events("area_batch_sent")[0]!["details"] as Row)["batch_id"]);
     // What the old code saved when she tapped "Flat", then closed the job.
-    tables["workflow_events"]!.push({ id: "ans-1", job_id: "m", event_type: "quick_taps_answered", created_at: new Date(NOW.getTime() + 60_000).toISOString(),
+    tables["workflow_events"]!.push({ id: "ans-1", job_id: "m", event_type: "quick_taps_answered", created_at: new Date(clock += 1000).toISOString(),
       details: { batch_id: b1, answers: { roof: "flat", hatch: "yes" }, outcome: "decline_access", consent_share: false, idempotency_key: `quick-taps:v1:${b1}:m:answered` } });
     tables["jobs"]![0]!["stage"] = "cancelled";
     sent.length = 0; emails.length = 0;
@@ -633,5 +637,40 @@ describe("reaskQuickTaps", () => {
     sent.length = 0;
     await expect(Qs.reaskQuickTaps("m", { apply: true, actorId: "jo", now: NOW })).rejects.toThrow("nothing to re-ask");
     expect(sent).toEqual([]); expect(reopens).toEqual(["m"]);
+  });
+  test("I1: still works after the old batch's day-3 close (uses her latest answer, not the open batch)", async () => {
+    const b1 = await miaAfterFlat();
+    tables["workflow_events"]!.push({ id: "close-1", job_id: "m", event_type: "area_batch_closed", created_at: new Date(clock += 1000).toISOString(),
+      details: { batch_id: b1, pass_job_ids: [], freed_job_ids: [], result: "none", idempotency_key: `area-batch-closed:${b1}:m` } });
+    const r = await (await Q()).reaskQuickTaps("m", { apply: true, actorId: "jo", now: NOW });
+    expect(r.oldBatchId).toBe(b1); expect(r.newBatchId).toBeTruthy(); expect(sent).toHaveLength(1);
+  });
+  test("I2: refuses an owner whose latest answer isn't a Flat-roof decline (said yes, or No to the hatch)", async () => {
+    const Qs = await Q();
+    for (const [outcome, answers] of [["pass", { roof: "sloped", hatch: "yes" }], ["decline_access", { hatch: "no" }]] as const) {
+      seed(); reopens.length = 0;
+      await miaAfterFlat();
+      const ans = tables["workflow_events"]!.find((e) => e["id"] === "ans-1")!;
+      ans["details"] = { ...(ans["details"] as Row), outcome, answers };
+      await expect(Qs.reaskQuickTaps("m", { apply: true, actorId: "jo", now: NOW })).rejects.toThrow("only for an owner who tapped Flat");
+      expect(reopens).toEqual([]); expect(sent).toEqual([]);
+    }
+  });
+  test("I3: in quiet hours nothing is changed (no reopen) and it says to try after 7am", async () => {
+    await miaAfterFlat();
+    const night = new Date("2026-10-30T10:30:00.000Z"); // 9:30pm Melbourne
+    await expect((await Q()).reaskQuickTaps("m", { apply: true, actorId: "jo", now: night })).rejects.toThrow("quiet hours");
+    expect(reopens).toEqual([]); expect(events("area_batch_left")).toEqual([]); expect(sent).toEqual([]);
+  });
+  test("I4: the re-ask batch is marked, and its day-2 reminder sends no email", async () => {
+    await miaAfterFlat();
+    const r = await (await Q()).reaskQuickTaps("m", { apply: true, actorId: "jo", now: NOW });
+    const ev = events("area_batch_sent").find((e) => (e["details"] as Row)["batch_id"] === r.newBatchId)!;
+    expect((ev["details"] as Row)["reask"]).toBe(true);
+    sent.length = 0; emails.length = 0;
+    tables["workflow_settings"] = [{ id: 1, customer_comms_enabled: true, sms_message_switches: { quick_taps: true, quick_taps_reminder: true } }];
+    await S.sweepAreaBatches(new Date(clock + 49 * 3_600_000).toISOString());
+    expect(sent.length).toBe(1);
+    expect(emails).toEqual([]);
   });
 });

@@ -243,7 +243,7 @@ export type SendBatchResult = { batchId: string; installer: string; homes: numbe
 
 /** `ownerText` / `emailOwner: false`: only the one-off quick taps re-ask (quick-taps.server reaskQuickTaps, Jo 3 Nov 2026)
  *  — its own approved text instead of the batch text, and no email. Jo's Send never passes them. */
-export type SendBatchOpts = { now?: Date | undefined; ownerText?: (ownerName: string | null, link: string) => string; emailOwner?: boolean };
+export type SendBatchOpts = { now?: Date | undefined; ownerText?: (ownerName: string | null, link: string) => string; emailOwner?: boolean; reask?: boolean };
 /** Jo taps Send. Every check first; then one claim per job; then one text and one email per job. Refuses if any home is already in an
  *  open batch (one batch at a time) or can't be batched any more. */
 export async function sendBatch(jobIdsIn: string[], businessId: string, actorId: string | null, opts: SendBatchOpts = {}): Promise<SendBatchResult> {
@@ -298,7 +298,7 @@ export async function sendBatch(jobIdsIn: string[], businessId: string, actorId:
   for (const h of homes) {
     const key = areaBatchKey(h.jobId, nextBatchSeq(evs.get(h.jobId) ?? []));
     const won = await claim(h.jobId, actorId, AREA_BATCH_SENT_EVENT, `Area batch sent (${homes.length} ${homes.length === 1 ? "home" : "homes"}, ${installer.name}) — quick taps texted to the owner`,
-      { batch_id: batchId, installer_business_id: businessId, installer_name: installer.name, job_ids: jobIds, centre_job_id: centreHome.jobId, centre, sent_by: actorId, idempotency_key: key, ...(h.carriedPass ? { carried_pass: true } : {}) });
+      { batch_id: batchId, installer_business_id: businessId, installer_name: installer.name, job_ids: jobIds, centre_job_id: centreHome.jobId, centre, sent_by: actorId, idempotency_key: key, ...(h.carriedPass ? { carried_pass: true } : {}), ...(opts.reask ? { reask: true } : {}) });
     if (!won) {
       // Someone else batched this home at the same moment: undo ours (append-only close) and send nothing.
       for (const c of claimed) await claim(c.jobId, actorId, AREA_BATCH_CLOSED_EVENT, "Area batch stopped before any text went (another batch took a home)", { batch_id: batchId, pass_job_ids: [], freed_job_ids: claimed.map((x) => x.jobId), reason: "send_interrupted" });
@@ -503,7 +503,9 @@ export async function sweepAreaBatches(nowIso: string = new Date().toISOString()
     // when a held text makes a later tick try the reminder again. A thrown text still fails this step (tried again).
     const [text, email] = await Promise.all([
       textOwner(to, batchId, link, businessId, null, "reminder").then((r) => ({ r }), (e: unknown) => ({ e })),
-      emailOwner(to, batchId, link, businessId, null, "reminder").catch((e: unknown): SendResult => ({ status: "failed", detail: (e as Error).message })),
+      // Re-ask batches (Jo 3 Nov 2026): text only, so no reminder email either.
+      (sent?.details as { reask?: unknown } | null)?.reask === true ? Promise.resolve<SendResult>({ status: "not_emailed", detail: "re-ask: text only" })
+        : emailOwner(to, batchId, link, businessId, null, "reminder").catch((e: unknown): SendResult => ({ status: "failed", detail: (e as Error).message })),
     ]);
     if (email.status === "failed") console.error("area batch reminder email failed", jobId, email.detail);
     if ("e" in text) throw text.e;
