@@ -13,19 +13,21 @@ CREATE TABLE workflow_events (id uuid primary key default gen_random_uuid(), job
 CREATE TABLE job_assignments (id uuid primary key default gen_random_uuid(), job_id uuid not null, role text not null, business_id uuid, user_id uuid not null, active boolean not null default true, booking_confirmed_at timestamptz, assigned_at timestamptz default clock_timestamp());
 `);
 const id = (n: number) => `00000000-0000-0000-0000-${String(n).padStart(12, "0")}`;
-const INST = id(1), ELEC = id(2), J = id(101), J_BOOKED = id(102);
+const INST = id(1), ELEC = id(2), J = id(101), J_BOOKED = id(102), J_QA = id(103), J_OFF = id(104);
 await db.query(`insert into businesses values ($1,'Reinsulate','Reinsulate','office@reinsulate.test',null,null), ($2,'Sparky Co','Sparky Co',null,'0411111111',null)`, [INST, ELEC]);
-for (const j of [J, J_BOOKED]) {
-  await db.query("insert into jobs values ($1,'piesa_and_install_window_pending',null,$2,'installer_sourced','real')", [j, INST]);
+for (const j of [J, J_BOOKED, J_QA, J_OFF]) {
+  await db.query("insert into jobs values ($1,'piesa_and_install_window_pending',null,$2,'installer_sourced',$3)", [j, INST, j === J_QA ? "qa_test" : "real"]);
   await db.query("insert into job_assignments (job_id, role, business_id, user_id, booking_confirmed_at) values ($1,'electrician',$2,$3,$4)", [j, ELEC, id(11), j === J_BOOKED ? new Date().toISOString() : null]);
 }
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: postgrestShim(db) }));
+let commsOn = true;
+mock.module("../src/lib/comms.server", () => ({ customerCommsEnabled: async () => commsOn, hasCurrentOwnerContactConsent: async () => true }));
 const realCore = await import("../src/lib/electrician-link.core");
 mock.module("../src/lib/electrician-link.core", () => ({ ...realCore, OWN_JOB_PIESA_TO_BOOK_EMAIL_APPROVED: true }));
 const realOwn = await import("../src/lib/own-job-piesa.server");
 mock.module("../src/lib/own-job-piesa.server", () => ({ ...realOwn, ownJobCallAndBook: async () => true }));
 const realWorkflow = await import("../src/lib/workflow.server");
-mock.module("../src/lib/workflow.server", () => ({ ...realWorkflow, logEvent: async () => {} }));
+mock.module("../src/lib/workflow.server", () => ({ ...realWorkflow, logEvent: async (job: string, actor: string | null, type: string, summary: string, details?: unknown) => { await db.query("insert into workflow_events (job_id, actor_id, event_type, summary, details, internal) values ($1,$2,$3,$4,$5,true)", [job, actor, type, summary, JSON.stringify(details ?? {})]); } }));
 mock.module("../src/lib/trade-pause.server", () => ({ tradeMessagesPausedNow: async () => null }));
 let failNext = false;
 const sent: string[] = [];
@@ -47,5 +49,19 @@ describe("notices retry", () => {
   test("a job already booked sends nothing", async () => {
     expect(await sendOwnJobPiesaNotices(J_BOOKED)).toBe("booked");
     expect(sent).toHaveLength(1);
+  });
+  test("a TEST job never emails a real installer office", async () => {
+    const before = sent.length;
+    expect(await sendOwnJobPiesaNotices(J_QA)).toContain("email: not_sent");
+    expect(sent).toHaveLength(before);
+  });
+  test("master switch off: held before the claim, so turning it on sends it once", async () => {
+    commsOn = false;
+    const before = sent.length;
+    expect(await sendOwnJobPiesaNotices(J_OFF)).toContain("email: held");
+    expect(sent).toHaveLength(before);
+    commsOn = true;
+    expect(await sendOwnJobPiesaNotices(J_OFF)).toContain("email: sent");
+    expect(sent).toHaveLength(before + 1);
   });
 });

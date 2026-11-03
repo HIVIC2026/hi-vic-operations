@@ -71,7 +71,7 @@ Subject:
 Body:
 ```
 Reason: {reason}.
-Pick another electrician or book it yourselves on the job page: {jobUrl}
+Pick another electrician on the job page: {jobUrl}
 ```
 
 ## 5. Old electrician, swap email

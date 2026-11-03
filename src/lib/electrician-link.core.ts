@@ -84,6 +84,8 @@ export function cantDoReasonLabel(reason: CantDoReason, note?: string | null): s
   return reason === "other" && n ? n : CANT_DO_LABEL[reason];
 }
 
+/** Logged once per hand-over while the office "to book" email is held (wording not approved): the installer wasn't told, so the office calls them. */
+export const OWN_JOB_PIESA_INSTALLER_NOT_TOLD_EVENT = "own_job_piesa_installer_not_told";
 export const OWN_JOB_PIESA_HANDED_BACK_EVENT = "own_job_piesa_handed_back";
 
 // ---------- Held wording (Task 6 collects it for Jo; nothing real goes until she approves) ----------
@@ -111,7 +113,7 @@ export function officeToBookEmail(i: { address: string; electrician: string; boo
 
 /** The installer office: the electrician can't do this one. */
 export function officeCantDoEmail(i: { address: string; electrician: string; reason: string; jobUrl: string }): { subject: string; text: string } {
-  return { subject: `${i.electrician} can't do the safety check for ${i.address}`, text: `Reason: ${i.reason}.\nPick another electrician or book it yourselves on the job page: ${i.jobUrl}` };
+  return { subject: `${i.electrician} can't do the safety check for ${i.address}`, text: `Reason: ${i.reason}.\nPick another electrician on the job page: ${i.jobUrl}` };
 }
 
 /** The installer office: 2 business days passed and the safety check still isn't booked. */

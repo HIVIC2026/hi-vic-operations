@@ -100,7 +100,8 @@ export async function swapPreflight(jobId: string, installerBusinessId: string, 
   const stage = job.stage as string;
   const done = await piesaDone(jobId, stage);
   const active = ((await must(admin.from("job_assignments").select("id, business_id, user_id").eq("job_id", jobId).eq("role", "electrician").eq("active", true), "The electrician couldn't be read")) ?? []) as ActiveRow[];
-  const current = active[0]?.business_id ?? (await (await import("./job-electrician.server")).jobChosenElectrician(jobId));
+  // At the PIESA stages "current" is the ACTIVE electrician only: after "can't do this one" there is none (the nomination stays open), so the same electrician can be picked again. Before the hand-over there is no assignment, so the choice is the current one.
+  const current = active[0]?.business_id ?? (stage === PIESA_STAGE || stage === BOOKED_STAGE ? null : await (await import("./job-electrician.server")).jobChosenElectrician(jobId));
   const el = await eligibility(installerBusinessId, newElectricianBusinessId);
   const problem = swapProblem({ piesaDone: done, linkedActive: el.linkedActive, onboarded: el.onboarded, same: current === newElectricianBusinessId });
   const resume = problem === SWAP_SAME ? await unfinishedSwap(jobId, stage, active, newElectricianBusinessId) : null;
@@ -207,7 +208,8 @@ export async function swapOptions(jobId: string, installerBusinessId: string): P
   const rels = (await must(admin.from("partner_relationships").select("electrician_business_id").eq("installer_business_id", installerBusinessId).eq("active", true), "Electricians couldn't be read")) ?? [];
   const names = rels.length ? (await must(admin.from("businesses").select("id, name, trading_name").in("id", rels.map((r) => r.electrician_business_id as string)), "Electricians couldn't be read")) ?? [] : [];
   const active = await must(admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "electrician").eq("active", true), "The electrician couldn't be read");
-  const current = (active?.[0]?.business_id as string | null | undefined) ?? (await (await import("./job-electrician.server")).jobChosenElectrician(jobId));
+  const stage = job.stage as string;
+  const current = (active?.[0]?.business_id as string | null | undefined) ?? (stage === PIESA_STAGE || stage === BOOKED_STAGE ? null : await (await import("./job-electrician.server")).jobChosenElectrician(jobId)); // at the PIESA stages: active electrician only
   const { displayName } = await import("./display-name.core");
   const options: { businessId: string; name: string }[] = [];
   for (const r of rels) {

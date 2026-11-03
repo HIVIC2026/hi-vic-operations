@@ -110,6 +110,10 @@ export async function handOwnJobPiesa(jobId: string, now: Date = new Date(), inH
   if (atPiesa && thisRound.length) {
     // Repair a half-done hand-over. Already booked (e.g. an in-flight offer the electrician took and booked) → nothing to hand.
     if (thisRound.some((a) => a.booking_confirmed_at)) return "waiting";
+    // Never log a hand-over (and its notices) for a round that isn't paid.
+    const [{ piesaRequestFacts }, { piesaRequestBlockers }] = await Promise.all([import("./workflow.server"), import("./payment-gate.core")]);
+    const repairPaid = await piesaRequestFacts(jobId).then((f) => piesaRequestBlockers(f).length === 0).catch(() => false);
+    if (!repairPaid) return "waiting";
     await recordHandoff(jobId, key, thisRound[0]!, now, true);
     return "handed";
   }

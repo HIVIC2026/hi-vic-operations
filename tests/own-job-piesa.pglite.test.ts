@@ -34,6 +34,8 @@ await db.query("insert into electrician_nominations (job_id, business_id) values
 await db.query("insert into partner_workers (business_id, trade_role, approval_status, profile_id) values ($1,'electrician','approved',$2), ($3,'electrician','approved',null)", [E1, U1, E_NOPROFILE]);
 
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: postgrestShim(db) }));
+let commsOn = true;
+mock.module("../src/lib/comms.server", () => ({ customerCommsEnabled: async () => commsOn, hasCurrentOwnerContactConsent: async () => true }));
 const realSuppression = await import("../src/lib/in-house-suppression.server");
 mock.module("../src/lib/in-house-suppression.server", () => ({
   ...realSuppression,
@@ -200,6 +202,7 @@ describe("own job safety check hand-over", () => {
     expect(await assignments(J)).toBe(1);
     expect(await events(J, "own_job_piesa_handed")).toBe(0);
     expect(notices.filter((x) => x === J)).toHaveLength(0);
+    gateClear.add(J); // the paid gate is clear for the repair
     const later = new Date("2026-11-05T01:00:00Z"); // Thu → due end of Mon 9 Nov
     await sweepOwnJobPiesaHandoffs(later);
     await sweepOwnJobPiesaHandoffs(later);
@@ -208,6 +211,16 @@ describe("own job safety check hand-over", () => {
     expect(await assignments(J)).toBe(1);
     const d = (await db.query<{ details: Record<string, unknown> }>("select details from workflow_events where job_id=$1 and event_type='own_job_piesa_handed'", [J])).rows[0]!.details;
     expect(d).toMatchObject({ electrician_business_id: E1, electrician_user_id: U1, due_at: "2026-11-09T12:59:59.999Z", repaired: true });
+  });
+
+  test("repair: a round whose paid gate is not clear gets no hand-over event and no notices", async () => {
+    const J = await newJob(142, "measured_quote_accepted", { nominate: E1 });
+    failHandedOnce = true;
+    await expect(handOwnJobPiesa(J, now)).rejects.toThrow("database blip");
+    const before = notices.filter((x) => x === J).length;
+    expect(await handOwnJobPiesa(J, now)).toBe("waiting");
+    expect(await events(J, "own_job_piesa_handed")).toBe(0);
+    expect(notices.filter((x) => x === J)).toHaveLength(before);
   });
 
   test("no nomination: a Mitti pickup uses the installer's approved usual electrician", async () => {

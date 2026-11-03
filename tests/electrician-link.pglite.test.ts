@@ -30,6 +30,8 @@ for (const j of [J_BOOK, J_CANT, J_MOVED]) {
 await db.query("insert into appointment_proposals (job_id, kind, status) values ($1,'assessment','proposed'), ($1,'assessment','accepted'), ($1,'installation','proposed')", [J_BOOK]);
 
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: postgrestShim(db) }));
+let commsOn = true;
+mock.module("../src/lib/comms.server", () => ({ customerCommsEnabled: async () => commsOn, hasCurrentOwnerContactConsent: async () => true }));
 const realWorkflow = await import("../src/lib/workflow.server");
 mock.module("../src/lib/workflow.server", () => ({
   ...realWorkflow,

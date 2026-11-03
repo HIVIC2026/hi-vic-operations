@@ -62,6 +62,8 @@ await seed(J_LATE2, INST_OFFICE);
 
 const heldInHouse = new Set<string>([J_LATE2]); // an in-house partner job, overdue: never returned here
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: postgrestShim(db) }));
+let commsOn = true;
+mock.module("../src/lib/comms.server", () => ({ customerCommsEnabled: async () => commsOn, hasCurrentOwnerContactConsent: async () => true }));
 const realSuppression = await import("../src/lib/in-house-suppression.server");
 mock.module("../src/lib/in-house-suppression.server", () => ({
   ...realSuppression,

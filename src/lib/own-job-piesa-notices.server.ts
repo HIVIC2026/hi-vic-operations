@@ -14,7 +14,7 @@
 // - Missing link table (pending SQL): the text is held ("link not available"); the office email still goes.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { OWN_JOB_PIESA_TO_BOOK_EMAIL_APPROVED, electricianLinkText, officeToBookEmail } from "./electrician-link.core";
+import { OWN_JOB_PIESA_INSTALLER_NOT_TOLD_EVENT, OWN_JOB_PIESA_TO_BOOK_EMAIL_APPROVED, electricianLinkText, officeToBookEmail } from "./electrician-link.core";
 import { SET_PASSWORD_BASE } from "./set-password-link.core";
 
 const db = admin as unknown as SupabaseClient;
@@ -36,6 +36,10 @@ export async function emailInstallerOffice(p: { jobId: string; businessId: strin
   ]);
   const contactName = displayName(biz.trading_name || biz.name) || null;
   const partnerIsTest = isTestPartner(biz);
+  // A TEST job never emails a real installer office (same guard as the in-house notices).
+  const { data: jobRow, error: jobErr } = await admin.from("jobs").select("source").eq("id", p.jobId).maybeSingle();
+  if (jobErr) throw new Error(`Job could not be read: ${jobErr.message}`);
+  if ((jobRow?.source as string | null | undefined) === "qa_test" && !partnerIsTest) return { status: "not_sent", detail: "TEST job: not sent to a real installer." };
   const render = (test: boolean) => ({ to, subject: p.subject, ...partnerEmailLayout({ subject: p.subject, test, blocks: [...p.text.split("\n").filter(Boolean).map((t) => ({ kind: "p" as const, text: t })), ...(p.jobUrl ? [{ kind: "button" as const, label: "Open the job", url: p.jobUrl }] : [])] }) });
   if (partnerIsTest) {
     if (!to) return { status: "no_email" };
@@ -49,6 +53,8 @@ export async function emailInstallerOffice(p: { jobId: string; businessId: strin
   }
   if (!p.approved) return { status: "not_approved" };
   if (!to) return { status: "no_email" };
+  // Master switch off: nothing recorded, so a later try still sends.
+  if (!(await (await import("./comms.server")).customerCommsEnabled())) return { status: "held", detail: "partner emails paused (master switch off)" };
   const paused = await (await import("./trade-pause.server")).tradeMessagesPausedNow({ businessId: biz.id, jobId: p.jobId });
   if (paused) return { status: "held", detail: paused };
   let r: { status: string; detail?: string } | null = null;
@@ -60,12 +66,13 @@ export async function emailInstallerOffice(p: { jobId: string; businessId: strin
   return sent ? { status: "sent" } : { status: "not_sent", detail: (r as { detail?: string } | null)?.detail ?? "Already tried." };
 }
 
-async function heldOnce(jobId: string, key: string, channel: "text" | "email", reason: string, needsOffice = false) {
-  const { count, error } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", OWN_JOB_PIESA_NOTICE_HELD_EVENT).contains("details", { key });
+async function heldOnce(jobId: string, key: string, channel: "text" | "email", reason: string, needsOffice = false, as?: { eventType: string; extra: Record<string, unknown> }) {
+  const eventType = as?.eventType ?? OWN_JOB_PIESA_NOTICE_HELD_EVENT;
+  const { count, error } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", eventType).contains("details", { key });
   if (error) throw new Error(error.message);
   if (count) return;
   const { logEvent } = await import("./workflow.server");
-  await logEvent(jobId, null, OWN_JOB_PIESA_NOTICE_HELD_EVENT, `Electrician's safety check ${channel === "text" ? "text" : "email"} not sent yet: ${reason}`, { key, channel, reason, ...(needsOffice ? { needs_office: true } : {}) }, { internal: true });
+  await logEvent(jobId, null, eventType, as ? `Installer office email not sent: ${reason}` : `Electrician's safety check ${channel === "text" ? "text" : "email"} not sent yet: ${reason}`, { key, channel, reason, ...(needsOffice ? { needs_office: true } : {}), ...(as?.extra ?? {}) }, { internal: true });
 }
 
 type Assignment = { id: string; user_id: string; business_id: string | null; booking_confirmed_at: string | null };
@@ -148,6 +155,8 @@ export async function sendOwnJobPiesaNotices(jobId: string): Promise<string> {
       const mail = officeToBookEmail({ address, electrician, booker, jobUrl });
       const r = await emailInstallerOffice({ jobId, businessId: installerId, key: `own-job-piesa:v1:${a.id}:office-email`, subject: mail.subject, text: mail.text, jobUrl, approved: OWN_JOB_PIESA_TO_BOOK_EMAIL_APPROVED });
       out.push(`email: ${r.status}`);
+      // Wording held: nobody told the installer. One office item per hand-over (it clears once the email goes or the check is booked).
+      if (r.status === "not_approved") await heldOnce(jobId, `own-job-piesa:v1:${a.id}:installer-not-told`, "email", "installer not told yet — message wording not approved", false, { eventType: OWN_JOB_PIESA_INSTALLER_NOT_TOLD_EVENT, extra: { assignment_id: a.id, installer, address, needs_office: true } });
     } catch (e) { out.push(`email: error ${(e as Error).message}`); }
   }
   if (n.textElectrician) {

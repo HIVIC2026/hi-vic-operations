@@ -4,6 +4,7 @@
 // Until the table exists everything fails closed: no link is made and every link says it isn't working.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { isMissingDbObject } from "./schema-compat.core";
 import { hashToken, isTokenShape, linkExpiry, newToken } from "./worker-links.core";
 import {
   JOB_NOT_GOING_AHEAD, LINK_NOT_ASSIGNED, LINK_UNAVAILABLE, OWN_JOB_PIESA_CANT_DO_EMAIL_APPROVED, OWN_JOB_PIESA_HANDED_BACK_EVENT,
@@ -43,7 +44,7 @@ export async function revokeElectricianLinks(jobId: string, reason: string, opts
   if (opts.linkId) q = q.eq("id", opts.linkId);
   if (opts.electricianBusinessId) q = q.eq("electrician_business_id", opts.electricianBusinessId);
   const { data, error } = await q.select("id");
-  if (error) throw new Error(error.message);
+  if (error) { if (isMissingDbObject(error)) return 0; throw new Error(error.message); } // table not applied yet: nothing to switch off
   return (data ?? []).length;
 }
 

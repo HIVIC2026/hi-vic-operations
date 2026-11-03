@@ -4,6 +4,8 @@ import { headStartOr, startTradeScreen } from "@/lib/trade-route-prefetch";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
+import { readableError } from "@/lib/readable-error.core";
 import { supabase } from "@/integrations/supabase/client";
 import { TradeShell, card } from "@/components/trade/TradeShell";
 import { Chevron, FileRow, SectionHead, Switch, M7 } from "@/components/trade/business-kit";
@@ -52,7 +54,7 @@ function Business() {
           <legend className="text-[15px] font-medium text-estimate-navy">Who books the safety check (PIESA)?</legend>
           {PIESA_BOOKERS.map((b) => (
             <label key={b} className="flex min-h-12 items-center gap-3 border-b border-estimate-line text-[15px] text-estimate-navy">
-              <input type="radio" name="piesa-booker" value={b} checked={data.piesaBooker === b} onChange={async () => { setBusy(true); try { await setBooker({ data: { booker: b } }); await refetch(); } finally { setBusy(false); } }} />
+              <input type="radio" name="piesa-booker" value={b} checked={data.piesaBooker === b} onChange={async () => { setBusy(true); try { await setBooker({ data: { booker: b } }); await refetch(); } catch (e) { toast.error(readableError(e, "Couldn't save that. Please try again.")); } finally { setBusy(false); } }} />
               <span>{PIESA_BOOKER_LABEL[b]}</span>
             </label>
           ))}

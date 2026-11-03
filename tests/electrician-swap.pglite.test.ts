@@ -48,6 +48,8 @@ await db.query("insert into electrician_nominations (job_id, business_id, nomina
 await db.query("insert into assessments (job_id, external_mitti_id) values ($1,'audit-1'), ($2,'audit-2')", [J_FORM, J_FORM2]);
 
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: postgrestShim(db) }));
+let commsOn = true;
+mock.module("../src/lib/comms.server", () => ({ customerCommsEnabled: async () => commsOn, hasCurrentOwnerContactConsent: async () => true }));
 let failLog: string | null = null;
 const realWorkflow = await import("../src/lib/workflow.server");
 mock.module("../src/lib/workflow.server", () => ({
@@ -211,5 +213,58 @@ describe("installerSwapElectrician", () => {
     const t = (await db.query<{ summary: string }>("select summary from workflow_events where event_type='electrician_chosen_by_installer'")).rows;
     expect(t.length).toBeGreaterThan(0);
     expect(t.every((x) => !x.summary.includes("offered the owner"))).toBe(true);
+  });
+});
+
+describe("after 'Can't do this one' (final review)", () => {
+  const cantDo = async (job: string) => {
+    const { hashToken, newToken } = await import("../src/lib/worker-links.core");
+    const token = newToken();
+    await db.query("update electrician_job_links set token_hash=$2 where job_id=$1", [job, await hashToken(token)]);
+    await els.linkCantDo(token, "busy");
+  };
+  test("the same electrician can be picked again: new assignment, new hand-over event, one link text", async () => {
+    const J = id(120);
+    await seed(J);
+    await cantDo(J);
+    expect(await active(J)).toHaveLength(0);
+    expect((await db.query("select 1 from electrician_nominations where job_id=$1 and ended_at is null", [J])).rows).toHaveLength(1); // the choice stays open
+    const before = (await db.query<{ id: string }>("select id from job_assignments where job_id=$1", [J])).rows.map((r) => r.id);
+    const opts = await swap.swapOptions(J, INST);
+    expect(opts.allowed).toBe(true);
+    expect(opts.current).toBeNull();
+    expect(opts.options.map((o) => o.businessId)).toContain(OLD);
+    const texts = noticed.filter((x) => x === J).length;
+    await swap.installerSwapElectrician(J, INST, OLD, BOSS, APPROVED);
+    expect((await active(J)).map((r) => r.business_id)).toEqual([OLD]);
+    const now = (await db.query<{ id: string }>("select id from job_assignments where job_id=$1 and active", [J])).rows[0]!.id;
+    expect(before).not.toContain(now);
+    const hs = await events(J, "own_job_piesa_handed");
+    expect(hs).toHaveLength(2);
+    expect(hs[1]!.details).toMatchObject({ assignment_id: now, electrician_business_id: OLD });
+    expect(noticed.filter((x) => x === J).length - texts).toBe(1);
+  });
+  test("a different linked electrician can be picked", async () => {
+    const J = id(121);
+    await seed(J);
+    await cantDo(J);
+    await swap.installerSwapElectrician(J, INST, NEW, BOSS, APPROVED);
+    expect((await active(J)).map((r) => r.business_id)).toEqual([NEW]);
+    expect(await events(J, "own_job_piesa_handed")).toHaveLength(2);
+  });
+  test("link table not applied yet: the swap still completes (done marker, hand-over, old electrician email); no link is made", async () => {
+    const J = id(122);
+    await seed(J);
+    await db.exec("alter table electrician_job_links rename to electrician_job_links_hidden");
+    try {
+      emails.length = 0;
+      await swap.installerSwapElectrician(J, INST, NEW, BOSS, APPROVED);
+      expect((await active(J)).map((r) => r.business_id)).toEqual([NEW]);
+      expect(await events(J, "own_job_electrician_swapped")).toHaveLength(1);
+      expect(await events(J, "own_job_piesa_handed")).toHaveLength(2);
+      expect(emails).toHaveLength(1);
+      await expect(els.createElectricianLink(J, NEW)).rejects.toThrow(); // so the text is held, never sent
+      expect(await els.revokeElectricianLinks(J, "x")).toBe(0);
+    } finally { await db.exec("alter table electrician_job_links_hidden rename to electrician_job_links"); }
   });
 });

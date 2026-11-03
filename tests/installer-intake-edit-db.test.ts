@@ -160,11 +160,20 @@ describe("own electrician -> a different own electrician", () => {
     await db.exec("CREATE TABLE IF NOT EXISTS job_assignments (id uuid primary key default gen_random_uuid(), job_id uuid, role text, active boolean, user_id uuid, business_id uuid);");
     await db.query("update jobs set electrician_choice='preferred' where id=$1", [JOB]);
     swapCalls.length = 0; swapProblem = null; heldInHouse.clear();
+    await db.exec("CREATE TABLE IF NOT EXISTS business_members (id uuid primary key default gen_random_uuid(), business_id uuid, user_id uuid, member_role text, active boolean default true);");
+    await db.query("delete from business_members"); await db.query("insert into business_members (business_id, user_id, member_role) values ($1,$2,'business_admin')", [BIZ, U]);
   };
   test("a signed-up electrician on the installer's own job goes to the swap", async () => {
     await ownSetup();
     await installerUpdateIntake(JOB, U, BIZ, { ...base, electrician: { mode: "mine", business_id: NEWEL } } as never);
     expect(swapCalls).toEqual([NEWEL]);
+  });
+  test("crew (not the business owner) cannot change the electrician, and nothing is saved", async () => {
+    await ownSetup();
+    await db.query("update business_members set member_role='installer_crew'");
+    const before = await evs();
+    await expect(installerUpdateIntake(JOB, U, BIZ, { ...base, electrician: { mode: "mine", business_id: NEWEL } } as never)).rejects.toThrow("Only your business owner can change the electrician.");
+    expect(swapCalls).toEqual([]); expect(await evs()).toEqual(before);
   });
   test("the swap's refusal is shown and nothing else is saved", async () => {
     await ownSetup(); swapProblem = "That electrician isn't linked to your business";

@@ -326,7 +326,12 @@ export async function installerUpdateIntake(jobId: string, actorId: string, busi
     const { SWAP_SAME } = await import("./electrician-swap.core");
     const f = await swapPreflight(jobId, businessId, p.electrician.business_id);
     if (f.problem && f.problem !== SWAP_SAME) throw new WorkflowError(f.problem);
-    if (!f.problem) swapTo = p.electrician.business_id; // includes finishing a swap that stopped part way
+    if (!f.problem) {
+      // Same rule as the job page's "Change electrician": only the business owner (not crew) makes the change.
+      const { data: mem, error: me } = await admin.from("business_members").select("member_role").eq("business_id", businessId).eq("user_id", actorId).eq("active", true).maybeSingle();
+      if (me || mem?.member_role !== "business_admin") throw new WorkflowError("Only your business owner can change the electrician.");
+      swapTo = p.electrician.business_id; // includes finishing a swap that stopped part way
+    }
   }
   const { data: m, error: mErr } = await admin.from("ceiling_measurements").select("id, provenance, supplied_area_m2").eq("job_id", jobId).eq("is_current", true).maybeSingle();
   if (mErr) throw new WorkflowError("The current measurement could not load. Please retry.");

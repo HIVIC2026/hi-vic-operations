@@ -15,14 +15,16 @@ CREATE TABLE job_assignments (id uuid primary key default gen_random_uuid(), job
 CREATE TABLE sms_messages (id uuid primary key default gen_random_uuid(), idempotency_key text, status text);
 `);
 const id = (n: number) => `00000000-0000-0000-0000-${String(n).padStart(12, "0")}`;
-const INST = id(1), ELEC = id(2), J = id(101), J2 = id(102);
+const INST = id(1), ELEC = id(2), J = id(101), J2 = id(102), J_QA = id(103);
 await db.query(`insert into businesses values ($1,'Reinsulate','Reinsulate','office@reinsulate.test',null,null,'electrician'), ($2,'Sparky Co','Sparky Co',null,'0411111111',null,null)`, [INST, ELEC]);
 await db.query("insert into partner_workers (business_id, profile_id, mobile) values ($1,$2,'0411111111')", [ELEC, id(11)]);
-for (const j of [J, J2]) {
-  await db.query("insert into jobs values ($1,'piesa_and_install_window_pending',null,$2,'installer_sourced','real')", [j, INST]);
+for (const j of [J, J2, J_QA]) {
+  await db.query("insert into jobs values ($1,'piesa_and_install_window_pending',null,$2,'installer_sourced',$3)", [j, INST, j === J_QA ? "qa_test" : "real"]);
   await db.query("insert into job_assignments (job_id, role, business_id, user_id) values ($1,'electrician',$2,$3)", [j, ELEC, id(11)]);
 }
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: postgrestShim(db) }));
+let commsOn = true;
+mock.module("../src/lib/comms.server", () => ({ customerCommsEnabled: async () => commsOn, hasCurrentOwnerContactConsent: async () => true }));
 const realCore = await import("../src/lib/electrician-link.core");
 mock.module("../src/lib/electrician-link.core", () => ({ ...realCore, OWN_JOB_PIESA_TO_BOOK_EMAIL_APPROVED: true }));
 const realOwn = await import("../src/lib/own-job-piesa.server");
@@ -40,6 +42,8 @@ mock.module("../src/lib/sms.server", () => ({
   smsHoldReason: async () => hold,
   sendRealSms: async (i: (typeof smsCalls)[number]) => { smsCalls.push(i); return { status: smsResult, detail: "", sid: null }; },
 }));
+const testSms: { partnerIsTest: boolean; jobSource: string | null }[] = [];
+mock.module("../src/lib/test-send.server", () => ({ sendTestSms: async (c: { partnerIsTest: boolean; jobSource: string | null }) => { testSms.push(c); return { status: "blocked" }; }, sendTestEmail: async () => ({ status: "blocked" }) }));
 const { sendOwnJobPiesaNotices } = await import("../src/lib/own-job-piesa-notices.server");
 const links = async (j: string) => (await db.query<{ revoked_at: string | null }>("select revoked_at from electrician_job_links where job_id=$1", [j])).rows;
 
@@ -84,5 +88,12 @@ describe("electrician text path", () => {
     const l = await links(J2);
     expect(l).toHaveLength(1);
     expect(l[0]!.revoked_at).not.toBeNull();
+  });
+
+  test("a TEST job's text never reaches the real sender (only the test sender, which blocks a real electrician)", async () => {
+    const real = smsCalls.length;
+    expect(await sendOwnJobPiesaNotices(J_QA)).toContain("text: test_blocked");
+    expect(smsCalls).toHaveLength(real);
+    expect(testSms).toEqual([expect.objectContaining({ partnerIsTest: false, jobSource: "qa_test" })]);
   });
 });
