@@ -23,6 +23,7 @@ import type { SortDir } from "@/lib/office-filters.core";
 import type { Range } from "@/lib/enquiry-columns.core";
 import { isDefaultListView } from "@/lib/office-needs-snapshot.core";
 import { jobsListKey } from "@/lib/office-list-keys.core";
+import { isLastCopy, useRememberLastCopy } from "@/lib/office-last-copy";
 import { readOfficeList } from "@/lib/office-list-refresh";
 import { MittiPickupsToLink, MittiSyncProblems } from "@/components/portal/mitti-piles";
 import { RobotFailuresPile } from "@/components/portal/robot-failures-pile";
@@ -93,6 +94,10 @@ export function JobsLaneScreen({ lane, initialStage }: { lane: JobsLane; initial
     enabled: readyLane === lane,
     placeholderData: keepPreviousData, staleTime: 30_000, retry: 1, refetchInterval: (x) => (x.state.data?.refreshing ? 5_000 : false),
   });
+  // Task 9: the last copy kept on this device (put in the cache by the route's loader) shows at once; "Updating…" until the fresh one arrives.
+  const listKey = jobsListKey(lane, view, search, page);
+  useRememberLastCopy(me?.user.id, `jobs:${lane}`, search === "" && page === 1, listKey, q);
+  const showingLastCopy = !!q.data && !q.isError && isLastCopy(listKey, q.dataUpdatedAt);
   // The TEST office never sees the Mitti line (it is real-job data).
   const sync = useQuery({ queryKey: ["mitti-sync-problems"], queryFn: () => syncFn(), staleTime: 60_000, enabled: !!me && !testOffice });
   const syncCount = sync.data?.rows.length ?? 0;
@@ -153,6 +158,7 @@ export function JobsLaneScreen({ lane, initialStage }: { lane: JobsLane; initial
       {!testOffice && robotOpen && robotCount > 0 && <div className="mb-3"><RobotFailuresPile /></div>}
       {anyFilter && <p className="mb-2 md:hidden"><button type="button" className="text-sm font-semibold text-hiv-blue underline" onClick={clearFilters}>Clear filters</button></p>}
 
+      {showingLastCopy && <p data-last-copy-updating className="mb-2 text-xs text-sub">Updating…</p>}
       {q.isError ? <div role="alert" className="rounded-[14px] border border-danger/40 bg-danger-soft p-4 text-sm">Jobs could not be loaded. {(q.error as Error).message} <button type="button" className="font-semibold underline" onClick={() => void q.refetch()}>Try again</button></div> : (
         <div className={listCard}>
           <div className={cn("hidden items-start gap-x-1.5 border-b border-line bg-mist px-2 py-2 md:grid", COLS)}>

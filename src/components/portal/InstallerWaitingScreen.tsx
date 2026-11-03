@@ -13,6 +13,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { isLastCopy, useRememberLastCopy } from "@/lib/office-last-copy";
 import { useServerFn } from "@tanstack/react-start";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -99,7 +100,7 @@ function ChooseDialog({ row, onClose }: { row: InstallerWaitingRow | null; onClo
 
 /** Task 6: the To release Send bar — how many are ticked, the installers who cover every ticked home, Send. Nothing goes
  *  until Jo taps Send; 0 or more than 10 ticked says why and sends nothing. */
-function TickSendBar({ ticked, numbers, onSent }: { ticked: string[]; numbers: Record<string, string>; onSent: () => void }) {
+function TickSendBar({ ticked, numbers, onSent, updating }: { ticked: string[]; numbers: Record<string, string>; onSent: () => void; updating: boolean }) {
   const qc = useQueryClient();
   const loadInstallers = useServerFn(getInstallersForHomesFn);
   const send = useServerFn(sendAreaBatchFn);
@@ -115,7 +116,7 @@ function TickSendBar({ ticked, numbers, onSent }: { ticked: string[]; numbers: R
   const chosen = installers.find((i) => i.id === choice);
   useEffect(() => setNote(null), [jobIds.length]);
   const go = async () => {
-    if (busy) return;
+    if (busy || updating) return;
     const why = tickSendBlocker(jobIds.length);
     if (why) { setNote(why); return; }
     if (!chosen) return;
@@ -148,7 +149,7 @@ function TickSendBar({ ticked, numbers, onSent }: { ticked: string[]; numbers: R
               {installers.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
             </select>
           ))}
-        <button type="button" className={btnClass("primary")} disabled={busy || (!blocker && !chosen)} onClick={() => void go()}>{busy ? "Sending…" : "Send"}</button>
+        <button type="button" className={btnClass("primary")} disabled={busy || updating || (!blocker && !chosen)} onClick={() => void go()}>{busy ? "Sending…" : updating ? "Updating…" : "Send"}</button>
       </div>
       {shownNote && <p role="alert" className="mt-2 text-[13px] font-semibold text-rose">{shownNote}</p>}
       {last && <div className="mt-3"><p className="mb-1 text-[13px] font-semibold text-ink">Last Send</p><SendResultList results={last.results} label={(id) => last.numbers[id] ?? "Home"} /></div>}
@@ -172,6 +173,10 @@ export function InstallerWaitingScreen() {
   const [layout, setLayout] = useState<"area" | "table">("area");
   useEffect(() => { const t = setTimeout(() => { setSearch(typed.trim()); setPage(1); }, 200); return () => clearTimeout(t); }, [typed]);
   const q = useQuery({ queryKey: installerWaitingKey(includeTest), queryFn: () => load({ data: { includeTest } }), staleTime: 30_000 });
+  // Task 9: the last copy kept on this device shows at once; Send waits until the fresh copy has arrived.
+  const listKey = installerWaitingKey(includeTest);
+  useRememberLastCopy(me?.user.id, "installer-waiting", !includeTest, listKey, q);
+  const lastCopy = !!q.data && isLastCopy(listKey, q.dataUpdatedAt);
   const d = q.data;
   const now = d?.now ?? Date.now();
   // Jo 27 Oct 2026: released spots get their own tab; the area pills group the rest by where they are.
@@ -211,6 +216,7 @@ export function InstallerWaitingScreen() {
           <button type="button" className="font-semibold text-hiv-blue underline" onClick={() => setIncludeTest(!includeTest)}>{includeTest ? "Hide TEST jobs" : "Include TEST jobs"}</button>
         </div>
       </div>
+      {lastCopy && !q.isError && <p data-last-copy-updating className="mb-2 text-xs text-sub">Updating…</p>}
       {/* A48 batch 2: not for the TEST office login (its functions are not on the TEST office allowlist). */}
       {showAreaBatches(me?.roles) && <BatchesReadyToSend includeTest={includeTest} />}
       {showAreaBatches(me?.roles) && <InHouseHandoff />}
@@ -235,7 +241,7 @@ export function InstallerWaitingScreen() {
           {byArea ? (
             <>
               <p className="mb-3 text-[13px] text-sub">Saved spots grouped by area, best first. Tick any you want to send.</p>
-              {ticks && d && <TickSendBar ticked={tickedNow} numbers={Object.fromEntries(tickable)} onSent={() => setTicked([])} />}
+              {ticks && d && <TickSendBar ticked={tickedNow} numbers={Object.fromEntries(tickable)} onSent={() => setTicked([])} updating={lastCopy} />}
               {q.isError ? <div role="alert" className="rounded-[14px] border border-danger/40 bg-danger-soft p-4 text-sm">The list could not load — this does not mean no job is waiting. {(q.error as Error).message} <button type="button" className="font-semibold underline" onClick={() => void q.refetch()}>Try again</button></div>
                 : !d ? <div className={listCard}><p className="p-6 text-center text-sm text-sub">Loading…</p></div>
                 : <SavedSpotsByArea list={d} ticked={tickedNow} onToggle={toggleTick} canTick={ticks} />}
@@ -246,12 +252,12 @@ export function InstallerWaitingScreen() {
             <Input type="search" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Search owner, suburb, postcode or job" aria-label="Search jobs waiting for an installer" className="h-11 w-full max-w-[320px] rounded-[12px] bg-paper" />
           </div>
           <div className="mb-2 flex items-center justify-end gap-3">
-            <span className="text-sm text-sub">{d ? `${view.length.toLocaleString("en-AU")} · showing ${shown.rows.length}` : "Loading…"}{q.isFetching && d ? " · updating…" : ""}</span>
+            <span className="text-sm text-sub">{d ? `${view.length.toLocaleString("en-AU")} · showing ${shown.rows.length}` : "Loading…"}{q.isFetching && d && !lastCopy ? " · updating…" : ""}</span>
             {active.length > 0 && <button type="button" className="text-sm font-semibold text-hiv-blue underline" onClick={() => { setFilters({}); setPage(1); }}>Clear {active.length} filter{active.length === 1 ? "" : "s"}</button>}
           </div>
           {/* Phone: the same heading buttons (sort + filter) above the cards. */}
           <div className="mb-2 flex flex-wrap gap-x-4 gap-y-2 rounded-[12px] border border-line bg-paper px-3 py-2 lg:hidden" aria-label="Sort or filter">{heads()}</div>
-          {ticks && d && <TickSendBar ticked={tickedNow} numbers={Object.fromEntries(tickable)} onSent={() => setTicked([])} />}
+          {ticks && d && <TickSendBar ticked={tickedNow} numbers={Object.fromEntries(tickable)} onSent={() => setTicked([])} updating={lastCopy} />}
           {q.isError ? <div role="alert" className="rounded-[14px] border border-danger/40 bg-danger-soft p-4 text-sm">The list could not load — this does not mean no job is waiting. {(q.error as Error).message} <button type="button" className="font-semibold underline" onClick={() => void q.refetch()}>Try again</button></div> : (
             <div className={listCard}>
               <div className={cn("hidden gap-x-3 border-b border-line bg-[#fafbfe] px-5 py-2.5 lg:grid", cols)}>{ticks && <span />}{heads()}<span /></div>

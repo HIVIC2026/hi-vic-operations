@@ -15,11 +15,12 @@ import { useServerFn } from "@tanstack/react-start";
 import { Mail } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { useAction } from "@/hooks/use-me";
+import { useAction, useMe } from "@/hooks/use-me";
 import { Input } from "@/components/ui/input";
 import { bulkCancelOfficeJobs, getEnquiriesList } from "@/lib/office-screens.functions";
 import { checkedLabel, isDefaultListView } from "@/lib/office-needs-snapshot.core";
 import { enquiriesListKey } from "@/lib/office-list-keys.core";
+import { isLastCopy, useRememberLastCopy } from "@/lib/office-last-copy";
 import { readOfficeList } from "@/lib/office-list-refresh";
 import { removeLeadsFn } from "@/lib/enquiry-groups.functions";
 import { CLOSE_REASONS, closeRouteFor, enquiryCountLine, keepTicked, removeOutcomeToast, removeReasonText } from "@/lib/enquiries-screen.core";
@@ -76,6 +77,10 @@ export function EnquiriesScreen() {
     },
     placeholderData: keepPreviousData, staleTime: 30_000, retry: 1, refetchInterval: (x) => (x.state.data?.refreshing ? 5_000 : false),
   });
+  const { data: me } = useMe();
+  const listKey = enquiriesListKey(view, search, filters, sort, page);
+  useRememberLastCopy(me?.user.id, "enquiries", JSON.stringify(listKey) === JSON.stringify(enquiriesListKey("offered", "", {}, { k: "", d: "asc" }, 1)), listKey, q);
+  const showingLastCopy = !!q.data && !q.isError && isLastCopy(listKey, q.dataUpdatedAt);
   const cancel = useAction(bulkCancelOfficeJobs);
   const remove = useAction(removeLeadsFn);
   const d = q.data;
@@ -111,7 +116,8 @@ export function EnquiriesScreen() {
             <p className="w-full text-[13px] text-sub lg:w-auto lg:flex-1">{meta.hint}</p>
             <Input type="search" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Search owner name, address or job number" aria-label="Search enquiries" className="h-11 w-full rounded-[12px] bg-paper sm:max-w-[320px]" />
             <div className="flex items-center gap-3">
-              <span className="text-sm text-sub">{d ? enquiryCountLine(d.total, d.fromCopy ? checkedLabel(d.computedAt, false) : null) + ((q.isFetching || d.refreshing) ? " · updating…" : "") : "Loading…"}</span>
+              {showingLastCopy && <span data-last-copy-updating className="text-xs text-sub">Updating…</span>}
+              <span className="text-sm text-sub">{d ? enquiryCountLine(d.total, d.fromCopy ? checkedLabel(d.computedAt, false) : null) + ((q.isFetching || d.refreshing) && !showingLastCopy ? " · updating…" : "") : "Loading…"}</span>
               {active.length > 0 && <button type="button" className="text-sm font-semibold text-hiv-blue underline" onClick={() => { setFilters({}); setPage(1); }}>Clear {active.length} filter{active.length === 1 ? "" : "s"}</button>}
               <ActionsMenu selected={picked.size} onPick={setDialog} actions={[{ key: "close", label: "Close", danger: true }]} />
             </div>
