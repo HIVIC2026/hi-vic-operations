@@ -56,7 +56,7 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
   // installation through the one guarded path; anything outstanding is held and shown as the installer's Next line.
   const finishInstall = async (declarationSaved: boolean) => {
     if (!isA3 || !p.completed) return;
-    try { await (await import("./install-complete-mitti.server")).maybeRecordInstallationFromMitti(jobId, actorId, auditId, { formCompleted: true, declarationSaved, summary: installEvidence, allFilledInTicked: installDay ? finalTickTicked : null }); }
+    try { await (await import("./install-complete-mitti.server")).maybeRecordInstallationFromMitti(jobId, actorId, auditId, { formCompleted: true, declarationSaved, summary: installEvidence, allFilledInTicked: installDay ? finalTickTicked : null, partB: installDay && fetchMedia ? { audit, fetchMedia } : undefined }); }
     catch (e) { try { await logEvent(jobId, actorId, "install_complete_auto_failed", "Installation could not be recorded from the Mitti form — use Complete installation", { audit_id: auditId, reason: e instanceof Error ? e.message : "error" }, { internal: true }); } catch { /* best effort */ } }
   };
   const auditOwnedFinalPostwork = isA3 && ((ev?.details as { native_version?: string } | null)?.native_version === finalPostworkVersion || (await import("./mitti.core")).flatten(audit).some((e) => e.id === "d11eaa63-198b-471f-b57c-d3717bce551c"));
