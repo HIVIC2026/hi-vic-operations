@@ -27,7 +27,14 @@ export const autoInviteEnabled = (v: string | null | undefined): boolean => (v ?
  * real address and confirmed (1) the user is created with the configured seat, (2) Mitti emails them to set a password,
  * (3) group add and deactivate work. False = never create/group/deactivate; the office does those steps by hand.
  */
-export const MITTI_USER_API_VERIFIED = false as boolean;
+// Jo 3 Nov 9:56pm Sydney: find, Lite create and deactivate proven; group membership is not used.
+export const MITTI_USER_API_VERIFIED = true as boolean;
+/** Activation boundary: existing approvals must never be caught up by edits or certificate renewals. */
+export const MITTI_INVITE_NEW_APPROVALS_FROM = "2026-11-03T10:56:00Z";
+export function isNewMittiApproval(approvedAt: string | null | undefined): boolean {
+  const at = approvedAt ? Date.parse(approvedAt) : NaN;
+  return Number.isFinite(at) && at >= Date.parse(MITTI_INVITE_NEW_APPROVALS_FROM);
+}
 
 export type MittiSeat = "full" | "lite" | "free";
 /** Seat requested per trade. Decision 340 (Jo 25 Oct 2026): Lite seats for installers AND electricians; see docs/MITTI_ACCESS.md for the limits. */
@@ -68,8 +75,8 @@ export function createdUserId(res: unknown): string | null {
 
 export function splitName(full: string | null | undefined, email: string): { first: string; last: string } {
   const parts = (full ?? "").trim().split(/\s+/).filter(Boolean);
-  if (parts.length >= 2) return { first: parts[0]!, last: parts.slice(1).join(" ") };
-  if (parts.length === 1) return { first: parts[0]!, last: "-" };
+  if (parts.length >= 2) return { first: parts[0] ?? "Trade", last: parts.slice(1).join(" ") };
+  if (parts.length === 1) return { first: parts[0] ?? "Trade", last: "-" };
   return { first: email.split("@")[0] || "Trade", last: "-" };
 }
 
@@ -98,7 +105,7 @@ export function renderMittiInviteEmail(i: { name: string | null; test?: boolean 
 }
 
 /** Decision 188/331: template access is through the HIV trades group (share the templates with that group once in Mitti). */
-export const MITTI_TEMPLATE_ACCESS_NOTE = `Template access comes from the ${MITTI_TRADES_GROUP} group: share the A1–A5 templates with that group once in Mitti.`;
+export const MITTI_TEMPLATE_ACCESS_NOTE = "Mitti job forms are shared with the person's own Mitti user.";
 
 export const MITTI_INVITE_EVENTS = {
   needed: "mitti_invite_needed", // no Mitti user and the portal may not create one yet: office invites by hand
@@ -137,7 +144,7 @@ export type InvitePerson = {
 export type PriorInvite = { type: MittiInviteEventType; at: string; mittiUserId?: string | null; email?: string | null } | null;
 export type InviteSwitches = { enabled: boolean; apiVerified?: boolean; groupId?: string | null };
 
-type Base = { group: string; seat: MittiSeat; key: string };
+type Base = { group: string | null; seat: MittiSeat; key: string };
 export type InviteStep =
   | { action: "skip"; reason: string }
   | ({ action: "lookup" } & Base)
@@ -158,7 +165,7 @@ export const TEST_SKIP = "TEST person: TEST forms go to the test assignee and Mi
 export function inviteEligibility(p: InvitePerson): string | null {
   if (p.removedAt) return "Removed from the business.";
   if (p.approvalStatus !== "approved") return "Not approved by the office yet.";
-  if (p.tradeRole !== "installer" && p.tradeRole !== "electrician") return `No Mitti access for the ${p.tradeRole} role.`;
+  if (p.tradeRole !== "installer") return `No automatic Lead invite for the ${p.tradeRole} role.`;
   if (p.tradeRole === "installer" && p.crew) return CREW_SKIP;
   if (p.tradeRole === "installer" && !p.ciiCleared) return "Installer's CII certificate is not verified and current yet.";
   if (!p.email?.trim()) return NO_EMAIL_SKIP;
@@ -176,8 +183,8 @@ export function mittiInviteStep(p: InvitePerson, prior: PriorInvite, sw: InviteS
   const why = inviteEligibility(p);
   if (why) return { action: "skip", reason: why };
   const role = p.tradeRole as MittiTradeRole;
-  const base: Base = { group: MITTI_TRADES_GROUP, seat: MITTI_SEAT_FOR_ROLE[role], key: inviteKey(p.workerId) };
-  const group = sw.apiVerified && sw.groupId?.trim() ? sw.groupId.trim() : null;
+  const base: Base = { group: null, seat: MITTI_SEAT_FOR_ROLE[role], key: inviteKey(p.workerId) };
+  const group = null; // Jo: plain users, never group additions (even if legacy configuration exists).
   if (prior?.mittiUserId && prior.email?.trim().toLowerCase() !== p.email?.trim().toLowerCase())
     return { action: "fail", ...base, reason: "This person's email no longer matches the recorded Mitti identity — the office must check their account before reusing it." };
   if (prior?.type === MITTI_INVITE_EVENTS.deactivated) {
@@ -223,8 +230,6 @@ export function inviteTodo(r: Pick<InviteRecord, "type" | "email" | "group"> & {
   if (r.type === E.waitingPause) return [MITTI_WAITING_PAUSE];
   const t: string[] = [];
   if (r.type === E.needed) t.push(`Invite ${r.email ?? "this person"} to Mitti with that exact email (${MITTI_DEFAULT_SEAT} seat).`);
-  if (!r.groupAdded) t.push(`Add them to the ${r.group ?? MITTI_TRADES_GROUP} group in Mitti.`);
-  if (t.length && (r.type === E.needed || r.type === E.linked)) t.push(MITTI_TEMPLATE_ACCESS_NOTE);
   return t;
 }
 
