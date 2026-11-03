@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { addElectricianProblems, approveChecklist, myElectricianStatus, type AddElectricianInput, type ChecklistFacts } from "../src/lib/my-electricians.core";
+import * as core from "../src/lib/my-electricians.core";
 
 const today = "2026-11-03";
 const good: AddElectricianInput = {
@@ -53,4 +54,35 @@ describe("approveChecklist", () => {
   test("exempt skips WorkCover", () => expect(approveChecklist({ ...ok, workcoverExempt: true, workcoverFilePresent: false, workcoverExpiry: null })).toEqual([]));
   test("WorkCover needed when not exempt", () => expect(approveChecklist({ ...ok, workcoverFilePresent: false, workcoverExpiry: null })).toEqual(["WorkCover certificate is missing", "WorkCover expiry is missing"]));
   test("missing files", () => expect(approveChecklist({ ...ok, licenceFilePresent: false, plFilePresent: false })).toEqual(["Licence photo is missing", "Public liability certificate is missing"]));
+});
+
+describe("My electricians screen rules (Task 3)", () => {
+  const { statusChip, draftProblems, draftToInput, PROBLEM_FIELD, ANSWER_WORKCOVER } = core;
+  const draft = (o: Partial<core.ElectricianDraft> = {}): core.ElectricianDraft => ({
+    name: "Sam", email: "s@x.test", mobile: "0400111222", recNumber: "REC1", licenceNumber: "L1", licenceExpiry: "2099-01-01", licenceFile: { name: "l.jpg" },
+    plFile: { name: "pl.pdf" }, plAmount: "5,000,000", plExpiry: "2099-01-01", employs: "no", workcoverFile: null, workcoverExpiry: "", soleTraderTick: true, ...o,
+  });
+  test("chip wording", () => {
+    expect(statusChip("waiting", null)).toEqual({ text: "Waiting for approval", tone: "blue" });
+    expect(statusChip("approved", null)).toEqual({ text: "Approved", tone: "green" });
+    expect(statusChip("expired", null)).toEqual({ text: "Expired — update their documents", tone: "pink" });
+    expect(statusChip("not_approved", "Blurry licence photo")).toEqual({ text: "Not approved: Blurry licence photo", tone: "pink" });
+    expect(statusChip("not_approved", null).text).toBe("Not approved: ask Home Insulation Victoria");
+  });
+  test("a complete draft has no problems; $ and commas in the cover amount are fine", () => {
+    expect(draftProblems(draft(), "2026-11-03")).toEqual([]);
+    expect(draftToInput(draft({ plAmount: "$5,000,000" }), { licence: "a", pl: "b", workcover: "" }).plAmount).toBe(5_000_000);
+  });
+  test("the WorkCover question comes first when unanswered, without faking WorkCover problems", () => {
+    expect(draftProblems(draft({ employs: "", soleTraderTick: false, name: "" }), "2026-11-03")).toEqual([ANSWER_WORKCOVER, "Add their name"]);
+  });
+  test("Yes without a certificate, No without the tick, and no picked files", () => {
+    expect(draftProblems(draft({ employs: "yes" }), "2026-11-03")).toEqual(["Add the WorkCover certificate", "WorkCover expiry must be in the future"]);
+    expect(draftProblems(draft({ soleTraderTick: false }), "2026-11-03")).toEqual(["Tick that they're a sole trader with no staff"]);
+    expect(draftProblems(draft({ licenceFile: null, plFile: null }), "2026-11-03")).toEqual(["Add a photo of their licence", "Add the public liability certificate"]);
+  });
+  test("every problem message has a field to sit under", () => {
+    const all = core.addElectricianProblems({ name: "", email: "", mobile: "", recNumber: "", licenceNumber: "", licenceExpiry: "", licenceFilePath: "", plFilePath: "", plAmount: 0, plExpiry: "", employsAnyone: true }, "2026-11-03");
+    for (const p of [...all, "Tick that they're a sole trader with no staff", ANSWER_WORKCOVER]) expect(PROBLEM_FIELD[p], p).toBeDefined();
+  });
 });

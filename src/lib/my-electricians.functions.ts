@@ -6,6 +6,12 @@ const path = z.string().trim().max(500);
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const text = (n: number) => z.string().trim().max(n);
 
+export const getMyElectricians = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { installerMyElectricians } = await import("./my-electricians.server");
+    return installerMyElectricians(context.userId);
+  });
+
 export const getMyElectricianUploadUrl = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ kind: z.enum(["licence", "pl", "workcover"]), fileName: z.string().trim().min(1).max(200) }).parse(d))
   .handler(async ({ data, context }) => {

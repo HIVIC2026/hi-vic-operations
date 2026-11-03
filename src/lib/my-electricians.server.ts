@@ -11,7 +11,7 @@ import { sameWorkerEmail } from "./worker-role.core";
 import { isMissingDbObject } from "./schema-compat.core";
 import { allowedUpload } from "./upload-safety.core";
 import { melbourneToday } from "./worker-compliance.core";
-import { addElectricianProblems, myElectricianStatus, type AddElectricianInput } from "./my-electricians.core";
+import { addElectricianProblems, myElectricianStatus, type AddElectricianInput, type MyElectricianStatus } from "./my-electricians.core";
 import { stableUuid } from "./mitti-create-claim.core";
 import { TEST_PARTNER_MARK, isTestPartner, normaliseAuMobile } from "./test-send.core";
 
@@ -34,14 +34,14 @@ async function requireColumns() {
   if (error) { if (isMissingDbObject(error)) throw new WorkflowError(NOT_SWITCHED_ON); throw new WorkflowError("Could not check this just now. Please try again."); }
 }
 
-export async function myElectricianUploadUrl(userId: string, kind: "licence" | "pl" | "workcover", fileName: string): Promise<{ path: string; signedUrl: string }> {
+export async function myElectricianUploadUrl(userId: string, kind: "licence" | "pl" | "workcover", fileName: string): Promise<{ path: string; signedUrl: string; token: string }> {
   const c = await installerBoss(userId);
   if (!allowedUpload(fileName, null)) throw new WorkflowError("That file type isn't accepted. Please upload a PDF or a photo.");
   const safe = fileName.replace(/[^\w.\-]+/g, "_").slice(0, 120);
   const path = `${prefixFor(c.biz.id)}${crypto.randomUUID()}-${kind}-${safe}`;
   const { data, error } = await admin.storage.from(BUCKET).createSignedUploadUrl(path);
   if (error || !data?.signedUrl) throw new WorkflowError("Could not start the upload. Please try again.");
-  return { path, signedUrl: data.signedUrl };
+  return { path, signedUrl: data.signedUrl, token: data.token };
 }
 
 type BizRow = { onboarding_notes: string | null; workcover_exempt_declared_at: string | null; installer_added_rejected_reason: string | null; id: string; business_type: string | null; capabilities: string[] | null; onboarding_status: string | null; is_active: boolean | null; added_by_installer_business_id: string | null };
@@ -170,24 +170,65 @@ export async function installerAddElectrician(userId: string, input: AddElectric
 }
 
 type Grade = { state: "approved" | "waiting" | "not_approved" | "expired"; reason: string | null };
+type CredRow = { kind: string; expires_at: unknown; verification: string | null };
+const CRED_KINDS = ["electrical_licence", "public_liability_insurance", "workers_comp_insurance"];
+
+/** Where an electrician stands from its rows: rejected, still waiting, lapsed paperwork, or approved. Shared by the add
+ *  path (gradeMatch) and the installer's list so the two never disagree. */
+function gradeRows(b: Pick<BizRow, "id" | "onboarding_status" | "is_active" | "installer_added_rejected_reason" | "workcover_exempt_declared_at">, ws: Pick<WorkerRow, "approval_status" | "licence_expires_on">[], creds: CredRow[], today: string): Grade & { licenceExpiry: string | null; plExpiry: string | null } {
+  const reason = b.installer_added_rejected_reason?.trim() || null;
+  const day = (v: unknown) => (v ? String(v).slice(0, 10) : null);
+  const latest = (kind: string) => creds.filter((x) => x.kind === kind && x.verification !== "rejected").map((x) => day(x.expires_at)).filter((x): x is string => !!x).sort().pop() ?? null;
+  const workerApproved = ws.some((w) => w.approval_status === "approved");
+  const licence = ws.map((w) => day(w.licence_expires_on)).filter((x): x is string => !!x).sort().pop() ?? latest("electrical_licence");
+  const plExpiry = latest("public_liability_insurance");
+  const st = myElectricianStatus({
+    onboardingStatus: b.onboarding_status, workerApproval: workerApproved ? "approved" : "pending", rejectedReason: reason,
+    licenceExpiry: licence, plExpiry, workcoverExpiry: latest("workers_comp_insurance"),
+    workcoverExempt: !!b.workcover_exempt_declared_at, today,
+  });
+  // Approved but switched off by the office counts as "can't use" with the same plain message as lapsed paperwork.
+  const state = st === "approved" && b.is_active === false ? "expired" : st;
+  return { state, reason, licenceExpiry: licence, plExpiry };
+}
 
 /** Work out where a matched electrician really stands: rejected, still waiting, lapsed paperwork, or good to link. */
 async function gradeMatch(b: BizRow, ws: WorkerRow[]): Promise<Grade> {
-  const reason = b.installer_added_rejected_reason?.trim() || null;
-  const { data: creds, error } = await admin.from("business_credentials").select("kind, expires_at, verification").eq("business_id", b.id).in("kind", ["electrical_licence", "public_liability_insurance", "workers_comp_insurance"]);
+  const { data: creds, error } = await admin.from("business_credentials").select("kind, expires_at, verification").eq("business_id", b.id).in("kind", CRED_KINDS);
   if (error) throw new WorkflowError("Could not check your electrician against the list. Please try again.");
-  const day = (v: unknown) => (v ? String(v).slice(0, 10) : null);
-  const latest = (kind: string) => (creds ?? []).filter((x) => x.kind === kind && x.verification !== "rejected").map((x) => day(x.expires_at)).filter((x): x is string => !!x).sort().pop() ?? null;
-  const workerApproved = ws.some((w) => w.approval_status === "approved");
-  const licence = ws.map((w) => day(w.licence_expires_on)).filter((x): x is string => !!x).sort().pop() ?? latest("electrical_licence");
-  const st = myElectricianStatus({
-    onboardingStatus: b.onboarding_status, workerApproval: workerApproved ? "approved" : "pending", rejectedReason: reason,
-    licenceExpiry: licence, plExpiry: latest("public_liability_insurance"), workcoverExpiry: latest("workers_comp_insurance"),
-    workcoverExempt: !!b.workcover_exempt_declared_at, today: melbourneToday(),
-  });
-  // Approved but switched off by the office counts as "can't link" with the same plain message as lapsed paperwork.
-  if (st === "approved" && b.is_active === false) return { state: "expired", reason };
-  return { state: st, reason };
+  const { state, reason } = gradeRows(b, ws, (creds ?? []) as CredRow[], melbourneToday());
+  return { state, reason };
+}
+
+export type MyElectricianRow = { id: string; name: string; status: MyElectricianStatus; reason: string | null; licenceExpiry: string | null; plExpiry: string | null };
+
+/** The installer's "My electricians": every electrician linked to the caller's installer that is live (link active) or still
+ *  on its way (waiting for approval, or not approved and fixable). A link the office switched off on an approved electrician
+ *  is neither, so it is not shown. Sorted by name. */
+export async function installerMyElectricians(userId: string): Promise<MyElectricianRow[]> {
+  const c = await installerBoss(userId);
+  await requireColumns();
+  const fail = () => new WorkflowError("Could not load your electricians. Please try again.");
+  const rels = await admin.from("partner_relationships").select("electrician_business_id, active").eq("installer_business_id", c.biz.id);
+  if (rels.error) throw fail();
+  const links = (rels.data ?? []) as { electrician_business_id: string; active: boolean }[];
+  if (!links.length) return [];
+  const ids = [...new Set(links.map((r) => r.electrician_business_id))];
+  const [bz, ws, cr] = await Promise.all([
+    admin.from("businesses").select("id, name, onboarding_status, is_active, installer_added_rejected_reason, workcover_exempt_declared_at").in("id", ids) as unknown as Promise<{ data: (Pick<BizRow, "id" | "onboarding_status" | "is_active" | "installer_added_rejected_reason" | "workcover_exempt_declared_at"> & { name: string | null })[] | null; error: unknown }>,
+    admin.from("partner_workers").select("business_id, approval_status, licence_expires_on").in("business_id", ids).eq("trade_role", "electrician").is("removed_at", null),
+    admin.from("business_credentials").select("business_id, kind, expires_at, verification").in("business_id", ids).in("kind", CRED_KINDS),
+  ]);
+  if (bz.error || ws.error || cr.error) throw fail();
+  const today = melbourneToday();
+  const out: MyElectricianRow[] = [];
+  for (const b of bz.data ?? []) {
+    const active = links.some((l) => l.electrician_business_id === b.id && l.active);
+    const g = gradeRows(b, (ws.data ?? []).filter((w) => w.business_id === b.id) as WorkerRow[], ((cr.data ?? []) as (CredRow & { business_id: string })[]).filter((x) => x.business_id === b.id), today);
+    if (!active && g.state !== "waiting" && g.state !== "not_approved") continue;
+    out.push({ id: b.id, name: b.name?.trim() || "Electrician", status: g.state, reason: g.state === "not_approved" ? g.reason : null, licenceExpiry: g.licenceExpiry, plExpiry: g.plExpiry });
+  }
+  return out.sort((a, b) => a.name.localeCompare(b.name, "en-AU"));
 }
 
 /** Throws the right plain message, or activates the link (never for rejected, waiting or lapsed electricians). */
