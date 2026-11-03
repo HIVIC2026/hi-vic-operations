@@ -20,8 +20,9 @@ const rapid = { name: "Rapid Insulation Pty Ltd", tradingName: "Rapid Insulation
 const tina: AccessPerson = { who: "tenant", name: "Tina Lee", mobile: "+61400111222" };
 const pm: AccessPerson = { who: "property_manager", name: "Paul Manager", mobile: "+61400333444" };
 // 2026-11-04 is a Wednesday; 22:00Z on the 3rd = 9:00am Melbourne on Wednesday 4 November.
-const PIESA: BookedFacts = { kind: "piesa", firstName: "Sarah", startIso: "2026-11-03T22:00:00Z", whoName: "Vic Sparks", business: viking, changed: false, installerName: "Rapid Insulation" };
-const INSTALL: BookedFacts = { kind: "install", firstName: "Sarah", startIso: "2026-11-11T21:00:00Z", whoName: "John Smith", business: rapid, changed: false, balanceCents: 141200 };
+const STREET = "12 Sample Street";
+const PIESA: BookedFacts & { street: string } = { street: STREET, kind: "piesa", firstName: "Sarah", startIso: "2026-11-03T22:00:00Z", whoName: "Vic Sparks", business: viking, changed: false, installerName: "Rapid Insulation" };
+const INSTALL: BookedFacts & { street: string } = { street: STREET, kind: "install", firstName: "Sarah", startIso: "2026-11-11T21:00:00Z", whoName: "John Smith", business: rapid, changed: false, balanceCents: 141200 };
 
 describe("access person texts — pure rules (DRAFT wording)", () => {
   test("ships switched off; its own two text types are unapproved owner-side texts with quiet hours", () => {
@@ -42,22 +43,25 @@ describe("access person texts — pure rules (DRAFT wording)", () => {
     expect(accessPersonNeedsTexts({ ...tina, mobile: "03 9000 0000" }, "0400 000 000")).toBe(false); // not a mobile
     expect(accessPersonNeedsTexts(tina, null)).toBe(true);
   });
-  test("booked texts: the owner's approved wording with the access person's first name, the day, time and office phone", () => {
-    expect(accessPersonBookedText(PIESA, tina)).toBe("Home Insulation Victoria: Hi Tina, you're booked for your electrical safety check (PIESA): Wed 4 Nov, 9:00am. Vic Sparks from Viking Electrical is coming. Need to change it? Call Viking Electrical on 03 9111 1111.");
-    expect(accessPersonBookedText(INSTALL, pm)).toBe("Home Insulation Victoria: Hi Paul, you're booked for your insulation install: Thu 12 Nov, 8:00am. John Smith from Rapid Insulation is coming. Need to change it? Call Rapid Insulation on 03 9000 0000.");
-    // Never the owner's money, consent or paperwork; never a worker's mobile; never "HIV".
+  test("booked texts (Jo 3 Nov 23:18): \"the … at {street} is booked for …\" with the access person's first name, the day, time and office phone — never \"your\", no owner name, street only", () => {
+    expect(accessPersonBookedText(PIESA, tina)).toBe("Home Insulation Victoria: Hi Tina, the electrical safety check (PIESA) at 12 Sample Street is booked for Wed 4 Nov, 9:00am. Vic Sparks from Viking Electrical is coming. Need to change it? Call Viking Electrical on 03 9111 1111.");
+    expect(accessPersonBookedText(INSTALL, pm)).toBe("Home Insulation Victoria: Hi Paul, the insulation install at 12 Sample Street is booked for Thu 12 Nov, 8:00am. John Smith from Rapid Insulation is coming. Need to change it? Call Rapid Insulation on 03 9000 0000.");
+    // Never the owner's money, consent or paperwork; never a worker's mobile; never "HIV"; never "your"; never the owner's name or suburb.
     const s = accessPersonBookedText(INSTALL, pm) as string;
-    expect(s).not.toMatch(/\$|balance|deposit|pay|consent|rebate|30-day|HIV\b|0411/);
+    expect(s).not.toMatch(/\$|balance|deposit|pay|consent|rebate|30-day|HIV\b|0411|\byour\b|Sarah|Glen Waverley/);
+    expect(accessPersonBookedText({ ...PIESA, street: " " }, tina)).toEqual({ held: "No street address on file" });
   });
-  test("day-before texts: the owner's approved wording with the access person's first name", () => {
-    expect(accessPersonTomorrowText({ kind: "piesa", time: "9:00am", business: viking }, tina)).toBe("Home Insulation Victoria: Hi Tina, see you tomorrow at 9:00am for your electrical safety check (PIESA) (Viking Electrical, 03 9111 1111).");
-    expect(accessPersonTomorrowText({ kind: "install", time: "8:00am", business: rapid }, pm)).toBe("Home Insulation Victoria: Hi Paul, see you tomorrow at 8:00am for your insulation install (Rapid Insulation, 03 9000 0000). Reminder: power will be off while they work in the ceiling.");
+  test("day-before texts (Jo 3 Nov 23:18): \"{Business} is coming tomorrow at … for the … at {street}. Questions? Call {office phone}.\"", () => {
+    expect(accessPersonTomorrowText({ kind: "piesa", time: "9am", business: viking, street: STREET }, tina)).toBe("Home Insulation Victoria: Hi Tina, Viking Electrical is coming tomorrow at 9am for the electrical safety check (PIESA) at 12 Sample Street. Questions? Call 03 9111 1111.");
+    expect(accessPersonTomorrowText({ kind: "install", time: "8am", business: rapid, street: STREET }, pm)).toBe("Home Insulation Victoria: Hi Paul, Rapid Insulation is coming tomorrow at 8am for the insulation install at 12 Sample Street. Questions? Call 03 9000 0000. The power will be off while they work in the ceiling.");
+    expect(accessPersonTomorrowText({ kind: "install", time: "8am", business: rapid, street: STREET }, pm) as string).not.toMatch(/\byour\b/);
+    expect(accessPersonTomorrowText({ kind: "install", time: "8am", business: rapid, street: "" }, pm)).toEqual({ held: "No street address on file" });
   });
   test("a missing office phone holds exactly like the owner's text; a Ready Check is never an access-person text", () => {
     expect(accessPersonBookedText({ ...PIESA, business: { ...viking, officePhone: " " } }, tina)).toEqual({ held: "No office phone for Viking Electrical" });
-    expect(accessPersonTomorrowText({ kind: "install", time: "8:00am", business: { ...rapid, officePhone: null } }, pm)).toEqual({ held: "No office phone for Rapid Insulation" });
+    expect(accessPersonTomorrowText({ kind: "install", time: "8:00am", business: { ...rapid, officePhone: null }, street: STREET }, pm)).toEqual({ held: "No office phone for Rapid Insulation" });
     expect(accessPersonBookedText({ ...PIESA, kind: "ready_check" }, tina)).toEqual({ held: "Not an access-person visit" });
-    expect(accessPersonTomorrowText({ kind: "ready_check", time: "9:00am", business: rapid }, tina)).toEqual({ held: "Not an access-person visit" });
+    expect(accessPersonTomorrowText({ kind: "ready_check", time: "9:00am", business: rapid, street: STREET }, tina)).toEqual({ held: "Not an access-person visit" });
     // A business email is not needed for a text (the owner's email needs it; the text does not).
     expect(typeof accessPersonBookedText({ ...INSTALL, business: { ...rapid, email: null } }, pm)).toBe("string");
   });
@@ -94,9 +98,9 @@ describe("access person texts — pure rules (DRAFT wording)", () => {
 });
 
 /* ---------------------------------------------------------------- the senders (deps injected) */
-type Job = { id: string; source: string | null; stage: string; deleted_at: string | null; owners: { full_name: string | null; phone: string | null } | null };
+type Job = { id: string; source: string | null; stage: string; deleted_at: string | null; owners: { full_name: string | null; phone: string | null } | null; properties: { address_line: string | null } | null };
 type Booking = { id: string; job_id: string; kind: string; status: string; scheduled_start: string; created_at: string };
-const JOB: Job = { id: "j1", source: "website", stage: "piesa_scheduled", deleted_at: null, owners: { full_name: "Sarah Jones", phone: "0400 000 000" } };
+const JOB: Job = { id: "j1", source: "website", stage: "piesa_scheduled", deleted_at: null, owners: { full_name: "Sarah Jones", phone: "0400 000 000" }, properties: { address_line: STREET } };
 const PIESA_BOOKING: Booking = { id: "b-piesa", job_id: "j1", kind: "assessment", status: "confirmed", scheduled_start: "2026-11-03T22:00:00Z", created_at: "2026-11-01T01:00:00Z" };
 const INSTALL_BOOKING: Booking = { id: "b-install", job_id: "j1", kind: "installation", status: "confirmed", scheduled_start: "2026-11-11T21:00:00Z", created_at: "2026-11-01T02:00:00Z" };
 const RC_BOOKING: Booking = { id: "b-rc", job_id: "j1", kind: "ready_check", status: "confirmed", scheduled_start: "2026-11-03T22:00:00Z", created_at: "2026-11-01T00:00:00Z" };
@@ -136,7 +140,7 @@ describe("textAccessPersonBooked", () => {
     expect(await textAccessPersonBooked("j1", "b-piesa", NOW, d)).toBe("sent");
     expect(sent).toHaveLength(1);
     expect(sent[0]).toMatchObject({ type: "access_person_booked", key: "access-booked:v1:b-piesa:+61400111222", to: "+61400111222", event: { at: PIESA_BOOKING.created_at, current: true } });
-    expect(sent[0]!.body).toBe("Home Insulation Victoria: Hi Tina, you're booked for your electrical safety check (PIESA): Wed 4 Nov, 9:00am. Vic Sparks from Viking Electrical is coming. Need to change it? Call Viking Electrical on 03 9111 1111.");
+    expect(sent[0]!.body).toBe("Home Insulation Victoria: Hi Tina, the electrical safety check (PIESA) at 12 Sample Street is booked for Wed 4 Nov, 9:00am. Vic Sparks from Viking Electrical is coming. Need to change it? Call Viking Electrical on 03 9111 1111.");
     // Once per person per visit.
     expect(await textAccessPersonBooked("j1", "b-piesa", NOW, d)).toBe("already handled");
     expect(sent).toHaveLength(1);
@@ -145,7 +149,7 @@ describe("textAccessPersonBooked", () => {
     const { d, sent } = deps();
     expect(await textAccessPersonBooked("j1", "b-install", NOW, d)).toBe("sent");
     expect(sent[0]).toMatchObject({ type: "access_person_booked", key: "access-booked:v1:b-install:+61400111222" });
-    expect(sent[0]!.body).toBe("Home Insulation Victoria: Hi Tina, you're booked for your insulation install: Thu 12 Nov, 8:00am. John Smith from Rapid Insulation is coming. Need to change it? Call Rapid Insulation on 03 9000 0000.");
+    expect(sent[0]!.body).toBe("Home Insulation Victoria: Hi Tina, the insulation install at 12 Sample Street is booked for Thu 12 Nov, 8:00am. John Smith from Rapid Insulation is coming. Need to change it? Call Rapid Insulation on 03 9000 0000.");
     expect(sent[0]!.body).not.toMatch(/\$|balance|deposit/);
   });
   test("Ready Check booking → nothing to Tina (access starts with the PIESA)", async () => {
@@ -178,7 +182,7 @@ describe("textAccessPersonBooked", () => {
     const { d, sent, testSent } = deps({ job: { ...JOB, source: "qa_test" } });
     expect(await textAccessPersonBooked("j1", "b-piesa", NOW, d)).toBe("sent");
     expect(sent).toHaveLength(0);
-    expect(testSent).toEqual([{ to: "+61400111222", body: expect.stringContaining("Hi Tina, you're booked") }]);
+    expect(testSent).toEqual([{ to: "+61400111222", body: expect.stringContaining("Hi Tina, the electrical safety check (PIESA) at 12 Sample Street is booked") }]);
   });
   test("a STOP from Tina's number holds her text only (reported, not thrown)", async () => {
     const { d, sent } = deps({ optedOut: ["+61400111222"] });
@@ -214,11 +218,11 @@ describe("textAccessPersonTomorrow", () => {
     const { d, sent } = deps();
     expect(await textAccessPersonTomorrow("j1", "b-piesa", DAY_BEFORE_PIESA, d)).toBe("sent");
     expect(sent[0]).toMatchObject({ type: "access_person_tomorrow", key: "access-tomorrow:v1:b-piesa:+61400111222", to: "+61400111222" });
-    expect(sent[0]!.body).toBe("Home Insulation Victoria: Hi Tina, see you tomorrow at 9am for your electrical safety check (PIESA) (Viking Electrical, 03 9111 1111).");
+    expect(sent[0]!.body).toBe("Home Insulation Victoria: Hi Tina, Viking Electrical is coming tomorrow at 9am for the electrical safety check (PIESA) at 12 Sample Street. Questions? Call 03 9111 1111.");
     expect(sent[0]!.event).toBeUndefined(); // window type
     expect(await textAccessPersonTomorrow("j1", "b-piesa", DAY_BEFORE_PIESA, d)).toBe("already handled");
     expect(await textAccessPersonTomorrow("j1", "b-install", DAY_BEFORE_INSTALL, d)).toBe("sent");
-    expect(sent[1]!.body).toBe("Home Insulation Victoria: Hi Tina, see you tomorrow at 8am for your insulation install (Rapid Insulation, 03 9000 0000). Reminder: power will be off while they work in the ceiling.");
+    expect(sent[1]!.body).toBe("Home Insulation Victoria: Hi Tina, Rapid Insulation is coming tomorrow at 8am for the insulation install at 12 Sample Street. Questions? Call 03 9000 0000. The power will be off while they work in the ceiling.");
     expect(sent).toHaveLength(2);
   });
   test("not the day before → not due; Ready Check → not applicable; nobody to text → no access person; flag off → awaiting approval", async () => {

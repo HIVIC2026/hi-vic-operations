@@ -3,8 +3,9 @@
 // person gets the PIESA and install "You're booked" texts and the day-before texts. Visit-time texts ONLY: never the
 // owner's quote, price, consent, payment, rebate or compliance messages. The owner still gets every job message.
 // Owner-occupied homes, the owner letting us in, or an access mobile that is the owner's own number → nothing extra.
-// DRAFT wording: the owner's approved texts (decisions #38/#46 and #25) with the access person's first name; Jo approves
-// it as a picture, so every send stays behind ACCESS_PERSON_TEXTS_APPROVED = false. PURE: no I/O.
+// DRAFT wording (Jo 3 Nov 23:18: never "your safety check / your install" to a tenant or property manager — "the … at
+// {street}", street only, no owner name); Jo approves it as a picture, so every send stays behind
+// ACCESS_PERSON_TEXTS_APPROVED = false. PURE: no I/O.
 import { bookedShort, type BookedFacts } from "./owner-booked-notice.core";
 import { installerName, type TradeContact } from "./owner-will-call.core";
 import type { AccessPerson } from "./rental-answers.core";
@@ -39,25 +40,31 @@ export function accessPersonNeedsTexts(a: AccessPerson | null, ownerMobile: stri
   return theirs !== toAuE164(ownerMobile);
 }
 
-const WHAT: Record<AccessVisitKind, string> = { piesa: "your electrical safety check (PIESA)", install: "your insulation install" };
+const WHAT: Record<AccessVisitKind, string> = { piesa: "the electrical safety check (PIESA)", install: "the insulation install" };
+const NO_STREET: Held = { held: "No street address on file" };
 
-/** DRAFT: the owner's "You're booked" text (#38 PIESA / #46 install) with the access person's first name. Only the office
- *  phone is needed (the text never names a worker's mobile); none → held, exactly like the owner's text. The owner's balance,
- *  30-day rule and paperwork never appear here. */
-export function accessPersonBookedText(f: BookedFacts, a: AccessPerson): string | Held {
+/** DRAFT (Jo 3 Nov 23:18): "the electrical safety check (PIESA) / insulation install at {street} is booked for {day, time}."
+ *  with the access person's first name. Street only (no suburb, no owner name). Only the office phone is needed (the text
+ *  never names a worker's mobile); none → held, exactly like the owner's text. The owner's balance, 30-day rule and
+ *  paperwork never appear here. */
+export function accessPersonBookedText(f: BookedFacts & { street: string }, a: AccessPerson): string | Held {
   if (f.kind !== "piesa" && f.kind !== "install") return NOT_ACCESS_VISIT;
   const name = installerName(f.business);
   const phone = clean(f.business.officePhone);
   if (!phone) return { held: `No office phone for ${name}` };
-  return `Home Insulation Victoria: Hi ${firstName(a.name)}, you're booked for ${WHAT[f.kind]}: ${bookedShort(f.startIso)}. ${clean(f.whoName)} from ${name} is coming. Need to change it? Call ${name} on ${phone}.`;
+  const street = clean(f.street);
+  if (!street) return NO_STREET;
+  return `Home Insulation Victoria: Hi ${firstName(a.name)}, ${WHAT[f.kind]} at ${street} is booked for ${bookedShort(f.startIso)}. ${clean(f.whoName)} from ${name} is coming. Need to change it? Call ${name} on ${phone}.`;
 }
 
-/** DRAFT: the owner's day-before text (#25) with the access person's first name. */
-export function accessPersonTomorrowText(f: { kind: "piesa" | "install" | "ready_check"; time: string; business: TradeContact }, a: AccessPerson): string | Held {
+/** DRAFT (Jo 3 Nov 23:18): "{Business} is coming tomorrow at {time} for the … at {street}. Questions? Call {office phone}." */
+export function accessPersonTomorrowText(f: { kind: "piesa" | "install" | "ready_check"; time: string; business: TradeContact; street: string }, a: AccessPerson): string | Held {
   if (f.kind !== "piesa" && f.kind !== "install") return NOT_ACCESS_VISIT;
   const name = installerName(f.business);
   const phone = clean(f.business.officePhone);
   if (!phone) return { held: `No office phone for ${name}` };
-  const tail = f.kind === "install" ? " Reminder: power will be off while they work in the ceiling." : "";
-  return `Home Insulation Victoria: Hi ${firstName(a.name)}, see you tomorrow at ${f.time} for ${WHAT[f.kind]} (${name}, ${phone}).${tail}`;
+  const street = clean(f.street);
+  if (!street) return NO_STREET;
+  const tail = f.kind === "install" ? " The power will be off while they work in the ceiling." : "";
+  return `Home Insulation Victoria: Hi ${firstName(a.name)}, ${name} is coming tomorrow at ${f.time} for ${WHAT[f.kind]} at ${street}. Questions? Call ${phone}.${tail}`;
 }

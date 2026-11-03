@@ -23,7 +23,7 @@ import { smsQuietReason } from "./quote-hold.core";
 import { toAuE164 } from "./sms.core";
 import type { RealSmsInput, RealSmsResult } from "./sms.server";
 
-type JobRow = { id: string; source: string | null; stage: string; deleted_at: string | null; owners: { full_name: string | null; phone: string | null } | null };
+type JobRow = { id: string; source: string | null; stage: string; deleted_at: string | null; owners: { full_name: string | null; phone: string | null } | null; properties: { address_line: string | null } | null };
 type BookingRow = { id: string; job_id: string; kind: string; status: string; scheduled_start: string; created_at: string };
 export type AccessPersonTextDeps = {
   approved: boolean;
@@ -46,7 +46,7 @@ const ROLE: Record<AccessVisitKind, "installer" | "electrician"> = { piesa: "ele
 const defaults = (): AccessPersonTextDeps => ({
   approved: ACCESS_PERSON_TEXTS_APPROVED,
   readJob: async (jobId) => {
-    const { data, error } = await admin.from("jobs").select("id, source, stage, deleted_at, owners(full_name, phone)").eq("id", jobId).maybeSingle();
+    const { data, error } = await admin.from("jobs").select("id, source, stage, deleted_at, owners(full_name, phone), properties(address_line)").eq("id", jobId).maybeSingle();
     if (error) throw new Error(`Could not read the job: ${error.message}`);
     return (data as unknown as JobRow | null) ?? null;
   },
@@ -120,7 +120,7 @@ export async function textAccessPersonBooked(jobId: string, bookingId: string, n
   if (typeof p === "string") return p;
   if (d.quiet(now)) return QUIET_HOURS_WAIT;
   const whoName = (await d.whoName(jobId, bookingId)) ?? "Someone";
-  const body = accessPersonBookedText({ kind: p.kind, firstName: null, startIso: p.booking.scheduled_start, whoName, business: p.business, changed: false }, p.access);
+  const body = accessPersonBookedText({ kind: p.kind, firstName: null, startIso: p.booking.scheduled_start, whoName, business: p.business, changed: false, street: p.job.properties?.address_line ?? "" }, p.access);
   return deliver(p, ACCESS_PERSON_BOOKED_SMS_TYPE, body, accessPersonKey.booked(p.booking.id, p.e164), d, { at: p.booking.created_at, current: true });
 }
 
@@ -133,6 +133,6 @@ export async function textAccessPersonTomorrow(jobId: string, bookingId: string,
   if (!visitTomorrowDue(now, p.booking.scheduled_start)) return "not due";
   if (d.quiet(now)) return QUIET_HOURS_WAIT;
   const { melbourneClock } = await import("./installer-texts.core");
-  const body = accessPersonTomorrowText({ kind: p.kind, time: melbourneClock(p.booking.scheduled_start), business: p.business }, p.access);
+  const body = accessPersonTomorrowText({ kind: p.kind, time: melbourneClock(p.booking.scheduled_start), business: p.business, street: p.job.properties?.address_line ?? "" }, p.access);
   return deliver(p, ACCESS_PERSON_TOMORROW_SMS_TYPE, body, accessPersonKey.tomorrow(p.booking.id, p.e164), d);
 }
