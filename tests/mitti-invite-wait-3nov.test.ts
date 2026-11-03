@@ -35,7 +35,7 @@ mock.module("../src/lib/trade-pause.server", () => ({ tradeMessagesPausedNow: as
 
 const calls: string[] = [];
 const call = async (method: string, path: string, body?: unknown) => {
-  calls.push(`${method} ${path}${body && (body as { email?: string[] }).email ? ` ${(body as { email: string[] }).email[0]}` : ""}`);
+  calls.push(`${method} ${path}${body && Array.isArray((body as { email?: unknown }).email) ? ` ${(body as { email: string[] }).email[0]}` : ""}`);
   if (path === "/users/search") return { users: [] };
   if (method === "POST" && path === "/users") return { user_id: "m-new" };
   throw new Error(`Unexpected Mitti call ${method} ${path}`);
@@ -54,7 +54,7 @@ const lead = () => tables["partner_workers"]![0]!;
 beforeEach(() => {
   sent.length = 0; calls.length = 0; paused = null;
   tables = {
-    partner_workers: [{ id: LEAD, email: null, mobile: "0412000111", full_legal_name: "Wayne Lead", trade_role: "installer", worker_role: "lead", approval_status: "approved", removed_at: null, profile_id: null, business_id: "b1" }],
+    partner_workers: [{ id: LEAD, approved_at: "2026-11-03T11:00:00Z", email: null, mobile: "0412000111", full_legal_name: "Wayne Lead", trade_role: "installer", worker_role: "lead", approval_status: "approved", removed_at: null, profile_id: null, business_id: "b1" }],
     businesses: [{ id: "b1", name: "Real Insulation", email: "Office@RealInsul.com.au", onboarding_notes: null }],
     profiles: [], admin_config_events: [], workflow_events: [],
     partner_worker_certifications: [cert(LEAD)],
@@ -63,6 +63,42 @@ beforeEach(() => {
 });
 
 describe("Q3 (Jo 3 Nov 8:11pm): a Lead with no own email waits — no business-email fallback", () => {
+  test("new approved Lead: create one Lite user without any group or office follow-up", async () => {
+    lead()["email"] = "wayne@own.com.au";
+    const result = await inv.onPartnerPersonApproved(LEAD, "office", { switches: LIVE, call, password: () => "fake-password" });
+    expect(result).toMatchObject({ action: "create", mittiUserId: "m-new", groupAdded: false });
+    expect(calls).toEqual(["POST /users/search wayne@own.com.au", "POST /users"]);
+    expect(types()).toEqual(["mitti_user_invited"]);
+    expect(await inv.listOpenMittiInvites()).toMatchObject({ invites: [] });
+    expect((events()[0]?.details as Row)?.group_note).toBeNull();
+    await inv.onPartnerPersonApproved(LEAD, "office", { switches: LIVE, call });
+    expect(calls).toHaveLength(2); expect(sent).toHaveLength(1);
+  });
+  test("already-approved people never catch up when email is added or certification renewed", async () => {
+    lead()["approved_at"] = "2026-11-03T10:55:59Z";
+    lead()["email"] = "dom@own.com.au";
+    expect(await inv.onPartnerPersonApproved(LEAD, "office", { switches: LIVE, call })).toMatchObject({ action: "skip" });
+    expect(calls).toEqual([]); expect(events()).toEqual([]); expect(sent).toEqual([]);
+  });
+  test("missing approval timestamp fails closed without invite", async () => {
+    lead()["approved_at"] = null; lead()["email"] = "wayne@own.com.au";
+    expect(await inv.onPartnerPersonApproved(LEAD, "office", { switches: LIVE, call })).toMatchObject({ action: "skip" });
+    expect(calls).toEqual([]); expect(events()).toEqual([]);
+  });
+  test("Crew and electricians never receive this automatic Lead invite", async () => {
+    lead()["email"] = "wayne@own.com.au";
+    lead()["worker_role"] = "crew";
+    expect((await inv.onPartnerPersonApproved(LEAD, "office", { switches: LIVE, call })).action).toBe("skip");
+    lead()["worker_role"] = "lead"; lead()["trade_role"] = "electrician";
+    expect((await inv.onPartnerPersonApproved(LEAD, "office", { switches: LIVE, call })).action).toBe("skip");
+    expect(calls).toEqual([]); expect(events()).toEqual([]); expect(sent).toEqual([]);
+  });
+  test("TEST Lead cannot reach the real provider or messenger", async () => {
+    lead()["email"] = "qa.installer.bravo@hivic-test.example";
+    tables["businesses"] = [{ id: "b1", name: "TEST Bravo", onboarding_notes: "[TEST PARTNER]" }];
+    expect((await inv.onPartnerPersonApproved(LEAD, "office", { switches: LIVE, call })).action).toBe("skip");
+    expect(calls).toEqual([]); expect(events()).toEqual([]); expect(sent).toEqual([]);
+  });
   test("switch off: nothing read, called, recorded or sent", async () => {
     expect(await inv.onPartnerPersonApproved(LEAD, "office", { switches: OFF, call })).toMatchObject({ action: "skip" });
     expect(calls).toEqual([]); expect(events()).toEqual([]); expect(sent).toEqual([]);
@@ -94,7 +130,7 @@ describe("Q5 (Jo 3 Nov 8:11pm): approved while trade messages are paused", () =>
   test("no Mitti user, no message; one waiting record", async () => {
     const r = await inv.onPartnerPersonApproved(LEAD, "office", { switches: LIVE, call });
     expect(r).toEqual({ action: "skip", reason: core.MITTI_WAITING_PAUSE });
-    expect(calls).toEqual(["POST /users/search wayne@own.com.au"]); expect(sent).toEqual([]);
+    expect(calls).toEqual([]); expect(sent).toEqual([]);
     expect(types()).toEqual(["mitti_invite_waiting_pause"]);
     await inv.onPartnerPersonApproved(LEAD, "office", { switches: LIVE, call });
     expect(types()).toEqual(["mitti_invite_waiting_pause"]);

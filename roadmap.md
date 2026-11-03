@@ -932,6 +932,6 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [x] Q3: Lead with no own email waits ("Mitti invite waiting for Lead's own email"); invited when the boss adds it
 - [x] Q5: Leads approved while paused → Needs me "Mitti invite waiting for pause to lift"; Send only on Jo's confirm
 - [x] Step 1(a) find-by-email checked (real Mitti)
-- [ ] Step 1(b)/(d) create + deactivate TEST user — blocked: jolowexo@hotmail.com is already a Mitti user; needs Jo's choice
-- [ ] Step 1(c) add to group — waiting for MITTI_TRADES_GROUP_ID
-- [ ] Switch on (MITTI_AUTO_INVITE_ENABLED + verified flag) — waiting for Jo after step 1
+- [x] Step 1(b)/(d): created and deactivated user_bd7248f091294ec2a729988354f2febf at Jo's approved alternate email; real results confirmed
+- [x] Step 1(c): not required — Jo confirms there is no trades group
+- [x] Jo 3 Nov 9:56pm: verified API true and auto-invite secret saved; new approved Leads only from 10:56 UTC, no groups, own-email and pause-confirmation guards preserved. Existing approvals/edit/renewal/repeated approval excluded; TEST never reaches live provider. Red-first and related tests passed, including PGlite repeated-approval and two-boss isolation. Automatic portal checks clean; no live invitation exercised (sending prohibited), no record changes or publishing.

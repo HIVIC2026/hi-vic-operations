@@ -72,8 +72,8 @@ beforeEach(() => {
   membershipReadError = false; changeProfileDuringLink = false;
   tables = {
     partner_workers: [
-      { id: "w-test", email: "sparky@hivic.test", mobile: "0400000000", full_legal_name: "Test Sparky", trade_role: "electrician", approval_status: "approved", removed_at: null, profile_id: "p1", business_id: "b1" },
-      { id: "w-real", email: "real@sparks.com.au", mobile: "0412345678", full_legal_name: "Real Sparky", trade_role: "electrician", approval_status: "approved", removed_at: null, profile_id: "p2", business_id: "b2" },
+      { id: "w-test", email: "sparky@hivic.test", mobile: "0400000000", full_legal_name: "Test Sparky", trade_role: "installer", worker_role: "lead", approved_at: "2026-11-03T11:00:00Z", approval_status: "approved", removed_at: null, profile_id: "p1", business_id: "b1" },
+      { id: "w-real", email: "real@sparks.com.au", mobile: "0412345678", full_legal_name: "Real Sparky", trade_role: "installer", worker_role: "lead", approved_at: "2026-11-03T11:00:00Z", approval_status: "approved", removed_at: null, profile_id: "p2", business_id: "b2" },
     ],
     businesses: [{ id: "b1", name: "TEST Sparks", onboarding_notes: "[TEST PARTNER]" }, { id: "b2", name: "Real Sparks", onboarding_notes: null }],
     profiles: [
@@ -81,6 +81,8 @@ beforeEach(() => {
       { id: "p2", email: "real@sparks.com.au", mitti_user_id: null, mitti_checked_email: null, mitti_checked_at: null },
     ],
     admin_config_events: [],
+    partner_worker_certifications: [{ id: "c2", worker_id: "w-real", status: "verified" }],
+    worker_certification_levels: [{ certification_id: "c2", level: "full", expires_on: "2099-01-01" }],
   };
 });
 
@@ -115,7 +117,7 @@ describe("onPartnerPersonApproved", () => {
     expect(calls).toEqual([]);
   });
   test("switch off (the default) reads and writes nothing", async () => {
-    const r = await onPartnerPersonApproved("w-real", "office", { call, message });
+    const r = await onPartnerPersonApproved("w-real", "office", { switches: { enabled: false }, call, message });
     expect(r.action).toBe("skip");
     expect(reads).toEqual([]);
     expect(calls).toEqual([]);
@@ -126,7 +128,7 @@ describe("onPartnerPersonApproved", () => {
     expect(events()).toEqual([]);
   });
   test("API not verified: not found → one 'invite needed' office item; never creates; idempotent", async () => {
-    expect(await onPartnerPersonApproved("w-real", "office", { switches: ON, call, message })).toMatchObject({ action: "record_needed", group: "HIV trades", seat: "lite" });
+    expect(await onPartnerPersonApproved("w-real", "office", { switches: ON, call, message })).toMatchObject({ action: "record_needed", group: null, seat: "lite" });
     expect(calls).toEqual(["POST /users/search"]);
     expect(events()).toEqual(["mitti_invite_needed"]);
     expect((await onPartnerPersonApproved("w-real", "office", { switches: ON, call, message })).action).toBe("skip");
@@ -136,16 +138,16 @@ describe("onPartnerPersonApproved", () => {
   });
   test("verified: not found → create (lite) + HIV trades group + profile link + ONE message, recorded before the message; never twice", async () => {
     const r = await onPartnerPersonApproved("w-real", "office", { switches: LIVE, call, message, password: () => "throwaway" });
-    expect(r).toMatchObject({ action: "create", mittiUserId: "user_new", groupAdded: true, message: "text sent" });
-    expect(calls).toEqual(["POST /users/search", "POST /users", "POST /groups/group_trades/users"]);
+    expect(r).toMatchObject({ action: "create", mittiUserId: "user_new", groupAdded: false, message: "text sent" });
+    expect(calls).toEqual(["POST /users/search", "POST /users"]);
     expect(events()).toEqual(["mitti_user_invited"]);
     const d = tables["admin_config_events"]![0]!["details"] as Row;
-    expect(d).toMatchObject({ mitti_user_id: "user_new", group_added: true, worker_id: "w-real" });
+    expect(d).toMatchObject({ mitti_user_id: "user_new", group_added: false, worker_id: "w-real" });
     expect(JSON.stringify(tables["admin_config_events"])).not.toContain("throwaway"); // the password is never stored
     expect(tables["profiles"]![1]).toMatchObject({ mitti_user_id: "user_new" });
     expect(messages).toEqual(["w-real"]);
     expect((await onPartnerPersonApproved("w-real", "office", { switches: LIVE, call, message })).action).toBe("skip");
-    expect(calls).toHaveLength(3);
+    expect(calls).toHaveLength(2);
     expect(messages).toHaveLength(1);
     expect((await listOpenMittiInvites()).invites).toEqual([]); // nothing left for the office
   });
@@ -153,7 +155,7 @@ describe("onPartnerPersonApproved", () => {
     tables["workflow_settings"] = [{ id: 1, trade_messages_paused: true }];
     const held = await onPartnerPersonApproved("w-real", "office", { switches: LIVE, call, message, password: () => "throwaway" });
     expect(held).toEqual({ action: "skip", reason: "Mitti invite waiting for pause to lift" });
-    expect(calls).toEqual(["POST /users/search"]);
+    expect(calls).toEqual([]);
     expect(events()).toEqual(["mitti_invite_waiting_pause"]);
     expect(messages).toEqual([]);
     tables["workflow_settings"] = [{ id: 1, trade_messages_paused: false }];
@@ -180,10 +182,10 @@ describe("onPartnerPersonApproved", () => {
     expect((await onPartnerPersonApproved("w-real", "office", { switches: LIVE, call, message })).action).toBe("record_linked");
   });
   test("office closes a linked-by-hand item from the People list", async () => {
-    found = "user_77";
+    found = null;
     await onPartnerPersonApproved("w-real", "office", { switches: ON, call, message });
     const open = await listOpenMittiInvites();
-    expect(open.invites[0]!.todo[0]).toMatch(/HIV trades group/);
+    expect(open.invites[0]!.todo[0]).toMatch(/Invite real@sparks.com.au/);
     expect((await confirmMittiInviteDone("w-real", "office", call)).ok).toBe(true);
     expect((await listOpenMittiInvites()).invites).toEqual([]);
     await expect(confirmMittiInviteDone("w-real", "office", call)).rejects.toThrow(/no open Mitti invite/);
@@ -212,13 +214,13 @@ describe("onPartnerPersonRemoved", () => {
     tables["partner_workers"]![1]!["removed_at"] = "2026-10-25T00:00:00Z";
     expect((await onPartnerPersonRemoved("w-real", "office", { switches: LIVE, call })).action).toBe("skip");
     expect(events()).toEqual([]);
-    tables["admin_config_events"]!.push({ event_type: "mitti_user_linked", created_at: "2026-10-24T00:00:00Z", details: { worker_id: "w-real", email: "real@sparks.com.au", mitti_user_id: "user_9", group_added: true } });
+    tables["admin_config_events"]!.push({ event_type: "mitti_user_linked", created_at: "2026-10-24T00:00:00Z", details: { worker_id: "w-real", email: "real@sparks.com.au", mitti_user_id: "user_9", group_added: false } });
     expect(await onPartnerPersonRemoved("w-real", "office", { switches: ON, call })).toMatchObject({ action: "fail" });
     expect(calls).toEqual([]);
     expect((await listOpenMittiInvites()).invites[0]!.todo[0]).toMatch(/Deactivate real@sparks.com.au in Mitti by hand/);
   });
   test("switch off → nothing read", async () => {
-    expect((await onPartnerPersonRemoved("w-real", "office", { call })).action).toBe("skip");
+    expect((await onPartnerPersonRemoved("w-real", "office", { switches: { enabled: false }, call })).action).toBe("skip");
     expect(reads).toEqual([]);
   });
 });
