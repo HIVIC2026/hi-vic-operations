@@ -41,7 +41,7 @@ describe('complete applicant contracts', () => {
   test(`${name}: schedule incorporated exactly once before acknowledgements`, () => { const s = activity48AgreementScheduleText(); expect(text.split(s)).toHaveLength(2); expect(text.indexOf(s)).toBeLessThan(text.indexOf('ACKNOWLEDGEMENTS')); expect(text).toContain(`Schedule version: ${ACTIVITY48_AGREEMENT_SCHEDULE_VERSION}`); });
  }
  test('versions retain prior signatures and reject prior REC review', () => {
-  expect(inst.INSTALLER_AGREEMENT_VERSION).toBe('HI-VIC-A48-INST-1.20-2026-10-19'); // decision 397: installer stays at 1.20 expect(rec.REC_AGREEMENT_VERSION).toBe('HI-VIC-A48-REC-2.6-2026-10-09');
+  expect(inst.INSTALLER_AGREEMENT_VERSION).toBe('HI-VIC-A48-INST-1.21-2026-11-04'); // Jo 4 Nov 2026: 1.21 adds defect deadlines expect(rec.REC_AGREEMENT_VERSION).toBe('HI-VIC-A48-REC-2.7-2026-11-04');
   expect(inst.ACTIVATABLE_INSTALLER_VERSIONS).toContain('HI-VIC-A48-INST-1.18-2026-10-09'); expect(rec.ACTIVATABLE_REC_VERSIONS).toContain('HI-VIC-A48-REC-2.5-2026-10-05');
   expect(rec.recReviewGateOpen({ agreement_reviewed: true }, { version: 'HI-VIC-A48-REC-2.5-2026-10-05', sha256: hash(rt) })).toBe(false);
  });
