@@ -68,7 +68,7 @@ export async function emailOwnerInstallComplete(jobId: string, i: Omit<import(".
   }
   const all = [...copies.attachments, ...extra];
   const r = await sendOwnerTemplateEmail({ jobId, purpose: "install_complete", key: `install-complete:v1:${jobId}`, approved: INSTALL_COMPLETE_EMAIL_APPROVED, label: "Install complete email", notSentEvent: "install_complete_email_not_sent", ...(all.length ? { attachments: all } : {}),
-    render: (f) => renderInstallCompleteEmail({ ...i, firstName: f.firstName, installer: { name: f.installerName, phone: f.installerPhone }, attachedWarranties: attachedNames, test: f.test, ...(v2 ? { contacts, attached, signAndPayUrl: `${f.myJobUrl}?screen=finish` } : {}) }, v2) });
+    render: (f) => renderInstallCompleteEmail({ ...i, firstName: f.firstName, installer: { name: f.installerName, phone: f.installerPhone }, attachedWarranties: attachedNames, test: f.test, ...(v2 ? { ...(contacts ? { contacts } : {}), ...(attached ? { attached } : {}), signAndPayUrl: `${f.myJobUrl}?screen=finish` } : {}) }, v2) });
   if (decision) {
     const { recordWarrantyCopyProvided } = await import("./completion-pack.server");
     await recordWarrantyCopyProvided(jobId, null, { via: "all_done_email", result: r, decision, attached: copies.attached, missing: copies.missing }).catch((e: Error) => console.error("All done email: warranty record skipped", jobId, e.message));

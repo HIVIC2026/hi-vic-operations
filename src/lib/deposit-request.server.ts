@@ -1,6 +1,7 @@
 // Task 6: specific in-house deposit messages only. No broad dispatch-suppression bypass.
 // Existing invoice/payment/clearance readers and delivery boundaries remain authoritative.
 import { supabaseAdmin as admin } from '@/integrations/supabase/client.server';
+import type { Database } from '@/integrations/supabase/types';
 import { readInHouseDispatchState } from './in-house-suppression.server';
 import { depositReminderDue, depositRequestEligible, INSTALL_DEPOSIT_REQUEST_EVENT, installDepositRequestKey, type DepositReminder } from './deposit-request.core';
 import { DEPOSIT_MESSAGES_V2_APPROVED, depositOwnerText, renderInstallDepositOwnerEmail, renderInstallerDepositPaidEmail, type DepositMessageFacts } from './deposit-request-email.core';
@@ -209,7 +210,7 @@ export async function sweepDepositRequests(now=new Date(),deps:ClearToInstallDep
   for(let offset=0;;offset+=200){const pending=await admin.from('workflow_events').select('job_id').eq('event_type','install_deposit_request_pending').order('id').range(offset,offset+199);if(pending.error)throw Error(pending.error.message);for(const row of pending.data??[])if(row.job_id&&!ids.includes(row.job_id))ids.push(row.job_id);if((pending.data?.length??0)<200)break;}
   for(let from=0;;from+=200){
     // C1: the same stages as INSTALL_DEPOSIT_DUE_STAGES — upgrades-pending in-house jobs sit at rectification_* / variation.
-    const r=await admin.from('jobs').select('id').in('stage',[...INSTALL_DEPOSIT_DUE_STAGES]).is('deleted_at',null).order('id').range(from,from+199);
+    const r=await admin.from('jobs').select('id').in('stage',[...INSTALL_DEPOSIT_DUE_STAGES] as Database['public']['Enums']['job_stage'][]).is('deleted_at',null).order('id').range(from,from+199);
     if(r.error||!r.data)throw Error('Could not read deposit candidates.');ids.push(...r.data.map(j=>j.id));if(r.data.length<200)break;
   }
   let checked=0;
