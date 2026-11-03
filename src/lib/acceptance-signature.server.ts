@@ -6,7 +6,7 @@ type Row = { details: Record<string, unknown> | null };
 async function find(jobId: string, type: string, quoteId: string, version: number): Promise<Record<string, unknown> | null> {
   const { data, error } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", type);
   if (error) throw new Error(error.message);
-  const hit = ((data ?? []) as Row[]).find((r) => r.details?.quote_id === quoteId && r.details?.version === version);
+  const hit = ((data ?? []) as Row[]).find((r) => r.details?.["quote_id"] === quoteId && r.details?.["version"] === version);
   return hit?.details ?? null;
 }
 
@@ -22,5 +22,5 @@ export async function recordAcceptanceSignature(jobId: string, actorId: string |
 /** For the signed acceptance PDF: the recorded typed name and signing time, or null when not recorded. */
 export async function readAcceptanceCountersignature(jobId: string, quoteId: string, version: number): Promise<{ ownerTypedName: string; signedAt: string } | null> {
   const d = await find(jobId, ACCEPTANCE_COUNTERSIGNED_EVENT, quoteId, version);
-  return d && typeof d.owner_typed_name === "string" && typeof d.signed_at === "string" ? { ownerTypedName: d.owner_typed_name, signedAt: d.signed_at } : null;
+  return d && typeof d["owner_typed_name"] === "string" && typeof d["signed_at"] === "string" ? { ownerTypedName: d["owner_typed_name"], signedAt: d["signed_at"] } : null;
 }
