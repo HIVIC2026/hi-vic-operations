@@ -18,7 +18,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { WorkflowError, logEvent } from "./workflow.server";
 import {
   AREA_BATCH_CLOSED_EVENT, AREA_BATCH_EVENTS, AREA_BATCH_MAX_HOMES, AREA_BATCH_LEFT_EVENT, AREA_BATCH_RETURNED_EVENT, AREA_BATCH_SENT_EVENT, NO_ANSWER_CLOSE_REASON, QUICK_TAPS_REMINDED_EVENT,
-  QUICK_TAPS_REMINDER_SMS_TYPE, QUICK_TAPS_SMS_TYPE, areaBatchClosedKey, areaBatchKey, batchInstallers, batchSpanKm, likelyEligible, nextBatchSeq,
+  QUICK_TAPS_REMINDER_SMS_TYPE, QUICK_TAPS_SMS_TYPE, areaBatchClosedKey, areaBatchKey, batchInstallers, batchSpanKm, nextBatchSeq,
   openBatchId, outsideBatch, passHandedOn, planBatchSweep, standingPass, STAGE_CHANGED_EVENT, quickTapsLink, quickTapsReminderText, quickTapsSmsKey, quickTapsText, suggestBatches,
   type AreaBatchEventRow, type BatchHome, type SweepJob,
 } from "./area-batch.core";
@@ -26,8 +26,6 @@ import { QUICK_TAPS_ANSWERED_EVENT } from "./quick-taps.core";
 import { RUN_EVENTS, RUN_OFFERED_EVENT, isFillRow, runExpiryDue, runIdOf, runState, type RunEventRow, type RunState } from "./run-route.core";
 import { installerWaiting } from "./installer-waiting-columns.core";
 import { SPOT_RELEASE_EVENTS, jobWaitingForInstaller, spotReleaseState, type SpotReleaseEventRow } from "./spot-release.core";
-import { declaredExtras, declaredInsulationDetail } from "./enquiry.core";
-import { normaliseInsulation } from "./eligibility.core";
 import { distanceM, propertyPoint, type PropertyPoint } from "./geo.core";
 import { parseStreet } from "./address-complete.core";
 import { smsQuietReason } from "./quote-hold.core";
@@ -100,7 +98,7 @@ export type CandidateRead = { candidates: BatchCandidate[]; unlocated: number; r
 /** Who can be put in a batch now. `jobIds` limits the read (Send re-checks its own homes); `locate` caps location lookups. */
 export async function batchCandidates(opts: { includeTest?: boolean; testJobIds?: string[]; jobIds?: string[]; locate?: number; requireLocation?: boolean; now?: Date } = {}): Promise<CandidateRead> {
   const jobs = (await all("waiting jobs", (a, b) => {
-    let q = admin.from("jobs").select("id, job_number, stage, source, channel, deleted_at, qa_archived_at, property_id, owners(full_name, phone, email), properties(address_line, suburb, postcode, declared:enrichment->base44->declared, answers:enrichment->base44->raw->answers)")
+    let q = admin.from("jobs").select("id, job_number, stage, source, channel, deleted_at, qa_archived_at, property_id, owners(full_name, phone, email), properties(address_line, suburb, postcode)")
       .eq("stage", "ready_check_ready_to_schedule").eq("channel", "hivic_sourced").is("deleted_at", null).is("qa_archived_at", null);
     if (opts.jobIds) q = q.in("id", opts.jobIds.length ? opts.jobIds : ["00000000-0000-0000-0000-000000000000"]);
     if (opts.testJobIds) q = q.eq("source", "qa_test").in("id", opts.testJobIds.length ? opts.testJobIds : ["00000000-0000-0000-0000-000000000000"]);
@@ -114,7 +112,7 @@ export async function batchCandidates(opts: { includeTest?: boolean; testJobIds?
     byIds("Ready Check offers", ids, (c, f, t) => admin.from("partner_offers").select("job_id, status, offered_at, businesses(name)").in("job_id", c).eq("kind", "ready_check").range(f, t)),
     byIds("saved spots", ids, (c, f, t) => admin.from("lead_campaign_responses").select("job_id, spot_saved_at, opted_out_at, saved_insulation").in("job_id", c).range(f, t)),
     byIds("batch and release history", ids, (c, f, t) => loose.from("workflow_events").select("job_id, event_type, created_at, details").in("job_id", c).in("event_type", [...AREA_BATCH_EVENTS, QUICK_TAPS_ANSWERED_EVENT, ...SPOT_RELEASE_EVENTS, ...RUN_EVENTS]).range(f, t)),
-    propIds.length ? byIds("property facts", propIds, (c, f, t) => loose.from("property_facts").select("property_id, fact_key, value").in("property_id", c).in("fact_key", ["coordinates", "roof_form"]).eq("is_current", true).range(f, t)) : Promise.resolve([] as Row[]),
+    propIds.length ? byIds("property facts", propIds, (c, f, t) => loose.from("property_facts").select("property_id, fact_key, value").in("property_id", c).in("fact_key", ["coordinates"]).eq("is_current", true).range(f, t)) : Promise.resolve([] as Row[]),
   ]) : [[], [], [], [], []];
   const withInstaller = new Set(assigned.map((a) => String(a["job_id"])));
   const offersBy = group(offers, "job_id");
@@ -147,17 +145,9 @@ export async function batchCandidates(opts: { includeTest?: boolean; testJobIds?
     }
     const release = spotReleaseState((ev as unknown as SpotReleaseEventRow[]).filter((e) => (SPOT_RELEASE_EVENTS as readonly string[]).includes(e.event_type)));
     if (release.state === "pending") { no("the owner is being asked to confirm a released spot"); continue; }
-    const prop = (j["properties"] ?? null) as { declared?: Record<string, unknown> | null; answers?: Record<string, unknown> | null } | null;
-    const extras = declaredExtras(prop?.answers ?? null);
-    const insulation = s(sv["saved_insulation"]) ?? normaliseInsulation(extras.existing_insulation);
-    const roof = fact(s(j["property_id"]), "roof_form");
-    const likely = likelyEligible({
-      propertyType: s(prop?.declared?.["property_type"]), topFloor: extras.top_floor, overFiveYears: s(prop?.declared?.["over_five_years"]),
-      insulation, insulationThickness: declaredInsulationDetail(prop?.answers ?? null).insulation_thickness, roofForm: typeof roof === "string" ? roof : null,
-    });
-    if (!likely) { no("its answers don't look likely eligible yet"); continue; }
+    const prop = (j["properties"] ?? null) as { address_line?: string | null } | null;
     const propertyId = s(j["property_id"]) ?? "";
-    keep.push({ j, propertyId, point: propertyPoint(fact(propertyId, "coordinates")), fullStreet: hasFullStreet((prop as { address_line?: string | null } | null)?.address_line) });
+    keep.push({ j, propertyId, point: propertyPoint(fact(propertyId, "coordinates")), fullStreet: hasFullStreet(prop?.address_line) });
   }
 
   // Fill missing locations once (stored as the property's `coordinates` fact), a few at a time. Only full street addresses

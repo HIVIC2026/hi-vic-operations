@@ -212,11 +212,9 @@ describe("batchCandidates", () => {
     expect(r.candidates.map((c) => c.jobId)).toEqual(["ok"]);
     expect(r.candidates[0]).toMatchObject({ postcode: "3000", isTest: false, lat: -37.8, lng: 145 });
   });
-  test("left out: installer-added, no saved spot, not likely eligible, flat roof, closed, deleted, has an installer, TEST (unless asked)", async () => {
+  test("left out: installer-added, no saved spot, closed, deleted, has an installer, TEST (unless asked)", async () => {
     addJob("installer", { channel: "installer_sourced" });
     addJob("nospot", { saved: false });
-    addJob("notlikely", { facts: { declared: { property_type: "house", over_five_years: "no" }, answers: { insulation: "none" } } });
-    addJob("flat", { roof: "low_slope_flat" });
     addJob("closed", { stage: "cancelled" });
     addJob("deleted", { deleted: true });
     addJob("assigned"); tables["job_assignments"]!.push({ job_id: "assigned", role: "installer", active: true });
