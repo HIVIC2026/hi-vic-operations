@@ -85,6 +85,7 @@ import { upgradesNeededEmail, upgradesNeededText } from './upgrades-needed.core'
 import { visitCancelledOwnerEmail } from "./visit-cancelled-owner.core";
 import { nonComplianceNotice } from "./non-compliance-notice.core";
 import { renderInstallDepositOwnerEmail, renderInstallerDepositPaidEmail, depositOwnerText, type DepositMessageFacts } from './deposit-request-email.core';
+import { accessPersonBookedText, accessPersonTomorrowText } from "./access-person-texts.core";
 
 /* ---------------------------------------------------------------- types */
 
@@ -175,6 +176,8 @@ const BOOKED_ON = { ready_check: true, piesa: true, install: true };
 const BOOKED_SAMPLE = { kind: "ready_check" as const, start: "2026-11-03T22:00:00Z", who: { name: "Sample Installer", phone: null }, installer: "Sample Insulation Co", phone: "03 9000 0000", ownerName: "Helen", business: WILL_CALL_SAMPLE, changed: false };
 const BOOKED_PIESA_SAMPLE = { ...BOOKED_SAMPLE, kind: "piesa" as const, start: "2026-11-06T23:00:00Z", who: { name: "Sample Electrician", phone: null }, business: { name: "Sample Electrical Co", tradingName: null, officePhone: "03 9111 1111", email: "office@sample-electrical.example" }, installerName: "Sample Insulation Co", installDeadline: "2026-12-06" };
 const BOOKED_INSTALL_SAMPLE = { ...BOOKED_SAMPLE, kind: "install" as const, start: "2026-11-12T21:00:00Z", who: { name: "Sample Lead Installer", phone: null }, balanceCents: 141200 };
+const ACCESS_TENANT = { who: "tenant" as const, name: "Tina Lee", mobile: "+61400111222" };
+const ACCESS_PM = { who: "property_manager" as const, name: "Paul Manager", mobile: "+61400333444" };
 const PARTNER_JOB = { installerFirstName: "Sam", ownerName: "Helen Yang", address: SHORT_ADDRESS, jobNumber: "HV-TEST", jobUrl: FIELD };
 const BANK = { accountName: "Home Insulation Victoria", bsb: "082902", accountNumber: "777966349", payId: null, configured: true };
 
@@ -463,6 +466,21 @@ const OWNER: TemplateEntry[] = [
   ENTRY({ id: "owner:sms-booked-install", section: "owner", step: "install", kind: "text", code: "", name: "You're booked for your insulation install (text)", when: "With the install \"You're booked\" email", who: "Owner", approvalNote: "Wording: Jo 2 Nov 2026, decision #46 (OWNER_BOOKED_INSTALL_APPROVED stays false until Jo OKs the pictures)", gate: { kind: "text", smsType: "in_house_booked_owner" },
     source: { builder: "src/lib/in-house-booking.core.ts", fn: "ownerBookedMessage", sender: "src/lib/in-house-booking.server.ts" },
     render: () => text((ownerBookedMessage(BOOKED_INSTALL_SAMPLE, BOOKED_ON) as { sms: string }).sms) }),
+  // Part 4 Task 15 (Jo 2 Nov 2026, answer 7): when the home is rented and the TENANT or PROPERTY MANAGER lets the trades in,
+  // they get the PIESA / install "You're booked" text and the day-before text (visit-time texts only; the owner still gets
+  // everything). DRAFT: the owner's approved texts with their first name — ACCESS_PERSON_TEXTS_APPROVED stays false.
+  ENTRY({ id: "owner:sms-access_person_booked", section: "waiting", approval: "waiting", step: "safety_check", kind: "text", code: "", name: "You're booked (text to the person who lets the trades in)", when: "With the owner's PIESA / install \"You're booked\" text, when the owner said a tenant or property manager lets us in (rental quick taps)", who: "Tenant or property manager", approvalNote: "DRAFT: the owner's #38 / #46 texts with the access person's first name (answer 7, Jo 2 Nov 2026); ACCESS_PERSON_TEXTS_APPROVED stays false", gate: { kind: "code_off", flag: "ACCESS_PERSON_TEXTS_APPROVED" },
+    source: { builder: "src/lib/access-person-texts.core.ts", fn: "accessPersonBookedText", sender: "src/lib/access-person-texts.server.ts" },
+    render: () => texts([
+      { label: "Safety check (tenant)", body: S(accessPersonBookedText({ kind: "piesa", firstName: null, startIso: BOOKED_PIESA_SAMPLE.start, whoName: "Sample Electrician", business: BOOKED_PIESA_SAMPLE.business, changed: false }, ACCESS_TENANT)) },
+      { label: "Install day (property manager)", body: S(accessPersonBookedText({ kind: "install", firstName: null, startIso: BOOKED_INSTALL_SAMPLE.start, whoName: "Sample Lead Installer", business: WILL_CALL_SAMPLE, changed: false }, ACCESS_PM)) },
+    ]) }),
+  ENTRY({ id: "owner:sms-access_person_tomorrow", section: "waiting", approval: "waiting", step: "safety_check", kind: "text", code: "", name: "See you tomorrow (text to the person who lets the trades in)", when: "From 4pm the afternoon before the safety check or the install, when a tenant or property manager lets us in", who: "Tenant or property manager", approvalNote: "DRAFT: the owner's #25 day-before text with the access person's first name (answer 7, Jo 2 Nov 2026); ACCESS_PERSON_TEXTS_APPROVED stays false", gate: { kind: "code_off", flag: "ACCESS_PERSON_TEXTS_APPROVED" },
+    source: { builder: "src/lib/access-person-texts.core.ts", fn: "accessPersonTomorrowText", sender: "src/lib/access-person-texts.server.ts" },
+    render: () => texts([
+      { label: "Safety check (tenant)", body: S(accessPersonTomorrowText({ kind: "piesa", time: melbourneClock(BOOKED_PIESA_SAMPLE.start), business: BOOKED_PIESA_SAMPLE.business }, ACCESS_TENANT)) },
+      { label: "Install day (property manager)", body: S(accessPersonTomorrowText({ kind: "install", time: melbourneClock(BOOKED_INSTALL_SAMPLE.start), business: WILL_CALL_SAMPLE }, ACCESS_PM)) },
+    ]) }),
   // Fix round 1 (controller ruling 2 Nov 2026): releases made with the old Release step keep the wording Jo approved for
   // them (decision 389, 25 Oct 2026) for their day-2 reminder / 7am text — unchanged, not behind IT_IS_YOUR_TURN_V2_APPROVED.
   ENTRY({ id: "owner:O77-legacy", section: "owner", step: "ready_check", kind: "email", code: "O77", name: "It's your turn — confirm your free Ready Check (old Release step)", when: "Releases Jo made with the old Release step before 2 Nov 2026: their day-2 reminder (the page opens ?screen=turn)", who: "Owner", approvalNote: "Jo 25 Oct 2026, decision 389", gate: { kind: "email" },

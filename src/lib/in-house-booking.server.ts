@@ -91,6 +91,12 @@ export async function notifyOwnerBooked(jobId:string,kind:'ready_check'|'piesa'|
     await (await import('./comms.server')).assertCustomerDeliveryAllowed(jobId,'Booking confirmation');
   },build:()=>n.version==='v2'?{subject:n.subject,html:n.html,text:n.text}:({subject:n.subject,...partnerEmailLayout({subject:n.subject,blocks:[{kind:'p',text:n.text}],test:job.source==='qa_test'})})});
   const sms=await (await import('./sms.server')).sendRealSms({jobId,type:'in_house_booked_owner',to:job.owners.phone,body:n.sms,idempotencyKey:`${key}:sms`,event:{at:booking.created_at,current:true}});
+  // Part 4 Task 15 (answer 7): after the owner's notice, the tenant / property manager who lets the trades in gets their own
+  // PIESA / install "You're booked" text (own flag, own key per booking + person; a problem there never holds the owner's).
+  if(kind!=='ready_check'){
+    try{await (await import('./access-person-texts.server')).textAccessPersonBooked(jobId,booking.id,now,{whoName:async()=>who.name});}
+    catch(e){console.error('access person booked text failed',(e as Error).message);}
+  }
   if(email==='sent'&&['sent','already','already_sent'].includes(sms.status)){
     const result=await db.from('workflow_events').update({event_type:'in_house_booked_notice_delivered'}).eq('id',intentId);if(result.error)throw Error(result.error.message);
   }

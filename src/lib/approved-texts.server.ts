@@ -72,8 +72,8 @@ async function deliver(p: { kind: ApprovedTextKind; key: string; job: JobRow; bo
 }
 
 /** Shared "not sent" outcomes (the sweeps count everything else as handled). */
-export const NOT_HANDLED = ["in_house", "in_house_read_failed", "skipped", "already handled", "not due", "not an our-lead job", "no longer current", "owner link missing", "missing facts", QUIET_HOURS_WAIT] as const;
-const handled = (r: string) => !(NOT_HANDLED as readonly string[]).includes(r) && !r.startsWith("held — ");
+export const NOT_HANDLED = ["in_house", "in_house_read_failed", "skipped", "already handled", "not due", "not an our-lead job", "no longer current", "not current", "not applicable", "no access person", "awaiting approval", "owner link missing", "missing facts", QUIET_HOURS_WAIT] as const;
+const handled = (r: string) => !(NOT_HANDLED as readonly string[]).includes(r) && !r.startsWith("held — ") && !r.startsWith("held: ");
 
 /** Decisions 82 / 93 / 99: the afternoon before a booked Ready Check (our leads), safety check or install → "See you tomorrow". */
 export async function textOwnerVisitTomorrow(kind: VisitTextKind, jobId: string, booking: { id: string; scheduled_start: string }, now = new Date(), deps: { businessContact?: (jobId: string, role: "installer" | "electrician") => Promise<BusinessContact | null> } = {}): Promise<string> {
@@ -154,12 +154,12 @@ async function stillBooked(jobId: string, kind: "ready_check" | "assessment" | "
 
 /** 15-minute tick: due day-before texts, quote reminders, and a 24h catch-up for every one-off text above. */
 export async function sweepApprovedTexts(now = new Date()) {
-  const out = { tomorrow: 0, quoteReminders: 0, installMoved: 0 };
+  const out = { tomorrow: 0, accessTomorrow: 0, quoteReminders: 0, installMoved: 0 };
   const since = new Date(now.getTime() - APPROVED_TEXT_SWEEP_HOURS * 3_600_000).toISOString();
   const in48h = new Date(now.getTime() + 48 * 3_600_000).toISOString();
   const [recent, upcoming, quotes] = await Promise.all([
     admin.from("bookings").select("id, job_id, kind, scheduled_start, status, created_at").in("kind", ["ready_check", "assessment", "installation"]).eq("status", "confirmed").gte("created_at", since).limit(500),
-    admin.from("bookings").select("id, job_id, kind, scheduled_start").in("kind", ["ready_check", "assessment", "installation"]).eq("status", "confirmed").gt("scheduled_start", now.toISOString()).lte("scheduled_start", in48h).limit(500),
+    admin.from("bookings").select("id, job_id, kind, status, scheduled_start, created_at").in("kind", ["ready_check", "assessment", "installation"]).eq("status", "confirmed").gt("scheduled_start", now.toISOString()).lte("scheduled_start", in48h).limit(500),
     admin.from("quotes").select("id, job_id, kind, status, release_state, sent_at, veec_discount_inc_gst").eq("kind", "installation").eq("status", "issued").eq("release_state", "released").not("sent_at", "is", null).limit(500),
   ]);
   for (const r of [recent, upcoming, quotes]) if (r.error) throw new Error(`approved texts sweep: ${r.error.message}`);
@@ -173,7 +173,13 @@ export async function sweepApprovedTexts(now = new Date()) {
     const was = installMovedFrom(b as InstallBookingRow, (all ?? []) as InstallBookingRow[]);
     if (was) await run("install moved", () => textOwnerInstallMoved(b.job_id, b as InstallBookingRow, was, now), "installMoved");
   }
-  for (const b of upcoming.data ?? []) await run("see you tomorrow", () => textOwnerVisitTomorrow(b.kind as VisitTextKind, b.job_id, b, now), "tomorrow");
+  for (const b of upcoming.data ?? []) {
+    await run("see you tomorrow", () => textOwnerVisitTomorrow(b.kind as VisitTextKind, b.job_id, b, now), "tomorrow");
+    // Part 4 Task 15 (answer 7): the tenant / property manager who lets the trades in gets their own day-before text for the
+    // safety check and the install (own flag, own key; nothing for a Ready Check). Not inside textOwnerVisitTomorrow: that
+    // one skips in-house jobs, and this is a new-flow message (Task 8 ruling), so it runs for every confirmed booking.
+    if (b.kind === "assessment" || b.kind === "installation") await run("access person tomorrow", async () => (await import("./access-person-texts.server")).textAccessPersonTomorrow(b.job_id, b.id, now, { readBooking: async () => b }), "accessTomorrow");
+  }
   for (const q of (quotes.data ?? []) as QuoteRow[]) await run("quote reminder", () => textOwnerQuoteReminder(q, now), "quoteReminders");
   return out;
 }

@@ -135,6 +135,14 @@ export const SMS_MESSAGE_TYPES = {
   // installer adds the job (no "It's your turn" text for them). Wording is a DRAFT: never sends until Jo approves it (also
   // behind OWN_CUSTOMER_RENTAL_TAPS_APPROVED); own switch, off until Jo switches it on.
   own_customer_rental_taps: { audience: "owner", label: "A few quick questions about your home – installer's own customer, after the installer adds the job (answer 24; DRAFT wording, OWN_CUSTOMER_RENTAL_TAPS_APPROVED)", wordingApproved: false, quietHours: true },
+  // Part 4 Task 15 (Jo 2 Nov 2026, answer 7): the person who lets the trades in when it is NOT the owner (the tenant or the
+  // property manager, from the owner's quick-taps answers) gets the PIESA / install "You're booked" text and the day-before
+  // text — visit-time texts only (access-person-texts.core). `ownerSideContact`: an owner-side person on the job (the job's
+  // owner consent and comms switches apply), but the OWNER's "Do not contact" is about the owner and does not hold these;
+  // a STOP from the access person's own number does. DRAFT wording: never sends until Jo approves it (also behind
+  // ACCESS_PERSON_TEXTS_APPROVED); own switches, off until Jo switches them on.
+  access_person_booked: { audience: "owner", ownerSideContact: true, label: "You're booked (PIESA / install) – to the tenant or property manager who lets the trades in (answer 7; DRAFT wording, ACCESS_PERSON_TEXTS_APPROVED)", wordingApproved: false, quietHours: true },
+  access_person_tomorrow: { audience: "owner", ownerSideContact: true, label: "See you tomorrow (PIESA / install) – to the tenant or property manager who lets the trades in (answer 7; DRAFT wording, ACCESS_PERSON_TEXTS_APPROVED)", wordingApproved: false, quietHours: true },
 } as const;
 export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;
 
@@ -225,6 +233,8 @@ export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
   run_slot_cancelled: { kind: "window" }, // key = run + job + window; `run_slot_cancelled` recorded once per window before any send; held → the tick retries while that time is still unfilled and ahead
   owner_will_call: { kind: "window" }, // key = job (one per job); sent only with the email while the job still waits for its Ready Check booking (in-house-batch-email.server)
   own_customer_rental_taps: { kind: "window" }, // key = job (one per job); sent once right after Add a job (own-customer-rental-taps.server)
+  access_person_booked: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the PIESA / install booking (its created_at); also needs that booking still confirmed (access-person-texts.server)
+  access_person_tomorrow: { kind: "window" }, // key = booking + person; due only the afternoon before, recomputed each tick (approved-texts.core visitTomorrowDue)
 };
 
 export type SmsEventInput = {
@@ -313,11 +323,15 @@ export function smsBlocker(x: SmsGateInput): string | null {
   if (!x.senderConfigured) return "No Australian sending number set up";
   if (!toAuE164(x.to)) return SMS_NOT_MOBILE;
   if (x.optedOut) return SMS_REPLIED_STOP;
-  // The owner's own sign-in code is something they just asked for, not an automatic message.
-  if (x.doNotContact && t.audience === "owner" && x.type !== "owner_code") return SMS_DO_NOT_CONTACT;
+  // The owner's own sign-in code is something they just asked for, not an automatic message. The owner's "Do not contact"
+  // is about the owner: it never holds a visit-time text to the tenant / property manager who lets the trades in (Task 15).
+  if (x.doNotContact && t.audience === "owner" && x.type !== "owner_code" && !ownerSideContact(t)) return SMS_DO_NOT_CONTACT;
   if (!x.consent) return t.audience === "owner" ? SMS_NO_OWNER_CONSENT : "Partner is not approved and active";
   return null;
 }
+
+/** An owner-side person on the job who is not the owner (the tenant / property manager who lets the trades in). */
+const ownerSideContact = (t: object) => "ownerSideContact" in t && (t as { ownerSideContact?: boolean }).ownerSideContact === true;
 
 /** Holds that belong to the RECIPIENT (not a switch, quiet hours or the sender): trying again changes nothing until the
  *  owner's details change. Callers that retry on a tick record these once instead (A48 batch 2 final review m5). */
