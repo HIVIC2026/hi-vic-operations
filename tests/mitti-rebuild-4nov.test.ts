@@ -22,6 +22,12 @@ test('new A5 coverage wording cannot prove implemented controls or accessible is
  const { answers } = installDayOfficialAnswers({ items: [e('Does the safety plan cover every hazard at this house?', 'Yes'), e('Does its isolator (at ground level) work and switch off safely?', 'Yes')] });
  expect(answers['p3.table1']).toBeUndefined(); expect(answers['p4.isolator']).toBeUndefined();
 });
+test('explicit corrected wording supplies the missing safety facts', () => {
+ const a3 = expand([e('Is there solar, a battery or a generator at the house?', 'Yes'), e('Do you have its shutdown and restart instructions, is its ground-level AC/DC isolator accessible and working, and are its ceiling cables labelled, in conduit, protected and supported?', 'Yes')]);
+ expect(a3.answers['p3.instructions']).toBe('Yes'); expect(a3.answers['p3.isolator']).toBe('Yes');
+ const a5 = installDayOfficialAnswers({items: [e('Have the hazards been considered and their controls implemented for this job?', 'Yes'), e('Is its ground-level isolator accessible, working and able to switch off safely?', 'Yes')]});
+ expect(a5.answers['p3.table1']).toBe('Yes'); expect(a5.answers['p4.isolator']).toBe('Yes');
+});
 test('four mains answers populate seven independent official facts', () => {
   const { answers } = expand([e(switchQ, 'Yes'), e(rcdQ, 'Yes'), e(mainsQ, 'No'), e(deadQ, 'Yes')]);
   expect(answers['p2.mains']).toBe('No');

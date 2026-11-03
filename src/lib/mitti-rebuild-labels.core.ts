@@ -26,6 +26,7 @@ const pairs: readonly (readonly [string, string])[] = [
  ['Photo of the cables at the switchboard', 'Photo of the cables at the switchboard (geotagged)'],
  ['Is there solar, a battery or a generator at the house?', 'Is there solar, a battery or a generator at the property?'],
  ['Can it be shut down safely, and are its ceiling cables labelled, in conduit and protected?', 'Can it be safely shut down, and are its cables in the ceiling labelled, in conduit and protected?'],
+ ['Do you have its shutdown and restart instructions, is its ground-level AC/DC isolator accessible and working, and are its ceiling cables labelled, in conduit, protected and supported?', 'Can it be safely shut down, and are its cables in the ceiling labelled, in conduit and protected?'],
  ['Is all the wiring in the ceiling safe to work around and cover with insulation?', 'Are the cables, connections and fittings in the ceiling safe to work around and cover with insulation?'],
  ['Tick every problem you found.', 'Please tick each problem you found.'],
  ['Are there downlights or other lights sunk into the ceiling?', 'Are there any downlights or other recessed lights in the ceiling?'],
@@ -84,5 +85,7 @@ export const INSTALL_REBUILD_ALIASES: Record<string, string> = {
  'Every answer, photo and video on this form is filled in, and I won\'t leave site until the portal texts me "All filled in".': "Every answer, photo and video is filled in. I won't leave until the portal texts me 'All filled in'.",
 };
 export function installMittiLabel(label: string): string {
+ if (key(label) === key('Have the hazards been considered and their controls implemented for this job?')) return 'Are all the common hazards covered in it?';
+ if (key(label) === key('Is its ground-level isolator accessible, working and able to switch off safely?')) return 'Does the ground-level isolator work and switch off safely?';
  return Object.entries(INSTALL_REBUILD_ALIASES).find(([, alias]) => key(alias) === key(label))?.[0] ?? label;
 }
