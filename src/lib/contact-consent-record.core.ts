@@ -53,7 +53,7 @@ export function contactConsentRecord(
 ): ContactConsentRecord | null {
   const granted = rows.filter((r) => !(isObj(r.snapshot) && r.snapshot["contact_consent"] === false));
   if (!granted.length) return null;
-  const row = [...granted].sort((a, b) => Date.parse(b.consented_at ?? "") || 0 - (Date.parse(a.consented_at ?? "") || 0))[0]!;
+  const row = [...granted].sort((a, b) => (Date.parse(b.consented_at ?? "") || 0) - (Date.parse(a.consented_at ?? "") || 0))[0]!;
   const snap = isObj(row.snapshot) ? row.snapshot : {};
   const expiresAt = typeof snap["expiresAt"] === "string" ? snap["expiresAt"] : row.consented_at ? consentExpiry(row.consented_at) : null;
   const withdrawn = dnc.filter((e) => e.event_type === DO_NOT_CONTACT_SET_EVENT).map((e) => e.created_at).sort((a, b) => Date.parse(b) - Date.parse(a))[0] ?? null;

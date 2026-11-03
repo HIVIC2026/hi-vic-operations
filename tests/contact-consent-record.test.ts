@@ -68,3 +68,14 @@ describe("planContactConsent snapshot", () => {
     expect((planContactConsent({}).snapshot as Record<string, unknown>)["expiresAt"]).toBeUndefined();
   });
 });
+test("contactConsentRecord uses the latest granted row whatever the order", () => {
+  const snap = (w: string) => contactConsentSnapshot({ who: [w], givenAt: "2026-01-01T00:00:00Z", wording: "x" });
+  const rows = [
+    { consented_at: "2026-09-01T00:00:00Z", snapshot: snap("A"), source: "website" },
+    { consented_at: "2026-11-01T00:00:00Z", snapshot: snap("B"), source: "website" },
+    { consented_at: "2026-10-01T00:00:00Z", snapshot: snap("C"), source: "website" },
+  ];
+  expect(contactConsentRecord(rows, [])?.who).toEqual(["B"]);
+  expect(contactConsentRecord([rows[2]!, rows[1]!, rows[0]!], [])?.who).toEqual(["B"]);
+});
+
