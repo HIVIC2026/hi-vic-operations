@@ -1,41 +1,57 @@
-# Team members must have a mobile and an email (Jo 3 Nov, 2:33pm)
+# Required details when a business adds a team member (Jo 3 Nov, 2:35pm)
 
-Replaces the 29 Oct "no email needed, mobile can come later" rule. Applies to installer and electrician businesses.
+This replaces the 29 Oct rule "no email needed, mobile can come later".
+
+| Person | Australian mobile | Date of birth | Email |
+|---|---|---|---|
+| Installer (Lead or Crew) | Required | Required | Optional |
+| Electrician | Required | Required | Required |
 
 ## 1. Team page form and save step
-- **My business › Team › Add a person:** Mobile and Email become required. The Add button stays greyed out until both are filled in. The labels drop "(optional)".
-- **Server check** (in the Team add step, before anything is saved, for both installers and electricians). Wording:
-  - No mobile: "Add their Australian mobile, for example 0412 345 678."
-  - Mobile not Australian: "That mobile doesn't look right. Use an Australian mobile, for example 0412 345 678."
-  - No email: "Add their email address."
-  - Email not valid: "That email doesn't look right. Check it and try again."
-- Remove the old "Adding someone without an email needs the office's database update first" message.
-- The private date-of-birth step stays exactly as it is. No database change is needed: the existing save step already accepts mobile and email, and the new check runs before it.
-- The "Add mobile" edit on a person's row will no longer let someone clear a mobile that is already saved.
+- **My business › Team › Add a person:** the Add button stays greyed out until the required boxes are filled in. Electricians get a new Date of birth box. Installers already have one. Optional boxes say "(optional)".
+- **Server check** (before anything is saved, for both kinds of business). Wording:
+  - "Add their Australian mobile, for example 0412 345 678."
+  - "That mobile doesn't look right. Use an Australian mobile, for example 0412 345 678."
+  - "Add their date of birth." (The existing date checks stay the same.)
+  - Electricians only: "Add their email address."
+  - Any email that is typed in but isn't valid: "That email doesn't look right. Check it and try again."
+- Dates of birth stay private, kept in the same place and the same way as today.
+- **Electricians:** saving the electrician and their date of birth together needs a small database addition. Today's private save step only covers installers. This will be written as a pending change and tested on a practice database first. It goes live only with Jo's OK.
+- The "Add mobile" edit on a person's row can't clear a mobile that is already saved.
 
 ## 2. Other ways a worker gets added
-- **Worker link / office add** (the worker-links add step): the same two checks apply, for both office and boss adds.
-- **Worker invite** (the worker-invite add step): it already needs an email. The mobile check is added.
-- **Imports / Mitti invites:** checked during the build. Any path that creates a worker gets the same check, or is listed for Jo if it can't (for example a Mitti list that has no mobile).
-- **Not changed:** TEST-only setup (the Jo tradie, journey setup and TEST office). These use reserved TEST contacts.
+- **Office add / worker link** and **worker invite**: the same rules apply, including date of birth. These save steps will be changed so they also store it privately.
+- **Imports and Mitti invites:** checked during the build. Any of them that can create a worker gets the same rules. Any that can't is listed for Jo instead of being guessed at.
+- **Not changed:** TEST-only setup, which uses reserved TEST contacts.
 
-## 3. Live workers missing a mobile and/or email (read-only check, nothing changed)
-- **RAPID INSULATION**: 22 approved Crew installers with neither a mobile nor an email: Anthony Nguyen, Austin Field, Damon Langley, Damon Leonard, Dylan Ashfield, Finn Easdale, Gabriel Buchanan, George Bacolas, Harrison Bell, James Murray, Jarrell Seth, Joseph Calarco, Leroy Robins, Liam Zontanos, Louis Booker, Louis Lunn, Madhik Wooden, Mark Forday, Nathaniel Winters, Sebastian Semercioglu, Yaqub Daghistani, Yewan Kospelawatta.
-- **Reinsulate**: Wayne Fletcher (Lead, pending), with neither.
-- **Silver Spirit Investments**: Chris Lowe (installer), who has an email but no mobile.
+## 3. Live workers missing a required detail (read-only check, nothing changed)
+**Electricians** (all four are missing only a date of birth):
+- All Powered Electrical: Jack Young (pending)
+- ORLANDO POWERED: Peter Orlando (approved)
+- Tom Lowe Electrical Services: Tom Lowe (approved)
+- Western Suburbs Electrical: Brent Ponsold (pending)
+
+**Installers:**
+- RAPID INSULATION: 22 approved Crew are missing a mobile and a date of birth: Anthony Nguyen, Austin Field, Damon Langley, Damon Leonard, Dylan Ashfield, Finn Easdale, Gabriel Buchanan, George Bacolas, Harrison Bell, James Murray, Jarrell Seth, Joseph Calarco, Leroy Robins, Liam Zontanos, Louis Booker, Louis Lunn, Madhik Wooden, Mark Forday, Nathaniel Winters, Sebastian Semercioglu, Yaqub Daghistani, Yewan Kospelawatta. James Sachinidis (pending) is missing only a date of birth.
+- Reinsulate: Wayne Fletcher (Lead, pending) is missing a mobile. Bhavdeep Singh, Manminder Singh and Sultan Sharma (pending) are missing a date of birth.
+- Silver Spirit Investments: Chris Lowe is missing a mobile and a date of birth. Dominic Doherty is missing a date of birth.
+- Matthews Insulation: Gerson Noveros, Harry Matthews and Ronald Matthews (pending) are missing a date of birth.
+- Hic: Dominic Doherty (pending) is missing a date of birth.
+- INSolation: Tom Lowe (pending) is missing a date of birth.
 
 How the business is asked to fix them:
-- On their Team page, each of these people gets an amber line: "Add Wayne's mobile and email" (or "Add Chris's mobile" when only one is missing). Tapping it opens a short edit with the same required checks.
-- A top note on the Team page: "3 people need a mobile or email before we can send their links."
-- Office Needs me gets one row per business: "Reinsulate: 1 team member missing contact details."
-- Nobody is blocked from current jobs and nothing is sent. Links (for example the ESC notice link) simply wait until the details are added.
+- On their own Team page, each of these people gets an amber line naming only what's missing, for example "Add Wayne's mobile" or "Add Liam's mobile and date of birth". Tapping it opens a short edit that uses the same checks.
+- A note at the top of the Team page: "4 people need details added before we can send their links or register them."
+- Office Needs me gets one row per business, for example "Rapid: 23 team members missing details."
+- Nothing is sent, and nobody is removed from current jobs.
 
-**Question for Jo:** should the Lead Installer on a booked job be held until their details are added? The plan assumes no: show it as a warning only.
+**Question for Jo:** should the Lead Installer on a booked job be held until their details are added? The plan assumes a warning only, no hold.
 
 ## 4. Tests (written first)
-- Adding a person with no mobile is refused with the exact wording. The same for no email, a non-Australian mobile and a bad email. Checked for both installers and electricians.
-- A valid mobile and email saves the person. Date-of-birth privacy is unchanged.
-- The worker-links and worker-invite steps refuse missing details.
-- The Team page shows the "Add Wayne's mobile and email" line only for that business's own people. Two-business check: Reinsulate can't see Rapid's people.
-- An existing mobile can't be cleared.
-- Then the related Team and ESC tests, typecheck and build. Nothing sent or published.
+- Installer: refused with no mobile, a non-Australian mobile or no date of birth. Saves with no email.
+- Electrician: refused with no mobile, no date of birth or no email. Saves when all are present, and the date of birth stays private.
+- Office add and worker invite follow the same rules.
+- Missing-details lines show only for a business's own people. Two-business check: Reinsulate can't see Rapid's people or their dates of birth.
+- A saved mobile can't be cleared.
+- The new electrician database step is proven on the practice database.
+- Then the related Team and ESC tests, typecheck and build. No sends or publishing.
