@@ -36,6 +36,8 @@ const KEYS = [
   "roof",
 ] as const;
 const strOrNull = (v: unknown) => v === null || typeof v === "string";
+/** The listing link comes from a task reading web pages: only a plain http(s) address (or none) is kept. */
+const webUrlOrNull = (v: unknown) => v === null || (typeof v === "string" && /^https?:\/\/\S+$/i.test(v));
 const numOrNull = (v: unknown) =>
   v === null || (typeof v === "number" && Number.isFinite(v) && v >= 0);
 
@@ -49,7 +51,7 @@ export function listingResultValid(x: unknown): x is ListingResult {
     typeof o["jobId"] === "string" &&
     o["jobId"].length > 0 &&
     (o["status"] === "found" || o["status"] === "not found") &&
-    strOrNull(o["url"]) &&
+    webUrlOrNull(o["url"]) &&
     strOrNull(o["source"]) &&
     strOrNull(o["propertyType"]) &&
     strOrNull(o["roof"]) &&

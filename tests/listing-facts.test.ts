@@ -208,19 +208,30 @@ describe("listing facts endpoint", () => {
     );
   });
 
+  test("http(s) urls and a null url are accepted", async () => {
+    addSpot("a", { band: "best", savedDaysAgo: 5 });
+    for (const url of ["https://example.com/l", "http://example.com/l", "HTTPS://Example.com/l", null])
+      expect(
+        (await handlers.POST({ request: req("POST", { results: [result("a", { url })] }) })).status,
+      ).toBe(200);
+  });
+
   test("only property_facts is written", async () => {
     addSpot("a", { band: "best", savedDaysAgo: 5 });
     await handlers.POST({ request: req("POST", { results: [result("a")] }) });
     expect(new Set(writes)).toEqual(new Set(["property_facts"]));
   });
 
-  test("extra keys, missing keys, bad status and more than 100 results -> 400, nothing written", async () => {
+  test("extra keys, missing keys, bad status, non-http(s) url and more than 100 results -> 400, nothing written", async () => {
     addSpot("a", { band: "best", savedDaysAgo: 5 });
     for (const bad of [
       { ...result("a"), foo: 1 },
       { jobId: "a", status: "found", foo: 1 },
       result("a", { status: "maybe" }),
       result("a", { floorAreaM2: "180" }),
+      result("a", { url: "javascript:alert(1)" }),
+      result("a", { url: "data:text/html,hi" }),
+      result("a", { url: "ftp://example.com/l" }),
     ])
       expect((await handlers.POST({ request: req("POST", { results: [bad] }) })).status).toBe(400);
     expect(
