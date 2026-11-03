@@ -53,7 +53,7 @@ function MyWork() {
     const offersList = offersOpen ? offersListView(data.offers, goneIn) : null;
     const empty = homeIsEmpty({ offers: data.offers.length, coming: home.coming.length, action: home.action.length, progress: home.progress.length, done: data.done.length });
     return (
-      <TradeShell installer boss={data.boss} test={data.isTest} redesign>
+      <TradeShell installer boss={data.boss} money={data.money} test={data.isTest} redesign>
         <div data-my-work data-empty={empty || undefined}>
           <h1 className="font-display text-[22px] font-semibold leading-[1.2]">{g.title}</h1>
           <p className="mt-1 text-sm text-sub">{g.sub}</p>
@@ -113,7 +113,7 @@ function MyWork() {
   const moving = yourJobs.filter((j) => j.place === "moving");
   const shown = onlyMoving ? moving : onlyChasing ? chasing : yourJobs;
   return (
-    <TradeShell installer={false} boss={data.boss} test={data.isTest}>
+    <TradeShell installer={false} boss={data.boss} money={data.money} test={data.isTest}>
       <div><h1 className="font-display text-[26px] font-bold leading-tight">{g.title}</h1><p className="text-sm text-sub">{g.sub}</p></div>
       <div className="grid grid-cols-2 gap-2" data-work-tiles>
         {([

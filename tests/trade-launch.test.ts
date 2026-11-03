@@ -68,10 +68,12 @@ describe("Trade sign-in", () => {
   test("invite email approved by Jo 27 Oct 2026 (decision 406); only approved workers get access", () => {
     expect(TRADE_INVITE_EMAIL_APPROVED).toBe(true);
     const w = { email: "a@b.com", approval_status: "approved", removed_at: null, trade_role: "installer", certification_status: "verified" };
-    expect(tradeAccessBlocker(w, true)).toBeNull();
-    expect(tradeAccessBlocker({ ...w, approval_status: "pending" }, true)).not.toBeNull();
-    expect(tradeAccessBlocker({ ...w, certification_status: "unverified" }, true)).not.toBeNull();
-    expect(tradeAccessBlocker(w, false)).not.toBeNull();
+    // Lead Installers, Crew and Electricians never log in (new job flow part 5); only Office people do.
+    const office = { ...w, trade_role: "office", certification_status: null };
+    expect(tradeAccessBlocker(office, true)).toBeNull();
+    expect(tradeAccessBlocker(w, true)).not.toBeNull();
+    expect(tradeAccessBlocker({ ...office, approval_status: "pending" }, true)).not.toBeNull();
+    expect(tradeAccessBlocker(office, false)).not.toBeNull();
     expect(memberRoleFor("Boss@Biz.com", "boss@biz.com")).toBe("business_admin");
     expect(grantedRole("electrician")).toBe("electrician");
   });

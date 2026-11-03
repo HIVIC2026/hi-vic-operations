@@ -34,7 +34,7 @@ function Money() {
   const seed = useMemo(() => readTradeCache<Awaited<ReturnType<typeof load>>>(uid, "money"), [uid]); // eslint-disable-line react-hooks/exhaustive-deps
   const { data, error } = useQuery({ queryKey: ["trade-money-v2"], queryFn: async () => { const d = await headStartOr(uid, ["trade-money-v2"], () => load()); if (d) writeTradeCache(uid, "money", d); return d; }, retry: false, staleTime: 30_000, ...(seed ? { initialData: seed.data, initialDataUpdatedAt: seed.at } : {}) }); // a refusal (staff) shows at once, not after retries
   const { data: x } = useQuery({ queryKey: ["trade-money-extras"], queryFn: () => loadExtras(), retry: false, staleTime: 30_000 });
-  if (error) return <TradeShell installer={false}><p role="alert" className="rounded-[18px] border border-line bg-paper p-4 text-sm">{(error as Error).message}</p></TradeShell>;
+  if (error) return <TradeShell installer={false}><p role="alert" className="rounded-[18px] border border-line bg-paper p-4 text-sm">{(error as Error).message}</p><Link to="/field" className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold text-hiv-blue">Back to My work</Link></TradeShell>;
   if (!data) return <TradeShell installer={false}><p className="text-sm">Loading…</p></TradeShell>;
   const business = data.business.replace(/^\[TEST PARTNER\]\s*/, "");
   const t = moneyTotals(data.rows);
@@ -55,7 +55,7 @@ function Money() {
     const months = paidByMonth(paid.map((r) => ({ jobId: r.jobId, jobNumber: r.jobNumber, suburb: r.suburb, surname: r.surname, amount: r.amount, paidOn: (r.state as { on: string }).on, doneAt: r.doneAt, channel: r.channel })));
     const shownMonths = monthFilter ? months.filter((m) => m.key === monthFilter) : months;
     return (
-      <TradeShell installer={data.kind === "installer"} boss={data.boss}>
+      <TradeShell installer={data.kind === "installer"} boss={data.boss} money>
         <Screen>
           <button type="button" onClick={() => { setShowAll(false); setMonthFilter(null); }} className="inline-flex min-h-9 items-center text-sm font-medium text-hiv-blue">‹ Money</button>
           <div><h1 className="font-display text-[22px] font-semibold leading-[1.2]">All paid jobs</h1><p className="mt-1 text-sm text-sub">Everything paid to {business}. Amounts include GST.</p></div>
@@ -71,7 +71,7 @@ function Money() {
     );
   }
   return (
-    <TradeShell installer={data.kind === "installer"} boss={data.boss}>
+    <TradeShell installer={data.kind === "installer"} boss={data.boss} money>
       <Screen>
         <div>
           <h1 className="font-display text-[22px] font-semibold leading-[1.2]">Money</h1>

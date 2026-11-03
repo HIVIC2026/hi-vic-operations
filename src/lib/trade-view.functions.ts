@@ -8,6 +8,10 @@ const plain = <T,>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 export const getTradeHome = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .handler(async ({ context }) => plain(await (await import("./trade-view.server")).tradeHome(context.userId).catch((e: Error) => { if (/isn't linked/.test(e.message)) return null; throw e; })));
 
+/** Who this sign-in is in the trade area: boss, office, or none (Lead Installers, Crew and Electricians don't log in). */
+export const getTradeRole = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => plain(await (await import("./trade-view.server")).tradeRoleFor(context.userId)));
+
 export const getTradeOffer = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ offerId: uuid }).parse(d))
   .handler(async ({ data, context }) => plain(await (await import("./trade-view.server")).tradeOffer(data.offerId, context.userId)));

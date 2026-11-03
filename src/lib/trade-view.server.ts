@@ -18,6 +18,8 @@ import { installerQuoteLine } from "./installer-quote-status.core";
 import { inHouseTradeBookingText } from "./in-house-message.core";
 import { withoutRetiredInstallDayPhotos } from "./ready-check-chase.core";
 import { early } from "./early-read";
+import { seesMoney, seesPrices, tradeRoleOf } from "./trade-access-role.core";
+import { isMissingDbObject } from "./schema-compat.core";
 // Speed (installer screens, Task 6): the job page's modules, imported at module scope (namespaces, as above).
 import * as allocationServer from "./allocation.server";
 import * as mittiJobPresentationServer from "./mitti-job-presentation.server";
@@ -68,9 +70,23 @@ export async function tradeContext(userId: string) {
   if (!m) return null;
   const b = (m as unknown as { businesses: Biz | null }).businesses;
   if (!b) return null;
+  const role = tradeRoleOf({ memberRole: m.member_role, workerTradeRole: null });
+  // "Can see Money" is a pending column: until its SQL is live a missing column reads as off, never a crash.
+  let canSeeMoney = false;
+  if (role === "office") {
+    const { data: cm, error: cmErr } = await admin.from("business_members").select("can_see_money" as never).eq("business_id", b.id).eq("user_id", userId).eq("active", true).maybeSingle();
+    if (cmErr && !isMissingDbObject(cmErr) && !['42703', 'PGRST204'].includes(cmErr.code ?? '')) throw cmErr;
+    canSeeMoney = !cmErr && (cm as unknown as { can_see_money?: boolean } | null)?.can_see_money === true;
+  }
   const r = new Set((roles ?? []).map((x) => x.role as string));
   const kind: TradeKind = r.has("installer") && !r.has("electrician") ? "installer" : b.business_type === "eec_installer" && !r.has("electrician") ? "installer" : "electrician";
-  return { biz: b as Biz, kind, boss: m.member_role === "business_admin", firstName: prof?.full_name?.trim().split(/\s+/)[0] ?? null, profile: prof, isTest: isTestPartner(b) };
+  return { biz: b as Biz, kind, boss: role === "boss", role, prices: seesPrices(role), money: seesMoney(role, canSeeMoney), firstName: prof?.full_name?.trim().split(/\s+/)[0] ?? null, profile: prof, isTest: isTestPartner(b) };
+}
+
+/** Which kind of person this sign-in is for the trade area (null when it isn't linked to a business: office staff). */
+export async function tradeRoleFor(userId: string) {
+  const c = await tradeContext(userId);
+  return c ? { role: c.role, money: c.money } : null;
 }
 
 /** Review D: bosses see every active assignment for the business; workers only their own. */
@@ -92,6 +108,20 @@ export async function bossOrThrow(userId: string) {
   return c;
 }
 
+/** Money screens: the boss, or an Office person the boss turned "Can see Money" on for. Refused here, not just hidden in the page. */
+export async function moneyOrThrow(userId: string, message = "Only the business owner can see this.") {
+  const c = await ctxOrThrow(userId);
+  if (!c.money) throw new WorkflowError(message);
+  return c;
+}
+
+/** Price screens (Part 10): the boss and Office people enter and see prices; nobody else does. */
+export async function pricesOrThrow(userId: string) {
+  const c = await ctxOrThrow(userId);
+  if (!c.prices) throw new WorkflowError("Prices aren't shown to you. Ask the business owner.");
+  return c;
+}
+
 const VISIT: Record<string, string> = { assessment: "Pre Insulation Electrical Safety Assessment (PIESA)", rectification: "Fixes", ready_check: "Ready Check", installation: "Install" };
 
 const HOME_JOB_COLS = "id, job_number, stage, source, channel, qa_archived_at, deleted_at, updated_at, next_action, owners(full_name), properties(address_line, suburb, postcode)";
@@ -105,7 +135,7 @@ export async function tradeHome(userId: string) {
   const c = await ctxOrThrow(userId);
   const now = new Date();
   // Business owner only, own pay only. Started now, awaited after round 3; a failure still fails the page (money path).
-  const moneyP = c.boss ? tradeMoneyRows(c.biz.id, c.kind, c.isTest) : Promise.resolve([] as Awaited<ReturnType<typeof tradeMoneyRows>>);
+  const moneyP = c.money ? tradeMoneyRows(c.biz.id, c.kind, c.isTest) : Promise.resolve([] as Awaited<ReturnType<typeof tradeMoneyRows>>);
   moneyP.catch(() => undefined); // handled where it is awaited; this only stops an early rejection being reported as unhandled
   const histQ = admin.from("job_assignments").select("job_id").eq("business_id", c.biz.id).eq("active", false);
   // Review D (as assignmentQuery): bosses see every active assignment for the business; workers only their own.
@@ -220,7 +250,7 @@ export async function tradeHome(userId: string) {
     formLinked: formFacts.get(j.jobId)?.linked === true, formCompleted: formFacts.get(j.jobId)?.completed === true, formHasAnswers: formFacts.get(j.jobId)?.hasAnswers ?? null,
     priceEntered: j.channel === "installer_sourced" ? priced.has(j.jobId) : null, boss: c.boss,
   }))) : null;
-  return { kind: c.kind, boss: c.boss, business: c.biz.name, firstName: c.firstName, isTest: c.isTest, week, offers: offerList, yourMove, coming: home ? comingForInstaller(coming, home) : coming, jobs: jobsTabbed, done, home, month: c.boss ? { jobs: month.length, earned: month.reduce((t, r) => t + (r.amount ?? 0), 0), paid: paidThisMonth } : null };
+  return { kind: c.kind, boss: c.boss, role: c.role, money: c.money, business: c.biz.name, firstName: c.firstName, isTest: c.isTest, week, offers: offerList, yourMove, coming: home ? comingForInstaller(coming, home) : coming, jobs: jobsTabbed, done, home, month: c.money ? { jobs: month.length, earned: month.reduce((t, r) => t + (r.amount ?? 0), 0), paid: paidThisMonth } : null };
 }
 
 /** One offer, trade-side. Owner and address only once this business has taken it. */
@@ -617,8 +647,7 @@ export async function partnerPayStates(bizId: string, kind: TradeKind, testOnly:
 }
 
 export async function tradeMoney(userId: string) {
-  const c = await ctxOrThrow(userId);
-  if (!c.boss) throw new WorkflowError("Money is only shown to the business owner.");
+  const c = await moneyOrThrow(userId, "Money is only shown to the business owner.");
   // Speed (installer screens, Task 8): the saved account is read with the money rows' first round (owner only, after the
   // refusal above) instead of after them. Only the last 4 digits of the saved account: enough to recognise it, never the
   // full number.
@@ -924,7 +953,12 @@ export async function tradeAddTeamPerson(userId: string, p: { name: string; work
   if(c.kind==='installer'){
     const problem=(await import('./worker-identity.core')).dateOfBirthProblem(p.dateOfBirth,(await import('./melbourne-time.core')).melbourneToday());
     if(problem)throw new WorkflowError(problem);
-    const r=await (admin as unknown as import('@supabase/supabase-js').SupabaseClient).rpc('add_team_installer_with_identity',{_business:c.biz.id,_actor:userId,_name:name,_role:p.workerRole,_mobile:v.mobile,_email:email,_dob:p.dateOfBirth});
+    // New flow: one Team function for every role (pending installer-portal-roles.sql). Until it is live, the old
+    // Lead/Crew function still adds the person exactly as before.
+    const rpc=admin as unknown as import('@supabase/supabase-js').SupabaseClient;
+    let r=await rpc.rpc('add_team_person_with_identity',{_business:c.biz.id,_actor:userId,_name:name,_role:p.workerRole,_mobile:v.mobile,_email:email,_dob:p.dateOfBirth,_licence:null,_rec:null});
+    if(r.error&&['PGRST202','42883'].includes(r.error.code))r=await rpc.rpc('add_team_installer_with_identity',{_business:c.biz.id,_actor:userId,_name:name,_role:p.workerRole,_mobile:v.mobile,_email:email,_dob:p.dateOfBirth});
+    if(r.error&&/mobile/i.test(r.error.message))throw new WorkflowError('Add their mobile number.');
     if(r.error){
       if(['PGRST202','42883'].includes(r.error.code))throw new WorkflowError('Private ESC registration details need the pending database update before this person can be added.');
       if(['23502','PGRST204','42703'].includes(r.error.code))throw new WorkflowError("Adding someone without an email needs the office's database update first.");
@@ -1109,7 +1143,7 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
     installFormFacts(jobId),
     clearanceP,
     c.kind === "installer" ? mittiJobPresentationServer.mittiJobPresentation(jobId, userId, c).catch(() => ({ applies: false as const })) : Promise.resolve({ applies: false as const }),
-    c.boss ? tradeMoneyRows(c.biz.id, c.kind, c.isTest).then((rows) => rows.filter((r) => r.jobId === jobId && r.kind === "installation")) : Promise.resolve([] as Awaited<ReturnType<typeof tradeMoneyRows>>),
+    c.money ? tradeMoneyRows(c.biz.id, c.kind, c.isTest).then((rows) => rows.filter((r) => r.jobId === jobId && r.kind === "installation")) : Promise.resolve([] as Awaited<ReturnType<typeof tradeMoneyRows>>),
     // Approved states (decision 234): the dates and names each panel prints, every one a recorded fact.
     admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", "quote_declined").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", "ready_check_basics").contains("details", { completed: true }).order("created_at", { ascending: false }).limit(1).maybeSingle(),
@@ -1148,7 +1182,7 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
     price: { entered: priceEntered },
     boss: c.boss,
     quote: quote.applies ? { line: installerQuoteLine(quote), sent: quote.sent, accepted: quote.accepted, declined: quote.declined, held: quote.held, formCompleted: quote.formCompleted === true, sentAt: qq?.sent_at ?? null, acceptedAt: qq?.accepted_at ?? null, declinedAt: quote.declined ? declinedEv?.created_at ?? null : null } : null,
-    pay: { amount: c.boss ? pay : null, areaM2: m?.measured_area_m2 == null ? null : Number(m.measured_area_m2), removalM2: m?.removal_required && m.removal_m2 != null ? Number(m.removal_m2) : null },
+    pay: { amount: c.money ? pay : null, areaM2: m?.measured_area_m2 == null ? null : Number(m.measured_area_m2), removalM2: m?.removal_required && m.removal_m2 != null ? Number(m.removal_m2) : null },
     piesa: { passedOn: a?.status === "complete" && a.piesa_outcome === "pass" ? a.completed_at ?? null : null, bookedAt: a?.status === "complete" ? null : piesaBook?.scheduled_start ?? null, electrician: elecName, fixesNote: (fixes ?? []).length ? (fixes ?? []).map((f) => f.description).join(", ") : null,
       // Jo 28 Oct: the PIESA found fixes and Section C is not signed yet (clearance not given).
       fixesOpen: a?.status === "complete" && a.piesa_outcome !== "pass" && !clearance.cleared },
@@ -1207,7 +1241,7 @@ export async function tradeDayExtras(jobId: string, userId: string) {
   const p = ownerRow?.properties as { address_line: string | null; suburb: string | null } | null;
   return {
     channel: j?.channel ?? null, product, areaM2: m?.measured_area_m2 == null ? null : Number(m.measured_area_m2), removalM2: m?.removal_required && m.removal_m2 != null ? Number(m.removal_m2) : null,
-    access: m?.access_difficulty ?? null, pay: c.boss ? pay : null, installForm: { ...form, completedAt: decl?.signed_at ?? null, piisaSigned: !!decl?.signed_at, swmsComplete: swmsComplete === true, evidenceChecked: Array.isArray(blockers) ? blockers.length === 0 : false, crew: [...new Set([decl?.installer_name, allocated].filter((x): x is string => !!x))] },
+    access: m?.access_difficulty ?? null, pay: c.money ? pay : null, installForm: { ...form, completedAt: decl?.signed_at ?? null, piisaSigned: !!decl?.signed_at, swmsComplete: swmsComplete === true, evidenceChecked: Array.isArray(blockers) ? blockers.length === 0 : false, crew: [...new Set([decl?.installer_name, allocated].filter((x): x is string => !!x))] },
     installationRecorded: !!j?.installation_completed_at, rebateSigned,
     electrician: { required: needsElec, name: prof?.full_name ?? null, phone: prof?.phone ?? null },
     installDeadline: dl?.install_deadline ? String(dl.install_deadline) : null, allocatedTo: allocated, ownerSays: says,
@@ -1232,7 +1266,7 @@ export async function tradeMoneyJob(jobId: string, userId: string) {
   // requireTradeJob does; the owner refusal is awaited first, then the job check, and only then is any money or job
   // fact read — the money rows and the job's six reads together (two rounds), not one after the other.
   const asgP = jobAssignmentsRead(jobId);
-  const c = await bossOrThrow(userId);
+  const c = await moneyOrThrow(userId);
   await tradeJobAccess(c, userId, jobId, asgP);
   const [all, [{ data: bank }, { data: decl }, { data: finalAsg }, { data: alloc }, { data: m }, { data: invs }]] = await Promise.all([tradeMoneyRows(c.biz.id, c.kind, c.isTest), Promise.all([
     admin.from("business_bank_details").select("account_number").eq("business_id", c.biz.id).maybeSingle(),
@@ -1260,7 +1294,7 @@ export async function tradeMoneyJob(jobId: string, userId: string) {
 
 /** Money extras (M6): masked bank line parts and the account name. Business owner only. */
 export async function tradeMoneyExtras(userId: string) {
-  const c = await bossOrThrow(userId);
+  const c = await moneyOrThrow(userId);
   const [{ data: bank }, { data: b }] = await Promise.all([
     admin.from("business_bank_details").select("account_name, account_number, bsb").eq("business_id", c.biz.id).maybeSingle(),
     admin.from("businesses").select("legal_name, name").eq("id", c.biz.id).maybeSingle(),
