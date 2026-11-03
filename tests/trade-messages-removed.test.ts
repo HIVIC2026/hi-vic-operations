@@ -10,7 +10,7 @@ import { WORKFLOW_DECISIONS } from "../src/config/workflow-decisions";
 import { SMS_MESSAGE_TYPES } from "../src/lib/sms.core";
 import { stableUuid } from "../src/lib/mitti-create-claim.core";
 
-const walk = (dir: string): string[] => readdirSync(dir).flatMap((n) => { const p = join(dir, n); return statSync(p).isDirectory() ? walk(p) : /\.(ts|tsx)$/.test(n) ? [p] : []; });
+const walk = (dir: string): string[] => readdirSync(dir).flatMap((n: string) => { const p = join(dir, n); return statSync(p).isDirectory() ? walk(p) : /\.(ts|tsx)$/.test(n) ? [p] : []; });
 const SOURCES = [...walk("src"), ...walk("scripts")];
 const grep = (needle: string) => SOURCES.filter((f) => readFileSync(f, "utf8").includes(needle));
 
