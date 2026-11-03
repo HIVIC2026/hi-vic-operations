@@ -78,6 +78,7 @@ const rels: Rels = {
   quotes: { quote_items: { table: "quote_items", fk: "quote_id", on: "rel" } }, // real FK quote_items.quote_id -> quotes.id; loadInstallerQuote embeds it
   assessments: { jobs: { table: "jobs", fk: "job_id", on: "base" } },
   job_assignments: { businesses: { table: "businesses", fk: "business_id", on: "base" }, profiles: { table: "profiles", fk: "user_id", on: "base" } },
+  business_members: { businesses: { table: "businesses", fk: "business_id", on: "base" } }, // Task 7: Add a job reads the sign-in's trade context (business embedded)
 };
 // A6: the staged one-transaction save (docs/pending-migrations/add-installer-job-atomic.sql) runs here as it will once live;
 // tests/journey-a1-complete-route-db.test.ts keeps covering the step-by-step fallback (function not deployed).
@@ -241,11 +242,12 @@ describe("1. Add a job = basics only; the Mitti form is created straight away (d
     expect(state).toEqual({ kind: "open", url: expect.stringContaining("audit_1") });
     expect(mitti.calls.filter((c) => c.startsWith("GET /audits"))).toHaveLength(0);
   });
-  test("a refused save leaves nothing behind: missing permission, ACT postcode or a bad visit time create no job", async () => {
+  test("a refused save leaves nothing behind: missing consent tick, ACT postcode or no Team electrician create no job (Task 7)", async () => {
     const before = (await q("select id from jobs")).length;
-    await expect(os.startOnsiteReadyCheckFor(INST, BIZ, { ...owner(9), contact_permission: false }, { mode: "hivic" }, call, { leadOrigin: "owner_contacted" })).rejects.toThrow(/permission to contact/);
+    // Task 7: the tick names Home Insulation Victoria and the installer's business.
+    await expect(os.startOnsiteReadyCheckFor(INST, BIZ, { ...owner(9), contact_permission: false }, { mode: "hivic" }, call, { leadOrigin: "owner_contacted" })).rejects.toThrow(/agreed to Home Insulation Victoria and .* contacting them/);
     await expect(os.startOnsiteReadyCheckFor(INST, BIZ, { ...owner(9), postcode: "2604" }, { mode: "hivic" }, call, { leadOrigin: "owner_contacted" })).rejects.toThrow(/Victorian/);
-    await expect(os.startOnsiteReadyCheckFor(INST, BIZ, owner(9), { mode: "hivic" }, call, { leadOrigin: "owner_contacted", visit: { day: DAY_A, time: "03:00" } })).rejects.toThrow(/time/i);
+    await expect(os.startOnsiteReadyCheckFor(INST, BIZ, owner(9), { mode: "hivic" }, call, { leadOrigin: "owner_contacted", electricianWorkerId: null })).rejects.toThrow(/Choose the electrician for the PIESA/);
     expect((await q("select id from jobs")).length).toBe(before);
   });
 });

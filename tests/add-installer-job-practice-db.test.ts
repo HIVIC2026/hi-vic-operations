@@ -116,6 +116,17 @@ describe("A6: add_installer_job — one transaction, keyed by the phone's reques
     expect((await db.query("select summary from workflow_events where job_id=$1 and event_type='installer_contact_permission'", [r.job_id])).rows[0]).toEqual({ summary: "Owner ticked contact and privacy consent on the installer's phone" });
     expect((await db.query("select summary from workflow_events where job_id=$1 and event_type='electrician_choice_set'", [r.job_id])).rows[0]).toEqual({ summary: electricianChoiceSummary(p.electrician_choice) });
   });
+  test("Task 7: the consent record (Part 3 shape + the plan's event details) is merged into the consent row and the permission event", async () => {
+    const { addJobConsentRecord } = await import("../src/lib/add-job-flow.core");
+    const rec = addJobConsentRecord("Rapid Insulation", "2026-11-03T05:00:00Z");
+    const p = { ...payload("k9-consent"), consent: { key: "installer_confirmed", by: "installer", text: rec.wording, sha256: "ef".repeat(32), record: { snapshot: rec.snapshot, event: rec.event } } };
+    const r = await call(p);
+    const snap = (await db.query<{ snapshot: Record<string, unknown> }>("select snapshot from owner_contact_consents where job_id=$1", [r.job_id])).rows[0]!.snapshot;
+    expect(snap).toEqual({ by: "installer", text: rec.wording, recorded_by: USER, ...rec.snapshot });
+    const details = (await db.query<{ details: Record<string, unknown> }>("select details from workflow_events where job_id=$1 and event_type='installer_contact_permission'", [r.job_id])).rows[0]!.details;
+    expect(details).toEqual({ by: "installer", ...rec.event });
+    expect(details["who"]).toEqual(["Home Insulation Victoria", "Rapid Insulation"]);
+  });
   test("a known email (old unique index still live) reuses this business's own customer only; never another business's", async () => {
     const mine = await call(payload("k6", { email: "OWNER-k1@hivic-test.example" }));
     expect(await one(`select owner_id::text from jobs where id='${mine.job_id}'`)).toBe(await one("select owner_id::text from jobs where external_enquiry_id='onsite:k1'"));

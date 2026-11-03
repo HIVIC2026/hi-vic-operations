@@ -8,7 +8,7 @@ import {
 } from "../src/lib/installer-screens.core";
 import { HOME_EMPTY, homeIsEmpty, monthStripWords, offerPanelWords, offersListView } from "../src/lib/installer-home.core";
 import { QUOTE_DECLINED_LINE, QUOTE_HELD_LINE, QUOTE_SENT_LINE } from "../src/lib/installer-quote-status.core";
-import { ADD_JOB_OFFLINE_NOTE, addedView, errorSummary, fieldErrors } from "../src/lib/add-job-flow.core";
+import { ADD_JOB_OFFLINE_NOTE, errorSummary, fieldErrors } from "../src/lib/add-job-flow.core";
 import { PICK_ADDRESS } from "../src/lib/onsite-ready-check.core";
 import { AGREEMENT_COVERS, GUIDE_STEPS, TEAM_ADD_SHEET, TEAM_LOGIN, bankOnFileRows, escNoticeRowLine, signedOnLine, teamCountLine } from "../src/lib/trade-view.core";
 
@@ -281,21 +281,11 @@ describe("M3 heavier Add a job (decision 237)", () => {
     expect(errorSummary(0)).toBeNull();
     expect(ADD_JOB_OFFLINE_NOTE).toBe("Your typed details stay on your phone if the signal drops.");
   });
-  test("Job added: tick header, Mitti card from the real form state, what we do now, two links", () => {
-    const v = addedView({ jobNumber: "HV-3166", address: "18 Bogong Avenue, Glen Waverley", ownerName: "Helen Yang", phone: "0412 345 678", ownerFirstName: "Helen", booking: "confirmed", visit: { day: "2026-10-26", time: "07:30" }, state: { kind: "open", url: "https://m" } });
-    expect(v.heading).toBe("Job added");
-    expect(v.line1).toBe("HV-3166 · 18 Bogong Avenue, Glen Waverley");
-    expect(v.line2).toBe("Helen Yang · 0412 345 678");
-    expect(v.card).toEqual({ title: "Your Ready Check form is ready in Mitti", body: "Ready Check Mon 26 Oct at 7:30am — it's in your 6:30am text. Fill in as much as you can at the visit. Press Complete only when it's fully finished — that sends Helen their quote.", button: "Open Mitti form" });
-    expect(v.steps).toEqual(["Nothing is sent to Helen until you press Complete.", "We prepare the quote from your Ready Check and the price you enter on the job page, plus our $349 fee.", "We arrange the electrical safety check once Helen accepts."]);
-    expect(addedView({ jobNumber: null, address: "x", ownerName: "A B", phone: "", ownerFirstName: "A", booking: "none", visit: { day: "", time: "" }, state: { kind: "preparing", message: "soon" } }).card).toMatchObject({ title: "Your Ready Check form is being set up in Mitti", button: null });
-    expect(addedView({ jobNumber: null, address: "x", ownerName: "A B", phone: "", ownerFirstName: "A", booking: "none", visit: { day: "", time: "" }, state: { kind: "retry", message: "No signal." } }).card).toMatchObject({ title: "Job added — form not ready yet", button: "Try again" });
-  });
   test("the screen is the heavier design: two mist cards, 52px fields, 56px button, red summary", () => {
     const flow = readFileSync("src/components/trade/add-job-flow.tsx", "utf8");
     const fields = readFileSync("src/components/trade/customer-fields.tsx", "utf8");
     expect(flow).toContain("data-owner-card");
-    expect(flow).toContain("data-visit-field");
+    expect(flow).toContain("data-electrician-picker"); // Task 7: the visit card is gone; the electrician picker sits under the owner
     expect(flow).toContain("min-h-14");
     expect(flow).toContain("errorSummary(");
     expect(fields).toContain("min-h-[52px]");

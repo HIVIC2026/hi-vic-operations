@@ -44,6 +44,12 @@ export async function electricianPicker(jobId: string, userId: string) {
   ]);
   return { workers: workers.map(w => { const result = electricianVerified(w); return { id: w.id, name: w.full_legal_name, allowed: result.ok && w.approval_status === "approved" && !!w.profile_id, reason: result.reason ?? (w.approval_status !== "approved" ? "Waiting for office approval" : !w.profile_id ? "Electrician needs active Team access" : null), selected: assignment?.user_id === w.profile_id }; }) };
 }
+/** Installer screens Task 7: the business's Team electricians for Add a job (no job yet, so business-scoped; the caller has
+ *  already checked the person may add jobs for this business). Same allowed/reason rule as `electricianPicker`. */
+export async function teamElectricianChoices(businessId: string): Promise<{ id: string; name: string; allowed: boolean; reason: string | null }[]> {
+  const workers = await teamWorkers(businessId);
+  return workers.map((w) => { const result = electricianVerified(w); return { id: w.id, name: w.full_legal_name, allowed: result.ok && w.approval_status === "approved" && !!w.profile_id, reason: result.reason ?? (w.approval_status !== "approved" ? "Waiting for office approval" : !w.profile_id ? "Electrician needs active Team access" : null) }; });
+}
 export async function inHousePiesaBookingBlockerFor(jobId: string): Promise<string | null> {
   const businessId = await heldBusiness(jobId);
   if (!businessId) return null; // non-in-house behaviour unchanged

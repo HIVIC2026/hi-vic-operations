@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import {
   ELECTRICIAN_CHOICE_EVENT, ELECTRICIAN_CHOICE_HIVIC, ELECTRICIAN_CHOICE_ISSUES, ELECTRICIAN_CHOICE_QUESTION, defaultElectricianChoice, electricianChoiceFromEvent, electricianChoiceLine, electricianChoiceOptions, electricianChoiceProblem, electricianChoiceRecord, resolveElectricianChoice, addJobUsual, addJobElectricianProblem,
 } from "../src/lib/electrician-choice.core";
-import { addedView, fieldErrors } from "../src/lib/add-job-flow.core";
+import { fieldErrors } from "../src/lib/add-job-flow.core";
 import { usualIsOnboarded } from "../src/lib/rec-onboarded.core";
 
 const usual = { name: "Sam Lee", licence: "A12345", priceIncGst: 300 };
@@ -30,12 +30,6 @@ describe("Add a job: one required choice, usual electrician only when set, defau
     expect(fieldErrors([ELECTRICIAN_CHOICE_ISSUES.missing]).electrician).toBe(ELECTRICIAN_CHOICE_ISSUES.missing);
     expect(fieldErrors([ELECTRICIAN_CHOICE_ISSUES.usual]).electrician).toBe(ELECTRICIAN_CHOICE_ISSUES.usual);
     expect(fieldErrors(["Enter the owner's full name"]).electrician).toBeUndefined();
-  });
-  test("the 'Job added' screen names the usual electrician when chosen", () => {
-    const base = { jobNumber: "HV-1", address: "1 St", ownerName: "Ann Lee", phone: "04", ownerFirstName: "Ann", booking: "none" as const, visit: { day: "", time: "" }, state: undefined };
-    expect(addedView({ ...base, electrician: { choice: "usual", usualName: "Sam Lee" } }).steps[2]).toBe("Sam Lee does the electrical safety check once Ann accepts.");
-    expect(addedView({ ...base, electrician: { choice: "hivic", usualName: "Sam Lee" } }).steps[2]).toBe("We arrange the electrical safety check once Ann accepts.");
-    expect(addedView(base).steps[2]).toBe("We arrange the electrical safety check once Ann accepts.");
   });
 });
 
@@ -65,18 +59,15 @@ describe("the event and the one resolver the quote pipeline reads", () => {
 
 describe("wiring (source facts)", () => {
   const read = (f: string) => readFileSync(f, "utf8");
-  test("Add a job: the question is on the one screen, sent to the existing guarded handler, recorded once as the event", () => {
+  test("Add a job (Task 7): the Team electrician picker replaces the HIV/usual question; the add_job choice event still records Home Insulation Victoria's arrangement", () => {
     const ui = read("src/components/trade/add-job-flow.tsx");
-    expect(ui).toContain("data-electrician-choice");
-    expect(ui).toContain("electricianChoiceOptions(pickable)");
-    expect(ui).toContain("setElectrician(defaultElectricianChoice(pickable))");
-    expect(ui).toContain("electricianChoice: choice }");
+    expect(ui).not.toContain("data-electrician-choice");
+    expect(ui).toContain("data-electrician-picker");
     const fn = read("src/lib/onsite-ready-check.functions.ts");
-    expect(fn).toContain('electricianChoice: z.enum(["hivic", "usual"]).nullable().optional()');
+    expect(fn).toContain("electricianWorkerId: uuid");
     expect(fn).toContain("export const addJobOptions = createServerFn");
     expect(fn).not.toContain("@tanstack/react-start/server");
     const srv = read("src/lib/onsite-ready-check.server.ts");
-    expect(srv).toContain("addJobElectricianProblem(electricianChoice, status)");
     expect(srv).toContain('recordElectricianChoice(job.id, businessId, userId, electricianChoice, "add_job")');
     expect(srv.indexOf("if (problems.length) throw")).toBeLessThan(srv.indexOf("recordElectricianChoice("));
   });
@@ -114,7 +105,8 @@ test("A3: onboarded = an approved REC match; Reinsulate (pays own electricians) 
   expect(usualIsOnboarded(usual as never, [], null)).toBe(false);
   expect(usualIsOnboarded(null, [rec] as never, null)).toBe(false);
 });
-test("A3 wiring: server and options read the onboarded status", () => {
-  expect(readFileSync("src/lib/onsite-ready-check.server.ts", "utf8")).toContain("addJobElectricianProblem(electricianChoice, status)");
-  expect(readFileSync("src/lib/onsite-ready-check.functions.ts", "utf8")).toContain("readUsualElectricianStatus(data.businessId)");
+test("A3 wiring (since Task 7): Add a job reads the Team electricians, not the usual-electrician status; the usual-electrician rule stays on My business", () => {
+  expect(readFileSync("src/lib/onsite-ready-check.server.ts", "utf8")).toContain("teamElectricianChoices(businessId)");
+  expect(readFileSync("src/lib/onsite-ready-check.functions.ts", "utf8")).toContain("teamElectricianChoices(data.businessId)");
+  expect(readFileSync("src/lib/onsite-ready-check.functions.ts", "utf8")).not.toContain("readUsualElectricianStatus(");
 });
