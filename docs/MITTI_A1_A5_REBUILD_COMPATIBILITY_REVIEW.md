@@ -4,21 +4,24 @@
 
 **Do not send the prompt unchanged yet.** Several renamed questions would stop answers, evidence or prefills being read. A5 also omits an existing required evidence section. The portal can support the new labels without losing old submissions, but missing official facts must stay held—not be invented.
 
-This is a source check, not a readback of five rebuilt Mitti drafts. No portal application code, Mitti templates, job records, messages or switches have been changed. Tests have not been run for this proposed work yet.
+This is a source and fixture check, not a readback of five rebuilt Mitti drafts. Portal compatibility and current wording have been updated. No Mitti templates, job records, messages or switches were changed; nothing was published. Test results are below.
 
 ## Changes to your Mitti prompt before sending
 
 1. **A3 main switch:** change “does it switch off every cable in the ceiling” to “does it safely isolate the ceiling circuits (excluding the mains cables)”. The official PIESA explicitly excludes the mains cables. Keep the existing defect options readable too; add the exclusion to the new switch defect option as well.
 2. **A3 solar safety:** your Yes answer must explicitly confirm shutdown/restart instructions, an accessible working ground-level AC/DC isolator, labelled conduit and protected/supported cables. The four existing No-detail answers cover these, but the shortened Yes question does not explicitly confirm all four. Otherwise the missing official answers must be held for review.
 3. **A1/A2 retained insulation:** the official installer assessment still asks why insulation was not removed. Your earlier removal of “Why is the existing insulation being kept?” leaves this blank today. Do not put the question back without your agreement; use a genuinely recorded reason through the existing office review, or approve wording for collecting it. Never assume “topping up” answers why.
-4. **A5 ruler evidence:** retain the existing repeating ruler-photo section, including the BEFORE existing-insulation photo for each area with old insulation and the AFTER new-insulation photo for every area. Your proposed AFTER multi-file question does not replace this section today. Removing it keeps “All filled in” and completion blocked. It also avoids asking for the same AFTER depth photo twice: choose the existing per-area section as the single collection point, with its name/order instructions.
+4. **A5 ruler evidence:** retain the existing repeating ruler-photo section, including the BEFORE existing-insulation photo for each area with old insulation and the AFTER new-insulation photo for every area. Your proposed AFTER multi-file question does not replace this section today. Missing ruler evidence keeps completion blocked. The current portal requires BOTH the multi-file depth item and the per-area ruler section: the same captured files can be attached, but removing either collection point needs a separately agreed reader change. Do not silently remove one in this rebuild.
 5. **A5 area matching:** require files in the same area order as the Ready Check, as well as saying/writing the name. Today the portal associates multi-file evidence by order; it does not listen to video speech or reliably read names from photos. Two files from one area must not be treated as proof of two areas.
 6. **A5 electrician attendance:** the official assessment requires an electrician when alternative-supply shutdown instructions are missing too—not only when PIESA says so. The stop must remain effective even if the earlier attendance-photo branch was hidden. Obtain the required attendance evidence before entry; do not default missing solar answers to safe.
 7. **A1/A2 occupancy:** “Who lives at the property?” is absent from your replacement. It supplies Appendix C premises type today. Reuse an existing recorded occupancy where available; missing installer-source occupancy needs office review, not an invented owner-occupied answer.
-8. **A5 SWMS:** “cover every hazard” must mean risks considered AND controls implemented, as the official form requires. A signed plan alone does not prove that. Suggested instruction: “Confirm the hazards have been considered and their controls are in place.”
+8. **A5 SWMS:** change the question to “Have the hazards been considered and their controls implemented for this job?” A signed plan alone does not prove that. The portal supports that exact corrected question; the proposed shorter coverage-only question leaves the official controls item blank for review.
 9. **Evidence instructions:** under one minute does not guarantee under 250 MB. Say “Keep each file at or below 250 MB; a shorter video may still be too large.” Pack labels must show **model number**, not only brand/product name/R-value. Camera use alone does not guarantee GPS; location permissions and returned capture metadata still need checking.
 10. **Completion/pay statements:** “All filled in” means the form check passed, not ESC approval or final payment approval. The text remains subject to the existing delivery switches, TEST safeguards and allowed timing; provide “Check my form now” on the job page as the existing alternative. Do not promise immediate delivery or guaranteed rebate refusal/acceptance from the form wording.
 11. **Template identity:** edit the connected templates as drafts, preserving their template IDs. If Mitti creates replacements with new IDs, reconnect and validate them before use. Titles alone never select a form. Prefer “Home Insulation Victoria” over retired “HIVIC” in A2’s title.
+12. **A5 isolator:** use “Is its ground-level isolator accessible, working and able to switch off safely?” The portal supports this correction. The proposed wording does not explicitly establish accessibility and leaves that official item blank for review.
+
+Exact corrected A3 solar question supported by the portal: **“Do you have its shutdown and restart instructions, is its ground-level AC/DC isolator accessible and working, and are its ceiling cables labelled, in conduit, protected and supported?”** Keep its four current defect answers. The original shortened question is read, but instructions/isolator facts remain held, not invented.
 
 ## Exact renamed questions: what breaks before the portal update
 
@@ -123,15 +126,25 @@ All these renamed labels need aliases in the shared A5 reader, evidence reader, 
 - Final diagram: generated from recorded area names, measurements and verified product facts; no extra plan upload is required by the current portal flow.
 - 30 days: official PIESA date owns the clock; upgrades/certificate date never restart it.
 
-## Implementation after this review
+## Implementation and verification
 
 1. Add failing tests using literal new labels, reordered/repeated conditional fields and old fixtures before changing readers.
 2. Add backward-compatible A1/A2 aliases across intake, prefills, safety stops, per-area facts, layout quotes and diagrams. Preserve the approved pricing/office-review/send rules.
 3. Add A3 four-part mains mapping with independent missing/No checks; scope repeated defect lists correctly. Add all other A3/A4 aliases and evidence/prefill compatibility.
 4. Add A5 aliases through the shared reader; preserve two signatures, official safety mapping and fail-closed evidence/completion. Do not drop the existing ruler or official retained-insulation-reason holds merely to pass the new prompt.
 5. Change current visible electrical-work wording to upgrades across pages, Needs me, new emails/texts, quote/invoice descriptions. Keep internal routes/keys/columns/events, exact old-reader labels, official documents and already-signed/issued history unchanged. Provide a list of retained internal names.
-6. Run focused and related tests, report baseline failures separately, and inspect the automatic type/build result. No manual build/typecheck is allowed by this environment. Two-user read isolation checks remain required wherever data reads change.
+6. Focused literal-label/safety tests and related form/evidence/price tests run after red-first tests. Automatic compilation/type checks are inspected rather than running a manual build/typecheck. No permissions or cross-user query scopes changed; authenticated two-user readback has not been performed.
 7. Return the exact compatibility report, evidence gaps, prompt corrections and test results. Actual rebuilt-definition/readback verification remains pending until Mitti drafts exist; no template changes, records, sends, publishing or switch changes.
+
+### Results and retained names
+
+- Five-form regression suite: **177 passed, 0 failed across eight files**, including **16 new literal-label/safety tests**. Original fixtures continue to pass.
+- Additional allocation/upgrade-times/owner-upgrade suite was also run: **63 passed, 8 failed** at that checkpoint. Several assert the old visible wording; remaining source-shape/practice-owner failures are not claimed to be baseline failures without a before-change rerun. This is not an all-green related suite claim.
+- Latest automatic compilation/type result: **build OK**. No separate manual typecheck was run.
+- Browser/end-to-end readback of rebuilt Mitti drafts: **NOT RUN — drafts have not been supplied**. Nothing has been sent or published.
+- Retained for compatibility: internal `fixes`/`rectification` route names, stage keys, database columns, invoice kind, settings/template-ID columns, event and message-type names, idempotency keys, exact legacy Mitti questions and official declarations. Historical signed documents and issued invoices remain unchanged.
+- Existing Xero payment references ending in `fixes` remain unchanged: that suffix is part of invoice matching, not a display-only label. New upgrade quote lines say “Electrical upgrades”; changing the reference scheme requires a separate migration/matching decision.
+- The native official installer-assessment fingerprint is unchanged; only the separate A5 label-driven path gains aliases. Missing occupancy, retained-insulation reason and A5 ruler evidence remain held.
 
 ## Technical boundaries
 
