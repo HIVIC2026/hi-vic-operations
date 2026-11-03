@@ -7,6 +7,8 @@ export type SwmsSignPageView = {
   rule: string; highRiskWork: string[]; hazards: { name: string; control: string }[]; howInPlace: string;
   siteNote: string | null; house: string[];
   signer: { name: string; role: "lead" | "crew" }; signedAt: string | null; open: boolean;
+  /** Part 7 Task 4: only on the Lead Installer's own link — who has signed, and the real Mitti install form (null until it exists). */
+  lead?: { signers: { key: string; name: string; role: "lead" | "crew"; signed: boolean }[]; signedCount: number; total: number; installFormUrl: string | null } | null;
 };
 
 export const SIGN_PAGE_TEXT = {
@@ -30,6 +32,15 @@ export const SIGN_PAGE_TEXT = {
   signing: "Signing…", // DRAFT
   signFailed: "Your signature wasn't saved. Check your connection and try again.",
   signed: "You've signed the safety plan.",
+  // Part 7 Task 4 — the Lead Installer's block (decisions file "SWMS": who has signed, "Sign on my phone", "Open install form").
+  leadHeading: "Your crew", // DRAFT
+  leadSigned: (n: number, total: number) => `Signed: ${n} of ${total}`, // DRAFT
+  leadRowSigned: "Signed", // DRAFT
+  signOnMyPhone: "Sign on my phone",
+  signOnMyPhoneBusy: "Opening…", // DRAFT
+  signOnMyPhoneFailed: "Couldn't open their link. Check your connection and try again.", // DRAFT
+  openInstallForm: "Open install form",
+  installFormNotReady: "Install form not ready yet", // DRAFT
   closed: "The installation is recorded; the safety plan can't be signed now.",
 } as const;
 

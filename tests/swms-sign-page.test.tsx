@@ -35,6 +35,7 @@ mock.module("@/lib/swms-link.functions", () => ({
   getSwmsLinkView: async () => { calls.push("getSwmsLinkView"); return view; },
   getSwmsLinkPdf: async () => { calls.push("getSwmsLinkPdf"); return { filename: "swms-HV-1234.pdf", base64: "" }; },
   signSwmsByLink: async () => { calls.push("signSwmsByLink"); return { complete: true, missing: [] }; },
+  openCrewSignOnLeadPhone: async () => { calls.push("openCrewSignOnLeadPhone"); return { url: "" }; },
 }));
 // The shared no-login frame is not under test (its own source is checked below); a stand-in keeps the router/supabase imports out.
 mock.module("@/components/trade/TradeShell", () => ({

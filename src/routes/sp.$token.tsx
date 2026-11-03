@@ -7,9 +7,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { TradePublicShell, inputCls } from "@/components/trade/TradeShell";
-import { getSwmsLinkPdf, getSwmsLinkView, signSwmsByLink } from "@/lib/swms-link.functions";
+import { getSwmsLinkPdf, getSwmsLinkView, openCrewSignOnLeadPhone, signSwmsByLink } from "@/lib/swms-link.functions";
 import { readableError } from "@/lib/readable-error.core";
-import { SWMS_SIGN_STATEMENT, swmsDateTime } from "@/lib/swms.core";
+import { SWMS_SIGN_STATEMENT, swmsDateTime, swmsRoleLabel, type SwmsRule } from "@/lib/swms.core";
 import { SIGN_PAGE_TEXT as T, signBlocker, signPageTitle, signPageWhen } from "@/lib/swms-sign-page.core";
 
 const SP_LINK_PROBLEM = "We couldn't open this safety plan. Check you have the whole link from the text, or ask your business owner to send it again.";
@@ -52,6 +52,8 @@ function SafetyPlanLink() {
   const [err, setErr] = useState<string | null>(null);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [pdfErr, setPdfErr] = useState<string | null>(null);
+  const [phoneBusy, setPhoneBusy] = useState<string | null>(null);
+  const [phoneErr, setPhoneErr] = useState<string | null>(null);
   const d = q.data;
   if (q.error) return <TradePublicShell><section className="rounded-[18px] border border-rose bg-pink p-5 text-ink" data-swms-link-invalid><h1 className="font-display text-2xl font-bold">This safety plan link is unavailable.</h1><p className="mt-1 text-sm">{readableError(q.error, SP_LINK_PROBLEM)}</p></section></TradePublicShell>;
   if (!d) return <TradePublicShell><p className="text-sm text-sub">Loading your safety plan…</p></TradePublicShell>;
@@ -99,6 +101,31 @@ function SafetyPlanLink() {
             onClick={async () => { setBusy(true); setErr(null); try { await signSwmsByLink({ data: { token, typedName: typed } }); await q.refetch(); } catch (e) { setErr(readableError(e, T.signFailed)); } finally { setBusy(false); } }}>{busy ? T.signing : T.sign}</button>
           {blocker && !busy && <p className="text-sm text-sub" data-swms-sign-why>{blocker}</p>}
           {err && <p role="alert" className="rounded-[14px] bg-owner-house-pink p-3 text-sm font-semibold">{err}</p>}
+        </section>
+      )}
+
+      {d.lead && (
+        // Part 7 Task 4: the Lead Installer's own link also shows who has signed, "Sign on my phone" for an unsigned crew
+        // member (opens THEIR own link on this phone; they type their own name) and the real Mitti install form.
+        <section className={box} data-swms-lead>
+          <h2 className="font-display text-lg font-bold">{T.leadHeading}</h2>
+          <p className="mt-1 font-semibold" data-swms-lead-count>{T.leadSigned(d.lead.signedCount, d.lead.total)}</p>
+          <ul className="mt-2 divide-y divide-line">
+            {d.lead.signers.map((s) => (
+              <li key={s.key} className="flex min-h-11 items-center justify-between gap-3 py-2">
+                <span>{s.name} ({swmsRoleLabel(d.rule as SwmsRule, s.role)})</span>
+                {s.signed ? <span className="font-semibold text-[#07bf61]">{T.leadRowSigned} ✓</span>
+                  : s.role === "crew" && d.open ? <button type="button" className="rounded-[10px] border border-[#3c51c4] bg-paper px-3 py-2 text-[13px] font-bold text-[#3c51c4] disabled:opacity-60" disabled={phoneBusy === s.key} data-swms-lead-phone
+                      onClick={async () => { setPhoneBusy(s.key); setPhoneErr(null); try { const r = await openCrewSignOnLeadPhone({ data: { token, crewKey: s.key } }); window.location.assign(r.url); } catch (e) { setPhoneErr(readableError(e, T.signOnMyPhoneFailed)); setPhoneBusy(null); } }}>
+                      {phoneBusy === s.key ? T.signOnMyPhoneBusy : T.signOnMyPhone}</button>
+                  : null}
+              </li>
+            ))}
+          </ul>
+          {phoneErr && <p role="alert" className="mt-2 rounded-[14px] bg-owner-house-pink p-3 text-sm font-semibold">{phoneErr}</p>}
+          {d.lead.installFormUrl
+            ? <a className={`${signBtn} mt-3`} href={d.lead.installFormUrl} target="_blank" rel="noopener noreferrer" data-swms-install-form>{T.openInstallForm}</a>
+            : <p className="mt-3 text-sm text-sub" data-swms-install-form-none>{T.installFormNotReady}</p>}
         </section>
       )}
     </TradePublicShell>

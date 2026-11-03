@@ -25,8 +25,9 @@ export async function dailyTextSettings() {
 /** One text = one business + one recipient (decision 161: the allocated person's mobile, else the owner's as before). */
 type Group = { trade: Trade & { name: string; isTest: boolean }; jobs: DayJob[]; qaOnly: boolean; recipient: TextRecipient };
 
-/** The Mitti audit a booking's link points at: Ready Check form, the installer's PIISA (install day) or the PIESA audit. */
-async function bookingFormAuditId(jobId: string, kind: string): Promise<string | null> {
+/** The Mitti audit a booking's link points at: Ready Check form, the installer's PIISA (install day) or the PIESA audit.
+ *  Exported for the Lead Installer's safety plan view (Part 7 Task 4): the real install audit's id, never a guessed one. */
+export async function bookingFormAuditId(jobId: string, kind: string): Promise<string | null> {
   const src = mittiFormSource(kind);
   if (src === "piisa_event") {
     const { data: ev } = await db.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "mitti_piisa_audit_created").order("created_at", { ascending: false }).limit(1).maybeSingle();

@@ -127,6 +127,7 @@ export const WORKFLOW_DECISIONS = {
     onSiteLine: "The Lead Installer is on site for the whole install. (always under Compliance, whatever the rule)",
     pdfLook: "website look (swms-sample.pdf) with the Changes during the job box only behind PDF_LOOK_APPROVED.swms; off = the 25 Oct WorkSafe layout, byte-for-byte",
     signingPage: "/sp/<token>: house facts → 9 standard controls folded → Read the full safety plan (PDF) on tap only → tick → typed full name → Sign the safety plan; one server read; words of the plan's own rule",
+    leadView: "the Lead Installer's own link only: who has signed, Sign on my phone (the crew member's own link on the Lead's phone; they type their own name, method lead_phone), Open install form (real A5 audit url or not-ready line)",
   },
   quoteValidity: {
     validDays: 30,
