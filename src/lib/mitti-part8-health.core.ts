@@ -8,7 +8,6 @@ import { LEAN_Q } from "./ready-check-lean.core";
 
 export type Part8Template = {
   key: "A1" | "A2" | "A3" | "A5";
-  name: string;
   /** Mitti template ID (unchanged by the paste). */
   templateId: string;
   /** Question labels that must exist exactly. */
@@ -20,11 +19,11 @@ export type Part8Template = {
 };
 
 export const PART8_TEMPLATES: Part8Template[] = [
-  { key: "A1", name: "A1 – Ready Check | Installer-Supplied Customer", templateId: "01ee0428-be6d-4435-b34d-8b738935f099", labels: [LEAN_Q.photoIdShown], texts: [], absentChoices: ["ECOWOOL R5"] },
-  { key: "A2", name: "A2 – Ready Check | HIVIC Sourced Customer", templateId: "dbaf67a2-c9c5-4120-8c69-0f4a43c5bd39", labels: [LEAN_Q.photoIdShown], texts: [], absentChoices: ["ECOWOOL R5"] },
-  { key: "A3", name: "A3 – PIESA", templateId: "eb3bf3b6-17d3-4c59-9244-5892a0ec16f5", labels: [ADULT_PRESENT_LABEL], texts: [ADULT_PRESENT_STOP_A3], absentChoices: [] },
+  { key: "A1", templateId: "01ee0428-be6d-4435-b34d-8b738935f099", labels: [LEAN_Q.photoIdShown], texts: [], absentChoices: ["ECOWOOL R5"] },
+  { key: "A2", templateId: "dbaf67a2-c9c5-4120-8c69-0f4a43c5bd39", labels: [LEAN_Q.photoIdShown], texts: [], absentChoices: ["ECOWOOL R5"] },
+  { key: "A3", templateId: "eb3bf3b6-17d3-4c59-9244-5892a0ec16f5", labels: [ADULT_PRESENT_LABEL], texts: [ADULT_PRESENT_STOP_A3], absentChoices: [] },
   {
-    key: "A5", name: "A5 – Install day", templateId: "1f325828-3f71-4b1a-988f-083c83414f95",
+    key: "A5", templateId: "1f325828-3f71-4b1a-988f-083c83414f95",
     labels: Object.values(INSTALL_DAY_NOV2_Q),
     texts: [ADULT_PRESENT_STOP_A3, INSTALL_DAY_PART_B_PAGE, INSTALL_DAY_PART_B_TEXT.split("\n")[0]!],
     absentChoices: [],

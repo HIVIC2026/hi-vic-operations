@@ -19,12 +19,12 @@ for (const spec of PART8_TEMPLATES) {
       def = await api.getTemplateDefinition(spec.templateId);
     }
   } catch (e) {
-    console.log(`${spec.key} (${spec.name}): COULD NOT READ - ${(e as Error).message}`);
+    console.log(`${spec.key} (${spec.templateId}): COULD NOT READ - ${(e as Error).message}`);
     worst = 2; continue;
   }
   const r = checkPart8Template(def, spec);
-  if (r.unreadable) { console.log(`${spec.key} (${spec.name}): UNREADABLE - Mitti's reply had no readable questions; this does not prove anything is missing.`); worst = 2; continue; }
-  console.log(`${spec.key} (${spec.name}): ${r.ok ? "OK" : "NOT OK"}`);
+  if (r.unreadable) { console.log(`${spec.key} (${spec.templateId}): UNREADABLE - Mitti's reply had no readable questions; this does not prove anything is missing.`); worst = 2; continue; }
+  console.log(`${spec.key} (${spec.templateId}): ${r.ok ? "OK" : "NOT OK"}`);
   for (const l of r.missing) { const n = r.renamed.find((x) => x.expected === l); console.log(`  missing: "${l}"${n ? `  <- found a different name: "${n.found}"` : ""}`); }
   for (const t of r.textMissing) console.log(`  text not found: "${t.length > 70 ? t.slice(0, 70) + "..." : t}"`);
   for (const c of r.unexpected) console.log(`  still offered (should be deleted): "${c}"`);
