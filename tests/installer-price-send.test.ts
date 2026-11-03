@@ -128,12 +128,13 @@ describe("Send quote to owner — only through the guarded auto-send, only with 
     expect(priceEvents()).toHaveLength(1);
   });
   // Jo 4 Nov 2026: no PIESA rate on the business → the quote can't be sent until it is set; never a default $349.
-  test("switch on but the business has no PIESA rate → saved, not sent, 'Set your PIESA price in My business first', sender never asked; the draft is still prepared (held) in the background", async () => {
+  test("switch on but the business has no PIESA rate → saved, not sent, 'Your PIESA price isn't set yet. Ask the office to add it, then send.', sender never asked; the draft is still prepared (held) in the background", async () => {
     piesaRate = null;
     const r = await setInstallerPrice(JOB, BOSS, input, { send: true, sendOnPressEnabled: true });
     expect(r.sent).toBe(false);
     expect(r.reasons).toEqual([PIESA_PRICE_NOT_SET]);
-    expect(PIESA_PRICE_NOT_SET).toBe("Set your PIESA price in My business first");
+    // Controller 4 Nov 2026 (CROSS-PART-NOTES): the rate card is office-managed, so the hold asks the office (DRAFT for Jo).
+    expect(PIESA_PRICE_NOT_SET).toBe("Your PIESA price isn't set yet. Ask the office to add it, then send.");
     expect(calls.map((c) => c.fn)).toEqual(["installerSafetyCheckPrice"]);
     expect(priceEvents()).toHaveLength(1);
     expect(background).toHaveLength(1);

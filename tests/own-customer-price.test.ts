@@ -117,7 +117,7 @@ describe("ownCustomerRows", () => {
     expect(MITTI_INSTALLER_FEE_INC_GST).toBe(349);
     const mod = await import("../src/lib/own-customer-price.core");
     expect("OWN_CUSTOMER_PIESA_INC_GST" in mod).toBe(false);
-    expect(PIESA_PRICE_NOT_SET).toBe("Set your PIESA price in My business first");
+    expect(PIESA_PRICE_NOT_SET).toBe("Your PIESA price isn't set yet. Ask the office to add it, then send."); // controller 4 Nov 2026: office-managed rate card
     expect(PIESA_PRICE_NOT_SET).not.toMatch(/pay|paid|\$/i);
   });
 

@@ -59,7 +59,7 @@ describe("own customer: the owner pays the installer's PIESA rate and that whole
     expect(piesaCostExFor({ ownerDirect: false, paidOutInc: null, offerRateInc: null, rateCardInc: null })).toBeNull();
     expect(jobMargin({ ownerPriceInc: 2698, installerPayEx: 1818.18, piesaCostEx: null, fixesCostEx: 0, veecValue: 600, veecIncentive: 600, electricianChosen: true }).missing).toContain("Electrician PIESA rate not agreed");
     // the Boss/Office card wording: plain, no pay talk, no figure
-    expect(PIESA_PRICE_NOT_SET).toBe("Set your PIESA price in My business first");
+    expect(PIESA_PRICE_NOT_SET).toBe("Your PIESA price isn't set yet. Ask the office to add it, then send."); // controller 4 Nov 2026: office-managed rate card
   });
   test("Home Insulation Victoria leads unchanged: owner $349, our payout $275 (or the recorded offer rate) — the gap is ours", () => {
     expect(withOwnerSafetyCheckPrice(rec(275), 349, "hivic_sourced", 275).priceIncGst).toBe(349);

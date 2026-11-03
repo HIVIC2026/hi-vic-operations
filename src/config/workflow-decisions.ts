@@ -100,7 +100,7 @@ export const WORKFLOW_DECISIONS = {
       // (Home Insulation Victoria) AND the PIESA (electrical safety check). Installers' own customers: owner price = installer price +
       // $349 AP fee + the installer's OWN PIESA rate (their onboarded rate-card PIESA line, inc GST — Deep $349, Rapid $275), minus rebate.
       // That same amount is paid through in full to whoever does the PIESA; Home Insulation Victoria keeps nothing on that line. No rate
-      // set → the quote can't be sent (hold "Set your PIESA price in My business first"), never a default $349. Supersedes the 2 Nov
+      // set → the quote can't be sent (hold "Your PIESA price isn't set yet. Ask the office to add it, then send."), never a default $349. Supersedes the 2 Nov
       // "$349 whatever the rate" (OWN_CUSTOMER_PIESA_INC_GST, removed) and main 6f759d0 "$349 pass-through". Home Insulation Victoria
       // leads unchanged: owner $349, electrician their own rate, the gap stays ours (`own-customer-price.core`, `mitti-installer-quote.core`).
       // Quote + invoice lines in this order with these labels.
@@ -109,7 +109,7 @@ export const WORKFLOW_DECISIONS = {
         apFeeIncGst: 349,
         piesaIncGst: "installer's own onboarded PIESA rate (rate card PIESA line inc GST; e.g. Deep $349, Rapid $275)",
         piesaLineWhateverElectricianRate: false,
-        noRateSet: "quote held — Set your PIESA price in My business first (never $349)",
+        noRateSet: "quote held — Your PIESA price isn't set yet. Ask the office to add it, then send. (never $349; office-managed rate card, controller 4 Nov 2026)",
         supersedes: ["302", "303", "2026-11-02 FEES $349 PIESA", "main 6f759d0 $349 pass-through"] as const,
         supersededScope: "own_customer_owner_price_only",
         lineLabels: ["Insulation", "Home Insulation Victoria fee", "Electrical safety check (PIESA)", "Rebate", "Your price"] as const,
