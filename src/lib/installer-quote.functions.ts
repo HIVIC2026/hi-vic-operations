@@ -14,7 +14,7 @@ export const getInstallerQuoteDraft = createServerFn({ method: "POST" }).middlew
     const { data: job, error: je } = await admin.from("jobs").select("channel").eq("id", data.jobId).single();
     if (je) throw new Error(je.message);
     const [{ data: q, error }, { data: held, error: he }] = await Promise.all([
-      admin.from("quotes").select("id, status, sent_at, option_code, release_state, release_hold_reason, discount_note, subtotal_inc_gst, veec_discount_inc_gst, customer_total_inc_gst, cobrand, created_at, quote_items(id, code, description, explanation, quantity, unit, unit_price_inc_gst, line_total_inc_gst, sort)")
+      admin.from("quotes").select("id, status, sent_at, option_code, option_label, release_state, release_hold_reason, discount_note, subtotal_inc_gst, veec_discount_inc_gst, customer_total_inc_gst, cobrand, created_at, quote_items(id, code, description, explanation, quantity, unit, unit_price_inc_gst, line_total_inc_gst, sort)")
         .eq("job_id", data.jobId).eq("kind", "installation").in("status", ["draft", "issued", "accepted"]).order("created_at", { ascending: false }).limit(6)
         // Jo 4 Nov follow-up: the main option is the one reviewed; its "thicker too" companion goes with it on Send.
         .then(async (r) => { const { isThickerOptionCode } = await import("./ceiling-layout.core"); return { ...r, data: r.data ? (r.data.find((x) => !isThickerOptionCode(x.option_code)) ?? r.data[0] ?? null) : null }; }),

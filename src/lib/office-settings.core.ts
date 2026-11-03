@@ -24,7 +24,7 @@ export const PENDING_SWITCH_COLUMNS: Partial<Record<OfficeSwitchColumn, string>>
   esc_registry_robot_enabled: "docs/pending-migrations/esc-registry-robot-switch.sql",
   mitti_instant_notice_enabled: "docs/pending-migrations/mitti-instant-notice-switch.sql",
   trade_messages_paused: "docs/pending-migrations/trade-messages-paused.sql",
-  topups_count_existing_insulation: "docs/pending-migrations/ceiling-layout-4nov.sql",
+  topups_count_existing_insulation: "drizzle/migrations/0188_ceiling_layout_retail_prices.sql",
 };
 
 export const SWITCHES: SwitchDef[] = [
