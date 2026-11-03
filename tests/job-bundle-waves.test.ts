@@ -2,6 +2,7 @@
 // makes few sequential database round trips ("waves"). REAL server modules against an in-memory database
 // (tests/helpers/memory-postgrest.ts) with a wave counter (tests/helpers/wave-counter.ts). The signed-in client's own calls
 // (getUser, my_job_role, can_access_job, has_role) are counted as round trips too. Run on its own (mock.module leaks).
+import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, mock, setSystemTime, test } from "bun:test";
 import type { Tables } from "./helpers/memory-postgrest";
 import { outcome, waveCounter } from "./helpers/wave-counter";
@@ -70,7 +71,22 @@ function seed() {
     workflow_settings: [{ id: 1, safety_check_payment_inc_gst: 349 }],
     appointment_proposals: [], invoices: [], installer_declarations: [], customer_assignments: [], rectification_items: [], payment_overrides: [], ready_check_windows: [],
   });
+  fillColumns();
   tables["job_overview"] = tables["jobs"]!.map((jb) => ({ id: jb["id"], job_number: jb["job_number"], stage: jb["stage"], channel: jb["channel"], property_id: jb["property_id"], owner_name: "Owner Name", owner_phone: "0400 000 000", owner_email: "owner@example.com", property_address: "1 Test St, Geelong 3220" }));
+}
+
+/** Tables the job-facts read takes whole (`select *`). A live `select *` returns every column, so the seed rows get every
+ *  column the generated types list (null when the seed doesn't set it): a column missing here is missing live. */
+const FACT_TABLES = ["jobs", "workflow_events", "bookings", "job_assignments", "quotes", "quote_items", "quote_internals", "ceiling_measurements", "piesa_records", "assessments", "appointment_proposals", "customer_assignments", "installer_declarations", "rectification_items", "invoices", "payment_overrides", "ready_check_windows", "assessment_payments", "owner_esc_consents", "ready_checks"];
+const TYPES = readFileSync(new URL("../src/integrations/supabase/types.ts", import.meta.url), "utf8");
+function columnsOf(table: string): string[] {
+  const start = TYPES.indexOf(`\n      ${table}: {\n        Row: {`);
+  if (start < 0) throw new Error(`no Row type for ${table}`);
+  const body = TYPES.slice(start, TYPES.indexOf("\n        }", start + 30));
+  return [...body.matchAll(/^          ([a-z_0-9]+)\??:/gm)].map((m) => m[1]!);
+}
+function fillColumns() {
+  for (const t of FACT_TABLES) { const cols = columnsOf(t); tables[t] = (tables[t] ?? []).map((r) => ({ ...Object.fromEntries(cols.map((c) => [c, null])), ...r })); }
 }
 
 /** Who the database says each caller is on each job (what `my_job_role` / `can_access_job` / `has_role` answer). */
@@ -169,9 +185,10 @@ describe("Job page bundle (Task 6): one access answer, each shared read taken on
       const sbCalls = (n: string) => s.calls.filter((c) => c === n).length;
       expect([sbCalls("getUser"), sbCalls("my_job_role"), sbCalls("can_access_job")]).toEqual([1, 1, name.includes("not assigned") ? 0 : 1]);
       if (name.includes("not assigned")) return;
-      expect(count(r.log, "quotes", "id, job_id, status, sent_at")).toBe(1); // loadInstallerQuote (was 4)
+      // Task 11: these are now answered from the job's one facts read (0 database reads each); never more than Task 6's.
+      expect(count(r.log, "quotes", "id, job_id, status, sent_at")).toBeLessThanOrEqual(1); // loadInstallerQuote (was 4)
       // clearanceFacts (was 2 from the page and install days). A booked install (J2) also reads it inside the owner-ready payment view.
-      expect(count(r.log, "piesa_records", "outcome, completed_date")).toBe(job === j(2) ? 2 : 1);
+      expect(count(r.log, "piesa_records", "outcome, completed_date")).toBeLessThanOrEqual(job === j(2) ? 2 : 1);
       expect(count(r.log, "business_members", "business_id, member_role, businesses(")).toBe(1); // tradeContext (was 2)
     });
   }
@@ -236,4 +253,15 @@ describe("Job page bundle (Task 6): a section called on its own keeps its own ch
     await expect(tradeJobPage(j(1), U_STAFF)).rejects.toThrow("This job isn't assigned to you.");
     await expect(tradeJobPage(j(1), U_OUT)).rejects.toThrow("Your sign-in isn't linked to an approved business yet.");
   });
+});
+
+describe("Job page bundle (Task 11): the job's rows are read once", () => {
+  for (const [name, u, job] of CASES.filter(([n]) => !n.includes("not assigned") && !n.includes("no access"))) {
+    test(`${name}: at most 10 reads`, async () => {
+      seed(); wc.state.failWhen = null;
+      const s = signedIn(u);
+      const r = await wc.measured(() => quiet(() => tradeJobBundle(s.sb as never, u, job)));
+      expect(r.log.length).toBeLessThanOrEqual(10);
+    });
+  }
 });

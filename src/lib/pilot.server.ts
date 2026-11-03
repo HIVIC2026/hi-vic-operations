@@ -1,7 +1,7 @@
 // Persistence for the ReInsulate pilot (partner network). Rules live in pilot.core.ts.
 import { createHash } from "crypto";
 import type { Json } from "@/integrations/supabase/types";
-import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { jobAdmin as admin } from "./job-facts.server"; // speed (Task 11): the admin client; inside the job page bundle it answers from the job's rows
 import { WorkflowError, logEvent } from "./workflow.server";
 import { cobrandSnapshot, partnerWorkBlocker, type BusinessLike, type Credential } from "./pilot.core";
 

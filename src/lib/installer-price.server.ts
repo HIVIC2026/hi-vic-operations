@@ -1,7 +1,7 @@
 // Decision 278 (Jo 25 Oct 2026): READ side of the business owner's price for an installer-supplied job (A1), kept as the
 // append-only `installer_price_set` workflow event (latest wins). This module sits on the autoAdvance graph (basics check,
 // quote draft, chase, auto-send), so it only reads: no Mitti, no senders. Saving lives in installer-price-set.server.ts.
-import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { jobAdmin as admin } from "./job-facts.server"; // speed (Task 11): the admin client; inside the job page bundle it answers from the job's rows
 import { WorkflowError } from "./workflow.server";
 import {
   INSTALLER_PRICE_EVENT,

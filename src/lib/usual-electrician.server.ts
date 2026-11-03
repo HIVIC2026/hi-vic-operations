@@ -1,5 +1,5 @@
 // Business-scoped settings and job-owned compliance snapshots; no schema change or partner assignment.
-import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { jobAdmin as admin } from "./job-facts.server"; // speed (Task 11): the admin client; inside the job page bundle it answers from the job's rows
 import { USUAL_ELECTRICIAN_EVENT, usualElectrician, resolveMittiElectrician } from "./usual-electrician.core";
 import { contactAnswersFromEntries } from "./mitti.core";
 import { logEvent } from "./workflow.server";

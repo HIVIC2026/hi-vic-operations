@@ -4,7 +4,7 @@
 // refused and the card returns null for them. Append-only event; never sends anything.
 // Decision 289: price + what is included only; the electrician was chosen at Add a job and is shown read-only.
 // Decision 290 (corrected): the card shows the Ready Check's access rating and issue notes as the flag (no fee question).
-import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { jobAdmin as admin } from "./job-facts.server"; // speed (Task 11): the admin client; inside the job page bundle it answers from the job's rows
 import { WorkflowError, logEvent } from "./workflow.server";
 import {
   INSTALLER_PRICE_EVENT,

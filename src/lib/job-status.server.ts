@@ -1,5 +1,5 @@
 // Facts for the trade "where is this job up to?" line and timeline. Scoped to the signed-in trade's own jobs.
-import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { jobAdmin as admin } from "./job-facts.server"; // speed (Task 11): the admin client; inside the job page bundle it answers from the job's rows
 import { WorkflowError, logEvent } from "./workflow.server";
 import { electricianPayState, payState, contactVisible } from "./trade-view.core";
 import { chaseMode, paymentDates, forViewer, jobStatusLine, jobTimeline, reminderRequestMessage, type StatusFacts } from "./job-status.core";

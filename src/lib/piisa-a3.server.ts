@@ -2,7 +2,7 @@
 type Any = any;
 // A5 PIISA persistence: crew staff lookup/selection (scoped to the job's assigned installer business) and Ready Check
 // area facts for prefill. Server-only; callers authorise first.
-import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { jobAdmin as admin } from "./job-facts.server"; // speed (Task 11): the admin client; inside the job page bundle it answers from the job's rows
 import type { Json } from "@/integrations/supabase/types";
 import { WorkflowError, logEvent } from "./workflow.server";
 import { early } from "./early-read";

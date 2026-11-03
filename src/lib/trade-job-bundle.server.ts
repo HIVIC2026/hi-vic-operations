@@ -26,6 +26,7 @@ import type { JobRole } from "./workflow";
 import type { CrewSelection, StaffOption } from "./piisa-a3.core";
 import { visitsForStage } from "./visit-allocation.core";
 import { sharedJobReads, type SharedJobReads } from "./job-shared-reads";
+import { withJobFacts } from "./job-facts.server";
 import { electricalClearance } from "./allocation.core";
 import * as quoteStatusServer from "./installer-quote-status.server";
 import * as clearanceServer from "./electrical-clearance.server";
@@ -112,6 +113,12 @@ export async function tradeJobBundle(sb: Sb, userId: string, jobId: string, deps
     return { overview, role, page: refused, installDays: refused, readyCheckTimes: refused, allocation: refused, swms: refused, workerLinks: refused, price: refused, ownerQuote: refused, crew: refused, mittiInvited: refused };
   }
   const pre = access;
+  // Speed (Task 11): from here on, the sections' own queries about this job are answered from ONE read of the job's rows,
+  // taken after the access check above passed for this user and job (see job-facts.server.ts). Same queries, same answers.
+  return withJobFacts(jobId, pre, () => trustedSections(sb, userId, jobId, d, pre, ovP));
+}
+
+async function trustedSections(sb: Sb, userId: string, jobId: string, d: BundleDeps, pre: TradeJobAccess, ovP: Promise<{ role: JobRole; row: Overview } | SectionError>): Promise<TradeJobBundle> {
   // Speed (Task 6): the quote and the electrical clearance are each read once for THIS verified user and job and shared by the
   // sections that need them (they used to read them four and two times). Server-side only; every section keeps its own checks.
   const shared = sharedJobReads(pre, userId, jobId, { quote: (id) => quoteStatusServer.loadInstallerQuote(id), clearance: async (id) => electricalClearance(await clearanceServer.clearanceFacts(id)) });

@@ -1,7 +1,7 @@
 // Decision 289 (Jo 25 Oct 2026): the job's electrician choice, recorded once at Add a job (or defaulted on bulk upload)
 // as the append-only `electrician_choice_set` workflow event, and read back by the quote pipeline. Read-only apart from
 // `recordElectricianChoice`; no Mitti, no senders (this module sits on the autoAdvance graph through installer-quote).
-import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { jobAdmin as admin } from "./job-facts.server"; // speed (Task 11): the admin client; inside the job page bundle it answers from the job's rows
 import { WorkflowError, logEvent } from "./workflow.server";
 import { ELECTRICIAN_CHOICE_EVENT, defaultElectricianChoice, electricianChoiceFromEvent, electricianChoiceProblem, electricianChoiceRecord, electricianChoiceSummary, type ElectricianChoice, type ElectricianChoiceRecord } from "./electrician-choice.core";
 

@@ -2,7 +2,7 @@
 // Server-only: uses the service-role client AFTER the caller's permission has been checked.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "@/integrations/supabase/types";
-import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { jobAdmin as admin } from "./job-facts.server"; // speed (Task 11): the admin client; inside the job page bundle it answers from the job's rows
 import { STORED_NEXT_ACTION, STAGE_LABEL, retiredStageBlocker, type JobRole, type Stage } from "./workflow";
 
 export class WorkflowError extends Error {}

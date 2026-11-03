@@ -1,6 +1,6 @@
 // Trade view reads + the few trade actions (Jo-approved designs, 6 Oct 2026). Every read is scoped to the signed-in
 // person's own business. Trades never see customer prices, margins, the office's electrician list or other partners.
-import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { jobAdmin as admin } from "./job-facts.server"; // speed (Task 11): the admin client; inside the job page bundle it answers from the job's rows
 import { WorkflowError, logEvent } from "./workflow.server";
 import { fullAddress, shortAddress } from "./address";
 import { isTestPartner } from "./test-send.core";

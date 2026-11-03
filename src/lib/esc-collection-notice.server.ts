@@ -2,7 +2,7 @@
 // sources (signed onboarding data and business-scoped append-only admin_config_events) and resolves a person's secure
 // link. It imports no sender, so the offer / crew / pre-start readers on the autoAdvanceJob graph may use it.
 // Every write and every send lives in esc-collection-notice-send.server.ts.
-import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { jobAdmin as admin } from "./job-facts.server"; // speed (Task 11): the admin client; inside the job page bundle it answers from the job's rows
 import { WorkflowError } from "./workflow.server";
 import { hashToken, isTokenShape } from "./worker-links.core";
 import {
