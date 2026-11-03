@@ -306,13 +306,23 @@ async function allRows<T>(page: (from: number, to: number) => Page): Promise<T[]
   }
 }
 
-/** Saved spots whose newest owner upload is at least 5 minutes old (so a burst of uploads is checked once) and has no
- *  current AI photo check, or is newer than it. Oldest upload first; skips TEST and failures in the last 24 h. */
+/** Jo's own desk-check outcomes. Once she has decided, the ranking ignores the AI, so it is not asked again unless the
+ *  owner uploads something after her check. */
+const JO_DECIDED = new Set(["looks_eligible", "not_eligible", "needs_onsite_check"]);
+
+/** Saved spots still waiting for an installer (our leads only) whose newest owner upload is at least 5 minutes old (so a
+ *  burst of uploads is checked once) and has no current AI photo check, or is newer than it. Homes Jo already decided
+ *  are skipped unless the newest upload is after her desk check. Oldest upload first; skips TEST and failures in the
+ *  last 24 h. */
 async function pickJobs(): Promise<string[]> {
-  const saved = await allRows<{ job_id: string }>((a, z) =>
+  const saved = await allRows<{
+    job_id: string;
+    desk_check_status: string | null;
+    desk_checked_at: string | null;
+  }>((a, z) =>
     loose
       .from("lead_campaign_responses")
-      .select("job_id")
+      .select("job_id, desk_check_status, desk_checked_at")
       .not("spot_saved_at", "is", null)
       .not("media_received_at", "is", null)
       .is("opted_out_at", null)
@@ -320,6 +330,7 @@ async function pickJobs(): Promise<string[]> {
       .range(a, z),
   );
   const ids = [...new Set(saved.map((r) => r.job_id))];
+  const deskBy = new Map(saved.map((r) => [r.job_id, r]));
   const jobs: { id: string; property_id: string | null }[] = [];
   const newest = new Map<string, string>();
   const checkedAt = new Map<string, string>();
@@ -333,6 +344,8 @@ async function pickJobs(): Promise<string[]> {
           .from("jobs")
           .select("id, property_id")
           .in("id", c)
+          .eq("stage", "ready_check_ready_to_schedule")
+          .eq("channel", "hivic_sourced")
           .is("deleted_at", null)
           .is("qa_archived_at", null)
           .neq("source", "qa_test")
@@ -393,6 +406,11 @@ async function pickJobs(): Promise<string[]> {
     .filter((j) => {
       const latest = newest.get(j.id);
       if (!latest || now - Date.parse(latest) < PHOTO_CHECK_SETTLE_MS) return false;
+      const desk = deskBy.get(j.id);
+      if (desk?.desk_check_status && JO_DECIDED.has(desk.desk_check_status)) {
+        const jo = desk.desk_checked_at ? Date.parse(desk.desk_checked_at) : NaN;
+        if (!(Date.parse(latest) > jo)) return false; // no check time on file → treat as decided
+      }
       const last = checkedAt.get(j.property_id!);
       if (last != null && !(Date.parse(latest) > Date.parse(last))) return false;
       return !recentFail.has(j.id) && (memoryBackoff.get(j.id) ?? 0) < now;

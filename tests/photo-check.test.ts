@@ -107,6 +107,7 @@ const setup = () => {
         property_id: "pa",
         source: "real",
         stage: "ready_check_ready_to_schedule",
+        channel: "hivic_sourced",
         deleted_at: null,
         qa_archived_at: null,
       },
@@ -120,6 +121,7 @@ const setup = () => {
         media_received_at: "2026-11-02T00:00:00Z",
         desk_check_status: "pending",
         desk_check_reason: null,
+        desk_checked_at: null,
       },
     ],
     documents: [doc("d1", "2026-11-02T00:00:00Z")],
@@ -365,4 +367,33 @@ test("tick picks nothing when a pick query (or the cap count) errors", async () 
     expect(await photoCheckTick({ limit: 2 })).toEqual({ done: 0, failed: 0 });
   }
   expect(ai.calls).toHaveLength(0);
+});
+
+test("tick: only waiting our-lead saved spots (stage + channel)", async () => {
+  tables.jobs![0]!.stage = "installation_complete";
+  expect(await photoCheckTick({ limit: 1 })).toEqual({ done: 0, failed: 0 });
+  setup();
+  tables.jobs![0]!.channel = "installer_sourced";
+  expect(await photoCheckTick({ limit: 1 })).toEqual({ done: 0, failed: 0 });
+  expect(ai.calls).toHaveLength(0);
+  setup();
+  expect(await photoCheckTick({ limit: 1 })).toEqual({ done: 1, failed: 0 });
+});
+
+test("tick: skips homes Jo already decided, unless media is newer than her desk check", async () => {
+  for (const status of ["looks_eligible", "not_eligible", "needs_onsite_check"]) {
+    setup();
+    Object.assign(tables.lead_campaign_responses![0]!, {
+      desk_check_status: status,
+      desk_checked_at: "2026-11-02T06:00:00Z", // after the only upload (2026-11-02T00:00Z)
+    });
+    expect(await photoCheckTick({ limit: 1 })).toEqual({ done: 0, failed: 0 });
+  }
+  expect(ai.calls).toHaveLength(0);
+  // A newer upload after Jo's check → checked.
+  const later = doc("d2", "2026-11-02T07:00:00Z");
+  tables.documents!.push(later);
+  stored.set(later.storage_path, new Uint8Array([4]));
+  expect(await photoCheckTick({ limit: 1 })).toEqual({ done: 1, failed: 0 });
+  expect(ai.calls).toHaveLength(1);
 });
