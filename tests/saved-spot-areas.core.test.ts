@@ -75,3 +75,41 @@ describe("groupByArea", () => {
     expect(g.slice(1).map((x) => x.jobIds[0])).toEqual(["far", "n3"]);
   });
 });
+
+// I4: the faster grouping gives exactly what the original greedy gave.
+import { distanceM } from "../src/lib/geo.core";
+function oldGroups(homes: readonly AreaHome[]): string[][] {
+  type L = AreaHome & { lat: number; lng: number };
+  let left = homes.filter((h): h is L => h.lat !== null && h.lng !== null);
+  const groups: L[][] = [];
+  while (left.length) {
+    let best: L[] = [];
+    for (const c of left) {
+      const near = left.filter((h) => h === c || distanceM(c, h) <= 10_000);
+      if (near.length > best.length) best = near;
+    }
+    groups.push([...best].sort((a, b) => a.rankKey - b.rankKey));
+    const taken = new Set(best);
+    left = left.filter((h) => !taken.has(h));
+  }
+  groups.sort((a, b) => b.length - a.length || a[0]!.rankKey - b[0]!.rankKey);
+  return groups.map((g) => g.map((h) => h.jobId));
+}
+describe("groupByArea matches the original greedy", () => {
+  test("random sets of homes, same groups in the same order", () => {
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
+    for (let run = 0; run < 40; run++) {
+      const n = 5 + Math.floor(rnd() * 120);
+      const homes: AreaHome[] = Array.from({ length: n }, (_, i) => ({
+        jobId: `j${i}`,
+        lat: -37.8 + (rnd() - 0.5) * 0.6,
+        lng: 145 + (rnd() - 0.5) * 0.6,
+        suburb: `S${Math.floor(rnd() * 5)}`,
+        rankKey: i,
+      }));
+      const got = groupByArea(homes).filter((g) => g.locationKnown).map((g) => g.jobIds);
+      expect(got).toEqual(oldGroups(homes));
+    }
+  });
+});

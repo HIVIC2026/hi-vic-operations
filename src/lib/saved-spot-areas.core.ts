@@ -37,19 +37,33 @@ const byRank = (a: AreaHome, b: AreaHome) => a.rankKey - b.rankKey;
  * its group is every untaken home within 10 km of that centre. The largest is taken, removed, repeat. Every home lands in
  * exactly one group. Homes with no location go in one last group. Groups: biggest first, tie → best-ranked home;
  * homes inside a group keep the global best-first order.
+ * Speed: each home's within-10 km list is worked out once (O(n²)); each pass then reads kept counts of untaken
+ * neighbours instead of re-measuring every pair.
  */
 export function groupByArea(homes: readonly AreaHome[]): AreaGroup[] {
-  let left = homes.filter(isLocated);
+  const located = homes.filter(isLocated);
+  const n = located.length;
+  const near: number[][] = located.map((_, i) => [i]);
+  for (let i = 0; i < n; i++)
+    for (let j = i + 1; j < n; j++)
+      if (distanceM(located[i]!, located[j]!) <= RADIUS_M) {
+        near[i]!.push(j);
+        near[j]!.push(i);
+      }
+  for (const list of near) list.sort((a, b) => a - b); // input order, as the old untaken-list scan gave
+  const count = near.map((l) => l.length);
+  const taken = new Array<boolean>(n).fill(false);
   const groups: AreaHome[][] = [];
-  while (left.length) {
-    let best: Located[] = [];
-    for (const c of left) {
-      const near = left.filter((h) => h === c || distanceM(c, h) <= RADIUS_M);
-      if (near.length > best.length) best = near;
+  for (let left = n; left > 0; ) {
+    let centre = -1;
+    for (let i = 0; i < n; i++) if (!taken[i] && (centre < 0 || count[i]! > count[centre]!)) centre = i;
+    const members = near[centre]!.filter((k) => !taken[k]);
+    for (const k of members) {
+      taken[k] = true;
+      for (const m of near[k]!) count[m]!--;
     }
-    groups.push([...best].sort(byRank));
-    const taken = new Set(best);
-    left = left.filter((h) => !taken.has(h));
+    left -= members.length;
+    groups.push(members.map((k) => located[k]!).sort(byRank));
   }
   groups.sort((a, b) => b.length - a.length || a[0]!.rankKey - b[0]!.rankKey);
   const out: AreaGroup[] = groups.map((g) => ({

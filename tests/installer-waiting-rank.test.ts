@@ -4,11 +4,14 @@ import { beforeEach, describe, expect, mock, test } from "bun:test";
 
 type Row = Record<string, unknown>;
 const tables: Record<string, Row[]> = {};
+/** Every table read, in order (I4: no table is read twice for the ranking). */
+const reads: string[] = [];
 const get = (r: Row, path: string): unknown =>
   path.split(".").reduce<unknown>((o, k) => (o == null ? o : (o as Row)[k]), r);
 function fakeAdmin() {
   return {
     from(table: string) {
+      reads.push(table);
       const preds: ((r: Row) => boolean)[] = [];
       const b: Record<string, unknown> & PromiseLike<unknown> = {
         select() {
@@ -111,6 +114,7 @@ const fact = (id: string, key: string, value: unknown): Row => ({
 });
 
 beforeEach(() => {
+  reads.length = 0;
   for (const k of Object.keys(tables)) delete tables[k];
   tables["jobs"] = [
     // a: no insulation, house, 200 m², street address in Rowville → Good
@@ -266,5 +270,30 @@ describe("To release loader: band, reason, tags, areas", () => {
     expect(by.get("a")!.tags).toContain("Jo: not eligible");
     expect(by.get("c")!.band).toBe("weak"); // has insulation, no detail; AI under_r2 ignored
     expect(by.get("c")!.tags).not.toContain("AI: confirm");
+  });
+
+  test("readSpotFacts with the rows handed in reads only property facts", async () => {
+    const rows = {
+      jobs: tables["jobs"]!,
+      saved: tables["lead_campaign_responses"]!,
+      events: tables["workflow_events"]!,
+    };
+    const fromDb = await readSpotFacts(["a", "b", "c", "d"], { now: NOW });
+    reads.length = 0;
+    const handed = await readSpotFacts(["a", "b", "c", "d"], { now: NOW, rows });
+    expect(reads).toEqual(["property_facts"]);
+    expect([...handed]).toEqual([...fromDb]);
+    reads.length = 0;
+    await readSpotFacts(["a", "b"], { now: NOW, rows, facts: tables["property_facts"]! });
+    expect(reads).toEqual([]);
+  });
+
+  test("the loader reads jobs, saved spots, events and property facts once each", async () => {
+    await loadInstallerWaitingList({ includeTest: true });
+    const n = (t: string) => reads.filter((r) => r === t).length;
+    expect(n("jobs")).toBe(1);
+    expect(n("lead_campaign_responses")).toBe(1);
+    expect(n("workflow_events")).toBe(1);
+    expect(n("property_facts")).toBe(1);
   });
 });

@@ -102,62 +102,77 @@ function listingOf(v: unknown): {
   };
 }
 
+/** The selects the reader needs. A caller that already reads these tables (the To release loader) selects at least
+ *  these columns and hands the rows in, so nothing is read twice. */
+export const SPOT_JOB_COLUMNS =
+  "id, created_at, estimated_area_m2, life_support, property_id, properties(address_line, suburb, postcode, declared:enrichment->base44->declared, answers:enrichment->base44->raw->answers)";
+export const SPOT_SAVED_COLUMNS =
+  "job_id, spot_saved_at, saved_area_m2, saved_insulation, desk_check_status, desk_check_reason";
+
+/** Rows the caller already loaded: jobs (SPOT_JOB_COLUMNS), saved spots (SPOT_SAVED_COLUMNS) and workflow events
+ *  (any types; only quick-taps answers are used). Ids outside `jobIds` are ignored. */
+export type SpotRows = { jobs: Row[]; saved: Row[]; events: Row[] };
+
+/** Current property facts the ranking reads, for these properties (batched; a failed read throws). */
+export async function readSpotPropertyFacts(propertyIds: string[]): Promise<Row[]> {
+  const ids = [...new Set(propertyIds.filter(Boolean))];
+  if (!ids.length) return [];
+  return byIds("property facts", ids, (c, f, t) =>
+    loose
+      .from("property_facts")
+      .select("property_id, fact_key, value")
+      .in("property_id", c)
+      .in("fact_key", [...FACT_KEYS])
+      .eq("is_current", true)
+      .range(f, t),
+  );
+}
+
 /**
  * Facts for each job id (ids with no job row are left out). Location: the property's current `coordinates` fact, else
  * its postcode's centre; neither → lat/lng null ("Location not known"). `address` (and so the satellite link) only when
  * a street number is on file. `areaM2` is the saved / website size; callers with a measured size replace it.
+ * `rows` / `facts`: rows the caller already has (see SpotRows, readSpotPropertyFacts) — then those tables aren't read.
  */
 export async function readSpotFacts(
   jobIds: string[],
-  _opts: { now?: number } = {},
+  opts: { now?: number; rows?: SpotRows; facts?: Row[] } = {},
 ): Promise<Map<string, SpotFactsWithPlace>> {
   const out = new Map<string, SpotFactsWithPlace>();
   const ids = [...new Set(jobIds)];
   if (!ids.length) return out;
-  const [jobs, saved, taps] = await Promise.all([
-    byIds("saved spot homes", ids, (c, f, t) =>
-      admin
-        .from("jobs")
-        .select(
-          "id, created_at, estimated_area_m2, life_support, property_id, properties(address_line, suburb, postcode, declared:enrichment->base44->declared, answers:enrichment->base44->raw->answers)",
-        )
-        .in("id", c)
-        .range(f, t),
-    ),
-    byIds("saved spot answers", ids, (c, f, t) =>
-      admin
-        .from("lead_campaign_responses")
-        .select(
-          "job_id, spot_saved_at, saved_area_m2, saved_insulation, desk_check_status, desk_check_reason",
-        )
-        .in("job_id", c)
-        .range(f, t),
-    ),
-    byIds("quick taps answers", ids, (c, f, t) =>
-      loose
-        .from("workflow_events")
-        .select("job_id, created_at, details")
-        .in("job_id", c)
-        .eq("event_type", QUICK_TAPS_ANSWERED_EVENT)
-        .order("created_at")
-        .order("id")
-        .range(f, t),
-    ),
-  ]);
-  const propIds = [
-    ...new Set(jobs.map((j) => s(j["property_id"])).filter((x): x is string => !!x)),
-  ];
-  const facts = propIds.length
-    ? await byIds("property facts", propIds, (c, f, t) =>
-        loose
-          .from("property_facts")
-          .select("property_id, fact_key, value")
-          .in("property_id", c)
-          .in("fact_key", [...FACT_KEYS])
-          .eq("is_current", true)
-          .range(f, t),
-      )
-    : [];
+  const want = new Set(ids);
+  const [jobs, saved, taps] = opts.rows
+    ? [
+        opts.rows.jobs.filter((j) => want.has(String(j["id"]))),
+        opts.rows.saved.filter((r) => want.has(String(r["job_id"]))),
+        opts.rows.events.filter(
+          (e) => e["event_type"] === QUICK_TAPS_ANSWERED_EVENT && want.has(String(e["job_id"])),
+        ),
+      ]
+    : await Promise.all([
+        byIds("saved spot homes", ids, (c, f, t) =>
+          admin.from("jobs").select(SPOT_JOB_COLUMNS).in("id", c).range(f, t),
+        ),
+        byIds("saved spot answers", ids, (c, f, t) =>
+          admin.from("lead_campaign_responses").select(SPOT_SAVED_COLUMNS).in("job_id", c).range(f, t),
+        ),
+        byIds("quick taps answers", ids, (c, f, t) =>
+          loose
+            .from("workflow_events")
+            .select("job_id, created_at, details")
+            .in("job_id", c)
+            .eq("event_type", QUICK_TAPS_ANSWERED_EVENT)
+            .order("created_at")
+            .order("id")
+            .range(f, t),
+        ),
+      ]);
+  const facts =
+    opts.facts ??
+    (await readSpotPropertyFacts(
+      jobs.map((j) => s(j["property_id"])).filter((x): x is string => !!x),
+    ));
   const savedBy = new Map(saved.map((r) => [String(r["job_id"]), r]));
   const tapsBy = new Map<string, Row>();
   for (const e of taps) {
