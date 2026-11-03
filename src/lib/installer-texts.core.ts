@@ -67,10 +67,21 @@ export function installerNoteSuffix(notes?: string[] | null): string {
 export function readyCheckBookedInstallerText(f: { startIso: string; address: string | null; jobNumber: string; link: string }, notes?: string[]): string {
   return `Booked: Ready Check ${melbourneDayDate(f.startIso)} ${melbourneClock(f.startIso)}, ${f.address ?? "address on the job"} (${f.jobNumber}). Owner details on the job: ${f.link}${installerNoteSuffix(notes)}`;
 }
-/** Decision 99, installer day before. */
-export function installTomorrowText(f: { startIso: string; address: string | null; jobNumber: string; link: string }): string {
-  return `Install tomorrow ${melbourneClock(f.startIso)}, ${f.address ?? "address on the job"} (${f.jobNumber}). Job + forms: ${f.link}`;
+/** Decision #47 (Jo 2 Nov 2026, approved; replaces decision 99's "Job + forms" link): the Lead Installer's text links
+ *  straight to the safety plan (their own sign link) and the Mitti install form, never the portal. Verbatim:
+ *  "Home Insulation Victoria: Install tomorrow {time}, {address} ({HV}). Safety plan: {link} Mitti form: {link}". */
+export function installTomorrowText(f: { startIso: string; address: string | null; jobNumber: string; safetyPlanLink: string; mittiLink: string }): string {
+  return `Install tomorrow ${melbourneClock(f.startIso)}, ${f.address ?? "address on the job"} (${f.jobNumber}). Safety plan: ${f.safetyPlanLink} Mitti form: ${f.mittiLink}`;
 }
+/** Part 7 Task 5: why the install-tomorrow text was held (one internal `install_tomorrow_held` event per key + reason). */
+export const INSTALL_TOMORROW_HELD_EVENT = "install_tomorrow_held" as const;
+export const INSTALL_TOMORROW_HOLDS = { noLead: "no lead installer", noMobile: "lead installer has no mobile", noForm: "install form not ready" } as const;
+/** The office-readable line of that hold (job History). */
+export const INSTALL_TOMORROW_HOLD_SUMMARY: Record<(typeof INSTALL_TOMORROW_HOLDS)[keyof typeof INSTALL_TOMORROW_HOLDS], string> = {
+  "no lead installer": "Install tomorrow text held: no Lead Installer is picked for this install",
+  "lead installer has no mobile": "Install tomorrow text held: the Lead Installer has no mobile on file",
+  "install form not ready": "Install tomorrow text held: the Mitti install form isn't made yet",
+};
 
 // ---- timing rules ----
 /** The "Install tomorrow" text is due when, in Melbourne, today is the day before the install and it is past the send time. */

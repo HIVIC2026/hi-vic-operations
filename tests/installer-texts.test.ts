@@ -30,10 +30,11 @@ describe("wording verbatim from the decisions log (brand prefix added by the sen
     expect(log).toContain('Installer booked (A): "Home Insulation Victoria: Booked: Ready Check {Day Date} {time}, {address} ({HV-number}). Owner details on the job: {link}"');
     expect(gsm(brandSmsBody(t))).toBe(true);
   });
-  test("decision 99, installer day before", () => {
-    const t = installTomorrowText({ startIso: "2026-10-27T21:30:00.000Z", address: "12 Smith St, Frankston", jobNumber: "HV-3117", link: LINK });
-    expect(brandSmsBody(t)).toBe(`Home Insulation Victoria: Install tomorrow 8:30am, 12 Smith St, Frankston (HV-3117). Job + forms: ${LINK}`);
-    expect(log).toContain('Installer day before: "Home Insulation Victoria: Install tomorrow {time}, {address} ({HV}). Job + forms: {link}"');
+  test("decision #47 (Jo 2 Nov 2026) replaces decision 99: installer day before links straight to the safety plan + Mitti form", () => {
+    const t = installTomorrowText({ startIso: "2026-10-27T21:30:00.000Z", address: "12 Smith St, Frankston", jobNumber: "HV-3117", safetyPlanLink: "https://p/sp/a.b", mittiLink: "https://app.au.safetyculture.com/inspection/A5" });
+    expect(brandSmsBody(t)).toBe("Home Insulation Victoria: Install tomorrow 8:30am, 12 Smith St, Frankston (HV-3117). Safety plan: https://p/sp/a.b Mitti form: https://app.au.safetyculture.com/inspection/A5");
+    expect(readFileSync("docs/hiv-touchpoint-decisions-2026-11-02.md", "utf8")).toContain('"Home Insulation Victoria: Install tomorrow {time}, {address} ({HV}). Safety plan: {link} Mitti form: {link}"');
+    expect(log).toContain('Installer day before: "Home Insulation Victoria: Install tomorrow {time}, {address} ({HV}). Job + forms: {link}"'); // decision 99 stays in the log as history
     expect(gsm(brandSmsBody(t))).toBe(true);
   });
   test("decision 83, missing answers ('Nearly there')", () => {
@@ -141,7 +142,8 @@ describe("wiring: triggers, tick, guarded senders only", () => {
   test("server module: records the prepared event, uses only test-send / sendRealSms, never a provider; not on the auto-advance graph", () => {
     const srv = readFileSync("src/lib/installer-texts.server.ts", "utf8");
     expect(srv).not.toMatch(/resendSend\(|fetch\(|twilio/i);
-    for (const t of ["sendTestSms", "sendRealSms", "INSTALLER_TEXT_EVENT", "alreadyPrepared(", "allocatedPersonFor(jobId, \"install\")", "dailyTextRecipient("]) expect(srv).toContain(t);
+    for (const t of ["sendTestSms", "sendRealSms", "INSTALLER_TEXT_EVENT", "alreadyPrepared(", "allocatedPersonFor(jobId, \"install\")"]) expect(srv).toContain(t);
+    expect(srv).not.toContain("dailyTextRecipient("); // #47: the install-tomorrow text goes to the Lead Installer only, never the business owner's number
     // Each text records its event before deliver(): the event write precedes the send in every function.
     for (const fn of ["textInstallerOwnerSuggestedDays", "textInstallerReadyCheckBooked", "textInstallerInstallTomorrow"]) {
       const start = srv.indexOf(`export async function ${fn}`);

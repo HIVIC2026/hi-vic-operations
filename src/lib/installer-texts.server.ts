@@ -4,12 +4,13 @@ import { inHouseDispatchSkip } from "./in-house-suppression.server";
 // BEFORE anything is sent; TEST jobs / TEST partners → test-send only; real partners → the ONE real SMS sender
 // (`sendRealSms`: explicitly selected connection, no fallback, no retry; a held attempt never claims the key — 165).
 // Live triggers: `ownerSuggestReadyCheckDays` (79), every our-lead Ready Check booking in ready-check-times.server (82);
-// the install-tomorrow text (99) and the 24h catch-up for 79/82 run from the 15-minute allocation tick (`sweepInstallerTexts`).
+// the install-tomorrow text (decision #47, Jo 2 Nov 2026, to the Lead Installer only) and the 24h catch-up for 79/82 run
+// from the 15-minute allocation tick (`sweepInstallerTexts`).
 // Rules and wording: installer-texts.core.ts. Nothing here changes a booking, a turn or a stage.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import {
-  INSTALLER_TEXT_EVENT, INSTALLER_TEXT_SWEEP_HOURS, bookedStillCurrent, daysSuggestedStillCurrent, installTomorrowDue, installTomorrowKey, installTomorrowText,
+  INSTALLER_TEXT_EVENT, INSTALLER_TEXT_SWEEP_HOURS, INSTALL_TOMORROW_HELD_EVENT, INSTALL_TOMORROW_HOLDS, INSTALL_TOMORROW_HOLD_SUMMARY, bookedStillCurrent, daysSuggestedStillCurrent, installTomorrowDue, installTomorrowKey, installTomorrowText,
   installerTextAddress, readyCheckBookedInstallerKey, readyCheckBookedInstallerText, readyCheckDaysSuggestedKey, readyCheckDaysSuggestedText, tomorrowMelbourneYmd,
 } from "./installer-texts.core";
 
@@ -106,7 +107,18 @@ export async function textInstallerReadyCheckBooked(jobId: string, startIso: str
   return deliver({ type: "ready_check_booked_installer", key, job: ctx.job, businessId: ctx.businessId, biz: ctx.biz, to: ctx.biz?.signer_mobile ?? ctx.biz?.phone ?? null, body, event: { at: bookedAt, current: true }, label: `ready_check_booked_installer:${startIso}` });
 }
 
-/** Decision 99: the install is tomorrow → text the person going (decision 161: allocated installer, else the business owner), once per booking + date. */
+/** Part 7 Task 5: a hold is recorded ONCE per key + reason (internal, never claims the key — a later tick retries). */
+async function holdInstallTomorrow(jobId: string, key: string, bookingId: string, reason: (typeof INSTALL_TOMORROW_HOLDS)[keyof typeof INSTALL_TOMORROW_HOLDS]): Promise<string> {
+  const { data } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", INSTALL_TOMORROW_HELD_EVENT).contains("details", { key, reason }).limit(1).maybeSingle();
+  if (!data) await logEvent(jobId, null, INSTALL_TOMORROW_HELD_EVENT, INSTALL_TOMORROW_HOLD_SUMMARY[reason], { key, booking_id: bookingId, reason }, { internal: true });
+  return reason;
+}
+
+/** Decision #47 (Jo 2 Nov 2026): the install is tomorrow → ONE text to the picked Lead Installer's OWN mobile, linking
+ *  straight to the safety plan (the Lead's own sign link, minted now) and the Mitti install form (the real A5 audit).
+ *  No Lead picked / no mobile / no install form → held with a plain reason, nothing sent, never the business owner's
+ *  number and never a guessed link. Other crew members get their own sign texts (#48); this text lists nobody else.
+ *  Same key as before (`install-tomorrow:v1:…`), so a job already texted the old way is not texted again. */
 export async function textInstallerInstallTomorrow(jobId: string, booking: { id: string; scheduled_start: string }, now = new Date()): Promise<string> {
   if (!installTomorrowDue(now, booking.scheduled_start)) return "not due";
   const ctx = await jobAndInstaller(jobId);
@@ -114,17 +126,18 @@ export async function textInstallerInstallTomorrow(jobId: string, booking: { id:
   const key = installTomorrowKey(jobId, booking.id, booking.scheduled_start);
   if (await alreadyPrepared(jobId, key)) return "already handled";
   const { allocatedPersonFor } = await import("./visit-allocation.server");
-  const { dailyTextRecipient } = await import("./visit-allocation.core");
-  const recipient = dailyTextRecipient({ allocated: await allocatedPersonFor(jobId, "install"), owner: { name: ctx.biz?.name ?? "Trade", phone: ctx.biz?.signer_mobile ?? ctx.biz?.phone ?? null } });
-  await logEvent(jobId, null, INSTALLER_TEXT_EVENT, `Installer texted: install tomorrow, job + forms link (decision 99) — text prepared for ${recipient.name}${recipient.note ? ` (${recipient.note})` : ""}`, { text: "install_tomorrow", key, booking_id: booking.id, starts_at: booking.scheduled_start, recipient: recipient.key, business_id: ctx.businessId }, { internal: true });
-  const base = installTomorrowText({ startIso: booking.scheduled_start, address: installerTextAddress(ctx.job.properties?.address_line, ctx.job.properties?.suburb), jobNumber: ctx.job.job_number, link: await jobLink(jobId) });
-  // Decision 266: while the safety plan is unsigned the text says so. Decision 364: this text goes to ONE person, so it
-  // lists each unsigned person's OWN sign link ("<name>: <link>") to pass on; the job-page link only when those can't be made.
-  // Decision 377: a person whose own link was already texted to their mobile is listed by name only.
-  const sms = await import("./sms.core");
-  const own = await (await import("./swms-link.server")).unsignedSwmsSignerLinks(jobId);
-  const body = sms.withSafetyPlanLinks(base, own ? sms.safetyPlanSignerLinks(own) : [await jobLink(jobId)]);
-  return deliver({ type: "install_tomorrow", key, job: ctx.job, businessId: ctx.businessId, biz: ctx.biz, to: recipient.phone, body, label: `install_tomorrow:${booking.id}` });
+  const { bookingFormAuditId } = await import("./daily-mitti-text.server");
+  const [lead, auditId] = await Promise.all([allocatedPersonFor(jobId, "install"), bookingFormAuditId(jobId, "installation").catch(() => null)]);
+  if (!lead) return holdInstallTomorrow(jobId, key, booking.id, INSTALL_TOMORROW_HOLDS.noLead);
+  if (!lead.mobile?.trim()) return holdInstallTomorrow(jobId, key, booking.id, INSTALL_TOMORROW_HOLDS.noMobile);
+  if (!auditId) return holdInstallTomorrow(jobId, key, booking.id, INSTALL_TOMORROW_HOLDS.noForm);
+  const leadKey = `w:${lead.workerId}`;
+  const { swmsSignLink } = await import("./swms-link.server");
+  const { mittiFormUrl } = await import("./mitti-link.core");
+  const safetyPlanLink = await swmsSignLink(jobId, leadKey, now.getTime());
+  await logEvent(jobId, null, INSTALLER_TEXT_EVENT, `Lead Installer texted: install tomorrow, safety plan + Mitti form links (decision #47) — text prepared for ${lead.name}`, { text: "install_tomorrow", key, booking_id: booking.id, starts_at: booking.scheduled_start, recipient: leadKey, business_id: ctx.businessId }, { internal: true });
+  const body = installTomorrowText({ startIso: booking.scheduled_start, address: installerTextAddress(ctx.job.properties?.address_line, ctx.job.properties?.suburb), jobNumber: ctx.job.job_number, safetyPlanLink, mittiLink: mittiFormUrl(auditId) });
+  return deliver({ type: "install_tomorrow", key, job: ctx.job, businessId: ctx.businessId, biz: ctx.biz, to: lead.mobile, body, label: `install_tomorrow:${booking.id}` });
 }
 
 /** Decision 251: a business owner added a team member with a mobile → text that person their single-use /join link.
@@ -173,7 +186,7 @@ export async function sweepInstallerTexts(now = new Date()): Promise<{ installTo
     admin.from("workflow_events").select("id, job_id, created_at").eq("event_type", "ready_check_days_suggested").gte("created_at", since),
     admin.from("bookings").select("id, job_id, scheduled_start, created_at").eq("kind", "ready_check").eq("status", "confirmed").gte("created_at", since),
   ]);
-  const handled = (r: string) => !["in_house", "in_house_read_failed", "not due", "skipped", "already handled", "not an our-lead job", "no longer the installer's move", "that time is no longer the booked Ready Check"].includes(r);
+  const handled = (r: string) => !["in_house", "in_house_read_failed", "not due", "skipped", "already handled", "not an our-lead job", "no longer the installer's move", "that time is no longer the booked Ready Check", ...Object.values(INSTALL_TOMORROW_HOLDS)].includes(r);
   for (const b of installs ?? []) {
     try { if (handled(await textInstallerInstallTomorrow(b.job_id, b, now))) out.installTomorrow++; } catch (e) { console.error("install tomorrow text failed", b.job_id, (e as Error).message); }
   }

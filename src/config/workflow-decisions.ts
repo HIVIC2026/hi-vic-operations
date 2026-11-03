@@ -128,6 +128,14 @@ export const WORKFLOW_DECISIONS = {
     pdfLook: "website look (swms-sample.pdf) with the Changes during the job box only behind PDF_LOOK_APPROVED.swms; off = the 25 Oct WorkSafe layout, byte-for-byte",
     signingPage: "/sp/<token>: house facts → 9 standard controls folded → Read the full safety plan (PDF) on tap only → tick → typed full name → Sign the safety plan; one server read; words of the plan's own rule",
     leadView: "the Lead Installer's own link only: who has signed, Sign on my phone (the crew member's own link on the Lead's phone; they type their own name, method lead_phone), Open install form (real A5 audit url or not-ready line)",
+    installTomorrowText: {
+      decision: "#47 (Jo 2 Nov 2026), replaces decision 99",
+      wording: "Home Insulation Victoria: Install tomorrow {time}, {address} ({HV}). Safety plan: {link} Mitti form: {link}",
+      to: "the picked Lead Installer's own mobile only — never the business owner's number, never other crew members' links",
+      links: "safety plan = the Lead's own sign link (minted for the text); Mitti = the real A5 audit url, never guessed",
+      held: ["no lead installer", "lead installer has no mobile", "install form not ready"],
+      key: "install-tomorrow:v1:{job}:{booking}:{Melbourne date} (unchanged, one text per install day; a hold never claims it)",
+    },
   },
   quoteValidity: {
     validDays: 30,

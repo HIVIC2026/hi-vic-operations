@@ -39,8 +39,10 @@ mock.module("../src/lib/workflow.server", () => ({
 }));
 mock.module("../src/lib/comms.server", () => ({ customerCommsEnabled: async () => true, hasCurrentOwnerContactConsent: async () => true }));
 mock.module("../src/lib/job-live.server", () => ({ jobDeletedBlocker: async () => null }));
-mock.module("../src/lib/visit-allocation.server", () => ({ allocatedPersonFor: async () => null }));
-mock.module("../src/lib/swms-link.server", () => ({ unsignedSwmsSignerLinks: async () => [], swmsSignLink: async () => "x" }));
+// Decision #47 (Part 7 Task 5): the text goes to the picked Lead Installer's own mobile with their sign link + the Mitti form.
+mock.module("../src/lib/visit-allocation.server", () => ({ allocatedPersonFor: async () => ({ workerId: "w1", name: "TEST Lead", mobile: "0412 345 678" }) }));
+mock.module("../src/lib/daily-mitti-text.server", () => ({ bookingFormAuditId: async () => "A5AUD" }));
+mock.module("../src/lib/swms-link.server", () => ({ unsignedSwmsSignerLinks: async () => [], swmsSignLink: async () => "https://x/sp/a.b" }));
 const twilio: string[] = [];
 mock.module("../src/lib/twilio-au1.server", () => ({
   au1Configured: () => true,

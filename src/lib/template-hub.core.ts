@@ -80,6 +80,7 @@ import { VEU_FACTSHEET_PATH, VEU_FACTSHEET_TITLE } from "./veu-factsheet.core";
 import { buildInvoicePayload } from "./xero.core";
 import { TRADE_INVITE_DRAFT, renderTradeInviteEmail } from "./trade-access.core";
 import { swmsSignLinkText } from "./swms-sign-text.core";
+import { mittiFormUrl } from "./mitti-link.core";
 import { renderVisitNewTimesEmail, visitNewTimesText } from "./visit-new-times.core";
 import { piesaTimesReminderText, renderPiesaTimesReminderEmail } from "./piesa-times-reminder.core";
 import { installerPlanningText, renderInstallerPlanningEmail } from "./installer-planning-notice.core";
@@ -606,9 +607,9 @@ const INSTALLER: TemplateEntry[] = [
     render: () => text(installerInstallWindowText({ step: "reminder_10", deadline: "2026-12-04", daysLeft: 10, link: FIELD, jobNumber: "HV-TEST", firstName: "Sam", ownerSuburb: "Glen Waverley" })) }),
   // Install
   ENTRY({id:'installer:install-deposit-paid',section:'installer',step:'install',kind:'email',code:'',name:'Deposit paid — book the install day',when:'In-house installation deposit confirmed, once per invoice',who:'Installer office (email only)',approvalNote:'Jo 1 Nov Task 6',gate:{kind:'email'},source:{builder:'src/lib/deposit-request-email.core.ts',fn:'renderInstallerDepositPaidEmail',sender:'src/lib/deposit-request.server.ts'},render:()=>email(renderInstallerDepositPaidEmail(DEPOSIT_SAMPLE))}),
-  ENTRY({ id: "installer:sms-install_tomorrow", section: "installer", step: "install", kind: "text", code: "", name: "Install tomorrow (text)", when: "The afternoon before the install (with safety plan links while unsigned)", who: "Lead installer", approvalNote: "Jo 24 Oct 2026, decision 99", gate: { kind: "text", smsType: "install_tomorrow" },
+  ENTRY({ id: "installer:sms-install_tomorrow", section: "installer", step: "install", kind: "text", code: "", name: "Install tomorrow (text)", when: "The afternoon before the install, to the Lead Installer's own mobile: their safety plan sign link + the Mitti install form (held with a reason when there is no Lead, no mobile or no install form yet)", who: "Lead Installer", approvalNote: "Jo 2 Nov 2026, decision #47 (replaces decision 99)", gate: { kind: "text", smsType: "install_tomorrow" },
     source: { builder: "src/lib/installer-texts.core.ts", fn: "installTomorrowText", sender: "src/lib/installer-texts.server.ts" },
-    render: () => text(installTomorrowText({ startIso: INSTALL_ISO, address: SHORT_ADDRESS, jobNumber: "HV-TEST", link: FIELD })) }),
+    render: () => text(installTomorrowText({ startIso: INSTALL_ISO, address: SHORT_ADDRESS, jobNumber: "HV-TEST", safetyPlanLink: `${FIELD}/safety-plan`, mittiLink: mittiFormUrl("sample-a5-audit") })) }),
   ENTRY({ id: "installer:sms-swms_sign_link", section: "installer", step: "install", kind: "text", code: "", name: "Sign the safety plan (text)", when: "Install booked, and the day before, to each crew member who hasn't signed the SWMS", who: "Each installer crew member", approvalNote: "Jo 25 Oct 2026, decisions 377/380", gate: { kind: "text", smsType: "swms_sign_link" },
     source: { builder: "src/lib/swms-sign-text.core.ts", fn: "swmsSignLinkText", sender: "src/lib/swms-sign-text.server.ts" },
     render: () => text(swmsSignLinkText({ address: SHORT_ADDRESS, startIso: INSTALL_ISO, link: `${FIELD}/safety-plan` })) }),

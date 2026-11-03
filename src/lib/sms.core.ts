@@ -40,7 +40,7 @@ export const SMS_MESSAGE_TYPES = {
   // Decisions 79 / 82 / 99 (Jo 24 Oct 2026; built per decision 193): wording verbatim in installer-texts.core.ts.
   ready_check_days_suggested: { audience: "partner", label: "Owner suggested other Ready Check days – installer to pick one and set a time (decision 79)", wordingApproved: true, quietHours: true },
   ready_check_booked_installer: { audience: "partner", label: "Ready Check booked – owner details on the job (decision 82, installer text A)", wordingApproved: true, quietHours: true },
-  install_tomorrow: { audience: "partner", label: "Install tomorrow – job + forms link, the afternoon before (decision 99)", wordingApproved: true, quietHours: true },
+  install_tomorrow: { audience: "partner", label: "Install tomorrow – to the Lead Installer's own mobile with the safety plan (own sign link) + Mitti install form links, the afternoon before (#47, Jo 2 Nov 2026; replaces decision 99's job + forms link)", wordingApproved: true, quietHours: true },
   // Decision 251: a business owner adds a team member → text that person their single-use /join login link. Wording
   // approved by Jo 24 Oct 2026 (decision 252, relayed by the coordinator): teamMemberInviteText in installer-texts.core.ts.
   team_member_invite: { audience: "partner", label: "Team member added – single-use login link to the new person (decision 251)", wordingApproved: true, quietHours: true },
