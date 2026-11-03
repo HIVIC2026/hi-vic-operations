@@ -2,7 +2,7 @@
 // owner and the installer automatically, so "Signed PIESA copy delivery" (readyToInstall) and PIISA Part 8(a) clear
 // without an office step. Pure rules + wording only. Persistence and sending: piesa-delivery.server.ts.
 // Design approved (decision 131); MJML refresh (Jo 27 Oct 2026): docs/templates/mjml/owner_O28.mjml + installer_piesa-copy.mjml — "your electrical safety check: all clear"
-// (or "repairs completed"), result card (date, electrician, repairs, install day), PDF button, "don't let anyone into the
+// (or "electrical upgrades completed"), result card (date, electrician, upgrades, install day), PDF button, "don't let anyone into the
 // ceiling before the install". PIESA_COPY_EMAIL_APPROVED is on (decision 131); real delivery still needs customer_comms_enabled.
 import { escDueBy } from "./esc.core";
 import * as K from "./email-kit.core";
@@ -84,35 +84,46 @@ export type PiesaCopyEmailInput = {
   recipient: PiesaCopyRecipient; firstName: string | null; address: string | null; jobNumber: string; signatureDate: string | null; installStart: string | null; link: string | null; test?: boolean;
   /** Electrician business + licence/REC numbers, when known. */
   electrician?: { name: string | null; licence?: string | null; rec?: string | null } | null;
-  /** Repairs: null/undefined = none recorded; a CES number means repairs were completed. */
+  /** Electrical upgrades (code name kept): null/undefined = none recorded; a CES number means the upgrades were completed. */
   repairs?: { completed: boolean; cesNumber?: string | null } | null;
 };
 
-/** Decision 131 wording. No prices, no other party's contact details. */
+/** Decision 131 wording. No prices, no other party's contact details. Pack 1 item 44 (Jo 4 Nov 2026, approved): after the
+ *  electrical upgrades the OWNER variant is the "your electrical upgrades are done" redraft — never the word "repairs"
+ *  anywhere an owner sees; the trade variant says "electrical upgrades" too. The all-clear owner variant is unchanged. */
 export function renderPiesaCopyEmail(i: PiesaCopyEmailInput) {
   const where = i.address?.trim() || "the property";
   const signed = fmtDate(i.signatureDate);
   const install = fmtInstall(i.installStart);
   const repaired = i.repairs?.completed === true;
   const first = K.cleanName(i.firstName) ?? "there";
-  const subject = `Signed electrical safety check (PIESA) – ${i.jobNumber}`;
   const owner = i.recipient === "owner";
-  const outcome = repaired ? "repairs completed" : "all clear";
-  const headline = owner ? `${first}, your electrical safety check: ${outcome}` : `Electrical safety check for ${i.jobNumber}: ${outcome}`;
+  const subject = owner && repaired ? "Your electrical upgrades are done — updated safety check attached" : `Signed electrical safety check (PIESA) – ${i.jobNumber}`;
+  const outcome = repaired ? "electrical upgrades completed" : "all clear";
+  const headline = owner
+    ? repaired ? `${first}, your electrical upgrades are done` : `${first}, your electrical safety check: ${outcome}`
+    : `Electrical safety check for ${i.jobNumber}: ${outcome}`;
   const greeting = owner ? null : `${first},`;
   const intro = owner
-    ? "Here's your copy of the completed Pre Insulation Electrical Safety Assessment (PIESA) for your home. The VEU program says you must have it at least 24 hours before your install, so please keep this email."
+    ? repaired
+      ? "Here's your updated copy of your electrical safety check (PIESA), now that the upgrades are complete. Please keep it: the VEU program says you must have it at least 24 hours before your install."
+      : "Here's your copy of the completed Pre Insulation Electrical Safety Assessment (PIESA) for your home. The VEU program says you must have it at least 24 hours before your install, so please keep this email."
     : `Here's the signed copy of the pre-installation electrical safety assessment (PIESA) for ${where} (${i.jobNumber}). The owner has been sent the same copy.`;
   const part8 = `Tick Part 8(a) of the installer safety assessment (PIISA): "I have received a completed copy of the pre-installation electrical safety assessment for the premises".`;
-  const result = repaired ? "Safe to insulate (after repairs)" : "Safe to insulate";
+  const result = repaired && !owner ? "Safe to insulate (after electrical upgrades)" : "Safe to insulate";
   const preview = owner
-    ? `${repaired ? "Repairs completed" : "All clear"}, safe to insulate. Please keep this copy – you need it at least 24 hours before your install.`
-    : `${repaired ? "Repairs completed" : "All clear"}: safe to insulate. Tick Part 8(a) of your PIISA on install day.`;
+    ? repaired
+      ? "Electrical upgrades done — safe to insulate. Please keep this copy – you need it at least 24 hours before your install."
+      : "All clear, safe to insulate. Please keep this copy – you need it at least 24 hours before your install."
+    : `${repaired ? "Electrical upgrades completed" : "All clear"}: safe to insulate. Tick Part 8(a) of your PIISA on install day.`;
   const el = i.electrician?.name?.trim() ? [i.electrician.name.trim(), i.electrician.licence ? `Lic. ${i.electrician.licence}` : null, i.electrician.rec ? `REC ${i.electrician.rec}` : null].filter(Boolean).join(" · ") : null;
+  const certificate = i.repairs?.cesNumber?.trim() || null;
   const rows: { k: string; v: string }[] = [
     ...(signed ? [{ k: "Checked on", v: signed }] : []),
     ...(el ? [{ k: "Electrician", v: el }] : []),
-    { k: "Electrical upgrades needed", v: repaired ? `Completed${i.repairs?.cesNumber ? ` · CES ${i.repairs.cesNumber}` : ""}` : "None" },
+    owner && repaired
+      ? { k: "Electrical upgrades", v: `Completed${certificate ? ` · certificate ${certificate}` : ""}` }
+      : { k: "Electrical upgrades needed", v: repaired ? `Completed${certificate ? ` · CES ${certificate}` : ""}` : "None" },
     ...(install ? [{ k: owner ? "Your install" : "Install", v: install }] : []),
   ];
   const after = owner

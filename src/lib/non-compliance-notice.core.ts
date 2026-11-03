@@ -1,13 +1,13 @@
 // Part 4 Task 13 (Jo 2 Nov 2026, answer 9; cl 27): when something on a job didn't comply (faulty product or work), the owner is
 // told straight away. Jo decides and sends it the same day from an office button on the job page: no automatic trigger, no
 // installer-side button. A compliance send (COMPLIANCE_OWNER_EMAIL_PURPOSES): Do not contact and Unsubscribe never block it.
-// Pure wording + keys only. The wording is a DRAFT for Jo (shown to her as a picture before the flag turns on).
+// Pure wording + keys only. Wording APPROVED by Jo on the pack-1 picture (item 39, 4 Nov 2026); the flag stays false until go-live.
 import * as K from "./email-kit.core";
 import { mjEmail, esc } from "./mail-mjml.core";
 import { AP_CERTIFICATES_LINE, contactLine } from "./owner-wording.core";
 import { installerName, type TradeContact } from "./owner-will-call.core";
 
-/** Flip to true only when Jo approves the wording on the picture. Off: nothing is sent to real owners (TEST jobs still test-send). */
+/** Wording approved (pack 1 item 39); flips to true at go-live. Off: nothing is sent to real owners (TEST jobs still test-send). */
 export const NON_COMPLIANCE_NOTICE_APPROVED = false as boolean;
 export const NON_COMPLIANCE_PURPOSE = "non_compliance_notice";
 /** Recorded once per note, before the send. */
@@ -26,20 +26,25 @@ function fnv(s: string): string {
 export const nonComplianceKey = (jobId: string, what: string, fix: string) => `non-compliance:v1:${jobId}:${fnv(`${norm(what)}|${norm(fix)}`)}`;
 
 export function nonComplianceNotice(i: { firstName: string | null; what: string; fix: string; contact: TradeContact }): { subject: string; text: string; html: string } {
+  // Pack 1 item 39 (Jo 4 Nov 2026) — APPROVED redraft, text and html the same words. {Installer} = installerName(contact);
+  // the phone is the installer's OFFICE number only (contactLine holds the message when it is missing), never a mobile.
   const first = K.cleanName(i.firstName) ?? "there";
   const who = installerName(i.contact);
   const line = contactLine(i.contact);
-  const subject = "Something on your job didn't meet the rules"; // draft for Jo
-  const greeting = `Hi ${first},`; // draft for Jo
-  const p1 = `We found something that didn't meet the rules: ${norm(i.what)}.`; // draft for Jo
-  const p2 = `Any fix will meet the rules: ${norm(i.fix)}.`; // draft for Jo
-  const p3 = `${who} will contact you.`; // draft for Jo
+  const phone = (i.contact.officePhone ?? "").trim();
+  const subject = "About your ceiling insulation — one thing we need to put right";
+  const greeting = `Hi ${first},`;
+  const p1 = `We've checked your job and found one thing that doesn't meet the program's rules: ${norm(i.what)}.`;
+  const p2 = `We'll fix it at no cost to you: ${norm(i.fix)}.`;
+  const p3 = `${who} will call you to arrange a time.`;
+  const p4 = "Nothing else changes — your rebate and your price stay as they are.";
+  const p5 = `Questions? Reply to this email or call ${who} on ${phone}.`;
   const small = [line, AP_CERTIFICATES_LINE].filter((x): x is string => !!x);
   const body = [
-    `<mj-section><mj-column><mj-text>${esc(greeting)}</mj-text><mj-text>${esc(p1)}</mj-text><mj-text>${esc(p2)}</mj-text><mj-text>${esc(p3)}</mj-text></mj-column></mj-section>`,
+    `<mj-section><mj-column><mj-text>${esc(greeting)}</mj-text><mj-text>${esc(p1)}</mj-text><mj-text>${esc(p2)}</mj-text><mj-text>${esc(p3)}</mj-text><mj-text>${esc(p4)}</mj-text><mj-text>${esc(p5)}</mj-text></mj-column></mj-section>`,
     `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="small" padding="14px 18px">${small.map(esc).join("<br/>")}</mj-text></mj-column></mj-section>`,
   ].join("\n");
   const html = mjEmail({ subject, preview: p1, body, unsubscribe: null, testLabel: false });
-  const text = K.plainText([greeting, "", p1, p2, p3, "", ...small]);
+  const text = K.plainText([greeting, "", p1, p2, p3, p4, p5, "", ...small]);
   return { subject, text, html };
 }

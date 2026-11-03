@@ -55,12 +55,13 @@ test("#36 flag stays false until Jo OKs the pictures, and the old wording is use
   expect(m.text).not.toContain("Book the PIESA");
 });
 
-test("#36 office books: approved wording, only the $349", () => {
+test("#36 office books: approved wording, no price at all (pack 1 items 13/14, Jo 4 Nov 2026: installers never see Home Insulation Victoria's PIESA price)", () => {
   const m = renderInstallerAcceptedEmail({ ...v2Job, whoBooks: "office", electricianName: null });
   expect(m.subject).toBe("Owner accepted – HV-3117, 1 Example St, Sampletown");
   expect(m.html).toContain("Book the PIESA now.");
   for (const b of [unesc(m.html), unesc(m.text)]) {
-    expect(b).toContain("has paid the $349 for the PIESA.");
+    expect(b).toContain("has paid for the PIESA.");
+    expect(b).not.toContain("$349");
     expect(b).toContain("Book the PIESA");
     expect(b).toContain("Pick your electrician on the job, call Sarah, then add the day and time in the portal within 2 business days.");
     expect(b).toContain("Electrical upgrades, if needed");
@@ -68,7 +69,7 @@ test("#36 office books: approved wording, only the $349", () => {
     expect(b).toContain("Book the install");
     expect(b).toContain("Call Sarah and add the install day and Lead Installer in the portal. Sarah pays her 10% deposit to lock it in. Install within 30 days of the PIESA.");
     for (const bad of ["offers", "3 install days", "Nothing for you to do"]) expect(b).not.toContain(bad);
-    expect((b.match(/\$[\d,.]+/g) ?? []).every((x) => x === "$349")).toBe(true);
+    expect(b.match(/\$[\d,.]+/g) ?? []).toEqual([]); // no dollar figure anywhere on the installer's email
   }
   expect(m.text).toContain("Book the PIESA: Pick your electrician on the job, call Sarah, then add the day and time in the portal within 2 business days.");
 });

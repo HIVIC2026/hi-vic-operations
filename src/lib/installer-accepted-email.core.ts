@@ -30,7 +30,7 @@ export function renderInstallerAcceptedEmail(i: InstallerAcceptedInput) {
   const headline = `${first} accepted!`;
   const v2 = i.useV2 ?? INSTALLER_ACCEPTED_V2_APPROVED;
   const lead = v2
-    ? `${owner} has accepted the quote for ${where} (${i.jobNumber}) and has paid the $349 for the PIESA.`
+    ? `${owner} has accepted the quote for ${where} (${i.jobNumber}) and has paid for the PIESA.` // pack 1 items 13/14 (Jo 4 Nov 2026): installers never see Home Insulation Victoria's PIESA price
     : `${owner} has accepted the quote for ${where} (${i.jobNumber}) and has paid for the electrical safety check.`;
   const preview = v2 ? "Book the PIESA now." : `${first} has paid for the electrical safety check. Nothing for you to do until it clears.`;
   const electrician = i.whoBooks === "electrician" ? (i.electricianName?.trim() || "The electrician") : null;

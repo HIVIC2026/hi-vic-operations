@@ -56,18 +56,28 @@ test("flag is off by default; purpose is a compliance purpose", () => {
   expect(COMPLIANCE_OWNER_EMAIL_PURPOSES).toContain("non_compliance_notice");
 });
 
-test("email says what we found, the fix, and who will contact them; no banned words or links", () => {
+test("pack 1 item 39 (Jo 4 Nov 2026, approved): the exact words — what we found, the free fix, who calls, nothing else changes, the office phone; no banned words or links", () => {
   const c = { name: "Sample Insulation Pty Ltd", tradingName: "Sample Insulation", officePhone: "03 9000 0000", email: "office@sample.example" };
   const m = core.nonComplianceNotice({ firstName: "Sarah", what: WHAT, fix: FIX, contact: c });
-  expect(m.text).toContain("Hi Sarah,");
-  expect(m.text).toContain(WHAT);
-  expect(m.text).toContain(FIX);
+  expect(m.subject).toBe("About your ceiling insulation — one thing we need to put right");
+  const lines = m.text.split("\n");
+  expect(lines.slice(0, 7)).toEqual([
+    "Hi Sarah,",
+    "",
+    `We've checked your job and found one thing that doesn't meet the program's rules: ${WHAT}.`,
+    `We'll fix it at no cost to you: ${FIX}.`,
+    "Sample Insulation will call you to arrange a time.",
+    "Nothing else changes — your rebate and your price stay as they are.",
+    "Questions? Reply to this email or call Sample Insulation on 03 9000 0000.",
+  ]);
   expect(m.text).toContain("Sample Insulation · 03 9000 0000 · office@sample.example");
-  expect(m.text).toContain("Sample Insulation will contact you");
-  expect(m.html).toContain(WHAT);
-  expect(m.html).toContain(FIX);
-  expect(`${m.subject}${m.text}`).not.toMatch(/lawyer|HIV\b|https?:\/\//);
+  // html carries the same words (entity-escaped apostrophes aside)
+  for (const p of ["one thing that doesn", "at no cost to you", "will call you to arrange a time.", "Nothing else changes — your rebate and your price stay as they are.", "Reply to this email or call Sample Insulation on 03 9000 0000."]) expect(m.html.replace(/&#39;|&apos;/g, "'")).toContain(p);
+  expect(`${m.subject}${m.text}`).not.toMatch(/lawyer|HIV\b|https?:\/\/|\brepairs?\b|\bfixes\b/);
   expect(core.nonComplianceNotice({ firstName: null, what: WHAT, fix: FIX, contact: c }).text).toContain("Hi there,");
+  // the phone is the office number only: a contact with no office phone is held by the server, never a mobile substituted
+  expect(core.nonComplianceNotice({ firstName: "Sarah", what: WHAT, fix: FIX, contact: { ...c, officePhone: "  " } }).text).not.toMatch(/04\d{2}/);
+  expect(core.nonComplianceKey("j", WHAT, FIX)).toMatch(/^non-compliance:v1:j:/);
 });
 
 test("office presses the button: one email with what and fix", async () => {

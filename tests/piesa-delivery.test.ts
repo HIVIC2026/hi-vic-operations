@@ -70,3 +70,41 @@ describe("installer PIESA copy (touchpoint 41, Jo 2 Nov 2026)", () => {
     expect(renderPiesaCopyEmail({ recipient: "owner", firstName: "Sarah", address: null, jobNumber: "HV-1", signatureDate: null, installStart: null, link: null }).text).not.toContain("Next: call the owner");
   });
 });
+
+// Pack 1 item 44 (Jo 4 Nov 2026, APPROVED redraft): the owner's copy after the electrical upgrades.
+describe("owner PIESA copy after the electrical upgrades (pack 1 item 44)", () => {
+  const base = { firstName: "Helen", address: "824 High Street Road, Glen Waverley", jobNumber: "HV-TEST", signatureDate: "2026-11-05", installStart: "2026-11-10T20:30:00Z", link: "https://example.invalid/my-job/TEST?screen=piesa", electrician: { name: "Spark Electrical", licence: "12345", rec: "67890" } };
+  const done = renderPiesaCopyEmail({ ...base, recipient: "owner", repairs: { completed: true, cesNumber: "CES-1234" } });
+  test("the approved words: subject, headline, result, intro, row, preview", () => {
+    expect(done.subject).toBe("Your electrical upgrades are done — updated safety check attached");
+    expect(done.text).toContain("Helen, your electrical upgrades are done");
+    expect(done.text).toContain("Here's your updated copy of your electrical safety check (PIESA), now that the upgrades are complete. Please keep it: the VEU program says you must have it at least 24 hours before your install.");
+    expect(done.text).toContain("SAFETY CHECK RESULT\nSafe to insulate\n");
+    expect(done.text).toContain("Electrical upgrades: Completed · certificate CES-1234");
+    expect(done.html).toContain("Electrical upgrades done — safe to insulate. Please keep this copy – you need it at least 24 hours before your install.");
+    expect(done.html).not.toContain("(after");
+  });
+  test("never the word 'repairs' (or CES) anywhere the owner sees; no certificate number → 'Completed' alone", () => {
+    expect(`${done.subject}\n${done.text}\n${done.html}`).not.toMatch(/repair|· CES /i); // the certificate number itself may read "CES-1234"
+    const noCert = renderPiesaCopyEmail({ ...base, recipient: "owner", repairs: { completed: true, cesNumber: null } });
+    expect(noCert.text).toContain("Electrical upgrades: Completed\n");
+    expect(`${noCert.subject}\n${noCert.text}\n${noCert.html}`).not.toMatch(/repair/i);
+  });
+  test("the trade variant says electrical upgrades too (trade wording, CES kept), rest unchanged", () => {
+    const trade = renderPiesaCopyEmail({ ...base, firstName: "Deep", recipient: "installer", repairs: { completed: true, cesNumber: "CES-1234" } });
+    expect(trade.subject).toBe("Signed electrical safety check (PIESA) – HV-TEST");
+    expect(trade.text).toContain("Electrical safety check for HV-TEST: electrical upgrades completed");
+    expect(trade.text).toContain("Safe to insulate (after electrical upgrades)");
+    expect(trade.text).toContain("Electrical upgrades needed: Completed · CES CES-1234");
+    expect(trade.html).toContain("Electrical upgrades completed: safe to insulate. Tick Part 8(a) of your PIISA on install day.");
+    expect(`${trade.subject}\n${trade.text}\n${trade.html}`).not.toMatch(/repair/i);
+  });
+  test("the all-clear owner variant is unchanged byte-for-byte (recorded at 200edbe)", async () => {
+    const clear = renderPiesaCopyEmail({ ...base, recipient: "owner", repairs: null });
+    const h = async (s: string) => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)))).map((b) => b.toString(16).padStart(2, "0")).join("");
+    expect(clear.subject).toBe("Signed electrical safety check (PIESA) – HV-TEST");
+    expect(clear.text).toContain("Helen, your electrical safety check: all clear");
+    expect(clear.text).toContain("Electrical upgrades needed: None");
+    expect(await h(`${clear.subject}\n${clear.html}\n${clear.text}`)).toBe("084e45d86ab228f5541969be841fa31ea63d662cebcea2694c9652d7a827763a");
+  });
+});

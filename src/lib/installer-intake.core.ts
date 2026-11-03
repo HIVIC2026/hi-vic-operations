@@ -351,7 +351,7 @@ export const NOT_MEASURED_NOTE = "That’s fine — we’ll save the job now. Ad
 /** Who arranges/pays the electrician on an installer-supplied job (separate from who manages the job). */
 export type ElectricianPayer = "hivic" | "own" | "undecided";
 export const ELECTRICIAN_PAYER_CHOICES: { value: ElectricianPayer; label: string; body: string }[] = [
-  { value: "own", label: "I’ll use my own electrician", body: "Your electrician must sign up with us first. Their safety check price goes on the owner’s quote instead of our $349, the owner pays us, and we pay the electrician. The office still verifies the electrician, the PIESA, any conditions, evidence and notices before work." },
+  { value: "own", label: "I’ll use my own electrician", body: "Your electrician must sign up with us first. Your PIESA price goes on the owner’s quote, the owner pays us, and we pay it through. The office still verifies the electrician, the PIESA, any conditions, evidence and notices before work." },
   { value: "undecided", label: "To be arranged", body: "You can save now. The owner quote waits until the electrician and their cost are known." },
 ];
 export const FEE_AWARENESS_HIV_REC = "The owner has been advised of the $349 PIESA fee and $349 AP management fee, both including GST.";
