@@ -1,7 +1,7 @@
 # Part 2 messages for Jo to approve (installer's own job: electrician calls and books)
 
-Nothing here is live. Every message is held until you approve it, one at a time. Placeholders in {braces} are filled in by the portal.
-Branch: `part2-electrician-calls-and-books`. Wording below is copied exactly from the code.
+Messages 1 to 7 were approved by Jo on 3 Nov 2026, exactly as written below, and are switched on in code. Placeholders in {braces} are filled in by the portal.
+Wording below is copied exactly from the code. (The text in message 1 also needs its per-type switch in `workflow_settings.sms_message_switches` turned on before it sends.)
 
 Office emails go to the installer's office address, and the portal adds an "Open the job" button under the text when a job link is given. Texts go to electricians only (never installer offices).
 
@@ -9,10 +9,12 @@ Office emails go to the installer's office address, and the portal adds an "Open
 
 ## 1. Electrician's link text
 
+Approved by Jo 3 Nov 2026.
+
 - Code: `electricianLinkText` in `src/lib/electrician-link.core.ts` (sent from `src/lib/own-job-piesa-notices.server.ts`)
 - Channel: text
 - Goes to: the installer's chosen electrician, once their job is handed over (and again for a new electrician after a swap). It carries their no-login link.
-- Approval flag: SMS type `own_job_piesa_link` has `wordingApproved: false` in `src/lib/sms.core.ts`
+- Approval flag: SMS type `own_job_piesa_link` has `wordingApproved: true` in `src/lib/sms.core.ts`
 
 ```
 {installer} job: safety check (PIESA) to book at {address}. Call the owner, then book it here: {url}
@@ -20,10 +22,12 @@ Office emails go to the installer's office address, and the portal adds an "Open
 
 ## 2. Office "to book"
 
+Approved by Jo 3 Nov 2026.
+
 - Code: `officeToBookEmail` in `src/lib/electrician-link.core.ts`
 - Channel: email
 - Goes to: the installer's office, when the job is handed over (not sent if the installer's "who books" setting is electrician only)
-- Approval flag: `OWN_JOB_PIESA_TO_BOOK_EMAIL_APPROVED = false`
+- Approval flag: `OWN_JOB_PIESA_TO_BOOK_EMAIL_APPROVED = true`
 
 Subject:
 ```
@@ -41,10 +45,12 @@ Where {line} is one of:
 
 ## 3. Office "not booked yet"
 
+Approved by Jo 3 Nov 2026.
+
 - Code: `officeNotBookedEmail` in `src/lib/electrician-link.core.ts` (sent from `src/lib/own-job-piesa.server.ts`)
 - Channel: email
 - Goes to: the installer's office, once, if 2 business days pass after the hand-over and the safety check is still not booked. The electrician's link keeps working.
-- Approval flag: `OWN_JOB_PIESA_NOT_BOOKED_EMAIL_APPROVED = false`
+- Approval flag: `OWN_JOB_PIESA_NOT_BOOKED_EMAIL_APPROVED = true`
 
 Subject:
 ```
@@ -58,10 +64,12 @@ Book it on the job page, or pick another electrician: {jobUrl}
 
 ## 4. Office "can't do this one"
 
+Approved by Jo 3 Nov 2026.
+
 - Code: `officeCantDoEmail` in `src/lib/electrician-link.core.ts` (sent from `src/lib/electrician-link.server.ts`, `linkCantDo`)
 - Channel: email
 - Goes to: the installer's office, when the electrician taps "Can't do this one" on their link
-- Approval flag: `OWN_JOB_PIESA_CANT_DO_EMAIL_APPROVED = false`
+- Approval flag: `OWN_JOB_PIESA_CANT_DO_EMAIL_APPROVED = true`
 - {reason} is "Too busy", "Owner not answering", or the electrician's own note if they chose "Other"
 
 Subject:
@@ -76,10 +84,12 @@ Pick another electrician on the job page: {jobUrl}
 
 ## 5. Old electrician, swap email
 
+Approved by Jo 3 Nov 2026.
+
 - Code: `oldElectricianEmail` in `src/lib/electrician-swap.core.ts` (sent from `src/lib/electrician-swap.server.ts`)
 - Channel: email
 - Goes to: the electrician who was taken off the job, once, when the installer changes the electrician
-- Approval flag: `OWN_JOB_SWAP_OLD_ELECTRICIAN_EMAIL_APPROVED = false`
+- Approval flag: `OWN_JOB_SWAP_OLD_ELECTRICIAN_EMAIL_APPROVED = true`
 
 Subject:
 ```
@@ -91,6 +101,8 @@ The installer has picked another electrician for the safety check (PIESA) at {ad
 ```
 
 ## 6. Office Needs lines (Needs me list, shown to the Home Insulation Victoria office)
+
+Approved by Jo 3 Nov 2026.
 
 These are not emails or texts. They are lines on the office Needs list. Code: `src/lib/office-needs.core.ts`. They have no approval flag (office-only, internal), listed so you can check the words.
 
@@ -107,12 +119,12 @@ These are not emails or texts. They are lines on the office Needs list. Code: `s
 
 ## 7. Owner message when a swap cancels a booked safety check
 
-NOT BUILT — wording needed. Draft for Jo.
+Approved by Jo 3 Nov 2026. Built.
 
-- Code: none yet. Today a swap cancels the booked safety check and tells the owner nothing (`src/lib/electrician-swap.server.ts` header: "Nothing is sent to the owner: no approved wording exists for it yet").
-- Channel: email (suggested; a text would also work)
-- Goes to: the owner, when the installer changes the electrician and a safety check had already been booked
-- Approval flag: none yet. It would need its own held flag, off until you approve.
+- Code: `ownerSwapCancelledEmail` in `src/lib/electrician-swap.core.ts` (sent from `src/lib/electrician-swap.server.ts` through the guarded owner-email sender, so opt-outs and TEST routing apply)
+- Channel: email
+- Goes to: the owner, once for each booked safety check that a swap cancels (not sent if there was no booking). A failed email never stops the swap; the result is recorded on the swap's event.
+- Approval flag: `OWN_JOB_SWAP_OWNER_EMAIL_APPROVED = true`
 
 Subject:
 ```

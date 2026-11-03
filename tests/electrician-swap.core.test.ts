@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { SWAP_NOT_LINKED, SWAP_NOT_ONBOARDED, SWAP_PIESA_DONE, SWAP_SAME, oldElectricianEmail, swapProblem } from "../src/lib/electrician-swap.core";
+import { SWAP_NOT_LINKED, SWAP_NOT_ONBOARDED, SWAP_PIESA_DONE, SWAP_SAME, OWN_JOB_SWAP_OLD_ELECTRICIAN_EMAIL_APPROVED, OWN_JOB_SWAP_OWNER_EMAIL_APPROVED, oldElectricianEmail, ownerSwapCancelledEmail, ownerSwapEmailKey, swapProblem } from "../src/lib/electrician-swap.core";
 
 const ok = { piesaDone: false, linkedActive: true, onboarded: true, same: false };
 describe("swapProblem", () => {
@@ -30,4 +30,17 @@ describe("office Needs: form not moved", () => {
     const c = needsCandidates({ jobId: "j", ownJobSwapFormNotMoved: { at: "2026-11-03T00:00:00Z", electrician: "New Sparky" } } as never, Date.parse("2026-11-03T01:00:00Z"));
     expect(c.find((x) => x.kind === "own_job_swap_form_not_moved")?.line).toBe("Move the Mitti safety check form to New Sparky");
   });
+});
+
+describe("message 7: owner email when a swap cancels a booked safety check (approved by Jo 3 Nov 2026)", () => {
+  test("approved flags are on", () => {
+    expect(OWN_JOB_SWAP_OWNER_EMAIL_APPROVED).toBe(true);
+    expect(OWN_JOB_SWAP_OLD_ELECTRICIAN_EMAIL_APPROVED).toBe(true);
+  });
+  test("exact subject and body", () => {
+    const m = ownerSwapCancelledEmail({ firstName: "Olive", address: "1 Example St" });
+    expect(m.subject).toBe("Your safety check needs a new time");
+    expect(m.text.startsWith("Hi Olive,\n\nYour installer has changed the electrician for your safety check (PIESA) at 1 Example St, so the time we booked is cancelled.\n\nYour new electrician will call you soon to book a new time. You don't need to do anything.\n\nCheers,\nthe Home Insulation Victoria team")).toBe(true);
+  });
+  test("stable key per booking", () => expect(ownerSwapEmailKey("b1")).toBe(ownerSwapEmailKey("b1")));
 });

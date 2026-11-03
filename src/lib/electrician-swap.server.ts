@@ -2,13 +2,13 @@
 // Rules: electrician-swap.core.ts. A swap is the same as handing the job over again: a new active assignment, a NEW
 // `own_job_piesa_handed` event with a fresh 2-business-day due date (so the clock and the "not booked" email restart),
 // the old link switched off, and the new electrician texted their link. A booked safety check is cancelled (Jo's
-// decision) and the new electrician books fresh. Nothing is sent to the owner: no approved wording exists for it yet.
+// decision) and the new electrician books fresh. The owner is emailed once per cancelled booking (message 7, approved by Jo 3 Nov 2026).
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError } from "./workflow.server";
 import { OWN_JOB_PIESA_HANDED_EVENT, ownJobHandoffKey } from "./own-job-piesa.core";
 import {
   OWN_JOB_ELECTRICIAN_SWAPPED_EVENT, OWN_JOB_SWAP_FORM_NOT_MOVED_EVENT, OWN_JOB_SWAP_OLD_ELECTRICIAN_EMAIL_APPROVED,
-  SWAP_SAME, oldElectricianEmail, oldElectricianEmailKey, swapProblem,
+  OWN_JOB_SWAP_OWNER_EMAIL_APPROVED, OWN_JOB_SWAP_OWNER_PURPOSE, SWAP_SAME, oldElectricianEmail, oldElectricianEmailKey, ownerSwapCancelledEmail, ownerSwapEmailKey, swapProblem,
 } from "./electrician-swap.core";
 
 const PIESA_STAGE = "piesa_and_install_window_pending";
@@ -62,7 +62,7 @@ async function moveMittiForm(jobId: string, userId: string, actorId: string, sou
   } catch (e) { return (e as Error).message || "unknown problem"; }
 }
 
-/** Email the old electrician once ("You're no longer on {address}"). Held until Jo approves the wording; never throws. */
+/** Email the old electrician once ("You're no longer on {address}"). Never throws. */
 async function emailOldElectrician(jobId: string, oldBusinessId: string, oldAssignmentId: string, approved: boolean): Promise<string> {
   try {
     const { data: ov } = await admin.from("job_overview").select("property_address, job_number").eq("id", jobId).maybeSingle();
@@ -73,9 +73,34 @@ async function emailOldElectrician(jobId: string, oldBusinessId: string, oldAssi
   } catch (e) { console.error("old electrician email skipped", jobId, (e as Error).message); return "error"; }
 }
 
+/** Email the owner once per cancelled booking (message 7) through the guarded owner-email sender (opt-outs, TEST routing). Never throws. */
+async function emailOwnerBookingCancelled(jobId: string, bookingId: string, approved: boolean): Promise<string> {
+  try {
+    if (!approved) return "not_approved";
+    const { data: job } = await admin.from("jobs").select("owner_id, source").eq("id", jobId).maybeSingle();
+    if (!job?.owner_id) return "no_owner";
+    const { data: owner } = await admin.from("owners").select("full_name, email").eq("id", job.owner_id as string).maybeSingle();
+    const to = (owner?.email as string | null | undefined)?.trim();
+    if (!to) return "no_owner_email";
+    const source = (job.source as string | null) ?? null;
+    if (source !== "qa_test") {
+      const { assertCustomerDeliveryAllowed } = await import("./comms.server");
+      try { await assertCustomerDeliveryAllowed(jobId, "Safety check cancelled email"); } catch (e) { return `held: ${(e as Error).message}`; }
+    }
+    const { data: ov } = await admin.from("job_overview").select("property_address, job_number").eq("id", jobId).maybeSingle();
+    const address = (ov?.property_address as string | null | undefined) || (ov?.job_number as string | null | undefined) || "your home";
+    const { firstName } = await import("./worker-links.core");
+    const first = firstName(owner?.full_name as string | null | undefined);
+    return await (await import("./owner-email-send.server")).sendGuardedOwnerEmail({
+      jobId, jobSource: source, to, purpose: OWN_JOB_SWAP_OWNER_PURPOSE, key: ownerSwapEmailKey(bookingId), explainBlock: true,
+      build: (unsubscribeUrl) => ownerSwapCancelledEmail({ firstName: first, address, unsubscribeUrl, test: source === "qa_test" }),
+    });
+  } catch (e) { console.error("owner swap email skipped", jobId, (e as Error).message); return "error"; }
+}
+
 export const OWN_JOB_SWAP_STARTED_EVENT = "own_job_swap_started";
 type OldRow = { id: string; business_id: string | null };
-type Resume = { assignmentId: string; old: OldRow[] };
+type Resume = { assignmentId: string; old: OldRow[]; bookingIds: string[] };
 type SwapFacts = { stage: string; source: string | null; current: string | null; active: ActiveRow[]; userId: string | null; problem: string | null; resume: Resume | null };
 
 /** A swap that got as far as adding the new electrician but didn't finish (so a retry completes it instead of refusing). */
@@ -86,7 +111,8 @@ async function unfinishedSwap(jobId: string, stage: string, active: ActiveRow[],
   if (!(started ?? []).length) return null;
   const finished = await must(admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", OWN_JOB_ELECTRICIAN_SWAPPED_EVENT).contains("details", { assignment_id: a.id }).limit(1), "The swap couldn't be checked");
   if ((finished ?? []).length) return null;
-  return { assignmentId: a.id, old: ((started![0]!.details as { old?: OldRow[] } | null)?.old ?? []) };
+  const d = started![0]!.details as { old?: OldRow[]; confirmed_booking_ids?: string[] } | null;
+  return { assignmentId: a.id, old: d?.old ?? [], bookingIds: d?.confirmed_booking_ids ?? [] };
 }
 
 /** Read-only: everything the swap needs and the reason it can't go ahead (null = fine). Throws for "not your job". */
@@ -113,7 +139,7 @@ export async function swapPreflight(jobId: string, installerBusinessId: string, 
  * way, the job is either unchanged or waiting for the new electrician; a retry with the same electrician FINISHES the
  * swap (every step after adding the new electrician can be repeated without doing anything twice).
  */
-export async function installerSwapElectrician(jobId: string, installerBusinessId: string, newElectricianBusinessId: string, actorId: string, opts: { now?: Date; oldEmailApproved?: boolean; afterInsert?: () => Promise<void> } = {}): Promise<void> {
+export async function installerSwapElectrician(jobId: string, installerBusinessId: string, newElectricianBusinessId: string, actorId: string, opts: { now?: Date; oldEmailApproved?: boolean; ownerEmailApproved?: boolean; afterInsert?: () => Promise<void> } = {}): Promise<void> {
   const now = opts.now ?? new Date();
   const f = await swapPreflight(jobId, installerBusinessId, newElectricianBusinessId);
   if (f.problem) throw new WorkflowError(f.problem);
@@ -141,16 +167,22 @@ export async function installerSwapElectrician(jobId: string, installerBusinessI
   let newAssignmentId: string;
   let old: OldRow[];
   let cancelledCount = 0;
-  if (f.resume) { newAssignmentId = f.resume.assignmentId; old = f.resume.old; }
+  let cancelledConfirmed: string[] = []; // confirmed bookings this swap cancelled: the owner is told once for each
+  if (f.resume) {
+    newAssignmentId = f.resume.assignmentId; old = f.resume.old;
+    if (f.resume.bookingIds.length) cancelledConfirmed = ((await must(admin.from("bookings").select("id").in("id", f.resume.bookingIds).eq("status", "cancelled"), "Bookings couldn't be read")) ?? []).map((b) => b.id as string);
+  }
   else {
     old = active.map((a) => ({ id: a.id, business_id: a.business_id }));
     newAssignmentId = crypto.randomUUID();
+    const confirmedIds = stage === BOOKED_STAGE ? ((await must(admin.from("bookings").select("id").eq("job_id", jobId).eq("kind", "assessment").eq("status", "confirmed"), "The safety check booking couldn't be read")) ?? []).map((b) => b.id as string) : [];
     // A marker so a retry can finish this swap if it stops part way.
-    await logEvent(jobId, actorId, OWN_JOB_SWAP_STARTED_EVENT, "Installer is changing the electrician", { new_assignment_id: newAssignmentId, to: newElectricianBusinessId, old }, { internal: true });
+    await logEvent(jobId, actorId, OWN_JOB_SWAP_STARTED_EVENT, "Installer is changing the electrician", { new_assignment_id: newAssignmentId, to: newElectricianBusinessId, old, confirmed_booking_ids: confirmedIds }, { internal: true });
     // 1. A booked safety check is cancelled and the job goes back to "to book". Stage first: if it fails nothing else has changed.
     if (stage === BOOKED_STAGE) await (await import("./workflow.server")).transition(jobId, PIESA_STAGE, actorId, "Electrician changed by the installer: the safety check (PIESA) booking is cancelled and the new electrician books it", { own_job: true });
     const cancelled = (await must(admin.from("bookings").update({ status: "cancelled" }).eq("job_id", jobId).eq("kind", "assessment").in("status", ["proposed", "confirmed"]).select("id"), "The safety check booking couldn't be cancelled")) ?? [];
     cancelledCount = cancelled.length;
+    cancelledConfirmed = cancelled.map((c) => c.id as string).filter((x) => confirmedIds.includes(x));
     if (old.length) await must(admin.from("job_assignments").update({ booking_confirmed_at: null }).in("id", old.map((a) => a.id)).select("id"), "The booking marker couldn't be cleared");
     // 2. End the old assignment(s), add the new one (put the old back if adding fails).
     if (old.length) await must(admin.from("job_assignments").update({ active: false, ended_at: now.toISOString(), end_reason: "reassigned (installer changed the electrician)" }).in("id", old.map((a) => a.id)).eq("active", true).select("id"), "The old electrician couldn't be ended");
@@ -192,9 +224,12 @@ export async function installerSwapElectrician(jobId: string, installerBusinessI
   // 6. The old electrician is emailed once (held wording).
   const oldBusiness = old.find((o) => o.business_id && o.business_id !== newElectricianBusinessId) ?? null;
   const oldEmail = oldBusiness ? await emailOldElectrician(jobId, oldBusiness.business_id as string, oldBusiness.id, opts.oldEmailApproved ?? OWN_JOB_SWAP_OLD_ELECTRICIAN_EMAIL_APPROVED) : "no_old_electrician";
+  // 6b. The owner is told once for each confirmed booking this swap cancelled (stable key per booking). Never fails the swap.
+  const ownerEmails: string[] = [];
+  for (const bid of cancelledConfirmed) ownerEmails.push(await emailOwnerBookingCancelled(jobId, bid, opts.ownerEmailApproved ?? OWN_JOB_SWAP_OWNER_EMAIL_APPROVED));
   // 7. Done marker (a retry stops finishing once this exists), then the new electrician's text with their link.
   await logEvent(jobId, actorId, OWN_JOB_ELECTRICIAN_SWAPPED_EVENT, summary + (cancelledCount ? " (the booked safety check was cancelled)" : ""),
-    { assignment_id: newAssignmentId, from: current, to: newElectricianBusinessId, booking_cancelled: cancelledCount > 0, old_electrician_email: oldEmail }, { internal: true });
+    { assignment_id: newAssignmentId, from: current, to: newElectricianBusinessId, booking_cancelled: cancelledCount > 0, old_electrician_email: oldEmail, owner_email: ownerEmails.length ? ownerEmails : "no_booking_cancelled" }, { internal: true });
   await (await import("./own-job-piesa-notices.server")).sendOwnJobPiesaNotices(jobId).catch((e) => console.error("own job safety check notices skipped", jobId, (e as Error).message));
 }
 

@@ -1,5 +1,5 @@
 // Part 2 final review: while the office "to book" email wording is held (not approved), a hand-over is silent, so ONE
-// office item per hand-over says the installer wasn't told. Real (unmocked) approval flag: the wording is still held.
+// office item per hand-over says the installer wasn't told. The 'to book' flag is now approved (Jo 3 Nov 2026), so the held path is exercised by switching the flag off here.
 import { describe, expect, mock, test } from "bun:test";
 import { PGlite } from "@electric-sql/pglite";
 import { postgrestShim } from "./helpers/pglite-postgrest-shim";
@@ -20,6 +20,8 @@ await db.query("insert into jobs values ($1,'piesa_and_install_window_pending',n
 await db.query("insert into job_assignments (job_id, role, business_id, user_id) values ($1,'electrician',$2,$3)", [J, ELEC, id(11)]);
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: postgrestShim(db) }));
 mock.module("../src/lib/comms.server", () => ({ customerCommsEnabled: async () => true, hasCurrentOwnerContactConsent: async () => true }));
+const realLink = await import("../src/lib/electrician-link.core");
+mock.module("../src/lib/electrician-link.core", () => ({ ...realLink, OWN_JOB_PIESA_TO_BOOK_EMAIL_APPROVED: false }));
 const realOwn = await import("../src/lib/own-job-piesa.server");
 mock.module("../src/lib/own-job-piesa.server", () => ({ ...realOwn, ownJobCallAndBook: async () => true }));
 const realWorkflow = await import("../src/lib/workflow.server");
