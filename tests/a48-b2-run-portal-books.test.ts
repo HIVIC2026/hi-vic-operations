@@ -906,3 +906,13 @@ describe("wiring", () => {
     expect(hub).toContain('smsType: "run_time_reminder"');
   });
 });
+
+// Jo 3 Nov 2026: quick taps no longer ask the roof or 5 years — new owners only have the hatch line; old answers still show theirs.
+describe("tapRows after the roof / 5-year questions were removed", () => {
+  test("tapRows shows only the hatch for a new owner", async () => {
+    const { tapRows } = await import("../src/lib/run-route.core");
+    const { QUICK_TAPS_COPY } = await import("../src/lib/quick-taps.core");
+    expect(tapRows({ hatch: "yes" })).toEqual([[QUICK_TAPS_COPY.hatch.question, "Yes"]]);
+    expect(tapRows({ hatch: "yes", roof: "sloped" })).toHaveLength(2);
+  });
+});

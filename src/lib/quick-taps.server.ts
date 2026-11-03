@@ -22,9 +22,9 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { WorkflowError, logEvent } from "./workflow.server";
-import { AREA_BATCH_EVENTS, AREA_BATCH_SENT_EVENT, tapsBatchId, type AreaBatchEventRow } from "./area-batch.core";
+import { AREA_BATCH_EVENTS, AREA_BATCH_LEFT_EVENT, AREA_BATCH_SENT_EVENT, tapsBatchId, type AreaBatchEventRow } from "./area-batch.core";
 import {
-  QUICK_TAPS_ANSWERED_EVENT, QUICK_TAPS_COPY, QUICK_TAPS_DECLINE_REASON, locationAddress, normaliseAccess, locationNeedsRefresh, tapOutcome, websiteQuestions,
+  QUICK_TAPS_ANSWERED_EVENT, QUICK_TAPS_COPY, reaskText, QUICK_TAPS_DECLINE_REASON, locationAddress, normaliseAccess, locationNeedsRefresh, tapOutcome, websiteQuestions,
   type AddressParts, type FinalOutcome, type QuickTapAnswers, type QuickTapsView, type WebsiteAnswers, type WebsiteFacts, type WebsiteKey,
 } from "./quick-taps.core";
 import { formatPropertyAddress } from "./address";
@@ -391,3 +391,56 @@ async function emailDecline(c: Ctx, batchId: string, outcome: Exclude<FinalOutco
   await logEvent(jobId, null, "quick_taps_email", `Quick taps email (${outcome.replace("_", " ")}): ${status}`, { batch_id: batchId, outcome, status }, { internal: true });
 }
 
+// ---- One-off re-ask (Jo 3 Nov 2026, Mia HV-1405) --------------------------------------------------------------------
+export type ReaskResult = { oldBatchId: string | null; answered: string | null; installerId: string | null; installer: string | null; reopened: boolean; newBatchId: string | null; text: string | null };
+
+/** Let an owner answer the quick taps again. History can't be changed (workflow_events is append-only), so the owner gets a
+ *  FRESH batch for the same installer: reopen a cancelled job, mark it as having left its old batch, then the normal
+ *  sendBatch with Jo's approved re-ask text and no email. Their old answer stays with the old batch. Dry run unless
+ *  `apply`. Once done, the old batch is no longer the open one, so a second run finds nothing to re-ask. */
+export async function reaskQuickTaps(jobId: string, opts: { apply: boolean; actorId: string; now?: Date }): Promise<ReaskResult> {
+  const now = opts.now ?? new Date();
+  const c = await load(jobId);
+  if (!c) throw new WorkflowError("Job not found.");
+  // Her LATEST answer decides (review I1: the old batch may already be closed). Only a Flat-roof decline is re-asked
+  // (review I2), and only once: a batch sent after that answer means it was already re-asked.
+  const answer = c.events.filter((e) => e.event_type === QUICK_TAPS_ANSWERED_EVENT).sort((a, b) => b.created_at.localeCompare(a.created_at))[0] ?? null;
+  const ad = (answer?.details ?? {}) as { outcome?: unknown; answers?: { roof?: unknown } | null };
+  if (!answer || ad.outcome !== "decline_access" || ad.answers?.roof !== "flat")
+    throw new WorkflowError("This re-ask is only for an owner who tapped Flat for the roof — nothing to re-ask.");
+  if (c.events.some((e) => e.event_type === AREA_BATCH_SENT_EVENT && e.created_at > answer.created_at))
+    throw new WorkflowError("Already re-asked (a newer batch was sent after the Flat answer) — nothing to re-ask.");
+  const oldBatchId = bid(answer);
+  const sent = oldBatchId ? c.events.find((e) => e.event_type === AREA_BATCH_SENT_EVENT && bid(e) === oldBatchId) : undefined;
+  const sd = (sent?.details ?? {}) as { installer_business_id?: unknown; installer_name?: unknown };
+  const out: ReaskResult = {
+    oldBatchId, answered: "decline_access", installerId: str(sd.installer_business_id), installer: str(sd.installer_name),
+    reopened: c.job.stage === "cancelled", newBatchId: null, text: null,
+  };
+  if (!out.installerId) throw new WorkflowError("Can't find the installer the owner's batch was sent for — nothing to re-ask.");
+  // Review I3: the checks sendBatch would refuse on, BEFORE anything is changed.
+  const { smsQuietReason } = await import("./quote-hold.core");
+  if (c.job.source !== "qa_test") {
+    if (smsQuietReason(now.toISOString())) throw new WorkflowError("It's quiet hours (8pm–7am) — run it again after 7am. Nothing was changed.");
+    const { data: ws } = await admin.from("workflow_settings").select("customer_comms_enabled, sms_message_switches").eq("id", 1).maybeSingle();
+    const w = ws as { customer_comms_enabled?: boolean | null; sms_message_switches?: Record<string, boolean> | null } | null;
+    if (w?.customer_comms_enabled !== true || w?.sms_message_switches?.["quick_taps"] !== true) throw new WorkflowError("Customer messages or the quick taps texts are switched off. Nothing was changed.");
+  }
+  const { ownerMyJobLink } = await import("./veec-copy-email.server");
+  if (!await ownerMyJobLink(jobId)) throw new WorkflowError("The owner has no working My job link. Nothing was changed.");
+  if (!opts.apply) return out;
+
+  if (c.job.stage === "cancelled") {
+    const { reopenJob } = await import("./office-actions.server");
+    await reopenJob(jobId, "Quick taps re-asked: flat roof tapped by mistake (Jo 3 Nov 2026)", opts.actorId);
+  }
+  await claimOnce(jobId, AREA_BATCH_LEFT_EVENT, { batch_id: oldBatchId, reason: "quick_taps_reask", idempotency_key: `quick-taps-reask:v1:${oldBatchId}:${jobId}:left` },
+    "Quick taps re-asked (owner tapped flat roof by mistake) — out of the old batch, into a fresh one for the same installer");
+  const { sendBatch } = await import("./area-batch.server");
+  const { firstName } = await import("./worker-links.core");
+  // If this send is refused after the reopen, running the script again (e.g. after 7am) finishes it.
+  const r = await sendBatch([jobId], out.installerId, opts.actorId, { now, ownerText: (name, link) => reaskText(firstName(name) || "there", link), emailOwner: false, reask: true });
+  out.newBatchId = r.batchId;
+  out.text = r.texts.map((t) => `${t.status}: ${t.detail}`).join("; ") || null;
+  return out;
+}
