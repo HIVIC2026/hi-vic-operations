@@ -48,6 +48,11 @@ Every rule below is one Jo has already decided (dates in brackets). Nothing new 
 **Change, for ALL jobs (2 Nov: "electrical upgrades on every job are quoted, booked and invoiced by the installer/electrician directly with the owner"):**
 - The portal does not build, send or invoice an upgrades quote, and adds no markup. HIV only needs the Part C and the Certificate of Electrical Safety before the install.
 - If the upgrades aren't done on the PIESA day, the booker enters the upgrades day on the link. That makes the "A4 – Electrical fixes" Mitti form for that day.
+- **No upgrades day entered** (Jo, 3 Nov). The PIESA says upgrades are needed, they aren't being done today, and no upgrades day has been entered:
+  - After 1 business day, the electrician gets a reminder text with their link.
+  - After 2 business days, the installer's office gets an email to sort it out.
+  - If the 30-day install limit is getting close (7 days left), the office gets a red flag.
+  - Entering a day stops all three.
 - If the install is booked before the upgrades day, that's a warning, not a block. If the upgrades day passes with no form, there's a nudge and then an email to the office. It's a red flag if it would break the 30-day rule.
 - The Mitti price questions for upgrades are deleted from the PIESA form (2 Nov). The portal must not need them.
 - **Certificate can come later:** everything in `2026-11-03-certificate-later-design.md`, including the new PIESA wording ("Are electrical upgrades needed?" / "Are you doing the electrical upgrades today?").
