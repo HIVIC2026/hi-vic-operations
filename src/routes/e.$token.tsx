@@ -1,9 +1,12 @@
 // The electrician's no-login job page. The token in the address is the only credential (electrician-link.server.ts).
+// Join 4 Nov 2026: until Part 2's minting is retired at go-live the token may also be main's Part 2 own-job link
+// (own-job-electrician-link.server.ts); the one read says which, and the own-job body is shown for those.
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { TradePublicShell } from "@/components/trade/TradeShell";
 import { ElectricianLinkBody } from "@/components/trade/ElectricianLinkBody";
-import { bookElectricianLinkVisit, electricianCantDoByLink, getElectricianLinkView, uploadCoesByLink } from "@/lib/electrician-link.functions";
+import { OwnJobElectricianLinkBody } from "@/components/trade/OwnJobElectricianLinkBody";
+import { bookElectricianLinkVisit, electricianCantDoByLink, getAnyElectricianLinkView, uploadCoesByLink } from "@/lib/electrician-link.functions";
 import { readableError } from "@/lib/readable-error.core";
 
 const E_LINK_PROBLEM = "We couldn't open this job. Check you have the whole link from the text, or ask your installer to send it again.";
@@ -24,11 +27,14 @@ export const Route = createFileRoute("/e/$token")({
 function ElectricianLink() {
   const { token } = Route.useParams();
   const qc = useQueryClient();
-  const q = useQuery({ queryKey: ["electrician-link", token], queryFn: () => getElectricianLinkView({ data: { token } }), retry: false });
+  // One read (getElectricianLinkView behind getAnyElectricianLinkView): Part 6's worker link first, else the own-job link.
+  const q = useQuery({ queryKey: ["electrician-link", token], queryFn: () => getAnyElectricianLinkView({ data: { token } }), retry: false });
   if (q.error) return <TradePublicShell><section className="rounded-[18px] border border-rose bg-pink p-5 text-ink" data-electrician-link-invalid><h1 className="font-display text-2xl font-bold">This link can't be opened.</h1><p className="mt-1 text-sm">{readableError(q.error, E_LINK_PROBLEM)}</p></section></TradePublicShell>;
   if (!q.data) return <TradePublicShell><p className="text-sm text-sub">Loading your job…</p></TradePublicShell>;
+  if (q.data.kind === "own_job") return <TradePublicShell><OwnJobElectricianLinkBody token={token} d={q.data.data} refetch={() => q.refetch()} /></TradePublicShell>;
+  const d = q.data.data;
   // Which visit the Book button makes comes from the step the server returned; the server re-checks everything.
-  const kind = q.data.view.step === "set_upgrades_day" || q.data.view.step === "upgrades_day" ? "rectification" : "assessment";
+  const kind = d.view.step === "set_upgrades_day" || d.view.step === "upgrades_day" ? "rectification" : "assessment";
   const onBook = async (start: string) => {
     const r = await bookElectricianLinkVisit({ data: { token, kind, start } });
     if (r.ok) await qc.invalidateQueries({ queryKey: ["electrician-link", token] });
@@ -52,5 +58,5 @@ function ElectricianLink() {
     if (r.ok) await qc.invalidateQueries({ queryKey: ["electrician-link", token] });
     return r;
   };
-  return <TradePublicShell><ElectricianLinkBody d={q.data} {...(q.data.view.canBook || q.data.view.canChange ? { onBook } : {})} onUpload={onUpload} onCantDo={onCantDo} /></TradePublicShell>;
+  return <TradePublicShell><ElectricianLinkBody d={d} {...(d.view.canBook || d.view.canChange ? { onBook } : {})} onUpload={onUpload} onCantDo={onCantDo} /></TradePublicShell>;
 }

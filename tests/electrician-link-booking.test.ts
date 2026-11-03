@@ -243,6 +243,6 @@ describe("the page and server function", () => {
   test("the route offers Book only when the server says the step can book", () => {
     expect(route).toContain("bookElectricianLinkVisit");
     // Fix wave I5: the prop is spread in only when the step can book (an explicit `undefined` fails exactOptionalPropertyTypes).
-    expect(route).toContain("{...(q.data.view.canBook || q.data.view.canChange ? { onBook } : {})}"); // R1: a booked day may be changed too
+    expect(route).toContain("{...(d.view.canBook || d.view.canChange ? { onBook } : {})}"); // R1: a booked day may be changed too
   });
 });

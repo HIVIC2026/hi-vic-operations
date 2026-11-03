@@ -282,6 +282,24 @@ async function readElectricianLinkView(token: string, now: number): Promise<Elec
   };
 }
 
+// ---------- which link is this? (join 4 Nov 2026) ----------
+// Two kinds of /e/<token> link exist until Part 2's minting is retired at go-live: Part 6's worker links (this module,
+// `worker_job_links`) and main's Part 2 own-job links (`electrician_job_links`, own-job-electrician-link.server.ts). The
+// page asks ONE question; the worker link is tried first, then the own-job link. The token is still the only input.
+export type AnyElectricianLinkView =
+  | { kind: "worker"; data: ElectricianLinkView }
+  | { kind: "own_job"; data: import("./own-job-electrician-link.server").ElectricianLinkView };
+export async function electricianLinkAnyView(token: string, now = Date.now()): Promise<AnyElectricianLinkView> {
+  if (!isTokenShape(token)) throw new Error(ELECTRICIAN_LINK_NOT_VALID);
+  const { data: l, error } = await admin.from("worker_job_links").select("id").eq("token_hash", await hashToken(token)).maybeSingle();
+  if (error) { console.error("Electrician link read failed", error.message); throw new Error(ELECTRICIAN_LINK_NOT_VALID); }
+  if (l) return { kind: "worker", data: await electricianLinkView(token, now) };
+  const own = await (await import("./own-job-electrician-link.server")).electricianLinkView(token, new Date(now));
+  // Neither table knows the token: Part 6's plain message (the own-job reader's own refusals — moved, expired — stay its own).
+  if (!own.ok && own.reason === (await import("./own-job-electrician-link.core")).LINK_INVALID) throw new Error(ELECTRICIAN_LINK_NOT_VALID);
+  return { kind: "own_job", data: own };
+}
+
 // ---------- booking from the link ----------
 export const ELECTRICIAN_LINK_BOOKED_EVENT = "electrician_link_booked";
 export type ElectricianLinkBookResult = { ok: true; start: string } | { ok: false; message: string };

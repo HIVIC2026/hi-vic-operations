@@ -7,6 +7,11 @@ export const getElectricianLinkView = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ token: z.string().max(100) }).parse(d))
   .handler(async ({ data }) => (await import("./electrician-link.server")).electricianLinkView(data.token));
 
+/** Join 4 Nov 2026: the page's one read — a Part 6 worker link, else main's Part 2 own-job link (both live until go-live). */
+export const getAnyElectricianLinkView = createServerFn({ method: "POST" })
+  .inputValidator((d) => z.object({ token: z.string().max(100) }).parse(d))
+  .handler(async ({ data }) => (await import("./electrician-link.server")).electricianLinkAnyView(data.token));
+
 export const bookElectricianLinkVisit = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ token: z.string().max(100), kind: z.enum(["assessment", "rectification"]), start: z.string().max(40) }).parse(d))
   .handler(async ({ data }) => (await import("./electrician-link.server")).bookFromElectricianLink(data.token, data.kind, data.start));

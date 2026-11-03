@@ -129,6 +129,7 @@ test("a booked day with canChange shows a DRAFT 'Change the time' ghost control 
   expect(off).not.toContain("data-electrician-change-time");
 });
 test("the route gives the Book handler to a booked day too and maps the step to the visit kind", () => {
-  expect(route).toContain('q.data.view.step === "set_upgrades_day" || q.data.view.step === "upgrades_day" ? "rectification" : "assessment"');
-  expect(route).toContain("q.data.view.canBook || q.data.view.canChange");
+  // Join 4 Nov 2026: `d` is the worker-link data of the page's one read (an own-job link renders its own body first).
+  expect(route).toContain('d.view.step === "set_upgrades_day" || d.view.step === "upgrades_day" ? "rectification" : "assessment"');
+  expect(route).toContain("d.view.canBook || d.view.canChange");
 });
