@@ -94,8 +94,10 @@ describe("approved message switches are on (Jo 24 Oct 2026)", () => {
     // Jo approved the address request texts and email on 28 Oct 2026 (full address required).
     // Part 3 Task 16 + Part 4 Task 14 (Jo 2 Nov 2026): these are retired on purpose (label "Retired 2 Nov 2026 —"); nothing else is unapproved.
     // Part 3 Task 19 (Jo 2 Nov 2026, answer 24): the installer's own customer rental questions text is a DRAFT until Jo approves it.
-    expect(off.sort()).toEqual(["fixes_times_link", "install_clearance", "installer_planning_notice", "own_customer_rental_taps", "piesa_offer", "piesa_owner_confirm", "piesa_owner_fixes_confirm", "piesa_times_reminder", "ready_check_booked_owner", "ready_check_times_owner", "run_time", "run_time_reminder", "safety_check_booked_owner", "veec_sign_reminder"]);
-    for (const k of off) expect({ k, retired: SMS_MESSAGE_TYPES[k as keyof typeof SMS_MESSAGE_TYPES].label.startsWith("Retired 2 Nov 2026 —") || k === "own_customer_rental_taps" }).toEqual({ k, retired: true });
+    // Part 4 Tasks 15/16 (Jo 2 Nov 2026, answers 7/22): the access-person texts and the tenant notice are DRAFTS until Jo approves them.
+    const DRAFTS = ["own_customer_rental_taps", "access_person_booked", "access_person_tomorrow", "tenant_notice"];
+    expect(off.sort()).toEqual(["access_person_booked", "access_person_tomorrow", "fixes_times_link", "install_clearance", "installer_planning_notice", "own_customer_rental_taps", "piesa_offer", "piesa_owner_confirm", "piesa_owner_fixes_confirm", "piesa_times_reminder", "ready_check_booked_owner", "ready_check_times_owner", "run_time", "run_time_reminder", "safety_check_booked_owner", "tenant_notice", "veec_sign_reminder"]);
+    for (const k of off) expect({ k, retired: SMS_MESSAGE_TYPES[k as keyof typeof SMS_MESSAGE_TYPES].label.startsWith("Retired 2 Nov 2026 —") || DRAFTS.includes(k) }).toEqual({ k, retired: true });
     expect(ADDRESS_REQUEST_EMAIL_APPROVED).toBe(true);
     expect("ready_check_booking" in SMS_MESSAGE_TYPES).toBe(false);
   });

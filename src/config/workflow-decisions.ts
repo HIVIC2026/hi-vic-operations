@@ -63,6 +63,12 @@ export const WORKFLOW_DECISIONS = {
     // Jo 2 Nov 2026 (answer 21): the deposit opens straight after the PIESA result, even with electrical upgrades still to come (piesa-result-route.core `depositOpenAfterPiesa`); replaces "fixes signed off BEFORE the deposit".
     opensAfter: "piesa_result",
     noApprovedRule: "block_piesa_payment_rule_exception",
+    // Part 4 sign-off (Task 17, Jo 2 Nov 2026): the confirm-and-pay page (PIESA confirmation + ESC consent + deposit) opens straight after
+    // the PIESA result, also with upgrades to come; the install is booked only after the deposit; the consent copy goes at signing; at
+    // rentals the access person gets the booked + day-before texts and the tenant the cl 23 notice; All done carries warranty + instructions;
+    // reminders days 1/3/7 then the office. In flight: same purpose + key per booking / invoice / job, one version of each message
+    // (tests/new-flow-inflight-p4.test.ts); a job mid-way through a retired step keeps its old screen.
+    part4: { confirmAndPay: { opens: "piesa_result", signsEscConsent: true, consentCopyAt: "signing", installBookedAfterDeposit: true }, rentals: { accessPersonTexts: ["booked", "day_before"] as const, tenantNotice: "install_booked" }, allDoneCarries: ["warranty", "instructions"] as const, inFlight: { rule: "same purpose + key, one version per message", test: "tests/new-flow-inflight-p4.test.ts" } },
   },
   routes: {
     hiv_lead: {
