@@ -61,6 +61,16 @@ const events = async (w: string) => q<{ event_type: string; summary: string; act
 let FAILS_MITTI = "";
 
 describe("decision 402 on PGlite with the live triggers", () => {
+  test("already-approved person is not reapproved or passed to Mitti on a repeated office click", async () => {
+    const b = await business("approved");
+    const w = await person(b, "Existing Dominic", { approval: "approved" });
+    const before = await q("select approved_at from partner_workers where id=$1", [w]);
+    const callsBefore = mittiApproved.length;
+    expect(await approvePartnerWorker(w, OFFICE, { kind: "office" })).toBe(false);
+    expect(await q("select approved_at from partner_workers where id=$1", [w])).toEqual(before);
+    expect(mittiApproved.length).toBe(callsBefore);
+    expect(await events(w)).toEqual([]);
+  });
   test("the live 0082 guard is loaded: an unverified installer can never be approved", async () => {
     const b = await business("approved");
     const w = await person(b, "Guard Check", { cert: "unverified", check: null });

@@ -20,8 +20,9 @@ export async function approvePartnerWorker(workerId: string, actorId: string | n
     const { data: existing, error: readError } = await admin.from("partner_workers").select("approval_status").eq("id", workerId).maybeSingle();
     if (readError) throw new Error(readError.message);
     if (existing?.approval_status === "approved") return false;
-    const { error } = await admin.from("partner_workers").update(patch).eq("id", workerId);
+    const { data, error } = await admin.from("partner_workers").update(patch).eq("id", workerId).neq("approval_status", "approved").select("id");
     if (error) throw new Error(error.message);
+    if (!data?.length) return false;
     await admin.from("admin_config_events").insert({ actor_id: actorId, event_type: "worker_approved", summary: "Worker approved", details: { worker_id: workerId, reason: how.reason ?? null } });
   } else {
     const { data, error } = await admin.from("partner_workers").update(patch).eq("id", workerId).eq("approval_status", "pending").is("removed_at", null).select("id");

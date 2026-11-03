@@ -5,10 +5,7 @@
 // How it works (docs/MITTI_ACCESS.md):
 //  - Switch: env MITTI_AUTO_INVITE_ENABLED=true (default OFF → approvals/removals do nothing Mitti-related).
 //  - FIND/LINK an existing Mitti user by email — `POST /users/search` (already used by Check Mitti access).
-//  - CREATE / ADD TO GROUP / DEACTIVATE — the Mitti (SafetyCulture) user endpoints in MITTI_USER_API. Their paths come from
-//    the public reference (sources below) but the request bodies could not be confirmed against a live token, so these
-//    calls stay refused until MITTI_USER_API_VERIFIED is set to true after one probe on a real (non-synthetic) address.
-//    Until then the portal links found users and records "invite needed" / "deactivate by hand" for the office.
+//  - CREATE / DEACTIVATE — proven on Jo's approved email on 3 Nov. Plain users, no group membership.
 //  - TEST people (@hivic.test etc. or a TEST partner) are skipped: Mitti rejects synthetic emails and TEST forms go to the
 //    test assignee.
 import { mjEmail, esc } from "./mail-mjml.core";
@@ -22,10 +19,8 @@ export const MITTI_AUTO_INVITE_ENV = "MITTI_AUTO_INVITE_ENABLED";
 export const autoInviteEnabled = (v: string | null | undefined): boolean => (v ?? "").trim().toLowerCase() === "true";
 
 /**
- * The create/group/deactivate request bodies below are taken from the public reference but were NOT exercised against
- * Mitti (no token in the build environment). Set to true only after a developer has run one probe with the real token on a
- * real address and confirmed (1) the user is created with the configured seat, (2) Mitti emails them to set a password,
- * (3) group add and deactivate work. False = never create/group/deactivate; the office does those steps by hand.
+ * Jo approved verification after successful find, Lite create and deactivate on 3 Nov.
+ * Groups are not part of this flow. False refuses create/deactivate if verification is withdrawn.
  */
 // Jo 3 Nov 9:56pm Sydney: find, Lite create and deactivate proven; group membership is not used.
 export const MITTI_USER_API_VERIFIED = true as boolean;
@@ -104,7 +99,7 @@ export function renderMittiInviteEmail(i: { name: string | null; test?: boolean 
   return { subject: MITTI_INVITE_SUBJECT, html, text };
 }
 
-/** Decision 188/331: template access is through the HIV trades group (share the templates with that group once in Mitti). */
+/** Forms are shared directly with the person's user; no group requirement. */
 export const MITTI_TEMPLATE_ACCESS_NOTE = "Mitti job forms are shared with the person's own Mitti user.";
 
 export const MITTI_INVITE_EVENTS = {

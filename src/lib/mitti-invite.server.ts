@@ -1,6 +1,6 @@
 // Mitti access for partner people (decision 188; automatic since decision 331). Rules are pure in mitti-invite.core.ts;
-// this file reads the person, makes the Mitti calls (search; and, once MITTI_USER_API_VERIFIED, create / add to the HIV
-// trades group / deactivate) and records each outcome as ONE append-only admin_config_events row (person-level:
+// this file reads the person, makes the Mitti calls (search / Lite create / deactivate; no groups)
+// and records each outcome as ONE append-only admin_config_events row (person-level:
 // workflow_events needs a job). A newly created person gets ONE message through the existing partner senders and guards.
 // Callers never let it fail the approval/removal; Mitti failures become one office item (`mitti_access_failed`).
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
@@ -8,15 +8,15 @@ import type { Json } from "@/integrations/supabase/types";
 import { WorkflowError } from "./workflow.server";
 import type { MittiCall } from "./mitti.core";
 import {
-  MITTI_AUTO_INVITE_ENV, MITTI_INVITE_EVENTS, MITTI_INVITE_MESSAGE, MITTI_INVITE_SUBJECT, renderMittiInviteEmail, MITTI_TEMPLATE_ACCESS_NOTE, MITTI_TRADES_GROUP_ENV, MITTI_USER_API, MITTI_USER_API_VERIFIED,
-  addToGroupBody, autoInviteEnabled, createUserBody, createdUserId, groupPath, mittiInviteMessageKey, mittiInviteStep, mittiRemovalStep, openInvites, plainMittiReason,
+  MITTI_AUTO_INVITE_ENV, MITTI_INVITE_EVENTS, MITTI_INVITE_MESSAGE, MITTI_INVITE_SUBJECT, renderMittiInviteEmail, MITTI_TEMPLATE_ACCESS_NOTE, MITTI_USER_API, MITTI_USER_API_VERIFIED,
+  autoInviteEnabled, createUserBody, createdUserId, mittiInviteMessageKey, mittiInviteStep, mittiRemovalStep, openInvites, plainMittiReason,
   priorInviteFor, userPath, inviteEligibility, isNewMittiApproval, mittiWaitingPauseItems, MITTI_WAITING_EMAIL, MITTI_WAITING_PAUSE, NO_EMAIL_SKIP, userStatusBody, type InvitePerson, type InviteRecord, type InviteSwitches, type MittiInviteEventType,
 } from "./mitti-invite.core";
 
 const EVENT_TYPES = Object.values(MITTI_INVITE_EVENTS);
 const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Australia/Melbourne" });
 
-/** Live switches: env MITTI_AUTO_INVITE_ENABLED (default off), the verified-API constant, env MITTI_TRADES_GROUP_ID. */
+/** Live switches: explicit auto-invite opt-in and verified API. No group configuration. */
 export function currentInviteSwitches(): InviteSwitches {
   return { enabled: autoInviteEnabled(process.env[MITTI_AUTO_INVITE_ENV]), apiVerified: MITTI_USER_API_VERIFIED, groupId: null };
 }
@@ -121,7 +121,7 @@ type Opts = { switches?: InviteSwitches; call?: MittiCall; message?: InviteMesse
 
 /**
  * Called after the office approves a partner person (worker approved, or an installer's CII verified). Switch OFF → returns
- * at once, nothing read or written. ON → at most one Mitti search, then link / create (+ HIV trades group, + one message) /
+ * at once, nothing read or written. ON → at most one Mitti search, then link / create (+ one message) /
  * "invite needed", recorded once. Re-approval after a removal reactivates the same Mitti user.
  */
 export async function onPartnerPersonApproved(workerId: string, actorId: string | null, opts: Opts = {}) {
@@ -158,7 +158,7 @@ export async function onPartnerPersonApproved(workerId: string, actorId: string 
   }
   if (step.action === "skip" || step.action === "lookup") return step;
   const details = { ...base, key: step.key, group: step.group, seat: step.seat };
-  const addGroup = async (mittiUserId: string, groupId: string | null) => {
+  const addGroup = async (_mittiUserId: string, _groupId: string | null) => {
     return { added: false, note: null }; // No trades group: this is normal, never an office task.
   };
 
