@@ -17,7 +17,7 @@ async function patchInvoice(id: string, patch: Partial<InvoiceRow>) {
   if (error) throw new Error(error.message);
 }
 
-export async function setInstallDueDate(jobId: string, startIso: string, actorId: string) {
+export async function setInstallDueDate(jobId: string, startIso: string, actorId: string | null) {
   // Q21: booking does not start the balance clock. Keep this entry point for existing booking callers.
   const {data:job,error}=await admin.from('jobs').select('installation_completed_at').eq('id',jobId).maybeSingle();
   if(error)throw Error('Could not read installation completion.');

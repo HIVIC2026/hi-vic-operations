@@ -340,13 +340,18 @@ export async function bookFromElectricianLink(token: string, kind: "assessment" 
     const f = await factsFor(jobId, whoBooks, job.stage === "cancelled", now);
     const step = electricianStep(f.facts).step;
     const existing = kind === "assessment" ? f.facts.piesa.start : f.facts.upgrades.start;
+    const existingMs = existing ? Date.parse(existing) : NaN;
     if (existing) {
-      // The same electrician pressing the same time again (a retry) is fine; anyone else's booking is theirs.
-      const { data: mine } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", ELECTRICIAN_LINK_BOOKED_EVENT).contains("details", { kind, start: existing, worker_id: w.id }).limit(1).maybeSingle();
-      if (mine && new Date(existing).getTime() === startMs) return { ok: true as const, start: existing };
-      return { ok: false as const, message: electricianLinkAlreadyBooked(existing) };
-    }
-    if (step !== (kind === "assessment" ? "book_piesa" : "set_upgrades_day")) return { ok: false as const, message: ELECTRICIAN_LINK_NOTHING_TO_BOOK };
+      // Whose booking is it? Theirs when THEY booked that very time from this link (timestamps compared as instants, never
+      // as strings). The same time again is a retry; a new time is the approved "then update it on the job" — re-booked
+      // through the same canonical path, which cancels the earlier booking of this kind and logs booking_rescheduled.
+      // Anyone else's booking (the office, another electrician) stays theirs: "Already booked…".
+      const { data: evs, error: ee } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", ELECTRICIAN_LINK_BOOKED_EVENT).contains("details", { kind, worker_id: w.id });
+      if (ee) throw dbErr("the link bookings", ee);
+      const mine = (evs ?? []).some((e) => Date.parse(String((e.details as { start?: string } | null)?.start ?? "")) === existingMs);
+      if (!mine) return { ok: false as const, message: electricianLinkAlreadyBooked(existing) };
+      if (existingMs === startMs) return { ok: true as const, start: existing };
+    } else if (step !== (kind === "assessment" ? "book_piesa" : "set_upgrades_day")) return { ok: false as const, message: ELECTRICIAN_LINK_NOTHING_TO_BOOK };
     try {
       const booking = await import("./booking.server");
       // proposedWorkerId = this electrician (the job is already allocated to them). No actor: the electrician has no login.

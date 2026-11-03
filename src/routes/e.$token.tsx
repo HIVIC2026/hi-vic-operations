@@ -52,5 +52,5 @@ function ElectricianLink() {
     if (r.ok) await qc.invalidateQueries({ queryKey: ["electrician-link", token] });
     return r;
   };
-  return <TradePublicShell><ElectricianLinkBody d={q.data} onBook={q.data.view.canBook ? onBook : undefined} onUpload={onUpload} onCantDo={onCantDo} /></TradePublicShell>;
+  return <TradePublicShell><ElectricianLinkBody d={q.data} {...(q.data.view.canBook ? { onBook } : {})} onUpload={onUpload} onCantDo={onCantDo} /></TradePublicShell>;
 }

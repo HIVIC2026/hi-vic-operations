@@ -116,21 +116,44 @@ describe("bookFromElectricianLink: who books", () => {
     expect(calls.confirm).toHaveLength(0);
     expect(bookings()).toHaveLength(1);
   });
-  test("either: two calls at once make exactly one booking", async () => {
+  test("either: two calls at once never double-book — the lock runs them one after the other; the second (same person, new time) is a change of time, still ONE confirmed booking", async () => {
     seed({ piesaBookedBy: "either" });
     const t = await token();
     const [a, b] = await Promise.all([server.bookFromElectricianLink(t, "assessment", START, NOW), server.bookFromElectricianLink(t, "assessment", START2, NOW)]);
     expect(bookings()).toHaveLength(1);
-    expect(calls.confirm).toHaveLength(1);
-    expect([a.ok, b.ok].filter(Boolean)).toHaveLength(1);
+    expect(bookings()[0]!["scheduled_start"]).toBe(START2);
+    expect(calls.confirm).toHaveLength(2); // I6: the second press re-books through confirmBooking (which cancelled the first)
+    expect([a.ok, b.ok]).toEqual([true, true]);
   });
-  test("pressing the same time again is fine and books nothing more", async () => {
+  test("pressing the same time again is fine and books nothing more (the same instant in another timestamp format too)", async () => {
     const t = await token();
     await server.bookFromElectricianLink(t, "assessment", START, NOW);
     const r = await server.bookFromElectricianLink(t, "assessment", START, NOW);
     expect(r).toEqual({ ok: true, start: START });
+    // I6: the stored booking time may come back in another format ("+00:00", no millis); it is the same instant.
+    tables["bookings"]![0]!["scheduled_start"] = "2026-11-06T23:00:00+00:00";
+    expect((await server.bookFromElectricianLink(t, "assessment", START, NOW)).ok).toBe(true);
     expect(calls.confirm).toHaveLength(1);
     expect(calls.notify).toHaveLength(1);
+  });
+  // I6: approved #39 wording says "Need to change the time? Call {owner}, then update it on the job."
+  test("the SAME electrician changes the time on the job: re-booked through the canonical path (it cancels the earlier booking), a new event, the owner told again", async () => {
+    const t = await token();
+    await server.bookFromElectricianLink(t, "assessment", START, NOW);
+    const r = await server.bookFromElectricianLink(t, "assessment", START2, NOW);
+    expect(r).toEqual({ ok: true, start: START2 });
+    expect(calls.confirm).toHaveLength(2);
+    expect(bookings()).toHaveLength(1);
+    expect(bookings()[0]!["scheduled_start"]).toBe(START2);
+    expect(tables["workflow_events"]!.filter((e) => e["event_type"] === "electrician_link_booked").map((e) => (e["details"] as { start: string }).start)).toEqual([START, START2]);
+    expect(calls.notify).toHaveLength(2);
+  });
+  test("a booking made by someone else (the office, or another electrician) is still 'Already booked…' for this link", async () => {
+    seed({ piesaBookedBy: "either" });
+    const t = await token();
+    tables["bookings"]!.push({ id: "office1", job_id: J, kind: "assessment", status: "confirmed", scheduled_start: START });
+    expect(await server.bookFromElectricianLink(t, "assessment", START2, NOW)).toEqual({ ok: false, message: "Already booked for Sat 7 Nov, 10:00am." });
+    expect(calls.confirm).toHaveLength(0);
   });
 });
 
@@ -211,6 +234,7 @@ describe("the page and server function", () => {
   });
   test("the route offers Book only when the server says the step can book", () => {
     expect(route).toContain("bookElectricianLinkVisit");
-    expect(route).toContain("view.canBook ? onBook : undefined");
+    // Fix wave I5: the prop is spread in only when the step can book (an explicit `undefined` fails exactOptionalPropertyTypes).
+    expect(route).toContain("{...(q.data.view.canBook ? { onBook } : {})}");
   });
 });

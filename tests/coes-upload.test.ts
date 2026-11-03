@@ -2,6 +2,7 @@
 // The REAL coes-upload / coes-check / electrician-link servers run on an in-memory database and storage. The owner copy is a
 // recording fake (it must NOT be called from here). Own file: it mocks modules for the whole process.
 import { beforeEach, describe, expect, mock, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import { memoryPostgrest, type Tables } from "./helpers/memory-postgrest";
 
 const J = "00000000-0000-4000-8000-0000000000a1", INST = "00000000-0000-4000-8000-0000000000b1", ELEC = "00000000-0000-4000-8000-0000000000b2";
@@ -172,6 +173,17 @@ describe("one certificate for the link, the office and the Part 9 gate", () => {
     expect(before.source).toBe("portal");
     await upload.saveUploadedCoes(J, file(PDF, "application/pdf"), byLink);
     expect((await check.currentCoes(J)).source).toBe("upload");
+  });
+});
+
+describe("I4: the completion pack attaches an uploaded certificate", () => {
+  test("coesAttachmentsFor reads Mitti AND uploaded CoES documents (kind + title), so an uploaded certificate reaches the owner's pack", async () => {
+    await upload.saveUploadedCoes(J, file(PDF, "application/pdf"), byLink);
+    const pack = await import("../src/lib/completion-pack.server");
+    const r = await pack.coesAttachmentsFor(J);
+    expect(r.names).toHaveLength(1);
+    expect(r.attachments[0]!.contentType).toBe("application/pdf");
+    expect(readFileSync("src/lib/completion-pack.server.ts", "utf8")).toContain('.in("source_system", ["mitti", "upload"])');
   });
 });
 
