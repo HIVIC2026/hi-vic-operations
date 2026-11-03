@@ -1,4 +1,4 @@
-// Rectification (electrical fixes) quote review for the office, and job-only visit contacts for owners and trades.
+// Rectification (electrical upgrades) quote review for the office, and job-only visit contacts for owners and trades.
 import { RectWindowsSummary } from "./rectification-times";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -8,9 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Section } from "@/components/portal/panels";
 import { getFixesTimesHold, getVisitContacts, reviewRectificationQuote, sendRectificationQuote } from "@/lib/allocation.functions";
 
-const VISIT: Record<string, string> = { ready_check: "Ready Check", piesa: "Pre Insulation Electrical Safety Assessment (PIESA) visit", rectification: "electrical fixes", installation: "Installation" };
+const VISIT: Record<string, string> = { ready_check: "Ready Check", piesa: "Pre Insulation Electrical Safety Assessment (PIESA) visit", rectification: "electrical upgrades", installation: "Installation" };
 
-/** Office (O2 PIESA card, decision 14): the draft electrical fixes quote is reviewed by the office, then sent to the owner
+/** Office (O2 PIESA card, decision 14): the draft electrical upgrades quote is reviewed by the office, then sent to the owner
  *  for approval. The batch "Offer PIESA to approved electricians", "rate to be confirmed" batch offer and "Share
  *  installation contacts" were removed (decision 157: the office sends to ONE electrician; contacts are released on
  *  acceptance via contact_releases). */
@@ -25,7 +25,7 @@ export function OfficeFixesQuoteReview({ jobId }: { jobId: string }) {
   const held = hold.data?.reason ?? null;
   return (
     <div className="rounded-[12px] border border-line p-3 text-sm">
-      <div className="font-semibold">Electrical fixes quote to check — the owner sees it only after you send it</div>
+      <div className="font-semibold">Electrical upgrades quote to check — the owner sees it only after you send it</div>
       <RectWindowsSummary jobId={jobId} />
       {held && <p className="mt-2 text-sm font-medium text-rose" data-fixes-times-hold>Held · {held}</p>}
       <div className="mt-2 flex gap-2">
