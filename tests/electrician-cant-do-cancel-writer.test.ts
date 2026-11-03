@@ -16,12 +16,14 @@ mock.module("../src/lib/workflow.server", () => ({
     (tables["workflow_events"] ??= []).push({ job_id: jobId, actor_id: actorId, event_type: eventType, summary, details });
   },
 }));
-mock.module("../src/lib/visit-new-times.server", () => ({ notifyOwnerVisitNewTimes: async () => { throw new Error("O74 must not be sent from the electrician's link"); } }));
+// O74 (decision 376) belongs to tradeCancelVisit only; the electrician's link path must never reach it.
+const o74: unknown[] = [];
+mock.module("../src/lib/visit-new-times.server", () => ({ notifyOwnerVisitNewTimes: async (p: unknown) => { o74.push(p); } }));
 const ve = await import("../src/lib/visit-events.server");
 
 beforeEach(() => {
   for (const k of Object.keys(tables)) delete tables[k];
-  transitions.length = 0;
+  transitions.length = 0; o74.length = 0;
   tables["jobs"] = [{ id: J, stage: "piesa_scheduled" }];
   tables["job_assignments"] = [{ id: "a2", job_id: J, business_id: ELEC, role: "electrician", active: true }];
   tables["bookings"] = [{ id: "bk1", job_id: J, kind: "assessment", status: "confirmed", scheduled_start: "2026-11-06T23:00:00.000Z", business_id: ELEC, assignment_id: "a2", contractor_id: null }];
@@ -38,6 +40,7 @@ test("cancels that business's confirmed safety check, records trade_cancelled, r
   expect(tables["job_assignments"]![0]!["active"]).toBe(false);
   expect(tables["partner_offers"]![0]!["status"]).toBe("withdrawn");
   expect(transitions[0]!.slice(0, 2)).toEqual([J, "piesa_and_install_window_pending"]);
+  expect(o74).toHaveLength(0);
 });
 test("an upgrades day: the electrician is released too (not left on the job), the office is told", async () => {
   tables["jobs"]![0]!["stage"] = "rectification_booked";
@@ -58,4 +61,10 @@ test("only that business's pending offers are withdrawn, not another trade's", a
   tables["partner_offers"] = [{ id: "o1", job_id: J, business_id: ELEC, status: "pending" }, { id: "o2", job_id: J, business_id: "other-biz", status: "pending" }];
   await ve.cancelVisitFromElectricianLink(J, "assessment", ELEC, "Sick that week");
   expect(tables["partner_offers"]!.map((o) => o["status"])).toEqual(["withdrawn", "pending"]);
+});
+test("the existing trade cancel (tradeCancelVisit) still withdraws every pending offer on the job, as before: the scope is link-only", async () => {
+  tables["bookings"]![0]!["contractor_id"] = "user-1";
+  tables["partner_offers"] = [{ id: "o1", job_id: J, business_id: ELEC, status: "pending" }, { id: "o2", job_id: J, business_id: "other-biz", status: "pending" }];
+  await ve.tradeCancelVisit(J, "user-1", "trade cancelled");
+  expect(tables["partner_offers"]!.map((o) => o["status"])).toEqual(["withdrawn", "withdrawn"]);
 });
