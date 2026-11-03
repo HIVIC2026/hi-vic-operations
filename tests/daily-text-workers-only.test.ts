@@ -54,7 +54,19 @@ function from(t: string) {
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from } }));
 const allocated: Record<string, { workerId: string; name: string; mobile: string | null } | null> = {};
 mock.module("../src/lib/visit-allocation.server", () => ({ allocatedPersonFor: async (jobId: string, kind: string) => allocated[`${jobId}:${kind}`] ?? null }));
-mock.module("../src/lib/swms-link.server", () => ({ unsignedSwmsSignerLinks: async () => [], swmsSignLink: async () => "x" }));
+// Jo 23:08 (Task 7b): only workers who have NOT yet signed the SWMS for that install get the text, with their own sign link.
+type Signer = { key: string; name: string; role: "lead" | "crew" };
+const plans: Record<string, { signers: Signer[]; signedKeys: string[] }> = {};
+mock.module("../src/lib/swms.server", () => ({
+  loadSwms: async (jobId: string) => {
+    const p = plans[jobId] ?? { signers: [], signedKeys: [] };
+    const plan = { rule: "swms-portal-2026-10-24", jobNumber: jobId, signers: p.signers };
+    const signatures = p.signedKeys.map((key) => ({ key, name: key, typedName: key, signedAt: "2026-11-12T08:00:00Z" }));
+    const missing = p.signers.filter((x) => !p.signedKeys.includes(x.key)).map((x) => x.name);
+    return { plan, signatures, status: { complete: missing.length === 0, missing, signed: [] } };
+  },
+}));
+mock.module("../src/lib/swms-link.server", () => ({ unsignedSwmsSignerLinks: async () => { throw new Error("not used by the 6:30am text any more"); }, swmsSignLink: async (jobId: string, key: string) => `https://p/sp/${jobId}/${key}` }));
 const sent: { type: string; key: string; to: string; body: string }[] = [];
 mock.module("../src/lib/sms.server", () => ({ sendRealSms: async (p: { type: string; idempotencyKey: string; to: string; body: string }) => { sent.push({ type: p.type, key: p.idempotencyKey, to: p.to, body: p.body }); return { status: "sent", detail: "faked", sid: "SM1" }; } }));
 const testSent: { to: string; body: string }[] = [];
@@ -88,6 +100,9 @@ beforeEach(() => {
     ceiling_measurements: [], trade_text_log: [],
   };
   allocated["J1:install"] = { workerId: "w1", name: "John Smith", mobile: "0412 345 678" };
+  for (const k of Object.keys(plans)) delete plans[k];
+  plans["J1"] = { signers: [{ key: "w:w1", name: "John Smith", role: "lead" }, { key: "w:w2", name: "Sam Lee", role: "crew" }], signedKeys: [] };
+  plans["J4"] = { signers: [{ key: "w:w9", name: "No Mobile", role: "lead" }], signedKeys: [] };
 });
 
 describe("collectDay — workers only", () => {
@@ -100,19 +115,31 @@ describe("collectDay — workers only", () => {
     expect(groups[0]!.jobs[0]!.link).toContain("A5-J1");
     expect(JSON.stringify(groups)).not.toContain("0499"); // never the business owner's numbers
   });
-  test("a worker allocated to the Ready Check too gets both visits in one text (same person, one group)", async () => {
+  test("Jo 23:08: a Ready Check has no SWMS, so even an allocated worker gets no 6:30am text for it", async () => {
     allocated["J2:ready_check"] = { workerId: "w1", name: "John Smith", mobile: "0412 345 678" };
     const groups = await collectDay(DATE);
     expect(groups).toHaveLength(1);
-    expect(groups[0]!.jobs.map((j) => j.jobId).sort()).toEqual(["J1", "J2"]);
-  });
-  test("a different worker on the Ready Check gets their own text; an allocated worker without a mobile gets none and nothing goes to the boss", async () => {
+    expect(groups[0]!.jobs.map((j) => j.jobId)).toEqual(["J1"]);
     allocated["J2:ready_check"] = { workerId: "w2", name: "Sam Lee", mobile: "0400 000 002" };
+    expect((await collectDay(DATE)).map((g) => g.recipient.key)).toEqual(["w:w1"]);
+  });
+  test("an allocated worker without a mobile gets none and nothing goes to the boss", async () => {
     allocated["J4:install"] = { workerId: "w9", name: "No Mobile", mobile: null };
     const groups = await collectDay(DATE);
-    expect(groups.map((g) => g.recipient.key).sort()).toEqual(["w:w1", "w:w2"]);
-    expect(groups.find((g) => g.recipient.key === "w:w2")!.jobs.map((j) => j.jobId)).toEqual(["J2"]);
+    expect(groups.map((g) => g.recipient.key)).toEqual(["w:w1"]);
     expect(groups.some((g) => g.trade.businessId === "B2")).toBe(false);
+  });
+  test("Jo 23:08: a worker who has already signed the SWMS for that install (current plan) gets no group; an unsigned one carries their own sign link", async () => {
+    plans["J1"]!.signedKeys = ["w:w1"];
+    expect(await collectDay(DATE)).toEqual([]);
+    plans["J1"]!.signedKeys = ["w:w2"]; // someone else signed, not this worker
+    const groups = await collectDay(DATE);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]!.jobs[0]!.signLink).toBe("https://p/sp/J1/w:w1");
+  });
+  test("Jo 23:08: a worker allocated to an install but not on its safety plan can't sign it → no text (never a guessed link)", async () => {
+    plans["J1"] = { signers: [{ key: "w:w2", name: "Sam Lee", role: "lead" }], signedKeys: [] };
+    expect(await collectDay(DATE)).toEqual([]);
   });
 });
 
@@ -125,6 +152,8 @@ describe("sweepDailyMittiTexts — workers only", () => {
     expect(sent[0]!.body).toStartWith("Good morning! Your jobs today: 1) 7:30am");
     expect(sent[0]!.body).toContain("A5-J1");
     expect(sent[0]!.body).not.toContain("RC-J2");
+    expect(sent[0]!.body).toContain("Sign the safety plan first: https://p/sp/J1/w:w1"); // their OWN sign link, nobody else's
+    expect(sent[0]!.body.match(/\/sp\//g)).toHaveLength(1);
     expect(JSON.stringify(sent)).not.toContain("0499");
     const log = tables["trade_text_log"]!;
     expect(log).toHaveLength(1);
@@ -132,6 +161,26 @@ describe("sweepDailyMittiTexts — workers only", () => {
     // A second sweep the same morning sends nothing more.
     expect(await sweepDailyMittiTexts(new Date())).toEqual({ daily: 0, updates: 0, skippedTrades: 0 });
     expect(sent).toHaveLength(1);
+  });
+  test("Jo 23:08: signed before 6:30 → no text and no row; signs after the 6:30 text → the later 'Today's jobs changed' update doesn't go to them", async () => {
+    plans["J1"]!.signedKeys = ["w:w1"];
+    expect(await sweepDailyMittiTexts(new Date())).toEqual({ daily: 0, updates: 0, skippedTrades: 0 });
+    expect(sent).toHaveLength(0); expect(tables["trade_text_log"] ?? []).toHaveLength(0);
+    // Unsigned at 6:30 → the morning text goes; then they sign and a second install is added for them.
+    plans["J1"]!.signedKeys = [];
+    expect(await sweepDailyMittiTexts(new Date())).toEqual({ daily: 1, updates: 0, skippedTrades: 0 });
+    plans["J1"]!.signedKeys = ["w:w1"];
+    tables["bookings"]!.push(booking("BK-NEW", "J5", "installation", "2026-11-13T03:00:00Z", "B1"));
+    tables["job_assignments"]!.push({ id: "A5", job_id: "J5", business_id: "B1", role: "installer", active: true });
+    allocated["J5:install"] = { workerId: "w1", name: "John Smith", mobile: "0412 345 678" };
+    plans["J5"] = { signers: [{ key: "w:w1", name: "John Smith", role: "lead" }], signedKeys: ["w:w1"] };
+    setSystemTime(new Date("2026-11-12T22:00:00Z")); // 9am
+    expect(await sweepDailyMittiTexts(new Date())).toEqual({ daily: 0, updates: 0, skippedTrades: 0 });
+    expect(sent).toHaveLength(1);
+    // Still unsigned on the new install → the update goes, with the sign link for that install.
+    plans["J5"]!.signedKeys = [];
+    expect(await sweepDailyMittiTexts(new Date())).toEqual({ daily: 0, updates: 1, skippedTrades: 0 });
+    expect(sent[1]!.type).toBe("daily_mitti_update");
   });
   test("nobody allocated anywhere → no text and no log row at all", async () => {
     delete allocated["J1:install"];
@@ -150,7 +199,9 @@ describe("sweepDailyMittiTexts — workers only", () => {
     const src = readFileSync("src/lib/daily-mitti-text.server.ts", "utf8");
     const collect = src.slice(src.indexOf("export async function collectDay"), src.indexOf("async function sendSms"));
     expect(collect).toContain("workerOnlyTextRecipient(");
+    expect(collect).toContain("swmsUnsignedSigners(");
     expect(collect).not.toContain("dailyTextRecipient(");
+    expect(src).not.toContain("unsignedSwmsSignerLinks");
     expect(collect).not.toContain("signer_mobile");
     expect(collect).not.toContain("ownerPhone");
     const sms = readFileSync("src/lib/sms.core.ts", "utf8");

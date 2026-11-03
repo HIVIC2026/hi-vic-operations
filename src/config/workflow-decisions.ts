@@ -150,7 +150,8 @@ export const WORKFLOW_DECISIONS = {
     },
     // Part 7 Task 7 (decision #26, Jo 2 Nov 2026).
     dailyJobsText: {
-      to: "workers only — the person allocated to each Ready Check / install day, on their own mobile (workerOnlyTextRecipient); no fallback to the business owner's mobile",
+      to: "workers only (decision #26) who have NOT yet signed the safety plan for today's install (Jo 2 Nov 23:08, Task 7b; current plan fingerprint) — on their own mobile with their own sign link (workerOnlyTextRecipient + swmsUnsignedSigners + swmsSignLink); no fallback to the business owner's mobile",
+      signed: "a worker who has signed gets nothing, nor the later update; a Ready Check (no SWMS) is never on this text",
       noWorker: "no text and no log row for that visit",
       piesa: "never on this text (electricians get their own link, Part 6)",
       key: "daily:{business}:{Melbourne date}:w:{worker} (unchanged)",

@@ -72,13 +72,17 @@ export async function collectDay(date: string): Promise<Group[]> {
       const { data: a } = await db.from("job_assignments").select("id").eq("job_id", b.job_id).eq("business_id", biz).eq("active", true).limit(1).maybeSingle();
       linked = !!a;
     }
-    // Decision #26 (Jo 2 Nov 2026): WORKERS ONLY — the person allocated to this Ready Check / install day, on their own
-    // mobile. No fallback to the business owner's number; nobody picked (or no mobile) = no text for that visit. PIESA
-    // visits are the electrician's (Part 6) and never on this text.
+    // Decision #26 (Jo 2 Nov 2026): WORKERS ONLY — the person allocated to this install day, on their own mobile. No
+    // fallback to the business owner's number; nobody picked (or no mobile) = no text for that visit. PIESA visits are
+    // the electrician's (Part 6). Jo 2 Nov 23:08 (Task 7b): ONLY while that worker has NOT signed the safety plan for the
+    // install (current plan fingerprint — the same check the sign-link texts use); a signed worker gets nothing, and a
+    // Ready Check (no SWMS) never gets this text. Their text carries their OWN sign link, minted here.
     const vk = visitKindOfBooking(b.kind);
-    if (!vk) continue;
+    if (vk !== "install") continue;
     const recipient = workerOnlyTextRecipient(await allocatedPersonFor(b.job_id, vk));
     if (!recipient) continue;
+    const signLink = await ownUnsignedSignLink(b.job_id, recipient.key);
+    if (!signLink) continue;
     if (!bizRows.has(biz)) {
       const { data: bz } = await db.from("businesses").select("id, name, is_active, approved_at, mitti_account_invited, onboarding_notes").eq("id", biz).maybeSingle();
       bizRows.set(biz, bz ?? null);
@@ -96,9 +100,22 @@ export async function collectDay(date: string): Promise<Group[]> {
     if (job.source !== "qa_test") g.qaOnly = false;
     const auditId = await bookingFormAuditId(b.job_id, b.kind);
     const street = job.properties?.address_line?.split(",")[0] ?? null;
-    g.jobs.push({ jobId: b.job_id, bookingId: b.id, start: b.scheduled_start, end: b.scheduled_end, street, suburb: job.properties?.suburb ?? null, status: b.status, link: auditId ? mittiFormUrl(auditId) : null, kind: b.kind });
+    g.jobs.push({ jobId: b.job_id, bookingId: b.id, start: b.scheduled_start, end: b.scheduled_end, street, suburb: job.properties?.suburb ?? null, status: b.status, link: auditId ? mittiFormUrl(auditId) : null, kind: b.kind, signLink });
   }
   return [...groups.values()];
+}
+
+/** Jo 2 Nov 2026 23:08: this worker's own sign link for the install's safety plan while they are an UNSIGNED signer on the
+ *  current plan; null when they have signed, aren't on the plan, or the plan/links can't be read (then no text — never a
+ *  guessed link). Same reading as the per-person sign-link texts (loadSwms → swmsUnsignedSigners, current fingerprint). */
+async function ownUnsignedSignLink(jobId: string, signerKey: string): Promise<string | null> {
+  try {
+    const { loadSwms } = await import("./swms.server");
+    const { swmsUnsignedSigners } = await import("./swms.core");
+    const { plan, signatures } = await loadSwms(jobId);
+    if (!swmsUnsignedSigners(plan, signatures).some((s) => s.key === signerKey)) return null;
+    return await (await import("./swms-link.server")).swmsSignLink(jobId, signerKey, Date.now());
+  } catch { return null; }
 }
 
 async function sendSms(g: Group, to: string, body: string, kind: "daily" | "update" = "daily", key = ""): Promise<{ status: "sent" | "failed" | "blocked"; detail: string; sid: string | null }> {
@@ -146,15 +163,17 @@ export async function sweepDailyMittiTexts(now = new Date()) {
     const snaps = g.jobs.map(snap);
     if (!prior) {
       if (!g.jobs.some((j) => j.status !== "cancelled")) continue;
-      // Decision 266: today's installs whose safety plan is still unsigned get the job-page link on the morning text.
-      const body = (await import("./sms.core")).withSafetyPlanLinks(dailyText(g.jobs, myWork(date)), await unsignedSafetyPlanLinks(g.jobs));
+      // Jo 2 Nov 23:08: the morning text carries the recipient's OWN sign link(s) for today's install(s) they haven't signed.
+      const body = (await import("./sms.core")).withSafetyPlanLinks(dailyText(g.jobs, myWork(date)), ownSignLinks(g.jobs));
       if ((await sendOnce(g, date, "daily", dailySendKey("daily", g.trade.businessId, date, g.recipient.key), body, snaps)) !== "already") out.daily++;
       continue;
     }
     const changes = diffDay(prior.snapshot as Snap[], g.jobs);
     if (!changes.length) continue;
     const sig = changes.map((c) => `${c.kind}:${c.job.bookingId}:${c.job.start}`).join("|");
-    if ((await sendOnce(g, date, "update", dailySendKey("update", g.trade.businessId, date, g.recipient.key, sig), updateText(changes, myWork(date)), snaps)) !== "already") out.updates++;
+    // Jo 2 Nov 23:08: the update carries the recipient's own sign link for a changed install they haven't signed.
+    const updateBody = (await import("./sms.core")).withSafetyPlanLinks(updateText(changes, myWork(date)), ownSignLinks(changes.filter((c) => c.kind !== "cancelled").map((c) => c.job)));
+    if ((await sendOnce(g, date, "update", dailySendKey("update", g.trade.businessId, date, g.recipient.key, sig), updateBody, snaps)) !== "already") out.updates++;
   }
   await refreshDelivery(date);
   return out;
@@ -202,21 +221,9 @@ export async function sweepReadyCheckBookedTexts(now = new Date()) {
   return out;
 }
 
-/** Decision 266: safety plan links for today's installs whose safety plan is not yet signed. Decision 364: each unsigned
- *  person's OWN sign link ("<name>: <link>", this text goes to one person per business); the secure job-page link only
- *  when those can't be made (plan unreadable, no crew chosen, links not configured). Decision 377: someone whose own link
- *  was already texted to their mobile is listed by name only. */
-async function unsignedSafetyPlanLinks(jobs: { jobId: string; kind?: string; status: string }[]): Promise<string[]> {
-  const { unsignedSwmsSignerLinks } = await import("./swms-link.server");
-  const { safetyPlanSignerLinks } = await import("./sms.core");
-  const { SET_PASSWORD_BASE } = await import("./set-password-link.core");
-  const out: string[] = [];
-  for (const id of [...new Set(jobs.filter((j) => j.kind === "installation" && j.status !== "cancelled").map((j) => j.jobId))]) {
-    const own = await unsignedSwmsSignerLinks(id);
-    if (own) out.push(...safetyPlanSignerLinks(own));
-    else out.push(`${SET_PASSWORD_BASE}/field/${id}`);
-  }
-  return out;
+/** Jo 2 Nov 2026 23:08: the recipient's own sign links for today's live installs (one per install, minted in collectDay). */
+function ownSignLinks(jobs: DayJob[]): string[] {
+  return [...new Set(jobs.filter((j) => j.kind === "installation" && j.status !== "cancelled" && j.signLink).map((j) => j.signLink!))];
 }
 
 /** Update sent → delivered/failed from Twilio for today's real texts. */
