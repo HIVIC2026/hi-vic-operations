@@ -20,6 +20,8 @@ export type RealSmsInput = {
   body: string;
   jobId?: string | null;
   businessId?: string | null;
+  /** A text that covers several jobs (daily Mitti digests): the pause is decided on `businessId` alone, never on one job in the list. */
+  pauseByBusinessOnly?: boolean;
   /** One-off (`event`) types: when the triggering event happened and whether it is still current (decision 165). `window` types omit it. */
   event?: SmsEventInput;
 };
@@ -95,7 +97,7 @@ export async function sendRealSms(input: RealSmsInput, blast?: { claimId: string
   const nowIso = new Date().toISOString();
   // Jo 30 Oct 2026: "Pause all trade messages" — read once per partner text (owner texts never read it).
   const tradeMessagesPaused = SMS_MESSAGE_TYPES[input.type]?.audience === "partner"
-    ? await (await import("./trade-pause.server")).tradeMessagesPausedNow() : null;
+    ? await (await import("./trade-pause.server")).tradeMessagesPausedNow({ businessId: input.businessId ?? null, jobId: input.pauseByBusinessOnly ? null : input.jobId ?? null }) : null;
   // Every policy hold is decided BEFORE the key is touched (decision 165): switches, quiet hours, wording, consent,
   // STOP list, freshness of the triggering event, deleted job. None of these may consume the idempotency key.
   const blocked = smsBlocker({

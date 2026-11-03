@@ -27,7 +27,7 @@ export async function notifyInstallerPlanning(i: { jobId: string; assignmentId: 
     if (!job || job.deleted_at || !asg?.active) return "skipped";
     // Jo 30 Oct 2026: "Pause all trade messages" — held before the once-only event (TEST unchanged).
     if (job.source !== "qa_test" && !(await import("./test-send.core")).isTestPartner((asg.businesses ?? {}) as never)) {
-      const tradePaused = await (await import("./trade-pause.server")).tradeMessagesPausedNow();
+      const tradePaused = await (await import("./trade-pause.server")).tradeMessagesPausedNow({ jobId: i.jobId, businessId: asg.business_id });
       if (tradePaused) return `held: ${tradePaused}`;
     }
     const notifiedAt = new Date().toISOString();
@@ -58,7 +58,7 @@ export async function notifyInstallerPlanning(i: { jobId: string; assignmentId: 
     else if (!emailTo) out.push("installer email not sent — no installer email");
     else {
       try {
-        const r = await (await import("./office-email.server")).sendOfficeEmail({ actorId: null as unknown as string, recipient: "partner", to: emailTo, contactName: asg.profiles?.full_name ?? null, subject: mail.subject, message: mail.text, label: "installer_planning_notice", record: { businessId: asg.business_id }, html: mail.html, text: mail.text });
+        const r = await (await import("./office-email.server")).sendOfficeEmail({ actorId: null as unknown as string, recipient: "partner", to: emailTo, contactName: asg.profiles?.full_name ?? null, subject: mail.subject, message: mail.text, label: "installer_planning_notice", record: { businessId: asg.business_id }, pauseJobId: i.jobId, html: mail.html, text: mail.text });
         out.push(`installer email ${r.status}: ${r.detail}`);
       } catch (e) { out.push(`installer email not sent — ${(e as Error).message}`); }
     }

@@ -5,7 +5,7 @@
 // - sendOfficeEmail: partner/applicant emails held and recorded; homeowner + Jo's TEST inbox unchanged.
 // - representative paths: job offer (text + email), team member invite (text). Install tomorrow runs its REAL path in
 //   trade-pause-install-tomorrow.test.ts.
-import { beforeEach, describe, expect, mock, setSystemTime, test } from "bun:test";
+import { beforeAll, beforeEach, describe, expect, mock, setSystemTime, test } from "bun:test";
 import { PGlite } from "@electric-sql/pglite";
 import { readFileSync } from "node:fs";
 import { postgrestShim } from "./helpers/pglite-postgrest-shim";
@@ -35,7 +35,18 @@ await db.exec(`create schema auth; create function auth.uid() returns uuid langu
   insert into public.partner_worker_invites values ('${INVITE}', '${BIZ}', now() + interval '14 days', null, null);`);
 await db.exec(readFileSync("docs/pending-migrations/0141_real_sms_sender.sql", "utf8"));
 await db.exec(readFileSync("docs/pending-migrations/trade-messages-paused.sql", "utf8"));
-await db.exec(`update public.workflow_settings set sms_message_switches = '{"job_offer":true,"team_member_invite":true,"install_tomorrow":true,"swms_sign_link":true,"quote_ready":true,"owner_code":true}' where id = 1`);
+await db.exec(readFileSync("docs/pending-migrations/business-messages-while-paused.sql", "utf8"));
+const TOM = "55555555-5555-5555-5555-555555555555";
+const JOB_F = "66666666-6666-6666-6666-666666666666";
+const OFFER_P = "77777777-7777-7777-7777-777777777777";
+await db.exec(`insert into public.businesses(id, name, email, signer_mobile, is_active, approved_at, messages_while_paused) values ('${TOM}', 'Tom Electrical', 'tom@tom.example', '0412 000 111', true, now(), true);
+  alter table public.jobs add column originating_installer_business_id uuid;
+  create table public.partner_relationships(id uuid primary key default gen_random_uuid(), installer_business_id uuid, electrician_business_id uuid, active boolean not null default true);
+  create table public.job_assignments(id uuid primary key default gen_random_uuid(), job_id uuid, business_id uuid, role text, active boolean not null default true);
+  create table public.appointment_proposals(id uuid primary key default gen_random_uuid(), job_id uuid, piesa_window_round int, status text, starts_at timestamptz);
+  insert into public.jobs(id, source, channel, originating_installer_business_id) values ('${JOB_F}', 'website', 'hivic_sourced', '${TOM}');
+  insert into public.partner_offers values ('${OFFER_P}', '${JOB}', '${TOM}', 'piesa', 'pending', '{"suburb":"Preston","job_number":"HIV-1","approx_area_m2":80,"electrician_rate_inc_gst":300}', now(), now() + interval '1 day');`);
+await db.exec(`update public.workflow_settings set sms_message_switches = '{"piesa_offer":true,"daily_mitti":true,"job_offer":true,"team_member_invite":true,"install_tomorrow":true,"swms_sign_link":true,"quote_ready":true,"owner_code":true}' where id = 1`);
 
 const twilio: string[] = [];
 const emails: { to: string; subject: string }[] = [];
@@ -63,7 +74,9 @@ const { sendRealSms } = await import("../src/lib/sms.server");
 const { sendOfficeEmail } = await import("../src/lib/office-email.server");
 const { textInstallerAboutOffer, emailInstallerAboutOffer } = await import("../src/lib/ready-check-offer-text.server");
 const { textTeamMemberInvite } = await import("../src/lib/installer-texts.server");
+const { textElectricianAboutOffer, emailElectricianAboutOffer } = await import("../src/lib/trade-messages.server");
 
+await db.exec("update public.workflow_settings set daily_mitti_text_enabled = true where id = 1");
 const setPaused = (on: boolean) => db.query("update public.workflow_settings set trade_messages_paused = $1 where id = 1", [on]);
 const smsRows = async (prefix: string) => (await db.query<{ idempotency_key: string; status: string; detail: string | null }>("select idempotency_key, status, detail from public.sms_messages where idempotency_key like $1 order by created_at, idempotency_key", [`${prefix}%`])).rows;
 const officeEmailRecords = async () => (await db.query<{ details: { to: string; status: string; detail: string } }>("select details from public.admin_config_events where event_type = 'office_manual_email' order by created_at, id")).rows.map((r) => r.details);
@@ -145,5 +158,95 @@ describe("representative trade paths while paused", () => {
     await setPaused(false);
     expect((await textTeamMemberInvite({ inviteId: INVITE, businessId: BIZ, mobile: "0412 999 888", token: "tok123", createdAt: nowIso() })).status).toBe("sent");
     expect(twilio.length).toBe(t0 + 1);
+  });
+});
+
+describe("flagged business: senders pass their ids (Jo 31 Oct)", () => {
+  test("job_only_check_for_flagged_job_lifts", async () => {
+    // Recipient business unknown (job id only): the job's flagged originating installer lifts it. (A real partner text
+    // always carries its business id, so this is checked on the pause read itself.)
+    const { tradeMessagesPausedNow } = await import("../src/lib/trade-pause.server");
+    expect(await tradeMessagesPausedNow({ jobId: JOB_F })).toBeNull();
+  });
+  test("partner_text_flagged_job_unflagged_recipient_held", async () => {
+    // Narrowed 3 Nov: a known, unflagged and unlinked recipient is NOT lifted by the job's flagged installer.
+    const r = await sendRealSms({ type: "swms_sign_link", idempotencyKey: "swms-sign:v1:flagged-job-other", to: "0412 345 678", body: "Sign the safety plan", jobId: JOB_F, businessId: BIZ });
+    expect(r).toMatchObject({ status: "blocked", detail: "Trade messages paused" });
+  });
+  test("partner_text_for_flagged_business_sends", async () => {
+    const r = await sendRealSms({ type: "swms_sign_link", idempotencyKey: "swms-sign:v1:flagged-biz", to: "0412 000 111", body: "Sign the safety plan", jobId: JOB, businessId: TOM });
+    expect(r.status).toBe("sent");
+  });
+  test("partner_text_unflagged_held", async () => {
+    const r = await sendRealSms({ type: "swms_sign_link", idempotencyKey: "swms-sign:v1:unflagged", to: "0412 345 678", body: "Sign the safety plan", jobId: JOB, businessId: BIZ });
+    expect(r).toMatchObject({ status: "blocked", detail: "Trade messages paused" });
+  });
+  test("partner_text_no_ids_held", async () => {
+    const r = await sendRealSms({ type: "swms_sign_link", idempotencyKey: "swms-sign:v1:noids", to: "0412 345 678", body: "Sign the safety plan" });
+    expect(r).toMatchObject({ status: "blocked", detail: "Trade messages paused" });
+  });
+  test("piesa_offer_text_flagged_sends", async () => {
+    const t0 = twilio.length;
+    const r = await textElectricianAboutOffer(OFFER_P);
+    expect(r).not.toMatch(/^held/);
+    expect(r).toMatch(/^electrician sms sent/);
+    expect(twilio.length).toBe(t0 + 1);
+  });
+  test("digest_first_job_flagged_for_unflagged_trade_held", async () => {
+    // A daily Mitti digest covers several jobs: its first job (flagged originating installer) must not lift the hold for the unflagged trade.
+    const digest = { type: "daily_mitti" as const, to: "0412 345 678", body: "Good morning! Your jobs today", jobId: JOB_F, businessId: BIZ };
+    // Narrowed 3 Nov: with the recipient business known the job no longer lifts it either way.
+    expect(await sendRealSms({ ...digest, idempotencyKey: "daily-mitti:digest-old" })).toMatchObject({ status: "blocked", detail: "Trade messages paused" });
+    const r = await sendRealSms({ ...digest, idempotencyKey: "daily-mitti:digest-new", pauseByBusinessOnly: true });
+    expect(r).toMatchObject({ status: "blocked", detail: "Trade messages paused" });
+    const { readFileSync: read } = await import("node:fs");
+    expect(read("src/lib/daily-mitti-text.server.ts", "utf8")).toContain("pauseByBusinessOnly: true");
+  });
+});
+
+describe("email path matches the sender's own check (no claim burned)", () => {
+  const JOB_X = "88888888-0000-0000-0000-000000000001";
+  const ELEC = "88888888-0000-0000-0000-000000000002";
+  const OFFER_X = "88888888-0000-0000-0000-000000000003", OFFER_E = "88888888-0000-0000-0000-000000000004", OFFER_EX = "88888888-0000-0000-0000-000000000005";
+  const summary = '{"suburb":"Preston","job_number":"HIV-2","approx_area_m2":80,"electrician_rate_inc_gst":300}';
+  beforeAll(() => db.exec(`insert into public.businesses(id, name, email, signer_mobile, is_active, approved_at) values ('${ELEC}', 'Peter Electrical', 'peter@elec.example', '0412 222 333', true, now());
+    insert into public.jobs(id, source, channel, originating_installer_business_id) values ('${JOB_X}', 'website', 'hivic_sourced', '${BIZ}');
+    insert into public.partner_relationships(installer_business_id, electrician_business_id, active) values ('${TOM}', '${ELEC}', true), ('${BIZ}', '${ELEC}', true);
+    insert into public.partner_offers values ('${OFFER_X}', '${JOB_F}', '${BIZ}', 'piesa', 'pending', '${summary}', now(), now() + interval '1 day'),
+      ('${OFFER_E}', '${JOB_F}', '${ELEC}', 'piesa', 'pending', '${summary}', now(), now() + interval '1 day'),
+      ('${OFFER_EX}', '${JOB_X}', '${ELEC}', 'piesa', 'pending', '${summary}', now(), now() + interval '1 day');`));
+  const claims = async (offerId: string) => (await db.query("select 1 from public.workflow_events where event_type = 'electrician_offer_email' and details->>'offer_id' = $1", [offerId])).rows.length;
+
+  test("unflagged, unlinked electrician offered a flagged installer's job: text and email both HELD, nothing claimed", async () => {
+    const t0 = twilio.length, e0 = emails.length;
+    expect(await textElectricianAboutOffer(OFFER_X)).toBe("held: Trade messages paused");
+    expect(await emailElectricianAboutOffer(OFFER_X)).toBe("held: Trade messages paused");
+    expect(await claims(OFFER_X)).toBe(0);
+    expect(twilio.length).toBe(t0);
+    expect(emails.length).toBe(e0);
+  });
+  test("sendOfficeEmail with the sender's ids agrees with the sender's own check", async () => {
+    const { tradeMessagesPausedNow } = await import("../src/lib/trade-pause.server");
+    const e0 = emails.length;
+    // flagged job + unlinked recipient: both held
+    expect(await tradeMessagesPausedNow({ jobId: JOB_F, businessId: BIZ })).toBe("Trade messages paused");
+    expect(await sendOfficeEmail({ actorId: null, recipient: "partner", to: "boss@acme.example", contactName: null, subject: "S", message: "M", label: "x", record: { businessId: BIZ }, pauseJobId: JOB_F })).toMatchObject({ status: "blocked", detail: "Trade messages paused" });
+    // linked electrician on X's job: business-only would lift it, the job id keeps it held — same answer as the check
+    expect(await tradeMessagesPausedNow({ businessId: ELEC })).toBeNull();
+    expect(await tradeMessagesPausedNow({ jobId: JOB_X, businessId: ELEC })).toBe("Trade messages paused");
+    expect(await sendOfficeEmail({ actorId: null, recipient: "partner", to: "peter@elec.example", contactName: null, subject: "S", message: "M", label: "x", record: { businessId: ELEC }, pauseJobId: JOB_X })).toMatchObject({ status: "blocked", detail: "Trade messages paused" });
+    expect(emails.length).toBe(e0);
+  });
+  test("linked electrician on the flagged installer's job: claim written AND email sent", async () => {
+    const e0 = emails.length;
+    expect(await emailElectricianAboutOffer(OFFER_E)).toMatch(/^electrician email sent/);
+    expect(await claims(OFFER_E)).toBe(1);
+    expect(emails.length).toBe(e0 + 1);
+  });
+  test("linked electrician on an unflagged installer's job: held before the claim", async () => {
+    const e0 = emails.length;
+    expect(await emailElectricianAboutOffer(OFFER_EX)).toBe("held: Trade messages paused");
+    expect(await claims(OFFER_EX)).toBe(0);
+    expect(emails.length).toBe(e0);
   });
 });

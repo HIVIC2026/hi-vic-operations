@@ -35,7 +35,7 @@ export async function textFixesTimesLink(jobId: string, i: { auditId: string; co
     const completedAt = i.completedAt ?? new Date().toISOString();
     // Jo 30 Oct 2026: "Pause all trade messages" — held BEFORE the claim (TEST unchanged), so a later sync can still send it.
     if (j.source !== "qa_test" && !(await import("./test-send.core")).isTestPartner(asg?.businesses ?? {})) {
-      const tradePaused = await (await import("./trade-pause.server")).tradeMessagesPausedNow();
+      const tradePaused = await (await import("./trade-pause.server")).tradeMessagesPausedNow({ jobId, businessId: asg!.business_id });
       if (tradePaused) return `held: ${tradePaused}`;
     }
     // Claimed once, before any send: a later sync, the tick or a re-sync finds this event and stops.

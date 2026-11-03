@@ -33,9 +33,10 @@ export async function carrySignupElectrician(businessId: string, actorId: string
 export async function sweepSignupNominationInvites(now = new Date()): Promise<{ checked: number; sent: number; skipped: number; failed: number }> {
   const out = { checked: 0, sent: 0, skipped: 0, failed: 0 };
   const { customerCommsEnabled } = await import("./comms.server");
+  const commsOn = await customerCommsEnabled();
+  if (!commsOn) return out; // paused comms: nothing to do, retried next tick
   // Jo 30 Oct 2026: "Pause all trade messages" counts as paused comms here (nothing claimed, retried next tick).
-  const commsEnabled = (await customerCommsEnabled()) && !(await (await import("./trade-pause.server")).tradeMessagesPausedNow());
-  if (!commsEnabled) return out; // paused comms: nothing to do, retried next tick
+  // Decided per invite by the installer's business (Jo 31 Oct), read once per business below.
   const { data: rows, error } = await admin.from("electrician_nominations")
     .select("id, installer_application_id, contact_name, business_name, email, rec_number, licence_number, status, invite_sent_at, invite_link_issued_at, business_id")
     .not("installer_application_id", "is", null).is("job_id", null).eq("status", "invite_pending_comms").is("invite_sent_at", null).is("invite_link_issued_at", null).is("business_id", null).not("email", "is", null)
@@ -82,12 +83,15 @@ export async function sweepSignupNominationInvites(now = new Date()): Promise<{ 
   const { matchUsualElectrician } = await import("./our-lead-piesa-electrician.core");
   const candidates = (await loadApprovedRecCandidates(now)).filter((c) => c.onboarding_status === "approved");
   const { newToken, hashToken } = await import("./worker-links.core");
+  const { tradeMessagesPausedNow } = await import("./trade-pause.server");
+  const pausedInstallers = new Set<string>();
+  for (const id of installerIds) if (await tradeMessagesPausedNow({ businessId: id })) pausedInstallers.add(id);
   const sendable = pickSendable(rows, SIGNUP_INVITES_PER_TICK, (r) => {
     const installer = installerFor.get(r.installer_application_id as string);
     if (!installer) return false;
     const matched = matchUsualElectrician({ name: r.business_name || r.contact_name || "", licence: r.rec_number || r.licence_number || "" }, candidates);
     return signupInviteDue({ status: r.status, invite_sent_at: r.invite_sent_at, invite_link_issued_at: r.invite_link_issued_at, business_id: r.business_id, email: r.email,
-      installerApproved: true, commsEnabled, electricianAlreadyApproved: !!matched, isMain: mainIds.has(r.id), installerSignupSaved: latestSource.get(installer) === "installer_signup",
+      installerApproved: true, commsEnabled: !pausedInstallers.has(installer), electricianAlreadyApproved: !!matched, isMain: mainIds.has(r.id), installerSignupSaved: latestSource.get(installer) === "installer_signup",
       earlierSweepRecord: recorded.has(r.id), sameEmailAlreadySent: (sentTo.get(sentKey(installer, r.email ?? "")) ?? []).some((id) => id !== r.id) }) === "send";
   });
   out.skipped = rows.length - sendable.length;

@@ -71,7 +71,7 @@ export async function issueAndSendNoticeLink(p: { worker: NoticeWorkerRow; actor
   // Jo 30 Oct 2026: "Pause all trade messages" — no link issued, nothing sent or recorded, so a paused attempt never
   // counts as one of the 3 tries; the sweep (or the button) sends it once unpaused.
   if (!test) {
-    const tradePaused = await (await import("./trade-pause.server")).tradeMessagesPausedNow();
+    const tradePaused = await (await import("./trade-pause.server")).tradeMessagesPausedNow({ businessId: p.worker.business_id });
     if (tradePaused) return { sms: { status: "blocked", detail: tradePaused }, email: { status: "blocked", detail: tradePaused }, attempt: p.attempt, paused: true as const };
   }
   const token = newToken();
