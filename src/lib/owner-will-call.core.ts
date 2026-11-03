@@ -5,7 +5,7 @@
 // `in_house_partner_will_call` (left in the database as a draft, no longer read).
 import * as K from "./email-kit.core";
 import { mjEmail } from "./mail-mjml.core";
-import { contactLine, type BusinessContact } from "./owner-wording.core";
+import { AP_CERTIFICATES_LINE, contactLine, type BusinessContact } from "./owner-wording.core";
 
 /** Part 3/4 name for the trade's office contact; the same shape as Part 2's BusinessContact. */
 export type TradeContact = BusinessContact;
@@ -41,10 +41,10 @@ export function ownerWillCallEmail(i: OwnerWillCallInput): { subject: string; ht
   const p2 = "At the Ready Check they'll measure up and confirm your quote. It's free, with no obligation.";
   const body = [
     `<mj-section><mj-column><mj-text mj-class="hi">${K.esc(hi)}</mj-text><mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">${K.esc(subject)}</mj-text><mj-text>${K.esc(p1)}</mj-text><mj-text>${K.esc(p2)}</mj-text></mj-column></mj-section>`,
-    `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="small" padding="14px 18px">${K.esc(contact)}</mj-text></mj-column></mj-section>`,
+    `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="small" padding="14px 18px">${K.esc(contact)}<br/>${K.esc(AP_CERTIFICATES_LINE)}</mj-text></mj-column></mj-section>`,
   ].join("\n");
   const html = mjEmail({ subject, preview: p1, body, unsubscribe: i.unsubscribeUrl, testLabel: i.test === true });
-  const text = K.plainText([hi, "", subject, p1, p2, "", contact], { unsubscribe: i.unsubscribeUrl, testLabel: i.test === true });
+  const text = K.plainText([hi, "", subject, p1, p2, "", contact, AP_CERTIFICATES_LINE], { unsubscribe: i.unsubscribeUrl, testLabel: i.test === true });
   return { subject, html, text };
 }
 

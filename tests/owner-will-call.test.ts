@@ -152,3 +152,11 @@ describe("sendInHousePartnerCall builds #23 from the core", () => {
     expect(smsSent).toEqual([]);
   });
 });
+test("will call email carries the AP certificates line (decisions 2 Nov ~6:30pm: office phone, business email, AP line)", async () => {
+  const { AP_CERTIFICATES_LINE } = await import("../src/lib/owner-wording.core");
+  const e = ownerWillCallEmail({ firstName: "Sarah", installer: { name: "Rapid Insulation Pty Ltd", tradingName: "Rapid Insulation", officePhone: "03 9000 0000", email: "office@rapid.com.au" }, unsubscribeUrl: null } as never);
+  if ("held" in e) throw new Error("held");
+  expect(e.text).toContain(AP_CERTIFICATES_LINE);
+  expect(e.html).toContain("Accredited Person A003654");
+});
+
