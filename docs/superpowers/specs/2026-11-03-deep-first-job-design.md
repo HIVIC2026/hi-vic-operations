@@ -39,7 +39,7 @@ Every rule below is one Jo has already decided (dates in brackets). Nothing new 
 - They have **2 business days** to book, or the job goes back to the installer's office.
 - A **"Can't do this one"** button (busy / owner not answering / other) sends it back to the installer.
 - The electrician's link shows only the next step: book the PIESA → do it in Mitti → add the upgrades day if needed → add the certificate → done. Electricians never log in.
-- The electrician can be changed until the PIESA is done. A swapped-out electrician gets one email.
+- The electrician can be changed until the PIESA is done. **The installer does it from the job page** (Jo, 3 Nov), picking from their onboarded electricians linked to them. The new electrician gets the text link and a fresh 2 business days. A swapped-out electrician gets one email. This replaces "only the office can change an installer's electrician".
 
 ## Part 3 — Upgrades billed by the electrician; certificate can come later (2 Nov, 3 Nov)
 
