@@ -126,6 +126,7 @@ export const WORKFLOW_DECISIONS = {
     roleLabels: { lead: "Lead Installer", crew: "Crew" },
     onSiteLine: "The Lead Installer is on site for the whole install. (always under Compliance, whatever the rule)",
     pdfLook: "website look (swms-sample.pdf) with the Changes during the job box only behind PDF_LOOK_APPROVED.swms; off = the 25 Oct WorkSafe layout, byte-for-byte",
+    signingPage: "/sp/<token>: house facts → 9 standard controls folded → Read the full safety plan (PDF) on tap only → tick → typed full name → Sign the safety plan; one server read; words of the plan's own rule",
   },
   quoteValidity: {
     validDays: 30,

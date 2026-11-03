@@ -68,20 +68,29 @@ export async function unsignedSwmsSignerLinks(jobId: string): Promise<{ name: st
 /** What the public page needs from the server; injectable for tests (defaults read the job and sign through swms.server). */
 export type SwmsLinkDeps = {
   secret: () => string;
-  load: (jobId: string) => Promise<{ plan: import("./swms.core").SwmsPlan; signatures: import("./swms.core").SwmsSignature[]; job: { installation_completed_at: string | null; deleted_at: string | null } | null }>;
+  /** Part 7 Task 3: `installStart` = the current install booking's start (ISO), for the page's "for tomorrow" title and when-line. */
+  load: (jobId: string) => Promise<{ plan: import("./swms.core").SwmsPlan; signatures: import("./swms.core").SwmsSignature[]; job: { installation_completed_at: string | null; deleted_at: string | null } | null; installStart?: string | null }>;
   sign: (jobId: string, key: string, typedName: string, method: import("./swms.core").SwmsSignMethod) => Promise<{ complete: boolean; missing: string[] }>;
+  /** Part 7 Task 3: the full plan as a PDF, built on demand (default = buildSwmsPdf in its flag-driven look). */
+  pdf?: (plan: import("./swms.core").SwmsPlan, signatures: import("./swms.core").SwmsSignature[]) => Promise<Uint8Array>;
 };
 const defaultDeps: SwmsLinkDeps = {
   secret: () => swmsLinkSecret(),
   load: async (jobId) => {
     const { loadSwms } = await import("./swms.server");
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
-    const [{ plan, signatures }, { data: job }] = await Promise.all([loadSwms(jobId), admin.from("jobs").select("installation_completed_at, deleted_at").eq("id", jobId).maybeSingle()]);
-    return { plan, signatures, job: job ?? null };
+    const [{ plan, signatures }, { data: job }, { data: book }] = await Promise.all([
+      loadSwms(jobId),
+      admin.from("jobs").select("installation_completed_at, deleted_at").eq("id", jobId).maybeSingle(),
+      admin.from("bookings").select("scheduled_start").eq("job_id", jobId).eq("kind", "installation").neq("status", "cancelled").order("scheduled_start", { ascending: false }).limit(1).maybeSingle(),
+    ]);
+    return { plan, signatures, job: job ?? null, installStart: book?.scheduled_start ?? null };
   },
   // The token's own key only, recorded as "link" (or "lead_phone" for a Lead's-phone link); signSwms still checks the
   // typed name and once-only.
   sign: async (jobId, key, typedName, method) => (await import("./swms.server")).signSwms(jobId, null, key, typedName, method),
+  // Not filed, not stored: a read of the current plan in whichever look PDF_LOOK_APPROVED.swms selects.
+  pdf: async (plan, signatures) => (await (await import("./swms-pdf.server")).buildSwmsPdf(plan, signatures, { recordRef: null })).bytes,
 };
 
 /** The public page's read and sign. The token is the only credential and names one signer key on one job. */
@@ -89,22 +98,33 @@ async function resolve(token: string, deps: SwmsLinkDeps, nowMs: number) {
   const p = verifySwmsLinkToken(token, deps.secret(), nowMs);
   if (!p) throw new Error("This safety plan link isn't valid or has expired. Ask your business owner to send it again.");
   const { latestSignatures } = await import("./swms.core");
-  const { plan, signatures, job } = await deps.load(p.jobId);
+  const { plan, signatures, job, installStart } = await deps.load(p.jobId);
   if (!job || job.deleted_at) throw new Error("This job is no longer available.");
   const signer = plan.signers.find((s) => s.key === p.key);
   if (!signer) throw new Error("You're no longer on this job's crew. Ask your business owner.");
-  return { p, plan, signer, signed: latestSignatures(signatures).get(p.key) ?? null, open: !job.installation_completed_at };
+  return { p, plan, signatures, signer, signed: latestSignatures(signatures).get(p.key) ?? null, open: !job.installation_completed_at, installStart: installStart ?? null };
 }
 
-export async function swmsLinkView(token: string, deps: SwmsLinkDeps = defaultDeps, nowMs = Date.now()) {
-  const { plan, signer, signed, open } = await resolve(token, deps, nowMs);
-  const { swmsHouseSection } = await import("./swms.core");
+/** Part 7 Task 3: the page's one read. The words are the plan's own rule's (`swmsWordingFor`), so a person signing a plan
+ *  prepared on the 24 Oct wording reads exactly what they sign. */
+export async function swmsLinkView(token: string, deps: SwmsLinkDeps = defaultDeps, nowMs = Date.now()): Promise<import("./swms-sign-page.core").SwmsSignPageView> {
+  const { plan, signer, signed, open, installStart } = await resolve(token, deps, nowMs);
+  const { swmsHouseSection, swmsWordingFor } = await import("./swms.core");
   return {
-    jobNumber: plan.jobNumber, address: plan.address, installDate: plan.installDate, businessName: plan.businessName,
-    highRiskWork: plan.highRiskWork, hazards: plan.hazards.map((h) => ({ name: h.name, control: h.control })), siteNote: plan.siteNote,
-    house: swmsHouseSection(plan),
+    jobNumber: plan.jobNumber, address: plan.address, installDate: plan.installDate, installStart, businessName: plan.businessName,
+    rule: plan.rule, highRiskWork: plan.highRiskWork, hazards: plan.hazards.map((h) => ({ name: h.name, control: h.control })), howInPlace: swmsWordingFor(plan.rule).howInPlace,
+    siteNote: plan.siteNote, house: swmsHouseSection(plan),
     signer: { name: signer.name, role: signer.role }, signedAt: signed?.signedAt ?? null, open,
   };
+}
+
+/** Part 7 Task 3: the full safety plan as a PDF, only when the person taps for it — same token checks as the view,
+ *  built on demand from the current plan and signatures, never filed. */
+export async function swmsLinkPdf(token: string, deps: SwmsLinkDeps = defaultDeps, nowMs = Date.now()): Promise<{ filename: string; base64: string }> {
+  const { plan, signatures } = await resolve(token, deps, nowMs);
+  const build = deps.pdf ?? defaultDeps.pdf!;
+  const bytes = await build(plan, signatures);
+  return { filename: `swms-${plan.jobNumber}.pdf`, base64: Buffer.from(bytes).toString("base64") };
 }
 
 export async function swmsLinkSign(token: string, typedName: string, deps: SwmsLinkDeps = defaultDeps, nowMs = Date.now()) {
