@@ -68,6 +68,14 @@ export function melbourneWallToIso(day: string, time: string): string | null {
   return null;
 }
 
+/** Why a picker date and time can't be used (null = fine). */
+export function melbourneWallProblem(day: string, time: string): string | null {
+  if (melbourneWallToIso(day, time)) return null;
+  const t = /^(\d{2}):(\d{2})$/.exec(time);
+  const real = /^\d{4}-\d{2}-\d{2}$/.test(day) && !!t && Number(t[1]) <= 23 && Number(t[2]) <= 59 && !Number.isNaN(Date.parse(`${day}T00:00:00Z`));
+  return real ? "That time doesn't exist on this day because the clocks change — pick another time." : "That date and time isn't valid.";
+}
+
 export const CANT_DO_REASONS = ["busy", "owner_not_answering", "other"] as const;
 export type CantDoReason = (typeof CANT_DO_REASONS)[number];
 const CANT_DO_LABEL: Record<CantDoReason, string> = { busy: "Too busy", owner_not_answering: "Owner not answering", other: "Other" };

@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import {
   ELECTRICIAN_LINK_MOVED, LINK_EXPIRED, LINK_INVALID, LINK_NOT_ASSIGNED, CANT_DO_REASONS, cantDoReasonLabel,
   electricianLinkRefusal, electricianStep, piesaBookingProblem, piesaDoneAtStage, electricianLinkText, officeToBookEmail, officeCantDoEmail,
-  OWN_JOB_PIESA_TO_BOOK_EMAIL_APPROVED, OWN_JOB_PIESA_CANT_DO_EMAIL_APPROVED, melbourneWallToIso,
+  OWN_JOB_PIESA_TO_BOOK_EMAIL_APPROVED, OWN_JOB_PIESA_CANT_DO_EMAIL_APPROVED, melbourneWallToIso, melbourneWallProblem,
 } from "../src/lib/electrician-link.core";
 import { SMS_MESSAGE_TYPES, SMS_FRESHNESS } from "../src/lib/sms.core";
 
@@ -98,5 +98,10 @@ describe("melbourneWallToIso", () => {
     expect(melbourneWallToIso("2026-10-04", "10:00")).toBe("2026-10-03T23:00:00.000Z");
   });
   test("the skipped hour (2:30am on 4 Oct) doesn't exist", () => expect(melbourneWallToIso("2026-10-04", "02:30")).toBeNull());
+  test("the skipped hour says why", () => {
+    expect(melbourneWallProblem("2026-10-04", "02:30")).toBe("That time doesn't exist on this day because the clocks change — pick another time.");
+    expect(melbourneWallProblem("2026-10-04", "03:30")).toBeNull();
+    expect(melbourneWallProblem("2026-10-04", "25:00")).toBe("That date and time isn't valid.");
+  });
   test("junk is refused", () => { expect(melbourneWallToIso("nope", "09:30")).toBeNull(); expect(melbourneWallToIso("2026-11-10", "25:99")).toBeNull(); });
 });

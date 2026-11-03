@@ -12,9 +12,9 @@ export const getElectricianLinkView = createServerFn({ method: "POST" })
 export const bookPiesaByLink = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ token: tokenSchema, day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), time: z.string().regex(/^\d{2}:\d{2}$/) }).parse(d))
   .handler(async ({ data }) => {
-    const { melbourneWallToIso } = await import("./electrician-link.core");
+    const { melbourneWallToIso, melbourneWallProblem } = await import("./electrician-link.core");
     const startIso = melbourneWallToIso(data.day, data.time);
-    if (!startIso) throw new Error("That date and time isn't valid.");
+    if (!startIso) throw new Error(melbourneWallProblem(data.day, data.time) ?? "That date and time isn't valid.");
     return (await import("./electrician-link.server")).linkBookPiesa(data.token, startIso);
   });
 

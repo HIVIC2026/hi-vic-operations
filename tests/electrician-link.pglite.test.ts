@@ -133,6 +133,20 @@ describe("double tap and paid time", () => {
     expect((await db.query("select * from bookings where job_id=$1", [J])).rows).toHaveLength(1);
     expect(ownerNotices).toEqual([`${J}:piesa`]);
   });
+  test("book, the booking is cancelled (electrician still assigned), book again through the link: works", async () => {
+    const J = id(110);
+    await db.query("insert into jobs values ($1,'piesa_and_install_window_pending',null,$2,'installer_sourced','real')", [J, INST]);
+    await db.query("insert into job_assignments (job_id, role, business_id, user_id) values ($1,'electrician',$2,$3)", [J, ELEC, U1]);
+    await db.query("insert into workflow_events (job_id, event_type, summary, details) values ($1,'own_job_piesa_handed','handed','{}')", [J]);
+    const t = await tokenFor(J);
+    await els.linkBookPiesa(t, soon(5));
+    await expect(els.linkBookPiesa(t, soon(6))).rejects.toThrow("already booked");
+    await db.query("update bookings set status='cancelled' where job_id=$1", [J]);
+    await db.query("update jobs set stage='piesa_and_install_window_pending' where id=$1", [J]);
+    await db.query("update job_assignments set booking_confirmed_at=null where job_id=$1", [J]);
+    await els.linkBookPiesa(t, soon(7));
+    expect((await db.query("select 1 from bookings where job_id=$1 and status='confirmed'", [J])).rows).toHaveLength(1);
+  });
   test("a booking that fails releases the claim so they can try again", async () => {
     const J = id(105);
     await db.query("insert into jobs values ($1,'piesa_and_install_window_pending',null,$2,'installer_sourced','real')", [J, INST]);
@@ -180,6 +194,30 @@ describe("can't do this one", () => {
     await expect(els.linkCantDo(t, "busy")).rejects.toThrow("log blip");
     expect((await db.query<{ active: boolean }>("select active from job_assignments where job_id=$1", [J])).rows[0]!.active).toBe(true);
     expect(await els.resolveElectricianLink(t)).toMatchObject({ ok: true });
+  });
+  test("two can't-do taps at once: one hand-back item, one ended assignment, the second is 'Already sent back'", async () => {
+    const J = id(108);
+    await db.query("insert into jobs values ($1,'piesa_and_install_window_pending',null,$2,'installer_sourced','real')", [J, INST]);
+    await db.query("insert into job_assignments (job_id, role, business_id, user_id) values ($1,'electrician',$2,$3)", [J, ELEC, U1]);
+    const t = await tokenFor(J);
+    const r = await Promise.allSettled([els.linkCantDo(t, "busy"), els.linkCantDo(t, "busy")]);
+    expect(r.filter((x) => x.status === "fulfilled")).toHaveLength(1);
+    expect(String((r.find((x) => x.status === "rejected") as PromiseRejectedResult).reason.message)).toContain("Already sent back");
+    expect((await db.query("select 1 from workflow_events where job_id=$1 and event_type='own_job_piesa_handed_back'", [J])).rows).toHaveLength(1);
+    expect((await db.query("select 1 from job_assignments where job_id=$1 and active", [J])).rows).toHaveLength(0);
+  });
+  test("if ending the assignment fails, no hand-back item is left and they can try again", async () => {
+    const J = id(109);
+    await db.query("insert into jobs values ($1,'piesa_and_install_window_pending',null,$2,'installer_sourced','real')", [J, INST]);
+    await db.query("insert into job_assignments (job_id, role, business_id, user_id) values ($1,'electrician',$2,$3)", [J, ELEC, U1]);
+    await db.exec(`CREATE FUNCTION block_end() RETURNS trigger AS $$ BEGIN RAISE EXCEPTION 'end blocked'; END $$ LANGUAGE plpgsql;
+      CREATE TRIGGER block_end_t BEFORE UPDATE ON job_assignments FOR EACH ROW WHEN (NEW.job_id = '${J}' AND NEW.active = false) EXECUTE FUNCTION block_end();`);
+    const t = await tokenFor(J);
+    await expect(els.linkCantDo(t, "busy")).rejects.toThrow("end blocked");
+    expect((await db.query("select 1 from workflow_events where job_id=$1 and event_type like 'own_job_piesa%'", [J])).rows).toHaveLength(0);
+    await db.exec("DROP TRIGGER block_end_t ON job_assignments");
+    await els.linkCantDo(t, "busy");
+    expect((await db.query("select 1 from workflow_events where job_id=$1 and event_type='own_job_piesa_handed_back'", [J])).rows).toHaveLength(1);
   });
   test("once the wording is approved the office email goes (recorded against the installer)", async () => {
     const { emailInstallerOffice } = await import("../src/lib/own-job-piesa-notices.server");

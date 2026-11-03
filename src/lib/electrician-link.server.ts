@@ -155,14 +155,18 @@ export async function linkBookPiesa(token: string, startIso: string, now: Date =
   const who = await electricianPerson(r.assignment, r.electricianBusinessId);
   // Claim first (a double tap or two phones): one stable event per assignment; a second claim is "already booked".
   const { stableUuid } = await import("./mitti-create-claim.core");
-  const claimId = await stableUuid(`own_job_piesa_link_booked:${r.assignment.id}`);
+  // The claim is per assignment AND per booking history: a cancelled booking (electrician still assigned) opens a new claim.
+  const { data: lastCancelled, error: lcErr } = await admin.from("bookings").select("id").eq("job_id", r.jobId).eq("kind", "assessment").eq("status", "cancelled").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (lcErr) throw new Error(lcErr.message);
+  const claimId = await stableUuid(`own_job_piesa_link_booked:${r.assignment.id}:${(lastCancelled?.id as string | undefined) ?? "none"}`);
   const { error: claimError } = await admin.from("workflow_events").insert({ id: claimId, job_id: r.jobId, actor_id: null, event_type: "own_job_piesa_link_booked", summary: "Electrician booking the safety check from their link", details: { assignment_id: r.assignment.id, start: startIso }, internal: true });
   if (claimError) { if (claimError.code === "23505") throw new Error("The safety check is already booked."); throw new Error(claimError.message); }
   try {
     const { confirmBooking } = await import("./booking.server");
     await confirmBooking(r.jobId, "assessment", startIso, r.assignment.user_id, `${who.name} (electrician's link)`);
   } catch (e) {
-    await admin.from("workflow_events").delete().eq("id", claimId); // nothing was booked: let them try again
+    const { error: rel } = await admin.from("workflow_events").delete().eq("id", claimId); // nothing was booked: let them try again
+    if (rel) console.error("booking claim not released", r.jobId, rel.message);
     throw e;
   }
   const { error } = await admin.from("appointment_proposals").update({ status: "superseded" }).eq("job_id", r.jobId).eq("kind", "assessment").eq("status", "proposed");
@@ -185,13 +189,24 @@ export async function linkCantDo(token: string, reason: CantDoReason, note?: str
   if (r.step !== "book_piesa") throw new Error("The safety check is already booked. Call the installer to change it.");
   const label = cantDoReasonLabel(reason, cleanNote);
   const who = await electricianPerson(r.assignment, r.electricianBusinessId);
+  // Claim first (a double tap): one stable event per assignment; a second claim is "already sent back".
+  const { stableUuid } = await import("./mitti-create-claim.core");
+  const claimId = await stableUuid(`own_job_piesa_link_cant_do:${r.assignment.id}`);
+  const { error: claimError } = await admin.from("workflow_events").insert({ id: claimId, job_id: r.jobId, actor_id: null, event_type: "own_job_piesa_link_cant_do_claim", summary: "Electrician sending the safety check back from their link", details: { assignment_id: r.assignment.id }, internal: true });
+  if (claimError) { if (claimError.code === "23505") throw new Error("Already sent back."); throw new Error(claimError.message); }
+  const undo = async (withEvent: boolean) => {
+    if (withEvent) { const { error } = await admin.from("workflow_events").delete().eq("job_id", r.jobId).eq("event_type", OWN_JOB_PIESA_HANDED_BACK_EVENT).contains("details", { assignment_id: r.assignment.id }); if (error) console.error("hand-back item not removed", r.jobId, error.message); }
+    const { error } = await admin.from("workflow_events").delete().eq("id", claimId);
+    if (error) console.error("can't-do claim not released", r.jobId, error.message);
+  };
   const { logEvent } = await import("./workflow.server");
-  await logEvent(r.jobId, null, OWN_JOB_PIESA_HANDED_BACK_EVENT, `${who.name} can't do the safety check (PIESA): ${label}. The installer picks another electrician or books it`,
-    { reason, note: cleanNote, electrician_business_id: r.electricianBusinessId, assignment_id: r.assignment.id, needs_office: true }, { internal: true });
+  try {
+    await logEvent(r.jobId, null, OWN_JOB_PIESA_HANDED_BACK_EVENT, `${who.name} can't do the safety check (PIESA): ${label}. The installer picks another electrician or books it`,
+      { reason, note: cleanNote, electrician_business_id: r.electricianBusinessId, assignment_id: r.assignment.id, needs_office: true }, { internal: true });
+  } catch (e) { await undo(false); throw e; }
   const { data: ended, error } = await admin.from("job_assignments").update({ active: false, ended_at: now.toISOString(), end_reason: `Electrician can't do this one: ${label}` })
     .eq("id", r.assignment.id).eq("active", true).select("id");
-  if (error) throw new Error(error.message);
-  if (!(ended ?? []).length) throw new Error(LINK_NOT_ASSIGNED);
+  if (error || !(ended ?? []).length) { await undo(true); throw new Error(error ? error.message : LINK_NOT_ASSIGNED); }
   await revokeElectricianLinks(r.jobId, "cant_do", { electricianBusinessId: r.electricianBusinessId }, now);
   await admin.from("contact_releases").update({ revoked_at: now.toISOString() }).eq("assignment_id", r.assignment.id).is("revoked_at", null);
   let officeEmail = "not_sent";
