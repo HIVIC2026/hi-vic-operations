@@ -55,6 +55,20 @@ export const WORKFLOW_DECISIONS = {
     },
     installer_supplied: {
       mittiReadyCheck: { hivFeeIncGst: 349, hivElectricianIncGst: 349, choices: ["Home Insulation Victoria electrician", "My usual electrician", "A different electrician"], priceBasis: "full_installer_plus_hiv_fee_plus_electrician_minus_veu", missingUsual: "hold_quote" },
+      // FEES (Jo 2 Nov 2026, CORRECTION): EVERY job has TWO separate fees — $349 AP fee (Home Insulation Victoria) AND $349 PIESA
+      // (electrical safety check). Installers' own customers: owner price = installer price + $349 AP fee + $349 PIESA, minus rebate.
+      // The owner's PIESA line is $349 whatever the electrician's own rate (the electrician is still paid their rate; Home Insulation
+      // Victoria keeps the difference) — supersedes decisions 302/303 for the OWN-CUSTOMER OWNER PRICE ONLY (`own-customer-price.core`,
+      // `mitti-installer-quote.core`). Quote + invoice lines in this order with these labels.
+      ownCustomerFees: {
+        decided: "2026-11-02",
+        apFeeIncGst: 349,
+        piesaIncGst: 349,
+        piesaLineWhateverElectricianRate: true,
+        supersedes: ["302", "303"] as const,
+        supersededScope: "own_customer_owner_price_only",
+        lineLabels: ["Insulation", "Home Insulation Victoria fee", "Electrical safety check (PIESA)", "Rebate", "Your price"] as const,
+      },
       paymentRule: "not_assumed",
       leadFee: "none",
       marginOnInstallerPrice: "none",

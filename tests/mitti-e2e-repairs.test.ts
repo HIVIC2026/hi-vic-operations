@@ -40,8 +40,8 @@ describe("Jo's approved Mitti E2E repairs", () => {
     expect(installerEnteredText(" TEST E2E Owner ")).toBe("TEST E2E Owner");
     expect(installerEnteredText("9 E2E TEST Street")).toBe("9 E2E TEST Street");
   });
-  test("full quote keeps $4200 installer + $349 fee + $400 electrician minus $1120 rebate", () => {
+  test("full quote keeps $4200 installer + $349 fee + $349 PIESA minus $1120 rebate (electrician's $400 is their pay, not the owner's line — Jo 2 Nov 2026)", () => {
     const d = buildMittiInstallerQuote({ price: { ok: true, issues: [], price: { totalIncGst: 4200, included: ["R5 supply and install"], otherDescription: "", agreedWithOwner: false } }, measuredM2: 120, wholeVeec: { veecs: 16, raw: 1120 }, caps: { metropolitan: true, minCopay: 200 } }, resolveMittiElectrician({ choice: "different", usual: null, different }));
-    expect(d.subtotal).toBe(4949); expect(d.afterDiscount).toBe(3829); expect(d.lines.map(l => l.line_total_inc_gst)).toEqual([4200,400,349]);
+    expect(d.subtotal).toBe(4898); expect(d.afterDiscount).toBe(3778); expect(d.lines.map(l => [l.code, l.line_total_inc_gst])).toEqual([["INSTALLER_PRICE", 4200], ["AP_FEE", 349], ["PIESA", 349]]);
   });
 });

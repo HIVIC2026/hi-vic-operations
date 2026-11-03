@@ -138,7 +138,9 @@ describe("decision 303 — only onboarded electricians", () => {
     const r = onboardedElectricianResolution({ legacy, usual, candidates: [rec()] });
     expect(r).toMatchObject({ ready: true, priceIncGst: 220, source: "approved_rec", recBusinessId: "rec-1", rateId: "rate-1", name: "Volt Right Electrical", reasons: [] });
     const draft = buildMittiInstallerQuote({ price: { ok: true, issues: [], price: { included: ["Ceiling insulation - supply & install"], otherDescription: "", totalIncGst: 3000, agreedWithOwner: false } }, measuredM2: 100, wholeVeec: null, separateLines: [], caps: { metropolitan: true, minCopay: 200 } } as never, r);
-    expect(draft.lines.find((l) => l.code === "PIESA")?.line_total_inc_gst).toBe(220);
+    // Part 10 (Jo 2 Nov 2026): the REC is PAID $220 (r.priceIncGst) but the OWNER's PIESA line is always $349 — never the rate.
+    expect(r.priceIncGst).toBe(220);
+    expect(draft.lines.find((l) => l.code === "PIESA")).toMatchObject({ description: "Electrical safety check (PIESA)", line_total_inc_gst: 349 });
     expect(mittiQuoteElectricalBlocker(draft.lines as never, r, r)).toBeNull();
   });
 
