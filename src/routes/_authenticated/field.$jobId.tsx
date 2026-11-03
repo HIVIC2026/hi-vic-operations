@@ -881,7 +881,8 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
   const ownerReady = ownerReadyLine(page.install.ownerReady);
   const bookedKinds = ["install_booked", "install_locked"];
   const installKinds = [...bookedKinds, "after_install"];
-  const showPrice = box.kind === "enter_price" && page.boss && page.channel === "installer_sourced";
+  // Part 10 Task 4: Boss and Office enter the price (page.prices = Part 5 seesPrices); everyone else sees nothing about price.
+  const showPrice = box.kind === "enter_price" && page.prices && page.channel === "installer_sourced";
   const mittiAudit = page.form.auditId;
   return (
     <div className="space-y-4" data-installer-job>

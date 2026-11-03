@@ -86,6 +86,18 @@ export const WORKFLOW_DECISIONS = {
         draftsForJo: ["subject", "pronoun them (mock says her)"] as const,
         quoteGoesOnlyAfterBossPrice: true,
       },
+      // Part 10 Task 4 (Jo 3 Nov 2026): Boss OR Office enter the price (Part 5 seesPrices); "Send quote to owner" only while
+      // OWN_CUSTOMER_SEND_ON_PRESS_ENABLED, through the one guarded auto-send (every check; holds come back as plain reasons).
+      enterPriceStep: {
+        decided: "2026-11-03",
+        whoEnters: ["boss", "office"] as const,
+        refusedServerSide: ["lead_installer", "crew", "electrician"] as const,
+        sendOnPressFlag: "OWN_CUSTOMER_SEND_ON_PRESS_ENABLED",
+        releaseOnlyThrough: "maybeAutoSendInstallerQuote",
+        buttonWhenOff: "Save",
+        buttonWhenOn: "Send quote to owner",
+        note: "Your price stays editable until the quote is sent.",
+      },
       paymentRule: "not_assumed",
       leadFee: "none",
       marginOnInstallerPrice: "none",

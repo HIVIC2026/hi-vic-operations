@@ -1,6 +1,8 @@
 // Decision 278 (Jo 25 Oct 2026): "Your price" — the business owner's card on their own customer's job page. The price and
 // what it includes are entered HERE, never in Mitti. The server returns null for team members, so the card (and every word
-// about price) never renders for staff. Decision 289: the electrician was chosen once at Add a job and is shown read-only
+// about price) never renders for staff. Part 10 Task 4 (Jo 3 Nov 2026): the Office person enters it too; the button says
+// "Send quote to owner" only while pressing it sends (OWN_CUSTOMER_SEND_ON_PRESS_ENABLED), else "Save"; a hold's plain
+// reasons show under the form. The quote goes to the owner by itself once the price is in and every check passes. Decision 289: the electrician was chosen once at Add a job and is shown read-only
 // here — never asked again. Decision 290 (corrected): the Ready Check's access rating and issue notes show as the flag;
 // the boss prices any difficult access themselves. The boss's text (decision 288) deep-links to `#price`.
 import { Fragment, useEffect, useState } from "react";
@@ -16,18 +18,21 @@ import {
   switchToHivElectricianFn,
 } from "@/lib/installer-price.functions";
 import {
+  ENTER_PRICE_INTRO,
+  ENTER_PRICE_STEP,
   HIV_SWITCH,
   PRICE_INCLUDED_OPTIONS,
   PRICE_ISSUES,
   PRICE_LOCKED,
+  PRICE_NOT_SENT_PREFIX,
   accessFlagLine,
+  enterPriceButton,
   priceCardLines,
   validateInstallerPrice,
 } from "@/lib/installer-price.core";
 const REMOVAL_OPTION = PRICE_INCLUDED_OPTIONS[1]; // "Removal of existing insulation"
 import { PRICE_CARD_ANCHOR } from "@/lib/boss-price-link.core";
 import { LinkRow, Note, PrimaryButton, Row } from "@/components/trade/installer-kit";
-import { PIESA_FULL } from "@/lib/job-wording";
 import { OneTapAction } from "@/components/trade/one-tap-action";
 
 export function InstallerPriceCard({ jobId }: { jobId: string }) {
@@ -47,6 +52,8 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
   const [productOption, setProductOption] = useState("");
   const [notes, setNotes] = useState("");
   const [busy, setBusy] = useState(false);
+  // Task 4: the plain hold reasons from "Send quote to owner" (the price is saved either way).
+  const [notSent, setNotSent] = useState<string[]>([]);
   // Jo 27 Oct 2026: when the Ready Check positively says there is no removal, the removal tick stays unticked and can't
   // be ticked; tapping it shows the reason under it.
   const removalBlocked = view?.removalRequired === false;
@@ -125,6 +132,12 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
         </>
       )}
       {view.locked && <Note>{PRICE_LOCKED}</Note>}
+      {notSent.length > 0 && !view.locked && (
+        <Note data-price-not-sent>
+          {PRICE_NOT_SENT_PREFIX}
+          {notSent.join(" · ")}
+        </Note>
+      )}
       {showForm && (
         <form
           className="space-y-3 py-2"
@@ -132,6 +145,7 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
             e.preventDefault();
             if (!check.ok) return;
             setBusy(true);
+            setNotSent([]);
             try {
               const r = await save(
                 {
@@ -141,10 +155,12 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
                   includedOther: other || null,
                   productOption: productOption || null,
                   notes: notes.trim() || null,
+                  send: view.sendOnPress,
                 },
-                "Price saved",
+                view.sendOnPress ? "Quote sent to the owner" : "Price saved",
               );
               if (r) {
+                if (!r.sent && r.reasons.length) setNotSent(r.reasons);
                 setEditing(false);
                 await q.refetch();
               }
@@ -154,8 +170,7 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
           }}
         >
           <Note className="mt-0">
-            Only you see and set this. We add the $349 Accredited Person fee and the {PIESA_FULL},
-            take off the rebate and prepare the owner's quote.
+            {ENTER_PRICE_INTRO}
             {access ? " Any difficult access is yours to price in." : ""}
           </Note>
           <div>
@@ -241,9 +256,10 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
               ))}
             </ul>
           )}
+          <p className="text-sm text-sub" data-price-note>{ENTER_PRICE_STEP.note}</p>
           <div className="flex gap-2">
-            <PrimaryButton type="submit" disabled={busy || !check.ok}>
-              {busy ? "Saving…" : current ? "Save new price" : "Save price"}
+            <PrimaryButton type="submit" disabled={busy || !check.ok} data-price-button>
+              {busy ? (view.sendOnPress ? "Sending…" : "Saving…") : enterPriceButton(view.sendOnPress)}
             </PrimaryButton>
             {current && (
               <button

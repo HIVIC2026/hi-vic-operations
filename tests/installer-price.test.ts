@@ -386,12 +386,41 @@ describe("Mitti template contract: A1 without 'Your quote to the homeowner' vali
   });
 });
 
+// Part 10 Task 4 (Jo 3 Nov 2026): Boss OR Office enters the price; "Send quote to owner" only when the switch is on.
+describe("Enter your price step (Task 4)", () => {
+  test("step copy and the button that only says send when it sends", async () => {
+    const { ENTER_PRICE_STEP, enterPriceButton, ENTER_PRICE_INTRO, PRICE_NOT_SENT_PREFIX, PRICE_ENTRY_REFUSED, canEnterPrice } = await import("../src/lib/installer-price.core");
+    expect(ENTER_PRICE_STEP).toEqual({ title: "Enter your price", send: "Send quote to owner", save: "Save", note: "Your price stays editable until the quote is sent." });
+    expect(enterPriceButton(false)).toBe("Save");
+    expect(enterPriceButton(true)).toBe("Send quote to owner");
+    const { NEXT_STEP_WORDS } = await import("../src/lib/next-step-box.core");
+    expect(NEXT_STEP_WORDS.enterPriceTitle).toBe(ENTER_PRICE_STEP.title);
+    // Trade-facing rules: says the quote goes by itself after the price; no pay threats, no "HIV", no "fixes".
+    const all = [ENTER_PRICE_INTRO, PRICE_NOT_SENT_PREFIX, PRICE_ENTRY_REFUSED, ...Object.values(ENTER_PRICE_STEP)].join("\n");
+    expect(ENTER_PRICE_INTRO).toMatch(/goes to the owner by itself/);
+    expect(all).not.toMatch(/\bHIV\b|\bfixes\b|no payment|won't be paid/i);
+    // Boss and Office enter prices; Lead Installer / crew / electricians (member, null) never.
+    expect(canEnterPrice("business_admin")).toBe(true);
+    expect(canEnterPrice("office")).toBe(true);
+    expect(canEnterPrice("member")).toBe(false);
+    expect(canEnterPrice(null)).toBe(false);
+  });
+  test("send-on-press switch ships off", async () => {
+    const { OWN_CUSTOMER_SEND_ON_PRESS_ENABLED } = await import("../src/lib/auto-quote-send.core");
+    expect(OWN_CUSTOMER_SEND_ON_PRESS_ENABLED).toBe(false);
+  });
+});
+
 describe("wiring (source facts)", () => {
   const read = (f: string) => readFileSync(f, "utf8");
-  test("server: business admin only, append-only event, prepares through the existing guarded paths, never sends", () => {
+  test("server: Boss or Office only, append-only event, prepares through the existing guarded paths, never sends by itself", () => {
     const s = read("src/lib/installer-price-set.server.ts");
-    expect(s).toContain("await requireMember(userId, j.originating_installer_business_id, true);");
-    expect(s).toContain('!== "business_admin") return null');
+    // Task 4: the price entry check is the Part 5 role rule (seesPrices), not business_admin-only; the HIV switch stays boss-only.
+    expect(s).toContain("requireCanEnterPrice(userId, j.originating_installer_business_id)");
+    expect(s).toContain("if (!canEnterPrice(");
+    expect(s).not.toContain('!== "business_admin") return null');
+    const sw = s.slice(s.indexOf("export async function switchToHivElectrician"));
+    expect(sw).toContain("await requireMember(userId, j.originating_installer_business_id, true);");
     expect(s).toContain("logEvent(jobId, userId, INSTALLER_PRICE_EVENT");
     expect(s).not.toMatch(
       /sendRealSms|sendGuardedOwnerEmail|releaseQuoteToOwner|\.update\(\{ *price/,
@@ -436,16 +465,18 @@ describe("wiring (source facts)", () => {
   });
   test("job page: the card renders for the boss on their own jobs only; staff see nothing about price; no electrician question on the card", () => {
     const page = read("src/routes/_authenticated/field.$jobId.tsx");
+    // Part 10 Task 4: Boss AND Office (page.prices = Part 5 seesPrices) get the card; everyone else sees nothing about price.
     expect(page).toContain(
-      '{page.boss && page.channel === "installer_sourced" && <InstallerPriceCard jobId={jobId} />}',
+      'const showPrice = box.kind === "enter_price" && page.prices && page.channel === "installer_sourced";',
     );
+    expect(page).toContain("{showPrice && <div className=\"mt-4\"><InstallerPriceCard jobId={jobId} /></div>}");
     expect(page).not.toContain("Your price goes in the Mitti form");
     expect(read("src/lib/trade-view.server.ts")).toContain("pay: { amount: c.boss ? pay : null");
     // The owner's quote (with the boss's figures) is status-only for team members on installer jobs.
     // (Speed, decision 280: the read body lives in my-owner-quote.server.ts so the installer job bundle shares it.)
     expect(read("src/lib/installer-quote-status.functions.ts")).toContain("myOwnerQuoteFor(");
     expect(read("src/lib/my-owner-quote.server.ts")).toContain(
-      "if (!ctx?.boss) return { applies: true as const, priceHidden: true as const",
+      "if (!ctx?.prices) return { applies: true as const, priceHidden: true as const",
     );
     const card = read("src/components/trade/InstallerPriceCard.tsx");
     expect(card).toContain("if (!view?.canSet) return null;");
@@ -492,7 +523,7 @@ describe("wiring (source facts)", () => {
       }).kind,
     ).not.toBe("price");
     expect(read("src/routes/_authenticated/field.$jobId.tsx")).toContain(
-      'page.boss && page.channel === "installer_sourced" && <InstallerPriceCard',
+      'box.kind === "enter_price" && page.prices && page.channel === "installer_sourced"',
     );
     const set = read("src/lib/installer-price-set.server.ts");
     expect(set).toContain(
@@ -572,7 +603,10 @@ describe("removal tick refused when the Ready Check says no removal (Jo 27 Oct 2
       server.indexOf("export async function switchToHivElectrician"),
     );
     expect(body).toContain("runAfterResponse(() => prepareQuoteFromPortal(jobId, userId))");
-    expect(body).not.toContain("await prepareQuoteFromPortal(");
+    // Part 10 Task 4: the ONLY awaited prepare is the "Send quote to owner" press (send:true + the switch on) — Save never waits.
+    expect(body.match(/await prepareQuoteFromPortal\(/g)?.length).toBe(1);
+    expect(body).toContain("await prepareQuoteFromPortal(jobId, userId, true)");
+    expect(body.indexOf("opts.send && (opts.sendOnPressEnabled ?? OWN_CUSTOMER_SEND_ON_PRESS_ENABLED)")).toBeLessThan(body.indexOf("await prepareQuoteFromPortal(jobId, userId, true)"));
   });
 });
 

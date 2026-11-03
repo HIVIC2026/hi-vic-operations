@@ -1,7 +1,9 @@
 // Decision 278 (Jo 25 Oct 2026): the business owner's "Your price" card — reading it and saving it. Kept apart from the
 // read-only `installer-price.server.ts` (which sits on the autoAdvance graph) because saving re-runs the guarded Mitti
-// sync to prepare the owner's quote. Business admin only (`requireMember(userId, businessId, true)`); team members are
-// refused and the card returns null for them. Append-only event; never sends anything.
+// sync to prepare the owner's quote. Part 10 Task 4 (Jo 3 Nov 2026): the BOSS or the OFFICE enters the price (Part 5 role
+// rule `seesPrices` via `canEnterPrice`); Lead Installers, crew and electricians are refused server-side and the card returns
+// null for them. Append-only event. "Send quote to owner" (only while OWN_CUSTOMER_SEND_ON_PRESS_ENABLED) releases through
+// the SAME guarded auto-send (`maybeAutoSendInstallerQuote`, every check); otherwise this module never sends anything.
 // Decision 289: price + what is included only; the electrician was chosen at Add a job and is shown read-only.
 // Decision 290 (corrected): the card shows the Ready Check's access rating and issue notes as the flag (no fee question).
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
@@ -9,7 +11,9 @@ import { WorkflowError, logEvent } from "./workflow.server";
 import {
   HIV_SWITCH,
   INSTALLER_PRICE_EVENT,
+  PRICE_ENTRY_REFUSED,
   PRICE_LOCKED,
+  canEnterPrice,
   hivSwitchOffered,
   priceCardLocked,
   priceEventSummary,
@@ -20,7 +24,6 @@ import {
 import { readInstallerPriceState, type StoredInstallerPrice } from "./installer-price.server";
 import { early } from "./early-read";
 // Namespaces: tests replace these modules with partial mocks; a namespace never fails on a missing export.
-import * as pilotServer from "./pilot.server";
 import * as usualElectricianServer from "./usual-electrician.server";
 import * as electricianChoiceServer from "./electrician-choice.server";
 import * as quoteStatusServer from "./installer-quote-status.server";
@@ -59,6 +62,25 @@ async function a1JobOrThrow(jobId: string) {
   };
 }
 
+/** Part 10 Task 4: Boss or Office of the job's business (Part 5 `seesPrices`); anyone else is refused before any write. */
+async function requireCanEnterPrice(userId: string, businessId: string): Promise<void> {
+  if (!canEnterPrice(await memberRoleFor(userId, businessId))) throw new WorkflowError(PRICE_ENTRY_REFUSED);
+}
+/** The sign-in's ACTIVE membership row for this business (`business_members.member_role`: business_admin / office /
+ *  member), read directly — `myBusinesses` folds Office into "member". Null = not a member. Read errors fail closed. */
+async function memberRoleFor(userId: string, businessId: string): Promise<string | null> {
+  const { data, error } = await admin
+    .from("business_members")
+    .select("member_role")
+    .eq("business_id", businessId)
+    .eq("user_id", userId)
+    .eq("active", true)
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new WorkflowError("Your business membership could not be read.");
+  return (data as { member_role?: string | null } | null)?.member_role ?? null;
+}
+
 /** The current Ready Check snapshot's entries (empty when no Mitti form yet) and whether it says removal is needed
  *  (null when there is no current Ready Check at all). Read-only. */
 async function currentReadyCheck(jobId: string): Promise<{
@@ -94,7 +116,7 @@ async function currentReadyCheck(jobId: string): Promise<{
   };
 }
 
-/** The boss's "Your price" card: the saved price, the job's electrician choice (read-only) and the access flag. Team members: null (nothing shown). */
+/** The Boss's / Office's "Your price" card: the saved price, the job's electrician choice (read-only) and the access flag. Everyone else: null (nothing shown). */
 export async function installerPriceView(jobId: string, userId: string) {
   // Speed (installer screens, Task 6): the job, the caller's memberships and every card read that needs only the job id
   // start together; the usual electrician follows the job's business. Nothing is used or returned until the job and the
@@ -108,7 +130,7 @@ export async function installerPriceView(jobId: string, userId: string) {
       .eq("id", jobId)
       .maybeSingle(),
   );
-  const mineP = early(pilotServer.myBusinesses(userId));
+  const roleP = early(jobP.then(({ data: jj }) => (jj?.originating_installer_business_id ? memberRoleFor(userId, jj.originating_installer_business_id) : null)));
   const stateP = early(readInstallerPriceState(jobId));
   const usualP = early(
     jobP.then(({ data: jj }) =>
@@ -138,7 +160,7 @@ export async function installerPriceView(jobId: string, userId: string) {
   );
   const { data: j } = await jobP;
   if (!j || !priceFromPortal(j.channel) || !j.originating_installer_business_id) return null;
-  if ((await mineP).get(j.originating_installer_business_id) !== "business_admin") return null;
+  if (!canEnterPrice(await roleP)) return null;
   const [state, usual, recorded, readyCheck] = await Promise.all([
     stateP,
     usualP,
@@ -175,6 +197,7 @@ export async function installerPriceView(jobId: string, userId: string) {
     sent.failed ||
     priceCardLocked({ quoteSentAt: sent.at, newQuoteRequestedAt: state.newQuoteRequestedAt });
   const { APPROVED_PRODUCTS } = await import("./insulation-product.core");
+  const { OWN_CUSTOMER_SEND_ON_PRESS_ENABLED } = await import("./auto-quote-send.core");
   let hivSwitch: { priceIncGst: number } | null = null;
   if (
     hivSwitchOffered({
@@ -195,6 +218,8 @@ export async function installerPriceView(jobId: string, userId: string) {
     canSet: true as const,
     current: stored,
     locked,
+    /** Task 4: the button says "Send quote to owner" only while pressing it sends (`enterPriceButton`). */
+    sendOnPress: OWN_CUSTOMER_SEND_ON_PRESS_ENABLED,
     productOptions: APPROVED_PRODUCTS.map((p) => p.option),
     mittiProduct: product?.option ?? null,
     hivSwitch,
@@ -215,10 +240,15 @@ export async function installerPriceView(jobId: string, userId: string) {
   };
 }
 
-/** Prepare (never send) the owner's quote from the portal price through the existing guarded Ready Check paths: the
- *  regular sync while the form is open; the completed-form draft + the auto-send decision once it is Complete. Any
- *  failure here is picked up by the 15-minute tick. */
-async function prepareQuoteFromPortal(jobId: string, userId: string): Promise<void> {
+export type PriceSendOutcome = { sent: boolean; reasons: string[] };
+const NOT_COMPLETE: PriceSendOutcome = { sent: false, reasons: ["Ready Check not marked Complete in Mitti yet"] };
+
+/** Prepare the owner's quote from the portal price through the existing guarded Ready Check paths: the regular sync while
+ *  the form is open; the completed-form draft + the auto-send decision once it is Complete. `send` (Task 4, only with
+ *  OWN_CUSTOMER_SEND_ON_PRESS_ENABLED) asks that ONE auto-send decision to release now (`enabled: true`) — every existing
+ *  release check still applies and a hold comes back as plain reasons. Without `send` nothing is sent here; any failure
+ *  is picked up by the 15-minute tick. */
+async function prepareQuoteFromPortal(jobId: string, userId: string, send = false): Promise<PriceSendOutcome> {
   try {
     await (await import("./mitti.server")).syncMittiAssessment(jobId, userId);
   } catch {
@@ -240,28 +270,34 @@ async function prepareQuoteFromPortal(jobId: string, userId: string): Promise<vo
       await (
         await import("./installer-quote.server")
       ).draftInstallerQuoteFromReadyCheck(jobId, userId, entries, String(m.external_id));
-      await (
+      const r = await (
         await import("./auto-quote-send.server")
       ).maybeAutoSendInstallerQuote(jobId, {
         formCompleted: true,
         formModifiedAt: a?.modified_at ?? a?.audit_data?.date_modified ?? null,
         entries,
+        ...(send ? { enabled: true } : {}),
       });
+      return { sent: r.sent, reasons: r.reasons };
     }
-  } catch {
-    /* tick */
+    return NOT_COMPLETE;
+  } catch (e) {
+    // Without `send` the tick retries; with it the screen is told plainly (the price is saved either way).
+    return { sent: false, reasons: [send ? `Couldn't prepare the quote: ${(e as Error).message}` : NOT_COMPLETE.reasons[0]!] };
   }
 }
 
-/** Business admin only. Append-only; the latest event is the price. Then the guarded paths prepare the draft quote. */
+/** Boss or Office. Append-only; the latest event is the price. Then the guarded paths prepare the draft quote — and, with
+ *  `opts.send` while OWN_CUSTOMER_SEND_ON_PRESS_ENABLED, ask the guarded auto-send to release it now (`sendOnPressEnabled`
+ *  is a test seam only; it defaults to the constant). */
 export async function setInstallerPrice(
   jobId: string,
   userId: string,
   input: InstallerPriceInput,
-): Promise<StoredInstallerPrice> {
+  opts: { send?: boolean; sendOnPressEnabled?: boolean } = {},
+): Promise<{ stored: StoredInstallerPrice; sent: boolean; reasons: string[] }> {
   const j = await a1JobOrThrow(jobId);
-  const { requireMember } = await import("./pilot.server");
-  await requireMember(userId, j.originating_installer_business_id, true);
+  await requireCanEnterPrice(userId, j.originating_installer_business_id);
   // Jo 31 Oct 2026: once the quote has gone to the owner the card is locked (the office reopens it with a new-quote request). Checked before any write.
   const [state, quoteSentAt] = await Promise.all([
     readInstallerPriceState(jobId),
@@ -302,11 +338,18 @@ export async function setInstallerPrice(
   );
   const stored = (await readInstallerPriceState(jobId)).stored;
   if (!stored) throw new WorkflowError("The price was not saved.");
+  const { OWN_CUSTOMER_SEND_ON_PRESS_ENABLED } = await import("./auto-quote-send.core");
+  if (opts.send && (opts.sendOnPressEnabled ?? OWN_CUSTOMER_SEND_ON_PRESS_ENABLED)) {
+    // Task 4: "Send quote to owner" — prepared and released inline through the one guarded auto-send; a hold's plain
+    // reasons go back to the screen with the saved price.
+    const r = await prepareQuoteFromPortal(jobId, userId, true);
+    return { stored, sent: r.sent, reasons: r.reasons };
+  }
   // Tom 31 Oct 2026: Save answers as soon as the price is stored. The quote (two Mitti reads + draft) is prepared after
   // the reply; if that is cut short the 15-minute tick prepares it, as it always has.
   const { runAfterResponse } = await import("./background.server");
   runAfterResponse(() => prepareQuoteFromPortal(jobId, userId));
-  return stored;
+  return { stored, sent: false, reasons: [] };
 }
 
 /** Jo 28 Oct 2026: the installer's own ONE-WAY switch to HIV's electrician, only while the job is held for a not-onboarded

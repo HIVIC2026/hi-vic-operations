@@ -1665,6 +1665,8 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
     boss: c.boss,
     // Fix wave C2: the page branches on these (an Office person has no my_job_role answer).
     role: c.role, kind: c.kind,
+    // Part 10 Task 4: Boss and Office see and enter prices (trade-access-role.core seesPrices); the price card renders on this.
+    prices: c.prices,
     quote: quote.applies ? { line: installerQuoteLine(quote), sent: quote.sent, accepted: quote.accepted, declined: quote.declined, held: quote.held, formCompleted: quote.formCompleted === true, sentAt: qq?.sent_at ?? null, acceptedAt: qq?.accepted_at ?? null, declinedAt: quote.declined ? declinedEv?.created_at ?? null : null } : null,
     pay: { amount: c.money ? pay : null, areaM2: m?.measured_area_m2 == null ? null : Number(m.measured_area_m2), removalM2: m?.removal_required && m.removal_m2 != null ? Number(m.removal_m2) : null },
     piesa: { passedOn: a?.status === "complete" && a.piesa_outcome === "pass" ? a.completed_at ?? null : null, bookedAt: a?.status === "complete" ? null : piesaBook?.scheduled_start ?? null, electrician: elecName, fixesNote: (fixes ?? []).length ? (fixes ?? []).map((f) => f.description).join(", ") : null,
