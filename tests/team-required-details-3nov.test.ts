@@ -16,7 +16,7 @@ test("installer: no date of birth is refused", () => {
   expect(teamMemberDetails("installer", { ...ok, dateOfBirth: null }, T)).toEqual({ ok: false, error: "Add their date of birth for ESC registration." });
 });
 test("installer: email is optional", () => {
-  expect(teamMemberDetails("installer", ok, T)).toEqual({ ok: true, mobile: "0412345678", email: null, dateOfBirth: "1990-01-01" });
+  expect(teamMemberDetails("installer", ok, T)).toEqual({ ok: true, mobile: "+61412345678", email: null, dateOfBirth: "1990-01-01" });
 });
 test("electrician: no email is refused", () => {
   expect(teamMemberDetails("electrician", ok, T)).toEqual({ ok: false, error: TEAM_ERRORS.email });

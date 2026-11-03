@@ -42,8 +42,12 @@ export const saveWorker = createServerFn({ method: "POST" }).middleware([require
     if (!office) await requireMember(context.userId, data.business_id, true);
     if (data.trade_role === "electrician" && !data.licence_number) throw new Error("Add the electrician's licence number.");
     if (data.trade_role === "installer" && !data.qualification) throw new Error("Add the installer's qualification (e.g. Cert III or 'Experienced installer').");
-    const { id, ...rest } = data;
+    const { id, date_of_birth, ...rest } = data;
     const fields = { ...rest, email: rest.email ?? null, licence_number: rest.licence_number ?? null, qualification: rest.qualification ?? null };
+    // Jo 3 Nov 2:37pm: a new person needs an Australian mobile + date of birth (+ email for electricians).
+    const req = id ? null : (await import("./team-required.core")).teamMemberDetails(data.trade_role, { mobile: rest.mobile, email: rest.email, dateOfBirth: date_of_birth }, (await import("./melbourne-time.core")).melbourneToday());
+    if (req && !req.ok) throw new Error(req.error);
+    if (req?.ok) { fields.mobile = req.mobile; fields.email = req.email; }
     if (id) {
       const { data: before, error } = await admin.from("partner_workers").select("*").eq("id", id).eq("business_id", data.business_id).maybeSingle();
       if (error || !before) throw new Error("Worker not found.");
@@ -52,8 +56,11 @@ export const saveWorker = createServerFn({ method: "POST" }).middleware([require
       if (ue) throw new Error(ue.message);
       return { ok: true, pending: reapprove || before.approval_status === "pending" };
     }
-    const { error } = await admin.from("partner_workers").insert({ ...fields, added_by: context.userId, approval_status: office ? "approved" : "pending", ...(office ? { approved_by: context.userId, approved_at: new Date().toISOString() } : {}) } as never);
+    const { data: added, error } = await admin.from("partner_workers").insert({ ...fields, added_by: context.userId, approval_status: office ? "approved" : "pending", ...(office ? { approved_by: context.userId, approved_at: new Date().toISOString() } : {}) } as never).select("id").single();
     if (error) throw new Error(error.code === "23505" ? "A worker with that email is already listed." : error.message);
+    const workerId = (added as { id: string }).id;
+    const { error: ie } = await admin.from("partner_worker_identity" as never).insert({ worker_id: workerId, date_of_birth: req?.ok ? req.dateOfBirth : null, updated_by: context.userId } as never);
+    if (ie) { await admin.from("partner_workers").delete().eq("id", workerId); throw new Error("Couldn't add them. Please try again."); }
     return { ok: true, pending: !office };
   });
 
