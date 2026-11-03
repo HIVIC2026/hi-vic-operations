@@ -35,6 +35,9 @@ ALTER TABLE bookings ADD COLUMN assignment_id uuid;
 ALTER TABLE partner_workers ADD COLUMN email text, ADD COLUMN worker_role text, ADD COLUMN trade_role text;
 ALTER TABLE assessments ADD COLUMN external_mitti_id text, ADD COLUMN status text, ADD COLUMN mitti_completed boolean;
 CREATE TABLE ceiling_measurements (id uuid primary key default gen_random_uuid(), job_id uuid, external_source text, external_id text, status text, is_current boolean default true);
+ALTER TABLE jobs ADD COLUMN job_number text, ADD COLUMN deleted_at timestamptz, ADD COLUMN qa_archived_at timestamptz;
+ALTER TABLE quotes ADD COLUMN version int, ADD COLUMN customer_total_inc_gst numeric, ADD COLUMN accepted_at timestamptz;
+CREATE TABLE business_credentials (id uuid primary key default gen_random_uuid(), business_id uuid, kind text, label text, expires_at date, verification text);
 CREATE TABLE pre_start_checks (id uuid primary key default gen_random_uuid(), job_id uuid, booking_id uuid, scheduled_start timestamptz, passed boolean, failures jsonb, trigger text, checked_at timestamptz default clock_timestamp());
 `);
 const stored = new Map<string, Uint8Array>();
@@ -60,13 +63,17 @@ const admin = { ...shim, storage, from(table: string) {
 } };
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: admin }));
 const IN_HOUSE = new Set<string>();
-const piisaCreates: string[] = [], formDates: unknown[][] = [];
-mock.module("../src/lib/in-house-suppression.server", () => ({ readInHouseDispatchState: async (ids?: string[]) => ({ failed: false, held: new Set((ids ?? [...IN_HOUSE]).filter((i) => IN_HOUSE.has(i))) }) }));
+const piisaCreates: string[] = [], formDates: unknown[][] = [], piisaNoAssignee: string[] = [];
+mock.module("../src/lib/in-house-suppression.server", () => ({
+  readInHouseDispatchState: async (ids?: string[]) => ({ failed: false, held: new Set((ids ?? [...IN_HOUSE]).filter((i) => IN_HOUSE.has(i))) }),
+  inHouseDispatchSkip: async (j: string) => (IN_HOUSE.has(j) ? "in_house" : null),
+}));
 mock.module("../src/lib/mitti.server", () => ({
   realMittiCall: async () => { throw new Error("Unexpected Mitti call"); },
-  createPiisaMittiAudit: async (j: string, _a: string | null, _c: unknown, o: { assignee?: { email: string } }) => {
+  createPiisaMittiAudit: async (j: string, _a: string | null, _c?: unknown, o?: { assignee?: { email: string } }) => {
     piisaCreates.push(j);
-    await db.query("insert into workflow_events (job_id, event_type, summary, details, internal) values ($1,'mitti_piisa_audit_created','PIISA created',$2,true)", [j, JSON.stringify({ audit_id: `A5-${j}`, email: o.assignee?.email })]);
+    if (!o?.assignee) piisaNoAssignee.push(j); // fix 2: the auto-send's call (no Lead Installer) — must never happen for in-house jobs
+    await db.query("insert into workflow_events (job_id, event_type, summary, details, internal) values ($1,'mitti_piisa_audit_created','PIISA created',$2,true)", [j, JSON.stringify({ audit_id: `A5-${j}`, email: o?.assignee?.email ?? null })]);
     return { auditId: `A5-${j}` };
   },
   findMittiUserByEmail: async (e: string) => e, reassignMittiFormTo: async () => {}, updateMittiInstallCrew: async () => {},
@@ -76,6 +83,18 @@ mock.module("../src/lib/coes-owner-copy.server", () => ({ sendCoesOwnerCopy: asy
 mock.module("../src/lib/in-house-booking.server", () => ({ leadNoticeBlocker: async () => null, latestLeadNotice: async () => null }));
 mock.module("../src/lib/ready-check-draft.server", () => ({ rcWorksBlockers: async () => [] }));
 mock.module("../src/lib/installer-intake.server", () => ({ siteConditionsHoldFor: async () => ({ open: false, note: null }) }));
+// Fix 2: runPrestart's fact gathering runs for real; the pure verdict can be forced so a "Run check" pass is reachable
+// without seeding every pre-start reader (consent, ESC, SWMS, payments …). null = the real rule.
+let FORCED_FAILURES: string[] | null = null;
+const realPrestartCore = await import("../src/lib/prestart.core");
+const realPrestartFailures = realPrestartCore.prestartFailures;
+mock.module("../src/lib/prestart.core", () => ({ ...realPrestartCore, prestartFailures: (f: PrestartFacts) => FORCED_FAILURES ?? realPrestartFailures(f) }));
+const realConsent = await import("../src/lib/consent.server");
+mock.module("../src/lib/consent.server", () => ({ ...realConsent, currentConsent: async () => null }));
+const realPayments = await import("../src/lib/payments.server");
+mock.module("../src/lib/payments.server", () => ({ ...realPayments, jobPaymentView: async () => null }));
+const realEsc = await import("../src/lib/esc.server");
+mock.module("../src/lib/esc.server", () => ({ ...realEsc, piesaCopyDeliveries: async () => [] }));
 const realWorkflow = await import("../src/lib/workflow.server");
 mock.module("../src/lib/workflow.server", () => ({
   ...realWorkflow,
@@ -309,11 +328,89 @@ describe("fix 1: in-house install form held while the certificate is outstanding
   });
   test("wiring: the sweep releases the held form on a pass; the tick paths release it; the PIISA auto-send still decides on the gate first", () => {
     const src = (f: string) => readFileSync(new URL(`../src/lib/${f}`, import.meta.url), "utf8");
-    const sweep = src("prestart.server.ts").split("export async function sweepPrestart")[1]!.split("\nexport ")[0]!;
-    expect(/r\?\.passed && r\.changed\) \{\s*await \(await import\("\.\/in-house-forms\.server"\)\)\.releaseHeldInstallForm\(b\.job_id, null\)/.test(sweep)).toBe(true);
+    // Fix 2: the release lives in runPrestart (every caller: the sweep, office "Run check", ESC paths), on ANY pass.
+    const run = src("prestart.server.ts").split("export async function runPrestart")[1]!.split("\nexport ")[0]!;
+    expect((run.match(/if \(passed\) await afterPrestartPass\(jobId\)/g) ?? []).length).toBe(2);
     expect(src("coes-check.server.ts")).toMatch(/releaseHeldAfterTick\(jobId, actorId\)/);
     const auto = src("piisa-autosend.server.ts");
     expect(auto.indexOf("prestartGate(j.id, now)")).toBeGreaterThan(-1);
     expect(auto.indexOf("prestartGate(j.id, now)")).toBeLessThan(auto.indexOf("createPiisaMittiAudit(j.id"));
+  });
+});
+
+// ---------- Fix 2 (reviewer, fix round 1): the held form is released on ANY recorded pass; the auto-send skips in-house ----------
+const NOW = new Date("2027-03-10T05:00:00Z"); // 4pm Melbourne the day before BOOK_AT (11 Mar 8am): inside the check window
+const J_IH_RUN = id(506), J_IH_SWEEP = id(507), J_OWN = id(508);
+await seedInHouse(J_IH_RUN, { upgrades: true });
+await seedInHouse(J_IH_SWEEP, { upgrades: true });
+// An own job (not in-house), no upgrades, booked for the same start: the auto-send makes its form as before.
+await seedJob(J_OWN, { snap: snapshot({ upgrades: "No" }) });
+await db.query("update jobs set stage='installation_booked' where id=$1", [J_OWN]);
+await db.query("insert into bookings (job_id, kind, status, scheduled_start) values ($1,'installation','confirmed',$2)", [J_OWN, BOOK_AT]);
+const checks = async (j: string) => (await db.query<{ passed: boolean; trigger: string }>("select passed, trigger from pre_start_checks where job_id=$1 order by checked_at", [j])).rows;
+
+describe("fix 2: held in-house install form released on any pre-start pass", () => {
+  test("reviewer's scenario: 12pm check fails on the certificate → tick while locked (waits) → office 'Run check' records the pass → form created once; a later sweep makes no second form", async () => {
+    await bookingFormsStep(J_IH_RUN);
+    await addFile(J_IH_RUN);
+    await db.query("insert into pre_start_checks (job_id, scheduled_start, passed, failures, trigger) values ($1,$2,false,$3,'timer')", [J_IH_RUN, BOOK_AT, JSON.stringify(["Check electrical certificate — not checked yet"])]);
+    await coes.officeTickCoes(J_IH_RUN, null, OFFICE);
+    expect(piisaCreates).not.toContain(J_IH_RUN);
+    FORCED_FAILURES = [];
+    try {
+      expect(await prestart.runPrestart(J_IH_RUN, "office", NOW)).toEqual({ passed: true, failures: [], changed: true });
+      expect(piisaCreates.filter((j) => j === J_IH_RUN)).toHaveLength(1);
+      expect(piisaNoAssignee).not.toContain(J_IH_RUN);
+      await prestart.sweepPrestart(NOW);
+      expect(piisaCreates.filter((j) => j === J_IH_RUN)).toHaveLength(1);
+      expect((await checks(J_IH_RUN)).map((c) => c.passed)).toEqual([false, true]);
+    } finally { FORCED_FAILURES = null; }
+  });
+  test("a pass already on file (changed:false) still releases a held form — once", async () => {
+    await bookingFormsStep(J_IH_SWEEP);
+    await addFile(J_IH_SWEEP);
+    // The pass was recorded earlier by another path (nobody released then); the certificate is ticked after.
+    await db.query("insert into pre_start_checks (job_id, scheduled_start, passed, failures, trigger) values ($1,$2,true,'[]','esc_submitted')", [J_IH_SWEEP, BOOK_AT]);
+    await db.query("update jobs set stage='installation_scheduling' where id=$1", [J_IH_SWEEP]); // tick before the job is at installation_booked
+    await coes.officeTickCoes(J_IH_SWEEP, null, OFFICE);
+    await db.query("update jobs set stage='installation_booked' where id=$1", [J_IH_SWEEP]);
+    expect(piisaCreates).not.toContain(J_IH_SWEEP);
+    const before = (await checks(J_IH_SWEEP)).length;
+    FORCED_FAILURES = [];
+    try {
+      expect(await prestart.runPrestart(J_IH_SWEEP, "timer", NOW)).toEqual({ passed: true, failures: [], changed: false });
+      expect(piisaCreates.filter((j) => j === J_IH_SWEEP)).toHaveLength(1);
+      await prestart.sweepPrestart(NOW);
+      await prestart.sweepPrestart(NOW);
+      expect(piisaCreates.filter((j) => j === J_IH_SWEEP)).toHaveLength(1);
+      expect(await checks(J_IH_SWEEP)).toHaveLength(before); // nothing new recorded: every pass was "unchanged"
+    } finally { FORCED_FAILURES = null; }
+  });
+  test("a release that keeps failing is ONE office row, not a new one every sweep", async () => {
+    // J_IH_BROKEN (no Lead Installer) already has its one failure row from the tick above.
+    expect(await eventsOf(J_IH_BROKEN, "in_house_form_sync_failed")).toHaveLength(1);
+    FORCED_FAILURES = [];
+    try { await prestart.sweepPrestart(NOW); await prestart.sweepPrestart(NOW); } finally { FORCED_FAILURES = null; }
+    expect(piisaCreates).not.toContain(J_IH_BROKEN);
+    expect(await eventsOf(J_IH_BROKEN, "in_house_form_sync_failed")).toHaveLength(1);
+    // Once the office has recovered it, a later failure is a new row.
+    await db.query("insert into workflow_events (job_id, event_type, summary, details, internal) values ($1,'in_house_form_sync_recovered','recovered','{}',true)", [J_IH_BROKEN]);
+    FORCED_FAILURES = [];
+    try { await prestart.sweepPrestart(NOW); await prestart.sweepPrestart(NOW); } finally { FORCED_FAILURES = null; }
+    const failed = await eventsOf(J_IH_BROKEN, "in_house_form_sync_failed");
+    expect(failed).toHaveLength(2);
+    expect(failed[1]!.details).toMatchObject({ needs_office: true, reason: "Choose the Lead Installer before creating the install form." });
+  });
+});
+
+describe("fix 2: the PIISA auto-send skips in-house jobs", () => {
+  test("an in-house job with no install form is skipped with the reason (never sent to the installer office's login); an own job is created as before", async () => {
+    const { sweepPiisaAutoSend } = await import("../src/lib/piisa-autosend.server");
+    const r = await sweepPiisaAutoSend({ now: NOW, allowTest: true });
+    const of = (j: string) => r.results.find((x) => x.jobId === j);
+    expect(of(J_IH_BROKEN)).toMatchObject({ outcome: "skipped", message: "in-house job — install form is made from the job" });
+    expect(piisaNoAssignee).not.toContain(J_IH_BROKEN);
+    expect(of(J_OWN)).toMatchObject({ outcome: "created" });
+    expect(piisaNoAssignee).toEqual([J_OWN]);
   });
 });

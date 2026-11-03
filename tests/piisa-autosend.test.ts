@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import {
-  PIISA_AUDIT_CREATED_EVENT, PIISA_AUTOSEND_OFFICE_EVENT, PIISA_AUTOSEND_RETRY_AFTER_HOURS, PIISA_AUTOSEND_TEST_ALLOWED, installDayInWindow, piisaAutoSendDecision,
+  PIISA_AUDIT_CREATED_EVENT, PIISA_AUTOSEND_IN_HOUSE_REASON, PIISA_AUTOSEND_OFFICE_EVENT, PIISA_AUTOSEND_RETRY_AFTER_HOURS, PIISA_AUTOSEND_TEST_ALLOWED, installDayInWindow, piisaAutoSendDecision,
   piisaAutoSendOfficeAlertDue, piisaFormFailedOpen, type PiisaAutoSendFacts,
 } from "../src/lib/piisa-autosend.core";
 import { buildNeedsRows } from "../src/lib/office-needs.core";
@@ -69,5 +69,17 @@ describe("automatic PIISA Mitti form before install day (Jo 24 Oct 2026)", () =>
     expect(sweep).toContain("liveCertificateFact(j.id)");
     expect(sweep).toMatch(/prestartLocked: gate\.locked \|\| certificateOutstanding/);
     expect(sweep.indexOf("liveCertificateFact(j.id)")).toBeLessThan(sweep.indexOf("createPiisaMittiAudit(j.id"));
+  });
+  test("Part 3 Task 4 fix 2: in-house jobs are skipped — their install form is made from the job (for the Lead Installer), never by the auto-send", () => {
+    expect(PIISA_AUTOSEND_IN_HOUSE_REASON).toBe("in-house job — install form is made from the job");
+    expect(piisaAutoSendDecision({ ...ok, inHouse: true }, now)).toEqual({ action: "skip", reason: PIISA_AUTOSEND_IN_HOUSE_REASON });
+    // Fail closed: the partner read failed → skip (retried next tick), never create.
+    expect(piisaAutoSendDecision({ ...ok, inHouse: null }, now)).toEqual({ action: "skip", reason: "couldn't check whether this is an in-house job — trying again next tick" });
+    // Own jobs and HIV leads (not in-house) are unchanged.
+    expect(piisaAutoSendDecision({ ...ok, inHouse: false }, now)).toEqual({ action: "create" });
+    expect(piisaAutoSendDecision({ ...ok, inHouse: false, prestartLocked: true }, now)).toEqual({ action: "skip", reason: "pre-start check not cleared" });
+    const sweep = readFileSync(new URL("../src/lib/piisa-autosend.server.ts", import.meta.url), "utf8");
+    expect(sweep).toContain("isInHouseFormJob(j.id)");
+    expect(sweep.indexOf("isInHouseFormJob(j.id)")).toBeLessThan(sweep.indexOf("createPiisaMittiAudit(j.id"));
   });
 });

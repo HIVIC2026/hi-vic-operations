@@ -43,12 +43,16 @@ export async function sweepPiisaAutoSend(opts: { now?: Date; allowTest?: boolean
     // Cheap facts first; the pre-start gate (several reads) only for jobs that would otherwise be created.
     const pre = piisaAutoSendDecision({ ...base, prestartLocked: false }, now, { allowTest: opts.allowTest ?? false });
     if (pre.action === "skip") { results.push({ jobId: j.id, jobNumber: j.job_number, outcome: "skipped", message: pre.reason }); continue; }
+    // Part 3 Task 4 fix 2 (4 Nov 2026): in-house jobs are skipped — their install form is made from the job for the Lead
+    // Installer (ensureInstallForm / releaseHeldInstallForm); this call has no assignee and no date sync. Fails closed.
+    const inHouse = await (await import("./in-house-forms.server")).isInHouseFormJob(j.id).catch(() => null);
+    if (inHouse !== false) { const s = piisaAutoSendDecision({ ...base, inHouse, prestartLocked: false }, now, { allowTest: opts.allowTest ?? false }); if (s.action === "skip") { results.push({ jobId: j.id, jobNumber: j.job_number, outcome: "skipped", message: s.reason }); continue; } }
     const gate = await prestartGate(j.id, now).catch(() => ({ locked: true, reasons: ["pre-start check could not be read"] }));
     // Part 3 Task 4 fix 1 (4 Nov 2026): the install can be booked before the Certificate of Electrical Safety is ticked, and
     // createPiisaMittiAudit refuses until it is (requirePrestartClear) — count it as locked so the tick skips, not fails.
     const certificateOutstanding = gate.locked ? false : await (await import("./certificate-later.server")).liveCertificateFact(j.id)
       .then((c) => c.certificate === "missing" || c.certificate === "unchecked").catch(() => true);
-    const d = piisaAutoSendDecision({ ...base, prestartLocked: gate.locked || certificateOutstanding }, now, { allowTest: opts.allowTest ?? false });
+    const d = piisaAutoSendDecision({ ...base, inHouse, prestartLocked: gate.locked || certificateOutstanding }, now, { allowTest: opts.allowTest ?? false });
     if (d.action === "skip") { results.push({ jobId: j.id, jobNumber: j.job_number, outcome: "skipped", message: d.reason }); continue; }
     if (opts.dryRun) { results.push({ jobId: j.id, jobNumber: j.job_number, outcome: "skipped", message: "dry run – would create" }); continue; }
     try {

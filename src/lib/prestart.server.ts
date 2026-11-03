@@ -119,13 +119,39 @@ export async function runPrestart(jobId: string, trigger: string, now = new Date
   const failures = prestartFailures(await prestartFacts(jobId, b.scheduled_start));
   const passed = failures.length === 0;
   const prev = await latestCheck(jobId);
-  if (prev && Date.parse(prev.scheduled_start) === Date.parse(b.scheduled_start) && prev.passed === passed && JSON.stringify(prev.failures) === JSON.stringify(failures)) return { passed, failures, changed: false };
+  if (prev && Date.parse(prev.scheduled_start) === Date.parse(b.scheduled_start) && prev.passed === passed && JSON.stringify(prev.failures) === JSON.stringify(failures)) {
+    if (passed) await afterPrestartPass(jobId);
+    return { passed, failures, changed: false };
+  }
   const { error } = await admin.from("pre_start_checks").insert({ job_id: jobId, booking_id: b.id, scheduled_start: b.scheduled_start, passed, failures: failures as unknown as Json, trigger });
   if (error) throw new Error(error.message);
   await logEvent(jobId, null, passed ? "prestart_cleared" : "prestart_failed", passed ? "Pre-start check passed — cleared to start" : `Pre-start check failed: ${failures.join(" ")} Installation form and evidence locked. Needs Home Insulation Victoria`, { scheduled_start: b.scheduled_start, failures, trigger }, { internal: true });
   // Decision 326: a failed check is an office item only (the event above → Needs me). There is no approved owner or
   // installer "pre-start check failed" wording, so nothing is queued or sent (the old outbox rows could never deliver).
+  if (passed) await afterPrestartPass(jobId);
   return { passed, failures, changed: true };
+}
+
+/** Part 3 Task 4 fix 2 (4 Nov 2026): on ANY pass (new or already on file, from the sweep, office "Run check" or the ESC
+ *  paths) an in-house job still holding its install form for the certificate gets it now. Idempotent (stage + existing-form
+ *  checks first). Never throws. A failure is ONE office row: none is added while an earlier one is still unrecovered. */
+async function afterPrestartPass(jobId: string) {
+  try {
+    await (await import("./in-house-forms.server")).releaseHeldInstallForm(jobId, null);
+  } catch (e) {
+    try {
+      if (await unrecoveredFormSyncFailure(jobId)) return;
+      await logEvent(jobId, null, "in_house_form_sync_failed", "In-house forms need office attention", { reason: e instanceof Error ? e.message : "Install form not created", needs_office: true }, { internal: true });
+    } catch { /* best effort: the next pass tries again */ }
+  }
+}
+/** An in_house_form_sync_failed row with no later recovered row (same rule as office-needs). A read failure says no,
+ *  so the office still hears about it (a duplicate row beats a missed one). */
+async function unrecoveredFormSyncFailure(jobId: string): Promise<boolean> {
+  const { data, error } = await admin.from("workflow_events").select("event_type, details, created_at").eq("job_id", jobId).in("event_type", ["in_house_form_sync_failed", "in_house_form_sync_recovered"]);
+  if (error) return false;
+  const rows = (data ?? []) as { event_type: string; details: { work_id?: unknown } | null; created_at: string }[];
+  return rows.some((f) => f.event_type === "in_house_form_sync_failed" && !rows.some((r) => r.event_type === "in_house_form_sync_recovered" && r.created_at >= f.created_at && (!f.details?.work_id || r.details?.work_id === f.details.work_id)));
 }
 
 /** Server-side lock for the PIISA send and installation evidence. */
@@ -160,13 +186,8 @@ export async function sweepPrestart(now = new Date()) {
   for (const b of data ?? []) {
     const r = await runPrestart(b.job_id, "timer", now).catch((e) => { console.error("pre-start check failed to run", (e as Error).message); return null; });
     if (r) { ran++; if (!r.passed) failed++; }
-    // Part 3 Task 4 fix 1: safety net — a newly recorded pass on an in-house job still holding its install form (the
-    // certificate was ticked while the day-before check said failed) creates the form now. Never fails the sweep.
-    if (r?.passed && r.changed) {
-      await (await import("./in-house-forms.server")).releaseHeldInstallForm(b.job_id, null).catch(async (e) => {
-        await logEvent(b.job_id, null, "in_house_form_sync_failed", "In-house forms need office attention", { reason: e instanceof Error ? e.message : "Install form not created", needs_office: true }, { internal: true }).catch(() => undefined);
-      });
-    }
+    // Part 3 Task 4 fix 2: every pass (changed or not) releases a held in-house install form inside runPrestart, so the
+    // sweep retries it each run and "Run check" / the ESC paths release it too.
   }
   return { ran, failed };
 }
