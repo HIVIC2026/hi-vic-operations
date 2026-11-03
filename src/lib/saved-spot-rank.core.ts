@@ -3,10 +3,14 @@
 export type SpotBand = "best" | "good" | "ok" | "weak";
 export const BAND_ORDER: readonly SpotBand[] = ["best", "good", "ok", "weak"];
 
+/** lead_campaign_responses.desk_check_status values; the first three are Jo's own outcomes. */
+export type DeskCheckStatus =
+  "looks_eligible" | "not_eligible" | "needs_onsite_check" | "pending" | "not_needed";
+
 export type SpotFacts = {
   insulation: "none" | "present" | "unknown" | null;
   insulationDetail: "thin" | "loose_fill" | "patchy" | "under_r2" | "thicker" | null;
-  deskCheck: "looks_eligible" | "not_eligible" | "needs_onsite_check" | "pending" | "not_needed" | null;
+  deskCheck: DeskCheckStatus | null;
   aiPhoto: "none" | "under_r2" | "over_r2" | "cant_tell" | null;
   propertyType: "house" | "townhouse" | "apartment" | null;
   topFloor: "yes" | "no" | null;

@@ -98,7 +98,7 @@ function oldGroups(homes: readonly AreaHome[]): string[][] {
 describe("groupByArea matches the original greedy", () => {
   test("random sets of homes, same groups in the same order", () => {
     let seed = 7;
-    const rnd = () => ((seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648);
+    const rnd = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
     for (let run = 0; run < 40; run++) {
       const n = 5 + Math.floor(rnd() * 120);
       const homes: AreaHome[] = Array.from({ length: n }, (_, i) => ({
@@ -108,7 +108,9 @@ describe("groupByArea matches the original greedy", () => {
         suburb: `S${Math.floor(rnd() * 5)}`,
         rankKey: i,
       }));
-      const got = groupByArea(homes).filter((g) => g.locationKnown).map((g) => g.jobIds);
+      const got = groupByArea(homes)
+        .filter((g) => g.locationKnown)
+        .map((g) => g.jobIds);
       expect(got).toEqual(oldGroups(homes));
     }
   });

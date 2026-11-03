@@ -210,7 +210,12 @@ describe("listing facts endpoint", () => {
 
   test("http(s) urls and a null url are accepted", async () => {
     addSpot("a", { band: "best", savedDaysAgo: 5 });
-    for (const url of ["https://example.com/l", "http://example.com/l", "HTTPS://Example.com/l", null])
+    for (const url of [
+      "https://example.com/l",
+      "http://example.com/l",
+      "HTTPS://Example.com/l",
+      null,
+    ])
       expect(
         (await handlers.POST({ request: req("POST", { results: [result("a", { url })] }) })).status,
       ).toBe(200);

@@ -37,7 +37,8 @@ const KEYS = [
 ] as const;
 const strOrNull = (v: unknown) => v === null || typeof v === "string";
 /** The listing link comes from a task reading web pages: only a plain http(s) address (or none) is kept. */
-const webUrlOrNull = (v: unknown) => v === null || (typeof v === "string" && /^https?:\/\/\S+$/i.test(v));
+const webUrlOrNull = (v: unknown) =>
+  v === null || (typeof v === "string" && /^https?:\/\/\S+$/i.test(v));
 const numOrNull = (v: unknown) =>
   v === null || (typeof v === "number" && Number.isFinite(v) && v >= 0);
 

@@ -54,9 +54,10 @@ export function groupByArea(homes: readonly AreaHome[]): AreaGroup[] {
   const count = near.map((l) => l.length);
   const taken = new Array<boolean>(n).fill(false);
   const groups: AreaHome[][] = [];
-  for (let left = n; left > 0; ) {
+  for (let left = n; left > 0;) {
     let centre = -1;
-    for (let i = 0; i < n; i++) if (!taken[i] && (centre < 0 || count[i]! > count[centre]!)) centre = i;
+    for (let i = 0; i < n; i++)
+      if (!taken[i] && (centre < 0 || count[i]! > count[centre]!)) centre = i;
     const members = near[centre]!.filter((k) => !taken[k]);
     for (const k of members) {
       taken[k] = true;
