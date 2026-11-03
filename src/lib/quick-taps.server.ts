@@ -24,7 +24,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { WorkflowError, logEvent } from "./workflow.server";
 import { AREA_BATCH_EVENTS, AREA_BATCH_SENT_EVENT, tapsBatchId, type AreaBatchEventRow } from "./area-batch.core";
 import {
-  QUICK_TAPS_ANSWERED_EVENT, QUICK_TAPS_ANSWER_REPLACED_EVENT, QUICK_TAPS_COPY, answersToSetAside, linkFromQuickTapsText, reaskText, QUICK_TAPS_DECLINE_REASON, locationAddress, normaliseAccess, locationNeedsRefresh, tapOutcome, websiteQuestions,
+  QUICK_TAPS_ANSWERED_EVENT, QUICK_TAPS_COPY, reaskText, QUICK_TAPS_DECLINE_REASON, locationAddress, normaliseAccess, locationNeedsRefresh, tapOutcome, websiteQuestions,
   type AddressParts, type FinalOutcome, type QuickTapAnswers, type QuickTapsView, type WebsiteAnswers, type WebsiteFacts, type WebsiteKey,
 } from "./quick-taps.core";
 import { formatPropertyAddress } from "./address";
@@ -393,47 +393,36 @@ async function emailDecline(c: Ctx, batchId: string, outcome: Exclude<FinalOutco
 
 
 // ---- One-off re-ask (Jo 3 Nov 2026, Mia HV-1405) --------------------------------------------------------------------
-export type ReaskResult = { batchId: string | null; setAside: number; reopened: boolean; texted: string | null; link: string | null; to: string | null; stage: string | null };
+export type ReaskResult = { oldBatchId: string | null; answered: string | null; installerId: string | null; installer: string | null; reopened: boolean; newBatchId: string | null; text: string | null };
 
-/** Let an owner answer the quick taps again for their open batch: set the stored answer aside (renamed, never deleted),
- *  reopen a cancelled job, and (with `sendText`) send Jo's approved re-ask text with their existing link. Dry run unless
- *  `apply`. Each step is skipped when already done, so running it twice does nothing more. */
-export async function reaskQuickTaps(jobId: string, opts: { apply: boolean; actorId: string; sendText: boolean }): Promise<ReaskResult> {
-  const { data: job, error } = await admin.from("jobs").select("stage, owners(full_name)").eq("id", jobId).maybeSingle();
-  if (error) throw new Error(`Could not read the job: ${error.message}`);
-  if (!job) throw new Error("Job not found.");
-  const { data: events, error: ee } = await loose.from("workflow_events").select("id, event_type, created_at, details").eq("job_id", jobId).in("event_type", [...AREA_BATCH_EVENTS, QUICK_TAPS_ANSWERED_EVENT]);
-  if (ee) throw new Error(`Could not read the batch history: ${ee.message}`);
-  const evs = (events ?? []) as (Ev & { id: string })[];
-  const batchId = tapsBatchId(evs);
-  if (!batchId) throw new Error("The job isn't in an open batch, so there is nothing to re-ask.");
-  const { data: lastText } = await admin.from("sms_messages").select("to_number, body").eq("job_id", jobId).eq("message_type", "quick_taps").order("created_at", { ascending: false }).limit(1).maybeSingle();
-  const link = linkFromQuickTapsText(lastText?.body);
-  const to = lastText?.to_number ?? null;
-  const toSetAside = answersToSetAside(evs, batchId);
-  const out: ReaskResult = { batchId, setAside: toSetAside.length, reopened: job.stage === "cancelled", texted: null, link, to, stage: job.stage };
+/** Let an owner answer the quick taps again. History can't be changed (workflow_events is append-only), so the owner gets a
+ *  FRESH batch for the same installer: reopen a cancelled job, mark it as having left its old batch, then the normal
+ *  sendBatch with Jo's approved re-ask text and no email. Their old answer stays with the old batch. Dry run unless
+ *  `apply`. Once done, the old batch is no longer the open one, so a second run finds nothing to re-ask. */
+export async function reaskQuickTaps(jobId: string, opts: { apply: boolean; actorId: string; now?: Date }): Promise<ReaskResult> {
+  const c = await load(jobId);
+  if (!c) throw new WorkflowError("Job not found.");
+  const oldBatchId = tapsBatchId(c.events);
+  const answer = oldBatchId ? c.events.find((e) => e.event_type === QUICK_TAPS_ANSWERED_EVENT && bid(e) === oldBatchId) ?? null : null;
+  const sent = oldBatchId ? c.events.find((e) => e.event_type === AREA_BATCH_SENT_EVENT && bid(e) === oldBatchId) : undefined;
+  const sd = (sent?.details ?? {}) as { installer_business_id?: unknown; installer_name?: unknown };
+  const out: ReaskResult = {
+    oldBatchId, answered: str((answer?.details as { outcome?: unknown } | null)?.outcome), installerId: str(sd.installer_business_id), installer: str(sd.installer_name),
+    reopened: c.job.stage === "cancelled", newBatchId: null, text: null,
+  };
+  if (!answer || !out.installerId) throw new WorkflowError("This owner hasn't answered the quick taps in an open batch — nothing to re-ask.");
   if (!opts.apply) return out;
 
-  const now = new Date().toISOString();
-  for (const e of toSetAside) {
-    const d = (e.details ?? {}) as Record<string, unknown>;
-    const details = { ...d, idempotency_key: `${String(d["idempotency_key"] ?? "")}:replaced:${now}`, replaced_at: now };
-    const { error: ue } = await loose.from("workflow_events").update({ event_type: QUICK_TAPS_ANSWER_REPLACED_EVENT, details }).eq("id", e.id).eq("event_type", QUICK_TAPS_ANSWERED_EVENT);
-    if (ue) throw new Error(`Could not set the old answer aside: ${ue.message}`);
-  }
-  if (toSetAside.length) await logEvent(jobId, opts.actorId, "quick_taps_reask", "Quick taps re-asked: owner tapped flat roof by mistake (Jo 3 Nov 2026)", { batch_id: batchId, set_aside: toSetAside.length, decision: "jo-2026-11-03" }, { internal: true });
-  if (job.stage === "cancelled") {
+  if (c.job.stage === "cancelled") {
     const { reopenJob } = await import("./office-actions.server");
-    await reopenJob(jobId, "Quick taps re-asked: flat roof tapped by mistake", opts.actorId);
+    await reopenJob(jobId, "Quick taps re-asked: flat roof tapped by mistake (Jo 3 Nov 2026)", opts.actorId);
   }
-  const { data: after } = await admin.from("jobs").select("stage").eq("id", jobId).maybeSingle();
-  out.stage = after?.stage ?? null;
-  if (opts.sendText) {
-    if (!link || !to) throw new Error("No earlier quick taps text to take the link and mobile from — nothing sent.");
-    const name = str((job as unknown as Job).owners?.full_name)?.split(/\s+/)[0] ?? "there";
-    const { sendRealSms } = await import("./sms.server");
-    const r = await sendRealSms({ type: "quick_taps", idempotencyKey: `quick-taps-reask:v1:${jobId}:${batchId}`, to, body: reaskText(name, link), jobId });
-    out.texted = `${r.status}: ${r.detail}`;
-  }
+  const { AREA_BATCH_LEFT_EVENT } = await import("./area-batch.core");
+  await claimOnce(jobId, AREA_BATCH_LEFT_EVENT, { batch_id: oldBatchId, reason: "quick_taps_reask", idempotency_key: `quick-taps-reask:v1:${oldBatchId}:${jobId}:left` },
+    "Quick taps re-asked (owner tapped flat roof by mistake) — out of the old batch, into a fresh one for the same installer");
+  const { sendBatch } = await import("./area-batch.server");
+  const r = await sendBatch([jobId], out.installerId, opts.actorId, { now: opts.now, ownerText: (name, link) => reaskText((name ?? "").trim().split(/\s+/)[0] || "there", link), emailOwner: false });
+  out.newBatchId = r.batchId;
+  out.text = r.texts.map((t) => `${t.status}: ${t.detail}`).join("; ") || null;
   return out;
 }

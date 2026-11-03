@@ -109,6 +109,10 @@ function installer(o: Partial<BatchInstaller> = {}): BatchInstaller {
 let installers: BatchInstaller[] = [];
 mock.module("../src/lib/installer-waiting.server", () => ({ installerFacts: async () => installers }));
 
+const reopens: string[] = [];
+mock.module("../src/lib/office-actions.server", () => ({
+  reopenJob: async (jobId: string) => { reopens.push(jobId); tables["jobs"]!.find((r) => r["id"] === jobId)!["stage"] = "ready_check_ready_to_schedule"; },
+}));
 const S = await import("../src/lib/area-batch.server");
 
 // ---- fixtures ---------------------------------------------------------------------------------------------------
@@ -580,5 +584,54 @@ describe("To release tick-to-Send", () => {
     expect(fn).toContain("z.array(z.string().uuid()).min(1).max(10)");
     expect(fn).toContain("for (const id of data.jobIds) await requireOfficeJob(context.supabase, id);");
     expect(fn).toContain("officeTestBusinessIds(context.supabase)");
+  });
+});
+
+// ---- one-off re-ask (Jo 3 Nov 2026, Mia HV-1405 tapped "flat roof" by mistake) ----------------------------------
+describe("reaskQuickTaps", () => {
+  beforeEach(() => { seed(); reopens.length = 0; });
+  const Q = () => import("../src/lib/quick-taps.server");
+  async function miaAfterFlat() {
+    addJob("m", { email: "m@example.com" });
+    (tables["jobs"]![0]!["owners"] as Row)["full_name"] = "Mia Sample";
+    await S.sendBatch(["m"], "biz-1", "jo", { now: NOW });
+    const b1 = String((events("area_batch_sent")[0]!["details"] as Row)["batch_id"]);
+    // What the old code saved when she tapped "Flat", then closed the job.
+    tables["workflow_events"]!.push({ id: "ans-1", job_id: "m", event_type: "quick_taps_answered", created_at: new Date(NOW.getTime() + 60_000).toISOString(),
+      details: { batch_id: b1, answers: { roof: "flat", hatch: "yes" }, outcome: "decline_access", consent_share: false, idempotency_key: `quick-taps:v1:${b1}:m:answered` } });
+    tables["jobs"]![0]!["stage"] = "cancelled";
+    sent.length = 0; emails.length = 0;
+    return b1;
+  }
+  test("dry run changes nothing", async () => {
+    const b1 = await miaAfterFlat(); const before = events().length;
+    const r = await (await Q()).reaskQuickTaps("m", { apply: false, actorId: "jo", now: NOW });
+    expect(r).toMatchObject({ oldBatchId: b1, answered: "decline_access", installerId: "biz-1", reopened: true, newBatchId: null });
+    expect(events().length).toBe(before); expect(reopens).toEqual([]); expect(sent).toEqual([]);
+  });
+  test("apply: reopened, fresh batch for the same installer, Jo's text only (no email), link asks again", async () => {
+    const b1 = await miaAfterFlat();
+    const Qs = await Q();
+    const r = await Qs.reaskQuickTaps("m", { apply: true, actorId: "jo", now: NOW });
+    expect(reopens).toEqual(["m"]);
+    expect(r.newBatchId).toBeTruthy(); expect(r.newBatchId).not.toBe(b1);
+    expect(events("quick_taps_answered")).toHaveLength(1); // old answer kept, unchanged
+    expect(events("area_batch_left").map((e) => (e["details"] as Row)["batch_id"])).toEqual([b1]);
+    expect(sent).toHaveLength(1);
+    expect(sent[0]!.body).toStartWith("Hi Mia, it's Home Insulation Victoria. Sorry, we think you may have tapped \"flat roof\" by mistake.");
+    expect(sent[0]!.body).toContain("my-job/T-m");
+    expect(emails).toEqual([]);
+    const { tapsBatchId, batchRowState } = await import("../src/lib/area-batch.core");
+    const evs = events().filter((e) => e["job_id"] === "m") as never[];
+    expect(tapsBatchId(evs)).toBe(r.newBatchId);
+    expect(batchRowState(evs)).toMatchObject({ kind: "waiting" });
+  });
+  test("a second run finds nothing to re-ask and sends nothing", async () => {
+    await miaAfterFlat();
+    const Qs = await Q();
+    await Qs.reaskQuickTaps("m", { apply: true, actorId: "jo", now: NOW });
+    sent.length = 0;
+    await expect(Qs.reaskQuickTaps("m", { apply: true, actorId: "jo", now: NOW })).rejects.toThrow("nothing to re-ask");
+    expect(sent).toEqual([]); expect(reopens).toEqual(["m"]);
   });
 });

@@ -74,11 +74,6 @@ const cancels: { jobId: string; reason: string; tell: unknown }[] = [];
 let cancelFails = false;
 const detailSaves: { jobId: string; v: Row; event: Row }[] = [];
 mock.module("../src/lib/office-actions.server", () => ({
-  reopenJob: async (jobId: string) => {
-    const j = tables["jobs"]!.find((r) => r["id"] === jobId)!;
-    reopens.push(jobId);
-    j["stage"] = "ready_check_ready_to_schedule";
-  },
   cancelJobFully: async (jobId: string, reason: string, _actor: string | null, opts: { tell?: unknown } = {}) => {
     if (cancelFails) throw new Error("cancel blew up");
     cancels.push({ jobId, reason, tell: opts.tell });
@@ -157,7 +152,6 @@ mock.module("../src/lib/property-coordinates.server", () => ({
   },
 }));
 
-const reopens: string[] = [];
 const S = await import("../src/lib/quick-taps.server");
 const B = await import("../src/lib/area-batch.server");
 const F = await import("../src/lib/quick-taps.functions");
@@ -874,44 +868,3 @@ describe("repairQuickTapsSharing (Jo 2 Nov 2026, HV-2730)", () => {
   });
 });
 
-// ---- one-off re-ask (Jo 3 Nov 2026, Mia HV-1405) ---------------------------------------------------------------------
-describe("reaskQuickTaps", () => {
-  beforeEach(() => { seed(); reopens.length = 0; tables["sms_messages"] = []; });
-  function mia() {
-    addJob("m", { name: "Mia Sample", stage: "cancelled" }); sendBatchEvent("b1", ["m"]);
-    // What the old code saved when she tapped "Flat".
-    tables["workflow_events"]!.push({ id: "ans-1", job_id: "m", event_type: "quick_taps_answered", created_at: new Date(++clock).toISOString(),
-      details: { batch_id: "b1", answers: { roof: "flat", hatch: "yes" }, outcome: "decline_access", consent_share: false, idempotency_key: "quick-taps:v1:b1:m:answered" } });
-    tables["sms_messages"]!.push({ job_id: "m", message_type: "quick_taps", to_number: "+61412000000", created_at: "2026-11-03T02:29:57Z",
-      body: "Hi Mia, great news - it's almost time for your free Ready Check! Please confirm a few quick details for your quote: https://estimate.homeinsulationvictoria.com.au/my-job/abcDEF123" });
-  }
-  test("before the fix: an old Flat answer still shows its old outcome on reload", async () => {
-    mia();
-    expect(await S.quickTapsState(tok("m"))).toEqual({ kind: "done", outcome: "decline_access" });
-  });
-  test("dry run changes nothing", async () => {
-    mia();
-    const r = await S.reaskQuickTaps("m", { apply: false, actorId: "jo", sendText: false });
-    expect(r).toMatchObject({ batchId: "b1", setAside: 1, reopened: true, texted: null, link: "https://estimate.homeinsulationvictoria.com.au/my-job/abcDEF123", to: "+61412000000" });
-    expect(events("quick_taps_answered", "m")).toHaveLength(1);
-    expect(reopens).toEqual([]);
-  });
-  test("apply: old answer set aside (kept), job reopened, link asks again from the name, Yes passes", async () => {
-    mia();
-    await S.reaskQuickTaps("m", { apply: true, actorId: "jo", sendText: false });
-    expect(events("quick_taps_answered", "m")).toHaveLength(0);
-    expect(events("quick_taps_answered_replaced", "m")).toHaveLength(1);
-    expect(reopens).toEqual(["m"]);
-    expect((await S.quickTapsState(tok("m"))).kind).toBe("ask");
-    const r = await S.saveQuickTaps(tok("m"), { name: "Mia Sample", address: "1 Sample Street, Melbourne, VIC 3000", hatch: "yes", access: { who: "owner" }, go: "yes" });
-    expect(r).toMatchObject({ kind: "done", outcome: "pass" });
-  });
-  test("apply --text sends Jo's text once; a second run does nothing more", async () => {
-    mia();
-    await S.reaskQuickTaps("m", { apply: true, actorId: "jo", sendText: true });
-    expect(texts).toEqual([{ via: "real-sms", to: "+61412000000" }]);
-    const again = await S.reaskQuickTaps("m", { apply: true, actorId: "jo", sendText: false });
-    expect(again).toMatchObject({ setAside: 0, reopened: false });
-    expect(reopens).toEqual(["m"]);
-  });
-});
