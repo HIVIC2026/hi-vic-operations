@@ -86,3 +86,11 @@
 - [ ] Re-run Task 0 script; add after-numbers to `2026-11-03-speed-baseline.md`.
 - [ ] Final whole-branch review; fix wave; rebase on latest main; run touched tests; `tsc --noEmit`.
 - [ ] Push `perf/portal-speed-step1`, open PR with before/after table. **Stop — Jo chooses who merges.**
+
+### Task 11: Job page asks the database once (spec Step 2 part A)
+**Files:** `src/lib/job-facts.server.ts` (new), `src/lib/trade-job-bundle.server.ts`, the section readers it calls (trade-view.server.ts tradeJobPage + its facts helpers, mitti-job-presentation, install-days.server, my-owner-quote.server, installer price view, job-overview), optional `supabase/migrations/<ts>_trade_job_facts.sql`; tests `tests/job-facts.test.ts`, extend `tests/job-bundle-waves.test.ts` (reads count).
+**Interfaces:** `type JobFacts = { job, property, owner, assignments[], bookings[], events[], quotes[], quoteItems[], piesa[], documents[], pay[], mitti… }` loaded by `loadJobFacts(jobId, access)` after the access check; `SharedJobReads` gains `facts: JobFacts`; each section reader takes `facts?` and uses it when present (same user/job), else today's reads.
+- [ ] Inventory: list every distinct table/filter read in the bundle path with counts (from the wave test's read log) — commit the inventory as the test fixture doc.
+- [ ] Failing test: bundle reads ≤ 10 for owner/staff/electrician fixtures; snapshot output identical to Task 6's.
+- [ ] Implement `loadJobFacts` as ≤ 3 batched reads (by job id) — a DB function only if a plain batched read can't express it; sections consume facts. Keep each section's standalone path.
+- [ ] Commit per section group; report reads before → after and waves.
