@@ -10,7 +10,9 @@ import { melbourneToday } from "./melbourne-time.core";
 import { displayName } from "./display-name.core";
 import { AREA_BATCH_EVENTS, batchRowState, type AreaBatchEventRow } from "./area-batch.core";
 import { QUICK_TAPS_ANSWERED_EVENT } from "./quick-taps.core";
-import { coverageLookup, installerWaiting, waitingSize, type InstallerWaitingRow, type WaitingInstaller, type WaitingPartner } from "./installer-waiting-columns.core";
+import { coverageLookup, inWaitingTab, installerWaiting, waitingSize, type InstallerWaitingRow, type WaitingInstaller, type WaitingPartner } from "./installer-waiting-columns.core";
+import { BAND_ORDER, spotBand, spotReason, spotScore, spotTags } from "./saved-spot-rank.core";
+import { groupByArea, type AreaGroup } from "./saved-spot-areas.core";
 
 type Row = Record<string, unknown>;
 type Res = PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>;
@@ -88,7 +90,30 @@ export async function installerFacts(testBusinessIds?: string[]): Promise<(Waiti
   });
 }
 
-export type InstallerWaitingList = { now: number; rows: InstallerWaitingRow[] };
+/** `areas`: the To release rows grouped into ~10 km areas, best-ranked first (saved-spot-areas.core). */
+export type InstallerWaitingList = { now: number; rows: InstallerWaitingRow[]; areas: AreaGroup[] };
+
+const satelliteUrl = (address: string) => `https://www.google.com/maps/place/${encodeURIComponent(address)}/data=!3m1!1e3`;
+
+/** Saved spots by area (3 Nov 2026): each To release row gets its band, score, reason, tags, location and links; then the
+ *  rows are ranked (band, then score) and grouped by area. Rows on Waiting for owner are left as they are. */
+async function rankToRelease(rows: InstallerWaitingRow[], now: number): Promise<AreaGroup[]> {
+  const toRelease = rows.filter((r) => inWaitingTab(r, "to_release"));
+  if (!toRelease.length) return [];
+  const facts = await (await import("./saved-spot-facts.server")).readSpotFacts(toRelease.map((r) => r.id), { now });
+  for (const r of toRelease) {
+    const f = facts.get(r.id);
+    if (!f) continue;
+    const spot = { ...f, areaM2: r.areaM2 };
+    Object.assign(r, {
+      band: spotBand(spot), score: spotScore(spot, now), reason: spotReason(spot), tags: spotTags(spot),
+      lat: f.lat, lng: f.lng, satelliteUrl: f.address ? satelliteUrl(f.address) : null, listingUrl: f.listingUrl,
+    });
+  }
+  const band = (r: InstallerWaitingRow) => (r.band ? BAND_ORDER.indexOf(r.band) : BAND_ORDER.length);
+  const ranked = [...toRelease].sort((a, b) => band(a) - band(b) || (b.score ?? 0) - (a.score ?? 0));
+  return groupByArea(ranked.map((r, i) => ({ jobId: r.id, lat: r.lat ?? null, lng: r.lng ?? null, suburb: r.suburb, rankKey: i })));
+}
 
 export async function loadInstallerWaitingList(opts: { includeTest: boolean }, testJobIds?: string[], testBusinessIds?: string[]): Promise<InstallerWaitingList> {
   const now = Date.now();
@@ -155,5 +180,5 @@ export async function loadInstallerWaitingList(opts: { includeTest: boolean }, t
       batch: batchRowState(batchBy.get(id) ?? []),
     });
   }
-  return { now, rows };
+  return { now, rows, areas: await rankToRelease(rows, now) };
 }

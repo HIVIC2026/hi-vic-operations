@@ -21,6 +21,7 @@ import { readyCheckOfficeItem, type OfficeOfferRow } from "./ready-check-times.c
 import type { NeedsRow } from "./office-needs.core";
 import type { SpotReleaseStateName } from "./spot-release.core";
 import type { BatchRowState } from "./area-batch.core";
+import type { SpotBand } from "./saved-spot-rank.core";
 
 export const INSTALLER_WAITING_PATH = "/admin/jobs/choose-installer" as const;
 
@@ -61,6 +62,12 @@ export type InstallerWaitingRow = {
   /** Task 6 (Jo 2 Nov 2026): area batch status — texted and waiting for the owner, or the owner said yes (area-batch.core
    *  `batchRowState`). Absent / null = a plain saved spot. */
   batch?: BatchRowState | undefined;
+  /** Saved spots by area (3 Nov 2026), To release rows only: rank band, score inside the band, one-line reason, tags,
+   *  where the home is (coordinates or postcode centre; null = location not known), Google satellite view (street address
+   *  only) and the listing found by the listing check. */
+  band?: SpotBand | undefined; score?: number | undefined; reason?: string | undefined; tags?: string[] | undefined;
+  lat?: number | null | undefined; lng?: number | null | undefined;
+  satelliteUrl?: string | null | undefined; listingUrl?: string | null | undefined;
 };
 
 export type WaitingFilters = {
