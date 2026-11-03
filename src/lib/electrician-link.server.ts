@@ -13,7 +13,8 @@ import { SET_PASSWORD_BASE } from "./set-password-link.core";
 import { hashToken, isTokenShape, linkState, newToken, certificationBlocker, firstName } from "./worker-links.core";
 import {
   ELECTRICIAN_LINK_SMS_TYPE, ELECTRICIAN_LINK_TEXT_APPROVED, ELECTRICIAN_LINK_NOT_VALID, electricianLinkExpired, electricianLinkExpiry, electricianLinkSwitchedOff,
-  electricianLinkText, electricianLinkTextKey, electricianStep, type ElectricianLinkFacts, type ElectricianStepView, type WhoBooks,
+  electricianLinkText, electricianLinkTextKey, electricianStep, canBookFromLink, dayTime,
+  ELECTRICIAN_LINK_OFFICE_BOOKS, electricianLinkAlreadyBooked, ELECTRICIAN_LINK_NOTHING_TO_BOOK, ELECTRICIAN_LINK_BAD_TIME, electricianLinkBookFailed, type ElectricianLinkFacts, type ElectricianStepView, type WhoBooks,
 } from "./electrician-link.core";
 import type { RealSmsInput, RealSmsResult } from "./sms.server";
 import type { BusinessContact } from "./owner-wording.core";
@@ -224,4 +225,85 @@ export async function electricianLinkView(token: string, now = Date.now()): Prom
     buttonUrl: view.step === "piesa_day" ? f.piesaFormUrl : view.step === "upgrades_day" ? f.upgradesFormUrl : null,
     upgradesDay: f.facts.upgrades.start,
   };
+}
+
+// ---------- booking from the link ----------
+export const ELECTRICIAN_LINK_BOOKED_EVENT = "electrician_link_booked";
+export type ElectricianLinkBookResult = { ok: true; start: string } | { ok: false; message: string };
+
+/** Serialises booking per job inside this process, so two presses at once make one booking. The booking path itself
+ *  cancels the earlier booking of the same kind, and the step is re-read inside the lock, so a second process is refused too. */
+const jobQueues = new Map<string, Promise<unknown>>();
+async function withJobLock<T>(jobId: string, fn: () => Promise<T>): Promise<T> {
+  const prev = jobQueues.get(jobId) ?? Promise.resolve();
+  const run = prev.then(fn, fn);
+  const tail = run.catch(() => undefined);
+  jobQueues.set(jobId, tail);
+  try { return await run; } finally { if (jobQueues.get(jobId) === tail) jobQueues.delete(jobId); }
+}
+
+/** Book the safety check ("assessment") or the upgrades day ("rectification") from the electrician's link. Everything is
+ *  resolved from the token and re-read fresh: the installer's who-books setting, the step, the electrician. The write is the
+ *  existing booking path (validateBooking + confirmBooking, every guard unchanged), then the existing in-house owner notice. */
+export async function bookFromElectricianLink(token: string, kind: "assessment" | "rectification", startIso: string, now = Date.now()): Promise<ElectricianLinkBookResult> {
+  if (!isTokenShape(token)) return { ok: false, message: ELECTRICIAN_LINK_NOT_VALID };
+  if (kind !== "assessment" && kind !== "rectification") return { ok: false, message: ELECTRICIAN_LINK_NOTHING_TO_BOOK };
+  const startMs = Date.parse(startIso);
+  if (!Number.isFinite(startMs) || startMs <= now) return { ok: false, message: ELECTRICIAN_LINK_BAD_TIME };
+  const start = new Date(startMs).toISOString();
+
+  const { data: l, error } = await admin.from("worker_job_links").select("id, job_id, worker_id, business_id, expires_at, revoked_at").eq("token_hash", await hashToken(token)).maybeSingle();
+  if (error) throw dbErr("the link", error);
+  if (!l) return { ok: false, message: ELECTRICIAN_LINK_NOT_VALID };
+  const installer = await installerOf(l.job_id);
+  const state = linkState(l, now);
+  if (state === "revoked") return { ok: false, message: electricianLinkSwitchedOff(installer.name) };
+  if (state === "expired") return { ok: false, message: electricianLinkExpired(installer.name) };
+  const off = { ok: false as const, message: electricianLinkSwitchedOff(installer.name) };
+  const [{ data: w, error: we }, { data: job, error: je }] = await Promise.all([
+    admin.from("partner_workers").select("id, full_legal_name, mobile, trade_role, approval_status, certification_status, removed_at, profile_id").eq("id", l.worker_id).maybeSingle(),
+    admin.from("jobs").select("stage, deleted_at").eq("id", l.job_id).maybeSingle(),
+  ]);
+  if (we) throw dbErr("the electrician", we);
+  if (je) throw dbErr("the job", je);
+  if (!w || w.trade_role !== "electrician" || w.removed_at || w.approval_status !== "approved" || certificationBlocker(w) || !job || job.deleted_at) return off;
+  const asg = await electricianAssignment(l.job_id, l.business_id);
+  if (!asg || !sameElectrician(asg, w)) return off;
+  const jobId = l.job_id as string;
+
+  return withJobLock(jobId, async () => {
+    // Fresh inside the lock: the setting, and what is already booked.
+    const whoBooks = await whoBooksFor(installer.id);
+    if (!canBookFromLink(whoBooks)) return { ok: false as const, message: ELECTRICIAN_LINK_OFFICE_BOOKS };
+    const f = await factsFor(jobId, whoBooks, job.stage === "cancelled", now);
+    const step = electricianStep(f.facts).step;
+    const existing = kind === "assessment" ? f.facts.piesa.start : f.facts.upgrades.start;
+    if (existing) {
+      // The same electrician pressing the same time again (a retry) is fine; anyone else's booking is theirs.
+      const { data: mine } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", ELECTRICIAN_LINK_BOOKED_EVENT).contains("details", { kind, start: existing, worker_id: w.id }).limit(1).maybeSingle();
+      if (mine && new Date(existing).getTime() === startMs) return { ok: true as const, start: existing };
+      return { ok: false as const, message: electricianLinkAlreadyBooked(existing) };
+    }
+    if (step !== (kind === "assessment" ? "book_piesa" : "set_upgrades_day")) return { ok: false as const, message: ELECTRICIAN_LINK_NOTHING_TO_BOOK };
+    try {
+      const booking = await import("./booking.server");
+      // proposedWorkerId = this electrician (the job is already allocated to them). No actor: the electrician has no login.
+      await booking.validateBooking(jobId, kind, start, null, w.id);
+      await booking.confirmBooking(jobId, kind, start, null, "electrician link");
+    } catch (e) {
+      const { WorkflowError } = await import("./workflow.server");
+      if (e instanceof WorkflowError) return { ok: false as const, message: e.message };
+      console.error("Electrician link booking failed", (e as Error).message);
+      return { ok: false as const, message: electricianLinkBookFailed(installer.name) };
+    }
+    const wf = await import("./workflow.server");
+    await wf.logEvent(jobId, null, ELECTRICIAN_LINK_BOOKED_EVENT, `${kind === "assessment" ? "Safety check" : "Upgrades day"} booked from the electrician's link`, { kind, start, worker_id: w.id }, { internal: true })
+      .catch((e) => console.error("Electrician link booking not logged", (e as Error).message));
+    // The owner's "You're booked" (PIESA) notice: the existing in-house path (held unless the job is an in-house one; TEST jobs go to test-send inside it).
+    if (kind === "assessment") {
+      await (await import("./in-house-booking.server")).notifyOwnerBooked(jobId, "piesa", start, { id: w.id, name: w.full_legal_name ?? "", phone: w.mobile ?? null })
+        .catch((e) => console.error("Booking confirmation held", (e as Error).message));
+    }
+    return { ok: true as const, start };
+  });
 }

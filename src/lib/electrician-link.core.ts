@@ -49,7 +49,7 @@ export function canBookFromLink(whoBooks: WhoBooks): boolean {
 }
 
 /** "Fri 6 Nov, 10:00am" in Melbourne time. */
-function dayTime(iso: string | null): string | null {
+export function dayTime(iso: string | null): string | null {
   if (!iso) return null;
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return null;
@@ -112,3 +112,10 @@ export function electricianLinkText(i: { jobNumber: string; suburb: string | nul
 export const electricianLinkSwitchedOff = (installer: string) => `This link has been switched off. Ask ${installer} for a new one.`;
 export const electricianLinkExpired = (installer: string) => `This link has expired. Ask ${installer} for a new one.`;
 export const ELECTRICIAN_LINK_NOT_VALID = "This link isn't valid.";
+
+/** DRAFT messages on the page's Book button (no approved wording yet). */
+export const ELECTRICIAN_LINK_OFFICE_BOOKS = "Your installer books this one. Call them if the time needs to change.";
+export const electricianLinkAlreadyBooked = (iso: string) => `Already booked for ${dayTime(iso) ?? "another time"}.`;
+export const ELECTRICIAN_LINK_NOTHING_TO_BOOK = "There's nothing to book on this job right now.";
+export const ELECTRICIAN_LINK_BAD_TIME = "Choose a day and time that hasn't passed.";
+export const electricianLinkBookFailed = (installer: string) => `We couldn't save that. Try again, or call ${installer}.`;
