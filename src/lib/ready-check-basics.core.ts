@@ -3,6 +3,7 @@
 // Basics: ceiling area, insulation product, the business owner's price (A1, entered in the portal — decision 278; old
 // forms may still carry it) or our rate card (A2), owner mobile + email + contact permission, and no hard stop.
 // Photos / other answers can follow as notes.
+import { canonicalMittiLabel } from './mitti-rebuild-labels.core';
 
 export type ReadyCheckBasicsInput = {
   installerSourced: boolean;
@@ -62,6 +63,6 @@ export function formHasInstallerAnswers(entries: { label: string; value: unknown
   return entries.some((e) => {
     const v = e.value;
     const filled = v != null && String(v).trim() !== "" && String(v).trim().toLowerCase() !== "false";
-    return filled && !PREFILLED.includes(String(e.label ?? "").trim().toLowerCase());
+    return filled && !PREFILLED.includes(canonicalMittiLabel(String(e.label ?? "")).split('\n')[0]?.trim().toLowerCase() ?? '');
   });
 }
