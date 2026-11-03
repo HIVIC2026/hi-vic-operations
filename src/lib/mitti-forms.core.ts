@@ -230,20 +230,20 @@ export function validateTemplate(key: FormKey, items: TemplateItem[]): { ok: boo
   }
   // Official forms repeat some labels (e.g. "Licence no:" in B3 and Section C): expect exactly that many.
   const expected = new Map<string, number>();
-  let fields = FORMS[key].fields.filter((f) => !f.statement).map(f => ({ ...f, aliases: [...(f.aliases ?? []), ...mittiLabelAliases(f.label)] }));
+  let fields: FormField[] = FORMS[key].fields.filter((f) => !f.statement).map(f => ({ ...f, aliases: [...(f.aliases ?? []), ...mittiLabelAliases(f.label)] }));
   const rebuiltReady = (key === 'ready_check' || key === 'ready_check_priced') && byLabel.has(norm('Old insulation in this area?'));
   if (rebuiltReady) {
     const replaced = [LEAN_Q.existing, LEAN_Q.existingAction, LEAN_Q.rValue, LEAN_Q.product, LEAN_Q.premisesType];
     const websiteOnly = [LEAN_Q.ownerPhone, LEAN_Q.ownerEmail, LEAN_Q.contactPermission, LEAN_Q.lifeSupport, LEAN_Q.builtLast5];
     fields = fields.filter(f => !replaced.includes(f.label as typeof replaced[number]) && !(key === 'ready_check' && websiteOnly.includes(f.label as typeof websiteOnly[number])));
-    fields = fields.map(f => ({ ...f, ...(f.label === LEAN_Q.outcome ? { aliases: [...f.aliases, 'Can the job go ahead?'] } : {}), ...(f.label === LEAN_Q.issuePhoto ? { aliases: [...f.aliases, 'Photo of the problem'] } : {}) }));
+    fields = fields.map(f => ({ ...f, ...(f.label === LEAN_Q.outcome ? { aliases: [...(f.aliases ?? []), 'Can the job go ahead?'] } : {}), ...(f.label === LEAN_Q.issuePhoto ? { aliases: [...(f.aliases ?? []), 'Photo of the problem'] } : {}) }));
     fields.push({ label: 'Old insulation in this area?', type: 'choice', required: true, perArea: true, source: '4 Nov replacement' }, { label: 'Old insulation R value?', type: 'choice', required: true, perArea: true, source: '4 Nov replacement' });
     if (key === 'ready_check') fields.push({ label: 'Which brand are you installing?', type: 'choice', required: true, source: '4 Nov replacement' }, { label: 'Which batts?', type: 'choice', required: true, perArea: true, source: '4 Nov replacement' });
   }
   if (key === 'piesa' && items.some(it => Object.values(SPLIT_MAINS_Q).some(label => norm(label) === norm(it.label)))) {
     fields = fields.filter(f => f.id !== 'mainsSafe' && f.id !== 'mainsProblems');
     for (const [id, label] of Object.entries(SPLIT_MAINS_Q)) fields.push({ id, label, aliases: id === 'switchSafe' ? ['Does the main switch work, can you reach it, does it safely isolate the ceiling circuits (excluding the mains cables), and can it be locked off?'] : [], type: 'yesno', required: true, source: '4 Nov split mains' });
-    fields = fields.map(f => ({ ...f, ...(f.id === 'solarProblems' ? { aliases: [...f.aliases, "Tick everything that's not right."] } : {}), ...(f.repeats && f.label === 'Photo of the problem' ? { repeats: 6 } : {}) }));
+    fields = fields.map(f => ({ ...f, ...(f.id === 'solarProblems' ? { aliases: [...(f.aliases ?? []), "Tick everything that's not right."] } : {}), ...(f.repeats && f.label === 'Photo of the problem' ? { repeats: 6 } : {}) }));
   }
   for (const f of fields) if (!f.perArea && !f.perPriceLine && !f.row) expected.set(norm(f.label), (expected.get(norm(f.label)) ?? 0) + 1);
   // Deduplicated: a curly/straight apostrophe alias normalises to the same key and must not count the item twice.
