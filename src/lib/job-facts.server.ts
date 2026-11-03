@@ -48,6 +48,7 @@ export type FactSource = { readonly tables: Readonly<Record<string, FactTable["s
 
 const READS = new Set(["select", "eq", "neq", "gt", "gte", "lt", "lte", "like", "ilike", "is", "in", "contains", "containedBy", "not", "or", "filter", "match", "order", "limit", "range", "maybeSingle", "single", "returns"]);
 const WRITES = new Set(["insert", "update", "upsert", "delete"]);
+const READ_RPCS = new Set(["has_role", "is_admin", "has_contact_release", "my_job_role", "can_access_job"]);
 
 /**
  * A client for one bundle: `.from(table)` records the query; when awaited it is answered from the job's facts if
@@ -82,13 +83,16 @@ export function jobFactsClient(sources: readonly FactSource[], base: Admin = sup
     const q: unknown = new Proxy({}, {
       get(_, prop) {
         if (prop === "then") return (ok?: (v: unknown) => unknown, bad?: (e: unknown) => unknown) => run().then(ok, bad);
-        if (typeof prop !== "string") return undefined;
+        // A query builder is only `then`-able (no catch/finally), like postgrest-js's.
+        if (typeof prop !== "string" || prop === "catch" || prop === "finally") return undefined;
         return (...a: unknown[]) => { ops.push({ m: prop, a }); return q; };
       },
     });
     return q;
   };
-  return new Proxy(base, { get: (t, prop, r) => (prop === "from" ? from : Reflect.get(t, prop, r)) }) as Admin;
+  // A database function that isn't a known read may write: from then on every query goes to the database.
+  const rpc = (...a: unknown[]) => { if (!READ_RPCS.has(String(a[0]))) wrote = true; return (base as unknown as { rpc: (...x: unknown[]) => unknown }).rpc(...a); };
+  return new Proxy(base, { get: (t, prop, r) => (prop === "from" ? from : prop === "rpc" ? rpc : Reflect.get(t, prop, r)) }) as Admin;
 }
 
 type Scope = { readonly jobId: string; readonly db: Admin };
