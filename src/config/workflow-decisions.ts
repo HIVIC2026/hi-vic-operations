@@ -125,6 +125,7 @@ export const WORKFLOW_DECISIONS = {
     switchOnOnlyWhen: "no real install within the next 48 hours",
     roleLabels: { lead: "Lead Installer", crew: "Crew" },
     onSiteLine: "The Lead Installer is on site for the whole install. (always under Compliance, whatever the rule)",
+    pdfLook: "website look (swms-sample.pdf) with the Changes during the job box only behind PDF_LOOK_APPROVED.swms; off = the 25 Oct WorkSafe layout, byte-for-byte",
   },
   quoteValidity: {
     validDays: 30,

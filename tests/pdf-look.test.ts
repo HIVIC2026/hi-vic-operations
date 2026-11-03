@@ -35,7 +35,7 @@ describe("pdf-look kit", () => {
     expect(t).toContain("Sarah ? O’Brien");
   });
   test("every swap flag starts off", () => {
-    expect(Object.keys(PDF_LOOK_APPROVED).sort()).toEqual(["escConsent", "officialFormPdf", "receipts", "signedAcceptance", "taxInvoice", "veecForm"]);
+    expect(Object.keys(PDF_LOOK_APPROVED).sort()).toEqual(["escConsent", "officialFormPdf", "receipts", "signedAcceptance", "swms", "taxInvoice", "veecForm"]);
     expect(Object.values(PDF_LOOK_APPROVED).every((v) => v === false)).toBe(true);
   });
 
