@@ -48,3 +48,18 @@ Jo: the portal is "incredibly slow … not usable". Measured on 3 Nov (read-only
 
 ## Success
 - First open well under half of today's 12–18 s; return visits show data instantly (<0.5 s) from the last copy; fresh data ~1–1.5 s (from 2–4 s). Reported to Jo as before/after numbers.
+
+## Step 2, part A (added 3 Nov 2026, 9pm — Jo: "faster ASAP, urgent"): the job page asks the database once
+
+### Why
+The installer job page takes ~10 s. The bundle is already parallel (4 rounds), but it makes ~150 small database reads. The portal's server (Cloudflare Workers) allows only **6 outgoing requests waiting at a time** (Cloudflare docs, "Simultaneous open connections"), so 150 reads at ~300 ms each queue up to ~7–8 s. Fewer reads is the only fix on this side.
+
+### What changes
+- One **job-facts read** per page: a single database function (`trade_job_facts(job_id)`, SECURITY INVOKER so row-level security still applies, or a set of ≤3 batched reads) returns every row the bundle's sections read today for that job: the job + property + owner, its assignments, bookings, workflow events, quotes/items, PIESA records, documents, rate/pay rows, Mitti form state. The bundle hands the sections these rows instead of each section reading its own.
+- Sections keep their logic and their output exactly; they only change where the rows come from (a `JobFacts` object passed in, with today's reads as the fallback when it's absent, like `SharedJobReads` in Task 6).
+- Target: **≤ 10 database reads per job page load** (from ~150), so the 6-at-a-time limit no longer matters.
+- Same access rules: the facts read runs only after today's access check passes, for this verified user and job; nothing from another job or business is read.
+- Measured before/after with the same script; output snapshot identical.
+
+### Not in part A
+Office job page, Active jobs and Enquiries consolidation (part B, after measuring).
