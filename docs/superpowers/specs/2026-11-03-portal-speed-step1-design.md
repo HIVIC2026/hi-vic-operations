@@ -33,6 +33,11 @@ Jo: the portal is "incredibly slow … not usable". Measured on 3 Nov (read-only
 ### 4. Office pages start fetching straight away
 - Office list routes (Active jobs, Enquiries, Choose installer) get a route `loader` that starts the server call when the route matches, like the trade routes already do — not after the screen draws.
 
+### 5. Show the last copy instantly (Jo, 3 Nov: "very fast — people use it all day")
+- Office lists (Active jobs, Enquiries, Choose installer › To release) and every installer page draw **instantly from the last copy kept on this device**, then refresh in the background and update in place. Installer pages already keep a last copy (`src/lib/trade-cache.ts`: per signed-in user, 24 h max age, cleared on sign-out); office pages get the same, reusing that module (generalised, same rules).
+- A small "Updating…" line shows while the fresh copy loads; actions (buttons) wait for the fresh copy where acting on old data could be wrong (e.g. Send on To release is enabled only once fresh).
+- No last copy (first visit, after sign-out, older than 24 h) → today's behaviour.
+
 ## Rules
 - Behaviour must not change: same data, same permissions, same wording. Every access check that exists today still happens (reused, not removed).
 - Measured before and after with the same Playwright script (installer account Jo provided, read-only): first open, My work, Money, My business, a job page; office pages with the TEST office login if Jo provides it.
@@ -42,4 +47,4 @@ Jo: the portal is "incredibly slow … not usable". Measured on 3 Nov (read-only
 - Bundle/chunk packaging (`vite.config` manualChunks), server rendering for signed-in pages, moving to an Asia-Pacific Lovable project.
 
 ## Success
-- First open well under half of today's 12–18 s; page data ~1–1.5 s (from 2–4 s). Reported to Jo as before/after numbers.
+- First open well under half of today's 12–18 s; return visits show data instantly (<0.5 s) from the last copy; fresh data ~1–1.5 s (from 2–4 s). Reported to Jo as before/after numbers.
