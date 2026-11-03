@@ -54,8 +54,9 @@ async function loadPerson(workerId: string) {
   const mittiAccess = p ? mittiAccessOf(p) : null;
   // Jo 29 Oct: Lead / Crew. A null role counts as Lead; Crew only when stored.
   const role = effectiveWorkerRole({ tradeRole: w.trade_role, stored: (w as { worker_role?: string | null }).worker_role });
-  // A Lead with no email of their own is invited / linked with the business's own email.
-  const target = w.trade_role === "installer" ? mittiEmailFor({ role, ownEmail: own, businessEmail: (b as { email?: string | null } | null)?.email }) : { email: own, source: own ? "own" as const : null };
+  // Jo 3 Nov 8:11pm (replaces 28 Oct): invites use the person's OWN email only — a Lead without one waits for it.
+  void mittiEmailFor;
+  const target = { email: own, source: own ? "own" as const : null };
   const email = target.email;
   // Decision 153: an installer counts once the office-verified CII check is recorded with level + unexpired expiry.
   let ciiCleared = false;
@@ -117,7 +118,7 @@ export const realInviteMessenger: InviteMessenger = async (p) => {
   } catch (e) { return `message not sent — ${(e as Error).message}`; }
 };
 
-type Opts = { switches?: InviteSwitches; call?: MittiCall; message?: InviteMessenger; password?: () => string };
+type Opts = { switches?: InviteSwitches; call?: MittiCall; message?: InviteMessenger; password?: () => string; confirmed?: boolean };
 
 /**
  * Called after the office approves a partner person (worker approved, or an installer's CII verified). Switch OFF → returns
@@ -134,6 +135,12 @@ export async function onPartnerPersonApproved(workerId: string, actorId: string 
     return { action: "fail" as const, reason };
   }
   const prior = priorInviteFor(workerId, await loadInviteRecords(workerId));
+  // Jo 3 Nov: a Lead approved while paused is only invited when Jo presses Send (never automatically on unpause/edit).
+  if (prior?.type === MITTI_INVITE_EVENTS.waitingPause && !opts.confirmed) return { action: "skip" as const, reason: `${MITTI_WAITING_PAUSE} — Jo confirms from the office list.` };
+  if (!person.isTest && !person.crew && person.tradeRole === "installer" && mittiInviteStep(person, prior, sw).action === "skip" && inviteEligibility(person) === NO_EMAIL_SKIP) {
+    if (prior?.type !== MITTI_INVITE_EVENTS.waitingEmail) await record(actorId, MITTI_INVITE_EVENTS.waitingEmail, `${MITTI_WAITING_EMAIL}: ${name ?? "Lead"} (${business ?? "business"})`, { worker_id: workerId, email: null, name, business, trade_role: person.tradeRole });
+    return { action: "skip" as const, reason: MITTI_WAITING_EMAIL };
+  }
   const call = opts.call ?? await realCall();
   const base = { worker_id: workerId, email: person.email, name, business, trade_role: person.tradeRole, ...(emailSource === "business" ? { email_source: "business" } : {}) };
   let step = mittiInviteStep(person, prior, sw);
@@ -184,7 +191,10 @@ export async function onPartnerPersonApproved(workerId: string, actorId: string 
   // Jo 30 Oct 2026: creating the Mitti user makes Mitti email the person, and our ONE invite message follows — both go to
   // a trade, so nothing is created or recorded while "Pause all trade messages" is on (TEST people never reach here).
   const tradePaused = await (await import("./trade-pause.server")).tradeMessagesPausedNow({ businessId });
-  if (tradePaused) return { action: "skip" as const, reason: `${tradePaused} — Mitti user not created yet; approve again or invite in Mitti once unpaused.` };
+  if (tradePaused) {
+    if (prior?.type !== MITTI_INVITE_EVENTS.waitingPause) await record(actorId, MITTI_INVITE_EVENTS.waitingPause, `${MITTI_WAITING_PAUSE}: ${person.email}`, { ...details, reason: tradePaused, mitti_user_id: null });
+    return { action: "skip" as const, reason: MITTI_WAITING_PAUSE };
+  }
   // create: the throwaway password is never stored or logged.
   let mittiUserId: string | null = null;
   try {
@@ -236,6 +246,18 @@ export async function onPartnerPersonRemoved(workerId: string, actorId: string |
   }
   await record(actorId, MITTI_INVITE_EVENTS.deactivated, `Mitti user for ${email} deactivated (removed in the portal) — reduce the licence count in Mitti if the seat is not reused`, details);
   return step;
+}
+
+/** Jo presses "Send Mitti invite" on a Lead waiting for the pause to lift. Still refused (nothing sent) while paused. */
+export async function sendWaitingMittiInvite(workerId: string, actorId: string, opts: Opts = {}) {
+  const prior = priorInviteFor(workerId, await loadInviteRecords(workerId));
+  if (prior?.type !== MITTI_INVITE_EVENTS.waitingPause) throw new WorkflowError("This person is not waiting for the pause to lift.");
+  return onPartnerPersonApproved(workerId, actorId, { ...opts, confirmed: true });
+}
+
+/** Office Needs me rows for Leads waiting for the pause to lift. */
+export async function mittiWaitingPauseNeeds() {
+  return mittiWaitingPauseItems(await loadInviteRecords());
 }
 
 /** Staff approvals (People): people the office still has to finish in Mitti. */
