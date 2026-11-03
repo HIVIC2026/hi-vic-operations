@@ -26,7 +26,7 @@ const raw: MittiCall = async (method, path, body) => {
 };
 
 if (step === "find") {
-  for (const email of [BRAVO_LEAD, JO_TEST]) console.log(`find ${email}: ${(await findMittiUserByEmail(email, raw)) ?? "not found"}`);
+  for (const email of [BRAVO_LEAD, JO_TEST]) { try { console.log(`find ${email}: ${(await findMittiUserByEmail(email, raw)) ?? "not found"}`); } catch (e) { console.log(`find ${email}: ${(e as Error).message}`); } }
 } else if (step === "create") {
   const existing = await findMittiUserByEmail(JO_TEST, raw);
   if (existing) { console.log(`STOP: a Mitti user already exists for ${JO_TEST} (${existing}) — not creating another.`); process.exit(0); }
