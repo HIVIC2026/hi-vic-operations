@@ -64,7 +64,7 @@ import {
 } from "./approved-texts.core";
 import { melbourneClock, readyCheckDaysSuggestedText, readyCheckBookedInstallerText, installTomorrowText, teamMemberInviteText, ownerChangedVisitText } from "./installer-texts.core";
 import { usualElectricianReminderBody } from "./usual-electrician.core";
-import { readyCheckIncompleteText } from "./ready-check-chase.core";
+import { readyCheckIncompleteText, readyCheckNearlyThereEmail } from "./ready-check-chase.core";
 import { dailyText, updateText, diffDay } from "./daily-mitti-text.core";
 import { bossPriceLinkText } from "./boss-price-link.core";
 import { fixesTimesLinkText } from "./fixes-times.core";
@@ -568,6 +568,9 @@ const INSTALLER: TemplateEntry[] = [
   ENTRY({ id: "installer:sms-ready_check_incomplete", section: "installer", step: "ready_check", kind: "text", code: "", name: "Ready Check form missing answers (text)", when: "The Mitti Ready Check is missing answers or photos", who: "Installer", approvalNote: "Jo 22 Oct 2026", gate: { kind: "text", smsType: "ready_check_incomplete" },
     source: { builder: "src/lib/ready-check-chase.core.ts", fn: "readyCheckIncompleteText", sender: "src/lib/ready-check-chase.server.ts" },
     render: () => text(readyCheckIncompleteText("HV-TEST", SHORT_ADDRESS, ["finish and submit the form", "who is doing the electrical safety check"])) }),
+  ENTRY({ id: "installer:ready-check-nearly-there", section: "installer", step: "ready_check", kind: "email", code: "", name: "Ready Check: nearly there (office email)", when: "The Mitti Ready Check is missing answers; goes to the installer's business office email, never a worker (held with an office note if none on file)", who: "Installer business office", approvalNote: "Wording: Jo 2 Nov 2026, decision #27 (READY_CHECK_CHASE_EMAIL_APPROVED stays false until Jo OKs the picture; until then the earlier text goes out, so one chase is one version)", gate: { kind: "email" },
+    source: { builder: "src/lib/ready-check-chase.core.ts", fn: "readyCheckNearlyThereEmail", sender: "src/lib/ready-check-chase.server.ts" },
+    render: () => email(readyCheckNearlyThereEmail({ jobNumber: "HV-TEST", address: SHORT_ADDRESS, missing: ["finish and submit the form", "whether the homeowner agrees to be contacted"], mittiFormUrl: "https://app.mitti.example/inspection/TEST" })) }),
   ENTRY({ id: "installer:sms-boss_price_link", section: "installer", step: "quote", kind: "text", code: "", name: "Enter your price (text)", when: "A1 Ready Check marked Complete with no price yet", who: "Installer (business owner)", approvalNote: "Jo 25 Oct 2026, decision 288", gate: { kind: "text", smsType: "boss_price_link" },
     source: { builder: "src/lib/boss-price-link.core.ts", fn: "bossPriceLinkText", sender: "src/lib/boss-price-link.server.ts" },
     render: () => text(bossPriceLinkText({ jobNumber: "HV-TEST", street: "824 High Street Road", link: `${FIELD}#price` })) }),

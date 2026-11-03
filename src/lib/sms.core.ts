@@ -23,6 +23,7 @@ export const SMS_MESSAGE_TYPES = {
   veec_sign_request: { audience: "owner", label: "Sign your rebate (VEEC assignment) form – install done (decision 120; wording approved 24 Oct, decision 166)", wordingApproved: true, quietHours: true },
   veec_sign_reminder: { audience: "owner", label: "Rebate form still needs your signature – days 1/3/7 (decision 120; wording approved 24 Oct, decision 168)", wordingApproved: true, quietHours: true },
   usual_electrician_missing: { audience: "partner", label: "Add usual electrician details", wordingApproved: true /* decision 83 (Jo 24 Oct 2026), kept by decision 113: usualElectricianReminderBody */, quietHours: true },
+  // Decision #27: with READY_CHECK_CHASE_EMAIL_APPROVED on, this chase is an office email and no new text is sent (type kept for history).
   ready_check_incomplete: { audience: "partner", label: "Ready Check form missing answers/photos", wordingApproved: true /* Jo 22 Oct 22:57 */, quietHours: true },
   job_offer: { audience: "partner", label: "New job offer to a trade", wordingApproved: true /* decision 76 wording; switched on by decision 154 (Jo 24 Oct) */, quietHours: true /* decision 361: after 8pm → texted at 7am by sweepJobOfferTexts */ },
   daily_mitti: { audience: "partner", label: "Daily Mitti links (6:30am)", wordingApproved: true, quietHours: false },

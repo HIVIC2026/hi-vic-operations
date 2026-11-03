@@ -3,6 +3,8 @@
 //          Photos are optional on the Ready Check; decision 396 retired carrying them to install day.
 // Stage 8: the "Office needs to…" Mitti items, from recorded workflow events (latest per job, resolved by a later event).
 import type { ReadyCheckFacts } from "./ready-check-complete.core";
+import * as K from "./email-kit.core";
+import { mjEmail, esc } from "./mail-mjml.core";
 
 export const CHASE_AFTER_MS = 24 * 3_600_000;
 /** An unfinished form untouched this long (after its booked visit) counts as left incomplete. */
@@ -36,6 +38,36 @@ export function incompleteDecision(p: { completed: boolean; modifiedAt: string |
  *  Add them in Mitti and we'll prepare the owner's quote." The sender adds the brand prefix. */
 export function readyCheckIncompleteText(jobNumber: string, address: string | null, missing: string[]): string {
   return `Nearly there! ${jobNumber}${address ? ` (${address})` : ""} still needs: ${missing.join("; ")}. Add them in Mitti and we'll prepare the owner's quote.`;
+}
+
+/** Decision #27 (Jo 2 Nov 2026, chase-email.png): the "Nearly there" chase goes to the installer's business OFFICE email instead of a
+ *  text. Wording approved verbatim; stays false until Jo OKs the picture. While false the old text (decision 83) keeps going, so one
+ *  chase is only ever one version. */
+export const READY_CHECK_CHASE_EMAIL_APPROVED = false as boolean;
+
+export function readyCheckNearlyThereEmail(i: { jobNumber: string; address: string; missing: string[]; mittiFormUrl: string; test?: boolean }): { subject: string; text: string; html: string } {
+  const subject = `${i.jobNumber} Ready Check: nearly there`;
+  const where = i.address.trim() || i.jobNumber;
+  const lead = `${where} still needs:`;
+  const close = "Add them in Mitti and we'll prepare the owner's quote.";
+  const body = [
+    `<mj-section><mj-column><mj-text mj-class="h1" css-class="email-heading">Nearly there</mj-text><mj-text>${esc(lead)}</mj-text><mj-text>${i.missing.map((m) => `&bull; ${esc(m)}`).join("<br />")}</mj-text><mj-text>${esc(close)}</mj-text><mj-button href="${esc(i.mittiFormUrl)}">Open the Mitti form</mj-button></mj-column></mj-section>`,
+  ].join("");
+  const html = mjEmail({ subject, preview: close, body, unsubscribe: null, testLabel: i.test === true });
+  const text = K.plainText([lead, ...i.missing.map((m) => `• ${m}`), "", close, "", `Open the Mitti form: ${i.mittiFormUrl}`], { testLabel: i.test === true });
+  return { subject, text, html };
+}
+
+export const chaseEmailKey = (jobId: string, auditId: string, sig: string) => `ready-check-incomplete-email:v1:${jobId}:${auditId}:${sig}`;
+
+/** What the sender does with one new gap list. Office email only (businesses.email) — never a worker's address; none on file → held. */
+export function chaseEmailPlan(p: { approved: boolean; test: boolean; officeEmail: string | null | undefined; textAlreadySent: boolean }):
+  { action: "off" } | { action: "already_texted" } | { action: "held"; reason: string } | { action: "send" | "test_send"; to: string } {
+  if (!p.approved) return { action: "off" };
+  if (p.textAlreadySent) return { action: "already_texted" };
+  const to = p.officeEmail?.trim();
+  if (!to) return { action: "held", reason: "no office email on file for the installer" };
+  return { action: p.test ? "test_send" : "send", to };
 }
 
 /** Stable signature so the same gaps are recorded (and texted) once, not on every 15-minute sync. */
