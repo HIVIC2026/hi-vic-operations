@@ -63,6 +63,42 @@ beforeEach(() => {
 });
 
 describe("Q3 (Jo 3 Nov 8:11pm): a Lead with no own email waits — no business-email fallback", () => {
+  test("new approved Lead: create one Lite user without any group or office follow-up", async () => {
+    lead()["email"] = "wayne@own.com.au";
+    const result = await inv.onPartnerPersonApproved(LEAD, "office", { switches: LIVE, call, password: () => "fake-password" });
+    expect(result).toMatchObject({ action: "create", mittiUserId: "m-new", groupAdded: false });
+    expect(calls).toEqual(["POST /users/search wayne@own.com.au", "POST /users"]);
+    expect(types()).toEqual(["mitti_user_invited"]);
+    expect(await inv.listOpenMittiInvites()).toMatchObject({ invites: [] });
+    expect((events()[0]?.details as Row)?.group_note).toBeNull();
+    await inv.onPartnerPersonApproved(LEAD, "office", { switches: LIVE, call });
+    expect(calls).toHaveLength(2); expect(sent).toHaveLength(1);
+  });
+  test("already-approved people never catch up when email is added or certification renewed", async () => {
+    lead()["approved_at"] = "2026-11-03T10:55:59Z";
+    lead()["email"] = "dom@own.com.au";
+    expect(await inv.onPartnerPersonApproved(LEAD, "office", { switches: LIVE, call })).toMatchObject({ action: "skip" });
+    expect(calls).toEqual([]); expect(events()).toEqual([]); expect(sent).toEqual([]);
+  });
+  test("missing approval timestamp fails closed without invite", async () => {
+    lead()["approved_at"] = null; lead()["email"] = "wayne@own.com.au";
+    expect(await inv.onPartnerPersonApproved(LEAD, "office", { switches: LIVE, call })).toMatchObject({ action: "skip" });
+    expect(calls).toEqual([]); expect(events()).toEqual([]);
+  });
+  test("Crew and electricians never receive this automatic Lead invite", async () => {
+    lead()["email"] = "wayne@own.com.au";
+    lead()["worker_role"] = "crew";
+    expect((await inv.onPartnerPersonApproved(LEAD, "office", { switches: LIVE, call })).action).toBe("skip");
+    lead()["worker_role"] = "lead"; lead()["trade_role"] = "electrician";
+    expect((await inv.onPartnerPersonApproved(LEAD, "office", { switches: LIVE, call })).action).toBe("skip");
+    expect(calls).toEqual([]); expect(events()).toEqual([]); expect(sent).toEqual([]);
+  });
+  test("TEST Lead cannot reach the real provider or messenger", async () => {
+    lead()["email"] = "qa.installer.bravo@hivic-test.example";
+    tables["businesses"] = [{ id: "b1", name: "TEST Bravo", onboarding_notes: "[TEST PARTNER]" }];
+    expect((await inv.onPartnerPersonApproved(LEAD, "office", { switches: LIVE, call })).action).toBe("skip");
+    expect(calls).toEqual([]); expect(events()).toEqual([]); expect(sent).toEqual([]);
+  });
   test("switch off: nothing read, called, recorded or sent", async () => {
     expect(await inv.onPartnerPersonApproved(LEAD, "office", { switches: OFF, call })).toMatchObject({ action: "skip" });
     expect(calls).toEqual([]); expect(events()).toEqual([]); expect(sent).toEqual([]);
