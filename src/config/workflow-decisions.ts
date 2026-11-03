@@ -22,6 +22,9 @@ export const WORKFLOW_DECISIONS = {
       missingOrConflictingEvidence: "needs_review",
     },
   },
+  // Part 7 Task 8 (Jo 2 Nov 2026): replaced by the 9am two-days-before "Confirm or change your Lead Installer by 5pm today" email
+  // (and decisions 374/303 for the electrician); nothing sends these any more, old events/log rows are history.
+  tradeMessages: { retired: ["2pm day-before Lead Installer email", "Pick the crew for tomorrow", "We need your usual electrician"] },
   retiredWorkflow: [
     "PIESA before confirmed quote/payment",
     "Combined Ready Check + PIESA visit",

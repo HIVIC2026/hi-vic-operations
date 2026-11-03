@@ -143,19 +143,12 @@ export async function loadNeedsHivic() {
   }
   const open = new Set(jobRows.filter((j) => !closed.has(j.id)).map((j) => j.id));
   const kept = items.filter((it) => !it.jobId || open.has(it.jobId));
-  const { data: electricianEvents, error: ee } = await admin.from("workflow_events").select("job_id, details, created_at").eq("event_type", "mitti_electrician_recorded").order("created_at", { ascending: false });
-  if (ee) throw new Error("Could not load Ready Check electrician holds.");
-  const latestElectrical = new Set<string>();
-  const { needsItem } = await import("./allocation.core");
-  for (const e of electricianEvents ?? []) {
-    if (!e.job_id || latestElectrical.has(e.job_id)) continue;
-    latestElectrical.add(e.job_id);
-    if (!open.has(e.job_id) || (e.details as { needsProfile?: boolean } | null)?.needsProfile !== true) continue;
-    const j = jobRows.find((r) => r.id === e.job_id);
-    kept.push(needsItem("installer_usual_electrician_missing", e.job_id, j?.job_number ?? null, e.created_at, undefined, j));
-  }
+  // Part 7 Task 8 (Jo 2 Nov 2026): the "Installer has no usual electrician saved" row is retired with its text (decisions
+  // 374/303 choose the electrician; an un-onboarded A1 electrician holds the quote instead). Old `mitti_electrician_recorded`
+  // events stay as history and raise nothing.
   // Stage 8 (Jo 22 Oct): Mitti "Office needs to…" items from recorded events (latest per job; cleared by later events).
   {
+    const { needsItem } = await import("./allocation.core");
     const { mittiOfficeItems } = await import("./ready-check-chase.core");
     const types = ["mitti_measureup_sync_failed", "mitti_measureup_synced", "mitti_sync_retried", "ready_check_needs_office", "installer_quote_held", "installer_quote_queued",
       "quote_hold_approved", "quote_requeued_after_review", "quote_hold_stopped", "quote_declined", "mitti_access_needed", "mitti_access_override", "mitti_audit_linked", "mitti_synced",

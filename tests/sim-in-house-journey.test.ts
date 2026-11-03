@@ -36,12 +36,9 @@ test('SIM all-clear booking/forms/deposit/digest sequence uses one continuing jo
   h.assertStep('Install booked','installation_booked',['RC','A3','A4','A5'],[
     ['owner','email','in_house_booked'],['owner','sms','in_house_booked_owner'],
   ]);
-  h.clock.set('2026-11-15T02:59:00Z'); await h.digest();h.assertNoNewMessages();
-  h.clock.set('2026-11-15T03:00:00Z'); await h.digest();
-  h.assertStep('2pm day before','installation_booked',['RC','A3','A4','A5'],[
-    ['installer-office','email','in-house-install-office:v1:biz:2026-11-16'],
-  ]);
-  await h.digest();h.assertNoNewMessages();h.assertOfficesEmailOnly();
+  // Part 7 Task 8 (Jo 2 Nov 2026): the 2pm day-before office digest is retired (the 9am two-days-before Lead Installer
+  // confirm email replaces it — tests/lead-installer-confirm.test.ts); nothing else goes to the office here.
+  h.clock.set('2026-11-15T03:00:00Z');h.assertNoNewMessages();h.assertOfficesEmailOnly();
 });
 
 test('SIM rectification holds deposit until work complete; Xero paid notice is email-only to office',async()=>{

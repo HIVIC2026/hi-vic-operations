@@ -28,14 +28,41 @@ export async function sweepLeadInstallerConfirm(now = new Date(), opts: { approv
     bookings.push(...((data ?? []) as Booking[]));
     if ((data ?? []).length < PAGE) break;
   }
+  // Part 7 Task 8: an install day that already got the retired 2pm "Tomorrow's installs — Lead Installer" office email
+  // (claim `in-house-install-office:v1:{business}:{day}`, status sent) never gets this one as well. Read once, batched.
+  const oldSent = await oldOfficeEmailDays(bookings);
   for (const b of bookings) {
     out.checked++;
     try {
-      const r = await confirmOne(b, now, approved);
+      const r = oldSent.has(`${b.job_id}:${leadConfirmInstallYmd(b.scheduled_start)}`) ? "skipped: old 2pm office email already sent for this install day" : await confirmOne(b, now, approved);
       if (r.startsWith("email")) out.sent++;
       else if (r.startsWith("held")) out.held++;
     } catch (e) { console.error("lead installer confirm email failed", b.job_id, (e as Error).message); }
   }
+  return out;
+}
+
+/** `${jobId}:${installYmd}` for every booking whose business already got the retired 2pm email for that day (one batched read). */
+async function oldOfficeEmailDays(bookings: Booking[]): Promise<Set<string>> {
+  const out = new Set<string>();
+  if (!bookings.length) return out;
+  const jobIds = [...new Set(bookings.map((b) => b.job_id))];
+  const { data: asg, error } = await admin.from("job_assignments").select("job_id, business_id").in("job_id", jobIds).eq("role", "installer").eq("active", true);
+  if (error) throw new Error(error.message);
+  const bizOf = new Map((asg ?? []).map((a) => [String(a.job_id), String(a.business_id)]));
+  const { stableUuid } = await import("./mitti-create-claim.core");
+  const wanted: { id: string; tag: string }[] = [];
+  for (const b of bookings) {
+    const biz = bizOf.get(b.job_id);
+    if (!biz) continue;
+    const day = leadConfirmInstallYmd(b.scheduled_start);
+    wanted.push({ id: await stableUuid(`in-house-install-office:v1:${biz}:${day}`), tag: `${b.job_id}:${day}` });
+  }
+  if (!wanted.length) return out;
+  const { data: claims, error: ce } = await admin.from("workflow_events").select("id, details").in("id", wanted.map((w) => w.id));
+  if (ce) throw new Error(ce.message);
+  const sent = new Set((claims ?? []).filter((c) => (c.details as { status?: string } | null)?.status === "sent").map((c) => String(c.id)));
+  for (const w of wanted) if (sent.has(w.id)) out.add(w.tag);
   return out;
 }
 

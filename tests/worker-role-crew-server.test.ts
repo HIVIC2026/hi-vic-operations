@@ -58,7 +58,6 @@ const LIVE = { enabled: true, apiVerified: true, groupId: null };
 
 const inv = await import("../src/lib/mitti-invite.server");
 const { setWorkerRole } = await import("../src/lib/worker-links.functions");
-const { sweepCrewReminders } = await import("../src/lib/crew-reminder.server");
 const events = () => (tables["admin_config_events"] ?? []);
 
 const cert = (id: string) => ({ id: `c-${id}`, worker_id: id, worker_email: "", status: "verified" });
@@ -121,63 +120,4 @@ describe("Lead / Crew switch", () => {
   });
 });
 
-describe("crew reminder sweep", () => {
-  // Install 29 Oct 08:00 Melbourne; tick at 2:05pm on 28 Oct.
-  const NOW = new Date("2026-10-28T03:05:00Z");
-  const seedJob = (id: string, source: string, biz: string) => {
-    (tables["jobs"] ??= []).push({ id, job_number: `HV-${id}`, source, deleted_at: null, properties: { address_line: "12 Wattle St", suburb: "Brighton", postcode: "3186" } });
-    (tables["bookings"] ??= []).push({ id: `bk-${id}`, job_id: id, kind: "installation", status: "confirmed", scheduled_start: "2026-10-28T21:00:00Z" });
-    (tables["job_assignments"] ??= []).push({ job_id: id, role: "installer", active: true, business_id: biz });
-  };
-  test("TEST job: one email through the test path, event recorded first, never twice", async () => {
-    seedJob("t1", "qa_test", "bt");
-    const r1 = await sweepCrewReminders(NOW);
-    expect(r1.results).toEqual([{ jobId: "t1", outcome: "email (test) sent: fake" }]);
-    expect(sent).toEqual([{ via: "test", to: "test@hivic.test", subject: "Pick the crew for tomorrow's install – 12 Wattle St, Brighton" }]);
-    expect((tables["workflow_events"] ?? []).filter((e) => e["event_type"] === "crew_reminder_email")).toHaveLength(1);
-    await sweepCrewReminders(new Date("2026-10-28T03:20:00Z"));
-    expect(sent).toHaveLength(1);
-  });
-  test("real installer: nothing recorded or sent until Jo approves the wording", async () => {
-    seedJob("r1", "base44", "b1");
-    const r = await sweepCrewReminders(NOW);
-    expect(r.results[0]!.outcome).toBe("skipped: wording not approved yet");
-    expect(sent).toEqual([]); expect(tables["workflow_events"]).toEqual([]);
-    const ok = await sweepCrewReminders(NOW, { approved: true });
-    expect(ok.results[0]!.outcome).toBe("email blocked: fake");
-    expect(sent).toEqual([{ via: "real", to: "office@realinsul.com.au", subject: "Pick the crew for tomorrow's install – 12 Wattle St, Brighton" }]);
-  });
-  test("crew already picked or before 2pm → nothing", async () => {
-    seedJob("t2", "qa_test", "bt");
-    expect((await sweepCrewReminders(new Date("2026-10-28T02:30:00Z"))).results[0]!.outcome).toBe("skipped: not due");
-    tables["workflow_events"]!.push({ job_id: "t2", event_type: "piisa_crew_selected", details: { selection: { lead: "w-lead", additional: [] } } });
-    expect((await sweepCrewReminders(NOW)).results[0]!.outcome).toBe("skipped: crew already picked");
-    expect(sent).toEqual([]);
-  });
-  // Jo 29 Oct 2026: an old saved crew (typed-in Lead, or more than Lead + 2) must be picked again, so it gets the reminder.
-  test("old saved crew (typed-in Lead) gets the reminder, TEST path only", async () => {
-    seedJob("t3", "qa_test", "bt");
-    (tables["workflow_events"] ??= []).push({ job_id: "t3", event_type: "piisa_crew_selected", details: { selection: { lead: { other: { name: "Typed Person", eec: "CII-9" } }, additional: [] } } });
-    expect((await sweepCrewReminders(NOW)).results).toEqual([{ jobId: "t3", outcome: "email (test) sent: fake" }]);
-    expect(sent).toEqual([{ via: "test", to: "test@hivic.test", subject: "Pick the crew for tomorrow's install – 12 Wattle St, Brighton" }]);
-  });
-  test("old saved crew (more than Lead + 2) gets the reminder, TEST path only", async () => {
-    seedJob("t4", "qa_test", "bt");
-    (tables["workflow_events"] ??= []).push({ job_id: "t4", event_type: "piisa_crew_selected", details: { selection: { lead: "w-lead", additional: [{ workerId: "b" }, { workerId: "c" }, { workerId: "d" }] } } });
-    expect((await sweepCrewReminders(NOW)).results).toEqual([{ jobId: "t4", outcome: "email (test) sent: fake" }]);
-    expect(sent.every((m) => m.via === "test")).toBe(true);
-    expect(sent).toHaveLength(1);
-  });
-  test("valid saved crew (Lead + 2, one typed-in extra) → no reminder", async () => {
-    seedJob("t5", "qa_test", "bt");
-    (tables["workflow_events"] ??= []).push({ job_id: "t5", event_type: "piisa_crew_selected", details: { selection: { lead: "w-lead", additional: [{ workerId: "b" }, { other: { name: "Extra", eec: "CII-8" } }] } } });
-    expect((await sweepCrewReminders(NOW)).results[0]!.outcome).toBe("skipped: crew already picked");
-    expect(sent).toEqual([]);
-  });
-  test("real job with an old saved crew: still nothing sent until the wording is approved", async () => {
-    seedJob("r2", "base44", "b1");
-    (tables["workflow_events"] ??= []).push({ job_id: "r2", event_type: "piisa_crew_selected", details: { selection: { lead: { other: { name: "Typed Person", eec: "CII-9" } }, additional: [] } } });
-    expect((await sweepCrewReminders(NOW)).results[0]!.outcome).toBe("skipped: wording not approved yet");
-    expect(sent).toEqual([]);
-  });
-});
+// Part 7 Task 8 (Jo 2 Nov 2026): the crew reminder sweep is retired (see tests/lead-installer-confirm.test.ts).

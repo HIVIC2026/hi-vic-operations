@@ -384,16 +384,8 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           console.error("allocation tick: automatic offers sweep failed", (e as Error).message);
           (out as Record<string, unknown>)['autoOffers'] = "failed";
         }
-        try {
-          // Jo 28 Oct: crew reminder email at 2pm Melbourne the day before an install with no crew picked (once per job +
-          // install date). Real installers get nothing until Jo approves the wording; TEST uses the test-send path.
-          const { sweepCrewReminders } = await import("@/lib/crew-reminder.server");
-          const r = await timed("sweepCrewReminders", () => sweepCrewReminders());
-          (out as Record<string, unknown>)['crewReminders'] = { checked: r.checked, sent: r.sent };
-        } catch (e) {
-          console.error("allocation tick: crew reminder sweep failed", (e as Error).message);
-          (out as Record<string, unknown>)['crewReminders'] = "failed";
-        }
+        // Part 7 Task 8 (Jo 2 Nov 2026): the 2pm crew reminder (#110) and the in-house 2pm "Tomorrow's installs" office email
+        // are retired — both replaced by the 9am two-days-before Lead Installer confirm email below.
         try {
           // Part 7 Task 6 (Jo 2 Nov): ONE office email at 9am two days before each install, "Confirm or change your Lead
           // Installer by 5pm today"; every installer; DRAFT wording → real offices held until approved, TEST → test-send.
@@ -403,9 +395,6 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           console.error("allocation tick: lead installer confirm sweep failed", (e as Error).message);
           (out as Record<string, unknown>)['leadInstallerConfirm'] = "failed";
         }
-        try {
-          (out as Record<string,unknown>)['inHouseOfficeEmails']=await timed('sweepInHouseInstallOfficeEmails',async()=> (await import('@/lib/in-house-booking-notices.server')).sweepInHouseInstallOfficeEmails());
-        }catch(e){console.error('allocation tick: in-house office digest failed',(e as Error).message);(out as Record<string,unknown>)['inHouseOfficeEmails']='failed';}
         try {
           (out as Record<string,unknown>)['inHouseBookedNotices']=await timed('sweepOwnerBookedNotices',async()=> (await import('@/lib/in-house-booking.server')).sweepOwnerBookedNotices());
         }catch(e){console.error('allocation tick: booked notices failed',(e as Error).message);(out as Record<string,unknown>)['inHouseBookedNotices']='failed';}

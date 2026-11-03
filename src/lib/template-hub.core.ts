@@ -61,7 +61,6 @@ import {
   quoteReminderDay3Text, quoteReminderExpiryText, installMovedText, piesaOfferText,
 } from "./approved-texts.core";
 import { melbourneClock, readyCheckDaysSuggestedText, readyCheckBookedInstallerText, installTomorrowText, teamMemberInviteText, ownerChangedVisitText } from "./installer-texts.core";
-import { usualElectricianReminderBody } from "./usual-electrician.core";
 import { readyCheckIncompleteText, readyCheckNearlyThereEmail } from "./ready-check-chase.core";
 import { dailyText, updateText, diffDay } from "./daily-mitti-text.core";
 import { bossPriceLinkText } from "./boss-price-link.core";
@@ -544,9 +543,7 @@ const INSTALLER: TemplateEntry[] = [
   ENTRY({ id: "installer:sms-mitti_invite", section: "installer", step: "enquiry", kind: "text", code: "", name: "You've been invited to Mitti (text)", when: "With the Mitti invite email", who: "Installer or electrician", approvalNote: "Jo 25 Oct 2026, decision 331", gate: { kind: "text", smsType: "mitti_invite" },
     source: { builder: "src/lib/mitti-invite.core.ts", fn: "MITTI_INVITE_MESSAGE", sender: "src/lib/mitti-invite.server.ts" },
     render: () => text(MITTI_INVITE_MESSAGE) }),
-  ENTRY({ id: "installer:sms-usual_electrician_missing", section: "installer", step: "enquiry", kind: "text", code: "", name: "Add your usual electrician (text)", when: "A Ready Check names \"my usual electrician\" but My business has none", who: "Installer (business owner)", approvalNote: "Jo 24 Oct 2026, decisions 83/113", gate: { kind: "text", smsType: "usual_electrician_missing" },
-    source: { builder: "src/lib/usual-electrician.core.ts", fn: "usualElectricianReminderBody", sender: "src/lib/usual-electrician-reminder.server.ts" },
-    render: () => text(usualElectricianReminderBody("HV-TEST", `${BASE}/field/business`)) }),
+  // Part 7 Task 8 (Jo 2 Nov 2026): the "Add your usual electrician" text is retired (decisions 374/303 choose the electrician).
   // Ready Check
   ENTRY({ id: "installer:job-offer", section: "installer", step: "ready_check", kind: "email", code: "", name: "New Ready Check job (offer email)", when: "The office (or the automatic offer) offers a lead to the installer", who: "Installer (business owner)", approvalNote: "Jo 24 Oct 2026, decision 76", gate: { kind: "email" },
     source: { builder: "src/lib/ready-check-offer-email.core.ts", fn: "renderReadyCheckOfferEmail", sender: "src/lib/ready-check-offer-text.server.ts" },

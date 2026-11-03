@@ -30,7 +30,6 @@ import { ADDRESS_REQUEST_EMAIL_APPROVED } from "../src/lib/address-request.core"
 import { VISIT_NEW_TIMES_APPROVED } from "../src/lib/visit-new-times.core";
 import { PIESA_TIMES_REMINDER_APPROVED } from "../src/lib/piesa-times-reminder.core";
 import { INSTALLER_PLANNING_NOTICE_APPROVED } from "../src/lib/installer-planning-notice.core";
-import { usualElectricianReminderBody } from "../src/lib/usual-electrician.core";
 
 /** flag → decision number(s) in docs/JO_DECISIONS_LOG.md. */
 const APPROVED_EMAIL_FLAGS: Record<string, { value: boolean; decisions: string }> = {
@@ -68,7 +67,7 @@ const APPROVED_EMAIL_FLAGS: Record<string, { value: boolean; decisions: string }
 /** SMS type → decision. */
 const APPROVED_SMS_TYPES: Record<string, string> = {
   owner_code: "sign-in code (7 Oct)", quote_ready: "87 (B)",
-  veec_sign_request: "166", veec_sign_reminder: "168", usual_electrician_missing: "83 (kept by 113)",
+  veec_sign_request: "166", veec_sign_reminder: "168", // usual_electrician_missing retired 2 Nov 2026 (Part 7 Task 8)
   ready_check_incomplete: "83 (missing answers)", job_offer: "76/154", daily_mitti: "83 (morning text)", daily_mitti_update: "83",
   esc_notice_link: "146/154", install_window_reminder: "99/167", install_window_reminder_installer: "99/167",
   install_clearance: "186",
@@ -109,12 +108,12 @@ describe("approved message switches are on (Jo 24 Oct 2026)", () => {
     // Jo approved the address request texts and email on 28 Oct 2026 (full address required).
     // Part 3 Task 16 (Jo 2 Nov 2026): these four are retired on purpose (label "Retired 2 Nov 2026 —"); nothing else is unapproved.
     // Part 3 Task 19 (Jo 2 Nov 2026, answer 24): the installer's own customer rental questions text is a DRAFT until Jo approves it.
-    expect(off).toEqual(["ready_check_times_owner", "ready_check_booked_owner", "run_time", "run_time_reminder", "own_customer_rental_taps"]);
+    // Part 7 Task 8 (Jo 2 Nov 2026): the usual-electrician text is retired too (label "Retired 2 Nov 2026 —").
+    expect(off.sort()).toEqual(["own_customer_rental_taps", "ready_check_booked_owner", "ready_check_times_owner", "run_time", "run_time_reminder", "usual_electrician_missing"]);
     expect(ADDRESS_REQUEST_EMAIL_APPROVED).toBe(true);
     expect("ready_check_booking" in SMS_MESSAGE_TYPES).toBe(false);
   });
   test("approved SMS bodies match the decisions log word for word (brand prefix added by the sender)", () => {
     expect(ownerQuoteSms("Helen", "https://x/j")).toBe("Your ceiling insulation quote is ready, Helen. See it here: https://x/j Reply STOP to opt out."); // decision 87, B
-    expect(usualElectricianReminderBody("HV-3117", "https://x/b")).toBe("To send the quote for HV-3117, we need your usual electrician: name, licence number and price (inc GST). Add them once in My business: https://x/b"); // decision 83
   });
 });
