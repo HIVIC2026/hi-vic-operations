@@ -5,7 +5,7 @@ let cleared=true,basis='initial_piesa',paid=false,failed=false,held=true,paused=
 const emails:any[]=[],texts:any[]=[],offices:any[]=[];
 const emailKeys=new Set<string>(),smsKeys=new Set<string>();
 mock.module('@/integrations/supabase/client.server',()=>({supabaseAdmin:admin}));
-mock.module('../src/lib/in-house-suppression.server',()=>({readInHouseDispatchState:async()=>({failed,held:new Set(held?['j']:[])})}));
+mock.module('../src/lib/in-house-suppression.server',()=>({readInHouseDispatchState:async()=>({failed,held:new Set(held?['j']:[])}),inHouseDispatchSkip:async()=>failed?'in_house_read_failed':held?'in_house':null}));
 mock.module('../src/lib/install-days.server',()=>({installDayContext:async()=>({clearance:{cleared,basis},deadline:'2026-11-30',booked:false})}));
 mock.module('../src/lib/payments.server',()=>({jobPaymentView:async()=>{if(invoiceReadFails)throw Error('read failed');return invoiceMissing?null:({invoiceId:'i',invoices:{install:{id:'i',xero_invoice_id:'x'}},plan:{installDepositCents:36510},steps:[{key:'install_deposit',state:paid?'paid':'due',outstandingCents:paid?0:36510}],bank:{configured:true,accountName:'Practice',bsb:'123456',accountNumber:'12345678'},reference:'INV-1',stripe:{available:true}});}}));
 mock.module('../src/lib/veec-copy-email.server',()=>({ownerMyJobLink:async()=> 'https://example.invalid/my-job/token'}));
@@ -24,6 +24,9 @@ beforeEach(()=>{
  tables.businesses=[{id:'b',name:'Practice Insulation',email:'office@example.invalid',in_house:true}];
  tables.job_assignments=[{id:'a',job_id:'j',business_id:'b',user_id:'u',role:'installer',active:true}];
  tables.workflow_events=[];tables.customer_email_sends=[];
+ // Task 2 (Jo answer 21): eligibility reads the recorded PIESA result (piesa_records), not the clearance basis.
+ tables.piesa_records=[{id:'pr',job_id:'j',kind:'initial',outcome:'pass',is_current:true,completed_date:'2026-10-30',signed_off_by:'e',created_at:'2026-10-30T00:00:00Z'}];
+ tables.quotes=[];tables.rectification_items=[];
  emails.length=texts.length=offices.length=0;emailKeys.clear();smsKeys.clear();cleared=held=true;basis='initial_piesa';paid=failed=paused=false;
  invoiceMissing=invoiceReadFails=false;officeOutcome='sent';
 });
@@ -32,8 +35,9 @@ test('pass requests one owner email and link-free text, replay sends neither aga
  expect(emails).toHaveLength(1);expect(texts).toHaveLength(1);expect(emails[0].key).toBe('install-deposit:v1:i');expect(offices).toHaveLength(0);
  expect(texts[0].body).not.toMatch(/https?:|www\./);expect(tables.workflow_events?.filter(e=>e.event_type==='install_deposit_requested')).toHaveLength(1);
 });
-test('rectification needed requests nothing until completed',async()=>{
- cleared=false;await requestInstallDeposit('j');expect(emails.length+texts.length).toBe(0);
+test('no recorded PIESA result requests nothing; the result recorded later requests once',async()=>{
+ tables.piesa_records=[];cleared=false;await requestInstallDeposit('j');expect(emails.length+texts.length).toBe(0);
+ tables.piesa_records=[{id:'pr',job_id:'j',kind:'initial',outcome:'pass',is_current:true,completed_date:'2026-10-30',signed_off_by:'e',created_at:'2026-10-30T00:00:00Z'}];
  cleared=true;basis='section_c';await requestInstallDeposit('j',new Date('2026-11-01T00:00:00Z'));expect(emails).toHaveLength(1);
 });
 test('recorded request gets day 3/day 7 once, none after paid',async()=>{
