@@ -14,7 +14,7 @@
 // `mittiMediaFile`: lat/lng only when Mitti actually recorded them — nothing is inferred). The stored
 // `assessments.mitti_raw_snapshot` carries the same media metadata per entry (`attachPiesaMedia`), so the
 // completion gates re-run the identical rule from the stored snapshot without another Mitti call.
-import { applianceRows, CEILING_PROBLEMS, MAINS_PROBLEMS, RECTIFICATION_OUTCOMES, SOLAR_PROBLEMS } from "./official-short.core";
+import { applianceRows, CEILING_PROBLEMS, LIFE_SUPPORT_ATTACHMENT_LABEL, LIFE_SUPPORT_CONSENT_LABEL, LIFE_SUPPORT_PRESENT, MAINS_PROBLEMS, RECTIFICATION_OUTCOMES, SOLAR_PROBLEMS } from "./official-short.core";
 
 export type PiesaEvidenceId = "switchboard_photo" | "onsite_photo" | "hazard_photos" | "ces_file";
 
@@ -221,5 +221,20 @@ export function piesaEvidenceBlockersFromSnapshot(snapshot: unknown, shortAnswer
 export function piesaEvidenceFilesToStore(media: PiesaEvidenceMedia): { id: PiesaEvidenceId; label: string; file: PiesaMediaFile & { mediaId: string } }[] {
   const out: { id: PiesaEvidenceId; label: string; file: PiesaMediaFile & { mediaId: string } }[] = [];
   for (const e of PIESA_EVIDENCE) for (const f of media[e.id] ?? []) if (f.mediaId) out.push({ id: e.id, label: e.label, file: { ...f, mediaId: f.mediaId } });
+  return out;
+}
+
+/** New job flow part 8 task 4: the written consent / medical plan the electrician photographed on the PIESA. Counts only when
+ *  life support is Yes and the consent answer is one of the two "Yes – received …" options; a form without these questions
+ *  (built before they were asked) gives []. Files without a Mitti media id are dropped. */
+export function piesaLifeSupportFiles(snapshot: PiesaSnapshotEntry[] | null | undefined): { mediaId: string; capturedAt: string | null }[] {
+  const entries = Array.isArray(snapshot) ? snapshot : [];
+  const valueOf = (label: string) => entries.find((e) => e && nrm(e.label) === nrm(label))?.value;
+  if (!isYes(valueOf(LIFE_SUPPORT_PRESENT)) || !/^\s*yes\s*[–-]\s*received\b/i.test(String(valueOf(LIFE_SUPPORT_CONSENT_LABEL) ?? ""))) return [];
+  const out: { mediaId: string; capturedAt: string | null }[] = [];
+  for (const e of entries) {
+    if (!e || nrm(e.label) !== nrm(LIFE_SUPPORT_ATTACHMENT_LABEL)) continue;
+    for (const f of e.media ?? []) if (f.mediaId && !out.some((o) => o.mediaId === f.mediaId)) out.push({ mediaId: f.mediaId, capturedAt: f.capturedAt ?? null });
+  }
   return out;
 }
