@@ -72,7 +72,7 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
       try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
       if (r.electrician === "not_allocated") { setAddedJobId(r.jobId); return; }
       toast.success(nextLine(r.ownerFirstName ?? "the owner"));
-      await navigate({ to: "/field/$jobId", params: { jobId: r.jobId } });
+      await navigate({ to: "/field/$jobId", params: { jobId: r.jobId }, search: { added: true } }); // the job page prints the same line (fix wave minor 15)
     } catch (e) { setErr(saveErrorMessage(e instanceof Error ? e.message : null)); }
     finally { setBusy(false); inFlight.current = false; }
   };
@@ -84,7 +84,7 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
   if (addedJobId) return (
     <div className="space-y-4" data-add-job-flow data-step="added">
       <p role="alert" className="rounded-[12px] border-2 border-line bg-paper p-3 text-[15px]" data-electrician-not-allocated>{ADD_JOB_DRAFT_WORDS.electricianNotAllocated}</p>
-      <button type="button" className={PRIMARY_BTN} onClick={() => void navigate({ to: "/field/$jobId", params: { jobId: addedJobId } })}>{ADD_JOB_DRAFT_WORDS.goToJob}</button>
+      <button type="button" className={PRIMARY_BTN} onClick={() => void navigate({ to: "/field/$jobId", params: { jobId: addedJobId }, search: { added: true } })}>{ADD_JOB_DRAFT_WORDS.goToJob}</button>
     </div>
   );
   return (

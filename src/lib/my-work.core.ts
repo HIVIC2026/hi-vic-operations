@@ -26,8 +26,10 @@ export const MY_WORK_WORDS = {
 } as const;
 const W = MY_WORK_WORDS;
 
+/** A TEST partner's name without its TEST mark ("TEST Rapid" / "[TEST PARTNER] Rapid" → "Rapid"), as the other screens print it. */
+export const crewName = (business: string): string => business.replace(/^\s*(?:\[TEST PARTNER\]\s*|TEST\b\s*)+/i, "").trim() || business;
 export const greeting = (business: string, yourTurnCount: number): { title: string; sub: string } => ({
-  title: W.greetingTitle(business), sub: yourTurnCount > 0 ? W.needYou(yourTurnCount) : W.nothing,
+  title: W.greetingTitle(crewName(business)), sub: yourTurnCount > 0 ? W.needYou(yourTurnCount) : W.nothing,
 });
 
 const REASON: Record<NextStepKind, string> = {

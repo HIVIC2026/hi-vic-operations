@@ -42,6 +42,7 @@ import { electricalClearance } from "./allocation.core";
 import { needsFinishingTask, installerAttendanceLine, historicalReadyCheckDay, couldntGetInDay } from "./trade-view.core";
 import { needsFinishingList } from "./installer-screens.core";
 import { FIXES_COES_DOC_KIND, FIXES_COES_DOC_TITLE } from "./fixes-day.core";
+import { melbourneMidnight } from "./daily-brief.core";
 import * as paymentLedgerServer from "./payment-ledger.server";
 import * as inHouseElectricianServer from "./in-house-electrician.server";
 import { currentAllocation } from "./visit-allocation.core";
@@ -103,9 +104,15 @@ export async function tradeContext(userId: string) {
 /** Which kind of person this sign-in is for the trade area (null when it isn't linked to a business: office staff). */
 export async function tradeRoleFor(userId: string) {
   const c = await tradeContext(userId);
-  if (c) return { role: c.role, money: c.money, noLogin: false };
-  const { data: mem } = await admin.from("business_members").select("member_role").eq("user_id", userId).eq("active", true);
-  return { role: "none" as const, money: false, noLogin: noLoginFor(mem ?? []) };
+  if (c) return { role: c.role, money: c.money, noLogin: false, admin: false };
+  // Fix wave minor 8: Home Insulation Victoria's own office staff (admin) have no business membership and must never see
+  // the "You don't need to sign in" page.
+  const [{ data: mem }, { data: roles }] = await Promise.all([
+    admin.from("business_members").select("member_role").eq("user_id", userId).eq("active", true),
+    admin.from("user_roles").select("role").eq("user_id", userId),
+  ]);
+  const isAdmin = (roles ?? []).some((r) => r.role === "admin");
+  return { role: "none" as const, money: false, noLogin: !isAdmin && noLoginFor(mem ?? []), admin: isAdmin };
 }
 
 /** Review D: bosses (and, fix wave C2, Office people) see every active assignment for the business; workers only their own. */
@@ -998,8 +1005,14 @@ export async function tradeUploadLogo(userId: string, file: { name: string; type
   const up = await admin.storage.from("job-files").upload(path, file.bytes, { contentType: file.type, upsert: false });
   if (up.error) throw new WorkflowError(`The logo could not be saved: ${up.error.message}`);
   const url = `${CUSTOMER_BASE}/api/public/partner-logo/${key}.${ext}`;
+  // The partner's business save check (pilot.functions saveBusiness → requireMember(…, true)): the business admin only.
+  await (await import("./pilot.server")).requireMember(userId, c.biz.id, true);
   const { data: before } = await admin.from("businesses").select("branding").eq("id", c.biz.id).maybeSingle();
-  const branding = { ...((before?.branding as Record<string, unknown> | null) ?? {}), logo_url: url, logo_key: key, logo_path: path, logo_type: file.type };
+  const prior = (before?.branding as Record<string, unknown> | null) ?? {};
+  // Fix wave minor 9: every logo ever uploaded stays resolvable (quotes and emails already sent carry the old URL), so the
+  // earlier keys are kept in a list; `logo_url`/`logo_key` name the current one.
+  const logos = [...(Array.isArray(prior["logos"]) ? (prior["logos"] as { key: string; path: string; type: string }[]) : []), ...(typeof prior["logo_key"] === "string" && typeof prior["logo_path"] === "string" && typeof prior["logo_type"] === "string" && !(prior["logos"] as { key: string }[] | undefined)?.some((l) => l.key === prior["logo_key"]) ? [{ key: prior["logo_key"], path: prior["logo_path"], type: prior["logo_type"] }] : [])];
+  const branding = { ...prior, logo_url: url, logo_key: key, logo_path: path, logo_type: file.type, logos: [...logos, { key, path, type: file.type }], logo_keys: [...new Set([...logos.map((l) => l.key), key])] };
   // Same write the partner's own business save makes (business admin, branding only); approval fields untouched.
   const { error } = await admin.from("businesses").update({ branding, updated_at: new Date().toISOString() } as never).eq("id", c.biz.id);
   if (error) throw new WorkflowError(error.message);
@@ -1014,12 +1027,20 @@ export async function businessLogoUrl(businessId: string): Promise<string | null
   return typeof url === "string" && url.startsWith("https://") ? url : null;
 }
 
-/** The public logo route's lookup: the stored path for a logo key (null = unknown key). */
+/** The public logo route's lookup: the stored path for a logo key (null = unknown key). The current logo, else one of
+ *  the business's earlier logos (fix wave minor 9: an old URL on an already-sent quote keeps working). */
 export async function partnerLogoByKey(key: string): Promise<{ path: string; type: string } | null> {
   if (!/^[0-9a-f]{32}$/.test(key)) return null;
-  const { data } = await admin.from("businesses").select("branding").eq("branding->>logo_key" as never, key).limit(1).maybeSingle();
-  const b = (data?.branding as { logo_path?: unknown; logo_type?: unknown } | null) ?? null;
-  return b && typeof b.logo_path === "string" && typeof b.logo_type === "string" ? { path: b.logo_path, type: b.logo_type } : null;
+  const current = await admin.from("businesses").select("branding").eq("branding->>logo_key" as never, key).limit(1).maybeSingle();
+  const row = current.data ?? (await admin.from("businesses").select("branding").contains("branding", { logo_keys: [key] }).limit(1).maybeSingle()).data;
+  return logoForKey((row?.branding as Record<string, unknown> | null) ?? null, key);
+}
+/** Pure: the stored path for `key` from a business's branding (current logo first, then the kept earlier ones). */
+export function logoForKey(b: Record<string, unknown> | null, key: string): { path: string; type: string } | null {
+  if (!b) return null;
+  if (b["logo_key"] === key && typeof b["logo_path"] === "string" && typeof b["logo_type"] === "string") return { path: b["logo_path"], type: b["logo_type"] };
+  const old = (Array.isArray(b["logos"]) ? (b["logos"] as { key?: unknown; path?: unknown; type?: unknown }[]) : []).find((l) => l.key === key);
+  return old && typeof old.path === "string" && typeof old.type === "string" ? { path: old.path, type: old.type } : null;
 }
 
 export async function tradeSetTaking(userId: string, taking: boolean) {
@@ -1281,10 +1302,11 @@ export async function tradeSetReadyCheckTime(userId: string, jobId: string, pick
   return { ok: true, startsAt: start };
 }
 
-/** Task 6 (installer screens): the confirmed visits still ahead when a trade hands the job back — each one gets Part 4's
- *  "your booked visit can't go ahead" owner email. Read BEFORE the hand-back; a read failure means no email, logged. */
-export async function confirmedFutureBookings(jobId: string, now = new Date()): Promise<{ id: string; kind: string; scheduled_start: string }[]> {
-  const { data, error } = await admin.from("bookings").select("id, kind, scheduled_start").eq("job_id", jobId).eq("status", "confirmed").gt("scheduled_start", now.toISOString()).order("scheduled_start");
+/** Task 6 (installer screens) / fix wave minor 14: EVERY visit still confirmed when a trade hands the job back — ahead,
+ *  earlier today or left confirmed from days ago — so a handed-back job leaves nothing booked. Read BEFORE the hand-back;
+ *  a read failure means nothing cancelled or emailed, logged. */
+export async function stillConfirmedBookings(jobId: string): Promise<{ id: string; kind: string; scheduled_start: string }[]> {
+  const { data, error } = await admin.from("bookings").select("id, kind, scheduled_start").eq("job_id", jobId).eq("status", "confirmed").order("scheduled_start");
   if (error) throw new Error(error.message);
   return (data ?? []).flatMap((b) => (b.scheduled_start ? [{ id: b.id, kind: b.kind, scheduled_start: b.scheduled_start }] : []));
 }
@@ -1306,7 +1328,7 @@ export async function escWithdrawalFn(): Promise<((jobId: string, reason: "owner
 
 export type HandBackDeps = {
   bookingTeam: (jobId: string, userId: string) => Promise<unknown>;
-  confirmedFutureBookings: (jobId: string) => Promise<{ id: string; kind: string; scheduled_start: string }[]>;
+  stillConfirmedBookings: (jobId: string) => Promise<{ id: string; kind: string; scheduled_start: string }[]>;
   pullBackInHouseJob: (input: { jobId: string; reason: string; actorId: string }) => Promise<void>;
   finishInHouseHandback: (jobId: string, userId: string) => Promise<unknown>;
   cancelBookingsAfterHandBack: (jobId: string, bookingIds: string[], actorId: string, reason: string) => Promise<string[]>;
@@ -1317,7 +1339,7 @@ export type HandBackDeps = {
 async function handBackDeps(): Promise<HandBackDeps> {
   return {
     bookingTeam: (await import("./in-house-booking.server")).bookingTeam,
-    confirmedFutureBookings,
+    stillConfirmedBookings,
     pullBackInHouseJob: (await import("./in-house-batch.server")).pullBackInHouseJob,
     finishInHouseHandback: (await import("./in-house-handback-cleanup.server")).finishInHouseHandback,
     cancelBookingsAfterHandBack: (await import("./visit-events.server")).cancelBookingsAfterHandBack,
@@ -1331,17 +1353,19 @@ async function handBackDeps(): Promise<HandBackDeps> {
  *  pull-back leaves install / fixes bookings standing), Part 9's ESC withdrawal ask, and Part 4's owner email for each
  *  visit that was booked (Jo 2 Nov, answer 4) with the helper's answer logged. A handed-back job leaves nothing booked.
  *  A failed follow-up is logged on the job; the pull-back stands. */
-export async function handBackJob(jobId: string, actorId: string, reason: string, deps?: HandBackDeps): Promise<{ ok: true }> {
+export async function handBackJob(jobId: string, actorId: string, reason: string, deps?: HandBackDeps, now = new Date()): Promise<{ ok: true }> {
   const d = deps ?? (await handBackDeps());
   await d.bookingTeam(jobId, actorId);
-  const booked = await d.confirmedFutureBookings(jobId).catch(async (e) => { await logTradeFollowUpFailed(jobId, actorId, "read booked visits", e); return []; });
+  const booked = await d.stillConfirmedBookings(jobId).catch(async (e) => { await logTradeFollowUpFailed(jobId, actorId, "read booked visits", e); return []; });
   await d.pullBackInHouseJob({ jobId, actorId, reason });
   await d.finishInHouseHandback(jobId, actorId).catch((e) => console.error("Handback cleanup pending", e));
   try { if (booked.length) await d.cancelBookingsAfterHandBack(jobId, booked.map((b) => b.id), actorId, reason); }
   catch (e) { await logTradeFollowUpFailed(jobId, actorId, "cancel booked visits", e, d.logEvent); }
   try { if (d.requireEscWithdrawal) await d.requireEscWithdrawal(jobId, "cant_do_this_one", actorId); }
   catch (e) { await logTradeFollowUpFailed(jobId, actorId, "ESC withdrawal", e, d.logEvent); }
-  for (const b of booked) {
+  // The owner hears about visits from today on; a visit left confirmed from an earlier day is cancelled quietly.
+  const todayStart = melbourneMidnight(melbourneToday(now));
+  for (const b of booked.filter((x) => Date.parse(x.scheduled_start) >= todayStart)) {
     try {
       const result = await d.queueVisitCancelledOwnerEmail(jobId, b.id, "installer");
       await d.logEvent(jobId, actorId, "trade_handback_owner_email", `Owner email about the ${b.kind} visit after the hand-back: ${result}`, { booking_id: b.id, kind: b.kind, result }, { internal: true });

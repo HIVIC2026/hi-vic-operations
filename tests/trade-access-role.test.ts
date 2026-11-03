@@ -57,6 +57,9 @@ describe("Money is guarded by the Money rule, not the boss rule", () => {
     const f = src("src/components/trade/FieldLayout.tsx");
     expect(f).toContain("NO_LOGIN_NEEDED");
     expect(f).toContain("TradePublicShell");
+    // fix wave minor 8: Home Insulation Victoria's own office staff (admin) are never shown the no-login page
+    expect(f).toContain("data.admin === true");
+    expect(s).toMatch(/noLogin: !isAdmin && noLoginFor\(/);
   });
   test("the no-login page shows only with no active membership at all (a legacy 'member' keeps the normal layout)", () => {
     const f = src("src/components/trade/FieldLayout.tsx");

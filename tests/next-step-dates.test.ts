@@ -37,6 +37,10 @@ describe("installCountdown", () => {
   test("no deadline", () => {
     expect(installCountdown(null, now)).toBeNull();
   });
+  test("a deadline already passed never prints negative days (fix wave minor 10)", () => {
+    expect(installCountdown("2026-11-10", now)).toEqual({ daysLeft: -2, line: "Install deadline passed Tue 10 Nov" });
+    expect(installCountdown("2026-11-12", now)?.line).toBe("⏱ 0 days left to install · must be done by Thu 12 Nov (30 days from the PIESA)");
+  });
 });
 
 test("defines no lock function; the lock lives in prestart.core.ts", () => {

@@ -8,6 +8,11 @@ describe("My work page (installer)", () => {
   test("tabs, search and greeting use the approved words", () => {
     for (const w of ["Your turn ·", "All jobs ·", "Search name, address or HV number", "myWork.greeting.title", "myWork.greeting.sub"]) expect(page).toContain(w);
   });
+  test("cards print the book-by date as 'By {date}' (fix wave minor 12)", () => {
+    const page = readFileSync("src/routes/_authenticated/field.index.tsx", "utf8");
+    expect(page).toContain("` · By ${dayWords(c.by)}`");
+    expect(page).not.toContain("book by ${");
+  });
   test("overdue cards get a red border and the overdue word", () => {
     expect(page).toContain("border-rose");
     expect(page).toContain("· overdue");

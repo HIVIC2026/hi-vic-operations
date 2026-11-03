@@ -321,7 +321,7 @@ describe("Can't do this one / Owner cancelled", () => {
     expect(back).toContain('"cant_do_this_one"');
     expect(back).toContain("queueVisitCancelledOwnerEmail(");
     // read booked visits → pull back → cancel what is still booked → ESC withdrawal → owner email (with its outcome logged)
-    expect(back.indexOf("confirmedFutureBookings(")).toBeLessThan(back.indexOf("pullBackInHouseJob("));
+    expect(back.indexOf("stillConfirmedBookings(")).toBeLessThan(back.indexOf("pullBackInHouseJob("));
     expect(back.indexOf("pullBackInHouseJob(")).toBeLessThan(back.indexOf("cancelBookingsAfterHandBack("));
     expect(back.indexOf("cancelBookingsAfterHandBack(")).toBeLessThan(back.indexOf("requireEscWithdrawal("));
     expect(back.indexOf("requireEscWithdrawal(")).toBeLessThan(back.indexOf("queueVisitCancelledOwnerEmail("));

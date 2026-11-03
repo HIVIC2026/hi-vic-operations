@@ -132,6 +132,7 @@ import { SafetyCheckDocRow } from "@/components/trade/SafetyCheckDocRow";
 import { InstallAttendanceCard } from "@/components/trade/InstallAttendanceCard";
 import { ELECTRICIAN_ATTENDANCE_CONFIRMED } from "@/lib/trade-view.core";
 import { ReturnActions, useInHouseBookingAccess } from "@/components/trade/ReturnActions";
+import { nextLine } from "@/lib/add-job-flow.core";
 
 export const Route = createFileRoute("/_authenticated/field/$jobId")({
   head: () => ({
@@ -144,6 +145,8 @@ export const Route = createFileRoute("/_authenticated/field/$jobId")({
       { name: "twitter:card", content: "summary" },
     ],
   }),
+  // Fix wave minor 15: Add a job lands here with ?added=1 so the approved "Next: call {first}…" line sits on the page, not only in a toast.
+  validateSearch: (s: Record<string, unknown>): { added?: true } => (s["added"] === true || s["added"] === "1" || s["added"] === 1 ? { added: true } : {}),
   // Speed: the screen's server call starts as soon as the route matches, while this page's code downloads (trade-route-prefetch).
   loader: ({ context, params, preload }) => startTradeScreen(context, "job", params, preload),
   component: FieldJob,
@@ -868,6 +871,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
   const { data: page } = useInstallerPage(jobId);
   const done = useAction(completeInstallation);
   const inHouseAccess = useInHouseBookingAccess(jobId);
+  const { added } = Route.useSearch();
 
   if (page && job.stage === "complete") return <CompleteSummary jobId={jobId} job={job} page={page} />;
   if (!page) return <p className="text-sub">Loading…</p>;
@@ -913,6 +917,10 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
         <p className={`text-sm font-semibold ${page.countdown.daysLeft <= 10 ? "text-rose" : "text-ink"}`} data-countdown>
           {page.countdown.line}
         </p>
+      )}
+      {/* Fix wave minor 15: straight after Add a job (approved line), until the Ready Check is booked. */}
+      {added === true && box.kind === "book_ready_check" && (
+        <p className="text-[15px] font-semibold text-ink" data-added-next>{nextLine(page.ownerFirst ?? "the owner")}</p>
       )}
 
       <div className="grid items-start gap-4 md:grid-cols-2">

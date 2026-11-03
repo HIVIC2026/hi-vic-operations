@@ -36,10 +36,13 @@ function dayDiff(fromYmd: string, toYmd: string): number {
   return Math.round((b - a) / 86_400_000);
 }
 
+/** DRAFT (fix wave minor 10): shown instead of a negative count once the 30-day deadline has gone by. */
+export const DEADLINE_PASSED_LINE = (date: string) => `Install deadline passed ${date}`; // DRAFT
 export function installCountdown(installDeadlineYmd: string | null, now: Date): { daysLeft: number; line: string } | null {
   if (!installDeadlineYmd) return null;
   const daysLeft = dayDiff(melbourneToday(now), installDeadlineYmd);
   const date = fmtDay(installDeadlineYmd);
+  if (daysLeft < 0) return { daysLeft, line: DEADLINE_PASSED_LINE(date) }; // never a negative "days left"
   const unit = daysLeft === 1 ? "day" : "days";
   return { daysLeft, line: `⏱ ${daysLeft} ${unit} left to install · must be done by ${date} (30 days from the PIESA)` };
 }

@@ -95,12 +95,25 @@ describe("wiring (source facts)", () => {
     expect(upload).toContain("LOGO_MAX_BYTES");
     expect(upload).toContain("logo_url");
     expect(upload).not.toMatch(/onboarding_status|verification|approved_at/);
+    // fix wave minor 9: the partner business-save check, and earlier logos kept so their URLs keep working
+    expect(upload).toContain("requireMember(userId, c.biz.id, true)");
+    expect(upload).toContain("logo_keys:");
+    const byKey = srv.slice(srv.indexOf("export async function partnerLogoByKey"), srv.indexOf("\n}\n", srv.indexOf("export async function partnerLogoByKey")));
+    expect(byKey).toContain('contains("branding", { logo_keys: [key] })');
     const url = srv.slice(srv.indexOf("export async function businessLogoUrl"), srv.indexOf("\n}\n", srv.indexOf("export async function businessLogoUrl")));
     expect(url).toContain('startsWith("https://")');
     expect(url).not.toContain("createSignedUrl");
     const fns = read("src/lib/trade-view.functions.ts");
     expect(fns).toContain("export const setTradeWhoBooks");
     expect(fns).toContain("export const uploadTradeLogo");
+  });
+  test("logoForKey: the current logo, else an earlier one kept in the list; unknown keys are null (fix wave minor 9)", async () => {
+    const { logoForKey } = await import("../src/lib/trade-view.server");
+    const b = { logo_key: "new", logo_path: "partner-logos/b/new.png", logo_type: "image/png", logos: [{ key: "old", path: "partner-logos/b/old.jpg", type: "image/jpeg" }, { key: "new", path: "partner-logos/b/new.png", type: "image/png" }], logo_keys: ["old", "new"] };
+    expect(logoForKey(b, "new")).toEqual({ path: "partner-logos/b/new.png", type: "image/png" });
+    expect(logoForKey(b, "old")).toEqual({ path: "partner-logos/b/old.jpg", type: "image/jpeg" });
+    expect(logoForKey(b, "gone")).toBeNull();
+    expect(logoForKey(null, "new")).toBeNull();
   });
   test("the page: Needs you box, the seven rows, no 'How it works' or 'My usual electrician' links", () => {
     const page = read("src/routes/_authenticated/field.business.tsx");

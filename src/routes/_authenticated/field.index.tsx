@@ -157,6 +157,6 @@ function cardBody(c: MyWorkCard) {
     <span className="mt-2 block font-display text-lg font-semibold leading-tight">{c.owner}</span>
     {c.hvSuburb && <span className="mt-0.5 block text-sm text-sub">{c.hvSuburb}</span>}
     <span className="mt-2 block text-base font-semibold">{c.step}</span>
-    <span className="mt-0.5 block text-sm text-sub">{c.reason}{c.by ? ` · book by ${dayWords(c.by)}` : ""}{c.overdue ? <span className="font-semibold text-rose"> · overdue</span> : null}</span>
+    <span className="mt-0.5 block text-sm text-sub">{c.reason}{c.by ? ` · By ${dayWords(c.by)}` : ""}{c.overdue ? <span className="font-semibold text-rose"> · overdue</span> : null}</span>
   </>);
 }

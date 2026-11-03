@@ -87,7 +87,7 @@ describe("Add a job screen", () => {
       expect(r.getByText(ADD_JOB_DRAFT_WORDS.electricianNotAllocated)).toBeTruthy();
       expect(navigated).toHaveLength(0);
       await act(async () => { fireEvent.click(r.getByRole("button", { name: ADD_JOB_DRAFT_WORDS.goToJob })); });
-      expect(navigated).toEqual([{ to: "/field/$jobId", params: { jobId: "j-new" } }]);
+      expect(navigated).toEqual([{ to: "/field/$jobId", params: { jobId: "j-new" }, search: { added: true } }]);
     } finally { saveResult = was; }
   });
   test("an allocated electrician goes straight to the job page with the Next line", async () => {
@@ -95,7 +95,7 @@ describe("Add a job screen", () => {
     fillAll(r);
     await typeAddress(r);
     await act(async () => { fireEvent.click(r.getByRole("button", { name: ADD_JOB_WORDS.button })); });
-    expect(navigated).toEqual([{ to: "/field/$jobId", params: { jobId: "j-new" } }]);
+    expect(navigated).toEqual([{ to: "/field/$jobId", params: { jobId: "j-new" }, search: { added: true } }]);
     expect(toasts).toEqual(["Next: call Sarah and book the Ready Check on the job."]);
   });
 });

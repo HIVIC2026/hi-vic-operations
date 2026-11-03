@@ -13,7 +13,8 @@ export default function FieldLayout() {
   const loadRole = useServerFn(getTradeRole);
   const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ["trade-role"], queryFn: () => loadRole(), staleTime: 300_000, retry: false });
-  if (data?.noLogin !== true) return <Outlet />;
+  // Home Insulation Victoria's own office staff (admin) never see this page (fix wave minor 8), whatever the membership read says.
+  if (data?.noLogin !== true || data.admin === true) return <Outlet />;
   const signOut = async () => { await qc.cancelQueries(); clearTradeCache(); await supabase.auth.signOut(); window.location.replace("/portal"); };
   return (
     <TradePublicShell>

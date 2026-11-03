@@ -6,14 +6,14 @@ import ts from "typescript";
 import { readFileSync } from "node:fs";
 import { memoryPostgrest, type Tables } from "./helpers/memory-postgrest";
 import * as visitEventsCore from "../src/lib/visit-events.core";
-import { handBackJob, type HandBackDeps } from "../src/lib/trade-view.server";
+import { handBackJob, stillConfirmedBookings, type HandBackDeps } from "../src/lib/trade-view.server";
 
 function deps() {
   const log: string[] = [];
   const events: unknown[] = [];
   const d: HandBackDeps = {
     bookingTeam: async () => { log.push("team"); },
-    confirmedFutureBookings: async () => { log.push("read"); return [{ id: "bk-install", kind: "installation", scheduled_start: "2026-11-20T21:00:00Z" }, { id: "bk-rc", kind: "ready_check", scheduled_start: "2026-11-15T22:00:00Z" }]; },
+    stillConfirmedBookings: async () => { log.push("read"); return [{ id: "bk-install", kind: "installation", scheduled_start: "2026-11-20T21:00:00Z" }, { id: "bk-rc", kind: "ready_check", scheduled_start: "2026-11-15T22:00:00Z" }]; },
     pullBackInHouseJob: async () => { log.push("pullback"); },
     finishInHouseHandback: async () => { log.push("cleanup"); },
     cancelBookingsAfterHandBack: async (_j, ids) => { log.push(`cancel:${ids.join(",")}`); return ["bk-install"]; },
@@ -52,6 +52,29 @@ test("hand-back: the pull-back itself failing stops everything (nothing cancelle
   d.pullBackInHouseJob = async () => { throw new Error("Reason required"); };
   await expect(handBackJob("j", "actor", "x", d)).rejects.toThrow("Reason required");
   expect(log).toEqual(["team", "read"]);
+});
+
+// Fix wave minor 14: every still-confirmed booking is cancelled — including one earlier today — and the owner is emailed
+// about visits from today on (a visit left confirmed from days ago is cancelled quietly: "can't go ahead" would be wrong).
+test("hand-back: a booking earlier today is cancelled too; the owner email goes for today's and later visits only", async () => {
+  const { d, log } = deps();
+  const now = new Date("2026-11-20T04:00:00Z"); // Fri 20 Nov, 3pm Melbourne
+  d.stillConfirmedBookings = async () => [
+    { id: "bk-today-early", kind: "ready_check", scheduled_start: "2026-11-19T22:00:00Z" }, // 9am today, still confirmed
+    { id: "bk-old", kind: "ready_check", scheduled_start: "2026-11-10T22:00:00Z" }, // last week, never marked done
+    { id: "bk-later", kind: "installation", scheduled_start: "2026-11-25T21:00:00Z" },
+  ];
+  await handBackJob("j", "actor", "truck broke down", d, now);
+  expect(log).toContain("cancel:bk-today-early,bk-old,bk-later");
+  expect(log.filter((l) => l.startsWith("email:"))).toEqual(["email:bk-today-early", "email:bk-later"]);
+});
+
+test("stillConfirmedBookings reads every confirmed booking on the job, whatever its time", () => {
+  const src = readFileSync("src/lib/trade-view.server.ts", "utf8");
+  const body = src.slice(src.indexOf("export async function stillConfirmedBookings"), src.indexOf("\n}\n", src.indexOf("export async function stillConfirmedBookings")));
+  expect(body).toContain('.eq("status", "confirmed")');
+  expect(body).not.toContain(".gt(");
+  expect(typeof stillConfirmedBookings).toBe("function");
 });
 
 // cancelBookingsAfterHandBack: the visit-events record + reopen path (same as tradeCancelVisit), per booking still confirmed.

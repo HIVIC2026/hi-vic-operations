@@ -96,6 +96,12 @@ describe("Add a job — the screen", () => {
     for (const gone of ["VISIT_CARD", "Home Insulation Victoria's electrician", "We arrange the electrical safety check", "addedView", "SavedResult", "data-saved", "electricianChoiceOptions", "VisitField"]) expect(ui, gone).not.toContain(gone);
     expect(ui).toContain('to: "/field/$jobId"');
     expect(ui).toContain("nextLine(");
+    // fix wave minor 15: the "Next: call {first}…" line is on the job page too, not toast-only
+    expect(ui).toContain("search: { added: true }");
+    const job = read("src/routes/_authenticated/field.$jobId.tsx");
+    expect(job).toContain("validateSearch");
+    expect(job).toContain("data-added-next");
+    expect(job).toContain("nextLine(page.ownerFirst");
     expect(ui).toContain("ADD_JOB_WORDS.button");
     expect(ui).toContain("ADD_JOB_WORDS.electrician");
     expect(ui).toContain("ADD_JOB_WORDS.howNote");
