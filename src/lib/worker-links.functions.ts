@@ -15,6 +15,8 @@ const workerInput = z.object({
   trade_role: z.enum(["electrician", "installer"]),
   licence_number: z.string().trim().max(60).optional().nullable(),
   qualification: z.string().trim().max(200).optional().nullable(),
+  // Jo 3 Nov: required for every new person (stored privately); ignored on edits.
+  date_of_birth: z.string().trim().optional().nullable(),
 });
 
 // ---------- Company: manage own workers ----------
