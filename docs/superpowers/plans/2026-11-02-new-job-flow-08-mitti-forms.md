@@ -369,7 +369,7 @@ Already on the A5 and Ready Check (checked in code 2 Nov): Q40 `Did the install 
 
 **Files:** `src/lib/ready-check-lean.core.ts` (LEAN_Q), `src/lib/mitti-forms.core.ts` (READY_CHECK_FIELDS per-area block), the Ready Check readers/parsers (`mitti.core.ts`, measurement planning), `src/lib/area-diagram.core.ts`; tests.
 
-- [ ] Area name: single choice "Main house" / "Extension" / "Upstairs" / "Other", with "Other → type the area name" shown when Other. The reader takes the choice, or the typed text for Other; old free-text answers on forms already in progress still read.
+- [ ] Area name: single choice "Whole home (excluding garage)" / "Main house" / "Extension" / "Upstairs" / "Other", with "Other → type the area name" shown when Other. The reader takes the choice, or the typed text for Other; old free-text answers on forms already in progress still read.
 - [ ] Area size: per area, "How do you want to give the size?" — "Enter area (m²)" / "Length × width". m² → one number field; L × W → the existing Length (m) and Width (m). The reader computes m² from L × W or takes the m² answer; exactly one must be present per area (else the Ready Check holds as incomplete, existing "Nearly there" path).
 - [ ] Diagram: m²-only areas draw a square of that area, labelled with the name and "{m²} m²" (no length/width labels).
 - [ ] The paste-to-Mitti prompt (Task 11) includes both changes; Jo approves the wording in Task 1's gate.
