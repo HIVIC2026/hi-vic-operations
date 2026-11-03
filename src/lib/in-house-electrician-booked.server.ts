@@ -3,13 +3,17 @@ import {supabaseAdmin as admin} from '@/integrations/supabase/client.server';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import {stableUuid} from './mitti-create-claim.core';
 import {partnerEmailLayout} from './partner-email.core';
-import {PIESA_BOOKED_EMAIL_APPROVED,renderElectricianPiesaBooked,maskPiesaBookedLink} from './electrician-piesa-booked-email.core';
+import {PIESA_BOOKED_EMAIL_APPROVED,ELECTRICIAN_ACCESS_ROWS_APPROVED,renderElectricianPiesaBooked,maskPiesaBookedLink} from './electrician-piesa-booked-email.core';
 import type {BusinessContact} from './owner-wording.core';
+import type {AccessPerson} from './rental-answers.core';
 const db=admin as unknown as SupabaseClient;
 // Task 4 (decision #39): with PIESA_BOOKED_EMAIL_APPROVED the email is the approved wording, sent to the electrician business OFFICE email
 // (held while none is on file), with the job link; same key, so a booking is only ever one version. Flag off = the earlier email, unchanged.
-export type BookedDeps={approved:boolean;officeContact:(jobId:string)=>Promise<BusinessContact|null>;mintLink:(jobId:string,workerId:string)=>Promise<string|null>;mittiUrl:(jobId:string)=>Promise<string|null>};
-const defaultDeps=():BookedDeps=>({approved:PIESA_BOOKED_EMAIL_APPROVED,
+// Task 9 (Jo 2 Nov 2026, answer 7): the person who lets the trades in (tenant / property manager) from the job's own rental
+// answers, read only while ELECTRICIAN_ACCESS_ROWS_APPROVED is on (the email is Task 4's exactly otherwise); a failed read = no row.
+export type BookedDeps={approved:boolean;accessRowsApproved:boolean;officeContact:(jobId:string)=>Promise<BusinessContact|null>;mintLink:(jobId:string,workerId:string)=>Promise<string|null>;mittiUrl:(jobId:string)=>Promise<string|null>;accessPerson:(jobId:string)=>Promise<AccessPerson|null>};
+const defaultDeps=():BookedDeps=>({approved:PIESA_BOOKED_EMAIL_APPROVED,accessRowsApproved:ELECTRICIAN_ACCESS_ROWS_APPROVED,
+ accessPerson:async jobId=>(await import('./rental-answers.server')).accessPersonFor(jobId),
  officeContact:async jobId=>(await import('./electrician-link.server')).electricianBusinessFor(jobId),
  mintLink:async(jobId,workerId)=>(await import('./electrician-link.server')).ensureElectricianLink(jobId,workerId),
  mittiUrl:async jobId=>{const a=await db.from('assessments').select('external_mitti_id').eq('job_id',jobId).maybeSingle();const id=(a.data as {external_mitti_id:string|null}|null)?.external_mitti_id;return id?(await import('./mitti-link.core')).mittiFormUrl(id):null;}});
@@ -49,7 +53,9 @@ export async function notifyInHouseElectricianBooked(jobId:string,bookingId:stri
  if(d.approved){
   // A failed link or Mitti lookup never stops the email: it goes without them.
   const jobUrl=await d.mintLink(jobId,worker.data.id).catch(()=>null);const mittiUrl=await d.mittiUrl(jobId).catch(()=>null);
-  const r=renderElectricianPiesaBooked({jobNumber:j.job_number,firstName:(worker.data.full_legal_name??'').trim().split(/\s+/)[0]||null,startIso:book.data.scheduled_start,address,owner:{name:j.owners?.full_name?.trim()||'the owner',phone:j.owners?.phone??null},mittiUrl,jobUrl,test});
+  const ap=d.accessRowsApproved?await d.accessPerson(jobId).catch(e=>{console.error('PIESA booked email: access person not read',(e as Error).message);return null;}):null;
+  const access=ap?{name:ap.name,role:ap.who==='property_manager'?'property manager':'tenant',phone:ap.mobile}:null;
+  const r=renderElectricianPiesaBooked({jobNumber:j.job_number,firstName:(worker.data.full_legal_name??'').trim().split(/\s+/)[0]||null,startIso:book.data.scheduled_start,address,owner:{name:j.owners?.full_name?.trim()||'the owner',phone:j.owners?.phone??null},mittiUrl,jobUrl,access,test},{accessRowsApproved:d.accessRowsApproved});
   subject=r.subject;text=r.text;mail={html:r.html,text:r.text};stored=maskPiesaBookedLink(r.text);to=officeTo!.email!.trim();contactName=officeTo!.tradingName??officeTo!.name;
  }
  const result=test?await (await import('./test-send.server')).sendTestEmail({jobId,jobSource:j.source,partnerIsTest:true,label:key,actorId:null},to,subject,mail.html,mail.text):await (await import('./office-email.server')).sendOfficeEmail({actorId:null,recipient:'partner',to,contactName,subject,message:stored,...mail,label:'in_house_electrician_booked',record:{businessId:worker.data.business_id},idempotencyKey:key});

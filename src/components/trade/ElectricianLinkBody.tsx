@@ -5,7 +5,10 @@ import { card, ghostBtn, greenBtn, inputCls } from "@/components/trade/TradeShel
 import type { ElectricianLinkView } from "@/lib/electrician-link.server";
 import { ELECTRICIAN_CANT_DO_BUTTON, ELECTRICIAN_CANT_DO_CONFIRM, ELECTRICIAN_CANT_DO_REASON_LABEL, ELECTRICIAN_CANT_DO_REASON_NEEDED, electricianCantDoReasonOk } from "@/lib/electrician-link.core";
 
-type Shown = Pick<ElectricianLinkView, "business" | "firstName" | "jobNumber" | "owner" | "address" | "view" | "buttonUrl">;
+type Shown = Pick<ElectricianLinkView, "business" | "firstName" | "jobNumber" | "owner" | "address" | "view" | "buttonUrl"> & Partial<Pick<ElectricianLinkView, "access">>;
+
+/** DRAFT (Jo 2 Nov 2026, answer 7): at a rental the electrician calls the person who lets them in to arrange the time. */
+const callToArrange = (name: string) => `Call ${name.trim().split(/\s+/)[0] || name} to arrange the time.`;
 
 const telHref = (phone: string) => `tel:${phone.replace(/[^\d+]/g, "")}`;
 
@@ -92,6 +95,12 @@ export function ElectricianLinkBody({ d, onBook, onUpload, onCantDo }: { d: Show
         <p className="text-xs font-bold text-sub">{d.jobNumber}</p>
       </div>
       {d.view.sub && <p className="text-base" data-electrician-sub>{d.view.sub}</p>}
+      {d.access && (
+        <section className={`${card} space-y-1 text-sm`} data-electrician-access>
+          <p><span className="font-medium">Lets you in:</span> {d.access.name} ({d.access.role}) · <a className="font-semibold underline" href={telHref(d.access.phone)}>{d.access.phone}</a></p>
+          <p className="text-sub">{callToArrange(d.access.name)}</p>
+        </section>
+      )}
       {(d.owner || d.address) && (
         <section className={`${card} space-y-1 text-sm`} data-electrician-job>
           {d.owner && <p><span className="font-medium">Owner:</span> {d.owner.name}{d.owner.phone ? <> · <a className="font-semibold underline" href={telHref(d.owner.phone)}>{d.owner.phone}</a></> : null}</p>}

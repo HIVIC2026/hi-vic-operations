@@ -148,6 +148,8 @@ export async function electricianBusinessFor(jobId: string): Promise<BusinessCon
 export type ElectricianLinkView = {
   business: string; firstName: string | null; installer: string; jobNumber: string;
   owner: { name: string; phone: string | null } | null; address: string | null;
+  /** Task 9 (Jo 2 Nov, answer 7): who lets the trades in when it isn't the owner — same contact_releases rule as the owner. */
+  access: { name: string; role: "tenant" | "property manager"; phone: string } | null;
   view: ElectricianStepView; /** The Mitti form the step's button opens, when it has one. */ buttonUrl: string | null; upgradesDay: string | null;
 };
 
@@ -161,9 +163,11 @@ async function whoBooksFor(installerBusinessId: string | null): Promise<WhoBooks
   return !error && v && (WHO_BOOKS as readonly string[]).includes(v) ? (v as WhoBooks) : "office";
 }
 
-/** Owner contact + address only while this business has a current visit (existing contact_releases rule). */
-async function ownerContactFor(jobId: string, businessId: string, stage: string): Promise<{ owner: { name: string; phone: string | null } | null; address: string | null }> {
-  const none = { owner: null, address: null };
+type AccessShown = { name: string; role: "tenant" | "property manager"; phone: string } | null;
+/** Owner contact + address, and the person who lets the trades in (Part 3 Task 19 rental answers), only while this business
+ *  has a current visit (existing contact_releases rule). A failed rental read shows no access person, never hides the job. */
+async function ownerContactFor(jobId: string, businessId: string, stage: string): Promise<{ owner: { name: string; phone: string | null } | null; address: string | null; access: AccessShown }> {
+  const none = { owner: null, address: null, access: null };
   const [{ data: rels, error: re }, { data: asgs, error: ae }] = await Promise.all([
     admin.from("contact_releases").select("assignment_id, visit_kind").eq("job_id", jobId).is("revoked_at", null),
     admin.from("job_assignments").select("id, active").eq("job_id", jobId).eq("business_id", businessId),
@@ -173,9 +177,13 @@ async function ownerContactFor(jobId: string, businessId: string, stage: string)
   const mine = new Set((asgs ?? []).filter((a) => a.active).map((a) => a.id));
   const { visitIsCurrent } = await import("./allocation.core");
   if (!(rels ?? []).some((r) => mine.has(r.assignment_id as string) && visitIsCurrent(String(r.visit_kind), stage))) return none;
-  const { data: o, error } = await admin.from("job_overview").select("owner_name, owner_phone, property_address").eq("id", jobId).maybeSingle();
+  const [{ data: o, error }, ap] = await Promise.all([
+    admin.from("job_overview").select("owner_name, owner_phone, property_address").eq("id", jobId).maybeSingle(),
+    (async () => { try { return await (await import("./rental-answers.server")).accessPersonFor(jobId); } catch (e) { console.error("Electrician link: access person not read", (e as Error).message); return null; } })(),
+  ]);
   if (error) throw dbErr("the owner", error);
-  return { owner: o?.owner_name ? { name: o.owner_name, phone: o.owner_phone ?? null } : null, address: o?.property_address ?? null };
+  const access: AccessShown = ap ? { name: ap.name, role: ap.who === "property_manager" ? "property manager" : "tenant", phone: ap.mobile } : null;
+  return { owner: o?.owner_name ? { name: o.owner_name, phone: o.owner_phone ?? null } : null, address: o?.property_address ?? null, access };
 }
 
 type Facts = { facts: ElectricianLinkFacts; piesaFormUrl: string | null; upgradesFormUrl: string | null; allDoneAt: string | null; /** The job's Mitti forms the electrician can see: the A3, and the A4 while it is open. */ auditIds: string[] };
@@ -253,7 +261,7 @@ async function readElectricianLinkView(token: string, now: number): Promise<Elec
   const contact = await ownerContactFor(l.job_id, l.business_id, job.stage ?? "");
   return {
     business: bizName(eb) ?? "Your business", firstName: firstName(w.full_legal_name), installer: installer.name, jobNumber: job.job_number,
-    owner: contact.owner, address: contact.address, view,
+    owner: contact.owner, address: contact.address, access: contact.access, view,
     buttonUrl: view.step === "piesa_day" ? f.piesaFormUrl : view.step === "upgrades_day" ? f.upgradesFormUrl : null,
     upgradesDay: f.facts.upgrades.start,
   };
