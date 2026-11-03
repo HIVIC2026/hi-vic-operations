@@ -139,12 +139,27 @@ All these renamed labels need aliases in the shared A5 reader, evidence reader, 
 ### Results and retained names
 
 - Five-form regression suite: **177 passed, 0 failed across eight files**, including **16 new literal-label/safety tests**. Original fixtures continue to pass.
-- Additional allocation/upgrade-times/owner-upgrade suite was also run: **63 passed, 8 failed** at that checkpoint. Several assert the old visible wording; remaining source-shape/practice-owner failures are not claimed to be baseline failures without a before-change rerun. This is not an all-green related suite claim.
+- Additional auto-progression/allocation/upgrade-times/owner-upgrade suite: **75 passed, 8 failed, 3 skipped across four files**. Five failures assert old wording; two pin an earlier source-function shape and one is a practice-database owner-payment failure. These are not claimed to be baseline failures without a before-change rerun. This is not an all-green related suite claim.
 - Latest automatic compilation/type result: **build OK**. No separate manual typecheck was run.
 - Browser/end-to-end readback of rebuilt Mitti drafts: **NOT RUN — drafts have not been supplied**. Nothing has been sent or published.
 - Retained for compatibility: internal `fixes`/`rectification` route names, stage keys, database columns, invoice kind, settings/template-ID columns, event and message-type names, idempotency keys, exact legacy Mitti questions and official declarations. Historical signed documents and issued invoices remain unchanged.
 - Existing Xero payment references ending in `fixes` remain unchanged: that suffix is part of invoice matching, not a display-only label. New upgrade quote lines say “Electrical upgrades”; changing the reference scheme requires a separate migration/matching decision.
 - The native official installer-assessment fingerprint is unchanged; only the separate A5 label-driven path gains aliases. Missing occupancy, retained-insulation reason and A5 ruler evidence remain held.
+
+### Questions, answers and ordering not requiring another mapping
+
+- A1/A2: House/Townhouse/Unit or apartment retain existing classification. Other is not automatically eligible. Tiles/Metal sheet/Other; Easy/Standard/Difficult/No safe access; Laser measure/Tape measure/Floor plan/Other; Batts/Loose fill/Other keep their recorded meanings. Explanatory text is not a new rate or a compliance pass. The tape-measure FAILED marker is a Mitti flag, not permission to silently change locked eligibility.
+- A1: contact No, life-support Yes and last-five-years Yes retain stop/review meanings; no-answer remains unknown. A2 reuses recorded website life-support and building-age facts, not an assumed No.
+- Both Ready Checks: taking-out and topping-up both read the exact R2.0-or-more failure; R0.5/R1.0/R1.5 top-up answers remain numerical old-R facts. Old condition No and conductive Yes remain unsafe/review facts. Thicker No/R6/R7 choices retain the previously approved option/retail-price/office-review rules.
+- A3: preserve the current four solar defects, ten wiring defects and ten upgrade-work options literally. Their wording was not supplied in this prompt (it says “keep current”), so each literal answer must be compared with the exported draft before claiming provider compatibility. Consent keeps the three exact Yes–Consent / Yes–Medical Plan / No–not-received answers. Appliance/Exhaust fan/Flue/Other hazard retains separate repeated rows; safe No requires that row's problem and action.
+- A4: done No never supplies Section C sign-off. Done Yes still requires completed-work photos, CoES number/date/file and electrician signature through the existing completion gate. The scope must remain a real prefillable field, not merely a decorative instruction.
+- A5: Yes/No safety answers, additional-crew branches, third-worker question, life-support consent, multi-day recheck and restart-person options retain their meanings. Lead/second/third/electrician photos cannot substitute for each other. “There isn't one” is checked against recorded alternative-supply facts. Both signatures must keep distinct item IDs and captured times.
+- Moving named questions between sections is read-safe. Moving conditional dependants is safe only if Mitti retains their trigger logic. Repeating area order, repeated A3 problem-list context and first/second A5 signature order remain significant. Instructions and section headings do not fill official answers.
+- The owner's official PIESA declaration, actual signed SWMS, official installer declaration a–d and privacy statement are not replaced or rewritten by this work. The 30-day clock remains the official PIESA date, not A4 or booking date.
+
+### Limits before using new drafts
+
+The prompt has not been certified as operationally ready: it omits the ruler section, occupancy and retained-insulation reason and uses shortened safety questions. Those omissions are reported and kept held, not bypassed. Complete a TEST-only exported-definition/readback check after Mitti supplies the drafts; until then requiredness, conditional activation, draft IDs and returned media metadata remain unverified.
 
 ## Technical boundaries
 
