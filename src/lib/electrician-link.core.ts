@@ -2,7 +2,6 @@
 // the owner, books the safety check (PIESA) on the link, or says "Can't do this one". Pure rules and held wording only;
 // persistence in electrician-link.server.ts, sends in own-job-piesa-notices.server.ts.
 import { addMelbourneCalendarDays } from "./melbourne-time.core";
-import { melbourneMidnight } from "./daily-brief.core";
 import { weekdayDayMonthLabel } from "./owner-email-triggers.core";
 import { STAGE_ORDER } from "./workflow";
 import type { PiesaBooker } from "./piesa-booker.core";
@@ -49,12 +48,24 @@ export function piesaBookingProblem(startIso: string, now: Date, paidAt: string)
   return null;
 }
 
-/** A Melbourne date (YYYY-MM-DD) and time (HH:mm) from the page's pickers as an ISO instant; null if either is junk. */
+const MELB_PARTS = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+const melbWall = (ms: number) => { const p = Object.fromEntries(MELB_PARTS.formatToParts(new Date(ms)).map((x) => [x.type, x.value])); return `${p["year"]}-${p["month"]}-${p["day"]} ${p["hour"]}:${p["minute"]}`; };
+
+/** A Melbourne date (YYYY-MM-DD) and time (HH:mm) from the page's pickers as an ISO instant, using the Melbourne offset at
+ *  that very moment (daylight saving safe). Null if either is junk, or the time doesn't exist (the skipped hour). */
 export function melbourneWallToIso(day: string, time: string): string | null {
   const t = /^(\d{2}):(\d{2})$/.exec(time);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !t || Number(t[1]) > 23 || Number(t[2]) > 59) return null;
-  const ms = melbourneMidnight(day) + (Number(t[1]) * 60 + Number(t[2])) * 60_000;
-  return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
+  const [y, m, d] = day.split("-").map(Number);
+  const naive = Date.UTC(y!, m! - 1, d!, Number(t[1]), Number(t[2]));
+  if (!Number.isFinite(naive) || new Date(naive).toISOString().slice(0, 10) !== day) return null;
+  const want = `${day} ${time}`;
+  // Try both offsets Melbourne uses (+10, +11): the one whose instant shows the wanted wall time is right.
+  for (const off of [11, 10]) {
+    const ms = naive - off * 3_600_000;
+    if (melbWall(ms) === want) return new Date(ms).toISOString();
+  }
+  return null;
 }
 
 export const CANT_DO_REASONS = ["busy", "owner_not_answering", "other"] as const;

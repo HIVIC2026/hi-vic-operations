@@ -77,12 +77,22 @@ export async function resolveElectricianLink(token: string, now: Date = new Date
   return r.ok ? { ok: true, jobId: r.jobId, electricianBusinessId: r.electricianBusinessId, step: r.step } : r;
 }
 
-/** When the owner paid for the safety check. jobPaymentView exposes no paid time, so this is the hand-over time of the
- *  current round (`own_job_piesa_handed`, written once the fee is paid). Null = not handed over. */
+/** When the owner paid for the safety check. First round: the REAL paid time — the payment that took the safety check step
+ *  to its amount (`stepPaidAt` over the payment ledger, the same facts `jobPaymentView` uses). A repeat round (job reopened) or
+ *  any case where that isn't readable: the hand-over time of the current round (`own_job_piesa_handed`, written once the fee
+ *  is paid). Null = not handed over. */
 async function paidAtFor(jobId: string): Promise<string | null> {
   const { data, error } = await admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", OWN_JOB_PIESA_HANDED_EVENT).order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (error) throw new Error(error.message);
-  return (data?.created_at as string | undefined) ?? null;
+  const handedAt = (data?.created_at as string | undefined) ?? null;
+  if (!handedAt) return null;
+  try {
+    if (await (await import("./repeat-piesa.server")).latestReopenAt(jobId)) return handedAt; // repeat round: its own fee, own time
+    const [{ jobPaymentView }, { stepPaidAt }] = await Promise.all([import("./payments.server"), import("./payments.core")]);
+    const v = await jobPaymentView(jobId);
+    const real = v ? stepPaidAt(v.plan, "safety_check", (v.ledger ?? []).filter((l) => l.kind !== "reversal").map((l) => ({ amountCents: l.amountCents, paidAt: l.paidAt }))) : null;
+    return real ?? handedAt;
+  } catch { return handedAt; }
 }
 
 /** The electrician's own worker row (the assignment's profile), else the business, for names and phone. */
@@ -143,8 +153,18 @@ export async function linkBookPiesa(token: string, startIso: string, now: Date =
   const problem = piesaBookingProblem(startIso, now, paidAt);
   if (problem) throw new Error(problem);
   const who = await electricianPerson(r.assignment, r.electricianBusinessId);
-  const { confirmBooking } = await import("./booking.server");
-  await confirmBooking(r.jobId, "assessment", startIso, r.assignment.user_id, `${who.name} (electrician's link)`);
+  // Claim first (a double tap or two phones): one stable event per assignment; a second claim is "already booked".
+  const { stableUuid } = await import("./mitti-create-claim.core");
+  const claimId = await stableUuid(`own_job_piesa_link_booked:${r.assignment.id}`);
+  const { error: claimError } = await admin.from("workflow_events").insert({ id: claimId, job_id: r.jobId, actor_id: null, event_type: "own_job_piesa_link_booked", summary: "Electrician booking the safety check from their link", details: { assignment_id: r.assignment.id, start: startIso }, internal: true });
+  if (claimError) { if (claimError.code === "23505") throw new Error("The safety check is already booked."); throw new Error(claimError.message); }
+  try {
+    const { confirmBooking } = await import("./booking.server");
+    await confirmBooking(r.jobId, "assessment", startIso, r.assignment.user_id, `${who.name} (electrician's link)`);
+  } catch (e) {
+    await admin.from("workflow_events").delete().eq("id", claimId); // nothing was booked: let them try again
+    throw e;
+  }
   const { error } = await admin.from("appointment_proposals").update({ status: "superseded" }).eq("job_id", r.jobId).eq("kind", "assessment").eq("status", "proposed");
   if (error) console.error("open safety check times not superseded", r.jobId, error.message);
   const { notifyOwnerBooked } = await import("./in-house-booking.server");
@@ -164,16 +184,16 @@ export async function linkCantDo(token: string, reason: CantDoReason, note?: str
   if (!r.ok) throw new Error(r.reason);
   if (r.step !== "book_piesa") throw new Error("The safety check is already booked. Call the installer to change it.");
   const label = cantDoReasonLabel(reason, cleanNote);
+  const who = await electricianPerson(r.assignment, r.electricianBusinessId);
+  const { logEvent } = await import("./workflow.server");
+  await logEvent(r.jobId, null, OWN_JOB_PIESA_HANDED_BACK_EVENT, `${who.name} can't do the safety check (PIESA): ${label}. The installer picks another electrician or books it`,
+    { reason, note: cleanNote, electrician_business_id: r.electricianBusinessId, assignment_id: r.assignment.id, needs_office: true }, { internal: true });
   const { data: ended, error } = await admin.from("job_assignments").update({ active: false, ended_at: now.toISOString(), end_reason: `Electrician can't do this one: ${label}` })
     .eq("id", r.assignment.id).eq("active", true).select("id");
   if (error) throw new Error(error.message);
   if (!(ended ?? []).length) throw new Error(LINK_NOT_ASSIGNED);
   await revokeElectricianLinks(r.jobId, "cant_do", { electricianBusinessId: r.electricianBusinessId }, now);
   await admin.from("contact_releases").update({ revoked_at: now.toISOString() }).eq("assignment_id", r.assignment.id).is("revoked_at", null);
-  const who = await electricianPerson(r.assignment, r.electricianBusinessId);
-  const { logEvent } = await import("./workflow.server");
-  await logEvent(r.jobId, null, OWN_JOB_PIESA_HANDED_BACK_EVENT, `${who.name} can't do the safety check (PIESA): ${label}. The installer picks another electrician or books it`,
-    { reason, note: cleanNote, electrician_business_id: r.electricianBusinessId, assignment_id: r.assignment.id, needs_office: true }, { internal: true });
   let officeEmail = "not_sent";
   try {
     const { data: job } = await admin.from("jobs").select("originating_installer_business_id").eq("id", r.jobId).maybeSingle();

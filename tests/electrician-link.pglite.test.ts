@@ -33,18 +33,23 @@ mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: pos
 const realWorkflow = await import("../src/lib/workflow.server");
 mock.module("../src/lib/workflow.server", () => ({
   ...realWorkflow,
-  logEvent: async (job: string, actor: string | null, type: string, summary: string, details?: unknown) => { await db.query("insert into workflow_events (job_id, actor_id, event_type, summary, details, internal) values ($1,$2,$3,$4,$5,true)", [job, actor, type, summary, JSON.stringify(details ?? {})]); },
+  logEvent: async (job: string, actor: string | null, type: string, summary: string, details?: unknown) => {
+    if (failLog && type === "own_job_piesa_handed_back") { failLog = false; throw new Error("log blip"); } await db.query("insert into workflow_events (job_id, actor_id, event_type, summary, details, internal) values ($1,$2,$3,$4,$5,true)", [job, actor, type, summary, JSON.stringify(details ?? {})]); },
 }));
 const realBooking = await import("../src/lib/booking.server");
 mock.module("../src/lib/booking.server", () => ({
   ...realBooking,
   confirmBooking: async (job: string, kind: string, start: string, actor: string) => {
+    if (failBooking) { failBooking = false; throw new Error("boom"); }
+    await new Promise((r) => setTimeout(r, 20)); // a slow booking, so two taps overlap
     const a = (await db.query<{ id: string; business_id: string }>("select id, business_id from job_assignments where job_id=$1 and role='electrician' and active", [job])).rows[0]!;
     await db.query("insert into bookings (job_id, kind, status, scheduled_start, business_id, contractor_id) values ($1,$2,'confirmed',$3,$4,$5)", [job, kind, start, a.business_id, actor]);
     await db.query("update job_assignments set booking_confirmed_at=now() where id=$1", [a.id]);
     await db.query("update jobs set stage='piesa_scheduled' where id=$1", [job]);
   },
 }));
+let failBooking = false;
+let failLog = false;
 const ownerNotices: string[] = [];
 const realInHouse = await import("../src/lib/in-house-booking.server");
 mock.module("../src/lib/in-house-booking.server", () => ({ ...realInHouse, notifyOwnerBooked: async (job: string, kind: string) => { ownerNotices.push(`${job}:${kind}`); return "sent"; } }));
@@ -54,6 +59,10 @@ mock.module("../src/lib/trade-pause.server", () => ({ tradeMessagesPausedNow: as
 const realBn = await import("../src/lib/in-house-booking-notices.server");
 mock.module("../src/lib/in-house-booking-notices.server", () => ({ ...realBn, deliverOnce: async (_j: string, _k: string, mail: unknown, send: (m: unknown) => Promise<unknown>) => { await send(mail); return true; } }));
 
+// The real paid time comes from the payment ledger; tests set it here (null = payments unreadable -> hand-over time).
+let ledger: { amountCents: number; paidAt: string }[] | null = null;
+const realCoreP = await import("../src/lib/payments.core");
+mock.module("../src/lib/payments.server", () => ({ jobPaymentView: async () => { if (!ledger) throw new Error("unreadable"); return { plan: realCoreP.paymentPlan({ quoteTotalCents: 100000, safetyCheckCents: 34900, fixesCents: 0, repeatCents: 0 }), ledger }; } }));
 const els = await import("../src/lib/electrician-link.server");
 const core = await import("../src/lib/electrician-link.core");
 const tokenFor = async (job: string, biz = ELEC) => new URL((await els.createElectricianJobLink(job, biz)).url, "https://x.test").pathname.replace("/e/", "");
@@ -109,6 +118,45 @@ describe("book", () => {
   });
 });
 
+describe("double tap and paid time", () => {
+  test("two taps at once: one booking, one owner notice, the second is 'already booked'", async () => {
+    const J = id(104);
+    await db.query("insert into jobs values ($1,'piesa_and_install_window_pending',null,$2,'installer_sourced','real')", [J, INST]);
+    await db.query("insert into job_assignments (job_id, role, business_id, user_id) values ($1,'electrician',$2,$3)", [J, ELEC, U1]);
+    await db.query("insert into workflow_events (job_id, event_type, summary, details) values ($1,'own_job_piesa_handed','handed','{}')", [J]);
+    const t = await tokenFor(J);
+    ownerNotices.length = 0;
+    const r = await Promise.allSettled([els.linkBookPiesa(t, soon(5)), els.linkBookPiesa(t, soon(5))]);
+    expect(r.filter((x) => x.status === "fulfilled")).toHaveLength(1);
+    const bad = r.find((x) => x.status === "rejected") as PromiseRejectedResult;
+    expect(String(bad.reason.message)).toContain("already booked");
+    expect((await db.query("select * from bookings where job_id=$1", [J])).rows).toHaveLength(1);
+    expect(ownerNotices).toEqual([`${J}:piesa`]);
+  });
+  test("a booking that fails releases the claim so they can try again", async () => {
+    const J = id(105);
+    await db.query("insert into jobs values ($1,'piesa_and_install_window_pending',null,$2,'installer_sourced','real')", [J, INST]);
+    await db.query("insert into job_assignments (job_id, role, business_id, user_id) values ($1,'electrician',$2,$3)", [J, ELEC, U1]);
+    await db.query("insert into workflow_events (job_id, event_type, summary, details) values ($1,'own_job_piesa_handed','handed','{}')", [J]);
+    const t = await tokenFor(J);
+    failBooking = true;
+    await expect(els.linkBookPiesa(t, soon(5))).rejects.toThrow("boom");
+    await els.linkBookPiesa(t, soon(5));
+    expect((await db.query("select * from bookings where job_id=$1", [J])).rows).toHaveLength(1);
+  });
+  test("the 30 days run from the REAL paid time, not the hand-over", async () => {
+    const J = id(106);
+    await db.query("insert into jobs values ($1,'piesa_and_install_window_pending',null,$2,'installer_sourced','real')", [J, INST]);
+    await db.query("insert into job_assignments (job_id, role, business_id, user_id) values ($1,'electrician',$2,$3)", [J, ELEC, U1]);
+    await db.query("insert into workflow_events (job_id, event_type, summary, details) values ($1,'own_job_piesa_handed','handed','{}')", [J]);
+    const t = await tokenFor(J);
+    ledger = [{ amountCents: 34900, paidAt: soon(-20) }]; // paid 20 days ago, handed over just now
+    await expect(els.linkBookPiesa(t, soon(15))).rejects.toThrow("more than 30 days");
+    await els.linkBookPiesa(t, soon(5));
+    ledger = null;
+  });
+});
+
 describe("can't do this one", () => {
   test("ends the assignment, revokes the link, logs it, emails the office once (held wording: not sent)", async () => {
     const t = await tokenFor(J_CANT);
@@ -122,6 +170,16 @@ describe("can't do this one", () => {
     expect(ev[0]!.details.reason).toBe("busy");
     expect(await els.resolveElectricianLink(t)).toEqual({ ok: false, reason: "This job has moved to another electrician" });
     await expect(els.linkCantDo(t, "busy")).rejects.toThrow();
+  });
+  test("if logging the hand-back fails, nothing is half-done (still assigned, link still works)", async () => {
+    const J = id(107);
+    await db.query("insert into jobs values ($1,'piesa_and_install_window_pending',null,$2,'installer_sourced','real')", [J, INST]);
+    await db.query("insert into job_assignments (job_id, role, business_id, user_id) values ($1,'electrician',$2,$3)", [J, ELEC, U1]);
+    const t = await tokenFor(J);
+    failLog = true;
+    await expect(els.linkCantDo(t, "busy")).rejects.toThrow("log blip");
+    expect((await db.query<{ active: boolean }>("select active from job_assignments where job_id=$1", [J])).rows[0]!.active).toBe(true);
+    expect(await els.resolveElectricianLink(t)).toMatchObject({ ok: true });
   });
   test("once the wording is approved the office email goes (recorded against the installer)", async () => {
     const { emailInstallerOffice } = await import("../src/lib/own-job-piesa-notices.server");

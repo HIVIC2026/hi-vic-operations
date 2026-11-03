@@ -84,5 +84,19 @@ describe("held wording", () => {
 describe("melbourneWallToIso", () => {
   test("summer (AEDT, +11)", () => expect(melbourneWallToIso("2026-11-10", "09:30")).toBe("2026-11-09T22:30:00.000Z"));
   test("winter (AEST, +10)", () => expect(melbourneWallToIso("2026-07-10", "09:30")).toBe("2026-07-09T23:30:00.000Z"));
+  test.each([
+    ["2026-04-05", "01:59"], ["2026-04-05", "03:00"], ["2026-04-05", "10:00"], ["2026-04-05", "23:30"],
+    ["2026-10-04", "01:59"], ["2026-10-04", "03:00"], ["2026-10-04", "10:00"], ["2026-10-04", "23:30"],
+  ])("%s %s round-trips to the same Melbourne wall time", (day, time) => {
+    const iso = melbourneWallToIso(day!, time!)!;
+    expect(iso).not.toBeNull();
+    const p = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(iso)).map((x) => [x.type, x.value]));
+    expect(`${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}`).toBe(`${day} ${time}`);
+  });
+  test("change-day offsets: 10:00 on 5 Apr is +11->+10 day (AEST, +10); 10:00 on 4 Oct is AEDT (+11)", () => {
+    expect(melbourneWallToIso("2026-04-05", "10:00")).toBe("2026-04-05T00:00:00.000Z");
+    expect(melbourneWallToIso("2026-10-04", "10:00")).toBe("2026-10-03T23:00:00.000Z");
+  });
+  test("the skipped hour (2:30am on 4 Oct) doesn't exist", () => expect(melbourneWallToIso("2026-10-04", "02:30")).toBeNull());
   test("junk is refused", () => { expect(melbourneWallToIso("nope", "09:30")).toBeNull(); expect(melbourneWallToIso("2026-11-10", "25:99")).toBeNull(); });
 });
