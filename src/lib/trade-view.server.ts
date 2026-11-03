@@ -22,6 +22,7 @@ import { LOGO_MAX_BYTES, LOGO_TYPES, businessRows, logoFileProblem, needsYou, wh
 import { CUSTOMER_BASE } from "./engagement.core";
 import { PRESS_COMPLETE_LINE } from "./installer-quote-status.core";
 import { installCountdown } from "./next-step-dates.core";
+import { jobMoneyRows } from "./own-customer-price.core";
 import { JOB_PAGE_WORDS, jobDetailsRows, nextForOwner, ownerRows, ownerToldRows, ownerToldSummary, paperworkRows, progressSteps, siteNotesRows, visitsRows } from "./job-page-rows.core";
 import { swmsHouseFacts } from "./swms-house.core";
 import * as rentalAnswersServer from "./rental-answers.server";
@@ -1485,7 +1486,7 @@ function installerJobPageParts(i: {
   sentRows: { purpose: string; sent_at: string | null; created_at: string }[]; ledger: { amountCents: number; paidAt: string }[]; depositPaid: boolean;
   deadline: string | null; givenAt: string | null; consentSigned: boolean; paidEv: { created_at: string; details: unknown }[];
   piesaPayRead: { piesaIncGst: number | null } | null; swmsRead: { plan: { signers: { role?: string; name: string }[] }; status: { signed: unknown[] } } | null;
-  quoteItems: { code: string | null; description: string | null; sort: number | null }[]; priceEntered: boolean | null; notes: string[]; product: string | null;
+  quoteItems: { code: string | null; description: string | null; sort: number | null; line_total_inc_gst?: number | string | null }[]; ownerQuoteTotal?: number | null; priceEntered: boolean | null; notes: string[]; product: string | null;
   payRow: { amount: number | null; state: PayState } | null; mittiCompleted: boolean; needsFinishingItems: string[]; mittiMissing: string[];
   whoBooks: WhoBooks; coesOnFile: boolean;
 }) {
@@ -1540,13 +1541,22 @@ function installerJobPageParts(i: {
   const removalM2 = i.m?.removal_required && i.m.removal_m2 != null ? Number(i.m.removal_m2) : null;
   const piesaPaysOwn = c.money && i.piesaPayRead != null && !!j?.electrician_choice && j.electrician_choice !== "hivic";
   const piesaPaidEv = i.paidEv.find((p) => (p.details as { kind?: string } | null)?.kind === "assessment") ?? null;
-  const jobDetails = jobDetailsRows({
+  const ownCustomer = j?.channel === "installer_sourced";
+  // Part 10 Task 9: an own customer's money rows (Owner's quote — Boss/Office `seesPrices`; Your pay = the installer's own
+  // price line — Money) come from jobMoneyRows; a Home Insulation Victoria lead keeps its "Your install pay" row unchanged.
+  const installerPriceLine = i.quoteItems.find((it) => it.code === "INSTALLER_PRICE")?.line_total_inc_gst;
+  const ownMoney = ownCustomer ? jobMoneyRows({
+    channel: j?.channel ?? null, canSeePrices: c.prices, canSeeMoney: c.money,
+    ownerPriceIncGst: i.ownerQuoteTotal ?? null, installerPriceIncGst: installerPriceLine == null ? null : Number(installerPriceLine), hivLeadPayIncGst: null,
+    payRule: JOB_PAGE_WORDS.ownPayRule(ownerFirst ?? "the owner"),
+  }) : [];
+  const jobDetails = [...jobDetailsRows({
     measuredM2: i.m?.measured_area_m2 == null ? null : Number(i.m.measured_area_m2), areas: house.areas.length || null, existing: null,
     removal: removalM2 != null ? `${removalM2} m² to remove` : null, product, access: house.accessRating ?? i.m?.access_difficulty ?? null,
-    installPay: c.money ? i.pay : null,
-    installPayRule: j?.channel === "installer_sourced" ? JOB_PAGE_WORDS.ownPayRule(ownerFirst ?? "the owner") : JOB_PAGE_WORDS.hivicPayRule,
-    piesaPay: i.piesaPayRead?.piesaIncGst ?? null, piesaPaidAt: piesaPaidEv?.created_at ?? null, piesaPayApplies: piesaPaysOwn, ownCustomer: j?.channel === "installer_sourced",
-  });
+    installPay: ownCustomer ? null : c.money ? i.pay : null,
+    installPayRule: ownCustomer ? JOB_PAGE_WORDS.ownPayRule(ownerFirst ?? "the owner") : JOB_PAGE_WORDS.hivicPayRule,
+    piesaPay: i.piesaPayRead?.piesaIncGst ?? null, piesaPaidAt: piesaPaidEv?.created_at ?? null, piesaPayApplies: piesaPaysOwn, ownCustomer,
+  }), ...ownMoney];
 
   const events = i.sentRows.flatMap((s) => { const t = ownerToldSummary(s.purpose); return t ? [{ at: s.sent_at ?? s.created_at, type: s.purpose, summary: t }] : []; });
   const payments = i.ledger.map((l) => ({ at: l.paidAt, label: `paid ${centsWords(l.amountCents)} ✓` }));
@@ -1597,7 +1607,7 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
   const paidEvP = early(admin.from("workflow_events").select("created_at, details").eq("job_id", jobId).eq("event_type", "payout_marked_paid").order("created_at", { ascending: false }));
   const piesaPayP = c.kind === "installer" && c.money ? early(import("./installer-paid-electricians.server").then((m2) => m2.readInstallerPaidElectricians(c.biz.id)).catch(() => null)) : early(Promise.resolve(null));
   const swmsP = early(inBookP.then(async ({ data: ib }) => ib ? await import("./swms.server").then((m2) => m2.loadSwms(jobId)).catch(() => null) : null));
-  const quoteItemsP = early(admin.from("quotes").select("quote_items(code, description, sort)").eq("job_id", jobId).eq("kind", "installation").in("status", ["issued", "accepted", "draft"]).order("created_at", { ascending: false }).limit(1).maybeSingle());
+  const quoteItemsP = early(admin.from("quotes").select("customer_total_inc_gst, quote_items(code, description, sort, line_total_inc_gst)").eq("job_id", jobId).eq("kind", "installation").in("status", ["issued", "accepted", "draft"]).order("created_at", { ascending: false }).limit(1).maybeSingle());
   // Fix wave I4: who books (business setting), the CoES document, and the electrician the allocation event names.
   const whoBooksP = early(whoBooksFor(c.biz.id));
   const coesP = early(coesOnFileForJobs([jobId]).then((set) => set.has(jobId)).catch(() => false));
@@ -1647,7 +1657,9 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
   const jobPage = installerJobPageParts({
     c, j: j as JobPageJob | null, rcBook, inBook, piesaBook, a, m, form, clearance, quote, qq, pay, elecName, piesaRec, accessPerson, mineBk: mineBk ?? [], released,
     sentRows: sentRows ?? [], ledger, depositPaid, deadline: dl?.install_deadline ? String(dl.install_deadline) : null, givenAt: (given as { assigned_at?: string | null } | null)?.assigned_at ?? null,
-    consentSigned: !!consent, paidEv: (paidEv ?? []) as { created_at: string; details: unknown }[], piesaPayRead, swmsRead, quoteItems: (quoteItemsRow?.quote_items as { code: string | null; description: string | null; sort: number | null }[] | null) ?? [],
+    consentSigned: !!consent, paidEv: (paidEv ?? []) as { created_at: string; details: unknown }[], piesaPayRead, swmsRead, quoteItems: (quoteItemsRow?.quote_items as { code: string | null; description: string | null; sort: number | null; line_total_inc_gst?: number | string | null }[] | null) ?? [],
+    // Part 10 Task 9: the owner's quote total for the Job details money rows (own customers only; read, never shown to staff).
+    ownerQuoteTotal: quoteItemsRow?.customer_total_inc_gst == null ? null : Number(quoteItemsRow.customer_total_inc_gst),
     priceEntered, notes, product, payRow, mittiCompleted: mitti.applies ? mitti.completed === true : false, needsFinishingItems: needsFinishingList(j?.next_action ?? ""), mittiMissing: mitti.applies ? mitti.missing : [],
     whoBooks, coesOnFile,
   });

@@ -5,7 +5,7 @@ import { inHouseTradeBookingText } from "./in-house-message.core";
 // It never moves a job, never decides workflow, eligibility, allocation or pay, and never carries an owner price.
 import { PRESS_COMPLETE_LINE, QUOTE_ACCEPTED_LINE, QUOTE_DECLINED_LINE, QUOTE_HELD_LINE, QUOTE_SENT_LINE } from "./installer-quote-status.core";
 import { isPriceNextAction } from "./ready-check-basics.core";
-import { installerStatusLine } from "./installer-screens.core";
+import { installerStatusLine, sourceLabel } from "./installer-screens.core";
 
 export type HomeGroup = "action" | "coming" | "progress" | "done" | "offer";
 export type InstallerHomeJob = {
@@ -56,12 +56,8 @@ export function exactTime(iso: string): string {
   return new Date(iso).toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: TZ }).replace(/\s/g, "").toLowerCase();
 }
 
-/** Decision 48: a quiet grey source label, never the installer's own business name repeated back. */
-export function sourceLabel(channel: string | null | undefined): string | null {
-  if (channel === "installer_sourced") return "Your customer";
-  if (channel === "hivic_sourced") return "Home Insulation Victoria lead";
-  return null;
-}
+/** Decision 48: a quiet grey source label — ONE function, shared with the Job page (installer-screens.core) so the two can't drift (Part 10 Task 9). */
+export { sourceLabel } from "./installer-screens.core";
 
 /** "Needs finishing: price, owner mobile/email/permission on the Mitti form" → "price and owner details". */
 export function needsFinishingItems(nextAction: string | null | undefined): string | null {

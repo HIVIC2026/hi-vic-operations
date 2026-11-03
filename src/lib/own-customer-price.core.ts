@@ -103,3 +103,31 @@ export function ownCustomerQuoteView(f: {
   try { rows = ownCustomerRows(f.items, f.rebateIncGst, f.totalIncGst); } catch { rows = null; }
   return { cobrand, rows };
 }
+
+// ---------- Part 10 Task 9: Job details money rows and the pay rule ----------
+/** Jo 3 Nov 2026: the own-customer pay rule, stated plainly (moved here from installer-screens.core; imported back there). */
+export const OWN_CUSTOMER_PAY_RULE = "Your customers are paid once the office approves the paperwork and the owner has paid their balance.";
+
+const wholeAud = (n: number) => `$${Math.round(n).toLocaleString("en-AU")}`;
+
+/**
+ * The money rows in the Job details fold. Own customer: the owner's quote (price — Part 5 `seesPrices`) and the installer's
+ * own pay (Money — Part 5 `seesMoney`, defaults to `canSeePrices`); Home Insulation Victoria lead: the installer's pay only,
+ * never the owner's price. Lead Installers / Crew (no prices) get nothing. `payRule` (approved Money line) sits on the pay row.
+ */
+export function jobMoneyRows(f: {
+  channel: string | null; canSeePrices: boolean; canSeeMoney?: boolean;
+  ownerPriceIncGst: number | null; installerPriceIncGst: number | null; hivLeadPayIncGst: number | null; payRule?: string | null;
+}): [string, string][] {
+  if (!f.canSeePrices) return [];
+  const money = f.canSeeMoney ?? f.canSeePrices;
+  const pay = (n: number) => `${wholeAud(n)}${f.payRule ? ` · ${f.payRule}` : ""}`;
+  const rows: [string, string][] = [];
+  if (f.channel === "installer_sourced") {
+    if (f.ownerPriceIncGst != null) rows.push(["Owner's quote", wholeAud(f.ownerPriceIncGst)]);
+    if (money && f.installerPriceIncGst != null) rows.push(["Your pay", pay(f.installerPriceIncGst)]);
+    return rows;
+  }
+  if (money && f.hivLeadPayIncGst != null) rows.push(["Your pay", pay(f.hivLeadPayIncGst)]);
+  return rows;
+}

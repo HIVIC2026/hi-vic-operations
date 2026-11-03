@@ -178,6 +178,7 @@ import {
 import { BASIC_PRICE, isPriceNextAction } from "./ready-check-basics.core";
 import { OWNER_PIESA_CONFIRM_WAITING, FIXES_FORM_LINK_LABEL } from "./trade-shared-consts.core";
 import { PIESA_FULL } from "./job-wording";
+import { OWN_CUSTOMER_PAY_RULE } from "./own-customer-price.core";
 
 /** "Needs finishing: price, owner mobile/email/permission on the Mitti form" → the approved M2 list ("Your price", "The owner's email", …). */
 export function needsFinishingList(nextAction: string | null | undefined): string[] {
@@ -1057,7 +1058,7 @@ export function moneyJobDetail(f: MoneyJobFacts): {
     ],
     timeline,
     footnote: own
-      ? "Your customers are paid once the office approves the paperwork and the owner has paid their balance."
+      ? OWN_CUSTOMER_PAY_RULE
       : "Our leads are paid within 7 days of the office approving the paperwork.",
   };
 }
