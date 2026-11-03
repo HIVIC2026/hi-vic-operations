@@ -42,7 +42,10 @@ export async function quoteBillingBlocker(quoteId: string): Promise<string | nul
   }
   const { data: items } = await admin.from("quote_items").select("code, line_total_inc_gst").eq("quote_id", quoteId);
   const { electricalLineBlocker } = await import("./installer-intake.core");
-  return electricalLineBlocker(items ?? [], payerFromChoice(j.electrician_choice));
+  // Jo 4 Nov 2026: the PIESA line must still be the business's current PIESA rate (none set → held, never $349).
+  const rate = await (await import("./installer-paid-electricians.server")).installerSafetyCheckPrice(j.originating_installer_business_id).catch(() => undefined);
+  if (rate === undefined) return "Installer PIESA rate could not be checked";
+  return electricalLineBlocker(items ?? [], payerFromChoice(j.electrician_choice), rate);
 }
 
 export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: string | null, formEntries: { label: string; value: string | null }[], auditId: string, intakePrice?: { totalIncGst: number; includes: string; areaM2?: number; separateLines?: { code: string; description: string; amountIncGst: number }[]; exclusions?: string | null }) {
@@ -83,9 +86,15 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   // Jo 24 Oct: the installer's total INCLUDES any difficult access fee (never added twice); the fee is shown on the
   // installer line and taken out only for the per-m² price check.
   const accessFee = !intakePrice ? answers.difficultAccessFee(entries) : { amountIncGst: null, reason: null };
-  // Part 10 (Jo 2 Nov 2026, FEES correction): every own-customer quote carries the $349 Home Insulation Victoria fee and
-  // the $349 PIESA line whatever the electrician's choice or rate (`own-customer-price.core`); the settings' AP/PIESA
-  // amounts and `ap_fee_override_inc_gst` are no longer read on this path.
+  // Jo 4 Nov 2026 (final, supersedes Part 10's "$349 PIESA whatever the rate"): every own-customer quote carries the $349
+  // Home Insulation Victoria fee and the PIESA at the installer business's OWN rate (their rate card's PIESA line, inc GST —
+  // `installerSafetyCheckPrice`), paid through in full. The Ready Check path already carries that rate on the electrician
+  // resolution (`mittiElectricianForJob` → `withOwnerSafetyCheckPrice`); the intake-price fallback reads it here. No rate →
+  // held (`IN_HOUSE_PIESA_HOLD_REASON`), never $349. The settings' AP/PIESA amounts and `ap_fee_override_inc_gst` are not read.
+  const listPiesa = mittiElectrician ? null : await (await import("./installer-paid-electricians.server")).installerSafetyCheckPrice(job.originating_installer_business_id).catch((e: unknown) => {
+    console.error("draftInstallerQuoteFromReadyCheck: installer PIESA rate could not be read", (e as Error).message);
+    return null; // fail closed: the quote holds "no PIESA rate" until the read works; nothing is sent
+  });
   const draftInput = {
     price: intakePrice ? { ok: true, issues: [], price: { included: [intakePrice.exclusions ? `${intakePrice.includes} (excludes: ${intakePrice.exclusions})` : intakePrice.includes], otherDescription: "", totalIncGst: Math.round(intakePrice.totalIncGst * 100) / 100, agreedWithOwner: false } } : quotedPriceFromEntries(entries, m?.removal_required ?? null), measuredM2: m2, wholeVeec,
     separateLines: intakePrice?.separateLines ?? [],
@@ -97,7 +106,7 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   const quoteCore = await import("./mitti-installer-quote.core");
   // Same lines on both branches (Task 2 review): the Ready Check path adds the electrician's hold reasons; the intake-price
   // fallback (no Mitti electrician) still holds below while the electrician is undecided.
-  const draft = mittiElectrician ? quoteCore.buildMittiInstallerQuote(draftInput, mittiElectrician) : quoteCore.buildOwnCustomerQuoteDraft(draftInput);
+  const draft = mittiElectrician ? quoteCore.buildMittiInstallerQuote(draftInput, mittiElectrician) : quoteCore.buildOwnCustomerQuoteDraft(draftInput, listPiesa);
   const payer = payerFromChoice(job.electrician_choice);
   if (!mittiElectrician && payer === "undecided") draft.blockers.unshift("Electrician not decided yet — the owner's electrician cost must be known before the quote");
   if (!mittiElectrician && payer === "undecided") draft.ready = false;
@@ -128,7 +137,7 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
       await logEvent(jobId, actorId, "installer_quote_held", notOnboarded ? `Quote held · ${mittiElectrician!.reasons[0]}` : "Owner quote not drafted — needs office review", { audit_id: auditId, blockers: draft.blockers, ...(notOnboarded ? { electrician_not_onboarded: notOnboarded } : {}) });
     // An earlier held DRAFT (e.g. one priced from a free-text electrician) now carries the current hold reason, so the
     // Quote card and Quotes to check say why; `quoteBillingBlocker` refuses Send until a new snapshot is ready.
-    const inHousePriceHeld = mittiElectrician?.reasons.includes(IN_HOUSE_PIESA_HOLD_REASON);
+    const inHousePriceHeld = mittiElectrician?.reasons.includes(IN_HOUSE_PIESA_HOLD_REASON) || draft.blockers.includes(IN_HOUSE_PIESA_HOLD_REASON);
     if (notOnboarded || inHousePriceHeld) {
       const holdNow = inHousePriceHeld ? IN_HOUSE_PIESA_HOLD_REASON : [...draft.blockers, "Waiting for office review before sending"].join(" · ");
       for (const q of (open ?? []).filter((q) => q.status === "draft" && q.option_code === INSTALLER_QUOTE_CODE)) {

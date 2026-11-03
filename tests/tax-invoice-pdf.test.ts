@@ -104,10 +104,11 @@ import { LOGO_PNG } from "../src/lib/email-hero-assets";
 import { taxInvoiceBlocks } from "../src/lib/tax-invoice-pdf.server";
 import { OWN_CUSTOMER_COBRAND_APPROVED } from "../src/lib/cobrand.core";
 
+// Jo 4 Nov 2026: the own-customer PIESA line is the installer's own rate — Rapid's $275 (the fee stays $349).
 const OWN: TaxInvoiceFacts = {
-  ...SAMPLE, productLine: "Bradford Gold R5.0 · R5.0 · 120 m² · supplied and installed", productCents: 200000, piesaCents: 34900, rebateCents: 60000,
+  ...SAMPLE, productLine: "Bradford Gold R5.0 · R5.0 · 120 m² · supplied and installed", productCents: 200000, piesaCents: 27500, rebateCents: 60000,
   extraLines: [{ label: "Home Insulation Victoria fee", cents: 34900 }],
-  payments: [{ label: "Electrical safety check (PIESA)", paidOn: "8 Nov", cents: 34900 }],
+  payments: [{ label: "Electrical safety check (PIESA)", paidOn: "8 Nov", cents: 27500 }],
   ownCustomer: { installerName: "Rapid Insulation", installerLogoUrl: "https://x/rapid-logo.png", installerLogo: { bytes: new Uint8Array(Buffer.from(LOGO_PNG, "base64")), width: 400, height: 171 } },
 };
 const seam = { cobrandApproved: true };
@@ -120,11 +121,12 @@ describe("own customer tax invoice (Task 7)", () => {
     const at = (s: string) => { const i = t.indexOf(s); expect(i, s).toBeGreaterThan(-1); return i; };
     const order = ["Insulation", "Home Insulation Victoria fee", "Electrical safety check (PIESA)", "Rebate", "Your price"].map(at);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
-    expect(t).toContain("Includes GST of $245.27, worked out on the price before the rebate");
+    expect(t).toContain("Includes GST of $238.55, worked out on the price before the rebate");
     expect(t).toContain("Insulation · Bradford Gold R5.0 · R5.0 · 120 m² · supplied and installed");
-    expect(t).toContain("$2,698.00");
+    expect(t).toContain("$275.00");
+    expect(t).toContain("$2,624.00");
     expect(t).toContain("– $600.00");
-    expect(t).toContain("$2,098.00");
+    expect(t).toContain("$2,024.00");
     expect(t).not.toMatch(/VEU rebate|Victorian Energy Upgrades rebate \(price reduction\)|lawyer|\bHIV\b|\bfixes\b/);
     // every ESC field Part 1 prints is still there
     for (const s of ["Tax invoice", "Invoice INV-1234", "Bill to", "Installation address", "Contracting business (Accredited Person)", "ABN 44 671 613 979", "1/33 Altree Court, Phillip ACT 2606", "VEU Accredited Person A003654", "Installed by", "Rapid Insulation, on Thu 13 Nov 2026"]) expect(t.toLowerCase()).toContain(s.toLowerCase());
@@ -139,7 +141,7 @@ describe("own customer tax invoice (Task 7)", () => {
   test("extras sit between Insulation and the fee, under their own words", () => {
     const m = taxInvoiceModel({ ...OWN, extraLines: [{ label: "Removal of existing insulation (40 m²)", cents: 30000 }, { label: "Home Insulation Victoria fee", cents: 34900 }] }, seam) as any;
     expect(m.rows.map((x: any) => x.label)).toEqual(["Insulation · Bradford Gold R5.0 · R5.0 · 120 m² · supplied and installed", "Removal of existing insulation (40 m²)", "Home Insulation Victoria fee", "Electrical safety check (PIESA)"]);
-    expect(m.priceBeforeRebate).toBe("$2,998.00");
+    expect(m.priceBeforeRebate).toBe("$2,924.00");
   });
   test("no logo (null, http, missing bytes) → one logo, same rows", async () => {
     for (const own of [{ ...OWN.ownCustomer!, installerLogo: null }, { ...OWN.ownCustomer!, installerLogoUrl: "http://x/logo.png" }, { ...OWN.ownCustomer!, installerLogoUrl: null, installerLogo: null }]) {

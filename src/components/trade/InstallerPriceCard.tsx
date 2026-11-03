@@ -22,6 +22,7 @@ import {
   ENTER_PRICE_STEP,
   PRICE_INCLUDED_OPTIONS,
   PRICE_ISSUES,
+  PIESA_PRICE_NOT_SET,
   PRICE_LOCKED,
   PRICE_NOT_SENT_PREFIX,
   accessFlagLine,
@@ -77,6 +78,8 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
     removalRequired: view.removalRequired,
   });
   const showForm = !view.locked && (editing || !current);
+  // Jo 4 Nov 2026: no PIESA rate on the business → the button is "Save" and the card says why; nothing can be sent.
+  const canSend = view.sendOnPress && view.piesaPriceSet;
   const toggle = (o: string) => {
     // Tom 31 Oct 2026: tapping Removal again hides the note; any other change hides it too.
     if (o === REMOVAL_OPTION && removalBlocked) {
@@ -140,7 +143,7 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
                   includedOther: other || null,
                   productOption: productOption || null,
                   notes: notes.trim() || null,
-                  send: view.sendOnPress,
+                  send: canSend,
                 },
               );
               if (r) {
@@ -160,6 +163,7 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
             {ENTER_PRICE_INTRO}
             {access ? " Any difficult access is yours to price in." : ""}
           </Note>
+          {view.sendOnPress && !view.piesaPriceSet && <Note data-piesa-price-not-set>{PIESA_PRICE_NOT_SET}</Note>}
           <div>
             <Label htmlFor="ip-product">Insulation product</Label>
             <select
@@ -246,7 +250,7 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
           <p className="text-sm text-sub" data-price-note>{ENTER_PRICE_STEP.note}</p>
           <div className="flex gap-2">
             <PrimaryButton type="submit" disabled={busy || !check.ok} data-price-button>
-              {busy ? (view.sendOnPress ? "Sending…" : "Saving…") : enterPriceButton(view.sendOnPress)}
+              {busy ? (canSend ? "Sending…" : "Saving…") : enterPriceButton(canSend)}
             </PrimaryButton>
             {current && (
               <button

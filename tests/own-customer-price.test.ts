@@ -1,26 +1,27 @@
 import { describe, expect, test } from "bun:test";
-import { OWN_CUSTOMER_LABELS, OWN_CUSTOMER_PIESA_INC_GST, ownCustomerRows } from "../src/lib/own-customer-price.core";
+import { OWN_CUSTOMER_AP_FEE_INC_GST, OWN_CUSTOMER_LABELS, PIESA_PRICE_NOT_SET, ownCustomerRows } from "../src/lib/own-customer-price.core";
 import { MITTI_INSTALLER_FEE_INC_GST } from "../src/lib/usual-electrician.core";
 import { buildInstallerQuoteDraft } from "../src/lib/installer-led.core";
 
 // Part 10 Task 1 — own-customer quote/invoice lines (plan: Insulation · Home Insulation Victoria fee ·
 // Electrical safety check (PIESA) · Rebate · Your price). Pure; built from quote_items.code, never the description.
+// Jo 4 Nov 2026: the PIESA line is the installer's own PIESA rate (Rapid $275 here), shown as the quote carries it.
 
 const items = [
-  { code: "PIESA", description: "x", line_total_inc_gst: 349 },
+  { code: "PIESA", description: "x", line_total_inc_gst: 275 },
   { code: "INSTALLER_PRICE", description: "Bradford Gold R5.0 · 120 m²", line_total_inc_gst: 2000 },
   { code: "AP_FEE", description: "y", line_total_inc_gst: 349 },
 ];
 
 describe("ownCustomerRows", () => {
   test("approved order and labels, whatever order the items arrive in", () => {
-    const r = ownCustomerRows(items, 600, 2098);
+    const r = ownCustomerRows(items, 600, 2024);
     expect(r.map((x) => [x.label, x.amountIncGst])).toEqual([
       ["Insulation", 2000],
       ["Home Insulation Victoria fee", 349],
-      ["Electrical safety check (PIESA)", 349],
+      ["Electrical safety check (PIESA)", 275],
       ["Rebate", -600],
-      ["Your price", 2098],
+      ["Your price", 2024],
     ]);
     expect(r.map((x) => x.key)).toEqual(["insulation", "apFee", "piesa", "rebate", "total"]);
     expect(r[0]!.detail).toBe("Bradford Gold R5.0 · 120 m²");
@@ -35,7 +36,7 @@ describe("ownCustomerRows", () => {
     const r = ownCustomerRows(
       [...items, { code: "INSTALLER_REMOVAL", description: "Removal of existing insulation – 40 m²", line_total_inc_gst: 300 }],
       600,
-      2398,
+      2324,
     );
     expect(r[1]).toEqual({ key: "extra", label: "Removal of existing insulation – 40 m²", detail: null, amountIncGst: 300 });
     expect(r.map((x) => x.key)).toEqual(["insulation", "extra", "apFee", "piesa", "rebate", "total"]);
@@ -49,7 +50,7 @@ describe("ownCustomerRows", () => {
         ...items,
       ],
       600,
-      2548,
+      2474,
     );
     expect(r.map((x) => [x.key, x.label])).toEqual([
       ["insulation", "Insulation"],
@@ -62,31 +63,36 @@ describe("ownCustomerRows", () => {
     ]);
   });
 
-  // I1 (final review): never re-price. An older quote priced at the electrician's rate ($275) or any fee other than $349
-  // is NOT an approved own-customer quote — the rows throw and every caller falls back to the generic rows.
-  test("an old $275 PIESA line throws (never shown as $349)", () => {
-    expect(() => ownCustomerRows([...items.filter((i) => i.code !== "PIESA"), { code: "PIESA", description: "x", line_total_inc_gst: 275 }], 600, 2024)).toThrow("Own-customer quote PIESA line is $275.00, not $349.00");
+  // I1 (final review) + Jo 4 Nov 2026: never re-price. The PIESA row shows whatever the quote carries — the installer's
+  // rate at the time ($349 for Deep, $275 for Rapid, $420 for someone else); a $0 PIESA or any fee other than $349 is
+  // NOT an approved own-customer quote — the rows throw and every caller falls back to the generic rows.
+  test("the PIESA row is the quote's own amount — $349, $275 or $420 — never re-priced to a constant", () => {
+    for (const rate of [349, 275, 420]) {
+      const r = ownCustomerRows([...items.filter((i) => i.code !== "PIESA"), { code: "PIESA", description: "x", line_total_inc_gst: rate }], 600, 1749 + rate);
+      expect(r.find((x) => x.key === "piesa")!.amountIncGst).toBe(rate);
+    }
+    expect(() => ownCustomerRows([...items.filter((i) => i.code !== "PIESA"), { code: "PIESA", description: "x", line_total_inc_gst: 0 }], 600, 1749)).toThrow("Own-customer quote PIESA line is $0.00, not a price");
   });
 
   test("a fee line other than $349 throws", () => {
-    expect(() => ownCustomerRows([...items.filter((i) => i.code !== "AP_FEE"), { code: "AP_FEE", description: "y", line_total_inc_gst: 200 }], 600, 1949)).toThrow("Own-customer quote AP_FEE line is $200.00, not $349.00");
+    expect(() => ownCustomerRows([...items.filter((i) => i.code !== "AP_FEE"), { code: "AP_FEE", description: "y", line_total_inc_gst: 200 }], 600, 1875)).toThrow("Own-customer quote AP_FEE line is $200.00, not $349.00");
   });
 
   test("rows that don't add up to the quote total (±1c) throw; a cent of rounding is fine", () => {
-    expect(() => ownCustomerRows(items, 600, 2100)).toThrow("Own-customer quote rows add up to $2,098.00, not the quote total $2,100.00");
-    expect(() => ownCustomerRows(items, 0, 2698.01)).not.toThrow();
-    expect(() => ownCustomerRows(items, 600, 2097.995)).not.toThrow();
+    expect(() => ownCustomerRows(items, 600, 2100)).toThrow("Own-customer quote rows add up to $2,024.00, not the quote total $2,100.00");
+    expect(() => ownCustomerRows(items, 0, 2624.01)).not.toThrow();
+    expect(() => ownCustomerRows(items, 600, 2023.995)).not.toThrow();
   });
 
   test("a quote with no fee or no PIESA line fails closed (the total would not include them)", () => {
-    expect(() => ownCustomerRows([items[1]!, items[0]!], 600, 2098)).toThrow("Own-customer quote has no AP_FEE line");
-    expect(() => ownCustomerRows([items[1]!, items[2]!], 600, 2098)).toThrow("Own-customer quote has no PIESA line");
-    expect(() => ownCustomerRows([...items, items[2]!], 600, 2098)).toThrow("Own-customer quote has more than one AP_FEE line");
-    expect(() => ownCustomerRows([...items, items[0]!], 600, 2098)).toThrow("Own-customer quote has more than one PIESA line");
+    expect(() => ownCustomerRows([items[1]!, items[0]!], 600, 2024)).toThrow("Own-customer quote has no AP_FEE line");
+    expect(() => ownCustomerRows([items[1]!, items[2]!], 600, 2024)).toThrow("Own-customer quote has no PIESA line");
+    expect(() => ownCustomerRows([...items, items[2]!], 600, 2024)).toThrow("Own-customer quote has more than one AP_FEE line");
+    expect(() => ownCustomerRows([...items, items[0]!], 600, 2024)).toThrow("Own-customer quote has more than one PIESA line");
   });
 
   test("a rebate of 0 still shows the Rebate line at 0, never a negative zero", () => {
-    const r = ownCustomerRows(items, 0, 2698);
+    const r = ownCustomerRows(items, 0, 2624);
     const rebate = r.find((x) => x.key === "rebate")!;
     expect(rebate.amountIncGst).toBe(0);
     expect(Object.is(rebate.amountIncGst, -0)).toBe(false);
@@ -99,16 +105,20 @@ describe("ownCustomerRows", () => {
   });
 
   test("an insulation line is required — rows without one fail closed", () => {
-    expect(() => ownCustomerRows([items[0]!, items[2]!], 600, 98)).toThrow("Own-customer quote has no INSTALLER_PRICE line");
+    expect(() => ownCustomerRows([items[0]!, items[2]!], 600, 24)).toThrow("Own-customer quote has no INSTALLER_PRICE line");
   });
 
   test("two insulation lines fail closed", () => {
-    expect(() => ownCustomerRows([...items, items[1]!], 600, 4098)).toThrow("Own-customer quote has more than one INSTALLER_PRICE line");
+    expect(() => ownCustomerRows([...items, items[1]!], 600, 4024)).toThrow("Own-customer quote has more than one INSTALLER_PRICE line");
   });
 
-  test("fees are 349 each", () => {
-    expect(OWN_CUSTOMER_PIESA_INC_GST).toBe(349);
+  test("the AP fee is the fixed $349; there is no fixed PIESA constant any more (Jo 4 Nov 2026)", async () => {
+    expect(OWN_CUSTOMER_AP_FEE_INC_GST).toBe(349);
     expect(MITTI_INSTALLER_FEE_INC_GST).toBe(349);
+    const mod = await import("../src/lib/own-customer-price.core");
+    expect("OWN_CUSTOMER_PIESA_INC_GST" in mod).toBe(false);
+    expect(PIESA_PRICE_NOT_SET).toBe("Set your PIESA price in My business first");
+    expect(PIESA_PRICE_NOT_SET).not.toMatch(/pay|paid|\$/i);
   });
 
   test("labels are the approved ones, verbatim", () => {
@@ -123,7 +133,7 @@ describe("ownCustomerRows", () => {
 
   test("does not mutate the items it is given", () => {
     const copy = items.map((i) => ({ ...i }));
-    ownCustomerRows(copy, 600, 2098);
+    ownCustomerRows(copy, 600, 2024);
     expect(copy).toEqual(items);
   });
 });

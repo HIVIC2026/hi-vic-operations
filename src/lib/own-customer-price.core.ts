@@ -8,13 +8,16 @@ import { cobrandLogos, type CobrandLogo } from "./cobrand.core";
  * "OWN CUSTOMERS quote + invoice lines"). Pure: builds the owner-facing rows from `quote_items.code`, never from a
  * description, so "Home Insulation Victoria fee" can never be mistaken for the insulation product.
  *
- * Owner's price = installer's price (+ separately agreed extras) + $349 Home Insulation Victoria fee + $349 PIESA − rebate.
- * The PIESA line is $349 whatever the electrician's own rate (they are still paid their rate; Home Insulation Victoria
- * keeps the difference). Home Insulation Victoria leads (`hivic_sourced`) never come through here.
+ * Owner's price = installer's price (+ separately agreed extras) + $349 Home Insulation Victoria fee + the installer's
+ * PIESA price − rebate. Jo 4 Nov 2026 (final, supersedes the 2 Nov "$349 whatever the rate"): the PIESA line is the
+ * installer business's own onboarded PIESA rate (their rate card's PIESA line, inc GST — Deep $349, Rapid $275 are
+ * examples, not constants) and that same amount is paid through in full to whoever does the PIESA; Home Insulation
+ * Victoria keeps nothing on that line. No rate set → the quote holds (never a default $349). Home Insulation Victoria
+ * leads (`hivic_sourced`) never come through here (owner $349, electrician their own rate, the gap stays ours).
  */
 
-/** Owner-facing PIESA line on an own-customer quote: always $349, whatever the electrician is paid. */
-export const OWN_CUSTOMER_PIESA_INC_GST = 349;
+/** Installer-facing hold (Boss/Office) while the business has no PIESA rate: the quote can't be sent until it is set. */
+export const PIESA_PRICE_NOT_SET = "Set your PIESA price in My business first";
 /** Owner-facing Home Insulation Victoria (Accredited Person) fee on an own-customer quote: $349. */
 export const OWN_CUSTOMER_AP_FEE_INC_GST: number = MITTI_INSTALLER_FEE_INC_GST;
 
@@ -48,9 +51,10 @@ const EXTRA_CODES: ReadonlySet<string> = new Set(["INSTALLER_REMOVAL", "INSTALLE
  *
  * - `INSTALLER_PRICE` → insulation (exactly one required; detail = its description).
  * - `INSTALLER_REMOVAL` / `INSTALLER_EXTRA` → extra (label = its description).
- * - `AP_FEE` / `PIESA` → the fixed $349 lines (exactly one of each required). I1 (final review): NEVER re-priced — an item
- *   at any other amount (an older quote priced at the electrician's $275 rate) throws, and every caller falls back to the
- *   generic rows, so an owner is never shown a figure their quote doesn't carry.
+ * - `AP_FEE` → the fixed $349 fee (exactly one, at $349). `PIESA` → exactly one positive line at the amount the quote
+ *   carries (the installer's PIESA rate at the time it was prepared). I1 (final review): NEVER re-priced — the rows show
+ *   the quote's own amounts; a fee at any other amount, a missing / doubled line or a PIESA at $0 throws, and every caller
+ *   falls back to the generic rows, so an owner is never shown a figure their quote doesn't carry.
  * - Anything else, a missing line, a doubled line, or rows that don't add up to `totalIncGst` (±1c) throws — fail closed,
  *   never guess a label, a fee or a total.
  */
@@ -58,6 +62,7 @@ export function ownCustomerRows(items: readonly OwnCustomerQuoteItem[], rebateIn
   let insulation: OwnCustomerRow | null = null;
   const extras: OwnCustomerRow[] = [];
   const seen = { AP_FEE: 0, PIESA: 0 };
+  let piesaIncGst = 0;
   for (const it of items) {
     const code = it.code;
     if (code === "INSTALLER_PRICE") {
@@ -65,9 +70,13 @@ export function ownCustomerRows(items: readonly OwnCustomerQuoteItem[], rebateIn
       insulation = { key: "insulation", label: OWN_CUSTOMER_LABELS.insulation, detail: it.description, amountIncGst: it.line_total_inc_gst };
     } else if (code != null && EXTRA_CODES.has(code)) {
       extras.push({ key: "extra", label: it.description, detail: null, amountIncGst: it.line_total_inc_gst });
-    } else if (code === "AP_FEE" || code === "PIESA") {
-      const want = code === "AP_FEE" ? OWN_CUSTOMER_AP_FEE_INC_GST : OWN_CUSTOMER_PIESA_INC_GST;
-      if (Math.abs(it.line_total_inc_gst - want) > 0.005) throw new Error(`Own-customer quote ${code} line is ${aud(it.line_total_inc_gst)}, not ${aud(want)}`);
+    } else if (code === "AP_FEE") {
+      if (Math.abs(it.line_total_inc_gst - OWN_CUSTOMER_AP_FEE_INC_GST) > 0.005) throw new Error(`Own-customer quote ${code} line is ${aud(it.line_total_inc_gst)}, not ${aud(OWN_CUSTOMER_AP_FEE_INC_GST)}`);
+      seen[code] += 1;
+    } else if (code === "PIESA") {
+      // Jo 4 Nov 2026: the installer's own PIESA rate — whatever the quote carries, as long as it is a real price.
+      if (!(Number(it.line_total_inc_gst) > 0)) throw new Error(`Own-customer quote PIESA line is ${aud(Number(it.line_total_inc_gst) || 0)}, not a price`);
+      piesaIncGst = it.line_total_inc_gst;
       seen[code] += 1;
     } else {
       throw new Error(`Unknown own-customer quote line: ${code}`);
@@ -79,13 +88,13 @@ export function ownCustomerRows(items: readonly OwnCustomerQuoteItem[], rebateIn
     if (seen[code] > 1) throw new Error(`Own-customer quote has more than one ${code} line`);
   }
   const rebate = rebateIncGst === 0 ? 0 : -Math.abs(rebateIncGst);
-  const sum = insulation.amountIncGst + extras.reduce((a, e) => a + e.amountIncGst, 0) + OWN_CUSTOMER_AP_FEE_INC_GST + OWN_CUSTOMER_PIESA_INC_GST + rebate;
+  const sum = insulation.amountIncGst + extras.reduce((a, e) => a + e.amountIncGst, 0) + OWN_CUSTOMER_AP_FEE_INC_GST + piesaIncGst + rebate;
   if (Math.abs(sum - totalIncGst) > 0.0101) throw new Error(`Own-customer quote rows add up to ${aud(sum)}, not the quote total ${aud(totalIncGst)}`);
   return [
     insulation,
     ...extras,
     { key: "apFee", label: OWN_CUSTOMER_LABELS.apFee, detail: null, amountIncGst: OWN_CUSTOMER_AP_FEE_INC_GST },
-    { key: "piesa", label: OWN_CUSTOMER_LABELS.piesa, detail: null, amountIncGst: OWN_CUSTOMER_PIESA_INC_GST },
+    { key: "piesa", label: OWN_CUSTOMER_LABELS.piesa, detail: null, amountIncGst: piesaIncGst },
     { key: "rebate", label: OWN_CUSTOMER_LABELS.rebate, detail: null, amountIncGst: rebate },
     { key: "total", label: OWN_CUSTOMER_LABELS.total, detail: null, amountIncGst: totalIncGst },
   ];

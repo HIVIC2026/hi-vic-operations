@@ -102,7 +102,9 @@ export async function moneyMargins(now = new Date()) {
     const usualPiesa = inst ? internals.find((x) => x.quote_id === inst.id)?.calc_snapshot?.piesa_electrician : null;
     const usualPiesaEx = usualPiesa?.source === "installer_usual" && Number(usualPiesa.rate_inc_gst) > 0 ? Number(usualPiesa.rate_inc_gst) / (1 + gstRate) : null;
     const paidToInstaller = installerPaid.get(id);
-    // Jo 3 Nov correction: installer-source jobs pass their full recorded/list fee to the installer; website leads use the office payout.
+    // Jo 4 Nov 2026 (final): on an installer's own customer the PIESA line IS the business's own PIESA rate (recorded quote
+    // line, else their rate card) and that same amount passes through to them in full — we keep nothing on that line
+    // (`safetyCheckPayeesFor`). Website leads: owner $349, the office payout to the electrician, the gap is ours.
     void piesaRate; void usualPiesaEx; void fallbackPiesa; void elec;
     const piesaCostEx = ownerDirect ? 0 : paidToInstaller ? paidToInstaller.piesaIncGst / (1 + gstRate)
       : safetyCheckPayoutIncGst({ channel: j.channel, offerRateInc: offerRate.get(id) ?? null, ownerPriceIncGst: ownerPiesa, hivPayoutIncGst: hivPayout }) / (1 + gstRate);
@@ -163,7 +165,8 @@ export async function moneyPayouts(testJobIds?: string[]) {
   const elecIds = [...new Set([...asg.filter((a) => a.role === "electrician").map((a) => a.business_id), ...visitBiz])];
   const { data: rates } = elecIds.length ? await db.from("electrician_rates").select("business_id, rate_inc_gst, effective_from").in("business_id", elecIds).eq("service_type", "piesa").in("status", ["active", "approved"]).order("effective_from", { ascending: false }) : { data: [] };
   // Jo 3 Nov 2026: our leads pay the electrician the office payout ($275), unless the accepted offer recorded a rate
-  // (HV-3682 stays $349); installer jobs pass the owner's $349 through.
+  // (HV-3682 stays $349). Jo 4 Nov 2026 (final): installer jobs pass the business's own PIESA rate through in full
+  // (`safetyCheckPayeesFor` — the recorded quote line, else their rate card; none → held, never $349).
   void rates;
   const hivPayoutInc = hivElectricianPayoutIncGst(pricing?.piesa_rec_cost_ex_gst ?? null, gst - 1);
   const [ownerPiesaInc, offerRates] = await Promise.all([standardOwnerPiesa(), acceptedPiesaOfferRates(ids)]);
@@ -385,7 +388,7 @@ export async function createInvoiceForJob(jobId: string, actorId: string | null)
   return { ok: true };
 }
 
-/** The single standard owner safety-check price ($349). */
+/** The single standard owner safety-check price ($349) — Home Insulation Victoria leads only (own customers use their installer's rate). */
 async function standardOwnerPiesa(): Promise<number> {
   const { data, error } = await db.from("retail_estimator_settings").select("piesa_assessment_inc_gst").eq("is_current", true).maybeSingle();
   if (error) throw new Error(`Could not read the standard safety check price: ${error.message}`);

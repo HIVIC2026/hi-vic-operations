@@ -109,6 +109,8 @@ export async function safetyCheckPayeesFor(jobs: { id: string; channel?: string 
         if (!recorded.has(q.job_id) && Number.isFinite(inc) && inc > 0) recorded.set(q.job_id, inc);
       }
     }
+    // Jo 4 Nov 2026 (final): the own-customer PIESA line is the business's own rate and the whole line is theirs — the
+    // recorded quote line (what the owner was charged) first, else today's rate card; none → held, never a default figure.
     for (const j of ownJobs) {
       const b = businesses.get(j.originating_installer_business_id ?? "");
       const inc = recorded.get(j.id) ?? b?.piesaIncGst;

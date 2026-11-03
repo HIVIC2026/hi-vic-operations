@@ -96,17 +96,21 @@ export const WORKFLOW_DECISIONS = {
     },
     installer_supplied: {
       mittiReadyCheck: { hivFeeIncGst: 349, hivElectricianIncGst: 349, choices: ["Home Insulation Victoria electrician", "My usual electrician", "A different electrician"], priceBasis: "full_installer_plus_hiv_fee_plus_electrician_minus_veu", missingUsual: "hold_quote" },
-      // FEES (Jo 2 Nov 2026, CORRECTION): EVERY job has TWO separate fees — $349 AP fee (Home Insulation Victoria) AND $349 PIESA
-      // (electrical safety check). Installers' own customers: owner price = installer price + $349 AP fee + $349 PIESA, minus rebate.
-      // The owner's PIESA line is $349 whatever the electrician's own rate (the electrician is still paid their rate; Home Insulation
-      // Victoria keeps the difference) — supersedes decisions 302/303 for the OWN-CUSTOMER OWNER PRICE ONLY (`own-customer-price.core`,
-      // `mitti-installer-quote.core`). Quote + invoice lines in this order with these labels.
+      // FEES (Jo 2 Nov 2026, CORRECTION; PIESA line re-ruled Jo 4 Nov 2026, final): EVERY job has TWO separate fees — the $349 AP fee
+      // (Home Insulation Victoria) AND the PIESA (electrical safety check). Installers' own customers: owner price = installer price +
+      // $349 AP fee + the installer's OWN PIESA rate (their onboarded rate-card PIESA line, inc GST — Deep $349, Rapid $275), minus rebate.
+      // That same amount is paid through in full to whoever does the PIESA; Home Insulation Victoria keeps nothing on that line. No rate
+      // set → the quote can't be sent (hold "Set your PIESA price in My business first"), never a default $349. Supersedes the 2 Nov
+      // "$349 whatever the rate" (OWN_CUSTOMER_PIESA_INC_GST, removed) and main 6f759d0 "$349 pass-through". Home Insulation Victoria
+      // leads unchanged: owner $349, electrician their own rate, the gap stays ours (`own-customer-price.core`, `mitti-installer-quote.core`).
+      // Quote + invoice lines in this order with these labels.
       ownCustomerFees: {
-        decided: "2026-11-02",
+        decided: "2026-11-04",
         apFeeIncGst: 349,
-        piesaIncGst: 349,
-        piesaLineWhateverElectricianRate: true,
-        supersedes: ["302", "303"] as const,
+        piesaIncGst: "installer's own onboarded PIESA rate (rate card PIESA line inc GST; e.g. Deep $349, Rapid $275)",
+        piesaLineWhateverElectricianRate: false,
+        noRateSet: "quote held — Set your PIESA price in My business first (never $349)",
+        supersedes: ["302", "303", "2026-11-02 FEES $349 PIESA", "main 6f759d0 $349 pass-through"] as const,
         supersededScope: "own_customer_owner_price_only",
         lineLabels: ["Insulation", "Home Insulation Victoria fee", "Electrical safety check (PIESA)", "Rebate", "Your price"] as const,
       },
@@ -154,15 +158,18 @@ export const WORKFLOW_DECISIONS = {
       // Part 10 Task 6: the My job quote page for an own customer — same switch, same rows, installer logo in the header.
       ownCustomerQuotePage: { cobrandFlag: "OWN_CUSTOMER_COBRAND_APPROVED", view: "ownCustomerQuoteView", header: "OwnerPageHeader partnerLogo", rows: "quote.ownRows (null = generic rows)" },
       // Part 10 Task 7: the tax invoice PDF for an own customer — same switch (plus PDF_LOOK_APPROVED.taxInvoice), approved rows by code, GST on the full price before the rebate.
-      // Part 10 Task 10 (Jo 2 Nov 2026, answer 2): the owner pays $349 for the PIESA; the electrician is paid their own onboarded
-      // rate; Home Insulation Victoria keeps the difference (office margin only; never shown to the installer or the owner).
+      // Jo 4 Nov 2026 (final, replaces Part 10 Task 10's "$349 to the owner, rate to the electrician, we keep the gap"): on an
+      // installer's own customer the owner pays the installer's own PIESA rate and that same amount is paid through in full to
+      // whoever does the PIESA; Home Insulation Victoria keeps nothing on that line. Owner-facing words never show that anyone is
+      // paid; installer-facing words never show Home Insulation Victoria's own $349 PIESA price. HIV leads unchanged.
       ownCustomerElectricianPay: {
-        decided: "2026-11-02",
-        ownerPiesaLineIncGst: 349,
-        electricianPaid: "own onboarded PIESA rate (electrician_rates / the installer's rate card PIESA line)",
-        differenceKeptBy: "Home Insulation Victoria",
-        differenceShownTo: "office only (job margin)",
+        decided: "2026-11-04",
+        ownerPiesaLine: "the installer business's own PIESA rate (rate card PIESA line inc GST)",
+        paidThrough: "the same amount, in full, to whoever does the PIESA (safetyCheckPayeesFor: recorded quote line, else the rate card)",
+        differenceKeptBy: "nobody — Home Insulation Victoria keeps nothing on an own-customer PIESA line",
+        noRateSet: "held (IN_HOUSE_PIESA_HOLD_REASON / PIESA_PRICE_NOT_SET), never $349",
         payGate: "unchanged (Complete Mitti form + evidence; electricians never wait for the owner — decision 410)",
+        hivLeadsUnchanged: "owner $349, electrician their own rate, Home Insulation Victoria keeps the gap",
       },
       ownCustomerTaxInvoice: { cobrandFlag: "OWN_CUSTOMER_COBRAND_APPROVED", pdfFlag: "PDF_LOOK_APPROVED.taxInvoice", rows: ["Insulation · product facts", "extras", "Home Insulation Victoria fee", "Electrical safety check (PIESA)", "Price before rebate", "Rebate", "Your price (incl. GST)"] as const, gst: "one eleventh of the price before the rebate (unchanged)" },
       paymentRule: "not_assumed",

@@ -25,7 +25,11 @@ CREATE TABLE job_assignments (id uuid primary key default gen_random_uuid(), job
 CREATE TABLE business_members (business_id uuid, user_id uuid, member_role text, active boolean);
 CREATE TABLE electrician_nominations (id uuid primary key default gen_random_uuid(), job_id uuid, business_id uuid, nominating_business_id uuid, nominated_by uuid, nominated_for text, contact_name text, business_name text, email text, phone text, status text, licence_number text, rec_number text, ended_at timestamptz, updated_at timestamptz, created_at timestamptz default now());
 CREATE TABLE partner_relationships (installer_business_id uuid, electrician_business_id uuid, active boolean);
-CREATE TABLE businesses (id uuid, name text, trading_name text, email text, phone text);
+CREATE TABLE businesses (id uuid, name text, trading_name text, email text, phone text, in_house boolean default false, pays_own_electricians boolean default false, business_type text, capabilities text[], rec_number text, onboarding_status text, is_active boolean);
+CREATE TABLE rate_cards (id uuid primary key default gen_random_uuid(), business_id uuid, kind text, version int default 1, is_active boolean default true, effective_from date default '2026-01-01');
+CREATE TABLE rate_card_items (id uuid primary key default gen_random_uuid(), rate_card_id uuid, code text, unit_price_ex_gst numeric, unit text);
+CREATE TABLE partner_workers (id uuid primary key default gen_random_uuid(), business_id uuid, trade_role text, approval_status text, licence_number text, removed_at timestamptz);
+CREATE TABLE electrician_rates (id uuid primary key default gen_random_uuid(), business_id uuid, service_type text, rate_inc_gst numeric, status text, effective_from date, effective_to date);
 CREATE TABLE invoices (id uuid primary key default gen_random_uuid(), quote_id uuid);
 CREATE TABLE profiles (id uuid, full_name text, email text);
 ALTER TABLE jobs ADD COLUMN source text DEFAULT 'qa_test';
@@ -34,9 +38,28 @@ CREATE TABLE admin_config_events (id uuid primary key default gen_random_uuid(),
 
 // Thin adapter over the shared shim: embedded properties(postcode), array inserts and non-head exact counts.
 const shim = postgrestShim(db);
+/** `rate_card_items … rate_cards!inner(business_id)` (installer-paid-electricians.server): the one embedded-join read the
+ *  own-customer PIESA rate needs (Jo 4 Nov 2026) — answered with a real join on PGlite. */
+function rateCardItemsJoin() {
+  const where: string[] = []; const vals: unknown[] = [];
+  const b = {
+    in(c: string, v: unknown[]) { where.push(`rc."${c.replace("rate_cards.", "")}" = ANY($${vals.push(v)})`); return b; },
+    eq(c: string, v: unknown) { where.push(`rc."${c.replace("rate_cards.", "")}" = $${vals.push(v)}`); return b; },
+    lte(c: string, v: unknown) { where.push(`rc."${c.replace("rate_cards.", "")}" <= $${vals.push(v)}`); return b; },
+    ilike(c: string, v: string) { where.push(`i."${c}" ILIKE $${vals.push(v)}`); return b; },
+    then(res: (v: unknown) => unknown, rej?: (e: unknown) => unknown) {
+      return db.query(`select i.rate_card_id, i.code, i.unit_price_ex_gst, json_build_object('business_id', rc.business_id) as rate_cards from rate_card_items i join rate_cards rc on rc.id = i.rate_card_id${where.length ? " where " + where.join(" and ") : ""}`, vals)
+        .then((r) => res({ data: r.rows, error: null }), (e) => res({ data: null, error: { message: (e as Error).message } })).then(undefined, rej);
+    },
+  };
+  return b;
+}
 const admin = {
   ...shim,
   from(t: string) {
+    if (t === "rate_card_items") {
+      return { select: (c: string) => (c.includes("rate_cards!inner") ? rateCardItemsJoin() : (shim.from(t) as { select: (c: string) => unknown }).select(c)) };
+    }
     const b = shim.from(t) as Record<string, (...a: unknown[]) => unknown> & { then: (r: (v: unknown) => unknown, j?: (e: unknown) => unknown) => Promise<unknown> };
     const sel = b.select!, ins = b.insert!, then = b.then.bind(b);
     let wantCount = false;
@@ -58,7 +81,7 @@ mock.module("../src/lib/workflow.server", () => ({
 const { installerUpdateIntake, draftQuoteFromIntake, installerIntakeState, recordOfficeFeeAwareness } = await import("../src/lib/installer-intake.server");
 const { draftInstallerQuoteFromReadyCheck, quoteBillingBlocker } = await import("../src/lib/installer-quote.server");
 
-const JOB = "00000000-0000-0000-0000-00000000e101", BIZ = "00000000-0000-0000-0000-00000000b101", EL = "00000000-0000-0000-0000-00000000b201", U = "00000000-0000-0000-0000-00000000c101";
+const JOB = "00000000-0000-0000-0000-00000000e101", BIZ = "00000000-0000-0000-0000-00000000b101", EL = "00000000-0000-0000-0000-00000000b201", U = "00000000-0000-0000-0000-00000000c101", RATE_CARD = "00000000-0000-0000-0000-00000000d101";
 const base = { areaM2: 142, insulation: "none" as const, quoteStatus: "have_quote" as const, quoteIncGst: 3450, includes: "R5.0 batts supply and install", proposedR: 5, files: [] };
 const quotes = async () => (await db.query<{ id: string; status: string; subtotal_inc_gst: string; discount_note: string | null }>("select id, status, subtotal_inc_gst, discount_note from quotes where job_id=$1 order by created_at", [JOB])).rows;
 const items = async (qid: string) => (await db.query<{ code: string; line_total_inc_gst: string }>("select code, line_total_inc_gst from quote_items where quote_id=$1 order by sort", [qid])).rows.map((r) => `${r.code}:${Number(r.line_total_inc_gst)}`);
@@ -67,7 +90,7 @@ const evs = async () => (await db.query<{ event_type: string }>("select event_ty
 
 async function seed(choice: string | null) {
   await db.exec("delete from admin_config_events");
-  await db.exec("delete from jobs; delete from workflow_events; delete from ceiling_measurements; delete from job_imports; delete from quotes; delete from quote_items; delete from owner_contact_consents; delete from job_assignments; delete from business_members; delete from electrician_nominations; delete from partner_relationships; delete from businesses; delete from invoices; delete from veu_location_variables; delete from retail_estimator_settings; delete from workflow_settings;");
+  await db.exec("delete from jobs; delete from workflow_events; delete from ceiling_measurements; delete from job_imports; delete from quotes; delete from quote_items; delete from owner_contact_consents; delete from job_assignments; delete from business_members; delete from electrician_nominations; delete from partner_relationships; delete from businesses; delete from invoices; delete from veu_location_variables; delete from retail_estimator_settings; delete from workflow_settings; delete from rate_cards; delete from rate_card_items; delete from partner_workers; delete from electrician_rates;");
   await db.query("insert into jobs (id, channel, originating_installer_business_id, installer_site_check, installer_quoted, installer_quoted_price_inc_gst, installer_price_includes, electrician_choice, properties) values ($1,'installer_sourced',$2,'yes','yes',3450,'R5.0 batts supply and install',$3,'{\"postcode\":\"3000\"}')", [JOB, BIZ, choice]);
   await db.query("insert into ceiling_measurements (job_id, is_current, provenance, supplied_area_m2) values ($1,true,'installer_supplied_provisional',142)", [JOB]);
   await db.query("insert into workflow_events (job_id, event_type, details) values ($1,'installer_evidence_acknowledged','{\"proposed_r_value\":5}')", [JOB]);
@@ -83,7 +106,11 @@ async function seed(choice: string | null) {
   await db.query("insert into job_assignments (job_id, role, user_id, business_id, active) values ($1,'installer',$2,$3,true)", [JOB, U, BIZ]);
   await db.query("insert into business_members values ($1,$2,'business_admin',true)", [BIZ, U]);
   await db.query("insert into partner_relationships values ($1,$2,true)", [BIZ, EL]);
-  await db.query("insert into businesses values ($1,'Sample Electrical',null,null,null)", [EL]);
+  await db.query("insert into businesses (id, name, business_type, capabilities, rec_number, onboarding_status, is_active) values ($1,'Sample Electrical','rec','{electrician}','REC-SAMPLE','approved',true)", [EL]);
+  // Jo 4 Nov 2026: the installer's own PIESA rate (rate card PIESA line, ex GST $250 → $275 inc) prices the owner's PIESA line.
+  await db.query("insert into businesses (id, name, business_type, capabilities, onboarding_status, is_active) values ($1,'Sample Installer','eec_installer','{installer}','approved',true)", [BIZ]);
+  await db.query("insert into rate_cards (id, business_id, kind) values ($1,$2,'installer')", [RATE_CARD, BIZ]);
+  await db.query("insert into rate_card_items (rate_card_id, code, unit_price_ex_gst, unit) values ($1,'PIESA',250,'flat')", [RATE_CARD]);
 }
 
 describe("Jo 22 Oct Mitti three-option quote persistence on practice Postgres", () => {
@@ -138,23 +165,33 @@ describe("Jo 22 Oct Mitti three-option quote persistence on practice Postgres", 
 describe("server-drafted owner quote follows the CURRENT electrician payer", () => {
   beforeEach(() => seed(null));
 
-  // Part 10 (Jo 2 Nov 2026): own customers always carry the $349 fee + $349 PIESA, in the approved order, whatever the choice.
-  test("HIV arranges: real quote_items carry Insulation · $349 fee · $349 PIESA", async () => {
+  // Part 10 (Jo 2 Nov 2026) + Jo 4 Nov 2026 (final): own customers always carry the $349 fee + the installer's OWN PIESA
+  // rate ($275 from the rate card above), in the approved order, whatever the choice.
+  test("legacy 'HIV arranges' choice: real quote_items carry Insulation · $349 fee · the installer's $275 PIESA", async () => {
     await db.query("update jobs set electrician_choice='hivic_organise'");
     await draftQuoteFromIntake(JOB, U);
     const [q] = await current();
-    expect(await items(q!.id)).toEqual(["INSTALLER_PRICE:3450", "AP_FEE:349", "PIESA:349"]);
-    expect(Number(q!.subtotal_inc_gst)).toBe(4148);
+    expect(await items(q!.id)).toEqual(["INSTALLER_PRICE:3450", "AP_FEE:349", "PIESA:275"]);
+    expect(Number(q!.subtotal_inc_gst)).toBe(4074);
     const labels = (await db.query<{ description: string }>("select description from quote_items where quote_id=$1 and code in ('AP_FEE','PIESA') order by sort", [q!.id])).rows.map((r) => r.description);
     expect(labels).toEqual(["Home Insulation Victoria fee", "Electrical safety check (PIESA)"]);
   });
 
-  test("own electrician: the same $349 PIESA line (billed through us), AP fee kept", async () => {
+  test("own electrician: the same $275 PIESA line (the installer's rate, billed through us and paid through), AP fee kept", async () => {
     await db.query("update jobs set electrician_choice='preferred'");
     await draftQuoteFromIntake(JOB, U);
     const [q] = await current();
-    expect(await items(q!.id)).toEqual(["INSTALLER_PRICE:3450", "AP_FEE:349", "PIESA:349"]);
-    expect(Number(q!.subtotal_inc_gst)).toBe(4148);
+    expect(await items(q!.id)).toEqual(["INSTALLER_PRICE:3450", "AP_FEE:349", "PIESA:275"]);
+    expect(Number(q!.subtotal_inc_gst)).toBe(4074);
+  });
+
+  test("no PIESA rate on the installer's rate card: no quote drafted (held with the one reason), never a guessed $349", async () => {
+    await db.query("update jobs set electrician_choice='preferred'");
+    await db.query("delete from rate_card_items");
+    await draftQuoteFromIntake(JOB, U);
+    expect(await quotes()).toEqual([]);
+    const held = (await db.query<{ details: { blockers: string[] } }>("select details from workflow_events where job_id=$1 and event_type='installer_quote_held' order by created_at desc limit 1", [JOB])).rows[0];
+    expect(held?.details.blockers).toContain("Installer business has no PIESA rate on its rate card");
   });
 
   test("undecided: no quote drafted (held), never a guessed $349", async () => {
@@ -167,17 +204,17 @@ describe("server-drafted owner quote follows the CURRENT electrician payer", () 
 describe("installer changes the payer later on the same job", () => {
   beforeEach(() => seed("hivic_organise"));
 
-  test("HIV -> own: old draft superseded, fresh draft keeps the $349 PIESA line, old declaration stops counting", async () => {
+  test("HIV -> own: old draft superseded, fresh draft keeps the installer's $275 PIESA line, old declaration stops counting", async () => {
     await db.query("insert into workflow_events (job_id, event_type, details) values ($1,'installer_owner_fee_awareness',$2)", [JOB, JSON.stringify({ by: "installer", payer: "hivic", wording: FEE_AWARENESS_HIV_REC })]);
     await draftQuoteFromIntake(JOB, U);
     const before = (await current())[0]!;
-    expect(await items(before.id)).toContain("PIESA:349");
+    expect(await items(before.id)).toContain("PIESA:275");
     await installerUpdateIntake(JOB, U, BIZ, { ...base, electricianPayer: "own", electrician: { mode: "mine", business_id: EL } });
     const all = await quotes();
     expect(all.find((q) => q.id === before.id)!.status).toBe("superseded");
     const now = await current();
     expect(now.length).toBe(1);
-    expect(await items(now[0]!.id)).toEqual(["INSTALLER_PRICE:3450", "AP_FEE:349", "PIESA:349"]);
+    expect(await items(now[0]!.id)).toEqual(["INSTALLER_PRICE:3450", "AP_FEE:349", "PIESA:275"]);
     const st = await installerIntakeState(JOB);
     expect(st.electricianPayer).toBe("own");
     expect(st.releaseBlockers.some((b) => /fee awareness/i.test(b))).toBe(true);

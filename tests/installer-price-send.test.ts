@@ -23,9 +23,13 @@ const mittiCore = await import("../src/lib/mitti.core");
 mock.module("../src/lib/mitti.core", () => ({ ...mittiCore, mittiApi: () => ({ getAudit: async () => ({ audit_id: "audit-1", modified_at: "2026-11-04T01:00:00Z", items: [] }) }) }));
 mock.module("../src/lib/installer-quote.server", () => ({ draftInstallerQuoteFromReadyCheck: async (...a: unknown[]) => { calls.push({ fn: "draft", args: a }); return { ready: true }; } }));
 mock.module("../src/lib/auto-quote-send.server", () => ({ maybeAutoSendInstallerQuote: async (jobId: string, opts: unknown) => { calls.push({ fn: "maybeAutoSendInstallerQuote", args: { jobId, opts } }); return autoSendResult; } }));
+// Jo 4 Nov 2026: the business's own PIESA rate (rate card PIESA line) — null = not set → the quote can't be sent.
+let piesaRate: number | null = 275;
+mock.module("../src/lib/installer-paid-electricians.server", () => ({ installerSafetyCheckPrice: async (id: string | null) => { calls.push({ fn: "installerSafetyCheckPrice", args: id }); return id === BIZ ? piesaRate : null; } }));
 
 const { setInstallerPrice, installerPriceView } = await import("../src/lib/installer-price-set.server");
-const { PRICE_LOCKED, PRICE_ENTRY_REFUSED } = await import("../src/lib/installer-price.core");
+const { PRICE_LOCKED, PRICE_ENTRY_REFUSED, PIESA_PRICE_NOT_SET } = await import("../src/lib/installer-price.core");
+const { IN_HOUSE_PIESA_HOLD_REASON } = await import("../src/lib/installer-paid-electricians.core");
 
 const JOB = "job-1", BIZ = "biz-1", BOSS = "u-boss", OFFICE = "u-office", LEAD = "u-lead";
 const input = { priceIncGst: 2500, included: ["Ceiling insulation - supply & install"] };
@@ -33,7 +37,7 @@ const priceEvents = () => (T["workflow_events"] ?? []).filter((e) => e["event_ty
 
 function seed(o: { channel?: string; readyCheckComplete?: boolean; quoteSentAt?: string | null } = {}) {
   for (const k of Object.keys(T)) delete T[k];
-  calls.length = 0; background.length = 0; autoSendResult = { sent: true, reasons: [] };
+  calls.length = 0; background.length = 0; autoSendResult = { sent: true, reasons: [] }; piesaRate = 275;
   T["jobs"] = [{ id: JOB, channel: o.channel ?? "installer_sourced", originating_installer_business_id: BIZ, stage: "ready_check_complete", deleted_at: null, property_id: "p1" }];
   T["properties"] = [{ id: "p1", address_line: "12 Example St", suburb: "Box Hill", state: "VIC", postcode: "3128" }];
   T["profiles"] = [{ id: BOSS, business_id: BIZ }, { id: OFFICE, business_id: BIZ }, { id: LEAD, business_id: BIZ }];
@@ -101,8 +105,8 @@ describe("Send quote to owner — only through the guarded auto-send, only with 
     const r = await setInstallerPrice(JOB, BOSS, input, { send: true, sendOnPressEnabled: true });
     expect(r.sent).toBe(true);
     expect(r.reasons).toEqual([]);
-    expect(calls.map((c) => c.fn)).toEqual(["syncMittiAssessment", "draft", "maybeAutoSendInstallerQuote"]);
-    const send = calls[2]!.args as { jobId: string; opts: { enabled?: boolean; formCompleted: boolean } };
+    expect(calls.map((c) => c.fn)).toEqual(["installerSafetyCheckPrice", "syncMittiAssessment", "draft", "maybeAutoSendInstallerQuote"]);
+    const send = calls[3]!.args as { jobId: string; opts: { enabled?: boolean; formCompleted: boolean } };
     expect(send.jobId).toBe(JOB);
     expect(send.opts).toMatchObject({ enabled: true, formCompleted: true });
     expect(background).toHaveLength(0); // sent inline, not again in the background
@@ -120,8 +124,32 @@ describe("Send quote to owner — only through the guarded auto-send, only with 
     const r = await setInstallerPrice(JOB, BOSS, input, { send: true, sendOnPressEnabled: true });
     expect(r.sent).toBe(false);
     expect(r.reasons).toEqual(["Ready Check not marked Complete in Mitti yet"]);
-    expect(calls.map((c) => c.fn)).toEqual(["syncMittiAssessment"]);
+    expect(calls.map((c) => c.fn)).toEqual(["installerSafetyCheckPrice", "syncMittiAssessment"]);
     expect(priceEvents()).toHaveLength(1);
+  });
+  // Jo 4 Nov 2026: no PIESA rate on the business → the quote can't be sent until it is set; never a default $349.
+  test("switch on but the business has no PIESA rate → saved, not sent, 'Set your PIESA price in My business first', sender never asked; the draft is still prepared (held) in the background", async () => {
+    piesaRate = null;
+    const r = await setInstallerPrice(JOB, BOSS, input, { send: true, sendOnPressEnabled: true });
+    expect(r.sent).toBe(false);
+    expect(r.reasons).toEqual([PIESA_PRICE_NOT_SET]);
+    expect(PIESA_PRICE_NOT_SET).toBe("Set your PIESA price in My business first");
+    expect(calls.map((c) => c.fn)).toEqual(["installerSafetyCheckPrice"]);
+    expect(priceEvents()).toHaveLength(1);
+    expect(background).toHaveLength(1);
+    await background[0]!();
+    const send = calls.find((c) => c.fn === "maybeAutoSendInstallerQuote")!;
+    expect((send.args as { opts: { enabled?: boolean } }).opts.enabled).toBeUndefined(); // never asked to release
+    // the card says it too, and the button falls back to "Save"
+    const v = await installerPriceView(JOB, BOSS);
+    expect(v).toMatchObject({ canSet: true, piesaPriceSet: false });
+    piesaRate = 275;
+    expect(await installerPriceView(JOB, BOSS)).toMatchObject({ piesaPriceSet: true });
+  });
+  test("the office's 'no PIESA rate' hold coming back from the guarded send reads as the installer line", async () => {
+    autoSendResult = { sent: false, reasons: [IN_HOUSE_PIESA_HOLD_REASON] };
+    const r = await setInstallerPrice(JOB, OFFICE, input, { send: true, sendOnPressEnabled: true });
+    expect(r.reasons).toEqual([PIESA_PRICE_NOT_SET]);
   });
   test("switch on, Save (send:false) → saved and prepared in the background only, never sent inline", async () => {
     const r = await setInstallerPrice(JOB, BOSS, input, { send: false, sendOnPressEnabled: true });

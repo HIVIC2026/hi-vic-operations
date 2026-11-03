@@ -19,6 +19,7 @@ import {
   validateInstallerPrice,
   type InstallerPriceInput,
 } from "./installer-price.core";
+import { IN_HOUSE_PIESA_HOLD_REASON } from "./installer-paid-electricians.core";
 import { readInstallerPriceState, type StoredInstallerPrice } from "./installer-price.server";
 import { early } from "./early-read";
 import { sharedFor, type SharedJobReads } from "./job-shared-reads";
@@ -199,12 +200,16 @@ export async function installerPriceView(jobId: string, userId: string, sharedRe
   // The HIV electrician switch left the price card (main, 2 Nov 2026): the choice is made once at Add a job.
   const hivSwitch: { priceIncGst: number } | null = null;
   const { OWN_CUSTOMER_SEND_ON_PRESS_ENABLED } = await import("./auto-quote-send.core");
+  // Jo 4 Nov 2026: the owner's PIESA line is this business's own PIESA rate; with none set the quote can't be sent.
+  const piesaRate = await (await import("./installer-paid-electricians.server")).installerSafetyCheckPrice(j.originating_installer_business_id).catch(() => null);
   return {
     canSet: true as const,
     current: stored,
     locked,
     /** Task 4: the button says "Send quote to owner" only while pressing it sends (`enterPriceButton`). */
     sendOnPress: OWN_CUSTOMER_SEND_ON_PRESS_ENABLED,
+    /** Jo 4 Nov 2026: false → the card says `PIESA_PRICE_NOT_SET` and the button is "Save" (the price is saved, the quote holds). */
+    piesaPriceSet: piesaRate != null,
     productOptions: APPROVED_PRODUCTS.map((p) => p.option),
     mittiProduct: product?.option ?? null,
     hivSwitch,
@@ -325,10 +330,19 @@ export async function setInstallerPrice(
   if (!stored) throw new WorkflowError("The price was not saved.");
   const { OWN_CUSTOMER_SEND_ON_PRESS_ENABLED } = await import("./auto-quote-send.core");
   if (opts.send && (opts.sendOnPressEnabled ?? OWN_CUSTOMER_SEND_ON_PRESS_ENABLED)) {
+    // Jo 4 Nov 2026: no PIESA rate on the business → the quote can't be sent (never a default $349). The price is saved
+    // and the draft is still prepared (held) in the background; the screen gets the one plain reason.
+    const { PIESA_PRICE_NOT_SET } = await import("./own-customer-price.core");
+    const piesaRate = await (await import("./installer-paid-electricians.server")).installerSafetyCheckPrice(j.originating_installer_business_id).catch(() => null);
+    if (piesaRate == null) {
+      const { runAfterResponse } = await import("./background.server");
+      runAfterResponse(() => prepareQuoteFromPortal(jobId, userId));
+      return { stored, sent: false, reasons: [PIESA_PRICE_NOT_SET] };
+    }
     // Task 4: "Send quote to owner" — prepared and released inline through the one guarded auto-send; a hold's plain
-    // reasons go back to the screen with the saved price.
+    // reasons go back to the screen with the saved price (the office's "no PIESA rate" hold reads as the installer line).
     const r = await prepareQuoteFromPortal(jobId, userId, true);
-    return { stored, sent: r.sent, reasons: r.reasons };
+    return { stored, sent: r.sent, reasons: r.reasons.map((x) => (x === IN_HOUSE_PIESA_HOLD_REASON ? PIESA_PRICE_NOT_SET : x)) };
   }
   // Tom 31 Oct 2026: Save answers as soon as the price is stored. The quote (two Mitti reads + draft) is prepared after
   // the reply; if that is cut short the 15-minute tick prepares it, as it always has.
