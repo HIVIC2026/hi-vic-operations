@@ -67,7 +67,7 @@ const PROPERTY_TYPE: Record<string, SpotFacts["propertyType"]> = {
   apartment: "apartment",
 };
 const ROOF_FORMS = new Set(["pitched", "low_slope_flat", "mixed"]);
-const DESK = new Set(["looks_eligible", "pending", "not_needed"]);
+const DESK = new Set(["looks_eligible", "not_eligible", "needs_onsite_check", "pending", "not_needed"]);
 const AI_VERDICTS = new Set(["none", "under_r2", "over_r2", "cant_tell"]);
 const HATCH = new Set(["yes", "no", "not_sure"]);
 const ROOF = new Set(["sloped", "flat", "some", "not_sure"]);

@@ -249,4 +249,22 @@ describe("To release loader: band, reason, tags, areas", () => {
     expect(c.listing).toBeNull();
     expect(facts.get("d")!.lat).toBeNull();
   });
+
+  test("Jo's not_eligible and needs_onsite_check desk checks are kept, and beat the AI", async () => {
+    tables["lead_campaign_responses"]![0]!["desk_check_status"] = "not_eligible";
+    tables["lead_campaign_responses"]![2]!["desk_check_status"] = "needs_onsite_check";
+    tables["property_facts"]!.push(
+      fact("a", "ai_photo_check", { verdict: "none" }),
+      fact("c", "ai_photo_check", { verdict: "under_r2" }),
+    );
+    const facts = await readSpotFacts(["a", "c"], { now: NOW });
+    expect(facts.get("a")!.deskCheck).toBe("not_eligible");
+    expect(facts.get("c")!.deskCheck).toBe("needs_onsite_check");
+    const { rows } = await loadInstallerWaitingList({ includeTest: true });
+    const by = new Map(rows.map((r) => [r.id, r]));
+    expect(by.get("a")!.band).toBe("weak");
+    expect(by.get("a")!.tags).toContain("Jo: not eligible");
+    expect(by.get("c")!.band).toBe("weak"); // has insulation, no detail; AI under_r2 ignored
+    expect(by.get("c")!.tags).not.toContain("AI: confirm");
+  });
 });

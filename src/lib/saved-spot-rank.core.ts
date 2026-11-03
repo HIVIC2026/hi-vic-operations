@@ -6,7 +6,7 @@ export const BAND_ORDER: readonly SpotBand[] = ["best", "good", "ok", "weak"];
 export type SpotFacts = {
   insulation: "none" | "present" | "unknown" | null;
   insulationDetail: "thin" | "loose_fill" | "patchy" | "under_r2" | "thicker" | null;
-  deskCheck: "looks_eligible" | "pending" | "not_needed" | null;
+  deskCheck: "looks_eligible" | "not_eligible" | "needs_onsite_check" | "pending" | "not_needed" | null;
   aiPhoto: "none" | "under_r2" | "over_r2" | "cant_tell" | null;
   propertyType: "house" | "townhouse" | "apartment" | null;
   topFloor: "yes" | "no" | null;
@@ -74,12 +74,19 @@ function ownerDiffers(f: SpotFacts, est: EstimatedCeiling | null): boolean {
 }
 
 const DAY_MS = 86_400_000;
+/** Jo's own desk-check outcomes (launch-campaign.core DeskCheckOutcome): any of these means the AI is not used. */
+const JO_DECIDED = new Set(["looks_eligible", "not_eligible", "needs_onsite_check"]);
+const joDecided = (f: SpotFacts) => f.deskCheck != null && JO_DECIDED.has(f.deskCheck);
 const THIN_DETAILS = new Set(["thin", "loose_fill", "patchy", "under_r2"]);
 
 export function spotBand(f: SpotFacts): SpotBand {
   if (f.deskCheck === "looks_eligible") return "best";
-  if (f.aiPhoto === "none" || f.aiPhoto === "under_r2") return "best";
-  if (f.aiPhoto === "over_r2") return "weak";
+  if (f.deskCheck === "not_eligible") return "weak";
+  // needs_onsite_check: Jo has looked, so the AI is ignored and the owner's answers decide.
+  if (!joDecided(f)) {
+    if (f.aiPhoto === "none" || f.aiPhoto === "under_r2") return "best";
+    if (f.aiPhoto === "over_r2") return "weak";
+  }
   if (f.propertyType === "apartment" && f.topFloor === "no") return "weak";
   if (f.insulation === "none") return "good";
   if (f.insulation === "unknown") return "ok";
@@ -163,7 +170,8 @@ export function spotTags(f: SpotFacts): string[] {
   if (mismatch) tags.push(`Listing says: ${mismatch}`);
   else if (f.listing?.found && (f.listing.storeys ?? 0) >= 2)
     tags.push(`Listing says: ${f.listing.storeys} storeys`);
-  if (f.deskCheck !== "looks_eligible") {
+  if (f.deskCheck === "not_eligible") tags.push("Jo: not eligible");
+  if (!joDecided(f)) {
     if (f.aiPhoto === "none" || f.aiPhoto === "under_r2") tags.push("AI: confirm");
     else if (f.aiPhoto === "over_r2") tags.push("AI: looks over R2 — confirm");
   }

@@ -57,6 +57,22 @@ describe("bands", () => {
     expect(spotBand(x)).toBe("best");
     expect(spotTags(x)).toContain("AI: confirm");
   });
+  it("Jo's not_eligible beats AI none: Weak, tagged Jo: not eligible, no AI tag", () => {
+    for (const ai of ["none", "under_r2", null] as const) {
+      const x = f({ deskCheck: "not_eligible", aiPhoto: ai, insulation: "none" });
+      expect(spotBand(x)).toBe("weak");
+      expect(spotTags(x)).toContain("Jo: not eligible");
+      expect(spotTags(x).some((t) => t.startsWith("AI:"))).toBe(false);
+    }
+  });
+  it("Jo's needs_onsite_check: AI ignored, band from owner answers", () => {
+    const none = f({ deskCheck: "needs_onsite_check", aiPhoto: "over_r2", insulation: "none" });
+    expect(spotBand(none)).toBe("good");
+    const thick = f({ deskCheck: "needs_onsite_check", aiPhoto: "under_r2" });
+    expect(spotBand(thick)).toBe("weak");
+    expect(spotTags(none).some((t) => t.startsWith("AI:"))).toBe(false);
+    expect(spotTags(thick).some((t) => t.startsWith("AI:"))).toBe(false);
+  });
   it("desk looks_eligible beats AI over_r2, no AI tag", () => {
     const x = f({ deskCheck: "looks_eligible", aiPhoto: "over_r2" });
     expect(spotBand(x)).toBe("best");
