@@ -33,7 +33,6 @@ export async function carrySignupElectrician(businessId: string, actorId: string
 export async function sweepSignupNominationInvites(now = new Date()): Promise<{ checked: number; sent: number; skipped: number; failed: number }> {
   const out = { checked: 0, sent: 0, skipped: 0, failed: 0 };
   const { customerCommsEnabled } = await import("./comms.server");
-  // Jo 30 Oct 2026: "Pause all trade messages" counts as paused comms here (nothing claimed, retried next tick).
   const commsOn = await customerCommsEnabled();
   if (!commsOn) return out; // paused comms: nothing to do, retried next tick
   // Jo 30 Oct 2026: "Pause all trade messages" counts as paused comms here (nothing claimed, retried next tick).

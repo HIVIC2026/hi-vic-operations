@@ -138,11 +138,37 @@ describe("related businesses lift the pause", () => {
     expect(await tradeMessagesPausedNow({ businessId: BIZ })).toBe(HELD);
     expect(await tradeMessagesPausedNow({ businessId: BIZ, jobId: J3 })).toBe(HELD);
   });
+  test("narrowed_rule_3_nov", async () => {
+    // R = TOM (flagged installer), X = INST2 (unflagged installer), E = ELEC linked to both; U = ELEC2 unflagged, unlinked.
+    const { tradeMessagesPausedNow } = await import("../src/lib/trade-pause.server");
+    await db.exec(`insert into public.businesses(id, name, is_active) values ('${ELEC}', 'Elec', true), ('${INST2}', 'Inst2', true), ('${ELEC2}', 'Elec2', true);
+      insert into public.partner_relationships(installer_business_id, electrician_business_id, active) values ('${TOM}', '${ELEC}', true), ('${INST2}', '${ELEC}', true);
+      insert into public.jobs(id, originating_installer_business_id) values ('${J1}', '${TOM}'), ('${J2}', '${INST2}');`);
+    try {
+      expect(await tradeMessagesPausedNow({ businessId: ELEC, jobId: J2 })).toBe(HELD); // E about X's job
+      expect(await tradeMessagesPausedNow({ businessId: ELEC, jobId: J1 })).toBeNull(); // E about R's job
+      expect(await tradeMessagesPausedNow({ businessId: ELEC })).toBeNull(); // E, no job
+      expect(await tradeMessagesPausedNow({ businessId: ELEC2, jobId: J1 })).toBe(HELD); // unlinked electrician offered R's job
+      expect(await tradeMessagesPausedNow({ businessId: TOM, jobId: J2 })).toBeNull(); // flagged R as recipient
+      expect(await tradeMessagesPausedNow({ businessId: TOM })).toBeNull();
+      expect(await tradeMessagesPausedNow({ jobId: J1 })).toBeNull(); // job only, R's job
+      expect(await tradeMessagesPausedNow({ jobId: J2 })).toBe(HELD); // job only, X's job
+      // E on X's job where R is an active assignee: lifted (R is on the job).
+      await db.exec(`insert into public.job_assignments(job_id, business_id, role, active) values ('${J2}', '${TOM}', 'installer', true)`);
+      expect(await tradeMessagesPausedNow({ businessId: ELEC, jobId: J2 })).toBeNull();
+      // ...but never for the unrelated, unlinked electrician.
+      expect(await tradeMessagesPausedNow({ businessId: ELEC2, jobId: J2 })).toBe(HELD);
+      // The job read failing keeps a linked electrician's job message held (fail closed).
+      await db.exec("alter table public.job_assignments rename to ja_tmp");
+      try { expect(await tradeMessagesPausedNow({ businessId: ELEC, jobId: J1 })).toBe(HELD); }
+      finally { await db.exec("alter table public.ja_tmp rename to job_assignments"); }
+    } finally { await db.exec(`delete from public.businesses where id in ('${ELEC}','${INST2}','${ELEC2}')`); }
+  });
   test("read_failure_holds", async () => {
     const { tradeMessagesPausedNow } = await import("../src/lib/trade-pause.server");
     await db.exec(`insert into public.jobs(id, originating_installer_business_id) values ('${J1}', '${TOM}')`);
     await db.exec("alter table public.businesses rename column messages_while_paused to mwp_tmp");
-    try { expect(await tradeMessagesPausedNow({ jobId: J1 })).toBe(HELD); }
+    try { expect(await tradeMessagesPausedNow({ jobId: J1 })).toBe(HELD); expect(await tradeMessagesPausedNow({ businessId: TOM })).toBe(HELD); }
     finally { await db.exec("alter table public.businesses rename column mwp_tmp to messages_while_paused"); }
     expect(await tradeMessagesPausedNow({ jobId: J1 })).toBeNull();
   });

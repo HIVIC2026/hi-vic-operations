@@ -52,7 +52,7 @@ async function remindOne(b: Booking, now: Date, approved: boolean): Promise<stri
   // Real installers only once Jo approves the rendered email; until then nothing is recorded or sent for them.
   if (!test && !approved) return "skipped: wording not approved yet";
   // Jo 30 Oct 2026: "Pause all trade messages" — held before the claim below, so a later tick can still send it.
-  if (!test) { const tradePaused = await (await import("./trade-pause.server")).tradeMessagesPausedNow({ jobId: b.job_id }); if (tradePaused) return `held: ${tradePaused}`; }
+  if (!test) { const tradePaused = await (await import("./trade-pause.server")).tradeMessagesPausedNow({ jobId: b.job_id, businessId: bz!.id }); if (tradePaused) return `held: ${tradePaused}`; }
   const { installerTextAddress } = await import("./installer-texts.core");
   const p = j.properties;
   const short = installerTextAddress(p?.address_line, p?.suburb) ?? j.job_number;
@@ -71,6 +71,6 @@ async function remindOne(b: Booking, now: Date, approved: boolean): Promise<stri
     return `email (test) ${r.status}: ${r.detail}`;
   }
   const { sendOfficeEmail } = await import("./office-email.server");
-  const r = await sendOfficeEmail({ actorId: null, recipient: "partner", to, contactName: bz!.name, subject: mail.subject, message: mail.body, html: rendered.html, text: rendered.text, label: key, record: { businessId: bz!.id } });
+  const r = await sendOfficeEmail({ actorId: null, recipient: "partner", to, contactName: bz!.name, subject: mail.subject, message: mail.body, html: rendered.html, text: rendered.text, label: key, record: { businessId: bz!.id }, pauseJobId: b.job_id });
   return `email ${r.status}: ${r.detail}`;
 }

@@ -37,7 +37,7 @@ export async function textBossPriceLink(jobId: string, i: { auditId: string; com
     const completedAt = i.completedAt ?? new Date().toISOString();
     // Jo 30 Oct 2026: "Pause all trade messages" — held BEFORE the claim (TEST unchanged), so a later sync can still send it.
     if (j.source !== "qa_test" && !(await import("./test-send.core")).isTestPartner(b ?? {})) {
-      const tradePaused = await (await import("./trade-pause.server")).tradeMessagesPausedNow({ jobId });
+      const tradePaused = await (await import("./trade-pause.server")).tradeMessagesPausedNow({ jobId, businessId: j.originating_installer_business_id });
       if (tradePaused) return `held: ${tradePaused}`;
     }
     // Claimed once, before any send: a second sync or the sweep finds this event and stops.

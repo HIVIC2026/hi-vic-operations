@@ -47,7 +47,7 @@ export async function sendElectricianPiesaCopy(jobId: string): Promise<string> {
       const { customerCommsEnabled } = await import("./comms.server");
       if (!(await customerCommsEnabled())) return "held: partner emails paused (master switch off)";
       // Jo 30 Oct 2026: "Pause all trade messages" — held before the claim, so the sweep sends it once unpaused.
-      const tradePaused = await (await import("./trade-pause.server")).tradeMessagesPausedNow({ jobId });
+      const tradePaused = await (await import("./trade-pause.server")).tradeMessagesPausedNow({ jobId, businessId: asg?.business_id ?? null });
       if (tradePaused) return `held: ${tradePaused}`;
     }
     const pdf = await (await import("./official-piesa-pdf.server")).officialPiesaPdf(jobId, job.job_number);
@@ -65,7 +65,7 @@ export async function sendElectricianPiesaCopy(jobId: string): Promise<string> {
       const r = await (await import("./test-send.server")).sendTestEmail({ jobId, jobSource: job.source, partnerIsTest, label: plan.key, actorId: null }, to!, mail.subject, mail.html, mail.text, { attachments });
       status = r.status; detail = r.detail;
     } else {
-      const r = await (await import("./office-email.server")).sendOfficeEmail({ actorId: null, recipient: "partner", to: to!, contactName: asg?.profiles?.full_name ?? null, subject: mail.subject, message: mail.text, label: ELECTRICIAN_PIESA_LABEL, record: { businessId: asg?.business_id ?? null }, html: mail.html, text: mail.text, attachments });
+      const r = await (await import("./office-email.server")).sendOfficeEmail({ actorId: null, recipient: "partner", to: to!, contactName: asg?.profiles?.full_name ?? null, subject: mail.subject, message: mail.text, label: ELECTRICIAN_PIESA_LABEL, record: { businessId: asg?.business_id ?? null }, pauseJobId: jobId, html: mail.html, text: mail.text, attachments });
       status = r.status; detail = r.detail;
     }
     if (status !== "sent") await logEvent(jobId, null, ELECTRICIAN_PIESA_NOT_SENT_EVENT, `Official PIESA email to the electrician not sent (${status}): ${detail}`.slice(0, 500), { key: plan.key, status, detail }, { internal: true });
