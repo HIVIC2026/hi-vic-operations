@@ -48,5 +48,10 @@ export function tradeEmailPauseReason(x: { recipient: "applicant" | "partner" | 
 /** Jo 31 Oct 2026: one named business may still get trade messages while the pause is on
  *  (`businesses.messages_while_paused`, set by the office only). Only an exact `true` lifts the hold; unknown keeps it. */
 export function businessPauseException(paused: string | null, messagesWhilePaused: boolean | null | undefined): string | null {
-  return paused && messagesWhilePaused === true ? null : paused;
+  return pauseLiftedByAny(paused, [messagesWhilePaused]);
+}
+
+/** Same rule across several related businesses: any one flagged exactly `true` lifts the hold; none (or unknown) keeps it. */
+export function pauseLiftedByAny(paused: string | null, flags: readonly (boolean | null | undefined)[]): string | null {
+  return paused && flags.some((f) => f === true) ? null : paused;
 }

@@ -1,6 +1,6 @@
 // "Pause all trade messages" (Jo 30 Oct 2026): pure rules only.
 import { describe, expect, test } from "bun:test";
-import { TRADE_MESSAGES_PAUSED_REASON, isMissingPauseColumn, businessPauseException, readTradePause, tradeEmailPauseReason, tradeMessagesPausedReason } from "../src/lib/trade-pause.core";
+import { TRADE_MESSAGES_PAUSED_REASON, isMissingPauseColumn, businessPauseException, pauseLiftedByAny, readTradePause, tradeEmailPauseReason, tradeMessagesPausedReason } from "../src/lib/trade-pause.core";
 import { smsBlocker } from "../src/lib/sms.core";
 
 describe("tradeMessagesPausedReason", () => {
@@ -77,5 +77,18 @@ describe("businessPauseException (Jo 31 Oct)", () => {
     expect(businessPauseException("Trade messages paused", true)).toBeNull();
     for (const v of [false, null, undefined]) expect(businessPauseException("Trade messages paused", v)).toBe("Trade messages paused");
     expect(businessPauseException(null, false)).toBeNull();
+  });
+});
+
+describe("pauseLiftedByAny", () => {
+  test("any exact true lifts the pause", () => {
+    expect(pauseLiftedByAny("Trade messages paused", [false, true])).toBeNull();
+  });
+  test("no true flag keeps the pause", () => {
+    expect(pauseLiftedByAny("Trade messages paused", [null, undefined, false])).toBe("Trade messages paused");
+    expect(pauseLiftedByAny("Trade messages paused", [])).toBe("Trade messages paused");
+  });
+  test("not paused stays not paused", () => {
+    expect(pauseLiftedByAny(null, [true])).toBeNull();
   });
 });
