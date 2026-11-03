@@ -119,6 +119,7 @@ import { Route as AuthenticatedAdminPartnersApplicationEnquiryIdRouteImport } fr
 import { Route as AuthenticatedAdminPartnersBusinessBusinessIdRouteImport } from './routes/_authenticated/admin.partners_.business.$businessId'
 import { Route as AuthenticatedFieldPracticeJobIdAuditIdRouteImport } from './routes/_authenticated/field.practice.$jobId.$auditId'
 import { Route as ApiPublicEmailArtTokenFileRouteImport } from './routes/api/public/email-art.$token.$file'
+import { Route as ApiPublicPartnerLogoKeyRouteImport } from './routes/api/public/partner-logo.$key'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -726,6 +727,11 @@ const ApiPublicEmailArtTokenFileRoute =
     path: '/api/public/email-art/$token/$file',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicPartnerLogoKeyRoute = ApiPublicPartnerLogoKeyRouteImport.update({
+  id: '/api/public/partner-logo/$key',
+  path: '/api/public/partner-logo/$key',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -837,6 +843,7 @@ export interface FileRoutesByFullPath {
   '/admin/partners/business/$businessId': typeof AuthenticatedAdminPartnersBusinessBusinessIdRoute
   '/field/practice/$jobId/$auditId': typeof AuthenticatedFieldPracticeJobIdAuditIdRoute
   '/api/public/email-art/$token/$file': typeof ApiPublicEmailArtTokenFileRoute
+  '/api/public/partner-logo/$key': typeof ApiPublicPartnerLogoKeyRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -944,6 +951,7 @@ export interface FileRoutesByTo {
   '/admin/partners/business/$businessId': typeof AuthenticatedAdminPartnersBusinessBusinessIdRoute
   '/field/practice/$jobId/$auditId': typeof AuthenticatedFieldPracticeJobIdAuditIdRoute
   '/api/public/email-art/$token/$file': typeof ApiPublicEmailArtTokenFileRoute
+  '/api/public/partner-logo/$key': typeof ApiPublicPartnerLogoKeyRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -1057,6 +1065,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/partners_/business/$businessId': typeof AuthenticatedAdminPartnersBusinessBusinessIdRoute
   '/_authenticated/field/practice/$jobId/$auditId': typeof AuthenticatedFieldPracticeJobIdAuditIdRoute
   '/api/public/email-art/$token/$file': typeof ApiPublicEmailArtTokenFileRoute
+  '/api/public/partner-logo/$key': typeof ApiPublicPartnerLogoKeyRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -1170,6 +1179,7 @@ export interface FileRouteTypes {
     | '/admin/partners/business/$businessId'
     | '/field/practice/$jobId/$auditId'
     | '/api/public/email-art/$token/$file'
+    | '/api/public/partner-logo/$key'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -1277,6 +1287,7 @@ export interface FileRouteTypes {
     | '/admin/partners/business/$businessId'
     | '/field/practice/$jobId/$auditId'
     | '/api/public/email-art/$token/$file'
+    | '/api/public/partner-logo/$key'
   id:
     | '__root__'
     | '/'
@@ -1389,6 +1400,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/partners_/business/$businessId'
     | '/_authenticated/field/practice/$jobId/$auditId'
     | '/api/public/email-art/$token/$file'
+    | '/api/public/partner-logo/$key'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -1445,6 +1457,7 @@ export interface RootRouteChildren {
   ApiPublicTwilioInboundRoute: typeof ApiPublicTwilioInboundRoute
   ApiPublicTwilioStatusRoute: typeof ApiPublicTwilioStatusRoute
   ApiPublicEmailArtTokenFileRoute: typeof ApiPublicEmailArtTokenFileRoute
+  ApiPublicPartnerLogoKeyRoute: typeof ApiPublicPartnerLogoKeyRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -2219,6 +2232,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicEmailArtTokenFileRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/partner-logo/$key': {
+      id: '/api/public/partner-logo/$key'
+      path: '/api/public/partner-logo/$key'
+      fullPath: '/api/public/partner-logo/$key'
+      preLoaderRoute: typeof ApiPublicPartnerLogoKeyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -2461,6 +2481,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicTwilioInboundRoute: ApiPublicTwilioInboundRoute,
   ApiPublicTwilioStatusRoute: ApiPublicTwilioStatusRoute,
   ApiPublicEmailArtTokenFileRoute: ApiPublicEmailArtTokenFileRoute,
+  ApiPublicPartnerLogoKeyRoute: ApiPublicPartnerLogoKeyRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

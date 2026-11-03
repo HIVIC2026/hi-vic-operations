@@ -194,6 +194,19 @@ export const recordInHouseEscNoticeUpdated = createServerFn({ method:'POST' }).m
     return {ok:true};
   });
 
+/** Task 9: who books the safety check and the upgrades day (boss only). */
+export const setTradeWhoBooks = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ whoBooks: z.enum(["office", "electrician", "either"]) }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSetWhoBooks(context.userId, data.whoBooks));
+
+/** Task 9: the business logo for co-branded quotes (boss only; PNG/JPEG ≤ 2 MB, sent base64). */
+export const uploadTradeLogo = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ name: z.string().trim().min(1).max(200), type: z.enum(["image/png", "image/jpeg"]), base64: z.string().min(1).max(3 * 1024 * 1024) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const bytes = Uint8Array.from(atob(data.base64), (ch) => ch.charCodeAt(0));
+    return (await import("./trade-view.server")).tradeUploadLogo(context.userId, { name: data.name, type: data.type, bytes });
+  });
+
 export const getMyMittiInvited = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
   .handler(async ({ context }) => (await import("./trade-view.server")).tradeMittiInvited(context.userId));
 

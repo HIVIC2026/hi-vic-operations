@@ -18,6 +18,9 @@ import { installerQuoteLine } from "./installer-quote-status.core";
 import { myWorkCards, greeting as myWorkGreeting, reasonFor } from "./my-work.core";
 import { nextStepBox, type NextStepFacts } from "./next-step-box.core";
 import { MONEY_WORDS, moneyScreen, type MoneyScreenRow } from "./money-screen.core";
+import { LOGO_MAX_BYTES, LOGO_TYPES, businessRows, logoFileProblem, needsYou, whoBooksOf, type BusinessScreenFacts, type WhoBooks } from "./business-screen.core";
+import { CUSTOMER_BASE } from "./engagement.core";
+import { PRESS_COMPLETE_LINE } from "./installer-quote-status.core";
 import { installCountdown } from "./next-step-dates.core";
 import { JOB_PAGE_WORDS, jobDetailsRows, nextForOwner, ownerRows, ownerToldRows, ownerToldSummary, paperworkRows, progressSteps, siteNotesRows, visitsRows } from "./job-page-rows.core";
 import { swmsHouseFacts } from "./swms-house.core";
@@ -57,6 +60,9 @@ import * as escNoticeServer from "./esc-collection-notice.server";
 import * as escNoticeCore from "./esc-collection-notice.core";
 import * as mittiInviteServer from "./mitti-invite.server";
 import * as usualElectricianServer from "./usual-electrician.server";
+import * as workerIdentityServer from "./worker-identity.server";
+import * as recOnboardedServer from "./rec-onboarded.server";
+import * as installerPaidServer from "./installer-paid-electricians.server";
 import * as schemaCompatCore from "./schema-compat.core";
 import { mittiAccessOf } from "./mitti-membership.core";
 const loadInstallerQuotes = (ids: string[]) => quoteStatusServer.loadInstallerQuotes(ids);
@@ -251,7 +257,7 @@ export async function tradeHome(userId: string) {
   }
   const jobsTabbed0 = allJobs.map((j) => ({ ...j, quoteLine: quoteLine.get(j.jobId) ?? null }));
   const jobsTabbed1 = jobsTabbed0.map((j) => ({ ...j, stage: byId.get(j.jobId)!.stage, tab: installerTab(j.place, byId.get(j.jobId)!.stage, /^Needs finishing/.test(String(byId.get(j.jobId)!.next_action ?? ""))) }));
-  const jobsTabbed = jobsTabbed1.map((j) => ({ ...j, tab: j.tab === "done" ? j.tab : j.quoteLine ? j.quoteLine.startsWith("You:") ? "action" as const : "progress" as const : j.tab }));
+  const jobsTabbed = jobsTabbed1.map((j) => ({ ...j, tab: j.tab === "done" ? j.tab : j.quoteLine ? j.quoteLine.startsWith("You:") || j.quoteLine === PRESS_COMPLETE_LINE ? "action" as const : "progress" as const : j.tab }));
   const done = [
     ...jobsTabbed.filter((j) => j.tab === "done").map((j) => ({ jobId: j.jobId, jobNumber: j.jobNumber, suburb: j.suburb, channel: j.channel, stage: j.stage, endedAt: byId.get(j.jobId)?.updated_at ?? null, reason: doneReason(j.stage), open: true })),
     ...(histJobs ?? []).filter((j) => !j.qa_archived_at && !j.deleted_at && (!c.isTest || j.source === "qa_test")).map((j) => ({ jobId: j.id, jobNumber: j.job_number, suburb: (j.properties as { suburb: string | null } | null)?.suburb ?? null, channel: j.channel as string | null, stage: j.stage, endedAt: j.updated_at ?? null, reason: doneReason(j.stage), open: false })),
@@ -746,7 +752,7 @@ export async function tradeMoney(userId: string) {
 /** The team rows with `declarations_due`. Until 0230 is live the column is missing: re-read without it (nobody is due). */
 async function loadTeamWorkers(businessId: string): Promise<{ data: { id: string; full_legal_name: string; trade_role: string; profile_id: string | null; email: string | null; mobile: string | null; certification: unknown; worker_role?: string | null; declarations_due?: boolean; licence_expires_on: string | null }[] | null; error?: { code?: string } | null }> {
   const load = (cols: string) => (admin as unknown as { from: (t: string) => any }).from("partner_workers").select(cols).eq("business_id", businessId).is("removed_at", null); // eslint-disable-line @typescript-eslint/no-explicit-any
-  const base = "id, full_legal_name, trade_role, approval_status, licence_expires_on, profile_id, email, mobile, certification_status, certification, worker_role";
+  const base = "id, full_legal_name, trade_role, approval_status, licence_expires_on, profile_id, email, mobile, certification_status, certification, worker_role, licence_number, rec_number";
   const first = await load(`${base}, declarations_due`);
   if (first.error && schemaCompatCore.isMissingDbObject(first.error)) return await load(base);
   return first;
@@ -757,7 +763,7 @@ export async function tradeBusiness(userId: string) {
   const today = melbourneToday();
   // Staff logins get only the business name and job-taking status: no rates, bank, agreement, insurance or team.
   const staffOnly = { kind: c.kind, boss: false as boolean, name: c.biz.name, taking: c.biz.accepting_new_jobs !== false, approvedSince: null as string | null, area: null as string | null, licenceExpires: null as string | null, liabilityExpires: null as string | null, rate: null as number | null, agreementSigned: false, bankSaved: false,
-    team: [] as TeamMemberView[], next: null as BusinessNext, usualElectrician: null as UsualElectrician | null, details: null as null | { legal: string | null; name: string; abn: string | null; baseSuburb: string | null; allVictoria: boolean }, ratesAgreedAt: null as string | null, hasRates: false, bankLine: null as string | null, credentials: [] as CredentialView[], agreement: null as null | { version: string; signer: string; signedAt: string }, notice: [] as { name: string; state: string }[] };
+    team: [] as TeamMemberView[], next: null as BusinessNext, usualElectrician: null as UsualElectrician | null, details: null as null | { legal: string | null; name: string; abn: string | null; baseSuburb: string | null; allVictoria: boolean }, ratesAgreedAt: null as string | null, hasRates: false, bankLine: null as string | null, credentials: [] as CredentialView[], agreement: null as null | { version: string; signer: string; signedAt: string }, notice: [] as { name: string; state: string }[], screen: null as ReturnType<typeof installerBusinessScreen> | null };
   if (!c.boss) return staffOnly;
   // Speed (installer screens, Task 9): three rounds — (1) sign-in context and the owner check above, (2) every owner read that
   // needs only the business (started only after the owner check, as before), (3) the reads that need the team rows (profiles,
@@ -780,6 +786,9 @@ export async function tradeBusiness(userId: string) {
   ]).then(async ([bzRes, actRes]) => ({ bzRes, actRes, appRes: !actRes.error && actRes.data?.application_id ? await admin.from("rec_onboarding_applications").select("data").eq("id", actRes.data.application_id).maybeSingle() : { data: null, error: null } }))) : null;
   // The usual electrician's failure fails the page (as before); started now, awaited after round 3 like before (last read).
   const usualEarly = c.kind === "installer" ? early(usualElectricianServer.readUsualElectrician(c.biz.id)) : null;
+  // Task 9 (approved My business screen): the business-only reads start with round 2; the Team-dependent one (private
+  // birth dates, counts only) runs in round 3. Each read's failure leaves its fact empty, never a crash (rounds unchanged).
+  const screenEarly = c.kind === "installer" ? early(businessScreenReads(c.biz.id)) : null;
   const [{ data: creds, error: credsError }, { data: workers, error: workersError }, { data: rate }, { data: agr }, { data: bank }, { data: biz }, { data: cards }, { data: members }] = await Promise.all([
     admin.from("business_credentials").select("kind, label, expires_at, verification").eq("business_id", c.biz.id),
     loadTeamWorkers(c.biz.id),
@@ -792,14 +801,15 @@ export async function tradeBusiness(userId: string) {
   ]);
   const ownerIds = (members ?? []).filter((m) => m.member_role === "business_admin").map((m) => m.user_id);
   const profileIds = [...new Set([...ownerIds, ...(workers ?? []).map((w) => w.profile_id).filter((x): x is string => !!x)])];
-  const staffRows = (workers ?? []) as { id: string; full_legal_name: string; trade_role: string; profile_id: string | null; email: string | null; mobile: string | null; certification: unknown; worker_role?: string | null; declarations_due?: boolean }[];
+  const staffRows = (workers ?? []) as { id: string; full_legal_name: string; trade_role: string; profile_id: string | null; email: string | null; mobile: string | null; certification: unknown; worker_role?: string | null; declarations_due?: boolean; licence_number?: string | null; rec_number?: string | null }[];
   const needCrew = c.kind === "installer" || staffRows.some((w) => w.trade_role === "installer");
   // Round 3. Office Mitti records (linked, invited, reactivated, marked done) per worker: Crew show "Mitti ✓" once the office has added them.
-  const [{ data: profs }, recsRes, cii, notice] = await Promise.all([
+  const [{ data: profs }, recsRes, cii, notice, births] = await Promise.all([
     profileIds.length ? admin.from("profiles").select("id, full_name, phone, email, mitti_user_id, mitti_checked_email, mitti_checked_at").in("id", profileIds) : Promise.resolve({ data: [] as never[] }),
     staffRows.length ? admin.from("admin_config_events").select("details").in("event_type", ["mitti_user_linked", "mitti_user_invited", "mitti_invite_linked", "mitti_user_reactivated", "mitti_invite_office_done"]).in("details->>worker_id", staffRows.map((w) => w.id)) : Promise.resolve(null),
     needCrew ? crewEarly ?? crewRead() : Promise.resolve([] as CiiRow[]),
     needCrew ? noticeEarly ?? noticeRead() : Promise.resolve([] as NoticeRow[]),
+    screenEarly && staffRows.length ? workerIdentityServer.privateBirthDates(staffRows.map((w) => w.id)).catch(() => new Map<string, string>()) : Promise.resolve(new Map<string, string>()),
   ]);
   const profile = (id: string | null | undefined) => (profs ?? []).find((p) => p.id === id) ?? null;
   const mittiLogin = (id: string | null | undefined): MittiLogin => { const p = profile(id); if (!p) return "not_set"; const a = mittiAccessOf(p as never); return a === "member" ? "linked" : a === "email_changed" ? "email_changed" : "not_set"; };
@@ -853,6 +863,11 @@ export async function tradeBusiness(userId: string) {
   const ratesAgreedAt = (cards ?? []).map((k) => k.effective_from ?? k.created_at).filter(Boolean).sort().at(-1) ?? agr?.signed_at ?? null;
   const details = { legal: biz?.legal_name ?? null, name: biz?.trading_name ?? c.biz.name, abn: biz?.abn ?? null, baseSuburb: c.biz.base_suburb ?? null, allVictoria: c.biz.covers_all_victoria === true };
   const noticeStatuses = notice.map((n) => ({ name: n.name, state: n.state }));
+  // Task 9 (installer screens): the approved My business screen — who books, logo, office phone, Team completeness
+  // (date of birth + mobile, counts only: the dates themselves never leave the private table here) and the Team
+  // electricians with the PIESA price from the matching onboarded REC business's active rate (else none). Read failures
+  // leave the fact empty, never a crash.
+  const screen = screenEarly ? installerBusinessScreen(c.biz.name, await screenEarly, births, staffRows, team, { credentials, ratesAgreedAt, hasRates, bank: bank ?? null, agreementSigned: !!agr?.signed_at, noticeStatuses, ciiBlocked: team.filter((m) => m.cii && !crewClearance(m.cii, today).cleared).map((m) => ({ name: m.name })) }, today) : null;
   const next = businessNext({
     installer: c.kind === "installer", publicLiabilityExpires: liability, bankSaved: !!bank, agreementSigned: !!agr?.signed_at,
     noticeOutstanding: noticeStatuses.filter((n) => n.state !== "acknowledged").map((n) => ({ name: n.name })), usualElectrician: !!usual, ...(electrician ? { electrician } : {}),
@@ -865,7 +880,91 @@ export async function tradeBusiness(userId: string) {
     agreementSigned: !!agr?.signed_at, bankSaved: !!bank,
     team, next, usualElectrician: usual, details, ratesAgreedAt, hasRates, bankLine: bankLine(bank ?? null), credentials,
     agreement: agr ? { version: String(agr.version), signer: agr.signer_name, signedAt: agr.signed_at } : null, notice: noticeStatuses,
+    screen,
   };
+}
+
+/** Task 9: the business-only reads for the approved My business screen (who books — tolerant of the pending column —,
+ *  branding + office phone, the approved REC businesses with their PIESA rates, the business's own PIESA line). */
+async function businessScreenReads(businessId: string) {
+  const [whoRes, brandRes, recs, own] = await Promise.all([
+    (admin as unknown as { from: (t: string) => any }).from("businesses").select("piesa_booked_by").eq("id", businessId).maybeSingle() as Promise<{ data: { piesa_booked_by?: unknown } | null; error: { code?: string; message: string } | null }>, // eslint-disable-line @typescript-eslint/no-explicit-any
+    admin.from("businesses").select("branding, phone").eq("id", businessId).maybeSingle(),
+    recOnboardedServer.loadApprovedRecCandidates().catch(() => [] as Awaited<ReturnType<typeof recOnboardedServer.loadApprovedRecCandidates>>),
+    installerPaidServer.readInstallerPaidElectricians(businessId).catch(() => null),
+  ]);
+  if (whoRes.error && !schemaCompatCore.isMissingDbObject(whoRes.error) && !["42703", "PGRST204"].includes(whoRes.error.code ?? "")) console.error("tradeBusiness: who-books could not be read", whoRes.error.code ?? "unknown");
+  return { whoBooks: whoBooksOf(whoRes.error ? undefined : whoRes.data?.piesa_booked_by) as WhoBooks, branding: (brandRes.data?.branding ?? {}) as { logo_url?: unknown }, phone: brandRes.data?.phone?.trim() || null, recs, own };
+}
+
+/** Task 9: the installer's My business facts beyond M7 (pure derivation over the reads above; the dates of birth never leave — counts only). */
+function installerBusinessScreen(businessName: string, r: Awaited<ReturnType<typeof businessScreenReads>>, births: Map<string, string>, staffRows: { id: string; full_legal_name: string; trade_role: string; mobile: string | null; licence_number?: string | null; rec_number?: string | null }[], team: TeamMemberView[], base: { credentials: CredentialView[]; ratesAgreedAt: string | null; hasRates: boolean; bank: { account_number: string } | null; agreementSigned: boolean; noticeStatuses: { name: string; state: string }[]; ciiBlocked: { name: string }[] }, today: string) {
+  const logoUrl = typeof r.branding.logo_url === "string" && r.branding.logo_url.startsWith("https://") ? r.branding.logo_url : null;
+  const ownRate = r.own && !r.own.release_hold_reason ? r.own.piesaIncGst : null;
+  const electricians = staffRows.filter((w) => w.trade_role === "electrician").map((w) => {
+    const rec = w.rec_number ? r.recs.find((x) => x.rec_number && x.rec_number === w.rec_number && x.onboarding_status === "approved" && x.is_active !== false) ?? null : null;
+    const price = rec?.piesa_rate ? Number(rec.piesa_rate.rate_inc_gst) : ownRate;
+    return { id: w.id, name: w.full_legal_name.trim(), business: rec ? rec.trading_name || rec.name : null, piesaPrice: price != null && Number.isFinite(price) && price > 0 ? price : null };
+  });
+  const missingDobOrMobile = team.filter((m) => !m.mobile || (m.id ? !births.has(m.id) : true)).length;
+  const facts: BusinessScreenFacts = {
+    team: { people: team.length, missingDobOrMobile }, electricians: electricians.map(({ name, business, piesaPrice }) => ({ name, business, piesaPrice })),
+    credentials: base.credentials, officePhone: r.phone, logoUrl, ratesAgreedAt: base.ratesAgreedAt, hasRates: base.hasRates,
+    bankLast4: base.bank ? base.bank.account_number.replace(/\D/g, "").slice(-4) || null : null, bankSaved: !!base.bank,
+    agreementSigned: base.agreementSigned, noticeOutstanding: base.noticeStatuses.filter((n) => n.state !== "acknowledged").map((n) => ({ name: n.name })), ciiBlocked: base.ciiBlocked,
+  };
+  return { businessName, whoBooks: r.whoBooks, logoUrl, officePhone: r.phone, electricians, needsYou: needsYou(facts, today), rows: businessRows(facts, today) };
+}
+
+/** Task 9: who books the safety check and the upgrades day for this business (boss only). Part 6 reads it per job. */
+export async function tradeSetWhoBooks(userId: string, v: WhoBooks) {
+  const c = await bossOrThrow(userId);
+  const w = whoBooksOf(v);
+  const { error } = await (admin as unknown as { from: (t: string) => any }).from("businesses").update({ piesa_booked_by: w }).eq("id", c.biz.id); // eslint-disable-line @typescript-eslint/no-explicit-any
+  if (error) {
+    if (schemaCompatCore.isMissingDbObject(error) || ["42703", "PGRST204"].includes(error.code ?? "")) throw new WorkflowError("This setting isn't switched on yet. Home Insulation Victoria is finishing it; nothing has changed."); // DRAFT
+    throw new WorkflowError(error.message);
+  }
+  return { whoBooks: w }; // the pending SQL's trigger writes the who_books_changed audit row
+}
+
+/** Task 9: the business logo for co-branded quotes (boss only; PNG/JPEG ≤ 2 MB). The bytes live in the private job-files
+ *  bucket under a random key; they are served for good by the public /api/public/partner-logo/{key} route (the same
+ *  kind of public image path the email art uses — never an expiring signed URL), and that https URL is written to
+ *  businesses.branding.logo_url (the field the co-branding read uses). Nothing about the business's approval changes. */
+export async function tradeUploadLogo(userId: string, file: { name: string; type: string; bytes: Uint8Array }) {
+  const c = await bossOrThrow(userId);
+  const problem = logoFileProblem(file);
+  if (problem) throw new WorkflowError(problem);
+  if (file.bytes.byteLength > LOGO_MAX_BYTES) throw new WorkflowError("The logo must be 2 MB or smaller.");
+  const ext = LOGO_TYPES[file.type]!;
+  const key = [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, "0")).join("");
+  const path = `partner-logos/${c.biz.id}/${key}.${ext}`;
+  const up = await admin.storage.from("job-files").upload(path, file.bytes, { contentType: file.type, upsert: false });
+  if (up.error) throw new WorkflowError(`The logo could not be saved: ${up.error.message}`);
+  const url = `${CUSTOMER_BASE}/api/public/partner-logo/${key}.${ext}`;
+  const { data: before } = await admin.from("businesses").select("branding").eq("id", c.biz.id).maybeSingle();
+  const branding = { ...((before?.branding as Record<string, unknown> | null) ?? {}), logo_url: url, logo_key: key, logo_path: path, logo_type: file.type };
+  // Same write the partner's own business save makes (business admin, branding only); approval fields untouched.
+  const { error } = await admin.from("businesses").update({ branding, updated_at: new Date().toISOString() } as never).eq("id", c.biz.id);
+  if (error) throw new WorkflowError(error.message);
+  await admin.from("admin_config_events").insert({ actor_id: userId, event_type: "business_logo_uploaded", summary: `${c.biz.name}: logo uploaded for co-branded quotes`, details: { business_id: c.biz.id, path, type: file.type, bytes: file.bytes.byteLength } });
+  return { logoUrl: url };
+}
+
+/** Part 10 reads this for the co-branded quote email, page and invoice: the https logo URL, or null (our logo then). */
+export async function businessLogoUrl(businessId: string): Promise<string | null> {
+  const { data } = await admin.from("businesses").select("branding").eq("id", businessId).maybeSingle();
+  const url = (data?.branding as { logo_url?: unknown } | null)?.logo_url;
+  return typeof url === "string" && url.startsWith("https://") ? url : null;
+}
+
+/** The public logo route's lookup: the stored path for a logo key (null = unknown key). */
+export async function partnerLogoByKey(key: string): Promise<{ path: string; type: string } | null> {
+  if (!/^[0-9a-f]{32}$/.test(key)) return null;
+  const { data } = await admin.from("businesses").select("branding").eq("branding->>logo_key" as never, key).limit(1).maybeSingle();
+  const b = (data?.branding as { logo_path?: unknown; logo_type?: unknown } | null) ?? null;
+  return b && typeof b.logo_path === "string" && typeof b.logo_type === "string" ? { path: b.logo_path, type: b.logo_type } : null;
 }
 
 export async function tradeSetTaking(userId: string, taking: boolean) {
