@@ -1,3 +1,9 @@
+## Jo 4 Nov install-day BEFORE, floor plans and TEST quote browser check
+- [ ] Confirm Mitti conditional/prefill capability; automatic per-area missing/rejected BEFORE collection in Mitti only, area order and scope-change warning without repricing.
+- [ ] Red-first floor-plan area reading and evidence retention; preserve length × width and old submissions.
+- [ ] Sign in as TEST office; practice two-option TEST quote browser checks without delivery, real records or template changes.
+- [ ] Related tests, automatic checks and report supported Mitti option plus limitations; no publishing or sends.
+
 ## Jo 4 Nov A1–A5 Mitti rebuild compatibility
 - [x] Source compatibility report covers changed/unchanged questions, official facts, evidence and prompt corrections.
 - [x] Red-first exact aliases and independent A3 mains mapping; 177 related form/evidence/price tests pass, missing facts stay held.
