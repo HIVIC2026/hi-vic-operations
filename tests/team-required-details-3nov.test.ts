@@ -46,6 +46,7 @@ test("every business add path uses the shared rule", () => {
 });
 
 // Jo 3 Nov ~3pm follow-ups: fill missing details on the Team page; sign-up link asks date of birth.
+import { describe, it } from "bun:test";
 import { teamFillMissing, joinDateOfBirthProblem } from "../src/lib/team-required.core";
 describe("Team page fills missing details (Jo 3 Nov 3pm)", () => {
   const today = "2026-11-03";
