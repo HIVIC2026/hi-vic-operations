@@ -101,3 +101,17 @@ describe("will-call sender (Part 3 Task 6) refuses an own customer before any cl
     expect(ledger).toHaveLength(1); expect(providerCalls).toEqual(["in-house-partner-call:v1:j"]); expect(smsCalls).toEqual(["in-house-partner-call:v1:j:sms"]);
   });
 });
+
+// Final review M4: the quiet-hours / recovery retry of the Spot saved text goes back through sendSpotSavedConfirmation,
+// which reads jobs.channel into spotSavedJobBlocker — so an own customer is refused on the retry too.
+describe("M4: the Spot saved retry carries the channel", () => {
+  test("recovery sweep calls sendSpotSavedConfirmation; the sender reads channel into the plan", () => {
+    const { readFileSync } = require("node:fs") as typeof import("node:fs");
+    const rec = readFileSync("src/lib/spot-saved-recovery.server.ts", "utf8");
+    expect(rec).toContain("sendSpotSavedConfirmation(candidate.jobId, { emailOnly: candidate.emailOnly })");
+    const send = readFileSync("src/lib/spot-saved-send.server.ts", "utf8");
+    expect(send).toContain('select("source, stage, channel, deleted_at, qa_archived_at, owners(phone, email)")');
+    expect(send).toContain("channel: (job as { channel?: string | null } | null)?.channel ?? null,");
+    expect(send.indexOf("channel: (job as")).toBeLessThan(send.indexOf("smsQuietReason(now)"));
+  });
+});
