@@ -103,7 +103,7 @@ describe("approved owner email designs", () => {
   test("O10 Spot saved", () => {
     const m = renderSpotSavedEmail({ firstName: "Helen", rebate: 1610, suburb: "Glen Waverley", shortAddress: "824 High Street Road, Glen Waverley", myJobUrl: JOB, optOutUrl: "https://estimate.homeinsulationvictoria.com.au/api/public/unsubscribe?t=x", referralUrl: "https://homeinsulationvictoria.com.au/homeowner?ref=r", estimate: { gross: 3798, customer: 2188, areaM2: 137, address: "824 High Street Road, Glen Waverley VIC 3150", calculatorUrl: `${EST}/calculator` } });
     shell(m.html, m.text, true);
-    has(m.html, ["Smart move, Helen. Your spot is saved.", "Your $1,610 rebate is waiting", "You save $1,610", ">$2,188<", "Estimate incl. GST for 137 m². You'll see your exact price before you agree to anything.", "Your place is kept", "<strong>We'll be in touch</strong>", "When your spot is released, we'll tell you your next step.", "What's included in $2,188", "Have a friend who needs a spot saved?"]);
+    has(m.html, ["Smart move, Helen. Your spot is saved.", "Your $1,610 rebate is waiting", "You save $1,610", ">$2,188<", "Estimate incl. GST for 137 m². You'll see your exact price before you agree to anything.", "Your place is kept", "<strong>A certified installer will call you</strong>", "They'll measure up and confirm your quote.", "What's included in $2,188", "Have a friend who needs a spot saved?"]);
   });
   test("O11 Ready Check times", () => {
     const m = renderReadyCheckTimesEmail({ firstName: "Helen", suburb: "Glen Waverley", installerName: "Deep Insulation", times: ["Tuesday 28 October at 8:00am", "Wednesday 29 October at 12:30pm", "Friday 31 October at 7:30am"], myJobUrl: JOB, estimate: { rebate: 1610, price: 2188, areaM2: 137 } });

@@ -200,7 +200,7 @@ describe("F. the approved wording (decisions 66, 67, 69, 73) is what renders", (
       "You'll see your exact price before you agree to anything.",
     ]) expect(m.html).toContain(t);
     expect(m.html).not.toContain("Ready Check");
-    expect(m.html).toContain(`href="${LINKS.saveMySpotUrl}"`);
+    expect(m.html).toContain(`href="${LINKS.saveMySpotUrl}?save=1"`);
     expect(m.html).not.toContain(`href="${LINKS.calculatorUrl}"`); // guide fix 1, Jo 29 Oct 2026
     expect(m.html).not.toContain("may qualify");
     expect(m.html).not.toContain("Your existing insulation");

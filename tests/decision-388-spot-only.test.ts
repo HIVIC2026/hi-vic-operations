@@ -6,9 +6,9 @@
 // Run: bun test tests/decision-388-spot-only.test.ts
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { PRE_RELEASE_FORBIDDEN, SPOT_INSTALLER_CALLS, SPOT_PROCESS_STATEMENT, SPOT_RELEASE_LINE, preReleaseViolations, preReleaseViolationsAllowing } from "../src/lib/spot-only-copy.core";
+import { SPOT_ORDER, PRE_RELEASE_FORBIDDEN, SPOT_INSTALLER_CALLS, SPOT_PROCESS_STATEMENT, SPOT_RELEASE_LINE, preReleaseViolations, preReleaseViolationsAllowing } from "../src/lib/spot-only-copy.core";
 import { O2_DONT_KNOW_INTRO, renderJoOutcomeEmail, type JoOutcomeEmailInput } from "../src/lib/jo-outcome-email.core";
-import { renderSpotSavedEmail, renderSpotSavedSms } from "../src/lib/spot-saved-messages.core";
+import { O10_NEXT_STEP_2, renderSpotSavedEmail, renderSpotSavedSms } from "../src/lib/spot-saved-messages.core";
 import { ESTIMATE_FOLLOWUP_APPROVED, ESTIMATE_FOLLOWUP_STEPS, renderEstimateFollowupEmail } from "../src/lib/estimate-followup.core";
 import { blastMessage } from "../src/lib/save-spot-reminder-blast.core";
 import { answerText, decideOwnerAutoReply, LONG_LIST, OWNER_EMAIL_AUTO_REPLY_APPROVED, renderOwnerAutoReplyEmail, type OwnerJobFacts } from "../src/lib/owner-email-auto-reply.core";
@@ -80,11 +80,13 @@ describe("pre-release emails and texts are spot-only", () => {
       estimate: { gross: 3798, customer: 2188, areaM2: 137, address: null, calculatorUrl: `${EST}/calculator` } };
     for (const removal of [null, { kind: "included" as const, amount: 900, areaM2: 60 }, { kind: "unknown" as const }]) {
       const e = renderSpotSavedEmail({ ...i, removal });
-      clean("O10 text", e.text); clean("O10 html", e.html.replace(/<[^>]+>/g, " ")); clean("O10 subject", e.subject);
+      // Decision 19 (2 Nov 2026): O10 step 2 may say the installer will call; nothing else is opened.
+      const ok = (t: string) => expect(preReleaseViolationsAllowing(t, [O10_NEXT_STEP_2.body, O10_NEXT_STEP_2.title, SPOT_INSTALLER_CALLS])).toEqual([]);
+      ok(e.text); ok(e.html.replace(/<[^>]+>/g, " ").replace(/&#x27;|&#39;/g, "'")); clean("O10 subject", e.subject);
     }
     const sms = renderSpotSavedSms(i);
-    clean("spot saved text", sms);
-    expect(sms).toContain(SPOT_RELEASE_LINE);
+    expect(preReleaseViolationsAllowing(sms, [SPOT_INSTALLER_CALLS])).toEqual([]); // decision 20
+    expect(sms).toContain(SPOT_ORDER);
   });
   test("O66–O68 estimate reminders (held)", () => {
     for (const step of ESTIMATE_FOLLOWUP_STEPS) {

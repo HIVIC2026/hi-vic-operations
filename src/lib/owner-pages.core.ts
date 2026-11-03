@@ -28,8 +28,6 @@ export const P1 = {
   question: (i: number) => `QUESTION ${i} OF 3`,
   /** Page titles for the three questions (the stored question keys and options are unchanged). */
   labels: { insulation_type: "What type is your insulation?", insulation_thickness: "About how thick is it?", house_built_period: "When was your home built?" } as Record<string, string>,
-  addPhotos: "Add photos",
-  addVideo: "Add a video",
   save: "Save my free spot",
   saving: "Saving…",
   /** Amber line under the locked button, e.g. "Answer question 3 to save your spot". */

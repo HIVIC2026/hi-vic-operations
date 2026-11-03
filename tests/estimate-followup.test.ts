@@ -120,7 +120,7 @@ describe("draft emails O66 / O67 / O68 (kit design, O1 price box, Save my spot b
     expect(html).toContain("Based on what you told us: 137 m² ceiling, no existing insulation.");
     expect(html).not.toContain("Try a different ceiling size"); // guide fix 1, Jo 29 Oct 2026
     expect(html).toContain("Save my free spot");
-    expect(html).toContain(`href="${SAVE}"`);
+    expect(html).toContain(`href="${SAVE}?save=1"`);
     expect(text).toContain(`Save my free spot: ${SAVE}`);
     expect(text).toContain("Unsubscribe: https://u/x");
   };

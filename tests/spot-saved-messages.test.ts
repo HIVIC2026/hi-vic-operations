@@ -5,18 +5,17 @@ const i = { firstName: "Sarah", rebate: 1470.6, suburb: "Ballarat", shortAddress
 describe("spot saved confirmations", () => {
   test("text wording", () => {
     const s = renderSpotSavedSms(i);
-    expect(s.startsWith("Spot saved, Sarah! 🎉 Smart move: your $1,470 rebate is waiting.")).toBe(true);
-    // Decision 388: spot-only — no installer, times or "as soon as" before release.
-    expect(s).toContain("Spots are released in the order they were saved. We'll be in touch when your spot is released.");
-    expect(s).not.toMatch(/installer|as soon as|Ready Check/);
-    expect(s).toContain("Your job: https://estimate.homeinsulationvictoria.com.au/my-job/abc – Home Insulation Victoria");
+    expect(s.startsWith("Home Insulation Victoria: Spot saved, Sarah! 🎉 Smart move: your $1,470 rebate is waiting.")).toBe(true);
+    // Decision 20 (2 Nov): installer-will-call sentence, no link.
+    expect(s).toContain("Spots are released in the order they were saved. When an EEC-certified installer is available, they'll call you to book your free Ready Check.");
+    expect(s).not.toMatch(/as soon as|https?:|Your job/);
   });
   test("email wording, no phone / call us", () => {
     const e = renderSpotSavedEmail(i);
     expect(e.subject).toBe("Spot saved. Your $1,470 rebate is waiting");
     // Decision 70 design (O10): logo card, smart-move headline, green rebate line, steps, See my job, AP footer; decision 388 spot-only wording.
-    expect(e.html + e.text).not.toContain("Ready Check");
-    for (const t of ["Smart move, Sarah. Your spot is saved.", "Your $1,470 rebate is waiting", "Spots are released in the order they were saved.", "When your spot is released, we'll tell you your next step.", "What happens next", "Your place is kept", "DC Construction Solutions Pty Ltd", "VEU Accredited Person A003654", "Unsubscribe"]) expect(e.html).toContain(t);
+    expect(e.html + e.text).not.toMatch(/as soon as|soon|shortly/); // decision 388 still holds apart from the decision-19 step 2
+    for (const t of ["Smart move, Sarah. Your spot is saved.", "Your $1,470 rebate is waiting", "Spots are released in the order they were saved.", "A certified installer will call you", "What happens next", "Your place is kept", "DC Construction Solutions Pty Ltd", "VEU Accredited Person A003654", "Unsubscribe"]) expect(e.html).toContain(t);
     expect(e.html).not.toContain("/api/public/email-art/");
     expect(e.html).not.toContain("Heads up");
     expect(/call us|phone number|1300|04\d{2}/i.test(e.html + e.text)).toBe(false); // "No phone tag." is approved wording (decision 70)

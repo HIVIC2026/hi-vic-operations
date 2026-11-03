@@ -2,20 +2,20 @@
 // Email design APPROVED by Jo 24 Oct 2026 (decision 70), refreshed as MJML 27 Oct 2026 (docs/templates/mjml/owner_O10):
 // "Smart move, {First}. Your spot is saved." + "Your {rebate} rebate is waiting"; demand line; rebate and price boxes;
 // "What happens next" steps; the Save my spot included / not included cards (+ the existing-insulation
-// card for those owners); friend card. The text message keeps its earlier approved wording (task scope: emails only).
+// card for those owners); friend card. Decisions 12/19/20 (Jo 2 Nov 2026): O10 step 2 and the text say an EEC-certified installer will call.
 // Decision 388 (Jo 25 Oct 2026): both are sent BEFORE the spot is released, so they are spot-only — no Ready Check,
 // installer times, measuring, quote timing or speed ("as soon as"). Changed directly (the email has no approval flag);
-// the text is held (`spot_saved` wordingApproved=false in sms.core) until Jo approves docs/decision-388-spot-only-wording.md.
+// decision 19 opens the Ready Check ban for the O10 step 2 and the Spot saved text only (spot-only-copy.core).
 // PURE: no I/O. No phone number or "call us" anywhere.
 import { shortAddress } from "./address";
 import { EXISTING_PRELIMINARY, REMOVAL_BUDGET_EMAIL_NOTE, removalNote, type EstimateRemoval } from "./estimate-removal.core";
 import * as K from "./email-kit.core";
 import { mjEmail } from "./mail-mjml.core";
 import { includedCardsText, mjExistingInsulation, mjIncludedCards, mjLinkCard, mjSmallEnd } from "./jo-outcome-email.core";
-import { SPOT_FREE, SPOT_IN_TOUCH, SPOT_ORDER, SPOT_PRICE_NOTE } from "./spot-only-copy.core";
+import { SPOT_FREE, SPOT_INSTALLER_CALLS, SPOT_IN_TOUCH, SPOT_ORDER, SPOT_PRICE_NOTE } from "./spot-only-copy.core";
 
 /** Jo 23 Oct 2026: shown to everyone in both Spot saved confirmations. */
-export const SPOT_SAVED_NOT_INCLUDED = "Not included: if the electrical safety check finds anything that needs fixing, that work is extra and will be quoted separately.";
+export const SPOT_SAVED_NOT_INCLUDED = "Not included: if the electrical safety check (PIESA) finds electrical upgrades are needed, that work is extra and will be quoted separately.";
 export const wholeDollars = (n: number) => `$${Math.floor(n).toLocaleString("en-AU")}`;
 
 export type SpotSavedInput = { firstName: string | null; rebate: number; suburb: string | null; shortAddress: string | null; myJobUrl: string; optOutUrl: string;
@@ -38,13 +38,22 @@ export function addressBits(addressLine: string | null, suburb: string | null) {
   return { suburb: sub, short: shortAddress(line, sub) };
 }
 
+/** Spot saved text (decision 20, Jo 2 Nov 2026, verbatim). No link. `rebate` is already formatted, e.g. "$2,380". */
+export const spotSavedText = (first: string | null, rebate: string): string =>
+  `Home Insulation Victoria: Spot saved${first?.trim() ? `, ${first.trim()}` : ""}! 🎉 Smart move: your ${rebate} rebate is waiting. ${SPOT_ORDER} ${SPOT_INSTALLER_CALLS}`;
+
 export function renderSpotSavedSms(i: SpotSavedInput) {
-  const name = i.firstName?.trim() ? `, ${i.firstName.trim()}` : "";
-  return `Spot saved${name}! 🎉 Smart move: your ${wholeDollars(i.rebate)} rebate is waiting. ${SPOT_ORDER} ${SPOT_IN_TOUCH} Your job: ${i.myJobUrl} – Home Insulation Victoria`;
+  return spotSavedText(i.firstName, wholeDollars(i.rebate));
 }
 
-/** O10 step 2 (MJML refresh, Jo 27 Oct 2026). */
-const SPOT_SAVED_STEP_2 = "When your spot is released, we'll tell you your next step.";
+/** O10 "What happens next" step 2 (decision 19, Jo 2 Nov 2026, verbatim). The pre-release check is opened for this and the
+ *  Spot saved text only (see `preReleaseViolationsAllowing`). */
+export const O10_NEXT_STEP_2 = { title: "A certified installer will call you", body: `${SPOT_INSTALLER_CALLS} They'll measure up and confirm your quote.` } as const;
+
+/** Spot saved screen line (decision 12, approved 2 Nov 2026). */
+export const spotSavedBasedOn = (i: { areaM2: number; insulation: string }): string =>
+  `Based on what you told us: ${K.m2(i.areaM2)} ceiling, ${i.insulation}.`;
+
 const SPOT_SAVED_PREVIEW = "You've locked in your place. There's nothing more you need to do right now.";
 const mjSmall = (text: string, padding = "10px 12px 0") => `<mj-section><mj-column><mj-text mj-class="small" padding="${padding}">${K.esc(text)}</mj-text></mj-column></mj-section>`;
 
@@ -58,7 +67,7 @@ export function renderSpotSavedEmail(i: SpotSavedInput) {
   const rebateLine = `Your ${rebate} rebate is waiting`;
   const steps: K.Step[] = [
     { title: "Your place is kept", detail: SPOT_FREE },
-    { title: "We'll be in touch", detail: SPOT_SAVED_STEP_2 },
+    { title: O10_NEXT_STEP_2.title, detail: O10_NEXT_STEP_2.body },
   ];
   const estNote = est ? `Estimate incl. GST for ${K.m2(est.areaM2)}. ${SPOT_PRICE_NOTE.replace(/^This is an estimate\. /, "")}` : null;
   // Decision 70: the Save my spot cards, plus the existing-insulation card when the saved estimate carries removal.
@@ -67,7 +76,7 @@ export function renderSpotSavedEmail(i: SpotSavedInput) {
   const removalLine = removal?.kind === "included" ? `Removal of existing insulation: $${removal.amount.toLocaleString("en-AU", { maximumFractionDigits: 2 })} inc GST (${removal.areaM2.toLocaleString("en-AU")} m² included in this estimate; the scope and price are confirmed before you agree to anything.)` : null;
   const body = [
     `<mj-section><mj-column><mj-text mj-class="hi">${K.esc(smartMove)}</mj-text><mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">${K.esc(rebateLine)}</mj-text><mj-text>${K.esc(SPOT_SAVED_BATCH_TEXT)}</mj-text></mj-column></mj-section>`,
-    est ? `<mj-section><mj-column mj-class="panel-mint"><mj-text mj-class="eyebrow center" padding="18px 12px 6px">VEU rebate</mj-text><mj-text mj-class="big-green" padding="0 12px 18px">You save ${K.esc(K.whole(i.rebate))}</mj-text></mj-column></mj-section>`
+    est ? `<mj-section><mj-column mj-class="panel-mint"><mj-text mj-class="eyebrow center" padding="18px 12px 6px">Your estimated rebate</mj-text><mj-text mj-class="big-green" padding="0 12px 18px">You save ${K.esc(K.whole(i.rebate))}</mj-text></mj-column></mj-section>`
       + `<mj-section><mj-column mj-class="panel"><mj-text mj-class="eyebrow center" padding="18px 12px 6px">Your estimated quote based on what you've told us</mj-text><mj-text mj-class="big-blue">${K.esc(K.whole(est.customer))}</mj-text><mj-text mj-class="small center" padding="0 16px 18px">${K.esc(estNote!)}</mj-text></mj-column></mj-section>` : "",
     `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px 10px">What happens next</mj-text><mj-table padding="0 18px 4px">${steps.map((st, n) => `<tr><td width="34" valign="top" style="padding:1px 0 ${n === steps.length - 1 ? 12 : 14}px;"><span class="num">${n + 1}</span></td><td style="padding:0 0 ${n === steps.length - 1 ? 12 : 14}px;"><strong>${K.esc(st.title)}</strong><br /><span class="muted">${K.esc(st.detail ?? "")}</span></td></tr>`).join("")}</mj-table></mj-column></mj-section>`,
     est ? `${mjIncludedCards({ price: est.customer, rebate: i.rebate, someInsulation: some })}${mjSmallEnd(K.esc(K.INCLUDED_CLOSING))}` : mjSmall(SPOT_SAVED_NOT_INCLUDED),
@@ -79,7 +88,7 @@ export function renderSpotSavedEmail(i: SpotSavedInput) {
   const html = mjEmail({ subject, preview: SPOT_SAVED_PREVIEW, body, unsubscribe: i.optOutUrl });
   const text = K.plainText([
     smartMove, `${rebateLine}.`, "", SPOT_SAVED_BATCH_TEXT, "",
-    ...(est ? [`VEU rebate: You save ${rebate}`, `Your estimated quote based on what you've told us: ${K.whole(est.customer)}`, estNote!, ""] : []),
+    ...(est ? [`Your estimated rebate: You save ${rebate}`, `Your estimated quote based on what you've told us: ${K.whole(est.customer)}`, estNote!, ""] : []),
     "WHAT HAPPENS NEXT", ...steps.map((s, n) => `${n + 1}. ${s.title}: ${s.detail}`), "",
      "",
     ...(est ? [...includedCardsText({ price: est.customer, rebate: i.rebate, someInsulation: some }), "", K.INCLUDED_CLOSING, ""] : []),

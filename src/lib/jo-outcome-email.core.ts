@@ -12,6 +12,7 @@
  * (docs/templates/mjml/owner_O1, owner_O2-*, owner_O6; Jo 27 Oct 2026) through `mjEmail` (mail-mjml.core.ts). T8 (the office Ready Check
  * invitation) was retired on 24 Oct 2026 and has no renderer any more; earlier sends stay in job history.
  */
+import { oneTapSaveUrl } from "./one-tap-save.core";
 import {
   ctasForTemplate,
   INSULATION_QUESTIONS_CTA_LABEL,
@@ -358,7 +359,7 @@ function renderSaveMySpot(input: JoOutcomeEmailInput, f: JoEstimateFigures, vari
   const basis = basisLine(f, dontKnow ? "unknown" : some);
   const intro = dontKnow ? O2_DONT_KNOW_INTRO : some ? O2_INTRO : O1_INTRO;
   const removal = removalCard(f);
-  const saveUrl = input.links.saveMySpotUrl, answerUrl = input.links.uploadMediaUrl;
+  const saveUrl = oneTapSaveUrl(input.links.saveMySpotUrl), answerUrl = input.links.uploadMediaUrl;
   const box = { rebateLabel: some ? "Your potential rebate" : "Your estimated rebate", rebate: f.veuRebate, priceLabel: some ? "Your estimated quote based on what you've told us" : "You pay after the rebate", price: f.customerTotal, fullPrice: f.totalBeforeRebate, basis, calculatorUrl: input.links.calculatorUrl || null };
   const closing = some ? O2_CLOSING : O1_CLOSING;
   const action = variant === "questions"

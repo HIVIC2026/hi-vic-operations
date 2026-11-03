@@ -12,6 +12,7 @@
 // (O66 day 2, O67 day 7, O68 day 21). Real owners still need `customer_comms_enabled` (and consent); if the flag were
 // ever false, real owners get nothing and nothing is closed (a close needs a recorded day-21 send); TEST (qa_test) jobs
 // use test-send so the flow can be checked.
+import { oneTapSaveUrl } from "./one-tap-save.core";
 import * as K from "./email-kit.core";
 import { mjEmail } from "./mail-mjml.core";
 import { mjHeadline, mjRebateAndPrice, mjSmallEnd, mjSubSection, rebateAndPriceText } from "./jo-outcome-email.core";
@@ -185,7 +186,7 @@ export function renderEstimateFollowupEmail(i: EstimateFollowupEmailInput): { su
   const body = [
     mjHeadline(c.subject, c.intro),
     mjRebateAndPrice(box),
-    mjSubSection(c.saveTitle, c.save, { href: i.saveUrl, label: SAVE_LABEL }),
+    mjSubSection(c.saveTitle, c.save, { href: oneTapSaveUrl(i.saveUrl), label: SAVE_LABEL }),
     afterHtml ? `<mj-section><mj-column><mj-text>${afterHtml}</mj-text></mj-column></mj-section>` : "",
     mjSmallEnd(K.esc(c.closing), "4px 12px 0"),
   ].filter(Boolean).join("\n");
@@ -193,7 +194,7 @@ export function renderEstimateFollowupEmail(i: EstimateFollowupEmailInput): { su
   const text = K.plainText([
     c.subject, "", c.intro, "",
     ...rebateAndPriceText(box), "",
-    c.saveTitle.toUpperCase(), c.save, `${SAVE_LABEL}: ${i.saveUrl}`, "",
+    c.saveTitle.toUpperCase(), c.save, `${SAVE_LABEL}: ${oneTapSaveUrl(i.saveUrl)}`, "",
     c.after, c.after ? "" : null, c.closing,
   ], { unsubscribe: i.unsubscribeUrl, testLabel: i.test === true });
   return { subject: c.subject, html, text };
