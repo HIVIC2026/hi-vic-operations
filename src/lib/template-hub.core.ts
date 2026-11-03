@@ -580,9 +580,9 @@ const INSTALLER: TemplateEntry[] = [
     source: { builder: "src/lib/run-portal.core.ts", fn: "runSlotCancelledText", sender: "src/lib/installer-run.server.ts" },
     render: () => text(runSlotCancelledText({ name: "Sam Sample", day: "Tuesday 27 October", time: windowWords("09:00", "10:00"), link: `${BASE}/field/run/TEST-RUN` })) }),
   // Quote
-  ENTRY({ id: "installer:I23", section: "installer", step: "quote", kind: "email", code: "I23", name: "Good news — the owner accepted", when: "The owner pays the safety check", who: "Installer", approvalNote: "Jo 24 Oct 2026", gate: { kind: "email" },
+  ENTRY({ id: "installer:I23", section: "installer", step: "quote", kind: "email", code: "I23", name: "Good news — the owner accepted", when: "The owner pays the safety check", who: "Installer", approvalNote: "Wording: Jo 2 Nov 2026, decision #36 (INSTALLER_ACCEPTED_V2_APPROVED stays false until Jo OKs the pictures; the earlier wording goes out until then)", gate: { kind: "email" },
     source: { builder: "src/lib/installer-accepted-email.core.ts", fn: "renderInstallerAcceptedEmail", sender: "src/lib/installer-accepted-email.server.ts" }, design: "docs/templates/mjml/installer_I23.mjml",
-    render: () => email(renderInstallerAcceptedEmail(PARTNER_JOB)) }),
+    render: () => email(renderInstallerAcceptedEmail({ ...PARTNER_JOB, useV2: true, whoBooks: "office" })) }),
   ENTRY({ id: "installer:I24", section: "installer", step: "quote", kind: "email", code: "I24", name: "The owner declined the quote", when: "The owner declines the quote", who: "Installer", approvalNote: "Jo 24 Oct 2026", gate: { kind: "email" },
     source: { builder: "src/lib/installer-accepted-email.core.ts", fn: "renderInstallerDeclinedEmail", sender: "src/lib/installer-declined-email.server.ts" }, design: "docs/templates/mjml/installer_I24.mjml",
     render: () => email(renderInstallerDeclinedEmail({ ...PARTNER_JOB, reasonLabel: "Price too high", reasonNote: "We've decided to wait until next year." })) }),
