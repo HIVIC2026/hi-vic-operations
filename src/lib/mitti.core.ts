@@ -9,6 +9,7 @@ import { A3_REPAIR_NEEDED_LABEL, LIFE_SUPPORT_PRESENT } from "./official-short.c
 import { EXISTING_DEPTH_Q, isNoSafeAccess, isR2OrAbove, isRValueBandAnswer, LEAN_ALIASES, LEAN_Q, premisesTypeOption } from "./ready-check-lean.core";
 import { norm } from "./trade-shared-consts.core";
 import { isLayoutForm, readLayoutArea, type LayoutArea } from "./ceiling-layout.core";
+import { canonicalMittiLabel } from "./mitti-rebuild-labels.core";
 
 export const MITTI_TEMPLATE_ID = "template_fd20c6437f4e4db2b49b2d6dbe0d3f91";
 /** Electrical rate codes Lovable can price. Everything else from Mitti is manual office review. */
@@ -146,7 +147,7 @@ export function flatten(doc: Any): Entry[] {
     const chain: string[] = [];
     let p = parent, guard = 0;
     while (p && guard++ < 20) { const x = byId.get(String(p)); if (!x) break; chain.unshift(norm(x.it.label)); p = x.parent; }
-    return { id: String(it.item_id ?? it.id ?? ""), label: String(it.label ?? ""), norm: norm(it.label), type: mittiItemType(it), value: responseValue(it), parent: parent ? String(parent) : null, section: chain.join(" / "), header };
+    return { id: String(it.item_id ?? it.id ?? ""), label: String(it.label ?? ""), norm: norm(canonicalMittiLabel(String(it.label ?? ""))), type: mittiItemType(it), value: responseValue(it), parent: parent ? String(parent) : null, section: chain.join(" / "), header };
   });
 }
 
@@ -702,7 +703,7 @@ export type MittiContactAnswers = {
 export function contactAnswersFromEntries(entries: { label: string; value: string | null }[]): MittiContactAnswers {
   const find = (labels: string[]): string | null => {
     for (const l of labels) {
-      const hit = entries.find((e) => (e.label ?? "").trim().toLowerCase() === l.toLowerCase());
+      const hit = entries.find((e) => canonicalMittiLabel(e.label ?? "").trim().toLowerCase() === l.toLowerCase());
       if (hit?.value != null && String(hit.value).trim() !== "") return String(hit.value).trim();
     }
     return null;

@@ -9,6 +9,7 @@
 // come from the stored PIESA (piesaPart5Answers) and official Part 6 (existing insulation) from the Ready Check record
 // (piisa-a3.core readyCheckPart6Answers) — never from this form.
 import { norm } from "./mitti.core";
+import { installMittiLabel } from "./mitti-rebuild-labels.core";
 import { onsiteStartTicked } from "./official-short.core";
 import { B1_OPTIONS, type OfficialAnswers } from "./official-forms.core";
 import { sectionCSigned } from "./piesa-rules-notice.core";
@@ -228,7 +229,7 @@ export const INSTALL_DAY_QUESTIONS: readonly InstallDayQuestion[] = (() => {
 // Reading an audit / template by label (shared with install-evidence.core)
 // ======================================================================================================
 /** First line of a Mitti label, normalised (Mitti appends help text after a line break). */
-export const labelKey = (label: unknown) => norm(String(label ?? "").split("\n")[0]);
+export const labelKey = (label: unknown) => norm(installMittiLabel(String(label ?? "")).split("\n")[0]);
 export type ReadSignature = { present: boolean; name: string | null; signedAt: string | null; mediaId: string | null };
 export type Labelled = { id: string | null; label: string; value: string | null; values: string[]; media: MittiMediaFile[]; signature: ReadSignature };
 export const NO_SIGNATURE: ReadSignature = { present: false, name: null, signedAt: null, mediaId: null };
@@ -249,6 +250,7 @@ export function labelledItems(doc: unknown): Labelled[] {
     if (Array.isArray(x)) { x.forEach(walk); return; }
     if (!x || typeof x !== "object") return;
     const o = x as Record<string, any>;
+    if (o["inactive"] === true) return;
     if (typeof o["label"] === "string") {
       const r = (o["responses"] ?? {}) as Record<string, any>;
       const selected: string[] = Array.isArray(r["selected"]) ? r["selected"].map((s: any) => String(s?.label ?? s)) : [];
@@ -300,7 +302,7 @@ export function readInstallDay(audit: unknown): InstallDayRead {
   const text = (label: string) => { const v = one(label)?.value; return v && v.trim() ? v.trim() : null; };
   const sigs = allWithLabel(items, Q.signature);
   return {
-    text, yn: (l) => yesNo(text(l)), ticked: (l) => !!one(l)?.value, media: (l) => one(l)?.media ?? [],
+    text, yn: (l) => yesNo(text(l)), ticked: (l) => /^(yes|true|ticked|checked)$/i.test(text(l) ?? ""), media: (l) => one(l)?.media ?? [],
     declarationSignature: sigs[0]?.signature ?? NO_SIGNATURE, completionSignature: sigs[1]?.signature ?? NO_SIGNATURE,
   };
 }

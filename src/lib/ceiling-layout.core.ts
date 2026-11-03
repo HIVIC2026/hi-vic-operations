@@ -2,6 +2,7 @@
 // The new Mitti wording REPLACES the old per-area insulation questions; forms on the old wording are read as before
 // (`isLayoutForm` false → existing readers). Every total is worked out here from the old R value + the batt chosen —
 // the "(makes R…)" text in the Mitti answers is only a hint for the installer and is never trusted.
+import { canonicalMittiLabel } from "./mitti-rebuild-labels.core";
 
 /** Exact Mitti question wording (Jo 4 Nov 2026), copied character for character. */
 export const LAYOUT_Q = {
@@ -76,7 +77,7 @@ const brandRs = (brand: Brand) => [...new Set(APPROVED_48A_PRODUCTS.filter((p) =
 // ---------- reading ----------
 type Kid = { label: string; value: unknown };
 const nrm = (s: unknown) => String(s ?? "").toLowerCase().replace(/[’']/g, "'").replace(/\s+/g, " ").trim();
-const vals = (kids: Kid[], q: string) => kids.filter((k) => nrm(k.label) === nrm(q) && k.value != null && String(k.value).trim() !== "").map((k) => String(k.value).trim());
+const vals = (kids: Kid[], q: string) => kids.filter((k) => nrm(canonicalMittiLabel(k.label).split("\n")[0]) === nrm(q) && k.value != null && String(k.value).trim() !== "").map((k) => String(k.value).trim());
 const first = (kids: Kid[], q: string) => vals(kids, q)[0] ?? null;
 const rIn = (s: string | null) => { const m = /R\s*(\d+(?:\.\d+)?)/i.exec(s ?? ""); return m ? Number(m[1]) : null; };
 const numIn = (s: string | null) => { const n = Number(String(s ?? "").replace(/[^0-9.]/g, "")); return s && Number.isFinite(n) && n > 0 ? n : null; };

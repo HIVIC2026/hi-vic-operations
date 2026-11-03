@@ -11,7 +11,7 @@ const pairs: readonly (readonly [string, string])[] = [
  ['How did you measure it?', 'Tell us how you measured it'],
  ['Area (m²)', 'Enter the measured ceiling area (m²)'],
  ['What type is the old insulation? Tick all that apply.', 'What type of existing insulation is installed? Select all that apply'],
- ['Depth of the old insulation (mm)', 'What is the depth of existing insulation? (mm)'],
+ ['Depth of the old insulation (mm)', 'What is the measured insulation depth (mm)?'],
  ['Photo: ruler standing straight up in the old insulation', 'Upload a photo clearly showing the measured insulation depth'],
  ['Is the old insulation foil-backed or metal (anything that could carry electricity)?', 'Is the existing insulation foil-backed, metallic or electrically conductive?'],
  ["Close-up photo of the old insulation's backing", 'Photo showing whether it is foil-backed or conductive'],

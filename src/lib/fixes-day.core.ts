@@ -8,6 +8,7 @@
 // The exact wording of every question is fixed here; docs/MITTI_FIXES_FORM_PROMPT.md is the ChatGPT build prompt and
 // tests/fixes-day.test.ts fails if the two drift apart (same pattern as the Install day form, install-day.core.ts).
 import { norm } from "./mitti.core";
+import { canonicalMittiLabel } from "./mitti-rebuild-labels.core";
 import { mittiMediaFile, PIESA_EVIDENCE_BY_ID, type MittiMediaFile } from "./piesa-evidence.core";
 import { RECTIFICATION_OUTCOMES, SHORT_PIESA_FIELDS, repairWorkBesidesOnsite } from "./official-short.core";
 import { B2_OPTIONS } from "./official-forms.core";
@@ -94,7 +95,7 @@ export const FIXES_DAY_QUESTIONS: readonly FixesDayQuestion[] = (() => {
 // ======================================================================================================
 // Reading an audit / template by label (same shape as install-day.core)
 // ======================================================================================================
-const labelKey = (label: unknown) => norm(String(label ?? "").split("\n")[0]);
+const labelKey = (label: unknown) => norm(canonicalMittiLabel(String(label ?? "")).split("\n")[0]);
 type ReadSignature = { present: boolean; name: string | null; signedAt: string | null; mediaId: string | null };
 type Labelled = { id: string | null; label: string; value: string | null; media: MittiMediaFile[]; signature: ReadSignature };
 const NO_SIGNATURE: ReadSignature = { present: false, name: null, signedAt: null, mediaId: null };
@@ -114,6 +115,7 @@ function labelledItems(doc: unknown): Labelled[] {
     if (Array.isArray(x)) { x.forEach(walk); return; }
     if (!x || typeof x !== "object") return;
     const o = x as Record<string, any>;
+    if (o["inactive"] === true) return;
     if (typeof o["label"] === "string") {
       const r = (o["responses"] ?? {}) as Record<string, any>;
       const selected: string[] = Array.isArray(r["selected"]) ? r["selected"].map((s: any) => String(s?.label ?? s)) : [];

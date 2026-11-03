@@ -62,10 +62,10 @@ const no = (v: unknown) => /^\s*(no|false)\s*$/i.test(String(v ?? ""));
 
 const L = {
   heading: /^[\s─\-–—]*ceiling area \d+/i,
-  name: ["Where is this area?", "Which part of the home does this ceiling area cover?"],
+  name: ["Where is this area?", "Which part of the home does this ceiling area cover?", "Name this area"],
   length: ["Length (m)"],
   width: ["Width (m)"],
-  m2: ["Enter the measured ceiling area (m²)", "Measured area m2"],
+  m2: ["Enter the measured ceiling area (m²)", "Measured area m2", "Area (m²)"],
   existing: ["Is there existing insulation?", "Is there existing insulation in this ceiling area?"],
   action: ["What needs to happen to it?", "What is required for the existing insulation?"],
   removeM2: ["Area to remove (m2)", "How much existing insulation needs to be removed? (m²)"],
@@ -111,6 +111,7 @@ export function areasFromReadyCheckEntries(entries: { label: string; value: unkn
     const dim = is(label, L.length) ? "lengthM" : is(label, L.width) ? "widthM" : is(label, L.m2) ? "m2" : null;
     if (dim) { const g = !cur || cur[dim] != null ? fresh() : cur; g[dim] = num(v); continue; }
     if (!cur) continue;
+    if (is(label, ["Old insulation in this area?"])) { cur.existing = /^none$/i.test(String(v)) ? false : /^yes/i.test(String(v)) ? true : null; cur.action = /taking it out/i.test(String(v)) ? "Remove" : /topping up/i.test(String(v)) ? "Top up" : null; continue; }
     if (is(label, L.existing)) { if (v != null) cur.existing = yes(v) ? true : no(v) ? false : cur.existing; continue; }
     if (is(label, L.action)) { if (v != null) cur.action = String(v); continue; }
     if (is(label, L.removeM2)) { if (v != null) cur.removeM2 = num(v); continue; }
