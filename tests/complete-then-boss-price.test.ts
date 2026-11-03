@@ -7,7 +7,9 @@ import { PRESS_COMPLETE_LINE, QUOTE_PRICE_NEXT_LINE } from "../src/lib/installer
 import { OWNER_QUOTE_NOT_SENT_LINE, OWNER_QUOTE_PRICE_NEXT_LINE } from "../src/components/trade/OwnerQuoteCard";
 
 const read = (p: string) => readFileSync(p, "utf8");
-const AUTO_SEND = /we then send|office checks the quote|sends it to the owner|will send it to the owner/i;
+// Task 10b: also "that sends {owner} their quote", "we send the owner their/your quote", "we'll send the owner…" — any line
+// that makes Complete the send.
+const AUTO_SEND = /we then send|office checks the quote|sends it to the owner|will send it to the owner|that sends \$?\{?\w*\}? ?their quote|(?<!enters the price, and |enters the price next, then )we(?:'ll)? send the owner (?:their|your|the) quote|Press Complete — we send/i;
 
 describe("Complete → the boss enters the price → the quote goes out", () => {
   test("the status line and the quote card say the boss enters the price next (DRAFT)", () => {
@@ -17,10 +19,20 @@ describe("Complete → the boss enters the price → the quote goes out", () => 
     expect(OWNER_QUOTE_PRICE_NEXT_LINE).toBe(QUOTE_PRICE_NEXT_LINE);
   });
   test("no trade-facing string in those files implies an automatic send on Complete", () => {
-    for (const f of ["src/lib/installer-quote-status.core.ts", "src/components/trade/OwnerQuoteCard.tsx", "src/lib/installer-screens.core.ts"]) {
+    for (const f of ["src/lib/installer-quote-status.core.ts", "src/components/trade/OwnerQuoteCard.tsx", "src/lib/installer-screens.core.ts", "src/routes/_authenticated/field.day.$jobId.tsx", "src/routes/_authenticated/field.offer.$offerId.tsx"]) {
       const strings = read(f).match(/"[^"\n]*"|'[^'\n]*'|`[^`\n]*`/g) ?? [];
       for (const s of strings) expect(s, `${f}: ${s}`).not.toMatch(AUTO_SEND);
     }
+  });
+  test("Task 10b: the Ready Check note, the offer steps and the day screen follow the same rule (DRAFT)", () => {
+    const screens = read("src/lib/installer-screens.core.ts");
+    expect(screens).not.toContain("that sends ${owner} their quote");
+    expect(screens).not.toContain("Press Complete — we send the owner their quote");
+    const day = read("src/routes/_authenticated/field.day.$jobId.tsx");
+    expect(day).not.toContain("We'll send the owner their quote");
+    expect(day).not.toContain("We'll send the owner your quote");
+    expect(day).toContain("QUOTE_PRICE_NEXT_LINE");
+    // The guide tab line (trade-view.core GUIDE_STEPS) is removed by Task 11, not reworded here.
   });
   test("the lines Jo left alone are unchanged; the old Add a job electrician card wording is gone from the branch", () => {
     expect(read("src/lib/installer-home.core.ts")).toContain('next: "Next: press Complete in Mitti when the Ready Check is finished"');

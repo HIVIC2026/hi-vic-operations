@@ -83,6 +83,8 @@ describe("Can see Money switch (boss only; Office rows)", () => {
     expect(moneySwitchLine(true)).toBe("Money: On");
     expect(moneySwitchLine(false)).toBe("Money: Off");
     expect(TEAM_WORDS.canSeeMoney).toBe("Can see Money");
+    expect(TEAM_WORDS.addDob).toBe("Add date of birth");
+    expect(TEAM_WORDS.dobSaved).toBe("Date of birth on file ✓");
   });
 });
 
@@ -109,6 +111,12 @@ describe("wiring (source checks)", () => {
     expect(page).not.toMatch(/\bHIV\b/);
     expect(page).not.toMatch(/\bfixes\b/i);
     expect(src("src/lib/trade-view.functions.ts")).toContain("export const setTeamMoneyAccess");
+    // Task 10b: the boss can add a date of birth for an existing person; the sheet shows only on file / missing.
+    expect(src("src/lib/trade-view.functions.ts")).toContain("export const setTeamMemberDob");
+    expect(srv).toContain("set_worker_identity_dob");
+    expect(page).toContain("setTeamMemberDob");
+    expect(page).toContain("TEAM_WORDS.addDob");
+    expect(page).not.toMatch(/\{m\.dateOfBirth|data\.dateOfBirth|hasDob\s*&&[^\n]*dateOfBirth/); // the saved date is never rendered (the add form's own input value is the only dateOfBirth on the page)
   });
 });
 
@@ -145,6 +153,25 @@ describe("server: Money switch and Add a person go through the Task 1 RPCs (mock
     await expect(tradeSetMoneyAccess("u1", "w9", false)).rejects.toThrow("This setting isn't switched on yet. Home Insulation Victoria is finishing it; nothing has changed.");
     rpcError = { code: "P0001", message: "Office person not found" };
     await expect(tradeSetMoneyAccess("u1", "w9", true)).rejects.toThrow("This person doesn't have a portal login yet. Ask the office to send one first.");
+  });
+  test("tradeSetWorkerDob (Task 10b): boss → set_worker_identity_dob; refused for office logins and bad dates before any call; the answer never carries the date", async () => {
+    const { tradeSetWorkerDob } = await import("../src/lib/trade-view.server");
+    calls.length = 0; rpcError = null; memberRole = "business_admin";
+    const r = await tradeSetWorkerDob("u1", "w9", "1988-02-29");
+    expect(r).toEqual({ ok: true, hasDob: true });
+    expect(JSON.stringify(r)).not.toContain("1988");
+    expect(calls).toEqual([{ fn: "set_worker_identity_dob", args: { p_worker: "w9", p_dob: "1988-02-29", p_actor: "u1" } }]);
+    calls.length = 0;
+    await expect(tradeSetWorkerDob("u1", "w9", "2999-01-01")).rejects.toThrow("Date of birth must be before today.");
+    await expect(tradeSetWorkerDob("u1", "w9", "")).rejects.toThrow("Add their date of birth for ESC registration.");
+    memberRole = "office";
+    await expect(tradeSetWorkerDob("u1", "w9", "1988-02-29")).rejects.toThrow("Only the business owner can see this.");
+    expect(calls).toEqual([]);
+    memberRole = "business_admin"; rpcError = { code: "PGRST202", message: "function not found" };
+    await expect(tradeSetWorkerDob("u1", "w9", "1988-02-29")).rejects.toThrow("This setting isn't switched on yet. Home Insulation Victoria is finishing it; nothing has changed.");
+    rpcError = { code: "P0001", message: "Team member not found" };
+    await expect(tradeSetWorkerDob("u1", "w9", "1988-02-29")).rejects.toThrow("Team member not found.");
+    rpcError = null;
   });
   test("tradeAddTeamPerson: every role goes to add_team_person_with_identity with the date of birth; refused without mobile or date of birth", async () => {
     const { tradeAddTeamPerson } = await import("../src/lib/trade-view.server");

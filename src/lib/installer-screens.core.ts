@@ -500,7 +500,7 @@ export function jobNext(f: JobNextFacts): JobNext {
         sub: `${visit}The form is still missing:`,
         yours: true,
         items,
-        note: `Press Complete only when it's fully finished — that sends ${owner} their quote.`,
+        note: PRESS_COMPLETE_LINE, // DRAFT (Jo 3 Nov: the boss enters the price after Complete, then the quote goes)
       };
     }
     if (f.needsFinishing)
@@ -1250,7 +1250,7 @@ export const OFFER_PAY_LINE =
 export const OFFER_STEPS = [
   "The owner picks one of your times. You get a text with the day, time and address.",
   "Do the Ready Check and fill in the Mitti form. Don't discuss pricing with the owner.",
-  "Press Complete — we send the owner their quote. Once the safety check is cleared, you offer 3 install days.",
+  `${PRESS_COMPLETE_LINE} Once the safety check is cleared, you book the install day with the owner.`, // DRAFT (Jo 3 Nov ruling; "offer 3 install days" retired)
 ] as const;
 export const OFFER_ONLY_YOU =
   "This offer is only for you and stays open 24 hours. If it's not for you, it goes back to the office.";

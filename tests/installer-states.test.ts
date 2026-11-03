@@ -59,7 +59,7 @@ describe("M2 states", () => {
     expect(needsFinishingList(na)).toEqual(["Your price", "The owner's email", "The ceiling area", "The insulation product"]);
     expect(needsFinishingList("Needs finishing: owner mobile/email/permission on the Mitti form")).toEqual(["The owner's mobile", "The owner's email", "The owner's permission to contact"]);
     const n = jobNext({ ...base, channel: "installer_sourced", ownerFirstName: "Mei", formCompleted: false, quoteLine: null, needsFinishing: "You: add your price in Mitti", needsFinishingItems: needsFinishingList(na), readyCheckBookedAt: "2026-10-25T20:30:00Z" });
-    expect(n).toMatchObject({ panel: "mitti_form", title: "Add 4 things in Mitti", sub: "Ready Check done Mon 26 Oct at 7:30am. The form is still missing:", yours: true, note: "Press Complete only when it's fully finished — that sends Mei their quote." });
+    expect(n).toMatchObject({ panel: "mitti_form", title: "Add 4 things in Mitti", sub: "Ready Check done Mon 26 Oct at 7:30am. The form is still missing:", yours: true, note: "Press Complete in Mitti when the Ready Check is finished. Your boss then enters the price, and we send the owner their quote." });
     expect(n.items).toEqual(["Your price", "The owner's email", "The ceiling area", "The insulation product"]);
     expect(quoteStatusRow(null, { needsFinishing: true, formLinked: true }).label).toBe("Not drafted yet · waiting on the form");
   });

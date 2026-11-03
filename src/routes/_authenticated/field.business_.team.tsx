@@ -5,7 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
 import { TradeShell, card, ghostBtn, greenBtn, inputCls } from "@/components/trade/TradeShell";
 import { BackToBusiness, Chevron, Switch } from "@/components/trade/business-kit";
-import { addTeamPerson, getTradeBusiness, requestTeamLoginInvite, setTeamMemberMobile, setTeamMoneyAccess } from "@/lib/trade-view.functions";
+import { addTeamPerson, getTradeBusiness, requestTeamLoginInvite, setTeamMemberDob, setTeamMemberMobile, setTeamMoneyAccess } from "@/lib/trade-view.functions";
 import { removeWorker } from "@/lib/worker-links.functions";
 import { TEAM_ADD_SHEET, TEAM_LOGIN, TEAM_MOBILE_NOTE, TEAM_SIGN, teamMobileButton, teamCiiLine, teamCountLine, teamFactsLine, teamWhiteCardLine, type TeamMemberView } from "@/lib/trade-view.core";
 import { ADD_PERSON_ROLES, ADD_PERSON_ROLE_LABEL, TEAM_INTRO, TEAM_WORDS, addPersonProblems, teamRow, type AddPersonRole } from "@/lib/team-screen.core";
@@ -84,6 +84,7 @@ function PersonSheet({ m, today, onChange, onClose }: { m: TeamMemberView; today
     <div className="mt-3 border-t border-line pt-3" data-person-sheet>
       <p className="text-[13px] text-sub">{teamFactsLine(m)}{m.email ? ` · ${m.email}` : ""}</p>
       {m.hasDob != null && <p className={`mt-0.5 text-[13px] ${m.hasDob ? "text-sub" : `font-semibold ${WARN}`}`} data-dob-state>{m.hasDob ? TEAM_WORDS.dobOnFile : TEAM_WORDS.dobMissing}</p>}
+      {id && m.hasDob === false && <DobInline workerId={id} onSaved={onChange} />}
       {m.declarationsDue && <p data-sign-due className={`mt-0.5 text-[13px] font-semibold ${WARN}`}>{TEAM_SIGN.due}</p>}
       {cii && <p className={`mt-0.5 text-[13px] font-semibold ${cii.tone === "green" ? "text-estimate-green" : WARN}`}>{cii.text}</p>}
       {wc && <p data-white-card className={`mt-0.5 text-[13px] font-semibold ${wc.tone === "green" ? "text-estimate-green" : WARN}`}>{wc.text}</p>}
@@ -121,6 +122,35 @@ function MoneySwitch({ workerId, on, hasLogin, onSaved }: { workerId: string; on
       </div>
       {!hasLogin && !msg && <p className="text-[13px] text-sub">{TEAM_WORDS.moneyNeedsLogin}</p>}
       {msg && <p role="alert" className="text-[13px] font-semibold text-rose">{msg}</p>}
+    </div>
+  );
+}
+
+/** Task 10b: boss-only "Add date of birth" for an existing person. The date goes to the private identity table through
+ *  the service-only RPC and is never shown back — after saving the sheet says only "on file ✓". */
+function DobInline({ workerId, onSaved }: { workerId: string; onSaved: () => void }) {
+  const save = useServerFn(setTeamMemberDob);
+  const [open, setOpen] = useState(false);
+  const [v, setV] = useState("");
+  const [msg, setMsg] = useState<string | null>(null);
+  const [done, setDone] = useState(false);
+  const [busy, setBusy] = useState(false);
+  if (done) return <p className="mt-1 text-[13px] text-sub" data-dob-saved>{TEAM_WORDS.dobSaved}</p>;
+  if (!open) return <button type="button" data-team-dob className={`${smallBtn} mt-2`} onClick={() => { setV(""); setMsg(null); setOpen(true); }}>{TEAM_WORDS.addDob}</button>;
+  return (
+    <div className="mt-2 w-full">
+      <label className="block text-[13px] font-semibold text-ink">{TEAM_WORDS.dob}
+        <input type="date" className={`${inputCls} mt-1`} value={v} max={melbourneToday()} onChange={(e) => setV(e.target.value)} />
+      </label>
+      <p className="mt-1 text-[13px] text-sub">{TEAM_WORDS.dobNote}</p>
+      {msg && <p role="alert" className="mt-1 text-[13px] font-semibold text-rose">{msg}</p>}
+      <div className="mt-2 flex gap-2">
+        <button type="button" disabled={busy || !v} className={greenBtn} onClick={async () => {
+          setBusy(true); setMsg(null);
+          try { await save({ data: { workerId, dateOfBirth: v } }); setV(""); setDone(true); onSaved(); } catch (e) { setMsg((e as Error).message); } finally { setBusy(false); }
+        }}>Save</button>
+        <button type="button" className={ghostBtn} onClick={() => setOpen(false)}>Cancel</button>
+      </div>
     </div>
   );
 }

@@ -4,6 +4,7 @@
 // "Couldn't get in?" (decisions 214/215). After the install form is Complete the panel reads "Sign the rebate form"
 // (decision 213) with the recorded ticks, the declaration and "Then".
 import { readTradeCache, writeTradeCache } from "@/lib/trade-cache";
+import { QUOTE_PRICE_NEXT_LINE } from "@/lib/installer-quote-status.core";
 import { headStartOr, startTradeScreen } from "@/lib/trade-route-prefetch";
 import { toast } from "sonner";
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
@@ -77,7 +78,8 @@ function DayPage() {
           <>
             {o.kind === "all_clear" && <Result good title="All clear. Done and dusted." body="No fixes needed, so the install's good to go." />}
             {o.kind === "fixes" && <Result title={`${o.items.length} fix${o.items.length === 1 ? "" : "es"} found. We'll take it from here.`} body="We'll price these from your rates and send the owner the quote. If they say yes, it comes straight back to you." items={o.items} />}
-            {o.kind === "quoted" && <Result good title="Quote's in. Done and dusted." body={data.channel === "hivic_sourced" ? "We'll send the owner their quote. When they say yes, the install comes straight back to you." : "We'll send the owner your quote. When they say yes, the install comes straight back to you."} />}
+            {/* Jo 3 Nov: after Complete the boss enters the price, then the quote goes — never "we'll send" on Complete. DRAFT */}
+            {o.kind === "quoted" && <Result good title="Ready Check's in. Done and dusted." body={`${QUOTE_PRICE_NEXT_LINE} When they say yes, the install comes straight back to you.`} />}
             {o.kind === "not_eligible" && <Result title="Not eligible this time." body="Thanks for checking. We'll let the owner know, so you don't have to." items={o.reason ? [o.reason] : []} />}
             {o.kind === "wrap" && (x?.installForm.complete && !x.rebateSigned
               ? <NextPanel title={next.title} sub={next.sub}>{signRebate}</NextPanel>

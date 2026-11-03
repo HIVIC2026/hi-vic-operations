@@ -1179,6 +1179,27 @@ export async function tradeAddTeamPerson(userId: string, p: { name: string; role
   return { workerId: (data as { id: string }).id };
 }
 
+/** Task 10b: the boss adds (or replaces) the date of birth of an EXISTING Team person through the service-only
+ *  `set_worker_identity_dob` (pending installer-worker-identity-dob.sql): identity row only, the SQL re-checks that the
+ *  caller is that worker's business admin and writes the audit row. The answer says only that one is now on file. */
+export async function tradeSetWorkerDob(userId: string, workerId: string, dateOfBirth: string): Promise<{ ok: true; hasDob: true }> {
+  const c = await bossOrThrow(userId);
+  const { dateOfBirthProblem } = await import("./worker-identity.core");
+  const problem = dateOfBirthProblem(dateOfBirth, melbourneToday());
+  if (problem) throw new WorkflowError(problem);
+  const rpc = admin as unknown as import("@supabase/supabase-js").SupabaseClient;
+  const { error } = await rpc.rpc("set_worker_identity_dob", { p_worker: workerId, p_dob: dateOfBirth, p_actor: userId });
+  if (error) {
+    if (["PGRST202", "42883"].includes(error.code ?? "") || schemaCompatCore.isMissingDbObject(error)) throw new WorkflowError("This setting isn't switched on yet. Home Insulation Victoria is finishing it; nothing has changed."); // DRAFT (Task 9 wording)
+    if (/not found/i.test(error.message)) throw new WorkflowError("Team member not found.");
+    if (/business admin/i.test(error.message)) throw new WorkflowError("Only the business owner can see this.");
+    if (/Date of birth/i.test(error.message)) throw new WorkflowError("Enter a valid date of birth.");
+    throw new WorkflowError("Couldn't save that. Check your connection and try again."); // DRAFT (Task 6 wording)
+  }
+  void c;
+  return { ok: true, hasDob: true };
+}
+
 /** Task 10: the boss switches "Can see Money" on or off for an Office person (team-phone.png "Money: On/Off"). Boss only —
  *  refused here AND inside the service-only `set_member_can_see_money` (pending installer-portal-roles.sql), which also
  *  writes the admin_config_events row. Nothing else changes: Office people always see and enter prices. */

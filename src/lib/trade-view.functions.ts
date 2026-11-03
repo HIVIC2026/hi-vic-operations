@@ -133,6 +133,11 @@ export const addTeamPerson = createServerFn({ method: "POST" }).middleware([requ
   }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeAddTeamPerson(context.userId, data));
 
+/** Task 10b: the boss adds a date of birth for an existing Team person (private identity row; never read back). */
+export const setTeamMemberDob = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ workerId: uuid, dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSetWorkerDob(context.userId, data.workerId, data.dateOfBirth));
+
 /** Task 10: the boss switches "Can see Money" on/off for an Office person. Boss only (refused server-side and in SQL). */
 export const setTeamMoneyAccess = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ workerId: uuid, on: z.boolean() }).parse(d))

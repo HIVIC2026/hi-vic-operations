@@ -16,6 +16,9 @@ export const TEAM_WORDS = {
   canSeeMoneyNote: "Office people always see and enter prices. Money shows them what's coming to you and what's been paid.", // DRAFT
   moneyNeedsLogin: "This person doesn't have a portal login yet. Ask the office to send one first.", // DRAFT
   dobOnFile: "Date of birth on file ✓", // DRAFT
+  dobSaved: "Date of birth on file ✓", // DRAFT (after the boss saves one — the date itself is never shown back)
+  addDob: "Add date of birth", // DRAFT (Task 10b: boss-only action for an existing person)
+  dobNote: "Kept privately for ESC registration. It isn't shown on any screen once saved.", // DRAFT
   dobMissing: "Date of birth missing — the office needs it for ESC registration", // DRAFT
   escRegistered: "ESC registered ✓", // approved (team-phone.png)
   escPending: "ESC registration pending", // DRAFT
