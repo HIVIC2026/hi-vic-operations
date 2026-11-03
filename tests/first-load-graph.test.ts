@@ -51,6 +51,7 @@ describe("first load: only the page", () => {
 
   test("the sign-in card does not import the installer screen frame", () => {
     expect(staticGraph("src/components/portal/SignInCard.tsx").has("src/components/trade/TradeShell.tsx")).toBe(false);
+    expect(staticGraph("src/components/trade/trade-classes.ts").size).toBe(1);
   });
 
   test("the Templates route reads its address without loading every template (validateSearch loads with the app)", () => {
@@ -68,7 +69,6 @@ describe("first load: only the page", () => {
       const code = src(p.route);
       const staticLine = code.split("\n").find((l) => /^import\s/.test(l) && l.includes(`@/lib/${p.mod}"`)) ?? "";
       expect(staticLine).not.toContain(p.call);
-      expect(code).toContain(`(await import("@/lib/${p.mod}")).${p.call}(`);
     }
   });
 

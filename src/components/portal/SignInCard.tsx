@@ -5,11 +5,7 @@ import { lovable } from "@/integrations/lovable";
 import { LINK_SENT_SAFE, badLinkMessage, linkErrorMessage, normaliseLoginEmail, safeNextPath, signInErrorMessage } from "@/lib/login.core";
 import { cn } from "@/lib/utils";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
-
-// Same classes as greenBtn / ghostBtn / inputCls in TradeShell, copied here so the sign-in page doesn't load the installer screen frame.
-const greenBtn = "flex h-12 w-full items-center justify-center gap-[7px] rounded-[10px] bg-action px-[15px] text-[13px] font-bold text-action-foreground disabled:cursor-not-allowed disabled:opacity-45 md:h-[42px] md:w-auto";
-const ghostBtn = "flex h-12 w-full items-center justify-center gap-[7px] rounded-[10px] border border-line bg-paper px-[15px] text-[13px] font-bold text-hiv-blue md:h-[42px] md:w-auto";
-const inputCls = "h-12 w-full rounded-[9px] border border-field-line bg-paper px-3 text-base text-ink md:h-[42px] md:text-sm";
+import { greenBtn, ghostBtn, inputCls } from "@/components/trade/trade-classes";
 
 
 /** Shared staff/trade sign-in card used by /auth and /portal. After sign-in everyone goes to /portal, which routes by role. */

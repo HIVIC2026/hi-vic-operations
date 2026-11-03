@@ -1,6 +1,7 @@
 // Phone-first trade frame (Jo-approved; Style A frame per approved mock-ups M1–M3, decision 198): logo + initials
 // circle, bottom tabs My work · Add a job · Money · My business. Presentation only.
 import { clearTradeCache } from "@/lib/trade-cache";
+export { greenBtn, ghostBtn, inputCls } from "./trade-classes";
 import * as React from "react";
 import { Link, useRouterState } from "@tanstack/react-router";
 import logo from "@/assets/home-insulation-victoria-logo.png.asset.json";
@@ -84,8 +85,6 @@ function TradeTabBar({ installer, boss }: { installer: boolean; boss: boolean })
 
 export const card = "rounded-[18px] border border-line bg-paper p-[19px] shadow-card";
 export const navyCard = "rounded-[18px] bg-ink p-[19px] text-paper shadow-card";
-export const greenBtn = "flex h-12 w-full items-center justify-center gap-[7px] rounded-[10px] bg-action px-[15px] text-[13px] font-bold text-action-foreground disabled:cursor-not-allowed disabled:opacity-45 md:h-[42px] md:w-auto";
-export const ghostBtn = "flex h-12 w-full items-center justify-center gap-[7px] rounded-[10px] border border-line bg-paper px-[15px] text-[13px] font-bold text-hiv-blue md:h-[42px] md:w-auto";
 export const aud = (n: number | null | undefined) => (n == null ? "—" : `$${Math.floor(n).toLocaleString("en-AU")}`);
 
 /** Same frame as the trade screens, without the bottom menu (rate offer, set password). */
@@ -99,4 +98,3 @@ export function TradePublicShell({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
-export const inputCls = "h-12 w-full rounded-[9px] border border-field-line bg-paper px-3 text-base text-ink md:h-[42px] md:text-sm";
