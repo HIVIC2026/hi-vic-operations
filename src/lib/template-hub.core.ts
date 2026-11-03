@@ -74,7 +74,7 @@ import { INSTALL_DAY_QUESTIONS, INSTALL_DAY_TEMPLATE_NAME } from "./install-day.
 import { FIXES_DAY_QUESTIONS, FIXES_DAY_TEMPLATE_NAME } from "./fixes-day.core";
 import { GATE_DOCS, RETIRED_DOC_KEYS, fillTemplate, ownerVersionLabel, paymentTermsText, paymentTermsMoney, type GateDocKey } from "./owner-gates.core";
 import { renderConsentBody, ESC_CONSENT_TEMPLATE_VERSION, OWNER_DECLARATIONS } from "./consent.core";
-import { SWMS_HAZARDS, SWMS_PREPARED_FOR, SWMS_SIGN_STATEMENT } from "./swms.core";
+import { SWMS_HAZARDS, SWMS_NOV2_WORDING_ON, SWMS_PREPARED_FOR, SWMS_RULE, SWMS_SIGN_STATEMENT } from "./swms.core";
 import { PRODUCT_WARRANTIES, warrantyTermText } from "./product-warranty.core";
 import { VEU_FACTSHEET_PATH, VEU_FACTSHEET_TITLE } from "./veu-factsheet.core";
 import { buildInvoicePayload } from "./xero.core";
@@ -749,10 +749,11 @@ const COMPLIANCE: TemplateEntry[] = [
       { label: "Filled sample (Word form printed)", path: "docs/templates/compliance/piisa-filler/piisa-sample-word.pdf", note: "Made by scripts/render-piisa-filler-sample.ts with the live filler" },
       { label: "Blank official form", path: "docs/official-forms/VEU-pre-installation-installer-safety-assessment-form-_3.docx", note: "Original DEECA Word file" },
     ] }) }),
-  ENTRY({ id: "compliance:swms", section: "compliance", step: "install", kind: "document", code: "", name: "Safety plan (SWMS)", when: "Built from job facts; each crew member signs on the job page before the install", who: "Installer crew (filed on the job)", approvalNote: "Jo 24–25 Oct 2026, decisions 262, 358, 364", gate: { kind: "always" },
+  ENTRY({ id: "compliance:swms", section: "compliance", step: "install", kind: "document", code: "", name: "Safety plan (SWMS)", when: "Built from job facts; the Lead Installer and each crew member sign before the install", who: "Lead Installer and crew (filed on the job)", approvalNote: `Jo 24–25 Oct 2026, decisions 262, 358, 364; Jo 2 Nov 2026 wording (Lead Installer, hazard 9, downlight step) ${SWMS_NOV2_WORDING_ON ? "in force" : "waits behind SWMS_NOV2_WORDING_ON until Part 11 switches it on"}`, gate: { kind: "always" },
     source: { builder: "src/lib/swms.core.ts", fn: "buildSwms", sender: "src/lib/swms-pdf.server.ts" },
     render: () => ({ kind: "files", items: [
-      { label: "Signed SWMS sample (PDF)", path: "docs/templates/compliance/swms/swms-sample.pdf", note: `Made by scripts/render-swms-sample.ts. Prepared for ${SWMS_PREPARED_FOR}; ${SWMS_HAZARDS.length} standard hazards; signers tick "${SWMS_SIGN_STATEMENT}".` },
+      { label: "Signed SWMS sample (PDF)", path: "docs/templates/compliance/swms/swms-sample.pdf", note: `Made by scripts/render-swms-sample.ts. Prepared for ${SWMS_PREPARED_FOR}; ${SWMS_HAZARDS.length} standard hazards (rule ${SWMS_RULE}); signers tick "${SWMS_SIGN_STATEMENT}".` },
+      { label: "Approved look (2 Nov 2026)", path: "docs/approved-samples/2026-11-02/swms-sample.pdf", note: "Jo's approved sample: the wording and layout the SWMS moves to (Part 7 Tasks 1–2)" },
     ] }) }),
   ENTRY({ id: "compliance:esc-consent", section: "compliance", step: "install", kind: "document", code: "", name: "ESC Owner's Consent Form (Template v1)", when: "Signed by the owner on My job (P3), then the AP; copy emailed (O63)", who: "Owner, AP", approvalNote: "Decision 123 (0226)", gate: { kind: "always" },
     source: { builder: "src/lib/consent.core.ts", fn: "renderConsentBody", sender: "src/lib/consent.server.ts" },

@@ -7,8 +7,8 @@ import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf
 import { pdfSafeText } from "./pdf-text.core";
 import { wrapText } from "./pdf-look.core";
 import {
-  SWMS_COMPLIANCE_MEASURES, SWMS_HOW_IMPLEMENTED, SWMS_HOW_IN_PLACE, SWMS_RECORD_TASK, SWMS_REVIEW, SWMS_SIGN_STATEMENT,
-  latestSignatures, swmsDate, swmsDateTime, swmsHouseSection, type SwmsChange, type SwmsPlan, type SwmsSignature,
+  SWMS_RECORD_TASK, SWMS_SIGN_STATEMENT,
+  latestSignatures, swmsDate, swmsDateTime, swmsHouseSection, swmsRoleLabel, swmsWordingFor, type SwmsChange, type SwmsPlan, type SwmsSignature,
 } from "./swms.core";
 
 /** A4 landscape. */
@@ -141,17 +141,19 @@ export async function buildSwmsPdf(plan: SwmsPlan, sigs: SwmsSignature[], opts: 
   row(pair("Work supervisor", val(lead), "Install date", swmsDate(plan.installDate)), half);
   row(pair("Site location / address", val(plan.address), "Work activity", plan.workActivity), half);
   row([{ label: "High-risk construction work", text: plan.highRiskWork.map((h) => `• ${h}`).join("\n") }], [CW]);
-  row(pair("Person responsible for ensuring compliance with SWMS", val(lead), "Measures to ensure compliance", SWMS_COMPLIANCE_MEASURES), half);
-  row([{ label: "How control measures will be reviewed", text: SWMS_REVIEW }], [CW]);
+  // Jo 2 Nov 2026 (Part 7 Task 1): the words of the plan's own rule, so a filed record prints what was signed.
+  const w = swmsWordingFor(plan.rule);
+  row(pair("Person responsible for ensuring compliance with SWMS", val(lead), "Measures to ensure compliance", w.complianceMeasures), half);
+  row([{ label: "How control measures will be reviewed", text: w.review }], [CW]);
   gap(12);
 
   // ── Hazard / control table ──
   heading("Tasks, hazards and control measures");
   table(SWMS_TABLE_HEADERS, MAIN_WIDTHS, layout.mainHeaderPages, plan.hazards.map((h) => [
-    { text: SWMS_RECORD_TASK }, { text: h.name, bold: true }, { text: `${h.short}: ${h.control}.` }, { text: SWMS_HOW_IMPLEMENTED }, { text: `${val(lead)} (lead installer)` },
+    { text: SWMS_RECORD_TASK }, { text: h.name, bold: true }, { text: `${h.short}: ${h.control}.` }, { text: w.howImplemented }, { text: `${val(lead)} (${swmsRoleLabel(plan.rule, "lead")})` },
   ]));
   gap(8);
-  row([{ text: SWMS_HOW_IN_PLACE, fill: LABEL_FILL }], [CW]);
+  row([{ text: w.howInPlace, fill: LABEL_FILL }], [CW]);
   gap(12);
 
   // ── Specific to this house ──
@@ -175,7 +177,7 @@ export async function buildSwmsPdf(plan: SwmsPlan, sigs: SwmsSignature[], opts: 
   table(SWMS_SIGNOFF_HEADERS, SIGN_WIDTHS, layout.signoffHeaderPages, plan.signers.map((s) => {
     const g = by.get(s.key);
     return [
-      { text: `${s.name} (${s.role === "lead" ? "lead installer" : "installer"})` },
+      { text: `${s.name} (${swmsRoleLabel(plan.rule, s.role)})` },
       g ? { text: `signed — typed "${g.typedName}"`, italic: true } : { text: "NOT SIGNED", bold: true },
       { text: g ? `${swmsDateTime(g.signedAt)} (Melbourne time)` : "—" },
     ];

@@ -114,6 +114,18 @@ export const WORKFLOW_DECISIONS = {
     chase: "a gap list already texted is not emailed; a new gap list gets the email only",
     quotes: "a quote sent before QUOTE_30_DAY_FROM_ISO keeps its 14-day date; reminders are stamped once per quote",
   },
+  // Part 7 Task 1 (Jo 2 Nov 2026): the SWMS says "Lead Installer" in full, hazard 9 and the downlight step are the approved
+  // wording, people are labelled "(Lead Installer)" / "(Crew)". The hazard text is part of every plan's fingerprint, so the
+  // new set sits behind SWMS_NOV2_WORDING_ON (swms.core) until Part 11 flips it on a day with no real install within 48 hours.
+  swmsWording: {
+    flag: "SWMS_NOV2_WORDING_ON (false until Part 11)",
+    ruleWhenOn: "swms-portal-2026-11-02",
+    ruleWhenOff: "swms-portal-2026-10-24 (plan text, rule and fingerprint byte-identical to the 24 Oct wording)",
+    onSwitchOn: "every plan's fingerprint changes, so everyone signs the safety plan again (the existing crew sign-link reminder asks them)",
+    switchOnOnlyWhen: "no real install within the next 48 hours",
+    roleLabels: { lead: "Lead Installer", crew: "Crew" },
+    onSiteLine: "The Lead Installer is on site for the whole install. (always under Compliance, whatever the rule)",
+  },
   quoteValidity: {
     validDays: 30,
     beforeChangeValidDays: 14,

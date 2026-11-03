@@ -8,7 +8,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { CheckCircle2, ShieldAlert } from "lucide-react";
 import { getTradeSwms, leadPhoneSwmsLink, saveTradeSwmsNote, signTradeSwms } from "@/lib/trade-view.functions";
-import { SWMS_HOW_IN_PLACE, SWMS_SIGN_STATEMENT, swmsHouseSection, swmsLineView } from "@/lib/swms.core";
+import { SWMS_SIGN_STATEMENT, swmsHouseSection, swmsLineView, swmsRoleLabel, swmsWordingFor } from "@/lib/swms.core";
 import { fmtDateTime } from "@/lib/workflow";
 import { useAction } from "@/hooks/use-me";
 import { Section } from "@/components/trade/trade-ui";
@@ -48,7 +48,7 @@ export function SafetyPlanCard({ jobId }: { jobId: string }) {
         <div>
           <p className="font-medium">Hazards and the controls you use</p>
           <ul className="space-y-1.5">{plan.hazards.map((h) => <li key={h.name}><span className="font-medium">{h.name}:</span> {h.control}.</li>)}</ul>
-          <p className="mt-2">{SWMS_HOW_IN_PLACE}</p>
+          <p className="mt-2">{swmsWordingFor(plan.rule).howInPlace}</p>
         </div>
         <div>
           <p className="font-medium">Specific to this house</p>
@@ -73,7 +73,7 @@ export function SafetyPlanCard({ jobId }: { jobId: string }) {
               return (
                 <li key={s.key} className="py-2">
                   <div className="flex min-h-10 items-center justify-between gap-2">
-                    <span>{s.name}{s.role === "lead" ? " (lead installer)" : ""}</span>
+                    <span>{s.name}{s.role === "lead" ? ` (${swmsRoleLabel(plan.rule, "lead")})` : ""}</span>
                     {g ? <span className="text-success">Signed {fmtDateTime(g.signedAt)}</span>
                       : view.kind === "sign" && signing !== s.key ? <Button size="sm" onClick={() => { setSigning(s.key); setTyped(""); setOk(false); }}>Sign</Button>
                       : view.kind === "waiting" && iAmLead ? <span className="flex items-center gap-2"><span className="text-sub" data-swms-waiting>{view.text}</span><Button size="sm" variant="outline" data-swms-lead-phone onClick={async () => { const r = await leadLink({ jobId, key: s.key }); if (r?.link) window.location.assign(r.link); }}>Sign on my phone</Button></span>
