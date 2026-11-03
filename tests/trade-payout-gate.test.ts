@@ -121,7 +121,9 @@ describe("Jo's approved wording, the same everywhere", () => {
     expect(money).toContain("<NoFormNoPay />");
     expect(money.indexOf("<NoFormNoPay />")).toBeLessThan(money.indexOf('<Group title="Jobs">'));
     expect(money).toContain("heldPayPill(r.held)");
-    expect(src("src/routes/_authenticated/field.offer.$offerId.tsx").match(/<NoFormNoPay line\b/g)?.length).toBe(2);
+    // Part 7 Task 9: the offer page is gone (redirect only); Part 5 Task 11: so is the guide page — the Job page's Next
+    // step box carries the rule (<NoFormNoPay className="mt-3" />).
+    expect(src("src/routes/_authenticated/field.$jobId.tsx")).toContain("<NoFormNoPay className=\"mt-3\" />");
   });
   test("welcome email appends the paragraph (html + text) after the approved content", () => {
     for (const trade of ["installer", "electrician"] as const) {

@@ -2,14 +2,28 @@
 // part fills in from the job's Ready Check answers and PIESA result, with a set safety step for four facts only.
 // PURE: no database, no network. Unknown facts are null and their lines are left out — never guessed.
 import { LEAN_ALIASES, LEAN_Q, LEAN_REMOVE } from "./ready-check-lean.core";
+import { SWMS_NOV2_WORDING_ON } from "./swms.core";
 
+export type SwmsHouseStepTexts = { readonly foil: string; readonly lifeSupport: string; readonly difficultAccess: string; readonly downlights: string };
 /** Exact wording approved by Jo (30 Oct 2026). */
-export const SWMS_HOUSE_STEPS = {
+const SWMS_HOUSE_STEPS_2026_10_30: SwmsHouseStepTexts = {
   foil: "Foil or conductive insulation: power off at the switchboard before anyone enters the ceiling",
   lifeSupport: "Life support at the property: don't switch off power without the owner's OK and a plan for the equipment",
   difficultAccess: "Difficult access: extra care getting in and out of the ceiling space",
   downlights: "Recessed downlights: keep the required clearance or fit approved covers around every downlight",
-} as const;
+};
+/** Jo 2 Nov 2026 (GAP 2 downlight decision, verbatim; "IC‑4" carries a non-breaking hyphen): the downlight step on the
+ *  2 Nov SWMS wording. The other three steps are unchanged. Steps are part of the plan fingerprint, so this set is used
+ *  only while SWMS_NOV2_WORDING_ON (see swms.core). */
+const SWMS_HOUSE_STEPS_2026_11_02: SwmsHouseStepTexts = {
+  ...SWMS_HOUSE_STEPS_2026_10_30,
+  downlights: "Recessed downlights: every downlight is IC or IC‑4 rated (checked at the PIESA). Insulate over and around them as rated.",
+};
+/** The step wording in force (`nov2` overrides the flag — tests, Part 11 checks). */
+export function swmsHouseStepTexts(nov2: boolean = SWMS_NOV2_WORDING_ON): SwmsHouseStepTexts {
+  return nov2 ? SWMS_HOUSE_STEPS_2026_11_02 : SWMS_HOUSE_STEPS_2026_10_30;
+}
+export const SWMS_HOUSE_STEPS: SwmsHouseStepTexts = swmsHouseStepTexts();
 
 type Entry = { label: string; value: unknown };
 export type SwmsHouseExtras = { lifeSupportStatus: string | null; piesaOutcome: string | null; upgradesDone: boolean; piesaHazards: string | null };
@@ -73,12 +87,13 @@ export function swmsHouseLines(f: SwmsHouseFacts): string[] {
   return out;
 }
 
-/** The four set safety steps, each only when its fact is true. */
-export function swmsHouseSteps(f: SwmsHouseFacts): string[] {
+/** The four set safety steps, each only when its fact is true (`nov2` picks the wording set like buildSwms). */
+export function swmsHouseSteps(f: SwmsHouseFacts, nov2: boolean = SWMS_NOV2_WORDING_ON): string[] {
+  const S = swmsHouseStepTexts(nov2);
   const out: string[] = [];
-  if (f.areas.some((a) => a.conductive)) out.push(SWMS_HOUSE_STEPS.foil);
-  if (f.lifeSupport) out.push(SWMS_HOUSE_STEPS.lifeSupport);
-  if (/^\s*difficult\s*$/i.test(f.accessRating ?? "")) out.push(SWMS_HOUSE_STEPS.difficultAccess);
-  if (f.areas.some((a) => (a.downlights ?? 0) > 0)) out.push(SWMS_HOUSE_STEPS.downlights);
+  if (f.areas.some((a) => a.conductive)) out.push(S.foil);
+  if (f.lifeSupport) out.push(S.lifeSupport);
+  if (/^\s*difficult\s*$/i.test(f.accessRating ?? "")) out.push(S.difficultAccess);
+  if (f.areas.some((a) => (a.downlights ?? 0) > 0)) out.push(S.downlights);
   return out;
 }

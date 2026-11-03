@@ -55,7 +55,7 @@ function MyWork() {
         ]} />
         <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, address or HV number" aria-label="Search name, address or HV number" className={inputCls} />
         <div className="space-y-3" data-job-cards>
-          {list.length ? list.map((c) => <JobCard key={(c.offerId ?? c.jobId) + c.step} c={c} />)
+          {list.length ? list.map((c) => <JobCard key={c.jobId + c.step} c={c} />)
             : <p className="py-3 text-sm text-sub">{q ? "No jobs match that." : tab === "turn" ? "Nothing needs you right now." : "No jobs yet."}</p>}
         </div>
       </TradeShell>
@@ -69,15 +69,11 @@ function MyWork() {
 
 /** One job: pill, owner, HV number · suburb, the step and why, and one green button. A red border marks a job past its book-by date. */
 function JobCard({ c }: { c: MyWorkCard }) {
-  const open = c.offerId
-    ? <Link to="/field/offer/$offerId" params={{ offerId: c.offerId }} className="min-w-0 flex-1">{cardBody(c)}</Link>
-    : <Link to="/field/$jobId" params={{ jobId: c.jobId }} className="min-w-0 flex-1">{cardBody(c)}</Link>;
+  const open = <Link to="/field/$jobId" params={{ jobId: c.jobId }} className="min-w-0 flex-1">{cardBody(c)}</Link>;
   return (
     <div data-job-card className={`${card} flex flex-col gap-3 ${c.overdue ? "border-rose" : ""}`}>
       <div className="flex items-start gap-3">{open}<ChevronRight aria-hidden className="mt-1 h-5 w-5 shrink-0 text-sub" /></div>
-      {c.button && (c.offerId
-        ? <Link to="/field/offer/$offerId" params={{ offerId: c.offerId }} className={greenBtn}>{c.button}</Link>
-        : <Link to="/field/$jobId" params={{ jobId: c.jobId }} className={greenBtn}>{c.button}</Link>)}
+      {c.button && <Link to="/field/$jobId" params={{ jobId: c.jobId }} className={greenBtn}>{c.button}</Link>}
     </div>
   );
 }

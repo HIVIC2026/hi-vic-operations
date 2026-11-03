@@ -1,8 +1,9 @@
 // A48 batch 2, part 2 (Jo 30 Oct 2026): the installer's run. I/O only — rules in run-route.core.ts.
 // - offerRun: ONLY Jo's tap "Send to installer" on Choose installer (office function; never a sweep). The closed batch's
 //   owners who said yes and are still waiting become one run for the installer Jo picked at Send (area_batch_sent
-//   installer_business_id): ONE `run_offered` claim per home (route order, 24 h reply window), then the approved installer
-//   text once (TEST job / TEST partner → test-send; real → the one real sender `sendRealSms`, type `run_offered`).
+//   installer_business_id): ONE `run_offered` claim per home (route order, 24 h reply window). The "You've got a run"
+//   installer text (#35) and the "an owner cancelled" text (#40) were retired by Part 7 Task 9 (Jo 2 Nov 2026): nothing
+//   is texted to the installer from here any more; old attempt rows (`run_offered_text`) are history.
 // - tradeRun / removeRunHome / declineRun: the installer's run page, business-scoped (trade-view ctxOrThrow — only the
 //   run's own business). Owner contact only where the owner agreed to share. Removing / declining sends nothing to owners.
 // - returnBatchToSuggestions: Jo's office "Back to To release" on a closed batch (final review I2) — passers back in the pool.
@@ -18,15 +19,15 @@ import { jobWaitingForInstaller } from "./spot-release.core";
 import { smsQuietReason } from "./quote-hold.core";
 import { fullAddress } from "./address";
 import {
-  RUN_DECLINED_EVENT, RUN_EVENTS, RUN_OFFERED_TEXT_EVENT, RUN_TEXT_WENT, RUN_EXPIRED_EVENT, RUN_HOME_REMOVED_EVENT, RUN_OFFERED_EVENT, RUN_OFFERED_SMS_TYPE, RUN_REPLY_HOURS,
+  RUN_DECLINED_EVENT, RUN_EVENTS, RUN_TEXT_WENT, RUN_EXPIRED_EVENT, RUN_HOME_REMOVED_EVENT, RUN_OFFERED_EVENT, RUN_REPLY_HOURS,
   RUN_MODE_CHOSEN_EVENT, RUN_MOVED_EVENT, RUN_SLOT_CANCELLED_EVENT, RUN_SLOT_CONFIRMED_EVENT, RUN_SLOT_CONFIRM_FAILED_EVENT, RUN_SLOT_EVENTS, RUN_SLOT_PROPOSED_EVENT, RUN_SLOT_RELEASED_EVENT, RUN_TIME_REMINDED_EVENT, RUN_TIME_TEXTED_EVENT,
-  areaLines, isFillRow, orderRun, windowsFor, runExpiryDue, runIdOf, runLink, runOfferedKey, runOfferedSmsKey, runOfferedText, runReleaseKey, runState, runSuburb, tapRows,
+  areaLines, isFillRow, orderRun, windowsFor, runExpiryDue, runIdOf, runOfferedKey, runReleaseKey, runState, runSuburb, tapRows,
   type RunEventRow, type RunState, type RunStatus,
 } from "./run-route.core";
 import {
-  RUN_DEFAULT_START, RUN_FILL_RADIUS_M, RUN_PICK_TOO_SOON, RUN_PORTAL_MODE, RUN_SLOT_CANCELLED_SMS_TYPE, RUN_TEAM_MODE, RUN_TIME_REMINDER_SMS_TYPE, RUN_TIME_SMS_TYPE, RUN_WINDOW_CLAIMED_EVENT, RUN_WINDOW_EVENTS, RUN_WINDOW_FREED_EVENT,
+  RUN_DEFAULT_START, RUN_FILL_RADIUS_M, RUN_PICK_TOO_SOON, RUN_PORTAL_MODE, RUN_TEAM_MODE, RUN_TIME_REMINDER_SMS_TYPE, RUN_TIME_SMS_TYPE, RUN_WINDOW_CLAIMED_EVENT, RUN_WINDOW_EVENTS, RUN_WINDOW_FREED_EVENT,
   addDaysYmd, claimHolds, currentClaim, freeWindows, holds, pickTooSoon, planRunDays, runDayBlocker, runDayWords, runDays, runModeKey,
-  runSlotCancelledKey, runSlotCancelledSmsKey, runSlotCancelledText, runSlotFilledKey, runTeamExpired, slotTimeWords,
+  runSlotCancelledKey, runSlotFilledKey, runTeamExpired, slotTimeWords,
   runSlotConfirmKey, runSlotKey, runSlotReleaseKey, runTeamTimeText, runTimeReminderSmsKey, runTimeReminderText, runTimeSmsKey, runTimeText, runWindowFreedKey, runWindowKey, slotDue, slotsOf, windowSlots, windowStartAt, windowWords,
   type OwnerRunSlotView, type Slot, type SlotState, type Window, type WindowClaim,
 } from "./run-portal.core";
@@ -48,13 +49,12 @@ const answerOf = (e: RunEventRow | null) => (e?.details ?? {}) as { outcome?: un
 
 // ---- Jo's tap: Send to installer ---------------------------------------------------------------------------------------
 
-export type OfferRunResult = { runId: string; installer: string; homes: number; text: { status: string; detail: string } };
+export type OfferRunResult = { runId: string; installer: string; homes: number };
 
-/** Jo taps "Send to installer" on a closed batch. Every check first (nothing written if any fails), including that a real
- *  text can go now (customer messages on, the `run_offered` switch on, trade messages not paused, not quiet hours) and that
- *  the installer can still be offered every home; then one run_offered per home; then the installer text once. A batch is
- *  sent to the installer at most once — except that a run whose text never went (failed / held) is re-texted by the same
- *  tap (same run, no new claims). */
+/** Jo taps "Send to installer" on a closed batch. Every check first (nothing written if any fails), including that the
+ *  installer can still be offered every home; then one run_offered per home. A batch is sent to the installer at most
+ *  once. Part 7 Task 9 (Jo 2 Nov 2026): no installer text goes any more (the "You've got a run" text is retired); the run
+ *  is recorded and the installer's 24 hours run from Jo's tap. */
 export async function offerRun(batchId: string, actorId: string | null, opts: { now?: Date; businessId?: string | null } = {}): Promise<OfferRunResult> {
   const now = opts.now ?? new Date();
   const closed = await readAll("the closed batch", (f, t) => loose.from("workflow_events").select(EVENT_COLS).eq("event_type", AREA_BATCH_CLOSED_EVENT).contains("details", { batch_id: batchId }).range(f, t));
@@ -64,7 +64,7 @@ export async function offerRun(batchId: string, actorId: string | null, opts: { 
   const [jobs, assigned, history] = await Promise.all([
     readByIds("the batch's homes", passIds, (c, f, t) => admin.from("jobs").select("id, job_number, stage, source, channel, deleted_at, qa_archived_at, properties(suburb, postcode)").in("id", c).range(f, t)),
     readByIds("the batch's installers", passIds, (c, f, t) => admin.from("job_assignments").select("job_id").in("job_id", c).eq("role", "installer").eq("active", true).range(f, t)),
-    readByIds("the batch's history", passIds, (c, f, t) => loose.from("workflow_events").select(EVENT_COLS).in("job_id", c).in("event_type", [AREA_BATCH_SENT_EVENT, QUICK_TAPS_ANSWERED_EVENT, RUN_OFFERED_TEXT_EVENT, ...RUN_EVENTS]).range(f, t)),
+    readByIds("the batch's history", passIds, (c, f, t) => loose.from("workflow_events").select(EVENT_COLS).in("job_id", c).in("event_type", [AREA_BATCH_SENT_EVENT, QUICK_TAPS_ANSWERED_EVENT, ...RUN_EVENTS]).range(f, t)),
   ]);
   const ev = history as unknown as RunEventRow[];
   const forBatch = (e: RunEventRow) => (e.details as { batch_id?: unknown } | null)?.batch_id === batchId;
@@ -76,90 +76,39 @@ export async function offerRun(batchId: string, actorId: string | null, opts: { 
     return jobWaitingForInstaller({ channel: s(j["channel"]), stage: s(j["stage"]), hasInstaller: withInstaller.has(id), deleted: !!j["deleted_at"] });
   };
 
-  // Already sent to the installer: refused — unless the run is still open and its text never went (resend, same run).
-  const existing = ev.filter((e) => e.event_type === RUN_OFFERED_EVENT && forBatch(e)).sort((a, b) => a.created_at.localeCompare(b.created_at))[0];
-  const existingState = existing ? runState(runIdOf(existing) ?? "", ev) : null;
-  const attempts = existingState ? ev.filter((e) => e.event_type === RUN_OFFERED_TEXT_EVENT && runIdOf(e) === existingState.runId) : [];
-  if (existing) {
-    if (!existingState || existingState.status !== "offered" || existingState.textWent) throw new WorkflowError("This batch has already been sent to the installer — nothing was sent.");
-    // 24 hours from the offer with no text: the run is expiring (the tick puts its owners back in the pool).
-    if (runExpiryDue(existingState, now.toISOString())) throw new WorkflowError("This run's 24 hours are up without the text going, so its owners go back on To release — nothing was sent.");
-    // Send again goes to the run's own installer (final review I2: another installer = Back to To release first).
-    if (opts.businessId && opts.businessId !== existingState.businessId) throw new WorkflowError("Send again goes to the installer this run was given to — tap Back to To release to choose another installer — nothing was sent.");
-  }
+  // Already sent to the installer (any run for this batch): refused — a batch is sent once.
+  if (ev.some((e) => e.event_type === RUN_OFFERED_EVENT && forBatch(e))) throw new WorkflowError("This batch has already been sent to the installer — nothing was sent.");
 
-  const members = existingState ? existingState.memberIds.filter(waiting) : passIds.filter(waiting);
+  const members = passIds.filter(waiting);
   if (!members.length) throw new WorkflowError("None of the owners in this batch are still waiting — nothing was sent.");
   const testness = new Set(members.map((id) => jobBy.get(id)!["source"] === "qa_test"));
   if (testness.size > 1) throw new WorkflowError("TEST and real homes can't be in the same run — nothing was sent.");
 
   const sent = ev.find((e) => e.event_type === AREA_BATCH_SENT_EVENT && forBatch(e));
   // Final review I2: Jo may pick any installer that covers every home (default: the one she picked at Send).
-  const businessId = existingState?.businessId || opts.businessId || s((sent?.details as { installer_business_id?: unknown } | null)?.installer_business_id);
+  const businessId = opts.businessId || s((sent?.details as { installer_business_id?: unknown } | null)?.installer_business_id);
   if (!businessId) throw new WorkflowError("We can't tell which installer this batch was for — nothing was sent.");
   const { data: biz } = await admin.from("businesses").select("id, name, signer_name, signer_mobile, phone, onboarding_notes").eq("id", businessId).maybeSingle();
   const b = biz as { id: string; name: string | null; signer_name: string | null; signer_mobile: string | null; phone: string | null; onboarding_notes: string | null } | null;
   if (!b) throw new WorkflowError("That installer no longer exists — nothing was sent.");
-  const { isTestPartner } = await import("./test-send.core");
-  const partnerTest = isTestPartner(b);
-  const test = testness.has(true) || partnerTest;
 
   // The installer must still be able to be offered every home (the Choose installer rule, at the moment of the tap).
   const homes = members.map((id) => ({ postcode: ((jobBy.get(id)?.["properties"] as { postcode?: string | null } | null)?.postcode ?? "").trim(), isTest: jobBy.get(id)!["source"] === "qa_test" }));
   if (!(await canTakeHomes(businessId, homes))) throw new WorkflowError(`${b.name || "That installer"} can't be offered every home in this run right now (not taking jobs, not approved, or doesn't cover the area) — nothing was sent.`);
 
-  // The business owner's mobile (same rule as every other business-owner text).
-  const to = b.signer_mobile ?? b.phone ?? null;
-  if (!to) throw new WorkflowError(`${b.name || "The installer"} has no mobile on file — nothing was sent.`);
-  if (!test) {
-    // A real text that would be held must not leave a run waiting with no text: refuse first, like the batch Send.
-    const { data: ws } = await loose.from("workflow_settings").select("*").eq("id", 1).maybeSingle();
-    const w = (ws ?? null) as { customer_comms_enabled?: boolean | null; sms_message_switches?: Record<string, boolean> | null; trade_messages_paused?: boolean | null } | null;
-    if (w?.customer_comms_enabled !== true) throw new WorkflowError("Customer messages are switched off — nothing was sent.");
-    if (w?.sms_message_switches?.[RUN_OFFERED_SMS_TYPE] !== true) throw new WorkflowError("The installer run texts are switched off — switch them on in Settings first. Nothing was sent.");
-    // From the separate "Pause all trade messages" change: a missing column = not paused.
-    if (w?.trade_messages_paused === true) throw new WorkflowError("Trade messages are paused — nothing was sent.");
-    // A quiet-hours hold is never re-sent, and the 24-hour reply clock would run overnight.
-    if (smsQuietReason(now.toISOString())) throw new WorkflowError("It's quiet hours (8pm–7am) — texts can't go now. Send again after 7am. Nothing was sent.");
+  // Route order on each home's location (the owner's confirmed address; postcode centre while there's no full address).
+  const points = new Map<string, { lat: number; lng: number }>();
+  await inFours(members, async (id) => { const p = await homePoint(id); if (p) points.set(id, p); });
+  const order = orderRun(members.map((id) => ({ jobId: id, lat: points.get(id)?.lat ?? Number.NaN, lng: points.get(id)?.lng ?? Number.NaN })));
+  const runId = crypto.randomUUID();
+  const offeredAt = now.toISOString();
+  const expiresAt = new Date(now.getTime() + RUN_REPLY_HOURS * 3_600_000).toISOString();
+  for (const id of order) {
+    const won = await claimBatchEvent(id, actorId, RUN_OFFERED_EVENT, `Run of ${order.length} Ready ${order.length === 1 ? "Check" : "Checks"} sent to ${b.name ?? "the installer"} — waiting for them to pick a day (24 hours)`,
+      { run_id: runId, batch_id: batchId, business_id: b.id, business_name: b.name, job_ids: order, offered_at: offeredAt, expires_at: expiresAt, offered_by: actorId, idempotency_key: runOfferedKey(batchId, id) });
+    if (!won) throw new WorkflowError("This batch has already been sent to the installer — nothing more was sent.");
   }
-
-  let runId: string; let order: string[]; let offeredAt: string;
-  if (existingState) {
-    runId = existingState.runId; order = members; offeredAt = existingState.offeredAt;
-  } else {
-    // Route order on each home's location (the owner's confirmed address; postcode centre while there's no full address).
-    const points = new Map<string, { lat: number; lng: number }>();
-    await inFours(members, async (id) => { const p = await homePoint(id); if (p) points.set(id, p); });
-    order = orderRun(members.map((id) => ({ jobId: id, lat: points.get(id)?.lat ?? Number.NaN, lng: points.get(id)?.lng ?? Number.NaN })));
-    runId = crypto.randomUUID();
-    offeredAt = now.toISOString();
-    const expiresAt = new Date(now.getTime() + RUN_REPLY_HOURS * 3_600_000).toISOString();
-    for (const id of order) {
-      const won = await claimBatchEvent(id, actorId, RUN_OFFERED_EVENT, `Run of ${order.length} Ready ${order.length === 1 ? "Check" : "Checks"} sent to ${b.name ?? "the installer"} — waiting for them to pick a day (24 hours)`,
-        { run_id: runId, batch_id: batchId, business_id: b.id, business_name: b.name, job_ids: order, offered_at: offeredAt, expires_at: expiresAt, offered_by: actorId, idempotency_key: runOfferedKey(batchId, id) });
-      if (!won) throw new WorkflowError("This batch has already been sent to the installer — nothing more was sent.");
-    }
-  }
-  const suburb = runSuburb(order.map((id) => (jobBy.get(id)?.["properties"] as { suburb?: string | null } | null)?.suburb));
-
-  const attempt = attempts.length + 1;
-  const base = test ? (await import("./test-send.server")).TEST_APP_BASE : (await import("./set-password-link.core")).SET_PASSWORD_BASE;
-  const body = runOfferedText({ name: b.signer_name, homes: order.length, suburb, link: runLink(base, runId) });
-  let text: { status: string; detail: string };
-  try {
-    if (test) {
-      const first = jobBy.get(order[0]!)!;
-      const r = await (await import("./test-send.server")).sendTestSms({ jobId: order[0]!, jobSource: s(first["source"]), partnerIsTest: partnerTest, label: `run_offered:${runId}`, actorId }, to, body);
-      text = { status: r.status, detail: r.detail };
-    } else {
-      const r = await (await import("./sms.server")).sendRealSms({ type: RUN_OFFERED_SMS_TYPE, idempotencyKey: runOfferedSmsKey(runId, attempt), to, body, businessId: b.id, event: { at: now.toISOString(), current: true } });
-      text = { status: r.status, detail: r.detail };
-    }
-  } catch (e) { text = { status: "failed", detail: (e as Error).message }; }
-  // Every attempt is recorded (on the run's first home), so a later tap knows whether the text went.
-  await claimBatchEvent(order[0]!, actorId, RUN_OFFERED_TEXT_EVENT, `Run text to ${b.name ?? "the installer"}: ${text.status}`, { run_id: runId, batch_id: batchId, attempt, status: text.status, detail: text.detail.slice(0, 200), idempotency_key: `run-offered-text:v1:${runId}:${attempt}` })
-    .catch((e) => console.error("run text attempt not recorded", runId, (e as Error).message));
-  return { runId, installer: b.name ?? "", homes: order.length, text };
+  return { runId, installer: b.name ?? "", homes: order.length };
 }
 
 /** The business can be offered every one of these homes (approved, active, taking jobs, credentials, a Full-EEC installer,
@@ -308,7 +257,7 @@ export async function returnBatchToSuggestions(batchId: string, actorId: string 
   const runIds = [...new Set(ev.filter((e) => e.event_type === RUN_OFFERED_EVENT && !isFillRow(e) && (e.details as { batch_id?: unknown } | null)?.batch_id === batchId).map(runIdOf).filter((x): x is string => !!x))];
   const runs = runIds.map((r) => runState(r, ev)).filter((x): x is RunState => !!x);
   if (runs.some((r) => r.status !== "offered" || r.textWent)) throw new WorkflowError("This batch has already been sent to the installer — nothing changed.");
-  for (const r of runs) await releaseAll(r, RUN_EXPIRED_EVENT, actorId, "Run text never went — the office put this home back on To release (owner not asked again)", { reason: "office_returned" });
+  for (const r of runs) await releaseAll(r, RUN_EXPIRED_EVENT, actorId, "The office put this home back in the suggestions before the installer answered (owner not asked again)", { reason: "office_returned" });
   const withInstaller = new Set(assigned.map((a) => String(a["job_id"])));
   const jobBy = new Map(jobs.map((j) => [String(j["id"]), j]));
   const waiting = passIds.filter((id) => {
@@ -346,9 +295,7 @@ export async function sweepRunOffers(nowIso: string = new Date().toISOString()):
     const st = runState(runId, events);
     if (!st || !runExpiryDue(st, nowIso)) continue;
     try {
-      out.expired += st.textWent
-        ? await releaseAll(st, RUN_EXPIRED_EVENT, null, "No reply from the installer within 24 hours — back on the list for the next batch (owner not asked again)")
-        : await releaseAll(st, RUN_EXPIRED_EVENT, null, "The installer's run text didn't go within 24 hours — back on the list for the next batch (owner not asked again)", { reason: "text_not_sent" });
+      out.expired += await releaseAll(st, RUN_EXPIRED_EVENT, null, "No reply from the installer within 24 hours — back on the list for the next batch (owner not asked again)");
     }
     catch (e) { out.failed++; console.error("run expiry failed", runId, (e as Error).message); }
   }
@@ -793,8 +740,6 @@ export async function sweepRunSlots(nowIso: string = new Date().toISOString(), o
     catch (e) { out.failed++; console.error("run day picks not checked", (e as Error).message); }
     try { const r = await sweepTeamBookings(now); out.released += r.released; out.failed += r.failed; }
     catch (e) { out.failed++; console.error("team bookings not checked", (e as Error).message); }
-    try { const r = await sweepCancelledTexts(now); out.failed += r.failed; }
-    catch (e) { out.failed++; console.error("held cancel texts not checked", (e as Error).message); }
     const since = new Date(now.getTime() - SLOT_LOOKBACK_DAYS * 86_400_000).toISOString();
     const proposed = await readAll("run windows", (f, t) => loose.from("workflow_events").select("job_id").eq("event_type", RUN_SLOT_PROPOSED_EVENT).gte("created_at", since).range(f, t));
     jobIds = [...new Set(proposed.map((e) => String(e["job_id"])))];
@@ -1096,92 +1041,21 @@ async function ownOldClaimOnly(h: Holder, now: Date): Promise<boolean> {
 }
 
 // ---- the owner cancels a confirmed window (Task 8) ------------------------------------------------------------------------------
-// The owner cancels their job on My job after confirming their window (cancelOwnerJob → this hook): ONE `run_slot_cancelled`,
-// the window's claims freed, and the installer (the business owner's mobile) told once — `run_slot_cancelled` (TEST → test-send;
-// real → the one real sender, own switch, off until Jo switches it on). The run page then shows "Fill from nearby waiting
-// owners": tapped → the nearest owner with a standing pass within 10 km of the cancelled home is added to the run and gets
-// that window through the portal window flow (claim → text → confirm / can't make it / none suit). Not tapped → nothing.
+// The owner cancels their job on My job after confirming their window (cancelOwnerJob → this hook): ONE `run_slot_cancelled`
+// and the window's claims freed. The run page then shows "Fill from nearby waiting owners": tapped → the nearest owner with
+// a standing pass within 10 km of the cancelled home is added to the run and gets that window through the portal window
+// flow (claim → text → confirm / can't make it / none suit). Not tapped → nothing. The installer's "an owner cancelled"
+// text (#40) was retired by Part 7 Task 9 (Jo 2 Nov 2026); old `run_slot_cancelled_texted` rows are history.
 
-/** Hook after the owner's own cancel. Only a CONFIRMED run window counts; once per window. Never texts the owner. */
-export async function runOwnerCancelled(jobId: string, opts: { now?: Date; silent?:boolean } = {}): Promise<{ told: boolean; text?: string }> {
-  const now = opts.now ?? new Date();
+/** Hook after the owner's own cancel. Only a CONFIRMED run window counts; once per window. Never texts anyone. */
+export async function runOwnerCancelled(jobId: string, opts: { now?: Date; silent?:boolean } = {}): Promise<{ told: boolean }> {
   const x = await ownerSlot(jobId);
   if (!x || x.state !== "confirmed") return { told: false };
-  const won = await claimBatchEvent(jobId, null, opts.silent?'run_slot_cancelled_silent':RUN_SLOT_CANCELLED_EVENT, `Owner cancelled their confirmed Ready Check (${runDayWords(x.day)}, ${slotTimeWords(x)})${opts.silent?' — no notices requested':' — the installer is told and can fill the time from nearby waiting owners'}`,
+  const won = await claimBatchEvent(jobId, null, opts.silent?'run_slot_cancelled_silent':RUN_SLOT_CANCELLED_EVENT, `Owner cancelled their confirmed Ready Check (${runDayWords(x.day)}, ${slotTimeWords(x)})${opts.silent?' — no notices requested':' — the installer can fill the time from nearby waiting owners on their run page'}`,
     { run_id: x.runId, batch_id: x.batchId, business_id: x.businessId, seq: x.seq, person: x.person, day: x.day, start: x.start, end: x.end, by: "owner", idempotency_key: runSlotCancelledKey(x.runId, jobId, x.seq) });
   if (!won) return { told: false };
   await freeWindow(x, null, "cancelled");
-  if(opts.silent)return {told:false};
-  return { told: true, text: await textInstallerCancelled(x, now) };
-}
-
-/** Recorded once when the installer's cancel text actually went (sent / already / sent_unknown); the tick retries until then. */
-export const RUN_SLOT_CANCELLED_TEXTED_EVENT = "run_slot_cancelled_texted";
-
-/** 15-minute tick (fix round 1): a cancel text that was held (quiet hours, switch off, sender down) is tried again while the
- *  cancelled time is still unfilled and still ahead; once it goes it is recorded and never tried again. */
-async function sweepCancelledTexts(now: Date): Promise<{ failed: number }> {
-  const out = { failed: 0 };
-  const since = new Date(now.getTime() - SLOT_LOOKBACK_DAYS * 86_400_000).toISOString();
-  const cancels = (await readAll("cancelled run windows", (f, t) => loose.from("workflow_events").select(EVENT_COLS).eq("event_type", RUN_SLOT_CANCELLED_EVENT).gte("created_at", since).range(f, t))) as unknown as RunEventRow[];
-  if (!cancels.length) return out;
-  const jobIds = [...new Set(cancels.map((e) => e.job_id))];
-  const [texted, events] = await Promise.all([
-    readByIds("cancel texts", jobIds, (c, f, t) => loose.from("workflow_events").select(EVENT_COLS).in("job_id", c).eq("event_type", RUN_SLOT_CANCELLED_TEXTED_EVENT).range(f, t)) as unknown as Promise<RunEventRow[]>,
-    slotEventsFor(jobIds),
-  ]);
-  const went = new Set(texted.map((e) => `${runIdOf(e)}|${e.job_id}|${Number((e.details as { seq?: unknown } | null)?.seq ?? 0)}`));
-  const due = slotsOf(events).filter((x) => x.state === "cancelled" && !went.has(`${x.runId}|${x.jobId}|${x.seq}`) && windowStartAt(x.day, x.start).getTime() > now.getTime());
-  if (!due.length) return out;
-  if (smsQuietReason(now.toISOString())) return out;
-  // Task 9: while a real text would only be held (customer messages off, the run_slot_cancelled switch off, trade messages
-  // paused), the real sender is not called at all — it would write a new held sms_messages row every tick. TEST runs still
-  // go through test-send. Retried on the first tick after it is switched on.
-  const { data: wsRow, error: we } = await loose.from("workflow_settings").select("*").eq("id", 1).maybeSingle();
-  if (we) throw new Error(`Could not read the message switches: ${we.message}`);
-  const w = (wsRow ?? null) as { customer_comms_enabled?: boolean | null; sms_message_switches?: Record<string, boolean> | null; trade_messages_paused?: boolean | null } | null;
-  const realOff = w?.customer_comms_enabled !== true || w?.sms_message_switches?.[RUN_SLOT_CANCELLED_SMS_TYPE] !== true || w?.trade_messages_paused === true;
-  for (const x of due) {
-    try {
-      // Filled meanwhile (the installer tapped Fill) → nothing to tell.
-      const { data: fill, error } = await loose.from("workflow_events").select("id").eq("event_type", RUN_OFFERED_EVENT).contains("details", { run_id: x.runId, filled_from: x.jobId, filled_seq: x.seq }).limit(1);
-      if (error) throw new Error(error.message);
-      if ((fill ?? []).length) continue;
-      await textInstallerCancelled(x, now, { realOff });
-    } catch (e) { out.failed++; console.error("held cancel text not retried", x.runId, x.jobId, (e as Error).message); }
-  }
-  return out;
-}
-
-async function textInstallerCancelled(x: Slot, _now: Date, opts: { realOff?: boolean } = {}): Promise<string> {
-  const status = await sendInstallerCancelled(x, opts);
-  if ((RUN_TEXT_WENT as readonly string[]).includes(status)) {
-    await claimBatchEvent(x.jobId, null, RUN_SLOT_CANCELLED_TEXTED_EVENT, "Installer texted that the owner cancelled their Ready Check time",
-      { run_id: x.runId, business_id: x.businessId, seq: x.seq, status, idempotency_key: `run-slot-cancelled-texted:v1:${x.runId}:${x.jobId}:${x.seq}` })
-      .catch((e) => console.error("cancel text not recorded", x.runId, x.jobId, (e as Error).message));
-  }
-  return status;
-}
-
-/** `realOff`: a real text would only be held now — return "held" without calling the real sender (nothing written). */
-async function sendInstallerCancelled(x: Slot, opts: { realOff?: boolean } = {}): Promise<string> {
-  const [{ data: biz }, jobs] = await Promise.all([
-    admin.from("businesses").select("id, name, signer_name, signer_mobile, phone, onboarding_notes").eq("id", x.businessId).maybeSingle(),
-    slotJobsById([x.jobId]),
-  ]);
-  const b = biz as { id: string; name: string | null; signer_name: string | null; signer_mobile: string | null; phone: string | null; onboarding_notes: string | null } | null;
-  const to = b?.signer_mobile ?? b?.phone ?? null;
-  if (!b || !to) return "no mobile";
-  const { isTestPartner } = await import("./test-send.core");
-  const source = jobs.get(x.jobId)?.source ?? null;
-  const test = source === "qa_test" || isTestPartner(b);
-  if (!test && opts.realOff) return "held";
-  const base = test ? (await import("./test-send.server")).TEST_APP_BASE : (await import("./set-password-link.core")).SET_PASSWORD_BASE;
-  const body = runSlotCancelledText({ name: b.signer_name, day: runDayWords(x.day), time: slotTimeWords(x), link: runLink(base, x.runId) });
-  try {
-    if (test) return (await (await import("./test-send.server")).sendTestSms({ jobId: x.jobId, jobSource: source, partnerIsTest: isTestPartner(b), label: `${RUN_SLOT_CANCELLED_SMS_TYPE}:${x.runId}:${x.seq}`, actorId: null }, to, body)).status;
-    return (await (await import("./sms.server")).sendRealSms({ type: RUN_SLOT_CANCELLED_SMS_TYPE, idempotencyKey: runSlotCancelledSmsKey(x.runId, x.jobId, x.seq), to, body, jobId: x.jobId, businessId: b.id })).status;
-  } catch (e) { console.error("run slot cancelled installer text not sent", x.runId, x.jobId, (e as Error).message); return "failed"; }
+  return { told: false };
 }
 
 /** Installer: "Fill from nearby waiting owners" on a cancelled window. Once per cancelled window (a repeat tap returns the

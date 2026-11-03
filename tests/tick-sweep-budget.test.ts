@@ -21,7 +21,7 @@ const SWEEPS: [string, string][] = [
   ["piesa-owner-confirm-send.server", "sweepOwnerPiesaConfirmations"], ["piesa-fixes-confirm-send.server", "sweepOwnerFixesConfirmations"], ["veec-reminders.server", "sweepVeecReminders"],
   ["completion-pack.server", "sweepCompletionPacks"], ["warranty-followup.server", "sweepWarrantyFollowups"], ["veec-ap-auto.server", "sweepAutoApSignatures"],
   ["install-days.server", "sweepInstallDays"], ["install-attendance.server", "sweepElectricianAttendance"], ["install-clearance.server", "sweepInstallClearance"],
-  ["installer-texts.server", "sweepInstallerTexts"], ["ready-check-offer-text.server", "sweepJobOfferTexts"], ["estimate-followup.server", "sweepEstimateFollowups"],
+  ["installer-texts.server", "sweepInstallerTexts"], ["estimate-followup.server", "sweepEstimateFollowups"],
   ["thirty-day-rule.server", "sweepInstallWindowRule"], ["payments.server", "sweepProvisionalBookings"], ["xero.server", "pollXeroPayments"],
   ["rec-onboarding-invite.server", "sweepRecOnboardingInvites"], ["visit-events.server", "sweepTradeNoShows"], ["readycheck-booking.server", "sweepReadyCheckOffers"],
   ["auto-offer.server", "sweepAutoOffers"], ["prestart.server", "sweepPrestart"], ["esc.server", "sweepEscReminders"], ["piisa-autosend.server", "sweepPiisaAutoSend"],

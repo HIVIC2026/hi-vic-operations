@@ -4,11 +4,8 @@ import { NEXT_STEP_WORDS, type NextStepBox, type NextStepKind } from "./next-ste
 export type MyWorkCard = {
   jobId: string; owner: string; hvSuburb: string; pill: "Home Insulation Victoria lead" | "Your customer";
   step: string; reason: string; by: string | null; overdue: boolean; button: string | null; yours: boolean;
-  /** Set only on the old-path job offer card: it opens the offer, not the job. */
-  offerId?: string;
 };
 export type MyWorkRow = { jobId: string; jobNumber: string; owner: string | null; street: string | null; suburb: string | null; channel: string | null; box: NextStepBox; reason: string };
-export type MyWorkOffer = { id: string; jobId: string; suburb: string | null; jobNumber?: string | null };
 
 // Wording. Every line here is a DRAFT (no approved text yet) except where marked.
 export const MY_WORK_WORDS = {
@@ -17,9 +14,6 @@ export const MY_WORK_WORDS = {
   nothing: "Nothing needs you today.", // DRAFT
   leadPill: "Home Insulation Victoria lead" as const, // approved
   ownPill: "Your customer" as const, // approved
-  offerStep: "Job offer", // DRAFT
-  offerReason: "New offer", // DRAFT
-  offerButton: "View offer", // DRAFT
   bookButton: "Book", // approved (plan Task 4 test)
   priceButton: "Price it", // approved (plan Task 4 test)
   ownerFallback: "Owner", // DRAFT
@@ -64,13 +58,10 @@ function byUrgency(a: MyWorkCard, b: MyWorkCard): number {
 // The card's one button is short: "Book" for both booking steps, "Price it" for the price step.
 const buttonFor = (b: NextStepBox): string | null => (b.kind === "enter_price" ? W.priceButton : b.kind === "book_install" ? W.bookButton : b.button);
 
-export function offerCard(o: MyWorkOffer): MyWorkCard {
-  const hv = [o.jobNumber, o.suburb].filter(Boolean).join(" · ");
-  return { jobId: o.jobId, owner: W.ownerFallback, hvSuburb: hv, pill: W.leadPill, step: W.offerStep, reason: W.offerReason, by: null, overdue: false, button: W.offerButton, yours: true, offerId: o.id };
-}
 
-export function myWorkCards(rows: MyWorkRow[], offers: MyWorkOffer[] = []): { yourTurn: MyWorkCard[]; all: MyWorkCard[] } {
-  const offerCards = offers.map(offerCard);
+// Part 7 Task 9 (join 4 Nov 2026): nobody is offered a job any more (the installer calls the owner and books), so there is
+// no "Job offer" card and no /field/offer link; a leftover pending offer is the office's to close by hand.
+export function myWorkCards(rows: MyWorkRow[]): { yourTurn: MyWorkCard[]; all: MyWorkCard[] } {
   const cards = rows.map((r): MyWorkCard => ({
     jobId: r.jobId, owner: r.owner?.trim() || W.ownerFallback,
     hvSuburb: [r.jobNumber, r.suburb].filter(Boolean).join(" · "),
@@ -80,7 +71,7 @@ export function myWorkCards(rows: MyWorkRow[], offers: MyWorkOffer[] = []): { yo
   }));
   const mine = cards.filter((c) => c.yours).sort(byUrgency);
   const rest = cards.filter((c) => !c.yours).sort(byUrgency);
-  const yourTurn = [...offerCards, ...mine];
+  const yourTurn = mine;
   return { yourTurn, all: [...yourTurn, ...rest] };
 }
 

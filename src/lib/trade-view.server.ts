@@ -343,8 +343,8 @@ export async function tradeHome(userId: string) {
       return { jobId: j.jobId, jobNumber: String(j.jobNumber), owner: j.owner, street: j.street, suburb: j.suburb, channel: j.channel, box, reason: reasonFor(box.kind, box) };
     });
     // A job with a pending offer shows as the offer card only (owner details stay hidden until the offer is taken); the card's key is the offer id.
-    const offerRows = offerList.filter((o) => o.kind === "ready_check").map((o) => ({ id: o.id, jobId: o.id, suburb: o.suburb }));
-    const cards = myWorkCards(rows.filter((r) => r.box.kind !== "closed" && !offerJobs.has(r.jobId)), offerRows);
+    // Part 7 Task 9: no "Job offer" card — a job with a leftover pending offer stays hidden from My work (the office closes the offer).
+    const cards = myWorkCards(rows.filter((r) => r.box.kind !== "closed" && !offerJobs.has(r.jobId)));
     const street = new Map(rows.map((r) => [r.jobId, r.street]));
     const withStreet = (list: typeof cards.all) => list.map((card) => ({ ...card, street: street.get(card.jobId) ?? null }));
     return { greeting: myWorkGreeting(c.biz.name, cards.yourTurn.length), yourTurn: withStreet(cards.yourTurn), all: withStreet(cards.all) };
@@ -1460,6 +1460,12 @@ export async function inHouseBookVisit(userId: string, input: { jobId: string; k
   // Part 2: an installer's own job books its safety check ONLY through bookOwnJobPiesa (claim, 30-day check, owner notice); never this in-house writer.
   if (access.ownJob) return { ok: false, blockers: ["forbidden"] };
   if(!input.workerId)return {ok:false,blockers:[input.kind==='installation'?(await import('./in-house-booking.core')).LEAD_INSTALLER_BOOKING_REASON:'Choose the person going before booking.']};
+  // Part 7 Task 6: an existing install booking past its 5pm two-days-before lock can't be moved or given another Lead
+  // Installer here (LEAD_LOCKED_MESSAGE); the current booking is read inside the check, never the page's copy.
+  if (input.kind === "installation") {
+    try { await (await import("./lead-installer-confirm.server")).assertLeadInstallerUnlocked(input.jobId, { newStart: input.start, newLeadId: input.workerId }); }
+    catch (error) { return { ok: false, blockers: [error instanceof Error ? error.message : "Booking could not be saved."] }; }
+  }
   try {
     const result=await (await import('./in-house-atomic-save.server')).saveInHouseVisit(input.jobId,userId,{
       kind:input.kind,start:input.start,workerId:input.workerId,

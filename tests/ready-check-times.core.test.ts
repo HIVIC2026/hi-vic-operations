@@ -3,7 +3,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   READY_CHECK_OFFER_OPEN_HOURS, READY_CHECK_TIMES, allowedReadyCheckDays, allowedReadyCheckTimes, installerTimesBlockers, ownerDaysBlockers,
-  readyCheckOfferExpiry, readyCheckOfferOverdue, readyCheckOfferStartBlockers, readyCheckOfficeItem, readyCheckOfferText, readyCheckStartAt, readyCheckTurn,
+  readyCheckOfferExpiry, readyCheckOfferOverdue, readyCheckOfferStartBlockers, readyCheckOfficeItem, readyCheckStartAt, readyCheckTurn,
   a1ReadyCheckEntryAllowed, a1ReadyCheckTimeBlockers,
 } from "../src/lib/ready-check-times.core";
 import { isBusinessDay, melbourneYmd } from "../src/lib/piesa-windows.core";
@@ -105,13 +105,6 @@ describe("one office item per job", () => {
   });
 });
 
-test("installer text: short, suburb, link straight to the offer (draft wording)", () => {
-  // Decision 76 wording, switched on by decision 154 (Jo 24 Oct 2026). No STOP line: partner job texts don't carry one.
-  expect(readyCheckOfferText("Frankston", "https://x/field/offer/1", 120)).toBe("Home Insulation Victoria: New Ready Check job near Frankston (about 120 m²). Offer the owner 3 times within 24 hours to take it: https://x/field/offer/1");
-  expect(readyCheckOfferText("Frankston", "u")).toBe("Home Insulation Victoria: New Ready Check job near Frankston. Offer the owner 3 times within 24 hours to take it: u");
-  expect(readyCheckOfferText(null, "u")).toContain("near you");
-  expect(readyCheckOfferText(null, "u", 0)).not.toContain("about");
-});
 
 test("melbourne date sanity for the fixed clock", () => expect(melbourneYmd(NOW)).toBe("2026-10-26"));
 

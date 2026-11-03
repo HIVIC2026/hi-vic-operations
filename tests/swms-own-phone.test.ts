@@ -102,12 +102,16 @@ describe("the install texts list each unsigned person's own link", () => {
     const body = withSafetyPlanLinks("Install tomorrow 8am (HV-TEST-364).", safetyPlanSignerLinks([{ name: "TEST Crew", link: "https://x/sp/a.b" }, { name: "TEST Casual", link: "https://x/sp/c.d" }]));
     expect(body).toBe("Install tomorrow 8am (HV-TEST-364). Sign the safety plan first: TEST Crew: https://x/sp/a.b TEST Casual: https://x/sp/c.d");
   });
-  test("both existing texts use the per-person links, job page only as the fallback", () => {
-    for (const f of ["installer-texts.server.ts", "daily-mitti-text.server.ts"]) {
-      const src = readFileSync(new URL(`../src/lib/${f}`, import.meta.url), "utf8");
-      expect(src, f).toContain("unsignedSwmsSignerLinks");
-      expect(src, f).toContain("safetyPlanSignerLinks");
-    }
+  test("the 6:30am text carries only the recipient's OWN sign link (Jo 2 Nov 23:08); the install-tomorrow text no longer lists anyone (#47, Jo 2 Nov 2026)", () => {
+    const daily = readFileSync(new URL("../src/lib/daily-mitti-text.server.ts", import.meta.url), "utf8");
+    expect(daily).toContain("swmsSignLink(jobId, s.key"); // fix I3: minted per unsigned signer
+    expect(daily).toContain("swmsUnsignedSigners(");
+    expect(daily).not.toContain("unsignedSwmsSignerLinks");
+    // Decision #47 replaces decisions 364/377 for the install-tomorrow text: it goes to the Lead Installer with THEIR own
+    // sign link + the Mitti form; every crew member gets their own sign text (#48), so no other links are listed.
+    const tomorrow = readFileSync(new URL("../src/lib/installer-texts.server.ts", import.meta.url), "utf8");
+    expect(tomorrow).not.toContain("unsignedSwmsSignerLinks");
+    expect(tomorrow).not.toContain("safetyPlanSignerLinks");
   });
 });
 

@@ -113,7 +113,7 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
     if (mittiProduct && !mittiProduct.ready) await (await import("./ready-check-quote.server")).recordNeedsOffice(jobId, actorId, null, mittiProduct.reasons);
     if (mittiElectrician?.needsProfile) {
       await (await import("./ready-check-quote.server")).recordNeedsOffice(jobId, actorId, null, mittiElectrician.reasons);
-      await (await import("./usual-electrician-reminder.server")).maybeRemindUsualElectrician(jobId, auditId);
+      // Part 7 Task 8 (Jo 2 Nov 2026): the "We need your usual electrician" text is retired (decisions 374/303 choose the electrician); no reminder here.
     }
     // History only on change (Jo 23 Oct): the 15-minute sync/tick re-runs this while the quote waits (decision 113);
     // the same hold for the same form is not written again.

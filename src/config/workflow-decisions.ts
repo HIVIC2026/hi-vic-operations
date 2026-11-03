@@ -28,6 +28,15 @@ export const WORKFLOW_DECISIONS = {
       missingOrConflictingEvidence: "needs_review",
     },
   },
+  // Part 7 Task 8 (Jo 2 Nov 2026): replaced by the 9am two-days-before "Confirm or change your Lead Installer by 5pm today" email
+  // (and decisions 374/303 for the electrician); nothing sends these any more, old events/log rows are history.
+  // Part 7 Task 9 (Jo 2 Nov 2026): under "installer calls and books" no job is offered to installers and nothing runs in batches
+  // with owner-picked times (#35, #40–43, #47, #50); types kept in sms.core as retired history, old events/log rows are history.
+  tradeMessages: { retired: [
+    "2pm day-before Lead Installer email", "Pick the crew for tomorrow", "We need your usual electrician",
+    "You've got a run", "An owner cancelled their Ready Check in your run", "New Ready Check job offer (email + text)", "Installer job offer page",
+    "The owner suggested other Ready Check days", "Booked: Ready Check (installer)",
+  ] },
   retiredWorkflow: [
     "PIESA before confirmed quote/payment",
     "Combined Ready Check + PIESA visit",
@@ -145,6 +154,47 @@ export const WORKFLOW_DECISIONS = {
     flagOffNewMessageWithNoOldWording: "nothing is sent (will call)",
     chase: "a gap list already texted is not emailed; a new gap list gets the email only",
     quotes: "a quote sent before QUOTE_30_DAY_FROM_ISO keeps its 14-day date; reminders are stamped once per quote",
+  },
+  // Part 7 Task 1 (Jo 2 Nov 2026): the SWMS says "Lead Installer" in full, hazard 9 and the downlight step are the approved
+  // wording, people are labelled "(Lead Installer)" / "(Crew)". The hazard text is part of every plan's fingerprint, so the
+  // new set sits behind SWMS_NOV2_WORDING_ON (swms.core) until Part 11 flips it on a day with no real install within 48 hours.
+  swmsWording: {
+    flag: "SWMS_NOV2_WORDING_ON (false until Part 11)",
+    ruleWhenOn: "swms-portal-2026-11-02",
+    ruleWhenOff: "swms-portal-2026-10-24 (plan text, rule and fingerprint byte-identical to the 24 Oct wording)",
+    onSwitchOn: "every plan's fingerprint changes, so everyone signs the safety plan again (the existing crew sign-link reminder asks them)",
+    switchOnOnlyWhen: "no real install within the next 48 hours",
+    roleLabels: { lead: "Lead Installer", crew: "Crew" },
+    onSiteLine: "The Lead Installer is on site for the whole install. (always under Compliance, whatever the rule)",
+    pdfLook: "website look (swms-sample.pdf) with the Changes during the job box only behind PDF_LOOK_APPROVED.swms; off = the 25 Oct WorkSafe layout, byte-for-byte",
+    signingPage: "/sp/<token>: house facts → 9 standard controls folded → Read the full safety plan (PDF) on tap only → tick → typed full name → Sign the safety plan; one server read; words of the plan's own rule",
+    leadView: "the Lead Installer's own link only: who has signed, Sign on my phone (the crew member's own link on the Lead's phone; they type their own name, method lead_phone), Open install form (real A5 audit url or not-ready line)",
+    installTomorrowText: {
+      decision: "#47 (Jo 2 Nov 2026), replaces decision 99",
+      wording: "Home Insulation Victoria: Install tomorrow {time}, {address} ({HV}). Safety plan: {link} Mitti form: {link}",
+      to: "the picked Lead Installer's own mobile only — never the business owner's number, never other crew members' links",
+      links: "safety plan = the Lead's own sign link (minted for the text); Mitti = the real A5 audit url, never guessed",
+      held: ["no lead installer", "lead installer has no mobile", "install form not ready"],
+      key: "install-tomorrow:v1:{job}:{booking}:{Melbourne date} (unchanged, one text per install day; a hold never claims it)",
+    },
+    // Part 7 Task 6 (Jo 2 Nov 2026, "Lead Installer / ESC 24h rule"); the clock is Part 9 Task 9's rule (prestart.core).
+    leadInstallerConfirm: {
+      email: "ONE office email at 9am Melbourne two days before the install (at once if booked after 9am that day, until 5pm): Confirm or change your Lead Installer by 5pm today (+ pick the crew)",
+      to: "the installer business office email, every installer (not only in-house), one per job + install date (lead-confirm:v1:{job}:{Melbourne date})",
+      wording: "DRAFT behind LEAD_INSTALLER_CONFIRM_EMAIL_APPROVED=false — real offices held and recorded once (lead_installer_confirm_held), TEST → test-send",
+      lock: "from 5pm that day: Lead Installer and install day locked (leadInstallerLocked); LEAD_LOCKED_MESSAGE = Locked: ESC has been told. Email us to move this install.",
+      writers: ["saveCrewWithLead (different Lead refused; crew-only allowed)", "changeInHouseLeadInstaller", "inHouseBookVisit (moved start or other Lead on an existing install booking)", "allocateVisit kind install (fix I2)"],
+      claim: "fix I1: the lead_installer_confirm_email claim is written only after the sender reports sent; comms off / trade pause / blocked / failed = lead_installer_confirm_held once, key unclaimed, retried next tick",
+      replaces: "the 2pm day-before crew reminder (#110)",
+    },
+    // Part 7 Task 7 (decision #26, Jo 2 Nov 2026).
+    dailyJobsText: {
+      to: "EVERY worker on today's install plan (Lead and crew, decision #26 workers only) who has NOT yet signed the safety plan for that install (Jo 3 Nov 23:08, Task 7b + fix I3; current plan fingerprint) — each on their own mobile with their own sign link (swmsUnsignedSigners → partner_workers mobile → workerOnlyTextRecipient + swmsSignLink); no fallback to the business owner's mobile",
+      signed: "a worker who has signed gets nothing, nor the later update; a Ready Check (no SWMS) is never on this text",
+      noWorker: "a signer with no staff row (typed-in name), a removed worker or one without a mobile is skipped: no text and no log row",
+      piesa: "never on this text (electricians get their own link, Part 6)",
+      key: "daily:{business}:{Melbourne date}:w:{worker} (unchanged)",
+    },
   },
   quoteValidity: {
     validDays: 30,

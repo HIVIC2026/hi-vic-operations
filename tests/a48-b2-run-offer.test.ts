@@ -1,11 +1,11 @@
 // A48 batch 2, Task 6: the installer's run — route order + arrival windows (pure), Jo's one tap "Send to installer"
-// (offerRun: the exact approved installer text, once), the installer's run page (address, owner name + phone where the
+// (offerRun: one run_offered claim per home, once; the installer text was retired by Part 7 Task 9), the installer's run page (address, owner name + phone where the
 // owner agreed to share, m² with its source, the quick-tap answers incl. roof shape), removing homes (back to the pool,
 // owner not told), `empty run` (every home removed → the run ends, nothing to owners), decline / 24 h no reply → the
 // passers are batch candidates again with their standing pass (owners not asked again). In-memory fake database.
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { orderRun, windowsFor, runOfferedText } from "../src/lib/run-route.core";
+import { orderRun, windowsFor } from "../src/lib/run-route.core";
 import { passHandedOn } from "../src/lib/area-batch.core";
 import { SMS_FRESHNESS, SMS_MESSAGE_TYPES } from "../src/lib/sms.core";
 
@@ -172,29 +172,23 @@ describe("orderRun / windowsFor", () => {
 
 // ---- the text type ---------------------------------------------------------------------------------------------------
 describe("run_offered text type", () => {
-  test("partner audience, approved wording, quiet hours, one-off (24h), its own switch (off unless switched on)", () => {
-    expect(SMS_MESSAGE_TYPES.run_offered).toMatchObject({ audience: "partner", wordingApproved: true, quietHours: true });
+  test("retired 2 Nov 2026 (Part 7 Task 9): kept for history, never approved", () => {
+    expect(SMS_MESSAGE_TYPES.run_offered).toMatchObject({ audience: "partner", wordingApproved: false });
+    expect(SMS_MESSAGE_TYPES.run_offered.label.startsWith("Retired 2 Nov 2026 —")).toBe(true);
     expect(SMS_FRESHNESS.run_offered).toEqual({ kind: "event", maxAgeMinutes: 24 * 60 });
-  });
-  test("exact approved wording", () => {
-    expect(runOfferedText({ name: "Sam Smith", homes: 8, suburb: "Box Hill", link: "https://x/field/run/1" }))
-      .toBe("Hi Sam, you've got a run of 8 Ready Checks around Box Hill. Pick your day: https://x/field/run/1 - Home Insulation Victoria");
-    expect(runOfferedText({ name: null, homes: 1, suburb: "Box Hill", link: "L" })).toBe("Hi there, you've got a run of 1 Ready Checks around Box Hill. Pick your day: L - Home Insulation Victoria");
   });
 });
 
 // ---- Jo's tap: offerRun -----------------------------------------------------------------------------------------------
 describe("offerRun (Jo taps Send to installer)", () => {
   beforeEach(seed);
-  test("sends the exact installer text ONCE to the installer Jo picked at Send; one run_offered per home in route order", async () => {
+  test("records the run ONCE for the installer Jo picked at Send; one run_offered per home in route order; nobody is texted (Part 7 Task 9)", async () => {
     for (const id of ["a", "b", "c", "d"]) addJob(id);
     closedBatch("b1", ["a", "b", "c", "d"]);
     now(1);
     const r = await R.offerRun("b1", "u-jo", { now: new Date(clock) });
-    expect(r.homes).toBe(4);
-    const link = `https://estimate.homeinsulationvictoria.com.au/field/run/${r.runId}`;
-    expect(sent).toEqual([{ via: "real-sms", to: "0411111111", type: "run_offered", businessId: "biz-1", key: `run-offered-sms:v1:${r.runId}:1`,
-      body: `Hi Sam, you've got a run of 4 Ready Checks around Box Hill. Pick your day: ${link} - Home Insulation Victoria` }]);
+    expect(r).toEqual({ runId: r.runId, installer: "Sample Insulation", homes: 4 });
+    expect(sent).toEqual([]);
     const offered = events("run_offered");
     expect(offered.map((e) => e["job_id"]).sort()).toEqual(["a", "b", "c", "d"]);
     const d0 = offered[0]!["details"] as Row;
@@ -203,7 +197,7 @@ describe("offerRun (Jo taps Send to installer)", () => {
     expect(d0["job_ids"]).toEqual(orderRun(["a", "b", "c", "d"].map((j) => ({ jobId: j, lat: PLACES[j]![2][1], lng: PLACES[j]![2][0] }))));
     // a second tap: refused, nothing more sent or written
     await expect(R.offerRun("b1", "u-jo", { now: new Date(clock) })).rejects.toThrow(/already/);
-    expect(sent.length).toBe(1);
+    expect(sent).toEqual([]);
     expect(events("run_offered").length).toBe(4);
   });
   test("the batch leaves Ready to send once offered; its homes stay out of new batches while offered", async () => {
@@ -222,14 +216,15 @@ describe("offerRun (Jo taps Send to installer)", () => {
     const r = await R.offerRun("b1", "u-jo", { now: new Date(clock) });
     expect(r.homes).toBe(1);
     expect(events("run_offered").map((e) => e["job_id"])).toEqual(["a"]);
-    expect(sent[0]!.body).toContain("a run of 1 Ready Checks");
+    expect(sent).toEqual([]);
   });
-  test("TEST batch → test-send (TEST app link), never the real sender", async () => {
+  test("TEST batch: the run is recorded the same way, nothing goes through the test sender either", async () => {
     addJob("a", { source: "qa_test" });
     closedBatch("bt", ["a"], "biz-t");
     now(1);
     const r = await R.offerRun("bt", "u-jo", { now: new Date(clock) });
-    expect(sent).toEqual([{ via: "test-sms", to: "0433333333", label: `run_offered:${r.runId}`, body: `Hi there, you've got a run of 1 Ready Checks around Box Hill. Pick your day: ${TEST_BASE}/field/run/${r.runId} - Home Insulation Victoria` }]);
+    expect(r.homes).toBe(1);
+    expect(sent).toEqual([]);
   });
   test("refused when the batch has no waiting passers, or isn't a closed batch", async () => {
     addJob("a");
@@ -243,57 +238,23 @@ describe("offerRun (Jo taps Send to installer)", () => {
 });
 
 // ---- fix round 1 -------------------------------------------------------------------------------------------------------
-describe("fix round 1: refuse when the text would be held; resend a run whose text never went; coverage at tap time", () => {
+describe("fix round 1: coverage at tap time; a batch is sent once (no resend — the installer text is retired, Part 7 Task 9)", () => {
   beforeEach(seed);
   const ready = () => { for (const id of ["a", "b"]) addJob(id); closedBatch("b1", ["a", "b"]); now(1); };
   const ws = () => tables["workflow_settings"]![0]!;
-  for (const [what, set] of [
-    ["the run_offered switch is off", () => { ws()["sms_message_switches"] = { run_offered: false }; }],
-    ["customer messages are off", () => { ws()["customer_comms_enabled"] = false; }],
-    ["trade messages are paused", () => { ws()["trade_messages_paused"] = true; }],
-  ] as const) {
-    test(`real run refused when ${what}: no run_offered, no text`, async () => {
-      ready(); set();
-      await expect(R.offerRun("b1", "u-jo", { now: new Date(clock) })).rejects.toThrow(/nothing was sent\.?$/i);
-      expect(events("run_offered")).toEqual([]);
-      expect(sent).toEqual([]);
-    });
-  }
-  test("no trade_messages_paused column (separate PR not merged) = not paused", async () => {
-    ready();
-    expect("trade_messages_paused" in ws()).toBe(false);
+  test("no text switch, customer messages off or trade messages paused: the run is still recorded (nothing is sent anyway)", async () => {
+    ready(); ws()["sms_message_switches"] = {}; ws()["customer_comms_enabled"] = false; ws()["trade_messages_paused"] = true;
     await R.offerRun("b1", "u-jo", { now: new Date(clock) });
-    expect(sent.length).toBe(1);
-  });
-  test("TEST runs skip the real-text checks (test-send only)", async () => {
-    addJob("a", { source: "qa_test" }); closedBatch("bt", ["a"], "biz-t"); now(1);
-    ws()["sms_message_switches"] = {};
-    await R.offerRun("bt", "u-jo", { now: new Date(clock) });
-    expect(sent.map((x) => x.via)).toEqual(["test-sms"]);
-  });
-  test("text held after the claim → the next tap re-texts the SAME run (no new claims); once it went → refused", async () => {
-    ready();
-    smsStatus = "blocked";
-    const r1 = await R.offerRun("b1", "u-jo", { now: new Date(clock) });
-    expect(r1.text.status).toBe("blocked");
+    expect(events("run_offered").length).toBe(2);
     expect(sent).toEqual([]);
-    expect(events("run_offered").length).toBe(2);
-    smsStatus = "sent"; now(2);
-    const r2 = await R.offerRun("b1", "u-jo", { now: new Date(clock) });
-    expect(r2.runId).toBe(r1.runId);
-    expect(r2.text.status).toBe("sent");
-    expect(sent.map((x) => [x.key, x.body.includes(`/field/run/${r1.runId}`)])).toEqual([[`run-offered-sms:v1:${r1.runId}:2`, true]]);
-    expect(events("run_offered").length).toBe(2);
-    await expect(R.offerRun("b1", "u-jo", { now: new Date(clock) })).rejects.toThrow(/already been sent/);
-    expect(sent.length).toBe(1);
   });
-  test("a declined run is never re-texted by the tap", async () => {
+  test("a second tap on the same batch is refused, whatever the run's state", async () => {
     ready();
-    smsStatus = "failed";
     const r1 = await R.offerRun("b1", "u-jo", { now: new Date(clock) });
-    await R.declineRun(r1.runId, "u-sam");
-    smsStatus = "sent";
     await expect(R.offerRun("b1", "u-jo", { now: new Date(clock) })).rejects.toThrow(/already been sent/);
+    await R.declineRun(r1.runId, "u-sam");
+    await expect(R.offerRun("b1", "u-jo", { now: new Date(clock) })).rejects.toThrow(/already been sent/);
+    expect(events("run_offered").length).toBe(2);
     expect(sent).toEqual([]);
   });
   test("installer can't be offered every home any more (e.g. not taking jobs / area) → refused, nothing written", async () => {
@@ -443,33 +404,17 @@ describe("remove, empty run, decline, 24 h expiry", () => {
 });
 
 // ---- final review fixes (I1, I2) -----------------------------------------------------------------------------------------
-describe("final review I1: a run whose installer text never went", () => {
+describe("final review I1: a run nobody answers", () => {
   beforeEach(seed);
   const ready = () => { for (const id of ["a", "b"]) addJob(id); closedBatch("b1", ["a", "b"]); now(1); };
-  test("stays listed as \"Text didn't go — Send again\"; the tap re-texts the same run; then it leaves the list", async () => {
+  test("the batch leaves Ready to send the moment its run exists; the sweep expires the run 24 h after the offer: owners back in the pool with their standing pass", async () => {
     ready();
-    smsStatus = "blocked";
     const r1 = await R.offerRun("b1", "u-jo", { now: new Date(clock) });
-    const listed = await A.batchesReadyToSend({ now: now(2) });
-    expect(listed.map((b) => [b.batchId, b.state, b.runId, b.installer.id, b.homes.map((h) => h.jobId).sort()])).toEqual([["b1", "text_not_sent", r1.runId, "biz-1", ["a", "b"]]]);
-    smsStatus = "sent";
-    const r2 = await R.offerRun("b1", "u-jo", { now: new Date(clock) });
-    expect(r2.runId).toBe(r1.runId);
-    expect(sent.length).toBe(1);
-    expect(await A.batchesReadyToSend({ now: now(3) })).toEqual([]);
-  });
-  test("no text went → the sweep expires the run 24 h after the offer: owners back in the pool with their standing pass", async () => {
-    ready();
-    smsStatus = "blocked";
-    const r1 = await R.offerRun("b1", "u-jo", { now: new Date(clock) });
+    expect(await A.batchesReadyToSend({ now: now(2) })).toEqual([]);
     await R.sweepRunOffers(at(24.9));
     expect(events("run_expired")).toEqual([]);
-    // past 24 h but before the sweep: Send again is refused (the run is about to expire), and the batch isn't listed
     now(25.05);
-    expect(await A.batchesReadyToSend({ now: new Date(clock) })).toEqual([]);
-    smsStatus = "sent";
     await expect(R.offerRun("b1", "u-jo", { now: new Date(clock) })).rejects.toThrow(/nothing was sent/);
-    expect(sent).toEqual([]);
     await R.sweepRunOffers(at(25.1));
     expect(events("run_expired").map((e) => [e["job_id"], (e["details"] as Row)["run_id"]]).sort()).toEqual([["a", r1.runId], ["b", r1.runId]]);
     expect((await candidates()).map((x) => [x.jobId, x.carriedPass]).sort()).toEqual([["a", true], ["b", true]]);
@@ -488,7 +433,7 @@ describe("final review I2: passers never stuck", () => {
     expect(b!.installer.id).toBe("biz-1");
     expect(b!.installers.map((i) => i.id)).toEqual(["biz-1", "biz-2"]);
   });
-  test("the original installer can't take the homes → Jo sends to another covering installer; the run and text go to them", async () => {
+  test("the original installer can't take the homes → Jo sends to another covering installer; the run goes to them", async () => {
     ready();
     installerFacts = [fact("biz-1", { service_postcodes: ["3000"] }), fact("biz-2")];
     const [b] = await A.batchesReadyToSend({ now: new Date(clock) });
@@ -496,7 +441,7 @@ describe("final review I2: passers never stuck", () => {
     await expect(R.offerRun("b1", "u-jo", { now: new Date(clock) })).rejects.toThrow(/can't be offered every home/);
     const r = await R.offerRun("b1", "u-jo", { now: new Date(clock), businessId: "biz-2" });
     expect(r.installer).toBe("Other Insulation");
-    expect(sent.map((x) => [x.to, x.businessId])).toEqual([["0422222222", "biz-2"]]);
+    expect(sent).toEqual([]);
     expect(events("run_offered").map((e) => (e["details"] as Row)["business_id"])).toEqual(["biz-2", "biz-2"]);
     expect((await R.tradeRun(r.runId, "u-olive")).homes.length).toBe(2);
   });
@@ -506,16 +451,6 @@ describe("final review I2: passers never stuck", () => {
     await expect(R.offerRun("b1", "u-jo", { now: new Date(clock), businessId: "biz-2" })).rejects.toThrow(/can't be offered every home/);
     expect(events("run_offered")).toEqual([]);
     expect(sent).toEqual([]);
-  });
-  test("Send again goes to the run's own installer; another installer is refused", async () => {
-    ready();
-    smsStatus = "blocked";
-    await R.offerRun("b1", "u-jo", { now: new Date(clock) });
-    smsStatus = "sent";
-    await expect(R.offerRun("b1", "u-jo", { now: new Date(clock), businessId: "biz-2" })).rejects.toThrow(/nothing was sent/);
-    expect(sent).toEqual([]);
-    await R.offerRun("b1", "u-jo", { now: new Date(clock), businessId: "biz-1" });
-    expect(sent.map((x) => x.to)).toEqual(["0411111111"]);
   });
   test("Back to suggestions: the passers are batch candidates again with their standing pass; the batch leaves the list; once", async () => {
     ready();
@@ -529,20 +464,19 @@ describe("final review I2: passers never stuck", () => {
     expect(events("area_batch_returned").length).toBe(2);
     expect(sent).toEqual([]);
   });
-  test("Back to suggestions on a run whose text never went ends that run (nothing sent); refused once the text went", async () => {
+  test("Back to suggestions on a run the installer hasn't answered ends that run (nothing sent); refused once the installer answered", async () => {
     ready();
-    smsStatus = "blocked";
     const r1 = await R.offerRun("b1", "u-jo", { now: new Date(clock) });
     await R.returnBatchToSuggestions("b1", "u-jo");
     expect((await R.tradeRun(r1.runId, "u-sam")).status).toBe("expired");
     expect((await candidates()).map((x) => [x.jobId, x.carriedPass]).sort()).toEqual([["a", true], ["b", true]]);
     expect(await A.batchesReadyToSend({ now: now(2) })).toEqual([]);
     expect(sent).toEqual([]);
-    // another batch whose run text went: refused, nothing written
+    // another batch whose run the installer declined (answered): refused, nothing written
     for (const id of ["c", "d"]) addJob(id);
     closedBatch("b2", ["c", "d"]);
-    smsStatus = "sent";
-    await R.offerRun("b2", "u-jo", { now: now(3) });
+    const r2 = await R.offerRun("b2", "u-jo", { now: now(3) });
+    await R.declineRun(r2.runId, "u-sam");
     await expect(R.returnBatchToSuggestions("b2", "u-jo")).rejects.toThrow(/already been sent to the installer/);
     expect(events("area_batch_returned").filter((e) => (e["details"] as Row)["batch_id"] === "b2")).toEqual([]);
   });
@@ -557,7 +491,8 @@ describe("wiring", () => {
   test("final review: Send again / Back to suggestions / installer choice are office-only and wired", () => {
     const src = (p: string) => readFileSync(p, "utf8");
     const ui = src("src/components/portal/choose-installer.tsx");
-    for (const s of ["Text didn't go — Send again", "Send again", "Back to To release", "returnBatchFn"]) expect(ui).toContain(s);
+    for (const s of ["Back to To release", "returnBatchFn"]) expect(ui).toContain(s);
+    expect(ui).not.toMatch(/Send again|text_not_sent/); // Part 7 Task 9: no installer text, so no resend state
     const fns = src("src/lib/installer-run.functions.ts");
     expect(fns).toMatch(/export const returnBatchFn = createServerFn\(\{ method: "POST" \}\)\.middleware\(\[requireSupabaseAuth\]\)/);
     expect(fns.slice(fns.indexOf("export const returnBatchFn"))).toMatch(/requireOfficeIdentity[\s\S]*qa_office/);

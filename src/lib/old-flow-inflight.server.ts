@@ -1,11 +1,13 @@
-// Part 3 Task 18 + Part 4 Task 14: REAL jobs still at an old step (pre-acceptance and after-acceptance), optionally for
-// one installer. READ-ONLY (selects only). Shared by scripts/old-flow-inflight-count.ts and the new-flow move check.
+// Part 3 Task 18 + Part 4 Task 14 + Part 7 Task 9: REAL jobs still at an old step (pre-acceptance, after-acceptance and the
+// trade side: pending offers, open runs, owner-suggested days), optionally for one installer. READ-ONLY (selects only).
+// Shared by scripts/old-flow-inflight-count.ts and the new-flow move check.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import {
-  OLD_FLOW_STEPS_P3, OLD_FLOW_STEPS_P4, RUN_SLOT_END_EVENTS, jobsApprovingFixesQuote, jobsConfirmingRunWindow, jobsPickingFixesTime, jobsPickingInstallDays,
-  jobsPickingPiesaTimes, jobsPickingReadyCheckTimes, jobsWithElectricianOfferOpen,
+  OLD_FLOW_STEPS_P3, OLD_FLOW_STEPS_P4, OLD_FLOW_STEPS_P7, RUN_SLOT_END_EVENTS, jobsApprovingFixesQuote, jobsConfirmingRunWindow, jobsPickingFixesTime, jobsPickingInstallDays,
+  jobsPickingPiesaTimes, jobsPickingReadyCheckTimes, jobsWithElectricianOfferOpen, jobsWithOwnerSuggestedDays, jobsWithPendingOffer,
 } from "./old-flow-steps.core";
 import { READY_CHECK_TIME_NOTE } from "./ready-check-times.core";
+import { RUN_EVENTS, RUN_OFFERED_EVENT, isFillRow, runIdOf, runState, type RunEventRow } from "./run-route.core";
 
 const PAGE = 1000;
 async function all<T>(q: (from: number, to: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>): Promise<T[]> {
@@ -24,13 +26,22 @@ export type OldStepJobs = { step: string; count: number; jobNumbers: string[] };
  *  only jobs that installer is assigned to (or started). Errors throw (fail closed). */
 export async function oldStepJobs(businessId?: string, now = new Date()): Promise<OldStepJobs[]> {
   const nowIso = now.toISOString();
-  const times = await all<{ job_id: string; status: string; starts_at: string }>((a, b) =>
-    admin.from("appointment_proposals").select("job_id, status, starts_at").eq("kind", "ready_check").eq("note", READY_CHECK_TIME_NOTE).eq("status", "proposed").gt("starts_at", nowIso).range(a, b));
+  const times = await all<{ job_id: string; status: string; starts_at: string; proposer_role: string }>((a, b) =>
+    admin.from("appointment_proposals").select("job_id, status, starts_at, proposer_role").eq("kind", "ready_check").eq("note", READY_CHECK_TIME_NOTE).eq("status", "proposed").gt("starts_at", nowIso).range(a, b));
   const slots = await all<{ job_id: string; event_type: string; created_at: string }>((a, b) =>
     admin.from("workflow_events").select("job_id, event_type, created_at").in("event_type", ["run_slot_proposed", ...RUN_SLOT_END_EVENTS]).order("created_at", { ascending: true }).range(a, b));
   // Part 4: electrician offers, electrician-offered safety check times, issued fixes quotes, fixes windows, installer-offered install days.
-  const offers = await all<{ job_id: string; status: string; expires_at: string | null }>((a, b) =>
-    admin.from("partner_offers").select("job_id, status, expires_at").eq("kind", "piesa").eq("status", "pending").range(a, b));
+  // Part 7 Task 9: pending trade offers (any kind) — the Part 4 electrician-offer step reads the piesa ones from the same rows.
+  const allOffers = await all<{ job_id: string; kind: string; status: string; expires_at: string | null }>((a, b) =>
+    admin.from("partner_offers").select("job_id, kind, status, expires_at").eq("status", "pending").range(a, b));
+  const offers = allOffers.filter((o) => o.kind === "piesa");
+  const runEvents = await all<RunEventRow>((a, b) =>
+    admin.from("workflow_events").select("job_id, event_type, created_at, details").in("event_type", [...RUN_EVENTS]).order("created_at", { ascending: true }).range(a, b));
+  const openRuns = new Set<string>();
+  for (const runId of new Set(runEvents.filter((e) => e.event_type === RUN_OFFERED_EVENT && !isFillRow(e)).map(runIdOf).filter((x): x is string => !!x))) {
+    const st = runState(runId, runEvents);
+    if (st && (st.status === "offered" || st.status === "answered")) for (const id of st.memberIds) openRuns.add(id);
+  }
   const piesaTimes = await all<{ job_id: string; proposer_role: string | null; status: string; starts_at: string; piesa_window_round: number | null; electrician_window: boolean | null; install_day: boolean | null }>((a, b) =>
     admin.from("appointment_proposals").select("job_id, proposer_role, status, starts_at, piesa_window_round, electrician_window, install_day").eq("kind", "assessment").eq("status", "proposed").gt("starts_at", nowIso).range(a, b));
   const fixesQuotes = await all<{ job_id: string; kind: string; status: string }>((a, b) =>
@@ -47,6 +58,9 @@ export async function oldStepJobs(businessId?: string, now = new Date()): Promis
     "owner approving an electrical fixes quote": jobsApprovingFixesQuote(fixesQuotes),
     "owner picking a fixes time": jobsPickingFixesTime(fixesWindows, now),
     "owner picking install days": jobsPickingInstallDays(installDays, now),
+    "trade offer waiting for a reply": jobsWithPendingOffer(allOffers, now),
+    "installer run still open": [...openRuns],
+    "owner-suggested Ready Check days waiting for the installer": jobsWithOwnerSuggestedDays(times, now),
   };
   const candidates = [...new Set(Object.values(byStep).flat())];
   const real = new Map<string, string>();
@@ -66,7 +80,7 @@ export async function oldStepJobs(businessId?: string, now = new Date()): Promis
       real.set(j.id, String(j.job_number ?? j.id));
     }
   }
-  return [...OLD_FLOW_STEPS_P3, ...OLD_FLOW_STEPS_P4].map((s) => {
+  return [...OLD_FLOW_STEPS_P3, ...OLD_FLOW_STEPS_P4, ...OLD_FLOW_STEPS_P7].map((s) => {
     const jobs = (byStep[s.step] ?? []).filter((id) => real.has(id));
     return { step: s.step, count: jobs.length, jobNumbers: jobs.map((id) => real.get(id)!) };
   });

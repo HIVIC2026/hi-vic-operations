@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { greeting, matchesSearch, myWorkCards, offerCard, reasonFor } from "../src/lib/my-work.core";
+import { greeting, matchesSearch, myWorkCards, reasonFor } from "../src/lib/my-work.core";
 import { nextStepBox, type NextStepFacts } from "../src/lib/next-step-box.core";
 
 // Melbourne is UTC+11 in November (AEDT).
@@ -71,12 +71,10 @@ describe("cards", () => {
     expect(reasonFor("waiting_quote", { title: "Waiting for the owner to decide" })).toBe("Waiting for the owner");
     expect(reasonFor("closed")).toBeTruthy();
   });
-  test("a pending job offer is a Your turn card", () => {
-    const o = offerCard({ id: "off1", jobId: "jo", suburb: "Ringwood" });
-    expect(o).toMatchObject({ step: "Job offer", button: "View offer", yours: true, offerId: "off1" });
-    const { yourTurn, all } = myWorkCards([row("m")], [{ id: "off1", jobId: "jo", suburb: "Ringwood" }]);
-    expect(yourTurn[0]!.step).toBe("Job offer");
-    expect(all.length).toBe(2);
+  test("Part 7 Task 9: there is no Job offer card (nobody is offered a job; the installer calls and books)", () => {
+    const { yourTurn, all } = myWorkCards([row("m")]);
+    expect(yourTurn.length).toBe(1); expect(all.length).toBe(1);
+    expect(JSON.stringify(myWorkCards([row("m")]))).not.toContain("Job offer");
   });
 });
 

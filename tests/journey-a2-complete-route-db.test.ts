@@ -209,13 +209,13 @@ describe("A2 step 2 — Save my spot (decision 388), Jo's area batch Send and th
     expect(await q("select id from partner_offers where job_id=$1", [JOB])).toHaveLength(0);
     expect(await events(JOB, "run_offered")).toHaveLength(0);
   });
-  test("Jo taps \"Send to installer\": ONE run for the installer she picked, the installer texted once; a second tap is refused", async () => {
+  test("Jo taps \"Send to installer\": ONE run for the installer she picked, nobody texted (Part 7 Task 9); a second tap is refused", async () => {
     const ir = await import("../src/lib/installer-run.functions");
     await expect(ir.offerRunFn({ data: { batchId: BATCH }, context: instCtx })).rejects.toThrow();
-    const r = await ir.offerRunFn({ data: { batchId: BATCH }, context: officeCtx }) as { runId: string; homes: number; text: { status: string } };
+    const r = await ir.offerRunFn({ data: { batchId: BATCH }, context: officeCtx }) as { runId: string; homes: number };
     await settle();
     debug("RUN-OFFER", r, await recent(JOB));
-    expect(r).toMatchObject({ homes: 1, text: { status: "sent" } });
+    expect(r).toMatchObject({ homes: 1 });
     RUN = r.runId;
     expect((await events(JOB, "run_offered")).map((e) => [e.details["run_id"], e.details["business_id"]])).toEqual([[RUN, BIZ]]);
     await expect(ir.offerRunFn({ data: { batchId: BATCH }, context: officeCtx })).rejects.toThrow(/already been sent/);

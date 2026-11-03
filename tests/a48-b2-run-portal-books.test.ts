@@ -123,7 +123,7 @@ mock.module("../src/lib/booking.server", () => ({
 }));
 const followOns: string[] = [];
 mock.module("../src/lib/mitti-create.server", () => ({ onReadyCheckBooked: async (j: string) => { followOns.push(`mitti:${j}`); } }));
-mock.module("../src/lib/installer-texts.server", () => ({ textInstallerReadyCheckBooked: async (j: string) => { followOns.push(`installer-text:${j}`); } }));
+mock.module("../src/lib/installer-texts.server", () => ({ textTradeOwnerChangedVisit: async () => { followOns.push("owner-changed-text"); } }));
 
 const R = await import("../src/lib/installer-run.server");
 const A = await import("../src/lib/area-batch.server");
@@ -315,7 +315,7 @@ describe("owner: confirm / can't make it / none suit", () => {
     await R.ownerConfirmRunSlot(j, "u-owner", { now: new Date(clock) });
     await R.ownerConfirmRunSlot(j, "u-owner", { now: new Date(clock) });
     expect(booked).toEqual([{ jobId: j, kind: "ready_check", start: "2026-10-26T22:00:00.000Z", actor: "u-owner", role: "owner (run window)" }]);
-    expect(followOns).toEqual([`mitti:${j}`, `installer-text:${j}`]);
+    expect(followOns).toEqual([`mitti:${j}`]); // Part 7 Task 9: no "Booked: Ready Check" installer text
     expect(tables["job_assignments"]!.filter((a) => a["job_id"] === j && a["active"] === true).map((a) => [a["business_id"], a["user_id"], a["role"]])).toEqual([["biz-1", "u-sam", "installer"]]);
     expect(events("run_slot_confirmed", j).length).toBe(1);
     expect((await R.ownerRunSlotState(j, { now: new Date(clock) })).kind).toBe("confirmed");
@@ -805,31 +805,18 @@ describe("fix round 3", () => {
   });
 });
 
-describe("installer's 24 h count from the first run text that went", () => {
+describe("installer's 24 h count from Jo's tap (the run text is retired, Part 7 Task 9)", () => {
   beforeEach(seed);
-  test("held first text, re-texted at hour 6 → expires 24 h after the text that went (not 24 h after the offer)", async () => {
+  test("no reply → expires 24 h after the offer (owners back in the pool, not stranded)", async () => {
     for (const id of ["a", "b"]) addJob(id);
     closedBatch("b1", ["a", "b"]);
-    now(1); smsStatus = "blocked";
+    now(1);
     const r1 = await R.offerRun("b1", "u-jo", { now: new Date(clock) });
-    smsStatus = "sent";
-    now(6); await R.offerRun("b1", "u-jo", { now: new Date(clock) });
-    now(25.5); await R.sweepRunOffers(at(25.5));
-    expect(events("run_expired")).toEqual([]);
-    now(29.9); await R.sweepRunOffers(at(29.9));
-    expect(events("run_expired")).toEqual([]);
-    now(30.1); await R.sweepRunOffers(at(30.1));
-    expect(events("run_expired").map((e) => (e["details"] as Row)["run_id"])).toEqual([r1.runId, r1.runId]);
-  });
-  test("final review I1: held and never re-texted → expires 24 h after the offer (owners back in the pool, not stranded)", async () => {
-    for (const id of ["a", "b"]) addJob(id);
-    closedBatch("b1", ["a", "b"]);
-    now(1); smsStatus = "blocked";
-    const r1 = await R.offerRun("b1", "u-jo", { now: new Date(clock) });
+    expect(sent).toEqual([]);
     await R.sweepRunOffers(at(24.9));
     expect(events("run_expired")).toEqual([]);
     await R.sweepRunOffers(at(25.1));
-    expect(events("run_expired").map((e) => [(e["details"] as Row)["run_id"], (e["details"] as Row)["reason"]])).toEqual([[r1.runId, "text_not_sent"], [r1.runId, "text_not_sent"]]);
+    expect(events("run_expired").map((e) => (e["details"] as Row)["run_id"])).toEqual([r1.runId, r1.runId]);
     expect((await candidates()).map((c) => [c.jobId, c.carriedPass]).sort()).toEqual([["a", true], ["b", true]]);
   });
 });

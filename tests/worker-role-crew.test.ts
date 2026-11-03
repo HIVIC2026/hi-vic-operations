@@ -4,7 +4,6 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { certOrFilter, effectiveWorkerRole, mittiEmailFor, roleSwitchMittiAction, sameWorkerEmail, canChangeWorkerRole } from "../src/lib/worker-role.core";
 import { CREW_SKIP, mittiInviteStep, type InvitePerson } from "../src/lib/mitti-invite.core";
-import { CREW_REMINDER_EMAIL_APPROVED, crewReminderBlocker, crewReminderDue, crewReminderEmail, crewReminderKey } from "../src/lib/crew-reminder.core";
 import { collectionNoticeStatus, ackFromEventDetails, COLLECTION_NOTICE_SHA256 } from "../src/lib/esc-collection-notice.core";
 
 describe("1. people without an email", () => {
@@ -61,31 +60,5 @@ describe("2. Lead / Crew", () => {
   });
 });
 
-describe("3. crew reminder email", () => {
-  // Install 29 Oct 2026 08:00 Melbourne (AEDT, UTC+11) = 28 Oct 21:00Z.
-  const start = "2026-10-28T21:00:00Z";
-  test("due from 2pm Melbourne the day before, not before, not on install day", () => {
-    expect(crewReminderDue(new Date("2026-10-28T02:59:00Z"), start)).toBe(false); // 1:59pm 28 Oct
-    expect(crewReminderDue(new Date("2026-10-28T03:00:00Z"), start)).toBe(true); // 2:00pm 28 Oct
-    expect(crewReminderDue(new Date("2026-10-28T12:59:00Z"), start)).toBe(true); // 11:59pm 28 Oct
-    expect(crewReminderDue(new Date("2026-10-28T13:00:00Z"), start)).toBe(false); // midnight → install day
-  });
-  const f = { bookingKind: "installation", bookingStatus: "confirmed", scheduledStart: start, crewSelected: false, alreadySent: false, jobDeleted: false, businessEmail: "boss@biz.com.au" };
-  const at2pm = new Date("2026-10-28T03:05:00Z");
-  test("only install bookings, not cancelled, with no crew picked, once per job + date, to a business email", () => {
-    expect(crewReminderBlocker(f, at2pm)).toBeNull();
-    expect(crewReminderBlocker({ ...f, bookingKind: "ready_check" }, at2pm)).toBe("not an install booking");
-    expect(crewReminderBlocker({ ...f, bookingStatus: "cancelled" }, at2pm)).toBe("booking cancelled");
-    expect(crewReminderBlocker({ ...f, crewSelected: true }, at2pm)).toBe("crew already picked");
-    expect(crewReminderBlocker({ ...f, alreadySent: true }, at2pm)).toBe("already sent for this install date");
-    expect(crewReminderBlocker({ ...f, businessEmail: null }, at2pm)).toBe("no business email on file");
-    expect(crewReminderKey("j1", "2026-10-29")).toBe("crew-reminder:v1:j1:2026-10-29");
-  });
-  test("draft wording exactly as approved for drafting; real sends off", () => {
-    expect(CREW_REMINDER_EMAIL_APPROVED).toBe(false);
-    expect(crewReminderEmail({ shortAddress: "12 Wattle St, Brighton", address: "12 Wattle St, Brighton 3186", jobLink: "https://x/field/j1" })).toEqual({
-      subject: "Pick the crew for tomorrow's install – 12 Wattle St, Brighton",
-      body: "Tomorrow's install at 12 Wattle St, Brighton 3186 has no Lead installer or crew picked yet. Please pick them on the job page so everyone gets their safety plan and the Mitti form is ready: https://x/field/j1",
-    });
-  });
-});
+// Part 7 Task 8 (Jo 2 Nov 2026): the 2pm crew reminder email (#110) is retired — replaced by the 9am two-days-before
+// Lead Installer confirm email (tests/lead-installer-confirm.test.ts).

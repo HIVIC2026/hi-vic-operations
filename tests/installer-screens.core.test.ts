@@ -148,10 +148,9 @@ describe("audit removals on the rebuilt screens", () => {
       expect(s).not.toMatch(/dayTile|8–10am|first trade to accept|Another trade accepted/);
     }
   });
-  test("B5: an offer that won't load shows Back to My work", () => {
+  test("B5 (superseded by Part 7 Task 9): the offer page is gone — every old offer link opens My work", () => {
     const page = read("src/routes/_authenticated/field.offer.$offerId.tsx");
-    const err = page.slice(page.indexOf("if (error)"), page.indexOf("if (!data)"));
-    expect(err).toContain('<Link to="/field" className={outlineLinkClass}>Back to My work</Link>');
-    expect(err).toContain("(error as Error).message");
+    expect(page).toMatch(/redirect\(\{ to: "\/field" \}\)/);
+    expect(page).not.toContain("component:");
   });
 });

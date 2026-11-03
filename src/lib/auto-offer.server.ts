@@ -8,8 +8,8 @@
 // Run from the 15-minute allocation tick, and straight after a "Not for me" (so the next match is not left waiting).
 // TEST jobs ARE offered automatically, to TEST partners only. Deleted jobs are excluded. A live job never reaches a TEST partner: the pure parity rule filters candidates here,
 // the candidate readers already
-// apply `partnerAllowedForJob`, and `assertOfferPairsAllowed` refuses any mismatch before a row is written. Offer
-// texts/emails for qa_test jobs go through test-send only (ready-check-offer-text.server), so nothing real is sent.
+// apply `partnerAllowedForJob`, and `assertOfferPairsAllowed` refuses any mismatch before a row is written. Since Part 7
+// Task 9 (Jo 2 Nov 2026) no installer offer text/email exists: an automatic Ready Check offer is a record the office sees.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { logEvent, piesaRequestFacts, stageEntryBlockers } from "./workflow.server";

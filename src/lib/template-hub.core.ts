@@ -39,8 +39,6 @@ import { renderInstallerAcceptedEmail, renderInstallerDeclinedEmail } from "./in
 import { renderApplicationReceivedEmail, changesEmail, declineEmail } from "./application-review.core";
 import { partnerWelcomeEmail, partnerEmailLayout } from "./partner-email.core";
 import { collectionNoticeEmail, noticeLinkEmail, noticeLinkSmsBody, COLLECTION_NOTICE_PARAGRAPHS } from "./esc-collection-notice.core";
-import { renderReadyCheckOfferEmail } from "./ready-check-offer-email.core";
-import { readyCheckOfferText } from "./ready-check-times.core";
 import { renderElectricianPiesaEmail } from "./electrician-piesa-copy.core";
 import { renderElectricianPiesaBooked } from "./electrician-piesa-booked-email.core";
 import { electricianCantDoEmail } from "./electrician-cant-do-email.core";
@@ -52,16 +50,13 @@ import { brandSmsBody } from "./sms.core";
 import { ownerWillCallEmail, ownerWillCallText } from "./owner-will-call.core";
 import { quickTapsLink, quickTapsReminderText } from "./area-batch.core";
 import { ownCustomerRentalTapsText, rentalOnlyLink } from "./rental-answers.core";
-import { runOfferedText } from "./run-route.core";
-import { runSlotCancelledText, windowWords } from "./run-portal.core";
 import { blastMessage } from "./save-spot-reminder-blast.core";
 import { threeQuestionsSms } from "./three-questions-reminder.core";
 import {
   visitTomorrowText,
   quoteReminderDay3Text, quoteReminderExpiryText, installMovedText,
 } from "./approved-texts.core";
-import { melbourneClock, readyCheckDaysSuggestedText, readyCheckBookedInstallerText, installTomorrowText, teamMemberInviteText, ownerChangedVisitText } from "./installer-texts.core";
-import { usualElectricianReminderBody } from "./usual-electrician.core";
+import { melbourneClock, installTomorrowText, teamMemberInviteText, ownerChangedVisitText } from "./installer-texts.core";
 import { readyCheckIncompleteText, readyCheckNearlyThereEmail } from "./ready-check-chase.core";
 import { dailyText, updateText, diffDay } from "./daily-mitti-text.core";
 import { bossPriceLinkText } from "./boss-price-link.core";
@@ -74,12 +69,15 @@ import { INSTALL_DAY_QUESTIONS, INSTALL_DAY_TEMPLATE_NAME } from "./install-day.
 import { FIXES_DAY_QUESTIONS, FIXES_DAY_TEMPLATE_NAME } from "./fixes-day.core";
 import { GATE_DOCS, RETIRED_DOC_KEYS, fillTemplate, ownerVersionLabel, paymentTermsText, paymentTermsMoney, type GateDocKey } from "./owner-gates.core";
 import { renderConsentBody, ESC_CONSENT_TEMPLATE_VERSION, OWNER_DECLARATIONS } from "./consent.core";
-import { SWMS_HAZARDS, SWMS_PREPARED_FOR, SWMS_SIGN_STATEMENT } from "./swms.core";
+import { SWMS_HAZARDS, SWMS_NOV2_WORDING_ON, SWMS_PREPARED_FOR, SWMS_RULE, SWMS_SIGN_STATEMENT } from "./swms.core";
 import { PRODUCT_WARRANTIES, warrantyTermText } from "./product-warranty.core";
 import { VEU_FACTSHEET_PATH, VEU_FACTSHEET_TITLE } from "./veu-factsheet.core";
 import { buildInvoicePayload } from "./xero.core";
 import { TRADE_INVITE_DRAFT, renderTradeInviteEmail } from "./trade-access.core";
 import { swmsSignLinkText } from "./swms-sign-text.core";
+import { mittiFormUrl } from "./mitti-link.core";
+import { renderLeadInstallerConfirm } from "./lead-installer-confirm.core";
+import { leadInstallerLock } from "./prestart.core";
 import { renderVisitNewTimesEmail, visitNewTimesText } from "./visit-new-times.core";
 import { ANSWER_CODES, ANSWER_SAMPLES, ANSWER_TYPES, renderOwnerAutoReplyEmail } from "./owner-email-auto-reply.core";
 import { renderLegacySpotReleasedEmail, renderSpotReleasedEmail } from "./spot-release-email.core";
@@ -553,22 +551,10 @@ const INSTALLER: TemplateEntry[] = [
   ENTRY({ id: "installer:sms-mitti_invite", section: "installer", step: "enquiry", kind: "text", code: "", name: "You've been invited to Mitti (text)", when: "With the Mitti invite email", who: "Installer or electrician", approvalNote: "Jo 25 Oct 2026, decision 331", gate: { kind: "text", smsType: "mitti_invite" },
     source: { builder: "src/lib/mitti-invite.core.ts", fn: "MITTI_INVITE_MESSAGE", sender: "src/lib/mitti-invite.server.ts" },
     render: () => text(MITTI_INVITE_MESSAGE) }),
-  ENTRY({ id: "installer:sms-usual_electrician_missing", section: "installer", step: "enquiry", kind: "text", code: "", name: "Add your usual electrician (text)", when: "A Ready Check names \"my usual electrician\" but My business has none", who: "Installer (business owner)", approvalNote: "Jo 24 Oct 2026, decisions 83/113", gate: { kind: "text", smsType: "usual_electrician_missing" },
-    source: { builder: "src/lib/usual-electrician.core.ts", fn: "usualElectricianReminderBody", sender: "src/lib/usual-electrician-reminder.server.ts" },
-    render: () => text(usualElectricianReminderBody("HV-TEST", `${BASE}/field/business`)) }),
+  // Part 7 Task 8 (Jo 2 Nov 2026): the "Add your usual electrician" text is retired (decisions 374/303 choose the electrician).
+  // Part 7 Task 9 (Jo 2 Nov 2026): the job offer email + text, "Owner suggested other days", "Ready Check booked" (installer),
+  // "You've got a run" and "An owner cancelled — fill the time" are retired: installers call the owner and book.
   // Ready Check
-  ENTRY({ id: "installer:job-offer", section: "installer", step: "ready_check", kind: "email", code: "", name: "New Ready Check job (offer email)", when: "The office (or the automatic offer) offers a lead to the installer", who: "Installer (business owner)", approvalNote: "Jo 24 Oct 2026, decision 76", gate: { kind: "email" },
-    source: { builder: "src/lib/ready-check-offer-email.core.ts", fn: "renderReadyCheckOfferEmail", sender: "src/lib/ready-check-offer-text.server.ts" },
-    render: () => email(renderReadyCheckOfferEmail({ installerFirstName: "Sam", suburb: "Glen Waverley", offerUrl: `${BASE}/field/offer/TEST`, areaM2: 137 })) }),
-  ENTRY({ id: "installer:sms-job_offer", section: "installer", step: "ready_check", kind: "text", code: "", name: "New Ready Check job (text)", when: "With the offer email (after 8pm: texted at 7am)", who: "Installer (business owner)", approvalNote: "Jo 24 Oct 2026, decisions 76/154/361", gate: { kind: "text", smsType: "job_offer" },
-    source: { builder: "src/lib/ready-check-times.core.ts", fn: "readyCheckOfferText", sender: "src/lib/ready-check-offer-text.server.ts" },
-    render: () => text(readyCheckOfferText("Glen Waverley", `${BASE}/field/offer/TEST`, 137)) }),
-  ENTRY({ id: "installer:sms-ready_check_days_suggested", section: "installer", step: "ready_check", kind: "text", code: "", name: "Owner suggested other days (text)", when: "The owner suggests other Ready Check days", who: "Installer (business owner)", approvalNote: "Jo 24 Oct 2026, decision 79", gate: { kind: "text", smsType: "ready_check_days_suggested" },
-    source: { builder: "src/lib/installer-texts.core.ts", fn: "readyCheckDaysSuggestedText", sender: "src/lib/installer-texts.server.ts" },
-    render: () => text(readyCheckDaysSuggestedText({ suburb: "Glen Waverley", jobNumber: "HV-TEST", link: FIELD })) }),
-  ENTRY({ id: "installer:sms-ready_check_booked_installer", section: "installer", step: "ready_check", kind: "text", code: "", name: "Ready Check booked (text)", when: "The owner picks a Ready Check time", who: "Installer (business owner)", approvalNote: "Jo 24 Oct 2026, decision 82 (text A)", gate: { kind: "text", smsType: "ready_check_booked_installer" },
-    source: { builder: "src/lib/installer-texts.core.ts", fn: "readyCheckBookedInstallerText", sender: "src/lib/installer-texts.server.ts" },
-    render: () => text(readyCheckBookedInstallerText({ startIso: RC_ISO, address: SHORT_ADDRESS, jobNumber: "HV-TEST", link: FIELD })) }),
   ENTRY({ id: "installer:sms-ready_check_incomplete", section: "installer", step: "ready_check", kind: "text", code: "", name: "Ready Check form missing answers (text)", when: "The Mitti Ready Check is missing answers or photos", who: "Installer", approvalNote: "Jo 22 Oct 2026", gate: { kind: "text", smsType: "ready_check_incomplete" },
     source: { builder: "src/lib/ready-check-chase.core.ts", fn: "readyCheckIncompleteText", sender: "src/lib/ready-check-chase.server.ts" },
     render: () => text(readyCheckIncompleteText("HV-TEST", SHORT_ADDRESS, ["finish and submit the form", "who is doing the electrical safety check"])) }),
@@ -578,14 +564,6 @@ const INSTALLER: TemplateEntry[] = [
   ENTRY({ id: "installer:sms-boss_price_link", section: "installer", step: "quote", kind: "text", code: "", name: "Enter your price (text)", when: "A1 Ready Check marked Complete with no price yet", who: "Installer (business owner)", approvalNote: "Jo 25 Oct 2026, decision 288", gate: { kind: "text", smsType: "boss_price_link" },
     source: { builder: "src/lib/boss-price-link.core.ts", fn: "bossPriceLinkText", sender: "src/lib/boss-price-link.server.ts" },
     render: () => text(bossPriceLinkText({ jobNumber: "HV-TEST", street: "824 High Street Road", link: `${FIELD}#price` })) }),
-  // A48 batch 2 part 2 (Jo 30 Oct 2026): Jo taps "Send to installer" on a closed area batch → the installer's run link.
-  ENTRY({ id: "installer:sms-run_offered", section: "installer", step: "ready_check", kind: "text", code: "", name: "You've got a run (text)", when: "Jo taps Send to installer on a closed batch (Jobs › Choose installer)", who: "Installer (business owner)", approvalNote: "Jo 30 Oct 2026 (A48 batch 2 part 2 spec)", gate: { kind: "text", smsType: "run_offered" },
-    source: { builder: "src/lib/run-route.core.ts", fn: "runOfferedText", sender: "src/lib/installer-run.server.ts" },
-    render: () => text(runOfferedText({ name: "Sam Sample", homes: 8, suburb: "Box Hill", link: `${BASE}/field/run/TEST-RUN` })) }),
-  // A48 batch 2 part 2, Task 8: an owner cancelled a confirmed window in the installer's run (wording approved by Jo 30 Oct 2026).
-  ENTRY({ id: "installer:sms-run_slot_cancelled", section: "installer", step: "ready_check", kind: "text", code: "", name: "An owner cancelled — fill the time (text)", when: "An owner in the installer's run cancels after confirming their window", who: "Installer (business owner)", approvalNote: "Jo 30 Oct 2026 (A48 batch 2 Task 8 fix round 1)", gate: { kind: "text", smsType: "run_slot_cancelled" },
-    source: { builder: "src/lib/run-portal.core.ts", fn: "runSlotCancelledText", sender: "src/lib/installer-run.server.ts" },
-    render: () => text(runSlotCancelledText({ name: "Sam Sample", day: "Tuesday 27 October", time: windowWords("09:00", "10:00"), link: `${BASE}/field/run/TEST-RUN` })) }),
   // Quote
   ENTRY({ id: "installer:I23", section: "installer", step: "quote", kind: "email", code: "I23", name: "Good news — the owner accepted", when: "The owner pays the safety check", who: "Installer", approvalNote: "Wording: Jo 2 Nov 2026, decision #36 (INSTALLER_ACCEPTED_V2_APPROVED stays false until Jo OKs the pictures; the earlier wording goes out until then)", gate: { kind: "email" },
     source: { builder: "src/lib/installer-accepted-email.core.ts", fn: "renderInstallerAcceptedEmail", sender: "src/lib/installer-accepted-email.server.ts" }, design: "docs/templates/mjml/installer_I23.mjml",
@@ -607,16 +585,19 @@ const INSTALLER: TemplateEntry[] = [
   // Install
   ENTRY({id:'installer:install-deposit-in-v2',section:'installer',step:'install',kind:'email',code:'',name:'Deposit in, ready to book',when:'In-house installation deposit confirmed, once per invoice. Replaces the Deposit paid wording once Jo flips DEPOSIT_MESSAGES_V2_APPROVED (same purpose and key)',who:'Installer office (email only)',approvalNote:'Jo 2 Nov 2026, touchpoint 45 (dep-inst-p.png)',gate:{kind:'email'},source:{builder:'src/lib/deposit-request-email.core.ts',fn:'renderInstallerDepositPaidEmail',sender:'src/lib/deposit-request.server.ts'},render:()=>email(renderInstallerDepositPaidEmail({...DEPOSIT_SAMPLE,name:'Helen',ownerFullName:'Helen Yang',bookUrl:`${JOB}`},true))}),
   ENTRY({id:'installer:install-deposit-paid',section:'installer',step:'install',kind:'email',code:'',name:'Deposit paid — book the install day',when:'In-house installation deposit confirmed, once per invoice',who:'Installer office (email only)',approvalNote:'Jo 1 Nov Task 6',gate:{kind:'email'},source:{builder:'src/lib/deposit-request-email.core.ts',fn:'renderInstallerDepositPaidEmail',sender:'src/lib/deposit-request.server.ts'},render:()=>email(renderInstallerDepositPaidEmail(DEPOSIT_SAMPLE))}),
-  ENTRY({ id: "installer:sms-install_tomorrow", section: "installer", step: "install", kind: "text", code: "", name: "Install tomorrow (text)", when: "The afternoon before the install (with safety plan links while unsigned)", who: "Lead installer", approvalNote: "Jo 24 Oct 2026, decision 99", gate: { kind: "text", smsType: "install_tomorrow" },
+  ENTRY({ id: "installer:lead-installer-confirm", section: "installer", step: "install", kind: "email", code: "", name: "Confirm or change your Lead Installer by 5pm today (email)", when: "9am Melbourne two days before each install (or at once when booked after 9am that day, until the 5pm lock), one per job + install date, to the installer business's office email; from 5pm the Lead Installer and the install day are locked (the ESC is told)", who: "Installer office", approvalNote: "DRAFT body (no approved wording yet; the heading and 5pm rule are Jo's 2 Nov 2026 \"Lead Installer / ESC 24h rule\") — LEAD_INSTALLER_CONFIRM_EMAIL_APPROVED stays false; real offices held, TEST → test-send", gate: { kind: "code_off", flag: "LEAD_INSTALLER_CONFIRM_EMAIL_APPROVED" },
+    source: { builder: "src/lib/lead-installer-confirm.core.ts", fn: "renderLeadInstallerConfirm", sender: "src/lib/lead-installer-confirm.server.ts" },
+    render: () => email(renderLeadInstallerConfirm({ jobNumber: "HV-TEST", owner: "Sample Owner", startIso: INSTALL_ISO, address: SHORT_ADDRESS, lead: "Sample Lead Installer", crew: ["Sample Crew One", "Sample Crew Two"], jobUrl: `${FIELD}`, lockLabel: leadInstallerLock(INSTALL_ISO).lockLabel })) }),
+  ENTRY({ id: "installer:sms-install_tomorrow", section: "installer", step: "install", kind: "text", code: "", name: "Install tomorrow (text)", when: "The afternoon before the install, to the Lead Installer's own mobile: their safety plan sign link + the Mitti install form (held with a reason when there is no Lead, no mobile or no install form yet)", who: "Lead Installer", approvalNote: "Jo 2 Nov 2026, decision #47 (replaces decision 99)", gate: { kind: "text", smsType: "install_tomorrow" },
     source: { builder: "src/lib/installer-texts.core.ts", fn: "installTomorrowText", sender: "src/lib/installer-texts.server.ts" },
-    render: () => text(installTomorrowText({ startIso: INSTALL_ISO, address: SHORT_ADDRESS, jobNumber: "HV-TEST", link: FIELD })) }),
+    render: () => text(installTomorrowText({ startIso: INSTALL_ISO, address: SHORT_ADDRESS, jobNumber: "HV-TEST", safetyPlanLink: `${FIELD}/safety-plan`, mittiLink: mittiFormUrl("sample-a5-audit") })) }),
   ENTRY({ id: "installer:sms-swms_sign_link", section: "installer", step: "install", kind: "text", code: "", name: "Sign the safety plan (text)", when: "Install booked, and the day before, to each crew member who hasn't signed the SWMS", who: "Each installer crew member", approvalNote: "Jo 25 Oct 2026, decisions 377/380", gate: { kind: "text", smsType: "swms_sign_link" },
     source: { builder: "src/lib/swms-sign-text.core.ts", fn: "swmsSignLinkText", sender: "src/lib/swms-sign-text.server.ts" },
     render: () => text(swmsSignLinkText({ address: SHORT_ADDRESS, startIso: INSTALL_ISO, link: `${FIELD}/safety-plan` })) }),
-  ENTRY({ id: "installer:sms-daily_mitti", section: "installer", step: "install", kind: "text", code: "", name: "Good morning — today's Mitti links (6:30am)", when: "6:30am on a job day", who: "Installer / electrician", approvalNote: "Jo, decision 154", gate: { kind: "text", smsType: "daily_mitti" },
+  ENTRY({ id: "installer:sms-daily_mitti", section: "installer", step: "install", kind: "text", code: "", name: "Good morning — today's Mitti links (6:30am)", when: "6:30am on an install day, to the worker allocated to it who has NOT yet signed its safety plan — their install line(s), Mitti link and their own sign link (signed = no text; Ready Check only = no text; never the business owner's mobile)", who: "Allocated worker who hasn't signed the SWMS", approvalNote: "Jo, decision 154; workers only since decision #26, unsigned workers only since Jo 2 Nov 2026 23:08", gate: { kind: "text", smsType: "daily_mitti" },
     source: { builder: "src/lib/daily-mitti-text.core.ts", fn: "dailyText", sender: "src/lib/daily-mitti-text.server.ts" },
     render: () => text(dailyText(DAY_JOBS, `${BASE}/field`)) }),
-  ENTRY({ id: "installer:sms-daily_mitti_update", section: "installer", step: "install", kind: "text", code: "", name: "Today's jobs changed (text)", when: "A job is added, moved or cancelled after the 6:30am text", who: "Installer / electrician", approvalNote: "Jo, decision 154", gate: { kind: "text", smsType: "daily_mitti_update" },
+  ENTRY({ id: "installer:sms-daily_mitti_update", section: "installer", step: "install", kind: "text", code: "", name: "Today's jobs changed (text)", when: "A job is added, moved or cancelled after the 6:30am text (same recipients: allocated workers who haven't signed that install's safety plan)", who: "Allocated worker who hasn't signed the SWMS", approvalNote: "Jo, decision 154; workers only since decision #26 (Jo 2 Nov 2026)", gate: { kind: "text", smsType: "daily_mitti_update" },
     source: { builder: "src/lib/daily-mitti-text.core.ts", fn: "updateText", sender: "src/lib/daily-mitti-text.server.ts" },
     render: () => text(updateText(diffDay([], DAY_JOBS), `${BASE}/field`)) }),
   ENTRY({ id: "installer:sms-electrician_cant_attend_installer", section: "installer", step: "install", kind: "text", code: "", name: "Electrician can't make the install day (text)", when: "The electrician who must be there at the start says they can't make it", who: "Installer", approvalNote: "Jo 25 Oct 2026, decision 327", gate: { kind: "text", smsType: "electrician_cant_attend_installer" },
@@ -757,10 +738,11 @@ const COMPLIANCE: TemplateEntry[] = [
       { label: "Filled sample (Word form printed)", path: "docs/templates/compliance/piisa-filler/piisa-sample-word.pdf", note: "Made by scripts/render-piisa-filler-sample.ts with the live filler" },
       { label: "Blank official form", path: "docs/official-forms/VEU-pre-installation-installer-safety-assessment-form-_3.docx", note: "Original DEECA Word file" },
     ] }) }),
-  ENTRY({ id: "compliance:swms", section: "compliance", step: "install", kind: "document", code: "", name: "Safety plan (SWMS)", when: "Built from job facts; each crew member signs on the job page before the install", who: "Installer crew (filed on the job)", approvalNote: "Jo 24–25 Oct 2026, decisions 262, 358, 364", gate: { kind: "always" },
+  ENTRY({ id: "compliance:swms", section: "compliance", step: "install", kind: "document", code: "", name: "Safety plan (SWMS)", when: "Built from job facts; the Lead Installer and each crew member sign before the install", who: "Lead Installer and crew (filed on the job)", approvalNote: `Jo 24–25 Oct 2026, decisions 262, 358, 364; Jo 2 Nov 2026 wording (Lead Installer, hazard 9, downlight step) ${SWMS_NOV2_WORDING_ON ? "in force" : "waits behind SWMS_NOV2_WORDING_ON until Part 11 switches it on"}`, gate: { kind: "always" },
     source: { builder: "src/lib/swms.core.ts", fn: "buildSwms", sender: "src/lib/swms-pdf.server.ts" },
     render: () => ({ kind: "files", items: [
-      { label: "Signed SWMS sample (PDF)", path: "docs/templates/compliance/swms/swms-sample.pdf", note: `Made by scripts/render-swms-sample.ts. Prepared for ${SWMS_PREPARED_FOR}; ${SWMS_HAZARDS.length} standard hazards; signers tick "${SWMS_SIGN_STATEMENT}".` },
+      { label: "Signed SWMS sample (PDF)", path: "docs/templates/compliance/swms/swms-sample.pdf", note: `Made by scripts/render-swms-sample.ts. Prepared for ${SWMS_PREPARED_FOR}; ${SWMS_HAZARDS.length} standard hazards (rule ${SWMS_RULE}); signers tick "${SWMS_SIGN_STATEMENT}".` },
+      { label: "Approved look (2 Nov 2026)", path: "docs/approved-samples/2026-11-02/swms-sample.pdf", note: "Jo's approved sample: the wording and layout the SWMS moves to (Part 7 Tasks 1–2)" },
     ] }) }),
   ENTRY({ id: "compliance:esc-consent", section: "compliance", step: "install", kind: "document", code: "", name: "ESC Owner's Consent Form (Template v1)", when: "Signed by the owner on the confirm-and-pay page (?screen=clear), then the AP; copy emailed (O63)", who: "Owner, AP", approvalNote: "Decision 123 (0226)", gate: { kind: "always" },
     source: { builder: "src/lib/consent.core.ts", fn: "renderConsentBody", sender: "src/lib/consent.server.ts" },

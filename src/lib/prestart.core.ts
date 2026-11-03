@@ -55,6 +55,27 @@ export const ESC_REMINDER_TITLES: Record<EscReminderCode, string> = {
   esc_reopened: "Install date changed after the ESC notification — update, or withdraw and resubmit",
 };
 
+// ── Lead Installer lock (Jo 2 Nov 2026, "Lead Installer / ESC 24h rule"). Part 9 Task 9 owns this rule — keep Part 9's
+// version at join (same names and shape: leadInstallerLock / leadInstallerLocked / LEAD_LOCKED_MESSAGE). Part 7 Task 6
+// added it here first so its email and the writers' refusals have the clock to read.
+/** ESC must know the Lead Installer ≥24h before the install: ONE office email at 9am TWO days before, locked from 5pm that day. */
+export const LEAD_CONFIRM_EMAIL_HOUR = 9;
+export const LEAD_LOCK_HOUR = 17;
+export const LEAD_LOCK_DAYS_BEFORE = 2;
+/** The approved line (plan Task 6), shown on the job and used as the server refusal. */
+export const LEAD_LOCKED_MESSAGE = "Locked: ESC has been told. Email us to move this install.";
+/** The 9am email instant and the 5pm lock instant (Melbourne, two days before the install's Melbourne day), as ISO. */
+export function leadInstallerLock(startIso: string): { emailAt: string; lockAt: string; lockLabel: string } {
+  const day = addDays(melbourneYmd(new Date(startIso)), -LEAD_LOCK_DAYS_BEFORE);
+  const lockAt = melbourneAt(day, LEAD_LOCK_HOUR);
+  const lockLabel = `${LEAD_LOCK_HOUR % 12}pm ${new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", weekday: "short", day: "numeric", month: "short" }).format(lockAt).replace(",", "")}`;
+  return { emailAt: melbourneAt(day, LEAD_CONFIRM_EMAIL_HOUR).toISOString(), lockAt: lockAt.toISOString(), lockLabel };
+}
+/** True from the lock instant on: the Lead Installer (and the install day) can't be changed by the installer any more. */
+export function leadInstallerLocked(startIso: string, now: Date): boolean {
+  return now.getTime() >= Date.parse(leadInstallerLock(startIso).lockAt);
+}
+
 /** 12pm Melbourne on the day before the install. */
 export function prestartRunAt(startIso: string): string {
   return melbourneAt(addDays(melbourneYmd(new Date(startIso)), -1), PRESTART_HOUR).toISOString();

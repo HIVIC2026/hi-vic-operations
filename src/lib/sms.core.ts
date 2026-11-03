@@ -29,10 +29,10 @@ export const SMS_MESSAGE_TYPES = {
   quote_ready: { audience: "owner", label: "Installation quote ready for the owner", wordingApproved: true /* decision 87 (Jo 24 Oct 2026), text B: ownerQuoteSms in owner-quote-email.core.ts */, quietHours: true },
   veec_sign_request: { audience: "owner", label: "Sign your rebate (VEEC assignment) form – install done (decision 120; wording approved 24 Oct, decision 166)", wordingApproved: true, quietHours: true },
   veec_sign_reminder: { audience: "owner", label: "Retired 2 Nov 2026 — Rebate form still needs your signature – days 1/3/7 (decision 120; wording approved 24 Oct, decision 168)", wordingApproved: false, quietHours: true },
-  usual_electrician_missing: { audience: "partner", label: "Add usual electrician details", wordingApproved: true /* decision 83 (Jo 24 Oct 2026), kept by decision 113: usualElectricianReminderBody */, quietHours: true },
+  usual_electrician_missing: { audience: "partner", label: "Retired 2 Nov 2026 — Add usual electrician details (decision 83/113; replaced by decisions 374/303: we choose the electrician). History labels only, never sent", wordingApproved: false, quietHours: true },
   // Decision #27: with READY_CHECK_CHASE_EMAIL_APPROVED on, this chase is an office email and no new text is sent (type kept for history).
   ready_check_incomplete: { audience: "partner", label: "Ready Check form missing answers/photos", wordingApproved: true /* Jo 22 Oct 22:57 */, quietHours: true },
-  job_offer: { audience: "partner", label: "New job offer to a trade", wordingApproved: true /* decision 76 wording; switched on by decision 154 (Jo 24 Oct) */, quietHours: true /* decision 361: after 8pm → texted at 7am by sweepJobOfferTexts */ },
+  job_offer: { audience: "partner", label: "Retired 2 Nov 2026 — New Ready Check job offer to an installer (decisions 76/154/361; Part 7 Task 9: installers call and book, no offers). History labels only, never sent", wordingApproved: false, quietHours: true },
   daily_mitti: { audience: "partner", label: "Daily Mitti links (6:30am)", wordingApproved: true, quietHours: false },
   daily_mitti_update: { audience: "partner", label: "Daily Mitti links update (job added/moved/cancelled)", wordingApproved: true, quietHours: false },
   // Decision 130: each installer person's secure link to the ESC privacy collection notice (+ 3/7-day reminders). Wording: decision 146; on since decision 154 (Jo 24 Oct).
@@ -43,10 +43,10 @@ export const SMS_MESSAGE_TYPES = {
   deposit_release: { audience: "owner", label: "Install day released – deposit not received within 48h (decision 170, deposit-release-notice.core.ts)", wordingApproved: true, quietHours: true },
   install_no_access: { audience: "owner", label: "We couldn't get in today – install day no access (decision 215, install-no-access-notice.core.ts). approved by Jo 24 Oct 2026 (decision 217)", wordingApproved: true, quietHours: true },
   install_clearance: { audience: "partner", label: "Retired 2 Nov 2026 — Installer told the job is cleared for install – offer 3 install days (decision 186, install-clearance.core.ts)", wordingApproved: false, quietHours: true },
-  // Decisions 79 / 82 / 99 (Jo 24 Oct 2026; built per decision 193): wording verbatim in installer-texts.core.ts.
-  ready_check_days_suggested: { audience: "partner", label: "Owner suggested other Ready Check days – installer to pick one and set a time (decision 79)", wordingApproved: true, quietHours: true },
-  ready_check_booked_installer: { audience: "partner", label: "Ready Check booked – owner details on the job (decision 82, installer text A)", wordingApproved: true, quietHours: true },
-  install_tomorrow: { audience: "partner", label: "Install tomorrow – job + forms link, the afternoon before (decision 99)", wordingApproved: true, quietHours: true },
+  // Decisions 79 / 82 (Jo 24 Oct 2026) were retired by Part 7 Task 9 (Jo 2 Nov 2026): the installer calls the owner and books.
+  ready_check_days_suggested: { audience: "partner", label: "Retired 2 Nov 2026 — Owner suggested other Ready Check days – installer to pick one and set a time (decision 79). History labels only, never sent", wordingApproved: false, quietHours: true },
+  ready_check_booked_installer: { audience: "partner", label: "Retired 2 Nov 2026 — Ready Check booked – owner details on the job (decision 82, installer text A). History labels only, never sent", wordingApproved: false, quietHours: true },
+  install_tomorrow: { audience: "partner", label: "Install tomorrow – to the Lead Installer's own mobile with the safety plan (own sign link) + Mitti install form links, the afternoon before (#47, Jo 2 Nov 2026; replaces decision 99's job + forms link)", wordingApproved: true, quietHours: true },
   // Decision 251: a business owner adds a team member → text that person their single-use /join login link. Wording
   // approved by Jo 24 Oct 2026 (decision 252, relayed by the coordinator): teamMemberInviteText in installer-texts.core.ts.
   team_member_invite: { audience: "partner", label: "Team member added – single-use login link to the new person (decision 251)", wordingApproved: true, quietHours: true },
@@ -120,18 +120,15 @@ export const SMS_MESSAGE_TYPES = {
   // quick taps link (area-batch.core quickTapsText), plus the day-2 reminder. Own switches, off until Jo switches them on.
   quick_taps: { audience: "owner", label: "RETIRED 2 Nov 2026 (decision #22: the batch send is the 'It's your turn' text, spot_released) – Confirm a few quick details, area batch sent (A48 batch 2)", wordingApproved: true, quietHours: true },
   quick_taps_reminder: { audience: "owner", label: "Confirm a few quick details – day-2 reminder, only for batches first sent with the old quick taps text before 2 Nov 2026 (A48 batch 2; newer batches get the 'It's your turn' reminder, spot_released)", wordingApproved: true, quietHours: true },
-  // A48 batch 2 part 2 (Jo 30 Oct 2026, wording approved in the part 2 spec): Jo taps "Send to installer" on a closed batch →
-  // the INSTALLER gets the run link (run-route.core runOfferedText). Own switch, off until Jo switches it on.
-  run_offered: { audience: "partner", label: "You've got a run of Ready Checks – pick your day (A48 batch 2 runs)", wordingApproved: true, quietHours: true },
+  // A48 batch 2 part 2 (Jo 30 Oct 2026): retired by Part 7 Task 9 (Jo 2 Nov 2026) — Jo's "Send to installer" records the run, nobody is texted.
+  run_offered: { audience: "partner", label: "Retired 2 Nov 2026 — You've got a run of Ready Checks – pick your day (A48 batch 2 runs). History labels only, never sent", wordingApproved: false, quietHours: true },
   // A48 batch 2 part 2, Portal books (Jo 30 Oct 2026, wording approved in the part 2 spec): the installer picked the run's day
   // → each OWNER gets their 1-hour window to confirm (run-portal.core runTimeText), plus ONE reminder at 12 hours. Own
   // switches, off until Jo switches them on.
   run_time: { audience: "owner", label: "Retired 2 Nov 2026 — Your free Ready Check is {day} {time} – tap to confirm (A48 batch 2 runs)", wordingApproved: false, quietHours: true },
   run_time_reminder: { audience: "owner", label: "Retired 2 Nov 2026 — Please confirm your free Ready Check – 12-hour reminder (A48 batch 2 runs)", wordingApproved: false, quietHours: true },
-  // A48 batch 2 part 2, Task 8: the owner cancelled a confirmed run window → the INSTALLER is told once, with the run link
-  // ("Fill from nearby waiting owners"; run-portal.core runSlotCancelledText). Own switch, off until Jo switches it on;
-  // wording approved by Jo 30 Oct 2026 (Task 8 fix round 1).
-  run_slot_cancelled: { audience: "partner", label: "An owner cancelled their Ready Check in your run – offer the time to a nearby owner (A48 batch 2 runs)", wordingApproved: true, quietHours: true },
+  // A48 batch 2 part 2, Task 8: retired by Part 7 Task 9 (Jo 2 Nov 2026) — the cancelled window is still freed and shown on the run page, nobody is texted.
+  run_slot_cancelled: { audience: "partner", label: "Retired 2 Nov 2026 — An owner cancelled their Ready Check in your run – offer the time to a nearby owner (A48 batch 2 runs). History labels only, never sent", wordingApproved: false, quietHours: true },
   // Decision #23 (Jo 2 Nov 2026, wording approved): Jo gives the job to an in-house installer → the OWNER is told
   // "{Installer} will call you soon from {office phone}" (owner-will-call.core ownerWillCallText), with the email. Sent only
   // while OWNER_WILL_CALL_APPROVED; own switch, off until Jo switches it on.
@@ -204,7 +201,7 @@ export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
   veec_sign_reminder: { kind: "window" }, // days 1/3/7: the due step is recomputed each tick, each step recorded once
   usual_electrician_missing: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the Mitti audit that found it missing
   ready_check_incomplete: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the Mitti audit with the gap list
-  job_offer: { kind: "event", maxAgeMinutes: 24 * 60 }, // offer open 24h; also needs the offer still pending
+  job_offer: { kind: "event", maxAgeMinutes: 24 * 60 }, // retired (history): offer open 24h
   daily_mitti: { kind: "window" }, // one per trade per Melbourne day, trade_text_log send_key claimed first
   daily_mitti_update: { kind: "window" }, // one per trade per day per change signature
   esc_notice_link: { kind: "window" }, // attempts 1/2/3 planned from the recorded send history; manual re-send has its own key
@@ -213,8 +210,8 @@ export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
   deposit_release: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the 48h sweep releasing the booking (recorded once per booking before any send)
   install_no_access: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the installer's "couldn't get in" report on the install day (recorded once per booking before any send)
   install_clearance: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = electrical clearance becoming valid (recorded once per job + timing date before any send)
-  ready_check_days_suggested: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the owner suggesting days; also needs it still to be the installer's move (installer-texts.server)
-  ready_check_booked_installer: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the Ready Check booking; also needs that start time still booked
+  ready_check_days_suggested: { kind: "event", maxAgeMinutes: 24 * 60 }, // retired (history): event = the owner suggesting days
+  ready_check_booked_installer: { kind: "event", maxAgeMinutes: 24 * 60 }, // retired (history): event = the Ready Check booking
   install_tomorrow: { kind: "window" }, // key = booking + its Melbourne date; due only the afternoon before, recomputed each tick (installer-texts.core)
   team_member_invite: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the owner creating the invite; also needs the invite still unused and unrevoked
   boss_price_link: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the Ready Check marked Complete; also needs the price still not entered (boss-price-link.server)
@@ -244,10 +241,10 @@ export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
   address_request_reminder: { kind: "window" }, // key = job; due 24h after the request, recorded once; same quiet-hours retry
   quick_taps: { kind: "window" }, // key = batch + job + step; the area_batch_sent event is recorded before any send (area-batch.server)
   quick_taps_reminder: { kind: "window" }, // key = batch + job + reminder; due on day 2, recomputed by the batch sweep
-  run_offered: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = Jo's "Send to installer" tap; the run's 24h reply window
+  run_offered: { kind: "event", maxAgeMinutes: 24 * 60 }, // retired (history): event = Jo's "Send to installer" tap
   run_time: { kind: "window" }, // key = run + job + window; the window is recorded before any send; held → the tick retries
   run_time_reminder: { kind: "window" }, // key = run + job + window; due 12h after the time text, recomputed by the tick
-  run_slot_cancelled: { kind: "window" }, // key = run + job + window; `run_slot_cancelled` recorded once per window before any send; held → the tick retries while that time is still unfilled and ahead
+  run_slot_cancelled: { kind: "window" }, // retired (history): key = run + job + window
   owner_will_call: { kind: "window" }, // key = job (one per job); sent only with the email while the job still waits for its Ready Check booking (in-house-batch-email.server)
   own_customer_rental_taps: { kind: "window" }, // key = job (one per job); sent once right after Add a job (own-customer-rental-taps.server)
   access_person_booked: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the PIESA / install booking (its created_at); also needs that booking still confirmed (access-person-texts.server)

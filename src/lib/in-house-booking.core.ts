@@ -1,4 +1,3 @@
-import { addYmd, melbourneToday } from './melbourne-time.core';
 import { IN_HOUSE_ELECTRICIAN_BOOKING_BLOCKER } from './worker-compliance.core';
 import { OWNER_BOOKED_V2_APPROVED, ownerBookedNotice, type BookedKind } from './owner-booked-notice.core';
 import type { TradeContact } from './owner-will-call.core';
@@ -51,10 +50,5 @@ export function ownerBookedMessage(i:OwnerBookedInput,approved:Record<BookedKind
   const old=bookingNotice(i);
   return{version:'v1',subject:old.subject,text:old.text,sms:old.sms};
 }
-export type DigestInstall={jobId:string;jobNumber:string;start:string;name:string;url:string};
-export function tomorrowInstallDigest(rows:DigestInstall[],now=new Date()):DigestInstall[]{
-  const hour=Number(new Intl.DateTimeFormat('en-AU',{timeZone:'Australia/Melbourne',hour:'numeric',hour12:false}).format(now))%24;
-  if(hour<14)return [];
-  const tomorrow=addYmd(melbourneToday(now),1);
-  return rows.filter(r=>melbourneToday(new Date(r.start))===tomorrow).sort((a,b)=>a.start.localeCompare(b.start));
-}
+// Part 7 Task 8 (Jo 2 Nov 2026): the 2pm day-before Lead Installer email digest rule was retired — the
+// 9am two-days-before "Confirm or change your Lead Installer by 5pm today" email (lead-installer-confirm.core) replaces it.

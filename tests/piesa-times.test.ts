@@ -147,16 +147,16 @@ describe("source pins", () => {
     expect(al).toContain("PIESA_TIMES_NEXT_ACTION.electrician_to_offer");
     expect(PIESA_TIMES_NEXT_ACTION.electrician_to_offer).toMatch(/within 24 hours/);
   });
-  test("screens: My job owner card, electrician job page card, offer page form", () => {
+  test("screens: My job owner card, electrician job page card (the offer page is gone — Part 7 Task 9)", () => {
     expect(src("src/routes/my-job.$token.tsx")).toContain("data-piesa-times-owner");
-    expect(src("src/routes/_authenticated/field.$jobId.tsx")).toContain("<ElectricianPiesaTimesCard jobId={jobId} />");
-    expect(src("src/routes/_authenticated/field.offer.$offerId.tsx")).toContain("data-piesa-offer-times");
+    // Part 6 Task 8 (join): electricians never log in — the electrician branch of the job page (and its times card) is gone.
+    expect(src("src/routes/_authenticated/field.$jobId.tsx")).not.toContain("ElectricianPiesaTimesCard");
+    expect(src("src/routes/_authenticated/field.offer.$offerId.tsx")).toMatch(/redirect\(\{ to: "\/field" \}\)/);
   });
 });
 
-test("B8: offer page has no old owner-times steps; every pending PIESA offer gets the 3-times form", () => {
+test("B8: the offer page is gone (Part 7 Task 9); the server read of a pending PIESA offer still carries the 3-times days for QA readers", () => {
   const page = src("src/routes/_authenticated/field.offer.$offerId.tsx");
-  for (const gone of ["Pick one of the owner's times", "Suggest another time", "takeTradeTime", '"cant_make"', "data-no-times", "data.windows", "canSuggest", "suggestUnlockLabel"]) expect(page).not.toContain(gone);
-  expect(page).toContain("data-piesa-offer-times");
+  for (const gone of ["Pick one of the owner's times", "Suggest another time", "takeTradeTime", '"cant_make"', "data-no-times", "data.windows", "canSuggest", "suggestUnlockLabel", "data-piesa-offer-times"]) expect(page).not.toContain(gone);
   expect(src("src/lib/trade-view.server.ts")).toContain('const piesaDays = o.kind === "piesa" && o.status === "pending" ? ');
 });

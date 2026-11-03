@@ -60,6 +60,5 @@ export function resolveMittiElectrician(input: {
   return { ready: !!saved, choice: input.choice, priceIncGst: saved?.priceIncGst ?? null, name: saved?.name ?? null, licence: saved?.licence ?? null,
     source: input.choice === "usual" ? "installer_profile" : "mitti_form", reasons: saved ? [] : [reason], needsProfile: input.choice === "usual" && !saved };
 }
-/** Approved by Jo 24 Oct 2026 (decision 83; kept unchanged by decision 113). The brand prefix is added by brandSmsBody. */
-export const usualElectricianReminderBody = (jobNumber: string, url: string) =>
-  `To send the quote for ${jobNumber}, we need your usual electrician: name, licence number and price (inc GST). Add them once in My business: ${url}`;
+// Part 7 Task 8 (Jo 2 Nov 2026): the "we need your usual electrician" text (decision 83/113) is retired — decisions 374/303
+// choose the electrician, so nothing reminds the installer to add one. The `usual_electrician_missing` text type stays for history.

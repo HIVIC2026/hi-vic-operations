@@ -28,7 +28,7 @@ test("every automatic owner message stops", () => {
 test("smsBlocker refuses owner texts, not partner texts", () => {
   const base = { to: "0400000000", commsEnabled: true, typeSwitchOn: true, senderConfigured: true, optedOut: false, consent: true, isTestRecord: false, nowIso: "2026-11-10T01:00:00Z" };
   expect(smsBlocker({ ...base, type: "quote_reminder", doNotContact: true })).toBe(SMS_DO_NOT_CONTACT);
-  expect(smsBlocker({ ...base, type: "job_offer", doNotContact: true })).toBeNull();
+  expect(smsBlocker({ ...base, type: "boss_price_link", doNotContact: true })).toBeNull();
 });
 test("guarded owner email reads the flag before sending", () => {
   expect(readFileSync("src/lib/owner-email-send.server.ts", "utf8")).toContain("doNotContactBlocks(");

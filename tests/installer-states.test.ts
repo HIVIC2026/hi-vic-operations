@@ -21,10 +21,9 @@ const base: JobNextFacts = {
 test("B6: one accepted label, one new-offer label", () => {
   expect(OFFER_LABEL).toEqual({ accepted: "Job accepted", new: "New job offer" });
   expect(offerAcceptedView({ ownerFirstName: null, suburb: null, jobNumber: null, times: [] }).pill).toBe(OFFER_LABEL.accepted);
+  // Part 7 Task 9 (Jo 2 Nov 2026): the offer page itself is gone (old links open My work); the labels stay pure history.
   const page = readFileSync("src/routes/_authenticated/field.offer.$offerId.tsx", "utf8");
-  for (const gone of ['"Booked"', "You've taken this job", "Job accepted · times sent", '"New job"', 'took ? "Job accepted"']) expect(page).not.toContain(gone);
-  expect(page.match(/OFFER_LABEL\.accepted/g)?.length).toBe(2);
-  expect(page).toContain("pill={OFFER_LABEL.new}");
+  expect(page).toMatch(/redirect\(\{ to: "\/field" \}\)/);
 });
 
 describe("M1 states", () => {
@@ -204,18 +203,9 @@ describe("M5 states", () => {
   });
   test("not for me: one confirmation, goes back to the office, nothing counts against you", () => {
     expect(NOT_FOR_ME_SHEET).toEqual({ title: "Not for me?", body: "The offer goes back to the office to pick another installer. It won't come back to you. Nothing counts against you.", yes: "Yes, not for me", keep: "Keep the offer" });
-    const page = readFileSync("src/routes/_authenticated/field.offer.$offerId.tsx", "utf8");
-    expect(page).toContain("data-not-for-me-sheet");
-    expect(page).toContain("sheet.keep");
   });
   test("B7: electrician Not for me asks first, with electrician words", () => {
     expect(NOT_FOR_ME_SHEET_ELECTRICIAN).toEqual({ title: "Not for me?", body: "The offer goes back to the office to pick another electrician. It won't come back to you.", yes: "Yes, not for me", keep: "Keep the offer" });
-    const page = readFileSync("src/routes/_authenticated/field.offer.$offerId.tsx", "utf8");
-    expect(page).toContain("sheet={NOT_FOR_ME_SHEET}");
-    expect(page.match(/sheet=\{NOT_FOR_ME_SHEET_ELECTRICIAN\}/g)?.length).toBe(1);
-    expect(page.match(/trigger="link"/g)?.length).toBe(1);
-    expect(page.match(/data-not-for-me-sheet/g)?.length).toBe(1);
-    expect(page).not.toMatch(/data-not-for-me onClick=\{\(\) => send\(/);
   });
 });
 
