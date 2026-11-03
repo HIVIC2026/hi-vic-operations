@@ -238,15 +238,15 @@ export async function officeBookOwnJobPiesa(userId: string, jobId: string, start
   return bookOwnJobPiesa({ jobId, assignment: access.assignment, electricianBusinessId: access.assignment.business_id, startIso, actorId: userId, by: "installer office", now });
 }
 
-/** Email the installer office "Not booked yet". One key per round's assignment, so it goes once (held wording is retried). */
-async function sendNotBookedEmail(jobId: string, installerId: string, assignmentId: string): Promise<void> {
+/** Email the installer office "Not booked yet". One key per hand-over event (a swap logs a new one, which restarts the clock), so it goes once (held wording is retried). */
+async function sendNotBookedEmail(jobId: string, installerId: string, handedEventId: string): Promise<void> {
   const [{ officeNotBookedEmail, OWN_JOB_PIESA_NOT_BOOKED_EMAIL_APPROVED }, { emailInstallerOffice }, { SET_PASSWORD_BASE }] = await Promise.all([import("./electrician-link.core"), import("./own-job-piesa-notices.server"), import("./set-password-link.core")]);
   const { data: ov, error } = await admin.from("job_overview").select("property_address, job_number").eq("id", jobId).maybeSingle();
   if (error) throw new Error(error.message);
   const address = (ov?.property_address as string | null | undefined) || (ov?.job_number as string | null | undefined) || "this job";
   const jobUrl = `${SET_PASSWORD_BASE}/field/${jobId}`;
   const mail = officeNotBookedEmail({ address, jobUrl });
-  await emailInstallerOffice({ jobId, businessId: installerId, key: `own-job-piesa:v1:${assignmentId}:not-booked`, subject: mail.subject, text: mail.text, jobUrl, approved: OWN_JOB_PIESA_NOT_BOOKED_EMAIL_APPROVED });
+  await emailInstallerOffice({ jobId, businessId: installerId, key: `own-job-piesa:v1:${handedEventId}:not-booked`, subject: mail.subject, text: mail.text, jobUrl, approved: OWN_JOB_PIESA_NOT_BOOKED_EMAIL_APPROVED });
 }
 
 /** 15-minute tick: an own job handed to its electrician, still unbooked after the hand-over's due date (2 business days),
@@ -263,16 +263,17 @@ export async function sweepOwnJobPiesaDeadlines(now: Date = new Date()): Promise
     if (inHouseState.held.has(j.id)) continue;
     try {
       const installerId = (j.originating_installer_business_id as string | null) ?? null;
-      const { data: handed, error: he } = await admin.from("workflow_events").select("details").eq("job_id", j.id).eq("event_type", OWN_JOB_PIESA_HANDED_EVENT).order("created_at", { ascending: false }).limit(1).maybeSingle();
+      const { data: handed, error: he } = await admin.from("workflow_events").select("id, details").eq("job_id", j.id).eq("event_type", OWN_JOB_PIESA_HANDED_EVENT).order("created_at", { ascending: false }).limit(1).maybeSingle();
       if (he) throw new Error(he.message);
       const hd = (handed?.details ?? null) as { key?: string; due_at?: string } | null;
-      if (!installerId || !hd?.key || !hd.due_at) { out.none++; continue; }
+      const handedId = (handed?.id as string | undefined) ?? null;
+      if (!installerId || !handedId || !hd?.due_at) { out.none++; continue; }
       const { data: rows, error: ae } = await admin.from("job_assignments").select("id, booking_confirmed_at").eq("job_id", j.id).eq("role", "electrician").eq("active", true);
       if (ae) throw new Error(ae.message);
       const a = (rows ?? [])[0] as { id: string; booking_confirmed_at: string | null } | undefined;
       if (!a) { out.none++; continue; } // no electrician now: the "handed back" / "held" office items cover it
       const booked = (rows ?? []).some((r) => (r as { booking_confirmed_at: string | null }).booking_confirmed_at);
-      const returnedId = await stableUuid(`${OWN_JOB_PIESA_NOT_BOOKED_EVENT}:${hd.key}`);
+      const returnedId = await stableUuid(`${OWN_JOB_PIESA_NOT_BOOKED_EVENT}:${handedId}`);
       const { data: prior, error: pe } = await admin.from("workflow_events").select("id").eq("id", returnedId).maybeSingle();
       if (pe) throw new Error(pe.message);
       const alreadyReturned = !!prior;
@@ -280,12 +281,12 @@ export async function sweepOwnJobPiesaDeadlines(now: Date = new Date()): Promise
       if (action === "return") {
         // The stable event id is the claim: of two sweeps only one inserts it (the other gets a duplicate-key error).
         const { error: ce } = await admin.from("workflow_events").insert({ id: returnedId, job_id: j.id, actor_id: null, event_type: OWN_JOB_PIESA_NOT_BOOKED_EVENT,
-          summary: "Safety check (PIESA) not booked within 2 business days of the hand-over. Installer office told", details: { key: hd.key, due_at: hd.due_at, assignment_id: a.id }, internal: true });
+          summary: "Safety check (PIESA) not booked within 2 business days of the hand-over. Installer office told", details: { handed_event_id: handedId, due_at: hd.due_at, assignment_id: a.id }, internal: true });
         if (ce) { if (ce.code === "23505") { out.none++; continue; } throw new Error(ce.message); }
         out.returned++;
       } else if (alreadyReturned && !booked) out.none++;
       else { out.none++; continue; }
-      await sendNotBookedEmail(j.id, installerId, a.id).catch((e) => console.error("own job not-booked email skipped", j.id, (e as Error).message));
+      await sendNotBookedEmail(j.id, installerId, handedId).catch((e) => console.error("own job not-booked email skipped", j.id, (e as Error).message));
     } catch (e) { out.failed++; console.error("own job safety check deadline failed", j.id, (e as Error).message); }
   }
   return out;

@@ -1050,6 +1050,8 @@ export async function inHouseBookingAccess(userId: string, jobId: string, client
 export async function inHouseBookVisit(userId: string, input: { jobId: string; kind: import("./booking.server").BookingKind; start: string; workerId?: string; crewIds?: string[] }, client = admin): Promise<{ ok: true; bookingId: string } | { ok: false; blockers: string[] }> {
   const access = await inHouseBookingAccess(userId, input.jobId, client);
   if (!access.allowed) return { ok: false, blockers: access.blockers };
+  // Part 2: an installer's own job books its safety check ONLY through bookOwnJobPiesa (claim, 30-day check, owner notice); never this in-house writer.
+  if (access.ownJob) return { ok: false, blockers: ["forbidden"] };
   if(!input.workerId)return {ok:false,blockers:[input.kind==='installation'?(await import('./in-house-booking.core')).LEAD_INSTALLER_BOOKING_REASON:'Choose the person going before booking.']};
   try {
     const result=await (await import('./in-house-atomic-save.server')).saveInHouseVisit(input.jobId,userId,{

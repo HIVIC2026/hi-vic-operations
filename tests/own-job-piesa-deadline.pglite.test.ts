@@ -79,23 +79,30 @@ const confirmed: unknown[][] = [];
 mock.module("../src/lib/booking.server", () => ({
   confirmBooking: async (...a: unknown[]) => { confirmed.push(a); await db.query("update job_assignments set booking_confirmed_at = now() where job_id = $1 and role = 'electrician'", [a[0]]); await db.query("update jobs set stage = 'piesa_scheduled' where id = $1", [a[0]]); },
 }));
+const saved: unknown[] = [];
+mock.module("../src/lib/in-house-atomic-save.server", () => ({ saveInHouseVisit: async (...a: unknown[]) => { saved.push(a); return { bookingId: "x" }; } }));
 const owner: string[] = [];
 mock.module("../src/lib/in-house-booking.server", () => ({ notifyOwnerBooked: async (job: string) => { owner.push(job); return "sent"; } }));
 
+const { inHouseBookVisit } = await import("../src/lib/trade-view.server");
+const { bookOwnJobPiesa } = await import("../src/lib/electrician-link.server");
 const { sweepOwnJobPiesaDeadlines, ownJobOfficeBookingAccess, officeBookOwnJobPiesa } = await import("../src/lib/own-job-piesa.server");
 const NOW = new Date("2026-11-04T00:00:00Z"); // after the seeded due date (end of Mon 2 Nov)
+const J_SWAP = id(109), J_RACE = id(110);
+await seed(J_SWAP, INST_OFFICE);
+await seed(J_RACE, INST_OFFICE, { due: "2099-01-01T00:00:00.000Z" });
 const countEvents = async (job: string, type: string) => Number((await db.query<{ n: string }>("select count(*) n from workflow_events where job_id=$1 and event_type=$2", [job, type])).rows[0]!.n);
 
 describe("deadline sweep", () => {
   test("no booking after the due date: one return and one email; a second sweep does nothing", async () => {
     const first = await sweepOwnJobPiesaDeadlines(NOW);
-    expect(first.returned).toBe(1);
+    expect(first.returned).toBe(2); // J_LATE and J_SWAP
     expect(await countEvents(J_LATE, "own_job_piesa_not_booked")).toBe(1);
-    expect(sent.map((s) => [s.subject, s.businessId, s.pauseJobId])).toEqual([["Not booked yet — book it or pick another electrician", INST_OFFICE, J_LATE]]);
+    expect(sent.filter((s) => s.pauseJobId === J_LATE).map((s) => [s.subject, s.businessId])).toEqual([["Not booked yet — book it or pick another electrician", INST_OFFICE]]);
     const second = await sweepOwnJobPiesaDeadlines(new Date(NOW.getTime() + 3_600_000));
     expect(second.returned).toBe(0);
     expect(await countEvents(J_LATE, "own_job_piesa_not_booked")).toBe(1);
-    expect(sent).toHaveLength(1);
+    expect(sent).toHaveLength(2);
   });
   test("booked, not yet due, wrong stage, HIV-lead and in-house jobs are left alone", async () => {
     for (const j of [J_BOOKED, J_FRESH, J_WRONG_STAGE, J_LEAD, J_ELEC, J_EITHER]) expect(await countEvents(j, "own_job_piesa_not_booked")).toBe(0);
@@ -144,5 +151,49 @@ describe("office books the safety check", () => {
   test("an office not allowed to book is refused", async () => {
     await expect(officeBookOwnJobPiesa(U_ELEC_BOSS, J_ELEC, start, NOW)).rejects.toThrow();
     expect(confirmed).toHaveLength(1);
+  });
+});
+
+describe("one email per hand-over", () => {
+  test("a swap (new handed event, later due date) restarts the clock: no email until it passes, then exactly one more", async () => {
+    const before = 0;
+    await sweepOwnJobPiesaDeadlines(NOW);
+    expect(sent.filter((m) => m.pauseJobId === J_SWAP).length - before).toBe(1); // the first deadline's email
+    // swap: a fresh assignment and a fresh hand-over event due later
+    await db.query("update job_assignments set active=false where job_id=$1", [J_SWAP]);
+    await db.query("insert into job_assignments (job_id, role, business_id, user_id) values ($1,'electrician',$2,$3)", [J_SWAP, ELEC, U_SPARKY]);
+    await db.query("insert into workflow_events (job_id, event_type, summary, details, internal) values ($1,'own_job_piesa_handed','handed again',$2,true)", [J_SWAP, JSON.stringify({ key: `own_job_piesa:${J_SWAP}:first`, due_at: "2026-11-10T12:59:59.999Z" })]);
+    await sweepOwnJobPiesaDeadlines(NOW);
+    expect(sent.filter((m) => m.pauseJobId === J_SWAP).length - before).toBe(1);
+    await sweepOwnJobPiesaDeadlines(new Date("2026-11-11T00:00:00Z"));
+    await sweepOwnJobPiesaDeadlines(new Date("2026-11-11T01:00:00Z"));
+    expect(sent.filter((m) => m.pauseJobId === J_SWAP).length - before).toBe(2);
+    expect(await countEvents(J_SWAP, "own_job_piesa_not_booked")).toBe(2);
+  });
+});
+
+describe("one booking path for own jobs", () => {
+  test("inHouseBookVisit on an own job is refused and writes nothing", async () => {
+    const bookingsBefore = Number((await db.query<{ n: string }>("select count(*) n from bookings")).rows[0]!.n);
+    const eventsBefore = Number((await db.query<{ n: string }>("select count(*) n from workflow_events")).rows[0]!.n);
+    const calls = confirmed.length;
+    const r = await inHouseBookVisit(U_OFFICE, { jobId: J_RACE, kind: "assessment", start: "2026-11-10T00:00:00.000Z", workerId: id(999) }, postgrestShim(db) as never);
+    expect(r.ok).toBe(false);
+    expect(saved).toHaveLength(0);
+    expect(confirmed).toHaveLength(calls);
+    expect(Number((await db.query<{ n: string }>("select count(*) n from bookings")).rows[0]!.n)).toBe(bookingsBefore);
+    expect(Number((await db.query<{ n: string }>("select count(*) n from workflow_events")).rows[0]!.n)).toBe(eventsBefore);
+  });
+  test("office and electrician link booking at once: one booking, the other gets 'already booked'", async () => {
+    const { rows } = await db.query<{ id: string; user_id: string; business_id: string; booking_confirmed_at: string | null }>("select id, user_id, business_id, booking_confirmed_at from job_assignments where job_id=$1 and active", [J_RACE]);
+    const a = rows[0]!;
+    const calls = confirmed.length;
+    const start = "2026-11-10T00:00:00.000Z";
+    const mk = (actorId: string, by: string) => bookOwnJobPiesa({ jobId: J_RACE, assignment: a, electricianBusinessId: ELEC, startIso: start, actorId, by, now: NOW });
+    const results = await Promise.allSettled([mk(U_OFFICE, "installer office"), mk(U_SPARKY, "electrician's link")]);
+    expect(results.filter((x) => x.status === "fulfilled")).toHaveLength(1);
+    const lost = results.find((x) => x.status === "rejected") as PromiseRejectedResult;
+    expect(String(lost.reason.message)).toContain("already booked");
+    expect(confirmed.length - calls).toBe(1);
   });
 });
