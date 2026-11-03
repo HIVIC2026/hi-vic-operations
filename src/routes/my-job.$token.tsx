@@ -479,7 +479,7 @@ const errText = (e: unknown) => (e instanceof Error ? e.message : "Please try ag
 /** Quote page "Say yes" (touchpoints #33, Fix 3, lawyer Q8; Jo 2 Nov 2026): two ticks, a typed name, one locked button.
  *  The ESC declarations are not asked here (they move to the confirm-and-pay page). The 6-digit code is still asked for
  *  when the owner presses the button. */
-function AcceptQuote({ token, quote, safetyCheck, onAccepted }: { token: string; quote: { id: string; version: number }; safetyCheck: number | null; onAccepted: () => void }) {
+function AcceptQuote({ token, quote, safetyCheck, showDocs, onAccepted }: { token: string; quote: { id: string; version: number }; safetyCheck: number | null; showDocs: boolean; onAccepted: () => void }) {
   const [session, setSession] = useSession();
   const [needCode, setNeedCode] = useState(false);
   const load = useServerFn(ownerAgreementFn);
@@ -520,8 +520,8 @@ function AcceptQuote({ token, quote, safetyCheck, onAccepted }: { token: string;
     <div data-testid="say-yes" className="mt-7 border-t-2 border-estimate-navy pt-5">
       <p className="text-xs font-bold tracking-[0.1em] text-estimate-logo-green">{P2.sayYes}</p>
       <h2 className="mt-1 font-display text-[21px] font-extrabold">{P2.twoTicks}</h2>
-      <TickCard on={tick1} set={setTick1} title={<>{P2.tick1} <span className="font-normal text-estimate-sub">{P2.attachedNote}</span></>}
-        sub={<><button type="button" className={link} onClick={(e) => { e.preventDefault(); void openDoc("agreement"); }}>{P2.agreementLink}</button> · <button type="button" className={link} onClick={(e) => { e.preventDefault(); void openDoc("agreement"); }}>{P2.paymentTermsLink}</button> · <button type="button" className={link} onClick={(e) => { e.preventDefault(); void openDoc("rights"); }}>{P2.rightsLink}</button></>} />
+      <TickCard on={tick1} set={setTick1} title={<>{P2.tick1}{showDocs && <> <span className="font-normal text-estimate-sub">{P2.attachedNote}</span></>}</>}
+        sub={showDocs && <><button type="button" className={link} onClick={(e) => { e.preventDefault(); void openDoc("agreement"); }}>{P2.agreementLink}</button> · <button type="button" className={link} onClick={(e) => { e.preventDefault(); void openDoc("agreement"); }}>{P2.paymentTermsLink}</button> · <button type="button" className={link} onClick={(e) => { e.preventDefault(); void openDoc("rights"); }}>{P2.rightsLink}</button></>} />
       <TickCard on={tick2} set={setTick2} title={P2.tick2} bold={false} />
       <section className="mt-[18px] rounded-[14px] border border-estimate-line bg-card px-4 py-3.5">
         <AuthorityChoice value={f.authority} onChange={(authority) => setF({ ...f, authority })} />
@@ -811,9 +811,8 @@ function QuoteScreen({ v, token }: { v: View; token: string }) {
         </ul>
         <p className="border-t border-estimate-line py-2 text-[13px] leading-relaxed text-estimate-sub">{P2.notIncluded}</p>
       </section>
-      <FixesNote />
       {ownerQuoteCanAccept(q, acknowledged)
-        ? <div><AcceptQuote token={token} quote={q} safetyCheck={q.split?.deposit ?? null} onAccepted={() => {
+        ? <div><AcceptQuote token={token} quote={q} safetyCheck={q.split?.deposit ?? null} showDocs={!!q.validLine} onAccepted={() => {
           setAcknowledged({ id: q.id, version: q.version });
           qc.setQueryData<View | null>(["my-job", token], (current: View | null | undefined) => current?.quote?.id === q.id && current.quote.version === q.version
             ? { ...current, quote: { ...current.quote, status: "accepted" } } : current);

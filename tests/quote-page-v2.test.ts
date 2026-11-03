@@ -62,6 +62,17 @@ describe("quote screen", () => {
     expect(accept).toMatch(/quoteSittingBlockers\(\{\s*tick1,\s*tick2,\s*typedName\s*\}\)/);
     expect(accept).toContain("ready={ready}");
   });
+  test("no electrical-fixes box on the quote screen (the approved upgrades line is in P2.notIncluded)", () => {
+    expect(screen).not.toContain("FixesNote");
+    expect(screen).toContain("P2.notIncluded");
+  });
+  test("PDF links and the attached-to-email note only show for 30-day quotes (validLine set)", () => {
+    expect(screen).toMatch(/showDocs=\{!!q\.validLine\}/);
+    expect(accept).toMatch(/showDocs/);
+    const tick1 = accept.slice(accept.indexOf("P2.tick1"), accept.indexOf("P2.tick2"));
+    expect(tick1).toMatch(/showDocs && /);
+    expect((tick1.match(/showDocs/g) ?? []).length).toBeGreaterThanOrEqual(2);
+  });
   test("the old 'How you can pay' box (10% of the install price, PayID, pay in full) is off the quote screen", () => {
     expect(screen).not.toContain("howYouPayLines");
     expect(screen).not.toContain("paymentOptionSummary");

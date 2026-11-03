@@ -31,7 +31,7 @@ describe("owner confirm link for installer-quoted jobs (Jo 7 Oct 9:25pm)", () =>
   });
   test("wired into the owner page, booking step, signed Gate B copy and Add one job", () => {
     const page = readFileSync("src/routes/my-job.$token.tsx", "utf8");
-    expect(page.match(/<FixesNote \/>/g)?.length).toBe(2);
+    expect(page.match(/<FixesNote \/>/g)?.length).toBe(1);
     expect(page).toContain("ownerPriceTitle(v.agreed)");
     expect(readFileSync("src/lib/owner-gates.server.ts", "utf8")).toContain('d.gate === "B" ? (await import("./owner-confirm.core")).signedSummaryNote()');
     // Decision 34 (Jo 24 Oct): Add a job is basics only, so the optional agreed-price tick is no longer asked there; the record stays on the intake server path.
