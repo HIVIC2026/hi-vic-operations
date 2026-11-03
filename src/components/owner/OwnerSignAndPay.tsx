@@ -5,7 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ownerSignAndPayFn, ownerSignAndPayFormFn, ownerSignAndPayStateFn } from "@/lib/owner-link.functions";
 import { SIGN_AND_PAY, signAndPayBlockers, signAndPayButtons, signAndPayRows } from "@/lib/sign-and-pay.core";
-import { OFFICE_EMAIL, centsAud } from "@/lib/owner-pages.core";
+import { OFFICE_EMAIL, P2, centsAud } from "@/lib/owner-pages.core";
 import { AuthorityChoice, FactRows, FormCard, InfoBox, LockHint, LockedButton, OwnerFooter, PageIntro, SectionTitle, SmallNote, TickCard, TypedField } from "./OwnerPageKit";
 import { OwnerCodeGate } from "./OwnerSign";
 
@@ -30,6 +30,7 @@ export function OwnerSignAndPay({ token }: { token: string }) {
   const [needCode, setNeedCode] = useState<"card" | "bank" | "sign" | null>(null);
   const [authority, setAuthority] = useState<"owner" | "authorised_representative">("owner");
   const [tick, setTick] = useState(false);
+  const [over18, setOver18] = useState(false);
   const [name, setName] = useState("");
   const [bank, setBank] = useState<string[] | null>(null);
   const [showText, setShowText] = useState(false);
@@ -44,7 +45,7 @@ export function OwnerSignAndPay({ token }: { token: string }) {
     </section>;
   }
   const { state, form: official } = data;
-  const blockers = signAndPayBlockers({ tick, typedName: name, state });
+  const blockers = signAndPayBlockers({ tick, over18, typedName: name, state });
   const orderBlocked = !state.sign.done && !!state.sign.blocker;
   const ready = blockers.length === 0 && !orderBlocked;
   const buttons = signAndPayButtons(state);
@@ -63,7 +64,7 @@ export function OwnerSignAndPay({ token }: { token: string }) {
   const submit = async (method: "card" | "bank", s: string) => {
     setErr(""); setBusy(true);
     try {
-      const r = await go({ data: { token, session: s, tick, typedName: name.trim(), authorityType: authority, method } });
+      const r = await go({ data: { token, session: s, tick, over18, typedName: name.trim(), authorityType: authority, method } });
       await qc.invalidateQueries({ queryKey: ["owner-sign-and-pay", token] });
       if ("checkoutUrl" in r) window.location.assign(r.checkoutUrl);
       else if ("bank" in r) { setBank(r.bank); await qc.invalidateQueries({ queryKey: ["my-job", token] }); }
@@ -90,16 +91,17 @@ export function OwnerSignAndPay({ token }: { token: string }) {
         </div>}
         {orderBlocked ? <p role="status" className="mt-3 text-sm font-semibold">{state.sign.blocker}</p> : <>
           <TickCard on={tick} set={setTick} title={SIGN_AND_PAY.tick} bold={false} />
+          <TickCard on={over18} set={setOver18} title={P2.tick3} bold={false} />
           <AuthorityChoice value={authority} onChange={setAuthority} />
           <TypedField label={SIGN_AND_PAY.nameLabel} value={name} onChange={setName} placeholder="Type here" autoComplete="name" />
         </>}
       </>}
     </FormCard>
 
-    <FormCard eyebrow="STEP 2">
-      <SectionTitle className="mt-1.5 mb-1">{SIGN_AND_PAY.step2}</SectionTitle>
-      {state.balance.paid ? <Done>Your balance is paid.</Done> : <p className="font-display text-3xl font-extrabold">{centsAud(state.balance.amountCents / 100)} <span className="text-base font-bold text-estimate-sub">{SIGN_AND_PAY.dueToday}</span></p>}
-    </FormCard>
+    {(state.balance.paid || state.balance.payable) && <FormCard eyebrow="STEP 2">
+          <SectionTitle className="mt-1.5 mb-1">{SIGN_AND_PAY.step2}</SectionTitle>
+          {state.balance.paid ? <Done>Your balance is paid.</Done> : <p className="font-display text-3xl font-extrabold">{centsAud(state.balance.amountCents / 100)} <span className="text-base font-bold text-estimate-sub">{SIGN_AND_PAY.dueToday}</span></p>}
+        </FormCard>}
 
     {bank && <InfoBox><b>Bank transfer</b><ul className="mt-1 space-y-0.5">{bank.map((l) => <li key={l}>{l}</li>)}</ul></InfoBox>}
     {needCode && !session && <OwnerCodeGate token={token} onVerified={(s) => { setSession(s); const m = needCode; setNeedCode(null); void submit(m === "sign" ? "bank" : m, s); }} />}
@@ -111,9 +113,9 @@ export function OwnerSignAndPay({ token }: { token: string }) {
           <LockedButton ready={ready || (state.sign.done && !state.balance.paid)} busy={busy} busyLabel="Please wait…" onClick={() => press("card")}>{buttons.card}</LockedButton>
           <button type="button" disabled={!(ready || (state.sign.done && !state.balance.paid)) || busy} onClick={() => press("bank")} className="mt-3 flex min-h-12 w-full items-center justify-center rounded-[14px] border border-estimate-blue px-4 text-[15px] font-bold text-estimate-blue disabled:opacity-50">{buttons.bank}</button>
         </>}
-      {!ready && !state.sign.done && <LockHint>Tick the box and type your name</LockHint>}
+      {!ready && !state.sign.done && <LockHint>Tick both boxes and type your name</LockHint>}
     </div>}
-    <SmallNote>{SIGN_AND_PAY.footer}</SmallNote>
+    {(state.balance.paid || state.balance.payable) && <SmallNote>{SIGN_AND_PAY.footer}</SmallNote>}
     <OwnerFooter />
   </section>;
 }

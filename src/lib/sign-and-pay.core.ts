@@ -40,7 +40,7 @@ export function signAndPayRows(s: SignAndPayState): { label: string; value: stri
 }
 
 export function signAndPayButtons(s: SignAndPayState): { card?: string; bank?: string; sign?: string } {
-  const needSign = !s.sign.done, needPay = !s.balance.paid;
+  const needSign = !s.sign.done, needPay = !s.balance.paid && s.balance.payable;
   if (needSign && needPay) return { card: SIGN_AND_PAY.card, bank: SIGN_AND_PAY.bank };
   if (needPay) return { card: SIGN_AND_PAY_ONE_STEP.card, bank: SIGN_AND_PAY_ONE_STEP.bank };
   if (needSign) return { sign: SIGN_AND_PAY_ONE_STEP.sign };
@@ -48,10 +48,11 @@ export function signAndPayButtons(s: SignAndPayState): { card?: string; bank?: s
 }
 
 /** What still stops the button. Tick and name are only needed while the form is unsigned. First and last name, like the other owner signings. */
-export function signAndPayBlockers(i: { tick: boolean; typedName: string; state: SignAndPayState }): string[] {
+export function signAndPayBlockers(i: { tick: boolean; over18: boolean; typedName: string; state: SignAndPayState }): string[] {
   if (i.state.sign.done) return [];
   const out: string[] = [];
   if (!i.tick) out.push("Tick to confirm the form.");
+  if (!i.over18) out.push("Tick to confirm you can sign for this home.");
   const typed = i.typedName.trim().replace(/\s+/g, " ");
   if (typed.length < 2 || !/\s/.test(typed)) out.push("Type your full name (first and last) to sign.");
   return out;

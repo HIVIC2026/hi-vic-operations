@@ -3,6 +3,7 @@
 import { describe, expect, test } from "bun:test";
 import { SIGN_AND_PAY, signAndPayBlockers, signAndPayButtons, signAndPayRows, consumerSignBlocker, type SignAndPayState } from "../src/lib/sign-and-pay.core";
 import { signAndPay, type SignAndPayDeps } from "../src/lib/sign-and-pay.server";
+import { P2 } from "../src/lib/owner-pages.core";
 import { resolveOwnerScreen } from "../src/lib/owner-myjob.core";
 
 const J = "job-1";
@@ -12,7 +13,7 @@ const state = (o: Partial<{ signed: boolean; paid: boolean; blocker: string | nu
   balance: { amountCents: 141200, paid: o.paid ?? false, payable: o.payable ?? true },
 });
 const session = { jobId: J, userId: "u1", codeId: "code-1", channel: "sms" as const, destination: "04**" };
-const input = { tick: true, typedName: "Helen Yang", method: "bank" as const };
+const input = { tick: true, over18: true, typedName: "Helen Yang", method: "bank" as const };
 
 describe("copy", () => {
   test("constants are Jo's wording, verbatim", () => {
@@ -36,18 +37,22 @@ describe("copy", () => {
     expect(signAndPayButtons(state({ signed: true }))).toEqual({ card: "Pay by card", bank: "Pay by bank transfer" });
     expect(signAndPayButtons(state({ paid: true }))).toEqual({ sign: "Sign my rebate form" });
     expect(signAndPayButtons(state({ signed: true, paid: true }))).toEqual({});
+    // balance not payable yet: sign only, no pay wording
+    expect(signAndPayButtons(state({ payable: false }))).toEqual({ sign: "Sign my rebate form" });
+    expect(signAndPayButtons(state({ signed: true, payable: false }))).toEqual({});
   });
 });
 
 describe("blockers", () => {
   test("signing needs the tick and a first and last name", () => {
-    expect(signAndPayBlockers({ tick: true, typedName: "Helen Yang", state: state() })).toEqual([]);
-    expect(signAndPayBlockers({ tick: false, typedName: "Helen Yang", state: state() }).length).toBe(1);
-    expect(signAndPayBlockers({ tick: true, typedName: "Helen", state: state() }).length).toBe(1);
-    expect(signAndPayBlockers({ tick: true, typedName: "  ", state: state() }).length).toBe(1);
+    expect(signAndPayBlockers({ tick: true, over18: true, typedName: "Helen Yang", state: state() })).toEqual([]);
+    expect(signAndPayBlockers({ tick: false, over18: true, typedName: "Helen Yang", state: state() }).length).toBe(1);
+    expect(signAndPayBlockers({ tick: true, over18: true, typedName: "Helen", state: state() }).length).toBe(1);
+    expect(signAndPayBlockers({ tick: true, over18: true, typedName: "  ", state: state() }).length).toBe(1);
+    expect(signAndPayBlockers({ tick: true, over18: false, typedName: "Helen Yang", state: state() }).length).toBe(1);
   });
   test("already signed: only payment is asked, no tick or name", () => {
-    expect(signAndPayBlockers({ tick: false, typedName: "", state: state({ signed: true }) })).toEqual([]);
+    expect(signAndPayBlockers({ tick: false, over18: false, typedName: "", state: state({ signed: true }) })).toEqual([]);
   });
   test("the VEEC order guard blocks until the Lead Installer's Part B (and the AP's Part A) are in", () => {
     const b = (status: string, installerSigned: boolean, apSigned = false) => consumerSignBlocker({ status: status as never, installerSigned, apSigned, consumerSigned: false, openVariation: false });
@@ -86,7 +91,7 @@ describe("signAndPay", () => {
   });
   test("already signed: nothing is signed again, only payment", async () => {
     const { deps, calls } = fakes(state({ signed: true }));
-    expect(await signAndPay(J, session, { tick: false, typedName: "", method: "card" }, deps)).toEqual({ checkoutUrl: "https://stripe.test/b" });
+    expect(await signAndPay(J, session, { tick: false, over18: false, typedName: "", method: "card" }, deps)).toEqual({ checkoutUrl: "https://stripe.test/b" });
     expect(calls).toEqual(["card"]);
   });
   test("already paid: the button signs only, then done", async () => {
@@ -96,7 +101,7 @@ describe("signAndPay", () => {
   });
   test("both done: { done: true }, nothing happens", async () => {
     const { deps, calls } = fakes(state({ signed: true, paid: true }));
-    expect(await signAndPay(J, session, { tick: false, typedName: "", method: "bank" }, deps)).toEqual({ done: true });
+    expect(await signAndPay(J, session, { tick: false, over18: false, typedName: "", method: "bank" }, deps)).toEqual({ done: true });
     expect(calls).toEqual([]);
   });
   test("signing before the Lead Installer's Part B exists is refused; nothing signed, nothing paid", async () => {
@@ -111,6 +116,21 @@ describe("signAndPay", () => {
     await expect(signAndPay(J, session, { ...input, typedName: "Helen" }, deps)).rejects.toThrow();
     expect(calls).toEqual([]);
   });
+  test("one tick is not enough: over18 is never assumed, nothing signed", async () => {
+    const { deps, calls } = fakes(state());
+    await expect(signAndPay(J, session, { ...input, over18: false }, deps)).rejects.toThrow();
+    await expect(signAndPay(J, session, { ...input, tick: false }, deps)).rejects.toThrow();
+    expect(calls).toEqual([]);
+  });
+  test("over18 is recorded true only because the second box was ticked", async () => {
+    let seen: boolean | null = null;
+    const { deps } = fakes(state(), { signVeec: async (p) => { seen = p.over18; } });
+    await signAndPay(J, session, input, deps);
+    expect(seen).toBe(true);
+  });
+  test("the second tick uses the approved P2.tick3 wording", () => {
+    expect(P2.tick3).toBe("I'm 18 or over, and I own this home or I'm authorised to sign for the owner");
+  });
   test("a 6-digit code session for THIS job is required", async () => {
     const { deps, calls } = fakes(state());
     await expect(signAndPay(J, { ...session, codeId: "" }, input, deps)).rejects.toThrow(/code/i);
@@ -124,7 +144,8 @@ describe("signAndPay", () => {
   });
   test("a failed copy step never loses the signature or stops payment", async () => {
     const { deps } = fakes(state(), { afterSigned: async () => { throw new Error("mail down"); } });
-    expect(await signAndPay(J, session, input, deps)).toEqual({ bank: ["Account name: Test", "Reference: HV-1"] });
+    const orig = console.error; console.error = () => {};
+    try { expect(await signAndPay(J, session, input, deps)).toEqual({ bank: ["Account name: Test", "Reference: HV-1"] }); } finally { console.error = orig; }
   });
   test("balance not payable yet (not the due step): signs, never opens card or bank", async () => {
     const { deps, calls } = fakes(state({ payable: false }));

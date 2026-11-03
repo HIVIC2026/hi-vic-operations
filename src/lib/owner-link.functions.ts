@@ -943,6 +943,7 @@ export const ownerSignAndPayFn = createServerFn({ method: "POST" })
         token,
         session,
         tick: z.boolean(),
+        over18: z.boolean(),
         typedName: z.string().max(200),
         authorityType: z.enum(["owner", "authorised_representative"]),
         method: z.enum(["card", "bank"]),
@@ -954,6 +955,7 @@ export const ownerSignAndPayFn = createServerFn({ method: "POST" })
     const { CUSTOMER_BASE } = await import("./engagement.core");
     return (await import("./sign-and-pay.server")).signAndPay(s.jobId, s, {
       tick: data.tick,
+      over18: data.over18,
       typedName: data.typedName,
       method: data.method,
       authority: data.authorityType,

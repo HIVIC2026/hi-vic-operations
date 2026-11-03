@@ -7,7 +7,7 @@ import { WorkflowError } from "./workflow.server";
 import { signAndPayBlockers, consumerSignBlocker, type SignAndPayState } from "./sign-and-pay.core";
 import type { OwnerSessionLike } from "./confirm-sign-pay.server";
 
-export type SignAndPayInput = { tick: boolean; typedName: string; method: "card" | "bank"; authority?: "owner" | "authorised_representative"; returnUrl?: string; ip?: string | null; userAgent?: string | null };
+export type SignAndPayInput = { tick: boolean; over18: boolean; typedName: string; method: "card" | "bank"; authority?: "owner" | "authorised_representative"; returnUrl?: string; ip?: string | null; userAgent?: string | null };
 export type SignAndPayResult = { checkoutUrl: string } | { bank: string[] } | { done: true };
 
 export type SignAndPayDeps = {
@@ -26,12 +26,12 @@ export async function signAndPay(jobId: string, session: OwnerSessionLike, i: Si
   const state = await deps.loadState(jobId);
   if (!state.sign.done) {
     if (state.sign.blocker) throw new WorkflowError(state.sign.blocker);
-    const errs = signAndPayBlockers({ tick: i.tick, typedName: i.typedName, state });
+    const errs = signAndPayBlockers({ tick: i.tick, over18: i.over18, typedName: i.typedName, state });
     if (errs.length) throw new WorkflowError(errs.join(" "));
     const name = i.typedName.trim().replace(/\s+/g, " ");
-    // The one tick is the owner's reading of the form: the details are correct (Section 2) and the assignment. The official
-    // Section 4 declarations (incl. "I am the energy consumer, or authorised") are in the full form they were shown.
-    await deps.signVeec({ jobId, userId: session.userId, signatureName: name, signatoryName: name, authorityType: i.authority ?? "owner", over18: true, confirmsSection2: true, ip: i.ip ?? null, userAgent: i.userAgent ?? null });
+    // Two ticks, both required above: the read-and-assign tick (Section 2 confirmation) and P2.tick3 (18 or over, owner or authorised).
+    // Each flag is recorded from its own tick, never assumed.
+    await deps.signVeec({ jobId, userId: session.userId, signatureName: name, signatoryName: name, authorityType: i.authority ?? "owner", over18: i.over18, confirmsSection2: i.tick, ip: i.ip ?? null, userAgent: i.userAgent ?? null });
     try { await deps.afterSigned(jobId, session.userId); } catch (e) { console.error("after VEEC signing failed", jobId, e instanceof Error ? e.message : e); }
   }
   if (state.balance.paid || !state.balance.payable) return { done: true };
