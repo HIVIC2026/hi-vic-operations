@@ -98,6 +98,8 @@ export function rejectionEmail(i: { electricianName: string; reason: string }): 
 
 /** The Needs me line for one waiting installer-added electrician. */
 export const approveElectricianLine = (electricianName: string, installerName: string) => `Approve electrician ${electricianName.trim() || "name not given"} — added by ${installerName.trim() || "an installer"}`;
+/** The same item when the business is approved but a step (person, link, welcome text) didn't finish. */
+export const finishApprovingElectricianLine = (electricianName: string, installerName: string) => `Finish approving electrician ${electricianName.trim() || "name not given"} — added by ${installerName.trim() || "an installer"}`;
 
 // ---- "My electricians" screen rules (pure; the component in components/trade/my-electricians.tsx only renders these) ----
 

@@ -11,7 +11,7 @@ import { sameWorkerEmail } from "./worker-role.core";
 import { isMissingDbObject } from "./schema-compat.core";
 import { allowedUpload } from "./upload-safety.core";
 import { melbourneToday } from "./worker-compliance.core";
-import { addElectricianProblems, approveChecklist, approveElectricianLine, myElectricianStatus, rejectionEmail, REJECTION_EMAIL_APPROVED, welcomeSmsKey, welcomeSmsText, type AddElectricianInput, type MyElectricianStatus } from "./my-electricians.core";
+import { addElectricianProblems, approveChecklist, approveElectricianLine, finishApprovingElectricianLine, myElectricianStatus, rejectionEmail, REJECTION_EMAIL_APPROVED, welcomeSmsKey, welcomeSmsText, type AddElectricianInput, type MyElectricianStatus } from "./my-electricians.core";
 import { stableUuid } from "./mitti-create-claim.core";
 import { TEST_PARTNER_MARK, isTestPartner, normaliseAuMobile } from "./test-send.core";
 
@@ -298,7 +298,7 @@ function checklistProblems(biz: FullBiz, workers: WorkerRow[], creds: FullCred[]
   });
 }
 
-export type InstallerElectricianReview = { name: string; installerId: string; installerName: string; status: MyElectricianStatus; rejectedReason: string | null; problems: string[] };
+export type InstallerElectricianReview = { name: string; installerId: string; installerName: string; status: MyElectricianStatus; rejectedReason: string | null; problems: string[]; /** Approved, but a step of the approval is still missing (person, link or welcome text): the office card shows "Finish approval". */ unfinished: boolean };
 
 /** For the office business page: who added them, where they stand, and what (if anything) stops approval. Null = not installer-added. */
 export async function installerElectricianReview(businessId: string): Promise<InstallerElectricianReview | null> {
@@ -307,7 +307,8 @@ export async function installerElectricianReview(businessId: string): Promise<In
   const today = melbourneToday();
   const creds = (await admin.from("business_credentials").select("business_id, kind, expires_at, verification").eq("business_id", businessId).in("kind", CRED_KINDS)).data ?? [];
   const g = gradeRows(r.biz, r.workers, creds as CredRow[], today);
-  return { name: r.biz.name?.trim() || "Electrician", installerId: r.installer.id, installerName: r.installer.name?.trim() || "an installer", status: g.state, rejectedReason: g.reason, problems: checklistProblems(r.biz, r.workers, r.creds, today) };
+  const unfinished = r.biz.onboarding_status === "approved" && anyGap((await approvalGaps([{ id: businessId, installerId: r.installer.id }])).get(businessId));
+  return { name: r.biz.name?.trim() || "Electrician", installerId: r.installer.id, installerName: r.installer.name?.trim() || "an installer", status: g.state, rejectedReason: g.reason, problems: checklistProblems(r.biz, r.workers, r.creds, today), unfinished };
 }
 
 async function logOffice(actorId: string | null, eventType: string, summary: string, details: Record<string, unknown>) {
@@ -315,18 +316,41 @@ async function logOffice(actorId: string | null, eventType: string, summary: str
   if (error) console.error(`${eventType} event not logged`, error.message);
 }
 
+/** What an approved installer-added electrician still lacks. "Finished" = every live person approved AND the installer's
+ *  link on; the welcome text's state is whatever sms_messages says (one row per electrician, held or sent). */
+export type ApprovalGaps = { workerPending: boolean; linkInactive: boolean; welcomeMissing: boolean };
+async function approvalGaps(rows: { id: string; installerId: string }[]): Promise<Map<string, ApprovalGaps>> {
+  const out = new Map<string, ApprovalGaps>();
+  if (!rows.length) return out;
+  const ids = rows.map((r) => r.id);
+  const [ws, rels, sms] = await Promise.all([
+    admin.from("partner_workers").select("business_id").in("business_id", ids).eq("trade_role", "electrician").eq("approval_status", "pending").is("removed_at", null),
+    admin.from("partner_relationships").select("installer_business_id, electrician_business_id").in("electrician_business_id", ids).eq("active", true),
+    admin.from("sms_messages").select("business_id").eq("message_type", "installer_added_electrician_welcome").in("business_id", ids),
+  ]);
+  if (ws.error || rels.error || sms.error) throw new WorkflowError(READ_FAIL);
+  for (const r of rows) out.set(r.id, {
+    workerPending: (ws.data ?? []).some((w) => w.business_id === r.id),
+    linkInactive: !(rels.data ?? []).some((l) => l.electrician_business_id === r.id && l.installer_business_id === r.installerId),
+    welcomeMissing: !(sms.data ?? []).some((m) => m.business_id === r.id),
+  });
+  return out;
+}
+const anyGap = (g: ApprovalGaps | undefined) => !!g && (g.workerPending || g.linkInactive || g.welcomeMissing);
+
 /**
  * Office approval of an installer-added electrician (admin only — the server function checks). The checklist is a hard
- * block with no override. Approval = credentials verified, business approved + active, the person approved (Mitti hook),
- * the installer's link switched ON (the installer's list hides inactive approved rows), ONE welcome text (held wording).
- * No agreement and no service areas are needed: they never get Home Insulation Victoria leads.
- * Retry-safe: a run that failed after the business flipped is REPAIRED by the next click (person approved, link on,
- * welcome text once); only a fully approved electrician gets "Already approved.".
+ * block with no override. Approval = credentials verified, business approved + active, the pending people approved (Mitti
+ * hook), the installer's link switched ON (the installer's list hides inactive approved rows), ONE welcome text (held
+ * wording; once-only by the sender's own key). No agreement and no service areas are needed: they never get our leads.
+ * Retry-safe: a run that failed after the business flipped is FINISHED by the next click (pending people, link, text);
+ * only a fully finished electrician gets "Already approved.".
  */
 export async function officeApproveInstallerElectrician(actorId: string, businessId: string): Promise<void> {
   const r = await loadInstallerElectrician(businessId);
   if (!r) throw new WorkflowError("This electrician wasn't added by an installer.");
   const now = new Date().toISOString();
+  let gaps: ApprovalGaps | undefined;
   if (r.biz.onboarding_status !== "approved") {
     const problems = checklistProblems(r.biz, r.workers, r.creds, melbourneToday());
     if (problems.length) throw new WorkflowError(`Can't approve yet: ${problems.join(". ")}`);
@@ -335,42 +359,40 @@ export async function officeApproveInstallerElectrician(actorId: string, busines
     const bu = await admin.from("businesses").update({ onboarding_status: "approved", is_active: true, approved_by: actorId, approved_at: now, installer_added_rejected_reason: null, updated_at: now } as never).eq("id", businessId);
     if (bu.error) throw new WorkflowError("Could not approve: the business could not be updated. The paperwork is marked verified; click Approve again.");
   } else {
-    const [{ data: rel }, pendingWelcome] = await Promise.all([
-      admin.from("partner_relationships").select("active").eq("installer_business_id", r.installer.id).eq("electrician_business_id", businessId).eq("active", true).limit(1),
-      welcomeNotClaimed(businessId),
-    ]);
-    const unfinished = r.workers.some((w) => w.approval_status !== "approved") || !(rel ?? []).length || pendingWelcome;
-    if (!unfinished) throw new WorkflowError("Already approved.");
+    gaps = (await approvalGaps([{ id: businessId, installerId: r.installer.id }])).get(businessId);
+    if (!anyGap(gaps)) throw new WorkflowError("Already approved.");
   }
-  // From here every step is idempotent, so a retry finishes what an earlier run left undone.
+  // From here every step is idempotent, so a retry finishes what an earlier run left undone. Only PENDING people are
+  // approved: a person the office rejected stays rejected.
   const { approvePartnerWorker } = await import("./worker-approval.server");
-  for (const w of r.workers.filter((x) => x.approval_status !== "approved")) {
+  for (const w of r.workers.filter((x) => x.approval_status === "pending")) {
     try { await approvePartnerWorker(w.id, actorId, { kind: "office", reason: "Installer-added electrician approved by the office" }); }
     catch (e) { throw new WorkflowError(`Approved, but the electrician's login could not be approved (${(e as Error).message}). Click Approve again to finish.`); }
   }
   const rel = await admin.from("partner_relationships").upsert({ installer_business_id: r.installer.id, electrician_business_id: businessId, active: true, source: "installer_added", created_by: actorId } as never, { onConflict: "installer_business_id,electrician_business_id" });
   if (rel.error) throw new WorkflowError("Approved, but the installer's link could not be switched on. Click Approve again to finish.");
   await logOffice(actorId, "installer_added_electrician_approved", `Approved installer-added electrician ${r.biz.name?.trim() ?? ""}`.trim(), { installer_business_id: r.installer.id, electrician_business_id: businessId });
-  await sendWelcomeOnce(r, businessId, now);
-}
-
-const WELCOME_CLAIM_EVENT = "installer_added_electrician_welcome_claimed";
-/** True while no run has yet handed the welcome text to the sender for this electrician. */
-async function welcomeNotClaimed(businessId: string): Promise<boolean> {
-  const { data, error } = await admin.from("admin_config_events").select("id").eq("id", await stableUuid(welcomeSmsKey(businessId))).limit(1);
-  if (error) throw new WorkflowError(READ_FAIL);
-  return !(data ?? []).length;
-}
-
-/** Welcome text once per electrician: the claim row (stable id) is written before the send, so a repaired approval never
- *  texts twice. Pause check on the electrician with no job. Never fails the approval. */
-async function sendWelcomeOnce(r: NonNullable<Awaited<ReturnType<typeof loadInstallerElectrician>>>, businessId: string, now: string) {
+  // Welcome text: the sender's own key (`welcomeSmsKey`) makes it once-only and records held attempts, so a retry can
+  // simply ask again. A sender failure is said plainly and leaves the electrician "unfinished" until a text is recorded.
+  if (gaps && !gaps.welcomeMissing) return;
   try {
-    const claim = await admin.from("admin_config_events").insert({ id: await stableUuid(welcomeSmsKey(businessId)), actor_id: null, event_type: WELCOME_CLAIM_EVENT, summary: "Welcome text handed to the sender", details: { electrician_business_id: businessId } as never } as never);
-    if (claim.error) { if ((claim.error as { code?: string }).code !== "23505") console.error("welcome text claim failed", claim.error.message); return; }
     const { sendRealSms } = await import("./sms.server");
     await sendRealSms({ type: "installer_added_electrician_welcome", idempotencyKey: welcomeSmsKey(businessId), to: r.biz.phone, businessId, jobId: null, event: { at: now }, body: welcomeSmsText({ electricianName: r.biz.name ?? "", installerName: r.installer.name ?? "your installer" }) });
-  } catch (e) { console.error("installer-added electrician welcome text failed", (e as Error).message); }
+  } catch (e) { throw new WorkflowError(`Approved, but the welcome text couldn't be sent (${(e as Error).message}). Click Approve again to retry it.`); }
+}
+
+/** Decision 371 for the installer's OWN-job picks (electrician-swap `eligibility`, Task 5's Add-a-job pick): a lapsed
+ *  public liability or REC registration blocks; for an installer-added electrician the business-level electrical licence
+ *  does too (they have no per-person onboarding licence check). Rejected rows don't count. Missing table/column = nothing to check. */
+export async function ownJobDocsBlocker(electricianBusinessId: string, today = melbourneToday()): Promise<string | null> {
+  const { expiredBusinessDocsBlocker } = await import("./trade-expiry.core");
+  const cr = await admin.from("business_credentials").select("kind, label, expires_at, verification").eq("business_id", electricianBusinessId).neq("verification", "rejected");
+  if (cr.error) { if (isMissingDbObject(cr.error)) return null; throw new WorkflowError("The electrician's paperwork couldn't be checked. Please try again."); }
+  const b = (await admin.from("businesses").select("id, added_by_installer_business_id").eq("id", electricianBusinessId).maybeSingle()) as unknown as { data: { added_by_installer_business_id: string | null } | null; error: { message: string; code?: string } | null };
+  let installerAdded = false;
+  if (b.error) { if (!isMissingDbObject(b.error)) throw new WorkflowError("The electrician's paperwork couldn't be checked. Please try again."); } else installerAdded = !!b.data?.added_by_installer_business_id;
+  const kinds = installerAdded ? (["public_liability_insurance", "rec_registration", "electrical_licence"] as const) : (["public_liability_insurance", "rec_registration"] as const);
+  return expiredBusinessDocsBlocker((cr.data ?? []).map((c) => ({ kind: c.kind, label: c.label ?? c.kind, expires: c.expires_at as string | null, verified: c.verification === "verified" })), today, kinds);
 }
 
 /**
@@ -438,27 +460,37 @@ export async function installerResubmitElectrician(userId: string, businessId: s
   await logOffice(userId, "installer_added_electrician_resubmitted", `Installer resubmitted electrician ${input.name.trim()}`, { installer_business_id: c.biz.id, electrician_business_id: businessId });
 }
 
-export type PendingInstallerElectricianItem = { key: string; businessId: string; workerIds: string[]; who: string; line: string; since: string | null; href: string; isTest: boolean };
+export type PendingInstallerElectricianItem = { key: string; businessId: string; workerIds: string[]; who: string; line: string; since: string | null; href: string; isTest: boolean; unfinished: boolean };
 
-/** Needs me (partner fold): one item per installer-added electrician still waiting for the office. Columns pending → none. */
+/** Needs me (partner fold): one item per installer-added electrician still waiting for the office ("Approve electrician …"),
+ *  plus one per APPROVED electrician whose approval didn't finish — person pending, link off or no welcome text recorded
+ *  ("Finish approving electrician …"), so a half-done approval never falls off the office's surfaces. Columns pending → none. */
 export async function pendingInstallerElectricianItems(): Promise<PendingInstallerElectricianItem[]> {
-  const res = (await admin.from("businesses").select("id, name, onboarding_status, onboarding_notes, added_by_installer_business_id, installer_added_rejected_reason").not("added_by_installer_business_id", "is", null).eq("onboarding_status", "submitted")) as unknown as { data: (Pick<FullBiz, "id" | "name" | "onboarding_status" | "onboarding_notes" | "added_by_installer_business_id" | "installer_added_rejected_reason">)[] | null; error: { message: string; code?: string } | null };
+  const res = (await admin.from("businesses").select("id, name, onboarding_status, onboarding_notes, added_by_installer_business_id, installer_added_rejected_reason").not("added_by_installer_business_id", "is", null).in("onboarding_status", ["submitted", "approved"])) as unknown as { data: (Pick<FullBiz, "id" | "name" | "onboarding_status" | "onboarding_notes" | "added_by_installer_business_id" | "installer_added_rejected_reason">)[] | null; error: { message: string; code?: string } | null };
   if (res.error) { if (isMissingDbObject(res.error)) return []; throw new Error(`Could not read electricians added by installers: ${res.error.message}`); }
-  const waiting = (res.data ?? []).filter((b) => !b.installer_added_rejected_reason?.trim());
-  if (!waiting.length) return [];
-  const ids = waiting.map((b) => b.id);
+  const all = res.data ?? [];
+  const waiting = all.filter((b) => b.onboarding_status === "submitted" && !b.installer_added_rejected_reason?.trim());
+  const approved = all.filter((b) => b.onboarding_status === "approved");
+  const gaps = await approvalGaps(approved.map((b) => ({ id: b.id, installerId: b.added_by_installer_business_id! })));
+  const unfinished = approved.filter((b) => anyGap(gaps.get(b.id)));
+  const show = [...waiting, ...unfinished];
+  if (!show.length) return [];
+  const ids = show.map((b) => b.id);
   const [inst, ws, ev] = await Promise.all([
-    admin.from("businesses").select("id, name").in("id", [...new Set(waiting.map((b) => b.added_by_installer_business_id!))]),
+    admin.from("businesses").select("id, name").in("id", [...new Set(show.map((b) => b.added_by_installer_business_id!))]),
     admin.from("partner_workers").select("id, business_id").in("business_id", ids).eq("trade_role", "electrician").is("removed_at", null),
-    admin.from("admin_config_events").select("created_at, details").in("event_type", ["installer_added_electrician", "installer_added_electrician_resubmitted"]).in("details->>electrician_business_id", ids).order("created_at", { ascending: false }),
+    admin.from("admin_config_events").select("created_at, details").in("event_type", ["installer_added_electrician", "installer_added_electrician_resubmitted", "installer_added_electrician_approved"]).in("details->>electrician_business_id", ids).order("created_at", { ascending: false }),
   ]);
   if (inst.error || ws.error || ev.error) throw new Error("Could not read electricians added by installers.");
   const names = new Map((inst.data ?? []).map((b) => [b.id, b.name]));
   const since = new Map<string, string>();
   for (const e of (ev.data ?? []) as { created_at: string; details: { electrician_business_id?: string } | null }[]) { const bid = e.details?.electrician_business_id; if (bid && !since.has(bid)) since.set(bid, e.created_at); }
-  return waiting.map((b) => ({
-    key: `installer-electrician:${b.id}`, businessId: b.id, workerIds: (ws.data ?? []).filter((w) => w.business_id === b.id).map((w) => w.id),
-    who: b.name?.trim() || "Electrician", line: approveElectricianLine(b.name ?? "", names.get(b.added_by_installer_business_id!) ?? ""), since: since.get(b.id) ?? null,
-    href: `/admin/partners/business/${b.id}`, isTest: isTestPartner(b),
-  }));
+  return show.map((b) => {
+    const fin = b.onboarding_status === "approved";
+    return {
+      key: `installer-electrician:${b.id}`, businessId: b.id, workerIds: (ws.data ?? []).filter((w) => w.business_id === b.id).map((w) => w.id),
+      who: b.name?.trim() || "Electrician", line: (fin ? finishApprovingElectricianLine : approveElectricianLine)(b.name ?? "", names.get(b.added_by_installer_business_id!) ?? ""), since: since.get(b.id) ?? null,
+      href: `/admin/partners/business/${b.id}`, isTest: isTestPartner(b), unfinished: fin,
+    };
+  });
 }

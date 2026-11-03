@@ -14,6 +14,7 @@ CREATE TABLE partner_workers (id uuid primary key default gen_random_uuid(), bus
 CREATE TABLE business_credentials (id uuid primary key default gen_random_uuid(), business_id uuid, kind text, label text, number text, expires_at date, document_path text, verification text not null default 'pending' CHECK (verification IN ('pending','verified','rejected')), critical boolean, created_by uuid, verified_by uuid, verified_at timestamptz, created_at timestamptz default now());
 CREATE TABLE partner_relationships (id uuid primary key default gen_random_uuid(), installer_business_id uuid not null, electrician_business_id uuid not null, active boolean not null default true, preferred boolean default false, is_primary boolean default false, source text, notes text, created_by uuid, UNIQUE (installer_business_id, electrician_business_id));
 CREATE TABLE admin_config_events (id uuid primary key default gen_random_uuid(), actor_id uuid, event_type text, summary text, details jsonb, created_at timestamptz default now());
+CREATE TABLE sms_messages (id uuid primary key default gen_random_uuid(), message_type text, idempotency_key text, business_id uuid, job_id uuid, status text, created_at timestamptz default now());
 `);
 const id = (n: number) => `00000000-0000-0000-0000-${String(n).padStart(12, "0")}`;
 const INST = id(1), INST2 = id(2), U_BOSS = id(11), U_BOSS2 = id(12), OFFICE = id(50);
@@ -29,9 +30,16 @@ const storage = { from: () => ({ createSignedUploadUrl: async (p: string) => ({ 
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { ...postgrestShim(db), storage } }));
 mock.module("../src/lib/upload-safety.server", () => ({ verifyStoredUpload: async () => undefined }));
 const smsCalls: { type: string; businessId: string | null; jobId: string | null; to: string | null; body: string; idempotencyKey: string }[] = [];
+let smsThrowOnce = false;
+// Like the real sender: a held attempt is still RECORDED in sms_messages (the once-only key lives there); a thrown error records nothing.
 mock.module("../src/lib/sms.server", () => ({
   smsHoldReason: async () => null,
-  sendRealSms: async (i: (typeof smsCalls)[number]) => { smsCalls.push(i); return { status: "blocked", detail: "wording not approved", sid: null }; },
+  sendRealSms: async (i: (typeof smsCalls)[number]) => {
+    if (smsThrowOnce) { smsThrowOnce = false; throw new Error("Could not check SMS history safely; nothing sent"); }
+    smsCalls.push(i);
+    await db.query("insert into sms_messages (message_type, idempotency_key, business_id, job_id, status) values ($1,$2,$3,$4,'blocked')", [i.type, `${i.idempotencyKey}#held:${crypto.randomUUID()}`, i.businessId, i.jobId]);
+    return { status: "blocked", detail: "wording not approved", sid: null };
+  },
 }));
 const emails: { to: string; subject: string; message: string; record: unknown; pauseJobId: unknown; recipient: string }[] = [];
 mock.module("../src/lib/office-email.server", () => ({ sendOfficeEmail: async (p: (typeof emails)[number]) => { emails.push(p); return { channel: "email", to: p.to, status: "sent", detail: "" }; } }));
@@ -62,7 +70,7 @@ const input = (o: Record<string, unknown> = {}) => ({
 }) as Parameters<typeof els.installerAddElectrician>[1];
 const reject = async (p: Promise<unknown>) => (await p.then(() => null, (e: Error) => e.message));
 const biz = async (b: string) => (await db.query<Record<string, unknown>>("select * from businesses where id=$1", [b])).rows[0]!;
-const worker = async (b: string) => (await db.query<Record<string, unknown>>("select * from partner_workers where business_id=$1 and removed_at is null", [b])).rows[0]!;
+const worker = async (b: string) => (await db.query<Record<string, unknown>>("select * from partner_workers where business_id=$1 and removed_at is null order by full_legal_name", [b])).rows[0]!;
 const link = async (b: string) => (await db.query<{ active: boolean }>("select active from partner_relationships where installer_business_id=$1 and electrician_business_id=$2", [INST, b])).rows[0] ?? null;
 const creds = async (b: string) => (await db.query<{ kind: string; verification: string; verified_by: string | null }>("select kind, verification, verified_by from business_credentials where business_id=$1 order by kind, created_at", [b])).rows;
 const events = async (type: string) => (await db.query<{ details: Record<string, unknown> }>("select details from admin_config_events where event_type=$1", [type])).rows;
@@ -133,11 +141,19 @@ describe("officeApproveInstallerElectrician", () => {
     expect((await worker(FINN)).approval_status).toBe("pending");
     expect(await link(FINN)).toEqual({ active: false });
     expect(smsCalls).toHaveLength(1);
-    expect((await els.pendingInstallerElectricianItems()).map((i) => i.businessId)).toEqual([RITA]);
     expect((await els.installerMyElectricians(U_BOSS)).find((r) => r.id === FINN)).toMatchObject({ status: "waiting" });
+    // Still on the office's surfaces: a "Finish approving" item, and the card says Finish approval.
+    const items = await els.pendingInstallerElectricianItems();
+    expect(items.find((i) => i.businessId === FINN)).toMatchObject({ line: "Finish approving electrician Finn Fuse — added by Insul One", unfinished: true, href: `/admin/partners/business/${FINN}` });
+    expect(items.find((i) => i.businessId === RITA)).toMatchObject({ unfinished: false });
+    expect(await els.installerElectricianReview(FINN)).toMatchObject({ status: "waiting", unfinished: true });
+    // A person the office rejected is never approved by the repair.
+    await db.query("insert into partner_workers (business_id, trade_role, full_legal_name, email, approval_status) values ($1,'electrician','Rejected Ray','ray@fuse.test','rejected')", [FINN]);
     // The retry repairs instead of refusing.
     await els.officeApproveInstallerElectrician(OFFICE, FINN);
-    expect((await worker(FINN)).approval_status).toBe("approved");
+    expect((await db.query<{ full_legal_name: string; approval_status: string }>("select full_legal_name, approval_status from partner_workers where business_id=$1 order by full_legal_name", [FINN])).rows).toEqual([{ full_legal_name: "Finn Fuse", approval_status: "approved" }, { full_legal_name: "Rejected Ray", approval_status: "rejected" }]);
+    expect(await els.installerElectricianReview(FINN)).toMatchObject({ status: "approved", unfinished: false });
+    expect((await els.pendingInstallerElectricianItems()).map((i) => i.businessId)).toEqual([RITA]);
     expect(await link(FINN)).toEqual({ active: true });
     expect(smsCalls).toHaveLength(2);
     expect(smsCalls[1]).toMatchObject({ businessId: FINN, idempotencyKey: core.welcomeSmsKey(FINN) });
@@ -220,11 +236,20 @@ describe("officeRejectInstallerElectrician + installerResubmitElectrician", () =
     expect(await els.installerElectricianReview(RITA)).toMatchObject({ status: "waiting", problems: [] });
   });
 
-  test("after a resubmit the office can approve", async () => {
-    await els.officeApproveInstallerElectrician(OFFICE, RITA);
+  test("after a resubmit the office can approve; a sender failure is said, kept as unfinished, and the retry sends once", async () => {
+    smsThrowOnce = true;
+    expect(await reject(els.officeApproveInstallerElectrician(OFFICE, RITA))).toBe("Approved, but the welcome text couldn't be sent (Could not check SMS history safely; nothing sent). Click Approve again to retry it.");
     expect(await biz(RITA)).toMatchObject({ onboarding_status: "approved", is_active: true });
     expect(await link(RITA)).toEqual({ active: true });
     expect((await creds(RITA)).filter((c) => c.verification === "pending")).toHaveLength(0);
+    expect(smsCalls).toHaveLength(2);
+    expect((await els.pendingInstallerElectricianItems()).find((i) => i.businessId === RITA)).toMatchObject({ line: "Finish approving electrician Rita Relay-Smith — added by Insul One", unfinished: true });
+    expect(await els.installerElectricianReview(RITA)).toMatchObject({ unfinished: true });
+    await els.officeApproveInstallerElectrician(OFFICE, RITA);
+    expect(smsCalls).toHaveLength(3);
+    expect(smsCalls[2]).toMatchObject({ businessId: RITA, idempotencyKey: core.welcomeSmsKey(RITA) });
+    expect((await els.pendingInstallerElectricianItems()).find((i) => i.businessId === RITA)).toBeUndefined();
+    expect(await reject(els.officeApproveInstallerElectrician(OFFICE, RITA))).toBe("Already approved.");
     expect(smsCalls).toHaveLength(3);
   });
 });
@@ -237,6 +262,22 @@ describe("after approval", () => {
     expect([...BLOCKING_BUSINESS_DOCS]).toContain("electrical_licence");
     expect(expiredBusinessDocsBlocker([{ kind: "electrical_licence", label: "Electrical licence", expires: "2026-10-01", verified: true }], "2026-11-03")).toContain("Electrical licence expired on 2026-10-01");
     expect((await els.installerMyElectricians(U_BOSS)).find((r) => r.id === SAM)).toMatchObject({ status: "expired" });
+  });
+
+  test("own-job pick: a lapsed business licence blocks an installer-added electrician; an HIV-onboarded REC is judged on PL + REC registration only", async () => {
+    await db.query("update business_credentials set expires_at='2026-10-01' where business_id=$1 and kind='electrical_licence'", [SAM]);
+    expect(await els.ownJobDocsBlocker(SAM, "2026-11-03")).toContain("Electrical licence expired on 2026-10-01");
+    expect(await els.ownJobDocsBlocker(RITA, "2026-11-03")).toBeNull();
+    const REC = id(60);
+    await db.query(`insert into businesses (id, business_type, name, onboarding_status, is_active, capabilities) values ($1,'rec','Volt Co','approved',true,'["electrician"]')`, [REC]);
+    await db.query("insert into business_credentials (business_id, kind, expires_at, verification) values ($1,'electrical_licence','2020-01-01','verified'), ($1,'public_liability_insurance','2099-01-01','verified')", [REC]);
+    expect(await els.ownJobDocsBlocker(REC, "2026-11-03")).toBeNull(); // per-person licence rules cover HIV-onboarded RECs
+    await db.query("insert into business_credentials (business_id, kind, expires_at, verification) values ($1,'public_liability_insurance','2026-01-01','rejected'), ($1,'rec_registration','2026-01-01','verified')", [REC]);
+    expect(await els.ownJobDocsBlocker(REC, "2026-11-03")).toBe("REC registration expired on 2026-01-01. No new jobs until the renewed document is uploaded.");
+    const swap = readFileSync(new URL("../src/lib/electrician-swap.server.ts", import.meta.url), "utf8");
+    expect(swap).toContain("ownJobDocsBlocker(electricianBusinessId)");
+    // The HIV-lead candidate list is NOT changed by lapsed documents (quoting / invites keep their own rules).
+    expect(readFileSync(new URL("../src/lib/rec-onboarded.server.ts", import.meta.url), "utf8")).not.toContain("expiredBusinessDocsBlocker");
   });
 
   test("installer-added electricians are never Home Insulation Victoria lead candidates", () => {

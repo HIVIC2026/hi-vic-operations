@@ -142,8 +142,10 @@ function InstallerElectricianCard({ businessId, onDone }: { businessId: string; 
       <dl data-why="Part 2b: installer-added electricians work on that installer's jobs only; the office checks the paperwork, never overrides a gap">
         <Row k="Works for">{r.installerName} only · not offered Home Insulation Victoria's own leads · no agreement needed</Row>
         <Row k="Status">{r.status === "approved" ? <Pill tone="green">Approved</Pill> : r.status === "not_approved" ? <><Pill tone="rose">Not approved</Pill> <span className="text-sub">{r.rejectedReason}</span></> : r.status === "expired" ? <Pill tone="rose">Paperwork expired</Pill> : <Pill tone="amber">Waiting for approval</Pill>}</Row>
+        {r.unfinished && <Row k="Checks"><span className="text-rose">Approved, but not finished — the electrician's login, the installer's link or the welcome text is still missing. Finish approval completes it.</span></Row>}
         {waiting && <Row k="Checks">{r.problems.length === 0 ? <span className="text-estimate-green">Paperwork complete and in date</span> : <ul className="list-disc pl-4">{r.problems.map((p) => <li key={p} className="text-rose">{p}</li>)}</ul>}</Row>}
       </dl>
+      {r.unfinished && <div className="mt-3"><Btn onClick={async () => { if (await approve({ businessId }, "Approval finished")) await onDone(); }}>Finish approval</Btn></div>}
       {waiting && <div className="mt-3 flex flex-wrap gap-2">
         <Btn disabled={r.problems.length > 0} onClick={async () => { if (await approve({ businessId }, "Electrician approved")) await onDone(); }}>Approve</Btn>
         <Btn tone="secondary" onClick={async () => { const why = await reason.ask({ title: "Not approving this electrician?", description: "The installer sees this reason in My electricians and can fix it and resubmit.", placeholder: "What needs fixing", minLength: 3, confirmLabel: "Reject" }); if (why && await rejectFn({ businessId, reason: why }, "Not approved — the installer has been told")) await onDone(); }}>Reject</Btn>

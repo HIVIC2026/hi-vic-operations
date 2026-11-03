@@ -5,7 +5,6 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { selectAgreedRate, type ElectricianRateRow } from "./allocation.core";
 import type { ApprovedRecCandidate } from "./rec-onboarded.core";
-import { expiredBusinessDocsBlocker } from "./trade-expiry.core";
 
 const melbourneToday = (now = new Date()) => new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
 
@@ -15,25 +14,20 @@ export async function loadApprovedRecCandidates(now = new Date()): Promise<Appro
   if (error) throw new Error("Could not read the approved electricians.");
   const ids = (bizs ?? []).map((b) => b.id);
   if (!ids.length) return [];
-  const [{ data: workers, error: we }, { data: rates, error: re }, { data: creds, error: ce }] = await Promise.all([
+  const [{ data: workers, error: we }, { data: rates, error: re }] = await Promise.all([
     admin.from("partner_workers").select("business_id, licence_number").eq("trade_role", "electrician").eq("approval_status", "approved").is("removed_at", null).in("business_id", ids),
     admin.from("electrician_rates").select("id, business_id, service_type, rate_inc_gst, status, effective_from, effective_to").in("business_id", ids).eq("service_type", "piesa").eq("status", "active"),
-    // Decision 371 / Part 2b: a lapsed business document (public liability, REC registration, electrical licence) blocks the
-    // business everywhere this list is used — including the installer's own-job pick (electrician-swap `eligibility`).
-    admin.from("business_credentials").select("business_id, kind, label, expires_at, verification").in("business_id", ids).neq("verification", "rejected"),
   ]);
-  if (we || re || ce) throw new Error("Could not read the approved electricians' rates.");
+  if (we || re) throw new Error("Could not read the approved electricians' rates.");
   const today = melbourneToday(now);
   return (bizs ?? []).map((b) => {
     const rate = selectAgreedRate((rates ?? []) as ElectricianRateRow[], b.id, "piesa", today);
     const ws = (workers ?? []).filter((w) => w.business_id === b.id);
-    const docs = (creds ?? []).filter((c) => c.business_id === b.id).map((c) => ({ kind: c.kind, label: c.label ?? c.kind, expires: c.expires_at, verified: c.verification === "verified" }));
     return {
       business_id: b.id, name: b.name ?? null, trading_name: b.trading_name ?? null, rec_number: b.rec_number ?? null,
       onboarding_status: b.onboarding_status ?? null, is_active: b.is_active ?? null,
       worker_licences: ws.map((w) => w.licence_number), approved_electricians: ws.length,
       piesa_rate: rate ? { id: rate.id, rate_inc_gst: rate.rate_inc_gst } : null,
-      blocker: expiredBusinessDocsBlocker(docs, today),
     };
   });
 }
