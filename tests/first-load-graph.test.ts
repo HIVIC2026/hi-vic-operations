@@ -59,6 +59,19 @@ describe("first load: only the page", () => {
     expect(staticGraph("src/lib/template-sections.core.ts").size).toBe(1);
   });
 
+  test("route loaders (part of the app's first download) load their server calls at use time", () => {
+    const pins = [
+      { route: "src/routes/_authenticated/admin.in-house-batches.tsx", mod: "in-house-batch.functions", call: "getInHouseBatches" },
+      { route: "src/routes/_authenticated/field.practice.$jobId.$auditId.tsx", mod: "mitti-practice.functions", call: "readPracticeForm" },
+    ];
+    for (const p of pins) {
+      const code = src(p.route);
+      const staticLine = code.split("\n").find((l) => /^import\s/.test(l) && l.includes(`@/lib/${p.mod}"`)) ?? "";
+      expect(staticLine).not.toContain(p.call);
+      expect(code).toContain(`(await import("@/lib/${p.mod}")).${p.call}(`);
+    }
+  });
+
   test("other pages are fetched on intent (hover/touch), and an intent preload is reused for 30 s", () => {
     const r = src("src/router.tsx");
     expect(r).toMatch(/defaultPreload:\s*"intent"/);
