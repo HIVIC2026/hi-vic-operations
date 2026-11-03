@@ -173,8 +173,8 @@ export function areaLines(f: { ownerM2: number | null | undefined; prelim: { net
 }
 
 const optLabel = <V extends string>(opts: readonly { value: V; label: string }[], v: V | undefined) => (v ? opts.find((o) => o.value === v)?.label ?? null : null);
-/** The owner's quick-tap answers, as label/answer rows (Jo's question wording and answer labels, verbatim). The roof tap is
- *  the roof shape (sloped / flat / some of each). */
+/** The owner's quick-tap answers, as label/answer rows (Jo's question wording and answer labels, verbatim). Roof / 5-year
+ *  rows appear only on answers saved before 3 Nov 2026 (those questions are no longer asked). */
 export function tapRows(a: QuickTapAnswers | null | undefined): [string, string][] {
   if (!a) return [];
   const rows: [string, string | null][] = [
