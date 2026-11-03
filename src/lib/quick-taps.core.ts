@@ -176,3 +176,20 @@ export function locationNeedsRefresh(f: { locationAddress: AddressParts | null; 
   if (f.locationAddress) return !sameAddress(f.locationAddress, f.saved);
   return f.changedNow || f.changedBefore;
 }
+
+// ---- One-off re-ask (Jo 3 Nov 2026, Mia HV-1405: tapped "flat roof" by mistake) ----------------------------------
+/** The set-aside name for an answer the office has replaced: history kept, no longer read as the batch's answer. */
+export const QUICK_TAPS_ANSWER_REPLACED_EVENT = "quick_taps_answered_replaced";
+/** Jo's text, verbatim. */
+export function reaskText(name: string, link: string): string {
+  return `Hi ${name.trim()}, it's Home Insulation Victoria. Sorry, we think you may have tapped "flat roof" by mistake. We've fixed it – if you'd still like your free Ready Check, tap here to carry on: ${link}`;
+}
+/** The stored answers for this batch (only live `quick_taps_answered` rows; already set-aside ones are skipped). */
+export function answersToSetAside<E extends { event_type: string; details: unknown }>(events: readonly E[], batchId: string | null): E[] {
+  if (!batchId) return [];
+  return events.filter((e) => e.event_type === QUICK_TAPS_ANSWERED_EVENT && (e.details as { batch_id?: unknown } | null)?.batch_id === batchId);
+}
+/** The owner's my-job link inside a batch text, or null. */
+export function linkFromQuickTapsText(body: string | null | undefined): string | null {
+  return /https:\/\/\S+\/my-job\/[A-Za-z0-9_-]+/.exec(body ?? "")?.[0] ?? null;
+}
