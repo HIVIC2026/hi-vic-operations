@@ -2,6 +2,7 @@
 // "Can't do this one" (tradeHandBack) and Part 6's electricianCantDo once they have cancelled a confirmed booking — NOT by
 // "Owner cancelled" (the owner already knows). Email only, no text. Not a compliance send: Do not contact stops it.
 // Records ONE `visit_cancelled_owner_notice` per booking before sending; the email key (per booking) stops a repeat.
+// New-flow message: deliberately NOT held by inHouseDispatchSkip (that hold is for old-flow messages on in-house jobs).
 // TEST jobs → test-send only. Real owners → `sendGuardedOwnerEmail` behind VISIT_CANCELLED_OWNER_APPROVED + customer_comms_enabled.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { VISIT_CANCELLED_EVENT, VISIT_CANCELLED_OWNER_APPROVED, VISIT_CANCELLED_PURPOSE, visitCancelledKey, visitCancelledOwnerEmail } from "./visit-cancelled-owner.core";
@@ -14,9 +15,6 @@ export async function queueVisitCancelledOwnerEmail(jobId: string, bookingId: st
   if (!job) return "not sent — job not found";
   const test = job.source === "qa_test";
   if (!test && !deps.approved) return "awaiting approval";
-  const { inHouseDispatchSkip } = await import("./in-house-suppression.server");
-  const skipped = await inHouseDispatchSkip(jobId);
-  if (skipped) return skipped;
   const [{ data: bk }, { data: owner }] = await Promise.all([
     admin.from("bookings").select("id, scheduled_start").eq("id", bookingId).eq("job_id", jobId).maybeSingle(),
     job.owner_id ? admin.from("owners").select("full_name, email").eq("id", job.owner_id).maybeSingle() : Promise.resolve({ data: null }),

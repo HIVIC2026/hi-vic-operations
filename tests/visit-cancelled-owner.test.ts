@@ -7,8 +7,9 @@ const tables: Tables = {}; const admin = memoryPostgrest(tables);
 const emails: any[] = [], tests: any[] = [];
 const keys = new Set<string>();
 let dnc = false;
+let inHouse = false; // the real helper holds OLD-flow messages on in-house jobs; this NEW-flow email must ignore it
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: admin }));
-mock.module("../src/lib/in-house-suppression.server", () => ({ inHouseDispatchSkip: async () => null }));
+mock.module("../src/lib/in-house-suppression.server", () => ({ inHouseDispatchSkip: async () => (inHouse ? "in_house" : null) }));
 mock.module("../src/lib/comms.server", () => ({ assertCustomerDeliveryAllowed: async () => {} }));
 mock.module("../src/lib/test-send.server", () => ({ sendTestEmail: async (c: any, to: string, subject: string, html: string, text: string) => { tests.push({ c, to, subject, html, text }); return { status: "sent", detail: "ok" }; } }));
 mock.module("../src/lib/owner-email-send.server", () => ({
@@ -35,7 +36,7 @@ beforeEach(() => {
     { id: "bp", job_id: "j", kind: "assessment", status: "cancelled", scheduled_start: "2026-11-12T21:00:00Z" },
   ];
   tables.workflow_events = [];
-  emails.length = 0; tests.length = 0; keys.clear(); dnc = false;
+  emails.length = 0; tests.length = 0; keys.clear(); dnc = false; inHouse = false;
 });
 const on = { approved: true };
 
@@ -96,6 +97,14 @@ test("Do not contact on: blocked (not a compliance send)", async () => {
   dnc = true;
   expect(await server.queueVisitCancelledOwnerEmail("j", "bi", "installer", on)).toMatch(/^blocked/);
   expect(emails).toHaveLength(0);
+});
+
+test("in-house job (installer business in_house=true), flag on: the email still sends (new-flow message, not held)", async () => {
+  inHouse = true;
+  tables.businesses = [{ id: "b", in_house: true }];
+  expect(await server.queueVisitCancelledOwnerEmail("j", "bi", "installer", on)).toBe("sent");
+  expect(emails).toHaveLength(1);
+  expect(emails[0].mail.text).toContain(LINE);
 });
 
 test("TEST job: test-send only, even with the flag off", async () => {
