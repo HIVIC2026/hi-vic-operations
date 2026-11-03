@@ -18,6 +18,9 @@ import { installerQuoteLine } from "./installer-quote-status.core";
 import { inHouseTradeBookingText } from "./in-house-message.core";
 import { withoutRetiredInstallDayPhotos } from "./ready-check-chase.core";
 import { early } from "./early-read";
+import { PIESA_BOOKERS, type PiesaBooker } from "./piesa-booker.core";
+import { isMissingDbObject } from "./schema-compat.core";
+import { readPiesaBooker } from "./piesa-booker.server";
 // Speed (installer screens, Task 6): the job page's modules, imported at module scope (namespaces, as above).
 import * as allocationServer from "./allocation.server";
 import * as mittiJobPresentationServer from "./mitti-job-presentation.server";
@@ -666,7 +669,7 @@ export async function tradeBusiness(userId: string) {
   const today = melbourneToday();
   // Staff logins get only the business name and job-taking status: no rates, bank, agreement, insurance or team.
   const staffOnly = { kind: c.kind, boss: false as boolean, name: c.biz.name, taking: c.biz.accepting_new_jobs !== false, approvedSince: null as string | null, area: null as string | null, licenceExpires: null as string | null, liabilityExpires: null as string | null, rate: null as number | null, agreementSigned: false, bankSaved: false,
-    team: [] as TeamMemberView[], next: null as BusinessNext, usualElectrician: null as UsualElectrician | null, details: null as null | { legal: string | null; name: string; abn: string | null; baseSuburb: string | null; allVictoria: boolean }, ratesAgreedAt: null as string | null, hasRates: false, bankLine: null as string | null, credentials: [] as CredentialView[], agreement: null as null | { version: string; signer: string; signedAt: string }, notice: [] as { name: string; state: string }[] };
+    piesaBooker: null as PiesaBooker | null, team: [] as TeamMemberView[], next: null as BusinessNext, usualElectrician: null as UsualElectrician | null, details: null as null | { legal: string | null; name: string; abn: string | null; baseSuburb: string | null; allVictoria: boolean }, ratesAgreedAt: null as string | null, hasRates: false, bankLine: null as string | null, credentials: [] as CredentialView[], agreement: null as null | { version: string; signer: string; signedAt: string }, notice: [] as { name: string; state: string }[] };
   if (!c.boss) return staffOnly;
   // Speed (installer screens, Task 9): three rounds — (1) sign-in context and the owner check above, (2) every owner read that
   // needs only the business (started only after the owner check, as before), (3) the reads that need the team rows (profiles,
@@ -688,6 +691,7 @@ export async function tradeBusiness(userId: string) {
     admin.from("partner_activations").select("application_id").eq("business_id", c.biz.id).limit(1).maybeSingle(),
   ]).then(async ([bzRes, actRes]) => ({ bzRes, actRes, appRes: !actRes.error && actRes.data?.application_id ? await admin.from("rec_onboarding_applications").select("data").eq("id", actRes.data.application_id).maybeSingle() : { data: null, error: null } }))) : null;
   // The usual electrician's failure fails the page (as before); started now, awaited after round 3 like before (last read).
+  const bookerEarly = c.kind === "installer" ? readPiesaBooker(c.biz.id) : null; // never rejects: a missing column reads as office
   const usualEarly = c.kind === "installer" ? early(usualElectricianServer.readUsualElectrician(c.biz.id)) : null;
   const [{ data: creds, error: credsError }, { data: workers, error: workersError }, { data: rate }, { data: agr }, { data: bank }, { data: biz }, { data: cards }, { data: members }] = await Promise.all([
     admin.from("business_credentials").select("kind, label, expires_at, verification").eq("business_id", c.biz.id),
@@ -772,7 +776,7 @@ export async function tradeBusiness(userId: string) {
     area: c.biz.covers_all_victoria ? "Anywhere in Victoria" : `Up to ${c.biz.coverage_radius_km ?? "?"} km from ${c.biz.base_suburb ?? "your base"}`,
     licenceExpires: licence, liabilityExpires: liability, rate: rate ? Number((rate as { rate_inc_gst: number }).rate_inc_gst) : null,
     agreementSigned: !!agr?.signed_at, bankSaved: !!bank,
-    team, next, usualElectrician: usual, details, ratesAgreedAt, hasRates, bankLine: bankLine(bank ?? null), credentials,
+    piesaBooker: bookerEarly ? await bookerEarly : null, team, next, usualElectrician: usual, details, ratesAgreedAt, hasRates, bankLine: bankLine(bank ?? null), credentials,
     agreement: agr ? { version: String(agr.version), signer: agr.signer_name, signedAt: agr.signed_at } : null, notice: noticeStatuses,
   };
 }
@@ -783,6 +787,20 @@ export async function tradeSetTaking(userId: string, taking: boolean) {
   await admin.from("businesses").update({ accepting_new_jobs: taking }).eq("id", c.biz.id);
   await admin.from("admin_config_events").insert({ actor_id: userId, event_type: "trade_taking_new_jobs", summary: `${c.biz.name}: ${taking ? "taking new jobs" : "paused new offers"}`, details: { business_id: c.biz.id, taking } });
   return { taking };
+}
+
+/** Who books the safety check (PIESA) for the installer's own jobs: boss only, installers only; audited like the taking switch. */
+export async function tradeSetPiesaBooker(userId: string, booker: PiesaBooker) {
+  const c = await ctxOrThrow(userId);
+  if (!c.boss) throw new WorkflowError("Only the business boss can change this.");
+  if (c.kind !== "installer") throw new WorkflowError("This setting is for installers.");
+  if (!PIESA_BOOKERS.includes(booker)) throw new WorkflowError("Pick who books the safety check.");
+  // Local schema overlay: the column is pending SQL, so a missing column is a clear message, not a crash.
+  const db = admin as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
+  const { error } = await db.from("businesses").update({ piesa_booked_by: booker }).eq("id", c.biz.id);
+  if (error) throw new WorkflowError(isMissingDbObject(error) || /piesa_booked_by/.test(error.message ?? "") ? "This setting isn't available yet." : "Could not save. Try again.");
+  await admin.from("admin_config_events").insert({ actor_id: userId, event_type: "trade_piesa_booker", summary: `${c.biz.name}: safety check booked by ${booker}`, details: { business_id: c.biz.id, booker } });
+  return { booker };
 }
 
 /** Quick setup: each tick is stored (append-only) so it follows the person across phones. */

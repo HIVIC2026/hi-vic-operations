@@ -66,6 +66,10 @@ export const setTradeTaking = createServerFn({ method: "POST" }).middleware([req
   .inputValidator((d) => z.object({ taking: z.boolean() }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSetTaking(context.userId, data.taking));
 
+export const setTradePiesaBooker = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ booker: z.enum(["office", "electrician", "either"]) }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSetPiesaBooker(context.userId, data.booker));
+
 export const getTradeSetupView = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .handler(async ({ context }) => plain(await (await import("./trade-view.server")).tradeSetup(context.userId)));
 
