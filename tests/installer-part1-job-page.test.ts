@@ -41,13 +41,16 @@ test("C6: Open Mitti form has exactly one place", () => {
   expect(mittiLinkPlace({ ...f, panel: "waiting", yours: false })).toBe("ready_check");
   expect(mittiLinkPlace({ ...f, mittiInvited: false, panel: "mitti_form", yours: true })).toBeNull();
   const r = read(ROUTE);
-  expect(r).toMatch(/mittiLink === "next" && [^<]*<MittiFormLink/); expect(r).toMatch(/mittiLink === "ready_check" && [^<]*<MittiFormLink/);
+  // Job page redesign (Task 5): the Next step box holds the one "Open the Mitti form" button; the old Ready Check group is gone.
+  expect(r).toContain('box.button === "Open the Mitti form" && mittiAudit');
+  expect((r.split("function InstallerFlow")[1] ?? "").match(/<MittiFormLink auditId=\{mittiAudit\}/g)?.length).toBe(1);
   expect(r).not.toContain('next.panel === "mitti_form" || (next.panel === "quote_status" && next.yours)'); // old inline rule gone
 });
 test("C7: plain staff-links label", () => {
   expect(STAFF_LINKS_LABEL).toBe("Send this job to a staff member");
   expect(read(ROUTE)).not.toContain("More · staff job links");
-  expect(read(ROUTE)).toContain("{STAFF_LINKS_LABEL}");
+  // Job page redesign (Task 5): the staff-links fold is gone from the installer page (the label stays in the core).
+  expect(read(ROUTE)).not.toContain("{STAFF_LINKS_LABEL}");
 });
 
 test("C3: electrician Call/Text follow their own visits", () => {

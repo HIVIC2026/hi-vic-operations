@@ -13,10 +13,14 @@ import type { InstallerQuote } from "./installer-quote-status.server";
 // Speed (installer screens, Task 5): module-scope imports instead of awaited import() calls inside the loaders.
 import { statusFactsFor, statusView } from "./job-status.server";
 import { installerTab, doneReason } from "./installer-progress.core";
-import { installerHomeGroups, comingForInstaller } from "./installer-home.core";
+import { installerHomeGroups, comingForInstaller, sourceLabel as installerSourceLabel } from "./installer-home.core";
 import { installerQuoteLine } from "./installer-quote-status.core";
 import { myWorkCards, greeting as myWorkGreeting, reasonFor } from "./my-work.core";
 import { nextStepBox, type NextStepFacts } from "./next-step-box.core";
+import { installCountdown } from "./next-step-dates.core";
+import { JOB_PAGE_WORDS, jobDetailsRows, nextForOwner, ownerRows, ownerToldRows, ownerToldSummary, paperworkRows, progressSteps, siteNotesRows, visitsRows } from "./job-page-rows.core";
+import { swmsHouseFacts } from "./swms-house.core";
+import * as rentalAnswersServer from "./rental-answers.server";
 import { inHouseTradeBookingText } from "./in-house-message.core";
 import { withoutRetiredInstallDayPhotos } from "./ready-check-chase.core";
 import { early } from "./early-read";
@@ -1163,6 +1167,97 @@ async function ownerReadyFacts(jobId: string): Promise<import("./installer-scree
   return { consent: consent ? (consent.owner_signed_at ? "signed" : "waiting") : null, deposit };
 }
 
+type JobPageJob = { job_number: string | null; stage: string | null; channel: string | null; installation_completed_at: string | null; electrician_choice: string | null; originating_installer_business_id: string | null; life_support_status: string | null; owners: { full_name: string | null; phone: string | null; email: string | null } | null };
+const centsWords = (cents: number) => (cents % 100 === 0 ? `$${cents / 100}` : `$${(cents / 100).toFixed(2)}`);
+/** Installer Job page (Task 5): the Next step box, progress pills, countdown and folded rows, from facts the page already read.
+ *  Missing facts stay empty (never guessed). Wording and rules live in the pure next-step-box / job-page-rows cores. */
+function installerJobPageParts(i: {
+  c: Awaited<ReturnType<typeof requireTradeJob>>; j: JobPageJob | null;
+  rcBook: { scheduled_start: string; status: string } | null; inBook: { scheduled_start: string; status: string } | null; piesaBook: { scheduled_start: string } | null;
+  a: { status: string | null; piesa_outcome: string | null; hazards?: string | null } | null;
+  m: { measured_area_m2: number | string | null; removal_m2: number | string | null; removal_required: boolean | null; access_difficulty: string | null; raw_snapshot: unknown } | null;
+  form: { auditId: string | null; complete: boolean }; clearance: { cleared: boolean };
+  quote: { declined?: boolean; accepted?: boolean; sent?: boolean }; qq: { accepted_at?: string | null } | null; pay: number | null; elecName: string | null;
+  piesaRec: { outcome: string | null; rectification_completed_at: string | null; section_c_signed_at: string | null } | null;
+  accessPerson: import("./rental-answers.core").AccessPerson | null; mineBk: { status: string }[]; released: boolean;
+  sentRows: { purpose: string; sent_at: string | null; created_at: string }[]; ledger: { amountCents: number; paidAt: string }[]; depositPaid: boolean;
+  deadline: string | null; givenAt: string | null; consentSigned: boolean; paidEv: { created_at: string; details: unknown }[];
+  piesaPayRead: { piesaIncGst: number | null } | null; swmsRead: { plan: { signers: { role?: string; name: string }[] }; status: { signed: unknown[] } } | null;
+  quoteItems: { code: string | null; description: string | null; sort: number | null }[]; priceEntered: boolean | null; notes: string[]; product: string | null;
+  payRow: { amount: number | null; state: PayState } | null; mittiCompleted: boolean; needsFinishingItems: string[]; mittiMissing: string[];
+}) {
+  const { c, j } = i;
+  const now = new Date();
+  const own = j?.channel === "installer_sourced" && j.originating_installer_business_id === c.biz.id;
+  // Owner details only while the existing contact rule allows them (released or the installer's own customer, and a visit still to do).
+  const showContact = (i.released || own) && contactVisible(i.mineBk);
+  const ownerName = showContact ? j?.owners?.full_name?.trim() || null : null;
+  const ownerFirst = ownerName ? ownerName.split(/\s+/)[0]! : null;
+  const ownerPhone = showContact ? j?.owners?.phone?.trim() || null : null;
+  const stage = j?.stage ?? "";
+  const outcome = i.a?.status === "complete" ? (i.a.piesa_outcome === "pass" ? ("pass" as const) : ("upgrades" as const)) : null;
+  const installDone = ["evidence_outstanding", "ap_review", "ready_for_veec", "complete"].includes(stage) || !!j?.installation_completed_at || i.inBook?.status === "completed";
+  const lastPaid = [...i.ledger].map((l) => l.paidAt).sort().pop() ?? null;
+  const swmsSigned = i.swmsRead?.status.signed.length ?? 0;
+  const swmsTotal = i.swmsRead?.plan.signers.length ?? 0;
+  const lead = i.swmsRead?.plan.signers.find((s) => s.role === "lead")?.name ?? null;
+  const piesaDone = outcome === "pass" || i.clearance.cleared;
+  const readyCheckDone = i.rcBook?.status === "completed" || i.mittiCompleted;
+  const q = i.quote.declined ? "declined" : i.quote.accepted ? "accepted" : i.quote.sent ? "sent" : "none";
+  const facts: NextStepFacts = {
+    channel: j?.channel ?? null, stage, ownerFirst, ownerName, ownerPhone, now, givenAt: i.givenAt,
+    readyCheck: { start: i.rcBook?.status === "confirmed" ? i.rcBook.scheduled_start : null, done: readyCheckDone, missing: readyCheckDone ? i.needsFinishingItems : [] },
+    priceEntered: j?.channel === "installer_sourced" ? i.priceEntered : null,
+    quote: q, acceptedAt: i.qq?.accepted_at ?? null,
+    whoBooks: "office", electricianName: i.elecName, // TODO(join): Part 9's who-books setting; until then every business is "office".
+    piesa: { start: i.a?.status === "complete" ? null : i.piesaBook?.scheduled_start ?? null, outcome, upgradesDone: !!i.piesaRec?.rectification_completed_at, certificateIn: outcome === "upgrades" && i.clearance.cleared },
+    access: i.accessPerson,
+    depositPaidAt: i.depositPaid ? lastPaid ?? now.toISOString() : null,
+    install: { start: i.inBook?.status === "confirmed" ? i.inBook.scheduled_start : null, lead, swmsSigned, swmsTotal },
+    installDone,
+    pay: installDone ? { kind: j?.channel === "installer_sourced" ? "own_after_owner_paid" : "hivic_after_paperwork", amount: c.money ? i.pay : null, paidAt: i.payRow?.state.kind === "paid" ? i.payRow.state.on : null } : null,
+    mittiFormUrl: null,
+  };
+  const box = nextStepBox(facts);
+  const progress = progressSteps({ readyCheckDone, piesaDone, depositPaid: i.depositPaid, installDone });
+  const countdown = installDone ? null : installCountdown(i.deadline, now);
+
+  const entries = Array.isArray(i.m?.raw_snapshot) ? (i.m!.raw_snapshot as unknown as { label: string; value: unknown }[]) : [];
+  const upgradesDone = !!i.piesaRec?.rectification_completed_at;
+  const house = swmsHouseFacts(entries, {
+    lifeSupportStatus: j?.life_support_status ?? null, piesaOutcome: upgradesDone ? "fail" : (i.piesaRec?.outcome ?? i.a?.piesa_outcome ?? null), upgradesDone,
+    piesaHazards: typeof i.a?.hazards === "string" ? i.a.hazards : null,
+  });
+  const issues = house.areas.flatMap((x) => (x.issue ? [`${x.name}: ${x.issue}`] : [])).join("; ") || null;
+  const siteNotes = [...siteNotesRows(house, issues), ...i.notes.slice(0, 5).map((n): [string, string, boolean] => ["Notes from the office", n, false])];
+
+  const product = i.product ?? i.quoteItems.slice().sort((x, y) => (x.sort ?? 0) - (y.sort ?? 0)).find((it) => !["PIESA", "AP_FEE", "INSTALLER_PRICE"].includes(it.code ?? "") && !/removal|safety assessment|accredited person/i.test(it.description ?? ""))?.description ?? null;
+  const removalM2 = i.m?.removal_required && i.m.removal_m2 != null ? Number(i.m.removal_m2) : null;
+  const piesaPaysOwn = c.money && i.piesaPayRead != null && !!j?.electrician_choice && j.electrician_choice !== "hivic";
+  const piesaPaidEv = i.paidEv.find((p) => (p.details as { kind?: string } | null)?.kind === "assessment") ?? null;
+  const jobDetails = jobDetailsRows({
+    measuredM2: i.m?.measured_area_m2 == null ? null : Number(i.m.measured_area_m2), areas: house.areas.length || null, existing: null,
+    removal: removalM2 != null ? `${removalM2} m² to remove` : null, product, access: house.accessRating ?? i.m?.access_difficulty ?? null,
+    installPay: c.money ? i.pay : null,
+    installPayRule: j?.channel === "installer_sourced" ? JOB_PAGE_WORDS.ownPayRule(ownerFirst ?? "the owner") : JOB_PAGE_WORDS.hivicPayRule,
+    piesaPay: i.piesaPayRead?.piesaIncGst ?? null, piesaPaidAt: piesaPaidEv?.created_at ?? null, piesaPayApplies: piesaPaysOwn, ownCustomer: j?.channel === "installer_sourced",
+  });
+
+  const events = i.sentRows.flatMap((s) => { const t = ownerToldSummary(s.purpose); return t ? [{ at: s.sent_at ?? s.created_at, type: s.purpose, summary: t }] : []; });
+  const payments = i.ledger.map((l) => ({ at: l.paidAt, label: `paid ${centsWords(l.amountCents)} ✓` }));
+  const ownerTold = ownerToldRows(events, payments, nextForOwner(box.kind));
+  const owner = showContact ? ownerRows({ name: ownerName, phone: ownerPhone, email: j?.owners?.email?.trim() || null, access: i.accessPerson }) : [];
+  const installBooked = !!i.inBook && i.inBook.status !== "cancelled";
+  const paperwork = paperworkRows({
+    readyCheckReport: readyCheckDone, signedPiesa: piesaDone, ownerConsent: i.consentSigned, safetyPlan: !!i.swmsRead, installForm: !!i.form.auditId, installBooked,
+  });
+  const visits = visitsRows({ readyCheck: i.rcBook?.scheduled_start ?? null, piesa: i.piesaBook?.scheduled_start ?? null, install: i.inBook?.scheduled_start ?? null });
+  return {
+    nextStep: box, progress, countdown, label: installerSourceLabel(j?.channel),
+    rows: { owner, visits, siteNotes, jobDetails, ownerTold, paperwork },
+  };
+}
+
 export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJobAccess) {
   const c = await requireTradeJob(userId, jobId, pre);
   // Speed (installer screens, Task 6): every read that needs only the job id starts in ONE round — the page facts, the
@@ -1170,7 +1265,7 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
   // start the moment that fact is in: the owner's side once the install booking is read (decision 251), the PIESA owner
   // confirmation and the electrician-at-start line once clearance is known (decision 296/327), the price flag once the job's
   // channel is read. Modules are imported at module scope.
-  const jobP = early(admin.from("jobs").select("job_number, stage, channel, next_action, installation_completed_at").eq("id", jobId).single());
+  const jobP = early(admin.from("jobs").select("job_number, stage, channel, next_action, installation_completed_at, electrician_choice, originating_installer_business_id, life_support_status, owners(full_name, phone, email)").eq("id", jobId).single());
   const inBookP = early(admin.from("bookings").select("scheduled_start, status").eq("job_id", jobId).eq("kind", "installation").neq("status", "cancelled").order("created_at", { ascending: false }).limit(1).maybeSingle());
   const clearanceP = early(allocationServer.clearanceFacts(jobId).then(electricalClearance));
   // Decision 251: the owner's side is read only once the install is booked (the M2-install-booked state); nothing is read before that.
@@ -1180,14 +1275,30 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
   // Decision 296: the owner's PIESA confirmation; decision 327: the electrician at the start of the install day. Read only once cleared.
   const piesaConfirmedP = early(clearanceP.then((cl) => cl.cleared ? piesaOwnerConfirmServer.ownerPiesaConfirmFacts(jobId).then((f) => (f ? !!f.confirmation : null)).catch(() => null) : null));
   const attendanceP = early(clearanceP.then((cl) => cl.cleared ? installerAttendanceView(jobId).catch(() => null) : null));
+  // Job page rows (Task 5): the extra facts the progress pills, countdown, Next step box and folded rows need. All start in this
+  // same round (no extra round trip); each fails soft — a missing fact is left out, never guessed.
+  const releaseP = early(Promise.resolve(admin.rpc("has_contact_release", { _job: jobId, _user: userId })).then((r) => r.data === true).catch(() => false));
+  const mineBkP = early(admin.from("bookings").select("status").eq("job_id", jobId).eq("business_id", c.biz.id));
+  const accessP = early(rentalAnswersServer.accessPersonFor(jobId).catch(() => null));
+  const piesaRecP = early(admin.from("piesa_records").select("outcome, rectification_completed_at, section_c_signed_at").eq("job_id", jobId).eq("is_current", true).maybeSingle());
+  const sentP = early(admin.from("customer_email_sends").select("purpose, sent_at, created_at").eq("job_id", jobId).eq("status", "sent").order("created_at", { ascending: true }));
+  const ledgerP = early(paymentsServer.paymentLedger(jobId).catch(() => [] as { amountCents: number; paidAt: string }[]));
+  const depositP = early(import("./install-deposit-list.server").then((m2) => m2.installDepositPaidForJobs([jobId])).then((x) => x.get(jobId) === true).catch(() => false));
+  const deadlineP = early(admin.from("job_piesa_deadlines").select("install_deadline").eq("job_id", jobId).maybeSingle());
+  const givenP = early(admin.from("job_assignments").select("assigned_at").eq("job_id", jobId).eq("business_id", c.biz.id).eq("role", "installer").order("assigned_at", { ascending: true }).limit(1).maybeSingle());
+  const consentP = early(admin.from("owner_esc_consents").select("owner_signed_at").eq("job_id", jobId).not("owner_signed_at", "is", null).not("status", "in", "(stale,cancelled)").limit(1).maybeSingle());
+  const paidEvP = early(admin.from("workflow_events").select("created_at, details").eq("job_id", jobId).eq("event_type", "payout_marked_paid").order("created_at", { ascending: false }));
+  const piesaPayP = c.kind === "installer" && c.money ? early(import("./installer-paid-electricians.server").then((m2) => m2.readInstallerPaidElectricians(c.biz.id)).catch(() => null)) : early(Promise.resolve(null));
+  const swmsP = early(inBookP.then(async ({ data: ib }) => ib ? await import("./swms.server").then((m2) => m2.loadSwms(jobId)).catch(() => null) : null));
+  const quoteItemsP = early(admin.from("quotes").select("quote_items(code, description, sort)").eq("job_id", jobId).eq("kind", "installation").in("status", ["issued", "accepted", "draft"]).order("created_at", { ascending: false }).limit(1).maybeSingle());
   const [{ data: j }, { data: rcBook }, { data: inBook }, { data: m }, { data: a }, rebateSigned, quote, pay, form, clearance, mitti, payRows,
     { data: declinedEv }, { data: basicsDone }, { data: piesaBook }, { data: elecAsg }, { data: fixes }, { data: evEv }, { data: alloc }, { data: decl }, { data: finalAsg }, ownerReady, notes,
-    priceEntered, ownerPiesaConfirmed, electricianAttendance] = await Promise.all([
+    priceEntered, ownerPiesaConfirmed, electricianAttendance, released, { data: mineBk }, accessPerson, { data: piesaRec }, { data: sentRows }, ledger, depositPaid, { data: dl }, { data: given }, { data: consent }, { data: paidEv }, piesaPayRead, swmsRead, { data: quoteItemsRow }] = await Promise.all([
     jobP,
     admin.from("bookings").select("scheduled_start, status").eq("job_id", jobId).eq("kind", "ready_check").neq("status", "cancelled").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     inBookP,
-    admin.from("ceiling_measurements").select("measured_area_m2, removal_m2, removal_required").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
-    admin.from("assessments").select("status, piesa_outcome, completed_at").eq("job_id", jobId).maybeSingle(),
+    admin.from("ceiling_measurements").select("measured_area_m2, removal_m2, removal_required, access_difficulty, raw_snapshot").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
+    admin.from("assessments").select("status, piesa_outcome, completed_at, hazards").eq("job_id", jobId).maybeSingle(),
     rebateSignedByInstaller(jobId),
     loadInstallerQuote(jobId),
     installerPayForJob(jobId),
@@ -1211,6 +1322,7 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
     priceEnteredP,
     piesaConfirmedP,
     attendanceP,
+    releaseP, mineBkP, accessP, piesaRecP, sentP, ledgerP, depositP, deadlineP, givenP, consentP, paidEvP, piesaPayP, swmsP, quoteItemsP,
   ]);
   const qq = quote.quote as { sent_at?: string | null; accepted_at?: string | null } | null;
   const elecName = (elecAsg?.profiles as unknown as { full_name: string | null } | null)?.full_name ?? null;
@@ -1221,7 +1333,14 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
   const crew = [...new Set([decl?.installer_name, installAlloc?.worker_name, rcAlloc?.worker_name].filter((x): x is string => !!x && x.trim().length > 0))];
   const product = decl?.installed_product ?? finalAsg?.installed_product ?? null;
   const payRow = payRows[0] ?? null;
+  const jobPage = installerJobPageParts({
+    c, j: j as JobPageJob | null, rcBook, inBook, piesaBook, a, m, form, clearance, quote, qq, pay, elecName, piesaRec, accessPerson, mineBk: mineBk ?? [], released,
+    sentRows: sentRows ?? [], ledger, depositPaid, deadline: dl?.install_deadline ? String(dl.install_deadline) : null, givenAt: (given as { assigned_at?: string | null } | null)?.assigned_at ?? null,
+    consentSigned: !!consent, paidEv: (paidEv ?? []) as { created_at: string; details: unknown }[], piesaPayRead, swmsRead, quoteItems: (quoteItemsRow?.quote_items as { code: string | null; description: string | null; sort: number | null }[] | null) ?? [],
+    priceEntered, notes, product, payRow, mittiCompleted: mitti.applies ? mitti.completed === true : false, needsFinishingItems: mitti.applies ? needsFinishingList(j?.next_action ?? "") : [], mittiMissing: mitti.applies ? mitti.missing : [],
+  });
   return {
+    ...jobPage,
     jobNumber: j?.job_number ?? null, stage: j?.stage ?? null, channel: j?.channel ?? null, notes,
     readyCheck: { bookedAt: rcBook?.scheduled_start ?? null, done: rcBook?.status === "completed" },
     install: { bookedAt: inBook?.scheduled_start ?? null, recordedAt: j?.installation_completed_at ?? null, form, rebateSigned, formCompletedAt: decl?.signed_at ?? null, evidenceChecked: Array.isArray(evidenceBlockers) ? evidenceBlockers.length === 0 : false, crew, ownerReady },
