@@ -68,9 +68,9 @@ describe("approval stays in the fixes flow", () => {
     expect(branch).not.toMatch(/genInstaller|ready_for_installer_quotes/);
     expect(branch).toContain("return { ok: true };");
   });
-  test("O29's approve link opens the fixes screen", () => {
-    expect(read("src/lib/approved-owner-emails.server.ts")).toMatch(/renderFixesQuoteEmail\(\{[^\n]*\?screen=fixes/);
-    expect(read("src/routes/my-job.$token.tsx")).toMatch(/"fixes"(, "turn")?(, "newquote")?(, "taps")?\] as const satisfies/);
+  test("the fixes screen is still a route for a job already mid-way through an old fixes quote (O29 itself was removed 2 Nov 2026, Part 4 Task 14)", () => {
+    expect(read("src/routes/my-job.$token.tsx")).toMatch(/"fixes"(, "turn")?(, "newquote")?(, "taps")?/);
+    expect(read("src/routes/my-job.$token.tsx")).toContain('screen === "fixes" ? <FixesScreen');
   });
 });
 

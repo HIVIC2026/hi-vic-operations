@@ -73,7 +73,14 @@ export async function resolveOwnerJob(token: unknown) {
   const quoteOpen = quote?.status === "issued" && (stage === "awaiting_quote_acceptance" || stage === "measured_estimate_ready") ? { expiresAt: quote.sent_at ? new Date(new Date(quote.sent_at).getTime() + 14 * 86400_000).toISOString() : null } : null;
   const bookingOpen = ["measured_quote_accepted", "piesa_and_install_window_pending", "installation_scheduling"].includes(stage);
   const inHouseDispatch = await (await import("./in-house-suppression.server")).inHouseDispatchSkip(jobId);
-  const action = ownerAction({ stage, readyCheckRequested: !!rc?.accepted_at, visit: upcoming?.scheduled_start ? { kind: upcoming.kind, startsAt: upcoming.scheduled_start } : null, quoteOpen, bookingOpen });
+  // Fix round 1 (Task 14): the installer's name for the "will call you to book" line while the install day is being arranged.
+  let installerName: string | null = null;
+  if (bookingOpen) {
+    const { data: ia } = await admin.from("job_assignments").select("businesses(name, trading_name)").eq("job_id", jobId).eq("role", "installer").eq("active", true).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    const ib = ia?.businesses as { name: string; trading_name: string | null } | null;
+    installerName = (ib?.trading_name || ib?.name || null)?.replace(/^\[TEST PARTNER\]\s*/, "") ?? null;
+  }
+  const action = ownerAction({ stage, readyCheckRequested: !!rc?.accepted_at, visit: upcoming?.scheduled_start ? { kind: upcoming.kind, startsAt: upcoming.scheduled_start } : null, quoteOpen, bookingOpen, installerName });
   if (inHouseDispatch && action.button?.screen === "book") { action.button = null; action.title = ""; action.sentence = ""; }
   const hero = ownerHero(stage, rebate);
   const done = (bookings ?? []).filter((b) => b.status === "completed");
@@ -132,17 +139,17 @@ export async function resolveOwnerJob(token: unknown) {
       const confirmation = await (await import('./piesa-owner-confirm.server')).ownerPiesaConfirmFacts(jobId);
       // Part 4 T5 (Jo 2 Nov, answer 21): straight after the PIESA result — also with upgrades still to come — the ONE confirm-and-pay page,
       // while the 10% deposit is unpaid. Everything it covers that is already signed (old flow) just shows as done there.
-      const { clearScreenOpen, clearAction, stepsUnsigned } = await import('./confirm-sign-pay.core');
+      const { stepsUnsigned } = await import('./confirm-sign-pay.core');
       const { piesaOutcomeKind } = await import('./piesa-owner-confirm.core');
       const stepOf = (k: string) => payment?.steps.find((x) => x.key === k);
       const cleared = (k: string) => ['paid', 'waived'].includes(stepOf(k)?.state ?? '');
       const clearFacts = { stage, outcome: confirmation ? (piesaOutcomeKind(confirmation) === 'all_clear' ? 'all_clear' as const : 'upgrades_needed' as const) : null, safetyCleared: cleared('safety_check'), depositCleared: cleared('install_deposit'), depositCents: Math.round((stepOf('install_deposit')?.amount ?? 0) * 100) };
       // "clear" only when the page's own state loads (no consent row / missing facts -> the old pay / piesa screens, never a dead end).
-      let clearState: import('./confirm-sign-pay.core').ConfirmSignPayState | null = null;
-      if (confirmation && clearScreenOpen({ ...clearFacts, unsigned: true })) {
-        try { clearState = await (await import('./confirm-sign-pay.server')).realLoadState(jobId); } catch (e) { console.error('owner confirm-sign-pay page unavailable, using the old screens', (e as Error).message); }
-      }
-      const clearOpen = clearAction(clearState !== null && clearScreenOpen({ ...clearFacts, unsigned: stepsUnsigned(clearState!) }), clearState) === 'clear';
+      // Fix round 1: when the pay page would not open but the ESC consent is still awaiting the owner, the same page opens
+      // consent-only (no deposit step) so the owner can always sign the Reg 23A consent (clearPageMode, one shared rule).
+      const page = await (await import('./confirm-sign-pay.server')).clearPageMode(jobId, clearFacts, { hasConfirmation: !!confirmation });
+      const clearState = page.state;
+      const clearOpen = page.mode !== null;
       clearStepsUnsigned = clearOpen && !!clearState && stepsUnsigned(clearState);
       if (clearOpen) currentAction = 'clear';
       else if ((payment?.dueNow ?? 0) > 0 || payment?.provisional) currentAction='pay';

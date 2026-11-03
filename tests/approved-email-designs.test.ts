@@ -15,7 +15,7 @@ import { renderYoureInEmail, ACCEPTANCE_EMAIL_APPROVED } from "../src/lib/accept
 import { renderPiesaCopyEmail, PIESA_COPY_EMAIL_APPROVED } from "../src/lib/piesa-delivery.core";
 import { renderInstallDayChangedEmail, INSTALL_DAYS_EMAIL_APPROVED } from "../src/lib/install-days-email.core";
 import { renderInstallBookedEmail, INSTALL_BOOKED_EMAIL_APPROVED } from "../src/lib/install-booked-email.core";
-import { renderInstallCompleteEmail, renderCompletionPackEmail, renderReviewRequestEmail, COMPLETION_EMAILS_APPROVED, INSTALL_COMPLETE_EMAIL_APPROVED } from "../src/lib/completion-emails.core";
+import { renderInstallCompleteEmail, renderFinalInvoiceEmail, renderCompletionPackEmail, renderReviewRequestEmail, COMPLETION_EMAILS_APPROVED, INSTALL_COMPLETE_EMAIL_APPROVED } from "../src/lib/completion-emails.core";
 import { renderVeecCopyEmail, VEEC_COPY_EMAIL_APPROVED } from "../src/lib/veec-emails.core";
 import { renderInstallerAcceptedEmail, renderInstallerDeclinedEmail, INSTALLER_ACCEPTED_EMAIL_APPROVED, INSTALLER_DECLINED_EMAIL_APPROVED } from "../src/lib/installer-accepted-email.core";
 import { renderApplicationReceivedEmail, APPLICATION_RECEIVED_EMAIL_APPROVED } from "../src/lib/application-review.core";
@@ -156,6 +156,29 @@ describe("approved owner email designs", () => {
     expect(m.subject).toBe("Here's your signed rebate form, Helen");
     has(m.text, ["HV-3117", "Signed on 21 November 2026."]);
     expect(VEEC_COPY_EMAIL_APPROVED).toBe(true);
+  });
+  test("O45 Final invoice", () => {
+    const m = renderFinalInvoiceEmail({ firstName: "Helen", ownerName: "Helen Yang", address: "824 High Street Road, Glen Waverley VIC 3150", installer: REINSULATE, invoiceNumber: "HIV-3117", invoiceDate: "11 November 2026", lines: [{ description: "Bradford Gold R5.0 ceiling batts, 137.6 m² supplied and installed", amount: 2752 }, { description: "Old insulation removed and taken away, 40 m²", amount: 600 }, { description: "Electrical safety check (PIESA)", amount: 349 }, { description: "Accredited Provider fee", amount: 349 }], totalIncGst: 4050, gst: 368.18, rebate: 1850, payments: [{ label: "safety check (24 Oct)", amount: 349 }, { label: "deposit (4 Nov)", amount: 185.1 }], balanceDue: 1665.9, bank: { accountName: "Home Insulation Victoria", bsb: "082902", accountNumber: "777966349", payId: null, configured: true }, installed: { description: "Ceiling insulation — CSR Bradford Gold Ceiling Batt R5.0 — 137.6 m²", escModelCodes: ["467911"] } });
+    shell(m.html, m.text, false);
+    // Decision 209 / Activity Guide v1.2 Table 4: consumer name, installation address, business name/address/ABN, brand/model/R-value, m², price before, VEEC incentive, amount after, invoice date.
+    has(m.html, ["Helen, your install is done. Here's your final invoice", "DC Construction Solutions Pty Ltd trading as Home Insulation Victoria · 1/33 Altree Court, Phillip ACT 2606 · ABN 44 671 613 979", ">$4,050.00<", "VEEC incentive (your VEU rebate, price reduction)", "Amount after VEEC incentive", ">$2,200.00<", "Paid: safety check (24 Oct)", "Balance due today", ">$1,665.90<", "completion pack"]);
+    has(vis(m.html), ["Tax invoice HIV-3117 | 11 November 2026", "To: Helen Yang", "Installation address: 824 High Street Road, Glen Waverley VIC 3150", "Installed: Ceiling insulation — CSR Bradford Gold Ceiling Batt R5.0 — 137.6 m² (ESC model 467911)", "Accredited Person fee | $349.00", "Total incl. GST (GST $368.18) | $4,050.00", "VEEC incentive (your VEU rebate, price reduction) | −$1,850.00", "Amount after VEEC incentive | $2,200.00", "Paid: safety check (24 Oct) | −$349.00", "Paid: deposit (4 Nov) | −$185.10", "Balance due today | $1,665.90"]);
+    expect(m.html).not.toContain("VEEC discount");
+    // Decision 334: bank transfer only — bank details, the invoice number as the reference; no card wording, no Pay button.
+    has(m.html, ["Please pay by bank transfer using the details below, with your invoice number as the reference.", "Pay by bank transfer"]);
+    has(vis(m.html), ["Pay by bank transfer | Account name | Home Insulation Victoria | BSB | 082-902 | Account | 777966349 | Reference | HIV-3117 | Amount | $1,665.90"]);
+    has(m.text, ["PAY BY BANK TRANSFER", "BSB 082-902 · Account 777966349", "Reference: HIV-3117"]);
+    for (const out of [m.html, m.text]) for (const gone of ["card", "Stripe", "Tap the button", "Pay $1,665.90 now", "Invoice PDF attached"]) expect(out.replace(/class="card(-outlook)?"|\.card\{/g, "")).not.toContain(gone); // the frame's "card" CSS class is not card wording
+    // "Invoice PDF attached" only when the PDF really is attached.
+    const withPdf = renderFinalInvoiceEmail({ firstName: "Helen", ownerName: null, address: null, installer: REINSULATE, invoiceNumber: "HIV-3117", invoiceDate: "11 November 2026", lines: [{ description: "Ceiling insulation", amount: 2752 }], totalIncGst: 2752, gst: null, rebate: 1850, payments: [], balanceDue: 902, bank: { accountName: "Home Insulation Victoria", bsb: "082902", accountNumber: "777966349", payId: null, configured: true }, invoicePdfAttached: true });
+    expect(withPdf.html).toContain("Invoice PDF attached");
+    // Bank details not configured: says so instead of blanks.
+    const unset = renderFinalInvoiceEmail({ firstName: "Helen", ownerName: null, address: null, installer: REINSULATE, invoiceNumber: "HIV-3117", invoiceDate: "11 November 2026", lines: [{ description: "Ceiling insulation", amount: 2752 }], totalIncGst: 2752, gst: null, rebate: 1850, payments: [], balanceDue: 902, bank: { accountName: "Home Insulation Victoria", bsb: null, accountNumber: null, payId: null, configured: false } });
+    expect(unset.html).toContain("to be confirmed");
+    expect(() => renderFinalInvoiceEmail({ firstName: "Helen", ownerName: null, address: null, installer: REINSULATE, invoiceNumber: " ", invoiceDate: "11 November 2026", lines: [], totalIncGst: 0, gst: null, rebate: 0, payments: [], balanceDue: 1, bank: { accountName: "Home Insulation Victoria", bsb: "082902", accountNumber: "777966349", payId: null, configured: true } })).toThrow(/Invoice number/);
+    const noCodes = renderFinalInvoiceEmail({ firstName: "Helen", ownerName: "Helen Yang", address: "824 High Street Road, Glen Waverley VIC 3150", installer: REINSULATE, invoiceNumber: "HIV-3117", invoiceDate: "11 November 2026", lines: [{ description: "Ceiling insulation", amount: 2752 }], totalIncGst: 2752, gst: null, rebate: 1850, payments: [], balanceDue: 902, bank: { accountName: "Home Insulation Victoria", bsb: "082902", accountNumber: "777966349", payId: null, configured: true }, installed: null });
+    expect(noCodes.html).not.toContain("Installed:");
+    expect(noCodes.html).not.toContain("ESC model");
   });
   test("O47 Completion pack", () => {
     const m = renderCompletionPackEmail({ firstName: "Helen", installer: REINSULATE, downloads: { certificateUrl: `${JOB}?doc=cert`, invoiceUrl: `${JOB}?doc=invoice`, warrantiesUrl: `${JOB}?doc=warranty`, signedFormsUrl: `${JOB}?doc=forms` }, installed: { description: "Ceiling insulation — Earthwool Ceiling batt R5.0 — 120 m²", escModelCodes: ["2437543"] } });

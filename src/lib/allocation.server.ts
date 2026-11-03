@@ -661,7 +661,7 @@ export async function submitOwnerPiesaWindows(jobId: string, userId: string, pic
   if (w.futureOpen > 0) throw new WorkflowError("Your PIESA times are already with our electricians.");
   // Decision 333: new jobs never pick windows — the electrician offers the owner 3 times. Only a job that already
   // started the old way (round ≥ 1) may send more times, when asked or when its times were reopened.
-  if (w.round === 0) throw new WorkflowError("Your licensed electrician will call you to book it.");
+  if (w.round === 0) throw new WorkflowError("Your installer's licensed electrician will call you to book it.");
   const reopened = await (await import("./visit-events.server")).timesReopenedSince(jobId, "assessment", w.roundStart);
   if (!reopened && w.round >= PIESA_MAX_ROUNDS) throw new WorkflowError("Home Insulation Victoria will contact you to arrange this visit.");
   if (!reopened && w.round === 1) {

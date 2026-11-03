@@ -19,9 +19,9 @@ const held = (over: Partial<HeldRow> = {}, attempt = "a1"): HeldRow => ({
 });
 
 describe("quietResendDue (pure)", () => {
-  test("covers exactly the 14 spec types + the A48 safety check rules text", () => {
+  test("covers the spec types still in use + the A48 safety check rules text (install_clearance / fixes_times_link retired 2 Nov 2026)", () => {
     expect([...QUIET_RESEND_TYPES].sort()).toEqual([
-      "boss_price_link", "deposit_release", "fixes_times_link", "install_clearance", "install_no_access", "piesa_owner_confirm", "piesa_owner_fixes_confirm", "piesa_rules_failed",
+      "boss_price_link", "deposit_release", "install_no_access", "piesa_owner_confirm", "piesa_owner_fixes_confirm", "piesa_rules_failed",
       "quote_ready", "ready_check_booked_installer", "ready_check_days_suggested", "spot_saved", "veec_sign_reminder", "veec_sign_request", "visit_new_times",
     ]);
   });
@@ -251,19 +251,12 @@ describe("stale: one per type's still-true reader", () => {
   test("visit_new_times: the visit was rebooked", () => check("visit_new_times", "visit-new-times:v1:j1:bk1:sms",
     () => { tables["workflow_events"] = [{ job_id: "j1", event_type: "visit_new_times_notice", details: { booking_id: "bk1", kind: "ready_check" } }]; facts.currentBooking = null; },
     () => { facts.currentBooking = { id: "bk2" }; }));
-  test("install_clearance: an install day is now booked", () => check("install_clearance", "install-clearance:v1:j1:2026-10-28:sms",
-    () => { facts.installDay = { clearance: { cleared: true, timingDate: "2026-10-28" }, booked: null }; },
-    () => { facts.installDay = { clearance: { cleared: true, timingDate: "2026-10-28" }, booked: { id: "bk" } }; }));
   test("boss_price_link: the price has been entered", () => check("boss_price_link", "boss-price-link:v1:j1",
     () => { facts.price = null; },
     () => { facts.price = { record: { price_inc_gst: 2000, included: [] }, setAt: "2026-10-28T12:00:00Z", setBy: null }; }));
   test("boss_price_link: the stored Ready Check form (the sender's entries) already has a price", () => check("boss_price_link", "boss-price-link:v1:j1",
     () => { tables["ceiling_measurements"] = [{ job_id: "j1", is_current: true, raw_snapshot: [{ label: "Notes", value: "x" }] }]; },
     () => { tables["ceiling_measurements"] = [{ job_id: "j1", is_current: true, raw_snapshot: [{ label: "Total quoted price $", value: "2400" }] }]; }));
-  test("fixes_times_link: fixes times now given", () => check("fixes_times_link", "fixes-times-link:v1:j1:audit1",
-    () => { facts.windowsExist = false; }, () => { facts.windowsExist = true; }));
-  test("fixes_times_link: the PIESA texted about is no longer the current audit", () => check("fixes_times_link", "fixes-times-link:v1:j1:audit1",
-    () => { facts.fixesAuditId = "audit1"; }, () => { facts.fixesAuditId = "audit2"; }));
   const suggested = (id: string, at: string) => ({ id, job_id: "j1", event_type: "ready_check_days_suggested", created_at: at, details: {} });
   test("ready_check_days_suggested: no longer the installer's move", () => check("ready_check_days_suggested", "rc-days-suggested:v1:j1:ev1",
     () => { tables["workflow_events"] = [suggested("ev1", "2026-10-28T10:00:00Z")]; facts.turn = "installer_to_answer"; }, () => { facts.turn = "owner_to_pick"; }));

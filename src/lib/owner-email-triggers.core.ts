@@ -6,8 +6,10 @@
 //   O19 Quote reminder       15-minute tick: 3 days after the quote is sent, and 2 days before the price expires (decisions 88/89/134)
 //   O22 You're in + receipt  when the safety check payment on the accepted quote's invoice is received (decision 90)
 //   O42 Install day changed  when a booked install day moves (decision 135)
-//   Retired 2 Nov 2026 (Part 4 Task 14): O26 safety check times / booked, O29 fixes quote, O33 pick your install day and the
-//   O45 final invoice. Their recorded `owner_email_triggered` keys stay as history (codes kept below so old rows still label).
+//   O45 Final invoice        install recorded complete with a balance due, once per invoice (decision 334, bank transfer only);
+//                            kept only while ALL_DONE_V2_APPROVED is false (touchpoint 52 folds it into the All done email)
+//   Retired 2 Nov 2026 (Part 4 Task 14): O26 safety check times / booked, O29 fixes quote, O33 pick your install day. Their
+//   recorded `owner_email_triggered` rows stay as history.
 //   O51 Review request       15-minute tick: a week after the install (decision 105); the My job stars screen exists (decision 335),
 //                            still held until the Google review link (HIV_GOOGLE_REVIEW_URL) is set
 import { quoteExpiresAt } from "./quote-expiry.core";
@@ -15,9 +17,9 @@ import { quoteExpiresAt } from "./quote-expiry.core";
 /** One internal workflow event per owner email, recorded BEFORE the send (decision 165: a switch flip never re-fires an old step). */
 export const OWNER_EMAIL_TRIGGER_EVENT = "owner_email_triggered";
 
-export type OwnerEmailCode = "O19" | "O22" | "O42" | "O51";
+export type OwnerEmailCode = "O19" | "O22" | "O42" | "O45" | "O51";
 export const OWNER_EMAIL_LABEL: Record<OwnerEmailCode, string> = {
-  O19: "Quote reminder email", O22: "You're in email", O42: "Install day changed email", O51: "Review request email",
+  O19: "Quote reminder email", O22: "You're in email", O42: "Install day changed email", O45: "Final invoice email", O51: "Review request email",
 };
 
 export type QuoteReminderKind = "day3" | "expiry";
@@ -28,6 +30,8 @@ export const ownerEmailKey = {
   youreIn: (quoteId: string) => `youre-in:v1:${quoteId}`,
   installDayChanged: (jobId: string, startIso: string) => `install-day-changed:v1:${jobId}:${startIso}`,
   reviewRequest: (jobId: string) => `review-request:v1:${jobId}`,
+  /** Decision 334: once per invoice. */
+  finalInvoice: (invoiceId: string) => `final-invoice:v1:${invoiceId}`,
 } as const;
 
 const DAY = 86_400_000;

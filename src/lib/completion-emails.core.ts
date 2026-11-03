@@ -1,15 +1,17 @@
 // After-install owner emails (Jo 24 Oct 2026, decisions 101–105, 119–120, 132–133).
 //   O44 "All done!"            docs/templates/mjml/owner_O44.mjml     (summary card, sign your rebate form, what you'll get)
-//   (O45 Final invoice — retired 2 Nov 2026, Part 4 Task 14 / touchpoint 52: the All done email carries the tax invoice and balance)
+//   O45 Final invoice          docs/templates/mjml/invoices_O45.mjml  (tax invoice lines, balance due today; decision 334: pay by bank
+//                              transfer) — sent only while ALL_DONE_V2_APPROVED is false; retires when Jo approves the one All done email
 //   O47 Completion pack        docs/templates/mjml/owner_O47.mjml     (downloads, who to contact, care tips)
 //   O51 Review request         docs/templates/mjml/owner_O51.mjml     (tap a star, Google review, refer a friend)
 // O44 is approved (decision 169, Jo 24 Oct): it is the day-0 VEEC signing request, sent by veec-reminders.server.ts
-// through approved-owner-emails.server.ts when the install is recorded complete. O47/O51 are approved too
-// (COMPLETION_EMAILS_APPROVED, decisions 103/105) and go through the same guarded sender. Pure.
+// through approved-owner-emails.server.ts when the install is recorded complete. O45/O47/O51 are approved too
+// (COMPLETION_EMAILS_APPROVED, decisions 133/103/105) and go through the same guarded sender. Pure.
 import { currentFeeWording } from "./hiv-quote.core";
 import * as K from "./email-kit.core";
 import { mjEmail, esc } from "./mail-mjml.core";
 import { AP_DETAILS } from "./veec-assignment-form.core";
+import { bankDetailLines, type BankDetails } from "./payments.core";
 import { insulationLineWithCodes } from "./invoice-itemisation.core";
 import { COMPLAINT_LINE, contactLine, type BusinessContact } from "./owner-wording.core";
 
@@ -159,6 +161,92 @@ export function renderInstallCompleteEmail(i: InstallCompleteInput, v2: boolean 
   ].join("");
   const html = mjEmail({ subject, preview, body, unsubscribe: null, testLabel: i.test === true });
   const text = K.plainText([subject, "", intro, "", ...rows.map((r) => `${r.k}: ${r.v}`), ...(warrantyLine ? [warrantyLine] : []), "", ...(i.signRebateFormUrl ? [signTitle.toUpperCase(), signBody, `Sign your rebate form: ${i.signRebateFormUrl}`, ""] : []), "WHAT YOU'LL GET FROM US", ...steps.map((s, n) => `${n + 1}. ${s.title}: ${s.detail}`), "", closing], { testLabel: i.test === true });
+  return { subject, html, text };
+}
+
+export type FinalInvoiceInput = {
+  firstName: string | null; ownerName: string | null; address: string | null; installer: Installer | null;
+  invoiceNumber: string; invoiceDate: string; dueDate?:string;payUrl?:string;
+  lines: { description: string; amount: number }[];
+  totalIncGst: number; gst: number | null; rebate: number;
+  payments: { label: string; amount: number }[];
+  /** Decision 334 (Jo 25 Oct 2026): the balance is paid by bank transfer only (card stays for the safety check and fixes,
+   *  decisions 140/144). Bank details from HIV_BANK_* (payments.server bankDetails); the invoice number is the reference. */
+  balanceDue: number; bank: BankDetails; test?: boolean;
+  /** Decision 334: "Invoice PDF attached" prints only when the Xero invoice PDF really is attached. */
+  invoicePdfAttached?: boolean;
+  /** Decision 209: installed product itemisation (brand, model, R-value, m², ESC model codes); omitted when unknown. */
+  installed?: InstalledLine | null;
+};
+
+/** Jo's rule: "Accredited Person", never "Accredited Provider" (the O45 design fixes the AP fee line's wording; the amount is unchanged). */
+const apWording = currentFeeWording;
+
+/** payments.core bankDetailLines → label/value rows for the design's bank table; null when a line isn't one of those
+ *  shapes (e.g. "Bank details: … to be confirmed"), so the lines are shown as they are. */
+function bankRows(lines: string[]): { k: string; v: string }[] | null {
+  const rows: { k: string; v: string }[] = [];
+  for (const l of lines) {
+    const bsb = /^BSB (\S+) · Account (\S+)$/.exec(l);
+    const kv = /^(Account name|PayID|Reference|Amount): (.+)$/.exec(l);
+    if (bsb) rows.push({ k: "BSB", v: bsb[1]! }, { k: "Account", v: bsb[2]! });
+    else if (kv) rows.push({ k: kv[1]!, v: kv[2]! });
+    else return null;
+  }
+  return rows.length ? rows : null;
+}
+
+/** Decision 133: full tax invoice in HIV's name, VEEC incentive as a price reduction, payments so far, balance due today.
+ *  Decision 209: header carries the energy consumer, installation address, business name/address/ABN and the installed product line.
+ *  Decision 334: no card wording or Pay button — "Pay by bank transfer" with the bank details and the invoice number as the reference. */
+export function renderFinalInvoiceEmail(i: FinalInvoiceInput) {
+  if (!i.invoiceNumber?.trim()) throw new Error("Invoice number is unavailable.");
+  const first = K.cleanName(i.firstName) ?? "there";
+  const installer = i.installer?.name?.trim() || "Your installer";
+  const subject = `${first}, your install is done. Here's your final invoice`;
+  const dueLabel=i.dueDate?`due ${i.dueDate}`:'due on install day';
+  const intro = `${installer} finished today. Your balance is ${dueLabel}. Pay by card on My job or by bank transfer using the details below, with your invoice number as the reference.`;
+  const balance = K.cents(i.balanceDue);
+  const ref = i.invoiceNumber.trim();
+  const preview = `Balance ${dueLabel}: ${balance} by card or bank transfer, reference ${ref}.`;
+  const gstNote = i.gst != null ? `(GST ${K.cents(i.gst)})` : null;
+  const rows: { label: string; amount: string; bold?: boolean; green?: boolean; note?: string | null }[] = [
+    ...i.lines.map((l) => ({ label: apWording(l.description), amount: K.cents(l.amount) })),
+    { label: "Total incl. GST", note: gstNote, amount: K.cents(i.totalIncGst), bold: true },
+    { label: "VEEC incentive (your VEU rebate, price reduction)", amount: `−${K.cents(i.rebate)}`, green: true },
+    { label: "Amount after VEEC incentive", amount: K.cents(i.totalIncGst - i.rebate), bold: true },
+    ...i.payments.map((p) => ({ label: `Paid: ${p.label}`, amount: `−${K.cents(p.amount)}` })),
+  ];
+  const who = [
+    ...(i.ownerName?.trim() ? [["To", i.ownerName.trim()]] : []),
+    ...(i.address?.trim() ? [["Installation address", i.address.trim()]] : []),
+    ...(i.installed ? [["Installed", insulationLineWithCodes(i.installed)]] : []),
+  ] as [string, string][];
+  const meta = [BUSINESS_LINE, ...who.map(([k, v]) => `${k}: ${v}`)];
+  const bankLines = [...bankDetailLines(i.bank, ref), `Amount: ${balance}`];
+  const pdfLine = i.invoicePdfAttached === true ? "Invoice PDF attached" : null;
+  const after = "Once it's paid, we'll send your completion pack: certificate, warranties and all your signed forms. You'll also get a short text asking you to sign your rebate form, if you haven't already.";
+  const closing = installerLine(i.installer, ", or reply to this email.");
+  const money = (a: string) => esc(a).replace(/^−/, "&#8722;");
+  const rowHtml = [...rows.map((r, n) => {
+    const top = n === 0 ? "" : BT;
+    const green = r.green ? "color:#057D40;" : "";
+    const label = `${r.bold ? `<strong>${esc(r.label)}</strong>` : esc(r.label)}${r.note ? ` <span class="muted">${esc(r.note)}</span>` : ""}`;
+    return `<tr><td valign="top" style="padding:9px 0;${top}${green}">${label}</td><td align="right" valign="top" style="padding:9px 0 9px 12px;white-space:nowrap;${top}${green}">${r.bold ? `<strong>${money(r.amount)}</strong>` : money(r.amount)}</td></tr>`;
+  }), `<tr><td valign="top" style="padding:9px 0;border-top:2px solid #22376B;"><strong>Balance ${dueLabel}</strong></td><td align="right" valign="top" style="padding:9px 0 9px 12px;white-space:nowrap;border-top:2px solid #22376B;"><strong>${esc(balance)}</strong></td></tr>`].join("");
+  const bRows = bankRows(bankLines);
+  const bankHtml = bRows
+    ? `<mj-table padding="0 18px 14px">${bRows.map((r, n) => { const top = n === 0 ? "" : BT; return `<tr><td style="padding:8px 0;${top}color:#5A6785;">${esc(r.k)}</td><td align="right" style="padding:8px 0 8px 12px;${top}${r.k === "Account name" || r.k === "PayID" ? "" : "white-space:nowrap;"}"><strong>${esc(r.v)}</strong></td></tr>`; }).join("")}</mj-table>`
+    : `<mj-text padding="0 18px 16px">${bankLines.map(esc).join("<br />")}</mj-text>`;
+  const body = [
+    `<mj-section><mj-column><mj-text mj-class="h1" css-class="email-heading">${esc(subject)}</mj-text><mj-text>${esc(intro)}</mj-text></mj-column></mj-section>`,
+    `<mj-section><mj-column mj-class="panel"><mj-text mj-class="eyebrow center" padding="18px 12px 6px">Balance ${dueLabel}</mj-text><mj-text mj-class="big-blue" padding="0 12px 18px">${esc(balance)}</mj-text></mj-column></mj-section>`,
+    `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px 2px">Tax invoice ${esc(ref)}</mj-text><mj-text mj-class="small" padding="0 18px 12px">${esc(i.invoiceDate)}</mj-text><mj-text mj-class="small" padding="0 18px 10px">${esc(BUSINESS_LINE)}</mj-text>${who.length ? `<mj-text font-size="14px" line-height="21px" padding="0 18px 12px">${who.map(([k, v]) => `<strong>${esc(k)}:</strong> ${esc(v)}`).join("<br />")}</mj-text>` : ""}<mj-table padding="0 18px 12px" font-size="14px" line-height="20px">${rowHtml}</mj-table></mj-column></mj-section>`,
+    `${i.payUrl?`<mj-section><mj-column><mj-button href="${esc(i.payUrl)}">Pay by card</mj-button></mj-column></mj-section>`:''}<mj-section><mj-column mj-class="panel"><mj-text mj-class="h2" padding="18px 18px 8px">Pay by bank transfer</mj-text>${bankHtml}</mj-column></mj-section>`,
+    `<mj-section><mj-column>${pdfLine ? `<mj-text mj-class="small center" padding="10px 12px 0">${esc(pdfLine)}</mj-text>` : ""}<mj-text padding="16px 12px 14px">${esc(after)}</mj-text><mj-text mj-class="small" padding="0 12px">${esc(closing)}</mj-text></mj-column></mj-section>`,
+  ].join("");
+  const html = mjEmail({ subject, preview, body, unsubscribe: null, testLabel: i.test === true });
+  const text = K.plainText([subject, "", intro, ...(i.payUrl ? [`Pay by card: ${i.payUrl}`] : []), "", `Balance ${dueLabel}: ${balance}`, "", `TAX INVOICE ${ref} · ${i.invoiceDate}`, ...meta, ...rows.map((r) => `${r.label}${r.note ? ` ${r.note}` : ""}: ${r.amount}`), `Balance ${dueLabel}: ${balance}`, "", "PAY BY BANK TRANSFER", ...bankLines, ...(pdfLine ? [pdfLine] : []), "", after, "", closing], { testLabel: i.test === true });
   return { subject, html, text };
 }
 

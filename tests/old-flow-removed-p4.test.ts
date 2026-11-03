@@ -7,7 +7,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { TEMPLATE_ENTRIES, NOT_LISTED_BUILDERS } from "../src/lib/template-hub.core";
 import { SMS_MESSAGE_TYPES } from "../src/lib/sms.core";
 import { OLD_FLOW_STEPS_P4, jobsApprovingFixesQuote, jobsPickingFixesTime, jobsPickingInstallDays, jobsPickingPiesaTimes, jobsWithElectricianOfferOpen } from "../src/lib/old-flow-steps.core";
-import { resolveOwnerScreen, ownerAction } from "../src/lib/owner-myjob.core";
+import { INSTALLER_WILL_CALL_TO_BOOK_DRAFT, resolveOwnerScreen, ownerAction } from "../src/lib/owner-myjob.core";
 
 const code = (p: string) => readFileSync(p, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 const exists = (p: string) => existsSync(p);
@@ -16,8 +16,8 @@ const RETIRED_TEXTS = ["piesa_offer", "piesa_times_reminder", "safety_check_book
 
 test("template hub has no entry for the removed after-acceptance messages", () => {
   const bad = TEMPLATE_ENTRIES.filter((e) =>
-    ["E1", "E14", "O26", "I71", "O29", "O33", "I65", "O45", "O61"].includes(e.code)
-    || /renderElectricianOfferEmail|renderPiesaTimesReminderEmail|renderSafetyCheckTimesEmail|renderSafetyCheckBookedEmail|renderInstallerPlanningEmail|renderFixesQuoteEmail|renderPiesaFixesConfirmEmail|renderInstallDaysEmail|renderInstallClearanceEmail|renderFinalInvoiceEmail|renderVeecReminderEmail|piesaFixesConfirmText/.test(e.source.fn)
+    ["E1", "E14", "O26", "I71", "O29", "O33", "I65", "O61"].includes(e.code)
+    || /renderElectricianOfferEmail|renderPiesaTimesReminderEmail|renderSafetyCheckTimesEmail|renderSafetyCheckBookedEmail|renderInstallerPlanningEmail|renderFixesQuoteEmail|renderPiesaFixesConfirmEmail|renderInstallDaysEmail|renderInstallClearanceEmail|renderVeecReminderEmail|piesaFixesConfirmText/.test(e.source.fn)
     || (e.gate.kind === "text" && (RETIRED_TEXTS as readonly string[]).includes(e.gate.smsType))
     || e.id === "owner:fixes-confirm" || e.id === "owner:sms-piesa_owner_fixes_confirm");
   expect(bad.map((e) => e.id)).toEqual([]);
@@ -47,13 +47,12 @@ test("the removed builders and senders are gone", () => {
     "src/lib/piesa-fixes-confirm-email.core.ts", "src/lib/piesa-fixes-confirm-send.server.ts",
     "src/lib/piesa-owner-confirm-email.core.ts",
     "src/lib/install-clearance.core.ts", "src/lib/install-clearance.server.ts",
-    "src/lib/final-invoice-email.core.ts",
   ]) expect({ f, exists: exists(f) }).toEqual({ f, exists: false });
 });
 
 test("no sweep or route calls the removed senders", () => {
   const tick = code("src/routes/api/public/hooks/allocation-tick.ts");
-  expect(tick).not.toMatch(/sweepInstallClearance|sweepAutoFixesQuotes|sweepOwnerFixesConfirmations|sweepFinalInvoices|install-clearance|auto-fixes-quote-send|piesa-fixes-confirm-send/);
+  expect(tick).not.toMatch(/sweepInstallClearance|sweepAutoFixesQuotes|sweepOwnerFixesConfirmations|install-clearance|auto-fixes-quote-send|piesa-fixes-confirm-send/);
   expect(code("src/lib/trade-messages.server.ts")).not.toMatch(/textElectricianAboutOffer|emailElectricianAboutOffer|electrician-offer-email|piesaOfferText/);
   expect(code("src/lib/allocation.server.ts")).not.toMatch(/piesa-times-reminder/);
   expect(code("src/lib/booking.server.ts")).not.toMatch(/installer-planning-notice|onSafetyCheckBooked/);
@@ -63,17 +62,17 @@ test("no sweep or route calls the removed senders", () => {
   expect(code("src/lib/piesa-record.server.ts")).not.toMatch(/install-clearance/);
   expect(code("src/lib/piesa-times.server.ts")).not.toMatch(/onSafetyCheckTimesOffered/);
   expect(code("src/lib/install-days.server.ts")).not.toMatch(/onInstallDaysOffered/);
-  expect(code("src/lib/install-complete.server.ts")).not.toMatch(/onFinalInvoiceDue|final-invoice/);
+  // Fix round 1: O45 stays wired (install-complete + tick) while ALL_DONE_V2_APPROVED is false; onFinalInvoiceDue checks the flag.
+  expect(code("src/lib/owner-email-triggers.server.ts")).toContain('ALL_DONE_V2_APPROVED) return "not due — the balance is in the All done email"');
   const triggers = code("src/lib/owner-email-triggers.server.ts");
-  expect(triggers).not.toMatch(/onSafetyCheckTimesOffered|onSafetyCheckBooked|onFixesQuoteIssued|onInstallDaysOffered|onFinalInvoiceDue|sweepFinalInvoices|safety-check-emails|rectification-quote-email|final-invoice-email/);
+  expect(triggers).not.toMatch(/onSafetyCheckTimesOffered|onSafetyCheckBooked|onFixesQuoteIssued|onInstallDaysOffered|safety-check-emails|rectification-quote-email/);
   const approved = code("src/lib/approved-owner-emails.server.ts");
-  expect(approved).not.toMatch(/emailOwnerSafetyCheckTimes|emailOwnerSafetyCheckBooked|emailOwnerFixesQuote|emailOwnerInstallDays\b|emailOwnerFinalInvoice|renderInstallDaysEmail|renderFinalInvoiceEmail/);
+  expect(approved).not.toMatch(/emailOwnerSafetyCheckTimes|emailOwnerSafetyCheckBooked|emailOwnerFixesQuote|emailOwnerInstallDays\b|renderInstallDaysEmail/);
   // Balance day-5 / due-day emails and the separate rebate-form reminders (O61 days 1/3/7) no longer send.
   expect(code("src/lib/balance-q21.server.ts")).not.toMatch(/sendOwnerTemplateEmail|balance_reminder|due in 2 days|due today/);
   const veec = code("src/lib/veec-reminders.server.ts");
   expect(veec).not.toMatch(/renderVeecReminderEmail|veecSignReminderText|"veec_sign_reminder"/);
   expect(code("src/lib/veec-emails.core.ts")).not.toMatch(/renderVeecReminderEmail/);
-  expect(code("src/lib/completion-emails.core.ts")).not.toMatch(/renderFinalInvoiceEmail/);
 });
 
 test("no owner screen offers times, pick-a-day, fixes or change links", () => {
@@ -100,10 +99,17 @@ test("?screen=fixes and ?screen=book fall through to the job's current single-ac
   // A job mid-way through an old step keeps its old screen.
   expect(resolveOwnerScreen("fixes", { currentAction: "fixes" })).toBe("fixes");
   expect(resolveOwnerScreen("book", { currentAction: "book" })).toBe("book");
-  // The home action never sends the owner to pick times any more.
-  const a = ownerAction({ stage: "installation_scheduling", readyCheckRequested: true, visit: null, quoteOpen: null, bookingOpen: true });
-  expect(a.button).toBeNull();
-  expect(a.kicker).toBe("Nothing for you to do");
+  // The home action never sends the owner to pick times any more, and never shows the spot-saved line to an accepted owner (fix round 1).
+  for (const stage of ["measured_quote_accepted", "piesa_and_install_window_pending", "installation_scheduling"]) {
+    const a = ownerAction({ stage, readyCheckRequested: true, visit: null, quoteOpen: null, bookingOpen: true, installerName: "Rapid Insulation" });
+    expect({ stage, button: a.button, kicker: a.kicker }).toEqual({ stage, button: null, kicker: "Nothing for you to do" });
+    expect({ stage, spot: /Spot saved/i.test(a.title) }).toEqual({ stage, spot: false });
+  }
+  expect(ownerAction({ stage: "measured_quote_accepted", readyCheckRequested: true, visit: null, quoteOpen: null, bookingOpen: true }).title).toBe("Quote accepted – complete your payment");
+  const sched = ownerAction({ stage: "installation_scheduling", readyCheckRequested: true, visit: null, quoteOpen: null, bookingOpen: true, installerName: "Rapid Insulation" });
+  expect(sched.title).toBe(INSTALLER_WILL_CALL_TO_BOOK_DRAFT("Rapid Insulation"));
+  expect(sched.title).toBe("Rapid Insulation will call you to book your install day.");
+  expect(ownerAction({ stage: "installation_scheduling", readyCheckRequested: true, visit: null, quoteOpen: null, bookingOpen: true }).title).toBe("Your installer will call you to book your install day.");
 });
 
 test("old step list covers the after-acceptance steps and the readers are read-only", () => {

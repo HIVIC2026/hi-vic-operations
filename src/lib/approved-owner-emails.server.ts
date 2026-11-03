@@ -2,9 +2,9 @@
 // nothing sent). Each one renders the approved design and goes through `sendOwnerTemplateEmail`, so a real owner can only
 // receive it once its *_APPROVED flag is true and customer messages are on; TEST jobs get it through test-send now.
 // Workflow callers: `emailOwnerInstallComplete` (VEEC day-0 request), `emailOwnerCompletionPack` (completion-pack.server.ts) and,
-// since decision 325, owner-email-triggers.server.ts for O19/O22/O42/O51. Retired 2 Nov 2026 (Part 4 Task 14): O26 pick a
-// time / safety check booked, O29 fixes quote, O33 pick your install day and the O45 final invoice (the All done email
-// carries the tax invoice and balance).
+// since decision 325, owner-email-triggers.server.ts for O19/O22/O42/O51 and, since decision 334, O45 (final invoice at
+// install complete with a balance due, once per invoice; bank transfer only — kept ONLY while ALL_DONE_V2_APPROVED is
+// false). Retired 2 Nov 2026 (Part 4 Task 14): O26 pick a time / safety check booked, O29 fixes quote, O33 pick your install day.
 import { sendOwnerTemplateEmail } from "./owner-template-send.server";
 import { ownerEmailKey } from "./owner-email-triggers.core";
 import { COMPLETION_PACK_EMAIL_KEY } from "./completion-pack.core";
@@ -82,6 +82,13 @@ async function installedLineFor(jobId: string, given: import("./completion-email
   const { installedProductLine } = await import("./invoice-itemisation.server");
   const line = await installedProductLine(jobId);
   return line ? { description: line.description, escModelCodes: line.escModelCodes } : null;
+}
+
+export async function emailOwnerFinalInvoice(jobId: string, invoiceId: string, i: Omit<import("./completion-emails.core").FinalInvoiceInput, "firstName" | "ownerName" | "address" | "installer" | "test">) {
+  const { COMPLETION_EMAILS_APPROVED, renderFinalInvoiceEmail } = await import("./completion-emails.core");
+  const installed = await installedLineFor(jobId, i.installed);
+  return sendOwnerTemplateEmail({ jobId, purpose: "final_invoice", key: ownerEmailKey.finalInvoice(invoiceId), approved: COMPLETION_EMAILS_APPROVED, label: "Final invoice email", notSentEvent: "final_invoice_email_not_sent",
+    render: (f) => renderFinalInvoiceEmail({ ...i, payUrl:`${f.myJobUrl}?screen=pay`, installed, firstName: f.firstName, ownerName: f.ownerName, address: f.address, installer: { name: f.installerName, phone: f.installerPhone }, test: f.test }) });
 }
 
 /** Decision 334: once per invoice (key by invoice id); bank details from HIV_BANK_* env (payments.server bankDetails). */

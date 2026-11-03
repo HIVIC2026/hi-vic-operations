@@ -1,7 +1,7 @@
 // Part 4 Task 5 (Jo 2 Nov 2026, answers 10 and 21): ONE page — PIESA owner declarations + ESC consent + 10% deposit.
 // Pure rules + the server orchestration run against recorded fakes (no database, nothing is sent).
 import { describe, expect, test } from "bun:test";
-import { CONFIRM_SIGN_PAY, confirmSignPayBlockers, confirmSignPayFooter, piesaConfirmTick, piesaResultLabel, clearScreenOpen, consentTickLine, clearAction, type ConfirmSignPayState } from "../src/lib/confirm-sign-pay.core";
+import { CONFIRM_SIGN_PAY, confirmSignPayBlockers, confirmSignPayFooter, piesaConfirmTick, piesaResultLabel, clearScreenOpen, consentTickLine, clearAction, consentOnlyOpen, consentOnlyPiesa, hasDepositStep, hasPiesaStep, withNoDeposit, type ConfirmSignPayState } from "../src/lib/confirm-sign-pay.core";
 import { currentOwnerAction, resolveOwnerScreen } from "../src/lib/owner-myjob.core";
 import { OWNER_DECLARATIONS } from "../src/lib/consent.core";
 import { confirmSignPay, type ConfirmSignPayDeps } from "../src/lib/confirm-sign-pay.server";
@@ -21,6 +21,7 @@ describe("copy", () => {
       kicker: "ONE LAST STEP", title: "Confirm, sign and pay your deposit", step1: "Confirm your safety check", step2: "Sign the government consent form",
       step2Sub: "The law says we must tell the Essential Services Commission about every install before it happens. This is the Commission's own form.",
       step3: "Pay your 10% deposit", nameLabel: "Type your full name to sign steps 1 and 2", card: "Sign and pay by card", bank: "Sign and pay by bank transfer", viewForm: "View the full form ›",
+      signOnly: "Sign", // DRAFT (fix round 1): the consent-only page's button
     });
   });
   test("tick and footer", () => {
@@ -200,5 +201,39 @@ describe("confirmSignPay", () => {
     const r = await confirmSignPay(J, session, input, deps);
     expect("bank" in r).toBe(true);
     expect(calls).toEqual(["prepare", "piesa:Helen Yang", "consent:Helen Yang:true"]);
+  });
+});
+
+// ---------- Part 4 Task 14 fix round 1, item 5: no ESC consent dead end ----------
+describe("consent-only clear page (Reg 23A consent awaiting the owner while the pay page would not open)", () => {
+  test("pure: opens only when the normal page is closed and a consent row is awaiting the owner; state shows no deposit step", () => {
+    expect(consentOnlyOpen({ clearOpen: false, consentAwaitingOwner: true })).toBe(true);
+    expect(consentOnlyOpen({ clearOpen: true, consentAwaitingOwner: true })).toBe(false);
+    expect(consentOnlyOpen({ clearOpen: false, consentAwaitingOwner: false })).toBe(false);
+    const s = withNoDeposit(state());
+    expect(s.deposit).toEqual({ amountCents: 0, paid: false });
+    expect(hasDepositStep(s)).toBe(false);
+    expect(hasDepositStep(state())).toBe(true);
+    expect(consentOnlyPiesa().done).toBe(true); // nothing to confirm when there is no PIESA yet
+    expect(hasPiesaStep(consentOnlyPiesa())).toBe(false);
+    expect(hasPiesaStep(state().piesa)).toBe(true);
+  });
+  test("submit with no deposit step: signs the consent, sends the copy, returns signed (no bank lines, no checkout)", async () => {
+    const { deps, calls } = fakes(withNoDeposit(state({ piesa: true })));
+    const r = await confirmSignPay(J, session, { ...input, piesaTick: false }, deps);
+    expect(r).toEqual({ signed: true });
+    expect(calls).toEqual(["prepare", "consent:Helen Yang:true", "copy:paid=false"]);
+  });
+  test("server: the page opens from the My job read when clearScreenOpen is false (depositCents 0) and when the state load throws, if the consent is awaiting the owner", async () => {
+    const { clearPageMode } = await import("../src/lib/confirm-sign-pay.server");
+    const facts = { stage: "piesa_complete", outcome: "all_clear" as const, safetyCleared: true, depositCleared: false, depositCents: 0 };
+    const awaiting = async () => ({ status: "awaiting_owner", premises_address: "1 Test St", owner_contact: { name: "Helen Yang", email: "h@x", phone: "04" } });
+    const loads = async () => state();
+    const noPiesa = async () => null;
+    expect(await clearPageMode("j", facts, { hasConfirmation: true, loadState: loads, consent: awaiting })).toEqual({ mode: "consent_only", state: withNoDeposit(state()) });
+    expect(await clearPageMode("j", { ...facts, depositCents: 18510 }, { hasConfirmation: true, loadState: async () => { throw new Error("db down"); }, consent: awaiting, piesaFacts: noPiesa })).toEqual({ mode: "consent_only", state: expect.objectContaining({ deposit: { amountCents: 0, paid: false } }) });
+    expect(await clearPageMode("j", { ...facts, depositCents: 18510 }, { hasConfirmation: true, loadState: loads, consent: awaiting })).toEqual({ mode: "clear", state: state() });
+    expect(await clearPageMode("j", facts, { hasConfirmation: true, loadState: loads, consent: async () => ({ status: "signed" }) })).toEqual({ mode: null, state: null });
+    expect(await clearPageMode("j", facts, { hasConfirmation: false, loadState: async () => { throw new Error("no PIESA"); }, consent: awaiting, piesaFacts: noPiesa })).toEqual({ mode: "consent_only", state: expect.objectContaining({ piesa: expect.objectContaining({ done: true }), deposit: { amountCents: 0, paid: false } }) });
   });
 });

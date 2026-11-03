@@ -15,6 +15,8 @@ export const CONFIRM_SIGN_PAY = {
   nameLabel: "Type your full name to sign steps 1 and 2",
   card: "Sign and pay by card",
   bank: "Sign and pay by bank transfer",
+  /** DRAFT (fix round 1, Jo to approve): the consent-only page's one button. */
+  signOnly: "Sign",
   viewForm: "View the full form ›",
 } as const;
 
@@ -59,6 +61,17 @@ export function clearScreenOpen(f: { stage: string; outcome: PiesaOutcome | null
 /** "clear" only when the page's own state actually loaded. No state (no consent row, missing facts) = the old pay / piesa screens, never a dead end. */
 export const clearAction = (open: boolean, state: ConfirmSignPayState | null): "clear" | null => (open && state ? "clear" : null);
 export const stepsUnsigned = (s: ConfirmSignPayState) => !s.piesa.done || !s.consent.done;
+
+// ---- Part 4 Task 14 fix round 1: no ESC consent dead end ----
+/** When the pay page would not open (or its state failed to load) but an ESC consent row is still awaiting the owner, the same
+ *  page opens as a consent-only page so the owner can still sign the Reg 23A consent: no deposit step, no PIESA step without a PIESA. */
+export const consentOnlyOpen = (f: { clearOpen: boolean; consentAwaitingOwner: boolean }) => !f.clearOpen && f.consentAwaitingOwner;
+/** The same state with the deposit step taken out (shown as none; the pay buttons give way to one Sign button). */
+export const withNoDeposit = (s: ConfirmSignPayState): ConfirmSignPayState => ({ ...s, deposit: { amountCents: 0, paid: false } });
+export const hasDepositStep = (s: ConfirmSignPayState) => s.deposit.amountCents > 0;
+/** No PIESA on the job yet: nothing to confirm, the step is not shown. */
+export const consentOnlyPiesa = (): ConfirmSignPayState["piesa"] => ({ checkedOn: "", electrician: "", result: RESULT_SAFE, done: true });
+export const hasPiesaStep = (p: ConfirmSignPayState["piesa"]) => p.checkedOn !== "";
 
 /** The official Section 2 lines are shown as the form words them: a full stop is added only where the form has none, except the third line, which the form ends without one. */
 export const consentTickLine = (key: string, text: string) => (key === "consent_ap_sends" || /[.]$/.test(text.trim()) ? text : `${text}.`);

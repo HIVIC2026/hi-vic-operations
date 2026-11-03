@@ -3,7 +3,7 @@
 // ESC consent copy to the owner AT ONCE when this call signed it (answer 10 — never held for a bank transfer), then returns
 // the card checkout or the bank lines. Every dependency is injectable so the orchestration is tested without a database.
 import { WorkflowError } from "./workflow.server";
-import { confirmSignPayBlockers, piesaResultLabel, type ConfirmSignPayState } from "./confirm-sign-pay.core";
+import { confirmSignPayBlockers, piesaResultLabel, type ConfirmSignPayState, clearScreenOpen, clearAction, stepsUnsigned, consentOnlyOpen, withNoDeposit, hasDepositStep, consentOnlyPiesa } from "./confirm-sign-pay.core";
 import type { OwnerDeclarations } from "./consent.core";
 
 export type OwnerSessionLike = { jobId: string; userId: string; codeId: string };
@@ -11,7 +11,7 @@ export type ConfirmSignPayInput = {
   piesaTick: boolean; consentTicks: [boolean, boolean, boolean, boolean]; typedName: string; method: "card" | "bank";
   authority?: "owner" | "authorised_representative"; returnUrl?: string; ip?: string | null; userAgent?: string | null;
 };
-export type ConfirmSignPayResult = { checkoutUrl: string } | { bank: string[] } | { paid: true };
+export type ConfirmSignPayResult = { checkoutUrl: string } | { bank: string[] } | { paid: true } | { signed: true };
 
 type Who = { jobId: string; userId: string; codeId: string; name: string; authority: "owner" | "authorised_representative"; ip: string | null; userAgent: string | null };
 export type ConfirmSignPayDeps = {
@@ -52,6 +52,7 @@ export async function confirmSignPay(jobId: string, session: OwnerSessionLike, i
   } catch (e) { console.error("consent copy at signing failed", jobId, e instanceof Error ? e.message : e); }
 
   if (state.deposit.paid) return { paid: true };
+  if (!hasDepositStep(state)) return { signed: true }; // consent-only page: nothing to pay here
   if (i.method === "bank") return { bank: await deps.bankLines(jobId) };
   const r = await deps.cardCheckout(jobId, i.returnUrl ?? "", session.userId);
   if ("blocker" in r) throw new WorkflowError(`${r.blocker} Your signatures are saved — you can pay by bank transfer instead.`);
@@ -65,17 +66,79 @@ const weekdayOf = (ymd: string) => new Date(`${ymd}T12:00:00+10:00`).toLocaleDat
 
 export type ConfirmSignPayPage = { state: ConfirmSignPayState; footer: { installer: string; installBy: string } | null; piesaRecordId: string };
 
+/** The clear page's mode for a job, from the My job facts (one rule for the My job read and the page itself):
+ *  "clear" = the confirm-and-pay page with its loaded state; "consent_only" = the ESC consent is awaiting the owner but the pay
+ *  page would not open (or its state failed to load) — the same page without the deposit step (and without the PIESA step when
+ *  there is no PIESA yet); null = neither (the old pay / piesa screens). */
+type ConsentRow = { status: string; owner_signed_at?: string | null; premises_address?: string | null; owner_contact?: unknown; snapshot?: unknown };
+type PiesaFactsLike = { completedDate: string; electrician: { name: string | null; recName: string | null }; confirmation: unknown; outcome: string; rectificationRequired: boolean; electricianOnInstallDay: boolean };
+export async function clearPageMode(jobId: string, facts: Parameters<typeof clearScreenOpen>[0], deps: { hasConfirmation: boolean; loadState?: (jobId: string) => Promise<ConfirmSignPayState>; consent?: (jobId: string) => Promise<ConsentRow | null>; piesaFacts?: (jobId: string) => Promise<PiesaFactsLike | null> } = { hasConfirmation: true }): Promise<{ mode: "clear" | "consent_only" | null; state: ConfirmSignPayState | null }> {
+  const load = deps.loadState ?? realLoadState;
+  let state: ConfirmSignPayState | null = null;
+  let loadError: unknown = null;
+  if (deps.hasConfirmation && clearScreenOpen({ ...facts, unsigned: true })) {
+    try { state = await load(jobId); } catch (e) { loadError = e; console.error("owner confirm-sign-pay page unavailable, using the old screens", (e as Error).message); }
+  }
+  const clearOpen = clearAction(state !== null && clearScreenOpen({ ...facts, unsigned: stepsUnsigned(state!) }), state) === "clear";
+  if (clearOpen) return { mode: "clear", state };
+  const consent = await (deps.consent ?? (async (id: string) => (await import("./consent.server")).currentConsent(id)))(jobId).catch(() => null);
+  if (!consentOnlyOpen({ clearOpen, consentAwaitingOwner: consent?.status === "awaiting_owner" })) return { mode: null, state: null };
+  // Consent only: use the loaded state when we have it; otherwise load it tolerantly (no PIESA = no PIESA step).
+  if (!state && !loadError) { try { state = await load(jobId); } catch (e) { loadError = e; } }
+  if (!state) {
+    try { state = await consentOnlyState(jobId, consent!, deps.piesaFacts); } catch (e) { console.error("owner consent-only page unavailable", (e as Error).message); return { mode: null, state: null }; }
+  }
+  return { mode: "consent_only", state: withNoDeposit(state) };
+}
+
+/** The consent-only state built from the consent row (used when the full state cannot be loaded, e.g. no PIESA yet). */
+async function consentOnlyState(jobId: string, c: ConsentRow, piesaFacts?: (jobId: string) => Promise<PiesaFactsLike | null>): Promise<ConfirmSignPayState> {
+  const owner = (c.owner_contact ?? (c.snapshot as { owner?: unknown } | null)?.owner ?? {}) as { name?: string | null; email?: string | null; phone?: string | null };
+  let piesa = consentOnlyPiesa();
+  try {
+    const facts = await (piesaFacts ?? (async (id: string) => (await import("./piesa-owner-confirm.server")).ownerPiesaConfirmFacts(id)))(jobId);
+    const { piesaOutcomeKind } = await import("./piesa-owner-confirm.core");
+    if (facts) piesa = { checkedOn: dayMonthOf(facts.completedDate), electrician: facts.electrician.name ?? facts.electrician.recName ?? "Your electrician", result: piesaResultLabel(piesaOutcomeKind(facts as never)), done: !!facts.confirmation };
+  } catch { /* no PIESA step */ }
+  return {
+    piesa,
+    consent: { name: owner.name ?? "", address: c.premises_address ?? "", phone: owner.phone ?? "", email: owner.email ?? "", done: !!c.owner_signed_at, signedOn: c.owner_signed_at ? new Date(c.owner_signed_at).toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric", timeZone: MEL }) : null },
+    deposit: { amountCents: 0, paid: false },
+  };
+}
+
 /** What the page shows. Prepares the owner's ESC consent record (same prepare step as the clear-to-install email) so the form is ready to sign. */
 export async function confirmSignPayPage(jobId: string): Promise<ConfirmSignPayPage> {
-  const state = await realLoadState(jobId);
   const { ownerPiesaConfirmFacts } = await import("./piesa-owner-confirm.server");
-  const facts = await ownerPiesaConfirmFacts(jobId);
+  const facts = await ownerPiesaConfirmFacts(jobId).catch(() => null);
+  // Fix round 1: the consent-only page (ESC consent awaiting the owner, pay page closed) — same page, no deposit step.
+  const pageFacts = await clearPageFacts(jobId, facts);
+  const page = await clearPageMode(jobId, pageFacts, { hasConfirmation: !!facts });
+  if (page.mode === "consent_only" && page.state) return { state: page.state, footer: null, piesaRecordId: facts?.piesaRecordId ?? "" };
+  const state = page.mode === "clear" && page.state ? page.state : await realLoadState(jobId);
   if (!facts) throw new WorkflowError("There's no electrical safety check to confirm yet.");
   const { installDeadline } = await import("./owner-myjob.core");
   const { businessContactForJob } = await import("./owner-contact.server");
   const inst = await businessContactForJob(jobId, "installer").catch(() => null);
   const installer = (inst?.tradingName || inst?.name || "").replace(/^\[TEST PARTNER\]\s*/, "").trim();
   return { state, footer: installer ? { installer, installBy: weekdayOf(installDeadline(facts.completedDate)) } : null, piesaRecordId: facts.piesaRecordId };
+}
+
+/** The My job facts the clear page rule needs, read here when the page loads on its own. */
+export async function clearPageFacts(jobId: string, facts: Parameters<typeof import("./piesa-owner-confirm.core").piesaOutcomeKind>[0] | null): Promise<Parameters<typeof clearScreenOpen>[0]> {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data: j } = await supabaseAdmin.from("jobs").select("stage").eq("id", jobId).maybeSingle();
+  const { jobPaymentView } = await import("./payments.server");
+  const { isStepCleared } = await import("./payments.core");
+  const pay = await jobPaymentView(jobId).catch(() => null);
+  const { piesaOutcomeKind } = await import("./piesa-owner-confirm.core");
+  return {
+    stage: String(j?.stage ?? ""),
+    outcome: facts ? (piesaOutcomeKind(facts) === "all_clear" ? "all_clear" : "upgrades_needed") : null,
+    safetyCleared: pay ? isStepCleared(pay.steps, "safety_check") : false,
+    depositCleared: pay ? isStepCleared(pay.steps, "install_deposit") : false,
+    depositCents: pay?.plan.installDepositCents ?? 0,
+  };
 }
 
 export async function realLoadState(jobId: string): Promise<ConfirmSignPayState> {

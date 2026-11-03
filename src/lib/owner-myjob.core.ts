@@ -47,7 +47,13 @@ export type OwnerFacts = {
   quoteOpen: { expiresAt: string | null } | null;
   bookingOpen: boolean; // payment option cleared + owner still needs to give times
   approveBy?: string | null;
+  /** The job's installer business (trading name), for the "will call you" line. */
+  installerName?: string | null;
 };
+
+/** DRAFT (Part 4 Task 14 fix round 1, Jo to approve — JO-APPROVAL-LIST): the install-scheduling line on My job; the old
+ *  "Choose your install date" is retired because the installer calls to book (touchpoint 46 / answer 21). */
+export const INSTALLER_WILL_CALL_TO_BOOK_DRAFT = (installer: string | null | undefined) => `${installer?.trim() || "Your installer"} will call you to book your install day.`; // DRAFT
 
 const fmtDay = (iso: string) => new Date(iso).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short", timeZone: "Australia/Melbourne" });
 const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit", timeZone: "Australia/Melbourne" }).replace(":00", "").replace(" ", "");
@@ -62,8 +68,9 @@ export function ownerAction(f: OwnerFacts): OwnerAction {
   if (s === "on_hold") return none(stageWording("on_hold").owner!, "We'll let you know as soon as it's moving again.");
   if (f.visit) return none(f.visit.kind === "installation" ? stageWording("installation_booked").owner! : f.visit.kind === "ready_check" ? stageWording("ready_check_scheduled").owner! : f.visit.kind === "rectification" ? stageWording("rectification_booked").owner! : stageWording("piesa_scheduled").owner!, "We'll text you the day before.", visitPill(f.visit.startsAt));
   if (f.quoteOpen) return todo(stageWording("measured_estimate_ready").owner!, "Have a look at your quote and say yes when you're ready.", "See my quote", "quote", f.quoteOpen.expiresAt ? `Please approve by ${fmtDay(f.quoteOpen.expiresAt)}` : null);
-  // Part 4 Task 14 (Jo 2 Nov 2026): the trades call the owner to book; the owner never picks times on the page.
-  if (f.bookingOpen) return none(stageWording("ready_check_ready_to_schedule").owner!, "We'll be in touch with your next step.");
+  // Part 4 Task 14 (Jo 2 Nov 2026): the trades call the owner to book; the owner never picks times on the page. Each stage keeps
+  // its own line; installation_scheduling's old "Choose your install date" is retired, so a DRAFT "will call you" line shows.
+  if (f.bookingOpen) return none(s === "installation_scheduling" ? INSTALLER_WILL_CALL_TO_BOOK_DRAFT(f.installerName) : stageWording(s).owner ?? stageWording("measured_quote_accepted").owner!, "We'll be in touch with your next step.");
   if (["new_enquiry", "eligibility_review", "preliminary_estimate_ready", "ready_check_awaiting_acceptance"].includes(s) && !f.readyCheckRequested)
     // Decision 388: before release, spot-only wording (no Ready Check, times or speed).
     return todo("Save your spot", "It's free, with no obligation. Spots are released in the order they were saved.", "Save my spot", "spot");

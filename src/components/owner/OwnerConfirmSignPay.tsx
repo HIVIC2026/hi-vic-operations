@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ownerConfirmSignPayFn, ownerConfirmSignPayFormFn, ownerConfirmSignPayStateFn } from "@/lib/owner-link.functions";
-import { CONFIRM_SIGN_PAY, consentTickLine, confirmSignPayBlockers, confirmSignPayFooter, piesaConfirmTick } from "@/lib/confirm-sign-pay.core";
+import { CONFIRM_SIGN_PAY, consentTickLine, confirmSignPayBlockers, confirmSignPayFooter, piesaConfirmTick, hasDepositStep, hasPiesaStep } from "@/lib/confirm-sign-pay.core";
 import { OWNER_DECLARATIONS } from "@/lib/consent.core";
 import { OFFICE_EMAIL, centsAud } from "@/lib/owner-pages.core";
 import { AuthorityChoice, FactRows, FormCard, InfoBox, LockHint, LockedButton, OwnerFooter, PageIntro, SectionTitle, SmallNote, TickCard, TypedField } from "./OwnerPageKit";
@@ -66,6 +66,7 @@ export function OwnerConfirmSignPay({ token }: { v?: unknown; token: string }) {
       const r = await go({ data: { token, session: s, piesaTick, consentTicks: ticks, typedName: name.trim(), authorityType: authority, method } });
       await qc.invalidateQueries({ queryKey: ["owner-confirm-sign-pay", token] });
       if ("checkoutUrl" in r) window.location.assign(r.checkoutUrl);
+      else if ("signed" in r) await qc.invalidateQueries({ queryKey: ["my-job", token] });
       else if ("bank" in r) { setBank(r.bank); await qc.invalidateQueries({ queryKey: ["my-job", token] }); }
       else await qc.invalidateQueries({ queryKey: ["my-job", token] });
     } catch (e) { setErr(errText(e)); } finally { setBusy(false); }
@@ -77,14 +78,15 @@ export function OwnerConfirmSignPay({ token }: { v?: unknown; token: string }) {
   return <section data-testid="confirm-sign-pay" className="space-y-4">
     <PageIntro kicker={CONFIRM_SIGN_PAY.kicker} title={CONFIRM_SIGN_PAY.title} />
 
-    <FormCard eyebrow="STEP 1">
+    {/* Fix round 1: the consent-only page has no PIESA step when there is no PIESA yet. */}
+    {hasPiesaStep(state.piesa) && <FormCard eyebrow="STEP 1">
       <SectionTitle className="mt-1.5 mb-1">{CONFIRM_SIGN_PAY.step1}</SectionTitle>
       <FactRows rows={[{ label: "Checked on", value: state.piesa.checkedOn }, { label: "Electrician", value: state.piesa.electrician }, { label: "Result", value: state.piesa.result }]} />
       {state.piesa.done ? <Done>You've already confirmed this.</Done> : <>
         <TickCard on={piesaTick} set={setPiesaTick} title={piesaConfirmTick(state.piesa.checkedOn)} bold={false} />
         {viewBtn("piesa")}
       </>}
-    </FormCard>
+    </FormCard>}
 
     <FormCard eyebrow="STEP 2">
       <SectionTitle className="mt-1.5 mb-1">{CONFIRM_SIGN_PAY.step2}</SectionTitle>
@@ -102,15 +104,20 @@ export function OwnerConfirmSignPay({ token }: { v?: unknown; token: string }) {
       <TypedField label={CONFIRM_SIGN_PAY.nameLabel} value={name} onChange={setName} placeholder="Type here" autoComplete="name" />
     </FormCard>}
 
-    <FormCard eyebrow="STEP 3">
+    {hasDepositStep(state) && <FormCard eyebrow="STEP 3">
       <SectionTitle className="mt-1.5 mb-1">{CONFIRM_SIGN_PAY.step3}</SectionTitle>
       {state.deposit.paid ? <Done>Your deposit is paid.</Done> : <p className="font-display text-3xl font-extrabold">{amount}</p>}
-    </FormCard>
+    </FormCard>}
 
     {bank && <InfoBox><b>Bank transfer</b><ul className="mt-1 space-y-0.5">{bank.map((l) => <li key={l}>{l}</li>)}</ul></InfoBox>}
     {needCode && !session && <OwnerCodeGate token={token} onVerified={(s) => { setSession(s); const m = needCode; setNeedCode(null); void submit(m, s); }} />}
     {err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}
-    {!state.deposit.paid && <div>
+    {/* Fix round 1: consent-only page (no deposit step) — one Sign button, no payment. */}
+    {!hasDepositStep(state) && !state.consent.done && <div>
+      <LockedButton ready={ready} busy={busy} busyLabel="Please wait…" onClick={() => press("bank")}>{CONFIRM_SIGN_PAY.signOnly}</LockedButton>
+      {!ready && <LockHint>Tick the boxes and type your name</LockHint>}
+    </div>}
+    {hasDepositStep(state) && !state.deposit.paid && <div>
       <LockedButton ready={ready} busy={busy} busyLabel="Please wait…" onClick={() => press("card")}>{CONFIRM_SIGN_PAY.card}</LockedButton>
       <button type="button" disabled={!ready || busy} onClick={() => press("bank")} className="mt-3 flex min-h-12 w-full items-center justify-center rounded-[14px] border border-estimate-blue px-4 text-[15px] font-bold text-estimate-blue disabled:opacity-50">{CONFIRM_SIGN_PAY.bank}</button>
       {!ready && <LockHint>Tick the boxes and type your name</LockHint>}
