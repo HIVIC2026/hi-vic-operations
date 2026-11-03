@@ -32,13 +32,18 @@ export async function taxInvoicePdf(f: TaxInvoiceFacts, seam: TaxInvoiceSeam = {
   return { bytes, layout };
 }
 
-/** Part 10 Task 7: the installer's logo bytes for the PDF (Part 5's https URL only; PNG/JPG under 2 MB; anything else → null = our logo alone). */
-async function fetchPartnerLogo(url: string | null): Promise<{ bytes: Uint8Array; width: number; height: number } | null> {
-  if (!url || !/^https:\/\//.test(url)) return null;
+/** Part 10 Task 7 (final review M6): the installer's logo bytes for the PDF, read from storage through Part 5's
+ *  `partnerLogoByKey` (the key at the end of the https logo URL) — never a self-HTTP fetch. PNG/JPG under 2 MB; anything
+ *  else → null = our logo alone. */
+export async function fetchPartnerLogo(url: string | null): Promise<{ bytes: Uint8Array; width: number; height: number } | null> {
+  const key = /^https:\/\/[^/]+\/api\/public\/partner-logo\/([0-9a-f]{32})\.(?:png|jpg)(?:[?#].*)?$/.exec(url ?? "")?.[1] ?? null;
+  if (!key) return null;
   try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
-    if (!res.ok) return null;
-    const bytes = new Uint8Array(await res.arrayBuffer());
+    const logo = await (await import("./trade-view.server")).partnerLogoByKey(key);
+    if (!logo) return null;
+    const { data, error } = await admin.storage.from("job-files").download(logo.path);
+    if (error || !data) return null;
+    const bytes = new Uint8Array(await data.arrayBuffer());
     if (!bytes.length || bytes.length > 2_000_000) return null;
     const png = bytes[0] === 0x89 && bytes[1] === 0x50, jpg = bytes[0] === 0xff && bytes[1] === 0xd8;
     if (!png && !jpg) return null;
@@ -98,7 +103,7 @@ export async function fileTaxInvoicePdf(jobId: string): Promise<{ path: string }
     const { OWN_CUSTOMER_LABELS } = await import("./own-customer-price.core");
     extraLines = [
       ...sorted.filter((r) => (r.code === "INSTALLER_REMOVAL" || r.code === "INSTALLER_EXTRA") && cents(r.line_total_inc_gst) > 0).map((r) => ({ label: String(r.description ?? ""), cents: cents(r.line_total_inc_gst) })),
-      ...sorted.filter((r) => r.code === "AP_FEE").map((r) => ({ label: OWN_CUSTOMER_LABELS.apFee, cents: cents(r.line_total_inc_gst) })),
+      ...sorted.filter((r) => r.code === "AP_FEE" && cents(r.line_total_inc_gst) > 0).map((r) => ({ label: OWN_CUSTOMER_LABELS.apFee, cents: cents(r.line_total_inc_gst) })),
     ];
     const other = sorted.filter((r) => !["INSTALLER_PRICE", "INSTALLER_REMOVAL", "INSTALLER_EXTRA", "AP_FEE", "PIESA"].includes(String(r.code)) && cents(r.line_total_inc_gst) > 0);
     if (other.length || !(productCents > 0)) return { held: "Tax invoice not made: the quote lines are not the approved own-customer lines" };

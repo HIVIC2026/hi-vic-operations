@@ -1,4 +1,5 @@
 import { describe, expect, mock, test } from "bun:test";
+import { readFileSync } from "node:fs";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { PDFDocument } from "pdf-lib";
 import { gstOnFullPriceCents, taxInvoiceModel, type TaxInvoiceFacts } from "../src/lib/tax-invoice-pdf.core";
@@ -163,3 +164,25 @@ describe("own customer tax invoice (Task 7)", () => {
 });
 const MODEL_PIN = "{\"rows\":[{\"label\":\"Bradford Gold Hi-Performance Ceiling Batts · R5.0 · 137 m² · supplied and installed (includes removal of 40 m² of old insulation)\",\"amount\":\"$3,449.00\"},{\"label\":\"Electrical safety check (PIESA)\",\"amount\":\"$349.00\"}],\"priceBeforeRebate\":\"$3,798.00\",\"rebate\":\"– $1,610.00\",\"payable\":\"$2,188.00\",\"gstLine\":\"Includes GST of $345.27, worked out on the price before the rebate (ATO rule for certificate rebates)\",\"balance\":\"$0.00 · Paid in full ✓\",\"payments\":[{\"label\":\"Electrical safety check (PIESA), 8 Nov\",\"amount\":\"– $349.00\"},{\"label\":\"10% deposit, 10 Nov\",\"amount\":\"– $183.90\"},{\"label\":\"Final payment, 13 Nov\",\"amount\":\"– $1,655.10\"}]}";
 const BLOCKS_PIN = "[{\"id\":\"t-head\",\"kind\":\"header\",\"eyebrow\":\"TAX INVOICE · JOB HV-1234\",\"compact\":true,\"withAddress\":true},{\"id\":\"t-title\",\"kind\":\"title\",\"text\":\"Tax invoice\",\"sub\":\"Invoice INV-1234 · Date Thu 13 Nov 2026\",\"compact\":true},{\"id\":\"t-facts\",\"kind\":\"facts\",\"compact\":true,\"fullFrom\":2,\"rows\":[[\"Bill to\",\"Sarah Brown\"],[\"Installation address\",\"12 Example St, Box Hill VIC 3128\"],[\"Contracting business (Accredited Person)\",\"DC Construction Solutions Pty Ltd trading as Home Insulation Victoria · ABN 44 671 613 979 · 1/33 Altree Court, Phillip ACT 2606 · VEU Accredited Person A003654\"],[\"Installed by\",\"Rapid Insulation, on Thu 13 Nov 2026\"]]},{\"id\":\"t-items\",\"kind\":\"ledger\",\"head\":{\"label\":\"Installed\",\"amount\":\"Amount\"},\"note\":\"Includes GST of $345.27, worked out on the price before the rebate (ATO rule for certificate rebates)\",\"rows\":[{\"label\":\"Bradford Gold Hi-Performance Ceiling Batts · R5.0 · 137 m² · supplied and installed (includes removal of 40 m² of old insulation)\",\"amount\":\"$3,449.00\"},{\"label\":\"Electrical safety check (PIESA)\",\"amount\":\"$349.00\"},{\"label\":\"Price before VEU rebate\",\"amount\":\"$3,798.00\",\"strong\":true},{\"label\":\"Victorian Energy Upgrades rebate (price reduction)\",\"amount\":\"– $1,610.00\"}],\"total\":{\"label\":\"Amount payable after rebate (incl. GST)\",\"amount\":\"$2,188.00\"}},{\"id\":\"t-paid\",\"kind\":\"ledger\",\"head\":{\"label\":\"Payments\",\"amount\":\"\"},\"rows\":[{\"label\":\"Electrical safety check (PIESA), 8 Nov\",\"amount\":\"– $349.00\"},{\"label\":\"10% deposit, 10 Nov\",\"amount\":\"– $183.90\"},{\"label\":\"Final payment, 13 Nov\",\"amount\":\"– $1,655.10\"}],\"total\":{\"label\":\"Balance\",\"amount\":\"$0.00 · Paid in full\",\"tick\":true}}]";
+
+// Final review M6 / M5: the logo bytes come from storage through Part 5's partnerLogoByKey (never a self-HTTP fetch);
+// a $0 AP_FEE line adds no extra row.
+describe("M6: fetchPartnerLogo reads the stored logo by key", () => {
+  test("only a /api/public/partner-logo/{32-hex} https URL is looked up; anything else → null", async () => {
+    const { fetchPartnerLogo } = await import("../src/lib/tax-invoice-pdf.server");
+    expect(await fetchPartnerLogo(null)).toBeNull();
+    expect(await fetchPartnerLogo("http://x/api/public/partner-logo/" + "a".repeat(32))).toBeNull();
+    expect(await fetchPartnerLogo("https://x/logo.png")).toBeNull();
+    expect(await fetchPartnerLogo("https://x/api/public/partner-logo/not-a-key.png")).toBeNull();
+    expect(await fetchPartnerLogo("https://x/api/public/partner-logo/" + "a".repeat(32))).toBeNull(); // no extension = not our route
+    const src = readFileSync("src/lib/tax-invoice-pdf.server.ts", "utf8");
+    const fn = src.slice(src.indexOf("export async function fetchPartnerLogo"), src.indexOf("const TAX_INVOICE_KIND"));
+    expect(fn).toContain("partnerLogoByKey(key)");
+    expect(fn).toContain('storage.from("job-files").download(logo.path)');
+    expect(fn).not.toMatch(/\bfetch\(/);
+  });
+  test("M5: the Home Insulation Victoria fee extra line is added only when its amount is above $0", () => {
+    const src = readFileSync("src/lib/tax-invoice-pdf.server.ts", "utf8");
+    expect(src).toContain('r.code === "AP_FEE" && cents(r.line_total_inc_gst) > 0');
+  });
+});
