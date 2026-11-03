@@ -1,6 +1,6 @@
-# Part 2b messages for Jo to approve (installers add their own electricians)
+# Part 2b messages (installers add their own electricians)
 
-Nothing below has been approved yet. The two real messages (1 and 2) are HELD in code: the welcome text is recorded but not sent, and the rejection email is recorded as "held" for real installers (TEST installers still get it). Everything else is on-screen words with no approval flag, listed so you can check the words. Placeholders in {braces} are filled in by the portal.
+The two real messages (1 and 2) were approved by Jo on 3 Nov 2026, exactly as written, and their flags are now ON in code: the welcome text sends through the normal text sender and the rejection email goes to real installer offices through `sendOfficeEmail` (both still sit behind the usual switches — `customer_comms_enabled`, the per-type text switch, the trade-messages pause). Everything else is on-screen words with no approval flag, listed so you can check the words. Placeholders in {braces} are filled in by the portal.
 Wording below is copied exactly from the code.
 
 Installer offices are emailed, never texted. The electrician gets one text (no login).
@@ -9,12 +9,12 @@ Installer offices are emailed, never texted. The electrician gets one text (no l
 
 ## 1. Welcome text to the electrician
 
-HELD — not approved yet.
+Approved by Jo 3 Nov 2026.
 
 - Code: `welcomeSmsText` in `src/lib/my-electricians.core.ts` (sent from `officeApproveInstallerElectrician` in `src/lib/my-electricians.server.ts`)
 - Channel: text
 - Goes to: the electrician the installer added, once, when the Home Insulation Victoria office approves them. Never sent again for the same electrician.
-- Approval flag: SMS type `installer_added_electrician_welcome` has `wordingApproved: false` in `src/lib/sms.core.ts`. Until it is `true` the text is held and the held attempt is recorded on the texts list as "blocked: Wording not approved yet". Note: once it is approved, electricians approved before that date will NOT get the text sent later (the held attempt counts as handled).
+- Approval flag: SMS type `installer_added_electrician_welcome` has `wordingApproved: true` in `src/lib/sms.core.ts` (flipped 3 Nov 2026). While it was `false` the text was held and the held attempt recorded on the texts list as "blocked: Wording not approved yet". Note: electricians approved before the flip will NOT get the text sent later (the held attempt counts as handled).
 - {first} is the electrician's first name (or "there" if blank); {installer} is the installer's business name (or "your installer").
 
 ```
@@ -23,12 +23,12 @@ Hi {first}, {installer} has added you as their electrician with Home Insulation 
 
 ## 2. Rejection email to the installer office
 
-HELD — not approved yet.
+Approved by Jo 3 Nov 2026.
 
 - Code: `rejectionEmail` in `src/lib/my-electricians.core.ts` (sent from `officeRejectInstallerElectrician` in `src/lib/my-electricians.server.ts` through `sendOfficeEmail`)
 - Channel: email
 - Goes to: the installer's office email, when the office clicks Reject on the electrician they added and types a reason
-- Approval flag: `REJECTION_EMAIL_APPROVED = false` in `src/lib/my-electricians.core.ts`. Until `true`, real installers get nothing and the hold is written on the event ("held: wording not approved yet"); TEST installers get the email.
+- Approval flag: `REJECTION_EMAIL_APPROVED = true` in `src/lib/my-electricians.core.ts` (flipped 3 Nov 2026). While it was `false`, real installers got nothing and the hold was written on the event ("held: wording not approved yet"); TEST installers always got the email.
 - {name} is the electrician's name (or "Your electrician"); {reason} is what the office typed
 
 Subject:

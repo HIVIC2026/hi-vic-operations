@@ -217,8 +217,8 @@ describe("officeApproveInstallerElectrician", () => {
     expect((await els.installerMyElectricians(U_BOSS)).find((r) => r.id === SAM)).toMatchObject({ status: "approved" });
   });
 
-  test("the welcome text type is registered: partner audience, held wording, quiet hours", () => {
-    expect(SMS_MESSAGE_TYPES.installer_added_electrician_welcome).toMatchObject({ audience: "partner", wordingApproved: false, quietHours: true });
+  test("the welcome text type is registered: partner audience, wording approved (Jo 3 Nov 2026), quiet hours", () => {
+    expect(SMS_MESSAGE_TYPES.installer_added_electrician_welcome).toMatchObject({ audience: "partner", wordingApproved: true, quietHours: true });
     expect(SMS_FRESHNESS.installer_added_electrician_welcome).toEqual({ kind: "event", maxAgeMinutes: 24 * 60 });
   });
 });
@@ -229,9 +229,8 @@ describe("officeRejectInstallerElectrician + installerResubmitElectrician", () =
     expect(await reject(els.officeRejectInstallerElectrician(OFFICE, SAM, "Nope"))).toBe("Already approved.");
   });
 
-  test("reject: reason set, link stays inactive, the installer office email is HELD until Jo approves the wording", async () => {
-    expect(core.REJECTION_EMAIL_APPROVED).toBe(false);
-    await els.officeRejectInstallerElectrician(OFFICE, RITA, "Blurry licence photo");
+  test("the held path (flag injected false): reason set, link stays inactive, nothing emailed, the hold is recorded", async () => {
+    await els.officeRejectInstallerElectrician(OFFICE, RITA, "Blurry licence photo", { approved: false });
     expect(await biz(RITA)).toMatchObject({ onboarding_status: "needs_info", is_active: false, installer_added_rejected_reason: "Blurry licence photo" });
     expect(await link(RITA)).toEqual({ active: false });
     expect(emails).toHaveLength(0);
@@ -242,12 +241,17 @@ describe("officeRejectInstallerElectrician + installerResubmitElectrician", () =
     expect((await els.pendingInstallerElectricianItems()).map((i) => i.businessId)).toEqual([]);
   });
 
-  test("reject with the wording approved: ONE email to the installer office, recorded against the installer", async () => {
-    await els.officeRejectInstallerElectrician(OFFICE, RITA, "Licence number doesn't match the photo", { approved: true });
+  test("reject by default (wording approved by Jo 3 Nov 2026): ONE email to the installer office, recorded against the installer", async () => {
+    expect(core.REJECTION_EMAIL_APPROVED).toBe(true);
+    await els.officeRejectInstallerElectrician(OFFICE, RITA, "Licence number doesn't match the photo");
     expect(emails).toHaveLength(1);
     expect(emails[0]).toMatchObject({ recipient: "partner", to: "office@insulone.test", record: { businessId: INST }, pauseJobId: null });
+    expect(emails[0]!.subject).toBe("Rita Relay wasn't approved");
     expect(emails[0]!.message).toBe("Rita Relay wasn't approved: Licence number doesn't match the photo. Fix it in My electricians.");
     expect((await biz(RITA)).installer_added_rejected_reason).toBe("Licence number doesn't match the photo");
+    const rows = await events("installer_added_electrician_rejected");
+    expect(rows).toHaveLength(2);
+    expect(rows.map((r) => r.details.email).sort()).toEqual(["held: wording not approved yet", "sent"]);
   });
 
   test("Fix and resend (Task 5): what is on file comes back for the form — own, not-approved electricians only", async () => {

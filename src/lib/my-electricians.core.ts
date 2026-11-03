@@ -82,15 +82,15 @@ export function hivLeadElectricianCandidates<T extends object>(rows: readonly T[
   return rows.filter((b) => !isInstallerAddedElectrician(b));
 }
 
-/** Welcome text to the electrician on approval. HELD (sms.core wordingApproved:false) until Jo approves this wording. */
+/** Welcome text to the electrician on approval. Wording approved by Jo 3 Nov 2026 (sms.core wordingApproved:true). */
 export const welcomeSmsKey = (electricianBusinessId: string) => `installer-added-electrician-welcome:v1:${electricianBusinessId}`;
 export function welcomeSmsText(i: { electricianName: string; installerName: string }): string {
   const first = i.electricianName.trim().split(/\s+/)[0] || "there";
   return `Hi ${first}, ${i.installerName.trim()} has added you as their electrician with Home Insulation Victoria. They'll send you jobs to book. Cheers, the Home Insulation Victoria team`;
 }
 
-/** Jo has not approved the rejection email yet: real installer offices get nothing (the hold is recorded); TEST installers use the normal sender. */
-export const REJECTION_EMAIL_APPROVED: boolean = false;
+/** Rejection email wording approved by Jo 3 Nov 2026 (docs/wording/2026-11-03-part2b-messages.md). False would hold it for real installer offices (the hold is recorded); TEST installers always use the normal sender. */
+export const REJECTION_EMAIL_APPROVED: boolean = true;
 export function rejectionEmail(i: { electricianName: string; reason: string }): { subject: string; message: string } {
   const name = i.electricianName.trim() || "Your electrician";
   return { subject: `${name} wasn't approved`, message: `${name} wasn't approved: ${i.reason.trim()}. Fix it in My electricians.` };
