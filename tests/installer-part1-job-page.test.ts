@@ -12,7 +12,7 @@ const ROUTE = "src/routes/_authenticated/field.$jobId.tsx";
 describe("C1 one PIESA name on the Job page", () => {
   test("no 'safety check' wording in Job page sources", () => {
     const core = read("src/lib/installer-screens.core.ts").split("// ---------- M4 · Today's job")[0]!;
-    for (const src of [core, read(ROUTE), read("src/components/trade/InstallerPriceCard.tsx"), read("src/components/portal/piesa-times-electrician.tsx"), read("src/components/trade/FixesTimesCard.tsx"), read("src/components/trade/FixesFormCard.tsx"), read("src/components/portal/mitti.tsx")])
+    for (const src of [core, read(ROUTE), read("src/components/trade/InstallerPriceCard.tsx"), read("src/components/portal/piesa-times-electrician.tsx"), read("src/components/trade/FixesFormCard.tsx"), read("src/components/portal/mitti.tsx")])
       expect(code(src).split(PIESA_FULL).join("").replace(/Pre Insulation Electrical Safety Assessment/g, "")).not.toMatch(/safety (check|assessment)|electrical assessment/i); // the standard name itself is allowed
   });
   test("shared constants use the standard name", () => {
@@ -61,9 +61,14 @@ test("C3: electrician Call/Text follow their own visits", () => {
   expect(contactVisible([{ status: "completed" }, { status: "confirmed" }])).toBe(true);
   expect(contactVisible([{ status: "completed" }, { status: "cancelled" }])).toBe(false);
   expect(read("src/lib/job-status.server.ts")).toContain("ownerContactVisible: mineErr ? false : contactVisible(");
-  const elec = read(ROUTE).split("function FieldJobBody")[1]!.split("function A1ReadyCheckTimeCard")[0]!;
-  expect(elec).toContain("showOwnerContact && job.owner_phone && <a href={`tel:");
-  expect(elec).toContain("showOwnerContact && job.owner_phone && <a href={`sms:");
+  // Part 6 Task 8 (1685bcd1): electricians never log in, so the signed-in job page has no electrician Call/Text any more;
+  // the owner's number reaches them on the no-login link only while their own visit is current (contact_releases rule).
+  const route = read(ROUTE);
+  expect(route).not.toContain("showOwnerContact");
+  const link = read("src/lib/electrician-link.server.ts");
+  expect(link).toContain("mine.has(r.assignment_id as string) && visitIsCurrent(String(r.visit_kind), stage)");
+  const body = read("src/components/trade/ElectricianLinkBody.tsx");
+  expect(body).toContain("d.owner.phone ? <> · <a className=\"font-semibold underline\" href={telHref(d.owner.phone)}>");
 });
 test("C3: contact hidden while status loads, on read error, and in the overview once visits are done", () => {
   // Part 6 Task 8: the electrician's job page is gone (electricians never log in); owner contact for electricians lives on
