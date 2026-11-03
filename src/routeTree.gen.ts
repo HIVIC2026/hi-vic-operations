@@ -26,6 +26,7 @@ import { Route as AuthenticatedFieldRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedHomeRouteImport } from './routes/_authenticated/home'
 import { Route as AuthenticatedOwnerRouteImport } from './routes/_authenticated/owner'
 import { Route as AuthenticatedPartnerRouteImport } from './routes/_authenticated/partner'
+import { Route as ETokenRouteImport } from './routes/e.$token'
 import { Route as EligibilityTokenRouteImport } from './routes/eligibility.$token'
 import { Route as EstimateTokenRouteImport } from './routes/estimate.$token'
 import { Route as JoinTokenRouteImport } from './routes/join.$token'
@@ -203,6 +204,11 @@ const AuthenticatedPartnerRoute = AuthenticatedPartnerRouteImport.update({
   id: '/partner',
   path: '/partner',
   getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
+const ETokenRoute = ETokenRouteImport.update({
+  id: '/e/$token',
+  path: '/e/$token',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const EligibilityTokenRoute = EligibilityTokenRouteImport.update({
   id: '/eligibility/$token',
@@ -744,6 +750,7 @@ export interface FileRoutesByFullPath {
   '/home': typeof AuthenticatedHomeRoute
   '/owner': typeof AuthenticatedOwnerRouteWithChildren
   '/partner': typeof AuthenticatedPartnerRouteWithChildren
+  '/e/$token': typeof ETokenRoute
   '/eligibility/$token': typeof EligibilityTokenRoute
   '/estimate/$token': typeof EstimateTokenRoute
   '/join/$token': typeof JoinTokenRoute
@@ -851,6 +858,7 @@ export interface FileRoutesByTo {
   '/reset-password': typeof ResetPasswordRoute
   '/save-spot': typeof SaveSpotRoute
   '/home': typeof AuthenticatedHomeRoute
+  '/e/$token': typeof ETokenRoute
   '/eligibility/$token': typeof EligibilityTokenRoute
   '/estimate/$token': typeof EstimateTokenRoute
   '/join/$token': typeof JoinTokenRoute
@@ -964,6 +972,7 @@ export interface FileRoutesById {
   '/_authenticated/home': typeof AuthenticatedHomeRoute
   '/_authenticated/owner': typeof AuthenticatedOwnerRouteWithChildren
   '/_authenticated/partner': typeof AuthenticatedPartnerRouteWithChildren
+  '/e/$token': typeof ETokenRoute
   '/eligibility/$token': typeof EligibilityTokenRoute
   '/estimate/$token': typeof EstimateTokenRoute
   '/join/$token': typeof JoinTokenRoute
@@ -1077,6 +1086,7 @@ export interface FileRouteTypes {
     | '/home'
     | '/owner'
     | '/partner'
+    | '/e/$token'
     | '/eligibility/$token'
     | '/estimate/$token'
     | '/join/$token'
@@ -1184,6 +1194,7 @@ export interface FileRouteTypes {
     | '/reset-password'
     | '/save-spot'
     | '/home'
+    | '/e/$token'
     | '/eligibility/$token'
     | '/estimate/$token'
     | '/join/$token'
@@ -1296,6 +1307,7 @@ export interface FileRouteTypes {
     | '/_authenticated/home'
     | '/_authenticated/owner'
     | '/_authenticated/partner'
+    | '/e/$token'
     | '/eligibility/$token'
     | '/estimate/$token'
     | '/join/$token'
@@ -1404,6 +1416,7 @@ export interface RootRouteChildren {
   QaAccessRoute: typeof QaAccessRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   SaveSpotRoute: typeof SaveSpotRoute
+  ETokenRoute: typeof ETokenRoute
   EligibilityTokenRoute: typeof EligibilityTokenRoute
   EstimateTokenRoute: typeof EstimateTokenRoute
   JoinTokenRoute: typeof JoinTokenRoute
@@ -1567,6 +1580,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/partner'
       preLoaderRoute: typeof AuthenticatedPartnerRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/e/$token': {
+      id: '/e/$token'
+      path: '/e/$token'
+      fullPath: '/e/$token'
+      preLoaderRoute: typeof ETokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/eligibility/$token': {
       id: '/eligibility/$token'
@@ -2419,6 +2439,7 @@ const rootRouteChildren: RootRouteChildren = {
   QaAccessRoute: QaAccessRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   SaveSpotRoute: SaveSpotRoute,
+  ETokenRoute: ETokenRoute,
   EligibilityTokenRoute: EligibilityTokenRoute,
   EstimateTokenRoute: EstimateTokenRoute,
   JoinTokenRoute: JoinTokenRoute,

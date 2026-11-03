@@ -143,6 +143,7 @@ export const sendChosenOffers = createServerFn({ method: "POST" }).middleware([r
       const r = await (await import("./spot-release.server")).releaseSpot(data.jobId, context.userId, businessId);
       return { offered: r.mode === "offered" ? 1 : 0, released: r.mode === "released" };
     }
+    await (await import("./own-job-piesa.server")).refuseOfficeOfferForOwnJob(data.jobId);
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const { newRecipients } = await import("./offer-dispatch.core");
     const { data: prior } = await admin.from("partner_offers").select("business_id, status").eq("job_id", data.jobId).eq("kind", data.kind).in("status", ["pending", "declined", "accepted"]);

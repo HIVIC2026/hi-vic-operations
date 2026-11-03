@@ -49,6 +49,9 @@ async function safetyCheckPaid(jobId: string): Promise<number | null> {
 export async function onSafetyCheckTimesOffered(jobId: string, startsAt: string[]): Promise<string> {
   const skipped = await inHouseDispatchSkip(jobId);
   if (skipped) return skipped;
+  // Part 2 (Jo 3 Nov 2026): an installer's own job has no 3-times step — the electrician calls the owner and books it.
+  const own = await (await import("./own-job-piesa.server")).ownJobCallAndBook(jobId);
+  if (own !== false) return own ? "own_job" : "own_job_read_failed";
   return fireOwnerEmailOnce(jobId, "O26", ownerEmailKey.safetyCheckTimes(jobId, startsAt), async () => {
     const [el, paid] = await Promise.all([electricianFor(jobId), safetyCheckPaid(jobId)]);
     const { emailOwnerSafetyCheckTimes } = await import("./approved-owner-emails.server");

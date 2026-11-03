@@ -5,7 +5,7 @@ import { type ElectricianPlan } from "./job-electrician.core";
 
 /** Records the installer's choice on a new job. A chosen approved electrician is offered the owner's times first
  *  (never assigned directly); an invited one shows "Electrician invited – waiting to onboard". */
-export async function recordJobElectricianChoice(jobId: string, installerBusinessId: string, plan: ElectricianPlan | null | undefined, actorId: string) {
+export async function recordJobElectricianChoice(jobId: string, installerBusinessId: string, plan: ElectricianPlan | null | undefined, actorId: string, opts: { summary?: string } = {}) {
   if ((plan as { mode?: string } | null)?.mode === "later") {
     // "To be arranged": no electrician chosen, nothing booked or offered. Office/installer chooses later.
     await logEvent(jobId, actorId, "electrician_to_be_arranged", "Electrician to be arranged — none chosen yet", {}, { internal: true });
@@ -21,9 +21,11 @@ export async function recordJobElectricianChoice(jobId: string, installerBusines
     const { data: rel } = await admin.from("partner_relationships").select("electrician_business_id").eq("installer_business_id", installerBusinessId).eq("electrician_business_id", plan.business_id).eq("active", true).maybeSingle();
     if (!rel) throw new WorkflowError("That electrician isn't one of your approved electricians.");
     const { data: eb } = await admin.from("businesses").select("name, trading_name, email, phone").eq("id", plan.business_id).maybeSingle();
-    await admin.from("electrician_nominations").insert({ job_id: jobId, business_id: plan.business_id, nominating_business_id: installerBusinessId, nominated_by: actorId, nominated_for: "installer", contact_name: eb?.trading_name || eb?.name || "Your electrician", business_name: eb?.name ?? null, email: eb?.email ?? null, phone: eb?.phone ?? null, status: "approved" });
-    await admin.from("jobs").update({ electrician_choice: "preferred" }).eq("id", jobId);
-    await logEvent(jobId, actorId, "electrician_chosen_by_installer", `Installer chose ${eb?.trading_name || eb?.name || "their electrician"} — offered the owner's Pre Insulation Electrical Safety Assessment (PIESA) times first`, { business_id: plan.business_id });
+    const { error: ne } = await admin.from("electrician_nominations").insert({ job_id: jobId, business_id: plan.business_id, nominating_business_id: installerBusinessId, nominated_by: actorId, nominated_for: "installer", contact_name: eb?.trading_name || eb?.name || "Your electrician", business_name: eb?.name ?? null, email: eb?.email ?? null, phone: eb?.phone ?? null, status: "approved" });
+    if (ne) throw new WorkflowError(`The electrician couldn't be saved: ${ne.message}`);
+    const { error: je } = await admin.from("jobs").update({ electrician_choice: "preferred" }).eq("id", jobId);
+    if (je) throw new WorkflowError(`The electrician couldn't be saved: ${je.message}`);
+    await logEvent(jobId, actorId, "electrician_chosen_by_installer", opts.summary ?? `Installer chose ${eb?.trading_name || eb?.name || "their electrician"} — offered the owner's Pre Insulation Electrical Safety Assessment (PIESA) times first`, { business_id: plan.business_id });
     return { choice: "preferred" as const };
   }
   if (plan.nomination_id) {

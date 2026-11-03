@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery,useQueryClient } from '@tanstack/react-query';
 import { useServerFn } from '@tanstack/react-start';
 import { toast } from 'sonner';
-import { getInHouseBookingAccess,getInHouseBookingTeam,inHouseBookVisit,changeInHouseLeadInstaller,tradeHandBack,tradeOwnerCancelled } from '@/lib/trade-view.functions';
+import { getInHouseBookingAccess,getInHouseBookingTeam,inHouseBookVisit,ownJobOfficeBookPiesa,changeInHouseLeadInstaller,tradeHandBack,tradeOwnerCancelled } from '@/lib/trade-view.functions';
 import { bookingWorkerBlocker,emptyBookingTeamBlocker,type BookingWorker } from '@/lib/in-house-booking.core';
 import { installStartAt } from '@/lib/install-days.core';
 import { markOfficeChanged } from '@/lib/office-list-refresh';
@@ -29,10 +29,23 @@ function VisitPicker({jobId,kind,label,workers,booked,selection}:{jobId:string;k
  {kind==='installation'&&booked&&<Button type="button" variant="outline" size="field" disabled={busy||!who||!!bookingWorkerBlocker(kind,workers.find(w=>w.id===who)??null)} onClick={async()=>{setBusy(true);try{await swap({data:{jobId,workerId:who}});await refresh();toast.success('Lead Installer changed');}catch(e){setError(e instanceof Error?e.message:'Could not change the Lead Installer.');}finally{setBusy(false);}}}>Change Lead Installer</Button>}
  </form>;
 }
+/** Part 2: the installer's own job. The office books the safety check (PIESA) for the electrician it chose: no team, no "Can't do this one". */
+function OwnJobPiesaBooking({jobId,booked}:{jobId:string;booked?:string|null|undefined}){
+ const book=useServerFn(ownJobOfficeBookPiesa),qc=useQueryClient();
+ const [day,setDay]=useState(''),[arrival,setArrival]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ const reason=!day||!arrival?'Call the owner, then choose the day and arrival time.':null;
+ return <Group title="Book the safety check (PIESA)"><form className="space-y-2 py-4" onSubmit={async e=>{e.preventDefault();if(reason)return;setBusy(true);setError('');try{await book({data:{jobId,start:installStartAt(day,arrival).toISOString()}});toast.success('Safety check booked');markOfficeChanged();await qc.invalidateQueries();}catch(e){setError(e instanceof Error?e.message:'Could not book.');}finally{setBusy(false);}}}>
+ <p className="text-sm text-sub">Your electrician does this visit. Call the owner, then book the day and time here.</p>{booked&&<p className="text-sm text-sub">{new Date(booked).toLocaleString('en-AU',{timeZone:'Australia/Melbourne',day:'numeric',month:'short',year:'numeric',hour:'numeric',minute:'2-digit',hour12:true})+' · Confirmed'}</p>}
+ <div className="grid grid-cols-1 items-end gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]"><label className="min-w-0 text-sm">Day<Input aria-label="Safety check day" type="date" className="h-12" value={day} onChange={e=>setDay(e.target.value)}/></label><label className="min-w-0 text-sm">Arrival<Input aria-label="Safety check arrival" type="time" className="h-12" value={arrival} onChange={e=>setArrival(e.target.value)}/></label><Button type="submit" size="field" disabled={busy||!!reason}>{busy?'Saving…':'Book'}</Button></div>
+ {reason&&<p className="text-sm text-sub">{reason}</p>}{error&&<p role="alert" className="text-sm text-rose">{error}</p>}{busy&&<p className="text-sm text-sub">Saving this booking; please wait before booking again.</p>}
+ </form></Group>;
+}
 export function InHouseBookingCard({jobId}:{jobId:string}){
  const access=useInHouseBookingAccess(jobId),load=useServerFn(getInHouseBookingTeam);
- const team=useQuery({queryKey:['in-house-booking-team',jobId],queryFn:()=>load({data:{jobId}}),enabled:access.data?.allowed===true,retry:false});
+ const ownJob=access.data?.ownJob===true;
+ const team=useQuery({queryKey:['in-house-booking-team',jobId],queryFn:()=>load({data:{jobId}}),enabled:access.data?.allowed===true&&!ownJob,retry:false});
  if(access.data?.allowed!==true)return null;
+ if(ownJob)return <OwnJobPiesaBooking jobId={jobId} booked={access.data?.bookings?.find(b=>b.kind==='assessment'&&b.status==='confirmed')?.scheduled_start}/>;
  if(team.isError)return <p role="alert" className="text-sm text-rose">Could not check your Team or deposit. Booking stays unavailable until those records can be checked.</p>;
  if(!team.data)return <p className="text-sm text-sub">Checking your Team and deposit before booking.</p>;
  const selection=typeof team.data.selection?.lead==='string'?team.data.selection.lead:null;

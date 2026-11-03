@@ -44,7 +44,12 @@ export async function prepareBookingWorker(jobId:string,userId:string,kind:strin
 }
 export async function notifyOwnerBooked(jobId:string,kind:'ready_check'|'piesa'|'install',startIso:string,who:Pick<BookingWorker,'id'|'name'|'phone'>,now=new Date()){
   const held=await (await import('./in-house-suppression.server')).readInHouseDispatchState([jobId]);
-  if(held.failed||!held.held.has(jobId))return 'held';
+  if(held.failed)return 'held';
+  // Part 2 (Jo 3 Nov 2026): an installer's own job (call and book) gets the same booking notice as an in-house job.
+  if(!held.held.has(jobId)){
+    const ch=await read<{channel:string|null}|null>(db.from('jobs').select('channel').eq('id',jobId).maybeSingle());
+    if(!(await import('./own-job-piesa.core')).isOwnJobCallAndBook({channel:ch?.channel??null,heldInHouse:false}))return 'held';
+  }
   const bookingKind={ready_check:'ready_check',piesa:'assessment',install:'installation'}[kind];
   const booking=await read<{id:string;created_at:string}|null>(db.from('bookings').select('id,created_at').eq('job_id',jobId).eq('kind',bookingKind).eq('status','confirmed').eq('scheduled_start',startIso).order('created_at',{ascending:false}).limit(1).maybeSingle());
   if(!booking||Date.parse(startIso)<=now.getTime())return 'not current';

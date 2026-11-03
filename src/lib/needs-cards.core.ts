@@ -26,7 +26,7 @@ export const NEEDS_CARD_TITLE: Record<NeedsCardId, string> = {
 };
 
 const CARD_OF: Record<NeedsKind, NeedsCardId> = {
-  in_house_esc_lead_changed:'deadlines',in_house_handed_back:'other',address_to_confirm:'other',mitti_electrician_choice:'other',
+  in_house_esc_lead_changed:'deadlines',in_house_handed_back:'other',address_to_confirm:'other',mitti_electrician_choice:'other',own_job_piesa_held:'other',own_job_piesa_handed_back:'other',own_job_swap_form_not_moved:'other',own_job_installer_not_told:'other',
   paid_gate_blocked: "owner",
   in_house_form_sync_failed:'failed',install_deposit_request_failed:'payments',
   in_house_ready_check_not_booked: "other", in_house_piesa_overdue: "other", in_house_install_not_booked: "clock",

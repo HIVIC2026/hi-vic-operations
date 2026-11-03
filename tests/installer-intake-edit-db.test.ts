@@ -25,6 +25,15 @@ mock.module("../src/lib/workflow.server", () => ({
   WorkflowError: class WorkflowError extends Error {},
   logEvent: async (job: string, actor: string | null, type: string, summary: string, details?: unknown) => { await db.query("insert into workflow_events (job_id, actor_id, event_type, summary, details) values ($1,$2,$3,$4,$5)", [job, actor, type, summary, JSON.stringify(details ?? {})]); },
 }));
+// The in-house lookup says "not held" (an own job when the channel is installer_sourced); the swap itself is stubbed (tests/electrician-swap.pglite.test.ts).
+const swapCalls: string[] = [];
+let swapProblem: string | null = null;
+const heldInHouse = new Set<string>();
+mock.module("../src/lib/in-house-suppression.server", () => ({ readInHouseDispatchState: async () => ({ held: heldInHouse, failed: false }), inHouseDispatchSkip: async (id: string) => (heldInHouse.has(id) ? "in_house" : null) }));
+mock.module("../src/lib/electrician-swap.server", () => ({
+  swapPreflight: async () => ({ problem: swapProblem, resume: null }),
+  installerSwapElectrician: async (_j: string, _b: string, to: string) => { swapCalls.push(to); },
+}));
 const { installerUpdateIntake, installerIntakeState } = await import("../src/lib/installer-intake.server");
 
 const JOB = "00000000-0000-0000-0000-00000000e001", BIZ = "00000000-0000-0000-0000-00000000b001", OTHER = "00000000-0000-0000-0000-00000000b002", U = "00000000-0000-0000-0000-00000000c001";
@@ -136,15 +145,53 @@ describe("installer edits the same received job (persistence boundary)", () => {
   });
 });
 
-describe("own electrician -> a different own electrician (no atomic swap): refused, nothing changes", () => {
-  test("save is refused with the Office-change message and the saved selection/events stay unchanged", async () => {
+describe("own electrician -> a different own electrician", () => {
+  test("an electrician who hasn't signed up (a nomination) still goes to the office; nothing changes", async () => {
     await db.exec("CREATE TABLE IF NOT EXISTS job_assignments (id uuid primary key default gen_random_uuid(), job_id uuid, role text, active boolean, user_id uuid, business_id uuid);");
     await db.query("update jobs set electrician_choice='preferred' where id=$1", [JOB]);
     const before = await evs();
     const { OWN_ELECTRICIAN_OFFICE_CHANGE } = await import("../src/lib/installer-intake.server");
-    await expect(installerUpdateIntake(JOB, U, BIZ, { ...base, electrician: { mode: "mine", business_id: "00000000-0000-0000-0000-00000000d002" } } as never)).rejects.toThrow(OWN_ELECTRICIAN_OFFICE_CHANGE);
+    await expect(installerUpdateIntake(JOB, U, BIZ, { ...base, electrician: { mode: "mine", nomination_id: "00000000-0000-0000-0000-00000000d002" } } as never)).rejects.toThrow(OWN_ELECTRICIAN_OFFICE_CHANGE);
     expect((await job())["electrician_choice"]).toBe("preferred");
     expect(await evs()).toEqual(before);
+  });
+  const NEWEL = "00000000-0000-0000-0000-00000000d002";
+  const ownSetup = async () => {
+    await db.exec("CREATE TABLE IF NOT EXISTS job_assignments (id uuid primary key default gen_random_uuid(), job_id uuid, role text, active boolean, user_id uuid, business_id uuid);");
+    await db.query("update jobs set electrician_choice='preferred' where id=$1", [JOB]);
+    swapCalls.length = 0; swapProblem = null; heldInHouse.clear();
+    await db.exec("CREATE TABLE IF NOT EXISTS business_members (id uuid primary key default gen_random_uuid(), business_id uuid, user_id uuid, member_role text, active boolean default true);");
+    await db.query("delete from business_members"); await db.query("insert into business_members (business_id, user_id, member_role) values ($1,$2,'business_admin')", [BIZ, U]);
+  };
+  test("a signed-up electrician on the installer's own job goes to the swap", async () => {
+    await ownSetup();
+    await installerUpdateIntake(JOB, U, BIZ, { ...base, electrician: { mode: "mine", business_id: NEWEL } } as never);
+    expect(swapCalls).toEqual([NEWEL]);
+  });
+  test("crew (not the business owner) cannot change the electrician, and nothing is saved", async () => {
+    await ownSetup();
+    await db.query("update business_members set member_role='installer_crew'");
+    const before = await evs();
+    await expect(installerUpdateIntake(JOB, U, BIZ, { ...base, electrician: { mode: "mine", business_id: NEWEL } } as never)).rejects.toThrow("Only your business owner can change the electrician.");
+    expect(swapCalls).toEqual([]); expect(await evs()).toEqual(before);
+  });
+  test("the swap's refusal is shown and nothing else is saved", async () => {
+    await ownSetup(); swapProblem = "That electrician isn't linked to your business";
+    const before = await evs();
+    await expect(installerUpdateIntake(JOB, U, BIZ, { ...base, electrician: { mode: "mine", business_id: NEWEL } } as never)).rejects.toThrow("isn't linked to your business");
+    expect(swapCalls).toEqual([]); expect(await evs()).toEqual(before);
+  });
+  test("picking the electrician already on the job is no change", async () => {
+    await ownSetup(); swapProblem = "That's already the electrician";
+    await installerUpdateIntake(JOB, U, BIZ, { ...base, electrician: { mode: "mine", business_id: NEWEL } } as never);
+    expect(swapCalls).toEqual([]);
+  });
+  test("a job held by an in-house partner (not the installer's own call-and-book job) still goes to the office (as before the swap existed)", async () => {
+    await ownSetup(); heldInHouse.add(JOB);
+    const before = await evs();
+    const { OWN_ELECTRICIAN_OFFICE_CHANGE } = await import("../src/lib/installer-intake.server");
+    await expect(installerUpdateIntake(JOB, U, BIZ, { ...base, electrician: { mode: "mine", business_id: NEWEL } } as never)).rejects.toThrow(OWN_ELECTRICIAN_OFFICE_CHANGE);
+    expect(swapCalls).toEqual([]); expect((await job())["electrician_choice"]).toBe("preferred"); expect(await evs()).toEqual(before);
   });
 });
 

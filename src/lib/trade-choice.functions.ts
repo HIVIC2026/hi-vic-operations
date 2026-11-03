@@ -45,6 +45,8 @@ export const chooseTrade = createServerFn({ method: "POST" }).middleware([requir
     const { rateToConfirmReasonBlocker } = await import("./allocation.core");
     const b = rateToConfirmReasonBlocker(!!data.rateToConfirm, data.reason);
     if (b) throw new WorkflowError(b);
+    // Part 2: an installer's own job goes straight to their electrician — refuse plainly, before anything is logged.
+    if (data.kind === "piesa") await (await import("./own-job-piesa.server")).refuseOfficeOfferForOwnJob(data.jobId);
     if (data.rateToConfirm) await logEvent(data.jobId, context.userId, "rec_offer_rate_to_confirm", "Office chose to offer with the electrician rate to be confirmed", { reason: data.reason!.trim() }, { internal: true });
     return (await import("./allocation.server")).startPiesaAllocation(data.jobId, context.userId, data.kind, { rateToConfirm: !!data.rateToConfirm, onlyBusiness: data.businessId });
   });
@@ -56,6 +58,7 @@ export const sendOfferToAll = createServerFn({ method: "POST" }).middleware([req
     await requireAdmin(context.supabase);
     // Jo 24 Oct 2026 (decision 49): Ready Check offers go to ONE office-picked installer — never to everyone.
     if (data.kind === "ready_check") throw new WorkflowError("Ready Check offers go to one installer. Choose another installer on the job.");
+    if (data.kind === "piesa") await (await import("./own-job-piesa.server")).refuseOfficeOfferForOwnJob(data.jobId);
     await logEvent(data.jobId, context.userId, "trade_choice_widened", "Office sent the offer to all eligible trades after their pick didn't take it", { kind: data.kind }, { internal: true });
     return (await import("./allocation.server")).startPiesaAllocation(data.jobId, context.userId, data.kind);
   });

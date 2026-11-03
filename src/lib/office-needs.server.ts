@@ -14,6 +14,9 @@ import { FIXES_PAUSED_STAGES } from "./installer-screens.core";
 import { PIESA_FIXES_CONFIRMED_EVENT, PIESA_FIXES_CONFIRM_OFFICE_ALERT_EVENT } from "./piesa-fixes-confirm.core";
 import { FIXES_TIMES_GIVEN_EVENT, FIXES_TIMES_LINK_EVENT, fixesTimesMissing } from "./fixes-times.core";
 import { AUTO_FIXES_QUOTE_HELD_EVENT } from "./auto-fixes-quote-send.core";
+import { OWN_JOB_HANDOFF_STAGES, OWN_JOB_PIESA_HANDED_EVENT, OWN_JOB_PIESA_HELD_EVENT } from "./own-job-piesa.core";
+import { OWN_JOB_SWAP_FORM_NOT_MOVED_EVENT } from "./electrician-swap.core";
+import { OWN_JOB_PIESA_HANDED_BACK_EVENT, OWN_JOB_PIESA_INSTALLER_NOT_TOLD_EVENT, cantDoReasonLabel, type CantDoReason } from "./electrician-link.core";
 import { PIESA_AUTOFORM_FAILED_EVENT, piesaFormFailedOpen } from "./piesa-autoform.core";
 import { prestartFailedFor } from "./prestart.core";
 import { endOfMelbourneYmd } from "./melbourne-time.core";
@@ -242,7 +245,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     });
   })();
   // Wave 1. Needs me reads only open jobs (complete / cancelled are always "ended" and were filtered out below anyway).
-  const [office, consents, veecForms, escRows, emailFails, smsFails, tenDay, noAccess, veecAlerts, overdue, returned, provisionalBookings, piesaAlerts, piesaConfirms, fixesLinks, fixesGiven, fixesAlerts, fixesConfirms, rectDrafts, rectHolds, q, qTest, robotRows, piisaAlerts, items, recLinks, fb, prestartChecks, upcomingInstalls, piesaFormFails, payInvoices, payQuotes, paySettings, piesaCurRows, payRepeatEv, addrUnresolved, mittiElecHeld] = await Promise.all([
+  const [office, consents, veecForms, escRows, emailFails, smsFails, tenDay, noAccess, veecAlerts, overdue, returned, provisionalBookings, piesaAlerts, piesaConfirms, fixesLinks, fixesGiven, fixesAlerts, fixesConfirms, rectDrafts, rectHolds, q, qTest, robotRows, piisaAlerts, items, recLinks, fb, prestartChecks, upcomingInstalls, piesaFormFails, payInvoices, payQuotes, paySettings, piesaCurRows, payRepeatEv, addrUnresolved, mittiElecHeld, ownJobHeld] = await Promise.all([
     loadOffice(admin, { includeTest: opts.includeTest, ...(opts.onlyIds ? { onlyIds: opts.onlyIds } : { openOnly: true }) }),
     all("ESC consents", (a, b) => scoped(admin.from("owner_esc_consents").select("job_id, owner_signed_at, ap_signed_at, status, scheduled_start, created_at")).not("owner_signed_at", "is", null).is("ap_signed_at", null).range(a, b)),
     all("VEEC forms", (a, b) => scoped(admin.from("customer_assignments").select("job_id, installer_signed_at, ap_signed_at, consumer_signed_at, status, created_at")).eq("record_kind", "final_veec_assignment").neq("status", "cancelled").range(a, b)),
@@ -295,6 +298,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     all("repeat safety check events", (a, b) => scoped(admin.from("workflow_events").select("job_id, event_type, created_at, details")).in("event_type", ["repeat_piesa_payer_chosen", "repeat_piesa_accepted", "repeat_piesa_paid"]).order("created_at", { ascending: false }).range(a, b)),
     all("address to confirm", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at, details")).eq("event_type", "address_lookup_unresolved").contains("details", { mitti_pickup: true, needs_office: true }).order("created_at", { ascending: false }).range(a, b)),
     all("Mitti electrician holds", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at")).eq("event_type", "mitti_electrician_choice_needed").order("created_at", { ascending: false }).range(a, b)),
+    all("own job safety check holds", (a, b) => scoped(admin.from("workflow_events").select("job_id, event_type, created_at, details")).in("event_type", [OWN_JOB_PIESA_HELD_EVENT, OWN_JOB_PIESA_HANDED_EVENT, OWN_JOB_PIESA_HANDED_BACK_EVENT, OWN_JOB_SWAP_FORM_NOT_MOVED_EVENT, OWN_JOB_PIESA_INSTALLER_NOT_TOLD_EVENT]).order("created_at", { ascending: false }).range(a, b)),
   ]);
   const now = office.now;
   const jobs = office.jobs.filter((j) => j.status?.stage !== "ended" || j.stage === "on_hold");
@@ -486,6 +490,29 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   for (const t of tenDay) { const x = f(String(t["id"])); if (x) x.tenDaysLeft = { at: String(t["install_10day_flagged_at"]), deadline: jobById.get(String(t["id"]))?.facts.installDeadline ?? null }; }
   // Jo 3 Nov: clears when the job has an electrician choice, nomination, offer or assignment (question no longer open).
   if (mittiElecHeld.length) { const { openMittiElectricianQuestions } = await import("./mitti-electrician.server"); const stillOpen = await openMittiElectricianQuestions([...new Set(mittiElecHeld.map((e) => String(e["job_id"])))]); for (const e of mittiElecHeld) { const id = String(e["job_id"]); const x = f(id); if (x && !x.mittiElectricianHeld && stillOpen.has(id)) x.mittiElectricianHeld = { at: String(e["created_at"]) }; } }
+  // Part 2: newest hold per job; clears once a hand-over is recorded after it or the job leaves the hand-over stages.
+  const ownJobSeen = new Set<string>();
+  const ownJobLatest = new Map<string, Row>();
+  for (const e of ownJobHeld) { if (e["event_type"] === OWN_JOB_PIESA_INSTALLER_NOT_TOLD_EVENT) continue; const id = String(e["job_id"]); if (ownJobSeen.has(id)) continue; ownJobSeen.add(id); ownJobLatest.set(id, e); const x = f(id); if (x && e["event_type"] === OWN_JOB_PIESA_HELD_EVENT && (OWN_JOB_HANDOFF_STAGES as readonly string[]).includes(jobById.get(id)?.stage ?? "")) x.ownJobPiesaHeld = { at: String(e["created_at"]), reason: String((e["details"] as { reason?: unknown } | null)?.reason ?? "Needs Home Insulation Victoria") }; }
+  // Part 2 Task 3: newest event per job is the electrician saying "Can't do this one" (a later hand-over clears it).
+  for (const e of ownJobHeld) { if (e["event_type"] !== OWN_JOB_PIESA_HANDED_BACK_EVENT) continue; const id = String(e["job_id"]); const x = f(id); if (x && ownJobLatest.get(id) === e && (OWN_JOB_HANDOFF_STAGES as readonly string[]).includes(jobById.get(id)?.stage ?? "")) { const d = e["details"] as { reason?: string; note?: string } | null; x.ownJobPiesaHandedBack = { at: String(e["created_at"]), reason: cantDoReasonLabel((d?.reason as CantDoReason) ?? "other", d?.note) }; } }
+  // Part 2 Task 5: a swap couldn't move the Mitti form; shows while it is the newest own-job event and the safety check isn't done.
+  for (const e of ownJobHeld) { if (e["event_type"] !== OWN_JOB_SWAP_FORM_NOT_MOVED_EVENT) continue; const id = String(e["job_id"]); const x = f(id); if (x && ownJobLatest.get(id) === e && [...OWN_JOB_HANDOFF_STAGES, "piesa_scheduled"].includes(jobById.get(id)?.stage ?? "")) x.ownJobSwapFormNotMoved = { at: String(e["created_at"]), electrician: String((e["details"] as { electrician_name?: unknown } | null)?.electrician_name ?? "the new electrician") }; }
+  // Part 2 final review: newest "installer not told" per job (separate from the loops above so it never hides another item).
+  // Clears when the "to book" email has been sent for that assignment, or the safety check is booked (stage moves on).
+  {
+    const told = new Map<string, Row>();
+    for (const e of ownJobHeld) { if (e["event_type"] !== OWN_JOB_PIESA_INSTALLER_NOT_TOLD_EVENT) continue; const id = String(e["job_id"]); if (!told.has(id) && jobById.get(id)?.stage === "piesa_and_install_window_pending" && f(id)) told.set(id, e); }
+    if (told.size) {
+      const claims = await byIds("installer email claims", [...told.keys()], (c, a, b) => admin.from("workflow_events").select("job_id, details").eq("event_type", "in_house_office_email_claimed").in("job_id", c).range(a, b));
+      const sent = new Set(claims.filter((r) => (r["details"] as { status?: string } | null)?.status === "sent").map((r) => String((r["details"] as { key?: string }).key)));
+      for (const [id, e] of told) {
+        const d = e["details"] as { assignment_id?: string; installer?: string; address?: string } | null;
+        if (d?.assignment_id && sent.has(`own-job-piesa:v1:${d.assignment_id}:office-email`)) continue;
+        const x = f(id); if (x) x.ownJobInstallerNotTold = { at: String(e["created_at"]), installer: d?.installer || "the installer", address: d?.address || "this job" };
+      }
+    }
+  }
   for (const e of addrUnresolved) { const x = f(String(e["job_id"])); const j = jobById.get(String(e["job_id"])); if (x && !x.addressToConfirm && j && !(j.suburb ?? "").trim()) x.addressToConfirm = { at: String(e["created_at"]), candidates: ((e["details"] as { candidates?: unknown } | null)?.candidates as string[] | undefined ?? []).filter((c) => typeof c === "string").slice(0, 3) }; }
   for (const e of noAccess) { const x = f(String(e["job_id"])); const j = jobById.get(String(e["job_id"])); if (x && !x.secondNoAccess && j?.stage === "installation_scheduling") x.secondNoAccess = { at: String(e["created_at"]), reason: s((e["details"] as { reason?: string } | null)?.reason) }; }
   // Decision 296: the alert names its PIESA record; a confirmation of that record (or the install already booked) clears the row.

@@ -121,7 +121,8 @@ test('failed legacy quote-answer read rejects recovery rather than reporting an 
   const f = fixture({ fail: q => q.table === 'jobs' && q.columns === 'id, installer_quoted' });
   await assert.rejects(() => recover(f), /could not load|could not be loaded|could not verify|retry/i); assert.equal(f.writes.length, 0);
 });
-for (const electrician of [{ business_id: 'replacement' }, { nomination_id: 'replacement-nomination' }]) {
+// Part 2 Task 5: a signed-up electrician (business_id) now goes to the swap (tests/electrician-swap.pglite.test.ts); only a nomination still goes to the office.
+for (const electrician of [{ nomination_id: 'replacement-nomination' }]) {
   test('actual own-to-own save refuses before any mutation: ' + Object.keys(electrician)[0], async () => {
     const f = fixture({ payer: 'own', feePayer: 'own' });
     await assert.rejects(() => f.intake.installerUpdateIntake('job', 'user', 'business', { files: [], insulation: 'none', quoteStatus: 'not_quoted', quoteIncGst: null, includes: null, electrician }), e => e.message === f.intake.OWN_ELECTRICIAN_OFFICE_CHANGE);

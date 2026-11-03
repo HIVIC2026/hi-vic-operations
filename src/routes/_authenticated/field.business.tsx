@@ -4,12 +4,15 @@ import { headStartOr, startTradeScreen } from "@/lib/trade-route-prefetch";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
+import { readableError } from "@/lib/readable-error.core";
 import { supabase } from "@/integrations/supabase/client";
 import { TradeShell, card } from "@/components/trade/TradeShell";
 import { Chevron, FileRow, SectionHead, Switch, M7 } from "@/components/trade/business-kit";
 import { NextPanel } from "@/components/trade/installer-kit";
-import { getTradeBusiness, setTradeTaking } from "@/lib/trade-view.functions";
+import { getTradeBusiness, setTradePiesaBooker, setTradeTaking } from "@/lib/trade-view.functions";
 import { agreementLine, detailsLine, insuranceRowSub, noticeLine, ratesLine, ROLE_LABEL, shortDate, TEAM_RULE, teamCiiLine, teamFactsLine, usualElectricianLine } from "@/lib/trade-view.core";
+import { PIESA_BOOKERS, PIESA_BOOKER_LABEL } from "@/lib/piesa-booker.core";
 import { melbourneToday } from "@/lib/melbourne-time.core";
 
 export const Route = createFileRoute("/_authenticated/field/business")({
@@ -23,6 +26,7 @@ export const Route = createFileRoute("/_authenticated/field/business")({
 function Business() {
   const load = useServerFn(getTradeBusiness);
   const setTaking = useServerFn(setTradeTaking);
+  const setBooker = useServerFn(setTradePiesaBooker);
   const qc = useQueryClient();
   const navigate = useNavigate();
   const uid = Route.useRouteContext().user.id;
@@ -46,6 +50,15 @@ function Business() {
           <span className="text-[15px] font-medium text-estimate-navy">Taking new jobs{!data.taking && <span className="block text-[13px] font-normal text-estimate-sub">Paused · no new offers until you switch back on</span>}</span>
           <Switch on={data.taking} label="Taking new jobs" disabled={busy || !data.boss} onChange={async (next) => { setBusy(true); try { await setTaking({ data: { taking: next } }); await refetch(); } finally { setBusy(false); } }} />
         </div>
+        {installer && data.boss && data.piesaBooker && <fieldset className="mt-3 border-0 p-0" disabled={busy}>
+          <legend className="text-[15px] font-medium text-estimate-navy">Who books the safety check (PIESA)?</legend>
+          {PIESA_BOOKERS.map((b) => (
+            <label key={b} className="flex min-h-12 items-center gap-3 border-b border-estimate-line text-[15px] text-estimate-navy">
+              <input type="radio" name="piesa-booker" value={b} checked={data.piesaBooker === b} onChange={async () => { setBusy(true); try { await setBooker({ data: { booker: b } }); await refetch(); } catch (e) { toast.error(readableError(e, "Couldn't save that. Please try again.")); } finally { setBusy(false); } }} />
+              <span>{PIESA_BOOKER_LABEL[b]}</span>
+            </label>
+          ))}
+        </fieldset>}
       </section>
 
       {data.boss && data.next && <NextPanel look="business" title={data.next.title} sub={data.next.sub}><Link to={data.next.to as never} className={`${M7.primary} mt-3.5`}>{data.next.button}</Link></NextPanel>}
