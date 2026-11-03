@@ -10,7 +10,16 @@ const keys = new Set<string>();
 let dnc = false, unsub = false;
 let contact: any = { name: "Sample Insulation Pty Ltd", tradingName: "Sample Insulation", officePhone: "03 9000 0000", email: "office@sample.example" };
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: admin }));
-mock.module("../src/lib/comms.server", () => ({ assertCustomerDeliveryAllowed: async () => {} }));
+// Faithful stand-in for comms.server: the REAL consentAllowsDelivery against the latest owner_contact_consents row, so a
+// purpose that is not passed through (or is not a compliance purpose) is held for an unsubscribed owner.
+mock.module("../src/lib/comms.server", () => ({
+  assertCustomerDeliveryAllowed: async (jobId: string, what: string, purpose?: string) => {
+    const { consentAllowsDelivery } = await import("../src/lib/do-not-contact.core");
+    const latest = (tables.owner_contact_consents ?? []).filter((c) => c.job_id === jobId).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0] ?? null;
+    if (purpose && consentAllowsDelivery(latest, purpose)) return;
+    if (latest?.consent_status !== "granted") throw new Error(`Owner contact consent missing (${what})`);
+  },
+}));
 mock.module("../src/lib/owner-contact.server", () => ({ businessContactForJob: async () => contact }));
 mock.module("../src/lib/test-send.server", () => ({ sendTestEmail: async (c: any, to: string, subject: string, html: string, text: string) => { tests.push({ c, to, subject, html, text }); return { status: "sent", detail: "ok" }; } }));
 mock.module("../src/lib/owner-email-send.server", () => ({
@@ -36,6 +45,7 @@ beforeEach(() => {
   tables.jobs = [{ id: "j", owner_id: "o", source: "website" }];
   tables.owners = [{ id: "o", full_name: "Sarah Jones", email: "sarah@example.com" }];
   tables.workflow_events = [];
+  tables.owner_contact_consents = [{ id: "c1", job_id: "j", consent_status: "granted", source: "website", created_at: "2026-10-01T00:00:00Z" }];
   emails.length = 0; tests.length = 0; keys.clear(); dnc = false; unsub = false;
   contact = { name: "Sample Insulation Pty Ltd", tradingName: "Sample Insulation", officePhone: "03 9000 0000", email: "office@sample.example" };
 });
@@ -94,8 +104,17 @@ test("once per note: pressing again with the same note does not resend; a new no
 
 test("goes with Do not contact on and to an unsubscribed owner (compliance purpose)", async () => {
   dnc = true; unsub = true;
+  // Fix wave I1: the unsubscribe writes a not_granted consent row (source "unsubscribe"); the delivery assert only lets it
+  // through when the compliance purpose is passed.
+  tables.owner_contact_consents!.push({ id: "c2", job_id: "j", consent_status: "not_granted", source: "unsubscribe", created_at: "2026-10-20T00:00:00Z" });
   expect(await server.sendNonComplianceNotice("j", "office-1", { what: WHAT, fix: FIX }, on)).toBe("sent");
   expect(emails).toHaveLength(1);
+});
+
+test("a plain not_granted consent (not an unsubscribe) still holds it", async () => {
+  tables.owner_contact_consents!.push({ id: "c2", job_id: "j", consent_status: "not_granted", source: "website", created_at: "2026-10-20T00:00:00Z" });
+  expect(await server.sendNonComplianceNotice("j", "office-1", { what: WHAT, fix: FIX }, on)).toMatch(/^not sent/);
+  expect(emails).toHaveLength(0);
 });
 
 test("never sent on its own: nothing in src calls it except the office server function", async () => {

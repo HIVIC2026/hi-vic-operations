@@ -94,7 +94,9 @@ async function ownerNotice(jobId:string,c:Facts,step:'request'|'paid'|DepositRem
   if(!clear&&(step==='request'||step==='paid') && now.getTime()-Date.parse(at)>86_400_000)return 'stale notice held';
   // The clear-to-install email carries the owner's PIESA copy, so it is a compliance send (purpose piesa_copy, also reaches unsubscribed owners).
   const purpose=clear?'piesa_copy':`install_deposit_${step}`;
-  await (await import('./comms.server')).assertCustomerDeliveryAllowed(jobId,'Install deposit notice',...(clear?['piesa_copy' as const]:[]));
+  // The computed purpose decides the consent rule: piesa_copy and install_deposit_paid are compliance sends (an unsubscribed
+  // owner still gets them); the request / day 3 / day 7 asks are not and need granted consent.
+  await (await import('./comms.server')).assertCustomerDeliveryAllowed(jobId,'Install deposit notice',purpose);
   const key=step==='request'?installDepositRequestKey(c.v.invoiceId):`install-deposit-${step}:v1:${c.v.invoiceId}`;
   if(!c.owner.email||(step!=='paid'&&!c.f.link))return 'owner email or link missing';
   let cf=c.f,attachments:EmailAttachment[]|undefined,piesa:{piesaRecordId:string;signedCopyId:string}|undefined;
@@ -132,7 +134,7 @@ async function ownerNotice(jobId:string,c:Facts,step:'request'|'paid'|DepositRem
   }
   if(v2&&(step==='day3'||step==='day7'))cf={...cf,upgradesToCome:(await deps.route(jobId)).includes('upgrades_needed')};
   const e=await (await import('./owner-email-send.server')).sendGuardedOwnerEmail({jobId,jobSource:c.job.source,to:c.owner.email,purpose,key,retryAfterDefiniteFailure:true,beforeSend:async()=>{
-    await (await import('./comms.server')).assertCustomerDeliveryAllowed(jobId,'Install deposit notice',...(clear?['piesa_copy' as const]:[]));
+    await (await import('./comms.server')).assertCustomerDeliveryAllowed(jobId,'Install deposit notice',purpose);
     const fresh=await factsFor(jobId,new Date());
     if(!fresh || fresh.v.invoiceId!==c.v.invoiceId || (step==='paid'?!fresh.paid:fresh.paid) || fresh.c.booked)throw Error('Deposit state changed; notice held.');
   },build:()=>clear&&attachments?{...renderInstallDepositOwnerEmail(cf,'request',true),attachments}:paidMail?{...renderInstallDepositOwnerEmail(cf,step,false,true,{receiptAttached:paidMail.receiptAttached}),...(paidMail.attachments.length?{attachments:paidMail.attachments}:{})}:renderInstallDepositOwnerEmail(cf,step,false,v2)});

@@ -40,7 +40,8 @@ export async function sendNonComplianceNotice(jobId: string, actorId: string, i:
     return `email ${r.status}: ${r.detail}`;
   }
   try {
-    await (await import("./comms.server")).assertCustomerDeliveryAllowed(jobId, "Didn't-comply notice");
+    // Compliance purpose (cl 27): an owner who unsubscribed still gets it (consentAllowsDelivery), like the other legal copies.
+    await (await import("./comms.server")).assertCustomerDeliveryAllowed(jobId, "Didn't-comply notice", NON_COMPLIANCE_PURPOSE);
     return await (await import("./owner-email-send.server")).sendGuardedOwnerEmail({ jobId, jobSource: job.source, to: owner.email, purpose: NON_COMPLIANCE_PURPOSE, key, build: () => nonComplianceNotice(facts) });
   } catch (e) { return `not sent — ${(e as Error).message}`; }
 }
