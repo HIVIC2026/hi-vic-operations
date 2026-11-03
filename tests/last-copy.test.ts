@@ -4,7 +4,8 @@ import { GlobalRegistrator } from "@happy-dom/global-registrator";
 GlobalRegistrator.register();
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { QueryClient } from "@tanstack/react-query";
+import { createElement } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 let fail = false;
 const calls: string[] = [];
@@ -23,6 +24,7 @@ const { isLastCopy, useRememberLastCopy } = await import("../src/lib/office-last
 const { jobsListKey, enquiriesListKey, installerWaitingKey } = await import("../src/lib/office-list-keys.core");
 const { DEFAULT_VIEW } = await import("../src/lib/jobs-columns.core");
 const { renderHook } = await import("@testing-library/react");
+const { useTradeSeed } = await import("../src/lib/use-trade-seed");
 
 const tick = () => new Promise((r) => setTimeout(r, 10));
 const old = { rows: [{ id: "old" }] };
@@ -164,5 +166,45 @@ describe("the pages are wired", () => {
   });
   test("every sign-out path clears through clearTradeCache (which clears both prefixes)", () => {
     for (const f of ["src/components/portal/office.tsx", "src/components/portal/AppShell.tsx", "src/lib/auth-change.ts", "src/lib/route-guards.ts", "src/components/trade/TradeShell.tsx"]) expect(readFileSync(f, "utf8")).toContain("clearTradeCache()");
+  });
+});
+
+describe("installer pages draw from their last copy", () => {
+  const seedOf = (uid: string, cache: QueryClient = qc) =>
+    renderHook(() => useTradeSeed<{ n: number }>(uid, "esc-notice", ["trade-esc-notice"]), { wrapper: ({ children }) => createElement(QueryClientProvider, { client: cache }, children) }).result.current;
+  test("the copy is starting data, always asked for again, and recognised as a copy until fresh data arrives", () => {
+    writeTradeCache("u1", "esc-notice", { n: 1 });
+    const at = readTradeCache("u1", "esc-notice")!.at;
+    const s = seedOf("u1");
+    expect(s.options).toMatchObject({ initialData: { n: 1 }, initialDataUpdatedAt: at, refetchOnMount: "always" });
+    expect(s.isCopy(at)).toBe(true);
+    expect(s.isCopy(at + 1)).toBe(false);
+  });
+  test("another user's copy is never read", () => {
+    writeTradeCache("u1", "esc-notice", { n: 1 });
+    expect(seedOf("u2").options).toEqual({});
+  });
+  test("newer data already in memory wins over the copy", () => {
+    writeTradeCache("u1", "esc-notice", { n: 1 });
+    qc.setQueryData(["trade-esc-notice"], { n: 2 });
+    const s = seedOf("u1");
+    expect(s.options).toEqual({});
+    expect(s.isCopy(0)).toBe(false);
+  });
+  test("no copy, or one older than 24 hours: today's behaviour", () => {
+    expect(seedOf("u1").options).toEqual({});
+    localStorage.setItem("hiv-trade:v1:u1:esc-notice", JSON.stringify({ at: Date.now() - 25 * 3600_000, data: { n: 1 } }));
+    expect(seedOf("u1").options).toEqual({});
+  });
+  test.each([
+    ["routes/_authenticated/field.business_.esc-notice.tsx", '"esc-notice"'],
+    ["routes/_authenticated/field.welcome.tsx", '"setup"'],
+    ["routes/_authenticated/field.guide.tsx", '"business"'],
+    ["components/trade/business-pages.tsx", '"business-file"'],
+  ])("%s keeps and seeds under its own name, writing only a good answer", (f, name) => {
+    const s = readFileSync(`src/${f}`, "utf8");
+    expect(s).toContain(`useTradeSeed`);
+    expect(s).toContain(`writeTradeCache(uid, ${name}, d)`);
+    expect(s).toMatch(/if \(d\) writeTradeCache/);
   });
 });
