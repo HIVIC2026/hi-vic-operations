@@ -155,7 +155,7 @@ describe("onPartnerPersonApproved", () => {
     tables["workflow_settings"] = [{ id: 1, trade_messages_paused: true }];
     const held = await onPartnerPersonApproved("w-real", "office", { switches: LIVE, call, message, password: () => "throwaway" });
     expect(held).toEqual({ action: "skip", reason: "Mitti invite waiting for pause to lift" });
-    expect(calls).toEqual(["POST /users/search"]);
+    expect(calls).toEqual([]);
     expect(events()).toEqual(["mitti_invite_waiting_pause"]);
     expect(messages).toEqual([]);
     tables["workflow_settings"] = [{ id: 1, trade_messages_paused: false }];

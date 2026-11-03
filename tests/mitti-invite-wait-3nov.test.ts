@@ -130,7 +130,7 @@ describe("Q5 (Jo 3 Nov 8:11pm): approved while trade messages are paused", () =>
   test("no Mitti user, no message; one waiting record", async () => {
     const r = await inv.onPartnerPersonApproved(LEAD, "office", { switches: LIVE, call });
     expect(r).toEqual({ action: "skip", reason: core.MITTI_WAITING_PAUSE });
-    expect(calls).toEqual(["POST /users/search wayne@own.com.au"]); expect(sent).toEqual([]);
+    expect(calls).toEqual([]); expect(sent).toEqual([]);
     expect(types()).toEqual(["mitti_invite_waiting_pause"]);
     await inv.onPartnerPersonApproved(LEAD, "office", { switches: LIVE, call });
     expect(types()).toEqual(["mitti_invite_waiting_pause"]);

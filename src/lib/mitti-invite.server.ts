@@ -142,6 +142,14 @@ export async function onPartnerPersonApproved(workerId: string, actorId: string 
     if (prior?.type !== MITTI_INVITE_EVENTS.waitingEmail) await record(actorId, MITTI_INVITE_EVENTS.waitingEmail, `${MITTI_WAITING_EMAIL}: ${name ?? "Lead"} (${business ?? "business"})`, { worker_id: workerId, email: null, name, business, trade_role: person.tradeRole });
     return { action: "skip" as const, reason: MITTI_WAITING_EMAIL };
   }
+  const initialStep = mittiInviteStep(person, prior, sw);
+  if (initialStep.action === "skip") return initialStep;
+  // Creating a user can send Mitti's email; paused approvals must not even search/link/reactivate.
+  const tradePaused = await (await import("./trade-pause.server")).tradeMessagesPausedNow({ businessId });
+  if (tradePaused) {
+    if (prior?.type !== MITTI_INVITE_EVENTS.waitingPause) await record(actorId, MITTI_INVITE_EVENTS.waitingPause, `${MITTI_WAITING_PAUSE}: ${person.email}`, { worker_id: workerId, email: person.email, name, business, trade_role: person.tradeRole, reason: tradePaused, mitti_user_id: null, group: null });
+    return { action: "skip" as const, reason: MITTI_WAITING_PAUSE };
+  }
   const call = opts.call ?? await realCall();
   const base = { worker_id: workerId, email: person.email, name, business, trade_role: person.tradeRole };
   let step = mittiInviteStep(person, prior, sw);
@@ -189,9 +197,9 @@ export async function onPartnerPersonApproved(workerId: string, actorId: string 
   }
   // Jo 30 Oct 2026: creating the Mitti user makes Mitti email the person, and our ONE invite message follows — both go to
   // a trade, so nothing is created or recorded while "Pause all trade messages" is on (TEST people never reach here).
-  const tradePaused = await (await import("./trade-pause.server")).tradeMessagesPausedNow({ businessId });
-  if (tradePaused) {
-    if (prior?.type !== MITTI_INVITE_EVENTS.waitingPause) await record(actorId, MITTI_INVITE_EVENTS.waitingPause, `${MITTI_WAITING_PAUSE}: ${person.email}`, { ...details, reason: tradePaused, mitti_user_id: null });
+  const pausedBeforeCreate = await (await import("./trade-pause.server")).tradeMessagesPausedNow({ businessId });
+  if (pausedBeforeCreate) {
+    if (prior?.type !== MITTI_INVITE_EVENTS.waitingPause) await record(actorId, MITTI_INVITE_EVENTS.waitingPause, `${MITTI_WAITING_PAUSE}: ${person.email}`, { ...details, reason: pausedBeforeCreate, mitti_user_id: null });
     return { action: "skip" as const, reason: MITTI_WAITING_PAUSE };
   }
   // create: the throwaway password is never stored or logged.
