@@ -548,6 +548,7 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean,
   const seenSafety = new Set<string>();
   const rows = done.filter((b) => b.kind !== "ready_check" && (!testOnly || (b.jobs as { source: string }).source === "qa_test") && (b.kind !== "assessment" || (seenSafety.has(b.job_id) ? false : (seenSafety.add(b.job_id), true))));
   const ids = [...new Set(rows.map((r) => r.job_id))];
+  if (only && !ids.length) return []; // the job has no pay row yet: the follow-up reads below would only describe rows that aren't there
   const none = ["00000000-0000-0000-0000-000000000000"];
   // Speed (decision 280): every follow-up read depends only on the job ids — one round trip.
   const [payees, { data: paid }, { data: ap }, { data: offers }, { data: invs }, { data: accQ }, gate, safety, ep] = await Promise.all([

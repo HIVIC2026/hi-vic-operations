@@ -3,7 +3,9 @@
 // time, and the page made ~150 reads at ~300 ms each.
 // How it stays safe:
 // - The facts are read only after `requireTradeJob` passed for this user and job (`loadJobFacts` refuses anything else),
-//   with the same admin client every section already used, by job id only — nothing from another job or business.
+//   with the same admin client every section already used: the job's rows by job id, the caller's OWN verified business
+//   (row, partner workers, members) by its id, and the settings row — nothing from another job or business. At most
+//   three reads, each on first use.
 // - Sections keep their own queries and logic. Inside the bundle, `jobDb()` gives them a client that answers a query from
 //   the facts when it can be sure of the database's answer (`answerFromFacts`), and otherwise sends that same query to
 //   the database. Identical queries in one bundle are asked once. Outside the bundle `jobDb()` is the admin client.
@@ -11,33 +13,49 @@
 // Server-side only; nothing here is sent to the browser.
 import { AsyncLocalStorage } from "node:async_hooks";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { answerFromFacts, factsCanTry, JOB_FACT_TABLES, JOB_FACTS_SELECT, jobFactsFrom, type JobFacts, type QueryOp } from "./job-facts.core";
+import { answerFromFacts, BUSINESS_FACT_TABLES, BUSINESS_FACTS_SELECT, businessFactsFrom, factsCanTry, JOB_FACT_TABLES, JOB_FACTS_SELECT, jobFactsFrom, settingsFactsFrom, type Facts, type FactTable, type QueryOp } from "./job-facts.core";
 import type { TradeJobAccess } from "./trade-view.server";
 
-export type { JobFacts } from "./job-facts.core";
+export type JobFacts = Facts;
 type Admin = typeof supabaseAdmin;
+type Row = Record<string, unknown>;
 
 /** Every row of this job the installer job page reads, in ONE request — after the access check, for that user and job only. */
-export async function loadJobFacts(jobId: string, access: TradeJobAccess): Promise<JobFacts | null> {
+export async function loadJobFacts(jobId: string, access: TradeJobAccess): Promise<Facts | null> {
   if (access.checkedFor.jobId !== jobId) throw new Error("Job facts are read only for the job that passed the access check.");
   const { data, error } = await supabaseAdmin.from("jobs").select(JOB_FACTS_SELECT).eq("id", jobId).maybeSingle();
-  if (error || !data) {
-    // The sections then read for themselves, exactly as before.
-    if (error) console.error("job facts read failed; sections read for themselves", error.message);
-    return null;
-  }
-  return jobFactsFrom(jobId, data as unknown as Record<string, unknown>);
+  // On a failed read the sections read for themselves, exactly as before.
+  if (error) console.error("job facts read failed; sections read for themselves", error.message);
+  return error || !data ? null : jobFactsFrom(jobId, data as unknown as Row);
 }
 
+/** The caller's own business row, its partner workers and members, in ONE request — only the business the access check verified. */
+export async function loadBusinessFacts(businessId: string, access: TradeJobAccess): Promise<Facts | null> {
+  if (access.biz.id !== businessId) throw new Error("Business facts are read only for the caller's verified business.");
+  const { data, error } = await supabaseAdmin.from("businesses").select(BUSINESS_FACTS_SELECT).eq("id", businessId).maybeSingle();
+  if (error) console.error("business facts read failed; sections read for themselves", error.message);
+  return error || !data ? null : businessFactsFrom(businessId, data as unknown as Row);
+}
+
+/** The portal settings row (`workflow_settings` id 1), once. */
+export async function loadSettingsFacts(): Promise<Facts | null> {
+  const { data, error } = await supabaseAdmin.from("workflow_settings").select("*").eq("id", 1).maybeSingle();
+  return error || !data ? null : settingsFactsFrom(data as unknown as Row);
+}
+
+/** A set of fact tables (each with its scope) and how to read them; read at most once, on first use. */
+export type FactSource = { readonly tables: Readonly<Record<string, FactTable["scope"]>>; readonly load: () => Promise<Facts | null> };
+
 const READS = new Set(["select", "eq", "neq", "gt", "gte", "lt", "lte", "like", "ilike", "is", "in", "contains", "containedBy", "not", "or", "filter", "match", "order", "limit", "range", "maybeSingle", "single", "returns"]);
-const FACT_TABLES = new Set<string>(["jobs", ...JOB_FACT_TABLES]);
 const WRITES = new Set(["insert", "update", "upsert", "delete"]);
 
 /**
  * A client for one bundle: `.from(table)` records the query; when awaited it is answered from the job's facts if
  * `answerFromFacts` is sure, else sent to the database as written. Identical reads are asked once (each caller gets its own copy of the rows).
  */
-export function jobFactsClient(jobId: string, facts: () => Promise<JobFacts | null>, base: Admin = supabaseAdmin): Admin {
+export function jobFactsClient(sources: readonly FactSource[], base: Admin = supabaseAdmin): Admin {
+  const loaded = new Map<FactSource, Promise<Facts | null>>();
+  const factsOf = (s: FactSource) => { let p = loaded.get(s); if (!p) { p = s.load().catch(() => null); loaded.set(s, p); } return p; };
   const asked = new Map<string, Promise<unknown>>();
   let wrote = false;
   const copy = (res: unknown) => {
@@ -55,7 +73,8 @@ export function jobFactsClient(jobId: string, facts: () => Promise<JobFacts | nu
       try { key = `${table}|${JSON.stringify(ops)}`; } catch { return Promise.resolve(send()); }
       let p = asked.get(key);
       if (!p) {
-        p = FACT_TABLES.has(table) && factsCanTry(jobId, table, ops) ? facts().then((f) => (f && !wrote ? answerFromFacts(f, table, ops) : null) ?? send(), () => send()) : Promise.resolve(send());
+        const source = sources.find((s) => table in s.tables);
+        p = source && factsCanTry(table, source.tables[table]!, ops) ? factsOf(source).then((f) => (f && !wrote ? answerFromFacts(f, table, ops) : null) ?? send(), () => send()) : Promise.resolve(send());
         asked.set(key, p);
       }
       return p.then(copy);
@@ -80,9 +99,11 @@ const scope = new AsyncLocalStorage<Scope>();
  * facts are read on the first query that could use them.
  */
 export function withJobFacts<T>(jobId: string, access: TradeJobAccess, fn: () => T): T {
-  let facts: Promise<JobFacts | null> | undefined;
-  const db = jobFactsClient(jobId, () => (facts ??= loadJobFacts(jobId, access).catch(() => null)));
-  return scope.run({ jobId, db }, fn);
+  const job: FactSource = { tables: Object.fromEntries([["jobs", { col: "id", value: jobId }], ...JOB_FACT_TABLES.map((t) => [t, { col: "job_id", value: jobId }])]), load: () => loadJobFacts(jobId, access) };
+  const bizId = access.biz.id;
+  const business: FactSource = { tables: Object.fromEntries([["businesses", { col: "id", value: bizId }], ...BUSINESS_FACT_TABLES.map((t) => [t, { col: "business_id", value: bizId }])]), load: () => loadBusinessFacts(bizId, access) };
+  const settings: FactSource = { tables: { workflow_settings: { col: "id", value: "1" } }, load: loadSettingsFacts };
+  return scope.run({ jobId, db: jobFactsClient([job, business, settings]) }, fn);
 }
 
 /** The admin client — inside the job page bundle, the one that answers from the job's facts (see above). */

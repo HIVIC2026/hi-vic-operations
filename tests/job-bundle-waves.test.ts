@@ -9,9 +9,15 @@ import { outcome, waveCounter } from "./helpers/wave-counter";
 
 const tables: Tables = {};
 const wc = waveCounter(tables);
-mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: wc.client }));
+/** Task 11: admin reads asked inside the job page's trusted part (after the access check, where `jobDb()` is the facts
+ *  client) vs outside it (the overview and the access check itself). Counted when the query is built on this client. */
+const asked = { trusted: 0, before: 0 };
+let jobDbNow: (() => unknown) | null = null;
+const admin = { ...wc.client, from: (t: string) => { if (jobDbNow && jobDbNow() !== admin) asked.trusted++; else asked.before++; return wc.client.from(t); } };
+mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: admin }));
 
 const { tradeJobBundle } = await import("../src/lib/trade-job-bundle.server");
+jobDbNow = (await import("../src/lib/job-facts.server")).jobDb;
 
 const NOW = new Date("2026-10-29T03:00:00.000Z");
 const B1 = "00000000-0000-4000-8000-0000000000b1", B2 = "00000000-0000-4000-8000-0000000000b2";
@@ -77,7 +83,7 @@ function seed() {
 
 /** Tables the job-facts read takes whole (`select *`). A live `select *` returns every column, so the seed rows get every
  *  column the generated types list (null when the seed doesn't set it): a column missing here is missing live. */
-const FACT_TABLES = ["jobs", "workflow_events", "bookings", "job_assignments", "quotes", "quote_items", "quote_internals", "ceiling_measurements", "piesa_records", "assessments", "appointment_proposals", "customer_assignments", "installer_declarations", "rectification_items", "invoices", "payment_overrides", "ready_check_windows", "assessment_payments", "owner_esc_consents", "ready_checks"];
+const FACT_TABLES = ["jobs", "workflow_events", "bookings", "job_assignments", "quotes", "quote_items", "quote_internals", "ceiling_measurements", "piesa_records", "assessments", "appointment_proposals", "customer_assignments", "installer_declarations", "rectification_items", "invoices", "payment_overrides", "ready_check_windows", "assessment_payments", "owner_esc_consents", "ready_checks", "properties", "businesses", "partner_workers", "business_members", "workflow_settings", "worker_job_links", "partner_activations"];
 const TYPES = readFileSync(new URL("../src/integrations/supabase/types.ts", import.meta.url), "utf8");
 function columnsOf(table: string): string[] {
   const start = TYPES.indexOf(`\n      ${table}: {\n        Row: {`);
@@ -256,12 +262,16 @@ describe("Job page bundle (Task 6): a section called on its own keeps its own ch
 });
 
 describe("Job page bundle (Task 11): the job's rows are read once", () => {
-  for (const [name, u, job] of CASES.filter(([n]) => !n.includes("not assigned") && !n.includes("no access"))) {
-    test(`${name}: at most 10 reads`, async () => {
+  for (const [name, u, job] of CASES) {
+    test(`${name}: at most 10 database reads after the access check`, async () => {
       seed(); wc.state.failWhen = null;
       const s = signedIn(u);
+      asked.trusted = 0; asked.before = 0;
       const r = await wc.measured(() => quiet(() => tradeJobBundle(s.sb as never, u, job)));
-      expect(r.log.length).toBeLessThanOrEqual(10);
+      console.log(`TASK11 ${name}: ${r.log.length} reads in all; ${asked.trusted} after the access check, ${asked.before} admin reads before/outside it, ${s.calls.length} sign-in client calls`);
+      expect(asked.trusted).toBeLessThanOrEqual(10);
+      // A refused caller reads nothing about the job after the (failed) access check.
+      if (name.includes("not assigned") || name.includes("no access")) expect(asked.trusted).toBe(0);
     });
   }
 });
