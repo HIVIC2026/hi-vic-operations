@@ -372,3 +372,20 @@ describe("electricianBusinessFor", () => {
     expect(await server.electricianBusinessFor(J)).toBeNull();
   });
 });
+
+describe("I3: a fresh link that keeps the one already in the phone until a send succeeded", () => {
+  test("keepOlder: the first link stays active beside the new one; retireOlderElectricianLinks then revokes every other link for that person + job; revokeElectricianLink drops one", async () => {
+    const first = await server.mintElectricianLink(J, W, null, NOW);
+    const second = await server.mintElectricianLink(J, W, null, NOW + 1, { keepOlder: true });
+    const live = () => tables["worker_job_links"]!.filter((l) => !l["revoked_at"]).map((l) => l["id"]);
+    expect(live()).toHaveLength(2);
+    expect((await server.electricianLinkView(first.token, NOW + 2)).jobNumber).toBe("HV-5001");
+    expect((await server.electricianLinkView(second.token, NOW + 2)).jobNumber).toBe("HV-5001");
+    await server.retireOlderElectricianLinks(J, W, second.id, NOW + 3);
+    expect(live()).toEqual([second.id]);
+    await expect(server.electricianLinkView(first.token, NOW + 4)).rejects.toThrow("switched off");
+    const third = await server.mintElectricianLink(J, W, null, NOW + 5, { keepOlder: true });
+    await server.revokeElectricianLink(third.id, NOW + 6);
+    expect(live()).toEqual([second.id]);
+  });
+});

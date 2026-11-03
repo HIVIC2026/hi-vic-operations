@@ -182,6 +182,8 @@ async function resolveLink(token: string) {
     admin.from("businesses").select("name, trading_name").eq("id", l.business_id).maybeSingle(),
   ]);
   if (!w || w.removed_at || w.approval_status !== "approved" || certificationBlocker(w)) throw new Error("This link has been switched off. Ask your company for a new one.");
+  // Part 6: electricians never use /w/ links — each job reaches them as their own no-login link (/e/<token>).
+  if (w.trade_role === "electrician") throw new Error("This link has been switched off. Ask your company for a new one.");
   if (!(await jobBusinesses(l.job_id)).includes(l.business_id)) throw new Error("Your company is no longer on this job.");
   return { admin, l, w, bizName: b?.trading_name || b?.name || null };
 }
@@ -207,7 +209,7 @@ export const getWorkerJobView = createServerFn({ method: "POST" })
     if (!j) throw new Error("This job is no longer available.");
     const dispatch = await (await import("./in-house-suppression.server")).inHouseDispatchSkip(l.job_id);
     const heldText = dispatch ? (await import("./in-house-message.core")).inHouseTradeBookingText(j.stage) : null;
-    const mittiId = mb?.mitti_account_invited !== true ? null : w.trade_role === "electrician" ? a?.external_mitti_id : (m?.external_source === "mitti" ? m.external_id : null) ?? a?.external_mitti_id;
+    const mittiId = mb?.mitti_account_invited !== true ? null : (m?.external_source === "mitti" ? m.external_id : null) ?? a?.external_mitti_id;
     const released = (rels ?? []).some((r) => (r.job_assignments as { active: boolean }).active && visitIsCurrent(r.visit_kind, j.stage ?? ""));
     const { data: oc } = released ? await admin.from("job_overview").select("owner_name, owner_phone, owner_email").eq("id", l.job_id).maybeSingle() : { data: null };
     return {

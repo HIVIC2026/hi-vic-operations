@@ -66,6 +66,17 @@ describe("the electrician screens are gone", () => {
   });
 });
 
+describe("the /w/ worker link (installers' crew) never serves an electrician", () => {
+  test("resolveLink refuses an electrician's token with the switched-off message; the dead electrician branch is gone", () => {
+    const fns = read("src/lib/worker-links.functions.ts");
+    const resolve = fns.slice(fns.indexOf("async function resolveLink"), fns.indexOf("export const getWorkerJobView"));
+    expect(resolve).toContain('w.trade_role === "electrician"');
+    expect(resolve).toContain("This link has been switched off. Ask your company for a new one.");
+    const view = fns.slice(fns.indexOf("export const getWorkerJobView"), fns.indexOf("export const postWorkerMessage"));
+    expect(view).not.toContain('w.trade_role === "electrician"');
+  });
+});
+
 describe("no electrician ever gets a sign-in", () => {
   const w = { email: "a@b.com", approval_status: "approved", removed_at: null, trade_role: "installer", certification_status: "verified" };
   test("tradeAccessBlocker: an electrician is told no login is needed; installers unchanged", () => {

@@ -122,6 +122,14 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['upgradesNeeded'] = "failed";
         }
         try {
+          // New job flow Part 6 (fix wave I2): every active electrician assignment gets its job link text once (held = one trace per reason).
+          const { sweepElectricianLinks } = await import("@/lib/electrician-link.server");
+          (out as Record<string, unknown>)['electricianLinks'] = await timed("sweepElectricianLinks", () => sweepElectricianLinks());
+        } catch (e) {
+          console.error("allocation tick: electrician link sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['electricianLinks'] = "failed";
+        }
+        try {
           // New job flow Part 6 Task 7: upgrades-form nudges + the 30-day red flag (DRAFT sends; Needs me row always on).
           const { sweepUpgradesWatch } = await import("@/lib/upgrades-watch.server");
           (out as Record<string, unknown>)['upgradesWatch'] = await timed("sweepUpgradesWatch", () => sweepUpgradesWatch());

@@ -56,7 +56,8 @@ describe("upgrades-watch.core: rules", () => {
 const J = "00000000-0000-4000-8000-0000000000a1", INST = "00000000-0000-4000-8000-0000000000b1", ELEC = "00000000-0000-4000-8000-0000000000b2";
 const W = "00000000-0000-4000-8000-0000000000c1", USER = "00000000-0000-4000-8000-0000000000d1";
 const tables: Tables = {};
-const calls: { sms: unknown[][]; testSms: unknown[][]; office: Record<string, unknown>[]; testMail: unknown[][]; link: unknown[][] } = { sms: [], testSms: [], office: [], testMail: [], link: [] };
+const calls: { sms: unknown[][]; testSms: unknown[][]; office: Record<string, unknown>[]; testMail: unknown[][]; link: unknown[][]; retire: unknown[][]; revoke: unknown[][] } = { sms: [], testSms: [], office: [], testMail: [], link: [], retire: [], revoke: [] };
+const order: string[] = [];
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: (t: string) => memoryPostgrest(tables).from(t) } }));
 mock.module("../src/lib/workflow.server", () => ({
   logEvent: async (jobId: string, actorId: string | null, eventType: string, summary: string, details: Record<string, unknown>) => {
@@ -66,16 +67,20 @@ mock.module("../src/lib/workflow.server", () => ({
 const server = await import("../src/lib/upgrades-watch.server");
 const deps = (over: Record<string, unknown> = {}) => ({
   sendSms: async (i: unknown) => { calls.sms.push([i]); return { status: "sent", detail: "ok" }; },
-  sendTestSms: async (...a: unknown[]) => { calls.testSms.push(a); return { channel: "sms", to: a[1], status: "sent", detail: "test" }; },
+  sendTestSms: async (...a: unknown[]) => { calls.testSms.push(a); order.push("send"); return { channel: "sms", to: a[1], status: smsStatus, detail: "test" }; },
   sendOfficeEmail: async (p: Record<string, unknown>) => { calls.office.push(p); return { channel: "email", to: p["to"], status: "sent", detail: "ok" }; },
   sendTestEmail: async (...a: unknown[]) => { calls.testMail.push(a); return { channel: "email", to: a[1], status: "sent", detail: "test" }; },
-  linkUrl: async (...a: unknown[]) => { calls.link.push(a); return "https://x/e/NEW"; },
+  mintLink: async (...a: unknown[]) => { calls.link.push(a); order.push("mint"); return { id: "link-new", url: "https://x/e/NEW" }; },
+  retireOlderLinks: async (...a: unknown[]) => { calls.retire.push(a); order.push("retire"); },
+  revokeLink: async (...a: unknown[]) => { calls.revoke.push(a); order.push("revoke"); },
   ...over,
 }) as never;
 
+let smsStatus = "sent";
 function seed(over: { source?: string; upgradesStart?: string | null; deadline?: string; formDone?: boolean; stage?: string } = {}) {
   for (const k of Object.keys(tables)) delete tables[k];
   for (const k of Object.keys(calls)) (calls as Record<string, unknown[]>)[k]!.length = 0;
+  order.length = 0; smsStatus = "sent";
   tables["jobs"] = [{ id: J, job_number: "HV-5001", source: over.source ?? "qa_test", stage: over.stage ?? "rectification_booked", deleted_at: null }];
   tables["businesses"] = [
     { id: INST, name: "Smith Insulation", trading_name: null, email: "office@smith.test", onboarding_notes: null },
@@ -113,6 +118,17 @@ describe("sweepUpgradesWatch: the electrician nudge", () => {
     expect(await server.sweepUpgradesWatch(THU, deps())).toEqual({ nudges: 0, officeEmails: 0, redFlags: 0 });
     expect(calls.testSms).toHaveLength(1);
     expect(events("upgrades_nudge")).toHaveLength(1);
+  });
+  test("I3: the working link is kept until the text has gone — mint (keeping the older link) → send → retire the older ones; a failed send revokes the new link and keeps the old", async () => {
+    await server.sweepUpgradesWatch(THU, deps());
+    expect(order).toEqual(["mint", "send", "retire"]);
+    expect(calls.retire[0]).toEqual([J, W, "link-new"]);
+    expect(calls.revoke).toHaveLength(0);
+    seed(); smsStatus = "blocked";
+    expect(await server.sweepUpgradesWatch(THU, deps())).toEqual({ nudges: 0, officeEmails: 0, redFlags: 0 });
+    expect(order).toEqual(["mint", "send", "revoke"]);
+    expect(calls.revoke[0]).toEqual(["link-new"]);
+    expect(calls.retire).toHaveLength(0);
   });
   test("real job, flag off: held — nothing sent, nothing recorded, no link minted", async () => {
     seed({ source: "website" });

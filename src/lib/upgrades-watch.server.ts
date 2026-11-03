@@ -20,8 +20,11 @@ export type UpgradesWatchDeps = {
   sendTestSms: (ctx: TestCtx, to: string, body: string) => Promise<SendResult>;
   sendOfficeEmail: (p: { actorId: null; recipient: "partner"; to: string; contactName: string | null; subject: string; message: string; html: string; text: string; label: string; record: { businessId: string }; idempotencyKey: string }) => Promise<SendResult>;
   sendTestEmail: (ctx: TestCtx, to: string, subject: string, html: string, text: string) => Promise<SendResult>;
-  /** A fresh job link for the nudge text (the one already in their phone can't be rebuilt from its hash; this one replaces it). */
-  linkUrl: (jobId: string, workerId: string) => Promise<string | null>;
+  /** A fresh job link for the nudge text (the one already in their phone can't be rebuilt from its hash). The older link is
+   *  kept live until the text has gone: then retireOlderLinks; a send that did not go revokes the new one instead. */
+  mintLink: (jobId: string, workerId: string) => Promise<{ id: string; url: string } | null>;
+  retireOlderLinks: (jobId: string, workerId: string, keepLinkId: string) => Promise<void>;
+  revokeLink: (linkId: string) => Promise<void>;
   record: (jobId: string, eventType: string, summary: string, details: Record<string, unknown>) => Promise<void>;
 };
 type TestCtx = { jobId: string; jobSource: string | null; partnerIsTest: boolean; label: string; actorId: null };
@@ -31,7 +34,9 @@ const defaultDeps = (): UpgradesWatchDeps => ({
   sendTestSms: async (ctx, to, body) => (await import("./test-send.server")).sendTestSms(ctx, to, body),
   sendOfficeEmail: async (p) => (await import("./office-email.server")).sendOfficeEmail(p),
   sendTestEmail: async (ctx, to, subject, html, text) => (await import("./test-send.server")).sendTestEmail(ctx, to, subject, html, text),
-  linkUrl: async (jobId, workerId) => (await import("./electrician-link.server")).mintElectricianLink(jobId, workerId, null).then((r) => r.url),
+  mintLink: async (jobId, workerId) => (await import("./electrician-link.server")).mintElectricianLink(jobId, workerId, null, Date.now(), { keepOlder: true }).then((r) => ({ id: r.id, url: r.url })),
+  retireOlderLinks: async (jobId, workerId, keepLinkId) => (await import("./electrician-link.server")).retireOlderElectricianLinks(jobId, workerId, keepLinkId),
+  revokeLink: async (linkId) => (await import("./electrician-link.server")).revokeElectricianLink(linkId),
   record: async (jobId, eventType, summary, details) => (await import("./workflow.server")).logEvent(jobId, null, eventType, summary, details, { internal: true }),
 });
 
@@ -165,17 +170,23 @@ async function nudgeElectrician(d: UpgradesWatchDeps, c: Ctx): Promise<"sent" | 
   const eb = await electricianBiz(w.business_id);
   const { test, partnerIsTest } = await isTest(c.job, eb);
   if (!test && !d.nudgeApproved) return "held";
-  // A fresh link only when the text goes; the event (the once-per-day claim) is recorded before the send.
-  const url = await d.linkUrl(c.jobId, w.id);
-  if (!url) return "held";
-  const body = upgradesNudgeText({ jobNumber: c.job.job_number, url });
+  // A fresh link only when the text goes; the link already in their phone stays live until the send succeeded (I3).
+  // The event (the once-per-day claim) is recorded before the send.
+  const link = await d.mintLink(c.jobId, w.id);
+  if (!link) return "held";
+  const body = upgradesNudgeText({ jobNumber: c.job.job_number, url: link.url });
   await d.record(c.jobId, UPGRADES_NUDGE_EVENT, "Electrician nudged: upgrades form not in", { key: c.keys.nudge, worker_id: w.id, booking_id: c.booking.id, upgrades_ymd: c.ymd, test });
+  let went: boolean;
   if (test) {
     const r = await d.sendTestSms({ jobId: c.jobId, jobSource: c.job.source, partnerIsTest, label: `${UPGRADES_NUDGE_SMS_TYPE}:${c.jobId}:${c.ymd}`, actorId: null }, w.mobile, body);
-    return r.status === "sent" ? "sent" : "held";
+    went = r.status === "sent";
+  } else {
+    const r = await d.sendSms({ type: UPGRADES_NUDGE_SMS_TYPE, idempotencyKey: c.keys.nudge, to: w.mobile, body, storedBody: maskUpgradesLink(body), jobId: c.jobId, businessId: w.business_id });
+    went = r.status === "sent" || r.status === "sent_unknown";
   }
-  const r = await d.sendSms({ type: UPGRADES_NUDGE_SMS_TYPE, idempotencyKey: c.keys.nudge, to: w.mobile, body, storedBody: maskUpgradesLink(body), jobId: c.jobId, businessId: w.business_id });
-  return r.status === "sent" || r.status === "sent_unknown" ? "sent" : "held";
+  if (went) await d.retireOlderLinks(c.jobId, w.id, link.id).catch((e) => console.error("upgrades watch: older link not retired", (e as Error).message));
+  else await d.revokeLink(link.id).catch((e) => console.error("upgrades watch: unsent link not revoked", (e as Error).message));
+  return went ? "sent" : "held";
 }
 
 async function emailOffice(d: UpgradesWatchDeps, c: Ctx): Promise<"sent" | "held"> {

@@ -54,19 +54,33 @@ const sameElectrician = (a: AssignedElectrician, w: { id: string; profile_id: st
   a.worker_id ? a.worker_id === w.id : a.user_id ? a.user_id === w.profile_id : true;
 
 // ---------- minting ----------
-export async function mintElectricianLink(jobId: string, workerId: string, actorId: string | null, now = Date.now()): Promise<{ token: string; url: string }> {
+/** `keepOlder` (the upgrades nudge): the link already in their phone stays live until the new one has actually been sent —
+ *  the caller then calls retireOlderElectricianLinks, or revokeElectricianLink on the new one when the send did not go. */
+export async function mintElectricianLink(jobId: string, workerId: string, actorId: string | null, now = Date.now(), opts: { keepOlder?: boolean } = {}): Promise<{ id: string; token: string; url: string }> {
   const { data: w, error } = await admin.from("partner_workers").select("id, business_id, trade_role, approval_status, removed_at, profile_id").eq("id", workerId).maybeSingle();
   if (error) throw dbErr("the electrician", error);
   if (!w || w.trade_role !== "electrician" || w.removed_at || w.approval_status !== "approved") throw new Error("That electrician can't be given a job link.");
   const asg = await electricianAssignment(jobId, w.business_id);
   if (!asg || !sameElectrician(asg, w)) throw new Error("This job isn't assigned to that electrician.");
   const nowIso = new Date(now).toISOString();
-  const { error: re } = await admin.from("worker_job_links").update({ revoked_at: nowIso, revoked_by: actorId }).eq("worker_id", w.id).eq("job_id", jobId).is("revoked_at", null);
-  if (re) throw new Error(re.message);
+  if (!opts.keepOlder) {
+    const { error: re } = await admin.from("worker_job_links").update({ revoked_at: nowIso, revoked_by: actorId }).eq("worker_id", w.id).eq("job_id", jobId).is("revoked_at", null);
+    if (re) throw new Error(re.message);
+  }
   const token = newToken();
-  const { error: ie } = await admin.from("worker_job_links").insert({ worker_id: w.id, business_id: w.business_id, job_id: jobId, token_hash: await hashToken(token), created_by: actorId, expires_at: electricianLinkExpiry({ allDoneAt: null, now }) });
-  if (ie) throw new Error(ie.message);
-  return { token, url: `${SET_PASSWORD_BASE}/e/${token}` };
+  const { data: row, error: ie } = await admin.from("worker_job_links").insert({ worker_id: w.id, business_id: w.business_id, job_id: jobId, token_hash: await hashToken(token), created_by: actorId, expires_at: electricianLinkExpiry({ allDoneAt: null, now }) }).select("id").single();
+  if (ie || !row) throw new Error(ie?.message ?? "The link could not be saved.");
+  return { id: String(row.id), token, url: `${SET_PASSWORD_BASE}/e/${token}` };
+}
+/** After a send with the new link succeeded: every OTHER live link of this person for the job is switched off. */
+export async function retireOlderElectricianLinks(jobId: string, workerId: string, keepLinkId: string, now = Date.now()): Promise<void> {
+  const { error } = await admin.from("worker_job_links").update({ revoked_at: new Date(now).toISOString(), revoked_by: null }).eq("worker_id", workerId).eq("job_id", jobId).neq("id", keepLinkId).is("revoked_at", null);
+  if (error) throw new Error(error.message);
+}
+/** A new link whose send did not go: switch it off again so the one in their phone stays the only live one. */
+export async function revokeElectricianLink(linkId: string, now = Date.now()): Promise<void> {
+  const { error } = await admin.from("worker_job_links").update({ revoked_at: new Date(now).toISOString(), revoked_by: null }).eq("id", linkId).is("revoked_at", null);
+  if (error) throw new Error(error.message);
 }
 
 // ---------- the text ----------
@@ -551,4 +565,71 @@ async function tellInstallerOfficeCantDo(d: ElectricianCantDoDeps, i: { jobId: s
   }
   const r = await d.sendOfficeEmail({ actorId: null, recipient: "partner", to, contactName: bizName(ib), subject: mail.subject, message: mail.text, html: mail.html, text: mail.text, label: "electrician_cant_do", record: { businessId: i.installerBusinessId }, idempotencyKey: key });
   return r.status === "sent" ? "sent" : "held";
+}
+
+// ---------- the tick: every active electrician assignment gets its link text (fix wave I2) ----------
+export const ELECTRICIAN_LINK_TEXT_HELD_EVENT = "electrician_link_text_held";
+export type ElectricianLinkSweepDeps = {
+  /** The link + text step (linkAfterAllocation): returns how it went. */
+  link: (jobId: string, workerId: string) => Promise<Awaited<ReturnType<typeof linkAfterAllocation>>>;
+};
+const CLOSED_STAGES = new Set(["complete", "cancelled"]);
+const MAX_LINKS_PER_TICK = 100;
+async function pagedRows(what: string, page: (from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>): Promise<Record<string, unknown>[]> {
+  const out: Record<string, unknown>[] = [];
+  for (let from = 0; ; from += 200) {
+    const { data, error } = await page(from, from + 199);
+    if (error) throw new Error(`Could not read ${what}: ${error.message}`);
+    out.push(...((data ?? []) as Record<string, unknown>[]));
+    if ((data ?? []).length < 200) return out;
+  }
+}
+const chunk = <T,>(xs: T[], n = 200): T[][] => { const o: T[][] = []; for (let i = 0; i < xs.length; i += n) o.push(xs.slice(i, i + n)); return o; };
+
+/** On the 15-minute tick: an active electrician assignment with no `electrician_link_text_sent` for its person gets the link
+ *  step again (an allocation whose text was held while the wording was unapproved, or a path that never texted). The
+ *  person is the latest Team allocation's worker, else the assignment's profile. Not sent → ONE `electrician_link_text_held`
+ *  per key + reason (a trace, never a claim: the step runs again next tick and stops only when a text is recorded sent).
+ *  Reads page 200; a failed read logs and does nothing. Never throws. */
+export async function sweepElectricianLinks(now = new Date(), over: Partial<ElectricianLinkSweepDeps> = {}): Promise<{ checked: number; sent: number; held: number }> {
+  const d: ElectricianLinkSweepDeps = { link: (jobId, workerId) => linkAfterAllocation(jobId, workerId, null), ...over };
+  const out = { checked: 0, sent: 0, held: 0 };
+  void now;
+  try {
+    const asgs = await pagedRows("electrician assignments", (a, b) => admin.from("job_assignments").select("id, job_id, business_id, user_id").eq("role", "electrician").eq("active", true).order("id").range(a, b));
+    const jobIds = [...new Set(asgs.map((a) => String(a["job_id"])))];
+    if (!jobIds.length) return out;
+    const jobs = new Map<string, { stage: string; deleted_at: string | null }>();
+    const events: Record<string, unknown>[] = [];
+    for (const c of chunk(jobIds)) {
+      for (const j of await pagedRows("jobs", (a, b) => admin.from("jobs").select("id, stage, deleted_at").in("id", c).range(a, b))) jobs.set(String(j["id"]), { stage: String(j["stage"]), deleted_at: (j["deleted_at"] as string | null) ?? null });
+      events.push(...(await pagedRows("link events", (a, b) => admin.from("workflow_events").select("job_id, event_type, details, created_at").in("job_id", c).in("event_type", ["in_house_electrician_allocated", ELECTRICIAN_LINK_TEXT_SENT_EVENT, ELECTRICIAN_LINK_TEXT_HELD_EVENT]).order("created_at", { ascending: false }).range(a, b))));
+    }
+    const det = (e: Record<string, unknown>) => (e["details"] ?? {}) as { key?: string; reason?: string; worker_id?: string };
+    const profileIds = [...new Set(asgs.map((a) => a["user_id"]).filter((x): x is string => typeof x === "string" && !!x))];
+    const byProfile = new Map<string, string>();
+    for (const c of chunk(profileIds)) for (const w of await pagedRows("electricians", (a, b) => admin.from("partner_workers").select("id, profile_id").in("profile_id", c).eq("trade_role", "electrician").is("removed_at", null).range(a, b))) byProfile.set(String(w["profile_id"]), String(w["id"]));
+    let budget = MAX_LINKS_PER_TICK;
+    for (const a of asgs) {
+      if (budget <= 0) break;
+      const jobId = String(a["job_id"]);
+      const job = jobs.get(jobId);
+      if (!job || job.deleted_at || CLOSED_STAGES.has(job.stage)) continue;
+      const mine = events.filter((e) => String(e["job_id"]) === jobId);
+      const allocated = mine.find((e) => e["event_type"] === "in_house_electrician_allocated");
+      const workerId = (allocated && det(allocated).worker_id) || (a["user_id"] ? byProfile.get(String(a["user_id"])) : null) || null;
+      if (!workerId) continue;
+      const key = electricianLinkTextKey(jobId, workerId);
+      if (mine.some((e) => e["event_type"] === ELECTRICIAN_LINK_TEXT_SENT_EVENT && det(e).key === key)) continue;
+      budget--; out.checked++;
+      try {
+        const r = await d.link(jobId, workerId);
+        if (r === "sent" || r === "test_sent") { out.sent++; continue; }
+        if (mine.some((e) => e["event_type"] === ELECTRICIAN_LINK_TEXT_HELD_EVENT && det(e).key === key && det(e).reason === r)) continue;
+        await (await import("./workflow.server")).logEvent(jobId, null, ELECTRICIAN_LINK_TEXT_HELD_EVENT, `Electrician job link text not sent: ${r}`, { key, worker_id: workerId, assignment_id: a["id"], reason: r }, { internal: true });
+        out.held++;
+      } catch (e) { console.error("electrician link sweep: job skipped", jobId, (e as Error).message); }
+    }
+  } catch (e) { console.error("electrician link sweep: read failed, nothing done", (e as Error).message); }
+  return out;
 }
