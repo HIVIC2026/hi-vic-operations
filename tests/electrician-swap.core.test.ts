@@ -23,3 +23,11 @@ describe("swapProblem", () => {
 describe("oldElectricianEmail", () => {
   test("subject names the address", () => expect(oldElectricianEmail({ address: "1 Example St" }).subject).toBe("You're no longer on 1 Example St"));
 });
+
+import { needsCandidates } from "../src/lib/office-needs.core";
+describe("office Needs: form not moved", () => {
+  test("shows 'Move the Mitti safety check form to {new electrician}'", () => {
+    const c = needsCandidates({ jobId: "j", ownJobSwapFormNotMoved: { at: "2026-11-03T00:00:00Z", electrician: "New Sparky" } } as never, Date.parse("2026-11-03T01:00:00Z"));
+    expect(c.find((x) => x.kind === "own_job_swap_form_not_moved")?.line).toBe("Move the Mitti safety check form to New Sparky");
+  });
+});

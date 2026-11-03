@@ -23,13 +23,13 @@ CREATE TABLE piesa_records (id uuid primary key default gen_random_uuid(), job_i
 CREATE TABLE assessments (id uuid primary key default gen_random_uuid(), job_id uuid, external_mitti_id text);
 `);
 const id = (n: number) => `00000000-0000-0000-0000-${String(n).padStart(12, "0")}`;
-const INST = id(1), OLD = id(2), NEW = id(3), UNLINKED = id(4), UNBOARDED = id(5), OTHER_INST = id(6);
-const UOLD = id(12), UNEW = id(13), BOSS = id(20);
-const J_BOOKED = id(101), J_TOBOOK = id(102), J_DONE = id(103), J_REC = id(104), J_EARLY = id(105), J_LEAD = id(106), J_FORM = id(107);
-for (const [b, n, e] of [[INST, "Reinsulate", "office@reinsulate.test"], [OLD, "Old Sparky", "old@sparky.test"], [NEW, "New Sparky", "new@sparky.test"], [UNLINKED, "Stranger", null], [UNBOARDED, "Newbie", null], [OTHER_INST, "Other", null]] as const)
+const INST = id(1), OLD = id(2), NEW = id(3), UNLINKED = id(4), UNBOARDED = id(5), OTHER_INST = id(6), NEW2 = id(7);
+const UOLD = id(12), UNEW = id(13), UNEW2 = id(14), BOSS = id(20);
+const J_BOOKED = id(101), J_TOBOOK = id(102), J_DONE = id(103), J_REC = id(104), J_EARLY = id(105), J_LEAD = id(106), J_FORM = id(107), J_RESUME = id(108), J_RACE = id(109), J_FORM2 = id(110);
+for (const [b, n, e] of [[INST, "Reinsulate", "office@reinsulate.test"], [OLD, "Old Sparky", "old@sparky.test"], [NEW, "New Sparky", "new@sparky.test"], [UNLINKED, "Stranger", null], [UNBOARDED, "Newbie", null], [OTHER_INST, "Other", null], [NEW2, "Second Sparky", "second@sparky.test"]] as const)
   await db.query("insert into businesses values ($1,$2,$2,$3,null,null)", [b, n, e]);
-await db.query("insert into partner_workers (business_id, profile_id, full_legal_name, email) values ($1,$2,'Old Sam','oldsam@x.test'), ($3,$4,'New Nic','newnic@x.test')", [OLD, UOLD, NEW, UNEW]);
-await db.query("insert into partner_relationships (installer_business_id, electrician_business_id) values ($1,$2), ($1,$3), ($1,$4)", [INST, OLD, NEW, UNBOARDED]);
+await db.query("insert into partner_workers (business_id, profile_id, full_legal_name, email) values ($1,$2,'Old Sam','oldsam@x.test'), ($3,$4,'New Nic','newnic@x.test'), ($5,$6,'Second Sue','sue@x.test')", [OLD, UOLD, NEW, UNEW, NEW2, UNEW2]);
+await db.query("insert into partner_relationships (installer_business_id, electrician_business_id) values ($1,$2), ($1,$3), ($1,$4), ($1,$5)", [INST, OLD, NEW, UNBOARDED, NEW2]);
 const seed = async (job: string, o: { stage?: string; channel?: string; booked?: boolean } = {}) => {
   await db.query("insert into jobs (id, stage, originating_installer_business_id, channel, source) values ($1,$2,$3,$4,'real')", [job, o.stage ?? "piesa_and_install_window_pending", INST, o.channel ?? "installer_sourced"]);
   await db.query("insert into job_assignments (job_id, role, business_id, user_id, booking_confirmed_at) values ($1,'electrician',$2,$3,$4)", [job, OLD, UOLD, o.booked ? new Date().toISOString() : null]);
@@ -38,27 +38,28 @@ const seed = async (job: string, o: { stage?: string; channel?: string; booked?:
   await db.query("insert into electrician_job_links (job_id, electrician_business_id, token_hash, expires_at) values ($1,$2,$3,now() + interval '30 days')", [job, OLD, `hash-${job}`]);
   await db.query("insert into contact_releases (job_id, assignment_id, visit_kind) select $1, id, 'piesa' from job_assignments where job_id=$1", [job]);
 };
-for (const j of [J_TOBOOK, J_REC, J_LEAD, J_FORM]) await seed(j, j === J_LEAD ? { channel: "hivic_sourced" } : {});
+for (const j of [J_TOBOOK, J_REC, J_LEAD, J_FORM, J_RESUME, J_RACE, J_FORM2]) await seed(j, j === J_LEAD ? { channel: "hivic_sourced" } : {});
 await seed(J_BOOKED, { stage: "piesa_scheduled", booked: true });
 await db.query("insert into bookings (job_id, kind, status, scheduled_start, business_id) values ($1,'assessment','confirmed',now() + interval '3 days',$2)", [J_BOOKED, OLD]);
 await db.query("insert into appointment_proposals (job_id, kind, status) values ($1,'assessment','proposed')", [J_BOOKED]);
 await seed(J_DONE, { stage: "piesa_complete" });
 await db.query("insert into jobs (id, stage, originating_installer_business_id, channel, source) values ($1,'measured_quote_accepted',$2,'installer_sourced','real')", [J_EARLY, INST]);
 await db.query("insert into electrician_nominations (job_id, business_id, nominating_business_id, status) values ($1,$2,$3,'approved')", [J_EARLY, OLD, INST]);
-await db.query("insert into assessments (job_id, external_mitti_id) values ($1,'audit-1')", [J_FORM]);
+await db.query("insert into assessments (job_id, external_mitti_id) values ($1,'audit-1'), ($2,'audit-2')", [J_FORM, J_FORM2]);
 
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: postgrestShim(db) }));
+let failLog: string | null = null;
 const realWorkflow = await import("../src/lib/workflow.server");
 mock.module("../src/lib/workflow.server", () => ({
   ...realWorkflow,
-  logEvent: async (job: string, actor: string | null, type: string, summary: string, details?: unknown) => { await db.query("insert into workflow_events (job_id, actor_id, event_type, summary, details, internal) values ($1,$2,$3,$4,$5,true)", [job, actor, type, summary, JSON.stringify(details ?? {})]); },
+  logEvent: async (job: string, actor: string | null, type: string, summary: string, details?: unknown) => { if (failLog === type) { failLog = null; throw new Error(`log blip ${type}`); } await db.query("insert into workflow_events (job_id, actor_id, event_type, summary, details, internal) values ($1,$2,$3,$4,$5,true)", [job, actor, type, summary, JSON.stringify(details ?? {})]); },
   transition: async (job: string, to: string) => { await db.query("update jobs set stage=$2 where id=$1", [job, to]); },
 }));
 const realSuppression = await import("../src/lib/in-house-suppression.server");
 mock.module("../src/lib/in-house-suppression.server", () => ({ ...realSuppression, readInHouseDispatchState: async () => ({ held: new Set(), failed: false }), inHouseDispatchSkip: async () => null }));
 const realRec = await import("../src/lib/rec-onboarded.server");
 const cand = (b: string, ok: boolean) => ({ business_id: b, name: "x", trading_name: "x", rec_number: "1", onboarding_status: ok ? "approved" : "pending", is_active: true, worker_licences: ["L"], approved_electricians: 1, piesa_rate: null });
-mock.module("../src/lib/rec-onboarded.server", () => ({ ...realRec, loadApprovedRecCandidates: async () => [cand(OLD, true), cand(NEW, true), cand(UNBOARDED, false)] }));
+mock.module("../src/lib/rec-onboarded.server", () => ({ ...realRec, loadApprovedRecCandidates: async () => [cand(OLD, true), cand(NEW, true), cand(NEW2, true), cand(UNBOARDED, false)] }));
 const noticed: string[] = [];
 const realNotices = await import("../src/lib/own-job-piesa-notices.server");
 mock.module("../src/lib/own-job-piesa-notices.server", () => ({ ...realNotices, sendOwnJobPiesaNotices: async (job: string) => { noticed.push(job); return "ok"; } }));
@@ -67,9 +68,10 @@ mock.module("../src/lib/office-email.server", () => ({ sendOfficeEmail: async (p
 mock.module("../src/lib/trade-pause.server", () => ({ tradeMessagesPausedNow: async () => null }));
 const realBn = await import("../src/lib/in-house-booking-notices.server");
 mock.module("../src/lib/in-house-booking-notices.server", () => ({ ...realBn, deliverOnce: async (_j: string, _k: string, mail: unknown, send: (m: unknown) => Promise<unknown>) => { await send(mail); return true; } }));
+let mittiMissing = false;
 const moved: { auditId: string; email: string }[] = [];
 const realMitti = await import("../src/lib/mitti.server");
-mock.module("../src/lib/mitti.server", () => ({ ...realMitti, findMittiUserByEmail: async () => "mitti-user", reassignMittiFormTo: async (p: { auditId: string; email: string }) => { moved.push({ auditId: p.auditId, email: p.email }); } }));
+mock.module("../src/lib/mitti.server", () => ({ ...realMitti, findMittiUserByEmail: async () => (mittiMissing ? null : "mitti-user"), reassignMittiFormTo: async (p: { auditId: string; email: string }) => { moved.push({ auditId: p.auditId, email: p.email }); } }));
 
 const swap = await import("../src/lib/electrician-swap.server");
 const els = await import("../src/lib/electrician-link.server");
@@ -152,8 +154,62 @@ describe("installerSwapElectrician", () => {
     expect((await db.query<{ business_id: string }>("select business_id from electrician_nominations where job_id=$1 and ended_at is null", [J_EARLY])).rows.map((r) => r.business_id)).toEqual([NEW]);
   });
   test("swapOptions lists linked, signed-up electricians other than the current one; hidden when done", async () => {
-    expect((await swap.swapOptions(J_REC, INST)).options.map((o) => o.businessId)).toEqual([OLD]) // J_REC was swapped to NEW above;
+    expect((await swap.swapOptions(J_REC, INST)).options.map((o) => o.businessId)).toEqual([OLD, NEW2]); // J_REC was swapped to NEW above
     expect((await swap.swapOptions(J_DONE, INST)).allowed).toBe(false);
     expect((await swap.swapOptions(J_REC, OTHER_INST)).allowed).toBe(false);
+  });
+
+  test("a swap that stops right after the new electrician is added is finished by a retry (one hand-over, one text, one email)", async () => {
+    noticed.length = 0; emails.length = 0;
+    failLog = "own_job_piesa_handed";
+    await expect(swap.installerSwapElectrician(J_RESUME, INST, NEW, BOSS, APPROVED)).rejects.toThrow("log blip");
+    expect((await active(J_RESUME)).map((r) => r.business_id)).toEqual([NEW]);
+    expect(noticed.filter((j) => j === J_RESUME)).toHaveLength(0);
+    await swap.installerSwapElectrician(J_RESUME, INST, NEW, BOSS, APPROVED);
+    const hs = (await events(J_RESUME, "own_job_piesa_handed")).filter((e) => e.details.electrician_business_id === NEW);
+    expect(hs).toHaveLength(1);
+    expect(noticed.filter((j) => j === J_RESUME)).toHaveLength(1);
+    expect(emails.filter((e) => e.pauseJobId === J_RESUME)).toHaveLength(1);
+    expect((await db.query("select 1 from electrician_job_links where job_id=$1 and revoked_at is null", [J_RESUME])).rows).toHaveLength(0);
+    expect(await events(J_RESUME, "own_job_electrician_swapped")).toHaveLength(1);
+    // finished: asking again is the normal "already the electrician"
+    await expect(swap.installerSwapElectrician(J_RESUME, INST, NEW, BOSS, APPROVED)).rejects.toThrow("That's already the electrician");
+  });
+  test("a stop later on (after the hand-over) is also finished by a retry, without a second hand-over", async () => {
+    const J = id(111);
+    await seed(J);
+    failLog = "own_job_electrician_swapped";
+    await expect(swap.installerSwapElectrician(J, INST, NEW, BOSS, APPROVED)).rejects.toThrow("log blip");
+    await swap.installerSwapElectrician(J, INST, NEW, BOSS, APPROVED);
+    expect((await events(J, "own_job_piesa_handed")).filter((e) => e.details.electrician_business_id === NEW)).toHaveLength(1);
+    expect(await events(J, "own_job_electrician_swapped")).toHaveLength(1);
+  });
+  test("when the Mitti form can't be moved the swap stands and one office item is logged (even if logging it fails)", async () => {
+    mittiMissing = true;
+    await swap.installerSwapElectrician(J_FORM2, INST, NEW, BOSS, APPROVED);
+    mittiMissing = false;
+    expect((await active(J_FORM2)).map((r) => r.business_id)).toEqual([NEW]);
+    const ev = await events(J_FORM2, "own_job_swap_form_not_moved");
+    expect(ev).toHaveLength(1);
+    expect(ev[0]!.details).toMatchObject({ electrician_name: "New Sparky", needs_office: true });
+    const J = id(112);
+    await seed(J); await db.query("insert into assessments (job_id, external_mitti_id) values ($1,'audit-9')", [J]);
+    mittiMissing = true; failLog = "own_job_swap_form_not_moved";
+    await swap.installerSwapElectrician(J, INST, NEW, BOSS, APPROVED);
+    mittiMissing = false;
+    expect((await active(J)).map((r) => r.business_id)).toEqual([NEW]);
+  });
+  test("two people changing it at once leave exactly one electrician", async () => {
+    const r = await Promise.allSettled([swap.installerSwapElectrician(J_RACE, INST, NEW, BOSS, APPROVED), swap.installerSwapElectrician(J_RACE, INST, NEW2, BOSS, APPROVED)]);
+    expect(await active(J_RACE)).toHaveLength(1);
+    expect(r.filter((x) => x.status === "fulfilled")).toHaveLength(1);
+    expect(String((r.find((x) => x.status === "rejected") as PromiseRejectedResult).reason.message)).toContain("Someone else just changed the electrician");
+    const winner = (await active(J_RACE))[0]!.business_id;
+    expect((await db.query<{ business_id: string }>("select business_id from electrician_nominations where job_id=$1 and ended_at is null", [J_RACE])).rows.map((x) => x.business_id)).toEqual([winner]);
+  });
+  test("a swap logs its own summary, not 'offered the owner's times first'", async () => {
+    const t = (await db.query<{ summary: string }>("select summary from workflow_events where event_type='electrician_chosen_by_installer'")).rows;
+    expect(t.length).toBeGreaterThan(0);
+    expect(t.every((x) => !x.summary.includes("offered the owner"))).toBe(true);
   });
 });

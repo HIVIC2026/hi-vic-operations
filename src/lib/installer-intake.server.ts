@@ -320,11 +320,13 @@ export async function installerUpdateIntake(jobId: string, actorId: string, busi
   let swapTo: string | null = null;
   if (!pc.change && st.electricianPayer === "own" && p.electrician && (p.electrician.business_id || p.electrician.nomination_id)) {
     if (!p.electrician.business_id) throw new WorkflowError(OWN_ELECTRICIAN_OFFICE_CHANGE);
+    // Only the installer's own job swaps; anything else (or a job we can't check) goes to the office as before.
+    if ((await (await import("./own-job-piesa.server")).ownJobCallAndBook(jobId)) !== true) throw new WorkflowError(OWN_ELECTRICIAN_OFFICE_CHANGE);
     const { swapPreflight } = await import("./electrician-swap.server");
     const { SWAP_SAME } = await import("./electrician-swap.core");
     const f = await swapPreflight(jobId, businessId, p.electrician.business_id);
     if (f.problem && f.problem !== SWAP_SAME) throw new WorkflowError(f.problem);
-    if (!f.problem) swapTo = p.electrician.business_id;
+    if (!f.problem) swapTo = p.electrician.business_id; // includes finishing a swap that stopped part way
   }
   const { data: m, error: mErr } = await admin.from("ceiling_measurements").select("id, provenance, supplied_area_m2").eq("job_id", jobId).eq("is_current", true).maybeSingle();
   if (mErr) throw new WorkflowError("The current measurement could not load. Please retry.");
