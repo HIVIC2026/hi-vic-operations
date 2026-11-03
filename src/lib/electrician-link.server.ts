@@ -142,38 +142,47 @@ export async function electricianLinkView(token: string, now: Date = new Date())
   };
 }
 
-/** "Book it": resolve → check the time → confirmBooking (kind assessment, as the electrician) → supersede any open
- *  proposed times (as an office reassignment does) → the owner's booking notice. */
+/** The ONE place an own job's safety check is booked (the electrician's link and the installer office both come here):
+ *  check the time → claim (one booking per assignment) → confirmBooking (kind assessment; the contractor is always the job's
+ *  active electrician assignment) → supersede any open proposed times (as an office reassignment does) → the owner's booking
+ *  notice. `actorId` is who pressed Book; `by` names them in the job history. */
+export async function bookOwnJobPiesa(p: { jobId: string; assignment: Assignment; electricianBusinessId: string; startIso: string; actorId: string; by: string; now: Date }): Promise<{ ok: true; start: string }> {
+  const { jobId, assignment, startIso, now } = p;
+  const paidAt = await paidAtFor(jobId);
+  if (!paidAt) throw new Error("This job isn't ready to book yet. Call the installer.");
+  const problem = piesaBookingProblem(startIso, now, paidAt);
+  if (problem) throw new Error(problem);
+  const who = await electricianPerson(assignment, p.electricianBusinessId);
+  // Claim first (a double tap or two phones): one stable event per assignment; a second claim is "already booked".
+  const { stableUuid } = await import("./mitti-create-claim.core");
+  // The claim is per assignment AND per booking history: a cancelled booking (electrician still assigned) opens a new claim.
+  const { data: lastCancelled, error: lcErr } = await admin.from("bookings").select("id").eq("job_id", jobId).eq("kind", "assessment").eq("status", "cancelled").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (lcErr) throw new Error(lcErr.message);
+  const claimId = await stableUuid(`own_job_piesa_link_booked:${assignment.id}:${(lastCancelled?.id as string | undefined) ?? "none"}`);
+  const { error: claimError } = await admin.from("workflow_events").insert({ id: claimId, job_id: jobId, actor_id: null, event_type: "own_job_piesa_link_booked", summary: "Safety check being booked", details: { assignment_id: assignment.id, start: startIso, by: p.by }, internal: true });
+  if (claimError) { if (claimError.code === "23505") throw new Error("The safety check is already booked."); throw new Error(claimError.message); }
+  try {
+    const { confirmBooking } = await import("./booking.server");
+    await confirmBooking(jobId, "assessment", startIso, p.actorId, p.by);
+  } catch (e) {
+    const { error: rel } = await admin.from("workflow_events").delete().eq("id", claimId); // nothing was booked: let them try again
+    if (rel) console.error("booking claim not released", jobId, rel.message);
+    throw e;
+  }
+  const { error } = await admin.from("appointment_proposals").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "assessment").eq("status", "proposed");
+  if (error) console.error("open safety check times not superseded", jobId, error.message);
+  const { notifyOwnerBooked } = await import("./in-house-booking.server");
+  await notifyOwnerBooked(jobId, "piesa", startIso, who, now).catch((e) => console.error("owner booking notice held", jobId, (e as Error).message));
+  return { ok: true, start: startIso };
+}
+
+/** "Book it" from the electrician's link. */
 export async function linkBookPiesa(token: string, startIso: string, now: Date = new Date()): Promise<{ ok: true; start: string }> {
   const r = await resolveFull(token, now);
   if (!r.ok) throw new Error(r.reason);
   if (r.step !== "book_piesa") throw new Error(r.step === "done" ? "The safety check is already done." : "The safety check is already booked.");
-  const paidAt = await paidAtFor(r.jobId);
-  if (!paidAt) throw new Error("This job isn't ready to book yet. Call the installer.");
-  const problem = piesaBookingProblem(startIso, now, paidAt);
-  if (problem) throw new Error(problem);
   const who = await electricianPerson(r.assignment, r.electricianBusinessId);
-  // Claim first (a double tap or two phones): one stable event per assignment; a second claim is "already booked".
-  const { stableUuid } = await import("./mitti-create-claim.core");
-  // The claim is per assignment AND per booking history: a cancelled booking (electrician still assigned) opens a new claim.
-  const { data: lastCancelled, error: lcErr } = await admin.from("bookings").select("id").eq("job_id", r.jobId).eq("kind", "assessment").eq("status", "cancelled").order("created_at", { ascending: false }).limit(1).maybeSingle();
-  if (lcErr) throw new Error(lcErr.message);
-  const claimId = await stableUuid(`own_job_piesa_link_booked:${r.assignment.id}:${(lastCancelled?.id as string | undefined) ?? "none"}`);
-  const { error: claimError } = await admin.from("workflow_events").insert({ id: claimId, job_id: r.jobId, actor_id: null, event_type: "own_job_piesa_link_booked", summary: "Electrician booking the safety check from their link", details: { assignment_id: r.assignment.id, start: startIso }, internal: true });
-  if (claimError) { if (claimError.code === "23505") throw new Error("The safety check is already booked."); throw new Error(claimError.message); }
-  try {
-    const { confirmBooking } = await import("./booking.server");
-    await confirmBooking(r.jobId, "assessment", startIso, r.assignment.user_id, `${who.name} (electrician's link)`);
-  } catch (e) {
-    const { error: rel } = await admin.from("workflow_events").delete().eq("id", claimId); // nothing was booked: let them try again
-    if (rel) console.error("booking claim not released", r.jobId, rel.message);
-    throw e;
-  }
-  const { error } = await admin.from("appointment_proposals").update({ status: "superseded" }).eq("job_id", r.jobId).eq("kind", "assessment").eq("status", "proposed");
-  if (error) console.error("open safety check times not superseded", r.jobId, error.message);
-  const { notifyOwnerBooked } = await import("./in-house-booking.server");
-  await notifyOwnerBooked(r.jobId, "piesa", startIso, who, now).catch((e) => console.error("owner booking notice held", r.jobId, (e as Error).message));
-  return { ok: true, start: startIso };
+  return bookOwnJobPiesa({ jobId: r.jobId, assignment: r.assignment, electricianBusinessId: r.electricianBusinessId, startIso, actorId: r.assignment.user_id, by: `${who.name} (electrician's link)`, now });
 }
 
 export type CantDoResult = { ok: true; officeEmail: string };

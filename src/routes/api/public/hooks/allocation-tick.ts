@@ -53,6 +53,16 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['ownJobPiesa'] = "failed";
         }
         try {
+          // Part 2: an own job still unbooked 2 business days after its hand-over is returned to the installer office once
+          // (one event, one email). The electrician's link stays usable.
+          const { sweepOwnJobPiesaDeadlines } = await import("@/lib/own-job-piesa.server");
+          (out as Record<string, unknown>)['ownJobPiesaDeadlines'] = await timed("sweepOwnJobPiesaDeadlines", () => sweepOwnJobPiesaDeadlines());
+        } catch (e) {
+          console.error("allocation tick: own job safety check deadline sweep failed", (e as Error).message);
+          out['ok'] = false;
+          (out as Record<string, unknown>)['ownJobPiesaDeadlines'] = "failed";
+        }
+        try {
           const c = await timed("sweepCoordination", () => sweepCoordination());
           out['coordination'] = typeof c === "object" && c ? Object.fromEntries(Object.entries(c).filter(([, v]) => typeof v === "number")) : null;
         } catch (e) {

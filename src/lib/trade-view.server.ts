@@ -1023,11 +1023,15 @@ export async function tradeSetReadyCheckTime(userId: string, jobId: string, pick
 }
 
 /** Own in-house business membership, not an offer or a customer's time-picking action. */
-export async function inHouseBookingAccess(userId: string, jobId: string, client = admin): Promise<{ allowed: boolean; blockers: string[]; bookings?: { id: string; kind: string; scheduled_start: string | null; status: string }[] }> {
+export async function inHouseBookingAccess(userId: string, jobId: string, client = admin): Promise<{ allowed: boolean; blockers: string[]; ownJob?: true; bookings?: { id: string; kind: string; scheduled_start: string | null; status: string }[] }> {
   const { readInHouseDispatchState } = await import("./in-house-suppression.server");
   const state = await readInHouseDispatchState([jobId]);
   if (state.failed) return { allowed: false, blockers: ["Couldn't check the job's partner — please try again."] };
-  if (!state.held.has(jobId)) return { allowed: false, blockers: ["forbidden"] };
+  if (!state.held.has(jobId)) {
+    // Part 2 (Jo 3 Nov 2026): the installer's office may book the safety check (PIESA) on its own job when its "who books" setting is office or either.
+    const own = await (await import("./own-job-piesa.server")).ownJobOfficeBookingAccess(userId, jobId, client as never);
+    return own.allowed ? { allowed: true, blockers: [], ownJob: true, bookings: own.bookings ?? [] } : { allowed: false, blockers: ["forbidden"] };
+  }
   const { data: assignment, error: assignmentError } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
   if (assignmentError) throw new Error(assignmentError.message);
   if (!assignment?.business_id) return { allowed: false, blockers: ["forbidden"] };

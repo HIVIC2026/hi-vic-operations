@@ -139,6 +139,11 @@ export const getInHouseBookingAccess = createServerFn({ method: "POST" }).middle
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).inHouseBookingAccess(context.userId, data.jobId, context.supabase));
 
+/** Part 2: the installer office books the safety check (PIESA) on its own job (same booking function as the electrician's link). */
+export const ownJobOfficeBookPiesa = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, start: z.string().datetime({ offset: true }) }).parse(d))
+  .handler(async ({ data, context }) => (await import("./own-job-piesa.server")).officeBookOwnJobPiesa(context.userId, data.jobId, data.start, new Date(), context.supabase as never));
+
 export const getInHouseBookingList = createServerFn({method:'POST'}).middleware([requireSupabaseAuth])
   .inputValidator(z.object({jobIds:z.array(uuid).max(1000)}))
   .handler(async({data,context})=>(await import('./in-house-booking-list.server')).inHouseBookingList(context.userId,data.jobIds));

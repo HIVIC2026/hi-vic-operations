@@ -93,6 +93,9 @@ export const OWN_JOB_PIESA_TO_BOOK_EMAIL_APPROVED: boolean = false;
 /** Off until Jo approves the "Can't do the safety check" office email. */
 export const OWN_JOB_PIESA_CANT_DO_EMAIL_APPROVED: boolean = false;
 
+/** Off until Jo approves the "Not booked yet" office email. */
+export const OWN_JOB_PIESA_NOT_BOOKED_EMAIL_APPROVED: boolean = false;
+
 /** The electrician's text (SMS type own_job_piesa_link, wordingApproved:false). */
 export function electricianLinkText(i: { installer: string; address: string; url: string }): string {
   return `${i.installer} job: safety check (PIESA) to book at ${i.address}. Call the owner, then book it here: ${i.url}`;
@@ -109,4 +112,9 @@ export function officeToBookEmail(i: { address: string; electrician: string; boo
 /** The installer office: the electrician can't do this one. */
 export function officeCantDoEmail(i: { address: string; electrician: string; reason: string; jobUrl: string }): { subject: string; text: string } {
   return { subject: `${i.electrician} can't do the safety check for ${i.address}`, text: `Reason: ${i.reason}.\nPick another electrician or book it yourselves on the job page: ${i.jobUrl}` };
+}
+
+/** The installer office: 2 business days passed and the safety check still isn't booked. */
+export function officeNotBookedEmail(i: { address: string; jobUrl: string }): { subject: string; text: string } {
+  return { subject: "Not booked yet — book it or pick another electrician", text: `The safety check (PIESA) at ${i.address} isn't booked yet.\nBook it on the job page, or pick another electrician: ${i.jobUrl}` };
 }

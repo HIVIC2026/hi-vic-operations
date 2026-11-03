@@ -6,7 +6,8 @@
 // Static imports stay light (no workflow import graph); the rest is loaded when used.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { inHouseDispatchSkip, readInHouseDispatchState, type InHouseDispatchState } from "./in-house-suppression.server";
-import { OWN_JOB_HANDOFF_STAGES, OWN_JOB_OFFER_MESSAGE, OWN_JOB_PIESA_HANDED_EVENT, OWN_JOB_PIESA_HELD_EVENT, isOwnJobCallAndBook, ownJobHandoffKey, ownJobHandoffPlan } from "./own-job-piesa.core";
+import { OWN_JOB_HANDOFF_STAGES, OWN_JOB_OFFER_MESSAGE, OWN_JOB_PIESA_HANDED_EVENT, OWN_JOB_PIESA_HELD_EVENT, OWN_JOB_PIESA_NOT_BOOKED_EVENT, deadlineAction, isOwnJobCallAndBook, ownJobHandoffKey, ownJobHandoffPlan } from "./own-job-piesa.core";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type OwnJobHandoffOutcome = "handed" | "waiting" | "held" | "already";
 
@@ -199,6 +200,93 @@ export async function sweepOwnJobPiesaHandoffs(now: Date = new Date()): Promise<
       const { sendOwnJobPiesaNotices } = await import("./own-job-piesa-notices.server");
       await sendOwnJobPiesaNotices(j.id).catch((e) => console.error("own job safety check notices retry skipped", j.id, (e as Error).message));
     }
+  }
+  return out;
+}
+
+const PIESA_STAGE = "piesa_and_install_window_pending";
+type OfficeBookingAccess = { allowed: boolean; assignment?: ActiveElectrician; bookings?: { id: string; kind: string; scheduled_start: string | null; status: string }[] };
+
+/** Can this person book the safety check (PIESA) for the installer's own job? Yes when: the job is an own call-and-book
+ *  job (not in-house, not an HIV lead), waiting at the PIESA stage with the installer's electrician assigned and not yet
+ *  booked, the person is an active member of the installer business that supplied the job, and that installer's "who books"
+ *  setting is office or either. Everything else (including unreadable) is "no". `client` does the membership read (RLS). */
+export async function ownJobOfficeBookingAccess(userId: string, jobId: string, client: SupabaseClient = admin as unknown as SupabaseClient): Promise<OfficeBookingAccess> {
+  const no: OfficeBookingAccess = { allowed: false };
+  const { data: job, error } = await admin.from("jobs").select("stage, deleted_at, source, originating_installer_business_id").eq("id", jobId).maybeSingle();
+  if (error || !job || job.deleted_at || job.source === "qa_test" || job.stage !== PIESA_STAGE) return no;
+  const installerId = (job.originating_installer_business_id as string | null) ?? null;
+  if (!installerId) return no;
+  if ((await ownJobCallAndBook(jobId)) !== true) return no;
+  const { readPiesaBooker } = await import("./piesa-booker.server");
+  if ((await readPiesaBooker(installerId)) === "electrician") return no;
+  const { data: member, error: me } = await client.from("business_members").select("business_id").eq("user_id", userId).eq("business_id", installerId).eq("active", true).maybeSingle();
+  if (me || !member) return no;
+  const { data: rows, error: ae } = await admin.from("job_assignments").select("id, business_id, user_id, assigned_at, booking_confirmed_at").eq("job_id", jobId).eq("role", "electrician").eq("active", true);
+  const active = (rows ?? []) as ActiveElectrician[];
+  if (ae || active.length !== 1 || !active[0]!.business_id || active[0]!.booking_confirmed_at) return no;
+  const { data: bookings, error: be } = await admin.from("bookings").select("id, kind, scheduled_start, status").eq("job_id", jobId).neq("status", "cancelled").order("created_at", { ascending: false });
+  if (be) return no;
+  return { allowed: true, assignment: active[0]!, bookings: bookings ?? [] };
+}
+
+/** The installer office books the safety check on its own job. Same booking function as the electrician's link. */
+export async function officeBookOwnJobPiesa(userId: string, jobId: string, startIso: string, now: Date = new Date(), client?: SupabaseClient): Promise<{ ok: true; start: string }> {
+  const access = await ownJobOfficeBookingAccess(userId, jobId, client);
+  if (!access.allowed || !access.assignment?.business_id) throw new Error("You can't book this safety check.");
+  const { bookOwnJobPiesa } = await import("./electrician-link.server");
+  return bookOwnJobPiesa({ jobId, assignment: access.assignment, electricianBusinessId: access.assignment.business_id, startIso, actorId: userId, by: "installer office", now });
+}
+
+/** Email the installer office "Not booked yet". One key per round's assignment, so it goes once (held wording is retried). */
+async function sendNotBookedEmail(jobId: string, installerId: string, assignmentId: string): Promise<void> {
+  const [{ officeNotBookedEmail, OWN_JOB_PIESA_NOT_BOOKED_EMAIL_APPROVED }, { emailInstallerOffice }, { SET_PASSWORD_BASE }] = await Promise.all([import("./electrician-link.core"), import("./own-job-piesa-notices.server"), import("./set-password-link.core")]);
+  const { data: ov, error } = await admin.from("job_overview").select("property_address, job_number").eq("id", jobId).maybeSingle();
+  if (error) throw new Error(error.message);
+  const address = (ov?.property_address as string | null | undefined) || (ov?.job_number as string | null | undefined) || "this job";
+  const jobUrl = `${SET_PASSWORD_BASE}/field/${jobId}`;
+  const mail = officeNotBookedEmail({ address, jobUrl });
+  await emailInstallerOffice({ jobId, businessId: installerId, key: `own-job-piesa:v1:${assignmentId}:not-booked`, subject: mail.subject, text: mail.text, jobUrl, approved: OWN_JOB_PIESA_NOT_BOOKED_EMAIL_APPROVED });
+}
+
+/** 15-minute tick: an own job handed to its electrician, still unbooked after the hand-over's due date (2 business days),
+ *  is returned to the installer office once: one `own_job_piesa_not_booked` event (stable id per round) and one email.
+ *  The electrician's link stays usable. An email that was held or failed is retried on later ticks (the email is sent once per key). */
+export async function sweepOwnJobPiesaDeadlines(now: Date = new Date()): Promise<{ returned: number; none: number; failed: number }> {
+  const out = { returned: 0, none: 0, failed: 0 };
+  const inHouseState = await readInHouseDispatchState();
+  if (inHouseState.failed) return out;
+  const { data: jobs, error } = await admin.from("jobs").select("id, originating_installer_business_id").eq("channel", "installer_sourced").eq("stage", PIESA_STAGE).is("deleted_at", null).order("created_at").limit(500);
+  if (error) throw new Error(error.message);
+  const { stableUuid } = await import("./mitti-create-claim.core");
+  for (const j of jobs ?? []) {
+    if (inHouseState.held.has(j.id)) continue;
+    try {
+      const installerId = (j.originating_installer_business_id as string | null) ?? null;
+      const { data: handed, error: he } = await admin.from("workflow_events").select("details").eq("job_id", j.id).eq("event_type", OWN_JOB_PIESA_HANDED_EVENT).order("created_at", { ascending: false }).limit(1).maybeSingle();
+      if (he) throw new Error(he.message);
+      const hd = (handed?.details ?? null) as { key?: string; due_at?: string } | null;
+      if (!installerId || !hd?.key || !hd.due_at) { out.none++; continue; }
+      const { data: rows, error: ae } = await admin.from("job_assignments").select("id, booking_confirmed_at").eq("job_id", j.id).eq("role", "electrician").eq("active", true);
+      if (ae) throw new Error(ae.message);
+      const a = (rows ?? [])[0] as { id: string; booking_confirmed_at: string | null } | undefined;
+      if (!a) { out.none++; continue; } // no electrician now: the "handed back" / "held" office items cover it
+      const booked = (rows ?? []).some((r) => (r as { booking_confirmed_at: string | null }).booking_confirmed_at);
+      const returnedId = await stableUuid(`${OWN_JOB_PIESA_NOT_BOOKED_EVENT}:${hd.key}`);
+      const { data: prior, error: pe } = await admin.from("workflow_events").select("id").eq("id", returnedId).maybeSingle();
+      if (pe) throw new Error(pe.message);
+      const alreadyReturned = !!prior;
+      const action = deadlineAction({ dueAt: hd.due_at, booked, alreadyReturned, now });
+      if (action === "return") {
+        // The stable event id is the claim: of two sweeps only one inserts it (the other gets a duplicate-key error).
+        const { error: ce } = await admin.from("workflow_events").insert({ id: returnedId, job_id: j.id, actor_id: null, event_type: OWN_JOB_PIESA_NOT_BOOKED_EVENT,
+          summary: "Safety check (PIESA) not booked within 2 business days of the hand-over. Installer office told", details: { key: hd.key, due_at: hd.due_at, assignment_id: a.id }, internal: true });
+        if (ce) { if (ce.code === "23505") { out.none++; continue; } throw new Error(ce.message); }
+        out.returned++;
+      } else if (alreadyReturned && !booked) out.none++;
+      else { out.none++; continue; }
+      await sendNotBookedEmail(j.id, installerId, a.id).catch((e) => console.error("own job not-booked email skipped", j.id, (e as Error).message));
+    } catch (e) { out.failed++; console.error("own job safety check deadline failed", j.id, (e as Error).message); }
   }
   return out;
 }

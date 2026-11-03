@@ -39,3 +39,13 @@ export function ownJobHandoffPlan(f: { paid: boolean; stage: string; electrician
 export function ownJobHandoffKey(jobId: string, reopenAt: string | null): string {
   return `own_job_piesa:${jobId}:${reopenAt ?? "first"}`;
 }
+
+export const OWN_JOB_PIESA_NOT_BOOKED_EVENT = "own_job_piesa_not_booked";
+
+/** After the 2 business days (`dueAt` = the end of that Melbourne day, from the hand-over event) with no booking, the
+ *  job is "returned" to the installer office once: one event, one email. The electrician's link keeps working. */
+export function deadlineAction(f: { dueAt: string; booked: boolean; alreadyReturned: boolean; now: Date }): "none" | "return" {
+  if (f.booked || f.alreadyReturned) return "none";
+  const due = Date.parse(f.dueAt);
+  return Number.isFinite(due) && f.now.getTime() > due ? "return" : "none";
+}
