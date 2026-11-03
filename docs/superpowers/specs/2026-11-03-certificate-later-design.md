@@ -20,6 +20,13 @@ Electricians in Victoria have up to 30 days to issue the Certificate of Electric
 - Help line under the certificate question on both forms: "Don't have it yet? Leave this blank — we'll text you a link to add it."
 - The ChatGPT build prompts (`docs/MITTI_PIESA_*`, `docs/MITTI_FIXES_FORM_PROMPT.md`) and `fixes-day.core.ts` are updated so the drift test still passes.
 
+### 1b. New PIESA question wording (Jo, 3 Nov 2026)
+- q20 "Is repair work needed?" becomes **"Are electrical upgrades needed?"**
+- q30 "Have you completed all of the repair work listed above, and is the ceiling now safe for insulation?" becomes **"Are you doing the electrical upgrades today?"** Yes → Part C (q31–q37) and the certificate (q45) show on the same form. No → the electrician enters the upgrades day, and the A4 form is made for that visit.
+- The portal reads the new labels AND keeps the old labels as accepted aliases, so forms already done still read.
+- Order matters: the portal change ships first. Then Jo pastes the new wording into Mitti. Claude gives her the exact text.
+- Owner and trade wording stays "electrical upgrades", never "repair work" or "fixes", wherever people see it.
+
 ### 2. Portal reads the form
 - Upgrades done + Part C answered + no certificate = **the Part C counts as recorded**, and the job moves to a new state, "Waiting for certificate". It is NOT an office item on its own.
 - PIESA evidence (`piesa-evidence.core.ts`): `ces_file` is no longer required to complete the form. Its absence sets "certificate to come" instead.
