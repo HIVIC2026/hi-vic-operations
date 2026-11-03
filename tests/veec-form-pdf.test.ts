@@ -85,7 +85,7 @@ describe("VEEC form PDF (website look)", () => {
   test("flag off keeps the old text copy", () => {
     const src = readFileSync("src/lib/assignment.server.ts", "utf8");
     expect(src).toMatch(/PDF_LOOK_APPROVED\.veecForm/);
-    expect(src).toMatch(/PDF_LOOK_APPROVED\.veecForm\s*\?\s*await veecFinalPdfOrNull\([^)]*\)\s*:\s*undefined/);
+    expect(src).toMatch(/PDF_LOOK_APPROVED\.veecForm\s*\?\s*await veecFinalCopyPdf\([^)]*\)\s*:\s*null/);
     expect(src).toContain("veecFormPdf");
   });
 });
