@@ -1,0 +1,47 @@
+## It's your turn (area batch send)
+Home Insulation Victoria: Hi Sarah, it's your turn! Confirm a few quick details for your free Ready Check: https://estimate.homeinsulationvictoria.com.au/my-job/EXAMPLE?screen=taps
+(180 characters)
+
+## It's your turn (day-2 reminder)
+Home Insulation Victoria: Hi Sarah, just checking — it's your turn! Confirm a few quick details for your free Ready Check: https://estimate.homeinsulationvictoria.com.au/my-job/EXAMPLE?screen=taps
+(196 characters)
+
+## Installer will call you
+Home Insulation Victoria: Hi Sarah, Reinsulate will call you soon from 03 9000 0000 to book your free Ready Check.
+(114 characters)
+
+## You're booked (Ready Check)
+Home Insulation Victoria: Hi Sarah, you're booked for your free Ready Check: Wed 11 Nov, 9:00am. Sam from Reinsulate is coming. Need to change it? Call Reinsulate on 03 9000 0000.
+(179 characters)
+
+## See you tomorrow (Ready Check)
+Home Insulation Victoria: See you tomorrow at 9:00am for your free Ready Check (Reinsulate, 03 9000 0000).
+(106 characters)
+
+## See you tomorrow (safety check)
+Home Insulation Victoria: See you tomorrow at 9:00am for your electrical safety check (PIESA) (Reinsulate, 03 9000 0000).
+(121 characters)
+
+## See you tomorrow (install)
+Home Insulation Victoria: See you tomorrow at 9:00am for your insulation install (Reinsulate, 03 9000 0000). Reminder: power will be off while they work in the ceiling.
+(168 characters)
+
+## Your quote is ready (unchanged)
+Home Insulation Victoria: Your ceiling insulation quote is ready, Sarah. See it here: https://estimate.homeinsulationvictoria.com.au/my-job/EXAMPLE?screen=quote Reply STOP to opt out.
+(183 characters)
+
+## Quote reminder, day 3 (wording unchanged, 'held until')
+Home Insulation Victoria: Hi Sarah, your quote with $1,610 off is waiting: https://estimate.homeinsulationvictoria.com.au/my-job/EXAMPLE?screen=quote Reply STOP to opt out.
+(172 characters)
+
+## Quote reminder, 2 days before expiry (wording unchanged)
+Home Insulation Victoria: Hi Sarah, your quote price is held until Thursday 10 December. Accept by then to keep your $1,610 rebate price: https://estimate.homeinsulationvictoria.com.au/my-job/EXAMPLE?screen=quote Reply STOP to opt out.
+(235 characters)
+
+## Spot saved
+Home Insulation Victoria: Spot saved, Sarah! 🎉 Smart move: your $2,380 rebate is waiting. Spots are released in the order they were saved. When an EEC-certified installer is available, they'll call you to book your free Ready Check.
+(233 characters)
+
+## Rental questions, installer's own customer
+Home Insulation Victoria: Hi Sarah, Reinsulate has added your ceiling insulation job. A few quick questions about your home: https://estimate.homeinsulationvictoria.com.au/my-job/EXAMPLE?screen=taps&only=rental
+(210 characters)

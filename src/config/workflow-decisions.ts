@@ -96,6 +96,22 @@ export const WORKFLOW_DECISIONS = {
     payLine: "$349 now (PIESA), 10% to book the install day, the rest on install day",
     whatsChangedBox: "only_changed_rows_hidden_when_none",
   },
+  // Part 3 Task 12 (Jo 2 Nov 2026): the typed name is the owner's signature; the AP counter-signs at the same moment.
+  acceptanceSignature: {
+    counterSigner: "Chris Lowe, Director, DC Construction Solutions Pty Ltd (automatic, same moment as the owner)",
+    event: "acceptance_countersigned",
+    documentsByEmailConsent: "recorded from tick 1",
+    noCountersignatureOnFile: "PDF uses the agreement signature's own name and time, never the current time",
+  },
+  // Part 3 Task 20: a job already in flight gets exactly ONE version (old or new) of each changed message.
+  // Proved by tests/new-flow-inflight-p3.test.ts (every stage x every message, flags on and off).
+  inFlightMessages: {
+    rule: "same purpose and same idempotency key for the old and new version; the approval flag only picks the wording at send time",
+    pastTheStep: "the old message was already sent under that key, so the new version is never sent as well",
+    flagOffNewMessageWithNoOldWording: "nothing is sent (will call)",
+    chase: "a gap list already texted is not emailed; a new gap list gets the email only",
+    quotes: "a quote sent before QUOTE_30_DAY_FROM_ISO keeps its 14-day date; reminders are stamped once per quote",
+  },
   quoteValidity: {
     validDays: 30,
     beforeChangeValidDays: 14,
