@@ -47,15 +47,21 @@ mock.module("../src/lib/workflow.server", () => ({
 }));
 mock.module("../src/lib/prestart.server", () => ({ leadInstallerCert: async () => ({ name: "Ivy Installer" }) }));
 let prepared = 0;
+let prepareThrows = false;
+let preparedAt = "2026-10-29T00:00:00Z";
+let evalCalls = 0;
+let evalThrows = false;
+let blocker: string | null = null;
+let officialVersion = "v1.1";
 mock.module("../src/lib/assignment.server", () => ({
   currentAssignment: async (jobId: string) => (tables.customer_assignments ?? []).find((a) => a.job_id === jobId && a.status !== "cancelled") ?? null,
-  prepareFinalAssignment: async (jobId: string) => { prepared++; (tables.customer_assignments ??= []).push({ id: "a1", job_id: jobId, status: "awaiting_installer_signature", record_kind: "final_veec_assignment", final_facts: { template_version: "v1.1" }, final_facts_sha256: "facts-sha", consumer_declaration_version: "v1.1", installer_signed_at: null }); return "a1"; },
-  evaluateAndApply: async () => null,
+  prepareFinalAssignment: async (jobId: string) => { prepared++; if (prepareThrows) throw new Error("facts missing"); (tables.customer_assignments ??= []).push({ id: "a1", job_id: jobId, status: "awaiting_installer_signature", record_kind: "final_veec_assignment", final_facts: { template_version: "v1.1" }, final_facts_sha256: "facts-sha", consumer_declaration_version: "v1.1", installer_signed_at: null, prepared_at: preparedAt }); return "a1"; },
+  evaluateAndApply: async () => { evalCalls++; if (evalThrows) throw new Error("boom"); return null; },
   loadTemplates: async () => [],
 }));
 mock.module("../src/lib/assignment.core", () => ({
-  activeTemplate: () => ({ version: "v1.1" }),
-  signingOrderBlocker: () => null,
+  activeTemplate: () => ({ version: officialVersion }),
+  signingOrderBlocker: () => blocker,
   sha256Hex: async (s: string) => `sha:${s.length}`,
   stableJson: (v: unknown) => JSON.stringify(v),
 }));
@@ -71,7 +77,7 @@ const fetchMedia = async () => { fetches++; return { bytes: new Uint8Array([1, 2
 beforeEach(() => {
   for (const k of Object.keys(tables)) delete tables[k];
   for (const k of Object.keys(stored)) delete stored[k];
-  fetches = 0; prepared = 0;
+  fetches = 0; prepared = 0; prepareThrows = false; preparedAt = "2026-10-29T00:00:00Z"; evalCalls = 0; evalThrows = false; blocker = null; officialVersion = "v1.1";
   tables.workflow_events = [{ job_id: "j1", event_type: "mitti_piisa_audit_created", details: { audit_id: "aud-1" }, created_at: "2026-10-29T00:00:00Z" }];
   tables.job_assignments = [{ job_id: "j1", role: "installer", active: true, user_id: "u-lead" }];
 });
@@ -108,6 +114,68 @@ describe("applyMittiPartB", () => {
   test("an old form without Part B: skipped, no event, nothing blocked", async () => {
     expect(await applyMittiPartB("j1", "aud-1", { items: [] }, fetchMedia)).toBe("skipped");
     expect(tables.workflow_events!.map((e) => e.event_type)).toEqual(["mitti_piisa_audit_created"]);
+  });
+});
+
+const REASON = "Rebate form facts changed after the Lead Installer signed in Mitti — a new Part B signature is needed.";
+const heldEvents = () => tables.workflow_events!.filter((e) => e.event_type === "veec_part_b_mitti_held");
+describe("applyMittiPartB fix round", () => {
+  test("evaluateAndApply failing after the write is logged and still returns applied", async () => {
+    evalThrows = true;
+    expect(await applyMittiPartB("j1", "aud-1", auditWith(), fetchMedia)).toBe("applied");
+    expect(tables.customer_assignments![0]!.installer_signed_at).toBe(AT);
+    expect(tables.workflow_events!.some((e) => e.event_type === "veec_part_b_evaluate_failed")).toBe(true);
+    expect(heldEvents()).toHaveLength(0);
+  });
+  test("a later sync with the signature written but status still awaiting re-runs evaluateAndApply without re-signing", async () => {
+    await applyMittiPartB("j1", "aud-1", auditWith(), fetchMedia);
+    expect(evalCalls).toBe(1);
+    const snap = JSON.stringify(tables.customer_assignments![0]);
+    expect(await applyMittiPartB("j1", "aud-1", auditWith(), fetchMedia)).toBe("skipped");
+    expect(evalCalls).toBe(2);
+    expect(JSON.stringify(tables.customer_assignments![0])).toBe(snap);
+    expect(fetches).toBe(1);
+  });
+  test("an assignment prepared after the Mitti signature holds for the office and writes nothing", async () => {
+    preparedAt = "2026-10-31T00:00:00Z";
+    expect(await applyMittiPartB("j1", "aud-1", auditWith(), fetchMedia)).toBe("held");
+    expect(fetches).toBe(0);
+    expect(tables.customer_assignments![0]!.installer_signed_at).toBeNull();
+    expect(heldEvents()[0]!.details).toMatchObject({ needs_office: true, reason: REASON });
+  });
+  test("a media id already on an earlier assignment row of this job holds for the office", async () => {
+    tables.customer_assignments = [
+      { id: "old", job_id: "j1", status: "cancelled", installer_snapshot: { media_id: "0f1e2d3c-4b5a-6978-8a9b-0c1d2e3f4a5d" }, installer_signed_at: AT },
+      { id: "a2", job_id: "j1", status: "awaiting_installer_signature", final_facts: { template_version: "v1.1" }, final_facts_sha256: "f2", consumer_declaration_version: "v1.1", installer_signed_at: null, prepared_at: "2026-10-29T00:00:00Z" },
+    ];
+    expect(await applyMittiPartB("j1", "aud-1", auditWith(), fetchMedia)).toBe("held");
+    expect(fetches).toBe(0);
+    expect(tables.customer_assignments![1]!.installer_signed_at).toBeNull();
+    expect(heldEvents()[0]!.details).toMatchObject({ needs_office: true, reason: REASON });
+  });
+  test("no assignment and no installer: held, not for the office", async () => {
+    tables.job_assignments = [];
+    expect(await applyMittiPartB("j1", "aud-1", auditWith(), fetchMedia)).toBe("held");
+    expect(prepared).toBe(0);
+    expect(heldEvents()[0]!.details.needs_office).toBe(false);
+  });
+  test("prepareFinalAssignment throwing: held, not for the office", async () => {
+    prepareThrows = true;
+    expect(await applyMittiPartB("j1", "aud-1", auditWith(), fetchMedia)).toBe("held");
+    expect(heldEvents()[0]!.details.needs_office).toBe(false);
+    expect(String(heldEvents()[0]!.details.reason)).toContain("facts missing");
+  });
+  test("a signing-order blocker holds, not for the office", async () => {
+    blocker = "An open variation must be resolved first";
+    expect(await applyMittiPartB("j1", "aud-1", auditWith(), fetchMedia)).toBe("held");
+    expect(fetches).toBe(0);
+    expect(heldEvents()[0]!.details).toMatchObject({ needs_office: false, reason: blocker });
+  });
+  test("a changed official template version holds for the office", async () => {
+    officialVersion = "v1.2";
+    expect(await applyMittiPartB("j1", "aud-1", auditWith(), fetchMedia)).toBe("held");
+    expect(fetches).toBe(0);
+    expect(heldEvents()[0]!.details.needs_office).toBe(true);
   });
 });
 

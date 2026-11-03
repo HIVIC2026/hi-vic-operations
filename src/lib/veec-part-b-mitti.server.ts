@@ -16,6 +16,13 @@ async function hold(jobId: string, auditId: string, reason: string, needsOffice:
   return "held";
 }
 
+const FACTS_CHANGED = "Rebate form facts changed after the Lead Installer signed in Mitti — a new Part B signature is needed.";
+
+async function evaluate(jobId: string, assignmentId: string) {
+  try { await (await import("./assignment.server")).evaluateAndApply(jobId, null); }
+  catch (e) { await logEvent(jobId, null, "veec_part_b_evaluate_failed", "VEEC assignment check after the Part B signature failed", { assignment_id: assignmentId, error: e instanceof Error ? e.message : "error" }, { internal: true }); }
+}
+
 export async function applyMittiPartB(jobId: string, auditId: string, audit: unknown, fetchMedia: MittiMediaFetch): Promise<"applied" | "skipped" | "held"> {
   // Only the audit linked to this job may supply a signature.
   const { data: ev } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "mitti_piisa_audit_created").order("created_at", { ascending: false }).limit(1).maybeSingle();
@@ -26,6 +33,11 @@ export async function applyMittiPartB(jobId: string, auditId: string, audit: unk
   const { leadInstallerCert } = await import("./prestart.server");
   const leadName = (await leadInstallerCert(jobId)).name;
   let a = await asg.currentAssignment(jobId);
+  // Signature already written but the record never moved on (an earlier evaluateAndApply failed): re-run it, never re-sign.
+  if (a?.installer_signed_at && a.status === "awaiting_installer_signature") {
+    await evaluate(jobId, a.id);
+    return "skipped";
+  }
   const d = partBApplyDecision({ partB, leadName, assignment: a ? { status: a.status, installerSignedAt: a.installer_signed_at } : null });
   if (d.action === "skip") return "skipped";
   if (d.action === "hold") return hold(jobId, auditId, d.reason, true);
@@ -40,6 +52,10 @@ export async function applyMittiPartB(jobId: string, auditId: string, audit: unk
       if (!a) return hold(jobId, auditId, "The VEEC assignment isn't ready yet", false);
       if (a.installer_signed_at) return "skipped";
     }
+    // Facts must be what the Lead Installer saw: prepared before the Mitti signature, and this image never used on an earlier row.
+    if (!a.prepared_at || Date.parse(a.prepared_at as string) >= Date.parse(sig.signedAt!)) return hold(jobId, auditId, FACTS_CHANGED, true);
+    const { data: rows } = await admin.from("customer_assignments").select("id, installer_snapshot").eq("job_id", jobId);
+    if ((rows ?? []).some((r) => r.id !== a!.id && (r.installer_snapshot as { media_id?: string } | null)?.media_id === sig.mediaId)) return hold(jobId, auditId, FACTS_CHANGED, true);
     const { count: openVar } = await admin.from("assignment_variations").select("id", { count: "exact", head: true }).eq("assignment_id", a.id).eq("status", "pending");
     const blocker = core.signingOrderBlocker({ status: a.status, installerSigned: false, apSigned: !!a.ap_signed_at, consumerSigned: !!a.consumer_signed_at, openVariation: (openVar ?? 0) > 0, consumerFinalRequired: a.consumer_final_required, consumerFinalSigned: !!a.consumer_final_signed_at }, "installer");
     if (blocker) return hold(jobId, auditId, blocker, false);
@@ -62,7 +78,7 @@ export async function applyMittiPartB(jobId: string, auditId: string, audit: unk
     }).eq("id", a.id).is("installer_signed_at", null).select("id");
     if (!wrote?.length) return "skipped";
     await logEvent(jobId, null, VEEC_PART_B_SIGNED_MITTI_EVENT, "VEEC assignment form signed by the Lead Installer in Mitti (Section 3 Part B)", { assignment_id: a.id, audit_id: auditId, media_id: sig.mediaId, image_path: imagePath, signed_at: sig.signedAt }, { internal: true });
-    await asg.evaluateAndApply(jobId, null);
+    await evaluate(jobId, a.id);
     return "applied";
   } catch (e) {
     return hold(jobId, auditId, `Could not apply the Part B signature: ${e instanceof Error ? e.message : "error"}`, false);
