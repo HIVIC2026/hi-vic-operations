@@ -1009,6 +1009,12 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
               {next.ownerReady.text}
             </p>
           )}
+          {/* Part 3 Task 3: the Certificate of Electrical Safety — waiting for the electrician's certificate / upgrades day not set. */}
+          {page.certificate?.line && (
+            <p className="mt-2.5 text-sm font-medium text-ink" data-certificate-line>
+              {page.certificate.line}
+            </p>
+          )}
           {/* Decision 327: electrician needed at the start of the install day — confirmed / waiting, or the "can't make it" alert. */}
           {page.electricianAttendance && (
             <p

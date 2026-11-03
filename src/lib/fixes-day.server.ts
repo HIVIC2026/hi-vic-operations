@@ -506,10 +506,15 @@ export async function completeFixesForm(jobId: string, auditId: string, opts: { 
   // (time-limited; ticked, or one office row). Never throws, so it can't leave this completion half-done.
   // Part 3: no file yet = "Waiting for certificate" (Task 3), never an office "check the certificate" row for a missing file.
   if (certFiles.length) await (await import("./coes-check.server")).checkCurrentCoes(jobId, actorId);
+  // Part 3 Task 3: no certificate yet → ONE text to the electrician with their link to add it (held until Jo approves the wording).
+  else if (plan.certificateToCome) await (await import("./own-job-piesa-notices.server")).textCertificateLink(jobId, "now").catch((e) => console.error("certificate link text skipped", jobId, (e as Error).message));
   return { status: "done", detail: `${official}; ${copies}` };
 }
 
-/** 15-minute tick: every open fixes form (created, not yet completed) on a live job. Mitti errors are logged per job, never thrown. */
+/** 15-minute tick: every open fixes form (created, not yet completed) on a live job. Mitti errors are logged per job, never thrown.
+ *  Part 3 Task 3 (carried item): Mitti is polled only for jobs that can have a completable A4 — at Electrical fixes booked, or at
+ *  PIESA complete / variation pending / fixes scheduling when the safety check said upgrades are needed (same-visit A4). A form
+ *  pre-made for a PIESA-booked in-house job (A3 not done yet) is not read every tick. */
 export async function sweepFixesForms(opts: { call?: MittiCall; fetchMedia?: import("./mitti.server").MittiMediaFetch; limit?: number; budgetMs?: number } = {}): Promise<{ checked: number; done: number; notDone: number; waiting: number; failed: number }> {
   const out = { checked: 0, done: 0, notDone: 0, waiting: 0, failed: 0 };
   const { runStoredMittiPull, recordMittiPullOutcome } = await import("./mitti-pull-progress.server");
@@ -517,7 +522,7 @@ export async function sweepFixesForms(opts: { call?: MittiCall; fetchMedia?: imp
   const batch = await runStoredMittiPull("rectification", {
     page: async (offset, size) => {
       const { data, error } = await admin.from("workflow_events").select("job_id, details, created_at, jobs!inner(stage, deleted_at, qa_archived_at, business_unit)").eq("event_type", FIXES_FORM_CREATED_EVENT)
-        .eq("jobs.business_unit", "hivic").is("jobs.deleted_at", null).is("jobs.qa_archived_at", null).in("jobs.stage", ["rectification_booked", "piesa_scheduled", "piesa_complete", "electrical_variation_pending", "rectification_scheduling"])
+        .eq("jobs.business_unit", "hivic").is("jobs.deleted_at", null).is("jobs.qa_archived_at", null).in("jobs.stage", ["rectification_booked", "piesa_complete", "electrical_variation_pending", "rectification_scheduling"])
         .order("created_at", { ascending: false }).order("id").range(offset, offset + size - 1);
       if (error) throw new Error(`Rectification forms could not be read: ${error.message}`);
       return (data ?? []).filter(r => r.job_id && (r.details as { audit_id?: string } | null)?.audit_id).map(r => {
@@ -535,7 +540,15 @@ export async function sweepFixesForms(opts: { call?: MittiCall; fetchMedia?: imp
       const auditId = (r.details as { audit_id?: string } | null)?.audit_id;
       if (!auditId) return { ok: true };
       const jobId = String(r.job_id);
-      if (r.jobs.stage !== "rectification_booked" && !await (await import("./in-house-rectification.server")).optionalPartnerBilledRectificationFor(jobId)) return { ok: true };
+      if (r.jobs.stage !== "rectification_booked") {
+        if (!await (await import("./in-house-rectification.server")).optionalPartnerBilledRectificationFor(jobId)) return { ok: true };
+        // Same-visit stages: only a job whose safety check found upgrades (form answers, else open items) can have a completable A4.
+        const need = await fixesFormNeededFor(jobId);
+        const short = need.snapshot.length ? shortAnswersFromEntries("piesa", need.snapshot) : null;
+        const { piesaRectificationDone } = await import("./piesa-evidence.core");
+        const upgradesNeeded = short && short["rectificationOutcome"] ? fixesFormNeeded(short) || piesaRectificationDone(short) : need.needed;
+        if (!upgradesNeeded) return { ok: true };
+      }
       out.checked++;
       const res = await completeFixesForm(jobId, auditId, { ...(opts.call ? { call: opts.call } : {}), ...(opts.fetchMedia ? { fetchMedia: opts.fetchMedia } : {}) });
       if (res.status === "done") out.done++; else if (res.status === "not_done") out.notDone++; else out.waiting++;

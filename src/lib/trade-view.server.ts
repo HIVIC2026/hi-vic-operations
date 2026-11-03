@@ -1194,9 +1194,12 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
   // Decision 296: the owner's PIESA confirmation; decision 327: the electrician at the start of the install day. Read only once cleared.
   const piesaConfirmedP = early(clearanceP.then((cl) => cl.cleared ? piesaOwnerConfirmServer.ownerPiesaConfirmFacts(jobId).then((f) => (f ? !!f.confirmation : null)).catch(() => null) : null));
   const attendanceP = early(clearanceP.then((cl) => cl.cleared ? installerAttendanceView(jobId).catch(() => null) : null));
+  // Part 3 Task 3 (Jo 3 Nov 2026): the certificate status line ("Waiting for {electrician}'s Certificate of Electrical Safety" /
+  // "Upgrades day not set yet"), read-only facts; a failed read shows nothing.
+  const certificateP = early(import("./certificate-later.server").then((m) => m.certificateLineFor(jobId)));
   const [{ data: j }, { data: rcBook }, { data: inBook }, { data: m }, { data: a }, rebateSigned, quote, pay, form, clearance, mitti, payRows,
     { data: declinedEv }, { data: basicsDone }, { data: piesaBook }, { data: elecAsg }, { data: fixes }, { data: evEv }, { data: alloc }, { data: decl }, { data: finalAsg }, ownerReady, notes,
-    priceEntered, ownerPiesaConfirmed, electricianAttendance] = await Promise.all([
+    priceEntered, ownerPiesaConfirmed, electricianAttendance, certificate] = await Promise.all([
     jobP,
     admin.from("bookings").select("scheduled_start, status").eq("job_id", jobId).eq("kind", "ready_check").neq("status", "cancelled").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     inBookP,
@@ -1225,6 +1228,7 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
     priceEnteredP,
     piesaConfirmedP,
     attendanceP,
+    certificateP,
   ]);
   const qq = quote.quote as { sent_at?: string | null; accepted_at?: string | null } | null;
   const elecName = (elecAsg?.profiles as unknown as { full_name: string | null } | null)?.full_name ?? null;
@@ -1256,6 +1260,8 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
     ownerPiesaConfirmed,
     // Decision 327: electrician at the start of the install day — one line (confirmed / waiting) or the "can't make it" alert.
     electricianAttendance,
+    // Part 3 Task 3: the Certificate of Electrical Safety status line (null = nothing to say).
+    certificate,
     mittiInvited: c.biz.mitti_account_invited === true,
     // M2-complete summary (read-only; owner contact is hidden by the page once every visit is done).
     complete: { product, piisaSignedAt: decl?.signed_at ?? null, installerSignedAt: finalAsg?.installer_signed_at ?? null, ownerSignedAt: finalAsg?.consumer_final_signed_at ?? null, apSignedAt: finalAsg?.ap_signed_at ?? null,

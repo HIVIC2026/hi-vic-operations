@@ -253,7 +253,9 @@ export function fixesCompletionPlan(r: FixesDayRead, i: { completed: boolean; to
     if (!r.certDate) missing.push(Q.certDate);
     if (!r.coesFiles.length) missing.push(Q.coesFile);
   }
-  if (r.certDate && r.certDate > i.today) missing.push(`${Q.certDate} (cannot be in the future)`);
+  // Task 3 carried item: the future-date rule applies to a certificate being recorded (Q11 = Yes, or an old form without Q11 that
+  // carries a file); with Q11 = No the certificate fields are ignored, so a date typed there blocks nothing.
+  if (r.certificateNow !== "No" && r.certDate && r.certDate > i.today) missing.push(`${Q.certDate} (cannot be in the future)`);
   if (!r.workPhotos.length) missing.push(Q.workPhoto);
   else if (!r.workPhotos.some((f) => f.lat != null && f.lng != null)) missing.push(`${Q.workPhoto} (must be geotagged)`);
   if (!r.signature.present) missing.push(Q.signature);
@@ -308,6 +310,20 @@ export function mergeFixesIntoPiesaSnapshot(snapshot: SnapshotEntry[], r: FixesD
   // q45: the CES file, read by piesa-evidence.core from the same label (only when attached; absent = certificate to come).
   const files = done.certificate?.files ?? [];
   if (files.length) setNth(CES_LABEL, 0, `${files.length} file${files.length === 1 ? "" : "s"}`, files);
+  return out;
+}
+
+/** Part 3 Task 3: the certificate number and date from the electrician's LINK onto the PIESA short answers (Part C c.coes /
+ *  c.certDate via expandPiesa), the way the A4 merge above does; every other entry is untouched; a missing label is appended.
+ *  The FILE is not put here — it is the portal evidence file coes-check.server reads. Pure. */
+export function mergeCertificateIntoPiesaSnapshot<T extends { label: string; value: string | null; section?: string }>(snapshot: T[], c: { number: string; date: string }): T[] {
+  const out = snapshot.map((e) => ({ ...e }));
+  const set = (label: string, value: string) => {
+    const hit = out.find((e) => norm(e.label) === norm(label));
+    if (hit) hit.value = value; else out.push({ label, value, section: "certificate (electrician's link)" } as T);
+  };
+  set(shortLabel("coesNumber"), c.number.trim());
+  set(shortLabel("certDate"), c.date);
   return out;
 }
 

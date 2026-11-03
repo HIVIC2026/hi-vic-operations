@@ -26,8 +26,12 @@ export type LeadChange = {id:string;start:string;at:string};
 export function leadNoticePending(change:LeadChange|null,ack:string|null,now=new Date()):boolean {
   return !!change&&ack!==change.id&&now.getTime()>=Date.parse(change.start);
 }
-export function bookingNotice(i:{kind:'ready_check'|'piesa'|'install';start:string;who:Pick<BookingWorker,'name'|'phone'>;installer:string;phone:string|null}) {
-  const label={ready_check:'Ready Check',piesa:'Pre Insulation Electrical Safety Assessment (PIESA)',install:'install'}[i.kind];
+/** Part 3 Task 3 (Jo 3 Nov 2026): the owner's "You're booked" for the electrical upgrades day (entered on the electrician's link) is
+ *  new wording — HELD until Jo approves it (the notice is recorded as pending and sent once this is true). */
+export const OWNER_UPGRADES_BOOKED_APPROVED: boolean = false;
+export type BookingNoticeKind='ready_check'|'piesa'|'install'|'upgrades';
+export function bookingNotice(i:{kind:BookingNoticeKind;start:string;who:Pick<BookingWorker,'name'|'phone'>;installer:string;phone:string|null}) {
+  const label={ready_check:'Ready Check',piesa:'Pre Insulation Electrical Safety Assessment (PIESA)',install:'install',upgrades:'electrical upgrades'}[i.kind];
   const when=new Date(i.start).toLocaleString('en-AU',{timeZone:'Australia/Melbourne',weekday:'long',day:'numeric',month:'long',hour:'numeric',minute:'2-digit'});
   const person=`${i.who.name}${i.kind==='install'?' (Lead Installer)':''}${i.who.phone?`, phone ${i.who.phone}`:''}`;
   const text=`You're booked for your ${label}: ${when}. Who's coming: ${person}. Need a different time? Call ${i.installer} on ${i.phone||'the number in your booking details'}.`;

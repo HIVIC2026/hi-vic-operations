@@ -38,6 +38,7 @@ Right after `Are you doing the electrical upgrades today?` (and after any other 
 NEW question with exactly this wording: `Do you have the Certificate of Electrical Safety now?`
 Yes/No, Required, only show when `Are you doing the electrical upgrades today?` = Yes, with this help text exactly:
 `No? We'll text you a link to add it later.`
+If Mitti has no help-text field, add the help line as an Instruction (text) item directly under the question.
 
 ### 3. The certificate questions show, and are Required, only when the answer above is Yes
 These questions stay Required, but change their "only show when" rule to ONE rule: show only when
@@ -65,6 +66,7 @@ Right after Q10 `Anything not done or changed?`, add a NEW question with exactly
 `Do you have the Certificate of Electrical Safety now?`
 Yes/No, Required, only show when Q9 = `Yes`, with this help text exactly:
 `No? We'll text you a link to add it later.`
+If Mitti has no help-text field, add the help line as an Instruction (text) item directly under the question.
 Then change the "only show when" rule on these three questions so they show only when
 `Do you have the Certificate of Electrical Safety now?` = `Yes` (not Q9). They stay Required. The photo question keeps its own
 help text (`A photo or the PDF of the certificate.`); the new help line above goes on the new question only.

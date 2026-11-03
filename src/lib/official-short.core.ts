@@ -355,6 +355,7 @@ export const SHORT_PIESA_FIELDS: FormField[] = [
   // Part 3 (Jo 3 Nov 2026): q30 "Are you doing the electrical upgrades today?" — Yes = Part C on this form (the same id the
   // A4 fixes form writes via fixes-day.core mergeFixesIntoPiesaSnapshot); the decision-298 wording is an alias. Not Required
   // of a connected template (the 25 Oct published A3 has no after-upgrades page); Jo adds it with docs/MITTI_PART3_EDIT_PROMPT.md.
+  // q30 is Required on the Mitti form (docs/MITTI_PART3_EDIT_PROMPT.md) but optional here: the published 25 Oct A3 has no after-upgrades page, so requiring it would fail that live template's validation.
   { ...yn("rectificationComplete", A3_UPGRADES_TODAY_LABEL, "rectificationNeeded = Yes"), required: false, aliases: [A3_UPGRADES_TODAY_LEGACY_LABEL], source: "A3 same-day upgrades (Part 3) or the A4 fixes form (decision 298)" },
   // Part 3 (Jo 3 Nov 2026): "Do you have the Certificate of Electrical Safety now?" — Required when Part C is being filled in
   // (q30 = Yes). Yes → q31/q32/q45 show and are Required; No → hidden, certificate to come (piesa-evidence.core). The A4 fixes

@@ -194,6 +194,11 @@ describe("A4 certificate (spec §1, Jo 3 Nov 2026)", () => {
     expect(fixesCompletionPlan(readFixesDay(swap(FQ.workPhoto, item(FQ.workPhoto, null))), { completed: true, today: "2026-10-25" })).toMatchObject({ kind: "missing", missing: [FQ.workPhoto] });
     expect(fixesCompletionPlan(readFixesDay(swap(FQ.signature, item(FQ.signature, null))), { completed: true, today: "2026-10-25" })).toMatchObject({ kind: "missing", missing: [FQ.signature] });
   });
+  test("No → a certification date typed anyway (even a future one) is ignored, not a blocker (Task 3 carried item)", () => {
+    const base = a4({ now: "No", cert: true });
+    const swap = (label: string, replace: unknown) => ({ items: base.items.map((i) => (i.label === label ? (replace as typeof i) : i)) });
+    expect(fixesCompletionPlan(readFixesDay(swap(FQ.certDate, item(FQ.certDate, "2026-12-01"))), { completed: true, today: "2026-10-25" })).toMatchObject({ kind: "done", certificate: null, certificateToCome: true });
+  });
   test("merge with No records Part C done, writes the No onto the A3 id and leaves the certificate fields blank", () => {
     const L = (id: string) => SHORT_PIESA_FIELDS.find((f) => f.id === id)!.label;
     const snapshot = [
@@ -251,6 +256,13 @@ describe("drift: docs/MITTI_PART3_EDIT_PROMPT.md carries the code's exact wordin
     for (const s of [`\`${FQ.done}\``, `\`${FQ.workPhoto}\``, `\`${FQ.signature}\``]) expect(doc, s).toContain(s);
     expect(doc).not.toContain("NOT Required");
     expect(doc).not.toContain("Don't have it yet?");
+  });
+  test("Task 3 carried item: the 'only show when' rules and the no-help-text-field fallback are spelled out under both help-text mentions", () => {
+    for (const s of [`only show when \`${NEW_Q30}\` = Yes`, "only show when Q9 = `Yes`", `show only when\n\`${NOW}\` = Yes`, `\`${NOW}\` = \`Yes\` (not Q9)`]) expect(doc, s).toContain(s);
+    const fallback = "If Mitti has no help-text field, add the help line as an Instruction (text) item directly under the question.";
+    expect(doc.split(fallback).length - 1).toBe(2);
+    // Each fallback line sits right after a help-text mention.
+    for (const part of doc.split(fallback).slice(0, -1)) expect(part.trimEnd().endsWith(`\`${HELP}\``)).toBe(true);
   });
   test("the price questions to delete, and both template names", () => {
     expect(doc).toContain(`\`${FIXES_PRICE_LABEL}\``);

@@ -28,8 +28,15 @@ const entriesOf = (raw: unknown): Entry[] => (Array.isArray(raw) ? (raw as Entry
 
 export type CurrentCoes = { needed: boolean; ref: CoesFileRef | null; since: string | null; source: "mitti" | "portal" | null };
 
-/** Is a certificate needed (repairs were done), and which one is on the job now. */
+/** Is a certificate needed (repairs were done), and which one is on the job now.
+ *  Part 3 Task 3 (Jo 3 Nov 2026): the certificate can come AFTER Part C. The Mitti answers still say repairs were done (needed),
+ *  but the file may arrive through the electrician's link, which files it as the portal `rectification_completion` evidence —
+ *  so with no q45 file the portal evidence is read too. When BOTH a Mitti q45 file and a portal file exist, the one that
+ *  arrived FIRST stays the current certificate (one certificate, one check, one owner copy — Review Focus 2); a certificate the
+ *  office rejected gives way to the other one. */
 export async function currentCoes(jobId: string): Promise<CurrentCoes> {
+  type Candidate = { ref: CoesFileRef; since: string | null; source: "mitti" | "portal" };
+  let mitti: Candidate | null = null;
   const { data: a } = await admin.from("assessments").select("mitti_raw_snapshot").eq("job_id", jobId).maybeSingle();
   const entries = entriesOf(a?.mitti_raw_snapshot);
   if (entries.length) {
@@ -45,18 +52,33 @@ export async function currentCoes(jobId: string): Promise<CurrentCoes> {
         const d = ((docs ?? []) as { storage_path: string; mime_type: string | null; external_id: string | null; created_at?: string | null }[]).find((x) => String(x.external_id ?? "").endsWith(`:${id}`));
         if (d) { files.push({ storagePath: d.storage_path, mimeType: d.mime_type ?? "application/octet-stream" }); if (d.created_at && (!since || d.created_at > since)) since = d.created_at; }
       }
-      return { needed: true, ref: { key: coesKey(mediaIds), files }, since, source: "mitti" };
+      mitti = { ref: { key: coesKey(mediaIds), files }, since, source: "mitti" };
     }
   }
-  // Portal "record fixes done" page: a post_rectification record, with the fixes evidence uploaded on that page.
+  // Portal: a post_rectification record (the "record fixes done" page or the A4), or Part C on the Mitti answers; the certificate =
+  // the fixes evidence uploaded on that page or through the electrician's link (evidence_files of `rectification_completion`).
   const { data: rec } = await admin.from("piesa_records").select("created_at").eq("job_id", jobId).eq("kind", "post_rectification").order("created_at", { ascending: false }).limit(1);
   const recAt = ((rec ?? []) as { created_at: string }[])[0]?.created_at ?? null;
-  if (!recAt) return { needed: false, ref: null, since: null, source: null };
+  if (!mitti && !recAt) return { needed: false, ref: null, since: null, source: null };
   const { data: req } = await admin.from("evidence_requirements").select("id").eq("job_id", jobId).eq("category", "rectification_completion");
   const reqIds = ((req ?? []) as { id: string }[]).map((r) => r.id);
   const { data: ev } = reqIds.length ? await admin.from("evidence_files").select("id, storage_path, mime_type, uploaded_at").eq("job_id", jobId).in("requirement_id", reqIds) : { data: [] };
   const rows = (ev ?? []) as { id: string; storage_path: string; mime_type: string | null; uploaded_at: string | null }[];
-  return { needed: true, ref: { key: coesPortalKey(rows.map((r) => r.id)), files: rows.map((r) => ({ storagePath: r.storage_path, mimeType: r.mime_type ?? "application/octet-stream" })) }, since: recAt, source: "portal" };
+  const portal: Candidate | null = rows.length
+    ? { ref: { key: coesPortalKey(rows.map((r) => r.id)), files: rows.map((r) => ({ storagePath: r.storage_path, mimeType: r.mime_type ?? "application/octet-stream" })) }, since: rows.map((r) => r.uploaded_at).filter((x): x is string => !!x).sort().at(-1) ?? recAt, source: "portal" }
+    : null;
+  const withFiles = [mitti?.ref.files.length ? mitti : null, portal].filter((c): c is Candidate => !!c);
+  if (!withFiles.length) {
+    // Repairs done, no certificate file anywhere yet ("Waiting for certificate").
+    return mitti ? { needed: true, ref: mitti.ref, since: mitti.since, source: "mitti" } : { needed: true, ref: { key: coesPortalKey([]), files: [] }, since: recAt, source: "portal" };
+  }
+  let pick = withFiles[0]!;
+  if (withFiles.length > 1) {
+    const events = await coesEvents(jobId);
+    const live = withFiles.filter((c) => coesState(events, c.ref.key).state !== "rejected");
+    pick = (live.length ? live : withFiles).sort((x, y) => (x.since ?? "").localeCompare(y.since ?? ""))[0]!;
+  }
+  return { needed: true, ref: pick.ref, since: pick.since, source: pick.source };
 }
 
 async function coesEvents(jobId: string): Promise<CoesEvent[]> {

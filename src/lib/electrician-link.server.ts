@@ -12,6 +12,11 @@ import {
   type CantDoReason, type ElectricianStep,
 } from "./electrician-link.core";
 import { OWN_JOB_PIESA_HANDED_EVENT } from "./own-job-piesa.core";
+import type { CertificateFacts } from "./certificate-later.server";
+import {
+  CERTIFICATE_ADDED_EVENT, CERTIFICATE_TOO_BIG, CERTIFICATE_UPLOAD_MAX_BYTES, CERTIFICATE_WRONG_TYPE, UPGRADES_DAY_LINK_CLAIM_EVENT, certificateFileExt, certificateProblem, certificateUploadPath,
+  parseCertificateUploadPath, upgradesDayProblem,
+} from "./certificate-later.core";
 import { SET_PASSWORD_BASE } from "./set-password-link.core";
 
 // Local schema overlay: the table is pending SQL, so generated types are not deployment proof.
@@ -20,7 +25,7 @@ const db = admin as unknown as SupabaseClient;
 type LinkRow = { id: string; job_id: string; electrician_business_id: string; expires_at: string; revoked_at: string | null };
 type Assignment = { id: string; user_id: string; business_id: string | null; booking_confirmed_at: string | null };
 type Resolved =
-  | { ok: true; jobId: string; electricianBusinessId: string; step: ElectricianStep; link: LinkRow; assignment: Assignment; stage: string; bookedStart: string | null }
+  | { ok: true; jobId: string; electricianBusinessId: string; step: ElectricianStep; link: LinkRow; assignment: Assignment; stage: string; bookedStart: string | null; /** Part 3: the booked upgrades visit, when there is one. */ upgradesStart: string | null; /** Part 3: null until the safety check is done. */ certificate: CertificateFacts | null }
   | { ok: false; reason: string };
 
 /** Make a 30-day link for this job and electrician business. Throws if the link can't be saved (e.g. table missing). */
@@ -68,8 +73,23 @@ async function resolveFull(token: string, now: Date): Promise<Resolved> {
   if (be) return refuse(LINK_UNAVAILABLE);
   const bookedStart = (b?.scheduled_start as string | null | undefined) ?? null;
   const stage = job.stage as string;
-  const step = electricianStep({ booked: !!bookedStart || stage === "piesa_scheduled", piesaDone: piesaDoneAtStage(stage) });
-  return { ok: true, jobId: link.job_id, electricianBusinessId: link.electrician_business_id, step, link, assignment: assignment!, stage, bookedStart };
+  const piesaDone = piesaDoneAtStage(stage);
+  // Part 3 (Task 3): once the safety check is done, the upgrades / certificate facts decide the step (read-only facts).
+  let certificate: CertificateFacts | null = null, upgradesStart: string | null = null;
+  if (piesaDone) {
+    const [facts, { data: ub, error: ue }] = await Promise.all([
+      (await import("./certificate-later.server")).jobCertificateFacts(link.job_id).catch(() => null),
+      admin.from("bookings").select("scheduled_start").eq("job_id", link.job_id).eq("kind", "rectification").in("status", ["confirmed", "completed"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    ]);
+    if (!facts || ue) return refuse(LINK_UNAVAILABLE);
+    certificate = facts;
+    upgradesStart = (ub?.scheduled_start as string | null | undefined) ?? null;
+  }
+  const step = electricianStep({
+    booked: !!bookedStart || stage === "piesa_scheduled", piesaDone,
+    ...(certificate ? { upgradesNeeded: certificate.upgradesNeeded, upgradesToday: certificate.upgradesToday, upgradesDaySet: certificate.upgradesDaySet, partCRecorded: certificate.partCRecorded, certificateIn: !!certificate.certificateFileAt } : {}),
+  });
+  return { ok: true, jobId: link.job_id, electricianBusinessId: link.electrician_business_id, step, link, assignment: assignment!, stage, bookedStart, upgradesStart, certificate };
 }
 
 /** The link's job and next step, or why it can't be used. */
@@ -119,7 +139,8 @@ async function releaseOwnerContacts(jobId: string, assignmentId: string) {
 
 export type ElectricianLinkView =
   | { ok: false; reason: string }
-  | { ok: true; step: ElectricianStep; jobNumber: string | null; address: string | null; ownerName: string | null; ownerMobile: string | null; bookedStart: string | null; firstDay: string; lastDay: string | null; electricianName: string };
+  | { ok: true; step: ElectricianStep; jobNumber: string | null; address: string | null; ownerName: string | null; ownerMobile: string | null; bookedStart: string | null; firstDay: string; lastDay: string | null; electricianName: string;
+      /** Part 3: the booked upgrades visit (do_upgrades_in_mitti), and the upload limit for the certificate step. */ upgradesStart: string | null; certificateMaxBytes: number };
 
 /** What the /e/<token> page shows: only the next step. Owner contacts only while the safety check is still to book. */
 export async function electricianLinkView(token: string, now: Date = new Date()): Promise<ElectricianLinkView> {
@@ -139,7 +160,7 @@ export async function electricianLinkView(token: string, now: Date = new Date())
     ownerName: booking ? displayName(j?.owner_name as string | null | undefined) || null : null,
     ownerMobile: booking ? (j?.owner_phone as string | null | undefined) ?? null : null,
     bookedStart: r.bookedStart, firstDay: melbourneToday(now), lastDay: paidAt ? melbourneYmd(new Date(addMelbourneCalendarDays(paidAt, 30))) : null,
-    electricianName: who.name,
+    electricianName: who.name, upgradesStart: r.upgradesStart, certificateMaxBytes: CERTIFICATE_UPLOAD_MAX_BYTES,
   };
 }
 
@@ -236,3 +257,122 @@ export async function linkCantDo(token: string, reason: CantDoReason, note?: str
   return { ok: true, officeEmail };
 }
 
+
+// ====================================================================================================
+// Part 3 Task 3 (Jo 3 Nov 2026): the upgrades day and the certificate from the electrician's link.
+// ====================================================================================================
+
+/** "Enter the upgrades day": claim (one per assignment and booking round) → confirmBooking kind rectification (the real one,
+ *  which also makes the A4 form — decision 293) → the owner's "You're booked" (held until Jo approves the wording). */
+export async function linkEnterUpgradesDay(token: string, startIso: string, now: Date = new Date()): Promise<{ ok: true; start: string }> {
+  const r = await resolveFull(token, now);
+  if (!r.ok) throw new Error(r.reason);
+  if (r.step !== "enter_upgrades_day") throw new Error(r.step === "do_upgrades_in_mitti" ? "The upgrades day is already set." : r.step === "add_certificate" ? "The upgrades are already recorded — add the certificate." : r.step === "done" ? "This job is all done." : "The safety check comes first.");
+  const problem = upgradesDayProblem(startIso, now);
+  if (problem) throw new Error(problem);
+  const who = await electricianPerson(r.assignment, r.electricianBusinessId);
+  const { stableUuid } = await import("./mitti-create-claim.core");
+  // One claim per assignment AND per booking history: a cancelled upgrades booking (electrician still assigned) opens a new claim.
+  const { data: lastCancelled, error: lcErr } = await admin.from("bookings").select("id").eq("job_id", r.jobId).eq("kind", "rectification").eq("status", "cancelled").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (lcErr) throw new Error(lcErr.message);
+  const claimId = await stableUuid(`${UPGRADES_DAY_LINK_CLAIM_EVENT}:${r.assignment.id}:${(lastCancelled?.id as string | undefined) ?? "none"}`);
+  const { error: claimError } = await admin.from("workflow_events").insert({ id: claimId, job_id: r.jobId, actor_id: null, event_type: UPGRADES_DAY_LINK_CLAIM_EVENT, summary: "Electrical upgrades day being entered from the electrician's link", details: { assignment_id: r.assignment.id, start: startIso, by: `${who.name} (electrician's link)` }, internal: true });
+  if (claimError) { if (claimError.code === "23505") throw new Error("The upgrades day is already set."); throw new Error(claimError.message); }
+  try {
+    const { confirmBooking } = await import("./booking.server");
+    await confirmBooking(r.jobId, "rectification", startIso, r.assignment.user_id, `${who.name} (electrician's link)`);
+  } catch (e) {
+    const { error: rel } = await admin.from("workflow_events").delete().eq("id", claimId); // nothing was booked: let them try again
+    if (rel) console.error("upgrades day claim not released", r.jobId, rel.message);
+    throw e;
+  }
+  const { notifyOwnerBooked } = await import("./in-house-booking.server");
+  await notifyOwnerBooked(r.jobId, "upgrades", startIso, who, now).catch((e) => console.error("owner upgrades booking notice held", r.jobId, (e as Error).message));
+  return { ok: true, start: startIso };
+}
+
+/** A signed upload URL for the certificate (photo or PDF, ≤25 MB), minted only for a valid link at the certificate step. */
+export async function linkStartCertificateUpload(token: string, f: { fileName: string; mime: string; size: number }, now: Date = new Date()): Promise<{ path: string; token: string; mime: string }> {
+  const r = await resolveFull(token, now);
+  if (!r.ok) throw new Error(r.reason);
+  if (r.step !== "add_certificate") throw new Error(r.step === "done" ? "The certificate is already in." : "The upgrades aren't recorded yet.");
+  const { allowedUpload } = await import("./upload-safety.core");
+  const mime = allowedUpload(f.fileName, f.mime);
+  const ext = mime ? certificateFileExt(mime) : null;
+  if (!mime || !ext) throw new Error(CERTIFICATE_WRONG_TYPE);
+  if (!(f.size > 0)) throw new Error("That file is empty.");
+  if (f.size > CERTIFICATE_UPLOAD_MAX_BYTES) throw new Error(CERTIFICATE_TOO_BIG);
+  const path = certificateUploadPath(r.jobId, crypto.randomUUID(), mime);
+  const { data, error } = await admin.storage.from("job-files").createSignedUploadUrl(path);
+  if (error || !data) throw new Error("Could not start the upload. Check your connection and try again.");
+  return { path, token: data.token, mime };
+}
+
+/** "Add your Certificate of Electrical Safety": the stored upload is checked (bytes match a photo/PDF), then filed as the
+ *  portal `rectification_completion` evidence — the place coes-check.server `currentCoes` reads (source "portal") — the number
+ *  and date go onto the PIESA answers (Part C), and the existing certificate check runs (AI tick or one office row, owner copy).
+ *  Part C was already recorded (A4 or same-day A3), so no second PIESA record is written. One claim per upload. */
+export async function linkAddCertificate(token: string, c: { number: string; date: string; filePath: string; fileName?: string | null }, now: Date = new Date()): Promise<{ ok: true; result: string }> {
+  const r = await resolveFull(token, now);
+  if (!r.ok) throw new Error(r.reason);
+  if (r.step !== "add_certificate") throw new Error(r.step === "done" ? "The certificate is already in." : "The upgrades aren't recorded yet.");
+  const { melbourneToday } = await import("./melbourne-time.core");
+  const problem = certificateProblem({ number: c.number, date: c.date, hasFile: !!c.filePath, today: melbourneToday(now) });
+  if (problem) throw new Error(problem);
+  const uploadId = parseCertificateUploadPath(r.jobId, c.filePath);
+  if (!uploadId) throw new Error("That upload doesn't belong to this job. Add the file again.");
+  // The stored object: present, a real size, within the limit, and its first bytes a photo or PDF (deleted if not).
+  const folder = c.filePath.slice(0, c.filePath.lastIndexOf("/"));
+  const { data: objs, error: le } = await admin.storage.from("job-files").list(folder, { search: uploadId });
+  if (le) throw new Error("Could not check the upload. Try again.");
+  const obj = (objs ?? []).find((o) => c.filePath.endsWith(`/${o.name}`));
+  if (!obj) throw new Error("The upload didn't finish. Check your connection and add the file again.");
+  const size = Number((obj.metadata as { size?: number } | null)?.size ?? 0);
+  const { allowedUpload } = await import("./upload-safety.core");
+  const mime = allowedUpload(c.filePath, (obj.metadata as { mimetype?: string } | null)?.mimetype ?? null) ?? allowedUpload(c.filePath, null);
+  if (!mime || !certificateFileExt(mime) || size <= 0 || size > CERTIFICATE_UPLOAD_MAX_BYTES) {
+    await admin.storage.from("job-files").remove([c.filePath]).catch(() => null);
+    throw new Error(size > CERTIFICATE_UPLOAD_MAX_BYTES ? CERTIFICATE_TOO_BIG : CERTIFICATE_WRONG_TYPE);
+  }
+  const { verifyStoredUpload } = await import("./upload-safety.server");
+  await verifyStoredUpload("job-files", c.filePath, mime);
+  // The portal evidence requirement this certificate is filed under (seeded with every job; made here if an old job lacks it).
+  const { data: reqRows, error: re } = await admin.from("evidence_requirements").select("id").eq("job_id", r.jobId).eq("category", "rectification_completion").order("id").limit(1);
+  if (re) throw new Error(re.message);
+  let requirementId = ((reqRows ?? []) as { id: string }[])[0]?.id ?? null;
+  if (!requirementId) {
+    const { stableUuid } = await import("./mitti-create-claim.core");
+    const newId = await stableUuid(`evidence_requirement:rectification_completion:${r.jobId}`);
+    const { error: ie } = await admin.from("evidence_requirements").insert({ id: newId, job_id: r.jobId, category: "rectification_completion", gate: "electrical", label: "Rectification completion evidence", required: true, responsible_role: "electrician", status: "outstanding", sort: 4 } as never);
+    if (ie && ie.code !== "23505") throw new Error(ie.message);
+    requirementId = newId;
+  }
+  // Claim first (a double tap): one stable event per upload; a second claim is "already added".
+  const { stableUuid } = await import("./mitti-create-claim.core");
+  const claimId = await stableUuid(`${CERTIFICATE_ADDED_EVENT}:${c.filePath}`);
+  const who = await electricianPerson(r.assignment, r.electricianBusinessId);
+  const { error: claimError } = await admin.from("workflow_events").insert({ id: claimId, job_id: r.jobId, actor_id: null, event_type: CERTIFICATE_ADDED_EVENT, summary: `${who.name} added the Certificate of Electrical Safety (${c.number.trim()}, certified ${c.date}) through their link`, details: { assignment_id: r.assignment.id, upload_id: uploadId, path: c.filePath, coes_number: c.number.trim(), cert_date: c.date, size_bytes: size, mime_type: mime }, internal: true });
+  if (claimError) { if (claimError.code === "23505") throw new Error("That certificate is already added."); throw new Error(claimError.message); }
+  const release = async () => { const { error } = await admin.from("workflow_events").delete().eq("id", claimId); if (error) console.error("certificate claim not released", r.jobId, error.message); };
+  try {
+    const { persistEvidenceConfirmation } = await import("./evidence-confirmation.server");
+    const safeName = (c.fileName ?? "").replace(/[^\w.\- ]+/g, "_").slice(0, 120) || `certificate.${certificateFileExt(mime)}`;
+    await persistEvidenceConfirmation(admin as never, {
+      requirement_id: requirementId, job_id: r.jobId, storage_path: c.filePath, file_name: safeName, mime_type: mime, size_bytes: size, uploaded_by: r.assignment.user_id,
+      lat: null, lng: null, location_accuracy_m: null, captured_at: null, distance_m: null, location_source: "not_required",
+    }, async () => undefined);
+    // Part C: the number and date onto the stored PIESA answers (the file stays the portal evidence above).
+    const { data: a, error: ae } = await admin.from("assessments").select("id, mitti_raw_snapshot").eq("job_id", r.jobId).maybeSingle();
+    if (ae) throw new Error(ae.message);
+    if (a) {
+      const snap = Array.isArray(a.mitti_raw_snapshot) ? (a.mitti_raw_snapshot as { label: string; value: string | null }[]).filter((e) => e && typeof e.label === "string") : [];
+      const { mergeCertificateIntoPiesaSnapshot } = await import("./fixes-day.core");
+      const merged = mergeCertificateIntoPiesaSnapshot(snap, { number: c.number, date: c.date });
+      const { error: ue } = await admin.from("assessments").update({ mitti_raw_snapshot: merged as never }).eq("id", a.id);
+      if (ue) throw new Error(ue.message);
+    }
+  } catch (e) { await release(); throw e; }
+  // The existing certificate check (AI tick or one office row) and the owner's copy, through their own guards. Never throws.
+  const result = await (await import("./coes-check.server")).checkCurrentCoes(r.jobId, r.assignment.user_id);
+  return { ok: true, result };
+}

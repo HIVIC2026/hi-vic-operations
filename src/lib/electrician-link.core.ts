@@ -25,11 +25,21 @@ export function electricianLinkRefusal(f: { found: boolean; revokedAt: string | 
   return null;
 }
 
-/** The ONE next thing the link page shows. Part 3 adds the upgrades and certificate steps. */
-export type ElectricianStep = "book_piesa" | "do_piesa_in_mitti" | "done";
-export function electricianStep(f: { booked: boolean; piesaDone: boolean }): ElectricianStep {
-  if (f.piesaDone) return "done";
-  return f.booked ? "do_piesa_in_mitti" : "book_piesa";
+/** The ONE next thing the link page shows. Part 3 (Task 3): after the safety check, the upgrades and certificate steps —
+ *  book_piesa → do_piesa_in_mitti → (upgrades needed, not today, no day) enter_upgrades_day → (day set or same-day, Part C not
+ *  recorded) do_upgrades_in_mitti → (Part C recorded, no certificate file) add_certificate → done. */
+export type ElectricianStep = "book_piesa" | "do_piesa_in_mitti" | "enter_upgrades_day" | "do_upgrades_in_mitti" | "add_certificate" | "done";
+export type ElectricianStepFacts = {
+  booked: boolean; piesaDone: boolean;
+  /** Part 3 facts (certificate-later.server jobCertificateFacts). Left out = no upgrades (the Part 2 caller). */
+  upgradesNeeded?: boolean; upgradesToday?: boolean; upgradesDaySet?: boolean; partCRecorded?: boolean; certificateIn?: boolean;
+};
+export function electricianStep(f: ElectricianStepFacts): ElectricianStep {
+  if (!f.piesaDone) return f.booked ? "do_piesa_in_mitti" : "book_piesa";
+  if (!f.upgradesNeeded) return "done";
+  if (f.partCRecorded) return f.certificateIn ? "done" : "add_certificate";
+  if (f.upgradesToday || f.upgradesDaySet) return "do_upgrades_in_mitti";
+  return "enter_upgrades_day";
 }
 
 /** The safety check is done once the job has moved past "PIESA booked" in the normal order. */

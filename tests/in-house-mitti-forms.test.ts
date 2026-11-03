@@ -382,8 +382,11 @@ test('PIESA autoform dispatch outage keeps legacy creation and already branch',a
 });
 // Part 3 Task 1: every job may complete the A4 on the same visit (the in-house partner-billed rule, now for all), so the
 // sweep reads the piesa_complete form too; one failed job still never stops the next.
+// Part 3 Task 3 (carried item): a same-visit-stage form is read only when the safety check found upgrades; a PIESA-booked job's
+// pre-made form (A3 not done) and a no-upgrades job are not polled.
 test('sweep reads every open fixes form (same-visit stages included) and catches one failed job without stopping the next',async()=>{
  tables.job_assignments[1].businesses.rectification_billed_by='hivic';
+ tables.rectification_items.push({job_id:JOB,status:'required',description:'RCD'}); // upgrades needed on this job
  for (const [audit_id,stage] of [['bad','rectification_booked'],['good','rectification_booked'],['extra','piesa_complete']]) {
  tables.workflow_events.push({job_id:JOB,event_type:core.FIXES_FORM_CREATED_EVENT,details:{audit_id},jobs:{stage,business_unit:'hivic',deleted_at:null,qa_archived_at:null}});
  }
@@ -395,6 +398,14 @@ test('sweep reads every open fixes form (same-visit stages included) and catches
  const out=await load('fixes-day.server').sweepFixesForms({call:sweepCall});
  // bad = the Mitti error; extra = the generic fixture form at piesa_complete, held (not completable) and reported, not thrown.
  expect(out).toMatchObject({checked:3,waiting:1,failed:2});expect(calls.some(c=>c.path.includes('/good'))).toBe(true);expect(calls.some(c=>c.path.includes('/extra'))).toBe(true);
+});
+test('sweep skips a same-visit-stage form when the safety check found no upgrades (Task 3 carried item)',async()=>{
+ tables.job_assignments[1].businesses.rectification_billed_by='hivic';
+ tables.rectification_items.length=0;
+ tables.workflow_events.push({job_id:JOB,event_type:core.FIXES_FORM_CREATED_EVENT,details:{audit_id:'quiet'},jobs:{stage:'piesa_complete',business_unit:'hivic',deleted_at:null,qa_archived_at:null}});
+ const sweepCall:mitti.MittiCall=async(method,path,body)=>{calls.push({method,path,body});return call(method,path,body);};
+ const out=await load('fixes-day.server').sweepFixesForms({call:sweepCall});
+ expect(out).toMatchObject({checked:0});expect(calls.some(c=>c.path.includes('/quiet'))).toBe(false);
 });
 test("concurrent completed assessment is not changed by the no-rectification follow-up update",async()=>{
  await load("piesa-autoform.server").onPiesaBooked(JOB,"visit",null,{call}); realMitti=true; setPiesaAudit(false); completeDuringSync=true;

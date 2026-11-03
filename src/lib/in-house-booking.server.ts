@@ -1,6 +1,6 @@
 import { supabaseAdmin as admin } from '@/integrations/supabase/client.server';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { bookingWorkerBlocker, bookingNotice, leadNoticePending, LEAD_INSTALLER_NOTICE_WAIT, type BookingWorker } from './in-house-booking.core';
+import { bookingWorkerBlocker, bookingNotice, leadNoticePending, LEAD_INSTALLER_NOTICE_WAIT, OWNER_UPGRADES_BOOKED_APPROVED, type BookingNoticeKind, type BookingWorker } from './in-house-booking.core';
 import { stableUuid } from './mitti-create-claim.core';
 const db=admin as unknown as SupabaseClient;
 async function read<T>(q:PromiseLike<{data:unknown;error:{message:string}|null}>):Promise<T>{const r=await q;if(r.error)throw Error(r.error.message);return r.data as T;}
@@ -42,7 +42,7 @@ export async function prepareBookingWorker(jobId:string,userId:string,kind:strin
   else await (await import('./visit-allocation.server')).allocateVisit(jobId,userId,'ready_check',workerId);
   return w;
 }
-export async function notifyOwnerBooked(jobId:string,kind:'ready_check'|'piesa'|'install',startIso:string,who:Pick<BookingWorker,'id'|'name'|'phone'>,now=new Date()){
+export async function notifyOwnerBooked(jobId:string,kind:BookingNoticeKind,startIso:string,who:Pick<BookingWorker,'id'|'name'|'phone'>,now=new Date()){
   const held=await (await import('./in-house-suppression.server')).readInHouseDispatchState([jobId]);
   if(held.failed)return 'held';
   // Part 2 (Jo 3 Nov 2026): an installer's own job (call and book) gets the same booking notice as an in-house job.
@@ -50,7 +50,7 @@ export async function notifyOwnerBooked(jobId:string,kind:'ready_check'|'piesa'|
     const ch=await read<{channel:string|null}|null>(db.from('jobs').select('channel').eq('id',jobId).maybeSingle());
     if(!(await import('./own-job-piesa.core')).isOwnJobCallAndBook({channel:ch?.channel??null,heldInHouse:false}))return 'held';
   }
-  const bookingKind={ready_check:'ready_check',piesa:'assessment',install:'installation'}[kind];
+  const bookingKind={ready_check:'ready_check',piesa:'assessment',install:'installation',upgrades:'rectification'}[kind];
   const booking=await read<{id:string;created_at:string}|null>(db.from('bookings').select('id,created_at').eq('job_id',jobId).eq('kind',bookingKind).eq('status','confirmed').eq('scheduled_start',startIso).order('created_at',{ascending:false}).limit(1).maybeSingle());
   if(!booking||Date.parse(startIso)<=now.getTime())return 'not current';
   const job=await read<{source:string;deleted_at:string|null;stage:string;owners:{email:string|null;phone:string|null}|null}|null>(db.from('jobs').select('source,deleted_at,stage,owners(email,phone)').eq('id',jobId).maybeSingle());
@@ -60,6 +60,8 @@ export async function notifyOwnerBooked(jobId:string,kind:'ready_check'|'piesa'|
   const intentId=await stableUuid(`${key}:intent`);
   const intent=await db.from('workflow_events').insert({id:intentId,job_id:jobId,actor_id:null,event_type:'in_house_booked_notice_pending',summary:'Booking confirmation awaiting delivery',details:{kind,startIso,who,booking_id:booking.id},internal:true});
   if(intent.error&&intent.error.code!=='23505')throw Error(intent.error.message);
+  // Part 3 Task 3: the upgrades-day wording is new — recorded as pending above, sent by the sweep once Jo approves it.
+  if(kind==='upgrades'&&!OWNER_UPGRADES_BOOKED_APPROVED)return 'held: wording not approved';
   if((await import('./quote-hold.core')).smsQuietReason(now.toISOString()))return 'quiet hours';
   try {
   await (await import('./comms.server')).assertCustomerDeliveryAllowed(jobId,'Booking confirmation');
@@ -79,7 +81,7 @@ export async function notifyOwnerBooked(jobId:string,kind:'ready_check'|'piesa'|
 }
 export async function sweepOwnerBookedNotices(now=new Date()){
   if((await import('./quote-hold.core')).smsQuietReason(now.toISOString()))return {checked:0};
-  const rows:{job_id:string;details:{kind:'ready_check'|'piesa'|'install';startIso:string;who:Pick<BookingWorker,'id'|'name'|'phone'>}}[]=[];
+  const rows:{job_id:string;details:{kind:BookingNoticeKind;startIso:string;who:Pick<BookingWorker,'id'|'name'|'phone'>}}[]=[];
   for(let offset=0;;offset+=200){const page=await read<typeof rows>(db.from('workflow_events').select('job_id,details').eq('event_type','in_house_booked_notice_pending').order('id').range(offset,offset+199));rows.push(...page);if(page.length<200)break;}
   for(const row of rows)await notifyOwnerBooked(row.job_id,row.details.kind,row.details.startIso,row.details.who,now);
   const workers:{job_id:string;details:{booking_id?:string;status?:string}}[]=[];

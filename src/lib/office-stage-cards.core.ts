@@ -16,7 +16,8 @@ export type StageCardFacts = {
   enquiry: { receivedAt: string; source: string; estimateTotal: number | null; estimateRebate: number | null; linkSentAt: string | null; linkViewedAt: string | null; ownerSaid: string | null; eligibility: string | null; photos: number };
   readyCheck: { installer: string | null; chosenAt: string | null; acceptedAt: string | null; visitAt: string | null; mitti: string | null; measured: string | null; diagramAt: string | null };
   quote: { sentAt: string | null; held: string | null; subtotal: number | null; incentive: number | null; ownerPays: number | null; acceptedAt: string | null; signer: string | null; safetyPaidAt: string | null; declined: string | null; /** Decision 302: the quote's safety check amount in cents (null = $349 default). */ safetyCheckCents?: number | null };
-  piesa: { electrician: string | null; offer: string | null; visitAt: string | null; outcome: string | null; fixes: string | null };
+  piesa: { electrician: string | null; offer: string | null; visitAt: string | null; outcome: string | null; fixes: string | null;
+    /** Part 3 Task 3: the Certificate of Electrical Safety status line (certificate-later.core), shown only when there is one. */ certificate?: string | null };
   install: { deadline: string | null; daysLeft: number | null; deposit: string | null; installAt: string | null; daysOffered: number; consent: string | null; escNotice: string | null };
   finalCheck: { installedAt: string | null; evidenceMissing: number | null; veecForm: string | null; readyForVeecAt: string | null; lodged: string | null };
 };
@@ -69,6 +70,7 @@ export function buildStageCards(f: StageCardFacts): StageCard[] {
       { label: "Visit", value: p.visitAt ? dayTime(p.visitAt) : "Agreed between electrician and owner after the offer" },
       { label: "Result", value: p.outcome ?? dash },
       { label: "Fixes", value: p.fixes ?? dash },
+      ...(p.certificate ? [{ label: "Certificate", value: p.certificate }] : []),
     ] },
     { key: "install", n: 5, title: "Install", state: st.install, lines: [
       { label: "Clock", value: i.deadline ? `Must start by ${day(i.deadline)}${i.daysLeft != null ? ` · ${i.daysLeft < 0 ? `${-i.daysLeft} days over` : `${i.daysLeft} days left`}` : ""}` : "30 days start at the PIESA" },
