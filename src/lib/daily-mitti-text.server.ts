@@ -8,7 +8,7 @@ import { isTestPartner, normaliseAuMobile } from "./test-send.core";
 import { SET_PASSWORD_BASE } from "./set-password-link.core";
 import { mittiFormUrl } from "./mitti-link.core";
 import { TWILIO_FETCH_TIMEOUT_MS, timeoutSignal } from "./network-timeout.core";
-import { dailySendKey, dailyTextRecipient, visitKindOfBooking, type TextRecipient } from "./visit-allocation.core";
+import { dailySendKey, visitKindOfBooking, workerOnlyTextRecipient, type TextRecipient } from "./visit-allocation.core";
 
 const db = admin as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
 const OWNER_RECIPIENT = (name: string, phone: string | null): TextRecipient => ({ key: "owner", name, phone, who: "owner", note: null });
@@ -72,16 +72,18 @@ export async function collectDay(date: string): Promise<Group[]> {
       const { data: a } = await db.from("job_assignments").select("id").eq("job_id", b.job_id).eq("business_id", biz).eq("active", true).limit(1).maybeSingle();
       linked = !!a;
     }
+    // Decision #26 (Jo 2 Nov 2026): WORKERS ONLY — the person allocated to this Ready Check / install day, on their own
+    // mobile. No fallback to the business owner's number; nobody picked (or no mobile) = no text for that visit. PIESA
+    // visits are the electrician's (Part 6) and never on this text.
+    const vk = visitKindOfBooking(b.kind);
+    if (!vk) continue;
+    const recipient = workerOnlyTextRecipient(await allocatedPersonFor(b.job_id, vk));
+    if (!recipient) continue;
     if (!bizRows.has(biz)) {
-      const { data: bz } = await db.from("businesses").select("id, name, is_active, approved_at, mitti_account_invited, signer_mobile, phone, onboarding_notes").eq("id", biz).maybeSingle();
+      const { data: bz } = await db.from("businesses").select("id, name, is_active, approved_at, mitti_account_invited, onboarding_notes").eq("id", biz).maybeSingle();
       bizRows.set(biz, bz ?? null);
     }
     const bz = bizRows.get(biz);
-    const ownerPhone = normaliseAuMobile(bz?.signer_mobile ?? "") ?? normaliseAuMobile(bz?.phone ?? "");
-    // Decision 161: a Ready Check / install day allocated to a staff member is texted to THAT person's mobile; the owner
-    // keeps every other visit and any allocated person without a mobile (noted on the log row).
-    const vk = visitKindOfBooking(b.kind);
-    const recipient = dailyTextRecipient({ allocated: vk ? await allocatedPersonFor(b.job_id, vk) : null, owner: { name: bz?.name ?? "Trade", phone: ownerPhone } });
     const gKey = `${biz}|${recipient.key}`;
     let g = groups.get(gKey);
     if (!g) {

@@ -107,6 +107,12 @@ export function dailyTextRecipient(i: { allocated: { workerId: string; name: str
   }
   return { key: "owner", name: i.owner.name, phone: i.owner.phone, who: "owner", note: null };
 }
+/** Decision #26 (Jo 2 Nov 2026, Part 7 Task 7): the 6:30am jobs text goes to WORKERS ONLY — the allocated person on
+ *  their own mobile; nobody allocated, or no mobile on file → null (no text, never the business owner's number). */
+export function workerOnlyTextRecipient(allocated: { workerId: string; name: string; mobile: string | null } | null): TextRecipient | null {
+  if (!allocated || !allocated.mobile?.trim()) return null;
+  return { key: `w:${allocated.workerId}`, name: allocated.name, phone: allocated.mobile, who: "allocated", note: null };
+}
 /** send_key per business, day and recipient. The owner keeps the legacy key so a deploy never re-sends today's text. */
 export function dailySendKey(kind: "daily" | "update" | "skip", businessId: string, date: string, recipientKey: string, sig = ""): string {
   const base = kind === "skip" ? `skip:${businessId}:${date}` : `${kind}:${businessId}:${date}`;

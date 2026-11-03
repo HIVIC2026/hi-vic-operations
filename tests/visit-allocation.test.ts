@@ -58,6 +58,8 @@ describe("eligibility (pure)", () => {
 
 describe("6:30am text recipient (pure, decision 161 + 165)", () => {
   const owner = { name: "Reinsulate", phone: "+61400000000" };
+  // Decision #26 (Jo 2 Nov 2026): the 6:30am text itself no longer falls back to the owner (workerOnlyTextRecipient,
+  // tests/daily-text-workers-only.test.ts); dailyTextRecipient's owner fallback stays for the install-day form result text.
   test("allocated person with a mobile gets it; nobody allocated → owner as today", () => {
     expect(dailyTextRecipient({ allocated: { workerId: "w1", name: "Deep", mobile: "+61400000001" }, owner })).toMatchObject({ key: "w:w1", phone: "+61400000001", who: "allocated", note: null });
     expect(dailyTextRecipient({ allocated: null, owner })).toMatchObject({ key: "owner", phone: owner.phone, who: "owner", note: null });

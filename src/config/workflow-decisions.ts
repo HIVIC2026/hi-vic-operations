@@ -145,6 +145,13 @@ export const WORKFLOW_DECISIONS = {
       writers: ["saveCrewWithLead (different Lead refused; crew-only allowed)", "changeInHouseLeadInstaller", "inHouseBookVisit (moved start or other Lead on an existing install booking)"],
       replaces: "the 2pm day-before crew reminder (#110)",
     },
+    // Part 7 Task 7 (decision #26, Jo 2 Nov 2026).
+    dailyJobsText: {
+      to: "workers only — the person allocated to each Ready Check / install day, on their own mobile (workerOnlyTextRecipient); no fallback to the business owner's mobile",
+      noWorker: "no text and no log row for that visit",
+      piesa: "never on this text (electricians get their own link, Part 6)",
+      key: "daily:{business}:{Melbourne date}:w:{worker} (unchanged)",
+    },
   },
   quoteValidity: {
     validDays: 30,
