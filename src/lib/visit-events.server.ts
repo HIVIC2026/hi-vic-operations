@@ -40,7 +40,10 @@ async function reopen(b: Booking, actorId: string | null, why: string, releaseTr
   }
   if (release && b.assignment_id) {
     await admin.from("job_assignments").update({ active: false, ended_at: new Date().toISOString(), end_reason: why.slice(0, 300) }).eq("id", b.assignment_id).eq("active", true);
-    await admin.from("partner_offers").update({ status: "withdrawn", superseded_at: new Date().toISOString() }).eq("job_id", b.job_id).eq("status", "pending");
+    // Only the released trade's own pending offers; another trade's open offer on the job stays.
+    let pending = admin.from("partner_offers").update({ status: "withdrawn", superseded_at: new Date().toISOString() }).eq("job_id", b.job_id).eq("status", "pending");
+    if (b.business_id) pending = pending.eq("business_id", b.business_id);
+    await pending;
   }
   const { data: job } = await admin.from("jobs").select("stage").eq("id", b.job_id).single();
   if (job?.stage === BOOKED_STAGE[b.kind]) await transition(b.job_id, plan.stage as never, actorId, `${VISIT_LABEL[b.kind]} booking cancelled: ${why}`, { booking_id: b.id });

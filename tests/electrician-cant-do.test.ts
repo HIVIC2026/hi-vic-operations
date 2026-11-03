@@ -12,7 +12,8 @@ const START = "2026-11-06T23:00:00.000Z"; // Sat 7 Nov 10:00am Melbourne
 
 const tables: Tables = {};
 class WorkflowError extends Error {}
-const calls: { cancel: unknown[][]; owner: unknown[][]; office: Record<string, unknown>[]; testMail: unknown[][] } = { cancel: [], owner: [], office: [], testMail: [] };
+const calls: { cancel: unknown[][]; owner: unknown[][]; office: Record<string, unknown>[]; testMail: unknown[][]; mitti: unknown[][]; mittiUsers: string[] } = { cancel: [], owner: [], office: [], testMail: [], mitti: [], mittiUsers: [] };
+let mittiFails: string | null = null;
 
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: (t: string) => memoryPostgrest(tables).from(t), rpc: async () => ({ data: false, error: null }) } }));
 mock.module("../src/lib/workflow.server", () => ({
@@ -34,6 +35,13 @@ mock.module("../src/lib/visit-events.server", () => ({
 mock.module("../src/lib/visit-cancelled-owner.server", () => ({ queueVisitCancelledOwnerEmail: async (...a: unknown[]) => { calls.owner.push(a); return "email sent"; } }));
 mock.module("../src/lib/office-email.server", () => ({ sendOfficeEmail: async (p: Record<string, unknown>) => { calls.office.push(p); return { channel: "email", to: p["to"], status: "sent", detail: "ok" }; } }));
 mock.module("../src/lib/test-send.server", () => ({ sendTestEmail: async (...a: unknown[]) => { calls.testMail.push(a); return { channel: "email", to: a[1], status: "sent", detail: "test" }; } }));
+// Mitti: the real `mittiApi` (mitti.core) builds the request; the call itself is recorded. mittiCallFor/findMittiUserByEmail record the email.
+const fakeMittiCall = async (method: string, path: string) => { if (mittiFails) throw new Error(mittiFails); calls.mitti.push([method, path]); return {}; };
+mock.module("../src/lib/mitti.server", () => ({
+  realMittiCall: fakeMittiCall,
+  mittiCallFor: async (call: unknown) => call,
+  findMittiUserByEmail: async (email: string) => { calls.mittiUsers.push(email); return "mu-1"; },
+}));
 
 const server = await import("../src/lib/electrician-link.server");
 const core = await import("../src/lib/electrician-link.core");
@@ -41,7 +49,7 @@ const mail = await import("../src/lib/electrician-cant-do-email.core");
 
 function seed(over: { source?: string; booked?: "assessment" | "rectification" | null; stage?: string } = {}) {
   for (const k of Object.keys(tables)) delete tables[k];
-  calls.cancel.length = 0; calls.owner.length = 0; calls.office.length = 0; calls.testMail.length = 0;
+  calls.cancel.length = 0; calls.owner.length = 0; calls.office.length = 0; calls.testMail.length = 0; calls.mitti.length = 0; calls.mittiUsers.length = 0; mittiFails = null;
   tables["properties"] = [{ id: "p1", address_line: "12 Smith St, Kew", suburb: "Kew" }];
   tables["jobs"] = [{ id: J, job_number: "HV-5001", source: over.source ?? "qa_test", stage: over.stage ?? (over.booked ? "piesa_scheduled" : "piesa_and_install_window_pending"), property_id: "p1", deleted_at: null }];
   tables["businesses"] = [
@@ -52,7 +60,7 @@ function seed(over: { source?: string; booked?: "assessment" | "rectification" |
     { id: "a1", job_id: J, business_id: INST, role: "installer", active: true, user_id: null },
     { id: "a2", job_id: J, business_id: ELEC, role: "electrician", active: true, user_id: USER },
   ];
-  tables["partner_workers"] = [{ id: W, business_id: ELEC, full_legal_name: "Sam Spark", mobile: "0422 222 222", trade_role: "electrician", approval_status: "approved", removed_at: null, profile_id: USER }];
+  tables["partner_workers"] = [{ id: W, business_id: ELEC, full_legal_name: "Sam Spark", email: "sam@spark.test", mobile: "0422 222 222", trade_role: "electrician", approval_status: "approved", removed_at: null, profile_id: USER }];
   tables["worker_job_links"] = [];
   tables["contact_releases"] = [];
   tables["job_overview"] = [{ id: J, owner_name: "Helen Owner", owner_phone: "0411 111 111", property_address: "12 Smith St, Kew VIC 3101" }];
@@ -154,6 +162,8 @@ describe("electricianCantDo: idempotent", () => {
     expect(calls.cancel).toHaveLength(1);
     expect(calls.owner).toHaveLength(1);
     expect(calls.testMail.length + calls.office.length).toBe(1);
+    expect(calls.mitti).toHaveLength(1);
+    expect(events("electrician_cant_do_finished")).toHaveLength(1);
   });
   test("the link then shows the switched-off message with no owner details", async () => {
     const t = await token();
@@ -207,12 +217,99 @@ describe("electricianCantDo: the installer office email (DRAFT)", () => {
     expect(calls.office[0]!["idempotencyKey"]).toBe(`electrician-cant-do:v1:${J}:a2`);
     expect(events("electrician_cant_do_email")).toHaveLength(1);
   });
-  test("no installer office email on file → held, nothing recorded", async () => {
+  test("no installer office email on file → held: nothing sent, one electrician_cant_do_email_held trace", async () => {
     tables["businesses"]![0]!["email"] = null;
     const t = await token();
     expect(await server.electricianCantDo(t, "Sick that week", NOW)).toEqual({ ok: true });
     expect(calls.testMail).toHaveLength(0);
     expect(events("electrician_cant_do_email")).toHaveLength(0);
+    expect(events("electrician_cant_do_email_held")).toHaveLength(1);
+    expect(events("electrician_cant_do_email_held")[0]!["details"]).toMatchObject({ reason: "no installer office email" });
+  });
+  test("no installer on the job → held with the trace too", async () => {
+    tables["job_assignments"] = tables["job_assignments"]!.filter((a) => a["role"] !== "installer");
+    const t = await token();
+    expect(await server.electricianCantDo(t, "Sick that week", NOW)).toEqual({ ok: true });
+    expect(events("electrician_cant_do_email_held")).toHaveLength(1);
+  });
+});
+
+describe("electricianCantDo: only on a live step", () => {
+  test("all done (safety check passed) → switched off, no writes", async () => {
+    tables["assessments"]![0] = { ...tables["assessments"]![0]!, completed_at: "2026-11-02T00:00:00Z", piesa_outcome: "pass" };
+    const t = await token();
+    expect(await server.electricianCantDo(t, "Sick that week", NOW)).toEqual({ ok: false, message: "This link has been switched off. Ask Smith Insulation for a new one." });
+    expect(asg()["active"]).toBe(true);
+    expect(tables["worker_job_links"]!.every((l) => !l["revoked_at"])).toBe(true);
+    expect(events("electrician_cant_do")).toHaveLength(0);
+    expect(calls.testMail).toHaveLength(0);
+  });
+  test("closed (job cancelled) → switched off, no writes", async () => {
+    tables["jobs"]![0]!["stage"] = "cancelled";
+    const t = await token();
+    expect((await server.electricianCantDo(t, "Sick that week", NOW)).ok).toBe(false);
+    expect(asg()["active"]).toBe(true);
+    expect(events("electrician_cant_do")).toHaveLength(0);
+  });
+});
+
+describe("electricianCantDo: Mitti form access", () => {
+  test("the electrician's access to the A3 is removed through the Mitti access-removal call (TEST job → the TEST Mitti person)", async () => {
+    const t = await token();
+    expect(await server.electricianCantDo(t, "Sick that week", NOW)).toEqual({ ok: true });
+    expect(calls.mittiUsers).toEqual(["jo@actpropertyinspections.com.au"]);
+    expect(calls.mitti).toEqual([["DELETE", "/inspections/v1/inspections/audit-a3/user/mu-1/access"]]);
+  });
+  test("a real job uses the electrician's own email; an open A4 is removed too, once each", async () => {
+    seed({ source: "website" });
+    tables["workflow_events"]!.push({ id: "fx", job_id: J, event_type: "fixes_form_created", summary: "", details: { audit_id: "audit-a4" }, created_at: "2026-11-01T00:00:00Z" });
+    const t = await token();
+    expect(await server.electricianCantDo(t, "Sick that week", NOW)).toEqual({ ok: true });
+    expect(calls.mittiUsers).toEqual(["sam@spark.test", "sam@spark.test"]);
+    expect(calls.mitti.map((c) => c[1])).toEqual(["/inspections/v1/inspections/audit-a3/user/mu-1/access", "/inspections/v1/inspections/audit-a4/user/mu-1/access"]);
+  });
+  test("a Mitti failure is logged on the job and the hand-back still completes", async () => {
+    mittiFails = "Mitti down";
+    const t = await token();
+    expect(await server.electricianCantDo(t, "Sick that week", NOW)).toEqual({ ok: true });
+    expect(asg()["active"]).toBe(false);
+    expect(tables["worker_job_links"]!.every((l) => l["revoked_at"])).toBe(true);
+    expect(events("electrician_cant_do")).toHaveLength(1);
+    const failed = events("electrician_cant_do_mitti_failed");
+    expect(failed).toHaveLength(1);
+    expect(failed[0]!["details"]).toMatchObject({ audit_id: "audit-a3", error: "Mitti down" });
+    expect(calls.testMail).toHaveLength(1);
+  });
+  test("no form on the job → nothing to remove", async () => {
+    tables["assessments"] = [];
+    const t = await token();
+    expect(await server.electricianCantDo(t, "Sick that week", NOW)).toEqual({ ok: true });
+    expect(calls.mitti).toHaveLength(0);
+  });
+});
+
+describe("electricianCantDo: a half-done hand-back is finished on the next press", () => {
+  test("event written, then the process died before the assignment/link/notice writes → the retry finishes them, no second event", async () => {
+    seed({ booked: "assessment" });
+    const t = await token();
+    const link = tables["worker_job_links"]![0]!;
+    // The claim is on the job, the booking was already cancelled by the writer, nothing else happened.
+    tables["bookings"]![0]!["status"] = "cancelled";
+    tables["workflow_events"]!.push({ id: "claim", job_id: J, event_type: "electrician_cant_do", summary: "", details: { worker_id: W, reason: "Double booked", booking_cancelled: true, link_id: link["id"], assignment_id: "a2", business_id: ELEC, cancelled_booking_ids: ["bk1"] }, created_at: new Date(NOW).toISOString() });
+    expect(await server.electricianCantDo(t, "Double booked", NOW + 1000)).toEqual({ ok: true });
+    expect(events("electrician_cant_do")).toHaveLength(1);
+    expect(asg()["active"]).toBe(false);
+    expect(tables["worker_job_links"]!.every((l) => l["revoked_at"])).toBe(true);
+    expect(calls.cancel).toHaveLength(0); // nothing confirmed any more
+    expect(calls.owner).toHaveLength(1); // Part 4's own key stops a repeat if it already went
+    expect(calls.owner[0]!.slice(0, 2)).toEqual([J, "bk1"]);
+    expect(calls.testMail).toHaveLength(1);
+    expect(calls.mitti).toHaveLength(1);
+  });
+  test("the event is written before the links are revoked (source pin)", () => {
+    const src = readFileSync("src/lib/electrician-link.server.ts", "utf8").split("// ---------- \"Can't do this one\" ----------")[1]!;
+    expect(src.indexOf("ELECTRICIAN_CANT_DO_EVENT, `Electrician can't do this one")).toBeLessThan(src.indexOf('update({ revoked_at: nowIso'));
+    expect(src).not.toContain("TODO(join)");
   });
 });
 

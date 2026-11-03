@@ -36,9 +36,9 @@ async function installerOf(jobId: string): Promise<{ id: string | null; name: st
   return { id: a.business_id, name: bizName(b) ?? "the installer" };
 }
 
-type AssignedElectrician = { business_id: string; user_id: string | null };
+type AssignedElectrician = { id: string; business_id: string; user_id: string | null };
 async function electricianAssignment(jobId: string, businessId: string): Promise<AssignedElectrician | null> {
-  const { data, error } = await admin.from("job_assignments").select("business_id, user_id").eq("job_id", jobId).eq("role", "electrician").eq("active", true).eq("business_id", businessId).maybeSingle();
+  const { data, error } = await admin.from("job_assignments").select("id, business_id, user_id").eq("job_id", jobId).eq("role", "electrician").eq("active", true).eq("business_id", businessId).maybeSingle();
   if (error) throw dbErr("the electrician assignment", error);
   return (data as AssignedElectrician | null) ?? null;
 }
@@ -178,7 +178,7 @@ async function ownerContactFor(jobId: string, businessId: string, stage: string)
   return { owner: o?.owner_name ? { name: o.owner_name, phone: o.owner_phone ?? null } : null, address: o?.property_address ?? null };
 }
 
-type Facts = { facts: ElectricianLinkFacts; piesaFormUrl: string | null; upgradesFormUrl: string | null; allDoneAt: string | null };
+type Facts = { facts: ElectricianLinkFacts; piesaFormUrl: string | null; upgradesFormUrl: string | null; allDoneAt: string | null; /** The job's Mitti forms the electrician can see: the A3, and the A4 while it is open. */ auditIds: string[] };
 async function factsFor(jobId: string, whoBooks: WhoBooks, handedBack: boolean, now: number): Promise<Facts> {
   const [{ data: a, error: ae }, { data: books, error: be }, { data: evs, error: ee }, { data: docs, error: de }] = await Promise.all([
     admin.from("assessments").select("external_mitti_id, completed_at, piesa_outcome, mitti_raw_snapshot").eq("job_id", jobId).maybeSingle(),
@@ -205,6 +205,7 @@ async function factsFor(jobId: string, whoBooks: WhoBooks, handedBack: boolean, 
       upgrades: { start: startOf("rectification"), formUrl: upgradesFormUrl, formDone: fixes.outcome === "done" },
     },
     piesaFormUrl, upgradesFormUrl, allDoneAt: certAt ?? (outcome === "pass" ? a?.completed_at ?? null : null),
+    auditIds: [...(a?.external_mitti_id ? [a.external_mitti_id] : []), ...(fixes.auditId && fixes.outcome !== "done" ? [fixes.auditId] : [])],
   };
 }
 
@@ -381,10 +382,10 @@ export type ElectricianCantDoDeps = {
   /** The existing guarded cancel writer (visit-events.server): cancels that business's confirmed booking of that kind, records
    *  the trade cancellation, releases the trade and reopens the visit. Null = nothing of that kind was booked for them. */
   cancelVisit: (jobId: string, kind: "assessment" | "rectification", businessId: string, reason: string) => Promise<{ id: string; scheduled_start: string } | null>;
-  /** Part 4's owner email ("your booked visit can't go ahead"), called once per cancelled booking AFTER it is cancelled.
-   *  TODO(join): the controller wires `queueVisitCancelledOwnerEmail(jobId, bookingId, "electrician")` from
-   *  visit-cancelled-owner.server (branch new-job-flow) here; the default below is that module's function as found at this base. */
+  /** Part 4's owner email ("your booked visit can't go ahead"), called once per cancelled booking AFTER it is cancelled; its own per-booking key stops a repeat. */
   ownerNotice: (jobId: string, bookingId: string, by: "electrician") => Promise<string>;
+  /** Take this person's Mitti access off one form (the same calls the in-house hand-back cleanup uses); "no_user" = not in Mitti. */
+  removeMittiAccess: (auditId: string, email: string) => Promise<"removed" | "no_user">;
   sendOfficeEmail: (p: { actorId: null; recipient: "partner"; to: string; contactName: string | null; subject: string; message: string; html: string; text: string; label: string; record: { businessId: string }; idempotencyKey: string }) => Promise<SendResult>;
   sendTestEmail: (info: { jobId: string; jobSource: string | null; partnerIsTest: boolean; label: string }, to: string, subject: string, html: string, text: string) => Promise<SendResult>;
   record: (jobId: string, eventType: string, summary: string, details: Record<string, unknown>) => Promise<void>;
@@ -393,16 +394,30 @@ const cantDoDeps = (): ElectricianCantDoDeps => ({
   emailApproved: ELECTRICIAN_CANT_DO_EMAIL_APPROVED,
   cancelVisit: async (jobId, kind, businessId, reason) => (await import("./visit-events.server")).cancelVisitFromElectricianLink(jobId, kind, businessId, reason),
   ownerNotice: async (jobId, bookingId, by) => (await import("./visit-cancelled-owner.server")).queueVisitCancelledOwnerEmail(jobId, bookingId, by),
+  removeMittiAccess: async (auditId, email) => {
+    const m = await import("./mitti.server");
+    const call = await m.mittiCallFor(m.realMittiCall, email); // TEST people → the persistent simulator, as every Mitti flow does
+    const user = await m.findMittiUserByEmail(email, call);
+    if (!user) return "no_user";
+    await (await import("./mitti.core")).mittiApi(call).removeInspectionUserAccess(auditId, user);
+    return "removed";
+  },
   sendOfficeEmail: async (p) => (await import("./office-email.server")).sendOfficeEmail(p),
   sendTestEmail: async (info, to, subject, html, text) => (await import("./test-send.server")).sendTestEmail({ ...info, actorId: null }, to, subject, html, text),
   record: async (jobId, eventType, summary, details) => (await import("./workflow.server")).logEvent(jobId, null, eventType, summary, details, { internal: true }),
 });
+export const ELECTRICIAN_CANT_DO_MITTI_FAILED_EVENT = "electrician_cant_do_mitti_failed";
+export const ELECTRICIAN_CANT_DO_EMAIL_HELD_EVENT = "electrician_cant_do_email_held";
+/** Written once every step after the claim has run; a later press of the same link then does nothing at all. */
+export const ELECTRICIAN_CANT_DO_FINISHED_EVENT = "electrician_cant_do_finished";
 
-/** The electrician hands the job back from their link (Jo 2 Nov, answer 4). Everything comes from the token. In order: their
- *  confirmed safety check / upgrades booking is cancelled through the existing guarded cancel writer, their assignment ends,
- *  every link of theirs for the job is switched off, ONE `electrician_cant_do` event is written, then the owner is emailed
- *  straight away for each cancelled booking (Part 4) and the installer office is told (DRAFT email, test-send for TEST jobs).
- *  A second press on the same link is the same { ok: true } and changes nothing. */
+/** The electrician hands the job back from their link (Jo 2 Nov, answer 4). Everything comes from the token; only a live step
+ *  (not All done / closed) can be handed back. ONE `electrician_cant_do` event is the claim, written FIRST; everything after it is
+ *  idempotent and re-run on a later press of the same link, so a half-done hand-back finishes itself: their confirmed safety
+ *  check / upgrades booking is cancelled through the existing guarded cancel writer, their assignment ends, every link of theirs
+ *  for the job is switched off, their Mitti access to the job's forms is removed (best effort), then the owner is emailed straight
+ *  away for each cancelled booking (Part 4, keyed per booking) and the installer office is told (DRAFT email, keyed; test-send for
+ *  TEST jobs). A second press on the same link is the same { ok: true }. */
 export async function electricianCantDo(token: string, reason: string, now = Date.now(), over: Partial<ElectricianCantDoDeps> = {}): Promise<ElectricianCantDoResult> {
   if (!electricianCantDoReasonOk(reason)) return { ok: false, message: ELECTRICIAN_CANT_DO_REASON_NEEDED };
   const why = reason.trim().slice(0, 480);
@@ -412,18 +427,21 @@ export async function electricianCantDo(token: string, reason: string, now = Dat
   if (error) throw dbErr("the link", error);
   if (!l) return { ok: false, message: ELECTRICIAN_LINK_NOT_VALID };
   const jobId = l.job_id as string;
-  const doneBefore = async () => {
-    const { data } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", ELECTRICIAN_CANT_DO_EVENT).contains("details", { link_id: l.id }).limit(1).maybeSingle();
-    return !!data;
+  type Claim = { assignment_id: string; cancelled_booking_ids: string[] };
+  const claimBefore = async (): Promise<Claim | null> => {
+    const { data } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", ELECTRICIAN_CANT_DO_EVENT).contains("details", { link_id: l.id }).limit(1).maybeSingle();
+    const det = (data?.details ?? null) as Partial<Claim> | null;
+    return det ? { assignment_id: String(det.assignment_id ?? ""), cancelled_booking_ids: Array.isArray(det.cancelled_booking_ids) ? det.cancelled_booking_ids.map(String) : [] } : null;
   };
   const installer = await installerOf(jobId);
   const state = linkState(l, now);
-  // The first press switched this link off; the same press again is simply done.
-  if (state === "revoked") return (await doneBefore()) ? { ok: true } : { ok: false, message: electricianLinkSwitchedOff(installer.name) };
-  if (state === "expired") return { ok: false, message: electricianLinkExpired(installer.name) };
   const off = { ok: false as const, message: electricianLinkSwitchedOff(installer.name) };
+  // The first press switched this link off; the same press again finishes anything left and is simply done.
+  if (state === "revoked" && !(await claimBefore())) return off;
+  if (state === "expired") return { ok: false, message: electricianLinkExpired(installer.name) };
+  // approval_status / certificationBlocker are deliberately NOT checked: an unapproved or lapsed electrician can still hand a job back.
   const [{ data: w, error: we }, { data: job, error: je }] = await Promise.all([
-    admin.from("partner_workers").select("id, trade_role, approval_status, removed_at, profile_id").eq("id", l.worker_id).maybeSingle(),
+    admin.from("partner_workers").select("id, email, trade_role, removed_at, profile_id").eq("id", l.worker_id).maybeSingle(),
     admin.from("jobs").select("job_number, source, stage, deleted_at").eq("id", jobId).maybeSingle(),
   ]);
   if (we) throw dbErr("the electrician", we);
@@ -431,43 +449,70 @@ export async function electricianCantDo(token: string, reason: string, now = Dat
   if (!w || w.trade_role !== "electrician" || w.removed_at || !job || job.deleted_at) return off;
 
   return withJobLock(jobId, async () => {
-    if (await doneBefore()) return { ok: true as const };
-    const asg = await electricianAssignment(jobId, l.business_id);
-    if (!asg || !sameElectrician(asg, w)) return off;
-    const { data: asgRow } = await admin.from("job_assignments").select("id").eq("job_id", jobId).eq("role", "electrician").eq("active", true).eq("business_id", l.business_id).maybeSingle();
-    const assignmentId = asgRow?.id as string;
-
-    // 1. Their booked visits, through the existing guarded cancel writer (it also releases the trade).
-    const { data: booked, error: be } = await admin.from("bookings").select("kind").eq("job_id", jobId).eq("status", "confirmed").eq("business_id", l.business_id).in("kind", ["assessment", "rectification"]);
-    if (be) throw dbErr("the bookings", be);
-    const cancelled: { id: string; scheduled_start: string }[] = [];
-    for (const kind of ["assessment", "rectification"] as const) {
-      if (!(booked ?? []).some((b) => b.kind === kind)) continue;
-      const b = await d.cancelVisit(jobId, kind, l.business_id, why);
-      if (b) cancelled.push(b);
+    let claim = await claimBefore();
+    let auditIds: string[];
+    if (claim) {
+      const { data: fin } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", ELECTRICIAN_CANT_DO_FINISHED_EVENT).contains("details", { link_id: l.id }).limit(1).maybeSingle();
+      if (fin) return { ok: true as const };
     }
+    if (!claim) {
+      const asg = await electricianAssignment(jobId, l.business_id);
+      if (!asg || !sameElectrician(asg, w)) return off;
+      // Only a live step can be handed back: All done and a closed job are switched off, nothing written.
+      const f = await factsFor(jobId, await whoBooksFor(installer.id), job.stage === "cancelled", now);
+      const step = electricianStep(f.facts).step;
+      if (step === "all_done" || step === "closed") return off;
+      auditIds = f.auditIds;
+      const { data: booked, error: be } = await admin.from("bookings").select("id").eq("job_id", jobId).eq("status", "confirmed").eq("business_id", l.business_id).in("kind", ["assessment", "rectification"]);
+      if (be) throw dbErr("the bookings", be);
+      claim = { assignment_id: asg.id, cancelled_booking_ids: (booked ?? []).map((b) => b.id as string) };
+      // The claim (Part 9 reads it) goes first; every step below is idempotent and re-run on a later press.
+      await d.record(jobId, ELECTRICIAN_CANT_DO_EVENT, `Electrician can't do this one (${why})`, { worker_id: l.worker_id, reason: why, booking_cancelled: claim.cancelled_booking_ids.length > 0, link_id: l.id, assignment_id: claim.assignment_id, business_id: l.business_id, cancelled_booking_ids: claim.cancelled_booking_ids });
+    } else {
+      auditIds = (await factsFor(jobId, "office", job.stage === "cancelled", now)).auditIds;
+    }
+    // 1. Their booked visits, through the existing guarded cancel writer (it also releases the trade). Nothing confirmed = nothing to do.
+    const { data: still, error: se } = await admin.from("bookings").select("kind").eq("job_id", jobId).eq("status", "confirmed").eq("business_id", l.business_id).in("kind", ["assessment", "rectification"]);
+    if (se) throw dbErr("the bookings", se);
+    for (const kind of ["assessment", "rectification"] as const) if ((still ?? []).some((b) => b.kind === kind)) await d.cancelVisit(jobId, kind, l.business_id, why);
     // 2. Off the job: the assignment ends (if the cancel writer hasn't already ended it) and every link of theirs is switched off.
     const nowIso = new Date(now).toISOString();
-    const { error: ae } = await admin.from("job_assignments").update({ active: false, ended_at: nowIso, end_reason: `electrician can't do this one: ${why}`.slice(0, 300) }).eq("id", assignmentId).eq("active", true);
+    const { error: ae } = await admin.from("job_assignments").update({ active: false, ended_at: nowIso, end_reason: `electrician can't do this one: ${why}`.slice(0, 300) }).eq("id", claim.assignment_id).eq("active", true);
     if (ae) throw new Error(ae.message);
     const { error: re } = await admin.from("worker_job_links").update({ revoked_at: nowIso, revoked_by: null }).eq("worker_id", l.worker_id).eq("job_id", jobId).is("revoked_at", null);
     if (re) throw new Error(re.message);
-    // 3. The one event (Part 9 reads it).
-    await d.record(jobId, ELECTRICIAN_CANT_DO_EVENT, `Electrician can't do this one (${why})`, { worker_id: l.worker_id, reason: why, booking_cancelled: cancelled.length > 0, link_id: l.id, assignment_id: assignmentId, business_id: l.business_id, cancelled_booking_ids: cancelled.map((b) => b.id) });
+    // 3. Their Mitti access to the job's forms (A3, open A4). Best effort: a failure is logged on the job, never undoes the hand-back.
+    const mittiEmail = job.source === "qa_test" ? (await import("./onsite-ready-check.core")).TEST_MITTI_ASSIGNEE : (w.email ?? "").trim();
+    for (const auditId of auditIds) {
+      try {
+        if (!mittiEmail) throw new Error("no email on the electrician's record");
+        await d.removeMittiAccess(auditId, mittiEmail);
+      } catch (e) {
+        console.error("Can't do this one: Mitti access not removed", auditId, (e as Error).message);
+        await d.record(jobId, ELECTRICIAN_CANT_DO_MITTI_FAILED_EVENT, "Electrician's Mitti form access could not be removed", { audit_id: auditId, worker_id: l.worker_id, error: (e as Error).message.slice(0, 300) }).catch(() => undefined);
+      }
+    }
     // 4. The owner, straight away, once per cancelled booking (Part 4's email; its own key stops a repeat). Never undoes the hand-back.
-    for (const b of cancelled) await d.ownerNotice(jobId, b.id, "electrician").catch((e) => console.error("Visit cancelled owner email skipped", (e as Error).message));
-    // 5. The installer office (DRAFT wording; real jobs held until approved).
-    await tellInstallerOfficeCantDo(d, { jobId, jobNumber: job.job_number, source: job.source ?? null, assignmentId, electricianBusinessId: l.business_id, installerBusinessId: installer.id, reason: why })
+    for (const id of claim.cancelled_booking_ids) await d.ownerNotice(jobId, id, "electrician").catch((e) => console.error("Visit cancelled owner email skipped", (e as Error).message));
+    // 5. The installer office (DRAFT wording; real jobs held until approved; keyed, so a retry never sends twice).
+    await tellInstallerOfficeCantDo(d, { jobId, jobNumber: job.job_number, source: job.source ?? null, assignmentId: claim.assignment_id, electricianBusinessId: l.business_id, installerBusinessId: installer.id, reason: why })
       .catch((e) => console.error("Can't do this one: installer office email skipped", (e as Error).message));
+    await d.record(jobId, ELECTRICIAN_CANT_DO_FINISHED_EVENT, "Hand-back finished", { link_id: l.id, worker_id: l.worker_id }).catch((e) => console.error("Can't do this one: finish mark not written", (e as Error).message));
     return { ok: true as const };
   });
 }
 
 async function tellInstallerOfficeCantDo(d: ElectricianCantDoDeps, i: { jobId: string; jobNumber: string; source: string | null; assignmentId: string; electricianBusinessId: string; installerBusinessId: string | null; reason: string }): Promise<"sent" | "test_sent" | "held"> {
-  if (!i.installerBusinessId) return "held";
   const key = electricianCantDoEmailKey(i.jobId, i.assignmentId);
   const { data: done } = await admin.from("workflow_events").select("id").eq("job_id", i.jobId).eq("event_type", ELECTRICIAN_CANT_DO_EMAIL_EVENT).contains("details", { key }).limit(1).maybeSingle();
   if (done) return "held";
+  // Held with no one to send to: one trace on the job (keyed), like the other held senders.
+  const held = async (reason: string) => {
+    const { data: prior } = await admin.from("workflow_events").select("id").eq("job_id", i.jobId).eq("event_type", ELECTRICIAN_CANT_DO_EMAIL_HELD_EVENT).contains("details", { key }).limit(1).maybeSingle();
+    if (!prior) await d.record(i.jobId, ELECTRICIAN_CANT_DO_EMAIL_HELD_EVENT, `Installer office not told the electrician can't do this one: ${reason}`, { key, assignment_id: i.assignmentId, reason });
+    return "held" as const;
+  };
+  if (!i.installerBusinessId) return held("no installer on the job");
   const [{ data: ib, error: ie }, { data: eb, error: ee }] = await Promise.all([
     admin.from("businesses").select("name, trading_name, email, onboarding_notes").eq("id", i.installerBusinessId).maybeSingle(),
     admin.from("businesses").select("name, trading_name, onboarding_notes").eq("id", i.electricianBusinessId).maybeSingle(),
@@ -475,7 +520,7 @@ async function tellInstallerOfficeCantDo(d: ElectricianCantDoDeps, i: { jobId: s
   if (ie) throw dbErr("the installer", ie);
   if (ee) throw dbErr("the electrician business", ee);
   const to = (ib?.email ?? "").trim();
-  if (!to) return "held";
+  if (!to) return held("no installer office email");
   const { isTestPartner } = await import("./test-send.core");
   const partnerIsTest = isTestPartner(ib) || isTestPartner(eb);
   const test = i.source === "qa_test" || partnerIsTest;

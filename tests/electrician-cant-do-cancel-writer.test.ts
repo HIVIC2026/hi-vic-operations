@@ -25,7 +25,7 @@ beforeEach(() => {
   tables["jobs"] = [{ id: J, stage: "piesa_scheduled" }];
   tables["job_assignments"] = [{ id: "a2", job_id: J, business_id: ELEC, role: "electrician", active: true }];
   tables["bookings"] = [{ id: "bk1", job_id: J, kind: "assessment", status: "confirmed", scheduled_start: "2026-11-06T23:00:00.000Z", business_id: ELEC, assignment_id: "a2", contractor_id: null }];
-  tables["partner_offers"] = [{ id: "o1", job_id: J, status: "pending" }];
+  tables["partner_offers"] = [{ id: "o1", job_id: J, business_id: ELEC, status: "pending" }];
   tables["visit_events"] = [];
   tables["workflow_events"] = [];
 });
@@ -53,4 +53,9 @@ test("nothing of that kind booked for that business: null, nothing touched", asy
   expect(await ve.cancelVisitFromElectricianLink(J, "assessment", "someone-else", "x")).toBeNull();
   expect(tables["bookings"]![0]!["status"]).toBe("confirmed");
   expect(tables["visit_events"]).toHaveLength(0);
+});
+test("only that business's pending offers are withdrawn, not another trade's", async () => {
+  tables["partner_offers"] = [{ id: "o1", job_id: J, business_id: ELEC, status: "pending" }, { id: "o2", job_id: J, business_id: "other-biz", status: "pending" }];
+  await ve.cancelVisitFromElectricianLink(J, "assessment", ELEC, "Sick that week");
+  expect(tables["partner_offers"]!.map((o) => o["status"])).toEqual(["withdrawn", "pending"]);
 });
