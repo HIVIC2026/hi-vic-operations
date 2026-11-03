@@ -42,7 +42,12 @@ describe("You're booked email (our leads)", () => {
     expect(m.subject).toBe("You're booked: free Ready Check – Thursday 29 October at 9:00am");
     expect(m.text).toContain("When: Thursday 29 October at 9:00am");
     expect(m.text).toContain("Installer: Reinsulate");
-    expect(m.text).toContain("Change time on your job page");
+    // Decision #24 (Jo 2 Nov 2026): no change link — the owner calls the installer's office.
+    expect(m.text).not.toMatch(/Change time|job page|Wrong time/);
+    expect(m.html).not.toMatch(/Change time|job page/);
+    const withPhone = renderReadyCheckBookedEmail({ ...base, installerPhone: "03 9000 0000" });
+    expect(withPhone.text).toContain("Need to change it? Call Reinsulate on 03 9000 0000.");
+    expect(m.text).not.toContain("Need to change it?"); // no office phone on file → no change line (never a blank)
     expect(m.text).not.toContain("See my job: https://example.test/my-job/t");
     // Decision 81 design: green date card (day + green time), "Before they arrive".
     expect(m.html).toContain("You're booked, Helen");

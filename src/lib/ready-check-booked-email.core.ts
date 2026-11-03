@@ -1,7 +1,8 @@
 // Jo 24 Oct 2026 (decisions 80–81): on our leads the owner gets "You're booked" for the free Ready Check, and an updated
 // one when either side changes the time. Our leads only (installers' own customers have no portal booking).
 // Design: docs/templates/mjml/owner_O12.mjml (MJML email refresh, Jo 27 Oct 2026) — blue date/time box with address
-// and installer name + phone; "Before they arrive"; Change time line; rebate and price boxes; included / not included.
+// and installer name + phone; "Before they arrive"; change line (call the installer's office, decision #24); rebate and
+// price boxes; included / not included.
 // Flag on (decisions 81/82); real delivery still needs customer_comms_enabled through the guarded owner-email path. Pure.
 import * as K from "./email-kit.core";
 import { esc, mjEmail } from "./mail-mjml.core";
@@ -45,19 +46,21 @@ export function renderReadyCheckBookedEmail(i: ReadyCheckBookedInput) {
     "If you have <strong>pets</strong>, keep them away from the work area.",
     "Have a think about any <strong>questions</strong> you'd like to ask.",
   ];
-  const change = `Need a different time? Tap <strong>Change time</strong> on your job page and the installer will offer new times.${installer ? ` Or call or text ${esc(installer)}${phone ? ` on ${esc(phone)}` : ""}.` : ""}`;
+  // Decision #24 (Jo 2 Nov 2026): no change link — "Need to change it? Call {Installer} on {office phone}." (the
+  // installer's business phone); no installer or office phone on file → no change line, never a blank.
+  const change = installer && phone ? `Need to change it? Call ${esc(installer)} on ${esc(phone)}.` : "";
   const est = i.estimate && i.estimate.price > 0 ? i.estimate : null;
   const body = [
     `<mj-section><mj-column><mj-text mj-class="h1" css-class="email-heading">${esc(headline)}</mj-text><mj-text>${esc(lead)}</mj-text></mj-column></mj-section>`,
     mjBookingBox({ label: i.changed ? "Your new Ready Check time" : "Your Ready Check", day, time, lines }),
-    `<mj-section><mj-column><mj-text mj-class="h2" css-class="email-sub" padding="18px 12px 10px">Before they arrive</mj-text><mj-table padding="0 12px 6px">${mjBeforeRows(before)}</mj-table><mj-text>${change}</mj-text></mj-column></mj-section>`,
+    `<mj-section><mj-column><mj-text mj-class="h2" css-class="email-sub" padding="18px 12px 10px">Before they arrive</mj-text><mj-table padding="0 12px 6px">${mjBeforeRows(before)}</mj-table>${change ? `<mj-text>${change}</mj-text>` : ""}</mj-column></mj-section>`,
     est ? mjReadyCheckEstimate(est) : "",
   ].join("");
   const html = mjEmail({ subject, preview, body, unsubscribe: null, testLabel: i.test === true });
   const text = K.plainText([
     headline, "", lead, `When: ${i.when}`, ...lines, "",
     "BEFORE THEY ARRIVE", ...before.map((b) => `✓ ${K.stripTags(b)}`), "",
-    K.stripTags(change), 
+    change ? K.stripTags(change) : null,
     ...(est ? ["", ...readyCheckEstimateText(est)] : []),
   ], { testLabel: i.test === true });
   return { subject, html, text };

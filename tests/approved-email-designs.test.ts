@@ -114,7 +114,7 @@ describe("approved owner email designs", () => {
   test("O12 Ready Check booked", () => {
     const m = renderReadyCheckBookedEmail({ firstName: "Helen", when: "Tuesday 28 October at 8:00am", installerName: "Deep Insulation", installerPhone: "0400 000 000", address: "824 High Street Road, Glen Waverley", changed: false, myJobUrl: JOB, estimate: { rebate: 1610, price: 2188, areaM2: 137 } });
     shell(m.html, m.text, false);
-    has(m.html, ["You're booked, Helen", "Your free Ready Check is confirmed.", "Your Ready Check</div>", ">Tuesday 28 October<", ">8:00am<", "Installer: Deep Insulation · 0400 000 000", "Before they arrive", "<strong>ceiling hatch</strong>", "<strong>Change time</strong>", "call or text Deep Insulation on 0400 000 000", "What's included in $2,188"]);
+    has(m.html, ["You're booked, Helen", "Your free Ready Check is confirmed.", "Your Ready Check</div>", ">Tuesday 28 October<", ">8:00am<", "Installer: Deep Insulation · 0400 000 000", "Before they arrive", "<strong>ceiling hatch</strong>", "Need to change it? Call Deep Insulation on 0400 000 000.", "What's included in $2,188"]);
     expect(READY_CHECK_BOOKED_EMAIL_APPROVED).toBe(true); // approved by Jo 24 Oct 2026 (tests/approved-flags.test.ts lists the decision)
   });
   const quote = { firstName: "Helen", address: "824 High Street Road, Glen Waverley VIC 3150", totalIncGst: 2200, rebateIncGst: 1850, subtotalIncGst: 4050, areaM2: 137.6, removalM2: 40, product: "Bradford Gold R5.0", installerName: "Reinsulate", installerCertified: true, safetyCheckPrice: 349,
