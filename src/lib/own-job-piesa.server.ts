@@ -181,7 +181,8 @@ export async function refuseOfficeOfferForOwnJob(jobId: string): Promise<void> {
 }
 
 /** 15-minute tick: own jobs whose safety check fee has cleared go to their electrician — first time (measured quote
- *  accepted), a new round or in-flight job at the PIESA stage, and any half-done hand-over (repair). */
+ *  accepted), a new round or in-flight job at the PIESA stage, and any half-done hand-over (repair). Already handed
+ *  jobs get their notices re-checked (retry of anything not yet sent). */
 export async function sweepOwnJobPiesaHandoffs(now: Date = new Date()): Promise<Record<OwnJobHandoffOutcome | "failed", number>> {
   const out = { handed: 0, waiting: 0, held: 0, already: 0, failed: 0 };
   const inHouseState = await readInHouseDispatchState();
@@ -190,7 +191,14 @@ export async function sweepOwnJobPiesaHandoffs(now: Date = new Date()): Promise<
   if (error) throw new Error(error.message);
   for (const j of jobs ?? []) {
     if (inHouseState.held.has(j.id)) continue;
-    try { out[await handOwnJobPiesa(j.id, now, inHouseState)]++; } catch (e) { out.failed++; console.error("own job safety check hand-over failed", j.id, (e as Error).message); }
+    let r: OwnJobHandoffOutcome;
+    try { r = await handOwnJobPiesa(j.id, now, inHouseState); out[r]++; } catch (e) { out.failed++; console.error("own job safety check hand-over failed", j.id, (e as Error).message); continue; }
+    // Task 3 (carried decision a): a hand-over whose notices failed after the event was logged is retried here. The
+    // notices skip anything already sent (one key per job, round and channel) and stop once the job is booked.
+    if (r === "already") {
+      const { sendOwnJobPiesaNotices } = await import("./own-job-piesa-notices.server");
+      await sendOwnJobPiesaNotices(j.id).catch((e) => console.error("own job safety check notices retry skipped", j.id, (e as Error).message));
+    }
   }
   return out;
 }

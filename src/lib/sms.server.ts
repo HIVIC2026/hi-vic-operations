@@ -67,6 +67,27 @@ async function logJob(input: RealSmsInput, to: string, status: string, detail: s
   }).then(() => null, () => null);
 }
 
+/** The policy hold for one text (null = it would go): the same checks `sendRealSms` runs before touching the key. */
+async function policyHold(input: RealSmsInput, c: { to: string | null; from: string | null; optedOut: boolean | null; adminSpotReminderBlast: boolean }): Promise<string | null> {
+  const { consent, isTest } = await consentAndTest(input);
+  const nowIso = new Date().toISOString();
+  // Jo 30 Oct 2026: "Pause all trade messages" — read once per partner text (owner texts never read it).
+  const tradeMessagesPaused = SMS_MESSAGE_TYPES[input.type]?.audience === "partner"
+    ? await (await import("./trade-pause.server")).tradeMessagesPausedNow() : null;
+  return smsBlocker({
+    type: input.type, to: input.to, commsEnabled: await customerCommsEnabled(), typeSwitchOn: await typeSwitchOn(input.type),
+    senderConfigured: !!c.from, optedOut: c.optedOut ?? (c.to ? await isOptedOut(c.to) : false), consent, isTestRecord: isTest,
+    adminSpotReminderBlast: c.adminSpotReminderBlast, nowIso, tradeMessagesPaused,
+  }) ?? smsStaleReason(input.type, input.event, nowIso)
+    ?? await (async () => { const { jobDeletedBlocker } = await import("./job-live.server"); return jobDeletedBlocker(input.jobId ?? null); })();
+}
+
+/** Would this (non-blast) text be held right now? Lets a caller skip work that only matters if the text can go (e.g.
+ *  minting a one-time link) without recording a held attempt. Sends nothing, claims nothing. */
+export async function smsHoldReason(input: RealSmsInput): Promise<string | null> {
+  return policyHold(input, { to: toAuE164(input.to), from: sendingNumber(), optedOut: null, adminSpotReminderBlast: false });
+}
+
 /** Send one real SMS. Every check runs first; blocked attempts are logged and never reach Twilio. */
 export async function sendRealSms(input: RealSmsInput, blast?: { claimId: string; adminSpotReminderBlast?: true; scheduledSpotReminder?: true }): Promise<RealSmsResult> {
   // One-off blasts: the Save My Spot reminder (office page or the hourly automatic run) and the 3 questions reminder
@@ -84,7 +105,6 @@ export async function sendRealSms(input: RealSmsInput, blast?: { claimId: string
   }
   const to = toAuE164(input.to);
   const from = sendingNumber();
-  const { consent, isTest } = await consentAndTest(input);
   let blastOptedOut = false;
   if (blastAllowed && to) {
     // This one-off audience excludes every recorded opt-out, even if START was later recorded.
@@ -92,18 +112,9 @@ export async function sendRealSms(input: RealSmsInput, blast?: { claimId: string
     if (oe) throw new Error("Could not verify SMS opt-outs; nothing sent");
     blastOptedOut = (opts ?? []).some((r: { phone: string }) => toAuE164(r.phone) === to);
   }
-  const nowIso = new Date().toISOString();
-  // Jo 30 Oct 2026: "Pause all trade messages" — read once per partner text (owner texts never read it).
-  const tradeMessagesPaused = SMS_MESSAGE_TYPES[input.type]?.audience === "partner"
-    ? await (await import("./trade-pause.server")).tradeMessagesPausedNow() : null;
   // Every policy hold is decided BEFORE the key is touched (decision 165): switches, quiet hours, wording, consent,
   // STOP list, freshness of the triggering event, deleted job. None of these may consume the idempotency key.
-  const blocked = smsBlocker({
-    type: input.type, to: input.to, commsEnabled: await customerCommsEnabled(), typeSwitchOn: await typeSwitchOn(input.type),
-    senderConfigured: !!from, optedOut: blastAllowed ? blastOptedOut : to ? await isOptedOut(to) : false, consent, isTestRecord: isTest,
-    adminSpotReminderBlast: blastAllowed && blast?.adminSpotReminderBlast === true, nowIso, tradeMessagesPaused,
-  }) ?? smsStaleReason(input.type, input.event, nowIso)
-    ?? await (async () => { const { jobDeletedBlocker } = await import("./job-live.server"); return jobDeletedBlocker(input.jobId ?? null); })();
+  const blocked = await policyHold(input, { to, from, optedOut: blastAllowed ? blastOptedOut : null, adminSpotReminderBlast: blastAllowed && blast?.adminSpotReminderBlast === true });
   if (blocked) {
     // A key already claimed by a real attempt stays "already" (no second held row for a text that went).
     const { data: prior, error: pe } = await db.from("sms_messages").select("id").eq("idempotency_key", input.idempotencyKey).maybeSingle();
