@@ -13,6 +13,11 @@ export const TEAM_ERRORS = {
 } as const;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/** New installer Team adds require an explicit choice; legacy stored-role reads stay unchanged. */
+export function teamWorkerRoleProblem(kind: TeamKind, workerRole: unknown): string | null {
+  return kind === "installer" && workerRole !== "lead" && workerRole !== "crew" ? "Choose Lead or Crew." : null;
+}
+
 /** First plain problem, or the cleaned values to save. */
 export function teamMemberDetails(kind: TeamKind, p: { mobile: string | null | undefined; email: string | null | undefined; dateOfBirth: string | null | undefined }, today: string):
   { ok: true; mobile: string; email: string | null; dateOfBirth: string } | { ok: false; error: string } {
@@ -45,9 +50,9 @@ export function teamMissingPrompt(name: string, missing: string[]): string | nul
   return `Add ${first}'s ${list}`;
 }
 
-/** Jo 3 Nov ~3pm: the business fills a MISSING date of birth (anyone) or a MISSING email (electricians only) from the
- *  Team page. Never overwrites a saved value; installers are never asked for an email. */
-export function teamFillMissing(kind: TeamKind, current: { hasDateOfBirth: boolean; email: string | null },
+/** The boss fills a missing private date of birth or email for either trade. Installer email stays optional.
+ *  Never overwrites a saved value. */
+export function teamFillMissing(_kind: TeamKind, current: { hasDateOfBirth: boolean; email: string | null },
   p: { dateOfBirth?: string | null; email?: string | null }, today: string):
   { ok: true; dateOfBirth: string | null; email: string | null } | { ok: false; error: string } {
   const dobIn = (p.dateOfBirth ?? "").trim() || null;
@@ -59,7 +64,6 @@ export function teamFillMissing(kind: TeamKind, current: { hasDateOfBirth: boole
     if (bad) return { ok: false, error: bad };
   }
   if (emailIn) {
-    if (kind !== "electrician") return { ok: false, error: "Installers don't need an email." };
     if ((current.email ?? "").trim()) return { ok: false, error: "Their email is already saved." };
     if (!EMAIL.test(emailIn)) return { ok: false, error: TEAM_ERRORS.badEmail };
   }

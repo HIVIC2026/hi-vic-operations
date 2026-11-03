@@ -212,11 +212,9 @@ describe("batchCandidates", () => {
     expect(r.candidates.map((c) => c.jobId)).toEqual(["ok"]);
     expect(r.candidates[0]).toMatchObject({ postcode: "3000", isTest: false, lat: -37.8, lng: 145 });
   });
-  test("left out: installer-added, no saved spot, not likely eligible, flat roof, closed, deleted, has an installer, TEST (unless asked)", async () => {
+  test("left out: installer-added, no saved spot, closed, deleted, has an installer, TEST (unless asked)", async () => {
     addJob("installer", { channel: "installer_sourced" });
     addJob("nospot", { saved: false });
-    addJob("notlikely", { facts: { declared: { property_type: "house", over_five_years: "no" }, answers: { insulation: "none" } } });
-    addJob("flat", { roof: "low_slope_flat" });
     addJob("closed", { stage: "cancelled" });
     addJob("deleted", { deleted: true });
     addJob("assigned"); tables["job_assignments"]!.push({ job_id: "assigned", role: "installer", active: true });
@@ -249,36 +247,6 @@ describe("batchCandidates", () => {
     expect(located.sort()).toEqual(["found", "lost"]);
     expect(r.candidates.map((c) => c.jobId)).toEqual(["found"]);
     expect(r.unlocated).toBe(1);
-  });
-});
-
-// ---- suggestions ----------------------------------------------------------------------------------------------------
-describe("batchSuggestions", () => {
-  beforeEach(seed);
-  test("8 nearby homes → one suggestion with suburbs, span and the installers covering every home", async () => {
-    for (const [i, id] of ids(8).entries()) addJob(id, { coords: pt(i * 0.5), postcode: i < 4 ? "3000" : "3001" });
-    installers = [installer({ id: "biz-1" }), installer({ id: "biz-2", name: "Only 3000", service_postcodes: ["3000"] })];
-    const r = await S.batchSuggestions({ now: NOW });
-    expect(r.batches.length).toBe(1);
-    const b = r.batches[0]!;
-    expect(b.homes.length).toBe(8);
-    expect(b.suburbs).toEqual(["Melbourne 3000", "Melbourne 3001"]);
-    expect(b.spanKm).toBe(3.5);
-    expect(b.installers).toEqual([{ id: "biz-1", name: "Sample Insulation" }]);
-  });
-  test("too few homes and none waited 14 days → no suggestion", async () => {
-    for (const id of ids(3)) addJob(id);
-    expect((await S.batchSuggestions({ now: NOW })).batches).toEqual([]);
-  });
-  test("TEST and real homes are never in the same suggestion", async () => {
-    for (const id of ids(8)) addJob(id);
-    for (const id of ids(8, "t")) addJob(id, { source: "qa_test" });
-    installers = [installer(), installer({ id: "biz-t", name: "[TEST PARTNER] Co", onboarding_notes: "[TEST PARTNER]" })];
-    const r = await S.batchSuggestions({ now: NOW, includeTest: true });
-    expect(r.batches.length).toBe(2);
-    for (const b of r.batches) expect(new Set(b.homes.map((h) => h.isTest)).size).toBe(1);
-    expect(r.batches.find((b) => b.isTest)!.installers.map((i) => i.id)).toEqual(["biz-t"]);
-    expect(r.batches.find((b) => !b.isTest)!.installers.map((i) => i.id)).toEqual(["biz-1"]);
   });
 });
 
@@ -360,16 +328,17 @@ describe("brand line", () => {
 
 // ---- review fix round 1 -----------------------------------------------------------------------------------------------
 describe("TEST office login", () => {
-  test("suggested batches are hidden for the TEST office login (its functions are not on the TEST office allowlist)", async () => {
+  test("area batches are hidden for the TEST office login (its functions are not on the TEST office allowlist)", async () => {
     const { showAreaBatches } = await import("../src/lib/area-batch.core");
     const { qaOfficeFunctionAllowed } = await import("../src/lib/qa-office-policy.core");
-    expect(qaOfficeFunctionAllowed("src/lib/area-batch.functions.ts", "getAreaBatchSuggestions")).toBe(false);
+    expect(qaOfficeFunctionAllowed("src/lib/area-batch.functions.ts", "sendAreaBatchFn")).toBe(false);
     expect(showAreaBatches(["qa_office"])).toBe(false);
     expect(showAreaBatches(["admin", "qa_office"])).toBe(false);
     expect(showAreaBatches(["admin"])).toBe(true);
     expect(showAreaBatches(undefined)).toBe(false); // not known yet → nothing loads
     const src = await Bun.file("src/components/portal/InstallerWaitingScreen.tsx").text();
-    expect(src).toMatch(/showAreaBatches\(me\?\.roles\) && <AreaBatchSuggestions/);
+    expect(src).toMatch(/showAreaBatches\(me\?\.roles\) && <BatchesReadyToSend/);
+    expect(src).not.toMatch(/AreaBatchSuggestions/); // Saved spots by area (3 Nov 2026): the Suggested batches box is gone
   });
 });
 describe("sendBatch: an owner carrying a pass from a batch they left (Task 4 fix round 1)", () => {
@@ -541,10 +510,10 @@ describe("Choose installer result words", () => {
     expect(sendResultWords("email", { status: "blocked", detail: "blocked — TEST browser run: no delivery" })).toBe("not sent — blocked: TEST browser run: no delivery");
     expect(sendResultWords("email", { status: "uncertain", detail: "delivery uncertain — not retried" })).toBe("may have gone — not resent");
   });
-  test("both Send lines say a text and an email", () => {
+  test("no Send line says a text only", () => {
+    // Saved spots by area (3 Nov 2026): the Suggested batches box (which carried the two "text and an email" lines) is gone.
     const src = readFileSync("src/components/portal/choose-installer.tsx", "utf8");
     expect(src).not.toMatch(/each owner gets a text to/);
-    expect(src.match(/each owner gets a text and an email/g)?.length).toBe(2);
   });
 });
 

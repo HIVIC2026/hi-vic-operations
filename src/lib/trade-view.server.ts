@@ -942,8 +942,8 @@ export async function tradeSetWorkerMobile(userId: string, workerId: string, raw
   return { ok: true, mobile: v.mobile };
 }
 
-/** Jo 3 Nov ~3pm: own-business boss fills a MISSING date of birth (private identity table) or a MISSING email
- *  (electricians only). Never overwrites saved values; sends nothing. Rules in `team-required.core`. */
+/** Own-business boss fills a missing private date of birth or email for either trade.
+ *  Installer email stays optional. Never overwrites saved values; sends nothing. Rules in `team-required.core`. */
 export async function tradeFillWorkerMissing(userId: string, workerId: string, p: { dateOfBirth: string | null; email: string | null }) {
   const c = await bossOrThrow(userId);
   const { data: w } = await admin.from("partner_workers").select("id, business_id, email").eq("id", workerId).is("removed_at", null).maybeSingle();
@@ -963,6 +963,8 @@ export async function tradeFillWorkerMissing(userId: string, workerId: string, p
   if (v.email) {
     const { error } = await admin.from("partner_workers").update({ email: v.email }).eq("id", w.id).eq("business_id", c.biz.id).is("email", null);
     if (error) throw new WorkflowError(error.code === "23505" ? "Someone in your team already uses that email." : "The email couldn't be saved. Try again.");
+    // Jo 3 Nov: a Lead waiting for their own email is invited once the boss adds it (switch/pause/TEST rules unchanged).
+    await import("./mitti-invite.server").then((m) => m.onPartnerPersonApproved(w.id, userId)).catch((e) => console.error("Mitti invite after email added skipped", (e as Error).message));
   }
   return { ok: true };
 }
@@ -970,13 +972,15 @@ export async function tradeFillWorkerMissing(userId: string, workerId: string, p
 /** Jo 3 Nov 2:37pm (replaces 29 Oct): installers need an Australian mobile + date of birth (email optional); electricians
  *  need mobile + date of birth + email (`team-required.core`). Installers start as Lead or Crew with the CII certificate
  *  unchecked; electricians need a licence number. Always pending, declarations_due before any job. Sends nothing. */
-export async function tradeAddTeamPerson(userId: string, p: { name: string; workerRole: import("./worker-role.core").WorkerRole; mobile: string | null; email: string | null; licenceNumber: string | null; dateOfBirth?:string|null|undefined }): Promise<{ workerId: string }> {
+export async function tradeAddTeamPerson(userId: string, p: { name: string; workerRole?: import("./worker-role.core").WorkerRole; mobile: string | null; email: string | null; licenceNumber: string | null; dateOfBirth?:string|null|undefined }): Promise<{ workerId: string }> {
   const c = await bossOrThrow(userId);
   const name = p.name.trim();
   if (!name) throw new WorkflowError("Add their full name.");
   const licence = p.licenceNumber?.trim() || null;
   if (c.kind === "electrician" && !licence) throw new WorkflowError("Add their electrical licence number.");
-  const { teamMemberDetails } = await import("./team-required.core");
+  const { teamMemberDetails, teamWorkerRoleProblem } = await import("./team-required.core");
+  const roleProblem = teamWorkerRoleProblem(c.kind, p.workerRole);
+  if (roleProblem) throw new WorkflowError(roleProblem);
   const v = teamMemberDetails(c.kind, { mobile: p.mobile, email: p.email, dateOfBirth: p.dateOfBirth }, (await import("./melbourne-time.core")).melbourneToday());
   if (!v.ok) throw new WorkflowError(v.error);
   const email = v.email;

@@ -7,26 +7,6 @@ import { RUN_RELEASE_EVENTS } from "./run-route.core";
 
 const norm = (v: string | null | undefined) => (v ?? "").trim().toLowerCase();
 
-export type LikelyFacts = {
-  propertyType: string | null;
-  topFloor: string | null;
-  overFiveYears: string | null;
-  insulation: string | null;
-  insulationThickness: string | null;
-  roofForm: string | null;
-};
-
-/** Most likely eligible: house/townhouse (or top-floor unit), over 5 years, no insulation or "thin", roof not fully flat (unknown is fine). */
-export function likelyEligible(f: LikelyFacts): boolean {
-  const type = norm(f.propertyType);
-  const homeOk = type === "house" || type === "townhouse" || (type === "apartment" && norm(f.topFloor) === "yes");
-  if (!homeOk) return false;
-  if (norm(f.overFiveYears) !== "yes") return false;
-  if (norm(f.roofForm) === "low_slope_flat") return false;
-  const ins = norm(f.insulation);
-  return ins === "none" || (ins === "present" && norm(f.insulationThickness) === "thin");
-}
-
 export type BatchHome = { jobId: string; lat: number; lng: number; postcode: string; spotSavedAt: string };
 
 const RADIUS_M = 10_000;

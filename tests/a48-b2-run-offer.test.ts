@@ -557,7 +557,7 @@ describe("wiring", () => {
   test("final review: Send again / Back to suggestions / installer choice are office-only and wired", () => {
     const src = (p: string) => readFileSync(p, "utf8");
     const ui = src("src/components/portal/choose-installer.tsx");
-    for (const s of ["Text didn't go — Send again", "Send again", "Back to suggestions", "returnBatchFn"]) expect(ui).toContain(s);
+    for (const s of ["Text didn't go — Send again", "Send again", "Back to To release", "returnBatchFn"]) expect(ui).toContain(s);
     const fns = src("src/lib/installer-run.functions.ts");
     expect(fns).toMatch(/export const returnBatchFn = createServerFn\(\{ method: "POST" \}\)\.middleware\(\[requireSupabaseAuth\]\)/);
     expect(fns.slice(fns.indexOf("export const returnBatchFn"))).toMatch(/requireOfficeIdentity[\s\S]*qa_office/);

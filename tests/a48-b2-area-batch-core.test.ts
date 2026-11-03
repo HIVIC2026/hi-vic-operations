@@ -1,39 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { excludedAreaName, likelyEligible, suggestBatches, type BatchHome } from "../src/lib/area-batch.core";
-
-const base = { propertyType: "house", topFloor: "", overFiveYears: "yes", insulation: "none", insulationThickness: "unknown", roofForm: "pitched" };
-const f = (o: Partial<typeof base> = {}) => ({ ...base, ...o });
-
-describe("likelyEligible", () => {
-  test("house, over 5 years, no insulation, pitched roof", () => expect(likelyEligible(f())).toBe(true));
-  test("townhouse counts", () => expect(likelyEligible(f({ propertyType: "townhouse" }))).toBe(true));
-  test("top-floor apartment with thin insulation", () =>
-    expect(likelyEligible(f({ propertyType: "apartment", topFloor: "yes", insulation: "present", insulationThickness: "thin" }))).toBe(true));
-  test("unknown or mixed roof still counts", () => {
-    expect(likelyEligible(f({ roofForm: "unknown" }))).toBe(true);
-    expect(likelyEligible(f({ roofForm: "mixed" }))).toBe(true);
-    expect(likelyEligible(f({ roofForm: null }))).toBe(true);
-  });
-  test("fully flat roof is out", () => expect(likelyEligible(f({ roofForm: "low_slope_flat" }))).toBe(false));
-  test("over five years no / blank / unknown is out", () => {
-    expect(likelyEligible(f({ overFiveYears: "no" }))).toBe(false);
-    expect(likelyEligible(f({ overFiveYears: "" }))).toBe(false);
-    expect(likelyEligible(f({ overFiveYears: null }))).toBe(false);
-    expect(likelyEligible(f({ overFiveYears: "unknown" }))).toBe(false);
-  });
-  test("insulation present without thin is out", () => {
-    for (const t of ["hand", "thicker", "unknown", null]) expect(likelyEligible(f({ insulation: "present", insulationThickness: t as string | null }))).toBe(false);
-  });
-  test("unknown insulation is out", () => expect(likelyEligible(f({ insulation: "unknown" }))).toBe(false));
-  test("apartment not on top floor is out", () => {
-    expect(likelyEligible(f({ propertyType: "apartment", topFloor: "no" }))).toBe(false);
-    expect(likelyEligible(f({ propertyType: "apartment", topFloor: "" }))).toBe(false);
-  });
-  test("property type blank / other / unknown is out", () => {
-    for (const p of ["", null, "other", "unknown"]) expect(likelyEligible(f({ propertyType: p }))).toBe(false);
-  });
-  test("case and spaces are ignored", () => expect(likelyEligible(f({ propertyType: " House ", overFiveYears: "YES" }))).toBe(true));
-});
+import { excludedAreaName, suggestBatches, type BatchHome } from "../src/lib/area-batch.core";
 
 const NOW = "2026-10-30T00:00:00.000Z";
 const daysAgo = (d: number) => new Date(Date.parse(NOW) - d * 86400000).toISOString();

@@ -130,7 +130,7 @@ export const setTeamMemberMissing = createServerFn({ method: "POST" }).middlewar
 /** Jo 29 Oct: add a person to the team with no email needed; they sign their declarations by link before any job. */
 export const addTeamPerson = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({
-    name: z.string().trim().min(1).max(120), workerRole: z.enum(["lead", "crew"]), mobile: z.string().trim().max(30).nullable(),
+    name: z.string().trim().min(1).max(120), workerRole: z.enum(["lead", "crew"], { message: "Choose Lead or Crew." }), mobile: z.string().trim().max(30).nullable(),
     email: z.string().trim().max(200).email().or(z.literal("")).nullable().transform((v) => v || null), licenceNumber: z.string().trim().max(60).nullable(),dateOfBirth:z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeAddTeamPerson(context.userId, data));

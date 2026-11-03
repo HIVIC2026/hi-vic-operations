@@ -109,7 +109,12 @@ export const MITTI_INVITE_EVENTS = {
   deactivated: "mitti_user_deactivated", // removed/rejected in the portal → Mitti seat deactivated
   failed: "mitti_access_failed", // one office item with the plain reason
   done: "mitti_invite_office_done", // office confirmed it was finished in Mitti
+  waitingEmail: "mitti_invite_waiting_email", // Jo 3 Nov: Lead has no own email yet — invite once the boss adds it
+  waitingPause: "mitti_invite_waiting_pause", // Jo 3 Nov: approved while trade messages paused — Jo confirms after unpause
 } as const;
+export const MITTI_WAITING_EMAIL = "Mitti invite waiting for Lead's own email";
+export const MITTI_WAITING_PAUSE = "Mitti invite waiting for pause to lift";
+export const NO_EMAIL_SKIP = "No email on file — Mitti invites go to an exact email address.";
 export type MittiInviteEventType = (typeof MITTI_INVITE_EVENTS)[keyof typeof MITTI_INVITE_EVENTS];
 const HAS_MITTI_USER: MittiInviteEventType[] = [MITTI_INVITE_EVENTS.linked, MITTI_INVITE_EVENTS.userLinked, MITTI_INVITE_EVENTS.invited, MITTI_INVITE_EVENTS.reactivated];
 
@@ -156,7 +161,7 @@ export function inviteEligibility(p: InvitePerson): string | null {
   if (p.tradeRole !== "installer" && p.tradeRole !== "electrician") return `No Mitti access for the ${p.tradeRole} role.`;
   if (p.tradeRole === "installer" && p.crew) return CREW_SKIP;
   if (p.tradeRole === "installer" && !p.ciiCleared) return "Installer's CII certificate is not verified and current yet.";
-  if (!p.email?.trim()) return "No email on file — Mitti invites go to an exact email address.";
+  if (!p.email?.trim()) return NO_EMAIL_SKIP;
   return null;
 }
 
@@ -181,7 +186,8 @@ export function mittiInviteStep(p: InvitePerson, prior: PriorInvite, sw: InviteS
     return { action: "reactivate", ...base, mittiUserId: prior.mittiUserId };
   }
   // A failure is the only earlier record that may be retried (the search runs first, so nothing is created twice).
-  if (prior && prior.type !== MITTI_INVITE_EVENTS.failed) return { action: "skip", reason: `Already handled (${prior.type.replace(/_/g, " ")}) — never invited twice.` };
+  // Waiting records (Jo 3 Nov) are retryable too; the server only lets a pause wait through on Jo's confirm.
+  if (prior && prior.type !== MITTI_INVITE_EVENTS.failed && prior.type !== MITTI_INVITE_EVENTS.waitingEmail && prior.type !== MITTI_INVITE_EVENTS.waitingPause) return { action: "skip", reason: `Already handled (${prior.type.replace(/_/g, " ")}) — never invited twice.` };
   if (p.mittiAccess === "member") return { action: "skip", reason: "Already in Mitti." };
   if (lookup === undefined) return { action: "lookup", ...base };
   if (lookup.mittiUserId) return { action: "record_linked", ...base, mittiUserId: lookup.mittiUserId, addToGroup: group };
@@ -213,6 +219,8 @@ export function inviteTodo(r: Pick<InviteRecord, "type" | "email" | "group"> & {
   const E = MITTI_INVITE_EVENTS;
   if (r.type === E.done || r.type === E.deactivated) return [];
   if (r.type === E.failed) return [r.reason ?? "Mitti set-up failed — finish it in Mitti by hand."];
+  if (r.type === E.waitingEmail) return [MITTI_WAITING_EMAIL];
+  if (r.type === E.waitingPause) return [MITTI_WAITING_PAUSE];
   const t: string[] = [];
   if (r.type === E.needed) t.push(`Invite ${r.email ?? "this person"} to Mitti with that exact email (${MITTI_DEFAULT_SEAT} seat).`);
   if (!r.groupAdded) t.push(`Add them to the ${r.group ?? MITTI_TRADES_GROUP} group in Mitti.`);
@@ -228,6 +236,15 @@ export function openInvites(records: InviteRecord[]): OpenInvite[] {
     if (!cur || r.at > cur.at) latest.set(r.workerId, r);
   }
   return [...latest.values()].map((r) => ({ ...r, todo: inviteTodo(r) })).filter((r) => r.todo.length > 0).sort((a, b) => b.at.localeCompare(a.at));
+}
+
+/** Office Needs me (Jo 3 Nov): one partner row per Lead approved while trade messages were paused. */
+export function mittiWaitingPauseItems(records: InviteRecord[]): { key: string; title: string; why: string; dueAt: string | null; href: string }[] {
+  return openInvites(records).filter((r) => r.type === MITTI_INVITE_EVENTS.waitingPause).map((r) => ({
+    key: `mitti-pause:${r.workerId}`, title: MITTI_WAITING_PAUSE,
+    why: `${r.name ?? r.email ?? "A Lead"}${r.business ? ` (${r.business})` : ""} — nothing is sent until you unpause and press Send Mitti invite.`,
+    dueAt: null, href: "/admin/partners",
+  }));
 }
 
 /** The latest stored record for one worker (idempotency input), with the latest Mitti user id the portal knows. */

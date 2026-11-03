@@ -49,3 +49,9 @@ test("existing cases unchanged", async () => {
   insertError = null;
   expect(await add()).toEqual({ workerId: "w1" });
 });
+
+test("installer add requires an active Lead/Crew choice before any write", async () => {
+  insertError = null; inserts = 0;
+  await expect(tradeAddTeamPerson("u1", { name: "Sam Crew", mobile: "0412 345 678", email: null, licenceNumber: null, dateOfBirth: "1990-01-01" })).rejects.toThrow("Choose Lead or Crew.");
+  expect(inserts).toBe(0);
+});
