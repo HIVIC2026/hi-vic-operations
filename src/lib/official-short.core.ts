@@ -417,6 +417,7 @@ export function shortAnswersFromEntries(key: "piesa" | "piisa", entries: { label
   const blockSeen = new Set<string>();
   for (const e of entries) {
     const raw = String(e.label ?? '').split('\n')[0] ?? '';
+    if (key === 'piesa' && nrm(raw) === nrm('Can it be shut down safely, and are its ceiling cables labelled, in conduit and protected?')) out['rebuiltSolarShort'] = 'Yes';
     if (key === 'piesa') {
       const split = Object.entries(SPLIT_MAINS_Q).find(([, label]) => nrm(raw) === nrm(label) || (label === SPLIT_MAINS_Q.switchSafe && nrm(raw) === nrm('Does the main switch work, can you reach it, does it safely isolate the ceiling circuits (excluding the mains cables), and can it be locked off?')));
       if (split) {

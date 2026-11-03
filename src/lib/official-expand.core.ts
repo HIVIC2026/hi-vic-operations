@@ -149,6 +149,10 @@ export function expandPiesa(short: ShortAnswers, ctx: ExpandContext): ExpandResu
       if (isYes(short["solarSafe"]) || isNo(short["solarSafe"])) {
         for (const id of ["p3.instructions", "p3.isolator", "p3.conduit", "p3.protected"]) out[id] = "Yes";
         if (isNo(short["solarSafe"])) for (const p of ticksOf(short["solarProblems"], SOLAR_PROBLEMS, "Solar/battery", flagged)) for (const [id, v] of SOLAR_MAP[p] ?? []) out[id] = v;
+        if (isYes(short['rebuiltSolarShort'])) {
+          delete out['p3.instructions']; delete out['p3.isolator'];
+          flagged.push('Solar/battery: shortened question does not confirm shutdown/restart instructions or an accessible working ground-level isolator.');
+        }
       } else flagged.push("Solar/battery: shutdown safety not answered.");
     }
   } else flagged.push("Solar/battery: presence not answered.");

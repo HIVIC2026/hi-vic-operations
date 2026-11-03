@@ -335,10 +335,12 @@ export function installDayOfficialAnswers(audit: unknown): InstallDayOfficial {
   put("lifeSupportConsent", r.yn(Q.lifeSupportConsent));
   put("p3.swms", r.yn(Q.swmsSigned));
   put("p3.table1", r.yn(Q.hazardsCovered));
+  if (labelledItems(audit).some(i => i.label.split('\n')[0]?.trim() === 'Does the safety plan cover every hazard at this house?')) delete a['p3.table1'];
   put("p3.isolated", r.yn(Q.isolated));
   put("p4.present", r.yn(Q.solar));
   put("p4.instructions", r.yn(Q.solarInstructions));
   put("p4.isolator", r.yn(Q.solarIsolator));
+  if (labelledItems(audit).some(i => i.label.split('\n')[0]?.trim() === 'Does its isolator (at ground level) work and switch off safely?')) delete a['p4.isolator'];
   put("p5.reviewed", r.yn(Q.piesaRead));
   put("p5.electricianPresent", electricianPresentAnswer(r.yn(Q.electricianNeeded), r.yn(Q.electricianHere)));
   // Q30 asks the opposite of the official item: "anyone in the ceiling since the PIESA?" Yes = official No.
