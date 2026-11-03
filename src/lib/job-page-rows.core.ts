@@ -1,5 +1,6 @@
 // Installer Job page rows: progress pills, and the text of the folded rows. Pure: no database, no network.
 // A row with no fact is left out — never guessed.
+import { fmtDay } from "./next-step-dates.core";
 import { melbourneYmd } from "./piesa-windows.core";
 import type { SwmsHouseFacts } from "./swms-house.core";
 import type { AccessPerson } from "./rental-answers.core";
@@ -84,13 +85,7 @@ export function jobDetailsRows(f: {
   return rows;
 }
 
-const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-function dayLabel(iso: string): string {
-  const ymd = melbourneYmd(new Date(iso));
-  const d = new Date(`${ymd}T12:00:00Z`);
-  return `${DAYS[d.getUTCDay()]} ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
-}
+const dayLabel = (iso: string): string => fmtDay(melbourneYmd(new Date(iso)));
 
 export function ownerToldRows(events: { at: string; type: string; summary: string }[], payments: { at: string; label: string }[], next: string | null): [day: string, text: string][] {
   const items = [...events.map((e) => ({ at: e.at, text: e.summary })), ...payments.map((p) => ({ at: p.at, text: p.label }))]

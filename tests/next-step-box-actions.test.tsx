@@ -34,6 +34,7 @@ mock.module("@/lib/office-list-refresh", () => ({ markOfficeChanged: () => {} })
 mock.module("@/components/portal/MittiFormLink", () => ({ MittiFormLink: ({ children, className }: { children: ReactNode; className?: string }) => <a href="#mitti" className={className}>{children}</a> }));
 
 let access: unknown = { allowed: true, blockers: [], bookings: [] };
+let accessPending = false;
 let team: unknown = {
   depositPaid: true, selection: null,
   workers: [
@@ -47,7 +48,8 @@ let electricians: unknown = { workers: [{ id: "elec1", name: "Will Casdorff", al
 mock.module("@tanstack/react-query", () => ({
   useQuery: (o: { queryKey: unknown[] }) => {
     const k = o.queryKey[0];
-    return { data: k === "in-house-booking-access" ? access : k === "in-house-booking-team" ? team : k === "team-electricians" ? electricians : undefined, isError: false };
+    if (k === "in-house-booking-access" && accessPending) return { data: undefined, isError: false, isPending: true };
+    return { data: k === "in-house-booking-access" ? access : k === "in-house-booking-team" ? team : k === "team-electricians" ? electricians : undefined, isError: false, isPending: false };
   },
   useQueryClient: () => ({ invalidateQueries: async () => {} }),
 }));
@@ -58,7 +60,7 @@ const { NextStepBox } = await import("../src/components/trade/NextStepBox");
 const { nextStepBox } = await import("../src/lib/next-step-box.core");
 type Box = ReturnType<typeof nextStepBox>;
 
-afterEach(() => { cleanup(); calls.length = 0; refuse = null; access = { allowed: true, blockers: [], bookings: [] }; });
+afterEach(() => { cleanup(); calls.length = 0; refuse = null; access = { allowed: true, blockers: [], bookings: [] }; accessPending = false; });
 
 const base: NextStepFacts = {
   channel: "hivic_sourced", stage: "ready_check_ready_to_schedule", ownerFirst: "Sarah", ownerName: "Sarah Brown", ownerPhone: "0400 000 000",
@@ -162,10 +164,37 @@ describe("Next step box actions", () => {
     const piesa = draw(boxFor({ readyCheck: { start: null, done: true, missing: [] }, quote: "accepted", piesa: { start: "2026-11-11T22:00:00Z", outcome: null, upgradesDone: false, certificateIn: false } }));
     expect(piesa.getByRole("button", { name: "Change time" })).toBeTruthy();
     expect(piesa.getByRole("button", { name: "Change electrician" })).toBeTruthy();
+    cleanup();
+    calls.length = 0;
+  });
+
+  test("Change electrician on a booked PIESA re-allocates AND re-saves the assessment booking at its existing time for the new electrician", async () => {
+    access = { allowed: true, blockers: [], bookings: [{ id: "bk-a", kind: "assessment", scheduled_start: "2026-11-11T22:00:00Z", status: "confirmed" }] };
+    const piesa = draw(boxFor({ readyCheck: { start: null, done: true, missing: [] }, quote: "accepted", piesa: { start: "2026-11-11T22:00:00Z", outcome: null, upgradesDone: false, certificateIn: false } }));
     await click(piesa, "Change electrician");
     fireEvent.change(piesa.getByLabelText("Electrician"), { target: { value: "elec1" } });
     await click(piesa, "Save the electrician");
-    expect(calls).toEqual([{ fn: "allocateElectricianFn", data: { jobId: "j1", workerId: "elec1" } }]);
+    expect(calls).toEqual([
+      { fn: "allocateElectricianFn", data: { jobId: "j1", workerId: "elec1" } },
+      { fn: "inHouseBookVisit", data: { jobId: "j1", kind: "assessment", start: "2026-11-11T22:00:00Z", workerId: "elec1", crewIds: [] } },
+    ]);
+  });
+
+  test("Change electrician while the electricians are loading shows its own loading line, not the deposit line", async () => {
+    const was = electricians;
+    electricians = undefined;
+    try {
+      const piesa = draw(boxFor({ readyCheck: { start: null, done: true, missing: [] }, quote: "accepted", piesa: { start: "2026-11-11T22:00:00Z", outcome: null, upgradesDone: false, certificateIn: false } }));
+      await click(piesa, "Change electrician");
+      const b = piesa.getByRole("button", { name: "Save the electrician" }) as HTMLButtonElement;
+      expect(b.disabled).toBe(true);
+      disabledHaveReasons(piesa);
+      expect(piesa.getByText("Loading your electricians…")).toBeTruthy();
+      expect(piesa.queryByText(/Deposit:/)).toBeNull();
+    } finally { electricians = was; }
+  });
+
+  test("install_booked / install_locked change links", async () => {
     calls.length = 0;
     cleanup();
     const inst = { readyCheck: { start: null, done: true, missing: [] }, quote: "accepted" as const, piesa: { start: null, outcome: "pass" as const, upgradesDone: false, certificateIn: false }, depositPaidAt: "2026-11-05T00:00:00Z", install: { start: "2026-11-12T20:30:00Z", lead: "Dave Lead", swmsSigned: 1, swmsTotal: 3 } };
@@ -211,6 +240,43 @@ describe("Next step box actions", () => {
     expect(r.queryByRole("alert")).toBeNull();
   });
 
+  test("while the access check is still pending the box shows only the checking line (no own-customer form, no 'not open' line)", () => {
+    accessPending = true;
+    const r = draw(boxFor({ channel: "installer_sourced" }), { ownCustomer: true });
+    expect(r.getByText("Checking your Team and deposit before booking.")).toBeTruthy();
+    expect(r.container.querySelector("form")).toBeNull();
+    expect(r.queryByText(/isn't open for this job yet/)).toBeNull();
+    expect(r.queryByRole("button", { name: "Book" })).toBeNull();
+  });
+
+  test("own customer, not in-house, booked Ready Check: no Change time link (nothing here could save it)", () => {
+    access = { allowed: false, blockers: ["forbidden"] };
+    const r = draw(boxFor({ channel: "installer_sourced", readyCheck: { start: "2026-11-11T22:00:00Z", done: false, missing: [] } }), { ownCustomer: true });
+    expect(r.queryByRole("button", { name: "Change time" })).toBeNull();
+  });
+
+  test("crew ticks: once two are ticked the rest are disabled (never a silent drop)", () => {
+    const r = draw(boxFor({ readyCheck: { start: null, done: true, missing: [] }, quote: "accepted", piesa: { start: null, outcome: "pass", upgradesDone: false, certificateIn: false }, depositPaidAt: "2026-11-05T00:00:00Z" }));
+    fireEvent.change(r.getByLabelText("Lead Installer"), { target: { value: "lead1" } });
+    const a = r.getByLabelText("Sam Crew") as HTMLInputElement, b = r.getByLabelText("Jo Crew") as HTMLInputElement;
+    fireEvent.click(a);
+    expect(b.disabled).toBe(false);
+    // a third crew member appears → disabled once two are ticked
+    const three = { ...(team as { workers: unknown[] }), workers: [...(team as { workers: unknown[] }).workers, { id: "crew3", name: "Lee Crew", phone: null, tradeRole: "installer", workerRole: "crew", cleared: true, reason: null }] };
+    const was = team; team = three;
+    try {
+      cleanup();
+      const r2 = draw(boxFor({ readyCheck: { start: null, done: true, missing: [] }, quote: "accepted", piesa: { start: null, outcome: "pass", upgradesDone: false, certificateIn: false }, depositPaidAt: "2026-11-05T00:00:00Z" }));
+      fireEvent.change(r2.getByLabelText("Lead Installer"), { target: { value: "lead1" } });
+      fireEvent.click(r2.getByLabelText("Sam Crew"));
+      fireEvent.click(r2.getByLabelText("Jo Crew"));
+      expect((r2.getByLabelText("Lee Crew") as HTMLInputElement).disabled).toBe(true);
+      expect((r2.getByLabelText("Sam Crew") as HTMLInputElement).disabled).toBe(false);
+      fireEvent.click(r2.getByLabelText("Sam Crew"));
+      expect((r2.getByLabelText("Lee Crew") as HTMLInputElement).disabled).toBe(false);
+    } finally { team = was; }
+  });
+
   test("a server refusal shows its message inline; a dropped connection shows plain words", async () => {
     const r = draw(boxFor({}));
     fill(r);
@@ -246,17 +312,41 @@ describe("Can't do this one / Owner cancelled", () => {
     expect(readFileSync("src/routes/_authenticated/field.$jobId.tsx", "utf8")).toContain("<ReturnActions jobId={jobId} />");
   });
   test("both handlers ask for the ESC withdrawal (Part 9) after their cancel; only hand-back emails the owner about a booked visit", () => {
-    const back = handler("tradeHandBack");
+    expect(handler("tradeHandBack")).toContain("handBackJob(");
+    const srv = readFileSync("src/lib/trade-view.server.ts", "utf8");
+    const back = srv.slice(srv.indexOf("export async function handBackJob"), srv.indexOf("\n}\n", srv.indexOf("export async function handBackJob")));
     const cancelled = handler("tradeOwnerCancelled");
     expect(back).toContain("requireEscWithdrawal(");
     expect(back).toContain('"cant_do_this_one"');
     expect(back).toContain("queueVisitCancelledOwnerEmail(");
-    expect(back.indexOf("pullBackInHouseJob(")).toBeLessThan(back.indexOf("requireEscWithdrawal("));
-    expect(back.indexOf("pullBackInHouseJob(")).toBeLessThan(back.indexOf("queueVisitCancelledOwnerEmail("));
+    // read booked visits → pull back → cancel what is still booked → ESC withdrawal → owner email (with its outcome logged)
+    expect(back.indexOf("confirmedFutureBookings(")).toBeLessThan(back.indexOf("pullBackInHouseJob("));
+    expect(back.indexOf("pullBackInHouseJob(")).toBeLessThan(back.indexOf("cancelBookingsAfterHandBack("));
+    expect(back.indexOf("cancelBookingsAfterHandBack(")).toBeLessThan(back.indexOf("requireEscWithdrawal("));
+    expect(back.indexOf("requireEscWithdrawal(")).toBeLessThan(back.indexOf("queueVisitCancelledOwnerEmail("));
+    expect(back).toContain('"trade_handback_owner_email"');
     expect(cancelled).toContain("requireEscWithdrawal(");
     expect(cancelled).toContain('"owner_cancelled"');
     expect(cancelled).not.toContain("queueVisitCancelledOwnerEmail(");
     expect(cancelled.indexOf("cancelJobFully(")).toBeLessThan(cancelled.indexOf("requireEscWithdrawal("));
+  });
+});
+
+describe("tidy-ups (fix round 1)", () => {
+  test("one fmtDay, exported from next-step-dates.core; no copies", () => {
+    expect(readFileSync("src/lib/next-step-dates.core.ts", "utf8")).toMatch(/export function fmtDay\(/);
+    for (const f of ["src/lib/next-step-box.core.ts", "src/components/trade/NextStepBox.tsx", "src/lib/job-page-rows.core.ts"]) {
+      const src = readFileSync(f, "utf8");
+      expect(src, f).not.toMatch(/const DAYS = \[/);
+      expect(src, f).toContain("fmtDay");
+    }
+  });
+  test("every box word lives in NEXT_STEP_BOX_WORDS for Task 12's paste", () => {
+    const src = readFileSync("src/components/trade/NextStepBox.tsx", "utf8");
+    const words = src.slice(src.indexOf("export const NEXT_STEP_BOX_WORDS"), src.indexOf("} as const;"));
+    for (const w of ['"Choose the electrician"', '"Choose the Lead Installer"', '"Choose the person going"', '"Time…"', '"Ready Check"', '"PIESA"', '"Install"', '"Loading your electricians…"']) expect(words, w).toContain(w);
+    const rest = src.slice(src.indexOf("} as const;"));
+    for (const w of ['"Choose the electrician"', '"Choose the Lead Installer"', '"Choose the person going"', '"Time…"']) expect(rest, `${w} used only via W`).not.toContain(w);
   });
 });
 

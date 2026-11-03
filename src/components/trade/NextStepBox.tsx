@@ -17,6 +17,7 @@ import { getTeamElectricians, allocateElectricianFn } from "@/lib/visit-allocati
 import { bookingWorkerBlocker, emptyBookingTeamBlocker, type BookingWorker } from "@/lib/in-house-booking.core";
 import { NEXT_STEP_WORDS, type NextStepBox as NextStepBoxShape } from "@/lib/next-step-box.core";
 import { installStartAt, installTimeLabel } from "@/lib/install-days.core";
+import { fmtDay } from "@/lib/next-step-dates.core";
 import { a1ReadyCheckTimeBlockers, allowedReadyCheckDays, allowedReadyCheckTimes } from "@/lib/ready-check-times.core";
 import { readableError } from "@/lib/readable-error.core";
 import { markOfficeChanged } from "@/lib/office-list-refresh";
@@ -40,6 +41,13 @@ export const NEXT_STEP_BOX_WORDS = {
   saving: "Saving…", // existing
   booked: (what: string) => `${what} booked`, // existing in-house booking card wording
   changed: (what: string) => `${what} changed`, // DRAFT
+  loadingElectricians: "Loading your electricians…", // DRAFT
+  noPiesaTime: "Can't find the booked PIESA time. Refresh the page and try again.", // DRAFT
+  chooseElectrician: "Choose the electrician", // DRAFT (dropdown placeholder)
+  chooseLead: "Choose the Lead Installer", // existing in-house booking card wording (dropdown placeholder)
+  choosePerson: "Choose the person going", // existing in-house booking card wording (dropdown placeholder)
+  timePlaceholder: "Time…", // existing A1 Ready Check card wording (dropdown placeholder)
+  visit: { ready_check: "Ready Check", assessment: "PIESA", installation: "Install" }, // visit names in the toasts (approved words)
 } as const;
 const W = NEXT_STEP_BOX_WORDS;
 
@@ -49,13 +57,7 @@ const KIND_OF: Partial<Record<NextStepBoxShape["kind"], Kind>> = {
   book_piesa: "assessment", piesa_booked: "assessment",
   book_install: "installation", install_booked: "installation",
 };
-const LABEL: Record<Kind, string> = { ready_check: "Ready Check", assessment: "PIESA", installation: "Install" };
-const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-function fmtDay(ymd: string): string {
-  const d = new Date(`${ymd}T12:00:00Z`);
-  return `${DAYS[d.getUTCDay()]} ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
-}
+const LABEL: Record<Kind, string> = W.visit;
 
 type Team = { workers: BookingWorker[]; depositPaid: boolean; selection: { lead?: unknown; additional?: { workerId: string }[] } | null };
 type Electricians = { workers: { id: string; name: string; allowed: boolean; reason: string | null; selected: boolean }[] };
@@ -69,12 +71,14 @@ export function NextStepBox({ jobId, box, ownerFirst, installBy, ownCustomer = f
   const wantsInstall = kind === "installation" || !!box.alsoBookInstall;
   const access = useInHouseBookingAccess(jobId);
   const allowed = access.data?.allowed === true;
+  const accessPending = access.isPending === true && access.data === undefined;
+  const piesaBooking = (access.data?.bookings ?? []).find((b) => b.kind === "assessment" && b.status === "confirmed" && b.scheduled_start) ?? null;
   const loadTeam = useServerFn(getInHouseBookingTeam);
   const team = useQuery({ queryKey: ["in-house-booking-team", jobId], queryFn: () => loadTeam({ data: { jobId } }) as Promise<Team>, enabled: allowed && (!!kind || wantsInstall), retry: false });
   const loadElec = useServerFn(getTeamElectricians);
   const electricians = useQuery({ queryKey: ["team-electricians", jobId], queryFn: () => loadElec({ data: { jobId } }) as Promise<Electricians>, enabled: allowed && kind === "assessment", retry: false });
   const [change, setChange] = useState<"time" | "lead" | "electrician" | null>(null);
-  const teamState: TeamState = { allowed, loading: allowed && !team.data && !team.isError, failed: team.isError, team: (team.data as Team | undefined) ?? null, electricians: (electricians.data as Electricians | undefined) ?? null, ownerFirst };
+  const teamState: TeamState = { allowed, loading: allowed && !team.data && !team.isError, failed: team.isError, team: (team.data as Team | undefined) ?? null, electricians: (electricians.data as Electricians | undefined) ?? null, ownerFirst, piesaStart: piesaBooking?.scheduled_start ?? null };
   const booked = box.kind === "ready_check_booked" || box.kind === "piesa_booked" || box.kind === "install_booked";
   const done = () => { setChange(null); onDone?.(); };
   const [subBefore, subBookBy] = splitBookBy(box.sub);
@@ -105,8 +109,11 @@ export function NextStepBox({ jobId, box, ownerFirst, installBy, ownCustomer = f
         </a>
       )}
 
+      {/* The access check is still running: say so, show no form yet (nothing can be saved before it answers). */}
+      {accessPending && (kind || box.alsoBookInstall) && <p className="mt-4 text-sm text-sub" data-access-pending>{W.checkingTeam}</p>}
+
       {/* Book the Ready Check / PIESA / install */}
-      {kind && !booked && box.kind !== "install_locked" && (
+      {!accessPending && kind && !booked && (
         kind === "ready_check" && !allowed && ownCustomer ? (
           <OwnCustomerReadyCheckForm jobId={jobId} now={now} onDone={done} />
         ) : (
@@ -116,7 +123,7 @@ export function NextStepBox({ jobId, box, ownerFirst, installBy, ownCustomer = f
       )}
 
       {/* A booked visit: change links, then the chosen change form */}
-      {booked && kind && (
+      {!accessPending && booked && kind && !(!allowed && ownCustomer) && (
         <div className="mt-4 flex flex-wrap gap-2" data-change-links>
           <button type="button" className={ghostBtn} onClick={() => setChange(change === "time" ? null : "time")}>{W.changeTime}</button>
           {kind === "installation" && (
@@ -138,7 +145,7 @@ export function NextStepBox({ jobId, box, ownerFirst, installBy, ownCustomer = f
       )}
 
       {/* Upload the certificate, and (deposit paid) book the install early: a warning above the button, never a block */}
-      {box.alsoBookInstall && (
+      {!accessPending && box.alsoBookInstall && (
         <div className="mt-4 border-t border-line pt-4" data-also-book-install>
           <p className="text-sm font-medium text-ink" data-also-book-warn>{box.alsoBookInstall.warn}</p>
           <BookingForm jobId={jobId} kind="installation" mode="book" state={teamState} button={box.alsoBookInstall.button}
@@ -162,7 +169,7 @@ function splitBookBy(sub: string | null): [string, string | null] {
   return [sub.slice(0, at), sub.slice(at)];
 }
 
-type TeamState = { allowed: boolean; loading: boolean; failed: boolean; team: Team | null; electricians: Electricians | null; ownerFirst: string | null };
+type TeamState = { allowed: boolean; loading: boolean; failed: boolean; team: Team | null; electricians: Electricians | null; ownerFirst: string | null; piesaStart: string | null };
 
 /** One reason why the button is greyed out, or null when it can be pressed. The first reason wins. */
 function bookingReason(i: { kind: Kind; state: TeamState; day: string; arrival: string; who: string; electricianChosen: boolean }): string | null {
@@ -232,7 +239,7 @@ function BookingForm({ jobId, kind, mode, state, button, below, onDone, onCancel
         <label className="block text-sm font-medium">
           {W.electrician}
           <select className={`${inputCls} mt-1`} value={who} onChange={(e) => setWho(e.target.value)} disabled={!state.electricians}>
-            <option value="">Choose the electrician</option>
+            <option value="">{W.chooseElectrician}</option>
             {(state.electricians?.workers ?? []).map((w) => (
               <option key={w.id} value={w.id} disabled={!w.allowed}>{w.name}{w.reason ? ` — ${w.reason}` : ""}</option>
             ))}
@@ -253,7 +260,7 @@ function BookingForm({ jobId, kind, mode, state, button, below, onDone, onCancel
         <label className="block text-sm font-medium">
           {kind === "installation" ? W.leadInstaller : W.whosGoing}
           <select className={`${inputCls} mt-1`} value={who} onChange={(e) => { setWho(e.target.value); setCrew((c) => c.filter((x) => x !== e.target.value)); }} disabled={!team}>
-            <option value="">{kind === "installation" ? "Choose the Lead Installer" : "Choose the person going"}</option>
+            <option value="">{kind === "installation" ? W.chooseLead : W.choosePerson}</option>
             {choices.map((w) => {
               const why = bookingWorkerBlocker(kind, w);
               return <option key={w.id} value={w.id} disabled={!!why}>{w.name}{why ? ` — ${why}` : ""}</option>;
@@ -267,7 +274,7 @@ function BookingForm({ jobId, kind, mode, state, button, below, onDone, onCancel
           <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1">
             {crewChoices.map((w) => (
               <label key={w.id} className="inline-flex min-h-11 items-center gap-2 text-sm">
-                <input type="checkbox" checked={crew.includes(w.id)} onChange={(e) => setCrew(e.target.checked ? [...crew, w.id].slice(0, 2) : crew.filter((x) => x !== w.id))} />
+                <input type="checkbox" checked={crew.includes(w.id)} disabled={!crew.includes(w.id) && crew.length >= 2} onChange={(e) => setCrew(e.target.checked ? [...crew, w.id].slice(0, 2) : crew.filter((x) => x !== w.id))} />
                 {w.name}
               </label>
             ))}
@@ -321,7 +328,7 @@ function OwnCustomerReadyCheckForm({ jobId, now, onDone }: { jobId: string; now?
         <label className="block text-sm font-medium">
           {W.arrival}
           <select className={`${inputCls} mt-1`} value={time} onChange={(e) => setTime(e.target.value)}>
-            <option value="">Time…</option>
+            <option value="">{W.timePlaceholder}</option>
             {allowedReadyCheckTimes(day, at).map((t) => <option key={t} value={t}>{installTimeLabel(t)}</option>)}
           </select>
         </label>
@@ -361,7 +368,7 @@ function ChangeLeadForm({ jobId, state, onDone, onCancel }: { jobId: string; sta
       <label className="block text-sm font-medium">
         {W.leadInstaller}
         <select className={`${inputCls} mt-1`} value={who} onChange={(e) => setWho(e.target.value)} disabled={!state.team}>
-          <option value="">Choose the Lead Installer</option>
+          <option value="">{W.chooseLead}</option>
           {leads.map((w) => { const why = bookingWorkerBlocker("installation", w); return <option key={w.id} value={w.id} disabled={!!why}>{w.name}{why ? ` — ${why}` : ""}</option>; })}
         </select>
       </label>
@@ -375,8 +382,11 @@ function ChangeLeadForm({ jobId, state, onDone, onCancel }: { jobId: string; sta
   );
 }
 
+/** Change electrician on a booked PIESA: re-allocate (Mitti form hand-over), then re-save the assessment booking at its
+ *  existing time for the new electrician through the same guarded writer, so the booking names who is going. */
 function ChangeElectricianForm({ jobId, state, onDone, onCancel }: { jobId: string; state: TeamState; onDone: () => void; onCancel: () => void }) {
   const allocate = useServerFn(allocateElectricianFn);
+  const book = useServerFn(inHouseBookVisit);
   const qc = useQueryClient();
   const id = useId();
   const [who, setWho] = useState("");
@@ -384,7 +394,7 @@ function ChangeElectricianForm({ jobId, state, onDone, onCancel }: { jobId: stri
   const [error, setError] = useState("");
   const list = state.electricians?.workers ?? [];
   const chosen = list.find((w) => w.id === who) ?? null;
-  const reason = !state.allowed ? W.notHere : !state.electricians ? W.checkingTeam : !chosen ? bookingWorkerBlocker("assessment", null) : !chosen.allowed ? chosen.reason ?? bookingWorkerBlocker("assessment", null) : null;
+  const reason = !state.allowed ? W.notHere : !state.electricians ? W.loadingElectricians : !state.piesaStart ? W.noPiesaTime : !chosen ? bookingWorkerBlocker("assessment", null) : !chosen.allowed ? chosen.reason ?? bookingWorkerBlocker("assessment", null) : null;
   const disabled = busy || !!reason;
   const reasonId = `${id}-reason`;
   return (
@@ -394,6 +404,8 @@ function ChangeElectricianForm({ jobId, state, onDone, onCancel }: { jobId: stri
       setBusy(true); setError("");
       try {
         await allocate({ data: { jobId, workerId: who } });
+        const r = await book({ data: { jobId, kind: "assessment", start: state.piesaStart!, workerId: who, crewIds: [] } });
+        if (!r.ok) { setError(r.blockers.join(" ")); return; }
         toast.success(W.changed(W.electrician));
         markOfficeChanged();
         await qc.invalidateQueries();
@@ -403,7 +415,7 @@ function ChangeElectricianForm({ jobId, state, onDone, onCancel }: { jobId: stri
       <label className="block text-sm font-medium">
         {W.electrician}
         <select className={`${inputCls} mt-1`} value={who} onChange={(e) => setWho(e.target.value)} disabled={!state.electricians}>
-          <option value="">Choose the electrician</option>
+          <option value="">{W.chooseElectrician}</option>
           {list.map((w) => <option key={w.id} value={w.id} disabled={!w.allowed}>{w.name}{w.reason ? ` — ${w.reason}` : ""}</option>)}
         </select>
       </label>

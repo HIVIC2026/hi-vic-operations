@@ -1081,10 +1081,10 @@ export async function confirmedFutureBookings(jobId: string, now = new Date()): 
 
 /** A follow-up after a hand-back / owner-cancelled that could not run: one internal note on the job, never a thrown error
  *  (the cancel has already happened and is never undone). */
-export async function logTradeFollowUpFailed(jobId: string, actorId: string, step: string, err: unknown): Promise<void> {
+export async function logTradeFollowUpFailed(jobId: string, actorId: string, step: string, err: unknown, log: typeof logEvent = logEvent): Promise<void> {
   const message = err instanceof Error ? err.message : String(err);
   console.error(`trade follow-up failed (${step})`, message);
-  await logEvent(jobId, actorId, "trade_followup_failed", `After the trade's action, "${step}" could not run: ${message}`, { step, message }, { internal: true }).catch((e) => console.error("trade_followup_failed not logged", e));
+  await log(jobId, actorId, "trade_followup_failed", `After the trade's action, "${step}" could not run: ${message}`, { step, message }, { internal: true }).catch((e) => console.error("trade_followup_failed not logged", e));
 }
 
 /** Part 9 Task 2 owns `requireEscWithdrawal` (esc.server.ts). TODO(join): once it is in this build the optional lookup
@@ -1092,6 +1092,52 @@ export async function logTradeFollowUpFailed(jobId: string, actorId: string, ste
 export async function escWithdrawalFn(): Promise<((jobId: string, reason: "owner_cancelled" | "cant_do_this_one" | "address_changed", actorId: string | null) => Promise<number>) | null> {
   const esc = (await import("./esc.server")) as { requireEscWithdrawal?: unknown };
   return typeof esc.requireEscWithdrawal === "function" ? (esc.requireEscWithdrawal as (jobId: string, reason: "owner_cancelled" | "cant_do_this_one" | "address_changed", actorId: string | null) => Promise<number>) : null;
+}
+
+export type HandBackDeps = {
+  bookingTeam: (jobId: string, userId: string) => Promise<unknown>;
+  confirmedFutureBookings: (jobId: string) => Promise<{ id: string; kind: string; scheduled_start: string }[]>;
+  pullBackInHouseJob: (input: { jobId: string; reason: string; actorId: string }) => Promise<void>;
+  finishInHouseHandback: (jobId: string, userId: string) => Promise<unknown>;
+  cancelBookingsAfterHandBack: (jobId: string, bookingIds: string[], actorId: string, reason: string) => Promise<string[]>;
+  requireEscWithdrawal: ((jobId: string, reason: "owner_cancelled" | "cant_do_this_one" | "address_changed", actorId: string | null) => Promise<number>) | null;
+  queueVisitCancelledOwnerEmail: (jobId: string, bookingId: string, by: "installer" | "electrician") => Promise<string>;
+  logEvent: typeof logEvent;
+};
+async function handBackDeps(): Promise<HandBackDeps> {
+  return {
+    bookingTeam: (await import("./in-house-booking.server")).bookingTeam,
+    confirmedFutureBookings,
+    pullBackInHouseJob: (await import("./in-house-batch.server")).pullBackInHouseJob,
+    finishInHouseHandback: (await import("./in-house-handback-cleanup.server")).finishInHouseHandback,
+    cancelBookingsAfterHandBack: (await import("./visit-events.server")).cancelBookingsAfterHandBack,
+    requireEscWithdrawal: await escWithdrawalFn(),
+    queueVisitCancelledOwnerEmail: (await import("./visit-cancelled-owner.server")).queueVisitCancelledOwnerEmail,
+    logEvent,
+  };
+}
+
+/** "Can't do this one" (Task 6): the guarded pull-back, then — never undoing it — cancel every visit still booked (the
+ *  pull-back leaves install / fixes bookings standing), Part 9's ESC withdrawal ask, and Part 4's owner email for each
+ *  visit that was booked (Jo 2 Nov, answer 4) with the helper's answer logged. A handed-back job leaves nothing booked.
+ *  A failed follow-up is logged on the job; the pull-back stands. */
+export async function handBackJob(jobId: string, actorId: string, reason: string, deps?: HandBackDeps): Promise<{ ok: true }> {
+  const d = deps ?? (await handBackDeps());
+  await d.bookingTeam(jobId, actorId);
+  const booked = await d.confirmedFutureBookings(jobId).catch(async (e) => { await logTradeFollowUpFailed(jobId, actorId, "read booked visits", e); return []; });
+  await d.pullBackInHouseJob({ jobId, actorId, reason });
+  await d.finishInHouseHandback(jobId, actorId).catch((e) => console.error("Handback cleanup pending", e));
+  try { if (booked.length) await d.cancelBookingsAfterHandBack(jobId, booked.map((b) => b.id), actorId, reason); }
+  catch (e) { await logTradeFollowUpFailed(jobId, actorId, "cancel booked visits", e, d.logEvent); }
+  try { if (d.requireEscWithdrawal) await d.requireEscWithdrawal(jobId, "cant_do_this_one", actorId); }
+  catch (e) { await logTradeFollowUpFailed(jobId, actorId, "ESC withdrawal", e, d.logEvent); }
+  for (const b of booked) {
+    try {
+      const result = await d.queueVisitCancelledOwnerEmail(jobId, b.id, "installer");
+      await d.logEvent(jobId, actorId, "trade_handback_owner_email", `Owner email about the ${b.kind} visit after the hand-back: ${result}`, { booking_id: b.id, kind: b.kind, result }, { internal: true });
+    } catch (e) { await logTradeFollowUpFailed(jobId, actorId, `owner email for the ${b.kind} visit`, e, d.logEvent); }
+  }
+  return { ok: true };
 }
 
 /** Own in-house business membership, not an offer or a customer's time-picking action. */

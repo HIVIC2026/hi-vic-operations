@@ -23,6 +23,11 @@ export function overdue(byYmd: string, now: Date): boolean {
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+/** A Melbourne YYYY-MM-DD as "Ddd D Mmm" (e.g. "Fri 6 Nov"). The one copy for the installer screens. */
+export function fmtDay(ymd: string): string {
+  const d = new Date(`${ymd}T12:00:00Z`);
+  return `${DAYS[d.getUTCDay()]} ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
+}
 
 function dayDiff(fromYmd: string, toYmd: string): number {
   // Calendar-day difference on noon-UTC dates, so no fixed Melbourne offset is involved.
@@ -34,8 +39,7 @@ function dayDiff(fromYmd: string, toYmd: string): number {
 export function installCountdown(installDeadlineYmd: string | null, now: Date): { daysLeft: number; line: string } | null {
   if (!installDeadlineYmd) return null;
   const daysLeft = dayDiff(melbourneToday(now), installDeadlineYmd);
-  const d = new Date(`${installDeadlineYmd}T12:00:00Z`);
-  const date = `${DAYS[d.getUTCDay()]} ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
+  const date = fmtDay(installDeadlineYmd);
   const unit = daysLeft === 1 ? "day" : "days";
   return { daysLeft, line: `⏱ ${daysLeft} ${unit} left to install · must be done by ${date} (30 days from the PIESA)` };
 }

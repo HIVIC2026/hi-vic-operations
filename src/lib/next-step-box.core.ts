@@ -1,6 +1,6 @@
 // The installer Job page "Next step" box: one thing to do, or one thing being waited on. Pure.
 // Rules run from the end of the job back to the start; the first match wins.
-import { bookBy, overdue } from "./next-step-dates.core";
+import { bookBy, fmtDay, overdue } from "./next-step-dates.core";
 import { addYmd, melbourneToday } from "./melbourne-time.core";
 import { melbourneMidnight } from "./daily-brief.core";
 import { melbourneYmd } from "./piesa-windows.core";
@@ -88,12 +88,6 @@ function leadInstallerLockAt(startIso: string): number {
 const leadInstallerLocked = (startIso: string, now: Date): boolean => now.getTime() >= leadInstallerLockAt(startIso);
 
 // ---- Formatting (Melbourne) -----------------------------------------------------------------------------------------
-const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-function fmtDay(ymd: string): string {
-  const d = new Date(`${ymd}T12:00:00Z`);
-  return `${DAYS[d.getUTCDay()]} ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}`;
-}
 const fmtDayMonth = (ymd: string): string => fmtDay(ymd).split(" ").slice(1).join(" ");
 function fmtHour(at: Date, minutes = false): string {
   const p = new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", hour: "numeric", minute: "2-digit", hour12: true }).formatToParts(at);
