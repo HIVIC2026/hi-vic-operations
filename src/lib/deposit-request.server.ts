@@ -6,6 +6,8 @@ import { depositReminderDue, depositRequestEligible, INSTALL_DEPOSIT_REQUEST_EVE
 import { depositOwnerText, renderInstallDepositOwnerEmail, renderInstallerDepositPaidEmail, type DepositMessageFacts } from './deposit-request-email.core';
 import { isStepPaid } from './payments.core';
 import { fullAddress } from './address';
+import { CLEAR_TO_INSTALL_EMAIL_APPROVED, type PiesaResultRoute } from './piesa-result-route.core';
+import type { EmailAttachment } from './email-kit.core';
 
 async function factsFor(jobId:string,now:Date) {
   const held=await readInHouseDispatchState([jobId]);
@@ -48,26 +50,63 @@ async function recordRequest(jobId:string,invoiceId:string,now:Date,deadline:str
   const r=await admin.from('workflow_events').insert({id,job_id:jobId,actor_id:null,event_type:INSTALL_DEPOSIT_REQUEST_EVENT,summary:'10% install deposit requested on the existing installation invoice',created_at:now.toISOString(),internal:true,details:{key,invoice_id:invoiceId,requested_at:now.toISOString(),deadline}});
   if(r.error&&r.error.code!=='23505')throw Error(r.error.message);
 }
+/** Part 4 Task 3 (#40): everything the "You're clear to install" send needs, injected so it is testable without PDFs or a database. */
+export type ClearToInstallDeps={
+  approved:boolean;
+  route:(jobId:string)=>Promise<PiesaResultRoute[]>;
+  inputs:(jobId:string)=>Promise<{checkedOn:string;electrician:string;piesaRecordId:string;signedCopyId:string;attachments:EmailAttachment[]}|{held:string}>;
+  record:(p:{jobId:string;recipient:'owner';piesaRecordId:string;signedCopyId:string;recipientUserId:string|null;to:string;detail:string})=>Promise<void>;
+};
+const CLEAR_HELD='Clear to install documents not ready';
+export function defaultClearToInstallDeps():ClearToInstallDeps{
+  return{
+    approved:CLEAR_TO_INSTALL_EMAIL_APPROVED,
+    route:async j=>(await import('./piesa-delivery.server')).ownerPiesaRoute(j),
+    inputs:async j=>(await import('./clear-to-install.server')).clearToInstallInputs(j),
+    record:async p=>{
+      // Idempotent: a replay after a provider-accepted send must not double-record.
+      const have=await admin.from('piesa_deliveries').select('id',{count:'exact',head:true}).eq('piesa_record_id',p.piesaRecordId).eq('recipient','owner');
+      if(have.error)throw Error('Could not read PIESA deliveries.');
+      if(have.count)return;
+      await (await import('./piesa-delivery.server')).recordDelivery(p);
+    },
+  };
+}
 type Facts=NonNullable<Awaited<ReturnType<typeof factsFor>>>;
-async function ownerNotice(jobId:string,c:Facts,step:'request'|'paid'|DepositReminder,at:string,now:Date){
+async function ownerNotice(jobId:string,c:Facts,step:'request'|'paid'|DepositReminder,at:string,now:Date,deps:ClearToInstallDeps){
   // Quiet hours are checked before either channel; no deferred text at a different time to its email.
   if((await import('./quote-hold.core')).smsQuietReason(now.toISOString()))return 'quiet hours';
   if((step==='request'||step==='paid') && now.getTime()-Date.parse(at)>86_400_000)return 'stale notice held';
-  await (await import('./comms.server')).assertCustomerDeliveryAllowed(jobId,'Install deposit notice');
+  const clear=step==='request'&&deps.approved&&(await deps.route(jobId)).includes('clear_to_install');
+  // The clear-to-install email carries the owner's PIESA copy, so it is a compliance send (purpose piesa_copy, also reaches unsubscribed owners).
+  const purpose=clear?'piesa_copy':`install_deposit_${step}`;
+  await (await import('./comms.server')).assertCustomerDeliveryAllowed(jobId,'Install deposit notice',...(clear?['piesa_copy' as const]:[]));
   const key=step==='request'?installDepositRequestKey(c.v.invoiceId):`install-deposit-${step}:v1:${c.v.invoiceId}`;
   if(!c.owner.email||(step!=='paid'&&!c.f.link))return 'owner email or link missing';
-  const e=await (await import('./owner-email-send.server')).sendGuardedOwnerEmail({jobId,jobSource:c.job.source,to:c.owner.email,purpose:`install_deposit_${step}`,key,retryAfterDefiniteFailure:true,beforeSend:async()=>{
-    await (await import('./comms.server')).assertCustomerDeliveryAllowed(jobId,'Install deposit notice');
+  let cf=c.f,attachments:EmailAttachment[]|undefined,piesa:{piesaRecordId:string;signedCopyId:string}|undefined;
+  if(clear){
+    const sent=await admin.from('customer_email_sends').select('status').eq('job_id',jobId).eq('idempotency_key',key).maybeSingle();
+    if(sent.error)throw Error('Could not read clear-to-install history.');
+    if(sent.data?.status==='sent')return 'already sent'; // no PDFs rebuilt on every tick
+    const i=await deps.inputs(jobId);
+    if('held' in i)return i.held||CLEAR_HELD;
+    if(!i.attachments.length)return CLEAR_HELD;
+    attachments=i.attachments;piesa={piesaRecordId:i.piesaRecordId,signedCopyId:i.signedCopyId};
+    cf={...c.f,link:c.f.link.replace('screen=pay','screen=clear'),firstName:c.f.name,checkedOn:i.checkedOn,electrician:i.electrician,upgrades:(await piesaOutcomeFor(jobId))==='upgrades_needed'?'Done':'None'};
+  }
+  const e=await (await import('./owner-email-send.server')).sendGuardedOwnerEmail({jobId,jobSource:c.job.source,to:c.owner.email,purpose,key,retryAfterDefiniteFailure:true,beforeSend:async()=>{
+    await (await import('./comms.server')).assertCustomerDeliveryAllowed(jobId,'Install deposit notice',...(clear?['piesa_copy' as const]:[]));
     const fresh=await factsFor(jobId,new Date());
     if(!fresh || fresh.v.invoiceId!==c.v.invoiceId || (step==='paid'?!fresh.paid:fresh.paid) || fresh.c.booked)throw Error('Deposit state changed; notice held.');
-  },build:()=>renderInstallDepositOwnerEmail(c.f,step)});
+  },build:()=>clear&&attachments?{...renderInstallDepositOwnerEmail(cf,'request',true),attachments}:renderInstallDepositOwnerEmail(cf,step,false)});
+  if(clear&&piesa&&e==='sent')await deps.record({jobId,recipient:'owner',...piesa,recipientUserId:null,to:c.owner.email,detail:'with the "You\'re clear to install" email'});
   if(step==='paid')return e; // Jo 2 Nov: Deposit received is email only.
   // TEST jobs stay behind the canonical sender's TEST boundary (no real SMS).
   const s=await (await import('./sms.server')).sendRealSms({type:step==='request'?'install_deposit_request':'install_deposit_reminder',jobId,to:c.owner.phone,body:depositOwnerText(c.f,step),idempotencyKey:`${key}:sms`,event:{at,current:!c.paid}});
   return `${e}; sms ${s.status}`;
 }
 /** Clearance intent is recorded before invoice/payment reads; invoice-keyed request time remains unchanged. */
-export async function requestInstallDeposit(jobId:string,now=new Date()):Promise<string>{
+export async function requestInstallDeposit(jobId:string,now=new Date(),deps:ClearToInstallDeps=defaultClearToInstallDeps()):Promise<string>{
   const partner=await readInHouseDispatchState([jobId]);
   if(!partner.failed&&!partner.held.has(jobId))return 'not applicable';
   const {stableUuid}=await import('./mitti-create-claim.core');
@@ -82,7 +121,7 @@ export async function requestInstallDeposit(jobId:string,now=new Date()):Promise
     if(!prior)await recordRequest(jobId,c.v.invoiceId,now,c.f.deadline);
     const record=prior??await requestRecord(jobId,c.v.invoiceId);
     if(!record)throw Error('Deposit request was not recorded.');
-    const result=await ownerNotice(jobId,c,'request',record.created_at,now);
+    const result=await ownerNotice(jobId,c,'request',record.created_at,now,deps);
     if(result.startsWith('sent')){
       const done=await admin.from('workflow_events').update({event_type:'install_deposit_request_resolved'}).eq('id',id);if(done.error)throw Error(done.error.message);
       await admin.from('workflow_events').update({event_type:'install_deposit_request_recovered'}).eq('job_id',jobId).eq('event_type','install_deposit_request_failed');
@@ -104,7 +143,7 @@ export async function notifyInstallerDepositPaid(jobId:string,now=new Date()):Pr
   if(r.error)throw Error('Could not read deposit receipt.');if(!r.data)return 'receipt not recorded';
   // Independent channels: owner consent holds must not prevent an authorised trade-office notice.
   let owner:string;
-  try{owner=await ownerNotice(jobId,c,'paid',r.data.created_at,now);}catch(e){owner=`owner held: ${e instanceof Error?e.message:'delivery unavailable'}`;}
+  try{owner=await ownerNotice(jobId,c,'paid',r.data.created_at,now,defaultClearToInstallDeps());}catch(e){owner=`owner held: ${e instanceof Error?e.message:'delivery unavailable'}`;}
   // Office email only. Trade pause remains independent of the allowed in-house exception.
   if(await (await import('./trade-pause.server')).tradeMessagesPausedNow({businessId:c.assignment.business_id}))return `${owner}; installer held`;
   if(!c.biz.email)return `${owner}; installer email missing`;
@@ -144,7 +183,7 @@ export async function sweepDepositRequests(now=new Date()){
       // Retry only recorded intents; never release a historical clearance backlog on deployment.
       if(!r)continue;
       const due=depositReminderDue({requestedAt:r.created_at,paid:c.paid,now});
-      if(due)await ownerNotice(jobId,c,due,r.created_at,now);
+      if(due)await ownerNotice(jobId,c,due,r.created_at,now,defaultClearToInstallDeps());
       else await requestInstallDeposit(jobId,now);
     }catch(e){console.error('Deposit request held',jobId,e instanceof Error?e.message:'read failed');}
   }

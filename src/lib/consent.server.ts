@@ -75,6 +75,20 @@ export async function syncOwnerConsent(jobId: string, actorId: string | null) {
   return ins?.id ?? null;
 }
 
+/** #40: the owner's ESC consent form pre-filled with their details (Section 1 only, nothing ticked or signed), as an email attachment so they can read it before signing. Null when the approved wording or owner details are missing. */
+export async function prefilledEscConsentPdf(jobId: string): Promise<{ filename: string; content: string; contentType: string } | null> {
+  const tpl = activeTemplate(await templates(), "esc_consent");
+  if (!tpl || !isEscTemplateVersion(tpl.version)) return null;
+  if (!(await syncOwnerConsent(jobId, null))) return null;
+  const c = await currentConsent(jobId);
+  if (!c) return null;
+  const facts = c.snapshot as unknown as ConsentFacts;
+  const text = renderConsentBody({ version: tpl.version, body: tpl.body, facts: { owner: facts.owner, premises_address: c.premises_address, installation_days: [] }, owner: null, ap: null });
+  const { textToPdf } = await import("./signed-pdf.server");
+  const { bytesToBase64 } = await import("./veec-emails.core");
+  return { filename: "esc-consent-form.pdf", content: bytesToBase64(await textToPdf("Home Insulation Victoria — Owner consent form (for you to read before signing)", text)), contentType: "application/pdf" };
+}
+
 /** Preflight all official owner-signature rules before creating any quote-sitting signatures. */
 export async function prepareQuoteConsent(p:{jobId:string;actorId:string;input:ConsentSignInput}) {
   const tpl=activeTemplate(await templates(),'esc_consent');
