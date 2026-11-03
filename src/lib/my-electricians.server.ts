@@ -320,26 +320,54 @@ async function logOffice(actorId: string | null, eventType: string, summary: str
  * block with no override. Approval = credentials verified, business approved + active, the person approved (Mitti hook),
  * the installer's link switched ON (the installer's list hides inactive approved rows), ONE welcome text (held wording).
  * No agreement and no service areas are needed: they never get Home Insulation Victoria leads.
+ * Retry-safe: a run that failed after the business flipped is REPAIRED by the next click (person approved, link on,
+ * welcome text once); only a fully approved electrician gets "Already approved.".
  */
 export async function officeApproveInstallerElectrician(actorId: string, businessId: string): Promise<void> {
   const r = await loadInstallerElectrician(businessId);
   if (!r) throw new WorkflowError("This electrician wasn't added by an installer.");
-  if (r.biz.onboarding_status === "approved") throw new WorkflowError("Already approved.");
-  const problems = checklistProblems(r.biz, r.workers, r.creds, melbourneToday());
-  if (problems.length) throw new WorkflowError(`Can't approve yet: ${problems.join(". ")}`);
   const now = new Date().toISOString();
-  const fail = (what: string) => new WorkflowError(`Could not approve (${what}). Nothing else was changed. Please try again.`);
-  const cv = await admin.from("business_credentials").update({ verification: "verified", verified_by: actorId, verified_at: now }).eq("business_id", businessId).eq("verification", "pending");
-  if (cv.error) throw fail("paperwork");
-  const bu = await admin.from("businesses").update({ onboarding_status: "approved", is_active: true, approved_by: actorId, approved_at: now, installer_added_rejected_reason: null, updated_at: now } as never).eq("id", businessId);
-  if (bu.error) throw fail("business");
+  if (r.biz.onboarding_status !== "approved") {
+    const problems = checklistProblems(r.biz, r.workers, r.creds, melbourneToday());
+    if (problems.length) throw new WorkflowError(`Can't approve yet: ${problems.join(". ")}`);
+    const cv = await admin.from("business_credentials").update({ verification: "verified", verified_by: actorId, verified_at: now }).eq("business_id", businessId).eq("verification", "pending");
+    if (cv.error) throw new WorkflowError("Could not approve: the paperwork could not be marked verified. Nothing was changed. Please try again.");
+    const bu = await admin.from("businesses").update({ onboarding_status: "approved", is_active: true, approved_by: actorId, approved_at: now, installer_added_rejected_reason: null, updated_at: now } as never).eq("id", businessId);
+    if (bu.error) throw new WorkflowError("Could not approve: the business could not be updated. The paperwork is marked verified; click Approve again.");
+  } else {
+    const [{ data: rel }, pendingWelcome] = await Promise.all([
+      admin.from("partner_relationships").select("active").eq("installer_business_id", r.installer.id).eq("electrician_business_id", businessId).eq("active", true).limit(1),
+      welcomeNotClaimed(businessId),
+    ]);
+    const unfinished = r.workers.some((w) => w.approval_status !== "approved") || !(rel ?? []).length || pendingWelcome;
+    if (!unfinished) throw new WorkflowError("Already approved.");
+  }
+  // From here every step is idempotent, so a retry finishes what an earlier run left undone.
   const { approvePartnerWorker } = await import("./worker-approval.server");
-  for (const w of r.workers.filter((x) => x.approval_status !== "approved")) await approvePartnerWorker(w.id, actorId, { kind: "office", reason: "Installer-added electrician approved by the office" });
+  for (const w of r.workers.filter((x) => x.approval_status !== "approved")) {
+    try { await approvePartnerWorker(w.id, actorId, { kind: "office", reason: "Installer-added electrician approved by the office" }); }
+    catch (e) { throw new WorkflowError(`Approved, but the electrician's login could not be approved (${(e as Error).message}). Click Approve again to finish.`); }
+  }
   const rel = await admin.from("partner_relationships").upsert({ installer_business_id: r.installer.id, electrician_business_id: businessId, active: true, source: "installer_added", created_by: actorId } as never, { onConflict: "installer_business_id,electrician_business_id" });
-  if (rel.error) throw new WorkflowError("Approved, but the installer's link could not be switched on. Link them from the installer's business file.");
+  if (rel.error) throw new WorkflowError("Approved, but the installer's link could not be switched on. Click Approve again to finish.");
   await logOffice(actorId, "installer_added_electrician_approved", `Approved installer-added electrician ${r.biz.name?.trim() ?? ""}`.trim(), { installer_business_id: r.installer.id, electrician_business_id: businessId });
-  // Welcome text: stable key (once per electrician), pause check on the electrician with no job. Never fails the approval.
+  await sendWelcomeOnce(r, businessId, now);
+}
+
+const WELCOME_CLAIM_EVENT = "installer_added_electrician_welcome_claimed";
+/** True while no run has yet handed the welcome text to the sender for this electrician. */
+async function welcomeNotClaimed(businessId: string): Promise<boolean> {
+  const { data, error } = await admin.from("admin_config_events").select("id").eq("id", await stableUuid(welcomeSmsKey(businessId))).limit(1);
+  if (error) throw new WorkflowError(READ_FAIL);
+  return !(data ?? []).length;
+}
+
+/** Welcome text once per electrician: the claim row (stable id) is written before the send, so a repaired approval never
+ *  texts twice. Pause check on the electrician with no job. Never fails the approval. */
+async function sendWelcomeOnce(r: NonNullable<Awaited<ReturnType<typeof loadInstallerElectrician>>>, businessId: string, now: string) {
   try {
+    const claim = await admin.from("admin_config_events").insert({ id: await stableUuid(welcomeSmsKey(businessId)), actor_id: null, event_type: WELCOME_CLAIM_EVENT, summary: "Welcome text handed to the sender", details: { electrician_business_id: businessId } as never } as never);
+    if (claim.error) { if ((claim.error as { code?: string }).code !== "23505") console.error("welcome text claim failed", claim.error.message); return; }
     const { sendRealSms } = await import("./sms.server");
     await sendRealSms({ type: "installer_added_electrician_welcome", idempotencyKey: welcomeSmsKey(businessId), to: r.biz.phone, businessId, jobId: null, event: { at: now }, body: welcomeSmsText({ electricianName: r.biz.name ?? "", installerName: r.installer.name ?? "your installer" }) });
   } catch (e) { console.error("installer-added electrician welcome text failed", (e as Error).message); }
@@ -422,7 +450,7 @@ export async function pendingInstallerElectricianItems(): Promise<PendingInstall
   const [inst, ws, ev] = await Promise.all([
     admin.from("businesses").select("id, name").in("id", [...new Set(waiting.map((b) => b.added_by_installer_business_id!))]),
     admin.from("partner_workers").select("id, business_id").in("business_id", ids).eq("trade_role", "electrician").is("removed_at", null),
-    admin.from("admin_config_events").select("created_at, details").in("event_type", ["installer_added_electrician", "installer_added_electrician_resubmitted"]).order("created_at", { ascending: false }),
+    admin.from("admin_config_events").select("created_at, details").in("event_type", ["installer_added_electrician", "installer_added_electrician_resubmitted"]).in("details->>electrician_business_id", ids).order("created_at", { ascending: false }),
   ]);
   if (inst.error || ws.error || ev.error) throw new Error("Could not read electricians added by installers.");
   const names = new Map((inst.data ?? []).map((b) => [b.id, b.name]));

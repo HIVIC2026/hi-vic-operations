@@ -37,6 +37,17 @@ const emails: { to: string; subject: string; message: string; record: unknown; p
 mock.module("../src/lib/office-email.server", () => ({ sendOfficeEmail: async (p: (typeof emails)[number]) => { emails.push(p); return { channel: "email", to: p.to, status: "sent", detail: "" }; } }));
 const mitti: string[] = [];
 mock.module("../src/lib/mitti-invite.server", () => ({ onPartnerPersonApproved: async (w: string) => { mitti.push(w); }, onPartnerPersonRemoved: async () => undefined }));
+// The person approval (its own behaviour is tested elsewhere): the same columns, the Mitti hook, and a one-shot failure switch for the retry test.
+let failWorkerApprovalOnce = false;
+mock.module("../src/lib/worker-approval.server", () => ({
+  approvePartnerWorker: async (workerId: string, actorId: string, how: { kind: string }) => {
+    if (failWorkerApprovalOnce) { failWorkerApprovalOnce = false; throw new Error("database went away"); }
+    expect(how.kind).toBe("office");
+    await db.query("update partner_workers set approval_status='approved', approved_by=$2, approved_at=now(), rejection_reason=null where id=$1", [workerId, actorId]);
+    mitti.push(workerId);
+    return true;
+  },
+}));
 
 const els = await import("../src/lib/my-electricians.server");
 const core = await import("../src/lib/my-electricians.core");
@@ -57,12 +68,13 @@ const creds = async (b: string) => (await db.query<{ kind: string; verification:
 const events = async (type: string) => (await db.query<{ details: Record<string, unknown> }>("select details from admin_config_events where event_type=$1", [type])).rows;
 
 const { businessId: SAM } = await els.installerAddElectrician(U_BOSS, input());
+const { businessId: FINN } = await els.installerAddElectrician(U_BOSS, input({ name: "Finn Fuse", email: "finn@fuse.test", mobile: "0433444555", licenceNumber: "L-9999" }));
 const { businessId: RITA } = await els.installerAddElectrician(U_BOSS, input({ name: "Rita Relay", email: "rita@relay.test", licenceNumber: "L-7777", employsAnyone: true, soleTraderTick: false, workcoverFilePath: `${P1}/c-wc.pdf`, workcoverExpiry: "2099-02-02" }));
 
 describe("Needs me: approve item", () => {
   test("every waiting installer-added electrician is one Partner item that opens the business page", async () => {
     const items = await els.pendingInstallerElectricianItems();
-    expect(items.map((i) => i.line).sort()).toEqual(["Approve electrician Rita Relay — added by Insul One", "Approve electrician Sam Sparks — added by Insul One"]);
+    expect(items.map((i) => i.line).sort()).toEqual(["Approve electrician Finn Fuse — added by Insul One", "Approve electrician Rita Relay — added by Insul One", "Approve electrician Sam Sparks — added by Insul One"]);
     const sam = items.find((i) => i.businessId === SAM)!;
     expect(sam.href).toBe(`/admin/partners/business/${SAM}`);
     expect(sam.workerIds).toEqual([(await worker(SAM)).id]);
@@ -105,12 +117,43 @@ describe("officeApproveInstallerElectrician", () => {
     expect(await events("installer_added_electrician_approved")).toHaveLength(1);
     // The installer's list now shows them approved; the office item is gone.
     expect((await els.installerMyElectricians(U_BOSS)).find((r) => r.id === SAM)).toMatchObject({ status: "approved" });
-    expect((await els.pendingInstallerElectricianItems()).map((i) => i.businessId)).toEqual([RITA]);
+    expect((await els.pendingInstallerElectricianItems()).map((i) => i.businessId).sort()).toEqual([FINN, RITA].sort());
   });
 
   test("approving again is refused and sends nothing more", async () => {
     expect(await reject(els.officeApproveInstallerElectrician(OFFICE, SAM))).toBe("Already approved.");
     expect(smsCalls).toHaveLength(1);
+  });
+
+  test("retry-safe: a run that fails after the business flips is finished by the next click, with ONE welcome text", async () => {
+    failWorkerApprovalOnce = true;
+    expect(await reject(els.officeApproveInstallerElectrician(OFFICE, FINN))).toMatch(/^Approved, but the electrician's login could not be approved \(database went away\)\. Click Approve again to finish\.$/);
+    // Half done: business approved, person still pending, link off, no text — gone from the office list, still "waiting" on the installer's.
+    expect(await biz(FINN)).toMatchObject({ onboarding_status: "approved", is_active: true });
+    expect((await worker(FINN)).approval_status).toBe("pending");
+    expect(await link(FINN)).toEqual({ active: false });
+    expect(smsCalls).toHaveLength(1);
+    expect((await els.pendingInstallerElectricianItems()).map((i) => i.businessId)).toEqual([RITA]);
+    expect((await els.installerMyElectricians(U_BOSS)).find((r) => r.id === FINN)).toMatchObject({ status: "waiting" });
+    // The retry repairs instead of refusing.
+    await els.officeApproveInstallerElectrician(OFFICE, FINN);
+    expect((await worker(FINN)).approval_status).toBe("approved");
+    expect(await link(FINN)).toEqual({ active: true });
+    expect(smsCalls).toHaveLength(2);
+    expect(smsCalls[1]).toMatchObject({ businessId: FINN, idempotencyKey: core.welcomeSmsKey(FINN) });
+    expect((await els.installerMyElectricians(U_BOSS)).find((r) => r.id === FINN)).toMatchObject({ status: "approved" });
+    // Fully done now: a third click is refused and nothing more is sent.
+    expect(await reject(els.officeApproveInstallerElectrician(OFFICE, FINN))).toBe("Already approved.");
+    expect(smsCalls).toHaveLength(2);
+  });
+
+  test("retry-safe: an approved electrician whose link is off (the 'vanished' case) gets the link back, no second text", async () => {
+    await db.query("update partner_relationships set active=false where electrician_business_id=$1", [SAM]);
+    expect((await els.installerMyElectricians(U_BOSS)).find((r) => r.id === SAM)).toBeUndefined();
+    await els.officeApproveInstallerElectrician(OFFICE, SAM);
+    expect(await link(SAM)).toEqual({ active: true });
+    expect(smsCalls).toHaveLength(2);
+    expect((await els.installerMyElectricians(U_BOSS)).find((r) => r.id === SAM)).toMatchObject({ status: "approved" });
   });
 
   test("the welcome text type is registered: partner audience, held wording, quiet hours", () => {
@@ -182,7 +225,7 @@ describe("officeRejectInstallerElectrician + installerResubmitElectrician", () =
     expect(await biz(RITA)).toMatchObject({ onboarding_status: "approved", is_active: true });
     expect(await link(RITA)).toEqual({ active: true });
     expect((await creds(RITA)).filter((c) => c.verification === "pending")).toHaveLength(0);
-    expect(smsCalls).toHaveLength(2);
+    expect(smsCalls).toHaveLength(3);
   });
 });
 
