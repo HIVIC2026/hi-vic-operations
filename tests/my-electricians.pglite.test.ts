@@ -29,12 +29,14 @@ await mk(22, "REJ1", { status: "submitted", active: false, licExp: "2099-01-01",
 await mk(23, "REJ2", { status: "submitted", active: false, licExp: "2099-01-01", rejected: "Blurry licence photo", addedBy: INST2 });
 await mk(24, "TEST1", { status: "approved", active: true, licExp: "2099-01-01", notes: "[TEST PARTNER]" });
 
-const people: Record<string, { biz: string; kind: string; boss: boolean }> = { [U_BOSS]: { biz: INST, kind: "installer", boss: true }, [U_BOSS2]: { biz: INST2, kind: "installer", boss: true }, [U_STAFF]: { biz: INST, kind: "installer", boss: false }, [U_ELEC]: { biz: APPROVED, kind: "electrician", boss: true } };
+const INST_T = id(4), U_BOSS_T = id(15);
+await db.query(`insert into businesses (id, business_type, name, onboarding_status, is_active, onboarding_notes) values ($1,'eec_installer','Test Insul','approved',true,'[TEST PARTNER]')`, [INST_T]);
+const people: Record<string, { biz: string; kind: string; boss: boolean }> = { [U_BOSS_T]: { biz: INST_T, kind: "installer", boss: true }, [U_BOSS]: { biz: INST, kind: "installer", boss: true }, [U_BOSS2]: { biz: INST2, kind: "installer", boss: true }, [U_STAFF]: { biz: INST, kind: "installer", boss: false }, [U_ELEC]: { biz: APPROVED, kind: "electrician", boss: true } };
 const WorkflowErr = class extends Error {};
 const realWf = await import("../src/lib/workflow.server");
 mock.module("../src/lib/workflow.server", () => ({ ...realWf, WorkflowError: WorkflowErr }));
 mock.module("../src/lib/trade-view.server", () => ({
-  bossOrThrow: async (u: string) => { const p = people[u]; if (!p) throw new WorkflowErr("Your sign-in isn't linked to an approved business yet."); if (!p.boss) throw new WorkflowErr("Only the business owner can see this."); return { biz: { id: p.biz }, kind: p.kind, boss: true }; },
+  bossOrThrow: async (u: string) => { const p = people[u]; if (!p) throw new WorkflowErr("Your sign-in isn't linked to an approved business yet."); if (!p.boss) throw new WorkflowErr("Only the business owner can see this."); return { biz: { id: p.biz, onboarding_notes: p.biz === INST_T ? "[TEST PARTNER]" : null }, kind: p.kind, boss: true }; },
 }));
 const uploads: string[] = [];
 const storage = { from: () => ({ createSignedUploadUrl: async (p: string) => { uploads.push(p); return { data: { signedUrl: `https://s.test/${p}`, token: "t" }, error: null }; } }) };
@@ -192,6 +194,29 @@ describe("installerAddElectrician", () => {
     expect(rs.map((r) => r.status).sort()).toEqual(["fulfilled", "rejected"]);
     expect(((rs.find((r) => r.status === "rejected") as PromiseRejectedResult).reason as Error).message).toBe("Already on your list");
     expect((await db.query("select 1 from businesses where email='race2@x.test'")).rows).toHaveLength(1);
+  });
+
+  test("a TEST installer and a real installer can add the same licence without blocking each other", async () => {
+    const same = { email: "iso@x.test", licenceNumber: "ISO-1" };
+    const real = await els.installerAddElectrician(U_BOSS, input(same));
+    const test = await els.installerAddElectrician(U_BOSS_T, input({ ...same, licenceFilePath: `partners/${INST_T}/electrician-uploads/a.jpg`, plFilePath: `partners/${INST_T}/electrician-uploads/b.pdf` }));
+    expect(test.businessId).not.toBe(real.businessId);
+    expect((await db.query<{ onboarding_notes: string | null }>("select onboarding_notes from businesses where id=$1", [test.businessId])).rows[0]!.onboarding_notes).toBe("[TEST PARTNER]");
+    expect((await db.query<{ onboarding_notes: string | null }>("select onboarding_notes from businesses where id=$1", [real.businessId])).rows[0]!.onboarding_notes).toBeNull();
+    expect((await db.query("select 1 from partner_relationships where installer_business_id=$1 and electrician_business_id=$2", [INST_T, real.businessId])).rows).toHaveLength(0);
+  });
+  test("a clash with a row that has no live matching person gets the neutral message", async () => {
+    const first = await els.installerAddElectrician(U_BOSS, input({ email: "ghost@x.test", licenceNumber: "GHOST-1" }));
+    await db.query("update partner_workers set removed_at=now() where business_id=$1", [first.businessId]);
+    const before = await count("businesses");
+    expect(await reject(els.installerAddElectrician(U_BOSS2, input({ email: "ghost@x.test", licenceNumber: "GHOST-1", licenceFilePath: `partners/${INST2}/electrician-uploads/a.jpg`, plFilePath: `partners/${INST2}/electrician-uploads/b.pdf` })))).toBe("This electrician can't be added right now — contact Home Insulation Victoria");
+    expect(await count("businesses")).toBe(before);
+    expect((await db.query("select 1 from businesses where id=$1", [first.businessId])).rows).toHaveLength(1); // the existing row is untouched
+  });
+  test("the phone is stored in +61 form", async () => {
+    const r = await els.installerAddElectrician(U_BOSS, input({ email: "ph@x.test", licenceNumber: "PH-1", mobile: "0400 111 222" }));
+    expect((await db.query<{ phone: string }>("select phone from businesses where id=$1", [r.businessId])).rows[0]!.phone).toBe("+61400111222");
+    expect((await db.query<{ mobile: string }>("select mobile from partner_workers where business_id=$1", [r.businessId])).rows[0]!.mobile).toBe("+61400111222");
   });
 
   test("until the pending SQL is applied it refuses and writes nothing", async () => {

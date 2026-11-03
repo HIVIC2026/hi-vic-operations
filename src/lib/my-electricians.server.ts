@@ -107,27 +107,31 @@ export async function installerAddElectrician(userId: string, input: AddElectric
   const licenceKey = normaliseLicence(input.licenceNumber);
   if (!licenceKey) throw new WorkflowError("Enter a valid licence number");
   // Same electrician = same id, whoever adds them, so a second concurrent add fails on the primary key instead of duplicating.
-  const newId = await stableUuid(`my-electrician:${licenceKey}`);
+  const newId = await stableUuid(`my-electrician:${testSide ? "test" : "real"}:${licenceKey}`);
   let lostRace: string | null = null;
   const made: { businessId?: string; workerId?: string; relId?: string; credIds: string[] } = { credIds: [] };
   try {
     const b = await admin.from("businesses").insert({
-      id: newId, business_type: "rec", capabilities: ["electrician"], name: input.name.trim(), email: input.email.trim(), phone: input.mobile.trim(), rec_number: input.recNumber.trim(),
+      id: newId, business_type: "rec", capabilities: ["electrician"], name: input.name.trim(), email: input.email.trim(), phone: normaliseAuMobile(input.mobile) ?? input.mobile.trim(), rec_number: input.recNumber.trim(),
       onboarding_status: "submitted", is_active: false, public_liability_cover_amount: input.plAmount, added_by_installer_business_id: installerId,
       workcover_exempt_declared_at: input.employsAnyone ? null : now,
       ...(testSide ? { onboarding_notes: TEST_PARTNER_MARK } : {}),
     } as never).select("id").single();
     if (b.error && (b.error as { code?: string }).code === "23505") {
-      // Lost the race (or already there): nothing of ours exists, so there is nothing to clean up.
-      const r = (await admin.from("businesses").select("id, added_by_installer_business_id").eq("id", newId).maybeSingle()) as unknown as { data: { added_by_installer_business_id: string | null } | null };
-      lostRace = r.data?.added_by_installer_business_id === installerId ? "Already on your list" : "This electrician is already waiting for approval";
+      // Primary-key clash: nothing of ours exists, so there is nothing to clean up. Say "waiting" only if the existing row
+      // really is a pending electrician with a live person matching this licence or email; anything else is neutral.
+      const ex = (await admin.from("businesses").select("id, onboarding_status, installer_added_rejected_reason, added_by_installer_business_id").eq("id", newId).maybeSingle()) as unknown as { data: { onboarding_status: string | null; installer_added_rejected_reason: string | null; added_by_installer_business_id: string | null } | null };
+      if (!ex.data) throw new Error("unique clash on another constraint"); // not our id: generic failure below
+      const live = await matchingWorkers(input.licenceNumber, input.email).then((ws) => ws.some((w) => w.business_id === newId)).catch(() => false);
+      const pending = ex.data.onboarding_status === "submitted" && !ex.data.installer_added_rejected_reason?.trim() && live;
+      lostRace = !pending ? "This electrician can't be added right now — contact Home Insulation Victoria" : ex.data.added_by_installer_business_id === installerId ? "Already on your list" : "This electrician is already waiting for approval";
       throw new Error("lost race");
     }
     if (b.error || !b.data) throw new Error(b.error?.message ?? "business");
     made.businessId = (b.data as { id: string }).id;
     const bid = made.businessId;
     const w = await admin.from("partner_workers").insert({
-      business_id: bid, trade_role: "electrician", full_legal_name: input.name.trim(), email: input.email.trim(), mobile: input.mobile.trim(), rec_number: input.recNumber.trim(),
+      business_id: bid, trade_role: "electrician", full_legal_name: input.name.trim(), email: input.email.trim(), mobile: normaliseAuMobile(input.mobile) ?? input.mobile.trim(), rec_number: input.recNumber.trim(),
       licence_number: input.licenceNumber.trim(), licence_expires_on: input.licenceExpiry, approval_status: "pending", added_by: userId,
     } as never).select("id").single();
     if (w.error || !w.data) throw new Error(w.error?.message ?? "worker");
