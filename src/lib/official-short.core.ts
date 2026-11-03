@@ -449,9 +449,9 @@ export function shortAnswersFromEntries(key: "piesa" | "piisa", entries: { label
       if (e.value != null && e.value !== "") out[blockRow ? `${id}#${blockRow}` : id] = e.value;
       continue;
     }
-    const key = nrm(cands[0]!.label);
-    const seen = used.get(key) ?? 0;
-    used.set(key, seen + 1);
+    const fieldKey = nrm(cands[0]?.label ?? '');
+    const seen = used.get(fieldKey) ?? 0;
+    used.set(fieldKey, seen + 1);
     // A label that repeats more often than the form lists it (a repeating block, decision 295) keeps the LAST slot's id
     // with a #n suffix for each extra occurrence: applianceWhat, applianceWhat#1, applianceWhat#2 …
     const slot = cands[seen] ?? (cands.length ? { ...cands[cands.length - 1]!, id: `${cands[cands.length - 1]!.id}#${seen - cands.length + 1}` } : undefined);

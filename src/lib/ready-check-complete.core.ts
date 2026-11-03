@@ -4,6 +4,7 @@
 import { contactAnswersFromEntries } from "./mitti.core";
 import { readyCheckStopReasons, STOP_BUILT_5, STOP_LIFE_SUPPORT, STOP_NO_CONTACT, STOP_NO_SAFE_ACCESS, STOP_R2 } from "./ready-check-answers.core";
 import { isBelowR2, LEAN_Q } from "./ready-check-lean.core";
+import { canonicalMittiLabel } from './mitti-rebuild-labels.core';
 
 /** A Mitti answer is "given" when it carries anything at all — a blank, "null" or <nil> never counts. */
 const answered = (v: unknown): boolean => {
@@ -14,7 +15,7 @@ const answered = (v: unknown): boolean => {
   return true;
 };
 const find = (entries: { label: string; value: unknown }[], labels: string[]) =>
-  entries.find((e) => labels.some((l) => String(e.label ?? "").trim().toLowerCase() === l.toLowerCase()))?.value ?? null;
+  entries.find((e) => labels.some((l) => canonicalMittiLabel(String(e.label ?? "")).split('\n')[0]?.trim().toLowerCase() === l.toLowerCase()))?.value ?? null;
 
 /**
  * Ready Check facts straight off the form snapshot. Absent-safe: a question the form never asked is
