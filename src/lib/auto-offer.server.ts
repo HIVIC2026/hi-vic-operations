@@ -16,6 +16,7 @@ import { logEvent, piesaRequestFacts, stageEntryBlockers } from "./workflow.serv
 import { isTestPartner } from "./test-send.core";
 import { ourLeadPreferredId } from "./our-lead-piesa-electrician.core";
 import { inHouseSkippedAction } from "./in-house.core";
+import { OWN_JOB_CALL_AND_BOOK } from "./own-job-piesa.core";
 import { inHouseDispatchSkip, readInHouseDispatchState, type InHouseDispatchState } from "./in-house-suppression.server";
 import {
   AUTO_OFFER_FLAG, AUTO_OFFER_READY_STAGES, AUTO_OFFER_RETURNED_EVENT, autoOfferBlocked, autoOfferInstallerElectrician, autoOfferPreferredElectrician, autoOfferReturnedSummary, autoOfferStageReady, autoOfferStep, autoOfferSwitchOn,
@@ -128,6 +129,12 @@ export type AutoOfferOutcome = { jobId: string; kind: AutoOfferKind; step: AutoO
 export async function autoOfferForJob(jobId: string, kind: AutoOfferKind, switches?: Awaited<ReturnType<typeof readAutoOfferSwitches>>, inHouseState?: InHouseDispatchState): Promise<AutoOfferOutcome> {
   const skipped = await inHouseDispatchSkip(jobId, inHouseState);
   if (skipped) return { jobId, kind, step: "none", reason: skipped, ...inHouseSkippedAction(skipped) };
+  // Part 2 (Jo 3 Nov 2026): an installer's own job never gets a safety check offer — its electrician calls and books.
+  // Checked before the switch so the "switch off" hand-back to the office never fires for these jobs. Unreadable = no offer.
+  if (kind === "piesa") {
+    const own = await (await import("./own-job-piesa.server")).ownJobCallAndBook(jobId, inHouseState);
+    if (own !== false) return { jobId, kind, step: "none", reason: own ? OWN_JOB_CALL_AND_BOOK : "own_job_read_failed" };
+  }
   const sw = switches ?? await readAutoOfferSwitches();
   if (!sw[kind]) return { jobId, kind, step: "none", reason: "switch_off" };
   if (kind === "ready_check" && !sw.readyCheckBooking) return { jobId, kind, step: "none", reason: "ready_check_booking_off" };

@@ -16,6 +16,7 @@ import { melbourneYmd } from "./piesa-windows.core";
 import { melbourneToday } from "@/lib/melbourne-time.core";
 import { inHouseDispatchSkip, readInHouseDispatchState, type InHouseDispatchState } from "./in-house-suppression.server";
 import { inHouseSkippedAction } from "./in-house.core";
+import { OWN_JOB_CALL_AND_BOOK, OWN_JOB_OFFER_MESSAGE, isOwnJobCallAndBook, type OwnJobCallAndBookReason } from "./own-job-piesa.core";
 
 const NONE = ["00000000-0000-0000-0000-000000000000"];
 
@@ -171,6 +172,12 @@ export async function healStrandedPiesaStage(jobId: string, actorId: string | nu
 export async function startPiesaAllocation(jobId: string, actorId: string | null, kind: "piesa" | "rectification" = "piesa", opts: { rateToConfirm?: boolean; onlyBusiness?: string | string[]; adding?: boolean; repeat?: boolean; auto?: import("./ready-check-times.server").AutoOfferMeta } = {}, inHouseState?: InHouseDispatchState): Promise<PiesaAllocationResult> {
   const skipped = await inHouseDispatchSkip(jobId, inHouseState);
   if (skipped) return { offered: 0, exhausted: false, ...inHouseSkippedAction(skipped) };
+  // Part 2 (Jo 3 Nov 2026): an installer's own job is never offered — its electrician calls and books. Unreadable = refused.
+  if (kind === "piesa") {
+    const own = await (await import("./own-job-piesa.server")).ownJobCallAndBook(jobId, inHouseState);
+    if (own === null) throw new WorkflowError("Couldn't check whose job this is — please try again.");
+    if (own) return { offered: 0, exhausted: false, ok: false, reason: OWN_JOB_CALL_AND_BOOK, message: OWN_JOB_OFFER_MESSAGE };
+  }
   // Catch up a job whose acceptance was taken but never moved the stage (see healStrandedPiesaStage).
   // Without this the office's next click was refused with "An electrician has already accepted this PIESA."
   // and the job had no way back to piesa_scheduled.
@@ -228,7 +235,7 @@ async function claimRecOfferBatch(jobId: string, kind: "piesa" | "rectification"
 /** What one allocation attempt actually did. `reason` explains a zero-offer result (P1 UAT DEF-08). */
 export type OfferBatchResult = { offered: number; exhausted: boolean; reason?: "owner_times" | "coverage" };
 /** `healed` = the call repaired a stranded acceptance instead of sending new offers (P1 UAT DEF-09). */
-export type PiesaAllocationResult = OfferBatchResult & { healed?: boolean; skipped?: "in_house" | "in_house_read_failed"; ok?: false; message?: string };
+export type PiesaAllocationResult = Omit<OfferBatchResult, "reason"> & { reason?: OfferBatchResult["reason"] | OwnJobCallAndBookReason; healed?: boolean; skipped?: "in_house" | "in_house_read_failed"; ok?: false; message?: string };
 
 async function offerNextBatch(jobId: string, actorId: string | null, kind: "piesa" | "rectification", rateToConfirm = false, onlyBusiness?: string | string[], auto?: import("./ready-check-times.server").AutoOfferMeta, repeatSince?: string): Promise<OfferBatchResult> {
   const { businessHours, batchSize } = await settings();
@@ -332,10 +339,12 @@ export async function sweepRecOffers(actorId: string | null = null) {
 /** Jobs that have genuinely reached PIESA (gate cleared) with no electrician and no offers yet get the first batch automatically.
  *  startPiesaAllocation re-checks every upstream gate; any blocker means the job is skipped, never forced. */
 async function autoStartPiesaOffers(actorId: string | null, inHouseState: InHouseDispatchState) {
-  const { data: waiting } = await admin.from("jobs").select("id").eq("stage", "piesa_and_install_window_pending").is("deleted_at", null).neq("source", "qa_test");
+  const { data: waiting } = await admin.from("jobs").select("id, channel").eq("stage", "piesa_and_install_window_pending").is("deleted_at", null).neq("source", "qa_test");
   let started = 0;
   for (const j of waiting ?? []) {
     if (await inHouseDispatchSkip(j.id, inHouseState)) continue;
+    // Part 2: installers' own jobs were handed to their electrician (sweepOwnJobPiesaHandoffs) — no offer, no office hand-back.
+    if (isOwnJobCallAndBook({ channel: j.channel, heldInHouse: false })) continue;
     // Already allocated once (since the latest reopen); refill/exhaustion handles the rest.
     if (await (await import("./repeat-piesa.server")).piesaOffersSinceReopen(j.id)) continue;
     if (await (await import("./offer-dispatch.server")).jobOfficePicks(j.id)) continue; // waits in Needs me: "Choose trades for this job"

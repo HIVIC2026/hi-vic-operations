@@ -43,6 +43,15 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           out['offers'] = "failed";
         }
         try {
+          // Part 2 (Jo 3 Nov 2026): installers' own jobs whose safety check fee is paid go straight to their electrician
+          // (no offer). Once per job and round; a missing electrician or portal profile is one office item.
+          const { sweepOwnJobPiesaHandoffs } = await import("@/lib/own-job-piesa.server");
+          (out as Record<string, unknown>)['ownJobPiesa'] = await timed("sweepOwnJobPiesaHandoffs", () => sweepOwnJobPiesaHandoffs());
+        } catch (e) {
+          console.error("allocation tick: own job safety check hand-over failed", (e as Error).message);
+          (out as Record<string, unknown>)['ownJobPiesa'] = "failed";
+        }
+        try {
           const c = await timed("sweepCoordination", () => sweepCoordination());
           out['coordination'] = typeof c === "object" && c ? Object.fromEntries(Object.entries(c).filter(([, v]) => typeof v === "number")) : null;
         } catch (e) {
