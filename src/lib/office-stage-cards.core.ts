@@ -68,7 +68,7 @@ export function buildStageCards(f: StageCardFacts): StageCard[] {
       { label: "Offer", value: p.offer ?? "Not sent yet" },
       { label: "Visit", value: p.visitAt ? dayTime(p.visitAt) : "Agreed between electrician and owner after the offer" },
       { label: "Result", value: p.outcome ?? dash },
-      { label: "Fixes", value: p.fixes ?? dash },
+      { label: "Upgrades", value: p.fixes ?? dash },
     ] },
     { key: "install", n: 5, title: "Install", state: st.install, lines: [
       { label: "Clock", value: i.deadline ? `Must start by ${day(i.deadline)}${i.daysLeft != null ? ` · ${i.daysLeft < 0 ? `${-i.daysLeft} days over` : `${i.daysLeft} days left`}` : ""}` : "30 days start at the PIESA" },

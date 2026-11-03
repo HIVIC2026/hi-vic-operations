@@ -59,7 +59,7 @@ test('duplicate split answers are ambiguous, not last-answer-wins', () => {
 });
 test('A3 template accepts split questions but refuses a missing tested-dead field', () => {
  const fields = FORMS.piesa.fields.filter(f => !f.statement && f.id !== 'mainsSafe' && f.id !== 'mainsProblems');
- const items = fields.map(f => ({ label: f.label, type: f.type }));
+ const items = fields.map(f => ({ label: f.label, type: f.type === 'tick' ? 'checkbox' : f.type === 'multichoice' ? 'list' : f.type }));
  items.push(...[switchQ, rcdQ, mainsQ, deadQ].map(label => ({ label, type: 'yesno' })));
  expect(validateTemplate('piesa', items).ok).toBe(true);
  expect(validateTemplate('piesa', items.filter(i => i.label !== deadQ)).ok).toBe(false);

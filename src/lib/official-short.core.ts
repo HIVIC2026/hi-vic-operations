@@ -411,6 +411,7 @@ export function shortAnswersFromEntries(key: "piesa" | "piisa", entries: { label
   const used = new Map<string, number>();
   const out: Record<string, string> = {};
   let splitContext: 'switchProblems' | 'rcdProblems' | 'solarProblems' | null = null;
+  const splitSeen = new Set<string>();
   const formKey = key;
   let blockRow = -1;
   const blockSeen = new Set<string>();
@@ -420,13 +421,15 @@ export function shortAnswersFromEntries(key: "piesa" | "piisa", entries: { label
       const split = Object.entries(SPLIT_MAINS_Q).find(([, label]) => nrm(raw) === nrm(label) || (label === SPLIT_MAINS_Q.switchSafe && nrm(raw) === nrm('Does the main switch work, can you reach it, does it safely isolate the ceiling circuits (excluding the mains cables), and can it be locked off?')));
       if (split) {
         out['splitMains'] = 'Yes';
-        if (e.value != null) out[split[0]] = e.value;
+        out[split[0]] = splitSeen.has(split[0]) ? 'Ambiguous duplicate answer' : e.value ?? '';
+        splitSeen.add(split[0]);
         splitContext = split[0] === 'switchSafe' ? 'switchProblems' : split[0] === 'rcdSafe' ? 'rcdProblems' : null;
         continue;
       }
       if (nrm(canonicalMittiLabel(raw)) === nrm('Can it be safely shut down, and are its cables in the ceiling labelled, in conduit and protected?')) splitContext = 'solarProblems';
       if (nrm(raw) === nrm("Tick everything that's not right.")) {
-        if (splitContext && e.value != null) out[splitContext] = e.value;
+        if (splitContext && e.value != null) out[splitContext] = splitSeen.has(splitContext) ? 'Ambiguous duplicate problem list' : e.value;
+        if (splitContext) splitSeen.add(splitContext);
         continue;
       }
     }

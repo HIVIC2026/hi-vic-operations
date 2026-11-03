@@ -125,7 +125,9 @@ export function expandPiesa(short: ShortAnswers, ctx: ExpandContext): ExpandResu
       ['rcdSafe', 'rcdProblems', MAINS_PROBLEMS.slice(5, 7), 'RCDs'],
     ] as const) {
       const rawDetail = txt(short[detail]).replace('The main switch cannot isolate all of the cables in the ceiling space safely (excluding the mains cables).', MAINS_PROBLEMS[2]);
+      const flagCount = flagged.length;
       const ticks = ticksOf(rawDetail, options, name, flagged);
+      if (flagged.length > flagCount) continue;
       if (!isYes(short[question]) && !isNo(short[question])) { flagged.push(`${name}: not answered.`); continue; }
       if (isNo(short[question]) && !ticks.length) { flagged.push(`${name}: No without problem details.`); continue; }
       if (isYes(short[question]) && ticks.length) { flagged.push(`${name}: Yes conflicts with problem details.`); continue; }
