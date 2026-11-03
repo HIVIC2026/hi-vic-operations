@@ -58,7 +58,7 @@ export function dayTime(iso: string | null): string | null {
       timeZone: "Australia/Melbourne", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hour12: true,
     }).formatToParts(d).map((x) => [x.type, x.value]),
   );
-  return `${p.weekday} ${p.day} ${p.month}, ${p.hour}:${p.minute}${String(p.dayPeriod).toLowerCase()}`;
+  return `${p["weekday"]} ${p["day"]} ${p["month"]}, ${p["hour"]}:${p["minute"]}${String(p["dayPeriod"]).toLowerCase()}`;
 }
 
 function view(step: ElectricianStep, canBook: boolean, sub?: string | null): ElectricianStepView {
@@ -122,3 +122,24 @@ export const electricianLinkAlreadyBooked = (iso: string) => `Already booked for
 export const ELECTRICIAN_LINK_NOTHING_TO_BOOK = "There's nothing to book on this job right now.";
 export const ELECTRICIAN_LINK_BAD_TIME = "Choose a day and time that hasn't passed.";
 export const electricianLinkBookFailed = (installer: string) => `We couldn't save that. Try again, or call ${installer}.`;
+
+// ---- "Can't do this one" (Task 6) ------------------------------------------------------------------------------------
+/** The event Part 9 reads for ESC timing: details { worker_id, reason, booking_cancelled }. */
+export const ELECTRICIAN_CANT_DO_EVENT = "electrician_cant_do";
+export const ELECTRICIAN_CANT_DO_EMAIL_EVENT = "electrician_cant_do_email";
+/** DRAFT control wording on the link (no approved wording yet). */
+export const ELECTRICIAN_CANT_DO_BUTTON = "Can't do this one";
+export const ELECTRICIAN_CANT_DO_REASON_LABEL = "Why not? A few words is fine.";
+export const ELECTRICIAN_CANT_DO_CONFIRM = "Send the job back";
+/** DRAFT: the reason is required (3 characters or more). */
+export const ELECTRICIAN_CANT_DO_REASON_NEEDED = "Tell us why in a few words.";
+export const electricianCantDoReasonOk = (reason: string) => reason.trim().length >= 3;
+export const electricianCantDoEmailKey = (jobId: string, assignmentId: string) => `electrician-cant-do:v1:${jobId}:${assignmentId}`;
+
+/** The installer office email stays off for real jobs until Jo approves the wording (TEST jobs go to test-send). */
+export const ELECTRICIAN_CANT_DO_EMAIL_APPROVED = false as boolean;
+/** DRAFT: "{HV}: {electrician} can't do this one. Choose another electrician on the job." The reason line under it is also DRAFT. */
+export function electricianCantDoEmailLine(i: { jobNumber: string; electrician: string }): string {
+  return `${tidy(i.jobNumber)}: ${tidy(i.electrician)} can't do this one. Choose another electrician on the job.`;
+}
+export const electricianCantDoReasonLine = (reason: string) => `They said: ${tidy(reason)}`;

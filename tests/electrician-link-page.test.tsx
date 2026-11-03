@@ -91,3 +91,23 @@ test("the route sends the file through the token-only upload function and reload
   expect(fns).toMatch(/uploadCoesByLink[\s\S]*token: z\.string\(\)\.max\(100\)/);
   expect(fns).not.toContain(".middleware(");
 });
+
+// Task 6: "Can't do this one".
+test("'Can't do this one' is offered on a live step, as a plain control (never the one green button), with a reason box", () => {
+  const h = renderToStaticMarkup(<ElectricianLinkBody d={{ business: "Spark Co", firstName: "Sam", jobNumber: "HV-5001", owner: null, address: null, buttonUrl: "https://app.au.safetyculture.com/inspection/a3", view: electricianStep(facts()) }} onCantDo={async () => ({ ok: true })} />);
+  expect(h).toContain("data-electrician-cant-do");
+  expect(h).toContain("Can&#x27;t do this one");
+  expect(h.match(/bg-action/g)).toHaveLength(1);
+  // Tapping it opens the reason box (closed to start, so a stray tap hands nothing back); the server requires the reason too.
+  const src = readFileSync("src/components/trade/ElectricianLinkBody.tsx", "utf8");
+  expect(src).toContain("data-electrician-cant-do-reason");
+  expect(src).toContain("electricianCantDoReasonOk(reason)");
+  expect(src).not.toMatch(/data-electrician-cant-do-button[^\n]*bg-action/);
+});
+test("not offered once the job is done or handed back, or when the route gives no handler", () => {
+  for (const f of [facts({ piesa: { start: "2026-11-06T23:00:00Z", formUrl: null, outcome: "pass", upgradesSameDay: false } }), facts({ handedBack: true })]) {
+    const h = renderToStaticMarkup(<ElectricianLinkBody d={{ business: "Spark Co", firstName: "Sam", jobNumber: "HV-5001", owner: null, address: null, buttonUrl: null, view: electricianStep(f) }} onCantDo={async () => ({ ok: true })} />);
+    expect(h).not.toContain("data-electrician-cant-do");
+  }
+  expect(body()).not.toContain("data-electrician-cant-do");
+});

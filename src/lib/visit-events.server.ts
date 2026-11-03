@@ -152,6 +152,19 @@ export async function tradeCancelVisit(jobId: string, userId: string, reason: st
   return { ok: true };
 }
 
+/** New job flow Part 6 (Task 6): the electrician's no-login link says "Can't do this one". There is no login: the link's token
+ *  and the active assignment for that business were already checked by electrician-link.server, which is the only caller.
+ *  Same record + reopen as `tradeCancelVisit` (the electrician is always released, whatever the kind), but NO O74 here:
+ *  the owner's "visit can't go ahead" email is Part 4's, sent by the caller once. Returns the cancelled booking, or null when
+ *  that business has no confirmed booking of that kind. */
+export async function cancelVisitFromElectricianLink(jobId: string, kind: "assessment" | "rectification", businessId: string, reason: string): Promise<{ id: string; scheduled_start: string } | null> {
+  const b = await currentBooking(jobId, kind);
+  if (!b || b.business_id !== businessId) return null;
+  await record(b, "trade_cancelled", "trade", null, reason);
+  await reopen(b, null, `electrician can't do this one: ${reason}`, true);
+  return { id: b.id, scheduled_start: b.scheduled_start };
+}
+
 /** Timer: trade no-show 4h after start with no arrival and no evidence -> needs attention; reliability drops. */
 export async function sweepTradeNoShows(now = new Date()) {
   const from = new Date(now.getTime() - 7 * 86_400_000).toISOString(), to = new Date(now.getTime() - 4 * 3_600_000).toISOString();

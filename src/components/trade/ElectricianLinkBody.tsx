@@ -1,8 +1,9 @@
 // The electrician's job link, one step at a time (new job flow Part 6). Presentation only: the server decides the step.
 // No menu, no prices, no messages, no rate items, and ONE green button at most.
 import { useState } from "react";
-import { card, greenBtn, inputCls } from "@/components/trade/TradeShell";
+import { card, ghostBtn, greenBtn, inputCls } from "@/components/trade/TradeShell";
 import type { ElectricianLinkView } from "@/lib/electrician-link.server";
+import { ELECTRICIAN_CANT_DO_BUTTON, ELECTRICIAN_CANT_DO_CONFIRM, ELECTRICIAN_CANT_DO_REASON_LABEL, ELECTRICIAN_CANT_DO_REASON_NEEDED, electricianCantDoReasonOk } from "@/lib/electrician-link.core";
 
 type Shown = Pick<ElectricianLinkView, "business" | "firstName" | "jobNumber" | "owner" | "address" | "view" | "buttonUrl">;
 
@@ -55,7 +56,34 @@ function UploadForm({ label, onUpload }: { label: string; onUpload: (file: File)
   );
 }
 
-export function ElectricianLinkBody({ d, onBook, onUpload }: { d: Shown; onBook?: (startIso: string) => Promise<Result>; onUpload?: (file: File) => Promise<Result> }) {
+/** "Can't do this one" (DRAFT wording): a plain control under the step, never the green button. A reason is required; the server
+ *  cancels their booking, takes them off the job and switches this link off. */
+function CantDo({ onCantDo }: { onCantDo: (reason: string) => Promise<Result> }) {
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const press = async () => {
+    if (!electricianCantDoReasonOk(reason)) { setError(ELECTRICIAN_CANT_DO_REASON_NEEDED); return; }
+    setBusy(true); setError(null);
+    try { const r = await onCantDo(reason.trim()); if (!r.ok) setError(r.message); }
+    catch { setError("We couldn't save that. Try again."); } // DRAFT
+    finally { setBusy(false); }
+  };
+  if (!open) return <button type="button" className="text-sm font-semibold text-sub underline" onClick={() => setOpen(true)} data-electrician-cant-do>{ELECTRICIAN_CANT_DO_BUTTON}</button>;
+  return (
+    <section className={`${card} space-y-3`} data-electrician-cant-do>
+      <label className="block text-sm font-medium" htmlFor="electrician-cant-do-reason">{ELECTRICIAN_CANT_DO_REASON_LABEL}</label>
+      <input id="electrician-cant-do-reason" type="text" maxLength={480} className={inputCls} value={reason} onChange={(e) => setReason(e.target.value)} data-electrician-cant-do-reason />
+      <button type="button" className={ghostBtn} disabled={busy} onClick={press} data-electrician-cant-do-button>{ELECTRICIAN_CANT_DO_CONFIRM}</button>
+      {error && <p className="text-sm text-danger" role="alert" data-electrician-cant-do-error>{error}</p>}
+    </section>
+  );
+}
+
+const CANT_DO_STEPS = new Set(["book_piesa", "waiting_office_book", "piesa_day", "set_upgrades_day", "waiting_office_upgrades", "upgrades_day", "upload_certificate"]);
+
+export function ElectricianLinkBody({ d, onBook, onUpload, onCantDo }: { d: Shown; onBook?: (startIso: string) => Promise<Result>; onUpload?: (file: File) => Promise<Result>; onCantDo?: (reason: string) => Promise<Result> }) {
   return (
     <>
       <div>
@@ -73,6 +101,7 @@ export function ElectricianLinkBody({ d, onBook, onUpload }: { d: Shown; onBook?
       {d.view.canBook && d.view.button && onBook && <BookForm label={d.view.button} onBook={onBook} />}
       {d.view.step === "upload_certificate" && d.view.button && onUpload && <UploadForm label={d.view.button} onUpload={onUpload} />}
       {d.view.button && d.buttonUrl && <a className={greenBtn} href={d.buttonUrl} data-electrician-button>{d.view.button}</a>}
+      {onCantDo && CANT_DO_STEPS.has(d.view.step) && <CantDo onCantDo={onCantDo} />}
     </>
   );
 }

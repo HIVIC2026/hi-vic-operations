@@ -47,6 +47,7 @@ import { readyCheckOfferText } from "./ready-check-times.core";
 import { renderElectricianOfferEmail } from "./electrician-offer-email.core";
 import { renderElectricianPiesaEmail } from "./electrician-piesa-copy.core";
 import { renderElectricianPiesaBooked } from "./electrician-piesa-booked-email.core";
+import { electricianCantDoEmail } from "./electrician-cant-do-email.core";
 import { MITTI_INVITE_MESSAGE, renderMittiInviteEmail } from "./mitti-invite.core";
 import { officeEmailLayout, electricianInviteLayout } from "./office-email.core";
 import { composeReply } from "./email-reply.core";
@@ -708,6 +709,10 @@ const ELECTRICIAN: TemplateEntry[] = [
   ENTRY({ id: "electrician:sms-electrician_job_link", section: "electrician", step: "safety_check", kind: "text", code: "", name: "Your job link (text)", when: "Right after the installer picks the electrician for a new safety check job", who: "Electrician", approvalNote: "DRAFT wording for Jo to approve (new job flow Part 6); ELECTRICIAN_LINK_TEXT_APPROVED stays false", gate: { kind: "text", smsType: "electrician_job_link" },
     source: { builder: "src/lib/electrician-link.core.ts", fn: "electricianLinkText", sender: "src/lib/electrician-link.server.ts" },
     render: () => text(electricianLinkText({ jobNumber: "HV-TEST", suburb: "Glen Waverley", installer: "Example Insulation", url: "https://estimate.homeinsulationvictoria.com.au/e/EXAMPLE" })) }),
+  // DRAFT wording: ELECTRICIAN_CANT_DO_EMAIL_APPROVED stays false (TEST jobs go to test-send).
+  ENTRY({ id: "installer:electrician-cant-do", section: "installer", step: "safety_check", kind: "email", code: "", name: "The electrician can't do this one", when: "The electrician taps \"Can't do this one\" on their job link; goes to the installer business's office email (held if none on file). Their booked safety check / upgrades day is cancelled and the owner gets \"Your visit can't go ahead\"", who: "Installer business office", approvalNote: "DRAFT wording for Jo to approve (new job flow Part 6, Task 6); ELECTRICIAN_CANT_DO_EMAIL_APPROVED stays false", gate: { kind: "code_off", flag: "ELECTRICIAN_CANT_DO_EMAIL_APPROVED" },
+    source: { builder: "src/lib/electrician-cant-do-email.core.ts", fn: "electricianCantDoEmail", sender: "src/lib/electrician-link.server.ts" },
+    render: () => email(electricianCantDoEmail({ jobNumber: "HV-TEST", electrician: "Example Electrical", reason: "Double booked that week", test: false })) }),
 ];
 
 /* ---------------------------------------------------------------- OFFICE */

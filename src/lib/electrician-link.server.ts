@@ -15,9 +15,11 @@ import {
   ELECTRICIAN_LINK_SMS_TYPE, ELECTRICIAN_LINK_TEXT_APPROVED, ELECTRICIAN_LINK_NOT_VALID, electricianLinkExpired, electricianLinkExpiry, electricianLinkSwitchedOff,
   electricianLinkText, electricianLinkTextKey, maskElectricianLinkInText, electricianStep, canBookFromLink, dayTime,
   ELECTRICIAN_LINK_OFFICE_BOOKS, electricianLinkAlreadyBooked, ELECTRICIAN_LINK_NOTHING_TO_BOOK, ELECTRICIAN_LINK_BAD_TIME, electricianLinkBookFailed, type ElectricianLinkFacts, type ElectricianStepView, type WhoBooks,
+  ELECTRICIAN_CANT_DO_EVENT, ELECTRICIAN_CANT_DO_EMAIL_EVENT, ELECTRICIAN_CANT_DO_EMAIL_APPROVED, ELECTRICIAN_CANT_DO_REASON_NEEDED, electricianCantDoReasonOk, electricianCantDoEmailKey,
 } from "./electrician-link.core";
 import type { RealSmsInput, RealSmsResult } from "./sms.server";
 import type { BusinessContact } from "./owner-wording.core";
+import type { SendResult } from "./test-send.server";
 
 export const ELECTRICIAN_LINK_TEXT_SENT_EVENT = "electrician_link_text_sent";
 export const ELECTRICIAN_LINK_TEXT_FAILED_EVENT = "electrician_link_text_failed";
@@ -370,4 +372,122 @@ export async function uploadCoesFromElectricianLink(token: string, file: { name:
     console.error("Electrician link upload failed", (e as Error).message);
     return { ok: false, message: ELECTRICIAN_LINK_NOT_VALID };
   }
+}
+
+// ---------- "Can't do this one" ----------
+export type ElectricianCantDoResult = { ok: true } | { ok: false; message: string };
+export type ElectricianCantDoDeps = {
+  emailApproved: boolean;
+  /** The existing guarded cancel writer (visit-events.server): cancels that business's confirmed booking of that kind, records
+   *  the trade cancellation, releases the trade and reopens the visit. Null = nothing of that kind was booked for them. */
+  cancelVisit: (jobId: string, kind: "assessment" | "rectification", businessId: string, reason: string) => Promise<{ id: string; scheduled_start: string } | null>;
+  /** Part 4's owner email ("your booked visit can't go ahead"), called once per cancelled booking AFTER it is cancelled.
+   *  TODO(join): the controller wires `queueVisitCancelledOwnerEmail(jobId, bookingId, "electrician")` from
+   *  visit-cancelled-owner.server (branch new-job-flow) here; the default below is that module's function as found at this base. */
+  ownerNotice: (jobId: string, bookingId: string, by: "electrician") => Promise<string>;
+  sendOfficeEmail: (p: { actorId: null; recipient: "partner"; to: string; contactName: string | null; subject: string; message: string; html: string; text: string; label: string; record: { businessId: string }; idempotencyKey: string }) => Promise<SendResult>;
+  sendTestEmail: (info: { jobId: string; jobSource: string | null; partnerIsTest: boolean; label: string }, to: string, subject: string, html: string, text: string) => Promise<SendResult>;
+  record: (jobId: string, eventType: string, summary: string, details: Record<string, unknown>) => Promise<void>;
+};
+const cantDoDeps = (): ElectricianCantDoDeps => ({
+  emailApproved: ELECTRICIAN_CANT_DO_EMAIL_APPROVED,
+  cancelVisit: async (jobId, kind, businessId, reason) => (await import("./visit-events.server")).cancelVisitFromElectricianLink(jobId, kind, businessId, reason),
+  ownerNotice: async (jobId, bookingId, by) => (await import("./visit-cancelled-owner.server")).queueVisitCancelledOwnerEmail(jobId, bookingId, by),
+  sendOfficeEmail: async (p) => (await import("./office-email.server")).sendOfficeEmail(p),
+  sendTestEmail: async (info, to, subject, html, text) => (await import("./test-send.server")).sendTestEmail({ ...info, actorId: null }, to, subject, html, text),
+  record: async (jobId, eventType, summary, details) => (await import("./workflow.server")).logEvent(jobId, null, eventType, summary, details, { internal: true }),
+});
+
+/** The electrician hands the job back from their link (Jo 2 Nov, answer 4). Everything comes from the token. In order: their
+ *  confirmed safety check / upgrades booking is cancelled through the existing guarded cancel writer, their assignment ends,
+ *  every link of theirs for the job is switched off, ONE `electrician_cant_do` event is written, then the owner is emailed
+ *  straight away for each cancelled booking (Part 4) and the installer office is told (DRAFT email, test-send for TEST jobs).
+ *  A second press on the same link is the same { ok: true } and changes nothing. */
+export async function electricianCantDo(token: string, reason: string, now = Date.now(), over: Partial<ElectricianCantDoDeps> = {}): Promise<ElectricianCantDoResult> {
+  if (!electricianCantDoReasonOk(reason)) return { ok: false, message: ELECTRICIAN_CANT_DO_REASON_NEEDED };
+  const why = reason.trim().slice(0, 480);
+  if (!isTokenShape(token)) return { ok: false, message: ELECTRICIAN_LINK_NOT_VALID };
+  const d = { ...cantDoDeps(), ...over };
+  const { data: l, error } = await admin.from("worker_job_links").select("id, job_id, worker_id, business_id, expires_at, revoked_at").eq("token_hash", await hashToken(token)).maybeSingle();
+  if (error) throw dbErr("the link", error);
+  if (!l) return { ok: false, message: ELECTRICIAN_LINK_NOT_VALID };
+  const jobId = l.job_id as string;
+  const doneBefore = async () => {
+    const { data } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", ELECTRICIAN_CANT_DO_EVENT).contains("details", { link_id: l.id }).limit(1).maybeSingle();
+    return !!data;
+  };
+  const installer = await installerOf(jobId);
+  const state = linkState(l, now);
+  // The first press switched this link off; the same press again is simply done.
+  if (state === "revoked") return (await doneBefore()) ? { ok: true } : { ok: false, message: electricianLinkSwitchedOff(installer.name) };
+  if (state === "expired") return { ok: false, message: electricianLinkExpired(installer.name) };
+  const off = { ok: false as const, message: electricianLinkSwitchedOff(installer.name) };
+  const [{ data: w, error: we }, { data: job, error: je }] = await Promise.all([
+    admin.from("partner_workers").select("id, trade_role, approval_status, removed_at, profile_id").eq("id", l.worker_id).maybeSingle(),
+    admin.from("jobs").select("job_number, source, stage, deleted_at").eq("id", jobId).maybeSingle(),
+  ]);
+  if (we) throw dbErr("the electrician", we);
+  if (je) throw dbErr("the job", je);
+  if (!w || w.trade_role !== "electrician" || w.removed_at || !job || job.deleted_at) return off;
+
+  return withJobLock(jobId, async () => {
+    if (await doneBefore()) return { ok: true as const };
+    const asg = await electricianAssignment(jobId, l.business_id);
+    if (!asg || !sameElectrician(asg, w)) return off;
+    const { data: asgRow } = await admin.from("job_assignments").select("id").eq("job_id", jobId).eq("role", "electrician").eq("active", true).eq("business_id", l.business_id).maybeSingle();
+    const assignmentId = asgRow?.id as string;
+
+    // 1. Their booked visits, through the existing guarded cancel writer (it also releases the trade).
+    const { data: booked, error: be } = await admin.from("bookings").select("kind").eq("job_id", jobId).eq("status", "confirmed").eq("business_id", l.business_id).in("kind", ["assessment", "rectification"]);
+    if (be) throw dbErr("the bookings", be);
+    const cancelled: { id: string; scheduled_start: string }[] = [];
+    for (const kind of ["assessment", "rectification"] as const) {
+      if (!(booked ?? []).some((b) => b.kind === kind)) continue;
+      const b = await d.cancelVisit(jobId, kind, l.business_id, why);
+      if (b) cancelled.push(b);
+    }
+    // 2. Off the job: the assignment ends (if the cancel writer hasn't already ended it) and every link of theirs is switched off.
+    const nowIso = new Date(now).toISOString();
+    const { error: ae } = await admin.from("job_assignments").update({ active: false, ended_at: nowIso, end_reason: `electrician can't do this one: ${why}`.slice(0, 300) }).eq("id", assignmentId).eq("active", true);
+    if (ae) throw new Error(ae.message);
+    const { error: re } = await admin.from("worker_job_links").update({ revoked_at: nowIso, revoked_by: null }).eq("worker_id", l.worker_id).eq("job_id", jobId).is("revoked_at", null);
+    if (re) throw new Error(re.message);
+    // 3. The one event (Part 9 reads it).
+    await d.record(jobId, ELECTRICIAN_CANT_DO_EVENT, `Electrician can't do this one (${why})`, { worker_id: l.worker_id, reason: why, booking_cancelled: cancelled.length > 0, link_id: l.id, assignment_id: assignmentId, business_id: l.business_id, cancelled_booking_ids: cancelled.map((b) => b.id) });
+    // 4. The owner, straight away, once per cancelled booking (Part 4's email; its own key stops a repeat). Never undoes the hand-back.
+    for (const b of cancelled) await d.ownerNotice(jobId, b.id, "electrician").catch((e) => console.error("Visit cancelled owner email skipped", (e as Error).message));
+    // 5. The installer office (DRAFT wording; real jobs held until approved).
+    await tellInstallerOfficeCantDo(d, { jobId, jobNumber: job.job_number, source: job.source ?? null, assignmentId, electricianBusinessId: l.business_id, installerBusinessId: installer.id, reason: why })
+      .catch((e) => console.error("Can't do this one: installer office email skipped", (e as Error).message));
+    return { ok: true as const };
+  });
+}
+
+async function tellInstallerOfficeCantDo(d: ElectricianCantDoDeps, i: { jobId: string; jobNumber: string; source: string | null; assignmentId: string; electricianBusinessId: string; installerBusinessId: string | null; reason: string }): Promise<"sent" | "test_sent" | "held"> {
+  if (!i.installerBusinessId) return "held";
+  const key = electricianCantDoEmailKey(i.jobId, i.assignmentId);
+  const { data: done } = await admin.from("workflow_events").select("id").eq("job_id", i.jobId).eq("event_type", ELECTRICIAN_CANT_DO_EMAIL_EVENT).contains("details", { key }).limit(1).maybeSingle();
+  if (done) return "held";
+  const [{ data: ib, error: ie }, { data: eb, error: ee }] = await Promise.all([
+    admin.from("businesses").select("name, trading_name, email, onboarding_notes").eq("id", i.installerBusinessId).maybeSingle(),
+    admin.from("businesses").select("name, trading_name, onboarding_notes").eq("id", i.electricianBusinessId).maybeSingle(),
+  ]);
+  if (ie) throw dbErr("the installer", ie);
+  if (ee) throw dbErr("the electrician business", ee);
+  const to = (ib?.email ?? "").trim();
+  if (!to) return "held";
+  const { isTestPartner } = await import("./test-send.core");
+  const partnerIsTest = isTestPartner(ib) || isTestPartner(eb);
+  const test = i.source === "qa_test" || partnerIsTest;
+  if (!test && !d.emailApproved) return "held";
+  const { electricianCantDoEmail } = await import("./electrician-cant-do-email.core");
+  const mail = electricianCantDoEmail({ jobNumber: i.jobNumber, electrician: bizName(eb) ?? "The electrician", reason: i.reason, test });
+  // Recorded BEFORE the send, once per key.
+  await d.record(i.jobId, ELECTRICIAN_CANT_DO_EMAIL_EVENT, "Installer office told the electrician can't do this one", { key, assignment_id: i.assignmentId, test });
+  if (test) {
+    const r = await d.sendTestEmail({ jobId: i.jobId, jobSource: i.source, partnerIsTest, label: `electrician_cant_do:${i.jobId}` }, to, mail.subject, mail.html, mail.text);
+    return r.status === "sent" ? "test_sent" : "held";
+  }
+  const r = await d.sendOfficeEmail({ actorId: null, recipient: "partner", to, contactName: bizName(ib), subject: mail.subject, message: mail.text, html: mail.html, text: mail.text, label: "electrician_cant_do", record: { businessId: i.installerBusinessId }, idempotencyKey: key });
+  return r.status === "sent" ? "sent" : "held";
 }

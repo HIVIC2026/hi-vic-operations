@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { TradePublicShell } from "@/components/trade/TradeShell";
 import { ElectricianLinkBody } from "@/components/trade/ElectricianLinkBody";
-import { bookElectricianLinkVisit, getElectricianLinkView, uploadCoesByLink } from "@/lib/electrician-link.functions";
+import { bookElectricianLinkVisit, electricianCantDoByLink, getElectricianLinkView, uploadCoesByLink } from "@/lib/electrician-link.functions";
 import { readableError } from "@/lib/readable-error.core";
 
 const E_LINK_PROBLEM = "We couldn't open this job. Check you have the whole link from the text, or ask your installer to send it again.";
@@ -46,5 +46,11 @@ function ElectricianLink() {
     if (res.ok) await qc.invalidateQueries({ queryKey: ["electrician-link", token] });
     return res;
   };
-  return <TradePublicShell><ElectricianLinkBody d={q.data} onBook={q.data.view.canBook ? onBook : undefined} onUpload={onUpload} /></TradePublicShell>;
+  // "Can't do this one": the server cancels their booking, takes them off the job and switches this link off; the reload then shows that.
+  const onCantDo = async (reason: string) => {
+    const r = await electricianCantDoByLink({ data: { token, reason } });
+    if (r.ok) await qc.invalidateQueries({ queryKey: ["electrician-link", token] });
+    return r;
+  };
+  return <TradePublicShell><ElectricianLinkBody d={q.data} onBook={q.data.view.canBook ? onBook : undefined} onUpload={onUpload} onCantDo={onCantDo} /></TradePublicShell>;
 }
