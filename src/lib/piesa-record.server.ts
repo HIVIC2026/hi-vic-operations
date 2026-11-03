@@ -20,7 +20,7 @@ export type PostRectificationRecord = {
   sectionCSignedDate?: string | null;
   notes?: string | null;
   /** Where the record came from, kept on the event (portal page or the Mitti fixes form's audit id). */
-  source?: { kind: "portal" } | { kind: "mitti_fixes_form"; auditId: string };
+  source?: { kind: "portal" } | { kind: "mitti_fixes_form"; auditId: string } | { kind: "mitti_a3_same_day"; auditId: string };
 };
 
 /** Who may record a reassessment PIESA (null = allowed): the 30-day window expired, or (batch 1 task 6) the job was
@@ -42,8 +42,10 @@ export async function applyPiesaRecord(r: PostRectificationRecord): Promise<{ re
   if (post && r.outcome === "pass" && !r.sectionCSignedDate) throw new WorkflowError("Section C signed date is required for a post-rectification PIESA record.");
   let recordId: string | null = null;
   let duplicate = false;
-  if (r.source?.kind === "mitti_fixes_form") {
-    const { data: existing, error } = await admin.from("workflow_events").select("details").eq("job_id", r.jobId).eq("event_type", "piesa_recorded").contains("details", { source: "mitti_fixes_form", audit_id: r.source.auditId }).maybeSingle();
+  // Once per Mitti form: the A4 fixes form, or (Part 3 Task 4b) Part C done on the A3 PIESA itself (same-day upgrades).
+  const mittiSource = r.source?.kind === "mitti_fixes_form" || r.source?.kind === "mitti_a3_same_day" ? r.source : null;
+  if (mittiSource) {
+    const { data: existing, error } = await admin.from("workflow_events").select("details").eq("job_id", r.jobId).eq("event_type", "piesa_recorded").contains("details", { source: mittiSource.kind, audit_id: mittiSource.auditId }).maybeSingle();
     if (error) throw new Error(error.message);
     if (existing) { duplicate = true; recordId = (existing.details as { record_id?: string } | null)?.record_id ?? null; }
   }
@@ -62,8 +64,8 @@ export async function applyPiesaRecord(r: PostRectificationRecord): Promise<{ re
     ...(post && r.outcome === "pass" ? { section_c_signed_at: `${r.sectionCSignedDate}T00:00:00.000Z` } : {}),
   }).select("id").maybeSingle();
   if (recordError) throw new Error(recordError.message);
-  await logEvent(r.jobId, r.actorId, "piesa_recorded", `PIESA (${r.kind.replace("_", " ")}) ${r.outcome} on ${r.completedDate}${r.source?.kind === "mitti_fixes_form" ? " — from the Mitti rectification form" : ""}`,
-    r.source?.kind === "mitti_fixes_form" ? { source: "mitti_fixes_form", audit_id: r.source.auditId, record_id: rec?.id ?? null } : {});
+  await logEvent(r.jobId, r.actorId, "piesa_recorded", `PIESA (${r.kind.replace("_", " ")}) ${r.outcome} on ${r.completedDate}${mittiSource?.kind === "mitti_fixes_form" ? " — from the Mitti rectification form" : mittiSource?.kind === "mitti_a3_same_day" ? " — electrical upgrades done on the safety check visit (Mitti PIESA form)" : ""}`,
+    mittiSource ? { source: mittiSource.kind, audit_id: mittiSource.auditId, record_id: rec?.id ?? null } : {});
   recordId = rec?.id ?? null;
   }
   if (post && r.outcome === "pass") {

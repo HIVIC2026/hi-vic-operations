@@ -58,7 +58,8 @@ await seedJob(J_DAY, "rectification_scheduling", snapshot({ today: "No" }), { re
 await db.query("insert into rectification_items (job_id, description, status) values ($1,'Replace split conduit','required')", [J_DAY]);
 // J_CERT: the A4 was completed without the certificate (Part C merged onto the A3 answers, post_rectification record written).
 await seedJob(J_CERT, "installation_scheduling", snapshot({ today: "Yes", certNow: "No" }));
-// J_SAMEDAY: same-day upgrades on the A3, "have the certificate now?" = No — no post_rectification record on this path.
+// J_SAMEDAY: same-day upgrades on the A3, "have the certificate now?" = No, completed BEFORE Task 4b (no post_rectification
+// record; since Task 4b Complete PIESA writes one — tests/piesa-complete-upgrades.pglite.test.ts). Still read from the answers.
 await seedJob(J_SAMEDAY, "installation_scheduling", snapshot({ today: "Yes", certNow: "No" }), { record: false, requirement: false });
 // J_REAL: a real job for the held text.
 await seedJob(J_REAL, "installation_scheduling", snapshot({ today: "Yes", certNow: "No" }), { source: "real" });
@@ -294,7 +295,7 @@ describe("add the certificate", () => {
     // The owner copy is keyed per certificate (sendCoesOwnerCopy dedupes by key): every call names the ONE certificate.
     expect(new Set(ownerCopies.filter((x) => x.startsWith(J_CERT))).size).toBe(1);
   });
-  test("same-day upgrades on the A3 (no post_rectification record): waiting, then the link's certificate is seen", async () => {
+  test("same-day upgrades on an A3 completed before Task 4b (no post_rectification record): waiting, then the link's certificate is seen", async () => {
     expect(await cls.jobCertificateFacts(J_SAMEDAY)).toMatchObject({ partCRecorded: true, state: "waiting_for_certificate" });
     const t = await tokenFor(J_SAMEDAY);
     expect(await els.resolveElectricianLink(t)).toMatchObject({ ok: true, step: "add_certificate" });

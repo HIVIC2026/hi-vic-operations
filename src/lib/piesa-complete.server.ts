@@ -8,6 +8,8 @@ import { STAGE_LABEL } from "./workflow";
 import { piesaDateBlockers } from "./piesa-date.core";
 import { autoAdvanceJob } from "./autoadvance.server";
 import { piesaCompletionKind } from "./repeat-piesa-form.core";
+import { electricianBillsUpgrades } from "./upgrades-billing.core";
+import { piesaRectificationDone } from "./piesa-evidence.core";
 
 export type CompletePiesaInput = { jobId: string; rectHours?: number | undefined; rectWindows?: { date: string; slot: "8-10" | "10-12" | "12-14" | "14-16" }[] | undefined };
 
@@ -54,8 +56,13 @@ export async function completePiesaAssessment(data: CompletePiesaInput, userId: 
     .filter((e) => a.piesa_outcome === "pass" && e.category === "piesa_signoff")
     .filter((e) => !["uploaded", "verified"].includes(e.status)).map((e) => e.label);
   if (evMissing.length) throw new WorkflowError(`Upload evidence first: ${evMissing.join(", ")}`);
+  // Part 3 Task 4b (Jo 4 Nov 2026): electricians quote, book and bill the electrical upgrades with the owner directly, so a
+  // live A3 that says upgrades are needed completes with no portal items, no price and no fixes times. Items the A3 did list
+  // stay listed (they are completed by the Part C record); unpriced "other" items no longer hold it.
+  const short = a.external_mitti_id ? shortFrom("piesa", (a.mitti_raw_snapshot as { label: string; value: string | null }[] | null) ?? []) : null;
+  const upgradesOnA3 = electricianBillsUpgrades() && liveA3 && !!short && /^yes\b/i.test(String(short["rectificationNeeded"] ?? "").trim());
   const { data: unpriced } = await admin.from("rectification_items").select("description").eq("job_id", data.jobId).eq("status", "required").eq("needs_office_pricing", true);
-  if (unpriced?.length) throw new WorkflowError(`Home Insulation Victoria must price these items first: ${unpriced.map((u) => u.description).join(", ")}`);
+  if (unpriced?.length && !upgradesOnA3) throw new WorkflowError(`Home Insulation Victoria must price these items first: ${unpriced.map((u) => u.description).join(", ")}`);
   // Same-day rule: the PIESA submission must carry the rectification decision – priced items, or an explicit "none required".
   const { count: rectCount } = await admin.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", data.jobId).eq("status", "required");
   // A live A3 that says repair work is needed carries the electrician's own priced repair list (decisions 305/324):
@@ -64,13 +71,14 @@ export async function completePiesaAssessment(data: CompletePiesaInput, userId: 
   // Mitti-only PIESA (C4, Jo 28 Oct 2026): the portal tick is gone. A live A3 whose answer is "No repair work needed" (a pass)
   // with no required fixes items IS "no electrical fixes required". Older / non-live forms still need the explicit tick.
   const a3NoFixes = liveA3 && a.piesa_outcome === "pass" && !rectCount;
-  if (!rectCount && a.no_rectification_confirmed !== true && !a3Priced && !a3NoFixes) throw new WorkflowError("Add the electrical fixes items for today's quote, or tick \"No electrical fixes required\", before completing the PIESA.");
+  if (!rectCount && a.no_rectification_confirmed !== true && !a3Priced && !a3NoFixes && !upgradesOnA3) throw new WorkflowError("Add the electrical fixes items for today's quote, or tick \"No electrical fixes required\", before completing the PIESA.");
   if (rectCount && a.no_rectification_confirmed === true) throw new WorkflowError("You ticked \"No electrical fixes required\" but electrical fixes items are listed – untick it or remove the items.");
 
   // Rectification needed: the electrician also gives estimated hours + 3-5 windows (asked once, here) — unless they were
   // already given on the job page's "Fixes times" card (decision 315), which writes the same rows and event.
-  const timesAlreadyGiven = rectCount ? await (await import("./rectification.server")).rectificationWindowsExist(data.jobId) : false;
-  if (rectCount && !timesAlreadyGiven) {
+  // Part 3 Task 4b: not on an "upgrades needed" A3 — the electrician books the upgrades day with the owner (their link).
+  const timesAlreadyGiven = rectCount && !upgradesOnA3 ? await (await import("./rectification.server")).rectificationWindowsExist(data.jobId) : false;
+  if (rectCount && !timesAlreadyGiven && !upgradesOnA3) {
     const { rectPlanBlockers } = await import("./rectification.core");
     const rb = rectPlanBlockers(data.rectHours, data.rectWindows ?? []);
     if (rb.length) throw new WorkflowError(`Electrical fixes times: ${rb.join(" ")}`);
@@ -102,10 +110,14 @@ export async function completePiesaAssessment(data: CompletePiesaInput, userId: 
   }
   let res: { advanced: boolean; scope: string };
   if (stage === "piesa_scheduled") {
-    await transition(data.jobId, "piesa_complete", userId, `PIESA complete – ${a.piesa_outcome}${rectCount ? `, ${rectCount} electrical fixes item(s) listed` : a3Priced ? ", electrical fixes priced on the A3 form" : ", no electrical fixes required"}`, { piesa_outcome: a.piesa_outcome, rectification_items: rectCount ?? 0 });
+    await transition(data.jobId, "piesa_complete", userId, `PIESA complete – ${a.piesa_outcome}${upgradesOnA3 ? ", electrical upgrades needed (the electrician arranges them with the owner)" : rectCount ? `, ${rectCount} electrical fixes item(s) listed` : a3Priced ? ", electrical fixes priced on the A3 form" : ", no electrical fixes required"}`, { piesa_outcome: a.piesa_outcome, rectification_items: rectCount ?? 0 });
     res = { advanced: true, scope: s.scope };
+    // Part 3 Task 4b: upgrades done on the same visit (q30 Yes + Part C on the A3) → the ONE post-rectification record path,
+    // once per form: items completed, deposit requested, compliance checks passed, installation scheduling. The certificate
+    // then reads "Waiting for certificate" / "certificate in" exactly as after the A4 form.
+    if (upgradesOnA3 && short && piesaRectificationDone(short)) await recordSameDayPartC(data.jobId, userId, a.external_mitti_id!, partCDate(short, a.assessed_on!));
   } else res = await advanceSiteRequirements(data.jobId, userId);
-  if (rectCount && !timesAlreadyGiven && data.rectWindows?.length) {
+  if (rectCount && !timesAlreadyGiven && !upgradesOnA3 && data.rectWindows?.length) {
     // The same shared write as the decision-315 job-page card (rectification.server recordRectificationWindows).
     await (await import("./rectification.server")).recordRectificationWindows(data.jobId, userId, data.rectHours, data.rectWindows);
   }
@@ -117,4 +129,23 @@ export async function completePiesaAssessment(data: CompletePiesaInput, userId: 
   // Decision 186: a pass with no fixes is electrical clearance — tell the installer once (nothing when not cleared).
   try { await (await import("./install-clearance.server")).notifyInstallerClearance(data.jobId); } catch (e) { console.error("install clearance notice failed", (e as Error).message); }
   return res;
+}
+
+/** Part 3 Task 4b: the Part C date on a same-day A3 — the certificate date when the answers give a valid one (not in the
+ *  future), else the safety check date. Melbourne calendar dates. */
+export function partCDate(short: Record<string, unknown>, assessedOn: string): string {
+  const d = String(short["certDate"] ?? "").trim().slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(d) && piesaDateBlockers(d).length === 0 ? d : assessedOn.slice(0, 10);
+}
+
+/** The same-day Part C record (once per A3 form; a repeat is a no-op in applyPiesaRecord). A standing stage guard on the move
+ *  to installation scheduling keeps the job where it is with the reason as its next step — the PIESA completion stands. */
+async function recordSameDayPartC(jobId: string, userId: string, auditId: string, date: string) {
+  const { applyPiesaRecord } = await import("./piesa-record.server");
+  try {
+    await applyPiesaRecord({ jobId, actorId: userId, kind: "post_rectification", outcome: "pass", completedDate: date, sectionCSignedDate: date, notes: `Electrical upgrades done on the safety check visit (Part C on the Mitti PIESA form ${auditId}).`, source: { kind: "mitti_a3_same_day", auditId } });
+  } catch (e) {
+    if (!(e instanceof WorkflowError)) throw e;
+    await admin.from("jobs").update({ next_action: e.message.replace(/^Blocked:\s*/, "") }).eq("id", jobId);
+  }
 }

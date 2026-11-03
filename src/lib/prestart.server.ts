@@ -134,10 +134,21 @@ export async function runPrestart(jobId: string, trigger: string, now = new Date
 
 /** Part 3 Task 4 fix 2 (4 Nov 2026): on ANY pass (new or already on file, from the sweep, office "Run check" or the ESC
  *  paths) an in-house job still holding its install form for the certificate gets it now. Idempotent (stage + existing-form
- *  checks first). Never throws. A failure is ONE office row: none is added while an earlier one is still unrecovered. */
+ *  checks first). Never throws. A failure is ONE office row: none is added while an earlier one is still unrecovered.
+ *  Task 4b: once the form exists (made now or already there) an open failure row from here gets ONE recovered row. A job
+ *  that isn't in-house never gets either, and a failed partner read is not an office row (the next pass retries). */
 async function afterPrestartPass(jobId: string) {
+  const forms = await import("./in-house-forms.server");
+  let inHouse: boolean;
+  try { inHouse = await forms.isInHouseFormJob(jobId); } catch { return; }
+  if (!inHouse) return;
   try {
-    await (await import("./in-house-forms.server")).releaseHeldInstallForm(jobId, null);
+    const r = await forms.releaseHeldInstallForm(jobId, null);
+    if (r === "created" || r === "already has an install form") {
+      try {
+        if (await unrecoveredFormSyncFailure(jobId, { ownOnly: true })) await logEvent(jobId, null, "in_house_form_sync_recovered", "In-house install form created", { reason: "Install form created" }, { internal: true });
+      } catch { /* best effort: the next pass tries again */ }
+    }
   } catch (e) {
     try {
       if (await unrecoveredFormSyncFailure(jobId)) return;
@@ -146,12 +157,13 @@ async function afterPrestartPass(jobId: string) {
   }
 }
 /** An in_house_form_sync_failed row with no later recovered row (same rule as office-needs). A read failure says no,
- *  so the office still hears about it (a duplicate row beats a missed one). */
-async function unrecoveredFormSyncFailure(jobId: string): Promise<boolean> {
+ *  so the office still hears about it (a duplicate row beats a missed one). `ownOnly`: only rows with no work id (the ones
+ *  written above), so a recovered row is never added for another piece of in-house work's failure. */
+async function unrecoveredFormSyncFailure(jobId: string, opts: { ownOnly?: boolean } = {}): Promise<boolean> {
   const { data, error } = await admin.from("workflow_events").select("event_type, details, created_at").eq("job_id", jobId).in("event_type", ["in_house_form_sync_failed", "in_house_form_sync_recovered"]);
   if (error) return false;
   const rows = (data ?? []) as { event_type: string; details: { work_id?: unknown } | null; created_at: string }[];
-  return rows.some((f) => f.event_type === "in_house_form_sync_failed" && !rows.some((r) => r.event_type === "in_house_form_sync_recovered" && r.created_at >= f.created_at && (!f.details?.work_id || r.details?.work_id === f.details.work_id)));
+  return rows.some((f) => f.event_type === "in_house_form_sync_failed" && (!opts.ownOnly || !f.details?.work_id) && !rows.some((r) => r.event_type === "in_house_form_sync_recovered" && r.created_at >= f.created_at && (!f.details?.work_id || r.details?.work_id === f.details.work_id)));
 }
 
 /** Server-side lock for the PIISA send and installation evidence. */

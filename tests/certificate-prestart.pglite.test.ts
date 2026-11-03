@@ -63,9 +63,11 @@ const admin = { ...shim, storage, from(table: string) {
 } };
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: admin }));
 const IN_HOUSE = new Set<string>();
+// Task 4b carried minor: jobs whose partner read fails (readInHouseDispatchState → failed).
+const PARTNER_READ_FAILS = new Set<string>();
 const piisaCreates: string[] = [], formDates: unknown[][] = [], piisaNoAssignee: string[] = [];
 mock.module("../src/lib/in-house-suppression.server", () => ({
-  readInHouseDispatchState: async (ids?: string[]) => ({ failed: false, held: new Set((ids ?? [...IN_HOUSE]).filter((i) => IN_HOUSE.has(i))) }),
+  readInHouseDispatchState: async (ids?: string[]) => ({ failed: (ids ?? []).some((i) => PARTNER_READ_FAILS.has(i)), held: new Set((ids ?? [...IN_HOUSE]).filter((i) => IN_HOUSE.has(i))) }),
   inHouseDispatchSkip: async (j: string) => (IN_HOUSE.has(j) ? "in_house" : null),
 }));
 mock.module("../src/lib/mitti.server", () => ({
@@ -135,7 +137,8 @@ await db.query("insert into workflow_events (job_id, event_type, summary, detail
 const fRejected = await seedJob(J_REJECTED, { snap: snapshot({ upgrades: "Yes", today: "Yes" }), record: true, file: true, item: true });
 await db.query("insert into workflow_events (job_id, event_type, summary, details, internal) values ($1,'coes_rejected','rejected',$2,true)", [J_REJECTED, JSON.stringify({ by: "office", note: "wrong address", key: coesPortalKey([fRejected!]) })]);
 await seedJob(J_ONSITE, { snap: [{ label: A3_REPAIR_NEEDED_LABEL, value: "Yes" }, { label: A3_UPGRADES_TODAY_LABEL, value: "No" }, { label: ONSITE_START_LABEL, value: "Yes" }], item: true });
-// Same-day upgrades on the A3, certificate to come: Part C on the answers, no post-upgrades record (Review Focus 4 → 5).
+// Same-day upgrades on the A3, certificate to come: Part C on the answers, no post-upgrades record — an A3 completed before
+// Task 4b (Complete PIESA now writes the record; tests/piesa-complete-upgrades.pglite.test.ts). Review Focus 4 → 5.
 await seedJob(J_SAMEDAY, { snap: snapshot({ upgrades: "Yes", today: "Yes" }), item: true });
 void fUnchecked;
 
@@ -412,5 +415,32 @@ describe("fix 2: the PIISA auto-send skips in-house jobs", () => {
     expect(piisaNoAssignee).not.toContain(J_IH_BROKEN);
     expect(of(J_OWN)).toMatchObject({ outcome: "created" });
     expect(piisaNoAssignee).toEqual([J_OWN]);
+  });
+});
+
+// Runs last: it gives J_IH_BROKEN its Lead Installer (the auto-send test above needs it without a form).
+describe("Task 4b carried minors: the held form's office row clears itself", () => {
+  test("once the Lead Installer is chosen, the next pass creates the form and records ONE recovered row; later passes add none", async () => {
+    await db.query("insert into workflow_events (job_id, event_type, summary, details, internal) values ($1,'visit_allocated','allocated',$2,true)", [J_IH_BROKEN, JSON.stringify({ visit: "install", worker_id: LEAD })]);
+    FORCED_FAILURES = [];
+    try { await prestart.sweepPrestart(NOW); await prestart.sweepPrestart(NOW); } finally { FORCED_FAILURES = null; }
+    expect(piisaCreates.filter((j) => j === J_IH_BROKEN)).toHaveLength(1);
+    const recovered = (await eventsOf(J_IH_BROKEN, "in_house_form_sync_recovered")).filter((e) => e.details?.["reason"] === "Install form created");
+    expect(recovered).toHaveLength(1);
+    expect(recovered[0]!.internal).toBe(true);
+    // No failure row is left open: the newest failure has a later recovered row.
+    expect(await eventsOf(J_IH_BROKEN, "in_house_form_sync_failed")).toHaveLength(2);
+  });
+  test("an in-house job that never failed gets no recovered row; a non-in-house job never does", async () => {
+    expect(await eventsOf(J_IH_RUN, "in_house_form_sync_recovered")).toEqual([]);
+    FORCED_FAILURES = [];
+    try { await prestart.runPrestart(J_OWN, "office", NOW); } finally { FORCED_FAILURES = null; }
+    expect(await eventsOf(J_OWN, "in_house_form_sync_recovered")).toEqual([]);
+  });
+  test("a partner read failure on a pass is not an office row (the next pass retries)", async () => {
+    PARTNER_READ_FAILS.add(J_OWN);
+    FORCED_FAILURES = [];
+    try { await prestart.runPrestart(J_OWN, "office", NOW); } finally { FORCED_FAILURES = null; PARTNER_READ_FAILS.delete(J_OWN); }
+    expect(await eventsOf(J_OWN, "in_house_form_sync_failed")).toEqual([]);
   });
 });

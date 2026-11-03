@@ -409,7 +409,8 @@ async function syncOnsiteStartItem(jobId: string, actorId: string | null, onsite
   else if (!onsite && open) await logEvent(jobId, actorId, ONSITE_START_CLEARED_EVENT, "The safety check no longer says the electrician must be on site at the start of the install day", { rule: "decision 314" }, { internal: true });
 }
 
-/** Sync the STORED audit(s) only. Never completes a requirement. */
+/** Sync the STORED audit(s) only. Never completes a requirement itself — except (Part 3 Task 4b) an installer's own job,
+ *  where a Complete A3 runs the one Complete PIESA gate (`completePiesaAssessment`) once per form. */
 export async function syncMittiAssessment(jobId: string, actorId: string | null, call: MittiCall = realMittiCall, fetchMedia: MittiMediaFetch = realMittiMedia) {
   const { data: job } = await admin.from("jobs").select("job_number,business_unit,channel,stage,deleted_at,qa_archived_at").eq("id", jobId).single();
   if (!job) throw new WorkflowError("Job not found.");
@@ -526,6 +527,9 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
         // Decision 354: A3 Complete → prepare the electrician-priced fixes quote and send it automatically when every
         // existing check passes (same release as the office Send); otherwise it stays on Needs me with the reason. Never throws.
         if (completed) await (await import("./auto-fixes-quote-send.server")).maybeAutoSendFixesQuote(jobId, { actorId, generate: true });
+        // Part 3 Task 4b (Jo 4 Nov 2026): installers' own jobs only — their electrician has no login, so a Complete A3 at PIESA
+        // booked completes the PIESA itself, once per form; a refusal is one office row. HIV leads / in-house: pressed as before.
+        if (completed) await (await import("./own-job-piesa-complete.server")).autoCompleteOwnJobPiesa(jobId, a.external_mitti_id, actorId);
       }
     }
   }

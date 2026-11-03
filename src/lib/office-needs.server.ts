@@ -631,6 +631,17 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
       const x = f(id); if (x && open) x.piesaRulesFailed = { at: open.at, reasons: open.reasons };
     }
   } catch { unavailable.push("safety check rule failures"); }
+  // Part 3 Task 4b: an installer's own job whose Complete A3 couldn't complete the PIESA automatically → one row while booked.
+  try {
+    const { OWN_JOB_PIESA_COMPLETE_HELD_EVENT, ownJobPiesaCompleteHeldOpen } = await import("./own-job-piesa.core");
+    const ev = await all("own job safety check not completed", (a, b) => scoped(admin.from("workflow_events").select("job_id, event_type, created_at, details")).eq("event_type", OWN_JOB_PIESA_COMPLETE_HELD_EVENT).order("created_at").range(a, b));
+    const byJob = new Map<string, Row[]>();
+    for (const e of ev) { const id = String(e["job_id"]); if (idSet.has(id)) byJob.set(id, [...(byJob.get(id) ?? []), e]); }
+    for (const [id, list] of byJob) {
+      const open = ownJobPiesaCompleteHeldOpen(list.map((e) => ({ event_type: String(e["event_type"]), created_at: String(e["created_at"]), details: (e["details"] ?? null) as Record<string, unknown> | null })), jobById.get(id)?.stage ?? null);
+      const x = f(id); if (x && open) x.ownJobPiesaCompleteHeld = open;
+    }
+  } catch { unavailable.push("own job safety check not completed"); }
   // A48 batch 1 task 5: the electrical certificate after the repairs waits for the office (AI unsure / not ceiling / error, or rejected).
   try {
     const { COES_CHECKED_EVENT, COES_REJECTED_EVENT } = await import("./coes-check.core");
