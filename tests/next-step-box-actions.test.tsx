@@ -302,7 +302,8 @@ describe("Can't do this one / Owner cancelled", () => {
   const fns = readFileSync("src/lib/trade-view.functions.ts", "utf8");
   const handler = (name: string) => { const at = fns.indexOf(`export const ${name} `); return fns.slice(at, fns.indexOf("export const", at + 1)); };
   test("the typed-reason confirm stays and calls the two guarded writers", () => {
-    const card = readFileSync("src/components/trade/InHouseBookingCard.tsx", "utf8");
+    // Task 11 moved these out of the retired booking card into ReturnActions.tsx.
+    const card = readFileSync("src/components/trade/ReturnActions.tsx", "utf8");
     const ra = card.slice(card.indexOf("export function ReturnActions"));
     expect(ra).toContain("Can't do this one");
     expect(ra).toContain("Owner cancelled");
