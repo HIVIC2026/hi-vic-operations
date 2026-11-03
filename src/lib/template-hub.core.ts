@@ -20,6 +20,7 @@ import { ownerCodeEmail, ownerCodeSmsBody } from "./owner-code-delivery.core";
 import { renderReadyCheckTimesEmail } from "./ready-check-times-email.core";
 import { renderReadyCheckBookedEmail } from "./ready-check-booked-email.core";
 import { renderOwnerQuoteEmail, renderQuoteReminderEmail, ownerQuoteSms } from "./owner-quote-email.core";
+import { quoteChangeRows } from "./quote-changes.core";
 import { renderYoureInEmail } from "./acceptance-email.core";
 import { renderSafetyCheckTimesEmail, renderSafetyCheckBookedEmail } from "./safety-check-emails.core";
 import { renderPiesaCopyEmail } from "./piesa-delivery.core";
@@ -287,6 +288,12 @@ const OWNER: TemplateEntry[] = [
   ENTRY({ id: "owner:O18", section: "owner", step: "quote", kind: "email", code: "O18", name: "Your quote is ready", when: "Quote released to the owner (office Send, or automatically when the Ready Check is complete)", who: "Owner", approvalNote: "Jo 24 Oct 2026, decision 86", gate: { kind: "email" },
     source: { builder: "src/lib/owner-quote-email.core.ts", fn: "renderOwnerQuoteEmail", sender: "src/lib/quote-ready-notify.server.ts" }, design: "docs/templates/mjml/owner_O18.mjml",
     render: () => email(renderOwnerQuoteEmail(QUOTE)) }),
+  // Decision #29 (Jo 2 Nov 2026): O18 v4 — "Your rebate"/"Rebate", Next names the electrical safety check (PIESA), the
+  // "What's changed from your estimate" box, the 30-day line, and the quote documents attached (#33). Same purpose/key as
+  // O18; v3 above keeps going out until OWNER_QUOTE_EMAIL_V4_APPROVED is on. Held if any document isn't ready.
+  ENTRY({ id: "owner:O18-v4", section: "owner", step: "quote", kind: "email", code: "O18", name: "Your quote is ready (new: What's changed + documents)", when: "Quote released to the owner (30-day quotes); attaches the Customer Agreement + payment terms PDF and the Statement of rights; held with an office note (\"Quote documents not ready\") if any document can't be made", who: "Owner", approvalNote: "Wording: Jo 2 Nov 2026, decisions #29/#33 (OWNER_QUOTE_EMAIL_V4_APPROVED stays false until Jo OKs the pictures)", gate: { kind: "code_off", flag: "OWNER_QUOTE_EMAIL_V4_APPROVED" },
+    source: { builder: "src/lib/owner-quote-email.core.ts", fn: "renderOwnerQuoteEmail", sender: "src/lib/quote-ready-notify.server.ts" },
+    render: () => email(renderOwnerQuoteEmail({ ...QUOTE, totalIncGst: 2200, validUntil: new Date("2026-12-10T12:59:59.999Z"), validDays: 30, v4: true, changes: quoteChangeRows({ estimate: { areaM2: 120, removal: null, price: 1890 }, quote: { areaM2: 137.6, removal: true, price: 2200 } }) })) }),
   ENTRY({ id: "owner:sms-quote_ready", section: "owner", step: "quote", kind: "text", code: "", name: "Your quote is ready (text)", when: "Quote released to the owner", who: "Owner", approvalNote: "Jo 24 Oct 2026, decision 87 (text B)", gate: { kind: "text", smsType: "quote_ready" },
     source: { builder: "src/lib/owner-quote-email.core.ts", fn: "ownerQuoteSms", sender: "src/lib/quote-ready-notify.server.ts" },
     render: () => text(ownerQuoteSms("Helen", `${JOB}?screen=quote`)) }),

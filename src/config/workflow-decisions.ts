@@ -78,6 +78,15 @@ export const WORKFLOW_DECISIONS = {
     status: "operational_rule_pending_written_confirmation",
   },
   // Decision #30 (Jo 2 Nov 2026): quotes valid 30 days; quotes sent before the change keep 14 (quote-expiry.core).
+  // Decisions #29/#33 (Jo 2 Nov 2026): the quote email v4 (owner-quote-email.core, quote-ready-notify.server).
+  quoteReadyEmail: {
+    approvedFlag: "OWNER_QUOTE_EMAIL_V4_APPROVED (false until Jo OKs the pictures; off = v3 unchanged)",
+    sameSendAsBefore: "purpose quote_ready, key quote-ready-email:v1:{quote}",
+    whatsChangedBox: "only_changed_rows_hidden_when_none",
+    attachments: ["Customer Agreement + payment terms", "Statement of rights"],
+    documentsMissing: "held_with_office_note_never_sent_without_them",
+    onlyThirtyDayQuotes: true,
+  },
   quoteValidity: {
     validDays: 30,
     beforeChangeValidDays: 14,

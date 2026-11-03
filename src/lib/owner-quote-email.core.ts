@@ -7,16 +7,31 @@
 // Approved (decisions 89/134): QUOTE_REMINDER_EMAIL_APPROVED is on; the sender is approved-owner-emails.server.ts behind customer_comms_enabled.
 // Decision #30 (Jo 2 Nov 2026): reminders say "Your rebate" (never "Your VEU rebate"); a 30-day quote's reminders say
 // "Your quote is valid for 30 days, until {date}". A quote sent before the 30-day change keeps the held-until wording.
+// Decision #29 (Jo 2 Nov 2026) — O18 v4, behind OWNER_QUOTE_EMAIL_V4_APPROVED (false until Jo OKs the pictures; flag off
+// = v3 above, unchanged): "Your rebate"/"Rebate" (never "VEU rebate"); Next names the electrical safety check (PIESA);
+// "What's changed from your estimate" box under the price (only changed rows, hidden when nothing changed, footnote
+// QUOTE_CHANGES_FOOTNOTE); a 30-day quote says "Your quote is valid for 30 days, until {date}" (14-day quotes keep
+// held-until). The sender attaches the quote documents and holds the email when they aren't ready.
 // Quote text (decision 87, B): ownerQuoteSms below — brand prefix added by the sender.
 import { currentFeeWording } from "./hiv-quote.core";
 import { aud } from "./workflow";
 import * as K from "./email-kit.core";
 import { esc, mjEmail } from "./mail-mjml.core";
 import { QUOTE_VALID_DAYS, quoteValidLine } from "./quote-expiry.core";
+import { QUOTE_CHANGES_FOOTNOTE, QUOTE_CHANGES_HEADING, type QuoteChangeRow } from "./quote-changes.core";
+import type { AgreementFacts } from "./customer-agreement.core";
+import type { BusinessContact } from "./owner-wording.core";
+import { aud as audCents, formatValidUntil, paymentSplitCents } from "./signed-acceptance.core";
+import { safetyCheckShort } from "./safety-check-amount.core";
 
 /** v3 approved 24 Oct 2026; design applied under decision 137. */
 export const OWNER_QUOTE_EMAIL_APPROVED = true as boolean;
 export const OWNER_QUOTE_EMAIL_VERSION = "v3-approved-2026-10-24";
+/** Decision #29 (Jo 2 Nov 2026): v4 wording + What's changed box + quote documents attached. Off until Jo OKs the pictures. */
+export const OWNER_QUOTE_EMAIL_V4_APPROVED = false as boolean;
+export const OWNER_QUOTE_EMAIL_V4_VERSION = "v4-approved-2026-11-02";
+/** The v4 quote email is never sent without its documents: the sender holds it with this note instead. */
+export const QUOTE_DOCUMENTS_HELD = "Quote documents not ready";
 /** Jo 24 Oct 2026, decisions 89 and 134 (O19 quote reminder, day 3 + expiry): approved. Delivery still behind customer_comms_enabled. */
 export const QUOTE_REMINDER_EMAIL_APPROVED = true as boolean;
 
@@ -53,6 +68,10 @@ export type OwnerQuoteEmailInput = {
   installerCertified?: boolean;
   /** quote-expiry.core `quoteValidDaysFor(sent_at)`: 30 = "valid for 30 days, until" wording in the reminders; 14/absent = held-until. */
   validDays?: 14 | 30;
+  /** Decision #29 v4 wording (the sender passes OWNER_QUOTE_EMAIL_V4_APPROVED; TEST always previews it). */
+  v4?: boolean;
+  /** quote-changes.core `quoteChangeRows` — v4 only; empty/absent = no box. */
+  changes?: QuoteChangeRow[];
 };
 
 const money = (n: number) => aud(n);
@@ -112,8 +131,20 @@ function quoteRowHtml(r: K.QuoteRow, first: boolean): string {
   return `<tr><td valign="top" style="${bt}padding:${first ? "0 12px 12px 0" : "12px 12px 12px 0"};">${left}</td><td width="110" align="right" valign="top" style="${bt}padding:${first ? "0 0 12px" : "12px 0"};white-space:nowrap;min-width:110px;word-break:keep-all;overflow-wrap:normal;word-wrap:normal;${r.color ? `color:${r.color};` : ""}">${amount}</td></tr>`;
 }
 
+/** Decision #29: the Estimate vs Quote box (only changed rows), with its footnote. Empty when nothing changed. */
+function changesBox(rows: QuoteChangeRow[]): { html: string; text: string[] } {
+  if (!rows.length) return { html: "", text: [] };
+  const cell = (v: string, align: string, extra = "") => `<td align="${align}" style="padding:8px 0 8px 8px;border-top:1px solid #E4E9F5;${extra}">${esc(v)}</td>`;
+  const head = `<tr><td></td><td align="right" style="padding:0 0 6px 8px;font-size:13px;color:#5A6785;">Estimate</td><td align="right" style="padding:0 0 6px 8px;font-size:13px;color:#5A6785;">Quote</td></tr>`;
+  const body = rows.map((r) => `<tr><td style="padding:8px 8px 8px 0;border-top:1px solid #E4E9F5;"><strong>${esc(r.label)}</strong></td>${cell(r.estimate, "right", "white-space:nowrap;")}${cell(r.quote, "right", "white-space:nowrap;font-weight:700;")}</tr>`).join("");
+  const html = `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px 10px">${esc(QUOTE_CHANGES_HEADING)}</mj-text><mj-table padding="0 18px 6px">${head}${body}</mj-table><mj-text mj-class="small" padding="0 18px 18px">${esc(QUOTE_CHANGES_FOOTNOTE)}</mj-text></mj-column></mj-section>`;
+  return { html, text: [QUOTE_CHANGES_HEADING, ...rows.map((r) => `${r.label}: estimate ${r.estimate}, quote ${r.quote}`), QUOTE_CHANGES_FOOTNOTE, ""] };
+}
+
 export function renderOwnerQuoteEmail(i: OwnerQuoteEmailInput): { subject: string; html: string; text: string } {
-  const f = quoteFigures(i);
+  const v4 = i.v4 === true;
+  const f = quoteFigures(i, v4 ? "Your rebate" : "Your VEU rebate");
+  const changes = v4 ? changesBox(i.changes ?? []) : { html: "", text: [] };
   const subject = f.rebate ? `${f.name ? `${f.name}, your` : "Your"} quote is ready – save ${K.whole(f.rebate)} on ceiling insulation` : `Your ceiling insulation quote is ready${f.name ? `, ${f.name}` : ""}`;
   const hi = f.name ? `Hi ${f.name}, your quote is ready.` : "Your quote is ready.";
   const area = i.areaM2 != null && i.areaM2 > 0 ? i.areaM2 : null;
@@ -133,9 +164,9 @@ export function renderOwnerQuoteEmail(i: OwnerQuoteEmailInput): { subject: strin
             : null;
     return { title: lineTitle(d), detail, amount: money(l.lineTotalIncGst) };
   });
-  if (f.full && f.rebate) rows.push({ title: "Full price", detail: "incl. GST", amount: money(f.full), bold: true }, { title: "VEU rebate", detail: "Taken off upfront, nothing to claim", amount: `−${money(f.rebate)}`, bold: true, color: "#057D40" });
-  const next = `<strong>Next:</strong> accept and pay ${safety ? `${esc(safety)} ` : ""}→ electrician safety check → book your install day.`;
-  const validity = i.validUntil ? `Your price is held until ${formatQuoteValidUntil(i.validUntil)}.` : null;
+  if (f.full && f.rebate) rows.push({ title: "Full price", detail: "incl. GST", amount: money(f.full), bold: true }, { title: v4 ? "Rebate" : "VEU rebate", detail: "Taken off upfront, nothing to claim", amount: `−${money(f.rebate)}`, bold: true, color: "#057D40" });
+  const next = `<strong>Next:</strong> accept and pay ${safety ? `${esc(safety)} ` : ""}→ ${v4 ? "electrical safety check (PIESA)" : "electrician safety check"} → book your install day.`;
+  const validity = !i.validUntil ? null : v4 && i.validDays === 30 ? quoteValidLine(i.validUntil) : `Your price is held until ${formatQuoteValidUntil(i.validUntil)}.`;
   // Jo 26 Oct: no HIV phone number and no "call us" in owner emails — owners reply by email only.
   const questions = "Questions? Just reply to this email.";
   const closing = [validity, NOT_FOR_YOU, questions].filter(Boolean).join(" ");
@@ -146,6 +177,7 @@ export function renderOwnerQuoteEmail(i: OwnerQuoteEmailInput): { subject: strin
   const body = [
     `<mj-section><mj-column><mj-text mj-class="hi">${esc(hi)}</mj-text><mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">${esc(f.headline)}</mj-text></mj-column></mj-section>`,
     f.box,
+    changes.html,
     `<mj-section><mj-column>${mjButton(i.quoteUrl)}</mj-column></mj-section>`,
     quote,
     `<mj-section><mj-column><mj-text padding="18px 12px 14px">${next}</mj-text><mj-text mj-class="small" padding="0 12px 0">${esc(closing)}</mj-text></mj-column></mj-section>`,
@@ -153,11 +185,33 @@ export function renderOwnerQuoteEmail(i: OwnerQuoteEmailInput): { subject: strin
   const preview = [`You pay ${f.total}${f.rebate ? " after the rebate" : ""}.`, validity].filter(Boolean).join(" ");
   const html = mjEmail({ subject, preview, body, unsubscribe: i.unsubscribeUrl, testLabel: i.test === true });
   const text = K.plainText([
-    hi, "", f.headline, "", ...f.boxText, "", `View and accept your quote: ${i.quoteUrl}`, "",
+    hi, "", f.headline, "", ...f.boxText, "", ...changes.text, `View and accept your quote: ${i.quoteUrl}`, "",
     ...(rows.length ? ["YOUR QUOTE", ...rows.map((r) => `${r.title}${r.detail ? ` (${r.detail})` : ""}: ${r.amount}`), `You pay: ${f.total}`, ""] : []),
     NOT_INCLUDED, "", K.stripTags(next), "", closing,
   ], { unsubscribe: i.unsubscribeUrl, testLabel: i.test === true });
   return { subject, html, text };
+}
+
+/** Customer Agreement v1.3 facts for the quote email's documents (decision #33), from the quote email facts and the
+ *  installer's OFFICE contact. null when any fact is missing (the sender then holds the email — never a blank or a worker's number). */
+export function quoteAgreementFacts(p: { input: OwnerQuoteEmailInput | Omit<OwnerQuoteEmailInput, "unsubscribeUrl" | "test">; ownerName: string | null; jobNumber: string | null; installer: BusinessContact | null; safetyCents: number }): AgreementFacts | null {
+  const i = p.input;
+  const owner = cleanName(p.ownerName), address = cleanName(i.address), job = cleanName(p.jobNumber), product = cleanName(i.product ?? null);
+  const inst = p.installer, phone = cleanName(inst?.officePhone ?? null), email = cleanName(inst?.email ?? null);
+  const area = i.areaM2 != null && Number.isFinite(i.areaM2) && i.areaM2 > 0 ? i.areaM2 : null;
+  if (!owner || !address || !job || !product || !inst || !phone || !email || area == null || !i.validUntil) return null;
+  if (!Number.isFinite(i.totalIncGst) || i.totalIncGst < 0 || !(p.safetyCents > 0)) return null;
+  const rebate = i.rebateIncGst != null && Number.isFinite(i.rebateIncGst) && i.rebateIncGst > 0 ? i.rebateIncGst : 0;
+  const before = i.subtotalIncGst != null && Number.isFinite(i.subtotalIncGst) && i.subtotalIncGst > 0 ? i.subtotalIncGst : i.totalIncGst + rebate;
+  const split = paymentSplitCents(Math.round(i.totalIncGst * 100), p.safetyCents);
+  return {
+    owner_name: owner, address, job_number: job,
+    installer_name: (inst.tradingName ?? inst.name).replace(/^\[TEST PARTNER\]\s*/, ""), installer_phone: phone, installer_email: email,
+    product, area_m2: String(Math.round(area * 10) / 10),
+    price_before_rebate: audCents(before), rebate: audCents(rebate), your_price: audCents(i.totalIncGst),
+    valid_until: formatValidUntil(i.validUntil),
+    safety_check: safetyCheckShort(split.safety), deposit: audCents(split.deposit / 100), rest: audCents(split.rest / 100),
+  };
 }
 
 export type QuoteReminderKind = "day3" | "expiry";
