@@ -26,7 +26,7 @@ export type InstallerOfficeEmailOutcome = { status: "sent" | "test_sent" | "not_
 
 /** One email to an installer office, once per key. Order: business → TEST partner (test-send) → approval → email on file →
  *  "Pause all trade messages" (before the claim, so a later try still sends) → claim once (deliverOnce) → partner sender. */
-export async function emailInstallerOffice(p: { jobId: string; businessId: string; key: string; subject: string; text: string; jobUrl: string; approved: boolean }): Promise<InstallerOfficeEmailOutcome> {
+export async function emailInstallerOffice(p: { jobId: string; businessId: string; key: string; subject: string; text: string; jobUrl?: string; approved: boolean }): Promise<InstallerOfficeEmailOutcome> {
   const { data: biz, error } = await admin.from("businesses").select("id, name, trading_name, email, onboarding_notes").eq("id", p.businessId).maybeSingle();
   if (error) throw new Error(`Installer could not be read: ${error.message}`);
   if (!biz) return { status: "not_sent", detail: "Installer not found." };
@@ -36,7 +36,7 @@ export async function emailInstallerOffice(p: { jobId: string; businessId: strin
   ]);
   const contactName = displayName(biz.trading_name || biz.name) || null;
   const partnerIsTest = isTestPartner(biz);
-  const render = (test: boolean) => ({ to, subject: p.subject, ...partnerEmailLayout({ subject: p.subject, test, blocks: [...p.text.split("\n").filter(Boolean).map((t) => ({ kind: "p" as const, text: t })), { kind: "button" as const, label: "Open the job", url: p.jobUrl }] }) });
+  const render = (test: boolean) => ({ to, subject: p.subject, ...partnerEmailLayout({ subject: p.subject, test, blocks: [...p.text.split("\n").filter(Boolean).map((t) => ({ kind: "p" as const, text: t })), ...(p.jobUrl ? [{ kind: "button" as const, label: "Open the job", url: p.jobUrl }] : [])] }) });
   if (partnerIsTest) {
     if (!to) return { status: "no_email" };
     let r: { status: string; detail?: string } | null = null;

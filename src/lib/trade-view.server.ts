@@ -1513,3 +1513,24 @@ export async function tradeOfferPiesaTimes(offerId: string, userId: string, pick
   if (!o || o.business_id !== c.biz.id || o.kind !== "piesa") throw new WorkflowError("This offer isn't for your business.");
   return (await import("./piesa-times.server")).acceptPiesaOfferWithTimes(offerId, userId, picks);
 }
+
+/** Part 2: the business boss of the installer who supplied an own job (not crew). */
+async function swapBossFor(userId: string) {
+  const c = await ctxOrThrow(userId);
+  if (c.kind !== "installer" || !c.boss) throw new WorkflowError("Only the business owner can change the electrician.");
+  return c;
+}
+
+/** The "Change electrician" picker's data: nothing unless this is the signed-in boss's own job and the safety check isn't done. */
+export async function tradeSwapElectricianOptions(userId: string, jobId: string) {
+  const c = await tradeContext(userId);
+  if (!c || c.kind !== "installer" || !c.boss) return { allowed: false, current: null, options: [] as { businessId: string; name: string }[] };
+  return (await import("./electrician-swap.server")).swapOptions(jobId, c.biz.id);
+}
+
+/** The installer changes the electrician on its own job before the safety check (PIESA) is done. */
+export async function tradeSwapElectrician(userId: string, jobId: string, newElectricianBusinessId: string) {
+  const c = await swapBossFor(userId);
+  await (await import("./electrician-swap.server")).installerSwapElectrician(jobId, c.biz.id, newElectricianBusinessId, userId);
+  return { ok: true as const };
+}

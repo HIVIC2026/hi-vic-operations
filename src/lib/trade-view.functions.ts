@@ -325,3 +325,12 @@ export const getTradeSafetyCheckPdf = createServerFn({ method: "POST" }).middlew
 export const checkTradeInstallForm = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => plain(await (await import("./trade-view.server")).tradeCheckInstallForm(data.jobId, context.userId)));
+
+/** Part 2: the installer's boss changes the electrician on its own job before the safety check (PIESA) is done. */
+export const getTradeSwapElectricianOptions = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => plain(await (await import("./trade-view.server")).tradeSwapElectricianOptions(context.userId, data.jobId)));
+
+export const tradeSwapElectrician = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, electricianBusinessId: uuid }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSwapElectrician(context.userId, data.jobId, data.electricianBusinessId));

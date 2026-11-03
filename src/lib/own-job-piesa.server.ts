@@ -36,7 +36,7 @@ async function safetyCheckFeePaid(jobId: string, now: Date): Promise<boolean> {
 }
 
 /** The chosen electrician business's approved electrician worker with a portal profile (oldest first), or null. */
-async function electricianProfile(businessId: string): Promise<string | null> {
+export async function electricianProfile(businessId: string): Promise<string | null> {
   const { data, error } = await admin.from("partner_workers").select("profile_id")
     .eq("business_id", businessId).eq("trade_role", "electrician").eq("approval_status", "approved").is("removed_at", null).not("profile_id", "is", null)
     .order("created_at").limit(1).maybeSingle();

@@ -139,6 +139,7 @@ import { InstallAttendanceCard } from "@/components/trade/InstallAttendanceCard"
 import { ELECTRICIAN_ATTENDANCE_CONFIRMED } from "@/lib/trade-view.core";
 import { InHouseBookingCard, useInHouseBookingAccess } from "@/components/trade/InHouseBookingCard";
 import { MittiElectricianCard } from "@/components/trade/mitti-electrician-card";
+import { ChangeElectricianCard } from "@/components/trade/ChangeElectricianCard";
 
 export const Route = createFileRoute("/_authenticated/field/$jobId")({
   head: () => ({
@@ -350,6 +351,7 @@ function FieldJobBody({ jobId }: { jobId: string }) {
         <div className="space-y-4">
           {/* Decision 333: the electrician offers the owner 3 safety check times (the owner picks one or suggests days). */}
           {role !== "electrician" && <MittiElectricianCard jobId={jobId} />}
+          {role !== "electrician" && <ChangeElectricianCard jobId={jobId} />}
           <InHouseBookingCard jobId={jobId} />
           {role === "electrician" && inHouseAccess.data?.allowed !== true && (
             <ElectricianPiesaTimesCard jobId={jobId} />
