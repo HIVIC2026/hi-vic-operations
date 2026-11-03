@@ -6,8 +6,15 @@ if (process.env.OWNER_ACCEPT_SPEED_CHILD !== "1") {
     const baseline = process.env.OWNER_ACCEPT_SPEED_BASELINE ?? "/tmp/task5-baseline";
     if (!existsSync(`${baseline}/src/lib/assignment.server.ts`)) {
       mkdirSync(baseline, { recursive: true });
+      // The baseline is a commit of the #123 PR branch (squashed on main): a fresh clone has no local copy of it, so it
+      // is fetched by hash before the archive. Nothing is checked out or rebased; the object only lands in .git.
+      const BASELINE_COMMIT = "c00fca080f09190c582104c84d2951f80bd46538";
+      if (Bun.spawnSync(["git", "cat-file", "-e", `${BASELINE_COMMIT}^{commit}`], { stdout: "pipe", stderr: "pipe" }).exitCode !== 0) {
+        const fetch = Bun.spawnSync(["git", "fetch", "--quiet", "origin", BASELINE_COMMIT], { stdout: "pipe", stderr: "pipe" });
+        if (fetch.exitCode !== 0) throw Error(`Baseline commit ${BASELINE_COMMIT} is not available locally and could not be fetched: ${new TextDecoder().decode(fetch.stderr)}`);
+      }
       const archive = Bun.spawnSync(
-        ["git", "archive", "c00fca080f09190c582104c84d2951f80bd46538"],
+        ["git", "archive", BASELINE_COMMIT],
         { stdout: "pipe", stderr: "pipe" },
       );
       expect(archive.exitCode).toBe(0);
@@ -38,10 +45,50 @@ if (process.env.OWNER_ACCEPT_SPEED_CHILD !== "1") {
     };
     const before = run(baseline, "/tmp/task5-before.json"),
       after = run(process.cwd(), "/tmp/task5-after.json");
-    expect(after.outputs).toEqual(before.outputs);
+    // The baseline (2 Nov) predates Jo's owner-flow rulings carried by new-job-flow Parts 1–4, so the owner PAPERWORK is
+    // compared without the parts those rulings changed, and the new parts are pinned on the current tree below:
+    //  - payment terms wording: customer-agreement-1.3 (Part 4; decision 365 statement, Q21 balance on install day);
+    //  - the quote sitting (touchpoint #33 + Q8) signs "The agreement" + "Payment" as gate records and writes the
+    //    acceptance counter-signature + documents-by-email consent BEFORE the commercial agreement;
+    //  - the VEEC assignment consent and PIESA copy receipt are no longer pre-install paperwork (decisions 119/120, 296).
+    // Everything else (loads, refusals, the commercial agreement, quote/declaration records, the follow-through) stays
+    // byte-for-byte parity with the baseline.
+    const scrub = (v: unknown) => JSON.parse(JSON.stringify(v).replace(/[0-9a-f]{64}/g, "<sha>").replace(/quote-v(\d+)-[0-9a-f]{12}/g, "quote-v$1-<hash>"));
+    const paperworkFree = (o: typeof after.outputs) => {
+      const c = scrub(o);
+      delete c.package.payment_terms; delete c.loader.paymentTerms; delete c.loader.section1; delete c.paperwork.todo; delete c.paperwork.gates;
+      return c;
+    };
+    expect(paperworkFree(after.outputs)).toEqual(paperworkFree(before.outputs));
+    expect(after.outputs.loader.blockers).toEqual([]);
+    expect(after.outputs.loader.paymentTerms).toBe(after.outputs.package.payment_terms);
+    expect(after.outputs.paperwork.gates.flatMap((g: { items: { key: string }[] }) => g.items.map((i) => i.key))).not.toContain("veec_assignment_consent");
+    expect(after.outputs.paperwork.gates.flatMap((g: { items: { key: string }[] }) => g.items.map((i) => i.key))).not.toContain("piesa_copy_receipt");
     expect(after.refusals).toEqual(before.refusals);
-    expect(after.records).toEqual(before.records);
-    expect(after.writes).toEqual(before.writes);
+    // Main #123 (src/lib/AGENTS.md "Installation quote acceptance replays authorise the job and exact version before a
+    // no-op"): accepting an already-accepted installation quote at the same version is an idempotent replay, not a refusal.
+    // The baseline predates that rule (it refused "This quote is no longer open."), so this one case is pinned on the
+    // current tree only: no-op answer, nothing written.
+    expect(after.replays.closed).toEqual({ ok: true, outcome: "already accepted" });
+    expect(after.replayWrites.closed).toEqual([]);
+    const agreementFree = (r: typeof after.records) => {
+      const c = scrub(r);
+      for (const a of c.agreement) { delete a.payload.payment_terms; delete a.payload.snapshot; }
+      delete c.gateSignatures; // the sitting's records, pinned on the current tree below
+      return c;
+    };
+    expect(agreementFree(after.records)).toEqual(agreementFree(before.records));
+    expect(after.records.agreement[0].payload.payment_terms).toBe(after.outputs.package.payment_terms);
+    expect(after.records.gateSignatures).toEqual([{ doc_key: "quote_acceptance", gate: "B", method: "link_code" }, { doc_key: "payment_terms", gate: "B", method: "link_code" }]);
+    // Every baseline write still happens, in the same order and with the same content (hashes aside); the sitting's own
+    // writes (two gate signatures with their signed copies, two acceptance events) are the only additions.
+    const names = (ws: { name: string }[]) => ws.map((w) => w.name);
+    const sittingWrites = ["insert:owner_gate_signatures", "upload", "update:owner_gate_signatures", "insert:documents", "logEvent", "insert:owner_gate_signatures", "upload", "update:owner_gate_signatures", "insert:documents", "logEvent", "logEvent", "logEvent"];
+    expect(names(after.writes)).toEqual([...sittingWrites, ...names(before.writes)]);
+    const agreementWriteFree = (ws: { name: string; value: unknown }[]) => scrub(ws).map((w: { name: string; value: Record<string, unknown> }) => (w.name === "insert:customer_agreements" ? { ...w, value: { ...w.value, payment_terms: "<ruled wording>", snapshot: "<ruled wording>" } } : w));
+    expect(agreementWriteFree(after.writes.slice(sittingWrites.length))).toEqual(agreementWriteFree(before.writes));
+    expect(after.writes.slice(sittingWrites.length).filter((w: { name: string }) => w.name === "logEvent").map((w: { value: unknown[] }) => w.value[2])).toEqual(["CUSTOMER_AGREEMENT_SIGNED", "QUOTE_ACCEPTED"]);
+    expect(after.writes.filter((w: { name: string }) => w.name === "logEvent").map((w: { value: unknown[] }) => w.value[2])).toEqual(["owner_paperwork_signed", "owner_paperwork_signed", "acceptance_countersigned", "owner_documents_by_email_consent", "CUSTOMER_AGREEMENT_SIGNED", "QUOTE_ACCEPTED"]);
     for (const name of Object.keys(before.timings)) {
       console.log(
         `BEFORE/AFTER ${name}: ${before.timings[name].toFixed(1)}ms → ${after.timings[name].toFixed(1)}ms (15ms/read, isolated)`,
@@ -88,7 +135,8 @@ if (process.env.OWNER_ACCEPT_SPEED_CHILD !== "1") {
     CREATE TABLE businesses(id uuid, name text, abn text, licence_number text);
     CREATE TABLE compliance_templates(template_key text, version text, body text, approved boolean, is_active boolean, required boolean, form_fields jsonb, requires_final_consumer_signature boolean);
     CREATE TABLE owner_paperwork_approvals(doc_key text, doc_version text, body_sha256 text);
-    CREATE TABLE owner_gate_signatures(doc_key text, doc_version text, doc_draft boolean, answers jsonb, signed_at timestamptz, job_id uuid);
+    CREATE TABLE owner_gate_signatures(id uuid DEFAULT gen_random_uuid(), job_id uuid, gate text, doc_key text, doc_version text, doc_draft boolean, signed_text text, signed_text_sha256 text, answers jsonb DEFAULT '{}'::jsonb, signatory_name text, ticked boolean, method text, signed_by uuid, verified_channel text, verified_destination text, code_id uuid, ip text, user_agent text, copy_path text, copy_email_queued boolean DEFAULT false, signed_at timestamptz DEFAULT '2026-10-31T21:40:00.000Z');
+    CREATE TABLE workflow_events(id uuid DEFAULT gen_random_uuid(), job_id uuid, event_type text, details jsonb);
     CREATE TABLE owner_esc_consents(id uuid, job_id uuid, owner_signed_at timestamptz);
     CREATE TABLE piesa_deliveries(job_id uuid, recipient text);
     CREATE TABLE owner_contact_consents(id uuid,job_id uuid,source text,consent_status text);
@@ -256,7 +304,7 @@ if (process.env.OWNER_ACCEPT_SPEED_CHILD !== "1") {
     intakeSendBlockers: () => timed("intakeSendBlockers", async () => intake),
     isIntakeJob: () => timed("isIntakeJob", async () => false),
   }));
-  mock.module("../src/lib/signed-pdf.server", () => ({ textToPdf: async () => new Uint8Array() }));
+  mock.module("../src/lib/signed-pdf.server", () => ({ textToPdf: async () => new Uint8Array(), signedAcceptancePdf: async () => new Uint8Array(), signedAcceptancePdfV2: async () => ({ bytes: new Uint8Array(), layout: { ok: true, problems: [] } }) }));
   mock.module("../src/lib/invoice-after-acceptance.server", () => ({
     createInvoiceAfterAcceptance: async (...args: unknown[]) => {
       writes.push({ name: "invoice", value: args });
@@ -271,7 +319,9 @@ if (process.env.OWNER_ACCEPT_SPEED_CHILD !== "1") {
   // Other portal exports are not exercised; stub its unrelated server-only imports
   // by their declared names so no live Mitti/Xero/email module can be reached.
   const portal = readFileSync("src/lib/portal.functions.ts", "utf8");
-  const keep = new Set(["./workflow.server", "./assignment.server"]);
+  const keep = new Set(["./workflow.server", "./assignment.server", "./background.server"]);
+  // No request lifecycle here: acceptance follow-through (invoice, auto-advance) runs inline, so its writes are captured.
+  mock.module("../src/lib/background.server", () => ({ requestContext: { getStore: () => undefined }, runAfterResponse: async (task: () => Promise<unknown>) => { await task(); return "inline"; } }));
   for (const match of portal.matchAll(
     /import\s*\{([^}]+)\}\s*from\s*"(\.\/[^"]+(?:server|functions))"/g,
   )) {
@@ -291,7 +341,7 @@ if (process.env.OWNER_ACCEPT_SPEED_CHILD !== "1") {
   const actions = await import("../src/lib/portal.functions");
   const reset = async () => {
     await db.exec(
-      "TRUNCATE quotes,jobs,ceiling_measurements,rectification_items,job_assignments,profiles,businesses,compliance_templates,customer_agreements,documents,declarations,compliance_checks,workflow_settings",
+      "TRUNCATE quotes,jobs,ceiling_measurements,rectification_items,job_assignments,profiles,businesses,compliance_templates,customer_agreements,documents,declarations,compliance_checks,workflow_settings,owner_gate_signatures,workflow_events",
     );
     await db.query(
       "INSERT INTO quotes VALUES ($1,$2,'installation','R5 insulation','INSTALL',1,6198,210,5988,'issued','released',$3,$3,null,null)",
@@ -309,7 +359,7 @@ if (process.env.OWNER_ACCEPT_SPEED_CHILD !== "1") {
       [B],
     );
     await db.exec(
-      "INSERT INTO compliance_templates VALUES ('consumer_rights','v1','Approved consumer rights practice wording only.',true,true,true,null,false),('customer_agreement','v1','Approved agreement practice wording only.',true,true,true,null,false);INSERT INTO workflow_settings VALUES(1,349)",
+      "INSERT INTO compliance_templates VALUES ('consumer_rights','v1','Approved consumer rights practice wording only.',true,true,true,null,false),('customer_agreement','v1','Approved agreement practice wording only.',true,true,true,null,false),('esc_consent','v1','Approved ESC consent practice wording only.',true,true,true,null,false);INSERT INTO workflow_settings VALUES(1,349)",
     );
     billing = null;
     intake = [];
@@ -375,10 +425,15 @@ if (process.env.OWNER_ACCEPT_SPEED_CHILD !== "1") {
       "read:owner_contact_consents:",
       "read:jobs:source",
     );
+    // The quote sitting (touchpoint #33 + Q8, owner-quote-sign.core): tick 1, tick 2 and the typed name. The two legacy
+    // ticks stay so the SAME input also signs on the baseline tree (which predates the sitting).
     const sign = {
       authorityType: "owner" as const,
       readConsumerInfo: true,
       acceptAgreement: true,
+      tick1: true,
+      tick2: true,
+      typedName: "Practice Owner",
       assistance: "none" as const,
     };
     const data = { quoteId: Q, accept: true, consent: true, expectedVersion: 1, signing: sign };
@@ -390,10 +445,21 @@ if (process.env.OWNER_ACCEPT_SPEED_CHILD !== "1") {
       isOwner: async () => owner,
     };
     const refusals: Record<string, string> = {};
+    const replays: Record<string, unknown> = {}, replayWrites: Record<string, unknown[]> = {};
+    // "closed" = the quote is already accepted at this version (see the parent test for why it is not a refusal parity case).
+    for (const name of ["closed"]) {
+      await reset();
+      await db.query("UPDATE quotes SET status='accepted'");
+      try {
+        replays[name] = await actions.respondToQuoteImpl({ ...data, signing: { ...sign } }, actor);
+      } catch (e) {
+        replays[name] = { refused: e instanceof Error ? e.message : String(e) };
+      }
+      replayWrites[name] = [...writes];
+    }
     for (const name of [
       "missing",
       "expired",
-      "closed",
       "held",
       "version",
       "consent",
@@ -411,10 +477,7 @@ if (process.env.OWNER_ACCEPT_SPEED_CHILD !== "1") {
       await reset();
       const d = { ...data, signing: { ...sign } };
       if (name === "missing") await db.exec("TRUNCATE quotes");
-      if (name === "expired" || name === "closed")
-        await db.query("UPDATE quotes SET status=$1", [
-          name === "expired" ? "expired" : "accepted",
-        ]);
+      if (name === "expired") await db.query("UPDATE quotes SET status='expired'");
       if (name === "held") await db.exec("UPDATE quotes SET release_state='held'");
       if (name === "version") d.expectedVersion = 2;
       if (name === "consent") d.consent = false;
@@ -460,6 +523,7 @@ if (process.env.OWNER_ACCEPT_SPEED_CHILD !== "1") {
       documents: (await db.query("SELECT * FROM documents")).rows,
       quote: (await db.query("SELECT status,accepted_at,accepted_by FROM quotes")).rows,
       declarations: (await db.query("SELECT * FROM declarations")).rows,
+      gateSignatures: (await db.query("SELECT doc_key, gate, method FROM owner_gate_signatures ORDER BY signed_at, doc_key DESC")).rows,
     };
     expect(records.agreement).toHaveLength(1);
     expect(records.quote[0]?.status).toBe("accepted");
@@ -468,7 +532,7 @@ if (process.env.OWNER_ACCEPT_SPEED_CHILD !== "1") {
     if (!output) throw Error("Missing isolated output path");
     writeFileSync(
       output,
-      JSON.stringify({ outputs, timings, overlaps, refusals, records, writes }),
+      JSON.stringify({ outputs, timings, overlaps, refusals, replays, replayWrites, records, writes }),
     );
     await db.close();
     globalThis.Date = RealDate;
