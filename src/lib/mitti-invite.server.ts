@@ -127,7 +127,7 @@ type Opts = { switches?: InviteSwitches; call?: MittiCall; message?: InviteMesse
 export async function onPartnerPersonApproved(workerId: string, actorId: string | null, opts: Opts = {}) {
   const sw = opts.switches ?? currentInviteSwitches();
   if (!sw.enabled) return { action: "skip" as const, reason: "Mitti auto-invite is switched off." };
-  const { person, profileMismatch, name, mobile, business, businessId, profileId, emailSource } = await loadPerson(workerId);
+  const { person, profileMismatch, name, mobile, business, businessId, profileId } = await loadPerson(workerId);
   if (profileMismatch && !person.isTest) {
     const reason = "The worker's email does not match their linked portal login — the office must correct the person link before Mitti access is changed.";
     await record(actorId, MITTI_INVITE_EVENTS.failed, reason, { worker_id: workerId, email: person.email, reason });
@@ -141,7 +141,7 @@ export async function onPartnerPersonApproved(workerId: string, actorId: string 
     return { action: "skip" as const, reason: MITTI_WAITING_EMAIL };
   }
   const call = opts.call ?? await realCall();
-  const base = { worker_id: workerId, email: person.email, name, business, trade_role: person.tradeRole, ...(emailSource === "business" ? { email_source: "business" } : {}) };
+  const base = { worker_id: workerId, email: person.email, name, business, trade_role: person.tradeRole };
   let step = mittiInviteStep(person, prior, sw);
   if (step.action === "lookup") {
     const looking = step;
