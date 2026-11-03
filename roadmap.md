@@ -919,3 +919,7 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 ## Safety check $349 / $275 (Jo 3 Nov 9:56am Sydney)
 - [x] Owner always $349 on new quotes; installer jobs pass $349 to installer; HIV leads pay electrician $275; recorded offers/quotes unchanged (built, not published)
 - [ ] Data step: Orlando rate $350→$349, Orlando + Reinsulate PIESA lines $350→$349, office payout setting empty→$275 — waits for Jo's OK
+
+## Team required details (Jo 3 Nov 2:37pm) — DONE
+- Installers: Australian mobile + date of birth required, email optional. Electricians: mobile + date of birth + email. Form + Team add + office/boss add enforce it; Team page shows "Add X's …" prompts. No data changed.
+- Open: Team page has no edit box yet for date of birth/email on existing people (only mobile); worker sign-up link doesn't ask date of birth.

@@ -109,7 +109,7 @@ async function sendSms(g: Group, to: string, body: string, kind: "daily" | "upda
   // first, so a held morning text stays held for that day and the next day is recomputed — a switch flip never re-fires
   // an old day's links; within the day it cannot double-send.
   const { sendRealSms } = await import("./sms.server");
-  const r = await sendRealSms({ type: kind === "update" ? "daily_mitti_update" : "daily_mitti", idempotencyKey: `daily-mitti:${key}`, to, body, businessId: g.trade.businessId, jobId: g.jobs[0]?.jobId ?? null });
+  const r = await sendRealSms({ type: kind === "update" ? "daily_mitti_update" : "daily_mitti", idempotencyKey: `daily-mitti:${key}`, to, body, businessId: g.trade.businessId, jobId: g.jobs[0]?.jobId ?? null, pauseByBusinessOnly: true });
   return { status: r.status === "sent" ? "sent" : r.status === "blocked" || r.status === "already" ? "blocked" : "failed", detail: r.detail, sid: r.sid };
 }
 

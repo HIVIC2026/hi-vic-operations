@@ -42,7 +42,7 @@ export async function notifyInstallerClearance(jobId: string, opts: { clearedAt?
   const clearedAt = opts.clearedAt ?? new Date().toISOString();
   // Jo 30 Oct 2026: "Pause all trade messages" — held before the once-per-clearance event (TEST unchanged), so the sweep can send it later.
   if (job.source !== "qa_test" && !(await import("./test-send.core")).isTestPartner((asg.businesses ?? {}) as never)) {
-    const tradePaused = await (await import("./trade-pause.server")).tradeMessagesPausedNow();
+    const tradePaused = await (await import("./trade-pause.server")).tradeMessagesPausedNow({ jobId, businessId: asg.business_id });
     if (tradePaused) return `held: ${tradePaused}`;
   }
   await logEvent(jobId, null, INSTALL_CLEARANCE_EVENT, `Installer told the job is cleared for install (${c.clearance.basis === "section_c" ? "fixes signed off" : c.clearance.basis === "electrician_at_start" ? "fixes quote paid, electrician on site at the start" : "PIESA passed"}): offer 3 install days by ${c.deadline} — text + email prepared`, { timing_date: timingDate, basis: c.clearance.basis, deadline: c.deadline, cleared_at: clearedAt, assignment_id: c.asg.id }, { internal: true });
@@ -76,7 +76,7 @@ export async function notifyInstallerClearance(jobId: string, opts: { clearedAt?
   else if (!emailTo) out.push("installer email not sent — no installer email");
   else {
     try {
-      const r = await (await import("./office-email.server")).sendOfficeEmail({ actorId: null as unknown as string, recipient: "partner", to: emailTo, contactName: prof?.full_name ?? null, subject: mail.subject, message: mail.text, label: "install_clearance", record: { businessId: asg.business_id }, html: mail.html, text: mail.text });
+      const r = await (await import("./office-email.server")).sendOfficeEmail({ actorId: null as unknown as string, recipient: "partner", to: emailTo, contactName: prof?.full_name ?? null, subject: mail.subject, message: mail.text, label: "install_clearance", record: { businessId: asg.business_id }, pauseJobId: jobId, html: mail.html, text: mail.text });
       out.push(`installer email ${r.status}: ${r.detail}`);
     } catch (e) { out.push(`installer email not sent — ${(e as Error).message}`); }
   }

@@ -49,12 +49,12 @@ export async function emailInstallerOffice(p: { jobId: string; businessId: strin
   }
   if (!p.approved) return { status: "not_approved" };
   if (!to) return { status: "no_email" };
-  const paused = await (await import("./trade-pause.server")).tradeMessagesPausedNow({ businessId: biz.id });
+  const paused = await (await import("./trade-pause.server")).tradeMessagesPausedNow({ businessId: biz.id, jobId: p.jobId });
   if (paused) return { status: "held", detail: paused };
   let r: { status: string; detail?: string } | null = null;
   const sent = await deliverOnce(p.jobId, p.key, render(false), async (frozen) => {
     const { sendOfficeEmail } = await import("./office-email.server");
-    r = await sendOfficeEmail({ actorId: null, recipient: "partner", to: frozen.to, contactName, subject: frozen.subject, message: frozen.text, html: frozen.html, text: frozen.text, label: p.key, record: { businessId: biz.id }, idempotencyKey: p.key });
+    r = await sendOfficeEmail({ actorId: null, recipient: "partner", to: frozen.to, contactName, subject: frozen.subject, message: frozen.text, html: frozen.html, text: frozen.text, label: p.key, record: { businessId: biz.id }, pauseJobId: p.jobId, idempotencyKey: p.key });
     return r;
   });
   return sent ? { status: "sent" } : { status: "not_sent", detail: (r as { detail?: string } | null)?.detail ?? "Already tried." };

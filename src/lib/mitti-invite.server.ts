@@ -183,7 +183,7 @@ export async function onPartnerPersonApproved(workerId: string, actorId: string 
   }
   // Jo 30 Oct 2026: creating the Mitti user makes Mitti email the person, and our ONE invite message follows — both go to
   // a trade, so nothing is created or recorded while "Pause all trade messages" is on (TEST people never reach here).
-  const tradePaused = await (await import("./trade-pause.server")).tradeMessagesPausedNow();
+  const tradePaused = await (await import("./trade-pause.server")).tradeMessagesPausedNow({ businessId });
   if (tradePaused) return { action: "skip" as const, reason: `${tradePaused} — Mitti user not created yet; approve again or invite in Mitti once unpaused.` };
   // create: the throwaway password is never stored or logged.
   let mittiUserId: string | null = null;

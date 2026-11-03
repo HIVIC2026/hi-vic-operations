@@ -20,6 +20,8 @@ export type RealSmsInput = {
   body: string;
   jobId?: string | null;
   businessId?: string | null;
+  /** A text that covers several jobs (daily Mitti digests): the pause is decided on `businessId` alone, never on one job in the list. */
+  pauseByBusinessOnly?: boolean;
   /** One-off (`event`) types: when the triggering event happened and whether it is still current (decision 165). `window` types omit it. */
   event?: SmsEventInput;
 };
@@ -73,7 +75,7 @@ async function policyHold(input: RealSmsInput, c: { to: string | null; from: str
   const nowIso = new Date().toISOString();
   // Jo 30 Oct 2026: "Pause all trade messages" — read once per partner text (owner texts never read it).
   const tradeMessagesPaused = SMS_MESSAGE_TYPES[input.type]?.audience === "partner"
-    ? await (await import("./trade-pause.server")).tradeMessagesPausedNow({ businessId: input.businessId ?? null }) : null;
+    ? await (await import("./trade-pause.server")).tradeMessagesPausedNow({ businessId: input.businessId ?? null, jobId: input.pauseByBusinessOnly ? null : input.jobId ?? null }) : null;
   return smsBlocker({
     type: input.type, to: input.to, commsEnabled: await customerCommsEnabled(), typeSwitchOn: await typeSwitchOn(input.type),
     senderConfigured: !!c.from, optedOut: c.optedOut ?? (c.to ? await isOptedOut(c.to) : false), consent, isTestRecord: isTest,

@@ -45,7 +45,7 @@ export async function textElectricianAboutOffer(offerId: string, now = new Date(
   if (prior) return "already handled";
   if ((await import("./quote-hold.core")).smsQuietReason(now.toISOString())) return QUIET_HOURS_WAIT;
   // Jo 30 Oct 2026: "Pause all trade messages" — held before the once-only event, so the 24h sweep can still send it.
-  if (!c.test) { const tradePaused = await (await import("./trade-pause.server")).tradeMessagesPausedNow(); if (tradePaused) return `held: ${tradePaused}`; }
+  if (!c.test) { const tradePaused = await (await import("./trade-pause.server")).tradeMessagesPausedNow({ jobId: c.offer.job_id, businessId: c.offer.business_id }); if (tradePaused) return `held: ${tradePaused}`; }
   const body = piesaOfferText({ suburb: c.sum.suburb ?? null, jobNumber: c.sum.job_number ?? null, pay: c.sum.electrician_rate_inc_gst ?? null, link: c.link });
   if (!body) return "missing facts";
   await logEvent(c.offer.job_id, null, APPROVED_TEXT_EVENT, `Electrician texted: new PIESA job offer (decision 93) — text prepared for ${c.biz?.name ?? "electrician"}`, { text: "piesa_offer", key, offer_id: offerId, business_id: c.offer.business_id }, { internal: true });
@@ -75,7 +75,7 @@ export async function emailElectricianAboutOffer(offerId: string): Promise<strin
   if (!mail) return "missing facts";
   if (!c.test && !ELECTRICIAN_OFFER_EMAIL_APPROVED) return "skipped";
   // Jo 30 Oct 2026: "Pause all trade messages" — held before the once-only event, never claimed.
-  if (!c.test) { const tradePaused = await (await import("./trade-pause.server")).tradeMessagesPausedNow(); if (tradePaused) return `held: ${tradePaused}`; }
+  if (!c.test) { const tradePaused = await (await import("./trade-pause.server")).tradeMessagesPausedNow({ jobId: c.offer.job_id, businessId: c.offer.business_id }); if (tradePaused) return `held: ${tradePaused}`; }
   await logEvent(c.offer.job_id, null, ELECTRICIAN_OFFER_EMAIL_EVENT, `Electrician offer email (E1) prepared for ${c.biz?.name ?? "electrician"}`, { offer_id: offerId, business_id: c.offer.business_id, to, version: ELECTRICIAN_OFFER_EMAIL_VERSION }, { internal: true });
   try {
     if (c.test) {
@@ -83,7 +83,7 @@ export async function emailElectricianAboutOffer(offerId: string): Promise<strin
       const r = await sendTestEmail({ jobId: c.offer.job_id, jobSource: c.job.source, partnerIsTest: (await import("./test-send.core")).isTestPartner(c.biz), label: `piesa_offer_email:${offerId}`, actorId: null }, to, mail.subject, mail.html, mail.text);
       return `electrician email (test) ${r.status}: ${r.detail}`;
     }
-    const r = await (await import("./office-email.server")).sendOfficeEmail({ actorId: null, recipient: "partner", to, contactName: null, subject: mail.subject, message: mail.text, label: "piesa_offer_email", record: { businessId: c.offer.business_id }, html: mail.html, text: mail.text });
+    const r = await (await import("./office-email.server")).sendOfficeEmail({ actorId: null, recipient: "partner", to, contactName: null, subject: mail.subject, message: mail.text, label: "piesa_offer_email", record: { businessId: c.offer.business_id }, pauseJobId: c.offer.job_id, html: mail.html, text: mail.text });
     return `electrician email ${r.status}: ${r.detail}`;
   } catch (e) { return `electrician email not sent — ${(e as Error).message}`; }
 }

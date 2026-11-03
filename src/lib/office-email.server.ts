@@ -8,14 +8,14 @@ const FROM = "Home Insulation Victoria <jobs@homeinsulationvictoria.com.au>";
 export const PARTNER_EMAILS_PAUSED = "Emails are paused while the templates are reviewed (master switch off). Nothing was sent.";
 export type OfficeEmailRecord = { applicationId?: string | null; enquiryId?: string | null; businessId?: string | null };
 
-export async function sendOfficeEmail(p: { actorId: string | null; recipient: OfficeRecipient; to: string; contactName: string | null; subject: string; message: string; label: string; record: OfficeEmailRecord; html?: string; text?: string; attachments?: import("./email-kit.core").EmailAttachment[]; /** Once-only key: the email service drops a repeat with the same key (24h). */ idempotencyKey?: string }): Promise<SendResult> {
+export async function sendOfficeEmail(p: { actorId: string | null; recipient: OfficeRecipient; to: string; contactName: string | null; subject: string; message: string; label: string; record: OfficeEmailRecord; html?: string; text?: string; attachments?: import("./email-kit.core").EmailAttachment[]; /** Once-only key: the email service drops a repeat with the same key (24h). */ idempotencyKey?: string; /** The job this email is about, for the trade-pause check: pass the same job id the sender checked with before its once-only claim. */ pauseJobId?: string | null }): Promise<SendResult> {
   // Jo 24 Oct: partner, applicant and electrician emails pause with the master switch until every template is reviewed.
   const { customerCommsEnabled } = await import("./comms.server");
   const paused = (await customerCommsEnabled()) ? null : PARTNER_EMAILS_PAUSED;
   // Jo 30 Oct 2026: "Pause all trade messages" holds every partner/applicant email (Jo's TEST inbox excepted).
   const { tradeEmailPauseReason } = await import("./trade-pause.core");
   const tradePaused = p.recipient === "homeowner" ? null
-    : tradeEmailPauseReason({ recipient: p.recipient, to: p.to, paused: await (await import("./trade-pause.server")).tradeMessagesPausedNow({ businessId: p.record.businessId ?? null }) });
+    : tradeEmailPauseReason({ recipient: p.recipient, to: p.to, paused: await (await import("./trade-pause.server")).tradeMessagesPausedNow({ businessId: p.record.businessId ?? null, jobId: p.pauseJobId ?? null }) });
   const blocked = paused ?? tradePaused ?? officeEmailBlocker({ origin: "office_manual", recipient: p.recipient, to: p.to, message: p.message });
   const to = p.to.trim().toLowerCase();
   let mail = p.html && p.text ? { html: p.html, text: p.text } : null;

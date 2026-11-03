@@ -250,7 +250,7 @@ describe("M6 states", () => {
 
 describe("M7 sub-page states", () => {
   test("team add sheet words", () => {
-    expect(TEAM_ADD_SHEET).toMatchObject({ title: "Add a team member", bodyInstaller: "Email and mobile can wait. They sign their declarations by link, and we check their CII certificate, before they go on a job.", bodyElectrician: "Email and mobile can wait. They sign their declarations by link before they go on a job. Each electrician needs a current electrical licence.", name: "Full name", licence: "Electrical licence number", role: "Lead or Crew", lead: "Lead · can run install days", crew: "Crew · can't lead an install day", mobile: "Mobile (optional)", email: "Email (optional)", button: "Add to team", cancel: "Cancel" });
+    expect(TEAM_ADD_SHEET).toMatchObject({ title: "Add a team member", bodyInstaller: "Mobile and date of birth are needed. They sign their declarations by link, and we check their CII certificate, before they go on a job.", bodyElectrician: "Mobile, date of birth and email are needed. They sign their declarations by link before they go on a job. Each electrician needs a current electrical licence.", name: "Full name", licence: "Electrical licence number", role: "Lead or Crew", lead: "Lead · can run install days", crew: "Crew · can't lead an install day", mobile: "Mobile", email: "Email (optional)", emailElectrician: "Email", button: "Add to team", cancel: "Cancel" });
     expect(TEAM_LOGIN).toEqual({ button: "Ask the office to send a login", asked: "Asked the office. They'll send the login." });
     expect(teamCountLine(3)).toBe("3 people");
     expect(teamCountLine(1)).toBe("1 person");
