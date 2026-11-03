@@ -118,7 +118,8 @@ export type NeedsFacts = {
   /** Payment watch rows (decision 240): never "Record payment". */
   paymentNotInXero?: { at: string; text: string } | null;
   /** Batch 3b: one overdue row per invoice (install / fixes / repeat safety check), with that invoice's reference. */
-  paymentsOverdue?: { at: string; text: string; invoice: InvoiceSlot; reference: string | null }[] | null;
+  /** `balance` (Part 4 Task 12, touchpoint 53): the install balance past day 7 reads "Balance overdue" instead of "Payment overdue". */
+  paymentsOverdue?: { at: string; text: string; invoice: InvoiceSlot; reference: string | null; balance?: boolean }[] | null;
   tenDaysLeft?: { at: string; deadline: string | null } | null;
   secondNoAccess?: { at: string; reason: string | null } | null;
   veecDay10?: { at: string } | null;
@@ -286,7 +287,7 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   if (f.paymentNotInXero) add({ rank: 240, group: "watch", kind: "payment_not_in_xero", line: `${f.paymentNotInXero.text} · not in Xero yet`, since: f.paymentNotInXero.at, button: { label: "Open job", to: "job", section: "money" }, slot: "install" });
   // Jo 28 Oct 2026 ("Alert after 3 days unpaid"): a row naming the payment the owner owes and since when — one per invoice.
   for (const p of f.paymentStalls ?? []) add({ rank: 242, group: "watch", kind: "payment_stalled", line: paymentStallLine(p), since: p.since, button: { label: "Open job", to: "job", section: "money" }, slot: p.invoice });
-  for (const p of f.paymentsOverdue ?? []) add({ rank: 245, group: "watch", kind: "payment_overdue", line: `Payment overdue · chase · ${invoiceSlotLabel(p.invoice, p.reference)}${p.reference ? ` ${p.reference}` : ""} · ${p.text}`, since: p.at, button: { label: "Open job", to: "job", section: "money" }, slot: p.invoice });
+  for (const p of f.paymentsOverdue ?? []) add({ rank: 245, group: "watch", kind: "payment_overdue", line: `${p.balance ? "Balance overdue" : "Payment overdue"} · chase · ${invoiceSlotLabel(p.invoice, p.reference)}${p.reference ? ` ${p.reference}` : ""} · ${p.text}`, since: p.at, button: { label: "Open job", to: "job", section: "money" }, slot: p.invoice });
   return out.sort((a, b) => a.rank - b.rank);
 }
 

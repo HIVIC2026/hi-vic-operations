@@ -675,8 +675,11 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
       if (stalls.length) x.paymentStalls = stalls;
       const completedAt=j.facts.installedAt??null;
       const {balanceOverdue,balanceDueAt}=await import('./balance-q21.core');
-      if(install&&balanceOverdue(completedAt,Number(install['total_paid']??0)>=Number(install['total_inc_gst']??0),new Date(now))){
-        (x.paymentsOverdue??=[]).push({invoice:'install',reference:s(install['xero_invoice_number']),at:balanceDueAt(completedAt)??completedAt??'',text:'Installation balance overdue'});
+      const overdueCore=await import('./after-install-reminders.core');const {melbourneToday:mToday}=await import('./melbourne-time.core');
+      // Part 4 Task 12 (touchpoint 53): with the new reminders on, "Balance overdue" starts the day after day 7 (Melbourne date).
+      const balanceLate=(completed:string|null,paid:boolean)=>overdueCore.AFTER_INSTALL_REMINDERS_APPROVED?overdueCore.balanceOverdueForOffice({installDay:completed?mToday(new Date(completed)):null,balancePaid:paid,now:new Date(now)}):balanceOverdue(completed,paid,new Date(now));
+      if(install&&balanceLate(completedAt,Number(install['total_paid']??0)>=Number(install['total_inc_gst']??0))){
+        (x.paymentsOverdue??=[]).push({invoice:'install',reference:s(install['xero_invoice_number']),at:balanceDueAt(completedAt)??completedAt??'',text:'Installation balance overdue',...(overdueCore.AFTER_INSTALL_REMINDERS_APPROVED?{balance:true}:{})});
       }
     }
   }
@@ -687,11 +690,12 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
       const x = f(String(i["job_id"])); if (!x) continue;
       if(i['kind']==='installation'){
         const completed=jobById.get(String(i['job_id']))?.facts.installedAt??null;
-        if(!(await import('./balance-q21.core')).balanceOverdue(completed,Number(i['total_paid']??0)>=Number(i['total_inc_gst']??0),new Date(now)))continue;
+        const ai=await import('./after-install-reminders.core');const {melbourneToday:mToday}=await import('./melbourne-time.core');const paidUp=Number(i['total_paid']??0)>=Number(i['total_inc_gst']??0);
+        if(ai.AFTER_INSTALL_REMINDERS_APPROVED?!ai.balanceOverdueForOffice({installDay:completed?mToday(new Date(completed)):null,balancePaid:paidUp,now:new Date(now)}):!(await import('./balance-q21.core')).balanceOverdue(completed,paidUp,new Date(now)))continue;
       }
       const invoice = invoiceSlotOf(s(i["kind"]));
       if ((x.paymentsOverdue ?? []).some((o) => o.invoice === invoice)) continue;
-      (x.paymentsOverdue ??= []).push({ invoice, reference: s(i["xero_invoice_number"]), at: String(i["balance_due_date"] ?? i["deposit_due_date"] ?? new Date(now).toISOString()), text: `$${Math.max(0, Number(i["total_inc_gst"] ?? 0) - Number(i["total_paid"] ?? 0)).toLocaleString("en-AU", { maximumFractionDigits: 0 })} owing` });
+      (x.paymentsOverdue ??= []).push({ ...(invoice === "install" && (await import("./after-install-reminders.core")).AFTER_INSTALL_REMINDERS_APPROVED ? { balance: true } : {}), invoice, reference: s(i["xero_invoice_number"]), at: String(i["balance_due_date"] ?? i["deposit_due_date"] ?? new Date(now).toISOString()), text: `$${Math.max(0, Number(i["total_inc_gst"] ?? 0) - Number(i["total_paid"] ?? 0)).toLocaleString("en-AU", { maximumFractionDigits: 0 })} owing` });
     }
   }
   if (payViews) provisionalBookings.forEach((b, i) => {

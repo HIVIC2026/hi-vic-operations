@@ -9,6 +9,7 @@ import { melbourneHour, smsQuietReason } from "./quote-hold.core";
  */
 export const SMS_MESSAGE_TYPES = {
   in_house_booked_owner: { audience:'owner',label:'In-house visit booking confirmation (Jo 1 Nov Task 7)',wordingApproved:true,quietHours:true },
+  after_install_reminder: { audience: 'owner', label: 'After-install reminder: what is still undone, days 1/3/7 (Jo 2 Nov, touchpoint 53; wording is a draft behind AFTER_INSTALL_REMINDERS_APPROVED)', wordingApproved: true, quietHours: true },
   upgrades_needed: { audience: 'owner', label: 'Your safety check found electrical upgrades needed (Jo 2 Nov, touchpoint 42)', wordingApproved: true, quietHours: true },
   install_deposit_request: { audience: 'owner', label: 'In-house 10% install deposit request (Jo 1 Nov Task 6)', wordingApproved: true, quietHours: true },
   install_deposit_reminder: { audience: 'owner', label: 'In-house unpaid install deposit day 3/7 reminder (Jo 1 Nov Task 6)', wordingApproved: true, quietHours: true },
@@ -161,6 +162,7 @@ export const ONE_OFF_BLAST_TYPES: readonly SmsMessageType[] = ["save_spot_remind
 export type SmsFreshness = { kind: "event"; maxAgeMinutes: number } | { kind: "window" };
 export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
   in_house_booked_owner: {kind:'event',maxAgeMinutes:24*60},
+  after_install_reminder: { kind: 'window' }, // days 1/3/7 recomputed each tick, each day recorded once as a workflow event before any send
   upgrades_needed: { kind: 'event', maxAgeMinutes: 24 * 60 }, // event = the PIESA result
   install_deposit_request: { kind: 'event', maxAgeMinutes: 24 * 60 },
   install_deposit_reminder: { kind: 'window' },

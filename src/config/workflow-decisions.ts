@@ -44,6 +44,10 @@ export const WORKFLOW_DECISIONS = {
     // the All done email, the signed rebate form copy goes within 10 business days of signing, PIESA/PIISA copies keep their own
     // timing; only the completion pack (the paid-in-full email) and installer pay for the installer's own customer wait for the balance.
     completionDocumentsWaitForBalance: false,
+    // Part 4 Task 12 (Jo 2 Nov 2026, touchpoint 53): one reminder (email + text) on days 1, 3 and 7 after install day for whatever is
+    // still undone (rebate form, balance); after day 7 no more owner messages, the job shows to the office as "Balance overdue".
+    // Replaces the balance day-5 / due emails and the separate rebate-form reminders. The balance is due on install day; overdue clock stays BALANCE_DUE_DAYS.
+    afterInstallReminders: { days: [1, 3, 7] as const, officeRowAfterDay: 7, officeRowLabel: "Balance overdue", flag: "AFTER_INSTALL_REMINDERS_APPROVED" },
     safetyCheck: { settingColumn: "safety_check_payment_inc_gst", defaultIncGst: 349, decided: "2026-10-07", balance: [] as string[], balanceNote: "Decision 365 (Jo 25 Oct 2026): no balance option — one payment statement of the paymentPlan() steps (safety check, 10% to book, balance on install day (Jo 2 Nov 2026); overdue after 7 days). Electrical upgrades are paid to the electrician directly (Customer Agreement v1.3 payment terms, version customer-agreement-1.3)" },
     // Jo 26 Oct: flat 10% install deposit on the install price only (not the PIESA fee or fixes). 5% tier removed.
     deposit: { installPct: 10, base: "install_price_excluding_piesa_and_fixes" },

@@ -410,6 +410,10 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string,unknown>)['balanceQ21']=await timed('sweepBalanceQ21',async()=> (await import('@/lib/balance-q21.server')).sweepBalanceQ21());
         }catch(e){console.error('allocation tick: balance reminder failed',(e as Error).message);}
         try {
+          // Part 4 Task 12 (touchpoint 53): after-install reminders on days 1/3/7 (rebate form + balance); behind AFTER_INSTALL_REMINDERS_APPROVED.
+          (out as Record<string,unknown>)['afterInstallReminders']=await timed('sweepAfterInstallReminders',async()=> (await import('@/lib/after-install-reminders.server')).sweepAfterInstallReminders());
+        }catch(e){console.error('allocation tick: after-install reminders failed',(e as Error).message);}
+        try {
           const { sweepPrestart } = await import("@/lib/prestart.server");
           (out as Record<string, unknown>)['prestart'] = await timed("sweepPrestart", () => sweepPrestart());
         } catch (e) {

@@ -1,7 +1,10 @@
 import {supabaseAdmin as admin} from '@/integrations/supabase/client.server';
 import {balanceDueAt,balanceReminderDue} from './balance-q21.core';
 import {isStepPaid} from './payments.core';
-/** Existing tick owns retries; only completion-era jobs, no historical backlog. No new schedule. */
+import {AFTER_INSTALL_REMINDERS_APPROVED} from './after-install-reminders.core';
+/** Existing tick owns retries; only completion-era jobs, no historical backlog. No new schedule.
+ *  Part 4 Task 12 (touchpoint 53): with AFTER_INSTALL_REMINDERS_APPROVED on, the day-5 / due emails stop (the after-install reminders
+ *  on days 1/3/7 replace them); the due-date retry above still runs. */
 export async function sweepBalanceQ21(now=new Date()){
  let checked=0;
  for(let from=0;;from+=200){
@@ -12,7 +15,7 @@ export async function sweepBalanceQ21(now=new Date()){
     const v=await (await import('./payments.server')).jobPaymentView(job.id,now);if(!v)continue;
     const inv=v.invoices.install;if(!inv)continue;checked++;
     await (await import('./invoice-dates.server')).setCompletedBalanceDueDate(job.id,job.installation_completed_at??'',null);
-    const reminder=balanceReminderDue(job.installation_completed_at,isStepPaid(v.steps,'balance'),now);if(!reminder)continue;
+    const reminder=AFTER_INSTALL_REMINDERS_APPROVED?null:balanceReminderDue(job.installation_completed_at,isStepPaid(v.steps,'balance'),now);if(!reminder)continue;
     const due=balanceDueAt(job.installation_completed_at);if(!due)continue;
     const dueLabel=new Date(due).toLocaleDateString('en-AU',{timeZone:'Australia/Melbourne',day:'numeric',month:'long',year:'numeric'});
     await (await import('./owner-template-send.server')).sendOwnerTemplateEmail({jobId:job.id,purpose:'balance_reminder',key:`balance-q21:${inv.id}:${due}:${reminder}`,approved:true,label:'Balance reminder',notSentEvent:'balance_reminder_not_sent',retryAfterDefiniteFailure:true,render:f=>{

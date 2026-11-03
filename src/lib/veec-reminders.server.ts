@@ -6,10 +6,13 @@
 // `emailOwnerInstallComplete` (key install-complete:v1:<job>), never as a separate request email; days 1/3/7 send O61.
 // TEST jobs use test-send; real owners get email only through the guarded owner path (customer_comms_enabled + consent)
 // and texts only through the one real sender (types veec_sign_request / veec_sign_reminder).
+// Part 4 Task 12 (touchpoint 53): with AFTER_INSTALL_REMINDERS_APPROVED on, days 1/3/7 are sent by after-install-reminders.server.ts
+// (one message for whatever is still undone) and this file stops sending reminder_1/3/7; day 0 (All done) and the day-10 office alert stay.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import { VEEC_OFFICE_ALERT_EVENT, VEEC_REMINDER_EVENT, nextVeecReminderStep, veecSignReminderText, veecSignRequestText, type VeecReminderStep } from "./veec-assignment-form.core";
 import { VEEC_SIGN_EMAIL_APPROVED, renderVeecReminderEmail } from "./veec-emails.core";
+import { AFTER_INSTALL_REMINDERS_APPROVED } from "./after-install-reminders.core";
 
 const ACTIVE_STAGES = ["evidence_outstanding", "ap_review"] as const;
 /** Recorded on the step event when the All done email carries the request (no separate request email exists). */
@@ -47,6 +50,7 @@ export async function sendVeecSignStep(jobId: string, step: VeecReminderStep): P
     await logEvent(jobId, null, VEEC_OFFICE_ALERT_EVENT, "10 days since the install and the owner has not signed the VEEC assignment form. Needs Home Insulation Victoria", { step });
     return "office alerted";
   }
+  if (AFTER_INSTALL_REMINDERS_APPROVED && (step === "reminder_1" || step === "reminder_3" || step === "reminder_7")) return "replaced by the after-install reminders";
   if ((await doneSteps(jobId)).includes(step)) return "already handled";
   const request = step === "request";
   // Touchpoint 52: the All done email waits (step NOT recorded, so the next tick tries again) while an office phone/email or the
@@ -123,7 +127,7 @@ export async function sweepVeecReminders(now = new Date()): Promise<{ checked: n
   for (const c of pendingCopies ?? []) { try { if ((await sendVeecCopyEmail(c.job_id)).startsWith("sent")) copies++; } catch (e) { console.error("VEEC copy email failed", c.job_id, (e as Error).message); } }
   for (const j of jobs ?? []) {
     const { data: a } = await admin.from("customer_assignments").select("consumer_signed_at").eq("job_id", j.id).eq("record_kind", "final_veec_assignment").neq("status", "cancelled").maybeSingle();
-    const step = nextVeecReminderStep({ installCompletedAt: j.installation_completed_at, consumerSignedAt: a?.consumer_signed_at ?? null, done: await doneSteps(j.id), now: now.toISOString() });
+    const step = nextVeecReminderStep({ installCompletedAt: j.installation_completed_at, consumerSignedAt: a?.consumer_signed_at ?? null, done: AFTER_INSTALL_REMINDERS_APPROVED ? [...new Set<VeecReminderStep>([...(await doneSteps(j.id)), "reminder_1", "reminder_3", "reminder_7"])] : await doneSteps(j.id), now: now.toISOString() });
     if (!step) continue;
     try { await sendVeecSignStep(j.id, step); if (step === "office_alert_10") alerts++; else sent++; } catch (e) { console.error("VEEC reminder failed", j.id, (e as Error).message); }
   }
