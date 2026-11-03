@@ -101,15 +101,16 @@ function ElectricianLink() {
       {d.step === "add_certificate" && !certAdded && (
         <section className={`${card} space-y-3`} data-electrician-link-certificate>
           <h2 className="font-display text-xl font-bold">Add your Certificate of Electrical Safety</h2>
+          {d.certificateRejected && <p role="alert" className="rounded-[14px] bg-owner-house-pink p-3 text-sm font-semibold" data-certificate-rejected>{d.certificateRejected}</p>}
           <label className="block text-sm font-bold">Certificate number<input className={inputCls} inputMode="text" autoComplete="off" value={certNumber} onChange={(e) => setCertNumber(e.target.value)} /></label>
           <label className="block text-sm font-bold">Date on the certificate<input type="date" className={inputCls} max={melbourneToday()} value={certDate} onChange={(e) => setCertDate(e.target.value)} /></label>
-          <label className="block text-sm font-bold">Photo or PDF of the certificate<input type="file" className={inputCls} accept="application/pdf,image/*" onChange={(e) => setCertFile(e.target.files?.[0] ?? null)} /></label>
+          <label className="block text-sm font-bold">Photo (JPG or PNG) or PDF of the certificate<input type="file" className={inputCls} accept="application/pdf,image/jpeg,image/png" onChange={(e) => setCertFile(e.target.files?.[0] ?? null)} /></label>
           <button type="button" className={greenBtn} disabled={busy || !certNumber.trim() || !certDate || !certFile}
             onClick={() => run(async () => {
               const f = certFile!;
               const early = certificateProblem({ number: certNumber, date: certDate, hasFile: true, today: melbourneToday() });
               if (early) throw new Error(early);
-              if (!certificateFileExt(f.type) && !/\.(pdf|jpe?g|png|webp|heic|heif)$/i.test(f.name)) throw new Error(CERTIFICATE_WRONG_TYPE);
+              if (!certificateFileExt(f.type) && !/\.(pdf|jpe?g|png)$/i.test(f.name)) throw new Error(CERTIFICATE_WRONG_TYPE);
               if (f.size > d.certificateMaxBytes) throw new Error(CERTIFICATE_TOO_BIG);
               const u = await startCertificateUploadByLink({ data: { token, fileName: f.name, mime: f.type || "application/octet-stream", size: f.size } });
               const { error } = await supabase.storage.from("job-files").uploadToSignedUrl(u.path, u.token, f, { contentType: u.mime });

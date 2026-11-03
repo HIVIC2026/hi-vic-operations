@@ -19,21 +19,25 @@ START.setUTCHours(1, 0, 0, 0);
 const startIso = START.toISOString();
 await db.query("insert into owners values ($1,'owner@example.test','0400000000')", [id(1)]);
 await db.query("insert into businesses values ($1,'Reinsulate','Reinsulate','0300000000')", [id(2)]);
-for (const [j, ch] of [[id(11), "installer_sourced"], [id(12), "hivic_sourced"]] as const) {
+for (const [j, ch] of [[id(11), "installer_sourced"], [id(12), "hivic_sourced"], [id(13), "hivic_sourced"], [id(14), "hivic_sourced"]] as const) {
   await db.query("insert into jobs values ($1,$2,'real','piesa_scheduled',null,$3)", [j, ch, id(1)]);
-  await db.query("insert into job_assignments (job_id, role, business_id, user_id) values ($1,'installer',$2,$3)", [j, id(2), id(3)]);
+  if (j !== id(14)) await db.query("insert into job_assignments (job_id, role, business_id, user_id) values ($1,'installer',$2,$3)", [j, id(2), id(3)]);
   await db.query("insert into bookings (job_id, kind, status, scheduled_start) values ($1,'assessment','confirmed',$2)", [j, startIso]);
+  // Part 3 Task 3: the electrical upgrades visit, entered on the electrician's link.
+  await db.query("insert into bookings (job_id, kind, status, scheduled_start) values ($1,'rectification','confirmed',$2)", [j, startIso]);
 }
 // The shim can't do embedded selects (owners(...), businesses(...)); answer just those two reads with canned rows.
 const shim = postgrestShim(db);
-const canned = (data: unknown) => { const c: Record<string, unknown> = {}; for (const m of ["select", "eq", "order", "limit"]) c[m] = () => c; c["maybeSingle"] = async () => ({ data, error: null }); return c; };
+// The embedded installer read answers per job: id(14) has no installer (the HIV office line is used instead).
+const canned = (data: unknown | ((jobId: string | null) => unknown)) => { let jobId: string | null = null; const c: Record<string, unknown> = {}; for (const m of ["select", "order", "limit"]) c[m] = () => c; c["eq"] = (col: string, v: string) => { if (col === "job_id" || col === "id") jobId = v; return c; }; c["maybeSingle"] = async () => ({ data: typeof data === "function" ? (data as (j: string | null) => unknown)(jobId) : data, error: null }); return c; };
 const wrapped = { ...shim, from: (t: string) => {
   const b = (shim as { from: (t: string) => Record<string, (...a: unknown[]) => unknown> }).from(t);
   return { ...b, select: (cols: string, ...rest: unknown[]) => String(cols).includes("owners(") ? canned({ source: "real", deleted_at: null, stage: "piesa_scheduled", owners: { email: "owner@example.test", phone: "0400000000" } })
-    : String(cols).includes("businesses(") ? canned({ businesses: { name: "Reinsulate", trading_name: "Reinsulate", phone: "0300000000" } }) : b["select"]!(cols, ...rest) };
+    : String(cols).includes("businesses(") ? canned((j: string | null) => (j === id(14) ? null : { businesses: { name: "Reinsulate", trading_name: "Reinsulate", phone: "0300000000" } })) : b["select"]!(cols, ...rest) };
 } };
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: wrapped }));
-mock.module("../src/lib/in-house-suppression.server", () => ({ readInHouseDispatchState: async () => ({ held: new Set<string>(), failed: false }) }));
+// id(13) is an in-house job (held in-house dispatch); the others are not.
+mock.module("../src/lib/in-house-suppression.server", () => ({ readInHouseDispatchState: async () => ({ held: new Set<string>([id(13)]), failed: false }) }));
 
 mock.module("../src/lib/comms.server", () => ({ assertCustomerDeliveryAllowed: async () => {} }));
 const emails: string[] = [];
@@ -62,5 +66,35 @@ describe("notifyOwnerBooked", () => {
   });
   test("a booking time that has passed is 'not current' for an own job", async () => {
     expect(await notifyOwnerBooked(id(11), "piesa", startIso, who, afterStart)).toBe("not current");
+  });
+});
+
+// Part 3 Task 3 (controller ruling, fix round 1): the electrical upgrades day is entered on the electrician's link on EVERY job,
+// so the owner's "You're booked" for the upgrades goes on every channel — HIV leads included — with the installer's office phone
+// when there is an installer, else the HIV office line. The wording is held (APPROVED=false): the attempt is RECORDED, not dropped.
+describe("notifyOwnerBooked — electrical upgrades day (kind 'upgrades')", () => {
+  const pending = async (job: string) => (await db.query<{ details: { kind: string } }>("select details from workflow_events where job_id=$1 and event_type='in_house_booked_notice_pending' and details->>'kind'='upgrades'", [job])).rows;
+  test("HIV lead: one owner notice recorded (held wording), nothing sent", async () => {
+    expect(await notifyOwnerBooked(id(12), "upgrades", startIso, who, beforeStart)).toBe("held: wording not approved");
+    expect(await pending(id(12))).toHaveLength(1);
+    expect(await notifyOwnerBooked(id(12), "upgrades", startIso, who, beforeStart)).toBe("held: wording not approved");
+    expect(await pending(id(12))).toHaveLength(1); // recorded once
+    expect(emails).toHaveLength(1); expect(texts).toHaveLength(1); // unchanged from the piesa tests above
+  });
+  test("own job: the same one notice", async () => {
+    expect(await notifyOwnerBooked(id(11), "upgrades", startIso, who, beforeStart)).toBe("held: wording not approved");
+    expect(await pending(id(11))).toHaveLength(1);
+  });
+  test("in-house job: unchanged (its own path), the same one notice", async () => {
+    expect(await notifyOwnerBooked(id(13), "upgrades", startIso, who, beforeStart)).toBe("held: wording not approved");
+    expect(await pending(id(13))).toHaveLength(1);
+    // Its safety check notice still goes as before.
+    expect(await notifyOwnerBooked(id(13), "piesa", startIso, who, beforeStart)).toBe("sent; sent");
+  });
+  test("HIV lead with no installer yet: still recorded (HIV office line stands in for the installer phone)", async () => {
+    expect(await notifyOwnerBooked(id(14), "upgrades", startIso, who, beforeStart)).toBe("held: wording not approved");
+    expect(await pending(id(14))).toHaveLength(1);
+    // Any other kind on that job stays held with nothing recorded (no installer, not own, not in-house).
+    expect(await notifyOwnerBooked(id(14), "piesa", startIso, who, beforeStart)).toBe("held");
   });
 });

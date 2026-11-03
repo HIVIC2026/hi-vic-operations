@@ -8,6 +8,8 @@ import { postgrestShim } from "./helpers/pglite-postgrest-shim";
 import { A3_REPAIR_NEEDED_LABEL, A3_UPGRADES_TODAY_LABEL, CERTIFICATE_NOW_LABEL, SHORT_PIESA_FIELDS } from "../src/lib/official-short.core";
 import { FIXES_COES_DOC_KIND, FIXES_COES_DOC_TITLE } from "../src/lib/fixes-day.core";
 import { PIESA_EVIDENCE_BY_ID } from "../src/lib/piesa-evidence.core";
+import { CERTIFICATE_WRONG_TYPE, UPGRADES_DAY_LINK_CLAIM_EVENT } from "../src/lib/certificate-later.core";
+import { stableUuid } from "../src/lib/mitti-create-claim.core";
 
 const db = new PGlite();
 await db.exec(`
@@ -155,6 +157,28 @@ describe("enter the upgrades day", () => {
     await expect(els.linkEnterUpgradesDay(t, soon(6))).rejects.toThrow("already set");
     expect((await cls.jobCertificateFacts(J_DAY)).line).toBeNull(); // day set: no "not set" line
   });
+  test("fix round 1: a stale claim (crash between the claim and the booking) is reset; an in-flight one is 'already set'", async () => {
+    const J = id(208);
+    await seedJob(J, "rectification_scheduling", snapshot({ today: "No" }), { record: false });
+    const asg = (await db.query<{ id: string }>("select id from job_assignments where job_id=$1", [J])).rows[0]!.id;
+    const claimId = await stableUuid(`${UPGRADES_DAY_LINK_CLAIM_EVENT}:${asg}:none`);
+    // A fresh claim with no booking = a second tap still in flight: refused, left alone.
+    await db.query("insert into workflow_events (id, job_id, event_type, summary, details, internal) values ($1,$2,$3,'claim','{}',true)", [claimId, J, UPGRADES_DAY_LINK_CLAIM_EVENT]);
+    const t = await tokenFor(J);
+    await expect(els.linkEnterUpgradesDay(t, soon(5))).rejects.toThrow("already set");
+    expect((await db.query("select * from bookings where job_id=$1", [J])).rows).toHaveLength(0);
+    // The same claim ten minutes old with still no booking = stale: reset, logged on the new claim, and the day is booked.
+    await db.query("update workflow_events set created_at = now() - interval '10 minutes' where id=$1", [claimId]);
+    await els.linkEnterUpgradesDay(t, soon(5));
+    expect((await db.query("select * from bookings where job_id=$1 and kind='rectification' and status='confirmed'", [J])).rows).toHaveLength(1);
+    const claims = (await db.query<{ details: Record<string, unknown> }>("select details from workflow_events where job_id=$1 and event_type=$2", [J, UPGRADES_DAY_LINK_CLAIM_EVENT])).rows;
+    expect(claims).toHaveLength(1);
+    expect(claims[0]!.details["stale_claim_reset"]).toBe(true);
+    // Booked now: an old-looking claim is never reset again.
+    await db.query("update workflow_events set created_at = now() - interval '10 minutes' where id=$1", [claimId]);
+    await expect(els.linkEnterUpgradesDay(t, soon(6))).rejects.toThrow("already set");
+    expect((await db.query("select * from bookings where job_id=$1 and kind='rectification' and status='confirmed'", [J])).rows).toHaveLength(1);
+  });
   test("a revoked link can't enter a day", async () => {
     const J = id(205);
     await seedJob(J, "rectification_scheduling", snapshot({ today: "No" }), { record: false });
@@ -182,6 +206,9 @@ describe("add the certificate", () => {
     expect(u.path).toEndWith(".pdf");
     await expect(els.linkStartCertificateUpload("nope", { fileName: "coes.pdf", mime: "application/pdf", size: 1000 })).rejects.toThrow();
     await expect(els.linkStartCertificateUpload(t, { fileName: "coes.exe", mime: "application/octet-stream", size: 1000 })).rejects.toThrow();
+    // Fix round 1: only PDF / JPG / PNG (what the owner's copy can carry), with a plain message.
+    await expect(els.linkStartCertificateUpload(t, { fileName: "coes.heic", mime: "image/heic", size: 1000 })).rejects.toThrow(CERTIFICATE_WRONG_TYPE);
+    await expect(els.linkStartCertificateUpload(t, { fileName: "coes.webp", mime: "image/webp", size: 1000 })).rejects.toThrow(CERTIFICATE_WRONG_TYPE);
     await expect(els.linkStartCertificateUpload(t, { fileName: "coes.pdf", mime: "application/pdf", size: 30 * 1024 * 1024 })).rejects.toThrow("25 MB");
   });
   test("add it: the file lands where coes-check reads it (one check, one owner copy), the number/date land on Part C, the state clears", async () => {
@@ -250,6 +277,25 @@ describe("add the certificate", () => {
     expect((await cls.jobCertificateFacts(J_SAMEDAY)).state).toBe("clear");
     expect(await els.resolveElectricianLink(t)).toMatchObject({ ok: true, step: "done" });
   });
+  test("fix round 1: the office rejects the certificate → waiting again, the link says why and takes a new one, which is checked", async () => {
+    const before = await cls.jobCertificateFacts(J_SAMEDAY);
+    expect(before.state).toBe("clear");
+    await db.query("insert into workflow_events (job_id, event_type, summary, details, internal) values ($1,'coes_rejected','rejected',$2,true)", [J_SAMEDAY, JSON.stringify({ by: "office", note: "Wrong address on it", key: before.certificateKey })]);
+    const f = await cls.jobCertificateFacts(J_SAMEDAY);
+    expect(f).toMatchObject({ state: "waiting_for_certificate", certificateRejectedWhy: "Wrong address on it", line: "Waiting for Sparky Sam's Certificate of Electrical Safety" });
+    const t = await tokenFor(J_SAMEDAY);
+    const v = await els.electricianLinkView(t);
+    expect(v).toMatchObject({ ok: true, step: "add_certificate", certificateRejected: "The office couldn't accept that certificate: Wrong address on it. Add a new one." });
+    const u = await els.linkStartCertificateUpload(t, { fileName: "cert2.pdf", mime: "application/pdf", size: PDF.length });
+    stored.set(u.path, PDF);
+    await els.linkAddCertificate(t, { number: "C556", date: "2026-11-02", filePath: u.path, fileName: "cert2.pdf" });
+    const after = await cls.jobCertificateFacts(J_SAMEDAY);
+    expect(after.state).toBe("clear"); // the new file set has a new key, checked (TEST stub ticks)
+    expect(after.certificateKey).not.toBe(before.certificateKey);
+    expect(after.certificateRejectedWhy).toBeNull();
+    expect(await events(J_SAMEDAY, "coes_checked")).toHaveLength(2);
+    expect(await els.resolveElectricianLink(t)).toMatchObject({ ok: true, step: "done" });
+  });
   test("a revoked link can't add a certificate", async () => {
     const J = id(206);
     await seedJob(J, "installation_scheduling", snapshot({ today: "Yes", certNow: "No" }));
@@ -281,6 +327,8 @@ describe("the certificate text", () => {
     expect(await notices.textCertificateLink(J_REAL, "now")).toBe("held: wording not approved");
     expect((await db.query("select * from electrician_job_links where job_id=$1", [J_REAL])).rows).toHaveLength(before);
     expect(realSms).toHaveLength(0);
-    expect(await events(J_REAL, "own_job_piesa_notice_held")).toHaveLength(1);
+    const held = (await db.query<{ summary: string }>("select summary from workflow_events where job_id=$1 and event_type='own_job_piesa_notice_held'", [J_REAL])).rows;
+    expect(held).toHaveLength(1);
+    expect(held[0]!.summary).toBe("Electrician's certificate text not sent yet: wording not approved");
   });
 });

@@ -14,7 +14,7 @@ import {
 import { OWN_JOB_PIESA_HANDED_EVENT } from "./own-job-piesa.core";
 import type { CertificateFacts } from "./certificate-later.server";
 import {
-  CERTIFICATE_ADDED_EVENT, CERTIFICATE_TOO_BIG, CERTIFICATE_UPLOAD_MAX_BYTES, CERTIFICATE_WRONG_TYPE, UPGRADES_DAY_LINK_CLAIM_EVENT, certificateFileExt, certificateProblem, certificateUploadPath,
+  CERTIFICATE_ADDED_EVENT, CERTIFICATE_TOO_BIG, CERTIFICATE_UPLOAD_MAX_BYTES, CERTIFICATE_WRONG_TYPE, UPGRADES_DAY_LINK_CLAIM_EVENT, certificateFileExt, certificateProblem, certificateRejectedLine, certificateUploadPath,
   parseCertificateUploadPath, upgradesDayProblem,
 } from "./certificate-later.core";
 import { SET_PASSWORD_BASE } from "./set-password-link.core";
@@ -87,7 +87,8 @@ async function resolveFull(token: string, now: Date): Promise<Resolved> {
   }
   const step = electricianStep({
     booked: !!bookedStart || stage === "piesa_scheduled", piesaDone,
-    ...(certificate ? { upgradesNeeded: certificate.upgradesNeeded, upgradesToday: certificate.upgradesToday, upgradesDaySet: certificate.upgradesDaySet, partCRecorded: certificate.partCRecorded, certificateIn: !!certificate.certificateFileAt } : {}),
+    // A certificate the office rejected is not "in": the link asks for a new one.
+    ...(certificate ? { upgradesNeeded: certificate.upgradesNeeded, upgradesToday: certificate.upgradesToday, upgradesDaySet: certificate.upgradesDaySet, partCRecorded: certificate.partCRecorded, certificateIn: !!certificate.certificateFileAt && certificate.certificateRejectedWhy == null } : {}),
   });
   return { ok: true, jobId: link.job_id, electricianBusinessId: link.electrician_business_id, step, link, assignment: assignment!, stage, bookedStart, upgradesStart, certificate };
 }
@@ -140,7 +141,8 @@ async function releaseOwnerContacts(jobId: string, assignmentId: string) {
 export type ElectricianLinkView =
   | { ok: false; reason: string }
   | { ok: true; step: ElectricianStep; jobNumber: string | null; address: string | null; ownerName: string | null; ownerMobile: string | null; bookedStart: string | null; firstDay: string; lastDay: string | null; electricianName: string;
-      /** Part 3: the booked upgrades visit (do_upgrades_in_mitti), and the upload limit for the certificate step. */ upgradesStart: string | null; certificateMaxBytes: number };
+      /** Part 3: the booked upgrades visit (do_upgrades_in_mitti), and the upload limit for the certificate step. */ upgradesStart: string | null; certificateMaxBytes: number;
+      /** Fix round 1: the office rejected the current certificate — the line the certificate step shows (null = none). */ certificateRejected: string | null };
 
 /** What the /e/<token> page shows: only the next step. Owner contacts only while the safety check is still to book. */
 export async function electricianLinkView(token: string, now: Date = new Date()): Promise<ElectricianLinkView> {
@@ -161,6 +163,7 @@ export async function electricianLinkView(token: string, now: Date = new Date())
     ownerMobile: booking ? (j?.owner_phone as string | null | undefined) ?? null : null,
     bookedStart: r.bookedStart, firstDay: melbourneToday(now), lastDay: paidAt ? melbourneYmd(new Date(addMelbourneCalendarDays(paidAt, 30))) : null,
     electricianName: who.name, upgradesStart: r.upgradesStart, certificateMaxBytes: CERTIFICATE_UPLOAD_MAX_BYTES,
+    certificateRejected: r.certificate?.certificateRejectedWhy != null ? certificateRejectedLine(r.certificate.certificateRejectedWhy) : null,
   };
 }
 
@@ -262,6 +265,9 @@ export async function linkCantDo(token: string, reason: CantDoReason, note?: str
 // Part 3 Task 3 (Jo 3 Nov 2026): the upgrades day and the certificate from the electrician's link.
 // ====================================================================================================
 
+/** An upgrades-day claim with no booking behind it older than this is stale (a crash mid-booking), not a second tap in flight. */
+const STALE_CLAIM_MS = 2 * 60_000;
+
 /** "Enter the upgrades day": claim (one per assignment and booking round) → confirmBooking kind rectification (the real one,
  *  which also makes the A4 form — decision 293) → the owner's "You're booked" (held until Jo approves the wording). */
 export async function linkEnterUpgradesDay(token: string, startIso: string, now: Date = new Date()): Promise<{ ok: true; start: string }> {
@@ -276,7 +282,23 @@ export async function linkEnterUpgradesDay(token: string, startIso: string, now:
   const { data: lastCancelled, error: lcErr } = await admin.from("bookings").select("id").eq("job_id", r.jobId).eq("kind", "rectification").eq("status", "cancelled").order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (lcErr) throw new Error(lcErr.message);
   const claimId = await stableUuid(`${UPGRADES_DAY_LINK_CLAIM_EVENT}:${r.assignment.id}:${(lastCancelled?.id as string | undefined) ?? "none"}`);
-  const { error: claimError } = await admin.from("workflow_events").insert({ id: claimId, job_id: r.jobId, actor_id: null, event_type: UPGRADES_DAY_LINK_CLAIM_EVENT, summary: "Electrical upgrades day being entered from the electrician's link", details: { assignment_id: r.assignment.id, start: startIso, by: `${who.name} (electrician's link)` }, internal: true });
+  const claimRow = (stale = false) => ({ id: claimId, job_id: r.jobId, actor_id: null, event_type: UPGRADES_DAY_LINK_CLAIM_EVENT, summary: "Electrical upgrades day being entered from the electrician's link", details: { assignment_id: r.assignment.id, start: startIso, by: `${who.name} (electrician's link)`, ...(stale ? { stale_claim_reset: true } : {}) }, internal: true });
+  let { error: claimError } = await admin.from("workflow_events").insert(claimRow());
+  if (claimError?.code === "23505") {
+    // Fix round 1: a claim with no booking behind it and older than the in-flight window is a crash between the claim and the
+    // booking — reset it (logged) so the step isn't locked. A younger claim is a second tap in flight: "already set".
+    const [{ data: prior }, { data: booked }] = await Promise.all([
+      admin.from("workflow_events").select("created_at").eq("id", claimId).maybeSingle(),
+      admin.from("bookings").select("id").eq("job_id", r.jobId).eq("kind", "rectification").eq("business_id", r.electricianBusinessId).in("status", ["confirmed", "completed"]).limit(1),
+    ]);
+    const age = prior?.created_at ? now.getTime() - Date.parse(prior.created_at as string) : 0;
+    if (!(booked ?? []).length && age > STALE_CLAIM_MS) {
+      console.warn("stale upgrades-day claim reset", r.jobId, claimId, `${Math.round(age / 1000)}s old, no booking`);
+      const { error: del } = await admin.from("workflow_events").delete().eq("id", claimId);
+      if (del) throw new Error(del.message);
+      ({ error: claimError } = await admin.from("workflow_events").insert(claimRow(true)));
+    }
+  }
   if (claimError) { if (claimError.code === "23505") throw new Error("The upgrades day is already set."); throw new Error(claimError.message); }
   try {
     const { confirmBooking } = await import("./booking.server");

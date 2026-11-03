@@ -1,7 +1,7 @@
 // Part 3 Task 3 (Jo 3 Nov 2026): "Waiting for certificate" — the pure state, the status lines, the link's certificate checks.
 import { describe, expect, test } from "bun:test";
 import {
-  CERTIFICATE_ADD_LINK_TEXT_APPROVED, CERTIFICATE_UPLOAD_MAX_BYTES, UPGRADES_DAY_NOT_SET_LINE, certificateAddLinkText, certificateProblem, certificateState, certificateStatusLine,
+  CERTIFICATE_ADD_LINK_TEXT_APPROVED, CERTIFICATE_UPLOAD_MAX_BYTES, CERTIFICATE_WRONG_TYPE, UPGRADES_DAY_NOT_SET_LINE, certificateAddLinkText, certificateFileExt, certificateProblem, certificateRejectedLine, certificateState, certificateStatusLine,
   certificateUploadPath, parseCertificateUploadPath, upgradesDayProblem, waitingForCertificateLine,
 } from "../src/lib/certificate-later.core";
 import { mergeCertificateIntoPiesaSnapshot } from "../src/lib/fixes-day.core";
@@ -23,7 +23,16 @@ describe("certificateState", () => {
     [{ ...base, certificateFileAt: "2026-11-05T01:00:00Z", certificateTicked: true }, "clear"],
     // A ticked flag with no file never counts (fail closed).
     [{ ...base, certificateFileAt: null, certificateTicked: true }, "waiting_for_certificate"],
+    // Fix round 1: the office rejected the current file → waiting again (the electrician adds a new one); "" = rejected without a note.
+    [{ ...base, certificateFileAt: "2026-11-05T01:00:00Z", certificateRejectedWhy: "Wrong address on it" }, "waiting_for_certificate"],
+    [{ ...base, certificateFileAt: "2026-11-05T01:00:00Z", certificateRejectedWhy: "" }, "waiting_for_certificate"],
+    [{ ...base, certificateFileAt: "2026-11-05T01:00:00Z", certificateRejectedWhy: null }, "certificate_in"],
   ] as const)("%o → %s", (f, want) => expect(certificateState(f)).toBe(want));
+  test("the rejected line carries the office's note when there is one", () => {
+    expect(certificateRejectedLine("Wrong address on it")).toBe("The office couldn't accept that certificate: Wrong address on it. Add a new one.");
+    expect(certificateRejectedLine("")).toBe("The office couldn't accept that certificate. Add a new one.");
+    expect(certificateRejectedLine(null)).toBe("The office couldn't accept that certificate. Add a new one.");
+  });
 });
 
 describe("status lines (installer + office job pages)", () => {
@@ -64,6 +73,12 @@ describe("the link's certificate step", () => {
     expect(parseCertificateUploadPath("job-1", "jobs/job-1/electrician-uploads/../x.pdf")).toBeNull();
     expect(certificateUploadPath("j", "u", "image/jpeg")).toEndWith(".jpg");
     expect(CERTIFICATE_UPLOAD_MAX_BYTES).toBe(25 * 1024 * 1024);
+    // Fix round 1: only what the owner's copy can carry — PDF, JPG, PNG (coes-owner-copy.server) — with a plain message otherwise.
+    expect(certificateFileExt("application/pdf")).toBe("pdf");
+    expect(certificateFileExt("image/png")).toBe("png");
+    for (const m of ["image/heic", "image/heif", "image/webp", "video/mp4", "application/msword", null]) expect(certificateFileExt(m)).toBeNull();
+    expect(parseCertificateUploadPath("job-1", "jobs/job-1/electrician-uploads/abc-1234-5678.heic")).toBeNull();
+    expect(CERTIFICATE_WRONG_TYPE).toBe("That file type isn't accepted. Upload a PDF, or a JPG or PNG photo, of the certificate.");
   });
   test("the upgrades day must be ahead of now", () => {
     const now = new Date("2026-11-04T01:00:00Z");

@@ -46,7 +46,10 @@ export async function notifyOwnerBooked(jobId:string,kind:BookingNoticeKind,star
   const held=await (await import('./in-house-suppression.server')).readInHouseDispatchState([jobId]);
   if(held.failed)return 'held';
   // Part 2 (Jo 3 Nov 2026): an installer's own job (call and book) gets the same booking notice as an in-house job.
-  if(!held.held.has(jobId)){
+  // Part 3 Task 3 (controller ruling): the electrical upgrades day is entered on the electrician's link on EVERY job, so its
+  // owner notice goes on every channel (HIV leads included) — the installer's office phone when there is an installer, else
+  // the HIV office line. Every other kind keeps the in-house / own-job gate.
+  if(kind!=='upgrades'&&!held.held.has(jobId)){
     const ch=await read<{channel:string|null}|null>(db.from('jobs').select('channel').eq('id',jobId).maybeSingle());
     if(!(await import('./own-job-piesa.core')).isOwnJobCallAndBook({channel:ch?.channel??null,heldInHouse:false}))return 'held';
   }
@@ -55,7 +58,10 @@ export async function notifyOwnerBooked(jobId:string,kind:BookingNoticeKind,star
   if(!booking||Date.parse(startIso)<=now.getTime())return 'not current';
   const job=await read<{source:string;deleted_at:string|null;stage:string;owners:{email:string|null;phone:string|null}|null}|null>(db.from('jobs').select('source,deleted_at,stage,owners(email,phone)').eq('id',jobId).maybeSingle());
   const a=await read<{businesses:{name:string;trading_name:string|null;phone:string|null}|null}|null>(db.from('job_assignments').select('businesses(name,trading_name,phone)').eq('job_id',jobId).eq('role','installer').eq('active',true).maybeSingle());
-  if(!job||job.deleted_at||job.stage==='cancelled'||!job.owners?.email||!a?.businesses)return 'held';
+  if(!job||job.deleted_at||job.stage==='cancelled'||!job.owners?.email)return 'held';
+  if(!a?.businesses&&kind!=='upgrades')return 'held';
+  // Who the owner calls to change the time: the installer's office, else (upgrades on an HIV lead with no installer yet) ours.
+  const contact=a?.businesses?{installer:a.businesses.trading_name||a.businesses.name,phone:a.businesses.phone}:{installer:'Home Insulation Victoria',phone:process.env['HIV_OFFICE_PHONE']?.trim()||null};
   const key=`in-house-booked:v1:${booking.id}:${who.id}`;
   const intentId=await stableUuid(`${key}:intent`);
   const intent=await db.from('workflow_events').insert({id:intentId,job_id:jobId,actor_id:null,event_type:'in_house_booked_notice_pending',summary:'Booking confirmation awaiting delivery',details:{kind,startIso,who,booking_id:booking.id},internal:true});
@@ -65,7 +71,7 @@ export async function notifyOwnerBooked(jobId:string,kind:BookingNoticeKind,star
   if((await import('./quote-hold.core')).smsQuietReason(now.toISOString()))return 'quiet hours';
   try {
   await (await import('./comms.server')).assertCustomerDeliveryAllowed(jobId,'Booking confirmation');
-  const b=a.businesses;const n=bookingNotice({kind,start:startIso,who,installer:b.trading_name||b.name,phone:b.phone});
+  const n=bookingNotice({kind,start:startIso,who,installer:contact.installer,phone:contact.phone});
   const {partnerEmailLayout}=await import('./partner-email.core');
   const email=await (await import('./owner-email-send.server')).sendGuardedOwnerEmail({jobId,jobSource:job.source,to:job.owners.email,purpose:'in_house_booked',key,retryAfterDefiniteFailure:true,beforeSend:async()=>{
     const current=await read<{id:string}|null>(db.from('bookings').select('id').eq('id',booking.id).eq('job_id',jobId).eq('status','confirmed').eq('scheduled_start',startIso).maybeSingle());

@@ -66,13 +66,13 @@ export async function emailInstallerOffice(p: { jobId: string; businessId: strin
   return sent ? { status: "sent" } : { status: "not_sent", detail: (r as { detail?: string } | null)?.detail ?? "Already tried." };
 }
 
-async function heldOnce(jobId: string, key: string, channel: "text" | "email", reason: string, needsOffice = false, as?: { eventType: string; extra: Record<string, unknown> }) {
+async function heldOnce(jobId: string, key: string, channel: "text" | "email", reason: string, needsOffice = false, as?: { eventType: string; extra: Record<string, unknown> }, what?: string) {
   const eventType = as?.eventType ?? OWN_JOB_PIESA_NOTICE_HELD_EVENT;
   const { count, error } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", eventType).contains("details", { key });
   if (error) throw new Error(error.message);
   if (count) return;
   const { logEvent } = await import("./workflow.server");
-  await logEvent(jobId, null, eventType, as ? `Installer office email not sent: ${reason}` : `Electrician's safety check ${channel === "text" ? "text" : "email"} not sent yet: ${reason}`, { key, channel, reason, ...(needsOffice ? { needs_office: true } : {}), ...(as?.extra ?? {}) }, { internal: true });
+  await logEvent(jobId, null, eventType, as ? `Installer office email not sent: ${reason}` : `${what ?? `Electrician's safety check ${channel === "text" ? "text" : "email"}`} not sent yet: ${reason}`, { key, channel, reason, ...(needsOffice ? { needs_office: true } : {}), ...(as?.extra ?? {}) }, { internal: true });
 }
 
 type Assignment = { id: string; user_id: string; business_id: string | null; booking_confirmed_at: string | null };
@@ -175,6 +175,7 @@ export async function sendOwnJobPiesaNotices(jobId: string): Promise<string> {
  *  TEST partners → the test sender, claimed once by a stable event; a hold is logged once per assignment, round and reason.
  *  Wording HELD (SMS type electrician_certificate_link, wordingApproved:false) until Jo approves — until then nothing is sent
  *  and no link is minted. Returns a short status for logs and tests. Nothing when the certificate is already on the job. */
+const CERT_TEXT = "Electrician's certificate text";
 export async function textCertificateLink(jobId: string, round: string): Promise<string> {
   const { data: job, error } = await admin.from("jobs").select("stage, deleted_at, source").eq("id", jobId).maybeSingle();
   if (error) throw new Error(error.message);
@@ -209,7 +210,7 @@ export async function textCertificateLink(jobId: string, round: string): Promise
     if (done) return "already";
     let link: { id: string; url: string };
     try { link = await els.createElectricianLink(jobId, a.business_id); }
-    catch (e) { await heldOnce(jobId, `${base}:no_link`, "text", "the link isn't available yet"); return `held: ${(e as Error).message}`; }
+    catch (e) { await heldOnce(jobId, `${base}:no_link`, "text", "the link isn't available yet", false, undefined, CERT_TEXT); return `held: ${(e as Error).message}`; }
     const { error: ce } = await db.from("workflow_events").insert({ id: claimId, job_id: jobId, actor_id: null, event_type: "electrician_certificate_link_test_sent", summary: "TEST: electrician's certificate link text", details: { key: base }, internal: true });
     if (ce) { await els.revokeElectricianLinks(jobId, "text_not_sent", { linkId: link.id }).catch(() => 0); if (ce.code === "23505") return "already"; throw new Error(ce.message); }
     const { sendTestSms } = await import("./test-send.server");
@@ -219,10 +220,10 @@ export async function textCertificateLink(jobId: string, round: string): Promise
   const input = { type: "electrician_certificate_link" as const, idempotencyKey: base, to, body: "", jobId, businessId: a.business_id };
   const { smsHoldReason, sendRealSms } = await import("./sms.server");
   const hold = await smsHoldReason(input);
-  if (hold) { await heldOnce(jobId, `${base}:${hold}`, "text", hold); return `held: ${hold}`; }
+  if (hold) { await heldOnce(jobId, `${base}:${hold}`, "text", hold, false, undefined, CERT_TEXT); return `held: ${hold}`; }
   let link: { id: string; url: string };
   try { link = await els.createElectricianLink(jobId, a.business_id); }
-  catch (e) { await heldOnce(jobId, `${base}:no_link`, "text", "the link isn't available yet"); return `held: ${(e as Error).message}`; }
+  catch (e) { await heldOnce(jobId, `${base}:no_link`, "text", "the link isn't available yet", false, undefined, CERT_TEXT); return `held: ${(e as Error).message}`; }
   const r = await sendRealSms({ ...input, body: certificateAddLinkText({ first, address, url: link.url }) });
   if (["blocked", "failed", "already"].includes(r.status)) await els.revokeElectricianLinks(jobId, "text_not_sent", { linkId: link.id }).catch(() => 0);
   return r.status;

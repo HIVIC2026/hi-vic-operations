@@ -15,6 +15,8 @@ export type CertificateFacts = {
   partCRecorded: boolean;
   certificateFileAt: string | null;
   certificateTicked: boolean;
+  /** The office rejected the current certificate: its note ("" when none). Null = not rejected. */
+  certificateRejectedWhy: string | null;
   /** The current certificate's key (coes-check), null when no file. */
   certificateKey: string | null;
   electrician: string | null;
@@ -65,7 +67,7 @@ export async function jobCertificateFacts(jobId: string): Promise<CertificateFac
   // Dates are Melbourne calendar dates (YYYY-MM-DD); a timestamp-shaped read is cut to its date.
   const ymd = (v: string | null | undefined) => (v ? v.slice(0, 10) : null);
   const upgradesDoneAt = partCRecorded ? ymd(record?.completed_date) ?? ymd(doneDate) ?? ymd(completedAt) : null;
-  let certificateFileAt: string | null = null, certificateTicked = false, certificateKey: string | null = null;
+  let certificateFileAt: string | null = null, certificateTicked = false, certificateKey: string | null = null, certificateRejectedWhy: string | null = null;
   if (partCRecorded) {
     const coes = await import("./coes-check.server");
     const c = await coes.currentCoes(jobId);
@@ -74,12 +76,19 @@ export async function jobCertificateFacts(jobId: string): Promise<CertificateFac
       certificateFileAt = c.since ?? record?.created_at ?? new Date(0).toISOString();
       const { coesState } = await import("./coes-check.core");
       const { data: evs } = await admin.from("workflow_events").select("id, event_type, created_at, details").eq("job_id", jobId).in("event_type", ["coes_checked", "coes_rejected"]).order("created_at", { ascending: true });
-      certificateTicked = coesState((evs ?? []) as never, c.ref.key).state === "ticked";
+      const st = coesState((evs ?? []) as never, c.ref.key);
+      certificateTicked = st.state === "ticked";
+      // Rejected by the office: the electrician's link asks for a new one, with the office's note.
+      if (st.state === "rejected") {
+        const last = ((evs ?? []) as { id?: string; details: Record<string, unknown> | null }[]).find((e) => e.id === st.eventId);
+        const note = last?.details?.["note"];
+        certificateRejectedWhy = typeof note === "string" ? note : "";
+      }
     }
   }
   const upgradesDaySet = ((bk ?? []) as unknown[]).length > 0;
-  const state = certificateState({ upgradesNeeded, upgradesDoneAt, partCRecorded, certificateFileAt, certificateTicked });
-  return { upgradesNeeded, upgradesToday, upgradesDaySet, upgradesDoneAt, partCRecorded, certificateFileAt, certificateTicked, certificateKey, electrician: who.name, state, line: certificateStatusLine({ state, electrician: who.name, upgradesDaySet }) };
+  const state = certificateState({ upgradesNeeded, upgradesDoneAt, partCRecorded, certificateFileAt, certificateTicked, certificateRejectedWhy });
+  return { upgradesNeeded, upgradesToday, upgradesDaySet, upgradesDoneAt, partCRecorded, certificateFileAt, certificateTicked, certificateRejectedWhy, certificateKey, electrician: who.name, state, line: certificateStatusLine({ state, electrician: who.name, upgradesDaySet }) };
 }
 
 /** The job-page status line only (installer + office pages). Never throws: a failed read shows nothing rather than a wrong line. */
