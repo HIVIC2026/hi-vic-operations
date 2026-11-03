@@ -8,7 +8,7 @@ import { pdfSafeText } from "./pdf-text.core";
 import { wrapText } from "./pdf-look.core";
 import {
   SWMS_COMPLIANCE_MEASURES, SWMS_HOW_IMPLEMENTED, SWMS_HOW_IN_PLACE, SWMS_RECORD_TASK, SWMS_REVIEW, SWMS_SIGN_STATEMENT,
-  latestSignatures, swmsDate, swmsDateTime, swmsHouseSection, type SwmsPlan, type SwmsSignature,
+  latestSignatures, swmsDate, swmsDateTime, swmsHouseSection, type SwmsChange, type SwmsPlan, type SwmsSignature,
 } from "./swms.core";
 
 /** A4 landscape. */
@@ -17,6 +17,8 @@ export const SWMS_TABLE_HEADERS = ["Tasks", "Hazard", "Control measures", "How i
 export const SWMS_SIGNOFF_HEADERS = ["Name", "Signature (typed name)", "Date"] as const;
 const MAIN_WIDTHS = [128, 150, 252, 170, 86];
 const SIGN_WIDTHS = [300, 300, 186];
+export const SWMS_CHANGE_HEADERS = ["What changed", "What was done about it", "Recorded by (Lead Installer)", "When"] as const;
+const CHANGE_WIDTHS = [250, 250, 150, 136];
 const PAD = 4;
 const SIZE = 8.5;
 const LH = 10.5;
@@ -38,9 +40,9 @@ export function linesThatFit(space: number, lineH = LH, pad = PAD): number {
 }
 
 type Cell = { text: string; bold?: boolean; italic?: boolean; fill?: ReturnType<typeof rgb>; label?: string };
-export type SwmsPdfLayout = { pages: number; mainHeaderPages: number[]; signoffHeaderPages: number[]; noteHeaderPages: number[] };
+export type SwmsPdfLayout = { pages: number; mainHeaderPages: number[]; signoffHeaderPages: number[]; noteHeaderPages: number[]; changeHeaderPages: number[] };
 
-export async function buildSwmsPdf(plan: SwmsPlan, sigs: SwmsSignature[], opts: { recordRef?: string | null } = {}): Promise<{ bytes: Uint8Array; layout: SwmsPdfLayout }> {
+export async function buildSwmsPdf(plan: SwmsPlan, sigs: SwmsSignature[], opts: { recordRef?: string | null; changes?: SwmsChange[] } = {}): Promise<{ bytes: Uint8Array; layout: SwmsPdfLayout }> {
   const pdf = await PDFDocument.create();
   pdf.setTitle(`Safe Work Method Statement — Job ${plan.jobNumber}`.replace("—", "-"));
   pdf.setSubject("SWMS — ceiling insulation (VEU Activity 48)".replace("—", "-"));
@@ -54,7 +56,7 @@ export async function buildSwmsPdf(plan: SwmsPlan, sigs: SwmsSignature[], opts: 
   const { width: W, height: H, margin: M, footer: F } = SWMS_PAGE;
   const CW = W - 2 * M;
   const bottom = M + F;
-  const layout: SwmsPdfLayout = { pages: 0, mainHeaderPages: [], signoffHeaderPages: [], noteHeaderPages: [] };
+  const layout: SwmsPdfLayout = { pages: 0, mainHeaderPages: [], signoffHeaderPages: [], noteHeaderPages: [], changeHeaderPages: [] };
   const val = (v: string | null | undefined) => (v && v.trim() ? v.trim() : "—");
   const lead = plan.signers.find((s) => s.role === "lead")?.name ?? null;
 
@@ -157,6 +159,15 @@ export async function buildSwmsPdf(plan: SwmsPlan, sigs: SwmsSignature[], opts: 
   const house = swmsHouseSection(plan);
   table(["Specific to this house"], [CW], layout.noteHeaderPages, house.length ? house.map((t) => [{ text: t, bold: t.startsWith("Safety step:") }]) : [[{ text: "None recorded" }]]);
   gap(12);
+
+  // ── Changes during the job (Jo 2 Nov, answer 16) — only when the Lead Installer recorded some ──
+  if (opts.changes?.length) {
+    heading("Changes during the job");
+    table(SWMS_CHANGE_HEADERS, CHANGE_WIDTHS, layout.changeHeaderPages, opts.changes.map((c) => [
+      { text: c.what }, { text: c.control || "—" }, { text: c.by }, { text: c.at ? `${swmsDateTime(c.at)} (Melbourne time)` : "—" },
+    ]));
+    gap(12);
+  }
 
   // ── Sign-off ──
   heading(`Worker sign-off (${SWMS_SIGN_STATEMENT})`);

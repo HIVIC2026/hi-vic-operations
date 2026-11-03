@@ -8,7 +8,7 @@ import { jobAdmin as admin } from "./job-facts.server"; // speed (Task 11): the 
 import { WorkflowError, logEvent } from "./workflow.server";
 import { createHash } from "node:crypto";
 import { early } from "./early-read";
-import { buildSwms, checkSwmsSign, currentSignatures, swmsPlanFingerprintText, swmsRecordText, swmsStatus, type SwmsFacts, type SwmsPerson, type SwmsPlan, type SwmsSignature, type SwmsStatus } from "./swms.core";
+import { buildSwms, checkSwmsSign, currentSignatures, swmsChangesKey, swmsPlanFingerprintText, swmsRecordText, swmsStatus, type SwmsFacts, type SwmsPerson, type SwmsPlan, type SwmsSignature, type SwmsStatus } from "./swms.core";
 
 export const SWMS_SIGNED_EVENT = "swms_signed";
 export const SWMS_NOTE_EVENT = "swms_site_note";
@@ -114,18 +114,20 @@ export async function signSwms(jobId: string, actorId: string | null, key: strin
 }
 
 /** File the signed plan (immutable PDF, 6-year record). Keyed by content hash: an unchanged plan is never filed twice. */
-export async function fileSwms(jobId: string, actorId: string | null): Promise<{ filed: boolean; path: string | null }> {
+export async function fileSwms(jobId: string, actorId: string | null, opts: { changes?: import("./swms.core").SwmsChange[] } = {}): Promise<{ filed: boolean; path: string | null }> {
   const { plan, signatures, status } = await loadSwms(jobId);
   if (!status.complete) return { filed: false, path: null };
+  const changes = opts.changes ?? [];
+  // Changes during the job (Jo 2 Nov): a plan with none keeps its old key; each distinct set of changes is filed once more.
   const text = swmsRecordText(plan, signatures);
-  const sha = createHash("sha256").update(text).digest("hex");
+  const sha = changes.length ? createHash("sha256").update(`${text}\nChanges during the job:${swmsChangesKey(changes)}`).digest("hex") : createHash("sha256").update(text).digest("hex");
   const key = `swms:${sha.slice(0, 32)}`;
   const { data: ex } = await admin.from("documents").select("storage_path").eq("job_id", jobId).eq("source_system", "portal").eq("external_id", key).maybeSingle();
   if (ex) return { filed: false, path: ex.storage_path };
   // Decision 358: the PDF is drawn in the WorkSafe sample-template layout; the key stays the hash of the same canonical
   // text (swmsRecordText), so plans already filed as plain text are not filed again.
   const { buildSwmsPdf } = await import("./swms-pdf.server");
-  const { bytes: pdf } = await buildSwmsPdf(plan, signatures, { recordRef: key });
+  const { bytes: pdf } = await buildSwmsPdf(plan, signatures, { recordRef: key, changes });
   const path = `${jobId}/official/swms-${sha.slice(0, 16)}.pdf`;
   const up = await admin.storage.from("job-files").upload(path, pdf, { contentType: "application/pdf", upsert: false });
   if (up.error && !/exists/i.test(up.error.message)) throw new Error(`Safety plan could not be stored: ${up.error.message}`);

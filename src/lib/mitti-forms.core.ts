@@ -32,7 +32,7 @@ import { PIISA_DECLARATION_FIELDS } from "./piisa-declaration.core";
 import { mittiItemType } from "./mitti.core";
 import { PIESA_EVIDENCE } from "./piesa-evidence.core";
 import { FIXES_DAY_QUESTIONS, FIXES_DAY_TEMPLATE_NAME, type FixesDayType } from "./fixes-day.core";
-import { ACCESS_OPTIONS, AREA_GROUP_BUTTON, ELECTRICIAN_OPTIONS, EXISTING_ACTION_OPTIONS, EXISTING_TYPE_OPTIONS, FAIL_REASON_OPTIONS, INCLUDED_OPTIONS, LEAN_ALIASES, LEAN_Q, MEASURED_HOW_OPTIONS, OUTCOME_FAILED, OUTCOME_OPTIONS, PREMISES_TYPE_OPTIONS, PRODUCT_OPTIONS, PROPERTY_TYPE_OPTIONS, R_ABOVE_LEGACY, R_AT_OR_ABOVE, R_VALUE_OPTIONS, ROOF_OPTIONS, YES_NO } from "./ready-check-lean.core";
+import { A2_NO_PRICING_NOTE, ACCESS_OPTIONS, AREA_GROUP_BUTTON, AREA_NAME_OPTIONS, AREA_SIZE_LW, AREA_SIZE_M2, AREA_SIZE_OPTIONS, LIVE_ONLY_HELP, OTHER_R_OPTIONS, ELECTRICIAN_OPTIONS, EXISTING_ACTION_OPTIONS, EXISTING_TYPE_OPTIONS, FAIL_REASON_OPTIONS, INCLUDED_OPTIONS, LEAN_ALIASES, LEAN_Q, MEASURED_HOW_OPTIONS, OUTCOME_FAILED, OUTCOME_OPTIONS, PREMISES_TYPE_OPTIONS, PRODUCT_OPTIONS, PROPERTY_TYPE_OPTIONS, R_ABOVE_LEGACY, R_AT_OR_ABOVE, R_VALUE_OPTIONS, ROOF_OPTIONS, YES_NO } from "./ready-check-lean.core";
 
 const G = "ESC Guide V1.1";
 const F1 = "DEECA PIESA form";
@@ -124,6 +124,7 @@ const READY_CHECK_FIELDS: FormField[] = [
   { label: LEAN_Q.propertyType, type: "choice", required: true, prefill: true, choices: [...PROPERTY_TYPE_OPTIONS], types: ["text"], source: "portal – prefilled from the enquiry (House/Townhouse = Class 1, Unit = Class 2 sole-occupancy unit); no Other text" },
   // Page 2 — Before you go up
   { label: LEAN_Q.contactPermission, type: "yesno", required: true, choices: [...YES_NO], source: "portal – contact permission (quote basic); No = hard stop (STOP_NO_CONTACT)" },
+  { label: LEAN_Q.photoIdShown, type: "tick", required: true, addedByDecision: 900, source: "Code of Conduct cl 9 (Jo 2 Nov 2026 touchpoint review; 900 = after 359, no log number yet)" },
   { label: LEAN_Q.lifeSupport, type: "yesno", required: true, prefill: true, choices: [...YES_NO], types: ["text"], aliases: al("lifeSupport"), source: "portal – prefilled from the office record; A1 Yes = office stop; A2 uses the owner's website answer" },
   { label: LEAN_Q.builtLast5, type: "yesno", required: true, prefill: true, choices: [...YES_NO], types: ["text"], source: `${G} eligibility – prefilled from the owner's declared answer; A1 Yes = office stop; A2 uses the website answer` },
   { label: LEAN_Q.premisesType, type: "choice", required: true, prefill: true, choices: [...PREMISES_TYPE_OPTIONS], source: "Activity Guide v1.2 Appendix C premises type (decision 222) – recorded as the mitti_premises_type event" },
@@ -133,11 +134,14 @@ const READY_CHECK_FIELDS: FormField[] = [
   // Decision 290 (corrected): no "difficult access charge" / "fee" questions on either template — the rating above, the access photo and the issues note are the flag.
   { label: LEAN_Q.accessPhoto, type: "media", required: false, aliases: al("accessPhoto"), source: `${G} access evidence – optional on the form (Jo 23 Oct; kept but not mandatory, Jo 26 Oct); never chased (decision 396)` },
   // Page 4 — Ceiling areas: ONE repeating group "Add a ceiling area"
-  { label: LEAN_Q.areaName, type: "text", required: true, perArea: true, aliases: al("areaName"), source: `${G} Table 4 diagram box label + install-day zone name (decisions 211/222)` },
-  { label: LEAN_Q.lengthM, type: "number", required: true, perArea: true, notRequiredIf: [LEAN_Q.measuredM2], source: "portal – the portal works out the m² and draws the diagram (decision 222: Length + Width per area)" },
-  { label: LEAN_Q.widthM, type: "number", required: true, perArea: true, notRequiredIf: [LEAN_Q.measuredM2], source: "portal – the portal works out the m² and draws the diagram (decision 222: Length + Width per area)" },
-  // 22–24 Oct forms: the single m² entry. Legacy only (portalOnly = never asked for on a new build), still read as the fallback.
-  { label: LEAN_Q.measuredM2, type: "number", required: false, perArea: true, portalOnly: true, types: ["text"], aliases: al("measuredM2"), source: "portal – LEGACY (22–24 Oct forms): single m² entry, read when no Length/Width" },
+  // Jo 3 Nov 2026: the name is one choice (Other → type it); the size is m² OR length × width. Live A1/A2 already carry the name
+  // choice; the size choice is the second paste (docs/mitti-paste-2026-11-03-part8-second.md), so templates without it still validate.
+  { label: LEAN_Q.areaName, type: "choice", required: true, perArea: true, choices: [...AREA_NAME_OPTIONS], types: ["text"], aliases: al("areaName"), source: `${G} Table 4 diagram box label + install-day zone name (decisions 211/222; choice from Jo 3 Nov)` },
+  { label: LEAN_Q.areaNameOther, type: "text", required: true, perArea: true, when: `${LEAN_Q.areaName} = Other`, addedByDecision: 901, source: "portal – the area name when Other is chosen (Jo 3 Nov)" },
+  { label: LEAN_Q.areaSizeHow, type: "choice", required: true, perArea: true, choices: [...AREA_SIZE_OPTIONS], addedByDecision: 901, source: "portal – m² or length × width per area (Jo 3 Nov); exactly one is read" },
+  { label: LEAN_Q.measuredM2, type: "number", required: true, perArea: true, when: `${LEAN_Q.areaSizeHow} = ${AREA_SIZE_M2}`, types: ["text"], addedByDecision: 901, aliases: al("measuredM2"), source: "portal – one m² number; the diagram draws a square of that size, not the real shape (Jo 3 Nov). Also the 22–24 Oct single m² entry" },
+  { label: LEAN_Q.lengthM, type: "number", required: true, perArea: true, when: `${LEAN_Q.areaSizeHow} = ${AREA_SIZE_LW}`, notRequiredIf: [LEAN_Q.measuredM2], source: "portal – the portal works out the m² and draws the diagram (decision 222: Length + Width per area)" },
+  { label: LEAN_Q.widthM, type: "number", required: true, perArea: true, when: `${LEAN_Q.areaSizeHow} = ${AREA_SIZE_LW}`, notRequiredIf: [LEAN_Q.measuredM2], source: "portal – the portal works out the m² and draws the diagram (decision 222: Length + Width per area)" },
   { label: LEAN_Q.measuredHow, type: "choice", required: true, perArea: true, choices: [...MEASURED_HOW_OPTIONS], aliases: al("measuredHow"), source: "portal – measurement provenance; aerial/online estimates never accepted" },
   { label: LEAN_Q.measuredHowOther, type: "text", required: true, perArea: true, when: `${LEAN_Q.measuredHow} = Other`, aliases: al("measuredHowOther"), source: "portal – provenance" },
   { label: LEAN_Q.existing, type: "yesno", required: true, perArea: true, choices: [...YES_NO], aliases: al("existing"), source: `${G} eligibility – insulation_present` },
@@ -160,11 +164,17 @@ const READY_CHECK_FIELDS: FormField[] = [
   { label: LEAN_Q.issueNote, type: "text", required: true, perArea: true, when: `${LEAN_Q.issues} = Yes`, aliases: al("issueNote"), source: `${G} safety – hazard description and where it is in the area (kept on the area record)` },
   { label: LEAN_Q.issuePhoto, type: "media", required: true, perArea: true, when: `${LEAN_Q.issues} = Yes`, aliases: al("issuePhoto"), source: `${G} safety – SWMS hazard evidence (restored, decision 222); the only hazard evidence` },
   // Page 5 — Product and result
-  { label: LEAN_Q.product, type: "choice", required: true, choices: [...PRODUCT_OPTIONS], aliases: al("product"), source: "portal – quote basic; exactly one of the 8 approved options (decision 150); always shown, not only on passed (decision 222)" },
+  { label: LEAN_Q.product, type: "choice", required: true, choices: [...PRODUCT_OPTIONS], aliases: al("product"), source: "portal – quote basic; exactly one of the 7 approved options (decision 150); always shown, not only on passed (decision 222)" },
   { label: LEAN_Q.outcome, type: "choice", required: true, choices: [...OUTCOME_OPTIONS], source: "portal – installer's overall call (failed = office review, never an auto-rejection); the portal applies the rules from the answers" },
   { label: LEAN_Q.failReasons, type: "multichoice", required: true, choices: [...FAIL_REASON_OPTIONS], when: `${LEAN_Q.outcome} = ${OUTCOME_FAILED}`, types: ["text"], source: "portal – notes for the office" },
 ];
 /** A2 only (decision 28): the installer confirms no pricing was discussed. Recorded on the Ready Check record. */
+/** A2 only (Jo 3 Nov 2026, live): the note at the top, and the optional "different R value" pair near the end (office note only). */
+const A2_TOP_NOTE: FormField = { label: A2_NO_PRICING_NOTE, type: "statement", statement: "statement", required: false, source: "portal – Jo 3 Nov 2026 (our leads are priced by Home Insulation Victoria)" };
+const A2_OTHER_R: FormField[] = [
+  { label: LEAN_Q.otherRAsked, type: "yesno", required: false, choices: [...YES_NO], addedByDecision: 901, source: "portal – Jo 3 Nov 2026: the office quotes it at our price; shown to the office only" },
+  { label: LEAN_Q.otherRWhich, type: "choice", required: false, choices: [...OTHER_R_OPTIONS], when: `${LEAN_Q.otherRAsked} = Yes`, addedByDecision: 901, source: "portal – Jo 3 Nov 2026: office note \"Owner asked about R{n}\"" },
+];
 const A2_NO_PRICING_TICK: FormField = { label: LEAN_Q.noPricingTick, type: "tick", required: true, aliases: ["I confirm I have not discussed or agreed pricing with the homeowner during this Ready Check. All quotes and pricing discussions will be handled directly by Home Insulation Victoria"], source: "portal – decision 28 (our leads are priced by Home Insulation Victoria)" };
 const SIGNATURE_A1: FormField = { label: LEAN_Q.signatureA1, type: "signature", required: true, aliases: [...al("signatureA1"), "I confirm this information is accurate"], source: `${G} – installer confirmation` };
 const SIGNATURE_A2: FormField = { label: LEAN_Q.signatureA2, type: "signature", required: true, aliases: [...al("signatureA2"), "I confirm this information is accurate"], source: `${G} – installer confirmation` };
@@ -180,7 +190,7 @@ export const FORMS: Record<FormKey, { title: string; role: "installer" | "electr
   ready_check: {
     title: READY_CHECK_TITLE,
     role: "installer",
-    fields: [...READY_CHECK_FIELDS, A2_NO_PRICING_TICK, SIGNATURE_A2],
+    fields: [A2_TOP_NOTE, ...READY_CHECK_FIELDS, ...A2_OTHER_R, A2_NO_PRICING_TICK, SIGNATURE_A2],
   },
   // Form A1 — installer brings the customer: the same evidence questions, no pricing tick and NO quote page (decision 278:
   // the business owner enters the price in the portal; staff doing the Ready Check never see or set it).
@@ -200,7 +210,7 @@ export const FORMS: Record<FormKey, { title: string; role: "installer" | "electr
 /** Distinct questions an installer can be asked on a lean Ready Check (per-area group counted once; legacy-only items excluded).
  *  `beforeDecision`: the count on a template built before that decision's paste-prompt additions (e.g. 359 → 34 / 35). */
 export function leanQuestionCount(key: "ready_check" | "ready_check_priced", opts: { beforeDecision?: number } = {}): number {
-  return FORMS[key].fields.filter((f) => !f.portalOnly && !(opts.beforeDecision != null && f.addedByDecision != null && f.addedByDecision >= opts.beforeDecision)).length;
+  return FORMS[key].fields.filter((f) => !f.portalOnly && !f.statement && !(opts.beforeDecision != null && f.addedByDecision != null && f.addedByDecision >= opts.beforeDecision)).length;
 }
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
@@ -327,7 +337,7 @@ export function definitionReadable(def: unknown): boolean {
 
 const MITTI_TYPE: Record<FieldType, string> = {
   text: "Text answer", phone: "Phone number answer", number: "Number answer", choice: "Multiple choice (single answer)", multichoice: "Multiple choice (choose ALL that apply)", yesno: "Question (response set)",
-  media: "Media (photo/video, camera allowed)", signature: "Signature", datetime: "Date & time",
+  media: "Media (photo/video, camera only)", signature: "Signature", datetime: "Date & time",
   date: "Date & time (the portal keeps the date only)", tick: "Checkbox (single tick)", statement: "Instruction (text only, copy verbatim)",
 };
 /** Exact brief to paste into Mitti's AI template builder. Labels must be copied verbatim — the portal matches on them. */
@@ -358,12 +368,13 @@ export function mittiAiPrompt(key: FormKey): string {
     "- Every field marked MANDATORY must be set to required so the inspection cannot be completed without it.",
     "- Fields marked 'MANDATORY only when' must be built with Mitti logic on the named trigger question: shown and required when the condition is met, hidden and not required otherwise.",
     "- Yes/No questions use a response set with exactly the listed options, no N/A unless listed.",
-    "- Photo/video fields must allow the camera and multiple files.",
+    `- Photo/video fields are camera only (Jo 3 Nov 2026): take it live, no upload from the phone's gallery or files, and several may be taken. Put this help line under each one: "${LIVE_ONLY_HELP}". If Mitti can't block gallery uploads on a field, say so in your reply and name the field, rather than leaving it silently open.`,
     "- Signature fields must capture the signer's name.",
     perArea.length ? `- Build ONE repeating section the installer adds with a button labelled "${AREA_GROUP_BUTTON}" (decision 222). Do NOT ask how many areas there are and do NOT paste copies of the section into logic branches. These fields go inside the repeating section: ${perArea.map((x) => `"${x.label}"`).join(", ")}. All other fields are NOT repeated.` : "",
     perPriceLine.length ? `- Put these fields in a repeatable section called "Quoted price line": ${perPriceLine.map((x) => `"${x.label}"`).join(", ")}.` : "",
     key === "ready_check_priced" ? `- Do NOT add a price, quote or electrician section (no "${LEAN_Q.included}", "${LEAN_Q.totalPrice}" or "${LEAN_Q.electrician}" questions): the business owner enters the price in the portal, not on the form (decision 278).` : "",
-    key === "ready_check" || key === "ready_check_priced" ? `- Do NOT add a diagram, sketch or floor plan question: the portal draws the upgrade area diagram from each area's "${LEAN_Q.areaName}", "${LEAN_Q.lengthM}" and "${LEAN_Q.widthM}" answers (decisions 211/222).` : "",
+    key === "ready_check" || key === "ready_check_priced" ? `- Do NOT add a diagram, sketch or floor plan question: the portal draws the upgrade area diagram from each area's "${LEAN_Q.areaName}", "${LEAN_Q.lengthM}" and "${LEAN_Q.widthM}" answers, or from the m² (a square of that size) when the size is given as m² (decisions 211/222, Jo 3 Nov).` : "",
+    key === "ready_check" || key === "ready_check_priced" ? `- "${LEAN_Q.beforeVideo}" accepts video only, no photos.` : "",
     key === "ready_check" || key === "ready_check_priced" ? `- Do NOT add an extras section, an "Assessor" question, an "are these details correct" pair, a depth (mm) question, any "describe"/"explain" text box or a "how many areas" question (decision 222 lean form).` : "",
     rowGroups.length ? `- Build each repeating table (${rowGroups.join(", ")}) as a repeatable section with exactly the listed columns, limited to the listed number of rows.` : "",
     key === "piesa" ? "- Section C fields are completed after rectification and are shown only when the B1 answer is \"Electrical rectification work is required before insulation is installed or upgraded.\"" : "",

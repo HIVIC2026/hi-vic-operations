@@ -14,7 +14,7 @@ import { readAreas, totals } from "../src/lib/ready-check-areas.core";
 import { planMeasurementUpdate, quoteInputsFromMeasurement } from "../src/lib/scope.core";
 import { buildInstallerQuoteDraft } from "../src/lib/installer-led.core";
 import { applyMittiRemoval } from "../src/lib/mitti-installer-quote.core";
-import { A1_QUOTE_PAGE, A1_QUOTE_QUESTIONS, AREA_GROUP_BUTTON, LEAN_Q } from "../src/lib/ready-check-lean.core";
+import { A1_QUOTE_PAGE, A1_QUOTE_QUESTIONS, AREA_GROUP_BUTTON, LEAN_ALIASES, LEAN_Q } from "../src/lib/ready-check-lean.core";
 
 const load = (f: string) => JSON.parse(readFileSync(`tests/fixtures/mitti-ready-check/${f}`, "utf8"));
 const A1 = load("a1-published-2026-10-25.json");
@@ -174,7 +174,8 @@ function audit(opts: { calculated: boolean; areas?: Area[] } = { calculated: tru
       items.push(it_(LEAN_Q.existingType, ["Batts"], p), it_(LEAN_Q.rValue, ["Below R2.0"], p), media(LEAN_Q.depthPhoto, p), it_(LEAN_Q.existingAction, [a.action!], p));
       if (a.removeM2 != null) items.push(it_(LEAN_Q.removeM2, String(a.removeM2), p));
     }
-    items.push(media(LEAN_Q.beforeVideo, p), it_(LEAN_Q.downlights, ["No"], p), it_(LEAN_Q.issues, ["No"], p));
+    items.push(media(LEAN_ALIASES.beforeVideo![0]!, p), // the 25 Oct published templates carry the 2 Nov wording until the 3 Nov paste
+      it_(LEAN_Q.downlights, ["No"], p), it_(LEAN_Q.issues, ["No"], p));
   });
   if (opts.calculated) items.push(it_("Total ceiling area (m²)", String(areas.reduce((s, a) => s + a.l * a.w, 0)), "ceiling"));
   items.push(it_(LEAN_Q.product, ["Bradford Gold R6"]), it_(LEAN_Q.outcome, ["Yes - Ready Check passed"]));

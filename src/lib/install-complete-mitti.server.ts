@@ -7,18 +7,28 @@ import { installCompletionDecision, type InstallEvidenceSummary } from "./instal
 
 export const INSTALL_COMPLETE_HELD_EVENT = "install_complete_auto_held";
 
-export async function maybeRecordInstallationFromMitti(jobId: string, actorId: string | null, auditId: string, input: { formCompleted: boolean; declarationSaved: boolean; summary: InstallEvidenceSummary | null; allFilledInTicked?: boolean | null }): Promise<{ recorded: boolean; reason: string; nextLine: string | null }> {
+export async function maybeRecordInstallationFromMitti(jobId: string, actorId: string | null, auditId: string, input: { formCompleted: boolean; declarationSaved: boolean; summary: InstallEvidenceSummary | null; allFilledInTicked?: boolean | null; partB?: { audit: unknown; fetchMedia: import("./mitti.server").MittiMediaFetch } | undefined }): Promise<{ recorded: boolean; reason: string; nextLine: string | null }> {
   const { installationAlreadyComplete, recordInstallationComplete } = await import("./install-complete.server");
-  const decision = installCompletionDecision({ ...input, alreadyCompleted: await installationAlreadyComplete(jobId) });
+  const alreadyCompleted = await installationAlreadyComplete(jobId);
+  const decision = installCompletionDecision({ ...input, alreadyCompleted });
+  // Part 8 Task 7: the Lead Installer's Mitti Part B signs the VEEC assignment once the installation is recorded (also the retry
+  // when it was recorded earlier). Idempotent; a failure is logged and never undoes the recorded installation.
+  const applyPartB = async () => {
+    if (!input.partB) return;
+    try { await (await import("./veec-part-b-mitti.server")).applyMittiPartB(jobId, auditId, input.partB.audit, input.partB.fetchMedia); }
+    catch (e) { try { await logEvent(jobId, actorId, "veec_part_b_mitti_failed", "VEEC Part B from Mitti could not be applied — it retries on the next sync", { audit_id: auditId, reason: e instanceof Error ? e.message : "error" }, { internal: true }); } catch { /* best effort */ } }
+  };
   const hold = async (reason: string, nextLine: string | null, outstanding: string[]) => {
     const { data: prev } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", INSTALL_COMPLETE_HELD_EVENT).order("created_at", { ascending: false }).limit(1).maybeSingle();
     const details = { audit_id: auditId, reason, next_line: nextLine, outstanding };
     if (JSON.stringify(prev?.details ?? null) !== JSON.stringify(details)) await logEvent(jobId, actorId, INSTALL_COMPLETE_HELD_EVENT, `Installation not recorded from Mitti: ${reason}`, details, { internal: true });
     return { recorded: false, reason, nextLine };
   };
+  if (!decision.record && alreadyCompleted) { await applyPartB(); return { recorded: false, reason: decision.reason, nextLine: null }; }
   if (!decision.record) return decision.nextLine ? hold(decision.reason, decision.nextLine, decision.outstanding) : { recorded: false, reason: decision.reason, nextLine: null };
   try {
     const r = await recordInstallationComplete(jobId, actorId, "mitti_complete");
+    await applyPartB();
     return { recorded: !r.already, reason: r.already ? "Installation already recorded" : decision.reason, nextLine: null };
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Installation could not be recorded.";

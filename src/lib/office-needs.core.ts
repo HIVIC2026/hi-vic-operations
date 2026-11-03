@@ -27,7 +27,7 @@ export type NeedsKind =
   | "paid_gate_blocked" | "install_deposit_request_failed" | "in_house_form_sync_failed"
   | "in_house_ready_check_not_booked" | "in_house_piesa_overdue" | "in_house_install_not_booked"
   | "choose_again" | "quote_check" | "fixes_quote_check" | "sign_consent" | "esc_window" | "final_check" | "send_failed" | "email_change" | "email_unmatched" | "robot_failed" | "piisa_form_failed"
-  | "choose_installer" | "choose_electrician" | "veec_a_held" | "piesa_owner_unsigned" | "piesa_fixes_owner_unsigned" | "fixes_times_missing"
+  | "choose_installer" | "choose_electrician" | "veec_a_held" | "veec_b_held" | "piesa_owner_unsigned" | "piesa_fixes_owner_unsigned" | "fixes_times_missing"
   | "payment_not_in_xero" | "payment_overdue" | "ten_days_left" | "second_no_access" | "veec_day_10" | "lapsed_window"
   | "release_lapsed" | "piesa_form_failed" | "prestart_failed" | "eligibility_review" | "payment_reversed" | "mitti_form_problem" | "booking_overdue" | "piesa_fixes_found" | "repeat_piesa_choose" | "payment_stalled" | "invoice_failed" | "old_fixes_invoice_unpaid" | "old_fixes_invoice_paid" | "stop_release_failed" | "quote_expired_blocked" | "new_quote_installer" | "new_quote_unfinished" | "piesa_rules_failed" | "coes_check" | "life_support_plan" | "tenant_notice_held";
 
@@ -77,6 +77,8 @@ export type NeedsFacts = {
   consentToSign?: { at: string; dueAt: string | null; reasons?: string[] } | null;
   /** VEEC form: installer Part B signed, Part A's automatic signature held >24h (decision 271) with the blocker reasons. Never "sign". */
   veecApHeld?: { at: string; reasons: string[] } | null;
+  /** Part 8 final review I2: the Lead Installer's Mitti Part B signature (or the portal image) was held for the office; cleared by the signing. */
+  veecPartBHeld?: { at: string; reason: string } | null;
   /** Decision 296: 5 days after the electrician's PIESA and the owner has not confirmed it on their secure link (install can't be booked). */
   piesaOwnerUnsigned?: { at: string; completedDate: string | null } | null;
   /** Decision 330: 5 days after the electrical fixes and the owner has not confirmed them (official declaration unticked). */
@@ -301,6 +303,7 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   if (f.fixesFound) add({ rank: 116, group: "week", kind: "piesa_fixes_found", line: fixesFoundLine(f.fixesFound.stage), since: f.fixesFound.at, button: { label: "Open job", to: "job", section: "piesa" } });
   if (f.repeatPiesaChoice) add({ rank: 37, group: "today", kind: "repeat_piesa_choose", line: `30-day window lapsed ${fmtDay(f.repeatPiesaChoice.deadline)} · choose who pays the repeat safety check${f.repeatPiesaChoice.suggested ? ` · suggested: ${f.repeatPiesaChoice.suggested}` : ""}`, since: f.repeatPiesaChoice.deadline, button: { label: "Choose who pays", to: "job", section: "install" } });
   if (f.veecApHeld) add({ rank: 120, group: "week", kind: "veec_a_held", line: `VEEC Part A held over 24h · ${f.veecApHeld.reasons.length} thing${f.veecApHeld.reasons.length === 1 ? "" : "s"} to record${f.veecApHeld.reasons[0] ? ` · ${f.veecApHeld.reasons[0]}` : ""}`, since: f.veecApHeld.at, button: { label: "Open job", to: "job", section: "final-check" } });
+  if (f.veecPartBHeld) add({ rank: 121, group: "week", kind: "veec_b_held", line: `VEEC Part B not signed · ${f.veecPartBHeld.reason}`, since: f.veecPartBHeld.at, button: { label: "Open job", to: "job", section: "final-check" } });
   if (f.lapsedWindow) add({ rank: 200, group: "watch", kind: "lapsed_window", line: `30-day window lapsed ${fmtDay(f.lapsedWindow.deadline)} · no install`, since: f.lapsedWindow.deadline, button: { label: "Open job", to: "job", section: "install" } });
   if (f.secondNoAccess) add({ rank: 210, group: "watch", kind: "second_no_access", line: `Couldn’t get in · second time${f.secondNoAccess.reason ? ` · ${f.secondNoAccess.reason}` : ""}`, since: f.secondNoAccess.at, button: { label: "Open job", to: "job", section: "install" } });
   if (f.tenDaysLeft) add({ rank: 220, group: "watch", kind: "ten_days_left", line: `10 days left on the 30-day clock${f.tenDaysLeft.deadline ? ` · last day ${fmtDay(f.tenDaysLeft.deadline)}` : ""}`, since: f.tenDaysLeft.at, button: { label: "Open job", to: "job", section: "install" } });

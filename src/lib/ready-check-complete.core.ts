@@ -16,6 +16,13 @@ const answered = (v: unknown): boolean => {
 const find = (entries: { label: string; value: unknown }[], labels: string[]) =>
   entries.find((e) => labels.some((l) => String(e.label ?? "").trim().toLowerCase() === l.toLowerCase()))?.value ?? null;
 
+/** The photo ID tick: null when the form never asked it (built before the paste), else whether it is ticked. */
+function photoIdFromEntries(entries: { label: string; value: unknown }[]): boolean | null {
+  const hit = entries.find((e) => String(e.label ?? "").trim().toLowerCase() === LEAN_Q.photoIdShown.toLowerCase());
+  if (!hit) return null;
+  return answered(hit.value) && !/^(false|no|n|0|off|unchecked)$/i.test(String(hit.value).trim());
+}
+
 /**
  * Ready Check facts straight off the form snapshot. Absent-safe: a question the form never asked is
  * "not established", never a made-up answer. The form cannot prove an R-value, so insulation is only ever
@@ -45,6 +52,7 @@ export function readyCheckFactsFromEntries(
     depthPhoto: depthPhoto || insulationNo,
     overviewPhoto: overviewPhoto || insulationYes,
     contactPermission: contactAnswersFromEntries(entries as { label: string; value: string | null }[]).contactPermission,
+    photoIdShown: photoIdFromEntries(entries),
     electricianDecided: opts.electricianDecided,
     priceKnown: opts.priceKnown,
   };
@@ -67,12 +75,15 @@ export type ReadyCheckFacts = {
   overviewPhoto: boolean;
   /** Owner's contact permission from the form: yes / no / not asked. Never marketing consent. */
   contactPermission: boolean | null;
+  /** The installer ticked that they showed their photo ID: true / false, or null = the form never asked (old form, never blocked). */
+  photoIdShown?: boolean | null;
   /** The electrician arrangement is decided (Home Insulation Victoria's or the owner's own). */
   electricianDecided: boolean;
   /** The installer's quoted price is recorded. */
   priceKnown: boolean;
 };
 
+export const READY_CHECK_PHOTO_ID_OFFICE = "Office needs to: the installer hasn't ticked that they showed their photo ID";
 export type ReadyCheckCompletion = { ready: boolean; reasons: string[] };
 
 /** All failures at once (never just the first), so the office sees the whole picture in one list. */
@@ -86,6 +97,7 @@ export function readyCheckCompletionChecks(f: ReadyCheckFacts): ReadyCheckComple
   if (!f.lifeSupportReviewed) reasons.push(STOP_LIFE_SUPPORT);
   if (f.builtLast5Years) reasons.push(STOP_BUILT_5);
   if (f.noSafeAccess) reasons.push(STOP_NO_SAFE_ACCESS);
+  if (f.photoIdShown === false) reasons.push(READY_CHECK_PHOTO_ID_OFFICE);
   if (f.belowR2 === null) reasons.push("Office needs to: the existing insulation level isn't established — get the R-value answer or the installer's below-R2 confirmation");
   if (f.contactPermission === null) reasons.push("Office needs to: the owner's contact permission is not on the form — record it before anything is sent");
   return { ready: reasons.length === 0, reasons };

@@ -75,7 +75,7 @@ export async function checkInstallDayForm(jobId: string, opts: { actorId?: strin
   const sync = await syncPiisaDeclaration(jobId, opts.actorId ?? null, opts.call, { onA3: (info) => { a3 = info; } });
   const info = a3 as import("./piisa-declaration.server").A3SyncInfo | null;
   const result: InstallDayFormResult = info
-    ? installDayFormResult({ formCompleted: info.completed, installDayForm: info.installDay, finalTickTicked: info.finalTickTicked, declaration: { ok: sync.status === "saved" || sync.status === "already", message: sync.message }, summary: info.summary })
+    ? installDayFormResult({ formCompleted: info.completed, installDayForm: info.installDay, finalTickTicked: info.finalTickTicked, partB: info.partB, declaration: { ok: sync.status === "saved" || sync.status === "already", message: sync.message }, summary: info.summary })
     : { state: "not_complete", missing: [] };
   const screen = info ? installDayScreenLine(result) : { title: "No install day form yet", body: sync.message, good: false };
   let texted: string | null = null;

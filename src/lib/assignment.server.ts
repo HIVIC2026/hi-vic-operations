@@ -51,6 +51,7 @@ import {
 } from "./veec-assignment-form.core";
 import { melbourneToday } from "./melbourne-time.core";
 import { PDF_LOOK_APPROVED } from "./pdf-approvals.core";
+import { VEEC_PART_B_IMAGE_HELD_EVENT } from "./veec-part-b-mitti.core";
 
 export async function loadTemplates(): Promise<Template[]> {
   const { data, error } = await admin
@@ -1472,20 +1473,35 @@ export async function reconfirmVariation(p: {
   await evaluateAndApply(v.job_id, p.actorId);
 }
 
-/** Flag-on final copy: the signed ESC form in the website look. Returns null (and logs internally) on any problem, so the text copy is stored instead and signing never fails on the PDF. */
-async function veecFinalPdfOrNull(a: NonNullable<Awaited<ReturnType<typeof currentAssignment>>>, values: Record<string, FieldValue>, jobNumber: string | null, jobId: string, actorId: string | null): Promise<Uint8Array | null> {
+/** Flag-on final copy: the signed ESC form in the website look.
+ *  - Any rendering problem: `bytes` undefined, `held` undefined → the text copy is stored instead (signing never fails on the PDF).
+ *  - The Lead Installer's Mitti signature image is on record but can't be read: `held` set → the copy is NOT built (never a form without the signature) and the office is told once. */
+export async function veecFinalCopyPdf(a: NonNullable<Awaited<ReturnType<typeof currentAssignment>>>, values: Record<string, FieldValue>, jobNumber: string | null, jobId: string, actorId: string | null): Promise<{ bytes?: Uint8Array; layout?: import("./pdf-look.core").PdfLayoutReport; held?: string }> {
   try {
     const { veecFormPdf } = await import("./veec-form-pdf.server");
     const at = (name: string | null, when: string | null) => (name && when ? { name, at: when } : undefined);
-    const installer = at(a.installer_signature_name, a.installer_signed_at), ap = at(a.ap_signature_name, a.ap_signed_at), consumer = at(a.consumer_signature_name, a.consumer_signed_at);
-    // The Lead Installer's drawn Mitti signature image is added to `installer.image` by the Mitti signature reader (a later part); until then the typed name is printed.
+    let installer = at(a.installer_signature_name, a.installer_signed_at) as { name: string; at: string; image?: Uint8Array } | undefined;
+    const ap = at(a.ap_signature_name, a.ap_signed_at), consumer = at(a.consumer_signature_name, a.consumer_signed_at);
+    // Mitti Part B: the drawn signature image kept in job-files (veec-part-b-mitti.server.ts). A portal-typed signature has no image path → name only.
+    const imagePath = (a.installer_snapshot as { image_path?: string } | null)?.image_path;
+    if (installer && imagePath) {
+      const dl = await admin.storage.from("job-files").download(imagePath).catch((e: unknown) => ({ data: null, error: { message: e instanceof Error ? e.message : String(e) } }));
+      const bytes = dl.data ? new Uint8Array(await dl.data.arrayBuffer()) : null;
+      if (!bytes?.length) {
+        const reason = "The Lead Installer's signature image could not be read, so the VEEC form was not built. Check the file and try again";
+        const { data: prev } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", VEEC_PART_B_IMAGE_HELD_EVENT).order("created_at", { ascending: false }).limit(1).maybeSingle();
+        if ((prev?.details as { reason?: string } | null)?.reason !== reason) await logEvent(jobId, actorId, VEEC_PART_B_IMAGE_HELD_EVENT, `VEEC form held: ${reason}`, { reason, image_path: imagePath, needs_office: true }, { internal: true }).catch(() => undefined);
+        return { held: reason };
+      }
+      installer = { ...installer, image: bytes };
+    }
     const r = await veecFormPdf(values, { ...(installer ? { installer } : {}), ...(ap ? { ap } : {}), ...(consumer ? { consumer } : {}) }, { jobNumber });
     // A section split across pages is kept (signing never fails on the PDF) but made visible to the office.
     if (r.layout.split.length) await logEvent(jobId, actorId, "veec_form_pdf_fallback", "VEEC form split across pages (internal)", { reason: "veec form split across pages", blocks: r.layout.split }, { internal: true }).catch(() => undefined);
-    return r.bytes;
+    return { bytes: r.bytes, layout: r.layout };
   } catch (e) {
     await logEvent(jobId, actorId, "veec_form_pdf_fallback", "VEEC form used the previous layout (internal)", { reason: e instanceof Error ? e.message : String(e) }, { internal: true }).catch(() => undefined);
-    return null;
+    return {};
   }
 }
 
@@ -1553,7 +1569,9 @@ export async function evaluateAndApply(jobId: string, actorId: string | null) {
   ].join("\n");
   const hash = await sha256Hex(finalText);
   // Flag on: the website-look form (the text record, hash and facts above are unchanged). Flag off: the old text copy, byte for byte.
-  const renderedPdf = PDF_LOOK_APPROVED.veecForm ? await veecFinalPdfOrNull(a, f.form_values, job?.job_number ?? null, jobId, actorId) : undefined;
+  const built = PDF_LOOK_APPROVED.veecForm ? await veecFinalCopyPdf(a, f.form_values, job?.job_number ?? null, jobId, actorId) : null;
+  if (built?.held) return { ...r, status: a.status }; // signature image unreadable: stay as we are, the office has been told, the next tick retries
+  const renderedPdf = built ? (built.bytes ?? null) : undefined;
   const path = await storeCopy(
     jobId,
     `${jobId}/assignment/final-${hash.slice(0, 12)}.txt`,

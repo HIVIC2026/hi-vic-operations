@@ -6,7 +6,7 @@ import { canonicalMittiTemplateId, mittiTemplateIdentity, sameMittiTemplateId } 
 import { PRE_READY_CHECK_STAGES } from "./installer-new-jobs.core";
 import { splitEligibleAreas, type ExcludedArea } from "./excluded-areas.core";
 import { A3_REPAIR_NEEDED_LABEL, LIFE_SUPPORT_PRESENT } from "./official-short.core";
-import { EXISTING_DEPTH_Q, isNoSafeAccess, isR2OrAbove, isRValueBandAnswer, LEAN_ALIASES, LEAN_Q, premisesTypeOption } from "./ready-check-lean.core";
+import { EXISTING_DEPTH_Q, areaNameFromAnswers, areaSizeBasis, isNoSafeAccess, isR2OrAbove, isRValueBandAnswer, LEAN_ALIASES, LEAN_Q, premisesTypeOption } from "./ready-check-lean.core";
 import { norm } from "./trade-shared-consts.core";
 
 export const MITTI_TEMPLATE_ID = "template_fd20c6437f4e4db2b49b2d6dbe0d3f91";
@@ -435,7 +435,10 @@ export function parseAudit(audit: Any) {
   // A2 (our leads) captures "Length (m)" × "Width (m)" per area; A1 (installer's own customers) captures the
   // measured m² directly. Legacy forms used "Measured area m2".
   // Decision 222: the lean repeating group asks "Length (m)" + "Width (m)" per area (the m² entry is the old-form fallback).
-  const isAreaKid = (e: Any) => !e.header && [norm("Measured area m2"), norm(LEAN_Q.lengthM), norm(LEAN_Q.widthM), norm(LEAN_Q.measuredM2)].includes(e.norm) && e.value != null;
+  // Jo 3 Nov 2026: a NAMED area counts even with no size yet, so one area missing its size holds the total ("Nearly there")
+  // instead of silently dropping out. The name question is a choice now; "Other" asks for the name in "Type the area name".
+  const areaNameNorms = [LEAN_Q.areaName, ...(LEAN_ALIASES.areaName ?? [])].map((l) => norm(l.split("\n")[0] ?? l));
+  const isAreaKid = (e: Any) => !e.header && e.value != null && ([norm("Measured area m2"), norm(LEAN_Q.lengthM), norm(LEAN_Q.widthM), norm(LEAN_Q.measuredM2)].includes(e.norm) || areaNameNorms.includes(norm(String(e.label ?? "").split("\n")[0] ?? "")));
   const roomParents = new Set(entries.filter(isAreaKid).map((e) => e.parent ?? e.id));
   const areaM2Label = (kids: Entry[]) => kids.find((e) => [norm("Measured area m2"), norm("Enter the measured ceiling area (m²)")].includes(e.norm)) ?? kids.find((e) => e.norm.startsWith(norm("Measured area m2")));
   // Per-area questions can sit inside conditional sub-branches (empty-label containers), so an area's
@@ -450,9 +453,12 @@ export function parseAudit(audit: Any) {
   const rooms = [...roomParents].map((p) => {
     const kids = areaKids(p);
     const m2e = areaM2Label(kids);
-    let m2 = physical(m2e?.value ?? null, m2e?.label ?? "Measured area m2");
-    const len = physical(val(kids, [LEAN_Q.lengthM]), LEAN_Q.lengthM);
-    const wid = physical(val(kids, [LEAN_Q.widthM]), LEAN_Q.widthM);
+    // Jo 3 Nov 2026: when the area says how the size is given, only that way is read ("exactly one"); older forms never ask,
+    // so m² still wins when present, else Length × Width.
+    const basis = areaSizeBasis(val(kids, [LEAN_Q.areaSizeHow]));
+    let m2 = physical(basis === "lw" ? null : m2e?.value ?? null, m2e?.label ?? "Measured area m2");
+    const len = physical(basis === "m2" ? null : val(kids, [LEAN_Q.lengthM]), LEAN_Q.lengthM);
+    const wid = physical(basis === "m2" ? null : val(kids, [LEAN_Q.widthM]), LEAN_Q.widthM);
     if (m2.value == null) {
       if (len.issue) issues.push(len.issue);
       if (wid.issue) issues.push(wid.issue);
@@ -460,7 +466,7 @@ export function parseAudit(audit: Any) {
     }
     if (m2.issue) issues.push(m2.issue);
     // Decision 222 / 211: the area NAME is kept (diagram box label, install-day zone name). Help text after a line break is not part of it.
-    const name = val(kids, [LEAN_Q.areaName, ...(LEAN_ALIASES.areaName ?? [])])?.split("\n")[0]?.trim() || null;
+    const name = areaNameFromAnswers(val(kids, [LEAN_Q.areaName, ...(LEAN_ALIASES.areaName ?? [])]), val(kids, [LEAN_Q.areaNameOther]));
     const present = yesNo(val(kids, ["Is there existing insulation?", "Is there existing insulation in this ceiling area?"]));
     const state = norm(val(kids, ["Existing insulation"])) || (present === true ? "under-insulated" : present === false ? "uninsulated" : "");
     const action = norm(val(kids, ["What needs to happen to it?", "What is required for the existing insulation?", "What happens to the existing insulation"]));

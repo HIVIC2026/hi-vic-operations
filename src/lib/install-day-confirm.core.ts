@@ -6,6 +6,7 @@
 //    shows the same result.
 //  - At 5pm Melbourne on the (last) install day, if the A5 is still not Complete, the lead installer gets ONE reminder.
 // Wording is Jo's, verbatim (the sender adds "Home Insulation Victoria: "). Senders: install-day-confirm.server.ts.
+import type { ReadSignature } from "./install-day.core";
 import type { InstallEvidenceSummary } from "./install-evidence.core";
 
 export const INSTALL_DAY_RESULT_SMS_TYPE = "install_day_form_result" as const;
@@ -17,6 +18,8 @@ export const INSTALL_DAY_REMINDER_EVENT = "install_day_form_reminder_sent" as co
 /** 5pm Melbourne on the install day. */
 export const INSTALL_DAY_REMINDER_HOUR = 17;
 /** The final A5 tick (decision 328) — unticked = the form is not complete. Same words as the blocker in install-evidence.core. */
+/** Part 8: the Lead Installer's VEEC Part B (tick + signature) on a form that carries it. */
+export const PART_B_MISSING = "Rebate form (Part B) not ticked and signed by the Lead Installer";
 export const FINAL_TICK_MISSING = "Final tick (every answer, photo and video filled in) not ticked";
 
 // ---- wording (verbatim, Jo 25 Oct 2026) ----
@@ -48,6 +51,8 @@ export type InstallDayFormInput = {
   declaration: { ok: boolean; message: string };
   /** The install-day evidence read from the same audit (null = not read). */
   summary: Pick<InstallEvidenceSummary, "applies" | "blockers" | "rulerBlockers"> | null;
+  /** Part B read from the same audit; `onForm: false` / absent = an older form, never checked. */
+  partB?: { onForm: boolean; ticked: boolean; signature: ReadSignature } | undefined;
 };
 export type InstallDayFormResult = { state: InstallDayFormState; missing: string[] };
 
@@ -62,6 +67,7 @@ export function installDayFormResult(i: InstallDayFormInput): InstallDayFormResu
   else missing.push(...(i.summary.applies ? i.summary.blockers : i.summary.rulerBlockers ?? []));
   if (!i.declaration.ok) missing.push(...i.declaration.message.split(" • ").map((s) => s.trim()).filter(Boolean));
   if (i.installDayForm && !i.finalTickTicked) missing.push(FINAL_TICK_MISSING);
+  if (i.partB?.onForm && !(i.partB.ticked && i.partB.signature.present)) missing.push(PART_B_MISSING);
   const uniq = [...new Set(missing)];
   return uniq.length ? { state: "not_finished", missing: uniq } : { state: "all_filled_in", missing: [] };
 }

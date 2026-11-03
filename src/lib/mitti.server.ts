@@ -17,7 +17,7 @@ import { expandPiesa } from "./official-expand.core";
 import { formatPropertyAddress } from "./address";
 import { todayMelbourne } from "./eligibility.server";
 import { refuseFuturePiesaDate } from "./piesa-date.core";
-import { PIESA_EVIDENCE_ISSUE_PREFIX, attachPiesaMedia, piesaEvidenceBlockers, piesaEvidenceFilesToStore, piesaMediaFromSnapshot, type PiesaSnapshotEntry } from "./piesa-evidence.core";
+import { PIESA_EVIDENCE_ISSUE_PREFIX, attachPiesaMedia, piesaEvidenceBlockers, piesaEvidenceFilesToStore, piesaLifeSupportFiles, piesaMediaFromSnapshot, type PiesaSnapshotEntry } from "./piesa-evidence.core";
 import { officialPrefillContext } from "./official-forms.server";
 import { draftInstallerQuoteFromReadyCheck } from "./installer-quote.server";
 import { applyCobrand } from "./pilot.server";
@@ -343,6 +343,19 @@ async function applyPremisesType(jobId: string, actorId: string | null, entries:
   await logEvent(jobId, actorId, PREMISES_TYPE_EVENT, `Ready Check: who lives at the property — ${p.answer}${p.code ? "" : " (wording not recognised – office to confirm the premises type)"}`, { audit_id: auditId, answer: p.answer, premises_type: p.code, question: "Who lives at the property?" }, { internal: true });
 }
 
+/** Jo 3 Nov 2026 (A2): "Did the owner ask about a different R value?" → "Which R value?". An office note only ("Owner asked about
+ *  R6" on the job); nothing is sent to the owner. Append-only internal event, a new row only when the note changes. Absent → nothing. */
+export const OWNER_OTHER_R_EVENT = "mitti_owner_other_r_value"; // mitti_owner_other_r_value
+async function applyOwnerOtherRValue(jobId: string, actorId: string | null, entries: { label: string; value: string | null }[], auditId: string) {
+  const { ownerOtherRFromEntries } = await import("./ready-check-answers.core");
+  const r = ownerOtherRFromEntries(entries);
+  if (!r.note) return;
+  const { data: last } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", OWNER_OTHER_R_EVENT).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const prev = (last?.details ?? null) as { note?: string | null } | null;
+  if (prev && prev.note === r.note) return;
+  await logEvent(jobId, actorId, OWNER_OTHER_R_EVENT, r.note, { audit_id: auditId, note: r.note, r_value: r.r, question: "Did the owner ask about a different R value?" }, { internal: true });
+}
+
 /** Save Mitti's finished PDF report to the job's private files, once per completed audit version. Never throws. */
 export async function saveMittiReport(jobId: string, actorId: string | null, auditId: string, modifiedAt: string | null, label: string, call: MittiCall) {
   const key = `${auditId}:${modifiedAt ?? "completed"}`;
@@ -396,6 +409,34 @@ async function savePiesaEvidenceFiles(jobId: string, actorId: string | null, aud
     }
   }
   if (saved.length) await logEvent(jobId, actorId, "piesa_evidence_saved", `${saved.length} PIESA evidence file(s) saved to job files (decision 178)`, { audit_id: auditId, paths: saved, captured: files.map((f) => ({ item: f.id, media_id: f.file.mediaId, captured_at: f.file.capturedAt, geotagged: f.file.lat != null && f.file.lng != null })) });
+}
+
+/** New job flow part 8 task 4: the life support plan the electrician photographed on the PIESA is kept as the job's
+ *  `life_support_plan` document, so the install gate sees it as on file. One row per Mitti media id (a retry adds none);
+ *  returns how many were added. Failures are logged and never thrown to the sync. */
+export async function savePiesaLifeSupportPlan(jobId: string, auditId: string, files: { mediaId: string; capturedAt: string | null }[], fetchMedia: MittiMediaFetch): Promise<number> {
+  let added = 0;
+  if (!files.length) return 0;
+  const { LIFE_SUPPORT_PLAN_DOC_KIND } = await import("./job-records.server");
+  for (const file of files) {
+    const key = `${auditId}:life-support:${file.mediaId}`;
+    try {
+      const { data: ex, error: le } = await admin.from("documents").select("id").eq("job_id", jobId).eq("kind", LIFE_SUPPORT_PLAN_DOC_KIND).eq("source_system", "mitti").eq("external_id", key).maybeSingle();
+      if (le) throw new Error(le.message);
+      if (ex) continue;
+      const { bytes, contentType } = await fetchMedia(auditId, file.mediaId);
+      if (!bytes.length) throw new Error("empty media");
+      const path = `${jobId}/life-support/${file.mediaId}`;
+      const up = await admin.storage.from("job-files").upload(path, bytes, { contentType, upsert: false });
+      if (up.error && !/exists|duplicate/i.test(up.error.message)) throw new Error("storage upload failed");
+      const { error } = await admin.from("documents").insert({ job_id: jobId, kind: LIFE_SUPPORT_PLAN_DOC_KIND, title: "Life support plan (PIESA attachment)", storage_path: path, mime_type: contentType, uploaded_by: null, source_system: "mitti", external_id: key, original_name: file.mediaId, size_bytes: bytes.length });
+      if (error) throw new Error(error.message);
+      added++;
+    } catch (e) {
+      await logEvent(jobId, null, "piesa_life_support_plan_failed", "The life support plan photo could not be saved – sync again to retry", { audit_id: auditId, media_id: file.mediaId, reason: e instanceof Error ? e.message : "error" }, { internal: true }).catch(() => undefined);
+    }
+  }
+  return added;
 }
 
 /** Decision 314 (Jo 25 Oct 2026): one office item per job while the latest completed A3 says the electrician must be on site
@@ -500,6 +541,8 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
           await saveMittiReport(jobId, actorId, a.external_mitti_id, plan.modifiedAt ?? null, "PIESA", call);
           // Decision 178: the evidence that IS on the form is kept with the job file even while other items are still missing.
           await savePiesaEvidenceFiles(jobId, actorId, a.external_mitti_id, snapshot, fetchMedia);
+          // New job flow part 8 task 4: the life support plan photo counts as the plan on file.
+          await savePiesaLifeSupportPlan(jobId, a.external_mitti_id, piesaLifeSupportFiles(snapshot), fetchMedia);
           // Decision 336: the electrician's ACTUAL A3 signature image (media id + its own timestamp) is kept with the job for
           // the official PIESA Part B3 (Word form + PDF). Never throws; a failure is one internal event.
           const { mittiSignatureByLabel } = await import("./fixes-day.core");
@@ -538,6 +581,7 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
         await (await import("./excluded-areas.server")).recordExcludedAreas(jobId, actorId, plan.excludedAreas ?? []).catch(() => undefined); // idempotent: the next sync tries again
         await applyContactAnswers(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: string | null }[], measureAudit);
         await applyPremisesType(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: string | null }[], measureAudit).catch(() => undefined);
+        await applyOwnerOtherRValue(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: string | null }[], measureAudit).catch(() => undefined);
         // Jo 23 Oct: draft for "Quotes to check" as soon as the basics are in — no need to wait for the whole form.
         const basics = await (await import("./ready-check-basics.server")).checkReadyCheckBasics(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: string | null }[], plan.completed, measureAudit).catch(() => null);
         const draftNow = plan.completed || !!basics?.ready;

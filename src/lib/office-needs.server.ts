@@ -23,6 +23,7 @@ import { PIESA_AUTOFORM_FAILED_EVENT, piesaFormFailedOpen } from "./piesa-autofo
 import { TENANT_NOTICE_HELD_EVENT, TENANT_NOTICE_SENT_EVENT, tenantNoticeHeldOpen } from "./tenant-notice.core";
 import { prestartFailedFor } from "./prestart.core";
 import { endOfMelbourneYmd } from "./melbourne-time.core";
+import { VEEC_PART_B_IMAGE_HELD_EVENT, VEEC_PART_B_MITTI_HELD_EVENT, VEEC_PART_B_SIGNED_MITTI_EVENT, veecPartBHeldOpen } from "./veec-part-b-mitti.core";
 
 type Row = Record<string, unknown>;
 const s = (v: unknown) => (v == null ? null : String(v));
@@ -248,7 +249,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     });
   })();
   // Wave 1. Needs me reads only open jobs (complete / cancelled are always "ended" and were filtered out below anyway).
-  const [office, consents, veecForms, escRows, emailFails, smsFails, tenDay, noAccess, veecAlerts, overdue, returned, provisionalBookings, piesaAlerts, piesaConfirms, fixesLinks, fixesGiven, fixesAlerts, fixesConfirms, rectDrafts, rectHolds, q, qTest, robotRows, piisaAlerts, items, recLinks, installerElectricians, fb, prestartChecks, upcomingInstalls, piesaFormFails, payInvoices, payQuotes, paySettings, piesaCurRows, payRepeatEv, addrUnresolved, mittiElecHeld, ownJobHeld, tenantNoticeEv] = await Promise.all([
+  const [office, consents, veecForms, escRows, emailFails, smsFails, tenDay, noAccess, veecAlerts, overdue, returned, provisionalBookings, piesaAlerts, piesaConfirms, fixesLinks, fixesGiven, fixesAlerts, fixesConfirms, rectDrafts, rectHolds, q, qTest, robotRows, piisaAlerts, items, recLinks, installerElectricians, fb, prestartChecks, upcomingInstalls, piesaFormFails, payInvoices, payQuotes, paySettings, piesaCurRows, payRepeatEv, addrUnresolved, mittiElecHeld, ownJobHeld, tenantNoticeEv, partBEvents] = await Promise.all([
     loadOffice(admin, { includeTest: opts.includeTest, ...(opts.onlyIds ? { onlyIds: opts.onlyIds } : { openOnly: true }) }),
     all("ESC consents", (a, b) => scoped(admin.from("owner_esc_consents").select("job_id, owner_signed_at, ap_signed_at, status, scheduled_start, created_at")).not("owner_signed_at", "is", null).is("ap_signed_at", null).range(a, b)),
     all("VEEC forms", (a, b) => scoped(admin.from("customer_assignments").select("job_id, installer_signed_at, ap_signed_at, consumer_signed_at, status, created_at")).eq("record_kind", "final_veec_assignment").neq("status", "cancelled").range(a, b)),
@@ -306,6 +307,8 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     all("own job safety check holds", (a, b) => scoped(admin.from("workflow_events").select("job_id, event_type, created_at, details")).in("event_type", [OWN_JOB_PIESA_HELD_EVENT, OWN_JOB_PIESA_HANDED_EVENT, OWN_JOB_PIESA_HANDED_BACK_EVENT, OWN_JOB_SWAP_FORM_NOT_MOVED_EVENT, OWN_JOB_PIESA_INSTALLER_NOT_TOLD_EVENT]).order("created_at", { ascending: false }).range(a, b)),
     // Part 4 Task 16 (cl 23): the tenant notice held (tenant details missing / no office phone) for a current install booking.
     all("tenant notice events", (a, b) => scoped(admin.from("workflow_events").select("job_id, event_type, created_at, details")).in("event_type", [TENANT_NOTICE_HELD_EVENT, TENANT_NOTICE_SENT_EVENT]).gte("created_at", new Date(t0 - 60 * DAY).toISOString()).range(a, b)),
+    // Part 8 final review I2: a held VEEC Part B (Mitti signature not applied / portal image held) and the Mitti signing that clears it.
+    all("VEEC Part B holds", (a, b) => scoped(admin.from("workflow_events").select("job_id, event_type, created_at, details")).in("event_type", [VEEC_PART_B_MITTI_HELD_EVENT, VEEC_PART_B_IMAGE_HELD_EVENT, VEEC_PART_B_SIGNED_MITTI_EVENT]).range(a, b)),
   ]);
   const now = office.now;
   const jobs = office.jobs.filter((j) => j.status?.stage !== "ended" || j.stage === "on_hold");
@@ -462,6 +465,12 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   }
   if (partAReasons) partA.forEach((v, i) => { const x = f(String(v["job_id"])); const reasons = partAReasons[i]; if (x && reasons?.length) x.veecApHeld = { at: String(v["installer_signed_at"]), reasons }; });
   else for (const v of partA) { const x = f(String(v["job_id"])); if (x) x.veecApHeld = { at: String(v["installer_signed_at"]), reasons: ["Prerequisites still to record (open the job)."] }; }
+  for (const id of new Set(partBEvents.map((e) => String(e["job_id"])))) {
+    const x = f(id); if (!x) continue;
+    const form = veecForms.find((v) => String(v["job_id"]) === id);
+    const open = veecPartBHeldOpen(partBEvents.filter((e) => String(e["job_id"]) === id).map((e) => ({ event_type: String(e["event_type"]), created_at: String(e["created_at"]), details: (e["details"] ?? null) as Record<string, unknown> | null })), { installerSignedAt: form?.["installer_signed_at"] ? String(form["installer_signed_at"]) : null });
+    if (open) x.veecPartBHeld = open;
+  }
   for (const e of escRows) {
     const x = f(String(e["job_id"])); if (!x || ["cancelled", "withdrawn", "superseded", "stale"].includes(String(e["status"]))) continue;
     const opens = s(e["earliest_send_at"]);
