@@ -274,6 +274,7 @@ export async function loadOffice(admin: Admin, opts: { includeTest?: boolean; on
     ...changeReqs.map((c) => ({ key: `chg:${c["id"]}`, title: `${(c["businesses"] as { name?: string } | null)?.name ?? "Partner"} asks to change ${c["kind"] === "rates" ? "their rates" : c["kind"] === "details" ? "their details" : c["kind"]}`, why: String(c["message"]).slice(0, 140), dueAt: null, href: "/admin/partners" })),
     ...apps.filter((a) => !String(a["source"] ?? "").endsWith("_test")).map((a) => ({ key: `app:${a["id"]}`, title: `New application: ${String(a["name"] ?? "").trim() || "name not given"}`, why: "Application ready to review", dueAt: null, href: "/admin/partners" })),
     ...(expiryReads ? await tradeExpiryItems(expiryReads, creds, melbourneToday(new Date(now)), lim["credential_warning_days"] ?? 30) : []),
+    ...(opts.onlyIds ? [] : await (await import("./mitti-invite.server")).mittiWaitingPauseNeeds().catch((e) => { console.error("Mitti pause-wait rows skipped", (e as Error).message); return []; })),
   ];
   const snz: Snooze[] = snoozes.map((x) => ({ jobId: String(x["job_id"]), ruleKey: String(x["rule_key"]), until: String(x["snoozed_until"]), count: Number(x["snooze_count"]) }));
   const needs = buildNeedsMe({ now, jobs: out.map((o) => o.needs), partners, snoozes: snz, lim });

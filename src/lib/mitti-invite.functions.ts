@@ -23,3 +23,13 @@ export const confirmMittiInviteDoneFn = createServerFn({ method: "POST" })
     const { confirmMittiInviteDone } = await import("./mitti-invite.server");
     return confirmMittiInviteDone(data.workerId, context.userId);
   });
+
+export const sendWaitingMittiInviteFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ workerId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    const { sendWaitingMittiInvite } = await import("./mitti-invite.server");
+    const r = await sendWaitingMittiInvite(data.workerId, context.userId);
+    return { action: r.action, reason: "reason" in r ? String(r.reason) : null };
+  });

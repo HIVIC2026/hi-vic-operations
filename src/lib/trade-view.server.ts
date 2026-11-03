@@ -963,6 +963,8 @@ export async function tradeFillWorkerMissing(userId: string, workerId: string, p
   if (v.email) {
     const { error } = await admin.from("partner_workers").update({ email: v.email }).eq("id", w.id).eq("business_id", c.biz.id).is("email", null);
     if (error) throw new WorkflowError(error.code === "23505" ? "Someone in your team already uses that email." : "The email couldn't be saved. Try again.");
+    // Jo 3 Nov: a Lead waiting for their own email is invited once the boss adds it (switch/pause/TEST rules unchanged).
+    await import("./mitti-invite.server").then((m) => m.onPartnerPersonApproved(w.id, userId)).catch((e) => console.error("Mitti invite after email added skipped", (e as Error).message));
   }
   return { ok: true };
 }
