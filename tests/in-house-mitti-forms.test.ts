@@ -109,6 +109,8 @@ function load(name: string, cache: Record<string, any> = {}): any {
     if (p in overrides) return overrides[p];
     if (p.startsWith("./") && !p.endsWith(".server")) return require(`../src/lib/${p.slice(2)}`);
     if (p.startsWith("./")) return load(p.slice(2), cache);
+    // Join (main #135): job-facts.server keeps its per-request cache in AsyncLocalStorage; Node built-ins are not app boundaries.
+    if (p.startsWith("node:")) return require(p);
     throw new Error(`Unexpected test dependency ${p}`);
   }, ...Object.values(extra));
   return out;
