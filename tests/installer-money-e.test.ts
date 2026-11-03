@@ -26,10 +26,11 @@ describe("E1 electrician words", () => {
     expect(e.emptyBody).toBe("Your pay for each safety check and fixes visit shows here once the visit is done.");
     const i = moneyWords("installer");
     expect([i.emptyTitle, i.emptyBody, i.count(1), i.count(2)]).toEqual(["No completed jobs yet.", "Your pay for each install appears here once the install is done.", "1 install", "2 installs"]);
+    // Task 8: the approved Money screen has no electrician branch (electricians have no Money page) and no install-count tiles.
     const page = src("src/routes/_authenticated/field.money.tsx");
-    expect(page).toContain("moneyWords(data.kind)");
     expect(page).not.toContain("once the install is done");
     expect(page).not.toMatch(/install\$\{t\.(this|last)Month/);
+    expect(page).not.toContain("ELECTRICIAN_PAY_RULE_LINE");
   });
 });
 
@@ -55,9 +56,10 @@ describe("E4 statement", () => {
     const csv = statementCsv([{ jobNumber: "HV-1", surname: 'O"Brien, J', suburb: null, what: "Install", amount: 1200, state: { kind: "checking" }, held: ["Form not Complete"] }]);
     expect(csv.split("\r\n")).toEqual(['"Job","Owner","Suburb","What","Amount","Status"', '"HV-1","O""Brien, J","","Install","1200","Held"']);
     expect(statementFileName(new Date("2026-10-27T14:30:00Z"))).toBe("pay-statement-2026-10-28.csv");
+    // Task 8 (Jo 2 Nov, answer 14): no statement download on the Money page; the CSV helper stays for the office.
     const page = src("src/routes/_authenticated/field.money.tsx");
     expect(page).not.toContain("data:text/csv");
-    expect(page.match(/saveFile\(/g)?.length).toBeGreaterThanOrEqual(1);
+    expect(page).not.toContain("Download statement");
     const sf = src("src/components/trade/save-file.ts");
     for (const s of ["navigator.canShare", "navigator.share", "createObjectURL", "revokeObjectURL", "AbortError"]) expect(sf).toContain(s);
   });

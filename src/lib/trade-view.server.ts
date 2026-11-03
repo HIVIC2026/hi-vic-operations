@@ -17,6 +17,7 @@ import { installerHomeGroups, comingForInstaller, sourceLabel as installerSource
 import { installerQuoteLine } from "./installer-quote-status.core";
 import { myWorkCards, greeting as myWorkGreeting, reasonFor } from "./my-work.core";
 import { nextStepBox, type NextStepFacts } from "./next-step-box.core";
+import { MONEY_WORDS, moneyScreen, type MoneyScreenRow } from "./money-screen.core";
 import { installCountdown } from "./next-step-dates.core";
 import { JOB_PAGE_WORDS, jobDetailsRows, nextForOwner, ownerRows, ownerToldRows, ownerToldSummary, paperworkRows, progressSteps, siteNotesRows, visitsRows } from "./job-page-rows.core";
 import { swmsHouseFacts } from "./swms-house.core";
@@ -691,7 +692,7 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean)
       : "hivic" as const;
     const biz = b.businesses as { name: string | null; trading_name: string | null } | null;
     const what = payee && payee.businessId === bizId ? `Safety check by ${biz?.trading_name || biz?.name || "your electrician"}` : VISIT[b.kind] ?? "Job";
-    return { billing, jobId: b.job_id, jobNumber: j.job_number, surname: surname(j.owners?.full_name), suburb: j.properties?.suburb ?? null, what, kind: b.kind, amount, state, held, doneAt: b.scheduled_start, approvedAt, channel: jj.channel ?? null };
+    return { billing, jobId: b.job_id, jobNumber: j.job_number, surname: surname(j.owners?.full_name), owner: j.owners?.full_name?.trim() || null, suburb: j.properties?.suburb ?? null, what, kind: b.kind, amount, state, held, doneAt: b.scheduled_start, approvedAt, channel: jj.channel ?? null };
   });
 }
 
@@ -703,6 +704,8 @@ export async function partnerPayStates(bizId: string, kind: TradeKind, testOnly:
 
 export async function tradeMoney(userId: string) {
   const c = await moneyOrThrow(userId, "Money is only shown to the business owner.");
+  // Jo 3 Nov 2026: electricians have no Money page (Part 6 removed their sign-in) — only installer businesses reach it.
+  if (c.kind !== "installer") throw new WorkflowError(MONEY_WORDS.notForElectricians);
   // Speed (installer screens, Task 8): the saved account is read with the money rows' first round (owner only, after the
   // refusal above) instead of after them. Only the last 4 digits of the saved account: enough to recognise it, never the
   // full number.
@@ -720,7 +723,16 @@ export async function tradeMoney(userId: string) {
   const next = coming.map((r) => (r.state as { on: string }).on).sort()[0] ?? null;
   const nextRows = next ? coming.filter((r) => (r.state as { on: string }).on.slice(0, 10) === next.slice(0, 10)) : [];
   const sum = (xs: typeof rows) => xs.reduce((t, r) => t + (r.amount ?? 0), 0);
-  return { kind: c.kind, boss: c.boss, business: c.biz.name, bankEnding: accountEnding(bank?.account_number), next: next ? { on: next, total: sum(nextRows), jobs: nextRows.length } : null, month: sum(rows.filter((r) => r.doneAt && new Date(r.doneAt) >= m0)), allTime: sum(rows), rows, ownerDirect, paidByInstaller };
+  // Task 8 (approved Money screen): one row per install pay and one PIESA pay row per job whose PIESA is done, the PIESA
+  // amount from the rate card (`safetyCheckPayeesFor`). A PIESA row with no rate is left out and logged — never invented.
+  const screenRows: MoneyScreenRow[] = [];
+  for (const r of rows) {
+    if (r.kind === "assessment" && r.amount == null) { console.warn(`PIESA pay row left out (no rate on the rate card): ${r.jobNumber}`); continue; }
+    if (r.kind !== "installation" && r.kind !== "assessment") continue;
+    screenRows.push({ jobId: r.jobId, jobNumber: r.jobNumber, owner: r.owner, what: r.kind === "assessment" ? "piesa" : "install", amount: r.amount ?? 0, ownCustomer: r.channel === "installer_sourced", state: r.state, ownerFirst: r.owner?.split(/\s+/)[0] ?? null, held: r.held });
+  }
+  const screen = moneyScreen(screenRows, now);
+  return { kind: c.kind, boss: c.boss, business: c.biz.name, bankEnding: accountEnding(bank?.account_number), next: next ? { on: next, total: sum(nextRows), jobs: nextRows.length } : null, month: sum(rows.filter((r) => r.doneAt && new Date(r.doneAt) >= m0)), allTime: sum(rows), rows, ownerDirect, paidByInstaller, screen };
 }
 
 /**
