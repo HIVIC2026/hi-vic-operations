@@ -8,6 +8,8 @@ const db = new PGlite();
 await db.exec(`
   create schema auth; create function auth.uid() returns uuid language sql as 'select null::uuid';
   create role anon; create role authenticated; create role service_role;
+  -- As on Supabase: every new function in public is executable by these roles unless the migration revokes it.
+  alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;
   create type public.app_role as enum ('admin','qa_office');
   create function public.has_role(_u uuid, _r public.app_role) returns boolean language sql as 'select false';
   create function public.is_admin() returns boolean language sql as 'select false';
@@ -92,6 +94,21 @@ describe("installer portal roles SQL", () => {
     // Switching to the same value again adds nothing.
     await db.query("select public.set_member_can_see_money($1, $2, $3, true)", [BIZ, BOSS, w]);
     expect((await db.query("select 1 from public.admin_config_events where event_type = 'member_money_access_changed'")).rows).toHaveLength(1);
+  });
+
+  // Fix wave I3: both RPCs are service_role only — a signed-in portal user (authenticated) or an anonymous caller cannot
+  // execute them straight through PostgREST (`rpc(...)`); only the server's service key can.
+  test("both RPCs are refused to anon and authenticated, allowed to service_role", async () => {
+    const can = async (role: string, fn: string) => (await db.query<{ ok: boolean }>(`select has_function_privilege('${role}', '${fn}', 'EXECUTE') ok`)).rows[0]!.ok;
+    for (const fn of ["public.add_team_person_with_identity(uuid,uuid,text,text,text,text,date,text,text)", "public.set_member_can_see_money(uuid,uuid,uuid,boolean)"]) {
+      expect(await can("anon", fn), `anon ${fn}`).toBe(false);
+      expect(await can("authenticated", fn), `authenticated ${fn}`).toBe(false);
+      expect(await can("service_role", fn), `service_role ${fn}`).toBe(true);
+    }
+    // And the real thing: as `authenticated`, the call itself is refused.
+    await db.exec("set role authenticated");
+    try { await expect(db.query("select public.set_member_can_see_money($1, $2, $3, true)", [BIZ, BOSS, BOSS])).rejects.toThrow(/permission denied/i); }
+    finally { await db.exec("reset role"); }
   });
 
   test("migration can run twice", async () => { await db.exec(MIGRATION); });

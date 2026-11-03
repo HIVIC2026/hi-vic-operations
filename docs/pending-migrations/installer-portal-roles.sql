@@ -52,7 +52,7 @@ BEGIN
  INSERT INTO public.partner_worker_identity(worker_id,date_of_birth,updated_by) VALUES(worker,_dob,_actor);
  RETURN worker;
 END $$;
-REVOKE ALL ON FUNCTION public.add_team_person_with_identity(uuid,uuid,text,text,text,text,date,text,text) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.add_team_person_with_identity(uuid,uuid,text,text,text,text,date,text,text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.add_team_person_with_identity(uuid,uuid,text,text,text,text,date,text,text) TO service_role;
 
 CREATE OR REPLACE FUNCTION public.set_member_can_see_money(_business uuid,_actor uuid,_worker uuid,_on boolean)
@@ -71,5 +71,5 @@ BEGIN
  VALUES(_actor,'member_money_access_changed',CASE WHEN _on THEN 'Office person can now see Money' ELSE 'Office person can no longer see Money' END,
   jsonb_build_object('business_id',_business,'worker_id',_worker,'user_id',w.profile_id,'from',was,'to',_on));
 END $$;
-REVOKE ALL ON FUNCTION public.set_member_can_see_money(uuid,uuid,uuid,boolean) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.set_member_can_see_money(uuid,uuid,uuid,boolean) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.set_member_can_see_money(uuid,uuid,uuid,boolean) TO service_role;
