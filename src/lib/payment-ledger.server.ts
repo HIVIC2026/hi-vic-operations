@@ -4,7 +4,6 @@
 // payments.server re-exports everything here; the rules are unchanged (audit F01 reconciliation).
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { cumulativePaidCents, effectiveLedger, ledgerRecordFromEvent, toCents, withSeparateMarks, type PaymentRecord } from "./payments.core";
-import { readByJobIds } from "./sweep-batch.server";
 
 export const PAYMENT_EVENT = "owner_payment_recorded";
 /** Audit F01: a recorded Xero payment that Xero later shows DELETED/VOIDED (or no longer lists). One per PaymentID. */
@@ -27,25 +26,6 @@ export async function rawPaymentLedger(jobId: string, invoiceId?: string): Promi
     .filter((r) => !invoiceId || r.details["invoice_id"] === invoiceId)
     .map((r) => ({ id: r.id, createdAt: r.created_at, ...ledgerRecordFromEvent(r.event_type, r.created_at, r.actor_id, r.details) }));
   return withSeparateMarks(rows, separate);
-}
-
-/** Fix wave I4 (installer My work): the same reconciled ledger as `paymentLedger`, for many jobs in one batched read pair
- *  (no invoice filter: every payment on the job). The caller supplies already-authorised job ids. */
-export async function paymentLedgersForJobs(jobIds: string[]): Promise<Map<string, PaymentRecord[]>> {
-  const ids = [...new Set(jobIds)];
-  const out = new Map<string, PaymentRecord[]>(ids.map((id) => [id, []]));
-  if (!ids.length) return out;
-  type Ev = LedgerRow & { job_id: string };
-  const [rows, marks] = await Promise.all([
-    readByJobIds<Ev>("payment history", ids, (chunk) => admin.from("workflow_events").select("id, job_id, event_type, created_at, actor_id, details").in("job_id", chunk).in("event_type", [PAYMENT_EVENT, PAYMENT_REVERSED_EVENT]).order("created_at")),
-    readByJobIds<{ job_id: string; details: Record<string, unknown> | null }>("payment marks", ids, (chunk) => admin.from("workflow_events").select("job_id, details").in("job_id", chunk).eq("event_type", PAYMENT_MATCH_SEPARATE_EVENT)),
-  ]);
-  for (const id of ids) {
-    const separate = marks.filter((m) => m.job_id === id).map((m) => String(m.details?.["pair_key"] ?? "")).filter(Boolean);
-    const raw = rows.filter((r) => r.job_id === id).map((r) => ({ id: r.id, createdAt: r.created_at, ...ledgerRecordFromEvent(r.event_type, r.created_at, r.actor_id, r.details) }));
-    out.set(id, effectiveLedger(withSeparateMarks(raw, separate)));
-  }
-  return out;
 }
 
 /** Money received on the invoice in cents — the same figure `jobPaymentView` uses: the reconciled ledger, or (an invoice

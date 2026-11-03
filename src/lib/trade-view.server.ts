@@ -43,7 +43,6 @@ import { needsFinishingTask, installerAttendanceLine, historicalReadyCheckDay, c
 import { needsFinishingList } from "./installer-screens.core";
 import { FIXES_COES_DOC_KIND, FIXES_COES_DOC_TITLE } from "./fixes-day.core";
 import { melbourneMidnight } from "./daily-brief.core";
-import * as paymentLedgerServer from "./payment-ledger.server";
 import * as inHouseElectricianServer from "./in-house-electrician.server";
 import { currentAllocation } from "./visit-allocation.core";
 import { isStepPaid } from "./payments.core";
@@ -209,6 +208,7 @@ export async function tradeHome(userId: string) {
   // Decisions 278/279: the one status line needs two more facts per installer job — has the Mitti form any installer
   // answers (latest ready_check_basics event) and, on the installer's own jobs, has the boss entered the price.
   const formReads = c.kind === "installer" && live.length > 0;
+  const depositModule = await import('./install-deposit-list.server');
   // Round 3: every read that needs the job ids, together.
   const [{ data: books }, { data: missing }, { data: deadlines }, sf, rcQuotes, { data: ms }, { data: basics }, prices, { data: histJobs }, { data: assessRows }, ledgers, coesOnFile, { data: allocEvents }] = await Promise.all([
     admin.from("bookings").select("job_id, kind, status, scheduled_start, scheduled_end").in("job_id", ids).in("status", ["confirmed", "completed"]).order("scheduled_start"),
@@ -227,7 +227,7 @@ export async function tradeHome(userId: string) {
     formReads ? admin.from("assessments").select("job_id, status, piesa_outcome").in("job_id", liveIds) : Promise.resolve({ data: [] as { job_id: string; status: string | null; piesa_outcome: string | null }[] }),
     // Fix wave I4 (same reads as the Job page, batched): the owner's payments (deposit date), the CoES document (certificate
     // in) and the electrician allocation events (the electrician's name). A failed read fails the page, like the rest of this round.
-    formReads ? paymentLedgerServer.paymentLedgersForJobs(liveIds) : Promise.resolve(new Map<string, { paidAt: string }[]>()),
+    formReads ? depositModule.paymentLedgersForJobs(liveIds) : Promise.resolve(new Map<string, { paidAt: string }[]>()),
     formReads ? coesOnFileForJobs(liveIds) : Promise.resolve(new Set<string>()),
     formReads ? admin.from("workflow_events").select("job_id, details, created_at").in("job_id", liveIds).eq("event_type", "in_house_electrician_allocated").order("created_at", { ascending: false }) : Promise.resolve({ data: [] as { job_id: string | null; details: unknown; created_at: string }[] }),
   ]);
@@ -235,7 +235,6 @@ export async function tradeHome(userId: string) {
   const depositIds = c.kind === 'installer' ? live.filter(j => j.stage === 'installation_scheduling' && !!sf.get(j.id)?.inHouseDispatch).map(j => j.id) : [];
   // My work (Task 4): the deposit is also read for jobs the owner has accepted, so the Next step box can say "Deposit paid". Same call, run alongside.
   const acceptedIds = c.kind === 'installer' ? live.filter(j => !depositIds.includes(j.id) && rcQuotes.get(j.id)?.accepted === true).map(j => j.id) : [];
-  const depositModule = await import('./install-deposit-list.server');
   const [installDeposits, acceptedDeposits] = await Promise.all([
     depositModule.installDepositPaidForJobs(depositIds).catch(() => new Map<string, boolean | null>(depositIds.map(id => [id, null]))),
     acceptedIds.length ? depositModule.installDepositPaidForJobs(acceptedIds).catch(() => new Map<string, boolean | null>(acceptedIds.map(id => [id, null]))) : Promise.resolve(new Map<string, boolean | null>()),
