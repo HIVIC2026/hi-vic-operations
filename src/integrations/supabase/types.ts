@@ -1400,6 +1400,7 @@ export type Database = {
           abn: string | null
           accepting_new_jobs: boolean | null
           acn: string | null
+          added_by_installer_business_id: string | null
           address: string | null
           approval_message_queued_at: string | null
           approval_message_status: string | null
@@ -1433,6 +1434,7 @@ export type Database = {
           in_house: boolean
           in_house_set_at: string | null
           in_house_set_by: string | null
+          installer_added_rejected_reason: string | null
           installer_certification: Json
           is_active: boolean
           lead_time: string | null
@@ -1463,6 +1465,7 @@ export type Database = {
           typical_days: string[] | null
           updated_at: string
           weekly_capacity: number | null
+          workcover_exempt_declared_at: string | null
           xero_contact_error: string | null
           xero_contact_id: string | null
           xero_contact_status: string
@@ -1472,6 +1475,7 @@ export type Database = {
           abn?: string | null
           accepting_new_jobs?: boolean | null
           acn?: string | null
+          added_by_installer_business_id?: string | null
           address?: string | null
           approval_message_queued_at?: string | null
           approval_message_status?: string | null
@@ -1505,6 +1509,7 @@ export type Database = {
           in_house?: boolean
           in_house_set_at?: string | null
           in_house_set_by?: string | null
+          installer_added_rejected_reason?: string | null
           installer_certification?: Json
           is_active?: boolean
           lead_time?: string | null
@@ -1535,6 +1540,7 @@ export type Database = {
           typical_days?: string[] | null
           updated_at?: string
           weekly_capacity?: number | null
+          workcover_exempt_declared_at?: string | null
           xero_contact_error?: string | null
           xero_contact_id?: string | null
           xero_contact_status?: string
@@ -1544,6 +1550,7 @@ export type Database = {
           abn?: string | null
           accepting_new_jobs?: boolean | null
           acn?: string | null
+          added_by_installer_business_id?: string | null
           address?: string | null
           approval_message_queued_at?: string | null
           approval_message_status?: string | null
@@ -1577,6 +1584,7 @@ export type Database = {
           in_house?: boolean
           in_house_set_at?: string | null
           in_house_set_by?: string | null
+          installer_added_rejected_reason?: string | null
           installer_certification?: Json
           is_active?: boolean
           lead_time?: string | null
@@ -1607,12 +1615,20 @@ export type Database = {
           typical_days?: string[] | null
           updated_at?: string
           weekly_capacity?: number | null
+          workcover_exempt_declared_at?: string | null
           xero_contact_error?: string | null
           xero_contact_id?: string | null
           xero_contact_status?: string
           xero_contact_synced_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "businesses_added_by_installer_business_id_fkey"
+            columns: ["added_by_installer_business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "businesses_approved_by_fkey"
             columns: ["approved_by"]

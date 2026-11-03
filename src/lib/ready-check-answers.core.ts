@@ -32,7 +32,9 @@ export function readyCheckStopReasons(entries: E[], opts: { ownerAnsweredOnWebsi
   const out: string[] = [];
   if (vals(entries, ["Homeowner agrees to be contacted by Home Insulation Victoria"]).some((v) => yesNo(v) === false)) out.push(STOP_NO_CONTACT);
   // Decision 222: lean option "R2.0 or above" (R2.0 exactly = ineligible); "Above R2.0" on 22–24 Oct forms reads the same.
-  if (vals(entries, [LEAN_Q.rValue]).some((v) => isR2OrAbove(v))) out.push(STOP_R2);
+  if (vals(entries, [LEAN_Q.rValue]).some((v) => isR2OrAbove(v))) out.push(STOP_R2)
+  // Jo 4 Nov 2026 forms: "Old insulation R value?" → "R2.0 or more (failed answer)".
+  else if (vals(entries, ["Old insulation R value?"]).some((v) => /failed answer/i.test(v))) out.push(STOP_R2);
   if (vals(entries, [LEAN_Q.access]).some((v) => isNoSafeAccess(v))) out.push(STOP_NO_SAFE_ACCESS);
   if (opts.ownerAnsweredOnWebsite) return out;
   if (vals(entries, ["Life support equipment at property?"]).some((v) => yesNo(v) === true)) out.push(STOP_LIFE_SUPPORT);
