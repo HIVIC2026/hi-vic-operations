@@ -34,6 +34,8 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
   const installDay = isInstallDayDoc(audit);
   const isA3 = expectedTpl === A3_TPL || installDay;
   const fetchMedia = opts.fetchMedia ?? (isA3 ? (await import("./mitti.server")).realMittiMedia : undefined);
+  // Jo 2 Nov (answer 16): changes during the job re-file the SWMS. Own try/catch inside; never blocks the record.
+  if (installDay) { try { await (await import("./swms-changes.server")).syncSwmsChanges(jobId, actorId, audit); } catch { /* logged inside */ } }
   const finalPostworkVersion = "a3-final-postwork-2026-10-08";
   // Decision 205: read the Table 4 install-day items (per-zone videos/ruler photos, daily re-check) on every A5 sync,
   // signed or not — the gate reads the latest record; a failed read leaves the gate closed, never open.

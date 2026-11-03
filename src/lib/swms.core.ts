@@ -4,6 +4,7 @@
 // (Safe-work-method-statements-2023-07). Legal minimum per docs/SWMS_REQUIREMENTS_VIC_2026-10-24.md (OHS Regs 2017
 // r 326–328): high-risk construction work, hazards, control measures, how they are implemented, monitored and reviewed.
 import { norm } from "./trade-shared-consts.core";
+import { sha256Hex } from "./sha256.core";
 
 export const SWMS_RULE = "swms-portal-2026-10-24";
 /** Principal contractor printed on every SWMS. */
@@ -221,4 +222,12 @@ export function swmsLineView(signer: SwmsSigner, signed: boolean, ownKeys: reado
 export function swmsUnsignedSigners(plan: SwmsPlan, sigs: SwmsSignature[]): SwmsSigner[] {
   const by = latestSignatures(sigs);
   return plan.signers.filter((s) => !by.has(s.key));
+}
+
+/** A change during the job (Jo 2 Nov, answer 16): what came up, what was done about it, who recorded it, and when (ISO). */
+export type SwmsChange = { what: string; control: string; by: string; at: string };
+/** Stable key of a set of changes ("" = none), so the SWMS is re-filed once per distinct set. */
+export function swmsChangesKey(changes: SwmsChange[]): string {
+  if (!changes.length) return "";
+  return sha256Hex(JSON.stringify(changes.map((c) => [c.what, c.control, c.by, c.at]))).slice(0, 32);
 }

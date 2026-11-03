@@ -1,4 +1,4 @@
-# Mitti paste — A5 Install day: adult at home + Lead Installer's VEEC Part B (Jo, 2 Nov 2026)
+# Mitti paste — A5 Install day: adult at home + Lead Installer's VEEC Part B + changes during the job (Jo, 2 Nov 2026)
 
 Code of Conduct: an adult (18 or over) must be at home when the installer starts. DRAFT wording: Jo has not approved it
 yet, so do not paste this until she does. Forms already sent keep working: the portal treats a form without the question
@@ -62,6 +62,24 @@ the information supplied in this form is complete and accurate and I am aware th
 2. A checkbox: "I make this declaration as the Lead Installer" — Required
 3. A signature: "Lead Installer's signature for the rebate form (Part B)" — Required
 Help line on the page: Sign this last, after the install is finished.
+
+Change nothing else. Publish.
+```
+
+## 3. Changes during the job (prints on the safety plan)
+
+DRAFT labels: Jo has not approved them yet. Both are optional. If the Lead Installer fills in the first, the portal files the
+safety plan (SWMS) again with a "Changes during the job" table (what changed, what was done, who, when). Forms already sent
+keep working: without these the portal records no changes. Once pasted, send installers a new form.
+
+Copy everything in the box below into ChatGPT.
+
+```
+Edit the Mitti template "A5 – Install day" (template ID 1f325828-3f71-4b1a-988f-083c83414f95). Add ONLY what is listed here, then publish.
+
+On the page that holds "Lead installer's signature" (the last signature), straight after the signature, add two optional text items, in this order:
+1. "Did anything new come up during the job that affects safety? What was it?" — Text — Not required
+2. "What did you do to keep everyone safe?" — Text — Not required
 
 Change nothing else. Publish.
 ```

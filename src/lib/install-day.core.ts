@@ -12,6 +12,7 @@ import { norm } from "./mitti.core";
 import { ADULT_PRESENT_LABEL, onsiteStartTicked } from "./official-short.core";
 import { B1_OPTIONS, type OfficialAnswers } from "./official-forms.core";
 import { sectionCSigned } from "./piesa-rules-notice.core";
+import type { SwmsChange } from "./swms.core";
 import { INSTALLER_DECLARATION } from "./veec-assignment-form.core";
 import { mittiMediaFile, type MittiMediaFile } from "./piesa-evidence.core";
 
@@ -163,6 +164,9 @@ export const INSTALL_DAY_NOV2_Q = {
   /** DRAFT labels (Jo has not approved them yet): the Lead Installer's VEEC Part B tick and signature on the new last page. */
   partBTick: "I make this declaration as the Lead Installer",
   partBSignature: "Lead Installer's signature for the rebate form (Part B)",
+  /** DRAFT labels (Jo 2 Nov, answer 16): "Changes during the job" — two optional text items that print on the SWMS. */
+  swmsChange: "Did anything new come up during the job that affects safety? What was it?",
+  swmsNewControl: "What did you do to keep everyone safe?",
 } as const;
 /** The new last page of the A5 (after the page holding Q48). */
 export const INSTALL_DAY_PART_B_PAGE = "Rebate form (VEEC) — Lead Installer";
@@ -183,6 +187,40 @@ export function installDayAdultOnForm(audit: unknown): boolean {
 export function installDayAdultPresent(audit: unknown): "Yes" | "No" | null {
   const v = allWithLabel(labelledItems(audit), INSTALL_DAY_NOV2_Q.adultPresent).map((i) => i.value?.trim() ?? "").find((x) => x);
   return v == null ? null : /^yes\b/i.test(v) ? "Yes" : /^no\b/i.test(v) ? "No" : null;
+}
+/**
+ * Jo 2 Nov, answer 16: a change during the job (e.g. a wasp nest) and what the Lead Installer did about it. One row when the
+ * change item is filled; [] when it is blank or not on the form (built before the paste). `at` = the item's own answer time if
+ * Mitti gives one, else the audit's modified time. `by` is always the Lead Installer (who fills the A5).
+ */
+export function installDaySwmsChanges(audit: unknown, leadName: string): SwmsChange[] {
+  if (!audit || typeof audit !== "object") return [];
+  const items = labelledItems(audit);
+  const answer = (label: string) => allWithLabel(items, label).map((i) => i.value?.trim() ?? "").find((v) => v) ?? "";
+  const what = answer(INSTALL_DAY_NOV2_Q.swmsChange);
+  if (!what) return [];
+  const raw = audit as { modified_at?: unknown; audit_data?: { date_modified?: unknown } };
+  const own = findAnswerTime(audit, INSTALL_DAY_NOV2_Q.swmsChange);
+  const mod = [raw.modified_at, raw.audit_data?.date_modified].find((t) => typeof t === "string" && t.trim()) as string | undefined;
+  return [{ what, control: answer(INSTALL_DAY_NOV2_Q.swmsNewControl), by: leadName, at: own ?? mod ?? "" }];
+}
+/** The answer time Mitti gives on the first item with this label (responses.datetime / date), if any. */
+function findAnswerTime(doc: unknown, label: string): string | null {
+  let out: string | null = null;
+  const walk = (x: unknown) => {
+    if (out) return;
+    if (Array.isArray(x)) { x.forEach(walk); return; }
+    if (!x || typeof x !== "object") return;
+    const o = x as Record<string, any>;
+    if (o["label"] === label) {
+      const r = (o["responses"] ?? {}) as Record<string, any>;
+      const t = [r["datetime"], r["timestamp"], r["answered_at"], o["modified_at"]].find((v) => typeof v === "string" && !Number.isNaN(Date.parse(v)));
+      if (t) { out = t; return; }
+    }
+    Object.values(x).forEach(walk);
+  };
+  walk(doc);
+  return out;
 }
 /** The 2 Nov items the template does not carry yet (exact wording). Advisory — see INSTALL_DAY_NOV2_Q. */
 export function installDayNov2MissingQuestions(template: unknown): string[] {
