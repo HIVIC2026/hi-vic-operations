@@ -5,6 +5,9 @@ import { expandPiesa } from '../src/lib/official-expand.core';
 import { readFixesDay, isFixesDayDoc } from '../src/lib/fixes-day.core';
 import { readInstallDay, isInstallDayDoc, INSTALL_DAY_Q } from '../src/lib/install-day.core';
 import { readInstallEvidence } from '../src/lib/install-evidence.core';
+import { validateTemplate, FORMS } from '../src/lib/mitti-forms.core';
+import { canonicalMittiLabel, INSTALL_REBUILD_ALIASES } from '../src/lib/mitti-rebuild-labels.core';
+import { layoutProductReady } from '../src/lib/ready-check-basics.core';
 const e = (label: string, value: string) => ({ label, value });
 const switchQ = 'Does the main switch work, can you reach it, does it switch off every cable in the ceiling, and can it be locked off?';
 const rcdQ = 'Are safety switches (RCDs) fitted for the ceiling circuits, and have you tested them?';
@@ -45,4 +48,36 @@ test('A5 new after-video and final tick identify the form and feed completion ev
 test('A5 No final tick and inactive answers never count as completion', () => {
   const doc = { items: [e('Everything on this form is true and complete', 'Yes'), e('AFTER videos: one slow 360° turn of each area', '1 video'), e("Every answer, photo and video is filled in. I won't leave until the portal texts me 'All filled in'.", 'No'), { ...e('Is the lock and tag off and the power back on?', 'Yes'), inactive: true }] };
   expect(readInstallDay(doc).ticked(INSTALL_DAY_Q.allFilledIn)).toBe(false); expect(readInstallEvidence(doc).after.allFilledIn).toBe(false); expect(readInstallDay(doc).yn(INSTALL_DAY_Q.lockoutOff)).toBeNull();
+});
+test('unknown switch defects do not populate safe official items', () => {
+ const { answers, flagged } = expand([e(switchQ, 'No'), e("Tick everything that's not right.", 'The main switch cannot be secured in the off position. | Unknown defect'), e(rcdQ, 'Yes'), e(mainsQ, 'Yes'), e(deadQ, 'Yes')]);
+ expect(answers['p2.switchAccessible']).toBeUndefined(); expect(flagged.some(x => x.includes('not recognised'))).toBe(true);
+});
+test('duplicate split answers are ambiguous, not last-answer-wins', () => {
+ const { answers, flagged } = expand([e(switchQ, 'No'), e(switchQ, 'Yes'), e(rcdQ, 'Yes'), e(mainsQ, 'Yes'), e(deadQ, 'Yes')]);
+ expect(answers['p2.switchAccessible']).toBeUndefined(); expect(flagged.some(x => x.includes('Main switch'))).toBe(true);
+});
+test('A3 template accepts split questions but refuses a missing tested-dead field', () => {
+ const fields = FORMS.piesa.fields.filter(f => !f.statement && f.id !== 'mainsSafe' && f.id !== 'mainsProblems');
+ const items = fields.map(f => ({ label: f.label, type: f.type }));
+ items.push(...[switchQ, rcdQ, mainsQ, deadQ].map(label => ({ label, type: 'yesno' })));
+ expect(validateTemplate('piesa', items).ok).toBe(true);
+ expect(validateTemplate('piesa', items.filter(i => i.label !== deadQ)).ok).toBe(false);
+});
+test('layout product readiness needs a real approved brand and batt, never a brand alone', () => {
+ const entries = [e('Old insulation in this area?', 'None'), e('Which brand are you installing?', 'Earthwool')];
+ expect(layoutProductReady(entries, null)).toBe(false);
+ expect(layoutProductReady([...entries, e('Which batts?', 'R7.0')], null)).toBe(false);
+ expect(layoutProductReady([...entries, e('Which batts?', 'R5.0')], null)).toBe(true);
+ expect(layoutProductReady(entries, [{ brand: 'Bradford Gold', r: 3.5 }])).toBe(true);
+});
+test('A5 aliases preserve two separately timed signatures and private media metadata', () => {
+ const doc = { items: [
+ { id: 'start', label: "Lead installer's signature", responses: { media_id: '11111111-1111-1111-1111-111111111111', name: 'TEST Lead', signed_at: '2026-11-04T00:00:00Z' } },
+ { id: 'video', label: INSTALL_REBUILD_ALIASES[INSTALL_DAY_Q.afterVideos], media: [{ id: 'after-test', captured_at: '2026-11-04T01:00:00Z', lat: -37, lng: 145 }] },
+ { id: 'end', label: "Lead installer's signature", responses: { media_id: '22222222-2222-2222-2222-222222222222', name: 'TEST Lead', signed_at: '2026-11-04T02:00:00Z' } },
+ ] };
+ const r = readInstallDay(doc);
+ expect(r.declarationSignature.signedAt).toBe('2026-11-04T00:00:00Z'); expect(r.completionSignature.signedAt).toBe('2026-11-04T02:00:00Z'); expect(r.media(INSTALL_DAY_Q.afterVideos)[0]?.lat).toBe(-37);
+ expect(canonicalMittiLabel('Photo of the whole area, lights on')).toBe('Photo of the whole area, lights on');
 });
