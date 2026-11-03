@@ -54,7 +54,11 @@ import * as mittiInviteServer from "./mitti-invite.server";
 import * as usualElectricianServer from "./usual-electrician.server";
 import * as schemaCompatCore from "./schema-compat.core";
 import { mittiAccessOf } from "./mitti-membership.core";
-const loadInstallerQuotes = (ids: string[]) => quoteStatusServer.loadInstallerQuotes(ids);
+const loadInstallerQuotes = (ids: string[], shared?: import("./installer-quote-status.server").SharedQuoteReads) => quoteStatusServer.loadInstallerQuotes(ids, shared);
+// Speed (portal speed step 2B, home flatten): the home's deposit facts and Mitti electrician question load at module
+// scope too (namespaces, read at call time), instead of an awaited import() inside the loader.
+import * as installDepositListServer from "./install-deposit-list.server";
+import * as mittiElectricianServer from "./mitti-electrician.server";
 const readInstallerPrices = (ids: string[]) => installerPriceServer.readInstallerPrices(ids);
 
 type Biz = { id: string; name: string; business_type: string | null; capabilities: string[] | null; base_suburb: string | null; coverage_radius_km: number | null; covers_all_victoria: boolean | null; accepting_new_jobs: boolean | null; onboarding_notes: string | null; mitti_account_invited?: boolean | null };
@@ -98,15 +102,18 @@ export async function bossOrThrow(userId: string) {
 
 const VISIT: Record<string, string> = { assessment: "Pre Insulation Electrical Safety Assessment (PIESA)", rectification: "Fixes", ready_check: "Ready Check", installation: "Install" };
 
-const HOME_JOB_COLS = "id, job_number, stage, source, channel, qa_archived_at, deleted_at, updated_at, next_action, owners(full_name), properties(address_line, suburb, postcode)";
-type HomeJob = { id: string; job_number: string; stage: string; source: string; channel: string | null; qa_archived_at: string | null; deleted_at: string | null; updated_at: string | null; next_action: string | null; owners: unknown; properties: unknown };
+// Speed (portal speed step 2B): `created_at`, `originating_installer_business_id` and `electrician_choice` ride along so the
+// status facts and the Mitti electrician question do not read the same job rows again in round 3.
+const HOME_JOB_COLS = "id, job_number, stage, source, channel, qa_archived_at, deleted_at, updated_at, next_action, created_at, originating_installer_business_id, electrician_choice, owners(full_name), properties(address_line, suburb, postcode)";
+type HomeJob = { id: string; job_number: string; stage: string; source: string; channel: string | null; qa_archived_at: string | null; deleted_at: string | null; updated_at: string | null; next_action: string | null; created_at: string | null; originating_installer_business_id: string | null; electrician_choice: string | null; owners: unknown; properties: unknown };
 
 /** My work: open offers, things that need this trade, booked visits, and this month. */
 export async function tradeHome(userId: string) {
-  // Speed (installer screens, Task 5): three rounds of reads — (1) sign-in context, (2) everything that needs only the
-  // business (offers, assignments with their jobs embedded, ended assignments, owner money rows), (3) everything that
-  // needs the job ids. The owner's money rows run their own short chain alongside rounds 2–4, and the deposit facts and the
-  // Mitti electrician question (round 3) need one more round each (round 4). Same reads, same value.
+  // Speed (installer screens, Task 5; portal speed step 2B): three rounds of reads — (1) sign-in context, (2) everything
+  // that needs only the business (offers, assignments with their jobs embedded, ended assignments, the owner's money rows'
+  // visits and payer configuration), (3) everything that needs the job ids, the money rows' follow-up reads included. The
+  // job rows from round 2 answer the status facts, the quote status and the Mitti electrician question (no second jobs
+  // read), and the Ready Check form facts are read once for the status line and the quote status. Same value.
   const c = await ctxOrThrow(userId);
   const now = new Date();
   // Business owner only, own pay only. Started now, awaited after round 3; a failure still fails the page (money path).
@@ -137,23 +144,26 @@ export async function tradeHome(userId: string) {
   const formReads = c.kind === "installer" && live.length > 0;
   // Speed (portal speed step 1, Task 5): the install-deposit facts and the Mitti electrician question start with round 3
   // instead of after it. The deposit facts are read for every live job at install scheduling and kept only for the jobs held
-  // by an in-house partner (known from round 3), as before. Both keep their display catch; a failed module load still fails.
+  // by an in-house partner (known from round 3), as before. Both keep their display catch.
   const depositCandidates = c.kind === "installer" ? live.filter((j) => j.stage === "installation_scheduling").map((j) => j.id) : [];
-  const depositsP = import("./install-deposit-list.server").then((m) => m.installDepositPaidForJobs(depositCandidates).catch(() => null));
-  depositsP.catch(() => undefined); // awaited below; this only stops an early rejection being reported as unhandled
-  // Jo 3 Nov 2026: Mitti pickups still waiting for the installer's one electrician answer (own electricians only).
-  const askElectricianP = c.kind === "installer" ? import("./mitti-electrician.server").then((m) => m.openMittiElectricianQuestions(live.map((j) => j.id)).catch(() => new Set<string>())) : Promise.resolve(new Set<string>());
-  askElectricianP.catch(() => undefined);
+  const depositsP = installDepositListServer.installDepositPaidForJobs(depositCandidates).catch(() => null);
+  // Jo 3 Nov 2026: Mitti pickups still waiting for the installer's one electrician answer (own electricians only). Answered
+  // from the job rows already read (the first 200 live jobs, as the read it replaces took); a failed read → none open.
+  const askElectricianP = c.kind === "installer" ? mittiElectricianServer.openMittiElectricianQuestionsForJobs(live.slice(0, 200)).catch(() => new Set<string>()) : Promise.resolve(new Set<string>());
+  // The Ready Check form facts (decisions 278/279), read once here and shared with the quote status below. Wrapped in a
+  // real Promise: a query builder is a thenable that runs its query again for every `then`, so sharing it as-is would read twice.
+  const msP = Promise.resolve(formReads ? admin.from("ceiling_measurements").select("job_id, external_source, external_id").in("job_id", liveIds).eq("is_current", true) : { data: [] as { job_id: string; external_source: string | null; external_id: string | null }[] });
+  const basicsP = Promise.resolve(formReads ? admin.from("workflow_events").select("job_id, details, created_at").in("job_id", liveIds).eq("event_type", "ready_check_basics").order("created_at", { ascending: false }) : { data: [] as { job_id: string | null; details: unknown; created_at: string }[] });
   // Round 3: every read that needs the job ids, together.
   const [{ data: books }, { data: missing }, { data: deadlines }, sf, rcQuotes, { data: ms }, { data: basics }, prices, { data: histJobs }] = await Promise.all([
     admin.from("bookings").select("job_id, kind, status, scheduled_start, scheduled_end").in("job_id", ids).in("status", ["confirmed", "completed"]).order("scheduled_start"),
     admin.from("evidence_requirements").select("job_id, category, gate, label").in("job_id", ids).eq("required", true).in("status", ["outstanding", "rejected"]),
     admin.from("job_piesa_deadlines").select("job_id, install_deadline").in("job_id", ids),
-    statusFactsFor(c, liveIds),
+    statusFactsFor(c, liveIds, { jobs: live.map((j) => ({ id: j.id, job_number: j.job_number, stage: j.stage, channel: j.channel, originating_installer_business_id: j.originating_installer_business_id, created_at: j.created_at })) }),
     // Installer quote status — one plain line, no approval step (Jo 24 Oct). A failed read drops the lines, never the page.
-    c.kind === "installer" ? loadInstallerQuotes(liveIds).catch(() => new Map<string, InstallerQuote>()) : Promise.resolve(new Map<string, InstallerQuote>()),
-    formReads ? admin.from("ceiling_measurements").select("job_id, external_source, external_id").in("job_id", liveIds).eq("is_current", true) : Promise.resolve({ data: [] as { job_id: string; external_source: string | null; external_id: string | null }[] }),
-    formReads ? admin.from("workflow_events").select("job_id, details, created_at").in("job_id", liveIds).eq("event_type", "ready_check_basics").order("created_at", { ascending: false }) : Promise.resolve({ data: [] as { job_id: string | null; details: unknown; created_at: string }[] }),
+    c.kind === "installer" ? loadInstallerQuotes(liveIds, { channels: new Map(live.map((j) => [j.id, j.channel])), measurements: msP, basics: basicsP }).catch(() => new Map<string, InstallerQuote>()) : Promise.resolve(new Map<string, InstallerQuote>()),
+    msP,
+    basicsP,
     formReads ? readInstallerPrices(liveIds) : Promise.resolve(new Map<string, unknown>()),
     histIds.length
       ? admin.from("jobs").select("id, job_number, stage, source, channel, qa_archived_at, deleted_at, updated_at, properties(suburb)").in("id", histIds).in("stage", ["complete", "cancelled"])
