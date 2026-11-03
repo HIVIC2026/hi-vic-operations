@@ -2,7 +2,8 @@
 // suggestion as the `ai_photo_check` property fact the By area view reads. It never writes desk_check_status,
 // lead_campaign_responses or jobs, never decides eligibility and never messages anyone. Images only (the 4 most recent
 // under 10 MB); only video → "can't tell" with no gateway call. TEST jobs get a stubbed verdict and never reach the
-// gateway (same rule as coes-check.server). Never throws to its callers.
+// gateway (same rule as coes-check.server). Runs only from the post-intake tick (no upload hook), once the newest
+// upload has settled for 5 minutes, so an upload burst costs one AI call. Never throws to its callers.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { Json } from "@/integrations/supabase/types";
@@ -17,6 +18,9 @@ import {
   PHOTO_CHECKED_EVENT,
   photosToSend,
   photoVerdictFrom,
+  hasNewerMedia,
+  PHOTO_CHECK_SKIPPED_EVENT,
+  PHOTO_CHECK_SETTLE_MS,
   readableImageType,
   type MediaDoc,
   type PhotoVerdict,
@@ -134,14 +138,15 @@ async function aiReadPhotos(
   });
 }
 
-/** ai_photo_checked events since Melbourne midnight (one count query). */
+/** ai_photo_checked events since Melbourne midnight (one count query). A failed count reads as the cap (fail closed). */
 async function usedToday(): Promise<number> {
   const since = new Date(melbourneMidnight(melbourneYmd(Date.now()))).toISOString();
-  const { count } = await loose
+  const { count, error } = await loose
     .from("workflow_events")
     .select("id", { count: "exact", head: true })
     .eq("event_type", PHOTO_CHECKED_EVENT)
     .gte("created_at", since);
+  if (error) return DAILY_PHOTO_CHECK_CAP;
   return count ?? 0;
 }
 
@@ -163,12 +168,13 @@ async function saveFact(
   value: { verdict: PhotoVerdict; reason: string; document_ids: string[]; checked_at: string },
   test: boolean,
 ) {
-  await admin
+  const { error: supErr } = await admin
     .from("property_facts")
     .update({ is_current: false, superseded_at: value.checked_at })
     .eq("property_id", propertyId)
     .eq("fact_key", PHOTO_CHECK_FACT)
     .eq("is_current", true);
+  if (supErr) return false; // never a second current row
   const { error } = await admin.from("property_facts").insert({
     job_id: jobId,
     property_id: propertyId,
@@ -206,13 +212,14 @@ export async function checkOwnerMedia(jobId: string): Promise<"done" | "skipped"
     if (docErr) return "skipped";
     const docs = (docRows ?? []) as MediaDoc[];
     if (!docs.length) return "skipped";
-    const { data: prior } = await loose
+    const { data: prior, error: priorErr } = await loose
       .from("property_facts")
       .select("value, created_at")
       .eq("property_id", propertyId)
       .eq("fact_key", PHOTO_CHECK_FACT)
       .eq("is_current", true)
       .limit(1);
+    if (priorErr) return "skipped";
     const p = (
       (prior ?? []) as { value: { checked_at?: unknown } | null; created_at?: string }[]
     )[0];
@@ -221,7 +228,7 @@ export async function checkOwnerMedia(jobId: string): Promise<"done" | "skipped"
         ? p.value.checked_at
         : (p.created_at ?? "")
       : null;
-    if (lastChecked != null && docs.every((d) => d.created_at <= lastChecked)) return "skipped";
+    if (lastChecked != null && !hasNewerMedia(docs, lastChecked)) return "skipped";
     if (!test && (await failedRecently(jobId))) return "skipped";
 
     const { send, noneReason } = photosToSend(docs);
@@ -266,9 +273,12 @@ export async function checkOwnerMedia(jobId: string): Promise<"done" | "skipped"
       ))
     )
       return failed(jobId, "couldn't save the photo check");
+    // Only real gateway calls write ai_photo_checked (the daily cap counts those); TEST stubs and
+    // video-only / no-readable-photo results write ai_photo_check_skipped.
+    const called = !test && !noneReason;
     await writeEvent(
       jobId,
-      PHOTO_CHECKED_EVENT,
+      called ? PHOTO_CHECKED_EVENT : PHOTO_CHECK_SKIPPED_EVENT,
       `AI photo check: ${result.verdict} (suggestion only)`,
       {
         verdict: result.verdict,
@@ -284,72 +294,110 @@ export async function checkOwnerMedia(jobId: string): Promise<"done" | "skipped"
   }
 }
 
-/** Saved spots with media received and no current AI photo check, oldest media first; skips TEST and recent failures. */
-async function pickJobs(): Promise<string[]> {
-  const rows: { job_id: string; media_received_at: string }[] = [];
+type Page = PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>;
+/** Pages to the end; throws on any read error (the tick then picks nothing). */
+async function allRows<T>(page: (from: number, to: number) => Page): Promise<T[]> {
+  const out: T[] = [];
   for (let from = 0; ; from += 1000) {
-    const { data } = await loose
+    const { data, error } = await page(from, from + 999);
+    if (error) throw new Error(error.message);
+    out.push(...((data ?? []) as T[]));
+    if (!data || data.length < 1000) return out;
+  }
+}
+
+/** Saved spots whose newest owner upload is at least 5 minutes old (so a burst of uploads is checked once) and has no
+ *  current AI photo check, or is newer than it. Oldest upload first; skips TEST and failures in the last 24 h. */
+async function pickJobs(): Promise<string[]> {
+  const saved = await allRows<{ job_id: string }>((a, z) =>
+    loose
       .from("lead_campaign_responses")
-      .select("job_id, media_received_at")
+      .select("job_id")
       .not("spot_saved_at", "is", null)
       .not("media_received_at", "is", null)
       .is("opted_out_at", null)
-      .order("media_received_at", { ascending: true })
-      .range(from, from + 999);
-    rows.push(...((data ?? []) as typeof rows));
-    if ((data ?? []).length < 1000) break;
-  }
-  const mediaAt = new Map(rows.map((r) => [r.job_id, r.media_received_at]));
-  const ids = [...mediaAt.keys()];
-  const chunks: string[][] = [];
-  for (let i = 0; i < ids.length; i += CHUNK) chunks.push(ids.slice(i, i + CHUNK));
+      .order("job_id")
+      .range(a, z),
+  );
+  const ids = [...new Set(saved.map((r) => r.job_id))];
   const jobs: { id: string; property_id: string | null }[] = [];
-  for (const c of chunks) {
-    const { data } = await admin
-      .from("jobs")
-      .select("id, property_id")
-      .in("id", c)
-      .is("deleted_at", null)
-      .is("qa_archived_at", null)
-      .neq("source", "qa_test");
-    jobs.push(...((data ?? []) as typeof jobs));
-  }
-  const withProp = jobs.filter((j) => j.property_id);
-  const checked = new Set<string>();
+  const newest = new Map<string, string>();
+  const checkedAt = new Map<string, string>();
   const recentFail = new Set<string>();
   const since = new Date(Date.now() - RETRY_AFTER_MS).toISOString();
-  for (let i = 0; i < withProp.length; i += CHUNK) {
-    const c = withProp.slice(i, i + CHUNK);
-    const { data: f } = await loose
-      .from("property_facts")
-      .select("property_id")
-      .in(
-        "property_id",
-        c.map((j) => j.property_id!),
-      )
-      .eq("fact_key", PHOTO_CHECK_FACT)
-      .eq("is_current", true);
-    for (const r of (f ?? []) as { property_id: string }[]) checked.add(r.property_id);
-    const { data: e } = await loose
-      .from("workflow_events")
-      .select("job_id")
-      .in(
-        "job_id",
-        c.map((j) => j.id),
-      )
-      .eq("event_type", PHOTO_CHECK_FAILED_EVENT)
-      .gte("created_at", since);
-    for (const r of (e ?? []) as { job_id: string }[]) recentFail.add(r.job_id);
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const c = ids.slice(i, i + CHUNK);
+    jobs.push(
+      ...(await allRows<{ id: string; property_id: string | null }>((a, z) =>
+        admin
+          .from("jobs")
+          .select("id, property_id")
+          .in("id", c)
+          .is("deleted_at", null)
+          .is("qa_archived_at", null)
+          .neq("source", "qa_test")
+          .order("id")
+          .range(a, z),
+      )),
+    );
+    // One batched read of the owner uploads; newest per job.
+    const docs = await allRows<{ job_id: string; created_at: string }>((a, z) =>
+      admin
+        .from("documents")
+        .select("job_id, created_at")
+        .in("job_id", c)
+        .eq("kind", CAPTURE_KIND)
+        .order("created_at", { ascending: false })
+        .range(a, z),
+    );
+    for (const d of docs) {
+      const prev = newest.get(d.job_id);
+      if (!prev || Date.parse(d.created_at) > Date.parse(prev)) newest.set(d.job_id, d.created_at);
+    }
+    const fails = await allRows<{ job_id: string }>((a, z) =>
+      loose
+        .from("workflow_events")
+        .select("job_id")
+        .in("job_id", c)
+        .eq("event_type", PHOTO_CHECK_FAILED_EVENT)
+        .gte("created_at", since)
+        .range(a, z),
+    );
+    for (const r of fails) recentFail.add(r.job_id);
+  }
+  const withProp = jobs.filter((j) => j.property_id);
+  const props = [...new Set(withProp.map((j) => j.property_id!))];
+  for (let i = 0; i < props.length; i += CHUNK) {
+    const c = props.slice(i, i + CHUNK);
+    const facts = await allRows<{
+      property_id: string;
+      value: { checked_at?: unknown } | null;
+      created_at?: string;
+    }>((a, z) =>
+      loose
+        .from("property_facts")
+        .select("property_id, value, created_at")
+        .in("property_id", c)
+        .eq("fact_key", PHOTO_CHECK_FACT)
+        .eq("is_current", true)
+        .range(a, z),
+    );
+    for (const f of facts)
+      checkedAt.set(
+        f.property_id,
+        typeof f.value?.checked_at === "string" ? f.value.checked_at : (f.created_at ?? ""),
+      );
   }
   const now = Date.now();
   return withProp
-    .filter(
-      (j) =>
-        !checked.has(j.property_id!) &&
-        !recentFail.has(j.id) &&
-        (memoryBackoff.get(j.id) ?? 0) < now,
-    )
-    .sort((a, b) => String(mediaAt.get(a.id)).localeCompare(String(mediaAt.get(b.id))))
+    .filter((j) => {
+      const latest = newest.get(j.id);
+      if (!latest || now - Date.parse(latest) < PHOTO_CHECK_SETTLE_MS) return false;
+      const last = checkedAt.get(j.property_id!);
+      if (last != null && !(Date.parse(latest) > Date.parse(last))) return false;
+      return !recentFail.has(j.id) && (memoryBackoff.get(j.id) ?? 0) < now;
+    })
+    .sort((a, b) => Date.parse(newest.get(a.id)!) - Date.parse(newest.get(b.id)!))
     .map((j) => j.id);
 }
 
@@ -360,7 +408,14 @@ export async function photoCheckTick(opts: {
   const room = DAILY_PHOTO_CHECK_CAP - (await usedToday());
   if (room <= 0) return res;
   const max = Math.min(opts.limit, room);
-  for (const id of await pickJobs()) {
+  let picked: string[];
+  try {
+    picked = await pickJobs();
+  } catch (e) {
+    console.error("photo check: could not pick jobs", (e as Error).message);
+    return res;
+  }
+  for (const id of picked) {
     if (res.done + res.failed >= max) break;
     const r = await checkOwnerMedia(id);
     if (r === "done") res.done++;

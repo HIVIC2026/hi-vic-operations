@@ -6,9 +6,39 @@ import { photoVerdictFrom, PHOTO_CHECK_PROMPT } from "../src/lib/photo-check.cor
 const tables: Tables = {};
 const db = memoryPostgrest(tables);
 const stored = new Map<string, Uint8Array>();
+/** Tables whose reads (or updates) answer with a database error. */
+const fail = new Map<string, "read" | "update">();
+const erroring = () => {
+  const chain: Record<string, unknown> = {};
+  for (const m of [
+    "select",
+    "update",
+    "insert",
+    "eq",
+    "neq",
+    "in",
+    "is",
+    "not",
+    "gte",
+    "order",
+    "limit",
+    "range",
+    "maybeSingle",
+  ])
+    chain[m] = () => chain;
+  chain.then = (res: (v: unknown) => unknown) =>
+    Promise.resolve({ data: null, error: { message: "db error" } }).then(res);
+  return chain;
+};
 mock.module("../src/integrations/supabase/client.server", () => ({
   supabaseAdmin: {
-    from: (t: string) => db.from(t),
+    from: (t: string) => {
+      const f = fail.get(t);
+      if (f === "read") return erroring();
+      const b = db.from(t);
+      if (f === "update") b.update = () => erroring();
+      return b;
+    },
     storage: {
       from: () => ({
         download: async (p: string) =>
@@ -100,6 +130,7 @@ const setup = () => {
 };
 beforeEach(() => {
   clearPhotoCheckBackoff();
+  fail.clear();
   setup();
   ai.calls = [];
   ai.reply = '{"verdict":"under_r2","reason":"Thin loose-fill between joists"}';
@@ -258,4 +289,80 @@ test("a database failure never throws", async () => {
   };
   ai.reply = new Error("gateway 500");
   expect(await checkOwnerMedia("a")).toBe("failed");
+});
+
+test("TEST stubs and video-only results don't count toward the daily cap", async () => {
+  tables.jobs![0]!.source = "qa_test";
+  await checkOwnerMedia("a");
+  setup();
+  tables.documents = [doc("v1", "2026-11-02T00:00:00Z", "video/mp4", 30 * MB)];
+  await checkOwnerMedia("a");
+  expect(events("ai_photo_checked")).toHaveLength(0);
+  expect(events("ai_photo_check_skipped")).toHaveLength(1);
+});
+
+test("tick: a settled newer upload is rechecked once; an upload under 5 minutes old waits", async () => {
+  expect(await photoCheckTick({ limit: 2 })).toEqual({ done: 1, failed: 0 });
+  // That check was 10 minutes ago.
+  (current()[0]!.value as { checked_at: string }).checked_at = new Date(
+    Date.now() - 10 * 60_000,
+  ).toISOString();
+  // A burst of 3 uploads 2 minutes ago: not yet.
+  const t = new Date(Date.now() - 2 * 60_000).toISOString();
+  for (const id of ["n1", "n2", "n3"]) {
+    const d = doc(id, t);
+    tables.documents!.push(d);
+    stored.set(d.storage_path, new Uint8Array([1]));
+  }
+  expect(await photoCheckTick({ limit: 2 })).toEqual({ done: 0, failed: 0 });
+  expect(ai.calls).toHaveLength(1);
+  // Settled (6 minutes old): checked once, then nothing more.
+  for (const d of tables.documents!.slice(1))
+    d.created_at = new Date(Date.now() - 6 * 60_000).toISOString();
+  expect(await photoCheckTick({ limit: 2 })).toEqual({ done: 1, failed: 0 });
+  expect(await photoCheckTick({ limit: 2 })).toEqual({ done: 0, failed: 0 });
+  expect(ai.calls).toHaveLength(2);
+  expect(current()).toHaveLength(1);
+});
+
+test("timestamps compare as instants, not strings", async () => {
+  // Same instant written with an offset: not newer, so skipped.
+  await checkOwnerMedia("a");
+  const at = (current()[0]!.value as { checked_at: string }).checked_at;
+  const ms = Date.parse(at);
+  const local = new Date(ms + 11 * 3600_000).toISOString().replace("Z", "+11:00");
+  tables.documents![0]!.created_at = local;
+  expect(await checkOwnerMedia("a")).toBe("skipped");
+});
+
+test("if the old row can't be superseded, no second current row is written", async () => {
+  await checkOwnerMedia("a");
+  const later = doc("d2", new Date(Date.now() + 60_000).toISOString());
+  tables.documents!.push(later);
+  stored.set(later.storage_path, new Uint8Array([4]));
+  fail.set("property_facts", "update");
+  expect(await checkOwnerMedia("a")).toBe("failed");
+  expect(current()).toHaveLength(1);
+  expect(events("ai_photo_check_failed")).toHaveLength(1);
+});
+
+test("if the existing check can't be read, skipped — never a fresh AI call", async () => {
+  fail.set("property_facts", "read");
+  expect(await checkOwnerMedia("a")).toBe("skipped");
+  expect(ai.calls).toHaveLength(0);
+});
+
+test("tick picks nothing when a pick query (or the cap count) errors", async () => {
+  for (const t of [
+    "lead_campaign_responses",
+    "jobs",
+    "documents",
+    "property_facts",
+    "workflow_events",
+  ]) {
+    fail.clear();
+    fail.set(t, "read");
+    expect(await photoCheckTick({ limit: 2 })).toEqual({ done: 0, failed: 0 });
+  }
+  expect(ai.calls).toHaveLength(0);
 });

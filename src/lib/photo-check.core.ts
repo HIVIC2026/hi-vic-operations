@@ -4,6 +4,10 @@
 export const PHOTO_CHECK_FACT = "ai_photo_check";
 export const PHOTO_CHECKED_EVENT = "ai_photo_checked";
 export const PHOTO_CHECK_FAILED_EVENT = "ai_photo_check_failed";
+/** Results saved without a gateway call (TEST stub, video only, no readable photo) — not counted toward the cap. */
+export const PHOTO_CHECK_SKIPPED_EVENT = "ai_photo_check_skipped";
+/** The tick waits until the newest upload is this old, so one upload burst is checked once. */
+export const PHOTO_CHECK_SETTLE_MS = 5 * 60 * 1000;
 /** Cost guard: stop for the day after this many checks since Melbourne midnight. */
 export const DAILY_PHOTO_CHECK_CAP = 100;
 export const PHOTO_CHECK_MAX_FILES = 4;
@@ -75,4 +79,10 @@ export function photosToSend(docs: readonly MediaDoc[]): {
   if (send.length) return { send, noneReason: null };
   const anyImage = docs.some((d) => (d.mime_type ?? "").toLowerCase().startsWith("image/"));
   return { send, noneReason: anyImage ? NO_USABLE_PHOTO_REASON : ONLY_VIDEO_REASON };
+}
+
+/** Is any upload newer than the last check? Compares instants (Date.parse), never strings. */
+export function hasNewerMedia(docs: readonly { created_at: string }[], checkedAt: string): boolean {
+  const last = Date.parse(checkedAt);
+  return docs.some((d) => !(Date.parse(d.created_at) <= last));
 }

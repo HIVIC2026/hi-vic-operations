@@ -111,8 +111,6 @@ export async function finishCapture(token: unknown, x: { path: string; fileName:
   // Retry office review even for an already recorded stored file.
   const { markCampaignMediaReceived } = await import("./launch-campaign.server");
   await markCampaignMediaReceived(jobId, r.link.id);
-  // AI photo check (ranking only, never decides or messages): fire-and-forget so the owner's upload never waits on it.
-  void import("./photo-check.server").then((m) => m.checkOwnerMedia(jobId)).catch(() => null);
   // Jo 23 Oct 08:27 UTC: photo/video uploads get Save my spot straight away; the office checks the photos later
   // from the Spots saved row. OFF until Jo approves wording and says go; every usual check and once-per-home key apply.
   const { INSULATION_QUESTIONS_SEND_APPROVED } = await import("./insulation-questions-campaign.core");
