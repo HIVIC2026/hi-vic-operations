@@ -134,6 +134,7 @@ export const SMS_MESSAGE_TYPES = {
   // New job flow Part 6 Task 2: the electrician is texted their no-login job link (/e/{token}) right after the installer picks them.
   // DRAFT wording (electricianLinkText, electrician-link.core.ts) until Jo approves it; also behind ELECTRICIAN_LINK_TEXT_APPROVED.
   electrician_job_link: { audience: "partner", label: "New safety check job – electrician's job link (Part 6; DRAFT wording, ELECTRICIAN_LINK_TEXT_APPROVED)", wordingApproved: false, quietHours: true },
+  upgrades_nudge: { audience: "partner", label: "Upgrades form not in – nudge to the electrician the day after the upgrades day (Part 6; DRAFT wording, UPGRADES_NUDGE_TEXT_APPROVED)", wordingApproved: false, quietHours: true },
 } as const;
 export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;
 
@@ -224,6 +225,7 @@ export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
   owner_will_call: { kind: "window" }, // key = job (one per job); sent only with the email while the job still waits for its Ready Check booking (in-house-batch-email.server)
   own_customer_rental_taps: { kind: "window" }, // key = job (one per job); sent once right after Add a job (own-customer-rental-taps.server)
   electrician_job_link: { kind: "window" }, // key = job + electrician; one per person, recorded after a send (electrician-link.server)
+  upgrades_nudge: { kind: "window" }, // key = job + upgrades day; `upgrades_nudge` recorded before the send (upgrades-watch.server)
 };
 
 export type SmsEventInput = {

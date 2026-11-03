@@ -48,6 +48,7 @@ import { renderElectricianOfferEmail } from "./electrician-offer-email.core";
 import { renderElectricianPiesaEmail } from "./electrician-piesa-copy.core";
 import { renderElectricianPiesaBooked } from "./electrician-piesa-booked-email.core";
 import { electricianCantDoEmail } from "./electrician-cant-do-email.core";
+import { upgradesNudgeText, upgradesOfficeEmail, upgradesRedFlagEmail } from "./upgrades-watch.core";
 import { MITTI_INVITE_MESSAGE, renderMittiInviteEmail } from "./mitti-invite.core";
 import { officeEmailLayout, electricianInviteLayout } from "./office-email.core";
 import { composeReply } from "./email-reply.core";
@@ -713,6 +714,16 @@ const ELECTRICIAN: TemplateEntry[] = [
   ENTRY({ id: "installer:electrician-cant-do", section: "installer", step: "safety_check", kind: "email", code: "", name: "The electrician can't do this one", when: "The electrician taps \"Can't do this one\" on their job link; goes to the installer business's office email (held if none on file). Their booked safety check / upgrades day is cancelled and the owner gets \"Your visit can't go ahead\"", who: "Installer business office", approvalNote: "DRAFT wording for Jo to approve (new job flow Part 6, Task 6); ELECTRICIAN_CANT_DO_EMAIL_APPROVED stays false", gate: { kind: "code_off", flag: "ELECTRICIAN_CANT_DO_EMAIL_APPROVED" },
     source: { builder: "src/lib/electrician-cant-do-email.core.ts", fn: "electricianCantDoEmail", sender: "src/lib/electrician-link.server.ts" },
     render: () => email(electricianCantDoEmail({ jobNumber: "HV-TEST", electrician: "Example Electrical", reason: "Double booked that week", test: false })) }),
+  // Part 6 Task 7 — DRAFT wording: UPGRADES_NUDGE_TEXT_APPROVED stays false and the SMS type is wordingApproved:false (switch off).
+  ENTRY({ id: "electrician:sms-upgrades_nudge", section: "electrician", step: "fixes", kind: "text", code: "", name: "Upgrades form not in (text)", when: "9am the day after the booked upgrades day when the upgrades form isn't in; carries a fresh job link", who: "Electrician", approvalNote: "DRAFT wording for Jo to approve (new job flow Part 6, Task 7); UPGRADES_NUDGE_TEXT_APPROVED stays false", gate: { kind: "text", smsType: "upgrades_nudge" },
+    source: { builder: "src/lib/upgrades-watch.core.ts", fn: "upgradesNudgeText", sender: "src/lib/upgrades-watch.server.ts" },
+    render: () => text(upgradesNudgeText({ jobNumber: "HV-TEST", url: "https://estimate.homeinsulationvictoria.com.au/e/EXAMPLE" })) }),
+  ENTRY({ id: "installer:upgrades-form-not-in", section: "installer", step: "fixes", kind: "email", code: "", name: "Upgrades form not in", when: "9am two days after the booked upgrades day, once the electrician was nudged and the form still isn't in; to the installer business's office email", who: "Installer business office", approvalNote: "DRAFT wording for Jo to approve (new job flow Part 6, Task 7); UPGRADES_OFFICE_EMAIL_APPROVED stays false", gate: { kind: "code_off", flag: "UPGRADES_OFFICE_EMAIL_APPROVED" },
+    source: { builder: "src/lib/upgrades-watch.core.ts", fn: "upgradesOfficeEmail", sender: "src/lib/upgrades-watch.server.ts" },
+    render: () => email(upgradesOfficeEmail({ jobNumber: "HV-TEST", electrician: "Example Electrical", upgradesStart: PIESA_ISO, test: false })) }),
+  ENTRY({ id: "installer:upgrades-past-30-days", section: "installer", step: "fixes", kind: "email", code: "", name: "Upgrades day is past the 30-day rule", when: "The booked upgrades day is after the 30-day install deadline; to the installer business's office email with a copy to info@ (the office Needs me row is always on)", who: "Installer business office", approvalNote: "DRAFT wording for Jo to approve (new job flow Part 6, Task 7); UPGRADES_RED_FLAG_EMAIL_APPROVED stays false", gate: { kind: "code_off", flag: "UPGRADES_RED_FLAG_EMAIL_APPROVED" },
+    source: { builder: "src/lib/upgrades-watch.core.ts", fn: "upgradesRedFlagEmail", sender: "src/lib/upgrades-watch.server.ts" },
+    render: () => email(upgradesRedFlagEmail({ jobNumber: "HV-TEST", electrician: "Example Electrical", upgradesStart: PIESA_ISO, installDeadlineYmd: "2026-11-06", test: false })) }),
 ];
 
 /* ---------------------------------------------------------------- OFFICE */

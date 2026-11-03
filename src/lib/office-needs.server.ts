@@ -10,6 +10,7 @@ import { VEEC_OFFICE_ALERT_EVENT } from "./veec-assignment-form.core";
 import { apAutoHoldAlert } from "./veec-ap-auto.core";
 import { consentApHoldAlert } from "./consent-ap-auto.core";
 import { PIESA_OWNER_CONFIRMED_EVENT, PIESA_OWNER_CONFIRM_OFFICE_ALERT_EVENT } from "./piesa-owner-confirm.core";
+import { UPGRADES_PAST_30_DAYS_EVENT, upgradesYmdOf } from "./upgrades-watch.core";
 import { FIXES_PAUSED_STAGES } from "./installer-screens.core";
 import { PIESA_FIXES_CONFIRMED_EVENT, PIESA_FIXES_CONFIRM_OFFICE_ALERT_EVENT } from "./piesa-fixes-confirm.core";
 import { FIXES_TIMES_GIVEN_EVENT, FIXES_TIMES_LINK_EVENT, fixesTimesMissing } from "./fixes-times.core";
@@ -242,7 +243,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     });
   })();
   // Wave 1. Needs me reads only open jobs (complete / cancelled are always "ended" and were filtered out below anyway).
-  const [office, consents, veecForms, escRows, emailFails, smsFails, tenDay, noAccess, veecAlerts, overdue, returned, provisionalBookings, piesaAlerts, piesaConfirms, fixesLinks, fixesGiven, fixesAlerts, fixesConfirms, rectDrafts, rectHolds, q, qTest, robotRows, piisaAlerts, items, recLinks, fb, prestartChecks, upcomingInstalls, piesaFormFails, payInvoices, payQuotes, paySettings, piesaCurRows, payRepeatEv] = await Promise.all([
+  const [office, consents, veecForms, escRows, emailFails, smsFails, tenDay, noAccess, veecAlerts, overdue, returned, provisionalBookings, piesaAlerts, piesaConfirms, fixesLinks, fixesGiven, fixesAlerts, fixesConfirms, rectDrafts, rectHolds, q, qTest, robotRows, piisaAlerts, items, recLinks, fb, prestartChecks, upcomingInstalls, piesaFormFails, payInvoices, payQuotes, paySettings, piesaCurRows, payRepeatEv, upgradesFlags, upgradesBookings] = await Promise.all([
     loadOffice(admin, { includeTest: opts.includeTest, ...(opts.onlyIds ? { onlyIds: opts.onlyIds } : { openOnly: true }) }),
     all("ESC consents", (a, b) => scoped(admin.from("owner_esc_consents").select("job_id, owner_signed_at, ap_signed_at, status, scheduled_start, created_at")).not("owner_signed_at", "is", null).is("ap_signed_at", null).range(a, b)),
     all("VEEC forms", (a, b) => scoped(admin.from("customer_assignments").select("job_id, installer_signed_at, ap_signed_at, consumer_signed_at, status, created_at")).eq("record_kind", "final_veec_assignment").neq("status", "cancelled").range(a, b)),
@@ -293,6 +294,9 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     admin.from("workflow_settings").select("safety_check_payment_inc_gst").eq("id", 1).maybeSingle().then((r) => (r.data ?? null) as Row | null),
     all("current PIESA outcomes for deposits", (a, b) => scoped(admin.from("piesa_records").select("job_id, outcome, section_c_signed_at")).eq("is_current", true).range(a, b)),
     all("repeat safety check events", (a, b) => scoped(admin.from("workflow_events").select("job_id, event_type, created_at, details")).in("event_type", ["repeat_piesa_payer_chosen", "repeat_piesa_accepted", "repeat_piesa_paid"]).order("created_at", { ascending: false }).range(a, b)),
+    // Part 6 Task 7: the 30-day red flag (one event per job + upgrades day), shown while that upgrades day is still the booked one.
+    all("upgrades red flags", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at, details")).eq("event_type", UPGRADES_PAST_30_DAYS_EVENT).order("created_at", { ascending: false }).range(a, b)),
+    all("upgrades bookings", (a, b) => scoped(admin.from("bookings").select("job_id, scheduled_start")).eq("kind", "rectification").eq("status", "confirmed").range(a, b)),
   ]);
   const now = office.now;
   const jobs = office.jobs.filter((j) => j.status?.stage !== "ended" || j.stage === "on_hold");
@@ -485,6 +489,15 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   for (const e of noAccess) { const x = f(String(e["job_id"])); const j = jobById.get(String(e["job_id"])); if (x && !x.secondNoAccess && j?.stage === "installation_scheduling") x.secondNoAccess = { at: String(e["created_at"]), reason: s((e["details"] as { reason?: string } | null)?.reason) }; }
   // Decision 296: the alert names its PIESA record; a confirmation of that record (or the install already booked) clears the row.
   const confirmedRecords = new Set(piesaConfirms.map((c) => `${c["job_id"]}:${(c["details"] as { piesa_record_id?: string } | null)?.piesa_record_id ?? ""}`));
+  // Part 6 Task 7: the red flag stays while the flagged upgrades day is still the confirmed one and the job is open.
+  const upgradesDay = new Map<string, string>();
+  for (const b of upgradesBookings) { const id = String(b["job_id"]); const ymd = upgradesYmdOf(String(b["scheduled_start"])); if (!upgradesDay.has(id) || ymd > upgradesDay.get(id)!) upgradesDay.set(id, ymd); }
+  for (const e of upgradesFlags) {
+    const id = String(e["job_id"]), det = (e["details"] as { upgrades_ymd?: string; install_deadline?: string } | null) ?? null;
+    const x = f(id); const j = jobById.get(id);
+    if (!x || x.upgradesPast30 || !j || ["complete", "cancelled"].includes(j.stage) || !det?.upgrades_ymd || !det.install_deadline || upgradesDay.get(id) !== det.upgrades_ymd) continue;
+    x.upgradesPast30 = { at: String(e["created_at"]), upgradesYmd: det.upgrades_ymd, deadline: det.install_deadline };
+  }
   for (const e of piesaAlerts) {
     const id = String(e["job_id"]), rec = (e["details"] as { piesa_record_id?: string; completed_date?: string } | null) ?? null;
     const x = f(id); const j = jobById.get(id);
