@@ -29,12 +29,10 @@ describe("C4 (Jo 28 Oct 2026): PIESA result comes from Mitti only", () => {
     const src = routeSrc();
     for (const gone of ["function PiesaForm(", "recordPiesa", "ElectricianManualResult", "manualResultEntry", ">Pass</Button>", ">Fail</Button>", "PIESA window expired"]) expect(src).not.toContain(gone);
   });
-  test("Mitti result path kept", () => {
+  test("Mitti result path kept (the electrician's job-page Mitti block went with the electrician sign-in, Part 6 Task 8: the PIESA is filled in Mitti from the no-login link)", () => {
     const src = routeSrc();
-    const mitti = src.split("{a?.external_mitti_id && (assessing || locked) && (")[1]!.split("function OtherItems")[0]!;
-    expect(mitti).toContain("MittiSyncedFields"); expect(mitti).toContain("Complete PIESA");
-    expect(src).toContain("<FixesFormCard jobId={jobId}");
-    expect(src).toContain('<MittiOnly jobId={jobId} which="piesa" />'); // no form yet → "Home Insulation Victoria links it"
+    expect(src).not.toContain("function OtherItems");
+    expect(src).not.toContain('which="piesa"');
     expect(srcText("../src/lib/fixes-day.server.ts")).toContain("applyPiesaRecord(");
     expect(srcText("../src/lib/piesa-complete.server.ts")).toContain("kind: piesaCompletionKind("); // Task 5: initial or reassessment
   });

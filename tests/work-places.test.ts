@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { electricianYourJobs, placeWorkJob, workCounts, type WorkJobInput } from "../src/lib/work-places.core";
-import { ELECTRICIAN_WORK_WORDS } from "../src/lib/trade-view.core";
 
 const STAGES = ["new_enquiry","eligibility_review","awaiting_electrician","assessment_booking","assessment_booked","assessment_complete","rectification_required","awaiting_owner_rectification_approval","awaiting_deposit_payment","rectification_scheduling","rectification_booked","ready_for_installer_quotes","awaiting_quote_acceptance","installation_scheduling","installation_booked","evidence_outstanding","ap_review","ready_for_veec","complete","on_hold","preliminary_estimate_ready","ready_check_awaiting_acceptance","ready_check_awaiting_payment","ready_check_ready_to_schedule","ready_check_scheduled","ready_check_complete","measured_estimate_ready","measured_quote_accepted","piesa_and_install_window_pending","piesa_scheduled","piesa_complete","electrical_variation_pending"];
 const base = (o: Partial<WorkJobInput>): WorkJobInput => ({ jobId: "j", stage: "ready_check_complete", trade: "installer", installerSourced: false, missingPhotos: 0, pendingOffer: false, upcoming: [], ...o });
@@ -54,10 +53,8 @@ describe("electrician My work: plain words and one list per job", () => {
     const jobs = (["offers", "needs_me", "coming_up", "moving"] as const).map((place, i) => ({ jobId: String(i), place }));
     expect(electricianYourJobs(jobs).map((j) => j.jobId)).toEqual(["3"]);
   });
-  test("plain trade words replace Moving automatically / Needs chasing (B4)", () => {
-    expect(ELECTRICIAN_WORK_WORDS).toEqual({ waitingTile: "Waiting on others", waitingSub: "Nothing for you to do now", waitingFilter: "Waiting on others", slowFilter: "Taking a while", slowEmpty: "Nothing is taking a while right now." });
+  test("the electrician My work screen is gone (new job flow Part 6 Task 8: electricians never log in)", () => {
     const page = readFileSync("src/routes/_authenticated/field.index.tsx", "utf8");
-    for (const gone of ["Moving automatically", "Needs chasing", "No action needed now"]) expect(page).not.toContain(gone);
-    expect(page).toContain("electricianYourJobs(data.jobs)");
+    for (const gone of ["Moving automatically", "Needs chasing", "No action needed now", "electricianYourJobs", "ELECTRICIAN_WORK_WORDS"]) expect(page).not.toContain(gone);
   });
 });

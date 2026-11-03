@@ -73,7 +73,7 @@ describe("Trade sign-in", () => {
     expect(tradeAccessBlocker({ ...w, certification_status: "unverified" }, true)).not.toBeNull();
     expect(tradeAccessBlocker(w, false)).not.toBeNull();
     expect(memberRoleFor("Boss@Biz.com", "boss@biz.com")).toBe("business_admin");
-    expect(grantedRole("electrician")).toBe("electrician");
+    expect(grantedRole("electrician")).toBe("installer"); // Part 6 Task 8: electricians never get a login (tradeAccessBlocker stops the invite first)
   });
   test("invite email (approved design): greeting once, set-password button, sign-in link, no unsubscribe", () => {
     const m = renderTradeInviteEmail({ firstName: "Sam", business: "Sample <Co>", setPasswordUrl: "https://x/reset-password?token_hash=T", signInUrl: "https://x/auth" });

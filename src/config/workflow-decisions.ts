@@ -125,6 +125,8 @@ export const WORKFLOW_DECISIONS = {
     reminderTextsKeep: "held until (decision 32, approved as is)",
   },
   partnerPeople: {
+    // New job flow Part 6 Task 8 (Jo 2 Nov 2026): Electricians never log in; each job is one no-login link (/e/<token>).
+    electricianLogin: { decided: "2026-11-02", rule: "Electricians never log in; each job is one no-login link", noLoginLine: "You don't need to sign in. Your jobs come to you by text.", inviteBlocked: "tradeAccessBlocker → NO_LOGIN_NEEDED", grantedRole: "installer only", sqlChanges: "none (existing logins and roles left as they are)" },
     // Decision 402 (Jo 26 Oct 2026): approving/activating a business approves its pending people whose certification is office-verified.
     autoApproveWithBusiness: {
       decision: 402,

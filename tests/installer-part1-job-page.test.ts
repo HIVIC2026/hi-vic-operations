@@ -60,8 +60,10 @@ test("C3: electrician Call/Text follow their own visits", () => {
   expect(elec).toContain("showOwnerContact && job.owner_phone && <a href={`sms:");
 });
 test("C3: contact hidden while status loads, on read error, and in the overview once visits are done", () => {
-  expect(read(ROUTE)).toContain("status.data?.ownerContactVisible === true");
-  expect(read(ROUTE)).not.toContain("ownerContactVisible !== false");
+  // Part 6 Task 8: the electrician's job page is gone (electricians never log in); owner contact for electricians lives on
+  // the no-login link (electrician-link.server ownerContactFor), which reads the same contact_releases rule.
+  expect(read(ROUTE)).not.toContain("ownerContactVisible");
+  expect(read("src/lib/electrician-link.server.ts")).toContain("visitIsCurrent(String(r.visit_kind), stage)");
   const srv = read("src/lib/job-status.server.ts");
   expect(srv).toContain("mineErr ? false : contactVisible(");
   expect(srv).toContain("mineErr.code");
@@ -100,7 +102,7 @@ test("C2: one-way switch only on a job held for a not-onboarded electrician", ()
 
 test("C9: tidy-up keeps the same screen", () => {
   const r = read(ROUTE);
-  expect(r).not.toContain("4 · Electrical fixes items"); expect(r).toContain('title="Electrical fixes items"');
+  expect(r).not.toContain("4 · Electrical fixes items"); expect(r).not.toContain('title="Electrical fixes items"'); // the electrician's items list went with the electrician screens (Part 6 Task 8)
   expect(r).not.toContain("page.mittiInvited"); // one Mitti-account check: useMittiInvited()
   expect(r).not.toContain("The install is finished"); expect(r).toContain("<InstallFinishedButton run={");
   const b = read("src/components/trade/InstallFinishedButton.tsx");

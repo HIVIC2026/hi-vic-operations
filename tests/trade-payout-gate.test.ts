@@ -115,7 +115,7 @@ describe("Jo's approved wording, the same everywhere", () => {
   });
   test("trade job page (installer + electrician), today's job, Money, offers and the guide all show it", () => {
     const job = src("src/routes/_authenticated/field.$jobId.tsx");
-    expect(job.match(/<NoFormNoPay\b/g)?.length).toBeGreaterThanOrEqual(2); // installer NEXT panel + electrician PIESA/fixes
+    expect(job.match(/<NoFormNoPay\b/g)?.length).toBeGreaterThanOrEqual(1); // installer NEXT panel (the electrician PIESA/fixes screen went with the electrician sign-in, Part 6 Task 8)
     expect(src("src/routes/_authenticated/field.day.$jobId.tsx")).toContain("<NoFormNoPay");
     const money = src("src/routes/_authenticated/field.money.tsx");
     expect(money).toContain("<NoFormNoPay />");

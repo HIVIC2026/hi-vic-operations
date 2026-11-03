@@ -1,6 +1,7 @@
 // Pure rules for giving an approved trade worker their own sign-in. No I/O.
 import { mjEmail, esc } from "./mail-mjml.core";
 import { plainText } from "./email-kit.core";
+import { NO_LOGIN_NEEDED } from "./trade-access-role.core";
 
 /** Jo approved the invite email wording on 27 Oct 2026 (decision 406, the whole email refresh suite). */
 export const TRADE_INVITE_EMAIL_APPROVED: boolean = true;
@@ -46,6 +47,8 @@ export function tradeAccessBlocker(w: WorkerForAccess, businessApproved: boolean
   if (w.approval_status !== "approved") return "Approve this person first.";
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test((w.email ?? "").trim())) return "This person needs a valid email.";
   if (w.trade_role === "installer" && w.certification_status !== "verified") return "Verify this installer's EEC certification first.";
+  // New job flow Part 6 Task 8: electricians never log in — each job reaches them as one no-login link (/e/<token>).
+  if (w.trade_role === "electrician") return NO_LOGIN_NEEDED;
   return null;
 }
 
@@ -54,7 +57,7 @@ export function memberRoleFor(workerEmail: string, businessEmail: string | null)
   return !!businessEmail && workerEmail.trim().toLowerCase() === businessEmail.trim().toLowerCase() ? "business_admin" : "member";
 }
 
-/** Only these trade roles are ever granted by an invite. */
-export function grantedRole(tradeRole: string): "installer" | "electrician" {
-  return tradeRole === "electrician" ? "electrician" : "installer";
+/** The only app role an invite ever grants. Electricians never get one (tradeAccessBlocker stops the invite first). */
+export function grantedRole(_tradeRole: string): "installer" {
+  return "installer";
 }
