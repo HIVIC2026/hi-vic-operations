@@ -922,4 +922,4 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 
 ## Team required details (Jo 3 Nov 2:37pm) — DONE
 - Installers: Australian mobile + date of birth required, email optional. Electricians: mobile + date of birth + email. Form + Team add + office/boss add enforce it; Team page shows "Add X's …" prompts. No data changed.
-- Open: Team page has no edit box yet for date of birth/email on existing people (only mobile); worker sign-up link doesn't ask date of birth.
+- [x] Jo 3 Nov ~3pm: Team page boxes to fill a missing date of birth (anyone, private) and missing email (electricians only); sign-up link asks date of birth (required, private). Tests pass; no data changed.
