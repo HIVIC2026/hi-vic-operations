@@ -11,7 +11,7 @@ import { displayName } from "./display-name.core";
 import { AREA_BATCH_EVENTS, batchRowState, type AreaBatchEventRow } from "./area-batch.core";
 import { QUICK_TAPS_ANSWERED_EVENT } from "./quick-taps.core";
 import { coverageLookup, inWaitingTab, installerWaiting, waitingSize, type InstallerWaitingRow, type WaitingInstaller, type WaitingPartner } from "./installer-waiting-columns.core";
-import { BAND_ORDER, spotBand, spotReason, spotScore, spotTags } from "./saved-spot-rank.core";
+import { BAND_ORDER, estimatedCeiling, spotBand, spotReason, spotScore, spotTags } from "./saved-spot-rank.core";
 import { groupByArea, type AreaGroup } from "./saved-spot-areas.core";
 
 type Row = Record<string, unknown>;
@@ -107,7 +107,7 @@ async function rankToRelease(rows: InstallerWaitingRow[], now: number): Promise<
     const spot = { ...f, areaM2: r.areaM2 };
     Object.assign(r, {
       band: spotBand(spot), score: spotScore(spot, now), reason: spotReason(spot), tags: spotTags(spot),
-      lat: f.lat, lng: f.lng, satelliteUrl: f.address ? satelliteUrl(f.address) : null, listingUrl: f.listingUrl, footprintM2: f.footprintM2,
+      lat: f.lat, lng: f.lng, satelliteUrl: f.address ? satelliteUrl(f.address) : null, listingUrl: f.listingUrl, estCeiling: estimatedCeiling(spot),
     });
   }
   const band = (r: InstallerWaitingRow) => (r.band ? BAND_ORDER.indexOf(r.band) : BAND_ORDER.length);

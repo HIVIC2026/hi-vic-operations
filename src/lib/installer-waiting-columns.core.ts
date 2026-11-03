@@ -68,8 +68,8 @@ export type InstallerWaitingRow = {
   band?: SpotBand | undefined; score?: number | undefined; reason?: string | undefined; tags?: string[] | undefined;
   lat?: number | null | undefined; lng?: number | null | undefined;
   satelliteUrl?: string | null | undefined; listingUrl?: string | null | undefined;
-  /** Building size from above (map check `building_ground_footprint`, whole m²) — "~X m² from above"; never replaces areaM2. */
-  footprintM2?: number | null | undefined;
+  /** Best estimate of the ceiling size (listing floor area or roof from above × 0.85); never replaces areaM2. */
+  estCeiling?: { m2: number; source: "listing" | "above" } | null | undefined;
 };
 
 export type WaitingFilters = {

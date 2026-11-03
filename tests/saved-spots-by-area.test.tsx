@@ -82,7 +82,7 @@ const list = {
       reason: "No insulation · house",
       satelliteUrl: "https://maps.example/sat",
       listingUrl: "https://listing.example/1",
-      footprintM2: 180,
+      estCeiling: { m2: 170, source: "above" as const },
     }),
     row("hv-3", { band: "weak", score: 9, tags: ["Life support", "Not checked yet"] }),
     row("hv-4", { band: "good", score: 2, suburb: "Knox", postcode: "3152" }),
@@ -139,12 +139,12 @@ test("opens on By area: headings in list.areas order; said yes above Best above 
   expect(within(areas[0]!).getByText("Owner hv-1 said yes · free Ready Check")).toBeTruthy();
 });
 
-test("each spot shows band, reason, tags, footprint and links (new tab)", () => {
+test("each spot shows band, reason, tags, estimated ceiling and links (new tab)", () => {
   const r = mount();
   const best = r.container.querySelector('[data-spot="hv-2"]') as HTMLElement;
   expect(within(best).getByText("Best")).toBeTruthy();
   expect(within(best).getByText("No insulation · house")).toBeTruthy();
-  expect(within(best).getByText(/~180 m² from above/)).toBeTruthy();
+  expect(within(best).getByText(/Est. ceiling ~170 m² \(from above\)/)).toBeTruthy();
   const sat = within(best).getByRole("link", { name: "Satellite" });
   expect(sat.getAttribute("href")).toBe("https://maps.example/sat");
   expect(sat.getAttribute("target")).toBe("_blank");

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import {
   BAND_ORDER,
+  estimatedCeiling,
   insulationDetailFromDesk,
   spotBand,
   spotReason,
@@ -18,6 +19,9 @@ const base: SpotFacts = {
   propertyType: "house",
   topFloor: null,
   areaM2: null,
+  roofGroundM2: null,
+  footprintM2: null,
+  listingFloorM2: null,
   roofForm: null,
   complexRoof: false,
   tapsHatch: null,
@@ -213,4 +217,43 @@ describe("insulationDetailFromDesk", () => {
     expect(insulationDetailFromDesk("Owner-declared existing insulation")).toBeNull();
     expect(insulationDetailFromDesk(null)).toBeNull();
   });
+});
+
+describe("estimated ceiling", () => {
+  it("single-storey listing floor area wins", () =>
+    expect(
+      estimatedCeiling(f({ listingFloorM2: 180, listing: listing({ storeys: 1 }) })),
+    ).toEqual({ m2: 180, source: "listing" }));
+  it("unknown storeys still uses the listing", () =>
+    expect(estimatedCeiling(f({ listingFloorM2: 180, listing: listing() }))?.source).toBe("listing"));
+  it("2 storeys falls back to above and is tagged Check size", () => {
+    const x = f({
+      listingFloorM2: 180,
+      listing: listing({ storeys: 2 }),
+      roofGroundM2: 100,
+    });
+    expect(estimatedCeiling(x)).toEqual({ m2: 85, source: "above" });
+    expect(spotTags(x)).toContain("Check size");
+  });
+  it("roof ground area x 0.85, rounded to 5", () =>
+    expect(estimatedCeiling(f({ roofGroundM2: 200 }))).toEqual({ m2: 170, source: "above" }));
+  it("falls back to the footprint", () =>
+    expect(estimatedCeiling(f({ footprintM2: 200 }))).toEqual({ m2: 170, source: "above" }));
+  it("nothing known gives null", () => expect(estimatedCeiling(f())).toBeNull());
+  it("owner 100 vs estimate 170: Check size and owner said in the reason", () => {
+    const x = f({ roofGroundM2: 200, areaM2: 100 });
+    expect(spotTags(x)).toContain("Check size");
+    expect(spotReason(x)).toContain("owner said 100 m²");
+    expect(spotReason(x)).toContain("~170 m²");
+  });
+  it("owner close to the estimate: no tag", () =>
+    expect(spotTags(f({ roofGroundM2: 200, areaM2: 150 }))).not.toContain("Check size"));
+  it("size score uses the estimate, not the owner's figure", () => {
+    expect(score({ roofGroundM2: 200, areaM2: 100 })).toBeCloseTo(
+      score({ areaM2: 170 }),
+      6,
+    );
+  });
+  it("no estimate: score uses the owner's figure", () =>
+    expect(score({ areaM2: 100 })).toBeGreaterThan(score({ areaM2: null })));
 });

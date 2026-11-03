@@ -11,6 +11,12 @@ export type SpotFacts = {
   propertyType: "house" | "townhouse" | "apartment" | null;
   topFloor: "yes" | "no" | null;
   areaM2: number | null;
+  /** Google Solar roof ground area (`solar_summary.roof_ground_area_m2`), m². */
+  roofGroundM2: number | null;
+  /** Google Solar building ground footprint (`building_ground_footprint.m2`), m². */
+  footprintM2: number | null;
+  /** Floor area from the listing check, m² (only when a listing was found). */
+  listingFloorM2: number | null;
   roofForm: "pitched" | "low_slope_flat" | "mixed" | null;
   complexRoof: boolean;
   tapsHatch: "yes" | "no" | "not_sure" | null;
@@ -46,6 +52,27 @@ export const W = {
   perDayWaiting: 0.1,
 } as const;
 
+/** Allowance for eaves when working from the roof seen from above. */
+const EAVES_FACTOR = 0.85;
+const CHECK_SIZE_DIFF = 0.3;
+
+export type EstimatedCeiling = { m2: number; source: "listing" | "above" };
+const positive = (v: number | null): v is number => v != null && Number.isFinite(v) && v > 0;
+const round5 = (v: number) => Math.round(v / 5) * 5;
+
+/** Best estimate of the ceiling size: listing floor area (single storey or unknown), else roof from above × 0.85. */
+export function estimatedCeiling(f: SpotFacts): EstimatedCeiling | null {
+  const storeys = f.listing?.found ? f.listing.storeys : null;
+  if (positive(f.listingFloorM2) && (storeys == null || storeys <= 1))
+    return { m2: round5(f.listingFloorM2), source: "listing" };
+  const above = positive(f.roofGroundM2) ? f.roofGroundM2 : positive(f.footprintM2) ? f.footprintM2 : null;
+  return above != null ? { m2: round5(above * EAVES_FACTOR), source: "above" } : null;
+}
+
+function ownerDiffers(f: SpotFacts, est: EstimatedCeiling | null): boolean {
+  return est != null && positive(f.areaM2) && Math.abs(est.m2 - f.areaM2) / f.areaM2 > CHECK_SIZE_DIFF;
+}
+
 const DAY_MS = 86_400_000;
 const THIN_DETAILS = new Set(["thin", "loose_fill", "patchy", "under_r2"]);
 
@@ -80,7 +107,8 @@ export function spotScore(f: SpotFacts, nowMs: number): number {
       : f.propertyType === "townhouse"
         ? W.townhouse
         : W.apartment;
-  if (f.areaM2 != null && f.areaM2 > 0) s += Math.min(W.areaMax, f.areaM2 / W.areaPerPoint);
+  const size = estimatedCeiling(f)?.m2 ?? f.areaM2;
+  if (size != null && size > 0) s += Math.min(W.areaMax, size / W.areaPerPoint);
   if (f.listing?.floorPlan) s += W.floorPlan;
   else if (f.listing?.found) s += W.listingFound;
   if (f.roofForm === "pitched") s += W.pitchedRoof;
@@ -115,7 +143,10 @@ export function spotReason(f: SpotFacts): string {
   else if (f.insulation === "present")
     parts.push(f.insulationDetail ? DETAIL_LABEL[f.insulationDetail] : "Has insulation");
   if (f.propertyType) parts.push(f.propertyType);
-  if (f.areaM2 != null && f.areaM2 > 0) parts.push(`~${Math.round(f.areaM2)} m²`);
+  const est = estimatedCeiling(f);
+  const size = est?.m2 ?? f.areaM2;
+  if (size != null && size > 0) parts.push(`~${Math.round(size)} m²`);
+  if (ownerDiffers(f, est)) parts.push(`owner said ${Math.round(f.areaM2 as number)} m²`);
   if (f.listing?.floorPlan) parts.push("floor plan found");
   if (f.roofForm) parts.push(ROOF_LABEL[f.roofForm]);
   const first = parts[0];
@@ -136,6 +167,8 @@ export function spotTags(f: SpotFacts): string[] {
     if (f.aiPhoto === "none" || f.aiPhoto === "under_r2") tags.push("AI: confirm");
     else if (f.aiPhoto === "over_r2") tags.push("AI: looks over R2 — confirm");
   }
+  if (((f.listing?.found && (f.listing.storeys ?? 0) >= 2)) || ownerDiffers(f, estimatedCeiling(f)))
+    tags.push("Check size");
   if (f.streetKnown && (!f.listing || !f.listing.checked)) tags.push("Not checked yet");
   return tags;
 }

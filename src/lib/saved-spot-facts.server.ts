@@ -20,8 +20,6 @@ export type SpotFactsWithPlace = SpotFacts & {
   lat: number | null;
   lng: number | null;
   address: string | null;
-  /** Building size from above (map check), whole m²; never the ceiling size. */
-  footprintM2: number | null;
   listingUrl: string | null;
 };
 
@@ -30,6 +28,7 @@ const FACT_KEYS = [
   "roof_form",
   "site_roof_risk",
   "building_ground_footprint",
+  "solar_summary",
   "listing_check",
   "ai_photo_check",
 ] as const;
@@ -82,8 +81,12 @@ const yesNo = (v: unknown): "yes" | "no" | null => {
 };
 
 /** The listing check (Task 7) → SpotFacts.listing; absent → null (not checked yet). */
-function listingOf(v: unknown): { listing: SpotFacts["listing"]; url: string | null } {
-  if (!v || typeof v !== "object") return { listing: null, url: null };
+function listingOf(v: unknown): {
+  listing: SpotFacts["listing"];
+  url: string | null;
+  floorM2: number | null;
+} {
+  if (!v || typeof v !== "object") return { listing: null, url: null, floorM2: null };
   const l = v as Row;
   const found = l["status"] === "found";
   return {
@@ -95,6 +98,7 @@ function listingOf(v: unknown): { listing: SpotFacts["listing"]; url: string | n
       checked: true,
     },
     url: found ? s(l["url"]) : null,
+    floorM2: found ? n(l["floorAreaM2"]) : null,
   };
 }
 
@@ -196,7 +200,11 @@ export async function readSpotFacts(
       ? `${String(prop?.address_line).trim()}, ${[(prop?.suburb ?? "").trim(), "VIC", postcode].filter(Boolean).join(" ")}`
       : null;
     const savedArea = n(sv?.["saved_area_m2"]) ?? n(j["estimated_area_m2"]);
-    // Size from above (Google Solar ground footprint): shown as "~X m² from above", never the ceiling size.
+    // Size from above (Google Solar): only ever feeds the estimated ceiling, never the owner's figure.
+    const roofGround = n(
+      (fact("solar_summary") as { roof_ground_area_m2?: unknown } | null | undefined)
+        ?.roof_ground_area_m2,
+    );
     const foot = n((fact("building_ground_footprint") as { m2?: unknown } | null | undefined)?.m2);
 
     out.set(id, {
@@ -222,6 +230,8 @@ export async function readSpotFacts(
       address,
       listingUrl: listing.url,
       footprintM2: foot != null && foot > 0 ? Math.round(foot) : null,
+      roofGroundM2: roofGround != null && roofGround > 0 ? Math.round(roofGround) : null,
+      listingFloorM2: listing.floorM2 != null && listing.floorM2 > 0 ? listing.floorM2 : null,
     });
   }
   return out;

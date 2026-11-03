@@ -149,6 +149,7 @@ beforeEach(() => {
     fact("a", "coordinates", [145.2416, -37.9244]),
     fact("a", "roof_form", "pitched"),
     fact("a", "building_ground_footprint", { m2: 187.6, roof_surface_m2_not_used: 230 }),
+    fact("a", "solar_summary", { roof_ground_area_m2: 200.4 }),
     fact("a", "site_roof_risk", { flags: [] }),
     fact("a", "listing_check", {
       status: "found",
@@ -186,7 +187,7 @@ describe("To release loader: band, reason, tags, areas", () => {
     expect(by.get("c")!.band).toBe("weak");
     for (const id of ["a", "b", "c", "d"]) expect(by.get(id)!.reason!.length).toBeGreaterThan(0);
     expect(by.get("a")!.reason).toBe(
-      "No insulation · house · ~200 m² · floor plan found · pitched roof",
+      "No insulation · house · ~170 m² · floor plan found · pitched roof",
     );
     expect(by.get("a")!.tags).toEqual(["Life support"]);
     expect(by.get("a")!.satelliteUrl).toBe(
@@ -203,12 +204,12 @@ describe("To release loader: band, reason, tags, areas", () => {
     expect(by.get("d")!.lat).toBeNull();
   });
 
-  test("size from above: footprintM2 rounded to whole m², areaM2 unchanged", async () => {
+  test("estimated ceiling: roof ground area × 0.85 to nearest 5, areaM2 unchanged", async () => {
     const { rows } = await loadInstallerWaitingList({ includeTest: true });
     const by = new Map(rows.map((r) => [r.id, r]));
-    expect(by.get("a")!.footprintM2).toBe(188);
+    expect(by.get("a")!.estCeiling).toEqual({ m2: 170, source: "above" });
     expect(by.get("a")!.areaM2).toBe(200);
-    expect(by.get("c")!.footprintM2).toBeNull();
+    expect(by.get("c")!.estCeiling).toBeNull();
   });
 
   test("areas hold every To release id once; unknown location is the last group", async () => {

@@ -1,6 +1,6 @@
 // Saved spots by area (Jo 3 Nov 2026, spec §1): To release opens on "By area". One card per ~10 km area (the list's
 // `areas`, in its order); inside each area: said yes, then waiting for owner, then Best → Good → OK → Weak, then score.
-// Each spot: job, owner, suburb, size (+ "~X m² from above"), estimate, waiting since, band chip, one-line reason, tags
+// Each spot: job, owner, suburb, size (+ "Est. ceiling ~X m² (from listing / above)"), estimate, waiting since, band chip, one-line reason, tags
 // (Life support red), Satellite and Listing links. Ticks are the screen's (shared with the Table) and feed its Send bar.
 // Phone: cards; computer: rows.
 import { Link } from "@tanstack/react-router";
@@ -87,9 +87,9 @@ function SpotRow({
         <span className="text-sub lg:hidden">Size</span>
         <span>
           {f.size}
-          {r.footprintM2 != null && (
+          {r.estCeiling && (
             <span className="block text-[12px] text-sub">
-              ~{Math.round(r.footprintM2)} m² from above
+              Est. ceiling ~{r.estCeiling.m2} m² (from {r.estCeiling.source === "listing" ? "listing" : "above"})
             </span>
           )}
         </span>
