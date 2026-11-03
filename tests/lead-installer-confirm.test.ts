@@ -257,7 +257,7 @@ describe("the 5pm lock on the writers (server check, current booking read fresh)
     tables["workflow_events"] = tables["workflow_events"]!.filter((e) => e["event_type"] !== "visit_allocated");
     expect((await leadInstallerLockState("J1", at(WED_1700))).leadId).toBe("w1");
   });
-  test("wiring: the three writers check the lock against the current booking inside the server", () => {
+  test("wiring: the four writers check the lock against the current booking inside the server", () => {
     const fns = readFileSync("src/lib/trade-view.functions.ts", "utf8");
     const change = fns.slice(fns.indexOf("export const changeInHouseLeadInstaller"), fns.indexOf("export const recordInHouseEscNoticeUpdated"));
     expect(change).toContain("assertLeadInstallerUnlocked(data.jobId,{newLeadId:data.workerId})");
@@ -271,6 +271,9 @@ describe("the 5pm lock on the writers (server check, current booking read fresh)
     expect(save).toContain("await refuseLockedLeadChange(jobId, leadWorkerId(sel));");
     expect(save.indexOf("refuseLockedLeadChange")).toBeLessThan(save.indexOf("readInHouseDispatchState"));
     expect(va).toContain("leadLockBlocker({ startIso: book.scheduled_start, now, currentLeadId");
+    const alloc = va.slice(va.indexOf("export async function allocateVisit("), va.indexOf("export async function saveCrewWithLead("));
+    expect(alloc).toContain('if (kind === "install") await refuseLockedLeadChange(jobId, workerId);'); // fix I2: fourth writer
+    expect(alloc.indexOf("refuseLockedLeadChange")).toBeLessThan(alloc.indexOf("logEvent("));
     expect(readFileSync("src/routes/api/public/hooks/allocation-tick.ts", "utf8")).toContain("sweepLeadInstallerConfirm()");
   });
 });

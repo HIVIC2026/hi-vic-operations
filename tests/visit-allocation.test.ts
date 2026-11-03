@@ -110,7 +110,8 @@ CREATE TABLE workflow_events (id uuid primary key default gen_random_uuid(), job
 CREATE TABLE ready_checks (id uuid primary key default gen_random_uuid(), job_id uuid, external_mitti_id text, created_at timestamptz default clock_timestamp());
 CREATE TABLE ceiling_measurements (id uuid primary key default gen_random_uuid(), job_id uuid, is_current boolean, external_source text, external_id text);
 CREATE TABLE job_assignments (id uuid primary key default gen_random_uuid(), job_id uuid, user_id uuid, business_id uuid, role text, active boolean);
-ALTER TABLE partner_workers ADD COLUMN profile_id uuid;`);
+ALTER TABLE partner_workers ADD COLUMN profile_id uuid;
+CREATE TABLE bookings (id uuid primary key default gen_random_uuid(), job_id uuid, kind text, status text, scheduled_start timestamptz, created_at timestamptz default clock_timestamp());`);
 const BIZ = "00000000-0000-0000-0000-0000000000b1", OWNER = "00000000-0000-0000-0000-0000000000c1";
 const J_RC = "00000000-0000-0000-0000-000000000001", J_INST = "00000000-0000-0000-0000-000000000002";
 const W_DEEP = "00000000-0000-0000-0000-0000000000d1", W_MAN = "00000000-0000-0000-0000-0000000000d2", W_NOMITTI = "00000000-0000-0000-0000-0000000000d3";
@@ -248,5 +249,31 @@ describe("saveCrewWithLead: staff can change the Lead", () => {
     expect((await events(J_INST)).length).toBe(ev);
     expect(await crewEvents()).toBe(crew);
     boss = true;
+  });
+});
+
+// Part 7 fix I2: allocateVisit kind "install" is the fourth Lead Installer writer — it checks the 5pm lock too.
+const { LEAD_LOCKED_MESSAGE } = await import("../src/lib/prestart.core");
+describe("allocateVisit kind install: the 5pm Lead Installer lock (fix I2)", () => {
+  const J_LOCK_FIRST = "00000000-0000-0000-0000-000000000003";
+  const inDays = (d: number) => new Date(Date.now() + d * 86_400_000).toISOString();
+  test("after lockAt a different Lead is refused with LEAD_LOCKED_MESSAGE before any write; the same Lead and a Ready Check pass", async () => {
+    expect(await allocatedPersonFor(J_INST, "install")).toMatchObject({ workerId: W_DEEP });
+    await db.query(`INSERT INTO bookings (job_id, kind, status, scheduled_start) VALUES ($1,'installation','confirmed',$2)`, [J_INST, inDays(1)]); // lock (5pm two days before) has passed
+    const ev = (await events(J_INST)).length, re = reassigns.length;
+    await expect(allocateVisit(J_INST, OWNER, "install", W_LEAD_BIZ)).rejects.toThrow(LEAD_LOCKED_MESSAGE);
+    await expect(allocateVisit(J_INST, OWNER, "install", W_DEEP, undefined, { crewPicker: true })).resolves.toMatchObject({ ok: true, workerId: W_DEEP });
+    expect((await events(J_INST)).length).toBe(ev + 1);
+    expect(reassigns.length).toBe(re + 1);
+    await expect(allocateVisit(J_RC, OWNER, "ready_check", W_MAN)).resolves.toMatchObject({ ok: true });
+    await expect(saveCrewWithLead(J_INST, OWNER, { lead: W_LEAD_BIZ, additional: [] })).rejects.toThrow(LEAD_LOCKED_MESSAGE);
+  });
+  test("before lockAt a different Lead goes through; a first Lead on a locked job is never refused", async () => {
+    await db.query(`UPDATE bookings SET scheduled_start=$2 WHERE job_id=$1`, [J_INST, inDays(10)]);
+    await expect(allocateVisit(J_INST, OWNER, "install", W_LEAD_BIZ)).resolves.toMatchObject({ ok: true, workerId: W_LEAD_BIZ });
+    await db.query(`INSERT INTO jobs VALUES ($1,'HV-3153','installation_booked','installer_portal')`, [J_LOCK_FIRST]);
+    await db.query(`INSERT INTO bookings (job_id, kind, status, scheduled_start) VALUES ($1,'installation','confirmed',$2)`, [J_LOCK_FIRST, inDays(1)]);
+    await expect(allocateVisit(J_LOCK_FIRST, OWNER, "install", W_DEEP)).resolves.toMatchObject({ ok: true, workerId: W_DEEP, form: "none" });
+    await expect(allocateVisit(J_LOCK_FIRST, OWNER, "install", W_LEAD_BIZ)).rejects.toThrow(LEAD_LOCKED_MESSAGE);
   });
 });

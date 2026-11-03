@@ -106,6 +106,9 @@ export async function allocateVisit(jobId: string, userId: string, kind: VisitKi
   if (c.kind !== "installer") throw new WorkflowError("Visits are allocated on installer jobs only.");
   const { data: job } = await db.from("jobs").select("stage, source").eq("id", jobId).maybeSingle();
   if (!visitsForStage(job?.stage ?? null).includes(kind)) throw new WorkflowError(`This job isn't at its ${VISIT_LABEL[kind]} yet.`);
+  // Part 7 fix I2: the install allocation is a Lead Installer writer too — from 5pm two days before the install a
+  // different Lead is refused (LEAD_LOCKED_MESSAGE) before anything is recorded or handed over.
+  if (kind === "install") await refuseLockedLeadChange(jobId, workerId);
   const cand = (await allocationCandidates(c.biz.id)).find((x) => x.workerId === workerId);
   if (!cand) throw new WorkflowError("That person isn't on your staff list.");
   const why = allocationBlocker(kind, cand, melbourneToday(), kind === "install" ? { bookingCreatedAt: await installBookingCreatedAt(jobId) } : undefined);
@@ -145,7 +148,9 @@ export async function saveCrewWithLead(jobId: string, userId: string, sel: CrewS
 
 /** Part 7 Task 6 (Jo 2 Nov 2026): from 5pm two days before the install the Lead Installer is locked (the ESC is told) —
  *  a different Lead is refused with LEAD_LOCKED_MESSAGE; crew-only changes, a first Lead or the same Lead go through.
- *  Reads the CURRENT confirmed install booking and current Lead here, never a page's copy. Rule: prestart.core (Part 9). */
+ *  Reads the CURRENT confirmed install booking and current Lead here, never a page's copy. Rule: prestart.core (Part 9).
+ *  Callers: saveCrewWithLead (crew picker) and allocateVisit kind "install" (fix I2); the other two writers
+ *  (changeInHouseLeadInstaller, inHouseBookVisit) use assertLeadInstallerUnlocked in lead-installer-confirm.server. */
 async function refuseLockedLeadChange(jobId: string, newLeadId: string | null, now = new Date()): Promise<void> {
   const { data: book } = await db.from("bookings").select("scheduled_start").eq("job_id", jobId).eq("kind", "installation").eq("status", "confirmed").order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (!book?.scheduled_start) return;
