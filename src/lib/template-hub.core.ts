@@ -464,7 +464,7 @@ const OWNER: TemplateEntry[] = [
     source: { builder: "src/lib/address-request.core.ts", fn: "addressRequestText", sender: "src/lib/address-request.server.ts" },
     render: () => text(addressRequestText(`${BASE}/my-address/TEST`, true)) }),
   // A48 batch 2 (Jo 29–30 Oct 2026): Jo taps Send on an area batch → each owner gets the quick taps link (+ day-2 reminder).
-  ENTRY({ id: "owner:sms-quick_taps", section: "owner", step: "ready_check", kind: "text", code: "", name: "Confirm a few quick details (text)", when: "Jo taps Send on a suggested batch (Jobs › Choose installer)", who: "Owner", approvalNote: "Jo 30 Oct 2026 (A48 batch 2)", gate: { kind: "text", smsType: "quick_taps" },
+  ENTRY({ id: "owner:sms-quick_taps", section: "owner", step: "ready_check", kind: "text", code: "", name: "Confirm a few quick details (text)", when: "Jo ticks saved spots on To release and taps Send", who: "Owner", approvalNote: "Jo 30 Oct 2026 (A48 batch 2)", gate: { kind: "text", smsType: "quick_taps" },
     source: { builder: "src/lib/area-batch.core.ts", fn: "quickTapsText", sender: "src/lib/area-batch.server.ts" },
     render: () => text(quickTapsText("Helen Sample", `${JOB}?screen=taps`)) }),
   ENTRY({ id: "owner:sms-quick_taps_reminder", section: "owner", step: "ready_check", kind: "text", code: "", name: "Confirm a few quick details — day-2 reminder (text)", when: "Day 2 of the batch, if the owner hasn't answered", who: "Owner", approvalNote: "Jo 30 Oct 2026 (A48 batch 2)", gate: { kind: "text", smsType: "quick_taps_reminder" },

@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Section } from "@/components/portal/panels";
 import { listChooseTrades } from "@/lib/offer-dispatch.functions";
 import { getSpotRelease, releaseSpotFn } from "@/lib/spot-release.functions";
-import { getAreaBatchSuggestions, getBatchesReadyToSend, sendAreaBatchFn } from "@/lib/area-batch.functions";
+import { getBatchesReadyToSend, sendAreaBatchFn } from "@/lib/area-batch.functions";
 import { allocateInHouseBatch, getInHouseGiveForJob } from "@/lib/in-house-batch.functions";
 import { giveNotice } from "@/lib/in-house-batch.core";
 import { offerRunFn, returnBatchFn } from "@/lib/installer-run.functions";
@@ -156,76 +156,10 @@ export function ChooseInstallerPanel({ jobId, reportLoad = false }: { jobId: str
   );
 }
 
-/** A48 batch 2 (Jo 29–30 Oct 2026): suggested batches of nearby homes that look likely to qualify. Jo picks an installer
- *  who covers every home and taps Send; each owner gets a text and an email to confirm a few quick details. Nothing is ever sent automatically. */
-export function AreaBatchSuggestions({ includeTest = false }: { includeTest?: boolean }) {
-  const qc = useQueryClient();
-  const load = useServerFn(getAreaBatchSuggestions);
-  const send = useServerFn(sendAreaBatchFn);
-  const q = useQuery({ queryKey: ["area-batches", includeTest], queryFn: () => load({ data: { includeTest } }), staleTime: 30_000 });
-  const [picked, setPicked] = useState<Record<string, string>>({});
-  const [busy, setBusy] = useState<string | null>(null);
-  const [last, setLast] = useState<{ results: SendResults; numbers: Record<string, string> } | null>(null);
-  const d = q.data;
-  const go = async (key: string, jobIds: string[], businessId: string, name: string, numbers: Record<string, string>) => {
-    if (busy) return;
-    setBusy(key);
-    try {
-      const r = await send({ data: { jobIds, businessId } });
-      toast.success(`Sent to ${r.homes} ${r.homes === 1 ? "owner" : "owners"} for ${name}${r.held ? ` · ${r.held} text${r.held === 1 ? "" : "s"} held (see the job)` : ""}`);
-      setLast({ results: r.results, numbers });
-      void qc.invalidateQueries({ queryKey: ["area-batches"] });
-      void qc.invalidateQueries({ queryKey: ["installer-waiting"] });
-    } catch (e) { toast.error(e instanceof Error ? e.message : "That didn't work"); }
-    finally { setBusy(null); }
-  };
-  return (
-    <section aria-label="Suggested batches" className="mb-4 rounded-[18px] border border-line bg-paper p-4">
-      <h2 className="font-display text-[17px] font-bold text-ink">Suggested batches</h2>
-      <p className="mt-1 text-[13px] text-sub">Nearby homes that look likely to qualify. Pick an installer and tap Send — each owner gets a text and an email to confirm a few quick details.</p>
-      {last && <div className="mt-3"><p className="mb-1 text-[13px] font-semibold text-ink">Last Send</p><SendResultList results={last.results} label={(id) => last.numbers[id] ?? "Home"} /></div>}
-      {q.isError ? (
-        <p role="alert" className="mt-3 text-sm text-danger">Couldn't load the batches. {(q.error as Error).message} <button type="button" className="font-semibold underline" onClick={() => void q.refetch()}>Try again</button></p>
-      ) : !d ? <p className="mt-3 text-sm text-sub">Loading…</p> : d.batches.length === 0 ? (
-        <p className="mt-3 text-sm text-sub">No batch ready yet.{d.unlocated ? ` Still finding the location of ${d.unlocated} ${d.unlocated === 1 ? "home" : "homes"}.` : ""}</p>
-      ) : (
-        <ul className="mt-3 space-y-3">
-          {d.batches.map((b) => {
-            const key = b.homes[0]?.jobId ?? "";
-            const choice = picked[key] ?? (b.installers.length === 1 ? b.installers[0]!.id : "");
-            const chosen = b.installers.find((i) => i.id === choice);
-            return (
-              <li key={key} className="rounded-[14px] border border-line p-3" data-batch={key}>
-                <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-ink">
-                  {b.homes.length} {b.homes.length === 1 ? "home" : "homes"} · within {b.spanKm} km
-                  {b.isTest && <Pill tone="amber">TEST</Pill>}
-                </p>
-                <p className="text-[13px] text-sub">{b.suburbs.join(", ")}</p>
-                <ul className="mt-2 text-[13px] text-sub">
-                  {b.homes.map((h) => <li key={h.jobId}>{h.jobNumber} · {h.ownerName || "Owner"} · {h.suburb || h.postcode}</li>)}
-                </ul>
-                {b.installers.length === 0 ? <p className="mt-2 text-[13px] text-rose">No installer covers every home in this batch.</p> : (
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <select aria-label="Installer" className="h-10 min-w-0 flex-1 rounded-[10px] border border-line bg-paper px-2 text-sm" value={choice} onChange={(e) => setPicked({ ...picked, [key]: e.target.value })}>
-                      {b.installers.length > 1 && <option value="">Pick an installer</option>}
-                      {b.installers.map((i) => <option key={i.id} value={i.id}>{i.name}</option>)}
-                    </select>
-                    <button type="button" className={btnClass("primary")} disabled={!chosen || !!busy} onClick={() => chosen && void go(key, b.homes.map((h) => h.jobId), chosen.id, chosen.name, Object.fromEntries(b.homes.map((h) => [h.jobId, h.jobNumber])))}>{busy === key ? "Sending…" : "Send"}</button>
-                  </div>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </section>
-  );
-}
-
 /** A48 batch 2 (Jo 30 Oct 2026): closed batches whose owners said yes. Runs never go to an installer automatically — Jo
  *  checks the homes, picks the installer (default the one picked at Send; any installer who covers every home) and taps
  *  "Send to installer". A run whose installer text didn't go shows "Text didn't go — Send again" (same run, same installer).
- *  "Back to suggestions" puts the owners back in the suggested batches (not asked again). Nothing in Needs me. */
+ *  "Back to To release" puts the owners back on To release (not asked again). Nothing in Needs me. */
 export function BatchesReadyToSend({ includeTest = false }: { includeTest?: boolean }) {
   const load = useServerFn(getBatchesReadyToSend);
   const offer = useServerFn(offerRunFn);
@@ -252,7 +186,7 @@ export function BatchesReadyToSend({ includeTest = false }: { includeTest?: bool
     setBusy(`back:${batchId}`);
     try {
       const r = await giveBack({ data: { batchId } });
-      toast.success(`Back in the suggestions — ${r.homes} ${r.homes === 1 ? "home" : "homes"}`);
+      toast.success(`Back on To release — ${r.homes} ${r.homes === 1 ? "home" : "homes"}`);
       void qc.invalidateQueries();
     } catch (e) { toast.error(e instanceof Error ? e.message : "That didn't work"); }
     finally { setBusy(null); }
@@ -289,7 +223,7 @@ export function BatchesReadyToSend({ includeTest = false }: { includeTest?: bool
                   </select>
                 )}
                 <button type="button" className={btnClass("primary")} disabled={!!busy || !chosen?.id} onClick={() => chosen?.id && void send(b.batchId, chosen.id)}>{busy === b.batchId ? "Sending…" : unsent ? "Send again" : "Send to installer"}</button>
-                <button type="button" className={btnClass("secondary")} disabled={!!busy} onClick={() => void back(b.batchId)}>{busy === `back:${b.batchId}` ? "Saving…" : "Back to suggestions"}</button>
+                <button type="button" className={btnClass("secondary")} disabled={!!busy} onClick={() => void back(b.batchId)}>{busy === `back:${b.batchId}` ? "Saving…" : "Back to To release"}</button>
               </div>
             </li>
           );

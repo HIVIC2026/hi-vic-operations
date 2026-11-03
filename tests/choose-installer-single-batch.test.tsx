@@ -14,7 +14,6 @@ mock.module("@/lib/spot-release.functions", () => ({
 }));
 mock.module("@/lib/area-batch.functions", () => ({
   sendAreaBatchFn: stub("batch"),
-  getAreaBatchSuggestions: stub("suggestions"),
   getBatchesReadyToSend: stub("ready"),
 }));
 mock.module("@/lib/installer-run.functions", () => ({
