@@ -556,8 +556,8 @@ describe("To release tick-to-Send", () => {
     const fn = src.slice(src.indexOf("export const getInstallersForHomesFn"));
     expect(fn).toMatch(/^export const getInstallersForHomesFn = createServerFn\(\{ method: "POST" \}\)\.middleware\(\[requireSupabaseAuth\]\)\s*\.inputValidator\(/);
     expect(fn).toContain("z.array(z.string().uuid()).min(1).max(10)");
-    expect(fn).toContain("for (const id of data.jobIds) await requireOfficeJob(context.supabase, id);");
-    expect(fn).toContain("officeTestBusinessIds(context.supabase)");
+    expect(fn).toContain("for (const id of data.jobIds) await requireOfficeJob(context.supabase, id, context);");
+    expect(fn).toContain("officeTestBusinessIds(context.supabase, context)");
   });
 });
 

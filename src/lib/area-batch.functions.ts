@@ -10,8 +10,8 @@ import { requireOfficeIdentity, requireOfficeJob, requireOfficeBusiness, officeT
 export const sendAreaBatchFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobIds: z.array(z.string().uuid()).min(1).max(10), businessId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    for (const id of data.jobIds) await requireOfficeJob(context.supabase, id);
-    await requireOfficeBusiness(context.supabase, data.businessId);
+    for (const id of data.jobIds) await requireOfficeJob(context.supabase, id, context);
+    await requireOfficeBusiness(context.supabase, data.businessId, context);
     const r = await (await import("./area-batch.server")).sendBatch(data.jobIds, data.businessId, context.userId);
     return { batchId: r.batchId, installer: r.installer, homes: r.homes, held: r.texts.filter((t) => t.status !== "sent" && t.status !== "not_texted").length,
       results: r.texts.map((t) => ({ jobId: t.jobId, text: { status: t.status, detail: t.detail }, email: t.email })) };
@@ -23,10 +23,10 @@ export const sendAreaBatchFn = createServerFn({ method: "POST" }).middleware([re
 export const getInstallersForHomesFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobIds: z.array(z.string().uuid()).min(1).max(10) }).parse(d))
   .handler(async ({ data, context }) => {
-    for (const id of data.jobIds) await requireOfficeJob(context.supabase, id);
-    const role = await requireOfficeIdentity(context.supabase);
+    for (const id of data.jobIds) await requireOfficeJob(context.supabase, id, context);
+    const role = await requireOfficeIdentity(context.supabase, context);
     const { installersForHomes } = await import("./area-batch.server");
-    if (role === "qa_office") return { installers: await installersForHomes(data.jobIds, await officeTestBusinessIds(context.supabase)) };
+    if (role === "qa_office") return { installers: await installersForHomes(data.jobIds, await officeTestBusinessIds(context.supabase, context)) };
     return { installers: await installersForHomes(data.jobIds) };
   });
 
@@ -35,8 +35,8 @@ export const getInstallersForHomesFn = createServerFn({ method: "POST" }).middle
 export const getBatchesReadyToSend = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ includeTest: z.boolean().default(false) }).parse(d ?? {}))
   .handler(async ({ data, context }) => {
-    const role = await requireOfficeIdentity(context.supabase);
+    const role = await requireOfficeIdentity(context.supabase, context);
     const { batchesReadyToSend } = await import("./area-batch.server");
-    if (role === "qa_office") return batchesReadyToSend({ includeTest: true, testJobIds: await officeTestJobIds(context.supabase), testBusinessIds: await officeTestBusinessIds(context.supabase) });
+    if (role === "qa_office") return batchesReadyToSend({ includeTest: true, testJobIds: await officeTestJobIds(context.supabase, context), testBusinessIds: await officeTestBusinessIds(context.supabase, context) });
     return batchesReadyToSend({ includeTest: data.includeTest });
   });

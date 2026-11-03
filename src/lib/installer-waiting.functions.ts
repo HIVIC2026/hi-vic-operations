@@ -9,8 +9,8 @@ import { requireOfficeIdentity, officeTestJobIds, officeTestBusinessIds } from "
 export const getInstallerWaitingList = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ includeTest: z.boolean().default(false) }).parse(d ?? {}))
   .handler(async ({ data, context }) => {
-    const role = await requireOfficeIdentity(context.supabase);
+    const role = await requireOfficeIdentity(context.supabase, context);
     const { loadInstallerWaitingList } = await import("./installer-waiting.server");
-    if (role === "qa_office") return loadInstallerWaitingList({ includeTest: true }, await officeTestJobIds(context.supabase), await officeTestBusinessIds(context.supabase));
+    if (role === "qa_office") return loadInstallerWaitingList({ includeTest: true }, await officeTestJobIds(context.supabase, context), await officeTestBusinessIds(context.supabase, context));
     return loadInstallerWaitingList(data);
   });

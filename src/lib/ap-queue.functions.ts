@@ -15,7 +15,7 @@ export const getApQueue = createServerFn({ method: "GET" }).middleware([requireS
 export const getFinalCheck = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireOfficeJob(context.supabase, data.jobId);
+    await requireOfficeJob(context.supabase, data.jobId, context);
     const { finalCheckScreen } = await import("./final-check.server");
     return finalCheckScreen(data.jobId, context.userId);
   });
@@ -25,6 +25,6 @@ export const getFinalCheck = createServerFn({ method: "POST" }).middleware([requ
 export const approveApJob = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: z.string().uuid(), note: z.string().max(2000).optional() }).parse(d))
   .handler(async ({ data, context }) => {
-    await requireOfficeJob(context.supabase, data.jobId);
+    await requireOfficeJob(context.supabase, data.jobId, context);
     return (await import("./ap-approve.server")).approveApJobAs(data.jobId, context.userId, data.note);
   });

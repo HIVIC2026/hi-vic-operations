@@ -1,64 +1,79 @@
 // Separate TEST-office capability. Never widen requireAdmin or infer authority from user metadata.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
-import { qaOfficeIdentityBlocker, qaOfficeJobBlocker, qaOfficeReservedEmail, type QaOfficeBusiness } from "./qa-office.core";
+import { qaOfficeIdentityBlocker, qaOfficeJobBlocker, qaOfficeReservedEmail, type QaOfficeBusiness, type QaOfficeIdentity } from "./qa-office.core";
 import { requireAdmin } from "./workflow.server";
+import { officeBoundaryFor } from "./office-boundary-context";
 
 type Client = SupabaseClient<Database>;
 type Row = Record<string, unknown>;
 const text = (value: unknown): string | null => typeof value === "string" ? value : null;
 
-/** Lists choose their scope on the server; a browser includeTest flag is never authorization. */
-export async function requireOfficeIdentity(sb: Client): Promise<"admin" | "qa_office"> {
+/** The server function's middleware context: `userId` from requireSupabaseAuth, `boundary` from the global boundary. */
+export type OfficeRequestContext = { userId?: unknown; boundary?: unknown };
+type OfficeCaller = QaOfficeIdentity & { reused: boolean };
+
+/** Who is calling: the boundary's check of this request when it is there (no round trips), else read it as before. */
+async function officeCaller(sb: Client, ctx: OfficeRequestContext | undefined): Promise<OfficeCaller> {
+  const boundary = officeBoundaryFor(ctx);
+  if (boundary) return { roles: boundary.roles, email: boundary.email, emailVerified: boundary.emailVerified, reused: true };
   const { data: auth, error } = await sb.auth.getUser();
   if (error || !auth.user) throw new Error("Office sign-in required.");
   const { data: rows, error: roleError } = await sb.from("user_roles").select("role").eq("user_id", auth.user.id);
   if (roleError) throw new Error("Office permissions could not be checked.");
-  const roles = (rows ?? []).map(row => String(row.role));
-  if (!roles.includes("qa_office")) { await requireAdmin(sb); return "admin"; }
-  const blocked = qaOfficeIdentityBlocker({ roles, email: auth.user.email ?? null, emailVerified: !!auth.user.email_confirmed_at });
+  return { roles: (rows ?? []).map(row => String(row.role)), email: auth.user.email ?? null, emailVerified: !!auth.user.email_confirmed_at, reused: false };
+}
+
+/** Admin decision. is_admin() is `has_role(auth.uid(),'admin')` (a user_roles row), so a reused role list that has
+ * "admin" answers it; anyone else still asks is_admin and gets today's exact refusal (pinned in office-identity-reuse.test). */
+async function requireOfficeAdmin(sb: Client, caller: OfficeCaller): Promise<void> {
+  if (caller.reused && caller.roles.includes("admin")) return;
+  await requireAdmin(sb);
+}
+
+/** Lists choose their scope on the server; a browser includeTest flag is never authorization. */
+export async function requireOfficeIdentity(sb: Client, ctx?: OfficeRequestContext): Promise<"admin" | "qa_office"> {
+  const caller = await officeCaller(sb, ctx);
+  if (!caller.roles.includes("qa_office")) { await requireOfficeAdmin(sb, caller); return "admin"; }
+  const blocked = qaOfficeIdentityBlocker(caller);
   if (blocked) throw new Error(blocked);
   return "qa_office";
 }
 
-export async function officeTestJobIds(sb: Client): Promise<string[]> {
-  if (await requireOfficeIdentity(sb) !== "qa_office") throw new Error("Dedicated TEST office required.");
+export async function officeTestJobIds(sb: Client, ctx?: OfficeRequestContext): Promise<string[]> {
+  if (await requireOfficeIdentity(sb, ctx) !== "qa_office") throw new Error("Dedicated TEST office required.");
   const ids: string[] = [];
   for (let offset = 0; ; offset += 100) {
     // RLS scopes the candidate list before data leaves the database; graph recheck protects privileged readers.
     const { data, error } = await sb.from("jobs").select("id").eq("source", "qa_test").is("deleted_at", null).is("qa_archived_at", null).order("id").range(offset, offset + 99);
     if (error) throw new Error("TEST job scope could not be checked.");
-    for (const row of data ?? []) { await requireOfficeJob(sb, row.id); ids.push(row.id); }
+    for (const row of data ?? []) { await requireOfficeJob(sb, row.id, ctx); ids.push(row.id); }
     if (!data || data.length < 100) return ids;
   }
 }
 
-export async function requireOfficeBusiness(sb: Client, businessId: string): Promise<void> {
-  if (await requireOfficeIdentity(sb) === "admin") return;
+export async function requireOfficeBusiness(sb: Client, businessId: string, ctx?: OfficeRequestContext): Promise<void> {
+  if (await requireOfficeIdentity(sb, ctx) === "admin") return;
   const { data, error } = await (sb as unknown as SupabaseClient).rpc("qa_office_business_allowed", { _business: businessId });
   if (error || data !== true) throw new Error("Only fully isolated TEST businesses are available to TEST office.");
 }
 
-export async function officeTestBusinessIds(sb: Client): Promise<string[]> {
-  if (await requireOfficeIdentity(sb) !== "qa_office") throw new Error("Dedicated TEST office required.");
+export async function officeTestBusinessIds(sb: Client, ctx?: OfficeRequestContext): Promise<string[]> {
+  if (await requireOfficeIdentity(sb, ctx) !== "qa_office") throw new Error("Dedicated TEST office required.");
   // No privileged candidate scan: RLS filters the list first.
   const { data, error } = await sb.from("businesses").select("id").ilike("email", "%@hivic-test.example").like("onboarding_notes", "%[TEST PARTNER]%");
   if (error) throw new Error("TEST businesses could not be checked.");
-  for (const row of data ?? []) await requireOfficeBusiness(sb, row.id);
+  for (const row of data ?? []) await requireOfficeBusiness(sb, row.id, ctx);
   return (data ?? []).map(row => row.id);
 }
 
-export async function requireOfficeJob(sb: Client, jobId: string): Promise<"admin" | "qa_office"> {
-  const { data: auth, error: authError } = await sb.auth.getUser();
-  if (authError || !auth.user) throw new Error("Office sign-in required.");
-  const { data: roleRows, error: roleError } = await sb.from("user_roles").select("role").eq("user_id", auth.user.id);
-  if (roleError) throw new Error("Office permissions could not be checked.");
-  const roles = (roleRows ?? []).map(row => String(row.role));
-  if (!roles.includes("qa_office")) {
-    await requireAdmin(sb);
+export async function requireOfficeJob(sb: Client, jobId: string, ctx?: OfficeRequestContext): Promise<"admin" | "qa_office"> {
+  const caller = await officeCaller(sb, ctx);
+  if (!caller.roles.includes("qa_office")) {
+    await requireOfficeAdmin(sb, caller);
     return "admin";
   }
-  const identity = { roles, email: auth.user.email ?? null, emailVerified: !!auth.user.email_confirmed_at };
+  const identity = { roles: caller.roles, email: caller.email, emailVerified: caller.emailVerified };
   const identityBlock = qaOfficeIdentityBlocker(identity);
   if (identityBlock) throw new Error(identityBlock);
   // RLS must authorize the graph before privileged helpers can run. An unapplied policy is a loud refusal.

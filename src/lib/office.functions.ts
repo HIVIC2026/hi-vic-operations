@@ -59,8 +59,8 @@ export const listByStatus = createServerFn({ method: "GET" }).middleware([requir
 export const searchOffice = createServerFn({ method: "GET" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ q: z.string().trim().min(2).max(80) }).parse(d))
   .handler(async ({ context, data }) => {
-    if (await requireOfficeIdentity(context.supabase) === "qa_office") {
-      const ids = await officeTestJobIds(context.supabase);
+    if (await requireOfficeIdentity(context.supabase, context) === "qa_office") {
+      const ids = await officeTestJobIds(context.supabase, context);
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const { data: jobs, error } = await supabaseAdmin.from("jobs").select("id,job_number,source,owners(full_name,email,phone),properties(address_line,suburb,postcode)").eq("source", "qa_test").in("id", ids.length ? ids : ["00000000-0000-0000-0000-000000000000"]);
       if (error) throw new Error("TEST search could not be read.");
@@ -101,7 +101,7 @@ export const snoozeNeedsItem = createServerFn({ method: "POST" }).middleware([re
 export const approveElectricianForm = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: z.string().uuid(), kind: z.enum(["assessment", "rectification"]), bookingId: z.string().uuid().optional() }).parse(d))
   .handler(async ({ context, data }) => {
-    await requireOfficeJob(context.supabase, data.jobId);
+    await requireOfficeJob(context.supabase, data.jobId, context);
     const { recordElectricianFormApproval } = await import("./electrician-form-approval.server");
     return recordElectricianFormApproval(data.jobId, data.kind, context.userId, data.kind === "assessment" ? data.bookingId ?? null : null);
   });
@@ -110,7 +110,7 @@ export const approveElectricianForm = createServerFn({ method: "POST" }).middlew
 export const markPayoutPaid = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: z.string().uuid(), reference: z.string().trim().min(2).max(120), kind: z.enum(["assessment", "rectification", "installation"]).optional(), bookingId: z.string().uuid().optional() }).parse(d))
   .handler(async ({ context, data }) => {
-    await requireOfficeJob(context.supabase, data.jobId);
+    await requireOfficeJob(context.supabase, data.jobId, context);
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     if (data.kind === "assessment" || data.kind === "rectification") {
       const [{ data: j }, { data: qs }] = await Promise.all([

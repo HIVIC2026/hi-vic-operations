@@ -2,16 +2,19 @@ import { createMiddleware } from "@tanstack/react-start";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
 import { qaOfficeFunctionBlocker } from "./qa-office-policy.core";
+import { verifiedOfficeBoundary, type OfficeBoundary } from "./office-boundary-context";
 
 // Global before-handler boundary, including functions that omitted their own office check.
 // Bearer-less public requests retain their existing handler authorization.
 // Every bearer gets both checks: getUser (Auth's record; refuses signed-out sessions) and the persisted
 // user_roles (qa_office on any email). getClaims verifies the token locally first so its `sub` lets the
 // two reads run in one parallel round instead of two sequential ones; the decision is unchanged.
+// What it verified is handed on as `context.boundary` so office checks reuse it (see office-boundary-context.ts).
 export const testOfficeBoundary = createMiddleware({ type: "function" }).server(async ({ next, serverFnMeta }) => {
   const { getRequest } = await import("@tanstack/react-start/server");
   const authorization = getRequest().headers.get("authorization");
-  if (!authorization) return next();
+  // No bearer: nothing verified, and any `boundary` a browser put in the request context is cleared.
+  if (!authorization) return next({ context: { boundary: undefined as OfficeBoundary | undefined } });
   const url = process.env["SUPABASE_URL"], key = process.env["SUPABASE_PUBLISHABLE_KEY"];
   if (!url || !key || !authorization.startsWith("Bearer ")) throw new Error("Office permissions could not be checked.");
   const token = authorization.slice(7);
@@ -33,7 +36,8 @@ export const testOfficeBoundary = createMiddleware({ type: "function" }).server(
   ]);
   if (error || !auth.user || auth.user.id !== sub) throw new Error("Office sign-in required.");
   if (roleError) throw new Error("Office permissions could not be checked.");
-  const blocker = qaOfficeFunctionBlocker({ roles: (rows ?? []).map(r => String(r.role)), email: auth.user.email ?? null, emailVerified: !!auth.user.email_confirmed_at }, serverFnMeta.filename, serverFnMeta.name);
+  const identity = { roles: (rows ?? []).map(r => String(r.role)), email: auth.user.email ?? null, emailVerified: !!auth.user.email_confirmed_at };
+  const blocker = qaOfficeFunctionBlocker(identity, serverFnMeta.filename, serverFnMeta.name);
   if (blocker) throw new Error(blocker);
-  return next();
+  return next({ context: { boundary: verifiedOfficeBoundary({ userId: sub, ...identity }) as OfficeBoundary | undefined } });
 });
