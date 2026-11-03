@@ -13,9 +13,9 @@ mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { f
       if (claimed) return { data: null, error: { code: "23505" } };
       claimed = payload; return { data: { id: payload.id }, error: null };
     }
-    return { data: table === "jobs" ? { source: "base44" } : table === "workflow_settings" ? { sms_message_switches: { save_spot_reminder:reminderOn } } : table === "sms_optouts" ? (optedOut ? [{ phone: "+61491234567" }] : []) : null, error: null };
+    return { data: table === "jobs" ? { source: "base44" } : table === "workflow_settings" ? { sms_message_switches: { save_spot_reminder:reminderOn } } : table === "sms_optouts" ? (optedOut ? [{ phone: "+61491234567" }] : []) : table === "workflow_events" ? [] : null, error: null };
   };
-  const q = { select: () => q, eq: () => q, not: () => q, insert: (v: Record<string, unknown>) => { payload = v; return q; }, update: () => q, maybeSingle: async () => result(), then: (resolve: (v: unknown) => unknown) => Promise.resolve(result()).then(resolve) }; return q;
+  const q = { select: () => q, eq: () => q, in: () => q, not: () => q, insert: (v: Record<string, unknown>) => { payload = v; return q; }, update: () => q, maybeSingle: async () => result(), then: (resolve: (v: unknown) => unknown) => Promise.resolve(result()).then(resolve) }; return q;
 } } }));
 mock.module("../src/lib/comms.server", () => ({ customerCommsEnabled: async () => true, hasCurrentOwnerContactConsent: async () => true }));
 mock.module("../src/lib/job-live.server", () => ({ jobDeletedBlocker: async () => null }));

@@ -269,6 +269,8 @@ export type SmsGateInput = {
   nowIso?: string;
   /** "Pause all trade messages" hold reason (trade-pause.core.ts); applies to partner-audience types only. */
   tradeMessagesPaused?: string | null;
+  /** "Do not contact" flag on the job (do-not-contact.core.ts); applies to owner-audience types only. */
+  doNotContact?: boolean;
 };
 
 /** Decision 328: a same-day text exempt from the 8pm quiet hours still never goes before 7am Melbourne. */
@@ -293,16 +295,19 @@ export function smsBlocker(x: SmsGateInput): string | null {
   if (!x.senderConfigured) return "No Australian sending number set up";
   if (!toAuE164(x.to)) return SMS_NOT_MOBILE;
   if (x.optedOut) return SMS_REPLIED_STOP;
+  // The owner's own sign-in code is something they just asked for, not an automatic message.
+  if (x.doNotContact && t.audience === "owner" && x.type !== "owner_code") return SMS_DO_NOT_CONTACT;
   if (!x.consent) return t.audience === "owner" ? SMS_NO_OWNER_CONSENT : "Partner is not approved and active";
   return null;
 }
 
 /** Holds that belong to the RECIPIENT (not a switch, quiet hours or the sender): trying again changes nothing until the
  *  owner's details change. Callers that retry on a tick record these once instead (A48 batch 2 final review m5). */
+export const SMS_DO_NOT_CONTACT = "Owner asked not to be contacted";
 export const SMS_NOT_MOBILE = "Not an Australian mobile number";
 export const SMS_REPLIED_STOP = "This number replied STOP";
 export const SMS_NO_OWNER_CONSENT = "No contact consent from the owner";
-const RECIPIENT_HOLDS: readonly string[] = [SMS_NOT_MOBILE, SMS_REPLIED_STOP, SMS_NO_OWNER_CONSENT];
+const RECIPIENT_HOLDS: readonly string[] = [SMS_NOT_MOBILE, SMS_REPLIED_STOP, SMS_NO_OWNER_CONSENT, SMS_DO_NOT_CONTACT];
 /** A real-sender result that was held for the recipient (STOP, no consent, not a mobile). */
 export const smsHeldForRecipient = (r: { status: string; detail: string | null | undefined }): boolean => r.status === "blocked" && RECIPIENT_HOLDS.includes(String(r.detail ?? ""));
 

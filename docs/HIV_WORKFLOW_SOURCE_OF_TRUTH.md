@@ -89,6 +89,7 @@ Decision 316 (Jo reconfirmed 27 Oct 2026): the clock starts from the official PI
 
 ## Communications
 Sender: Home Insulation Victoria. External sending behind launch controls. Track prepared, queued, sent, delivered, failed, undelivered, suppressed. Failed → Needs attention. Delivered ≠ read; read ≠ accepted; link opened ≠ approved; sent never progresses workflow.
+- "Do not contact" (Part 3 Task 1): the office flag (`owner_do_not_contact_set` / `_cleared`, latest wins) stops every AUTOMATIC owner email and text. Compliance emails still go (`COMPLIANCE_OWNER_EMAIL_PURPOSES`: ESC consent, PIESA and VEEC copies, install complete, completion pack, deposit receipt, non-compliance notice); texts are never compliance sends (the owner's own sign-in code is exempt). An email Unsubscribe also never blocks those legal copies; a bounce or complaint still blocks everything. An unreadable flag holds automatic messages.
 
 ## Office-only actions
 Every office-only action has a server-side role guard; hiding UI is not enough.

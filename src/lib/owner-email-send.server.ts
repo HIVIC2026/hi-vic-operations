@@ -9,18 +9,24 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 
 export async function sendGuardedOwnerEmail(p: { jobId: string; jobSource: string | null; to: string; purpose: string; key: string; build: (unsubscribeUrl: string | null) => { subject: string; html: string; text: string; attachments?: import("./email-kit.core").EmailAttachment[] }; retryAfterDefiniteFailure?: boolean; beforeSend?: () => Promise<void>; transport?: "resend" | { kind: "outlook"; replyToMessageId: string | null }; onSent?: (r: { provider: "outlook" | "resend"; messageId: string | null; internetMessageId: string | null }) => void }): Promise<string> {
   if (await (await import("./qa-inbox.server")).qaDeliveryHeld(p.jobId)) return "blocked — TEST browser run: no delivery";
-  const [{ data: opt, error: oe }, { data: response, error: re }, { count: suppressed, error: se }] = await Promise.all([
+  const dncCore = await import("./do-not-contact.core");
+  const [{ data: opt, error: oe }, { data: response, error: re }, { count: suppressed, error: se }, { data: dncEvents, error: de }] = await Promise.all([
     admin.from("customer_email_optouts").select("opted_out_at").eq("job_id", p.jobId).maybeSingle(),
     admin.from("lead_campaign_responses").select("opted_out_at").eq("job_id", p.jobId).maybeSingle(),
     admin.from("customer_engagement_events").select("id", { count: "exact", head: true }).eq("job_id", p.jobId).in("event_type", (await import("./emailsafety.core")).SUPPRESSING_EVENTS),
+    admin.from("workflow_events").select("event_type, created_at").eq("job_id", p.jobId).in("event_type", [dncCore.DO_NOT_CONTACT_SET_EVENT, dncCore.DO_NOT_CONTACT_CLEARED_EVENT]),
   ]);
+  // "Do not contact" stops automatic owner mail, never the compliance copies. An unreadable flag counts as on (fails closed for automatic mail only).
+  const dncReason = dncCore.doNotContactBlocks({ channel: "email", purpose: p.purpose, on: de ? true : dncCore.doNotContactOn(dncEvents ?? []) });
+  if (dncReason) return `blocked — ${dncReason}`;
   // Jo 27 Oct 08:58: a persisted qa_test job's email goes to the TEST inbox, marked; real jobs unchanged (route null).
   const route = await (await import("./qa-inbox.server")).qaInboxRouteForJob(p.jobId, p.to);
   // Final review 1: fail closed — a qa_test job with no TEST route (e.g. jobs.source unreadable) never reaches p.to.
   if (p.jobSource === "qa_test" && !route) return "blocked — not sent";
   const to = route?.to ?? p.to;
   const boundary = (await import("./comms-test-recipient.core")).testRecipientBoundary(to, p.jobSource);
-  if (oe || re || se || suppressed == null || opt?.opted_out_at || response?.opted_out_at || suppressed > 0 || boundary.status === "blocked") return "blocked — not sent";
+  const unsubscribed = !!(opt?.opted_out_at || response?.opted_out_at);
+  if (oe || re || se || suppressed == null || dncCore.unsubscribeBlocks({ purpose: p.purpose, unsubscribed, suppressed: suppressed > 0 }) || boundary.status === "blocked") return "blocked — not sent";
   let { data: reserved, error } = await admin.from("customer_email_sends").insert({ job_id: p.jobId, purpose: p.purpose, idempotency_key: p.key }).select("id").single();
   if ((error || !reserved) && p.retryAfterDefiniteFailure) {
     // Conditional claim: only a row whose last attempt definitely failed, and only one caller wins it.
