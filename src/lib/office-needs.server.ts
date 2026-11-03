@@ -15,6 +15,7 @@ import { PIESA_FIXES_CONFIRMED_EVENT, PIESA_FIXES_CONFIRM_OFFICE_ALERT_EVENT } f
 import { FIXES_TIMES_GIVEN_EVENT, FIXES_TIMES_LINK_EVENT, fixesTimesMissing } from "./fixes-times.core";
 import { AUTO_FIXES_QUOTE_HELD_EVENT } from "./auto-fixes-quote-send.core";
 import { OWN_JOB_HANDOFF_STAGES, OWN_JOB_PIESA_HANDED_EVENT, OWN_JOB_PIESA_HELD_EVENT } from "./own-job-piesa.core";
+import { OWN_JOB_PIESA_HANDED_BACK_EVENT, cantDoReasonLabel, type CantDoReason } from "./electrician-link.core";
 import { PIESA_AUTOFORM_FAILED_EVENT, piesaFormFailedOpen } from "./piesa-autoform.core";
 import { prestartFailedFor } from "./prestart.core";
 import { endOfMelbourneYmd } from "./melbourne-time.core";
@@ -296,7 +297,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     all("repeat safety check events", (a, b) => scoped(admin.from("workflow_events").select("job_id, event_type, created_at, details")).in("event_type", ["repeat_piesa_payer_chosen", "repeat_piesa_accepted", "repeat_piesa_paid"]).order("created_at", { ascending: false }).range(a, b)),
     all("address to confirm", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at, details")).eq("event_type", "address_lookup_unresolved").contains("details", { mitti_pickup: true, needs_office: true }).order("created_at", { ascending: false }).range(a, b)),
     all("Mitti electrician holds", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at")).eq("event_type", "mitti_electrician_choice_needed").order("created_at", { ascending: false }).range(a, b)),
-    all("own job safety check holds", (a, b) => scoped(admin.from("workflow_events").select("job_id, event_type, created_at, details")).in("event_type", [OWN_JOB_PIESA_HELD_EVENT, OWN_JOB_PIESA_HANDED_EVENT]).order("created_at", { ascending: false }).range(a, b)),
+    all("own job safety check holds", (a, b) => scoped(admin.from("workflow_events").select("job_id, event_type, created_at, details")).in("event_type", [OWN_JOB_PIESA_HELD_EVENT, OWN_JOB_PIESA_HANDED_EVENT, OWN_JOB_PIESA_HANDED_BACK_EVENT]).order("created_at", { ascending: false }).range(a, b)),
   ]);
   const now = office.now;
   const jobs = office.jobs.filter((j) => j.status?.stage !== "ended" || j.stage === "on_hold");
@@ -490,7 +491,10 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   if (mittiElecHeld.length) { const { openMittiElectricianQuestions } = await import("./mitti-electrician.server"); const stillOpen = await openMittiElectricianQuestions([...new Set(mittiElecHeld.map((e) => String(e["job_id"])))]); for (const e of mittiElecHeld) { const id = String(e["job_id"]); const x = f(id); if (x && !x.mittiElectricianHeld && stillOpen.has(id)) x.mittiElectricianHeld = { at: String(e["created_at"]) }; } }
   // Part 2: newest hold per job; clears once a hand-over is recorded after it or the job leaves the hand-over stages.
   const ownJobSeen = new Set<string>();
-  for (const e of ownJobHeld) { const id = String(e["job_id"]); if (ownJobSeen.has(id)) continue; ownJobSeen.add(id); const x = f(id); if (x && e["event_type"] === OWN_JOB_PIESA_HELD_EVENT && (OWN_JOB_HANDOFF_STAGES as readonly string[]).includes(jobById.get(id)?.stage ?? "")) x.ownJobPiesaHeld = { at: String(e["created_at"]), reason: String((e["details"] as { reason?: unknown } | null)?.reason ?? "Needs Home Insulation Victoria") }; }
+  const ownJobLatest = new Map<string, Row>();
+  for (const e of ownJobHeld) { const id = String(e["job_id"]); if (ownJobSeen.has(id)) continue; ownJobSeen.add(id); ownJobLatest.set(id, e); const x = f(id); if (x && e["event_type"] === OWN_JOB_PIESA_HELD_EVENT && (OWN_JOB_HANDOFF_STAGES as readonly string[]).includes(jobById.get(id)?.stage ?? "")) x.ownJobPiesaHeld = { at: String(e["created_at"]), reason: String((e["details"] as { reason?: unknown } | null)?.reason ?? "Needs Home Insulation Victoria") }; }
+  // Part 2 Task 3: newest event per job is the electrician saying "Can't do this one" (a later hand-over clears it).
+  for (const e of ownJobHeld) { if (e["event_type"] !== OWN_JOB_PIESA_HANDED_BACK_EVENT) continue; const id = String(e["job_id"]); const x = f(id); if (x && ownJobLatest.get(id) === e && (OWN_JOB_HANDOFF_STAGES as readonly string[]).includes(jobById.get(id)?.stage ?? "")) { const d = e["details"] as { reason?: string; note?: string } | null; x.ownJobPiesaHandedBack = { at: String(e["created_at"]), reason: cantDoReasonLabel((d?.reason as CantDoReason) ?? "other", d?.note) }; } }
   for (const e of addrUnresolved) { const x = f(String(e["job_id"])); const j = jobById.get(String(e["job_id"])); if (x && !x.addressToConfirm && j && !(j.suburb ?? "").trim()) x.addressToConfirm = { at: String(e["created_at"]), candidates: ((e["details"] as { candidates?: unknown } | null)?.candidates as string[] | undefined ?? []).filter((c) => typeof c === "string").slice(0, 3) }; }
   for (const e of noAccess) { const x = f(String(e["job_id"])); const j = jobById.get(String(e["job_id"])); if (x && !x.secondNoAccess && j?.stage === "installation_scheduling") x.secondNoAccess = { at: String(e["created_at"]), reason: s((e["details"] as { reason?: string } | null)?.reason) }; }
   // Decision 296: the alert names its PIESA record; a confirmation of that record (or the install already booked) clears the row.

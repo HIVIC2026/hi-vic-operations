@@ -23,7 +23,7 @@ export const NEEDS_GROUPS: { key: NeedsGroup; label: string }[] = [
 ];
 
 export type NeedsKind =
-  | "in_house_esc_lead_changed" | "in_house_handed_back" | "address_to_confirm" | "mitti_electrician_choice" | "own_job_piesa_held"
+  | "in_house_esc_lead_changed" | "in_house_handed_back" | "address_to_confirm" | "mitti_electrician_choice" | "own_job_piesa_held" | "own_job_piesa_handed_back"
   | "paid_gate_blocked" | "install_deposit_request_failed" | "in_house_form_sync_failed"
   | "in_house_ready_check_not_booked" | "in_house_piesa_overdue" | "in_house_install_not_booked"
   | "choose_again" | "quote_check" | "fixes_quote_check" | "sign_consent" | "esc_window" | "final_check" | "send_failed" | "email_change" | "email_unmatched" | "robot_failed" | "piisa_form_failed"
@@ -127,6 +127,8 @@ export type NeedsFacts = {
   mittiElectricianHeld?: { at: string } | null;
   /** Part 2 (Jo 3 Nov): an installer's own job, safety check paid, not handed to the electrician (no electrician / not signed up / no profile). */
   ownJobPiesaHeld?: { at: string; reason: string } | null;
+  /** Part 2 Task 3: the electrician said "Can't do this one" on an installer's own job; the installer picks another or books it. */
+  ownJobPiesaHandedBack?: { at: string; reason: string } | null;
   veecDay10?: { at: string } | null;
   lapsedWindow?: { deadline: string } | null;
   /** Jo 28 Oct: the PIESA found electrical fixes and Section C is not signed yet. */
@@ -223,6 +225,7 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   if(f.depositRequestFailed)add({rank:8,group:'today',kind:'install_deposit_request_failed',line:`Installation deposit request needs office attention: ${f.depositRequestFailed.reason}`,since:f.depositRequestFailed.at,button:{label:'Open job',to:'job',section:'money'}});
   if(f.inHouseLeadChanged)add({rank:1,group:'today',kind:'in_house_esc_lead_changed',line:f.inHouseLeadChanged.line,since:f.inHouseLeadChanged.at,button:{label:'Open job',to:'job',section:'install'}});
   if(f.inHouseHandedBack)add({rank:2,group:'today',kind:'in_house_handed_back',line:`Installer can't do this one: ${f.inHouseHandedBack.reason}`,since:f.inHouseHandedBack.at,button:{label:'Open job',to:'job',section:'ready-check'}});
+  if (f.ownJobPiesaHandedBack) add({ rank: 2, group: "today", kind: "own_job_piesa_handed_back", line: `Electrician can't do this one: ${f.ownJobPiesaHandedBack.reason}`, since: f.ownJobPiesaHandedBack.at, button: { label: "Open job", to: "job", section: "piesa" } });
   if (f.ownJobPiesaHeld) add({ rank: 20, group: "today", kind: "own_job_piesa_held", line: `Safety check (PIESA) not handed to the electrician: ${f.ownJobPiesaHeld.reason}`, since: f.ownJobPiesaHeld.at, button: { label: "Open job", to: "job", section: "piesa" } });
   if (f.mittiElectricianHeld) add({ rank: 20, group: "today", kind: "mitti_electrician_choice", line: "Installer to choose electrician", since: f.mittiElectricianHeld.at, button: { label: "Open job", to: "job", section: "piesa" } });
   if (f.addressToConfirm) add({ rank: 40, group: "today", kind: "address_to_confirm", line: `Address to confirm${f.addressToConfirm.candidates[0] ? ` · ${f.addressToConfirm.candidates[0]}` : ""}`, since: f.addressToConfirm.at, button: { label: "Open job", to: "job", section: "contact" } });

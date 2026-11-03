@@ -96,7 +96,7 @@ describe("own job safety check hand-over", () => {
     const d = (await db.query<{ details: Record<string, unknown> }>("select details from workflow_events where job_id=$1 and event_type='own_job_piesa_handed'", [OWN])).rows[0]!.details;
     // 2 Victorian business days from Wed 4 Nov → end of Fri 6 Nov (Melbourne).
     expect(d).toMatchObject({ electrician_business_id: E1, due_at: "2026-11-06T12:59:59.999Z" });
-    expect(notices.filter((j) => j === OWN)).toHaveLength(1);
+    expect(notices.filter((j) => j === OWN)).toHaveLength(2); // the hand-over sends once; the second sweep re-checks (the real notices skip anything already sent)
   });
 
   test("two hand-overs racing (Xero and Stripe at once) still hand over once", async () => {
@@ -204,7 +204,7 @@ describe("own job safety check hand-over", () => {
     await sweepOwnJobPiesaHandoffs(later);
     await sweepOwnJobPiesaHandoffs(later);
     expect(await events(J, "own_job_piesa_handed")).toBe(1);
-    expect(notices.filter((x) => x === J)).toHaveLength(1);
+    expect(notices.filter((x) => x === J)).toHaveLength(2); // hand-over + one retry call
     expect(await assignments(J)).toBe(1);
     const d = (await db.query<{ details: Record<string, unknown> }>("select details from workflow_events where job_id=$1 and event_type='own_job_piesa_handed'", [J])).rows[0]!.details;
     expect(d).toMatchObject({ electrician_business_id: E1, electrician_user_id: U1, due_at: "2026-11-09T12:59:59.999Z", repaired: true });
