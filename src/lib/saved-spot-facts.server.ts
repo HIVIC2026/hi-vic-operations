@@ -20,6 +20,8 @@ export type SpotFactsWithPlace = SpotFacts & {
   lat: number | null;
   lng: number | null;
   address: string | null;
+  /** Building size from above (map check), whole m²; never the ceiling size. */
+  footprintM2: number | null;
   listingUrl: string | null;
 };
 
@@ -27,6 +29,7 @@ const FACT_KEYS = [
   "coordinates",
   "roof_form",
   "site_roof_risk",
+  "building_ground_footprint",
   "listing_check",
   "ai_photo_check",
 ] as const;
@@ -193,6 +196,8 @@ export async function readSpotFacts(
       ? `${String(prop?.address_line).trim()}, ${[(prop?.suburb ?? "").trim(), "VIC", postcode].filter(Boolean).join(" ")}`
       : null;
     const savedArea = n(sv?.["saved_area_m2"]) ?? n(j["estimated_area_m2"]);
+    // Size from above (Google Solar ground footprint): shown as "~X m² from above", never the ceiling size.
+    const foot = n((fact("building_ground_footprint") as { m2?: unknown } | null | undefined)?.m2);
 
     out.set(id, {
       insulation: normaliseInsulation(s(sv?.["saved_insulation"]) ?? extras.existing_insulation),
@@ -216,6 +221,7 @@ export async function readSpotFacts(
       lng: point?.lng ?? null,
       address,
       listingUrl: listing.url,
+      footprintM2: foot != null && foot > 0 ? Math.round(foot) : null,
     });
   }
   return out;

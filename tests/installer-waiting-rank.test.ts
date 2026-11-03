@@ -148,6 +148,7 @@ beforeEach(() => {
   tables["property_facts"] = [
     fact("a", "coordinates", [145.2416, -37.9244]),
     fact("a", "roof_form", "pitched"),
+    fact("a", "building_ground_footprint", { m2: 187.6, roof_surface_m2_not_used: 230 }),
     fact("a", "site_roof_risk", { flags: [] }),
     fact("a", "listing_check", {
       status: "found",
@@ -200,6 +201,14 @@ describe("To release loader: band, reason, tags, areas", () => {
     expect(by.get("b")!.tags).toContain("No street address");
     expect(by.get("c")!.tags).toContain("Not checked yet");
     expect(by.get("d")!.lat).toBeNull();
+  });
+
+  test("size from above: footprintM2 rounded to whole m², areaM2 unchanged", async () => {
+    const { rows } = await loadInstallerWaitingList({ includeTest: true });
+    const by = new Map(rows.map((r) => [r.id, r]));
+    expect(by.get("a")!.footprintM2).toBe(188);
+    expect(by.get("a")!.areaM2).toBe(200);
+    expect(by.get("c")!.footprintM2).toBeNull();
   });
 
   test("areas hold every To release id once; unknown location is the last group", async () => {

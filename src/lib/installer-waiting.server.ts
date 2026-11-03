@@ -107,7 +107,7 @@ async function rankToRelease(rows: InstallerWaitingRow[], now: number): Promise<
     const spot = { ...f, areaM2: r.areaM2 };
     Object.assign(r, {
       band: spotBand(spot), score: spotScore(spot, now), reason: spotReason(spot), tags: spotTags(spot),
-      lat: f.lat, lng: f.lng, satelliteUrl: f.address ? satelliteUrl(f.address) : null, listingUrl: f.listingUrl,
+      lat: f.lat, lng: f.lng, satelliteUrl: f.address ? satelliteUrl(f.address) : null, listingUrl: f.listingUrl, footprintM2: f.footprintM2,
     });
   }
   const band = (r: InstallerWaitingRow) => (r.band ? BAND_ORDER.indexOf(r.band) : BAND_ORDER.length);
