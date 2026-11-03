@@ -746,7 +746,7 @@ export async function tradeBusiness(userId: string) {
   // Jo 3 Nov: which required details each person is missing (owner row excluded). Date of birth is read as yes/no only.
   {
     const staffIds = team.filter((m) => m.role !== "owner" && m.id).map((m) => m.id!);
-    const { data: ids, error: idErr } = staffIds.length ? await admin.from("partner_worker_identity" as never).select("worker_id").in("worker_id", staffIds) : { data: [], error: null };
+    const { data: ids, error: idErr } = staffIds.length ? await admin.from("partner_worker_identity" as never).select("worker_id").in("worker_id", staffIds).not("date_of_birth", "is", null) : { data: [], error: null };
     if (idErr) console.error("tradeBusiness: date of birth facts could not be read", (idErr as { code?: string }).code ?? "unknown");
     else {
       const has = new Set(((ids ?? []) as { worker_id: string }[]).map((r) => r.worker_id));
