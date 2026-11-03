@@ -1,6 +1,6 @@
 import { inHouseDispatchSkip } from "./in-house-suppression.server";
 // Batch 2, item 1 (Jo 29 Oct 2026): texts held by the 8pm–7am quiet hours go at 7am — skipped if no longer true.
-// The 15-minute tick (allocation-tick, next to sweepJobOfferTexts) reads last-24h quiet-hours holds whose real key is
+// The 15-minute tick (allocation-tick) reads last-24h quiet-hours holds whose real key is
 // unclaimed (`quietResendDue`), re-checks each type's own "still true" fact (`STILL_TRUE`, reusing the senders' existing
 // predicates), and re-sends the stored body through the ONE real sender with the REAL key and `event.at` = the hold time,
 // so every guard (switches, consent, STOP, freshness limit, deleted job) still applies and the key is claimed once.
@@ -126,24 +126,6 @@ export const stillTrueFixesTimesLink: StillTrue = async (row) => {
   return !(await rectificationWindowsExist(row.job_id!));
 };
 
-/** ready_check_days_suggested: still the installer's move (installer-texts.core daysSuggestedStillCurrent). */
-export const stillTrueDaysSuggested: StillTrue = async (row) => {
-  // The suggestion in the key must still be the owner's latest one (ready-check-times.server keys the text on that event).
-  const triggerId = after(await claimKey(row), `rc-days-suggested:v1:${row.job_id}:`);
-  const { data: latest, error } = await db.from("workflow_events").select("id").eq("job_id", row.job_id).eq("event_type", "ready_check_days_suggested").order("created_at", { ascending: false }).limit(1).maybeSingle();
-  if (error || !triggerId || latest?.id !== triggerId) return false;
-  const turn = await (await import("./ready-check-times.server")).readyCheckTurnFor(row.job_id!);
-  return (await import("./installer-texts.core")).daysSuggestedStillCurrent(turn);
-};
-
-/** ready_check_booked_installer: that start time is still the booked Ready Check (installer-texts.core bookedStillCurrent). */
-export const stillTrueBookedInstaller: StillTrue = async (row) => {
-  const startIso = after(await claimKey(row), `rc-booked-installer:v1:${row.job_id}:`);
-  if (!startIso) return false;
-  const { data: booked } = await db.from("bookings").select("scheduled_start").eq("job_id", row.job_id).eq("kind", "ready_check").eq("status", "confirmed").limit(1).maybeSingle();
-  return (await import("./installer-texts.core")).bookedStillCurrent(booked?.scheduled_start ?? null, startIso);
-};
-
 /** piesa_rules_failed: the job is live and the form version in the key is still the newest A3 and still breaks the
  *  official rules (no corrected form, no signed Section C overnight) — piesa-rules-notice.server. */
 export const stillTruePiesaRules: StillTrue = async (row) => {
@@ -167,8 +149,6 @@ export const STILL_TRUE: Record<QuietResendType, StillTrue> = {
   install_clearance: stillTrueInstallClearance,
   boss_price_link: stillTrueBossPriceLink,
   fixes_times_link: stillTrueFixesTimesLink,
-  ready_check_days_suggested: stillTrueDaysSuggested,
-  ready_check_booked_installer: stillTrueBookedInstaller,
 };
 
 /** 15-minute tick, from 7am Melbourne. `sent` = Twilio accepted; `skipped` = due but no longer true, held again, failed or errored. Never throws per text. */
@@ -204,7 +184,7 @@ export async function sweepQuietHeldTexts(nowIso: string = new Date().toISOStrin
   const { sendRealSms } = await import("./sms.server");
   for (const row of due) {
     try {
-      if (row.job_id && ["deposit_release", "visit_new_times", "install_no_access", "install_clearance", "fixes_times_link", "ready_check_days_suggested"].includes(row.message_type) && await inHouseDispatchSkip(row.job_id)) { out.skipped++; continue; }
+      if (row.job_id && ["deposit_release", "visit_new_times", "install_no_access", "install_clearance", "fixes_times_link"].includes(row.message_type) && await inHouseDispatchSkip(row.job_id)) { out.skipped++; continue; }
       if (!(await STILL_TRUE[row.message_type as QuietResendType](row))) { out.skipped++; continue; }
       // Stored body is already branded; brandSmsBody does not add the prefix twice.
       const r = await sendRealSms({

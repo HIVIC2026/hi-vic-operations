@@ -10,7 +10,6 @@ import { COLLECTION_NOTICE_EMAIL_APPROVED, COLLECTION_NOTICE_SEND_APPROVED } fro
 import { INSTALL_BOOKED_EMAIL_APPROVED } from "../src/lib/install-booked-email.core";
 import { INSTALL_DAYS_EMAIL_APPROVED } from "../src/lib/install-days-email.core";
 import { INSTALLER_ACCEPTED_EMAIL_APPROVED, INSTALLER_DECLINED_EMAIL_APPROVED } from "../src/lib/installer-accepted-email.core";
-import { READY_CHECK_OFFER_EMAIL_APPROVED } from "../src/lib/ready-check-offer-email.core";
 import { ELECTRICIAN_OFFER_EMAIL_APPROVED } from "../src/lib/electrician-offer-email.core";
 import { OWNER_QUOTE_EMAIL_APPROVED, QUOTE_REMINDER_EMAIL_APPROVED, ownerQuoteSms } from "../src/lib/owner-quote-email.core";
 import { FIXES_QUOTE_EMAIL_APPROVED } from "../src/lib/rectification-quote-email.core";
@@ -34,7 +33,6 @@ import { INSTALLER_PLANNING_NOTICE_APPROVED } from "../src/lib/installer-plannin
 /** flag → decision number(s) in docs/JO_DECISIONS_LOG.md. */
 const APPROVED_EMAIL_FLAGS: Record<string, { value: boolean; decisions: string }> = {
   LAUNCH_COPY_APPROVED: { value: LAUNCH_COPY_APPROVED, decisions: "66/67 (O1, O2)" },
-  READY_CHECK_OFFER_EMAIL_APPROVED: { value: READY_CHECK_OFFER_EMAIL_APPROVED, decisions: "106/136/154 (our-lead offer email)" },
   ELECTRICIAN_OFFER_EMAIL_APPROVED: { value: ELECTRICIAN_OFFER_EMAIL_APPROVED, decisions: "93/326 (E1 electrician offer email)" },
   OWNER_QUOTE_EMAIL_APPROVED: { value: OWNER_QUOTE_EMAIL_APPROVED, decisions: "86 (O18)" },
   QUOTE_REMINDER_EMAIL_APPROVED: { value: QUOTE_REMINDER_EMAIL_APPROVED, decisions: "89/134 (O19)" },
@@ -68,10 +66,10 @@ const APPROVED_EMAIL_FLAGS: Record<string, { value: boolean; decisions: string }
 const APPROVED_SMS_TYPES: Record<string, string> = {
   owner_code: "sign-in code (7 Oct)", quote_ready: "87 (B)",
   veec_sign_request: "166", veec_sign_reminder: "168", // usual_electrician_missing retired 2 Nov 2026 (Part 7 Task 8)
-  ready_check_incomplete: "83 (missing answers)", job_offer: "76/154", daily_mitti: "83 (morning text)", daily_mitti_update: "83",
+  ready_check_incomplete: "83 (missing answers)", daily_mitti: "83 (morning text)", daily_mitti_update: "83", // job_offer retired 2 Nov 2026 (Part 7 Task 9)
   esc_notice_link: "146/154", install_window_reminder: "99/167", install_window_reminder_installer: "99/167",
   install_clearance: "186",
-  ready_check_days_suggested: "79 (A)", ready_check_booked_installer: "82 (installer booked, A)", install_tomorrow: "99 (installer day before)",
+  install_tomorrow: "99 (installer day before) / #47", // ready_check_days_suggested + ready_check_booked_installer retired 2 Nov 2026 (Part 7 Task 9)
   team_member_invite: "251 (draft) / 252 (approved as written)",
   boss_price_link: "288 (boss price link; wording in boss-price-link.core.ts)",
   fixes_times_link: "315 (electrician fixes times link; wording in fixes-times.core.ts)",
@@ -109,7 +107,11 @@ describe("approved message switches are on (Jo 24 Oct 2026)", () => {
     // Part 3 Task 16 (Jo 2 Nov 2026): these four are retired on purpose (label "Retired 2 Nov 2026 —"); nothing else is unapproved.
     // Part 3 Task 19 (Jo 2 Nov 2026, answer 24): the installer's own customer rental questions text is a DRAFT until Jo approves it.
     // Part 7 Task 8 (Jo 2 Nov 2026): the usual-electrician text is retired too (label "Retired 2 Nov 2026 —").
-    expect(off.sort()).toEqual(["own_customer_rental_taps", "ready_check_booked_owner", "ready_check_times_owner", "run_time", "run_time_reminder", "usual_electrician_missing"]);
+    // Part 7 Task 9 (Jo 2 Nov 2026): the Ready Check run and job offer trade texts are retired (label "Retired 2 Nov 2026 —").
+    expect(off.sort()).toEqual([
+      "job_offer", "own_customer_rental_taps", "ready_check_booked_installer", "ready_check_booked_owner", "ready_check_days_suggested", "ready_check_times_owner",
+      "run_offered", "run_slot_cancelled", "run_time", "run_time_reminder", "usual_electrician_missing",
+    ]);
     expect(ADDRESS_REQUEST_EMAIL_APPROVED).toBe(true);
     expect("ready_check_booking" in SMS_MESSAGE_TYPES).toBe(false);
   });

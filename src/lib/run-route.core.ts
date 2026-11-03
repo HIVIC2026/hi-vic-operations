@@ -39,25 +39,18 @@ export const RUN_SLOT_EVENTS = [RUN_SLOT_PROPOSED_EVENT, RUN_SLOT_CONFIRMED_EVEN
 /** A home leaves the run and its owner's pass is free again (batch candidate, carried pass). */
 export const RUN_RELEASE_EVENTS = [RUN_HOME_REMOVED_EVENT, RUN_DECLINED_EVENT, RUN_EXPIRED_EVENT, RUN_SLOT_RELEASED_EVENT] as const;
 
-/** New installer text: its own SMS switch, partner audience, off until Jo switches it on. */
-export const RUN_OFFERED_SMS_TYPE = "run_offered" as const;
 export const RUN_REPLY_HOURS = 24;
 
 export const runOfferedKey = (batchId: string, jobId: string) => `run-offered:v1:${batchId}:${jobId}`;
-/** One key per send attempt: a resend (only when no earlier attempt went) never reuses a key a failed send claimed. */
-export const runOfferedSmsKey = (runId: string, attempt: number) => `run-offered-sms:v1:${runId}:${attempt}`;
-/** One per send attempt of the installer text (on the run's first home): {run_id, attempt, status}. */
+/** History only (Part 7 Task 9, Jo 2 Nov 2026): the "You've got a run" installer text (#35) is retired — nothing writes
+ *  these rows any more. Old runs keep one per send attempt (on the run's first home): {run_id, attempt, status}. */
 export const RUN_OFFERED_TEXT_EVENT = "run_offered_text";
-/** Attempt statuses meaning the text went (or may have gone) — never sent again. */
+/** Attempt statuses meaning the text went (or may have gone) — only read for old runs' 24-hour clock. */
 export const RUN_TEXT_WENT = ["sent", "already", "sent_unknown"] as const;
 export const RUN_EVENTS = [RUN_OFFERED_EVENT, ...RUN_RELEASE_EVENTS, ...RUN_REPLY_EVENTS, RUN_OFFERED_TEXT_EVENT, ...RUN_SLOT_EVENTS, RUN_MOVED_EVENT] as const;
 export const runReleaseKey = (type: (typeof RUN_RELEASE_EVENTS)[number], runId: string, jobId: string) => `${type}:v1:${runId}:${jobId}`;
 /** The installer's run page (signed in, business-scoped). */
 export const runLink = (base: string, runId: string) => `${base.replace(/\/+$/, "")}/field/run/${runId}`;
-
-/** Jo approved 30 Oct 2026 (part 2 spec). Verbatim. No name on file → "Hi there,". */
-export const runOfferedText = (f: { name: string | null | undefined; homes: number; suburb: string; link: string }) =>
-  `Hi ${(f.name ?? "").trim().split(/\s+/)[0] || "there"}, you've got a run of ${f.homes} Ready Checks around ${f.suburb}. Pick your day: ${f.link} - Home Insulation Victoria`;
 
 // ---- route order + arrival windows ---------------------------------------------------------------------------------------
 

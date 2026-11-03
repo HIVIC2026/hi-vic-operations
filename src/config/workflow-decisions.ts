@@ -24,7 +24,13 @@ export const WORKFLOW_DECISIONS = {
   },
   // Part 7 Task 8 (Jo 2 Nov 2026): replaced by the 9am two-days-before "Confirm or change your Lead Installer by 5pm today" email
   // (and decisions 374/303 for the electrician); nothing sends these any more, old events/log rows are history.
-  tradeMessages: { retired: ["2pm day-before Lead Installer email", "Pick the crew for tomorrow", "We need your usual electrician"] },
+  // Part 7 Task 9 (Jo 2 Nov 2026): under "installer calls and books" no job is offered to installers and nothing runs in batches
+  // with owner-picked times (#35, #40–43, #47, #50); types kept in sms.core as retired history, old events/log rows are history.
+  tradeMessages: { retired: [
+    "2pm day-before Lead Installer email", "Pick the crew for tomorrow", "We need your usual electrician",
+    "You've got a run", "An owner cancelled their Ready Check in your run", "New Ready Check job offer (email + text)", "Installer job offer page",
+    "The owner suggested other Ready Check days", "Booked: Ready Check (installer)",
+  ] },
   retiredWorkflow: [
     "PIESA before confirmed quote/payment",
     "Combined Ready Check + PIESA visit",

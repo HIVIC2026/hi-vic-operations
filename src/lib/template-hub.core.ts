@@ -41,8 +41,6 @@ import { renderApplicationReceivedEmail, changesEmail, declineEmail } from "./ap
 import { partnerWelcomeEmail, partnerEmailLayout } from "./partner-email.core";
 import { collectionNoticeEmail, noticeLinkEmail, noticeLinkSmsBody, COLLECTION_NOTICE_PARAGRAPHS } from "./esc-collection-notice.core";
 import { renderInstallClearanceEmail, installClearanceText } from "./install-clearance.core";
-import { renderReadyCheckOfferEmail } from "./ready-check-offer-email.core";
-import { readyCheckOfferText } from "./ready-check-times.core";
 import { renderElectricianOfferEmail } from "./electrician-offer-email.core";
 import { renderElectricianPiesaEmail } from "./electrician-piesa-copy.core";
 import { MITTI_INVITE_MESSAGE, renderMittiInviteEmail } from "./mitti-invite.core";
@@ -52,15 +50,13 @@ import { brandSmsBody } from "./sms.core";
 import { ownerWillCallEmail, ownerWillCallText } from "./owner-will-call.core";
 import { quickTapsLink, quickTapsReminderText } from "./area-batch.core";
 import { ownCustomerRentalTapsText, rentalOnlyLink } from "./rental-answers.core";
-import { runOfferedText } from "./run-route.core";
-import { runSlotCancelledText, windowWords } from "./run-portal.core";
 import { blastMessage } from "./save-spot-reminder-blast.core";
 import { threeQuestionsSms } from "./three-questions-reminder.core";
 import {
   visitTomorrowText, piesaBookedOwnerText,
   quoteReminderDay3Text, quoteReminderExpiryText, installMovedText, piesaOfferText,
 } from "./approved-texts.core";
-import { melbourneClock, readyCheckDaysSuggestedText, readyCheckBookedInstallerText, installTomorrowText, teamMemberInviteText, ownerChangedVisitText } from "./installer-texts.core";
+import { melbourneClock, installTomorrowText, teamMemberInviteText, ownerChangedVisitText } from "./installer-texts.core";
 import { readyCheckIncompleteText, readyCheckNearlyThereEmail } from "./ready-check-chase.core";
 import { dailyText, updateText, diffDay } from "./daily-mitti-text.core";
 import { bossPriceLinkText } from "./boss-price-link.core";
@@ -544,19 +540,9 @@ const INSTALLER: TemplateEntry[] = [
     source: { builder: "src/lib/mitti-invite.core.ts", fn: "MITTI_INVITE_MESSAGE", sender: "src/lib/mitti-invite.server.ts" },
     render: () => text(MITTI_INVITE_MESSAGE) }),
   // Part 7 Task 8 (Jo 2 Nov 2026): the "Add your usual electrician" text is retired (decisions 374/303 choose the electrician).
+  // Part 7 Task 9 (Jo 2 Nov 2026): the job offer email + text, "Owner suggested other days", "Ready Check booked" (installer),
+  // "You've got a run" and "An owner cancelled — fill the time" are retired: installers call the owner and book.
   // Ready Check
-  ENTRY({ id: "installer:job-offer", section: "installer", step: "ready_check", kind: "email", code: "", name: "New Ready Check job (offer email)", when: "The office (or the automatic offer) offers a lead to the installer", who: "Installer (business owner)", approvalNote: "Jo 24 Oct 2026, decision 76", gate: { kind: "email" },
-    source: { builder: "src/lib/ready-check-offer-email.core.ts", fn: "renderReadyCheckOfferEmail", sender: "src/lib/ready-check-offer-text.server.ts" },
-    render: () => email(renderReadyCheckOfferEmail({ installerFirstName: "Sam", suburb: "Glen Waverley", offerUrl: `${BASE}/field/offer/TEST`, areaM2: 137 })) }),
-  ENTRY({ id: "installer:sms-job_offer", section: "installer", step: "ready_check", kind: "text", code: "", name: "New Ready Check job (text)", when: "With the offer email (after 8pm: texted at 7am)", who: "Installer (business owner)", approvalNote: "Jo 24 Oct 2026, decisions 76/154/361", gate: { kind: "text", smsType: "job_offer" },
-    source: { builder: "src/lib/ready-check-times.core.ts", fn: "readyCheckOfferText", sender: "src/lib/ready-check-offer-text.server.ts" },
-    render: () => text(readyCheckOfferText("Glen Waverley", `${BASE}/field/offer/TEST`, 137)) }),
-  ENTRY({ id: "installer:sms-ready_check_days_suggested", section: "installer", step: "ready_check", kind: "text", code: "", name: "Owner suggested other days (text)", when: "The owner suggests other Ready Check days", who: "Installer (business owner)", approvalNote: "Jo 24 Oct 2026, decision 79", gate: { kind: "text", smsType: "ready_check_days_suggested" },
-    source: { builder: "src/lib/installer-texts.core.ts", fn: "readyCheckDaysSuggestedText", sender: "src/lib/installer-texts.server.ts" },
-    render: () => text(readyCheckDaysSuggestedText({ suburb: "Glen Waverley", jobNumber: "HV-TEST", link: FIELD })) }),
-  ENTRY({ id: "installer:sms-ready_check_booked_installer", section: "installer", step: "ready_check", kind: "text", code: "", name: "Ready Check booked (text)", when: "The owner picks a Ready Check time", who: "Installer (business owner)", approvalNote: "Jo 24 Oct 2026, decision 82 (text A)", gate: { kind: "text", smsType: "ready_check_booked_installer" },
-    source: { builder: "src/lib/installer-texts.core.ts", fn: "readyCheckBookedInstallerText", sender: "src/lib/installer-texts.server.ts" },
-    render: () => text(readyCheckBookedInstallerText({ startIso: RC_ISO, address: SHORT_ADDRESS, jobNumber: "HV-TEST", link: FIELD })) }),
   ENTRY({ id: "installer:sms-ready_check_incomplete", section: "installer", step: "ready_check", kind: "text", code: "", name: "Ready Check form missing answers (text)", when: "The Mitti Ready Check is missing answers or photos", who: "Installer", approvalNote: "Jo 22 Oct 2026", gate: { kind: "text", smsType: "ready_check_incomplete" },
     source: { builder: "src/lib/ready-check-chase.core.ts", fn: "readyCheckIncompleteText", sender: "src/lib/ready-check-chase.server.ts" },
     render: () => text(readyCheckIncompleteText("HV-TEST", SHORT_ADDRESS, ["finish and submit the form", "who is doing the electrical safety check"])) }),
@@ -566,14 +552,6 @@ const INSTALLER: TemplateEntry[] = [
   ENTRY({ id: "installer:sms-boss_price_link", section: "installer", step: "quote", kind: "text", code: "", name: "Enter your price (text)", when: "A1 Ready Check marked Complete with no price yet", who: "Installer (business owner)", approvalNote: "Jo 25 Oct 2026, decision 288", gate: { kind: "text", smsType: "boss_price_link" },
     source: { builder: "src/lib/boss-price-link.core.ts", fn: "bossPriceLinkText", sender: "src/lib/boss-price-link.server.ts" },
     render: () => text(bossPriceLinkText({ jobNumber: "HV-TEST", street: "824 High Street Road", link: `${FIELD}#price` })) }),
-  // A48 batch 2 part 2 (Jo 30 Oct 2026): Jo taps "Send to installer" on a closed area batch → the installer's run link.
-  ENTRY({ id: "installer:sms-run_offered", section: "installer", step: "ready_check", kind: "text", code: "", name: "You've got a run (text)", when: "Jo taps Send to installer on a closed batch (Jobs › Choose installer)", who: "Installer (business owner)", approvalNote: "Jo 30 Oct 2026 (A48 batch 2 part 2 spec)", gate: { kind: "text", smsType: "run_offered" },
-    source: { builder: "src/lib/run-route.core.ts", fn: "runOfferedText", sender: "src/lib/installer-run.server.ts" },
-    render: () => text(runOfferedText({ name: "Sam Sample", homes: 8, suburb: "Box Hill", link: `${BASE}/field/run/TEST-RUN` })) }),
-  // A48 batch 2 part 2, Task 8: an owner cancelled a confirmed window in the installer's run (wording approved by Jo 30 Oct 2026).
-  ENTRY({ id: "installer:sms-run_slot_cancelled", section: "installer", step: "ready_check", kind: "text", code: "", name: "An owner cancelled — fill the time (text)", when: "An owner in the installer's run cancels after confirming their window", who: "Installer (business owner)", approvalNote: "Jo 30 Oct 2026 (A48 batch 2 Task 8 fix round 1)", gate: { kind: "text", smsType: "run_slot_cancelled" },
-    source: { builder: "src/lib/run-portal.core.ts", fn: "runSlotCancelledText", sender: "src/lib/installer-run.server.ts" },
-    render: () => text(runSlotCancelledText({ name: "Sam Sample", day: "Tuesday 27 October", time: windowWords("09:00", "10:00"), link: `${BASE}/field/run/TEST-RUN` })) }),
   // Quote
   ENTRY({ id: "installer:I23", section: "installer", step: "quote", kind: "email", code: "I23", name: "Good news — the owner accepted", when: "The owner pays the safety check", who: "Installer", approvalNote: "Wording: Jo 2 Nov 2026, decision #36 (INSTALLER_ACCEPTED_V2_APPROVED stays false until Jo OKs the pictures; the earlier wording goes out until then)", gate: { kind: "email" },
     source: { builder: "src/lib/installer-accepted-email.core.ts", fn: "renderInstallerAcceptedEmail", sender: "src/lib/installer-accepted-email.server.ts" }, design: "docs/templates/mjml/installer_I23.mjml",

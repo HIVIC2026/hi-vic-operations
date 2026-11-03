@@ -121,7 +121,7 @@ describe("Jo's approved wording, the same everywhere", () => {
     expect(money).toContain("<NoFormNoPay />");
     expect(money.indexOf("<NoFormNoPay />")).toBeLessThan(money.indexOf('<Group title="Jobs">'));
     expect(money).toContain("heldPayPill(r.held)");
-    expect(src("src/routes/_authenticated/field.offer.$offerId.tsx").match(/<NoFormNoPay line\b/g)?.length).toBe(2);
+    // Part 7 Task 9: the offer page is gone (redirect only), so it shows nothing.
     expect(src("src/routes/_authenticated/field.guide.tsx")).toContain("<NoFormNoPay />");
   });
   test("welcome email appends the paragraph (html + text) after the approved content", () => {

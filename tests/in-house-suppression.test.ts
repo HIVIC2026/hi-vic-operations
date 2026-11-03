@@ -222,9 +222,8 @@ test("scoped held lookup chunks candidate ids at 200 and reads the last chunk", 
     expect((filter?.[2] as unknown[]).length).toBeLessThanOrEqual(200);
   }
 });
-test("actual three UI callbacks stop before success/reset/refetch and show skipped messages", async () => {
+test("actual UI callbacks stop before success/reset/refetch and show skipped messages (the offer page's offerTimes is gone — Part 7 Task 9)", async () => {
   const scenarios = [
-    { path: "src/routes/_authenticated/field.offer.$offerId.tsx", action: "offerTimes", catches: true },
     { path: "src/routes/my-job.$token.tsx", action: "choosePiesa", catches: false },
     { path: "src/components/portal/piesa-times.tsx", action: "choose", catches: true },
   ];

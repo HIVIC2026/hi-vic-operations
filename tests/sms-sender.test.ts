@@ -70,11 +70,12 @@ describe("real SMS gate", () => {
     expect(smsBlocker({ ...ok, type: "quote_ready", typeSwitchOn: false })).toContain("switched off");
     expect(smsBlocker({ ...ok, type: "usual_electrician_missing" })).not.toBeNull();
   });
-  test("decision 154: job_offer and esc_notice_link wording approved — still behind the master switch and their own switches", () => {
-    expect(smsBlocker({ ...ok, type: "job_offer" })).toBeNull();
-    expect(smsBlocker({ ...ok, type: "job_offer", commsEnabled: false })).toContain("switched off");
-    expect(smsBlocker({ ...ok, type: "job_offer", typeSwitchOn: false })).toContain("switched off");
-    expect(smsBlocker({ ...ok, type: "job_offer", consent: false })).toContain("not approved and active");
+  test("partner texts (boss_price_link, esc_notice_link) approved — still behind the master switch and their own switches; job_offer retired 2 Nov 2026 (Part 7 Task 9)", () => {
+    expect(smsBlocker({ ...ok, type: "boss_price_link" })).toBeNull();
+    expect(smsBlocker({ ...ok, type: "boss_price_link", commsEnabled: false })).toContain("switched off");
+    expect(smsBlocker({ ...ok, type: "boss_price_link", typeSwitchOn: false })).toContain("switched off");
+    expect(smsBlocker({ ...ok, type: "boss_price_link", consent: false })).toContain("not approved and active");
+    expect(smsBlocker({ ...ok, type: "job_offer" })).toBe("Wording not approved yet");
     expect(smsBlocker({ ...ok, type: "esc_notice_link", nowIso: "2026-10-22T02:00:00Z" })).toBeNull();
     expect(smsBlocker({ ...ok, type: "esc_notice_link", nowIso: "2026-10-22T02:00:00Z", commsEnabled: false })).toContain("switched off");
   });

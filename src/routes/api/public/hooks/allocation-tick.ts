@@ -263,23 +263,14 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['installClearance'] = "failed";
         }
         try {
-          // Decisions 79/82/99 (built per 193): "Install tomorrow" to the installer from the afternoon before, and a 24h
-          // catch-up for the owner-suggested-days and Ready-Check-booked installer texts whose live trigger was missed.
-          // One `installer_text_prepared` event per text before sending; TEST → test-send; real → sendRealSms.
+          // Decision #47 (Jo 2 Nov 2026): "Install tomorrow" to the Lead Installer from the afternoon before (+ the crew's
+          // safety plan sign links). One `installer_text_prepared` event per text before sending; TEST → test-send; real →
+          // sendRealSms. The decision 79/82 catch-ups are retired (Part 7 Task 9).
           const { sweepInstallerTexts } = await import("@/lib/installer-texts.server");
           (out as Record<string, unknown>)['installerTexts'] = await timed("sweepInstallerTexts", () => sweepInstallerTexts());
         } catch (e) {
           console.error("allocation tick: installer texts sweep failed", (e as Error).message);
           (out as Record<string, unknown>)['installerTexts'] = "failed";
-        }
-        try {
-          // Decision 361: Ready Check job offers made after 8pm are texted at 7am (job_offer keeps quiet hours; a held
-          // text never claims its key). The offer's 24 hours still run from when it was made.
-          const { sweepJobOfferTexts } = await import("@/lib/ready-check-offer-text.server");
-          (out as Record<string, unknown>)['jobOfferTexts'] = await timed("sweepJobOfferTexts", () => sweepJobOfferTexts());
-        } catch (e) {
-          console.error("allocation tick: job offer text catch-up failed", (e as Error).message);
-          (out as Record<string, unknown>)['jobOfferTexts'] = "failed";
         }
         try {
           // Decision 215 / spec D4: a couldn't-get-in text held after 8pm goes at 7am (same key, never twice).

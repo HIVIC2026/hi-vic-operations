@@ -28,7 +28,7 @@ function fixture(held: boolean, payee = false, failed = false) {
     './test-send.core':{isTestPartner:()=>true}, './set-password-link.core':{SET_PASSWORD_BASE:'https://example.test'},
     './worker-links.core':{firstName:()=> 'Test'}, './estimatelink.core':{linkUsable:()=>true}, './engagement.core':{CUSTOMER_BASE:'https://example.test'},
     './address':{fullAddress:()=> '1 Test St'}, './veec-copy-email.server':{ownerMyJobLink:async()=> 'https://example.test'},
-    './ready-check-times.server':{readyCheckTurnFor:async()=> 'owner_to_answer'}, './quote-hold.core':{smsQuietReason:()=>null},
+    './quote-hold.core':{smsQuietReason:()=>null},
     './mitti.core':{isClosedOrArchivedJob:()=>false}, './payments.server':{jobPaymentView:async()=>null},
     './approved-owner-emails.server':new Proxy({}, {get:(_,key)=>key==='then'?undefined:async()=>{calls.push('message');return 'sent';}}),
     './owner-contact.server':{businessContactForJob:async()=>({name:'Test Electrical',tradingName:null,officePhone:'0399999999',email:'test@example.test'})},
@@ -51,7 +51,6 @@ const entries = [
   {file:'owner-email-triggers.server',fn:'onInstallDaysOffered',args:['j',['2026-11-04T00:00:00Z'],'2026-11-29']},
   {file:'owner-email-triggers.server',fn:'onSafetyCheckBooked',args:['j','2026-11-04T00:00:00Z',false]},
   {file:'owner-email-triggers.server',fn:'onInstallDayMoved',args:['j','2026-11-04T00:00:00Z','2026-11-03T00:00:00Z']},
-  {file:'installer-texts.server',fn:'textInstallerOwnerSuggestedDays',args:['j','e','2026-10-30T00:00:00Z']},
   {file:'installer-texts.server',fn:'textTradeOwnerChangedVisit',args:[{jobId:'j',kind:'installation',triggerEventId:'e',changedAt:'2026-10-30T00:00:00Z',wasIso:'2026-11-04T00:00:00Z'}]},
 ];
 for(const entry of entries) {
@@ -61,7 +60,7 @@ for(const entry of entries) {
   });
 }
 for(const payee of [false,true]) {
-  for(const entry of entries.filter(e=> !['textInstallerOwnerSuggestedDays'].includes(e.fn))) test(`${entry.fn}: ${payee?'payee-only':'non-held'} keeps existing delivery`,async()=>{
+  for(const entry of entries) test(`${entry.fn}: ${payee?'payee-only':'non-held'} keeps existing delivery`,async()=>{
     const f=fixture(false,payee);await f.load(entry.file)[entry.fn](...entry.args);expect(f.calls.length).toBeGreaterThan(0);
   });
 }

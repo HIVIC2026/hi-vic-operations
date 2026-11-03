@@ -9,7 +9,7 @@ import { claimKeyOf, isHeldAttemptKey } from "./sms.core";
 /** The one-off types the 7am send covers (spec batch 2 §1). Anything else held overnight is left as recorded. */
 export const QUIET_RESEND_TYPES = [
   "spot_saved", "quote_ready", "piesa_owner_confirm", "piesa_owner_fixes_confirm", "veec_sign_request", "veec_sign_reminder", "deposit_release",
-  "visit_new_times", "install_no_access", "install_clearance", "boss_price_link", "fixes_times_link", "ready_check_days_suggested", "ready_check_booked_installer",
+  "visit_new_times", "install_no_access", "install_clearance", "boss_price_link", "fixes_times_link",
   // A48 batch 1 (fix round 1): the electrician's "safety check can't go ahead yet" text.
   "piesa_rules_failed",
 ] as const;
@@ -33,7 +33,7 @@ export type StillTrue = (row: HeldRow) => Promise<boolean>;
  * The held texts to send now: outside quiet hours only; one per real key (the FIRST quiet hold, so the sender's freshness
  * limit counts from the earliest hold); held in the last 24h; real key not claimed; a covered type; a live, non-TEST job.
  * A key that also carries any other hold (switch off, no consent, too late…) is left as recorded — those are not retried
- * every 15 minutes (same rule as the decision-361 job offer catch-up).
+ * every 15 minutes.
  * @param claimed real keys that already have a claiming sms_messages row.
  */
 export function quietResendDue(rows: readonly HeldRow[], claimed: ReadonlySet<string>, nowIso: string): HeldRow[] {

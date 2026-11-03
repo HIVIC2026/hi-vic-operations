@@ -61,7 +61,6 @@ process.env["LOVABLE_API_KEY"] = "lv_test";
 
 const { sendRealSms } = await import("../src/lib/sms.server");
 const { sendOfficeEmail } = await import("../src/lib/office-email.server");
-const { textInstallerAboutOffer, emailInstallerAboutOffer } = await import("../src/lib/ready-check-offer-text.server");
 const { textTeamMemberInvite } = await import("../src/lib/installer-texts.server");
 
 const setPaused = (on: boolean) => db.query("update public.workflow_settings set trade_messages_paused = $1 where id = 1", [on]);
@@ -121,22 +120,8 @@ describe("sendOfficeEmail while paused", () => {
 });
 
 describe("representative trade paths while paused", () => {
-  test("job offer: text and email held; the email's once-only event is not written; unpaused → both go", async () => {
-    const t0 = twilio.length, e0 = emails.length;
-    expect(await textInstallerAboutOffer(OFFER)).toBe("blocked: Trade messages paused");
-    expect(await emailInstallerAboutOffer(OFFER)).toBe("held: Trade messages paused");
-    const ev = await db.query("select 1 from public.workflow_events where event_type = 'ready_check_offer_email'");
-    expect(ev.rows).toHaveLength(0);
-    expect(twilio.length).toBe(t0);
-    expect(emails.length).toBe(e0);
-
-    await setPaused(false);
-    expect(await textInstallerAboutOffer(OFFER)).toMatch(/^sent/);
-    expect(await emailInstallerAboutOffer(OFFER)).toMatch(/^sent/);
-    expect(twilio.length).toBe(t0 + 1);
-    expect(emails.length).toBe(e0 + 1);
-  });
-
+  // Part 7 Task 9 (Jo 2 Nov 2026): the job offer text + email are retired; the team member invite below stands in as the
+  // representative partner path through both guarded senders.
   test("team member invite: text held, then sent once unpaused", async () => {
     const t0 = twilio.length;
     const held = await textTeamMemberInvite({ inviteId: INVITE, businessId: BIZ, mobile: "0412 999 888", token: "tok123", createdAt: nowIso() });

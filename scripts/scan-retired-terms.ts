@@ -92,6 +92,8 @@ const TERMS: Term[] = [
   { term: "deposit request in Xero", re: /deposit request in Xero|requested in Xero/gi, action: "Retired: no Xero deposit request step (decisions 139-144)" },
   // Batch 3b (Jo 29 Oct 2026): fixes and repeat safety checks have their own invoices; nothing is added to the install invoice.
   { term: "fixes / repeat added to the Xero invoice", re: /(?:fixes|repeat (?:safety check|PIESA))[^.\n]{0,60}added (?:as (?:one|a) line )?to the (?:same |ONE |job's )?(?:Xero )?invoice|add (?:it|the fixes|the repeat[^.\n]{0,20}) to the SAME Xero invoice/gi, action: "Retired: fixes and repeat checks are their own invoices (batch 3b)" },
+  // Part 7 Task 9 (Jo 2 Nov 2026): the Ready Check run and job offer trade messages are gone — installers call the owner and book.
+  { term: "retired Ready Check run / job offer trade texts", re: /you've got a run of|New Ready Check job near|Offer the owner 3 times within 24 hours to take it|suggested other days for their Ready Check\. Tap to pick one|an owner cancelled their Ready Check on|Owner details on the job:/g, action: "Part 7 Task 9: no job offers or runs to installers (#35, #40–43, #47, #50) — the installer calls the owner and books", strict: true },
   {
     term: "$220 lead fee",
     re: /\$220 lead fee/gi,

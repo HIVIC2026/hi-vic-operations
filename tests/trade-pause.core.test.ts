@@ -64,8 +64,8 @@ describe("smsBlocker: partner texts held while paused", () => {
     expect(smsBlocker({ ...base, type: "owner_code", tradeMessagesPaused: TRADE_MESSAGES_PAUSED_REASON })).toBeNull();
   });
   test("unpaused partner text unchanged", () => {
-    expect(smsBlocker({ ...base, type: "job_offer", tradeMessagesPaused: null })).toBeNull();
-    expect(smsBlocker({ ...base, type: "job_offer" })).toBeNull();
+    expect(smsBlocker({ ...base, type: "team_member_invite", tradeMessagesPaused: null })).toBeNull();
+    expect(smsBlocker({ ...base, type: "team_member_invite" })).toBeNull();
   });
   test("TEST record keeps its own reason", () => {
     expect(smsBlocker({ ...base, type: "job_offer", isTestRecord: true, tradeMessagesPaused: TRADE_MESSAGES_PAUSED_REASON })).toBe("TEST record – use the test sender");

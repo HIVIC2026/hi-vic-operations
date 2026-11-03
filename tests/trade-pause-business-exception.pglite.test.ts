@@ -65,7 +65,6 @@ process.env["LOVABLE_API_KEY"] = "lv_test";
 
 const { sendRealSms } = await import("../src/lib/sms.server");
 const { sendOfficeEmail } = await import("../src/lib/office-email.server");
-const { textInstallerAboutOffer, emailInstallerAboutOffer } = await import("../src/lib/ready-check-offer-text.server");
 const { textTeamMemberInvite } = await import("../src/lib/installer-texts.server");
 
 const setPaused = (on: boolean) => db.query("update public.workflow_settings set trade_messages_paused = $1 where id = 1", [on]);

@@ -73,7 +73,6 @@ mock.module("../src/lib/readycheck-booking.server", () => ({
     { business_id: BIZ, name: "TEST Alpha", blocker: null }, { business_id: BIZ2, name: "TEST Beta", blocker: "No approved installer with a Full, current EEC certification recorded." },
   ] }),
 }));
-mock.module("../src/lib/ready-check-offer-text.server", () => ({ textInstallerAboutOffer: async (id: string) => { calls.texts.push(id); return "blocked: Wording not approved yet"; }, emailInstallerAboutOffer: async () => "blocked: TEST fixture" }));
 mock.module("../src/lib/booking.server", () => ({
   confirmBooking: async (jobId: string, kind: string, start: string, actor: string, label: string) => {
     calls.bookings.push(`${kind}|${start}|${actor}|${label}`);
@@ -113,7 +112,8 @@ describe("office picks one installer", () => {
     expect(rows[0]!.business_id).toBe(BIZ);
     expect(Number(rows[0]!.hrs)).toBe(24);
     expect(rows[0]!.summary).toMatchObject({ office_choice: true, ready_check_times: true, suburb: "Frankston" });
-    expect(calls.texts).toEqual([r.offerId]);
+    expect(r.offerId).toBe((await q<{ id: string }>("select id from partner_offers where job_id=$1", [JOB]))[0]!.id);
+    expect(calls.texts).toEqual([]); // Part 7 Task 9: no installer offer text or email goes any more
     expect(await officeItem()).toBeNull(); // nothing for the office while the offer is open
     await expect(rc.officePickReadyCheckInstaller(JOB, null, [BIZ])).rejects.toThrow(/already open/);
   });
