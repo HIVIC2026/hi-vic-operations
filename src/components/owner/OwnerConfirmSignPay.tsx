@@ -4,9 +4,9 @@ import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ownerConfirmSignPayFn, ownerConfirmSignPayFormFn, ownerConfirmSignPayStateFn } from "@/lib/owner-link.functions";
-import { CONFIRM_SIGN_PAY, confirmSignPayBlockers, confirmSignPayFooter, piesaConfirmTick } from "@/lib/confirm-sign-pay.core";
+import { CONFIRM_SIGN_PAY, consentTickLine, confirmSignPayBlockers, confirmSignPayFooter, piesaConfirmTick } from "@/lib/confirm-sign-pay.core";
 import { OWNER_DECLARATIONS } from "@/lib/consent.core";
-import { OFFICE_EMAIL, centsAud, sentence } from "@/lib/owner-pages.core";
+import { OFFICE_EMAIL, centsAud } from "@/lib/owner-pages.core";
 import { AuthorityChoice, FactRows, FormCard, InfoBox, LockHint, LockedButton, OwnerFooter, PageIntro, SectionTitle, SmallNote, TickCard, TypedField } from "./OwnerPageKit";
 import { OwnerCodeGate } from "./OwnerSign";
 
@@ -26,7 +26,7 @@ export function OwnerConfirmSignPay({ token }: { v?: unknown; token: string }) {
   const form = useServerFn(ownerConfirmSignPayFormFn);
   const go = useServerFn(ownerConfirmSignPayFn);
   const qc = useQueryClient();
-  const { data } = useQuery({ queryKey: ["owner-confirm-sign-pay", token], queryFn: () => load({ data: { token } }) });
+  const { data, isError, isLoading } = useQuery({ queryKey: ["owner-confirm-sign-pay", token], queryFn: () => load({ data: { token } }) });
   const [session, setSession] = useSession(token);
   const [needCode, setNeedCode] = useState<"card" | "bank" | null>(null);
   const [authority, setAuthority] = useState<"owner" | "authorised_representative">("owner");
@@ -35,7 +35,15 @@ export function OwnerConfirmSignPay({ token }: { v?: unknown; token: string }) {
   const [name, setName] = useState("");
   const [bank, setBank] = useState<string[] | null>(null);
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
-  if (!data) return <p role="status" className="py-10 text-center text-sm">Opening your page…</p>;
+  if (!data) {
+    if (isLoading) return <p role="status" className="py-10 text-center text-sm">Opening your page…</p>;
+    return <section data-testid="confirm-sign-pay-error" className="space-y-4">
+      <PageIntro kicker={CONFIRM_SIGN_PAY.kicker} title={CONFIRM_SIGN_PAY.title} />
+      <p role="alert" className="text-sm font-semibold text-destructive">{isError ? "We couldn't open this page just now." : "This page isn't ready yet."}</p>
+      <p className="text-xs text-estimate-sub">Something wrong? <a className="font-bold text-estimate-blue" href={`mailto:${OFFICE_EMAIL}?subject=${encodeURIComponent("My job page")}`}>Tell us</a></p>
+      <OwnerFooter />
+    </section>;
+  }
   const { state, footer } = data;
   const blockers = confirmSignPayBlockers({ piesaTick, consentTicks: ticks, typedName: name, state });
   const ready = blockers.length === 0;
@@ -84,7 +92,7 @@ export function OwnerConfirmSignPay({ token }: { v?: unknown; token: string }) {
       <FactRows rows={[{ label: "Name", value: state.consent.name || "—" }, { label: "Address", value: state.consent.address || "—" }, { label: "Phone", value: state.consent.phone || "—" }, { label: "Email", value: state.consent.email || "—" }]} />
       <p className="mt-2 text-xs text-estimate-sub">Something wrong? <a className="font-bold text-estimate-blue" href={`mailto:${OFFICE_EMAIL}?subject=${encodeURIComponent("Correct my details")}`}>Tell us</a></p>
       {state.consent.done ? <Done>{`You signed this on ${state.consent.signedOn ?? "an earlier day"}.`}</Done> : <>
-        {OWNER_DECLARATIONS.map((d, n) => <TickCard key={d.key} on={ticks[n] === true} set={(b) => setTicks((t) => t.map((x, k) => (k === n ? b : x)) as typeof ticks)} title={sentence(d.text)} bold={false} />)}
+        {OWNER_DECLARATIONS.map((d, n) => <TickCard key={d.key} on={ticks[n] === true} set={(b) => setTicks((t) => t.map((x, k) => (k === n ? b : x)) as typeof ticks)} title={consentTickLine(d.key, d.text)} bold={false} />)}
         {viewBtn("consent")}
       </>}
     </FormCard>

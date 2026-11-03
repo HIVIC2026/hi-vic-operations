@@ -20,6 +20,8 @@ export type ConfirmSignPayDeps = {
   prepareConsent?: (p: Who & { declarations: Required<OwnerDeclarations> }) => Promise<void>;
   signPiesa: (p: { jobId: string; userId: string; codeId: string; fullName: string; signatureName: string; authority: "owner" | "authorised_representative"; confirmed: boolean; ip: string | null; userAgent: string | null }) => Promise<void>;
   signConsent: (p: { jobId: string; userId: string; signatoryName: string; signatureName: string; authorityType: "owner" | "authorised_representative"; declarations: Required<OwnerDeclarations>; ip: string | null; userAgent: string | null }) => Promise<void>;
+  /** True when an esc_consent_copy send already exists for the job's current consent. */
+  consentCopySent: (jobId: string) => Promise<boolean>;
   sendConsentCopy: (jobId: string) => Promise<void>;
   cardCheckout: (jobId: string, returnUrl: string, actorId: string | null) => Promise<{ url: string } | { blocker: string }>;
   bankLines: (jobId: string) => Promise<string[]>;
@@ -42,11 +44,12 @@ export async function confirmSignPay(jobId: string, session: OwnerSessionLike, i
 
   if (!state.consent.done) await deps.prepareConsent?.({ ...who, declarations });
   if (!state.piesa.done) await deps.signPiesa({ jobId, userId: session.userId, codeId: session.codeId, fullName: name, signatureName: name, authority, confirmed: true, ip, userAgent });
-  if (!state.consent.done) {
-    await deps.signConsent({ jobId, userId: session.userId, signatoryName: name, signatureName: name, authorityType: authority, declarations, ip, userAgent });
-    // Answer 10: the signed copy goes now, on its own. Best-effort: the signature is already saved and the executed copy follows later.
-    try { await deps.sendConsentCopy(jobId); } catch (e) { console.error("consent copy at signing failed", jobId, e instanceof Error ? e.message : e); }
-  }
+  if (!state.consent.done) await deps.signConsent({ jobId, userId: session.userId, signatoryName: name, signatureName: name, authorityType: authority, declarations, ip, userAgent });
+  // Answer 10: the signed copy goes now, on its own, whenever the consent is signed and no copy has gone yet (the send key dedupes),
+  // not only in the call that signed it. Best-effort: the signature is already saved and the executed copy follows later.
+  try {
+    if (!(await deps.consentCopySent(jobId))) await deps.sendConsentCopy(jobId);
+  } catch (e) { console.error("consent copy at signing failed", jobId, e instanceof Error ? e.message : e); }
 
   if (state.deposit.paid) return { paid: true };
   if (i.method === "bank") return { bank: await deps.bankLines(jobId) };
@@ -75,7 +78,7 @@ export async function confirmSignPayPage(jobId: string): Promise<ConfirmSignPayP
   return { state, footer: installer ? { installer, installBy: weekdayOf(installDeadline(facts.completedDate)) } : null, piesaRecordId: facts.piesaRecordId };
 }
 
-async function realLoadState(jobId: string): Promise<ConfirmSignPayState> {
+export async function realLoadState(jobId: string): Promise<ConfirmSignPayState> {
   const { ownerPiesaConfirmFacts } = await import("./piesa-owner-confirm.server");
   const { piesaOutcomeKind } = await import("./piesa-owner-confirm.core");
   const facts = await ownerPiesaConfirmFacts(jobId);
@@ -119,6 +122,15 @@ function realDeps(): ConfirmSignPayDeps {
     signPiesa: async (p) => { await (await import("./piesa-owner-confirm.server")).signOwnerPiesaConfirmation({ ...p, userId: p.userId, codeId: p.codeId }); },
     signConsent: async (p) => {
       await (await import("./consent.server")).signOwnerConsent({ jobId: p.jobId, actorId: p.userId, input: { signatoryName: p.signatoryName, authorityType: p.authorityType, accept: true, signatureName: p.signatureName, declarations: p.declarations }, ip: p.ip, userAgent: p.userAgent });
+    },
+    consentCopySent: async (jobId) => {
+      const { currentConsent } = await import("./consent.server");
+      const c = await currentConsent(jobId);
+      if (!c) return false;
+      const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+      const { count, error } = await admin.from("customer_email_sends").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("purpose", "esc_consent_copy").like("idempotency_key", `esc-consent-copy:v1:${c.id}:%`);
+      if (error) throw new Error(error.message);
+      return (count ?? 0) > 0;
     },
     sendConsentCopy: realSendConsentCopy,
     cardCheckout: async (jobId, returnUrl, actorId) => {

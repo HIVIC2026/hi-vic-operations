@@ -44,11 +44,21 @@ export function confirmSignPayBlockers(i: ConfirmSignPayBlockerInput): string[] 
   const needPiesa = !i.state.piesa.done, needConsent = !i.state.consent.done;
   if (needPiesa && !i.piesaTick) out.push("Tick to confirm your safety check.");
   if (needConsent && i.consentTicks.some((t) => t !== true)) out.push("Tick all four boxes on the consent form.");
-  if ((needPiesa || needConsent) && i.typedName.trim().replace(/\s+/g, " ").length < 2) out.push("Type your full name to sign.");
+  // Same rule as validateOwnerPiesaConfirmation: first and last name.
+  const typed = i.typedName.trim().replace(/\s+/g, " ");
+  if ((needPiesa || needConsent) && (typed.length < 2 || !/\s/.test(typed))) out.push("Type your full name (first and last) to sign.");
   return out;
 }
 
-/** Jo 2 Nov, answer 21: the page opens straight after the PIESA result (whatever it found) while the deposit is unpaid. */
-export function clearScreenOpen(f: { stage: string; outcome: PiesaOutcome | null; safetyCleared: boolean; depositCleared: boolean; depositCents: number }): boolean {
-  return installDepositDueNow(f.stage) && depositOpenAfterPiesa({ outcome: f.outcome }) && f.safetyCleared && !f.depositCleared && f.depositCents > 0;
+/** Jo 2 Nov, answer 21: the page opens straight after the PIESA result (whatever it found) while the deposit is unpaid, and
+ *  stays open while the owner's ESC consent or PIESA confirmation is unsigned, even if the deposit is already paid. */
+export function clearScreenOpen(f: { stage: string; outcome: PiesaOutcome | null; safetyCleared: boolean; depositCleared: boolean; depositCents: number; unsigned?: boolean }): boolean {
+  return installDepositDueNow(f.stage) && depositOpenAfterPiesa({ outcome: f.outcome }) && f.safetyCleared && f.depositCents > 0 && (!f.depositCleared || f.unsigned === true);
 }
+
+/** "clear" only when the page's own state actually loaded. No state (no consent row, missing facts) = the old pay / piesa screens, never a dead end. */
+export const clearAction = (open: boolean, state: ConfirmSignPayState | null): "clear" | null => (open && state ? "clear" : null);
+export const stepsUnsigned = (s: ConfirmSignPayState) => !s.piesa.done || !s.consent.done;
+
+/** The official Section 2 lines are shown as the form words them: a full stop is added only where the form has none, except the third line, which the form ends without one. */
+export const consentTickLine = (key: string, text: string) => (key === "consent_ap_sends" || /[.]$/.test(text.trim()) ? text : `${text}.`);

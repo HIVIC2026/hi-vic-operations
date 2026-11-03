@@ -1,8 +1,8 @@
 // Part 4 Task 5 (Jo 2 Nov 2026, answers 10 and 21): ONE page — PIESA owner declarations + ESC consent + 10% deposit.
 // Pure rules + the server orchestration run against recorded fakes (no database, nothing is sent).
 import { describe, expect, test } from "bun:test";
-import { CONFIRM_SIGN_PAY, confirmSignPayBlockers, confirmSignPayFooter, piesaConfirmTick, piesaResultLabel, clearScreenOpen, type ConfirmSignPayState } from "../src/lib/confirm-sign-pay.core";
-import { currentOwnerAction } from "../src/lib/owner-myjob.core";
+import { CONFIRM_SIGN_PAY, confirmSignPayBlockers, confirmSignPayFooter, piesaConfirmTick, piesaResultLabel, clearScreenOpen, consentTickLine, clearAction, type ConfirmSignPayState } from "../src/lib/confirm-sign-pay.core";
+import { currentOwnerAction, resolveOwnerScreen } from "../src/lib/owner-myjob.core";
 import { OWNER_DECLARATIONS } from "../src/lib/consent.core";
 import { confirmSignPay, type ConfirmSignPayDeps } from "../src/lib/confirm-sign-pay.server";
 
@@ -46,6 +46,11 @@ describe("blockers", () => {
     expect(confirmSignPayBlockers({ piesaTick: false, consentTicks: ALL, typedName: "Helen Yang", state: state({ piesa: true }) })).toEqual([]);
     expect(confirmSignPayBlockers({ piesaTick: true, consentTicks: NONE, typedName: "Helen Yang", state: state({ consent: true }) })).toEqual([]);
   });
+  test("first and last name are both needed before any signing", () => {
+    expect(confirmSignPayBlockers({ ...base, typedName: "Helen" }).length).toBe(1);
+    expect(confirmSignPayBlockers({ ...base, typedName: "  Helen   Yang " })).toEqual([]);
+    expect(confirmSignPayBlockers({ piesaTick: false, consentTicks: ALL, typedName: "Helen", state: state({ piesa: true }) }).length).toBe(1);
+  });
   test("a name is needed whenever something still has to be signed", () => {
     expect(confirmSignPayBlockers({ piesaTick: true, consentTicks: ALL, typedName: "", state: state({ consent: true }) }).length).toBe(1);
   });
@@ -74,18 +79,44 @@ describe("which screen is current", () => {
     expect(clearScreenOpen({ ...f, stage: "quote_sent" })).toBe(false);
     expect(clearScreenOpen({ ...f, depositCents: 0 })).toBe(false);
   });
+  test("stays open while a signature is missing even if the deposit is paid; closes when all done and paid", () => {
+    const f = { stage: "piesa_complete", outcome: "all_clear" as const, safetyCleared: true, depositCleared: true, depositCents: 18510 };
+    expect(clearScreenOpen({ ...f, unsigned: true })).toBe(true);
+    expect(clearScreenOpen({ ...f, unsigned: false })).toBe(false);
+    expect(clearScreenOpen({ ...f, unsigned: true, outcome: null })).toBe(false);
+  });
+  test("clearAction: only when the page state loads; otherwise fall back to the old screens", () => {
+    expect(clearAction(true, state())).toBe("clear");
+    expect(clearAction(true, null)).toBe(null);
+    expect(clearAction(false, state())).toBe(null);
+  });
+  test("?screen=pay and ?screen=piesa resolve to clear while a step is unsigned; other screens untouched", () => {
+    const facts = { currentAction: "clear" as const, clearStepsUnsigned: true };
+    expect(resolveOwnerScreen("pay", facts)).toBe("clear");
+    expect(resolveOwnerScreen("piesa", facts)).toBe("clear");
+    expect(resolveOwnerScreen("quote", facts)).toBe("quote");
+    expect(resolveOwnerScreen("pay", { currentAction: "clear", clearStepsUnsigned: false })).toBe("pay");
+    expect(resolveOwnerScreen("piesa", { currentAction: "pay" })).toBe("piesa");
+  });
+  test("official third consent line keeps its wording (no full stop added); the others still end with one", () => {
+    expect(consentTickLine("consent_ap_sends", "I consent to X sending it to the Essential Services Commission (commission)")).toBe("I consent to X sending it to the Essential Services Commission (commission)");
+    expect(consentTickLine("details_accurate", "the details listed above are complete and accurate.")).toBe("the details listed above are complete and accurate.");
+    expect(consentTickLine("consent_commission_shares", "I consent to the Commission sharing that")).toBe("I consent to the Commission sharing that.");
+  });
 });
 
 // ---------- server orchestration (fakes) ----------
 function fakes(initial: ConfirmSignPayState, over: Partial<ConfirmSignPayDeps> = {}) {
   const st = structuredClone(initial);
   const calls: string[] = [];
+  let sent = false;
   const deps: ConfirmSignPayDeps = {
     loadState: async () => structuredClone(st),
     prepareConsent: async () => { calls.push("prepare"); },
     signPiesa: async (p) => { calls.push(`piesa:${p.fullName}`); st.piesa.done = true; },
     signConsent: async (p) => { calls.push(`consent:${p.signatureName}:${Object.values(p.declarations).every(Boolean)}`); st.consent.done = true; },
-    sendConsentCopy: async () => { calls.push(`copy:paid=${st.deposit.paid}`); },
+    consentCopySent: async () => sent,
+    sendConsentCopy: async () => { calls.push(`copy:paid=${st.deposit.paid}`); sent = true; },
     cardCheckout: async () => { calls.push("card"); return { url: "https://stripe.test/c" }; },
     bankLines: async () => ["Account name: Test", "Reference: HV-1"],
     ...over,
@@ -117,16 +148,32 @@ describe("confirmSignPay", () => {
     expect(r).toEqual({ checkoutUrl: "https://stripe.test/c" });
     expect(calls).toEqual(["prepare", "piesa:Helen Yang", "consent:Helen Yang:true", "copy:paid=false", "card"]);
   });
-  test("in-flight: consent signed at acceptance and PIESA confirmed on the old page -> nothing re-signed, no copy", async () => {
+  test("in-flight: consent signed at acceptance and PIESA confirmed on the old page -> nothing re-signed; the missing consent copy is sent once", async () => {
     const { deps, calls } = fakes(state({ piesa: true, consent: true }));
     const r = await confirmSignPay(J, session, { ...input, piesaTick: false, consentTicks: NONE, typedName: "" }, deps);
     expect(r).toEqual({ bank: ["Account name: Test", "Reference: HV-1"] });
+    expect(calls).toEqual(["copy:paid=false"]);
+    await confirmSignPay(J, session, { ...input, piesaTick: false, consentTicks: NONE, typedName: "" }, deps);
+    expect(calls).toEqual(["copy:paid=false"]);
+  });
+  test("consent already signed and a copy already exists -> no send", async () => {
+    const { deps, calls } = fakes(state({ piesa: true, consent: true }), { consentCopySent: async () => true });
+    await confirmSignPay(J, session, { ...input, piesaTick: false, consentTicks: NONE, typedName: "" }, deps);
     expect(calls).toEqual([]);
+  });
+  test("a retry after a failed copy send sends it (signed in an earlier call)", async () => {
+    let fail = true;
+    const { deps, calls } = fakes(state(), { sendConsentCopy: async () => { calls2.push("try"); if (fail) throw new Error("mail down"); } });
+    const calls2: string[] = [];
+    await confirmSignPay(J, session, input, deps);
+    fail = false;
+    await confirmSignPay(J, session, { ...input, piesaTick: false, consentTicks: NONE, typedName: "" }, deps);
+    expect(calls2).toEqual(["try", "try"]);
   });
   test("only the missing step is signed", async () => {
     const { deps, calls } = fakes(state({ consent: true }));
     await confirmSignPay(J, session, { ...input, consentTicks: NONE }, deps);
-    expect(calls).toEqual(["piesa:Helen Yang"]);
+    expect(calls).toEqual(["piesa:Helen Yang", "copy:paid=false"]);
   });
   test("upgrades still to come: page signs the same PIESA record", async () => {
     const { deps, calls } = fakes(state({ result: "Electrical upgrades needed" }));

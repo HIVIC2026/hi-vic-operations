@@ -14,7 +14,9 @@ export function currentOwnerAction(facts: Record<Exclude<OwnerScreen,'home'|'don
   const priority = ['newquote','turn','taps','quote','clear','fixes','pay','piesa','veec','book','spot','review'] as const;
   return priority.find(action=>facts[action]) ?? null;
 }
-export function resolveOwnerScreen(screen: OwnerScreen | undefined, facts: { currentAction?: Exclude<OwnerScreen, 'home' | 'done'> | null }): Exclude<OwnerScreen, 'home'> | 'all_set' {
+export function resolveOwnerScreen(screen: OwnerScreen | undefined, facts: { currentAction?: Exclude<OwnerScreen, 'home' | 'done'> | null; clearStepsUnsigned?: boolean }): Exclude<OwnerScreen, 'home'> | 'all_set' {
+  // Old links to the pay / PIESA screens land on the one confirm-and-pay page while a step there is still unsigned.
+  if ((screen === 'pay' || screen === 'piesa') && facts.currentAction === 'clear' && facts.clearStepsUnsigned === true) return 'clear';
   if (screen && screen !== 'home') return screen;
   return facts.currentAction ?? 'all_set';
 }

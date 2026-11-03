@@ -121,6 +121,7 @@ export async function resolveOwnerJob(token: unknown) {
   } : null;
   const limits = (ws?.office_time_limits ?? {}) as Record<string, unknown>;
   let currentAction: Exclude<import('./owner-myjob.core').OwnerScreen,'home'|'done'> | null = null;
+  let clearStepsUnsigned = false;
   const {isQuoteExpiredCancelReason,quoteIsExpired}=await import('./quote-expiry.core');
   if (stage === 'cancelled' && isQuoteExpiredCancelReason(j.cancelled_reason)) currentAction='newquote';
   if (!['cancelled','on_hold'].includes(stage)) {
@@ -133,11 +134,18 @@ export async function resolveOwnerJob(token: unknown) {
       const confirmation = await (await import('./piesa-owner-confirm.server')).ownerPiesaConfirmFacts(jobId);
       // Part 4 T5 (Jo 2 Nov, answer 21): straight after the PIESA result — also with upgrades still to come — the ONE confirm-and-pay page,
       // while the 10% deposit is unpaid. Everything it covers that is already signed (old flow) just shows as done there.
-      const { clearScreenOpen } = await import('./confirm-sign-pay.core');
+      const { clearScreenOpen, clearAction, stepsUnsigned } = await import('./confirm-sign-pay.core');
       const { piesaOutcomeKind } = await import('./piesa-owner-confirm.core');
       const stepOf = (k: string) => payment?.steps.find((x) => x.key === k);
       const cleared = (k: string) => ['paid', 'waived'].includes(stepOf(k)?.state ?? '');
-      const clearOpen = !!confirmation && clearScreenOpen({ stage, outcome: piesaOutcomeKind(confirmation) === 'all_clear' ? 'all_clear' : 'upgrades_needed', safetyCleared: cleared('safety_check'), depositCleared: cleared('install_deposit'), depositCents: Math.round((stepOf('install_deposit')?.amount ?? 0) * 100) });
+      const clearFacts = { stage, outcome: confirmation ? (piesaOutcomeKind(confirmation) === 'all_clear' ? 'all_clear' as const : 'upgrades_needed' as const) : null, safetyCleared: cleared('safety_check'), depositCleared: cleared('install_deposit'), depositCents: Math.round((stepOf('install_deposit')?.amount ?? 0) * 100) };
+      // "clear" only when the page's own state loads (no consent row / missing facts -> the old pay / piesa screens, never a dead end).
+      let clearState: import('./confirm-sign-pay.core').ConfirmSignPayState | null = null;
+      if (confirmation && clearScreenOpen({ ...clearFacts, unsigned: true })) {
+        try { clearState = await (await import('./confirm-sign-pay.server')).realLoadState(jobId); } catch (e) { console.error('owner confirm-sign-pay page unavailable, using the old screens', (e as Error).message); }
+      }
+      const clearOpen = clearAction(clearState !== null && clearScreenOpen({ ...clearFacts, unsigned: stepsUnsigned(clearState!) }), clearState) === 'clear';
+      clearStepsUnsigned = clearOpen && !!clearState && stepsUnsigned(clearState);
       if (clearOpen) currentAction = 'clear';
       else if ((payment?.dueNow ?? 0) > 0 || payment?.provisional) currentAction='pay';
       else if (confirmation && !confirmation.confirmation) currentAction = 'piesa';
@@ -164,6 +172,7 @@ export async function resolveOwnerJob(token: unknown) {
   currentAction=currentOwnerAction({clear:currentAction==='clear',taps:currentAction==='taps',spot:currentAction==='spot',quote:currentAction==='quote',pay:currentAction==='pay',piesa:currentAction==='piesa',veec:currentAction==='veec',book:currentAction==='book',fixes:currentAction==='fixes',newquote:currentAction==='newquote',review:currentAction==='review',turn:currentAction==='turn'});
   return {
     currentAction,
+    clearStepsUnsigned,
     inHouseDispatch,
     jobNumber: j.job_number, firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null,
     address: formatPropertyAddress(j.properties as never) || null, stage, hero, action, trade: upcoming ? trade : null,
