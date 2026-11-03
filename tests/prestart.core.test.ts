@@ -68,7 +68,7 @@ describe("pre-start check", () => {
 
 // Part 3 Task 4 (Jo 3 Nov 2026): the install can be BOOKED while the Certificate of Electrical Safety is outstanding; it
 // can't START. The certificate is a pre-start fact; booking only carries a warning. On-site-only jobs are clear after the PIESA.
-import { INSTALL_CERTIFICATE_WARNING, prestartCertificate } from "../src/lib/certificate-later.core";
+import { INSTALL_CERTIFICATE_UNCHECKED_WARNING, INSTALL_CERTIFICATE_WARNING, installCertificateWarning, prestartCertificate, prestartCertificateBlocker } from "../src/lib/certificate-later.core";
 import { electricalClearance } from "../src/lib/allocation.core";
 
 describe("Part 3 Task 4: certificate at pre-start", () => {
@@ -104,6 +104,20 @@ describe("Part 3 Task 4: certificate at pre-start", () => {
   });
   test("the booking warning wording", () => {
     expect(INSTALL_CERTIFICATE_WARNING).toBe("Certificate of Electrical Safety still to come — the install can't start without it");
+    expect(INSTALL_CERTIFICATE_UNCHECKED_WARNING).toBe("Certificate of Electrical Safety not checked yet — the install can't start until it's ticked.");
+  });
+  test("fix 1: the booking warning is picked from the fact — 'still to come' only with no file", () => {
+    expect(installCertificateWarning("missing")).toBe(INSTALL_CERTIFICATE_WARNING);
+    expect(installCertificateWarning("unchecked")).toBe(INSTALL_CERTIFICATE_UNCHECKED_WARNING);
+    expect(installCertificateWarning("ticked")).toBeNull();
+    expect(installCertificateWarning("not_needed")).toBeNull();
+  });
+  test("fix 1: the live start lock (requirePrestartClear) wording", () => {
+    expect(prestartCertificateBlocker("missing", null)).toBe("Not cleared to start: Certificate of Electrical Safety not in yet.");
+    expect(prestartCertificateBlocker("unchecked", "not checked yet")).toBe("Not cleared to start: check the electrical certificate — not checked yet.");
+    expect(prestartCertificateBlocker("unchecked", null)).toBe("Not cleared to start: check the electrical certificate — not checked yet.");
+    expect(prestartCertificateBlocker("ticked", null)).toBeNull();
+    expect(prestartCertificateBlocker("not_needed", null)).toBeNull();
   });
 });
 

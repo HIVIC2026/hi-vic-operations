@@ -121,10 +121,17 @@ describe("held wording", () => {
     expect(`${n.subject} ${n.text} ${n.sms}`).not.toMatch(/fixes|repair/i);
   });
   test("Task 4: Home Insulation Victoria with no office phone on file → 'Call Home Insulation Victoria.' with no number", () => {
-    const n = bookingNotice({ kind: "upgrades", start: "2026-11-10T22:00:00Z", who: { name: "Sparky Sam", phone: null }, installer: "Home Insulation Victoria", phone: null });
+    const n = bookingNotice({ kind: "upgrades", start: "2026-11-10T22:00:00Z", who: { name: "Sparky Sam", phone: null }, installer: "Home Insulation Victoria", phone: null, hivOffice: true });
     expect(n.text).toContain("Need a different time? Call Home Insulation Victoria.");
     expect(n.text).not.toContain("booking details");
-    const withPhone = bookingNotice({ kind: "upgrades", start: "2026-11-10T22:00:00Z", who: { name: "Sparky Sam", phone: null }, installer: "Home Insulation Victoria", phone: "03 9000 0000" });
+    const withPhone = bookingNotice({ kind: "upgrades", start: "2026-11-10T22:00:00Z", who: { name: "Sparky Sam", phone: null }, installer: "Home Insulation Victoria", phone: "03 9000 0000", hivOffice: true });
     expect(withPhone.text).toContain("Call Home Insulation Victoria on 03 9000 0000.");
+  });
+  test("fix 1: the no-number line is keyed on our own office, not on an installer business that happens to share the name", () => {
+    const sameName = bookingNotice({ kind: "install", start: "2026-11-10T22:00:00Z", who: { name: "Lee", phone: null }, installer: "Home Insulation Victoria", phone: null });
+    expect(sameName.text).toContain("Call Home Insulation Victoria on the number in your booking details.");
+    const src = require("node:fs").readFileSync(new URL("../src/lib/in-house-booking.server.ts", import.meta.url), "utf8") as string;
+    expect(src).toMatch(/installer:'Home Insulation Victoria',phone:[^}]*hivOffice:true/);
+    expect(src).toContain("hivOffice:contact.hivOffice");
   });
 });

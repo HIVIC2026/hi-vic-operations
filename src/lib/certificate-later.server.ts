@@ -5,7 +5,7 @@
 // stage. Rules in certificate-later.core.ts.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import {
-  CERTIFICATE_UNREADABLE, INSTALL_CERTIFICATE_WARNING, INSTALL_CERTIFICATE_WARNING_EVENT, certificateState, certificateStatusLine, prestartCertificate,
+  CERTIFICATE_UNREADABLE, INSTALL_CERTIFICATE_WARNING_EVENT, certificateState, certificateStatusLine, installCertificateWarning, prestartCertificate,
   type CertificateState, type PrestartCertificate,
 } from "./certificate-later.core";
 
@@ -121,12 +121,20 @@ export async function prestartCertificateFacts(jobId: string, opts: { onsiteOnly
   }
 }
 
-/** The warning for an install booking: the certificate is outstanding (the pre-start check would fail on it), else null. */
-export async function installCertificateWarningFor(jobId: string): Promise<string | null> {
+/** The live certificate fact for one job (on-site-only read from the clearance facts; a failed clearance read counts as
+ *  not on-site-only, so the certificate is still read). Fails closed like `prestartCertificateFacts`. Fix 1: used by the
+ *  booking warning, the live start lock (`requirePrestartClear`) and the in-house install form hold. */
+export async function liveCertificateFact(jobId: string): Promise<{ certificate: PrestartCertificate; certificateWhy: string | null }> {
   const { clearanceFacts } = await import("./electrical-clearance.server");
   const onsiteOnly = (await clearanceFacts(jobId).catch(() => null))?.onsiteStartOnly === true;
   const c = await prestartCertificateFacts(jobId, { onsiteOnly });
-  return c.certificate === "missing" || c.certificate === "unchecked" ? INSTALL_CERTIFICATE_WARNING : null;
+  return { certificate: c.certificate, certificateWhy: c.certificateWhy };
+}
+
+/** The warning for an install booking: the certificate is outstanding (the pre-start check would fail on it), else null.
+ *  No file → "still to come"; a file not ticked → "not checked yet". */
+export async function installCertificateWarningFor(jobId: string): Promise<string | null> {
+  return installCertificateWarning((await liveCertificateFact(jobId)).certificate);
 }
 
 /** After an install booking: record the warning once per install start (office history) and return it for the screen.

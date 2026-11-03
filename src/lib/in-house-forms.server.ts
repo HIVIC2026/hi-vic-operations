@@ -108,9 +108,32 @@ export async function ensureInstallForm(jobId: string, actorId: string | null, c
   if (!await isInHouseFormJob(jobId)) return null;
   const existing = (await formFacts(jobId)).find(f=>f.kind==="install");
   if (existing) return existing.auditId;
+  // Part 3 Task 4 fix 1 (4 Nov 2026): held while the Certificate of Electrical Safety is outstanding (missing, not ticked, or
+  // unreadable — fail closed); created when it is ticked (coes-check / the pre-start sweep call releaseHeldInstallForm).
+  const cert = await (await import("./certificate-later.server")).liveCertificateFact(jobId)
+    .catch((e: unknown) => ({ certificate: "unchecked" as const, certificateWhy: e instanceof Error ? e.message : "certificate not read" }));
+  if (cert.certificate === "missing" || cert.certificate === "unchecked") {
+    const {error} = await db.from("workflow_events").insert({id:await stableUuid(`in-house-install-form-held:${jobId}`),job_id:jobId,actor_id:actorId,event_type:"in_house_install_form_held",summary:"Install form held until the Certificate of Electrical Safety is ticked",details:{certificate:cert.certificate,why:cert.certificateWhy},internal:true});
+    if (error && !isUniqueViolation(error)) throw new Error(error.message);
+    return null;
+  }
   const lead = await leadAssignee(jobId);
   const mitti = await import("./mitti.server");
   return (await mitti.createPiisaMittiAudit(jobId,actorId,call ?? mitti.realMittiCall,{assignee:lead})).auditId;
+}
+/** Fix 1: create an in-house install form that was held for the certificate, once it is clear. Only for an in-house form
+ *  job at installation_booked with no install form yet. `skipWhenLocked`: leave it while the pre-start gate is locked (a
+ *  failed day-before check) — the sweep's next pass creates it. Throws on a real failure (callers log it for the office). */
+export async function releaseHeldInstallForm(jobId: string, actorId: string | null, opts: { skipWhenLocked?: boolean } = {}, call?: MittiCall): Promise<string> {
+  if (!await isInHouseFormJob(jobId)) return "not an in-house form job";
+  const job = await read<{stage:string}|null>(db.from("jobs").select("stage").eq("id",jobId).maybeSingle());
+  if (job?.stage !== "installation_booked") return "not at installation_booked";
+  if ((await formFacts(jobId)).some(f=>f.kind==="install")) return "already has an install form";
+  if (opts.skipWhenLocked && (await (await import("./prestart.server")).prestartGate(jobId)).locked) return "held: pre-start check locked";
+  const auditId = await ensureInstallForm(jobId, actorId, call);
+  if (!auditId) return "held: certificate outstanding";
+  await syncInHouseForms(jobId, "date", actorId, call);
+  return "created";
 }
 export async function syncInHouseForms(jobId: string, change: "date"|"person"|"crew", actorId: string | null = null, call?: MittiCall, previousWorkerId?:string|null) {
   if (!await isInHouseFormJob(jobId)) return;

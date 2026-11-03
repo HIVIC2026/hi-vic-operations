@@ -190,7 +190,9 @@ export async function checkCurrentCoes(jobId: string, actorId: string | null, op
     const c = await currentCoes(jobId);
     if (!c.needed || !c.ref) return "skipped: no repairs, no certificate needed";
     try {await (await import('./coes-owner-copy.server')).sendCoesOwnerCopy(jobId,c.ref);} catch(e){console.error('Certificate owner copy held',jobId,e instanceof Error?e.message:'Delivery unavailable');}
-    return await checkCoes(jobId, c.ref, actorId, opts);
+    const result = await checkCoes(jobId, c.ref, actorId, opts);
+    if (result === "ticked by AI") await releaseHeldAfterTick(jobId, actorId);
+    return result;
   } catch (e) {
     console.error("electrical certificate not checked", jobId, (e as Error).message);
     return `not checked — ${(e as Error).message}`;
@@ -260,7 +262,19 @@ export async function officeTickCoes(jobId: string, eventId: string | null, acto
   if (coesState(await coesEvents(jobId), r.key).state === "ticked") throw new Error("This certificate is already ticked.");
   await logEvent(jobId, actorId, COES_CHECKED_EVENT, "Electrical certificate ticked by the office", { by: "office", verdict: "ceiling_work", quote: null, key: r.key, check_event_id: r.checkEventId }, { internal: true });
   try {await (await import('./coes-owner-copy.server')).sendCoesOwnerCopy(jobId,r.ref);} catch(e){console.error('Certificate owner copy held',jobId,e instanceof Error?e.message:'Delivery unavailable');}
+  await releaseHeldAfterTick(jobId, actorId);
   return { ok: true };
+}
+
+/** Part 3 Task 4 fix 1 (4 Nov 2026): after a tick, an in-house job at installation_booked whose install form (PIISA Mitti
+ *  audit) was held for the certificate gets it now. While a failed day-before check still locks the start, it is left for
+ *  the pre-start sweep's next pass. Best effort: a failure is an office item, never a failed tick. Never throws. */
+async function releaseHeldAfterTick(jobId: string, actorId: string | null): Promise<void> {
+  try {
+    await (await import("./in-house-forms.server")).releaseHeldInstallForm(jobId, actorId, { skipWhenLocked: true });
+  } catch (e) {
+    await logEvent(jobId, actorId, "in_house_form_sync_failed", "In-house forms need office attention", { reason: e instanceof Error ? e.message : "Install form not created", needs_office: true }, { internal: true }).catch(() => undefined);
+  }
 }
 
 /** Office Reject: not good enough — the install stays blocked until a new certificate comes in (checked again). */

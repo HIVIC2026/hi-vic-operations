@@ -64,4 +64,10 @@ describe("automatic PIISA Mitti form before install day (Jo 24 Oct 2026)", () =>
     expect(sweep).toContain("createPiisaMittiAudit(j.id, null)");
     expect(sweep).toContain("PIISA_AUTOSEND_FAILED_EVENT");
   });
+  test("Part 3 Task 4 fix 1: an own job's auto-send also waits for the Certificate of Electrical Safety (counted as locked, so it skips instead of failing)", () => {
+    const sweep = readFileSync(new URL("../src/lib/piisa-autosend.server.ts", import.meta.url), "utf8");
+    expect(sweep).toContain("liveCertificateFact(j.id)");
+    expect(sweep).toMatch(/prestartLocked: gate\.locked \|\| certificateOutstanding/);
+    expect(sweep.indexOf("liveCertificateFact(j.id)")).toBeLessThan(sweep.indexOf("createPiisaMittiAudit(j.id"));
+  });
 });

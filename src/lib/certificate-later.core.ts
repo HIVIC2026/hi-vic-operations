@@ -52,6 +52,21 @@ export function certificateStatusLine(f: { state: CertificateState; electrician:
 export type PrestartCertificate = "not_needed" | "missing" | "unchecked" | "ticked";
 /** The line every install booking records and shows while the certificate is outstanding (booking is never blocked by it). */
 export const INSTALL_CERTIFICATE_WARNING = "Certificate of Electrical Safety still to come — the install can't start without it";
+/** Fix 1: the line when a certificate file is on the job but not ticked yet ("still to come" only when there is no file). */
+export const INSTALL_CERTIFICATE_UNCHECKED_WARNING = "Certificate of Electrical Safety not checked yet — the install can't start until it's ticked.";
+/** The booking warning for the pre-start certificate fact: no file → still to come; a file not ticked → not checked yet. */
+export function installCertificateWarning(c: PrestartCertificate): string | null {
+  return c === "missing" ? INSTALL_CERTIFICATE_WARNING : c === "unchecked" ? INSTALL_CERTIFICATE_UNCHECKED_WARNING : null;
+}
+/** Fix 1: the live start lock (prestart.server `requirePrestartClear`) — the PIISA send and install evidence stay locked. */
+export function prestartCertificateBlocker(c: PrestartCertificate, why: string | null): string | null {
+  if (c === "missing") return "Not cleared to start: Certificate of Electrical Safety not in yet.";
+  if (c === "unchecked") return `Not cleared to start: check the electrical certificate — ${why?.trim() || "not checked yet"}.`;
+  return null;
+}
+/** Fix 1: an in-house job's install form (PIISA Mitti audit) is held while the certificate is outstanding — one event per job. */
+export const IN_HOUSE_INSTALL_FORM_HELD_EVENT = "in_house_install_form_held";
+export const IN_HOUSE_INSTALL_FORM_HELD = "Install form held until the Certificate of Electrical Safety is ticked";
 /** Logged once per install start when the install is booked with the certificate outstanding. */
 export const INSTALL_CERTIFICATE_WARNING_EVENT = "install_booked_certificate_outstanding";
 /** Office wording when the certificate facts could not be read (the pre-start fails closed). */

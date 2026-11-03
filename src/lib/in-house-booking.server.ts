@@ -61,7 +61,7 @@ export async function notifyOwnerBooked(jobId:string,kind:BookingNoticeKind,star
   if(!job||job.deleted_at||job.stage==='cancelled'||!job.owners?.email)return 'held';
   if(!a?.businesses&&kind!=='upgrades')return 'held';
   // Who the owner calls to change the time: the installer's office, else (upgrades on an HIV lead with no installer yet) ours.
-  const contact=a?.businesses?{installer:a.businesses.trading_name||a.businesses.name,phone:a.businesses.phone}:{installer:'Home Insulation Victoria',phone:(await import('./office-phone.server')).officePhone()};
+  const contact=a?.businesses?{installer:a.businesses.trading_name||a.businesses.name,phone:a.businesses.phone,hivOffice:false}:{installer:'Home Insulation Victoria',phone:(await import('./office-phone.server')).officePhone(),hivOffice:true};
   const key=`in-house-booked:v1:${booking.id}:${who.id}`;
   const intentId=await stableUuid(`${key}:intent`);
   const intent=await db.from('workflow_events').insert({id:intentId,job_id:jobId,actor_id:null,event_type:'in_house_booked_notice_pending',summary:'Booking confirmation awaiting delivery',details:{kind,startIso,who,booking_id:booking.id},internal:true});
@@ -71,7 +71,7 @@ export async function notifyOwnerBooked(jobId:string,kind:BookingNoticeKind,star
   if((await import('./quote-hold.core')).smsQuietReason(now.toISOString()))return 'quiet hours';
   try {
   await (await import('./comms.server')).assertCustomerDeliveryAllowed(jobId,'Booking confirmation');
-  const n=bookingNotice({kind,start:startIso,who,installer:contact.installer,phone:contact.phone});
+  const n=bookingNotice({kind,start:startIso,who,installer:contact.installer,phone:contact.phone,hivOffice:contact.hivOffice});
   const {partnerEmailLayout}=await import('./partner-email.core');
   const email=await (await import('./owner-email-send.server')).sendGuardedOwnerEmail({jobId,jobSource:job.source,to:job.owners.email,purpose:'in_house_booked',key,retryAfterDefiniteFailure:true,beforeSend:async()=>{
     const current=await read<{id:string}|null>(db.from('bookings').select('id').eq('id',booking.id).eq('job_id',jobId).eq('status','confirmed').eq('scheduled_start',startIso).maybeSingle());

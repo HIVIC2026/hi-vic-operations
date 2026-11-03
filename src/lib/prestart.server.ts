@@ -144,6 +144,11 @@ export async function requirePrestartClear(jobId: string) {
   // Live "Site conditions differ" review hold: works stay locked until the office reviews it.
   const sh = await siteHoldBlockers(jobId);
   if (sh.length) throw new WorkflowError(`Not cleared to start: ${sh.join(" ")}.`);
+  // Part 3 Task 4 fix 1 (4 Nov 2026): live Certificate of Electrical Safety check — the PIISA send and install evidence stay
+  // locked until it is ticked, whatever the time-based gate says. On-site-only / no upgrades / ticked pass. Fails closed.
+  const cert = await (await import("./certificate-later.server")).liveCertificateFact(jobId);
+  const certBlock = (await import("./certificate-later.core")).prestartCertificateBlocker(cert.certificate, cert.certificateWhy);
+  if (certBlock) throw new WorkflowError(certBlock);
   const g = await prestartGate(jobId);
   if (g.locked) throw new WorkflowError(`Not cleared to start: ${g.reasons.join(" ")}`);
 }
@@ -155,6 +160,13 @@ export async function sweepPrestart(now = new Date()) {
   for (const b of data ?? []) {
     const r = await runPrestart(b.job_id, "timer", now).catch((e) => { console.error("pre-start check failed to run", (e as Error).message); return null; });
     if (r) { ran++; if (!r.passed) failed++; }
+    // Part 3 Task 4 fix 1: safety net — a newly recorded pass on an in-house job still holding its install form (the
+    // certificate was ticked while the day-before check said failed) creates the form now. Never fails the sweep.
+    if (r?.passed && r.changed) {
+      await (await import("./in-house-forms.server")).releaseHeldInstallForm(b.job_id, null).catch(async (e) => {
+        await logEvent(b.job_id, null, "in_house_form_sync_failed", "In-house forms need office attention", { reason: e instanceof Error ? e.message : "Install form not created", needs_office: true }, { internal: true }).catch(() => undefined);
+      });
+    }
   }
   return { ran, failed };
 }

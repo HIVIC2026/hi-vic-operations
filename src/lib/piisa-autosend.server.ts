@@ -44,7 +44,11 @@ export async function sweepPiisaAutoSend(opts: { now?: Date; allowTest?: boolean
     const pre = piisaAutoSendDecision({ ...base, prestartLocked: false }, now, { allowTest: opts.allowTest ?? false });
     if (pre.action === "skip") { results.push({ jobId: j.id, jobNumber: j.job_number, outcome: "skipped", message: pre.reason }); continue; }
     const gate = await prestartGate(j.id, now).catch(() => ({ locked: true, reasons: ["pre-start check could not be read"] }));
-    const d = piisaAutoSendDecision({ ...base, prestartLocked: gate.locked }, now, { allowTest: opts.allowTest ?? false });
+    // Part 3 Task 4 fix 1 (4 Nov 2026): the install can be booked before the Certificate of Electrical Safety is ticked, and
+    // createPiisaMittiAudit refuses until it is (requirePrestartClear) — count it as locked so the tick skips, not fails.
+    const certificateOutstanding = gate.locked ? false : await (await import("./certificate-later.server")).liveCertificateFact(j.id)
+      .then((c) => c.certificate === "missing" || c.certificate === "unchecked").catch(() => true);
+    const d = piisaAutoSendDecision({ ...base, prestartLocked: gate.locked || certificateOutstanding }, now, { allowTest: opts.allowTest ?? false });
     if (d.action === "skip") { results.push({ jobId: j.id, jobNumber: j.job_number, outcome: "skipped", message: d.reason }); continue; }
     if (opts.dryRun) { results.push({ jobId: j.id, jobNumber: j.job_number, outcome: "skipped", message: "dry run – would create" }); continue; }
     try {
