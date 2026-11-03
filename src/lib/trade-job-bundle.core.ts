@@ -24,6 +24,8 @@ export const BUNDLE_QUERY_KEYS = {
   workerLinks: (jobId: string) => ["worker-links", jobId],
   price: (jobId: string) => ["installer-price", jobId],
   ownerQuote: (jobId: string) => ["my-owner-quote", jobId],
+  // Part 8's in-house booking access (the Next step box and the return actions read it on first paint); join 4 Nov 2026.
+  inHouseBookingAccess: (jobId: string) => ["in-house-booking-access", jobId],
   crew: (jobId: string) => ["piisa-crew", jobId],
 } as const;
 

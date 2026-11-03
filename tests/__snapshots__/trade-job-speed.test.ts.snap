@@ -5,6 +5,7 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
   "bundle electrician": {
     "allocation": undefined,
     "crew": undefined,
+    "inHouseBookingAccess": undefined,
     "installDays": undefined,
     "overview": {
       "channel": "installer_sourced",
@@ -73,6 +74,30 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
           "whiteCardBlocked": true,
           "workerId": "pw1",
           "workerRole": "lead",
+        },
+      ],
+    },
+    "inHouseBookingAccess": {
+      "allowed": true,
+      "blockers": [],
+      "bookings": [
+        {
+          "id": "in0",
+          "kind": "installation",
+          "scheduled_start": "2026-11-01T03:00:00.000Z",
+          "status": "confirmed",
+        },
+        {
+          "id": "as0",
+          "kind": "assessment",
+          "scheduled_start": "2026-10-19T03:00:00.000Z",
+          "status": "completed",
+        },
+        {
+          "id": "rc0",
+          "kind": "ready_check",
+          "scheduled_start": "2026-10-09T03:00:00.000Z",
+          "status": "completed",
         },
       ],
     },
@@ -500,6 +525,12 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
         },
       ],
     },
+    "inHouseBookingAccess": {
+      "allowed": false,
+      "blockers": [
+        "forbidden",
+      ],
+    },
     "installDays": {
       "booked": true,
       "bookedAt": "2026-11-01T03:00:00.000Z",
@@ -924,6 +955,12 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
         },
       ],
     },
+    "inHouseBookingAccess": {
+      "allowed": false,
+      "blockers": [
+        "forbidden",
+      ],
+    },
     "installDays": {
       "booked": true,
       "bookedAt": "2026-11-01T03:00:00.000Z",
@@ -1339,6 +1376,30 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
         },
       ],
     },
+    "inHouseBookingAccess": {
+      "allowed": true,
+      "blockers": [],
+      "bookings": [
+        {
+          "id": "in0",
+          "kind": "installation",
+          "scheduled_start": "2026-11-01T03:00:00.000Z",
+          "status": "confirmed",
+        },
+        {
+          "id": "as0",
+          "kind": "assessment",
+          "scheduled_start": "2026-10-19T03:00:00.000Z",
+          "status": "completed",
+        },
+        {
+          "id": "rc0",
+          "kind": "ready_check",
+          "scheduled_start": "2026-10-09T03:00:00.000Z",
+          "status": "completed",
+        },
+      ],
+    },
     "installDays": {
       "booked": true,
       "bookedAt": "2026-11-01T03:00:00.000Z",
@@ -1709,6 +1770,12 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
         },
       ],
     },
+    "inHouseBookingAccess": {
+      "allowed": false,
+      "blockers": [
+        "forbidden",
+      ],
+    },
     "installDays": {
       "booked": true,
       "bookedAt": "2026-11-01T03:00:00.000Z",
@@ -2077,6 +2144,12 @@ exports[`parity: same value as before, field for field tradeJobPage, tradeJobBun
           "workerId": "pw1",
           "workerRole": "lead",
         },
+      ],
+    },
+    "inHouseBookingAccess": {
+      "allowed": false,
+      "blockers": [
+        "forbidden",
       ],
     },
     "installDays": {

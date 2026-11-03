@@ -70,25 +70,37 @@ const { Route } = await import("../src/routes/_authenticated/field.$jobId");
 const FieldJob = (Route as unknown as { component: () => ReactNode }).component;
 
 const overview = { id: JOB_ID, job_number: "HV-9001", stage: "installation_scheduling", channel: "hivic_sourced", property_address: "12 Sample Street, Glen Waverley VIC 3150", owner_name: "Helen Example", owner_phone: "0400000000", life_support: false, install_deadline: null, days_remaining: null };
+// Part 5's job page shape (join 4 Nov 2026): the Next step box, progress, folded rows and labels the page draws from —
+// taken from a real tradeJobPage answer (tests/__snapshots__/trade-job-speed.test.ts.snap) and given this fixture's names.
 const page = {
-  jobNumber: "HV-9001", stage: "installation_scheduling", channel: "hivic_sourced",
+  boss: true, role: "boss", kind: "installer", prices: true, channel: "hivic_sourced", label: "Home Insulation Victoria lead", jobNumber: "HV-9001", stage: "installation_scheduling",
+  ownerFirst: "Helen", ownerPiesaConfirmed: false, countdown: null, installBy: null, electricianAttendance: null, mittiInvited: true, notes: [],
   readyCheck: { bookedAt: "2026-10-20T22:00:00Z", done: true },
-  install: { bookedAt: null, recordedAt: null, form: { auditId: null, complete: false }, rebateSigned: false, formCompletedAt: null, evidenceChecked: false, crew: [], ownerReady: null },
-  form: { linked: true, auditId: "a1", completed: true, missing: [], stops: [], electrician: null, needsFinishing: null, needsFinishingItems: [], completedAt: "2026-10-21T00:00:00Z", hasAnswers: true },
-  price: { entered: null }, boss: true,
-  quote: { line: "Quote accepted", sent: true, accepted: true, declined: false, held: false, formCompleted: true, sentAt: "2026-10-21T01:00:00Z", acceptedAt: "2026-10-22T01:00:00Z", declinedAt: null },
+  install: { bookedAt: null, crew: [], evidenceChecked: false, form: { auditId: null, complete: false }, formCompletedAt: null, ownerReady: { consent: "signed", deposit: "paid" }, rebateSigned: false, recordedAt: null },
+  form: { auditId: "a1", completed: true, completedAt: "2026-10-21T00:00:00Z", electrician: null, hasAnswers: true, linked: true, missing: [], needsFinishing: null, needsFinishingItems: [], stops: [] },
+  price: { entered: null },
+  quote: { accepted: true, acceptedAt: "2026-10-22T01:00:00Z", declined: false, declinedAt: null, formCompleted: true, held: false, line: "Quote accepted", sent: true, sentAt: "2026-10-21T01:00:00Z" },
   pay: { amount: 2400, areaM2: 120, removalM2: null },
-  piesa: { passedOn: "2026-10-23T00:00:00Z", bookedAt: null, electrician: "Pat Sparks", fixesNote: null },
-  clearance: { cleared: true, clearedOn: "2026-10-23" }, mittiInvited: true,
-  complete: { product: null, piisaSignedAt: null, installerSignedAt: null, ownerSignedAt: null, apSignedAt: null, pay: null },
+  piesa: { bookedAt: null, electrician: "Pat Sparks", fixesNote: null, fixesOpen: false, passedOn: "2026-10-23T00:00:00Z" },
+  clearance: { cleared: true, clearedOn: "2026-10-23" },
+  complete: { apSignedAt: null, installerSignedAt: null, ownerSignedAt: null, pay: null, piisaSignedAt: null, product: null },
+  nextStep: { alsoBookInstall: null, bookBy: "2026-11-22", button: "Book the install", kind: "book_install", lines: [], overdue: false, phone: null, sub: "Deposit paid", title: "Book the install", yours: true },
+  progress: [{ label: "Ready Check", state: "done" }, { label: "PIESA", state: "done" }, { label: "Deposit", state: "done" }, { label: "Install", state: "now" }],
+  rows: {
+    jobDetails: [["Area", "120 m²"], ["Product", "Ceiling batts"]], owner: [["Name", "Helen Example"]], ownerTold: [], siteNotes: [],
+    paperwork: [{ label: "Ready Check report (Mitti, with photos)", note: null, ready: true }, { label: "Signed PIESA", note: null, ready: true }],
+    visits: [["Ready Check", "Wed 21 Oct, 9:00am"], ["PIESA", "Fri 23 Oct, 11:00am"]],
+  },
 };
 const fullBundle = () => ({
   overview, role: "installer", page,
   installDays: { turn: "installer_to_offer", deadline: "2026-11-22", daysLeft: 28, booked: false, bookedAt: null, expired: false, open: [], days: ["2026-10-27", "2026-10-28"] },
   readyCheckTimes: { applies: true, turn: "booked", canChange: false, days: [], open: [], bookedAt: "2026-10-20T22:00:00Z" },
   allocation: { canAllocate: true, visits: [{ kind: "install", label: "Install", current: null, hasForm: false, options: [] }] },
-  swms: { show: false }, workerLinks: { workers: [], links: [], assignedBusinesses: 1, mittiFlag: null }, price: null, ownerQuote: { applies: false }, mittiInvited: { invited: true },
+  swms: { show: false }, workerLinks: { workers: [], links: [], assignedBusinesses: 1, mittiFlag: null }, price: null, ownerQuote: { applies: false },
   crew: { staff: [], selection: null },
+  // Part 8 (join): the Next step box reads the in-house booking access on first paint; the bundle seeds it too.
+  inHouseBookingAccess: { allowed: false, blockers: ["forbidden"] },
 });
 
 const mount = () => {
@@ -107,8 +119,12 @@ describe("/field/$jobId installer job page — one server call on load", () => {
     await waitFor(() => expect(container.textContent).toContain("12 Sample Street, Glen Waverley"));
     await settle();
     expect(container.textContent).toContain("Helen Example");
-    expect(container.textContent).toContain("Who's on the crew today?"); // D6: the one crew picker drew from the seeded answer
-    expect(container.textContent).not.toContain("Who's doing this"); // the allocation card is Ready Check only now
+    // Part 5's page: the Next step box (booking lives there now), the progress strip and the folded rows drew from the seeded page.
+    expect(container.textContent).toContain("NEXT STEP");
+    expect(container.textContent).toContain("Book the install");
+    expect(container.textContent).toContain("Deposit paid");
+    expect(container.textContent).toContain("Paperwork");
+    expect(container.textContent).not.toContain("Who's on the crew today?"); // the old crew picker and allocation card are gone (Part 5)
     expect(calls).toEqual({ getTradeJobBundle: 1 });
     expect(unexpected).toEqual([]);
     // The cards' own cache entries hold the bundle's answers, under their own keys, so their actions' invalidations keep working.
@@ -117,20 +133,21 @@ describe("/field/$jobId installer job page — one server call on load", () => {
     expect(qc.getQueryData(["trade-job-page", JOB_ID])).toEqual(page);
     expect(qc.getQueryData(["visit-allocation", JOB_ID])).toEqual(bundle.allocation);
     expect(qc.getQueryData(["installer-price", JOB_ID])).toBeNull();
-    expect(qc.getQueryData(["mitti-invited"])).toEqual({ invited: true });
+    expect(qc.getQueryData(["in-house-booking-access", JOB_ID])).toEqual({ allowed: false, blockers: ["forbidden"] });
   });
   test("a section the server could not answer: that card fetches itself, the rest of the page still draws", async () => {
     bundle = { ...fullBundle(), swms: { error: "SWMS read failed" }, allocation: { error: "staff list unavailable" } };
     const { container } = mount();
     await waitFor(() => expect(container.textContent).toContain("12 Sample Street, Glen Waverley"));
-    await waitFor(() => expect(calls.getVisitAllocation).toBe(1));
+    await waitFor(() => expect(calls.getTradeSwms).toBe(1));
     await settle();
-    expect(calls).toEqual({ getTradeJobBundle: 1, getTradeSwms: 1, getVisitAllocation: 1 });
+    // Part 5's page has no allocation card any more (the Next step box books), so only the safety plan fetches for itself.
+    expect(calls).toEqual({ getTradeJobBundle: 1, getTradeSwms: 1 });
     expect(unexpected).toEqual([]);
     expect(container.textContent).toContain("Helen Example");
   });
   test("the whole bundle refused: the page renders and the existing per-card loading takes over (no blank page)", async () => {
-    bundle = { overview: { error: "This job isn't assigned to you." }, role: { error: "x" }, workerLinks: { error: "x" }, price: { error: "x" }, mittiInvited: { error: "x" } };
+    bundle = { overview: { error: "This job isn't assigned to you." }, role: { error: "x" }, workerLinks: { error: "x" }, price: { error: "x" } };
     const { container } = mount();
     await waitFor(() => expect(unexpected.length).toBeGreaterThan(0)); // useJob now fetches getJobOverview itself (stubbed here as unexpected: it is the pre-bundle path)
     expect(calls.getTradeJobBundle).toBe(1);

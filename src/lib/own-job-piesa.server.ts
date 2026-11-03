@@ -4,7 +4,7 @@
 // round, so a double payment or two sweeps hand it over once), then the notices. A missing electrician or portal
 // profile becomes one office item instead. HIV leads and in-house partner jobs never come here.
 // Static imports stay light (no workflow import graph); the rest is loaded when used.
-import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { jobAdmin as admin } from "./job-facts.server"; // speed (Task 11): the admin client; inside the job page bundle it answers from the job's rows
 import { inHouseDispatchSkip, readInHouseDispatchState, type InHouseDispatchState } from "./in-house-suppression.server";
 import { OWN_JOB_HANDOFF_STAGES, OWN_JOB_OFFER_MESSAGE, OWN_JOB_PIESA_HANDED_EVENT, OWN_JOB_PIESA_HELD_EVENT, OWN_JOB_PIESA_NOT_BOOKED_EVENT, deadlineAction, isOwnJobCallAndBook, ownJobHandoffKey, ownJobHandoffPlan } from "./own-job-piesa.core";
 import type { SupabaseClient } from "@supabase/supabase-js";

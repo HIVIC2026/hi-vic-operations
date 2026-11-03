@@ -6,6 +6,7 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
     "ok": {
       "allocation": undefined,
       "crew": undefined,
+      "inHouseBookingAccess": undefined,
       "installDays": undefined,
       "overview": {
         "channel": "installer_sourced",
@@ -37,6 +38,7 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
     "ok": {
       "allocation": undefined,
       "crew": undefined,
+      "inHouseBookingAccess": undefined,
       "installDays": undefined,
       "overview": {
         "channel": "hivic_sourced",
@@ -107,6 +109,12 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
             "workerId": "w-1",
             "workerRole": "lead",
           },
+        ],
+      },
+      "inHouseBookingAccess": {
+        "allowed": false,
+        "blockers": [
+          "forbidden",
         ],
       },
       "installDays": {
@@ -418,6 +426,12 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
         "visits": [],
       },
       "crew": undefined,
+      "inHouseBookingAccess": {
+        "allowed": false,
+        "blockers": [
+          "forbidden",
+        ],
+      },
       "installDays": {
         "booked": false,
         "bookedAt": null,
@@ -765,6 +779,12 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
           },
         ],
       },
+      "inHouseBookingAccess": {
+        "allowed": false,
+        "blockers": [
+          "forbidden",
+        ],
+      },
       "installDays": {
         "booked": false,
         "bookedAt": null,
@@ -1099,6 +1119,12 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
           },
         ],
       },
+      "inHouseBookingAccess": {
+        "allowed": false,
+        "blockers": [
+          "forbidden",
+        ],
+      },
       "installDays": {
         "booked": true,
         "bookedAt": "2026-10-30T03:00:00.000Z",
@@ -1418,6 +1444,12 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
         ],
       },
       "crew": undefined,
+      "inHouseBookingAccess": {
+        "allowed": false,
+        "blockers": [
+          "forbidden",
+        ],
+      },
       "installDays": {
         "booked": false,
         "bookedAt": null,
@@ -1654,6 +1686,9 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
       "crew": {
         "error": "This job isn't assigned to you.",
       },
+      "inHouseBookingAccess": {
+        "error": "This job isn't assigned to you.",
+      },
       "installDays": {
         "error": "This job isn't assigned to you.",
       },
@@ -1689,6 +1724,9 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
         "error": "Your sign-in isn't linked to an approved business yet.",
       },
       "crew": {
+        "error": "Your sign-in isn't linked to an approved business yet.",
+      },
+      "inHouseBookingAccess": {
         "error": "Your sign-in isn't linked to an approved business yet.",
       },
       "installDays": {

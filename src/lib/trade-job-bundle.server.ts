@@ -43,6 +43,7 @@ export type Swms = Out<typeof tradeSwms>;
 export type WorkerLinks = Out<typeof workerLinksFor>;
 export type Price = Out<typeof installerPriceView>;
 export type OwnerQuote = Out<typeof myOwnerQuoteFor>;
+export type InHouseBookingAccess = Out<typeof tv.inHouseBookingAccess>;
 export type Crew = { staff: StaffOption[]; selection: CrewSelection | null };
 
 /** The section readers, injectable so the bundle's role rules and error isolation can be tested without a database. */
@@ -58,6 +59,8 @@ export type BundleDeps = {
   price: (jobId: string, userId: string, shared: SharedJobReads) => Promise<Price>;
   ownerQuote: (sb: Sb, userId: string, jobId: string, shared: SharedJobReads) => Promise<OwnerQuote>;
   crew: (jobId: string) => Promise<Crew>;
+  /** Part 8: the same read `getInHouseBookingAccess` makes (own membership rules inside). */
+  inHouseBookingAccess: (sb: Sb, userId: string, jobId: string) => Promise<InHouseBookingAccess>;
 };
 
 function realDeps(): BundleDeps {
@@ -73,6 +76,10 @@ function realDeps(): BundleDeps {
     price: (jobId, userId, shared) => priceServer.installerPriceView(jobId, userId, shared),
     ownerQuote: (sb, userId, jobId, shared) => ownerQuoteServer.myOwnerQuoteFor(sb as unknown as Parameters<typeof ownerQuoteServer.myOwnerQuoteFor>[0], userId, jobId, shared),
     crew: (jobId) => piisaServer.loadCrew(jobId),
+    // The membership read goes through the job page's admin client here (the access check above already verified this
+    // user's membership; the row read is the user's own, the same answer the signed-in client gives) so it is answered
+    // from the business facts instead of costing a round.
+    inHouseBookingAccess: (_sb, userId, jobId) => tv.inHouseBookingAccess(userId, jobId),
   };
 }
 
@@ -93,6 +100,8 @@ export type TradeJobBundle = {
   ownerQuote?: OwnerQuote | SectionError | undefined;
   /** D6: the install crew picker's saved crew (installer, install stages only). */
   crew?: Crew | SectionError | undefined;
+  /** Part 8 (join): the in-house / own-job booking access the Next step box reads on first paint; installer only. */
+  inHouseBookingAccess?: InHouseBookingAccess | SectionError | undefined;
 };
 
 /**
@@ -111,7 +120,7 @@ export async function tradeJobBundle(sb: Sb, userId: string, jobId: string, deps
     const overview = isSectionError(ov) ? ov : ov.row;
     const role = isSectionError(ov) ? ov : ov.role;
     const refused = access;
-    return { overview, role, page: refused, installDays: refused, readyCheckTimes: refused, allocation: refused, swms: refused, workerLinks: refused, price: refused, ownerQuote: refused, crew: refused };
+    return { overview, role, page: refused, installDays: refused, readyCheckTimes: refused, allocation: refused, swms: refused, workerLinks: refused, price: refused, ownerQuote: refused, crew: refused, inHouseBookingAccess: refused };
   }
   const pre = access;
   // Speed (Task 11): from here on, the sections' own queries about this job are answered from ONE read of the job's rows,
@@ -138,6 +147,7 @@ async function trustedSections(sb: Sb, userId: string, jobId: string, d: BundleD
     // bundle does not even ask for a staff login.
     price: pre.boss ? section(d.price(jobId, userId, shared)) : null,
     ownerQuote: section(d.ownerQuote(sb, userId, jobId, shared)),
+    inHouseBookingAccess: section(d.inHouseBookingAccess(sb, userId, jobId)),
   });
   let startedEarly = pre.kind === "installer" ? startInstaller() : null;
   const ov = await ovP;
@@ -150,7 +160,7 @@ async function trustedSections(sb: Sb, userId: string, jobId: string, d: BundleD
   const none = Promise.resolve(undefined);
   // D6: the crew picker shows on install stages only (same rule as the Job page), so its saved crew is seeded only then.
   const installStage = !isSectionError(ov) && visitsForStage(ov.row.stage).includes("install");
-  const [page, installDays, readyCheckTimes, allocation, swms, workerLinks, price, ownerQuote, crew] = await Promise.all([
+  const [page, installDays, readyCheckTimes, allocation, swms, workerLinks, price, ownerQuote, crew, inHouseBookingAccess] = await Promise.all([
     started ? started.page : none,
     started ? started.installDays : none,
     started ? started.readyCheckTimes : none,
@@ -160,6 +170,7 @@ async function trustedSections(sb: Sb, userId: string, jobId: string, d: BundleD
     started?.price ?? Promise.resolve(null),
     started ? started.ownerQuote : none,
     installer && installStage ? section(d.crew(jobId)) : none,
+    started ? started.inHouseBookingAccess : none,
   ]);
-  return { overview, role, page, installDays, readyCheckTimes, allocation, swms, workerLinks, price, ownerQuote, crew };
+  return { overview, role, page, installDays, readyCheckTimes, allocation, swms, workerLinks, price, ownerQuote, crew, inHouseBookingAccess };
 }

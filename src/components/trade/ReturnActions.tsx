@@ -8,7 +8,8 @@ import { getInHouseBookingAccess,tradeHandBack,tradeOwnerCancelled } from '@/lib
 import { markOfficeChanged } from '@/lib/office-list-refresh';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-export function useInHouseBookingAccess(jobId:string){const load=useServerFn(getInHouseBookingAccess);return useQuery({queryKey:['in-house-booking-access',jobId],queryFn:()=>load({data:{jobId}}),retry:false});}
+// Seeded by the job page's one-call bundle (trade-job-bundle, join 4 Nov 2026): staleTime keeps the seeded answer on first paint, as the other cards do.
+export function useInHouseBookingAccess(jobId:string){const load=useServerFn(getInHouseBookingAccess);return useQuery({queryKey:['in-house-booking-access',jobId],queryFn:()=>load({data:{jobId}}),retry:false,staleTime:20_000});}
 
 export function ReturnActions({jobId}:{jobId:string}){
  const back=useServerFn(tradeHandBack),cancel=useServerFn(tradeOwnerCancelled),qc=useQueryClient();const [action,setAction]=useState<'back'|'cancel'|null>(null),[reason,setReason]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState('');
