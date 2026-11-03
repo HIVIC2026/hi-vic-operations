@@ -15,13 +15,13 @@ describe("product instructions map", () => {
     expect(t.bradford_gold).toBe("Bradford Gold ceiling batts installation guide");
     for (const i of PRODUCT_INSTRUCTIONS) { expect(i.sourceUrl).toMatch(/^https:\/\//); expect(i.attachmentName).toEndWith(".pdf"); }
   });
-  test("Bradford is on file and found by option", () => {
+  test("all three families are on file and found by option (Jo supplied Pink Batts + Earthwool 3 Nov 2026)", () => {
     expect(instructionsForOption("Bradford Gold R6")!.family).toBe("bradford_gold");
-    expect(INSTRUCTIONS_ON_FILE.map((i) => i.family)).toEqual(["bradford_gold"]);
+    expect(instructionsForOption("Fletchers Pink Batts R5")!.family).toBe("pink_batts");
+    expect(instructionsForOption("Earthwool R5")!.family).toBe("earthwool");
+    expect(INSTRUCTIONS_ON_FILE.map((i) => i.family).sort()).toEqual(["bradford_gold", "earthwool", "pink_batts"]);
   });
   test("families without a bundled PDF return null, never a fake", () => {
-    expect(instructionsForOption("Fletchers Pink Batts R5")).toBeNull();
-    expect(instructionsForOption("Earthwool R5")).toBeNull();
     expect(instructionsForOption("Mystery R4")).toBeNull();
     expect(instructionsForOption(null)).toBeNull();
   });
