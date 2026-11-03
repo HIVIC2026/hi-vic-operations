@@ -3,7 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
-import { shouldAutoSaveSpot, shouldFireOneTapSave } from "@/lib/one-tap-save.core";
+import { ONE_TAP_SAVE_EVENTS, shouldAutoSaveSpot, shouldFireOneTapSave } from "@/lib/one-tap-save.core";
 import { spotSavedBasedOn } from "@/lib/spot-saved-messages.core";
 import { CUSTOMER_BRAND } from "@/lib/customer-quote-system";
 import { OwnerHouse } from "@/components/owner/OwnerHouse";
@@ -48,9 +48,9 @@ function CampaignPage() {
   const armed = !!data && shouldAutoSaveSpot({ save: saveParam, saveAllowed: data.saveAllowed, spotSavedAt: data.response?.spot_saved_at ?? null, optedOutAt: data.response?.opted_out_at ?? null });
   useEffect(() => {
     if (!armed) return;
-    const events = ["pointerdown", "touchstart", "keydown", "scroll", "wheel"] as const;
+    const events = ONE_TAP_SAVE_EVENTS;
     const onInteract = (e: Event) => {
-      if (!shouldFireOneTapSave({ armed, alreadyFired: autoSaved.current, eventIsTrusted: e.isTrusted })) return;
+      if (!shouldFireOneTapSave({ armed, alreadyFired: autoSaved.current, eventIsTrusted: e.isTrusted, eventType: e.type, target: e.target as Element | null })) return;
       autoSaved.current = true;
       for (const n of events) window.removeEventListener(n, onInteract);
       void act("save");
@@ -172,7 +172,7 @@ function CampaignDesign({ saveAllowed, ownerQualified, reviewStatus, group, toke
     <footer className="mt-6 border-t border-estimate-line pt-4 text-center text-xs text-estimate-navy/70">
       <p className="font-bold text-estimate-navy">Home Insulation Victoria</p>
       <p className="mt-1">DC Construction Solutions Pty Ltd trading as Home Insulation Victoria.</p>
-      <p className="mt-2"><Link to="/privacy" className="underline">Privacy</Link> · <button type="button" aria-label="Take me off the list" disabled={!!busy} onClick={onOptOut} className="underline">Remove my enquiry</button></p>
+      <p className="mt-2"><Link to="/privacy" className="underline">Privacy</Link> · <button type="button" data-no-autosave aria-label="Take me off the list" disabled={!!busy} onClick={onOptOut} className="underline">Remove my enquiry</button></p>
     </footer>
   </div>;
 }

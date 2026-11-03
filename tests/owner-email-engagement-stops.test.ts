@@ -8,6 +8,7 @@ type Row = Record<string, unknown>;
 let engagement: Row[] = [];
 let sends: Row[] = [];
 let engagementReadFails = false;
+let optedOutRow = false;
 let n = 0;
 function from(table: string) {
   const f: ((r: Row) => boolean)[] = [];
@@ -18,6 +19,7 @@ function from(table: string) {
       const hit = engagement.filter((r) => f.every((x) => x(r)));
       return head ? { count: hit.length, data: null, error: null } : { data: one ? hit[0] ?? null : hit, error: null };
     }
+    if (table === "customer_email_optouts" && !head) return { data: optedOutRow ? { opted_out_at: "2026-11-01T00:00:00Z" } : null, error: null };
     if (table !== "customer_email_sends") return head ? { count: 0, data: null, error: null } : { data: one ? null : [], error: null };
     if (op === "insert") {
       if (sends.some((r) => r["idempotency_key"] === payload["idempotency_key"])) return { data: null, error: { message: "duplicate" } };
@@ -56,11 +58,12 @@ const { estimateFollowupPurpose } = await import("../src/lib/estimate-followup.c
 const JOB_EMAILS = ["piesa_copy", "install_booked", "completion_pack", "veec_assignment_copy"];
 const send = (purpose: string) => sendGuardedOwnerEmail({ jobId: "J", jobSource: "website", to: "owner@example.com", purpose, key: `${purpose}:J`, build: () => ({ subject: "s", html: "h", text: "t" }) });
 const event = (event_type: string) => engagement.push({ job_id: "J", event_type });
-beforeEach(() => { engagement = []; sends = []; n = 0; delivered.length = 0; engagementReadFails = false; });
+beforeEach(() => { engagement = []; sends = []; n = 0; delivered.length = 0; engagementReadFails = false; optedOutRow = false; });
 
 describe("pure: delivery suppressions vs engagement stops", () => {
   test("the split covers exactly the old list, and SUPPRESSING_EVENTS stays the union for marketing callers", () => {
     expect([...core.DELIVERY_SUPPRESSIONS]).toEqual(["email_bounced", "email_complained", "complaint", "opted_out"]);
+    expect([...core.HARD_DELIVERY_SUPPRESSIONS]).toEqual(["email_bounced", "email_complained", "complaint"]);
     expect([...core.ENGAGEMENT_STOPS]).toEqual(["payment_received", "quote_declined", "booking_completed"]);
     expect(core.SUPPRESSING_EVENTS).toEqual(["email_bounced", "email_complained", "complaint", "opted_out", "payment_received", "quote_declined", "booking_completed"]);
   });
@@ -95,6 +98,21 @@ describe("sendGuardedOwnerEmail with engagement events", () => {
     event("email_bounced");
     for (const p of [...JOB_EMAILS, estimateFollowupPurpose("day_2")]) expect(await send(p)).toBe("blocked — not sent");
     expect(delivered).toHaveLength(0);
+  });
+  test("an unsubscribe (opt-out row) still lets the legal copies go and blocks the rest", async () => {
+    optedOutRow = true;
+    for (const p of ["piesa_copy", "esc_consent_copy", "veec_assignment_copy"]) expect(await send(p)).toBe("sent");
+    expect(await send("quote_reminder")).toBe("blocked — not sent");
+  });
+  test("an opted_out engagement event behaves like an unsubscribe", async () => {
+    event("opted_out");
+    for (const p of ["piesa_copy", "esc_consent_copy", "veec_assignment_copy"]) expect(await send(p)).toBe("sent");
+    expect(await send("quote_reminder")).toBe("blocked — not sent");
+    expect(await send("install_booked")).toBe("blocked — not sent");
+  });
+  test("a bounce blocks the legal copies even when the owner also unsubscribed", async () => {
+    optedOutRow = true; event("opted_out"); event("email_bounced");
+    for (const p of ["piesa_copy", "esc_consent_copy", "veec_assignment_copy"]) expect(await send(p)).toBe("blocked — not sent");
   });
   test("an unreadable engagement history fails closed", async () => {
     engagementReadFails = true;

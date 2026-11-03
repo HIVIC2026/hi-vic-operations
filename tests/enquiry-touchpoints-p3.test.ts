@@ -67,11 +67,17 @@ describe("#12 Spot saved screen + one-tap save", () => {
     expect(s).toContain("spotSavedBasedOn");
     expect(s).not.toMatch(/lower power bills/);
   });
-  test("one-tap save waits for a trusted user interaction (link scanners never save)", () => {
-    expect(shouldFireOneTapSave({ armed: true, alreadyFired: false, eventIsTrusted: true })).toBe(true);
-    expect(shouldFireOneTapSave({ armed: true, alreadyFired: false, eventIsTrusted: false })).toBe(false);
-    expect(shouldFireOneTapSave({ armed: false, alreadyFired: false, eventIsTrusted: true })).toBe(false);
-    expect(shouldFireOneTapSave({ armed: true, alreadyFired: true, eventIsTrusted: true })).toBe(false);
+  test("one-tap save waits for a trusted tap or key press outside buttons, links and the opt-out", () => {
+    const ok = { armed: true, alreadyFired: false, eventIsTrusted: true, eventType: "pointerdown", target: { closest: () => null } };
+    expect(shouldFireOneTapSave(ok)).toBe(true);
+    for (const eventType of ["touchstart", "keydown"]) expect(shouldFireOneTapSave({ ...ok, eventType })).toBe(true);
+    expect(shouldFireOneTapSave({ ...ok, eventIsTrusted: false })).toBe(false);
+    expect(shouldFireOneTapSave({ ...ok, armed: false })).toBe(false);
+    expect(shouldFireOneTapSave({ ...ok, alreadyFired: true })).toBe(false);
+    for (const eventType of ["scroll", "wheel"]) expect(shouldFireOneTapSave({ ...ok, eventType })).toBe(false);
+    let asked = "";
+    expect(shouldFireOneTapSave({ ...ok, target: { closest: (sel: string) => { asked = sel; return {}; } } })).toBe(false);
+    expect(asked).toBe("button,a,[data-no-autosave]");
   });
   test("campaign effect no longer saves on mount", () => {
     const s = src("src/routes/estimate_.$token.campaign.tsx");
@@ -81,6 +87,8 @@ describe("#12 Spot saved screen + one-tap save", () => {
     const effect = s.slice(s.indexOf("useEffect("), s.indexOf("return <div className=\"estimate-brand"));
     expect(effect.match(/act\("save"\)/g)?.length).toBe(1);
     expect(effect.indexOf("isTrusted")).toBeGreaterThan(-1);
+    expect(effect).not.toMatch(/"scroll"|"wheel"/);
+    expect(s).toContain("data-no-autosave");
     expect(effect.indexOf('act("save")')).toBeGreaterThan(effect.indexOf("isTrusted"));
   });
   test("saved-estimate emails use the one-tap link", () => {

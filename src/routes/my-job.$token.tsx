@@ -574,7 +574,8 @@ function AcceptQuote({ token, quote, safetyCheck, showDocs, onAccepted }: { toke
       <p className="text-xs font-bold tracking-[0.1em] text-estimate-logo-green">{P2.sayYes}</p>
       <h2 className="mt-1 font-display text-[21px] font-extrabold">{P2.twoTicks}</h2>
       <TickCard on={tick1} set={setTick1} title={<>{P2.tick1}{showDocs && <> <span className="font-normal text-estimate-sub">{P2.attachedNote}</span></>}</>}
-        sub={showDocs && <><button type="button" className={link} onClick={(e) => { e.preventDefault(); void openDoc("agreement"); }}>{P2.agreementLink}</button> · <button type="button" className={link} onClick={(e) => { e.preventDefault(); void openDoc("agreement"); }}>{P2.paymentTermsLink}</button> · <button type="button" className={link} onClick={(e) => { e.preventDefault(); void openDoc("rights"); }}>{P2.rightsLink}</button></>} />
+        sub={showDocs && <><button type="button" className={link} onClick={(e) => { e.preventDefault(); void openDoc("agreement"); }}>{P2.agreementLink}</button> · <button type="button" className={link} onClick={(e) => { e.preventDefault(); void openDoc("agreement"); }}>{P2.paymentTermsLink}</button> · <button type="button" className={link} onClick={(e) => { e.preventDefault(); void openDoc("rights"); }}>{P2.rightsLink}</button></>}
+        {...(!showDocs ? { read: "Quote, terms and consumer information", readBody: ag ? <>{ag.agreementWording?.body ?? ''}{'\n\n'}{ag.consumerRights?.body ?? ''}{'\n\n'}{ag.paymentTerms ?? ''}</> : 'Loading…' } : {})} />
       <TickCard on={tick2} set={setTick2} title={P2.tick2} bold={false} />
       <section className="mt-[18px] rounded-[14px] border border-estimate-line bg-card px-4 py-3.5">
         <AuthorityChoice value={f.authority} onChange={(authority) => setF({ ...f, authority })} />

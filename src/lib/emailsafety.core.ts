@@ -12,6 +12,10 @@ export const INELIGIBLE_STAGES = new Set(["new_enquiry", "eligibility_review", "
 export const BACKLOG_MAX_AGE_MS = 14 * 86_400_000;
 /** Engagement events that mean the owner's address must not be emailed at all (bounce, complaint, opt-out). */
 export const DELIVERY_SUPPRESSIONS = ["email_bounced", "email_complained", "complaint", "opted_out"] as const;
+/** The part of DELIVERY_SUPPRESSIONS that blocks even the legal copies (compliance purposes). `opted_out` is an
+ *  unsubscribe: it blocks everything except COMPLIANCE_OWNER_EMAIL_PURPOSES (see do-not-contact.core `unsubscribeBlocks`). */
+export const HARD_DELIVERY_SUPPRESSIONS = ["email_bounced", "email_complained", "complaint"] as const;
+export const OPTED_OUT_EVENT = "opted_out";
 /** Engagement events that mean the owner has moved on (paid, declined, booked): they stop marketing/follow-up email only.
  *  `booking_completed` is written when the safety check is booked, so it must never stop the job's own emails. */
 export const ENGAGEMENT_STOPS = ["payment_received", "quote_declined", "booking_completed"] as const;

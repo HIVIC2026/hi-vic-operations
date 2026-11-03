@@ -33,3 +33,14 @@ test("Task 5: waiting for the owner's tap — consent over 3 months old, no pass
   expect(waitingForCallConsent({ ...job, channel: "installer_sourced" }, [c("2026-07-01T00:00:00.000Z")], now)).toBe(false);
   expect(waitingForCallConsent({ ...job, hasActiveInstaller: true }, [c("2026-07-01T00:00:00.000Z")], now)).toBe(false);
 });
+
+test("the batch's own quick-taps consent row counts whatever its age (tap 4 months before hand-off)", () => {
+  const now = "2026-11-03T00:00:00.000Z";
+  const own = { consent_status: "granted", consented_at: "2026-07-01T00:00:00.000Z", snapshot: {}, source: "quick_taps_reconsent", consent_key: "quick_taps_reconsent:b1:j" };
+  const j = { ...job, quickTapsBatchId: "b1" };
+  expect(waitingForCallConsent(j, [own], now)).toBe(false);
+  expect(waitingForCallConsent({ ...j, quickTapsBatchId: "b2" }, [own], now)).toBe(true);
+  expect(waitingForCallConsent(j, [{ ...own, consent_status: "not_granted" }], now)).toBe(true);
+  expect(waitingForCallConsent(j, [{ ...own, consent_key: "quick_taps_reconsent:b1:other" }], now)).toBe(true);
+  expect(waitingForCallConsent({ ...j, quickTapsYes: false }, [own], now)).toBe(true);
+});

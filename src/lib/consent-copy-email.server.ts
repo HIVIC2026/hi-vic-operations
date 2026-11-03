@@ -52,7 +52,7 @@ export async function emailOwnerConsentCopy(p: { jobId: string; consentId: strin
   }
   if (!owner?.email) return "not sent — no owner email";
   const { assertCustomerDeliveryAllowed } = await import("./comms.server");
-  try { await assertCustomerDeliveryAllowed(p.jobId, "ESC consent copy email"); } catch (e) { return `not sent — ${(e as Error).message}`; }
+  try { await assertCustomerDeliveryAllowed(p.jobId, "ESC consent copy email", "esc_consent_copy"); } catch (e) { return `not sent — ${(e as Error).message}`; }
   const r = await (await import("./owner-email-send.server")).sendGuardedOwnerEmail({
     jobId: p.jobId, jobSource: job.source, to: owner.email, purpose: "esc_consent_copy", key: `esc-consent-copy:v1:${p.consentId}:${p.sha256.slice(0, 16)}`,
     build: () => ({ ...renderConsentCopyEmail({ ...input, test: false }), ...attachments }),

@@ -52,7 +52,7 @@ test("a new quote version records again", async () => {
 test("wiring: gate docs signed with the typed name, no ESC consent at acceptance, records written after the gate signatures", () => {
   const src = readFileSync("src/lib/owner-link.functions.ts", "utf8");
   const fn = src.slice(src.indexOf("signQuoteSitting: async"), src.indexOf("ownerDeclineQuoteFn"));
-  expect(fn).toContain("signatoryName:data.signing.typedName");
+  expect(fn).toContain("signatoryName:tidyTypedName(data.signing.typedName)");
   expect(fn).not.toContain("pkg.consumer.name");
   expect(fn).not.toContain("signOwnerConsent");
   expect(fn).not.toContain("prepareQuoteConsent");

@@ -36,3 +36,14 @@ export function doNotContactBlocks(x: { channel: "email" | "sms"; purpose: strin
   if (x.channel === "email" && COMPLIANCE_OWNER_EMAIL_PURPOSES.includes(x.purpose)) return null;
   return DO_NOT_CONTACT_REASON;
 }
+
+/** `owner_contact_consents.source` written by recordUnsubscribe (emailsafety.server.ts). */
+export const UNSUBSCRIBE_CONSENT_SOURCE = "unsubscribe";
+
+/** Whether the latest owner contact consent row lets this email purpose go. Granted always does. A not_granted row written
+ *  by an unsubscribe still lets the legal copies (compliance purposes) go; any other not_granted, or none, blocks. */
+export function consentAllowsDelivery(latest: { consent_status: string; source?: string | null } | null, purpose?: string | null): boolean {
+  if (!latest) return false;
+  if (latest.consent_status === "granted") return true;
+  return latest.consent_status === "not_granted" && latest.source === UNSUBSCRIBE_CONSENT_SOURCE && !!purpose && COMPLIANCE_OWNER_EMAIL_PURPOSES.includes(purpose);
+}

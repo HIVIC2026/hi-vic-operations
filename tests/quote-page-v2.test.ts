@@ -8,6 +8,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { P2 } from "../src/lib/owner-pages.core";
 import { quoteSittingBlockers } from "../src/lib/owner-quote-sign.core";
+import { tidyTypedName } from "../src/lib/acceptance-signature.core";
 
 const route = readFileSync("src/routes/my-job.$token.tsx", "utf8");
 const accept = route.slice(route.indexOf("function AcceptQuote("), route.indexOf("\n}\n", route.indexOf("function AcceptQuote(")));
@@ -73,6 +74,13 @@ describe("quote screen", () => {
     expect(tick1).toMatch(/showDocs && /);
     expect((tick1.match(/showDocs/g) ?? []).length).toBeGreaterThanOrEqual(2);
   });
+  test("quotes with no validLine (14-day) show the inline read body so tick 1 can be read", () => {
+    const tick1 = accept.slice(accept.indexOf("P2.tick1"), accept.indexOf("P2.tick2"));
+    expect(tick1).toMatch(/!showDocs/);
+    expect(tick1).toContain("agreementWording");
+    expect(tick1).toContain("consumerRights");
+    expect(tick1).toContain("paymentTerms");
+  });
   test("the old 'How you can pay' box (10% of the install price, PayID, pay in full) is off the quote screen", () => {
     expect(screen).not.toContain("howYouPayLines");
     expect(screen).not.toContain("paymentOptionSummary");
@@ -95,5 +103,13 @@ describe("accept call", () => {
     expect(acceptFn).not.toContain("declarations");
     expect(acceptFn).not.toContain("prepareQuoteConsent");
     expect(acceptFn).not.toContain("signOwnerConsent");
+  });
+});
+
+describe("typed name is tidied before the gate documents are signed", () => {
+  test("signGateDoc gets the trimmed, single-spaced name", () => {
+    const fn = readFileSync("src/lib/owner-link.functions.ts", "utf8");
+    expect(fn).toContain("signatoryName:tidyTypedName(data.signing.typedName)");
+    expect(tidyTypedName("  Jo   Smith ")).toBe("Jo Smith");
   });
 });

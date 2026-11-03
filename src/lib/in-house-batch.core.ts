@@ -5,7 +5,7 @@ export type BatchJob = {
   id: string; stage: string; source: string; deleted_at: string | null; spot_saved_at: string | null;
   optedOut: boolean; hasActiveInstaller: boolean; postcode: string | null; lat: number | null; lng: number | null;
   job_number?: string; address?: string;
-  channel?: string; quickTapsYes: boolean; oldStylePass?: boolean; waitingBusinessId?: string | null;
+  channel?: string; quickTapsYes: boolean; quickTapsBatchId?: string | null; oldStylePass?: boolean; waitingBusinessId?: string | null;
 };
 export type InHousePartner = {
   id: string; name: string; in_house: boolean; is_active: boolean; openJobs: number;
@@ -17,14 +17,16 @@ export function batchJobEligible(job: BatchJob): boolean {
     && ["preliminary_estimate_ready", "ready_check_ready_to_schedule"].includes(job.stage);
 }
 export const WAITING_FOR_CALL_CONSENT = "Waiting for the owner to say the installer can call";
-export type ConsentRow = { consent_status: string; consented_at: string | null; snapshot: unknown; source: string };
+export type ConsentRow = { consent_status: string; consented_at: string | null; snapshot: unknown; source: string; consent_key?: string | null };
 /** Task 5 (Jo 2 Nov 2026): a Home Insulation Victoria lead is handed to its installer only once the owner has said yes in
- *  quick taps AND their phone consent is current (given in the last 3 months — the pass tap records one naming the
- *  installer). Installer's own customers consent at Add a job and are never re-asked. True = otherwise ready to hand
+ *  quick taps AND their phone consent is current (given in the last 3 months, or the batch's own pass-tap consent of any age). Installer's own customers consent at Add a job and are never re-asked. True = otherwise ready to hand
  *  off, but still waiting for that tap. A pass recorded before this change (no go label, `oldStylePass`) is grandfathered:
  *  it is never waiting and hands off as before. */
 export function waitingForCallConsent(job: BatchJob, consents: readonly ConsentRow[], nowIso: string): boolean {
   if (job.oldStylePass || job.channel === "installer_sourced" || !batchJobEligible({ ...job, quickTapsYes: true })) return false;
+  // The batch's own pass-tap consent (key quick_taps_reconsent:{batch}:{job}) counts whatever its age: the owner said yes to this installer in this batch.
+  const ownKey = job.quickTapsBatchId ? `quick_taps_reconsent:${job.quickTapsBatchId}:${job.id}` : null;
+  if (job.quickTapsYes && ownKey && consents.some((r) => r.consent_key === ownKey && r.consent_status === "granted")) return false;
   const latest = contactConsentRecord(consents.filter((r) => r.consent_status === "granted"), []);
   return !job.quickTapsYes || !phoneConsentCurrent(latest?.consentedAt ?? null, nowIso);
 }

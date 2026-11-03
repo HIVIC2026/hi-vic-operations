@@ -53,7 +53,7 @@ export async function loadInHouseBatches(opts: { now?: Date } = {}) {
     byIds<Property>(propertyIds, (c,a,b) => db.from("properties").select("id,postcode,address_line,suburb").in("id", c).order("id").range(a,b)),
     byIds<{ property_id: string; value: unknown }>(propertyIds, (c,a,b) => db.from("property_facts").select("property_id,value").in("property_id", c).eq("fact_key", "coordinates").eq("is_current", true).order("id").range(a,b)),
     byIds<{ job_id: string; event_type: string; details: Record<string, unknown> | null; created_at: string }>(ids, (c,a,b) => db.from("workflow_events").select("job_id,event_type,details,created_at").in("job_id", c).in("event_type", [QUICK_TAPS_ANSWERED_EVENT, "area_batch_sent"]).order("created_at", { ascending: false }).order("id", { ascending: false }).range(a,b)),
-    byIds<ConsentRow & { job_id: string }>(ids, (c,a,b) => db.from("owner_contact_consents").select("job_id,consent_status,consented_at,snapshot,source").in("job_id", c).order("id").range(a,b)),
+    byIds<ConsentRow & { job_id: string }>(ids, (c,a,b) => db.from("owner_contact_consents").select("job_id,consent_status,consented_at,snapshot,source,consent_key").in("job_id", c).order("id").range(a,b)),
   ]) : [[], [], [], [], [], [], []];
   const partners: InHousePartner[] = businesses.map(b => ({ ...b, name: b.trading_name || b.name, openJobs: assignments.filter(a => a.business_id === b.id && a.role === "installer").length }));
   const batchJobs: BatchJob[] = jobs.map(j => {
@@ -62,6 +62,7 @@ export async function loadInHouseBatches(opts: { now?: Date } = {}) {
     const batch = events.find(e => e.job_id === j.id && e.event_type === "area_batch_sent" && e.details?.["batch_id"] === answer?.["batch_id"])?.details;
     return { ...j, spot_saved_at: saved.find(s => s.job_id === j.id)?.spot_saved_at ?? null,
       quickTapsYes: answer?.["outcome"] === "pass" && answer?.["consent_share"] === true,
+      quickTapsBatchId: typeof answer?.["batch_id"] === "string" ? answer["batch_id"] : null,
       oldStylePass: answer?.["outcome"] === "pass" && !answer?.["go_label"],
       waitingBusinessId: j.channel === "installer_sourced" ? j.originating_installer_business_id : typeof batch?.["installer_business_id"] === "string" ? batch["installer_business_id"] : null,
       optedOut: optouts.some(o => o.job_id === j.id), hasActiveInstaller: assignments.some(a => a.job_id === j.id && a.role === "installer"),

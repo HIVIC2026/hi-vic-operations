@@ -85,3 +85,23 @@ test("the office job page reads the flag and shows the button", () => {
   expect(ui).toContain("Allow contact again");
   expect(ui).toContain("owner replied STOP");
 });
+
+// ---- Final fix wave I2: an unsubscribe's consent row does not stop the legal copies ----
+import { consentAllowsDelivery } from "../src/lib/do-not-contact.core";
+test("unsubscribe consent row: legal copies go, everything else stays blocked", () => {
+  const unsub = { consent_status: "not_granted", source: "unsubscribe" };
+  for (const p of ["piesa_copy", "esc_consent_copy", "veec_assignment_copy"]) expect(consentAllowsDelivery(unsub, p)).toBe(true);
+  expect(consentAllowsDelivery(unsub, "quote_reminder")).toBe(false);
+  expect(consentAllowsDelivery(unsub, undefined)).toBe(false);
+  expect(consentAllowsDelivery({ consent_status: "not_granted", source: "owner_withdrew" }, "piesa_copy")).toBe(false);
+  expect(consentAllowsDelivery({ consent_status: "not_granted", source: null }, "piesa_copy")).toBe(false);
+  expect(consentAllowsDelivery(null, "piesa_copy")).toBe(false);
+  expect(consentAllowsDelivery({ consent_status: "granted", source: "x" }, "quote_reminder")).toBe(true);
+});
+test("legal-copy senders pass their purpose to the delivery gate", () => {
+  const src = (f: string) => readFileSync(`src/lib/${f}`, "utf8");
+  expect(src("consent-copy-email.server.ts")).toContain('"ESC consent copy email", "esc_consent_copy")');
+  expect(src("piesa-delivery.server.ts")).toContain('"Signed PIESA copy email", "piesa_copy")');
+  expect(src("veec-copy-email.server.ts")).toContain('"VEEC assignment copy email", "veec_assignment_copy")');
+  expect(src("owner-template-send.server.ts")).toContain("p.label, p.purpose)");
+});

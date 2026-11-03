@@ -58,6 +58,6 @@ export async function sendOwnerTemplateEmail(p: {
   }
   if (!owner?.email) return "not sent — no owner email";
   const { assertCustomerDeliveryAllowed } = await import("./comms.server");
-  try { await assertCustomerDeliveryAllowed(p.jobId, p.label); } catch (e) { return `not sent — ${(e as Error).message}`; }
+  try { await assertCustomerDeliveryAllowed(p.jobId, p.label, p.purpose); } catch (e) { return `not sent — ${(e as Error).message}`; }
   return (await import("./owner-email-send.server")).sendGuardedOwnerEmail({ jobId: p.jobId, jobSource: job.source, to: owner.email, purpose: p.purpose, key: p.key, build: (unsubscribeUrl) => ({ ...p.render({ ...facts, test: false, unsubscribeUrl }), ...(p.attachments?.length ? { attachments: p.attachments } : {}) }), ...(p.retryAfterDefiniteFailure ? { retryAfterDefiniteFailure: true } : {}) });
 }

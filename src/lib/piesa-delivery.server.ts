@@ -100,7 +100,7 @@ export async function deliverPiesaCopies(jobId: string, now = new Date()): Promi
     let status: string, detail: string;
     if (recipient === "owner") {
       const { assertCustomerDeliveryAllowed } = await import("./comms.server");
-      try { await assertCustomerDeliveryAllowed(jobId, "Signed PIESA copy email"); } catch (e) { out.held[recipient] = `held: ${(e as Error).message}`; continue; }
+      try { await assertCustomerDeliveryAllowed(jobId, "Signed PIESA copy email", "piesa_copy"); } catch (e) { out.held[recipient] = `held: ${(e as Error).message}`; continue; }
       detail = await (await import("./owner-email-send.server")).sendGuardedOwnerEmail({ jobId, jobSource: job.source, to, purpose: "piesa_copy", key, build: () => ({ ...mail, attachments }) });
       status = detail === "sent" ? "sent" : "failed";
     } else {

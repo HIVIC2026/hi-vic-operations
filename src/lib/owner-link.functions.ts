@@ -150,8 +150,9 @@ export const ownerAcceptQuoteFn = createServerFn({ method: "POST" })
         signQuoteSitting: async (jobId,quoteId,version) => {
           if (jobId !== s.jobId) throw new WorkflowError('This quote is not on your job.');
           const { signGateDoc,assertQuoteSittingWording } = await import('./owner-gates.server');
+          const { tidyTypedName } = await import('./acceptance-signature.core');
           await assertQuoteSittingWording(jobId);
-          for (const key of ['quote_acceptance','payment_terms'] as const) await signGateDoc({jobId,key,signatoryName:data.signing.typedName,ticked:true,answers:{},method:'link_code',signedBy:s.userId,ip:context.ip,userAgent:context.userAgent,verified:{channel:s.channel,destination:s.destination,codeId:s.codeId},quoteSittingKey:`${quoteId}:${version}`});
+          for (const key of ['quote_acceptance','payment_terms'] as const) await signGateDoc({jobId,key,signatoryName:tidyTypedName(data.signing.typedName),ticked:true,answers:{},method:'link_code',signedBy:s.userId,ip:context.ip,userAgent:context.userAgent,verified:{channel:s.channel,destination:s.destination,codeId:s.codeId},quoteSittingKey:`${quoteId}:${version}`});
           const { recordAcceptanceSignature } = await import('./acceptance-signature.server');
           await recordAcceptanceSignature(jobId,s.userId,{quoteId,version,typedName:data.signing.typedName,signedAt:new Date().toISOString()});
         },
