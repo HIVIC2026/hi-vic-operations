@@ -151,10 +151,13 @@ test("loader fails closed without YES and reads installer channel exemption", as
 test("Task 5: a website lead whose phone consent is over 3 months old is not suggested or handed off; installer customers are", async () => {
   const now = new Date("2026-11-03T00:00:00.000Z");
   const f = fixture(); f.data.owner_contact_consents = [consentRow("j", "2026-07-01T00:00:00.000Z")];
+  f.data.workflow_events = [{ job_id: "j", event_type: QUICK_TAPS_ANSWERED_EVENT, details: { outcome: "pass", consent_share: true, go_label: "Yes, Rapid can call me" } }];
   const screen = await f.api.loadInHouseBatches({ now });
   expect(screen.jobs).toEqual([]); expect(screen.suggestions).toEqual([]); expect(screen.waitingForCallConsent).toEqual(["j"]);
   expect(await f.api.sendInHouseBatch({ businessId: "b", jobIds: ["j"], actorId: "office" }, { now })).toEqual({ sent: [], refused: [{ jobId: "j", reason: rules.WAITING_FOR_CALL_CONSENT }] });
   expect(f.rpcCalls).toEqual([]);
+  const old = fixture(); old.data.owner_contact_consents = [consentRow("j", "2026-07-01T00:00:00.000Z")];
+  expect((await old.api.loadInHouseBatches({ now })).waitingForCallConsent).toEqual([]);
   const own = fixture(); own.data.owner_contact_consents = [consentRow("j", "2026-07-01T00:00:00.000Z")];
   own.data.jobs = [{ ...(own.data.jobs[0] as object), channel: "installer_sourced", originating_installer_business_id: "b" }];
   expect((await own.api.sendInHouseBatch({ businessId: "b", jobIds: ["j"], actorId: "office" }, { now })).sent).toEqual(["j"]);

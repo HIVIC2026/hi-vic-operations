@@ -28,6 +28,8 @@ test("Task 5: waiting for the owner's tap — consent over 3 months old, no pass
   expect(waitingForCallConsent(job, [c("2026-11-02T00:00:00.000Z", "not_granted")], now)).toBe(true);
   expect(waitingForCallConsent(job, [], now)).toBe(true);
   expect(waitingForCallConsent({ ...job, quickTapsYes: false }, [c("2026-10-01T00:00:00.000Z")], now)).toBe(true);
+  expect(waitingForCallConsent({ ...job, oldStylePass: true }, [c("2026-07-01T00:00:00.000Z")], now)).toBe(false);
+  expect(waitingForCallConsent({ ...job, oldStylePass: false }, [c("2026-07-01T00:00:00.000Z")], now)).toBe(true);
   expect(waitingForCallConsent({ ...job, channel: "installer_sourced" }, [c("2026-07-01T00:00:00.000Z")], now)).toBe(false);
   expect(waitingForCallConsent({ ...job, hasActiveInstaller: true }, [c("2026-07-01T00:00:00.000Z")], now)).toBe(false);
 });

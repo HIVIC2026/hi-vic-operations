@@ -707,9 +707,15 @@ describe("3-month phone consent: hand-off only after the tap", () => {
     expect((rows[0]!["snapshot"] as Row)["wording"]).toBe(QUICK_TAPS_COPY.go.options[0]!.label);
     expect(await handOff(["a"])).toEqual({ sent: ["a"], refused: [] });
   });
-  test("a pass recorded before this change, consent now over 3 months old, no tap naming the installer → not handed off", async () => {
+  test("a pass recorded before this change (no go label), consent over 3 months old: grandfathered, needs no consent row, hands off as before", async () => {
     addJob("a"); consent("a", FOUR_MONTHS_AGO); sendBatchEvent("b1", ["a"], undefined, "Rapid Insulation");
     tables["workflow_events"]!.push({ id: crypto.randomUUID(), job_id: "a", event_type: "quick_taps_answered", created_at: new Date(++clock).toISOString(), details: { batch_id: "b1", outcome: "pass", consent_share: true, answers: { name: "Helen a" } } });
+    expect(await handOff(["a"])).toEqual({ sent: ["a"], refused: [] });
+    expect(reconsents("a")).toEqual([]);
+  });
+  test("a pass made after this change (has a go label) with no consent row is still waiting", async () => {
+    addJob("a"); consent("a", FOUR_MONTHS_AGO); sendBatchEvent("b1", ["a"], undefined, "Rapid Insulation");
+    tables["workflow_events"]!.push({ id: crypto.randomUUID(), job_id: "a", event_type: "quick_taps_answered", created_at: new Date(++clock).toISOString(), details: { batch_id: "b1", outcome: "pass", consent_share: true, go_label: "Yes, Rapid Insulation can call me", consent_installer: "Rapid Insulation", answers: { name: "Helen a" } } });
     expect(await handOff(["a"])).toEqual({ sent: [], refused: [{ jobId: "a", reason: WAITING }] });
   });
   test("an installer's own customer (consent at Add a job) with a 4-month-old consent is never re-asked and hands off", async () => {
