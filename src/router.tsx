@@ -92,7 +92,9 @@ export const getRouter = () => {
     routeTree,
     context: { queryClient },
     scrollRestoration: true,
-    defaultPreloadStaleTime: 0,
+    // Fetch a page's code (and run its loader) when a link is hovered or touched, and reuse that preload for 30 s.
+    defaultPreload: "intent",
+    defaultPreloadStaleTime: 30_000,
     defaultOnCatch: (e) => {
       if (typeof window !== "undefined" && isStaleChunkError(e)) reloadForNewVersion();
     },
