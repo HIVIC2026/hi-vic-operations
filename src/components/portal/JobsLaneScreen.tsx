@@ -22,6 +22,7 @@ import { JOBS_COLUMNS, DEFAULT_VIEW, costLabel, openingView, parseSavedView, sav
 import type { SortDir } from "@/lib/office-filters.core";
 import type { Range } from "@/lib/enquiry-columns.core";
 import { isDefaultListView } from "@/lib/office-needs-snapshot.core";
+import { jobsListKey } from "@/lib/office-list-keys.core";
 import { readOfficeList } from "@/lib/office-list-refresh";
 import { MittiPickupsToLink, MittiSyncProblems } from "@/components/portal/mitti-piles";
 import { RobotFailuresPile } from "@/components/portal/robot-failures-pile";
@@ -84,7 +85,7 @@ export function JobsLaneScreen({ lane, initialStage }: { lane: JobsLane; initial
   // Decision 383: the opening view comes from the server's saved copy (worked out now after an office action in this
   // tab); while the server refreshes it, ask again in 5 s. One retry, not three.
   const q = useQuery({
-    queryKey: ["office-jobs", lane, view, search, page],
+    queryKey: jobsListKey(lane, view, search, page),
     queryFn: () => {
       const v = { lane, search, sort: view.sort, dir: view.dir, page, filters: view.filters, needsUs: view.needsUs, includeTest: false };
       return readOfficeList("jobs", isDefaultListView(v), (refresh) => load({ data: { ...v, refresh } }));

@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { BatchesReadyToSend, ChooseInstallerPanel, SendResultList, type SendResults } from "@/components/portal/choose-installer";
 import { ColumnHead, Pager, type ColumnFilterValue } from "@/components/portal/office-lists";
 import { Pill, PillTabs, btnClass, listCard } from "@/components/portal/kit";
+import { installerWaitingKey } from "@/lib/office-list-keys.core";
 import { getInstallerWaitingList } from "@/lib/installer-waiting.functions";
 import { batchRowLine, showAreaBatches, tickSendBlocker } from "@/lib/area-batch.core";
 import { getInstallersForHomesFn, sendAreaBatchFn } from "@/lib/area-batch.functions";
@@ -170,7 +171,7 @@ export function InstallerWaitingScreen() {
   const [ticked, setTicked] = useState<string[]>([]);
   const [layout, setLayout] = useState<"area" | "table">("area");
   useEffect(() => { const t = setTimeout(() => { setSearch(typed.trim()); setPage(1); }, 200); return () => clearTimeout(t); }, [typed]);
-  const q = useQuery({ queryKey: ["installer-waiting", includeTest], queryFn: () => load({ data: { includeTest } }), staleTime: 30_000 });
+  const q = useQuery({ queryKey: installerWaitingKey(includeTest), queryFn: () => load({ data: { includeTest } }), staleTime: 30_000 });
   const d = q.data;
   const now = d?.now ?? Date.now();
   // Jo 27 Oct 2026: released spots get their own tab; the area pills group the rest by where they are.

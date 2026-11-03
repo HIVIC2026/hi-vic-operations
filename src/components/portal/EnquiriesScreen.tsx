@@ -19,6 +19,7 @@ import { useAction } from "@/hooks/use-me";
 import { Input } from "@/components/ui/input";
 import { bulkCancelOfficeJobs, getEnquiriesList } from "@/lib/office-screens.functions";
 import { checkedLabel, isDefaultListView } from "@/lib/office-needs-snapshot.core";
+import { enquiriesListKey } from "@/lib/office-list-keys.core";
 import { readOfficeList } from "@/lib/office-list-refresh";
 import { removeLeadsFn } from "@/lib/enquiry-groups.functions";
 import { CLOSE_REASONS, closeRouteFor, enquiryCountLine, keepTicked, removeOutcomeToast, removeReasonText } from "@/lib/enquiries-screen.core";
@@ -68,7 +69,7 @@ export function EnquiriesScreen() {
   // Decision 383: the opening view (Offered a spot) comes from the server's saved copy (worked out now after an office action
   // in this tab); while the server refreshes it, ask again in 5 s. One retry, not three.
   const q = useQuery({
-    queryKey: ["office-enquiries", view, search, filters, sort, page],
+    queryKey: enquiriesListKey(view, search, filters, sort, page),
     queryFn: () => {
       const v = { search, sort: sort.k, dir: sort.d, page, filters, view };
       return readOfficeList("enquiries", isDefaultListView(v), (refresh) => load({ data: { ...v, refresh } }));
@@ -181,7 +182,7 @@ export function EnquiriesScreen() {
           // Keep the ones not done ticked so they can be closed with another reason; the dialog stays open.
           const before = (d?.rows ?? []).map((x) => x.id);
           await qc.invalidateQueries({ queryKey: ["office-enquiries"] });
-          const fresh = qc.getQueryData<typeof d>(["office-enquiries", view, search, filters, sort, page]);
+          const fresh = qc.getQueryData<typeof d>([...enquiriesListKey(view, search, filters, sort, page)]);
           setPicked(keepTicked(ids, before, (fresh?.rows ?? d?.rows ?? []).map((x) => x.id)));
           return false;
         } const r = await cancel({ jobIds: ids, reason }); if (!r) return false; if (r.failed.length) toast.error(`${r.done} cancelled; ${r.failed.length} not: ${r.failed[0]!.error}`); else toast.success(`${r.done} cancelled`); refresh(); return true; }} />
