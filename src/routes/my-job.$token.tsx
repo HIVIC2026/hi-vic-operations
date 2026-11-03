@@ -19,6 +19,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { OwnerPaperwork } from "@/components/owner/OwnerPaperwork";
 import { OwnerConfirmSignPay } from "@/components/owner/OwnerConfirmSignPay";
+import { OwnerSignAndPay } from "@/components/owner/OwnerSignAndPay";
 import { OwnerCodeGate, signBtn } from "@/components/owner/OwnerSign";
 import { ownerAcceptQuoteFn, ownerAgreementFn, ownerQuoteDocumentFn, ownerBookingStateFn, ownerCardCheckoutFn, ownerChoosePiesaFn, ownerDeclineQuoteFn, ownerChangeInstallDayFn, ownerChangePiesaFn, ownerSignConsentFn, ownerSuggestInstallDaysFn, ownerTakeInstallDayFn, ownerVeecAssignmentFn, ownerSignVeecAssignmentFn, ownerPiesaConfirmFn, ownerSignPiesaConfirmFn, ownerFixesConfirmFn, ownerSignFixesConfirmFn, ownerTakePiesaTimeLinkFn, ownerSuggestPiesaDaysLinkFn, ownerReviewStateFn, ownerReviewStarsFn, ownerReviewFeedbackFn, ownerFixesStateFn, ownerApproveFixesFn, ownerPickFixesTimeFn, ownerRepeatPiesaFn, ownerAcceptRepeatPiesaFn } from "@/lib/owner-link.functions";
 import { OWNER_FIXES_COPY, ownerFixesNeedsOwner } from "@/lib/owner-fixes.core";
@@ -49,7 +50,7 @@ import { completeOwnerQuoteAcceptance, ownerQuoteCanAccept } from "@/lib/owner-q
 // Decision 389: "turn" = "It's your turn" (O77's link): Confirm the free Ready Check, or no longer interested.
 // Batch 3a: "newquote" = O78's "Send me a new quote" button: the request runs on arrival, then the approved thanks line.
 // A48 batch 2: "taps" = the quick taps (the batch text's link): one question per screen, big buttons.
-const SCREENS = ["home", "spot", "quote", "pay", "piesa", "veec", "book", "done", "review", "fixes", "turn", "newquote", "taps", "clear"] as const satisfies readonly OwnerScreen[];
+const SCREENS = ["home", "spot", "quote", "pay", "piesa", "veec", "book", "done", "review", "fixes", "turn", "newquote", "taps", "clear", "finish"] as const satisfies readonly OwnerScreen[];
 
 export const Route = createFileRoute("/my-job/$token")({
   ssr: false,
@@ -106,6 +107,7 @@ function MyJobPage() {
           : screen === "quote" ? <QuoteScreen v={data} token={token} />
           : screen === "pay" ? <><RepeatPiesaCard token={token} /><PayNowCard v={data} token={token} /></>
           : screen === "clear" ? <OwnerConfirmSignPay v={data} token={token} />
+          : screen === "finish" ? <OwnerSignAndPay token={token} />
           : screen === "piesa" ? <PiesaConfirmCard v={data} token={token} />
           : screen === "veec" ? <VeecAssignmentCard v={data} token={token} />
           : screen === "fixes" ? <FixesScreen v={data} token={token} />

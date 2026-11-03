@@ -903,3 +903,62 @@ export const ownerConfirmSignPayFn = createServerFn({ method: "POST" })
       userAgent: context.userAgent,
     });
   });
+
+// ---------- Part 4 Task 11 (Jo 2 Nov 2026): ?screen=finish — sign the rebate form and pay the balance on ONE page ----------
+/** What the page shows (the install facts, signing and balance state). Link token only (read); scoped to the token's job. Null = the page falls back. */
+export const ownerSignAndPayStateFn = createServerFn({ method: "POST" })
+  .middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token }).parse(d))
+  .handler(async ({ data }) => {
+    const jobId = await ownerJobId(data.token);
+    if (!jobId) return null;
+    const { signAndPayPage } = await import("./sign-and-pay.server");
+    try {
+      return JSON.parse(JSON.stringify(await signAndPayPage(jobId))) as Awaited<ReturnType<typeof signAndPayPage>>;
+    } catch {
+      return null;
+    }
+  });
+
+/** "View the full form (PDF) ›": the official ESC VEEC form as a PDF. Link token only (read). */
+export const ownerSignAndPayFormFn = createServerFn({ method: "POST" })
+  .middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token }).parse(d))
+  .handler(async ({ data }) => {
+    const jobId = await ownerJobId(data.token);
+    if (!jobId) return null;
+    try {
+      return await (await import("./sign-and-pay.server")).signAndPayForm(jobId);
+    } catch {
+      return null;
+    }
+  });
+
+/** Signs the rebate form (one tick, one typed name, 6-digit code session) then returns the card page or the bank lines for the balance. */
+export const ownerSignAndPayFn = createServerFn({ method: "POST" })
+  .middleware([withRequestMeta])
+  .inputValidator((d) =>
+    z
+      .object({
+        token,
+        session,
+        tick: z.boolean(),
+        typedName: z.string().max(200),
+        authorityType: z.enum(["owner", "authorised_representative"]),
+        method: z.enum(["card", "bank"]),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const s = await (await import("./owner-verify.server")).ownerSession(data.token, data.session);
+    const { CUSTOMER_BASE } = await import("./engagement.core");
+    return (await import("./sign-and-pay.server")).signAndPay(s.jobId, s, {
+      tick: data.tick,
+      typedName: data.typedName,
+      method: data.method,
+      authority: data.authorityType,
+      returnUrl: `${CUSTOMER_BASE}/my-job/${data.token}?screen=finish`,
+      ip: context.ip,
+      userAgent: context.userAgent,
+    });
+  });

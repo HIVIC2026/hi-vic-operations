@@ -8,9 +8,10 @@ export const OWNER_STEPS = ["Ready Check", "Quote", "PIESA", "Install", "Done"] 
 /** Decision 389: "turn" = the "It's your turn" page (O77's link): confirm the free Ready Check, or no longer interested.
  *  Batch 3a: "newquote" = O78's "Send me a new quote" button (new-quote-request.*).
  *  Part 4 T5: "clear" = confirm, sign and pay (the PIESA owner declarations, the ESC consent and the 10% deposit on one page).
+ *  Part 4 T11: "finish" = sign the rebate form and pay the balance (the All done email's link, ?screen=finish).
  *  A48 batch 2: "taps" = the quick taps (quick-taps.*): name, address, hatch, roof, 5 years, "Yes, let's go". */
-export type OwnerScreen = "home" | "spot" | "quote" | "pay" | "piesa" | "veec" | "book" | "done" | "review" | "fixes" | "turn" | "newquote" | "taps" | "clear";
-export function currentOwnerAction(facts: Record<Exclude<OwnerScreen,'home'|'done'>,boolean>): Exclude<OwnerScreen,'home'|'done'> | null {
+export type OwnerScreen = "home" | "spot" | "quote" | "pay" | "piesa" | "veec" | "book" | "done" | "review" | "fixes" | "turn" | "newquote" | "taps" | "clear" | "finish";
+export function currentOwnerAction(facts: Record<Exclude<OwnerScreen,'home'|'done'|'finish'>,boolean>): Exclude<OwnerScreen,'home'|'done'|'finish'> | null {
   const priority = ['newquote','turn','taps','quote','clear','fixes','pay','piesa','veec','book','spot','review'] as const;
   return priority.find(action=>facts[action]) ?? null;
 }
