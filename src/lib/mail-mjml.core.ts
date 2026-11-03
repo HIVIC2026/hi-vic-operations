@@ -32,10 +32,13 @@ export type MailInput = {
   testLabel?: boolean;
 };
 
+/** The MJML document `mjEmail` compiles (design samples under docs/templates/mjml are written from this). */
+export function mjEmailSource(i: MailInput): string {
+  return `<mjml lang="en-AU"><mj-head><mj-title>${esc(i.subject)}</mj-title>${i.preview ? `<mj-preview>${esc(i.preview)}</mj-preview>` : ""}<mj-include path="./partials/head.mjml" /></mj-head><mj-body><mj-wrapper css-class="card">${MAIL_HEADER}${i.testLabel ? TEST_PILL : ""}${i.body}${mailFooter(i.unsubscribe)}</mj-wrapper></mj-body></mjml>`;
+}
 /** Builds and compiles one email. */
 export function mjEmail(i: MailInput): string {
-  const src = `<mjml lang="en-AU"><mj-head><mj-title>${esc(i.subject)}</mj-title>${i.preview ? `<mj-preview>${esc(i.preview)}</mj-preview>` : ""}<mj-include path="./partials/head.mjml" /></mj-head><mj-body><mj-wrapper css-class="card">${MAIL_HEADER}${i.testLabel ? TEST_PILL : ""}${i.body}${mailFooter(i.unsubscribe)}</mj-wrapper></mj-body></mjml>`;
-  return renderMjml(src).replace(UNSUB_TOKEN, UNSUBSCRIBE_LINK_SLOT);
+  return renderMjml(mjEmailSource(i)).replace(UNSUB_TOKEN, UNSUBSCRIBE_LINK_SLOT);
 }
 
 /** Suite generic layout for messages without a named design. Copy and link destinations belong to the caller. */

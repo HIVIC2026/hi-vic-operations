@@ -4,7 +4,7 @@
 import { CUSTOMER_BRAND } from "./customer-quote-system";
 import { SET_PASSWORD_BASE } from "./set-password-link.core";
 import * as K from "./email-kit.core";
-import { mjEmail, esc } from "./mail-mjml.core";
+import { mjEmail, mjEmailSource, esc } from "./mail-mjml.core";
 import { NO_FORM_NO_PAY } from "./trade-view.core";
 
 /** Decision 107: the 2-minute installer guide page (src/routes/_authenticated/field.guide.tsx). */
@@ -22,6 +22,8 @@ export type PartnerBlock =
   | { kind: "p"; text: string }
   | { kind: "list"; items: string[] }
   | { kind: "button"; label: string; url: string }
+  /** A small text link under a button (e.g. "See the full Ready Check ›"); never an empty href — leave it out when there is no URL. */
+  | { kind: "link"; label: string; url: string }
   | { kind: "sign"; lines: string[] }
   | { kind: "hi"; text: string }
   | { kind: "box"; text: string }
@@ -57,7 +59,7 @@ function blockText(b: PartnerBlock): string[] {
   switch (b.kind) {
     case "p": case "hi": case "box": case "small": return [b.text, ""];
     case "list": return [...b.items.map((x) => `• ${x}`), ""];
-    case "button": return [`${b.label}: ${b.url}`, ""];
+    case "button": case "link": return [`${b.label}: ${b.url}`, ""];
     case "sign": return [...b.lines, ""];
     case "card": return [b.title, ...(b.subtitle ? [b.subtitle] : []), "", ...b.blocks.flatMap(blockText)];
     case "preview": return [];
@@ -82,20 +84,23 @@ export function partnerEmailLayout(i: { subject: string; heading?: string | null
     if (b.kind === "p" || b.kind === "hi") rows.push(txt(esc(b.text), first ? 'padding="14px 12px 14px"' : ""));
     else if (b.kind === "small") rows.push(txt(esc(b.text), `mj-class="small"${first ? ' padding="14px 12px 0"' : ""}`));
     else if (b.kind === "button") { if (first) rows.push('<mj-text padding="8px 0 0"></mj-text>'); rows.push(`<mj-button href="${esc(b.url)}">${esc(b.label)}</mj-button>`); }
+    else if (b.kind === "link") rows.push(txt(`<a href="${esc(b.url)}" style="${LINK}">${esc(b.label)}</a>`, `mj-class="small"${first ? ' padding="14px 12px 0"' : ""}`));
     else if (b.kind === "sign") rows.push(txt(b.lines.map(esc).join("<br />")));
     else if (b.kind === "box") panel("panel-amber", txt(esc(b.text), 'padding="18px 18px 18px"'));
     else if (b.kind === "list") panel("panel-card", `<mj-table padding="18px 18px 6px">${b.items.map((x, n, all) => tick(esc(x), n === all.length - 1 ? 12 : 14)).join("")}</mj-table>`);
     else if (b.kind === "card") panel("panel-card", cardRows(b));
   }
   flush();
-  const html = mjEmail({ subject: i.subject, preview, body: out.join(""), unsubscribe: null, testLabel: i.test !== false });
+  const mail = { subject: i.subject, preview, body: out.join(""), unsubscribe: null, testLabel: i.test !== false };
+  const html = mjEmail(mail);
   const text = K.plainText([
     ...(hi ? [hi.text, ""] : []),
     ...(i.heading ? [i.heading, ""] : []),
     ...rest.flatMap(blockText),
     "Home Insulation Victoria · info@homeinsulationvictoria.com.au",
   ], { testLabel: i.test !== false });
-  return { html, text };
+  /** `mjml`: the compiled document's MJML source, for design samples only (never sent). */
+  return { html, text, mjml: mjEmailSource(mail) };
 }
 
 /** Official Mitti (by SafetyCulture) app store pages (checked 27 Oct 2026). */

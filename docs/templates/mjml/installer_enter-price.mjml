@@ -1,0 +1,54 @@
+<mjml lang="en-AU">
+<mj-head>
+<mj-title>HV-1234: Ready Check done. Time to price it.</mj-title>
+<mj-preview>HV-1234 Ready Check done — enter your price</mj-preview>
+<mj-include path="./partials/head.mjml" />
+</mj-head>
+<mj-body>
+<mj-wrapper css-class="card">
+<mj-section>
+<mj-column>
+<mj-image src="https://homeinsulationvictoria.com.au/home-insulation-victoria-logo.png" alt="Home Insulation Victoria" width="132px" align="left" padding="0 12px 2px" />
+</mj-column>
+</mj-section>
+<mj-section>
+<mj-column>
+<mj-text mj-class="hi">Hi James,</mj-text>
+<mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">Ready Check done. Time to price it.</mj-text>
+<mj-text>Here's what John found at Sarah's place. Enter your price and Home Insulation Victoria sends them the quote straight away.</mj-text>
+</mj-column>
+</mj-section>
+<mj-section>
+<mj-column mj-class="panel-card">
+<mj-text mj-class="h2" padding="18px 18px 2px">HV-1234 · Sarah Brown</mj-text>
+<mj-text mj-class="small" padding="0 18px 12px">12 Example St, Box Hill VIC 3128 · Ready Check Tue 4 Nov</mj-text>
+<mj-text font-size="15px" line-height="23px" padding="0 18px 12px">Measured ceiling: 120 m² (2 areas)</mj-text>
+<mj-text font-size="15px" line-height="23px" padding="0 18px 12px">Existing insulation: Thin batts, R1.0</mj-text>
+<mj-text font-size="15px" line-height="23px" padding="0 18px 12px">Removal needed: None</mj-text>
+<mj-text font-size="15px" line-height="23px" padding="0 18px 12px">Roof: Sloped, tiles</mj-text>
+<mj-text font-size="15px" line-height="23px" padding="0 18px 12px">Access: Standard</mj-text>
+<mj-text font-size="15px" line-height="23px" padding="0 18px 12px">Product chosen: Bradford Gold R5.0</mj-text>
+<mj-text font-size="15px" line-height="23px" padding="0 18px 12px">Downlights: 4</mj-text>
+<mj-text font-size="15px" line-height="23px" padding="0 18px 18px">Built in last 5 years: No · Life support: No</mj-text>
+</mj-column>
+</mj-section>
+<mj-section>
+<mj-column>
+<mj-text padding="8px 0 0">
+</mj-text>
+<mj-button href="https://estimate.homeinsulationvictoria.com.au/field/TEST-JOB#price">Enter your price</mj-button>
+<mj-text mj-class="small">Your price stays editable until the quote is sent.</mj-text>
+<mj-text mj-class="small">
+<a href="https://estimate.homeinsulationvictoria.com.au/api/files/TEST/Ready-Check.pdf" style="color:#3C51C4;font-weight:700;">See the full Ready Check ›</a>
+</mj-text>
+</mj-column>
+</mj-section>
+<mj-section>
+<mj-column>
+<mj-divider padding="14px 12px 14px" />
+<mj-text mj-class="small" font-size="12px" line-height="18px" padding="0 12px">Home Insulation Victoria · VEU Accredited Person A003654<br />DC Construction Solutions Pty Ltd · ABN 44 671 613 979</mj-text>
+</mj-column>
+</mj-section>
+</mj-wrapper>
+</mj-body>
+</mjml>

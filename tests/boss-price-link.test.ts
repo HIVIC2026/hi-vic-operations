@@ -77,6 +77,23 @@ describe("wiring (source facts)", () => {
     expect(s).toContain('.eq("event_type", BOSS_PRICE_LINK_EVENT)');
     expect(s).not.toMatch(/fetch\(|twilio/i);
     // The link is the authenticated job page's price card (the card renders for the business admin only).
-    expect(s).toContain("bossPriceLink(test ? TEST_APP_BASE : SET_PASSWORD_BASE, jobId)");
+    expect(s).toContain("const base = test ? TEST_APP_BASE : SET_PASSWORD_BASE;");
+    expect(s).toContain("bossPriceLink(base, jobId)");
+  });
+  // Part 10 Task 3 (Jo 3 Nov 2026 22:58): the boss gets BOTH the text and the "Enter your price" email under the one claim.
+  test("sender: the email is its own channel under the one claim — key {job key}:email, one customer_email_sends attempt, held recorded once, TEST → test-send, real → sendOfficeEmail", () => {
+    const s = read("src/lib/boss-price-link.server.ts");
+    const idx = (t: string) => { const i = s.indexOf(t); expect(i, t).toBeGreaterThan(-1); return i; };
+    expect(s).toContain("enterPriceEmailKey(jobId)");
+    expect(s).toContain('.eq("idempotency_key", emailKey)');
+    expect(idx("logEvent(jobId, null, BOSS_PRICE_LINK_EVENT")).toBeLessThan(idx("enterPriceEmailPlan({"));
+    expect(idx("insert({ job_id: jobId, purpose: ENTER_PRICE_EMAIL_PURPOSE, idempotency_key: emailKey })")).toBeLessThan(idx("renderEnterPriceEmail("));
+    expect(idx("ENTER_PRICE_EMAIL_HELD_EVENT")).toBeGreaterThan(-1);
+    expect(s).toContain("sendTestEmail(");
+    expect(s).toContain('recipient: "partner"');
+    expect(s).toContain("idempotencyKey: emailKey");
+    // The text is never resent once claimed; only the email channel can run on a later sync.
+    expect(idx("if (!claimed) {")).toBeLessThan(idx("sendRealSms("));
+    expect(s).toContain("alreadySent: !!claimed && !emailOpen");
   });
 });

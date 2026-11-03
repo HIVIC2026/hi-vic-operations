@@ -69,6 +69,23 @@ export const WORKFLOW_DECISIONS = {
         supersededScope: "own_customer_owner_price_only",
         lineLabels: ["Insulation", "Home Insulation Victoria fee", "Electrical safety check (PIESA)", "Rebate", "Your price"] as const,
       },
+      // Jo 3 Nov 2026 22:58 (Part 10 Task 3): after an A1 Ready Check is Complete with no price the BUSINESS OWNER gets BOTH the
+      // decision-288 text AND the "Enter your price" email (`enter-price-email.core`, sent by `boss-price-link.server`) — the plan's
+      // "never both" is overridden. One claim per job covers the pair; the email is its own channel under it (held → recorded once,
+      // retried while fresh, the text never resent). DRAFT: subject + pronoun wait for Jo (ENTER_PRICE_EMAIL_APPROVED = false).
+      enterPriceEmail: {
+        decided: "2026-11-03",
+        channels: ["text", "email"] as const,
+        bothNotEither: true,
+        oneClaimPerJob: "boss_price_link_sent",
+        emailKeySuffix: ":email",
+        heldEvent: "enter_price_email_held",
+        recipient: "businesses.email",
+        maxAgeHours: 24,
+        approvedFlag: "ENTER_PRICE_EMAIL_APPROVED",
+        draftsForJo: ["subject", "pronoun them (mock says her)"] as const,
+        quoteGoesOnlyAfterBossPrice: true,
+      },
       paymentRule: "not_assumed",
       leadFee: "none",
       marginOnInstallerPrice: "none",
