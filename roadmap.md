@@ -1,12 +1,12 @@
 ## Jo 4 Nov A1/A2 Ready Check forms: ceiling layout, top-ups, approved products, quotes
-- [ ] Read new area answers (old insulation None/taking out/topping up, old R value, removal m²) replacing old ones; old-wording Ready Checks unchanged.
-- [ ] Outcome page: go ahead, "thicker too" R6.0/R7.0; ignore Mitti scores.
-- [ ] Approved ESC product list (26 Oct 2026, 48A) with model numbers; brand+batt resolution.
-- [ ] Rules: old under R2.0, total >= R5.0, approved match, thicker reachable, top-up counting switch (ON by default) -> Needs me.
-- [ ] A2: brand + per-area batts; HIV fixed retail price (new blank top-up/R6/R7 retail settings hold if blank); installer paid rate card (TOPUP_R5 etc.); thicker second option.
-- [ ] A1: business-owner price link shows areas, approved-only choices with totals, one main total + thicker total; never rate card/retail.
-- [ ] Exact quote wording, VEU per option, 15% hold rule.
-- [ ] Report exact matched wording A1/A2, example A2 top-up quote, example A1 price link, tests. No Mitti template change, sends or publishing.
+- [x] Pure core `ceiling-layout.core.ts`: exact wording, approved ESC 48A list with model numbers, rules 1–5, A2 options, A1 choices/validation, exact line wording, per-option VEU and 15% hold. 20 new tests + practice-DB proof pass; 181 related Ready Check tests pass.
+- [x] Mitti reader: new area answers replace old ones on new forms only; "Can the job go ahead?" No = failed; R2.0-or-more stop.
+- [x] A2 quote builder: retail prices, installer paid TOPUP_R5/R5/R6/R7/removal, main + thicker option rows, all held for office review.
+- [x] A1 price card: area facts, approved-only brand+batt picks per area with totals, main total + thicker total; server validates.
+- [x] Settings switch + blank top-up/R6/R7 retail prices: pending SQL `docs/pending-migrations/ceiling-layout-4nov.sql` (PGlite-proven, NOT applied; needs Jo's OK). Until applied: switch reads ON, blank prices hold A2 quotes.
+- [ ] A1 thicker option: total is saved but its second owner quote is not built yet; A1 quote line still shows one installer line (per-area wording not on it yet).
+- [ ] Owner page showing two A2 options together: not checked in the browser.
+- [ ] Retail price editing on Settings: no screen exists today for these prices; Jo fills them after the SQL is applied.
 
 ## Jo 3 Nov 7:52pm active installer Team role choice
 - [x] Test-first: no preselected Lead/Crew, Add disabled until chosen, server requires installer workerRole, exact explanation; existing Mitti behaviour unchanged. 112 related tests pass, including missing-role zero-write and two-business email isolation; automatic checks build OK. Actual form extracted into a write-blocked browser fixture confirms neither selected initially and either choice enables Add; authenticated save not run (no data changes permitted). No data changes, sends or publishing.
