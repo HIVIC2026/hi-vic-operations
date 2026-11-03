@@ -20,6 +20,7 @@ import { PAYMENT_STEP_LABEL, type PaymentStep } from "@/lib/payments.core";
 import { safetyCheckShort } from "@/lib/safety-check-amount.core";
 import { cancelOfficeJob, clearOfficeEmailBounce, getOfficeJobMoney, holdOfficeJob, logOfficeCallOrNote, markOfficeJobTest, reopenOfficeJob } from "@/lib/office-screens.functions";
 import { setDoNotContactFn } from "@/lib/do-not-contact.functions";
+import { sendNonComplianceNoticeFn } from "@/lib/non-compliance-notice.functions";
 import { bulkJobAction } from "@/lib/bulk.functions";
 import { retryInvoiceFn } from "@/lib/office-money.functions";
 import { invoiceSlotLabel } from "@/lib/office-money.core";
@@ -68,6 +69,7 @@ const card = "rounded-[18px] border border-line bg-paper p-5 shadow-card";
 /* ---------------- Header (decision 223) ---------------- */
 export function JobHeader({ h, more }: { h: Header; more: ReactNode }) {
   const setDnc = useAction(setDoNotContactFn);
+  const [noticeOpen, setNoticeOpen] = useState(false);
   return (
     <header className={cn(card, "mb-4")} data-why="decision 218 header; 216 split address + Last heard from us; 207 permission wording">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -92,12 +94,36 @@ export function JobHeader({ h, more }: { h: Header; more: ReactNode }) {
           <p className="mt-2 text-xs text-sub">
             {h.sourceLabel} {day(h.receivedAt)} · {h.permissionAt ? `permission to contact given ${day(h.permissionAt)}` : h.permissionState === "declined" ? "permission to contact NOT given" : "no permission to contact recorded"} · Last heard from us: {h.lastHeard ? `${dayTime(h.lastHeard.at)} · ${h.lastHeard.channel.toLowerCase()}` : "never"}
           </p>
-          <div className="mt-2"><Btn tone="secondary" onClick={() => void setDnc({ jobId: h.jobId, on: !h.doNotContact }, h.doNotContact ? "Contact allowed again" : "Marked do not contact")}>{h.doNotContact ? "Allow contact again" : "Do not contact"}</Btn></div>
+          <div className="mt-2"><Btn tone="secondary" onClick={() => void setDnc({ jobId: h.jobId, on: !h.doNotContact }, h.doNotContact ? "Contact allowed again" : "Marked do not contact")}>{h.doNotContact ? "Allow contact again" : "Do not contact"}</Btn>{" "}<Btn tone="secondary" onClick={() => setNoticeOpen(true)}>Tell the owner: something didn't comply</Btn></div>
+          <NonComplianceDialog h={h} open={noticeOpen} onOpenChange={setNoticeOpen} />
           {h.deleted && <p role="status" className="mt-2 rounded-[10px] bg-pink px-3 py-2 text-sm font-semibold text-rose">This job is deleted. It is hidden from every list; restore it from More › Settings › Deleted jobs.</p>}
         </div>
         {more}
       </div>
     </header>
+  );
+}
+
+/* Part 4 Task 13 (Jo 2 Nov 2026, answer 9, cl 27): the office tells the owner something didn't comply. Office button only; one email per note. */
+export function NonComplianceDialog({ h, open, onOpenChange }: { h: Header; open: boolean; onOpenChange: (v: boolean) => void }) {
+  const send = useAction(sendNonComplianceNoticeFn);
+  const [what, setWhat] = useState("");
+  const [fix, setFix] = useState("");
+  const ready = what.trim().length >= 3 && fix.trim().length >= 3;
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent data-why="Jo 2 Nov 2026 answer 9: non-compliance notice is an office button, same day">
+        <DialogHeader><DialogTitle>Tell the owner · {h.jobNumber}</DialogTitle><DialogDescription>{h.ownerName} gets an email now. It goes even if they are marked do not contact.</DialogDescription></DialogHeader>
+        <div className="space-y-3">
+          <Textarea value={what} onChange={(e) => setWhat(e.target.value)} placeholder="What we found" aria-label="What we found" />
+          <Textarea value={fix} onChange={(e) => setFix(e.target.value)} placeholder="What the fix is" aria-label="What the fix is" />
+          <div className="flex flex-wrap gap-2">
+            <button type="button" disabled={!ready} className={cn(btn, "bg-ink text-white")} onClick={async () => { const r = await send({ jobId: h.jobId, what: what.trim(), fix: fix.trim() }); if (r === undefined) return; if (/^(sent|email sent)/.test(r)) toast.success("Owner told"); else toast.message(r); onOpenChange(false); }}>Send to the owner</button>
+            <button type="button" className={cn(btn, "border border-line bg-paper text-hiv-blue")} onClick={() => onOpenChange(false)}>Cancel</button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

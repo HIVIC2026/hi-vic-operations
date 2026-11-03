@@ -47,6 +47,9 @@ export const WORKFLOW_DECISIONS = {
     // Part 4 Task 12 (Jo 2 Nov 2026, touchpoint 53): one reminder (email + text) on days 1, 3 and 7 after install day for whatever is
     // still undone (rebate form, balance); after day 7 no more owner messages, the job shows to the office as "Balance overdue".
     // Replaces the balance day-5 / due emails and the separate rebate-form reminders. The balance is due on install day; overdue clock stays BALANCE_DUE_DAYS.
+    // Part 4 Task 13 (Jo 2 Nov 2026, answer 9, cl 27): faulty product / work notice. Office button only (Jo decides, same day), no automatic
+    // trigger, no installer button; one email per note; compliance purpose, so Do not contact and Unsubscribe never block it.
+    nonComplianceNotice: { purpose: "non_compliance_notice", trigger: "office_button", sameDay: true, flag: "NON_COMPLIANCE_NOTICE_APPROVED" },
     afterInstallReminders: { days: [1, 3, 7] as const, officeRowAfterDay: 7, officeRowLabel: "Balance overdue", flag: "AFTER_INSTALL_REMINDERS_APPROVED" },
     safetyCheck: { settingColumn: "safety_check_payment_inc_gst", defaultIncGst: 349, decided: "2026-10-07", balance: [] as string[], balanceNote: "Decision 365 (Jo 25 Oct 2026): no balance option — one payment statement of the paymentPlan() steps (safety check, 10% to book, balance on install day (Jo 2 Nov 2026); overdue after 7 days). Electrical upgrades are paid to the electrician directly (Customer Agreement v1.3 payment terms, version customer-agreement-1.3)" },
     // Jo 26 Oct: flat 10% install deposit on the install price only (not the PIESA fee or fixes). 5% tier removed.
