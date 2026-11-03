@@ -1,39 +1,18 @@
-# HV-2730 (Wayne Wilson) quick taps: findings and fix plan
+# HV-3682 quick-taps sharing repair (Jo chose this step only)
 
-## What I found (read-only)
+## Background (read-only findings)
+- HV-2730 (Wayne Wilson): his "yes" saved on 2 Nov at 7:09pm. His OK to share his details failed 19 times, because quick taps saved it as a code sign-in and the database requires a verified code for that.
+- The 2 Nov fix (0187) is live. Wayne's OK saved at 9:03pm. His job is waiting normally: the batch closes about 7:07pm Thu 5 Nov Sydney, then Jo taps Send.
+- HV-3682 is the only other job affected. The owner said yes, but the OK to share is still not saved.
 
-### 1) What Wayne saw and why the share didn't save
-- 2 Nov, 7:07pm Sydney: Rapid Insulation's area batch (81e531cc…, just 1 home) texted Wayne the quick-taps link.
-- 7:09pm: he answered every question and tapped "Yes, let's go". His answers saved once (go = yes, outcome = pass, OK to share = yes).
-- Straight after that, the portal tried to save his OK to share his name and number with the installer. The database refused it every time with: *violates check constraint "owner_gate_signatures_check"*.
-- Cause: quick taps saved the OK as a "code sign-in", and the database only accepts a code sign-in when a verified code is attached. Quick taps never sends a code, so every attempt failed. It wasn't a security-rule (RLS) problem.
-- Because the OK was missing, his screen kept showing the "try again" view instead of the thank-you screen. Each tap logged another failure. The database has **19** of these, not 21, between 7:09pm and 8:49pm.
+## What will happen
+1. **Dry run** of the existing one-off repair. It lists owners who said yes but have no saved OK. Expected: HV-3682 only. I'll show you the list.
+2. **Apply, only after Jo OKs the list.** It saves HV-3682's OK once, from the owner's recorded "yes", through the same save the owner's own tap uses. It also logs a "quick_taps_share_repaired" entry in the job history.
+3. Confirm the saved OK afterwards.
 
-### 2) Was it saved, and why hasn't his job moved on?
-- His "yes" was saved at 7:09pm.
-- His OK to share **is now saved**: 2 Nov at 9:03pm Sydney, as "Owner paperwork A: Sharing with your tradies signed". That's after the 2 Nov fix (migration 0187, the new "quick tap link" method) went live. There have been no failures since 8:49pm. On 3 Nov he also did the roof check (pitched).
-- **His job isn't stuck.** "Ready Check ready to schedule" with no booking is the normal waiting place under the current rules:
-  - The batch closes 72 hours after it was sent: about **7:07pm Thu 5 Nov Sydney**.
-  - It then shows as "waiting for your OK to send to the installer".
-  - Nothing goes to Rapid until Jo taps **Send**. Only after that does Rapid contact him and book the Ready Check.
-  - Rapid is also not switched to in-house yet.
+Nothing is sent. No other jobs, settings or code change, and nothing is published. The repeat-logging change and closing batches early are not included.
 
-### 3) Did anyone else hit it?
-- Only one other job: **HV-3682**. It had 1 failure on 1 Nov, and its OK to share is **still not saved**, even though the owner said yes. That job has since moved on to the safety-check stage.
-- No other "yes" answers are missing their OK.
-
-## Fix plan (needs Jo's OK for each step)
-1. **The main fix is already live** (0187). There's no new code change for the cause.
-2. **HV-3682 repair:** use the existing one-off repair (`repairQuickTapsSharing`).
-   - First a dry run, showing the list: it should be HV-3682 only.
-   - Then, only after Jo OKs it, save that owner's OK once from their recorded "yes". Nothing is sent.
-3. **Optional (Jo to choose):** stop repeat logging. When the same job and batch keep failing for the same reason, record the failure once, so there's no pile of 19 identical failures.
-4. **Not proposed unless Jo asks:** closing a batch early when every owner in it has already answered. Today Wayne waits the full 72 hours.
-
-## Tests (only for steps Jo approves)
-- Repair dry run on the practice database: lists only owners who said yes but have no saved OK. It skips declines, closed jobs and anyone already saved.
+## Tests (practice database, before the live run)
+- The dry run lists only owners who said yes and have no saved OK. It skips declines, cancelled or deleted jobs, and anyone already saved.
 - Running the repair twice saves only one OK.
-- The existing 0187 checks still pass: a quick-tap OK saves for sharing only, and a code sign-in with no code is still refused.
-- If step 3 is approved: repeat failures for the same job and batch write one log entry.
-
-No code, data, sends or publishing until Jo approves.
+- The 0187 checks still pass: a quick-tap OK saves for sharing only, and a code sign-in with no code is still refused.
