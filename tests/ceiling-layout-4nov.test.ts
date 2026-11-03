@@ -181,3 +181,25 @@ describe("Jo 4 Nov follow-up", () => {
     expect(isThickerOptionCode("INSTALLER_A1")).toBe(false);
   });
 });
+
+describe("Jo 4 Nov: office Send with more than one option", () => {
+  it("releases both together when neither is held", async () => {
+    const { optionSendDecision } = await import("@/lib/ceiling-layout.core");
+    expect(optionSendDecision({ mainBlockers: [], companions: [{ label: "Thicker option – R6.0 total", blockers: [] }], mainOnly: false })).toEqual({ ok: true, releaseCompanions: true });
+  });
+  it("refuses when the thicker option is held, naming it, unless 'Send main only' is chosen", async () => {
+    const { optionSendDecision } = await import("@/lib/ceiling-layout.core");
+    const r = optionSendDecision({ mainBlockers: [], companions: [{ label: "R6.0 total ceiling insulation", blockers: ["R6.0 retail price is not set – quote held for office review."] }], mainOnly: false });
+    expect(r.ok).toBe(false);
+    expect(!r.ok && r.reason).toContain("R6.0 total ceiling insulation is held: R6.0 retail price is not set");
+    expect(optionSendDecision({ mainBlockers: [], companions: [{ label: "x", blockers: ["held"] }], mainOnly: true })).toEqual({ ok: true, releaseCompanions: false });
+  });
+  it("a held main option is never sent, even with 'Send main only'", async () => {
+    const { optionSendDecision } = await import("@/lib/ceiling-layout.core");
+    expect(optionSendDecision({ mainBlockers: ["15% check"], companions: [], mainOnly: true }).ok).toBe(false);
+  });
+  it("the top-up switch is an office Settings switch, ON in the database by default", async () => {
+    const { OFFICE_SWITCH_COLUMNS } = await import("@/lib/office-settings.core");
+    expect(OFFICE_SWITCH_COLUMNS).toContain("topups_count_existing_insulation");
+  });
+});

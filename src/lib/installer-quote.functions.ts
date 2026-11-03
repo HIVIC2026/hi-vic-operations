@@ -14,7 +14,7 @@ export const getInstallerQuoteDraft = createServerFn({ method: "POST" }).middlew
     const { data: job, error: je } = await admin.from("jobs").select("channel").eq("id", data.jobId).single();
     if (je) throw new Error(je.message);
     const [{ data: q, error }, { data: held, error: he }] = await Promise.all([
-      admin.from("quotes").select("id, status, sent_at, option_code, release_state, release_hold_reason, discount_note, subtotal_inc_gst, veec_discount_inc_gst, customer_total_inc_gst, cobrand, created_at, quote_items(id, code, description, explanation, quantity, unit, unit_price_inc_gst, line_total_inc_gst, sort)")
+      admin.from("quotes").select("id, status, sent_at, option_code, option_label, release_state, release_hold_reason, discount_note, subtotal_inc_gst, veec_discount_inc_gst, customer_total_inc_gst, cobrand, created_at, quote_items(id, code, description, explanation, quantity, unit, unit_price_inc_gst, line_total_inc_gst, sort)")
         .eq("job_id", data.jobId).eq("kind", "installation").in("status", ["draft", "issued", "accepted"]).order("created_at", { ascending: false }).limit(6)
         // Jo 4 Nov follow-up: the main option is the one reviewed; its "thicker too" companion goes with it on Send.
         .then(async (r) => { const { isThickerOptionCode } = await import("./ceiling-layout.core"); return { ...r, data: r.data ? (r.data.find((x) => !isThickerOptionCode(x.option_code)) ?? r.data[0] ?? null) : null }; }),
@@ -25,8 +25,22 @@ export const getInstallerQuoteDraft = createServerFn({ method: "POST" }).middlew
     const heldNewer = held && (!q || held.created_at > q.created_at);
     const reviewable = q ? (await import("./office-quote-review.core")).quoteNeedsOfficeReview(q) : false;
     const blockers = q && reviewable ? await (await import("./office-quote-review.server")).officeQuoteBlockers(data.jobId, q) : [];
+    // Jo 4 Nov: every other option that goes with this one (thicker too), each with its own lines and holds.
+    const companions: { id: string; label: string; status: string; subtotal: number; discount: number; total: number; discountNote: string | null; items: { description: string; quantity: number; unit: string; unit_price_inc_gst: number; line_total_inc_gst: number; explanation: string | null; sort: number }[]; blockers: string[] }[] = [];
+    if (q && reviewable) {
+      const { optionGroupFor } = await import("./ceiling-layout.core");
+      const group = optionGroupFor(q.option_code).filter((c) => c !== q.option_code);
+      if (group.length) {
+        const { data: rows, error: ce } = await admin.from("quotes").select("id, status, sent_at, option_code, option_label, release_state, release_hold_reason, discount_note, subtotal_inc_gst, veec_discount_inc_gst, customer_total_inc_gst, created_at, quote_items(description, explanation, quantity, unit, unit_price_inc_gst, line_total_inc_gst, sort)")
+          .eq("job_id", data.jobId).eq("kind", "installation").eq("status", "draft").is("sent_at", null).in("option_code", group).order("created_at", { ascending: true });
+        if (ce) throw new Error("The other quote option could not be read.");
+        const review = await import("./office-quote-review.server");
+        for (const r of rows ?? []) companions.push({ id: r.id, label: r.option_label ?? r.option_code ?? "Other option", status: r.status, subtotal: Number(r.subtotal_inc_gst), discount: Number(r.veec_discount_inc_gst), total: Number(r.customer_total_inc_gst), discountNote: r.discount_note, items: [...(r.quote_items ?? [])].sort((a, b) => a.sort - b.sort).map((i) => ({ ...i, quantity: Number(i.quantity), unit_price_inc_gst: Number(i.unit_price_inc_gst), line_total_inc_gst: Number(i.line_total_inc_gst) })), blockers: await review.officeQuoteBlockers(data.jobId, r) });
+      }
+    }
     return {
       applies: true as const,
+      companions,
       quote: q ? { ...q, quote_items: [...(q.quote_items ?? [])].sort((a, b) => a.sort - b.sort) } : null,
       heldBlockers: [...new Set([...blockers, ...(heldNewer ? (((held.details as { blockers?: string[]; reasons?: string[] } | null)?.blockers) ?? (held.details as { reasons?: string[] } | null)?.reasons ?? []) : [])])],
       channel: job.channel,
@@ -35,10 +49,10 @@ export const getInstallerQuoteDraft = createServerFn({ method: "POST" }).middlew
   });
 
 export const sendInstallerQuote = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobId: z.string().uuid(), quoteId: z.string().uuid() }).parse(d))
+  .inputValidator((d) => z.object({ jobId: z.string().uuid(), quoteId: z.string().uuid(), mainOnly: z.boolean().optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireOfficeJob(context.supabase, data.jobId, context);
-    return (await import("./office-quote-review.server")).sendOfficeReviewedQuote(data.jobId, data.quoteId, context.userId);
+    return (await import("./office-quote-review.server")).sendOfficeReviewedQuote(data.jobId, data.quoteId, context.userId, data.mainOnly === true);
   });
 
 // ---- Approved installer intake (Jo, 8 Oct 2026): office review of the short intake. Admin only. ----
