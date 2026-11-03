@@ -62,8 +62,17 @@ describe("Team page fills missing details (Jo 3 Nov 3pm)", () => {
   it("saves a missing email for an electrician", () => {
     expect(teamFillMissing("electrician", { hasDateOfBirth: true, email: null }, { email: " Pete@Orlando.com.au " }, today)).toEqual({ ok: true, dateOfBirth: null, email: "pete@orlando.com.au" });
   });
-  it("installers are never asked for an email here", () => {
-    expect(teamFillMissing("installer", { hasDateOfBirth: true, email: null }, { email: "x@y.co" }, today).ok).toBe(false);
+  it("installer bosses can fill a missing optional email", () => {
+    expect(teamFillMissing("installer", { hasDateOfBirth: true, email: null }, { email: " Wayne@Example.com.au " }, today)).toEqual({ ok: true, dateOfBirth: null, email: "wayne@example.com.au" });
+  });
+  it("never overwrites an installer email", () => {
+    expect(teamFillMissing("installer", { hasDateOfBirth: true, email: "saved@example.com.au" }, { email: "new@example.com.au" }, today)).toEqual({ ok: false, error: "Their email is already saved." });
+  });
+  it("optional installer email has no missing-details prompt", () => {
+    expect(teamMissingPrompt("Wayne Fletcher", teamMissingDetails("installer", { mobile: "0401113701", email: null, hasDateOfBirth: true }))).toBeNull();
+  });
+  it("refuses an invalid optional installer email", () => {
+    expect(teamFillMissing("installer", { hasDateOfBirth: true, email: null }, { email: "nope" }, today)).toEqual({ ok: false, error: TEAM_ERRORS.badEmail });
   });
   it("refuses a bad email", () => {
     expect(teamFillMissing("electrician", { hasDateOfBirth: true, email: null }, { email: "nope" }, today).ok).toBe(false);
