@@ -12,7 +12,7 @@ describe("guide fix 2 — O33 deposit wording", () => {
     const m = renderInstallDaysEmail({ ...base, balanceIncGst: 3379 });
     for (const s of [m.html, m.text]) {
       expect(s).toContain("To book your day, sign your install consent and pay your 10% deposit of $337.90. Once it's in, your day is locked in.");
-      expect(s).toContain("The rest, $3,041.10, is due on install day. Or you can pay in full now.");
+      expect(s).toContain("The rest of your payment, $3,041.10, is due on install day. Or you can pay in full now.");
       expect(s).not.toContain("48 hours");
       expect(s).not.toContain("When you tap a day");
     }
@@ -21,7 +21,7 @@ describe("guide fix 2 — O33 deposit wording", () => {
     const m = renderInstallDaysEmail({ ...base, balanceIncGst: null });
     for (const s of [m.html, m.text]) {
       expect(s).toContain("To book your day, sign your install consent and pay your 10% deposit. Once it's in, your day is locked in.");
-      expect(s).toContain("The rest is due on install day. Or you can pay in full now.");
+      expect(s).toContain("The rest of your payment is due on install day. Or you can pay in full now.");
       expect(s).not.toContain("48 hours");
     }
   });

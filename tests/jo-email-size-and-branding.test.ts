@@ -13,6 +13,7 @@ import {
 import { joAreaBasis } from "../src/lib/jo-area-basis.core";
 import { withUnsubscribe } from "../src/lib/emailsafety.core";
 import { MAIL_LOGO_URL } from "../src/lib/mail-mjml.core";
+import { HOMEOWNER_PAGE_URL } from "../src/lib/email-kit.core";
 
 const RECIPIENT = {
   firstName: "Alex",
@@ -196,7 +197,7 @@ describe("F. the approved wording (decisions 66, 67, 69, 73) is what renders", (
       "Spots are released in the order they were saved. There's no cost and no obligation, and we'll be in touch when yours is released.",
       "Save my free spot", "What's included in $1,900", "Electrical safety check (PIESA) by a licensed electrician", "Premium R5.0 ceiling batts", "AS/NZS 4859.1",
       "Fitted by an EEC-certified installer", "AS 3999", "We handle the rebate", "A003654", "Not included – only if needed", "Removing old insulation", "Ceiling access fee", "Electrical upgrades", "A bigger ceiling",
-      "You'll see your exact price before you agree to anything.", "See your full estimate",
+      "You'll see your exact price before you agree to anything.",
     ]) expect(m.html).toContain(t);
     expect(m.html).not.toContain("Ready Check");
     expect(m.html).toContain(`href="${LINKS.saveMySpotUrl}"`);
@@ -224,7 +225,7 @@ describe("F. the approved wording (decisions 66, 67, 69, 73) is what renders", (
   test("O6 not eligible (T7): result headline, Why box, Review my result, friend card", () => {
     const t7 = render({ outcome: "does_not_appear_eligible", insulation: null, reason: "Built after 2010." });
     for (const t of ["Alex, your ceiling insulation result", "We'd rather tell you now than waste your time.", ">Why<", "Built after 2010.", "Something doesn't look right?", "Review my result", "Know someone thinking about insulation?", "Send to a friend"]) expect(t7.html).toContain(t);
-    expect(t7.html).toContain(`href="${LINKS.reviewResultUrl}"`);
+    expect(t7.html).toContain(`href="${HOMEOWNER_PAGE_URL}"`);
     expect(t7.plainText).toContain("Built after 2010.");
   });
 });

@@ -27,7 +27,7 @@ import { classifyEmailIntents, type EmailIntent } from "./email-intent.core";
 import { classifyIntent, latestReplyText } from "./outlook-correspondence.core";
 import { firstNameOf, isEnquiryStage, slotText, type Slot } from "./email-reply.core";
 import { newSenderReplySubject } from "./new-sender-reply.core";
-import { SPOT_INSTALLER_CALLS } from "./spot-only-copy.core";
+import { SPOT_INSTALLER_CALLS, SPOT_ORDER } from "./spot-only-copy.core";
 
 /** Jo approved the O76 wording on 27 Oct 2026 (decision 406). Real delivery also needs customer_comms_enabled + consent. */
 export const OWNER_EMAIL_AUTO_REPLY_APPROVED: boolean = true;
@@ -41,7 +41,7 @@ export const OWNER_EMAIL_AUTO_REPLY_PURPOSE = "owner_email_auto_reply";
 /** The Needs me row reuses the decision-245 email row (`email_change_request`) with this intent: "reply needed". */
 export const REPLY_NEEDED_INTENT = "reply";
 export const SIGN_OFF = "Cheers, the Home Insulation Victoria team";
-export const LONG_LIST = "Spots are released in the order they were saved.";
+export const LONG_LIST = SPOT_ORDER;
 
 /** Idempotency: one automatic reply per Outlook message, ever. */
 export function autoReplyKey(providerMessageId: string): string {

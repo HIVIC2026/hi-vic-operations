@@ -44,3 +44,39 @@ test("rendered owner emails carry no retired wording", () => {
   expect(retiredIn(m.plainText)).toEqual([]);
   expect(flat(m.html + m.plainText)).not.toMatch(/electrical fixes/i);
 });
+
+// Every owner template in the Templates hub, rendered: no retired term, no "lawyer", no standalone "HIV".
+import { TEMPLATE_ENTRIES } from "../src/lib/template-hub.core";
+// Part 3/4 rewrite: owner touchpoints that still hold old wording until Part 3/4 replaces them (id -> why).
+// These four are the signed owner gate texts (src/lib/owner-gates.core.ts, exact signed wording kept until a new version is approved).
+const PART_3_4_ALLOWLIST: Record<string, string> = {
+  "owner:paperwork:tenancy_details": "Part 3/4 rewrite: signed gate text says lawyer",
+  "owner:paperwork:landlord_consent": "Part 3/4 rewrite: signed gate text says lawyer",
+  "owner:paperwork:visit_permission": "Part 3/4 rewrite: signed gate text says lawyer",
+  "owner:paperwork:quote_acceptance": "Part 3/4 rewrite: signed gate text says VEU discount and lawyer",
+};
+const previewText = (p: ReturnType<(typeof TEMPLATE_ENTRIES)[number]["render"]>): string => {
+  switch (p.kind) {
+    case "email": return `${p.subject}\n${p.html}`;
+    case "text": return p.body;
+    case "texts": return p.variants.map((v) => `${v.label}\n${v.body}`).join("\n");
+    case "doc": return `${p.title}\n${p.body}`;
+    case "table": return [p.title, ...p.columns, ...p.rows.flat()].join("\n");
+    case "questions": return [p.title, ...p.groups.flatMap((g) => [g.heading, ...g.items.map((i) => `${i.label} ${i.note ?? ""}`)])].join("\n");
+    default: return "";
+  }
+};
+test("every owner template in the Templates hub is free of retired wording, 'lawyer' and 'HIV'", () => {
+  const owner = TEMPLATE_ENTRIES.filter((e) => e.section === "owner");
+  expect(owner.length).toBeGreaterThan(20);
+  const bad: string[] = [];
+  for (const e of owner) {
+    if (PART_3_4_ALLOWLIST[e.id]) continue;
+    const text = flat(previewText(e.render()));
+    const hits = retiredIn(text);
+    if (/lawyer/i.test(text)) hits.push("lawyer");
+    if (/\bHIV\b/.test(text)) hits.push("HIV");
+    if (hits.length) bad.push(`${e.id} (${e.name}): ${hits.join(", ")}`);
+  }
+  expect(bad).toEqual([]);
+});

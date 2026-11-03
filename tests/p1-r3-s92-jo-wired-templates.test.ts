@@ -22,6 +22,7 @@ import {
   type JoOutcomeEmailInput,
 } from "../src/lib/jo-outcome-email.core";
 import { ctasForTemplate, selectJoTemplate } from "../src/lib/jo-email-templates.core";
+import { HOMEOWNER_PAGE_URL } from "../src/lib/email-kit.core";
 
 // ---------------------------------------------------------------------------
 // Shared fixtures
@@ -149,7 +150,7 @@ describe("A5. T7 ineligible routing is preserved", () => {
     const mail = renderJoOutcomeEmail(base({ outcome: "does_not_appear_eligible", insulation: null, ceilingSizeKnown: false, reason: "Built after 2010." }))!;
     expect(mail.templateId).toBe("ineligible");
     expect(mail.ctas).toEqual(["review_result"]);
-    expect(mail.html).toContain(`href="${LINKS.reviewResultUrl}"`);
+    expect(mail.html).toContain(`href="${HOMEOWNER_PAGE_URL}"`);
     expect(mail.plainText).toContain("Built after 2010.");
     expect(mail.plainText).not.toContain("What this includes");
   });

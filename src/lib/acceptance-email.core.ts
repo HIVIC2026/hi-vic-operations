@@ -5,7 +5,7 @@
 // ACCEPTANCE_EMAIL_APPROVED (on since decision 90) AND customer_comms_enabled, through the guarded owner-email path. Pure.
 import * as K from "./email-kit.core";
 import { esc, mjEmail } from "./mail-mjml.core";
-import { COMPLAINT_LINE } from "./owner-wording.core";
+import { COMPLAINT_LINE, REST_ON_INSTALL_DAY } from "./owner-wording.core";
 
 /** Jo 24 Oct 2026, decision 90 (O22 "You're in!" + $349 receipt): approved. Delivery still behind customer_comms_enabled. */
 export const ACCEPTANCE_EMAIL_APPROVED = true as boolean;
@@ -25,7 +25,7 @@ export function renderYoureInEmail(i: AcceptanceEmailInput) {
   const intro = `Thanks for accepting your quote. Warmer winters and cooler summers are on the way${i.rebate && i.rebate > 0 ? `, with ${K.whole(i.rebate)} off` : ""}.`;
   const pay = i.payment;
   const remaining = pay ? Math.max(0, i.totalIncGst - pay.amount) : i.totalIncGst;
-  const remainingLine = `Still to pay: ${K.cents(remaining)} (10% to book your install day, the rest on install day)`;
+  const remainingLine = `Still to pay: ${K.cents(remaining)} (10% to book your install day, ${REST_ON_INSTALL_DAY})`;
   const payLabel = pay?.label ?? "Electrical safety check (PIESA)";
   const preview = pay ? `We've got your ${K.cents(pay.amount)} payment. Next up: your electrical safety check.` : "Next up: your electrical safety check.";
   const payCard = pay
