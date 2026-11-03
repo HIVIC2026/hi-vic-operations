@@ -17,7 +17,7 @@ describe("Complete → the boss enters the price → the quote goes out", () => 
     expect(OWNER_QUOTE_PRICE_NEXT_LINE).toBe(QUOTE_PRICE_NEXT_LINE);
   });
   test("no trade-facing string in those files implies an automatic send on Complete", () => {
-    for (const f of ["src/lib/installer-quote-status.core.ts", "src/components/trade/OwnerQuoteCard.tsx"]) {
+    for (const f of ["src/lib/installer-quote-status.core.ts", "src/components/trade/OwnerQuoteCard.tsx", "src/lib/installer-screens.core.ts"]) {
       const strings = read(f).match(/"[^"\n]*"|'[^'\n]*'|`[^`\n]*`/g) ?? [];
       for (const s of strings) expect(s, `${f}: ${s}`).not.toMatch(AUTO_SEND);
     }

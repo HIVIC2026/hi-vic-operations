@@ -541,7 +541,7 @@ export function jobNext(f: JobNextFacts): JobNext {
       return {
         panel: "mitti_form",
         title: `Ready Check ${dayAndTime(f.readyCheckBookedAt)}`,
-        sub: "Fill in the Mitti form on site and press Complete when it's finished — we then send the owner their quote.",
+        sub: PRESS_COMPLETE_LINE, // DRAFT (Jo 3 Nov: the boss enters the price after Complete, then the quote goes)
         yours: true,
       };
     // Approved state M2-own-before-ready-check: the installer arranges the visit with the owner directly (decisions 110/116).
@@ -556,7 +556,7 @@ export function jobNext(f: JobNextFacts): JobNext {
       return {
         panel: "mitti_form",
         title: "Do the Ready Check in Mitti",
-        sub: "Press Complete when it's fully finished — we then send the owner their quote.",
+        sub: PRESS_COMPLETE_LINE, // DRAFT (Jo 3 Nov: the boss enters the price after Complete, then the quote goes)
         yours: true,
       };
     return {
