@@ -53,6 +53,12 @@ describe("first load: only the page", () => {
     expect(staticGraph("src/components/portal/SignInCard.tsx").has("src/components/trade/TradeShell.tsx")).toBe(false);
   });
 
+  test("the Templates route reads its address without loading every template (validateSearch loads with the app)", () => {
+    const route = "src/routes/_authenticated/admin.templates.tsx";
+    expect(src(route)).not.toMatch(/from\s+["']@\/lib\/template-hub\.core["']/);
+    expect(staticGraph("src/lib/template-sections.core.ts").size).toBe(1);
+  });
+
   test("other pages are fetched on intent (hover/touch), and an intent preload is reused for 30 s", () => {
     const r = src("src/router.tsx");
     expect(r).toMatch(/defaultPreload:\s*"intent"/);

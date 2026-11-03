@@ -95,17 +95,9 @@ import { renderInstallDepositOwnerEmail, renderInstallerDepositPaidEmail, deposi
 
 /* ---------------------------------------------------------------- types */
 
-export type TemplateSection = "owner" | "installer" | "electrician" | "office" | "mitti" | "compliance" | "invoices" | "waiting";
-export const TEMPLATE_SECTIONS: { key: TemplateSection; label: string; hint: string }[] = [
-  { key: "owner", label: "Owner", hint: "Emails, texts, My job pages and paperwork the homeowner gets" },
-  { key: "installer", label: "Installer", hint: "Emails and texts to installer businesses and their crews" },
-  { key: "electrician", label: "Electrician", hint: "Emails and texts to electricians" },
-  { key: "office", label: "Office", hint: "What the office itself sends or reviews" },
-  { key: "mitti", label: "Mitti forms", hint: "The five Mitti forms A1–A5, questions as the portal reads them" },
-  { key: "compliance", label: "VEU / compliance", hint: "Official forms and documents the owner, installer or ESC receives" },
-  { key: "invoices", label: "Invoices", hint: "The final invoice email and the Xero invoice layout" },
-  { key: "waiting", label: "Waiting for Jo's approval", hint: "Drafts that send nothing until Jo approves the wording" },
-];
+// Section list and search parser live in template-sections.core so the route can read the address without loading every template.
+import type { TemplateSection } from "./template-sections.core";
+export { TEMPLATE_SECTIONS, parseTemplateSearch, type TemplateSection } from "./template-sections.core";
 
 export type TemplateStep = "enquiry" | "ready_check" | "quote" | "safety_check" | "fixes" | "install" | "rebate" | "paid" | "any";
 export const STEP_ORDER: TemplateStep[] = ["enquiry", "ready_check", "quote", "safety_check", "fixes", "install", "rebate", "paid", "any"];
@@ -807,11 +799,6 @@ export function selectTemplate(section: TemplateSection, id: string | undefined)
   return list.find((e) => e.id === id) ?? list[0]!;
 }
 
-export function parseTemplateSearch(s: Record<string, unknown>): { cat: TemplateSection; t?: string } {
-  const cat = TEMPLATE_SECTIONS.some((c) => c.key === s["cat"]) ? (s["cat"] as TemplateSection) : "owner";
-  const t = typeof s["t"] === "string" && s["t"].length < 80 ? s["t"] : undefined;
-  return { cat, ...(t ? { t } : {}) };
-}
 
 /** Text types with a named Settings switch (office-settings.core SWITCHES); every other type is `sms:<type>`. */
 const NAMED_SMS_SWITCHES = new Set(["spot_saved", "install_no_access", "veec_sign_reminder"]);
