@@ -9,6 +9,7 @@ import { addTeamPerson, getTradeBusiness, requestTeamLoginInvite, setTeamMemberM
 import { removeWorker } from "@/lib/worker-links.functions";
 import { ROLE_LABEL, TEAM_ADD_SHEET, TEAM_LOGIN, TEAM_MOBILE_NOTE, TEAM_RULE, TEAM_SIGN, teamMobileButton, teamCiiLine, teamCountLine, teamFactsLine, teamWhiteCardLine } from "@/lib/trade-view.core";
 import { melbourneToday } from "@/lib/melbourne-time.core";
+import { teamMemberDetails, teamMissingPrompt } from "@/lib/team-required.core";
 import { CertLinkInline, SendNoticeLinkInline, WhiteCardUploadInline } from "@/components/portal/worker-compliance";
 import { WorkerRoleSwitch } from "@/components/portal/worker-role-switch";
 
@@ -48,6 +49,7 @@ function Team() {
                 <li key={id ?? `owner-${m.email ?? m.name}`} id={id ? `w-${id}` : "owner"} className="border-b border-estimate-line py-3">
                   <p className="text-base font-semibold text-estimate-navy">{m.name} <span className="text-[13px] font-medium text-estimate-sub">· {ROLE_LABEL[m.role]}</span></p>
                   <p className="mt-0.5 text-[13px] text-estimate-sub">{teamFactsLine(m)}{m.email ? ` · ${m.email}` : ""}</p>
+                  {(() => { const ask = teamMissingPrompt(m.name, m.missingDetails ?? []); return ask ? <p data-team-missing className="mt-1 rounded-[10px] bg-estimate-amber-soft px-2.5 py-1.5 text-[13px] font-semibold text-estimate-navy">{ask}. Ask the office if you can't add it here.</p> : null; })()}
                   {m.dateOfBirth&&<p className="text-[13px] text-estimate-sub">Date of birth: {m.dateOfBirth}</p>}
                   {m.declarationsDue && <p data-sign-due className="mt-0.5 text-[13px] font-semibold text-[#8A3B4A]">{TEAM_SIGN.due}</p>}
                   {cii && <p className={`mt-0.5 text-[13px] font-semibold ${cii.tone === "green" ? "text-estimate-green" : "text-[#8A3B4A]"}`}>{cii.text}</p>}
@@ -139,18 +141,21 @@ function AddTeamMember({ count, kind, onAdded }: { count: number; kind: "install
               ))}
             </fieldset>
           )}
-          {kind==='installer'&&<label className={label}>Date of birth<input type="date" required max={melbourneToday()} className={input} value={f.dateOfBirth} onChange={e=>setF({...f,dateOfBirth:e.target.value})}/></label>}
+          <label className={label}>Date of birth<input type="date" required max={melbourneToday()} className={input} value={f.dateOfBirth} onChange={e=>setF({...f,dateOfBirth:e.target.value})}/></label>
           <label className={label}>{TEAM_ADD_SHEET.mobile}
             <input className={input} value={f.mobile} inputMode="tel" autoComplete="tel" onChange={(e) => setF({ ...f, mobile: e.target.value })} />
           </label>
-          <label className={label}>{TEAM_ADD_SHEET.email}
+          <label className={label}>{kind === "electrician" ? TEAM_ADD_SHEET.emailElectrician : TEAM_ADD_SHEET.email}
             <input className={input} value={f.email} inputMode="email" autoComplete="email" onChange={(e) => setF({ ...f, email: e.target.value })} />
           </label>
           {err && <p role="alert" className="mt-2 text-sm font-semibold text-[#8A3B4A]">{err}</p>}
-          <button type="button" disabled={busy || f.name.trim().length < 2 || (kind === "electrician" && !f.licence.trim()) || (kind==='installer'&&!f.dateOfBirth)} className="mt-4 flex min-h-14 w-full items-center justify-center rounded-[14px] bg-estimate-blue text-[17px] font-bold text-white disabled:opacity-45" onClick={async () => {
-            setBusy(true); setErr(null);
+          <button type="button" disabled={busy || f.name.trim().length < 2 || (kind === "electrician" && !f.licence.trim()) || !f.mobile.trim() || !f.dateOfBirth || (kind === "electrician" && !f.email.trim())} className="mt-4 flex min-h-14 w-full items-center justify-center rounded-[14px] bg-estimate-blue text-[17px] font-bold text-white disabled:opacity-45" onClick={async () => {
+            setErr(null);
+            const check = teamMemberDetails(kind, { mobile: f.mobile, email: f.email, dateOfBirth: f.dateOfBirth }, melbourneToday());
+            if (!check.ok) { setErr(check.error); return; }
+            setBusy(true);
             try {
-              await add({ data: { name: f.name.trim(), workerRole: kind === "installer" ? f.role : "lead", mobile: f.mobile.trim() || null, email: f.email.trim() || null, licenceNumber: kind === "electrician" ? f.licence.trim() : null,dateOfBirth:kind==='installer'?f.dateOfBirth:null } });
+              await add({ data: { name: f.name.trim(), workerRole: kind === "installer" ? f.role : "lead", mobile: f.mobile.trim() || null, email: f.email.trim() || null, licenceNumber: kind === "electrician" ? f.licence.trim() : null,dateOfBirth:f.dateOfBirth } });
               setOpen(false); setF({ name: "", mobile: "", email: "", licence: "",dateOfBirth:"", role: "lead" }); onAdded();
             } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
           }}>{busy ? "Adding…" : TEAM_ADD_SHEET.button}</button>
