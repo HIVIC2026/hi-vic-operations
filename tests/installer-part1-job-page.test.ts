@@ -42,8 +42,11 @@ test("C6: Open Mitti form has exactly one place", () => {
   expect(mittiLinkPlace({ ...f, mittiInvited: false, panel: "mitti_form", yours: true })).toBeNull();
   const r = read(ROUTE);
   // Job page redesign (Task 5): the Next step box holds the one "Open the Mitti form" button; the old Ready Check group is gone.
-  expect(r).toContain('box.button === "Open the Mitti form" && mittiAudit');
-  expect((r.split("function InstallerFlow")[1] ?? "").match(/<MittiFormLink auditId=\{mittiAudit\}/g)?.length).toBe(1);
+  // Task 6: the box component holds that one button (page passes the audit id; nothing else in InstallerFlow links the form).
+  expect(r).toContain("mittiAuditId={mittiAudit}");
+  const box = read("src/components/trade/NextStepBox.tsx");
+  expect(box).toContain("box.button === NEXT_STEP_WORDS.mittiButton && mittiAuditId");
+  expect((r.split("function InstallerFlow")[1] ?? "").match(/<MittiFormLink auditId=\{mittiAudit\}/g)?.length ?? 0).toBe(0);
   expect(r).not.toContain('next.panel === "mitti_form" || (next.panel === "quote_status" && next.yours)'); // old inline rule gone
 });
 test("C7: plain staff-links label", () => {

@@ -1071,6 +1071,29 @@ export async function tradeSetReadyCheckTime(userId: string, jobId: string, pick
   return { ok: true, startsAt: start };
 }
 
+/** Task 6 (installer screens): the confirmed visits still ahead when a trade hands the job back — each one gets Part 4's
+ *  "your booked visit can't go ahead" owner email. Read BEFORE the hand-back; a read failure means no email, logged. */
+export async function confirmedFutureBookings(jobId: string, now = new Date()): Promise<{ id: string; kind: string; scheduled_start: string }[]> {
+  const { data, error } = await admin.from("bookings").select("id, kind, scheduled_start").eq("job_id", jobId).eq("status", "confirmed").gt("scheduled_start", now.toISOString()).order("scheduled_start");
+  if (error) throw new Error(error.message);
+  return (data ?? []).flatMap((b) => (b.scheduled_start ? [{ id: b.id, kind: b.kind, scheduled_start: b.scheduled_start }] : []));
+}
+
+/** A follow-up after a hand-back / owner-cancelled that could not run: one internal note on the job, never a thrown error
+ *  (the cancel has already happened and is never undone). */
+export async function logTradeFollowUpFailed(jobId: string, actorId: string, step: string, err: unknown): Promise<void> {
+  const message = err instanceof Error ? err.message : String(err);
+  console.error(`trade follow-up failed (${step})`, message);
+  await logEvent(jobId, actorId, "trade_followup_failed", `After the trade's action, "${step}" could not run: ${message}`, { step, message }, { internal: true }).catch((e) => console.error("trade_followup_failed not logged", e));
+}
+
+/** Part 9 Task 2 owns `requireEscWithdrawal` (esc.server.ts). TODO(join): once it is in this build the optional lookup
+ *  below finds it; until then the trade action records nothing about the ESC notice (the office still sees the cancel). */
+export async function escWithdrawalFn(): Promise<((jobId: string, reason: "owner_cancelled" | "cant_do_this_one" | "address_changed", actorId: string | null) => Promise<number>) | null> {
+  const esc = (await import("./esc.server")) as { requireEscWithdrawal?: unknown };
+  return typeof esc.requireEscWithdrawal === "function" ? (esc.requireEscWithdrawal as (jobId: string, reason: "owner_cancelled" | "cant_do_this_one" | "address_changed", actorId: string | null) => Promise<number>) : null;
+}
+
 /** Own in-house business membership, not an offer or a customer's time-picking action. */
 export async function inHouseBookingAccess(userId: string, jobId: string, client = admin): Promise<{ allowed: boolean; blockers: string[]; bookings?: { id: string; kind: string; scheduled_start: string | null; status: string }[] }> {
   const { readInHouseDispatchState } = await import("./in-house-suppression.server");
@@ -1254,6 +1277,8 @@ function installerJobPageParts(i: {
   const visits = visitsRows({ readyCheck: i.rcBook?.scheduled_start ?? null, piesa: i.piesaBook?.scheduled_start ?? null, install: i.inBook?.scheduled_start ?? null });
   return {
     nextStep: box, progress, countdown, label: installerSourceLabel(j?.channel),
+    // Task 6: the box's "{first} gets a You're booked…" line and "Install by {date}" (the 30-day deadline, Melbourne day).
+    ownerFirst, installBy: i.deadline,
     rows: { owner, visits, siteNotes, jobDetails, ownerTold, paperwork },
   };
 }

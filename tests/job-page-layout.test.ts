@@ -9,7 +9,7 @@ const idx = (needle: string, from = 0) => installer.indexOf(needle, from);
 describe("installer Job page layout (jobA3-1/2)", () => {
   test("renders, in order: back link, owner + pill + HV number, progress, countdown, Next step box, folded rows, bottom links", () => {
     const order = [
-      "‹ My work", "page.label", "job.job_number", "page.progress", "page.countdown.line", "data-next-step",
+      "‹ My work", "page.label", "job.job_number", "page.progress", "page.countdown.line", "<NextStepBox",
       'title="Owner"', 'title="Visits"', 'title="Site notes"', 'title="Job details"', 'title="What the owner\'s been told"', 'title="Paperwork"',
       "<ReturnActions",
     ];

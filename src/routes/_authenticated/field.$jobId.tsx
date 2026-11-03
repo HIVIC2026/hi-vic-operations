@@ -17,7 +17,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ArrowLeft, Check, HeartPulse, Phone } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { TradeShell, card, ghostBtn, greenBtn } from "@/components/trade/TradeShell";
+import { TradeShell, card, ghostBtn } from "@/components/trade/TradeShell";
 import { NowPanel, Pill, btnClass } from "@/components/portal/kit";
 
 /** Heading: street and suburb only (no state/postcode). */
@@ -100,8 +100,7 @@ import { CheckMyFormButton } from "@/components/trade/CheckMyFormButton";
 import { InstallerInstallDays, useInstallerInstallDays } from "@/components/portal/install-days";
 import { ElectricianPiesaTimesCard } from "@/components/portal/piesa-times-electrician";
 import { WhosDoingThis } from "@/components/trade/visit-allocation";
-import { PiisaCrewPicker } from "@/components/trade/PiisaCrewPicker";
-import { visitsForStage } from "@/lib/visit-allocation.core";
+import { NextStepBox } from "@/components/trade/NextStepBox";
 import {
   ContactButtons,
   Group,
@@ -912,22 +911,15 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
       )}
 
       <div className="grid items-start gap-4 md:grid-cols-2">
-        <section
-          data-next-step={box.kind}
-          className={`${card} md:col-start-1 md:row-span-3 md:row-start-1 ${box.overdue ? "border-rose" : ""}`}
+        <div className="md:col-start-1 md:row-span-3 md:row-start-1">
+        <NextStepBox
+          jobId={jobId}
+          box={box}
+          ownerFirst={page.ownerFirst}
+          installBy={page.installBy}
+          ownCustomer={page.channel === "installer_sourced"}
+          mittiAuditId={mittiAudit}
         >
-          <h2 className="font-display text-[22px] font-semibold leading-tight">{box.title}</h2>
-          {box.sub && <p className="mt-1.5 text-[15px] text-ink">{box.sub}</p>}
-          {box.lines.length > 0 && (
-            <ul className="mt-3 space-y-1.5 text-[15px]" data-next-lines>
-              {box.lines.map((l) => (
-                <li key={l} className="flex gap-2">
-                  <span aria-hidden className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-hiv-blue" />
-                  {l}
-                </li>
-              ))}
-            </ul>
-          )}
           {ownerReady && bookedKinds.includes(box.kind) && (
             <p className={`mt-3 text-sm font-medium ${ownerReady.done ? "text-hiv-green" : "text-ink"}`} data-owner-ready>
               {ownerReady.text}
@@ -942,18 +934,6 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
               {page.electricianAttendance.alert ?? page.electricianAttendance.line}
             </p>
           )}
-          {box.phone && (
-            <a href={`tel:${box.phone.phone}`} className={`${greenBtn} mt-4`} data-call>
-              <Phone className="h-4 w-4" /> Call {box.phone.name} · {box.phone.phone}
-            </a>
-          )}
-          {box.alsoBookInstall && <p className="mt-3 text-sm text-sub">{box.alsoBookInstall.warn}</p>}
-          {box.button === "Open the Mitti form" && mittiAudit && (
-            <MittiFormLink auditId={mittiAudit} className={`${greenBtn} mt-4`}>
-              Open the Mitti form
-            </MittiFormLink>
-          )}
-          {/* TODO(Task 6): the Book / change-time / change-Lead-Installer / change-electrician actions land in this box. */}
           {showPrice && <div className="mt-4"><InstallerPriceCard jobId={jobId} /></div>}
           {bookedKinds.includes(box.kind) && !signRebate && (
             <Link to="/field/day/$jobId" params={{ jobId }} className={`${ghostBtn} mt-4`} data-todays-job>
@@ -971,7 +951,8 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
               )}
             </div>
           )}
-        </section>
+        </NextStepBox>
+        </div>
 
         <div className="md:col-start-2 md:row-start-1">
           <Fold title="Owner">
@@ -984,8 +965,6 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
         <div className="md:col-start-1 md:row-start-4">
           <Fold title="Visits">
             <FoldRows rows={page.rows.visits} empty={FOLD_EMPTY} />
-            {/* Kept until Task 6 moves "change Lead Installer" into the Next step box. */}
-            {visitsForStage(job.stage).includes("install") && <PiisaCrewPicker jobId={jobId} />}
           </Fold>
         </div>
         <div className="md:col-start-2 md:row-start-2">

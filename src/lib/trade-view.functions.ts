@@ -151,12 +151,22 @@ export const getInHouseBookingTeam = createServerFn({ method: 'POST' }).middlewa
   .inputValidator(z.object({jobId:uuid}))
   .handler(async({data,context})=>(await import('./in-house-booking.server')).bookingTeam(data.jobId,context.userId));
 
+/** "Can't do this one" (Task 6): the guarded pull-back, then — never undoing it — Part 9's ESC withdrawal ask and Part 4's
+ *  owner email for each confirmed future visit (Jo 2 Nov, answer 4). A failed follow-up is logged on the job. */
 export const tradeHandBack = createServerFn({method:'POST'}).middleware([requireSupabaseAuth])
   .inputValidator(z.object({jobId:uuid,reason:z.string().trim().min(3).max(480)}))
   .handler(async({data,context})=>{
+    const tv=await import('./trade-view.server');
     await (await import('./in-house-booking.server')).bookingTeam(data.jobId,context.userId);
+    const booked=await tv.confirmedFutureBookings(data.jobId).catch(async e=>{await tv.logTradeFollowUpFailed(data.jobId,context.userId,'read booked visits',e);return [];});
     await (await import('./in-house-batch.server')).pullBackInHouseJob({jobId:data.jobId,actorId:context.userId,reason:data.reason});
     await (await import('./in-house-handback-cleanup.server')).finishInHouseHandback(data.jobId,context.userId).catch(e=>console.error('Handback cleanup pending',e));
+    try{const requireEscWithdrawal=await tv.escWithdrawalFn();if(requireEscWithdrawal)await requireEscWithdrawal(data.jobId,"cant_do_this_one",context.userId);}
+    catch(e){await tv.logTradeFollowUpFailed(data.jobId,context.userId,'ESC withdrawal',e);}
+    for(const b of booked){
+      try{await (await import('./visit-cancelled-owner.server')).queueVisitCancelledOwnerEmail(data.jobId,b.id,"installer");}
+      catch(e){await tv.logTradeFollowUpFailed(data.jobId,context.userId,`owner email for the ${b.kind} visit`,e);}
+    }
     return {ok:true};
   });
 
@@ -166,6 +176,9 @@ export const tradeOwnerCancelled = createServerFn({method:'POST'}).middleware([r
     await (await import('./in-house-booking.server')).bookingTeam(data.jobId,context.userId);
     const result=await (await import('./office-actions.server')).cancelJobFully(data.jobId,`Owner cancelled: ${data.reason}`,context.userId,{tell:{owner:false,installer:false},suppressRunNotice:true});
     await (await import('./in-house-booking-notices.server')).notifyOfficeOwnerCancelled(data.jobId,data.reason,context.userId);
+    // Task 6: Part 9's ESC withdrawal ask after the cancel; the owner already knows, so no visit email (answer 4).
+    try{const tv=await import('./trade-view.server');const requireEscWithdrawal=await tv.escWithdrawalFn();if(requireEscWithdrawal)await requireEscWithdrawal(data.jobId,"owner_cancelled",context.userId);}
+    catch(e){await (await import('./trade-view.server')).logTradeFollowUpFailed(data.jobId,context.userId,'ESC withdrawal',e);}
     return result;
   });
 
