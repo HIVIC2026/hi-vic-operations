@@ -151,14 +151,15 @@ export const WORKFLOW_DECISIONS = {
       to: "the installer business office email, every installer (not only in-house), one per job + install date (lead-confirm:v1:{job}:{Melbourne date})",
       wording: "DRAFT behind LEAD_INSTALLER_CONFIRM_EMAIL_APPROVED=false — real offices held and recorded once (lead_installer_confirm_held), TEST → test-send",
       lock: "from 5pm that day: Lead Installer and install day locked (leadInstallerLocked); LEAD_LOCKED_MESSAGE = Locked: ESC has been told. Email us to move this install.",
-      writers: ["saveCrewWithLead (different Lead refused; crew-only allowed)", "changeInHouseLeadInstaller", "inHouseBookVisit (moved start or other Lead on an existing install booking)"],
+      writers: ["saveCrewWithLead (different Lead refused; crew-only allowed)", "changeInHouseLeadInstaller", "inHouseBookVisit (moved start or other Lead on an existing install booking)", "allocateVisit kind install (fix I2)"],
+      claim: "fix I1: the lead_installer_confirm_email claim is written only after the sender reports sent; comms off / trade pause / blocked / failed = lead_installer_confirm_held once, key unclaimed, retried next tick",
       replaces: "the 2pm day-before crew reminder (#110)",
     },
     // Part 7 Task 7 (decision #26, Jo 2 Nov 2026).
     dailyJobsText: {
-      to: "workers only (decision #26) who have NOT yet signed the safety plan for today's install (Jo 2 Nov 23:08, Task 7b; current plan fingerprint) — on their own mobile with their own sign link (workerOnlyTextRecipient + swmsUnsignedSigners + swmsSignLink); no fallback to the business owner's mobile",
+      to: "EVERY worker on today's install plan (Lead and crew, decision #26 workers only) who has NOT yet signed the safety plan for that install (Jo 3 Nov 23:08, Task 7b + fix I3; current plan fingerprint) — each on their own mobile with their own sign link (swmsUnsignedSigners → partner_workers mobile → workerOnlyTextRecipient + swmsSignLink); no fallback to the business owner's mobile",
       signed: "a worker who has signed gets nothing, nor the later update; a Ready Check (no SWMS) is never on this text",
-      noWorker: "no text and no log row for that visit",
+      noWorker: "a signer with no staff row (typed-in name), a removed worker or one without a mobile is skipped: no text and no log row",
       piesa: "never on this text (electricians get their own link, Part 6)",
       key: "daily:{business}:{Melbourne date}:w:{worker} (unchanged)",
     },
