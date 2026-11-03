@@ -1,44 +1,39 @@
-# Automatic Mitti invite for Leads — plan
+# HV-2730 (Wayne Wilson) quick taps: findings and fix plan
 
 ## What I found (read-only)
-- The code is ready but switched off three ways: the "Mitti calls checked" flag is off in the code, the auto-invite setting isn't saved, and the HIV trades group ID isn't saved either. The Mitti login secrets (token + user ID) are saved.
-- With the switch off, approving a Lead does nothing: no Mitti call, no message, no record.
 
-## 1) Checking the Mitti user API safely (TEST person only)
-- One-off script, dry run by default, that refuses to run unless the person is a reserved TEST identity (TEST domain / TEST business). It would only ever use the persistent Mitti simulator otherwise.
-- Steps on Jo's "go", one at a time: (a) find by email for an existing TEST user (TEST Bravo Lead, already in Mitti) — read only; (b) create one new TEST Lite user at the TEST inbox jolowexo@hotmail.com (Mitti emails that inbox only); (c) add it to the trades group; (d) deactivate it again. Each step's result shown to Jo before the next.
-- MITTI_TRADES_GROUP_ID is NOT set. Jo/office needs to give us the HIV trades group ID from Mitti and add it in Settings → Secrets first.
+### 1) What Wayne saw and why the share didn't save
+- 2 Nov, 7:07pm Sydney: Rapid Insulation's area batch (81e531cc…, just 1 home) texted Wayne the quick-taps link.
+- 7:09pm: he answered every question and tapped "Yes, let's go". His answers saved once (go = yes, outcome = pass, OK to share = yes).
+- Straight after that, the portal tried to save his OK to share his name and number with the installer. The database refused it every time with: *violates check constraint "owner_gate_signatures_check"*.
+- Cause: quick taps saved the OK as a "code sign-in", and the database only accepts a code sign-in when a verified code is attached. Quick taps never sends a code, so every attempt failed. It wasn't a security-rule (RLS) problem.
+- Because the OK was missing, his screen kept showing the "try again" view instead of the thank-you screen. Each tap logged another failure. The database has **19** of these, not 21, between 7:09pm and 8:49pm.
 
-## 2) Switching it on
-- Needs all three: Mitti-checked flag turned on in code (after step 1 passes), MITTI_AUTO_INVITE_ENABLED=true added as a secret, group ID saved. Then publish (Jo publishes).
-- What a new Lead gets, when the office approves them:
-  - Mitti's own email (Mitti's wording, from Mitti) asking them to set a password — we don't control it.
-  - Our one message, by text if they have an Australian mobile, otherwise email. Wording: "You've been invited to Mitti, the app you'll use for Home Insulation Victoria job forms. Check your email from Mitti, set your password, and download the Mitti app." Email subject: "You've been invited to Mitti".
-  - Sent once only (recorded before sending), normal quiet hours/STOP/switches apply. Crew get nothing.
+### 2) Was it saved, and why hasn't his job moved on?
+- His "yes" was saved at 7:09pm.
+- His OK to share **is now saved**: 2 Nov at 9:03pm Sydney, as "Owner paperwork A: Sharing with your tradies signed". That's after the 2 Nov fix (migration 0187, the new "quick tap link" method) went live. There have been no failures since 8:49pm. On 3 Nov he also did the roof check (pitched).
+- **His job isn't stuck.** "Ready Check ready to schedule" with no booking is the normal waiting place under the current rules:
+  - The batch closes 72 hours after it was sent: about **7:07pm Thu 5 Nov Sydney**.
+  - It then shows as "waiting for your OK to send to the installer".
+  - Nothing goes to Rapid until Jo taps **Send**. Only after that does Rapid contact him and book the Ready Check.
+  - Rapid is also not switched to in-house yet.
 
-## 3) Lead with no email of their own — question for Jo
-Today it uses the business's email (Jo 28 Oct). Then Mitti's set-password email goes to the boss, and the Lead's Mitti login is the business email. Options:
-- A) Keep business email fallback (as today).
-- B) Wait: record "Mitti invite waiting for Lead's own email" on the office/Team page, invite as soon as the boss adds it (the new "Add email" box).
-I'd recommend B, but won't decide.
+### 3) Did anyone else hit it?
+- Only one other job: **HV-3682**. It had 1 failure on 1 Nov, and its OK to share is **still not saved**, even though the owner said yes. That job has since moved on to the safety-check stage.
+- No other "yes" answers are missing their OK.
 
-## 4) Existing Leads not in Mitti (live, nothing sent)
-- Approved, marked Lead: none live (only TEST Bravo, already in Mitti).
-- Approved with no Lead/Crew set (older records): Silver Spirit Investments — Dominic Doherty (not in Mitti). Chris Lowe is already in Mitti.
-- Pending Leads (would be invited when approved): RAPID — James Sachinidis; Reinsulate — Manminder Singh, Wayne Fletcher (no own email, so question 3 applies).
-- Turning it on does NOT invite already-approved people; only new approvals. Any catch-up for Dominic would be a separate step for Jo's OK.
+## Fix plan (needs Jo's OK for each step)
+1. **The main fix is already live** (0187). There's no new code change for the cause.
+2. **HV-3682 repair:** use the existing one-off repair (`repairQuickTapsSharing`).
+   - First a dry run, showing the list: it should be HV-3682 only.
+   - Then, only after Jo OKs it, save that owner's OK once from their recorded "yes". Nothing is sent.
+3. **Optional (Jo to choose):** stop repeat logging. When the same job and batch keep failing for the same reason, record the failure once, so there's no pile of 19 identical failures.
+4. **Not proposed unless Jo asks:** closing a batch early when every owner in it has already answered. Today Wayne waits the full 72 hours.
 
-## 5) Trade-message pause
-While "pause all trade messages" is on (it is now), nothing happens on approval — no Mitti user, no message, nothing recorded — and it does not auto-retry when unpaused. The office would need to re-approve or invite in Mitti. Question for Jo: keep that, or have paused Leads listed in office Needs me as "Mitti invite waiting for pause to lift" (still nothing sent until she un-pauses and confirms)?
+## Tests (only for steps Jo approves)
+- Repair dry run on the practice database: lists only owners who said yes but have no saved OK. It skips declines, closed jobs and anyone already saved.
+- Running the repair twice saves only one OK.
+- The existing 0187 checks still pass: a quick-tap OK saves for sharing only, and a code sign-in with no code is still refused.
+- If step 3 is approved: repeat failures for the same job and batch write one log entry.
 
-## 6) Tests (before any switch-on)
-- Switch off → nothing read/called/sent.
-- Lead approved → one create, one group add, one message; approved twice → no second invite or message.
-- Crew approved → no invite.
-- Paused → no create, no message.
-- No own email → behaviour per Jo's answer to Q3.
-- TEST people only reach the simulator; checker script refuses real people.
-- Removal deactivates once.
-
-## Not doing in this plan
-No code, sends, Mitti calls, data changes or publishing until Jo approves each step.
+No code, data, sends or publishing until Jo approves.
