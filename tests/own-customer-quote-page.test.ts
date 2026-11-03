@@ -39,6 +39,13 @@ describe("ownCustomerQuoteView (pure)", () => {
     expect(v.rows).toBeNull();
     expect(v.cobrand).not.toBeNull();
   });
+  test("I1: an older quote priced at the electrician's $275 (sent before the fee rule) → generic rows on My job, never re-priced to $349", () => {
+    const old = ownCustomerQuoteView({ ...own, items: [items[0]!, items[1]!, { code: "PIESA", description: "Electrical safety check (PIESA)", line_total_inc_gst: 275 }], totalIncGst: 2024 });
+    expect(old.rows).toBeNull();
+    expect(old.cobrand).not.toBeNull();
+    // a total that doesn't match the rows (edited quote) → generic rows too
+    expect(ownCustomerQuoteView({ ...own, totalIncGst: 2200 }).rows).toBeNull();
+  });
 });
 
 describe("wiring (source facts)", () => {

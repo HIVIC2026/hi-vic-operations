@@ -1,4 +1,6 @@
 import { MITTI_INSTALLER_FEE_INC_GST } from "./usual-electrician.core";
+
+const aud = (n: number) => `$${n.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 import { cobrandLogos, type CobrandLogo } from "./cobrand.core";
 
 /**
@@ -46,12 +48,11 @@ const EXTRA_CODES: ReadonlySet<string> = new Set(["INSTALLER_REMOVAL", "INSTALLE
  *
  * - `INSTALLER_PRICE` → insulation (exactly one required; detail = its description).
  * - `INSTALLER_REMOVAL` / `INSTALLER_EXTRA` → extra (label = its description).
- * - `AP_FEE` / `PIESA` → the fixed $349 lines (exactly one of each required), always at $349 whatever amount the item
- *   carries (an older draft priced the PIESA at the electrician's rate — Task 2 holds such drafts before they are sent).
- * - Anything else, a missing line or a doubled line throws — fail closed, never guess a label or a fee.
- *
- * `rebateIncGst` and `totalIncGst` come from the quote (discount / after-discount): this module does not re-add the lines,
- * so the caller's release checks stay the one place that proves the total.
+ * - `AP_FEE` / `PIESA` → the fixed $349 lines (exactly one of each required). I1 (final review): NEVER re-priced — an item
+ *   at any other amount (an older quote priced at the electrician's $275 rate) throws, and every caller falls back to the
+ *   generic rows, so an owner is never shown a figure their quote doesn't carry.
+ * - Anything else, a missing line, a doubled line, or rows that don't add up to `totalIncGst` (±1c) throws — fail closed,
+ *   never guess a label, a fee or a total.
  */
 export function ownCustomerRows(items: readonly OwnCustomerQuoteItem[], rebateIncGst: number, totalIncGst: number): OwnCustomerRow[] {
   let insulation: OwnCustomerRow | null = null;
@@ -65,7 +66,8 @@ export function ownCustomerRows(items: readonly OwnCustomerQuoteItem[], rebateIn
     } else if (code != null && EXTRA_CODES.has(code)) {
       extras.push({ key: "extra", label: it.description, detail: null, amountIncGst: it.line_total_inc_gst });
     } else if (code === "AP_FEE" || code === "PIESA") {
-      // Fixed lines below; the item's own amount/description is never shown.
+      const want = code === "AP_FEE" ? OWN_CUSTOMER_AP_FEE_INC_GST : OWN_CUSTOMER_PIESA_INC_GST;
+      if (Math.abs(it.line_total_inc_gst - want) > 0.005) throw new Error(`Own-customer quote ${code} line is ${aud(it.line_total_inc_gst)}, not ${aud(want)}`);
       seen[code] += 1;
     } else {
       throw new Error(`Unknown own-customer quote line: ${code}`);
@@ -77,6 +79,8 @@ export function ownCustomerRows(items: readonly OwnCustomerQuoteItem[], rebateIn
     if (seen[code] > 1) throw new Error(`Own-customer quote has more than one ${code} line`);
   }
   const rebate = rebateIncGst === 0 ? 0 : -Math.abs(rebateIncGst);
+  const sum = insulation.amountIncGst + extras.reduce((a, e) => a + e.amountIncGst, 0) + OWN_CUSTOMER_AP_FEE_INC_GST + OWN_CUSTOMER_PIESA_INC_GST + rebate;
+  if (Math.abs(sum - totalIncGst) > 0.0101) throw new Error(`Own-customer quote rows add up to ${aud(sum)}, not the quote total ${aud(totalIncGst)}`);
   return [
     insulation,
     ...extras,

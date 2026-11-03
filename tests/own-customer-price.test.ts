@@ -62,14 +62,20 @@ describe("ownCustomerRows", () => {
     ]);
   });
 
-  test("the PIESA line is $349 whatever the item carries (electrician on their own rate)", () => {
-    const r = ownCustomerRows([...items.filter((i) => i.code !== "PIESA"), { code: "PIESA", description: "x", line_total_inc_gst: 275 }], 600, 2098);
-    expect(r.find((x) => x.key === "piesa")!.amountIncGst).toBe(349);
+  // I1 (final review): never re-price. An older quote priced at the electrician's rate ($275) or any fee other than $349
+  // is NOT an approved own-customer quote — the rows throw and every caller falls back to the generic rows.
+  test("an old $275 PIESA line throws (never shown as $349)", () => {
+    expect(() => ownCustomerRows([...items.filter((i) => i.code !== "PIESA"), { code: "PIESA", description: "x", line_total_inc_gst: 275 }], 600, 2024)).toThrow("Own-customer quote PIESA line is $275.00, not $349.00");
   });
 
-  test("the fee line is $349 whatever the item carries", () => {
-    const r = ownCustomerRows([...items.filter((i) => i.code !== "AP_FEE"), { code: "AP_FEE", description: "y", line_total_inc_gst: 200 }], 600, 2098);
-    expect(r.find((x) => x.key === "apFee")!.amountIncGst).toBe(349);
+  test("a fee line other than $349 throws", () => {
+    expect(() => ownCustomerRows([...items.filter((i) => i.code !== "AP_FEE"), { code: "AP_FEE", description: "y", line_total_inc_gst: 200 }], 600, 1949)).toThrow("Own-customer quote AP_FEE line is $200.00, not $349.00");
+  });
+
+  test("rows that don't add up to the quote total (±1c) throw; a cent of rounding is fine", () => {
+    expect(() => ownCustomerRows(items, 600, 2100)).toThrow("Own-customer quote rows add up to $2,098.00, not the quote total $2,100.00");
+    expect(() => ownCustomerRows(items, 0, 2698.01)).not.toThrow();
+    expect(() => ownCustomerRows(items, 600, 2097.995)).not.toThrow();
   });
 
   test("a quote with no fee or no PIESA line fails closed (the total would not include them)", () => {
