@@ -79,7 +79,7 @@ export async function textBossPriceLink(jobId: string, i: { auditId: string; com
     const plan = enterPriceEmailPlan({ approved: opts.emailApproved ?? ENTER_PRICE_EMAIL_APPROVED, test, officeEmail: b?.email, paused: tradePaused, alreadyAttempted: !!emailAttempt, fresh: enterPriceFresh(completedAt, new Date().toISOString()) });
     if (plan.action === "held") {
       const { count: heldBefore } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", ENTER_PRICE_EMAIL_HELD_EVENT);
-      if (!heldBefore) await logEvent(jobId, null, ENTER_PRICE_EMAIL_HELD_EVENT, `"Enter your price" email not sent — ${plan.reason}. The business owner still has the text.`, { key: emailKey, audit_id: i.auditId, completed_at: completedAt, business_id: b?.id ?? j.originating_installer_business_id, reason: plan.reason }, { internal: true });
+      if (!heldBefore) await logEvent(jobId, null, ENTER_PRICE_EMAIL_HELD_EVENT, `"Enter your price" email not sent — ${plan.reason}. The business owner still has the text; the email is retried on the next sync within 24h of Complete, then dropped.`, { key: emailKey, audit_id: i.auditId, completed_at: completedAt, business_id: b?.id ?? j.originating_installer_business_id, reason: plan.reason }, { internal: true });
       results.push(`email held: ${plan.reason}`);
       return results.join("; ");
     }

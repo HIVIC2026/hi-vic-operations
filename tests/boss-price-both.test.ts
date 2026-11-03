@@ -65,6 +65,7 @@ describe("both channels under one claim", () => {
     expect(events("boss_price_link_sent")).toHaveLength(1);
     expect(events("enter_price_email_held")).toHaveLength(1);
     expect(events("enter_price_email_held")[0]!["details"]).toMatchObject({ reason: "email wording not approved yet (ENTER_PRICE_EMAIL_APPROVED)", key: "boss-price-link:v1:job-1:email" });
+    expect(events("enter_price_email_held")[0]!["summary"]).toContain("retried on the next sync within 24h of Complete, then dropped"); // M3
     const r2 = await run();
     expect(r2).toContain("held");
     expect(sent).toHaveLength(1);
