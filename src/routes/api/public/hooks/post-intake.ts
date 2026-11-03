@@ -34,6 +34,8 @@ export const Route = createFileRoute("/api/public/hooks/post-intake")({
             const firstResponse = await sweep.sweepUnansweredFirstResponses();
             // Roof check for saved spots (ranking only), after the existing sweeps; a failure here never breaks the worker.
             await import("@/lib/roof-check.server").then((m) => m.roofCheckTick({ limit: 5 })).catch((e) => console.error("roof check tick failed", (e as Error).message));
+            // AI photo check on owner uploads (ranking only), same rule: a failure never breaks the worker.
+            await import("@/lib/photo-check.server").then((m) => m.photoCheckTick({ limit: 2 })).catch((e) => console.error("photo check tick failed", (e as Error).message));
             return Response.json({ ok: true, recovered: r.recovered, claimed: r.claimed,
               results: r.results.map((x) => ({ status: x.status })), first_response: firstResponse });
           } catch (e) {
