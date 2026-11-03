@@ -7,7 +7,7 @@ import { isTestPartner } from "./test-send.core";
 import { offerTiming } from "./offer-timing.core";
 import { placeWorkJob, type WorkPlace } from "./work-places.core";
 import { COULDNT_GET_IN, offerMoney, electricianPayState, payState, type PayState, surname, type AreaSource, type InsulationNow, type TradeKind, type DayKind, SETUP_STEPS, type SetupKey, tradeJobAllowed, contactVisible, type AccessAssignment, type TeamMemberView, type BusinessNext, type CredentialView, type MittiLogin, latestExpiry, businessNext, type BusinessNextFacts, bankLine, installerPayHeldReasons, accountEnding, ownerPaidInFullAt } from "./trade-view.core";
-import { crewClearance, CREW_CLEARANCE_REASON, melbourneToday, whiteCardState } from "./worker-compliance.core";
+import { crewClearance, CREW_CLEARANCE_REASON, electricianVerified, melbourneToday, whiteCardState } from "./worker-compliance.core";
 import type { UsualElectrician } from "./usual-electrician.core";
 import type { InstallerQuote } from "./installer-quote-status.server";
 // Speed (installer screens, Task 5): module-scope imports instead of awaited import() calls inside the loaders.
@@ -750,11 +750,24 @@ export async function tradeMoney(userId: string) {
  * prices or other partners.
  */
 /** The team rows with `declarations_due`. Until 0230 is live the column is missing: re-read without it (nobody is due). */
-async function loadTeamWorkers(businessId: string): Promise<{ data: { id: string; full_legal_name: string; trade_role: string; profile_id: string | null; email: string | null; mobile: string | null; certification: unknown; worker_role?: string | null; declarations_due?: boolean; licence_expires_on: string | null }[] | null; error?: { code?: string } | null }> {
+async function loadTeamWorkers(businessId: string): Promise<{ data: { id: string; full_legal_name: string; trade_role: string; profile_id: string | null; email: string | null; mobile: string | null; certification: unknown; worker_role?: string | null; declarations_due?: boolean; licence_expires_on: string | null; licence_number?: string | null; rec_number?: string | null; licence_verified_at?: string | null; esc_registered?: boolean | null }[] | null; error?: { code?: string } | null }> {
   const load = (cols: string) => (admin as unknown as { from: (t: string) => any }).from("partner_workers").select(cols).eq("business_id", businessId).is("removed_at", null); // eslint-disable-line @typescript-eslint/no-explicit-any
   const base = "id, full_legal_name, trade_role, approval_status, licence_expires_on, profile_id, email, mobile, certification_status, certification, worker_role, licence_number, rec_number";
-  const first = await load(`${base}, declarations_due`);
-  if (first.error && schemaCompatCore.isMissingDbObject(first.error)) return await load(base);
+  // Task 10 (Team screen): the office's licence + REC verification stamp (0182) and ESC registration stamp (0184) are
+  // read with the row; a column that isn't live yet is simply unknown (nobody shown as verified or registered).
+  const first = await load(`${base}, declarations_due, licence_verified_at, esc_registered`);
+  if (!first.error) return first;
+  if (!schemaCompatCore.isMissingDbObject(first.error)) return first;
+  const second = await load(`${base}, declarations_due`);
+  if (second.error && schemaCompatCore.isMissingDbObject(second.error)) return await load(base);
+  return second;
+}
+
+/** The business's active sign-ins with the pending "Can see Money" flag (missing column = nobody has it, never a crash). */
+async function loadMembers(businessId: string): Promise<{ data: { user_id: string; member_role: string; can_see_money?: boolean | null }[] | null }> {
+  const load = (cols: string) => (admin as unknown as { from: (t: string) => any }).from("business_members").select(cols).eq("business_id", businessId).eq("active", true); // eslint-disable-line @typescript-eslint/no-explicit-any
+  const first = await load("user_id, member_role, can_see_money");
+  if (first.error && (schemaCompatCore.isMissingDbObject(first.error) || ["42703", "PGRST204"].includes(first.error.code ?? ""))) return await load("user_id, member_role");
   return first;
 }
 
@@ -797,11 +810,13 @@ export async function tradeBusiness(userId: string) {
     admin.from("business_bank_details").select("account_name, bsb, account_number").eq("business_id", c.biz.id).limit(1).maybeSingle(),
     admin.from("businesses").select("legal_name, trading_name, abn, approved_at").eq("id", c.biz.id).maybeSingle(),
     admin.from("rate_cards").select("effective_from, created_at").eq("business_id", c.biz.id).eq("is_active", true),
-    admin.from("business_members").select("user_id, member_role").eq("business_id", c.biz.id).eq("active", true),
+    loadMembers(c.biz.id),
   ]);
   const ownerIds = (members ?? []).filter((m) => m.member_role === "business_admin").map((m) => m.user_id);
+  // Task 10: "Can see Money" per Office sign-in (business_members.can_see_money; the boss's switch on Team).
+  const canSeeMoneyOf = (profileId: string | null | undefined) => !!profileId && (members ?? []).some((m) => m.user_id === profileId && m.member_role === "office" && m.can_see_money === true);
   const profileIds = [...new Set([...ownerIds, ...(workers ?? []).map((w) => w.profile_id).filter((x): x is string => !!x)])];
-  const staffRows = (workers ?? []) as { id: string; full_legal_name: string; trade_role: string; profile_id: string | null; email: string | null; mobile: string | null; certification: unknown; worker_role?: string | null; declarations_due?: boolean; licence_number?: string | null; rec_number?: string | null }[];
+  const staffRows = (workers ?? []) as { id: string; full_legal_name: string; trade_role: string; profile_id: string | null; email: string | null; mobile: string | null; certification: unknown; worker_role?: string | null; declarations_due?: boolean; licence_number?: string | null; rec_number?: string | null; licence_expires_on?: string | null; licence_verified_at?: string | null; esc_registered?: boolean | null }[];
   const needCrew = c.kind === "installer" || staffRows.some((w) => w.trade_role === "installer");
   // Round 3. Office Mitti records (linked, invited, reactivated, marked done) per worker: Crew show "Mitti ✓" once the office has added them.
   const [{ data: profs }, recsRes, cii, notice, births] = await Promise.all([
@@ -809,12 +824,23 @@ export async function tradeBusiness(userId: string) {
     staffRows.length ? admin.from("admin_config_events").select("details").in("event_type", ["mitti_user_linked", "mitti_user_invited", "mitti_invite_linked", "mitti_user_reactivated", "mitti_invite_office_done"]).in("details->>worker_id", staffRows.map((w) => w.id)) : Promise.resolve(null),
     needCrew ? crewEarly ?? crewRead() : Promise.resolve([] as CiiRow[]),
     needCrew ? noticeEarly ?? noticeRead() : Promise.resolve([] as NoticeRow[]),
-    screenEarly && staffRows.length ? workerIdentityServer.privateBirthDates(staffRows.map((w) => w.id)).catch(() => new Map<string, string>()) : Promise.resolve(new Map<string, string>()),
+    // Task 10: which staff rows have a private date of birth (the dates never leave this function); a failed read = unknown.
+    // Only installer businesses read it (Task 9); elsewhere it is unknown (null), never "everyone missing".
+    screenEarly && staffRows.length ? workerIdentityServer.privateBirthDates(staffRows.map((w) => w.id)).then((m) => new Set(m.keys())).catch(() => null) : Promise.resolve(screenEarly ? new Set<string>() : null),
   ]);
+  const hasDobOf = (workerId: string | null): boolean | null => (workerId == null || births == null ? null : births.has(workerId));
   const profile = (id: string | null | undefined) => (profs ?? []).find((p) => p.id === id) ?? null;
   const mittiLogin = (id: string | null | undefined): MittiLogin => { const p = profile(id); if (!p) return "not_set"; const a = mittiAccessOf(p as never); return a === "member" ? "linked" : a === "email_changed" ? "email_changed" : "not_set"; };
   // Decision 319: each installer person's White Card (office-verified once).
   const whiteCardOfRow = (w: { trade_role: string; certification: unknown }) => w.trade_role === "installer" ? whiteCardState(w) : null;
+  // Task 10 (Team screen): the three office stamps shown as ticks. Every value comes from the row; nothing inferred.
+  const teamRole = (tradeRole: string): TeamMemberView["role"] => tradeRole === "installer" ? "installer" : tradeRole === "office" ? "office" : "electrician";
+  const checksOf = (w: (typeof staffRows)[number] | null) => ({
+    escRegistered: w?.esc_registered === true,
+    licenceAndRec: !!w && w.trade_role === "electrician" && electricianVerified({ licence_number: w.licence_number ?? null, rec_number: w.rec_number ?? null, licence_expires_on: w.licence_expires_on ?? null, licence_verified_at: w.licence_verified_at ?? null }, today).ok,
+    canSeeMoney: !!w && w.trade_role === "office" && canSeeMoneyOf(w.profile_id),
+    hasDob: hasDobOf(w?.id ?? null),
+  });
   const ciiFacts = (workerId: string, role: string): TeamMemberView["cii"] => {
     if (role !== "installer") return null;
     const s = cii.find((x) => x.workerId === workerId);
@@ -837,11 +863,11 @@ export async function tradeBusiness(userId: string) {
     ...ownerIds.map((uid) => {
       const p = profile(uid), w = ownerRow(uid);
       return { id: w?.id ?? null, name: (p?.full_name ?? w?.full_legal_name ?? "Business owner").trim(), role: "owner" as const, mobile: w?.mobile ?? p?.phone ?? null, email: p?.email ?? w?.email ?? null, hasLogin: true,
-        mittiLogin: mittiLogin(uid), mittiRecorded: !mittiRecordsKnown ? null : w ? mittiRecordedIds.has(w.id) : false, noticeAcknowledged: w ? noticeOf(w.id, w.trade_role) : null, cii: w ? ciiFacts(w.id, w.trade_role) : null, whiteCard: w ? whiteCardOfRow(w) : null, workerRole: w ? roles.get(w.id) ?? null : null, declarationsDue: w?.declarations_due === true };
+        mittiLogin: mittiLogin(uid), mittiRecorded: !mittiRecordsKnown ? null : w ? mittiRecordedIds.has(w.id) : false, noticeAcknowledged: w ? noticeOf(w.id, w.trade_role) : null, cii: w ? ciiFacts(w.id, w.trade_role) : null, whiteCard: w ? whiteCardOfRow(w) : null, workerRole: w ? roles.get(w.id) ?? null : null, declarationsDue: w?.declarations_due === true, ...checksOf(w) };
     }),
     ...staffRows.filter((w) => !ownerIds.includes(w.profile_id ?? "") && !ownerEmails.has((w.email ?? "").trim().toLowerCase())).map((w) => ({
-      id: w.id as string | null, name: w.full_legal_name.trim(), role: (w.trade_role === "installer" ? "installer" : "electrician") as TeamMemberView["role"], mobile: w.mobile ?? null, email: w.email, hasLogin: !!w.profile_id,
-      mittiLogin: mittiLogin(w.profile_id), mittiRecorded: mittiRecordsKnown ? mittiRecordedIds.has(w.id) : null, noticeAcknowledged: noticeOf(w.id, w.trade_role), cii: ciiFacts(w.id, w.trade_role), whiteCard: whiteCardOfRow(w), workerRole: roles.get(w.id) ?? null, declarationsDue: w.declarations_due === true,
+      id: w.id as string | null, name: w.full_legal_name.trim(), role: teamRole(w.trade_role), mobile: w.mobile ?? null, email: w.email, hasLogin: !!w.profile_id,
+      mittiLogin: mittiLogin(w.profile_id), mittiRecorded: mittiRecordsKnown ? mittiRecordedIds.has(w.id) : null, noticeAcknowledged: noticeOf(w.id, w.trade_role), cii: ciiFacts(w.id, w.trade_role), whiteCard: whiteCardOfRow(w), workerRole: roles.get(w.id) ?? null, declarationsDue: w.declarations_due === true, ...checksOf(w),
     })),
   ];
   const credentials: CredentialView[] = (creds ?? []).map((x) => ({ kind: x.kind, label: x.label, expires: x.expires_at, verified: x.verification === "verified" }));
@@ -867,7 +893,7 @@ export async function tradeBusiness(userId: string) {
   // (date of birth + mobile, counts only: the dates themselves never leave the private table here) and the Team
   // electricians with the PIESA price from the matching onboarded REC business's active rate (else none). Read failures
   // leave the fact empty, never a crash.
-  const screen = screenEarly ? installerBusinessScreen(c.biz.name, await screenEarly, births, staffRows, team, { credentials, ratesAgreedAt, hasRates, bank: bank ?? null, agreementSigned: !!agr?.signed_at, noticeStatuses, ciiBlocked: team.filter((m) => m.cii && !crewClearance(m.cii, today).cleared).map((m) => ({ name: m.name })) }, today) : null;
+  const screen = screenEarly ? installerBusinessScreen(c.biz.name, await screenEarly, births ?? new Set<string>(), staffRows, team, { credentials, ratesAgreedAt, hasRates, bank: bank ?? null, agreementSigned: !!agr?.signed_at, noticeStatuses, ciiBlocked: team.filter((m) => m.cii && !crewClearance(m.cii, today).cleared).map((m) => ({ name: m.name })) }, today) : null;
   const next = businessNext({
     installer: c.kind === "installer", publicLiabilityExpires: liability, bankSaved: !!bank, agreementSigned: !!agr?.signed_at,
     noticeOutstanding: noticeStatuses.filter((n) => n.state !== "acknowledged").map((n) => ({ name: n.name })), usualElectrician: !!usual, ...(electrician ? { electrician } : {}),
@@ -898,7 +924,7 @@ async function businessScreenReads(businessId: string) {
 }
 
 /** Task 9: the installer's My business facts beyond M7 (pure derivation over the reads above; the dates of birth never leave — counts only). */
-function installerBusinessScreen(businessName: string, r: Awaited<ReturnType<typeof businessScreenReads>>, births: Map<string, string>, staffRows: { id: string; full_legal_name: string; trade_role: string; mobile: string | null; licence_number?: string | null; rec_number?: string | null }[], team: TeamMemberView[], base: { credentials: CredentialView[]; ratesAgreedAt: string | null; hasRates: boolean; bank: { account_number: string } | null; agreementSigned: boolean; noticeStatuses: { name: string; state: string }[]; ciiBlocked: { name: string }[] }, today: string) {
+function installerBusinessScreen(businessName: string, r: Awaited<ReturnType<typeof businessScreenReads>>, births: Set<string>, staffRows: { id: string; full_legal_name: string; trade_role: string; mobile: string | null; licence_number?: string | null; rec_number?: string | null }[], team: TeamMemberView[], base: { credentials: CredentialView[]; ratesAgreedAt: string | null; hasRates: boolean; bank: { account_number: string } | null; agreementSigned: boolean; noticeStatuses: { name: string; state: string }[]; ciiBlocked: { name: string }[] }, today: string) {
   const logoUrl = typeof r.branding.logo_url === "string" && r.branding.logo_url.startsWith("https://") ? r.branding.logo_url : null;
   const ownRate = r.own && !r.own.release_hold_reason ? r.own.piesaIncGst : null;
   const electricians = staffRows.filter((w) => w.trade_role === "electrician").map((w) => {
@@ -1103,10 +1129,14 @@ export async function tradeSetWorkerMobile(userId: string, workerId: string, raw
   return { ok: true, mobile: v.mobile };
 }
 
-/** Jo 29 Oct: the boss adds a person with no email needed (mobile can come later). Installers start as Lead or Crew with
- *  the CII certificate unchecked; electricians need a licence number. Always pending, and they must sign the worker
- *  declarations (declarations_due) before any job. Sends nothing. */
-export async function tradeAddTeamPerson(userId: string, p: { name: string; workerRole: import("./worker-role.core").WorkerRole; mobile: string | null; email: string | null; licenceNumber: string | null; dateOfBirth?:string|null|undefined }): Promise<{ workerId: string }> {
+/** Task 10 (Team screen, Jo 2 Nov): the boss adds a person as Office, Lead Installer, Crew or Electrician. Mobile and date
+ *  of birth are required for everyone; electricians also need licence + REC. One Team function for every role
+ *  (`add_team_person_with_identity`, pending installer-portal-roles.sql; the date of birth goes straight into the private
+ *  identity table and never comes back to a trade screen). Until that SQL is live, Lead/Crew still go through the live
+ *  `add_team_installer_with_identity` exactly as before, and Office/Electrician get the existing "pending database
+ *  update" message. Always pending; they sign the worker declarations (declarations_due) before any job. Sends nothing.
+ *  Electrician businesses keep their own add path (name + licence; Jo 29 Oct) — unchanged here. */
+export async function tradeAddTeamPerson(userId: string, p: { name: string; role?: import("./team-screen.core").AddPersonRole | undefined; workerRole?: import("./worker-role.core").WorkerRole | undefined; mobile: string | null; email: string | null; licenceNumber: string | null; recNumber?: string | null | undefined; dateOfBirth?: string | null | undefined }): Promise<{ workerId: string }> {
   const c = await bossOrThrow(userId);
   const name = p.name.trim();
   if (!name) throw new WorkflowError("Add their full name.");
@@ -1116,22 +1146,25 @@ export async function tradeAddTeamPerson(userId: string, p: { name: string; work
   const v = crewMobileInput(p.mobile);
   if (!v.ok) throw new WorkflowError(v.error);
   const email = p.email?.trim().toLowerCase() || null;
-  if(c.kind==='installer'){
-    const problem=(await import('./worker-identity.core')).dateOfBirthProblem(p.dateOfBirth,(await import('./melbourne-time.core')).melbourneToday());
-    if(problem)throw new WorkflowError(problem);
-    // New flow: one Team function for every role (pending installer-portal-roles.sql). Until it is live, the old
-    // Lead/Crew function still adds the person exactly as before.
-    const rpc=admin as unknown as import('@supabase/supabase-js').SupabaseClient;
-    let r=await rpc.rpc('add_team_person_with_identity',{_business:c.biz.id,_actor:userId,_name:name,_role:p.workerRole,_mobile:v.mobile,_email:email,_dob:p.dateOfBirth,_licence:null,_rec:null});
-    if(r.error&&['PGRST202','42883'].includes(r.error.code))r=await rpc.rpc('add_team_installer_with_identity',{_business:c.biz.id,_actor:userId,_name:name,_role:p.workerRole,_mobile:v.mobile,_email:email,_dob:p.dateOfBirth});
-    if(r.error&&/mobile/i.test(r.error.message))throw new WorkflowError('Add their mobile number.');
-    if(r.error){
-      if(['PGRST202','42883'].includes(r.error.code))throw new WorkflowError('Private ESC registration details need the pending database update before this person can be added.');
-      if(['23502','PGRST204','42703'].includes(r.error.code))throw new WorkflowError("Adding someone without an email needs the office's database update first.");
-      if(r.error.code==='23505')throw new WorkflowError('Someone with that email is already on your team.');
+  if (c.kind === "installer") {
+    const role: import("./team-screen.core").AddPersonRole = p.role ?? p.workerRole ?? "lead";
+    const { addPersonProblems } = await import("./team-screen.core");
+    const problems = addPersonProblems({ name, role, mobile: v.mobile, dateOfBirth: p.dateOfBirth ?? null, licenceNumber: licence, recNumber: p.recNumber ?? null }, melbourneToday());
+    if (problems.length) throw new WorkflowError(problems[0]!);
+    const rpc = admin as unknown as import("@supabase/supabase-js").SupabaseClient;
+    const rec = p.recNumber?.trim() || null;
+    let r = await rpc.rpc("add_team_person_with_identity", { _business: c.biz.id, _actor: userId, _name: name, _role: role, _mobile: v.mobile, _email: email, _dob: p.dateOfBirth, _licence: role === "electrician" ? licence : null, _rec: role === "electrician" ? rec : null });
+    // Lead/Crew before the pending SQL is live: the applied function (0186) adds them exactly as before.
+    if (r.error && ["PGRST202", "42883"].includes(r.error.code) && (role === "lead" || role === "crew"))
+      r = await rpc.rpc("add_team_installer_with_identity", { _business: c.biz.id, _actor: userId, _name: name, _role: role, _mobile: v.mobile, _email: email, _dob: p.dateOfBirth });
+    if (r.error && /mobile/i.test(r.error.message)) throw new WorkflowError("Add their mobile number.");
+    if (r.error) {
+      if (["PGRST202", "42883"].includes(r.error.code)) throw new WorkflowError("Private ESC registration details need the pending database update before this person can be added.");
+      if (["23502", "PGRST204", "42703"].includes(r.error.code)) throw new WorkflowError("Adding someone without an email needs the office's database update first.");
+      if (r.error.code === "23505") throw new WorkflowError("Someone with that email is already on your team.");
       throw new WorkflowError("Couldn't add them. Please try again.");
     }
-    return{workerId:r.data as string};
+    return { workerId: r.data as string };
   }
   const row = { trade_role: c.kind, licence_number: licence, worker_role: null };
   const { data, error } = await admin.from("partner_workers").insert({ business_id: c.biz.id, full_legal_name: name, email, mobile: v.mobile, ...row, approval_status: "pending", declarations_due: true, added_by: userId } as never).select("id").single();
@@ -1144,6 +1177,22 @@ export async function tradeAddTeamPerson(userId: string, p: { name: string; work
     throw new WorkflowError("Couldn't add them. Please try again.");
   }
   return { workerId: (data as { id: string }).id };
+}
+
+/** Task 10: the boss switches "Can see Money" on or off for an Office person (team-phone.png "Money: On/Off"). Boss only —
+ *  refused here AND inside the service-only `set_member_can_see_money` (pending installer-portal-roles.sql), which also
+ *  writes the admin_config_events row. Nothing else changes: Office people always see and enter prices. */
+export async function tradeSetMoneyAccess(userId: string, workerId: string, on: boolean): Promise<{ ok: true; canSeeMoney: boolean }> {
+  const c = await bossOrThrow(userId);
+  const rpc = admin as unknown as import("@supabase/supabase-js").SupabaseClient;
+  const { error } = await rpc.rpc("set_member_can_see_money", { _business: c.biz.id, _actor: userId, _worker: workerId, _on: on });
+  if (error) {
+    if (["PGRST202", "42883"].includes(error.code ?? "") || schemaCompatCore.isMissingDbObject(error)) throw new WorkflowError("This setting isn't switched on yet. Home Insulation Victoria is finishing it; nothing has changed."); // DRAFT (Task 9 wording)
+    if (/Office person not found/i.test(error.message)) throw new WorkflowError((await import("./team-screen.core")).TEAM_WORDS.moneyNeedsLogin);
+    if (/business admin/i.test(error.message)) throw new WorkflowError("Only the business owner can see this.");
+    throw new WorkflowError("Couldn't save that. Check your connection and try again."); // DRAFT (Task 6 wording)
+  }
+  return { ok: true, canSeeMoney: on };
 }
 
 /** Whether the caller's business has been invited to Mitti by the office (false when unknown). */

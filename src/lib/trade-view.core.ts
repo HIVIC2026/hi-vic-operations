@@ -302,8 +302,7 @@ const daysUntil = (ymd: string, today: string) => Math.round((Date.parse(`${ymd.
 
 export type MittiLogin = "linked" | "not_set" | "email_changed";
 export type TeamMemberView = {
-  dateOfBirth?:string|null;
-  id: string | null; name: string; role: "owner" | "installer" | "electrician"; mobile: string | null; email: string | null;
+  id: string | null; name: string; role: "owner" | "office" | "installer" | "electrician"; mobile: string | null; email: string | null;
   hasLogin: boolean; mittiLogin: MittiLogin;
   /** True when the office has a Mitti record for this worker (linked, invited, reactivated or marked done); null = couldn't be read, so unknown. */
   mittiRecorded: boolean | null;
@@ -317,8 +316,15 @@ export type TeamMemberView = {
   workerRole?: "lead" | "crew" | null;
   /** Jo 29 Oct: added on Team and not yet signed the worker declarations; can't go on jobs until they do. */
   declarationsDue: boolean;
+  /** Task 10 (Team screen) checks, set by tradeBusiness for the boss's Team. Optional so older callers compile.
+   *  escRegistered: office ESC stamp (Lead Installers); licenceAndRec: electricianVerified ok; canSeeMoney: Office
+   *  people only; hasDob: a private date of birth is on file (true/false) or unknown (null) — never the date itself. */
+  escRegistered?: boolean;
+  licenceAndRec?: boolean;
+  canSeeMoney?: boolean;
+  hasDob?: boolean | null;
 };
-export const ROLE_LABEL: Record<TeamMemberView["role"], string> = { owner: "owner", installer: "installer", electrician: "electrician" };
+export const ROLE_LABEL: Record<TeamMemberView["role"], string> = { owner: "owner", office: "office", installer: "installer", electrician: "electrician" };
 
 /** "Lead · Mitti ✓" / "Crew · no Mitti" / "Mitti login not set": the Mitti words, with Lead or Crew first for installer staff. */
 export function teamMittiLine(m: Pick<TeamMemberView, "role" | "workerRole" | "mittiLogin" | "mittiRecorded">): string | null {

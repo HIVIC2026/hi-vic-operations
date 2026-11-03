@@ -122,13 +122,21 @@ export const setTeamMemberMobile = createServerFn({ method: "POST" }).middleware
   .inputValidator((d) => z.object({ workerId: z.string().uuid(), mobile: z.string().trim().max(30) }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSetWorkerMobile(context.userId, data.workerId, data.mobile));
 
-/** Jo 29 Oct: add a person to the team with no email needed; they sign their declarations by link before any job. */
+/** Jo 29 Oct: add a person to the team with no email needed; they sign their declarations by link before any job.
+ *  Task 10 (Jo 2 Nov): role Office / Lead Installer / Crew / Electrician; mobile + date of birth required for everyone
+ *  (checked server-side); electricians also give licence + REC. `workerRole` is kept for older callers. */
 export const addTeamPerson = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({
-    name: z.string().trim().min(1).max(120), workerRole: z.enum(["lead", "crew"]), mobile: z.string().trim().max(30).nullable(),
-    email: z.string().trim().max(200).email().or(z.literal("")).nullable().transform((v) => v || null), licenceNumber: z.string().trim().max(60).nullable(),dateOfBirth:z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+    name: z.string().trim().min(1).max(120), role: z.enum(["office", "lead", "crew", "electrician"]).optional(), workerRole: z.enum(["lead", "crew"]).optional(), mobile: z.string().trim().max(30).nullable(),
+    email: z.string().trim().max(200).email().or(z.literal("")).nullable().transform((v) => v || null), licenceNumber: z.string().trim().max(60).nullable(), recNumber: z.string().trim().max(60).nullable().optional(),
+    dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeAddTeamPerson(context.userId, data));
+
+/** Task 10: the boss switches "Can see Money" on/off for an Office person. Boss only (refused server-side and in SQL). */
+export const setTeamMoneyAccess = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ workerId: uuid, on: z.boolean() }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSetMoneyAccess(context.userId, data.workerId, data.on));
 
 /** Jo 24 Oct 2026 (decision 110): A1 installer enters the Ready Check day + time (same slots as the owner's times link). */
 export const setA1ReadyCheckTimeFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
