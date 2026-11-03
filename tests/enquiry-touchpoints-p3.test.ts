@@ -4,8 +4,7 @@ import { readFileSync } from "node:fs";
 import { O10_NEXT_STEP_2, renderSpotSavedEmail, renderSpotSavedSms, spotSavedBasedOn, spotSavedText } from "../src/lib/spot-saved-messages.core";
 import { PRE_RELEASE_FORBIDDEN, SPOT_INSTALLER_CALLS, preReleaseViolations, preReleaseViolationsAllowing } from "../src/lib/spot-only-copy.core";
 import { HOMEOWNER_URL } from "../src/lib/interest.core";
-import { oneTapSaveUrl, shouldAutoSaveSpot } from "../src/lib/one-tap-save.core";
-import { P1 } from "../src/lib/owner-pages.core";
+import { oneTapSaveUrl, shouldAutoSaveSpot, shouldFireOneTapSave } from "../src/lib/one-tap-save.core";
 
 const src = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), "utf8");
 
@@ -68,6 +67,22 @@ describe("#12 Spot saved screen + one-tap save", () => {
     expect(s).toContain("spotSavedBasedOn");
     expect(s).not.toMatch(/lower power bills/);
   });
+  test("one-tap save waits for a trusted user interaction (link scanners never save)", () => {
+    expect(shouldFireOneTapSave({ armed: true, alreadyFired: false, eventIsTrusted: true })).toBe(true);
+    expect(shouldFireOneTapSave({ armed: true, alreadyFired: false, eventIsTrusted: false })).toBe(false);
+    expect(shouldFireOneTapSave({ armed: false, alreadyFired: false, eventIsTrusted: true })).toBe(false);
+    expect(shouldFireOneTapSave({ armed: true, alreadyFired: true, eventIsTrusted: true })).toBe(false);
+  });
+  test("campaign effect no longer saves on mount", () => {
+    const s = src("src/routes/estimate_.$token.campaign.tsx");
+    expect(s).toContain("shouldFireOneTapSave");
+    expect(s).toContain("isTrusted");
+    expect(s).not.toMatch(/autoSaved\.current = true; void act\("save"\)/);
+    const effect = s.slice(s.indexOf("useEffect("), s.indexOf("return <div className=\"estimate-brand"));
+    expect(effect.match(/act\("save"\)/g)?.length).toBe(1);
+    expect(effect.indexOf("isTrusted")).toBeGreaterThan(-1);
+    expect(effect.indexOf('act("save")')).toBeGreaterThan(effect.indexOf("isTrusted"));
+  });
   test("saved-estimate emails use the one-tap link", () => {
     expect(src("src/lib/jo-outcome-email.core.ts")).toContain("oneTapSaveUrl(");
     expect(src("src/lib/estimate-followup.core.ts")).toContain("oneTapSaveUrl(");
@@ -77,9 +92,8 @@ describe("#12 Spot saved screen + one-tap save", () => {
 describe("#13 3 quick questions page", () => {
   test("no photos / video box; the asks elsewhere stay", () => {
     const s = src("src/routes/estimate_.$token.video.tsx");
-    expect(s).not.toMatch(/Got photos or a video\? \(optional\)|P1\.addPhotos|P1\.addVideo/);
-    expect(P1 as Record<string, unknown>).not.toHaveProperty("addPhotos");
-    expect(P1 as Record<string, unknown>).not.toHaveProperty("addVideo");
+    expect(s).not.toMatch(/Got photos or a video\? \(optional\)/);
+    expect(src("src/lib/owner-pages.core.ts")).not.toMatch(/addPhotos|addVideo/);
     expect(src("src/lib/jo-outcome-email.core.ts")).toContain("Got photos or a video?");
   });
 });

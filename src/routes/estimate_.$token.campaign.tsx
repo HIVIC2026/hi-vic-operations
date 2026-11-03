@@ -3,7 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useRef, useState } from "react";
-import { shouldAutoSaveSpot } from "@/lib/one-tap-save.core";
+import { shouldAutoSaveSpot, shouldFireOneTapSave } from "@/lib/one-tap-save.core";
 import { spotSavedBasedOn } from "@/lib/spot-saved-messages.core";
 import { CUSTOMER_BRAND } from "@/lib/customer-quote-system";
 import { OwnerHouse } from "@/components/owner/OwnerHouse";
@@ -43,12 +43,21 @@ function CampaignPage() {
     catch (e) { setError(e instanceof Error ? e.message : "That didn't work. Please try again."); }
     finally { setBusy(null); }
   };
-  // One tap from the email: run the canonical save once, then show the Spot saved screen.
+  // One tap from the email: armed on load, the canonical save runs once on the first real user interaction (never on load).
   const autoSaved = useRef(false);
+  const armed = !!data && shouldAutoSaveSpot({ save: saveParam, saveAllowed: data.saveAllowed, spotSavedAt: data.response?.spot_saved_at ?? null, optedOutAt: data.response?.opted_out_at ?? null });
   useEffect(() => {
-    if (autoSaved.current || !data) return;
-    if (shouldAutoSaveSpot({ save: saveParam, saveAllowed: data.saveAllowed, spotSavedAt: data.response?.spot_saved_at ?? null, optedOutAt: data.response?.opted_out_at ?? null })) { autoSaved.current = true; void act("save"); }
-  }, [data, saveParam]);
+    if (!armed) return;
+    const events = ["pointerdown", "touchstart", "keydown", "scroll", "wheel"] as const;
+    const onInteract = (e: Event) => {
+      if (!shouldFireOneTapSave({ armed, alreadyFired: autoSaved.current, eventIsTrusted: e.isTrusted })) return;
+      autoSaved.current = true;
+      for (const n of events) window.removeEventListener(n, onInteract);
+      void act("save");
+    };
+    for (const n of events) window.addEventListener(n, onInteract, { passive: true });
+    return () => { for (const n of events) window.removeEventListener(n, onInteract); };
+  }, [armed]);
   return <div className="estimate-brand min-h-screen bg-estimate-canvas">
     <main className="pb-14">
       {isLoading ? <p role="status" className="py-16 text-center text-sm text-muted-foreground">Loading your estimate…</p>

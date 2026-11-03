@@ -5,3 +5,8 @@ export const oneTapSaveUrl = (campaignUrl: string): string => `${campaignUrl}${c
 export function shouldAutoSaveSpot(i: { save: unknown; saveAllowed: boolean; spotSavedAt: string | null; optedOutAt: string | null }): boolean {
   return (i.save === "1" || i.save === 1) && i.saveAllowed && !i.spotSavedAt && !i.optedOutAt;
 }
+
+/** The ?save=1 link must not save on page load (email link scanners run the page's JS). It arms, then saves once on the first real user interaction. */
+export function shouldFireOneTapSave(i: { armed: boolean; alreadyFired: boolean; eventIsTrusted: boolean }): boolean {
+  return i.armed && !i.alreadyFired && i.eventIsTrusted;
+}
