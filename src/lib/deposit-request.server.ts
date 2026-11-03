@@ -3,11 +3,13 @@
 import { supabaseAdmin as admin } from '@/integrations/supabase/client.server';
 import { readInHouseDispatchState } from './in-house-suppression.server';
 import { depositReminderDue, depositRequestEligible, INSTALL_DEPOSIT_REQUEST_EVENT, installDepositRequestKey, type DepositReminder } from './deposit-request.core';
-import { depositOwnerText, renderInstallDepositOwnerEmail, renderInstallerDepositPaidEmail, type DepositMessageFacts } from './deposit-request-email.core';
+import { DEPOSIT_MESSAGES_V2_APPROVED, depositOwnerText, renderInstallDepositOwnerEmail, renderInstallerDepositPaidEmail, type DepositMessageFacts } from './deposit-request-email.core';
 import { isStepPaid } from './payments.core';
 import { fullAddress } from './address';
 import { CLEAR_TO_INSTALL_EMAIL_APPROVED, UPGRADES_NEEDED_EMAIL_APPROVED, type PiesaResultRoute } from './piesa-result-route.core';
 import type { EmailAttachment } from './email-kit.core';
+import type { DepositPaidArgs, DepositPaidInputs } from './deposit-paid-inputs.server';
+import { SET_PASSWORD_BASE } from './set-password-link.core';
 
 async function factsFor(jobId:string,now:Date) {
   const held=await readInHouseDispatchState([jobId]);
@@ -57,6 +59,10 @@ export type ClearToInstallDeps={
   upgradesApproved?:boolean;
   route:(jobId:string)=>Promise<PiesaResultRoute[]>;
   inputs:(jobId:string)=>Promise<{checkedOn:string;electrician:string;piesaRecordId:string;signedCopyId:string;attachments:EmailAttachment[]}|{held:string}>;
+  /** Task 6: DEPOSIT_MESSAGES_V2_APPROVED (#43/#44/#45 wording). */
+  v2?:boolean;
+  /** Task 6 (#44): office phone + receipt + owner-confirmed PIESA for Deposit received. */
+  paid?:(a:DepositPaidArgs)=>Promise<DepositPaidInputs|{held:string}>;
   record:(p:{jobId:string;recipient:'owner';piesaRecordId:string;signedCopyId:string;recipientUserId:string|null;to:string;detail:string})=>Promise<void>;
 };
 const CLEAR_HELD='Clear to install documents not ready';
@@ -64,6 +70,8 @@ export function defaultClearToInstallDeps():ClearToInstallDeps{
   return{
     approved:CLEAR_TO_INSTALL_EMAIL_APPROVED,
     upgradesApproved:UPGRADES_NEEDED_EMAIL_APPROVED,
+    v2:DEPOSIT_MESSAGES_V2_APPROVED,
+    paid:async a=>(await import('./deposit-paid-inputs.server')).depositPaidInputs(a),
     route:async j=>(await import('./piesa-delivery.server')).ownerPiesaRoute(j),
     inputs:async j=>(await import('./clear-to-install.server')).clearToInstallInputs(j),
     record:async p=>{
@@ -113,11 +121,21 @@ async function ownerNotice(jobId:string,c:Facts,step:'request'|'paid'|DepositRem
     attachments=i.attachments;piesa={piesaRecordId:i.piesaRecordId,signedCopyId:i.signedCopyId};
     cf={...c.f,link:c.f.link.replace('screen=pay','screen=clear'),firstName:c.f.name,checkedOn:i.checkedOn,electrician:i.electrician,upgrades:(await piesaOutcomeFor(jobId))==='upgrades_needed'?'Done':'None'};
   }
+  const v2=!!deps.v2&&!clear;
+  let paidMail:{attachments:EmailAttachment[];receiptAttached:boolean}|undefined;
+  if(v2&&step==='paid'&&deps.paid){
+    // Office phone missing = held with a note (never a worker's mobile); the office email is independent and still goes.
+    const p=await deps.paid({jobId,invoiceId:c.v.invoiceId,jobNumber:c.job.job_number??'',depositCents:c.v.plan.installDepositCents,balanceCents:c.v.plan.balanceCents});
+    if('held' in p)return p.held;
+    cf={...cf,officePhone:p.officePhone,balanceCents:p.balanceCents,depositCents:p.depositCents};
+    paidMail={attachments:p.attachments,receiptAttached:p.receiptAttached};
+  }
+  if(v2&&(step==='day3'||step==='day7'))cf={...cf,upgradesToCome:(await deps.route(jobId)).includes('upgrades_needed')};
   const e=await (await import('./owner-email-send.server')).sendGuardedOwnerEmail({jobId,jobSource:c.job.source,to:c.owner.email,purpose,key,retryAfterDefiniteFailure:true,beforeSend:async()=>{
     await (await import('./comms.server')).assertCustomerDeliveryAllowed(jobId,'Install deposit notice',...(clear?['piesa_copy' as const]:[]));
     const fresh=await factsFor(jobId,new Date());
     if(!fresh || fresh.v.invoiceId!==c.v.invoiceId || (step==='paid'?!fresh.paid:fresh.paid) || fresh.c.booked)throw Error('Deposit state changed; notice held.');
-  },build:()=>clear&&attachments?{...renderInstallDepositOwnerEmail(cf,'request',true),attachments}:renderInstallDepositOwnerEmail(cf,step,false)});
+  },build:()=>clear&&attachments?{...renderInstallDepositOwnerEmail(cf,'request',true),attachments}:paidMail?{...renderInstallDepositOwnerEmail(cf,step,false,true,{receiptAttached:paidMail.receiptAttached}),...(paidMail.attachments.length?{attachments:paidMail.attachments}:{})}:renderInstallDepositOwnerEmail(cf,step,false,v2)});
   if(clear&&piesa&&e==='sent')await deps.record({jobId,recipient:'owner',...piesa,recipientUserId:null,to:c.owner.email,detail:'with the "You\'re clear to install" email'});
   if(step==='paid')return e; // Jo 2 Nov: Deposit received is email only.
   // TEST jobs stay behind the canonical sender's TEST boundary (no real SMS).
@@ -156,13 +174,13 @@ export async function requestInstallDeposit(jobId:string,now=new Date(),deps:Cle
   }
 }
 /** Shared by card and Xero receipt handling; each channel owns a durable once-only claim. */
-export async function notifyInstallerDepositPaid(jobId:string,now=new Date()):Promise<string>{
+export async function notifyInstallerDepositPaid(jobId:string,now=new Date(),deps:ClearToInstallDeps=defaultClearToInstallDeps()):Promise<string>{
   const c=await factsFor(jobId,now);if(!c||!c.paid||!c.c.clearance.cleared||c.c.booked)return 'not due';
   const r=await admin.from('workflow_events').select('created_at').eq('job_id',jobId).eq('event_type','install_deposit_received').contains('details',{invoice_id:c.v.invoiceId}).limit(1).maybeSingle();
   if(r.error)throw Error('Could not read deposit receipt.');if(!r.data)return 'receipt not recorded';
   // Independent channels: owner consent holds must not prevent an authorised trade-office notice.
   let owner:string;
-  try{owner=await ownerNotice(jobId,c,'paid',r.data.created_at,now,defaultClearToInstallDeps());}catch(e){owner=`owner held: ${e instanceof Error?e.message:'delivery unavailable'}`;}
+  try{owner=await ownerNotice(jobId,c,'paid',r.data.created_at,now,deps);}catch(e){owner=`owner held: ${e instanceof Error?e.message:'delivery unavailable'}`;}
   // Office email only. Trade pause remains independent of the allowed in-house exception.
   if(await (await import('./trade-pause.server')).tradeMessagesPausedNow({businessId:c.assignment.business_id}))return `${owner}; installer held`;
   if(!c.biz.email)return `${owner}; installer email missing`;
@@ -176,14 +194,15 @@ export async function notifyInstallerDepositPaid(jobId:string,now=new Date()):Pr
     :await admin.from('customer_email_sends').insert({job_id:jobId,purpose:'install_deposit_paid_office',idempotency_key:key}).select('id').maybeSingle();
   if(claim.error?.code==='23505')return `${owner}; installer already attempted`;
   if(claim.error||!claim.data)throw Error('Could not reserve installer deposit email.');
-  const m=renderInstallerDepositPaidEmail({...c.f,name:c.owner.full_name||c.f.name});
+  const v2=!!deps.v2;
+  const m=renderInstallerDepositPaidEmail(v2?{...c.f,ownerFullName:c.owner.full_name||c.f.name,bookUrl:`${SET_PASSWORD_BASE}/field/${jobId}`}:{...c.f,name:c.owner.full_name||c.f.name},v2);
   const e=c.job.source==='qa_test'
     ?await (await import('./test-send.server')).sendTestEmail({jobId,jobSource:c.job.source,partnerIsTest:true,label:key,actorId:null},c.biz.email,m.subject,m.html,m.text)
     :await (await import('./office-email.server')).sendOfficeEmail({actorId:null,recipient:'partner',to:c.biz.email,contactName:c.f.installer,subject:m.subject,message:m.text,label:'install_deposit_paid_office',record:{businessId:c.assignment.business_id},html:m.html,text:m.text,idempotencyKey:key});
   await admin.from('customer_email_sends').update({status:e.status==='sent'?'sent':e.status==='blocked'||e.status==='failed'&&/didn't accept|refused this address or message/i.test(e.detail??'')?'failed':'delivered_unrecorded',sent_at:e.status==='sent'?now.toISOString():null,error:e.status==='sent'?null:e.detail}).eq('id',claim.data.id);
   return `${owner}; installer ${e.status}`;
 }
-export async function sweepDepositRequests(now=new Date()){
+export async function sweepDepositRequests(now=new Date(),deps:ClearToInstallDeps=defaultClearToInstallDeps()){
   const ids:string[]=[];
   for(let offset=0;;offset+=200){const pending=await admin.from('workflow_events').select('job_id').eq('event_type','install_deposit_request_pending').order('id').range(offset,offset+199);if(pending.error)throw Error(pending.error.message);for(const row of pending.data??[])if(row.job_id&&!ids.includes(row.job_id))ids.push(row.job_id);if((pending.data?.length??0)<200)break;}
   for(let from=0;;from+=200){
@@ -194,16 +213,16 @@ export async function sweepDepositRequests(now=new Date()){
   for(const jobId of ids){
     try{
       const pending=await admin.from('workflow_events').select('id').eq('job_id',jobId).eq('event_type','install_deposit_request_pending').limit(1).maybeSingle();if(pending.error)throw Error(pending.error.message);
-      if(pending.data)await requestInstallDeposit(jobId,now);
+      if(pending.data)await requestInstallDeposit(jobId,now,deps);
       const c=await factsFor(jobId,now);if(!c)continue;checked++;
-      if(c.paid){await notifyInstallerDepositPaid(jobId,now);continue;}
+      if(c.paid){await notifyInstallerDepositPaid(jobId,now,deps);continue;}
       if(!depositRequestEligible({piesaOutcome:await piesaOutcomeFor(jobId),paid:c.paid,booked:c.c.booked,deadline:c.c.deadline,now}))continue;
       const r=await requestRecord(jobId,c.v.invoiceId);
       // Retry only recorded intents; never release a historical clearance backlog on deployment.
       if(!r)continue;
       const due=depositReminderDue({requestedAt:r.created_at,paid:c.paid,now});
-      if(due)await ownerNotice(jobId,c,due,r.created_at,now,defaultClearToInstallDeps());
-      else await requestInstallDeposit(jobId,now);
+      if(due)await ownerNotice(jobId,c,due,r.created_at,now,deps);
+      else await requestInstallDeposit(jobId,now,deps);
     }catch(e){console.error('Deposit request held',jobId,e instanceof Error?e.message:'read failed');}
   }
   return{checked};
