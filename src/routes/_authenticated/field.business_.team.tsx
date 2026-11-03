@@ -49,7 +49,7 @@ function Team() {
                 <li key={id ?? `owner-${m.email ?? m.name}`} id={id ? `w-${id}` : "owner"} className="border-b border-estimate-line py-3">
                   <p className="text-base font-semibold text-estimate-navy">{m.name} <span className="text-[13px] font-medium text-estimate-sub">· {ROLE_LABEL[m.role]}</span></p>
                   <p className="mt-0.5 text-[13px] text-estimate-sub">{teamFactsLine(m)}{m.email ? ` · ${m.email}` : ""}</p>
-                  {(() => { const ask = teamMissingPrompt(m.name, m.missingDetails ?? []); return ask ? <p data-team-missing className="mt-1 rounded-[10px] bg-estimate-amber-soft px-2.5 py-1.5 text-[13px] font-semibold text-estimate-navy">{ask}. Ask the office if you can't add it here.</p> : null; })()}
+                  {(() => { const ask = teamMissingPrompt(m.name, m.missingDetails ?? []); return ask ? <p data-team-missing className="mt-1 rounded-[10px] border border-estimate-amber px-2.5 py-1.5 text-[13px] font-semibold text-estimate-amber">{ask}</p> : null; })()}
                   {m.dateOfBirth&&<p className="text-[13px] text-estimate-sub">Date of birth: {m.dateOfBirth}</p>}
                   {m.declarationsDue && <p data-sign-due className="mt-0.5 text-[13px] font-semibold text-[#8A3B4A]">{TEAM_SIGN.due}</p>}
                   {cii && <p className={`mt-0.5 text-[13px] font-semibold ${cii.tone === "green" ? "text-estimate-green" : "text-[#8A3B4A]"}`}>{cii.text}</p>}
