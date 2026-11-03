@@ -8,7 +8,8 @@ const f = { sent: false, accepted: false, declined: false, held: false };
 describe("installer quote status line", () => {
   test("prepared → press Complete in Mitti; after Complete or a hold → office is checking", () => {
     expect(installerQuoteLine(f)).toBe(PRESS_COMPLETE_LINE);
-    expect(PRESS_COMPLETE_LINE).toBe("You: when the Ready Check is finished, press Complete in Mitti — we then send the owner their quote");
+    // Jo 3 Nov 2026: the boss enters the price after Complete; no automatic send is implied (DRAFT wording).
+    expect(PRESS_COMPLETE_LINE).toBe("Press Complete in Mitti when the Ready Check is finished. Your boss then enters the price, and we send the owner their quote.");
     expect(installerQuoteLine({ ...f, held: true })).toBe(QUOTE_HELD_LINE);
     expect(installerQuoteLine({ ...f, formCompleted: true })).toBe("Waiting on office: checking the quote");
   });

@@ -312,7 +312,8 @@ export function installerStatusLine(f: StatusLineFacts): StatusLine {
       kind: "quote",
       title: f.quoteLine.replace(/^You:\s*/, ""),
       home: f.quoteLine,
-      yours: f.quoteLine.startsWith("You:"),
+      // Jo 3 Nov 2026: the press-Complete line no longer starts with "You:" but is still the installer's turn.
+      yours: f.quoteLine.startsWith("You:") || f.quoteLine === PRESS_COMPLETE_LINE,
     };
   return { kind: "none", title: "", home: "", yours: false };
 }
@@ -526,7 +527,7 @@ export function jobNext(f: JobNextFacts): JobNext {
         yours: false,
       };
     if (f.quoteLine) {
-      const yours = f.quoteLine.startsWith("You:");
+      const yours = f.quoteLine.startsWith("You:") || f.quoteLine === PRESS_COMPLETE_LINE;
       return {
         panel: "quote_status",
         title: f.quoteLine
@@ -585,7 +586,7 @@ export function jobNext(f: JobNextFacts): JobNext {
       panel: "quote_status",
       title: f.quoteLine.replace(/^You:\s*/, ""),
       sub: null,
-      yours: f.quoteLine.startsWith("You:"),
+      yours: f.quoteLine.startsWith("You:") || f.quoteLine === PRESS_COMPLETE_LINE,
     };
   return {
     panel: "waiting",
