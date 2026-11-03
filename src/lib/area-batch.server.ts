@@ -6,8 +6,10 @@
 //   (Jo 30 Oct, Task 3).
 // - batchSuggestions: suggestBatches per TEST / real group, plus the installers who can be offered EVERY home.
 // - sendBatch: Jo's one tap. Every check runs first (nothing written if any fails), then ONE `area_batch_sent` claim per
-//   job (append-only workflow_events), then the owner's quick taps text once per job: TEST → test-send, real → the one
-//   real SMS sender (`quick_taps` switch, consent, STOP). Never automatic: only the office Send calls this.
+//   job (append-only workflow_events), then the owner's ONE "It's your turn" message per job (O77 email + `spot_released`
+//   text, both opening the quick taps; decisions #21/#22, behind IT_IS_YOUR_TURN_V2_APPROVED): TEST → test-send, real →
+//   the guarded owner email + the one real SMS sender (`spot_released` switch, consent, STOP). The old `quick_taps` texts
+//   are retired (a home already texted under them is in an open batch, so Send refuses it). Never automatic.
 // - sweepAreaBatches (15-minute tick, Task 4): day-2 reminder, day-3 close, decline retries, day-14 no-answer close (rules
 //   in area-batch.core planBatchSweep). Passers wait for Jo's OK ("Send to installer" on Choose installer,
 //   batchesReadyToSend): a run NEVER goes to an installer automatically (Jo 30 Oct). Nothing lands in Needs me.
@@ -16,14 +18,17 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { WorkflowError, logEvent } from "./workflow.server";
 import {
   AREA_BATCH_CLOSED_EVENT, AREA_BATCH_EVENTS, AREA_BATCH_LEFT_EVENT, AREA_BATCH_RETURNED_EVENT, AREA_BATCH_SENT_EVENT, NO_ANSWER_CLOSE_REASON, QUICK_TAPS_REMINDED_EVENT,
-  QUICK_TAPS_REMINDER_SMS_TYPE, QUICK_TAPS_SMS_TYPE, areaBatchClosedKey, areaBatchKey, batchInstallers, batchSpanKm, likelyEligible, nextBatchSeq,
-  openBatchId, outsideBatch, passHandedOn, planBatchSweep, standingPass, STAGE_CHANGED_EVENT, quickTapsLink, quickTapsReminderText, quickTapsSmsKey, quickTapsText, suggestBatches,
+  areaBatchClosedKey, areaBatchKey, batchInstallers, batchSpanKm, likelyEligible, nextBatchSeq,
+  openBatchId, outsideBatch, passHandedOn, planBatchSweep, standingPass, STAGE_CHANGED_EVENT, quickTapsLink, quickTapsSmsKey, suggestBatches,
   type AreaBatchEventRow, type BatchHome, type SweepJob,
 } from "./area-batch.core";
 import { QUICK_TAPS_ANSWERED_EVENT } from "./quick-taps.core";
 import { RUN_EVENTS, RUN_OFFERED_EVENT, isFillRow, runExpiryDue, runIdOf, runState, type RunEventRow, type RunState } from "./run-route.core";
 import { installerWaiting } from "./installer-waiting-columns.core";
-import { SPOT_RELEASE_EVENTS, jobWaitingForInstaller, spotReleaseState, type SpotReleaseEventRow } from "./spot-release.core";
+import {
+  IT_IS_YOUR_TURN_V2_APPROVED, IT_IS_YOUR_TURN_V2_UNAPPROVED, SPOT_RELEASED_PURPOSE, SPOT_RELEASED_SMS_TYPE, SPOT_RELEASE_EVENTS, jobWaitingForInstaller, spotReleaseKey, spotReleaseState, spotReleasedText,
+  type SpotReleaseEventRow,
+} from "./spot-release.core";
 import { declaredExtras, declaredInsulationDetail } from "./enquiry.core";
 import { normaliseInsulation } from "./eligibility.core";
 import { distanceM, propertyPoint, type PropertyPoint } from "./geo.core";
@@ -91,13 +96,13 @@ export const hasFullStreet = (addressLine: string | null | undefined): boolean =
 
 /** `carriedPass`: the owner already passed the quick taps in a batch they left (or as it closed) — put in a new batch
  *  without being asked again (Task 4 fix round 1). */
-export type BatchCandidate = BatchHome & { jobNumber: string; propertyId: string; ownerName: string; phone: string | null; suburb: string; isTest: boolean; source: string | null; carriedPass: boolean };
+export type BatchCandidate = BatchHome & { jobNumber: string; propertyId: string; ownerName: string; phone: string | null; email: string | null; suburb: string; isTest: boolean; source: string | null; carriedPass: boolean };
 export type CandidateRead = { candidates: BatchCandidate[]; unlocated: number; refused: Map<string, string> };
 
 /** Who can be put in a batch now. `jobIds` limits the read (Send re-checks its own homes); `locate` caps location lookups. */
 export async function batchCandidates(opts: { includeTest?: boolean; testJobIds?: string[]; jobIds?: string[]; locate?: number; requireLocation?: boolean; now?: Date } = {}): Promise<CandidateRead> {
   const jobs = (await all("waiting jobs", (a, b) => {
-    let q = admin.from("jobs").select("id, job_number, stage, source, channel, deleted_at, qa_archived_at, property_id, owners(full_name, phone), properties(address_line, suburb, postcode, declared:enrichment->base44->declared, answers:enrichment->base44->raw->answers)")
+    let q = admin.from("jobs").select("id, job_number, stage, source, channel, deleted_at, qa_archived_at, property_id, owners(full_name, phone, email), properties(address_line, suburb, postcode, declared:enrichment->base44->declared, answers:enrichment->base44->raw->answers)")
       .eq("stage", "ready_check_ready_to_schedule").eq("channel", "hivic_sourced").is("deleted_at", null).is("qa_archived_at", null);
     if (opts.jobIds) q = q.in("id", opts.jobIds.length ? opts.jobIds : ["00000000-0000-0000-0000-000000000000"]);
     if (opts.testJobIds) q = q.eq("source", "qa_test").in("id", opts.testJobIds.length ? opts.testJobIds : ["00000000-0000-0000-0000-000000000000"]);
@@ -174,11 +179,11 @@ export async function batchCandidates(opts: { includeTest?: boolean; testJobIds?
     const id = String(j["id"]);
     if (!point) { unlocated++; if (opts.requireLocation !== false) { refused.set(id, "we don't have its location yet"); continue; } }
     const prop = (j["properties"] ?? null) as { suburb?: string | null; postcode?: string | null } | null;
-    const owner = (j["owners"] ?? null) as { full_name?: string | null; phone?: string | null } | null;
+    const owner = (j["owners"] ?? null) as { full_name?: string | null; phone?: string | null; email?: string | null } | null;
     candidates.push({
       jobId: id, jobNumber: String(j["job_number"] ?? ""), propertyId, lat: point?.lat ?? Number.NaN, lng: point?.lng ?? Number.NaN,
       postcode: (prop?.postcode ?? "").trim(), suburb: (prop?.suburb ?? "").trim(), spotSavedAt: String(savedBy.get(id)?.["spot_saved_at"]),
-      ownerName: (owner?.full_name ?? "").trim(), phone: owner?.phone ?? null, isTest: j["source"] === "qa_test", source: s(j["source"]),
+      ownerName: (owner?.full_name ?? "").trim(), phone: owner?.phone ?? null, email: owner?.email ?? null, isTest: j["source"] === "qa_test", source: s(j["source"]),
       carriedPass: standingPass((eventsBy.get(id) ?? []) as unknown as AreaBatchEventRow[], id),
     });
   }
@@ -219,7 +224,7 @@ export type SendBatchResult = { batchId: string; installer: string; homes: numbe
 
 /** Jo taps Send. Every check first; then one claim per job; then one text per job. Refuses if any home is already in an
  *  open batch (one batch at a time) or can't be batched any more. */
-export async function sendBatch(jobIdsIn: string[], businessId: string, actorId: string | null, opts: { now?: Date } = {}): Promise<SendBatchResult> {
+export async function sendBatch(jobIdsIn: string[], businessId: string, actorId: string | null, opts: { now?: Date; v2Approved?: boolean } = {}): Promise<SendBatchResult> {
   const now = opts.now ?? new Date();
   const jobIds = [...new Set(jobIdsIn)];
   if (!jobIds.length) throw new WorkflowError("Pick at least one home.");
@@ -250,10 +255,11 @@ export async function sendBatch(jobIdsIn: string[], businessId: string, actorId:
   if (!(cards ?? 0)) throw new WorkflowError(`${installer.name}: this installer has no rate card yet — nothing was sent.`);
 
   if (!isTest) {
+    if (!(opts.v2Approved ?? IT_IS_YOUR_TURN_V2_APPROVED)) throw new WorkflowError(`${IT_IS_YOUR_TURN_V2_UNAPPROVED} — nothing was sent.`);
     const { data: ws } = await admin.from("workflow_settings").select("customer_comms_enabled, sms_message_switches").eq("id", 1).maybeSingle();
     const w = ws as { customer_comms_enabled?: boolean | null; sms_message_switches?: Record<string, boolean> | null } | null;
     if (w?.customer_comms_enabled !== true) throw new WorkflowError("Customer messages are switched off — nothing was sent.");
-    if (w?.sms_message_switches?.[QUICK_TAPS_SMS_TYPE] !== true) throw new WorkflowError("The quick taps texts are switched off — switch them on in Settings first. Nothing was sent.");
+    if (w?.sms_message_switches?.[SPOT_RELEASED_SMS_TYPE] !== true) throw new WorkflowError("The \"It's your turn\" texts are switched off — switch them on in Settings first. Nothing was sent.");
     if (smsQuietReason(now.toISOString())) throw new WorkflowError("It's quiet hours (8pm–7am) — texts can't go now. Send again after 7am. Nothing was sent.");
   }
   const { ownerMyJobLink } = await import("./veec-copy-email.server");
@@ -270,7 +276,7 @@ export async function sendBatch(jobIdsIn: string[], businessId: string, actorId:
   const claimed: BatchCandidate[] = [];
   for (const h of homes) {
     const key = areaBatchKey(h.jobId, nextBatchSeq(evs.get(h.jobId) ?? []));
-    const won = await claim(h.jobId, actorId, AREA_BATCH_SENT_EVENT, `Area batch sent (${homes.length} ${homes.length === 1 ? "home" : "homes"}, ${installer.name}) — quick taps texted to the owner`,
+    const won = await claim(h.jobId, actorId, AREA_BATCH_SENT_EVENT, `Area batch sent (${homes.length} ${homes.length === 1 ? "home" : "homes"}, ${installer.name}) — "It's your turn" sent to the owner`,
       { batch_id: batchId, installer_business_id: businessId, installer_name: installer.name, job_ids: jobIds, centre_job_id: centreHome.jobId, centre, sent_by: actorId, idempotency_key: key, ...(h.carriedPass ? { carried_pass: true } : {}) });
     if (!won) {
       // Someone else batched this home at the same moment: undo ours (append-only close) and send nothing.
@@ -285,7 +291,7 @@ export async function sendBatch(jobIdsIn: string[], businessId: string, actorId:
     // Already said yes in a batch they left: recorded in this batch, never asked again.
     if (h.carriedPass) { texts.push({ jobId: h.jobId, status: "not_texted", detail: "the owner already said yes — not asked again" }); return; }
     try {
-      const r = await textOwner(h, batchId, links.get(h.jobId)!, businessId, actorId);
+      const r = await messageOwner(h, batchId, links.get(h.jobId)!, businessId, actorId);
       texts.push({ jobId: h.jobId, ...r });
     } catch (e) { texts.push({ jobId: h.jobId, status: "failed", detail: (e as Error).message }); }
   };
@@ -305,24 +311,41 @@ async function claim(jobId: string, actorId: string | null, type: string, summar
   return true;
 }
 
-type TextTo = Pick<BatchCandidate, "jobId" | "ownerName" | "phone" | "isTest" | "source">;
-/** The quick taps text (or the day-2 reminder), once per job + batch (TEST → test-send; real → the one real sender with
- *  its own switch). */
-async function textOwner(h: TextTo, batchId: string, myJobLink: string, businessId: string | null, actorId: string | null, step: "sent" | "reminder" = "sent"): Promise<{ status: string; detail: string }> {
+type TextTo = Pick<BatchCandidate, "jobId" | "ownerName" | "phone" | "email" | "isTest" | "source">;
+/** The owner's ONE "It's your turn" message (decisions #21/#22): the O77 email and the `spot_released` text, both opening
+ *  the quick taps (or the day-2 reminder version), once per job + batch. TEST → test-send; real → the guarded owner email
+ *  and the one real SMS sender (own switch). The email never hides the text's result: `status`/`detail` are the text's,
+ *  `email` is the email's. Same purpose + key family as the old release (`spot-release:v1:{job}:{batch}:{step}`). */
+async function messageOwner(h: TextTo, batchId: string, myJobLink: string, businessId: string | null, actorId: string | null, step: "sent" | "reminder" = "sent"): Promise<{ status: string; detail: string; email: string }> {
   const link = quickTapsLink(myJobLink);
-  const body = step === "reminder" ? quickTapsReminderText(h.ownerName, link) : quickTapsText(h.ownerName, link);
+  const reminder = step === "reminder";
+  const { firstName } = await import("./worker-links.core");
+  const first = firstName(h.ownerName || null);
+  const body = spotReleasedText(first, link, reminder);
+  const key = spotReleaseKey(h.jobId, batchId, reminder ? "reminder" : "released");
+  const { renderSpotReleasedEmail } = await import("./spot-release-email.core");
+  const build = (unsubscribeUrl: string | null, test: boolean) => renderSpotReleasedEmail({ firstName: first, confirmUrl: link, unsubscribeUrl, reminder, test });
   if (h.isTest) {
     const { data: biz } = businessId ? await admin.from("businesses").select("onboarding_notes").eq("id", businessId).maybeSingle() : { data: null };
     const { isTestPartner } = await import("./test-send.core");
-    const { sendTestSms } = await import("./test-send.server");
-    const label = step === "reminder" ? `quick_taps_reminder:${batchId}` : `quick_taps:${batchId}`;
-    const r = await sendTestSms({ jobId: h.jobId, jobSource: h.source, partnerIsTest: isTestPartner(biz ?? null), label, actorId }, h.phone ?? "", body);
-    return { status: r.status, detail: r.detail };
+    const { sendTestEmail, sendTestSms } = await import("./test-send.server");
+    const ctx = { jobId: h.jobId, jobSource: h.source, partnerIsTest: isTestPartner(biz ?? null), label: `${SPOT_RELEASED_PURPOSE}:${batchId}:${reminder ? "reminder" : "released"}`, actorId };
+    const mail = build(null, true);
+    const e = await sendTestEmail(ctx, h.email ?? "", mail.subject, mail.html, mail.text);
+    const r = await sendTestSms(ctx, h.phone ?? "", body);
+    return { status: r.status, detail: r.detail, email: `${e.status}: ${e.detail}` };
+  }
+  let email: string;
+  if (!h.email) email = "not sent — no owner email";
+  else {
+    try {
+      await (await import("./comms.server")).assertCustomerDeliveryAllowed(h.jobId, "It's your turn email");
+      email = await (await import("./owner-email-send.server")).sendGuardedOwnerEmail({ jobId: h.jobId, jobSource: h.source, to: h.email, purpose: reminder ? `${SPOT_RELEASED_PURPOSE}:reminder` : SPOT_RELEASED_PURPOSE, key, build: (u) => build(u, false) });
+    } catch (e) { email = `not sent — ${(e as Error).message}`; }
   }
   const { sendRealSms } = await import("./sms.server");
-  const type = step === "reminder" ? QUICK_TAPS_REMINDER_SMS_TYPE : QUICK_TAPS_SMS_TYPE;
-  const r = await sendRealSms({ type, idempotencyKey: quickTapsSmsKey(batchId, h.jobId, step), to: h.phone, body, jobId: h.jobId });
-  return { status: r.status, detail: r.detail };
+  const r = await sendRealSms({ type: SPOT_RELEASED_SMS_TYPE, idempotencyKey: `${key}:sms`, to: h.phone, body, jobId: h.jobId });
+  return { status: r.status, detail: r.detail, email };
 }
 
 // ---- a home whose address changed (Task 3, Jo 30 Oct) -------------------------------------------------------------------
@@ -367,8 +390,8 @@ const DECLINE_RETRIED_EVENT = "quick_taps_decline_retried";
 const NO_ANSWER_CLOSED_EVENT = "quick_taps_no_answer_closed";
 /** Batches sent in the last 21 days (closed at day 3; a home with no answer is closed at day 14 from its first send). */
 const SWEEP_DAYS = 21;
-const sweepJobFields = "id, stage, source, channel, deleted_at, qa_archived_at, owners(full_name, phone)";
-type SweepRow = { id: string; stage: string; source: string | null; channel: string | null; deleted_at: string | null; qa_archived_at: string | null; owners: { full_name?: string | null; phone?: string | null } | null };
+const sweepJobFields = "id, stage, source, channel, deleted_at, qa_archived_at, owners(full_name, phone, email)";
+type SweepRow = { id: string; stage: string; source: string | null; channel: string | null; deleted_at: string | null; qa_archived_at: string | null; owners: { full_name?: string | null; phone?: string | null; email?: string | null } | null };
 
 async function inFours<T>(items: T[], run: (t: T) => Promise<void>) {
   for (let i = 0; i < items.length; i += 4) await Promise.all(items.slice(i, i + 4).map(run));
@@ -377,7 +400,7 @@ async function inFours<T>(items: T[], run: (t: T) => Promise<void>) {
 /** Day-2 reminder (quiet hours → the next tick outside them), day-3 close (passers wait for Jo's OK, non-answerers back in
  *  the pool), decline answers whose close failed are finished again, day-14 no-answer close (quiet). Never offers a run,
  *  never raises a Needs me row. Reads are batched by job id; steps run four at a time. */
-export async function sweepAreaBatches(nowIso: string = new Date().toISOString()): Promise<AreaBatchSweep> {
+export async function sweepAreaBatches(nowIso: string = new Date().toISOString(), opts: { v2Approved?: boolean } = {}): Promise<AreaBatchSweep> {
   const out: AreaBatchSweep = { jobs: 0, reminded: 0, closed: 0, declinesFinished: 0, noAnswerClosed: 0, failed: 0 };
   const since = new Date(Date.parse(nowIso) - SWEEP_DAYS * 86_400_000).toISOString();
   const recent = await all("sent batches", (f, t) => loose.from("workflow_events").select("job_id").eq("event_type", AREA_BATCH_SENT_EVENT).gte("created_at", since).order("created_at").range(f, t));
@@ -421,7 +444,7 @@ export async function sweepAreaBatches(nowIso: string = new Date().toISOString()
     const { data, error } = await loose.from("workflow_settings").select("customer_comms_enabled, sms_message_switches").eq("id", 1).maybeSingle();
     if (error) throw new Error(`Could not read the message switches: ${error.message}`);
     const w = (data ?? null) as { customer_comms_enabled?: boolean | null; sms_message_switches?: Record<string, boolean> | null } | null;
-    return (remindersOff = w?.customer_comms_enabled !== true || w?.sms_message_switches?.[QUICK_TAPS_REMINDER_SMS_TYPE] !== true);
+    return (remindersOff = !(opts.v2Approved ?? IT_IS_YOUR_TURN_V2_APPROVED) || w?.customer_comms_enabled !== true || w?.sms_message_switches?.[SPOT_RELEASED_SMS_TYPE] !== true);
   };
   await inFours(plan.reminders, ({ batchId, jobId }) => step("reminder", jobId, async () => {
     const j = rows.get(jobId)!;
@@ -435,13 +458,13 @@ export async function sweepAreaBatches(nowIso: string = new Date().toISOString()
       if (won) await logEvent(jobId, null, "quick_taps_reminder_not_sent", "No working owner job link, so the owner could not be reminded about their quick taps", { batch_id: batchId }, { internal: true });
       return false;
     }
-    const r = await textOwner({ jobId, ownerName: (j.owners?.full_name ?? "").trim(), phone: j.owners?.phone ?? null, isTest: j.source === "qa_test", source: j.source }, batchId, link, businessId, null, "reminder");
+    const r = await messageOwner({ jobId, ownerName: (j.owners?.full_name ?? "").trim(), phone: j.owners?.phone ?? null, email: j.owners?.email ?? null, isTest: j.source === "qa_test", source: j.source }, batchId, link, businessId, null, "reminder");
     if (j.source !== "qa_test" && (smsHeldForRecipient(r) || !j.owners?.phone)) {
       await claim(jobId, null, QUICK_TAPS_REMINDED_EVENT, "Day-2 reminder not sent: the owner's number can't be texted (STOP, no consent or not a mobile)", { ...details, status: "not_textable" });
       return false;
     }
     if (!REMINDER_WENT.includes(r.status)) return false;
-    return claim(jobId, null, QUICK_TAPS_REMINDED_EVENT, "Day-2 reminder: quick taps text to the owner", { ...details, status: r.status });
+    return claim(jobId, null, QUICK_TAPS_REMINDED_EVENT, "Day-2 reminder: \"It's your turn\" email and text to the owner", { ...details, status: r.status });
   }, "reminded"));
 
   // A decline whose close failed: close + email again (finishDecline is idempotent), once per job + batch. A close that

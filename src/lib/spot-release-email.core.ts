@@ -9,8 +9,8 @@ import { CONFIRM_BUTTON, SPOT_RELEASED_REMINDER_SUBJECT, SPOT_RELEASED_SUBJECT, 
 export type SpotReleasedEmailInput = { firstName: string | null; confirmUrl: string; unsubscribeUrl: string | null; reminder: boolean; test?: boolean };
 
 const HEADING = "Confirm your free Ready Check";
-const INTRO = "Press Confirm to tell us you'd still like your free Ready Check. One of our EEC-certified installers will then be in touch.";
-const PREVIEW = "Press Confirm and one of our EEC-certified installers will be in touch.";
+const INTRO = "Answer a few quick questions so we can book your free Ready Check. Just tap, it takes under a minute.";
+const PREVIEW = "Answer a few quick questions so we can book your free Ready Check.";
 const STEPS_TITLE = WHAT_HAPPENS_NEXT.title.replace(/:$/, "");
 
 /** O77: greeting, heading, the Confirm line and button, then "What happens next" (Jo-approved steps, word for word). */
@@ -19,7 +19,7 @@ export function renderSpotReleasedEmail(i: SpotReleasedEmailInput) {
   const subject = i.reminder ? SPOT_RELEASED_REMINDER_SUBJECT : SPOT_RELEASED_SUBJECT;
   const hi = `Hi${first ? ` ${first}` : ""}, ${i.reminder ? "just checking — " : ""}it's your turn!`;
   const steps = WHAT_HAPPENS_NEXT.steps;
-  const stepHtml = (s: string) => K.esc(s).replace(/^Press Confirm\./, `Press <strong>${K.esc(CONFIRM_BUTTON)}</strong>.`);
+  const stepHtml = (s: string) => K.esc(s).replace(CONFIRM_BUTTON, `<strong>${K.esc(CONFIRM_BUTTON)}</strong>`);
   const rows = steps.map((s, n) => { const pad = n === steps.length - 1 ? 12 : 14; return `<tr><td width="34" valign="top" style="padding:1px 0 ${pad}px;"><span class="num">${n + 1}</span></td><td style="padding:0 0 ${pad}px;">${stepHtml(s)}</td></tr>`; }).join("");
   const body = [
     `<mj-section><mj-column><mj-text mj-class="hi">${K.esc(hi)}</mj-text><mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">${K.esc(HEADING)}</mj-text><mj-text>${K.esc(INTRO)}</mj-text><mj-button href="${K.esc(i.confirmUrl)}">${K.esc(CONFIRM_BUTTON)}</mj-button></mj-column></mj-section>`,

@@ -16,7 +16,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { WorkflowError, logEvent } from "./workflow.server";
 import {
-  DECLINE_REASON, LAPSED_NEEDS_LINE, SPOT_RELEASED_APPROVED, SPOT_RELEASED_EVENT, SPOT_RELEASED_PURPOSE, SPOT_RELEASED_SMS_TYPE,
+  DECLINE_REASON, IT_IS_YOUR_TURN_V2_APPROVED, LAPSED_NEEDS_LINE, SPOT_RELEASED_APPROVED, SPOT_RELEASED_EVENT, SPOT_RELEASED_PURPOSE, SPOT_RELEASED_SMS_TYPE,
   SPOT_RELEASE_CONFIRMED_EVENT, SPOT_RELEASE_DECLINED_EVENT, SPOT_RELEASE_EVENTS, SPOT_RELEASE_LAPSED_EVENT, SPOT_RELEASE_REMINDED_EVENT,
   jobWaitingForInstaller, nextReleaseSeq, ownerTurnView, releasePlan, spotReleaseDue, spotReleaseKey, spotReleasePageLink, spotReleaseState, spotReleasedText,
   type OwnerTurnView, type SpotReleaseDue, type SpotReleaseEventRow, type SpotReleaseState,
@@ -79,13 +79,13 @@ async function sendTurnMessages(jobId: string, s: Extract<SpotReleaseState, { st
     job.owner_id ? admin.from("owners").select("full_name, email, phone").eq("id", job.owner_id).maybeSingle() : Promise.resolve({ data: null as { full_name: string | null; email: string | null; phone: string | null } | null }),
     admin.from("businesses").select("onboarding_notes").eq("id", s.businessId).maybeSingle(),
   ]);
+  const { firstName } = await import("./worker-links.core");
   const page = spotReleasePageLink(link);
   const reminder = step === "reminder";
-  const smsBody = spotReleasedText(page, reminder);
+  const smsBody = spotReleasedText(firstName(owner?.full_name ?? null), page, reminder);
   const key = spotReleaseKey(jobId, s.seq, step);
   const withEmail = step !== "release_text";
   const { renderSpotReleasedEmail } = await import("./spot-release-email.core");
-  const { firstName } = await import("./worker-links.core");
   const build = (unsubscribeUrl: string | null, test: boolean) => renderSpotReleasedEmail({ firstName: firstName(owner?.full_name ?? null), confirmUrl: page, unsubscribeUrl, reminder, test });
   const out: string[] = [];
   if (job.source === "qa_test") {
@@ -97,7 +97,9 @@ async function sendTurnMessages(jobId: string, s: Extract<SpotReleaseState, { st
     out.push(`sms ${t.status}: ${t.detail}`);
     return out.join("; ");
   }
-  const emailApproved = opts.approved?.email ?? SPOT_RELEASED_APPROVED;
+  // Decisions #21/#22: the reworded message ships behind IT_IS_YOUR_TURN_V2_APPROVED — until then a real owner with a release
+  // still pending gets nothing (TEST jobs went above).
+  const emailApproved = opts.approved?.email ?? (SPOT_RELEASED_APPROVED && IT_IS_YOUR_TURN_V2_APPROVED);
   if (withEmail) {
     if (!emailApproved) out.push("email not sent — wording awaiting approval");
     else if (!owner?.email) out.push("email not sent — no owner email");
@@ -109,6 +111,7 @@ async function sendTurnMessages(jobId: string, s: Extract<SpotReleaseState, { st
     }
   }
   // The one real text sender: switch, wording approval, quiet hours, consent and STOP all live there (held = recorded, never sent).
+  if (!(opts.approved?.sms ?? IT_IS_YOUR_TURN_V2_APPROVED)) { out.push("sms not sent — wording awaiting approval"); return out.join("; "); }
   const { sendRealSms } = await import("./sms.server");
   const t = await sendRealSms({ type: SPOT_RELEASED_SMS_TYPE, idempotencyKey: `${key}:sms`, to: owner?.phone ?? null, body: smsBody, jobId });
   out.push(`sms ${t.status}: ${t.detail}`);
@@ -127,7 +130,7 @@ export async function releaseSpot(jobId: string, actorId: string | null, busines
   const [job, events, hasRateCard] = await Promise.all([jobFacts(jobId), eventsFor(jobId), installerHasActiveRateCard(businessId)]);
   if (!job || job.deleted_at) throw new WorkflowError("This job is no longer available.");
   const state = spotReleaseState(events);
-  const approved = opts.approved ?? { email: SPOT_RELEASED_APPROVED, sms: SMS_MESSAGE_TYPES[SPOT_RELEASED_SMS_TYPE].wordingApproved as boolean };
+  const approved = opts.approved ?? { email: SPOT_RELEASED_APPROVED && IT_IS_YOUR_TURN_V2_APPROVED, sms: SMS_MESSAGE_TYPES[SPOT_RELEASED_SMS_TYPE].wordingApproved as boolean };
   const plan = releasePlan({ state, testJob: job.source === "qa_test", emailApproved: approved.email, smsApproved: approved.sms, hasRateCard, ...(opts.retired === undefined ? {} : { retired: opts.retired }) });
   if (plan.mode === "refused") throw new WorkflowError(plan.reason);
   const offer = (await import("./ready-check-times.server")).officePickReadyCheckInstaller;

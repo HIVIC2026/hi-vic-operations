@@ -24,6 +24,10 @@ export type SpotReleaseEventType = (typeof SPOT_RELEASE_EVENTS)[number];
 export const SPOT_RELEASED_APPROVED = true; // Jo approved the O77 picture + text 25 Oct 2026 (decision 389)
 /** The one real SMS sender type (sms.core `spot_released`, wordingApproved:false until Jo sees the rendered picture). */
 export const SPOT_RELEASED_SMS_TYPE = "spot_released" as const;
+/** Decisions #21/#22 (Jo 2 Nov 2026): the reworded "It's your turn" email + text (O77) that open the quick taps. false = real
+ *  owners get nothing (TEST jobs work) until Jo sees the pictures; one flag covers the email, the text and both reminders. */
+export const IT_IS_YOUR_TURN_V2_APPROVED = false as boolean;
+export const IT_IS_YOUR_TURN_V2_UNAPPROVED = "It's your turn wording not switched on yet";
 export const SPOT_RELEASED_PURPOSE = "spot_released";
 export const SPOT_RELEASE_UNAPPROVED = "The 'It's your turn' message isn't approved yet";
 
@@ -43,7 +47,7 @@ export const OWNER_CONFIRMED_LINE = "Owner confirmed — choose installer";
 /** released = the release claim (and its first email + text); reminder = day 2; release_text = the release text sent at
  *  7am when Jo released during the 8pm–7am quiet hours; outcome = confirmed | declined | lapsed (only one can win). */
 export type SpotReleaseSlot = "released" | "reminder" | "release_text" | "outcome";
-export const spotReleaseKey = (jobId: string, seq: number, slot: SpotReleaseSlot) => `spot-release:v1:${jobId}:${seq}:${slot}`;
+export const spotReleaseKey = (jobId: string, seq: number | string, slot: SpotReleaseSlot) => `spot-release:v1:${jobId}:${seq}:${slot}`;
 
 // ---- state from events -------------------------------------------------------------------------------------------
 
@@ -172,22 +176,21 @@ export const SPOT_RELEASED_SUBJECT = "It's your turn — confirm your free Ready
 export const SPOT_RELEASED_REMINDER_SUBJECT = "Just checking — it's your turn to confirm your free Ready Check";
 export const SPOT_RELEASED_LINE = "It's your turn! Press here to confirm you'd still like your free Ready Check, and one of our EEC-certified installers will be in touch.";
 export const SPOT_RELEASED_REMINDER_LINE = "Just checking — it's your turn! Press here to confirm you'd still like your free Ready Check, and one of our EEC-certified installers will be in touch.";
-/** Jo-approved "What happens next" block (coordinator, 25 Oct): email O77 under the main line + the Confirm page. */
+/** Decision #21 (Jo 2 Nov 2026) "What happens next" block: email O77 under the main line + the Confirm page. */
 export const WHAT_HAPPENS_NEXT = {
   title: "What happens next:",
   steps: [
-    "Press Confirm.",
-    "Within a day or so, your installer will text and email you 3 times for your free Ready Check.",
-    "Tap the time that suits you (or suggest other days). They'll check your ceiling and measure up, and your fixed quote follows.",
+    "Tap Confirm my details and answer a few quick questions.",
+    "An EEC-certified installer will call you to book your free Ready Check.",
+    "They'll measure up and confirm your quote.",
   ],
 } as const;
-export const CONFIRM_BUTTON = "Confirm";
+export const CONFIRM_BUTTON = "Confirm my details";
 
-/** The text (short, no "What happens next"). */
-export function spotReleasedText(link: string, reminder = false): string {
-  return reminder
-    ? `Home Insulation Victoria: just checking — it's your turn! Confirm you'd still like your free Ready Check and one of our EEC-certified installers will be in touch: ${link}`
-    : `Home Insulation Victoria: it's your turn! Confirm you'd still like your free Ready Check and one of our EEC-certified installers will be in touch: ${link}`;
+/** The text (decision #22; short, no "What happens next"). No first name → "Hi there" (as the quick taps text, Jo 30 Oct). */
+export function spotReleasedText(firstName: string | null, link: string, reminder = false): string {
+  const hi = (firstName ?? "").trim() || "there";
+  return `Home Insulation Victoria: Hi ${hi}, ${reminder ? "just checking — " : ""}it's your turn! Confirm a few quick details for your free Ready Check: ${link}`;
 }
 /** The owner's secure page: their own My job link on the "turn" screen. */
 export const spotReleasePageLink = (myJobLink: string) => `${myJobLink}?screen=turn`;

@@ -159,7 +159,7 @@ describe("A2 step 2 — Save my spot (decision 388), Jo's area batch Send and th
     await expect(sr.releaseSpotFn({ data: { jobId: JOB, businessId: BIZ }, context: officeCtx })).rejects.toThrow(/area batches/);
     expect(await events(JOB, "spot_released")).toHaveLength(0);
   });
-  test("Jo sends the area batch to one installer: the owner gets the quick taps text once; the installer is NOT contacted yet", async () => {
+  test("Jo sends the area batch to one installer: the owner gets ONE It's your turn email + text (opening the quick taps); the installer is NOT contacted yet", async () => {
     const ab = await import("../src/lib/area-batch.functions");
     // An office user is required.
     await expect(ab.sendAreaBatchFn({ data: { jobIds: [JOB], businessId: BIZ }, context: instCtx })).rejects.toThrow();
@@ -170,10 +170,10 @@ describe("A2 step 2 — Save my spot (decision 388), Jo's area batch Send and th
     BATCH = r.batchId;
     expect((await events(JOB, "area_batch_sent")).map((e) => e.details["installer_business_id"])).toEqual([BIZ]);
     expect(await q("select id from partner_offers where job_id=$1", [JOB])).toHaveLength(0);
-    expect((await comms(JOB)).filter((c) => /quick_taps:/.test(c.source_event)).map((c) => c.channel)).toEqual(["sms"]);
+    expect((await comms(JOB)).filter((c) => /spot_released:/.test(c.source_event)).map((c) => c.channel).sort()).toEqual(["email", "sms"]);
     // Send again (a second batch, another installer) while the owner hasn't answered is refused; nothing is sent twice.
     await expect(ab.sendAreaBatchFn({ data: { jobIds: [JOB], businessId: OTHER_BIZ }, context: officeCtx })).rejects.toThrow(/already in a batch/);
-    expect((await comms(JOB)).filter((c) => /quick_taps/.test(c.source_event))).toHaveLength(1);
+    expect((await comms(JOB)).filter((c) => /spot_released/.test(c.source_event))).toHaveLength(2);
   });
   test("the owner confirms their name + address and answers the quick taps on the link → a pass, the share consent recorded; a second save changes nothing", async () => {
     const qt = await import("../src/lib/quick-taps.functions");

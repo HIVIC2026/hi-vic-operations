@@ -2,7 +2,7 @@
 // straight to the installer), what the tick does when, the Needs me / waiting-list piles, the owner page, the wording.
 import { describe, expect, test } from "bun:test";
 import { NO_RATE_CARD_REASON,
-  CONFIRM_BUTTON, DECLINE_REASON, LAPSED_NEEDS_LINE, OWNER_CONFIRMED_LINE, SPOT_RELEASED_APPROVED, SPOT_RELEASED_EVENT, SPOT_RELEASED_LINE, SPOT_RELEASED_SUBJECT,
+  CONFIRM_BUTTON, DECLINE_REASON, IT_IS_YOUR_TURN_V2_APPROVED, LAPSED_NEEDS_LINE, OWNER_CONFIRMED_LINE, SPOT_RELEASED_APPROVED, SPOT_RELEASED_EVENT, SPOT_RELEASED_LINE, SPOT_RELEASED_SUBJECT,
   SPOT_RELEASE_CONFIRMED_EVENT, SPOT_RELEASE_DECLINED_EVENT, SPOT_RELEASE_LAPSED_EVENT, SPOT_RELEASE_PAGE, SPOT_RELEASE_REMINDED_EVENT, SPOT_RELEASE_UNAPPROVED, WHAT_HAPPENS_NEXT,
   jobWaitingForInstaller, nextReleaseSeq, officeItemWithRelease, ownerTurnView, releasable, releasePlan, releaseStatusLine, spotReleaseDue, spotReleaseKey,
   spotReleasePageLink, spotReleaseState, spotReleasedText, type SpotReleaseEventRow, type SpotReleaseState,
@@ -166,33 +166,38 @@ describe("owner page and wording", () => {
   test("Jo's words, verbatim", () => {
     expect(SPOT_RELEASED_SUBJECT).toBe("It's your turn — confirm your free Ready Check");
     expect(SPOT_RELEASED_LINE).toBe("It's your turn! Press here to confirm you'd still like your free Ready Check, and one of our EEC-certified installers will be in touch.");
-    expect(spotReleasedText("L")).toBe("Home Insulation Victoria: it's your turn! Confirm you'd still like your free Ready Check and one of our EEC-certified installers will be in touch: L");
-    expect(spotReleasedText("L", true)).toMatch(/^Home Insulation Victoria: just checking — it's your turn!/);
-    expect(spotReleasedText("L")).not.toContain("What happens next");
+    expect(spotReleasedText("Sarah", "L")).toBe("Home Insulation Victoria: Hi Sarah, it's your turn! Confirm a few quick details for your free Ready Check: L");
+    expect(spotReleasedText("Sarah", "L", true)).toBe("Home Insulation Victoria: Hi Sarah, just checking — it's your turn! Confirm a few quick details for your free Ready Check: L");
+    expect(spotReleasedText(null, "L")).toBe("Home Insulation Victoria: Hi there, it's your turn! Confirm a few quick details for your free Ready Check: L");
+    expect(spotReleasedText("Sarah", "L")).not.toContain("What happens next");
     expect(SPOT_RELEASE_PAGE.confirm).toBe("Yes, I'd still like my free Ready Check");
     expect(SPOT_RELEASE_PAGE.decline).toBe("I'm no longer interested");
     expect(SPOT_RELEASE_PAGE.thanks("Sample Insulation")).toBe("Thanks — confirmed. Sample Insulation will text and email you 3 times for your free Ready Check within a day or so.");
     expect(SPOT_RELEASE_PAGE.thanks(null)).toBe("Thanks — confirmed. Your installer will text and email you 3 times for your free Ready Check within a day or so.");
     expect(DECLINE_REASON).toBe("No longer interested (owner, at release)");
     expect(WHAT_HAPPENS_NEXT.steps).toEqual([
-      "Press Confirm.",
-      "Within a day or so, your installer will text and email you 3 times for your free Ready Check.",
-      "Tap the time that suits you (or suggest other days). They'll check your ceiling and measure up, and your fixed quote follows.",
+      "Tap Confirm my details and answer a few quick questions.",
+      "An EEC-certified installer will call you to book your free Ready Check.",
+      "They'll measure up and confirm your quote.",
     ]);
+    expect(CONFIRM_BUTTON).toBe("Confirm my details");
+    expect(IT_IS_YOUR_TURN_V2_APPROVED).toBe(false);
     expect(spotReleasePageLink("https://x/my-job/t")).toBe("https://x/my-job/t?screen=turn");
   });
-  test("O77 (MJML refresh 27 Oct): the Confirm line, then the Confirm button, then What happens next; reminder variant", () => {
-    const m = renderSpotReleasedEmail({ firstName: "Helen Sample", confirmUrl: "https://x/my-job/t?screen=turn", unsubscribeUrl: "https://x/u", reminder: false });
-    expect(m.subject).toBe(SPOT_RELEASED_SUBJECT);
-    const iLine = m.html.indexOf("Press Confirm to tell us you'd still like your free Ready Check.");
-    const iNext = m.html.indexOf(">What happens next<"), iBtn = m.html.indexOf(">Confirm<");
-    expect(iLine).toBeGreaterThan(0);
-    expect(iBtn).toBeGreaterThan(iLine);
-    expect(iNext).toBeGreaterThan(iBtn);
-    expect(m.html).toContain(`href="https://x/my-job/t?screen=turn"`);
-    for (const s of WHAT_HAPPENS_NEXT.steps) expect(m.text).toContain(s);
-    expect(m.text).toContain(`${CONFIRM_BUTTON}: https://x/my-job/t?screen=turn`);
-    expect(m.html).toContain("Hi Helen, it's your turn!");
+  test("O77 (decisions #21/#22): quick taps intro, Confirm my details button, new steps; reminder variant", () => {
+    const e = renderSpotReleasedEmail({ firstName: "Sarah", confirmUrl: "https://x/my-job/t?screen=taps", unsubscribeUrl: null, reminder: false });
+    expect(e.subject).toBe(SPOT_RELEASED_SUBJECT);
+    expect(e.text).toContain("Answer a few quick questions so we can book your free Ready Check. Just tap, it takes under a minute.");
+    expect(e.text).toContain("Confirm my details: https://x/my-job/t?screen=taps");
+    expect(e.text).toContain("1. Tap Confirm my details and answer a few quick questions.");
+    expect(e.text).toContain("2. An EEC-certified installer will call you to book your free Ready Check.");
+    expect(e.text).toContain("3. They'll measure up and confirm your quote.");
+    expect(e.text).not.toMatch(/3 times|text and email you/);
+    expect(e.html).toContain(`href="https://x/my-job/t?screen=taps"`);
+    expect(e.html).toContain(">Confirm my details<");
+    expect(e.html).toContain("Hi Sarah, it's your turn!");
+    const iLine = e.html.indexOf("Answer a few quick questions"), iBtn = e.html.indexOf(">Confirm my details<"), iNext = e.html.indexOf(">What happens next<");
+    expect(iLine).toBeGreaterThan(0); expect(iBtn).toBeGreaterThan(iLine); expect(iNext).toBeGreaterThan(iBtn);
     const r = renderSpotReleasedEmail({ firstName: null, confirmUrl: "u", unsubscribeUrl: null, reminder: true });
     expect(r.subject).toMatch(/^Just checking — it's your turn/);
     expect(r.text).toContain("Hi, just checking — it's your turn!");

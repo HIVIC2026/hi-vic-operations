@@ -99,7 +99,7 @@ export const SMS_MESSAGE_TYPES = {
   installer_planning_notice: { audience: "partner", label: "Safety check booked – installer told the date for planning only (decisions 376/384)", wordingApproved: true, quietHours: true },
   // Decision 389 (Jo 25 Oct 2026): Jo released the owner's saved spot → "It's your turn" to the OWNER (release + day-2
   // reminder; spot-release.core spotReleasedText). DRAFT until Jo sees the rendered picture (rendered O77 picture).
-  spot_released: { audience: "owner", label: "It's your turn – confirm your free Ready Check, release + day-2 reminder (decision 389, approved)", wordingApproved: true, quietHours: true },
+  spot_released: { audience: "owner", label: "It's your turn – confirm a few quick details for your free Ready Check, area batch sent + day-2 reminder (decisions 389, #21/#22; sent only while IT_IS_YOUR_TURN_V2_APPROVED)", wordingApproved: true, quietHours: true },
   // Plan 2026-10-28 (full address required): a website/email enquiry with no street → the owner is asked to pick their
   // full address on /my-address/{token}, plus ONE reminder 24h later. Wording: addressRequestText (address-request.core.ts),
   // DRAFT until Jo approves it.
@@ -107,8 +107,8 @@ export const SMS_MESSAGE_TYPES = {
   address_request_reminder: { audience: "owner", label: "We need your full address – one reminder 24h later", wordingApproved: true /* approved by Jo 28 Oct 2026 */, quietHours: true },
   // A48 batch 2 (Jo 29–30 Oct 2026, wording approved in the part 1 spec): Jo taps Send on an area batch → the OWNER gets the
   // quick taps link (area-batch.core quickTapsText), plus the day-2 reminder. Own switches, off until Jo switches them on.
-  quick_taps: { audience: "owner", label: "Confirm a few quick details for your free Ready Check – area batch sent (A48 batch 2)", wordingApproved: true, quietHours: true },
-  quick_taps_reminder: { audience: "owner", label: "Confirm a few quick details – day-2 reminder (A48 batch 2)", wordingApproved: true, quietHours: true },
+  quick_taps: { audience: "owner", label: "RETIRED 2 Nov 2026 (decision #22: the batch send is the 'It's your turn' text, spot_released) – Confirm a few quick details, area batch sent (A48 batch 2)", wordingApproved: true, quietHours: true },
+  quick_taps_reminder: { audience: "owner", label: "RETIRED 2 Nov 2026 (decision #22: the day-2 reminder is the 'It's your turn' reminder text, spot_released) – Confirm a few quick details, day-2 reminder (A48 batch 2)", wordingApproved: true, quietHours: true },
   // A48 batch 2 part 2 (Jo 30 Oct 2026, wording approved in the part 2 spec): Jo taps "Send to installer" on a closed batch →
   // the INSTALLER gets the run link (run-route.core runOfferedText). Own switch, off until Jo switches it on.
   run_offered: { audience: "partner", label: "You've got a run of Ready Checks – pick your day (A48 batch 2 runs)", wordingApproved: true, quietHours: true },

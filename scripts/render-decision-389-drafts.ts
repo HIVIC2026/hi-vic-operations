@@ -14,8 +14,8 @@ const LINK = spotReleasePageLink(MY_JOB);
 
 export const D389_FILES = { O77: "O77-spot-released.html", O77r: "O77r-spot-released-reminder.html" } as const;
 const out = [
-  { code: "O77" as const, mail: renderSpotReleasedEmail({ firstName: "Helen", confirmUrl: LINK, unsubscribeUrl: null, reminder: false }), sms: spotReleasedText(LINK) },
-  { code: "O77r" as const, mail: renderSpotReleasedEmail({ firstName: "Helen", confirmUrl: LINK, unsubscribeUrl: null, reminder: true }), sms: spotReleasedText(LINK, true) },
+  { code: "O77" as const, mail: renderSpotReleasedEmail({ firstName: "Helen", confirmUrl: LINK, unsubscribeUrl: null, reminder: false }), sms: spotReleasedText("Helen", LINK) },
+  { code: "O77r" as const, mail: renderSpotReleasedEmail({ firstName: "Helen", confirmUrl: LINK, unsubscribeUrl: null, reminder: true }), sms: spotReleasedText("Helen", LINK, true) },
 ];
 
 mkdirSync(TEMPLATES, { recursive: true });
