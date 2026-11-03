@@ -42,7 +42,7 @@ export async function checkReadyCheckBasics(jobId: string, actorId: string | nul
     : [...ra.readyCheckStopReasons(entries, { ownerAnsweredOnWebsite: true }), ...ra.websiteStopReasons({ lifeSupportStatus: (job.life_support_status as string | null) ?? null, overFiveYears: overFive })];
   const r = readyCheckBasics({
     installerSourced, areaM2: m ? Number(m.verified_area_m2 ?? m.measured_area_m2) || null : null,
-    productReady: resolveMittiProduct(a.productOption).ready || (await import('./ready-check-basics.core')).layoutProductReady(entries, priceRecord?.choices ?? null), installerPriceIncGst: Number.isFinite(total) ? total : null,
+    productReady: resolveMittiProduct(a.productOption).ready || (await import('./ready-check-basics.core')).layoutProductReady(entries, installerSourced ? priceRecord?.layout?.mainPicks ?? [] : null), installerPriceIncGst: Number.isFinite(total) ? total : null,
     ownerMobile: owner?.phone ?? a.phone ?? null, ownerEmail: owner?.email ?? a.email ?? null, contactPermission: permission, stops, formCompleted,
   });
   const prev = last?.details as { missing?: string[]; stops?: string[]; completed?: boolean; answered?: boolean } | null;
