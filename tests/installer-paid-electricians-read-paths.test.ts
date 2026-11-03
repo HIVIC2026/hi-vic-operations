@@ -61,7 +61,7 @@ function usualModule(priceRead: () => Promise<unknown>, candidates: rec.Approved
     "@/integrations/supabase/client.server": { supabaseAdmin: f.admin }, "./usual-electrician.core": usual,
     "./mitti.core": { contactAnswersFromEntries: () => ({}) }, "./workflow.server": { logEvent: async () => {} },
     "./electrician-choice.core": { resolveElectricianChoice: () => "usual" }, "./electrician-choice.server": { readElectricianChoice: async () => "usual" },
-    "./rec-onboarded.core": rec, "./rec-onboarded.server": { loadApprovedRecCandidates: async () => candidates },
+    "./rec-onboarded.core": rec, "./rec-onboarded.server": { loadApprovedRecCandidates: async () => candidates }, "./job-electrician.server": { jobChosenElectrician: async () => null },
     "./installer-paid-electricians.server": { readInstallerPaidElectricians: priceRead, installerSafetyCheckPrice: async () => (await priceRead() as { piesaIncGst?: number } | null)?.piesaIncGst ?? 999 },
     "./safety-check-price.core": safetyPrice, "./installer-paid-electricians.core": pricing,
   });

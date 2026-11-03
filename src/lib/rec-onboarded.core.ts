@@ -83,6 +83,21 @@ export function onboardedElectricianResolution(i: { legacy: MittiElectricianReso
   return { ...legacy, ready: false, name, licence, priceIncGst: null, reasons: [notOnboardedReason(name)], needsProfile: false, recBusinessId: null, rateId: null, notOnboarded: { name, licence, email } };
 }
 
+/**
+ * Task 5 (3 Nov 2026): the electrician PICKED for the job (its open nomination with a business id — what the own-job
+ * hand-over and the swap use) resolves from THAT business, never by name-matching the saved usual one. Ready = an approved
+ * REC by `approvedRecBlocker` (`flatPiesaIncGst`: the installer pays its own electricians, so no rate is needed and the
+ * owner line is that flat price); otherwise held "Electrician not onboarded: <name>" like any other declared electrician.
+ */
+export function chosenRecResolution(legacy: MittiElectricianResolution, c: ApprovedRecCandidate, flatPiesaIncGst: number | null): MittiElectricianResolution {
+  const name = (c.trading_name ?? c.name ?? "").trim() || "Electrician";
+  const licence = (c.worker_licences ?? []).find((l): l is string => !!l?.trim())?.trim() ?? null;
+  const blocker = approvedRecBlocker(c, { rateNotNeeded: flatPiesaIncGst != null });
+  if (blocker) return { ...legacy, choice: "usual", ready: false, name, licence, priceIncGst: null, reasons: [notOnboardedReason(name)], needsProfile: false, recBusinessId: null, rateId: null, notOnboarded: { name, licence, email: null } };
+  const price = flatPiesaIncGst != null ? flatPiesaIncGst : Math.round(Number(c.piesa_rate!.rate_inc_gst) * 100) / 100;
+  return { ...legacy, choice: "usual", ready: true, name, licence, priceIncGst: price, source: "approved_rec", reasons: [], needsProfile: false, recBusinessId: c.business_id, rateId: flatPiesaIncGst != null ? null : c.piesa_rate!.id, notOnboarded: null };
+}
+
 // ---------- ONE onboarding invite per electrician (sweep rule) ----------
 export type NotOnboardedElectrician = { installerBusinessId: string; name: string; licence: string | null; email: string | null };
 /** Idempotency key per electrician per installer business: licence first, then email, then the name. */

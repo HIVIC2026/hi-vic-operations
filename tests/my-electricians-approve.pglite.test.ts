@@ -353,18 +353,31 @@ describe("after approval", () => {
   });
 });
 
-describe("profile at approval: an email that already belongs to another business", () => {
-  test("is refused with the existing message, the approval stays unfinished, and the next click (clash gone) finishes it without a login email", async () => {
+describe("profile at approval: an email that already belongs to someone else", () => {
+  test("another business, OR an identity with no business (an owner / office login), is refused; the approval stays unfinished; the next click (clash gone) finishes it without a login email", async () => {
     const { businessId: CARL } = await els.installerAddElectrician(U_BOSS, input({ name: "Carl Clash", email: "carl@clash.test", mobile: "0455666777", licenceNumber: "L-4444" }));
-    await db.query("insert into profiles (id, email, full_name, business_id) values ($1,'carl@clash.test','Someone Else',$2)", [id(99), INST2]);
     const before = authUsers.length, texts = smsCalls.length;
-    expect(await reject(els.officeApproveInstallerElectrician(OFFICE, CARL))).toMatch(/^Approved, but .*That email already belongs to another business/);
-    expect(await biz(CARL)).toMatchObject({ onboarding_status: "approved", is_active: true });
-    expect(await worker(CARL)).toMatchObject({ approval_status: "approved", profile_id: null });
+    const refused = /^Approved, but .*That email already belongs to someone else\. Ask the installer to use the electrician's own email\./;
+    const unchanged = async () => {
+      expect(await biz(CARL)).toMatchObject({ onboarding_status: "approved", is_active: true });
+      expect(await worker(CARL)).toMatchObject({ approval_status: "approved", profile_id: null });
+      expect(authUsers).toHaveLength(before);
+      expect(smsCalls).toHaveLength(texts); // nothing sent while the approval is unfinished
+      expect((await db.query<Record<string, unknown>>("select business_id from profiles where id=$1", [id(99)])).rows[0]).toEqual({ business_id: null }); // never merged
+      expect((await db.query<{ n: string }>("select count(*)::text as n from business_members where user_id=$1", [id(99)])).rows[0]!.n).toBe("0");
+      expect(await els.installerElectricianReview(CARL)).toMatchObject({ status: "approved", unfinished: true });
+      expect((await els.pendingInstallerElectricianItems()).find((i) => i.businessId === CARL)).toMatchObject({ unfinished: true });
+    };
+    // An owner's (or office person's) login: a profile with no business.
+    await db.query("insert into profiles (id, email, full_name, business_id) values ($1,'carl@clash.test','Olive Owner',null)", [id(99)]);
+    expect(await reject(els.officeApproveInstallerElectrician(OFFICE, CARL))).toMatch(refused);
+    await unchanged();
+    // Someone on another business.
+    await db.query("update profiles set business_id=$2 where id=$1", [id(99), INST2]);
+    expect(await reject(els.officeApproveInstallerElectrician(OFFICE, CARL))).toMatch(refused);
+    expect((await db.query<Record<string, unknown>>("select business_id from profiles where id=$1", [id(99)])).rows[0]).toEqual({ business_id: INST2 });
+    expect((await worker(CARL)).profile_id).toBeNull();
     expect(authUsers).toHaveLength(before);
-    expect(smsCalls).toHaveLength(texts); // nothing sent while the approval is unfinished
-    expect(await els.installerElectricianReview(CARL)).toMatchObject({ status: "approved", unfinished: true });
-    expect((await els.pendingInstallerElectricianItems()).find((i) => i.businessId === CARL)).toMatchObject({ unfinished: true });
     await db.query("delete from profiles where id=$1", [id(99)]);
     await els.officeApproveInstallerElectrician(OFFICE, CARL);
     expect(authUsers).toHaveLength(before + 1);

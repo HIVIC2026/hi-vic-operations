@@ -347,8 +347,8 @@ const anyGap = (g: ApprovalGaps | undefined) => !!g && (g.workerPending || g.pro
  * A portal PROFILE for an installer-added electrician person (controller ruling 3 Nov 2026): `job_assignments.user_id`
  * is NOT NULL, so the own-job hand-over and the job-page swap need one. They still never log in — `email_confirm`
  * means no confirmation email, the password is random and no login or reset link is ever sent. Same steps as the
- * office's `makePartnerLogin` (partner-activation.functions): reuse the profile with that email unless it belongs to
- * another business; else create the auth user; then profile, role, membership and the person's link. Idempotent.
+ * office's `makePartnerLogin` (partner-activation.functions), stricter on reuse: only a profile already on THIS business
+ * is reused (a retry); any other identity with that email refuses; else create the auth user; then profile, role, membership and the person's link. Idempotent.
  */
 async function ensureElectricianProfile(actorId: string, businessId: string, w: WorkerRow, fallbackEmail: string | null, fallbackName: string | null): Promise<void> {
   const email = (w.email ?? fallbackEmail ?? "").trim().replace(/[.,;]+$/, "").toLowerCase();
@@ -356,7 +356,9 @@ async function ensureElectricianProfile(actorId: string, businessId: string, w: 
   const name = (w.full_legal_name ?? fallbackName ?? "").trim() || null;
   const ex = await admin.from("profiles").select("id, business_id").eq("email", email).maybeSingle();
   if (ex.error) throw new WorkflowError(ex.error.message);
-  if (ex.data?.business_id && ex.data.business_id !== businessId) throw new WorkflowError("That email already belongs to another business. Nothing was changed.");
+  // Only a profile ALREADY on this electrician business is reused (a retry). Any other existing identity — another
+  // business, or no business at all (an owner, office staff, anyone with a login) — is never merged into this business.
+  if (ex.data && ex.data.business_id !== businessId) throw new WorkflowError("That email already belongs to someone else. Ask the installer to use the electrician's own email.");
   let uid = ex.data?.id as string | undefined;
   if (!uid) {
     const { data: cu, error } = await admin.auth.admin.createUser({ email, email_confirm: true, password: crypto.randomUUID() + "Aa1!", user_metadata: { full_name: name } });

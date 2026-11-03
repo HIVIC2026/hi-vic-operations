@@ -36,6 +36,8 @@ CREATE TABLE profiles (id uuid primary key, full_name text, email text, business
 CREATE TABLE user_roles (id uuid primary key default gen_random_uuid(), user_id uuid not null, role text not null, UNIQUE (user_id, role));
 CREATE TABLE business_members (id uuid primary key default gen_random_uuid(), business_id uuid not null, user_id uuid not null, member_role text not null, active boolean not null default true, added_by uuid, UNIQUE (business_id, user_id));
 CREATE TABLE partner_offers (id uuid primary key default gen_random_uuid(), job_id uuid, business_id uuid, kind text, status text);
+CREATE TABLE retail_estimator_settings (id uuid primary key default gen_random_uuid(), is_current boolean, piesa_assessment_inc_gst numeric);
+INSERT INTO retail_estimator_settings (is_current, piesa_assessment_inc_gst) VALUES (true, 349);
 `);
 const id = (n: number) => `00000000-0000-0000-0000-${String(n).padStart(12, "0")}`;
 const INST = id(1), U_BOSS = id(11), OFFICE = id(50), USUAL = id(60), U_USUAL = id(61);
@@ -205,5 +207,34 @@ describe("job-page swap and the own-job hand-over (controller ruling 3 Nov 2026:
     expect((await db.query<{ n: string }>("select count(*)::text as n from workflow_events where job_id=$1 and event_type='own_job_piesa_handed'", [r.jobId])).rows[0]!.n).toBe("1");
     expect((await db.query<{ n: string }>("select count(*)::text as n from workflow_events where job_id=$1 and event_type='own_job_piesa_held'", [r.jobId])).rows[0]!.n).toBe("0");
     expect(notices).toEqual([r.jobId]);
+  });
+});
+
+describe("quote pipeline (review fix round 1): the PICKED electrician names the PIESA line, not the saved usual one", () => {
+  const usualMod = () => import("../src/lib/usual-electrician.server");
+  const recorded = async (jobId: string) => (await db.query<{ details: Record<string, unknown> }>("select details from workflow_events where job_id=$1 and event_type='mitti_electrician_recorded' order by created_at desc limit 1", [jobId])).rows[0]?.details;
+  let pickedJob = "";
+  test("a picked non-usual electrician: the quote names them, flat PIESA price (the installer pays its own electricians), not held", async () => {
+    const r = await onsite.startOnsiteReadyCheckFor(U_BOSS, INST, { ...owner, address_line: "5 Example St" }, { mode: "mine", business_id: SAM }, undefined, { electricianChoice: "usual", leadOrigin: "owner_contacted" });
+    pickedJob = r.jobId;
+    const res = await (await usualMod()).mittiElectricianForJob(r.jobId, U_BOSS, [], "audit-1");
+    expect(res).toMatchObject({ ready: true, name: "Sam Sparks", licence: "L-5555", priceIncGst: 350, source: "approved_rec", recBusinessId: SAM, reasons: [] });
+    expect(await recorded(r.jobId)).toMatchObject({ name: "Sam Sparks", recBusinessId: SAM, ready: true });
+  });
+  test("no pick (the usual path) still resolves from the saved usual electrician", async () => {
+    const r = await onsite.startOnsiteReadyCheckFor(U_BOSS, INST, { ...owner, address_line: "6 Example St" }, null, undefined, { electricianChoice: "usual", leadOrigin: "owner_contacted" });
+    const res = await (await usualMod()).mittiElectricianForJob(r.jobId, U_BOSS, [], "audit-2");
+    expect(res).toMatchObject({ ready: true, name: "Usual Volts", recBusinessId: USUAL });
+  });
+  test("no saved usual electrician + a picked installer-added one: not held", async () => {
+    const saved = (await db.query<{ id: string; details: unknown }>("select id, details from admin_config_events where event_type='installer_usual_electrician_saved'")).rows;
+    await db.query("delete from admin_config_events where event_type='installer_usual_electrician_saved'");
+    try {
+      const res = await (await usualMod()).mittiElectricianForJob(pickedJob, U_BOSS, [], "audit-3");
+      expect(res).toMatchObject({ ready: true, name: "Sam Sparks", recBusinessId: SAM, reasons: [] });
+      expect(res.reasons).not.toContain("Installer has no usual electrician saved");
+    } finally {
+      for (const row of saved) await db.query("insert into admin_config_events (id, actor_id, event_type, summary, details) values ($1,$2,'installer_usual_electrician_saved','usual',$3)", [row.id, U_BOSS, JSON.stringify(row.details)]);
+    }
   });
 });
