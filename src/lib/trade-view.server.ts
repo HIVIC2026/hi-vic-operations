@@ -28,7 +28,7 @@ import * as rentalAnswersServer from "./rental-answers.server";
 import { inHouseTradeBookingText } from "./in-house-message.core";
 import { withoutRetiredInstallDayPhotos } from "./ready-check-chase.core";
 import { early } from "./early-read";
-import { noLoginFor, seesMoney, seesPrices, tradeRoleOf } from "./trade-access-role.core";
+import { noLoginFor, seesBusinessJobs, seesMoney, seesPrices, tradeRoleOf } from "./trade-access-role.core";
 import { isMissingDbObject } from "./schema-compat.core";
 // Speed (installer screens, Task 6): the job page's modules, imported at module scope (namespaces, as above).
 import * as allocationServer from "./allocation.server";
@@ -93,7 +93,8 @@ export async function tradeContext(userId: string) {
   }
   const r = new Set((roles ?? []).map((x) => x.role as string));
   const kind: TradeKind = r.has("installer") && !r.has("electrician") ? "installer" : b.business_type === "eec_installer" && !r.has("electrician") ? "installer" : "electrician";
-  return { biz: b as Biz, kind, boss: role === "boss", role, prices: seesPrices(role), money: seesMoney(role, canSeeMoney), firstName: prof?.full_name?.trim().split(/\s+/)[0] ?? null, profile: prof, isTest: isTestPartner(b) };
+  // seesJobs (fix wave C2): boss and Office read and book every job assigned to the business; Money/Team/settings keep their own guards.
+  return { biz: b as Biz, kind, boss: role === "boss", role, seesJobs: seesBusinessJobs(role), prices: seesPrices(role), money: seesMoney(role, canSeeMoney), firstName: prof?.full_name?.trim().split(/\s+/)[0] ?? null, profile: prof, isTest: isTestPartner(b) };
 }
 
 /** Which kind of person this sign-in is for the trade area (null when it isn't linked to a business: office staff). */
@@ -104,10 +105,10 @@ export async function tradeRoleFor(userId: string) {
   return { role: "none" as const, money: false, noLogin: noLoginFor(mem ?? []) };
 }
 
-/** Review D: bosses see every active assignment for the business; workers only their own. */
-export function assignmentQuery(c: { biz: { id: string }; boss: boolean }, userId: string) {
+/** Review D: bosses (and, fix wave C2, Office people) see every active assignment for the business; workers only their own. */
+export function assignmentQuery(c: { biz: { id: string }; boss: boolean; seesJobs?: boolean }, userId: string) {
   const q = admin.from("job_assignments").select("job_id, business_id, role").eq("business_id", c.biz.id).eq("active", true);
-  return c.boss ? q : q.eq("user_id", userId);
+  return c.boss || c.seesJobs ? q : q.eq("user_id", userId);
 }
 
 export async function ctxOrThrow(userId: string) {
@@ -153,12 +154,12 @@ export async function tradeHome(userId: string) {
   const moneyP = c.money ? tradeMoneyRows(c.biz.id, c.kind, c.isTest) : Promise.resolve([] as Awaited<ReturnType<typeof tradeMoneyRows>>);
   moneyP.catch(() => undefined); // handled where it is awaited; this only stops an early rejection being reported as unhandled
   const histQ = admin.from("job_assignments").select("job_id").eq("business_id", c.biz.id).eq("active", false);
-  // Review D (as assignmentQuery): bosses see every active assignment for the business; workers only their own.
+  // Review D (as assignmentQuery): bosses and Office people see every active assignment for the business; workers only their own.
   const asgQ = admin.from("job_assignments").select(`job_id, business_id, role, assigned_at, jobs(${HOME_JOB_COLS})`).eq("business_id", c.biz.id).eq("active", true);
   const [{ data: offers }, { data: asg }, { data: ended }] = await Promise.all([
     admin.from("partner_offers").select("id, job_id, kind, summary, expires_at").eq("business_id", c.biz.id).eq("status", "pending").order("offered_at", { ascending: false }),
-    c.boss ? asgQ : asgQ.eq("user_id", userId),
-    c.boss ? histQ : histQ.eq("user_id", userId),
+    c.seesJobs ? asgQ : asgQ.eq("user_id", userId),
+    c.seesJobs ? histQ : histQ.eq("user_id", userId),
   ]);
   const jobIds = [...new Set((asg ?? []).map((a) => a.job_id))];
   const jobRows = new Map<string, HomeJob>();
@@ -473,7 +474,7 @@ function jobAssignmentsRead(jobId: string) {
 /** requireTradeJob's check on a context already read and the job's assignments read (a failed read = not assigned). */
 async function tradeJobAccess(c: NonNullable<Awaited<ReturnType<typeof tradeContext>>>, userId: string, jobId: string, asgP: ReturnType<typeof jobAssignmentsRead>): Promise<TradeJobAccess> {
   const { data } = await asgP;
-  if (!tradeJobAllowed({ signedIn: true, userId, businessId: c.biz.id, boss: c.boss, jobId, assignments: (data ?? []) as AccessAssignment[] })) throw new WorkflowError("This job isn't assigned to you.");
+  if (!tradeJobAllowed({ signedIn: true, userId, businessId: c.biz.id, boss: c.boss, office: c.role === "office", jobId, assignments: (data ?? []) as AccessAssignment[] })) throw new WorkflowError("This job isn't assigned to you.");
   return { ...c, checkedFor: { userId, jobId } };
 }
 
@@ -1603,6 +1604,8 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
     // The price itself is read by the boss-only card (installer-price.functions) and never travels with the page.
     price: { entered: priceEntered },
     boss: c.boss,
+    // Fix wave C2: the page branches on these (an Office person has no my_job_role answer).
+    role: c.role, kind: c.kind,
     quote: quote.applies ? { line: installerQuoteLine(quote), sent: quote.sent, accepted: quote.accepted, declined: quote.declined, held: quote.held, formCompleted: quote.formCompleted === true, sentAt: qq?.sent_at ?? null, acceptedAt: qq?.accepted_at ?? null, declinedAt: quote.declined ? declinedEv?.created_at ?? null : null } : null,
     pay: { amount: c.money ? pay : null, areaM2: m?.measured_area_m2 == null ? null : Number(m.measured_area_m2), removalM2: m?.removal_required && m.removal_m2 != null ? Number(m.removal_m2) : null },
     piesa: { passedOn: a?.status === "complete" && a.piesa_outcome === "pass" ? a.completed_at ?? null : null, bookedAt: a?.status === "complete" ? null : piesaBook?.scheduled_start ?? null, electrician: elecName, fixesNote: (fixes ?? []).length ? (fixes ?? []).map((f) => f.description).join(", ") : null,

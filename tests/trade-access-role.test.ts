@@ -47,7 +47,7 @@ describe("Money is guarded by the Money rule, not the boss rule", () => {
   });
   test("pricesOrThrow exists for Part 10 and the context carries role, prices and money", () => {
     expect(s).toContain("export async function pricesOrThrow(");
-    expect(s).toMatch(/role,\s*prices:[^\n]*money:/);
+    expect(s).toMatch(/role,[^\n]*prices:[^\n]*money:/);
   });
   test("the Money screen's error state links back to My work", () => {
     expect(src("src/routes/_authenticated/field.money.tsx")).toMatch(/if \(error\)[^\n]*<Link to="\/field"/);

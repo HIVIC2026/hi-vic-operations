@@ -239,9 +239,10 @@ export function couldntGetInBlocker(stage: string | null, bookingStart: string |
 // ---------- trade job access (step 9, Jo 7 Oct) ----------
 export type AccessAssignment = { job_id: string; business_id: string | null; user_id: string | null; active: boolean };
 /** A trade may open a job only with an ACTIVE assignment for that job and their own business; staff only when the assignment names them. */
-export function tradeJobAllowed(a: { signedIn: boolean; userId: string | null; businessId: string | null; boss: boolean; jobId: string; assignments: AccessAssignment[] }): boolean {
+/** `office` (fix wave C2): an Office person reads the business's jobs like the boss. */
+export function tradeJobAllowed(a: { signedIn: boolean; userId: string | null; businessId: string | null; boss: boolean; office?: boolean; jobId: string; assignments: AccessAssignment[] }): boolean {
   if (!a.signedIn || !a.userId || !a.businessId) return false;
-  return a.assignments.some((x) => x.job_id === a.jobId && x.active && x.business_id === a.businessId && (a.boss || x.user_id === a.userId));
+  return a.assignments.some((x) => x.job_id === a.jobId && x.active && x.business_id === a.businessId && (a.boss || a.office === true || x.user_id === a.userId));
 }
 /** Visit-current rule: owner name/phone/address show while this business still has a visit to do (or is arranging one);
  *  once every one of its visits on the job is done, contact details are hidden. */

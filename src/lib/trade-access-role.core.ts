@@ -16,6 +16,12 @@ export function seesPrices(r: TradeRole): boolean {
   return r === "boss" || r === "office";
 }
 
+/** Fix wave C2 (3 Nov 2026): Boss and Office see and work every job assigned to the business (reads and bookings);
+ *  Money, Team and business settings keep their own rules below. */
+export function seesBusinessJobs(r: TradeRole): boolean {
+  return r === "boss" || r === "office";
+}
+
 /** Boss always sees Money; Office only if the boss turned "Can see Money" on for them. */
 export function seesMoney(r: TradeRole, canSeeMoney: boolean): boolean {
   return r === "boss" || (r === "office" && canSeeMoney);

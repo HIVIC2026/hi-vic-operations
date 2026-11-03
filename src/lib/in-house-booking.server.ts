@@ -16,7 +16,8 @@ const db=admin as unknown as SupabaseClient;
 async function read<T>(q:PromiseLike<{data:unknown;error:{message:string}|null}>):Promise<T>{const r=await q;if(r.error)throw Error(r.error.message);return r.data as T;}
 export async function bookingTeam(jobId:string,userId:string){
   const c=await (await import('./trade-view.server')).requireTradeJob(userId,jobId);
-  if(!c.boss||c.kind!=='installer')throw Error('Only the installer office can book these visits.');
+  // Fix wave C2: the boss or an Office person books; nobody else (Lead Installers, Crew and Electricians never log in).
+  if(!(c.boss||c.role==='office')||c.kind!=='installer')throw Error('Only the installer office can book these visits.');
   const held=await (await import('./in-house-suppression.server')).readInHouseDispatchState([jobId]);
   if(held.failed||!held.held.has(jobId))throw Error('This job is not assigned to your in-house business.');
   type Row={id:string;trade_role:string;licence_number:string|null;rec_number:string|null;licence_expires_on:string|null;licence_verified_at:string|null;esc_registered?:boolean;esc_registered_at?:string|null};

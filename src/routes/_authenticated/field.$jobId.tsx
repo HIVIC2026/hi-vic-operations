@@ -237,11 +237,15 @@ function FieldJob() {
 
 function FieldJobBody({ jobId }: { jobId: string }) {
   const { data: job, isError, error } = useJob(jobId);
-  const { data: role } = useQuery({
+  const { data: role, isFetched: roleKnown } = useQuery({
     queryKey: ["myrole", jobId],
     queryFn: async () => (await supabase.rpc("my_job_role", { _job: jobId })).data,
     staleTime: 300_000,
   });
+  // Fix wave C2: an Office person has no my_job_role answer (the database check names assigned people and the boss), so the
+  // installer page is chosen from getTradeJobPage's own kind/role; legacy electrician logins keep their page without that call.
+  const { data: page, isLoading: pageLoading } = useInstallerPage(jobId, roleKnown && role !== "electrician");
+  const installer = role === "installer" || page?.kind === "installer";
   const status = useTradeJobStatus(jobId, role === "electrician"); // same query as the status card below
   const showOwnerContact = status.data?.ownerContactVisible === true; // fails closed: hidden while loading or on error
   const inHouseAccess = useInHouseBookingAccess(jobId);
@@ -264,10 +268,16 @@ function FieldJobBody({ jobId }: { jobId: string }) {
         <p className="text-sub">Loading…</p>
       </TradeShell>
     );
-  if (role === "installer")
+  if (installer)
     return (
       <TradeShell installer redesign>
         <InstallerFlow jobId={jobId} job={job} />
+      </TradeShell>
+    );
+  if (role !== "electrician" && (!roleKnown || pageLoading))
+    return (
+      <TradeShell installer>
+        <p className="text-sub">Loading…</p>
       </TradeShell>
     );
   const step = nextStep(job);
@@ -810,7 +820,7 @@ function CompleteSummary({
 }
 
 /** The job page read (one call; the bundle seeds this key on a return visit). */
-function useInstallerPage(jobId: string) {
+function useInstallerPage(jobId: string, enabled = true) {
   const load = useServerFn(getTradeJobPage);
   // No cache of its own: the job bundle seeds ["trade-job-page", jobId] on a return visit, and its evict resets it. An
   // initialData copy here would be re-applied by that reset and bring back an old or refused page (final review I3).
@@ -820,6 +830,7 @@ function useInstallerPage(jobId: string) {
     retry: false,
     refetchInterval: 60_000,
     staleTime: 20_000,
+    enabled,
   });
 }
 
