@@ -3,7 +3,7 @@ import { parseAudit, contactAnswersFromEntries } from '../src/lib/mitti.core';
 import { shortAnswersFromEntries } from '../src/lib/official-short.core';
 import { expandPiesa } from '../src/lib/official-expand.core';
 import { readFixesDay, isFixesDayDoc } from '../src/lib/fixes-day.core';
-import { readInstallDay, isInstallDayDoc, INSTALL_DAY_Q } from '../src/lib/install-day.core';
+import { readInstallDay, isInstallDayDoc, INSTALL_DAY_Q, installDayOfficialAnswers } from '../src/lib/install-day.core';
 import { readInstallEvidence } from '../src/lib/install-evidence.core';
 import { validateTemplate, FORMS } from '../src/lib/mitti-forms.core';
 import { canonicalMittiLabel, INSTALL_REBUILD_ALIASES } from '../src/lib/mitti-rebuild-labels.core';
@@ -14,6 +14,14 @@ const rcdQ = 'Are safety switches (RCDs) fitted for the ceiling circuits, and ha
 const mainsQ = 'Have you found and marked the mains cable in the ceiling?';
 const deadQ = 'With the main switch off, have you tested that the ceiling is dead?';
 const expand = (entries: { label: string; value: string }[]) => expandPiesa(shortAnswersFromEntries('piesa', entries), { lifeSupportDeclared: 'no', today: '2026-11-04' });
+test('new shortened solar Yes does not invent instructions or an accessible isolator', () => {
+ const { answers, flagged } = expand([e('Is there solar, a battery or a generator at the house?', 'Yes'), e('Can it be shut down safely, and are its ceiling cables labelled, in conduit and protected?', 'Yes')]);
+ expect(answers['p3.instructions']).toBeUndefined(); expect(answers['p3.isolator']).toBeUndefined(); expect(flagged.some(x => x.includes('Solar'))).toBe(true);
+});
+test('new A5 coverage wording cannot prove implemented controls or accessible isolator', () => {
+ const { answers } = installDayOfficialAnswers({ items: [e('Does the safety plan cover every hazard at this house?', 'Yes'), e('Does its isolator (at ground level) work and switch off safely?', 'Yes')] });
+ expect(answers['p3.table1']).toBeUndefined(); expect(answers['p4.isolator']).toBeUndefined();
+});
 test('four mains answers populate seven independent official facts', () => {
   const { answers } = expand([e(switchQ, 'Yes'), e(rcdQ, 'Yes'), e(mainsQ, 'No'), e(deadQ, 'Yes')]);
   expect(answers['p2.mains']).toBe('No');
