@@ -79,3 +79,36 @@ export function electricianStep(f: ElectricianLinkFacts): ElectricianStepView {
   if (f.piesa.start) return view("piesa_day", false, dayTime(f.piesa.start));
   return can ? view("book_piesa", true) : view("waiting_office_book", false);
 }
+
+// ---- The link itself (Task 2): lifetime, the text, and the plain messages -------------------------------------------
+const DAY = 86_400_000;
+/** After All done the link stays open this long (Jo's plan), then it expires. */
+export const ELECTRICIAN_LINK_DAYS_AFTER_DONE = 14;
+/** Before All done the link stays open: every open pushes the expiry this far out. */
+export const ELECTRICIAN_LINK_OPEN_DAYS = 60;
+
+/** `null` allDoneAt: now + 60 days (renewed on every open). After All done: allDoneAt + 14 days. */
+export function electricianLinkExpiry(f: { allDoneAt: string | null; now: number }): string {
+  if (f.allDoneAt) {
+    const t = new Date(f.allDoneAt).getTime();
+    if (!Number.isNaN(t)) return new Date(t + ELECTRICIAN_LINK_DAYS_AFTER_DONE * DAY).toISOString();
+  }
+  return new Date(f.now + ELECTRICIAN_LINK_OPEN_DAYS * DAY).toISOString();
+}
+
+/** The job-link text stays off until Jo approves the wording. */
+export const ELECTRICIAN_LINK_TEXT_APPROVED = false as boolean;
+export const ELECTRICIAN_LINK_SMS_TYPE = "electrician_job_link" as const;
+export const electricianLinkTextKey = (jobId: string, workerId: string) => `electrician-link:v1:${jobId}:${workerId}`;
+
+const tidy = (v: string | null | undefined) => (v ?? "").trim().replace(/\s+/g, " ");
+/** DRAFT (no approved wording yet): "Home Insulation Victoria: New PIESA job HV-1234, Kew, for Smith Insulation. Your job link: https://…" */
+export function electricianLinkText(i: { jobNumber: string; suburb: string | null; installer: string; url: string }): string {
+  const suburb = tidy(i.suburb);
+  return `Home Insulation Victoria: New PIESA job ${tidy(i.jobNumber)}${suburb ? `, ${suburb}` : ""}, for ${tidy(i.installer)}. Your job link: ${i.url}`;
+}
+
+/** DRAFT messages on a link that cannot be opened. */
+export const electricianLinkSwitchedOff = (installer: string) => `This link has been switched off. Ask ${installer} for a new one.`;
+export const electricianLinkExpired = (installer: string) => `This link has expired. Ask ${installer} for a new one.`;
+export const ELECTRICIAN_LINK_NOT_VALID = "This link isn't valid.";

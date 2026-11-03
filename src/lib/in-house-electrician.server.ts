@@ -72,6 +72,8 @@ export async function allocateElectrician(jobId: string, userId: string, workerI
   ]);
   const r = await db.rpc("allocate_team_electrician", { _job: jobId, _actor: userId, _worker: workerId });
   if (r.error) throw new Error(r.error.message);
+  // The electrician's no-login job link (Part 6): made and texted only after the atomic assignment held. Never fails the allocation.
+  await (await import("./electrician-link.server")).linkAfterAllocation(jobId, workerId, userId);
   // Same-person retries repair outstanding handovers using the existing audit identities.
   if (assessment?.external_mitti_id) await mitti.reassignMittiFormTo({ jobId, auditId: assessment.external_mitti_id, kind: "piesa", mittiUserId, email, actorId: userId }, call ?? mitti.realMittiCall);
   if (rectification && !rectification.closed) await mitti.reassignMittiFormTo({ jobId, auditId: rectification.auditId, kind: "rectification", mittiUserId, email, actorId: userId }, call ?? mitti.realMittiCall);

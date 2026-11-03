@@ -6,6 +6,7 @@
 // or changes workflow. Entries are grouped by WHO gets them and ordered by job step. Wording waiting for Jo's approval
 // sits in its own section. Retired templates are simply not listed (their files stay in git).
 // tests/templates-hub.test.ts proves every entry comes from a live code path and every live builder / text type is here.
+import { electricianLinkText } from "./electrician-link.core";
 import { renderQuoteExpiredEmail } from "./quote-expired-email.core";
 import { bookingNotice, ownerBookedMessage } from './in-house-booking.core';
 import { renderJoOutcomeEmail } from "./jo-outcome-email.core";
@@ -699,6 +700,10 @@ const ELECTRICIAN: TemplateEntry[] = [
   ENTRY({ id: "electrician:sms-owner_changed_visit", section: "electrician", step: "safety_check", kind: "text", code: "", name: "Owner changed the booked safety check (text)", when: "The owner changes a booked safety check on My job", who: "Electrician", approvalNote: "Jo 25 Oct 2026, decision 337", gate: { kind: "text", smsType: "owner_changed_visit" },
     source: { builder: "src/lib/installer-texts.core.ts", fn: "ownerChangedVisitText", sender: "src/lib/installer-texts.server.ts" },
     render: () => text(ownerChangedVisitText({ kind: "assessment", suburb: "Glen Waverley", jobNumber: "HV-TEST", wasIso: PIESA_ISO, link: FIELD })) }),
+  // DRAFT wording: ELECTRICIAN_LINK_TEXT_APPROVED stays false and the SMS type is wordingApproved:false (switch off).
+  ENTRY({ id: "electrician:sms-electrician_job_link", section: "electrician", step: "safety_check", kind: "text", code: "", name: "Your job link (text)", when: "Right after the installer picks the electrician for a new safety check job", who: "Electrician", approvalNote: "DRAFT wording for Jo to approve (new job flow Part 6); ELECTRICIAN_LINK_TEXT_APPROVED stays false", gate: { kind: "text", smsType: "electrician_job_link" },
+    source: { builder: "src/lib/electrician-link.core.ts", fn: "electricianLinkText", sender: "src/lib/electrician-link.server.ts" },
+    render: () => text(electricianLinkText({ jobNumber: "HV-TEST", suburb: "Glen Waverley", installer: "Example Insulation", url: "https://estimate.homeinsulationvictoria.com.au/e/EXAMPLE" })) }),
 ];
 
 /* ---------------------------------------------------------------- OFFICE */

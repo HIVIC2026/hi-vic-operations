@@ -1,0 +1,70 @@
+// New job flow, Part 6, Task 2: the /e/$token page. Source-reading for the route, and the step block rendered to markup.
+import { expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { renderToStaticMarkup } from "react-dom/server";
+import { ElectricianLinkBody } from "../src/components/trade/ElectricianLinkBody";
+import { electricianStep, type ElectricianLinkFacts } from "../src/lib/electrician-link.core";
+
+const route = readFileSync("src/routes/e.$token.tsx", "utf8");
+const fns = readFileSync("src/lib/electrician-link.functions.ts", "utf8");
+
+const facts = (over: Partial<ElectricianLinkFacts> = {}): ElectricianLinkFacts => ({
+  whoBooks: "electrician", handedBack: false, certificateIn: false, now: new Date("2026-11-03T02:00:00Z"),
+  piesa: { start: "2026-11-06T23:00:00Z", formUrl: "https://app.au.safetyculture.com/inspection/a3", outcome: null, upgradesSameDay: false },
+  upgrades: { start: null, formUrl: null, formDone: false }, ...over,
+});
+const body = (over: Partial<Parameters<typeof ElectricianLinkBody>[0]["d"]> = {}) => renderToStaticMarkup(<ElectricianLinkBody d={{
+  business: "Spark Co", firstName: "Sam", jobNumber: "HV-5001", owner: { name: "Helen Owner", phone: "0411 111 111" }, address: "12 Smith St, Kew VIC 3101",
+  view: electricianStep(facts()), buttonUrl: "https://app.au.safetyculture.com/inspection/a3", ...over }} />);
+
+test("route /e/$token: no sign-in, client only, noindex, no referrer, the website look", () => {
+  expect(route).toContain('createFileRoute("/e/$token")');
+  expect(route).toContain("ssr: false");
+  expect(route).toContain('{ name: "robots", content: "noindex, nofollow" }');
+  expect(route).toContain('{ name: "referrer", content: "no-referrer" }');
+  expect(route).toContain("TradePublicShell");
+  expect(route).not.toMatch(/beforeLoad|requireAuth|useAccess/);
+  expect(route).not.toContain("<TradeShell");
+  expect(route).toContain("getElectricianLinkView");
+});
+test("a bad link shows a plain card, not a crash", () => {
+  expect(route).toContain("data-electrician-link-invalid");
+  expect(route).toContain("readableError(q.error");
+});
+test("the server function is a literal chain with no auth middleware and only the token as input", () => {
+  expect(fns).toContain('createServerFn({ method: "POST" })');
+  expect(fns).toContain(".inputValidator(");
+  expect(fns).toContain(".handler(");
+  expect(fns).not.toContain(".middleware(");
+  expect(fns).not.toContain("@tanstack/react-start/server");
+  expect(fns).toMatch(/z\.object\(\{ token: z\.string\(\)\.max\(100\) \}\)/);
+  expect(fns).not.toMatch(/jobId|workerId|businessId/);
+});
+test("shows '{business} · {first}', the step title, owner name, a tel: link on the phone and the address", () => {
+  const h = body();
+  expect(h).toContain("Spark Co · Sam");
+  expect(h).toContain("Safety check day");
+  expect(h).toContain("Helen Owner");
+  expect(h).toContain('href="tel:0411111111"');
+  expect(h).toContain("12 Smith St, Kew VIC 3101");
+});
+test("exactly ONE green button, to the Mitti form", () => {
+  const h = body();
+  expect(h.match(/data-electrician-button/g)).toHaveLength(1);
+  expect(h).toContain('href="https://app.au.safetyculture.com/inspection/a3"');
+  expect(h).toContain("Open safety check form");
+  expect(h).toContain("bg-action");
+});
+test("no owner block when the server sent no contact; no button when the step has no form", () => {
+  const h = body({ owner: null, address: null, view: electricianStep(facts({ whoBooks: "office", piesa: { start: null, formUrl: null, outcome: null, upgradesSameDay: false } })), buttonUrl: null });
+  expect(h).not.toContain("data-electrician-job");
+  expect(h).not.toContain("data-electrician-button");
+  expect(h).toContain("The office is booking the safety check");
+});
+test("no menu, no prices, no messages, no rate items", () => {
+  const h = body();
+  expect(h).not.toMatch(/<nav/);
+  expect(h).not.toMatch(/\$\d|price|Messages|rate|Money|My business|HIV/i);
+  const src = readFileSync("src/components/trade/ElectricianLinkBody.tsx", "utf8");
+  expect(src).not.toMatch(/<TradeShell|TradeTabBar|useAccess/);
+});

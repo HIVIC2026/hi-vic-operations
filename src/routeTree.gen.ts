@@ -36,6 +36,7 @@ import { Route as NoticeTokenRouteImport } from './routes/notice.$token'
 import { Route as RateOfferTokenRouteImport } from './routes/rate-offer.$token'
 import { Route as SaveSpotPreliminaryTokenRouteImport } from './routes/save-spot-preliminary.$token'
 import { Route as SpTokenRouteImport } from './routes/sp.$token'
+import { Route as ETokenRouteImport } from './routes/e.$token'
 import { Route as WTokenRouteImport } from './routes/w.$token'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as AuthenticatedAdminSplatRouteImport } from './routes/_authenticated/admin.$'
@@ -253,6 +254,11 @@ const SaveSpotPreliminaryTokenRoute =
 const SpTokenRoute = SpTokenRouteImport.update({
   id: '/sp/$token',
   path: '/sp/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ETokenRoute = ETokenRouteImport.update({
+  id: '/e/$token',
+  path: '/e/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const WTokenRoute = WTokenRouteImport.update({
@@ -754,6 +760,7 @@ export interface FileRoutesByFullPath {
   '/rate-offer/$token': typeof RateOfferTokenRoute
   '/save-spot-preliminary/$token': typeof SaveSpotPreliminaryTokenRoute
   '/sp/$token': typeof SpTokenRoute
+  '/e/$token': typeof ETokenRoute
   '/w/$token': typeof WTokenRoute
   '/admin/$': typeof AuthenticatedAdminSplatRoute
   '/admin/ai-answers': typeof AuthenticatedAdminAiAnswersRoute
@@ -861,6 +868,7 @@ export interface FileRoutesByTo {
   '/rate-offer/$token': typeof RateOfferTokenRoute
   '/save-spot-preliminary/$token': typeof SaveSpotPreliminaryTokenRoute
   '/sp/$token': typeof SpTokenRoute
+  '/e/$token': typeof ETokenRoute
   '/w/$token': typeof WTokenRoute
   '/admin/$': typeof AuthenticatedAdminSplatRoute
   '/admin/ai-answers': typeof AuthenticatedAdminAiAnswersRoute
@@ -974,6 +982,7 @@ export interface FileRoutesById {
   '/rate-offer/$token': typeof RateOfferTokenRoute
   '/save-spot-preliminary/$token': typeof SaveSpotPreliminaryTokenRoute
   '/sp/$token': typeof SpTokenRoute
+  '/e/$token': typeof ETokenRoute
   '/w/$token': typeof WTokenRoute
   '/_authenticated/admin/$': typeof AuthenticatedAdminSplatRoute
   '/_authenticated/admin/ai-answers': typeof AuthenticatedAdminAiAnswersRoute
@@ -1087,6 +1096,7 @@ export interface FileRouteTypes {
     | '/rate-offer/$token'
     | '/save-spot-preliminary/$token'
     | '/sp/$token'
+    | '/e/$token'
     | '/w/$token'
     | '/admin/$'
     | '/admin/ai-answers'
@@ -1194,6 +1204,7 @@ export interface FileRouteTypes {
     | '/rate-offer/$token'
     | '/save-spot-preliminary/$token'
     | '/sp/$token'
+    | '/e/$token'
     | '/w/$token'
     | '/admin/$'
     | '/admin/ai-answers'
@@ -1306,6 +1317,7 @@ export interface FileRouteTypes {
     | '/rate-offer/$token'
     | '/save-spot-preliminary/$token'
     | '/sp/$token'
+    | '/e/$token'
     | '/w/$token'
     | '/_authenticated/admin/$'
     | '/_authenticated/admin/ai-answers'
@@ -1414,6 +1426,7 @@ export interface RootRouteChildren {
   RateOfferTokenRoute: typeof RateOfferTokenRoute
   SaveSpotPreliminaryTokenRoute: typeof SaveSpotPreliminaryTokenRoute
   SpTokenRoute: typeof SpTokenRoute
+  ETokenRoute: typeof ETokenRoute
   WTokenRoute: typeof WTokenRoute
   ApiFilesSplatRoute: typeof ApiFilesSplatRoute
   ApiPublicAddressSearchRoute: typeof ApiPublicAddressSearchRoute
@@ -1636,6 +1649,13 @@ declare module '@tanstack/react-router' {
       path: '/sp/$token'
       fullPath: '/sp/$token'
       preLoaderRoute: typeof SpTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/e/$token': {
+      id: '/e/$token'
+      path: '/e/$token'
+      fullPath: '/e/$token'
+      preLoaderRoute: typeof ETokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/w/$token': {
@@ -2429,6 +2449,7 @@ const rootRouteChildren: RootRouteChildren = {
   RateOfferTokenRoute: RateOfferTokenRoute,
   SaveSpotPreliminaryTokenRoute: SaveSpotPreliminaryTokenRoute,
   SpTokenRoute: SpTokenRoute,
+  ETokenRoute: ETokenRoute,
   WTokenRoute: WTokenRoute,
   ApiFilesSplatRoute: ApiFilesSplatRoute,
   ApiPublicAddressSearchRoute: ApiPublicAddressSearchRoute,
