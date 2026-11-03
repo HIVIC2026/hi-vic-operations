@@ -934,4 +934,4 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [x] Step 1(a) find-by-email checked (real Mitti)
 - [x] Step 1(b)/(d): created and deactivated user_bd7248f091294ec2a729988354f2febf at Jo's approved alternate email; real results confirmed
 - [x] Step 1(c): not required — Jo confirms there is no trades group
-- [ ] Jo 3 Nov 9:56pm: enable new approved Lead invites without group; preserve own-email, pause-confirmation, one-invite and TEST guards; tests first and related checks; no catch-up, sends or publishing
+- [x] Jo 3 Nov 9:56pm: verified API true and auto-invite secret saved; new approved Leads only from 10:56 UTC, no groups, own-email and pause-confirmation guards preserved. Existing approvals/edit/renewal/repeated approval excluded; TEST never reaches live provider. Red-first and related tests passed, including PGlite repeated-approval and two-boss isolation. Automatic portal checks clean; no live invitation exercised (sending prohibited), no record changes or publishing.

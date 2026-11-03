@@ -166,9 +166,6 @@ export async function onPartnerPersonApproved(workerId: string, actorId: string 
   }
   if (step.action === "skip" || step.action === "lookup") return step;
   const details = { ...base, key: step.key, group: step.group, seat: step.seat };
-  const addGroup = async (_mittiUserId: string, _groupId: string | null) => {
-    return { added: false, note: null }; // No trades group: this is normal, never an office task.
-  };
 
   if (step.action === "fail") {
     await record(actorId, MITTI_INVITE_EVENTS.failed, step.reason, { ...details, reason: step.reason, mitti_user_id: prior?.mittiUserId ?? null });
@@ -180,8 +177,7 @@ export async function onPartnerPersonApproved(workerId: string, actorId: string 
   }
   if (step.action === "record_linked") {
     await linkProfile(profileId, step.mittiUserId, person.email ?? "");
-    const g = await addGroup(step.mittiUserId, step.addToGroup);
-    await record(actorId, MITTI_INVITE_EVENTS.userLinked, `Mitti user found for ${person.email} and linked${g.added ? ` — added to ${step.group}` : ""}`, { ...details, mitti_user_id: step.mittiUserId, group_added: g.added, group_note: g.note });
+    await record(actorId, MITTI_INVITE_EVENTS.userLinked, `Mitti user found for ${person.email} and linked`, { ...details, mitti_user_id: step.mittiUserId, group_added: false, group_note: null });
     return step;
   }
   if (step.action === "reactivate") {
@@ -192,7 +188,7 @@ export async function onPartnerPersonApproved(workerId: string, actorId: string 
       return { action: "fail" as const, reason };
     }
     await linkProfile(profileId, step.mittiUserId, person.email ?? "");
-    await record(actorId, MITTI_INVITE_EVENTS.reactivated, `Mitti user for ${person.email} reactivated (approved again)`, { ...details, mitti_user_id: step.mittiUserId, group_added: true });
+    await record(actorId, MITTI_INVITE_EVENTS.reactivated, `Mitti user for ${person.email} reactivated (approved again)`, { ...details, mitti_user_id: step.mittiUserId, group_added: false });
     return step;
   }
   // Jo 30 Oct 2026: creating the Mitti user makes Mitti email the person, and our ONE invite message follows — both go to
@@ -214,12 +210,11 @@ export async function onPartnerPersonApproved(workerId: string, actorId: string 
     return { action: "fail" as const, reason };
   }
   await linkProfile(profileId, mittiUserId, person.email ?? "");
-  const g = await addGroup(mittiUserId, step.addToGroup);
   const at = new Date().toISOString();
   // Recorded BEFORE the message, so a second approval finds it and never invites or messages again.
-  await record(actorId, MITTI_INVITE_EVENTS.invited, `Mitti user created for ${person.email} (${step.seat} seat${g.added ? `, ${step.group} group` : ""})`, { ...details, mitti_user_id: mittiUserId, group_added: g.added, group_note: g.note, message_key: mittiInviteMessageKey(workerId) });
+  await record(actorId, MITTI_INVITE_EVENTS.invited, `Mitti user created for ${person.email} (${step.seat} seat)`, { ...details, mitti_user_id: mittiUserId, group_added: false, group_note: null, message_key: mittiInviteMessageKey(workerId) });
   const message = await (opts.message ?? realInviteMessenger)({ workerId, businessId, to: { mobile, email: person.email ?? "" }, name, at, actorId });
-  return { ...step, mittiUserId, groupAdded: g.added, message };
+  return { ...step, mittiUserId, groupAdded: false, message };
 }
 
 /**
