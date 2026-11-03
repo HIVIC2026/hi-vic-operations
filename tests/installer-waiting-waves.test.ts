@@ -14,7 +14,7 @@ let pending: (() => void)[] = [];
 let scheduled = false;
 function flush() { scheduled = false; wave++; const p = pending; pending = []; for (const f of p) f(); }
 function from(table: string) {
-  const q = memoryPostgrest(tables).from(table);
+  const q = memoryPostgrest(tables, { "partner_worker_certifications>worker_certification_levels": "certification_id" }).from(table);
   q.then = (res: (v: unknown) => unknown, rej?: (e: unknown) => unknown) => new Promise((resolve) => {
     log.push({ table, wave });
     pending.push(() => resolve(q.run()));

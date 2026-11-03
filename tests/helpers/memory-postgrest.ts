@@ -36,13 +36,15 @@ function parseSel(s: string): Sel {
   return sel;
 }
 
-export function memoryPostgrest(tables: Tables) {
+/** `backKeys`: a to-many embed whose child column isn't `<singular of parent>_id`, keyed `"parent>child"` (e.g.
+ *  `{ "partner_worker_certifications>worker_certification_levels": "certification_id" }`). */
+export function memoryPostgrest(tables: Tables, backKeys: Record<string, string> = {}) {
   const T = tables;
   const embed = (table: string, row: Row, name: string): Row | Row[] | null => {
     const child = T[name] ?? [];
     const fk = `${singular(name)}_id`;
     if (fk in row) return child.find((c) => c["id"] === row[fk]) ?? null;
-    const back = `${singular(table)}_id`;
+    const back = backKeys[`${table}>${name}`] ?? `${singular(table)}_id`;
     return child.filter((c) => c[back] === row["id"]);
   };
   const project = (table: string, row: Row, sel: Sel): Row => {
