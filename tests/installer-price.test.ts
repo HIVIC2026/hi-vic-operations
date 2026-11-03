@@ -405,6 +405,13 @@ describe("Enter your price step (Task 4)", () => {
     expect(canEnterPrice("member")).toBe(false);
     expect(canEnterPrice(null)).toBe(false);
   });
+  test("I2: the card toasts 'sent' only after the server says sent; a hold shows its reasons with no success toast", () => {
+    const card = readFileSync("src/components/trade/InstallerPriceCard.tsx", "utf8");
+    expect(card).toContain('if (r.sent) toast.success("Quote sent to the owner");');
+    expect(card).toContain("else if (r.reasons.length) setNotSent(r.reasons);");
+    expect(card).toContain('else toast.success("Price saved");');
+    expect(card).not.toContain('view.sendOnPress ? "Quote sent to the owner" : "Price saved"');
+  });
   test("send-on-press switch ships off", async () => {
     const { OWN_CUSTOMER_SEND_ON_PRESS_ENABLED } = await import("../src/lib/auto-quote-send.core");
     expect(OWN_CUSTOMER_SEND_ON_PRESS_ENABLED).toBe(false);
@@ -480,6 +487,7 @@ describe("wiring (source facts)", () => {
     );
     const card = read("src/components/trade/InstallerPriceCard.tsx");
     expect(card).toContain("if (!view?.canSet) return null;");
+
     expect(card).not.toMatch(
       /Who is doing the electrical safety check\?|ip-electrician|setElectrician|Electrician licence number/,
     );

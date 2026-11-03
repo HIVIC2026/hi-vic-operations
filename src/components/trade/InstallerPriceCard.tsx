@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useAction } from "@/hooks/use-me";
+import { toast } from "sonner";
 import {
   getInstallerPriceFn,
   setInstallerPriceFn,
@@ -157,10 +158,12 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
                   notes: notes.trim() || null,
                   send: view.sendOnPress,
                 },
-                view.sendOnPress ? "Quote sent to the owner" : "Price saved",
               );
               if (r) {
-                if (!r.sent && r.reasons.length) setNotSent(r.reasons);
+                // I2: say what happened — "sent" only when the guarded send went; a hold shows its plain reasons, no success toast.
+                if (r.sent) toast.success("Quote sent to the owner");
+                else if (r.reasons.length) setNotSent(r.reasons);
+                else toast.success("Price saved");
                 setEditing(false);
                 await q.refetch();
               }
