@@ -86,3 +86,19 @@ describe("My electricians screen rules (Task 3)", () => {
     for (const p of [...all, "Tick that they're a sole trader with no staff", ANSWER_WORKCOVER]) expect(PROBLEM_FIELD[p], p).toBeDefined();
   });
 });
+
+describe("Fix and resend (Task 5 carried item): the form is prefilled from what is on file", () => {
+  const onFile: core.MyElectricianDetails = { name: "Sam Sparks", email: "sam@sparks.test", mobile: "+61400111222", recNumber: "REC5555", licenceNumber: "L-5555", licenceExpiry: "2099-01-01", plAmount: 5_000_000, plExpiry: "2099-01-01", employsAnyone: false, workcoverExpiry: null, reason: "Blurry licence photo" };
+  test("details come back; every document must be uploaded again; the sole-trader tick is asked again", () => {
+    const d = core.prefillDraft(onFile);
+    expect(d).toMatchObject({ name: "Sam Sparks", email: "sam@sparks.test", mobile: "+61400111222", recNumber: "REC5555", licenceNumber: "L-5555", licenceExpiry: "2099-01-01", plAmount: "5000000", plExpiry: "2099-01-01", employs: "no", workcoverExpiry: "", soleTraderTick: false });
+    expect(d.licenceFile).toBeNull(); expect(d.plFile).toBeNull(); expect(d.workcoverFile).toBeNull();
+    expect(core.draftProblems(d, "2026-11-03")).toEqual(["Add a photo of their licence", "Add the public liability certificate", "Tick that they're a sole trader with no staff"]);
+  });
+  test("an employer keeps Yes and their WorkCover expiry; a missing amount/expiry stays blank", () => {
+    expect(core.prefillDraft({ ...onFile, employsAnyone: true, workcoverExpiry: "2099-02-02", plAmount: null, plExpiry: null })).toMatchObject({ employs: "yes", workcoverExpiry: "2099-02-02", plAmount: "", plExpiry: "" });
+  });
+  test("the resend button and heading wording", () => {
+    expect(core.RESUBMIT_FORM).toEqual({ title: "Fix and resend", button: "Send again", note: "Upload every document again, even the ones that were fine." });
+  });
+});

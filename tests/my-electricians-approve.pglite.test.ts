@@ -205,6 +205,15 @@ describe("officeRejectInstallerElectrician + installerResubmitElectrician", () =
     expect((await biz(RITA)).installer_added_rejected_reason).toBe("Licence number doesn't match the photo");
   });
 
+  test("Fix and resend (Task 5): what is on file comes back for the form — own, not-approved electricians only", async () => {
+    expect(await els.installerMyElectricianDetails(U_BOSS, RITA)).toEqual({
+      name: "Rita Relay", email: "rita@relay.test", mobile: "+61400111222", recNumber: "REC5555", licenceNumber: "L-7777", licenceExpiry: "2099-01-01",
+      plAmount: 5_000_000, plExpiry: "2099-01-01", employsAnyone: true, workcoverExpiry: "2099-02-02", reason: "Licence number doesn't match the photo",
+    });
+    expect(await reject(els.installerMyElectricianDetails(U_BOSS2, RITA))).toBe("This electrician isn't on your list.");
+    expect(await reject(els.installerMyElectricianDetails(U_BOSS, SAM))).toBe("They're already approved — nothing to resubmit.");
+  });
+
   test("resubmit: only the installer that added them, only while not approved", async () => {
     const fix = input({ name: "Rita Relay", email: "rita@relay.test", licenceNumber: "L-7777", licenceFilePath: `${P1}/new-licence.jpg`, employsAnyone: true, soleTraderTick: false, workcoverFilePath: `${P1}/c-wc.pdf`, workcoverExpiry: "2099-02-02" });
     expect(await reject(els.installerResubmitElectrician(U_BOSS2, RITA, { ...fix, licenceFilePath: `partners/${INST2}/electrician-uploads/x.jpg`, plFilePath: `partners/${INST2}/electrician-uploads/y.pdf`, workcoverFilePath: `partners/${INST2}/electrician-uploads/z.pdf` }))).toBe("This electrician isn't on your list.");

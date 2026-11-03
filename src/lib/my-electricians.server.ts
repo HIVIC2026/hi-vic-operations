@@ -454,6 +454,32 @@ export async function officeRejectInstallerElectrician(actorId: string, business
   await logOffice(actorId, "installer_added_electrician_rejected", `Installer-added electrician ${r.biz.name?.trim() ?? ""} not approved: ${why}`.trim(), { installer_business_id: r.installer.id, electrician_business_id: businessId, reason: why, email });
 }
 
+/** The caller's own installer-added electrician, only while NOT approved and rejected (the "Fix and resend" rules). */
+async function ownRejectedElectrician(installerId: string, businessId: string) {
+  const r = await loadInstallerElectrician(businessId);
+  if (!r || r.installer.id !== installerId) throw new WorkflowError("This electrician isn't on your list.");
+  if (r.biz.onboarding_status === "approved") throw new WorkflowError("They're already approved — nothing to resubmit.");
+  if (!r.biz.installer_added_rejected_reason?.trim()) throw new WorkflowError("They're still waiting for approval — nothing to fix yet.");
+  return r;
+}
+
+/** Task 5 carried item: what is on file for the installer's own not-approved electrician, so the "Fix and resend" form opens
+ *  prefilled (latest non-rejected PL / WorkCover row per kind; the worker's licence). Same guards as the resubmit. */
+export async function installerMyElectricianDetails(userId: string, businessId: string): Promise<import("./my-electricians.core").MyElectricianDetails> {
+  const c = await installerBoss(userId);
+  const r = await ownRejectedElectrician(c.biz.id, businessId);
+  const day = (v: unknown) => (v ? String(v).slice(0, 10) : null);
+  const latestExpiry = (kind: string) => r.creds.filter((x) => x.kind === kind && x.verification !== "rejected").map((x) => day(x.expires_at)).filter((x): x is string => !!x).sort().pop() ?? null;
+  const w = r.workers[0];
+  const amount = r.biz.public_liability_cover_amount;
+  return {
+    name: r.biz.name?.trim() ?? "", email: r.biz.email?.trim() ?? "", mobile: r.biz.phone?.trim() ?? "", recNumber: r.biz.rec_number?.trim() ?? "",
+    licenceNumber: w?.licence_number?.trim() ?? "", licenceExpiry: day(w?.licence_expires_on) ?? latestExpiry("electrical_licence"),
+    plAmount: amount == null ? null : Number(amount), plExpiry: latestExpiry("public_liability_insurance"),
+    employsAnyone: !r.biz.workcover_exempt_declared_at, workcoverExpiry: latestExpiry("workers_comp_insurance"), reason: r.biz.installer_added_rejected_reason?.trim() || null,
+  };
+}
+
 /**
  * The installer that added a not-approved electrician fixes the details and documents and sends them back for approval.
  * Same checks as the add; old licence / insurance rows are marked rejected (never deleted) and fresh pending rows written.
@@ -461,10 +487,7 @@ export async function officeRejectInstallerElectrician(actorId: string, business
 export async function installerResubmitElectrician(userId: string, businessId: string, input: AddElectricianInput): Promise<void> {
   const c = await installerBoss(userId);
   const paths = checkInput(input, c.biz.id);
-  const r = await loadInstallerElectrician(businessId);
-  if (!r || r.installer.id !== c.biz.id) throw new WorkflowError("This electrician isn't on your list.");
-  if (r.biz.onboarding_status === "approved") throw new WorkflowError("They're already approved — nothing to resubmit.");
-  if (!r.biz.installer_added_rejected_reason?.trim()) throw new WorkflowError("They're still waiting for approval — nothing to fix yet.");
+  const r = await ownRejectedElectrician(c.biz.id, businessId);
   const { verifyStoredUpload } = await import("./upload-safety.server");
   for (const p of paths) await verifyStoredUpload(BUCKET, p, allowedUpload(p, null)!);
   const now = new Date().toISOString();

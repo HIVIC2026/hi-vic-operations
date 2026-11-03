@@ -64,6 +64,14 @@ export const rejectInstallerElectrician = createServerFn({ method: "POST" }).mid
     return { ok: true };
   });
 
+/** What is on file for the boss's own not-approved electrician, so "Fix and resend" opens prefilled. Read-only. */
+export const getMyElectricianDetails = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ businessId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { installerMyElectricianDetails } = await import("./my-electricians.server");
+    return installerMyElectricianDetails(context.userId, data.businessId);
+  });
+
 /** The installer boss fixes a not-approved electrician and sends them back for approval (same fields as the add). */
 export const resubmitMyElectrician = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({

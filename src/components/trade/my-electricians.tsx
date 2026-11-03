@@ -1,6 +1,8 @@
 // Part 2b: the installer boss's own electricians — who is on the list and where each stands, plus the "Add an electrician"
 // form. Rules live in my-electricians.core.ts (the same `addElectricianProblems` the server runs); this file only shows them.
 // Files are uploaded when the form is sent, never before, so an abandoned form leaves nothing behind.
+// Task 5 carried item: a "Not approved: {reason}" row has "Fix and resend", which opens the SAME form prefilled from what is on
+// file (resubmitMyElectrician). The office's reason is free text, so every document is uploaded again.
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -8,8 +10,8 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { card } from "@/components/trade/TradeShell";
 import { field, greenBtn, navyBtn } from "./business-pages";
-import { addMyElectrician, getMyElectricianUploadUrl, getMyElectricians } from "@/lib/my-electricians.functions";
-import { draftProblems, draftToInput, MIN_PUBLIC_LIABILITY, PROBLEM_FIELD, statusChip, type ElectricianDraft } from "@/lib/my-electricians.core";
+import { addMyElectrician, getMyElectricianDetails, getMyElectricianUploadUrl, getMyElectricians, resubmitMyElectrician } from "@/lib/my-electricians.functions";
+import { draftProblems, draftToInput, MIN_PUBLIC_LIABILITY, PROBLEM_FIELD, RESUBMIT_FORM, prefillDraft, statusChip, type ElectricianDraft } from "@/lib/my-electricians.core";
 import { melbourneToday } from "@/lib/melbourne-time.core";
 import { shortDate } from "@/lib/trade-view.core";
 
@@ -29,6 +31,9 @@ export function MyElectricians() {
   const load = useServerFn(getMyElectricians);
   const { data, error, refetch, isLoading } = useQuery({ queryKey: MY_ELECTRICIANS_KEY, queryFn: () => load() });
   const [adding, setAdding] = useState(false);
+  // Which not-approved electrician is being fixed (the same form, prefilled), if any.
+  const [fixing, setFixing] = useState<{ id: string; name: string } | null>(null);
+  const close = () => { setAdding(false); setFixing(null); };
   return (<>
     <section className="space-y-2">
       <h2 className="font-display text-xl font-bold">On your list</h2>
@@ -39,23 +44,37 @@ export function MyElectricians() {
         {data.map((r) => { const chip = statusChip(r.status, r.reason); return (
           <li key={r.id} data-electrician={r.status} className="flex flex-col gap-2 p-4 md:flex-row md:items-center md:justify-between">
             <span className="min-w-0"><span className="block font-bold">{r.name}</span><span className="block text-xs text-sub">{paperworkLine(r)}</span></span>
-            <span className={`inline-block w-fit shrink-0 rounded-[18px] px-2.5 py-1 text-[12px] font-semibold ${CHIP[chip.tone]}`}>{chip.text}</span>
+            <span className="flex shrink-0 flex-col items-start gap-2 md:items-end">
+              <span className={`inline-block w-fit rounded-[18px] px-2.5 py-1 text-[12px] font-semibold ${CHIP[chip.tone]}`}>{chip.text}</span>
+              {r.status === "not_approved" && <button type="button" className="min-h-11 text-sm font-bold text-estimate-blue" data-fix-electrician onClick={() => { setAdding(false); setFixing({ id: r.id, name: r.name }); }}>{RESUBMIT_FORM.title}</button>}
+            </span>
           </li>
         ); })}
       </ul>}
     </section>
-    {!adding ? <button type="button" className={navyBtn} data-add-electrician onClick={() => setAdding(true)}>Add an electrician</button>
-      : <AddElectricianForm onCancel={() => setAdding(false)} onAdded={() => { setAdding(false); void refetch(); }} />}
+    {fixing ? <ResubmitElectrician key={fixing.id} businessId={fixing.id} onCancel={close} onDone={() => { close(); void refetch(); }} />
+      : !adding ? <button type="button" className={navyBtn} data-add-electrician onClick={() => setAdding(true)}>Add an electrician</button>
+      : <AddElectricianForm onCancel={close} onAdded={() => { close(); void refetch(); }} />}
   </>);
+}
+
+/** "Fix and resend": reads what is on file, then shows the add form prefilled; sending calls the resubmit. */
+function ResubmitElectrician({ businessId, onCancel, onDone }: { businessId: string; onCancel: () => void; onDone: () => void }) {
+  const load = useServerFn(getMyElectricianDetails);
+  const { data, error, isLoading } = useQuery({ queryKey: ["my-electrician-details", businessId], queryFn: () => load({ data: { businessId } }) });
+  if (error) return <p role="alert" className={card}>{(error as Error).message}</p>;
+  if (isLoading || !data) return <p className="text-sm">Loading…</p>;
+  return <AddElectricianForm resubmit={{ businessId, reason: data.reason }} initial={prefillDraft(data)} onCancel={onCancel} onAdded={onDone} />;
 }
 
 type Draft = ElectricianDraft & { licenceFile: File | null; plFile: File | null; workcoverFile: File | null };
 const EMPTY: Draft = { name: "", email: "", mobile: "", recNumber: "", licenceNumber: "", licenceExpiry: "", licenceFile: null, plFile: null, plAmount: "", plExpiry: "", employs: "", workcoverFile: null, workcoverExpiry: "", soleTraderTick: false };
 
-function AddElectricianForm({ onCancel, onAdded }: { onCancel: () => void; onAdded: () => void }) {
+function AddElectricianForm({ onCancel, onAdded, initial, resubmit }: { onCancel: () => void; onAdded: () => void; /** Prefilled details (Fix and resend). */ initial?: ElectricianDraft; /** Set = this is a resend of a not-approved electrician, not a new add. */ resubmit?: { businessId: string; reason: string | null } }) {
   const uploadUrl = useServerFn(getMyElectricianUploadUrl);
   const add = useServerFn(addMyElectrician);
-  const [d, setD] = useState<Draft>(EMPTY);
+  const resend = useServerFn(resubmitMyElectrician);
+  const [d, setD] = useState<Draft>(initial ? { ...EMPTY, ...initial, licenceFile: null, plFile: null, workcoverFile: null } : EMPTY);
   const [problems, setProblems] = useState<string[]>([]);
   const [serverError, setServerError] = useState<string | null>(null);
   const [busy, setBusy] = useState<"" | "uploading" | "saving">("");
@@ -80,8 +99,13 @@ function AddElectricianForm({ onCancel, onAdded }: { onCancel: () => void; onAdd
       const pl = await upload("pl", d.plFile!);
       const workcover = d.employs === "yes" && d.workcoverFile ? await upload("workcover", d.workcoverFile) : "";
       setBusy("saving");
-      const r = await add({ data: draftToInput(d, { licence, pl, workcover }) });
-      toast.success(r.result === "linked" ? `${d.name.trim()} is already approved with Home Insulation Victoria — added to your list.` : `${d.name.trim()} added. Home Insulation Victoria will check their paperwork.`);
+      if (resubmit) {
+        await resend({ data: { businessId: resubmit.businessId, ...draftToInput(d, { licence, pl, workcover }) } });
+        toast.success(`${d.name.trim()} sent again. Home Insulation Victoria will check their paperwork.`);
+      } else {
+        const r = await add({ data: draftToInput(d, { licence, pl, workcover }) });
+        toast.success(r.result === "linked" ? `${d.name.trim()} is already approved with Home Insulation Victoria — added to your list.` : `${d.name.trim()} added. Home Insulation Victoria will check their paperwork.`);
+      }
       onAdded();
     } catch (err) { setServerError(err instanceof Error ? err.message : "Could not add the electrician. Please try again."); }
     finally { setBusy(""); }
@@ -93,8 +117,10 @@ function AddElectricianForm({ onCancel, onAdded }: { onCancel: () => void; onAdd
   </>);
   const disabled = !!busy;
   return (
-    <form className={`${card} space-y-5`} onSubmit={(e) => void submit(e)} noValidate data-add-electrician-form>
-      <div><h2 className="font-display text-xl font-bold">Add an electrician</h2><p className="mt-1 text-sm text-sub">{ADD_ELECTRICIAN_INTRO}</p></div>
+    <form className={`${card} space-y-5`} onSubmit={(e) => void submit(e)} noValidate data-add-electrician-form data-resubmit={resubmit ? "true" : undefined}>
+      {resubmit
+        ? <div><h2 className="font-display text-xl font-bold">{RESUBMIT_FORM.title}</h2>{resubmit.reason && <p className="mt-1 text-sm font-semibold text-[#5A1F2C]" data-rejected-reason>Not approved: {resubmit.reason}</p>}<p className="mt-1 text-sm text-sub">{RESUBMIT_FORM.note}</p></div>
+        : <div><h2 className="font-display text-xl font-bold">Add an electrician</h2><p className="mt-1 text-sm text-sub">{ADD_ELECTRICIAN_INTRO}</p></div>}
 
       <fieldset className="space-y-3 border-0 p-0" disabled={disabled}>
         <legend className="text-[11px] font-bold uppercase tracking-[1.3px] text-estimate-blue">Who they are</legend>
@@ -142,7 +168,7 @@ function AddElectricianForm({ onCancel, onAdded }: { onCancel: () => void; onAdd
       {unplaced.length > 0 && <p role="alert" className="text-sm font-semibold text-danger">{unplaced.join(". ")}</p>}
       {serverError && <p role="alert" data-server-error className="rounded-[12px] bg-owner-house-pink/40 p-3 text-sm font-semibold text-[#5A1F2C]">{serverError}</p>}
       <div className="flex flex-col gap-2 md:flex-row md:items-center">
-        <button type="submit" className={greenBtn} disabled={disabled}>{busy === "uploading" ? "Uploading files…" : busy === "saving" ? "Adding…" : "Add electrician"}</button>
+        <button type="submit" className={greenBtn} disabled={disabled}>{busy === "uploading" ? "Uploading files…" : busy === "saving" ? (resubmit ? "Sending…" : "Adding…") : resubmit ? RESUBMIT_FORM.button : "Add electrician"}</button>
         <button type="button" className="min-h-11 w-full text-center text-sm font-bold text-estimate-blue md:w-auto md:px-4" disabled={disabled} onClick={onCancel}>Cancel</button>
       </div>
     </form>

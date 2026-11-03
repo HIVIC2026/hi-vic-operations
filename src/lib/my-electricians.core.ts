@@ -121,6 +121,24 @@ export type ElectricianDraft = {
   employs: "" | "yes" | "no"; workcoverFile: { name: string } | null; workcoverExpiry: string; soleTraderTick: boolean;
 };
 
+// ---- Task 5 carried item: "Fix and resend" a not-approved electrician ----
+/** What is on file for the installer's own not-approved electrician (read by the server; never files). */
+export type MyElectricianDetails = {
+  name: string; email: string; mobile: string; recNumber: string; licenceNumber: string; licenceExpiry: string | null;
+  plAmount: number | null; plExpiry: string | null; employsAnyone: boolean; workcoverExpiry: string | null; reason: string | null;
+};
+export const RESUBMIT_FORM = { title: "Fix and resend", button: "Send again", note: "Upload every document again, even the ones that were fine." } as const;
+/** The add form, prefilled from what is on file. The office's reason is free text, so which document was the problem is
+ *  unknown: every document is uploaded again (the simpler rule), and the sole-trader tick is a declaration, so it is asked again. */
+export function prefillDraft(d: MyElectricianDetails): ElectricianDraft {
+  return {
+    name: d.name, email: d.email, mobile: d.mobile, recNumber: d.recNumber,
+    licenceNumber: d.licenceNumber, licenceExpiry: d.licenceExpiry ?? "", licenceFile: null,
+    plFile: null, plAmount: d.plAmount == null ? "" : String(Math.round(d.plAmount)), plExpiry: d.plExpiry ?? "",
+    employs: d.employsAnyone ? "yes" : "no", workcoverFile: null, workcoverExpiry: d.employsAnyone ? d.workcoverExpiry ?? "" : "", soleTraderTick: false,
+  };
+}
+
 /** Which field each plain problem message sits under, so it shows right where the boss needs to look. */
 export const PROBLEM_FIELD: Record<string, keyof ElectricianDraft> = {
   "Add their name": "name", "Add their email": "email", "Add their mobile": "mobile", "Add their REC number": "recNumber",
