@@ -371,3 +371,14 @@ test("Task 5: Home Insulation Victoria leads are byte-identical to d89d335 (v3 a
   // the seam on with no ownCustomer changes nothing either
   expect(render({ ...hivBase, v4: true, changes })).toEqual(v4);
 });
+
+test("C1 (flags off, live today): an own customer's generic rows classify by code — the fee row is the fee, never 'insulation'", () => {
+  const m = renderOwnerQuoteEmail(withoutOwn(ownInput) as OwnerQuoteEmailInput & { lines: typeof ownInput.lines });
+  expect(m.text).toContain("Home Insulation Victoria fee (Home Insulation Victoria (VEU A003654): your quote, compliance checks, paperwork and rebate claim): $349.00");
+  expect(m.text).toContain("Electrical safety check (PIESA) (By a licensed electrician, before any insulation goes in): $349.00");
+  expect(m.text).not.toMatch(/Home Insulation Victoria fee \(VEU-approved/);
+  expect(m.text).not.toMatch(/Home Insulation Victoria fee \(.*installed by/);
+  // a line with no code still classifies by its wording (old quotes)
+  const old = renderOwnerQuoteEmail({ ...withoutOwn(ownInput), lines: ownInput.lines.map(({ code: _c, ...l }) => l) });
+  expect(old.text).toContain("Electrical safety check (PIESA) (By a licensed electrician, before any insulation goes in): $349.00");
+});

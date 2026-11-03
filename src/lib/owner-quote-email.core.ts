@@ -188,7 +188,11 @@ export function renderOwnerQuoteEmail(i: OwnerQuoteEmailInput, seam: OwnCustomer
   const perM2 = (amount: number, m: number) => `${K.m2(m)} × ${money(amount / m)} per m²`;
   const rows: K.QuoteRow[] = ownRows ?? i.lines.map((l) => {
     const d = l.description;
-    const isRemoval = /remov/i.test(d), isPiesa = /PIESA|electrical safety/i.test(d), isAp = /accredited|management|compliance/i.test(d);
+    // C1: classify by quote_items.code when present ("Home Insulation Victoria fee" would otherwise read as insulation); the
+    // wording regexes stay as the fallback for old quotes with no code.
+    const code = l.code ?? null;
+    const known = code === "AP_FEE" || code === "PIESA" || code === "INSTALLER_REMOVAL" || code === "INSTALLER_PRICE";
+    const isRemoval = known ? code === "INSTALLER_REMOVAL" : /remov/i.test(d), isPiesa = known ? code === "PIESA" : /PIESA|electrical safety/i.test(d), isAp = known ? code === "AP_FEE" : /accredited|management|compliance/i.test(d);
     const isProduct = !isRemoval && !isPiesa && !isAp && /insulation|batts|R\d/i.test(d);
     const detail = isPiesa ? "By a licensed electrician, before any insulation goes in"
       : isAp ? `Home Insulation Victoria (VEU ${K.AP_NUMBER}): your quote, compliance checks, paperwork and rebate claim`
