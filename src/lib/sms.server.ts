@@ -7,9 +7,9 @@
 // held as "too late" instead of coming out as old copies when a switch flips (SMS_FRESHNESS in sms.core.ts).
 // Jo 30 Oct 2026: partner-audience texts are also held while "Pause all trade messages" is on (trade-pause.core.ts).
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
-import { customerCommsEnabled, hasCurrentOwnerContactConsent } from "./comms.server";
+import { customerCommsEnabled, hasCurrentOwnerContactConsent, ownerConsentAllowsDelivery } from "./comms.server";
 import { DO_NOT_CONTACT_CLEARED_EVENT, DO_NOT_CONTACT_SET_EVENT, doNotContactOn } from "./do-not-contact.core";
-import { SMS_MESSAGE_TYPES, brandSmsBody, heldAttemptKey, smsBlocker, smsStaleReason, toAuE164, type SmsEventInput, type SmsMessageType } from "./sms.core";
+import { SMS_MESSAGE_TYPES, brandSmsBody, heldAttemptKey, smsBlocker, smsCompliancePurpose, smsStaleReason, toAuE164, type SmsEventInput, type SmsMessageType } from "./sms.core";
 
 const db = admin as any;
 const WEBHOOK_BASE = "https://estimate.homeinsulationvictoria.com.au";
@@ -52,7 +52,11 @@ async function consentAndTest(input: RealSmsInput): Promise<{ consent: boolean; 
     const { data: j } = await db.from("jobs").select("source").eq("id", input.jobId).maybeSingle();
     if (!j || j.source === "qa_test") isTest = true;
   }
-  if (audience === "owner") return { consent: input.jobId ? await hasCurrentOwnerContactConsent(input.jobId) : false, isTest };
+  if (audience === "owner") {
+    // A compliance text (the tenant notice, cl 23) reads the owner's consent the compliance way: an unsubscribe never holds it.
+    const purpose = smsCompliancePurpose(input.type);
+    return { consent: input.jobId ? (purpose ? await ownerConsentAllowsDelivery(input.jobId, purpose) : await hasCurrentOwnerContactConsent(input.jobId)) : false, isTest };
+  }
   if (!input.businessId) return { consent: false, isTest };
   const { data: b } = await db.from("businesses").select("is_active, approved_at, onboarding_notes").eq("id", input.businessId).maybeSingle();
   if (!b || String(b.onboarding_notes ?? "").includes("[TEST PARTNER]")) isTest = true;

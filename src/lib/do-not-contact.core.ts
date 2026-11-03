@@ -8,6 +8,7 @@ export const DO_NOT_CONTACT_REASON = "Owner asked not to be contacted";
 export const COMPLIANCE_OWNER_EMAIL_PURPOSES: readonly string[] = [
   "esc_consent_copy", "piesa_copy", "veec_assignment_copy", "install_complete", "completion_pack", "install_deposit_paid",
   "non_compliance_notice", // sent by Part 4 Task 13; listed here so the guard exists first
+  "tenant_notice", // Part 4 Task 16 (cl 23): the tenant is told the install day — the owner's Do not contact / unsubscribe is about the owner
 ];
 
 /** An unsubscribe blocks everything except the legal copies; a suppression event (bounce/complaint) blocks everything. */

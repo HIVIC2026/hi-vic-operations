@@ -143,6 +143,12 @@ export const SMS_MESSAGE_TYPES = {
   // ACCESS_PERSON_TEXTS_APPROVED); own switches, off until Jo switches them on.
   access_person_booked: { audience: "owner", ownerSideContact: true, label: "You're booked (PIESA / install) – to the tenant or property manager who lets the trades in (answer 7; DRAFT wording, ACCESS_PERSON_TEXTS_APPROVED)", wordingApproved: false, quietHours: true },
   access_person_tomorrow: { audience: "owner", ownerSideContact: true, label: "See you tomorrow (PIESA / install) – to the tenant or property manager who lets the trades in (answer 7; DRAFT wording, ACCESS_PERSON_TEXTS_APPROVED)", wordingApproved: false, quietHours: true },
+  // Part 4 Task 16 (cl 23; Jo 2 Nov 2026, answers 7 and 22): the TENANT is told the install day, time and power-off by text
+  // (and email) once the install is booked and whenever its time changes (tenant-notice.core). A compliance send:
+  // `compliancePurpose` makes the real sender read the owner's consent the compliance way (an unsubscribe never holds it) and
+  // `ownerSideContact` keeps the owner's "Do not contact" out of it; a STOP from the tenant's own number still holds it.
+  // DRAFT wording: never sends until Jo approves it (also behind TENANT_NOTICE_APPROVED); own switch, off until Jo switches it on.
+  tenant_notice: { audience: "owner", ownerSideContact: true, compliancePurpose: "tenant_notice", label: "Install day booked – tenant told the day, time and power-off (cl 23, answers 7/22; DRAFT wording, TENANT_NOTICE_APPROVED)", wordingApproved: false, quietHours: true },
 } as const;
 export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;
 
@@ -235,6 +241,7 @@ export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
   own_customer_rental_taps: { kind: "window" }, // key = job (one per job); sent once right after Add a job (own-customer-rental-taps.server)
   access_person_booked: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the PIESA / install booking (its created_at); also needs that booking still confirmed (access-person-texts.server)
   access_person_tomorrow: { kind: "window" }, // key = booking + person; due only the afternoon before, recomputed each tick (approved-texts.core visitTomorrowDue)
+  tenant_notice: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the install booking (its created_at); also needs that booking still confirmed (tenant-notice.server)
 };
 
 export type SmsEventInput = {
@@ -332,6 +339,12 @@ export function smsBlocker(x: SmsGateInput): string | null {
 
 /** An owner-side person on the job who is not the owner (the tenant / property manager who lets the trades in). */
 const ownerSideContact = (t: object) => "ownerSideContact" in t && (t as { ownerSideContact?: boolean }).ownerSideContact === true;
+/** A compliance text: the owner's consent is read the compliance way (consentAllowsDelivery with this purpose), so an
+ *  unsubscribe's not_granted row never holds it. Only the tenant notice (cl 23) today. */
+export const smsCompliancePurpose = (type: string): string | null => {
+  const t = SMS_MESSAGE_TYPES[type as SmsMessageType] as object | undefined;
+  return t && "compliancePurpose" in t ? String((t as { compliancePurpose: string }).compliancePurpose) : null;
+};
 
 /** Holds that belong to the RECIPIENT (not a switch, quiet hours or the sender): trying again changes nothing until the
  *  owner's details change. Callers that retry on a tick record these once instead (A48 batch 2 final review m5). */

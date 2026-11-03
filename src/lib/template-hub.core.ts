@@ -86,6 +86,7 @@ import { visitCancelledOwnerEmail } from "./visit-cancelled-owner.core";
 import { nonComplianceNotice } from "./non-compliance-notice.core";
 import { renderInstallDepositOwnerEmail, renderInstallerDepositPaidEmail, depositOwnerText, type DepositMessageFacts } from './deposit-request-email.core';
 import { accessPersonBookedText, accessPersonTomorrowText } from "./access-person-texts.core";
+import { tenantNotice } from "./tenant-notice.core";
 
 /* ---------------------------------------------------------------- types */
 
@@ -481,6 +482,14 @@ const OWNER: TemplateEntry[] = [
       { label: "Safety check (tenant)", body: S(accessPersonTomorrowText({ kind: "piesa", time: melbourneClock(BOOKED_PIESA_SAMPLE.start), business: BOOKED_PIESA_SAMPLE.business }, ACCESS_TENANT)) },
       { label: "Install day (property manager)", body: S(accessPersonTomorrowText({ kind: "install", time: melbourneClock(BOOKED_INSTALL_SAMPLE.start), business: WILL_CALL_SAMPLE }, ACCESS_PM)) },
     ]) }),
+  // Part 4 Task 16 (cl 23; Jo 2 Nov 2026, answers 7 and 22): the TENANT is told the install day, time and power-off by text AND
+  // email once the install is booked and whenever its time changes. Compliance send. DRAFT: TENANT_NOTICE_APPROVED stays false.
+  ENTRY({ id: "owner:tenant-notice", section: "waiting", approval: "waiting", step: "install", kind: "email", code: "", name: "Your install day is booked (email to the tenant, cl 23)", when: "The install day is booked, and again when its time changes; the home is rented (owner's quick taps). Held with one Needs me row when the tenant's details are missing", who: "Tenant", approvalNote: "DRAFT wording (cl 23, answers 7/22, Jo 2 Nov 2026); TENANT_NOTICE_APPROVED stays false", gate: { kind: "code_off", flag: "TENANT_NOTICE_APPROVED" },
+    source: { builder: "src/lib/tenant-notice.core.ts", fn: "tenantNotice", sender: "src/lib/tenant-notice.server.ts" },
+    render: () => email((tenantNotice({ firstName: "Tina", address: ADDRESS, startIso: BOOKED_INSTALL_SAMPLE.start, business: WILL_CALL_SAMPLE }) as { email: { subject: string; html: string } }).email) }),
+  ENTRY({ id: "owner:sms-tenant_notice", section: "waiting", approval: "waiting", step: "install", kind: "text", code: "", name: "Your install day is booked (text to the tenant, cl 23)", when: "With the tenant's email, always both", who: "Tenant", approvalNote: "DRAFT wording (cl 23, answers 7/22, Jo 2 Nov 2026); TENANT_NOTICE_APPROVED stays false", gate: { kind: "code_off", flag: "TENANT_NOTICE_APPROVED" },
+    source: { builder: "src/lib/tenant-notice.core.ts", fn: "tenantNotice", sender: "src/lib/tenant-notice.server.ts" },
+    render: () => text((tenantNotice({ firstName: "Tina", address: ADDRESS, startIso: BOOKED_INSTALL_SAMPLE.start, business: WILL_CALL_SAMPLE }) as { sms: string }).sms) }),
   // Fix round 1 (controller ruling 2 Nov 2026): releases made with the old Release step keep the wording Jo approved for
   // them (decision 389, 25 Oct 2026) for their day-2 reminder / 7am text — unchanged, not behind IT_IS_YOUR_TURN_V2_APPROVED.
   ENTRY({ id: "owner:O77-legacy", section: "owner", step: "ready_check", kind: "email", code: "O77", name: "It's your turn — confirm your free Ready Check (old Release step)", when: "Releases Jo made with the old Release step before 2 Nov 2026: their day-2 reminder (the page opens ?screen=turn)", who: "Owner", approvalNote: "Jo 25 Oct 2026, decision 389", gate: { kind: "email" },

@@ -82,6 +82,12 @@ export async function notifyOwnerBooked(jobId:string,kind:'ready_check'|'piesa'|
     return `held: ${n.held}`;
   }
   if((await import('./quote-hold.core')).smsQuietReason(now.toISOString()))return 'quiet hours';
+  // Part 4 Task 16 (cl 23): an install booking (or its new time) → the TENANT is told by text + email, before and independent
+  // of the owner's own sends (compliance send; own flag, own keys per booking + channel; a problem there never holds the owner's).
+  if(kind==='install'){
+    try{await (await import('./tenant-notice.server')).sendTenantNotice(jobId,booking.id,now);}
+    catch(e){console.error('tenant notice failed',(e as Error).message);}
+  }
   try {
   await (await import('./comms.server')).assertCustomerDeliveryAllowed(jobId,'Booking confirmation');
   const {partnerEmailLayout}=await import('./partner-email.core');

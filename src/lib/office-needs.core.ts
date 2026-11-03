@@ -29,7 +29,7 @@ export type NeedsKind =
   | "choose_again" | "quote_check" | "fixes_quote_check" | "sign_consent" | "esc_window" | "final_check" | "send_failed" | "email_change" | "email_unmatched" | "robot_failed" | "piisa_form_failed"
   | "choose_installer" | "choose_electrician" | "veec_a_held" | "piesa_owner_unsigned" | "piesa_fixes_owner_unsigned" | "fixes_times_missing"
   | "payment_not_in_xero" | "payment_overdue" | "ten_days_left" | "second_no_access" | "veec_day_10" | "lapsed_window"
-  | "release_lapsed" | "piesa_form_failed" | "prestart_failed" | "eligibility_review" | "payment_reversed" | "mitti_form_problem" | "booking_overdue" | "piesa_fixes_found" | "repeat_piesa_choose" | "payment_stalled" | "invoice_failed" | "old_fixes_invoice_unpaid" | "old_fixes_invoice_paid" | "stop_release_failed" | "quote_expired_blocked" | "new_quote_installer" | "new_quote_unfinished" | "piesa_rules_failed" | "coes_check" | "life_support_plan";
+  | "release_lapsed" | "piesa_form_failed" | "prestart_failed" | "eligibility_review" | "payment_reversed" | "mitti_form_problem" | "booking_overdue" | "piesa_fixes_found" | "repeat_piesa_choose" | "payment_stalled" | "invoice_failed" | "old_fixes_invoice_unpaid" | "old_fixes_invoice_paid" | "stop_release_failed" | "quote_expired_blocked" | "new_quote_installer" | "new_quote_unfinished" | "piesa_rules_failed" | "coes_check" | "life_support_plan" | "tenant_notice_held";
 
 /** Where the one button takes the office. `section` is the Job page stage card id; `act` are inline row actions. */
 export type NeedsButton =
@@ -113,6 +113,8 @@ export type NeedsFacts = {
   piesaFormFailed?: { at: string; text: string } | null;
   /** Decision 395: the day-before pre-start check (12pm Melbourne) failed for the booked install — what is missing. */
   prestartFailed?: { at: string; reasons: string[] } | null;
+  /** Part 4 Task 16 (cl 23): the tenant could not be told the install day (tenant details missing / no office phone) for the current install booking (tenant-notice.core). */
+  tenantNoticeHeld?: { at: string; text: string } | null;
   inHouseLeadChanged?:{at:string;line:string}|null;
   inHouseHandedBack?:{at:string;reason:string}|null;
   /** Payment watch rows (decision 240): never "Record payment". */
@@ -246,6 +248,7 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   if (f.coesCheck) add({ rank: 17, group: "today", kind: "coes_check", line: coesOfficeLine(f.coesCheck.why), since: f.coesCheck.at, ...(f.coesCheck.eventId ? { eventId: f.coesCheck.eventId } : {}), button: { label: "Tick", to: "act", act: "coes_tick" }, secondary: { label: "Reject", to: "act", act: "coes_reject" } });
   if (f.lifeSupportPlanNeeded) add({ rank: 18, group: "today", kind: "life_support_plan", line: LIFE_SUPPORT_PLAN_ROW, since: f.lifeSupportPlanNeeded.at, button: { label: "Open job", to: "job", section: "piesa" } });
   if (f.piisaFormFailed) add({ rank: 14, group: "today", kind: "piisa_form_failed", line: f.piisaFormFailed.text, since: f.piisaFormFailed.at, button: { label: "Open job", to: "job", section: "install" } });
+  if (f.tenantNoticeHeld) add({ rank: 37, group: "today", kind: "tenant_notice_held", line: f.tenantNoticeHeld.text, since: f.tenantNoticeHeld.at, button: { label: "Open job", to: "job", section: "install" } });
   if (!held && f.offerLapsed) add({ rank: 20, group: "today", kind: "choose_again", line: f.offerLapsed.note ? f.offerLapsed.note : `${f.offerLapsed.role === "installer" ? "Installer" : "Electrician"} offer ${f.offerLapsed.declined ? `declined${f.offerLapsed.name ? ` by ${f.offerLapsed.name}` : ""}` : "lapsed · no reply in 24h"}`, since: f.offerLapsed.at, button: { label: "Choose again", to: "job", section: f.offerLapsed.role === "installer" ? "ready-check" : "piesa" } });
   // Jo 2 Nov 2026: in-house jobs use the 5/10/7 stall rows above, never this 48-hour / 2-business-day row.
   if (f.bookingOverdue && !held) {

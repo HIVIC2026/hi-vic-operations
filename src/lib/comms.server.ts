@@ -26,13 +26,16 @@ export async function hasCurrentOwnerContactConsent(jobId: string): Promise<bool
   return data.consent_status === "granted";
 }
 
+/** Compliance sends (legal copies, the tenant notice): an unsubscribe's not_granted row does not stop them; any other
+ *  not_granted, or none, still does (consentAllowsDelivery). */
+export async function ownerConsentAllowsDelivery(jobId: string, purpose: string): Promise<boolean> {
+  const { consentAllowsDelivery } = await import("./do-not-contact.core");
+  const { data, error } = await admin.from("owner_contact_consents").select("consent_status, source").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  return !error && consentAllowsDelivery(data, purpose);
+}
+
 export async function assertOwnerContactConsent(jobId: string, what: string, purpose?: string) {
-  if (purpose) {
-    // Compliance sends (legal copies): an unsubscribe's not_granted row does not stop them; any other not_granted still does.
-    const { consentAllowsDelivery } = await import("./do-not-contact.core");
-    const { data, error } = await admin.from("owner_contact_consents").select("consent_status, source").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle();
-    if (!error && consentAllowsDelivery(data, purpose)) return;
-  }
+  if (purpose && (await ownerConsentAllowsDelivery(jobId, purpose))) return;
   if (!(await hasCurrentOwnerContactConsent(jobId))) throw new WorkflowError(`${OWNER_CONSENT_MISSING_MESSAGE} (${what})`);
 }
 
