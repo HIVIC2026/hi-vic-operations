@@ -4,7 +4,7 @@
 //   ensurePropertyCoordinates (a few per load) before clustering; a home still without a location is left out. A home
 //   with only a postcode (no full street address) is placed at its postcode's centre until the owner gives the address
 //   (Jo 30 Oct, Task 3).
-// - batchSuggestions: suggestBatches per TEST / real group, plus the installers who can be offered EVERY home.
+// - installersForHomes: the installers who can be offered EVERY ticked home (Choose installer › To release).
 // - sendBatch: Jo's one tap. Every check runs first (nothing written if any fails), then ONE `area_batch_sent` claim per
 //   job (append-only workflow_events), then the owner's quick taps text once per job: TEST → test-send, real → the one
 //   real SMS sender (`quick_taps` switch, consent, STOP). Never automatic: only the office Send calls this. The quick
@@ -18,8 +18,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { WorkflowError, logEvent } from "./workflow.server";
 import {
   AREA_BATCH_CLOSED_EVENT, AREA_BATCH_EVENTS, AREA_BATCH_MAX_HOMES, AREA_BATCH_LEFT_EVENT, AREA_BATCH_RETURNED_EVENT, AREA_BATCH_SENT_EVENT, NO_ANSWER_CLOSE_REASON, QUICK_TAPS_REMINDED_EVENT,
-  QUICK_TAPS_REMINDER_SMS_TYPE, QUICK_TAPS_SMS_TYPE, areaBatchClosedKey, areaBatchKey, batchInstallers, batchSpanKm, nextBatchSeq,
-  openBatchId, outsideBatch, passHandedOn, planBatchSweep, standingPass, STAGE_CHANGED_EVENT, quickTapsLink, quickTapsReminderText, quickTapsSmsKey, quickTapsText, suggestBatches,
+  QUICK_TAPS_REMINDER_SMS_TYPE, QUICK_TAPS_SMS_TYPE, areaBatchClosedKey, areaBatchKey, batchInstallers, nextBatchSeq,
+  openBatchId, outsideBatch, passHandedOn, planBatchSweep, standingPass, STAGE_CHANGED_EVENT, quickTapsLink, quickTapsReminderText, quickTapsSmsKey, quickTapsText,
   type AreaBatchEventRow, type BatchHome, type SweepJob,
 } from "./area-batch.core";
 import { QUICK_TAPS_ANSWERED_EVENT } from "./quick-taps.core";
@@ -176,34 +176,6 @@ export async function batchCandidates(opts: { includeTest?: boolean; testJobIds?
     });
   }
   return { candidates, unlocated, refused };
-}
-
-// ---- suggestions ---------------------------------------------------------------------------------------------------
-
-export type SuggestedHome = { jobId: string; jobNumber: string; ownerName: string; suburb: string; postcode: string; spotSavedAt: string; isTest: boolean };
-export type SuggestedBatch = { homes: SuggestedHome[]; suburbs: string[]; spanKm: number; isTest: boolean; installers: { id: string; name: string }[] };
-export type BatchSuggestions = { batches: SuggestedBatch[]; candidates: number; unlocated: number };
-
-export async function batchSuggestions(opts: { includeTest?: boolean; testJobIds?: string[]; testBusinessIds?: string[]; now?: Date } = {}): Promise<BatchSuggestions> {
-  const now = opts.now ?? new Date();
-  const [{ candidates, unlocated }, installers] = await Promise.all([
-    batchCandidates({ ...(opts.includeTest ? { includeTest: true } : {}), ...(opts.testJobIds ? { testJobIds: opts.testJobIds } : {}), now }),
-    (await import("./installer-waiting.server")).installerFacts(opts.testBusinessIds),
-  ]);
-  const batches: SuggestedBatch[] = [];
-  for (const isTest of [false, true]) {
-    const groupHomes = candidates.filter((c) => c.isTest === isTest);
-    for (const b of suggestBatches(groupHomes, now.toISOString())) {
-      const homes = b as BatchCandidate[];
-      batches.push({
-        homes: homes.map((h) => ({ jobId: h.jobId, jobNumber: h.jobNumber, ownerName: h.ownerName, suburb: h.suburb, postcode: h.postcode, spotSavedAt: h.spotSavedAt, isTest: h.isTest })),
-        suburbs: [...new Set(homes.map((h) => [h.suburb, h.postcode].filter(Boolean).join(" ")).filter(Boolean))].sort(),
-        spanKm: batchSpanKm(homes), isTest,
-        installers: batchInstallers(installers, homes).map((i) => ({ id: i.id, name: displayName(i.name) })),
-      });
-    }
-  }
-  return { batches, candidates: candidates.length, unlocated };
 }
 
 /** Task 6 (Jo 2 Nov 2026), Choose installer › To release: the installers who can be offered EVERY ticked home (the same

@@ -8,6 +8,8 @@
 // Task 6 (Jo 2 Nov 2026): To release shows each saved spot's area batch status ("Waiting for owner (sent for X)" /
 // "X said yes · free Ready Check"); Jo ticks up to 10 plain saved spots, picks an installer who covers them all and taps
 // Send — the existing batch Send (each owner gets the quick taps text and email). Not for the TEST office login.
+// Saved spots by area (Jo 3 Nov 2026): To release opens on "By area" (saved-spots-by-area.tsx); this table is the
+// "Table" view, unchanged. Ticks are shared by both views and feed the one Send bar. The Suggested batches box is gone.
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -16,19 +18,19 @@ import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { AreaBatchSuggestions, BatchesReadyToSend, ChooseInstallerPanel, SendResultList, type SendResults } from "@/components/portal/choose-installer";
+import { BatchesReadyToSend, ChooseInstallerPanel, SendResultList, type SendResults } from "@/components/portal/choose-installer";
 import { ColumnHead, Pager, type ColumnFilterValue } from "@/components/portal/office-lists";
 import { Pill, PillTabs, btnClass, listCard } from "@/components/portal/kit";
 import { getInstallerWaitingList } from "@/lib/installer-waiting.functions";
 import { batchRowLine, showAreaBatches, tickSendBlocker } from "@/lib/area-batch.core";
 import { getInstallersForHomesFn, sendAreaBatchFn } from "@/lib/area-batch.functions";
 import { InHouseHandoff } from "@/components/portal/in-house-handoff";
+import { SavedSpotsByArea } from "@/components/portal/saved-spots-by-area";
 import { useMe } from "@/hooks/use-me";
-import { INSULATION_LABEL, REGION_LABEL, pageOf, type SortDir } from "@/lib/office-filters.core";
-import { estimateLabel, sizeLabel } from "@/lib/enquiry-columns.core";
+import { REGION_LABEL, pageOf, type SortDir } from "@/lib/office-filters.core";
 import {
   INSTALLER_WAITING_COLUMNS, NO_INSTALLER_NOTE, activeWaitingFilters, areaCounts, coverageGap, inArea, inWaitingTab, isWaitingOwner, noInstallerExplain, recruitAreas, tickableForSend,
-  suburbLabel, waitingCountLine, waitingCounts, waitingSinceLabel, waitingView,
+  spotFields, suburbLabel, waitingCountLine, waitingCounts, waitingView,
   type InstallerWaitingRow, type WaitingArea, type WaitingCoverage, type WaitingFilters, type WaitingTab,
 } from "@/lib/installer-waiting-columns.core";
 
@@ -153,18 +155,6 @@ function TickSendBar({ ticked, numbers, onSent }: { ticked: string[]; numbers: R
   );
 }
 
-function fieldsOf(r: InstallerWaitingRow, now: number) {
-  const w = waitingSinceLabel(r.waitingFrom, now);
-  return {
-    owner: r.ownerName || "—",
-    suburb: suburbLabel(r),
-    size: r.areaKind === "measured" ? `${sizeLabel(r.areaM2).replace("~", "")} measured` : sizeLabel(r.areaM2),
-    insulation: INSULATION_LABEL[r.insulation],
-    estimate: estimateLabel({ dollars: r.estimateDollars, kind: r.estimateDollars == null ? null : "website" }),
-    waiting: `${w.relative}${w.date ? ` · ${w.date}` : ""}${r.spotSavedAt ? "" : " (job created)"}`,
-  };
-}
-
 export function InstallerWaitingScreen() {
   const load = useServerFn(getInstallerWaitingList);
   const { data: me } = useMe();
@@ -178,6 +168,7 @@ export function InstallerWaitingScreen() {
   const [area, setArea] = useState<WaitingArea>("everywhere");
   const [choosing, setChoosing] = useState<InstallerWaitingRow | null>(null);
   const [ticked, setTicked] = useState<string[]>([]);
+  const [layout, setLayout] = useState<"area" | "table">("area");
   useEffect(() => { const t = setTimeout(() => { setSearch(typed.trim()); setPage(1); }, 200); return () => clearTimeout(t); }, [typed]);
   const q = useQuery({ queryKey: ["installer-waiting", includeTest], queryFn: () => load({ data: { includeTest } }), staleTime: 30_000 });
   const d = q.data;
@@ -198,6 +189,8 @@ export function InstallerWaitingScreen() {
   const tickable = new Map((d?.rows ?? []).filter((r) => inWaitingTab(r, "to_release") && tickableForSend(r)).map((r) => [r.id, r.jobNumber]));
   const tickedNow = ticked.filter((id) => tickable.has(id));
   const toggleTick = (id: string) => setTicked(tickedNow.includes(id) ? tickedNow.filter((x) => x !== id) : [...tickedNow, id]);
+  // By area is To release only; Waiting for owner keeps the table.
+  const byArea = tab === "to_release" && layout === "area";
   const pickTab = (t: WaitingTab) => { setTab(t); setArea("everywhere"); setPage(1); };
   const pickArea = (a: WaitingArea) => { setArea(a); setPage(1); };
   const heads = (className?: string) => INSTALLER_WAITING_COLUMNS.map((c) => <ColumnHead key={c.key} col={c} sort={sort.k} dir={sort.d} value={filters[c.key] as ColumnFilterValue} onSort={onSort} onFilter={onFilter} {...(className ? { className } : {})} />);
@@ -220,12 +213,17 @@ export function InstallerWaitingScreen() {
       {/* A48 batch 2: not for the TEST office login (its functions are not on the TEST office allowlist). */}
       {showAreaBatches(me?.roles) && <BatchesReadyToSend includeTest={includeTest} />}
       {showAreaBatches(me?.roles) && <InHouseHandoff />}
-      {showAreaBatches(me?.roles) && <AreaBatchSuggestions includeTest={includeTest} />}
       <PillTabs<WaitingTab> label="Saved spots" value={tab} onChange={pickTab} options={[
         { value: "to_release", label: "To release", count: d ? d.rows.length - (waitingOwner ?? 0) : null },
         { value: "waiting_owner", label: "Waiting for owner", count: waitingOwner ?? null },
       ]} />
-      {areas.length > 0 && (
+      {tab === "to_release" && (
+        <PillTabs<"area" | "table"> label="View" className="mt-2" value={layout} onChange={setLayout} options={[
+          { value: "area", label: "By area" },
+          { value: "table", label: "Table" },
+        ]} />
+      )}
+      {!byArea && areas.length > 0 && (
         <PillTabs<WaitingArea> label="Area" className="mt-2" value={area} onChange={pickArea} options={[
           { value: "everywhere", label: "Everywhere", count: inTab.length },
           ...areas.map((a) => ({ value: a.area as WaitingArea, label: REGION_LABEL[a.area], count: a.n })),
@@ -233,6 +231,15 @@ export function InstallerWaitingScreen() {
       )}
       <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px] lg:items-start">
         <section className="min-w-0">
+          {byArea ? (
+            <>
+              <p className="mb-3 text-[13px] text-sub">Saved spots grouped by area, best first. Tick any you want to send.</p>
+              {ticks && d && <TickSendBar ticked={tickedNow} numbers={Object.fromEntries(tickable)} onSent={() => setTicked([])} />}
+              {q.isError ? <div role="alert" className="rounded-[14px] border border-danger/40 bg-danger-soft p-4 text-sm">The list could not load — this does not mean no job is waiting. {(q.error as Error).message} <button type="button" className="font-semibold underline" onClick={() => void q.refetch()}>Try again</button></div>
+                : !d ? <div className={listCard}><p className="p-6 text-center text-sm text-sub">Loading…</p></div>
+                : <SavedSpotsByArea list={d} ticked={tickedNow} onToggle={toggleTick} canTick={ticks} />}
+            </>
+          ) : (<>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2" data-why="decision 378: one search box; headings sort and filter; no chip panel">
             <p className="text-[13px] text-sub">{tab === "waiting_owner" ? "Released to an installer. The owner confirms first; a reminder goes on day 2 and the release lapses on day 5." : "Saved a spot and ready for you to pick an installer."}</p>
             <Input type="search" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Search owner, suburb, postcode or job" aria-label="Search jobs waiting for an installer" className="h-11 w-full max-w-[320px] rounded-[12px] bg-paper" />
@@ -250,7 +257,7 @@ export function InstallerWaitingScreen() {
               {!d ? <p className="p-6 text-center text-sm text-sub">Loading…</p> : shown.rows.length === 0 ? <p className="p-6 text-center text-sm text-sub">{search || active.length || area !== "everywhere" ? "No job matches that search." : tab === "waiting_owner" ? "No released spot is waiting for the owner." : "No saved spot is waiting for an installer."}</p> : (
                 <ul>
                   {shown.rows.map((r) => {
-                    const f = fieldsOf(r, now);
+                    const f = spotFields(r, now);
                     const batchLine = batchRowLine(r.batch ?? null, r.ownerName);
                     return (
                       <li key={r.id} className={cn("grid grid-cols-[96px_minmax(0,1fr)] gap-x-3 gap-y-1 border-b border-[#eef1f6] px-4 py-3.5 text-[14px] last:border-b-0 lg:min-h-[54px] lg:items-center lg:gap-y-0 lg:px-5 lg:py-2.5", cols)} data-job={r.jobNumber}>
@@ -284,6 +291,7 @@ export function InstallerWaitingScreen() {
             </div>
           )}
           {d && <Pager page={shown.page} totalPages={shown.totalPages} total={shown.total} shown={shown.rows.length} onPage={setPage} />}
+          </>)}
         </section>
         {d && <RecruitCard rows={d.rows} />}
       </div>

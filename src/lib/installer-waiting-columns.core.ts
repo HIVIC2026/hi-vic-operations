@@ -11,7 +11,7 @@
 // Membership is the Needs me "Choose installer" rule (`readyCheckOfficeItem`): our lead at ready_check_ready_to_schedule,
 // no installer, no offer pending/accepted. Needs me folds those rows into ONE link to this list (one pile per job).
 // PURE: no I/O.
-import { has, inRange, textHit, type ListColumn, type Range } from "./enquiry-columns.core";
+import { estimateLabel, has, inRange, sizeLabel, textHit, type ListColumn, type Range } from "./enquiry-columns.core";
 import { INSULATION_LABEL, REGION_CHIPS, regionChip, type InsulationChip, type RegionChip, type SortDir } from "./office-filters.core";
 import { coveragePartnerBlocker, type CoveragePartner } from "./coverage.core";
 import { isElectricianBiz, isInstallerBiz, verifiedServiceAreaMatch } from "./pilot.core";
@@ -21,7 +21,7 @@ import { readyCheckOfficeItem, type OfficeOfferRow } from "./ready-check-times.c
 import type { NeedsRow } from "./office-needs.core";
 import type { SpotReleaseStateName } from "./spot-release.core";
 import type { BatchRowState } from "./area-batch.core";
-import type { SpotBand } from "./saved-spot-rank.core";
+import { BAND_ORDER, type SpotBand } from "./saved-spot-rank.core";
 
 export const INSTALLER_WAITING_PATH = "/admin/jobs/choose-installer" as const;
 
@@ -171,6 +171,27 @@ export function sortWaiting(rows: InstallerWaitingRow[], key: string, dir: SortD
 /** Search + column filters + sort in one go (the screen calls this; the loader returns every waiting job). */
 export function waitingView(rows: InstallerWaitingRow[], p: { search: string; filters: WaitingFilters; sort: string; dir: SortDir }, now: number): InstallerWaitingRow[] {
   return sortWaiting(rows.filter((r) => matchesWaitingSearch(r, p.search) && matchesWaitingFilters(r, p.filters, now)), p.sort || "waiting", p.sort ? p.dir : "asc");
+}
+
+/** The fields a saved spot shows, in words (the Table and By area views). */
+export function spotFields(r: InstallerWaitingRow, now: number) {
+  const w = waitingSinceLabel(r.waitingFrom, now);
+  return {
+    owner: r.ownerName || "—",
+    suburb: suburbLabel(r),
+    size: r.areaKind === "measured" ? `${sizeLabel(r.areaM2).replace("~", "")} measured` : sizeLabel(r.areaM2),
+    insulation: INSULATION_LABEL[r.insulation],
+    estimate: estimateLabel({ dollars: r.estimateDollars, kind: r.estimateDollars == null ? null : "website" }),
+    waiting: `${w.relative}${w.date ? ` · ${w.date}` : ""}${r.spotSavedAt ? "" : " (job created)"}`,
+  };
+}
+
+/** Saved spots by area (3 Nov 2026): order inside an area — said yes → waiting for owner → Best → Good → OK → Weak (no
+ *  band last) → higher score first. */
+const areaStep = (r: InstallerWaitingRow) =>
+  r.batch?.kind === "said_yes" ? 0 : r.batch?.kind === "waiting" ? 1 : 2 + (r.band ? BAND_ORDER.indexOf(r.band) : BAND_ORDER.length);
+export function areaSpotOrder(rows: readonly InstallerWaitingRow[]): InstallerWaitingRow[] {
+  return [...rows].sort((a, b) => areaStep(a) - areaStep(b) || (b.score ?? 0) - (a.score ?? 0) || a.id.localeCompare(b.id));
 }
 
 // ---- membership ---------------------------------------------------------------------------------------------------
