@@ -117,7 +117,7 @@ describe("onPartnerPersonApproved", () => {
     expect(calls).toEqual([]);
   });
   test("switch off (the default) reads and writes nothing", async () => {
-    const r = await onPartnerPersonApproved("w-real", "office", { call, message });
+    const r = await onPartnerPersonApproved("w-real", "office", { switches: { enabled: false }, call, message });
     expect(r.action).toBe("skip");
     expect(reads).toEqual([]);
     expect(calls).toEqual([]);
@@ -220,7 +220,7 @@ describe("onPartnerPersonRemoved", () => {
     expect((await listOpenMittiInvites()).invites[0]!.todo[0]).toMatch(/Deactivate real@sparks.com.au in Mitti by hand/);
   });
   test("switch off → nothing read", async () => {
-    expect((await onPartnerPersonRemoved("w-real", "office", { call })).action).toBe("skip");
+    expect((await onPartnerPersonRemoved("w-real", "office", { switches: { enabled: false }, call })).action).toBe("skip");
     expect(reads).toEqual([]);
   });
 });
