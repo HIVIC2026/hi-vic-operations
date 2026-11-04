@@ -959,3 +959,13 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [x] Step 1(b)/(d): created and deactivated user_bd7248f091294ec2a729988354f2febf at Jo's approved alternate email; real results confirmed
 - [x] Step 1(c): not required — Jo confirms there is no trades group
 - [x] Jo 3 Nov 9:56pm: verified API true and auto-invite secret saved; new approved Leads only from 10:56 UTC, no groups, own-email and pause-confirmation guards preserved. Existing approvals/edit/renewal/repeated approval excluded; TEST never reaches live provider. Red-first and related tests passed, including PGlite repeated-approval and two-boss isolation. Automatic portal checks clean; no live invitation exercised (sending prohibited), no record changes or publishing.
+
+## Jo 4 Nov — BEFORE photos final decision (replaces earlier "BEFORE evidence at install")
+- [ ] A1 photos/videos optional + end instruction + required ready-to-quote tick; skipped media never holds quote
+- [ ] Job shows "Before photos: to be taken on install day (areas…)" incl. office-rejected areas
+- [ ] Two A5 templates: pick "+ BEFORE photos" only when needed, prefill areas field; hold completion until listed areas have BEFORE evidence (BLOCKED: template ID from Jo)
+- [ ] Drop A5 BEFORE ruler requirement where Ready Check evidence accepted; AFTER ruler stays
+- [ ] Needs me browser error retest + two-option review card on TEST job
+- [ ] Do the 8 extra-suite failures also fail before today's changes?
+- [ ] Read back Jo's saved Mitti drafts (BLOCKED: Jo saves drafts)
+- [ ] Deep's first job plan: ADD 1–3 written into spec, awaiting Jo approval
