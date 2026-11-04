@@ -167,7 +167,8 @@ export const getInHouseBookingList = createServerFn({method:'POST'}).middleware(
   .handler(async({data,context})=>(await import('./in-house-booking-list.server')).inHouseBookingList(context.userId,data.jobIds));
 
 export const inHouseBookVisit = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobId: uuid, kind: z.enum(["ready_check", "assessment", "rectification", "installation"]), start: z.string().datetime({ offset: true }), workerId: uuid, crewIds: z.array(uuid).max(2).default([]) }).parse(d))
+  // G7 (Jo 4 Nov 2026): workerId may be left out ONLY for a Ready Check booked with "Not sure yet" (the server refuses it for every other kind).
+  .inputValidator((d) => z.object({ jobId: uuid, kind: z.enum(["ready_check", "assessment", "rectification", "installation"]), start: z.string().datetime({ offset: true }), workerId: uuid.optional(), crewIds: z.array(uuid).max(2).default([]) }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).inHouseBookVisit(context.userId, data, context.supabase));
 
 export const getInHouseBookingTeam = createServerFn({ method: 'POST' }).middleware([requireSupabaseAuth])

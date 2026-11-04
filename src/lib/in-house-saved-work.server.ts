@@ -4,7 +4,7 @@ import {supabaseAdmin as admin} from '@/integrations/supabase/client.server';
 import type {SupabaseClient} from '@supabase/supabase-js';
 import {stableUuid} from './mitti-create-claim.core';
 const db=admin as unknown as SupabaseClient;
-export type SavedWork={type:'booking'|'crew';bookingId:string|null;kind?:string;workerId:string;oldWorkerId?:string|null;start?:string;oldStart?:string|null;who?:{id:string;name:string;phone:string|null};status?:string;attempts?:number;lease?:string;completed?:string[]};
+export type SavedWork={type:'booking'|'crew';bookingId:string|null;kind?:string;/** null = a Ready Check booked with "Not sure yet" (G7) */workerId:string|null;oldWorkerId?:string|null;start?:string;oldStart?:string|null;who?:{id:string;name:string;phone:string|null};status?:string;attempts?:number;lease?:string;completed?:string[]};
 async function checked<T>(q:PromiseLike<{data:unknown;error:{message:string}|null}>):Promise<T>{const r=await q;if(r.error)throw Error(r.error.message);return r.data as T;}
 export async function recordInHouseSavedWork(jobId:string,actorId:string,details:SavedWork,version:string){
  const id=await stableUuid(`in-house-saved:${jobId}:${version}`);
@@ -38,8 +38,10 @@ export async function runInHouseSavedWork(id:string,now=new Date()){
     if(d.kind==='assessment'&&d.bookingId)await (await import('./piesa-autoform.server')).onPiesaBooked(row.job_id,d.bookingId,row.actor_id??'');
     if(d.kind==='rectification'&&d.bookingId)await (await import('./fixes-day.server')).onRectificationBooked(row.job_id,d.bookingId,row.actor_id??'');
     if(d.kind==='installation')await forms.ensureInstallForm(row.job_id,row.actor_id);
-    if(d.kind==='ready_check')await forms.ensureInHouseForms(row.job_id,row.actor_id);
-    if(d.kind!=='installation')await forms.syncInHouseForms(row.job_id,'person',row.actor_id);
+    // G7 (Jo 4 Nov 2026): a Ready Check booked with "Not sure yet" (workerId null) gets its Mitti form when the person is picked
+    // — that pick re-records the booking with the worker, whose saved work runs these two lines.
+    if(d.kind==='ready_check'&&d.workerId)await forms.ensureInHouseForms(row.job_id,row.actor_id);
+    if(d.kind!=='installation'&&d.workerId)await forms.syncInHouseForms(row.job_id,'person',row.actor_id);
     if(d.kind==='installation')await forms.syncInHouseForms(row.job_id,'crew',row.actor_id,undefined,d.oldWorkerId);
     await forms.syncInHouseForms(row.job_id,'date',row.actor_id);
    });
@@ -54,7 +56,9 @@ export async function runInHouseSavedWork(id:string,now=new Date()){
    if((d.kind==='assessment'||d.kind==='rectification')&&d.start){await step('install-hold',async()=>{const holds=await import('./install-holds.server');await (d.kind==='assessment'?holds.moveHoldForPiesa:holds.moveHoldForRectification)(row.job_id,d.start??'',row.actor_id??'');});}
    if(d.kind==='assessment')await step('engagement',()=>import('./engagement.server').then(m=>m.recordBookingCompleted(row.job_id)));
    const kind=d.kind==='installation'?'install':d.kind==='assessment'?'piesa':d.kind==='ready_check'?'ready_check':null;
-   if(kind&&book&&d.who){await step('owner-intent',()=>import('./in-house-booking.server').then(m=>m.notifyOwnerBooked(row.job_id,kind,book.scheduled_start,d.who??{id:d.workerId,name:'',phone:null},now)));}
+   // G7: no person yet ("Not sure yet") → no owner "You're booked" until the person is picked (that pick's saved work sends it).
+   const who=d.who;
+   if(kind&&book&&who){await step('owner-intent',()=>import('./in-house-booking.server').then(m=>m.notifyOwnerBooked(row.job_id,kind,book.scheduled_start,who,now)));}
    await step('progress',()=>import('./autoadvance.server').then(m=>m.autoAdvanceJob(row.job_id,row.actor_id,'booking confirmed')));
   }
   if((d.attempts??0)>=3)await officeEvent(row.job_id,row.actor_id,id,'recovered','Saved visit follow-through completed');

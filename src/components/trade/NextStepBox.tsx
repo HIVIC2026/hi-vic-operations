@@ -20,6 +20,7 @@ import { installStartAt, installTimeLabel } from "@/lib/install-days.core";
 import { fmtDay } from "@/lib/next-step-dates.core";
 import { a1ReadyCheckTimeBlockers, allowedReadyCheckDays, allowedReadyCheckTimes } from "@/lib/ready-check-times.core";
 import { readableError } from "@/lib/readable-error.core";
+import { READY_CHECK_PERSON_WORDS } from "@/lib/ready-check-person.core";
 import { markOfficeChanged } from "@/lib/office-list-refresh";
 
 // Wording. Lines from the plan are marked approved; every DRAFT line is listed for Jo (Task 12 paste) and not yet seen by her.
@@ -122,6 +123,11 @@ export function NextStepBox({ jobId, box, ownerFirst, installBy, ownCustomer = f
         )
       )}
 
+      {/* G7: a Ready Check booked with "Not sure yet" — pick the person (same guarded writer, same day and time) */}
+      {!accessPending && box.pickPerson && kind === "ready_check" && (
+        <PickPersonForm jobId={jobId} start={box.pickPerson.start} state={teamState} onDone={done} />
+      )}
+
       {/* A booked visit: change links, then the chosen change form */}
       {!accessPending && booked && kind && !(!allowed && ownCustomer) && (
         <div className="mt-4 flex flex-wrap gap-2" data-change-links>
@@ -170,6 +176,8 @@ function splitBookBy(sub: string | null): [string, string | null] {
 }
 
 type TeamState = { allowed: boolean; loading: boolean; failed: boolean; team: Team | null; electricians: Electricians | null; ownerFirst: string | null; piesaStart: string | null };
+/** The "Who's going" value for "Not sure yet" (never sent as a worker id). */
+const NOT_SURE_YET = "__not_sure_yet__";
 
 /** One reason why the button is greyed out, or null when it can be pressed. The first reason wins. */
 function bookingReason(i: { kind: Kind; state: TeamState; day: string; arrival: string; who: string; electricianChosen: boolean }): string | null {
@@ -181,9 +189,12 @@ function bookingReason(i: { kind: Kind; state: TeamState; day: string; arrival: 
   const empty = emptyBookingTeamBlocker(kind, state.team.workers);
   if (empty) return empty;
   if (kind === "assessment" && !i.electricianChosen) return bookingWorkerBlocker(kind, null);
-  const who = state.team.workers.find((w) => w.id === i.who) ?? null;
-  const why = bookingWorkerBlocker(kind, who);
-  if (why) return why;
+  // G7 (Jo 4 Nov 2026): a Ready Check may be booked with "Not sure yet" — the person is picked on the job by 5pm the day before.
+  if (!(kind === "ready_check" && i.who === NOT_SURE_YET)) {
+    const who = state.team.workers.find((w) => w.id === i.who) ?? null;
+    const why = bookingWorkerBlocker(kind, who);
+    if (why) return why;
+  }
   if (!i.day || !i.arrival) return W.pickDayTime;
   return null;
 }
@@ -220,7 +231,7 @@ function BookingForm({ jobId, kind, mode, state, button, below, onDone, onCancel
     setError("");
     try {
       if (kind === "assessment" && who !== current) await allocate({ data: { jobId, workerId: who } });
-      const r = await book({ data: { jobId, kind, start: installStartAt(day, arrival).toISOString(), workerId: who, crewIds: kind === "installation" ? crew : [] } });
+      const r = await book({ data: { jobId, kind, start: installStartAt(day, arrival).toISOString(), ...(who === NOT_SURE_YET ? {} : { workerId: who }), crewIds: kind === "installation" ? crew : [] } });
       if (!r.ok) { setError(r.blockers.join(" ")); return; }
       // Part 9 Task 10: the booking's plain warnings (e.g. upgrades still to come) are shown with the success, never as a refusal.
       toast.success(mode === "book" ? W.booked(LABEL[kind]) : W.changed(`${LABEL[kind]} time`), r.warnings?.length ? { description: r.warnings.join(" ") } : undefined);
@@ -262,6 +273,7 @@ function BookingForm({ jobId, kind, mode, state, button, below, onDone, onCancel
           {kind === "installation" ? W.leadInstaller : W.whosGoing}
           <select className={`${inputCls} mt-1`} value={who} onChange={(e) => { setWho(e.target.value); setCrew((c) => c.filter((x) => x !== e.target.value)); }} disabled={!team}>
             <option value="">{kind === "installation" ? W.chooseLead : W.choosePerson}</option>
+            {kind === "ready_check" && <option value={NOT_SURE_YET}>{READY_CHECK_PERSON_WORDS.notSureYet}</option>}
             {choices.map((w) => {
               const why = bookingWorkerBlocker(kind, w);
               return <option key={w.id} value={w.id} disabled={!!why}>{w.name}{why ? ` — ${why}` : ""}</option>;
@@ -288,6 +300,50 @@ function BookingForm({ jobId, kind, mode, state, button, below, onDone, onCancel
       </div>
       {disabled && <p id={reasonId} className="text-sm text-sub">{busy ? W.saving : reason}</p>}
       {below && <p className="text-sm text-sub" data-booked-line>{below}</p>}
+      {error && <p role="alert" className="text-sm text-rose">{error}</p>}
+    </form>
+  );
+}
+
+/** G7 (Jo 4 Nov 2026): "Pick who's going" for a Ready Check booked with "Not sure yet" — the same in-house writer with the
+ *  booked day and time and the chosen person (the booking is re-recorded with the person; the Mitti form is made then). */
+function PickPersonForm({ jobId, start, state, onDone }: { jobId: string; start: string; state: TeamState; onDone: () => void }) {
+  const book = useServerFn(inHouseBookVisit);
+  const qc = useQueryClient();
+  const id = useId();
+  const [who, setWho] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const reason = bookingReason({ kind: "ready_check", state, day: "x", arrival: "x", who, electricianChosen: true });
+  const disabled = busy || !!reason;
+  const reasonId = `${id}-reason`;
+  const choices = state.team?.workers ?? [];
+  return (
+    <form className="mt-4 space-y-3" data-pick-person onSubmit={async (e) => {
+      e.preventDefault();
+      if (disabled) return;
+      setBusy(true); setError("");
+      try {
+        const r = await book({ data: { jobId, kind: "ready_check", start, workerId: who, crewIds: [] } });
+        if (!r.ok) { setError(r.blockers.join(" ")); return; }
+        toast.success(W.changed("Who's going"));
+        markOfficeChanged();
+        await qc.invalidateQueries();
+        onDone();
+      } catch (err) { setError(readableError(err, W.saveFailed)); } finally { setBusy(false); }
+    }}>
+      <label className="block text-sm font-medium">
+        {W.whosGoing}
+        <select className={`${inputCls} mt-1`} value={who} onChange={(e) => setWho(e.target.value)} disabled={!state.team}>
+          <option value="">{W.choosePerson}</option>
+          {choices.map((w) => {
+            const why = bookingWorkerBlocker("ready_check", w);
+            return <option key={w.id} value={w.id} disabled={!!why}>{w.name}{why ? ` — ${why}` : ""}</option>;
+          })}
+        </select>
+      </label>
+      <button type="submit" className={greenBtn} disabled={disabled} aria-describedby={disabled ? reasonId : undefined}>{busy ? W.saving : READY_CHECK_PERSON_WORDS.pickButton}</button>
+      {disabled && <p id={reasonId} className="text-sm text-sub">{busy ? W.saving : reason}</p>}
       {error && <p role="alert" className="text-sm text-rose">{error}</p>}
     </form>
   );

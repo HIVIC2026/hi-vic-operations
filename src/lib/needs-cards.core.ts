@@ -45,6 +45,8 @@ const CARD_OF: Record<NeedsKind, NeedsCardId> = {
   piesa_fixes_found: "other", quote_expired_blocked: "owner", new_quote_installer: "other", new_quote_unfinished: "other", coes_check: "other", upgrades_day_not_set: "electrician", upgrades_day_red: "clock", certificate_not_in: "electrician",
   // Part 9 Tasks 11/12: a refund after VEEC creation (Payments); complaint acknowledge / resolve clocks (deadlines).
   veec_refunded: "payments", complaint_ack_due: "deadlines", complaint_resolve_due: "deadlines",
+  // G7: a Ready Check tomorrow with nobody picked to go (installer side).
+  ready_check_person_missing: "other",
 };
 
 export const cardOf = (kind: NeedsKind): NeedsCardId => CARD_OF[kind] ?? "other";

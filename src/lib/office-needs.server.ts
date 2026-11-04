@@ -604,6 +604,23 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     // G6 S9: the event's own line (the check-failed line when the VEEC record couldn't be read), else the refunded line.
     for (const r of rows) { const x = f(String(r["job_id"])); const line = (r["details"] as { line?: unknown } | null)?.line; if (x && !x.veecRefunded) x.veecRefunded = { at: String(r["created_at"]), text: typeof line === "string" && line ? line : VEEC_REFUND_NEEDS_LINE }; }
   } catch { unavailable.push("VEEC refunds"); }
+  // G7 (Jo 4 Nov 2026): a Ready Check tomorrow with nobody picked to go (ready_check_person_missing, needs_office) → one row per
+  // job while that booking is still the confirmed one and hasn't started (picking the person re-records the booking under a new id).
+  try {
+    const { READY_CHECK_PERSON_MISSING_EVENT } = await import("./ready-check-person.core");
+    const rows = await all("Ready Check person missing", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at, details")).eq("event_type", READY_CHECK_PERSON_MISSING_EVENT).contains("details", { needs_office: true }).order("created_at", { ascending: false }).range(a, b));
+    const bookingIds = [...new Set(rows.map((r) => String((r["details"] as { booking_id?: unknown } | null)?.booking_id ?? "")).filter(Boolean))];
+    const { data: live, error: le } = bookingIds.length ? await admin.from("bookings").select("id, scheduled_start").in("id", bookingIds).eq("status", "confirmed") : { data: [], error: null };
+    if (le) throw new Error(le.message);
+    const open = new Map((live ?? []).map((b) => [String(b.id), String(b.scheduled_start)]));
+    for (const r of rows) {
+      const d = r["details"] as { booking_id?: string; line?: string } | null;
+      const start = d?.booking_id ? open.get(d.booking_id) : undefined;
+      if (!start || Date.parse(start) <= now) continue;
+      const x = f(String(r["job_id"]));
+      if (x && !x.readyCheckPersonMissing && typeof d?.line === "string" && d.line) x.readyCheckPersonMissing = { at: String(r["created_at"]), text: d.line };
+    }
+  } catch { unavailable.push("Ready Check person missing"); }
   // Part 9 Task 12: complaints — the three office events per job → the ack / resolve rows (complaints.core).
   try {
     const { COMPLAINT_ACKNOWLEDGED_EVENT, COMPLAINT_RECEIVED_EVENT, COMPLAINT_RESOLVED_EVENT, complaintNeeds } = await import("./complaints.core");

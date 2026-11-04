@@ -35,7 +35,7 @@ export type NeedsKind =
   | "payment_not_in_xero" | "payment_overdue" | "ten_days_left" | "second_no_access" | "veec_day_10" | "lapsed_window" | "upgrades_past_30_days"
   | "release_lapsed" | "piesa_form_failed" | "prestart_failed" | "eligibility_review" | "payment_reversed" | "mitti_form_problem" | "booking_overdue" | "piesa_fixes_found" | "repeat_piesa_choose" | "payment_stalled" | "invoice_failed" | "old_fixes_invoice_unpaid" | "old_fixes_invoice_paid" | "stop_release_failed" | "quote_expired_blocked" | "new_quote_installer" | "new_quote_unfinished" | "piesa_rules_failed" | "coes_check" | "life_support_plan" | "tenant_notice_held"
   | "upgrades_day_not_set" | "upgrades_day_red" | "certificate_not_in"
-  | "veec_refunded" | "complaint_ack_due" | "complaint_resolve_due";
+  | "veec_refunded" | "complaint_ack_due" | "complaint_resolve_due" | "ready_check_person_missing";
 
 /** Where the one button takes the office. `section` is the Job page stage card id; `act` are inline row actions. */
 export type NeedsButton =
@@ -100,6 +100,8 @@ export type NeedsFacts = {
   paymentReversed?: { at: string; text: string } | null;
   /** Part 9 Task 11: a card payment was refunded AFTER VEECs were created (`veec_copayment_refunded`, veec-creation-gate.core) — call Jo. */
   veecRefunded?: { at: string; text: string } | null;
+  /** G7: a Ready Check tomorrow booked with "Not sure yet" and nobody picked by 5pm the day before (the event's own line). */
+  readyCheckPersonMissing?: { at: string; text: string } | null;
   /** Part 9 Task 12: open complaint steps (complaints.core `complaintNeeds`) — acknowledge within 5 business days, resolve within 20. */
   complaints?: ComplaintNeed[] | null;
   /** A48 batch 1: the newest A3 safety check breaks the official PIESA rules (piesa-rules-notice.core) — every reason. */
@@ -322,6 +324,7 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   if (f.paymentReversed) add({ rank: 39, group: "today", kind: "payment_reversed", line: `Payment reversed · ${f.paymentReversed.text}`, since: f.paymentReversed.at, button: { label: "Open job", to: "job", section: "money" } });
   for (const c of f.complaints ?? []) add({ rank: c.urgency === "urgent" ? 5 : 12, group: "today", kind: c.code, line: complaintNeedsLine(c), since: c.since, button: { label: "Open job", to: "job", section: "contact" } });
   if (f.veecRefunded) add({ rank: 12, group: "today", kind: "veec_refunded", line: f.veecRefunded.text, since: f.veecRefunded.at, button: { label: "Open job", to: "job", section: "money" } });
+  if (f.readyCheckPersonMissing) add({ rank: 24, group: "today", kind: "ready_check_person_missing", line: f.readyCheckPersonMissing.text, since: f.readyCheckPersonMissing.at, button: { label: "Open job", to: "job", section: "ready-check" } });
   if (f.eligibilityReview) add({ rank: 38, group: "today", kind: "eligibility_review", line: eligibilityReviewLine(f.eligibilityReview.reason), since: f.eligibilityReview.at, button: { label: "Review eligibility", to: "job", section: "ready-check" } });
   if (f.quoteToCheck) add({ rank: 40, group: "today", kind: "quote_check", line: f.quoteToCheck.ready ? "Quote ready · all checks passed · press Send" : `Quote held · ${f.quoteToCheck.reason ?? "something is missing"}`, since: f.quoteToCheck.at, button: { label: "Check & send", to: "job", section: "quote" } });
   if (f.fixesQuoteToCheck) add({ rank: 45, group: "today", kind: "fixes_quote_check", line: `Electrical upgrades quote to check${f.fixesQuoteToCheck.reason ? ` · ${f.fixesQuoteToCheck.reason}` : ""}`, since: f.fixesQuoteToCheck.at, button: { label: "Review and send", to: "job", section: "piesa" } });

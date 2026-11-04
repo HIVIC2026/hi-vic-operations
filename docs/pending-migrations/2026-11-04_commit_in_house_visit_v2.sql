@@ -14,6 +14,12 @@
 -- also records the owner-contact release for that assignment + visit (`contact_releases`, the same audited rule as an
 -- accepted offer — Jo 21 Oct), so the electrician's /e/ link shows the owner's name, phone and address from the booking.
 -- Idempotent on (assignment_id, visit_kind). The TS fallback (in-house-inline-save.server) writes the identical row.
+-- G7 (Jo 4 Nov 2026, pack 2 batch 4): a Ready Check may be booked with "Not sure yet" for who's going (`_worker` NULL,
+-- ready_check ONLY — every other kind still needs its person): no visit_allocated row, a `ready_check_person_pending`
+-- history row names the booking, the saved work carries workerId/who null (no Mitti form, no owner notice until the
+-- person is picked). Picking the person = the same call with the same start and the worker: the booking is re-recorded
+-- with a "Ready Check: who's going picked" history line (not "rescheduled"), visit_allocated, and the saved work makes
+-- the form and sends the owner's "You're booked". CHANGED again — re-apply at go-live.
 CREATE OR REPLACE FUNCTION public.commit_in_house_visit(
  _job uuid,_actor uuid,_kind text,_start timestamptz,_worker uuid,
  _stage text,_version timestamptz,_booking uuid,_crew uuid,
@@ -31,21 +37,25 @@ BEGIN
  business:=a.business_id;
  IF business IS NULL OR NOT EXISTS(SELECT 1 FROM public.business_members WHERE business_id=business AND user_id=_actor AND active AND member_role::text IN ('business_admin','owner')) THEN
   RAISE EXCEPTION 'Not your in-house job'; END IF;
- SELECT * INTO w FROM public.partner_workers WHERE id=_worker AND business_id=business AND removed_at IS NULL FOR SHARE;
- IF NOT FOUND THEN RAISE EXCEPTION 'Not your Team member'; END IF;
+ IF _worker IS NULL THEN
+  IF _kind<>'ready_check' THEN RAISE EXCEPTION 'Choose the person going.'; END IF;
+ ELSE
+  SELECT * INTO w FROM public.partner_workers WHERE id=_worker AND business_id=business AND removed_at IS NULL FOR SHARE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Not your Team member'; END IF;
+ END IF;
  SELECT id,(details->'selection'->>'lead')::uuid INTO current_crew,old_worker FROM public.workflow_events
  WHERE job_id=_job AND event_type='piisa_crew_selected' ORDER BY created_at DESC,id DESC LIMIT 1;
  SELECT * INTO b FROM public.bookings WHERE job_id=_job AND kind::text=CASE WHEN _kind='crew' THEN 'installation' ELSE _kind END AND status::text='confirmed' ORDER BY created_at DESC LIMIT 1 FOR UPDATE;
  -- An exact successful replay is a no-op even when another office user clicked.
  IF EXISTS(SELECT 1 FROM public.workflow_events WHERE id=_work AND job_id=_job AND event_type='in_house_saved_work'
-  AND details->>'workerId'=_worker::text AND details->>'kind'=_kind
+  AND details->>'workerId' IS NOT DISTINCT FROM _worker::text AND details->>'kind'=_kind
   AND (_kind='crew' OR (details->>'start')::timestamptz=_start)
   AND coalesce(details->'selection','null'::jsonb)=coalesce(_selection,'null'::jsonb)) THEN
   RETURN jsonb_build_object('bookingId',b.id,'already',true,'workId',_work); END IF;
  IF _kind<>'crew' AND b.id IS NOT NULL AND b.scheduled_start=_start AND
-  EXISTS(SELECT 1 FROM public.workflow_events WHERE job_id=_job AND event_type='in_house_saved_work' AND details->>'bookingId'=b.id::text AND details->>'workerId'=_worker::text AND coalesce(details->'selection','null'::jsonb)=coalesce(_selection,'null'::jsonb)) THEN
+  EXISTS(SELECT 1 FROM public.workflow_events WHERE job_id=_job AND event_type='in_house_saved_work' AND details->>'bookingId'=b.id::text AND details->>'workerId' IS NOT DISTINCT FROM _worker::text AND coalesce(details->'selection','null'::jsonb)=coalesce(_selection,'null'::jsonb)) THEN
   RETURN (SELECT jsonb_build_object('bookingId',b.id,'already',true,'workId',id) FROM public.workflow_events
-   WHERE job_id=_job AND event_type='in_house_saved_work' AND details->>'bookingId'=b.id::text AND details->>'workerId'=_worker::text ORDER BY created_at DESC LIMIT 1); END IF;
+   WHERE job_id=_job AND event_type='in_house_saved_work' AND details->>'bookingId'=b.id::text AND details->>'workerId' IS NOT DISTINCT FROM _worker::text ORDER BY created_at DESC LIMIT 1); END IF;
  IF j.stage::text IS DISTINCT FROM _stage OR j.updated_at IS DISTINCT FROM _version OR b.id IS DISTINCT FROM _booking OR current_crew IS DISTINCT FROM _crew THEN
   RAISE EXCEPTION 'Job changed concurrently; reload and re-evaluate blockers'; END IF;
  PERFORM 1 FROM public.business_members WHERE business_id=business FOR SHARE;
@@ -98,7 +108,9 @@ BEGIN
     _kind||' booked by in-house partner',jsonb_build_object('assignment_id',a.id,'installer_user_id',a.user_id,'installer_business_id',business,'scheduled_start',_start),
     CASE target WHEN 'ready_check_scheduled' THEN 'Ready Check booked' WHEN 'piesa_scheduled' THEN 'Safety check booked' WHEN 'rectification_booked' THEN 'Rectification booked' ELSE 'Installation booked' END);
   ELSE
-   INSERT INTO public.workflow_events(job_id,actor_id,event_type,summary,details,internal) VALUES(_job,_actor,'booking_rescheduled',_kind||' rescheduled by in-house partner',jsonb_build_object('scheduled_start',_start),false);
+   INSERT INTO public.workflow_events(job_id,actor_id,event_type,summary,details,internal) VALUES(_job,_actor,'booking_rescheduled',
+    CASE WHEN _kind='ready_check' AND b.scheduled_start=_start AND _worker IS NOT NULL THEN 'Ready Check: who''s going picked ('||w.full_legal_name||')' ELSE _kind||' rescheduled by in-house partner' END,
+    jsonb_build_object('scheduled_start',_start,'person_picked',(_kind='ready_check' AND b.scheduled_start=_start AND _worker IS NOT NULL)),false);
   END IF;
  ELSE new_booking:=b.id; END IF;
  IF selected IS NOT NULL THEN
@@ -112,8 +124,12 @@ BEGIN
   END IF;
  END IF;
  visit:=CASE _kind WHEN 'installation' THEN 'install' WHEN 'crew' THEN 'install' WHEN 'assessment' THEN 'piesa' WHEN 'rectification' THEN 'rectification' ELSE 'ready_check' END;
- INSERT INTO public.workflow_events(job_id,actor_id,event_type,summary,details,internal) VALUES(_job,_actor,'visit_allocated','Visit allocated to '||w.full_legal_name,jsonb_build_object('visit',visit,'worker_id',_worker,'worker_name',w.full_legal_name,'business_id',business),true);
- work_details:=jsonb_build_object('type',CASE WHEN _kind='crew' THEN 'crew' ELSE 'booking' END,'kind',_kind,'bookingId',new_booking,'workerId',_worker,'oldWorkerId',old_worker,'start',coalesce(_start,b.scheduled_start),'oldStart',old_start,'selection',selected,'who',jsonb_build_object('id',w.id,'name',w.full_legal_name,'phone',to_jsonb(w)->>'mobile'),'status','pending','attempts',0);
+ IF _worker IS NULL THEN
+  INSERT INTO public.workflow_events(job_id,actor_id,event_type,summary,details,internal) VALUES(_job,_actor,'ready_check_person_pending','Ready Check booked — who''s going not picked yet',jsonb_build_object('booking_id',new_booking,'start',_start,'business_id',business),true);
+ ELSE
+  INSERT INTO public.workflow_events(job_id,actor_id,event_type,summary,details,internal) VALUES(_job,_actor,'visit_allocated','Visit allocated to '||w.full_legal_name,jsonb_build_object('visit',visit,'worker_id',_worker,'worker_name',w.full_legal_name,'business_id',business),true);
+ END IF;
+ work_details:=jsonb_build_object('type',CASE WHEN _kind='crew' THEN 'crew' ELSE 'booking' END,'kind',_kind,'bookingId',new_booking,'workerId',_worker,'oldWorkerId',old_worker,'start',coalesce(_start,b.scheduled_start),'oldStart',old_start,'selection',selected,'who',CASE WHEN _worker IS NULL THEN NULL ELSE jsonb_build_object('id',w.id,'name',w.full_legal_name,'phone',to_jsonb(w)->>'mobile') END,'status','pending','attempts',0);
  INSERT INTO public.workflow_events(id,job_id,actor_id,event_type,summary,details,internal) VALUES(_work,_job,_actor,'in_house_saved_work','Saved visit follow-through pending',work_details,true);
  RETURN jsonb_build_object('bookingId',new_booking,'workId',_work,'already',false);
 END $$;

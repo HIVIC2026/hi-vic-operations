@@ -5,13 +5,16 @@ import { melbourneToday } from "./melbourne-time.core";
 import { melbourneYmd } from "./piesa-windows.core";
 import type { AccessPerson } from "./rental-answers.core";
 import { QUOTE_PRICE_NEXT_LINE } from "./installer-quote-status.core";
+import { READY_CHECK_PERSON_WORDS } from "./ready-check-person.core";
 
 export type NextStepFacts = {
   channel: string | null; stage: string; ownerFirst: string | null;
   /** Full owner name for the call line; falls back to the first name. */
   ownerName: string | null;
   ownerPhone: string | null; now: Date;
-  givenAt: string | null; readyCheck: { start: string | null; done: boolean; missing: string[] };
+  givenAt: string | null; readyCheck: { start: string | null; done: boolean; missing: string[];
+    /** G7: who's going — a name; null = booked with "Not sure yet" and nobody picked (job page only); undefined = not read (My work list). */
+    person?: string | null | undefined };
   priceEntered: boolean | null; quote: "none" | "sent" | "accepted" | "declined" | "expired";
   acceptedAt: string | null; whoBooks: "office" | "electrician" | "either"; electricianName: string | null;
   piesa: { start: string | null; outcome: "pass" | "upgrades" | null; upgradesDone: boolean; certificateIn: boolean };
@@ -27,6 +30,8 @@ export type NextStepBox = {
   kind: NextStepKind; title: string; sub: string | null; yours: boolean; bookBy: string | null;
   overdue: boolean; phone: { name: string; phone: string } | null; button: string | null; lines: string[];
   alsoBookInstall: { button: "Book the install"; warn: string } | null;
+  /** G7: the booked Ready Check still needs its person — the page shows the "Who's going" pick for this start. */
+  pickPerson: { start: string } | null;
 };
 
 // Wording. Lines quoted in the plan's Global Constraints are approved; every line marked DRAFT is not yet seen by Jo.
@@ -96,7 +101,7 @@ const fmtMoney = (n: number): string => `$${n.toLocaleString("en-AU", { minimumF
 
 // ---- The box -----------------------------------------------------------------------------------------------------------
 const box = (kind: NextStepKind, title: string, o: Partial<Omit<NextStepBox, "kind" | "title">> = {}): NextStepBox => ({
-  sub: null, yours: false, bookBy: null, overdue: false, phone: null, button: null, lines: [], alsoBookInstall: null, ...o, kind, title,
+  sub: null, yours: false, bookBy: null, overdue: false, phone: null, button: null, lines: [], alsoBookInstall: null, pickPerson: null, ...o, kind, title,
 });
 
 export function nextStepBox(f: NextStepFacts): NextStepBox {
@@ -185,6 +190,11 @@ export function nextStepBox(f: NextStepFacts): NextStepBox {
     return box("waiting_quote", W.waitingQuoteTitle, { sub: f.quote === "declined" || f.quote === "expired" ? W.quoteDeclinedSub : W.waitingQuoteSub });
   }
   if (f.readyCheck.start) {
+    // G7 (Jo 4 Nov 2026): booked with "Not sure yet" → "Pick who's going by 5pm the day before" and the pick, no Mitti button
+    // (the form is made when the person is picked).
+    if (f.readyCheck.person === null) {
+      return box("ready_check_booked", W.readyCheckBookedTitle, { sub: READY_CHECK_PERSON_WORDS.pickBy, yours: true, lines: [W.readyCheckLine(fmtWhen(f.readyCheck.start)), READY_CHECK_PERSON_WORDS.nobodyYet], pickPerson: { start: f.readyCheck.start } });
+    }
     return box("ready_check_booked", W.readyCheckBookedTitle, { sub: W.readyCheckBookedSub, yours: true, lines: [W.readyCheckLine(fmtWhen(f.readyCheck.start))], button: W.mittiButton });
   }
   const d = withBookBy("ready_check", f.givenAt);

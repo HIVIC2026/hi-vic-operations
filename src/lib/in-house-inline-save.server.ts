@@ -2,7 +2,9 @@
 import {supabaseAdmin as admin} from '@/integrations/supabase/client.server';
 import type {BookingKind} from './booking.server';
 import type {CrewSelection} from './piisa-a3.core';
-export async function saveInHouseVisitInline(jobId:string,actorId:string,input:{kind:BookingKind|'crew';start?:string;workerId:string;selection?:CrewSelection}) {
+export async function saveInHouseVisitInline(jobId:string,actorId:string,input:{kind:BookingKind|'crew';start?:string;workerId:string|null;selection?:CrewSelection}) {
+ // G7: "Not sure yet" needs the atomic writer (commit_in_house_visit v2 records the pending person); this pre-deployment path refuses it.
+ if(!input.workerId)throw Error('Choose the person going.');
  if(input.kind==='crew'){
   if(!input.selection)throw Error('Choose the Lead Installer.');
   const result=await (await import('./visit-allocation.server')).saveCrewWithLeadInline(jobId,actorId,input.selection);

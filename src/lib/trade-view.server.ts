@@ -17,6 +17,7 @@ import { sourceLabel as installerSourceLabel } from "./installer-home.core";
 import { installerQuoteLine } from "./installer-quote-status.core";
 import { myWorkCards, greeting as myWorkGreeting, reasonFor } from "./my-work.core";
 import { nextStepBox, type NextStepFacts } from "./next-step-box.core";
+import { READY_CHECK_PERSON_PENDING_EVENT, readyCheckPersonState } from "./ready-check-person.core";
 import { MONEY_WORDS, moneyScreen, type MoneyScreenRow } from "./money-screen.core";
 import { LOGO_MAX_BYTES, LOGO_TYPES, businessRows, logoFileProblem, needsYou, whoBooksOf, type BusinessScreenFacts, type WhoBooks } from "./business-screen.core";
 import { CUSTOMER_BASE } from "./engagement.core";
@@ -1470,22 +1471,23 @@ export async function inHouseBookingAccess(userId: string, jobId: string, client
 }
 
 /** A thin member-scoped wrapper: all booking rules and writes stay in confirmBooking. */
-export async function inHouseBookVisit(userId: string, input: { jobId: string; kind: import("./booking.server").BookingKind; start: string; workerId?: string; crewIds?: string[] }, client = admin): Promise<{ ok: true; bookingId: string; warnings: string[] } | { ok: false; blockers: string[] }> {
+export async function inHouseBookVisit(userId: string, input: { jobId: string; kind: import("./booking.server").BookingKind; start: string; workerId?: string | undefined; crewIds?: string[] }, client = admin): Promise<{ ok: true; bookingId: string; warnings: string[] } | { ok: false; blockers: string[] }> {
   const access = await inHouseBookingAccess(userId, input.jobId, client);
   if (!access.allowed) return { ok: false, blockers: access.blockers };
   // Part 2: an installer's own job books its safety check ONLY through bookOwnJobPiesa (claim, 30-day check, owner notice); never this in-house writer.
   if (access.ownJob) return { ok: false, blockers: ["forbidden"] };
-  if(!input.workerId)return {ok:false,blockers:[input.kind==='installation'?(await import('./in-house-booking.core')).LEAD_INSTALLER_BOOKING_REASON:'Choose the person going before booking.']};
+  // G7 (Jo 4 Nov 2026): a Ready Check may be booked with "Not sure yet" for who's going (no workerId); every other kind needs its person.
+  if(!input.workerId&&input.kind!=='ready_check')return {ok:false,blockers:[input.kind==='installation'?(await import('./in-house-booking.core')).LEAD_INSTALLER_BOOKING_REASON:'Choose the person going before booking.']};
   // Part 7 Task 6: an existing install booking past its 5pm two-days-before lock can't be moved or given another Lead
   // Installer here (LEAD_LOCKED_MESSAGE); the current booking is read inside the check, never the page's copy.
   if (input.kind === "installation") {
-    try { await (await import("./lead-installer-confirm.server")).assertLeadInstallerUnlocked(input.jobId, { newStart: input.start, newLeadId: input.workerId }); }
+    try { await (await import("./lead-installer-confirm.server")).assertLeadInstallerUnlocked(input.jobId, { newStart: input.start, newLeadId: input.workerId ?? null }); }
     catch (error) { return { ok: false, blockers: [error instanceof Error ? error.message : "Booking could not be saved."] }; }
   }
   try {
     const result=await (await import('./in-house-atomic-save.server')).saveInHouseVisit(input.jobId,userId,{
-      kind:input.kind,start:input.start,workerId:input.workerId,
-      ...(input.kind==='installation'?{selection:{lead:input.workerId,additional:(input.crewIds??[]).map(workerId=>({workerId}))}}:{}),
+      kind:input.kind,start:input.start,workerId:input.workerId??null,
+      ...(input.kind==='installation'?{selection:{lead:input.workerId??null,additional:(input.crewIds??[]).map(workerId=>({workerId}))}}:{}),
     });
     if(!result.bookingId)throw Error('Booking could not be saved.');
     // Part 3 Task 4: the in-house writer (commit_in_house_visit) books without confirmBooking, so the certificate warning is
@@ -1564,6 +1566,8 @@ const centsWords = (cents: number) => (cents % 100 === 0 ? `$${cents / 100}` : `
 function installerJobPageParts(i: {
   c: Awaited<ReturnType<typeof requireTradeJob>>; j: JobPageJob | null;
   rcBook: { scheduled_start: string; status: string } | null; inBook: { scheduled_start: string; status: string } | null; piesaBook: { scheduled_start: string } | null;
+  /** G7: who's going to the Ready Check — null = booked with "Not sure yet", nobody picked; undefined = nothing recorded. */
+  readyCheckPerson?: string | null | undefined;
   a: { status: string | null; piesa_outcome: string | null; hazards?: string | null } | null;
   m: { measured_area_m2: number | string | null; removal_m2: number | string | null; removal_required: boolean | null; access_difficulty: string | null; raw_snapshot: unknown } | null;
   form: { auditId: string | null; complete: boolean }; clearance: { cleared: boolean };
@@ -1597,7 +1601,7 @@ function installerJobPageParts(i: {
   const q = i.quote.declined ? "declined" : i.quote.accepted ? "accepted" : i.quote.sent ? "sent" : "none";
   const facts: NextStepFacts = {
     channel: j?.channel ?? null, stage, ownerFirst, ownerName, ownerPhone, now, givenAt: i.givenAt,
-    readyCheck: { start: i.rcBook?.status === "confirmed" ? i.rcBook.scheduled_start : null, done: readyCheckDone, missing: readyCheckDone ? i.needsFinishingItems : [] },
+    readyCheck: { start: i.rcBook?.status === "confirmed" ? i.rcBook.scheduled_start : null, done: readyCheckDone, missing: readyCheckDone ? i.needsFinishingItems : [], person: i.readyCheckPerson },
     priceEntered: j?.channel === "installer_sourced" ? i.priceEntered : null,
     quote: q, acceptedAt: i.qq?.accepted_at ?? null,
     whoBooks: i.whoBooks, electricianName: i.elecName,
@@ -1720,7 +1724,7 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
     { data: declinedEv }, { data: basicsDone }, { data: piesaBooks }, { data: elecAsg }, { data: fixes }, { data: evEv }, { data: alloc }, { data: decl }, { data: finalAsg }, ownerReady, notes,
     priceEntered, ownerPiesaConfirmed, electricianAttendance, released, { data: mineBk }, accessPerson, { data: piesaRec }, { data: sentRows }, ledger, depositPaid, { data: dl }, { data: given }, { data: consent }, { data: paidEv }, piesaPayRead, swmsRead, { data: quoteItemsRow }, whoBooks, coesOnFile, allocatedElec] = await Promise.all([
     jobP,
-    admin.from("bookings").select("scheduled_start, status").eq("job_id", jobId).eq("kind", "ready_check").neq("status", "cancelled").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("bookings").select("id, scheduled_start, status").eq("job_id", jobId).eq("kind", "ready_check").neq("status", "cancelled").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     inBookP,
     admin.from("ceiling_measurements").select("measured_area_m2, removal_m2, removal_required, access_difficulty, raw_snapshot, external_source, external_id, zones").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
     admin.from("assessments").select("status, piesa_outcome, completed_at, hazards, mitti_raw_snapshot").eq("job_id", jobId).maybeSingle(),
@@ -1739,7 +1743,8 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
     admin.from("job_assignments").select("profiles:user_id(full_name)").eq("job_id", jobId).eq("role", "electrician").eq("active", true).limit(1).maybeSingle(),
     admin.from("rectification_items").select("description, status").eq("job_id", jobId).not("status", "in", "(cancelled,removed)"),
     admin.from("workflow_events").select("details, created_at").eq("job_id", jobId).eq("event_type", "install_evidence_synced").order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    admin.from("workflow_events").select("event_type, details, created_at").eq("job_id", jobId).eq("event_type", "visit_allocated").order("created_at", { ascending: false }),
+    // G7: the same read also carries the "Not sure yet" marker rows (ready_check_person_pending) — currentAllocation ignores them.
+    admin.from("workflow_events").select("event_type, details, created_at").eq("job_id", jobId).in("event_type", ["visit_allocated", READY_CHECK_PERSON_PENDING_EVENT]).order("created_at", { ascending: false }),
     admin.from("installer_declarations").select("installer_name, signed_at, installed_product, installed_area_m2").eq("job_id", jobId).eq("status", "signed").order("signed_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("customer_assignments").select("installer_signed_at, consumer_final_signed_at, ap_signed_at, installed_product, installed_area_m2").eq("job_id", jobId).eq("record_kind", "final_veec_assignment").neq("status", "cancelled").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     ownerReadyP,
@@ -1768,11 +1773,14 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
   const evidenceBlockers = evidence?.summary?.blockers ?? evidence?.blockers ?? null;
   const installAlloc = currentAllocation((alloc ?? []) as { event_type: string; details: unknown; created_at: string }[], "install");
   const rcAlloc = currentAllocation((alloc ?? []) as { event_type: string; details: unknown; created_at: string }[], "ready_check");
+  // G7: who's going to the Ready Check — pending (booked with "Not sure yet", nobody picked since) → null; else the name (or undefined when nothing says).
+  const rcPerson = readyCheckPersonState((alloc ?? []) as { event_type: string; details: unknown; created_at: string }[], (rcBook as { id?: string } | null)?.id ?? null);
   const crew = [...new Set([decl?.installer_name, installAlloc?.worker_name, rcAlloc?.worker_name].filter((x): x is string => !!x && x.trim().length > 0))];
   const product = decl?.installed_product ?? finalAsg?.installed_product ?? null;
   const payRow = payRows[0] ?? null;
   const jobPage = installerJobPageParts({
     c, j: j as JobPageJob | null, rcBook, inBook, piesaBook, a, m, form, clearance, quote, qq, pay, elecName, piesaRec, accessPerson, mineBk: mineBk ?? [], released,
+    readyCheckPerson: rcPerson.pending ? null : rcPerson.name ?? undefined,
     sentRows: sentRows ?? [], ledger, depositPaid, deadline: dl?.install_deadline ? String(dl.install_deadline) : null, givenAt: (given as { assigned_at?: string | null } | null)?.assigned_at ?? null,
     consentSigned: !!consent, paidEv: (paidEv ?? []) as { created_at: string; details: unknown }[], piesaPayRead, swmsRead, quoteItems: ((quoteItemsRow as unknown as { quote_items: unknown }[] | null)?.[0]?.quote_items as { code: string | null; description: string | null; sort: number | null; line_total_inc_gst?: number | string | null }[] | null) ?? [],
     // Part 10 Task 9 / I3: the quotes the Job details money rows read (own customers only; figures never shown to staff).

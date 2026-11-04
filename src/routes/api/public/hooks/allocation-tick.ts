@@ -426,6 +426,15 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['leadInstallerConfirm'] = "failed";
         }
         try {
+          // G7 (Jo 4 Nov 2026): a Ready Check booked with "Not sure yet" and nobody picked by 5pm the day before → ONE email to the
+          // installer office (DRAFT, held until READY_CHECK_PERSON_EMAIL_APPROVED; TEST → test-send) + a Needs me row. No text.
+          const { sweepReadyCheckPerson } = await import("@/lib/ready-check-person.server");
+          (out as Record<string, unknown>)['readyCheckPerson'] = await timed("sweepReadyCheckPerson", () => sweepReadyCheckPerson());
+        } catch (e) {
+          console.error("allocation tick: ready check person sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['readyCheckPerson'] = "failed";
+        }
+        try {
           // Part 9 Task 8 (Jo 2 Nov): insurance / licence expiry reminders 30 and 7 days before, business email + info@ copy;
           // wording approved by Jo 4 Nov 2026 → real businesses held until INSURANCE_REMINDER_APPROVED flips at go-live, TEST partners → test-send.
           const { sweepInsuranceReminders } = await import("@/lib/insurance-reminder.server");

@@ -81,7 +81,7 @@ Every file is safe to run twice.
 | 4 | `2026-11-01_in_house_electrician.sql` — safe if the columns are already there | `2026-11-01_in_house_electrician.undo.sql` |
 | 5 | `2026-11-03_allocate_team_electrician_v2.sql` | `2026-11-03_allocate_team_electrician_v2_rollback.sql` |
 | 6 | `2026-11-01_in_house_saved_work.sql` | `2026-11-01_in_house_saved_work.undo.sql` |
-| 7 | `2026-11-04_commit_in_house_visit_v2.sql` | `2026-11-04_commit_in_house_visit_v2.rollback.sql` |
+| 7 | `2026-11-04_commit_in_house_visit_v2.sql` — CHANGED again 4 Nov (G7): a Ready Check may be booked with "Not sure yet" for who's going; re-apply even if an earlier v2 was applied | `2026-11-04_commit_in_house_visit_v2.rollback.sql` |
 | 8 | `2026-11-03_electrician_job_links.sql` — safe if the table is already there | `2026-11-03_electrician_job_links.undo.sql` |
 | 9 | `2026-11-03_installer_added_electricians.sql` | `2026-11-03_installer_added_electricians.undo.sql` |
 | 10 | `customer-agreement-v1-3.sql` | `customer-agreement-v1-3.rollback.sql` |
@@ -129,7 +129,8 @@ Stay OFF (Jo hasn't seen or approved the words yet): `ELECTRICIAN_LINK_TEXT_APPR
 `VISIT_CANCELLED_OWNER_APPROVED`, `TENANT_NOTICE_APPROVED`, `RENTAL_TAPS_APPROVED`, `OWN_CUSTOMER_RENTAL_TAPS_APPROVED`,
 `OWN_CUSTOMER_SEND_ON_PRESS_ENABLED`, `OWNER_QUOTE_EMAIL_V4_APPROVED`, `INSTALLER_ACCEPTED_V2_APPROVED`, `INSTALL_NO_ACCESS_V2_APPROVED`,
 `IT_IS_YOUR_TURN_V2_APPROVED`, `PIESA_OWNER_CONFIRM_EMAIL_APPROVED`, `PIESA_OWNER_CONFIRM_SMS_APPROVED`, `READY_CHECK_CHASE_EMAIL_APPROVED`,
-`NON_COMPLIANCE_NOTICE_APPROVED`, `HOLD_NOTICE_WORDING_APPROVED`, `AUTO_QUOTE_SEND_ENABLED`, `MITTI_AUTO_INVITE_ENABLED`, `PARTNER_RATE_OFFER_EMAIL_ENABLED`.
+`NON_COMPLIANCE_NOTICE_APPROVED`, `HOLD_NOTICE_WORDING_APPROVED`, `AUTO_QUOTE_SEND_ENABLED`, `MITTI_AUTO_INVITE_ENABLED`, `PARTNER_RATE_OFFER_EMAIL_ENABLED`,
+`READY_CHECK_PERSON_EMAIL_APPROVED` (G7: the "who's doing the Ready Check tomorrow?" installer office email — the Needs me row still appears).
 Anything held by one of these is recorded as a "held" event on the job, so nothing is lost — it goes when the switch flips.
 
 Undo: flip the switch back and publish. Held sends are not re-sent.

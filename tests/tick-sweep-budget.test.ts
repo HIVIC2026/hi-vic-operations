@@ -33,6 +33,7 @@ const SWEEPS: [string, string][] = [
   ["certificate-later.server", "sweepUpgradesDayChase"], ["certificate-later.server", "sweepCertificateChase"],
   // Join ruling 2 (4 Nov 2026): the ONE tick entry that runs the three upgrades / certificate chases (the two above + Part 6 Task 7).
   ["upgrades-watch.server", "sweepUpgradesWatch"], ["certificate-later.server", "sweepUpgradesChasing"],
+  ["ready-check-person.server", "sweepReadyCheckPerson"],
 ];
 
 const results: { sweep: string; requests: number; waves: number; rows: number; outcome: string; top: string }[] = [];
