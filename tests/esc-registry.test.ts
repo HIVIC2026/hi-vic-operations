@@ -159,6 +159,18 @@ describe("Record: reference + time feed every screen and READY TO INSTALL", () =
     expect(readyToInstall({ ...base, notification: { status: "ready", sent_at: null, submission_reference: null, scheduled_start: START } }).blockers[0]).toMatch(/not sent/);
     expect(readyToInstall({ ...base, notification: sent(at(2 * D).toISOString(), "2026-11-03T22:00:00Z") }).blockers[0]).toMatch(/stale/);
   });
+  // G6 S7 (final Part 9 review): the PIESA 30-day deadline is a Melbourne date — an install at 8am Melbourne on the deadline
+  // day is 21:00 UTC the day BEFORE, and one at 8am the day after the deadline is still "the deadline day" in UTC.
+  test("S7: the PIESA deadline is compared on the Melbourne calendar day of the install start", () => {
+    const consent = { status: "valid", scheduled_start: "2026-11-27T21:00:00Z", owner_signed_at: "2026-10-30T03:00:00Z", ap_signed_at: "2026-10-30T03:00:00Z" };
+    const sentOk = { status: "sent", sent_at: "2026-11-24T00:00:00Z", submission_reference: "VEU-1", scheduled_start: "2026-11-27T21:00:00Z" };
+    const base = { consent, deliveries: { owner: "2026-11-01T00:00:00Z", installer: "2026-11-01T00:00:00Z" }, piesa: { date: "2026-10-28", deadline: "2026-11-28", outcome: "pass" } };
+    // Sat 28 Nov 8am Melbourne = 27 Nov 21:00 UTC: ON the deadline day → fine.
+    expect(readyToInstall({ ...base, scheduledStart: "2026-11-27T21:00:00Z", notification: sentOk }).blockers).toEqual([]);
+    // Sun 29 Nov 8am Melbourne = 28 Nov 21:00 UTC: the UTC date equals the deadline, but it is the day AFTER in Melbourne → blocked.
+    const late = readyToInstall({ ...base, scheduledStart: "2026-11-28T21:00:00Z", consent: { ...consent, scheduled_start: "2026-11-28T21:00:00Z" }, notification: { ...sentOk, scheduled_start: "2026-11-28T21:00:00Z" } });
+    expect(late.blockers).toContain("Installation start is after the PIESA 30-day deadline (2026-11-28)");
+  });
 });
 
 describe("Withdraw / resubmit keeps history", () => {

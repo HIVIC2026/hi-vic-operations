@@ -1,6 +1,7 @@
 // ESC pre-install notification + READY TO INSTALL rules – PURE (no I/O).
 // Fail closed: nothing is "sent" unless an actual submission (adapter or audited manual record) set it.
 import { consentCompletedAt, consentValidityBlockers, type ConsentRecord } from "./consent.core";
+import { melbourneYmd } from "./piesa-windows.core";
 
 export const HOUR = 3600_000;
 export const LEAD_MS = 24 * HOUR;
@@ -386,7 +387,8 @@ export function readyToInstall(i: ReadinessInput): Readiness {
   }
   b.push(...piesaCopyDeliveryBlockers(i.scheduledStart, i.deliveries, { partCSignedAt: i.partCSignedAt ?? null }));
   if (!i.piesa?.date || i.piesa.outcome !== "pass") b.push("A current passing PIESA is required");
-  else if (i.piesa.deadline && i.scheduledStart.slice(0, 10) > i.piesa.deadline) b.push(`Installation start is after the PIESA 30-day deadline (${i.piesa.deadline})`);
+  // G6 S7: the deadline is a Melbourne date; the start is compared on its Melbourne calendar day (never the UTC date).
+  else if (i.piesa.deadline && melbourneYmd(new Date(i.scheduledStart)) > i.piesa.deadline) b.push(`Installation start is after the PIESA 30-day deadline (${i.piesa.deadline})`);
   return { ready: b.length === 0, blockers: b, dueBy: due };
 }
 
