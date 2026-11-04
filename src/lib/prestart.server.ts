@@ -2,7 +2,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { Json } from "@/integrations/supabase/types";
 import { WorkflowError, logEvent, piesaStatus } from "./workflow.server";
-import { dueGoSlot, escTask, isGoSlot, prestartFailures, prestartLocked, prestartNotes, prestartRunAt, type EscNotice, type GoSlot, type LeadCert } from "./prestart.core";
+import { GO_CHECK_NOT_COMPLETED, dueGoSlot, escTask, isGoSlot, prestartFailures, prestartLocked, prestartNotes, prestartRunAt, type EscNotice, type GoSlot, type LeadCert } from "./prestart.core";
 import { escSentLine, isWithdrawn, registryBlock, registryChange, REGISTRY_FIELDS_SOURCE, type EscField, type RegistryChange } from "./esc.core";
 
 async function upcomingBooking(jobId: string) {
@@ -164,9 +164,14 @@ export async function runPrestart(jobId: string, trigger: string, now = new Date
     if (prev?.passed) await afterPrestartPass(jobId); // main Part 3 Task 4 fix 2: any pass releases a held in-house install form
     return { passed: prev?.passed ?? false, failures: prev?.failures ?? [], changed: false, slot };
   }
-  const facts = await prestartFacts(jobId, b.scheduled_start);
-  const failures = prestartFailures(facts);
-  const notes = prestartNotes(facts); // Part 9 Task 14: the no-ESC note rides on the event, never in failures
+  // G6 S2 (final Part 9 review): a facts reader that throws during a SLOT run must not leave the slot unrecorded (no row,
+  // no lock, no email, nothing on Needs me). The slot gets a FAILED row with the must-move "could not be completed" line;
+  // the error text goes on the office event only. Other triggers (office "Run check", ESC paths) still throw to their caller.
+  let facts: Awaited<ReturnType<typeof prestartFacts>> | null = null, crashed: string | null = null;
+  try { facts = await prestartFacts(jobId, b.scheduled_start); }
+  catch (e) { if (!slot) throw e; crashed = e instanceof Error ? e.message : String(e); }
+  const failures = facts ? prestartFailures(facts) : [GO_CHECK_NOT_COMPLETED(crashed ?? "unknown error")];
+  const notes = facts ? prestartNotes(facts) : []; // Part 9 Task 14: the no-ESC note rides on the event, never in failures
   const passed = failures.length === 0;
   const prev = await latestCheck(jobId);
   if (!slot && prev && Date.parse(prev.scheduled_start) === Date.parse(b.scheduled_start) && prev.passed === passed && JSON.stringify(prev.failures) === JSON.stringify(failures)) {
@@ -175,7 +180,7 @@ export async function runPrestart(jobId: string, trigger: string, now = new Date
   }
   const { error } = await admin.from("pre_start_checks").insert({ job_id: jobId, booking_id: b.id, scheduled_start: b.scheduled_start, passed, failures: failures as unknown as Json, trigger });
   if (error) throw new Error(error.message);
-  await logEvent(jobId, null, passed ? "prestart_cleared" : "prestart_failed", `${passed ? "Pre-start check passed — cleared to start" : `Pre-start check failed: ${failures.join(" ")} Installation form and evidence locked. Needs Home Insulation Victoria`}${notes.length ? ` (${notes.join("; ")})` : ""}`, { scheduled_start: b.scheduled_start, failures, trigger, ...(notes.length ? { notes } : {}) }, { internal: true });
+  await logEvent(jobId, null, passed ? "prestart_cleared" : "prestart_failed", `${passed ? "Pre-start check passed — cleared to start" : `Pre-start check failed: ${failures.join(" ")} Installation form and evidence locked. Needs Home Insulation Victoria`}${notes.length ? ` (${notes.join("; ")})` : ""}`, { scheduled_start: b.scheduled_start, failures, trigger, ...(notes.length ? { notes } : {}), ...(crashed ? { needs_office: true, error: crashed } : {}) }, { internal: true });
   // Decision 326: a failed check is an office item only (the event above → Needs me). There is no approved owner or
   // installer "pre-start check failed" wording, so nothing is queued or sent (the old outbox rows could never deliver).
   if (passed) await afterPrestartPass(jobId);
@@ -263,6 +268,9 @@ export async function sweepPrestart(now = new Date()) {
       return runPrestart(b.job_id, slot ?? "timer", now);
     })().catch((e) => { console.error("pre-start check failed to run", (e as Error).message); return null; });
     if (r?.changed) { ran++; if (!r.passed) failed++; }
+    // G6 S1 (final Part 9 review): a slot whose email was held / failed (or the flag was off at the time) is retried on
+    // every later sweep until a go_email_sent claim exists for it — the slot row is already on file, so nothing re-runs.
+    await import("./go-email.server").then((m) => m.retryUnsentGoEmails(b.job_id, b.scheduled_start, now)).catch((e) => console.error("GO email retry failed", b.job_id, (e as Error).message));
   }
   return { ran, failed };
 }

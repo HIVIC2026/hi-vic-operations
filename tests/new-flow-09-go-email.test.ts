@@ -189,7 +189,7 @@ const testMail: { to: string; subject: string; label: string }[] = [];
 mock.module("../src/lib/test-send.server", () => ({ TEST_APP_BASE: "https://test.p", sendTestEmail: async (c: { label: string }, to: string, subject: string) => { testMail.push({ to, subject, label: c.label }); return { status: "sent", detail: "test" }; } }));
 mock.module("../src/lib/set-password-link.core", () => ({ SET_PASSWORD_BASE: "https://p" }));
 
-const { sendGoEmail } = await import("../src/lib/go-email.server");
+const { sendGoEmail, retryUnsentGoEmails } = await import("../src/lib/go-email.server");
 const events = (type: string) => (tables["workflow_events"] ?? []).filter((e) => e["event_type"] === type);
 const GO = { passed: true, failures: [] as string[], start: START };
 const NO = { passed: false, failures: ["Install deposit not paid"], start: START }; // fixable
@@ -274,10 +274,32 @@ describe("sendGoEmail", () => {
   });
 });
 
+// G6 S1 (final Part 9 review): a slot that ran but whose email was never claimed is sent again from its recorded row.
+describe("retryUnsentGoEmails", () => {
+  test("a recorded 2pm slot with no go_email_sent claim → sent (from the row's result); claimed → nothing; after the start → nothing; a real office with the flag off → nothing, nothing recorded", async () => {
+    tables["jobs"]![0]!["source"] = "qa_test";
+    tables["pre_start_checks"] = [{ job_id: "J1", scheduled_start: START, trigger: "day_before_2pm", passed: false, failures: ["Install deposit not paid"], checked_at: "2026-11-11T03:00:00Z" }, { job_id: "J1", scheduled_start: START, trigger: "timer", passed: true, failures: [], checked_at: "2026-11-11T05:00:00Z" }];
+    expect(await retryUnsentGoEmails("J1", START, new Date("2026-11-11T03:15:00Z"))).toBe(1);
+    expect(testMail.map((m) => [m.to, m.subject])).toEqual([["office@rapid.example", "HV-1234: DON'T START — 1 thing missing"], ["info@homeinsulationvictoria.com.au", "HV-1234: DON'T START — 1 thing missing"]]);
+    expect(await retryUnsentGoEmails("J1", START, new Date("2026-11-11T03:30:00Z"))).toBe(0); // claimed: no second send
+    expect(testMail).toHaveLength(2);
+    // The 6:30am slot row lands later: only that slot is sent (the 2pm one stays claimed).
+    tables["pre_start_checks"]!.push({ job_id: "J1", scheduled_start: START, trigger: "on_day_630am", passed: true, failures: [], checked_at: "2026-11-11T19:30:00Z" });
+    expect(await retryUnsentGoEmails("J1", START, new Date("2026-11-11T19:45:00Z"))).toBe(1);
+    expect(testMail.map((m) => m.subject)).toEqual(["HV-1234: DON'T START — 1 thing missing", "HV-1234: DON'T START — 1 thing missing", "HV-1234: GO for today 8:00am"]);
+    expect(await retryUnsentGoEmails("J1", START, new Date("2026-11-11T21:00:00Z"))).toBe(0); // the install has started
+    // A real office with the flag off: nothing sent, nothing recorded (retried again once the flag flips).
+    tables["jobs"]![0]!["source"] = "website"; tables["workflow_events"] = [];
+    expect(await retryUnsentGoEmails("J1", START, new Date("2026-11-11T03:15:00Z"))).toBe(0);
+    expect(office).toHaveLength(0); expect(alerts).toHaveLength(0); expect(tables["workflow_events"]).toHaveLength(0);
+  });
+});
+
 describe("runPrestart calls sendGoEmail after a slot run (wiring pinned by source)", () => {
   test("prestart.server hands a slot result to go-email.server; never for office/esc triggers", async () => {
     const src = await Bun.file(new URL("../src/lib/prestart.server.ts", import.meta.url)).text();
     expect(src).toContain('import("./go-email.server")');
     expect(src).toMatch(/if \(slot\)[\s\S]*sendGoEmail\(jobId, slot/);
+    expect(src).toContain("retryUnsentGoEmails(b.job_id, b.scheduled_start, now)"); // G6 S1: every sweep retries unclaimed slot emails
   });
 });

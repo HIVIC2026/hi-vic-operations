@@ -9,7 +9,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import { GO_EMAIL_APPROVED, GO_EMAIL_EVENT, GO_EMAIL_HELD_EVENT, GO_EMAIL_OFFICE_COPY_TO, goEmail, goEmailKey } from "./go-email.core";
-import { classifyPrestartFailures, type GoSlot } from "./prestart.core";
+import { classifyPrestartFailures, isGoSlot, type GoSlot } from "./prestart.core";
 
 export type GoResult = { passed: boolean; failures: string[]; /** The install start the check was recorded for. */ start: string };
 
@@ -89,4 +89,30 @@ export async function sendGoEmail(jobId: string, slot: GoSlot, result: GoResult,
     out.push(`${GO_EMAIL_OFFICE_COPY_TO} sent`);
   }
   return `sent: ${out.join(", ")}`;
+}
+
+/** G6 S1 (final Part 9 review, 4 Nov 2026): the GO / DON'T START email for a slot that already ran but was never claimed
+ *  (`go_email_sent` for its key) is sent again from the recorded slot row — a hold (comms off, trade pause, sender down)
+ *  or a crash after the row was written must not leave the office without the email. Called by prestart.server's sweep
+ *  on every tick before the start; nothing re-runs the check. `sendGoEmail` itself is idempotent per recipient (an
+ *  office send that landed while the info@ copy failed sends only the copy). Returns how many slots were (re)sent. A read
+ *  failure throws (the sweep logs it). */
+export async function retryUnsentGoEmails(jobId: string, start: string, now = new Date()): Promise<number> {
+  if (now.getTime() >= Date.parse(start)) return 0;
+  const { data, error } = await admin.from("pre_start_checks").select("scheduled_start, trigger, passed, failures, checked_at").eq("job_id", jobId).eq("scheduled_start", start).order("checked_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  const latestPerSlot = new Map<GoSlot, { passed: boolean; failures: string[] }>();
+  for (const r of (data ?? []) as { trigger?: string | null; passed: boolean; failures: unknown }[]) {
+    const slot = String(r.trigger ?? "");
+    if (!isGoSlot(slot) || latestPerSlot.has(slot)) continue;
+    latestPerSlot.set(slot, { passed: r.passed, failures: Array.isArray(r.failures) ? (r.failures as string[]) : [] });
+  }
+  let sent = 0;
+  for (const [slot, r] of latestPerSlot) {
+    if (await once(jobId, GO_EMAIL_EVENT, goEmailKey(jobId, start, slot))) continue; // the office email was claimed (the copy, if any, is handled inside sendGoEmail)
+    const out = await sendGoEmail(jobId, slot, { passed: r.passed, failures: r.failures, start }, { now });
+    if (out.startsWith("sent")) sent++;
+    else if (out !== "awaiting approval" && out !== "already sent") console.warn("GO email retry not sent", jobId, slot, out);
+  }
+  return sent;
 }

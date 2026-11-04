@@ -79,7 +79,8 @@ const realInstallDays = await import("../src/lib/install-days.core");
 mock.module("../src/lib/install-days.core", () => ({ ...realInstallDays, installWindowDeadline: () => "2026-12-01" }));
 // Joined branch (4 Nov 2026): the GO check also reads Task 5's facts and main's certificate-later state — stubbed clear here.
 mock.module("../src/lib/install-attendance.server", () => ({ attendanceRequiredFor: async () => false, attendanceState: async () => "waiting" }));
-mock.module("../src/lib/job-records.server", () => ({ lifeSupportPlanMissing: async () => false }));
+let lifeSupportThrows: string | null = null; // G6 S2: a facts reader that crashes during a slot run
+mock.module("../src/lib/job-records.server", () => ({ lifeSupportPlanMissing: async () => { if (lifeSupportThrows) throw new Error(lifeSupportThrows); return false; } }));
 mock.module("../src/lib/certificate-later.server", () => ({ prestartCertificateFacts: async () => ({ certificate: "not_needed", certificateWhy: null, state: null }), liveCertificateFact: async () => ({ certificate: "not_needed", certificateWhy: null }) }));
 mock.module("../src/lib/in-house-forms.server", () => ({ isInHouseFormJob: async () => false, releaseHeldInstallForm: async () => "not in-house" }));
 mock.module("../src/lib/consent.server", () => ({ currentConsent: async () => null }));
@@ -93,12 +94,19 @@ mock.module("../src/lib/esc.server", () => ({ piesaCopyDeliveries: async () => (
 mock.module("../src/lib/in-house-booking.server", () => ({ leadNoticeBlocker: async () => null, latestLeadNotice: async () => null }));
 mock.module("../src/lib/esc-collection-notice.server", () => ({ noticeAckMap: async () => new Map() }));
 mock.module("../src/lib/business-insurance.server", () => ({ publicLiabilityExpiryFor: async () => new Map() }));
-mock.module("../src/lib/go-email.server", () => ({ sendGoEmail: async () => "mocked" }));
+const goEmails: { slot: string; passed: boolean; failures: string[] }[] = [];
+const retries: { jobId: string; start: string }[] = [];
+mock.module("../src/lib/go-email.server", () => ({
+  sendGoEmail: async (_j: string, slot: string, r: { passed: boolean; failures: string[] }) => { goEmails.push({ slot, passed: r.passed, failures: r.failures }); return "mocked"; },
+  retryUnsentGoEmails: async (jobId: string, start: string) => { retries.push({ jobId, start }); return 0; },
+}));
 
 const ps = await import("../src/lib/prestart.server");
+const { GO_CHECK_NOT_COMPLETED } = await import("../src/lib/prestart.core");
 const checks = () => (tables["pre_start_checks"] ?? []).map((r) => ({ trigger: r["trigger"], passed: r["passed"], start: r["scheduled_start"] }));
 
 beforeEach(() => {
+  lifeSupportThrows = null; goEmails.length = 0; retries.length = 0;
   tables = {
     bookings: [{ id: "BK1", job_id: "J1", kind: "installation", status: "confirmed", scheduled_start: START, assignment_id: "A1", created_at: "2026-11-05T00:00:00Z" }],
     jobs: [{ id: "J1", job_number: "HV-1234", source: "website" }],
@@ -153,6 +161,32 @@ describe("runPrestart / sweepPrestart slots", () => {
   test("before 2pm the day before nothing runs; from the start nothing runs", async () => {
     expect(await ps.runPrestart("J1", "office", at("2026-11-10T03:00:00Z"))).toBeNull();
     expect(await ps.runPrestart("J1", "office", at(THU_0800))).toBeNull();
+  });
+  // G6 S2 (final Part 9 review): a slot run that crashes still records its slot — a FAILED row with the must-move
+  // "could not be completed" line, a needs_office event carrying the error, and the DON'T START email — never silence.
+  test("S2: a facts reader crash during a slot run → failed slot row + needs_office event with the error + the email; the slot is then done; office runs still throw", async () => {
+    lifeSupportThrows = "relation job_records does not exist";
+    expect(await ps.sweepPrestart(at(WED_1400))).toEqual({ ran: 1, failed: 1 });
+    expect(checks()).toEqual([{ trigger: "day_before_2pm", passed: false, start: START }]);
+    expect((tables["pre_start_checks"]![0]!["failures"] as string[])).toEqual([GO_CHECK_NOT_COMPLETED("relation job_records does not exist")]);
+    const ev = (tables["workflow_events"] ?? []).filter((e) => e["event_type"] === "prestart_failed");
+    expect(ev).toHaveLength(1);
+    expect(ev[0]!["details"]).toMatchObject({ needs_office: true, trigger: "day_before_2pm", error: "relation job_records does not exist", scheduled_start: START });
+    expect(goEmails).toEqual([{ slot: "day_before_2pm", passed: false, failures: [GO_CHECK_NOT_COMPLETED("relation job_records does not exist")] }]);
+    // The slot is done: the next sweep adds nothing (and the retry of unsent emails is asked for instead).
+    expect(await ps.sweepPrestart(at("2026-11-11T03:15:00Z"))).toEqual({ ran: 0, failed: 0 });
+    expect(checks()).toHaveLength(1);
+    // The install is locked by that row like any failed check.
+    expect((await ps.prestartGate("J1", at("2026-11-11T03:20:00Z"))).locked).toBe(true);
+    // An office "Run check" (not a slot) still surfaces the error to the person pressing it.
+    await expect(ps.runPrestart("J1", "office", at("2026-11-11T03:30:00Z"))).rejects.toThrow("relation job_records does not exist");
+  });
+  // G6 S1: every sweep asks go-email.server to retry the slots whose email has no go_email_sent claim yet.
+  test("S1: the sweep asks for unsent GO emails to be retried for every upcoming install, after its own slot run", async () => {
+    await ps.sweepPrestart(at(WED_1400));
+    expect(retries).toEqual([{ jobId: "J1", start: START }]);
+    await ps.sweepPrestart(at("2026-11-11T03:15:00Z"));
+    expect(retries).toHaveLength(2);
   });
   test("the slot type is closed", () => {
     const s: GoSlot[] = ["day_before_2pm", "on_day_630am"];
