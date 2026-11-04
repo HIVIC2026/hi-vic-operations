@@ -136,8 +136,8 @@ const READY_CHECK_FIELDS: FormField[] = [
   { label: LEAN_Q.accessPhoto, type: "media", required: false, aliases: al("accessPhoto"), source: `${G} access evidence – optional on the form (Jo 23 Oct; kept but not mandatory, Jo 26 Oct); never chased (decision 396)` },
   // Page 4 — Ceiling areas: ONE repeating group "Add a ceiling area"
   { label: LEAN_Q.areaName, type: "text", required: true, perArea: true, aliases: al("areaName"), source: `${G} Table 4 diagram box label + install-day zone name (decisions 211/222)` },
-  { label: LEAN_Q.lengthM, type: "number", required: true, perArea: true, notRequiredIf: [LEAN_Q.measuredM2], source: "portal – the portal works out the m² and draws the diagram (decision 222: Length + Width per area)" },
-  { label: LEAN_Q.widthM, type: "number", required: true, perArea: true, notRequiredIf: [LEAN_Q.measuredM2], source: "portal – the portal works out the m² and draws the diagram (decision 222: Length + Width per area)" },
+  { label: LEAN_Q.lengthM, type: "number", required: true, perArea: true, notRequiredIf: [LEAN_Q.measuredM2,"Ceiling area from the floor plan (m²)"], source: "portal – length × width unless Floor plan" },
+  { label: LEAN_Q.widthM, type: "number", required: true, perArea: true, notRequiredIf: [LEAN_Q.measuredM2,"Ceiling area from the floor plan (m²)"], source: "portal – length × width unless Floor plan" },
   // 22–24 Oct forms: the single m² entry. Legacy only (portalOnly = never asked for on a new build), still read as the fallback.
   { label: LEAN_Q.measuredM2, type: "number", required: false, perArea: true, portalOnly: true, types: ["text"], aliases: al("measuredM2"), source: "portal – LEGACY (22–24 Oct forms): single m² entry, read when no Length/Width" },
   { label: LEAN_Q.measuredHow, type: "choice", required: true, perArea: true, choices: [...MEASURED_HOW_OPTIONS], aliases: al("measuredHow"), source: "portal – measurement provenance; aerial/online estimates never accepted" },
@@ -233,6 +233,7 @@ export function validateTemplate(key: FormKey, items: TemplateItem[]): { ok: boo
   let fields: FormField[] = FORMS[key].fields.filter((f) => !f.statement).map(f => ({ ...f, aliases: [...(f.aliases ?? []), ...mittiLabelAliases(f.label)] }));
   const rebuiltReady = (key === 'ready_check' || key === 'ready_check_priced') && byLabel.has(norm('Old insulation in this area?'));
   if (rebuiltReady) {
+    if(byLabel.has(norm('Ceiling area from the floor plan (m²)'))){fields.push({label:'Ceiling area from the floor plan (m²)',type:'number',required:true,perArea:true,source:'4 Nov floor plan'},{label:'Upload the floor plan (photo or PDF)',type:'media',required:true,perArea:true,source:'4 Nov floor plan'});}
     const replaced = [LEAN_Q.existing, LEAN_Q.existingAction, LEAN_Q.rValue, LEAN_Q.product, LEAN_Q.premisesType];
     const websiteOnly = [LEAN_Q.ownerPhone, LEAN_Q.ownerEmail, LEAN_Q.contactPermission, LEAN_Q.lifeSupport, LEAN_Q.builtLast5];
     fields = fields.filter(f => !replaced.includes(f.label as typeof replaced[number]) && !(key === 'ready_check' && websiteOnly.includes(f.label as typeof websiteOnly[number])));

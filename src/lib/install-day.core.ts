@@ -421,6 +421,7 @@ export type InstallDayPrefillFacts = {
   /** Decision 299: the rest of the crew from the portal booking; null = not on site / unknown. */
   secondName?: string | null; secondCii?: string | null; thirdName?: string | null; thirdCii?: string | null;
   lifeSupport: boolean | null; solarPresent: boolean | null; electricianAtStart: boolean | null;
+  areaOrder?:string|null;
 };
 type PrefillItem = { item_id: string; type: string; responses: Record<string, unknown> };
 /**
@@ -455,6 +456,7 @@ export function installDayPrefillItems(template: unknown, f: InstallDayPrefillFa
   const items = labelledItems(template);
   const out: PrefillItem[] = [];
   const yn = (b: boolean | null) => (b == null ? null : b ? "Yes" : "No");
+  if(f.areaOrder){const order=allWithLabel(items,'Ceiling areas in Ready Check order');if(order.length===1&&order[0]?.id)out.push({item_id:order[0].id,type:'text',responses:{text:f.areaOrder}});}
   for (const q of INSTALL_DAY_QUESTIONS) {
     if (!q.prefill) continue;
     const raw: string | null = (() => {

@@ -3,6 +3,7 @@
 // (`isLayoutForm` false → existing readers). Every total is worked out here from the old R value + the batt chosen —
 // the "(makes R…)" text in the Mitti answers is only a hint for the installer and is never trusted.
 import { canonicalMittiLabel } from "./mitti-rebuild-labels.core";
+import { floorPlanMeasurement } from './ready-check-floor-plan.core';
 
 /** Exact Mitti question wording (Jo 4 Nov 2026), copied character for character. */
 export const LAYOUT_Q = {
@@ -89,6 +90,7 @@ export type LayoutArea = { name: string | null; m2: number | null; old: "none" |
 
 /** One "Add a ceiling area" repeat (all its descendant answers). */
 export function readLayoutArea(kids: Kid[], m2Fallback: number | null = null): LayoutArea {
+  const plan = floorPlanMeasurement(kids);
   const o = nrm(first(kids, LAYOUT_Q.old));
   const old = o === nrm(LAYOUT_A.none) ? "none" : o === nrm(LAYOUT_A.out) ? "out" : o === nrm(LAYOUT_A.topup) ? "topup" : null;
   const rv = first(kids, LAYOUT_Q.oldR);
@@ -97,7 +99,7 @@ export function readLayoutArea(kids: Kid[], m2Fallback: number | null = null): L
   const oldR = old === "topup" && !oldFailed ? rIn(rv) : null;
   return {
     name: first(kids, LAYOUT_Q.areaName)?.split("\n")[0]?.trim() || null,
-    m2: numIn(first(kids, LAYOUT_Q.areaM2)) ?? m2Fallback,
+    m2: plan.selected ? plan.areaM2 : numIn(first(kids, LAYOUT_Q.areaM2)) ?? m2Fallback,
     old, oldR, oldFailed,
     removeM2: old === "out" ? numIn(first(kids, LAYOUT_Q.removeM2)) : null,
     battsR: rIn(first(kids, LAYOUT_Q.batts)),

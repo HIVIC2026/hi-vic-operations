@@ -10,6 +10,7 @@ import { EXISTING_DEPTH_Q, isNoSafeAccess, isR2OrAbove, isRValueBandAnswer, LEAN
 import { norm } from "./trade-shared-consts.core";
 import { isLayoutForm, readLayoutArea, type LayoutArea } from "./ceiling-layout.core";
 import { canonicalMittiLabel } from "./mitti-rebuild-labels.core";
+import { floorPlanMeasurement, FLOOR_PLAN_Q } from './ready-check-floor-plan.core';
 
 export const MITTI_TEMPLATE_ID = "template_fd20c6437f4e4db2b49b2d6dbe0d3f91";
 /** Electrical rate codes Lovable can price. Everything else from Mitti is manual office review. */
@@ -408,6 +409,7 @@ export type MittiArea = {
   conductiveEvidence?: string | null; keepReason?: string | null;
   /** Decision 375: this area's existing insulation depth in mm (official PIISA Part 6 height); null = not recorded. */
   depthMm?: number | null;
+  measurementMethod?: string | null; floorPlanEvidence?: string | null; depthPhoto?: boolean;
   product: string | null; scope: string | null; sources: Record<string, never>;
   /** Jo 4 Nov 2026 forms only: the new per-area answers (old insulation, old R value, batts). */
   layout?: LayoutArea;
@@ -439,7 +441,7 @@ export function parseAudit(audit: Any) {
   // A2 (our leads) captures "Length (m)" × "Width (m)" per area; A1 (installer's own customers) captures the
   // measured m² directly. Legacy forms used "Measured area m2".
   // Decision 222: the lean repeating group asks "Length (m)" + "Width (m)" per area (the m² entry is the old-form fallback).
-  const isAreaKid = (e: Any) => !e.header && [norm("Measured area m2"), norm(LEAN_Q.lengthM), norm(LEAN_Q.widthM), norm(LEAN_Q.measuredM2)].includes(e.norm) && e.value != null;
+  const isAreaKid = (e: Any) => !e.header && [norm("Measured area m2"), norm(LEAN_Q.lengthM), norm(LEAN_Q.widthM), norm(LEAN_Q.measuredM2), norm(FLOOR_PLAN_Q.area)].includes(e.norm) && e.value != null;
   const roomParents = new Set(entries.filter(isAreaKid).map((e) => e.parent ?? e.id));
   const areaM2Label = (kids: Entry[]) => kids.find((e) => [norm("Measured area m2"), norm("Enter the measured ceiling area (m²)")].includes(e.norm)) ?? kids.find((e) => e.norm.startsWith(norm("Measured area m2")));
   // Per-area questions can sit inside conditional sub-branches (empty-label containers), so an area's
@@ -453,11 +455,13 @@ export function parseAudit(audit: Any) {
   });
   const rooms = [...roomParents].map((p) => {
     const kids = areaKids(p);
+    const plan = floorPlanMeasurement(kids);
     const m2e = areaM2Label(kids);
-    let m2 = physical(m2e?.value ?? null, m2e?.label ?? "Measured area m2");
-    const len = physical(val(kids, [LEAN_Q.lengthM]), LEAN_Q.lengthM);
-    const wid = physical(val(kids, [LEAN_Q.widthM]), LEAN_Q.widthM);
-    if (m2.value == null) {
+    let m2 = plan.selected ? {value:plan.areaM2,issue:plan.areaM2===null?'Floor plan ceiling area (m²) missing or invalid – office review required.':null} : physical(m2e?.value ?? null, m2e?.label ?? "Measured area m2");
+    const len = physical(plan.selected ? null : val(kids, [LEAN_Q.lengthM]), LEAN_Q.lengthM);
+    const wid = physical(plan.selected ? null : val(kids, [LEAN_Q.widthM]), LEAN_Q.widthM);
+    if (plan.selected && !plan.fileAnswered) issues.push('Floor plan file missing – office review required.');
+    if (m2.value == null && !plan.selected) {
       if (len.issue) issues.push(len.issue);
       if (wid.issue) issues.push(wid.issue);
       if (len.value != null && len.value > 0 && wid.value != null && wid.value > 0) m2 = { value: r2(len.value * wid.value), issue: null } as typeof m2;
@@ -674,6 +678,8 @@ export function parseAudit(audit: Any) {
     removal: r.removal === true ? "yes" : r.removal === false ? "no" : r.remAnswer != null && r.remAnswer > 0 ? "yes" : null,
     removalM2: r.remAnswer, downlights: r.downlights, hazardFlag: r.hazardFlag, hazardEvidence: r.hazardEvidence, hazardNote: r.hazardNote, beforeVideo: r.photos.overview,
     suitable: r.suitable, conductive: r.conductive, conductiveEvidence: r.conductiveEvidence, keepReason: r.keepReason, depthMm: r.depthMm,
+    measurementMethod: val(areaKids(r.parent), [LEAN_Q.measuredHow]), depthPhoto: r.photos.depth,
+    floorPlanEvidence: (()=>{const f=find(areaKids(r.parent),[FLOOR_PLAN_Q.file],{withValue:true});return f?`mitti:${auditId}:item:${f.id}`:null;})(),
     product: null, scope: null, sources: {},
     ...(r.layout ? { layout: r.layout } : {}),
   }));
