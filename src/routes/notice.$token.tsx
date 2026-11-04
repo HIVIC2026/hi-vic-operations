@@ -44,8 +44,8 @@ function NoticePage() {
     <main className="estimate-brand portal-theme min-h-screen bg-paper px-4 py-6 text-ink">
       <div className="mx-auto max-w-[560px]">
         <img src={logo.url} alt="Home Insulation Victoria" className="h-9 w-auto" />
-        <h1 className="mt-4 font-display text-[22px] font-semibold leading-tight">{P5.title}</h1>
-        <p className="mt-1.5 text-sm leading-relaxed text-sub">{P5.sub}</p>
+        <h1 className="mt-4 font-display text-[22px] font-semibold leading-tight">{P5.link.title}</h1>
+        <p className="mt-1.5 text-sm leading-relaxed text-sub">{P5.link.sub}</p>
         {q.error && <p role="alert" className="mt-4 rounded-[12px] border border-line bg-paper p-4 text-sm">{readableError(q.error, NOTICE_LINK_PROBLEM)}</p>}
         {!q.error && !d && <p className="mt-4 text-sm">Loading…</p>}
         {d && <>
@@ -53,17 +53,17 @@ function NoticePage() {
           <div className="mt-[18px]"><NoticeBody paragraphs={COLLECTION_NOTICE_PARAGRAPHS} /></div>
           {d.state === "expired" && !done && <p role="alert" className="mt-4 rounded-[12px] bg-pink p-4 text-sm font-bold">This link has expired. Ask your business owner or the office to send a new one.</p>}
           {d.state !== "expired" && <section className="mt-[22px]" data-esc-ack>
-            <h2 className="font-display text-[15px] font-semibold">{P5.yourInstallers}</h2>
+            <h2 className="font-display text-[15px] font-semibold">{P5.link.yours}</h2>
             <ul><NoticeTickRow name={d.name} text={COLLECTION_NOTICE_ACK_TEXT} on={d.state === "acknowledged" || !!done || ticked} canTick={d.state === "open" && !done} disabled={busy} onChange={setTicked} acknowledgedAt={d.state === "acknowledged" ? d.acknowledgedAt ?? null : done} /></ul>
             {(d.state === "acknowledged" || done) && <p role="status" className="mt-3 text-sm font-bold text-hiv-green">Thank you — acknowledged{doneNote}. Nothing more to do.</p>}
             {d.state === "open" && !done && <>
               <label className="mt-3 block text-sm font-semibold">Type your full name<Input className="mt-1 h-12" value={name} onChange={(e) => setName(e.target.value)} placeholder={d.name} autoComplete="name" disabled={busy} /></label>
-              <p className="mt-3 text-[13px] leading-relaxed text-sub">{P5.note}<b>{P5.noteTeam}</b>{P5.noteEnd}</p>
+              <p className="mt-3 text-[13px] leading-relaxed text-sub">{P5.link.note}</p>
               <Button className="mt-[18px] h-12 w-full" disabled={!ticked || name.trim().length < 2 || busy} onClick={async () => {
                 setBusy(true); setErr(null);
                 try { const r = await ack({ data: { token, ticked, typedName: name } }); setDone(r.at); setDoneNote(r.email.status === "sent" ? ". A copy has been emailed to you" : ""); }
                 catch (e) { setErr(readableError(e, "Your acknowledgement wasn't saved. Check your connection and try again.")); } finally { setBusy(false); }
-              }}>{busy ? P5.saving : P5.button}</Button>
+              }}>{busy ? P5.saving : P5.link.button}</Button>
               {err && <p role="alert" className="mt-2 text-sm font-bold text-rose">{err}</p>}
             </>}
           </section>}
