@@ -366,7 +366,7 @@ async function textWaitReason(row: ChaseRow, c: ChaseContact, type: "electrician
   if (!c.electrician) return "no_electrician";
   if (row.source === "qa_test" || c.electrician.test) return null;
   const { SMS_MESSAGE_TYPES } = await import("./sms.core");
-  return SMS_MESSAGE_TYPES[type].wordingApproved === false ? "wording_not_approved" : null;
+  return !SMS_MESSAGE_TYPES[type].wordingApproved ? "wording_not_approved" : null;
 }
 /** Why the installer office email can't go yet (same order as emailInstallerOffice: TEST partner → TEST job → wording → email). */
 function emailWaitReason(row: ChaseRow, c: ChaseContact, approved: boolean): import("./certificate-chase.core").ChaseWaitingReason | null {

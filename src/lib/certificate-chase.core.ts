@@ -88,7 +88,7 @@ export const upgradesDayLinkText = (i: { first: string | null; address: string; 
 export const certificateChaseText = (i: { first: string | null; address: string; url: string }) =>
   `Hi ${i.first?.trim() || "there"}, we still need the Certificate of Electrical Safety for ${i.address}. Add it here: ${i.url}`;
 /** Installer office email, 2 business days with no upgrades day. HELD. */
-export const UPGRADES_DAY_OFFICE_EMAIL_APPROVED: boolean = false;
+export const UPGRADES_DAY_OFFICE_EMAIL_APPROVED: boolean = true; // Jo approved 4 Nov 2026
 export function upgradesDayOfficeEmail(i: { address: string; electrician: string | null; jobUrl: string }): { subject: string; text: string } {
   const who = i.electrician?.trim() || "The electrician";
   return {

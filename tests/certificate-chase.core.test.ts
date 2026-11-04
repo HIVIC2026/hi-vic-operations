@@ -66,16 +66,16 @@ describe("certificateChaseAction", () => {
 });
 
 describe("held wording", () => {
-  test("all three new messages are held until Jo approves them", () => {
+  test("all three new messages are approved (Jo, 4 Nov 2026) — one gate per message", () => {
     // Final fix wave item 2: ONE gate per text — the SMS type's wordingApproved (the documentation-only constants are gone).
     expect("UPGRADES_DAY_LINK_TEXT_APPROVED" in chaseCore).toBe(false);
     expect("CERTIFICATE_CHASE_TEXT_APPROVED" in chaseCore).toBe(false);
-    expect(UPGRADES_DAY_OFFICE_EMAIL_APPROVED).toBe(false);
-    expect(SMS_MESSAGE_TYPES.electrician_certificate_chase).toMatchObject({ audience: "partner", wordingApproved: false, quietHours: true });
+    expect(UPGRADES_DAY_OFFICE_EMAIL_APPROVED).toBe(true);
+    expect(SMS_MESSAGE_TYPES.electrician_certificate_chase).toMatchObject({ audience: "partner", wordingApproved: true, quietHours: true });
     expect(SMS_FRESHNESS.electrician_certificate_chase).toEqual({ kind: "window" });
-    expect(SMS_MESSAGE_TYPES.electrician_upgrades_day_link).toMatchObject({ audience: "partner", wordingApproved: false, quietHours: true });
+    expect(SMS_MESSAGE_TYPES.electrician_upgrades_day_link).toMatchObject({ audience: "partner", wordingApproved: true, quietHours: true });
     expect(SMS_FRESHNESS.electrician_upgrades_day_link).toEqual({ kind: "window" });
-    expect(SMS_MESSAGE_TYPES.electrician_certificate_link.wordingApproved).toBe(false);
+    expect(SMS_MESSAGE_TYPES.electrician_certificate_link.wordingApproved).toBe(true);
   });
   test("texts are short and plain", () => {
     expect(upgradesDayLinkText({ first: "Sam", address: "1 Example St, Clayton", url: "https://x/e/t" })).toBe("Hi Sam, the upgrades day for 1 Example St, Clayton isn't booked yet. Add it here: https://x/e/t");
