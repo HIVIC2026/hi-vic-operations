@@ -177,15 +177,17 @@ export async function recordEscRegistryUpdate(p: { notificationId: string; refer
   await logEvent(n.job_id, p.actorId, "esc_notification_updated", `ESC notification updated in the VEU Registry (same ID ${patch.submission_reference}, at ${p.updatedAt}): ${patch.response.registry_update.changed.join(", ")}`, { notification_id: n.id, previous_notification_id: prevRef.id, ...patch.response.registry_update }, { internal: true });
 }
 
-/** First recorded delivery of the CURRENT signed PIESA copy to the owner and to the installer (null = none recorded).
- *  The one reader for Installation complete (installReadiness) and the day-before pre-start check (decision 395). */
-export async function piesaCopyDeliveries(jobId: string): Promise<{ owner: string | null; installer: string | null }> {
-  const { data: cur, error } = await admin.from("piesa_records").select("id").eq("job_id", jobId).eq("is_current", true).maybeSingle();
+/** EVERY recorded delivery time (ascending) of the CURRENT signed PIESA copy to the owner and to the installer, plus the
+ *  Part C signature time when the current record is a post-rectification one (Part 9 Task 5; the pure rule decides which
+ *  copy counts). The one reader for Installation complete (installReadiness) and the day-before pre-start check (decision 395). */
+export async function piesaCopyDeliveries(jobId: string): Promise<{ owner: string[]; installer: string[]; partCSignedAt: string | null }> {
+  const { data: cur, error } = await admin.from("piesa_records").select("id, kind, section_c_signed_at").eq("job_id", jobId).eq("is_current", true).maybeSingle();
   if (error) throw new Error(`Could not read the PIESA record: ${error.message}`);
   const { data: dels, error: de } = cur ? await admin.from("piesa_deliveries").select("recipient, delivered_at").eq("piesa_record_id", cur.id) : { data: [] as { recipient: string; delivered_at: string }[], error: null };
   if (de) throw new Error(`Could not read the PIESA copy deliveries: ${de.message}`);
-  const first = (r: string) => (dels ?? []).filter((d) => d.recipient === r).map((d) => d.delivered_at).sort()[0] ?? null;
-  return { owner: first("owner"), installer: first("installer") };
+  const all = (r: string) => (dels ?? []).filter((d) => d.recipient === r && typeof d.delivered_at === "string").map((d) => d.delivered_at).sort();
+  const c = cur as { kind?: string | null; section_c_signed_at?: string | null } | null;
+  return { owner: all("owner"), installer: all("installer"), partCSignedAt: c && c.kind !== "initial" ? c.section_c_signed_at ?? null : null };
 }
 
 export async function installReadiness(jobId: string) {
@@ -193,9 +195,10 @@ export async function installReadiness(jobId: string) {
   const { data: c } = await admin.from("owner_esc_consents").select("status, scheduled_start, owner_signed_at, ap_signed_at").eq("job_id", jobId).not("status", "in", "(stale,cancelled)").order("created_at", { ascending: false }).limit(1).maybeSingle();
   const { data: n } = await admin.from("esc_notifications").select("status, sent_at, submission_reference, scheduled_start").eq("job_id", jobId).neq("status", "cancelled").order("created_at", { ascending: false }).limit(1).maybeSingle();
   const piesa = await piesaStatus(jobId);
+  const dels = await piesaCopyDeliveries(jobId);
   return readyToInstall({
     scheduledStart: b?.scheduled_start ?? null, consent: c ?? null, notification: n ?? null,
-    deliveries: await piesaCopyDeliveries(jobId),
+    deliveries: dels, partCSignedAt: dels.partCSignedAt,
     piesa: piesa ? { date: piesa.piesa_date ?? null, deadline: piesa.install_deadline ?? null, outcome: piesa.piesa_outcome ?? null } : null,
   });
 }

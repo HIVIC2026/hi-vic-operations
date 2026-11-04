@@ -284,21 +284,30 @@ export type ReadinessInput = {
   scheduledStart: string | null;
   consent: ConsentRecord;
   notification: { status: string; sent_at: string | null; submission_reference: string | null; scheduled_start: string } | null;
-  deliveries: { owner: string | null; installer: string | null };
+  deliveries: PiesaCopyDeliveries;
   piesa: { date: string | null; deadline: string | null; outcome: string | null } | null;
+  /** Part 9 Task 5: when Part C was signed (upgrades done); undefined/null = no Part C on the job (older callers). */
+  partCSignedAt?: string | null;
 };
 export type Readiness = { ready: boolean; blockers: string[]; dueBy: string | null };
 
 /** Signed PIESA copies must have reached the owner AND the installer at least 24h before the start (the copies go
  *  automatically; a missing or late delivery means that send failed). ONE rule for readyToInstall (Installation complete)
  *  and the day-before pre-start check (decision 395), so both places say the same thing. */
-export function piesaCopyDeliveryBlockers(scheduledStart: string, deliveries: { owner: string | null; installer: string | null }): string[] {
+export type PiesaCopyDeliveries = { owner: string | string[] | null; installer: string | string[] | null };
+export function piesaCopyDeliveryBlockers(scheduledStart: string, deliveries: PiesaCopyDeliveries, opts?: { partCSignedAt?: string | null }): string[] {
   const dueT = new Date(escDueBy(scheduledStart)).getTime();
-  const at = (s: string | null) => (s ? new Date(s).getTime() : Infinity);
+  const times = (s: string | string[] | null) => (s == null ? [] : Array.isArray(s) ? s : [s]).map((t) => new Date(t).getTime()).filter(Number.isFinite);
   const fmt = new Date(dueT).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" });
+  // Part 9 Task 5: once Part C is signed (upgrades done), only a copy delivered at or after that signature counts — the
+  // owner and installer must hold the UPDATED PIESA 24h before the start. Unparseable Part C time = not signed (older rows).
+  const partCT = opts?.partCSignedAt ? Date.parse(opts.partCSignedAt) : NaN;
   const b: string[] = [];
-  if (at(deliveries.owner) > dueT) b.push(`Signed PIESA copy delivery to owner must be recorded by ${fmt}`);
-  if (at(deliveries.installer) > dueT) b.push(`Signed PIESA copy delivery to installer must be recorded by ${fmt}`);
+  for (const r of ["owner", "installer"] as const) {
+    const ts = times(deliveries[r]);
+    if (!ts.some((t) => t <= dueT)) b.push(`Signed PIESA copy delivery to ${r} must be recorded by ${fmt}`);
+    else if (Number.isFinite(partCT) && !ts.some((t) => t >= partCT && t <= dueT)) b.push(`Updated PIESA (with Part C) not delivered to the ${r} by ${fmt}`);
+  }
   return b;
 }
 
@@ -320,7 +329,7 @@ export function readyToInstall(i: ReadinessInput): Readiness {
     const done = i.consent ? consentCompletedAt(i.consent) : null;
     if (!done || at(n.sent_at) < at(done)) b.push("ESC notification was sent before valid owner consent was obtained – re-notify");
   }
-  b.push(...piesaCopyDeliveryBlockers(i.scheduledStart, i.deliveries));
+  b.push(...piesaCopyDeliveryBlockers(i.scheduledStart, i.deliveries, { partCSignedAt: i.partCSignedAt ?? null }));
   if (!i.piesa?.date || i.piesa.outcome !== "pass") b.push("A current passing PIESA is required");
   else if (i.piesa.deadline && i.scheduledStart.slice(0, 10) > i.piesa.deadline) b.push(`Installation start is after the PIESA 30-day deadline (${i.piesa.deadline})`);
   return { ready: b.length === 0, blockers: b, dueBy: due };

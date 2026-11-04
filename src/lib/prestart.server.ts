@@ -18,7 +18,7 @@ export async function leadInstallerCert(jobId: string): Promise<LeadCert & { ema
   const {data:selected}=await admin.from('workflow_events').select('details').eq('job_id',jobId).eq('event_type','piisa_crew_selected').order('created_at',{ascending:false}).limit(1).maybeSingle();
   const selection=(selected?.details as {selection?:{lead?:unknown}}|null)?.selection;
   const selectedWorkerId=typeof selection?.lead==='string'?selection.lead:null;
-  let workerQuery=admin.from("partner_workers").select("id, email, full_legal_name, mobile, business_id, trade_role, removed_at, certification").eq("business_id", a.business_id ?? "").is("removed_at", null);
+  let workerQuery=admin.from("partner_workers").select("id, email, full_legal_name, mobile, business_id, trade_role, removed_at, certification, esc_registered").eq("business_id", a.business_id ?? "").is("removed_at", null);
   workerQuery=selectedWorkerId?workerQuery.eq('id',selectedWorkerId):workerQuery.eq('profile_id',a.user_id);
   const {data:w}=await workerQuery.limit(1).maybeSingle();
   if (!w) return none;
@@ -29,9 +29,11 @@ export async function leadInstallerCert(jobId: string): Promise<LeadCert & { ema
   const whiteCard = (await import("./worker-compliance.core")).whiteCardState(w as { trade_role: string; certification: unknown });
   const { data: certs } = await admin.from("partner_worker_certifications").select("id, status, recorded_at, worker_id, worker_email, certificate_number").or(email ? `worker_id.eq.${w.id},worker_email.eq.${email}` : `worker_id.eq.${w.id}`).order("recorded_at", { ascending: false }).limit(1);
   const c = certs?.[0];
-  if (!c) return { found: true, status: null, level: null, expiresOn: null, name: w.full_legal_name, email, certificateNumber: null, mobile: w.mobile ?? null, noticeAcknowledged, whiteCard };
+  // Part 9 Task 5: ESC registration is the office-audited flag (drizzle 0184); anything but true = not registered.
+  const escRegistered = (w as { esc_registered?: unknown }).esc_registered === true;
+  if (!c) return { found: true, status: null, level: null, expiresOn: null, name: w.full_legal_name, email, certificateNumber: null, mobile: w.mobile ?? null, noticeAcknowledged, whiteCard, escRegistered };
   const { data: lv } = await admin.from("worker_certification_levels").select("level, expires_on").eq("certification_id", c.id).order("recorded_at", { ascending: false }).limit(1).maybeSingle();
-  return { found: true, status: c.status, level: lv?.level ?? null, expiresOn: lv?.expires_on ?? null, name: w.full_legal_name, email, certificateNumber: c.certificate_number ?? null, mobile: w.mobile ?? null, noticeAcknowledged, whiteCard };
+  return { found: true, status: c.status, level: lv?.level ?? null, expiresOn: lv?.expires_on ?? null, name: w.full_legal_name, email, certificateNumber: c.certificate_number ?? null, mobile: w.mobile ?? null, noticeAcknowledged, whiteCard, escRegistered };
 }
 
 /** Current notice (not stale/cancelled) and the latest earlier notice that was actually sent and NOT withdrawn in the Registry. */
@@ -78,9 +80,26 @@ export async function prestartFacts(jobId: string, start: string) {
     installDepositBlocker: await installDepositBlockerFor(jobId, start),
     // Decision 395: the PIESA copies (owner + installer, 24h before) and the owner's Gate C receipt — the same readers and
     // rules Installation complete uses (esc.server installReadiness / owner-gates), so both places agree.
-    piesaCopyBlockers: (await import("./esc.core")).piesaCopyDeliveryBlockers(start, await (await import("./esc.server")).piesaCopyDeliveries(jobId)),
+    // Part 9 Task 5: after Part C only a copy delivered at/after its signature counts (clearanceFacts sectionCSignedAt, the same column the reader exposes).
+    piesaCopyBlockers: (await import("./esc.core")).piesaCopyDeliveryBlockers(start, await (await import("./esc.server")).piesaCopyDeliveries(jobId), { partCSignedAt: cf.sectionCSignedAt ?? null }),
     piesaCopyReceiptBlocker: null, // Retired owner receipt; recorded PIESA delivery remains independently checked.
+    // Part 9 Task 5: electrician at the install (when the PIESA asked for it), life support plan on file. Read errors throw: the check is not recorded and the lock stays closed.
+    electricianAttendance: await electricianAttendanceFor(jobId, start),
+    lifeSupportPlanMissing: await (await import("./job-records.server")).lifeSupportPlanMissing(jobId),
   };
+}
+
+/** Part 9 Task 5: does the stored PIESA need the electrician at the start of the install, and have they confirmed for the
+ *  booking at THIS start? Never asked for this booking (or no booking at this start) = waiting. */
+export async function electricianAttendanceFor(jobId: string, start: string): Promise<{ required: boolean; state: "confirmed" | "declined" | "waiting" }> {
+  const att = await import("./install-attendance.server");
+  const required = await att.attendanceRequiredFor(jobId);
+  if (!required) return { required: false, state: "waiting" };
+  const { currentInstallBooking } = await import("./install-booking.server");
+  const booking = await currentInstallBooking(jobId);
+  const bookingId = booking && Date.parse(booking.scheduled_start) === Date.parse(start) ? booking.id : null;
+  const state = (await import("./install-attendance.core")).attendanceState(await att.attendanceEvents(jobId), bookingId);
+  return { required: true, state: state?.state ?? "waiting" };
 }
 
 /** "Install deposit not paid" when the booking for this start is still provisional (or past its hold) — read from the

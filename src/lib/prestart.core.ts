@@ -83,7 +83,8 @@ export function prestartRunAt(startIso: string): string {
 
 /** `noticeAcknowledged`: ESC collection notice (decision 130); false = not acknowledged, blocks the start. Undefined = not loaded (older callers). */
 /** `whiteCard`: decision 319 White Card state of the lead (worker-compliance.core); undefined = not loaded (older callers, never blocks). */
-export type LeadCert = { found: boolean; status: string | null; level: string | null; expiresOn: string | null; name: string | null; noticeAcknowledged?: boolean | null; whiteCard?: WhiteCardState | null };
+/** `escRegistered`: Part 9 Task 5 — the Lead Installer is registered with the ESC (partner_workers.esc_registered, office-audited); false blocks; undefined/null = not loaded (older callers, never blocks). */
+export type LeadCert = { found: boolean; status: string | null; level: string | null; expiresOn: string | null; name: string | null; noticeAcknowledged?: boolean | null; whiteCard?: WhiteCardState | null; escRegistered?: boolean | null };
 export type PrestartFacts = {
   start: string;
   clearance: { cleared: boolean; blocker: string | null };
@@ -109,7 +110,17 @@ export type PrestartFacts = {
   /** Decision 395: the owner has not ticked "I have received it" for their safety check copy (Gate C piesa_copy_receipt,
    *  owner-gates.core piesaCopyReceiptBlocker); null = ticked; undefined = not loaded (older callers). */
   piesaCopyReceiptBlocker?: string | null | undefined;
+  /** Part 9 Task 5: the PIESA asked for the electrician at the start of the install (install-attendance.core
+   *  attendanceRequired) and their answer for THIS booking (attendanceState; never asked = waiting). null/undefined = not
+   *  loaded or not needed (older callers, never blocks). */
+  electricianAttendance?: { required: boolean; state: "confirmed" | "declined" | "waiting" } | null | undefined;
+  /** Part 9 Task 5: life support at the home and no written consent / medical plan on file (job-records.server
+   *  lifeSupportPlanMissing, which counts the electrician's PIESA photo). undefined = not loaded (older callers). */
+  lifeSupportPlanMissing?: boolean | undefined;
 };
+export const LEAD_NOT_ESC_REGISTERED = (name: string | null) => `Lead Installer${name ? ` ${name}` : ""} is not registered with the ESC yet.`;
+export const ELECTRICIAN_NOT_CONFIRMED = "The PIESA needs an electrician at the install and they haven't confirmed.";
+export const LIFE_SUPPORT_PLAN_MISSING = "Life support at this home: the written consent or medical plan isn't on file.";
 
 /** Every failed pre-start condition, in plain words. Empty = cleared to start. */
 export function prestartFailures(f: PrestartFacts): string[] {
@@ -137,6 +148,10 @@ export function prestartFailures(f: PrestartFacts): string[] {
   if (f.installDepositBlocker) out.push(f.installDepositBlocker);
   for (const b of f.piesaCopyBlockers ?? []) out.push(b);
   if (f.piesaCopyReceiptBlocker) out.push(f.piesaCopyReceiptBlocker);
+  // Part 9 Task 5: ESC registration (every job), the electrician at the install when the PIESA needs them, life support plan.
+  if (f.lead.found && f.lead.escRegistered === false) out.push(LEAD_NOT_ESC_REGISTERED(f.lead.name));
+  if (f.electricianAttendance?.required && f.electricianAttendance.state !== "confirmed") out.push(ELECTRICIAN_NOT_CONFIRMED);
+  if (f.lifeSupportPlanMissing) out.push(LIFE_SUPPORT_PLAN_MISSING);
   return out;
 }
 
