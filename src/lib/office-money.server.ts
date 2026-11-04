@@ -2,6 +2,7 @@
 // Server-only; every caller is an admin-checked server function in office-money.functions.ts. Read-only except
 // `setVeecSpotPrice` (the ONE place the VEEC spot price is entered, audited). TEST (qa_test) and deleted jobs never count.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { electricianBillsUpgrades } from "./upgrades-billing.core";
 import { melbourneMonthStart, melbourneToday } from "./melbourne-time.core";
 import { installerPayExFor, jobMargin, marginTotal, veecValueReceived, type JobMargin } from "./job-margin.core";
 import { groupPayouts, invoiceRowState, stepsLine, veecRegistryLabel, type PayoutLine } from "./office-money.core";
@@ -218,7 +219,8 @@ export async function moneyPayouts(testJobIds?: string[]) {
         const biz = v?.business_id ?? elec.business_id;
         lines.push({ jobId: id, jobNumber: j.job_number, businessId: biz, business: bizName.get(biz) ?? (biz === elec.business_id ? name(elec) : "Not assigned"), kind: "assessment", amountEx: piesaExFor(id, biz), dueAt: null, paidAt: paidVisit(v), ...(v ? { visitId: v.id } : {}) });
       }
-      if (quotes.some((q) => q.job_id === id && q.kind === "rectification") && (atFinal || visited("rectification"))) lines.push({ jobId: id, jobNumber: j.job_number, businessId: elec.business_id, business: name(elec), kind: "rectification", amountEx: costOf(id, "rectification"), dueAt: null, paidAt: paidFor("rectification") });
+      // G6 S8 (Jo 4 Nov 2026 "WE DON'T PAY UPGRADES"): the electrician bills the upgrades (always, since 2 Nov) — no line.
+      if (!electricianBillsUpgrades(id) && quotes.some((q) => q.job_id === id && q.kind === "rectification") && (atFinal || visited("rectification"))) lines.push({ jobId: id, jobNumber: j.job_number, businessId: elec.business_id, business: name(elec), kind: "rectification", amountEx: costOf(id, "rectification"), dueAt: null, paidAt: paidFor("rectification") });
     }
   }
   // Decision 318: no payout is payable until the matching Mitti form is Complete and its evidence checks pass.

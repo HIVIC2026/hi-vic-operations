@@ -626,7 +626,9 @@ export async function confirmHivicReadyCheckPricing(jobId: string, userId: strin
 /** `only` (speed, Task 11): just this job's installation rows, for the job page — the same rows the full list gives for it
  *  (each installation row depends only on its own job's facts), without reading every job of the business. */
 async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean, only?: { jobId: string }) {
-  const mine = kind === "installer" ? ["ready_check", "installation"] : ["assessment", "rectification"];
+  // G6 S8 (Jo 4 Nov 2026 "WE DON'T PAY UPGRADES"): the electrician bills the upgrades themselves — no Fixes pay row.
+  const { electricianBillsUpgrades } = await import("./upgrades-billing.core");
+  const mine = kind === "installer" ? ["ready_check", "installation"] : electricianBillsUpgrades() ? ["assessment"] : ["assessment", "rectification"];
   // Night run 25 Oct 2026: the safety check booking stays "confirmed" after the PIESA (only the fixes / install visits are
   // marked completed), so the electrician's Money showed the Fixes row only. A confirmed safety check counts as done once
   // the job's PIESA (A3) Mitti form is Complete (`assessments.mitti_completed`, the same fact the payout gate reads).

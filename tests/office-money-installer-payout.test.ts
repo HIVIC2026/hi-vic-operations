@@ -103,6 +103,20 @@ describe("office installer payout date = installer's payState (audit F19)", () =
     const r = await moneyPayouts();
     expect(r.due[0]!.dueAt).toBe(day7(AP));
   });
+  // G6 S8 (final Part 9 review; Jo 4 Nov 2026 "WE DON'T PAY UPGRADES"): electricians bill the upgrades themselves
+  // (upgrades-billing.core electricianBillsUpgrades, always true), so no "Electrical fixes" payout line exists — even on an
+  // older job that still holds an accepted upgrades quote and a completed upgrades visit.
+  test("S8: an accepted upgrades (rectification) quote + completed upgrades visit never makes an Electrical fixes payout line", async () => {
+    seed("hivic_sourced", null);
+    tables["job_assignments"]!.push({ job_id: "j1", business_id: "e1", role: "electrician", active: true, businesses: { name: "Volt Co", trading_name: null } });
+    tables["quotes"]!.push({ id: "q2", job_id: "j1", kind: "rectification", status: "accepted" });
+    tables["quote_internals"]!.push({ quote_id: "q2", cost_ex_gst: 400 });
+    tables["bookings"] = [{ id: "bk-r", job_id: "j1", kind: "rectification", status: "completed", business_id: "e1" }];
+    const r = await moneyPayouts();
+    const kinds = [...r.due.flatMap((g) => g.jobs.map((j) => j.kind)), ...r.paid.flatMap((g) => g.jobs.map((j) => j.kind)), ...r.held.map((h) => h.kind)].sort();
+    expect(kinds).not.toContain("rectification");
+    expect(kinds).toEqual(["assessment", "installation"]); // the safety check and the install only
+  });
   test("ownerPaidInFullAt: every invoice fully paid → latest paid time; otherwise null", () => {
     expect(ownerPaidInFullAt([])).toBeNull();
     expect(ownerPaidInFullAt([{ status: "fully_paid", balance_paid_at: OWNER_PAID }, { status: "deposit_paid", balance_paid_at: null }])).toBeNull();

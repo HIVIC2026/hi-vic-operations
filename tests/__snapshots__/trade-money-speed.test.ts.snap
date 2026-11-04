@@ -32,19 +32,17 @@ exports[`parity: same value as before, field for field tradeMoney, tradeMoneyExt
     "job electrician 3": {
       "ok": {
         "accountEnding": "7766",
-        "amount": 220,
+        "amount": null,
         "apApprovedAt": null,
         "areaM2": null,
-        "channel": "installer_sourced",
+        "channel": null,
         "crew": [],
-        "doneAt": "2026-10-25T03:00:00.000Z",
-        "found": true,
-        "held": [
-          "Mitti electrical fixes form (A4) not marked Complete",
-        ],
+        "doneAt": null,
+        "found": false,
+        "held": [],
         "installerSignedAt": null,
         "jobId": "00000000-0000-4000-8000-000000000003",
-        "jobNumber": "HV-1003",
+        "jobNumber": null,
         "ownerPaidInFullAt": null,
         "ownerSignedAt": null,
         "product": null,
@@ -52,7 +50,7 @@ exports[`parity: same value as before, field for field tradeMoney, tradeMoneyExt
         "state": {
           "kind": "checking",
         },
-        "suburb": "Suburb3",
+        "suburb": null,
       },
     },
     "job electrician staff 1": {
@@ -105,6 +103,7 @@ exports[`parity: same value as before, field for field tradeMoney, tradeMoneyExt
         "found": true,
         "held": [
           "Install day form: Sync the current A5 Install day form — its ruler photos have not been checked yet",
+          "No GO for this install",
           "Waiting for Final check (AP approval) — installer pay falls due 7 days after it",
         ],
         "installerSignedAt": null,
@@ -181,6 +180,7 @@ exports[`parity: same value as before, field for field tradeMoney, tradeMoneyExt
             "doneAt": "2026-10-27T03:00:00.000Z",
             "held": [
               "Install day form: Sync the current A5 Install day form — its ruler photos have not been checked yet",
+              "No GO for this install",
               "Waiting for Final check (AP approval) — installer pay falls due 7 days after it",
             ],
             "jobId": "00000000-0000-4000-8000-000000000002",
@@ -508,19 +508,17 @@ exports[`parity: same value as before, field for field tradeMoney, tradeMoneyExt
     "job electrician 3": {
       "ok": {
         "accountEnding": "7766",
-        "amount": 220,
+        "amount": null,
         "apApprovedAt": null,
         "areaM2": null,
-        "channel": "installer_sourced",
+        "channel": null,
         "crew": [],
-        "doneAt": "2026-10-25T03:00:00.000Z",
-        "found": true,
-        "held": [
-          "Mitti electrical fixes form (A4) not marked Complete",
-        ],
+        "doneAt": null,
+        "found": false,
+        "held": [],
         "installerSignedAt": null,
         "jobId": "00000000-0000-4000-8000-000000000003",
-        "jobNumber": "HV-1003",
+        "jobNumber": null,
         "ownerPaidInFullAt": null,
         "ownerSignedAt": null,
         "product": null,
@@ -528,7 +526,7 @@ exports[`parity: same value as before, field for field tradeMoney, tradeMoneyExt
         "state": {
           "kind": "checking",
         },
-        "suburb": "Suburb3",
+        "suburb": null,
       },
     },
     "job electrician staff 1": {
@@ -581,6 +579,7 @@ exports[`parity: same value as before, field for field tradeMoney, tradeMoneyExt
         "found": true,
         "held": [
           "Install day form: Sync the current A5 Install day form — its ruler photos have not been checked yet",
+          "No GO for this install",
           "Waiting for Final check (AP approval) — installer pay falls due 7 days after it",
         ],
         "installerSignedAt": null,
@@ -657,6 +656,7 @@ exports[`parity: same value as before, field for field tradeMoney, tradeMoneyExt
             "doneAt": "2026-10-27T03:00:00.000Z",
             "held": [
               "Install day form: Sync the current A5 Install day form — its ruler photos have not been checked yet",
+              "No GO for this install",
               "Waiting for Final check (AP approval) — installer pay falls due 7 days after it",
             ],
             "jobId": "00000000-0000-4000-8000-000000000002",

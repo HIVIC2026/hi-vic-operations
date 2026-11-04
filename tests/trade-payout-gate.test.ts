@@ -1,5 +1,6 @@
 // Decision 318 (Jo 25 Oct 2026): no complete Mitti form, no payment. Pure gate + presentation + source pins (no database).
 import { describe, expect, test } from "bun:test";
+import { UPGRADES_PAYOUT_REFUSED } from "../src/lib/upgrades-billing.core";
 import { readFileSync } from "node:fs";
 import { PAYOUT_FORM_NOT_COMPLETE, payoutHeldLine, tradePayoutBlockers, type TradePayoutFacts } from "../src/lib/trade-payout-gate.core";
 import { groupPayouts, type PayoutLine } from "../src/lib/office-money.core";
@@ -163,6 +164,18 @@ describe("Jo's approved wording, the same everywhere", () => {
     expect(fns.slice(at, fns.indexOf("payout_marked_paid", at))).toContain("payoutBlockersFor");
     expect(src("src/lib/office-money.server.ts")).toContain("tradePayoutBlockers(l.kind, f)");
     expect(src("src/lib/trade-view.server.ts")).toContain("tradePayoutBlockers(");
+  });
+  // G6 S8 (Jo 4 Nov 2026 "WE DON'T PAY UPGRADES"): the upgrades payout is gated on !electricianBillsUpgrades() — always true,
+  // so no Electrical fixes line on Payouts, no Fixes row on the electrician's Money, and Mark paid refuses the kind.
+  test("S8: the rectification payout line, the electrician's Fixes Money row and Mark paid are all gated on !electricianBillsUpgrades()", () => {
+    const money = src("src/lib/office-money.server.ts");
+    expect(money).toMatch(/!electricianBillsUpgrades\((id|j|jobId)?\)[^\n]*kind: "rectification"/);
+    const fns = src("src/lib/office.functions.ts");
+    const at = fns.indexOf("export const markPayoutPaid");
+    expect(fns.slice(at, fns.indexOf("payout_marked_paid", at))).toMatch(/data\.kind === "rectification" && electricianBillsUpgrades\(/);
+    expect(fns.slice(at, fns.indexOf("payout_marked_paid", at))).toContain("UPGRADES_PAYOUT_REFUSED"); expect(UPGRADES_PAYOUT_REFUSED).toContain("Home Insulation Victoria");
+    const tv = src("src/lib/trade-view.server.ts");
+    expect(tv).toMatch(/electricianBillsUpgrades\(\)[^\n]*"rectification"|"rectification"[^\n]*electricianBillsUpgrades\(\)/);
   });
   test("Mitti prompts: the decision-318 first-page pay line is gone from A3 / A4 (Jo 3 Nov 2026); the A5 keeps READ FIRST with its approved last sentence; the health check never requires the deleted item", () => {
     for (const f of ["docs/MITTI_INSTALL_FORM_FIX_PROMPT.md", "docs/MITTI_PIESA_CHATGPT_PROMPT.md", "docs/MITTI_PIESA_BUILD_PROMPT.md", "docs/MITTI_FIXES_FORM_PROMPT.md"]) {

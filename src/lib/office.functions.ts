@@ -112,6 +112,9 @@ export const markPayoutPaid = createServerFn({ method: "POST" }).middleware([req
   .handler(async ({ context, data }) => {
     await requireOfficeJob(context.supabase, data.jobId, context);
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    // G6 S8 (Jo 4 Nov 2026 "WE DON'T PAY UPGRADES"): the electrician bills the upgrades — never a Home Insulation Victoria payout.
+    const { electricianBillsUpgrades, UPGRADES_PAYOUT_REFUSED } = await import("./upgrades-billing.core");
+    if (data.kind === "rectification" && electricianBillsUpgrades(data.jobId)) throw new Error(UPGRADES_PAYOUT_REFUSED);
     if (data.kind === "assessment" || data.kind === "rectification") {
       const [{ data: j }, { data: qs }] = await Promise.all([
         admin.from("jobs").select("channel, electrician_choice").eq("id", data.jobId).single(),
