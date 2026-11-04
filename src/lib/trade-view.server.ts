@@ -1194,9 +1194,10 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
   // Decision 296: the owner's PIESA confirmation; decision 327: the electrician at the start of the install day. Read only once cleared.
   const piesaConfirmedP = early(clearanceP.then((cl) => cl.cleared ? piesaOwnerConfirmServer.ownerPiesaConfirmFacts(jobId).then((f) => (f ? !!f.confirmation : null)).catch(() => null) : null));
   const attendanceP = early(clearanceP.then((cl) => cl.cleared ? installerAttendanceView(jobId).catch(() => null) : null));
+  const beforePhotosP = early(jobP.then(async ({ data: j }) => c.kind === 'installer' && j?.channel === 'installer_sourced' && !j.installation_completed_at ? (await import('./install-before.server')).readInstallBeforePlan(jobId) : null));
   const [{ data: j }, { data: rcBook }, { data: inBook }, { data: m }, { data: a }, rebateSigned, quote, pay, form, clearance, mitti, payRows,
     { data: declinedEv }, { data: basicsDone }, { data: piesaBook }, { data: elecAsg }, { data: fixes }, { data: evEv }, { data: alloc }, { data: decl }, { data: finalAsg }, ownerReady, notes,
-    priceEntered, ownerPiesaConfirmed, electricianAttendance] = await Promise.all([
+    priceEntered, ownerPiesaConfirmed, electricianAttendance, beforePhotos] = await Promise.all([
     jobP,
     admin.from("bookings").select("scheduled_start, status").eq("job_id", jobId).eq("kind", "ready_check").neq("status", "cancelled").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     inBookP,
@@ -1225,6 +1226,7 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
     priceEnteredP,
     piesaConfirmedP,
     attendanceP,
+    beforePhotosP,
   ]);
   const qq = quote.quote as { sent_at?: string | null; accepted_at?: string | null } | null;
   const elecName = (elecAsg?.profiles as unknown as { full_name: string | null } | null)?.full_name ?? null;
@@ -1237,6 +1239,7 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
   const payRow = payRows[0] ?? null;
   return {
     jobNumber: j?.job_number ?? null, stage: j?.stage ?? null, channel: j?.channel ?? null, notes,
+    beforePhotos: beforePhotos?.line ?? null,
     readyCheck: { bookedAt: rcBook?.scheduled_start ?? null, done: rcBook?.status === "completed" },
     install: { bookedAt: inBook?.scheduled_start ?? null, recordedAt: j?.installation_completed_at ?? null, form, rebateSigned, formCompletedAt: decl?.signed_at ?? null, evidenceChecked: Array.isArray(evidenceBlockers) ? evidenceBlockers.length === 0 : false, crew, ownerReady },
     form: mitti.applies

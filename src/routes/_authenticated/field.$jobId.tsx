@@ -971,6 +971,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
         )}
       </ScreenHead>
 
+      {page?.beforePhotos && <p className="mb-3 text-sm text-ink">{page.beforePhotos}</p>}
       {page && next && (
         <NextPanel title={heldNext ?? next.title} sub={heldNext ? null : next.sub}>
           {next.items && next.items.length > 0 && (

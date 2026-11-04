@@ -731,8 +731,8 @@ export function contactAnswersFromEntries(entries: { label: string; value: strin
 }
 
 /** Verify the stored audit's exact identity, template and job before any reuse write or sync. */
-export function validateStoredMittiAudit(audit: Any, ctx: { storedAuditId: string; jobNumber: string; templateId?: string }) {
-  const p = parseAudit(audit);
+export function validateStoredMittiAudit(audit: Any, ctx: { storedAuditId: string; jobNumber: string; templateId?: string; installerSourced?: boolean }) {
+  const p = parseAudit(audit, { installerSourced: ctx.installerSourced });
   if (!p.auditId || p.auditId !== ctx.storedAuditId) throw new MittiError("Mitti returned a different audit or no verifiable audit ID for this job.");
   if (!sameMittiTemplateId(p.templateId, ctx.templateId ?? MITTI_TEMPLATE_ID)) throw new MittiError("This Mitti audit does not use the expected Home Insulation Victoria assessment template.");
   // A1 no longer has a Portal Job Number question (Jo 23 Oct): the stored audit ID match above is the link.
@@ -745,7 +745,7 @@ export function validateStoredMittiAudit(audit: Any, ctx: { storedAuditId: strin
 }
 
 /** Validate a fetched audit belongs to this job, then plan a safe (non-completing) sync. */
-export function planSync(audit: Any, ctx: { storedAuditId: string; jobNumber: string; assessmentStatus: string | null; templateId?: string }) {
+export function planSync(audit: Any, ctx: { storedAuditId: string; jobNumber: string; assessmentStatus: string | null; templateId?: string; installerSourced?: boolean }) {
   if (ctx.assessmentStatus === "complete") return { locked: true as const };
   const p = validateStoredMittiAudit(audit, ctx);
   return {
