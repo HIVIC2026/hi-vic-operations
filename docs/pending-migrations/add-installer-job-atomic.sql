@@ -10,7 +10,11 @@
 -- calling again with the same key returns that job with created = false and writes nothing.
 -- Payload (built by src/lib/add-installer-job.core.ts addInstallerJobPayload): request_key, business_id, user_id, source,
 -- owner{full_name,email,phone}, property{address_line,suburb,postcode}, consent{key,by,text,sha256},
--- electrician_choice{choice,usual_name,usual_licence,source}, lead_origin, visit_requested, flag_event{summary,details}|null.
+-- electrician_choice{choice,usual_name,usual_licence,source,worker_id?}, lead_origin, visit_requested, flag_event{summary,details}|null.
+-- Join ruling (4 Nov 2026): Add a job's electrician is the installer's OWN — the verified Team electrician they picked
+-- (choice 'usual' naming that worker, `worker_id` = their partner_workers row; `declared_not_verified` false). The job's
+-- electrician_choice is then 'preferred' (payer = the installer's own electrician, the value allocate_team_electrician
+-- writes); 'hivic' (Home Insulation Victoria arranges, 'hivic_organise') is kept only for older callers.
 -- Wording and columns match today's step-by-step save in src/lib/onsite-ready-check.server.ts (legacySequentialSave),
 -- including the same-business owner reuse while the old owners_email_uq index is still live
 -- (owners-email-not-unique.sql). Until this is applied the server keeps using that step-by-step save.
@@ -68,7 +72,7 @@ begin
       installer_quoted, next_action, electrician_choice)
     values (oid, pid, 'ready_check_ready_to_schedule', src, 'hivic', true, 'installer_sourced', biz,
       actor, 'onsite:' || k, 'installer', 'no', null,
-      'no', 'Ready Check form being set up in Mitti', 'hivic_organise')
+      'no', 'Ready Check form being set up in Mitti', case when ec->>'choice' = 'usual' then 'preferred' else 'hivic_organise' end)
     returning id, job_number into jid, jnum;
   insert into public.job_assignments (job_id, user_id, role, business_id, assigned_by, first_response_at)
     values (jid, actor, 'installer', biz, actor, t);
@@ -84,7 +88,7 @@ begin
       case when ec->>'choice' = 'usual'
         then 'Electrical safety check by the installer''s usual electrician' || coalesce(' (' || nullif(ec->>'usual_name', '') || ')', '')
         else 'Electrical safety check by Home Insulation Victoria''s electrician' end,
-      ec || jsonb_build_object('business_id', biz, 'declared_not_verified', true), true, et + interval '0 microseconds');
+      ec || jsonb_build_object('business_id', biz, 'declared_not_verified', nullif(ec->>'worker_id', '') is null), true, et + interval '0 microseconds');
   if fe is not null then
     insert into public.workflow_events (job_id, actor_id, event_type, summary, details, internal, created_at)
       values (jid, actor, 'duplicate_address_linked', fe->>'summary', coalesce(fe->'details', '{}'::jsonb), true, et + interval '1 microseconds');

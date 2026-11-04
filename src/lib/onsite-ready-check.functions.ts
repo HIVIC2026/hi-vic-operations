@@ -3,14 +3,14 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const uuid = z.string().uuid();
-const plan = z.object({ mode: z.enum(["mine", "hivic", "job_by_job"]), business_id: uuid.nullable().optional(), nomination_id: uuid.nullable().optional() }).nullable();
 
-/** Installer Add a job (Task 7, installer screens): basics + the consent tick naming the installer + the Team electrician for the PIESA. */
+/** Installer Add a job (Task 7, installer screens): basics + the consent tick naming the installer + the Team electrician for the PIESA.
+ *  Join ruling (4 Nov 2026): that Team electrician IS the installer's own electrician — the server derives the plan from the pick;
+ *  no electrician plan (and never Home Insulation Victoria's electrician) is taken from the phone. */
 export const startOnsiteReadyCheck = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({
     businessId: uuid,
     owner: z.object({ full_name: z.string().max(200), address_line: z.string().max(300), suburb: z.string().max(100), postcode: z.string().max(10), phone: z.string().max(40), email: z.string().max(200), contact_permission: z.boolean(), consent_by: z.enum(["owner", "installer"]).nullable().optional(), address_verified: z.boolean().optional(), address_typed: z.boolean().optional() }),
-    electrician: plan.optional(),
     /** Task 7: the business's Team electrician for the PIESA — required. */
     electricianWorkerId: uuid,
     /** A1: how the installer got this customer. */
@@ -20,7 +20,7 @@ export const startOnsiteReadyCheck = createServerFn({ method: "POST" }).middlewa
   }).parse(d))
   .handler(async ({ data, context }) => {
     const { startOnsiteReadyCheckFor } = await import("./onsite-ready-check.server");
-    return startOnsiteReadyCheckFor(context.userId, data.businessId, data.owner, (data.electrician ?? { mode: "hivic" }) as never, undefined, { electricianWorkerId: data.electricianWorkerId, leadOrigin: data.leadOrigin ?? null, requestKey: data.requestKey ?? null });
+    return startOnsiteReadyCheckFor(context.userId, data.businessId, data.owner, null, undefined, { electricianWorkerId: data.electricianWorkerId, leadOrigin: data.leadOrigin ?? null, requestKey: data.requestKey ?? null });
   });
 
 /** Task 7: what Add a job needs before it renders — the business name (for the consent line) and its Team electricians. Read-only. */

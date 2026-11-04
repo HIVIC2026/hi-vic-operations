@@ -115,6 +115,18 @@ describe("A6: add_installer_job — one transaction, keyed by the phone's reques
     const r = await call(p);
     expect((await db.query("select summary from workflow_events where job_id=$1 and event_type='installer_contact_permission'", [r.job_id])).rows[0]).toEqual({ summary: "Owner ticked contact and privacy consent on the installer's phone" });
     expect((await db.query("select summary from workflow_events where job_id=$1 and event_type='electrician_choice_set'", [r.job_id])).rows[0]).toEqual({ summary: electricianChoiceSummary(p.electrician_choice) });
+    // Join ruling (4 Nov 2026): "usual" = the installer's own electrician → the job's payer is their own (`preferred`).
+    expect((await db.query("select electrician_choice from jobs where id=$1", [r.job_id])).rows[0]).toEqual({ electrician_choice: "preferred" });
+  });
+  test("join ruling (4 Nov 2026): the Team electrician picked at Add a job is recorded as the usual electrician naming that worker, office-verified", async () => {
+    const { teamElectricianChoiceRecord } = await import("../src/lib/electrician-choice.core");
+    const worker = "50000000-0000-4000-8000-00000000e1ec";
+    const p = { ...payload("k6-team"), electrician_choice: teamElectricianChoiceRecord({ id: worker, name: "Will Casdorff", licence: "A12345" }) };
+    const r = await call(p);
+    expect((await db.query("select electrician_choice from jobs where id=$1", [r.job_id])).rows[0]).toEqual({ electrician_choice: "preferred" });
+    const ev = (await db.query<{ summary: string; details: Record<string, unknown> }>("select summary, details from workflow_events where job_id=$1 and event_type='electrician_choice_set'", [r.job_id])).rows[0]!;
+    expect(ev.summary).toBe("Electrical safety check by the installer's usual electrician (Will Casdorff)");
+    expect(ev.details).toEqual({ choice: "usual", usual_name: "Will Casdorff", usual_licence: "A12345", source: "add_job", worker_id: worker, business_id: BIZ, declared_not_verified: false });
   });
   test("Task 7: the consent record (Part 3 shape + the plan's event details) is merged into the consent row and the permission event", async () => {
     const { addJobConsentRecord } = await import("../src/lib/add-job-flow.core");

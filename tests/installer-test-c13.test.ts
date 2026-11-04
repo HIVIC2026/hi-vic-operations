@@ -9,7 +9,10 @@ test("installer-test C13 makes its jobs through the live Add a job path and chec
   // Jo 29 Oct re-review: same call as the Add a job screen (add-job-flow -> startOnsiteReadyCheck), offline Mitti stub like C15.
   expect(c13).toContain("os.startOnsiteReadyCheckFor(ownerId, BIZ, {");
   expect(c13).toContain('throw new Error("Mitti could not be reached. Try again shortly.");');
-  expect(c13).toContain('{ mode: "hivic" }, offline, { leadOrigin: "owner_contacted" }');
+  // Join ruling (4 Nov 2026): the Team electrician is the installer's own electrician — no HIV plan on an installer's job.
+  expect(c13).toContain('null, offline, { leadOrigin: "owner_contacted", electricianWorkerId }');
+  expect(c13).toContain("await testTeamElectrician()");
+  expect(c13).not.toContain('mode: "hivic"');
   expect(c13).not.toMatch(/createImportFor|confirmImportFor/);
   expect(c13).toContain("madeJobs.push(r.jobId);");
   expect(c13).toContain("rc.installerRcState(j1)");

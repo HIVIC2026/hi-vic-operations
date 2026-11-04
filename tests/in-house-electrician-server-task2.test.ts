@@ -49,7 +49,7 @@ test("C1: picker and Add-a-job choices allow a no-profile verified electrician; 
   const f = fixture(); f.worker.profile_id = null as unknown as string;
   const api = f.load();
   const choices = await api.teamElectricianChoices("b");
-  expect(choices).toEqual([{ id: "w", name: "Example Electrician", allowed: true, reason: null }]);
+  expect(choices).toEqual([{ id: "w", name: "Example Electrician", licence: "A123", allowed: true, reason: null }]); // licence: the Add a job choice record names it (join ruling)
   const picker = await api.electricianPicker("j", "owner");
   expect(picker.workers[0]).toMatchObject({ id: "w", allowed: true, reason: null, selected: true }); // fixture: latest event names "w"
   expect(await api.allocatedWorkerId("j")).toBe("w");

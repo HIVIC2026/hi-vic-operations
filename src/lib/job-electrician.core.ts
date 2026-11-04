@@ -20,13 +20,20 @@ export function existingElectricianInviteBlocker(x: { status: string; sentAt: st
   return null;
 }
 
-export type ElectricianPlan = { mode: "mine" | "hivic" | "job_by_job"; nomination_id?: string | null; business_id?: string | null };
+/** Join ruling (4 Nov 2026): on an installer's own job the electrician is one of their OWN — an approved REC business they
+ *  linked (`business_id`), an electrician they nominated (`nomination_id`), or (Add a job since Part 7) a verified
+ *  electrician on their Team (`worker_id`, with `business_id` = the installer's own business). Never Home Insulation
+ *  Victoria's. */
+export type ElectricianPlan = { mode: "mine" | "hivic" | "job_by_job"; nomination_id?: string | null; business_id?: string | null; worker_id?: string | null };
 
-/** "My electrician" needs a pick; the other choices never block. */
+/** "My electrician" needs a pick (a linked REC, a nomination or a Team electrician); any other arrangement is refused. */
 export function electricianPlanBlocker(p: ElectricianPlan | null | undefined): string | null {
   if (!p || p.mode !== "mine") return "Choose your electrician";
-  return p.business_id || p.nomination_id ? null : "Choose your electrician";
+  return p.business_id || p.nomination_id || p.worker_id ? null : "Choose your electrician";
 }
+
+/** Add a job (join ruling): the Team electrician the installer picked IS their own electrician — the plan it saves. */
+export const teamElectricianPlan = (businessId: string, workerId: string): ElectricianPlan => ({ mode: "mine", business_id: businessId, worker_id: workerId });
 
 /** The usual electrician is preselected: the Main one first, otherwise the first approved one. */
 export function usualElectrician<T extends { businessId?: string; primary?: boolean }>(approved: T[]): T | null {

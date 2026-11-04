@@ -64,10 +64,21 @@ export function addJobPickProblem(picked: string | null | undefined, list: Picka
   return list.some((e) => e.businessId === picked) ? null : NOT_ON_YOUR_LIST;
 }
 
-/** What the event stores: the choice, and the usual electrician's name/licence at the time (declared, not verified). */
-export type ElectricianChoiceRecord = { choice: ElectricianChoice; usual_name: string | null; usual_licence: string | null; source: "add_job" | "bulk_upload" | "default" | "installer_switch" };
+/** What the event stores: the choice, and the usual electrician's name/licence at the time (declared, not verified).
+ *  Join ruling (4 Nov 2026): Add a job records the Team electrician the installer picked as "usual" naming THAT worker —
+ *  `worker_id` is their `partner_workers` row (office-verified, so not "declared"). */
+export type ElectricianChoiceRecord = { choice: ElectricianChoice; usual_name: string | null; usual_licence: string | null; source: "add_job" | "bulk_upload" | "default" | "installer_switch"; worker_id?: string | null };
 export function electricianChoiceRecord(choice: ElectricianChoice, usual: UsualElectrician | null, source: ElectricianChoiceRecord["source"]): ElectricianChoiceRecord {
   return { choice, usual_name: choice === "usual" ? usual?.name ?? null : null, usual_licence: choice === "usual" ? usual?.licence ?? null : null, source };
+}
+/** The Team electrician picked at Add a job: "usual", naming that person. */
+export function teamElectricianChoiceRecord(worker: { id: string; name: string; licence?: string | null }, source: ElectricianChoiceRecord["source"] = "add_job"): ElectricianChoiceRecord {
+  return { choice: "usual", usual_name: worker.name, usual_licence: worker.licence?.trim() || null, source, worker_id: worker.id };
+}
+/** The Team worker a stored `electrician_choice_set` event names, or null (no worker / not a Team pick). */
+export function teamWorkerFromEvent(details: unknown): string | null {
+  const w = details && typeof details === "object" ? (details as Record<string, unknown>)["worker_id"] : null;
+  return typeof w === "string" && w ? w : null;
 }
 export const electricianChoiceSummary = (r: ElectricianChoiceRecord) => (r.choice === "usual" ? `Electrical safety check by the installer's usual electrician${r.usual_name ? ` (${r.usual_name})` : ""}` : "Electrical safety check by Home Insulation Victoria's electrician");
 

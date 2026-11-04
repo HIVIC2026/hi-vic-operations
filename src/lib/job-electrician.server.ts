@@ -17,6 +17,18 @@ export async function recordJobElectricianChoice(jobId: string, installerBusines
     await admin.from("jobs").update({ electrician_choice: "hivic_organise" }).eq("id", jobId);
     return { choice: "hivic_organise" as const };
   }
+  // Join ruling (4 Nov 2026): a verified Team electrician (Add a job) is the installer's own electrician — no nomination
+  // row (they are on the installer's own business, not a linked REC); the job's payer is "own" (`preferred`, the same
+  // value `allocate_team_electrician` writes) and the `electrician_choice_set` event names the worker.
+  if (plan.worker_id) {
+    if (plan.business_id && plan.business_id !== installerBusinessId) throw new WorkflowError("That electrician is not on your Team");
+    const { data: w, error: we } = await admin.from("partner_workers").select("id").eq("id", plan.worker_id).eq("business_id", installerBusinessId).eq("trade_role", "electrician").is("removed_at", null).maybeSingle();
+    if (we) throw new WorkflowError("We couldn't check your Team electrician. Please try again.");
+    if (!w) throw new WorkflowError("That electrician is not on your Team");
+    const { error: je } = await admin.from("jobs").update({ electrician_choice: "preferred" }).eq("id", jobId);
+    if (je) throw new WorkflowError(`The electrician couldn't be saved: ${je.message}`);
+    return { choice: "preferred" as const };
+  }
   if (plan.business_id) {
     const { data: rel } = await admin.from("partner_relationships").select("electrician_business_id").eq("installer_business_id", installerBusinessId).eq("electrician_business_id", plan.business_id).eq("active", true).maybeSingle();
     if (!rel) throw new WorkflowError("That electrician isn't one of your approved electricians.");

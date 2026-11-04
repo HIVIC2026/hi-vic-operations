@@ -11,6 +11,7 @@ import { fakeProviders, journeyAdmin, journeyDb, loadPendingFunctions, serverFnS
 // ---- fixed TEST data ----------------------------------------------------------------------------------------------
 const BIZ = "30000000-0000-4000-8000-0000000000a1", INST = "40000000-0000-4000-8000-0000000000a1";
 const REC = "30000000-0000-4000-8000-0000000000e1", ELEC = "40000000-0000-4000-8000-0000000000e1";
+const TEAM_ELEC = "50000000-0000-4000-8000-00000000e1ec"; // join ruling (4 Nov 2026): the installer's own Team electrician, picked at Add a job
 const OFFICE = "40000000-0000-4000-8000-0000000000f1";
 const TPL_A1 = "template_a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1", TPL_A2 = "template_a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2";
 const TPL_A3 = "template_a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3", TPL_A4 = "template_a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4", TPL_A5 = "template_a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5";
@@ -19,7 +20,7 @@ const TPL_A3 = "template_a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3a3", TPL_A4 = "template_a
 // owner's verified identity (owner-verify.server links by verified email) is never a trade's own login.
 const OWNER_EMAIL = "jolowexo@hotmail.com", TRADE_EMAIL = "jo@actpropertyinspections.com.au", OWNER_PHONE = "0477 511 901";
 
-for (const [k, v] of Object.entries({ MITTI_API_TOKEN: "test-mitti", LOVABLE_API_KEY: "test-lovable", RESEND_API_KEY: "test-resend", TWILIO_API_KEY: "test-twilio", TWILIO_FROM_NUMBER: "+61400000000", XERO_API_KEY_1: "test-xero", STRIPE_SECRET_KEY: "sk_test_journey", STRIPE_WEBHOOK_SECRET: "whsec_journey", STRIPE_PAYMENTS_ENABLED: "true" })) process.env[k] = v;
+for (const [k, v] of Object.entries({ MITTI_API_TOKEN: "test-mitti", LOVABLE_API_KEY: "test-lovable", RESEND_API_KEY: "test-resend", TWILIO_API_KEY: "test-twilio", TWILIO_FROM_NUMBER: "+61400000000", XERO_API_KEY: "test-xero", XERO_API_KEY_1: "test-xero", STRIPE_SECRET_KEY: "sk_test_journey", STRIPE_TEST_SECRET_KEY: "sk_test_journey", STRIPE_WEBHOOK_SECRET: "whsec_journey", STRIPE_TEST_WEBHOOK_SECRET: "whsec_journey", STRIPE_PAYMENTS_ENABLED: "true" })) process.env[k] = v;
 
 const tplItem = (item_id: string, label: string, type = "textsingle"): MittiItem => ({ item_id, label, type });
 const providers = fakeProviders({ mittiTemplates: {
@@ -38,6 +39,11 @@ await j.db.exec(readFileSync("drizzle/migrations/0183_date_free_esc_consent.sql"
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: admin }));
 mock.module("@tanstack/react-start", serverFnStandIn);
 mock.module("@/integrations/supabase/auth-middleware", () => ({ requireSupabaseAuth: {} }));
+// The running portal's persistent Mitti simulator (mitti-test-route.core: TEST people → `mitti_sim_audits`) is itself a
+// test double; this journey exercises the real Mitti HTTP boundary against the fake provider behind `fetch` instead, so
+// the TEST assignee is NOT re-routed here (the "sim_" id / stored-audit rules stay as they are).
+const realTestRoute = await import("../src/lib/mitti-test-route.core");
+mock.module("../src/lib/mitti-test-route.core", () => ({ ...realTestRoute, isTestMittiEmail: () => false, testMittiRoute: (method: string, path: string, body: unknown, stored?: (id: string) => boolean) => { const a = realTestRoute.auditIdOfPath(path); return a && (realTestRoute.isSimId(a) || stored?.(a)) ? `simulated audit ${a}` : null; } }));
 // Background work is awaited by the test (the deployed Worker keeps it alive with waitUntil).
 const pending: Promise<unknown>[] = [];
 mock.module("../src/lib/background.server", () => ({ requestContext: { getStore: () => undefined }, runAfterResponse: (task: () => Promise<unknown>) => { pending.push(task().catch((e: Error) => { backgroundErrors.push(e.message); })); return "wait_until"; } }));
@@ -50,6 +56,12 @@ await q(`insert into businesses (id, name, trading_name, abn, business_type, cap
 await q(`insert into profiles (id, full_name, email, phone) values ($1,'Ivy Installer',$2,'0477 511 901'), ($3,'Ollie Office','office@hivic-test.example',null)`, [INST, TRADE_EMAIL, OFFICE]);
 await q(`insert into business_members (business_id, user_id, member_role, active) values ($1,$2,'business_admin',true)`, [BIZ, INST]);
 await q(`insert into user_roles (user_id, role) values ($1,'installer'), ($2,'admin')`, [INST, OFFICE]);
+// Join ruling (4 Nov 2026): Add a job's electrician is a verified electrician on the installer's OWN Team (office-verified licence + REC).
+await q(`insert into partner_workers (id, business_id, trade_role, full_legal_name, email, mobile, licence_number, rec_number, licence_expires_on, licence_verified_at, account_status, approval_status, approved_at)
+  values ($1,$2,'electrician','Will Casdorff','will@journey.example','0477 511 901','A67890','REC-67890',$3,now(),'active','approved',now())`, [TEAM_ELEC, BIZ, new Date(Date.now() + 365 * 86_400_000).toISOString().slice(0, 10)]);
+// Jo 4 Nov 2026: the owner's PIESA line on an installer's own job = that installer's PIESA rate (rate card, ex GST): $317.27 ex = $349.00 inc.
+{ const [rc] = await q<{ id: string }>(`insert into rate_cards (business_id, kind, name, version, is_active, effective_from) values ($1,'installer','TEST Journey installer rates',1,true,current_date - 1) returning id`, [BIZ]);
+  await q(`insert into rate_card_items (rate_card_id, category, code, description, unit, unit_price_ex_gst, sort) values ($1,'electrical','PIESA','Pre Insulation Electrical Safety Assessment','flat',317.27,9)`, [rc!.id]); }
 await q(`insert into workflow_settings (id, mitti_ready_check_template_id, mitti_ready_check_priced_template_id, mitti_piesa_template_id, mitti_piisa_template_id, mitti_fixes_template_id, auto_send_mitti, customer_comms_enabled, safety_check_payment_inc_gst, payment_option_gate_enabled, ready_check_booking_enabled, piesa_install_window_days)
   values (1,$1,$2,$3,$4,$5,true,true,349,true,true,30)`, [TPL_A2, TPL_A1, TPL_A3, TPL_A5, TPL_A4]);
 await q(`insert into retail_estimator_settings (is_current, ap_management_inc_gst, piesa_assessment_inc_gst, indicative_veec_value, minimum_customer_copayment_inc_gst) values (true, 349, 349, 95, 200)`);
@@ -77,7 +89,7 @@ describe("A1 journey — step 0: harness", () => {
 describe("A1 step 1 — Add a job (decisions 34/115/282/289)", () => {
   test("basics + permission → one job, owner, property, consent, electrician choice, Mitti A1 form created once", async () => {
     const os = await import("../src/lib/onsite-ready-check.server");
-    const r = await os.startOnsiteReadyCheckFor(INST, BIZ, { full_name: "Helen Journey", address_line: "1 Journey Street", suburb: "Frankston", postcode: "3199", phone: OWNER_PHONE, email: OWNER_EMAIL, contact_permission: true, consent_by: "installer", address_verified: true } as never, { mode: "hivic" } as never, undefined, { leadOrigin: "owner_contacted" });
+    const r = await os.startOnsiteReadyCheckFor(INST, BIZ, { full_name: "Helen Journey", address_line: "1 Journey Street", suburb: "Frankston", postcode: "3199", phone: OWNER_PHONE, email: OWNER_EMAIL, contact_permission: true, consent_by: "installer", address_verified: true } as never, null, undefined, { leadOrigin: "owner_contacted", electricianWorkerId: TEAM_ELEC });
     JOB = r.jobId;
     await settle();
     expect(backgroundErrors).toEqual([]);
@@ -85,7 +97,9 @@ describe("A1 step 1 — Add a job (decisions 34/115/282/289)", () => {
     expect(job).toMatchObject({ channel: "installer_sourced", source: "qa_test", originating_installer_business_id: BIZ });
     expect(String(job!["job_number"])).toMatch(/^HV-\d+$/);
     expect(await q("select consent_status from owner_contact_consents where job_id=$1", [JOB])).toEqual([{ consent_status: "granted" }]);
-    expect((await events(JOB, "electrician_choice_set")).map((e) => e.details["choice"])).toEqual(["hivic"]);
+    // Join ruling: the Team electrician picked IS the installer's own electrician — recorded once, naming them; payer "own".
+    expect((await events(JOB, "electrician_choice_set")).map((e) => [e.details["choice"], e.details["worker_id"], e.details["usual_name"]])).toEqual([["usual", TEAM_ELEC, "Will Casdorff"]]);
+    expect(await q("select electrician_choice from jobs where id=$1", [JOB])).toEqual([{ electrician_choice: "preferred" }]);
     expect([...providers.mitti.audits.values()].map((a) => a.template_id)).toEqual([TPL_A1]);
     expect(await q("select external_id from ceiling_measurements where job_id=$1 and is_current and external_source='mitti'", [JOB])).toEqual([{ external_id: "audit_1" }]);
     expect(await stageOf(JOB)).toBe("ready_check_ready_to_schedule");
@@ -135,7 +149,8 @@ describe("A1 step 2 — Ready Check Complete in Mitti, the boss enters the price
     expect(draft).toHaveLength(1);
     expect(draft[0]).toMatchObject({ status: "draft", release_state: "held", sent_at: null, option_code: "INSTALLER_A1", subtotal_inc_gst: 3198 });
     const lines = await q<{ code: string; line_total_inc_gst: number }>("select code, line_total_inc_gst from quote_items where quote_id=$1 order by sort", [draft[0]!["id"]]);
-    expect(lines).toEqual([{ code: "INSTALLER_PRICE", line_total_inc_gst: 2500 }, { code: "PIESA", line_total_inc_gst: 349 }, { code: "AP_FEE", line_total_inc_gst: 349 }]);
+    // Decision 431 + Jo 4 Nov 2026: the installer's price, the $349 fee, then the PIESA at the installer's OWN rate ($317.27 ex = $349 inc).
+    expect(lines).toEqual([{ code: "INSTALLER_PRICE", line_total_inc_gst: 2500 }, { code: "AP_FEE", line_total_inc_gst: 349 }, { code: "PIESA", line_total_inc_gst: 349 }]);
     // AUTO_QUOTE_SEND_ENABLED = false (Jo 24 Oct: "manual for the first few weeks") — nothing reached the owner yet.
     const { AUTO_QUOTE_SEND_ENABLED } = await import("../src/lib/auto-quote-send.core");
     expect(AUTO_QUOTE_SEND_ENABLED).toBe(false);
@@ -266,7 +281,7 @@ describe("A1 step 4 — the $349 safety check, paid by card (decisions 139/144/3
     const st = await import("../src/lib/stripe.server");
     // A forged webhook (wrong secret) changes nothing.
     const forged = await stripePaidWebhook(s, "whsec_wrong");
-    expect(await st.handleStripeWebhook(forged.body, forged.signature)).toEqual({ status: 401, outcome: "bad_signature" });
+    expect(await st.handleStripeWebhook(forged.body, forged.signature)).toEqual({ status: 400, outcome: "bad_signature" });
     const wh = await stripePaidWebhook(s, process.env["STRIPE_WEBHOOK_SECRET"]!);
     expect(await st.handleStripeWebhook(wh.body, wh.signature)).toEqual({ status: 200, outcome: "recorded" });
     await settle();

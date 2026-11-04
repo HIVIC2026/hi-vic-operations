@@ -59,7 +59,7 @@ describe("the event and the one resolver the quote pipeline reads", () => {
 
 describe("wiring (source facts)", () => {
   const read = (f: string) => readFileSync(f, "utf8");
-  test("Add a job (Task 7): the Team electrician picker replaces the HIV/usual question; the add_job choice event still records Home Insulation Victoria's arrangement", () => {
+  test("Add a job (Task 7 + join ruling 4 Nov 2026): the Team electrician picker replaces the HIV/usual question; the add_job choice event records that Team worker as the installer's own electrician, after every check", () => {
     const ui = read("src/components/trade/add-job-flow.tsx");
     expect(ui).not.toContain("data-electrician-choice");
     expect(ui).toContain("data-electrician-picker");
@@ -68,8 +68,15 @@ describe("wiring (source facts)", () => {
     expect(fn).toContain("export const addJobOptions = createServerFn");
     expect(fn).not.toContain("@tanstack/react-start/server");
     const srv = read("src/lib/onsite-ready-check.server.ts");
-    expect(srv).toContain('recordElectricianChoice(job.id, businessId, userId, electricianChoice, "add_job")');
+    expect(srv).toContain('recordElectricianChoice(job.id, businessId, userId, "usual", "add_job", { teamWorker })');
+    expect(srv).toContain('teamElectricianChoiceRecord(teamWorker, "add_job")');
+    expect(srv).toContain("teamElectricianPlan(businessId, teamWorker.id)");
+    expect(srv).not.toMatch(/mode: "hivic"/);
+    expect(srv.indexOf("if (problems.length) throw")).toBeLessThan(srv.indexOf("findAddedJob("));
     expect(srv.indexOf("if (problems.length) throw")).toBeLessThan(srv.indexOf("recordElectricianChoice("));
+    expect(srv.indexOf("if (problems.length) throw")).toBeLessThan(srv.indexOf("addInstallerJobAtomic("));
+    // The one-transaction save takes the Team-worker choice too (no "mine" plan keeps it on the step-by-step path).
+    expect(srv).not.toContain('mode === "mine" || mode === "later" ? "not_deployed"');
   });
   test("bulk upload / Add one job: default usual-else-HIV, no new column", () => {
     const s = read("src/lib/partner-import.server.ts");
@@ -79,7 +86,8 @@ describe("wiring (source facts)", () => {
   });
   test("quote pipeline: mittiElectricianForJob reads the recorded choice first, legacy answers next, then the default; chase never asks", () => {
     const s = read("src/lib/usual-electrician.server.ts");
-    expect(s).toContain("readElectricianChoice(jobId)");
+    expect(s).toContain("readElectricianChoiceRecord(jobId)"); // join ruling: the choice AND the Team worker it names
+    expect(s).toContain("teamElectricianResolution(legacy, teamWorker)");
     expect(s).toContain("resolveElectricianChoice({ recorded, legacy: answers.electricianChoice, usual: saved?.electrician ?? null })");
     expect(s).not.toContain('if (answers.electricianChoice !== "hivic" && answers.electricianChoice !== "usual" && answers.electricianChoice !== "different") return null;');
     expect(read("src/lib/ready-check-chase.server.ts")).toContain("electricianDecided: true,");

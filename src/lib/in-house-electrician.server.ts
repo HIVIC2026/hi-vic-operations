@@ -39,7 +39,7 @@ export async function allocatedWorkerId(jobId: string): Promise<string | null> {
 export const isAllocated = (w: { id: string; profile_id: string | null }, assignment: { user_id: string | null } | null, allocatedId: string | null): boolean =>
   !!assignment && (allocatedId ? allocatedId === w.id : !!assignment.user_id && assignment.user_id === w.profile_id);
 /** Allowed = verified + office-approved. No profile or Team login is needed: electricians never log in (their forms are handed to them in Mitti). */
-const choiceOf = (w: Worker) => { const result = electricianVerified(w); return { id: w.id, name: w.full_legal_name, allowed: result.ok && w.approval_status === "approved", reason: result.reason ?? (w.approval_status !== "approved" ? "Waiting for office approval" : null) }; };
+const choiceOf = (w: Worker) => { const result = electricianVerified(w); return { id: w.id, name: w.full_legal_name, licence: w.licence_number?.trim() || null, allowed: result.ok && w.approval_status === "approved", reason: result.reason ?? (w.approval_status !== "approved" ? "Waiting for office approval" : null) }; };
 async function teamWorkers(businessId: string): Promise<Worker[]> {
   const workers: Worker[] = [];
   for (let offset = 0; ; offset += 200) {
@@ -59,7 +59,7 @@ export async function electricianPicker(jobId: string, userId: string) {
 }
 /** Installer screens Task 7: the business's Team electricians for Add a job (no job yet, so business-scoped; the caller has
  *  already checked the person may add jobs for this business). Same allowed/reason rule as `electricianPicker`. */
-export async function teamElectricianChoices(businessId: string): Promise<{ id: string; name: string; allowed: boolean; reason: string | null }[]> {
+export async function teamElectricianChoices(businessId: string): Promise<{ id: string; name: string; licence: string | null; allowed: boolean; reason: string | null }[]> {
   const workers = await teamWorkers(businessId);
   return workers.map(choiceOf);
 }

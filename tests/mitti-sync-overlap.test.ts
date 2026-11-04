@@ -9,6 +9,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { embedShim, type Rels } from "./helpers/pglite-embed-shim";
 
 const BIZ = "30000000-0000-4000-8000-000000000001", INST = "40000000-0000-4000-8000-000000000001";
+const ELEC_WORKER = "50000000-0000-4000-8000-00000000e1ec";
 const TPL = "template_0123456789abcdef0123456789abcdef";
 const db = new PGlite();
 await db.exec(`
@@ -53,7 +54,15 @@ CREATE TABLE invoices (id uuid primary key default gen_random_uuid(), quote_id u
 CREATE TABLE ready_checks (id uuid primary key default gen_random_uuid(), job_id uuid, external_mitti_id text, status text, submitted_at timestamptz, version int, created_at timestamptz default now());
 CREATE TABLE external_action_queue (id uuid primary key default gen_random_uuid(), job_id uuid, action text, target text, payload text, key text unique);
 CREATE TABLE partner_relationships (installer_business_id uuid, electrician_business_id uuid, active boolean);
-CREATE TABLE electrician_nominations (id uuid primary key default gen_random_uuid(), job_id uuid, ended_at timestamptz, nominating_business_id uuid);
+CREATE TABLE electrician_nominations (id uuid primary key default gen_random_uuid(), job_id uuid, ended_at timestamptz, nominating_business_id uuid, business_id uuid, created_at timestamptz default clock_timestamp());
+CREATE TABLE partner_workers (id uuid primary key default gen_random_uuid(), business_id uuid, profile_id uuid, full_legal_name text, email text, trade_role text, approval_status text, removed_at timestamptz, licence_number text, rec_number text, licence_expires_on text, licence_verified_at timestamptz);
+CREATE TABLE rate_cards (id uuid primary key default gen_random_uuid(), business_id uuid, kind text, version int default 1, is_active boolean default true, effective_from date default '2026-01-01');
+CREATE TABLE rate_card_items (id uuid primary key default gen_random_uuid(), rate_card_id uuid, code text, unit_price_ex_gst numeric, unit text);
+CREATE TABLE worker_job_links (id uuid primary key default gen_random_uuid(), job_id uuid, worker_id uuid, token_hash text, expires_at timestamptz, revoked_at timestamptz, created_by uuid, created_at timestamptz default clock_timestamp());
+-- Join ruling (4 Nov 2026): Add a job's electrician is a verified Team electrician; the owner's PIESA line is the installer's rate ($317.27 ex = $349 inc).
+INSERT INTO partner_workers (id, business_id, full_legal_name, email, trade_role, approval_status, licence_number, rec_number, licence_expires_on, licence_verified_at) VALUES ('${ELEC_WORKER}','${BIZ}','Will Casdorff','will@hivic-test.example','electrician','approved','A12345','REC-1','2030-01-01',now());
+INSERT INTO rate_cards (id, business_id, kind) VALUES ('60000000-0000-4000-8000-00000000ca7d','${BIZ}','installer');
+INSERT INTO rate_card_items (rate_card_id, code, unit_price_ex_gst, unit) VALUES ('60000000-0000-4000-8000-00000000ca7d','PIESA',317.27,'flat');
 INSERT INTO businesses VALUES ('${BIZ}','TEST Reinsulate','TEST Reinsulate','11 222 333 444','{}','eec_installer','{installer}','Frankston',50,false,true,'[TEST PARTNER] practice',true,'approved',true,now(),'0477 511 901',null);
 INSERT INTO business_members (business_id, user_id, member_role) VALUES ('${BIZ}','${INST}','business_admin');
 INSERT INTO user_roles VALUES ('${INST}','installer');
@@ -73,6 +82,7 @@ const rels: Rels = {
   assessments: { jobs: { table: "jobs", fk: "job_id", on: "base" } },
   job_assignments: { businesses: { table: "businesses", fk: "business_id", on: "base" }, profiles: { table: "profiles", fk: "user_id", on: "base" } },
   business_members: { businesses: { table: "businesses", fk: "business_id", on: "base" } }, // Task 7: Add a job reads the sign-in's trade context (business embedded)
+  rate_card_items: { rate_cards: { table: "rate_cards", fk: "rate_card_id", on: "base" } }, // the installer's PIESA rate
 };
 const q = async <T,>(sql: string, p: unknown[] = []) => (await db.query<T>(sql, p)).rows;
 const shim = embedShim(db, rels);
@@ -195,7 +205,7 @@ afterAll(async () => { await db.close(); });
 
 describe("Mitti instant notice + 15-minute pull overlap", () => {
   test("two overlapping syncs then a third → one live quote, sent to the owner exactly once", async () => {
-    const r = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(1), { mode: "hivic" }, call, { leadOrigin: "owner_contacted" });
+    const r = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(1), null, call, { leadOrigin: "owner_contacted", electricianWorkerId: ELEC_WORKER });
     await settle();
     const auditId = await auditOf(r.jobId);
     if (!auditId) throw new Error("No fixture audit");

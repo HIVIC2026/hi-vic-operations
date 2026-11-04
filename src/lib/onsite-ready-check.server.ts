@@ -8,6 +8,9 @@
 // Task 19: after the save the customer is texted the rental quick taps (own-customer-rental-taps.server; off until Jo approves).
 // A6 (Jo 29 Oct): the save is one transaction (`add_installer_job`, add-installer-job.server) keyed by the phone's request
 // key, so Try again finishes the same job; until that function is live the step-by-step save below is used.
+// Join ruling (4 Nov 2026): the Team electrician the installer picks IS their own electrician — the plan is derived here
+// as { mode: "mine", business_id: <their business>, worker_id } (never Home Insulation Victoria's), the choice is recorded
+// as "usual" naming that worker, and every check runs BEFORE any write so a refusal never leaves a half-saved job.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
 import { early } from "./early-read";
@@ -20,7 +23,7 @@ import type { MittiCall } from "./mitti.core";
 export type AddJobBooking = "none" | "confirmed" | "blocked";
 export type AddJobResult = { jobId: string; jobNumber: string | null; booking: AddJobBooking; formCreation: "scheduled" | "skipped"; state: OnsiteState; /** Task 7: whether the chosen Team electrician was put on the job. */ electrician: "allocated" | "not_allocated" | "not_asked"; ownerFirstName: string | null };
 
-export async function startOnsiteReadyCheckFor(userId: string, businessId: string, input: OnsiteInput, electrician: ElectricianPlan | null = null, call?: MittiCall, opts: { now?: Date; /** Decision 289: null = the default rule (usual electrician when saved, else Home Insulation Victoria's). Legacy callers only. */ electricianChoice?: import("./electrician-choice.core").ElectricianChoice | null; /** Task 7: the Team electrician for the PIESA (required on the portal's server function; `undefined` only from pre-Task-7 callers). */ electricianWorkerId?: string | null; /** A1: how the installer got this customer; door-knock and cold call are refused. */ leadOrigin?: import("./onsite-ready-check.core").LeadOrigin | null; /** A6: the phone's key for this draft; a key already saved resumes that job. */ requestKey?: string | null } = {}): Promise<AddJobResult> {
+export async function startOnsiteReadyCheckFor(userId: string, businessId: string, input: OnsiteInput, _electrician: ElectricianPlan | null = null, call?: MittiCall, opts: { now?: Date; /** Task 7 + join ruling: the Team electrician for the PIESA — required; the installer's own electrician on this job. */ electricianWorkerId?: string | null; /** A1: how the installer got this customer; door-knock and cold call are refused. */ leadOrigin?: import("./onsite-ready-check.core").LeadOrigin | null; /** A6: the phone's key for this draft; a key already saved resumes that job. */ requestKey?: string | null } = {}): Promise<AddJobResult> {
   const { requireApprovedPartner, intakeSourceFor } = await import("./pilot.server");
   // Task 7 (Task 1 roles): the boss and Office people add jobs for their own business; nobody else.
   const c = await (await import("./trade-view.server")).pricesOrThrow(userId);
@@ -29,15 +32,21 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
   const now = opts.now ?? new Date();
   const businessName = c.biz.name;
   const problems = onsiteProblems(input, { businessName });
-  const { electricianPlanBlocker } = await import("./job-electrician.core");
-  const eb = electricianPlanBlocker(electrician); if (eb) problems.push(eb);
   const lop = (await import("./onsite-ready-check.core")).leadOriginProblem(opts.leadOrigin); if (lop) problems.push(lop);
   // Task 7: the electrician for the PIESA is one of the business's verified Team electricians, checked BEFORE anything is saved.
-  const { electricianProblem, addJobConsentRecord } = await import("./add-job-flow.core");
+  // Join ruling (4 Nov 2026): that person IS the installer's own electrician — the plan is derived from the pick (a plan
+  // passed in by an older caller is ignored; Home Insulation Victoria's electrician is never an option on an installer's job).
+  const { electricianProblem, addJobConsentRecord, ELECTRICIAN_MISSING } = await import("./add-job-flow.core");
   const teamElectricians = opts.electricianWorkerId ? await (await import("./in-house-electrician.server")).teamElectricianChoices(businessId) : [];
-  const ecp = opts.electricianWorkerId === undefined ? null : electricianProblem(opts.electricianWorkerId, teamElectricians); if (ecp) problems.push(ecp);
-  const electricianChoice: import("./electrician-choice.core").ElectricianChoice = opts.electricianChoice ?? "hivic";
+  const teamWorker = teamElectricians.find((w) => w.id === opts.electricianWorkerId) ?? null;
+  const ecp = electricianProblem(opts.electricianWorkerId ?? null, teamElectricians) ?? (teamWorker ? null : ELECTRICIAN_MISSING); if (ecp) problems.push(ecp);
+  const { electricianPlanBlocker, teamElectricianPlan } = await import("./job-electrician.core");
+  const electrician: ElectricianPlan | null = teamWorker ? teamElectricianPlan(businessId, teamWorker.id) : null;
+  const eb = electricianPlanBlocker(electrician); if (eb && !ecp) problems.push(eb);
   if (problems.length) throw new WorkflowError(problems.join(" • "));
+  if (!electrician || !teamWorker) throw new WorkflowError(ELECTRICIAN_MISSING);
+  const { teamElectricianChoiceRecord } = await import("./electrician-choice.core");
+  const electricianChoice = teamElectricianChoiceRecord(teamWorker, "add_job");
 
   // A6: one request key per phone draft. A key an earlier tap already saved means the signal dropped after the save:
   // finish THAT job (electrician + form steps below) instead of checking the address or saving again.
@@ -77,7 +86,7 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
       const hash = [...new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)))].map((x) => x.toString(16).padStart(2, "0")).join("");
       const consent = { key: byOwner ? "owner_ticked" as const : "installer_confirmed" as const, by: byOwner ? "owner" as const : "installer" as const, text, sha256: hash, record: byOwner ? null : { snapshot: record.snapshot, event: record.event } };
 
-      /** Today's step-by-step writes, unchanged: used until add_installer_job is live, and for a "mine" electrician plan. */
+      /** Today's step-by-step writes, unchanged: used until add_installer_job is live. */
       const legacySequentialSave = async (): Promise<{ id: string; job_number: string | null }> => {
         const { createInstallerOwner } = await import("./installer-owner.server");
         const owner = await createInstallerOwner(admin, businessId, { full_name: input.full_name.trim(), email, phone: input.phone.trim() });
@@ -88,17 +97,16 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
         const { data: job, error: je } = await admin.from("jobs").insert({
           owner_id: owner.id, property_id: prop.id, stage: "ready_check_ready_to_schedule", source, business_unit: "hivic", installer_led: true,
           channel: "installer_sourced", originating_installer_business_id: businessId, originating_installer_user_id: userId,
-          // A6 (join fix, 4 Nov 2026): the phone's request key is the job's key on this path too — main's Part 2 makes "mine"
-          // the only electrician plan on an installer's own job, which keeps this save, and Try again must find THIS job.
+          // A6 (join fix, 4 Nov 2026): the phone's request key is the job's key on this path too, so Try again finds THIS job.
           external_enquiry_id: `onsite:${requestKey}`, customer_relationship_owner: "installer",
           installer_site_check: "no", installer_site_check_date: null, installer_quoted: "no",
           next_action: READY_CHECK_FORM_COMING,
         }).select("id, job_number").single();
         if (je || !job) throw new WorkflowError(je?.message ?? "Job could not be saved.");
         await admin.from("job_assignments").insert({ job_id: job.id, user_id: userId, role: "installer", business_id: businessId, assigned_by: userId, first_response_at: new Date().toISOString() });
-        await (await import("./job-electrician.server")).recordJobElectricianChoice(job.id, businessId, electrician ?? { mode: "hivic" }, userId);
-        // Decision 289: the one electrician choice for this job (append-only event; the quote pipeline reads it).
-        await (await import("./electrician-choice.server")).recordElectricianChoice(job.id, businessId, userId, electricianChoice, "add_job");
+        await (await import("./job-electrician.server")).recordJobElectricianChoice(job.id, businessId, electrician, userId);
+        // Decision 289: the one electrician choice for this job (append-only event; the quote pipeline reads it) — the Team worker.
+        await (await import("./electrician-choice.server")).recordElectricianChoice(job.id, businessId, userId, "usual", "add_job", { teamWorker });
         if (flag) await logEvent(job.id, userId, DUPLICATE_ADDRESS_EVENT, flag.summary, flag.details, { internal: true });
         await logEvent(job.id, userId, "installer_job_added", "Installer added this customer (Add a job: name, address, mobile, email, contact permission); the Mitti Ready Check form is created next", { business_id: businessId, visit_requested: false, lead_origin: opts.leadOrigin });
         const nowIso = new Date().toISOString();
@@ -108,14 +116,12 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
         return job;
       };
 
-      // A6: owner, property, job, assignment, consent and events in ONE transaction (nothing half-saved). The SQL only
-      // records Home Insulation Victoria's electrician arrangement; a "mine" plan keeps the step-by-step save.
-      const mode = (electrician as { mode?: string } | null)?.mode;
-      const saved = mode === "mine" || mode === "later" ? "not_deployed" as const : await addInstallerJobAtomic((await import("./add-installer-job.core")).addInstallerJobPayload({
+      // A6: owner, property, job, assignment, consent and events in ONE transaction (nothing half-saved). The SQL records
+      // the Team electrician as the job's own electrician (`electrician_choice_set` naming them, payer "preferred").
+      const saved = await addInstallerJobAtomic((await import("./add-installer-job.core")).addInstallerJobPayload({
         requestKey, businessId, userId, source, owner: { full_name: input.full_name, email, phone: input.phone },
         property: { address_line: input.address_line, suburb: input.suburb, postcode: input.postcode }, consent,
-        electricianChoice: (await import("./electrician-choice.core")).electricianChoiceRecord(electricianChoice, null, "add_job"),
-        leadOrigin: opts.leadOrigin as import("./onsite-ready-check.core").LeadOrigin, visitRequested: false, flagEvent: flag,
+        electricianChoice, leadOrigin: opts.leadOrigin as import("./onsite-ready-check.core").LeadOrigin, visitRequested: false, flagEvent: flag,
       }));
       if (saved === "not_deployed") job = await legacySequentialSave();
       else job = { id: saved.jobId, job_number: saved.jobNumber };
@@ -127,12 +133,10 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
   // Task 7: the chosen Team electrician is put on the job through the existing allocation path (assignment RPC + Mitti form
   // hand-over). The job is already saved; a refusal here is logged on the job and the installer can pick again on the job page.
   let electricianAllocated: "allocated" | "not_allocated" | "not_asked" = "not_asked";
-  if (opts.electricianWorkerId) {
-    try { await (await import("./in-house-electrician.server")).allocateElectrician(job.id, userId, opts.electricianWorkerId, call); electricianAllocated = "allocated"; }
-    catch (error) {
-      electricianAllocated = "not_allocated";
-      await logEvent(job.id, userId, "add_job_electrician_not_allocated", "The electrician chosen on Add a job could not be put on the job; choose again on the job page", { worker_id: opts.electricianWorkerId, reason: error instanceof Error ? error.message : String(error) }, { internal: true }).catch(console.error);
-    }
+  try { await (await import("./in-house-electrician.server")).allocateElectrician(job.id, userId, teamWorker.id, call); electricianAllocated = "allocated"; }
+  catch (error) {
+    electricianAllocated = "not_allocated";
+    await logEvent(job.id, userId, "add_job_electrician_not_allocated", "The electrician chosen on Add a job could not be put on the job; choose again on the job page", { worker_id: teamWorker.id, reason: error instanceof Error ? error.message : String(error) }, { internal: true }).catch(console.error);
   }
   // Start the guarded create immediately after saving, booking or not. A booking background attempt can share
   // the atomic claim; an existing form skips. The tick remains the backup after a failure.
