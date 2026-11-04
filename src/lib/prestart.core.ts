@@ -233,7 +233,11 @@ const FIXABLE_WHILE_24H_LEFT: RegExp[] = [
 ];
 /** Fail closed: anything not listed above (the 30-day window, PIISA/ESC timing, consent/notice/copies <24h, electrical
  *  clearance, lines this module doesn't know) is `must_move`. */
+/** J5 (join step 6 ruling, 4 Nov 2026): a READ ERROR is never "fixable" — Task 8's "Installer business: Couldn't read…"
+ *  lines share the fixable insurance prefix, so the specific line is classified first (fail closed = must move). */
+const READ_ERROR_LINES: RegExp[] = [/^Installer business: Couldn't read/, /couldn'?t (read|check)/i, /could not be (read|checked)/i];
 export function classifyPrestartFailure(line: string, i: { start: string; now: Date }): PrestartFailureClass {
+  if (READ_ERROR_LINES.some((r) => r.test(line))) return "must_move";
   if (FIXABLE_ALWAYS.some((r) => r.test(line))) return "fixable";
   if (FIXABLE_WHILE_24H_LEFT.some((r) => r.test(line))) return i.now.getTime() <= Date.parse(i.start) - LEAD_MS ? "fixable" : "must_move";
   return "must_move";
