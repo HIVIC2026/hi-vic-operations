@@ -6,6 +6,7 @@ import { melbourneMonthStart, melbourneToday } from "./melbourne-time.core";
 import { installerPayExFor, jobMargin, marginTotal, veecValueReceived, type JobMargin } from "./job-margin.core";
 import { groupPayouts, invoiceRowState, stepsLine, veecRegistryLabel, type PayoutLine } from "./office-money.core";
 import { electricalBillingSource } from "./installer-led.core";
+import { PIESA_RATE_NOT_SET_ROW } from "./installer-paid-electricians.core";
 import { hivElectricianPayoutIncGst, ownerSafetyCheckIncGst, safetyCheckPayoutIncGst } from "./safety-check-price.core";
 import { payoutGateFacts } from "./trade-payout-gate.server";
 import { PAYOUT_FORM_NOT_COMPLETE, tradePayoutBlockers } from "./trade-payout-gate.core";
@@ -106,7 +107,8 @@ export async function moneyMargins(now = new Date()) {
     // line, else their rate card) and that same amount passes through to them in full — we keep nothing on that line
     // (`safetyCheckPayeesFor`). Website leads: owner $349, the office payout to the electrician, the gap is ours.
     void piesaRate; void usualPiesaEx; void fallbackPiesa; void elec;
-    const piesaCostEx = ownerDirect ? 0 : paidToInstaller ? paidToInstaller.piesaIncGst / (1 + gstRate)
+    // J1 (4): no rate on the business → $0 on this row (the Payouts tab names it), never a failed read of the whole list.
+    const piesaCostEx = ownerDirect ? 0 : paidToInstaller ? (paidToInstaller.piesaIncGst ?? 0) / (1 + gstRate)
       : safetyCheckPayoutIncGst({ channel: j.channel, offerRateInc: offerRate.get(id) ?? null, ownerPriceIncGst: ownerPiesa, hivPayoutIncGst: hivPayout }) / (1 + gstRate);
     const l = lodg.find((x) => x.job_id === id);
     const v = veecValueReceived({ lodgedQty: num(l?.quantity), salePrice: num(l?.sale_price_per_veec), quoteCount: num(inst?.veec_count), spotPrice: spot.price });
@@ -201,8 +203,9 @@ export async function moneyPayouts(testJobIds?: string[]) {
     const safetyVisits: ({ id: string; business_id: string | null } | null)[] = elecVisits.filter((b) => b.job_id === id && b.kind === "assessment");
     if (!safetyVisits.length && atFinal) safetyVisits.push(null);
     const paidVisit = (v: { id: string } | null) => safetyVisitPaidAt(paidEv.filter((e) => e.job_id === id), safety.get(id), v?.id ?? null);
+    // J1 (4): a business with no PIESA rate (and no recorded line) gets one $0 row held "No PIESA rate set — ask the office".
     if (paidToInstaller) for (const v of safetyVisits)
-      lines.push({ jobId: id, jobNumber: j.job_number, businessId: paidToInstaller.businessId, business: `${paidToInstaller.name} (safety checks by their electricians)`, kind: "assessment", amountEx: Math.round((paidToInstaller.piesaIncGst / gst) * 100) / 100, dueAt: null, paidAt: paidVisit(v), ...(v ? { visitId: v.id } : {}) });
+      lines.push({ jobId: id, jobNumber: j.job_number, businessId: paidToInstaller.businessId, business: `${paidToInstaller.name} (safety checks by their electricians)`, kind: "assessment", amountEx: paidToInstaller.piesaIncGst == null ? 0 : Math.round((paidToInstaller.piesaIncGst / gst) * 100) / 100, dueAt: null, paidAt: paidVisit(v), ...(v ? { visitId: v.id } : {}), ...(paidToInstaller.piesaIncGst == null ? { held: [PIESA_RATE_NOT_SET_ROW] } : {}) });
     if (elec && !ownerDirect) {
       // dueAt for electrician lines is set below from the decision-355 rule.
       if (!paidToInstaller) for (const v of safetyVisits) {

@@ -634,8 +634,8 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean,
   // safety checks, the display payer and (electricians) the PIESA rate; (2) everything that needs the job ids. The
   // PIESA form fact comes embedded in the visit rows. Module loads are cached after the first request (no database round).
   const sel = "id, job_id, kind, scheduled_start, status, business_id, businesses(name, trading_name), jobs!inner(deleted_at, job_number, source, channel, stage, electrician_choice, originating_installer_business_id, owners(full_name), properties(suburb), assessments!assessments_job_id_fkey(mitti_completed))";
-  const [{ readInstallerPaidElectricians, safetyCheckPayeesFor }, { electricalBillingSource }, { payoutGateFacts, safetyVisitFacts }, { tradePayoutBlockers, safetyVisitPaidAt, visitGateFacts }, { ownerPaidInFullAt }] = await Promise.all([
-    import("./installer-paid-electricians.server"), import("./installer-led.core"), import("./trade-payout-gate.server"), import("./trade-payout-gate.core"), import("./trade-view.core"),
+  const [{ readInstallerPaidElectricians, safetyCheckPayeesFor }, { electricalBillingSource }, { payoutGateFacts, safetyVisitFacts }, { tradePayoutBlockers, safetyVisitPaidAt, visitGateFacts }, { ownerPaidInFullAt }, { PIESA_RATE_NOT_SET_ROW }] = await Promise.all([
+    import("./installer-paid-electricians.server"), import("./installer-led.core"), import("./trade-payout-gate.server"), import("./trade-payout-gate.core"), import("./trade-view.core"), import("./installer-paid-electricians.core"),
   ]);
   type Book = { id: string; job_id: string; kind: string; scheduled_start: string; status: string; business_id: string | null; businesses: unknown; jobs: unknown };
   // A confirmed safety check counts as done once the job's A3 form is Complete (`assessments.mitti_completed`).
@@ -730,7 +730,8 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean,
     const sum = (of?.summary ?? {}) as { electrician_rate_inc_gst?: number; installer_pay_inc_gst?: number; fixes_pay_inc_gst?: number };
     const payee = b.kind === "assessment" ? payees.get(b.job_id) ?? null : null;
     const recordedAmount = (pe?.details as { amount?: number })?.amount;
-    const amount = recordedAmount != null ? Number(recordedAmount) : payee ? payee.piesaIncGst : Number((b.kind === "assessment" ? sum.electrician_rate_inc_gst ?? piesaRate : b.kind === "rectification" ? sum.fixes_pay_inc_gst ?? fixesPay(b.job_id) : sum.installer_pay_inc_gst ?? ((b.jobs as { channel?: string }).channel === "hivic_sourced" ? ratePay(b.job_id) : null)) ?? 0) || null;
+    // J1 (4): an own job whose business has no PIESA rate (and no recorded line) is a $0 row held with the one line below.
+    const amount = recordedAmount != null ? Number(recordedAmount) : payee ? payee.piesaIncGst ?? 0 : Number((b.kind === "assessment" ? sum.electrician_rate_inc_gst ?? piesaRate : b.kind === "rectification" ? sum.fixes_pay_inc_gst ?? fixesPay(b.job_id) : sum.installer_pay_inc_gst ?? ((b.jobs as { channel?: string }).channel === "hivic_sourced" ? ratePay(b.job_id) : null)) ?? 0) || null;
     const gf0 = gate.get(b.job_id);
     const gf = gf0 && b.kind === "assessment" ? visitGateFacts(gf0, safety.get(b.job_id), b.id) : gf0;
     const elecKind = b.kind === "assessment" || b.kind === "rectification" ? b.kind : null;
@@ -740,7 +741,7 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean,
       : payState({ paidAt: pe?.created_at ?? null, apApprovedAt: (ap ?? []).find((x) => x.job_id === b.job_id)?.created_at ?? null, installerSupplied: (b.jobs as { channel?: string }).channel === "installer_sourced", ownerPaidInFullAt: paidInFull(b.job_id) });
     // Decision 318 form blockers, plus the decision-410 waiting-for-office-approve line (electricians) and the audit-F19
     // AP/owner-payment wait (installers) — the same reasons the office Payouts tab and Mark paid show.
-    const held = timed.kind === "paid" || !gf ? [] : [...tradePayoutBlockers(b.kind as "assessment" | "rectification" | "installation", gf), ...(et?.waiting ?? []), ...(b.kind === "installation" && timed.kind === "checking" ? installerPayHeldReasons({ installerSupplied: (b.jobs as { channel?: string }).channel === "installer_sourced", apApprovedAt: (ap ?? []).find((x) => x.job_id === b.job_id)?.created_at ?? null, ownerPaidInFullAt: paidInFull(b.job_id) }) : [])];
+    const held = [...(timed.kind === "paid" || !gf ? [] : [...tradePayoutBlockers(b.kind as "assessment" | "rectification" | "installation", gf), ...(et?.waiting ?? []), ...(b.kind === "installation" && timed.kind === "checking" ? installerPayHeldReasons({ installerSupplied: (b.jobs as { channel?: string }).channel === "installer_sourced", apApprovedAt: (ap ?? []).find((x) => x.job_id === b.job_id)?.created_at ?? null, ownerPaidInFullAt: paidInFull(b.job_id) }) : [])]), ...(payee && payee.piesaIncGst == null && recordedAmount == null ? [PIESA_RATE_NOT_SET_ROW] : [])];
     // A held payout is never "Coming": it stays with the jobs being checked until the form is fixed (amounts unchanged).
     const state: PayState = held.length ? { kind: "checking" } : timed;
     const approvedAt = (ap ?? []).find((x) => x.job_id === b.job_id)?.created_at ?? null;

@@ -80,7 +80,7 @@ describe("source pins: own-customer PIESA pay = the business's rate card line (t
   test("trade Money reads electrician_rates / the installer's rate-card PIESA line; office Money pays own customers through safetyCheckPayeesFor; the standard $349 setting is read only for Home Insulation Victoria leads", () => {
     const tv = read("src/lib/trade-view.server.ts");
     expect(tv).toContain('from("electrician_rates").select("rate_inc_gst, effective_from")');
-    expect(tv).toContain("payee ? payee.piesaIncGst :");
+    expect(tv).toContain("payee ? payee.piesaIncGst ?? 0 :"); // J1 (4): no rate = a $0 row held "No PIESA rate set — ask the office"
     expect(tv).not.toMatch(/piesa_assessment_inc_gst|safety_check_payment_inc_gst|OWN_CUSTOMER_PIESA_INC_GST/);
     const om = read("src/lib/office-money.server.ts");
     expect(om).toContain('from("electrician_rates")');
@@ -90,8 +90,10 @@ describe("source pins: own-customer PIESA pay = the business's rate card line (t
     const standardFn = om.slice(om.indexOf("async function standardOwnerPiesa"), om.indexOf("async function acceptedPiesaOfferRates"));
     expect(om.match(/piesa_assessment_inc_gst/g)?.length).toBe(standardFn.match(/piesa_assessment_inc_gst/g)?.length);
     expect(om).toContain("Home Insulation Victoria leads only (own customers use their installer's rate)");
-    expect(om).toContain("paidToInstaller ? paidToInstaller.piesaIncGst / (1 + gstRate)");
+    expect(om).toContain("paidToInstaller ? (paidToInstaller.piesaIncGst ?? 0) / (1 + gstRate)"); // J1 (4): no rate = $0 row, never a failed list
     expect(om).toContain("if (paidToInstaller) for (const v of safetyVisits)");
+    expect(om).toContain("{ held: [PIESA_RATE_NOT_SET_ROW] }");
+    expect(read("src/lib/trade-view.server.ts")).toContain("[PIESA_RATE_NOT_SET_ROW]");
     const reader = read("src/lib/installer-paid-electricians.server.ts");
     expect(reader).toContain('.ilike("code", "piesa")');
     expect(reader).toContain("Math.round(ex * 1.1 * 100) / 100 : null"); // rate card ex GST × 1.1 (speed step 2B's flattened read)

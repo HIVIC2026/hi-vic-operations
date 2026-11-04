@@ -1,7 +1,7 @@
 // Flat PIESA payee: pays_own_electricians OR in_house; this does not decide held visits.
 // Read-only, batched by job id; money read errors throw (fail closed upstream).
 import { jobAdmin as admin } from "./job-facts.server"; // speed (Task 11): the admin client; inside the job page bundle it answers from the job's rows
-import { installerPaysOwnElectricians, paysOwnElectricians, safetyCheckPayee, type InstallerPaidElectricians, type InstallerPiesaResult } from "./installer-paid-electricians.core";
+import { IN_HOUSE_PIESA_HOLD_REASON, installerPaysOwnElectricians, paysOwnElectricians, safetyCheckPayee, type InstallerPaidElectricians, type InstallerPiesaResult } from "./installer-paid-electricians.core";
 import type { InHousePiesaBusiness } from "./installer-paid-electricians.core";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { chunkIds } from "./sweep-batch.core";
@@ -85,9 +85,11 @@ export async function inHouseFactsFor(businessId: string) {
     }).length };
 }
 
-/** Per job: the installer we pay for the safety check, or null (we pay the electrician as usual). */
-export async function safetyCheckPayeesFor(jobs: { id: string; channel?: string | null; originating_installer_business_id: string | null }[]): Promise<Map<string, InstallerPaidElectricians | null>> {
-  const out = new Map<string, InstallerPaidElectricians | null>(jobs.map((j) => [j.id, null]));
+/** Per job: the installer we pay for the safety check, or null (we pay the electrician as usual). J1 (4): an installer's own
+ *  job with no rate on its business (and no recorded quote line) is a hold result (`piesaIncGst: null`,
+ *  `release_hold_reason`) — the callers show it as one $0 "No PIESA rate set — ask the office" row; nothing else is lost. */
+export async function safetyCheckPayeesFor(jobs: { id: string; channel?: string | null; originating_installer_business_id: string | null }[]): Promise<Map<string, InstallerPiesaResult | null>> {
+  const out = new Map<string, InstallerPiesaResult | null>(jobs.map((j) => [j.id, null]));
   // Speed (portal speed step 1, Task 7): the installer-supplied jobs' reads (business configuration, recorded quote prices)
   // and the older jobs' reads all start together — two rounds instead of up to five. Errors are raised in the same order as
   // before: the installer-supplied jobs' first, then the older jobs'.
@@ -114,7 +116,8 @@ export async function safetyCheckPayeesFor(jobs: { id: string; channel?: string 
     for (const j of ownJobs) {
       const b = businesses.get(j.originating_installer_business_id ?? "");
       const inc = recorded.get(j.id) ?? b?.piesaIncGst;
-      if (!b || inc == null || !Number.isFinite(inc) || inc <= 0) throw new Error("Installer business has no PIESA rate on its rate card");
+      // J1 (4): no rate is a per-job hold, never a thrown read — one job must not blank the whole Payouts / Money list.
+      if (!b || inc == null || !Number.isFinite(inc) || inc <= 0) { out.set(j.id, { businessId: b?.id ?? j.originating_installer_business_id ?? "", name: b?.name ?? "Installer", piesaIncGst: null, release_hold_reason: IN_HOUSE_PIESA_HOLD_REASON }); continue; }
       out.set(j.id, { businessId: b.id, name: b.name, piesaIncGst: inc });
     }
   }

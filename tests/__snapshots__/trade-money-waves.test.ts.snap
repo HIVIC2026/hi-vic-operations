@@ -1235,7 +1235,17 @@ exports[`Money (Task 7): same value as before the shared payee readers (ordinary
       ],
     },
     "payees installer-supplied, no originating installer": {
-      "refused": "Installer business has no PIESA rate on its rate card",
+      "ok": [
+        [
+          "00000000-0000-4000-8000-000000000003",
+          {
+            "businessId": "",
+            "name": "Installer",
+            "piesaIncGst": null,
+            "release_hold_reason": "Installer business has no PIESA rate on its rate card",
+          },
+        ],
+      ],
     },
     "readInstallerPaidElectricians B1": {
       "ok": {
@@ -1305,7 +1315,17 @@ exports[`Money (Task 7): same value as before the shared payee readers (ordinary
       ],
     },
     "payees installer-supplied, no originating installer": {
-      "refused": "Installer business has no PIESA rate on its rate card",
+      "ok": [
+        [
+          "00000000-0000-4000-8000-000000000003",
+          {
+            "businessId": "",
+            "name": "Installer",
+            "piesaIncGst": null,
+            "release_hold_reason": "Installer business has no PIESA rate on its rate card",
+          },
+        ],
+      ],
     },
     "readInstallerPaidElectricians B1": {
       "ok": null,
@@ -1529,7 +1549,17 @@ exports[`Money (Task 7): same value as before with each read failing: the same v
       ],
     },
     "payees installer-supplied, no originating installer": {
-      "refused": "Installer business has no PIESA rate on its rate card",
+      "ok": [
+        [
+          "00000000-0000-4000-8000-000000000003",
+          {
+            "businessId": "",
+            "name": "Installer",
+            "piesaIncGst": null,
+            "release_hold_reason": "Installer business has no PIESA rate on its rate card",
+          },
+        ],
+      ],
     },
     "readInstallerPaidElectricians B1": {
       "ok": {
@@ -1710,7 +1740,17 @@ exports[`Money (Task 7): same value as before with each read failing: the same v
       "refused": "Could not read the Ready Check electrician choices: read failed",
     },
     "payees installer-supplied, no originating installer": {
-      "refused": "Installer business has no PIESA rate on its rate card",
+      "ok": [
+        [
+          "00000000-0000-4000-8000-000000000003",
+          {
+            "businessId": "",
+            "name": "Installer",
+            "piesaIncGst": null,
+            "release_hold_reason": "Installer business has no PIESA rate on its rate card",
+          },
+        ],
+      ],
     },
     "readInstallerPaidElectricians B1": {
       "ok": {
@@ -1881,7 +1921,17 @@ exports[`Money (Task 7): same value as before with each read failing: the same v
       ],
     },
     "payees installer-supplied, no originating installer": {
-      "refused": "Installer business has no PIESA rate on its rate card",
+      "ok": [
+        [
+          "00000000-0000-4000-8000-000000000003",
+          {
+            "businessId": "",
+            "name": "Installer",
+            "piesaIncGst": null,
+            "release_hold_reason": "Installer business has no PIESA rate on its rate card",
+          },
+        ],
+      ],
     },
     "readInstallerPaidElectricians B1": {
       "ok": {
@@ -2010,7 +2060,17 @@ exports[`Money (Task 7): same value as before with each read failing: the same v
       "refused": "Could not read installer electrician-payment configuration.",
     },
     "payees installer-supplied, no originating installer": {
-      "refused": "Installer business has no PIESA rate on its rate card",
+      "ok": [
+        [
+          "00000000-0000-4000-8000-000000000003",
+          {
+            "businessId": "",
+            "name": "Installer",
+            "piesaIncGst": null,
+            "release_hold_reason": "Installer business has no PIESA rate on its rate card",
+          },
+        ],
+      ],
     },
     "readInstallerPaidElectricians B1": {
       "refused": "Could not read installer electrician-payment configuration.",
@@ -2101,7 +2161,17 @@ exports[`Money (Task 7): same value as before with each read failing: the same v
       ],
     },
     "payees installer-supplied, no originating installer": {
-      "refused": "Installer business has no PIESA rate on its rate card",
+      "ok": [
+        [
+          "00000000-0000-4000-8000-000000000003",
+          {
+            "businessId": "",
+            "name": "Installer",
+            "piesaIncGst": null,
+            "release_hold_reason": "Installer business has no PIESA rate on its rate card",
+          },
+        ],
+      ],
     },
     "readInstallerPaidElectricians B1": {
       "ok": {
@@ -2230,7 +2300,17 @@ exports[`Money (Task 7): same value as before with each read failing: the same v
       "refused": "Could not read the in-house PIESA prices.",
     },
     "payees installer-supplied, no originating installer": {
-      "refused": "Installer business has no PIESA rate on its rate card",
+      "ok": [
+        [
+          "00000000-0000-4000-8000-000000000003",
+          {
+            "businessId": "",
+            "name": "Installer",
+            "piesaIncGst": null,
+            "release_hold_reason": "Installer business has no PIESA rate on its rate card",
+          },
+        ],
+      ],
     },
     "readInstallerPaidElectricians B1": {
       "refused": "Could not read the in-house PIESA prices.",
@@ -2355,7 +2435,17 @@ exports[`Money (Task 7): same value as before with each read failing: the same v
       "refused": "Could not read the in-house PIESA rate cards.",
     },
     "payees installer-supplied, no originating installer": {
-      "refused": "Installer business has no PIESA rate on its rate card",
+      "ok": [
+        [
+          "00000000-0000-4000-8000-000000000003",
+          {
+            "businessId": "",
+            "name": "Installer",
+            "piesaIncGst": null,
+            "release_hold_reason": "Installer business has no PIESA rate on its rate card",
+          },
+        ],
+      ],
     },
     "readInstallerPaidElectricians B1": {
       "refused": "Could not read the in-house PIESA rate cards.",
@@ -2636,7 +2726,17 @@ exports[`Money (Task 7): same value as before with each read failing: the same v
       ],
     },
     "payees installer-supplied, no originating installer": {
-      "refused": "Installer business has no PIESA rate on its rate card",
+      "ok": [
+        [
+          "00000000-0000-4000-8000-000000000003",
+          {
+            "businessId": "",
+            "name": "Installer",
+            "piesaIncGst": null,
+            "release_hold_reason": "Installer business has no PIESA rate on its rate card",
+          },
+        ],
+      ],
     },
     "readInstallerPaidElectricians B1": {
       "ok": {
@@ -2807,7 +2907,17 @@ exports[`Money (Task 7): same value as before with each read failing: the same v
       ],
     },
     "payees installer-supplied, no originating installer": {
-      "refused": "Installer business has no PIESA rate on its rate card",
+      "ok": [
+        [
+          "00000000-0000-4000-8000-000000000003",
+          {
+            "businessId": "",
+            "name": "Installer",
+            "piesaIncGst": null,
+            "release_hold_reason": "Installer business has no PIESA rate on its rate card",
+          },
+        ],
+      ],
     },
     "readInstallerPaidElectricians B1": {
       "ok": {

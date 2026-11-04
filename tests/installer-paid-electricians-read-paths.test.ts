@@ -63,7 +63,9 @@ function usualModule(priceRead: () => Promise<unknown>, candidates: rec.Approved
   return moduleAt("src/lib/usual-electrician.server.ts", {
     "@/integrations/supabase/client.server": { supabaseAdmin: f.admin }, "./job-facts.server": { jobAdmin: f.admin }, "./usual-electrician.core": usual,
     "./mitti.core": { contactAnswersFromEntries: () => ({}) }, "./workflow.server": { logEvent: async () => {} },
-    "./electrician-choice.core": { resolveElectricianChoice: () => "usual" }, "./electrician-choice.server": { readElectricianChoice: async () => "usual" },
+    "./electrician-choice.core": { resolveElectricianChoice: () => "usual" }, "./electrician-choice.server": { readElectricianChoice: async () => "usual", readElectricianChoiceRecord: async () => ({ choice: "usual", workerId: null }) },
+    // Join ruling (4 Nov 2026): no Team electrician on these jobs — the usual-electrician path is what is under test here.
+    "./in-house-electrician.server": { allocatedWorkerId: async () => null }, "./worker-compliance.core": { electricianVerified: () => ({ ok: true, reason: null }) },
     "./rec-onboarded.core": rec, "./rec-onboarded.server": { loadApprovedRecCandidates: async () => candidates }, "./job-electrician.server": { jobChosenElectrician: async () => null },
     "./installer-paid-electricians.server": { readInstallerPaidElectricians: priceRead, installerSafetyCheckPrice: async () => (await priceRead() as { piesaIncGst?: number } | null)?.piesaIncGst ?? 999 },
     "./safety-check-price.core": safetyPrice, "./installer-paid-electricians.core": pricing,
@@ -90,9 +92,17 @@ test("valid in-house line still prices flat while non-in-house uses the REC rate
   const ordinary = usualModule(async () => null, candidates);
   expect(await ordinary.mittiElectricianForJob("j", null, [], "audit")).toMatchObject({ ready: true, priceIncGst: 999, reasons: [] });
 });
-test("safety-check payout refuses a missing PIESA line, but keeps HIV electrician direct", async () => {
+test("safety-check payout: a missing PIESA line is ONE held $0 result for that job (J1 (4)), never a thrown read; HIV electrician stays direct", async () => {
   const f = reads({ businesses: [{ id: "a", name: "A", in_house: true }], workflow_events: [{ job_id: "j", details: { choice: "usual" } }] });
-  await expect(priceModule(f).safetyCheckPayeesFor([{ id: "j", originating_installer_business_id: "a" }])).rejects.toThrow("Installer business has no PIESA rate on its rate card");
+  const soft = await priceModule(f).safetyCheckPayeesFor([{ id: "j", channel: "installer_sourced", originating_installer_business_id: "a" }, { id: "k", channel: "installer_sourced", originating_installer_business_id: "a" }]);
+  expect(soft.get("j")).toEqual({ businessId: "a", name: "A", piesaIncGst: null, release_hold_reason: "Installer business has no PIESA rate on its rate card" });
+  expect(soft.get("k")).toEqual({ businessId: "a", name: "A", piesaIncGst: null, release_hold_reason: "Installer business has no PIESA rate on its rate card" });
+  expect(pricing.PIESA_RATE_NOT_SET_ROW).toBe("No PIESA rate set — ask the office");
+  // the one job with no rate does not take the others with it: a sister business with a rate is still priced
+  const mixed = reads({ businesses: [{ id: "a", name: "A", in_house: true }, { id: "b", name: "B", in_house: true }], rate_cards: [{ id: "cb", business_id: "b" }], rate_card_items: [{ rate_card_id: "cb", code: "PIESA", unit_price_ex_gst: 250, rate_cards: { business_id: "b" } }] });
+  const both = await priceModule(mixed).safetyCheckPayeesFor([{ id: "j", channel: "installer_sourced", originating_installer_business_id: "a" }, { id: "k", channel: "installer_sourced", originating_installer_business_id: "b" }]);
+  expect(both.get("j")?.piesaIncGst).toBeNull();
+  expect(both.get("k")).toEqual({ businessId: "b", name: "B", piesaIncGst: 275 });
   const direct = reads({ businesses: [{ id: "a", name: "A", in_house: true }], workflow_events: [{ job_id: "j", details: { choice: "hivic" } }] });
   expect((await priceModule(direct).safetyCheckPayeesFor([{ id: "j", originating_installer_business_id: "a" }])).get("j")).toBeNull();
 });
@@ -135,6 +145,7 @@ test("trade money display survives both in-house reads throwing and matches non-
       "./trade-payout-gate.server": { payoutGateFacts: async () => new Map(), safetyVisitFacts: async () => new Map() },
       "./trade-payout-gate.core": { tradePayoutBlockers: () => [], safetyVisitPaidAt: () => null, visitGateFacts: () => null },
       "./trade-view.core": { ownerPaidInFullAt: () => null },
+      "./installer-paid-electricians.core": { PIESA_RATE_NOT_SET_ROW: pricing.PIESA_RATE_NOT_SET_ROW }, // J1 (4)
     };
     new Function("exports", "require", "admin", "console", "payState", "installerPayHeldReasons", "VISIT", "surname", code)(exports, (name: string) => { if (!(name in dependencies)) throw new Error(name); return dependencies[name]; }, f.admin, { error: (...x: unknown[]) => errors.push(x) }, () => ({ kind: "checking" }), () => [], { installation: "Install" }, () => "Owner");
     return exports.run("a", "installer", true);
