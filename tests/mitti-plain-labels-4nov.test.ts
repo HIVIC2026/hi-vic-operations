@@ -1,6 +1,6 @@
 // Jo 4 Nov: plain wording on every field, including portal-filled ones. New labels read per template; old ones still work.
 import { describe, expect, it } from "vitest";
-import { buildPrefill, contactAnswersFromEntries, validateStoredMittiAudit } from "@/lib/mitti.core";
+import { MITTI_TEMPLATE_ID, buildPrefill, contactAnswersFromEntries, validateStoredMittiAudit } from "@/lib/mitti.core";
 import { parsePickupAudit, portalJobNumberItem } from "@/lib/mitti-pickup.core";
 import { auditIdentity } from "@/lib/mitti-retry.core";
 import { readFixesDay } from "@/lib/fixes-day.core";
@@ -28,9 +28,9 @@ describe("A1/A2 Ready Check", () => {
     expect(portalJobNumberItem(audit)?.itemId).toBe("j");
   });
   it("job match still enforced on the renamed Job number (A1/A2/A5)", () => {
-    const audit = { audit_id: "x", template_id: "T", header_items: [t("j", "Job number", "HV-2")], items: [] };
-    expect(() => validateStoredMittiAudit(audit, { storedAuditId: "x", jobNumber: "HV-1", templateId: "T" })).toThrow();
-    expect(() => validateStoredMittiAudit(audit, { storedAuditId: "x", jobNumber: "HV-2", templateId: "T" })).not.toThrow();
+    const audit = { audit_id: "x", template_id: MITTI_TEMPLATE_ID, header_items: [t("j", "Job number", "HV-2")], items: [] };
+    expect(() => validateStoredMittiAudit(audit, { storedAuditId: "x", jobNumber: "HV-1", templateId: MITTI_TEMPLATE_ID })).toThrow(/does not match/);
+    expect(() => validateStoredMittiAudit(audit, { storedAuditId: "x", jobNumber: "HV-2", templateId: MITTI_TEMPLATE_ID })).not.toThrow();
   });
   it("Job number / Address are prefilled values, not installer answers", () => {
     expect(formHasInstallerAnswers([{ label: "Job number", value: "HV-1" }, { label: "Address", value: "1 A St" }])).toBe(false);
