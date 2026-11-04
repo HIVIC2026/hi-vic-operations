@@ -196,6 +196,14 @@ export const P5 = {
   noteEnd: " and they'll see this notice first.",
   button: "Save acknowledgements",
   saving: "Saving…",
+  /** The person's OWN secure link (/notice/$token; Jo 5 Nov 2026: Dom's text opened the business owner's wording). */
+  link: {
+    title: "Privacy notice",
+    sub: "The Essential Services Commission requires every installer to read this notice before we register them for the VEU program.",
+    yours: "Your acknowledgement",
+    note: "Tick the box and type your name. We record the name, date and time, and email you a copy.",
+    button: "Save my acknowledgement",
+  },
   leadSuffix: " (lead installer)",
 } as const;
 
