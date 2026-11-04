@@ -2,6 +2,9 @@
 -- insured (AUD) when it approves the certificate on My business / Partners; `businessDocsBlocker` (trade-expiry.core)
 -- blocks bookings, Add a job, offers and the pre-start check while the latest VERIFIED public liability row has no
 -- amount or an amount under 5,000,000. Null = not recorded (blocked), never "assumed enough".
+-- OPTIONAL for go-live (G6 B1, 4 Nov 2026): the live database already records every business's cover on
+-- businesses.public_liability_cover_amount, and business-docs.server reads that when the verified row has no amount of
+-- its own. This file only adds a per-row override; skip it on deploy day unless the office wants to type amounts per row.
 -- Pending: proven on PGlite (tests/new-flow-09-credential-amount.pglite.test.ts); run live only with Jo's OK.
 -- Rollback: 2026-11-02-credential-amount-insured.rollback.sql.
 alter table public.business_credentials add column if not exists amount_insured_aud numeric null;

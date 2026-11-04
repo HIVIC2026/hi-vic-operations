@@ -229,6 +229,20 @@ describe("validateBooking: the insurance gate on every kind (server)", () => {
     f.rows["business_credentials"]![1]!["verification"] = "verified"; f.rows["business_credentials"]![1]!["amount_insured_aud"] = "5000000";
     await expect(f.api.validateBooking("j", "ready_check", "2026-11-10T21:00:00Z", null)).resolves.toEqual({ stage: "ready_check_ready_to_schedule", target: "ready_check_scheduled", warnings: [] });
   });
+  // G6 B1 (final Part 9 review, 4 Nov 2026 — live DB check 17:40): every live business already records its public
+  // liability cover on businesses.public_liability_cover_amount, so that is the amount when the verified row carries none.
+  test("B1: no amount on the verified row but the business records $10m → allowed; $2m on the business → blocked; the row's own amount wins", async () => {
+    const noAmount = [{ ...GOOD[0]!, amount_insured_aud: null }, GOOD[1]!];
+    const ok = bookingFixture(noAmount, { id: "biz", name: "Rapid Insulation", business_type: "eec_installer", onboarding_status: "approved", is_active: true, capabilities: ["installer"], workcover_exempt_declared_at: null, public_liability_cover_amount: 10_000_000 });
+    await expect(ok.api.validateBooking("j", "installation", "2026-11-20T21:00:00Z", null)).resolves.toMatchObject({ target: "installation_booked" });
+    const low = bookingFixture(noAmount, { id: "biz", name: "Rapid Insulation", business_type: "eec_installer", onboarding_status: "approved", is_active: true, capabilities: ["installer"], workcover_exempt_declared_at: null, public_liability_cover_amount: "2000000" });
+    await expect(low.api.validateBooking("j", "installation", "2026-11-20T21:00:00Z", null)).rejects.toThrow(BUSINESS_DOCS_WORDS.amountLow(PL, 2_000_000));
+    const rowWins = bookingFixture([{ ...GOOD[0]!, amount_insured_aud: "5000000" }, GOOD[1]!], { id: "biz", name: "Rapid Insulation", business_type: "eec_installer", onboarding_status: "approved", is_active: true, capabilities: ["installer"], workcover_exempt_declared_at: null, public_liability_cover_amount: 2_000_000 });
+    await expect(rowWins.api.validateBooking("j", "installation", "2026-11-20T21:00:00Z", null)).resolves.toMatchObject({ target: "installation_booked" });
+    // Neither recorded → still "amount not recorded" (nothing is assumed insured).
+    const none = bookingFixture(noAmount);
+    await expect(none.api.validateBooking("j", "installation", "2026-11-20T21:00:00Z", null)).rejects.toThrow(BUSINESS_DOCS_WORDS.amountMissing(PL));
+  });
   test("nothing on file → throws (an installation never books on a missing certificate); a read failure blocks", async () => {
     const f = bookingFixture([]);
     await expect(f.api.validateBooking("j", "installation", "2026-11-20T21:00:00Z", null)).rejects.toThrow(BUSINESS_DOCS_WORDS.notOnFile(PL));

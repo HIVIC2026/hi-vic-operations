@@ -129,6 +129,16 @@ export const BUSINESS_DOCS_WORDS = {
 } as const;
 const INSURANCE_DOCS = ["public_liability_insurance", "workers_comp_insurance"] as const;
 
+/** G6 B1 (4 Nov 2026): every business records its public liability cover on `businesses.public_liability_cover_amount`
+ *  (filled for every live business; the office types it at onboarding). A public liability row with no amount of its own
+ *  (`business_credentials.amount_insured_aud` is OPTIONAL pending SQL) takes the business's amount; a row's own amount wins.
+ *  Null / blank / not a number on both = still "not recorded" (nothing is assumed insured). */
+export function withBusinessCoverAmount(creds: CredentialView[], businessAmount: number | string | null | undefined): CredentialView[] {
+  const n = businessAmount == null || businessAmount === "" ? NaN : Number(businessAmount);
+  if (!Number.isFinite(n)) return creds;
+  return creds.map((c) => (isCredentialKind(c, "public_liability_insurance") && (c.amountInsured == null || !Number.isFinite(c.amountInsured)) ? { ...c, amountInsured: n } : c));
+}
+
 /** The verified row with the latest expiry for one kind (the one whose amount counts), or null. */
 export function latestVerifiedCredential(creds: CredentialView[], kind: string): CredentialView | null {
   return creds.filter((c) => isCredentialKind(c, kind) && c.verified && !!c.expires).sort((a, b) => a.expires!.slice(0, 10).localeCompare(b.expires!.slice(0, 10))).at(-1) ?? null;

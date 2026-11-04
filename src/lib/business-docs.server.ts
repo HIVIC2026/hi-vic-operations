@@ -3,13 +3,15 @@
 // the Ready Check installer pick and the pre-start facts, so a lapsed / unverified / under-$5m / missing document blocks
 // everywhere the same way. Fails CLOSED: a read error throws (never "no block").
 //
-// `amount_insured_aud` is pending SQL (docs/pending-migrations/2026-11-02-credential-amount-insured.sql). Until it is
-// applied the column can't be read: the rows are read without it and the amount counts as NOT recorded — which blocks,
-// exactly as a verified row with no amount does. Nothing is assumed insured.
+// G6 B1 (final Part 9 review, 4 Nov 2026; live DB check 17:40): the public liability AMOUNT is `businesses.public_liability_cover_amount`
+// (applied migration 0123, filled for every live business) when the verified row has none of its own.
+// `business_credentials.amount_insured_aud` is OPTIONAL pending SQL (docs/pending-migrations/2026-11-02-credential-amount-insured.sql,
+// not needed for go-live): when the column exists and the row carries an amount, the row's amount wins. Neither recorded =
+// NOT recorded — which blocks, exactly as a verified row with no amount does. Nothing is assumed insured.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError } from "./workflow.server";
 import type { CredentialView } from "./trade-view.core";
-import { businessDocsBlocker } from "./trade-expiry.core";
+import { businessDocsBlocker, withBusinessCoverAmount } from "./trade-expiry.core";
 import { melbourneToday } from "./melbourne-time.core";
 
 type CredRow = { business_id: string; kind: string; label: string | null; expires_at: string | null; verification: string | null; amount_insured_aud?: number | string | null };
@@ -39,11 +41,21 @@ export async function businessDocsFor(businessIds: readonly string[]): Promise<M
     rows = (plain.data ?? []) as unknown as CredRow[];
   } else rows = withAmount.data ?? [];
   // `workcover_exempt_declared_at` is pending SQL too (2026-11-03_installer_added_electricians.sql): without the column
-  // nobody is exempt, so workers comp is required — the stricter reading. Any other read error throws.
-  const { data: biz, error: be } = (await admin.from("businesses").select("id, workcover_exempt_declared_at").in("id", ids)) as unknown as { data: { id: string; workcover_exempt_declared_at?: string | null }[] | null; error: { code?: string | null; message: string } | null };
-  if (be && !(be.code === "42703" || be.code === "PGRST204" || /workcover_exempt_declared_at/i.test(be.message))) throw new WorkflowError(`Couldn't read the business: ${be.message}`);
-  const exempt = new Map((be ? [] : biz ?? []).map((b) => [b.id, !!b.workcover_exempt_declared_at]));
-  for (const id of ids) out.set(id, { credentials: rows.filter((r) => r.business_id === id).map((r) => viewOf(r, amountLive)), workersCompExempt: exempt.get(id) ?? false, amountColumnLive: amountLive });
+  // nobody is exempt, so workers comp is required — the stricter reading; the business's public liability amount is still
+  // read (B1). Any other read error throws (fail closed).
+  type BizRow = { id: string; workcover_exempt_declared_at?: string | null; public_liability_cover_amount?: number | string | null };
+  type BizRead = { data: BizRow[] | null; error: { code?: string | null; message: string } | null };
+  let bizRead = (await admin.from("businesses").select("id, workcover_exempt_declared_at, public_liability_cover_amount").in("id", ids)) as unknown as BizRead;
+  if (bizRead.error && (bizRead.error.code === "42703" || bizRead.error.code === "PGRST204" || /workcover_exempt_declared_at/i.test(bizRead.error.message))) {
+    bizRead = (await admin.from("businesses").select("id, public_liability_cover_amount").in("id", ids)) as unknown as BizRead;
+  }
+  if (bizRead.error) throw new WorkflowError(`Couldn't read the business: ${bizRead.error.message}`);
+  const biz = new Map((bizRead.data ?? []).map((b) => [b.id, b]));
+  for (const id of ids) {
+    const b = biz.get(id);
+    const credentials = withBusinessCoverAmount(rows.filter((r) => r.business_id === id).map((r) => viewOf(r, amountLive)), b?.public_liability_cover_amount ?? null);
+    out.set(id, { credentials, workersCompExempt: !!b?.workcover_exempt_declared_at, amountColumnLive: amountLive });
+  }
   return out;
 }
 
