@@ -4,15 +4,18 @@ import {installBeforePlan, type BeforeArea} from './install-before.core';
 export async function readInstallBeforePlan(jobId:string) {
  const [measurement,reviews]=await Promise.all([
   admin.from('ceiling_measurements').select('external_source,external_id,zones').eq('job_id',jobId).eq('is_current',true).maybeSingle(),
-  admin.from('evidence_requirements').select('label,status,category').eq('job_id',jobId).eq('status','rejected'),
+  admin.from('evidence_requirements').select('label,status,category,area_key').eq('job_id',jobId).in('status',['rejected','verified']),
  ]);
  if(measurement.error||reviews.error)throw new Error('BEFORE evidence could not be checked – office review required.');
  const m=measurement.data;
  const zones:unknown[]=Array.isArray(m?.zones)?m.zones:[];
  const areas:BeforeArea[]=zones.filter((z):z is Record<string,unknown>=>!!z&&typeof z==='object'&&!Array.isArray(z)).map(z=>{
   const name=typeof z['name']==='string'?z['name']:typeof z['label']==='string'?z['label']:null;
-  const beforeRejected=(reviews.data??[]).some(r=>/before|existing.*depth|old.*insulation.*ruler/i.test(r.label)&&(!name||r.label.toLowerCase().includes(name.toLowerCase())||!zones.some(other=>{const a=other as Record<string,unknown>;const n=a['name']??a['label'];return typeof n==='string'&&r.label.toLowerCase().includes(n.toLowerCase());})));
-  return {name,beforeVideo:z['beforeVideo']===true,depthPhoto:z['depthPhoto']===true,present:typeof z['present']==='boolean'?z['present']:null,rejected:beforeRejected};
+  const matching=(reviews.data??[]).filter(r=>r.area_key===z['key']||(!r.area_key&&!!name&&r.label.toLowerCase().includes(name.toLowerCase())));
+  const isBefore=(r:{label:string;category:string})=>r.category==='before_ceiling_space'||/before|original condition|existing.*depth|old.*insulation.*(?:ruler|backing)/i.test(r.label);
+  const beforeRejected=matching.some(r=>r.status==='rejected'&&isBefore(r));
+  const accepted=matching.some(r=>r.status==='verified'&&r.category==='before_ceiling_space');
+  return {name,beforeVideo:accepted||z['beforeVideo']===true,wholeAreaPhoto:accepted||z['wholeAreaPhoto']===true,backingPhoto:accepted||z['backingPhoto']===true,depthPhoto:accepted||z['depthPhoto']===true,present:typeof z['present']==='boolean'?z['present']:z['existing']==='none'?false:z['existing']==='present'?true:null,rejected:beforeRejected};
  });
  return installBeforePlan(m?.external_source==='mitti'&&!!m.external_id,areas);
 }

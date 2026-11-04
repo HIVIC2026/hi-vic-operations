@@ -1,6 +1,7 @@
 // Jo 24 Oct 2026: pure rules for "installer marked the Mitti Ready Check Complete" (mitti-complete.server.ts).
 import { formEligibilityReasons, websiteStopReasons } from "./ready-check-answers.core";
 import { missingMeasureFields, MEASURE_FIELD_LABEL } from "./scope.core";
+import { a1ReadyToPrice } from './ready-check-lean.core';
 
 type M = { id: string; status: string | null; external_source: string | null; external_id: string | null; provenance?: string | null; review_flags?: unknown; measured_area_m2: unknown; insulation_present: boolean | null; existing_r_value: unknown; removal_required: boolean | null; removal_m2: unknown; access_difficulty: string | null; source_role?: string | null };
 export type CompletionInput = { auditId: string; completed: boolean; modifiedAt: string | null; entries: { label: string; value: unknown }[]; ourLead: boolean };
@@ -15,6 +16,7 @@ export function completionPlan(i: CompletionInput & { measurement: M | null; web
   if (!i.completed || !m || m.external_source !== "mitti" || m.external_id !== i.auditId) return { kind: "skip" };
   if (m.status === "complete") return { kind: "already" };
   const reasons = formEligibilityReasons(i.entries, { ownerAnsweredOnWebsite: i.ourLead });
+  if (!i.ourLead && !a1ReadyToPrice(i.entries)) reasons.push('Ready Check ready-to-price confirmation is not ticked');
   if (i.websiteFacts) reasons.push(...websiteStopReasons(i.websiteFacts));
   if (Array.isArray(m.review_flags) && m.review_flags.length) reasons.push("Ready Check answers are flagged for office review");
   // "No existing insulation" means no removal; a removal amount means removal. A blank removal answer on a home

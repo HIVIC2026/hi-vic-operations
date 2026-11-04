@@ -6,6 +6,15 @@
 import { APPROVED_PRODUCTS } from "./insulation-product.core";
 import { mittiLabelAliases } from "./mitti-rebuild-labels.core";
 
+export const A1_COMPLETE_INSTRUCTION = "⚠️ Pressing Complete means this Ready Check is finished. Your business then gets a text with a link to enter the price. Only press Complete when every answer is right.";
+export const A1_READY_TO_PRICE_TICK = "This job is ready to price. Everything I've filled in is correct. Any photos I skipped will be taken on install day.";
+export const A1_OPTIONAL_MEDIA_INSTRUCTION = "Take this if you're at the house. Not at the house? Skip it; it'll be done on install day.";
+/** Old submissions have no new declaration; a present declaration must be explicitly ticked. */
+export function a1ReadyToPrice(entries: { label: string; value: unknown }[]): boolean {
+  const declarations = entries.filter(e => e.label.split('\n')[0]?.trim() === A1_READY_TO_PRICE_TICK);
+  return declarations.length === 0 || (declarations.length === 1 && /^(true|yes|checked|1)$/i.test(String(declarations[0]?.value ?? '').trim()));
+}
+
 // The two Mitti template names (A1 installer-supplied customer, A2 our lead) are stated in the build prompt only; the
 // portal identifies a template by its ID (workflow_settings), never by name.
 
