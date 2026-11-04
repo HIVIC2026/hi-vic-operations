@@ -791,6 +791,9 @@ export async function tradeMoney(userId: string) {
   const screenRows: MoneyScreenRow[] = [];
   for (const r of rows) {
     if (r.kind === "assessment" && r.amount == null) { console.warn(`PIESA pay row left out (no rate on the rate card): ${r.jobNumber}`); continue; }
+    // J4 G5 (join ruling, 4 Nov 2026): an own customer's install row with no amount on record is left out — their pay is
+    // their own accepted quote (the job page says so); never a "$0" row.
+    if (r.kind === "installation" && r.amount == null && r.channel === "installer_sourced") { console.warn(`Install pay row left out (no amount on record for the own customer): ${r.jobNumber}`); continue; }
     if (r.kind !== "installation" && r.kind !== "assessment") continue;
     screenRows.push({ jobId: r.jobId, jobNumber: r.jobNumber, owner: r.owner, what: r.kind === "assessment" ? "piesa" : "install", amount: r.amount ?? 0, ownCustomer: r.channel === "installer_sourced", state: r.state, ownerFirst: r.owner?.split(/\s+/)[0] ?? null, held: r.held });
   }

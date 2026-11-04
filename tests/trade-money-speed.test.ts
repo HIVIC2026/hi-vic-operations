@@ -230,6 +230,20 @@ describe("TEST and real jobs never mix", () => {
   });
 });
 
+describe("J4 G5: an own customer's install row with no amount on record is left out of the Money screen", () => {
+  test("own job (installer_sourced) install done, nothing recorded → no install row for it (never \"$0\")", async () => {
+    failWhen = null; seed();
+    tables["bookings"]!.push({ id: "in3", job_id: J3, business_id: B1, kind: "installation", status: "completed", scheduled_start: at(-1), scheduled_end: at(-1, 6) });
+    const m = await tradeMoney(U_BOSS);
+    const titles = m.screen.rows.map((r) => (r as { title: string }).title);
+    expect(titles.some((t) => /HV-1003 .* install pay/.test(t))).toBe(false);
+    expect(titles.some((t) => /\$0\b/.test(t))).toBe(false);
+    expect(titles.some((t) => /HV-1003 .* PIESA pay \$330/.test(t))).toBe(true); // the PIESA row (rate on record) stays
+    // the raw row still exists with no amount (the job page says their pay is their own quote), so nothing is summed for it
+    expect(m.rows.find((r) => r.jobId === J3 && r.kind === "installation")?.amount).toBeNull();
+  });
+});
+
 const MONEY_TABLES = ["bookings", "business_bank_details", "invoices", "quotes", "partner_offers", "electrician_rates", "rate_cards", "rate_card_items", "installer_declarations", "customer_assignments", "ceiling_measurements"];
 
 describe("staff are refused before any money is read", () => {
