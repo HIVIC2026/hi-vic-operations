@@ -26,6 +26,8 @@ const pairs: readonly (readonly [string, string])[] = [
  ['Photo of the cables at the switchboard', 'Photo of the cables at the switchboard (geotagged)'],
  ['Is there solar, a battery or a generator at the house?', 'Is there solar, a battery or a generator at the property?'],
  ['Can it be shut down safely, and are its ceiling cables labelled, in conduit and protected?', 'Can it be safely shut down, and are its cables in the ceiling labelled, in conduit and protected?'],
+ // 4 Nov published A3 (v31) solar wording.
+ ['Are ALL of these true? There are shutdown and restart instructions. The ground-level AC/DC isolator is easy to reach, works and switches off safely. Its cables in the ceiling are labelled and in conduit. Those cables are protected and supported.', 'Can it be safely shut down, and are its cables in the ceiling labelled, in conduit and protected?'],
  ['Do you have its shutdown and restart instructions, is its ground-level AC/DC isolator accessible and working, and are its ceiling cables labelled, in conduit, protected and supported?', 'Can it be safely shut down, and are its cables in the ceiling labelled, in conduit and protected?'],
  ['Is all the wiring in the ceiling safe to work around and cover with insulation?', 'Are the cables, connections and fittings in the ceiling safe to work around and cover with insulation?'],
  ['Tick every problem you found.', 'Please tick each problem you found.'],
@@ -119,6 +121,10 @@ export const INSTALL_REBUILD_ALIASES: Record<string, string> = {
 };
 export function installMittiLabel(label: string): string {
  if (key(label) === key('Have the hazards been considered and their controls implemented for this job?')) return 'Are all the common hazards covered in it?';
+ // 4 Nov published A5 (v23) wording.
+ if (key(label) === key('Does the safety plan cover every hazard at this house, and are its controls in place?')) return 'Are all the common hazards covered in it?';
+ if (key(label) === key("Every answer, photo and video is filled in. I won't leave until the portal says 'All filled in'.")) return 'Every answer, photo and video on this form is filled in, and I won\'t leave site until the portal texts me "All filled in".';
+ if (key(label) === key('Take one clear photo per ceiling area, showing a vertical ruler measuring the insulation depth, with markings visible. Do not compress the insulation.')) return 'New insulation depth after install — photo with a ruler standing upright in it';
  if (key(label) === key('Is its ground-level isolator accessible, working and able to switch off safely?')) return 'Does the ground-level isolator work and switch off safely?';
  return Object.entries(INSTALL_REBUILD_ALIASES).find(([, alias]) => key(alias) === key(label))?.[0] ?? label;
 }

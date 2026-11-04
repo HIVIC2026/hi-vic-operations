@@ -120,7 +120,7 @@ const WHEN_EXISTING = `${LEAN_Q.existing} = Yes`;
  */
 const READY_CHECK_FIELDS: FormField[] = [
   // Page 1 — Job (prefilled by the portal; the installer only corrects)
-  { label: LEAN_Q.jobNumber, type: "text", required: true, prefill: true, source: "portal – job link (exact match when present)" },
+  { label: LEAN_Q.jobNumber, type: "text", required: true, prefill: true, aliases: al("jobNumber"), source: "portal – job link (exact match when present)" },
   { label: LEAN_Q.siteAddress, type: "text", required: true, prefill: true, aliases: al("siteAddress"), source: "portal" },
   { label: LEAN_Q.ownerName, type: "text", required: true, prefill: true, aliases: al("ownerName"), source: "portal" },
   { label: LEAN_Q.ownerPhone, type: "phone", required: true, prefill: true, aliases: al("ownerPhone"), source: "portal – owner mobile (quote basic); A2 prefilled from the job" },
@@ -250,7 +250,9 @@ export function validateTemplate(key: FormKey, items: TemplateItem[]): { ok: boo
   if (key === 'piesa' && items.some(it => Object.values(SPLIT_MAINS_Q).some(label => norm(label) === norm(it.label)))) {
     fields = fields.filter(f => f.id !== 'mainsSafe' && f.id !== 'mainsProblems');
     for (const [id, label] of Object.entries(SPLIT_MAINS_Q)) fields.push({ id, label, aliases: id === 'switchSafe' ? ['Does the main switch work, can you reach it, does it safely isolate the ceiling circuits (excluding the mains cables), and can it be locked off?'] : [], type: 'yesno', required: true, source: '4 Nov split mains' });
-    fields = fields.map(f => ({ ...f, ...(f.id === 'solarProblems' ? { aliases: [...(f.aliases ?? []), "Tick everything that's not right."] } : {}), ...(f.repeats && f.label === 'Photo of the problem' ? { repeats: 6 } : {}) }));
+    // Split forms ask one "Tick everything that's not right." list after each of the switch, RCD and solar questions
+    // (read by context in shortAnswersFromEntries), and a problem photo after each check (7 on the 4 Nov published A3).
+    fields = fields.map(f => ({ ...f, ...(f.id === 'solarProblems' ? { aliases: [...(f.aliases ?? []), "Tick everything that's not right."], repeats: 3 } : {}), ...(f.repeats && f.label === 'Photo of the problem' ? { repeats: 7 } : {}) }));
   }
   if (key === 'ready_check_priced') fields = fields.map(f => f.type === 'media' ? { ...f, required: false } : f);
   for (const f of fields) if (!f.perArea && !f.perPriceLine && !f.row) expected.set(norm(f.label), (expected.get(norm(f.label)) ?? 0) + 1);
