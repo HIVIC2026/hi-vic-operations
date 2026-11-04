@@ -387,7 +387,7 @@ export const SHORT_PIISA_FIELDS: FormField[] = [
 ];
 
 export const SHORT_FIELDS: Record<"piesa" | "piisa", FormField[]> = { piesa: SHORT_PIESA_FIELDS, piisa: SHORT_PIISA_FIELDS };
-for (const f of SHORT_PIESA_FIELDS) f.aliases = [...(f.aliases ?? []), ...mittiLabelAliases(f.label), ...(A3_FIELD_ALIASES[f.id] ? [A3_FIELD_ALIASES[f.id]!] : [])];
+for (const f of SHORT_PIESA_FIELDS) f.aliases = [...(f.aliases ?? []), ...mittiLabelAliases(f.label), ...(f.id && A3_FIELD_ALIASES[f.id] ? [A3_FIELD_ALIASES[f.id]!] : [])];
 SHORT_PIESA_FIELDS.find(f => f.id === 'lifeSupportPresent')?.aliases?.push('Does anyone living here use life support equipment?');
 SHORT_PIESA_FIELDS.find(f => f.id === 'lifeSupportConsent')?.aliases?.push('Do you have their written consent or medical plan?');
 SHORT_PIESA_FIELDS.find(f => f.id === 'lifeSupportAttachment')?.aliases?.push('Photo of every page of the consent or medical plan');
