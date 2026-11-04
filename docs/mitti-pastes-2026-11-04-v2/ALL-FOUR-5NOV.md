@@ -67,7 +67,8 @@ Edit ONE existing Mitti template: "PIESA – Electrician safety assessment". Kee
 1. Find "Does any electrical upgrade work need doing before the insulation goes in?" (older forms: "Is any electrical repair work needed before insulation can be installed?"). Change ONLY its wording to: Are electrical upgrades needed?
    Keep Yes/No, Required, Yes red, and every existing "only show when" rule that points at it.
 
-2. Under "Are electrical upgrades needed?" = Yes, after the existing work-list question ("What upgrade work will you do? Tick everything your price includes." — leave that question and its answers exactly as they are), add a NEW question:
+2. Under "Are electrical upgrades needed?" = Yes: find the work-list question "What will you do? Tick everything included in your price." (or "What upgrade work will you do? Tick everything your price includes.") and change ONLY its wording to exactly: What upgrade work will you do? Tick everything your price includes.
+   Keep its answers exactly as they are. Then, after it, add a NEW question:
    Are you doing the electrical upgrades today?
    Yes/No, Required, only show when "Are electrical upgrades needed?" = Yes.
    (If a question "Have you completed all of the repair work listed above, and is the ceiling now safe for insulation?" exists, reword it to this instead of adding a new one.)
@@ -98,16 +99,22 @@ Publish the template. Then list the six changes and confirm each one was made, a
 
 ---
 
-## 3. A4 — Electrical fixes
+## 3. A4 — Electrical upgrades
 
-**After:** your form as it is this morning, with two changes: (1) under "Have you finished ALL the upgrade work…" = Yes, new
+**After:** renamed **"A4 – Electrical upgrades"**, every "repair work"/"fixes" on it now says "upgrade work"/"upgrades", and two changes: (1) under "Have you finished ALL the upgrade work…" = Yes, new
 **"Do you have the Certificate of Electrical Safety now?"** with the same help line — the three certificate fields show only
 when Yes (today they always show); (2) any "Paid only when…" / "You're paid only when…" line deleted. Nothing else.
 
 ```
 One template. Keep its template ID. Make ONLY the changes below. Copy every wording exactly, character for character. Nest conditional questions beneath their triggering question (Add logic → If answer is Yes → Ask questions); position does not matter, wording does. Do not add, reword, reorder or delete anything else. If Mitti cannot do something, stop and tell me.
 
-TEMPLATE "A4 – Electrical fixes" (keep its current title and ID):
+TEMPLATE "A4 – Electrical fixes": RENAME the template to exactly "A4 – Electrical upgrades" (keep its ID). Then:
+
+0. Reword these existing questions ONLY (same answers, same rules):
+   "The repair work listed on the safety assessment:" → The upgrade work listed on the safety check:
+   "Have you completed all of the repair work listed, and is the ceiling now safe for insulation?" → Have you finished ALL the upgrade work listed above, and is the ceiling now safe for insulation?
+   "Anything not done or changed?" → What's not done, or what changed?
+   Any other question or text on the form that says "repair work" or "fixes" → say "upgrade work" / "upgrades" instead, keeping the rest of the sentence.
 
 1. Find "Have you finished ALL the upgrade work listed above, and is the ceiling now safe for insulation?" (this is the trigger; leave it exactly as it is). Under it, when the answer is Yes, add a NEW question:
    Do you have the Certificate of Electrical Safety now?
