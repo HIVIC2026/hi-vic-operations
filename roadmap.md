@@ -961,7 +961,7 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [x] Jo 3 Nov 9:56pm: verified API true and auto-invite secret saved; new approved Leads only from 10:56 UTC, no groups, own-email and pause-confirmation guards preserved. Existing approvals/edit/renewal/repeated approval excluded; TEST never reaches live provider. Red-first and related tests passed, including PGlite repeated-approval and two-boss isolation. Automatic portal checks clean; no live invitation exercised (sending prohibited), no record changes or publishing.
 
 ## Jo 4 Nov — BEFORE photos final decision (replaces earlier "BEFORE evidence at install")
-- [ ] A1 photos/videos optional + end instruction + required ready-to-quote tick; skipped media never holds quote
+- [ ] A1 photos/videos optional + end instruction "⚠️ Pressing Complete means this Ready Check is finished. Your business then gets a text with a link to enter the price. Only press Complete when every answer is right." + REQUIRED tick "This job is ready to price. Everything I've filled in is correct. Any photos I skipped will be taken on install day."; skipped media never holds the price request
 - [ ] Job shows "Before photos: to be taken on install day (areas…)" incl. office-rejected areas
 - [ ] Two A5 templates: pick "+ BEFORE photos" only when needed, prefill areas field; hold completion until listed areas have BEFORE evidence (BLOCKED: template ID from Jo)
 - [ ] Drop A5 BEFORE ruler requirement where Ready Check evidence accepted; AFTER ruler stays
