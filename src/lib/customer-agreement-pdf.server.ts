@@ -1,5 +1,5 @@
 // Customer Agreement + payment terms PDF in the website look: the stored template body, filled, parsed, rendered.
-import { fillAgreement, parseAgreement, type AgreementFacts } from "./customer-agreement.core";
+import { applyKeptInsulation, fillAgreement, parseAgreement, type AgreementFacts } from "./customer-agreement.core";
 import type { PdfBlock, PdfLayoutReport } from "./pdf-look.core";
 import { renderPdf } from "./pdf-look.server";
 
@@ -35,10 +35,15 @@ function assertSafeFacts(facts: AgreementFacts): void {
   }
 }
 
+/** Jo 4 Nov 2026 16:10: `keptInsulation` = the Ready Check says the old insulation stays → section 1 carries the approved
+ *  notice instead of the removal bullet. Off/absent = the approved v1.3 body byte for byte. */
+export type AgreementRenderOptions = { keptInsulation?: boolean };
+
 /** The filled, parsed agreement blocks (bold lead-ins set, payment terms header tagged). Shared with the signed acceptance PDF. */
-export function agreementBlocks(t: { version: string; body: string }, facts: AgreementFacts): PdfBlock[] {
+export function agreementBlocks(t: { version: string; body: string }, facts: AgreementFacts, opts: AgreementRenderOptions = {}): PdfBlock[] {
   assertSafeFacts(facts);
-  const blocks: PdfBlock[] = parseAgreement(fillAgreement(t.body, facts, t.version));
+  const body = opts.keptInsulation ? applyKeptInsulation(t.body) : t.body;
+  const blocks: PdfBlock[] = parseAgreement(fillAgreement(body, facts, t.version));
   boldLeads(blocks);
   // The first header after the page break is the payment terms page.
   const br = blocks.findIndex((b) => b.kind === "pageBreak");
@@ -50,7 +55,8 @@ export function agreementBlocks(t: { version: string; body: string }, facts: Agr
 export async function customerAgreementPdf(
   t: { version: string; body: string },
   facts: AgreementFacts,
+  opts: AgreementRenderOptions = {},
 ): Promise<{ bytes: Uint8Array; layout: PdfLayoutReport; fileName: string }> {
-  const { bytes, layout } = await renderPdf({ title: "Customer Agreement and payment terms", blocks: agreementBlocks(t, facts) });
+  const { bytes, layout } = await renderPdf({ title: "Customer Agreement and payment terms", blocks: agreementBlocks(t, facts, opts) });
   return { bytes, layout, fileName: `Customer-Agreement-and-payment-terms-v${t.version}.pdf` };
 }

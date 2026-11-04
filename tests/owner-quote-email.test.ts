@@ -278,6 +278,7 @@ test("quote reminders (decisions 88/89/134): reminder line, price box, button, n
 /* ---------------------------------------------------------------- Part 10 Task 5: own-customer quote email (co-branded) */
 import { OWN_CUSTOMER_COBRAND_APPROVED } from "../src/lib/cobrand.core";
 import { VEU_BOX_TEXT, VEU_BOX_LINK, VEU_FACTSHEET_URL } from "../src/lib/owner-wording.core";
+import { OWN_CUSTOMER_VEU_VOLUNTARY_LINE } from "../src/lib/owner-quote-email.core";
 
 // Jo 4 Nov 2026: an own customer's PIESA line is the installer's own rate — Rapid's $275 here (the fee stays $349).
 const ownInput: OwnerQuoteEmailInput = {
@@ -321,6 +322,12 @@ test("Task 5: own-customer quote email (approved on) — approved lines by code,
   expect(m.html).toContain('alt="Rapid Insulation"');
   expect(m.html.indexOf("Victorian Energy Upgrades program")).toBeGreaterThan(m.html.indexOf("Questions? Just reply"));
   expect(m.html.indexOf("Victorian Energy Upgrades program")).toBeLessThan(m.html.indexOf("VEU Accredited Person A003654"));
+  // Jo 4 Nov 2026 14:18 (Round 5 A, approved): the voluntary / complaints line right under the VEU box, own customers only.
+  expect(OWN_CUSTOMER_VEU_VOLUNTARY_LINE).toBe("Taking part in the Victorian Energy Upgrades program is voluntary. If something's not right, reply to this email or write to info@homeinsulationvictoria.com.au — we reply within 5 business days. You can also contact the Essential Services Commission (esc.vic.gov.au).");
+  expect(m.text).toContain(`${VEU_BOX_LINK} ${VEU_FACTSHEET_URL}\n\n${OWN_CUSTOMER_VEU_VOLUNTARY_LINE}`);
+  expect(m.html.indexOf("program is voluntary")).toBeGreaterThan(m.html.indexOf(VEU_FACTSHEET_URL));
+  expect(m.html.indexOf("program is voluntary")).toBeLessThan(m.html.indexOf("VEU Accredited Person A003654"));
+  expect(renderOwnerQuoteEmail(withoutOwn(ownInput)).text).not.toContain("is voluntary"); // never on a Home Insulation Victoria lead
   for (const body of [m.subject, m.text, m.html]) expect(body).not.toMatch(/VEU discount|VEU rebate|\bHIV\b|\bfixes\b|lawyer/);
   // the v4 base is kept: rebate box, button, Next line, 30-day line
   expect(m.text).toContain("Your rebate: you save $600.");

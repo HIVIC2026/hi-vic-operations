@@ -276,7 +276,7 @@ async function signedAcceptancePdfV2OrNull(pkg: AcceptancePackage, p: { signator
     if (!tpl) throw new Error("No approved Customer Agreement wording is active");
     const [{ data: q }, { data: m }, { data: prof }] = await Promise.all([
       admin.from("quotes").select("sent_at").eq("id", pkg.quote.id).maybeSingle(),
-      admin.from("ceiling_measurements").select("removal_required, removal_m2").eq("job_id", pkg.job_id).eq("is_current", true).maybeSingle(),
+      admin.from("ceiling_measurements").select("removal_required, removal_m2, insulation_present, zones").eq("job_id", pkg.job_id).eq("is_current", true).maybeSingle(),
       pkg.installer.user_id ? admin.from("profiles").select("phone, email").eq("id", pkg.installer.user_id).maybeSingle() : Promise.resolve({ data: null }),
     ]);
     if (!q?.sent_at) throw new Error("Quote has no sent date");
@@ -296,6 +296,8 @@ async function signedAcceptancePdfV2OrNull(pkg: AcceptancePackage, p: { signator
     p = { ...p, signatureName: sig.signatureName };
     const signedAt = sig.signedAt;
     const removalM2 = m?.removal_required ? Number(m.removal_m2) || null : null;
+    // Jo 4 Nov 2026 16:10: the signed copy's agreement says the old insulation stays when the Ready Check recorded that.
+    const keptInsulation = (await import("./kept-insulation.core")).oldInsulationKept(m);
     const r = await signedAcceptancePdfV2({
       jobNumber: pkg.job_number, installerName: pkg.installer.business ?? pkg.installer.name ?? "", ownerName: p.signatoryName, ownerTypedName: p.signatureName,
       address: pkg.property_address, signedAt, validUntil,
@@ -309,6 +311,7 @@ async function signedAcceptancePdfV2OrNull(pkg: AcceptancePackage, p: { signator
           price_before_rebate: core.aud(pkg.price_before_benefit_inc_gst), rebate: core.aud(pkg.veu_benefit_inc_gst), your_price: core.aud(pkg.final_customer_price_inc_gst),
           valid_until: validUntil, safety_check: safetyCheckShort(split.safety), deposit: core.aud(split.deposit / 100), rest: core.aud(split.rest / 100),
         },
+        keptInsulation,
       },
     });
     return r.bytes;

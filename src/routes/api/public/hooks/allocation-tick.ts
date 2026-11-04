@@ -427,7 +427,7 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
         }
         try {
           // Part 9 Task 8 (Jo 2 Nov): insurance / licence expiry reminders 30 and 7 days before, business email + info@ copy;
-          // DRAFT wording → real businesses held until INSURANCE_REMINDER_APPROVED, TEST partners → test-send.
+          // wording approved by Jo 4 Nov 2026 → real businesses held until INSURANCE_REMINDER_APPROVED flips at go-live, TEST partners → test-send.
           const { sweepInsuranceReminders } = await import("@/lib/insurance-reminder.server");
           (out as Record<string, unknown>)['insuranceReminders'] = await timed("sweepInsuranceReminders", () => sweepInsuranceReminders());
         } catch (e) {

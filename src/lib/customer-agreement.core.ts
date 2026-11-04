@@ -4,6 +4,7 @@
 // "- " bullet, "> Label | value" facts row, "$ Label | value" money row, plain line = paragraph, "---" new page.
 // A literal \n inside a facts value or money label means a line break.
 import type { PdfBlock } from "./pdf-look.core";
+import { keptInsulationNotice } from "./kept-insulation.core";
 
 export const CUSTOMER_AGREEMENT_KEY = "customer_agreement";
 export const CUSTOMER_AGREEMENT_VERSION = "1.3";
@@ -84,6 +85,16 @@ If you need electrical upgrades, you pay your electrician directly. They're not 
 - $349: refunded if you cancel before your electrical safety check is done.
 - Deposit: refunded if you cancel at least 2 business days before your install day.
 `;
+
+/** Section 1's removal bullet (v1.3 verbatim). Jo 4 Nov 2026 16:10: when the Ready Check says the old insulation is KEPT, this
+ *  bullet is replaced by the approved "Your old insulation stays." paragraph (kept-insulation.core) at render time — the
+ *  stored, approved template body is never changed. */
+export const AGREEMENT_REMOVAL_LINE = "Remove your old insulation, if your quote says so.";
+export function applyKeptInsulation(body: string): string {
+  const line = `- ${AGREEMENT_REMOVAL_LINE}`;
+  if (!body.includes(line)) throw new Error("Customer Agreement: the removal line is missing, so the kept-insulation notice can't replace it");
+  return body.replace(line, `- ${keptInsulationNotice("{installer_name}")}`); // filled with the rest of the facts
+}
 
 const FACT_KEYS = [
   "owner_name", "address", "job_number", "installer_name", "installer_phone", "installer_email", "product", "area_m2",

@@ -105,7 +105,7 @@ export async function textToPdf(header: string, text: string, images: Record<str
 export async function signedAcceptancePdfV2(i: SignedAcceptanceInput): Promise<{ bytes: Uint8Array; layout: PdfLayoutReport }> {
   // Loaded here, not at the top: the legacy text PDFs above must not pull in fontkit and the bundled fonts (flags off).
   const [{ agreementBlocks }, { renderPdf }] = await Promise.all([import("./customer-agreement-pdf.server"), import("./pdf-look.server")]);
-  const agr = agreementBlocks({ version: i.agreement.version, body: i.agreement.body }, i.agreement.facts);
+  const agr = agreementBlocks({ version: i.agreement.version, body: i.agreement.body }, i.agreement.facts, { keptInsulation: i.agreement.keptInsulation === true });
   // The plain "Version x" line closes section 10 of the unsigned agreement; here the signed box carries it.
   const versionLine = `Version ${i.agreement.version}`;
   const strip = (bs: PdfBlock[]): PdfBlock[] => bs.map((b) => (b.kind === "section" ? { ...b, children: strip(b.children).filter((c) => !(c.kind === "para" && c.text === versionLine)) } : b));

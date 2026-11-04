@@ -11,6 +11,8 @@ import { sha256Hex } from "./sha256.core";
 // part of every plan's fingerprint: switching it on changes the rule and the fingerprint, so everyone signs again (the #48
 // reminder text asks them). Part 11 turns it on only on a day with no real install within the next 48 hours. While it is
 // false, every plan, SWMS_RULE and fingerprint stay byte-identical to the 24 Oct wording (tests/swms-wording-2nov.test.ts).
+// Jo 4 Nov 2026 14:18 (Round 5 C) APPROVED the supervision paragraph and "No Lead Installer is chosen for this install"; the
+// flag may flip at go-live.
 export const SWMS_NOV2_WORDING_ON = false as boolean;
 
 export type SwmsRule = "swms-portal-2026-10-24" | "swms-portal-2026-11-02";
@@ -59,7 +61,7 @@ const SWMS_WORDING_2026_11_02: SwmsWording = {
   complianceMeasures: "Direct supervision by the Lead Installer; every control checked before first entry and at the start of each day",
   howImplemented: "Lead Installer directly supervises the crew, checks the control before anyone enters the ceiling and again at the start of each day, and stops work if it cannot be followed",
   review: "The Lead Installer re-checks every control at the start of each day before work, and the plan is reviewed if anything on site changes",
-  howInPlace: "How these are put in place: the Lead Installer directly supervises the crew, checks every control before anyone enters the ceiling and again at the start of each day, and stops work if any control cannot be followed.", // DRAFT (the 24 Oct line with "Lead Installer" in full)
+  howInPlace: "How these are put in place: the Lead Installer directly supervises the crew, checks every control before anyone enters the ceiling and again at the start of each day, and stops work if any control cannot be followed.", // APPROVED by Jo 4 Nov 2026 14:18 (Round 5 C; the 24 Oct line with "Lead Installer" in full)
   hazards: [
     { name: "Live electrical hazards", short: "Live electrical", control: "Power isolated, locked out and tagged before entry (solar, battery and generator too, following their instructions); PIESA read and its conditions followed; electrician on site when the PIESA requires; test for dead before touching cables" },
     { name: "Hazardous substances (friable asbestos, harmful chemicals)", short: "Hazardous substances", control: "If asbestos is suspected, do not disturb it — stop work; it is a licensed asbestos removalist's job before work continues; no chemicals or solvents used in the ceiling" },
@@ -72,7 +74,7 @@ const SWMS_WORDING_2026_11_02: SwmsWording = {
     { name: "Fire hazards and ignition sources (flues, chimneys, gas heaters, heat lamps, exhaust fans, downlights, cables over 400 mm surrounded by insulation)", short: "Fire and ignition sources", control: "AS 3999 clearances kept to flues, chimneys, gas heaters, heat lamps and exhaust fans; downlights are IC or IC‑4 rated and insulated as rated; cables over 400 mm in insulation as the PIESA directs" },
   ],
   roleLabel: { lead: "Lead Installer", crew: "Crew" },
-  noLeadLine: "No Lead Installer is chosen for this install", // DRAFT (the 24 Oct line with "Lead Installer" in full)
+  noLeadLine: "No Lead Installer is chosen for this install", // APPROVED by Jo 4 Nov 2026 14:18 (Round 5 C; the 24 Oct line with "Lead Installer" in full)
   leadPhoneOnlyLine: "Only the Lead Installer can open someone's sign link on their phone.",
 };
 

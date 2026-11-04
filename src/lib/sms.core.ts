@@ -160,7 +160,7 @@ export const SMS_MESSAGE_TYPES = {
   // New job flow Part 6 Task 2: the electrician is texted their no-login job link (/e/{token}) right after the installer picks them.
   // DRAFT wording (electricianLinkText, electrician-link.core.ts) until Jo approves it; also behind ELECTRICIAN_LINK_TEXT_APPROVED.
   electrician_job_link: { audience: "partner", label: "New safety check job – electrician's job link (Part 6; DRAFT wording, ELECTRICIAN_LINK_TEXT_APPROVED)", wordingApproved: false, quietHours: true },
-  upgrades_nudge: { audience: "partner", label: "Upgrades form not in – nudge to the electrician the day after the upgrades day (Part 6; DRAFT wording, UPGRADES_NUDGE_TEXT_APPROVED)", wordingApproved: false, quietHours: true },
+  upgrades_nudge: { audience: "partner", label: "Upgrades form not in – nudge to the electrician the day after the upgrades day (Part 6; wording approved by Jo 4 Nov 2026, UPGRADES_NUDGE_TEXT_APPROVED flips at go-live)", wordingApproved: false, quietHours: true },
 } as const;
 export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;
 

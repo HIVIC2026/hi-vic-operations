@@ -102,7 +102,7 @@ export async function loadOwnerQuoteFacts(
     Promise.all([
       admin
         .from("ceiling_measurements")
-        .select("measured_area_m2, verified_area_m2, removal_required, removal_m2")
+        .select("measured_area_m2, verified_area_m2, removal_required, removal_m2, insulation_present, zones")
         .eq("job_id", jobId)
         .eq("is_current", true)
         .maybeSingle(),
@@ -137,6 +137,8 @@ export async function loadOwnerQuoteFacts(
         verified_area_m2: unknown;
         removal_required: boolean | null;
         removal_m2: unknown;
+        insulation_present?: boolean | null;
+        zones?: unknown;
       } | null;
     },
     { data: { details: unknown } | null },
@@ -163,10 +165,14 @@ export async function loadOwnerQuoteFacts(
   // Part 10 Task 5: an installer's own customer gets the co-branded variant — the originating business's name and Part 5's
   // https logo (`businessLogoUrl`; none → our logo alone). Best-effort: a failed read leaves the brand out, never stops the email.
   const ownCustomer = await ownCustomerBrand(jobId).catch(() => null);
+  // Jo 4 Nov 2026 16:10: the old insulation stays (Ready Check: not removed + good enough to lay over) → the approved notice
+  // on the quote email / page and in the agreement. Only when recorded (kept-insulation.core); the read failing = no notice.
+  const keptInsulation = (await import("./kept-insulation.core")).oldInsulationKept(m);
   return {
     missing: null,
     input: {
       ...(ownCustomer ? { ownCustomer } : {}),
+      ...(keptInsulation ? { keptInsulation } : {}),
       firstName: firstName(ownerName),
       address,
       totalIncGst: Number(quote.customer_total_inc_gst),
@@ -239,10 +245,10 @@ export async function quoteEmailDocuments(
     });
     if (!facts) return no(installer?.officePhone && installer.email ? "agreement details missing" : "installer office phone or business email missing");
     const { agreementBlocks, customerAgreementPdf, PAYMENT_TERMS_BLOCK_ID } = await import("./customer-agreement-pdf.server");
-    if (!agreementBlocks(tpl, facts).some((b) => (b as { id?: string }).id === PAYMENT_TERMS_BLOCK_ID)) return no("payment terms missing from the Customer Agreement");
+    if (!agreementBlocks(tpl, facts, { keptInsulation: input.keptInsulation === true }).some((b) => (b as { id?: string }).id === PAYMENT_TERMS_BLOCK_ID)) return no("payment terms missing from the Customer Agreement");
     const sor = statementOfRightsPdf();
     if (!sor) return no("Statement of rights not on file");
-    const agreement = await customerAgreementPdf(tpl, facts);
+    const agreement = await customerAgreementPdf(tpl, facts, { keptInsulation: input.keptInsulation === true });
     const { bytesToBase64 } = await import("./veec-emails.core");
     const pdf = (filename: string, bytes: Uint8Array): EmailAttachment => ({ filename, content: bytesToBase64(bytes), contentType: "application/pdf" });
     return { attachments: [pdf(agreement.fileName, agreement.bytes), pdf(STATEMENT_OF_RIGHTS_FILENAME, sor)], missing: null };

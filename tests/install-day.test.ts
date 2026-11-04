@@ -45,7 +45,7 @@ describe("Install day prompt equals install-day.core (drift)", () => {
     expect(g8).toContain(`first item on this page, before Q38 (decision 328): \`${INSTALL_DAY_AFTER_INSTALL_TEXT}\``);
     expect(prompt).toContain(`Q47: \`${Q.allFilledIn}\` — Checkbox — Required\nQ48: \`${Q.signature}\` — Signature — Required`);
     expect(INSTALL_DAY_AFTER_SIGN_TEXT).toBe("STOP. You are only halfway. Do not leave site. When the insulation is in, come back and finish the next pages: after videos, depth photos and finishing up.");
-    expect(INSTALL_DAY_READ_FIRST_TEXT).toBe('READ FIRST: The VEU will not accept this job unless every answer, photo and video on this form is filled in. Do not leave site until the whole form is done, you have pressed Complete, and the portal has texted you "All filled in". You are only paid when this form is 100% complete.');
+    expect(INSTALL_DAY_READ_FIRST_TEXT).toBe('READ FIRST: The VEU will not accept this job unless every answer, photo and video on this form is filled in. Do not leave site until the whole form is done, you have pressed Complete, and the portal has texted you "All filled in". Press Complete before you leave — we can\'t claim the rebate or pay the job until it\'s done.');
     expect(INSTALL_DAY_AFTER_INSTALL_TEXT).toBe("AFTER THE INSTALL: do this before you pack up. Every ceiling area needs its after video and depth photo.");
     expect(Q.allFilledIn).toBe('Every answer, photo and video on this form is filled in, and I won\'t leave site until the portal texts me "All filled in".');
     const tick = INSTALL_DAY_QUESTIONS.find((q) => q.label === Q.allFilledIn)!;

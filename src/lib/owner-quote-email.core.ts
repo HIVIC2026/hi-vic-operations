@@ -32,6 +32,7 @@ import { safetyCheckShort } from "./safety-check-amount.core";
 import { OWN_CUSTOMER_COBRAND_APPROVED, cobrandLogos } from "./cobrand.core";
 import { ownCustomerRows } from "./own-customer-price.core";
 import { VEU_BOX_TITLE, veuBoxMj, veuBoxText } from "./owner-wording.core";
+import { keptInsulationNotice } from "./kept-insulation.core";
 
 /** v3 approved 24 Oct 2026; design applied under decision 137. */
 export const OWNER_QUOTE_EMAIL_APPROVED = true as boolean;
@@ -84,6 +85,9 @@ export type OwnerQuoteEmailInput = {
   /** Part 10 Task 5: set on an installer's own customer (channel installer_sourced): the installer's name and Part 5's
    *  https logo URL (null = our logo alone). Ignored unless v4 and OWN_CUSTOMER_COBRAND_APPROVED (final review I4: one switch). */
   ownCustomer?: { installerName: string; installerLogoUrl: string | null } | null;
+  /** Jo 4 Nov 2026 16:10: the Ready Check says the old insulation stays (kept-insulation.core `oldInsulationKept`) — the
+   *  approved "Your old insulation stays." paragraph goes under the quote lines. Absent/false = the email is unchanged. */
+  keptInsulation?: boolean;
 };
 /** Test seam for the one Task 5 switch (OWN_CUSTOMER_COBRAND_APPROVED); callers never pass it (the constant decides). */
 export type OwnCustomerSeam = { cobrandApproved?: boolean };
@@ -112,6 +116,10 @@ export function safetyCheckPriceFromLines(lines: OwnerQuoteLine[]): number | nul
 export const INSULATION_BENEFIT = "Ceiling insulation is the best barrier against summer heat and winter cold, and can save you up to 20% on your heating and cooling costs (Sustainability Victoria). Warmer winters, cooler summers.";
 
 const NOT_INCLUDED = "Not included: electrical upgrades, only if the electrical safety check (PIESA) finds any. Your electrician quotes these directly, and nothing is done without your OK.";
+/** Jo 4 Nov 2026 14:18 (Round 5 A, APPROVED): VEU Code cl 13/14 line on an installer's OWN customer's quote email only
+ *  (under the VEU program box; the same switch as that box). Home Insulation Victoria leads' quote email is unchanged. */
+export const OWN_CUSTOMER_VEU_VOLUNTARY_LINE = "Taking part in the Victorian Energy Upgrades program is voluntary. If something's not right, reply to this email or write to info@homeinsulationvictoria.com.au — we reply within 5 business days. You can also contact the Essential Services Commission (esc.vic.gov.au).";
+const veuVoluntaryMj = () => `<mj-section><mj-column><mj-text mj-class="small" padding="0 12px 0">${esc(OWN_CUSTOMER_VEU_VOLUNTARY_LINE)}</mj-text></mj-column></mj-section>`;
 const NOT_FOR_YOU = "Not ready, or not for you? You can tell us on the same page.";
 /** Rule (Jo): "Accredited Person", never "Accredited Provider" — older quote lines still carry the old fee name. */
 const lineTitle = (d: string) => currentFeeWording(d);
@@ -211,23 +219,28 @@ export function renderOwnerQuoteEmail(i: OwnerQuoteEmailInput, seam: OwnCustomer
   const quote = rows.length
     ? `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px 10px">Your quote</mj-text><mj-table padding="0 18px 6px">${rows.map((r, n) => quoteRowHtml(r, n === 0)).join("")}${ownRows ? "" : youPay}</mj-table><mj-text mj-class="small" padding="0 18px 18px">${esc(NOT_INCLUDED)}</mj-text></mj-column></mj-section>`
     : `<mj-section><mj-column><mj-text mj-class="small" padding="0 12px 0">${esc(NOT_INCLUDED)}</mj-text></mj-column></mj-section>`;
+  // Jo 4 Nov 2026 16:10 (approved): when the old insulation is kept, say so right under the quote (both lead kinds).
+  const kept = i.keptInsulation === true ? keptInsulationNotice(own?.installerName ?? installer) : null;
+  const keptHtml = kept ? `<mj-section><mj-column><mj-text padding="14px 12px 0">${esc(kept)}</mj-text></mj-column></mj-section>` : "";
   const body = [
     `<mj-section><mj-column><mj-text mj-class="hi">${esc(hi)}</mj-text><mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">${esc(f.headline)}</mj-text></mj-column></mj-section>`,
     f.box,
     changes.html,
     `<mj-section><mj-column>${mjButton(i.quoteUrl)}</mj-column></mj-section>`,
     quote,
+    keptHtml,
     `<mj-section><mj-column><mj-text padding="18px 12px 14px">${next}</mj-text><mj-text mj-class="small" padding="0 12px 0">${esc(closing)}</mj-text></mj-column></mj-section>`,
-    // Part 10 Task 5 / VEU Fix 1: the program box at the bottom of an own customer's first email.
-    own ? veuBoxMj() : "",
+    // Part 10 Task 5 / VEU Fix 1: the program box at the bottom of an own customer's first email, then (Jo 4 Nov 2026,
+    // Round 5 A) the voluntary / complaints line.
+    own ? veuBoxMj() + veuVoluntaryMj() : "",
   ].join("");
   const preview = [`You pay ${f.total}${f.rebate ? " after the rebate" : ""}.`, validity].filter(Boolean).join(" ");
   const html = mjEmail({ subject, preview, body, unsubscribe: i.unsubscribeUrl, testLabel: i.test === true, ...(partnerLogo ? { partnerLogo } : {}) });
-  const veu = own ? ["", `${VEU_BOX_TITLE} — ${veuBoxText()[1]}`, veuBoxText()[2]!] : [];
+  const veu = own ? ["", `${VEU_BOX_TITLE} — ${veuBoxText()[1]}`, veuBoxText()[2]!, "", OWN_CUSTOMER_VEU_VOLUNTARY_LINE] : [];
   const text = K.plainText([
     hi, "", f.headline, "", ...f.boxText, "", ...changes.text, `View and accept your quote: ${i.quoteUrl}`, "",
     ...(rows.length ? ["YOUR QUOTE", ...rows.map((r) => `${r.title}${r.detail ? ` (${r.detail})` : ""}: ${r.amount}`), ...(ownRows ? [] : [`You pay: ${f.total}`]), ""] : []),
-    NOT_INCLUDED, "", K.stripTags(next), "", closing, ...veu,
+    NOT_INCLUDED, "", ...(kept ? [kept, ""] : []), K.stripTags(next), "", closing, ...veu,
   ], { unsubscribe: i.unsubscribeUrl, testLabel: i.test === true });
   return { subject, html, text };
 }

@@ -3,10 +3,11 @@
 // Electricians' licence reminders go the same way to their business email. PURE: the sweep (insurance-reminder.server)
 // reads the dates and sends through the guarded senders; nothing here sends.
 //
-// DRAFT wording — no approved wording exists; real businesses get nothing until Jo approves (INSURANCE_REMINDER_APPROVED).
+// Wording APPROVED by Jo 4 Nov 2026 14:50 as drafted. INSURANCE_REMINDER_APPROVED stays false until go-live flips it (Part 11);
+// until then real businesses get nothing (held, recorded once per key).
 import { TRADE_DOC_LABEL } from "./trade-expiry.core";
 
-/** Jo approves the wording from a picture at build time; until then real sends are held (recorded once per key). */
+/** Wording approved by Jo 4 Nov 2026 14:50; the flag flips at go-live (Part 11). Until then real sends are held (recorded once per key). */
 export const INSURANCE_REMINDER_APPROVED = false;
 export const INSURANCE_REMINDER_DAYS = [30, 7] as const;
 export type InsuranceReminderDays = (typeof INSURANCE_REMINDER_DAYS)[number];

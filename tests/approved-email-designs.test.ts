@@ -266,7 +266,9 @@ describe("approved installer email designs", () => {
     const m = partnerWelcomeEmail({ firstName: "Sam", businessName: "Reinsulate", trade: "installer", email: "sam@reinsulate.test", link: "https://estimate.homeinsulationvictoria.com.au/reset-password?token_hash=t&type=recovery&next=%2Ffield%2Fwelcome", test: false });
     shell(m.html, m.text, false);
     has(vis(m.html), ["Welcome aboard, Sam. | You're approved!"]);
-    has(m.html, ["Reinsulate can now take VEU ceiling insulation jobs", "Jobs sent to you, plus add your own customers", "We only add our $349 AP fee", "Quotes, electrician, compliance and rebate paperwork handled by us", ">Set your password<", "New to how we work?", "Read the 2-minute guide", 'href="https://estimate.homeinsulationvictoria.com.au/field/guide"']);
+    has(m.html, ["Reinsulate can now take VEU ceiling insulation jobs", "Jobs sent to you, plus add your own customers", "We only add our $349 AP fee", "Quotes, electrician, compliance and rebate paperwork handled by us", ">Set your password<"]);
+    // Jo 4 Nov 2026 13:50: the "Read the 2-minute guide" box is gone (the guide page just opens My work since Part 5 Task 11).
+    for (const gone of ["New to how we work?", "Read the 2-minute guide", "/field/guide"]) { expect(m.html).not.toContain(gone); expect(m.text).not.toContain(gone); }
   });
   test("I62 Privacy notice copy (decision 170): partner kit, notice verbatim, acknowledged date, reply line", () => {
     const n = collectionNoticeEmail({ firstName: "Sam", acknowledgedAt: "2026-10-24T01:00:00.000Z" });

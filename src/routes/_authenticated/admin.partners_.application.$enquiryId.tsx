@@ -121,7 +121,7 @@ function SignedApplication({ row, appId }: { row: Row; appId: string }) {
       <div id="approve" className="scroll-mt-24">{!decided.data && <ApprovePartner applicationId={appId} showReviewDecision={false} />}</div>
       <OfficeEmailBox enquiryId={row.id} to={row.email} />
       <details className="rounded-[18px] border border-line bg-paper p-5"><summary className="cursor-pointer text-sm font-semibold text-ink">Full record, status and notes</summary><div className="mt-3"><ApplicationDetail row={row} recordOnly /></div></details>
-      <p className="text-xs text-sub" data-why="decisions 107, 130, 153, 22/188 after approval">On approval: welcome email and the 2-minute guide go out, the business appears under Approved, each person gets the ESC privacy notice link and a Mitti invite, and CII certificates are verified under People before anyone is cleared for crews.</p>
+      <p className="text-xs text-sub" data-why="decisions 107, 130, 153, 22/188 after approval">On approval: the welcome email goes out, the business appears under Approved, each person gets the ESC privacy notice link and a Mitti invite, and CII certificates are verified under People before anyone is cleared for crews.</p>
     </div>
   );
 }
