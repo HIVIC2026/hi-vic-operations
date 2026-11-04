@@ -335,14 +335,27 @@ describe("after approval", () => {
     expect((await els.installerMyElectricians(U_BOSS)).find((r) => r.id === SAM)).toMatchObject({ status: "expired" });
   });
 
-  test("own-job pick: a lapsed business licence blocks an installer-added electrician; an HIV-onboarded REC is judged on PL + REC registration only", async () => {
+  // G6 S6 (final Part 9 review, 4 Nov 2026): the own-job pick uses the SAME insurance hard block as every booking
+  // (businessDocsBlocker: public liability verified, $5m+ — the business's recorded cover — unexpired; workers comp unless
+  // exempt), then the REC registration / business licence expiry rule.
+  test("own-job pick: a lapsed business licence blocks an installer-added electrician; an HIV-onboarded REC is judged on the insurance block + REC registration", async () => {
     await db.query("update business_credentials set expires_at='2026-10-01' where business_id=$1 and kind='electrical_licence'", [SAM]);
-    expect(await els.ownJobDocsBlocker(SAM, "2026-11-03")).toContain("Electrical licence expired on 2026-10-01");
+    expect(await els.ownJobDocsBlocker(SAM, "2026-11-03")).toContain("Electrical licence expired on 2026-10-01"); // Sam: PL verified $5m, sole trader (exempt) → only the licence
+    // Rita was approved above (PL + WorkCover verified, $5m on the business record) → clear; before approval her
+    // pending uploads say "waiting for Home Insulation Victoria to check it".
     expect(await els.ownJobDocsBlocker(RITA, "2026-11-03")).toBeNull();
+    await db.query("update business_credentials set verification='pending' where business_id=$1 and kind='public_liability_insurance'", [RITA]);
+    expect(await els.ownJobDocsBlocker(RITA, "2026-11-03")).toBe("Public liability insurance: uploaded, waiting for Home Insulation Victoria to check it.");
+    await db.query("update business_credentials set verification='verified' where business_id=$1 and kind='public_liability_insurance'", [RITA]);
     const REC = id(60);
-    await db.query(`insert into businesses (id, business_type, name, onboarding_status, is_active, capabilities) values ($1,'rec','Volt Co','approved',true,'["electrician"]')`, [REC]);
+    await db.query(`insert into businesses (id, business_type, name, onboarding_status, is_active, capabilities, public_liability_cover_amount, workcover_exempt_declared_at) values ($1,'rec','Volt Co','approved',true,'["electrician"]', 10000000, now())`, [REC]);
     await db.query("insert into business_credentials (business_id, kind, expires_at, verification) values ($1,'electrical_licence','2020-01-01','verified'), ($1,'public_liability_insurance','2099-01-01','verified')", [REC]);
-    expect(await els.ownJobDocsBlocker(REC, "2026-11-03")).toBeNull(); // per-person licence rules cover HIV-onboarded RECs
+    expect(await els.ownJobDocsBlocker(REC, "2026-11-03")).toBeNull(); // per-person licence rules cover HIV-onboarded RECs; PL $10m on the business record (B1), exempt from workers comp
+    await db.query("update businesses set public_liability_cover_amount = 2000000 where id=$1", [REC]);
+    expect(await els.ownJobDocsBlocker(REC, "2026-11-03")).toBe("Public liability insurance covers $2,000,000; $5,000,000 or more is needed.");
+    await db.query("update businesses set public_liability_cover_amount = 10000000, workcover_exempt_declared_at = null where id=$1", [REC]);
+    expect(await els.ownJobDocsBlocker(REC, "2026-11-03")).toBe("Workers compensation insurance not on file. Upload it under My business.");
+    await db.query("update businesses set workcover_exempt_declared_at = now() where id=$1", [REC]);
     await db.query("insert into business_credentials (business_id, kind, expires_at, verification) values ($1,'public_liability_insurance','2026-01-01','rejected'), ($1,'rec_registration','2026-01-01','verified')", [REC]);
     expect(await els.ownJobDocsBlocker(REC, "2026-11-03")).toBe("REC registration expired on 2026-01-01. No new jobs until the renewed document is uploaded.");
     const swap = readFileSync(new URL("../src/lib/electrician-swap.server.ts", import.meta.url), "utf8");

@@ -427,13 +427,19 @@ export async function officeApproveInstallerElectrician(actorId: string, busines
  *  public liability or REC registration blocks; for an installer-added electrician the business-level electrical licence
  *  does too (they have no per-person onboarding licence check). Rejected rows don't count. Missing table/column = nothing to check. */
 export async function ownJobDocsBlocker(electricianBusinessId: string, today = melbourneToday()): Promise<string | null> {
+  // G6 S6 (final Part 9 review, 4 Nov 2026): the same insurance hard block as every booking (Part 9 Task 8 businessDocsBlocker:
+  // public liability on file, verified, $5m+, unexpired; workers comp unless exempt) — read through the one reader. Fails closed.
+  // The pre-existing stance of this function stays for a practice database without the table (isMissingDbObject = nothing to check).
+  const insurance = await (await import("./business-docs.server")).businessDocsBlockerFor(electricianBusinessId, today)
+    .catch((e) => { if (isMissingDbObject({ message: e instanceof Error ? e.message : String(e) })) return null; throw new WorkflowError(`The electrician's paperwork couldn't be checked (${e instanceof Error ? e.message : "read failed"}). Please try again.`); });
+  if (insurance) return insurance;
   const { expiredBusinessDocsBlocker } = await import("./trade-expiry.core");
   const cr = await admin.from("business_credentials").select("kind, label, expires_at, verification").eq("business_id", electricianBusinessId).neq("verification", "rejected");
   if (cr.error) { if (isMissingDbObject(cr.error)) return null; throw new WorkflowError("The electrician's paperwork couldn't be checked. Please try again."); }
   const b = (await admin.from("businesses").select("id, added_by_installer_business_id").eq("id", electricianBusinessId).maybeSingle()) as unknown as { data: { added_by_installer_business_id: string | null } | null; error: { message: string; code?: string } | null };
   let installerAdded = false;
   if (b.error) { if (!isMissingDbObject(b.error)) throw new WorkflowError("The electrician's paperwork couldn't be checked. Please try again."); } else installerAdded = !!b.data?.added_by_installer_business_id;
-  const kinds = installerAdded ? (["public_liability_insurance", "rec_registration", "electrical_licence"] as const) : (["public_liability_insurance", "rec_registration"] as const);
+  const kinds = installerAdded ? (["rec_registration", "electrical_licence"] as const) : (["rec_registration"] as const); // public liability is judged above
   return expiredBusinessDocsBlocker((cr.data ?? []).map((c) => ({ kind: c.kind, label: c.label ?? c.kind, expires: c.expires_at as string | null, verified: c.verification === "verified" })), today, kinds);
 }
 

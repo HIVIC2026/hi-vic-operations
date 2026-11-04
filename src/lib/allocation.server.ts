@@ -2,7 +2,7 @@ import { partnerAllowedForJob } from "./test-send.core";
 // Contractor allocation + direct coordination persistence. Pure rules: allocation.core.ts.
 // Never moves stages itself; acceptance is atomic in SQL (accept_partner_offer, migration 0086).
 import { workerOfferBlocker } from "./worker-compliance.core";
-import { expiredBusinessDocsBlocker } from "./trade-expiry.core";
+import { businessDocsBlocker, expiredBusinessDocsBlocker } from "./trade-expiry.core";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { clearanceFacts } from "./electrical-clearance.server";
 import type { Json } from "@/integrations/supabase/types";
@@ -58,6 +58,12 @@ export async function recCandidatesFor(jobId: string): Promise<{ postcode: strin
       : Promise.resolve({ data: [] as { business_id: string | null; scheduled_start: string; scheduled_end: string | null; jobs: unknown }[] }),
   ]);
   const { data: inst } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
+  // G6 S6 (final Part 9 review, 4 Nov 2026): offers use the SAME insurance hard block as every booking (Part 9 Task 8
+  // businessDocsBlocker through the one reader: on file, verified, $5m+ — the business's recorded cover (B1) — unexpired,
+  // workers comp unless exempt). A read error throws: no offer goes out on an unchecked business.
+  const docs = await (await import("./business-docs.server")).businessDocsFor(ids);
+  const today = melbourneYmd(new Date());
+  const insuranceBlocker = (bid: string): string | null => { const d = docs.get(bid); return d ? businessDocsBlocker(d.credentials, today, { workersCompExempt: d.workersCompExempt }) : businessDocsBlocker([], today); };
   // The installer's choice on this job is offered first; otherwise their preferred electricians (Jo, 7 Oct).
   const { firstOfferedElectrician } = await import("./job-electrician.core");
   const preferred = firstOfferedElectrician(await (await import("./job-electrician.server")).jobChosenElectrician(jobId), (prefs ?? [])
@@ -87,9 +93,11 @@ export async function recCandidatesFor(jobId: string): Promise<{ postcode: strin
       // Only verified, unexpired electrical_licence / rec_registration credentials count.
       // Decision 371: a lapsed public liability / REC registration (latest stored date, whatever the `critical` flag) stops new offers too.
       has_valid_licence: !!b.rec_number && licenceKinds.every(verifiedCurrent) && !partnerWorkBlocker(b as unknown as BusinessLike, bc)
-        && !expiredBusinessDocsBlocker(bc.map((c) => ({ kind: c.kind, label: c.label ?? c.kind, expires: c.expires_at, verified: c.verification === "verified" })), melbourneYmd(new Date()), ["public_liability_insurance", "rec_registration"]),
-      // Phase 3 path 4 (27 Oct): say WHICH document stops the offer, not always "no licence".
-      licence_blocker: expiredBusinessDocsBlocker(bc.map((c) => ({ kind: c.kind, label: c.label ?? c.kind, expires: c.expires_at, verified: c.verification === "verified" })), melbourneYmd(new Date()), ["public_liability_insurance", "rec_registration"])
+        && !insuranceBlocker(b.id)
+        && !expiredBusinessDocsBlocker(bc.map((c) => ({ kind: c.kind, label: c.label ?? c.kind, expires: c.expires_at, verified: c.verification === "verified" })), today, ["rec_registration"]),
+      // Phase 3 path 4 (27 Oct): say WHICH document stops the offer, not always "no licence". S6: insurance first (the full rule).
+      licence_blocker: insuranceBlocker(b.id)
+        ?? expiredBusinessDocsBlocker(bc.map((c) => ({ kind: c.kind, label: c.label ?? c.kind, expires: c.expires_at, verified: c.verification === "verified" })), today, ["rec_registration"])
         ?? partnerWorkBlocker(b as unknown as BusinessLike, bc) ?? null,
       // Expired electrical licence: that electrician can't receive new offers.
       approved_workers: (workers ?? []).filter((w) => w.business_id === b.id && !workerOfferBlocker(w as never, melbourneYmd(new Date()))).length,
