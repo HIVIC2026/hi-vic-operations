@@ -23,6 +23,7 @@ export const NEEDS_GROUPS: { key: NeedsGroup; label: string }[] = [
 ];
 
 export type NeedsKind =
+  | "install_scope_change"
   | "in_house_esc_lead_changed" | "in_house_handed_back" | "address_to_confirm" | "mitti_electrician_choice" | "own_job_piesa_held" | "own_job_piesa_handed_back" | "own_job_swap_form_not_moved" | "own_job_installer_not_told"
   | "paid_gate_blocked" | "install_deposit_request_failed" | "in_house_form_sync_failed"
   | "in_house_ready_check_not_booked" | "in_house_piesa_overdue" | "in_house_install_not_booked"

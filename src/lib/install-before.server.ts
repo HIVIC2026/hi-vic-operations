@@ -8,7 +8,7 @@ export async function readInstallBeforePlan(jobId:string) {
  ]);
  if(measurement.error||reviews.error)throw new Error('BEFORE evidence could not be checked – office review required.');
  const m=measurement.data;
- const zones=Array.isArray(m?.zones)?m.zones:[];
+ const zones:unknown[]=Array.isArray(m?.zones)?m.zones:[];
  const areas:BeforeArea[]=zones.filter((z):z is Record<string,unknown>=>!!z&&typeof z==='object'&&!Array.isArray(z)).map(z=>{
   const name=typeof z['name']==='string'?z['name']:typeof z['label']==='string'?z['label']:null;
   const beforeRejected=(reviews.data??[]).some(r=>/before|existing.*depth|old.*insulation.*ruler/i.test(r.label)&&(!name||r.label.toLowerCase().includes(name.toLowerCase())||!zones.some(other=>{const a=other as Record<string,unknown>;const n=a['name']??a['label'];return typeof n==='string'&&r.label.toLowerCase().includes(n.toLowerCase());})));
