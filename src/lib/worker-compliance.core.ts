@@ -188,6 +188,10 @@ export const WHITE_CARD_BLOCK_MESSAGE = "White Card not verified";
 export const DECLARATIONS_DUE_MESSAGE = "Hasn't signed their worker declarations yet.";
 /** 00:00 on 26 Oct 2026 in Melbourne (AEDT, UTC+11). Installation bookings created before this instant are never blocked. */
 export const WHITE_CARD_ENFORCED_FROM = "2026-10-25T13:00:00.000Z";
+/** Jo 5 Nov 2026 (go-live): "we don't care about White Card — get rid of it". Nothing asks for, shows or blocks on the
+ *  White Card while this is false: every state reads not_applicable, no blocker, no office flag, no Needs me row. The
+ *  stored uploads/decisions stay as history. */
+export const WHITE_CARD_REQUIRED = false as boolean;
 export const WHITE_CARD_EVENTS = { uploaded: "white_card_uploaded", verified: "white_card_verified", rejected: "white_card_rejected" } as const;
 
 /** The stored White Card record on a worker's certification JSON (null when none). */
@@ -198,7 +202,7 @@ export function whiteCardOf(certification: unknown): WhiteCardRecord | null {
 
 /** White Card state for installers. Verified only by an office check against an uploaded file; rejected until a new upload. */
 export function whiteCardState(w: { trade_role?: string | null; certification?: unknown }): WhiteCardState {
-  if (w.trade_role !== "installer") return "not_applicable";
+  if (!WHITE_CARD_REQUIRED || w.trade_role !== "installer") return "not_applicable";
   const r = whiteCardOf(w.certification);
   if (!r?.path) return "missing";
   if (r.verified_at) return "verified";
@@ -222,6 +226,7 @@ export const WHITE_CARD_OFFICE_FLAG: Record<"missing" | "awaiting_check" | "reje
 
 /** Is the White Card rule enforced for an installation booked at `bookingCreatedAt`? No booking yet = new work = enforced. */
 export function whiteCardEnforced(bookingCreatedAt: string | null | undefined): boolean {
+  if (!WHITE_CARD_REQUIRED) return false;
   if (!bookingCreatedAt) return true;
   const t = Date.parse(bookingCreatedAt);
   return !Number.isFinite(t) || t >= Date.parse(WHITE_CARD_ENFORCED_FROM);

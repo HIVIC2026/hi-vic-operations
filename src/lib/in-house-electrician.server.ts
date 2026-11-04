@@ -113,7 +113,7 @@ export async function allocateElectrician(jobId: string, userId: string, workerI
   // Go-live 5 Nov 2026: a TEST job's forms go to the TEST Mitti account, so a TEST job never needs the person's email.
   if (job.source !== "qa_test" && !worker.email?.trim()) throw new Error("Electrician needs a Mitti email");
   const mitti = await import("./mitti.server");
-  const email = job.source === "qa_test" ? (await import("./onsite-ready-check.core")).TEST_MITTI_ASSIGNEE : worker.email.trim();
+  const email = job.source === "qa_test" ? (await import("./onsite-ready-check.core")).TEST_MITTI_ASSIGNEE : (worker.email ?? "").trim();
   const mittiUserId = await mitti.findMittiUserByEmail(email, call ?? mitti.realMittiCall);
   if (!mittiUserId) throw new Error("Add this electrician in Mitti first.");
   const [assessment, rectification] = await Promise.all([

@@ -35,6 +35,8 @@ export const TEAM_WORDS = {
   dob: "Date of birth", // DRAFT (field label)
   mobile: "Mobile", // DRAFT (field label)
   email: "Email (optional)", // existing (TEAM_ADD_SHEET.email)
+  /** Go-live 5 Nov 2026: electricians need their Mitti email at Add. */
+  emailElectrician: "Email (the one they use for Mitti)",
   rec: "REC number", // DRAFT (field label)
   closeSheet: "Close", // DRAFT
 } as const;
@@ -44,9 +46,10 @@ export type AddPersonRole = "office" | "lead" | "crew" | "electrician";
 export const ADD_PERSON_ROLES: readonly AddPersonRole[] = ["office", "lead", "crew", "electrician"];
 export const ADD_PERSON_ROLE_LABEL: Record<AddPersonRole, string> = { office: "Office", lead: "Lead Installer", crew: "Crew", electrician: "Electrician" }; // approved (team-phone.png / decisions)
 
-export type AddPersonInput = { name: string; role: AddPersonRole; mobile: string | null; dateOfBirth: string | null; licenceNumber: string | null; recNumber: string | null };
+export type AddPersonInput = { name: string; role: AddPersonRole; mobile: string | null; dateOfBirth: string | null; licenceNumber: string | null; recNumber: string | null; /** Go-live 5 Nov 2026: an electrician's Mitti email (undefined = not checked, older callers). */ email?: string | null };
 /** Everything missing before a person can be added, in field order. Mobile and date of birth for every role (approved
  *  rule); licence + REC for electricians. Empty = fine. Mobile format is checked by the server (crewMobileInput). */
+export const ELECTRICIAN_EMAIL_NEEDED = "Add their email — the safety check form goes to them in Mitti.";
 export function addPersonProblems(p: AddPersonInput, today: string): string[] {
   const out: string[] = [];
   if ((p.name ?? "").trim().length < 2) out.push("Add their full name."); // existing (trade-view.server)
@@ -56,6 +59,9 @@ export function addPersonProblems(p: AddPersonInput, today: string): string[] {
   if (p.role === "electrician") {
     if (!(p.licenceNumber ?? "").trim()) out.push("Add their electrical licence number."); // existing (trade-view.server)
     if (!(p.recNumber ?? "").trim()) out.push("Add their REC number."); // DRAFT
+    // Go-live 5 Nov 2026 (James Spark): the safety check form is handed to the electrician in Mitti by email, so picking an
+    // electrician without one fails "Electrician needs a Mitti email" — ask for it at Add, not after.
+    if (p.email !== undefined && !(p.email ?? "").trim()) out.push(ELECTRICIAN_EMAIL_NEEDED);
   }
   return out;
 }

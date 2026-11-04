@@ -39,11 +39,25 @@ export async function piesaResultAt(jobId: string): Promise<string | null> {
   } catch { return null; }
 }
 
-export type PiesaDeliveryDeps = { route: (jobId: string) => Promise<PiesaResultRoute[]>; resultAt?: (jobId: string) => Promise<string | null> };
+export type PiesaDeliveryDeps = { route: (jobId: string) => Promise<PiesaResultRoute[]>; resultAt?: (jobId: string) => Promise<string | null>;
+  /** Go-live 5 Nov 2026: will the clear-to-install (deposit request) email still go? false = the deposit is already paid or the
+   *  install is booked (J5: paid before the upgrades day), so that email never goes and the owner's updated PIESA copy must
+   *  go standalone NOW, not after the 24h safety net. undefined = not checked (older callers: the safety net alone). */
+  clearEmailStillDue?: (jobId: string) => Promise<boolean> };
+
+/** The clear-to-install email goes only while the 10% deposit is unpaid and the install unbooked (deposit-request.server). */
+export async function clearToInstallEmailStillDue(jobId: string): Promise<boolean> {
+  try {
+    const [{ installDepositBlockerFor }, { installDayContext }] = await Promise.all([import("./payments.server"), import("./install-days.server")]);
+    const [blocker, c] = await Promise.all([installDepositBlockerFor(jobId), installDayContext(jobId)]);
+    return !!blocker && !c.booked;
+  } catch { return true; } // unknown = assume it still goes (the 24h safety net covers the rest)
+}
 
 /** Should the owner get the standalone signed copy now? Follows the route, with the 24h safety net (piesa-result-route.core). */
 export async function resolveOwnerStandalone(jobId: string, now: Date, ownerDelivered: boolean, deps: PiesaDeliveryDeps): Promise<boolean> {
   const route = await deps.route(jobId);
+  if (!ownerDelivered && route.includes("clear_to_install") && deps.clearEmailStillDue && !(await deps.clearEmailStillDue(jobId))) return true;
   const resultAt = route.includes("standalone_copy") || ownerDelivered ? null : await (deps.resultAt ?? piesaResultAt)(jobId);
   return ownerStandaloneDue({ route, resultAt, now, ownerDelivered });
 }
@@ -68,7 +82,7 @@ export async function recordDelivery(p: { jobId: string; recipient: PiesaCopyRec
 }
 
 /** Emails the signed PIESA copy to whoever hasn't got it yet, then records the deliveries. Safe to call every tick. */
-export async function deliverPiesaCopies(jobId: string, now = new Date(), deps: PiesaDeliveryDeps = { route: ownerPiesaRoute, resultAt: piesaResultAt }): Promise<PiesaDeliveryResult> {
+export async function deliverPiesaCopies(jobId: string, now = new Date(), deps: PiesaDeliveryDeps = { route: ownerPiesaRoute, resultAt: piesaResultAt, clearEmailStillDue: clearToInstallEmailStillDue }): Promise<PiesaDeliveryResult> {
   const out: PiesaDeliveryResult = { jobId, hold: null, late: false, sent: [], held: {} };
   const { data: job } = await admin.from("jobs").select("id, job_number, source, stage, deleted_at, qa_archived_at, owners(full_name, email), properties(address_line, suburb)").eq("id", jobId).maybeSingle();
   if (!job) return { ...out, hold: "job not found" };

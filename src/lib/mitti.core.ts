@@ -756,9 +756,13 @@ export function validateStoredMittiAudit(audit: Any, ctx: { storedAuditId: strin
   if (!sameMittiTemplateId(p.templateId, ctx.templateId ?? MITTI_TEMPLATE_ID)) throw new MittiError("This Mitti audit does not use the expected Home Insulation Victoria assessment template.");
   // A1 no longer has a Portal Job Number question (Jo 23 Oct): the stored audit ID match above is the link.
   // When the field IS on the form (A2, older A1), it must match exactly as before.
+  // Go-live 5 Nov 2026 (HV-3674: "Portal Job Number (HV-3674) does not match HV-3674"): a form can carry the question more
+  // than once (an optional blank copy beside the filled one); a BLANK copy is "not filled", never a mismatch. The stored
+  // audit ID is the link; only a FILLED job-number answer that differs from the job refuses the sync.
   const jobFields = flatten(audit).filter(e => [norm("Portal Job Number"), norm("Job Reference ID"), norm("Job number")].includes(e.norm));
-  if (!jobFields.length) return p;
-  if (!ctx.jobNumber?.trim() || jobFields.some(e => !e.value?.trim() || e.value.trim().toUpperCase() !== ctx.jobNumber.trim().toUpperCase()))
+  const filled = jobFields.filter(e => !!e.value?.trim());
+  if (!jobFields.length || !filled.length) return p;
+  if (!ctx.jobNumber?.trim() || filled.some(e => e.value!.trim().toUpperCase() !== ctx.jobNumber.trim().toUpperCase()))
     throw new MittiError(`Mitti Portal Job Number (${p.jobNumber ?? "missing"}) does not match ${ctx.jobNumber}.`);
   return p;
 }

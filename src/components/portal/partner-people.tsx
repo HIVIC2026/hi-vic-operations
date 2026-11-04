@@ -11,12 +11,12 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Btn, Pill, fieldInput } from "@/components/portal/kit";
 import { OfficeTable } from "@/components/portal/office-tabs";
-import { SendNoticeLinkInline, WhiteCardOfficeInline } from "@/components/portal/worker-compliance";
+import { SendNoticeLinkInline } from "@/components/portal/worker-compliance";
 import { openFileViewer } from "@/components/portal/file-viewer";
 import { officeEecFileUrl, officeVerifyEec, officeVerifyElectrician, officeRecordEscRegistered } from "@/lib/worker-compliance.functions";
 import { checkMittiAccess } from "@/lib/mitti-membership.functions";
 import { mittiInviteLine } from "@/lib/mitti-membership.core";
-import { whiteCardCell, type PersonAction } from "@/lib/office-partners.core";
+import { type PersonAction } from "@/lib/office-partners.core";
 import { WorkerRoleSwitch } from "@/components/portal/worker-role-switch";
 
 export type PersonView = {
@@ -40,14 +40,14 @@ export function PeopleTable({ people, showBusiness = true, invalidate }: { peopl
   return (
     <>
       <OfficeTable why="153 CII, 130 privacy notice, 22/188 Mitti invite per person" isEmpty={!people.length} empty="No people listed yet."
-        head={["Person", ...(showBusiness ? ["Business"] : []), "Role", "CII", "White Card", "Privacy notice", "Mitti", ""]}>
+        head={["Person", ...(showBusiness ? ["Business"] : []), "Role", "CII", "Privacy notice", "Mitti", ""]}>
         {people.map((p) => (
           <tr key={p.id}>
             <td className="font-semibold">{p.name}<span className="block text-xs font-normal text-sub">{p.email}</span></td>
             {showBusiness && <td><Link to="/admin/partners/business/$businessId" params={{ businessId: p.businessId }} className="text-hiv-blue hover:underline">{p.business}</Link></td>}
             <td>{ROLE[p.role] ?? p.role}{p.workerRole && <div className="mt-1"><WorkerRoleSwitch tone="office" workerId={p.id} role={p.workerRole} onDone={() => { for (const k of invalidate) void qc.invalidateQueries({ queryKey: [k] }); }} /></div>}</td>
             <td data-why="decision 153: clearance derived from verified CII + level + expiry">{p.ciiTone === "plain" ? p.ciiLabel : <Pill tone={p.ciiTone}>{p.ciiLabel}</Pill>}</td>
-            <td data-why="decision 319: White Card per installer, office verifies once">{(() => { const c = whiteCardCell(p.whiteCard); return <>{c.tone === "plain" ? c.label : <Pill tone={c.tone}>{c.label}</Pill>}{c.canDecide && <div className="mt-1"><WhiteCardOfficeInline workerId={p.id} number={p.whiteCardNumber ?? null} onDone={() => { for (const k of invalidate) void qc.invalidateQueries({ queryKey: [k] }); }} /></div>}</>; })()}</td>
+            {/* White Card column retired (Jo 5 Nov 2026: "we don't care about White Card") — worker-compliance.core WHITE_CARD_REQUIRED */}
             <td data-why="decision 130: per-person ESC privacy notice">{p.noticeTone === "plain" ? p.noticeLabel : <Pill tone={p.noticeTone}>{p.noticeLabel}</Pill>}</td>
             <td data-why="decisions 22/188: Mitti membership checked per person">{p.mittiLabel}</td>
             <td>
