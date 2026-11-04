@@ -48,7 +48,28 @@ const pairs: readonly (readonly [string, string])[] = [
  ['How much old insulation is coming out? (m²)', 'How much existing insulation needs to be removed? (m²)'],
  ['Is the old insulation in good enough condition to lay new batts on top?', 'Is the existing insulation in good enough condition to lay new insulation over?'],
  ['Why is the old insulation staying?', 'Why is the existing insulation being kept?'],
+ // Jo 4 Nov plain field wording. Only labels with one meaning in every form are global; "Job number", "Address",
+ // "Your full name" etc. are read per template (A3_FIELD_ALIASES, A4 fixesMittiLabel, A5 INSTALL_REBUILD_ALIASES, A1/A2 readers).
+ ["Owner's name", 'Homeowner name'],
+ ["Owner's mobile", 'Homeowner phone'],
+ ["Owner's email", 'Homeowner email'],
+ ['Life support: what our records say', 'Office life support record'],
+ ['Did the owner say Home Insulation Victoria can contact them?', 'Homeowner agrees to be contacted by Home Insulation Victoria'],
 ];
+/** A3 PIESA only (Jo 4 Nov): new label per short-form field id. */
+export const A3_FIELD_ALIASES: Record<string, string> = {
+ jobRef: 'Job number', address: 'Address', 'b3.name': 'Your full name', 'b3.licence': 'Your electrician licence number',
+ 'b3.recName': 'Your business name (REC)', 'b3.recNo': 'Your REC number', 'b3.phone': 'Your mobile',
+};
+/** A4 Electrical upgrades only (Jo 4 Nov): new label -> the A4 label the reader knows. */
+const A4_ALIASES: Record<string, string> = {
+ 'Your full name': 'Electrician name', 'Your electrician licence number': 'Licence number',
+ 'Your business name (REC)': 'REC name', 'Your REC number': 'REC registration number', 'Your mobile': 'Phone',
+};
+export function fixesMittiLabel(label: string): string {
+ const first = String(label ?? '').split('\n')[0] ?? '';
+ return Object.entries(A4_ALIASES).find(([n]) => key(n) === key(first))?.[1] ?? label;
+}
 const key = (s: unknown) => String(s ?? '').split('\n')[0]?.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() ?? '';
 export function canonicalMittiLabel(label: string): string {
  const pair = pairs.find(([newLabel]) => key(newLabel) === key(label));
@@ -59,6 +80,14 @@ export function mittiLabelAliases(label: string): string[] {
 }
 // A5 is contextual: solar/life-support wording must not share A3's canonical names.
 export const INSTALL_REBUILD_ALIASES: Record<string, string> = {
+ // Jo 4 Nov plain field wording (A5 only).
+ 'Portal Job Number': 'Job number',
+ 'Site address': 'Address',
+ 'Installer business': "Installer's business name",
+ 'Lead installer': "Lead installer's full name",
+ "Lead installer's CII number": "Lead installer's CII number (EEC Ceiling Insulation Installer)",
+ 'Second installer': "Second installer's full name",
+ 'Third installer': "Third installer's full name",
  'Is anyone else installing today?': 'Is anyone else installing insulation today?',
  'Photo of the lead installer at the front door, showing photo ID': 'Photo of the LEAD installer standing in front of the house, holding photo ID',
  'Photo of the second installer at the front door, showing photo ID': 'Photo of the SECOND installer standing in front of the house, holding photo ID',

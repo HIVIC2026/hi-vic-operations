@@ -186,11 +186,11 @@ export type AuditToMatch = {
  *  only, exactly as the pickup / link step does (parsePickupAudit); the other forms carry them in the body too. */
 const IDENTITY_LABELS: Record<MittiFormKind, { job: string[]; address: string[]; name: string[]; headerOnly?: boolean; addressPrefix?: boolean }> = {
   // Jo 23 Oct: the Ready Check address question may carry an instruction suffix ("Site address (please edit…)").
-  ready_check: { job: ["Portal Job Number", "Job Reference ID"], address: ["Site address"], name: ["Homeowner name", "Owner name"], headerOnly: true, addressPrefix: true },
-  piesa: { job: ["Job Reference ID", "Portal Job Number"], address: ["Address including postcode", "Site address"], name: [] },
+  ready_check: { job: ["Portal Job Number", "Job Reference ID", "Job number"], address: ["Site address", "Address"], name: ["Homeowner name", "Owner name"], headerOnly: true, addressPrefix: true },
+  piesa: { job: ["Job Reference ID", "Portal Job Number", "Job number"], address: ["Address including postcode", "Site address", "Address"], name: [] },
   fixes: { job: [FIXES_DAY_Q.jobNumber], address: [FIXES_DAY_Q.address], name: [] },
   // A5 Install day, or the older official PIISA forms that the same creator still handles.
-  install_day: { job: [INSTALL_DAY_Q.jobNumber, "Job Reference ID"], address: [INSTALL_DAY_Q.address, "Address including postcode"], name: [] },
+  install_day: { job: [INSTALL_DAY_Q.jobNumber, "Job Reference ID", "Job number"], address: [INSTALL_DAY_Q.address, "Address including postcode", "Address"], name: [] },
 };
 
 /** Read one Mitti audit's identity using ITS form type's labels (C1). Null when it has no audit id. Two answers to the
