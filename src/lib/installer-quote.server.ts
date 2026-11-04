@@ -15,10 +15,12 @@ type SigLine = { code: string | null; line_total_inc_gst: number | string | null
 export const quoteLineSignature = (lines: SigLine[], discountNote?: string | null) =>
   JSON.stringify([lines.map((l) => [l.code ?? "", Number(l.line_total_inc_gst), (l.description ?? "").trim(), Number(l.quantity ?? 0), l.unit ?? "", Number(l.unit_price_inc_gst ?? 0), (l.explanation ?? "").trim(), !!l.is_other]).map((x) => JSON.stringify(x)).sort(), (discountNote ?? "").trim()]);
 
-/** Current installer quote's electrical billing lines vs the job's CURRENT payer (any path). Null = fine / not applicable. */
+/** Current installer quote's electrical billing lines vs the job's CURRENT payer (any path). Null = fine / not applicable.
+ *  Fix wave J1 (1), ruling 4 Nov 2026: a quote the owner already has (issued) or accepted is never re-priced — a later
+ *  PIESA rate change or lapse never blocks the owner's acceptance; only drafts (send / release) are checked. */
 export async function quoteBillingBlocker(quoteId: string): Promise<string | null> {
   const { data: q } = await admin.from("quotes").select("option_code, status, job_id").eq("id", quoteId).maybeSingle();
-  if (!q || q.option_code !== INSTALLER_QUOTE_CODE || q.status === "accepted") return null;
+  if (!q || q.option_code !== INSTALLER_QUOTE_CODE || q.status === "accepted" || q.status === "issued") return null;
   const { data: j } = await admin.from("jobs").select("channel, electrician_choice, originating_installer_business_id").eq("id", q.job_id).maybeSingle();
   if (j?.channel !== "installer_sourced") return null;
   const { data: snapshot, error: se } = await admin.from("workflow_events").select("details").eq("job_id", q.job_id).eq("event_type", "mitti_quote_electrician_snapshot").contains("details", { quote_id: quoteId }).limit(1).maybeSingle();

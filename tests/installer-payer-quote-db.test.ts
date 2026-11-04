@@ -164,6 +164,21 @@ describe("Mitti electrician answers on an installer's own job, on practice Postg
     await draftInstallerQuoteFromReadyCheck(JOB, U, entries("My usual electrician"), "audit_test"); // re-records the resolution at $330
     expect(await quoteBillingBlocker(q.id)).toBe("Ready Check electrician details changed or are incomplete — prepare a new quote");
   });
+  test("fix wave J1 (1): a rate change AFTER the quote went out never blocks the owner — an issued (or accepted) quote is not re-priced", async () => {
+    await db.query("insert into admin_config_events(event_type,details) values ('installer_usual_electrician_saved',$1)", [JSON.stringify({business_id: BIZ, electrician: {name: "TEST Profile REC", licence: "TEST-PROFILE-LIC"}})]);
+    await draftInstallerQuoteFromReadyCheck(JOB, U, entries("My usual electrician"), "audit_test");
+    const q = (await current())[0]; expect(q).toBeDefined(); if (!q) return;
+    await db.query("update quotes set status='issued', sent_at=now(), release_state='released' where id=$1", [q.id]);
+    await db.query("update rate_card_items set unit_price_ex_gst = 300"); // $330 inc now; the owner's quote still says $275
+    await db.query("delete from rate_card_items"); // and even with NO rate at all (lapsed card)
+    expect(await quoteBillingBlocker(q.id)).toBeNull();
+    expect(await items(q.id)).toEqual(["INSTALLER_PRICE:3450", "AP_FEE:349", "PIESA:275"]); // never re-priced
+    // Acceptance (portal.functions respondToQuoteImpl) asks only this blocker before accepting an installer quote.
+    const src = (await import("node:fs")).readFileSync("src/lib/portal.functions.ts", "utf8");
+    expect(src).toContain('const bb = await (await import("./installer-quote.server")).quoteBillingBlocker(q.id);');
+    await db.query("update quotes set status='accepted' where id=$1", [q.id]);
+    expect(await quoteBillingBlocker(q.id)).toBeNull();
+  });
   test("free-text 'A different electrician' (retired form answer) holds 'Electrician not onboarded' — decision 303; the $450.50 typed price is never used", async () => {
     await draftInstallerQuoteFromReadyCheck(JOB, U, entries("A different electrician"), "audit_test");
     expect(await current()).toEqual([]);

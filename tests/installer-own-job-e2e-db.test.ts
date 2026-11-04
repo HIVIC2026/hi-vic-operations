@@ -445,7 +445,11 @@ describe("5. The owner accepts on the secure link (6-digit code, signed agreemen
     const signing = { signatoryName: "Helen Yang1", authorityType: "owner" as const, signatureName: "Helen Yang1", over18: true, readConsumerInfo: true, acceptAgreement: true, assistance: "none" as const };
     const ctx = { userId: s.userId, ip: "127.0.0.1", userAgent: "test", authorize: async (j: string) => { if (j !== s.jobId) throw new Error("This quote isn't on your job."); }, isOwner: async (j: string) => j === s.jobId };
     await expect(respondToQuoteImpl({ quoteId: qq!.id, accept: true, consent: true, expectedVersion: qq!.version + 1, signing } as never, ctx)).rejects.toThrow(/updated since/);
+    // Fix wave J1 (1), ruling 4 Nov 2026: the installer's PIESA rate changed AFTER the quote went out — the owner still accepts the quote they were sent.
+    await q("update rate_card_items set unit_price_ex_gst = 300 where rate_card_id = '60000000-0000-4000-8000-00000000ca7d'");
     expect(await respondToQuoteImpl({ quoteId: qq!.id, accept: true, consent: true, expectedVersion: qq!.version, signing } as never, ctx)).toEqual({ ok: true });
+    expect(await q<{ line_total_inc_gst: string }>("select line_total_inc_gst from quote_items where quote_id=$1 and code='PIESA'", [qq!.id])).toEqual([{ line_total_inc_gst: "349" }]); // never re-priced
+    await q("update rate_card_items set unit_price_ex_gst = 317.27 where rate_card_id = '60000000-0000-4000-8000-00000000ca7d'");
     expect((await q<Record<string, unknown>>("select status, accepted_by from quotes where id=$1", [qq!.id]))[0]).toEqual({ status: "accepted", accepted_by: s.userId });
     expect(await q("select id from customer_agreements where job_id=$1 and quote_id=$2 and signed_by=$3", [A, qq!.id, s.userId])).toHaveLength(1);
     expect(await q("select id from declarations where job_id=$1 and kind='owner_consent'", [A])).toHaveLength(1);
