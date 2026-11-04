@@ -207,6 +207,9 @@ export const WORKFLOW_DECISIONS = {
   // veec-creation-gate.core) the product must be on the VEU Register on the creation day and the owner must have paid
   // $200+ incl GST on the installation invoice; a refund after creation raises veec_copayment_refunded (Needs me, call Jo).
   veecCreation: { productOnRegister: "install_day_and_creation_day", minCopaymentCents: 20000, refundAfterCreation: "veec_copayment_refunded_needs_office" },
+  // Part 9 Task 12 (4 Nov 2026): complaints — acknowledge within 5 business days, aim to resolve within 20 (Melbourne
+  // business days); office events only (complaints.core / complaints.functions), no automatic owner message.
+  complaints: { ackBusinessDays: 5, resolveBusinessDays: 20, ownerMessage: "none_office_by_hand" },
   // Decision #30 (Jo 2 Nov 2026): quotes valid 30 days; quotes sent before the change keep 14 (quote-expiry.core).
   // Decisions #29/#33 (Jo 2 Nov 2026): the quote email v4 (owner-quote-email.core, quote-ready-notify.server).
   quoteReadyEmail: {

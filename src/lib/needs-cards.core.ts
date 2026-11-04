@@ -42,8 +42,8 @@ const CARD_OF: Record<NeedsKind, NeedsCardId> = {
   invoice_failed: "payments", old_fixes_invoice_unpaid: "payments", old_fixes_invoice_paid: "payments", payment_not_in_xero: "payments", payment_overdue: "payments", payment_reversed: "payments", payment_stalled: "payments", mitti_form_problem: "other",
   ten_days_left: "clock", lapsed_window: "clock", upgrades_past_30_days: "clock", second_no_access: "clock", repeat_piesa_choose: "clock", tenant_notice_held: "clock",
   piesa_fixes_found: "other", quote_expired_blocked: "owner", new_quote_installer: "other", new_quote_unfinished: "other", coes_check: "other",
-  // Part 9 Task 11: a refund after VEEC creation (Payments).
-  veec_refunded: "payments",
+  // Part 9 Tasks 11/12: a refund after VEEC creation (Payments); complaint acknowledge / resolve clocks (deadlines).
+  veec_refunded: "payments", complaint_ack_due: "deadlines", complaint_resolve_due: "deadlines",
 };
 
 export const cardOf = (kind: NeedsKind): NeedsCardId => CARD_OF[kind] ?? "other";
