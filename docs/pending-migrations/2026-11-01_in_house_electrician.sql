@@ -1,10 +1,13 @@
+-- IDEMPOTENT (G6 go-live, 4 Nov 2026): the same statements are drizzle/migrations/0182_in_house_team_electrician.sql and
+-- the generated types already list these columns, so the live database MAY have them. Every statement below is safe to run
+-- over an existing copy (if not exists / or replace / drop trigger if exists). Undo: 2026-11-01_in_house_electrician.undo.sql.
 ALTER TABLE public.partner_workers
-  ADD COLUMN rec_number text,
-  ADD COLUMN licence_verified_at timestamptz,
-  ADD COLUMN licence_verified_by uuid;
+  ADD COLUMN IF NOT EXISTS rec_number text,
+  ADD COLUMN IF NOT EXISTS licence_verified_at timestamptz,
+  ADD COLUMN IF NOT EXISTS licence_verified_by uuid;
 
 -- Only the office RPC may stamp verification; declared edits invalidate the stamp.
-CREATE FUNCTION public.guard_team_electrician_verification() RETURNS trigger
+CREATE OR REPLACE FUNCTION public.guard_team_electrician_verification() RETURNS trigger
 LANGUAGE plpgsql SET search_path=public,pg_temp AS $$
 BEGIN
   IF (TG_OP='INSERT' AND (NEW.licence_verified_at IS NOT NULL OR NEW.licence_verified_by IS NOT NULL))
@@ -18,10 +21,11 @@ BEGIN
   END IF;
   RETURN NEW;
 END $$;
+DROP TRIGGER IF EXISTS team_electrician_verification ON public.partner_workers;
 CREATE TRIGGER team_electrician_verification BEFORE INSERT OR UPDATE ON public.partner_workers
   FOR EACH ROW EXECUTE FUNCTION public.guard_team_electrician_verification();
 
-CREATE FUNCTION public.verify_team_electrician(_worker uuid,_licence text,_rec text,_expiry date,_actor uuid)
+CREATE OR REPLACE FUNCTION public.verify_team_electrician(_worker uuid,_licence text,_rec text,_expiry date,_actor uuid)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp AS $$
 DECLARE w public.partner_workers%ROWTYPE;
 BEGIN
@@ -40,7 +44,7 @@ END $$;
 REVOKE ALL ON FUNCTION public.verify_team_electrician(uuid,text,text,date,uuid) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.verify_team_electrician(uuid,text,text,date,uuid) TO service_role;
 
-CREATE FUNCTION public.allocate_team_electrician(_job uuid,_actor uuid,_worker uuid)
+CREATE OR REPLACE FUNCTION public.allocate_team_electrician(_job uuid,_actor uuid,_worker uuid)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=public,pg_temp AS $$
 DECLARE business uuid; w public.partner_workers%ROWTYPE; previous public.job_assignments%ROWTYPE;
 BEGIN
