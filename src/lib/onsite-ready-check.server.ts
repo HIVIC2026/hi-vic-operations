@@ -104,7 +104,8 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
         }).select("id, job_number").single();
         if (je || !job) throw new WorkflowError(je?.message ?? "Job could not be saved.");
         await admin.from("job_assignments").insert({ job_id: job.id, user_id: userId, role: "installer", business_id: businessId, assigned_by: userId, first_response_at: new Date().toISOString() });
-        await (await import("./job-electrician.server")).recordJobElectricianChoice(job.id, businessId, electrician, userId);
+        // J3 (1): the Team worker was checked above, before any write — nothing is re-read or thrown once the job exists.
+        await (await import("./job-electrician.server")).recordJobElectricianChoice(job.id, businessId, electrician, userId, { preValidated: true });
         // Decision 289: the one electrician choice for this job (append-only event; the quote pipeline reads it) — the Team worker.
         await (await import("./electrician-choice.server")).recordElectricianChoice(job.id, businessId, userId, "usual", "add_job", { teamWorker });
         if (flag) await logEvent(job.id, userId, DUPLICATE_ADDRESS_EVENT, flag.summary, flag.details, { internal: true });

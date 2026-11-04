@@ -5,7 +5,7 @@ import { type ElectricianPlan } from "./job-electrician.core";
 
 /** Records the installer's choice on a new job. A chosen approved electrician is offered the owner's times first
  *  (never assigned directly); an invited one shows "Electrician invited – waiting to onboard". */
-export async function recordJobElectricianChoice(jobId: string, installerBusinessId: string, plan: ElectricianPlan | null | undefined, actorId: string, opts: { summary?: string } = {}) {
+export async function recordJobElectricianChoice(jobId: string, installerBusinessId: string, plan: ElectricianPlan | null | undefined, actorId: string, opts: { summary?: string; /** J3 (1): the Team-worker plan was checked against the Team list BEFORE the job was written (Add a job's step-by-step save) — never re-read or throw after the writes. */ preValidated?: boolean } = {}) {
   if ((plan as { mode?: string } | null)?.mode === "later") {
     // "To be arranged": no electrician chosen, nothing booked or offered. Office/installer chooses later.
     await logEvent(jobId, actorId, "electrician_to_be_arranged", "Electrician to be arranged — none chosen yet", {}, { internal: true });
@@ -22,10 +22,15 @@ export async function recordJobElectricianChoice(jobId: string, installerBusines
   // value `allocate_team_electrician` writes) and the `electrician_choice_set` event names the worker.
   if (plan.worker_id) {
     if (plan.business_id && plan.business_id !== installerBusinessId) throw new WorkflowError("That electrician is not on your Team");
-    const { data: w, error: we } = await admin.from("partner_workers").select("id").eq("id", plan.worker_id).eq("business_id", installerBusinessId).eq("trade_role", "electrician").is("removed_at", null).maybeSingle();
-    if (we) throw new WorkflowError("We couldn't check your Team electrician. Please try again.");
-    if (!w) throw new WorkflowError("That electrician is not on your Team");
+    if (!opts.preValidated) {
+      const { data: w, error: we } = await admin.from("partner_workers").select("id").eq("id", plan.worker_id).eq("business_id", installerBusinessId).eq("trade_role", "electrician").is("removed_at", null).maybeSingle();
+      if (we) throw new WorkflowError("We couldn't check your Team electrician. Please try again.");
+      if (!w) throw new WorkflowError("That electrician is not on your Team");
+    }
     const { error: je } = await admin.from("jobs").update({ electrician_choice: "preferred" }).eq("id", jobId);
+    // J3 (1): on the pre-validated Add-a-job path the job is already written — a failed payer write is logged on the job
+    // (the allocation step writes the same value again) and never throws the saved job away.
+    if (je && opts.preValidated) { await logEvent(jobId, actorId, "electrician_choice_write_failed", `The electrician payer could not be written: ${je.message}`, { worker_id: plan.worker_id }, { internal: true }).catch(console.error); return { choice: "preferred" as const }; }
     if (je) throw new WorkflowError(`The electrician couldn't be saved: ${je.message}`);
     return { choice: "preferred" as const };
   }

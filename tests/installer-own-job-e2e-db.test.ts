@@ -101,8 +101,18 @@ const q = async <T,>(sql: string, p: unknown[] = []) => (await db.query<T>(sql, 
 const shim = embedShim(db, rels);
 let createdUsers = 0;
 let atomicDeployed = true; // A6: false = the staged function is not live yet (PostgREST's answer) → step-by-step save
+// J3 (1): once a `jobs` insert has run, every `partner_workers` read fails (the signal dropped mid-save) — the step-by-step
+// save must still finish the job it already wrote.
+let failWorkersAfterJobInsert = false, jobInserted = false;
+const failingRead = (): unknown => new Proxy(() => {}, { get: (_t, prop) => prop === "then" ? (res: (v: unknown) => unknown) => Promise.resolve({ data: null, error: { message: "partner_workers read failed (test)", code: "XX000" } }).then(res) : () => failingRead(), apply: () => failingRead() });
 const admin = {
   ...shim,
+  from(table: string) {
+    if (table === "partner_workers" && failWorkersAfterJobInsert && jobInserted) return failingRead() as ReturnType<typeof shim.from>;
+    const b = shim.from(table);
+    if (table === "jobs") { const ins = b.insert.bind(b); b.insert = ((...a: Parameters<typeof b.insert>) => { jobInserted = true; return ins(...a); }) as typeof b.insert; }
+    return b;
+  },
   rpc: async (name: string, a: Record<string, unknown>) => {
     if (name === "has_role") return { data: true, error: null };
     if (name === "add_installer_job" && !atomicDeployed) return { data: null, error: { code: "PGRST202", message: "Could not find the function public.add_installer_job(_payload) in the schema cache" } };
@@ -611,5 +621,17 @@ describe("9. A6: the signal drops after the save, then Try again", () => {
       expect(await q("select electrician_choice from jobs where id=$1", [r.jobId])).toEqual([{ electrician_choice: "preferred" }]);
       expect((await events(r.jobId, "electrician_choice_set"))[0]!.details).toMatchObject({ choice: "usual", worker_id: ELEC_WORKER, usual_name: "Will Casdorff", declared_not_verified: false });
     } finally { atomicDeployed = true; }
+  });
+  test("J3 (1): on the step-by-step save a Team read that fails AFTER the job is written does not throw the job away — consent row + events are all saved", async () => {
+    atomicDeployed = false; failWorkersAfterJobInsert = true; jobInserted = false;
+    try {
+      const r = await addJob(97, { requestKey: "6f1c2c1e-6a77-4b55-9d0e-2f3b1c9a0a97" });
+      expect(r.jobId).toBeTruthy();
+      expect(await q("select consent_status from owner_contact_consents where job_id=$1", [r.jobId])).toEqual([{ consent_status: "granted" }]);
+      expect((await q<{ event_type: string }>("select event_type from workflow_events where job_id=$1 and event_type in ('electrician_choice_set','installer_job_added','installer_contact_permission') order by created_at", [r.jobId])).map((e) => e.event_type))
+        .toEqual(["electrician_choice_set", "installer_job_added", "installer_contact_permission"]);
+      expect(await q("select electrician_choice from jobs where id=$1", [r.jobId])).toEqual([{ electrician_choice: "preferred" }]);
+      expect(await q("select count(*)::int as n from jobs where external_enquiry_id=$1", ["onsite:6f1c2c1e-6a77-4b55-9d0e-2f3b1c9a0a97"])).toEqual([{ n: 1 }]);
+    } finally { atomicDeployed = true; failWorkersAfterJobInsert = false; }
   });
 });
