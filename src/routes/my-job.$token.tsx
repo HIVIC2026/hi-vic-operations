@@ -38,8 +38,8 @@ import { LEGACY_WHAT_HAPPENS_NEXT, SPOT_RELEASE_PAGE, type OwnerTurnView } from 
 import { ownerRequestNewQuoteFn } from "@/lib/new-quote-request.functions";
 import { NEW_QUOTE_THANKS } from "@/lib/new-quote-request.core";
 import { ownerQuickTapsAddressSearchFn, ownerQuickTapsDetailsFn, ownerQuickTapsSaveFn, ownerQuickTapsStateFn } from "@/lib/quick-taps.functions";
-import { QUICK_TAPS_COPY, nextTapStep, quickTapsGoLabel, quickTapsPassLine, tapOutcome, validAccess, websiteQuestions, type QuickTapAnswers, type QuickTapsView } from "@/lib/quick-taps.core";
-import { RENTAL_DONE_LINE, RENTAL_LIVES_VALUES, RENTAL_TAPS, RENTAL_WHO_VALUES, nextRentalStep, rentalFieldProblem, type RentalAnswersInput, type RentalStep } from "@/lib/rental-answers.core";
+import { QUICK_TAPS_COPY, nextTapStep, quickTapsGoLabel, quickTapsPassLine, tapOutcome, websiteQuestions, type QuickTapAnswers, type QuickTapsView } from "@/lib/quick-taps.core";
+import { RENTAL_DONE_LINE, RENTAL_LIVES_VALUES, RENTAL_MANAGER_VALUES, RENTAL_TAPS, nextRentalStep, rentalManagerProblems, rentalTenantProblems, rentalWhoChoices, type RentalAnswersInput, type RentalStep } from "@/lib/rental-answers.core";
 import { createAddressPicker, type PickResult } from "@/lib/address-pick.core";
 import { assertInHouseActionSucceeded } from "@/lib/in-house.core";
 import { completeOwnerQuoteAcceptance, ownerQuoteCanAccept } from "@/lib/owner-quote-visibility.core";
@@ -313,9 +313,6 @@ function TapsScreen({ v, token, only }: { v: View; token: string; only?: "rental
   const [typed, setTyped] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const [askTenant, setAskTenant] = useState(false);
-  const [tenantName, setTenantName] = useState("");
-  const [tenantMobile, setTenantMobile] = useState("");
   if (isLoading && !st) return <p role="status" className="py-10 text-center text-sm">Opening…</p>;
   const view: QuickTapsView | null = done ?? st ?? null;
   if (!view || view.kind === "none") return v.spotSaved ? <SpotSavedHome v={v} token={token} /> : <Home v={v} token={token} />;
@@ -381,57 +378,60 @@ function TapsScreen({ v, token, only }: { v: View; token: string; only?: "rental
     <QuickTapsAddressSearch token={token} save={(placeId) => details({ fullName: pendingName, placeId }, (d) => { setPendingName(null); answer({ ...a, name: d.name, address: d.address }); })} />
   </>;
   else if (step === "hatch") body = <><h1 className="font-display text-2xl font-extrabold">{QUICK_TAPS_COPY.hatch.question}</h1>{options(QUICK_TAPS_COPY.hatch.options, (hatch) => answer({ ...a, hatch }))}</>;
-  else if (step === "access") {
-    // Who lets the installer in. A tenant's name and mobile are for the installer only; we never contact the tenant.
-    const tenant = { who: "tenant" as const, name: tenantName, mobile: tenantMobile };
-    const tenantOk = validAccess(tenant);
-    const field = "h-14 w-full rounded-2xl border border-estimate-line bg-card px-4 text-lg";
-    body = <>
-      <h1 className="font-display text-2xl font-extrabold">{QUICK_TAPS_COPY.access.question}</h1>
-      {!askTenant ? options(QUICK_TAPS_COPY.access.options, (who) => { if (who === "owner") answer({ ...a, access: { who: "owner" } }); else { setAskTenant(true); setErr(""); } }) : <>
-        <label className="block space-y-1.5"><span className="text-sm font-bold">{QUICK_TAPS_COPY.access.tenantName}</span>
-          <input className={field} autoComplete="off" maxLength={100} value={tenantName} disabled={busy} onChange={(e) => setTenantName(e.target.value)} /></label>
-        <label className="block space-y-1.5"><span className="text-sm font-bold">{QUICK_TAPS_COPY.access.tenantMobile}</span>
-          <input className={field} type="tel" inputMode="tel" autoComplete="off" maxLength={30} value={tenantMobile} disabled={busy} onChange={(e) => setTenantMobile(e.target.value)} /></label>
-        <button type="button" className={tapPrimary} disabled={busy || !tenantOk} onClick={() => answer({ ...a, access: tenant })}>Next</button>
-        {!tenantOk && <p className="text-sm text-muted-foreground">{QUICK_TAPS_COPY.access.needBoth}</p>}
-        <button type="button" className="block w-full text-center text-sm font-semibold underline" disabled={busy} onClick={() => { setAskTenant(false); setTenantName(""); setTenantMobile(""); setErr(""); }}>{QUICK_TAPS_COPY.access.back}</button>
-      </>}
-    </>;
-  }
+  // The old "Who will be at the home to let the installer in?" tap (Me / My tenant) was retired 4 Nov 2026 (Jo, pack 2 batch 7):
+  // the rental screens ask "Who should we book the visits with?". The step is only reachable with the rental screens off.
+  else if (step === "access") body = <><h1 className="font-display text-2xl font-extrabold">Who should we book the visits with?</h1>{options([{ value: "owner" as const, label: "Me" }], () => answer({ ...a, access: { who: "owner" } }))}</>;
   // Task 5 (Jo 2 Nov 2026): phone consent over 3 months old → "Yes, {installer} can call me".
   else if (step === "go") { const yes = quickTapsGoLabel(view); body = options(QUICK_TAPS_COPY.go.options.map((o) => (o.value === "yes" ? { ...o, label: yes } : o)), (go) => answer({ ...a, go })); }
   // Task 19: "Do you live there or is it rented?" and what follows (only while the server says to ask).
-  else if (step === "lives" || step === "tenant_name" || step === "tenant_mobile" || step === "tenant_email" || step === "who" || step === "access_name" || step === "access_mobile")
-    body = <RentalStepBody key={step} step={step} busy={busy} set={(patch) => answer({ ...a, rental: { ...a.rental, ...patch } })} />;
+  else if (step === "lives" || step === "tenant" || step === "manager" || step === "who")
+    body = <RentalStepBody key={step} step={step} answers={a.rental ?? {}} busy={busy} set={(patch) => answer({ ...a, rental: { ...a.rental, ...patch } })} />;
   else if (step) { const w = QUICK_TAPS_COPY.website[step]; body = <><h1 className="font-display text-2xl font-extrabold">{w.label}</h1>{options(w.options, (value) => answer({ ...a, website: { ...a.website, [step]: value } }))}</>; }
   else body = <button type="button" className={tapPrimary} disabled={busy} onClick={() => void submit(a)}>Try again</button>;
   return <section data-testid="owner-taps" data-step={step ?? "saving"} className={card}>{body}{err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}</section>;
 }
 
-/** Task 19: one rental question. Buttons for "live or rented" and "who lets us in", a box for the typed details. */
-const RENTAL_TEXT: Record<"tenant_name" | "tenant_mobile" | "tenant_email" | "access_name" | "access_mobile", { label: string; field: keyof RentalAnswersInput; type: string; mode: "text" | "tel" | "email"; auto: string }> = {
-  tenant_name: { label: RENTAL_TAPS.tenantName, field: "tenantName", type: "text", mode: "text", auto: "off" },
-  tenant_mobile: { label: RENTAL_TAPS.tenantMobile, field: "tenantMobile", type: "tel", mode: "tel", auto: "off" },
-  tenant_email: { label: RENTAL_TAPS.tenantEmail, field: "tenantEmail", type: "email", mode: "email", auto: "off" },
-  access_name: { label: RENTAL_TAPS.accessName, field: "accessName", type: "text", mode: "text", auto: "off" },
-  access_mobile: { label: RENTAL_TAPS.accessMobile, field: "accessMobile", type: "tel", mode: "tel", auto: "off" },
-};
-function RentalStepBody({ step, busy, set }: { step: RentalStep; busy: boolean; set: (patch: Partial<RentalAnswersInput>) => void }) {
-  const [typed, setTyped] = useState("");
-  const [problem, setProblem] = useState("");
-  const choices = <T extends string>(values: readonly T[], labels: readonly string[], pick: (v: T) => void) =>
-    <div className="space-y-3">{values.map((value, i) => <button key={value} type="button" className={tapBtn} disabled={busy} onClick={() => pick(value)}>{labels[i]}</button>)}</div>;
-  if (step === "lives") return <><h1 className="font-display text-2xl font-extrabold">{RENTAL_TAPS.livesThere}</h1>{choices(RENTAL_LIVES_VALUES, RENTAL_TAPS.livesOptions, (lives) => set({ lives }))}</>;
-  if (step === "who") return <><h1 className="font-display text-2xl font-extrabold">{RENTAL_TAPS.whoLetsIn}</h1>{choices(RENTAL_WHO_VALUES, RENTAL_TAPS.whoOptions, (who) => set({ who }))}</>;
-  const t = RENTAL_TEXT[step];
-  const next = () => { const p = rentalFieldProblem(step, typed); if (p) { setProblem(p); return; } set({ [t.field]: typed.trim() }); };
-  return <>
-    <h1 className="font-display text-2xl font-extrabold"><label htmlFor="rental-text">{t.label}</label></h1>
-    <input id="rental-text" type={t.type} inputMode={t.mode} autoComplete={t.auto} className="h-14 w-full rounded-2xl border border-estimate-line bg-card px-4 text-lg" value={typed} disabled={busy} onChange={(e) => { setTyped(e.target.value); setProblem(""); }} />
-    {problem && <p role="alert" className="text-sm font-semibold text-destructive">{problem}</p>}
-    <button type="button" className={tapPrimary} disabled={busy} onClick={next}>Next</button>
-  </>;
+/** The four rental screens (Jo 4 Nov 2026 20:40, approved): live or rented → the tenant (name, mobile, email optional, one
+ *  screen) → the property manager (no / yes + name, agency, mobile, email) → who we book the visits with. */
+function RentalStepBody({ step, answers, busy, set }: { step: RentalStep; answers: RentalAnswersInput; busy: boolean; set: (patch: Partial<RentalAnswersInput>) => void }) {
+  const [draft, setDraft] = useState<RentalAnswersInput>({});
+  const [problems, setProblems] = useState<string[]>([]);
+  const field = "h-14 w-full rounded-2xl border border-estimate-line bg-card px-4 text-lg";
+  const choices = <T extends string>(list: readonly { value: T; label: string }[], pick: (v: T) => void) =>
+    <div className="space-y-3">{list.map((o) => <button key={o.value} type="button" className={tapBtn} disabled={busy} onClick={() => pick(o.value)}>{o.label}</button>)}</div>;
+  const box = (label: string, key: keyof RentalAnswersInput, type: string, mode: "text" | "tel" | "email") =>
+    <label className="block space-y-1.5"><span className="text-sm font-bold">{label}</span>
+      <input className={field} type={type} inputMode={mode} autoComplete="off" maxLength={120} value={(draft[key] as string | undefined) ?? ""} disabled={busy} onChange={(e) => { setDraft({ ...draft, [key]: e.target.value }); setProblems([]); }} /></label>;
+  const problemList = problems.length > 0 && <ul role="alert" className="space-y-1 text-sm font-semibold text-destructive">{problems.map((p) => <li key={p}>{p}</li>)}</ul>;
+  if (step === "lives") return <><h1 className="font-display text-2xl font-extrabold">{RENTAL_TAPS.livesThere}</h1>{choices(RENTAL_LIVES_VALUES.map((value, i) => ({ value, label: RENTAL_TAPS.livesOptions[i]! })), (lives) => set({ lives }))}</>;
+  if (step === "tenant") {
+    const next = () => { const p = rentalTenantProblems(draft); if (p.length) { setProblems(p); return; } set({ tenantName: draft.tenantName?.trim(), tenantMobile: draft.tenantMobile?.trim(), tenantEmail: draft.tenantEmail?.trim() ?? "" }); };
+    return <>
+      <h1 className="font-display text-2xl font-extrabold">{RENTAL_TAPS.tenantTitle}</h1>
+      <p className="text-sm">{RENTAL_TAPS.tenantSub}</p>
+      {box(RENTAL_TAPS.tenantName, "tenantName", "text", "text")}
+      {box(RENTAL_TAPS.tenantMobile, "tenantMobile", "tel", "tel")}
+      {box(RENTAL_TAPS.tenantEmail, "tenantEmail", "email", "email")}
+      {problemList}
+      <button type="button" className={tapPrimary} disabled={busy} onClick={next}>{RENTAL_TAPS.next}</button>
+    </>;
+  }
+  if (step === "manager") {
+    const yes = draft.manager === "yes";
+    const next = () => { const p = rentalManagerProblems(draft); if (p.length) { setProblems(p); return; } set({ manager: "yes", managerName: draft.managerName?.trim(), managerAgency: draft.managerAgency?.trim() ?? "", managerMobile: draft.managerMobile?.trim(), managerEmail: draft.managerEmail?.trim() ?? "" }); };
+    return <>
+      <h1 className="font-display text-2xl font-extrabold">{RENTAL_TAPS.managerTitle}</h1>
+      {!yes ? choices(RENTAL_MANAGER_VALUES.map((value, i) => ({ value, label: RENTAL_TAPS.managerOptions[i]! })), (manager) => { if (manager === "no") set({ manager: "no" }); else setDraft({ ...draft, manager: "yes" }); }) : <>
+        {box(RENTAL_TAPS.managerName, "managerName", "text", "text")}
+        {box(RENTAL_TAPS.managerAgency, "managerAgency", "text", "text")}
+        {box(RENTAL_TAPS.managerMobile, "managerMobile", "tel", "tel")}
+        {box(RENTAL_TAPS.managerEmail, "managerEmail", "email", "email")}
+        {problemList}
+        <button type="button" className={tapPrimary} disabled={busy} onClick={next}>{RENTAL_TAPS.next}</button>
+      </>}
+    </>;
+  }
+  return <><h1 className="font-display text-2xl font-extrabold">{RENTAL_TAPS.whoTitle}</h1>{choices(rentalWhoChoices(answers), (who) => set({ who }))}</>;
 }
 
 /** Task 19 (answer 24): an installer's own customer answers ONLY the rental questions (`?screen=taps&only=rental`). */
@@ -448,7 +448,7 @@ function RentalOnlyTaps({ token, only, onDone, card }: { token: string; only: "r
   };
   const set = (patch: Partial<RentalAnswersInput>) => { const next = { ...r, ...patch }; setR(next); if (nextRentalStep(next) === null) void submit(next); };
   return <section data-testid="owner-taps" data-step={step ?? "saving"} className={card}>
-    {step ? <RentalStepBody key={step} step={step} busy={busy} set={set} /> : busy ? <p role="status" className="py-6 text-center text-sm">Saving…</p> : <button type="button" className={tapPrimary} onClick={() => void submit(r)}>Try again</button>}
+    {step ? <RentalStepBody key={step} step={step} answers={r} busy={busy} set={set} /> : busy ? <p role="status" className="py-6 text-center text-sm">Saving…</p> : <button type="button" className={tapPrimary} onClick={() => void submit(r)}>Try again</button>}
     {err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}
   </section>;
 }

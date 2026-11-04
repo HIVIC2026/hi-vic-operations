@@ -32,7 +32,7 @@ import { WorkflowError, logEvent } from "./workflow.server";
 import { AREA_BATCH_EVENTS, AREA_BATCH_LEFT_EVENT, AREA_BATCH_SENT_EVENT, tapsBatchId, type AreaBatchEventRow } from "./area-batch.core";
 import { contactConsentRecord, contactConsentSnapshot, phoneConsentCurrent } from "./contact-consent-record.core";
 import {
-  QUICK_TAPS_ANSWERED_EVENT, QUICK_TAPS_COPY, reaskText, QUICK_TAPS_DECLINE_REASON, QUICK_TAPS_RECONSENT_SOURCE, quickTapsGoLabel, locationAddress, normaliseAccess, locationNeedsRefresh, tapOutcome, websiteQuestions,
+  QUICK_TAPS_ANSWERED_EVENT, QUICK_TAPS_COPY, reaskText, QUICK_TAPS_DECLINE_REASON, QUICK_TAPS_RECONSENT_SOURCE, quickTapsGoLabel, locationAddress, normaliseAccess, accessFromRental, locationNeedsRefresh, tapOutcome, websiteQuestions,
   type AddressParts, type FinalOutcome, type QuickTapAnswers, type QuickTapsView, type WebsiteAnswers, type WebsiteFacts, type WebsiteKey,
 } from "./quick-taps.core";
 import { formatPropertyAddress } from "./address";
@@ -48,7 +48,8 @@ const loose = admin as unknown as SupabaseClient;
 const DEAD = "This link isn't working any more. Please reply to our email.";
 const NAME_NEEDED = "Please type your full name.";
 const NOT_FOUND = "We couldn't find that address. Please try again.";
-const TENANT_NEEDED = QUICK_TAPS_COPY.access.needBoth;
+// The retired "Me / My tenant" tap (off with the rental screens on) still refuses an unusable tenant answer with its old line.
+const TENANT_NEEDED = "Add your tenant's name and mobile so the installer can call them";
 
 type Owner = { full_name: string | null; email: string | null; phone?: string | null } | null;
 type Prop = { id: string; address_line: string | null; suburb: string | null; state: string | null; postcode: string | null; enrichment: Record<string, unknown> | null } | null;
@@ -365,20 +366,24 @@ export async function saveQuickTaps(token: string, answers: QuickTapAnswers, met
   if (!view.name) throw new WorkflowError(NAME_NEEDED);
   if (!view.address) throw new WorkflowError(FULL_STREET_NEEDED);
   const batchId = batchOf(c).batchId!;
-  // Who lets the installer in: a given answer must be valid (a bad tenant name or mobile saves nothing), and is saved
-  // normalised (name trimmed, mobile +61…). The tenant is never texted or emailed.
-  const access = answers.access === undefined ? null : normaliseAccess(answers.access);
-  if (answers.access !== undefined && !access) throw new WorkflowError(TENANT_NEEDED);
+  // Who lets the installer in: with the rental screens on (Jo 4 Nov 2026) it is derived from them below; otherwise a given
+  // answer must be valid (a bad tenant name or mobile saves nothing), and is saved normalised (name trimmed, mobile +61…).
+  const tapped = askRental || answers.access === undefined ? null : normaliseAccess(answers.access);
+  if (!askRental && answers.access !== undefined && !tapped) throw new WorkflowError(TENANT_NEEDED);
   const blanks = websiteQuestions(view.website, answers.website ?? {});
-  const outcome = tapOutcome({ ...answers, access: access ?? undefined }, blanks, { rental: askRental });
+  const outcome = tapOutcome({ ...answers, access: tapped ?? undefined }, blanks, { rental: askRental });
   if (outcome === "incomplete") throw new WorkflowError("Please answer each question.");
   const website = Object.fromEntries(blanks.filter((k) => answers.website?.[k]).map((k) => [k, answers.website![k]!]));
   await storeWebsiteAnswers(c, website, blanks);
+  // Task 19: a decline never reaches the rental questions.
+  const rental = askRental && (outcome === "pass" || outcome === "no_thanks") ? buildRentalAnswers(answers.rental ?? {}, { name: view.name, phone: c.job.owners?.phone ?? null }) : null;
+  // Jo 4 Nov 2026: who lets us in = the rental screens' "Who should we book the visits with?" (the same stored shape the
+  // installer's job page reads); without the rental screens, the tapped answer.
+  const access = rental ? accessFromRental(rental) : tapped;
   const stored = {
     name: view.name, address: view.address, hatch: answers.hatch ?? null, roof: answers.roof ?? null, five_years: answers.five_years ?? null, go: answers.go ?? null,
     ...(Object.keys(website).length ? { website } : {}),
-    // Task 19: a decline never reaches the rental questions.
-    ...(askRental && (outcome === "pass" || outcome === "no_thanks") ? { rental: buildRentalAnswers(answers.rental ?? {}, { name: view.name, phone: c.job.owners?.phone ?? null }) } : {}),
+    ...(rental ? { rental } : {}),
     // Final review 4: kept only on a pass (the installer needs it); a decline never stores the tenant's details.
     ...(access && outcome === "pass" ? { access } : {}),
   };

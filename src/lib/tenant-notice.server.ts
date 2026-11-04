@@ -20,7 +20,7 @@ import type { TradeContact } from "./owner-will-call.core";
 import { toAuE164 } from "./sms.core";
 import type { RealSmsInput, RealSmsResult } from "./sms.server";
 import {
-  NO_TENANT_DETAILS, TENANT_NOTICE_APPROVED, TENANT_NOTICE_EMAIL_PURPOSE, TENANT_NOTICE_HELD_EVENT, TENANT_NOTICE_SENT_EVENT, TENANT_NOTICE_SMS_TYPE, tenantNotice,
+  NO_TENANT_DETAILS, NO_TENANT_EMAIL, TENANT_NOTICE_APPROVED, TENANT_NOTICE_EMAIL_PURPOSE, TENANT_NOTICE_HELD_EVENT, TENANT_NOTICE_SENT_EVENT, TENANT_NOTICE_SMS_TYPE, tenantNotice,
   tenantNoticeHeldLine, tenantNoticeKey, tenantNoticeNeeded,
 } from "./tenant-notice.core";
 
@@ -105,7 +105,8 @@ export async function sendTenantNotice(jobId: string, bookingId: string, now = n
   const tenant = rental?.tenant ?? null;
   const mobile = toAuE164(tenant?.mobile);
   const email = (tenant?.email ?? "").trim().toLowerCase();
-  if (!tenant || !mobile || !email) return hold(NO_TENANT_DETAILS);
+  // Jo 4 Nov 2026 (pack 2 batch 7): the tenant's email is optional — no email → the text alone goes, the email is noted as held.
+  if (!tenant || !mobile) return hold(NO_TENANT_DETAILS);
   const business = await d.businessContact(jobId);
   if (!business) return "missing facts";
   const test = job.source === "qa_test";
@@ -117,17 +118,17 @@ export async function sendTenantNotice(jobId: string, bookingId: string, now = n
   if (test) {
     const s = await d.sendTestSms(mobile, message.sms, job, `${TENANT_NOTICE_SMS_TYPE}:${tenantNoticeKey(booking.id, "sms")}`);
     smsOutcome = s.status === "sent" ? "sent" : `held (${s.detail})`;
-    const e = await d.sendTestEmail(email, message.email, job);
+    const e = email ? await d.sendTestEmail(email, message.email, job) : { status: "held", detail: NO_TENANT_EMAIL };
     emailOutcome = e.status === "sent" ? "sent" : `held (${e.detail})`;
   } else {
     const s = await d.sendSms({ type: TENANT_NOTICE_SMS_TYPE, idempotencyKey: tenantNoticeKey(booking.id, "sms"), to: mobile, body: message.sms, jobId, event: { at: booking.created_at, current: true } });
     smsOutcome = s.status === "sent" || s.status === "sent_unknown" ? "sent" : s.status === "already" ? "already" : `held (${s.detail})`;
-    const e = await d.sendEmail({ jobId, jobSource: job.source, to: email, purpose: TENANT_NOTICE_EMAIL_PURPOSE, key: tenantNoticeKey(booking.id, "email"), build: () => message.email });
+    const e = email ? await d.sendEmail({ jobId, jobSource: job.source, to: email, purpose: TENANT_NOTICE_EMAIL_PURPOSE, key: tenantNoticeKey(booking.id, "email"), build: () => message.email }) : `held: ${NO_TENANT_EMAIL}`;
     emailOutcome = e === "sent" ? "sent" : e.startsWith("already") ? "already" : `held (${e})`;
   }
-  if (smsOutcome === "already" && emailOutcome === "already") return "already handled";
+  if (smsOutcome === "already" && (emailOutcome === "already" || !email)) return "already handled";
   if (smsOutcome === "sent" || emailOutcome === "sent") {
-    await d.recordEvent(jobId, TENANT_NOTICE_SENT_EVENT, { id: await eventId(`${TENANT_NOTICE_SENT_EVENT}:${jobId}:${booking.id}`), booking_id: booking.id, starts_at: booking.scheduled_start, to_mobile: mobile, to_email: email, sms: smsOutcome, email: emailOutcome });
+    await d.recordEvent(jobId, TENANT_NOTICE_SENT_EVENT, { id: await eventId(`${TENANT_NOTICE_SENT_EVENT}:${jobId}:${booking.id}`), booking_id: booking.id, starts_at: booking.scheduled_start, to_mobile: mobile, to_email: email || null, sms: smsOutcome, email: emailOutcome });
   }
   return `sent: sms ${smsOutcome}, email ${emailOutcome}`;
 }

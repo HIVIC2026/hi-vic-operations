@@ -21,6 +21,8 @@ export const TENANT_NOTICE_SENT_EVENT = "tenant_notice_sent";
 /** Recorded (one row per booking + reason) when the notice cannot go: tenant details missing, or no office phone. */
 export const TENANT_NOTICE_HELD_EVENT = "tenant_notice_held";
 export const NO_TENANT_DETAILS = "no tenant details";
+/** Jo 4 Nov 2026: the tenant's email is optional — the text still goes; the email outcome says this. */
+export const NO_TENANT_EMAIL = "no tenant email";
 
 /** One notice per booking and channel; a changed time is a new booking row, so a new notice. */
 export const tenantNoticeKey = (bookingId: string, channel: "sms" | "email") => `tenant-notice:v1:${bookingId}:${channel}`;

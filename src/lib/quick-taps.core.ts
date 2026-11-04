@@ -1,7 +1,8 @@
 // A48 batch 2 (spec part 1 + Jo's 30 Oct amendment): the owner's quick taps on My job `?screen=taps`. PURE: no I/O.
 // One question per screen, in this order: full name, address, hatch, any website answer the owner left blank (never
-// "over 5 years"), then (Task 19, only while RENTAL_TAPS_APPROVED) the rental questions, then who lets the installer in
-// (`access`, Jo 2 Nov 2026), then "Yes, let's go" / "No thanks". Jo 3 Nov 2026: the roof and 5-year questions are no
+// "over 5 years"), then the rental screens (Task 19; Jo 4 Nov 2026: four screens, the last one "Who should we book the
+// visits with?" replaces the old "who lets the installer in" tap, which is only asked when the rental screens are off),
+// then "Yes, let's go" / "No thanks". Jo 3 Nov 2026: the roof and 5-year questions are no
 // longer asked (the installer checks both at the Ready Check); old answers keep their roof / five_years values. A decline tap ends the questions. "Not sure" always passes (the installer
 // checks on the day). Wording is Jo's, verbatim (29–30 Oct 2026); the website questions reuse the portal's existing owner
 // question wording (owner-eligibility.core OWNER_QUESTIONS).
@@ -19,8 +20,9 @@ export type WebsiteKey = (typeof WEBSITE_KEYS)[number];
 export type WebsiteFacts = Record<WebsiteKey, string | null>;
 export type WebsiteAnswers = { [K in WebsiteKey]?: string | undefined };
 
-/** Who will be at the home to let the installer in. A tenant's details are for the installer only; the tenant is never contacted by us. */
-export type Access = { who: "owner" } | { who: "tenant"; name: string; mobile: string };
+/** Who will be at the home to let the installer in. Jo 4 Nov 2026 (pack 2 batch 7): no longer tapped — derived from the rental
+ *  answers (screen 4, "Who should we book the visits with?") by `accessFromRental`; old answers keep their stored shape. */
+export type Access = { who: "owner" } | { who: "tenant" | "property_manager"; name: string; mobile: string };
 
 export type QuickTapAnswers = {
   /** The full name the owner confirmed (or typed). */
@@ -56,14 +58,8 @@ export const QUICK_TAPS_COPY = {
   hatch: { question: "Is there a manhole or hatch into your roof space?", options: opts<Hatch>([["yes", "Yes"], ["no", "No"], ["not_sure", "Not sure"]]) },
   roof: { question: "Is your roof sloped, flat, or some of each?", options: opts<Roof>([["sloped", "Sloped"], ["flat", "Flat"], ["some", "Some of each"], ["not_sure", "Not sure"]]) },
   five_years: { question: "Was your home built, or its ceiling replaced, in the last 5 years?", options: opts<FiveYears>([["no", "No"], ["yes", "Yes"], ["not_sure", "Not sure"]]) },
-  access: {
-    question: "Who will be at the home to let the installer in?",
-    options: opts<"owner" | "tenant">([["owner", "Me"], ["tenant", "My tenant"]]),
-    tenantName: "Tenant's name",
-    tenantMobile: "Tenant's mobile",
-    needBoth: "Add your tenant's name and mobile so the installer can call them",
-    back: "Back",
-  },
+  // The "Who will be at the home to let the installer in? Me / My tenant" tap was retired 4 Nov 2026 (Jo, pack 2 batch 7):
+  // the rental screens ask it ("Who should we book the visits with?").
   go: { options: opts<GoAhead>([["yes", "Yes, let's go — you can share my name and number with the installer to book it"], ["no_thanks", "No thanks"]]) },
   /** Website answers left blank. Values are what the website stores (`apartment`, not the eligibility link's `unit`). */
   website: {
@@ -125,20 +121,27 @@ export function normaliseAuMobile(v: string): string | null {
 export function validAccess(a: Access | undefined): boolean {
   if (!a || typeof a !== "object") return false;
   if (a.who === "owner") return true;
-  return a.who === "tenant" && typeof a.name === "string" && !blank(a.name) && normaliseAuMobile(a.mobile) !== null;
+  return (a.who === "tenant" || a.who === "property_manager") && typeof a.name === "string" && !blank(a.name) && normaliseAuMobile(a.mobile) !== null;
 }
-/** The access answer as saved: `{who:"owner"}`, or the tenant with the name trimmed and the mobile as `+614XXXXXXXX`.
- *  Null when it isn't a valid answer. */
+/** The access answer as saved: `{who:"owner"}`, or the tenant / property manager with the name trimmed and the mobile as
+ *  `+614XXXXXXXX`. Null when it isn't a valid answer. */
 export function normaliseAccess(a: unknown): Access | null {
   const x = a as Access | undefined;
   if (!validAccess(x)) return null;
-  return x!.who === "owner" ? { who: "owner" } : { who: "tenant", name: x!.name.trim(), mobile: normaliseAuMobile(x!.mobile)! };
+  return x!.who === "owner" ? { who: "owner" } : { who: x!.who, name: x!.name.trim(), mobile: normaliseAuMobile(x!.mobile)! };
+}
+/** Jo 4 Nov 2026: the stored `access` answer now comes from the rental screens — who we book the visits with. Owner lives
+ *  there, or books with us themselves → the owner. */
+export function accessFromRental(r: { rented: boolean; access: { who: "owner" | "tenant" | "property_manager"; name: string; mobile: string } | null } | null | undefined): Access {
+  if (!r?.rented || !r.access || r.access.who === "owner") return { who: "owner" };
+  return { who: r.access.who, name: r.access.name, mobile: r.access.mobile };
 }
 /** The one line shown to the installer, or null when nothing valid was answered. */
 export function accessLine(a: Access | undefined | null): string | null {
   if (!a) return null;
   if (a.who === "owner") return "At the home: owner";
-  return a.who === "tenant" && validAccess(a) ? `At the home: tenant — ${a.name.trim()}, ${a.mobile.trim()}` : null;
+  if (!validAccess(a)) return null;
+  return `At the home: ${a.who === "tenant" ? "tenant" : "property manager"} — ${a.name.trim()}, ${a.mobile.trim()}`;
 }
 
 const validWebsite = (k: WebsiteKey, v: string | undefined) => !!v && QUICK_TAPS_COPY.website[k].options.some((o) => o.value === v);
@@ -152,7 +155,8 @@ export function tapOutcome(a: QuickTapAnswers, blanks: readonly WebsiteKey[] = [
   if (blanks.some((k) => !validWebsite(k, a.website?.[k]))) return "incomplete";
   if (ask.rental && rentalAnswersProblems(a.rental).length) return "incomplete";
   if (a.go === "no_thanks") return "no_thanks";
-  return a.go === "yes" && validAccess(a.access) ? "pass" : "incomplete";
+  // Jo 4 Nov 2026: with the rental screens on, who lets us in comes from them (no separate access tap).
+  return a.go === "yes" && (ask.rental || validAccess(a.access)) ? "pass" : "incomplete";
 }
 
 /** The next question to show, or null when the answers are decided (a decline, or everything answered). */
@@ -163,7 +167,8 @@ export function nextTapStep(a: QuickTapAnswers, blanks: readonly WebsiteKey[] = 
   if (!a.hatch) return "hatch";
   const w = blanks.find((k) => !validWebsite(k, a.website?.[k]));
   if (w) return w;
-  return (ask.rental ? nextRentalStep(a.rental) : null) ?? (validAccess(a.access) ? "go" : "access");
+  if (ask.rental) return nextRentalStep(a.rental) ?? "go";
+  return validAccess(a.access) ? "go" : "access";
 }
 
 /** What My job `?screen=taps` shows. `none` = not in a batch asking for taps (the normal My job page shows instead). */

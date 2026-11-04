@@ -157,6 +157,14 @@ describe("sendTenantNotice", () => {
     expect(await sendTenantNotice("j1", "b1", NOW, d)).toBe("already handled");
     expect(sms).toHaveLength(1); expect(emails).toHaveLength(1);
   });
+  test("Jo 4 Nov 2026: the tenant's email is optional — no email → the text alone goes, the email is noted as held; repeat adds nothing", async () => {
+    const { d, sms, emails, events } = deps({ rental: { ...RENTED, tenant: { ...RENTED.tenant!, email: "" } } });
+    expect(await sendTenantNotice("j1", "b1", NOW, d)).toBe("sent: sms sent, email held (held: no tenant email)");
+    expect(sms).toHaveLength(1); expect(emails).toHaveLength(0);
+    expect(events).toEqual([{ type: TENANT_NOTICE_SENT_EVENT, details: expect.objectContaining({ booking_id: "b1", sms: "sent", to_email: null }) }]);
+    expect(await sendTenantNotice("j1", "b1", NOW, d)).toBe("already handled");
+    expect(sms).toHaveLength(1);
+  });
   test("time changed → a second notice with the new time (new booking, new keys)", async () => {
     const { d, sms, emails } = deps();
     await sendTenantNotice("j1", "b1", NOW, d);
