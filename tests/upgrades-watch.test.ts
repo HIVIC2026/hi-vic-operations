@@ -243,7 +243,9 @@ describe("sweepUpgradesWatch: the 30-day red flag", () => {
 
 describe("wiring", () => {
   test("the tick runs the sweep; the SMS type exists and is unapproved", () => {
-    expect(readFileSync("src/routes/api/public/hooks/allocation-tick.ts", "utf8")).toContain("sweepUpgradesWatch");
+    // Join ruling 2 (4 Nov 2026): ONE tick entry owns the three upgrades / certificate chases; this sweep is its "day passed" part.
+    expect(readFileSync("src/routes/api/public/hooks/allocation-tick.ts", "utf8")).toContain("sweepUpgradesChasing");
+    expect(readFileSync("src/lib/certificate-later.server.ts", "utf8")).toContain('(await import("./upgrades-watch.server")).sweepUpgradesWatch(now)');
     const sms = readFileSync("src/lib/sms.core.ts", "utf8");
     expect(sms).toMatch(/upgrades_nudge: \{ audience: "partner"[^}]*wordingApproved: false/);
   });

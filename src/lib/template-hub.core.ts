@@ -49,6 +49,8 @@ import { renderElectricianPiesaEmail } from "./electrician-piesa-copy.core";
 import { renderElectricianPiesaBooked } from "./electrician-piesa-booked-email.core";
 import { electricianCantDoEmail } from "./electrician-cant-do-email.core";
 import { upgradesNudgeText, upgradesOfficeEmail, upgradesRedFlagEmail } from "./upgrades-watch.core";
+import { certificateChaseText, upgradesDayLinkText, upgradesDayOfficeEmail } from "./certificate-chase.core";
+import { certificateAddLinkText } from "./certificate-later.core";
 import { MITTI_INVITE_MESSAGE, renderMittiInviteEmail } from "./mitti-invite.core";
 import { officeEmailLayout, electricianInviteLayout } from "./office-email.core";
 import { composeReply } from "./email-reply.core";
@@ -724,15 +726,30 @@ const ELECTRICIAN: TemplateEntry[] = [
     source: { builder: "src/lib/electrician-cant-do-email.core.ts", fn: "electricianCantDoEmail", sender: "src/lib/electrician-link.server.ts" },
     render: () => email(electricianCantDoEmail({ jobNumber: "HV-TEST", electrician: "Example Electrical", reason: "Double booked that week", test: false })) }),
   // Part 6 Task 7 — DRAFT wording: UPGRADES_NUDGE_TEXT_APPROVED stays false and the SMS type is wordingApproved:false (switch off).
-  ENTRY({ id: "electrician:sms-upgrades_nudge", section: "electrician", step: "fixes", kind: "text", code: "", name: "Upgrades form not in (text)", when: "9am the day after the booked upgrades day when the upgrades form isn't in; carries a fresh job link", who: "Electrician", approvalNote: "DRAFT wording for Jo to approve (new job flow Part 6, Task 7); UPGRADES_NUDGE_TEXT_APPROVED stays false", gate: { kind: "text", smsType: "upgrades_nudge" },
+  ENTRY({ id: "electrician:sms-upgrades_nudge", section: "electrician", step: "fixes", kind: "text", code: "", name: "Upgrades form not in (text)", when: "9am the day after the booked upgrades day when the upgrades form isn't in; carries a fresh job link", who: "Electrician", approvalNote: "Approved by Jo 4 Nov 2026 13:55 (Part 6 Task 7); UPGRADES_NUDGE_TEXT_APPROVED flips at go-live", gate: { kind: "text", smsType: "upgrades_nudge" },
     source: { builder: "src/lib/upgrades-watch.core.ts", fn: "upgradesNudgeText", sender: "src/lib/upgrades-watch.server.ts" },
     render: () => text(upgradesNudgeText({ jobNumber: "HV-TEST", url: "https://estimate.homeinsulationvictoria.com.au/e/EXAMPLE" })) }),
-  ENTRY({ id: "installer:upgrades-form-not-in", section: "installer", step: "fixes", kind: "email", code: "", name: "Upgrades form not in", when: "9am two days after the booked upgrades day, once the electrician was nudged and the form still isn't in; to the installer business's office email", who: "Installer business office", approvalNote: "DRAFT wording for Jo to approve (new job flow Part 6, Task 7); UPGRADES_OFFICE_EMAIL_APPROVED stays false", gate: { kind: "code_off", flag: "UPGRADES_OFFICE_EMAIL_APPROVED" },
+  ENTRY({ id: "installer:upgrades-form-not-in", section: "installer", step: "fixes", kind: "email", code: "", name: "Upgrades form not in", when: "9am two days after the booked upgrades day, once the electrician was nudged and the form still isn't in; to the installer business's office email", who: "Installer business office", approvalNote: "Approved by Jo 4 Nov 2026 13:55 (Part 6 Task 7); UPGRADES_OFFICE_EMAIL_APPROVED flips at go-live", gate: { kind: "code_off", flag: "UPGRADES_OFFICE_EMAIL_APPROVED" },
     source: { builder: "src/lib/upgrades-watch.core.ts", fn: "upgradesOfficeEmail", sender: "src/lib/upgrades-watch.server.ts" },
     render: () => email(upgradesOfficeEmail({ jobNumber: "HV-TEST", electrician: "Example Electrical", upgradesStart: PIESA_ISO, test: false })) }),
-  ENTRY({ id: "installer:upgrades-past-30-days", section: "installer", step: "fixes", kind: "email", code: "", name: "Upgrades day is past the 30-day rule", when: "The booked upgrades day is after the 30-day install deadline; to the installer business's office email with a copy to info@ (the office Needs me row is always on)", who: "Installer business office", approvalNote: "DRAFT wording for Jo to approve (new job flow Part 6, Task 7); UPGRADES_RED_FLAG_EMAIL_APPROVED stays false", gate: { kind: "code_off", flag: "UPGRADES_RED_FLAG_EMAIL_APPROVED" },
+  ENTRY({ id: "installer:upgrades-past-30-days", section: "installer", step: "fixes", kind: "email", code: "", name: "Upgrades day is past the 30-day rule", when: "The booked upgrades day is after the 30-day install deadline; to the installer business's office email with a copy to info@ (the office Needs me row is always on)", who: "Installer business office", approvalNote: "Approved by Jo 4 Nov 2026 13:55 (Part 6 Task 7); UPGRADES_RED_FLAG_EMAIL_APPROVED flips at go-live", gate: { kind: "code_off", flag: "UPGRADES_RED_FLAG_EMAIL_APPROVED" },
     source: { builder: "src/lib/upgrades-watch.core.ts", fn: "upgradesRedFlagEmail", sender: "src/lib/upgrades-watch.server.ts" },
     render: () => email(upgradesRedFlagEmail({ jobNumber: "HV-TEST", electrician: "Example Electrical", upgradesStart: PIESA_ISO, installDeadlineYmd: "2026-11-06", test: false })) }),
+  // Main Part 3 (#137/#138, Jo approved 4 Nov 2026; docs/wording/2026-11-03-part3-messages.md): the upgrades-day / certificate
+  // chases on the 30-day clock. A different trigger from Part 6 Task 7 above (no day entered / no certificate file, vs the
+  // booked day passed with no form) — never both for one condition. Listed at the 4 Nov join (step 5).
+  ENTRY({ id: "electrician:sms-electrician_upgrades_day_link", section: "electrician", step: "fixes", kind: "text", code: "", name: "Upgrades day not booked (text)", when: "1 business day after the safety check said upgrades are needed (not today) with no upgrades day entered; carries their job link", who: "Electrician", approvalNote: "Jo 4 Nov 2026 (Part 3, #138)", gate: { kind: "text", smsType: "electrician_upgrades_day_link" },
+    source: { builder: "src/lib/certificate-chase.core.ts", fn: "upgradesDayLinkText", sender: "src/lib/own-job-piesa-notices.server.ts" },
+    render: () => text(upgradesDayLinkText({ first: "Sam", address: SHORT_ADDRESS, url: "https://estimate.homeinsulationvictoria.com.au/e/EXAMPLE" })) }),
+  ENTRY({ id: "installer:upgrades-day-not-set", section: "installer", step: "fixes", kind: "email", code: "", name: "Upgrades day not set (installer office)", when: "2 business days after the safety check said upgrades are needed with no upgrades day entered; to the installer business's office email", who: "Installer business office", approvalNote: "Jo 4 Nov 2026 (Part 3, #138); UPGRADES_DAY_OFFICE_EMAIL_APPROVED", gate: { kind: "email" },
+    source: { builder: "src/lib/certificate-chase.core.ts", fn: "upgradesDayOfficeEmail", sender: "src/lib/certificate-later.server.ts" },
+    render: () => installerOfficeEmail(upgradesDayOfficeEmail({ address: SHORT_ADDRESS, electrician: "Sam Sparks", jobUrl: FIELD }), FIELD) }),
+  ENTRY({ id: "electrician:sms-electrician_certificate_link", section: "electrician", step: "fixes", kind: "text", code: "", name: "Add your certificate (text)", when: "Straight after the upgrades are recorded (Part C) on the safety check or upgrades form without a Certificate of Electrical Safety; carries their job link", who: "Electrician", approvalNote: "Jo 4 Nov 2026 (Part 3, #138)", gate: { kind: "text", smsType: "electrician_certificate_link" },
+    source: { builder: "src/lib/certificate-later.core.ts", fn: "certificateAddLinkText", sender: "src/lib/own-job-piesa-notices.server.ts" },
+    render: () => text(certificateAddLinkText({ first: "Sam", address: SHORT_ADDRESS, url: "https://estimate.homeinsulationvictoria.com.au/e/EXAMPLE" })) }),
+  ENTRY({ id: "electrician:sms-electrician_certificate_chase", section: "electrician", step: "fixes", kind: "text", code: "", name: "Certificate still needed (text)", when: "2 business days after the upgrades were recorded with no certificate file on the job; carries their job link", who: "Electrician", approvalNote: "Jo 4 Nov 2026 (Part 3, #138)", gate: { kind: "text", smsType: "electrician_certificate_chase" },
+    source: { builder: "src/lib/certificate-chase.core.ts", fn: "certificateChaseText", sender: "src/lib/own-job-piesa-notices.server.ts" },
+    render: () => text(certificateChaseText({ first: "Sam", address: SHORT_ADDRESS, url: "https://estimate.homeinsulationvictoria.com.au/e/EXAMPLE" })) }),
 ];
 
 /* ---------------------------------------------------------------- OFFICE */
