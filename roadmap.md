@@ -1,3 +1,9 @@
+## Jo 4 Nov 02:03 UTC approved A1 and current Mitti reads
+- [ ] Test-first A1 optional media, corrected required ready-to-price tick and job missing-BEFORE area line; preserve A2 and old submissions.
+- [ ] Read-only current A1–A5 GET snapshots to mitti_template_dumps, published/draft readback and full question inventory.
+- [ ] Needs me browser recheck and practice two-option quote: requires available TEST office session and proven no-delivery safeguards.
+- [ ] Compare exact eight extra-suite failures against pre-rebuild code; leave Part 3 alone, no sends/publishing.
+
 ## Jo 4 Nov install-day BEFORE, floor plans and TEST quote browser check
 - [x] Capability investigation: configured alternate templates supported; hidden immutable answers/repeat prefills unproven. Staged automatic BEFORE rule/reader, ordinary area-order prefill and scope-change Needs me without repricing.
 - [ ] Operational per-area BEFORE creation/read/reuse and accepted-evidence suppression — blocked on Mitti immutable conditional or fixed-area draft definition; existing gates not bypassed.

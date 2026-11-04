@@ -409,7 +409,7 @@ export type MittiArea = {
   conductiveEvidence?: string | null; keepReason?: string | null;
   /** Decision 375: this area's existing insulation depth in mm (official PIISA Part 6 height); null = not recorded. */
   depthMm?: number | null;
-  measurementMethod?: string | null; floorPlanEvidence?: string | null; depthPhoto?: boolean;
+  measurementMethod?: string | null; floorPlanEvidence?: string | null; depthPhoto?: boolean; wholeAreaPhoto?: boolean; backingPhoto?: boolean;
   product: string | null; scope: string | null; sources: Record<string, never>;
   /** Jo 4 Nov 2026 forms only: the new per-area answers (old insulation, old R value, batts). */
   layout?: LayoutArea;
@@ -420,7 +420,7 @@ const UNSUPPORTED_WORK: [string, string][] = [
   ["circuit protection", "Circuit protection work"], ["cable replacement", "Cable replacement"], ["basic protection", "Basic protection work"],
 ];
 
-export function parseAudit(audit: Any) {
+export function parseAudit(audit: Any, opts: { installerSourced?: boolean } = {}) {
   const entries = flatten(audit?.audit_data ? { header_items: audit.header_items, items: audit.items } : audit);
   const auditId = String(audit?.audit_id ?? audit?.id ?? "");
   const patch: AssessmentPatch = {};
@@ -460,7 +460,7 @@ export function parseAudit(audit: Any) {
     let m2 = plan.selected ? {value:plan.areaM2,issue:plan.areaM2===null?`${plan.kind==='aerial'?'Aerial image':'Floor plan'} ceiling area (m²) missing or invalid – office review required.`:null} : physical(m2e?.value ?? null, m2e?.label ?? "Measured area m2");
     const len = physical(plan.selected ? null : val(kids, [LEAN_Q.lengthM]), LEAN_Q.lengthM);
     const wid = physical(plan.selected ? null : val(kids, [LEAN_Q.widthM]), LEAN_Q.widthM);
-    if (plan.selected && !plan.fileAnswered) issues.push(`${plan.kind==='aerial'?'Aerial image':'Floor plan'} file missing – office review required.`);
+    if (plan.selected && !plan.fileAnswered && !opts.installerSourced) issues.push(`${plan.kind==='aerial'?'Aerial image':'Floor plan'} file missing – office review required.`);
     if (m2.value == null && !plan.selected) {
       if (len.issue) issues.push(len.issue);
       if (wid.issue) issues.push(wid.issue);
@@ -487,7 +487,7 @@ export function parseAudit(audit: Any) {
     const rv = layout ? layout.oldR : rValue(rvRaw, "R value").value;
     // Jo 23 Oct: photos are optional in Mitti — note which are missing so they move to the install-day lock.
     const has = (labels: string[]) => !!find(kids, labels, { withValue: true });
-    const photos = { depth: has([LEAN_Q.depthPhoto, ...(LEAN_ALIASES.depthPhoto ?? [])]), overview: has([LEAN_Q.beforeVideo, ...(LEAN_ALIASES.beforeVideo ?? [])]) };
+    const photos = { depth: has([LEAN_Q.depthPhoto, ...(LEAN_ALIASES.depthPhoto ?? [])]), overview: has([LEAN_Q.beforeVideo]), whole: has(['Whole-area photo', 'Photo of the whole ceiling area', 'Whole area photo', 'Upload an overview photo of this ceiling area', 'Photo of the empty ceiling space']), backing: has([LEAN_Q.existingConductivePhoto, ...(LEAN_ALIASES.existingConductivePhoto ?? [])]) };
     const remAnswer = physical(val(kids, [LEAN_Q.removeM2, ...(LEAN_ALIASES.removeM2 ?? [])]), LEAN_Q.removeM2);
     if (remAnswer.issue) issues.push(remAnswer.issue);
     // Decision 222 + Jo 24 Oct: the hazard flag, its note ("What is the issue, and where is it in this area?", or the 24 Oct
@@ -678,7 +678,7 @@ export function parseAudit(audit: Any) {
     removal: r.removal === true ? "yes" : r.removal === false ? "no" : r.remAnswer != null && r.remAnswer > 0 ? "yes" : null,
     removalM2: r.remAnswer, downlights: r.downlights, hazardFlag: r.hazardFlag, hazardEvidence: r.hazardEvidence, hazardNote: r.hazardNote, beforeVideo: r.photos.overview,
     suitable: r.suitable, conductive: r.conductive, conductiveEvidence: r.conductiveEvidence, keepReason: r.keepReason, depthMm: r.depthMm,
-    measurementMethod: val(areaKids(r.parent), [LEAN_Q.measuredHow]), depthPhoto: r.photos.depth,
+    measurementMethod: val(areaKids(r.parent), [LEAN_Q.measuredHow]), depthPhoto: r.photos.depth, wholeAreaPhoto: r.photos.whole, backingPhoto: r.photos.backing,
     floorPlanEvidence: (()=>{const f=find(areaKids(r.parent),[...MEASURED_SOURCE_FILE_LABELS],{withValue:true});return f?`mitti:${auditId}:item:${f.id}`:null;})(),
     product: null, scope: null, sources: {},
     ...(r.layout ? { layout: r.layout } : {}),
