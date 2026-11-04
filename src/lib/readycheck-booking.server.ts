@@ -86,10 +86,10 @@ export async function installerOfferFacts(bizs: { id: string }[]): Promise<{ cre
   const acksP = early(notice.loadNoticeAcks(ids));
   const [{ data: creds }, { data: workers }, insurance] = await Promise.all([
     admin.from("business_credentials").select("business_id,kind,label,expires_at,critical,verification").in("business_id", inIds),
-    // Part 9 Task 8: the insurance read with the office-typed amount (pending column overlay); a read error throws (fail closed).
-    (await import("./business-docs.server")).businessDocsFor(inIds),
     // Decision 153: clearance is derived below from the verified certification + recorded level/expiry; approval_status (logins only) is not a filter.
     admin.from("partner_workers").select("id, business_id, email, full_legal_name, removed_at, trade_role").eq("trade_role", "installer").is("removed_at", null).in("business_id", inIds),
+    // Part 9 Task 8: the insurance read with the office-typed amount (pending column overlay); a read error throws (fail closed).
+    (await import("./business-docs.server")).businessDocsFor(inIds),
   ]);
   // Certification: latest record per worker (by id or email) + latest office-recorded level.
   // ESC collection notice (decision 130): a person who has not acknowledged it is not offered work either.
