@@ -76,16 +76,17 @@ mock.module("../src/lib/workflow.server", () => ({
 }));
 
 const { generateRectificationQuote } = await import("../src/lib/quotes.server");
-const { maybeAutoSendFixesQuote, sweepAutoFixesQuotes } = await import("../src/lib/auto-fixes-quote-send.server");
-const { textFixesTimesLink } = await import("../src/lib/fixes-times-link.server");
+// Join (4 Nov 2026): the automatic HIV fixes-quote send and the electrician "fixes times" text were removed outright on the
+// new job flow (Part 4 Task 14: auto-fixes-quote-send.* and fixes-times-link.server are gone — tests/old-flow-removed-p4),
+// so there is nothing to call here; the rule itself (electricianBillsUpgrades) is checked on the paths that remain.
 const { clearanceFacts } = await import("../src/lib/electrical-clearance.server");
 const { partnerBilledRectificationFor } = await import("../src/lib/in-house-rectification.server");
 const { electricalClearance } = await import("../src/lib/allocation.core");
 const { ownerFixesState } = await import("../src/lib/owner-fixes.server");
 const { releaseFixesQuote } = await import("../src/lib/fixes-quote-release.server");
 const { ELECTRICIAN_BILLS_SKIP, UPGRADES_BILLED_BY_ELECTRICIAN, UPGRADES_QUOTE_SEND_BLOCKER } = await import("../src/lib/upgrades-billing.core");
-const { AUTO_FIXES_QUOTE_HELD_EVENT } = await import("../src/lib/auto-fixes-quote-send.core");
 const { FIXES_TIMES_LINK_EVENT } = await import("../src/lib/fixes-times.core");
+const { existsSync } = await import("node:fs");
 
 const n = async (sql: string, vals: unknown[] = []) => Number((await db.query<{ n: number }>(sql, vals)).rows[0]!.n);
 const quotesOn = (job: string) => n("select count(*)::int n from quotes where job_id=$1", [job]);
@@ -106,16 +107,11 @@ for (const [label, job] of [["an HIV lead", LEAD], ["an installer's own job", OW
       expect(await quotesOn(job)).toBe(0);
       expect(await n("select count(*)::int n from workflow_events where job_id=$1 and event_type like 'rectification_quote_%'", [job])).toBe(0);
     });
-    test("the automatic send (A3 Complete trigger and the tick) is a no-op with the reason: no quote, no O29 email, no held row", async () => {
-      const r = await maybeAutoSendFixesQuote(job, { actorId: null, generate: true });
-      expect(r).toEqual({ jobId: job, result: "waiting", reason: ELECTRICIAN_BILLS_SKIP, quoteId: null });
+    test("the automatic HIV fixes-quote send and the electrician fixes-times text no longer exist: no quote, no O29 email, no text event", async () => {
+      expect(existsSync("src/lib/auto-fixes-quote-send.server.ts")).toBe(false);
+      expect(existsSync("src/lib/fixes-times-link.server.ts")).toBe(false);
       expect(await quotesOn(job)).toBe(0);
       expect(o29).toEqual([]);
-      expect(await eventsOn(job, AUTO_FIXES_QUOTE_HELD_EVENT)).toBe(0);
-    });
-    test("the electrician is not texted the fixes-times link", async () => {
-      const r = await textFixesTimesLink(job, { auditId: `audit-${job}`, completedAt: "2026-11-02T03:00:00Z", short });
-      expect(r).toMatch(/^skipped: /);
       expect(await eventsOn(job, FIXES_TIMES_LINK_EVENT)).toBe(0);
     });
     test("clearance is not blocked by the missing quote — only by the upgrades themselves", async () => {
@@ -135,9 +131,8 @@ for (const [label, job] of [["an HIV lead", LEAD], ["an installer's own job", OW
   });
 }
 
-describe("the tick sweep", () => {
-  test("checks nothing and sends nothing", async () => {
-    expect(await sweepAutoFixesQuotes()).toEqual({ checked: 0, sent: 0, held: 0, errors: 0 });
+describe("the tick", () => {
+  test("has no fixes-quote sweep and the one TEST quote is untouched", async () => {
     expect(await n("select count(*)::int n from quotes")).toBe(1);
   });
 });
@@ -146,9 +141,6 @@ describe("a TEST job with an upgrades quote from before the rule", () => {
   test("keeps its quote row exactly as it was through every path above", async () => {
     const before = (await db.query("select * from quotes where id=$1", [TEST_QUOTE])).rows[0];
     expect(await generateRectificationQuote(TEST, null)).toEqual({ skipped: ELECTRICIAN_BILLS_SKIP });
-    const r = await maybeAutoSendFixesQuote(TEST, { actorId: null, generate: true });
-    expect(r.result).toBe("waiting");
-    await textFixesTimesLink(TEST, { auditId: `audit-${TEST}`, completedAt: "2026-11-02T03:00:00Z", short });
     await clearanceFacts(TEST);
     const after = (await db.query("select * from quotes where id=$1", [TEST_QUOTE])).rows[0];
     expect(after).toEqual(before);
