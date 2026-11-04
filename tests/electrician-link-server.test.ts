@@ -122,11 +122,11 @@ describe("electricianLinkView", () => {
     await expect(server.electricianLinkView(token, NOW)).rejects.toThrow("This link has been switched off.");
   });
 
-  test("before All done every open pushes the expiry to now + 60 days and counts the open", async () => {
+  test("before All done every open pushes the expiry to now + 30 days (the live link-lifetime trigger allows 30) and counts the open", async () => {
     const { token } = await mint();
     linkRow()["expires_at"] = new Date(NOW + DAY).toISOString();
     await server.electricianLinkView(token, NOW);
-    expect(linkRow()["expires_at"]).toBe(new Date(NOW + 60 * DAY).toISOString());
+    expect(linkRow()["expires_at"]).toBe(new Date(NOW + 30 * DAY).toISOString());
     expect(linkRow()["open_count"]).toBe(1);
     expect(linkRow()["last_opened_at"]).toBeTruthy();
   });

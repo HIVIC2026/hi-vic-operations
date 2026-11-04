@@ -271,6 +271,17 @@ export async function journeyDb(opts: { extraSql?: string; relOverrides?: Rels }
   for (const [t, cols] of Object.entries(COLUMNS_MISSING_FROM_TYPES)) for (const c of cols) await db.exec(`ALTER TABLE public."${t}" ADD COLUMN IF NOT EXISTS ${c};`);
   for (const d of columnDefaultsSql()) { try { await db.exec(d); } catch { /* names a column/type the generated schema lacks */ } }
   for (const u of uniqueConstraintSql()) { try { await db.exec(u); } catch { /* names a column/table the generated schema lacks */ } }
+  // Live triggers the journeys must obey (5 Nov 2026 live run: every electrician link failed on 0072's 30-day lifetime rule
+  // because this practice database never had it).
+  await db.exec(`CREATE OR REPLACE FUNCTION public.check_worker_token_lifetime() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+ IF NEW.token_hash !~ '^[a-f0-9]{64}$' OR NEW.expires_at<=NEW.created_at OR
+  NEW.expires_at>NEW.created_at + (CASE WHEN TG_TABLE_NAME='partner_worker_invites' THEN interval '14 days' ELSE interval '30 days' END)
+ THEN RAISE EXCEPTION 'Invalid token lifetime'; END IF;
+ RETURN NEW;
+END $$;
+DROP TRIGGER IF EXISTS worker_job_link_lifetime ON public.worker_job_links;
+CREATE TRIGGER worker_job_link_lifetime BEFORE INSERT ON public.worker_job_links FOR EACH ROW EXECUTE FUNCTION public.check_worker_token_lifetime();`).catch(() => { /* the generated schema lacks the table */ });
   // Views are real views where the migration chain defines them (e.g. job_piesa_deadlines, which the install gates read);
   // a view the generated schema cannot support stays an empty table. Repeat: views can read other views.
   const views = viewSql(), made: string[] = [];

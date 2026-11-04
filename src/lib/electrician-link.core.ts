@@ -87,8 +87,11 @@ export function electricianStep(f: ElectricianLinkFacts): ElectricianStepView {
 const DAY = 86_400_000;
 /** After All done, or after the job is closed/cancelled, the link stays open this long (Jo's plan), then it expires. */
 export const ELECTRICIAN_LINK_DAYS_AFTER_DONE = 14;
-/** Before All done the link stays open: every open pushes the expiry this far out. */
-export const ELECTRICIAN_LINK_OPEN_DAYS = 60;
+/** Before All done the link stays open: every open pushes the expiry this far out. 30, not 60: the live
+ *  `worker_job_link_lifetime` trigger (0072) refuses a new link that expires more than 30 days after it is made — on the
+ *  5 Nov 2026 live run every electrician link failed with "Invalid token lifetime". Opens extend by UPDATE, which the
+ *  trigger does not check, so a job that runs longer keeps its link. */
+export const ELECTRICIAN_LINK_OPEN_DAYS = 30;
 
 /** `null` allDoneAt: now + 60 days (renewed on every open). After All done: allDoneAt + 14 days. */
 export function electricianLinkExpiry(f: { allDoneAt: string | null; now: number }): string {
