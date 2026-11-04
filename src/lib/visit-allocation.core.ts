@@ -107,6 +107,12 @@ export function dailyTextRecipient(i: { allocated: { workerId: string; name: str
   }
   return { key: "owner", name: i.owner.name, phone: i.owner.phone, who: "owner", note: null };
 }
+/** Decision #26 (Jo 2 Nov 2026, Part 7 Task 7): the 6:30am jobs text goes to WORKERS ONLY — the allocated person on
+ *  their own mobile; nobody allocated, or no mobile on file → null (no text, never the business owner's number). */
+export function workerOnlyTextRecipient(allocated: { workerId: string; name: string; mobile: string | null } | null): TextRecipient | null {
+  if (!allocated || !allocated.mobile?.trim()) return null;
+  return { key: `w:${allocated.workerId}`, name: allocated.name, phone: allocated.mobile, who: "allocated", note: null };
+}
 /** send_key per business, day and recipient. The owner keeps the legacy key so a deploy never re-sends today's text. */
 export function dailySendKey(kind: "daily" | "update" | "skip", businessId: string, date: string, recipientKey: string, sig = ""): string {
   const base = kind === "skip" ? `skip:${businessId}:${date}` : `${kind}:${businessId}:${date}`;
@@ -116,4 +122,13 @@ export function dailySendKey(kind: "daily" | "update" | "skip", businessId: stri
 /** The one line shown when the person has no Mitti user under the business yet. */
 export function addInMittiFirst(name: string, email: string | null): string {
   return `${name} isn't in Mitti yet${email ? ` as ${email}` : ""}. Add them in Mitti first (Business owner does it in Mitti), then allocate.`;
+}
+
+// ── Part 7 Task 6: the Lead Installer lock on the crew writers (rule: prestart.core leadInstallerLocked, Part 9 owns it) ──
+import { LEAD_LOCKED_MESSAGE, leadInstallerLocked } from "./prestart.core";
+/** Why a crew save is refused: after the lock, the Lead Installer of the current confirmed install may not change
+ *  (crew-only changes, a first Lead, or no booking yet are never refused). Null = allowed. */
+export function leadLockBlocker(i: { startIso: string | null; now: Date; currentLeadId: string | null; newLeadId: string | null }): string | null {
+  if (!i.startIso || !i.currentLeadId || !i.newLeadId || i.currentLeadId === i.newLeadId) return null;
+  return leadInstallerLocked(i.startIso, i.now) ? LEAD_LOCKED_MESSAGE : null;
 }

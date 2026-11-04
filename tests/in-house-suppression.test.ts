@@ -56,8 +56,7 @@ function fixture() {
     "./spot-release.server": { spotReleaseStateFor: async () => ({ state: "confirmed" }) },
     "./readycheck-booking.server": { installerCandidatesFor: async () => ({ postcode: null, candidates: [{ business_id: "b", name: "Rapid", coverage_verified: true, covers_postcode: true, has_valid_licence: true, approved_workers: 1 }] }) },
     "@/data/vic-postcode-centroids.json": { default: {} }, "./test-send.core": { isTestPartner: () => false },
-    "./ready-check-times-email.server": { emailOwnerReadyCheckTimes: async () => { sends.push("ready_check"); return "sent"; } },
-    "./approved-owner-emails.server": { emailOwnerSafetyCheckTimes: async () => { sends.push("piesa"); return "sent"; } },
+    "./approved-owner-emails.server": { emailOwnerInstallDayChanged: async () => { sends.push("install_moved"); return "sent"; } },
   };
   function load(file: string, extra = "") {
     const source = ts.transpile(readFileSync(`src/lib/${file}.ts`, "utf8") + extra, { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 });
@@ -70,6 +69,7 @@ function fixture() {
         return cache[dep];
       }
       if (name === "@/lib/melbourne-time.core") return { melbourneToday: () => "2026-10-30" };
+      if (name.startsWith("node:")) return require(name); // #135 job-facts.server uses AsyncLocalStorage (join 4 Nov 2026)
       throw new Error(`Unexpected dependency ${name}`);
     });
     return out;
@@ -104,17 +104,10 @@ test("stale Ready Check offer cannot accept or email an in-house owner", async (
   expect(await f.load("ready-check-times.server").acceptOfferWithTimes("offer", "installer", [])).toMatchObject({ skipped: "in_house" });
   expect(f.writes).toEqual([]); expect(f.sends).toEqual([]);
 });
-test("all Ready Check time-email callers and PIESA trigger are suppressed before logging", async () => {
+test("the owner email trigger is suppressed before logging (O42 install day moved; the O26 PIESA times email was removed, Part 4 Task 14)", async () => {
   const f = fixture();
-  const ready = f.load("ready-check-times.server", "\nexport const testTellOwner = tellOwner;");
-  await ready.testTellOwner("j", ["2026-11-04T00:00:00Z"]);
-  expect(await f.load("owner-email-triggers.server").onSafetyCheckTimesOffered("j", ["2026-11-04T00:00:00Z"])).toBe("in_house");
+  expect(await f.load("owner-email-triggers.server").onInstallDayMoved("j", "2026-11-04T00:00:00Z", "2026-11-03T00:00:00Z")).toBe("in_house");
   expect(f.sends).toEqual([]); expect(f.writes).toEqual([]);
-});
-test("trade times reminder stops before provider reads", async () => {
-  const f = fixture();
-  expect(await f.load("piesa-times-reminder.server").remindTradeToOfferTimes({ jobId: "j", assignmentId: "asg", visitKind: "piesa", remindedAt: "2026-10-30" })).toBe("in_house");
-  expect(f.writes).toEqual([]); expect(f.sends).toEqual([]);
 });
 test("coordination sweep batches the state and records no in-house reminder", async () => {
   const f = fixture();
@@ -168,18 +161,12 @@ test("failed reads stop PIESA start, owner times and reminder sweeps without wri
     expect(errors).toHaveLength(4); expect(f.writes).toEqual([]);
   } finally { console.error = original; }
 });
-test("non-in-house Ready Check emails retain the normal path", async () => {
-  const f = fixture(); f.setFlag(false);
-  await f.load("ready-check-times.server", "\nexport const testTellOwner = tellOwner;").testTellOwner("j", []);
-  expect(f.sends).toEqual(["ready_check"]);
-});
 test("TEST and deleted in-house jobs are held even when the double honours joined job filters", async () => {
   for (const job of [{ source: "qa_test", deleted_at: null }, { source: "base44", deleted_at: "2026-10-30" }]) {
     const f = fixture(); Object.assign(f.data.jobs?.[0] ?? {}, job);
     expect(await f.load("auto-offer.server").autoOfferForJob("j", "ready_check", switches)).toMatchObject({ skipped: "in_house" });
     expect(await f.load("allocation.server").startPiesaAllocation("j", null)).toMatchObject({ skipped: "in_house" });
-    await f.load("ready-check-times.server", "\nexport const testTellOwner = tellOwner;").testTellOwner("j", []);
-    expect(await f.load("owner-email-triggers.server").onSafetyCheckTimesOffered("j", [])).toBe("in_house");
+    expect(await f.load("owner-email-triggers.server").onInstallDayMoved("j", "2026-11-04T00:00:00Z", "2026-11-03T00:00:00Z")).toBe("in_house");
     expect(f.writes).toEqual([]); expect(f.sends).toEqual([]);
   }
 });
@@ -231,9 +218,8 @@ test("scoped held lookup chunks candidate ids at 200 and reads the last chunk", 
     expect((filter?.[2] as unknown[]).length).toBeLessThanOrEqual(200);
   }
 });
-test("actual three UI callbacks stop before success/reset/refetch and show skipped messages", async () => {
+test("actual UI callbacks stop before success/reset/refetch and show skipped messages (the offer page's offerTimes is gone — Part 7 Task 9)", async () => {
   const scenarios = [
-    { path: "src/routes/_authenticated/field.offer.$offerId.tsx", action: "offerTimes", catches: true },
     { path: "src/routes/my-job.$token.tsx", action: "choosePiesa", catches: false },
     { path: "src/components/portal/piesa-times.tsx", action: "choose", catches: true },
   ];
@@ -286,9 +272,8 @@ test("Reinsulate-style payee-only assignment stays unheld and owner time emails 
   f.data.partner_offers = [];
   f.overrides["./ready-check-times.server"] = { officePickReadyCheckInstaller: async () => { f.writes.push("partner_offers"); } };
   expect(await f.load("auto-offer.server").autoOfferForJob("j", "ready_check", switches)).toMatchObject({ step: "offer", businessId: "b" });
-  await f.load("ready-check-times.server", "\nexport const testTellOwner = tellOwner;").testTellOwner("j", []);
-  expect(await f.load("owner-email-triggers.server").onSafetyCheckTimesOffered("j", ["2026-11-04T00:00:00Z"])).toBe("sent");
-  expect(f.sends).toEqual(["ready_check", "piesa"]);
+  expect(await f.load("owner-email-triggers.server").onInstallDayMoved("j", "2026-11-04T00:00:00Z", "2026-11-03T00:00:00Z")).toBe("sent");
+  expect(f.sends).toEqual(["install_moved"]);
 });
 test("payee-only PIESA allocation reaches the normal booked-stage healing, never the in-house skip", async () => {
   const f = fixture(); f.setFlag(false);

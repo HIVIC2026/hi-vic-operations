@@ -34,7 +34,7 @@ const JOB = "00000000-0000-0000-0000-00000000e001", BIZ = "00000000-0000-0000-00
 const base = { areaM2: 120, insulation: "below_r2" as const, quoteStatus: "have_quote" as const, quoteIncGst: 3000, includes: "R5.0 batts supply and install", proposedR: 5, files: [], attended: "attended" as const };
 const good = { basis: "before_discount" as const, gst: "inc_gst" as const, inclusions: "R5.0 batts supply and install", exclusions: null, originalStatus: "sent" as const, removalPricing: null, removalAmountIncGst: null, extras: [] as { description: string; pricing: "included" | "additional" | "not_priced"; amountIncGst: number | null }[] };
 const evs = async (t: string) => (await db.query<{ details: Record<string, unknown> }>("select details from workflow_events where job_id=$1 and event_type=$2 order by created_at", [JOB, t])).rows;
-const comBlockers = async () => (await installerIntakeState(JOB)).readiness.blockers.filter((b) => /VEU discount|GST|Removal is required|removal price|Extra|Clarify the installer quote/.test(b));
+const comBlockers = async () => (await installerIntakeState(JOB)).readiness.blockers.filter((b) => /rebate|GST|Removal is required|removal price|Extra|Clarify the installer quote/.test(b));
 
 beforeEach(async () => {
   drafted.length = 0;
@@ -47,7 +47,7 @@ beforeEach(async () => {
 describe("commercial facts: save, reload, readiness", () => {
   test("historic quote with no commercial record saves but needs clarification (never assumed gross)", async () => {
     await installerUpdateIntake(JOB, U, BIZ, base);
-    expect(await comBlockers()).toEqual(["Clarify the installer quote: price basis (before VEU discount?), GST and removal pricing are not recorded"]);
+    expect(await comBlockers()).toEqual(["Clarify the installer quote: price basis (before the rebate?), GST and removal pricing are not recorded"]);
     await expect(draftQuoteFromIntake(JOB, U)).rejects.toThrow(/Clarify the installer quote/);
     expect(drafted).toHaveLength(0);
   });
@@ -66,7 +66,7 @@ describe("commercial facts: save, reload, readiness", () => {
     await installerUpdateIntake(JOB, U, BIZ, { ...base, commercial: { ...good, basis: "unsure", gst: "unsure" } });
     expect((await comBlockers()).length).toBe(2);
     // Same check is used by every send/release/approve/accept entrance.
-    expect((await intakeSendBlockers(JOB)).some((x) => /before the VEU discount/.test(x))).toBe(true);
+    expect((await intakeSendBlockers(JOB)).some((x) => /before the rebate/.test(x))).toBe(true);
   });
 });
 

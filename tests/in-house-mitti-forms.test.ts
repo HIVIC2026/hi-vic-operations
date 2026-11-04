@@ -109,6 +109,8 @@ function load(name: string, cache: Record<string, any> = {}): any {
     if (p in overrides) return overrides[p];
     if (p.startsWith("./") && !p.endsWith(".server")) return require(`../src/lib/${p.slice(2)}`);
     if (p.startsWith("./")) return load(p.slice(2), cache);
+    // Join (main #135): job-facts.server keeps its per-request cache in AsyncLocalStorage; Node built-ins are not app boundaries.
+    if (p.startsWith("node:")) return require(p);
     throw new Error(`Unexpected test dependency ${p}`);
   }, ...Object.values(extra));
   return out;
@@ -308,7 +310,7 @@ test("held-read failure: no quote is built or written; clearance waits for the P
  failHeld=true; seedOfficial();
  expect(await load("quotes.server").generateRectificationQuote(JOB,null)).toEqual({ skipped: "electrician_bills" });
  const c=allocation.electricalClearance(await load("electrical-clearance.server").clearanceFacts(JOB));
- expect(c.cleared).toBe(false); expect(c.blocker).toBe("Electrical fixes not completed yet.");
+ expect(c.cleared).toBe(false); expect(c.blocker).toBe("Electrical upgrades not completed yet.");
  expect(quoteWrites).toBe(0);
 });
 test('failed post_rectification accepts no Section C date and writes the failed record', async()=>{
@@ -359,13 +361,15 @@ test('A3 sync dispatch outage skips extension instead of failing sync',async()=>
  await load('mitti.server').syncMittiAssessment(JOB,null,call,async()=>({bytes:new Uint8Array([1]),contentType:'image/png'}));
  expect(tables.assessments[0].mitti_sync_status).toBe('synced'); expect(calls.filter(c=>/\/(share|owner)$/.test(c.path))).toHaveLength(0);
 });
-test('real booked-stage caller passes partner exception to the visit quote gate',async()=>{
+// Join ruling 1 (4 Nov 2026): electricianBillsUpgrades() is the rule everywhere — the owner never approves or pays an HIV
+// upgrades quote, whatever rectification_billed_by says and even when the partner read fails.
+test('real booked-stage caller: no owner approve-and-pay gate for any job (electrician bills)',async()=>{
  realWorkflow=true; seedOfficial();
  expect(await load('workflow.server').stageEntryBlockers(JOB,'rectification_booked')).not.toContain('Owner must approve and pay rectification');
  tables.job_assignments[1].businesses.rectification_billed_by='hivic';
- expect(await load('workflow.server').stageEntryBlockers(JOB,'rectification_booked')).toContain('Owner must approve and pay rectification');
+ expect(await load('workflow.server').stageEntryBlockers(JOB,'rectification_booked')).not.toContain('Owner must approve and pay rectification');
  failHeld=true;
- expect(await load('workflow.server').stageEntryBlockers(JOB,'rectification_booked')).toContain('Owner must approve and pay rectification');
+ expect(await load('workflow.server').stageEntryBlockers(JOB,'rectification_booked')).not.toContain('Owner must approve and pay rectification');
 });
 test('unused closure note is returned by the actual installer note reader',async()=>{
  await load('piesa-autoform.server').onPiesaBooked(JOB,'visit',null,{call});
@@ -413,14 +417,16 @@ test("concurrent completed assessment is not changed by the no-rectification fol
  expect(tables.assessments[0].no_rectification_confirmed).toBe(false);
  expect(tables.workflow_events.filter(e=>e.event_type==="rectification_form_closed_unused")).toHaveLength(0);
 });
-for(const scenario of ["hivic","non-in-house"]) test(`${scenario} cannot complete the rectification form at PIESA complete`,async()=>{
+// Join ruling 1: the same-visit A4 at PIESA complete is open to every job (the in-house partner-billed rule, now for all);
+// clearance waits for the Part C itself, never for an owner-approved HIV quote.
+for(const scenario of ["hivic","non-in-house"]) test(`${scenario}: the rectification form at PIESA complete is not held for the stage (electrician bills)`,async()=>{
  await load("piesa-autoform.server").onPiesaBooked(JOB,"visit",null,{call});
  seedOfficial(); tables.jobs[0].stage="piesa_complete"; auditResponse=signedAudit();
  if(scenario==="hivic") tables.job_assignments[1].businesses.rectification_billed_by="hivic";
  else {held=false; tables.job_assignments[1].businesses.in_house=false;}
  const result=await load("fixes-day.server").completeFixesForm(JOB,"audit-2",{call,today:"2026-11-03"});
- expect(result.status).toBe("held"); expect(tables.piesa_records.filter(r=>r.kind==="post_rectification")).toHaveLength(0);
- const facts=await load("electrical-clearance.server").clearanceFacts(JOB); expect(allocation.electricalClearance(facts).blocker).toBe("Owner has not approved the electrical fixes quote.");
+ expect(result.status==="held"&&/job at /.test(result.detail??"")).toBe(false);
+ const facts=await load("electrical-clearance.server").clearanceFacts(JOB); expect(allocation.electricalClearance(facts).blocker).not.toBe("Owner has not approved the electrical fixes quote.");
 });
 test("pre-review companion pointer is reused by its current PIESA booking, never job-wide",async()=>{
  await load("piesa-autoform.server").onPiesaBooked(JOB,"visit",null,{call});

@@ -13,6 +13,10 @@ export const JOB_FACT_TABLES = [
   "workflow_events", "bookings", "job_assignments", "quotes", "ceiling_measurements", "piesa_records", "assessments",
   "appointment_proposals", "customer_assignments", "installer_declarations", "rectification_items", "invoices",
   "payment_overrides", "ready_check_windows", "assessment_payments", "owner_esc_consents", "ready_checks", "worker_job_links",
+  // Join 4 Nov 2026 (Part 5's job page inside the #135 budget): the owner messages sent and the job's documents (CoES).
+  "customer_email_sends", "documents",
+  // Join 4 Nov 2026 (Part 9 Task 10): the GO checks the installer pay gate reads for the job page's Money rows.
+  "pre_start_checks",
 ] as const;
 export type JobFactTable = (typeof JOB_FACT_TABLES)[number];
 
@@ -23,13 +27,17 @@ export type JobFactTable = (typeof JOB_FACT_TABLES)[number];
  */
 export type Nest = { readonly name: string; readonly fk?: string; readonly via?: string; readonly cols: string };
 export const NESTED: Readonly<Record<string, readonly Nest[]>> = {
-  jobs: [{ name: "properties", fk: "jobs_property_id_fkey", cols: "*" }],
+  // `owners(full_name, phone, email)`: Part 5's job page reads the owner with the job (join 4 Nov 2026).
+  jobs: [{ name: "properties", fk: "jobs_property_id_fkey", cols: "*" }, { name: "owners", fk: "jobs_owner_id_fkey", cols: "full_name, phone, email" }],
   quotes: [{ name: "quote_items", cols: "*" }, { name: "quote_internals", cols: "*" }],
   bookings: [{ name: "businesses", fk: "bookings_business_id_fkey", cols: "name, trading_name" }],
   // `profiles:user_id(full_name)`: the assigned person's name, embedded through the row's user_id (PostgREST column hint).
   job_assignments: [{ name: "businesses", fk: "job_assignments_business_id_fkey", cols: "in_house" }, { name: "profiles", via: "user_id", cols: "full_name" }],
   worker_job_links: [{ name: "partner_workers", fk: "worker_job_links_worker_id_fkey", cols: "full_legal_name, trade_role" }],
   partner_workers: [{ name: "businesses", fk: "partner_workers_business_id_fkey", cols: "name" }],
+  // J3 (4): the business's rate cards with their lines — the own-customer PIESA rate (`installerSafetyCheckPrice`) is
+  // answered from the business facts inside the job page bundle instead of two serial reads.
+  rate_cards: [{ name: "rate_card_items", cols: "code, unit_price_ex_gst" }],
 };
 const nestSel = (t: string) => (NESTED[t] ?? []).map((n) => `, ${n.name}${n.via ? `:${n.via}` : n.fk ? `!${n.fk}` : ""}(${n.cols})`).join("");
 
@@ -37,7 +45,7 @@ const nestSel = (t: string) => (NESTED[t] ?? []).map((n) => `, ${n.name}${n.via 
 export const JOB_FACTS_SELECT = [`*${nestSel("jobs")}`, ...JOB_FACT_TABLES.map((t) => `${t}!${t}_job_id_fkey(*${nestSel(t)})`)].join(", ");
 
 /** The caller's own business (already verified by the access check): its row, people and activations. */
-export const BUSINESS_FACT_TABLES = ["partner_workers", "business_members", "partner_activations"] as const;
+export const BUSINESS_FACT_TABLES = ["partner_workers", "business_members", "partner_activations", "rate_cards"] as const;
 export const BUSINESS_FACTS_SELECT = ["*", ...BUSINESS_FACT_TABLES.map((t) => `${t}!${t}_business_id_fkey(*${nestSel(t)})`)].join(", ");
 
 type Row = Record<string, unknown>;

@@ -9,9 +9,7 @@ import { WorkflowError, logEvent } from "./workflow.server";
 import { verifiedServiceAreaMatch, partnerWorkBlocker, type BusinessLike } from "./pilot.core";
 import { melbourneYmd, piesaWindowBlockers, windowBounds, PIESA_MAX_ROUNDS } from "./piesa-windows.core";
 import { READY_CHECK_WINDOW_STAGES, fullCurrentCert, installerCandidate, installerEligibilityBlocker } from "./readycheck-booking.core";
-import { publicLiabilityBlocker } from "./worker-compliance.core";
-import { latestExpiry } from "./trade-view.core";
-import { expiredBusinessDocsBlocker } from "./trade-expiry.core";
+import { businessDocsBlocker, expiredBusinessDocsBlocker } from "./trade-expiry.core";
 import { early } from "./early-read";
 
 const NONE = ["00000000-0000-0000-0000-000000000000"];
@@ -86,10 +84,12 @@ export async function installerOfferFacts(bizs: { id: string }[]): Promise<{ cre
   // levels come embedded in the certifications read. Three rounds instead of five.
   const notice = await import("./esc-collection-notice.server");
   const acksP = early(notice.loadNoticeAcks(ids));
-  const [{ data: creds }, { data: workers }] = await Promise.all([
+  const [{ data: creds }, { data: workers }, insurance] = await Promise.all([
     admin.from("business_credentials").select("business_id,kind,label,expires_at,critical,verification").in("business_id", inIds),
     // Decision 153: clearance is derived below from the verified certification + recorded level/expiry; approval_status (logins only) is not a filter.
     admin.from("partner_workers").select("id, business_id, email, full_legal_name, removed_at, trade_role").eq("trade_role", "installer").is("removed_at", null).in("business_id", inIds),
+    // Part 9 Task 8: the insurance read with the office-typed amount (pending column overlay); a read error throws (fail closed).
+    (await import("./business-docs.server")).businessDocsFor(inIds),
   ]);
   // Certification: latest record per worker (by id or email) + latest office-recorded level.
   // ESC collection notice (decision 130): a person who has not acknowledged it is not offered work either.
@@ -122,19 +122,19 @@ export async function installerOfferFacts(bizs: { id: string }[]): Promise<{ cre
   };
   const { installerGapReason } = await import("./readycheck-booking.core");
   const credsOf = (id: string) => (creds ?? []).filter((x) => x.business_id === id);
-  const docs = (id: string) => credsOf(id).map((x) => ({ kind: x.kind, label: x.label, expires: x.expires_at, verified: x.verification === "verified" }));
+  const docs = (id: string) => insurance.get(id)?.credentials ?? credsOf(id).map((x) => ({ kind: x.kind, label: x.label, expires: x.expires_at, verified: x.verification === "verified" }));
   return {
     credentialsOk: (b) => !partnerWorkBlocker(b as unknown as BusinessLike, credsOf(b.id))
-      && !publicLiabilityBlocker(latestExpiry(docs(b.id), "public_liability_insurance"), today)
-      && !expiredBusinessDocsBlocker(docs(b.id), today, ["public_liability_insurance", "installer_certification"]),
+      && !businessDocsBlocker(docs(b.id), today)
+      && !expiredBusinessDocsBlocker(docs(b.id), today, ["installer_certification"]),
     fullCertified: (businessId) => wk.filter((x) => x.business_id === businessId && fullWorker(x)).length,
     installerGap: (businessId) => installerGapReason(all.filter((x) => x.business_id === businessId).map((x) => ({
       noticeAcknowledged: noticeAck.get(x.id) ?? null,
       cert: certOf(x),
     })), today),
     credentialsGap: (b) => partnerWorkBlocker(b as unknown as BusinessLike, credsOf(b.id))
-      ?? publicLiabilityBlocker(latestExpiry(docs(b.id), "public_liability_insurance"), today)
-      ?? expiredBusinessDocsBlocker(docs(b.id), today, ["public_liability_insurance", "installer_certification"]) ?? null,
+      ?? businessDocsBlocker(docs(b.id), today)
+      ?? expiredBusinessDocsBlocker(docs(b.id), today, ["installer_certification"]) ?? null,
   };
 }
 

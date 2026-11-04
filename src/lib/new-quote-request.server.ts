@@ -1,6 +1,6 @@
 // Batch 3a Task 2: "Send me a new quote" (spec section 2). I/O only — rules in new-quote-request.core.ts.
 // The owner's secure My job token is the only credential. One claim per expired quote (`new_quote_requested`, key = the
-// expired quote's id). Refused (nothing written) unless the job is still closed with "Quote expired (14 days)" and was not
+// expired quote's id). Refused (nothing written) unless the job is still closed with "Quote expired (30 days)" (or the older "(14 days)") and was not
 // reopened since. If only the quote stage's own guard refuses: the claim + ONE office note naming the first blocker
 // (owner gets today's fallback page). Then: the claim, reopen to the quote stage through stageEntryBlockers + a compare-and-swap on the closed
 // job, put back the installer the expiry cancel ended, and
@@ -17,7 +17,7 @@ import {
   EXPIRY_CANCEL_END_REASON_PREFIX, NEW_QUOTE_NEEDS_INSTALLER_EVENT, NEW_QUOTE_REQUESTED_EVENT, NEW_QUOTE_STAGE, NEW_QUOTE_UNFINISHED_EVENT, NEW_QUOTE_UNFINISHED_PREFIX,
   expiredQuoteClose, newQuoteAlreadyRequested, newQuoteRequestBlocker, type NewQuoteEventRow, type NewQuoteLead, type NewQuoteResult,
 } from "./new-quote-request.core";
-import { QUOTE_EXPIRED_CANCELLED_EVENT, QUOTE_EXPIRED_CANCEL_REASON, QUOTE_EXPIRED_CLOSED_EVENT } from "./quote-expiry.core";
+import { QUOTE_EXPIRED_CANCELLED_EVENT, QUOTE_EXPIRED_CLOSED_EVENT } from "./quote-expiry.core";
 
 const THANKS: NewQuoteResult = { kind: "thanks" };
 const REFUSED: NewQuoteResult = { kind: "refused" };
@@ -77,7 +77,8 @@ export async function requestNewQuote(token: string): Promise<NewQuoteResult> {
   let moved: { id: string }[] | null;
   try {
     const r = await admin.from("jobs").update({ stage: NEW_QUOTE_STAGE as never, prior_stage: null, cancelled_reason: null })
-      .eq("id", jobId).eq("stage", "cancelled").eq("cancelled_reason", QUOTE_EXPIRED_CANCEL_REASON).select("id");
+      // The reason read above already passed newQuoteRequestBlocker (an expiry reason, 30- or 14-day): swap only if unchanged.
+      .eq("id", jobId).eq("stage", "cancelled").eq("cancelled_reason", String(job.cancelled_reason)).select("id");
     if (r.error) throw new Error(r.error.message);
     moved = r.data as { id: string }[] | null;
   } catch (e) {

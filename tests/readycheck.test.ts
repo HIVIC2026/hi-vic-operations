@@ -36,7 +36,7 @@ describe("free Ready Check", () => {
   test("old $349-first path is removed", () => {
     expect(existsSync("src/lib/assessment-payment.server.ts")).toBe(false);
     expect(migration).toContain("REVOKE EXECUTE ON FUNCTION public.accept_pre_assessment_test");
-    const surfaces = ["src/components/portal/estimate.tsx", "src/lib/estimate-email.ts", "src/lib/followup-email.ts", "src/routes/estimate.$token.tsx"].map((f) => readFileSync(f, "utf8")).join("\n");
+    const surfaces = ["src/components/portal/estimate.tsx", "src/lib/estimate-email.ts", "src/routes/estimate.$token.tsx"].map((f) => readFileSync(f, "utf8")).join("\n");
     expect(surfaces).not.toMatch(/\$349 payable now|PAY \$349|LET.S GET STARTED|Measure \+ PIESA payment/);
     expect(CUSTOMER_READY_CHECK.cta).toBe("BOOK MY READY CHECK →");
   });

@@ -8,16 +8,26 @@ import { autoAdvanceJob } from "./autoadvance.server";
 
 export type BookingKind = "assessment" | "ready_check" | "rectification" | "installation";
 
-export async function validateBooking(jobId: string, kind: BookingKind, start: string, actorId: string, proposedWorkerId?: string) {
+/** Part 9 Task 10 ruling (controller, 4 Nov 2026): the install may be BOOKED while the electrical upgrades are still to come —
+ *  from these stages the booking is recorded at the current stage with NO stage change; the stage catches up through
+ *  autoadvance once the Part C (and certificate, main's Part 3) land, and the installation_booked entry blockers apply at
+ *  that move, not at the booking. The pre-start GO check reads the booking, not the stage, so it still stops the start. */
+export const INSTALL_BEFORE_UPGRADES_STAGES: readonly Stage[] = ["piesa_complete", "rectification_scheduling", "rectification_booked"];
+
+export async function validateBooking(jobId: string, kind: BookingKind, start: string, actorId: string | null, proposedWorkerId?: string): Promise<{ stage: Stage; target: Stage; warnings: string[]; beforeUpgrades?: true }> {
   const need = kind === "installation" || kind === "ready_check" ? "installer" : "electrician";
+  // Part 9 Task 10 (Jo 2 Nov 2026, answer 21): plain lines the caller shows before success; never a refusal.
+  const warnings: string[] = [];
   const stage = await getStage(jobId);
   const map: Record<BookingKind, [Stage[], Stage]> = {
     // "assessment" booking kind = the PIESA visit (legacy enum name). Only after the PIESA gate.
     assessment: [["piesa_and_install_window_pending", "piesa_scheduled"], "piesa_scheduled"],
     ready_check: [["ready_check_ready_to_schedule", "ready_check_scheduled"], "ready_check_scheduled"],
     rectification: [["rectification_scheduling", "rectification_booked"], "rectification_booked"],
-    installation: [["installation_scheduling", "installation_booked"], "installation_booked"],
+    installation: [["installation_scheduling", "installation_booked", ...INSTALL_BEFORE_UPGRADES_STAGES], "installation_booked"],
   };
+  // Before the upgrades day: the booking stays at this stage (target = stage, no stage move; see INSTALL_BEFORE_UPGRADES_STAGES).
+  const beforeUpgrades = kind === "installation" && INSTALL_BEFORE_UPGRADES_STAGES.includes(stage);
   if (kind === "assessment" && !["piesa_and_install_window_pending", "piesa_scheduled"].includes(stage)) throw new WorkflowError("The PIESA can only be booked after the confirmed quote is approved and the payment option is cleared.");
   if (kind === "assessment") {
     const { piesaRequestFacts } = await import("./workflow.server");
@@ -27,8 +37,9 @@ export async function validateBooking(jobId: string, kind: BookingKind, start: s
     if(!proposedWorkerId){const teamBlocker = await (await import("./in-house-electrician.server")).inHousePiesaBookingBlockerFor(jobId);
     if (teamBlocker) throw new WorkflowError(teamBlocker);}
   }
-  const [allowed, target] = map[kind];
+  const [allowed, mapTarget] = map[kind];
   if (!allowed.includes(stage)) throw new WorkflowError(`A ${kind} booking can't be made at ${STAGE_LABEL[stage]}.`);
+  const target: Stage = beforeUpgrades ? stage : mapTarget;
   const { data: contractor } = await admin.from("job_assignments").select("id, user_id, business_id, businesses(business_type, onboarding_status, is_active, capabilities)").eq("job_id", jobId).eq("role", need).eq("active", true).maybeSingle();
   if (!contractor && !proposedWorkerId) throw new WorkflowError(`No ${need} assigned yet.`);
   if (kind === "ready_check") {
@@ -41,16 +52,24 @@ export async function validateBooking(jobId: string, kind: BookingKind, start: s
   }
   if (kind === "installation") {
     const { clearanceFacts } = await import("./allocation.server");
-    const { electricalClearance, installationCoordinationBlocker } = await import("./allocation.core");
-    const cb0 = installationCoordinationBlocker(electricalClearance(await clearanceFacts(jobId)));
-    if (cb0) throw new WorkflowError(cb0);
+    const { electricalClearance, installationCoordination } = await import("./allocation.core");
+    // Part 9 Task 10 (answer 21): upgrades still to come = a warning only (the GO check needs the Part C + certificate);
+    // every other uncleared reason still refuses. The deposit blocker below still runs on every install booking.
+    const cf0 = await clearanceFacts(jobId);
+    const c0 = electricalClearance(cf0);
+    const coord = installationCoordination(c0);
+    if (coord.block) throw new WorkflowError(coord.block);
+    // Before the upgrades day (ruling): only while the upgrades are the one thing outstanding (the warning), or the job is
+    // already cleared and the stage is catching up; anything else at these stages is the same refusal as before.
+    if (beforeUpgrades && !coord.warn && !c0.cleared) throw new WorkflowError(`A ${kind} booking can't be made at ${STAGE_LABEL[stage]}.`);
+    if (coord.warn) warnings.push(coord.warn);
     const ps = await piesaStatus(jobId);
     const blocked = installationDateBlocker(ps, start);
     if (blocked) throw new WorkflowError(blocked);
     // 30-day hard gate on every path: official PIESA date + 30 days (decision 316: never the fixes / Section C date).
+    // Upgrades outstanding (no clearance date yet): the 30 days still run from the official PIESA date.
     const { installWindowDeadline, installDayOutsideWindow, NEW_PIESA_NEEDED } = await import("./install-days.core");
-    const c0 = electricalClearance(await clearanceFacts(jobId));
-    const dl = installWindowDeadline(c0.timingDate, (ps as { install_deadline?: string | null } | null)?.install_deadline ?? null);
+    const dl = installWindowDeadline(c0.timingDate ?? (coord.warn ? cf0.piesaCompletedAt : null), (ps as { install_deadline?: string | null } | null)?.install_deadline ?? null);
     if (installDayOutsideWindow(start, dl)) throw new WorkflowError(dl ? `Installation must be on or before ${dl} (30 days from the safety check (PIESA)). If that has passed: ${NEW_PIESA_NEEDED}.` : "Installation cannot be booked: no electrical clearance date.");
     const { bookingLeadBlocker } = await import("./esc.core");
     const lead = bookingLeadBlocker(start, new Date().toISOString());
@@ -59,6 +78,11 @@ export async function validateBooking(jobId: string, kind: BookingKind, start: s
     const ob = await (await import("./piesa-owner-confirm.server")).ownerPiesaConfirmationBlockerFor(jobId);
     if (ob) throw new WorkflowError(ob);
   }
+  // Part 9 Task 8 (Jo 2 Nov 2026): insurance is a hard block on EVERY booking kind — the trade business's public liability
+  // ($5m+, office-verified) must be in order (business-docs.server, fails closed on a read error; workers comp is not collected, Jo 4 Nov 2026); and the
+  // safety check's electrician must hold a verified, unexpired licence + REC (electricianVerified) on every job, not only
+  // the in-house path. Part 9 Task 9: the people on the booking must be on file (DOB + mobile, CII / licence).
+  await bookingComplianceGate(jobId, kind, contractor?.business_id ?? null, proposedWorkerId ?? null, { reschedule: stage === target, start, actorId });
   if (kind !== "ready_check") { const cb = await commercialBlocker(jobId); if (cb) throw new WorkflowError(`Blocked: ${cb}`); }
   if (kind !== "ready_check") { const g = await paymentGate(jobId); if (!g.cleared) throw new WorkflowError(`Blocked: ${g.blocker}`); }
   // Decision 366 (audit F03): the electrical fixes are paid in full before their visit is booked (every booking path).
@@ -79,14 +103,15 @@ export async function validateBooking(jobId: string, kind: BookingKind, start: s
     const pre = (await stageEntryBlockers(jobId, target, actorId)).filter((b) => b !== READY_CHECK_BOOKING_RECORD_BLOCKER);
     if (pre.length) throw new WorkflowError(`Blocked: ${pre.join(" • ")}`);
   }
-  return {stage,target};
+  return beforeUpgrades ? {stage,target,warnings,beforeUpgrades:true} : {stage,target,warnings};
 }
-export async function confirmBooking(jobId: string, kind: BookingKind, start: string, actorId: string, roleLabel: string, notes?: string | null) {
-  const {stage,target}=await validateBooking(jobId,kind,start,actorId);
+export async function confirmBooking(jobId: string, kind: BookingKind, start: string, actorId: string | null, roleLabel: string, notes?: string | null) {
+  const {stage,target,beforeUpgrades}=await validateBooking(jobId,kind,start,actorId);
   const need=kind==='installation'||kind==='ready_check'?'installer':'electrician';
   const {data:contractor,error:contractorError}=await admin.from('job_assignments').select('id,user_id,business_id').eq('job_id',jobId).eq('role',need).eq('active',true).maybeSingle();
   if(contractorError||!contractor)throw new WorkflowError('Assigned contractor could not be read.');
   // Decision 325: a direct reschedule of a booked install day (O42) needs the start it replaces.
+  // Before the upgrades day (Task 10 ruling): target = stage; a confirmed install day already on the job is still a move (O42).
   const priorInstallStart = kind === "installation" && stage === target
     ? (await admin.from("bookings").select("scheduled_start").eq("job_id", jobId).eq("kind", "installation").eq("status", "confirmed").order("created_at", { ascending: false }).limit(1).maybeSingle()).data?.scheduled_start ?? null
     : null;
@@ -103,7 +128,8 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
     await regenerateEscNotification(jobId, actorId);
   }
   const when = new Date(start).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" });
-  if (stage === target) await logEvent(jobId, actorId, "booking_rescheduled", `${kind === "ready_check" ? "Ready Check" : kind === "assessment" ? "PIESA" : kind} rescheduled to ${when} by ${roleLabel}`, { assignment_id: contractor.id, installer_user_id: contractor.user_id, installer_business_id: contractor.business_id });
+  if (beforeUpgrades && !priorInstallStart) await logEvent(jobId, actorId, "install_booked_before_upgrades", `Installation booked for ${when} by ${roleLabel} before the upgrades day (the job stays at ${STAGE_LABEL[stage]} until the Part C and certificate are in)`, { assignment_id: contractor.id, installer_user_id: contractor.user_id, installer_business_id: contractor.business_id, scheduled_start: start, stage }, { internal: true });
+  else if (stage === target) await logEvent(jobId, actorId, "booking_rescheduled", `${kind === "ready_check" ? "Ready Check" : kind === "assessment" ? "PIESA" : kind} rescheduled to ${when} by ${roleLabel}`, { assignment_id: contractor.id, installer_user_id: contractor.user_id, installer_business_id: contractor.business_id });
   else {
     try { await transition(jobId, target, actorId, `${kind === "ready_check" ? "Ready Check" : kind === "assessment" ? "PIESA" : kind.charAt(0).toUpperCase() + kind.slice(1)} booked for ${when} by ${roleLabel}`, { assignment_id: contractor.id, installer_user_id: contractor.user_id, installer_business_id: contractor.business_id, scheduled_start: start }); }
     catch (e) {
@@ -120,16 +146,13 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
     if(held.held.has(jobId))await (await import('./in-house-electrician-booked.server')).notifyInHouseElectricianBooked(jobId,inserted.id).catch(e=>console.error('Electrician booked notice pending',e));
     const { INSTALLER_PLANNING_NOTICE } = await import("./allocation.core");
     const { data: inst } = await admin.from("job_assignments").select("id, user_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
-    // F13: no outbox row. Decision 376: the installer is told the date once per PIESA time (I71 + text, approved by Jo
-    // in decision 384); the approved clearance email + text (186) is still the "offer install days" message once cleared.
-    if (inst) {
-      await logEvent(jobId, actorId, "installer_planning_notice", INSTALLER_PLANNING_NOTICE, { assignment_id: inst.id, installer_user_id: inst.user_id, piesa_start: start });
-      await (await import("./installer-planning-notice.server")).notifyInstallerPlanning({ jobId, assignmentId: inst.id, piesaStartIso: start }).catch((e) => console.error("installer planning notice skipped", (e as Error).message));
-    }
+    // F13: no outbox row. The installer is told the date on the job (event only): the decision 376 I71 email + text and the
+    // decision 186 clearance "offer install days" message were retired 2 Nov 2026 (Part 4 Task 14; the installer calls the owner to book).
+    if (inst) await logEvent(jobId, actorId, "installer_planning_notice", INSTALLER_PLANNING_NOTICE, { assignment_id: inst.id, installer_user_id: inst.user_id, piesa_start: start });
     const { recordBookingCompleted } = await import("./engagement.server");
     await recordBookingCompleted(jobId).catch((e) => console.error("engagement booking record failed", (e as Error).message));
-    // Decision 325: O26 booked version ("safety check booked") to the owner; `changed` when an existing PIESA booking moved. Best-effort.
-    await (await import("./owner-email-triggers.server")).onSafetyCheckBooked(jobId, start, stage === target).catch((e) => console.error("safety check booked email skipped", (e as Error).message));
+    // Part 4 Task 14: the old O26 "safety check booked" owner email is gone; in-house jobs get the "You're booked" PIESA message
+    // from in-house-booking.server (notifyOwnerBooked).
     // Decision 398: the electrician's A3 PIESA Mitti form is made now, through the office "Create Mitti form" path (never
     // twice; a failure is one Needs me row and the office button stays as the backup). Never a booking failure.
     await (await import("./piesa-autoform.server")).onPiesaBooked(jobId, inserted.id, actorId).catch((e) => console.error("PIESA form creation skipped", (e as Error).message));
@@ -172,4 +195,64 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
   // the warning is recorded once per start and returned for the screen (the pre-start check stops the start). Never throws.
   const warning = kind === "installation" ? await (await import("./certificate-later.server")).recordInstallCertificateWarning(jobId, actorId, start) : null;
   return { ok: true as const, ...(warning ? { warning } : {}) };
+}
+
+// ── Part 9 Task 8: insurance + electrician licence gate on every booking kind (appended; called from validateBooking) ──
+/** The electrician worker a safety check / upgrades booking is for: the proposed Team worker, else the job's allocated
+ *  Team electrician, else null (the business as a whole is checked then). A read error throws (fail closed). */
+async function bookedElectricianWorker(jobId: string, businessId: string | null, proposedWorkerId: string | null): Promise<{ id: string; business_id: string; full_legal_name: string | null; licence_number: string | null; rec_number: string | null; licence_expires_on: string | null; licence_verified_at: string | null; approval_status: string | null } | null> {
+  const id = proposedWorkerId ?? (await (await import("./in-house-electrician.server")).allocatedWorkerId(jobId));
+  if (!id) return null;
+  const { data, error } = await admin.from("partner_workers").select("id, business_id, full_legal_name, licence_number, rec_number, licence_expires_on, licence_verified_at, approval_status").eq("id", id).maybeSingle();
+  if (error) throw new WorkflowError(`Couldn't check the electrician: ${error.message}`);
+  if (!data) throw new WorkflowError("The booked electrician is no longer on file.");
+  if (businessId && data.business_id !== businessId) throw new WorkflowError("The booked electrician isn't on the assigned business's Team.");
+  return data;
+}
+
+async function bookingComplianceGate(jobId: string, kind: BookingKind, assignedBusinessId: string | null, proposedWorkerId: string | null, move: { reschedule: boolean; start: string; actorId?: string | null }): Promise<void> {
+  // Part 9 Task 9: moving a booked install after the 5pm two-days-before Lead Installer lock is refused (LEAD_LOCKED_MESSAGE);
+  // the current booking is read inside the check (completed installs ignored, read errors refuse — fail closed).
+  // Part 9 Task 9 ruling (a) (controller, 4 Nov 2026): the Home Insulation Victoria OFFICE may still move a locked install —
+  // confirmBooking then re-prepares the ESC notice (a sent notice goes stale → withdraw / resubmit, Part 9 Tasks 1–2) and
+  // the GO check re-runs; the move is recorded once (internal). Installers and their boss keep LEAD_LOCKED_MESSAGE.
+  if (kind === "installation" && move.reschedule) {
+    const lic = await import("./lead-installer-confirm.server");
+    if (await officeActor(move.actorId ?? null)) {
+      const lock = await lic.leadInstallerLockState(jobId);
+      if (lock.locked && lock.start && !Number.isNaN(Date.parse(move.start)) && Date.parse(move.start) !== Date.parse(lock.start))
+        await logEvent(jobId, move.actorId ?? null, INSTALL_MOVED_AFTER_LOCK_EVENT, `Office moved the install after the Lead Installer lock (was ${new Date(lock.start).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" })}) — the ESC notice is re-prepared and the GO check re-runs`, { from: lock.start, to: move.start, booking_id: lock.bookingId }, { internal: true });
+    } else await lic.assertLeadInstallerUnlocked(jobId, { newStart: move.start });
+  }
+  // Part 9 Task 9: the people on the booking must be on file (DOB + mobile; Lead/crew CII; electrician licence + REC).
+  await (await import("./people-on-file.server")).requirePeopleOnFileForBooking(jobId, kind, proposedWorkerId);
+  const electrician = kind === "assessment" || kind === "rectification" ? await bookedElectricianWorker(jobId, assignedBusinessId, proposedWorkerId) : null;
+  const businessId = assignedBusinessId ?? electrician?.business_id ?? null;
+  if (!businessId) return; // no trade yet: the "No … assigned yet" refusal above already applies
+  const { requireBusinessDocs } = await import("./business-docs.server");
+  await requireBusinessDocs(businessId);
+  if (kind === "assessment") {
+    const { electricianVerified, melbourneToday } = await import("./worker-compliance.core");
+    if (electrician) {
+      const v = electricianVerified(electrician, melbourneToday());
+      if (!v.ok) throw new WorkflowError(`Electrician not verified: ${electrician.full_legal_name ?? "electrician"} (${v.reason}).`);
+    } else {
+      const { data, error } = await admin.from("partner_workers").select("licence_number, rec_number, licence_expires_on, licence_verified_at").eq("business_id", businessId).eq("trade_role", "electrician").eq("approval_status", "approved").is("removed_at", null);
+      if (error) throw new WorkflowError(`Couldn't check the electrician: ${error.message}`);
+      const { inHouseElectricianBookingBlocker } = await import("./worker-compliance.core");
+      const why = inHouseElectricianBookingBlocker((data ?? []) as import("./worker-compliance.core").ElectricianVerification[], melbourneToday());
+      if (why) throw new WorkflowError(why);
+    }
+  }
+}
+
+/** Part 9 Task 9 ruling (a): history row when the office moves an install after the 5pm lock. */
+export const INSTALL_MOVED_AFTER_LOCK_EVENT = "install_moved_after_lock";
+/** Is the actor a Home Insulation Victoria office person (admin role)? Null actor, a read error or no rpc → no (the lock stands). */
+async function officeActor(actorId: string | null): Promise<boolean> {
+  if (!actorId) return false;
+  try {
+    const r = await (admin as unknown as { rpc?: (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: unknown }> }).rpc?.("has_role", { _user_id: actorId, _role: "admin" });
+    return !!r && !r.error && r.data === true;
+  } catch { return false; }
 }

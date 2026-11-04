@@ -140,3 +140,16 @@ describe("re-review: duplicate rows from two quick first saves", () => {
     expect(form).toContain("disabled={busy || !valid}");
   });
 });
+
+describe("old 7-day balance wording in saved rows", () => {
+  const row = (answer: string) => ({ topic: "Balance", answer }) as any;
+  test("is rewritten to install-day wording", () => {
+    const out = rulesFromAnswers([row("10% to book, the rest 7 days after your install is recorded complete."), row("The balance is due 7 days after recorded install completion.")]);
+    expect(out[0]).toBe("10% to book, the rest on install day.");
+    expect(out[1]).toBe("The balance is due on install day.");
+  });
+  test("correct wording is left alone", () => {
+    const ok = "The rest on install day. After 7 days, your balance is overdue.";
+    expect(rulesFromAnswers([row(ok)])).toEqual([ok]);
+  });
+});

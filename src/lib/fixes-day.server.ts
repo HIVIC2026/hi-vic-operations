@@ -489,17 +489,18 @@ export async function completeFixesForm(jobId: string, auditId: string, opts: { 
   await applyPiesaRecord({ jobId, actorId: asg?.user_id ?? null, kind: "post_rectification", outcome: "pass", completedDate: doneDate, sectionCSignedDate: doneDate, notes: `Recorded from the Mitti electrical fixes form ${auditId}. ${coesNote}.`, source: { kind: "mitti_fixes_form", auditId } });
   // 4. Official PIESA + O28 copies through their existing guarded paths (each reports its own hold).
   let official: string;
-  try { official = await regenerateOfficialPiesa(jobId, actorId, merged, { userId: asg?.user_id ?? null, name: signerName }, doneDate); }
+  // Part 6 (no-login Team electricians): the assignment's profile, else the worker named by the allocation event.
+  const signer = asg?.user_id ? { userId: asg.user_id, name: signerName } : { userId: (await (await import("./in-house-electrician.server")).electricianSignerFor(jobId))?.userId ?? null, name: signerName };
+  try { official = await regenerateOfficialPiesa(jobId, actorId, merged, signer, doneDate); }
   catch (e) { official = `official PIESA not regenerated: ${e instanceof Error ? e.message : "error"}`; }
   let copies: string;
   try { const d = await (await import("./piesa-delivery.server")).deliverPiesaCopies(jobId); copies = d.hold ? `PIESA copies held: ${d.hold}` : `PIESA copies sent to ${d.sent.join(", ") || "nobody"}${Object.keys(d.held).length ? `; held: ${Object.entries(d.held).map(([k, v]) => `${k} ${v}`).join(", ")}` : ""}`; }
   catch (e) { copies = `PIESA copies not sent: ${e instanceof Error ? e.message : "error"}`; }
   // Decision 317: the electrician gets the regenerated official PIESA once (keyed to the post-fixes PIESA record; never throws).
   const elecCopy = await (await import("./electrician-piesa-copy.server")).sendElectricianPiesaCopy(jobId);
-  // Decision 330: the owner is asked ONCE (email O72 + text) to confirm the fixes on the secure link; reminders from the tick.
-  let ownerAsk: string;
-  try { ownerAsk = await (await import("./piesa-fixes-confirm-send.server")).sendFixesConfirmStep(jobId, "request"); }
-  catch (e) { ownerAsk = `owner fixes confirmation not sent: ${e instanceof Error ? e.message : "error"}`; }
+  // Part 4 Task 14 (Jo 2 Nov 2026): the separate "confirm your electrical fixes" email/text/page (decision 330) is retired —
+  // the upgrades declaration is covered by the confirm-and-pay page once the Part C + certificate are in.
+  const ownerAsk = "retired 2 Nov 2026 (confirm-and-pay page covers the upgrades declaration)";
   await logEvent(jobId, actorId, FIXES_FORM_COMPLETED_EVENT, `Electrical fixes form complete: ${coesNote}${cert?.date ? ` certified ${cert.date}` : ""}; Section C recorded ${doneDate}, ${saved.length} file(s) kept; ${official}; ${copies}`.slice(0, 500),
     { audit_id: auditId, version, coes_number: cert?.number ?? null, cert_date: cert?.date ?? null, certificate_to_come: plan.certificateToCome, done_date: doneDate, files: saved, official, copies, electrician_copy: elecCopy, owner_fixes_confirm: ownerAsk, signer: signerName, signed_at: plan.signedAt, rule: FIXES_DAY_RULE });
   // A48 batch 1 task 5: last, once every record above is written — the certificate kept with the job is read by the AI

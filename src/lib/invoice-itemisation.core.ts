@@ -33,7 +33,7 @@ const rLabel = (r: string) => (/^R/i.test(r) ? r.toUpperCase() : `R${r}`);
 /**
  * Exact ESC model codes for the invoice: the codes supplied from install evidence / the VEEC form when present, otherwise the
  * register code when the declared option maps to exactly ONE register model (e.g. Earthwool R5 → 2437543). Two widths of
- * the same product (Bradford, Pink Batts, ECOWOOL) mean the code is not known from the option alone, so none is printed.
+ * the same product (Bradford, Pink Batts) mean the code is not known from the option alone, so none is printed.
  */
 export function knownEscModelCodes(option: string | null | undefined, supplied: readonly string[] | null | undefined): string[] {
   const given = [...new Set((supplied ?? []).map((c) => String(c).trim()).filter(Boolean))];

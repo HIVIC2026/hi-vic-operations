@@ -7,7 +7,6 @@ import { LINK_PURPOSE, linkAllowed, linkUsable } from "./estimatelink.core";
 import { groupBMediaForJob } from "./group-b-media.server";
 import { groupBInvitationBlocker } from "./group-b-media.core";
 import { type EstimateEmail } from "./estimate-email";
-import { renderFollowupEmail } from "./followup-email";
 import { JO_RESULT_FALLBACK_URL, renderJoOutcomeEmail, selectJoOutcomeTemplate, type JoInsulation, type JoOutcome } from "./jo-outcome-email.core";
 import { clickUrl, CUSTOMER_BASE, dedupe, estimateUrl, isActiveFollowupKind, pixelUrl, planFollowup, planInitialFollowups, retryAt, sendBlocker, type ActiveFollowupKind } from "./engagement.core";
 import { issueTrackingTokens, jobSummary, recordEngagement } from "./engagement.server";
@@ -252,60 +251,18 @@ export async function sendInitialEstimateEmail(jobId: string, actorId: string | 
   return { sent: true as const, communicationId: r.communicationId };
 }
 
-/** Hourly worker: claim due follow-ups, recheck everything, deliver only through a configured adapter. */
+/** Hourly worker: claim due follow-ups and close them. The unopened-estimate follow-up was removed (Jo 2 Nov 2026,
+ *  decision 15 — the day 2/7/21 reminders cover it), so nothing is rendered or sent here; rows queued before that are
+ *  suppressed as retired (history stays). */
 export async function processDueFollowups(opts: { limit?: number; adapter?: DeliveryAdapter | null } = {}) {
-  const adapter = opts.adapter === undefined ? await configuredDeliveryAdapter() : opts.adapter;
   const { data: claimed, error } = await admin.rpc("claim_customer_followups", { _limit: opts.limit ?? 20, _lease_seconds: 300 });
   if (error) throw new Error(error.message);
   const results: Array<{ status: string; reason?: string }> = [];
   for (const f of claimed ?? []) {
     try {
-      if (f.slot !== "3d" || !isActiveFollowupKind(f.kind)) {
-        await admin.from("customer_followups").update({ status: "suppressed", suppression_reason: "retired_followup_kind", lease_until: null }).eq("id", f.id);
-        await recordEngagement({ jobId: f.job_id, type: "followup_suppressed", metadata: { followup_kind: f.kind, reason: "retired_followup_kind" }, dedupeKey: dedupe.followup(f.id, "suppressed") });
-        results.push({ status: "suppressed", reason: "retired_followup_kind" }); continue;
-      }
-      const [{ link, gates, view }, summary] = await Promise.all([gatesFor(f.job_id, adapter), jobSummary(f.job_id)]);
-      if (view.mode === "onsite") {
-        const blocker = groupBInvitationBlocker(await groupBMediaForJob(f.job_id));
-        if (blocker) {
-          await admin.from("customer_followups").update({ status: "suppressed", suppression_reason: blocker, lease_until: null }).eq("id", f.id);
-          results.push({ status: "suppressed", reason: blocker }); continue;
-        }
-      }
-      const plan = planFollowup(f as never, summary, gates);
-      if (plan.action === "suppress") {
-        await admin.from("customer_followups").update({ status: "suppressed", suppression_reason: plan.reason, lease_until: null }).eq("id", f.id);
-        await recordEngagement({ jobId: f.job_id, type: "followup_suppressed", metadata: { followup_kind: f.kind, reason: plan.reason }, dedupeKey: dedupe.followup(f.id, "suppressed") });
-        results.push({ status: "suppressed", reason: plan.reason }); continue;
-      }
-      if (plan.action === "block") {
-        await admin.from("customer_followups").update({ status: "pending", blocked_reason: plan.reason, lease_until: null }).eq("id", f.id);
-        results.push({ status: "blocked", reason: plan.reason }); continue;
-      }
-      const to = (await ownerEmail(f.job_id)).email;
-      if (!to) { await admin.from("customer_followups").update({ status: "pending", blocked_reason: "no_owner_email", lease_until: null }).eq("id", f.id); results.push({ status: "blocked", reason: "no_owner_email" }); continue; }
-      const suppressed = await suppressionFor(f.job_id, "followup", to);
-      if (suppressed === "backlog_cutoff_not_set") { await admin.from("customer_followups").update({ status: "pending", blocked_reason: suppressed, lease_until: null, due_at: retryAt() }).eq("id", f.id); results.push({ status: "blocked", reason: suppressed }); continue; }
-      if (suppressed) {
-        await admin.from("customer_followups").update({ status: "suppressed", suppression_reason: suppressed, lease_until: null }).eq("id", f.id);
-        await recordEngagement({ jobId: f.job_id, type: "followup_suppressed", metadata: { followup_kind: f.kind, reason: suppressed }, dedupeKey: dedupe.followup(f.id, "suppressed") });
-        results.push({ status: "suppressed", reason: suppressed }); continue;
-      }
-      const { data: fresh } = await admin.from("customer_followups").select("status").eq("id", f.id).maybeSingle();
-      if (!fresh || fresh.status !== "queued") { results.push({ status: "suppressed", reason: "changed_after_claim" }); continue; }
-      const kind: ActiveFollowupKind = plan.kind;
-      await admin.from("customer_followups").update({ kind, reason: kind }).eq("id", f.id);
-      const r = await deliverTracked({ jobId: f.job_id, linkId: link!.id, linkToken: link!.token, purpose: kind, key: `followup:${f.id}`, adapter: adapter!, to, actorId: null, render: (u) => renderFollowupEmail({ kind, ...u }) });
-      if (r.sent) {
-        await admin.from("customer_followups").update({ status: "sent", sent_at: new Date().toISOString(), communication_id: r.communicationId, blocked_reason: null, lease_until: null }).eq("id", f.id);
-        await recordEngagement({ jobId: f.job_id, linkId: link!.id, type: "followup_sent", source: adapter!.provider, metadata: { followup_kind: kind }, dedupeKey: dedupe.followup(f.id, "sent") });
-        results.push({ status: "sent" });
-      } else {
-        const failed = f.attempts >= 5;
-        await admin.from("customer_followups").update({ status: failed ? "failed" : "pending", last_error: r.reason, due_at: failed ? f.due_at : retryAt(), lease_until: null }).eq("id", f.id);
-        results.push({ status: failed ? "failed" : "retry", reason: r.reason });
-      }
+      await admin.from("customer_followups").update({ status: "suppressed", suppression_reason: "retired_followup_kind", lease_until: null }).eq("id", f.id);
+      await recordEngagement({ jobId: f.job_id, type: "followup_suppressed", metadata: { followup_kind: f.kind, reason: "retired_followup_kind" }, dedupeKey: dedupe.followup(f.id, "suppressed") });
+      results.push({ status: "suppressed", reason: "retired_followup_kind" });
     } catch (e) {
       await admin.from("customer_followups").update({ status: "pending", last_error: (e as Error).message.slice(0, 300), lease_until: null }).eq("id", f.id);
       results.push({ status: "error" });

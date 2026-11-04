@@ -1,7 +1,7 @@
 // My business section pages (Jo, 7 Oct): trade-style, read-only facts; changes go to the office as requests.
 import { Link, useRouteContext } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { writeTradeCache } from "@/lib/trade-cache";
+import { forgetRefusedCopy, writeTradeCache } from "@/lib/trade-cache";
 import { useTradeSeed } from "@/lib/use-trade-seed";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
@@ -20,7 +20,7 @@ export function useBizFile() {
   const load = useServerFn(getTradeBusinessFile);
   const uid = useRouteContext({ from: "/_authenticated" }).user.id;
   const seed = useTradeSeed<BizFile>(uid, "business-file", ["trade-business-file"]);
-  const q = useQuery({ queryKey: ["trade-business-file"], queryFn: async () => { const d = await load(); if (d) writeTradeCache(uid, "business-file", d); return d; }, ...seed.options });
+  const q = useQuery({ queryKey: ["trade-business-file"], queryFn: async () => { try { const d = await load(); if (d) writeTradeCache(uid, "business-file", d); return d; } catch (e) { forgetRefusedCopy(uid, "business-file", e); throw e; } }, ...seed.options });
   return Object.assign(q, { updating: seed.isCopy(q.dataUpdatedAt) });
 }
 

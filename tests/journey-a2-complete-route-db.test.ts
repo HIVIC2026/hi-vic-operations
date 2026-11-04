@@ -57,8 +57,10 @@ for (const [id, user, name, mail] of [[BIZ, INST, "TEST Journey A2 Insulation", 
   // Onboarding answers: takes our leads and agreed to free Ready Checks; insurance and installer certificate verified.
   await q(`update businesses set receives_hivic_leads=true, free_measureups_for_hivic_quote_leads=true where id=$1`, [id]);
   const far = new Date(Date.now() + 365 * 86_400_000).toISOString();
-  for (const [kind, label] of [["public_liability_insurance", "Public liability"], ["installer_certification", "Installer certification"]])
-    await q(`insert into business_credentials (business_id, kind, label, number, expires_at, critical, verification, verified_at) values ($1,$2,$3,'TEST-1',$4,true,'verified',now())`, [id, kind, label, far]);
+  // Part 9 Task 8 (Jo 2 Nov 2026): the insurance hard block on every offer / booking — $5m+ public liability (office-typed
+  // amount) and workers comp, both verified — so the fixture business carries them like a live onboarded installer (J5).
+  for (const [kind, label, amount] of [["public_liability_insurance", "Public liability", 10000000], ["workers_comp_insurance", "Workers comp", null], ["installer_certification", "Installer certification", null]] as const)
+    await q(`insert into business_credentials (business_id, kind, label, number, expires_at, critical, verification, verified_at, amount_insured_aud) values ($1,$2,$3,'TEST-1',$4,true,'verified',now(),$5)`, [id, kind, label, far, amount]);
 }
 await q(`insert into profiles (id, full_name, email) values ($1,'Ollie Office','office@hivic-test.example')`, [OFFICE]);
 await q(`insert into user_roles (user_id, role) values ($1,'admin')`, [OFFICE]);
@@ -159,7 +161,7 @@ describe("A2 step 2 — Save my spot (decision 388), Jo's area batch Send and th
     await expect(sr.releaseSpotFn({ data: { jobId: JOB, businessId: BIZ }, context: officeCtx })).rejects.toThrow(/area batches/);
     expect(await events(JOB, "spot_released")).toHaveLength(0);
   });
-  test("Jo sends the area batch to one installer: the owner gets the quick taps text once; the installer is NOT contacted yet", async () => {
+  test("Jo sends the area batch to one installer: the owner gets ONE It's your turn email + text (opening the quick taps); the installer is NOT contacted yet", async () => {
     const ab = await import("../src/lib/area-batch.functions");
     // An office user is required.
     await expect(ab.sendAreaBatchFn({ data: { jobIds: [JOB], businessId: BIZ }, context: instCtx })).rejects.toThrow();
@@ -170,10 +172,10 @@ describe("A2 step 2 — Save my spot (decision 388), Jo's area batch Send and th
     BATCH = r.batchId;
     expect((await events(JOB, "area_batch_sent")).map((e) => e.details["installer_business_id"])).toEqual([BIZ]);
     expect(await q("select id from partner_offers where job_id=$1", [JOB])).toHaveLength(0);
-    expect((await comms(JOB)).filter((c) => /quick_taps:/.test(c.source_event)).map((c) => c.channel)).toEqual(["sms"]);
+    expect((await comms(JOB)).filter((c) => /spot_released:/.test(c.source_event)).map((c) => c.channel).sort()).toEqual(["email", "sms"]);
     // Send again (a second batch, another installer) while the owner hasn't answered is refused; nothing is sent twice.
     await expect(ab.sendAreaBatchFn({ data: { jobIds: [JOB], businessId: OTHER_BIZ }, context: officeCtx })).rejects.toThrow(/already in a batch/);
-    expect((await comms(JOB)).filter((c) => /quick_taps/.test(c.source_event))).toHaveLength(1);
+    expect((await comms(JOB)).filter((c) => /spot_released/.test(c.source_event))).toHaveLength(2);
   });
   test("the owner confirms their name + address and answers the quick taps on the link → a pass, the share consent recorded; a second save changes nothing", async () => {
     const qt = await import("../src/lib/quick-taps.functions");
@@ -183,13 +185,15 @@ describe("A2 step 2 — Save my spot (decision 388), Jo's area batch Send and th
     expect(view).toMatchObject({ kind: "ask", name: "Harriet Journey" });
     expect(view.address).toContain("2 Journey Street");
     // Tap 1 / Tap 2: "Yes" to the name and address on file (they're sent back as the confirmed answers), then the 4 questions.
-    const answers = { name: view.name, address: view.address, hatch: "yes", roof: "sloped", five_years: "no", access: { who: "owner" }, go: "yes" } as const;
+    // Jo 4 Nov 2026 21:40 (pack 2): the two rental screens are ON — the owner says "Me" (we arrange access with them).
+    const answers = { name: view.name, address: view.address, hatch: "yes", roof: "sloped", five_years: "no", rental: { who: "owner" }, go: "yes" } as const;
     const done = await qt.ownerQuickTapsSaveFn({ data: { token, answers }, context: META });
     const again = await qt.ownerQuickTapsSaveFn({ data: { token, answers: { ...answers, go: "no_thanks" } }, context: META });
     await settle();
     debug("TAPS-DONE", done, again, await recent(JOB));
-    expect(done).toEqual({ kind: "done", outcome: "pass" });
-    expect(again).toEqual({ kind: "done", outcome: "pass" });
+    // main #123 (Jo 3 Nov 2026): the thanks screen names the installer who will call ("installer"), on the pass result.
+    expect(done).toEqual({ kind: "done", outcome: "pass", installer: "TEST Journey A2 Insulation" });
+    expect(again).toEqual({ kind: "done", outcome: "pass", installer: "TEST Journey A2 Insulation" });
     expect((await events(JOB, "quick_taps_answered")).map((e) => [e.details["outcome"], e.details["consent_share"]])).toEqual([["pass", true]]);
     expect(await q("select id from owner_gate_signatures where job_id=$1 and doc_key='trade_contact_share'", [JOB])).toHaveLength(1);
     expect(await stageOf(JOB)).not.toBe("cancelled");
@@ -209,13 +213,13 @@ describe("A2 step 2 — Save my spot (decision 388), Jo's area batch Send and th
     expect(await q("select id from partner_offers where job_id=$1", [JOB])).toHaveLength(0);
     expect(await events(JOB, "run_offered")).toHaveLength(0);
   });
-  test("Jo taps \"Send to installer\": ONE run for the installer she picked, the installer texted once; a second tap is refused", async () => {
+  test("Jo taps \"Send to installer\": ONE run for the installer she picked, nobody texted (Part 7 Task 9); a second tap is refused", async () => {
     const ir = await import("../src/lib/installer-run.functions");
     await expect(ir.offerRunFn({ data: { batchId: BATCH }, context: instCtx })).rejects.toThrow();
-    const r = await ir.offerRunFn({ data: { batchId: BATCH }, context: officeCtx }) as { runId: string; homes: number; text: { status: string } };
+    const r = await ir.offerRunFn({ data: { batchId: BATCH }, context: officeCtx }) as { runId: string; homes: number };
     await settle();
     debug("RUN-OFFER", r, await recent(JOB));
-    expect(r).toMatchObject({ homes: 1, text: { status: "sent" } });
+    expect(r).toMatchObject({ homes: 1 });
     RUN = r.runId;
     expect((await events(JOB, "run_offered")).map((e) => [e.details["run_id"], e.details["business_id"]])).toEqual([[RUN, BIZ]]);
     await expect(ir.offerRunFn({ data: { batchId: BATCH }, context: officeCtx })).rejects.toThrow(/already been sent/);
@@ -294,7 +298,7 @@ describe("A2 step 4 — the installer completes the A2 Ready Check in Mitti → 
   });
 });
 
-const SIGNING = { signatoryName: "Harriet Journey", authorityType: "owner", signatureName: "Harriet Journey", over18: true, readConsumerInfo: true, acceptAgreement: true, assistance: "none", declarations:{owner_or_authorised:true,details_accurate:true,consent_ap_sends:true,consent_commission_shares:true} };
+const SIGNING = { authorityType: "owner" as const, tick1: true, tick2: true, typedName: "Helen Journey", assistance: "none" as const };
 
 describe("A2 step 5 — the office checks and sends the quote; the owner signs and accepts; the $349 safety check is paid", () => {
   test("only the office can send the held quote; Send issues it once and the owner gets it by email + text", async () => {
@@ -327,27 +331,9 @@ describe("A2 step 5 — the office checks and sends the quote; the owner signs a
     expect(await q("select id from owner_gate_signatures where job_id=$1 and gate='B'",[JOB])).toHaveLength(0);
     const [qq] = await q<{ id: string; version: number }>("select id, version from quotes where job_id=$1 and status='issued'", [JOB]);
     await expect(ol.ownerAcceptQuoteFn({ data: { token, session, quoteId: qq!.id, expectedVersion: qq!.version + 1, signing: SIGNING }, context: META })).rejects.toThrow(/updated since/);
-    await expect(ol.ownerAcceptQuoteFn({ data: { token, session, quoteId: qq!.id, expectedVersion: qq!.version, signing: {...SIGNING,declarations:{...SIGNING.declarations,details_accurate:false}} }, context: META })).rejects.toThrow();
+    await expect(ol.ownerAcceptQuoteFn({ data: { token, session, quoteId: qq!.id, expectedVersion: qq!.version, signing: {...SIGNING,tick2:false} }, context: META })).rejects.toThrow();
     expect(await q("select id from owner_gate_signatures where job_id=$1 and gate='B'",[JOB])).toHaveLength(0);
-    // Fault at the real persistence boundary after record 2: leave gate signatures but no signed ESC/agreement.
-    const originalFrom=admin.from.bind(admin);let interruptConsent=true;
-    admin.from=((table:string)=>{
-      const query=originalFrom(table);
-      if(table==='owner_esc_consents'){
-        const update=query.update.bind(query);
-        query.update=(values:Record<string,unknown>)=>{
-          if(interruptConsent && values.owner_signed_at){interruptConsent=false;throw Error('TEST interruption after record 2');}
-          return update(values);
-        };
-      }
-      return query;
-    }) as typeof admin.from;
-    try {
-      await expect(ol.ownerAcceptQuoteFn({ data: { token, session, quoteId: qq!.id, expectedVersion: qq!.version, signing: SIGNING }, context: META })).rejects.toThrow('TEST interruption after record 2');
-    } finally { admin.from=originalFrom; }
-    expect(await q("select doc_key from owner_gate_signatures where job_id=$1 and gate='B' order by doc_key",[JOB])).toEqual([{doc_key:'payment_terms'},{doc_key:'quote_acceptance'}]);
-    expect(await q("select id from customer_agreements where job_id=$1",[JOB])).toHaveLength(0);
-    expect(await q("select id from owner_esc_consents where job_id=$1 and owner_signed_at is not null",[JOB])).toHaveLength(0);
+    // Task 11: the ESC consent is no longer signed on the quote page (it moves to the confirm-and-pay page, Part 4).
     await ol.ownerAcceptQuoteFn({ data: { token, session, quoteId: qq!.id, expectedVersion: qq!.version, signing: SIGNING }, context: META });
     await settle();
     expect(await ol.ownerAcceptQuoteFn({ data: { token, session, quoteId: qq!.id, expectedVersion: qq!.version, signing: SIGNING }, context: META })).toEqual({ ok: true, outcome: "already accepted" });
@@ -355,8 +341,7 @@ describe("A2 step 5 — the office checks and sends the quote; the owner signs a
     expect(await q("select status from quotes where id=$1", [qq!.id])).toEqual([{ status: "accepted" }]);
     expect(await q("select id from customer_agreements where job_id=$1", [JOB])).toHaveLength(1);
     expect(await q("select doc_key from owner_gate_signatures where job_id=$1 and gate='B' order by doc_key",[JOB])).toEqual([{doc_key:"payment_terms"},{doc_key:"quote_acceptance"}]);
-    const [consent]=await q<{scheduled_start:string|null;owner_signed_at:string|null;owner_declarations:Record<string,boolean>}>("select scheduled_start,owner_signed_at,owner_declarations from owner_esc_consents where job_id=$1",[JOB]);
-    expect(consent?.scheduled_start).toBeNull();expect(consent?.owner_signed_at).toBeTruthy();expect(consent?.owner_declarations).toEqual(SIGNING.declarations);
+    expect(await q("select id from owner_esc_consents where job_id=$1 and owner_signed_at is not null",[JOB])).toHaveLength(0);
     expect(await q("select signed_text from owner_gate_signatures where job_id=$1 and doc_key='quote_acceptance'",[JOB])).toEqual([expect.objectContaining({signed_text:expect.stringContaining("I agree to receive my documents by email.")})]);
 
     expect(await events(JOB, "QUOTE_ACCEPTED")).toHaveLength(1);
@@ -388,17 +373,24 @@ describe("A2 step 5 — the office checks and sends the quote; the owner signs a
 const REC = "30000000-0000-4000-8000-0000000000e2", ELEC = "40000000-0000-4000-8000-0000000000e2";
 
 describe("A2 step 6 — the electrician's safety check (PIESA) with NO repair work → Complete PIESA → cleared for install", () => {
+  // J5 (4 Nov 2026): the live A3 carries the electrician's B3 block (items 23–27, "portal fills this in") — prefilled at
+  // creation from the electrician's verified record; the official rules (A48 batch 1) count them as required answers.
+  const A3_PREFILLED = ["Job Reference ID", "Address including postcode", "Owner name", "Electrician licence number", "Electrician full name", "Electrical contractor (REC) business name", "REC registration number", "Electrician phone"];
   test("automatic electrician offer (decision 246) → 3 times → the owner ticks the 30-day box and takes one → PIESA booked", async () => {
     const far = new Date(Date.now() + 365 * 86_400_000).toISOString().slice(0, 10);
     await q(`insert into businesses (id, name, trading_name, abn, business_type, capabilities, is_active, onboarding_status, approved_at, onboarding_notes, accepting_new_jobs, rec_number, service_postcodes, coverage_verified_at, phone, email, base_suburb, coverage_radius_km)
       values ($1,'TEST Journey A2 Sparks','TEST Journey A2 Sparks','22 333 444 555','rec','{electrician}',true,'approved',now(),'[TEST PARTNER] journey REC',true,'REC-22222','{3199}',now(),'0477 511 901',$2,'Frankston',60)`, [REC, TRADE_EMAIL]);
-    await q(`insert into profiles (id, full_name, email, phone) values ($1,'Eddie A2 Electrician',$2,'0477 511 901')`, [ELEC, TRADE_EMAIL]);
+    // The electrician's login belongs to the REC business (official PIESA B3 prefill reads the REC name/phone from it).
+    await q(`insert into profiles (id, full_name, email, phone, business_id) values ($1,'Eddie A2 Electrician',$2,'0477 511 901',$3)`, [ELEC, TRADE_EMAIL, REC]);
     await q(`insert into business_members (business_id, user_id, member_role, active) values ($1,$2,'business_admin',true)`, [REC, ELEC]);
     await q(`insert into user_roles (user_id, role) values ($1,'electrician')`, [ELEC]);
-    await q(`insert into partner_workers (business_id, trade_role, full_legal_name, email, mobile, licence_number, licence_expires_on, profile_id, account_status, approval_status, approved_at)
-      values ($1,'electrician','Eddie A2 Electrician',$2,'0477 511 901','A22222',$3,$4,'active','approved',now())`, [REC, TRADE_EMAIL, far, ELEC]);
-    for (const [kind, label] of [["public_liability_insurance", "Public liability"], ["electrical_licence", "Electrical licence"], ["rec_registration", "REC registration"]])
-      await q(`insert into business_credentials (business_id, kind, label, number, expires_at, critical, verification, verified_at) values ($1,$2,$3,'TEST-1',$4,true,'verified',now())`, [REC, kind, label, far]);
+    // Part 9 Task 8 (J5): the booked electrician must hold an office-verified, unexpired licence + REC number on every job.
+    await q(`insert into partner_workers (business_id, trade_role, full_legal_name, email, mobile, licence_number, rec_number, licence_expires_on, licence_verified_at, profile_id, account_status, approval_status, approved_at)
+      values ($1,'electrician','Eddie A2 Electrician',$2,'0477 511 901','A22222','REC-22222',$3,now(),$4,'active','approved',now())`, [REC, TRADE_EMAIL, far, ELEC]);
+    // Part 9 Task 8 insurance rows (J5); the office-verified licence sits on the electrician's profile and the REC number on
+    // the business — the official PIESA's B3 block is prefilled from exactly these (official-forms.server verifiedNumber).
+    for (const [kind, label, number, amount, profile] of [["public_liability_insurance", "Public liability", "TEST-1", 10000000, null], ["workers_comp_insurance", "Workers comp", "TEST-1", null, null], ["electrical_licence", "Electrical licence", "A22222", null, ELEC], ["rec_registration", "REC registration", "REC-22222", null, null]] as const)
+      await q(`insert into business_credentials (business_id, kind, label, number, expires_at, critical, verification, verified_at, amount_insured_aud, profile_id) values ($1,$2,$3,$4,$5,true,'verified',now(),$6,$7)`, [REC, kind, label, number, far, amount, profile]);
     for (const [service, rate] of [["piesa", 220], ["rectification_visit", 180]] as const)
       await q(`insert into electrician_rates (business_id, service_type, rate_inc_gst, status, effective_from, gst_included) values ($1,$2,$3,'active',current_date - 1,true)`, [REC, service, rate]);
     await q("update workflow_settings set auto_electrician_offers = true where id = 1");
@@ -419,7 +411,7 @@ describe("A2 step 6 — the electrician's safety check (PIESA) with NO repair wo
     // Decision 398: booking the PIESA creates the electrician's A3 form in Mitti automatically (the A3 template is set up in Mitti).
     const forms = await import("./helpers/journey-forms");
     const def = forms.completedA3Pass({ inspectionDate: melb(new Date()), capturedAt: new Date().toISOString(), mediaPrefix: "a2-a3" });
-    providers.templates[TPL_A3] = forms.templateOf([forms.text("Job Reference ID", ""), forms.text("Address including postcode", ""), forms.text("Owner name", ""), ...def.items]);
+    providers.templates[TPL_A3] = forms.templateOf([...A3_PREFILLED.map((l) => forms.text(l, "")), ...def.items]);
     await ol.ownerTakePiesaTimeLinkFn({ data: { token, session, proposalId: p!.id, understandsThirtyDays: true }, context: META });
     await settle();
     expect(await stageOf(JOB)).toBe("piesa_scheduled");
@@ -430,7 +422,7 @@ describe("A2 step 6 — the electrician's safety check (PIESA) with NO repair wo
     const forms = await import("./helpers/journey-forms");
     const today = melb(new Date());
     const def = forms.completedA3Pass({ inspectionDate: today, capturedAt: new Date().toISOString(), mediaPrefix: "a2-a3" });
-    providers.templates[TPL_A3] = forms.templateOf([forms.text("Job Reference ID", ""), forms.text("Address including postcode", ""), forms.text("Owner name", ""), ...def.items]);
+    providers.templates[TPL_A3] = forms.templateOf([...A3_PREFILLED.map((l) => forms.text(l, "")), ...def.items]);
     const pf = await import("../src/lib/portal.functions");
     // The office button (backup) reuses the form made at booking — never a second one.
     const c = await pf.createMittiAssessment({ data: { jobId: JOB }, context: officeCtx }) as { auditId: string; reused: boolean };
@@ -456,6 +448,21 @@ describe("A2 step 6 — the electrician's safety check (PIESA) with NO repair wo
 });
 
 describe("A2 step 7 — the owner confirms the safety check, then the install day is agreed and booked (decisions 296/325)", () => {
+  test("the owner pays the 10% deposit by card first (Jo 26 Oct 2026: install days are offered once it's paid; main #123 gate)", async () => {
+    const af = await import("../src/lib/allocation.functions");
+    await expect(af.installerOfferInstallDays({ data: { jobId: JOB, days: [{ day: "2026-12-01", time: "08:00" }] }, context: instCtx })).rejects.toThrow(/10% deposit/);
+    const ol = await import("../src/lib/owner-link.functions");
+    const token = await ownerToken();
+    const r = await ol.ownerCardCheckoutFn({ data: { token } }) as { url?: string; blocker?: string };
+    expect(r.url).toMatch(/^https:\/\/checkout\.stripe\.com\//);
+    const s = providers.stripe.sessions.at(-1)!;
+    expect(s.form["metadata[step]"]).toBe("install_deposit");
+    const st = await import("../src/lib/stripe.server");
+    const wh = await stripePaidWebhook(s, process.env["STRIPE_WEBHOOK_SECRET"]!);
+    expect(await st.handleStripeWebhook(wh.body, wh.signature)).toEqual({ status: 200, outcome: "recorded" });
+    await settle();
+    expect((await events(JOB, "owner_payment_recorded")).map((e) => e.details["step"])).toEqual(["safety_check", "install_deposit"]);
+  });
   test("install days can't be taken before the owner confirms the PIESA; after confirming, the owner takes one of the installer's 3 days → installation booked", async () => {
     const af = await import("../src/lib/allocation.functions");
     const st = await af.getInstallerInstallDays({ data: { jobId: JOB }, context: instCtx }) as { turn: string; days: string[] };

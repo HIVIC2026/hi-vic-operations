@@ -53,7 +53,7 @@ describe("decision 302 — the upfront safety check is the quote's PIESA line", 
     expect(stepsLine(steps)).toBe("$349 due · deposit $265 — · balance $2,386 —");
     expect(shortAud(splitForOption(3000, 349).deposit)).toBe("$349");
     expect(P2.button(centsAud(349))).toBe("Accept and pay $349.00");
-    expect(P2.payNote(shortAud(349))).toBe("Pay the $349 by card or bank transfer, no fees. You'll get your signed copy and invoice by email");
+    expect(P2.howYouPayFor(shortAud(349))).toBe(P2.howYouPay);
     expect(paymentOptionSummary(349)).toBe(PAYMENT_OPTION_SUMMARY);
     expect(safetyCheckPriceFromLines([{ description: "Pre Insulation Electrical Safety Assessment (PIESA)", lineTotalIncGst: 349 }] as never)).toBe(349);
     expect(installerJobSummary({ installer: "Deep", consent: "granted", mittiAuditId: "a", formProblem: null, basics: { missing: [], stops: [], completed: true }, heldReasons: null, quote: { total: 3000, sent: true, accepted: true, held: false }, warnings: [] }).upTo)
@@ -84,7 +84,7 @@ describe("decision 302 — the upfront safety check is the quote's PIESA line", 
     const split = splitForOption(3000, safetyCheckIncGstFor({ lines: lines220 }));
     expect(split.deposit).toBe(220);
     expect(P2.button(centsAud(split.deposit))).toBe("Accept and pay $220.00");
-    expect(P2.tick2Sub(shortAud(split.deposit))).toBe("$220 now for the electrical safety check, 10% to book your install day, the rest on install day. Or pay in full any time.");
+    expect(P2.howYouPayFor(shortAud(split.deposit))).toBe("How you pay: $220 now for the electrical safety check (PIESA). 10% to book your install day. The rest on install day. Card or bank transfer, no fees.");
     expect(paymentOptionSummary(220)).toContain("The $220 Pre Insulation Electrical Safety Assessment (PIESA) payment is needed");
     // O18 "Next" amount comes from the quote lines
     expect(safetyCheckPriceFromLines([{ description: "Pre Insulation Electrical Safety Assessment (PIESA)", lineTotalIncGst: 220 }] as never)).toBe(220);
@@ -138,7 +138,10 @@ describe("decision 303 — only onboarded electricians", () => {
     const r = onboardedElectricianResolution({ legacy, usual, candidates: [rec()] });
     expect(r).toMatchObject({ ready: true, priceIncGst: 220, source: "approved_rec", recBusinessId: "rec-1", rateId: "rate-1", name: "Volt Right Electrical", reasons: [] });
     const draft = buildMittiInstallerQuote({ price: { ok: true, issues: [], price: { included: ["Ceiling insulation - supply & install"], otherDescription: "", totalIncGst: 3000, agreedWithOwner: false } }, measuredM2: 100, wholeVeec: null, separateLines: [], caps: { metropolitan: true, minCopay: 200 } } as never, r);
-    expect(draft.lines.find((l) => l.code === "PIESA")?.line_total_inc_gst).toBe(220);
+    // Jo 4 Nov 2026 (final, replaces Part 10's "$349 whatever the rate"): the owner's PIESA line is the rate the resolution
+    // carries ($220 here; on a real own-customer job `withOwnerSafetyCheckPrice` makes that the installer's own rate) — never $349.
+    expect(r.priceIncGst).toBe(220);
+    expect(draft.lines.find((l) => l.code === "PIESA")).toMatchObject({ description: "Electrical safety check (PIESA)", line_total_inc_gst: 220 });
     expect(mittiQuoteElectricalBlocker(draft.lines as never, r, r)).toBeNull();
   });
 
@@ -239,6 +242,7 @@ describe("decision 303 — only onboarded electricians", () => {
     expect(link).toContain("source: AUTO_LINK_SOURCE");
     expect(link).not.toMatch(/sendElectricianInvite|maybeAutoSendInstallerQuote|releaseQuoteToOwner|sendRealSms|office-email\.server/);
     // the retired free-text path: the price card validates price + inclusions only
-    expect(read("src/lib/installer-price.core.ts")).toContain("electrician: null } };");
+    // (Part 10 reformatted the record onto several lines; read with whitespace collapsed.)
+    expect(read("src/lib/installer-price.core.ts").replace(/\s+/g, " ")).toContain("notes: notes || null, electrician: null, }, };");
   });
 });

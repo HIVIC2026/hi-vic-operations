@@ -138,7 +138,7 @@ const MODES = [{}, { inHouse: true }, { test: true }, { test: true, inHouse: tru
 beforeAll(async () => {
   setSystemTime(NOW);
   seedAll({ inHouse: true });
-  for (const u of [U_BOSS, U_ELEC]) { await tradeMoney(u); await tradeMoneyJob(J3, u); } // warm the module cache
+  for (const u of [U_BOSS, U_ELEC]) { await outcome(() => tradeMoney(u)); await outcome(() => tradeMoneyJob(J3, u)); } // warm the module cache (Part 6: the electrician is refused)
 });
 afterAll(() => { setSystemTime(); });
 
@@ -214,14 +214,16 @@ describe("Money (Task 7): same value as before", () => {
 
   test("the fixture exercises the payees (installer-paid safety checks, recorded and rate-card prices)", async () => {
     wc.state.failWhen = null; seedAll({ inHouse: true });
-    const b = await tradeMoney(U_BOSS), e = await tradeMoney(U_ELEC);
+    const b = await tradeMoney(U_BOSS);
     expect(b.rows.filter((r) => r.kind === "assessment").map((r) => [r.jobNumber, r.amount])).toEqual(expect.arrayContaining([["HV-1003", 360], ["HV-1004", 330]]));
-    expect(e.paidByInstaller.map((r) => r.jobNumber).sort()).toEqual(["HV-1003", "HV-1004"]);
+    // Part 6: electricians have no Money page — the installer-paid safety checks are now only on the installer's side.
+    await expect(tradeMoney(U_ELEC)).rejects.toThrow("Money is only shown to installer businesses.");
   });
 });
 
 describe("Money (Task 7): waves after the sign-in context", () => {
-  for (const [who, u, mode] of [["installer owner in-house", U_BOSS, { inHouse: true }], ["installer owner ordinary", U_BOSS, {}], ["electrician owner in-house", U_ELEC, { inHouse: true }], ["electrician owner ordinary", U_ELEC, {}]] as const) {
+  // Part 6: no electrician Money page, so only the installer owner is measured (the electrician is refused at the context).
+  for (const [who, u, mode] of [["installer owner in-house", U_BOSS, { inHouse: true }], ["installer owner ordinary", U_BOSS, {}]] as const) {
     test(`tradeMoney ${who}: at most 3 waves after the sign-in context`, async () => {
       wc.state.failWhen = null; seedAll(mode);
       const r = await wc.measured(() => tradeMoney(u));

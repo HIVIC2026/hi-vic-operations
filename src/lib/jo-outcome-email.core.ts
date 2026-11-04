@@ -12,6 +12,7 @@
  * (docs/templates/mjml/owner_O1, owner_O2-*, owner_O6; Jo 27 Oct 2026) through `mjEmail` (mail-mjml.core.ts). T8 (the office Ready Check
  * invitation) was retired on 24 Oct 2026 and has no renderer any more; earlier sends stay in job history.
  */
+import { oneTapSaveUrl } from "./one-tap-save.core";
 import {
   ctasForTemplate,
   INSULATION_QUESTIONS_CTA_LABEL,
@@ -32,6 +33,7 @@ import {
 } from "./estimate-email";
 import { REMOVE_ENQUIRY_TEXT_SLOT } from "./emailsafety.core";
 import * as K from "./email-kit.core";
+import { veuBoxMj, veuBoxText } from "./owner-wording.core";
 import { mjEmail, plusRow, tickRow } from "./mail-mjml.core";
 
 /** T7 "Review my result" when the customer has no secure estimate link (ineligible jobs never keep one): the same
@@ -272,9 +274,9 @@ const O2_INTRO = "You told us there's some insulation in your ceiling already. I
 export const O2_DONT_KNOW_INTRO = "You weren't sure if there's insulation in your ceiling. If there's none, or it's thin or patchy (below R2.0), you can still get the Victorian Energy Upgrades (VEU) rebate. You need a certified installer, a licensed electrician and an Accredited Person. We bring them together and run the whole job for you.";
 // Decision 388 (Jo 25 Oct 2026: "we are saving spots, not offering Ready Checks"): spot-only wording. No Ready Check,
 // installer visit, times, measuring or quote timing.
-const O1_SAVE = "Thousands of Victorians have registered. Spots are released in the order they were saved. There's no cost and no obligation, and we'll be in touch when yours is released.";
+const O1_SAVE = "Spots are released in the order they were saved. There's no cost and no obligation, and we'll be in touch when yours is released.";
 const O2_SAVE = O1_SAVE;
-const O2Q_SAVE = "Thousands of Victorians have registered. Spots are released in the order they were saved. Tell us about your insulation and your spot is saved straight away. Just tap, no typing.";
+const O2Q_SAVE = "Spots are released in the order they were saved. Tell us about your insulation and your spot is saved straight away. Just tap, no typing.";
 const O2Q_PHOTOS = "Got photos or a video? You can add them too, only if it's safe. Please don't climb into the roof space.";
 const RECEIVED_ACK = "Thank you for sending your photos or video. We already have your media — you do not need to upload it again. Our Office will review it and contact you about the next step. If you want or need to add more evidence, you can optionally add multiple photos and/or videos using the link below.";
 const RECEIVED_SAFETY = "Only take photos or video if you can do so safely, and don’t enter the roof space.";
@@ -313,7 +315,7 @@ export const rebateAndPriceText = (i: { rebateLabel: string; rebate: number; pri
 /** "What's included in $X" rows (Save my spot O1/O2 and Spot saved O10, all sent before the spot is released).
  *  Decision 388: no Ready Check row before release. */
 export const includedRows = (rebate: number) => [
-  { title: "Licensed electrician safety check", detail: "Done before any insulation goes in, to make sure wiring, downlights and cables are safe." },
+  { title: "Electrical safety check (PIESA) by a licensed electrician", detail: "Done before any insulation goes in, to make sure wiring, downlights and cables are safe." },
   { title: "Premium R5.0 ceiling batts", detail: "VEU-approved and made to Australian Standard AS/NZS 4859.1." },
   { title: "Fitted by an EEC-certified installer", detail: "A Certified Insulation Installer, working to Australian Standard AS 3999." },
   { title: "We handle the rebate", detail: `As a VEU Accredited Person (${K.AP_NUMBER}), we do the paperwork. The ${K.whole(rebate)} comes straight off your price.` },
@@ -357,8 +359,8 @@ function renderSaveMySpot(input: JoOutcomeEmailInput, f: JoEstimateFigures, vari
   const basis = basisLine(f, dontKnow ? "unknown" : some);
   const intro = dontKnow ? O2_DONT_KNOW_INTRO : some ? O2_INTRO : O1_INTRO;
   const removal = removalCard(f);
-  const saveUrl = input.links.saveMySpotUrl, answerUrl = input.links.uploadMediaUrl;
-  const box = { rebateLabel: some ? "Your potential rebate" : "Your estimated rebate", rebate: f.veuRebate, priceLabel: some ? "Your cost if eligible" : "You pay after the rebate", price: f.customerTotal, fullPrice: f.totalBeforeRebate, basis, calculatorUrl: input.links.calculatorUrl || null };
+  const saveUrl = oneTapSaveUrl(input.links.saveMySpotUrl), answerUrl = input.links.uploadMediaUrl;
+  const box = { rebateLabel: some ? "Your potential rebate" : "Your estimated rebate", rebate: f.veuRebate, priceLabel: some ? "Your estimated quote based on what you've told us" : "You pay after the rebate", price: f.customerTotal, fullPrice: f.totalBeforeRebate, basis, calculatorUrl: input.links.calculatorUrl || null };
   const closing = some ? O2_CLOSING : O1_CLOSING;
   const action = variant === "questions"
     ? section(`<mj-text mj-class="h2" css-class="email-sub" padding="18px 12px 6px">Save your spot: answer 3 quick questions</mj-text><mj-text>${K.esc(O2Q_SAVE)}</mj-text>`)
@@ -372,7 +374,8 @@ function renderSaveMySpot(input: JoOutcomeEmailInput, f: JoEstimateFigures, vari
     some ? mjExistingInsulation(f.ceilingAreaM2, removal.ratePerM2, removal.upTo) : "",
     action,
     mjIncludedCards({ price: f.customerTotal, rebate: f.veuRebate, someInsulation: some }),
-    mjSmallEnd(`${K.esc(closing)}${input.links.reviewResultUrl ? ` ${mjLink(input.links.reviewResultUrl, "See your full estimate")}` : ""}`),
+    mjSmallEnd(K.esc(closing)),
+    veuBoxMj(),
   ].join("\n");
   const html = mjEmail({ subject, preview, body, unsubscribe: "slot" });
   const plainText = K.plainText([
@@ -388,7 +391,7 @@ function renderSaveMySpot(input: JoOutcomeEmailInput, f: JoEstimateFigures, vari
     "",
     ...includedCardsText({ price: f.customerTotal, rebate: f.veuRebate, someInsulation: some }), "",
     closing,
-    input.links.reviewResultUrl ? `See your full estimate: ${input.links.reviewResultUrl}` : null,
+    "", ...veuBoxText(),
     "", `Reference: ${input.recipient.enquiryReference}`,
   ]) + `\nUnsubscribe: ${REMOVE_ENQUIRY_TEXT_SLOT}`;
   return { subject, previewText: preview, html, plainText };
@@ -407,13 +410,13 @@ function renderNotEligible(input: JoOutcomeEmailInput, subject: string): Estimat
   const body = [
     mjHeadline(headline, O6_INTRO),
     section(`<mj-text mj-class="h2" padding="18px 18px 2px">Why</mj-text><mj-text padding="0 18px 16px">${K.esc(reason)}</mj-text>`, "panel"),
-    mjSubSection("Something doesn't look right?", O6_RECHECK, { href: input.links.reviewResultUrl, label: "Review my result" }),
+    mjSubSection("Something doesn't look right?", O6_RECHECK, { href: K.HOMEOWNER_PAGE_URL, label: "Review my result" }),
     // "Send to a friend" opens a new email to a friend with the public homeowner page link (Jo, 27 Oct) (no customer data in the link).
     mjLinkCard(FRIEND.title, FRIEND.body, K.friendShareHref(K.HOMEOWNER_PAGE_URL), "Send to a friend"),
   ].join("\n");
   const html = mjEmail({ subject, preview: O6_PREVIEW, body, unsubscribe: "slot" });
   const plainText = K.plainText([
-    headline, "", O6_INTRO, "", "WHY", reason, "", "SOMETHING DOESN'T LOOK RIGHT?", O6_RECHECK, `Review my result: ${input.links.reviewResultUrl}`, "",
+    headline, "", O6_INTRO, "", "WHY", reason, "", "SOMETHING DOESN'T LOOK RIGHT?", O6_RECHECK, `Review my result: ${K.HOMEOWNER_PAGE_URL}`, "",
     `${FRIEND.title} ${FRIEND.body}`, `Send to a friend: ${K.HOMEOWNER_PAGE_URL}`, "",
     `Reference: ${input.recipient.enquiryReference}`,
   ]) + `\nUnsubscribe: ${REMOVE_ENQUIRY_TEXT_SLOT}`;

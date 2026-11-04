@@ -42,6 +42,7 @@ export const PURPOSE_LABEL: Record<string, string> = {
   fixes_quote: "Electrical fixes quote email", install_days: "Install days email", install_day_changed: "Install day changed email", install_complete: "All done email",
   final_invoice: "Final invoice email", completion_pack: "Completion pack email", warranty_followup: "Warranty follow-up email", review_request: "Review request email",
   job_cancelled: "Job cancelled email", job_cancelled_installer: "Job cancelled email (installer)",
+  after_install_reminder: "After-install reminder email", after_install_reminder_sms: "After-install reminder text",
   veec_sign_day_1: "Rebate form reminder (day 1)", veec_sign_day_3: "Rebate form reminder (day 3)", veec_sign_day_7: "Rebate form reminder (day 7)",
   piesa_owner_confirm_request: "Confirm your safety check email", piesa_owner_confirm_reminder_1: "Confirm your safety check reminder (day 1)", piesa_owner_confirm_reminder_3: "Confirm your safety check reminder (day 3)", piesa_owner_confirm: "Confirm your safety check text",
   piesa_owner_fixes_confirm_request: "Confirm your electrical fixes email", piesa_owner_fixes_confirm_reminder_1: "Confirm your electrical fixes reminder (day 1)", piesa_owner_fixes_confirm_reminder_3: "Confirm your electrical fixes reminder (day 3)", piesa_owner_fixes_confirm: "Confirm your electrical fixes text",

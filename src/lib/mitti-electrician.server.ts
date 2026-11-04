@@ -9,12 +9,22 @@ import {
   mittiElectricianFallback, mittiElectricianPlanProblem, mittiElectricianQuestionOpen,
 } from "./mitti-electrician.core";
 
+export type MittiElectricianJobRow = { id: string; source: string | null; channel: string | null; electrician_choice: string | null };
+
 /** Which of these jobs still have the question open (only Mitti pickups can). Fails closed: a read error → none open. */
 export async function openMittiElectricianQuestions(jobIds: string[]): Promise<Set<string>> {
-  const open = new Set<string>();
-  if (!jobIds.length) return open;
+  if (!jobIds.length) return new Set<string>();
   const { data: jobs, error } = await admin.from("jobs").select("id, source, channel, electrician_choice").in("id", jobIds.slice(0, 200)).eq("channel", "installer_sourced");
-  if (error || !jobs?.length) return open;
+  if (error) return new Set<string>();
+  return openMittiElectricianQuestionsForJobs((jobs ?? []) as MittiElectricianJobRow[]);
+}
+
+/** Speed (portal speed step 2B): the same answer from job rows the caller already holds (the installer home's assignment
+ *  read carries them) — the installer-sourced rows only, as the read above gives; one round instead of two. */
+export async function openMittiElectricianQuestionsForJobs(rows: MittiElectricianJobRow[]): Promise<Set<string>> {
+  const open = new Set<string>();
+  const jobs = rows.filter((j) => j.channel === "installer_sourced");
+  if (!jobs.length) return open;
   const ids = jobs.map((j) => String(j.id));
   const [noms, asg, offers, used] = await Promise.all([
     admin.from("electrician_nominations").select("job_id").in("job_id", ids).is("ended_at", null),

@@ -51,7 +51,7 @@ await db.exec(`update public.workflow_settings set sms_message_switches = '{"pie
 const twilio: string[] = [];
 const emails: { to: string; subject: string }[] = [];
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: postgrestShim(db, { jsonColumns: { workflow_settings: ["sms_message_switches"], admin_config_events: ["details"], workflow_events: ["details"], partner_offers: ["summary"] } }) }));
-mock.module("../src/lib/comms.server", () => ({ customerCommsEnabled: async () => true, hasCurrentOwnerContactConsent: async () => true }));
+mock.module("../src/lib/comms.server", () => ({ customerCommsEnabled: async () => true, hasCurrentOwnerContactConsent: async () => true, ownerConsentAllowsDelivery: async () => true }));
 mock.module("../src/lib/twilio-au1.server", () => ({
   au1Configured: () => true,
   au1SendMessage: async (p: URLSearchParams) => { twilio.push(p.get("Body") ?? ""); return { ok: true, status: 201, text: JSON.stringify({ sid: `SM${twilio.length}` }) }; },
@@ -72,9 +72,8 @@ process.env["LOVABLE_API_KEY"] = "lv_test";
 
 const { sendRealSms } = await import("../src/lib/sms.server");
 const { sendOfficeEmail } = await import("../src/lib/office-email.server");
-const { textInstallerAboutOffer, emailInstallerAboutOffer } = await import("../src/lib/ready-check-offer-text.server");
 const { textTeamMemberInvite } = await import("../src/lib/installer-texts.server");
-const { textElectricianAboutOffer, emailElectricianAboutOffer } = await import("../src/lib/trade-messages.server");
+// The E1 PIESA offer text/email senders were retired 2 Nov 2026 (Part 4 Task 14): their pause tests are gone with them.
 
 await db.exec("update public.workflow_settings set daily_mitti_text_enabled = true where id = 1");
 const setPaused = (on: boolean) => db.query("update public.workflow_settings set trade_messages_paused = $1 where id = 1", [on]);
@@ -134,22 +133,8 @@ describe("sendOfficeEmail while paused", () => {
 });
 
 describe("representative trade paths while paused", () => {
-  test("job offer: text and email held; the email's once-only event is not written; unpaused → both go", async () => {
-    const t0 = twilio.length, e0 = emails.length;
-    expect(await textInstallerAboutOffer(OFFER)).toBe("blocked: Trade messages paused");
-    expect(await emailInstallerAboutOffer(OFFER)).toBe("held: Trade messages paused");
-    const ev = await db.query("select 1 from public.workflow_events where event_type = 'ready_check_offer_email'");
-    expect(ev.rows).toHaveLength(0);
-    expect(twilio.length).toBe(t0);
-    expect(emails.length).toBe(e0);
-
-    await setPaused(false);
-    expect(await textInstallerAboutOffer(OFFER)).toMatch(/^sent/);
-    expect(await emailInstallerAboutOffer(OFFER)).toMatch(/^sent/);
-    expect(twilio.length).toBe(t0 + 1);
-    expect(emails.length).toBe(e0 + 1);
-  });
-
+  // Part 7 Task 9 (Jo 2 Nov 2026): the job offer text + email are retired; the team member invite below stands in as the
+  // representative partner path through both guarded senders.
   test("team member invite: text held, then sent once unpaused", async () => {
     const t0 = twilio.length;
     const held = await textTeamMemberInvite({ inviteId: INVITE, businessId: BIZ, mobile: "0412 999 888", token: "tok123", createdAt: nowIso() });
@@ -185,13 +170,6 @@ describe("flagged business: senders pass their ids (Jo 31 Oct)", () => {
     const r = await sendRealSms({ type: "swms_sign_link", idempotencyKey: "swms-sign:v1:noids", to: "0412 345 678", body: "Sign the safety plan" });
     expect(r).toMatchObject({ status: "blocked", detail: "Trade messages paused" });
   });
-  test("piesa_offer_text_flagged_sends", async () => {
-    const t0 = twilio.length;
-    const r = await textElectricianAboutOffer(OFFER_P);
-    expect(r).not.toMatch(/^held/);
-    expect(r).toMatch(/^electrician sms sent/);
-    expect(twilio.length).toBe(t0 + 1);
-  });
   test("digest_first_job_flagged_for_unflagged_trade_held", async () => {
     // A daily Mitti digest covers several jobs: its first job (flagged originating installer) must not lift the hold for the unflagged trade.
     const digest = { type: "daily_mitti" as const, to: "0412 345 678", body: "Good morning! Your jobs today", jobId: JOB_F, businessId: BIZ };
@@ -215,16 +193,7 @@ describe("email path matches the sender's own check (no claim burned)", () => {
     insert into public.partner_offers values ('${OFFER_X}', '${JOB_F}', '${BIZ}', 'piesa', 'pending', '${summary}', now(), now() + interval '1 day'),
       ('${OFFER_E}', '${JOB_F}', '${ELEC}', 'piesa', 'pending', '${summary}', now(), now() + interval '1 day'),
       ('${OFFER_EX}', '${JOB_X}', '${ELEC}', 'piesa', 'pending', '${summary}', now(), now() + interval '1 day');`));
-  const claims = async (offerId: string) => (await db.query("select 1 from public.workflow_events where event_type = 'electrician_offer_email' and details->>'offer_id' = $1", [offerId])).rows.length;
 
-  test("unflagged, unlinked electrician offered a flagged installer's job: text and email both HELD, nothing claimed", async () => {
-    const t0 = twilio.length, e0 = emails.length;
-    expect(await textElectricianAboutOffer(OFFER_X)).toBe("held: Trade messages paused");
-    expect(await emailElectricianAboutOffer(OFFER_X)).toBe("held: Trade messages paused");
-    expect(await claims(OFFER_X)).toBe(0);
-    expect(twilio.length).toBe(t0);
-    expect(emails.length).toBe(e0);
-  });
   test("sendOfficeEmail with the sender's ids agrees with the sender's own check", async () => {
     const { tradeMessagesPausedNow } = await import("../src/lib/trade-pause.server");
     const e0 = emails.length;
@@ -235,18 +204,6 @@ describe("email path matches the sender's own check (no claim burned)", () => {
     expect(await tradeMessagesPausedNow({ businessId: ELEC })).toBeNull();
     expect(await tradeMessagesPausedNow({ jobId: JOB_X, businessId: ELEC })).toBe("Trade messages paused");
     expect(await sendOfficeEmail({ actorId: null, recipient: "partner", to: "peter@elec.example", contactName: null, subject: "S", message: "M", label: "x", record: { businessId: ELEC }, pauseJobId: JOB_X })).toMatchObject({ status: "blocked", detail: "Trade messages paused" });
-    expect(emails.length).toBe(e0);
-  });
-  test("linked electrician on the flagged installer's job: claim written AND email sent", async () => {
-    const e0 = emails.length;
-    expect(await emailElectricianAboutOffer(OFFER_E)).toMatch(/^electrician email sent/);
-    expect(await claims(OFFER_E)).toBe(1);
-    expect(emails.length).toBe(e0 + 1);
-  });
-  test("linked electrician on an unflagged installer's job: held before the claim", async () => {
-    const e0 = emails.length;
-    expect(await emailElectricianAboutOffer(OFFER_EX)).toBe("held: Trade messages paused");
-    expect(await claims(OFFER_EX)).toBe(0);
     expect(emails.length).toBe(e0);
   });
 });

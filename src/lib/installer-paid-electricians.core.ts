@@ -5,6 +5,11 @@ export type InstallerPaidElectricians = { businessId: string; name: string; pies
 export const IN_HOUSE_PIESA_HOLD_REASON = "Installer business has no PIESA rate on its rate card";
 export type InHousePiesaHold = { businessId: string; name: string; piesaIncGst: null; release_hold_reason: typeof IN_HOUSE_PIESA_HOLD_REASON };
 export type InstallerPiesaResult = InstallerPaidElectricians | InHousePiesaHold;
+/** Fix wave J1 (4), review 4 Nov 2026: on the office Payouts / Money and the installer's Money, an installer's own job whose
+ *  business has no PIESA rate (and no recorded quote line) is ONE $0 row with this line — the rest of the list still renders. */
+export const PIESA_RATE_NOT_SET_ROW = "No PIESA rate set — ask the office";
+/** J3 (3): office Payouts row for a job whose installer business is no longer on file (office-only wording). */
+export const PAYEE_BUSINESS_MISSING_ROW = "Installer business no longer on file";
 
 export type InHousePiesaBusiness = { id: string; name: string; in_house: boolean; pays_own_electricians?: boolean; piesaIncGst?: number | null };
 

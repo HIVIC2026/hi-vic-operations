@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { escTask, prestartFailures, prestartLocked, prestartRunAt, type PrestartFacts } from "../src/lib/prestart.core";
+import { escTask, prestartFailures, prestartLocked, prestartRunAt, type PrestartFacts, classifyPrestartFailure } from "../src/lib/prestart.core";
 import { buildNeedsHivic } from "../src/lib/allocation.core";
 
 const START = "2026-10-15T21:00:00Z"; // Fri 16 Oct 8am Melbourne
@@ -27,14 +27,20 @@ describe("ESC AP task", () => {
 });
 
 describe("pre-start check", () => {
-  test("runs at 12pm Melbourne the day before", () => {
-    expect(prestartRunAt(START)).toBe("2026-10-15T01:00:00.000Z"); // Thu 15 Oct 12pm AEDT
+  test("runs at 2pm Melbourne the day before (Part 9 Task 6)", () => {
+    expect(prestartRunAt(START)).toBe("2026-10-15T03:00:00.000Z"); // Thu 15 Oct 2pm AEDT
   });
   const ok: PrestartFacts = {
     start: START, clearance: { cleared: true, blocker: null }, deadline: "2026-10-30", esc: sent(at(3 * D).toISOString()),
     lead: { found: true, status: "verified", level: "full", expiresOn: "2027-01-01", name: "Lee" }, consentBlockers: [], piesaCompletedAt: "2026-10-01",
   };
   test("all good passes", () => expect(prestartFailures(ok)).toEqual([]));
+  test("J5: the ESC notices could not be read → the check fails CLOSED with its own line (must move), never 'not marked submitted' (fixable)", () => {
+    const lines = prestartFailures({ ...ok, escReadError: "timeout" });
+    expect(lines).toEqual(["ESC notices could not be read (timeout) — check again"]);
+    expect(classifyPrestartFailure(lines[0]!, { start: START, now: at(-3 * D) })).toBe("must_move");
+    expect(prestartFailures({ ...ok, esc: null, escReadError: null })).toEqual(["ESC notification is not marked submitted for this install date."]);
+  });
   test("decision 367: an unpaid install deposit fails the pre-start check (so the existing lock stops the install)", () => {
     expect(prestartFailures({ ...ok, installDepositBlocker: "Install deposit not paid" })).toEqual(["Install deposit not paid"]);
     expect(prestartFailures({ ...ok, installDepositBlocker: null })).toEqual([]);
@@ -52,7 +58,7 @@ describe("pre-start check", () => {
     expect(f({ consentBlockers: ["not signed"] })[0]).toMatch("Owner consent");
     expect(f({ piesaCompletedAt: "2026-09-10" })[0]).toMatch("within 30 days of the PIESA");
   });
-  test("lock: failed check locks; no check after 12pm locks; before 12pm open", () => {
+  test("lock: failed check locks; no check after 2pm locks; before 2pm open", () => {
     expect(prestartLocked({ start: START, latest: { scheduled_start: START, passed: false, failures: ["x"] }, now: at(2 * D) }).locked).toBe(true);
     expect(prestartLocked({ start: START, latest: null, now: at(10 * H) }).locked).toBe(true);
     expect(prestartLocked({ start: START, latest: null, now: at(2 * D) }).locked).toBe(false);

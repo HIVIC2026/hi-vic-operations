@@ -28,6 +28,13 @@ export type AdvanceFacts = {
   upgradesNeeded?: boolean;
   /** Held in-house partner bills rectification; only separate visits use this route. */
   partnerBilledRectification?: boolean;
+  /** The current PIESA says electrical upgrades are needed and no post-upgrades pass exists yet. A live A3 (decisions
+   *  305/324) carries the electrician's own priced repair list with NO portal rectification_items, so `openRectItems`
+   *  alone misses it. Absent = false. */
+  upgradesOutstanding?: boolean;
+  /** Join (4 Nov 2026): the job's installer business runs in-house (held from HIV dispatch), so nobody offers the PIESA to
+   *  RECs — the installer office books it with its own Team electrician. Absent / a failed read = false (the job stays). */
+  inHouseHeld?: boolean;
   rectQuoteIssued: boolean;
   rectQuoteAccepted: boolean;
   installQuotesIssued: boolean;
@@ -53,6 +60,7 @@ export const INSTALLER_OWN_CUSTOMER_SUMMARY = "Installer's own customer – the 
 
 /** The single deterministic next step for a stage, or a stop with the reason (who/what it waits on). */
 export const ONSITE_START_INSTALL_SUMMARY = "Electrician on site at the start of the install day (upgrades quote accepted and paid) – no upgrades visit, installation scheduling unlocked";
+export const IN_HOUSE_PIESA_OPEN_SUMMARY = "Safety check paid – the installer books the PIESA with their Team electrician";
 export const UPGRADES_DAY_TO_BOOK_SUMMARY = "Electrical upgrades needed – the electrician books the upgrades day with the owner";
 export const ONSITE_START_WAITING = "Waiting for the owner to accept and pay the upgrades quote (electrician on site at the start of the install day)";
 
@@ -63,7 +71,7 @@ export function planStep(stage: Stage, f: AdvanceFacts): Step {
   const onsiteCleared = f.openRectItems > 0 && !!f.onsiteStartCleared;
   const onsiteWaiting = f.openRectItems > 0 && !!f.onsiteStartOnly && !f.onsiteStartCleared;
   // Upgrades still to do: open items, or the A3 answers (no items) — never the on-site-only answer.
-  const upgradesOpen = f.openRectItems > 0 || (!!f.upgradesNeeded && !f.onsiteStartOnly);
+  const upgradesOpen = f.openRectItems > 0 || ((!!f.upgradesNeeded || !!f.upgradesOutstanding) && !f.onsiteStartOnly);
   switch (stage) {
     case "new_enquiry":
     case "eligibility_review":
@@ -80,6 +88,13 @@ export function planStep(stage: Stage, f: AdvanceFacts): Step {
       return stop("Waiting for the owner to save their spot");
     case "ready_check_ready_to_schedule":
       return f.measureUpAccepted ? t("ready_check_complete", "Accepted Ready Check on file – Ready Check not needed") : stop("Home Insulation Victoria must assign an installer for the free Ready Check");
+    case "measured_quote_accepted":
+      // Join (4 Nov 2026, ruling "owner accepts + pays $349 -> installer books the PIESA"): an in-house job is never offered
+      // to RECs (startPiesaAllocation / handOwnJobPiesa skip held jobs), so the recorded safety-check payment is what opens
+      // the PIESA stage for the installer office to book. stageEntryBlockers(piesa_and_install_window_pending) still gates
+      // the move ($349 recorded, quote approved, verified eligible). Our-lead jobs keep the offer path (auto-offer.server).
+      if (f.inHouseHeld && f.depositCleared) return t("piesa_and_install_window_pending", IN_HOUSE_PIESA_OPEN_SUMMARY);
+      return stop(f.inHouseHeld ? "Waiting on the safety check payment" : "Home Insulation Victoria offers the safety check (PIESA) to electricians");
     case "awaiting_electrician":
     case "assessment_booking":
     case "assessment_booked":
@@ -92,7 +107,8 @@ export function planStep(stage: Stage, f: AdvanceFacts): Step {
       if (onsiteCleared) return t("installation_scheduling", ONSITE_START_INSTALL_SUMMARY);
       if (f.openRectItems > 0 && !f.onsiteStartOnly && f.partnerBilledRectification) return t("rectification_scheduling", "Partner needs to book rectification");
       // Part 3 final fix wave: upgrades needed on the A3 with no items — the electrician books the upgrades day with the owner.
-      if (f.openRectItems === 0 && f.upgradesNeeded && !f.onsiteStartOnly) return t("rectification_scheduling", UPGRADES_DAY_TO_BOOK_SUMMARY);
+      // Join: `upgradesOutstanding` (a live A3 fail result with no items, read from the current PIESA record) is the same condition.
+      if (f.openRectItems === 0 && (f.upgradesNeeded || f.upgradesOutstanding) && !f.onsiteStartOnly) return t("rectification_scheduling", UPGRADES_DAY_TO_BOOK_SUMMARY);
       return f.openRectItems > 0 ? stop("Electrical upgrades listed at the PIESA – Home Insulation Victoria must route the electrical upgrades") : t("installation_scheduling", "PIESA complete, no electrical upgrades – installation scheduling unlocked");
     case "assessment_complete":
       return f.openRectItems > 0 ? t("rectification_required", `${f.openRectItems} electrical upgrades item(s) required`) : t("ready_for_installer_quotes", "No electrical upgrades required – ready for installer quotes");

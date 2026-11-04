@@ -14,7 +14,7 @@
 // - Missing link table (pending SQL): the text is held ("link not available"); the office email still goes.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { OWN_JOB_PIESA_INSTALLER_NOT_TOLD_EVENT, OWN_JOB_PIESA_TO_BOOK_EMAIL_APPROVED, electricianLinkText, officeToBookEmail } from "./electrician-link.core";
+import { OWN_JOB_PIESA_INSTALLER_NOT_TOLD_EVENT, OWN_JOB_PIESA_TO_BOOK_EMAIL_APPROVED, electricianLinkText, officeToBookEmail } from "./own-job-electrician-link.core";
 import { SET_PASSWORD_BASE } from "./set-password-link.core";
 
 const db = admin as unknown as SupabaseClient;
@@ -100,7 +100,7 @@ async function textElectrician(jobId: string, a: Assignment, electricianBusiness
     if (de) throw new Error(de.message);
     if (done) return "already";
     let link: { id: string; url: string };
-    const els = await import("./electrician-link.server");
+    const els = await import("./own-job-electrician-link.server");
     try { link = await els.createElectricianLink(jobId, electricianBusinessId); }
     catch (e) { await heldOnce(jobId, `${base}:no_link`, "text", "the link isn't available yet"); return `held: ${(e as Error).message}`; }
     const { error: ce } = await db.from("workflow_events").insert({ id: await stableUuid(`${base}:test`), job_id: jobId, actor_id: null, event_type: "own_job_piesa_link_test_sent", summary: "TEST: electrician's safety check link text", details: { key: base }, internal: true });
@@ -113,7 +113,7 @@ async function textElectrician(jobId: string, a: Assignment, electricianBusiness
   const { smsHoldReason, sendRealSms } = await import("./sms.server");
   const hold = await smsHoldReason(input);
   if (hold) { await heldOnce(jobId, `${base}:${hold}`, "text", hold); return `held: ${hold}`; }
-  const els = await import("./electrician-link.server");
+  const els = await import("./own-job-electrician-link.server");
   let link: { id: string; url: string };
   try { link = await els.createElectricianLink(jobId, electricianBusinessId); }
   catch (e) { await heldOnce(jobId, `${base}:no_link`, "text", "the link isn't available yet"); return `held: ${(e as Error).message}`; }
@@ -137,7 +137,7 @@ export async function sendOwnJobPiesaNotices(jobId: string): Promise<string> {
   if (a.booking_confirmed_at) return "booked";
   const installerId = (job.originating_installer_business_id as string | null) ?? null;
   if (!installerId) return "no_installer";
-  const [{ readPiesaBooker }, { bookerNotices }, { displayName }] = await Promise.all([import("./piesa-booker.server"), import("./piesa-booker.core"), import("./display-name.core")]);
+  const [{ whoBooksFor: readPiesaBooker }, { bookerNotices }, { displayName }] = await Promise.all([import("./who-books.server"), import("./piesa-booker.core"), import("./display-name.core")]);
   const booker = await readPiesaBooker(installerId);
   const n = bookerNotices(booker);
   const [{ data: ov }, { data: inst }, { data: el }] = await Promise.all([
@@ -225,17 +225,33 @@ async function textLinkRound(jobId: string, spec: LinkTextSpec, known?: import("
   const { data: prior, error: pe } = await db.from("sms_messages").select("idempotency_key, status").eq("idempotency_key", base).maybeSingle();
   if (pe) throw new Error(pe.message);
   if (prior && !["failed", "undelivered"].includes((prior as { status: string }).status)) return "already";
-  const [{ data: w }, { data: b }, { data: ov }] = await Promise.all([
-    admin.from("partner_workers").select("mobile, full_legal_name").eq("business_id", a.business_id).eq("profile_id", a.user_id).is("removed_at", null).limit(1).maybeSingle(),
+  // Join (4 Nov 2026): the electrician is the Part 6 Team worker — the one the allocation event names, else (legacy REC
+  // electricians with a login) the worker on the assignment's profile. The link is Part 6's worker link (worker_job_links,
+  // /e/<token>: the same page that takes the upgrades day and the certificate), minted fresh for this text and the older
+  // ones retired once it has gone; a text that did not go revokes the new link instead. The text goes to the worker's own
+  // mobile — never the business phone (on an in-house job that is the installer's office).
+  const els = await import("./electrician-link.server");
+  const allocatedId = await (await import("./in-house-electrician.server")).allocatedWorkerId(jobId).catch(() => null);
+  const workerQ = allocatedId
+    ? admin.from("partner_workers").select("id, mobile, full_legal_name, business_id").eq("id", allocatedId).is("removed_at", null).maybeSingle()
+    : admin.from("partner_workers").select("id, mobile, full_legal_name, business_id").eq("business_id", a.business_id).eq("profile_id", a.user_id).eq("trade_role", "electrician").is("removed_at", null).limit(1).maybeSingle();
+  const [{ data: w, error: we }, { data: b }, { data: ov }] = await Promise.all([
+    workerQ,
     admin.from("businesses").select("phone, onboarding_notes").eq("id", a.business_id).maybeSingle(),
     admin.from("job_overview").select("property_address, job_number").eq("id", jobId).maybeSingle(),
   ]);
+  if (we) throw new Error(we.message);
+  const worker = w as { id: string; mobile: string | null; full_legal_name: string | null; business_id: string } | null;
+  if (!worker) { await heldOnce(jobId, `${base}:no_worker`, "text", "no Team electrician on the job", false, undefined, spec.what); return "held: no_worker"; }
   const { displayName } = await import("./display-name.core");
-  const first = (displayName((w as { full_legal_name?: string | null } | null)?.full_legal_name) || "").split(/\s+/)[0] || null;
+  const first = (displayName(worker.full_legal_name) || "").split(/\s+/)[0] || null;
   const address = (ov?.property_address as string | null | undefined) || (ov?.job_number as string | null | undefined) || "this job";
-  const to = ((w as { mobile?: string | null } | null)?.mobile) || (b?.phone as string | null | undefined) || null;
+  const to = (worker.mobile ?? "").trim() || null;
+  if (!to) { await heldOnce(jobId, `${base}:no_mobile`, "text", "the electrician has no mobile on file", false, undefined, spec.what); return "held: no_mobile"; }
+  const mint = () => els.mintElectricianLink(jobId, worker.id, null, Date.now(), { keepOlder: true });
+  const sent = (linkId: string) => els.retireOlderElectricianLinks(jobId, worker.id, linkId).catch(() => undefined);
+  const unsent = (linkId: string) => els.revokeElectricianLink(linkId).catch(() => undefined);
   const { isTestPartner } = await import("./test-send.core");
-  const els = await import("./electrician-link.server");
   if ((job.source as string | null) === "qa_test" || isTestPartner(b)) {
     const { stableUuid } = await import("./mitti-create-claim.core");
     const claimId = await stableUuid(`${base}:test`);
@@ -243,12 +259,13 @@ async function textLinkRound(jobId: string, spec: LinkTextSpec, known?: import("
     if (de) throw new Error(de.message);
     if (done) return "already";
     let link: { id: string; url: string };
-    try { link = await els.createElectricianLink(jobId, a.business_id); }
+    try { link = await mint(); }
     catch (e) { await heldOnce(jobId, `${base}:no_link`, "text", "the link isn't available yet", false, undefined, spec.what); return `held: ${(e as Error).message}`; }
     const { error: ce } = await db.from("workflow_events").insert({ id: claimId, job_id: jobId, actor_id: null, event_type: spec.testEvent, summary: spec.testSummary, details: { key: base }, internal: true });
-    if (ce) { await els.revokeElectricianLinks(jobId, "text_not_sent", { linkId: link.id }).catch(() => 0); if (ce.code === "23505") return "already"; throw new Error(ce.message); }
+    if (ce) { await unsent(link.id); if (ce.code === "23505") return "already"; throw new Error(ce.message); }
     const { sendTestSms } = await import("./test-send.server");
-    const r = await sendTestSms({ jobId, jobSource: (job.source as string | null) ?? null, partnerIsTest: isTestPartner(b), label: base, actorId: null }, to ?? "", spec.render({ first, address, url: link.url }));
+    const r = await sendTestSms({ jobId, jobSource: (job.source as string | null) ?? null, partnerIsTest: isTestPartner(b), label: base, actorId: null }, to, spec.render({ first, address, url: link.url }));
+    if (r.status === "sent") await sent(link.id); else await unsent(link.id);
     return `test_${r.status}`;
   }
   // The recipient's business + the job reach the trade pause check inside the sender (sms.server, `businessId` + `jobId`).
@@ -257,9 +274,10 @@ async function textLinkRound(jobId: string, spec: LinkTextSpec, known?: import("
   const hold = await smsHoldReason(input);
   if (hold) { await heldOnce(jobId, `${base}:${hold}`, "text", hold, false, undefined, spec.what); return `held: ${hold}`; }
   let link: { id: string; url: string };
-  try { link = await els.createElectricianLink(jobId, a.business_id); }
+  try { link = await mint(); }
   catch (e) { await heldOnce(jobId, `${base}:no_link`, "text", "the link isn't available yet", false, undefined, spec.what); return `held: ${(e as Error).message}`; }
-  const r = await sendRealSms({ ...input, body: spec.render({ first, address, url: link.url }) });
-  if (["blocked", "failed", "already"].includes(r.status)) await els.revokeElectricianLinks(jobId, "text_not_sent", { linkId: link.id }).catch(() => 0);
+  const { maskElectricianLinkInText } = await import("./electrician-link.core");
+  const r = await sendRealSms({ ...input, body: spec.render({ first, address, url: link.url }), storedBody: maskElectricianLinkInText(spec.render({ first, address, url: link.url })) });
+  if (r.status === "sent" || r.status === "sent_unknown") await sent(link.id); else await unsent(link.id);
   return r.status;
 }

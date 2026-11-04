@@ -36,7 +36,7 @@ and `No`; Photo = photo with location on ("several files allowed" = let the elec
 allowed" = the item must also accept a PDF file); Signature = signature capture.
 
 ## Group 1: Job
-Text item (not a question), first item on this page (decision 318): `Paid only when this form is 100% complete and you press Complete. Take every photo in Mitti on site so it's geotagged.`
+(The decision-318 text item "Paid only when this form is 100% complete…" that used to sit first on this page was DELETED by Jo — 3 Nov 2026 "get rid of the payment threatening", removed from the live template by the 4 Nov paste docs/mitti-paste-2026-11-04-second.md. No pay wording goes on any form.)
 Q1: `Job number` — Text — Required — portal fills this in
 Q2: `Address` — Text — Required — portal fills this in
 

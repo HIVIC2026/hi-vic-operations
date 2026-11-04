@@ -22,8 +22,8 @@ for (const j of [J, J_BOOKED, J_QA, J_OFF]) {
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: postgrestShim(db) }));
 let commsOn = true;
 mock.module("../src/lib/comms.server", () => ({ customerCommsEnabled: async () => commsOn, hasCurrentOwnerContactConsent: async () => true }));
-const realCore = await import("../src/lib/electrician-link.core");
-mock.module("../src/lib/electrician-link.core", () => ({ ...realCore, OWN_JOB_PIESA_TO_BOOK_EMAIL_APPROVED: true }));
+const realCore = await import("../src/lib/own-job-electrician-link.core");
+mock.module("../src/lib/own-job-electrician-link.core", () => ({ ...realCore, OWN_JOB_PIESA_TO_BOOK_EMAIL_APPROVED: true }));
 const realOwn = await import("../src/lib/own-job-piesa.server");
 mock.module("../src/lib/own-job-piesa.server", () => ({ ...realOwn, ownJobCallAndBook: async () => true }));
 const realWorkflow = await import("../src/lib/workflow.server");

@@ -140,7 +140,7 @@ export async function generateInstallerQuotes(jobId: string, actorId: string | n
   const subtotal = ownSubtotal;
   // Jo, 5 Oct 2026: same basis as the calculator — whole VEECs (Eq 48.1 rounded down, property postcode) × consumer
   // $/VEEC, then the $200 minimum rule. The old flat per-m² credit is no longer used for new/redrafted quotes.
-  if (!loc) throw new WorkflowError("VEU discount can't be worked out: the property postcode isn't in the official VEU location list. Quote this job manually.");
+  if (!loc) throw new WorkflowError("Rebate can't be worked out: the property postcode isn't in the official VEU location list. Quote this job manually.");
   const wv = wholeVeecDiscount(qi.areaM2, loc, Number(rs.indicative_veec_value));
   const rules = applyDiscountRules(wv.raw, subtotal, metro, rs);
   const veec = r2(rules.discount);
@@ -355,7 +355,7 @@ export async function adjustQuote(quoteId: string, actorId: string, reason: stri
 }
 
 /** Jo 4 Nov 2026 (A2, HIV's customer): one quote row per option (main R5.0 + any "thicker too" option), each with its
- *  own VEU discount and 15% check, all HELD as drafts for office review (as now). The installer's rate card is only what
+ *  own rebate and 15% check, all HELD as drafts for office review (as now). The installer's rate card is only what
  *  HIV pays them. A blank retail price, a failed area or an unapproved product → no quote, office Needs me. */
 async function generateLayoutQuotes(i: {
   jobId: string; actorId: string | null; m: Record<string, unknown>; layoutAreas: import("./ceiling-layout.core").LayoutArea[];
@@ -384,7 +384,7 @@ async function generateLayoutQuotes(i: {
   });
   const ready = (await import("./ready-check-quote.server"));
   if (!options.length) { await ready.recordNeedsOffice(i.jobId, i.actorId, null, reasons); throw new WorkflowError(reasons.join(" ")); }
-  if (!i.loc) throw new WorkflowError("VEU discount can't be worked out: the property postcode isn't in the official VEU location list. Quote this job manually.");
+  if (!i.loc) throw new WorkflowError("The rebate can't be worked out: the property postcode isn't in the official VEU location list. Quote this job manually.");
   const tolerancePct = Number((wf as Record<string, unknown> | null)?.["quote_estimate_variance_tolerance_pct"] ?? 15);
   const anyRemoval = i.layoutAreas.some((a) => a.old === "out");
   const estimateTotal = currentEstimateTotal(estimate?.scenarios, anyRemoval);

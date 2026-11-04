@@ -1,7 +1,8 @@
 // Part 3 final fix wave, item 1 (CRITICAL): the "upgrades another day" path, on REAL code against an isolated PGlite
 // holding every portal table (tests/helpers/pglite-journey-db.ts). Nothing on the stage path is stubbed — the real
 // completePiesaAssessment, autoAdvanceJob (planStep + loadAdvanceFacts), stageEntryBlockers, transition
-// (commit_guarded_stage), confirmBooking, linkEnterUpgradesDay, the A4 form creation and the A4 completion run here.
+// (commit_guarded_stage), confirmBooking, bookFromElectricianLink (the Part 6 worker link — Part 2's own-job link steps are
+// retired on the joined branch, join step 5 ruling e), the A4 form creation and the A4 completion run here.
 // Only the external providers are faked at `fetch` (Mitti, Resend, Twilio, Xero, Stripe — tests/helpers/journey-harness.ts).
 //
 // Bug (final review at 7604e1b): a live A3 with "upgrades needed" Yes, "doing them today" No and only standard ticks
@@ -49,7 +50,13 @@ await q(`insert into businesses (id, name, trading_name, abn, business_type, cap
 await q(`insert into profiles (id, full_name, email, phone) values ($1,'Ivy Installer','office@flow-insulation.example','0300000000'), ($2,'Sparky Sam',$3,'0411111111'), ($4,'Ollie Office','office@hivic-test.example',null)`, [U_INST, U_ELEC, ELEC_EMAIL, OFFICE]);
 await q(`insert into business_members (business_id, user_id, member_role, active) values ($1,$2,'business_admin',true), ($3,$4,'business_admin',true)`, [INST_BIZ, U_INST, ELEC_BIZ, U_ELEC]);
 await q(`insert into user_roles (user_id, role) values ($1,'admin')`, [OFFICE]);
-await q(`insert into partner_workers (business_id, trade_role, full_legal_name, email, mobile, profile_id, account_status, approval_status, approved_at) values ($1,'electrician','Sparky Sam',$2,'0411111111',$3,'active','approved',now())`, [ELEC_BIZ, ELEC_EMAIL, U_ELEC]);
+// Part 9 Task 9 (joined branch): the people on a booking must be on file — DOB + mobile, licence + REC verified by the office.
+const [{ id: WORKER }] = await q<{ id: string }>(`insert into partner_workers (business_id, trade_role, full_legal_name, email, mobile, profile_id, account_status, approval_status, approved_at, licence_number, rec_number, licence_expires_on, licence_verified_at) values ($1,'electrician','Sparky Sam',$2,'0411111111',$3,'active','approved',now(),'A12345','REC-9999',$4,now()) returning id`, [ELEC_BIZ, ELEC_EMAIL, U_ELEC, new Date(Date.now() + 365 * 86_400_000).toISOString().slice(0, 10)]);
+await q(`insert into partner_worker_identity (worker_id, date_of_birth, updated_by) values ($1,'1985-03-14',$2)`, [WORKER, U_ELEC]);
+// Part 9 Task 8: every booking kind needs the trade business's insurance on file, office-verified ($5m+ public liability, workers comp).
+for (const biz of [INST_BIZ, ELEC_BIZ]) await q(`insert into business_credentials (business_id, kind, label, expires_at, verification, amount_insured_aud) values ($1,'public_liability_insurance','Public liability','2099-01-01','verified',10000000), ($1,'workers_comp_insurance','Workers comp','2099-01-01','verified',null)`, [biz]);
+// The installer lets the electrician enter the upgrades day on their link (Part 5 who-books "either").
+await q("update businesses set piesa_booked_by = 'either' where id = $1", [INST_BIZ]);
 await q(`insert into workflow_settings (id, mitti_piesa_template_id, mitti_fixes_template_id, auto_send_mitti, customer_comms_enabled, safety_check_payment_inc_gst, payment_option_gate_enabled, piesa_install_window_days)
   values (1,$1,$2,true,true,349,true,30)`, [TPL_A3, TPL_A4]);
 
@@ -146,18 +153,17 @@ describe("Upgrades another day (q20 Yes, q30 No, no items) — the stage route, 
 
   test("the electrician's link shows 'enter the upgrades day' and books it → rectification booked, the A4 form is created once", async () => {
     const link = await import("../src/lib/electrician-link.server");
-    const { url } = await link.createElectricianLink(JOB, ELEC_BIZ);
-    const token = url.split("/").pop()!;
-    expect((await link.resolveElectricianLink(token))).toMatchObject({ ok: true, step: "enter_upgrades_day" });
+    const { token } = await link.mintElectricianLink(JOB, WORKER, U_INST);
+    expect((await link.electricianLinkView(token)).view).toMatchObject({ step: "set_upgrades_day", canBook: true });
     const start = nextWorkdayIso();
-    expect(await link.linkEnterUpgradesDay(token, start)).toEqual({ ok: true, start });
+    expect(await link.bookFromElectricianLink(token, "rectification", start)).toEqual({ ok: true, start });
     await settle();
     await debug(JOB, "AFTER-BOOK");
     expect(await q("select status from bookings where job_id=$1 and kind='rectification'", [JOB])).toEqual([{ status: "confirmed" }]);
     expect(await stageOf(JOB)).toBe("rectification_booked");
     expect([...providers.mitti.audits.values()].filter((a) => a.template_id === TPL_A4)).toHaveLength(1);
     expect(await events(JOB, "fixes_form_created")).toHaveLength(1);
-    expect((await link.resolveElectricianLink(token))).toMatchObject({ ok: true, step: "do_upgrades_in_mitti" });
+    expect((await link.electricianLinkView(token)).view).toMatchObject({ step: "upgrades_day" });
   });
 
   test("A4 complete without the certificate → post-upgrades record → installation scheduling, waiting for certificate", async () => {
@@ -217,14 +223,14 @@ describe("The link never shows a raw stage error", () => {
     await q("update jobs set stage='piesa_complete' where id=$1", [job]);
     await q("update quotes set status='superseded' where job_id=$1", [job]); // keeps auto-advance from moving it on
     const link = await import("../src/lib/electrician-link.server");
-    const { url } = await link.createElectricianLink(job, ELEC_BIZ);
-    const token = url.split("/").pop()!;
-    let msg = "";
-    try { await link.linkEnterUpgradesDay(token, nextWorkdayIso()); } catch (e) { msg = (e as Error).message; }
+    const { token } = await link.mintElectricianLink(job, WORKER, U_INST);
+    const r = await link.bookFromElectricianLink(token, "rectification", nextWorkdayIso());
+    expect(r.ok).toBe(false);
+    const msg = r.ok ? "" : r.message;
     expect(msg).not.toMatch(/can't be made at|Blocked:|WorkflowError/);
     expect(msg).toMatch(/Home Insulation Victoria/);
     expect(await q("select id from bookings where job_id=$1 and kind='rectification'", [job])).toHaveLength(0);
-    expect(await events(job, "electrician_link_upgrades_day")).toHaveLength(0);
+    expect(await events(job, "electrician_link_booked")).toHaveLength(0);
   });
 });
 

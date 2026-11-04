@@ -1,5 +1,7 @@
-import { addYmd, melbourneToday } from './melbourne-time.core';
 import { IN_HOUSE_ELECTRICIAN_BOOKING_BLOCKER } from './worker-compliance.core';
+import { OWNER_BOOKED_V2_APPROVED, ownerBookedNotice, type BookedKind } from './owner-booked-notice.core';
+import type { TradeContact } from './owner-will-call.core';
+export { OWNER_BOOKED_V2_APPROVED };
 export function emptyBookingTeamBlocker(kind:string,workers:BookingWorker[]):string|null {
   if((kind==='assessment'||kind==='rectification')&&!workers.some(w=>w.tradeRole==='electrician'&&w.electricianVerified))return IN_HOUSE_ELECTRICIAN_BOOKING_BLOCKER;
   if(kind==='installation'&&!workers.some(w=>bookingWorkerBlocker(kind,w)===null)){
@@ -39,10 +41,21 @@ export function bookingNotice(i:{kind:BookingNoticeKind;start:string;who:Pick<Bo
   const text=`You're booked for your ${label}: ${when}. Who's coming: ${person}. Need a different time? Call ${i.installer}${i.phone?` on ${i.phone}`:i.hivOffice?'':' on the number in your booking details'}.`;
   return {subject:`You're booked — ${label}`,text,sms:`You're booked for your ${label}: ${when}. ${person} is coming. Details in your email.`};
 }
-export type DigestInstall={jobId:string;jobNumber:string;start:string;name:string;url:string};
-export function tomorrowInstallDigest(rows:DigestInstall[],now=new Date()):DigestInstall[]{
-  const hour=Number(new Intl.DateTimeFormat('en-AU',{timeZone:'Australia/Melbourne',hour:'numeric',hour12:false}).format(now))%24;
-  if(hour<14)return [];
-  const tomorrow=addYmd(melbourneToday(now),1);
-  return rows.filter(r=>melbourneToday(new Date(r.start))===tomorrow).sort((a,b)=>a.start.localeCompare(b.start));
+/** Owner "You're booked" message for an in-house visit. A kind whose OWNER_BOOKED_V2_APPROVED flag is on → the approved
+ *  wording (owner-booked-notice.core: #24 Ready Check, #38 PIESA, #46 install; office phone only, held when the office phone
+ *  or business email is missing); otherwise the current bookingNotice wording. `business` is the business coming: the
+ *  installer, and for PIESA the ELECTRICIAN's (`installerName` then names who calls to book the install). */
+export type OwnerBookedInput = Parameters<typeof bookingNotice>[0] & { ownerName: string|null; business: TradeContact|null; changed: boolean; test?: boolean; installerName?: string|null|undefined; installDeadline?: string|undefined; balanceCents?: number|null|undefined };
+export function ownerBookedMessage(i:OwnerBookedInput,approved:Record<BookedKind,boolean>=OWNER_BOOKED_V2_APPROVED):
+  {version:'v1';subject:string;text:string;sms:string}|{version:'v2';subject:string;text:string;html:string;sms:string}|{held:string} {
+  // Part 3 'upgrades' (entered on the electrician's link) has its own flag (OWNER_UPGRADES_BOOKED_APPROVED) and only the bookingNotice wording.
+  if(i.kind!=='upgrades'&&approved[i.kind]){
+    if(!i.business)return{held:i.kind==='piesa'?'No electrician business on file':'No installer business on file'};
+    const n=ownerBookedNotice({kind:i.kind as BookedKind,firstName:i.ownerName,startIso:i.start,whoName:i.who.name,business:i.business,changed:i.changed,installerName:i.installerName,installDeadline:i.installDeadline,balanceCents:i.balanceCents},{test:i.test===true});
+    return 'held' in n?n:{version:'v2',...n};
+  }
+  const old=bookingNotice(i);
+  return{version:'v1',subject:old.subject,text:old.text,sms:old.sms};
 }
+// Part 7 Task 8 (Jo 2 Nov 2026): the 2pm day-before Lead Installer email digest rule was retired — the
+// 9am two-days-before "Confirm or change your Lead Installer by 5pm today" email (lead-installer-confirm.core) replaces it.

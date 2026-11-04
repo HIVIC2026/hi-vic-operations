@@ -7,6 +7,8 @@ import * as inHouse from "../src/lib/in-house.core";
 import * as membership from "../src/lib/mitti-membership.core";
 import { QUICK_TAPS_ANSWERED_EVENT } from "../src/lib/quick-taps.core";
 
+// Task 5: every pass carries a current phone consent (the pass tap records one naming the installer).
+const consentRow = (jobId: string, at = new Date().toISOString()) => ({ job_id: jobId, consent_status: "granted", consented_at: at, snapshot: {}, source: "quick_taps_reconsent" });
 // Execute real helper against fixtures, not a hosted client; no provider/network imports are allowed.
 function fixture(failedTable?: string, failPage = -1) {
   const calls: { table: string; filters: unknown[][] }[] = [];
@@ -19,6 +21,7 @@ function fixture(failedTable?: string, failPage = -1) {
     jobs: [{ id: "j", job_number: "HV-1", property_id: "p", stage: "preliminary_estimate_ready", source: "base44", deleted_at: null }],
     businesses: [{ id: "b", name: "Rapid", trading_name: "Rapid Insulation", in_house: true, is_active: true, service_postcodes: ["3199"], covers_all_victoria: false }],
     workflow_events: [{ job_id: "j", event_type: QUICK_TAPS_ANSWERED_EVENT, details: { outcome: "pass", consent_share: true } }],
+    owner_contact_consents: [consentRow("j")],
     lead_campaign_responses: [{ job_id: "j", spot_saved_at: "2026-10-30" }], properties: [{ id: "p", address_line: "1 Example Street", postcode: "3199" }],
     partner_workers: [{ profile_id: "i", trade_role: "installer",created_at:"2026-10-01" },{ profile_id: "e", trade_role: "electrician", email: "e@example.invalid",created_at:"2026-10-01" }],
     business_members: [{ user_id: "i" }, { user_id: "e" }],
@@ -53,6 +56,7 @@ function fixture(failedTable?: string, failPage = -1) {
     for (let i = 1; i < 5; i++) {
       data.jobs.push({ ...(data.jobs[0] as object), id: `j${i}` });
       data.lead_campaign_responses.push({ job_id: `j${i}`, spot_saved_at: "2026-10-30" });
+      data.owner_contact_consents.push(consentRow(`j${i}`));
       data.workflow_events.push({ job_id: `j${i}`, event_type: QUICK_TAPS_ANSWERED_EVENT, details: { outcome: "pass", consent_share: true } });
     }
     return ["j", "j1", "j2", "j3", "j4"];
@@ -76,7 +80,7 @@ test("actual send uses same-business approved workers, binds actor and deduplica
   expect(f.rpcCalls[0]).toMatchObject({ name: "allocate_in_house_batch_job",input: { _business: "b",_job: "j",_actor: "office",_installer: "i",_electrician: null } });
 });
 test("failed reads propagate and never invoke an allocation", async () => {
-  for (const table of ["jobs","businesses","job_assignments","lead_campaign_responses","customer_email_optouts","workflow_events","partner_workers","business_members"]) {
+  for (const table of ["jobs","businesses","job_assignments","lead_campaign_responses","customer_email_optouts","workflow_events","owner_contact_consents","partner_workers","business_members"]) {
     const f = fixture(table);
     await expect(f.api.sendInHouseBatch({ businessId: "b",jobIds: f.five(),actorId: "office" })).rejects.toThrow("read unavailable");
     expect(f.rpcCalls).toHaveLength(0);
@@ -118,6 +122,7 @@ function scaleFixture(failPage = -1) {
   f.data.properties = f.data.jobs.map((j: any) => ({ id: j.property_id, postcode: "3199", address_line: "TEST street" }));
   f.data.workflow_events = f.data.jobs.map((j: any) => ({ job_id: j.id, event_type: QUICK_TAPS_ANSWERED_EVENT, details: { outcome: "pass", consent_share: true } }));
   f.data.lead_campaign_responses = f.data.jobs.map((j: any) => ({ job_id: j.id, spot_saved_at: "2026-10-30" }));
+  f.data.owner_contact_consents = f.data.jobs.map((j: any) => consentRow(j.id));
   return f;
 }
 test("batch loader considers all 1250 jobs and every id filter is bounded at 200", async () => {
@@ -147,6 +152,20 @@ test("loader fails closed without YES and reads installer channel exemption", as
   expect((await f.api.loadInHouseBatches()).jobs).toEqual([]);
   f.data.jobs = [{ ...(f.data.jobs[0] as object), channel: "installer_sourced" }]; f.data.lead_campaign_responses = [];
   expect((await f.api.loadInHouseBatches()).jobs[0]).toMatchObject({ quickTapsYes: false, channel: "installer_sourced" });
+});
+test("Task 5: a website lead whose phone consent is over 3 months old is not suggested or handed off; installer customers are", async () => {
+  const now = new Date("2026-11-03T00:00:00.000Z");
+  const f = fixture(); f.data.owner_contact_consents = [consentRow("j", "2026-07-01T00:00:00.000Z")];
+  f.data.workflow_events = [{ job_id: "j", event_type: QUICK_TAPS_ANSWERED_EVENT, details: { outcome: "pass", consent_share: true, go_label: "Yes, Rapid can call me" } }];
+  const screen = await f.api.loadInHouseBatches({ now });
+  expect(screen.jobs).toEqual([]); expect(screen.suggestions).toEqual([]); expect(screen.waitingForCallConsent).toEqual(["j"]);
+  expect(await f.api.sendInHouseBatch({ businessId: "b", jobIds: ["j"], actorId: "office" }, { now })).toEqual({ sent: [], refused: [{ jobId: "j", reason: rules.WAITING_FOR_CALL_CONSENT }] });
+  expect(f.rpcCalls).toEqual([]);
+  const old = fixture(); old.data.owner_contact_consents = [consentRow("j", "2026-07-01T00:00:00.000Z")];
+  expect((await old.api.loadInHouseBatches({ now })).waitingForCallConsent).toEqual([]);
+  const own = fixture(); own.data.owner_contact_consents = [consentRow("j", "2026-07-01T00:00:00.000Z")];
+  own.data.jobs = [{ ...(own.data.jobs[0] as object), channel: "installer_sourced", originating_installer_business_id: "b" }];
+  expect((await own.api.sendInHouseBatch({ businessId: "b", jobIds: ["j"], actorId: "office" }, { now })).sent).toEqual(["j"]);
 });
 
 test("loader maps owner name and phone, selects owners(full_name,phone), and shows a yes before the batch closes", async () => {

@@ -47,7 +47,7 @@ await db.exec(`update public.workflow_settings set sms_message_switches = '{"job
 const twilio: string[] = [];
 const emails: { to: string; subject: string }[] = [];
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: postgrestShim(db, { jsonColumns: { workflow_settings: ["sms_message_switches"], admin_config_events: ["details"], workflow_events: ["details"], partner_offers: ["summary"] } }) }));
-mock.module("../src/lib/comms.server", () => ({ customerCommsEnabled: async () => true, hasCurrentOwnerContactConsent: async () => true }));
+mock.module("../src/lib/comms.server", () => ({ customerCommsEnabled: async () => true, hasCurrentOwnerContactConsent: async () => true, ownerConsentAllowsDelivery: async () => true }));
 mock.module("../src/lib/twilio-au1.server", () => ({
   au1Configured: () => true,
   au1SendMessage: async (p: URLSearchParams) => { twilio.push(p.get("Body") ?? ""); return { ok: true, status: 201, text: JSON.stringify({ sid: `SM${twilio.length}` }) }; },
@@ -68,7 +68,6 @@ process.env["LOVABLE_API_KEY"] = "lv_test";
 
 const { sendRealSms } = await import("../src/lib/sms.server");
 const { sendOfficeEmail } = await import("../src/lib/office-email.server");
-const { textInstallerAboutOffer, emailInstallerAboutOffer } = await import("../src/lib/ready-check-offer-text.server");
 const { textTeamMemberInvite } = await import("../src/lib/installer-texts.server");
 
 const setPaused = (on: boolean) => db.query("update public.workflow_settings set trade_messages_paused = $1 where id = 1", [on]);

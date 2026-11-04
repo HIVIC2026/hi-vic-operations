@@ -1,25 +1,29 @@
 // Decision 278 (Jo 25 Oct 2026): the business owner's "Your price" card — reading it and saving it. Kept apart from the
 // read-only `installer-price.server.ts` (which sits on the autoAdvance graph) because saving re-runs the guarded Mitti
-// sync to prepare the owner's quote. Business admin only (`requireMember(userId, businessId, true)`); team members are
-// refused and the card returns null for them. Append-only event; never sends anything.
+// sync to prepare the owner's quote. Part 10 Task 4 (Jo 3 Nov 2026): the BOSS or the OFFICE enters the price (Part 5 role
+// rule `seesPrices` via `canEnterPrice`); Lead Installers, crew and electricians are refused server-side and the card returns
+// null for them. Append-only event. "Send quote to owner" (only while OWN_CUSTOMER_SEND_ON_PRESS_ENABLED) releases through
+// the SAME guarded auto-send (`maybeAutoSendInstallerQuote`, every check); otherwise this module never sends anything.
 // Decision 289: price + what is included only; the electrician was chosen at Add a job and is shown read-only.
 // Decision 290 (corrected): the card shows the Ready Check's access rating and issue notes as the flag (no fee question).
 import { jobAdmin as admin } from "./job-facts.server"; // speed (Task 11): the admin client; inside the job page bundle it answers from the job's rows
 import { WorkflowError, logEvent } from "./workflow.server";
 import {
   INSTALLER_PRICE_EVENT,
+  PRICE_ENTRY_REFUSED,
   PRICE_LOCKED,
+  canEnterPrice,
   priceCardLocked,
   priceEventSummary,
   priceFromPortal,
   validateInstallerPrice,
   type InstallerPriceInput,
 } from "./installer-price.core";
+import { IN_HOUSE_PIESA_HOLD_REASON } from "./installer-paid-electricians.core";
 import { readInstallerPriceState, type StoredInstallerPrice } from "./installer-price.server";
 import { early } from "./early-read";
 import { sharedFor, type SharedJobReads } from "./job-shared-reads";
 // Namespaces: tests replace these modules with partial mocks; a namespace never fails on a missing export.
-import * as pilotServer from "./pilot.server";
 import * as usualElectricianServer from "./usual-electrician.server";
 import * as electricianChoiceServer from "./electrician-choice.server";
 import * as quoteStatusServer from "./installer-quote-status.server";
@@ -58,6 +62,25 @@ async function a1JobOrThrow(jobId: string) {
   };
 }
 
+/** Part 10 Task 4: Boss or Office of the job's business (Part 5 `seesPrices`); anyone else is refused before any write. */
+async function requireCanEnterPrice(userId: string, businessId: string): Promise<void> {
+  if (!canEnterPrice(await memberRoleFor(userId, businessId))) throw new WorkflowError(PRICE_ENTRY_REFUSED);
+}
+/** The sign-in's ACTIVE membership row for this business (`business_members.member_role`: business_admin / office /
+ *  member), read directly — `myBusinesses` folds Office into "member". Null = not a member. Read errors fail closed. */
+async function memberRoleFor(userId: string, businessId: string): Promise<string | null> {
+  const { data, error } = await admin
+    .from("business_members")
+    .select("member_role")
+    .eq("business_id", businessId)
+    .eq("user_id", userId)
+    .eq("active", true)
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new WorkflowError("Your business membership could not be read.");
+  return (data as { member_role?: string | null } | null)?.member_role ?? null;
+}
+
 /** The current Ready Check snapshot's entries (empty when no Mitti form yet) and whether it says removal is needed
  *  (null when there is no current Ready Check at all). Read-only. */
 async function currentReadyCheck(jobId: string): Promise<{
@@ -66,10 +89,12 @@ async function currentReadyCheck(jobId: string): Promise<{
   hasReadyCheck: boolean;
   installAreaM2: number | null;
   removalM2: number | null;
+  /** Jo 4 Nov 2026: the new-wording Ready Check's per-area layout answers (ceiling_measurements.zones[].layout), read with the same row. */
+  layout: { areas: import("./ceiling-layout.core").LayoutArea[]; thicker: 6 | 7 | null } | null;
 }> {
   const { data: m } = await admin
     .from("ceiling_measurements")
-    .select("raw_snapshot, removal_required, measured_area_m2")
+    .select("raw_snapshot, removal_required, measured_area_m2, zones")
     .eq("job_id", jobId)
     .eq("is_current", true)
     .maybeSingle();
@@ -84,32 +109,22 @@ async function currentReadyCheck(jobId: string): Promise<{
     m as { removal_required?: boolean | null } | null,
   );
   const measured = (m as { measured_area_m2?: number | null } | null)?.measured_area_m2 ?? null;
+  const zones = Array.isArray((m as { zones?: unknown } | null)?.zones) ? ((m as { zones: { layout?: unknown }[] }).zones) : [];
+  const areas = zones.map((z) => z?.layout).filter(Boolean) as import("./ceiling-layout.core").LayoutArea[];
+  const layout = areas.length ? { areas, thicker: (await import("./ceiling-layout.core")).readLayoutOutcome(entries as { label: string; value: unknown }[]).thicker } : null;
   return {
     entries,
     removalRequired,
     hasReadyCheck: !!m,
     installAreaM2: measured == null ? null : Number(measured),
     removalM2: removalTotalM2(entries),
+    layout,
   };
-}
-
-/** Jo 4 Nov 2026: the new-wording Ready Check's areas (stored per area on the current measurement) and the owner's
- *  "thicker too" request. Null on old-wording Ready Checks (the card then works exactly as before). */
-async function currentLayout(jobId: string): Promise<{ areas: import("./ceiling-layout.core").LayoutArea[]; thicker: 6 | 7 | null } | null> {
-  const { data: m, error } = await admin.from("ceiling_measurements").select("zones, raw_snapshot").eq("job_id", jobId).eq("is_current", true).maybeSingle();
-  if (error) throw new WorkflowError("The Ready Check could not be read.");
-  const zones = Array.isArray((m as { zones?: unknown } | null)?.zones) ? ((m as { zones: { layout?: unknown }[] }).zones) : [];
-  const areas = zones.map((z) => z?.layout).filter(Boolean) as import("./ceiling-layout.core").LayoutArea[];
-  if (!areas.length) return null;
-  const raw = (m as { raw_snapshot?: unknown } | null)?.raw_snapshot;
-  const entries = (Array.isArray(raw) ? raw : []).filter((e: { label?: unknown }) => e && typeof e.label === "string") as { label: string; value: unknown }[];
-  const { readLayoutOutcome } = await import("./ceiling-layout.core");
-  return { areas, thicker: readLayoutOutcome(entries).thicker };
 }
 
 export type LayoutPriceInput = { mainPicks: ({ brand: import("./ceiling-layout.core").Brand; r: number } | null)[]; thickerPicks?: ({ brand: import("./ceiling-layout.core").Brand; r: number } | null)[] | undefined; thickerTotalIncGst?: number | null | undefined };
 
-/** The boss's "Your price" card: the saved price, the job's electrician choice (read-only) and the access flag. Team members: null (nothing shown). */
+/** The Boss's / Office's "Your price" card: the saved price, the job's electrician choice (read-only) and the access flag. Everyone else: null (nothing shown). */
 export async function installerPriceView(jobId: string, userId: string, sharedReads?: SharedJobReads) {
   const shared = sharedFor(sharedReads, userId, jobId);
   // Speed (installer screens, Task 6): the job, the caller's memberships and every card read that needs only the job id
@@ -124,7 +139,7 @@ export async function installerPriceView(jobId: string, userId: string, sharedRe
       .eq("id", jobId)
       .maybeSingle(),
   );
-  const mineP = early(pilotServer.myBusinesses(userId));
+  const roleP = early(jobP.then(({ data: jj }) => (jj?.originating_installer_business_id ? memberRoleFor(userId, jj.originating_installer_business_id) : null)));
   const stateP = early(readInstallerPriceState(jobId));
   const usualP = early(
     jobP.then(({ data: jj }) =>
@@ -136,6 +151,14 @@ export async function installerPriceView(jobId: string, userId: string, sharedRe
     ),
   );
   const recordedP = early(electricianChoiceServer.readElectricianChoice(jobId).catch(() => null));
+  // G7 (Jo 4 Nov 2026): the Electrician row names the Team electrician on the job (allocated, else picked at Add a job).
+  // A read failure is NOT "nobody" — the row then says the check failed rather than falling back to a wrong name.
+  const teamP = early(
+    import("./in-house-electrician.server").then((m) => m.teamElectricianOnJob(jobId)).then(
+      (team) => ({ team, failed: false }),
+      () => ({ team: null, failed: true }),
+    ),
+  );
   const readyCheckP = early(
     currentReadyCheck(jobId).catch(() => ({
       entries: [] as { label: string; value: string | null }[],
@@ -143,30 +166,34 @@ export async function installerPriceView(jobId: string, userId: string, sharedRe
       hasReadyCheck: false,
       installAreaM2: null,
       removalM2: null,
+      layout: null,
     })),
   );
   const quoteP = early(shared ? shared.quote() : loadInstallerQuote(jobId));
+  // J3 (4): the business's own PIESA rate starts with the other reads (no serial query after them); inside the job page
+  // bundle it is answered from the business facts (rate cards + lines), outside it is one request.
+  const piesaCheckP = early(jobP.then(({ data: jj }) => readPiesaRate(jj?.originating_installer_business_id)));
   const sentAtP = early(
     latestQuoteSentAt(jobId).then(
       (at) => ({ at, failed: false }),
       () => ({ at: null as string | null, failed: true }),
     ),
   );
-  const layoutP = early(currentLayout(jobId).catch(() => null));
-  const lastLayoutP = early(admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", INSTALLER_PRICE_EVENT).order("created_at", { ascending: false }).limit(1).maybeSingle());
   const { data: j } = await jobP;
   if (!j || !priceFromPortal(j.channel) || !j.originating_installer_business_id) return null;
-  if ((await mineP).get(j.originating_installer_business_id) !== "business_admin") return null;
-  const [state, usual, recorded, readyCheck] = await Promise.all([
+  if (!canEnterPrice(await roleP)) return null;
+  const [state, usual, recorded, readyCheck, teamRead] = await Promise.all([
     stateP,
     usualP,
     recordedP,
     readyCheckP,
+    teamP,
   ]);
   const stored = state.stored;
   const { entries, removalRequired } = readyCheck;
-  const { resolveElectricianChoice, electricianChoiceLine } =
+  const { resolveElectricianChoice, priceCardElectricianLine } =
     await import("./electrician-choice.core");
+  const { TEAM_ELECTRICIAN_GONE, TEAM_ELECTRICIAN_CHECK_FAILED } = await import("./rec-onboarded.core");
   const { contactAnswersFromEntries } = await import("./mitti.core");
   const { accessFlagFromEntries } = await import("./ready-check-answers.core");
   // Jo 27 Oct 2026 (redone): the card's Ready Check rows — same source the quote uses (current measurement + form removal m²).
@@ -192,23 +219,40 @@ export async function installerPriceView(jobId: string, userId: string, sharedRe
     sent.failed ||
     priceCardLocked({ quoteSentAt: sent.at, newQuoteRequestedAt: state.newQuoteRequestedAt });
   const { APPROVED_PRODUCTS } = await import("./insulation-product.core");
+  // The HIV electrician switch left the price card (main, 2 Nov 2026): the choice is made once at Add a job.
   const hivSwitch: { priceIncGst: number } | null = null;
-  const layoutNow = await layoutP;
+  const { OWN_CUSTOMER_SEND_ON_PRESS_ENABLED } = await import("./auto-quote-send.core");
+  // Jo 4 Nov 2026: the owner's PIESA line is this business's own PIESA rate; with none set the quote can't be sent.
+  // J1 (2): a read failure is NOT "not set" — the card says the check failed and holds (button "Save"), never PIESA_PRICE_NOT_SET.
+  const piesaCheck = await piesaCheckP;
+  const { PIESA_PRICE_NOT_SET, PIESA_PRICE_CHECK_FAILED } = await import("./own-customer-price.core");
+  // Join (#135 read budget): the layout rides on the Ready Check row read above; the saved picks on the price state (same event).
+  const layoutNow = readyCheck.layout;
   const { a1PriceLinkView } = await import("./ceiling-layout.core");
-  const savedLayout = state.stored ? (((await lastLayoutP).data?.details as { layout?: LayoutPriceInput } | null)?.layout ?? null) : null;
+  const savedLayout = (state.stored?.layout as LayoutPriceInput | null | undefined) ?? null;
   return {
     canSet: true as const,
     layout: layoutNow ? { ...a1PriceLinkView(layoutNow.areas, layoutNow.thicker), thickerTarget: layoutNow.thicker, saved: savedLayout } : null,
     current: stored,
     locked,
+    /** Task 4: the button says "Send quote to owner" only while pressing it sends (`enterPriceButton`). */
+    sendOnPress: OWN_CUSTOMER_SEND_ON_PRESS_ENABLED,
+    /** Jo 4 Nov 2026: false → the card says `piesaPriceNote` and the button is "Save" (the price is saved, the quote holds). */
+    piesaPriceSet: piesaCheck.kind === "set",
+    /** Why the quote can't be sent yet: no rate set (ask the office) or the rate could not be checked just now (try again). */
+    piesaPriceNote: piesaCheck.kind === "set" ? null : piesaCheck.kind === "failed" ? PIESA_PRICE_CHECK_FAILED : PIESA_PRICE_NOT_SET,
     productOptions: APPROVED_PRODUCTS.map((p) => p.option),
     mittiProduct: product?.option ?? null,
     hivSwitch,
-    electrician: electricianChoiceLine(
-      choice,
-      usual.electrician,
-      stored?.record.electrician?.name ?? contactAnswersFromEntries(entries).electricianName,
-    ),
+    electrician: teamRead.failed
+      ? TEAM_ELECTRICIAN_CHECK_FAILED
+      : priceCardElectricianLine({
+          team: teamRead.team,
+          choice,
+          usual: usual.electrician,
+          legacyName: stored?.record.electrician?.name ?? contactAnswersFromEntries(entries).electricianName,
+          goneLine: TEAM_ELECTRICIAN_GONE,
+        }),
     access,
     removalRequired,
     readyCheck: {
@@ -221,10 +265,15 @@ export async function installerPriceView(jobId: string, userId: string, sharedRe
   };
 }
 
-/** Prepare (never send) the owner's quote from the portal price through the existing guarded Ready Check paths: the
- *  regular sync while the form is open; the completed-form draft + the auto-send decision once it is Complete. Any
- *  failure here is picked up by the 15-minute tick. */
-async function prepareQuoteFromPortal(jobId: string, userId: string): Promise<void> {
+export type PriceSendOutcome = { sent: boolean; reasons: string[] };
+const NOT_COMPLETE: PriceSendOutcome = { sent: false, reasons: ["Ready Check not marked Complete in Mitti yet"] };
+
+/** Prepare the owner's quote from the portal price through the existing guarded Ready Check paths: the regular sync while
+ *  the form is open; the completed-form draft + the auto-send decision once it is Complete. `send` (Task 4, only with
+ *  OWN_CUSTOMER_SEND_ON_PRESS_ENABLED) asks that ONE auto-send decision to release now (`enabled: true`) — every existing
+ *  release check still applies and a hold comes back as plain reasons. Without `send` nothing is sent here; any failure
+ *  is picked up by the 15-minute tick. */
+async function prepareQuoteFromPortal(jobId: string, userId: string, send = false): Promise<PriceSendOutcome> {
   try {
     await (await import("./mitti.server")).syncMittiAssessment(jobId, userId);
   } catch {
@@ -246,28 +295,34 @@ async function prepareQuoteFromPortal(jobId: string, userId: string): Promise<vo
       await (
         await import("./installer-quote.server")
       ).draftInstallerQuoteFromReadyCheck(jobId, userId, entries, String(m.external_id));
-      await (
+      const r = await (
         await import("./auto-quote-send.server")
       ).maybeAutoSendInstallerQuote(jobId, {
         formCompleted: true,
         formModifiedAt: a?.modified_at ?? a?.audit_data?.date_modified ?? null,
         entries,
+        ...(send ? { enabled: true } : {}),
       });
+      return { sent: r.sent, reasons: r.reasons };
     }
-  } catch {
-    /* tick */
+    return NOT_COMPLETE;
+  } catch (e) {
+    // Without `send` the tick retries; with it the screen is told plainly (the price is saved either way).
+    return { sent: false, reasons: [send ? `Couldn't prepare the quote: ${(e as Error).message}` : NOT_COMPLETE.reasons[0]!] };
   }
 }
 
-/** Business admin only. Append-only; the latest event is the price. Then the guarded paths prepare the draft quote. */
+/** Boss or Office. Append-only; the latest event is the price. Then the guarded paths prepare the draft quote — and, with
+ *  `opts.send` while OWN_CUSTOMER_SEND_ON_PRESS_ENABLED, ask the guarded auto-send to release it now (`sendOnPressEnabled`
+ *  is a test seam only; it defaults to the constant). */
 export async function setInstallerPrice(
   jobId: string,
   userId: string,
   input: InstallerPriceInput & { layout?: LayoutPriceInput | null | undefined },
-): Promise<StoredInstallerPrice> {
+  opts: { send?: boolean; sendOnPressEnabled?: boolean } = {},
+): Promise<{ stored: StoredInstallerPrice; sent: boolean; reasons: string[] }> {
   const j = await a1JobOrThrow(jobId);
-  const { requireMember } = await import("./pilot.server");
-  await requireMember(userId, j.originating_installer_business_id, true);
+  await requireCanEnterPrice(userId, j.originating_installer_business_id);
   // Jo 31 Oct 2026: once the quote has gone to the owner the card is locked (the office reopens it with a new-quote request). Checked before any write.
   const [state, quoteSentAt] = await Promise.all([
     readInstallerPriceState(jobId),
@@ -282,13 +337,14 @@ export async function setInstallerPrice(
     hasReadyCheck: false,
     installAreaM2: null,
     removalM2: null,
+    layout: null,
   }));
   const { removalRequired } = rc;
   const v = validateInstallerPrice({ ...input, removalRequired });
   if (!v.ok || !v.record) throw new WorkflowError(v.issues.join(" "));
   // Jo 4 Nov 2026: on a new-wording Ready Check the boss picks brand + batts per area from approved products only, with
   // ONE main total (the price above) and a thicker total only when the owner asked for it. Never a rate card or retail price.
-  const layoutNow = await currentLayout(jobId);
+  const layoutNow = rc.layout;
   let layout: (LayoutPriceInput & { thicker: 6 | 7 | null }) | null = null;
   if (layoutNow) {
     const { validateA1Price } = await import("./ceiling-layout.core");
@@ -322,11 +378,28 @@ export async function setInstallerPrice(
   );
   const stored = (await readInstallerPriceState(jobId)).stored;
   if (!stored) throw new WorkflowError("The price was not saved.");
+  const { OWN_CUSTOMER_SEND_ON_PRESS_ENABLED } = await import("./auto-quote-send.core");
+  if (opts.send && (opts.sendOnPressEnabled ?? OWN_CUSTOMER_SEND_ON_PRESS_ENABLED)) {
+    // Jo 4 Nov 2026: no PIESA rate on the business → the quote can't be sent (never a default $349). The price is saved
+    // and the draft is still prepared (held) in the background; the screen gets the one plain reason.
+    const { PIESA_PRICE_NOT_SET, PIESA_PRICE_CHECK_FAILED } = await import("./own-customer-price.core");
+    // J1 (2): a rate READ failure holds with its own line (try again in a minute) and never reads as "not set".
+    const piesaCheck = await readPiesaRate(j.originating_installer_business_id);
+    if (piesaCheck.kind !== "set") {
+      const { runAfterResponse } = await import("./background.server");
+      runAfterResponse(() => prepareQuoteFromPortal(jobId, userId));
+      return { stored, sent: false, reasons: [piesaCheck.kind === "failed" ? PIESA_PRICE_CHECK_FAILED : PIESA_PRICE_NOT_SET] };
+    }
+    // Task 4: "Send quote to owner" — prepared and released inline through the one guarded auto-send; a hold's plain
+    // reasons go back to the screen with the saved price (the office's "no PIESA rate" hold reads as the installer line).
+    const r = await prepareQuoteFromPortal(jobId, userId, true);
+    return { stored, sent: r.sent, reasons: r.reasons.map((x) => (x === IN_HOUSE_PIESA_HOLD_REASON ? PIESA_PRICE_NOT_SET : x)) };
+  }
   // Tom 31 Oct 2026: Save answers as soon as the price is stored. The quote (two Mitti reads + draft) is prepared after
   // the reply; if that is cut short the 15-minute tick prepares it, as it always has.
   const { runAfterResponse } = await import("./background.server");
   runAfterResponse(() => prepareQuoteFromPortal(jobId, userId));
-  return stored;
+  return { stored, sent: false, reasons: [] };
 }
 
 /** Jo 28 Oct 2026: the installer's own ONE-WAY switch to HIV's electrician, only while the job is held for a not-onboarded
@@ -336,4 +409,15 @@ export async function switchToHivElectrician(jobId: string, userId: string): Pro
   const { requireMember } = await import("./pilot.server");
   await requireMember(userId, j.originating_installer_business_id, true);
   throw new WorkflowError("Use one of your own electricians.");
+}
+
+/** The business's own PIESA rate (rate card PIESA line, inc GST): set / not set / could not be read (J1 (2): a read failure is never "not set"). */
+async function readPiesaRate(businessId: string | null | undefined): Promise<{ kind: "set"; rate: number } | { kind: "not_set" } | { kind: "failed" }> {
+  try {
+    const rate = await (await import("./installer-paid-electricians.server")).installerSafetyCheckPrice(businessId);
+    return rate == null ? { kind: "not_set" } : { kind: "set", rate };
+  } catch (e) {
+    console.error("installer PIESA rate could not be read", (e as Error).message);
+    return { kind: "failed" };
+  }
 }

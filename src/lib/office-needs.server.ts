@@ -1,8 +1,9 @@
 // Needs me (O1) + the Job page Next panel (O2): gathers the facts once, then the pure rules in office-needs.core decide
 // the rows and job-next-action.core the Next sentence. Read-only: never moves a job, never sends anything.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import type { Database } from "@/integrations/supabase/types";
 import { loadOffice, type OfficeJob } from "./office.server";
-import { buildNeedsRows, duplicatesInvoiceFailed, type EmailRowInput, type NeedsFacts, type NeedsRow, type SystemRow } from "./office-needs.core";
+import { buildNeedsRows, duplicatesInvoiceFailed, escWithdrawRows, templatesMissingRows, type EmailRowInput, type NeedsFacts, type NeedsRow, type SystemRow } from "./office-needs.core";
 import { FAILED_EMAIL_STATUSES, FAILED_SMS_STATUSES, SUCCESS_EMAIL_STATUSES, SUCCESS_SMS_STATUSES, UNSURE_EMAIL_STATUSES, UNSURE_SMS_STATUSES, partnerSendFailedRows, sendFailedRows, tradeTextCoveredKeys } from "./send-failed.core";
 import { AUTO_OFFER_RETURNED_EVENT } from "./auto-offer.core";
 import { surnameOf } from "./office-jobs.core";
@@ -10,16 +11,20 @@ import { VEEC_OFFICE_ALERT_EVENT } from "./veec-assignment-form.core";
 import { apAutoHoldAlert } from "./veec-ap-auto.core";
 import { consentApHoldAlert } from "./consent-ap-auto.core";
 import { PIESA_OWNER_CONFIRMED_EVENT, PIESA_OWNER_CONFIRM_OFFICE_ALERT_EVENT } from "./piesa-owner-confirm.core";
+import { UPGRADES_PAST_30_DAYS_EVENT, upgradesYmdOf } from "./upgrades-watch.core";
 import { FIXES_PAUSED_STAGES } from "./installer-screens.core";
 import { PIESA_FIXES_CONFIRMED_EVENT, PIESA_FIXES_CONFIRM_OFFICE_ALERT_EVENT } from "./piesa-fixes-confirm.core";
 import { FIXES_TIMES_GIVEN_EVENT, FIXES_TIMES_LINK_EVENT, fixesTimesMissing } from "./fixes-times.core";
-import { AUTO_FIXES_QUOTE_HELD_EVENT } from "./auto-fixes-quote-send.core";
 import { OWN_JOB_HANDOFF_STAGES, OWN_JOB_PIESA_HANDED_EVENT, OWN_JOB_PIESA_HELD_EVENT } from "./own-job-piesa.core";
 import { OWN_JOB_SWAP_FORM_NOT_MOVED_EVENT } from "./electrician-swap.core";
-import { OWN_JOB_PIESA_HANDED_BACK_EVENT, OWN_JOB_PIESA_INSTALLER_NOT_TOLD_EVENT, cantDoReasonLabel, type CantDoReason } from "./electrician-link.core";
+import { OWN_JOB_PIESA_HANDED_BACK_EVENT, OWN_JOB_PIESA_INSTALLER_NOT_TOLD_EVENT, cantDoReasonLabel, type CantDoReason } from "./own-job-electrician-link.core";
+/** History only (Part 4 Task 14): the automatic fixes quote send is retired; rows it held earlier still show until resolved. */
+const AUTO_FIXES_QUOTE_HELD_EVENT = "fixes_quote_auto_send_held";
 import { PIESA_AUTOFORM_FAILED_EVENT, piesaFormFailedOpen } from "./piesa-autoform.core";
+import { TENANT_NOTICE_HELD_EVENT, TENANT_NOTICE_SENT_EVENT, tenantNoticeHeldOpen } from "./tenant-notice.core";
 import { prestartFailedFor } from "./prestart.core";
 import { endOfMelbourneYmd } from "./melbourne-time.core";
+import { VEEC_PART_B_IMAGE_HELD_EVENT, VEEC_PART_B_MITTI_HELD_EVENT, VEEC_PART_B_SIGNED_MITTI_EVENT, veecPartBHeldOpen } from "./veec-part-b-mitti.core";
 
 type Row = Record<string, unknown>;
 const s = (v: unknown) => (v == null ? null : String(v));
@@ -187,16 +192,16 @@ export async function oldFixesInvoicePaidFacts(jobIds: string[], pre?: Row[]): P
   return out;
 }
 
-/** Batch 3a: base facts for jobs still closed by an expired quote ("Quote expired (14 days)"). They are not in the
+/** Batch 3a: base facts for jobs still closed by an expired quote ("Quote expired (30 days)", or "(14 days)" before the 30-day change). They are not in the
  *  open-jobs list, but their expired-quote / new-quote office rows still need to show. Deleted (and, unless asked, TEST)
  *  jobs are left out. */
 export async function expiryClosedJobFacts(jobIds: string[], includeTest: boolean): Promise<Map<string, NeedsFacts>> {
   const out = new Map<string, NeedsFacts>();
   if (!jobIds.length) return out;
-  const { QUOTE_EXPIRED_CANCEL_REASON } = await import("./quote-expiry.core");
+  const { isQuoteExpiredCancelReason } = await import("./quote-expiry.core");
   const rows = await byIds("jobs closed by an expired quote", jobIds, (c, a, b) => admin.from("jobs").select("id, job_number, source, deleted_at, stage, cancelled_reason, owners(full_name), properties(suburb)").in("id", c).range(a, b));
   for (const j of rows) {
-    if (j["deleted_at"] || j["stage"] !== "cancelled" || j["cancelled_reason"] !== QUOTE_EXPIRED_CANCEL_REASON) continue;
+    if (j["deleted_at"] || j["stage"] !== "cancelled" || !isQuoteExpiredCancelReason(j["cancelled_reason"] as string | null)) continue;
     if (!includeTest && j["source"] === "qa_test") continue;
     out.set(String(j["id"]), { jobId: String(j["id"]), jobNumber: String(j["job_number"]), surname: surnameOf((j["owners"] as { full_name?: string } | null)?.full_name), suburb: (j["properties"] as { suburb?: string } | null)?.suburb ?? null, ...(j["source"] === "qa_test" ? { isTest: true } : {}) });
   }
@@ -245,7 +250,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     });
   })();
   // Wave 1. Needs me reads only open jobs (complete / cancelled are always "ended" and were filtered out below anyway).
-  const [office, consents, veecForms, escRows, emailFails, smsFails, tenDay, noAccess, veecAlerts, overdue, returned, provisionalBookings, piesaAlerts, piesaConfirms, fixesLinks, fixesGiven, fixesAlerts, fixesConfirms, rectDrafts, rectHolds, q, qTest, robotRows, piisaAlerts, items, recLinks, installerElectricians, fb, prestartChecks, upcomingInstalls, piesaFormFails, payInvoices, payQuotes, paySettings, piesaCurRows, payRepeatEv, addrUnresolved, mittiElecHeld, ownJobHeld] = await Promise.all([
+  const [office, consents, veecForms, escRows, emailFails, smsFails, tenDay, noAccess, veecAlerts, overdue, returned, provisionalBookings, piesaAlerts, piesaConfirms, fixesLinks, fixesGiven, fixesAlerts, fixesConfirms, rectDrafts, rectHolds, q, qTest, robotRows, piisaAlerts, items, recLinks, installerElectricians, fb, prestartChecks, upcomingInstalls, piesaFormFails, payInvoices, payQuotes, paySettings, piesaCurRows, payRepeatEv, addrUnresolved, mittiElecHeld, ownJobHeld, tenantNoticeEv, partBEvents, upgradesFlags, upgradesBookings] = await Promise.all([
     loadOffice(admin, { includeTest: opts.includeTest, ...(opts.onlyIds ? { onlyIds: opts.onlyIds } : { openOnly: true }) }),
     all("ESC consents", (a, b) => scoped(admin.from("owner_esc_consents").select("job_id, owner_signed_at, ap_signed_at, status, scheduled_start, created_at")).not("owner_signed_at", "is", null).is("ap_signed_at", null).range(a, b)),
     all("VEEC forms", (a, b) => scoped(admin.from("customer_assignments").select("job_id, installer_signed_at, ap_signed_at, consumer_signed_at, status, created_at")).eq("record_kind", "final_veec_assignment").neq("status", "cancelled").range(a, b)),
@@ -286,9 +291,9 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     listMode ? (async () => (await import("./my-electricians.server")).pendingInstallerElectricianItems().catch(() => { unavailable.push("electricians added by installers"); return []; }))() : Promise.resolve([]),
     // Decision 335: 1–3 star private feedback → ONE row per job for 14 days (often on a closed job: read directly).
     listMode ? all("review feedback", (a, b) => admin.from("workflow_events").select("job_id, created_at, details").eq("event_type", OWNER_REVIEW_FEEDBACK_EVENT).gte("created_at", new Date(t0 - REVIEW_FEEDBACK_ROW_DAYS * DAY).toISOString()).range(a, b)) : Promise.resolve([] as Row[]),
-    // Decision 395: the day-before pre-start result for upcoming installs (prestart.server writes it from 12pm the day before).
+    // Decision 395: the day-before pre-start result for upcoming installs (prestart.server writes it at the GO slots: 2pm the day before, 6:30am on the day — Part 9 Task 6).
     all("pre-start checks", (a, b) => scoped(admin.from("pre_start_checks").select("job_id, scheduled_start, passed, failures, checked_at")).gt("scheduled_start", new Date(t0).toISOString()).order("checked_at", { ascending: false }).range(a, b)),
-    all("upcoming installs", (a, b) => scoped(admin.from("bookings").select("job_id, scheduled_start")).eq("kind", "installation").eq("status", "confirmed").gt("scheduled_start", new Date(t0).toISOString()).range(a, b)),
+    all("upcoming installs", (a, b) => scoped(admin.from("bookings").select("id, job_id, scheduled_start")).eq("kind", "installation").eq("status", "confirmed").gt("scheduled_start", new Date(t0).toISOString()).range(a, b)),
     // Decision 398: the A3 PIESA form was not created automatically at the PIESA booking.
     all("PIESA form failures", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at, details")).eq("event_type", PIESA_AUTOFORM_FAILED_EVENT).gte("created_at", new Date(t0 - 60 * DAY).toISOString()).range(a, b)),
     // Jo 28 Oct 2026 ("Alert after 3 days unpaid"): the unpaid-payment alert's facts — invoices, accepted quotes, the
@@ -301,6 +306,13 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     all("address to confirm", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at, details")).eq("event_type", "address_lookup_unresolved").contains("details", { mitti_pickup: true, needs_office: true }).order("created_at", { ascending: false }).range(a, b)),
     all("Mitti electrician holds", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at")).eq("event_type", "mitti_electrician_choice_needed").order("created_at", { ascending: false }).range(a, b)),
     all("own job safety check holds", (a, b) => scoped(admin.from("workflow_events").select("job_id, event_type, created_at, details")).in("event_type", [OWN_JOB_PIESA_HELD_EVENT, OWN_JOB_PIESA_HANDED_EVENT, OWN_JOB_PIESA_HANDED_BACK_EVENT, OWN_JOB_SWAP_FORM_NOT_MOVED_EVENT, OWN_JOB_PIESA_INSTALLER_NOT_TOLD_EVENT]).order("created_at", { ascending: false }).range(a, b)),
+    // Part 4 Task 16 (cl 23): the tenant notice held (tenant details missing / no office phone) for a current install booking.
+    all("tenant notice events", (a, b) => scoped(admin.from("workflow_events").select("job_id, event_type, created_at, details")).in("event_type", [TENANT_NOTICE_HELD_EVENT, TENANT_NOTICE_SENT_EVENT]).gte("created_at", new Date(t0 - 60 * DAY).toISOString()).range(a, b)),
+    // Part 8 final review I2: a held VEEC Part B (Mitti signature not applied / portal image held) and the Mitti signing that clears it.
+    all("VEEC Part B holds", (a, b) => scoped(admin.from("workflow_events").select("job_id, event_type, created_at, details")).in("event_type", [VEEC_PART_B_MITTI_HELD_EVENT, VEEC_PART_B_IMAGE_HELD_EVENT, VEEC_PART_B_SIGNED_MITTI_EVENT]).range(a, b)),
+    // Part 6 Task 7: the 30-day red flag (one event per job + upgrades day), shown while that upgrades day is still the booked one.
+    all("upgrades red flags", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at, details")).eq("event_type", UPGRADES_PAST_30_DAYS_EVENT).order("created_at", { ascending: false }).range(a, b)),
+    all("upgrades bookings", (a, b) => scoped(admin.from("bookings").select("job_id, scheduled_start")).eq("kind", "rectification").eq("status", "confirmed").range(a, b)),
   ]);
   const now = office.now;
   const jobs = office.jobs.filter((j) => j.status?.stage !== "ended" || j.stage === "on_hold");
@@ -319,10 +331,10 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   const inHouse = await inHouseNeedsFacts(jobs.filter(j => j.source !== "qa_test").map(j => j.id));
   for (const [id, ih] of inHouse) { const x = f(id); if (x) x.inHouse = ih; }
   if(ids.length){
-    const ev=await byIds('Lead Installer changes and handbacks',ids,(c,a,b)=>admin.from('workflow_events').select('job_id,id,event_type,summary,details,created_at').in('job_id',c).in('event_type',['in_house_lead_changed','in_house_esc_notice_updated','in_house_pulled_back','in_house_batch_sent','install_deposit_request_failed','install_deposit_request_recovered','in_house_form_sync_failed','in_house_form_sync_recovered']).order('created_at',{ascending:false}).range(a,b));
+    const ev=await byIds('Lead Installer changes and handbacks',ids,(c,a,b)=>admin.from('workflow_events').select('job_id,id,event_type,summary,details,created_at').in('job_id',c).in('event_type',['in_house_lead_changed','in_house_esc_notice_updated','in_house_pulled_back','in_house_batch_sent','install_deposit_request_failed','install_deposit_request_recovered','in_house_form_sync_failed','in_house_form_sync_recovered','piesa_auto_complete_held','piesa_auto_complete_recovered']).order('created_at',{ascending:false}).range(a,b));
     for(const id of ids){const x=f(id);if(!x)continue;const mine=ev.filter(e=>e['job_id']===id);const change=mine.find(e=>e['event_type']==='in_house_lead_changed');
       if(change&&(change['details'] as Row|null)?.['requires_esc_update']!==false&&!mine.some(e=>e['event_type']==='in_house_esc_notice_updated'&&(e['details'] as Row|null)?.['change_id']===change['id']))x.inHouseLeadChanged={at:String(change['created_at']),line:String(change['summary'])};
-      for(const [failed,recovered,field] of [['install_deposit_request_failed','install_deposit_request_recovered','depositRequestFailed'],['in_house_form_sync_failed','in_house_form_sync_recovered','inHouseFormSyncFailed']] as const){const failure=mine.find(e=>e['event_type']===failed&&!mine.some(r=>r['event_type']===recovered&&String(r['created_at'])>=String(e['created_at'])&&(!(e['details'] as Row|null)?.['work_id']||(r['details'] as Row|null)?.['work_id']===(e['details'] as Row|null)?.['work_id'])));if(failure)x[field]={at:String(failure['created_at']),reason:String((failure['details'] as Row|null)?.['reason']??failure['summary'])};}
+      for(const [failed,recovered,field] of [['install_deposit_request_failed','install_deposit_request_recovered','depositRequestFailed'],['in_house_form_sync_failed','in_house_form_sync_recovered','inHouseFormSyncFailed'],['piesa_auto_complete_held','piesa_auto_complete_recovered','piesaAutoCompleteHeld']] as const){const failure=mine.find(e=>e['event_type']===failed&&!mine.some(r=>r['event_type']===recovered&&String(r['created_at'])>=String(e['created_at'])&&(!(e['details'] as Row|null)?.['work_id']||(r['details'] as Row|null)?.['work_id']===(e['details'] as Row|null)?.['work_id'])));if(failure)x[field]={at:String(failure['created_at']),reason:String((failure['details'] as Row|null)?.['reason']??failure['summary'])};}
       const back=mine.find(e=>e['event_type']==='in_house_pulled_back');
       if(back&&!mine.some(e=>e['event_type']==='in_house_batch_sent'&&String(e['created_at'])>String(back['created_at'])))x.inHouseHandedBack={at:String(back['created_at']),reason:String((back['details'] as Row|null)?.['reason']??'Reason not recorded')};
     }
@@ -423,7 +435,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     releaseIds.length ? import("./spot-release.server").then((m) => m.spotReleaseStates(releaseIds)) : Promise.resolve(new Map()),
     payQuoteIds.length ? byIds("PIESA lines for unpaid payments", payQuoteIds, (chunk, a, b) => admin.from("quote_items").select("quote_id, line_total_inc_gst").in("quote_id", chunk).eq("code", "PIESA").range(a, b)) : Promise.resolve([] as Row[]),
     payInvIds.length ? byIds("deposit overrides", payInvIds, (chunk, a, b) => admin.from("payment_overrides").select("invoice_id").in("invoice_id", chunk).eq("gate", "deposit").range(a, b)) : Promise.resolve([] as Row[]),
-    depositJobIds.length ? byIds("deposit stage entries", depositJobIds, (chunk, a, b) => admin.from("workflow_events").select("job_id, created_at").in("job_id", chunk).eq("event_type", "stage_changed").in("to_stage", [...INSTALL_DEPOSIT_DUE_STAGES] as ("piesa_complete" | "installation_scheduling" | "installation_booked")[]).order("created_at", { ascending: false }).range(a, b)) : Promise.resolve([] as Row[]),
+    depositJobIds.length ? byIds("deposit stage entries", depositJobIds, (chunk, a, b) => admin.from("workflow_events").select("job_id, created_at").in("job_id", chunk).eq("event_type", "stage_changed").in("to_stage", [...INSTALL_DEPOSIT_DUE_STAGES] as Database["public"]["Enums"]["job_stage"][]).order("created_at", { ascending: false }).range(a, b)) : Promise.resolve([] as Row[]),
   ]);
   {
     const { officeItemWithRelease } = await import("./spot-release.core");
@@ -461,6 +473,12 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   }
   if (partAReasons) partA.forEach((v, i) => { const x = f(String(v["job_id"])); const reasons = partAReasons[i]; if (x && reasons?.length) x.veecApHeld = { at: String(v["installer_signed_at"]), reasons }; });
   else for (const v of partA) { const x = f(String(v["job_id"])); if (x) x.veecApHeld = { at: String(v["installer_signed_at"]), reasons: ["Prerequisites still to record (open the job)."] }; }
+  for (const id of new Set(partBEvents.map((e) => String(e["job_id"])))) {
+    const x = f(id); if (!x) continue;
+    const form = veecForms.find((v) => String(v["job_id"]) === id);
+    const open = veecPartBHeldOpen(partBEvents.filter((e) => String(e["job_id"]) === id).map((e) => ({ event_type: String(e["event_type"]), created_at: String(e["created_at"]), details: (e["details"] ?? null) as Record<string, unknown> | null })), { installerSignedAt: form?.["installer_signed_at"] ? String(form["installer_signed_at"]) : null });
+    if (open) x.veecPartBHeld = open;
+  }
   for (const e of escRows) {
     const x = f(String(e["job_id"])); if (!x || ["cancelled", "withdrawn", "superseded", "stale"].includes(String(e["status"]))) continue;
     const opens = s(e["earliest_send_at"]);
@@ -493,6 +511,14 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
       if (open) x.piesaFormFailed = open;
     }
   }
+  // Part 4 Task 16 (cl 23): one row per job while the tenant has not been told the current install booking.
+  for (const id of new Set(tenantNoticeEv.map((e) => String(e["job_id"])).filter((id) => idSet.has(id)))) {
+    const x = f(id); if (!x) continue;
+    const open = tenantNoticeHeldOpen(
+      tenantNoticeEv.filter((e) => e["job_id"] === id).map((e) => ({ event_type: String(e["event_type"]), created_at: String(e["created_at"]), details: (e["details"] ?? null) as { booking_id?: string | null; reason?: string | null } | null })),
+      upcomingInstalls.filter((b) => b["job_id"] === id).map((b) => ({ id: String(b["id"]), scheduled_start: String(b["scheduled_start"]) })));
+    if (open) x.tenantNoticeHeld = open;
+  }
   for (const t of tenDay) { const x = f(String(t["id"])); if (x) x.tenDaysLeft = { at: String(t["install_10day_flagged_at"]), deadline: jobById.get(String(t["id"]))?.facts.installDeadline ?? null }; }
   // Jo 3 Nov: clears when the job has an electrician choice, nomination, offer or assignment (question no longer open).
   if (mittiElecHeld.length) { const { openMittiElectricianQuestions } = await import("./mitti-electrician.server"); const stillOpen = await openMittiElectricianQuestions([...new Set(mittiElecHeld.map((e) => String(e["job_id"])))]); for (const e of mittiElecHeld) { const id = String(e["job_id"]); const x = f(id); if (x && !x.mittiElectricianHeld && stillOpen.has(id)) x.mittiElectricianHeld = { at: String(e["created_at"]) }; } }
@@ -523,6 +549,15 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   for (const e of noAccess) { const x = f(String(e["job_id"])); const j = jobById.get(String(e["job_id"])); if (x && !x.secondNoAccess && j?.stage === "installation_scheduling") x.secondNoAccess = { at: String(e["created_at"]), reason: s((e["details"] as { reason?: string } | null)?.reason) }; }
   // Decision 296: the alert names its PIESA record; a confirmation of that record (or the install already booked) clears the row.
   const confirmedRecords = new Set(piesaConfirms.map((c) => `${c["job_id"]}:${(c["details"] as { piesa_record_id?: string } | null)?.piesa_record_id ?? ""}`));
+  // Part 6 Task 7: the red flag stays while the flagged upgrades day is still the confirmed one and the job is open.
+  const upgradesDay = new Map<string, string>();
+  for (const b of upgradesBookings) { const id = String(b["job_id"]); const ymd = upgradesYmdOf(String(b["scheduled_start"])); if (!upgradesDay.has(id) || ymd > upgradesDay.get(id)!) upgradesDay.set(id, ymd); }
+  for (const e of upgradesFlags) {
+    const id = String(e["job_id"]), det = (e["details"] as { upgrades_ymd?: string; install_deadline?: string } | null) ?? null;
+    const x = f(id); const j = jobById.get(id);
+    if (!x || x.upgradesPast30 || !j || ["complete", "cancelled"].includes(j.stage) || !det?.upgrades_ymd || !det.install_deadline || upgradesDay.get(id) !== det.upgrades_ymd) continue;
+    x.upgradesPast30 = { at: String(e["created_at"]), upgradesYmd: det.upgrades_ymd, deadline: det.install_deadline };
+  }
   for (const e of piesaAlerts) {
     const id = String(e["job_id"]), rec = (e["details"] as { piesa_record_id?: string; completed_date?: string } | null) ?? null;
     const x = f(id); const j = jobById.get(id);
@@ -562,6 +597,38 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
       }
     }
   } catch { unavailable.push("payment reversals"); }
+  // Part 9 Task 11: a refund after VEEC creation (veec_copayment_refunded, needs_office) → one row per job (the office calls Jo; the event stays as history).
+  try {
+    const { VEEC_COPAYMENT_REFUNDED_EVENT, VEEC_REFUND_NEEDS_LINE } = await import("./veec-creation-gate.core");
+    const rows = await all("VEEC refunds", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at, details")).eq("event_type", VEEC_COPAYMENT_REFUNDED_EVENT).contains("details", { needs_office: true }).order("created_at", { ascending: false }).range(a, b));
+    // G6 S9: the event's own line (the check-failed line when the VEEC record couldn't be read), else the refunded line.
+    for (const r of rows) { const x = f(String(r["job_id"])); const line = (r["details"] as { line?: unknown } | null)?.line; if (x && !x.veecRefunded) x.veecRefunded = { at: String(r["created_at"]), text: typeof line === "string" && line ? line : VEEC_REFUND_NEEDS_LINE }; }
+  } catch { unavailable.push("VEEC refunds"); }
+  // G7 (Jo 4 Nov 2026): a Ready Check tomorrow with nobody picked to go (ready_check_person_missing, needs_office) → one row per
+  // job while that booking is still the confirmed one and hasn't started (picking the person re-records the booking under a new id).
+  try {
+    const { READY_CHECK_PERSON_MISSING_EVENT } = await import("./ready-check-person.core");
+    const rows = await all("Ready Check person missing", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at, details")).eq("event_type", READY_CHECK_PERSON_MISSING_EVENT).contains("details", { needs_office: true }).order("created_at", { ascending: false }).range(a, b));
+    const bookingIds = [...new Set(rows.map((r) => String((r["details"] as { booking_id?: unknown } | null)?.booking_id ?? "")).filter(Boolean))];
+    const { data: live, error: le } = bookingIds.length ? await admin.from("bookings").select("id, scheduled_start").in("id", bookingIds).eq("status", "confirmed") : { data: [], error: null };
+    if (le) throw new Error(le.message);
+    const open = new Map((live ?? []).map((b) => [String(b.id), String(b.scheduled_start)]));
+    for (const r of rows) {
+      const d = r["details"] as { booking_id?: string; line?: string } | null;
+      const start = d?.booking_id ? open.get(d.booking_id) : undefined;
+      if (!start || Date.parse(start) <= now) continue;
+      const x = f(String(r["job_id"]));
+      if (x && !x.readyCheckPersonMissing && typeof d?.line === "string" && d.line) x.readyCheckPersonMissing = { at: String(r["created_at"]), text: d.line };
+    }
+  } catch { unavailable.push("Ready Check person missing"); }
+  // Part 9 Task 12: complaints — the three office events per job → the ack / resolve rows (complaints.core).
+  try {
+    const { COMPLAINT_ACKNOWLEDGED_EVENT, COMPLAINT_RECEIVED_EVENT, COMPLAINT_RESOLVED_EVENT, complaintNeeds } = await import("./complaints.core");
+    const rows = await all("complaints", (a, b) => scoped(admin.from("workflow_events").select("job_id, event_type, created_at, details")).in("event_type", [COMPLAINT_RECEIVED_EVENT, COMPLAINT_ACKNOWLEDGED_EVENT, COMPLAINT_RESOLVED_EVENT]).order("created_at", { ascending: true }).range(a, b));
+    const byJob = new Map<string, { event_type: string; created_at: string; details: Record<string, unknown> | null }[]>();
+    for (const r of rows) { const id = String(r["job_id"]); if (!byJob.has(id)) byJob.set(id, []); byJob.get(id)!.push({ event_type: String(r["event_type"]), created_at: String(r["created_at"]), details: (r["details"] ?? null) as Record<string, unknown> | null }); }
+    for (const [id, evs] of byJob) { const x = f(id); if (!x) continue; const open = complaintNeeds(evs, now); if (open.length) x.complaints = open; }
+  } catch { unavailable.push("complaints"); }
   // Batch 2: a STOP reply cancelled the job but releasing the installer failed → one row until `job_cancel_released` is written
   // (the tick retries). The job is usually already cancelled, so its facts are made here when the open-jobs read dropped it.
   try {
@@ -635,17 +702,6 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
       const x = f(id); if (x && open) x.piesaRulesFailed = { at: open.at, reasons: open.reasons };
     }
   } catch { unavailable.push("safety check rule failures"); }
-  // Part 3 Task 4b: an installer's own job whose Complete A3 couldn't complete the PIESA automatically → one row while booked.
-  try {
-    const { OWN_JOB_PIESA_COMPLETE_HELD_EVENT, ownJobPiesaCompleteHeldOpen } = await import("./own-job-piesa.core");
-    const ev = await all("own job safety check not completed", (a, b) => scoped(admin.from("workflow_events").select("job_id, event_type, created_at, details")).eq("event_type", OWN_JOB_PIESA_COMPLETE_HELD_EVENT).order("created_at").range(a, b));
-    const byJob = new Map<string, Row[]>();
-    for (const e of ev) { const id = String(e["job_id"]); if (idSet.has(id)) byJob.set(id, [...(byJob.get(id) ?? []), e]); }
-    for (const [id, list] of byJob) {
-      const open = ownJobPiesaCompleteHeldOpen(list.map((e) => ({ event_type: String(e["event_type"]), created_at: String(e["created_at"]), details: (e["details"] ?? null) as Record<string, unknown> | null })), jobById.get(id)?.stage ?? null);
-      const x = f(id); if (x && open) x.ownJobPiesaCompleteHeld = open;
-    }
-  } catch { unavailable.push("own job safety check not completed"); }
   // Part 3 Task 4b fix 1: the PIESA completed but its same-day Part C record failed → one row until the portal's tick retry
   // writes it (fix 2), Part C is recorded another way, or the job moves past the retry stages.
   try {
@@ -752,8 +808,11 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
       if (stalls.length) x.paymentStalls = stalls;
       const completedAt=j.facts.installedAt??null;
       const {balanceOverdue,balanceDueAt}=await import('./balance-q21.core');
-      if(install&&balanceOverdue(completedAt,Number(install['total_paid']??0)>=Number(install['total_inc_gst']??0),new Date(now))){
-        (x.paymentsOverdue??=[]).push({invoice:'install',reference:s(install['xero_invoice_number']),at:balanceDueAt(completedAt)??completedAt??'',text:'Installation balance overdue'});
+      const overdueCore=await import('./after-install-reminders.core');const {melbourneToday:mToday}=await import('./melbourne-time.core');
+      // Part 4 Task 12 (touchpoint 53): with the new reminders on, "Balance overdue" starts the day after day 7 (Melbourne date).
+      const balanceLate=(completed:string|null,paid:boolean)=>overdueCore.AFTER_INSTALL_REMINDERS_APPROVED?overdueCore.balanceOverdueForOffice({installDay:completed?mToday(new Date(completed)):null,balancePaid:paid,now:new Date(now)}):balanceOverdue(completed,paid,new Date(now));
+      if(install&&balanceLate(completedAt,Number(install['total_paid']??0)>=Number(install['total_inc_gst']??0))){
+        (x.paymentsOverdue??=[]).push({invoice:'install',reference:s(install['xero_invoice_number']),at:balanceDueAt(completedAt)??completedAt??'',text:'Installation balance overdue',...(overdueCore.AFTER_INSTALL_REMINDERS_APPROVED?{balance:true}:{})});
       }
     }
   }
@@ -764,11 +823,12 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
       const x = f(String(i["job_id"])); if (!x) continue;
       if(i['kind']==='installation'){
         const completed=jobById.get(String(i['job_id']))?.facts.installedAt??null;
-        if(!(await import('./balance-q21.core')).balanceOverdue(completed,Number(i['total_paid']??0)>=Number(i['total_inc_gst']??0),new Date(now)))continue;
+        const ai=await import('./after-install-reminders.core');const {melbourneToday:mToday}=await import('./melbourne-time.core');const paidUp=Number(i['total_paid']??0)>=Number(i['total_inc_gst']??0);
+        if(ai.AFTER_INSTALL_REMINDERS_APPROVED?!ai.balanceOverdueForOffice({installDay:completed?mToday(new Date(completed)):null,balancePaid:paidUp,now:new Date(now)}):!(await import('./balance-q21.core')).balanceOverdue(completed,paidUp,new Date(now)))continue;
       }
       const invoice = invoiceSlotOf(s(i["kind"]));
       if ((x.paymentsOverdue ?? []).some((o) => o.invoice === invoice)) continue;
-      (x.paymentsOverdue ??= []).push({ invoice, reference: s(i["xero_invoice_number"]), at: String(i["balance_due_date"] ?? i["deposit_due_date"] ?? new Date(now).toISOString()), text: `$${Math.max(0, Number(i["total_inc_gst"] ?? 0) - Number(i["total_paid"] ?? 0)).toLocaleString("en-AU", { maximumFractionDigits: 0 })} owing` });
+      (x.paymentsOverdue ??= []).push({ ...(invoice === "install" && (await import("./after-install-reminders.core")).AFTER_INSTALL_REMINDERS_APPROVED ? { balance: true } : {}), invoice, reference: s(i["xero_invoice_number"]), at: String(i["balance_due_date"] ?? i["deposit_due_date"] ?? new Date(now).toISOString()), text: `$${Math.max(0, Number(i["total_inc_gst"] ?? 0) - Number(i["total_paid"] ?? 0)).toLocaleString("en-AU", { maximumFractionDigits: 0 })} owing` });
     }
   }
   if (payViews) provisionalBookings.forEach((b, i) => {
@@ -835,6 +895,28 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
       for (const r of fbRows) fbJobs.set(String(r["id"]), { jobNumber: String(r["job_number"]), surname: surnameOf((r["owners"] as { full_name?: string } | null)?.full_name), ...(r["source"] === "qa_test" ? { isTest: true } : {}) });
       system.push(...reviewFeedbackRows(fb.map((e) => ({ job_id: String(e["job_id"]), created_at: String(e["created_at"]), details: (e["details"] ?? null) as { stars?: number; feedback?: string } | null })), fbJobs, now, opts.includeTest));
     }
+  }
+  // Part 9 Task 2: ESC notices still live in the Registry on jobs that won't go ahead (usually cancelled, so read directly,
+  // closed jobs included); cleared when the office records the withdrawal. A failed read is named, never shown as nothing.
+  {
+    const open = await (await import("./esc.server")).openEscWithdrawalRows(opts.onlyIds).catch(() => { unavailable.push("ESC notices to withdraw"); return []; });
+    if (open.length) {
+      const wIds = [...new Set(open.map((o) => o.jobId))];
+      const wRows = await byIds("ESC withdrawal jobs", wIds, (chunk, a, b) => admin.from("jobs").select("id, job_number, source, owners(full_name)").in("id", chunk).range(a, b));
+      const wJobs = new Map<string, { jobNumber: string; surname: string; isTest?: boolean }>();
+      for (const r of wRows) wJobs.set(String(r["id"]), { jobNumber: String(r["job_number"]), surname: surnameOf((r["owners"] as { full_name?: string } | null)?.full_name), ...(r["source"] === "qa_test" ? { isTest: true } : {}) });
+      system.push(...escWithdrawRows(open, wJobs, opts.includeTest));
+    }
+  }
+  // G8 (6), 4 Nov 2026 (LOOKS WRONG 12): the owner quote page needs the approved customer agreement / consumer rights / ESC
+  // consent templates; until the office loads them the owner sees a plain "not ready yet" line and Needs me gets ONE row.
+  if (listMode) {
+    try {
+      const { loadTemplates } = await import("./assignment.server");
+      const { templateBlockers } = await import("./assignment.core");
+      const templates = await loadTemplates();
+      system.push(...templatesMissingRows([...templateBlockers(templates, "agreement"), ...templateBlockers(templates, "consent")], now));
+    } catch { unavailable.push("quote templates"); }
   }
   return { now, jobs, facts, emails, system, unavailable };
 }

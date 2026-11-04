@@ -15,7 +15,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { logEvent } from "./workflow.server";
 import {
-  COES_CHECKED_EVENT, COES_PROMPT, COES_REJECTED_EVENT, COES_WHY, coesKey, coesNeedsFact, coesOfficeLine, coesPortalKey, coesQuoteCheck, coesReadableType, coesState, coesVerdictFromModel,
+  COES_CHECKED_EVENT, COES_PROMPT, COES_REJECTED_EVENT, COES_WHY, coesKey, coesNeedsFact, coesOfficeLine, coesPortalKey, coesQuoteCheck, coesReadableType, coesState, coesUploadKey, coesVerdictFromModel,
   type CoesEvent, type CoesFileRef, type CoesVerdict, type CoesWhyCode,
 } from "./coes-check.core";
 
@@ -26,16 +26,16 @@ const loose = admin as unknown as SupabaseClient;
 type Entry = { label: string; value: string | null; media?: { mediaId: string | null }[] };
 const entriesOf = (raw: unknown): Entry[] => (Array.isArray(raw) ? (raw as Entry[]).filter((e) => e && typeof e.label === "string") : []);
 
-export type CurrentCoes = { needed: boolean; ref: CoesFileRef | null; since: string | null; source: "mitti" | "portal" | null };
+export type CurrentCoes = { needed: boolean; ref: CoesFileRef | null; since: string | null; source: "mitti" | "portal" | "upload" | null };
 
 /** Is a certificate needed (repairs were done), and which one is on the job now.
  *  Part 3 Task 3 (Jo 3 Nov 2026): the certificate can come AFTER Part C. The Mitti answers still say repairs were done (needed),
- *  but the file may arrive through the electrician's link, which files it as the portal `rectification_completion` evidence —
- *  so with no q45 file the portal evidence is read too. When BOTH a Mitti q45 file and a portal file exist, the one that
- *  arrived FIRST stays the current certificate (one certificate, one check, one owner copy — Review Focus 2); a certificate the
- *  office rejected gives way to the other one. */
+ *  but the file may arrive later: through the electrician's link or the installer office (Part 6: `uploadCoesForJob`, documents
+ *  source_system "upload", the same kind and title), or as the portal `rectification_completion` evidence — so with no q45 file
+ *  those are read too. When MORE THAN ONE file exists, the one that arrived FIRST stays the current certificate (one certificate,
+ *  one check, one owner copy — Review Focus 2); a certificate the office rejected gives way to the other one. */
 export async function currentCoes(jobId: string): Promise<CurrentCoes> {
-  type Candidate = { ref: CoesFileRef; since: string | null; source: "mitti" | "portal" };
+  type Candidate = { ref: CoesFileRef; since: string | null; source: "mitti" | "portal" | "upload" };
   let mitti: Candidate | null = null;
   const { data: a } = await admin.from("assessments").select("mitti_raw_snapshot").eq("job_id", jobId).maybeSingle();
   const entries = entriesOf(a?.mitti_raw_snapshot);
@@ -67,7 +67,14 @@ export async function currentCoes(jobId: string): Promise<CurrentCoes> {
   const portal: Candidate | null = rows.length
     ? { ref: { key: coesPortalKey(rows.map((r) => r.id)), files: rows.map((r) => ({ storagePath: r.storage_path, mimeType: r.mime_type ?? "application/octet-stream" })) }, since: rows.map((r) => r.uploaded_at).filter((x): x is string => !!x).sort().at(-1) ?? recAt, source: "portal" }
     : null;
-  const withFiles = [mitti?.ref.files.length ? mitti : null, portal].filter((c): c is Candidate => !!c);
+  // Part 6: certificates uploaded from the electrician's link or the installer office (uploadCoesForJob) — a new upload is a new certificate to check.
+  const { data: upDocs, error: upErr } = await admin.from("documents").select("id, storage_path, mime_type, created_at").eq("job_id", jobId).eq("kind", (await import("./fixes-day.core")).FIXES_COES_DOC_KIND).eq("source_system", "upload").eq("title", (await import("./fixes-day.core")).FIXES_COES_DOC_TITLE).order("created_at", { ascending: true });
+  if (upErr) throw new Error(`Could not read the uploaded certificates: ${upErr.message}`);
+  const ups = (upDocs ?? []) as { id: string; storage_path: string; mime_type: string | null; created_at: string | null }[];
+  const upload: Candidate | null = ups.length
+    ? { ref: { key: coesUploadKey(ups.map((u) => u.id)), files: ups.map((u) => ({ storagePath: u.storage_path, mimeType: u.mime_type ?? "application/octet-stream" })) }, since: ups.map((u) => u.created_at).filter((x): x is string => !!x).sort().at(-1) ?? null, source: "upload" }
+    : null;
+  const withFiles = [mitti?.ref.files.length ? mitti : null, portal, upload].filter((c): c is Candidate => !!c);
   if (!withFiles.length) {
     // Repairs done, no certificate file anywhere yet ("Waiting for certificate").
     return mitti ? { needed: true, ref: mitti.ref, since: mitti.since, source: "mitti" } : { needed: true, ref: { key: coesPortalKey([]), files: [] }, since: recAt, source: "portal" };

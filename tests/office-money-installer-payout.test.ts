@@ -21,12 +21,16 @@ function from(table: string) {
 }
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from } }));
 // This fixture exercises installation timing only; safety-check payees have their own actual-reader tests.
-mock.module("../src/lib/installer-paid-electricians.server", () => ({ safetyCheckPayeesFor: async () => new Map() }));
+// J3 (3): the own-customer safety-check payee per job (null = none; a held payee has piesaIncGst null; "" = business gone).
+let payees = new Map<string, { businessId: string; name: string; piesaIncGst: number | null }>();
+mock.module("../src/lib/installer-paid-electricians.server", () => ({ safetyCheckPayeesFor: async () => payees, readInstallerPrices: async () => new Map() }));
+mock.module("../src/lib/installer-price.server", () => ({ readInstallerPrices: async () => new Map() }));
 mock.module("../src/lib/trade-payout-gate.server", () => ({
   safetyVisitFacts: async () => new Map(), // batch 1 F5 (per-visit safety check pay)
-  payoutGateFacts: async (ids: string[]) => new Map(ids.map((id) => [id, { piesa: null, fixes: null, install: { formCompleted: true, evidence: [] } }])),
+  payoutGateFacts: async (ids: string[]) => new Map(ids.map((id) => [id, { piesa: null, fixes: null, install: { formCompleted: true, evidence: [], go: true } }])), // Part 9 Task 10: GO passed
 }));
-const { moneyPayouts } = await import("../src/lib/office-money.server");
+const { moneyPayouts, moneyMargins } = await import("../src/lib/office-money.server");
+const { PAYEE_BUSINESS_MISSING_ROW, PIESA_RATE_NOT_SET_ROW } = await import("../src/lib/installer-paid-electricians.core");
 
 const AP = "2026-10-01T00:00:00.000Z", OWNER_PAID = "2026-10-10T00:00:00.000Z";
 const day7 = (iso: string) => new Date(Date.parse(iso) + 7 * 86_400_000).toISOString();
@@ -40,7 +44,40 @@ function seed(channel: string, invoice: Row | null) {
   tables["invoices"] = invoice ? [{ job_id: "j1", ...invoice }] : [];
   tables["pricing_settings"] = [{ piesa_rec_cost_ex_gst: 300, gst_rate: 0.1, is_active: true }];
   tables["electrician_rates"] = [];
+  tables["veec_lodgements"] = []; tables["quote_items"] = []; tables["retail_estimator_settings"] = []; tables["partner_offers"] = []; tables["properties"] = [];
+  payees = new Map();
 }
+
+describe("J3 (3): a held own-customer PIESA cost is unknown on the Money card, never \$0; a payee business gone from file is a held Payouts row", () => {
+  test("Money margins: payee held (no rate) → piesaCostEx null → the margin lists 'Electrician PIESA rate not agreed' instead of counting the check as free", async () => {
+    seed("installer_sourced", { status: "fully_paid", balance_paid_at: OWNER_PAID, paid_at: null, updated_at: OWNER_PAID });
+    tables["jobs"]![0]!["stage"] = "complete"; tables["quotes"]![0]!["subtotal_inc_gst"] = 2000; tables["quotes"]![0]!["veec_discount_inc_gst"] = 0;
+    payees = new Map([["j1", { businessId: "b1", name: "Installer Co", piesaIncGst: null }]]);
+    const held = (await moneyMargins()).rows.find((r) => r.jobId === "j1")!;
+    expect(held.missing).toContain("Electrician PIESA rate not agreed");
+    payees = new Map([["j1", { businessId: "b1", name: "Installer Co", piesaIncGst: 275 }]]);
+    const priced = (await moneyMargins()).rows.find((r) => r.jobId === "j1")!;
+    expect(priced.missing).not.toContain("Electrician PIESA rate not agreed");
+    expect(priced.electrician).toBe(250);
+    expect(held.electrician).toBeNull();
+  });
+  test("Payouts: the payee business is no longer on file → one held row with no business id (never a payable group keyed '')", async () => {
+    seed("installer_sourced", { status: "fully_paid", balance_paid_at: OWNER_PAID, paid_at: null, updated_at: OWNER_PAID });
+    payees = new Map([["j1", { businessId: "", name: "Installer", piesaIncGst: null }]]);
+    const r = await moneyPayouts();
+    const row = r.held.find((h) => h.kind === "assessment")!;
+    expect(row.businessId).toBeNull();
+    expect(row.reasons.slice(-2)).toEqual([PIESA_RATE_NOT_SET_ROW, PAYEE_BUSINESS_MISSING_ROW]);
+    expect(r.due.some((g) => g.businessId === "")).toBe(false);
+    // a business on file with no rate: the J1 (4) $0 held row, keyed to that business
+    payees = new Map([["j1", { businessId: "b1", name: "Installer Co", piesaIncGst: null }]]);
+    const r2 = await moneyPayouts();
+    const r2row = r2.held.find((h) => h.kind === "assessment")!;
+    expect(r2row).toMatchObject({ businessId: "b1", amountEx: 0 });
+    expect(r2row.reasons).toContain(PIESA_RATE_NOT_SET_ROW);
+    expect(r2row.reasons).not.toContain(PAYEE_BUSINESS_MISSING_ROW);
+  });
+});
 
 describe("office installer payout date = installer's payState (audit F19)", () => {
   test("A1 job, owner pays in full AFTER AP approval → due 7 days after the owner's payment (not AP + 7)", async () => {
@@ -65,6 +102,20 @@ describe("office installer payout date = installer's payState (audit F19)", () =
     seed("hivic_sourced", null);
     const r = await moneyPayouts();
     expect(r.due[0]!.dueAt).toBe(day7(AP));
+  });
+  // G6 S8 (final Part 9 review; Jo 4 Nov 2026 "WE DON'T PAY UPGRADES"): electricians bill the upgrades themselves
+  // (upgrades-billing.core electricianBillsUpgrades, always true), so no "Electrical fixes" payout line exists — even on an
+  // older job that still holds an accepted upgrades quote and a completed upgrades visit.
+  test("S8: an accepted upgrades (rectification) quote + completed upgrades visit never makes an Electrical fixes payout line", async () => {
+    seed("hivic_sourced", null);
+    tables["job_assignments"]!.push({ job_id: "j1", business_id: "e1", role: "electrician", active: true, businesses: { name: "Volt Co", trading_name: null } });
+    tables["quotes"]!.push({ id: "q2", job_id: "j1", kind: "rectification", status: "accepted" });
+    tables["quote_internals"]!.push({ quote_id: "q2", cost_ex_gst: 400 });
+    tables["bookings"] = [{ id: "bk-r", job_id: "j1", kind: "rectification", status: "completed", business_id: "e1" }];
+    const r = await moneyPayouts();
+    const kinds = [...r.due.flatMap((g) => g.jobs.map((j) => j.kind)), ...r.paid.flatMap((g) => g.jobs.map((j) => j.kind)), ...r.held.map((h) => h.kind)].sort();
+    expect(kinds).not.toContain("rectification");
+    expect(kinds).toEqual(["assessment", "installation"]); // the safety check and the install only
   });
   test("ownerPaidInFullAt: every invoice fully paid → latest paid time; otherwise null", () => {
     expect(ownerPaidInFullAt([])).toBeNull();

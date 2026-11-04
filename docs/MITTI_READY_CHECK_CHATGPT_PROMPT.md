@@ -57,6 +57,7 @@ Photo = photo/attachment with location on; Checkbox = single checkbox that must 
 
 ## Group 2: Before you go up
 7. `Homeowner agrees to be contacted by Home Insulation Victoria` — Yes/No — Required — help text: `If No, stop here and answer "No - Ready Check failed" on the last page.`
+7a. `I showed my photo ID (name + business)` — Checkbox — Required — DRAFT wording approved by Jo 2 Nov 2026 (Code of Conduct cl 9); numbered 7a so no other question number moves
 8. `Life support equipment at property?` — Yes/No — Required — portal fills this in — help text: `Pre-filled from what the owner told us. Change it if you learn otherwise; the office will call before anything goes out.`
 9. `Was the ceiling or roof built or replaced in the last 5 years?` — Yes/No — Required — portal fills this in
 10. `Who lives at the property?` — Pick one: `Owner lives here` / `Private rental – tenant lives here` / `Public housing` / `Community housing` — Required — portal fills this in where it knows
@@ -102,7 +103,7 @@ option anywhere. The new group below is complete as written.
 30. `Describe the issue and add a photo` — Photo — Required — only show when question 28 = `Yes`
 
 ## Group 5: Product and result
-31. `What insulation product will you be using on this job?` — Pick one, in this order: `Bradford Gold R5` / `Bradford Gold R6` / `Bradford Gold R7` / `Fletchers Pink Batts R5` / `Fletchers Pink Batts R6` / `Fletchers Pink Batts R7` / `Earthwool R5` / `ECOWOOL R5` — Required — always shown (NOT only when the Ready Check passed)
+31. `What insulation product will you be using on this job?` — Pick one, in this order: `Bradford Gold R5` / `Bradford Gold R6` / `Bradford Gold R7` / `Fletchers Pink Batts R5` / `Fletchers Pink Batts R6` / `Fletchers Pink Batts R7` / `Earthwool R5` — Required — always shown (NOT only when the Ready Check passed)
 32. `Based on your onsite assessment, does this property meet the Ready Check requirements to proceed?` — Pick one: `Yes - Ready Check passed` / `No - Ready Check failed` — Required — help text: `The portal also applies the eligibility rules from your answers above.`
 33. `Why did the property fail the ready check? Select all that apply` — Tick all: `Existing insulation is R2.0 or above` / `Ceiling or roof built or replaced in the last 5 years` / `No safe access to the ceiling` / `Homeowner does not want to proceed` / `Homeowner has not agreed to be contacted` / `Other – explain in a note` — Required — only show when question 32 = `No - Ready Check failed`
 34. **A2 only:** `I confirm I have not discussed or agreed pricing with the homeowner during this Ready Check. All quotes and pricing come from Home Insulation Victoria.` — Checkbox — Required
@@ -118,10 +119,10 @@ portal, never in Mitti (**A1 only** difference: A1 simply has no question 34 and
     **A2:** `I confirm the information, measurements and photos provided in this Ready Check are accurate to the best of my knowledge.` — Signature — Required
 
 ## When you have given me the steps
-Finish with a checklist I can use to verify each published template: **A1 has 38 questions and A2 has 39** (Group 4
-counted once; A2 = questions 1–35 plus 24a–24d, A1 = questions 1–33, 24a–24d and 35), in this order; every "only show when" rule;
+Finish with a checklist I can use to verify each published template: **A1 has 39 questions and A2 has 40** (Group 4
+counted once; A2 = questions 1–35 plus 7a and 24a–24d, A1 = questions 1–33, 7a, 24a–24d and 35), in this order; every "only show when" rule;
 Required exactly as marked (the Photo questions 13 and 22 are the only optional ones); location on for every
-Photo; the repeating section adds a complete copy of questions 14–30 (with 24a–24d) each time; the eight product options spelled
+Photo; the repeating section adds a complete copy of questions 14–30 (with 24a–24d) each time; the seven product options spelled
 exactly; the mandatory mark-as-complete setting on; none of the REMOVE items present; and where in Mitti I find each
 **template ID** (in the web address when the template is open, or under the template's settings), because I must send
 both IDs to my software team. Also remind me to keep the old A1 and A2 templates unpublished but not deleted until every

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "bun:test";
-import { giveNotice, jobGiveOffer, saidYesLabel, suggestBatches, type BatchJob, type InHousePartner } from "../src/lib/in-house-batch.core";
+import { giveNotice, jobGiveOffer, saidYesLabel, suggestBatches, waitingForCallConsent, type BatchJob, type InHousePartner } from "../src/lib/in-house-batch.core";
 
 const job: BatchJob = { id: "j", stage: "preliminary_estimate_ready", source: "base44", quickTapsYes: true, deleted_at: null, spot_saved_at: "2026-10-30", optedOut: false, hasActiveInstaller: false, postcode: "3199", lat: -38.14, lng: 145.12 };
 const partner: InHousePartner = { id: "p", name: "Rapid Insulation", in_house: true, is_active: true, service_postcodes: ["3199"], covers_all_victoria: false, coverage_lat: null, coverage_lng: null, coverage_radius_km: null, openJobs: 0 };
@@ -19,6 +19,31 @@ test("ties choose fewest open jobs and account for this batch's suggestions", ()
 });
 test("inactive and non-in-house partners never match", () => {
   expect(suggestBatches([job], [{ ...partner, in_house: false }, { ...partner, is_active: false }])).toEqual([]);
+});
+test("Task 5: waiting for the owner's tap — consent over 3 months old, no pass yet, or no consent; never installer customers or ineligible jobs", () => {
+  const now = "2026-11-03T00:00:00.000Z";
+  const c = (at: string, status = "granted") => ({ consent_status: status, consented_at: at, snapshot: {}, source: "base44" });
+  expect(waitingForCallConsent(job, [c("2026-10-01T00:00:00.000Z")], now)).toBe(false);
+  expect(waitingForCallConsent(job, [c("2026-07-01T00:00:00.000Z")], now)).toBe(true);
+  expect(waitingForCallConsent(job, [c("2026-07-01T00:00:00.000Z"), c("2026-11-02T00:00:00.000Z")], now)).toBe(false);
+  expect(waitingForCallConsent(job, [c("2026-11-02T00:00:00.000Z", "not_granted")], now)).toBe(true);
+  expect(waitingForCallConsent(job, [], now)).toBe(true);
+  expect(waitingForCallConsent({ ...job, quickTapsYes: false }, [c("2026-10-01T00:00:00.000Z")], now)).toBe(true);
+  expect(waitingForCallConsent({ ...job, oldStylePass: true }, [c("2026-07-01T00:00:00.000Z")], now)).toBe(false);
+  expect(waitingForCallConsent({ ...job, oldStylePass: false }, [c("2026-07-01T00:00:00.000Z")], now)).toBe(true);
+  expect(waitingForCallConsent({ ...job, channel: "installer_sourced" }, [c("2026-07-01T00:00:00.000Z")], now)).toBe(false);
+  expect(waitingForCallConsent({ ...job, hasActiveInstaller: true }, [c("2026-07-01T00:00:00.000Z")], now)).toBe(false);
+});
+
+test("the batch's own quick-taps consent row counts whatever its age (tap 4 months before hand-off)", () => {
+  const now = "2026-11-03T00:00:00.000Z";
+  const own = { consent_status: "granted", consented_at: "2026-07-01T00:00:00.000Z", snapshot: {}, source: "quick_taps_reconsent", consent_key: "quick_taps_reconsent:b1:j" };
+  const j = { ...job, quickTapsBatchId: "b1" };
+  expect(waitingForCallConsent(j, [own], now)).toBe(false);
+  expect(waitingForCallConsent({ ...j, quickTapsBatchId: "b2" }, [own], now)).toBe(true);
+  expect(waitingForCallConsent(j, [{ ...own, consent_status: "not_granted" }], now)).toBe(true);
+  expect(waitingForCallConsent(j, [{ ...own, consent_key: "quick_taps_reconsent:b1:other" }], now)).toBe(true);
+  expect(waitingForCallConsent({ ...j, quickTapsYes: false }, [own], now)).toBe(true);
 });
 test("said-yes label uses the owner name in normal case, or Owner when blank", () => {
   expect(saidYesLabel({ ownerName: "WAYNE WILSON", quickTapsYes: true, channel: "website" })).toBe("Wayne Wilson said yes · free Ready Check");

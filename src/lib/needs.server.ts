@@ -109,10 +109,21 @@ export async function loadNeedsHivic() {
   const { data: rcTimes } = await admin.from("appointment_proposals").select("job_id").eq("kind", "ready_check").eq("note", READY_CHECK_TIME_NOTE).eq("status", "proposed").gt("starts_at", now.toISOString());
   const rcTalking = new Set((rcTimes ?? []).map((r) => r.job_id));
   const { buildNeedsHivic } = await import("./allocation.core");
+  // Part 9 Task 2: open "withdraw the ESC notice" asks. A failed read is an error, never an empty list (fail closed).
+  const escWithdrawRequired = (await (await import("./esc.server")).openEscWithdrawalRows()).map((r) => ({ job_id: r.jobId, created_at: r.at, reference: r.reference }));
+  // J5 (controller ruling, 4 Nov 2026): the ask is exactly about a job that won't go ahead, so a CANCELLED (or complete) job
+  // with a live notice must still raise it — the jobs read above leaves those stages out, so they are read here for THIS
+  // item only (every other item on such a job is still dropped below: it is not an open job).
+  const escOnlyIds = [...new Set(escWithdrawRequired.map((r) => r.job_id))].filter((id) => !ok(jobs, "jobs").some((j) => j.id === id));
+  const escOnlyJobs = escOnlyIds.length ? await (async () => {
+    const { data, error } = await admin.from("jobs").select("id, job_number, source, stage, channel, properties(suburb, postcode)").in("id", escOnlyIds);
+    if (error) throw new Error(`Could not load the jobs with an ESC withdrawal ask: ${error.message}`);
+    return (data ?? []).filter((j) => j.source !== "qa_test");
+  })() : [];
   const items = buildNeedsHivic({
     readyCheckReturned,
     recNoLongerApproved,
-    now, jobs: jobRows.map((j) => { const p = j.properties as { suburb: string | null; postcode: string | null } | null; return { id: j.id, job_number: j.job_number, stage: j.stage, channel: j.channel, suburb: p ? [p.suburb, p.postcode].filter(Boolean).join(" ") : null }; }),
+    now, jobs: [...jobRows, ...escOnlyJobs].map((j) => { const p = j.properties as { suburb: string | null; postcode: string | null } | null; return { id: j.id, job_number: j.job_number, stage: j.stage, channel: j.channel, suburb: p ? [p.suburb, p.postcode].filter(Boolean).join(" ") : null }; }),
     coverageExhausted: coverage,
     releases: ok(rel, "contact releases").filter((r) => (r.job_assignments as { active: boolean }).active && !(r.visit_kind === "ready_check" && rcTalking.has(r.job_id))).map((r) => ({ job_id: r.job_id, visit_kind: r.visit_kind as never, released_at: r.released_at, confirmed_at: (r.job_assignments as { booking_confirmed_at: string | null }).booking_confirmed_at })),
     failedComms: ok(comms, "communications"),
@@ -126,6 +137,7 @@ export async function loadNeedsHivic() {
     officeOverdue: [],
     rectUnanswered: ok(rsent, "electrical fixes quotes sent"),
     prestart: await (await import("./prestart.server")).prestartNeeds(now).catch((e) => { console.error("pre-start needs failed", (e as Error).message); return undefined; }),
+    escWithdrawRequired,
     visitFlags,
     offerNoTaker,
     chooseTrades,
@@ -142,20 +154,14 @@ export async function loadNeedsHivic() {
     if (!data || data.length < 1000) break;
   }
   const open = new Set(jobRows.filter((j) => !closed.has(j.id)).map((j) => j.id));
-  const kept = items.filter((it) => !it.jobId || open.has(it.jobId));
-  const { data: electricianEvents, error: ee } = await admin.from("workflow_events").select("job_id, details, created_at").eq("event_type", "mitti_electrician_recorded").order("created_at", { ascending: false });
-  if (ee) throw new Error("Could not load Ready Check electrician holds.");
-  const latestElectrical = new Set<string>();
-  const { needsItem } = await import("./allocation.core");
-  for (const e of electricianEvents ?? []) {
-    if (!e.job_id || latestElectrical.has(e.job_id)) continue;
-    latestElectrical.add(e.job_id);
-    if (!open.has(e.job_id) || (e.details as { needsProfile?: boolean } | null)?.needsProfile !== true) continue;
-    const j = jobRows.find((r) => r.id === e.job_id);
-    kept.push(needsItem("installer_usual_electrician_missing", e.job_id, j?.job_number ?? null, e.created_at, undefined, j));
-  }
+  // Part 9 Task 2: the ESC withdrawal ask is exactly about a job that won't go ahead, so a closed job keeps it.
+  const kept = items.filter((it) => !it.jobId || open.has(it.jobId) || it.code === "esc_withdraw_required");
+  // Part 7 Task 8 (Jo 2 Nov 2026): the "Installer has no usual electrician saved" row is retired with its text (decisions
+  // 374/303 choose the electrician; an un-onboarded A1 electrician holds the quote instead). Old `mitti_electrician_recorded`
+  // events stay as history and raise nothing.
   // Stage 8 (Jo 22 Oct): Mitti "Office needs to…" items from recorded events (latest per job; cleared by later events).
   {
+    const { needsItem } = await import("./allocation.core");
     const { mittiOfficeItems } = await import("./ready-check-chase.core");
     const types = ["mitti_measureup_sync_failed", "mitti_measureup_synced", "mitti_sync_retried", "ready_check_needs_office", "installer_quote_held", "installer_quote_queued",
       "quote_hold_approved", "quote_requeued_after_review", "quote_hold_stopped", "quote_declined", "mitti_access_needed", "mitti_access_override", "mitti_audit_linked", "mitti_synced",

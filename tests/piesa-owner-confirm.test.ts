@@ -1,14 +1,14 @@
 // Decision 296 (Jo, 25 Oct 2026): the owner confirms the PIESA by secure link — pure rules, the official-form expansion,
-// the installer Next line, the Needs me row, the P6 mock-up wording and the O71 draft files.
+// the installer Next line, the Needs me row and the P6 mock-up wording. (The O71 email + text were retired 2 Nov 2026,
+// Part 4 Task 14: the owner confirms on the confirm-and-pay page.)
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import {
   CEILING_ENTRY_WARNING, OFFICIAL_OWNER_DECLARATIONS, OUTCOME_LABEL, OWNER_CONFIRMATION_NOT_SIGNED_FLAG, OWNER_PIESA_CONFIRMATION_BLOCKER, OWNER_PIESA_CONFIRM_WAITING,
   PIESA_CONFIRM_SCHEDULE, PIESA_OWNER_CONFIRMED_EVENT, PIESA_OWNER_CONFIRM_EMAIL_APPROVED, PIESA_OWNER_CONFIRM_OFFICE_ALERT_EVENT, PIESA_OWNER_CONFIRM_SMS_APPROVED, PIESA_OWNER_CONFIRM_SMS_TYPE, PIESA_OWNER_CONFIRM_STEP_EVENT,
   buildPiesaOwnerConfirmation, confirmTickText, confirmationFromEvents, melbourneDateOf, nextPiesaConfirmStep, ownerConfirmationForForm, ownerPiesaConfirmationBlocker, piesaConfirmKey, piesaConfirmPage,
-  piesaConfirmPurpose, piesaOutcomeKind, piesaOwnerConfirmReminderText, piesaOwnerConfirmRequestText, piesaOwnerConfirmedSummary, validateOwnerPiesaConfirmation, type PiesaOwnerConfirmFacts,
+  piesaConfirmPurpose, piesaOutcomeKind, piesaOwnerConfirmedSummary, validateOwnerPiesaConfirmation, type PiesaOwnerConfirmFacts,
 } from "../src/lib/piesa-owner-confirm.core";
-import { renderPiesaOwnerConfirmEmail } from "../src/lib/piesa-owner-confirm-email.core";
 import { expandPiesa } from "../src/lib/official-expand.core";
 import { OFFICIAL_ITEMS } from "../src/lib/official-forms.core";
 import { SHORT_PIESA_FIELDS, shortAnswersFromEntries } from "../src/lib/official-short.core";
@@ -16,9 +16,6 @@ import { jobNext } from "../src/lib/installer-screens.core";
 import { buildNeedsRows, needsCandidates } from "../src/lib/office-needs.core";
 import { SMS_FRESHNESS, SMS_MESSAGE_TYPES } from "../src/lib/sms.core";
 import { P6, OWNER_PAGE_FOOTER } from "../src/lib/owner-pages.core";
-import { FOOTER_TEXT } from "../src/lib/email-kit.core";
-import { MAIL_LOGO_URL } from "../src/lib/mail-mjml.core";
-import { O71_FILES, O71_SAMPLE } from "../scripts/render-decision-296-drafts";
 
 const REC = "11111111-1111-1111-1111-111111111111";
 /** Short Mitti PIESA answers as label/value entries (the same shape the sync stores). */
@@ -149,36 +146,11 @@ describe("reminders", () => {
   });
 });
 
-describe("wording (DRAFT until Jo approves)", () => {
-  test("decision 311: flags are on and the SMS type is approved, window freshness", () => {
-    expect(PIESA_OWNER_CONFIRM_EMAIL_APPROVED).toBe(true); expect(PIESA_OWNER_CONFIRM_SMS_APPROVED).toBe(true);
-    expect(SMS_MESSAGE_TYPES[PIESA_OWNER_CONFIRM_SMS_TYPE]).toMatchObject({ audience: "owner", wordingApproved: true, quietHours: true });
+describe("wording", () => {
+  test("retired 2 Nov 2026 (Part 4 Task 14): the O71 flags are off and the text type can never send", () => {
+    expect(PIESA_OWNER_CONFIRM_EMAIL_APPROVED).toBe(false); expect(PIESA_OWNER_CONFIRM_SMS_APPROVED).toBe(false);
+    expect(SMS_MESSAGE_TYPES[PIESA_OWNER_CONFIRM_SMS_TYPE]).toMatchObject({ audience: "owner", wordingApproved: false, quietHours: true });
     expect(SMS_FRESHNESS[PIESA_OWNER_CONFIRM_SMS_TYPE]).toEqual({ kind: "window" });
-  });
-  test("texts: under two segments, carry the link and the STOP line", () => {
-    const link = "https://estimate.homeinsulationvictoria.com.au/my-job/tok";
-    for (const t of [piesaOwnerConfirmRequestText(link), piesaOwnerConfirmReminderText(link)]) { expect(t).toContain(link); expect(t).toEndWith("Reply STOP to opt out."); expect(t.length).toBeLessThan(2 * 153 - 30); }
-    expect(piesaOwnerConfirmRequestText(link)).toBe("Your electrical safety check is done. Please confirm it so we can book your install (takes a minute): https://estimate.homeinsulationvictoria.com.au/my-job/tok Reply STOP to opt out.");
-    expect(piesaOwnerConfirmReminderText(link)).toBe("Your install can't be booked until you confirm your electrical safety check. It takes a minute: https://estimate.homeinsulationvictoria.com.au/my-job/tok Reply STOP to opt out.");
-  });
-  test("O71 email: kit shell, the date, the electrician, the result, the warning, one button; reminder variant", () => {
-    const m = renderPiesaOwnerConfirmEmail({ ...O71_SAMPLE, reminder: false, unsubscribeUrl: "https://u/x" });
-    expect(m.subject).toBe("Helen, please confirm your electrical safety check");
-    expect(m.html.startsWith("<!doctype html")).toBe(true);
-    expect(m.html).toContain(MAIL_LOGO_URL); expect(m.html).not.toContain("data:image");
-    for (const s of ["<strong>24 October 2026</strong>", "Sam Spark (Spark Electrical Pty Ltd)", `>${OUTCOME_LABEL.all_clear}<`, `<strong>${CEILING_ENTRY_WARNING}</strong>`, ">Confirm my safety check<", `href="${O71_SAMPLE.confirmUrl}"`, "Unsubscribe"]) expect(m.html).toContain(s);
-    expect(m.html).not.toMatch(/\bHI ?VIC!?(?![a-z_])/); expect(m.html).not.toMatch(/\$/);
-    expect(m.text).toContain(FOOTER_TEXT); expect(m.text).toContain(`Confirm my safety check: ${O71_SAMPLE.confirmUrl}`); expect(m.text).toContain("Unsubscribe: https://u/x");
-    const r = renderPiesaOwnerConfirmEmail({ ...O71_SAMPLE, reminder: true, test: true });
-    expect(r.subject).toBe("Helen, your electrical safety check still needs your confirmation");
-    expect(r.html).toContain("We can't book your install day until you've confirmed it."); expect(r.html).toContain("TEST — only sent to Jo");
-    expect(renderPiesaOwnerConfirmEmail({ ...O71_SAMPLE, firstName: null, reminder: false }).subject).toBe("there, please confirm your electrical safety check");
-  });
-  test("the O71 files under docs/templates/owner are the renderer's output (run scripts/render-decision-296-drafts.ts after a wording change)", () => {
-    for (const reminder of [false, true]) {
-      const file = readFileSync(`docs/templates/owner/${reminder ? O71_FILES.reminder : O71_FILES.request}`, "utf8");
-      expect(file).toBe(renderPiesaOwnerConfirmEmail({ ...O71_SAMPLE, reminder }).html);
-    }
   });
   test("P6 mock-up carries the page wording byte for byte", () => {
     const html = readFileSync("docs/templates/owner/P6-piesa-confirm-page.html", "utf8").replace(/&rsaquo;/g, "›").replace(/&#10003;/g, "✓");
@@ -228,7 +200,8 @@ describe("ownerPiesaConfirmFacts: latest initial OR reassessment record", () => 
     const b: Record<string, unknown> = {
       select: (_c?: string, o?: { count?: string }) => { count = o?.count === "exact"; return b; },
       eq: (c: string, v: unknown) => { f.push((r) => r[c] === v); return b; }, in: (c: string, v: unknown[]) => { f.push((r) => v.includes(r[c])); return b; },
-      not: () => b, order: (c: string, o?: { ascending?: boolean }) => { col = c; desc = o?.ascending === false; return b; }, limit: (n: number) => { lim = n; return b; },
+      not: () => b, is: (c: string, v: unknown) => { f.push((r) => (r[c] ?? null) === v); return b; },
+      order: (c: string, o?: { ascending?: boolean }) => { col = c; desc = o?.ascending === false; return b; }, limit: (n: number) => { lim = n; return b; },
       maybeSingle: () => { one = true; return b; },
       then: (res: (v: unknown) => unknown) => {
         let out = (tables[t] ?? []).filter((r) => f.every((x) => x(r)));
@@ -249,5 +222,29 @@ describe("ownerPiesaConfirmFacts: latest initial OR reassessment record", () => 
     expect(f?.piesaRecordId).toBe("rec-reassess");
     expect(f?.completedDate).toBe("2026-11-05");
     expect(f?.confirmation).toBeNull(); // the re-done PIESA needs its own confirmation
+  });
+  // G7 (Jo 4 Nov 2026, pack 2 batch 6): a Team electrician has no login — the owner's page names them, not "Your electrician".
+  test("Team electrician (assignment without a login) → the worker put on the job is named, with their business", async () => {
+    const { mock } = await import("bun:test");
+    tables["job_assignments"] = [{ job_id: JOB, role: "electrician", active: true, user_id: null }];
+    tables["workflow_events"]!.push(
+      { job_id: JOB, event_type: "electrician_choice_set", created_at: "2026-10-30T00:00:00Z", details: { choice: "usual", usual_name: "Sam Lee", worker_id: "w-sam" } },
+      { job_id: JOB, event_type: "in_house_electrician_allocated", created_at: "2026-11-01T00:00:00Z", details: { worker_id: "w-ana" } },
+    );
+    tables["partner_workers"] = [
+      { id: "w-sam", business_id: "biz-1", full_legal_name: "Sam Lee", removed_at: null },
+      { id: "w-ana", business_id: "biz-1", full_legal_name: "Ana Volt", removed_at: null },
+    ];
+    tables["businesses"] = [{ id: "biz-1", name: "Journey Insulation", legal_name: "Journey Insulation Pty Ltd" }];
+    mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: builder } }));
+    mock.module("../src/lib/official-forms.server", () => ({ currentCopy: async () => ({ copy: null }) }));
+    const { ownerPiesaConfirmFacts } = await import("../src/lib/piesa-owner-confirm.server");
+    const { piesaConfirmPage } = await import("../src/lib/piesa-owner-confirm.core");
+    const f = await ownerPiesaConfirmFacts(JOB);
+    expect(f?.electrician).toEqual({ name: "Ana Volt", recName: "Journey Insulation Pty Ltd" });
+    expect(piesaConfirmPage(f!).electricianLine).toBe("Ana Volt (Journey Insulation Pty Ltd)");
+    // the Add a job pick when nobody was put on the job later
+    tables["workflow_events"] = tables["workflow_events"]!.filter((e) => e["event_type"] !== "in_house_electrician_allocated");
+    expect((await ownerPiesaConfirmFacts(JOB))?.electrician.name).toBe("Sam Lee");
   });
 });

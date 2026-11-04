@@ -51,7 +51,7 @@ function PersonalEstimatePage() {
             <h1 className="mt-1 font-display text-2xl font-extrabold">Your saved estimate</h1>
             {d.job?.address && <p className="mt-1 text-sm">Property: {d.job.address}</p>}
             <p className="mt-4 text-lg font-extrabold">You could save {money(d.veuRebate)}</p>
-            <p className="mt-1">Your estimated cost after rebate: {money(d.customerTotal)} including GST</p>
+            <p className="mt-1">Your estimated quote based on what you've told us: {money(d.customerTotal)} including GST</p>
             <p>Before rebate: {money(d.totalBeforeRebate)} including GST</p>
             {d.ceilingAreaM2 !== null && d.ceilingAreaM2 !== undefined && (
               <p className="mt-1 text-sm">Ceiling size used in your quote: {d.ceilingAreaM2} m²{d.areaEstimated ? " — an estimate, not your actual size" : ""}</p>

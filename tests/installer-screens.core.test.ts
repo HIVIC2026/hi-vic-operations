@@ -37,7 +37,7 @@ describe("M2 job page — one Next panel", () => {
     expect(jobNext({ ...rc, readyCheckTurn: "booked", formLinked: true })).toMatchObject({ panel: "mitti_form", title: "Ready Check Tue 20 Oct at 7:30am", yours: true });
     expect(jobNext({ ...rc, readyCheckTurn: "booked", formLinked: true, readyCheckBookedAt: "2026-10-19T20:30:00Z" }).title).toBe("Ready Check Tue 20 Oct at 7:30am");
     expect(jobNext({ ...rc, readyCheckTurn: "booked", formLinked: true, needsFinishing: "You: add the owner's phone and email in Mitti" })).toMatchObject({ panel: "mitti_form", title: "You: add the owner's phone and email in Mitti" });
-    expect(jobNext({ ...rc, readyCheckTurn: "booked", formLinked: true, quoteLine: "You: when the Ready Check is finished, press Complete in Mitti — we then send the owner their quote" })).toMatchObject({ panel: "quote_status", yours: true });
+    expect(jobNext({ ...rc, readyCheckTurn: "booked", formLinked: true, quoteLine: "Press Complete in Mitti when the Ready Check is finished. Your boss then enters the price, and we send the owner their quote." })).toMatchObject({ panel: "quote_status", yours: true });
     expect(jobNext({ ...rc, readyCheckTurn: "booked", formLinked: true, formCompleted: true, quoteLine: "Waiting on office: checking the quote" })).toMatchObject({ panel: "quote_status", yours: false });
     for (const t of [jobNext({ ...rc, readyCheckTurn: "installer_to_offer" }), jobNext({ ...rc, readyCheckTurn: "booked", formLinked: true })]) expect(JSON.stringify(t)).not.toMatch(/install day|rebate/i);
   });
@@ -148,10 +148,9 @@ describe("audit removals on the rebuilt screens", () => {
       expect(s).not.toMatch(/dayTile|8–10am|first trade to accept|Another trade accepted/);
     }
   });
-  test("B5: an offer that won't load shows Back to My work", () => {
+  test("B5 (superseded by Part 7 Task 9): the offer page is gone — every old offer link opens My work", () => {
     const page = read("src/routes/_authenticated/field.offer.$offerId.tsx");
-    const err = page.slice(page.indexOf("if (error)"), page.indexOf("if (!data)"));
-    expect(err).toContain('<Link to="/field" className={outlineLinkClass}>Back to My work</Link>');
-    expect(err).toContain("(error as Error).message");
+    expect(page).toMatch(/redirect\(\{ to: "\/field" \}\)/);
+    expect(page).not.toContain("component:");
   });
 });

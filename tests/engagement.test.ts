@@ -1,10 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { publicLegacyTarget } from "../src/lib/legacy-links.core";
-import { readFileSync, readdirSync, statSync } from "fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "fs";
 import { join } from "path";
 import { CUSTOMER_BASE, PIXEL_GIF, clickUrl, dedupe, estimateUrl, newTrackingToken, pixelResponse, pixelToken, pixelUrl, planFollowup, planInitialFollowups, redirectResponse, safeMetadata, sendBlocker, summarize, type EngagementEvent } from "../src/lib/engagement.core";
 import { base44BridgeConfig } from "../src/lib/delivery.core";
-import { renderFollowupEmail } from "../src/lib/followup-email";
 
 const T0 = Date.parse("2026-10-01T00:00:00Z");
 const at = (ms: number) => new Date(T0 + ms).toISOString();
@@ -97,33 +96,23 @@ describe("engagement summary", () => {
 
 describe("follow-ups", () => {
   const sent = summarize([ev("email_sent", 0)]);
-  test("initial send creates only the unopened 3d reminder; none when booked", () => {
-    const p = planInitialFollowups(at(0), sent);
-    expect(p.map((x) => x.slot)).toEqual(["3d"]);
-    expect(Date.parse(p[0]!.due_at) - T0).toBe(3 * 86_400_000);
+  test("initial send queues no follow-up any more (the unopened reminder was removed, Jo 2 Nov 2026)", () => {
+    expect(planInitialFollowups(at(0), sent)).toEqual([]);
     expect(planInitialFollowups(at(0), summarize([ev("email_sent", 0), ev("booking_completed", 1)]))).toEqual([]);
   });
   const row3 = { slot: "3d" as const, kind: "estimate_unopened_3d" as const, status: "queued", due_at: at(3 * 86_400_000) };
   const row7 = { slot: "7d" as const, kind: "estimate_second_reminder_7d" as const, status: "queued", due_at: at(7 * 86_400_000) };
-  test("booking, engagement, stale rows and retired kinds are suppressed", () => {
-    const booked = summarize([ev("email_sent", 0), ev("booking_completed", 10)]);
-    expect(planFollowup(row3, booked, allGates, T0 + 3 * 86_400_000)).toEqual({ action: "suppress", reason: "booking_completed" });
-    expect(planFollowup(row3, summarize([ev("email_sent", 0), ev("email_opened", 3_600_000)]), allGates, T0 + 3 * 86_400_000)).toEqual({ action: "suppress", reason: "estimate_already_engaged" });
-    expect(planFollowup(row3, summarize([ev("email_sent", 0), ev("estimate_viewed", 10)]), allGates, T0 + 3 * 86_400_000)).toEqual({ action: "suppress", reason: "estimate_already_engaged" });
-    expect(planFollowup(row7, sent, allGates, T0 + 7 * 86_400_000)).toEqual({ action: "suppress", reason: "retired_followup_kind" });
-    expect(planFollowup({ ...row3, kind: "estimate_engaged_no_booking_3d" }, sent, allGates, T0 + 3 * 86_400_000)).toEqual({ action: "suppress", reason: "retired_followup_kind" });
-    expect(planFollowup(row3, sent, allGates, T0 + 11 * 86_400_000)).toEqual({ action: "suppress", reason: "expired_unsent" });
+  test("every queued row left over is suppressed as retired; nothing is ever planned to send", () => {
+    for (const row of [row3, row7, { ...row3, kind: "estimate_engaged_no_booking_3d" as const }]) {
+      expect(planFollowup(row, sent, allGates, T0 + 3 * 86_400_000)).toEqual({ action: "suppress", reason: "retired_followup_kind" });
+      expect(planFollowup(row, sent, { ...allGates, commsEnabled: false }, T0 + 3 * 86_400_000)).toEqual({ action: "suppress", reason: "retired_followup_kind" });
+    }
     expect(planFollowup({ ...row3, status: "sent" }, sent, allGates)).toEqual({ action: "suppress", reason: "already_final" });
   });
-  test("gates are rechecked at send time; missing provider never marks sent", () => {
-    const now = T0 + 3 * 86_400_000;
-    expect(planFollowup(row3, sent, { ...allGates, commsEnabled: false }, now)).toEqual({ action: "block", reason: "comms_disabled" });
-    expect(planFollowup(row3, sent, { ...allGates, consent: false }, now)).toEqual({ action: "block", reason: "no_contact_consent" });
-    expect(planFollowup(row3, sent, { ...allGates, activeLink: false }, now)).toEqual({ action: "block", reason: "no_active_estimate_link" });
-    expect(planFollowup(row3, sent, { ...allGates, providerConfigured: false }, now)).toEqual({ action: "block", reason: "delivery_not_configured" });
-    expect(planFollowup(row3, sent, { ...allGates, eligibilityOk: false }, now)).toEqual({ action: "suppress", reason: "eligibility_not_permitted" });
+  test("send gate still refuses on the first missing gate", () => {
     expect(sendBlocker({ ...allGates, alreadySent: true })).toBe("already_sent");
     expect(sendBlocker({ ...allGates, alreadySent: false })).toBeNull();
+    expect(sendBlocker({ ...allGates, commsEnabled: false, alreadySent: false })).toBe("comms_disabled");
   });
   test("idempotency: unique job+slot, job+kind, send keys; followups suppressed on booking", () => {
     const m = src("drizzle/migrations/0036_customer_engagement_followups.sql");
@@ -133,7 +122,6 @@ describe("follow-ups", () => {
     expect(m).toContain("FOR UPDATE SKIP LOCKED");
     const f = src("src/lib/followups.server.ts");
     expect(f).toContain('onConflict: "job_id,slot", ignoreDuplicates: true');
-    expect(f).toContain("key: `followup:${f.id}`");
     const s = src("src/lib/engagement.server.ts");
     const done = s.slice(s.indexOf("export async function recordBookingCompleted"));
     expect(done).toContain("suppressFollowups(jobId");
@@ -168,22 +156,13 @@ describe("email renderers", () => {
   const link = `${CUSTOMER_BASE}/estimate/${newTrackingToken()}`;
   const tok = newTrackingToken();
   const quote = { estimatedTotal: 3396, veuDiscount: 1325, areaM2: 134.1 };
-  test("only the unopened three-day follow-up remains renderable", () => {
-    const m = renderFollowupEmail({ kind: "estimate_unopened_3d", estimateUrl: link, trackingClickUrl: clickUrl(tok), trackingPixelUrl: pixelUrl(tok) });
-    expect(m.html).toContain("#3C51C4");
-    expect(m.html).toContain(clickUrl(tok));
-    expect(m.html).not.toMatch(/lovable\.app|<script|\bresend\b/i);
-    expect(m.plainText).toContain(clickUrl(tok));
-    expect(m.subject).toContain("Just checking you received your Home Insulation Victoria estimate");
-    expect(src("src/lib/followup-email.ts")).not.toMatch(/estimate_engaged_no_booking_3d|estimate_second_reminder_7d/);
-  });
-  test("worker suppresses retired queue rows before delivery", () => {
+  test("no follow-up email renderer remains; the worker only closes leftover rows as retired", () => {
+    expect(existsSync("src/lib/followup-email.ts")).toBe(false);
     const worker = src("src/lib/followups.server.ts");
-    const guard = worker.indexOf('f.slot !== "3d" || !isActiveFollowupKind(f.kind)');
-    const delivery = worker.indexOf("await deliverTracked(", guard);
-    expect(guard).toBeGreaterThan(-1);
-    expect(worker.slice(guard, delivery)).toContain('suppression_reason: "retired_followup_kind"');
-    expect(delivery).toBeGreaterThan(guard);
+    expect(worker).not.toContain("renderFollowupEmail");
+    const fn = worker.slice(worker.indexOf("export async function processDueFollowups"), worker.indexOf("/** Fallback scan"));
+    expect(fn).toContain('suppression_reason: "retired_followup_kind"');
+    expect(fn).not.toContain("deliverTracked(");
   });
   test("sample preview never calls live tracking", () => {
     // The preview page is retired: its old address only redirects to Templates (legacy-links.core.ts).

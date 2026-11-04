@@ -13,7 +13,8 @@ const wc = waveCounter(tables);
  *  client) vs outside it (the overview and the access check itself). Counted when the query is built on this client. */
 const asked = { trusted: 0, before: 0 };
 let jobDbNow: (() => unknown) | null = null;
-const admin = { ...wc.client, from: (t: string) => { if (jobDbNow && jobDbNow() !== admin) asked.trusted++; else asked.before++; return wc.client.from(t); } };
+const trustedLog: string[] = [];
+const admin = { ...wc.client, from: (t: string) => { if (jobDbNow && jobDbNow() !== admin) { asked.trusted++; trustedLog.push(t + " " + new Error().stack!.split("\n").filter((l) => l.includes("/src/lib/") && !l.includes("job-facts.server")).slice(0, 4).map((l) => l.replace(/.*\/src\/lib\//, "").replace(/\)$/, "")).join(" < ")); } else asked.before++; return wc.client.from(t); } };
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: admin }));
 
 const { tradeJobBundle } = await import("../src/lib/trade-job-bundle.server");
@@ -34,8 +35,8 @@ function seed() {
   });
   Object.assign(tables, {
     businesses: [
-      { id: B1, name: "Inst Co", trading_name: null, business_type: "eec_installer", capabilities: ["installer"], base_suburb: "Geelong", coverage_radius_km: 50, covers_all_victoria: false, accepting_new_jobs: true, onboarding_notes: null, mitti_account_invited: true },
-      { id: B2, name: "Sparky Co", trading_name: "Sparky", business_type: "rec", capabilities: ["electrician"], base_suburb: "Geelong", coverage_radius_km: 50, covers_all_victoria: false, accepting_new_jobs: true, onboarding_notes: null, mitti_account_invited: false },
+      { id: B1, name: "Inst Co", trading_name: null, in_house: false, business_type: "eec_installer", capabilities: ["installer"], base_suburb: "Geelong", coverage_radius_km: 50, covers_all_victoria: false, accepting_new_jobs: true, onboarding_notes: null, mitti_account_invited: true },
+      { id: B2, name: "Sparky Co", trading_name: "Sparky", in_house: false, business_type: "rec", capabilities: ["electrician"], base_suburb: "Geelong", coverage_radius_km: 50, covers_all_victoria: false, accepting_new_jobs: true, onboarding_notes: null, mitti_account_invited: false },
     ],
     business_members: [
       { id: "m1", business_id: B1, user_id: U_BOSS, member_role: "business_admin", active: true },
@@ -146,7 +147,7 @@ describe("Job page bundle (Task 6): same value as before", () => {
   test("a user with no access to the job is refused in every section", async () => {
     seed();
     const r = (await run(U_OUT, j(1)).p) as unknown as Record<string, unknown>;
-    for (const k of ["overview", "role", "page", "installDays", "readyCheckTimes", "allocation", "swms", "workerLinks", "price", "ownerQuote", "crew", "mittiInvited"]) expect(JSON.stringify(r[k]), k).toContain("error");
+    for (const k of ["overview", "role", "page", "installDays", "readyCheckTimes", "allocation", "swms", "workerLinks", "price", "ownerQuote", "crew"]) expect(JSON.stringify(r[k]), k).toContain("error");
   });
 });
 
@@ -252,9 +253,10 @@ describe("Job page bundle (Task 11): the job's rows are read once", () => {
     test(`${name}: at most 10 database reads after the access check`, async () => {
       seed(); wc.state.failWhen = null;
       const s = signedIn(u);
-      asked.trusted = 0; asked.before = 0;
+      asked.trusted = 0; asked.before = 0; trustedLog.length = 0;
       const r = await wc.measured(() => quiet(() => tradeJobBundle(s.sb as never, u, job)));
       console.log(`TASK11 ${name}: ${r.log.length} reads in all; ${asked.trusted} after the access check, ${asked.before} admin reads before/outside it, ${s.calls.length} sign-in client calls`);
+      if (process.env["SHOW_TRUSTED"]) for (const l of trustedLog) console.log("TRUSTED " + l);
       expect(asked.trusted).toBeLessThanOrEqual(10);
       // A refused caller reads nothing about the job after the (failed) access check.
       if (name.includes("not assigned") || name.includes("no access")) expect(asked.trusted).toBe(0);

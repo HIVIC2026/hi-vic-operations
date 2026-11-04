@@ -95,7 +95,7 @@ const realMitti = await import("../src/lib/mitti.server");
 mock.module("../src/lib/mitti.server", () => ({ ...realMitti, findMittiUserByEmail: async () => (mittiMissing ? null : "mitti-user"), reassignMittiFormTo: async (p: { auditId: string; email: string }) => { moved.push({ auditId: p.auditId, email: p.email }); } }));
 
 const swap = await import("../src/lib/electrician-swap.server");
-const els = await import("../src/lib/electrician-link.server");
+const els = await import("../src/lib/own-job-electrician-link.server");
 const events = async (job: string, type: string) => (await db.query<{ details: Record<string, unknown> }>("select details from workflow_events where job_id=$1 and event_type=$2 order by created_at", [job, type])).rows;
 const active = async (job: string) => (await db.query<{ business_id: string }>("select business_id from job_assignments where job_id=$1 and role='electrician' and active", [job])).rows;
 const APPROVED = { oldEmailApproved: true };

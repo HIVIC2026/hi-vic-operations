@@ -15,6 +15,8 @@ import {
   installerVisitFromSiteCheck,
   fillTemplate,
   gateDoc,
+  ownerVersionLabel,
+  signedTextHeader,
   ownerGateBlockers,
   ownerToSign,
   quoteAcceptanceReady,
@@ -302,7 +304,7 @@ export async function ownerPaperworkToSign(jobId: string) {
         key: t.key,
         title: d.title,
         tick: d.tick,
-        version: d.version,
+        version: ownerVersionLabel(d.version),
         draft: !facts.approved[t.key],
         text:
           t.key === "payment_terms" && money ? paymentTermsText(money) : fillTemplate(d.body, vars),
@@ -374,7 +376,7 @@ export async function signGateDoc(i: SignInput) {
     );
   const text = fillTemplate(d.body, { ...vars, ...answerVars(i.answers, money) });
   const emailConsent = i.quoteSittingKey ? `\n[x] ${(await import('./owner-quote-sign.core')).OWNER_EMAIL_DOCUMENT_CONSENT}` : '';
-  const signedText = `${d.title} (version ${d.version}${draft ? ", DRAFT" : ""})\n\n${text}\n\n[x] ${d.tick}${emailConsent}\nSigned: ${i.signatoryName.trim()}${d.gate === "B" ? (await import("./owner-confirm.core")).signedSummaryNote() : ""}`;
+  const signedText = `${signedTextHeader(d.title, d.version, draft)}\n\n${text}\n\n[x] ${d.tick}${emailConsent}\nSigned: ${i.signatoryName.trim()}${d.gate === "B" ? (await import("./owner-confirm.core")).signedSummaryNote() : ""}`;
   let quickTapId: string | null = null;
   if (i.quickTapsBatchId && i.key === "trade_contact_share") {
     const h = await sha256(`quick-taps-share:${i.jobId}:${i.quickTapsBatchId}:${d.version}`);
@@ -505,8 +507,7 @@ export async function signGateDoc(i: SignInput) {
   );
 
   // F13: the signed copy is filed on the job above; nothing is queued here and copy_email_queued is no longer set.
-  // Decision 376: the owner's emailed copy (O75, approved by Jo in decision 384) is sent by the 15-minute tick, one email per
-  // signing sitting (paperwork-copy-email.server sweepOwnerPaperworkCopies), with these PDFs attached.
+  // The O75 "Your signed paperwork" email was removed (Part 3 Task 16, Jo 2 Nov 2026): the owner reaches the signed copy on the job page.
   return { id: row.id, draft };
 }
 

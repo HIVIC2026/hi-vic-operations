@@ -13,8 +13,13 @@ export function isReadyCheckQuote(optionCode: string | null | undefined, mitti: 
   return mitti?.external_source === "mitti" && !!mitti.external_id;
 }
 
-export const PRESS_COMPLETE_LINE = "You: when the Ready Check is finished, press Complete in Mitti — we then send the owner their quote";
-/** Shown while the office checks the quote: after Complete in Mitti, or when a check held it for the office. */
+/** Jo 3 Nov 2026: after Complete the installer's BOSS enters the price in the portal; only then does the quote go to the
+ *  owner. Nothing here may say or imply the quote is sent automatically on Complete. */
+export { PRESS_COMPLETE_LINE } from "./installer-status-line.core"; // DRAFT line; lives in the import-free status-line module (speed step 2B)
+import { PRESS_COMPLETE_LINE } from "./installer-status-line.core";
+/** After Complete / while held: the boss's price is the next step. */
+export const QUOTE_PRICE_NEXT_LINE = "Your boss enters the price next, then we send the owner their quote."; // DRAFT
+/** Shown while the quote is held for the office after the price is in. */
 export const QUOTE_HELD_LINE = "Waiting on office: checking the quote";
 export const QUOTE_DECLINED_LINE = "Waiting on office: the owner declined the quote";
 export const QUOTE_ACCEPTED_LINE = "Waiting on owner: quote accepted – waiting for owner's payment";

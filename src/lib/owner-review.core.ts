@@ -5,6 +5,10 @@
 // Needs me row for Jo per job; a 1–3 star owner is never sent to Google.
 import type { SystemRow } from "./office-needs.core";
 
+// Speed (portal speed step 2B): the star parse and screen choice live in owner-review-screen.core (no imports) because the
+// My job route's `validateSearch` runs on every page's first download; same values, re-exported here.
+export { parseStars, reviewOutcome, reviewScreen } from "./owner-review-screen.core";
+import { reviewOutcome } from "./owner-review-screen.core";
 export const OWNER_REVIEW_STARS_EVENT = "owner_review_stars";
 export const OWNER_REVIEW_FEEDBACK_EVENT = "owner_review_feedback";
 export const REVIEW_FEEDBACK_MAX = 1000;
@@ -26,28 +30,12 @@ export const REVIEW_COPY = {
   feedbackSent: "Thanks. We have your note and will be in touch.",
 } as const;
 
-/** "?stars=N" → 1..5, anything else → null. */
-export function parseStars(raw: unknown): 1 | 2 | 3 | 4 | 5 | null {
-  const n = typeof raw === "number" ? raw : typeof raw === "string" && /^\s*[1-5]\s*$/.test(raw) ? Number(raw) : NaN;
-  return Number.isInteger(n) && n >= 1 && n <= 5 ? (n as 1 | 2 | 3 | 4 | 5) : null;
-}
-
-/** 4–5 → Google (when a link is set); 1–3 → the private feedback box. Never Google for 1–3. */
-export function reviewOutcome(stars: number): "google" | "private" {
-  return stars >= 4 ? "google" : "private";
-}
-
 /** The Google review link from env, only when it is a real https URL. */
 export function googleReviewLink(raw: string | null | undefined): string | null {
   const v = raw?.trim();
   return v && /^https:\/\/\S+$/.test(v) ? v : null;
 }
 
-/** What the screen shows for a given star tap: the Google link only for 4–5 and only when one is set. */
-export function reviewScreen(stars: number | null, googleUrl: string | null): { kind: "ask" } | { kind: "thanks"; googleUrl: string | null } | { kind: "feedback" } {
-  if (stars == null) return { kind: "ask" };
-  return reviewOutcome(stars) === "google" ? { kind: "thanks", googleUrl } : { kind: "feedback" };
-}
 
 /** Record this tap? Not when the latest recorded tap is the same stars within the dedupe window. */
 export function shouldRecordStars(stars: number, latest: { stars: number; at: string } | null, now: Date = new Date()): boolean {

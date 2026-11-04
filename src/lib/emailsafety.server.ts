@@ -1,10 +1,10 @@
 // Persistence for customer email safety: suppression facts, unsubscribe tokens and opt-out recording.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { newToken, isWellFormedToken } from "./estimatelink.core";
-import { emailSuppression, unsubscribeUrl, type EmailPurpose } from "./emailsafety.core";
+import { emailSuppression, unsubscribeUrl, SUPPRESSING_EVENTS, type EmailPurpose } from "./emailsafety.core";
 
-/** Engagement events that permanently stop marketing/follow-up email for a job. */
-export const SUPPRESSING_EVENTS = ["email_bounced", "email_complained", "complaint", "opted_out", "payment_received", "quote_declined", "booking_completed"];
+/** One list, owned by emailsafety.core (marketing/follow-up stops = delivery suppressions + engagement stops). */
+export { SUPPRESSING_EVENTS } from "./emailsafety.core";
 
 export async function suppressionFor(jobId: string, purpose: EmailPurpose, recipient: string | null, ctx: import("./manual-backlog.core").LeadRouteContext = {}): Promise<string | null> {
   const { isManualBacklog } = await import("./manual-backlog.core");

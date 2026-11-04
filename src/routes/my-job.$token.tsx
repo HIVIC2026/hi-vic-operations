@@ -5,23 +5,26 @@ import { Check, Phone } from "lucide-react";
 import { cancelMyJob, finishLifeSupportPlanUploadFn, getLifeSupportPlanState, getOwnerMyJob, startLifeSupportPlanUploadFn } from "@/lib/owner-myjob.functions";
 import { supabase } from "@/integrations/supabase/client";
 import { OwnerHouse } from "@/components/owner/OwnerHouse";
-import { PIESA_FIXES_NOTE, agreedWithLabel, ownerPriceTitle } from "@/lib/owner-confirm.core";
+import { agreedWithLabel, ownerPriceTitle } from "@/lib/owner-confirm.core";
 import { HOUSE_LEVEL } from "@/lib/owner-house.core";
 import { ownerHeadline } from "@/lib/owner-headlines.core";
-import { gateACard, SPOT_SAVED_PROGRESS, spotSavedLayout, resolveOwnerScreen } from "@/lib/owner-myjob.core";
-import { OWNER_EMAIL_DOCUMENT_CONSENT, quoteSittingBlockers } from '@/lib/owner-quote-sign.core';
+import { gateACard, QUOTE_NOT_READY_OWNER_LINE, SPOT_SAVED_PROGRESS, spotSavedLayout, resolveOwnerScreen } from "@/lib/owner-myjob.core";
+import { quoteSittingBlockers } from '@/lib/owner-quote-sign.core';
 import { ownerPaperworkFn } from "@/lib/owner-gates.functions";
-import { earliestInstall, installDeadline, TWO_HOUR_WINDOWS, visitPill, type OwnerScreen } from "@/lib/owner-myjob.core";
-import { SPOT_FREE, SPOT_PRICE_NOTE, SPOT_REGISTERED, SPOT_RELEASE_LINE, SPOT_WAIT_LINE } from "@/lib/spot-only-copy.core";
-import { PAYMENT_OPTION_SUMMARY, paymentOptionSummary } from "@/lib/payment-gate.core";
-import { howYouPayLines, paymentPlan } from "@/lib/payments.core";
+import { visitPill, type OwnerScreen } from "@/lib/owner-myjob.core";
+import { SPOT_FREE, SPOT_PRICE_NOTE, SPOT_RELEASE_LINE, SPOT_WAIT_LINE } from "@/lib/spot-only-copy.core";
+import { paymentPlan } from "@/lib/payments.core";
+import { QUOTE_CHANGES_FOOTNOTE, QUOTE_CHANGES_HEADING } from "@/lib/quote-changes.core";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { OwnerPaperwork } from "@/components/owner/OwnerPaperwork";
+import { OwnerConfirmSignPay } from "@/components/owner/OwnerConfirmSignPay";
+import { OwnerSignAndPay } from "@/components/owner/OwnerSignAndPay";
 import { OwnerCodeGate, signBtn } from "@/components/owner/OwnerSign";
-import { ownerAcceptQuoteFn, ownerAgreementFn, ownerBookingStateFn, ownerCardCheckoutFn, ownerChoosePiesaFn, ownerDeclineQuoteFn, ownerChangeInstallDayFn, ownerChangePiesaFn, ownerSignConsentFn, ownerSuggestInstallDaysFn, ownerTakeInstallDayFn, ownerVeecAssignmentFn, ownerSignVeecAssignmentFn, ownerPiesaConfirmFn, ownerSignPiesaConfirmFn, ownerFixesConfirmFn, ownerSignFixesConfirmFn, ownerTakePiesaTimeLinkFn, ownerSuggestPiesaDaysLinkFn, ownerReviewStateFn, ownerReviewStarsFn, ownerReviewFeedbackFn, ownerFixesStateFn, ownerApproveFixesFn, ownerPickFixesTimeFn, ownerRepeatPiesaFn, ownerAcceptRepeatPiesaFn } from "@/lib/owner-link.functions";
+import { ownerAcceptQuoteFn, ownerAgreementFn, ownerQuoteDocumentFn, ownerBookingStateFn, ownerCardCheckoutFn, ownerChoosePiesaFn, ownerDeclineQuoteFn, ownerSuggestInstallDaysFn, ownerTakeInstallDayFn, ownerVeecAssignmentFn, ownerSignVeecAssignmentFn, ownerPiesaConfirmFn, ownerSignPiesaConfirmFn, ownerTakePiesaTimeLinkFn, ownerSuggestPiesaDaysLinkFn, ownerReviewStateFn, ownerReviewStarsFn, ownerReviewFeedbackFn, ownerFixesStateFn, ownerApproveFixesFn, ownerPickFixesTimeFn, ownerRepeatPiesaFn, ownerAcceptRepeatPiesaFn } from "@/lib/owner-link.functions";
 import { OWNER_FIXES_COPY, ownerFixesNeedsOwner } from "@/lib/owner-fixes.core";
-import { REVIEW_COPY, REVIEW_FEEDBACK_MAX, parseStars, reviewScreen } from "@/lib/owner-review.core";
+import { REVIEW_COPY, REVIEW_FEEDBACK_MAX } from "@/lib/owner-review.core";
+import { parseStars, reviewScreen } from "@/lib/owner-review-screen.core"; // speed (portal speed step 2B): validateSearch loads only these
 import { DECLINE_REASONS, OWNER_DECLINED_SCREEN, type DeclineReason } from "@/lib/quote-decline.core";
 import { melbourneToday, addYmd } from "@/lib/melbourne-time.core";
 import { formatInstallDay } from "@/lib/install-days.core";
@@ -29,14 +32,14 @@ import { PIESA_OWNER_SUGGEST_MAX, formatPiesaTime } from "@/lib/piesa-times.core
 import { OwnerReadyCheckTimes } from "@/components/owner/OwnerReadyCheckTimes";
 import { OwnerRunTime } from "@/components/owner/OwnerRunTime";
 import { AuthorityChoice, FactRows, FormCard, InfoBox, LockHint, LockedButton, OwnerFooter, OwnerPageHeader, PageIntro, SectionTitle, SmallNote, ThirtyDayClock, TickCard, TypedField } from "@/components/owner/OwnerPageKit";
-import { OFFICE_EMAIL, P2, P3, P4, P6, P6F, centsAud, dayMonth, declarationBullets, longDate, sentence, shortAud, weekdayDate } from "@/lib/owner-pages.core";
-import { OWNER_DECLARATIONS, type OwnerDeclarationKey } from "@/lib/consent.core";
+import { OFFICE_EMAIL, P2, P3, P4, P6, centsAud, dayMonth, declarationBullets, longDate, shortAud, weekdayDate } from "@/lib/owner-pages.core";
 import { ownerConfirmTurnFn, ownerDeclineTurnFn, ownerTurnStateFn } from "@/lib/spot-release.functions";
-import { SPOT_RELEASE_PAGE, WHAT_HAPPENS_NEXT, type OwnerTurnView } from "@/lib/spot-release.core";
+import { LEGACY_WHAT_HAPPENS_NEXT, SPOT_RELEASE_PAGE, type OwnerTurnView } from "@/lib/spot-release.core";
 import { ownerRequestNewQuoteFn } from "@/lib/new-quote-request.functions";
 import { NEW_QUOTE_THANKS } from "@/lib/new-quote-request.core";
 import { ownerQuickTapsAddressSearchFn, ownerQuickTapsDetailsFn, ownerQuickTapsSaveFn, ownerQuickTapsStateFn } from "@/lib/quick-taps.functions";
-import { QUICK_TAPS_COPY, nextTapStep, quickTapsPassLine, tapOutcome, validAccess, websiteQuestions, type QuickTapAnswers, type QuickTapsView } from "@/lib/quick-taps.core";
+import { QUICK_TAPS_COPY, nextTapStep, quickTapsGoLabel, quickTapsPassLine, tapOutcome, websiteQuestions, type QuickTapAnswers, type QuickTapsView } from "@/lib/quick-taps.core";
+import { RENTAL_DONE_LINE, RENTAL_TAPS, nextRentalStep, rentalDetailsProblems, rentalWhoChoices, type RentalAnswersInput, type RentalStep } from "@/lib/rental-answers.core";
 import { createAddressPicker, type PickResult } from "@/lib/address-pick.core";
 import { assertInHouseActionSucceeded } from "@/lib/in-house.core";
 import { completeOwnerQuoteAcceptance, ownerQuoteCanAccept } from "@/lib/owner-quote-visibility.core";
@@ -47,18 +50,20 @@ import { completeOwnerQuoteAcceptance, ownerQuoteCanAccept } from "@/lib/owner-q
 // Decision 389: "turn" = "It's your turn" (O77's link): Confirm the free Ready Check, or no longer interested.
 // Batch 3a: "newquote" = O78's "Send me a new quote" button: the request runs on arrival, then the approved thanks line.
 // A48 batch 2: "taps" = the quick taps (the batch text's link): one question per screen, big buttons.
-const SCREENS = ["home", "spot", "quote", "pay", "piesa", "veec", "book", "done", "review", "fixes", "turn", "newquote", "taps"] as const satisfies readonly OwnerScreen[];
+const SCREENS = ["home", "spot", "quote", "pay", "piesa", "veec", "book", "done", "review", "fixes", "turn", "newquote", "taps", "clear", "finish"] as const satisfies readonly OwnerScreen[];
 
 export const Route = createFileRoute("/my-job/$token")({
   ssr: false,
   // Same rule as the former zod schema (optional enum, anything else rejected) without pulling zod into every page's first load (decision 280).
   // SCREENS mirrors the OwnerScreen union in owner-myjob.core.
-  validateSearch: (s: Record<string, unknown>): { screen?: OwnerScreen; stars?: number } => {
+  validateSearch: (s: Record<string, unknown>): { screen?: OwnerScreen; stars?: number; only?: "rental" } => {
     const screen = s["screen"];
     if (screen === undefined) return {};
     if (typeof screen === "string" && (SCREENS as readonly string[]).includes(screen)) {
       // Decision 335: ?stars=1..5 only on the review screen; anything else is ignored (never an error page from an email).
       const stars = screen === "review" ? parseStars(s["stars"]) : null;
+      // Task 19 (answer 24): ?screen=taps&only=rental = an installer's own customer answering only the rental questions.
+      if (screen === "taps" && s["only"] === "rental") return { screen: "taps", only: "rental" };
       return stars ? { screen: screen as OwnerScreen, stars } : { screen: screen as OwnerScreen };
     }
     throw new Error("Invalid screen");
@@ -84,33 +89,51 @@ const day = (iso: string) => new Date(iso).toLocaleDateString("en-AU", { weekday
 
 function MyJobPage() {
   const { token } = Route.useParams();
-  const { screen: requestedScreen, stars } = Route.useSearch();
+  const { screen: requestedScreen, stars, only } = Route.useSearch();
   const load = useServerFn(getOwnerMyJob);
   const { data, isLoading } = useQuery({ queryKey: ["my-job", token], queryFn: () => load({ data: { token } }) as Promise<View | null>, staleTime: 30_000, retry: false, refetchOnWindowFocus: false });
-  const screen = resolveOwnerScreen(requestedScreen, data ?? {});
+  const screen = resolveOwnerScreen(requestedScreen, data ? { ...data, piesaConfirm: data.piesaConfirm === true } : {});
   return (
     <div className="estimate-brand min-h-screen bg-estimate-canvas pb-10 text-estimate-navy">
       {/* Approved pages P2–P4 (Jo 24 Oct): white bar, logo left, job number right. */}
-      <OwnerPageHeader right={data?.jobNumber ? (data.spotSaved ? `Job ${data.jobNumber}` : data.jobNumber) : undefined} />
+      <OwnerPageHeader right={data?.jobNumber ? (data.spotSaved ? `Job ${data.jobNumber}` : data.jobNumber) : undefined} partnerLogo={data?.cobrand ?? null} />
       <main className="mx-auto max-w-[560px] space-y-4 px-4 pt-5 sm:px-5">
         {isLoading ? <p role="status" className="py-10 text-center text-sm">Opening your job…</p>
           : !data ? <Unavailable />
           : screen === "review" ? <ReviewScreen token={token} initialStars={stars ?? null} />
           : screen === "turn" ? <TurnScreen token={token} />
-          : screen === "taps" ? <TapsScreen v={data} token={token} />
+          : screen === "taps" ? <TapsScreen v={data} token={token} only={only} />
           : screen === "newquote" ? <NewQuoteScreen v={data} token={token} />
           : screen === "quote" ? <QuoteScreen v={data} token={token} />
           : screen === "pay" ? <><RepeatPiesaCard token={token} /><PayNowCard v={data} token={token} /></>
+          : screen === "clear" ? <OwnerConfirmSignPay v={data} token={token} />
+          : screen === "finish" ? <OwnerSignAndPay token={token} />
           : screen === "piesa" ? <PiesaConfirmCard v={data} token={token} />
           : screen === "veec" ? <VeecAssignmentCard v={data} token={token} />
           : screen === "fixes" ? <FixesScreen v={data} token={token} />
           : screen === "book" ? <BookScreen v={data} token={token} />
           : screen === "done" ? <DoneScreen v={data} token={token} />
           : screen === "spot" ? <SpotScreen v={data} token={token} />
-          : <section className="py-8"><h1 className="font-display text-2xl font-bold">You're all set{data.firstName ? `, ${data.firstName}` : ''}.</h1><p className="mt-3">We'll email you when there's a next step.</p></section>}
+          : <AllSetScreen v={data} />}
       </main>
     </div>
   );
+}
+
+/** Nothing is needed from the owner. G8 (4), Jo 4 Nov 2026: when a visit is booked, the screen says which one, when and who
+ *  is coming (owner-myjob.core nextVisitCard); otherwise the plain all-set line. */
+function AllSetScreen({ v }: { v: View }) {
+  const next = (v as { nextVisit?: { title: string; line: string; note: string | null } | null }).nextVisit ?? null;
+  return <section className="py-8" data-testid="owner-all-set">
+    <h1 className="font-display text-2xl font-bold">You're all set{v.firstName ? `, ${v.firstName}` : ''}.</h1>
+    {next ? <div className="mt-4 rounded-[22px] bg-card p-5 shadow-sm" data-testid="owner-next-visit">
+      <p className="text-xs font-bold uppercase tracking-wide text-estimate-navy/70">Your next visit</p>
+      <p className="mt-1 font-display text-lg font-extrabold">{next.title}</p>
+      <p className="mt-1 text-sm">{next.line}</p>
+      {next.note && <p className="mt-2 text-sm font-semibold">{next.note}</p>}
+    </div> : null}
+    <p className="mt-3">We'll email you when there's a next step.</p>
+  </section>;
 }
 
 function Unavailable() {
@@ -159,19 +182,14 @@ function Home({ v, token }: { v: View; token: string }) {
   const { data: repeat } = useQuery({ queryKey: ["owner-repeat-piesa", token], queryFn: () => loadRepeat({ data: { token } }) });
   if (repeat) return <><RepeatPiesaCard token={token} /><Hero v={v} level={v.hero.level} headline={v.hero.headline} /></>;
   return <>
-    {/* Approved P3 (decision 128): when the ESC consent is waiting, it is the page; everything else follows below. */}
-    {v.consent && <ConsentCard v={v} token={token} />}
+    {/* Part 4 Task 14 (Jo 2 Nov 2026): the separate P3 consent step, the fixes home card and the P6F confirm-fixes page are gone —
+        the consent is signed on the confirm-and-pay page (?screen=clear); a job mid-way through an old fixes quote opens ?screen=fixes directly. */}
     {/* Decision 296 (P6): between the electrician's PIESA and the install day the owner confirms the safety check here; unsigned = the page. */}
     {v.piesaConfirm && <PiesaConfirmCard v={v} token={token} />}
-    {v.fixesConfirm && <FixesConfirmCard token={token} />}
-    {/* Decision 366: an electrical upgrades quote waiting on the owner (approve / pay / pick a time) links to its screen. */}
-    <FixesHomeCard token={token} />
     <LifeSupportPlanCard token={token} />
     <Hero v={v} level={v.hero.level} headline={v.hero.headline} />
     <OwnerRunTime token={token} />
     <OwnerReadyCheckTimes token={token} />
-    {/* Decision 137: the 30-day clock on the owner's job page while the install is being booked. */}
-    {a.button?.screen === "book" && <ThirtyDayClock />}
     <StatusSnapshot v={v} />
     <PayNowCard v={v} token={token} />
     <section className="rounded-[22px] bg-estimate-navy p-5 text-estimate-canvas">
@@ -200,6 +218,8 @@ function Home({ v, token }: { v: View; token: string }) {
           <span className={p.state === "done" ? "text-estimate-green" : p.state === "now" ? "font-bold text-estimate-blue" : "text-estimate-navy/60"}>{p.state === "done" ? `Done${p.at ? ` ${day(p.at)}` : ""}` : p.mustBy ? `Must be by ${day(p.mustBy)}` : p.state === "now" ? "Now" : "To come"}</span>
         </li>))}</ol>
     </section>
+    {/* Jo 4 Nov 2026 16:10 (approved): "Your old insulation stays." stays on My job once the Ready Check recorded it was kept. */}
+    {v.keptInsulation && <section data-testid="kept-insulation" className="rounded-[22px] bg-card p-5 shadow-sm"><p className="text-sm leading-relaxed">{v.keptInsulation.line}</p></section>}
     {v.veecAssignment && <VeecAssignmentCard v={v} token={token} />}
     <OwnerPaperwork token={token} />
     <Numbers v={v} />
@@ -276,8 +296,8 @@ function TurnScreen({ token }: { token: string }) {
       <h1 className="font-display text-2xl font-extrabold">{SPOT_RELEASE_PAGE.title}</h1>
       <p className="text-sm">{SPOT_RELEASE_PAGE.lead}</p>
       <InfoBox>
-        <p className="font-bold">{WHAT_HAPPENS_NEXT.title}</p>
-        <ol className="mt-1 list-decimal space-y-1 pl-5">{WHAT_HAPPENS_NEXT.steps.map((s) => <li key={s}>{s}</li>)}</ol>
+        <p className="font-bold">{LEGACY_WHAT_HAPPENS_NEXT.title}</p>
+        <ol className="mt-1 list-decimal space-y-1 pl-5">{LEGACY_WHAT_HAPPENS_NEXT.steps.map((s) => <li key={s}>{s}</li>)}</ol>
       </InfoBox>
       <button type="button" className={signBtn} disabled={!!busy} onClick={() => void act("confirm")}>{busy === "confirm" ? SPOT_RELEASE_PAGE.confirming : SPOT_RELEASE_PAGE.confirm}</button>
       {!sure
@@ -295,13 +315,13 @@ const tapPrimary = "flex min-h-14 w-full items-center justify-center rounded-ful
  *  answer left blank, who lets the installer in (Me / My tenant + their name and mobile), then "Yes, let's go" / "No thanks". A decline tap ends it. Name/address changes are saved as they
  *  are given (a typed name waits for the address when there is no full address on file yet); the answers are saved once.
  *  Not in a batch asking for taps → the normal My job page. The link token is the only credential. */
-function TapsScreen({ v, token }: { v: View; token: string }) {
+function TapsScreen({ v, token, only }: { v: View; token: string; only?: "rental" | undefined }) {
   const load = useServerFn(ownerQuickTapsStateFn);
   const save = useServerFn(ownerQuickTapsSaveFn);
   const saveDetails = useServerFn(ownerQuickTapsDetailsFn);
   const qc = useQueryClient();
-  const { data: st, isLoading } = useQuery({ queryKey: ["owner-taps", token], queryFn: () => load({ data: { token } }) as Promise<QuickTapsView>, retry: false, refetchOnWindowFocus: false });
-  const [done, setDone] = useState<Extract<QuickTapsView, { kind: "done" }> | null>(null);
+  const { data: st, isLoading } = useQuery({ queryKey: ["owner-taps", token, only ?? null], queryFn: () => load({ data: { token, ...(only ? { only } : {}) } }) as Promise<QuickTapsView>, retry: false, refetchOnWindowFocus: false });
+  const [done, setDone] = useState<Extract<QuickTapsView, { kind: "done" | "rental_done" }> | null>(null);
   const [a, setA] = useState<QuickTapAnswers>({});
   const [onFile, setOnFile] = useState<{ name: string | null; address: string | null } | null>(null);
   const [pendingName, setPendingName] = useState<string | null>(null);
@@ -309,13 +329,12 @@ function TapsScreen({ v, token }: { v: View; token: string }) {
   const [typed, setTyped] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
-  const [askTenant, setAskTenant] = useState(false);
-  const [tenantName, setTenantName] = useState("");
-  const [tenantMobile, setTenantMobile] = useState("");
   if (isLoading && !st) return <p role="status" className="py-10 text-center text-sm">Opening…</p>;
   const view: QuickTapsView | null = done ?? st ?? null;
   if (!view || view.kind === "none") return v.spotSaved ? <SpotSavedHome v={v} token={token} /> : <Home v={v} token={token} />;
   const card = "space-y-4 rounded-[22px] bg-card p-6 shadow-sm";
+  if (view.kind === "rental_done") return <section data-testid="owner-taps" data-outcome="rental_done" className={card}><p className="flex items-start gap-2 font-display text-xl font-extrabold"><Check className="mt-1 h-5 w-5 shrink-0 text-estimate-green" aria-hidden />{RENTAL_DONE_LINE}</p></section>;
+  if (view.kind === "rental_ask") return <RentalOnlyTaps token={token} only={only} onDone={(r) => { setDone(r); }} card={card} />;
   if (view.kind === "done") return <section data-testid="owner-taps" data-outcome={view.outcome} className={card}><p className="flex items-start gap-2 font-display text-xl font-extrabold">{view.outcome === "pass" && <Check className="mt-1 h-5 w-5 shrink-0 text-estimate-green" aria-hidden />}{view.outcome === "pass" ? quickTapsPassLine(view.installer) : QUICK_TAPS_COPY.outcome[view.outcome]}</p></section>;
   if (view.kind === "retry") return <section data-testid="owner-taps" className={card}><button type="button" className={tapPrimary} disabled={busy} onClick={async () => {
     setErr(""); setBusy(true);
@@ -326,7 +345,8 @@ function TapsScreen({ v, token }: { v: View; token: string }) {
   const name = onFile?.name ?? view.name;
   const address = onFile?.address ?? view.address;
   const blanksFor = (x: QuickTapAnswers) => websiteQuestions(view.website, x.website ?? {});
-  const step = nextTapStep(a, blanksFor(a));
+  const ask = { rental: view.rental };
+  const step = nextTapStep(a, blanksFor(a), ask);
   const submit = async (x: QuickTapAnswers) => {
     setErr(""); setBusy(true);
     try {
@@ -336,7 +356,7 @@ function TapsScreen({ v, token }: { v: View; token: string }) {
   };
   const answer = (x: QuickTapAnswers) => {
     setA(x); setEditing(false); setTyped(""); setErr("");
-    if (tapOutcome(x, blanksFor(x)) !== "incomplete") void submit(x);
+    if (tapOutcome(x, blanksFor(x), ask) !== "incomplete") void submit(x);
   };
   const details = async (input: { fullName?: string | null; placeId?: string | null }, then: (r: { name: string; address: string }) => void): Promise<PickResult> => {
     const r = await saveDetails({ data: { token, fullName: input.fullName ?? null, placeId: input.placeId ?? null } });
@@ -374,28 +394,60 @@ function TapsScreen({ v, token }: { v: View; token: string }) {
     <QuickTapsAddressSearch token={token} save={(placeId) => details({ fullName: pendingName, placeId }, (d) => { setPendingName(null); answer({ ...a, name: d.name, address: d.address }); })} />
   </>;
   else if (step === "hatch") body = <><h1 className="font-display text-2xl font-extrabold">{QUICK_TAPS_COPY.hatch.question}</h1>{options(QUICK_TAPS_COPY.hatch.options, (hatch) => answer({ ...a, hatch }))}</>;
-  else if (step === "access") {
-    // Who lets the installer in. A tenant's name and mobile are for the installer only; we never contact the tenant.
-    const tenant = { who: "tenant" as const, name: tenantName, mobile: tenantMobile };
-    const tenantOk = validAccess(tenant);
-    const field = "h-14 w-full rounded-2xl border border-estimate-line bg-card px-4 text-lg";
-    body = <>
-      <h1 className="font-display text-2xl font-extrabold">{QUICK_TAPS_COPY.access.question}</h1>
-      {!askTenant ? options(QUICK_TAPS_COPY.access.options, (who) => { if (who === "owner") answer({ ...a, access: { who: "owner" } }); else { setAskTenant(true); setErr(""); } }) : <>
-        <label className="block space-y-1.5"><span className="text-sm font-bold">{QUICK_TAPS_COPY.access.tenantName}</span>
-          <input className={field} autoComplete="off" maxLength={100} value={tenantName} disabled={busy} onChange={(e) => setTenantName(e.target.value)} /></label>
-        <label className="block space-y-1.5"><span className="text-sm font-bold">{QUICK_TAPS_COPY.access.tenantMobile}</span>
-          <input className={field} type="tel" inputMode="tel" autoComplete="off" maxLength={30} value={tenantMobile} disabled={busy} onChange={(e) => setTenantMobile(e.target.value)} /></label>
-        <button type="button" className={tapPrimary} disabled={busy || !tenantOk} onClick={() => answer({ ...a, access: tenant })}>Next</button>
-        {!tenantOk && <p className="text-sm text-muted-foreground">{QUICK_TAPS_COPY.access.needBoth}</p>}
-        <button type="button" className="block w-full text-center text-sm font-semibold underline" disabled={busy} onClick={() => { setAskTenant(false); setTenantName(""); setTenantMobile(""); setErr(""); }}>{QUICK_TAPS_COPY.access.back}</button>
-      </>}
-    </>;
-  }
-  else if (step === "go") body = options(QUICK_TAPS_COPY.go.options, (go) => answer({ ...a, go }));
+  // The old "Who will be at the home to let the installer in?" tap (Me / My tenant) was retired 4 Nov 2026 (Jo, pack 2 batch 7):
+  // the rental screens ask "Who should we arrange access with?". The step is only reachable with the rental screens off.
+  else if (step === "access") body = <><h1 className="font-display text-2xl font-extrabold">Who should we arrange access with?</h1>{options([{ value: "owner" as const, label: "Me" }], () => answer({ ...a, access: { who: "owner" } }))}</>;
+  // Task 5 (Jo 2 Nov 2026): phone consent over 3 months old → "Yes, {installer} can call me".
+  else if (step === "go") { const yes = quickTapsGoLabel(view); body = options(QUICK_TAPS_COPY.go.options.map((o) => (o.value === "yes" ? { ...o, label: yes } : o)), (go) => answer({ ...a, go })); }
+  // Task 19 / Jo 4 Nov 2026 21:40: "Who should we arrange access with?" and their details (only while the server says to ask).
+  else if (step === "who" || step === "details")
+    body = <RentalStepBody key={step} step={step} answers={a.rental ?? {}} busy={busy} set={(patch) => answer({ ...a, rental: { ...a.rental, ...patch } })} />;
   else if (step) { const w = QUICK_TAPS_COPY.website[step]; body = <><h1 className="font-display text-2xl font-extrabold">{w.label}</h1>{options(w.options, (value) => answer({ ...a, website: { ...a.website, [step]: value } }))}</>; }
   else body = <button type="button" className={tapPrimary} disabled={busy} onClick={() => void submit(a)}>Try again</button>;
   return <section data-testid="owner-taps" data-step={step ?? "saving"} className={card}>{body}{err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}</section>;
+}
+
+/** The two rental screens (Jo 4 Nov 2026 21:40, approved): who we arrange access with (Me / My tenant / My property
+ *  manager) → their details (name, mobile, email optional) when it isn't the owner. */
+function RentalStepBody({ step, busy, set }: { step: RentalStep; answers: RentalAnswersInput; busy: boolean; set: (patch: Partial<RentalAnswersInput>) => void }) {
+  const [draft, setDraft] = useState<RentalAnswersInput>({});
+  const [problems, setProblems] = useState<string[]>([]);
+  const field = "h-14 w-full rounded-2xl border border-estimate-line bg-card px-4 text-lg";
+  const choices = <T extends string>(list: readonly { value: T; label: string }[], pick: (v: T) => void) =>
+    <div className="space-y-3">{list.map((o) => <button key={o.value} type="button" className={tapBtn} disabled={busy} onClick={() => pick(o.value)}>{o.label}</button>)}</div>;
+  const box = (label: string, key: keyof RentalAnswersInput, type: string, mode: "text" | "tel" | "email") =>
+    <label className="block space-y-1.5"><span className="text-sm font-bold">{label}</span>
+      <input className={field} type={type} inputMode={mode} autoComplete="off" maxLength={120} value={(draft[key] as string | undefined) ?? ""} disabled={busy} onChange={(e) => { setDraft({ ...draft, [key]: e.target.value }); setProblems([]); }} /></label>;
+  const problemList = problems.length > 0 && <ul role="alert" className="space-y-1 text-sm font-semibold text-destructive">{problems.map((p) => <li key={p}>{p}</li>)}</ul>;
+  if (step === "who") return <><h1 className="font-display text-2xl font-extrabold">{RENTAL_TAPS.whoTitle}</h1>{choices(rentalWhoChoices(), (who) => set({ who }))}</>;
+  const next = () => { const p = rentalDetailsProblems(draft); if (p.length) { setProblems(p); return; } set({ name: draft.name?.trim(), mobile: draft.mobile?.trim(), email: draft.email?.trim() ?? "" }); };
+  return <>
+    <h1 className="font-display text-2xl font-extrabold">{RENTAL_TAPS.detailsTitle}</h1>
+    {box(RENTAL_TAPS.name, "name", "text", "text")}
+    {box(RENTAL_TAPS.mobile, "mobile", "tel", "tel")}
+    {box(RENTAL_TAPS.email, "email", "email", "email")}
+    {problemList}
+    <button type="button" className={tapPrimary} disabled={busy} onClick={next}>{RENTAL_TAPS.next}</button>
+  </>;
+}
+
+/** Task 19 (answer 24): an installer's own customer answers ONLY the rental questions (`?screen=taps&only=rental`). */
+function RentalOnlyTaps({ token, only, onDone, card }: { token: string; only: "rental" | undefined; onDone: (r: { kind: "rental_done" }) => void; card: string }) {
+  const save = useServerFn(ownerQuickTapsSaveFn);
+  const [r, setR] = useState<RentalAnswersInput>({});
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  const step = nextRentalStep(r);
+  const submit = async (x: RentalAnswersInput) => {
+    setErr(""); setBusy(true);
+    try { const res = (await save({ data: { token, answers: { rental: x }, ...(only ? { only } : {}) } })) as QuickTapsView; if (res.kind === "rental_done") onDone(res); }
+    catch (e) { setErr(errText(e)); } finally { setBusy(false); }
+  };
+  const set = (patch: Partial<RentalAnswersInput>) => { const next = { ...r, ...patch }; setR(next); if (nextRentalStep(next) === null) void submit(next); };
+  return <section data-testid="owner-taps" data-step={step ?? "saving"} className={card}>
+    {step ? <RentalStepBody key={step} step={step} answers={r} busy={busy} set={set} /> : busy ? <p role="status" className="py-6 text-center text-sm">Saving…</p> : <button type="button" className={tapPrimary} onClick={() => void submit(r)}>Try again</button>}
+    {err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}
+  </section>;
 }
 
 /** The address tap's search (the same search-and-pick as the owner's address page, my-address.$token): the address can
@@ -494,53 +546,68 @@ function ReviewScreen({ token, initialStars }: { token: string; initialStars: nu
 }
 const errText = (e: unknown) => (e instanceof Error ? e.message : "Please try again.");
 
-/** Approved P2 "Say yes" (decisions 126/127; decision 425, Jo 29 Oct 2026): two ticks, owner / acting-for-owner, one
- *  locked button. No typed name and no 18+ tick — the server records the owner's name on file. The 6-digit code is
- *  still asked for when the owner presses the button. */
-function AcceptQuote({ token, quote, rebate, safetyCheck, onAccepted }: { token: string; quote: { id: string; version: number }; rebate: number; safetyCheck: number | null; onAccepted: () => void }) {
+/** Quote page "Say yes" (touchpoints #33, Fix 3, lawyer Q8; Jo 2 Nov 2026): two ticks, a typed name, one locked button.
+ *  The ESC declarations are not asked here (they move to the confirm-and-pay page). The 6-digit code is still asked for
+ *  when the owner presses the button. */
+function AcceptQuote({ token, quote, safetyCheck, showDocs, onAccepted }: { token: string; quote: { id: string; version: number }; safetyCheck: number | null; showDocs: boolean; onAccepted: () => void }) {
   const [session, setSession] = useSession();
   const [needCode, setNeedCode] = useState(false);
   const load = useServerFn(ownerAgreementFn);
   const accept = useServerFn(ownerAcceptQuoteFn);
+  const getDoc = useServerFn(ownerQuoteDocumentFn);
   const qc = useQueryClient();
   const { data: ag } = useQuery({ queryKey: ["owner-agreement", quote.id], queryFn: () => load({ data: { token, quoteId: quote.id } }) });
   const [f, setF] = useState({ authority: "owner" as "owner" | "authorised_representative" });
-  const [read, setRead] = useState(false); const [agree, setAgree] = useState(false);
-  const [ticks,setTicks] = useState<Partial<Record<OwnerDeclarationKey,boolean>>>({});
+  const [tick1, setTick1] = useState(false); const [tick2, setTick2] = useState(false);
+  const [typedName, setTypedName] = useState("");
   const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
   const blocked = (ag?.blockers ?? []) as string[];
   const fee = safetyCheck != null ? shortAud(safetyCheck) : "$349";
-  const feeCents = safetyCheck != null ? centsAud(safetyCheck) : "$349.00";
-  const ready = !!ag && blocked.length === 0 && quoteSittingBlockers({ownerTick:agree,declarations:ticks}).length === 0;
+  const ready = !!ag && blocked.length === 0 && quoteSittingBlockers({ tick1, tick2, typedName }).length === 0;
+  const openDoc = async (doc: "agreement" | "rights") => {
+    setErr("");
+    try {
+      const d = await getDoc({ data: { token, quoteId: quote.id, doc } });
+      if (!d) { setErr("That document isn't ready yet. Please try again soon."); return; }
+      const bytes = Uint8Array.from(atob(d.base64), (c) => c.charCodeAt(0));
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+      a.target = "_blank"; a.download = d.filename; a.rel = "noopener"; a.click();
+    } catch (e) { setErr(errText(e)); }
+  };
   const sign = async () => {
     if (!session) { setNeedCode(true); return; }
     setErr(""); setBusy(true);
     try { await completeOwnerQuoteAcceptance(
-      () => accept({ data: { token, session, quoteId: quote.id, expectedVersion: quote.version, signing: { authorityType: f.authority, readConsumerInfo: agree, acceptAgreement: agree, assistance: "none", declarations:{owner_or_authorised:ticks.owner_or_authorised === true,details_accurate:ticks.details_accurate === true,consent_ap_sends:ticks.consent_ap_sends === true,consent_commission_shares:ticks.consent_commission_shares === true} } } }),
+      () => accept({ data: { token, session, quoteId: quote.id, expectedVersion: quote.version, signing: { authorityType: f.authority, tick1, tick2, typedName: typedName.trim(), assistance: "none" } } }),
       onAccepted,
       () => qc.invalidateQueries({ queryKey: ["my-job", token] }),
     ); }
     catch (e) { setErr(errText(e)); } finally { setBusy(false); }
   };
+  const link = "font-bold text-estimate-blue underline-offset-2";
   return (
     <div data-testid="say-yes" className="mt-7 border-t-2 border-estimate-navy pt-5">
       <p className="text-xs font-bold tracking-[0.1em] text-estimate-logo-green">{P2.sayYes}</p>
-      <h2 className="mt-1 font-display text-[21px] font-extrabold">Sign your quote and consent</h2>
-      <TickCard on={agree} set={setAgree} title={`${P2.tick1} ${OWNER_EMAIL_DOCUMENT_CONSENT}`} sub={P2.tick2Sub(fee)} read="Quote, terms and consumer information" readBody={ag ? <>{ag.agreementWording?.body ?? ''}{'\n\n'}{ag.consumerRights?.body ?? ''}{'\n\n'}{ag.paymentTerms ?? ''}</> : 'Loading…'} />
-      <SectionTitle>Section 1: Information to be shared</SectionTitle>
-      {ag?.section1 && <FactRows rows={P3.rows.map(([k,label]) => ({label,value:ag.section1[k] || '—'}))} />}
-      <SectionTitle>Section 2: Declaration by owner</SectionTitle>
-      <p>I declare that:</p>
-      {OWNER_DECLARATIONS.map(d => <TickCard key={d.key} on={ticks[d.key] === true} set={b=>setTicks({...ticks,[d.key]:b})} title={d.text} bold={false} />)}
-      {blocked.length > 0 && <p role="alert" className="mt-3 rounded-[12px] bg-estimate-blush p-3 text-sm font-semibold">{blocked.join(" ")}</p>}
+      <h2 className="mt-1 font-display text-[21px] font-extrabold">{P2.twoTicks}</h2>
+      {/* Jo 4 Nov 2026 20:05 (pack 2 batch 5): "How you pay" and the 30-day line sit above the two ticks, not under the signature. */}
+      <p className="mt-3 text-[13px] leading-relaxed text-estimate-sub">{P2.howYouPayFor(fee)}</p>
+      <p className="mt-2 text-[13px] leading-relaxed text-estimate-sub">{P2.timing}</p>
+      <TickCard on={tick1} set={setTick1} title={<>{P2.tick1}{showDocs && <> <span className="font-normal text-estimate-sub">{P2.attachedNote}</span></>}</>}
+        sub={showDocs && <><button type="button" className={link} onClick={(e) => { e.preventDefault(); void openDoc("agreement"); }}>{P2.agreementLink}</button> · <button type="button" className={link} onClick={(e) => { e.preventDefault(); void openDoc("agreement"); }}>{P2.paymentTermsLink}</button> · <button type="button" className={link} onClick={(e) => { e.preventDefault(); void openDoc("rights"); }}>{P2.rightsLink}</button></>}
+        {...(!showDocs ? { read: "Quote, terms and consumer information", readBody: ag ? <>{ag.agreementWording?.body ?? ''}{'\n\n'}{ag.consumerRights?.body ?? ''}{'\n\n'}{ag.paymentTerms ?? ''}</> : 'Loading…' } : {})} />
+      <TickCard on={tick2} set={setTick2} title={P2.tick2For(fee)} bold={false} />
       <section className="mt-[18px] rounded-[14px] border border-estimate-line bg-card px-4 py-3.5">
         <AuthorityChoice value={f.authority} onChange={(authority) => setF({ ...f, authority })} />
       </section>
+      <TypedField label={P2.signLabel} value={typedName} onChange={setTypedName} placeholder={P2.typeHere} italic autoComplete="name" />
+      <SmallNote>{P2.signSub}</SmallNote>
+      {/* G8 (6), 4 Nov 2026 (LOOKS WRONG 12): the office-internal template lines never reach the owner — one owner-safe line; the office gets a Needs me row. */}
+      {blocked.length > 0 && <p role="alert" className="mt-3 rounded-[12px] bg-estimate-blush p-3 text-sm font-semibold">{QUOTE_NOT_READY_OWNER_LINE}</p>}
       {needCode && !session && <div className="mt-4"><OwnerCodeGate token={token} onVerified={(s) => { setSession(s); setNeedCode(false); }} /></div>}
       {err && <p role="alert" className="mt-3 text-sm font-semibold text-destructive">{err}</p>}
-      <LockedButton ready={ready} busy={busy} busyLabel={P2.signing} onClick={() => void sign()}>Sign</LockedButton>
+      <LockedButton ready={ready} busy={busy} busyLabel={P2.signing} onClick={() => void sign()}>{P2.button(fee)}</LockedButton>
       {!ready && <LockHint>{P2.lockHint}</LockHint>}
-      <SmallNote>{P2.payNote(fee)}</SmallNote>
     </div>
   );
 }
@@ -578,14 +645,10 @@ function BookPickers({ token }: { token: string }) {
   const choosePiesa = useServerFn(ownerChoosePiesaFn);
   const takeDay = useServerFn(ownerTakeInstallDayFn);
   const suggestDays = useServerFn(ownerSuggestInstallDaysFn);
-  const changeDay = useServerFn(ownerChangeInstallDayFn);
   const takePiesa = useServerFn(ownerTakePiesaTimeLinkFn);
   const suggestPiesa = useServerFn(ownerSuggestPiesaDaysLinkFn);
-  const [changing, setChanging] = useState(false);
   const [piesaSuggesting, setPiesaSuggesting] = useState(false);
   const [piesaDays, setPiesaDays] = useState<string[]>([]);
-  const changePiesa = useServerFn(ownerChangePiesaFn);
-  const [changingPiesa, setChangingPiesa] = useState(false);
   const { data, refetch } = useQuery({ queryKey: ["owner-booking", token], queryFn: () => load({ data: { token } }) });
   // Jo 28 Oct (decision 158): a lapsed 30-day window replaces the booking pickers with the repeat safety check card.
   const loadRepeat = useServerFn(ownerRepeatPiesaFn);
@@ -605,21 +668,15 @@ function BookPickers({ token }: { token: string }) {
   const piesaMove = !!pt?.applies && pt.turn === "owner_to_answer";
   const ackBlock = !!pt?.thirtyDayAck?.needed && !understands;
   const piesaBooked = data.piesa.booked as { startsAt: string; canChange: boolean; late: boolean } | null;
-  const any = data.piesa.canPick || piesaMove || installMove || changing || changingPiesa;
+  const any = data.piesa.canPick || piesaMove || installMove;
   const tile = (on: boolean) => `min-h-12 rounded-2xl border px-2 text-sm font-bold ${on ? "border-estimate-green bg-estimate-mint" : "border-estimate-line bg-card"}`;
   const go = async (f: () => Promise<unknown>) => { setErr(""); setBusy(true); try { await f(); setPicks([]); setDays([]); setSuggesting(false); setPiesaDays([]); setPiesaSuggesting(false); await refetch(); } catch (e) { setErr(errText(e)); } finally { setBusy(false); } };
-  const piesaWaiting = pt?.applies && !data.piesa.windows.length ? (pt.turn === "electrician_to_offer" ? "Your electrician will offer you 3 safety check times shortly." : pt.turn === "electrician_to_answer" ? "Your days are with your electrician. They'll take one and choose the time, or offer you new times." : pt.turn === "no_electrician" ? "We're arranging your electrician. They'll offer you 3 safety check times to choose from." : null) : null;
   return <>
-    {/* Decision 337: a booked safety check can be changed here; the electrician is told and new times go out as a new offer. */}
+    {/* Decision #24 (Jo 2 Nov 2026): no change buttons — the owner calls the business to change a booked time. */}
     {piesaBooked && <section data-testid="piesa-booked" className="rounded-[22px] bg-card p-5 text-sm shadow-sm">
       <p className="font-bold">Your Pre Insulation Electrical Safety Assessment (PIESA) is booked for {visitPill(piesaBooked.startsAt)}.</p>
-      {piesaBooked.canChange && (!changingPiesa ? <button className="mt-3 min-h-12 w-full rounded-2xl border border-estimate-line px-3 text-sm font-bold" onClick={() => setChangingPiesa(true)}>Change time</button> : session ? <>
-        <p className="mt-3">This cancels the booked time and your electrician is told straight away. You then pick new times{piesaBooked.late ? ". It's less than 24 hours away, so this uses your one free change" : ""}.</p>
-        <button className={`${signBtn} mt-3`} disabled={busy} onClick={() => go(async () => { await changePiesa({ data: { token, session } }); setChangingPiesa(false); })}>Yes, change the time</button>
-        <button className="mt-2 min-h-12 w-full text-sm font-bold" disabled={busy} onClick={() => setChangingPiesa(false)}>Keep it</button>
-      </> : null)}
     </section>}
-    {!any && !piesaBooked && data.install.turn !== "booked" && <section className="rounded-[22px] bg-card p-5 text-sm shadow-sm">{data.piesa.windows.length ? <><p className="font-bold">Your Pre Insulation Electrical Safety Assessment (PIESA) times are with our electricians.</p><ul className="mt-2 space-y-1">{data.piesa.windows.map((w: any) => <li key={w.starts_at}>{visitPill(w.starts_at)}</li>)}</ul></> : piesaWaiting ? <p className="font-bold" data-piesa-times-waiting>{piesaWaiting}</p> : data.install.turn === "installer_to_answer" ? <><p className="font-bold">Your days are with your installer.</p><p className="mt-1">They'll take one, or offer you new days.</p></> : data.install.turn === "installer_to_offer" ? <p className="font-bold">Your installer will offer you 3 install days shortly.</p> : <p className="font-bold">Nothing to pick right now. We'll let you know.</p>}</section>}
+    {!any && !piesaBooked && data.install.turn !== "booked" && data.piesa.windows.length > 0 && <section className="rounded-[22px] bg-card p-5 text-sm shadow-sm"><p className="font-bold">Your Pre Insulation Electrical Safety Assessment (PIESA) times are with our electricians.</p><ul className="mt-2 space-y-1">{data.piesa.windows.map((w: any) => <li key={w.starts_at}>{visitPill(w.starts_at)}</li>)}</ul></section>}
     {any && !session && <OwnerCodeGate token={token} onVerified={setSession} />}
     {any && session && data.piesa.canPick && <section className="rounded-[22px] bg-card p-5 shadow-sm">
       <h3 className="font-display text-lg font-extrabold">Pre Insulation Electrical Safety Assessment (PIESA) times</h3>
@@ -660,64 +717,9 @@ function BookPickers({ token }: { token: string }) {
     </section>}
     {data.install.turn === "booked" && <section className="rounded-[22px] bg-card p-5 text-sm shadow-sm">
       <p className="font-bold">Your install is booked{data.install.bookedAt ? ` for ${formatInstallDay(data.install.bookedAt)}` : ""}.</p>
-      {!changing ? <button className="mt-3 min-h-12 w-full rounded-2xl border border-estimate-line px-3 text-sm font-bold" onClick={() => setChanging(true)}>Change day</button> : session ? <>
-        <p className="mt-3">This cancels the booked day. Your installer will then offer you 3 new days{data.install.deadline ? `, on or before ${day(data.install.deadline + "T02:00:00Z")}` : ""}.</p>
-        <button className={`${signBtn} mt-3`} disabled={busy} onClick={() => go(async () => { await changeDay({ data: { token, session } }); setChanging(false); })}>Yes, change the day</button>
-        <button className="mt-2 min-h-12 w-full text-sm font-bold" disabled={busy} onClick={() => setChanging(false)}>Keep it</button>
-      </> : null}
     </section>}
     {err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}
   </>;
-}
-
-/** Approved P3 (decision 128): the ESC Owner's Consent Form verbatim — Section 1 prefilled, the four Section 2 ticks,
- *  typed-name signature. Same server function and 24-hour/template guards; the 6-digit code is asked for on the button. */
-function ConsentCard({ v, token }: { v: View; token: string }) {
-  const c = v.consent as { scheduledStart: string | null; section1?: Record<string, string> | null };
-  const sign = useServerFn(ownerSignConsentFn);
-  const qc = useQueryClient();
-  const [session, setSession] = useSession();
-  const [needCode, setNeedCode] = useState(false);
-  const [f, setF] = useState({ name: "", authority: "owner" as "owner" | "authorised_representative" });
-  const [ticks, setTicks] = useState<Partial<Record<OwnerDeclarationKey, boolean>>>({});
-  const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
-  const all = OWNER_DECLARATIONS.every((d) => ticks[d.key] === true);
-  const ready = all && f.name.trim().length >= 2;
-  const q = v.quote as { total: number; split?: { deposit: number } | null } | null;
-  // Jo 26 Oct 2026: a booked day means the 10% deposit is already paid — only an unbooked install asks for it.
-  const deposit = v.payment?.provisional?.deposit ?? (q && !c.scheduledStart ? paymentPlan({ quoteTotalCents: Math.round(q.total * 100), safetyCheckCents: q.split ? Math.round(q.split.deposit * 100) : null }).installDepositCents / 100 : null);
-  const s1 = c.section1 ?? null;
-  const doSign = async () => {
-    if (!session) { setNeedCode(true); return; }
-    setErr(""); setBusy(true);
-    try {
-      await sign({ data: { token, session, signatoryName: f.name, authorityType: f.authority, signatureName: f.name, accept: all, declarations: { owner_or_authorised: !!ticks.owner_or_authorised, details_accurate: !!ticks.details_accurate, consent_ap_sends: !!ticks.consent_ap_sends, consent_commission_shares: !!ticks.consent_commission_shares } } });
-      await qc.invalidateQueries({ queryKey: ["my-job", token] });
-    } catch (e) { setErr(errText(e)); } finally { setBusy(false); }
-  };
-  return <section data-testid="owner-consent" className="space-y-4">
-    <PageIntro kicker={P3.kicker} title={c.scheduledStart ? P3.title(c.scheduledStart) : "Sign your install consent"}>{P3.sub(deposit != null && deposit > 0 ? centsAud(deposit) : null)}</PageIntro>
-    <InfoBox><b>{P3.whyLead}</b>{P3.why}</InfoBox>
-    <FormCard eyebrow={P3.formEyebrow}>
-      <SectionTitle className="mt-1.5 mb-1">{P3.section1}</SectionTitle>
-      {s1 && <FactRows rows={P3.rows.map(([k, label]) => ({ label, value: s1[k] || "—" }))} />}
-      <p className="mt-2 text-xs text-estimate-sub">{P3.wrong} <a className="font-bold text-estimate-blue" href={`mailto:${OFFICE_EMAIL}?subject=${encodeURIComponent(`Correct my details${v.jobNumber ? ` – ${v.jobNumber}` : ""}`)}`}>{P3.correct}</a></p>
-      <SectionTitle className="mt-[18px]">{P3.section2}</SectionTitle>
-      <p className="text-[13px] text-estimate-sub">{P3.declare}</p>
-      {OWNER_DECLARATIONS.map((d) => <TickCard key={d.key} on={ticks[d.key] === true} set={(b) => setTicks({ ...ticks, [d.key]: b })} title={sentence(d.text)} bold={false} />)}
-      <AuthorityChoice value={f.authority} onChange={(authority) => setF({ ...f, authority })} />
-      <TypedField label={P3.signLabel} value={f.name} onChange={(name) => setF({ ...f, name })} placeholder={P3.typeHere} autoComplete="name" />
-      <p className="mt-1.5 text-xs leading-relaxed text-estimate-sub">{P3.dateLine(longDate(new Date().toISOString()))}</p>
-    </FormCard>
-    {needCode && !session && <OwnerCodeGate token={token} onVerified={(s) => { setSession(s); setNeedCode(false); }} />}
-    {err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}
-    <div>
-      <LockedButton ready={ready} busy={busy} busyLabel={P3.signing} onClick={() => void doSign()}>{P3.button}</LockedButton>
-      {!ready && <LockHint>{P3.lockHint}</LockHint>}
-      <SmallNote>{P3.afterNote}</SmallNote>
-      <OwnerFooter />
-    </div>
-  </section>;
 }
 
 function Numbers({ v }: { v: View }) {
@@ -757,7 +759,7 @@ function Back({ token }: { token: string }) {
 function SpotScreen({ v, token }: { v: View; token: string }) {
   return <>
     <Back token={token} />
-    <Hero v={v} level={HOUSE_LEVEL.save_my_spot} size="sm" headline={ownerHeadline("spot_saved", v.numbers.rebate)} />
+    <Hero v={v} level={HOUSE_LEVEL.save_my_spot} size="sm" headline={ownerHeadline("save_my_spot", v.numbers.rebate)} />
     <section className="rounded-[22px] bg-card p-5 shadow-sm">
       <h2 className="font-display text-xl font-extrabold">Save my spot</h2>
       {/* Decision 388: saving a spot never offers times or a Ready Check. */}
@@ -796,30 +798,38 @@ function QuoteScreen({ v, token }: { v: View; token: string }) {
           <p className="text-[11px] font-bold uppercase tracking-[0.12em]">{P2.priceEyebrow}</p>
           <p className="mt-1 font-display text-[42px] font-extrabold leading-none text-estimate-blue">{centsAud(q.total)}</p>
           {q.rebate > 0 && full != null && <p className="mt-1.5 text-[13px] font-bold">{P2.priceNote} <span className="line-through">{centsAud(full)}</span></p>}
-          <p className="mt-3 border-t border-estimate-line pt-3 text-[13px] leading-relaxed text-estimate-sub">{v.address && <>{v.address}<br /></>}{P2.measured}</p>
+          {/* Jo 4 Nov 2026 20:05 (pack 2 batch 5): the address is shown once, in the line under the title. */}
+          <p className="mt-3 border-t border-estimate-line pt-3 text-[13px] leading-relaxed text-estimate-sub">{P2.measured}</p>
         </div>
       </section>
+      {q.validLine && <p data-testid="quote-valid-line" className="text-center text-[13px] font-semibold text-estimate-sub">{q.validLine}</p>}
+      {q.changes.length > 0 && <section data-testid="quote-changes" className="rounded-[14px] bg-estimate-mist px-4 py-3.5">
+        <h2 className="text-[15px] font-bold">{QUOTE_CHANGES_HEADING}</h2>
+        <p className="mt-1 text-right text-xs text-estimate-sub">Estimate → Quote</p>
+        <ul>{q.changes.map((r: { label: string; estimate: string; quote: string }) => <li key={r.label} className="flex items-baseline justify-between gap-2.5 border-t border-estimate-line py-2.5 text-sm"><span>{r.label}</span><span className="tabular-nums">{r.estimate} → <b>{r.quote}</b></span></li>)}</ul>
+        <p className="mt-1 text-[13px] text-estimate-sub">{QUOTE_CHANGES_FOOTNOTE}</p>
+      </section>}
       <section className="rounded-[14px] border border-estimate-line bg-card px-4 pt-3.5 pb-1.5">
         <h2 className="mb-1 text-[15px] font-bold">{P2.itemsTitle}</h2>
-        <ul data-testid="quote-lines">
+        {/* Part 10 Task 6: an installer's own customer (co-brand approved) sees the approved rows — Insulation · extras · fee · PIESA · Rebate · Your price. */}
+        {q.ownRows ? <ul data-testid="quote-lines-own">
+          <li className="flex items-start justify-between gap-2.5 py-2.5"><span className="text-sm font-bold">Ready Check</span><span className="shrink-0 text-sm font-bold text-estimate-green">FREE</span></li>
+          {q.ownRows.map((r: { key: string; label: string; detail: string | null; amountIncGst: number }, i: number) => r.key === "total"
+            ? <li key={i} className="flex items-center justify-between gap-2.5 border-t-2 border-estimate-navy py-3"><span className="text-base font-bold">{r.label}</span><span className="font-display text-lg font-extrabold text-estimate-blue">{centsAud(r.amountIncGst)}</span></li>
+            : <li key={i} className="flex items-start justify-between gap-2.5 border-t border-estimate-line py-2.5"><span className="min-w-0 break-words"><span className="block text-sm font-bold">{r.label}</span>{r.detail && <span className="block text-xs text-estimate-sub">{r.detail}</span>}{r.key === "rebate" && <span className="block text-xs text-estimate-sub">{P2.rebateLineSub}</span>}</span><span className={`shrink-0 text-sm tabular-nums ${r.key === "rebate" ? "font-bold text-estimate-green" : ""}`}>{r.key === "rebate" ? `−${centsAud(Math.abs(r.amountIncGst))}` : centsAud(r.amountIncGst)}</span></li>)}
+        </ul> : <ul data-testid="quote-lines">
           <li className="flex items-start justify-between gap-2.5 py-2.5"><span className="text-sm font-bold">Ready Check</span><span className="shrink-0 text-sm font-bold text-estimate-green">FREE</span></li>
           {q.lines.map((l: { description: string; amount: number }, i: number) => <li key={i} className="flex items-start justify-between gap-2.5 border-t border-estimate-line py-2.5"><span className="min-w-0 break-words text-sm font-bold">{l.description}</span><span className="shrink-0 text-sm tabular-nums">{centsAud(l.amount)}</span></li>)}
           {q.rebate > 0 && full != null && <li className="flex items-start justify-between gap-2.5 border-t border-estimate-line py-2.5"><span><span className="block text-sm font-bold">{P2.fullPrice}</span><span className="block text-xs text-estimate-sub">{P2.fullPriceSub}</span></span><span className="shrink-0 text-sm font-bold tabular-nums">{centsAud(full)}</span></li>}
           {q.rebate > 0 && <li className="flex items-start justify-between gap-2.5 border-t border-estimate-line py-2.5"><span><span className="block text-sm font-bold">{P2.rebateLine}</span><span className="block text-xs text-estimate-sub">{P2.rebateLineSub}</span></span><span className="shrink-0 text-sm font-bold tabular-nums text-estimate-green">−{centsAud(q.rebate)}</span></li>}
           <li className="flex items-center justify-between gap-2.5 border-t-2 border-estimate-navy py-3"><span className="text-base font-bold">{P2.youPay}</span><span className="font-display text-lg font-extrabold text-estimate-blue">{centsAud(q.total)}</span></li>
-        </ul>
+        </ul>}
         <p className="border-t border-estimate-line py-2 text-[13px] leading-relaxed text-estimate-sub">{P2.notIncluded}</p>
       </section>
-      <FixesNote />
-      <details className="rounded-[14px] border border-estimate-line bg-card px-4 py-3">
-        <summary className="cursor-pointer text-sm font-bold">How you can pay</summary>
-        <ul className="mt-2 space-y-1 text-sm" data-testid="how-you-pay">
-          {howYouPayLines(paymentPlan({ quoteTotalCents: Math.round(q.total * 100), safetyCheckCents: q.split ? Math.round(q.split.deposit * 100) : null })).map((l) => <li key={l}>{l}</li>)}
-        </ul>
-        <p className="mt-2 text-xs text-estimate-sub">{q.split ? paymentOptionSummary(q.split.deposit) : PAYMENT_OPTION_SUMMARY}</p>
-      </details>
+      {/* Jo 4 Nov 2026 16:10 (approved): the Ready Check says the old insulation stays — same words as the quote email and the agreement. */}
+      {v.keptInsulation && <p data-testid="kept-insulation" className="rounded-[14px] bg-estimate-mist px-4 py-3.5 text-sm leading-relaxed">{v.keptInsulation.line}</p>}
       {ownerQuoteCanAccept(q, acknowledged)
-        ? <div><AcceptQuote token={token} quote={q} rebate={q.rebate} safetyCheck={q.split?.deposit ?? null} onAccepted={() => {
+        ? <div><AcceptQuote token={token} quote={q} safetyCheck={q.split?.deposit ?? null} showDocs={!!q.validLine} onAccepted={() => {
           setAcknowledged({ id: q.id, version: q.version });
           qc.setQueryData<View | null>(["my-job", token], (current: View | null | undefined) => current?.quote?.id === q.id && current.quote.version === q.version
             ? { ...current, quote: { ...current.quote, status: "accepted" } } : current);
@@ -843,7 +853,6 @@ function PayNowCard({ v, token }: { v: View; token: string }) {
   return <section data-testid="pay-now" className="rounded-[22px] border-2 border-estimate-green bg-card p-5">
     <p className="text-xs font-bold uppercase tracking-wide text-estimate-green">Payment</p>
     <h3 className="mt-1 font-display text-lg font-extrabold">{p.payNow.title}</h3>
-    {p.provisional && <p className="mt-1 text-sm font-semibold">Your install day is held for 48 hours{p.provisional.expiresAt ? ` (until ${visitPill(p.provisional.expiresAt)})` : ""} while your {aud(p.provisional.deposit)} deposit arrives.</p>}
     {p.payNow.card && <button type="button" disabled={busy} className="mt-3 flex h-12 w-full items-center justify-center rounded-full bg-estimate-green font-bold text-estimate-canvas disabled:opacity-60" onClick={async () => {
       setErr(""); setBusy(true);
       try { const r = await checkout({ data: { token } }); if ("url" in r && r.url) window.location.assign(r.url); else setErr(("blocker" in r && r.blocker) || "Please pay by bank transfer."); }
@@ -886,19 +895,7 @@ function LifeSupportPlanCard({ token }: { token: string }) {
   </section>;
 }
 
-function FixesHomeCard({ token }: { token: string }) {
-  const load = useServerFn(ownerFixesStateFn);
-  const { data } = useQuery({ queryKey: ["owner-fixes", token], queryFn: () => load({ data: { token } }), retry: false });
-  if (!data || !ownerFixesNeedsOwner(data.step) || (data.inHouseDispatch && data.step === "pick")) return null;
-  return <section data-testid="fixes-home" className="rounded-[22px] border-2 border-estimate-blue bg-card p-5">
-    <p className="text-xs font-bold uppercase tracking-wide text-estimate-blue">{OWNER_FIXES_COPY.kicker}</p>
-    <h2 className="mt-1 font-display text-lg font-extrabold">{OWNER_FIXES_COPY.title}</h2>
-    <p className="mt-1 text-sm">{data.step === "approve" ? OWNER_FIXES_COPY.approve : data.step === "pay" ? OWNER_FIXES_COPY.pay : OWNER_FIXES_COPY.pick}</p>
-    <Link to="/my-job/$token" params={{ token }} search={{ screen: "fixes" }} className="mt-4 flex h-12 w-full items-center justify-center rounded-full bg-estimate-green font-bold text-estimate-canvas">{OWNER_FIXES_COPY.homeButton}</Link>
-  </section>;
-}
-
-/** Decision 366 (audit F03): the electrical upgrades screen (?screen=fixes, O29's link). The latest fixes quote (lines + total)
+/** Decision 366 (audit F03): the electrical fixes screen (?screen=fixes, O29's link). The latest fixes quote (lines + total)
  *  → Approve (6-digit code session, same acceptance helper as the installation quote, without regenerating it) → pay in full
  *  (the existing PayNowCard `fixes` step: card when Stripe is on, else bank transfer) → pick one of the electrician's times → booked. */
 function FixesScreen({ v, token }: { v: View; token: string }) {
@@ -957,28 +954,18 @@ function FixesScreen({ v, token }: { v: View; token: string }) {
   </>;
 }
 
-/** Jo insists this is clear and boxed (7 Oct 2026). */
-function FixesNote() {
-  return <section role="note" data-piesa-fixes-note className="rounded-[22px] border-2 border-estimate-navy/40 bg-card p-5 text-sm"><p className="font-bold">About electrical upgrades</p><p className="mt-1">{PIESA_FIXES_NOTE}</p></section>;
-}
-
+/** Part 4 Task 14: only a job already mid-way through the old pick-a-day step reaches this screen (resolveOwnerScreen falls
+ *  through otherwise). It shows the times/days already offered and nothing else: no "pick windows" intro, no change buttons. */
 function BookScreen({ v, token }: { v: View; token: string }) {
-  const today = melbourneToday();
+  // G8 (4), 4 Nov 2026 (LOOKS WRONG 1): the owner's Ready Check window from the installer's run — Confirm / Can't make it.
+  if ((v as { readyCheckWindow?: boolean }).readyCheckWindow) return <><Back token={token} /><OwnerRunTime token={token} /></>;
   if (v.inHouseDispatch) return <><Back token={token} /><PayNowCard v={v} token={token} /><BookPickers token={token} /></>;
   return <>
     <Back token={token} />
     <Hero v={v} level={HOUSE_LEVEL.book_visits} size="sm" headline={ownerHeadline("booking_visits", v.numbers.rebate)} />
-    <section className="rounded-[22px] bg-card p-5 shadow-sm">
-      <h2 className="font-display text-xl font-extrabold">Book your Pre Insulation Electrical Safety Assessment (PIESA) and install</h2>
-      <p className="mt-1 text-sm">First the electrician does a quick Pre Insulation Electrical Safety Assessment (PIESA). Your install can be from {v.piesaInstallGapDays} days after that, and must be within 30 days.</p>
-      <p className="mt-2 text-sm">For example, a Pre Insulation Electrical Safety Assessment (PIESA) on {day(today)} means an install between {day(earliestInstall(today, v.piesaInstallGapDays))} and {day(installDeadline(today))}.</p>
-      <p className="mt-2 text-sm">Pick 2-hour windows that suit you: {TWO_HOUR_WINDOWS.join(", ")}.</p>
-    </section>
     <ThirtyDayClock />
-    <FixesNote />
     <BookPickers token={token} />
     <PayNowCard v={v} token={token} />
-    {/* Decision 337: the change-day email says "you can cancel on the same page" — while the owner may cancel, it is here too. */}
     {v.canCancel && <CancelMyJob token={token} />}
   </>;
 }
@@ -1037,44 +1024,6 @@ function PiesaConfirmCard({ v, token }: { v: View; token: string }) {
   </section>;
 }
 
-/** Decision 330: "Your electrical upgrades — please confirm" (P6 pattern, no code): one tick "The electrical upgrades were completed on
- *  <date>" + typed full name. Nothing when no fixes are recorded; "Confirmed on <date>" afterwards. Never holds the booking. */
-function FixesConfirmCard({ token }: { token: string }) {
-  const load = useServerFn(ownerFixesConfirmFn);
-  const sign = useServerFn(ownerSignFixesConfirmFn);
-  const qc = useQueryClient();
-  const { data } = useQuery({ queryKey: ["owner-fixes-confirm", token], queryFn: () => load({ data: { token } }) });
-  const [f, setF] = useState({ name: "", authority: "owner" as "owner" | "authorised_representative" });
-  const [tick, setTick] = useState(false);
-  const [err, setErr] = useState(""); const [busy, setBusy] = useState(false);
-  if (!data) return null;
-  if (data.confirmed) return <section data-testid="fixes-confirmed" className="flex items-start gap-3 rounded-[22px] bg-estimate-mint p-5">
-    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-estimate-green text-estimate-canvas"><Check className="h-5 w-5" /></span>
-    <div><p className="font-display text-lg font-extrabold">{P6F.confirmedTitle}</p><p className="text-sm">{P6F.confirmedOn(data.confirmed.signedOn, data.confirmed.name)}</p></div>
-  </section>;
-  const ready = tick && f.name.trim().length >= 2;
-  const doSign = async () => {
-    setErr(""); setBusy(true);
-    try { await sign({ data: { token, signatoryName: f.name, authorityType: f.authority, signatureName: f.name, confirmed: tick } }); await qc.invalidateQueries({ queryKey: ["owner-fixes-confirm", token] }); }
-    catch (e) { setErr(errText(e)); } finally { setBusy(false); }
-  };
-  return <section data-testid="fixes-confirm" className="space-y-4">
-    <PageIntro kicker={P6F.kicker} title={P6F.title}>{P6F.sub(data.electricianLine, data.fixesDate)}</PageIntro>
-    <FormCard eyebrow={P6F.formEyebrow}>
-      <TickCard on={tick} set={setTick} title={data.tick} sub={P6F.declare} read="Read the declaration ›" readBody={`• ${data.declaration}`} />
-      <AuthorityChoice value={f.authority} onChange={(authority) => setF({ ...f, authority })} />
-      <TypedField label={P6F.signLabel} value={f.name} onChange={(name) => setF({ ...f, name })} placeholder={P6.typeHere} autoComplete="name" />
-      <p className="mt-1.5 text-xs leading-relaxed text-estimate-sub">{P6F.dateLine(longDate(new Date().toISOString()))}</p>
-    </FormCard>
-    {err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}
-    <div>
-      <LockedButton ready={ready} busy={busy} busyLabel={P6F.signing} onClick={() => void doSign()}>{P6F.button}</LockedButton>
-      {!ready && <LockHint>{P6F.lockHint}</LockHint>}
-      <OwnerFooter />
-    </div>
-  </section>;
-}
-
 /** Decision 119/120: the official ESC VEEC assignment form, shown read-only and signed by the owner ONLY after the install
  *  is recorded complete (never at acceptance). Installer → AP sign first; the owner is the last signature. */
 /** Approved P4 (decision 129): Section 1 summarised with the full text a tap away, Section 2 read-only, Section 4
@@ -1119,7 +1068,9 @@ function VeecAssignmentCard({ v, token }: { v: View; token: string }) {
       <SectionTitle className="mt-4 mb-0.5">{P4.section4}</SectionTitle>
       <p className="text-[13px] text-estimate-sub">{P4.declare}</p>
       <ul className="mt-1">{declarationBullets(data.consumerDeclaration).map((b) => <li key={b} className="flex gap-2 py-1 text-[13px] leading-[1.45]"><span className="text-estimate-blue">•</span><span>{b}</span></li>)}</ul>
-      <p className="mt-1 text-xs text-estimate-sub"><button type="button" className="font-bold text-estimate-blue" aria-expanded={showAll} onClick={() => setShowAll((s) => !s)}>{showAll ? "Hide the installer and Home Insulation Victoria declarations" : "Show the installer and Home Insulation Victoria declarations"}</button> · Official form {data.version}</p>
+      {/* G8 (6), 4 Nov 2026 (LOOKS WRONG 15): the form version on its own line — no "·" that wrapped onto a new line on the phone. */}
+      <p className="mt-1 text-xs text-estimate-sub"><button type="button" className="font-bold text-estimate-blue" aria-expanded={showAll} onClick={() => setShowAll((s) => !s)}>{showAll ? "Hide the installer and Home Insulation Victoria declarations" : "Show the installer and Home Insulation Victoria declarations"}</button></p>
+      <p className="mt-0.5 text-xs text-estimate-sub">Official form {data.version}</p>
       {showAll && <pre className="mt-2 whitespace-pre-wrap rounded-[10px] bg-estimate-panel p-3 font-sans text-[13px] leading-relaxed">{[data.apDeclaration, data.installerDeclaration].join("\n\n")}</pre>}
       {data.canSign && <>
         <TickCard on={okS2} set={setOkS2} title={P4.tick} />
@@ -1163,7 +1114,7 @@ function SpotSavedHome({ v, token }: { v: View; token: string }) {
     </section>
     <OwnerRunTime token={token} />
     <OwnerReadyCheckTimes token={token} />
-    {L.showWaitingBox && <p className="rounded-[18px] bg-estimate-heads-up p-4 text-sm"><strong>{SPOT_REGISTERED}</strong> {SPOT_RELEASE_LINE}</p>}
+    {L.showWaitingBox && <p className="rounded-[18px] bg-estimate-heads-up p-4 text-sm">{SPOT_RELEASE_LINE}</p>}
     {card === "todo" && <section data-testid="gate-a-todo" className="rounded-[22px] border-2 border-estimate-green bg-card p-5">
       <p className="text-xs font-bold uppercase tracking-wide text-estimate-green">While you wait · 2 minutes</p>
       <h2 className="mt-1 font-display text-xl font-extrabold">Get your paperwork out of the way</h2>

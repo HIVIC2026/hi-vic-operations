@@ -249,6 +249,43 @@ async function simulateQuoteRelease(ctx: JourneyCtx, quoteId: string, how: "offi
   await wf.logEvent(ctx.jobId!, ctx.actorId, "journey_send_simulated", `TEST journey: ${SIMULATED_SEND_LABEL}`, { quote_id: quoteId, step: how, simulated: true }, { internal: true });
 }
 
+
+/** Part 4 Task 14 (Jo 2 Nov 2026): the automatic HIV fixes quote send to the owner (decision 354) is retired with the O29
+ *  email. These Test Centre journeys keep their old money / payout checks as a record: this journey-only shim prepares the
+ *  electrician-priced draft (same `generateRectificationQuote` path) and releases it through `releaseFixesQuote(…, "auto")`
+ *  — no owner message is sent (there is none any more); a hold reason is returned instead of recorded. */
+async function journeyFixesQuote(jobId: string, actorId: string | null): Promise<{ result: "sent" | "held" | "waiting" | "error"; reason: string | null; quoteId: string | null }> {
+  const out = (result: "sent" | "held" | "waiting" | "error", reason: string | null, quoteId: string | null) => ({ result, reason, quoteId });
+  try {
+    const [{ data: a }, { data: quotes }] = await Promise.all([
+      admin.from("assessments").select("mitti_completed, mitti_raw_snapshot").eq("job_id", jobId).maybeSingle(),
+      admin.from("quotes").select("id, job_id, kind, status, sent_at, office_reviewed_at").eq("job_id", jobId).eq("kind", "rectification").neq("status", "superseded").order("created_at", { ascending: false }),
+    ]);
+    let quote = (quotes ?? [])[0] ?? null;
+    if (!quote) {
+      if (a?.mitti_completed !== true) return out("waiting", "no fixes quote", null);
+      const entries = Array.isArray(a?.mitti_raw_snapshot) ? (a!.mitti_raw_snapshot as { label: string; value: string | null }[]).filter((e) => e && typeof e.label === "string") : [];
+      const { shortAnswersFromEntries } = await import("./official-short.core");
+      const { fixesPriceSource } = await import("./fixes-price.core");
+      if (fixesPriceSource(shortAnswersFromEntries("piesa", entries)).path !== "a4_price") return out("waiting", "no electrician repair price on the A3", null);
+      const quoteId = await (await import("./quotes.server")).generateRectificationQuote(jobId, actorId);
+      if (typeof quoteId !== "string") return out("waiting", "in_house_partner_bills", null);
+      const { data: fresh } = await admin.from("quotes").select("id, job_id, kind, status, sent_at, office_reviewed_at").eq("id", quoteId).maybeSingle();
+      quote = fresh;
+      if (!quote) return out("waiting", "no fixes quote", null);
+    }
+    if (quote.status !== "draft" || quote.sent_at) return out("waiting", "already released", quote.id);
+    const rel = await import("./fixes-quote-release.server");
+    if (await (await import("./rectification.server")).fixesTimesHoldFor(jobId)) return out("waiting", "Waiting for the electrician's fixes times", quote.id);
+    const blocker = await rel.fixesQuoteSendBlocker(quote, "auto", { ignoreTimesHold: true });
+    if (blocker) return out("held", blocker, quote.id);
+    await rel.releaseFixesQuote(quote.id, actorId, "auto");
+    return out("sent", null, quote.id);
+  } catch (e) {
+    return out("error", (e as Error).message, null);
+  }
+}
+
 async function piesaFixes(rec: Recorder, jobs: BranchResult["jobs"], setup: StepResult[]) {
   const ctx = await newJourneyCtx();
   // Unique address so the case never links to an older kept TEST job (Jo 27 Oct: HV-3239/HV-3274 collision).
@@ -335,8 +372,7 @@ async function piesaFixes(rec: Recorder, jobs: BranchResult["jobs"], setup: Step
       await J.assertOwnTestJob(ctx);
       const b = await counts(ctx.jobId!);
       const since = new Date().toISOString();
-      const af = await import("./auto-fixes-quote-send.server");
-      const o = await af.maybeAutoSendFixesQuote(ctx.jobId!, { actorId: ctx.actorId, generate: true });
+      const o = await journeyFixesQuote(ctx.jobId!, ctx.actorId);
       rectQuoteId = o.quoteId;
       const a = await counts(ctx.jobId!);
       const e = await emailsSince(ctx.jobId!, since);
@@ -347,7 +383,7 @@ async function piesaFixes(rec: Recorder, jobs: BranchResult["jobs"], setup: Step
       return { ok: heldWithReason && e.ces.length + e.comm.length === 0 && q?.status === "draft", detail: `result=${o.result} reason=${o.reason ?? "-"}; quote status=${q?.status ?? "none"}; held events=${held}; owner emails=${e.ces.length + e.comm.length}; ${diff(b, a)}. Failing check used: no fixes times from the electrician yet`, ids: { quote_id: o.quoteId } };
     }, ["2.1"]);
 
-    await rec.run("2.2", "maybeAutoSendFixesQuote sent when every check passes; one owner email; price = electrician's price + margin by whose electrician", async () => {
+    await rec.run("2.2", "fixes quote released when every check passes (journey shim; no owner email since 2 Nov 2026); price = electrician's price + margin by whose electrician", async () => {
       await J.assertOwnTestJob(ctx);
       const rs = await import("./rectification.server");
       // Business days at least 2 business days away (calendar +3..+5 hit weekends on some dates).
@@ -355,7 +391,7 @@ async function piesaFixes(rec: Recorder, jobs: BranchResult["jobs"], setup: Step
       await rs.recordRectificationWindows(ctx.jobId!, ctx.electrician.id, 3, days.map((date) => ({ date, slot: "10-12" as const })));
       const b = await counts(ctx.jobId!);
       const since = new Date().toISOString();
-      const o = await (await import("./auto-fixes-quote-send.server")).maybeAutoSendFixesQuote(ctx.jobId!, { actorId: ctx.actorId, generate: true });
+      const o = await journeyFixesQuote(ctx.jobId!, ctx.actorId);
       rectQuoteId = o.quoteId ?? rectQuoteId;
       let simulatedSend = false;
       if (o.result === "held" && o.reason && commsOff(o.reason) && rectQuoteId) {
@@ -372,7 +408,7 @@ async function piesaFixes(rec: Recorder, jobs: BranchResult["jobs"], setup: Step
       const expected = FIXES_PRICE + fixesMarginFor(src);
       const total = Number(q?.customer_total_inc_gst ?? NaN);
       const emails = e.ces.length + e.comm.length;
-      return { ok: (simulatedSend || (o.result === "sent" && emails === 1)) && q?.status === "issued" && Math.abs(total - expected) < 0.01, detail: `result=${o.result}${o.reason ? ` (${o.reason})` : ""}; saved quote status=${q?.status}, total $${total}; expected $${FIXES_PRICE} + margin $${fixesMarginFor(src)} (${src} electrician) = $${expected}; owner emails=${emails}${simulatedSend ? " (send simulated — email skipped)" : ""}; ${diff(b, a)}`, ids: { quote_id: rectQuoteId } };
+      return { ok: (simulatedSend || (o.result === "sent" && emails === 0)) && q?.status === "issued" && Math.abs(total - expected) < 0.01, detail: `result=${o.result}${o.reason ? ` (${o.reason})` : ""}; saved quote status=${q?.status}, total $${total}; expected $${FIXES_PRICE} + margin $${fixesMarginFor(src)} (${src} electrician) = $${expected}; owner emails=${emails}${simulatedSend ? " (send simulated — email skipped)" : ""}; ${diff(b, a)}`, ids: { quote_id: rectQuoteId } };
     }, ["2.1"]);
 
     await rec.run("2.4", "owner accepts and pays the fixes (Demo Company); still no install booking", async () => {
@@ -444,10 +480,10 @@ async function piesaFixes(rec: Recorder, jobs: BranchResult["jobs"], setup: Step
       return { ok: res.status === "done" && !!pr?.section_c_signed_at && pr.outcome === "pass", detail: `result=${res.status} (${res.detail ?? "-"}); post-fixes PIESA record outcome=${pr?.outcome ?? "none"}, Section C signed=${pr?.section_c_signed_at ?? "none"}; ${diff(b, a)}`, ids: { piesa_record_id: pr?.id ?? null } };
     }, ["2.5"]);
 
-    await rec.run("2.7", "only now install scheduling opens; installer told once; 30-day clock from the official PIESA date, not Section C", async () => {
+    await rec.run("2.7", "only now install scheduling opens (the installer calls to book; no clearance notice since 2 Nov 2026); 30-day clock from the official PIESA date, not Section C", async () => {
       await J.assertOwnTestJob(ctx);
       const stage = await J.stageOf(ctx);
-      const { INSTALL_CLEARANCE_EVENT } = await import("./install-clearance.core");
+      const INSTALL_CLEARANCE_EVENT = "install_clearance_notified"; // history only: the I65 clearance notice was retired 2 Nov 2026 (Part 4 Task 14)
       const { count: told } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("event_type", INSTALL_CLEARANCE_EVENT);
       const { data: dl } = await admin.from("job_piesa_deadlines").select("piesa_date, install_deadline").eq("job_id", ctx.jobId!).maybeSingle();
       // Decision 316: read the official initial/reassessment independently of the deadline view.
@@ -455,7 +491,7 @@ async function piesaFixes(rec: Recorder, jobs: BranchResult["jobs"], setup: Step
       const officialDate = pr?.completed_date ? String(pr.completed_date).slice(0, 10) : null;
       const want = officialDate ? new Date(Date.parse(`${officialDate}T00:00:00Z`) + 30 * 86_400_000).toISOString().slice(0, 10) : null;
       const got = dl?.install_deadline ? String(dl.install_deadline).slice(0, 10) : null;
-      return { ok: stage === "installation_scheduling" && told === 1 && !!want && String(dl?.piesa_date ?? "").slice(0, 10) === officialDate && got === want, detail: `stage=${stage}; installer clearance notices=${told}; official PIESA ${officialDate}; deadline saved ${got} (from date ${dl?.piesa_date ?? "?"}), expected ${want}` };
+      return { ok: stage === "installation_scheduling" && told === 0 && !!want && String(dl?.piesa_date ?? "").slice(0, 10) === officialDate && got === want, detail: `stage=${stage}; installer clearance notices=${told}; official PIESA ${officialDate}; deadline saved ${got} (from date ${dl?.piesa_date ?? "?"}), expected ${want}` };
     }, ["2.6"]);
 
     if (P2_HOOK) await P2_HOOK("carried-on", ctx).catch(() => undefined);
@@ -1078,7 +1114,7 @@ async function fixesChain(rec: Recorder, ctx: JourneyCtx, setup: StepResult[], j
   await (await import("./piesa-complete.server")).completePiesaAssessment({ jobId: ctx.jobId! }, ctx.electrician.id);
   const days = (await import("./piesa-windows.core")).allowedPiesaDays().slice(0, 3);
   await (await import("./rectification.server")).recordRectificationWindows(ctx.jobId!, ctx.electrician.id, 3, days.map((date) => ({ date, slot: "10-12" as const })));
-  const o = await (await import("./auto-fixes-quote-send.server")).maybeAutoSendFixesQuote(ctx.jobId!, { actorId: ctx.actorId, generate: true });
+  const o = await journeyFixesQuote(ctx.jobId!, ctx.actorId);
   let rectQuoteId = o.quoteId;
   if (o.result === "held" && o.reason && commsOff(o.reason) && rectQuoteId) { await simulateQuoteRelease(ctx, rectQuoteId, "fixes"); rec.simulated("F.quote", "fixes quote email to the owner", SIMULATED_SEND_LABEL, { quote_id: rectQuoteId }); }
   return { sim, mitti, fetchMedia, el, tplFixes, auditId, rectQuoteId, a3Synced: synced.completed };
@@ -1569,8 +1605,8 @@ async function m159OwnJobCallAndBook(rec: Recorder, jobs: BranchResult["jobs"], 
     const jobId = ctx.jobId!;
     const piesaStage = "piesa_and_install_window_pending";
     const own = await import("./own-job-piesa.server");
-    const lk = await import("./electrician-link.server");
-    const lcore = await import("./electrician-link.core");
+    const lk = await import("./own-job-electrician-link.server");
+    const lcore = await import("./own-job-electrician-link.core");
     const { addYmd, melbourneToday } = await import("./melbourne-time.core");
     const tokenOf = (url: string) => url.split("/").filter(Boolean).pop()!;
     const bookingTime = () => { let day = addYmd(melbourneToday(new Date()), 2); for (let i = 0; i < 7 && [0, 6].includes(new Date(`${day}T00:00:00Z`).getUTCDay()); i++) day = addYmd(day, 1); return lcore.melbourneWallToIso(day, "10:00")!; };
@@ -1702,235 +1738,16 @@ async function r158OwnerPays(rec: Recorder, jobs: BranchResult["jobs"], setup: S
 }
 
 // ---------- Part 3 (Jo 3 Nov 2026): own job, electrical upgrades another day, certificate later ----------
-// Branch A: own job → electrician books the safety check on the link → A3 Complete in the simulator (upgrades needed, not
-// today) → the PIESA completes itself (Task 4b) → link step "enter the upgrades day" → day entered (A4 made) → A4 Complete
-// with no certificate → Waiting for certificate → install booked (warning recorded) → the pre-start fails on the certificate
-// → the electrician adds it on the link → ticked → the pre-start no longer fails on it.
-// Branch B: same-day upgrades on the A3 (Part C, no certificate) → post-upgrades record written → install scheduling →
-// Waiting for certificate.
-// TEST job + TEST trades only, simulated Mitti only. Held wording stays held. A step the harness can't drive is BLOCKED
-// with its reason (Recorder.run's `needs`), never faked.
-async function ownJobUpToBooked(rec: Recorder, ctx: JourneyCtx, setup: StepResult[], jobs: BranchResult["jobs"], tag: string, addedLinks: { installer: string; electrician: string; reactivated: boolean }[]) {
-  const ensureLinked = async (electricianBusinessId: string) => {
-    await (await import("./journey-setup.server")).assertTestBusiness(electricianBusinessId);
-    const { data: rel } = await admin.from("partner_relationships").select("id, active").eq("installer_business_id", ctx.installer.business_id).eq("electrician_business_id", electricianBusinessId).maybeSingle();
-    if (rel?.active) return;
-    if (rel) { await admin.from("partner_relationships").update({ active: true }).eq("id", rel.id); addedLinks.push({ installer: ctx.installer.business_id, electrician: electricianBusinessId, reactivated: true }); return; }
-    const { error } = await admin.from("partner_relationships").insert({ installer_business_id: ctx.installer.business_id, electrician_business_id: electricianBusinessId, active: true, created_by: ctx.actorId } as never);
-    if (error) throw new Error(`TEST link to the electrician: ${error.message}`);
-    addedLinks.push({ installer: ctx.installer.business_id, electrician: electricianBusinessId, reactivated: false });
-  };
-  const s = await toQuoteAccepted(rec, ctx, setup, jobs, async (c) => {
-    await J.assertOwnTestJob(c);
-    await ensureLinked(c.electrician.business_id);
-    const { error } = await admin.from("jobs").update({ channel: "installer_sourced", originating_installer_business_id: c.installer.business_id, originating_installer_user_id: c.installer.id } as never).eq("id", c.jobId!).eq("source", "qa_test");
-    if (error) throw new Error(`TEST job could not be made the installer's own: ${error.message}`);
-    await (await import("./job-electrician.server")).recordJobElectricianChoice(c.jobId!, c.installer.business_id, { mode: "mine", business_id: c.electrician.business_id }, c.installer.id);
-  });
-  if (!s.ok) { BLOCKED_REASON = `setup failed: ${s.out.at(-1)?.error}`; return null; }
-  await J.assertOwnTestJob(ctx);
-  const jobId = ctx.jobId!;
-  const sim = await import("./journey-sim.core");
-  const fd = await import("./fixes-day.core");
-  const lk = await import("./electrician-link.server");
-  const lcore = await import("./electrician-link.core");
-  const { addYmd, melbourneToday } = await import("./melbourne-time.core");
-  // The simulated Mitti for both forms, armed BEFORE the booking makes the A3 (decision 398) or the upgrades day makes the A4.
-  const { data: ws } = await loose.from("workflow_settings").select("*").eq("id", 1).maybeSingle();
-  const { data: el } = await admin.from("profiles").select("email, full_name").eq("id", ctx.electrician.id).single();
-  const { TEST_MITTI_ASSIGNEE } = await import("./onsite-ready-check.core");
-  const tplA3 = String((ws as Record<string, unknown> | null)?.["mitti_piesa_template_id"] ?? "").trim();
-  const tplFixes = String((ws as Record<string, unknown> | null)?.[fd.FIXES_TEMPLATE_COLUMN] ?? "").trim();
-  const now = new Date().toISOString();
-  const pass = sim.simulatedA3PassAnswers({ seed: `${ctx.runId}-${tag}`, inspectionDate: J.melbourneDate(0), capturedAt: now, electrician: el?.full_name ?? "TEST Delta Electrician", jobNumber: ctx.jobNumber });
-  const office = [{ item_id: "sim_a3_office_job", label: "Portal Job Number", type: "textsingle" }, { item_id: "sim_a3_office_addr", label: "Property Address", type: "textsingle" }, { item_id: "sim_a3_office_owner", label: "Owner name", type: "textsingle" }];
-  const fixesTemplateItems = fd.FIXES_DAY_QUESTIONS.map((q, i) => ({ item_id: `sim_a4_${i + 1}`, label: q.label, type: q.type === "photo" ? "media" : q.type === "signature" ? "signature" : q.type === "yes_no" ? "question" : "textsingle" }));
-  const os = await import("./official-short.core");
-  const upgradesQs = [os.FIXES_WORK_LABEL, os.FIXES_RCD_COUNT_LABEL, os.ONSITE_START_LABEL, os.A3_UPGRADES_TODAY_LABEL, os.CERTIFICATE_NOW_LABEL].map((label, i) => ({ item_id: `sim_a3_up_${i}`, label, type: label === os.FIXES_RCD_COUNT_LABEL ? "textsingle" : "question" }));
-  const mitti = sim.simulatedMitti({
-    templates: { ...(tplA3 ? { [tplA3]: sim.templateOfItems([...office, ...pass.items, ...upgradesQs]) } : {}), ...(tplFixes ? { [tplFixes]: { items: fixesTemplateItems as never } } : {}) },
-    users: [{ id: "sim-mitti-electrician", email: el?.email ?? "" }, { id: "sim-mitti-test-assignee", email: TEST_MITTI_ASSIGNEE }],
-  });
-  const guard = (await import("./mitti.server")).armJourneyMittiGuard(mitti.call);
-  guardRouted = guard.routed;
-  const day = (ahead: number) => { let d = addYmd(melbourneToday(new Date()), ahead); for (let i = 0; i < 7 && [0, 6].includes(new Date(`${d}T00:00:00Z`).getUTCDay()); i++) d = addYmd(d, 1); return lcore.melbourneWallToIso(d, "10:00")!; };
-  let token = "";
-  const ok1 = await rec.run(`${tag}.1`, "own job handed to the installer's electrician; the electrician books the safety check on the link", async () => {
-    const handed = await (await import("./own-job-piesa.server")).handOwnJobPiesa(jobId);
-    const link = await lk.createElectricianJobLink(jobId, ctx.electrician.business_id);
-    token = link.url.split("/").filter(Boolean).pop()!;
-    const v = await lk.electricianLinkView(token);
-    await lk.linkBookPiesa(token, day(2));
-    const stage = await J.stageOf(ctx);
-    return { ok: ["handed", "already"].includes(handed) && v.ok && v.step === "book_piesa" && stage === "piesa_scheduled", detail: `hand-over ${handed}; link step before ${v.ok ? v.step : v.reason}; stage ${stage}`, ids: { job_id: jobId } };
-  });
-  return { ok: ok1, jobId, token, mitti, tplA3, tplFixes, el, pass, office, lk, fd, os, sim, day };
-}
-
-/** Fill and sync the A3 (upgrades needed); the sync completes an own job's PIESA itself (Task 4b). */
-async function upgradesA3(rec: Recorder, ctx: JourneyCtx, b: NonNullable<Awaited<ReturnType<typeof ownJobUpToBooked>>>, n: string, o: { today: boolean }) {
-  return rec.run(n, o.today ? "A3 Complete: upgrades needed, done today with Part C, certificate No → the PIESA completes itself" : "A3 Complete: upgrades needed (q20 Yes), not today (q30 No) → the PIESA completes itself", async () => {
-    await J.assertOwnTestJob(ctx);
-    if (!b.tplA3) return { ok: false, detail: "no A3 template id in workflow_settings — the simulator can't serve the form" };
-    const pick = (label: string, v: string[]) => ({ item_id: `x_${label.length}_${v.join("")}`, label, type: "question", responses: { selected: v.map((x) => ({ label: x })) } });
-    const text = (label: string, v: string) => ({ item_id: `x_t_${label.length}`, label, type: "textsingle", responses: { text: v } });
-    const items = b.pass.items.map((it) => (it.label === b.os.A3_REPAIR_NEEDED_LABEL ? { ...it, responses: { selected: [{ label: "Yes" }] } } : it));
-    const sigAt = items.findIndex((it) => it.type === "signature");
-    items.splice(sigAt - 1, 0, pick(b.os.FIXES_WORK_LABEL, [b.os.FIXES_RCD_OPTION]) as never, text(b.os.FIXES_RCD_COUNT_LABEL, "2") as never, pick(b.os.ONSITE_START_LABEL, ["No"]) as never);
-    items.push(pick(b.os.A3_UPGRADES_TODAY_LABEL, [o.today ? "Yes" : "No"]) as never);
-    if (o.today) items.push(pick(b.os.CERTIFICATE_NOW_LABEL, ["No"]) as never);
-    const { data: a1 } = await admin.from("assessments").select("external_mitti_id").eq("job_id", ctx.jobId!).maybeSingle();
-    let auditId = a1?.external_mitti_id ?? null;
-    if (auditId) b.mitti.seed(auditId, b.tplA3);
-    else auditId = (await (await import("./mitti.server")).createAssignMittiAudit(ctx.jobId!, ctx.actorId, b.mitti.call, { officeOverride: true })).auditId;
-    // Portal evidence first: the auto-complete runs Complete PIESA (every check) inside the sync.
-    for (const c of ["switchboard_cables", "piesa_signoff"]) await J.uploadEvidence(ctx, c, ctx.electrician.id, "electrical");
-    b.mitti.fill(auditId!, [{ item_id: "sim_a3_office_job", label: "Portal Job Number", type: "textsingle", responses: { text: ctx.jobNumber ?? "" } }, ...items] as never);
-    const synced = await (await import("./mitti.server")).syncMittiAssessment(ctx.jobId!, ctx.actorId, b.mitti.call, async () => ({ bytes: J.TINY_JPEG, contentType: "image/jpeg" }));
-    const { data: as } = await admin.from("assessments").select("status").eq("job_id", ctx.jobId!).maybeSingle();
-    const auto = (await admin.from("workflow_events").select("id").eq("job_id", ctx.jobId!).eq("event_type", "piesa_auto_completed")).data ?? [];
-    const held = (await admin.from("workflow_events").select("details").eq("job_id", ctx.jobId!).eq("event_type", "own_job_piesa_complete_held")).data ?? [];
-    const stage = await J.stageOf(ctx);
-    return { ok: synced.completed && as?.status === "complete" && auto.length === 1 && held.length === 0, detail: `A3 synced ${synced.completed}${synced.issues.length ? ` (${synced.issues.join("; ").slice(0, 200)})` : ""}; assessment ${as?.status}; auto-complete claims ${auto.length}; held ${held.map((h) => (h.details as { reason?: string } | null)?.reason).join("; ") || "none"}; stage ${stage}`, ids: { audit_id: auditId } };
-  }, [`${n.split(".")[0]}.1`]);
-}
-
-async function m160UpgradesCertificateLater(rec: Recorder, jobs: BranchResult["jobs"], setup: StepResult[]) {
-  const addedLinks: { installer: string; electrician: string; reactivated: boolean }[] = [];
-  const restoreLinks = async () => {
-    for (const l of addedLinks.splice(0)) {
-      const q = l.reactivated ? admin.from("partner_relationships").update({ active: false }) : admin.from("partner_relationships").delete();
-      await q.eq("installer_business_id", l.installer).eq("electrician_business_id", l.electrician);
-    }
-  };
-  // ---- Branch A: upgrades another day, certificate later ----
-  const ctx = await freshCtx();
-  try {
-    const b = await ownJobUpToBooked(rec, ctx, setup, jobs, "A", addedLinks);
-    if (!b) return;
-    const jobId = b.jobId;
-    const cl = await import("./certificate-later.server");
-    const clc = await import("./certificate-later.core");
-    await upgradesA3(rec, ctx, b, "A.2", { today: false });
-    await rec.run("A.3", "the electrician's link now asks for the upgrades day", async () => {
-      const v = await b.lk.electricianLinkView(b.token);
-      const f = await cl.jobCertificateFacts(jobId);
-      return { ok: v.ok && v.step === "enter_upgrades_day" && f.state === "upgrades_pending", detail: `link step ${v.ok ? v.step : v.reason}; certificate state ${f.state}; job line ${f.line ?? "-"}` };
-    }, ["A.2"]);
-    let fixesAuditId: string | null = null;
-    await rec.run("A.4", "the electrician enters the upgrades day → booked, A4 form made", async () => {
-      await J.assertOwnTestJob(ctx);
-      await b.lk.linkEnterUpgradesDay(b.token, b.day(5));
-      const { data: bk } = await admin.from("bookings").select("id").eq("job_id", jobId).eq("kind", "rectification").eq("status", "confirmed");
-      const created = (await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", b.fd.FIXES_FORM_CREATED_EVENT)).data ?? [];
-      fixesAuditId = ((created[0]?.details as { audit_id?: string } | null)?.audit_id) ?? null;
-      const owner = (await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "in_house_booked_notice_pending")).data ?? [];
-      const ownerHeld = owner.some((e) => (e.details as { kind?: string } | null)?.kind === "upgrades");
-      const v = await b.lk.electricianLinkView(b.token);
-      return { ok: (bk ?? []).length === 1 && !!fixesAuditId && v.ok && v.step === "do_upgrades_in_mitti", detail: `upgrades bookings ${(bk ?? []).length}; A4 form ${fixesAuditId ?? (b.tplFixes ? "NOT made" : "not made (no A4 template id in workflow_settings)")}; owner "You're booked — electrical upgrades" ${ownerHeld ? "saved as pending (wording held)" : "not recorded"}; link step ${v.ok ? v.step : v.reason}; stage ${await J.stageOf(ctx)}` };
-    }, ["A.3"]);
-    await rec.run("A.5", "A4 Complete with no certificate → Waiting for certificate", async () => {
-      await J.assertOwnTestJob(ctx);
-      const Q = b.fd.FIXES_DAY_Q;
-      const cap = new Date().toISOString();
-      const media = (m: string) => ({ media_id: b.sim.simMediaId(`${ctx.runId}-a4-${m}`), captured_at: cap, date_created: cap, location: { ...b.sim.JOURNEY_SITE } });
-      if (!b.mitti.audits.has(fixesAuditId!)) b.mitti.seed(fixesAuditId!, b.tplFixes);
-      b.mitti.fill(fixesAuditId!, [
-        { item_id: "a", label: Q.done, type: "question", responses: { selected: [{ label: "Yes" }] } },
-        { item_id: "b", label: Q.certificateNow, type: "question", responses: { selected: [{ label: "No" }] } },
-        { item_id: "e", label: Q.workPhoto, type: "media", media: [media("work")] },
-        { item_id: "f", label: Q.signature, type: "signature", responses: { image: { media_id: b.sim.simMediaId(`${ctx.runId}-a4-sig`), timestamp: cap }, name: b.el?.full_name ?? "TEST Delta Electrician" } },
-      ] as never);
-      const res = await (await import("./fixes-day.server")).completeFixesForm(jobId, fixesAuditId!, { call: b.mitti.call as never, fetchMedia: (async () => ({ bytes: J.TINY_JPEG, contentType: "image/jpeg" })) as never, actorId: ctx.actorId });
-      const f = await cl.jobCertificateFacts(jobId);
-      const v = await b.lk.electricianLinkView(b.token);
-      const stage = await J.stageOf(ctx);
-      return { ok: res.status === "done" && f.state === "waiting_for_certificate" && f.partCRecorded && v.ok && v.step === "add_certificate" && stage === "installation_scheduling", detail: `A4 ${res.status}${res.detail ? ` (${res.detail})` : ""}; state ${f.state}; job line ${f.line ?? "-"}; link step ${v.ok ? v.step : v.reason}; stage ${stage}` };
-    }, ["A.4"]);
-    let startMs = 0;
-    await rec.run("A.6", "install booked while the certificate is still to come → booked, warning recorded once", async () => {
-      await J.assertOwnTestJob(ctx);
-      const r: StepResult = { key: "s7_install", label: "install booking", passed: true, checks: [] };
-      await (await import("./piesa-owner-confirm.server")).signOwnerPiesaConfirmation({ jobId, userId: null, codeId: null, fullName: "Test Journey", signatureName: "Test Journey", authority: "owner", confirmed: true, ip: "127.0.0.1", userAgent: "journey-test" });
-      await J.payStep(ctx, r, "install_deposit", "10% install deposit paid (TEST payment, Demo Company)");
-      const idays = await import("./install-days.server");
-      const { installStartAt } = await import("./install-days.core");
-      const days = (await idays.installerInstallDayState(jobId, ctx.installer.id)).days.filter((d) => installStartAt(d, "08:00").getTime() > Date.now() + 25 * 3_600_000).slice(0, 3);
-      if (!days.length) return { ok: false, detail: "the installer has no install days to offer" };
-      await idays.installerOfferDays(jobId, ctx.installer.id, days.map((d) => ({ day: d, time: "08:00" })));
-      const st = await idays.ownerInstallDayState(jobId);
-      await idays.ownerTakeDay(jobId, st.open[0]!.id, ctx.actorId);
-      const { data: bk } = await admin.from("bookings").select("scheduled_start").eq("job_id", jobId).eq("kind", "installation").eq("status", "confirmed").maybeSingle();
-      startMs = bk ? Date.parse(bk.scheduled_start) : 0;
-      const warn = (await admin.from("workflow_events").select("summary").eq("job_id", jobId).eq("event_type", clc.INSTALL_CERTIFICATE_WARNING_EVENT)).data ?? [];
-      const stage = await J.stageOf(ctx);
-      return { ok: stage === "installation_booked" && warn.length === 1, detail: `stage ${stage}; warning events ${warn.length} (${warn[0]?.summary ?? "-"})` };
-    }, ["A.5"]);
-    const ps = await import("./prestart.server");
-    const pc = await import("./prestart.core");
-    const prestartAt = () => new Date(startMs - 20 * 3_600_000 + 30 * 60_000);
-    let failRows = 0;
-    await rec.run("A.7", "pre-start check (noon the day before) fails on the certificate", async () => {
-      const pre = await ps.runPrestart(jobId, "journey", prestartAt());
-      const fails = pre?.failures ?? [];
-      const sig = await officeSignals(jobId);
-      failRows = sig.needsMeText.filter((t) => t.includes(pc.CERTIFICATE_NOT_IN_YET)).length;
-      return { ok: pre?.passed === false && fails.includes(pc.CERTIFICATE_NOT_IN_YET), detail: `pre-start ${pre ? (pre.passed ? "passed" : "failed") : "did not run"}: ${fails.join("; ") || "-"}; Needs me rows with the certificate line ${failRows}` };
-    }, ["A.6"]);
-    await shoot("m160-waiting-for-certificate", officePages(ctx));
-    await rec.run("A.8", "the electrician adds the certificate on the link, and it is ticked", async () => {
-      await J.assertOwnTestJob(ctx);
-      const PDF = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34, 0x0a, ...Array(40).fill(0x20), 0x0a, 0x25, 0x25, 0x45, 0x4f, 0x46, 0x0a]);
-      const u = await b.lk.linkStartCertificateUpload(b.token, { fileName: "TEST-certificate.pdf", mime: "application/pdf", size: PDF.length });
-      // The phone's upload to the signed URL, done here with the same signed token.
-      const up = await admin.storage.from("job-files").uploadToSignedUrl(u.path, u.token, PDF, { contentType: "application/pdf" });
-      if (up.error) throw new Error(`TEST certificate upload: ${up.error.message}`);
-      const added = await b.lk.linkAddCertificate(b.token, { number: "TEST-COES-0001", date: J.melbourneDate(0), filePath: u.path, fileName: "TEST-certificate.pdf" });
-      let tick = added.result;
-      if ((await cl.jobCertificateFacts(jobId)).state !== "clear") { await (await import("./coes-check.server")).officeTickCoes(jobId, null, ctx.actorId); tick = `${added.result}; office ticked it`; }
-      const f = await cl.jobCertificateFacts(jobId);
-      const v = await b.lk.electricianLinkView(b.token);
-      return { ok: f.state === "clear" && f.certificateTicked && v.ok && v.step === "done", detail: `check: ${tick}; state ${f.state}; link step ${v.ok ? v.step : v.reason}` };
-    }, ["A.7"]);
-    let carries = false;
-    await rec.run("A.9", "pre-start check no longer fails on the certificate", async () => {
-      const pre = await ps.runPrestart(jobId, "journey", prestartAt());
-      const fails = pre?.failures ?? [];
-      const certLines = fails.filter((x) => x === pc.CERTIFICATE_NOT_IN_YET || /electrical certificate/i.test(x));
-      carries = !!pre && certLines.length === 0;
-      // The rest of the pre-start (ESC notice, consent, PIESA copies, crew, safety plan) is the default run's step 7 and is not
-      // set up here, so a full pass is reported, not required.
-      return { ok: carries, detail: `pre-start ${pre ? (pre.passed ? "PASSED" : "still failing on other items not set up in this run") : "did not run"}; certificate lines ${certLines.length}; other: ${fails.filter((x) => !certLines.includes(x)).join("; ") || "none"}` };
-    }, ["A.8"]);
-    const st = (n: string) => rec.checks.find((c) => c.n === n);
-    answer("stops", st("A.7")?.status === "passed" ? true : st("A.7")?.status === "failed" ? false : null, st("A.7")?.detail ?? "not run");
-    answer("reason", st("A.7")?.status === "passed" ? true : st("A.7")?.status === "failed" ? false : null, `reason given: "${pc.CERTIFICATE_NOT_IN_YET}"; booking warning: ${st("A.6")?.detail ?? "not run"}`);
-    answer("office_once", st("A.6")?.status === "passed" ? failRows <= 1 : null, `install warning recorded once (${st("A.6")?.status ?? "not run"}); Needs me rows with the certificate line ${failRows}`);
-    // carries_on is answered after branch B.
-    // ---- Branch B: same-day upgrades on the A3, certificate No ----
-    await restoreLinks();
-    await finish(ctx, jobs);
-    const ctxB = await freshCtx();
-    try {
-      const bb = await ownJobUpToBooked(rec, ctxB, setup, jobs, "B", addedLinks);
-      if (!bb) { answer("carries_on", carries ? null : false, `branch A: ${st("A.9")?.detail ?? "not run"}; branch B setup failed`); return; }
-      await upgradesA3(rec, ctxB, bb, "B.2", { today: true });
-      await rec.run("B.3", "same-day Part C: post-upgrades record written → install scheduling → Waiting for certificate", async () => {
-        const { data: pr } = await admin.from("piesa_records").select("id, outcome, is_current").eq("job_id", bb.jobId).eq("kind", "post_rectification");
-        const src = (await admin.from("workflow_events").select("details").eq("job_id", bb.jobId).eq("event_type", "piesa_recorded")).data ?? [];
-        const sameDay = src.filter((e) => (e.details as { source?: string } | null)?.source === "mitti_a3_same_day").length;
-        const f = await cl.jobCertificateFacts(bb.jobId);
-        const stage = await J.stageOf(ctxB);
-        const v = await bb.lk.electricianLinkView(bb.token);
-        return { ok: (pr ?? []).length === 1 && pr![0]!.outcome === "pass" && stage === "installation_scheduling" && f.state === "waiting_for_certificate" && v.ok && v.step === "add_certificate", detail: `post-upgrades records ${(pr ?? []).length} (${pr?.[0]?.outcome ?? "-"}); same-day record events ${sameDay}; stage ${stage}; state ${f.state}; link step ${v.ok ? v.step : v.reason}` };
-      }, ["B.2"]);
-      const b3 = st("B.3")?.status;
-      answer("carries_on", carries && b3 === "passed" ? true : st("A.9")?.status === "failed" || b3 === "failed" ? false : null, `branch A after the certificate: ${st("A.9")?.detail ?? "not run"}; branch B: ${st("B.3")?.detail ?? "not run"}`);
-    } finally { await restoreLinks(); await finish(ctxB, jobs); }
-  } finally {
-    await restoreLinks();
-    if (!jobs.find((j) => j.jobId === ctx.jobId)?.archived) await finish(ctx, jobs);
-  }
+// Join step 5 (4 Nov 2026, ruling 4/7): main's m160 drove the Part 2 own-job electrician link (electrician_job_links:
+// handOwnJobPiesa, createElectricianJobLink, linkBookPiesa, linkEnterUpgradesDay, linkAddCertificate). On the joined branch the
+// electrician's page is Part 6's worker link (worker_job_links: bookFromElectricianLink kind assessment / rectification,
+// uploadCoesFromElectricianLink) and an own job's electrician is a Team worker (ruling 53) — Part 2's minting is retired at
+// go-live. The certificate-later flow on the Part 6 link (upgrades day entered on the link → A4 Complete without the
+// certificate → Waiting for certificate → the electrician uploads it on the link → ticked) is proven by
+// tests/journey-a1-complete-route-db.test.ts. This TEST-centre branch is BLOCKED until it is rewritten on the Part 6 link
+// (Part 11 / TEST centre task) — never faked.
+async function m160UpgradesCertificateLater(_rec: Recorder, _jobs: BranchResult["jobs"], _setup: StepResult[]) {
+  BLOCKED_REASON = "m160 drove the retired Part 2 own-job electrician link; rewrite on the Part 6 worker link (/e/<token>: bookFromElectricianLink, uploadCoesFromElectricianLink). The flow is proven by tests/journey-a1-complete-route-db.test.ts.";
 }
 
 export type Phase4Name = "m8-quote-payment" | "m10-deposit" | "m11-fixes-payment" | "m22-payout-form" | "m23-electrician-payout" | "m24-installer-payout" | "m9-piesa-prereqs" | "m7-quote-release" | "m42-comms-lock" | "m43-consent" | "m158-repeat-piesa" | "m158-owner-pays" | "m159-own-job-call-and-book" | "m160-upgrades-certificate-later";

@@ -33,16 +33,50 @@ export async function installedProductsFor(jobId: string): Promise<string[]> {
   return installedProductOptions({ installDayProducts: (evidence?.zoneProducts ?? []).map((z) => z.product), readyCheckProduct: ready.product?.option ?? null, confirmedProducts });
 }
 
+/**
+ * The job's NCC building class ("Class 1", "Class 2 sole-occupancy unit"), read-only from existing fields: the current Ready
+ * Check measurement's `building_class` answer, else its property type, else the owner's declared property type (the website
+ * stores "apartment" for a unit). Bradford's warranty depends on it. null = not recorded (never guessed; a read error is null too).
+ */
+export async function warrantyBuildingClassFor(jobId: string): Promise<string | null> {
+  try {
+    const [{ classFromPropertyType }, { propertyTypeOption }] = await Promise.all([import("./installer-led.core"), import("./mitti.core")]);
+    const [{ data: m }, { data: job }] = await Promise.all([
+      admin.from("ceiling_measurements").select("raw_snapshot").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
+      admin.from("jobs").select("properties(enrichment)").eq("id", jobId).maybeSingle(),
+    ]);
+    const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
+    const fromType = (v: unknown) => { const t = str(v); return t ? classFromPropertyType(propertyTypeOption(t) ?? t) : null; };
+    const raw = m?.raw_snapshot ?? null;
+    // A Mitti Ready Check keeps its answers as labelled entries: the A1/A2 "Property type" tap (House / Townhouse = Class 1,
+    // Unit = Class 2 sole-occupancy unit) is the installer's own answer for an own-customer job with no website enquiry.
+    const entries = Array.isArray(raw) ? (raw as { label?: unknown; value?: unknown }[]) : [];
+    const { LEAN_Q } = await import("./ready-check-lean.core");
+    const answered = (label: string) => str(entries.find((e) => typeof e.label === "string" && e.label.trim().toLowerCase() === label.toLowerCase())?.value);
+    const snap = (!Array.isArray(raw) && raw ? raw : null) as Record<string, unknown> | null;
+    const enrichment = ((job?.properties as unknown as { enrichment?: Record<string, unknown> | null } | null)?.enrichment ?? {}) as { base44?: { declared?: Record<string, unknown> | null } | null };
+    return str(snap?.["building_class"]) ?? fromType(snap?.["property_type"]) ?? fromType(answered(LEAN_Q.propertyType)) ?? fromType(enrichment.base44?.declared?.["property_type"]);
+  } catch {
+    return null;
+  }
+}
+
 /** What the completion pack can attach for this job, and what is missing. */
-export async function warrantyDecisionFor(jobId: string): Promise<WarrantyAttachDecision & { products: string[] }> {
-  const products = await installedProductsFor(jobId);
-  return { products, ...decideWarrantyAttachment(products, warrantyOnFile) };
+export async function warrantyDecisionFor(jobId: string): Promise<WarrantyAttachDecision & { products: string[]; buildingClass: string | null }> {
+  const [products, buildingClass] = await Promise.all([installedProductsFor(jobId), warrantyBuildingClassFor(jobId)]);
+  return { products, buildingClass, ...decideWarrantyAttachment(products, warrantyOnFile, buildingClass) };
+}
+
+/** Installed products whose warranty document is not on file, and the job's building class (together they give the
+ *  AP-signature hold reason: `warrantyHoldReason(product, buildingClass)`). */
+export async function warrantyGapFactsFor(jobId: string): Promise<{ products: string[]; buildingClass: string | null }> {
+  const d = await warrantyDecisionFor(jobId);
+  return { products: d.missing.map((m) => m.product), buildingClass: d.buildingClass };
 }
 
 /** Installed products whose warranty document is not on file (feeds the AP-signature hold reason). */
 export async function warrantyGapsFor(jobId: string): Promise<string[]> {
-  const d = await warrantyDecisionFor(jobId);
-  return d.missing.map((m) => m.product);
+  return (await warrantyGapFactsFor(jobId)).products;
 }
 
 export const warrantyAttachment = (w: ProductWarranty, bytes: Uint8Array): EmailAttachment => ({ filename: w.attachmentName, content: Buffer.from(bytes).toString("base64"), contentType: "application/pdf" });
@@ -79,4 +113,4 @@ export async function prepareWarrantyCopies(jobId: string, actorId: string | nul
 }
 
 /** Office display helper: the manufacturer warranty for a product option, when one is mapped. */
-export const warrantyInfoForOption = (option: string | null | undefined) => warrantyForOption(option);
+export const warrantyInfoForOption = (option: string | null | undefined, buildingClass?: string | null) => warrantyForOption(option, buildingClass);

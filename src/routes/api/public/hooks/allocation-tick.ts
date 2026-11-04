@@ -128,23 +128,21 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['sameDayPartC'] = "failed";
         }
         try {
-          // Part 3 Task 5 (Jo 3 Nov 2026): upgrades needed, no upgrades day entered → day 1 text to the electrician (link),
-          // day 2 email to the installer office, red office flag at 7 days left on the 30-day clock. Once per job + PIESA.
-          const { sweepUpgradesDayChase } = await import("@/lib/certificate-later.server");
-          (out as Record<string, unknown>)['upgradesDayChase'] = await timed("sweepUpgradesDayChase", () => sweepUpgradesDayChase());
+          // ONE sweep owns the upgrades / certificate chasing (join ruling 2, 4 Nov 2026) — three conditions, never two senders
+          // for one: (1) upgrades needed, no day entered → day-1 electrician text, day-2 installer office email, red flag at 7
+          // days left on the 30-day clock (main Part 3 Task 5); (2) Part C recorded, no certificate file → day-2 text, day-4
+          // office flag (main Part 3 Task 5); (3) the booked upgrades day PASSED with no upgrades form in → electrician text
+          // the next day, office email the day after, red flag past the 30-day rule (Part 6 Task 7, Jo-approved 4 Nov).
+          const { sweepUpgradesChasing } = await import("@/lib/certificate-later.server");
+          const r = await timed("sweepUpgradesChasing", () => sweepUpgradesChasing());
+          (out as Record<string, unknown>)['upgradesDayChase'] = r.upgradesDay;
+          (out as Record<string, unknown>)['certificateChase'] = r.certificate;
+          (out as Record<string, unknown>)['upgradesWatch'] = r.dayPassed;
+          if (r.failed.length) { out['ok'] = false; (out as Record<string, unknown>)['upgradesChasingFailed'] = r.failed; }
         } catch (e) {
-          console.error("allocation tick: upgrades day chase failed", (e as Error).message);
+          console.error("allocation tick: upgrades chasing failed", (e as Error).message);
           out['ok'] = false;
-          (out as Record<string, unknown>)['upgradesDayChase'] = "failed";
-        }
-        try {
-          // Part 3 Task 5: Part C recorded, no Certificate of Electrical Safety file → day 2 text (link), day 4 office flag.
-          const { sweepCertificateChase } = await import("@/lib/certificate-later.server");
-          (out as Record<string, unknown>)['certificateChase'] = await timed("sweepCertificateChase", () => sweepCertificateChase());
-        } catch (e) {
-          console.error("allocation tick: certificate chase failed", (e as Error).message);
-          out['ok'] = false;
-          (out as Record<string, unknown>)['certificateChase'] = "failed";
+          (out as Record<string, unknown>)['upgradesChasing'] = "failed";
         }
         try {
           const { sweepInstallHolds } = await import("@/lib/install-holds.server");
@@ -162,6 +160,23 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
         } catch (e) {
           console.error("allocation tick: PIESA copy delivery sweep failed", (e as Error).message);
           (out as Record<string, unknown>)['piesaCopies'] = "failed";
+        }
+        try {
+          // Part 4 Task 4 (touchpoint 42): "Electrical upgrades needed" email + text (carries the owner's PIESA copy). Inert until UPGRADES_NEEDED_EMAIL_APPROVED.
+          const { sweepUpgradesNeeded } = await import("@/lib/upgrades-needed.server");
+          (out as Record<string, unknown>)['upgradesNeeded'] = await timed("sweepUpgradesNeeded", () => sweepUpgradesNeeded());
+        } catch (e) {
+          console.error("allocation tick: upgrades needed sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['upgradesNeeded'] = "failed";
+        }
+        try {
+          // New job flow Part 6 (fix wave I2): every active electrician assignment gets its job link text once (held = one trace per reason).
+          const { sweepElectricianLinks, sweepHeldElectricianCantDoEmails } = await import("@/lib/electrician-link.server");
+          (out as Record<string, unknown>)['electricianLinks'] = await timed("sweepElectricianLinks", () => sweepElectricianLinks());
+          (out as Record<string, unknown>)['electricianCantDoEmails'] = await timed("sweepHeldElectricianCantDoEmails", () => sweepHeldElectricianCantDoEmails());
+        } catch (e) {
+          console.error("allocation tick: electrician link sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['electricianLinks'] = "failed";
         }
         try {
           // Decision 317: the assigned electrician gets the official PIESA (PDF attached) once per PIESA record — first
@@ -228,23 +243,6 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['addressRequests'] = "failed";
         }
         try {
-          // Decision 330: owner asked to confirm the ELECTRICAL FIXES (email O72 + text) after the A4 fixes form; days 1/3, office day 5.
-          const { sweepOwnerFixesConfirmations } = await import("@/lib/piesa-fixes-confirm-send.server");
-          (out as Record<string, unknown>)['piesaFixesConfirm'] = await timed("sweepOwnerFixesConfirmations", () => sweepOwnerFixesConfirmations());
-        } catch (e) {
-          console.error("allocation tick: electrical fixes owner confirmation sweep failed", (e as Error).message);
-          (out as Record<string, unknown>)['piesaFixesConfirm'] = "failed";
-        }
-        try {
-          // Decision 376: ONE copy of the owner's signed Gate B paperwork per signing sitting (email O75, PDFs attached).
-          // DRAFT wording: real owners get nothing until approved; TEST jobs use test-send.
-          const { sweepOwnerPaperworkCopies } = await import("@/lib/paperwork-copy-email.server");
-          (out as Record<string, unknown>)['paperworkCopies'] = await sweepOwnerPaperworkCopies();
-        } catch (e) {
-          console.error("allocation tick: signed paperwork copy sweep failed", (e as Error).message);
-          (out as Record<string, unknown>)['paperworkCopies'] = "failed";
-        }
-        try {
           // Decision 120: owner asked to sign the VEEC assignment form (email + text) at install completion, days 1/3/7, office alert day 10.
           const { sweepVeecReminders } = await import("@/lib/veec-reminders.server");
           (out as Record<string, unknown>)['veecReminders'] = await timed("sweepVeecReminders", () => sweepVeecReminders());
@@ -304,33 +302,14 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['electricianAttendance'] = "failed";
         }
         try {
-          // Decision 186: installer told once when electrical clearance is in (text + email, offer 3 install days).
-          // Catch-up only: jobs cleared in the last 7 days with nothing booked and no notice yet; the live trigger is
-          // the PIESA completion / Section C sign-off itself.
-          const { sweepInstallClearance } = await import("@/lib/install-clearance.server");
-          (out as Record<string, unknown>)['installClearance'] = await timed("sweepInstallClearance", () => sweepInstallClearance());
-        } catch (e) {
-          console.error("allocation tick: install clearance sweep failed", (e as Error).message);
-          (out as Record<string, unknown>)['installClearance'] = "failed";
-        }
-        try {
-          // Decisions 79/82/99 (built per 193): "Install tomorrow" to the installer from the afternoon before, and a 24h
-          // catch-up for the owner-suggested-days and Ready-Check-booked installer texts whose live trigger was missed.
-          // One `installer_text_prepared` event per text before sending; TEST → test-send; real → sendRealSms.
+          // Decision #47 (Jo 2 Nov 2026): "Install tomorrow" to the Lead Installer from the afternoon before (+ the crew's
+          // safety plan sign links). One `installer_text_prepared` event per text before sending; TEST → test-send; real →
+          // sendRealSms. The decision 79/82 catch-ups are retired (Part 7 Task 9); install clearance retired (Part 4 Task 14).
           const { sweepInstallerTexts } = await import("@/lib/installer-texts.server");
           (out as Record<string, unknown>)['installerTexts'] = await timed("sweepInstallerTexts", () => sweepInstallerTexts());
         } catch (e) {
           console.error("allocation tick: installer texts sweep failed", (e as Error).message);
           (out as Record<string, unknown>)['installerTexts'] = "failed";
-        }
-        try {
-          // Decision 361: Ready Check job offers made after 8pm are texted at 7am (job_offer keeps quiet hours; a held
-          // text never claims its key). The offer's 24 hours still run from when it was made.
-          const { sweepJobOfferTexts } = await import("@/lib/ready-check-offer-text.server");
-          (out as Record<string, unknown>)['jobOfferTexts'] = await timed("sweepJobOfferTexts", () => sweepJobOfferTexts());
-        } catch (e) {
-          console.error("allocation tick: job offer text catch-up failed", (e as Error).message);
-          (out as Record<string, unknown>)['jobOfferTexts'] = "failed";
         }
         try {
           // Decision 215 / spec D4: a couldn't-get-in text held after 8pm goes at 7am (same key, never twice).
@@ -435,19 +414,35 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           console.error("allocation tick: automatic offers sweep failed", (e as Error).message);
           (out as Record<string, unknown>)['autoOffers'] = "failed";
         }
+        // Part 7 Task 8 (Jo 2 Nov 2026): the 2pm crew reminder (#110) and the in-house 2pm "Tomorrow's installs" office email
+        // are retired — both replaced by the 9am two-days-before Lead Installer confirm email below.
         try {
-          // Jo 28 Oct: crew reminder email at 2pm Melbourne the day before an install with no crew picked (once per job +
-          // install date). Real installers get nothing until Jo approves the wording; TEST uses the test-send path.
-          const { sweepCrewReminders } = await import("@/lib/crew-reminder.server");
-          const r = await timed("sweepCrewReminders", () => sweepCrewReminders());
-          (out as Record<string, unknown>)['crewReminders'] = { checked: r.checked, sent: r.sent };
+          // Part 7 Task 6 (Jo 2 Nov): ONE office email at 9am two days before each install, "Confirm or change your Lead
+          // Installer by 5pm today"; every installer; DRAFT wording → real offices held until approved, TEST → test-send.
+          const { sweepLeadInstallerConfirm } = await import("@/lib/lead-installer-confirm.server");
+          (out as Record<string, unknown>)['leadInstallerConfirm'] = await timed("sweepLeadInstallerConfirm", () => sweepLeadInstallerConfirm());
         } catch (e) {
-          console.error("allocation tick: crew reminder sweep failed", (e as Error).message);
-          (out as Record<string, unknown>)['crewReminders'] = "failed";
+          console.error("allocation tick: lead installer confirm sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['leadInstallerConfirm'] = "failed";
         }
         try {
-          (out as Record<string,unknown>)['inHouseOfficeEmails']=await timed('sweepInHouseInstallOfficeEmails',async()=> (await import('@/lib/in-house-booking-notices.server')).sweepInHouseInstallOfficeEmails());
-        }catch(e){console.error('allocation tick: in-house office digest failed',(e as Error).message);(out as Record<string,unknown>)['inHouseOfficeEmails']='failed';}
+          // G7 (Jo 4 Nov 2026): a Ready Check booked with "Not sure yet" and nobody picked by 5pm the day before → ONE email to the
+          // installer office (DRAFT, held until READY_CHECK_PERSON_EMAIL_APPROVED; TEST → test-send) + a Needs me row. No text.
+          const { sweepReadyCheckPerson } = await import("@/lib/ready-check-person.server");
+          (out as Record<string, unknown>)['readyCheckPerson'] = await timed("sweepReadyCheckPerson", () => sweepReadyCheckPerson());
+        } catch (e) {
+          console.error("allocation tick: ready check person sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['readyCheckPerson'] = "failed";
+        }
+        try {
+          // Part 9 Task 8 (Jo 2 Nov): insurance / licence expiry reminders 30 and 7 days before, business email + info@ copy;
+          // wording approved by Jo 4 Nov 2026 → real businesses held until INSURANCE_REMINDER_APPROVED flips at go-live, TEST partners → test-send.
+          const { sweepInsuranceReminders } = await import("@/lib/insurance-reminder.server");
+          (out as Record<string, unknown>)['insuranceReminders'] = await timed("sweepInsuranceReminders", () => sweepInsuranceReminders());
+        } catch (e) {
+          console.error("allocation tick: insurance reminder sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['insuranceReminders'] = "failed";
+        }
         try {
           (out as Record<string,unknown>)['inHouseBookedNotices']=await timed('sweepOwnerBookedNotices',async()=> (await import('@/lib/in-house-booking.server')).sweepOwnerBookedNotices());
         }catch(e){console.error('allocation tick: booked notices failed',(e as Error).message);(out as Record<string,unknown>)['inHouseBookedNotices']='failed';}
@@ -460,6 +455,10 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
         try {
           (out as Record<string,unknown>)['balanceQ21']=await timed('sweepBalanceQ21',async()=> (await import('@/lib/balance-q21.server')).sweepBalanceQ21());
         }catch(e){console.error('allocation tick: balance reminder failed',(e as Error).message);}
+        try {
+          // Part 4 Task 12 (touchpoint 53): after-install reminders on days 1/3/7 (rebate form + balance); behind AFTER_INSTALL_REMINDERS_APPROVED.
+          (out as Record<string,unknown>)['afterInstallReminders']=await timed('sweepAfterInstallReminders',async()=> (await import('@/lib/after-install-reminders.server')).sweepAfterInstallReminders());
+        }catch(e){console.error('allocation tick: after-install reminders failed',(e as Error).message);}
         try {
           const { sweepPrestart } = await import("@/lib/prestart.server");
           (out as Record<string, unknown>)['prestart'] = await timed("sweepPrestart", () => sweepPrestart());
@@ -526,14 +525,6 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
         } catch (e) {
           console.error("allocation tick: trade messages sweep failed", (e as Error).message);
           (out as Record<string, unknown>)['tradeMessages'] = "failed";
-        }
-        try {
-          // Decision 354: catch-up for the automatic electrical fixes quote send (A3 complete + every check passed).
-          const { sweepAutoFixesQuotes } = await import("@/lib/auto-fixes-quote-send.server");
-          (out as Record<string, unknown>)['autoFixesQuotes'] = await timed("sweepAutoFixesQuotes", () => sweepAutoFixesQuotes());
-        } catch (e) {
-          console.error("allocation tick: automatic fixes quote sweep failed", (e as Error).message);
-          (out as Record<string, unknown>)['autoFixesQuotes'] = "failed";
         }
         try {
           const { sweepDailyBrief } = await import("@/lib/daily-brief.server");

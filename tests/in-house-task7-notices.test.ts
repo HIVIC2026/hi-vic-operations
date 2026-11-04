@@ -46,40 +46,8 @@ function fixture(count = 1) {
   return { api, rows, pages, sends, accepted, outcome: (v: string) => { outcome = v; }, loseResponse: () => { throwAfterAccept = true; } };
 }
 const now = new Date('2026-11-02T03:00:00Z'); // 2pm Melbourne, the day before.
-test('2pm digest pages all 405 installs into one office email and never sends again on replay', async () => {
-  const f = fixture(405);
-  await f.api.sweepInHouseInstallOfficeEmails(now);
-  await f.api.sweepInHouseInstallOfficeEmails(now);
-  expect(f.pages).toContain(200); expect(f.pages).toContain(400);
-  expect(f.sends).toHaveLength(1);
-  expect(f.sends[0].text).toContain('HV-404');
-  expect(f.sends[0].text.match(/Lead Installer: New Installer/g)).toHaveLength(405);
-  expect(f.sends[0].to).toBe('office@example.invalid');
-});
-test('definite rejection retries the identical digest key once, then replay sends nothing', async () => {
-  const f = fixture(); f.outcome('failed'); await f.api.sweepInHouseInstallOfficeEmails(now);
-  f.rows.businesses[0].email='changed-office@example.invalid';
-  f.outcome('sent'); await f.api.sweepInHouseInstallOfficeEmails(now); await f.api.sweepInHouseInstallOfficeEmails(now);
-  expect(f.sends).toHaveLength(2); expect(f.sends[0].idempotencyKey).toBe(f.sends[1].idempotencyKey); expect(f.accepted.size).toBe(1);expect(f.sends[1].to).toBe('office@example.invalid');expect(f.sends[1].html).toBe(f.sends[0].html);
-});
-test('late tomorrow install receives one short office follow-up after frozen digest',async()=>{
- const f=fixture();await f.api.sweepInHouseInstallOfficeEmails(now);
- f.rows.jobs.push({id:'late',job_number:'HV-LATE',source:'base44',deleted_at:null});f.rows.job_assignments.push({job_id:'late',role:'installer',business_id:'biz',active:true});f.rows.bookings.push({id:'late-b',job_id:'late',kind:'installation',status:'confirmed',scheduled_start:'2026-11-03T01:00:00Z'});
- await f.api.sweepInHouseInstallOfficeEmails(now);await f.api.sweepInHouseInstallOfficeEmails(now);
- expect(f.sends).toHaveLength(2);expect(f.sends[1].text).toContain('HV-LATE');expect(f.sends[1].text).not.toContain('HV-0');expect(f.sends[1].to).toBe('office@example.invalid');
-});
-test('lost response after acceptance is held, never automatically double-sent', async () => {
-  const f = fixture(); f.loseResponse(); await expect(f.api.sweepInHouseInstallOfficeEmails(now)).rejects.toThrow('Response lost');
-  await f.api.sweepInHouseInstallOfficeEmails(now); expect(f.sends).toHaveLength(1); expect(f.accepted.size).toBe(1);
-});
-test('competing office digest sweeps have one claim winner and one email',async()=>{
- const f=fixture();
- // Model the production primary-key and JSON equality protections, not a permissive mock.
- const original=f.rows.workflow_events.push.bind(f.rows.workflow_events);
- f.rows.workflow_events.push=(...entries:any[])=>{for(const entry of entries){if(f.rows.workflow_events.some(r=>r.id===entry.id))throw Error('duplicate claim');}return original(...entries);};
- const results=await Promise.allSettled([f.api.sweepInHouseInstallOfficeEmails(now),f.api.sweepInHouseInstallOfficeEmails(now)]);
- expect(results.some(r=>r.status==='fulfilled')).toBe(true);expect(f.sends).toHaveLength(1);
-});
+// Part 7 Task 8 (Jo 2 Nov 2026): the 2pm "Tomorrow's installs" office digest is retired (replaced by the 9am two-days-before
+// Lead Installer confirm email); its five cases went with it. The cancellation notices below keep their guards.
 test('owner cancellation emails only the HIV office and replay makes no duplicate', async () => {
   const f = fixture(); await f.api.notifyOfficeOwnerCancelled('j0000', 'Owner changed plans', 'actor');
   await f.api.notifyOfficeOwnerCancelled('j0000', 'Owner changed plans', 'actor');

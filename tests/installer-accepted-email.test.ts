@@ -42,3 +42,47 @@ test("sent once per quote only when the safety check is paid — never at accept
   expect(branch).toContain("emailInstallerOnSafetyCheckPaid(jobId, v.invoiceId)");
   expect(branch).toContain('console.error("installer accepted email skipped"');
 });
+
+// Decision #36 (Jo 2 Nov 2026): the approved "Owner accepted" office email — behind INSTALLER_ACCEPTED_V2_APPROVED.
+import { INSTALLER_ACCEPTED_V2_APPROVED } from "../src/lib/installer-accepted-email.core";
+const unesc = (s: string) => s.replace(/&#39;|&#x27;/g, "'");
+const v2Job = { installerFirstName: "Deep", ownerName: "Sarah Lee", address: "1 Example St, Sampletown", jobNumber: "HV-3117", jobUrl: "https://estimate.homeinsulationvictoria.com.au/field/j", useV2: true };
+
+test("#36 flag stays false until Jo OKs the pictures, and the old wording is used while it is", () => {
+  expect(INSTALLER_ACCEPTED_V2_APPROVED).toBe(false);
+  const m = renderInstallerAcceptedEmail({ ...v2Job, useV2: undefined });
+  expect(m.text).toContain("Offer Sarah 3 install days");
+  expect(m.text).not.toContain("Book the PIESA");
+});
+
+test("#36 office books: approved wording, no price at all (pack 1 items 13/14, Jo 4 Nov 2026: installers never see Home Insulation Victoria's PIESA price)", () => {
+  const m = renderInstallerAcceptedEmail({ ...v2Job, whoBooks: "office", electricianName: null });
+  expect(m.subject).toBe("Owner accepted – HV-3117, 1 Example St, Sampletown");
+  expect(m.html).toContain("Book the PIESA now.");
+  for (const b of [unesc(m.html), unesc(m.text)]) {
+    expect(b).toContain("has paid for the PIESA.");
+    expect(b).not.toContain("$349");
+    expect(b).toContain("Book the PIESA");
+    expect(b).toContain("Pick your electrician on the job, call Sarah, then add the day and time in the portal within 2 business days.");
+    expect(b).toContain("Electrical upgrades, if needed");
+    expect(b).toContain("Quote, book and invoice them with Sarah directly. Upload the Part C and Certificate of Electrical Safety before the install.");
+    expect(b).toContain("Book the install");
+    expect(b).toContain("Call Sarah and add the install day and Lead Installer in the portal. Sarah pays her 10% deposit to lock it in. Install within 30 days of the PIESA.");
+    for (const bad of ["offers", "3 install days", "Nothing for you to do"]) expect(b).not.toContain(bad);
+    expect(b.match(/\$[\d,.]+/g) ?? []).toEqual([]); // no dollar figure anywhere on the installer's email
+  }
+  expect(m.text).toContain("Book the PIESA: Pick your electrician on the job, call Sarah, then add the day and time in the portal within 2 business days.");
+});
+
+test("#36 electrician books: names the electrician", () => {
+  const m = renderInstallerAcceptedEmail({ ...v2Job, whoBooks: "electrician", electricianName: "Viking Electrical" });
+  expect(m.text).toContain("Book the PIESA: Viking Electrical will call Sarah to book it.");
+  expect(m.text).not.toContain("Pick your electrician");
+});
+
+test("#36 'either' and a missing who-books are treated as the office books", () => {
+  for (const w of ["either", undefined] as const) {
+    const m = renderInstallerAcceptedEmail({ ...v2Job, whoBooks: w });
+    expect(m.text).toContain("Pick your electrician on the job, call Sarah");
+  }
+});

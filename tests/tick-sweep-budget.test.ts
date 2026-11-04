@@ -21,7 +21,7 @@ const SWEEPS: [string, string][] = [
   ["piesa-owner-confirm-send.server", "sweepOwnerPiesaConfirmations"], ["piesa-fixes-confirm-send.server", "sweepOwnerFixesConfirmations"], ["veec-reminders.server", "sweepVeecReminders"],
   ["completion-pack.server", "sweepCompletionPacks"], ["warranty-followup.server", "sweepWarrantyFollowups"], ["veec-ap-auto.server", "sweepAutoApSignatures"],
   ["install-days.server", "sweepInstallDays"], ["install-attendance.server", "sweepElectricianAttendance"], ["install-clearance.server", "sweepInstallClearance"],
-  ["installer-texts.server", "sweepInstallerTexts"], ["ready-check-offer-text.server", "sweepJobOfferTexts"], ["estimate-followup.server", "sweepEstimateFollowups"],
+  ["installer-texts.server", "sweepInstallerTexts"], ["estimate-followup.server", "sweepEstimateFollowups"],
   ["thirty-day-rule.server", "sweepInstallWindowRule"], ["payments.server", "sweepProvisionalBookings"], ["xero.server", "pollXeroPayments"],
   ["rec-onboarding-invite.server", "sweepRecOnboardingInvites"], ["visit-events.server", "sweepTradeNoShows"], ["readycheck-booking.server", "sweepReadyCheckOffers"],
   ["auto-offer.server", "sweepAutoOffers"], ["prestart.server", "sweepPrestart"], ["esc.server", "sweepEscReminders"], ["piisa-autosend.server", "sweepPiisaAutoSend"],
@@ -31,6 +31,9 @@ const SWEEPS: [string, string][] = [
   ["mitti-pickup-auto.server", "sweepMittiPickupAuto"], ["mitti-autoform.server", "sweepReadyCheckForms"], ["install-day-confirm.server", "sweepInstallDayForms"],
   ["piesa-complete.server", "sweepSameDayPartCRetries"],
   ["certificate-later.server", "sweepUpgradesDayChase"], ["certificate-later.server", "sweepCertificateChase"],
+  // Join ruling 2 (4 Nov 2026): the ONE tick entry that runs the three upgrades / certificate chases (the two above + Part 6 Task 7).
+  ["upgrades-watch.server", "sweepUpgradesWatch"], ["certificate-later.server", "sweepUpgradesChasing"],
+  ["ready-check-person.server", "sweepReadyCheckPerson"],
 ];
 
 const results: { sweep: string; requests: number; waves: number; rows: number; outcome: string; top: string }[] = [];

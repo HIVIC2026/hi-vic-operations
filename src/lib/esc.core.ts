@@ -1,6 +1,7 @@
 // ESC pre-install notification + READY TO INSTALL rules – PURE (no I/O).
 // Fail closed: nothing is "sent" unless an actual submission (adapter or audited manual record) set it.
 import { consentCompletedAt, consentValidityBlockers, type ConsentRecord } from "./consent.core";
+import { melbourneYmd } from "./piesa-windows.core";
 
 export const HOUR = 3600_000;
 export const LEAD_MS = 24 * HOUR;
@@ -199,12 +200,16 @@ export function registryChange(prev: SentNotice, next: { scheduled_start: string
   return { action: reasons.length ? "withdraw_and_resubmit" : "update_same_id", changed, reasons };
 }
 
-/** Office records that it UPDATED the earlier notification in the Registry (same notification ID). The current notice is
- *  then recorded as sent under the SAME reference, with the update kept on the row. */
-export function registryUpdatePatch(p: { prev: SentNotice; change: RegistryChange; reference: string; updatedAt: string; confirmed: boolean; actorId: string }, nowIso: string) {
+/** Office (or the robot) records that it UPDATED the earlier notification in the Registry (same notification ID). The
+ *  current notice is then recorded as sent under the SAME reference, with the update kept on the row. ONE rule (root AGENTS,
+ *  Part 9 Task 3): with the SAME start (Lead Installer / details update) `sent_at` stays the original notice's time — the
+ *  ESC was told about this install then, so the 24h check never flips to DON'T START; a moved start = the update time. */
+export function registryUpdatePatch(p: { prev: SentNotice; nextStart: string; change: RegistryChange; reference: string; updatedAt: string; confirmed: boolean; actorId: string }, nowIso: string) {
   if (p.change.action !== "update_same_id") throw new Error(p.change.reasons.join(" ") || "Nothing changed that needs a Registry update.");
   if (p.reference.trim() !== String(p.prev.submission_reference ?? "").trim()) throw new Error(`An update keeps the same notification ID (${p.prev.submission_reference}). A different ID means a new notification — record it as a new submission after withdrawing the old one.`);
-  const base = submissionPatch({ reference: p.reference, sentAt: p.updatedAt, method: "manual_portal", confirmed: p.confirmed, actorId: p.actorId }, nowIso);
+  const sameStart = Date.parse(p.prev.scheduled_start) === Date.parse(p.nextStart);
+  const sentAt = sameStart && p.prev.sent_at ? p.prev.sent_at : p.updatedAt;
+  const base = submissionPatch({ reference: p.reference, sentAt, method: "manual_portal", confirmed: p.confirmed, actorId: p.actorId }, nowIso);
   return { ...base, response: { registry_update: { same_id: base.submission_reference, updated_at: p.updatedAt, changed: p.change.changed, updated_by: p.actorId } } };
 }
 
@@ -230,6 +235,57 @@ export function withdrawalPatch(p: { notice: { status: string; sent_at: string |
   if (new Date(p.withdrawnAt).getTime() > new Date(nowIso).getTime() + 60_000) throw new Error("Withdrawal time cannot be in the future.");
   const prev = (p.notice.response && typeof p.notice.response === "object" ? p.notice.response : {}) as Record<string, unknown>;
   return { response: { ...prev, withdrawal: { withdrawn_at: p.withdrawnAt, reason: p.reason.trim(), withdrawn_by: p.actorId, registry_reference: p.notice.submission_reference } }, status: "stale" };
+}
+
+// ---- Withdraw on "Owner cancelled" / "Can't do this one" (Part 9 Task 2) ----
+/** ONE internal event per live notice when the install won't go ahead; the office withdraws by hand (the robot has no
+ *  verified withdraw selector) and records it with `withdrawEscNotification`, which clears the item. */
+export const ESC_WITHDRAW_REQUIRED_EVENT = "esc_withdraw_required";
+export const ESC_WITHDRAWN_EVENT = "esc_notification_withdrawn";
+export type EscWithdrawReason = "owner_cancelled" | "cant_do_this_one" | "address_changed";
+/** Notices still live in the Registry: recorded as sent with a reference and not withdrawn — whatever their status
+ *  (a notice staled by a booking change was still submitted; an unsent one was never in the Registry). */
+export function escWithdrawalNeeded(notices: { id: string; status: string; sent_at: string | null; submission_reference: string | null; response?: unknown }[]): { id: string; reference: string }[] {
+  return notices.filter((n) => !!n.sent_at && !!n.submission_reference && !isWithdrawn(n)).map((n) => ({ id: n.id, reference: String(n.submission_reference) }));
+}
+export type OpenEscWithdrawal = { jobId: string; notificationId: string; reference: string; reason: string; at: string };
+/** Open items from the recorded asks minus the recorded withdrawals, one per notice (earliest ask = since). */
+export function openEscWithdrawals(required: { job_id: string; created_at: string; details: unknown }[], withdrawn: { details: unknown }[]): OpenEscWithdrawal[] {
+  const idOf = (d: unknown) => { const n = (d as { notification_id?: unknown } | null)?.notification_id; return typeof n === "string" && n ? n : null; };
+  const done = new Set(withdrawn.map((w) => idOf(w.details)).filter((x): x is string => !!x));
+  const out = new Map<string, OpenEscWithdrawal>();
+  for (const r of [...required].sort((a, b) => a.created_at.localeCompare(b.created_at))) {
+    const id = idOf(r.details);
+    if (!id || done.has(id) || out.has(id)) continue;
+    const d = r.details as { reference?: unknown; reason?: unknown };
+    out.set(id, { jobId: r.job_id, notificationId: id, reference: String(d.reference ?? ""), reason: String(d.reason ?? ""), at: r.created_at });
+  }
+  return [...out.values()];
+}
+
+/** G6 S3 (final Part 9 review, 4 Nov 2026): the "withdraw the ESC notice" item is also DERIVED from the notices themselves,
+ *  not only from the recorded ask event — a notice recorded as sent (reference, not withdrawn) on a job that won't go
+ *  ahead: the job is cancelled or deleted, or it has no confirmed (or completed) installation booking at all. A job whose
+ *  install was done keeps nothing (the notice was right). Rows for notices that already carry an open ask are left to it. */
+export const ESC_WITHDRAW_DERIVED_REASON = "install_not_going_ahead";
+export function derivedEscWithdrawals(
+  notices: { id: string; job_id: string; status: string; sent_at: string | null; submission_reference: string | null; response?: unknown }[],
+  jobs: { id: string; stage: string | null; deleted_at?: string | null }[],
+  installBookings: { job_id: string; status: string }[],
+  skipNotificationIds: ReadonlySet<string> = new Set(),
+): OpenEscWithdrawal[] {
+  const job = new Map(jobs.map((j) => [j.id, j]));
+  const hasInstall = new Set(installBookings.filter((b) => b.status === "confirmed" || b.status === "completed").map((b) => b.job_id));
+  const out: OpenEscWithdrawal[] = [];
+  for (const n of notices) {
+    if (skipNotificationIds.has(n.id) || !n.sent_at || !n.submission_reference || isWithdrawn(n)) continue;
+    const j = job.get(n.job_id);
+    if (!j) continue;
+    const wontGoAhead = j.stage === "cancelled" || !!j.deleted_at || !hasInstall.has(j.id);
+    if (!wontGoAhead) continue;
+    out.push({ jobId: n.job_id, notificationId: n.id, reference: String(n.submission_reference), reason: ESC_WITHDRAW_DERIVED_REASON, at: n.sent_at });
+  }
+  return out.sort((a, b) => a.at.localeCompare(b.at) || a.notificationId.localeCompare(b.notificationId));
 }
 
 export type PayloadInput = {
@@ -284,21 +340,30 @@ export type ReadinessInput = {
   scheduledStart: string | null;
   consent: ConsentRecord;
   notification: { status: string; sent_at: string | null; submission_reference: string | null; scheduled_start: string } | null;
-  deliveries: { owner: string | null; installer: string | null };
+  deliveries: PiesaCopyDeliveries;
   piesa: { date: string | null; deadline: string | null; outcome: string | null } | null;
+  /** Part 9 Task 5: when Part C was signed (upgrades done); undefined/null = no Part C on the job (older callers). */
+  partCSignedAt?: string | null;
 };
 export type Readiness = { ready: boolean; blockers: string[]; dueBy: string | null };
 
 /** Signed PIESA copies must have reached the owner AND the installer at least 24h before the start (the copies go
  *  automatically; a missing or late delivery means that send failed). ONE rule for readyToInstall (Installation complete)
  *  and the day-before pre-start check (decision 395), so both places say the same thing. */
-export function piesaCopyDeliveryBlockers(scheduledStart: string, deliveries: { owner: string | null; installer: string | null }): string[] {
+export type PiesaCopyDeliveries = { owner: string | string[] | null; installer: string | string[] | null };
+export function piesaCopyDeliveryBlockers(scheduledStart: string, deliveries: PiesaCopyDeliveries, opts?: { partCSignedAt?: string | null }): string[] {
   const dueT = new Date(escDueBy(scheduledStart)).getTime();
-  const at = (s: string | null) => (s ? new Date(s).getTime() : Infinity);
+  const times = (s: string | string[] | null) => (s == null ? [] : Array.isArray(s) ? s : [s]).map((t) => new Date(t).getTime()).filter(Number.isFinite);
   const fmt = new Date(dueT).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" });
+  // Part 9 Task 5: once Part C is signed (upgrades done), only a copy delivered at or after that signature counts — the
+  // owner and installer must hold the UPDATED PIESA 24h before the start. Unparseable Part C time = not signed (older rows).
+  const partCT = opts?.partCSignedAt ? Date.parse(opts.partCSignedAt) : NaN;
   const b: string[] = [];
-  if (at(deliveries.owner) > dueT) b.push(`Signed PIESA copy delivery to owner must be recorded by ${fmt}`);
-  if (at(deliveries.installer) > dueT) b.push(`Signed PIESA copy delivery to installer must be recorded by ${fmt}`);
+  for (const r of ["owner", "installer"] as const) {
+    const ts = times(deliveries[r]);
+    if (!ts.some((t) => t <= dueT)) b.push(`Signed PIESA copy delivery to ${r} must be recorded by ${fmt}`);
+    else if (Number.isFinite(partCT) && !ts.some((t) => t >= partCT && t <= dueT)) b.push(`Updated PIESA (with Part C) not delivered to the ${r} by ${fmt}`);
+  }
   return b;
 }
 
@@ -320,9 +385,10 @@ export function readyToInstall(i: ReadinessInput): Readiness {
     const done = i.consent ? consentCompletedAt(i.consent) : null;
     if (!done || at(n.sent_at) < at(done)) b.push("ESC notification was sent before valid owner consent was obtained – re-notify");
   }
-  b.push(...piesaCopyDeliveryBlockers(i.scheduledStart, i.deliveries));
+  b.push(...piesaCopyDeliveryBlockers(i.scheduledStart, i.deliveries, { partCSignedAt: i.partCSignedAt ?? null }));
   if (!i.piesa?.date || i.piesa.outcome !== "pass") b.push("A current passing PIESA is required");
-  else if (i.piesa.deadline && i.scheduledStart.slice(0, 10) > i.piesa.deadline) b.push(`Installation start is after the PIESA 30-day deadline (${i.piesa.deadline})`);
+  // G6 S7: the deadline is a Melbourne date; the start is compared on its Melbourne calendar day (never the UTC date).
+  else if (i.piesa.deadline && melbourneYmd(new Date(i.scheduledStart)) > i.piesa.deadline) b.push(`Installation start is after the PIESA 30-day deadline (${i.piesa.deadline})`);
   return { ready: b.length === 0, blockers: b, dueBy: due };
 }
 
@@ -342,4 +408,28 @@ export function submissionPatch(p: { reference: string; sentAt: string; method: 
   if (p.reference.trim().length < 3) throw new Error("An ESC submission reference is required.");
   if (new Date(p.sentAt).getTime() > new Date(nowIso).getTime() + 60_000) throw new Error("Submission time cannot be in the future.");
   return { status: "sent" as const, sent_at: p.sentAt, submission_reference: p.reference.trim(), submission_method: p.method, submitted_by: p.actorId };
+}
+
+// ── Part 9 Task 4 (4 Nov 2026): PIISA timing — Activity Guide v1.2 §3.3. The A5 before-work declaration (Q36 signature)
+// IS the PIISA: it must be signed at least 24h after the ESC notice was sent and within 30 days of the PIESA (Melbourne
+// dates). ONE rule, read at Installation complete (install-evidence.core installCompletionDecision); prestart.core reads
+// the same day count for the day-before check. Missing or unreadable facts block, never clear.
+export const PIISA_FROM_PIESA_DAYS = 30;
+const MELB_YMD = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" });
+const ymdPlusDays = (ymd: string, n: number) => { const d = new Date(`${ymd}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+export function piisaTimingBlockers(i: { piisaSignedAt: string | null; noticeSentAt: string | null; piesaCompletedAt: string | null; /** Part 9 Task 14: marked "no ESC" → the notice lines are skipped; the 30-day PIESA rule still applies. */ noEsc?: boolean }): string[] {
+  const b: string[] = [];
+  const sentT = i.noticeSentAt ? Date.parse(i.noticeSentAt) : NaN;
+  const signedT = i.piisaSignedAt ? Date.parse(i.piisaSignedAt) : NaN;
+  // A date-only PIESA completion ("2026-10-01") is that Melbourne day; a full timestamp is read as its Melbourne day.
+  const piesaYmd = !i.piesaCompletedAt ? null
+    : /^\d{4}-\d{2}-\d{2}$/.test(i.piesaCompletedAt.trim()) ? i.piesaCompletedAt.trim()
+    : Number.isFinite(Date.parse(i.piesaCompletedAt)) ? MELB_YMD.format(new Date(i.piesaCompletedAt)) : null;
+  if (!Number.isFinite(sentT) && i.noEsc !== true) b.push("No ESC notice recorded as sent");
+  if (!piesaYmd) b.push("PIESA completion date missing");
+  if (!Number.isFinite(signedT)) b.push("PIISA signature time missing");
+  if (!Number.isFinite(signedT)) return b;
+  if (Number.isFinite(sentT) && i.noEsc !== true && signedT < sentT + LEAD_MS) b.push(`PIISA signed less than 24 hours after the ESC notice was sent (sent ${melbDateTime(i.noticeSentAt!)}).`);
+  if (piesaYmd && MELB_YMD.format(new Date(signedT)) > ymdPlusDays(piesaYmd, PIISA_FROM_PIESA_DAYS)) b.push(`PIISA signed more than 30 days after the PIESA (${piesaYmd}).`);
+  return b;
 }

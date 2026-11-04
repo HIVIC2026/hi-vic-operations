@@ -169,7 +169,8 @@ describe("accepting a fixes quote raises its own invoice", () => {
     const src = readFileSync("src/lib/portal.functions.ts", "utf8");
     const body = src.slice(src.indexOf("export async function respondToQuoteImpl"), src.indexOf("async function invoiceAfterAcceptance"));
     expect(body).not.toContain("addRepairsToXeroInvoice");
-    const accepted = body.slice(body.indexOf(`if (q.kind === "rectification") {\n      await logEvent`));
+    const accepted = body.slice(body.indexOf(`if (q.kind === "rectification") {`));
+    expect(accepted.indexOf("// Old model")).toBeGreaterThan(0);
     expect(accepted.slice(0, accepted.indexOf("// Old model"))).toContain("await invoiceAfterAcceptance(q.id, q.job_id, context.userId)");
     expect(readFileSync("src/lib/xero.server.ts", "utf8")).not.toMatch(/addRepairsToXeroInvoice|repairsStep/);
   });
@@ -202,8 +203,8 @@ describe("superseded fixes", () => {
     expect(creates().length).toBe(1);
     const rows = await rowsFor();
     expect(rows.length).toBe(1);
-    expect(rows[0]!.line).toBe("Old fixes invoice unpaid — void it in Xero");
-    expect(OLD_FIXES_INVOICE_LINE).toBe("Old fixes invoice unpaid — void it in Xero");
+    expect(rows[0]!.line).toBe("Old upgrades invoice unpaid — void it in Xero"); // Jo's "upgrades" wording (office row)
+    expect(OLD_FIXES_INVOICE_LINE).toBe("Old upgrades invoice unpaid — void it in Xero");
     expect(rows[0]!.group).toBe("today");
     expect(cardOf("old_fixes_invoice_unpaid")).toBe("payments");
   });
@@ -269,8 +270,8 @@ describe("superseded fixes", () => {
     await createInvoiceAfterAcceptance(QR2, J, "owner-1");
     const rows = await paidRows();
     expect(rows.length).toBe(1);
-    expect(rows[0]!.line).toBe("Old fixes invoice has $200 paid — apply it or refund it");
-    expect(oldFixesInvoicePaidLine(549.5)).toBe("Old fixes invoice has $549.50 paid — apply it or refund it");
+    expect(rows[0]!.line).toBe("Old upgrades invoice has $200 paid — apply it or refund it"); // Jo's "upgrades" wording (office row)
+    expect(oldFixesInvoicePaidLine(549.5)).toBe("Old upgrades invoice has $549.50 paid — apply it or refund it");
     expect(rows[0]!.group).toBe("today");
     expect(rows[0]!.button).toEqual({ label: "Open job", to: "job", section: "money" });
     expect(cardOf("old_fixes_invoice_paid")).toBe("payments");
@@ -307,8 +308,8 @@ describe("Xero failure on the fixes invoice", () => {
     expect(r.ok).toBe(false);
     let rows = await rowsFor();
     expect(rows.length).toBe(1);
-    expect(rows[0]!.line).toMatch(/fixes/i);
-    expect(rows[0]!.line).toBe("Fixes invoice didn't reach Xero · owner can't pay yet");
+    expect(rows[0]!.line).toMatch(/upgrades/i);
+    expect(rows[0]!.line).toBe("Upgrades invoice didn't reach Xero · owner can't pay yet"); // Jo's "upgrades" wording (office row)
     const fx = invoices("rectification");
     expect(fx.length).toBe(1);
     expect(fx[0]!["xero_invoice_id"] ?? null).toBeNull();

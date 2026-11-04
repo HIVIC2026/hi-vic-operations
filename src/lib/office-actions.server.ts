@@ -59,7 +59,11 @@ export async function cancelJobFully(jobId: string, reason: string, actorId: str
   const full = opts.note?.trim() ? `${reason.trim()} · ${opts.note.trim()}` : reason.trim();
   const { applyHoldOrCancel } = await import("./job-disposition.server");
   await applyHoldOrCancel(jobId, "cancel", full, actorId, { decision: 227, reason: reason.trim(), note: opts.note?.trim() || null, ...(opts.bulk ? { bulk: true } : {}) });
-  return releaseCancelledJob(jobId, reason, actorId, tell, {suppressRunNotice:opts.suppressRunNotice===true});
+  const result = await releaseCancelledJob(jobId, reason, actorId, tell, {suppressRunNotice:opts.suppressRunNotice===true});
+  // Part 9 Task 2: a SENT ESC notice stays live in the Registry after a cancel (the release only cancels unsent ones) —
+  // one office item per live notice. The cancel has happened; a failure here is logged, never thrown.
+  await import("./esc.server").then((m) => m.requireEscWithdrawal(jobId, "owner_cancelled", actorId)).catch((e) => console.error("ESC withdrawal ask skipped", (e as Error).message));
+  return result;
 }
 
 /**

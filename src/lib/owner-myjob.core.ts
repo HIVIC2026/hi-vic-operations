@@ -1,19 +1,31 @@
 // Owner "My job" page (Jo-approved 5 Oct). Pure presentation: labels existing facts, never moves a job.
 import { houseLevelForStage, type HouseLevel } from "./owner-house.core";
-import { stageWording, PIESA_FULL } from "./job-wording";
+import { stageWording } from "./job-wording";
 import { ownerHeadline, type OwnerHeadlineStep } from "./owner-headlines.core";
 import { spotReleaseState, type SpotReleaseEventRow } from "./spot-release.core";
 
 export const OWNER_STEPS = ["Ready Check", "Quote", "PIESA", "Install", "Done"] as const;
 /** Decision 389: "turn" = the "It's your turn" page (O77's link): confirm the free Ready Check, or no longer interested.
  *  Batch 3a: "newquote" = O78's "Send me a new quote" button (new-quote-request.*).
+ *  Part 4 T5: "clear" = confirm, sign and pay (the PIESA owner declarations, the ESC consent and the 10% deposit on one page).
+ *  Part 4 T11: "finish" = sign the rebate form and pay the balance (the All done email's link, ?screen=finish).
  *  A48 batch 2: "taps" = the quick taps (quick-taps.*): name, address, hatch, roof, 5 years, "Yes, let's go". */
-export type OwnerScreen = "home" | "spot" | "quote" | "pay" | "piesa" | "veec" | "book" | "done" | "review" | "fixes" | "turn" | "newquote" | "taps";
-export function currentOwnerAction(facts: Record<Exclude<OwnerScreen,'home'|'done'>,boolean>): Exclude<OwnerScreen,'home'|'done'> | null {
-  const priority = ['newquote','turn','taps','quote','fixes','pay','piesa','veec','book','spot','review'] as const;
+export type OwnerScreen = "home" | "spot" | "quote" | "pay" | "piesa" | "veec" | "book" | "done" | "review" | "fixes" | "turn" | "newquote" | "taps" | "clear" | "finish";
+export function currentOwnerAction(facts: Record<Exclude<OwnerScreen,'home'|'done'|'finish'>,boolean>): Exclude<OwnerScreen,'home'|'done'|'finish'> | null {
+  const priority = ['newquote','turn','taps','quote','clear','fixes','pay','piesa','veec','book','spot','review'] as const;
   return priority.find(action=>facts[action]) ?? null;
 }
-export function resolveOwnerScreen(screen: OwnerScreen | undefined, facts: { currentAction?: Exclude<OwnerScreen, 'home' | 'done'> | null }): Exclude<OwnerScreen, 'home'> | 'all_set' {
+/** Part 4 Task 14 (Jo 2 Nov 2026): the old fixes and pick-a-day screens open ONLY for a job still mid-way through that step
+ *  (its current action); any other old link falls through to the job's current single-action screen. */
+const OLD_STEP_SCREENS: readonly OwnerScreen[] = ['fixes', 'book'];
+export function resolveOwnerScreen(screen: OwnerScreen | undefined, facts: { currentAction?: Exclude<OwnerScreen, 'home' | 'done'> | null; clearStepsUnsigned?: boolean; piesaConfirm?: boolean }): Exclude<OwnerScreen, 'home'> | 'all_set' {
+  // Old links to the pay / PIESA screens land on the one confirm-and-pay page while a step there is still unsigned.
+  if ((screen === 'pay' || screen === 'piesa') && facts.currentAction === 'clear' && facts.clearStepsUnsigned === true) return 'clear';
+  // G8 (4), LOOKS WRONG (8): ?screen=piesa before there is a safety check to confirm is blank → the job's current screen.
+  if (screen === 'piesa' && facts.piesaConfirm === false && facts.currentAction !== 'piesa') return facts.currentAction ?? 'all_set';
+  // G8 (4), LOOKS WRONG (13): an old "It's your turn" link (?screen=turn) while the quick taps are the live step → the taps.
+  if (screen === 'turn' && facts.currentAction === 'taps') return 'taps';
+  if (screen && OLD_STEP_SCREENS.includes(screen) && facts.currentAction !== screen) return facts.currentAction ?? 'all_set';
   if (screen && screen !== 'home') return screen;
   return facts.currentAction ?? 'all_set';
 }
@@ -39,7 +51,17 @@ export type OwnerFacts = {
   quoteOpen: { expiresAt: string | null } | null;
   bookingOpen: boolean; // payment option cleared + owner still needs to give times
   approveBy?: string | null;
+  /** The job's installer business (trading name), for the "will call you" line. */
+  installerName?: string | null;
 };
+
+/** DRAFT (Part 4 Task 14 fix round 1, Jo to approve — JO-APPROVAL-LIST): the install-scheduling line on My job; the old
+ *  "Choose your install date" is retired because the installer calls to book (touchpoint 46 / answer 21). */
+export const INSTALLER_WILL_CALL_TO_BOOK_DRAFT = (installer: string | null | undefined) => `${installer?.trim() || "Your installer"} will call you to book your install day.`; // DRAFT
+/** DRAFT (Part 4 Task 15, Jo to approve — JO-APPROVAL-LIST): the PIESA-booking line on My job, from decision 34's approved
+ *  O22 line "{Installer}'s licensed electrician will call you to book it."; the old "Choose times for your PIESA" is retired
+ *  because the electrician calls to book (nobody picks times on the page). */
+export const ELECTRICIAN_WILL_CALL_TO_BOOK_DRAFT = (installer: string | null | undefined) => `${installer?.trim() || "Your installer"}'s licensed electrician will call you to book it.`; // DRAFT
 
 const fmtDay = (iso: string) => new Date(iso).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short", timeZone: "Australia/Melbourne" });
 const fmtTime = (iso: string) => new Date(iso).toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit", timeZone: "Australia/Melbourne" }).replace(":00", "").replace(" ", "");
@@ -54,8 +76,10 @@ export function ownerAction(f: OwnerFacts): OwnerAction {
   if (s === "on_hold") return none(stageWording("on_hold").owner!, "We'll let you know as soon as it's moving again.");
   if (f.visit) return none(f.visit.kind === "installation" ? stageWording("installation_booked").owner! : f.visit.kind === "ready_check" ? stageWording("ready_check_scheduled").owner! : f.visit.kind === "rectification" ? stageWording("rectification_booked").owner! : stageWording("piesa_scheduled").owner!, "We'll text you the day before.", visitPill(f.visit.startsAt));
   if (f.quoteOpen) return todo(stageWording("measured_estimate_ready").owner!, "Have a look at your quote and say yes when you're ready.", "See my quote", "quote", f.quoteOpen.expiresAt ? `Please approve by ${fmtDay(f.quoteOpen.expiresAt)}` : null);
-  // Decision 333: the electrician (PIESA) and installer (install) offer the times; the owner picks one of them.
-  if (f.bookingOpen) return todo(stageWording("piesa_and_install_window_pending").owner!, `Pick one of the times offered for the ${PIESA_FULL} and the install.`, "Pick times", "book");
+  // Part 4 Tasks 14/15 (Jo 2 Nov 2026): the trades call the owner to book; the owner never picks times on the page. Each stage
+  // keeps its own line, except the two retired "choose" lines: installation_scheduling's "Choose your install date" and
+  // piesa_and_install_window_pending's "Choose times for your PIESA" → DRAFT "will call you" lines (decision 34).
+  if (f.bookingOpen) return none(s === "installation_scheduling" ? INSTALLER_WILL_CALL_TO_BOOK_DRAFT(f.installerName) : s === "piesa_and_install_window_pending" ? ELECTRICIAN_WILL_CALL_TO_BOOK_DRAFT(f.installerName) : stageWording(s).owner ?? stageWording("measured_quote_accepted").owner!, "We'll be in touch with your next step.");
   if (["new_enquiry", "eligibility_review", "preliminary_estimate_ready", "ready_check_awaiting_acceptance"].includes(s) && !f.readyCheckRequested)
     // Decision 388: before release, spot-only wording (no Ready Check, times or speed).
     return todo("Save your spot", "It's free, with no obligation. Spots are released in the order they were saved.", "Save my spot", "spot");
@@ -96,8 +120,8 @@ export const SPOT_SAVED_PROGRESS = [
   { label: "Spot released", sub: "Spots are released in the order they were saved. We'll be in touch when your spot is released." },
   { label: "Your quote", sub: "Rebate taken off" },
   { label: "PIESA", sub: "Pre Insulation Electrical Safety Assessment by a licensed electrician" },
-  { label: "Install", sub: "About 4 hours" },
-  { label: "Done", sub: "Lower bills for years" },
+  { label: "Install", sub: "" },
+  { label: "Done", sub: "" },
 ] as const;
 /** Spot-saved page once the spot is released (Jo, 29 Oct, HV-3542): no "waiting" lines, "Spot released" ticked, quote is current. */
 /** Released for the page = the latest release is waiting on the owner or confirmed. Lapsed = back on the waiting list. */
@@ -151,4 +175,38 @@ export function parseLifeSupportPlanPath(jobId: string, path: unknown): string |
   if (typeof path !== "string") return null;
   const m = path.match(new RegExp(`^(${UUID_RE})/owner-life-support/(${UUID_RE})\\.(pdf|jpg|png|heic|heif|webp)$`));
   return m && m[1] === jobId ? m[2]! : null;
+}
+
+/** G8 (6), 4 Nov 2026 (LOOKS WRONG 12): the owner's line when the quote can't be accepted yet because the office setup is
+ *  missing a template (the office sees why on Needs me). DRAFT. */
+export const QUOTE_NOT_READY_OWNER_LINE = "This quote isn't ready to accept yet — we'll email you when it is.";
+
+// ---- G8 (4), Jo 4 Nov 2026 ("show the next visit"): the booked visit on the all-set screen -------------------------------
+/** "Tue 10 Nov, 10:00am" in Melbourne time. */
+export function visitWhen(startsAt: string): string {
+  const p: Record<string, string> = {};
+  for (const x of new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(startsAt))) p[x.type] = x.value;
+  const h = Number(p["hour"]) % 24;
+  return `${p["weekday"]} ${p["day"]} ${p["month"]}, ${h % 12 === 0 ? 12 : h % 12}:${p["minute"]}${h < 12 ? "am" : "pm"}`;
+}
+/** DRAFT wording (listed on JO-APPROVAL-LIST): the visit's name, when, who is coming, and the one note for the install. */
+export const NEXT_VISIT_WORDS = {
+  ready_check: "Your Ready Check",
+  assessment: "Your electrical safety check (PIESA)",
+  rectification: "Your electrical upgrades",
+  installation: "Your insulation install",
+  installNote: "Someone 18 or over needs to be home.",
+} as const;
+export type NextVisitCard = { title: string; line: string; note: string | null };
+/** The next booked visit, e.g. "Your electrical safety check (PIESA): Tue 10 Nov, 10:00am — Will from Rapid Insulation" /
+ *  "Your insulation install: Mon 9 Nov, 8:00am — Rapid Insulation" (+ the 18-or-over note). A visit kind this page doesn't
+ *  name, or no day, = null. The person is named on the electrical visits only (the business runs the install day). */
+export function nextVisitCard(v: { kind: string; startsAt: string | null; person: string | null; company: string | null }): NextVisitCard | null {
+  const title = (NEXT_VISIT_WORDS as Record<string, string>)[v.kind];
+  if (!title || !v.startsAt || !Number.isFinite(Date.parse(v.startsAt))) return null;
+  const electrical = v.kind === "assessment" || v.kind === "rectification";
+  const person = (v.person ?? "").trim();
+  const company = (v.company ?? "").trim();
+  const who = electrical && person && !/^your /i.test(person) ? (company ? `${person} from ${company}` : person) : company || null;
+  return { title, line: `${visitWhen(v.startsAt)}${who ? ` — ${who}` : ""}`, note: v.kind === "installation" ? NEXT_VISIT_WORDS.installNote : null };
 }

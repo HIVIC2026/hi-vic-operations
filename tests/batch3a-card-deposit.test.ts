@@ -110,7 +110,7 @@ describe("owner wording", () => {
     expect(block.card).toBe(true);
     expect(block.lines.join(" ").toLowerCase()).toContain(DEPOSIT_PHRASE);
   });
-  test("Gate B statement: deposit line has card; balance line and pay-in-full do not; new version id", () => {
+  test("Gate B statement (agreement v1.3 payment terms): new version id, deposit and balance lines, card or bank transfer, no fees", () => {
     expect(PAYMENT_TERMS_VERSION).not.toBe("steps-2026-10-25");
     expect(GATE_DOCS.find((d) => d.key === "payment_terms")!.version).toBe(PAYMENT_TERMS_VERSION);
     const text = paymentTermsText(
@@ -121,23 +121,11 @@ describe("owner wording", () => {
         balanceCents: 328_590,
       }),
     );
-    const dep = text.split("\n\n").find((l) => l.startsWith("3. "))!;
-    expect(dep.toLowerCase()).toContain(DEPOSIT_PHRASE);
-    expect(
-      text
-        .split("\n\n")
-        .find((l) => l.startsWith("4. "))!
-        .toLowerCase(),
-    ).not.toContain("card");
-    expect(
-      text
-        .split("\n\n")
-        .find((l) => l.startsWith("I can pay"))!
-        .toLowerCase(),
-    ).not.toContain("card");
-    expect(PAYMENT_TERMS_BODY.match(/card fee/gi)?.length).toBe(1); // only the existing "there is no card fee"
+    expect(text).toContain("10% deposit to book your install day: $365.10");
+    expect(text).toContain("The rest: $3,285.90");
+    expect(text).toContain("By card or bank transfer. No fees.");
   });
-  test("install-booked and deposit-release emails say card, bank transfer or PayID", () => {
+  test("deposit-release email says card, bank transfer or PayID; the install-booked email no longer has a deposit-owed version (answer 21, Part 4 Task 14)", () => {
     const booked = renderInstallBookedEmail({
       firstName: "Sam",
       when: "Tuesday 27 October at 7:30am",
@@ -146,9 +134,8 @@ describe("owner wording", () => {
       installerPhone: null,
       removal: false,
       myJobUrl: "https://x.test/my-job/t",
-      deposit: { amount: "$185.10", holdUntil: null, bankLines: ["Account name: HIV"] },
-    } as unknown as Parameters<typeof renderInstallBookedEmail>[0]);
-    expect(`${booked.html} ${booked.text}`.toLowerCase()).toContain(DEPOSIT_PHRASE);
+    });
+    expect(`${booked.html} ${booked.text}`).not.toMatch(/48 hours|held until/i);
     const rel = renderDepositReleasedEmail({
       firstName: "Sam",
       day: "Tuesday 11 November",
@@ -172,7 +159,7 @@ describe("fix round 1", () => {
   const read = (f: string) => readFileSync(`src/lib/${f}`, "utf8");
   test("agreement read-more deposit line says card, bank transfer or PayID", () => {
     const s = read("assignment.server.ts");
-    expect(s).toContain("to book the install day (card, bank transfer or PayID)");
+    expect(s).toMatch(/payment_terms:\s*paymentTermsText\(/); // the stored terms are the agreement's payment terms page
     expect(s).not.toContain("(bank transfer / PayID) and the balance");
   });
   test("email-reply deposit is card-inclusive whether or not Stripe is available", () => {

@@ -38,7 +38,7 @@ location on; Video = video attachment with location on ("several files allowed" 
 signature capture.
 
 ## Group 1: Job
-Text item (not a question), first item on this page, before Q1 (decision 328; replaces the decision-318 line on this form): `READ FIRST: The VEU will not accept this job unless every answer, photo and video on this form is filled in. Do not leave site until the whole form is done, you have pressed Complete, and the portal has texted you "All filled in". You are only paid when this form is 100% complete.`
+Text item (not a question), first item on this page, before Q1 (decision 328; replaces the decision-318 line on this form): `READ FIRST: The VEU will not accept this job unless every answer, photo and video on this form is filled in. Do not leave site until the whole form is done, you have pressed Complete, and the portal has texted you "All filled in". Press Complete before you leave — we can't claim the rebate or pay the job until it's done.`
 Q1: `Portal Job Number` — Text — Required — portal fills this in
 Q2: `Site address` — Text — Required — portal fills this in
 Q3: `Install date` — Date — Required — portal fills this in
@@ -60,6 +60,7 @@ Q16: `Photo of the third installer at the front door, showing photo ID` — Phot
 
 ## Group 3: Before anyone goes up
 Q17: `Does the household know the power will be off today?` — Yes/No — Required — stop line when No: `Stop. Tell them before you go on.`
+(Unnumbered, 2 Nov 2026 — DRAFT wording until Jo approves; not part of Q1–Q48) straight after Q17: `Is an adult (18 or over) who understands what's happening at home with you?` — Yes/No — Required — Yes green, No red — text item shown when No: `Stop. Don't start. Leave and call the installer's office.` (Already-built forms: add it with docs/mitti-paste-2026-11-02-A5-adult-part-b.md.)
 Q18: `Does anyone here rely on life support?` — Yes/No — Required — portal fills this in
 Q19: `Do you have their written consent or medical plan?` — Yes/No — Required — only show when Q18 = `Yes` — stop line when No: `Stop. You need it before starting.`
 Q20: `Upload the consent or medical plan` — Photo — Required — only show when Q19 = `Yes` — help text: `Every page readable.`

@@ -9,7 +9,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import { inHouseDispatchSkip } from "./in-house-suppression.server";
 import {
-  OWNER_EMAIL_LABEL, OWNER_EMAIL_TRIGGER_EVENT, OWNER_REVIEW_SCREEN_READY, REVIEW_REQUEST_AFTER_DAYS, REVIEW_REQUEST_LAST_DAY, dayMonthLabel, directMoveFrom, installDayMove, ownerEmailKey, quoteReminderDue,
+  OWNER_EMAIL_LABEL, OWNER_EMAIL_TRIGGER_EVENT, OWNER_REVIEW_SCREEN_READY, REVIEW_REQUEST_AFTER_DAYS, REVIEW_REQUEST_LAST_DAY, directMoveFrom, installDayMove, ownerEmailKey, quoteReminderDue,
   reviewRequestBlocker, reviewRequestDue, safetyCheckPaidAt, weekdayDayMonthLabel, youreInDue, type OwnerEmailCode, type QuoteReminderKind,
 } from "./owner-email-triggers.core";
 
@@ -29,92 +29,11 @@ export async function fireOwnerEmailOnce(jobId: string, code: OwnerEmailCode, ke
   }
 }
 
-async function electricianFor(jobId: string): Promise<{ name: string | null; phone: string | null }> {
-  const { data } = await admin.from("job_assignments").select("businesses(name, trading_name, phone)").eq("job_id", jobId).eq("role", "electrician").eq("active", true).maybeSingle();
-  const b = (data?.businesses ?? null) as { name: string | null; trading_name: string | null; phone: string | null } | null;
-  return { name: (b?.trading_name ?? b?.name ?? null)?.replace(/^\[TEST PARTNER\]\s*/, "") ?? null, phone: b?.phone ?? null };
-}
+// Retired 2 Nov 2026 (Part 4 Task 14): O26 safety check times / booked, O29 fixes quote and O33 install days. The owner is
+// now told by the "You're booked" messages (in-house-booking.server), "upgrades needed" (upgrades-needed email) and the
+// installer calling to book the install day.
 
-/** Safety check amount the owner has paid (dollars), or null while it is not paid. */
-async function safetyCheckPaid(jobId: string): Promise<number | null> {
-  const { jobPaymentView } = await import("./payments.server");
-  const v = await jobPaymentView(jobId).catch(() => null);
-  const s = v?.steps.find((x) => x.key === "safety_check");
-  return v && s?.state === "paid" && v.plan.safetyCheckCents > 0 ? v.plan.safetyCheckCents / 100 : null;
-}
-
-// ---------- O26: safety check times / booked ----------
-
-/** O26: the electrician offered PIESA time(s) to the owner (piesa-times.server.ts, decision 333; old pilot.functions.ts proposeTime). */
-export async function onSafetyCheckTimesOffered(jobId: string, startsAt: string[]): Promise<string> {
-  const skipped = await inHouseDispatchSkip(jobId);
-  if (skipped) return skipped;
-  // Part 2 (Jo 3 Nov 2026): an installer's own job has no 3-times step — the electrician calls the owner and books it.
-  const own = await (await import("./own-job-piesa.server")).ownJobCallAndBook(jobId);
-  if (own !== false) return own ? "own_job" : "own_job_read_failed";
-  return fireOwnerEmailOnce(jobId, "O26", ownerEmailKey.safetyCheckTimes(jobId, startsAt), async () => {
-    const [el, paid] = await Promise.all([electricianFor(jobId), safetyCheckPaid(jobId)]);
-    const { emailOwnerSafetyCheckTimes } = await import("./approved-owner-emails.server");
-    return emailOwnerSafetyCheckTimes(jobId, startsAt, el.name, paid);
-  });
-}
-
-/** O26 booked version: the PIESA visit is booked (booking.server.ts confirmBooking, kind assessment). */
-export async function onSafetyCheckBooked(jobId: string, startIso: string, changed: boolean): Promise<string> {
-  const skipped = await inHouseDispatchSkip(jobId);
-  if (skipped) return skipped;
-  return fireOwnerEmailOnce(jobId, "O26_booked", ownerEmailKey.safetyCheckBooked(jobId, startIso), async () => {
-    const el = await electricianFor(jobId);
-    const { emailOwnerSafetyCheckBooked } = await import("./approved-owner-emails.server");
-    return emailOwnerSafetyCheckBooked(jobId, startIso, el, changed);
-  }, { changed });
-}
-
-// ---------- O29: electrical fixes quote ----------
-
-/** O29: the office sent the reviewed electrical fixes quote (allocation.functions.ts sendRectificationQuote). */
-export async function onFixesQuoteIssued(jobId: string, quoteId: string): Promise<string> {
-  const skipped = await inHouseDispatchSkip(jobId);
-  if (skipped) return skipped;
-  return fireOwnerEmailOnce(jobId, "O29", ownerEmailKey.fixesQuote(quoteId), async () => {
-    const { piesaStatus } = await import("./workflow.server");
-    const [{ data: q }, { data: items }, { data: found }, el, ps] = await Promise.all([
-      admin.from("quotes").select("customer_total_inc_gst, kind").eq("id", quoteId).eq("job_id", jobId).maybeSingle(),
-      admin.from("quote_items").select("description, line_total_inc_gst, sort").eq("quote_id", quoteId),
-      admin.from("rectification_items").select("description").eq("job_id", jobId).eq("status", "required"),
-      electricianFor(jobId),
-      piesaStatus(jobId),
-    ]);
-    if (!q || q.kind !== "rectification") return "not sent — fixes quote not found";
-    const lines = [...(items ?? [])].sort((a, b) => Number(a.sort ?? 0) - Number(b.sort ?? 0)).map((l) => ({ description: String(l.description ?? ""), lineTotalIncGst: Number(l.line_total_inc_gst) }));
-    const p = ps as { piesa_date?: string | null; install_deadline?: string | null } | null;
-    const { emailOwnerFixesQuote } = await import("./approved-owner-emails.server");
-    return emailOwnerFixesQuote(jobId, quoteId, {
-      electricianName: el.name, checkedOn: weekdayDayMonthLabel(p?.piesa_date ?? null),
-      found: (found ?? []).map((r) => String(r.description ?? "").trim()).filter(Boolean),
-      lines, totalIncGst: Number(q.customer_total_inc_gst), expiresOn: dayMonthLabel(p?.install_deadline ?? null),
-    });
-  });
-}
-
-// ---------- O33 / O42: install days ----------
-
-/** Owner's remaining balance after the safety check (the 10% deposit base), dollars; null without an invoice. */
-async function balanceAfterSafetyCheck(jobId: string): Promise<number | null> {
-  const v = await (await import("./payments.server")).jobPaymentView(jobId).catch(() => null);
-  return v ? Math.max(0, v.plan.quoteTotalCents - v.plan.safetyCheckCents) / 100 : null;
-}
-
-/** O33: the installer offered install days (install-days.server.ts installerOfferDays). `deadline` = YYYY-MM-DD install-by. */
-export async function onInstallDaysOffered(jobId: string, startsAt: string[], deadline: string | null): Promise<string> {
-  const skipped = await inHouseDispatchSkip(jobId);
-  if (skipped) return skipped;
-  return fireOwnerEmailOnce(jobId, "O33", ownerEmailKey.installDays(jobId, startsAt), async () => {
-    const balance = await balanceAfterSafetyCheck(jobId);
-    const { emailOwnerInstallDays } = await import("./approved-owner-emails.server");
-    return emailOwnerInstallDays(jobId, startsAt, balance, dayMonthLabel(deadline));
-  });
-}
+// ---------- O42: install day changed ----------
 
 /** The earlier booked start when this new installation booking follows an installer's day change; null otherwise. */
 export async function installDayMoveFor(jobId: string, newStart: string): Promise<string | null> {
@@ -162,6 +81,29 @@ async function signedAcceptanceAttachment(jobId: string, jobNumber: string | nul
   return [{ filename: `Signed acceptance${jobNumber ? ` ${jobNumber}` : ""}.pdf`, content: bytesToBase64(bytes), contentType: "application/pdf" }];
 }
 
+/** Receipt PDF for the safety check payment (Task 3): only with PDF_LOOK_APPROVED.receipts on; nothing is attached otherwise or when it cannot be made. */
+async function safetyCheckReceiptAttachment(jobId: string, invoiceId: string, paidAt: string, safetyCheckCents: number, jobNumber: string | null): Promise<import("./email-kit.core").EmailAttachment[]> {
+  const { PDF_LOOK_APPROVED } = await import("./pdf-approvals.core");
+  const { safetyCheckReceiptKey } = await import("./safety-check-receipt.core");
+  type Ev = import("./safety-check-receipt.core").ReceiptEvent;
+  const load = async (type: string) => {
+    const { data } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", type).contains("details", { invoice_id: invoiceId }).order("created_at", { ascending: true });
+    return (data ?? []).map((e) => (e.details ?? {}) as Ev);
+  };
+  // Exactly one matching, un-reversed safety check payment or nothing is attached (the email still goes).
+  const key = await safetyCheckReceiptKey({ receiptsApproved: PDF_LOOK_APPROVED.receipts, loadEvents: async () => ({ recorded: await load("owner_payment_recorded"), reversed: await load("owner_payment_reversed") }) }, { paidAt, safetyCheckCents });
+  if (!key) return [];
+  const { fileReceiptPdf } = await import("./receipt-pdf.server");
+  const filed = await fileReceiptPdf(jobId, "safety_check", key);
+  if ("held" in filed) return [];
+  const { data, error } = await admin.storage.from("job-files").download(filed.path);
+  if (error || !data) return [];
+  const bytes = new Uint8Array(await data.arrayBuffer());
+  if (!bytes.length) return [];
+  const { bytesToBase64 } = await import("./veec-emails.core");
+  return [{ filename: `Receipt${jobNumber ? `-${jobNumber}` : ""}.pdf`, content: bytesToBase64(bytes), contentType: "application/pdf" }];
+}
+
 /**
  * O22 (decision 90): once the safety check payment on the accepted quote's invoice is received (payments.server.ts
  * afterPaymentsChanged — Xero sync, Stripe webhook or office record). Receipt = amount + the day the ledger reached
@@ -183,7 +125,10 @@ export async function onSafetyCheckPaid(jobId: string, invoiceId: string): Promi
     const { data: job } = await admin.from("jobs").select("job_number, stage, deleted_at").eq("id", jobId).maybeSingle();
     if (!job || !paidAt || !youreInDue({ paidAt, stage: job.stage as string, deletedAt: job.deleted_at }, new Date())) return "not due — no recent safety check payment";
     return fireOwnerEmailOnce(jobId, "O22", ownerEmailKey.youreIn(quoteId), async () => {
-      const attachments = await signedAcceptanceAttachment(jobId, job?.job_number ?? null).catch(() => []);
+      const attachments = [
+        ...await signedAcceptanceAttachment(jobId, job?.job_number ?? null).catch(() => []),
+        ...await safetyCheckReceiptAttachment(jobId, invoiceId, paidAt, v.plan.safetyCheckCents, job?.job_number ?? null).catch(() => []),
+      ];
       const { emailOwnerYoureIn } = await import("./approved-owner-emails.server");
       return emailOwnerYoureIn(jobId, quoteId, {
         rebate: quote.veec_discount_inc_gst == null ? null : Number(quote.veec_discount_inc_gst),
@@ -237,6 +182,8 @@ async function finalInvoiceFor(jobId: string, now: Date): Promise<FinalInvoiceDu
  */
 export async function onFinalInvoiceDue(jobId: string, now = new Date()): Promise<string> {
   try {
+    // Touchpoint 52: with the new All done email (tax invoice, rebate form and the balance in ONE email) there is no separate final-invoice email.
+    if ((await import("./completion-emails.core")).ALL_DONE_V2_APPROVED) return "not due — the balance is in the All done email";
     const due = await finalInvoiceFor(jobId, now);
     if (!due.ok) return `not due — ${due.reason}`;
     const invoiceId = due.invoiceId;

@@ -34,6 +34,7 @@ function fakeDeps(over: Partial<Record<keyof Deps, unknown>> = {}, opts: { boss?
     price: rec("price", { canSet: true, current: null }),
     ownerQuote: rec("ownerQuote", { applies: false }),
     crew: rec("crew", { staff: [], selection: null }),
+    inHouseBookingAccess: rec("inHouseBookingAccess", { allowed: false, blockers: ["forbidden"] }),
     ...over,
   } as unknown as Deps;
   return { deps, calls };
@@ -43,13 +44,12 @@ describe("tradeJobBundle (server, injected readers)", () => {
   test("business owner: every section asked exactly once, each trade section with the ONE checked context", async () => {
     const { deps, calls } = fakeDeps();
     const b = await tradeJobBundle(SB, USER, JOB, deps);
-    for (const k of ["overview", "access", "page", "installDays", "readyCheckTimes", "allocation", "swms", "workerLinks", "price", "ownerQuote", "crew"]) expect(calls[k]?.length, k).toBe(1);
+    for (const k of ["overview", "access", "page", "installDays", "readyCheckTimes", "allocation", "swms", "workerLinks", "price", "ownerQuote", "crew", "inHouseBookingAccess"]) expect(calls[k]?.length, k).toBe(1);
     const pre = (await deps.access(USER, JOB)) as { checkedFor: unknown };
     for (const k of ["page", "readyCheckTimes", "allocation", "swms"]) expect((calls[k]![0]![2] as { checkedFor: unknown }).checkedFor, k).toEqual(pre.checkedFor);
     expect(b.overview).toEqual({ id: JOB, stage: "installation_scheduling", channel: "installer_sourced" });
     expect(b.role).toBe("installer");
     expect(b.price).toEqual({ canSet: true, current: null });
-    expect(b.mittiInvited).toEqual({ invited: true });
     expect(Object.values(b).some(isSectionError)).toBe(false);
   });
   test("staff login (not the business owner): price is null and the price reader is never even asked (decision 278)", async () => {
@@ -67,7 +67,7 @@ describe("tradeJobBundle (server, injected readers)", () => {
     expect(b.page).toBeUndefined();
     expect(b.price).toBeNull();
     expect(calls.workerLinks?.length).toBe(1);
-    expect(seedPlan(b, JOB).map((s) => s.section)).toEqual(["overview", "role", "workerLinks", "price", "mittiInvited"]);
+    expect(seedPlan(b, JOB).map((s) => s.section)).toEqual(["overview", "role", "workerLinks", "price"]);
   });
   test("speed (Task 6): an installer business's sections start before the overview answers; the overview still decides", async () => {
     let release!: (v: unknown) => void;
@@ -101,12 +101,12 @@ describe("tradeJobBundle (server, injected readers)", () => {
     const seeded = seedPlan(b, JOB).map((s) => s.section);
     expect(seeded).not.toContain("swms");
     expect(seeded).not.toContain("installDays");
-    expect(seeded).toEqual(expect.arrayContaining(["overview", "role", "page", "readyCheckTimes", "allocation", "workerLinks", "price", "ownerQuote", "crew", "mittiInvited"]));
+    expect(seeded).toEqual(expect.arrayContaining(["overview", "role", "page", "readyCheckTimes", "allocation", "workerLinks", "price", "ownerQuote", "crew", "inHouseBookingAccess"]));
   });
   test("trade access refused: the refusal reaches every trade section (as the eight separate calls were refused one by one); the overview keeps its own answer", async () => {
     const { deps, calls } = fakeDeps({ access: () => Promise.reject(new Error("This job isn't assigned to you.")) });
     const b = await tradeJobBundle(SB, USER, JOB, deps);
-    for (const k of ["page", "installDays", "readyCheckTimes", "allocation", "swms", "workerLinks", "price", "ownerQuote", "crew", "mittiInvited"] as const) expect(b[k], k).toEqual({ error: "This job isn't assigned to you." });
+    for (const k of ["page", "installDays", "readyCheckTimes", "allocation", "swms", "workerLinks", "price", "ownerQuote", "crew", "inHouseBookingAccess"] as const) expect(b[k], k).toEqual({ error: "This job isn't assigned to you." });
     expect(b.overview).toMatchObject({ id: JOB });
     for (const k of ["page", "installDays", "swms", "price"]) expect(calls[k], k).toBeUndefined();
   });
@@ -132,12 +132,11 @@ describe("section errors and the seed plan (pure)", () => {
     expect(isSectionError({ applies: false })).toBe(false);
   });
   test("seedPlan: answered sections only, each under the card's own key; undefined and errors are skipped", () => {
-    const plan = seedPlan({ overview: { id: JOB }, role: "installer", page: { error: "x" }, swms: undefined, price: null, mittiInvited: { invited: false } }, JOB);
+    const plan = seedPlan({ overview: { id: JOB }, role: "installer", page: { error: "x" }, swms: undefined, price: null }, JOB);
     expect(plan).toEqual([
       { section: "overview", key: ["job", JOB], data: { id: JOB } },
       { section: "role", key: ["myrole", JOB], data: "installer" },
       { section: "price", key: ["installer-price", JOB], data: null },
-      { section: "mittiInvited", key: ["mitti-invited"], data: { invited: false } },
     ]);
   });
   test("every bundle key is the key the card's own useQuery reads (drift guard against the components)", () => {
@@ -146,7 +145,11 @@ describe("section errors and the seed plan (pure)", () => {
     expect(src("src/components/portal/panels.tsx")).toContain(`queryKey: ["job", jobId]`);
     expect(route).toContain(`queryKey: ["myrole", jobId]`);
     expect(route).toContain(`queryKey: ["trade-job-page", jobId]`);
-    expect(route).toContain(`queryKey: ["mitti-invited"]`);
+    // Join (Parts 5–7): the page no longer gates Mitti per card (useMittiInvited went with the electrician flows; the
+    // installer page reads page.mittiInvited from the bundle's own page section), so the bundle's mittiInvited section
+    // was dropped with its reader — pinned so a reader coming back brings its section back deliberately.
+    expect(route).not.toContain(`queryKey: ["mitti-invited"]`);
+    expect(readFileSync("src/lib/trade-job-bundle.core.ts", "utf8")).not.toContain("mitti-invited");
     expect(src("src/components/portal/install-days.tsx")).toContain(`queryKey: ["installer-install-days", jobId]`);
     expect(src("src/components/portal/ready-check-times-installer.tsx")).toContain(`queryKey: ["installer-rc-times", jobId]`);
     expect(src("src/components/trade/visit-allocation.tsx")).toContain(`queryKey: ["visit-allocation", jobId]`);

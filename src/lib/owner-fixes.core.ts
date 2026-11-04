@@ -1,5 +1,8 @@
 // Decision 366 (Jo 25 Oct 2026, audit F03): the owner's electrical fixes on My job (?screen=fixes). Pure: which step the
-// owner is on and the words for it. One path: see the fixes quote → Approve → pay the fixes in full (card when Stripe is
+// owner is on and the words for it.
+// Part 4 Task 14 (Jo 2 Nov 2026): HIV fixes quotes to owners are retired (the electrician quotes and books upgrades with the
+// owner directly). This screen stays ONLY for a job already mid-way through an old fixes quote (resolveOwnerScreen gates it);
+// no new fixes quote is ever sent to an owner. One path: see the fixes quote → Approve → pay the fixes in full (card when Stripe is
 // on, else bank transfer — the existing PayNowCard `fixes` step) → pick one of the electrician's offered times → booked.
 // No I/O here; owner-fixes.server.ts reads the facts and owner-link.functions.ts carries the secure-link actions.
 
@@ -32,7 +35,7 @@ export function ownerFixesStep(f: OwnerFixesFacts): OwnerFixesStep {
 export const OWNER_FIXES_COPY = {
   kicker: "Electrical upgrades",
   title: "Your safety check found electrical upgrades needed first",
-  approve: "Check the upgrades and their price below. If you're happy, approve them — you then pay for the upgrades in full and pick a time for the electrician to come back.",
+  approve: "Check the upgrades and their price below. If you're happy, approve them — you then pay for the upgrades in full.",
   approveTick: "I approve these electrical upgrades and I'll pay the total in full now",
   approveButton: "Approve the upgrades",
   pay: "Thanks — the upgrades are approved. Pay for them in full now (card or bank transfer, no fee). Once your payment arrives you can pick the electrician's time.",

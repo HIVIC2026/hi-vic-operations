@@ -107,7 +107,8 @@ describe("source pins", () => {
     expect(fns).toContain("tradeSafetyCheckDoc(data.jobId, context.userId)");
     expect(fns).toContain("tradeSafetyCheckPdf(data.jobId, context.userId)");
     expect(fns).not.toContain("@tanstack/react-start/server");
-    expect(read("src/routes/_authenticated/field.$jobId.tsx")).toContain('{role === "electrician" && <SafetyCheckDocRow jobId={jobId} />}');
+    // Part 6 Task 8: the electrician's job page is gone (electricians never log in), so the row no longer mounts there; the reads stay for the office copy path.
+    expect(read("src/routes/_authenticated/field.$jobId.tsx")).not.toContain("<SafetyCheckDocRow");
   });
   test("wired: A4 completion after the regeneration, and the 15-minute tick; O28 untouched", () => {
     const fd = read("src/lib/fixes-day.server.ts");

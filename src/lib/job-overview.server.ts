@@ -13,11 +13,23 @@ import { early } from "./early-read";
 type Sb = SupabaseClient<Database>;
 
 /** The overview row the caller may see, plus the role `my_job_role` gave them (the bundle seeds the page's role from it). */
-export async function jobOverviewFor(sb: Sb, userId: string, jobId: string) {
+export async function jobOverviewFor(sb: Sb, userId: string, jobId: string, tradeAccessP?: Promise<import("./trade-view.server").TradeJobAccess | null>) {
   // Speed (installer screens, Task 6): the role check and every read that needs only the job id start together (two
   // rounds, not seven). Nothing read here is used, shaped or returned until the role check has passed, and its refusal
   // wins. The originating business, the contact release and the hidden-address read are the trade-only facts below.
-  const roleP = early((async () => await requireJobRole(sb, jobId, ["admin", "owner", "electrician", "installer"]))());
+  // Fix wave C2: an Office person (business_members.member_role 'office') has no my_job_role answer — the business-scoped
+  // trade access (requireTradeJob: active assignment for THIS business, Office reads like the boss) is the fallback, and
+  // the role is then the business's trade kind. The database check still wins whenever it answers.
+  const roleP = early((async () => {
+    try { return await requireJobRole(sb, jobId, ["admin", "owner", "electrician", "installer"]); }
+    catch (e) {
+      // Inside the job page bundle the trade access check is already running (one context build, one assignment check):
+      // its answer is reused here, so a refused caller costs no second round (#135 budget). Alone, it is asked here.
+      const c = tradeAccessP ? await tradeAccessP : await (await import("./trade-view.server")).requireTradeJob(userId, jobId).catch(() => null);
+      if (c && c.role === "office") return c.kind as JobRole;
+      throw e;
+    }
+  })());
   const rowP = early(admin.from("job_overview").select("*").eq("id", jobId).maybeSingle());
   const dispatchP = early(inHouseDispatchSkip(jobId));
   const relP = early(admin.rpc("has_contact_release", { _job: jobId, _user: userId }));

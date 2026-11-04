@@ -19,10 +19,10 @@ const held = (over: Partial<HeldRow> = {}, attempt = "a1"): HeldRow => ({
 });
 
 describe("quietResendDue (pure)", () => {
-  test("covers exactly the 14 spec types + the A48 safety check rules text", () => {
+  test("covers the spec types still live (install_clearance / fixes_times_link retired by Part 4 Task 14; the 79/82 installer texts by Part 7 Task 9) + the A48 safety check rules text", () => {
     expect([...QUIET_RESEND_TYPES].sort()).toEqual([
-      "boss_price_link", "deposit_release", "fixes_times_link", "install_clearance", "install_no_access", "piesa_owner_confirm", "piesa_owner_fixes_confirm", "piesa_rules_failed",
-      "quote_ready", "ready_check_booked_installer", "ready_check_days_suggested", "spot_saved", "veec_sign_reminder", "veec_sign_request", "visit_new_times",
+      "boss_price_link", "deposit_release", "install_no_access", "piesa_owner_confirm", "piesa_owner_fixes_confirm", "piesa_rules_failed",
+      "quote_ready", "spot_saved", "veec_sign_reminder", "veec_sign_request", "visit_new_times",
     ]);
   });
   test("held at 10pm, real key unclaimed, 7:05am → due", () => {
@@ -93,7 +93,6 @@ const facts = {
   fixes: null as null | { recordId: string; confirmation: unknown },
   installDay: { clearance: { cleared: true, timingDate: "2026-10-28" }, booked: null as unknown },
   currentBooking: null as unknown,
-  turn: "installer_to_answer",
   windowsExist: false,
   fixesAuditId: "audit1" as string | null,
   price: null as unknown,
@@ -107,7 +106,6 @@ const realPiesaConfirm = { ...(await import("../src/lib/piesa-owner-confirm.serv
 const realFixesConfirm = { ...(await import("../src/lib/piesa-fixes-confirm.server")) };
 const realInstallDays = { ...(await import("../src/lib/install-days.server")) };
 const realVisitEvents = { ...(await import("../src/lib/visit-events.server")) };
-const realRcTimes = { ...(await import("../src/lib/ready-check-times.server")) };
 const realRect = { ...(await import("../src/lib/rectification.server")) };
 const realInstallerPrice = { ...(await import("../src/lib/installer-price.server")) };
 const realPiesaRules = { ...(await import("../src/lib/piesa-rules-notice.server")) };
@@ -119,7 +117,6 @@ mock.module("../src/lib/piesa-owner-confirm.server", () => ({ ownerPiesaConfirmF
 mock.module("../src/lib/piesa-fixes-confirm.server", () => ({ ownerFixesConfirmFacts: async () => facts.fixes }));
 mock.module("../src/lib/install-days.server", () => ({ installDayContext: async () => facts.installDay }));
 mock.module("../src/lib/visit-events.server", () => ({ currentBooking: async () => facts.currentBooking }));
-mock.module("../src/lib/ready-check-times.server", () => ({ readyCheckTurnFor: async () => facts.turn }));
 mock.module("../src/lib/rectification.server", () => ({ rectificationWindowsExist: async () => facts.windowsExist, fixesTimesFacts: async () => ({ auditId: facts.fixesAuditId }) }));
 mock.module("../src/lib/installer-price.server", () => ({ readInstallerPrice: async () => facts.price }));
 mock.module("../src/lib/piesa-rules-notice.server", () => ({ ...realPiesaRules, piesaRulesFor: async () => facts.piesaRules }));
@@ -130,7 +127,6 @@ afterAll(() => {
   mock.module("../src/lib/piesa-fixes-confirm.server", () => realFixesConfirm);
   mock.module("../src/lib/install-days.server", () => realInstallDays);
   mock.module("../src/lib/visit-events.server", () => realVisitEvents);
-  mock.module("../src/lib/ready-check-times.server", () => realRcTimes);
   mock.module("../src/lib/rectification.server", () => realRect);
   mock.module("../src/lib/installer-price.server", () => realInstallerPrice);
   mock.module("../src/lib/piesa-rules-notice.server", () => realPiesaRules);
@@ -140,7 +136,7 @@ const JOB = { id: "j1", ...LIVE_JOB, channel: "installer_sourced" };
 beforeEach(() => {
   sent.length = 0; calls.length = 0; failTable = null;
   tables = { sms_messages: [held()], jobs: [JOB], lead_campaign_responses: [{ job_id: "j1", spot_saved_at: "2026-10-28T10:59:00Z", opted_out_at: null }] };
-  Object.assign(facts, { piesa: null, fixes: null, installDay: { clearance: { cleared: true, timingDate: "2026-10-28" }, booked: null }, currentBooking: null, turn: "installer_to_answer", windowsExist: false, fixesAuditId: "audit1", price: null, piesaRules: null });
+  Object.assign(facts, { piesa: null, fixes: null, installDay: { clearance: { cleared: true, timingDate: "2026-10-28" }, booked: null }, currentBooking: null, windowsExist: false, fixesAuditId: "audit1", price: null, piesaRules: null });
 });
 
 describe("sweepQuietHeldTexts", () => {
@@ -251,25 +247,12 @@ describe("stale: one per type's still-true reader", () => {
   test("visit_new_times: the visit was rebooked", () => check("visit_new_times", "visit-new-times:v1:j1:bk1:sms",
     () => { tables["workflow_events"] = [{ job_id: "j1", event_type: "visit_new_times_notice", details: { booking_id: "bk1", kind: "ready_check" } }]; facts.currentBooking = null; },
     () => { facts.currentBooking = { id: "bk2" }; }));
-  test("install_clearance: an install day is now booked", () => check("install_clearance", "install-clearance:v1:j1:2026-10-28:sms",
-    () => { facts.installDay = { clearance: { cleared: true, timingDate: "2026-10-28" }, booked: null }; },
-    () => { facts.installDay = { clearance: { cleared: true, timingDate: "2026-10-28" }, booked: { id: "bk" } }; }));
   test("boss_price_link: the price has been entered", () => check("boss_price_link", "boss-price-link:v1:j1",
     () => { facts.price = null; },
     () => { facts.price = { record: { price_inc_gst: 2000, included: [] }, setAt: "2026-10-28T12:00:00Z", setBy: null }; }));
   test("boss_price_link: the stored Ready Check form (the sender's entries) already has a price", () => check("boss_price_link", "boss-price-link:v1:j1",
     () => { tables["ceiling_measurements"] = [{ job_id: "j1", is_current: true, raw_snapshot: [{ label: "Notes", value: "x" }] }]; },
     () => { tables["ceiling_measurements"] = [{ job_id: "j1", is_current: true, raw_snapshot: [{ label: "Total quoted price $", value: "2400" }] }]; }));
-  test("fixes_times_link: fixes times now given", () => check("fixes_times_link", "fixes-times-link:v1:j1:audit1",
-    () => { facts.windowsExist = false; }, () => { facts.windowsExist = true; }));
-  test("fixes_times_link: the PIESA texted about is no longer the current audit", () => check("fixes_times_link", "fixes-times-link:v1:j1:audit1",
-    () => { facts.fixesAuditId = "audit1"; }, () => { facts.fixesAuditId = "audit2"; }));
-  const suggested = (id: string, at: string) => ({ id, job_id: "j1", event_type: "ready_check_days_suggested", created_at: at, details: {} });
-  test("ready_check_days_suggested: no longer the installer's move", () => check("ready_check_days_suggested", "rc-days-suggested:v1:j1:ev1",
-    () => { tables["workflow_events"] = [suggested("ev1", "2026-10-28T10:00:00Z")]; facts.turn = "installer_to_answer"; }, () => { facts.turn = "owner_to_pick"; }));
-  test("ready_check_days_suggested: a newer suggestion replaced the one texted about", () => check("ready_check_days_suggested", "rc-days-suggested:v1:j1:ev1",
-    () => { tables["workflow_events"] = [suggested("ev1", "2026-10-28T10:00:00Z")]; }, () => { tables["workflow_events"] = [suggested("ev1", "2026-10-28T10:00:00Z"), suggested("ev2", "2026-10-28T12:00:00Z")]; }));
-  test("ready_check_booked_installer: that time is no longer the booked Ready Check", () => check("ready_check_booked_installer", "rc-booked-installer:v1:j1:2026-10-30T23:00:00.000Z",
-    () => { tables["bookings"] = [{ job_id: "j1", kind: "ready_check", status: "confirmed", scheduled_start: "2026-10-30T23:00:00.000Z" }]; },
-    () => { tables["bookings"] = [{ job_id: "j1", kind: "ready_check", status: "confirmed", scheduled_start: "2026-10-31T01:00:00.000Z" }]; }));
+  // fixes_times_link / install_clearance (Part 4 Task 14) and ready_check_days_suggested / ready_check_booked_installer
+  // (Part 7 Task 9): retired 2 Nov 2026, no longer resent at 7am.
 });

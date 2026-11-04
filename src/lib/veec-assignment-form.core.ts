@@ -20,7 +20,7 @@ export const VEEC_FORM_EDITION = "Version 1.1 – 1 October 2026";
 export const VEEC_FORM_ORIGINAL_FILE = "docs/official-forms/ESC-VEEC-Assignment-Form-Activity48-Ceiling-Insulation-v1.1-20261001.docx";
 export const VEEC_FORM_SHA256 = "465de27d88ce6aa47003f93dea403cd24bcdccecff1250a4bece1e3cf4577a86";
 /** Template placeholder "<insert name of accredited person>" is filled with this (Jo, 24 Oct 2026). */
-export const AP_NAME_ON_FORM = "Home Insulation Victoria (DC Construction Solutions Pty Ltd, ABN 44 671 613 979, VEU Accredited Person A003654)";
+export const AP_NAME_ON_FORM = "DC Construction Solutions Pty Ltd trading as Home Insulation Victoria";
 /** Section 2 Part A, from the AP's own records (not job facts). Company address/phone: not found in code — office enters. */
 // Decision 143 (Jo 24 Oct 2026): Chris Lowe is the AP representative on the form; address and phone per Jo.
 export const AP_DETAILS = { fullName: "Chris Lowe" as string | null, companyName: "DC Construction Solutions Pty Ltd trading as Home Insulation Victoria", companyAddress: "1/33 Altree Court, Phillip ACT 2606" as string | null, phone: "0416 252 406" as string | null };
@@ -49,7 +49,7 @@ export const AP_DECLARATION = fill([
   "all scheme participants (i.e. installers) involved in undertaking this activity meet the relevant training and competency requirements as specified in the VEET Guidelines",
   "a licensed electrician has completed and signed a VEU pre-installation electrical safety assessment form prior to the installation commencing",
   "a copy of the completed VEU pre-installation electrical safety assessment form was provided to the lead installer and owner at least 24 hours prior to the installation commencing",
-  "where electrical hazards were identified during the VEU pre-installation electrical safety assessment:”",
+  "where electrical hazards were identified during the VEU pre-installation electrical safety assessment:",
   "a licensed electrician rectified hazards before the installation commenced; and/or",
   "a licensed electrician was present at the start of the installation to confirm work area is electrically safe for entry",
   "written consent has been obtained from the owner of the premises to share relevant information with the commission and for the commission to share that information with the Victorian WorkCover Authority and Energy Safe Victoria.",
@@ -222,7 +222,7 @@ export function veecPrefill(x: VeecFacts, overrides: Record<string, FieldValue> 
   return { values, missing };
 }
 
-/** The co-payment figures come from the accepted quote: price before = subtotal, after = customer total, benefit = VEU discount. */
+/** The co-payment figures come from the accepted quote: price before = subtotal, after = customer total, benefit = rebate. */
 export function coPaymentFromQuote(q: { subtotalIncGst: number | null; customerTotalIncGst: number | null; veecDiscountIncGst: number | null }) {
   return { priceBeforeIncentive: q.subtotalIncGst, consumerPaymentAfter: q.customerTotalIncGst, benefitAmount: q.veecDiscountIncGst };
 }
@@ -244,6 +244,8 @@ export type ApPrerequisiteFacts = {
   warrantyCopyProvidedAt: string | null;
   /** VEU checklist G1: installed product option(s) whose manufacturer warranty PDF is not on file, so the completion pack could not give the consumer a copy (product-warranty.core). Omitted/[] = not known or all on file. */
   warrantyProductsNotOnFile?: string[];
+  /** The job's NCC building class ("Class 1", …) — Bradford's warranty depends on it; null/omitted = not recorded. */
+  warrantyBuildingClass?: string | null;
   /** Installer names on the form → when their collection notice was recorded (null = not recorded). */
   collectionNotices: { installer: string; providedAt: string | null }[];
 };
@@ -261,7 +263,7 @@ export function apPrerequisiteBlockers(x: ApPrerequisiteFacts): string[] {
   if (!x.warrantyCopyProvidedAt) {
     // G1 + decision 321: the All done email (install complete) records the copy itself when the manufacturer's PDF is on file; name the product that stops it.
     const gaps = (x.warrantyProductsNotOnFile ?? []).filter(Boolean);
-    if (gaps.length) for (const p of gaps) b.push(warrantyHoldReason(p));
+    if (gaps.length) for (const p of gaps) b.push(warrantyHoldReason(p, x.warrantyBuildingClass));
     else b.push("Product warranty copy (minimum 5 years) given to the consumer is not recorded.");
   }
   if (!x.collectionNotices.length) b.push("No installer is listed on the form yet.");
@@ -295,12 +297,10 @@ export function nextVeecReminderStep(x: { installCompletedAt: string | null; con
 
 const money = (n: number) => n.toLocaleString("en-AU", { style: "currency", currency: "AUD", maximumFractionDigits: 0 });
 
-/** Approved texts (decisions 166/168). Under 2 SMS segments; secure link; STOP line. The brand prefix is added by brandSmsBody. */
+/** Approved text (decision 166). Under 2 SMS segments; secure link; STOP line. The brand prefix is added by brandSmsBody.
+ *  (The decision 168 day 1/3/7 reminder text `veec_sign_reminder` was retired 2 Nov 2026, Part 4 Task 14.) */
 export function veecSignRequestText(rebate: number, link: string): string {
   return `Your install is done! One last thing: please sign your rebate form so we can claim your ${money(rebate)} rebate: ${link} Reply STOP to opt out.`;
-}
-export function veecSignReminderText(rebate: number, link: string): string {
-  return `Your rebate form still needs your signature so we can claim your ${money(rebate)} rebate. It takes a minute: ${link} Reply STOP to opt out.`;
 }
 export const SMS_SEGMENT_LIMIT = 2 * 153;
 

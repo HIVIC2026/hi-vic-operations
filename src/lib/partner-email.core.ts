@@ -4,10 +4,11 @@
 import { CUSTOMER_BRAND } from "./customer-quote-system";
 import { SET_PASSWORD_BASE } from "./set-password-link.core";
 import * as K from "./email-kit.core";
-import { mjEmail, esc } from "./mail-mjml.core";
-import { NO_FORM_NO_PAY } from "./trade-view.core";
+import { mjEmail, mjEmailSource, esc } from "./mail-mjml.core";
+import { payRuleWords } from "./trade-view.core";
 
-/** Decision 107: the 2-minute installer guide page (src/routes/_authenticated/field.guide.tsx). */
+/** Decision 107: the 2-minute installer guide page (src/routes/_authenticated/field.guide.tsx) — since Part 5 Task 11 it only
+ *  opens My work, and Jo removed its box from the welcome email (4 Nov 2026 13:50). Kept for the route and old links. */
 export const INSTALLER_GUIDE_URL = `${SET_PASSWORD_BASE}/field/guide`;
 
 /** Public website logo (kept for callers that still reference it; the emails use the same hosted file). */
@@ -22,6 +23,8 @@ export type PartnerBlock =
   | { kind: "p"; text: string }
   | { kind: "list"; items: string[] }
   | { kind: "button"; label: string; url: string }
+  /** A small text link under a button (e.g. "See the full Ready Check ›"); never an empty href — leave it out when there is no URL. */
+  | { kind: "link"; label: string; url: string }
   | { kind: "sign"; lines: string[] }
   | { kind: "hi"; text: string }
   | { kind: "box"; text: string }
@@ -57,7 +60,7 @@ function blockText(b: PartnerBlock): string[] {
   switch (b.kind) {
     case "p": case "hi": case "box": case "small": return [b.text, ""];
     case "list": return [...b.items.map((x) => `• ${x}`), ""];
-    case "button": return [`${b.label}: ${b.url}`, ""];
+    case "button": case "link": return [`${b.label}: ${b.url}`, ""];
     case "sign": return [...b.lines, ""];
     case "card": return [b.title, ...(b.subtitle ? [b.subtitle] : []), "", ...b.blocks.flatMap(blockText)];
     case "preview": return [];
@@ -82,20 +85,23 @@ export function partnerEmailLayout(i: { subject: string; heading?: string | null
     if (b.kind === "p" || b.kind === "hi") rows.push(txt(esc(b.text), first ? 'padding="14px 12px 14px"' : ""));
     else if (b.kind === "small") rows.push(txt(esc(b.text), `mj-class="small"${first ? ' padding="14px 12px 0"' : ""}`));
     else if (b.kind === "button") { if (first) rows.push('<mj-text padding="8px 0 0"></mj-text>'); rows.push(`<mj-button href="${esc(b.url)}">${esc(b.label)}</mj-button>`); }
+    else if (b.kind === "link") rows.push(txt(`<a href="${esc(b.url)}" style="${LINK}">${esc(b.label)}</a>`, `mj-class="small"${first ? ' padding="14px 12px 0"' : ""}`));
     else if (b.kind === "sign") rows.push(txt(b.lines.map(esc).join("<br />")));
     else if (b.kind === "box") panel("panel-amber", txt(esc(b.text), 'padding="18px 18px 18px"'));
     else if (b.kind === "list") panel("panel-card", `<mj-table padding="18px 18px 6px">${b.items.map((x, n, all) => tick(esc(x), n === all.length - 1 ? 12 : 14)).join("")}</mj-table>`);
     else if (b.kind === "card") panel("panel-card", cardRows(b));
   }
   flush();
-  const html = mjEmail({ subject: i.subject, preview, body: out.join(""), unsubscribe: null, testLabel: i.test !== false });
+  const mail = { subject: i.subject, preview, body: out.join(""), unsubscribe: null, testLabel: i.test !== false };
+  const html = mjEmail(mail);
   const text = K.plainText([
     ...(hi ? [hi.text, ""] : []),
     ...(i.heading ? [i.heading, ""] : []),
     ...rest.flatMap(blockText),
     "Home Insulation Victoria · info@homeinsulationvictoria.com.au",
   ], { testLabel: i.test !== false });
-  return { html, text };
+  /** `mjml`: the compiled document's MJML source, for design samples only (never sent). */
+  return { html, text, mjml: mjEmailSource(mail) };
 }
 
 /** Official Mitti (by SafetyCulture) app store pages (checked 27 Oct 2026). */
@@ -132,8 +138,10 @@ export const WELCOME_MITTI = {
 } as const;
 const num = (html: string, n: number, last: boolean) => `<tr><td width="32" valign="top" style="padding:2px 0 ${last ? 12 : 14}px;"><span class="num">${n + 1}</span></td><td style="padding:0 0 ${last ? 12 : 14}px;">${html}</td></tr>`;
 
-/** Decision 107: "Welcome aboard, {First}. You're approved!" — 3 benefits, Set your password, the 2-minute guide box. */
-export function partnerWelcomeEmail(i: { firstName: string | null; businessName: string; trade: "installer" | "electrician"; email: string; link: string; guideUrl?: string | null; test?: boolean }) {
+/** Decision 107: "Welcome aboard, {First}. You're approved!" — 3 benefits, Set your password, what happens next, Mitti, the
+ *  pay rule. The "Read the 2-minute guide" box was REMOVED by Jo 4 Nov 2026 13:50 (the guide page now just opens My work;
+ *  Part 5 Task 11). */
+export function partnerWelcomeEmail(i: { firstName: string | null; businessName: string; trade: "installer" | "electrician"; email: string; link: string; test?: boolean }) {
   const subject = "You're approved — welcome to Home Insulation Victoria";
   const first = K.cleanName(i.firstName);
   const hi = `Welcome aboard${first ? `, ${first}` : ""}.`;
@@ -147,13 +155,13 @@ export function partnerWelcomeEmail(i: { firstName: string | null; businessName:
   const benefits = i.trade === "installer"
     ? ["Jobs sent to you, plus add your own customers", "Your price, never marked up. We only add our $349 AP fee", "Quotes, electrician, compliance and rebate paperwork handled by us"]
     : ["PIESAs sent to you near where you work", "Get paid your agreed rate 7 days after we approve your completed form.", "Bookings, compliance and rebate paperwork handled by us"];
-  // Link check (Jo 27 Oct 2026): the guide page is the installer guide and only installers can open it, so electricians get no guide box.
-  const guide = i.trade === "installer" || i.guideUrl ? { title: "New to how we work?", body: "Read the 2-minute guide: Ready Checks, Mitti, your jobs, our leads and getting paid.", href: i.guideUrl || INSTALLER_GUIDE_URL } : null;
   const steps = WELCOME_STEPS[i.trade];
   const signIn = `You'll sign in with ${i.email}. The link works once and lasts 24 hours.`;
-  // Decision 318 (Jo 25 Oct 2026): the pay rule, Jo's approved words, shown as two paragraphs in the yellow box.
-  const pay = NO_FORM_NO_PAY.body.indexOf(". ");
-  const payParas = pay > 0 ? [NO_FORM_NO_PAY.body.slice(0, pay + 1), NO_FORM_NO_PAY.body.slice(pay + 2)] : [NO_FORM_NO_PAY.body];
+  // Decision 318 rule, Jo's 4 Nov 2026 14:12 v2 words ("When you get paid", trade-view.core payRuleWords), shown as two
+  // paragraphs in the yellow box. ON since Jo's 16:44 ruling; the old decision-318 words are deleted.
+  const payWords = payRuleWords();
+  const pay = payWords.body.indexOf(". ");
+  const payParas = pay > 0 ? [payWords.body.slice(0, pay + 1), payWords.body.slice(pay + 2)] : [payWords.body];
   const body = [
     sec([txt(esc(hi), 'mj-class="hi"'), txt(esc(headline), 'mj-class="h1" css-class="email-heading" padding="4px 12px 10px"'), txt(esc(intro))].join("")),
     sec(`<mj-table padding="18px 18px 6px">${benefits.map((b, n) => tick(esc(b), n === benefits.length - 1 ? 12 : 14)).join("")}</mj-table>`, "panel-card"),
@@ -162,8 +170,7 @@ export function partnerWelcomeEmail(i: { firstName: string | null; businessName:
     sec([txt(esc(WELCOME_MITTI.title), 'mj-class="h2" padding="18px 18px 6px"'), txt(esc(WELCOME_MITTI.lead), 'padding="0 18px 10px"'),
       `<mj-table padding="0 18px 6px">${num(esc(WELCOME_MITTI.steps[0]), 0, false)}${num(`${esc(WELCOME_MITTI.steps[1])} <a href="${MITTI_APP_STORE_URL}" style="${LINK}">App Store</a> &middot; <a href="${MITTI_GOOGLE_PLAY_URL}" style="${LINK}">Google Play</a>`, 1, true)}</mj-table>`,
       txt(esc(WELCOME_MITTI.forms[i.trade]), 'padding="0 18px 18px"')].join(""), "panel"),
-    guide ? sec([txt(esc(guide.title), 'mj-class="h2" padding="18px 18px 6px"'), txt(`${esc(guide.body)}<br /><a href="${esc(guide.href)}" style="${LINK}">Read the guide &rarr;</a>`, 'padding="0 18px 18px"')].join(""), "panel") : "",
-    sec([txt(esc(NO_FORM_NO_PAY.headline), 'mj-class="h2" padding="18px 18px 6px"'), ...payParas.map((p, n) => txt(esc(p), `padding="0 18px ${n === payParas.length - 1 ? 18 : 10}px"`))].join(""), "panel-amber"),
+    sec([txt(esc(payWords.headline), 'mj-class="h2" padding="18px 18px 6px"'), ...payParas.map((p, n) => txt(esc(p), `padding="0 18px ${n === payParas.length - 1 ? 18 : 10}px"`))].join(""), "panel-amber"),
     sec(txt("Questions? Just reply to this email.", 'mj-class="small" padding="14px 12px 0"')),
   ].join("");
   const html = mjEmail({ subject, preview, body, unsubscribe: null, testLabel: i.test === true });
@@ -172,7 +179,7 @@ export function partnerWelcomeEmail(i: { firstName: string | null; businessName:
     `Set your password: ${i.link}`, signIn, "",
     "What happens next", ...steps.map((t, n) => `${n + 1}. ${t}`), "",
     WELCOME_MITTI.title, WELCOME_MITTI.lead, `1. ${WELCOME_MITTI.steps[0]}`, `2. ${WELCOME_MITTI.steps[1]} App Store ${MITTI_APP_STORE_URL} · Google Play ${MITTI_GOOGLE_PLAY_URL}`, WELCOME_MITTI.forms[i.trade], "",
-    ...(guide ? [`${guide.title} ${guide.body}`, `Read the guide: ${guide.href}`, ""] : []), `${NO_FORM_NO_PAY.headline}. ${NO_FORM_NO_PAY.body}`, "", "Questions? Just reply to this email.",
+    `${payWords.headline}. ${payWords.body}`, "", "Questions? Just reply to this email.",
   ], { testLabel: i.test === true });
   return { subject, html, text };
 }

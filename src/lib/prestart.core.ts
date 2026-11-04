@@ -1,5 +1,6 @@
 // ESC pre-install AP task + day-before pre-start check (Operating Model v2, step 10). Pure rules only.
-import { EARLIEST_MS, LEAD_MS, registryUpdateTimingReasons, sendTimingBlocker } from "./esc.core";
+import { NO_ESC_PRESTART_NOTE } from "./no-esc.core";
+import { DEFAULT_REGISTRY_FIELDS, EARLIEST_MS, LEAD_MS, PIISA_FROM_PIESA_DAYS, registryUpdateTimingReasons, sendTimingBlocker, type RegistryChange } from "./esc.core";
 import { melbourneAt, melbourneYmd } from "./piesa-windows.core";
 import { COLLECTION_NOTICE_BLOCK_MESSAGE } from "./esc-collection-notice.core";
 import { whiteCardBlocker, type WhiteCardState } from "./worker-compliance.core";
@@ -7,8 +8,9 @@ import { coesOfficeLine } from "./coes-check.core";
 import type { PrestartCertificate } from "./certificate-later.core";
 
 export const ESC_URGENT_MS = 2 * 24 * 3600_000;
-export const PRESTART_HOUR = 12; // 12pm Melbourne, the day before the install
-export const PIISA_FROM_PIESA_DAYS = 30;
+/** Part 9 Task 6 (Jo 2 Nov 2026): the GO / DON'T START check runs at 2pm Melbourne the day before (was 12pm) and 6:30am on the day. */
+export const PRESTART_HOUR = 14; // 2pm Melbourne, the day before the install (the first GO slot; also the lock time)
+export { PIISA_FROM_PIESA_DAYS }; // one constant (esc.core, Part 9 Task 4); re-exported for existing readers
 
 const fmt = (iso: string) => new Date(iso).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 function addDays(ymd: string, n: number) { const d = new Date(`${ymd}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
@@ -16,14 +18,27 @@ function addDays(ymd: string, n: number) { const d = new Date(`${ymd}T12:00:00Z`
 export type EscNotice = { status: string; sent_at: string | null; submission_reference: string | null; scheduled_start: string; response?: unknown };
 export type EscTaskCode = "esc_submit_due" | "esc_submit_urgent" | "esc_update_registry" | "esc_withdraw_resubmit";
 
-/** What the AP must do for the ESC notification right now, if anything. */
-export function escTask(i: { start: string; current: EscNotice | null; previousSent: EscNotice | null; now: Date }): { code: EscTaskCode; detail: string } | null {
+const registryLabel = (k: string) => DEFAULT_REGISTRY_FIELDS.find((f) => f.key === k)?.label ?? k;
+
+/** What the AP must do for the ESC notification right now, if anything. `change` is the robot's own rule (`registryChange`,
+ *  Activity Guide v1.2 §3.3.3) comparing the sent notice's Table 5 payload with the current one: withdraw + resubmit when
+ *  anything not updatable changed (e.g. the address, same start) or the timing fails; update on the same ID otherwise.
+ *  Omitted / null (callers without a payload) keeps the start-only rule. */
+export function escTask(i: { start: string; current: EscNotice | null; previousSent: EscNotice | null; change?: RegistryChange | null; now: Date }): { code: EscTaskCode; detail: string } | null {
   const s = Date.parse(i.start), now = i.now.getTime();
   if (now >= s) return null;
   const c = i.current;
   const curSent = !!c && (c.status === "sent" || c.status === "accepted") && !!c.sent_at && !!c.submission_reference && Date.parse(c.scheduled_start) === s;
   if (curSent) return null;
   const by = new Date(s - LEAD_MS).toISOString();
+  const change = i.change ?? null;
+  if (i.previousSent?.sent_at && change && change.action !== "none") {
+    const moved = Date.parse(i.previousSent.scheduled_start) !== s;
+    const what = moved ? `Install moved to ${fmt(i.start)}` : `${change.changed.map(registryLabel).join(", ")} changed`;
+    return change.action === "withdraw_and_resubmit"
+      ? { code: "esc_withdraw_resubmit", detail: `${what}. ${change.reasons.join(" ")} Withdraw the notification in the Registry and resubmit by ${fmt(by)}.` }
+      : { code: "esc_update_registry", detail: `${what}. Update the notification in the Registry by ${fmt(by)}, then record it.` };
+  }
   if (i.previousSent?.sent_at && Date.parse(i.previousSent.scheduled_start) !== s) {
     // Activity Guide v1.2 §3.3.3: update (same ID) only while the original start has not passed and the new start is within 5 days.
     const ok = registryUpdateTimingReasons(i.previousSent.scheduled_start, i.start, i.now.toISOString()).length === 0;
@@ -38,16 +53,18 @@ export function escTask(i: { start: string; current: EscNotice | null; previousS
     : { code: "esc_submit_due", detail: `Submit ESC notification in the VEU Registry by ${fmt(by)} (window is open now).` };
 }
 
-export type EscReminderCode = "esc_window_open" | "esc_urgent_48h" | "esc_blocked_24h" | "esc_reopened";
+export type EscReminderCode = "esc_window_open" | "esc_urgent_48h" | "esc_blocked_24h" | "esc_reopened" | "esc_details_changed";
 /** Office reminder to raise right now for this booking (once per key). Derived from escTask: window open at 5 days,
- *  urgent at 48h, blocked at 24h, reopened when the install moved after a recorded submission. */
-export function escReminder(i: { start: string; current: EscNotice | null; previousSent: EscNotice | null; now: Date }): { code: EscReminderCode; key: string; detail: string } | null {
+ *  urgent at 48h, blocked at 24h, reopened when the install moved after a recorded submission, details changed when the
+ *  notice's Table 5 facts changed with the same start (Part 9 Task 1; `change` forwarded to escTask). */
+export function escReminder(i: { start: string; current: EscNotice | null; previousSent: EscNotice | null; change?: RegistryChange | null; now: Date }): { code: EscReminderCode; key: string; detail: string } | null {
   const t = escTask(i);
   if (!t) return null;
   const s = Date.parse(i.start), now = i.now.getTime();
+  const moved = !!i.previousSent && Date.parse(i.previousSent.scheduled_start) !== s;
   const code: EscReminderCode = t.code === "esc_submit_due" ? "esc_window_open"
     : t.code === "esc_submit_urgent" ? (now >= s - LEAD_MS ? "esc_blocked_24h" : "esc_urgent_48h")
-    : "esc_reopened";
+    : moved ? "esc_reopened" : "esc_details_changed";
   return { code, key: `${new Date(s).toISOString()}:${code}`, detail: t.detail };
 }
 export const ESC_REMINDER_TITLES: Record<EscReminderCode, string> = {
@@ -55,28 +72,92 @@ export const ESC_REMINDER_TITLES: Record<EscReminderCode, string> = {
   esc_urgent_48h: "ESC notification urgent — install in 48 hours or less",
   esc_blocked_24h: "ESC notification not recorded 24 hours before start — installation locked",
   esc_reopened: "Install date changed after the ESC notification — update, or withdraw and resubmit",
+  // DRAFT (Part 9 Task 1, JO-APPROVAL-LIST): same start, the notice's details changed (address, Lead Installer, …).
+  esc_details_changed: "Details changed after the ESC notification — update, or withdraw and resubmit",
 };
 
-/** 12pm Melbourne on the day before the install. */
+// ── Lead Installer lock (Jo 2 Nov 2026, "Lead Installer / ESC 24h rule"): THE ONE lock rule, owned by Part 9 Task 9. The
+// clock itself lives in the tiny import-free `lead-installer-lock.core.ts` (the installer home's Next step box shows it and
+// must not pull this module's ESC/compliance imports onto its first load); these names are re-exported here, so Parts 5 and
+// 7 import them from prestart.core exactly as the plan says. Server readers: lead-installer-confirm.server
+// (assertLeadInstallerUnlocked), visit-allocation.server (refuseLockedLeadChange), in-house-booking.server (recordLeadChange),
+// booking.server (validateBooking reschedule) — all read the CURRENT confirmed install booking through install-booking.server
+// currentLockableInstallBooking, which ignores a completed install and throws on a read error (every gate fails closed).
+export { LEAD_CONFIRM_EMAIL_HOUR, LEAD_LOCK_DAYS_BEFORE, LEAD_LOCK_HOUR, LEAD_LOCKED_MESSAGE, leadInstallerLock, leadInstallerLocked } from "./lead-installer-lock.core";
+
+// ── GO / DON'T START slots (Part 9 Task 6). The 2pm-day-before slot is also the lock time (`prestartRunAt`).
+export const GO_SLOTS = [
+  { key: "day_before_2pm", dayOffset: -1, hour: 14, minute: 0 },
+  { key: "on_day_630am", dayOffset: 0, hour: 6, minute: 30 },
+] as const;
+export type GoSlot = (typeof GO_SLOTS)[number]["key"];
+/** G6 N1 (final Part 9 review, 4 Nov 2026): an install booked to start at or before 6:30am Melbourne would have its on-day
+ *  check land after the start (never run). Those installs get the on-day check at 6:00am instead; one that starts at or
+ *  before 6:00am gets no on-day run (`onDayGoCheck` = null — the 2pm email then says "Fix before the install starts"). */
+const ON_DAY_EARLY = { hour: 6, minute: 0, label: "6:00am" } as const;
+const ON_DAY_USUAL = { hour: 6, minute: 30, label: "6:30am" } as const;
+function onDaySlotRule(startIso: string): typeof ON_DAY_EARLY | typeof ON_DAY_USUAL {
+  const day = melbourneYmd(new Date(startIso));
+  const minutesIntoDay = (Date.parse(startIso) - melbourneAt(day, 0).getTime()) / 60_000;
+  return minutesIntoDay <= ON_DAY_USUAL.hour * 60 + ON_DAY_USUAL.minute ? ON_DAY_EARLY : ON_DAY_USUAL;
+}
+/** Melbourne wall-clock instant of each slot for this install start, as ISO. (Minutes are added after the whole-hour
+ *  DST-safe `melbourneAt`; neither slot sits inside a DST change, which happens at 2–3am.) The on-day slot moves to
+ *  6:00am for a start at or before 6:30am (N1). */
+export function goSlotTimes(startIso: string): Record<GoSlot, string> {
+  const day = melbourneYmd(new Date(startIso));
+  const early = onDaySlotRule(startIso);
+  const out = {} as Record<GoSlot, string>;
+  for (const s of GO_SLOTS) {
+    const { hour, minute } = s.key === "on_day_630am" ? early : s;
+    out[s.key] = new Date(melbourneAt(addDays(day, s.dayOffset), hour).getTime() + minute * 60_000).toISOString();
+  }
+  return out;
+}
+/** The on-day GO check for this start: when it runs and how the email names it ("6:30am" / "6:00am"); null = it can't run
+ *  (the install starts at or before 6:00am), so the 2pm email must not promise a second check. */
+export function onDayGoCheck(startIso: string): { at: string; label: string } | null {
+  const at = goSlotTimes(startIso).on_day_630am;
+  if (Date.parse(at) >= Date.parse(startIso)) return null;
+  return { at, label: onDaySlotRule(startIso).label };
+}
+/** The slot to run now: the LATEST slot whose time has passed, not yet done, and before the install starts. Null = nothing due. */
+export function dueGoSlot(startIso: string, now: Date, done: readonly GoSlot[]): GoSlot | null {
+  const t = now.getTime();
+  if (t >= Date.parse(startIso)) return null;
+  const times = goSlotTimes(startIso);
+  const passed = GO_SLOTS.filter((s) => t >= Date.parse(times[s.key]));
+  const latest = passed[passed.length - 1];
+  if (!latest || done.includes(latest.key)) return null;
+  return latest.key;
+}
+export const isGoSlot = (s: string): s is GoSlot => GO_SLOTS.some((x) => x.key === s);
+
+/** 2pm Melbourne on the day before the install (the first GO slot; the lock time `prestartLocked` uses). */
 export function prestartRunAt(startIso: string): string {
-  return melbourneAt(addDays(melbourneYmd(new Date(startIso)), -1), PRESTART_HOUR).toISOString();
+  return goSlotTimes(startIso).day_before_2pm;
 }
 
 /** `noticeAcknowledged`: ESC collection notice (decision 130); false = not acknowledged, blocks the start. Undefined = not loaded (older callers). */
 /** `whiteCard`: decision 319 White Card state of the lead (worker-compliance.core); undefined = not loaded (older callers, never blocks). */
-export type LeadCert = { found: boolean; status: string | null; level: string | null; expiresOn: string | null; name: string | null; noticeAcknowledged?: boolean | null; whiteCard?: WhiteCardState | null };
+/** `escRegistered`: Part 9 Task 5 — the Lead Installer is registered with the ESC (partner_workers.esc_registered, office-audited); false blocks; undefined/null = not loaded (older callers, never blocks). */
+export type LeadCert = { found: boolean; status: string | null; level: string | null; expiresOn: string | null; name: string | null; noticeAcknowledged?: boolean | null; whiteCard?: WhiteCardState | null; escRegistered?: boolean | null };
 export type PrestartFacts = {
   start: string;
   clearance: { cleared: boolean; blocker: string | null };
   deadline: string | null; // 30-day window last day
   esc: EscNotice | null;
+  /** J5 (4 Nov 2026): the ESC notices could not be read — the check fails CLOSED with ESC_READ_FAILED (must move), never
+   *  "not marked submitted" (which reads as fixable). null/undefined = read fine (older callers). */
+  escReadError?: string | null | undefined;
   lead: LeadCert;
   consentBlockers: string[];
   piesaCompletedAt: string | null;
   readyCheckWorksBlockers?: string[] | undefined; // installer-intake jobs: original-condition answers not yet recorded
   siteHoldBlockers?: string[] | undefined; // open "Site conditions differ" review hold
-  /** H3 (24 Oct 2026): the assigned installer business's lapsed public liability insurance (publicLiabilityBlocker); undefined = not loaded (older callers). */
-  publicLiabilityBlocker?: string | null | undefined;
+  /** H3 (24 Oct 2026) → Part 9 Task 8: the assigned installer business's insurance problems (businessDocsBlocker: not on file /
+   *  unverified / expired / under $5m); undefined = not loaded (older callers). */
+  businessDocsBlocker?: string | null | undefined;
   /** Decision 261: "Safety plan not signed: …" until the lead and every listed installer signed the portal SWMS; undefined = not loaded (older callers). */
   swmsBlocker?: string | null | undefined;
   /** Decision 319: when this installation booking was made. Bookings made before `WHITE_CARD_ENFORCED_FROM` are never blocked by the White Card rule. */
@@ -95,8 +176,35 @@ export type PrestartFacts = {
   certificate?: PrestartCertificate | undefined;
   /** The existing certificate check's reason when `certificate` is "unchecked" (coes-check.core COES_WHY / rejected). */
   certificateWhy?: string | null | undefined;
+  /** Part 9 Task 5: the PIESA asked for the electrician at the start of the install (install-attendance.core
+   *  attendanceRequired) and their answer for THIS booking (attendanceState; never asked = waiting). null/undefined = not
+   *  loaded or not needed (older callers, never blocks). */
+  electricianAttendance?: { required: boolean; state: "confirmed" | "declined" | "waiting" } | null | undefined;
+  /** Part 9 Task 5: life support at the home and no written consent / medical plan on file (job-records.server
+   *  lifeSupportPlanMissing, which counts the electrician's PIESA photo). undefined = not loaded (older callers). */
+  lifeSupportPlanMissing?: boolean | undefined;
+  // Part 9 Task 10 (Jo 2 Nov 2026, answer 21): the GO check needs the Part C (the electrical clearance line above) and the
+  // electrical certificate — the certificate gate is main's `certificate` / `certificateWhy` fact (Part 3 Task 4: "not in
+  // yet" / "Check electrical certificate — …"), so T10's duplicate `coesBlocker` fact was dropped at the join (ruling 4).
+  /** Part 9 Task 14: the job is marked "no ESC" (real run, no-esc.core). true = the ESC-notice lines are replaced by the
+   *  note `NO_ESC_PRESTART_NOTE` (prestartNotes), never a failure; every other gate still blocks. undefined = not marked. */
+  noEsc?: boolean | undefined;
 };
+export { NO_ESC_PRESTART_NOTE };
+/** Notes recorded with a check that are NOT failures (today only the no-ESC note). */
+export function prestartNotes(f: Pick<PrestartFacts, "noEsc">): string[] {
+  return f.noEsc === true ? [NO_ESC_PRESTART_NOTE] : [];
+}
 export const CERTIFICATE_NOT_IN_YET = "Certificate of Electrical Safety not in yet";
+export const LEAD_NOT_ESC_REGISTERED = (name: string | null) => `Lead Installer${name ? ` ${name}` : ""} is not registered with the ESC yet.`;
+export const ELECTRICIAN_NOT_CONFIRMED = "The PIESA needs an electrician at the install and they haven't confirmed.";
+export const LIFE_SUPPORT_PLAN_MISSING = "Life support at this home: the written consent or medical plan isn't on file.";
+/** J5: office-only GO check line when the ESC notices could not be read (fail closed; classified must move). */
+export const ESC_READ_FAILED = (reason: string) => `ESC notices could not be read (${reason}) — check again`;
+/** G6 S2: office-only line recorded when a GO slot run itself crashed (a facts reader threw): the slot still gets its
+ *  failed row (install locked, Needs me row, DON'T START email with the plain trade line) instead of no row at all.
+ *  Classified must move (fail closed); the error text stays on the office event, never in the email. */
+export const GO_CHECK_NOT_COMPLETED = (reason: string) => `The GO check could not be completed (${reason}) — run it again`;
 
 /** Every failed pre-start condition, in plain words. Empty = cleared to start. */
 export function prestartFailures(f: PrestartFacts): string[] {
@@ -105,7 +213,9 @@ export function prestartFailures(f: PrestartFacts): string[] {
   if (!f.clearance.cleared) out.push(`Electrical clearance is not valid: ${f.clearance.blocker ?? "not cleared"}`);
   if (!f.deadline || day > f.deadline) out.push(f.deadline ? `The 30-day window ended on ${f.deadline}. New PIESA needed.` : "No 30-day window date is recorded.");
   const e = f.esc;
-  if (!e || !(e.status === "sent" || e.status === "accepted") || !e.sent_at || !e.submission_reference || Date.parse(e.scheduled_start) !== Date.parse(f.start)) out.push("ESC notification is not marked submitted for this install date.");
+  if (f.noEsc === true) { /* Part 9 Task 14: no ESC notice on a real-run job — the note goes on the check instead (prestartNotes) */ }
+  else if (f.escReadError) out.push(ESC_READ_FAILED(f.escReadError)); // J5 7: fail closed — unreadable notices are a must-move line
+  else if (!e || !(e.status === "sent" || e.status === "accepted") || !e.sent_at || !e.submission_reference || Date.parse(e.scheduled_start) !== Date.parse(f.start)) out.push("ESC notification is not marked submitted for this install date.");
   else { const t = sendTimingBlocker(e.sent_at, f.start); if (t) out.push(t); }
   if (!f.lead.found) out.push("No lead installer is recorded for this job.");
   else if (f.lead.status !== "verified") out.push(`Lead installer${f.lead.name ? ` ${f.lead.name}` : ""} has no office-verified EEC CII certification.`);
@@ -119,15 +229,64 @@ export function prestartFailures(f: PrestartFacts): string[] {
   else if (day > addDays(f.piesaCompletedAt.slice(0, 10), PIISA_FROM_PIESA_DAYS)) out.push("The installer safety form (PIISA) can only be done within 30 days of the PIESA.");
   for (const b of f.readyCheckWorksBlockers ?? []) out.push(`Ready Check original condition not recorded: ${b}.`);
   for (const b of f.siteHoldBlockers ?? []) out.push(b);
-  if (f.publicLiabilityBlocker) out.push(`Installer business: ${f.publicLiabilityBlocker}`);
+  if (f.businessDocsBlocker) out.push(`Installer business: ${f.businessDocsBlocker}`);
   if (f.swmsBlocker) out.push(f.swmsBlocker);
   if (f.installDepositBlocker) out.push(f.installDepositBlocker);
   for (const b of f.piesaCopyBlockers ?? []) out.push(b);
   if (f.piesaCopyReceiptBlocker) out.push(f.piesaCopyReceiptBlocker);
   if (f.certificate === "missing") out.push(CERTIFICATE_NOT_IN_YET);
   else if (f.certificate === "unchecked") out.push(coesOfficeLine(f.certificateWhy?.trim() || "not checked yet"));
+  // Part 9 Task 5: ESC registration (every job), the electrician at the install when the PIESA needs them, life support plan.
+  if (f.lead.found && f.lead.escRegistered === false) out.push(LEAD_NOT_ESC_REGISTERED(f.lead.name));
+  if (f.electricianAttendance?.required && f.electricianAttendance.state !== "confirmed") out.push(ELECTRICIAN_NOT_CONFIRMED);
+  if (f.lifeSupportPlanMissing) out.push(LIFE_SUPPORT_PLAN_MISSING);
   return out;
 }
+
+// ── Failure class for the DON'T START email (Jo 4 Nov 2026 14:40, Part 9 Task 7 fix). ─────────────────────────────
+/** `fixable` = can still be fixed before the booked start (signatures, office ticks, a missing Lead, the deposit…);
+ *  `must_move` = a timing rule is already broken relative to the booked start, so the install has to be rebooked. */
+export type PrestartFailureClass = "fixable" | "must_move";
+export type PrestartFailure = { line: string; cls: PrestartFailureClass };
+/** Lines that are fixable whatever the clock says (people, paperwork and money the office or trade can sort before the start). */
+const FIXABLE_ALWAYS: RegExp[] = [
+  /^Safety plan not signed/, // SWMS signatures (decision 261)
+  /^No lead installer is recorded/,
+  /^Lead installer.*(has no office-verified|re-record certification|holds a provisional)/, // office verifies / picks another Lead
+  /^Lead installer.*: /, // collection notice acknowledgement, White Card (worker-compliance lines are prefixed "Lead installer …: ")
+  /^Installer business: /, // insurance upload waiting for the office tick (H3 / Task 8)
+  /^Install deposit not paid/,
+  /^Ready Check original condition not recorded/,
+  /^Site conditions differ/,
+  /^Life support at this home/, // Task 5: plan goes on file
+  // Join (4 Nov 2026): main's Part 3 certificate lines — the electrician uploads the Certificate of Electrical Safety on
+  // their link, the office ticks it (an upload + an office tick, like the insurance line).
+  /^Certificate of Electrical Safety not in yet/,
+  /^Check electrical certificate — /,
+];
+/** Lines about a 24-hour rule: fixable only while the start is still at least 24h away (the notice, consent, copies or
+ *  confirmation can still land in time); from then on the rule is already broken → must move. */
+const FIXABLE_WHILE_24H_LEFT: RegExp[] = [
+  /^ESC notification is not marked submitted/,
+  /^Owner consent: .*(not generated|not complete)/,
+  /^Signed PIESA copy delivery to (owner|installer) must be recorded/,
+  /not delivered to the (owner|installer) by/, // Task 5 Part C copy lines
+  /^The PIESA needs an electrician at the install and they haven't confirmed/, // Task 5
+];
+/** Fail closed: anything not listed above (the 30-day window, PIISA/ESC timing, consent/notice/copies <24h, electrical
+ *  clearance, lines this module doesn't know) is `must_move`. */
+/** J5 (join step 6 ruling, 4 Nov 2026): a READ ERROR is never "fixable" — Task 8's "Installer business: Couldn't read…"
+ *  lines share the fixable insurance prefix, so the specific line is classified first (fail closed = must move). */
+const READ_ERROR_LINES: RegExp[] = [/^Installer business: Couldn't read/, /couldn'?t (read|check)/i, /couldn'?t be (read|checked|completed)/i, /could not be (read|checked|completed)/i];
+/** G6 S4/S5: is this GO-check line a read / check failure (a database or reader error, not a fact about the job)? */
+export const isReadErrorLine = (line: string): boolean => READ_ERROR_LINES.some((r) => r.test(line));
+export function classifyPrestartFailure(line: string, i: { start: string; now: Date }): PrestartFailureClass {
+  if (isReadErrorLine(line)) return "must_move";
+  if (FIXABLE_ALWAYS.some((r) => r.test(line))) return "fixable";
+  if (FIXABLE_WHILE_24H_LEFT.some((r) => r.test(line))) return i.now.getTime() <= Date.parse(i.start) - LEAD_MS ? "fixable" : "must_move";
+  return "must_move";
+}
+export const classifyPrestartFailures = (lines: readonly string[], i: { start: string; now: Date }): PrestartFailure[] => lines.map((line) => ({ line, cls: classifyPrestartFailure(line, i) }));
 
 /** Office Needs me (decision 395): per job, the latest pre-start check when it FAILED for a currently confirmed install
  *  start — the same rule as prestartNeeds (latest check, same start). The office sees what is missing the day before. */

@@ -50,7 +50,8 @@ export function mittiFormSource(kind: string): MittiFormSource {
   return "assessments";
 }
 
-export type DayJob = { jobId: string; bookingId: string; start: string; end: string | null; street: string | null; suburb: string | null; link: string | null; status: string; /** Booking kind (installation / ready_check …); undefined on older snapshots. */ kind?: string };
+export type DayJob = { jobId: string; bookingId: string; start: string; end: string | null; street: string | null; suburb: string | null; link: string | null; status: string; /** Booking kind (installation / ready_check …); undefined on older snapshots. */ kind?: string;
+  /** Jo 2 Nov 2026 23:08 (Part 7 Task 7b): the recipient's OWN safety plan sign link for this install (they have not signed it yet). */ signLink?: string | null };
 export type Trade = { businessId: string; approved: boolean; linked: boolean; mittiInvited: boolean; phone: string | null };
 
 /** Why a trade gets no text (null = send). Shown to the office. */

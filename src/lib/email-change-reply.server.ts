@@ -8,14 +8,17 @@
 //   EMAIL_CHANGE_REPLY_APPROVED. Never Outlook send/sendMail/reply (decision 244); never a draft — this reply is sent.
 // - Records: ONE `email_change_replied` per job + message written BEFORE the send (the claim); a reply that could not go
 //   adds `email_change_reply_held`, and the caller then raises the decision-245 office row as before.
+// - Decisions 54–58 item 3: the reply names the visit's trade and its business OFFICE phone (`businessContactForJob`,
+//   electrician for the safety check, else the installer), read before the claim; none on file → `email_change_reply_held`
+//   and the office row, nothing sent — never a blank or a worker's mobile.
 // Nothing here changes a booking, a stage or the job: the owner does that on My job, and those flows tell the trade.
 // Best-effort: never throws to the copier (the caller treats any failure as "raise the office row").
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { MailMessage } from "./outlook-correspondence.core";
 import {
   EMAIL_CHANGE_REPLIED_EVENT, EMAIL_CHANGE_REPLY_APPROVED, EMAIL_CHANGE_REPLY_HELD_EVENT, EMAIL_CHANGE_REPLY_PURPOSE, EMAIL_CHANGE_REPLY_TEMPLATE,
-  CHANGE_VISIT, changeReplyFirstName, changeReplyKey, changeReplyMode, changeVisitLink, planChangeReply, renderChangeReplyEmail, visitGroupForStage,
-  type VisitAvailability,
+  CHANGE_VISIT, changeReplyBusiness, changeReplyFirstName, changeReplyKey, changeReplyMode, changeReplyRole, planChangeReply, renderChangeReplyEmail,
+  visitGroupForStage, type VisitAvailability,
 } from "./email-change-reply.core";
 
 export type ChangeReplyOutcome = { sent: boolean; keepOfficeRow: boolean; status: "sent" | "already" | "held" | "office"; detail: string };
@@ -80,12 +83,20 @@ export async function replyToChangeRequest(p: { jobIds: string[]; message: MailM
     if (mode.mode === "held") return office(mode.reason); // nothing claimed: the office row is raised as before
 
     const key = changeReplyKey(jobId, m.providerMessageId);
-    const facts = { firstName: changeReplyFirstName(owner?.full_name, m.fromName), visit: plan.visit, link: changeVisitLink(link!, plan.visit), cancelNote: plan.cancelNote };
     const base = { message_id: m.providerMessageId, internet_message_id: m.internetMessageId, thread_id: m.threadId, intent: p.intent, visit: plan.visit, screen: CHANGE_VISIT[plan.visit].screen,
       cancel_note: plan.cancelNote !== "", keep_office_row: plan.keepOfficeRow, template: EMAIL_CHANGE_REPLY_TEMPLATE, key, mode: mode.mode, decision: 337 };
     const { logEvent } = await import("./workflow.server");
+    // Decisions 54–58: the trade's business office phone, before the claim. Missing → held (office row), nothing sent.
+    const { businessContactForJob } = await import("./owner-contact.server");
+    const who = changeReplyBusiness(await businessContactForJob(jobId, changeReplyRole(plan.visit)));
+    if (!who) {
+      const why = `no ${changeReplyRole(plan.visit)} office phone on file`;
+      await logEvent(jobId, null, EMAIL_CHANGE_REPLY_HELD_EVENT, `Automatic reply to the owner's change email not sent — ${why}`, { ...base, status: why }, { internal: true });
+      return office(why);
+    }
+    const facts = { firstName: changeReplyFirstName(owner?.full_name, m.fromName), visit: plan.visit, business: who.business, officePhone: who.officePhone };
     // The claim: one per job + message, written before anything is sent.
-    await logEvent(jobId, null, EMAIL_CHANGE_REPLIED_EVENT, `Owner emailed to ${p.intent === "cancel" ? "cancel" : "change the day"} — automatic reply with their My job link (${CHANGE_VISIT[plan.visit].visit}) prepared`, base, { internal: true });
+    await logEvent(jobId, null, EMAIL_CHANGE_REPLIED_EVENT, `Owner emailed to ${p.intent === "cancel" ? "cancel" : "change the day"} — automatic reply with the ${changeReplyRole(plan.visit)}'s office phone (${CHANGE_VISIT[plan.visit].visit}) prepared`, base, { internal: true });
     const to = owner!.email!.trim();
     let status: string;
     if (mode.mode === "test_send") {

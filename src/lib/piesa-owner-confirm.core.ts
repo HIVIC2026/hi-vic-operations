@@ -1,6 +1,7 @@
 // Decision 296 (Jo, 25 Oct 2026: "the owner might not be there"): the owner confirms the PIESA by SECURE LINK, not on the
-// electrician's A3 Mitti form. After the electrician completes the PIESA the owner is asked by email (O71) + text, reminded
-// on days 1 and 3, and the office is alerted on day 5; the official PIESA owner block (Section 4 / "O": o.tick1–4, o.name,
+// electrician's A3 Mitti form. After the electrician completes the PIESA the owner is asked on the confirm-and-pay page
+// ("You're clear to install" / "upgrades needed" emails, Part 4; the separate O71 email + `piesa_owner_confirm` text were
+// retired 2 Nov 2026, Task 14) and the office is alerted on day 5; the official PIESA owner block (Section 4 / "O": o.tick1–4, o.name,
 // o.date) is filled from that record and NEVER from the Mitti form any more; the install day cannot be booked until the
 // current PIESA is confirmed. A re-done PIESA (a new `initial` or `reassessment` PIESA record — the same kinds that anchor
 // the 30-day window) needs a new confirmation.
@@ -16,11 +17,10 @@ export const PIESA_OWNER_CONFIRM_STEP_EVENT = "piesa_owner_confirm_reminder";
 /** Day-5 office alert (Needs me row `piesa_owner_unsigned`). */
 export const PIESA_OWNER_CONFIRM_OFFICE_ALERT_EVENT = "piesa_owner_unconfirmed_5_days";
 export const PIESA_OWNER_CONFIRM_SMS_TYPE = "piesa_owner_confirm" as const;
-/** O71 email wording is a DRAFT (docs/templates/mjml/owner_O71.mjml) until Jo approves it. Real owners get
- *  nothing while false; TEST jobs use test-send. The text has the same status in sms.core (`wordingApproved: false`). */
-/** Decision 311 (Jo 25 Oct 2026): O71 approved as drafted (no code, 30-day line). Delivery still behind customer_comms_enabled. */
-export const PIESA_OWNER_CONFIRM_EMAIL_APPROVED = true as boolean;
-export const PIESA_OWNER_CONFIRM_SMS_APPROVED = true as boolean; // decision 311
+/** Retired 2 Nov 2026 (Part 4 Task 14): the O71 email and `piesa_owner_confirm` text no longer exist; the owner is asked on the
+ *  confirm-and-pay page. These flags stay false so nothing old can send. */
+export const PIESA_OWNER_CONFIRM_EMAIL_APPROVED = false as boolean;
+export const PIESA_OWNER_CONFIRM_SMS_APPROVED = false as boolean;
 export const O71_TEMPLATE_CODE = "O71";
 
 /** The official warning, as a plain sentence (official PIESA owner tick 1 says the same in form language). */
@@ -164,13 +164,5 @@ export function nextPiesaConfirmStep(x: { completedAt: string | null; confirmedA
 /** Keys name the PIESA record: a re-done PIESA gets its own request + reminders. */
 export const piesaConfirmKey = (jobId: string, piesaRecordId: string, step: PiesaConfirmStep) => `piesa-owner-confirm:v1:${jobId}:${piesaRecordId}:${step}`;
 export const piesaConfirmPurpose = (step: PiesaConfirmStep) => `piesa_owner_confirm_${step}`;
+// (The O71 request / reminder text wordings were retired 2 Nov 2026 with the `piesa_owner_confirm` text type.)
 
-// ---------- wording (DRAFT until Jo approves; the brand prefix is added by the sender) ----------
-export function piesaOwnerConfirmRequestText(link: string): string {
-  return `Your electrical safety check is done. Please confirm it so we can book your install (takes a minute): ${link} Reply STOP to opt out.`;
-}
-export function piesaOwnerConfirmReminderText(link: string): string {
-  return `Your install can't be booked until you confirm your electrical safety check. It takes a minute: ${link} Reply STOP to opt out.`;
-}
-
-/** O71 email renderer: piesa-owner-confirm-email.core.ts (kept apart so client screens never bundle the email kit). */

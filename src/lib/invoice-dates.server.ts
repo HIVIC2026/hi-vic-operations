@@ -17,7 +17,7 @@ async function patchInvoice(id: string, patch: Partial<InvoiceRow>) {
   if (error) throw new Error(error.message);
 }
 
-export async function setInstallDueDate(jobId: string, startIso: string, actorId: string) {
+export async function setInstallDueDate(jobId: string, startIso: string, actorId: string | null) {
   // Q21: booking does not start the balance clock. Keep this entry point for existing booking callers.
   const {data:job,error}=await admin.from('jobs').select('installation_completed_at').eq('id',jobId).maybeSingle();
   if(error)throw Error('Could not read installation completion.');
@@ -32,6 +32,6 @@ export async function setCompletedBalanceDueDate(jobId:string,completedAt:string
   const patch = installDueDatePatch(inv, due);
   if (!patch) return;
   await patchInvoice(inv.id, patch);
-  await logEvent(jobId, actorId, "balance_due_set", `Remaining balance due 7 days after recorded install completion (${due})${patch.xero_update_pending ? " – Xero due date update pending" : ""}`, { invoice_id: inv.id });
+  await logEvent(jobId, actorId, "balance_due_set", `Balance due on install day; overdue after 7 days (${due})${patch.xero_update_pending ? " – Xero due date update pending" : ""}`, { invoice_id: inv.id });
 }
 

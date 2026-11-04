@@ -33,7 +33,9 @@ export function usualElectrician(value: unknown): UsualElectrician | null {
   return { name, licence, ...(priceIncGst != null ? { priceIncGst: Math.round(priceIncGst * 100) / 100 } : {}), ...(email ? { email } : {}), ...(phone ? { phone } : {}) };
 }
 
-export type MittiElectricianSource = "hivic" | "installer_profile" | "mitti_form" | "approved_rec";
+/** `team_worker` (join ruling, 4 Nov 2026): the verified electrician on the installer's own Team picked at Add a job —
+ *  the installer's own electrician; the owner's line is the installer's PIESA rate (`withOwnerSafetyCheckPrice`). */
+export type MittiElectricianSource = "hivic" | "installer_profile" | "mitti_form" | "approved_rec" | "team_worker";
 /** The one electrician record the quote pipeline snapshots per quote (`mitti_quote_electrician_snapshot`). Decision 303 adds
  *  `approved_rec` (price = that REC's onboarded PIESA rate, `recBusinessId`/`rateId` set) and `notOnboarded` (held). */
 export type MittiElectricianResolution = {
@@ -41,6 +43,8 @@ export type MittiElectricianResolution = {
   source: MittiElectricianSource; reasons: string[]; needsProfile: boolean;
   recBusinessId?: string | null; rateId?: string | null;
   notOnboarded?: { name: string; licence: string | null; email: string | null } | null;
+  /** `team_worker`: the installer's Team electrician (partner_workers id) this resolution names. */
+  workerId?: string | null;
 };
 
 /** Legacy declared-price resolution (kept so records saved before 25 Oct 2026 still read); the live pipeline wraps it with
@@ -60,6 +64,5 @@ export function resolveMittiElectrician(input: {
   return { ready: !!saved, choice: input.choice, priceIncGst: saved?.priceIncGst ?? null, name: saved?.name ?? null, licence: saved?.licence ?? null,
     source: input.choice === "usual" ? "installer_profile" : "mitti_form", reasons: saved ? [] : [reason], needsProfile: input.choice === "usual" && !saved };
 }
-/** Approved by Jo 24 Oct 2026 (decision 83; kept unchanged by decision 113). The brand prefix is added by brandSmsBody. */
-export const usualElectricianReminderBody = (jobNumber: string, url: string) =>
-  `To send the quote for ${jobNumber}, we need your usual electrician: name, licence number and price (inc GST). Add them once in My business: ${url}`;
+// Part 7 Task 8 (Jo 2 Nov 2026): the "we need your usual electrician" text (decision 83/113) is retired — decisions 374/303
+// choose the electrician, so nothing reminds the installer to add one. The `usual_electrician_missing` text type stays for history.

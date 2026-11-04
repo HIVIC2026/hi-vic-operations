@@ -47,7 +47,7 @@ describe("pre-start lock (server gate for safety form + install evidence)", () =
     seed(10, { passed: false, failures: ["ESC notification not submitted."] });
     await expect(realPrestart.requirePrestartClear(J)).rejects.toThrow("Not cleared to start: ESC notification not submitted.");
   });
-  test("no check yet after 12pm the day before locks", async () => {
+  test("no check yet after 2pm the day before locks", async () => {
     const start = seed(2, null);
     expect(Date.now()).toBeGreaterThanOrEqual(Date.parse(prestartRunAt(start)));
     await expect(realPrestart.requirePrestartClear(J)).rejects.toThrow("has not run yet");

@@ -6,6 +6,7 @@
 // failures the office must pick up. Persistence lives in esc-registry-robot.server.ts; the browser work in
 // esc-registry-robot.browser.ts + scripts/esc-registry-robot.ts (a separately run script – the deployed worker
 // cannot run a browser).
+import { veecCreationBlockers } from "./veec-creation-gate.core";
 import { EARLIEST_MS, LEAD_MS, REGISTRY_UPDATABLE_KEYS, registryChange, type RegistryChange } from "./esc.core";
 
 /** workflow_settings column (pending migration docs/pending-migrations/esc-registry-robot-switch.sql; default false). */
@@ -75,9 +76,10 @@ export function taskMode(mode: RobotMode, task: RobotTask, verified: Record<Robo
 /** Why a task is downgraded, for logs. */
 export const taskNotVerifiedReason = (task: RobotTask) => `${TASK_LABEL[task]} form not yet checked on the real Registry – fill and screenshot only`;
 
-/** TEST (qa_test) jobs never touch the real Registry: live is downgraded to dry-run for them. */
-export function jobMode(mode: RobotMode, jobSource: string | null | undefined): RobotMode {
-  if (mode === "off") return "off";
+/** TEST (qa_test) jobs never touch the real Registry: live is downgraded to dry-run for them. Part 9 Task 14: a job
+ *  marked "no ESC" (real run, no-esc.core) is off outright — not even a dry run. */
+export function jobMode(mode: RobotMode, jobSource: string | null | undefined, noEsc?: boolean): RobotMode {
+  if (mode === "off" || noEsc === true) return "off";
   return jobSource === "qa_test" ? "dry_run" : mode;
 }
 
@@ -164,6 +166,13 @@ export type VeecCandidate = {
   /** VEEC quantity from the accepted installation quote (quotes.veec_count). */
   quantity: number | null;
   robotEvents: RobotEvent[];
+  /** Part 9 Task 11 (veec-creation-gate.core): product-on-register lines for the install day AND today (the creation day);
+   *  undefined = not read → skip for the office (fails closed). */
+  productProblems?: string[];
+  /** Part 9 Task 11: cents received on the installation invoice; null/undefined = unknown → skip (fails closed). */
+  installPaidCents?: number | null;
+  /** Part 9 Task 14: the job is marked "no ESC" (real run) — never created. undefined = not read (older callers). */
+  noEsc?: boolean;
 };
 
 /** VEEC creation is due only after EVERY gate the office path enforces: the job reached Ready for VEEC (a real AP gave
@@ -176,6 +185,9 @@ export function planVeecCreation(c: VeecCandidate): RobotPlan {
   if (c.assignment.status !== "effective_complete") return { action: "skip", reason: `VEEC assignment is ${c.assignment.status.replace(/_/g, " ")}` };
   if (!c.assignment.installerSignedAt || !c.assignment.apSignedAt || !c.assignment.consumerSignedAt) return { action: "skip", reason: "VEEC assignment not signed by installer, AP and owner" };
   if (c.quantity == null || !Number.isFinite(c.quantity) || c.quantity <= 0) return { action: "skip", reason: "VEEC quantity unknown (no veec_count on the accepted quote)", office: true };
+  // Part 9 Task 11: product on the Register on the creation day + $200 co-payment received (one rule with the office path).
+  const gate = veecCreationBlockers({ productProblems: c.productProblems ?? ["Product check not read — VEECs can't be created yet."], installPaidCents: c.installPaidCents ?? null, noEsc: c.noEsc });
+  if (gate.length) return { action: "skip", reason: gate.join(" "), office: true };
   const h = robotHistory(c.robotEvents, "veec_creation", null);
   if (h.failed) return { action: "skip", reason: "the robot already failed on this VEEC creation – the office lodges it by hand", office: true };
   if (h.unfinishedAttempt) return { action: "skip", reason: `a live attempt at ${melb(h.unfinishedAttempt.created_at)} did not finish – check the Registry before anything is resubmitted`, office: true };

@@ -10,40 +10,42 @@ import { supabase } from "@/integrations/supabase/client";
 import { currentUser } from "@/lib/route-guards";
 import { useAccess } from "@/hooks/use-me";
 
-export function TradeShell({ children, installer, boss: bossProp, test = false, redesign = false }: { children: React.ReactNode; installer: boolean; boss?: boolean | undefined; test?: boolean; redesign?: boolean }) {
+export function TradeShell({ children, installer, boss: bossProp, money: moneyProp, test = false, redesign = false }: { children: React.ReactNode; installer: boolean; boss?: boolean | undefined; money?: boolean | undefined; test?: boolean; redesign?: boolean }) {
   // Owner-only tabs (Add a job, Money, My business) stay hidden until the person is known to be the business owner.
   const { data: access } = useAccess();
   const boss = bossProp ?? (!!access?.businessAdmin || !!access?.admin);
+  // Money tab: the boss always; an Office person only when the boss turned "Can see Money" on (getTradeHome sends `money`).
+  const money = moneyProp ?? boss;
   return (
     <div className={`estimate-brand portal-theme min-h-screen text-ink ${redesign ? "installer-redesign bg-paper" : "bg-canvas"}`}>
       <header className="border-b border-line bg-paper">
         <div className="mx-auto flex max-w-[1180px] items-center gap-[26px] px-5 py-3 md:px-[26px] md:py-[18px]">
           <img src={logo.url} alt="Home Insulation Victoria" className="h-auto w-24 shrink-0 md:w-28" />
-          <TradeTopNav installer={installer} boss={boss} />
+          <TradeTopNav installer={installer} boss={boss} money={money} />
           <TradeAvatar />
         </div>
       </header>
       {test && <p className="mx-auto max-w-[1180px] px-5 pt-3 md:px-[26px]"><span className="inline-flex rounded-[18px] bg-pink px-[9px] py-[5px] text-[11px] font-semibold text-rose">TEST account — practice jobs only</span></p>}
       <main className={`trade-forms mx-auto max-w-[1180px] px-5 pb-28 pt-5 md:px-[26px] md:pb-[30px] md:pt-7 ${redesign ? "space-y-[22px]" : "space-y-[19px]"}`}>{children}</main>
-      <TradeTabBar installer={installer} boss={boss} />
+      <TradeTabBar installer={installer} boss={boss} money={money} />
     </div>
   );
 }
 
-/** Trade menu items: My work · Add a job (installer boss) · Money · My business. Staff see only My work. */
-function useTradeItems(installer: boolean, boss: boolean) {
+/** Trade menu items: My work · Add a job (installer boss) · Money (boss, or Office with Can see Money) · My business (boss). */
+function useTradeItems(installer: boolean, boss: boolean, money: boolean) {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const work = path === "/field" || path.startsWith("/field/offer") || path.startsWith("/field/day") || /^\/field\/[0-9a-f-]{36}/.test(path);
   return [
     { to: "/field", label: "My work", on: work, show: true },
     { to: "/partner/import", label: "Add a job", on: path.startsWith("/partner/import"), show: installer && boss },
-    { to: "/field/money", label: "Money", on: path.startsWith("/field/money"), show: boss },
+    { to: "/field/money", label: "Money", on: path.startsWith("/field/money"), show: money },
     { to: "/field/business", label: "My business", on: path.startsWith("/field/business"), show: boss },
   ].filter((i) => i.show);
 }
 
-function TradeTopNav({ installer, boss }: { installer: boolean; boss: boolean }) {
-  const items = useTradeItems(installer, boss);
+function TradeTopNav({ installer, boss, money }: { installer: boolean; boss: boolean; money: boolean }) {
+  const items = useTradeItems(installer, boss, money);
   return (
     <nav aria-label="Trade menu (desktop)" className="hidden min-w-0 flex-wrap items-center gap-[3px] md:flex">
       {items.map((i) => <Link key={i.to} to={i.to as never} aria-current={i.on ? "page" : undefined} className={`whitespace-nowrap rounded-[24px] px-3 py-[9px] text-sm font-semibold ${i.on ? "bg-ink text-paper" : "text-ink hover:bg-mist"}`}>{i.label}</Link>)}
@@ -72,8 +74,8 @@ function TradeAvatar() {
 }
 
 /** Bottom tabs (mock-up): text only, 13px, active blue bold, 44px tap targets. */
-function TradeTabBar({ installer, boss }: { installer: boolean; boss: boolean }) {
-  const items = useTradeItems(installer, boss);
+function TradeTabBar({ installer, boss, money }: { installer: boolean; boss: boolean; money: boolean }) {
+  const items = useTradeItems(installer, boss, money);
   return (
     <nav aria-label="Trade menu" className="estimate-brand fixed inset-x-0 bottom-0 z-40 border-t border-line bg-paper pb-[max(22px,env(safe-area-inset-bottom))] pt-2 md:hidden">
       <div className="mx-auto grid max-w-md px-1.5" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>

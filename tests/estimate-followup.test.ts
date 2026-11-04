@@ -120,7 +120,7 @@ describe("draft emails O66 / O67 / O68 (kit design, O1 price box, Save my spot b
     expect(html).toContain("Based on what you told us: 137 m² ceiling, no existing insulation.");
     expect(html).not.toContain("Try a different ceiling size"); // guide fix 1, Jo 29 Oct 2026
     expect(html).toContain("Save my free spot");
-    expect(html).toContain(`href="${SAVE}"`);
+    expect(html).toContain(`href="${SAVE}?save=1"`);
     expect(text).toContain(`Save my free spot: ${SAVE}`);
     expect(text).toContain("Unsubscribe: https://u/x");
   };
@@ -149,7 +149,7 @@ describe("draft emails O66 / O67 / O68 (kit design, O1 price box, Save my spot b
   test("some-insulation owners get the O2 price labels; unknown names fall back to 'there'", () => {
     const m = render("day_2", { someInsulation: true, firstName: null });
     expect(m.html).toContain("Your potential rebate");
-    expect(m.html).toContain("Your cost if eligible");
+    expect(m.html).toContain("Your estimated quote based on what you've told us");
     expect(m.subject).toBe("there, your $1,610 rebate spot is still open");
   });
   test("TEST label on test renders; copy helper gives every step a subject, intro and save line", () => {

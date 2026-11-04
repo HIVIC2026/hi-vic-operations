@@ -5,7 +5,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import { type LocationVariables } from "./activity48.core";
 import { wholeVeecDiscount } from "./estimate.core";
-import { buildInstallerQuoteDraft, quotedPriceFromEntries } from "./installer-led.core";
+import { quotedPriceFromEntries } from "./installer-led.core";
 import { installerQuoteReleaseBlockers, payerFromChoice } from "./installer-intake.core";
 import { IN_HOUSE_PIESA_HOLD_REASON } from "./installer-paid-electricians.core";
 
@@ -15,10 +15,12 @@ type SigLine = { code: string | null; line_total_inc_gst: number | string | null
 export const quoteLineSignature = (lines: SigLine[], discountNote?: string | null) =>
   JSON.stringify([lines.map((l) => [l.code ?? "", Number(l.line_total_inc_gst), (l.description ?? "").trim(), Number(l.quantity ?? 0), l.unit ?? "", Number(l.unit_price_inc_gst ?? 0), (l.explanation ?? "").trim(), !!l.is_other]).map((x) => JSON.stringify(x)).sort(), (discountNote ?? "").trim()]);
 
-/** Current installer quote's electrical billing lines vs the job's CURRENT payer (any path). Null = fine / not applicable. */
+/** Current installer quote's electrical billing lines vs the job's CURRENT payer (any path). Null = fine / not applicable.
+ *  Fix wave J1 (1), ruling 4 Nov 2026: a quote the owner already has (issued) or accepted is never re-priced — a later
+ *  PIESA rate change or lapse never blocks the owner's acceptance; only drafts (send / release) are checked. */
 export async function quoteBillingBlocker(quoteId: string): Promise<string | null> {
   const { data: q } = await admin.from("quotes").select("option_code, status, job_id").eq("id", quoteId).maybeSingle();
-  if (!q || q.option_code !== INSTALLER_QUOTE_CODE || q.status === "accepted") return null;
+  if (!q || q.option_code !== INSTALLER_QUOTE_CODE || q.status === "accepted" || q.status === "issued") return null;
   const { data: j } = await admin.from("jobs").select("channel, electrician_choice, originating_installer_business_id").eq("id", q.job_id).maybeSingle();
   if (j?.channel !== "installer_sourced") return null;
   const { data: snapshot, error: se } = await admin.from("workflow_events").select("details").eq("job_id", q.job_id).eq("event_type", "mitti_quote_electrician_snapshot").contains("details", { quote_id: quoteId }).limit(1).maybeSingle();
@@ -27,7 +29,9 @@ export async function quoteBillingBlocker(quoteId: string): Promise<string | nul
     const saved = (snapshot.details as unknown as { electrician: import("./usual-electrician.core").MittiElectricianResolution }).electrician;
     const { data: last, error: le } = await admin.from("workflow_events").select("details").eq("job_id", q.job_id).eq("event_type", "mitti_electrician_recorded").order("created_at", { ascending: false }).limit(1).maybeSingle();
     const current = le ? null : last?.details as unknown as import("./usual-electrician.core").MittiElectricianResolution | null;
-    if (saved?.choice === "usual") {
+    // Join ruling (4 Nov 2026): a Team-electrician snapshot names the worker, not the My business usual electrician;
+    // `mittiQuoteElectricalBlocker` below compares that identity and price with the current resolution.
+    if (saved?.choice === "usual" && saved.source !== "team_worker") {
       if (!j.originating_installer_business_id) return "Installer has no usual electrician saved";
       const profile = await (await import("./usual-electrician.server")).readUsualElectrician(j.originating_installer_business_id).catch(() => null);
       const usual = profile?.electrician;
@@ -40,9 +44,12 @@ export async function quoteBillingBlocker(quoteId: string): Promise<string | nul
     if (ie) return "Quote electrical lines could not be checked";
     return (await import("./mitti-installer-quote.core")).mittiQuoteElectricalBlocker(lines ?? [], saved, current);
   }
-  const { data: items } = await admin.from("quote_items").select("code").eq("quote_id", quoteId);
+  const { data: items } = await admin.from("quote_items").select("code, line_total_inc_gst").eq("quote_id", quoteId);
   const { electricalLineBlocker } = await import("./installer-intake.core");
-  return electricalLineBlocker((items ?? []).map((i) => i.code), payerFromChoice(j.electrician_choice));
+  // Jo 4 Nov 2026: the PIESA line must still be the business's current PIESA rate (none set → held, never $349).
+  const rate = await (await import("./installer-paid-electricians.server")).installerSafetyCheckPrice(j.originating_installer_business_id).catch(() => undefined);
+  if (rate === undefined) return "Installer PIESA rate could not be checked";
+  return electricalLineBlocker(items ?? [], payerFromChoice(j.electrician_choice), rate);
 }
 
 export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: string | null, formEntries: { label: string; value: string | null }[], auditId: string, intakePrice?: { totalIncGst: number; includes: string; areaM2?: number; separateLines?: { code: string; description: string; amountIncGst: number }[]; exclusions?: string | null }) {
@@ -85,19 +92,32 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   // Jo 24 Oct: the installer's total INCLUDES any difficult access fee (never added twice); the fee is shown on the
   // installer line and taken out only for the per-m² price check.
   const accessFee = !intakePrice ? answers.difficultAccessFee(entries) : { amountIncGst: null, reason: null };
-  const apFee = job.ap_fee_override_inc_gst != null ? Number(job.ap_fee_override_inc_gst) : rs ? Number(rs.ap_management_inc_gst) : null;
-  const installerPiesa = intakePrice ? await (await import("./installer-paid-electricians.server")).installerSafetyCheckPrice(job.originating_installer_business_id) : mittiElectrician?.priceIncGst ?? null;
+  // Jo 4 Nov 2026 (final, supersedes Part 10's "$349 PIESA whatever the rate"): every own-customer quote carries the $349
+  // Home Insulation Victoria fee and the PIESA at the installer business's OWN rate (their rate card's PIESA line, inc GST —
+  // `installerSafetyCheckPrice`), paid through in full. The Ready Check path already carries that rate on the electrician
+  // resolution (`mittiElectricianForJob` → `withOwnerSafetyCheckPrice`); the intake-price fallback reads it here. No rate →
+  // held (`IN_HOUSE_PIESA_HOLD_REASON`), never $349. The settings' AP/PIESA amounts and `ap_fee_override_inc_gst` are not read.
+  // J3 (2): a rate READ failure is not "no rate" — the quote holds with PIESA_PRICE_CHECK_FAILED (try again in a minute),
+  // never the "not set / ask the office" hold; nothing is sent either way.
+  let piesaReadFailed = false;
+  const listPiesa = mittiElectrician ? null : await (await import("./installer-paid-electricians.server")).installerSafetyCheckPrice(job.originating_installer_business_id).catch((e: unknown) => {
+    console.error("draftInstallerQuoteFromReadyCheck: installer PIESA rate could not be read", (e as Error).message);
+    piesaReadFailed = true;
+    return null; // fail closed: the quote holds until the read works; nothing is sent
+  });
   const draftInput = {
     price: intakePrice ? { ok: true, issues: [], price: { included: [intakePrice.exclusions ? `${intakePrice.includes} (excludes: ${intakePrice.exclusions})` : intakePrice.includes], otherDescription: "", totalIncGst: Math.round(intakePrice.totalIncGst * 100) / 100, agreedWithOwner: false } } : quotedPriceFromEntries(entries, m?.removal_required ?? null), measuredM2: m2, wholeVeec,
-    // CURRENT recorded payer: HIV = standard; own electrician (billed through us, Jo 26 Oct) or undecided = held until the Ready Check gives the price.
     separateLines: intakePrice?.separateLines ?? [],
-    piesaIncGst: installerPiesa, apFeeIncGst: apFee,
     caps: {
       metropolitan: loc ? (loc as unknown as LocationVariables).metropolitan_or_regional === "Metropolitan" : null,
       minCopay: rs ? Number(rs.minimum_customer_copayment_inc_gst) : 200,
     },
   };
-  const draft = mittiElectrician ? (await import("./mitti-installer-quote.core")).buildMittiInstallerQuote(draftInput, mittiElectrician) : buildInstallerQuoteDraft(draftInput);
+  const quoteCore = await import("./mitti-installer-quote.core");
+  // Same lines on both branches (Task 2 review): the Ready Check path adds the electrician's hold reasons; the intake-price
+  // fallback (no Mitti electrician) still holds below while the electrician is undecided.
+  const draft = mittiElectrician ? quoteCore.buildMittiInstallerQuote(draftInput, mittiElectrician) : quoteCore.buildOwnCustomerQuoteDraft(draftInput, listPiesa);
+  if (piesaReadFailed) { const { PIESA_PRICE_CHECK_FAILED } = await import("./own-customer-price.core"); draft.blockers = draft.blockers.map((b) => (b === IN_HOUSE_PIESA_HOLD_REASON ? PIESA_PRICE_CHECK_FAILED : b)); draft.ready = false; }
   const payer = payerFromChoice(job.electrician_choice);
   if (!mittiElectrician && payer === "undecided") draft.blockers.unshift("Electrician not decided yet — the owner's electrician cost must be known before the quote");
   if (!mittiElectrician && payer === "undecided") draft.ready = false;
@@ -113,11 +133,12 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
     else mq.applyMittiRemoval(draft, answers.removalTotalM2(entries));
     mq.applyMittiAccessFeeIncluded(draft, accessIncluded, accessFee.amountIncGst);
   }
-  // The owner's "thicker too" option: the same builder at the boss's thicker total, same electrician/fees, its own VEU discount.
+  // The owner's "thicker too" option: the same builder at the boss's thicker total, same electrician/fees, its own rebate.
   const buildThicker = async () => {
     if (!a1Layout?.thicker || !(a1Layout.thickerTotal && a1Layout.thickerTotal > 0) || !draftInput.price.ok || !draftInput.price.price) return null;
     const input = { ...draftInput, price: { ...draftInput.price, price: { ...draftInput.price.price, totalIncGst: Math.round(a1Layout.thickerTotal * 100) / 100 } } };
-    const t = mittiElectrician ? (await import("./mitti-installer-quote.core")).buildMittiInstallerQuote(input, mittiElectrician) : buildInstallerQuoteDraft(input);
+    // Decision 431 (join): the thicker option carries the same own-customer PIESA line as the main draft (the business's own rate, never $349).
+    const t = mittiElectrician ? quoteCore.buildMittiInstallerQuote(input, mittiElectrician) : quoteCore.buildOwnCustomerQuoteDraft(input, listPiesa);
     applyA1Wording(t, a1Layout.thickerLines);
     (await import("./mitti-installer-quote.core")).applyMittiAccessFeeIncluded(t, accessIncluded, accessFee.amountIncGst);
     return t;
@@ -126,7 +147,7 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
     if (mittiProduct && !mittiProduct.ready) await (await import("./ready-check-quote.server")).recordNeedsOffice(jobId, actorId, null, mittiProduct.reasons);
     if (mittiElectrician?.needsProfile) {
       await (await import("./ready-check-quote.server")).recordNeedsOffice(jobId, actorId, null, mittiElectrician.reasons);
-      await (await import("./usual-electrician-reminder.server")).maybeRemindUsualElectrician(jobId, auditId);
+      // Part 7 Task 8 (Jo 2 Nov 2026): the "We need your usual electrician" text is retired (decisions 374/303 choose the electrician); no reminder here.
     }
     // History only on change (Jo 23 Oct): the 15-minute sync/tick re-runs this while the quote waits (decision 113);
     // the same hold for the same form is not written again.
@@ -139,9 +160,9 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
       await logEvent(jobId, actorId, "installer_quote_held", notOnboarded ? `Quote held · ${mittiElectrician!.reasons[0]}` : "Owner quote not drafted — needs office review", { audit_id: auditId, blockers: draft.blockers, ...(notOnboarded ? { electrician_not_onboarded: notOnboarded } : {}) });
     // An earlier held DRAFT (e.g. one priced from a free-text electrician) now carries the current hold reason, so the
     // Quote card and Quotes to check say why; `quoteBillingBlocker` refuses Send until a new snapshot is ready.
-    const inHousePriceHeld = mittiElectrician?.reasons.includes(IN_HOUSE_PIESA_HOLD_REASON);
-    if (notOnboarded || inHousePriceHeld) {
-      const holdNow = inHousePriceHeld ? IN_HOUSE_PIESA_HOLD_REASON : [...draft.blockers, "Waiting for office review before sending"].join(" · ");
+    const inHousePriceHeld = mittiElectrician?.reasons.includes(IN_HOUSE_PIESA_HOLD_REASON) || draft.blockers.includes(IN_HOUSE_PIESA_HOLD_REASON);
+    if (notOnboarded || inHousePriceHeld || piesaReadFailed) {
+      const holdNow = piesaReadFailed ? (await import("./own-customer-price.core")).PIESA_PRICE_CHECK_FAILED : inHousePriceHeld ? IN_HOUSE_PIESA_HOLD_REASON : [...draft.blockers, "Waiting for office review before sending"].join(" · ");
       for (const q of (open ?? []).filter((q) => q.status === "draft" && q.option_code === INSTALLER_QUOTE_CODE)) {
         const { error: holdError } = await admin.from("quotes").update({ release_state: "held", release_hold_reason: holdNow }).eq("id", q.id).eq("status", "draft");
         if (holdError) throw new Error("Quote hold reasons could not be refreshed.");
@@ -224,7 +245,7 @@ function applyA1Wording(draft: { lines: { code: string | null; description: stri
 }
 
 /** Keeps exactly one held thicker-option draft next to the main draft (same signature → untouched). Never sends. */
-async function syncThickerDraft(jobId: string, actorId: string | null, layout: A1Layout | null, t: Awaited<ReturnType<typeof buildInstallerQuoteDraft>> | null, holdReason: string, open: { id: string; status: string; option_code: string | null; subtotal_inc_gst: unknown; veec_discount_inc_gst: unknown; discount_note?: string | null }[]) {
+async function syncThickerDraft(jobId: string, actorId: string | null, layout: A1Layout | null, t: ReturnType<typeof import("./mitti-installer-quote.core").buildOwnCustomerQuoteDraft> | null, holdReason: string, open: { id: string; status: string; option_code: string | null; subtotal_inc_gst: unknown; veec_discount_inc_gst: unknown; discount_note?: string | null }[]) {
   const { A1_THICKER_CODE, rLabel } = await import("./ceiling-layout.core");
   const existing = open.filter((q) => q.status === "draft" && q.option_code === A1_THICKER_CODE);
   if (!t || !layout?.thicker) {

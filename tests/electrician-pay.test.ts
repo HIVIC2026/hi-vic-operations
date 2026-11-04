@@ -28,10 +28,12 @@ describe("electricianPayState: 7 days after the office approves the completed Mi
     expect(payState({ paidAt: null, apApprovedAt: "2026-10-01T00:00:00Z", installerSupplied: false })).toEqual({ kind: "coming", on: "2026-10-08T00:00:00.000Z" });
     expect(payState({ paidAt: null, apApprovedAt: "2026-10-01T00:00:00Z", installerSupplied: true, ownerPaidInFullAt: null })).toEqual({ kind: "checking" });
   });
-  test("the electrician Money page says the rule, and never that pay waits for the owner", () => {
+  test("the electrician pay rule line never says pay waits for the owner; Money is installer-only since Part 6 (electricians never log in)", () => {
     expect(ELECTRICIAN_PAY_RULE_LINE).toBe("Paid within 7 days of us approving your completed Mitti form");
     expect(ELECTRICIAN_PAY_RULE_LINE).not.toMatch(/owner/i);
-    expect(readFileSync("src/routes/_authenticated/field.money.tsx", "utf8")).toContain("{ELECTRICIAN_PAY_RULE_LINE}");
+    const money = readFileSync("src/routes/_authenticated/field.money.tsx", "utf8");
+    expect(money).toContain("electricians have no Money page");
+    expect(money).not.toContain("ELECTRICIAN_PAY_RULE_LINE");
   });
 });
 
@@ -81,10 +83,10 @@ describe("wiring", () => {
     for (const f of ["src/lib/trade-view.server.ts", "src/lib/office-money.server.ts", "src/lib/job-status.server.ts", "src/lib/office.functions.ts"])
       expect(readFileSync(f, "utf8")).not.toContain("ownerElectricalStepsPaidAt");
   });
-  test("trade Money held lines carry the 410 approval wait and the F19 installer wait — the same reasons the office shows", () => {
+  test("trade Money held lines carry the 410 approval wait and the F19 installer wait — the same gate the office uses (Jo 4 Nov 2026 21:20: in the installer's words)", () => {
     const tv = readFileSync("src/lib/trade-view.server.ts", "utf8");
     expect(tv).toContain("...(et?.waiting ?? [])");
-    expect(tv).toContain("installerPayHeldReasons({ installerSupplied:");
+    expect(tv).toContain("installerMoneyHeldLines({ installerSupplied:");
     expect(ELECTRICIAN_FORM_AWAITING_APPROVAL.rectification).toContain("A4");
     expect(INSTALLER_PAY_WAITING_AP).toContain("Final check");
   });

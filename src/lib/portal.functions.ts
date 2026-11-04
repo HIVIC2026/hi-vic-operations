@@ -1649,15 +1649,21 @@ async function signingInput(
   s: NonNullable<z.infer<typeof respondToQuoteSchema>["signing"]>,
 ) {
   const { fillSignerFromOwner } = await import("./assignment.core");
-  if (s.signatoryName && s.signatureName)
+  if (s.signatureName) {
+    // Typed name signs; the owner's name on file stays the signatory unless one was given.
+    const { resolveAcceptanceSigner } = await import("./acceptance-signature.core");
+    const names = resolveAcceptanceSigner(
+      { signatoryName: s.signatoryName, signatureName: s.signatureName },
+      s.signatoryName ? null : (await buildAcceptancePackage(quoteId)).consumer.name,
+    );
     return {
-      signatoryName: s.signatoryName,
-      signatureName: s.signatureName,
+      ...names,
       authorityType: s.authorityType,
       over18: s.over18 ?? false,
       readConsumerInfo: s.readConsumerInfo,
       acceptAgreement: s.acceptAgreement,
     };
+  }
   const pkg = await buildAcceptancePackage(quoteId);
   return fillSignerFromOwner(
     {
@@ -2803,6 +2809,8 @@ export const updateVeec = createServerFn({ method: "POST" })
       !["ready_for_veec", "complete"].includes(await getStage(jobId))
     )
       throw new WorkflowError("VEEC can only be lodged once the job is Ready for VEEC.");
+    // Part 9 Task 14: a job marked "no ESC" (real run) never has certificates recorded as created (read failure refuses).
+    if (["submitted", "approved"].includes(data.status)) await (await import("./no-esc.server")).assertNotNoEsc(jobId);
     const { data: prev } = await admin
       .from("veec_lodgements")
       .select(
@@ -2817,6 +2825,17 @@ export const updateVeec = createServerFn({ method: "POST" })
       (await import("./veec.core")).melbourneToday(),
     );
     if (blockers.length) throw new WorkflowError(blockers.join(" "));
+    // Part 9 Task 11: the same two creation checks the Registry robot runs (veec-creation-gate.core) — the product on the
+    // Register today and the $200 co-payment received — before a lodgement is recorded as submitted / approved.
+    if (["submitted", "approved"].includes(data.status) && prev?.status !== data.status) {
+      const [{ veecCreationBlockers }, { jobProductProblems }, { jobPaymentView }] = await Promise.all([import("./veec-creation-gate.core"), import("./install-evidence.server"), import("./payments.server")]);
+      const [productProblems, installPaidCents] = await Promise.all([
+        jobProductProblems(jobId).catch((e: unknown) => [`Product check failed: ${e instanceof Error ? e.message : String(e)}`]),
+        jobPaymentView(jobId).then((v) => (v ? v.paid.install : null)).catch(() => null),
+      ]);
+      const gate = veecCreationBlockers({ productProblems, installPaidCents, noEsc: false }); // marked jobs were refused above
+      if (gate.length) throw new WorkflowError(gate.join(" "));
+    }
     await admin
       .from("veec_lodgements")
       .update({ ...patch, updated_at: new Date().toISOString() })

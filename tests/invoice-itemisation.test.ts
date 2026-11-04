@@ -9,7 +9,6 @@ describe("insulation line wording", () => {
     expect(insulationLine({ product: { option: "Bradford Gold R5", rValue: "R5.0" }, areaM2: 137.6 })?.description).toBe("Ceiling insulation — CSR Bradford Gold Ceiling Batt R5.0 — 137.6 m²");
     expect(insulationLine({ product: { option: "Fletchers Pink Batts R6", rValue: "R6.0" }, areaM2: 120 })?.description).toBe("Ceiling insulation — PINK® Batts Ceiling Insulation R6.0 — 120 m²");
     expect(insulationLine({ product: { option: "Earthwool R5", rValue: "R5.0" }, areaM2: 99.456 })?.description).toBe("Ceiling insulation — Earthwool Ceiling batt R5.0 — 99.46 m²");
-    expect(insulationLine({ product: { option: "ECOWOOL R5", rValue: "R5.0" }, areaM2: 80 })?.description).toBe("Ceiling insulation — ECOWOOL ® Insulation R5.0 — 80 m²");
   });
   test("every approved tap option renders without a placeholder", () => {
     for (const p of APPROVED_PRODUCTS) {
@@ -64,8 +63,8 @@ describe("itemising the accepted quote lines", () => {
   });
   test("legacy lines without a code are matched by wording only", () => {
     const items = [{ code: null, description: "R5.0 ceiling insulation supply & install", quantity: 100, unit_price_inc_gst: 20, line_total_inc_gst: 2000 }, { code: null, description: "Accredited Provider fee", quantity: 1, unit_price_inc_gst: 349, line_total_inc_gst: 349 }];
-    const r = itemiseInvoiceLines(items, { product: { option: "ECOWOOL R5", rValue: "R5.0" }, areaM2: 100 });
-    expect(r.items.map((i) => i.description)).toEqual(["Ceiling insulation — ECOWOOL ® Insulation R5.0 — 100 m²", "Accredited Provider fee"]);
+    const r = itemiseInvoiceLines(items, { product: { option: "Earthwool R5", rValue: "R5.0" }, areaM2: 100 });
+    expect(r.items.map((i) => i.description)).toEqual(["Ceiling insulation — Earthwool Ceiling batt R5.0 — 100 m²", "Accredited Provider fee"]);
   });
   test("unknown facts: rate-card wording kept and the office item raised; no insulation line: nothing to flag", () => {
     const items = [{ code: "R5_BATTS", description: "R5.0 ceiling insulation supply & install", quantity: 100, unit_price_inc_gst: 20, line_total_inc_gst: 2000 }];

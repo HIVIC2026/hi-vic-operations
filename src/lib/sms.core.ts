@@ -9,6 +9,9 @@ import { melbourneHour, smsQuietReason } from "./quote-hold.core";
  */
 export const SMS_MESSAGE_TYPES = {
   in_house_booked_owner: { audience:'owner',label:'In-house visit booking confirmation (Jo 1 Nov Task 7)',wordingApproved:true,quietHours:true },
+  // DRAFT (Part 4 Task 10): held by AFTER_INSTALL_REMINDERS_APPROVED; flip both together when Jo approves the wording.
+  after_install_reminder: { audience: 'owner', label: 'After-install reminder: what is still undone, days 1/3/7 (Jo 2 Nov, touchpoint 53; wording is a draft behind AFTER_INSTALL_REMINDERS_APPROVED)', wordingApproved: false, quietHours: true },
+  upgrades_needed: { audience: 'owner', label: 'Your safety check found electrical upgrades needed (Jo 2 Nov, touchpoint 42)', wordingApproved: true, quietHours: true },
   // Part 2 (Jo 3 Nov 2026): an installer's own job — the electrician's no-login link to call the owner and book the safety check. HELD until Jo approves.
   own_job_piesa_link: { audience: "partner", label: "Own job: electrician's link to book the safety check (Part 2)", wordingApproved: true, quietHours: true },
   // Part 3 Task 3 (Jo 3 Nov 2026): the electrician's link to add the Certificate of Electrical Safety later (certificate-later.core certificateAddLinkText). HELD until Jo approves.
@@ -31,10 +34,11 @@ export const SMS_MESSAGE_TYPES = {
   owner_code: { audience: "owner", label: "Owner 6-digit sign-in / signing code", wordingApproved: true, quietHours: false },
   quote_ready: { audience: "owner", label: "Installation quote ready for the owner", wordingApproved: true /* decision 87 (Jo 24 Oct 2026), text B: ownerQuoteSms in owner-quote-email.core.ts */, quietHours: true },
   veec_sign_request: { audience: "owner", label: "Sign your rebate (VEEC assignment) form – install done (decision 120; wording approved 24 Oct, decision 166)", wordingApproved: true, quietHours: true },
-  veec_sign_reminder: { audience: "owner", label: "Rebate form still needs your signature – days 1/3/7 (decision 120; wording approved 24 Oct, decision 168)", wordingApproved: true, quietHours: true },
-  usual_electrician_missing: { audience: "partner", label: "Add usual electrician details", wordingApproved: true /* decision 83 (Jo 24 Oct 2026), kept by decision 113: usualElectricianReminderBody */, quietHours: true },
+  veec_sign_reminder: { audience: "owner", label: "Retired 2 Nov 2026 — Rebate form still needs your signature – days 1/3/7 (decision 120; wording approved 24 Oct, decision 168)", wordingApproved: false, quietHours: true },
+  usual_electrician_missing: { audience: "partner", label: "Retired 2 Nov 2026 — Add usual electrician details (decision 83/113; replaced by decisions 374/303: we choose the electrician). History labels only, never sent", wordingApproved: false, quietHours: true },
+  // Decision #27: with READY_CHECK_CHASE_EMAIL_APPROVED on, this chase is an office email and no new text is sent (type kept for history).
   ready_check_incomplete: { audience: "partner", label: "Ready Check form missing answers/photos", wordingApproved: true /* Jo 22 Oct 22:57 */, quietHours: true },
-  job_offer: { audience: "partner", label: "New job offer to a trade", wordingApproved: true /* decision 76 wording; switched on by decision 154 (Jo 24 Oct) */, quietHours: true /* decision 361: after 8pm → texted at 7am by sweepJobOfferTexts */ },
+  job_offer: { audience: "partner", label: "Retired 2 Nov 2026 — New Ready Check job offer to an installer (decisions 76/154/361; Part 7 Task 9: installers call and book, no offers). History labels only, never sent", wordingApproved: false, quietHours: true },
   daily_mitti: { audience: "partner", label: "Daily Mitti links (6:30am)", wordingApproved: true, quietHours: false },
   daily_mitti_update: { audience: "partner", label: "Daily Mitti links update (job added/moved/cancelled)", wordingApproved: true, quietHours: false },
   // Decision 130: each installer person's secure link to the ESC privacy collection notice (+ 3/7-day reminders). Wording: decision 146; on since decision 154 (Jo 24 Oct).
@@ -44,11 +48,11 @@ export const SMS_MESSAGE_TYPES = {
   install_window_reminder_installer: { audience: "partner", label: "30-day install window reminder (20/10 days left) to the installer", wordingApproved: true, quietHours: true },
   deposit_release: { audience: "owner", label: "Install day released – deposit not received within 48h (decision 170, deposit-release-notice.core.ts)", wordingApproved: true, quietHours: true },
   install_no_access: { audience: "owner", label: "We couldn't get in today – install day no access (decision 215, install-no-access-notice.core.ts). approved by Jo 24 Oct 2026 (decision 217)", wordingApproved: true, quietHours: true },
-  install_clearance: { audience: "partner", label: "Installer told the job is cleared for install – offer 3 install days (decision 186, install-clearance.core.ts)", wordingApproved: true, quietHours: true },
-  // Decisions 79 / 82 / 99 (Jo 24 Oct 2026; built per decision 193): wording verbatim in installer-texts.core.ts.
-  ready_check_days_suggested: { audience: "partner", label: "Owner suggested other Ready Check days – installer to pick one and set a time (decision 79)", wordingApproved: true, quietHours: true },
-  ready_check_booked_installer: { audience: "partner", label: "Ready Check booked – owner details on the job (decision 82, installer text A)", wordingApproved: true, quietHours: true },
-  install_tomorrow: { audience: "partner", label: "Install tomorrow – job + forms link, the afternoon before (decision 99)", wordingApproved: true, quietHours: true },
+  install_clearance: { audience: "partner", label: "Retired 2 Nov 2026 — Installer told the job is cleared for install – offer 3 install days (decision 186, install-clearance.core.ts)", wordingApproved: false, quietHours: true },
+  // Decisions 79 / 82 (Jo 24 Oct 2026) were retired by Part 7 Task 9 (Jo 2 Nov 2026): the installer calls the owner and books.
+  ready_check_days_suggested: { audience: "partner", label: "Retired 2 Nov 2026 — Owner suggested other Ready Check days – installer to pick one and set a time (decision 79). History labels only, never sent", wordingApproved: false, quietHours: true },
+  ready_check_booked_installer: { audience: "partner", label: "Retired 2 Nov 2026 — Ready Check booked – owner details on the job (decision 82, installer text A). History labels only, never sent", wordingApproved: false, quietHours: true },
+  install_tomorrow: { audience: "partner", label: "Install tomorrow – to the Lead Installer's own mobile with the safety plan (own sign link) + Mitti install form links, the afternoon before (#47, Jo 2 Nov 2026; replaces decision 99's job + forms link)", wordingApproved: true, quietHours: true },
   // Decision 251: a business owner adds a team member → text that person their single-use /join login link. Wording
   // approved by Jo 24 Oct 2026 (decision 252, relayed by the coordinator): teamMemberInviteText in installer-texts.core.ts.
   team_member_invite: { audience: "partner", label: "Team member added – single-use login link to the new person (decision 251)", wordingApproved: true, quietHours: true },
@@ -57,13 +61,13 @@ export const SMS_MESSAGE_TYPES = {
   boss_price_link: { audience: "partner", label: "Ready Check done – business owner's link to enter the price (decision 288)", wordingApproved: true, quietHours: true },
   // Decision 296 (Jo 25 Oct 2026): the owner confirms the PIESA on their secure link — request text after the electrician
   // completes, reminders days 1/3 (piesa-owner-confirm.core.ts). DRAFT wording: held until Jo approves it.
-  piesa_owner_confirm: { audience: "owner", label: "Confirm your electrical safety check – request + days 1/3 (decision 296; approved decision 311)", wordingApproved: true, quietHours: true },
+  piesa_owner_confirm: { audience: "owner", label: "Retired 2 Nov 2026 — Confirm your electrical safety check – request + days 1/3 (decision 296; approved decision 311)", wordingApproved: false, quietHours: true },
   // Decision 330 (Jo 25 Oct 2026, wording approved): the owner confirms the ELECTRICAL FIXES on their secure link — request
   // when the A4 fixes form is complete, reminders days 1/3 (piesa-fixes-confirm.core.ts).
-  piesa_owner_fixes_confirm: { audience: "owner", label: "Confirm your electrical fixes – request + days 1/3 (decision 330)", wordingApproved: true, quietHours: true },
+  piesa_owner_fixes_confirm: { audience: "owner", label: "Retired 2 Nov 2026 — Confirm your electrical fixes – request + days 1/3 (decision 330)", wordingApproved: false, quietHours: true },
   // Decision 315 (Jo 25 Oct 2026, route approved): the A3 PIESA says electrical fixes are needed and no fixes times exist →
   // the assigned electrician gets ONE text with the link to pick 3–5 times on their job page. Wording: fixesTimesLinkText (fixes-times.core.ts).
-  fixes_times_link: { audience: "partner", label: "Electrical fixes needed – electrician's link to pick 3 to 5 fixes times (decision 315)", wordingApproved: true, quietHours: true },
+  fixes_times_link: { audience: "partner", label: "Retired 2 Nov 2026 — Electrical fixes needed – electrician's link to pick 3 to 5 fixes times (decision 315)", wordingApproved: false, quietHours: true },
   // A48 batch 1 (Jo 29 Oct 2026, wording approved): the A3 safety check breaks the official PIESA rules → the electrician is
   // told once per form version (text + email). Wording: piesaRulesMessage (piesa-rules-notice.core.ts).
   piesa_rules_failed: { audience: "partner", label: "Safety check breaks the official rules – electrician asked to correct the form or book the repairs (A48 batch 1)", wordingApproved: true, quietHours: true },
@@ -82,13 +86,16 @@ export const SMS_MESSAGE_TYPES = {
   install_day_form_reminder: { audience: "partner", label: "Install day form not complete at 5pm – reminder to the lead installer (decision 328)", wordingApproved: true, quietHours: true },
   // Decision 326 (25 Oct 2026): approved wordings that had no sender. Wording verbatim in approved-texts.core.ts; each text
   // records one `approved_text_prepared` event before sending (approved-texts.server.ts). Switches start off (fail closed).
-  ready_check_times_owner: { audience: "owner", label: "Ready Check times are ready – owner picks one (decision 78)", wordingApproved: true, quietHours: true },
-  ready_check_booked_owner: { audience: "owner", label: "Ready Check booked – owner (decision 82, text B)", wordingApproved: true, quietHours: true },
+  // Part 4 Task 14 (Jo 2 Nov 2026): the "Retired 2 Nov 2026 —" types below (and veec_sign_reminder, install_clearance,
+  // piesa_owner_confirm, piesa_owner_fixes_confirm, fixes_times_link above) keep their key so history stays readable;
+  // wordingApproved:false means the real sender refuses them for good.
+  ready_check_times_owner: { audience: "owner", label: "Retired 2 Nov 2026 — Ready Check times are ready – owner picks one (decision 78)", wordingApproved: false, quietHours: true },
+  ready_check_booked_owner: { audience: "owner", label: "Retired 2 Nov 2026 — Ready Check booked – owner (decision 82, text B)", wordingApproved: false, quietHours: true },
   visit_tomorrow_owner: { audience: "owner", label: "See you tomorrow – Ready Check / safety check / install, the afternoon before (decisions 82, 93, 99)", wordingApproved: true, quietHours: true },
-  safety_check_booked_owner: { audience: "owner", label: "Electrical safety check booked – owner (decision 93, text A)", wordingApproved: true, quietHours: true },
+  safety_check_booked_owner: { audience: "owner", label: "Retired 2 Nov 2026 — Electrical safety check booked – owner (decision 93, text A)", wordingApproved: false, quietHours: true },
   quote_reminder: { audience: "owner", label: "Quote reminder – 3 days after the quote and 2 days before the price expires (decisions 88/89)", wordingApproved: true, quietHours: true },
   install_moved: { audience: "owner", label: "Your install has moved – the agreed install day changed (decision 135)", wordingApproved: true, quietHours: true },
-  piesa_offer: { audience: "partner", label: "New safety check (PIESA) job offer to an electrician (decision 93, text B)", wordingApproved: true, quietHours: true },
+  piesa_offer: { audience: "partner", label: "Retired 2 Nov 2026 — New safety check (PIESA) job offer to an electrician (decision 93, text B)", wordingApproved: false, quietHours: true },
   // Decision 331 (Jo 25 Oct 2026, route approved): an approved trade the portal has just created a Mitti user for gets ONE
   // text to look for Mitti's email and download the app. Wording: MITTI_INVITE_MESSAGE (mitti-invite.core.ts).
   mitti_invite: { audience: "partner", label: "Invited to Mitti – check Mitti's email, set a password, get the app (decision 331)", wordingApproved: true, quietHours: true },
@@ -104,12 +111,12 @@ export const SMS_MESSAGE_TYPES = {
   // The trade cancelled a booked visit → the owner (O74 text, visit-new-times.core visitNewTimesText).
   visit_new_times: { audience: "owner", label: "Trade cancelled the booked visit – choose new times / new times on the way (decisions 376/384)", wordingApproved: true, quietHours: true },
   // 24h after accepting a safety check job with no times offered → the electrician (E14 text, piesa-times-reminder.core).
-  piesa_times_reminder: { audience: "partner", label: "Safety check job accepted 24h ago, no times offered – electrician reminder (decisions 376/384)", wordingApproved: true, quietHours: true },
+  piesa_times_reminder: { audience: "partner", label: "Retired 2 Nov 2026 — Safety check job accepted 24h ago, no times offered – electrician reminder (decisions 376/384)", wordingApproved: false, quietHours: true },
   // Safety check booked → the job's installer, planning only (I71 text, installer-planning-notice.core).
-  installer_planning_notice: { audience: "partner", label: "Safety check booked – installer told the date for planning only (decisions 376/384)", wordingApproved: true, quietHours: true },
+  installer_planning_notice: { audience: "partner", label: "Retired 2 Nov 2026 — Safety check booked – installer told the date for planning only (decisions 376/384)", wordingApproved: false, quietHours: true },
   // Decision 389 (Jo 25 Oct 2026): Jo released the owner's saved spot → "It's your turn" to the OWNER (release + day-2
   // reminder; spot-release.core spotReleasedText). DRAFT until Jo sees the rendered picture (rendered O77 picture).
-  spot_released: { audience: "owner", label: "It's your turn – confirm your free Ready Check, release + day-2 reminder (decision 389, approved)", wordingApproved: true, quietHours: true },
+  spot_released: { audience: "owner", label: "It's your turn – confirm a few quick details for your free Ready Check, area batch sent + day-2 reminder (decisions 389, #21/#22; sent only while IT_IS_YOUR_TURN_V2_APPROVED)", wordingApproved: true, quietHours: true },
   // Plan 2026-10-28 (full address required): a website/email enquiry with no street → the owner is asked to pick their
   // full address on /my-address/{token}, plus ONE reminder 24h later. Wording: addressRequestText (address-request.core.ts),
   // DRAFT until Jo approves it.
@@ -117,20 +124,46 @@ export const SMS_MESSAGE_TYPES = {
   address_request_reminder: { audience: "owner", label: "We need your full address – one reminder 24h later", wordingApproved: true /* approved by Jo 28 Oct 2026 */, quietHours: true },
   // A48 batch 2 (Jo 29–30 Oct 2026, wording approved in the part 1 spec): Jo taps Send on an area batch → the OWNER gets the
   // quick taps link (area-batch.core quickTapsText), plus the day-2 reminder. Own switches, off until Jo switches them on.
-  quick_taps: { audience: "owner", label: "Confirm a few quick details for your free Ready Check – area batch sent (A48 batch 2)", wordingApproved: true, quietHours: true },
-  quick_taps_reminder: { audience: "owner", label: "Confirm a few quick details – day-2 reminder (A48 batch 2)", wordingApproved: true, quietHours: true },
-  // A48 batch 2 part 2 (Jo 30 Oct 2026, wording approved in the part 2 spec): Jo taps "Send to installer" on a closed batch →
-  // the INSTALLER gets the run link (run-route.core runOfferedText). Own switch, off until Jo switches it on.
-  run_offered: { audience: "partner", label: "You've got a run of Ready Checks – pick your day (A48 batch 2 runs)", wordingApproved: true, quietHours: true },
+  quick_taps: { audience: "owner", label: "RETIRED 2 Nov 2026 (decision #22: the batch send is the 'It's your turn' text, spot_released) – Confirm a few quick details, area batch sent (A48 batch 2)", wordingApproved: true, quietHours: true },
+  quick_taps_reminder: { audience: "owner", label: "Confirm a few quick details – day-2 reminder, only for batches first sent with the old quick taps text before 2 Nov 2026 (A48 batch 2; newer batches get the 'It's your turn' reminder, spot_released)", wordingApproved: true, quietHours: true },
+  // A48 batch 2 part 2 (Jo 30 Oct 2026): retired by Part 7 Task 9 (Jo 2 Nov 2026) — Jo's "Send to installer" records the run, nobody is texted.
+  run_offered: { audience: "partner", label: "Retired 2 Nov 2026 — You've got a run of Ready Checks – pick your day (A48 batch 2 runs). History labels only, never sent", wordingApproved: false, quietHours: true },
   // A48 batch 2 part 2, Portal books (Jo 30 Oct 2026, wording approved in the part 2 spec): the installer picked the run's day
   // → each OWNER gets their 1-hour window to confirm (run-portal.core runTimeText), plus ONE reminder at 12 hours. Own
   // switches, off until Jo switches them on.
-  run_time: { audience: "owner", label: "Your free Ready Check is {day} {time} – tap to confirm (A48 batch 2 runs)", wordingApproved: true, quietHours: true },
-  run_time_reminder: { audience: "owner", label: "Please confirm your free Ready Check – 12-hour reminder (A48 batch 2 runs)", wordingApproved: true, quietHours: true },
-  // A48 batch 2 part 2, Task 8: the owner cancelled a confirmed run window → the INSTALLER is told once, with the run link
-  // ("Fill from nearby waiting owners"; run-portal.core runSlotCancelledText). Own switch, off until Jo switches it on;
-  // wording approved by Jo 30 Oct 2026 (Task 8 fix round 1).
-  run_slot_cancelled: { audience: "partner", label: "An owner cancelled their Ready Check in your run – offer the time to a nearby owner (A48 batch 2 runs)", wordingApproved: true, quietHours: true },
+  run_time: { audience: "owner", label: "Retired 2 Nov 2026 — Your free Ready Check is {day} {time} – tap to confirm (A48 batch 2 runs)", wordingApproved: false, quietHours: true },
+  run_time_reminder: { audience: "owner", label: "Retired 2 Nov 2026 — Please confirm your free Ready Check – 12-hour reminder (A48 batch 2 runs)", wordingApproved: false, quietHours: true },
+  // G8 (4), 4 Nov 2026 (LOOKS WRONG 1): the owner's Ready Check WINDOW to confirm on their link after the installer picks the run
+  // day — DRAFT behind OWNER_WINDOW_CONFIRM_APPROVED (ready-check-window-notice.core); own switch, off until Jo switches it on.
+  ready_check_window: { audience: "owner", label: "Your free Ready Check is {day} {time} – tap to confirm (DRAFT, OWNER_WINDOW_CONFIRM_APPROVED; A2 run window)", wordingApproved: false, quietHours: true },
+  // A48 batch 2 part 2, Task 8: retired by Part 7 Task 9 (Jo 2 Nov 2026) — the cancelled window is still freed and shown on the run page, nobody is texted.
+  run_slot_cancelled: { audience: "partner", label: "Retired 2 Nov 2026 — An owner cancelled their Ready Check in your run – offer the time to a nearby owner (A48 batch 2 runs). History labels only, never sent", wordingApproved: false, quietHours: true },
+  // Decision #23 (Jo 2 Nov 2026, wording approved): Jo gives the job to an in-house installer → the OWNER is told
+  // "{Installer} will call you soon from {office phone}" (owner-will-call.core ownerWillCallText), with the email. Sent only
+  // while OWNER_WILL_CALL_APPROVED; own switch, off until Jo switches it on.
+  owner_will_call: { audience: "owner", label: "{Installer} will call you soon to book your free Ready Check – job given to the installer (decision #23; sent only while OWNER_WILL_CALL_APPROVED)", wordingApproved: true, quietHours: true },
+  // Task 19 (Jo 2 Nov 2026, answer 24): an installer's OWN customer gets the rental quick taps by text right after the
+  // installer adds the job (no "It's your turn" text for them). Wording is a DRAFT: never sends until Jo approves it (also
+  // behind OWN_CUSTOMER_RENTAL_TAPS_APPROVED); own switch, off until Jo switches it on.
+  own_customer_rental_taps: { audience: "owner", label: "A few quick questions about your home – installer's own customer, after the installer adds the job (answer 24; DRAFT wording, OWN_CUSTOMER_RENTAL_TAPS_APPROVED)", wordingApproved: false, quietHours: true },
+  // Part 4 Task 15 (Jo 2 Nov 2026, answer 7): the person who lets the trades in when it is NOT the owner (the tenant or the
+  // property manager, from the owner's quick-taps answers) gets the PIESA / install "You're booked" text and the day-before
+  // text — visit-time texts only (access-person-texts.core). `ownerSideContact`: an owner-side person on the job (the job's
+  // owner consent and comms switches apply), but the OWNER's "Do not contact" is about the owner and does not hold these;
+  // a STOP from the access person's own number does. DRAFT wording: never sends until Jo approves it (also behind
+  // ACCESS_PERSON_TEXTS_APPROVED); own switches, off until Jo switches them on.
+  access_person_booked: { audience: "owner", ownerSideContact: true, label: "You're booked (PIESA / install) – to the tenant or property manager who lets the trades in (answer 7; DRAFT wording, ACCESS_PERSON_TEXTS_APPROVED)", wordingApproved: false, quietHours: true },
+  access_person_tomorrow: { audience: "owner", ownerSideContact: true, label: "See you tomorrow (PIESA / install) – to the tenant or property manager who lets the trades in (answer 7; DRAFT wording, ACCESS_PERSON_TEXTS_APPROVED)", wordingApproved: false, quietHours: true },
+  // Part 4 Task 16 (cl 23; Jo 2 Nov 2026, answers 7 and 22): the TENANT is told the install day, time and power-off by text
+  // (and email) once the install is booked and whenever its time changes (tenant-notice.core). A compliance send:
+  // `compliancePurpose` makes the real sender read the owner's consent the compliance way (an unsubscribe never holds it) and
+  // `ownerSideContact` keeps the owner's "Do not contact" out of it; a STOP from the tenant's own number still holds it.
+  // DRAFT wording: never sends until Jo approves it (also behind TENANT_NOTICE_APPROVED); own switch, off until Jo switches it on.
+  tenant_notice: { audience: "owner", ownerSideContact: true, compliancePurpose: "tenant_notice", label: "Install day booked – tenant told the day, time and power-off (cl 23, answers 7/22; DRAFT wording, TENANT_NOTICE_APPROVED)", wordingApproved: false, quietHours: true },
+  // New job flow Part 6 Task 2: the electrician is texted their no-login job link (/e/{token}) right after the installer picks them.
+  // DRAFT wording (electricianLinkText, electrician-link.core.ts) until Jo approves it; also behind ELECTRICIAN_LINK_TEXT_APPROVED.
+  electrician_job_link: { audience: "partner", label: "New safety check job – electrician's job link (Part 6; DRAFT wording, ELECTRICIAN_LINK_TEXT_APPROVED)", wordingApproved: false, quietHours: true },
+  upgrades_nudge: { audience: "partner", label: "Upgrades form not in – nudge to the electrician the day after the upgrades day (Part 6; wording approved by Jo 4 Nov 2026, UPGRADES_NUDGE_TEXT_APPROVED flips at go-live)", wordingApproved: false, quietHours: true },
 } as const;
 export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;
 
@@ -161,6 +194,8 @@ export const ONE_OFF_BLAST_TYPES: readonly SmsMessageType[] = ["save_spot_remind
 export type SmsFreshness = { kind: "event"; maxAgeMinutes: number } | { kind: "window" };
 export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
   in_house_booked_owner: {kind:'event',maxAgeMinutes:24*60},
+  after_install_reminder: { kind: 'window' }, // days 1/3/7 recomputed each tick, each day recorded once as a workflow event before any send
+  upgrades_needed: { kind: 'event', maxAgeMinutes: 24 * 60 }, // event = the PIESA result
   own_job_piesa_link: { kind: "window" }, // key = the electrician's assignment (+ attempt); sent only while that assignment is active and unbooked
   electrician_certificate_link: { kind: "window" }, // key = the electrician's assignment + round ("now"); sent only while the certificate is still to come
   electrician_certificate_chase: { kind: "window" }, // key = the electrician's assignment + chase round; sent only while the certificate is still to come
@@ -178,7 +213,7 @@ export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
   veec_sign_reminder: { kind: "window" }, // days 1/3/7: the due step is recomputed each tick, each step recorded once
   usual_electrician_missing: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the Mitti audit that found it missing
   ready_check_incomplete: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the Mitti audit with the gap list
-  job_offer: { kind: "event", maxAgeMinutes: 24 * 60 }, // offer open 24h; also needs the offer still pending
+  job_offer: { kind: "event", maxAgeMinutes: 24 * 60 }, // retired (history): offer open 24h
   daily_mitti: { kind: "window" }, // one per trade per Melbourne day, trade_text_log send_key claimed first
   daily_mitti_update: { kind: "window" }, // one per trade per day per change signature
   esc_notice_link: { kind: "window" }, // attempts 1/2/3 planned from the recorded send history; manual re-send has its own key
@@ -187,8 +222,8 @@ export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
   deposit_release: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the 48h sweep releasing the booking (recorded once per booking before any send)
   install_no_access: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the installer's "couldn't get in" report on the install day (recorded once per booking before any send)
   install_clearance: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = electrical clearance becoming valid (recorded once per job + timing date before any send)
-  ready_check_days_suggested: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the owner suggesting days; also needs it still to be the installer's move (installer-texts.server)
-  ready_check_booked_installer: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the Ready Check booking; also needs that start time still booked
+  ready_check_days_suggested: { kind: "event", maxAgeMinutes: 24 * 60 }, // retired (history): event = the owner suggesting days
+  ready_check_booked_installer: { kind: "event", maxAgeMinutes: 24 * 60 }, // retired (history): event = the Ready Check booking
   install_tomorrow: { kind: "window" }, // key = booking + its Melbourne date; due only the afternoon before, recomputed each tick (installer-texts.core)
   team_member_invite: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the owner creating the invite; also needs the invite still unused and unrevoked
   boss_price_link: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the Ready Check marked Complete; also needs the price still not entered (boss-price-link.server)
@@ -218,10 +253,18 @@ export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
   address_request_reminder: { kind: "window" }, // key = job; due 24h after the request, recorded once; same quiet-hours retry
   quick_taps: { kind: "window" }, // key = batch + job + step; the area_batch_sent event is recorded before any send (area-batch.server)
   quick_taps_reminder: { kind: "window" }, // key = batch + job + reminder; due on day 2, recomputed by the batch sweep
-  run_offered: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = Jo's "Send to installer" tap; the run's 24h reply window
+  run_offered: { kind: "event", maxAgeMinutes: 24 * 60 }, // retired (history): event = Jo's "Send to installer" tap
   run_time: { kind: "window" }, // key = run + job + window; the window is recorded before any send; held → the tick retries
+  ready_check_window: { kind: "window" }, // G8 (4): key = run + job + window; same tick and keys as run_time
   run_time_reminder: { kind: "window" }, // key = run + job + window; due 12h after the time text, recomputed by the tick
-  run_slot_cancelled: { kind: "window" }, // key = run + job + window; `run_slot_cancelled` recorded once per window before any send; held → the tick retries while that time is still unfilled and ahead
+  run_slot_cancelled: { kind: "window" }, // retired (history): key = run + job + window
+  owner_will_call: { kind: "window" }, // key = job (one per job); sent only with the email while the job still waits for its Ready Check booking (in-house-batch-email.server)
+  own_customer_rental_taps: { kind: "window" }, // key = job (one per job); sent once right after Add a job (own-customer-rental-taps.server)
+  access_person_booked: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the PIESA / install booking (its created_at); also needs that booking still confirmed (access-person-texts.server)
+  access_person_tomorrow: { kind: "window" }, // key = booking + person; due only the afternoon before, recomputed each tick (approved-texts.core visitTomorrowDue)
+  tenant_notice: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the install booking (its created_at); also needs that booking still confirmed (tenant-notice.server)
+  electrician_job_link: { kind: "window" }, // key = job + electrician; one per person, recorded after a send (electrician-link.server)
+  upgrades_nudge: { kind: "window" }, // key = job + upgrades day; `upgrades_nudge` recorded before the send (upgrades-watch.server)
 };
 
 export type SmsEventInput = {
@@ -284,6 +327,8 @@ export type SmsGateInput = {
   nowIso?: string;
   /** "Pause all trade messages" hold reason (trade-pause.core.ts); applies to partner-audience types only. */
   tradeMessagesPaused?: string | null;
+  /** "Do not contact" flag on the job (do-not-contact.core.ts); applies to owner-audience types only. */
+  doNotContact?: boolean;
 };
 
 /** Decision 328: a same-day text exempt from the 8pm quiet hours still never goes before 7am Melbourne. */
@@ -308,16 +353,29 @@ export function smsBlocker(x: SmsGateInput): string | null {
   if (!x.senderConfigured) return "No Australian sending number set up";
   if (!toAuE164(x.to)) return SMS_NOT_MOBILE;
   if (x.optedOut) return SMS_REPLIED_STOP;
+  // The owner's own sign-in code is something they just asked for, not an automatic message. The owner's "Do not contact"
+  // is about the owner: it never holds a visit-time text to the tenant / property manager who lets the trades in (Task 15).
+  if (x.doNotContact && t.audience === "owner" && x.type !== "owner_code" && !ownerSideContact(t)) return SMS_DO_NOT_CONTACT;
   if (!x.consent) return t.audience === "owner" ? SMS_NO_OWNER_CONSENT : "Partner is not approved and active";
   return null;
 }
 
+/** An owner-side person on the job who is not the owner (the tenant / property manager who lets the trades in). */
+const ownerSideContact = (t: object) => "ownerSideContact" in t && (t as { ownerSideContact?: boolean }).ownerSideContact === true;
+/** A compliance text: the owner's consent is read the compliance way (consentAllowsDelivery with this purpose), so an
+ *  unsubscribe's not_granted row never holds it. Only the tenant notice (cl 23) today. */
+export const smsCompliancePurpose = (type: string): string | null => {
+  const t = SMS_MESSAGE_TYPES[type as SmsMessageType] as object | undefined;
+  return t && "compliancePurpose" in t ? String((t as { compliancePurpose: string }).compliancePurpose) : null;
+};
+
 /** Holds that belong to the RECIPIENT (not a switch, quiet hours or the sender): trying again changes nothing until the
  *  owner's details change. Callers that retry on a tick record these once instead (A48 batch 2 final review m5). */
+export const SMS_DO_NOT_CONTACT = "Owner asked not to be contacted";
 export const SMS_NOT_MOBILE = "Not an Australian mobile number";
 export const SMS_REPLIED_STOP = "This number replied STOP";
 export const SMS_NO_OWNER_CONSENT = "No contact consent from the owner";
-const RECIPIENT_HOLDS: readonly string[] = [SMS_NOT_MOBILE, SMS_REPLIED_STOP, SMS_NO_OWNER_CONSENT];
+const RECIPIENT_HOLDS: readonly string[] = [SMS_NOT_MOBILE, SMS_REPLIED_STOP, SMS_NO_OWNER_CONSENT, SMS_DO_NOT_CONTACT];
 /** A real-sender result that was held for the recipient (STOP, no consent, not a mobile). */
 export const smsHeldForRecipient = (r: { status: string; detail: string | null | undefined }): boolean => r.status === "blocked" && RECIPIENT_HOLDS.includes(String(r.detail ?? ""));
 

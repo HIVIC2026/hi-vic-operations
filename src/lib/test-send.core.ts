@@ -38,6 +38,8 @@ export function testSendBlocker(x: TestSendInput): string | null {
 
 export const TEST_PARTNER_MARK = "[TEST PARTNER]";
 export const isTestPartner = (b: { onboarding_notes?: string | null } | null | undefined) => !!b?.onboarding_notes?.includes(TEST_PARTNER_MARK);
+/** J4 G4: the TEST business as scripts/installer-test.ts recognises it (name starts with the mark), or marked in its notes. */
+export const isTestBusiness = (b: { name?: string | null; onboarding_notes?: string | null } | null | undefined) => !!b && (String(b.name ?? "").startsWith(TEST_PARTNER_MARK) || isTestPartner(b));
 
 /** Real jobs never go to TEST partners; TEST (qa_test) jobs only go to TEST partners. */
 export const partnerAllowedForJob = (b: { onboarding_notes?: string | null } | null | undefined, jobSource: string | null | undefined) => (jobSource === "qa_test") === isTestPartner(b);

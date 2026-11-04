@@ -79,7 +79,7 @@ describe("Needs me: the office sees what is missing the day before", () => {
   });
 });
 
-// The shared reader: the CURRENT PIESA record's first delivery per recipient (fake database, no network).
+// The shared reader: the CURRENT PIESA record's deliveries per recipient, every time ascending (Part 9 Task 5; fake database, no network).
 type Row = Record<string, unknown>;
 let tables: Record<string, Row[]> = {};
 function from(t: string) {
@@ -96,7 +96,7 @@ mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { f
 const { piesaCopyDeliveries } = await import("../src/lib/esc.server");
 
 describe("piesaCopyDeliveries (esc.server — used by installReadiness and prestartFacts)", () => {
-  test("reads only the current PIESA record; earliest delivery per recipient", async () => {
+  test("reads only the current PIESA record; every delivery per recipient, earliest first", async () => {
     tables = {
       piesa_records: [{ id: "old", job_id: "j1", is_current: false }, { id: "cur", job_id: "j1", is_current: true }],
       piesa_deliveries: [
@@ -105,10 +105,10 @@ describe("piesaCopyDeliveries (esc.server — used by installReadiness and prest
         { piesa_record_id: "cur", recipient: "owner", delivered_at: "2026-10-22T00:00:00Z" },
       ],
     };
-    expect(await piesaCopyDeliveries("j1")).toEqual({ owner: "2026-10-22T00:00:00Z", installer: null });
+    expect(await piesaCopyDeliveries("j1")).toEqual({ owner: ["2026-10-22T00:00:00Z", "2026-10-23T00:00:00Z"], installer: [], partCSignedAt: null });
   });
   test("no current PIESA → nothing delivered", async () => {
     tables = { piesa_records: [], piesa_deliveries: [] };
-    expect(await piesaCopyDeliveries("j1")).toEqual({ owner: null, installer: null });
+    expect(await piesaCopyDeliveries("j1")).toEqual({ owner: [], installer: [], partCSignedAt: null });
   });
 });

@@ -7,8 +7,9 @@
 // held as "too late" instead of coming out as old copies when a switch flips (SMS_FRESHNESS in sms.core.ts).
 // Jo 30 Oct 2026: partner-audience texts are also held while "Pause all trade messages" is on (trade-pause.core.ts).
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
-import { customerCommsEnabled, hasCurrentOwnerContactConsent } from "./comms.server";
-import { SMS_MESSAGE_TYPES, brandSmsBody, heldAttemptKey, smsBlocker, smsStaleReason, toAuE164, type SmsEventInput, type SmsMessageType } from "./sms.core";
+import { customerCommsEnabled, hasCurrentOwnerContactConsent, ownerConsentAllowsDelivery } from "./comms.server";
+import { DO_NOT_CONTACT_CLEARED_EVENT, DO_NOT_CONTACT_SET_EVENT, doNotContactOn } from "./do-not-contact.core";
+import { SMS_MESSAGE_TYPES, brandSmsBody, heldAttemptKey, smsBlocker, smsCompliancePurpose, smsStaleReason, toAuE164, type SmsEventInput, type SmsMessageType } from "./sms.core";
 
 const db = admin as any;
 const WEBHOOK_BASE = "https://estimate.homeinsulationvictoria.com.au";
@@ -18,6 +19,8 @@ export type RealSmsInput = {
   idempotencyKey: string;
   to: string | null | undefined;
   body: string;
+  /** What is saved in sms_messages / job_communications when it must differ from what the provider gets (e.g. a link token masked). Default: the body. */
+  storedBody?: string;
   jobId?: string | null;
   businessId?: string | null;
   /** A text that covers several jobs (daily Mitti digests): the pause is decided on `businessId` alone, never on one job in the list. */
@@ -53,7 +56,11 @@ async function consentAndTest(input: RealSmsInput): Promise<{ consent: boolean; 
     const { data: j } = await db.from("jobs").select("source").eq("id", input.jobId).maybeSingle();
     if (!j || j.source === "qa_test") isTest = true;
   }
-  if (audience === "owner") return { consent: input.jobId ? await hasCurrentOwnerContactConsent(input.jobId) : false, isTest };
+  if (audience === "owner") {
+    // A compliance text (the tenant notice, cl 23) reads the owner's consent the compliance way: an unsubscribe never holds it.
+    const purpose = smsCompliancePurpose(input.type);
+    return { consent: input.jobId ? (purpose ? await ownerConsentAllowsDelivery(input.jobId, purpose) : await hasCurrentOwnerContactConsent(input.jobId)) : false, isTest };
+  }
   if (!input.businessId) return { consent: false, isTest };
   const { data: b } = await db.from("businesses").select("is_active, approved_at, onboarding_notes").eq("id", input.businessId).maybeSingle();
   if (!b || String(b.onboarding_notes ?? "").includes("[TEST PARTNER]")) isTest = true;
@@ -63,7 +70,7 @@ async function consentAndTest(input: RealSmsInput): Promise<{ consent: boolean; 
 async function logJob(input: RealSmsInput, to: string, status: string, detail: string) {
   if (!input.jobId) return;
   await db.from("job_communications").insert({
-    job_id: input.jobId, direction: "outbound", channel: "sms", recipients: [to], subject: null, body: brandSmsBody(input.body), provider: "twilio",
+    job_id: input.jobId, direction: "outbound", channel: "sms", recipients: [to], subject: null, body: brandSmsBody(input.storedBody ?? input.body), provider: "twilio",
     sent_at: status === "sent" ? new Date().toISOString() : null, delivery_status: status === "blocked" ? "blocked_prelaunch" : status,
     visibility: SMS_MESSAGE_TYPES[input.type].audience === "owner" ? "customer" : "trade", source_event: `sms:${input.type}`, source_reference: detail.slice(0, 200),
   }).then(() => null, () => null);
@@ -76,10 +83,16 @@ async function policyHold(input: RealSmsInput, c: { to: string | null; from: str
   // Jo 30 Oct 2026: "Pause all trade messages" — read once per partner text (owner texts never read it).
   const tradeMessagesPaused = SMS_MESSAGE_TYPES[input.type]?.audience === "partner"
     ? await (await import("./trade-pause.server")).tradeMessagesPausedNow({ businessId: input.businessId ?? null, jobId: input.pauseByBusinessOnly ? null : input.jobId ?? null }) : null;
+  // "Do not contact": read once per owner text with a job. An unreadable flag holds the text (fails closed).
+  let doNotContact = false;
+  if (SMS_MESSAGE_TYPES[input.type]?.audience === "owner" && input.jobId) {
+    const { data: dnc, error: dncErr } = await db.from("workflow_events").select("event_type, created_at").eq("job_id", input.jobId).in("event_type", [DO_NOT_CONTACT_SET_EVENT, DO_NOT_CONTACT_CLEARED_EVENT]);
+    doNotContact = dncErr ? true : doNotContactOn(dnc ?? []);
+  }
   return smsBlocker({
     type: input.type, to: input.to, commsEnabled: await customerCommsEnabled(), typeSwitchOn: await typeSwitchOn(input.type),
     senderConfigured: !!c.from, optedOut: c.optedOut ?? (c.to ? await isOptedOut(c.to) : false), consent, isTestRecord: isTest,
-    adminSpotReminderBlast: c.adminSpotReminderBlast, nowIso, tradeMessagesPaused,
+    adminSpotReminderBlast: c.adminSpotReminderBlast, nowIso, tradeMessagesPaused, doNotContact,
   }) ?? smsStaleReason(input.type, input.event, nowIso)
     ?? await (async () => { const { jobDeletedBlocker } = await import("./job-live.server"); return jobDeletedBlocker(input.jobId ?? null); })();
 }
@@ -125,7 +138,7 @@ export async function sendRealSms(input: RealSmsInput, blast?: { claimId: string
     // Held: RECORDED for the office ("held: reason") under a non-claiming key, so a later allowed attempt still goes once.
     await db.from("sms_messages").insert({
       message_type: input.type, idempotency_key: heldAttemptKey(input.idempotencyKey, crypto.randomUUID()), job_id: input.jobId ?? null, business_id: input.businessId ?? null,
-      to_number: to ?? String(input.to ?? ""), from_sender: from, body: brandSmsBody(input.body), status: "blocked", detail: blocked,
+      to_number: to ?? String(input.to ?? ""), from_sender: from, body: brandSmsBody(input.storedBody ?? input.body), status: "blocked", detail: blocked,
     }).then(({ error: he }: { error: { message: string } | null }) => { if (he) console.error("held SMS attempt not recorded", he.message); }, (e: Error) => console.error("held SMS attempt not recorded", e.message));
     await logJob(input, to ?? String(input.to ?? ""), "blocked", blocked);
     return { status: "blocked", detail: blocked, sid: null };
@@ -134,7 +147,7 @@ export async function sendRealSms(input: RealSmsInput, blast?: { claimId: string
   const { data: row, error } = await db.from("sms_messages").insert({
     ...(blastAllowed && blast ? { id: blast.claimId } : {}),
     message_type: input.type, idempotency_key: input.idempotencyKey, job_id: input.jobId ?? null, business_id: input.businessId ?? null,
-    to_number: to ?? String(input.to ?? ""), from_sender: from, body: brandSmsBody(input.body), status: "sending", detail: null,
+    to_number: to ?? String(input.to ?? ""), from_sender: from, body: brandSmsBody(input.storedBody ?? input.body), status: "sending", detail: null,
   }).select("id").maybeSingle();
   if (error || !row) {
     if (error && error.code !== "23505") throw new Error("Could not reserve SMS safely; nothing sent");
@@ -202,6 +215,8 @@ export async function recordInboundReply(from: string, body: string, sid?: strin
   if (k === "stop") {
     const { error } = await db.from("sms_optouts").upsert({ phone, opted_out_at: now, opted_in_at: null, source: "stop_reply", last_message: body.slice(0, 160) });
     if (error) throw new Error("Could not record SMS opt-out");
+    const { setDoNotContactFromStop } = await import("./do-not-contact-stop.server");
+    await setDoNotContactFromStop(db, phone, sid ?? null, now);
     const { closeStoppedEnquiries } = await import("./sms-stop.server");
     await closeStoppedEnquiries(db, phone, sid ?? null, now);
   }

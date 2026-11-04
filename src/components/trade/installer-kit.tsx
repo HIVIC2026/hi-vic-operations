@@ -5,7 +5,8 @@
 // clearly on white (≥ 4.5:1); values stay ink.
 import * as React from "react";
 import { Link } from "@tanstack/react-router";
-import { NO_FORM_NO_PAY } from "@/lib/trade-view.core";
+import { NO_FORM_NO_PAY_V2 } from "@/lib/trade-view.core";
+import { PAY_RULE_LINE_V2 } from "@/lib/money-screen.core";
 
 const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(" ");
 
@@ -112,14 +113,15 @@ export function LinkRow({ children, onClick, href, to, params, muted = false, bo
   return <button type="button" onClick={onClick} className={cls}>{inner}</button>;
 }
 
-/** Decision 318: "No complete form, no payment" — Jo's approved words (trade-view.core NO_FORM_NO_PAY), shown next to
- *  the Mitti form button and above the payouts. `line` = the one-line form used on job offers. */
+/** The pay-rule block (decision 318 rule, Jo's 4 Nov 2026 v2 words — trade-view.core NO_FORM_NO_PAY_V2), shown next to
+ *  the Mitti form button and above the payouts. `line` = the one-line form used on job offers (money-screen.core
+ *  PAY_RULE_LINE_V2). Jo 4 Nov 16:44: the old decision-318 words (threat, named fixes) are gone — never shown again. */
 export function NoFormNoPay({ line = false, className }: { line?: boolean; className?: string }) {
-  if (line) return <p className={cx("text-[13px] font-semibold leading-[1.45] text-ink", className)} data-no-form-no-pay="line">{NO_FORM_NO_PAY.offerLine}</p>;
+  if (line) return <p className={cx("text-[13px] leading-[1.45] text-sub", className)} data-pay-rule-v2="line">{PAY_RULE_LINE_V2}</p>;
   return (
-    <section className={cx("rounded-[14px] border border-line bg-paper px-3.5 py-3", className)} data-no-form-no-pay>
-      <h2 className="text-[15px] font-semibold text-ink">{NO_FORM_NO_PAY.headline}</h2>
-      <p className="mt-1 text-[13px] leading-[1.45] text-sub">{NO_FORM_NO_PAY.body}</p>
+    <section className={cx("rounded-[14px] border border-line bg-paper px-3.5 py-3", className)} data-pay-rule-v2>
+      <h2 className="text-[15px] font-semibold text-ink">{NO_FORM_NO_PAY_V2.headline}</h2>
+      <p className="mt-1 text-[13px] leading-[1.45] text-sub">{NO_FORM_NO_PAY_V2.body}</p>
     </section>
   );
 }

@@ -45,17 +45,28 @@ const QUOTE_STATUSES = ["draft", "issued", "accepted", "declined"] as const;
 
 /** Speed (decision 280): the same facts as `loadInstallerQuote`, for many jobs in five reads instead of five per job.
  *  Per job the result is identical: latest Ready Check installation quote, its plain status, hold and form completion. */
-export async function loadInstallerQuotes(jobIds: string[]): Promise<Map<string, InstallerQuote>> {
+/** Speed (portal speed step 2B): reads the installer home already makes for the same jobs, handed in so they are not
+ *  made twice. Each must be exactly the read it replaces (same columns, filters and order) for the same `jobIds`. */
+export type SharedQuoteReads = {
+  /** `jobs.channel` per job id (from rows already read). */
+  channels?: Map<string, string | null>;
+  /** `ceiling_measurements` (job_id, external_source, external_id), current rows for these jobs. */
+  measurements?: PromiseLike<{ data: { job_id: string; external_source: string | null; external_id: string | null }[] | null }>;
+  /** `workflow_events` ready_check_basics (job_id, details, created_at), newest first, for these jobs. */
+  basics?: PromiseLike<{ data: { job_id: string | null; details: unknown; created_at: string }[] | null; error?: unknown }>;
+};
+
+export async function loadInstallerQuotes(jobIds: string[], shared?: SharedQuoteReads): Promise<Map<string, InstallerQuote>> {
   const out = new Map<string, InstallerQuote>();
   const ids = [...new Set(jobIds)];
   if (!ids.length) return out;
   // Speed (installer screens, Task 5): the hold events are read with the rest (for every job) and used only for the unsent
   // Ready Check quotes, as before — one round instead of two. A failed hold read still fails only when it is needed.
   const [{ data: jobs }, { data: qs, error }, { data: ms }, { data: basicsRows, error: be }, { data: holdRows, error: holdError }] = await Promise.all([
-    admin.from("jobs").select("id, channel").in("id", ids),
+    shared?.channels ? Promise.resolve({ data: ids.map((id) => ({ id, channel: shared.channels!.get(id) ?? null })) }) : admin.from("jobs").select("id, channel").in("id", ids),
     admin.from("quotes").select(QUOTE_COLS).in("job_id", ids).eq("kind", "installation").in("status", QUOTE_STATUSES).order("created_at", { ascending: false }),
-    admin.from("ceiling_measurements").select("job_id, external_source, external_id").in("job_id", ids).eq("is_current", true),
-    admin.from("workflow_events").select("job_id, details, created_at").in("job_id", ids).eq("event_type", "ready_check_basics").order("created_at", { ascending: false }),
+    shared?.measurements ?? admin.from("ceiling_measurements").select("job_id, external_source, external_id").in("job_id", ids).eq("is_current", true),
+    shared?.basics ?? admin.from("workflow_events").select("job_id, details, created_at").in("job_id", ids).eq("event_type", "ready_check_basics").order("created_at", { ascending: false }),
     admin.from("workflow_events").select("job_id, details").in("job_id", ids).eq("event_type", "quote_auto_send_held"),
   ]);
   if (error || be) throw new WorkflowError("Quote could not be read.");

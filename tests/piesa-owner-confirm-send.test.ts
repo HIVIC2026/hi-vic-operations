@@ -54,6 +54,7 @@ function builder(table: string) {
     insert: (p: Row) => { op = "insert"; patch = p; return b; },
     eq: (c: string, v: unknown) => { filters.push((r) => r[c] === v); return b; }, neq: (c: string, v: unknown) => { filters.push((r) => r[c] !== v); return b; },
     in: (c: string, v: unknown[]) => { filters.push((r) => v.includes(r[c])); return b; },
+    gte: (c: string, v: unknown) => { filters.push((r) => r[c] != null && String(r[c]) >= String(v)); return b; }, // J4 G3: owner copies since the PIESA was recorded
     is: (c: string, v: unknown) => { filters.push((r) => (v === null ? r[c] == null : r[c] === v)); return b; },
     not: (c: string, o?: string, v?: unknown) => { filters.push((r) => (o === "in" ? !inList(r[c], String(v)) : r[c] != null)); return b; },
     contains: (c: string, v: Row) => { filters.push((r) => containsObj(r[c], v)); return b; },
@@ -91,7 +92,7 @@ const copyCalls:string[]=[],copyEmails:string[]=[];let copyHeld=false;
 mock.module("../src/lib/piesa-delivery.server",()=>({deliverPiesaCopies:async(job:string)=>{
  copyCalls.push(job);if(copyHeld)return {sent:[],held:{owner:"copy held"},hold:"copy held"};
  const rows=tables["piesa_deliveries"]??=[];if(rows.some(r=>r["job_id"]===job))return {sent:[],held:{},hold:"both copies already recorded"};
- rows.push({id:"del-"+job,job_id:job,piesa_record_id:job===J?REC:TREC,recipient:"owner"});copyEmails.push(job);
+ rows.push({id:"del-"+job,job_id:job,piesa_record_id:job===J?REC:TREC,recipient:"owner",delivered_at:new Date().toISOString()});copyEmails.push(job);
  return {sent:["owner"],held:{},hold:null};
 }}));
 const S = await import("../src/lib/piesa-owner-confirm.server");

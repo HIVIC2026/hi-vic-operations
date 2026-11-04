@@ -41,8 +41,16 @@ export const hasFullName = (name: string) => name.trim().split(/\s+/).filter((w)
 export const hasStreetNumber = (line: string) => /^\s*(?:(?:unit|apt|apartment|shop|suite|level|lot)\s*)?\d/i.test(line);
 export const PICK_ADDRESS = "Choose the address from the list so the suburb and postcode are right — the rebate depends on them";
 
+/** Installer screens Task 7 (decided — VEU rule 1 names the installer): the consent tick on Add a job. */
+export const addJobConsentLine = (businessName: string): string =>
+  `The owner has agreed to Home Insulation Victoria and ${businessName} contacting them about this job.`;
+/** The problem shown when that tick is missing. Without a business name (older callers) the older line stays. */
+export const consentProblem = (businessName?: string | null): string =>
+  businessName ? `Confirm the owner has agreed to Home Insulation Victoria and ${businessName} contacting them about this job` // DRAFT
+    : "Confirm the owner has given Home Insulation Victoria permission to contact them";
+
 /** One plain problem per field, in screen order. Empty = ready to start. */
-export function onsiteProblems(i: OnsiteInput): string[] {
+export function onsiteProblems(i: OnsiteInput, opts: { businessName?: string | null } = {}): string[] {
   const out: string[] = [];
   if (!hasFullName(i.full_name)) out.push(OWNER_FULL_NAME);
   if (i.address_line.trim().length < 3) out.push("Add the street address");
@@ -55,7 +63,7 @@ export function onsiteProblems(i: OnsiteInput): string[] {
   else if (!isAuMobile(i.phone)) out.push("Check the mobile — it should look like 0412 345 678");
   if (!i.email.trim()) out.push("Add the owner's email");
   else if (!isEmail(i.email)) out.push("Check the email address");
-  if (!i.contact_permission || i.consent_by !== "installer") out.push("Confirm the owner has given Home Insulation Victoria permission to contact them");
+  if (!i.contact_permission || i.consent_by !== "installer") out.push(consentProblem(opts.businessName));
   return out;
 }
 
@@ -112,7 +120,7 @@ export const retryable = (msg: string) => /could not be reached|failed \(5|timeo
 export type LeadOrigin = "owner_contacted" | "referral" | "door_knock" | "cold_call";
 export const LEAD_ORIGIN_QUESTION = "How did you get this customer?";
 export const LEAD_ORIGINS: { value: LeadOrigin; label: string }[] = [
-  { value: "owner_contacted", label: "The owner contacted me" },
+  { value: "owner_contacted", label: "They contacted us" }, // approved (mock-up, plan Task 7)
   { value: "referral", label: "Referral or past customer" },
   { value: "door_knock", label: "Door-knocking" },
   { value: "cold_call", label: "Cold call" },

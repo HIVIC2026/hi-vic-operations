@@ -9,7 +9,12 @@ export const INSTALLER_ACCEPTED_EMAIL_APPROVED = true as boolean;
 /** Jo 24 Oct 2026, decision 136 (I24 "Owner declined"): approved. Real partners still go through sendOfficeEmail. */
 export const INSTALLER_DECLINED_EMAIL_APPROVED = true as boolean;
 
-export type InstallerAcceptedInput = { installerFirstName: string | null; ownerName: string | null; address: string | null; jobNumber: string; jobUrl: string; test?: boolean };
+/** Decision #36 (Jo 2 Nov 2026): the approved "Owner accepted" office email ("Book the PIESA now."). Stays false until Jo OKs the pictures; while false the old wording is sent, so an in-flight job gets one version. */
+export const INSTALLER_ACCEPTED_V2_APPROVED = false as boolean;
+
+export type WhoBooks = "office" | "electrician" | "either";
+/** whoBooks / electricianName: Part 5's who-books setting and the job's chosen electrician. Until Part 5 lands every business is "office". */
+export type InstallerAcceptedInput = { installerFirstName: string | null; ownerName: string | null; address: string | null; jobNumber: string; jobUrl: string; test?: boolean; whoBooks?: WhoBooks; electricianName?: string | null; /** Preview/test override of INSTALLER_ACCEPTED_V2_APPROVED. */ useV2?: boolean };
 
 const num = (n: number, title: string, detail: string, last: boolean) => { const pad = last ? 12 : 14; return `<tr><td width="32" valign="top" style="padding:2px 0 ${pad}px;"><span class="num">${n}</span></td><td style="padding:0 0 ${pad}px;"><strong>${esc(title)}</strong><br /><span class="muted">${esc(detail)}</span></td></tr>`; };
 const intro = (hi: string, headline: string, lead: string) => `<mj-section><mj-column><mj-text mj-class="hi">${esc(hi)}</mj-text><mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">${esc(headline)}</mj-text><mj-text>${esc(lead)}</mj-text></mj-column></mj-section>`;
@@ -23,13 +28,23 @@ export function renderInstallerAcceptedEmail(i: InstallerAcceptedInput) {
   const subject = `Owner accepted – ${i.jobNumber}${i.address?.trim() ? `, ${i.address.trim()}` : ""}`;
   const hi = `Good news${you ? `, ${you}` : ""}.`;
   const headline = `${first} accepted!`;
-  const lead = `${owner} has accepted the quote for ${where} (${i.jobNumber}) and has paid for the electrical safety check.`;
-  const preview = `${first} has paid for the electrical safety check. Nothing for you to do until it clears.`;
-  const steps: K.Step[] = [
-    { title: "Electrical safety check", detail: `The licensed electrician offers ${first} times. Nothing for you to do.` },
-    { title: `Offer ${first} 3 install days`, detail: `Once the safety check clears, your portal asks you to offer ${first} 3 install days. ${first} picks one and it's booked, or suggests other days, until you agree.` },
-    { title: "Install within 30 days of the safety check", detail: "Your portal shows how many days are left." },
-  ];
+  const v2 = i.useV2 ?? INSTALLER_ACCEPTED_V2_APPROVED;
+  const lead = v2
+    ? `${owner} has accepted the quote for ${where} (${i.jobNumber}) and has paid for the PIESA.` // pack 1 items 13/14 (Jo 4 Nov 2026): installers never see Home Insulation Victoria's PIESA price
+    : `${owner} has accepted the quote for ${where} (${i.jobNumber}) and has paid for the electrical safety check.`;
+  const preview = v2 ? "Book the PIESA now." : `${first} has paid for the electrical safety check. Nothing for you to do until it clears.`;
+  const electrician = i.whoBooks === "electrician" ? (i.electricianName?.trim() || "The electrician") : null;
+  const steps: K.Step[] = v2
+    ? [
+        { title: "Book the PIESA", detail: electrician ? `${electrician} will call ${first} to book it.` : `Pick your electrician on the job, call ${first}, then add the day and time in the portal within 2 business days.` },
+        { title: "Electrical upgrades, if needed", detail: `Quote, book and invoice them with ${first} directly. Upload the Part C and Certificate of Electrical Safety before the install.` },
+        { title: "Book the install", detail: `Call ${first} and add the install day and Lead Installer in the portal. ${first} pays her 10% deposit to lock it in. Install within 30 days of the PIESA.` },
+      ]
+    : [
+        { title: "Electrical safety check", detail: `The licensed electrician offers ${first} times. Nothing for you to do.` },
+        { title: `Offer ${first} 3 install days`, detail: `Once the safety check clears, your portal asks you to offer ${first} 3 install days. ${first} picks one and it's booked, or suggests other days, until you agree.` },
+        { title: "Install within 30 days of the safety check", detail: "Your portal shows how many days are left." },
+      ];
   const body = [
     intro(hi, headline, lead),
     `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px 10px">What happens next</mj-text><mj-table padding="0 18px 6px">${steps.map((s, n) => num(n + 1, s.title, s.detail ?? "", n === steps.length - 1)).join("")}</mj-table></mj-column></mj-section>`,

@@ -61,7 +61,7 @@ export const prepareTradeLogin = createServerFn({ method: "POST" }).middleware([
     await admin.from("profiles").update({ business_id: w.business_id, ...(w.licence_number ? { licence_number: w.licence_number } : {}) }).eq("id", userId).is("business_id", null);
     await admin.from("user_roles").upsert({ user_id: userId, role }, { onConflict: "user_id,role" });
     const { data: existingMember } = await admin.from("business_members").select("member_role").eq("business_id", w.business_id).eq("user_id", userId).maybeSingle();
-    await admin.from("business_members").upsert({ business_id: w.business_id, user_id: userId, member_role: existingMember?.member_role ?? memberRoleFor(email, biz?.email ?? null), active: true, added_by: context.userId }, { onConflict: "business_id,user_id" });
+    await admin.from("business_members").upsert({ business_id: w.business_id, user_id: userId, member_role: existingMember?.member_role ?? memberRoleFor(email, biz?.email ?? null, w.trade_role), active: true, added_by: context.userId }, { onConflict: "business_id,user_id" });
     await admin.from("partner_workers").update({ profile_id: userId, account_status: "linked", linked_by: context.userId, linked_at: new Date().toISOString() }).eq("id", w.id);
     await admin.from("admin_config_events").insert({ actor_id: context.userId, event_type: data.send ? "trade_invite_sent" : "trade_login_link_prepared", summary: `${data.send ? "Invite emailed" : "Set-password link prepared"} for ${w.full_legal_name} (${biz?.name})`, details: { worker_id: w.id, business_id: w.business_id, user_id: userId, role } as Json });
     return { ok: true, link, sent: data.send };

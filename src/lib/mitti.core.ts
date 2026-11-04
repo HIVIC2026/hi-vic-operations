@@ -6,7 +6,7 @@ import { canonicalMittiTemplateId, mittiTemplateIdentity, sameMittiTemplateId } 
 import { PRE_READY_CHECK_STAGES } from "./installer-new-jobs.core";
 import { splitEligibleAreas, type ExcludedArea } from "./excluded-areas.core";
 import { A3_REPAIR_NEEDED_LABEL, A3_REPAIR_NEEDED_LEGACY_LABEL, LIFE_SUPPORT_PRESENT } from "./official-short.core";
-import { EXISTING_DEPTH_Q, isNoSafeAccess, isR2OrAbove, isRValueBandAnswer, LEAN_ALIASES, LEAN_Q, premisesTypeOption } from "./ready-check-lean.core";
+import { EXISTING_DEPTH_Q, areaNameFromAnswers, areaSizeBasis, isNoSafeAccess, isR2OrAbove, isRValueBandAnswer, LEAN_ALIASES, LEAN_Q, premisesTypeOption } from "./ready-check-lean.core";
 import { norm } from "./trade-shared-consts.core";
 import { isLayoutForm, readLayoutArea, type LayoutArea } from "./ceiling-layout.core";
 import { canonicalMittiLabel } from "./mitti-rebuild-labels.core";
@@ -243,6 +243,8 @@ export type PrefillCtx = {
   /** Official PIESA "Date of inspection" default (today, Melbourne); the electrician can change it. */ inspectionDate?: string | null;
   /** Ready Check "built or replaced in the last 5 years?" — from the owner's DECLARED enquiry answer: over 5 years "yes" → "No", "no" → "Yes"; unknown stays blank. */ builtLast5Years?: string | null;
   /** Official PIESA life-support question, from the owner's DECLARED enquiry answer ("Yes"/"No"); blank when unknown. */ lifeSupportDeclared?: string | null;
+  /** A3 items 23–27 (Jo 25 Oct 2026, "portal fills this in"): the electrician's B3 details from the office-verified record. */
+  electricianName?: string | null; electricianLicence?: string | null; electricianRecName?: string | null; electricianRecNo?: string | null; electricianPhone?: string | null;
 };
 const PREFILL: { key: keyof PrefillCtx; aliases: string[]; mandatory?: boolean; datetime?: boolean }[] = [
   // Not mandatory on the TEMPLATE (Jo 23 Oct): A1 drops "Portal Job Number"; A2 keeps it and still gets it prefilled.
@@ -266,6 +268,12 @@ const PREFILL: { key: keyof PrefillCtx; aliases: string[]; mandatory?: boolean; 
   { key: "builtLast5Years", aliases: ["Was the ceiling or roof built or replaced in the last 5 years?"] },
   { key: "inspectionDate", aliases: ["Date of inspection"], datetime: true },
   { key: "lifeSupportDeclared", aliases: ["Is anyone at this property dependent on life support?"] },
+  // A3 B3 block (official-short.core `pre(...)` labels): prefilled, the electrician checks them.
+  { key: "electricianLicence", aliases: ["Electrician licence number"] },
+  { key: "electricianName", aliases: ["Electrician full name"] },
+  { key: "electricianRecName", aliases: ["Electrical contractor (REC) business name"] },
+  { key: "electricianRecNo", aliases: ["REC registration number"] },
+  { key: "electricianPhone", aliases: ["Electrician phone"] },
 ];
 
 const PROPERTY_TYPE_OPTIONS = ["House", "Townhouse", "Unit or apartment"] as const;
@@ -444,7 +452,11 @@ export function parseAudit(audit: Any, opts: { installerSourced?: boolean } = {}
   // A2 (our leads) captures "Length (m)" × "Width (m)" per area; A1 (installer's own customers) captures the
   // measured m² directly. Legacy forms used "Measured area m2".
   // Decision 222: the lean repeating group asks "Length (m)" + "Width (m)" per area (the m² entry is the old-form fallback).
-  const isAreaKid = (e: Any) => !e.header && [norm("Measured area m2"), norm(LEAN_Q.lengthM), norm(LEAN_Q.widthM), norm(LEAN_Q.measuredM2), norm(FLOOR_PLAN_Q.area), norm(AERIAL_Q.area)].includes(e.norm) && e.value != null;
+  // Jo 3 Nov 2026: a NAMED area counts even with no size yet, so one area missing its size holds the total ("Nearly there")
+  // instead of silently dropping out. The name question is a choice now; "Other" asks for the name in "Type the area name".
+  // Jo 4 Nov 2026 (rebuild): the floor-plan / aerial-image m² answers are area kids too.
+  const areaNameNorms = [LEAN_Q.areaName, ...(LEAN_ALIASES.areaName ?? [])].map((l) => norm(l.split("\n")[0] ?? l));
+  const isAreaKid = (e: Any) => !e.header && e.value != null && ([norm("Measured area m2"), norm(LEAN_Q.lengthM), norm(LEAN_Q.widthM), norm(LEAN_Q.measuredM2), norm(FLOOR_PLAN_Q.area), norm(AERIAL_Q.area)].includes(e.norm) || areaNameNorms.includes(norm(String(e.label ?? "").split("\n")[0] ?? "")));
   const roomParents = new Set(entries.filter(isAreaKid).map((e) => e.parent ?? e.id));
   const areaM2Label = (kids: Entry[]) => kids.find((e) => [norm("Measured area m2"), norm("Enter the measured ceiling area (m²)")].includes(e.norm)) ?? kids.find((e) => e.norm.startsWith(norm("Measured area m2")));
   // Per-area questions can sit inside conditional sub-branches (empty-label containers), so an area's
@@ -460,9 +472,12 @@ export function parseAudit(audit: Any, opts: { installerSourced?: boolean } = {}
     const kids = areaKids(p);
     const plan = floorPlanMeasurement(kids);
     const m2e = areaM2Label(kids);
-    let m2 = plan.selected ? {value:plan.areaM2,issue:plan.areaM2===null?`${plan.kind==='aerial'?'Aerial image':'Floor plan'} ceiling area (m²) missing or invalid – office review required.`:null} : physical(m2e?.value ?? null, m2e?.label ?? "Measured area m2");
-    const len = physical(plan.selected ? null : val(kids, [LEAN_Q.lengthM]), LEAN_Q.lengthM);
-    const wid = physical(plan.selected ? null : val(kids, [LEAN_Q.widthM]), LEAN_Q.widthM);
+    // Jo 3 Nov 2026: when the area says how the size is given, only that way is read ("exactly one"); older forms never ask,
+    // so m² still wins when present, else Length × Width. Jo 4 Nov 2026 (rebuild): a floor plan / aerial image gives the m².
+    const basis = areaSizeBasis(val(kids, [LEAN_Q.areaSizeHow]));
+    let m2 = plan.selected ? {value:plan.areaM2,issue:plan.areaM2===null?`${plan.kind==='aerial'?'Aerial image':'Floor plan'} ceiling area (m²) missing or invalid – office review required.`:null} : physical(basis === "lw" ? null : m2e?.value ?? null, m2e?.label ?? "Measured area m2");
+    const len = physical(plan.selected || basis === "m2" ? null : val(kids, [LEAN_Q.lengthM]), LEAN_Q.lengthM);
+    const wid = physical(plan.selected || basis === "m2" ? null : val(kids, [LEAN_Q.widthM]), LEAN_Q.widthM);
     if (plan.selected && !plan.fileAnswered && !opts.installerSourced) issues.push(`${plan.kind==='aerial'?'Aerial image':'Floor plan'} file missing – office review required.`);
     if (m2.value == null && !plan.selected) {
       if (len.issue) issues.push(len.issue);
@@ -471,7 +486,7 @@ export function parseAudit(audit: Any, opts: { installerSourced?: boolean } = {}
     }
     if (m2.issue) issues.push(m2.issue);
     // Decision 222 / 211: the area NAME is kept (diagram box label, install-day zone name). Help text after a line break is not part of it.
-    const name = val(kids, [LEAN_Q.areaName, ...(LEAN_ALIASES.areaName ?? [])])?.split("\n")[0]?.trim() || null;
+    const name = areaNameFromAnswers(val(kids, [LEAN_Q.areaName, ...(LEAN_ALIASES.areaName ?? [])]), val(kids, [LEAN_Q.areaNameOther]));
     // Jo 4 Nov 2026: "Old insulation in this area?" (None / Yes, taking it out / Yes, topping up) replaces the two old
     // questions on new forms; old-wording forms keep reading exactly as before.
     const layout = isLayoutForm(kids) ? readLayoutArea(kids, m2.value) : null;

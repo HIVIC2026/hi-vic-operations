@@ -35,7 +35,7 @@ export function electricalBillingSource(f: { channel: string | null; choice: str
 }
 
 export type OwnerPriceInput = { installerQuoteIncGst: number; piesaIncGst: number | null; rectificationIncGst: number; apFeeIncGst: number | null; veecDiscountIncGst: number };
-/** Owner's co-branded invoice: installer quote + PIESA + rectification + AP fee − VEU discount. The discount is reduced if needed so the owner always pays at least the $200 minimum contribution (official VEU rule). */
+/** Owner's co-branded invoice: installer quote + PIESA + rectification + AP fee − rebate. The discount is reduced if needed so the owner always pays at least the $200 minimum contribution (official VEU rule). */
 export function installerLedOwnerPrice(i: OwnerPriceInput) {
   const blockers: string[] = [];
   if (!(i.installerQuoteIncGst > 0)) blockers.push("Installer quote amount is missing.");
@@ -212,7 +212,7 @@ export type InstallerQuoteDraft = { ready: boolean; blockers: string[]; lines: I
 export type DiscountCaps = { metropolitan: boolean | null; minCopay: number };
 
 /**
- * Owner quote for an installer-brought job: installer price (with ticked inclusions) + PIESA (settings) + AP fee − VEU discount.
+ * Owner quote for an installer-brought job: installer price (with ticked inclusions) + PIESA (settings) + AP fee − rebate.
  * Discount = `wholeVeecDiscount` (whole VEECs × VEEC value setting, computed by the caller) through `applyDiscountRules`
  * (the $200 minimum only — no maximum). No lead fee, no margin.
  */
@@ -224,7 +224,7 @@ export function buildInstallerQuoteDraft(i: {
 }): InstallerQuoteDraft {
   const blockers = [...i.price.issues];
   if (!(i.measuredM2 && i.measuredM2 > 0)) blockers.push("Measured ceiling area is missing.");
-  if (i.wholeVeec == null) blockers.push("VEU discount can't be worked out (postcode or VEEC value missing).");
+  if (i.wholeVeec == null) blockers.push("Rebate can't be worked out (postcode or VEEC value missing).");
   const p = i.price.price;
   const rawDiscount = i.wholeVeec?.raw ?? 0;
   const extra = Math.round((i.separateLines ?? []).reduce((a, l) => a + l.amountIncGst, 0) * 100) / 100;

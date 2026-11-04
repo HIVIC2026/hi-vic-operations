@@ -1,5 +1,6 @@
 // Part 3 Task 5 (Jo 3 Nov 2026): the upgrades day and certificate chases on real rows (PGlite). The REAL sweeps, facts
-// (jobCertificateFacts / currentCoes), link senders (textUpgradesDayLink / textCertificateLink) and electrician links run;
+// (jobCertificateFacts / currentCoes), link senders (textUpgradesDayLink / textCertificateLink) and electrician links run
+// (join 4 Nov 2026: the links are Part 6's worker links — worker_job_links — minted for the Team electrician);
 // stubbed at their seams: the text sender (records each text once per key, like sms_messages' unique key), the installer
 // office email (records each key once, like deliverOnce), the trade pause and the comms switch.
 // Review Focus 1: no upgrades day → day 1 text, day 2 email, then the red flag at 7 days left; nothing twice.
@@ -18,7 +19,9 @@ CREATE TABLE businesses (id uuid primary key, name text, trading_name text, emai
 CREATE TABLE jobs (id uuid primary key, stage text, deleted_at timestamptz, originating_installer_business_id uuid, channel text, source text, job_number text, created_at timestamptz default clock_timestamp(), business_unit text default 'hivic', qa_archived_at timestamptz);
 CREATE VIEW job_overview AS SELECT id, job_number, '1 Example St, Clayton 3168'::text AS property_address FROM jobs;
 CREATE TABLE workflow_events (id uuid primary key default gen_random_uuid(), job_id uuid, actor_id uuid, event_type text, summary text, details jsonb, internal boolean, created_at timestamptz default clock_timestamp());
-CREATE TABLE partner_workers (id uuid primary key default gen_random_uuid(), business_id uuid, profile_id uuid, full_legal_name text, mobile text, removed_at timestamptz);
+CREATE TABLE partner_workers (id uuid primary key default gen_random_uuid(), business_id uuid, profile_id uuid, full_legal_name text, mobile text, removed_at timestamptz, trade_role text default 'electrician', approval_status text default 'approved');
+-- Join (4 Nov 2026): the chase texts carry Part 6's worker link (worker_job_links), not the Part 2 electrician_job_links.
+CREATE TABLE worker_job_links (id uuid primary key default gen_random_uuid(), worker_id uuid, business_id uuid, job_id uuid, token_hash text unique, created_by uuid, created_at timestamptz default now(), expires_at timestamptz, revoked_at timestamptz, revoked_by uuid);
 CREATE TABLE job_assignments (id uuid primary key default gen_random_uuid(), job_id uuid not null, role text not null, business_id uuid, user_id uuid not null, active boolean not null default true, booking_confirmed_at timestamptz, assigned_at timestamptz default clock_timestamp());
 CREATE TABLE bookings (id uuid primary key default gen_random_uuid(), job_id uuid, kind text, status text, scheduled_start timestamptz, business_id uuid, created_at timestamptz default clock_timestamp());
 CREATE TABLE electrician_job_links (id uuid primary key default gen_random_uuid(), job_id uuid, electrician_business_id uuid, token_hash text unique, created_at timestamptz default now(), expires_at timestamptz, revoked_at timestamptz, revoked_reason text);
@@ -344,8 +347,11 @@ describe("held sends at scale (fix 1)", () => {
 describe("wiring", () => {
   test("both sweeps run on the allocation tick; Needs me reads the chase flags; the no-file certificate row is hidden", () => {
     const tick = readFileSync("src/routes/api/public/hooks/allocation-tick.ts", "utf8");
-    expect(tick).toContain('timed("sweepUpgradesDayChase", () => sweepUpgradesDayChase())');
-    expect(tick).toContain('timed("sweepCertificateChase", () => sweepCertificateChase())');
+    // Join ruling 2 (4 Nov 2026): ONE tick entry (sweepUpgradesChasing) runs both chases and Part 6's "day passed" sweep.
+    expect(tick).toContain('timed("sweepUpgradesChasing", () => sweepUpgradesChasing())');
+    const later = readFileSync("src/lib/certificate-later.server.ts", "utf8").slice(readFileSync("src/lib/certificate-later.server.ts", "utf8").indexOf("export async function sweepUpgradesChasing"));
+    expect(later).toContain("sweepUpgradesDayChase(now)");
+    expect(later).toContain("sweepCertificateChase(now)");
     const needs = readFileSync("src/lib/office-needs.server.ts", "utf8");
     expect(needs).toContain("chaseFlagsForJobs(");
     const coes = readFileSync("src/lib/coes-check.server.ts", "utf8");

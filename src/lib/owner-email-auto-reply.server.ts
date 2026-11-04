@@ -15,6 +15,8 @@
 //   raises ONE Needs me email row (`email_change_request`, intent "reply", Done / Ignore).
 // - Filing: after a SENT reply the inbound message is moved to Outlook Archive (email-reply.server
 //   `archiveRepliedMessage`, behind OUTLOOK_ARCHIVE_AFTER_REPLY_ENABLED) and `email_auto_reply_filed` records the result.
+// - Installer office phone (decisions 54–58): the "pick a time" answers read the installer's business office phone
+//   through `businessContactForJob` before the claim; none on file → `email_auto_reply_held` + draft + row, nothing sent.
 // Nothing here changes a job, a booking or a stage. Best-effort: never throws to the copier.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -22,9 +24,12 @@ import type { MailMessage } from "./outlook-correspondence.core";
 import { EMAIL_CHANGE_REQUEST_EVENT, recentEnoughForAction } from "./email-intent.core";
 import {
   ANSWER_CODES, EMAIL_AUTO_REPLIED_EVENT, EMAIL_AUTO_REPLY_FILED_EVENT, EMAIL_AUTO_REPLY_HELD_EVENT, OWNER_EMAIL_AUTO_REPLY_APPROVED,
-  OWNER_EMAIL_AUTO_REPLY_PURPOSE, REPLY_NEEDED_INTENT, autoReplyKey, autoReplyMode, decideOwnerAutoReply, renderOwnerAutoReplyEmail,
-  type OwnerJobFacts, type VisitKind,
+  OWNER_EMAIL_AUTO_REPLY_PURPOSE, REPLY_NEEDED_INTENT, answerDesign, answerNeedsInstaller, autoReplyKey, autoReplyMode, decideOwnerAutoReply,
+  renderOwnerAutoReplyEmail, type AnswerFacts, type OwnerJobFacts, type VisitKind,
 } from "./owner-email-auto-reply.core";
+import type { BusinessContact } from "./owner-wording.core";
+
+export type AutoReplyDeps = { businessContact?: (jobId: string, role: "installer" | "electrician") => Promise<BusinessContact | null> };
 
 const loose = admin as unknown as SupabaseClient;
 const lower = (s: string | null | undefined) => (s ?? "").trim().toLowerCase();
@@ -105,8 +110,8 @@ export async function raiseReplyNeededRow(jobId: string, m: MailMessage, reason:
   return true;
 }
 
-/** Tests only pass `switches`; production uses the code constants. */
-export async function autoReplyToOwner(p: { jobIds: string[]; message: MailMessage; mailbox: string | null; now?: Date; switches?: { approved: boolean; archive: boolean } }): Promise<AutoReplyOutcome> {
+/** Tests only pass `switches` / `deps`; production uses the code constants and `businessContactForJob`. */
+export async function autoReplyToOwner(p: { jobIds: string[]; message: MailMessage; mailbox: string | null; now?: Date; switches?: { approved: boolean; archive: boolean }; deps?: AutoReplyDeps }): Promise<AutoReplyOutcome> {
   const m = p.message, now = p.now ?? new Date();
   const approved = p.switches?.approved ?? OWNER_EMAIL_AUTO_REPLY_APPROVED;
   const skip = (detail: string): AutoReplyOutcome => ({ status: "skip", detail, suppressDraft: false, officeRow: false });
@@ -126,11 +131,11 @@ export async function autoReplyToOwner(p: { jobIds: string[]; message: MailMessa
     const before = await prior(m.providerMessageId);
     if (before === "sent") return { status: "already", detail: "already replied to this email", suppressDraft: true, officeRow: false };
     if (before === "held") return { status: "already", detail: "the automatic reply was held earlier", suppressDraft: false, officeRow: await raiseReplyNeededRow(jobId, m, "the automatic reply was held earlier") };
-    const [isPartnerOrStaff, facts] = await Promise.all([partnerOrStaff(from), ownerJobFacts(jobId, owner?.full_name ?? null, job.stage, now)]);
+    const [isPartnerOrStaff, jobFacts] = await Promise.all([partnerOrStaff(from), ownerJobFacts(jobId, owner?.full_name ?? null, job.stage, now)]);
     const decision = decideOwnerAutoReply({
       subject: m.subject, body: m.body, fromName: m.fromName, hasAttachments: m.hasAttachments,
       attachments: (m.attachments ?? []).map((a) => ({ name: a.name, contentType: a.contentType, isInline: a.isInline })),
-      jobCount: p.jobIds.length, senderIsOwner, senderIsPartnerOrStaff: isPartnerOrStaff, job: facts,
+      jobCount: p.jobIds.length, senderIsOwner, senderIsPartnerOrStaff: isPartnerOrStaff, job: jobFacts,
     });
     if (decision.kind === "skip") return skip(decision.reason);
     if (decision.kind === "none") return { status: "none", detail: decision.reason, suppressDraft: true, officeRow: false };
@@ -145,6 +150,21 @@ export async function autoReplyToOwner(p: { jobIds: string[]; message: MailMessa
 
     const key = autoReplyKey(m.providerMessageId);
     const code = ANSWER_CODES[decision.answer].code;
+    // Decisions 54–58: the installer's business office phone, read before the claim. Missing → held, never a blank or a mobile.
+    let facts: AnswerFacts = decision.facts;
+    if (answerNeedsInstaller(decision.answer, facts)) {
+      const contactFor = p.deps?.businessContact ?? (await import("./owner-contact.server")).businessContactForJob;
+      const c = await contactFor(jobId, "installer");
+      facts = { ...facts, installer: c?.officePhone ? { name: c.tradingName || c.name, officePhone: c.officePhone } : null };
+    }
+    try { answerDesign(decision.answer, facts); } catch (e) {
+      const why = (e as Error).message;
+      await loose.from("workflow_events").insert({ job_id: jobId, actor_id: null, event_type: EMAIL_AUTO_REPLY_HELD_EVENT, internal: true,
+        summary: `Automatic reply to the owner's email not sent — ${why}`,
+        details: { message_id: m.providerMessageId, internet_message_id: m.internetMessageId, thread_id: m.threadId, from, subject: m.subject, received_at: m.at,
+          answer: decision.answer, template: code, idempotency_key: key, mode: mode.mode, status: why, decision: 386 } });
+      return draft("held", why);
+    }
     const base = { message_id: m.providerMessageId, internet_message_id: m.internetMessageId, thread_id: m.threadId, from, subject: m.subject, received_at: m.at,
       answer: decision.answer, template: code, link: decision.link, idempotency_key: key, mode: mode.mode, decision: 386 };
     // The claim: one per Outlook message, written before anything is sent (unique key once the pending index is applied).
@@ -157,7 +177,7 @@ export async function autoReplyToOwner(p: { jobIds: string[]; message: MailMessa
     const to = owner!.email!.trim();
     let status: string;
     if (mode.mode === "test_send") {
-      const mail = renderOwnerAutoReplyEmail({ answer: decision.answer, facts: decision.facts, theirSubject: m.subject, test: true });
+      const mail = renderOwnerAutoReplyEmail({ answer: decision.answer, facts, theirSubject: m.subject, test: true });
       const { sendTestEmail } = await import("./test-send.server");
       const r = await sendTestEmail({ jobId, jobSource: job.source, partnerIsTest: false, label: `${OWNER_EMAIL_AUTO_REPLY_PURPOSE}:${key}`, actorId: null }, to, mail.subject, mail.html, mail.text);
       status = r.status === "sent" ? "sent" : `test-send ${r.status}: ${r.detail}`;
@@ -165,7 +185,7 @@ export async function autoReplyToOwner(p: { jobIds: string[]; message: MailMessa
       try {
         await (await import("./comms.server")).assertCustomerDeliveryAllowed(jobId, "Automatic email reply");
         status = await (await import("./owner-email-send.server")).sendGuardedOwnerEmail({ jobId, jobSource: job.source, to, purpose: OWNER_EMAIL_AUTO_REPLY_PURPOSE, key,
-          build: (unsubscribe) => renderOwnerAutoReplyEmail({ answer: decision.answer, facts: decision.facts, theirSubject: m.subject, unsubscribe }) });
+          build: (unsubscribe) => renderOwnerAutoReplyEmail({ answer: decision.answer, facts, theirSubject: m.subject, unsubscribe }) });
       } catch (e) { status = `blocked: ${(e as Error).message}`; }
     }
     const sent = status === "sent" || status.startsWith("delivery uncertain");

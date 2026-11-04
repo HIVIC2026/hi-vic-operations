@@ -14,7 +14,11 @@ import { readJobAccess } from "./quick-taps-access.server";
 const none = ["00000000-0000-0000-0000-000000000000"];
 type Ctx = { biz: { id: string; name: string }; boss: boolean; kind: "installer" | "electrician" };
 
-export async function statusFactsFor(c: Ctx, jobIds: string[]): Promise<Map<string, StatusFacts & { channel: string | null; originating: string | null; jobNumber: string }>> {
+/** The job columns the status facts need; a caller that already holds them (the installer home's assignment read) passes
+ *  them so they are not read again. Must be exactly the rows the read below would give for `jobIds`. */
+export type StatusJobRow = { id: string; job_number: string; stage: string; channel: string | null; originating_installer_business_id: string | null; created_at: string | null };
+
+export async function statusFactsFor(c: Ctx, jobIds: string[], pre?: { jobs?: StatusJobRow[] }): Promise<Map<string, StatusFacts & { channel: string | null; originating: string | null; jobNumber: string }>> {
   const ids = jobIds.length ? jobIds : none;
   // Speed (installer screens, Task 5): the in-house read (its own catch: a failure marks the line, never the page) and
   // the electrician's payout-gate facts start with the eleven fact reads — one round, not three in a row.
@@ -22,7 +26,8 @@ export async function statusFactsFor(c: Ctx, jobIds: string[]): Promise<Map<stri
   gateP?.catch(() => undefined); // awaited below whenever a job came back; ignored (as before: never read) when none did
   const [dispatch, { data: jobs }, { data: books }, { data: ev }, { data: quotes }, { data: invs }, { data: props }, { data: ws }, { data: aps }, { data: sims }, { data: ovs }, { data: rcw }] = await Promise.all([
     inHouseSuppression.readInHouseDispatchState(jobIds),
-    admin.from("jobs").select("id, job_number, stage, channel, originating_installer_business_id, created_at").in("id", ids),
+    // Speed (portal speed step 2B): the installer home passes the job rows its assignment read already carries.
+    pre?.jobs ? Promise.resolve({ data: pre.jobs }) : admin.from("jobs").select("id, job_number, stage, channel, originating_installer_business_id, created_at").in("id", ids),
     admin.from("bookings").select("job_id, kind, status, scheduled_start, scheduled_end, business_id, businesses(name, trading_name)").in("job_id", ids).in("status", ["confirmed", "completed"]),
     admin.from("workflow_events").select("job_id, event_type, to_stage, created_at").in("job_id", ids).in("event_type", ["stage_changed", "payout_marked_paid", "installer_ready_check_times_delivery", "ready_check_more_times_requested"]).order("created_at", { ascending: false }).limit(5000),
     admin.from("quotes").select("job_id, kind, status, sent_at, accepted_at").in("job_id", ids).in("status", ["issued", "accepted"]),

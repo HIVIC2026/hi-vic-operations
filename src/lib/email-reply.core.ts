@@ -365,8 +365,8 @@ function priceRebate(f: OwnerFacts): Built {
   const pre = isPreRelease(f);
   lines.push(`That includes ${pre ? "" : "the free Ready Check, "}the licensed electrician's safety check, premium R5.0 ceiling batts fitted by an EEC-certified installer, and all the rebate paperwork.`);
   const extras = q
-    ? "Electrical fixes aren't included and are only needed if the safety check finds any; they're quoted separately and nothing is done without your OK."
-    : `Not included, only if needed: removing old insulation, a ceiling access fee, electrical fixes, or a bigger ceiling than you told us${pre ? "." : ", and you'll know the exact price before you agree to anything."}`;
+    ? "Electrical upgrades aren't included and are only needed if the safety check finds any; they're quoted separately and nothing is done without your OK."
+    : `Not included, only if needed: removing old insulation, a ceiling access fee, electrical upgrades, or a bigger ceiling than you told us${pre ? "." : ", and you'll know the exact price before you agree to anything."}`;
   const rule = "The rebate is for homes over 5 years old where any insulation already in the ceiling is below R2.0.";
   let linkLine: string | null = null;
   lines.push(extras, rule);
@@ -379,6 +379,10 @@ function priceRebate(f: OwnerFacts): Built {
 /** Approved installer-guide pay rule (GUIDE_WORDS.pay: "your customers when the owner pays the balance; our leads 7 days
  *  after we approve the job"), written as a sentence. */
 export const PARTNER_PAY_RULE = "For your own customers you're paid when the owner pays the balance, and for our leads 7 days after we approve the job.";
+/** DRAFT (Jo 3 Nov 2026 22:14 ruling, Part 4): for an installer's OWN customer (A1) the quote is never sent by Complete itself —
+ *  the business owner enters the price after Complete, and only then does the quote go to the owner. Our leads (A2, Jo 22:58)
+ *  still go out by themselves on Complete; this line is the A1 answer (the draft Jo approves is marked A1-only). */
+export const PARTNER_MITTI_COMPLETE_LINE_DRAFT = "Fill in as much as you can and press Complete when it's finished, then the business owner enters the price in the portal and we send the owner their quote."; // DRAFT
 function partnerReply(p: PartnerFacts | null, text: string, now: Date): Built {
   const flags: string[] = [];
   const lines: string[] = [];
@@ -388,7 +392,7 @@ function partnerReply(p: PartnerFacts | null, text: string, now: Date): Built {
   if (mitti) {
     const example = p?.ownJobNumbers[0] ?? "HV-3117";
     lines.push(`The job's Ready Check form appears in Mitti within about 15 minutes of the job being added, named with the customer's address and job number (for example ${example}), under your inspections.`);
-    lines.push("Fill in as much as you can and press Complete only when it's finished, because that's what sends the owner their quote.");
+    lines.push(PARTNER_MITTI_COMPLETE_LINE_DRAFT);
   }
   if (pay) {
     const rows = p?.pay ?? [];

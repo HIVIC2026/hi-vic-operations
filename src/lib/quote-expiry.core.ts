@@ -1,10 +1,19 @@
 // Installation quote expiry + owner nudges (Operating Model v2). Pure rules only.
-// A sent installation quote expires at the end of the 14th full day after the day it was sent
-// (Melbourne calendar): sent on the 1st -> expires at the end of the 15th. Nudges on day 3 and day 10.
+// Decision #30 (Jo 2 Nov 2026, replaces the 29 Oct 14-day expiry): a sent installation quote is valid for 30 days — it
+// expires at the end of the 30th full day after the day it was sent (Melbourne calendar): sent on 10 Nov -> last valid day
+// 10 Dec. Points: day 3 and 2 days before expiry (the expiry point still uses the `nudge_day10_at` column).
+// Review Focus 5: a quote sent before the 30-day change ships keeps the 14-day date it was sent with (the owner was told
+// that date). The change ships with QUOTE_30_DAY_FROM_ISO = null (every quote 14 days); the release commit sets it.
 // Rectification quotes are excluded (they get their own timing later).
 
-export const QUOTE_EXPIRY_FULL_DAYS = 14;
-export const QUOTE_NUDGE_DAYS = [3, 10] as const;
+export const QUOTE_VALID_DAYS = 30;
+/** Quotes sent before QUOTE_30_DAY_FROM_ISO keep the old 14 days. */
+export const QUOTE_OLD_VALID_DAYS = 14;
+/** First instant (UTC ISO) a sent quote gets 30 days. null = not switched on yet: every quote keeps 14 days.
+ *  Set to the release commit's UTC time when Jo approves (Part 3 Task 20 Step 5). */
+export const QUOTE_30_DAY_FROM_ISO = null as string | null;
+/** The expiry reminder point: this many days before the quote expires. */
+export const QUOTE_EXPIRY_NUDGE_LEAD_DAYS = 2;
 const TZ = "Australia/Melbourne";
 
 function melbourneDate(d: Date): string {
@@ -29,30 +38,46 @@ function addDays(ymd: string, n: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** First instant the quote is expired (start of the day after the 14th full day). */
-export function quoteExpiresAt(sentAt: string | Date): Date {
+/** 30 for a quote sent at/after the cutover, 14 for one sent before it (or while the cutover is not set). */
+export function quoteValidDaysFor(sentAt: string | Date, thirtyDayFromIso: string | null = QUOTE_30_DAY_FROM_ISO): 14 | 30 {
+  if (!thirtyDayFromIso) return 14;
+  const from = Date.parse(thirtyDayFromIso);
+  return Number.isFinite(from) && new Date(sentAt).getTime() >= from ? 30 : 14;
+}
+
+/** First instant the quote is expired (start of the day after its 30th — or, sent before the cutover, 14th — full day). */
+export function quoteExpiresAt(sentAt: string | Date, thirtyDayFromIso: string | null = QUOTE_30_DAY_FROM_ISO): Date {
   const sentDay = melbourneDate(new Date(sentAt));
-  return melbourneMidnight(addDays(sentDay, QUOTE_EXPIRY_FULL_DAYS + 1));
+  return melbourneMidnight(addDays(sentDay, quoteValidDaysFor(sentAt, thirtyDayFromIso) + 1));
 }
 
-export function quoteIsExpired(q: { kind: string; sent_at?: string | null }, now: Date = new Date()): boolean {
+export function quoteIsExpired(q: { kind: string; sent_at?: string | null }, now: Date = new Date(), thirtyDayFromIso: string | null = QUOTE_30_DAY_FROM_ISO): boolean {
   if (q.kind !== "installation" || !q.sent_at) return false;
-  return now.getTime() >= quoteExpiresAt(q.sent_at).getTime();
+  return now.getTime() >= quoteExpiresAt(q.sent_at, thirtyDayFromIso).getTime();
 }
 
-export type QuoteTimerAction = "expire" | "nudge_day10" | "nudge_day3" | null;
+/** Decision #30 wording for the quote email, quote page and quote reminder emails (texts keep "held until", #32). */
+export function quoteValidLine(validUntil: Date): string {
+  const d = new Intl.DateTimeFormat("en-AU", { timeZone: TZ, day: "numeric", month: "long", year: "numeric" }).format(validUntil);
+  return `Your quote is valid for ${QUOTE_VALID_DAYS} days, until ${d}.`;
+}
 
-/** What the timer should do now for one quote. Only open (issued) installation quotes with a sent date qualify. */
+export type QuoteTimerAction = "expire" | "nudge_expiry" | "nudge_day3" | null;
+
+/** What the timer should do now for one quote. Only open (issued) installation quotes with a sent date qualify.
+ *  The expiry point is recorded in `nudge_day10_at` (column name kept). */
 export function quoteTimerAction(
   q: { kind: string; status: string; sent_at: string | null; nudge_day3_at: string | null; nudge_day10_at: string | null },
   now: Date = new Date(),
+  thirtyDayFromIso: string | null = QUOTE_30_DAY_FROM_ISO,
 ): QuoteTimerAction {
   if (q.kind !== "installation" || q.status !== "issued" || !q.sent_at) return null;
-  if (quoteIsExpired(q, now)) return "expire";
-  const age = now.getTime() - new Date(q.sent_at).getTime();
+  const expires = quoteExpiresAt(q.sent_at, thirtyDayFromIso).getTime();
+  const t = now.getTime();
+  if (t >= expires) return "expire";
   const day = 86_400_000;
-  if (age >= 10 * day && !q.nudge_day10_at) return "nudge_day10";
-  if (age >= 3 * day && !q.nudge_day3_at && !q.nudge_day10_at) return "nudge_day3";
+  if (t >= expires - QUOTE_EXPIRY_NUDGE_LEAD_DAYS * day) return q.nudge_day10_at ? null : "nudge_expiry";
+  if (t - new Date(q.sent_at).getTime() >= 3 * day && !q.nudge_day3_at && !q.nudge_day10_at) return "nudge_day3";
   return null;
 }
 
@@ -60,8 +85,14 @@ export const QUOTE_EXPIRED_OWNER_MESSAGE = "This quote has expired. Please conta
 
 // ---- Batch 3a: an expired quote closes the job and emails the owner once ----------------------------------------------
 
-/** The cancel reason the expiry close uses; "Send me a new quote" (Task 2) recognises the job by this exact text. */
-export const QUOTE_EXPIRED_CANCEL_REASON = "Quote expired (14 days)";
+/** The cancel reason the expiry close uses for a 30-day quote. */
+export const QUOTE_EXPIRED_CANCEL_REASON = "Quote expired (30 days)";
+/** The reason used for quotes sent before the 30-day change (and every job closed before it). */
+export const QUOTE_EXPIRED_CANCEL_REASON_14_DAY = "Quote expired (14 days)";
+/** "Send me a new quote" (Task 2), My job and Needs me recognise an expiry-closed job by either exact text. */
+export const QUOTE_EXPIRED_CANCEL_REASONS = [QUOTE_EXPIRED_CANCEL_REASON, QUOTE_EXPIRED_CANCEL_REASON_14_DAY] as const;
+export const quoteExpiredCancelReason = (validDays: 14 | 30): string => (validDays === 30 ? QUOTE_EXPIRED_CANCEL_REASON : QUOTE_EXPIRED_CANCEL_REASON_14_DAY);
+export const isQuoteExpiredCancelReason = (r: string | null | undefined): boolean => !!r && (QUOTE_EXPIRED_CANCEL_REASONS as readonly string[]).includes(r);
 /** Once-only email key for one expired quote. */
 export const quoteExpiredEmailKey = (quoteId: string) => `quote-expired:v1:${quoteId}`;
 /** The owner's My job link opened on the "new quote" screen (Task 2 builds the screen). */

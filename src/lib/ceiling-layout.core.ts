@@ -265,7 +265,7 @@ export function a1PriceLinkView(areas: LayoutArea[], thicker: 6 | 7 | null) {
 }
 
 // ---------- assembling an owner quote option (both forms) ----------
-/** Adds the PIESA + AP fee lines, works out the VEU discount for THIS option and applies the 15% estimate rule.
+/** Adds the PIESA + AP fee lines, works out the rebate for THIS option and applies the 15% estimate rule.
  *  `veuRawDiscount` comes from wholeVeecDiscount (same area for every option); the $200 minimum is applied per option. */
 export function assembleLayoutQuote(o: { label: string; insulationLines: Omit<LayoutLine, "sort">[]; piesaIncGst: number; apFeeIncGst: number; apFeeDescription: string; veuRawDiscount: number; minimumCopayIncGst: number; estimateTotal: number | null; tolerancePct: number; extraHolds?: string[] }) {
   const lines = [

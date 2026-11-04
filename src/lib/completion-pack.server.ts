@@ -55,12 +55,12 @@ export async function recordWarrantyCopyProvided(jobId: string, actorId: string 
   return true;
 }
 
-/** Decision 322: the CoES file(s) the electrician uploaded in the A4 fixes form, as email attachments (none when absent). Never throws. */
+/** Decision 322: the CoES file(s) from the A4 fixes form in Mitti OR uploaded on the job link / by the installer office (Part 6 Task 5), as email attachments (none when absent). Never throws. */
 export async function coesAttachmentsFor(jobId: string): Promise<{ attachments: EmailAttachment[]; names: string[]; skipped: { path: string; reason: string }[] }> {
   const none = { attachments: [] as EmailAttachment[], names: [] as string[], skipped: [] as { path: string; reason: string }[] };
   try {
     const { FIXES_COES_DOC_KIND, FIXES_COES_DOC_TITLE } = await import("./fixes-day.core");
-    const { data: docs } = await admin.from("documents").select("storage_path, mime_type, size_bytes, created_at").eq("job_id", jobId).eq("kind", FIXES_COES_DOC_KIND).eq("source_system", "mitti").eq("title", FIXES_COES_DOC_TITLE);
+    const { data: docs } = await admin.from("documents").select("storage_path, mime_type, size_bytes, created_at").eq("job_id", jobId).eq("kind", FIXES_COES_DOC_KIND).in("source_system", ["mitti", "upload"]).eq("title", FIXES_COES_DOC_TITLE);
     const plan = coesAttachmentPlan((docs ?? []) as { storage_path: string; mime_type: string | null; size_bytes: number | null; created_at: string }[]);
     const out = { ...none, skipped: [...plan.skipped] };
     for (const item of plan.attach) {

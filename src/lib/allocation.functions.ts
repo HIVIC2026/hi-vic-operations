@@ -240,6 +240,14 @@ export const getPrestartSummary = createServerFn({ method: "POST" }).middleware(
     return (await prestartSummary(data.jobId)) ?? null;
   });
 
+/** Part 9 Task 2: this job's ESC notices still live in the Registry although the install won't go ahead (cancelled / handed back). */
+export const getEscWithdrawals = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => {
+    await requireAdmin(context.supabase);
+    return (await import("./esc.server")).escWithdrawalsFor(data.jobId);
+  });
+
 export const rerunPrestart = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {

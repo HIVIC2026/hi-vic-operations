@@ -18,7 +18,7 @@ import { WorkflowError, logEvent } from "./workflow.server";
 import {
   DECLINE_REASON, LAPSED_NEEDS_LINE, SPOT_RELEASED_APPROVED, SPOT_RELEASED_EVENT, SPOT_RELEASED_PURPOSE, SPOT_RELEASED_SMS_TYPE,
   SPOT_RELEASE_CONFIRMED_EVENT, SPOT_RELEASE_DECLINED_EVENT, SPOT_RELEASE_EVENTS, SPOT_RELEASE_LAPSED_EVENT, SPOT_RELEASE_REMINDED_EVENT,
-  jobWaitingForInstaller, nextReleaseSeq, ownerTurnView, releasePlan, spotReleaseDue, spotReleaseKey, spotReleasePageLink, spotReleaseState, spotReleasedText,
+  jobWaitingForInstaller, nextReleaseSeq, ownerTurnView, releasePlan, spotReleaseDue, spotReleaseKey, spotReleasePageLink, spotReleaseState, legacySpotReleasedText,
   type OwnerTurnView, type SpotReleaseDue, type SpotReleaseEventRow, type SpotReleaseState,
 } from "./spot-release.core";
 import { SMS_MESSAGE_TYPES } from "./sms.core";
@@ -79,14 +79,16 @@ async function sendTurnMessages(jobId: string, s: Extract<SpotReleaseState, { st
     job.owner_id ? admin.from("owners").select("full_name, email, phone").eq("id", job.owner_id).maybeSingle() : Promise.resolve({ data: null as { full_name: string | null; email: string | null; phone: string | null } | null }),
     admin.from("businesses").select("onboarding_notes").eq("id", s.businessId).maybeSingle(),
   ]);
+  // Releases made before 2 Nov 2026 keep the wording Jo approved for them (decision 389), byte for byte: the LEGACY
+  // builders, never IT_IS_YOUR_TURN_V2_APPROVED (that flag is only the area batch Send's new wording).
   const page = spotReleasePageLink(link);
   const reminder = step === "reminder";
-  const smsBody = spotReleasedText(page, reminder);
+  const smsBody = legacySpotReleasedText(page, reminder);
   const key = spotReleaseKey(jobId, s.seq, step);
   const withEmail = step !== "release_text";
-  const { renderSpotReleasedEmail } = await import("./spot-release-email.core");
+  const { renderLegacySpotReleasedEmail } = await import("./spot-release-email.core");
   const { firstName } = await import("./worker-links.core");
-  const build = (unsubscribeUrl: string | null, test: boolean) => renderSpotReleasedEmail({ firstName: firstName(owner?.full_name ?? null), confirmUrl: page, unsubscribeUrl, reminder, test });
+  const build = (unsubscribeUrl: string | null, test: boolean) => renderLegacySpotReleasedEmail({ firstName: firstName(owner?.full_name ?? null), confirmUrl: page, unsubscribeUrl, reminder, test });
   const out: string[] = [];
   if (job.source === "qa_test") {
     const { isTestPartner } = await import("./test-send.core");
@@ -140,7 +142,9 @@ export async function releaseSpot(jobId: string, actorId: string | null, busines
   // Every check the installer offer will make, BEFORE the owner is told anything (so Confirm can't hit a refusal we knew about).
   const { readyCheckOfferStartBlockers } = await import("./ready-check-times.core");
   const { count: open } = await admin.from("partner_offers").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("kind", "ready_check").eq("status", "pending");
-  const b = readyCheckOfferStartBlockers({ channel: job.channel, stage: job.stage, deleted: !!job.deleted_at, hasInstaller: job.hasInstaller, openOffers: open ?? 0, picks: 1 });
+  // Part 10 Task 8: an installer's own customer never gets "It's your turn" (their first email is the quote).
+  const own = (await import("./own-customer-messages.core")).ownCustomerPreQuoteBlocker(job.channel);
+  const b = own ? [own] : readyCheckOfferStartBlockers({ channel: job.channel, stage: job.stage, deleted: !!job.deleted_at, hasInstaller: job.hasInstaller, openOffers: open ?? 0, picks: 1 });
   if (b.length) throw new WorkflowError(`The spot can't be released: ${b.join(" ")}`);
   const { candidates } = await (await import("./readycheck-booking.server")).installerCandidatesFor(jobId);
   const c = candidates.find((x) => x.business_id === businessId);

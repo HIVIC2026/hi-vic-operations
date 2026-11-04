@@ -1,3 +1,4 @@
+import { UPGRADES_LINE_B, thirtyDayTick } from "./quote-wording.core";
 // Wording for Jo's approved owner/installer PAGES (24 Oct 2026, decisions 125–130 and 137). PURE: labels and
 // formatting only. Source of truth: docs/templates/owner/P1…P4, P6 and docs/templates/installer/P5 HTML mock-ups — copied byte-for-byte (Jo rejects
 // paraphrases). Nothing here decides workflow, prices, eligibility or access: pages pass in facts they already have.
@@ -28,10 +29,6 @@ export const P1 = {
   question: (i: number) => `QUESTION ${i} OF 3`,
   /** Page titles for the three questions (the stored question keys and options are unchanged). */
   labels: { insulation_type: "What type is your insulation?", insulation_thickness: "About how thick is it?", house_built_period: "When was your home built?" } as Record<string, string>,
-  photosTitle: "Got photos or a video? (optional)",
-  photosSub: "It helps us check your insulation. Only if it's safe: hold your phone up through the ceiling hatch. Please don't climb into the roof space.",
-  addPhotos: "Add photos",
-  addVideo: "Add a video",
   save: "Save my free spot",
   saving: "Saving…",
   /** Amber line under the locked button, e.g. "Answer question 3 to save your spot". */
@@ -47,7 +44,7 @@ export const P2 = {
   /** "824 High Street Road… · Measured at your Ready Check on 28 October · Price held until 7 November 2026" */
   sub: (x: { address: string | null; measuredOn: string | null; heldUntil: string | null }) =>
     [x.address, x.measuredOn ? `Measured at your Ready Check on ${x.measuredOn}` : "Measured at your Ready Check", x.heldUntil ? `Price held until ${x.heldUntil}` : null].filter(Boolean).join(" · "),
-  rebateEyebrow: "Your VEU rebate",
+  rebateEyebrow: "Your rebate",
   youSave: (rebate: string) => `You save ${rebate}`,
   rebateNote: "Taken off upfront. Nothing for you to claim.",
   priceEyebrow: "Your price",
@@ -55,28 +52,32 @@ export const P2 = {
   measured: "Measured at your Ready Check",
   itemsTitle: "What you're paying for",
   fullPrice: "Full price", fullPriceSub: "incl. GST",
-  rebateLine: "VEU rebate", rebateLineSub: "Taken off upfront, nothing to claim",
+  rebateLine: "Rebate", rebateLineSub: "Taken off upfront, nothing to claim",
   youPay: "You pay",
-  notIncluded: "Not included: electrical upgrades, only if the safety check finds any. Quoted separately, nothing done without your OK.",
+  /** Jo 4 Nov 2026 21:05 (wording B): replaces "Not included: electrical upgrades, only if…" — same words on the quote email and agreement section 2. */
+  notIncluded: UPGRADES_LINE_B,
   sayYes: "SAY YES",
-  twoThings: "Two quick things, then accept",
-  tapEach: "Tap each one to read it in full. Plain English, no surprises.",
-  tick1: "I accept this quote and the Customer Agreement",
-  tick1Sub: (rebate: string) => `Your contract with Home Insulation Victoria for this job. The ${rebate} rebate comes off your price now; you'll sign the official rebate form after the install.`,
-  tick1Read: "Read the agreement ›",
-  tick2: "I've read my consumer rights and the payment terms",
-  tick2Sub: (safetyCheck: string) => `${safetyCheck} now for the electrical safety check, 10% to book your install day, the rest 7 days after your install is recorded complete. Or pay in full any time.`,
-  tick2Read: "Read in full ›",
-  signTitle: "Sign",
+  twoTicks: "Two ticks, then accept",
+  tick1: "I accept this quote, the Customer Agreement and the payment terms, and I've been given my Statement of rights under the VEU program. I'm 18 or over, I own this home (or I'm allowed to sign for the owner), and I'm happy to get my documents by email.",
+  attachedNote: "(attached to your quote email)",
+  agreementLink: "Read the agreement (PDF) ›",
+  paymentTermsLink: "Payment terms (PDF) ›",
+  rightsLink: "Statement of rights (PDF) ›",
+  /** Jo 4 Nov 2026 21:20 / 21:25: the 30-day tick names the consequence and the quote's own PIESA amount (`tick2For`); `tick2` = the $349 (Home Insulation Victoria lead) form. */
+  tick2For: thirtyDayTick,
+  tick2: thirtyDayTick("$349"),
+  /** The safety-check amount is $349 unless the job's electrician is on a different rate (e.g. $220). */
+  howYouPayFor: (safetyCheck: string) => `How you pay: ${safetyCheck} now for the electrical safety check (PIESA). 10% to book your install day. The rest on install day. Card or bank transfer, no fees.`,
+  howYouPay: "How you pay: $349 now for the electrical safety check (PIESA). 10% to book your install day. The rest on install day. Card or bank transfer, no fees.",
+  timing: "Your install will be done within 30 days of your electrical safety check (PIESA). Your installer will confirm the day with you. Most installs are finished on the day they start.",
+  signLabel: "Your full name",
   signSub: "Typing your name here is your signature. We record the time and the exact document you signed.",
-  fullName: "Your full name",
+  /** The VEEC assignment page still uses this approved 18+/owner line. */
   tick3: "I'm 18 or over, and I own this home or I'm authorised to sign for the owner",
-  typeAgain: "Type your name again to sign",
   typeHere: "Type here",
   button: (safetyCheck: string) => `Accept and pay ${safetyCheck}`,
   signing: "Accepting…",
-  lockHint: "Tick both to accept",
-  payNote: (safetyCheck: string) => `Pay the ${safetyCheck} by card or bank transfer, no fees. You'll get your signed copy and invoice by email`,
+  lockHint: "Tick both and type your name to accept",
   notForMe: "Not for me",
 } as const;
 

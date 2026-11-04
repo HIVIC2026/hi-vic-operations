@@ -1,6 +1,7 @@
 // Jo 23 Oct 2026: the approved "Spot saved" confirmation email + text really go to the owner.
 // Pure decision — no database, no network. One email and one text per OWNER (keyed on the address/number),
 // never per job, so an owner with several jobs or queued rows gets exactly one of each.
+import { ownCustomerPreQuoteBlocker } from "./own-customer-messages.core";
 import { isTestRecipient } from "./emailsafety.core";
 import { toAuE164 } from "./sms.core";
 
@@ -31,6 +32,8 @@ const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export type SpotSavedFacts = {
   source: string | null; stage: string | null; deletedAt: string | null; qaArchivedAt: string | null;
+  /** Part 10 Task 8: installer's own customers (installer_sourced) never get the Spot saved email or text. Absent = unknown = unchanged. */
+  channel?: string | null;
   spotSavedAt: string | null; campaignOptedOutAt: string | null; consent: boolean; commsEnabled: boolean;
   email: string | null; phone: string | null; emailOptedOut: boolean; emailSuppressed: boolean; smsStopped: boolean;
   emailSwitchOn: boolean; smsSwitchOn: boolean; hasLink: boolean;
@@ -44,6 +47,7 @@ export function spotSavedJobBlocker(f: SpotSavedFacts): string | null {
   if (f.qaArchivedAt) return "Job archived";
   if (f.stage === "cancelled") return "Job cancelled";
   if (!f.spotSavedAt) return "Spot not saved";
+  { const own = ownCustomerPreQuoteBlocker(f.channel); if (own) return own; }
   if (f.campaignOptedOutAt) return "Owner opted out";
   if (!f.consent) return "No contact consent";
   if (!f.commsEnabled) return "Customer communications are switched off";

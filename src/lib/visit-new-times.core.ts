@@ -57,7 +57,7 @@ export function visitNewTimesText(f: VisitNewTimesFacts): string {
   const lead = `Sorry, ${v.who} can't make your ${v.name} on ${melbourneDayDate(f.wasIso)} any more.`;
   return f.ownerPicks
     ? `${lead} Please choose new times here: ${f.link} Reply STOP to opt out.`
-    : `${lead} You don't need to do anything – we'll send you new times soon. Your job: ${f.link} Reply STOP to opt out.`;
+    : `${lead} You don't need to do anything – we'll send you new times soon. Reply STOP to opt out.`;
 }
 
 export type VisitNewTimesEmailInput = VisitNewTimesFacts & { firstName: string | null; unsubscribeUrl: string | null; test?: boolean };
@@ -73,7 +73,7 @@ export function visitNewTimesCopy(f: Pick<VisitNewTimesFacts, "kind" | "wasIso" 
   const next = f.ownerPicks
     ? "Please choose some new times on your job page. It only takes a minute."
     : `${nextLead} ${v.offers} soon, and we'll send you a link to choose one.`;
-  const button = f.ownerPicks ? "Choose new times" : "See my job";
+  const button = f.ownerPicks ? "Choose new times" : null;
   const preview = `Sorry, ${v.who} can't make ${day}. ${f.ownerPicks ? "Please choose new times." : "You don't need to do anything."}`;
   return { subject, headline: subject, lead, was: `${day}, ${time}`, next, nextLead, button, preview };
 }
@@ -86,9 +86,9 @@ export function renderVisitNewTimesEmail(i: VisitNewTimesEmailInput) {
   const body = [
     `<mj-section><mj-column><mj-text mj-class="hi">${esc(hi)}</mj-text><mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">${esc(c.headline)}</mj-text><mj-text>${esc(c.lead)}</mj-text></mj-column></mj-section>`,
     `<mj-section><mj-column mj-class="panel-red"><mj-text mj-class="eyebrow center" padding="18px 12px 6px">No longer going ahead</mj-text><mj-text mj-class="center" font-weight="700" padding="0 12px 16px"><span class="strike">${esc(c.was)}</span></mj-text></mj-column></mj-section>`,
-    `<mj-section><mj-column><mj-text padding="16px 12px 14px">${nextHtml}</mj-text>${i.ownerPicks ? `<mj-button href="${esc(i.link)}">${esc(c.button)}</mj-button>` : ''}<mj-text mj-class="small" padding="0 12px">Questions? Just reply to this email.</mj-text></mj-column></mj-section>`,
+    `<mj-section><mj-column><mj-text padding="16px 12px 14px">${nextHtml}</mj-text>${c.button ? `<mj-button href="${esc(i.link)}">${esc(c.button)}</mj-button>` : ''}<mj-text mj-class="small" padding="0 12px">Questions? Just reply to this email.</mj-text></mj-column></mj-section>`,
   ].join("");
   const html = mjEmail({ subject: c.subject, preview: c.preview, body, unsubscribe: i.unsubscribeUrl, testLabel: i.test === true });
-  const text = K.plainText([hi, "", c.headline, "", c.lead, `No longer going ahead: ${c.was}`, "", c.next, "", ...(i.ownerPicks ? [`${c.button}: ${i.link}`] : []), "", "Questions? Just reply to this email."], { unsubscribe: i.unsubscribeUrl, testLabel: i.test === true });
+  const text = K.plainText([hi, "", c.headline, "", c.lead, `No longer going ahead: ${c.was}`, "", c.next, "", ...(c.button ? [`${c.button}: ${i.link}`] : []), "", "Questions? Just reply to this email."], { unsubscribe: i.unsubscribeUrl, testLabel: i.test === true });
   return { subject: c.subject, html, text };
 }

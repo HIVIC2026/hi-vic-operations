@@ -19,14 +19,21 @@ async function executedCopyAttachment(path: string | null, jobNumber: string | n
   return { filename: consentCopyFilename(jobNumber), content: bytesToBase64(bytes), contentType: "application/pdf" };
 }
 
-export async function emailOwnerConsentCopy(p: { jobId: string; consentId: string; sha256: string; templateVersion: string; installationDays: string[]; address: string; formText: string; copyPath?: string | null }): Promise<string> {
+async function ownerSignedAttachment(bytes: Uint8Array, jobNumber: string | null): Promise<EmailAttachment> {
+  const { bytesToBase64 } = await import("./veec-emails.core");
+  const { consentCopyFilename } = await import("./consent-copy-email.core");
+  return { filename: consentCopyFilename(jobNumber), content: bytesToBase64(bytes), contentType: "application/pdf" };
+}
+
+export async function emailOwnerConsentCopy(p: { jobId: string; consentId: string; sha256: string; templateVersion: string; installationDays: string[]; address: string; formText: string; copyPath?: string | null; pdf?: Uint8Array | null }): Promise<string> {
   const { data: job } = await admin.from("jobs").select("owner_id, source, job_number").eq("id", p.jobId).maybeSingle();
   if (!job) return "skipped";
   const [{ data: owner }, { data: asg }, { data: link }, attachment] = await Promise.all([
     admin.from("owners").select("full_name, email").eq("id", job.owner_id).maybeSingle(),
     admin.from("job_assignments").select("businesses(name, trading_name, onboarding_notes)").eq("job_id", p.jobId).eq("role", "installer").eq("active", true).maybeSingle(),
     admin.from("customer_estimate_links").select("token, status, expires_at").eq("job_id", p.jobId).eq("purpose", "step3_estimate").eq("status", "active").maybeSingle(),
-    executedCopyAttachment(p.copyPath ?? null, job.job_number ?? null).catch(() => null),
+    // Part 4 T5: the owner-signed copy sent at signing has no stored file yet, so its PDF can be passed in directly.
+    p.pdf?.length ? ownerSignedAttachment(p.pdf, null) : executedCopyAttachment(p.copyPath ?? null, job.job_number ?? null).catch(() => null),
   ]);
   const { linkUsable } = await import("./estimatelink.core");
   const { CUSTOMER_BASE } = await import("./engagement.core");
@@ -52,7 +59,7 @@ export async function emailOwnerConsentCopy(p: { jobId: string; consentId: strin
   }
   if (!owner?.email) return "not sent — no owner email";
   const { assertCustomerDeliveryAllowed } = await import("./comms.server");
-  try { await assertCustomerDeliveryAllowed(p.jobId, "ESC consent copy email"); } catch (e) { return `not sent — ${(e as Error).message}`; }
+  try { await assertCustomerDeliveryAllowed(p.jobId, "ESC consent copy email", "esc_consent_copy"); } catch (e) { return `not sent — ${(e as Error).message}`; }
   const r = await (await import("./owner-email-send.server")).sendGuardedOwnerEmail({
     jobId: p.jobId, jobSource: job.source, to: owner.email, purpose: "esc_consent_copy", key: `esc-consent-copy:v1:${p.consentId}:${p.sha256.slice(0, 16)}`,
     build: () => ({ ...renderConsentCopyEmail({ ...input, test: false }), ...attachments }),

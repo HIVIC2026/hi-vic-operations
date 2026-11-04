@@ -21,7 +21,8 @@ import { collectionNoticeLabel } from "@/lib/esc-collection-notice.core";
 import { SendNoticeLinkInline } from "@/components/portal/worker-compliance";
 import { proposeDeclaredCoverage } from "@/lib/declared-coverage-proposal.core";
 
-const CRED_KINDS = ["public_liability_insurance", "workers_comp_insurance", "other_insurance", "electrical_licence", "rec_registration", "installer_certification", "business_registration", "other"] as const;
+// Jo 4 Nov 2026 21:08 (G8): workers comp is not collected — not an upload kind.
+const CRED_KINDS = ["public_liability_insurance", "other_insurance", "electrical_licence", "rec_registration", "installer_certification", "business_registration", "other"] as const;
 const csv = (a: string[] | null | undefined) => (a ?? []).join(", ");
 const list = (s: string) => s.split(/[,;\n]/).map((x) => x.trim()).filter(Boolean);
 
@@ -157,6 +158,9 @@ function Details({ b, canEdit, isHivicAdmin, onDone }: { b: Record<string, unkno
 export function Credentials({ businessId, creds, isHivicAdmin, canAdd, onDone }: { businessId: string; creds: { id: string; kind: string; label: string; number: string | null; issuer: string | null; expires_at: string | null; verification: string; document_path: string | null; critical: boolean }[]; isHivicAdmin: boolean; canAdd: boolean; onDone: () => void }) {
   const add = useAction(addCredential);
   const verify = useAction(verifyCredential);
+  // Part 9 Task 8: the office types the public liability amount insured when approving ($5m or more is needed).
+  const [amounts, setAmounts] = useState<Record<string, string>>({});
+  const isPublicLiability = (c: { kind: string; label: string }) => c.kind === "public_liability_insurance" || (/liab/i.test(c.label) && !/product/i.test(c.label));
   const upload = useServerFn(partnerUploadUrl);
   const open = useServerFn(partnerFileUrl);
   const [f, setF] = useState({ kind: "public_liability_insurance", label: "", number: "", issuer: "", expires_at: "" });
@@ -182,7 +186,8 @@ export function Credentials({ businessId, creds, isHivicAdmin, canAdd, onDone }:
               {st === "expired" ? <Badge variant="destructive">Expired</Badge> : st === "expiring" ? <Badge className="bg-warning-soft text-warning">Expiring soon</Badge> : null}
               <Badge variant="outline" className="capitalize">{c.verification}</Badge>
               {c.document_path && <Button size="sm" variant="ghost" onClick={async () => { const r = await open({ data: { businessId, path: c.document_path! } }); openFileViewer(r.url); }}>View</Button>}
-              {isHivicAdmin && c.verification !== "verified" && <Button size="sm" onClick={async () => { await verify({ id: c.id, verification: "verified" }, "Verified"); onDone(); }}>Verify</Button>}
+              {isHivicAdmin && c.verification !== "verified" && isPublicLiability(c) && <Input className="h-8 w-36" type="number" min={0} step={1000} placeholder="Amount insured ($)" value={amounts[c.id] ?? ""} onChange={(e) => setAmounts({ ...amounts, [c.id]: e.target.value })} />}
+              {isHivicAdmin && c.verification !== "verified" && <Button size="sm" disabled={isPublicLiability(c) && !(Number(amounts[c.id]) > 0)} onClick={async () => { await verify({ id: c.id, verification: "verified", ...(isPublicLiability(c) ? { amountInsuredAud: Number(amounts[c.id]) } : {}) }, "Verified"); onDone(); }}>Verify</Button>}
               {isHivicAdmin && c.verification !== "rejected" && <Button size="sm" variant="outline" onClick={async () => { await verify({ id: c.id, verification: "rejected" }, "Rejected"); onDone(); }}>Reject</Button>}
             </div>
           </div>

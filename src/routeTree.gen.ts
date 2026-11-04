@@ -91,7 +91,6 @@ import { Route as AuthenticatedFieldBusinessAgreementRouteImport } from './route
 import { Route as AuthenticatedFieldBusinessBankRouteImport } from './routes/_authenticated/field.business_.bank'
 import { Route as AuthenticatedFieldBusinessDetailsRouteImport } from './routes/_authenticated/field.business_.details'
 import { Route as AuthenticatedFieldBusinessElectricianRouteImport } from './routes/_authenticated/field.business_.electrician'
-import { Route as AuthenticatedFieldBusinessElectriciansRouteImport } from './routes/_authenticated/field.business_.electricians'
 import { Route as AuthenticatedFieldBusinessEscNoticeRouteImport } from './routes/_authenticated/field.business_.esc-notice'
 import { Route as AuthenticatedFieldBusinessInsuranceRouteImport } from './routes/_authenticated/field.business_.insurance'
 import { Route as AuthenticatedFieldBusinessRatesRouteImport } from './routes/_authenticated/field.business_.rates'
@@ -114,6 +113,7 @@ import { Route as ApiPublicHooksPostIntakeRouteImport } from './routes/api/publi
 import { Route as ApiPublicHooksResendDeliveryRouteImport } from './routes/api/public/hooks/resend-delivery'
 import { Route as ApiPublicHooksStripePaymentsRouteImport } from './routes/api/public/hooks/stripe-payments'
 import { Route as ApiPublicHooksXeroPaymentsRouteImport } from './routes/api/public/hooks/xero-payments'
+import { Route as ApiPublicPartnerLogoKeyRouteImport } from './routes/api/public/partner-logo.$key'
 import { Route as ApiPublicReferralsRecordSubmissionRouteImport } from './routes/api/public/referrals/record-submission'
 import { Route as ApiPublicReferralsTrackClickRouteImport } from './routes/api/public/referrals/track-click'
 import { Route as ApiPublicTwilioInboundRouteImport } from './routes/api/public/twilio/inbound'
@@ -564,12 +564,6 @@ const AuthenticatedFieldBusinessElectricianRoute =
     path: '/business/electrician',
     getParentRoute: () => AuthenticatedFieldRoute,
   } as any)
-const AuthenticatedFieldBusinessElectriciansRoute =
-  AuthenticatedFieldBusinessElectriciansRouteImport.update({
-    id: '/business_/electricians',
-    path: '/business/electricians',
-    getParentRoute: () => AuthenticatedFieldRoute,
-  } as any)
 const AuthenticatedFieldBusinessEscNoticeRoute =
   AuthenticatedFieldBusinessEscNoticeRouteImport.update({
     id: '/business_/esc-notice',
@@ -700,6 +694,11 @@ const ApiPublicHooksXeroPaymentsRoute =
     path: '/api/public/hooks/xero-payments',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicPartnerLogoKeyRoute = ApiPublicPartnerLogoKeyRouteImport.update({
+  id: '/api/public/partner-logo/$key',
+  path: '/api/public/partner-logo/$key',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicReferralsRecordSubmissionRoute =
   ApiPublicReferralsRecordSubmissionRouteImport.update({
     id: '/api/public/referrals/record-submission',
@@ -829,7 +828,6 @@ export interface FileRoutesByFullPath {
   '/field/business/bank': typeof AuthenticatedFieldBusinessBankRoute
   '/field/business/details': typeof AuthenticatedFieldBusinessDetailsRoute
   '/field/business/electrician': typeof AuthenticatedFieldBusinessElectricianRoute
-  '/field/business/electricians': typeof AuthenticatedFieldBusinessElectriciansRoute
   '/field/business/esc-notice': typeof AuthenticatedFieldBusinessEscNoticeRoute
   '/field/business/insurance': typeof AuthenticatedFieldBusinessInsuranceRoute
   '/field/business/rates': typeof AuthenticatedFieldBusinessRatesRoute
@@ -852,6 +850,7 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/resend-delivery': typeof ApiPublicHooksResendDeliveryRoute
   '/api/public/hooks/stripe-payments': typeof ApiPublicHooksStripePaymentsRoute
   '/api/public/hooks/xero-payments': typeof ApiPublicHooksXeroPaymentsRoute
+  '/api/public/partner-logo/$key': typeof ApiPublicPartnerLogoKeyRoute
   '/api/public/referrals/record-submission': typeof ApiPublicReferralsRecordSubmissionRoute
   '/api/public/referrals/track-click': typeof ApiPublicReferralsTrackClickRoute
   '/api/public/twilio/inbound': typeof ApiPublicTwilioInboundRoute
@@ -939,7 +938,6 @@ export interface FileRoutesByTo {
   '/field/business/bank': typeof AuthenticatedFieldBusinessBankRoute
   '/field/business/details': typeof AuthenticatedFieldBusinessDetailsRoute
   '/field/business/electrician': typeof AuthenticatedFieldBusinessElectricianRoute
-  '/field/business/electricians': typeof AuthenticatedFieldBusinessElectriciansRoute
   '/field/business/esc-notice': typeof AuthenticatedFieldBusinessEscNoticeRoute
   '/field/business/insurance': typeof AuthenticatedFieldBusinessInsuranceRoute
   '/field/business/rates': typeof AuthenticatedFieldBusinessRatesRoute
@@ -962,6 +960,7 @@ export interface FileRoutesByTo {
   '/api/public/hooks/resend-delivery': typeof ApiPublicHooksResendDeliveryRoute
   '/api/public/hooks/stripe-payments': typeof ApiPublicHooksStripePaymentsRoute
   '/api/public/hooks/xero-payments': typeof ApiPublicHooksXeroPaymentsRoute
+  '/api/public/partner-logo/$key': typeof ApiPublicPartnerLogoKeyRoute
   '/api/public/referrals/record-submission': typeof ApiPublicReferralsRecordSubmissionRoute
   '/api/public/referrals/track-click': typeof ApiPublicReferralsTrackClickRoute
   '/api/public/twilio/inbound': typeof ApiPublicTwilioInboundRoute
@@ -1055,7 +1054,6 @@ export interface FileRoutesById {
   '/_authenticated/field/business_/bank': typeof AuthenticatedFieldBusinessBankRoute
   '/_authenticated/field/business_/details': typeof AuthenticatedFieldBusinessDetailsRoute
   '/_authenticated/field/business_/electrician': typeof AuthenticatedFieldBusinessElectricianRoute
-  '/_authenticated/field/business_/electricians': typeof AuthenticatedFieldBusinessElectriciansRoute
   '/_authenticated/field/business_/esc-notice': typeof AuthenticatedFieldBusinessEscNoticeRoute
   '/_authenticated/field/business_/insurance': typeof AuthenticatedFieldBusinessInsuranceRoute
   '/_authenticated/field/business_/rates': typeof AuthenticatedFieldBusinessRatesRoute
@@ -1078,6 +1076,7 @@ export interface FileRoutesById {
   '/api/public/hooks/resend-delivery': typeof ApiPublicHooksResendDeliveryRoute
   '/api/public/hooks/stripe-payments': typeof ApiPublicHooksStripePaymentsRoute
   '/api/public/hooks/xero-payments': typeof ApiPublicHooksXeroPaymentsRoute
+  '/api/public/partner-logo/$key': typeof ApiPublicPartnerLogoKeyRoute
   '/api/public/referrals/record-submission': typeof ApiPublicReferralsRecordSubmissionRoute
   '/api/public/referrals/track-click': typeof ApiPublicReferralsTrackClickRoute
   '/api/public/twilio/inbound': typeof ApiPublicTwilioInboundRoute
@@ -1171,7 +1170,6 @@ export interface FileRouteTypes {
     | '/field/business/bank'
     | '/field/business/details'
     | '/field/business/electrician'
-    | '/field/business/electricians'
     | '/field/business/esc-notice'
     | '/field/business/insurance'
     | '/field/business/rates'
@@ -1194,6 +1192,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/resend-delivery'
     | '/api/public/hooks/stripe-payments'
     | '/api/public/hooks/xero-payments'
+    | '/api/public/partner-logo/$key'
     | '/api/public/referrals/record-submission'
     | '/api/public/referrals/track-click'
     | '/api/public/twilio/inbound'
@@ -1281,7 +1280,6 @@ export interface FileRouteTypes {
     | '/field/business/bank'
     | '/field/business/details'
     | '/field/business/electrician'
-    | '/field/business/electricians'
     | '/field/business/esc-notice'
     | '/field/business/insurance'
     | '/field/business/rates'
@@ -1304,6 +1302,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/resend-delivery'
     | '/api/public/hooks/stripe-payments'
     | '/api/public/hooks/xero-payments'
+    | '/api/public/partner-logo/$key'
     | '/api/public/referrals/record-submission'
     | '/api/public/referrals/track-click'
     | '/api/public/twilio/inbound'
@@ -1396,7 +1395,6 @@ export interface FileRouteTypes {
     | '/_authenticated/field/business_/bank'
     | '/_authenticated/field/business_/details'
     | '/_authenticated/field/business_/electrician'
-    | '/_authenticated/field/business_/electricians'
     | '/_authenticated/field/business_/esc-notice'
     | '/_authenticated/field/business_/insurance'
     | '/_authenticated/field/business_/rates'
@@ -1419,6 +1417,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/resend-delivery'
     | '/api/public/hooks/stripe-payments'
     | '/api/public/hooks/xero-payments'
+    | '/api/public/partner-logo/$key'
     | '/api/public/referrals/record-submission'
     | '/api/public/referrals/track-click'
     | '/api/public/twilio/inbound'
@@ -1480,6 +1479,7 @@ export interface RootRouteChildren {
   ApiPublicHooksResendDeliveryRoute: typeof ApiPublicHooksResendDeliveryRoute
   ApiPublicHooksStripePaymentsRoute: typeof ApiPublicHooksStripePaymentsRoute
   ApiPublicHooksXeroPaymentsRoute: typeof ApiPublicHooksXeroPaymentsRoute
+  ApiPublicPartnerLogoKeyRoute: typeof ApiPublicPartnerLogoKeyRoute
   ApiPublicReferralsRecordSubmissionRoute: typeof ApiPublicReferralsRecordSubmissionRoute
   ApiPublicReferralsTrackClickRoute: typeof ApiPublicReferralsTrackClickRoute
   ApiPublicTwilioInboundRoute: typeof ApiPublicTwilioInboundRoute
@@ -2063,13 +2063,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFieldBusinessElectricianRouteImport
       parentRoute: typeof AuthenticatedFieldRoute
     }
-    '/_authenticated/field/business_/electricians': {
-      id: '/_authenticated/field/business_/electricians'
-      path: '/business/electricians'
-      fullPath: '/field/business/electricians'
-      preLoaderRoute: typeof AuthenticatedFieldBusinessElectriciansRouteImport
-      parentRoute: typeof AuthenticatedFieldRoute
-    }
     '/_authenticated/field/business_/esc-notice': {
       id: '/_authenticated/field/business_/esc-notice'
       path: '/business/esc-notice'
@@ -2222,6 +2215,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/hooks/xero-payments'
       fullPath: '/api/public/hooks/xero-payments'
       preLoaderRoute: typeof ApiPublicHooksXeroPaymentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/partner-logo/$key': {
+      id: '/api/public/partner-logo/$key'
+      path: '/api/public/partner-logo/$key'
+      fullPath: '/api/public/partner-logo/$key'
+      preLoaderRoute: typeof ApiPublicPartnerLogoKeyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/referrals/record-submission': {
@@ -2377,7 +2377,6 @@ interface AuthenticatedFieldRouteChildren {
   AuthenticatedFieldBusinessBankRoute: typeof AuthenticatedFieldBusinessBankRoute
   AuthenticatedFieldBusinessDetailsRoute: typeof AuthenticatedFieldBusinessDetailsRoute
   AuthenticatedFieldBusinessElectricianRoute: typeof AuthenticatedFieldBusinessElectricianRoute
-  AuthenticatedFieldBusinessElectriciansRoute: typeof AuthenticatedFieldBusinessElectriciansRoute
   AuthenticatedFieldBusinessEscNoticeRoute: typeof AuthenticatedFieldBusinessEscNoticeRoute
   AuthenticatedFieldBusinessInsuranceRoute: typeof AuthenticatedFieldBusinessInsuranceRoute
   AuthenticatedFieldBusinessRatesRoute: typeof AuthenticatedFieldBusinessRatesRoute
@@ -2404,8 +2403,6 @@ const AuthenticatedFieldRouteChildren: AuthenticatedFieldRouteChildren = {
     AuthenticatedFieldBusinessDetailsRoute,
   AuthenticatedFieldBusinessElectricianRoute:
     AuthenticatedFieldBusinessElectricianRoute,
-  AuthenticatedFieldBusinessElectriciansRoute:
-    AuthenticatedFieldBusinessElectriciansRoute,
   AuthenticatedFieldBusinessEscNoticeRoute:
     AuthenticatedFieldBusinessEscNoticeRoute,
   AuthenticatedFieldBusinessInsuranceRoute:
@@ -2521,6 +2518,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHooksResendDeliveryRoute: ApiPublicHooksResendDeliveryRoute,
   ApiPublicHooksStripePaymentsRoute: ApiPublicHooksStripePaymentsRoute,
   ApiPublicHooksXeroPaymentsRoute: ApiPublicHooksXeroPaymentsRoute,
+  ApiPublicPartnerLogoKeyRoute: ApiPublicPartnerLogoKeyRoute,
   ApiPublicReferralsRecordSubmissionRoute:
     ApiPublicReferralsRecordSubmissionRoute,
   ApiPublicReferralsTrackClickRoute: ApiPublicReferralsTrackClickRoute,

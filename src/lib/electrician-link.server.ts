@@ -1,419 +1,709 @@
-// Part 2 (Jo 3 Nov 2026): the electrician's no-login link for an installer's own job. The token is the only credential:
-// only its SHA-256 is stored (`electrician_job_links`, pending SQL 2026-11-03_electrician_job_links.sql). Every call
-// re-checks the link (not revoked, not expired) AND that its electrician business is still the job's active electrician.
-// Until the table exists everything fails closed: no link is made and every link says it isn't working.
+// The electrician's no-login job link (new job flow, Part 6, Task 2). The token is the only credential: 32 random bytes,
+// only its SHA-256 hash is stored (`worker_job_links`, existing columns, no SQL). It names ONE job and ONE electrician
+// business; everything the page shows is resolved here from the token, never from ids the browser sends.
+// - mintElectricianLink: revokes the worker's older links for the job, stores the new hash.
+// - textElectricianLink: the job-link text, behind ELECTRICIAN_LINK_TEXT_APPROVED (off). TEST jobs / TEST partners ->
+//   test-send; real -> the one guarded sender (`sendRealSms`: customer_comms_enabled, trade_messages_paused, quiet hours,
+//   per-type switch, idempotency key). One `electrician_link_text_sent` event per key, recorded after a send.
+// - linkAfterAllocation: called after a successful allocation; never throws (a failure is logged on the job).
+// - electricianLinkView: the page's read. Owner name, phone and address only while the electrician has a current visit
+//   (the existing contact_releases rule); never prices.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { isMissingDbObject } from "./schema-compat.core";
-import { hashToken, isTokenShape, linkExpiry, newToken } from "./worker-links.core";
-import {
-  JOB_NOT_GOING_AHEAD, LINK_NOT_ASSIGNED, LINK_UNAVAILABLE, OWN_JOB_PIESA_CANT_DO_EMAIL_APPROVED, OWN_JOB_PIESA_HANDED_BACK_EVENT,
-  CANT_DO_REASONS, cantDoReasonLabel, electricianLinkPath, electricianLinkRefusal, electricianStep, officeCantDoEmail, piesaBookingProblem, piesaDoneAtStage, upgradesDayNotReady,
-  type CantDoReason, type ElectricianStep,
-} from "./electrician-link.core";
-import { OWN_JOB_PIESA_HANDED_EVENT } from "./own-job-piesa.core";
-import type { CertificateFacts } from "./certificate-later.server";
-import {
-  CERTIFICATE_ADDED_EVENT, CERTIFICATE_TOO_BIG, CERTIFICATE_UPLOAD_MAX_BYTES, CERTIFICATE_WRONG_TYPE, UPGRADES_DAY_LINK_CLAIM_EVENT, certificateFileExt, certificateProblem, certificateRejectedLine, certificateUploadPath,
-  parseCertificateUploadPath, upgradesDayProblem,
-} from "./certificate-later.core";
 import { SET_PASSWORD_BASE } from "./set-password-link.core";
+import { hashToken, isTokenShape, linkState, newToken, certificationBlocker, firstName } from "./worker-links.core";
+import {
+  ELECTRICIAN_LINK_SMS_TYPE, ELECTRICIAN_LINK_TEXT_APPROVED, ELECTRICIAN_LINK_NOT_VALID, electricianLinkExpired, electricianLinkExpiry, electricianLinkSwitchedOff,
+  electricianLinkText, electricianLinkTextKey, maskElectricianLinkInText, electricianStep, canBookFromLink, dayTime,
+  ELECTRICIAN_LINK_OFFICE_BOOKS, electricianLinkAlreadyBooked, ELECTRICIAN_LINK_NOTHING_TO_BOOK, ELECTRICIAN_LINK_BAD_TIME, electricianLinkBookFailed, upgradesDayNotReady, UPGRADES_BOOKING_STAGES, type ElectricianLinkFacts, type ElectricianStepView, type WhoBooks,
+  ELECTRICIAN_CANT_DO_EVENT, ELECTRICIAN_CANT_DO_EMAIL_EVENT, ELECTRICIAN_CANT_DO_EMAIL_APPROVED, ELECTRICIAN_CANT_DO_REASON_NEEDED, electricianCantDoReasonOk, electricianCantDoEmailKey,
+} from "./electrician-link.core";
+import type { RealSmsInput, RealSmsResult } from "./sms.server";
+import type { BusinessContact } from "./owner-wording.core";
+import type { SendResult } from "./test-send.server";
 
-// Local schema overlay: the table is pending SQL, so generated types are not deployment proof.
-const db = admin as unknown as SupabaseClient;
+export const ELECTRICIAN_LINK_TEXT_SENT_EVENT = "electrician_link_text_sent";
+export const ELECTRICIAN_LINK_TEXT_FAILED_EVENT = "electrician_link_text_failed";
 
-type LinkRow = { id: string; job_id: string; electrician_business_id: string; expires_at: string; revoked_at: string | null };
-type Assignment = { id: string; user_id: string; business_id: string | null; booking_confirmed_at: string | null };
-type Resolved =
-  | { ok: true; jobId: string; electricianBusinessId: string; step: ElectricianStep; link: LinkRow; assignment: Assignment; stage: string; bookedStart: string | null; /** Part 3: the booked upgrades visit, when there is one. */ upgradesStart: string | null; /** Part 3: null until the safety check is done. */ certificate: CertificateFacts | null }
-  | { ok: false; reason: string };
+/** A failed database read. Its text is for the logs only; the public page never shows it. */
+class ReadError extends Error {}
+const dbErr = (what: string, e: { message: string }) => new ReadError(`Could not read ${what}: ${e.message}`);
+const bizName = (b: { name: string | null; trading_name: string | null } | null | undefined) => ((b?.trading_name ?? "").trim() || (b?.name ?? "").trim()) || null;
 
-/** Make a 30-day link for this job and electrician business. Throws if the link can't be saved (e.g. table missing). */
-export async function createElectricianLink(jobId: string, electricianBusinessId: string, now: number = Date.now()): Promise<{ id: string; url: string }> {
+async function installerOf(jobId: string): Promise<{ id: string | null; name: string }> {
+  const { data: a } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
+  if (!a?.business_id) return { id: null, name: "the installer" };
+  const { data: b } = await admin.from("businesses").select("name, trading_name").eq("id", a.business_id).maybeSingle();
+  return { id: a.business_id, name: bizName(b) ?? "the installer" };
+}
+
+type AssignedElectrician = { id: string; business_id: string; user_id: string | null; /** The worker named by the latest Team allocation event (electricians never log in, so user_id is usually NULL). */ worker_id: string | null };
+async function electricianAssignment(jobId: string, businessId: string): Promise<AssignedElectrician | null> {
+  const [{ data, error }, { data: ev, error: ee }] = await Promise.all([
+    admin.from("job_assignments").select("id, business_id, user_id").eq("job_id", jobId).eq("role", "electrician").eq("active", true).eq("business_id", businessId).maybeSingle(),
+    admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "in_house_electrician_allocated").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  if (error) throw dbErr("the electrician assignment", error);
+  if (ee) throw dbErr("the electrician allocation", ee);
+  if (!data) return null;
+  const wid = (ev?.details as { worker_id?: unknown } | null)?.worker_id;
+  return { ...(data as Omit<AssignedElectrician, "worker_id">), worker_id: typeof wid === "string" && wid ? wid : null };
+}
+/** The assignment names ONE person: by the allocation event's worker (two electricians of one business may both have no
+ *  profile, so a NULL user_id never matches anyone), else by the profile on a legacy assignment. Neither on it: the business is enough. */
+const sameElectrician = (a: AssignedElectrician, w: { id: string; profile_id: string | null }) =>
+  a.worker_id ? a.worker_id === w.id : a.user_id ? a.user_id === w.profile_id : true;
+
+// ---------- minting ----------
+/** `keepOlder` (the upgrades nudge): the link already in their phone stays live until the new one has actually been sent —
+ *  the caller then calls retireOlderElectricianLinks, or revokeElectricianLink on the new one when the send did not go. */
+export async function mintElectricianLink(jobId: string, workerId: string, actorId: string | null, now = Date.now(), opts: { keepOlder?: boolean } = {}): Promise<{ id: string; token: string; url: string }> {
+  const { data: w, error } = await admin.from("partner_workers").select("id, business_id, trade_role, approval_status, removed_at, profile_id").eq("id", workerId).maybeSingle();
+  if (error) throw dbErr("the electrician", error);
+  if (!w || w.trade_role !== "electrician" || w.removed_at || w.approval_status !== "approved") throw new Error("That electrician can't be given a job link.");
+  const asg = await electricianAssignment(jobId, w.business_id);
+  if (!asg || !sameElectrician(asg, w)) throw new Error("This job isn't assigned to that electrician.");
+  const nowIso = new Date(now).toISOString();
+  if (!opts.keepOlder) {
+    const { error: re } = await admin.from("worker_job_links").update({ revoked_at: nowIso, revoked_by: actorId }).eq("worker_id", w.id).eq("job_id", jobId).is("revoked_at", null);
+    if (re) throw new Error(re.message);
+  }
   const token = newToken();
-  const { data, error } = await db.from("electrician_job_links")
-    .insert({ job_id: jobId, electrician_business_id: electricianBusinessId, token_hash: await hashToken(token), expires_at: linkExpiry(now) })
-    .select("id").single();
-  if (error || !data) throw new Error(`The electrician's link could not be saved: ${error?.message ?? "no row"}`);
-  return { id: (data as { id: string }).id, url: `${SET_PASSWORD_BASE}${electricianLinkPath(token)}` };
+  const { data: row, error: ie } = await admin.from("worker_job_links").insert({ worker_id: w.id, business_id: w.business_id, job_id: jobId, token_hash: await hashToken(token), created_by: actorId, expires_at: electricianLinkExpiry({ allDoneAt: null, now }) }).select("id").single();
+  if (ie || !row) throw new Error(ie?.message ?? "The link could not be saved.");
+  return { id: String(row.id), token, url: `${SET_PASSWORD_BASE}/e/${token}` };
+}
+/** After a send with the new link succeeded: every OTHER live link of this person for the job is switched off. */
+export async function retireOlderElectricianLinks(jobId: string, workerId: string, keepLinkId: string, now = Date.now()): Promise<void> {
+  const { error } = await admin.from("worker_job_links").update({ revoked_at: new Date(now).toISOString(), revoked_by: null }).eq("worker_id", workerId).eq("job_id", jobId).neq("id", keepLinkId).is("revoked_at", null);
+  if (error) throw new Error(error.message);
+}
+/** A new link whose send did not go: switch it off again so the one in their phone stays the only live one. */
+export async function revokeElectricianLink(linkId: string, now = Date.now()): Promise<void> {
+  const { error } = await admin.from("worker_job_links").update({ revoked_at: new Date(now).toISOString(), revoked_by: null }).eq("id", linkId).is("revoked_at", null);
+  if (error) throw new Error(error.message);
 }
 
-export async function createElectricianJobLink(jobId: string, electricianBusinessId: string): Promise<{ url: string }> {
-  const { url } = await createElectricianLink(jobId, electricianBusinessId);
-  return { url };
-}
+// ---------- the text ----------
+export type ElectricianLinkTextDeps = {
+  approved: boolean;
+  sendSms: (input: RealSmsInput) => Promise<RealSmsResult>;
+  sendTestSms: (to: string, body: string, info: { jobId: string; jobSource: string | null; partnerIsTest: boolean }) => Promise<{ status: string; detail: string }>;
+  record: (jobId: string, eventType: string, summary: string, details: Record<string, unknown>) => Promise<void>;
+};
+const defaultDeps = (): ElectricianLinkTextDeps => ({
+  approved: ELECTRICIAN_LINK_TEXT_APPROVED,
+  sendSms: async (input) => (await import("./sms.server")).sendRealSms(input),
+  sendTestSms: async (to, body, info) => (await import("./test-send.server")).sendTestSms({ jobId: info.jobId, jobSource: info.jobSource, partnerIsTest: info.partnerIsTest, label: `${ELECTRICIAN_LINK_SMS_TYPE}:${info.jobId}`, actorId: null }, to, body),
+  record: async (jobId, eventType, summary, details) => (await import("./workflow.server")).logEvent(jobId, null, eventType, summary, details, { internal: true }),
+});
 
-/** Switch off links: one link, or every open link on the job (optionally only one electrician business's). */
-export async function revokeElectricianLinks(jobId: string, reason: string, opts: { linkId?: string; electricianBusinessId?: string } = {}, now: Date = new Date()): Promise<number> {
-  let q = db.from("electrician_job_links").update({ revoked_at: now.toISOString(), revoked_reason: reason }).eq("job_id", jobId).is("revoked_at", null);
-  if (opts.linkId) q = q.eq("id", opts.linkId);
-  if (opts.electricianBusinessId) q = q.eq("electrician_business_id", opts.electricianBusinessId);
-  const { data, error } = await q.select("id");
-  if (error) { if (isMissingDbObject(error)) return 0; throw new Error(error.message); } // table not applied yet: nothing to switch off
-  return (data ?? []).length;
-}
-
-async function resolveFull(token: string, now: Date): Promise<Resolved> {
-  const refuse = (reason: string): Resolved => ({ ok: false, reason });
-  if (!isTokenShape(token)) return refuse(electricianLinkRefusal({ found: false, revokedAt: null, expiresAt: now.toISOString(), now, stillAssigned: false })!);
-  const { data: l, error } = await db.from("electrician_job_links").select("id, job_id, electrician_business_id, expires_at, revoked_at").eq("token_hash", await hashToken(token)).maybeSingle();
-  if (error) return refuse(LINK_UNAVAILABLE);
-  const link = l as LinkRow | null;
-  if (!link) return refuse(electricianLinkRefusal({ found: false, revokedAt: null, expiresAt: now.toISOString(), now, stillAssigned: false })!);
-  const [{ data: job, error: je }, { data: rows, error: ae }] = await Promise.all([
-    admin.from("jobs").select("stage, deleted_at").eq("id", link.job_id).maybeSingle(),
-    admin.from("job_assignments").select("id, user_id, business_id, booking_confirmed_at").eq("job_id", link.job_id).eq("role", "electrician").eq("active", true),
+export async function textElectricianLink(jobId: string, workerId: string, url: string, over: Partial<ElectricianLinkTextDeps> = {}): Promise<"sent" | "held" | "test_sent" | "no_mobile"> {
+  const d = { ...defaultDeps(), ...over };
+  if (!d.approved) return "held";
+  const [{ data: job, error: je }, { data: w, error: we }] = await Promise.all([
+    admin.from("jobs").select("id, job_number, source, deleted_at, properties(suburb)").eq("id", jobId).maybeSingle(),
+    admin.from("partner_workers").select("id, business_id, mobile, trade_role, removed_at").eq("id", workerId).maybeSingle(),
   ]);
-  if (je || ae) return refuse(LINK_UNAVAILABLE);
-  const assignment = ((rows ?? []) as Assignment[]).find((a) => a.business_id === link.electrician_business_id) ?? null;
-  const refusal = electricianLinkRefusal({ found: true, revokedAt: link.revoked_at, expiresAt: link.expires_at, now, stillAssigned: !!assignment });
-  if (refusal) return refuse(refusal);
-  if (!job || job.deleted_at || job.stage === "cancelled") return refuse(JOB_NOT_GOING_AHEAD);
-  const { data: b, error: be } = await admin.from("bookings").select("scheduled_start").eq("job_id", link.job_id).eq("kind", "assessment").eq("status", "confirmed").eq("business_id", link.electrician_business_id).order("created_at", { ascending: false }).limit(1).maybeSingle();
-  if (be) return refuse(LINK_UNAVAILABLE);
-  const bookedStart = (b?.scheduled_start as string | null | undefined) ?? null;
-  const stage = job.stage as string;
-  const piesaDone = piesaDoneAtStage(stage);
-  // Part 3 (Task 3): once the safety check is done, the upgrades / certificate facts decide the step (read-only facts).
-  let certificate: CertificateFacts | null = null, upgradesStart: string | null = null;
-  if (piesaDone) {
-    const [facts, { data: ub, error: ue }] = await Promise.all([
-      (await import("./certificate-later.server")).jobCertificateFacts(link.job_id).catch(() => null),
-      admin.from("bookings").select("scheduled_start").eq("job_id", link.job_id).eq("kind", "rectification").in("status", ["confirmed", "completed"]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    ]);
-    if (!facts || ue) return refuse(LINK_UNAVAILABLE);
-    certificate = facts;
-    upgradesStart = (ub?.scheduled_start as string | null | undefined) ?? null;
+  if (je) throw dbErr("the job", je);
+  if (we) throw dbErr("the electrician", we);
+  if (!job || job.deleted_at || !w || w.removed_at || w.trade_role !== "electrician") return "held";
+  if (!(w.mobile ?? "").trim()) return "no_mobile";
+  const key = electricianLinkTextKey(jobId, workerId);
+  const { data: done } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", ELECTRICIAN_LINK_TEXT_SENT_EVENT).contains("details", { key }).limit(1).maybeSingle();
+  if (done) return "held";
+  const [installer, { data: eb }] = await Promise.all([installerOf(jobId), admin.from("businesses").select("onboarding_notes").eq("id", w.business_id).maybeSingle()]);
+  const body = electricianLinkText({ jobNumber: job.job_number, suburb: (job.properties as { suburb: string | null } | null)?.suburb ?? null, installer: installer.name, url });
+  const { isTestPartner } = await import("./test-send.core");
+  const partnerIsTest = isTestPartner(eb ?? null);
+  if (job.source === "qa_test" || partnerIsTest) {
+    const r = await d.sendTestSms(w.mobile!, body, { jobId, jobSource: job.source ?? null, partnerIsTest });
+    if (r.status !== "sent") return "held";
+    await d.record(jobId, ELECTRICIAN_LINK_TEXT_SENT_EVENT, "Electrician job link texted (test)", { key, worker_id: workerId, test: true });
+    return "test_sent";
   }
-  const step = electricianStep({
-    booked: !!bookedStart || stage === "piesa_scheduled", piesaDone,
-    // A certificate the office rejected is not "in": the link asks for a new one.
-    ...(certificate ? { upgradesNeeded: certificate.upgradesNeeded, upgradesToday: certificate.upgradesToday, upgradesDaySet: certificate.upgradesDaySet, partCRecorded: certificate.partCRecorded, certificateIn: !!certificate.certificateFileAt && certificate.certificateRejectedWhy == null } : {}),
-  });
-  return { ok: true, jobId: link.job_id, electricianBusinessId: link.electrician_business_id, step, link, assignment: assignment!, stage, bookedStart, upgradesStart, certificate };
+  const r = await d.sendSms({ type: ELECTRICIAN_LINK_SMS_TYPE, idempotencyKey: key, to: w.mobile, body, storedBody: maskElectricianLinkInText(body), jobId, businessId: w.business_id });
+  if (r.status !== "sent" && r.status !== "sent_unknown") return "held";
+  await d.record(jobId, ELECTRICIAN_LINK_TEXT_SENT_EVENT, "Electrician job link texted", { key, worker_id: workerId });
+  return "sent";
 }
 
-/** The link's job and next step, or why it can't be used. */
-export async function resolveElectricianLink(token: string, now: Date = new Date()): Promise<{ ok: true; jobId: string; electricianBusinessId: string; step: ElectricianStep } | { ok: false; reason: string }> {
-  const r = await resolveFull(token, now);
-  return r.ok ? { ok: true, jobId: r.jobId, electricianBusinessId: r.electricianBusinessId, step: r.step } : r;
+/** A link for an email: made only when this person has no live link for the job, so the one already in their phone keeps working
+ *  (the URL can't be rebuilt from the stored hash). Returns the URL, or null when a live link already exists. */
+export async function ensureElectricianLink(jobId: string, workerId: string, actorId: string | null = null): Promise<string | null> {
+  const { data: live, error } = await admin.from("worker_job_links").select("id, expires_at").eq("job_id", jobId).eq("worker_id", workerId).is("revoked_at", null);
+  if (error) throw dbErr("the links", error);
+  if ((live ?? []).some((l) => linkState({ revoked_at: null, expires_at: l.expires_at }, Date.now()) === "active")) return null;
+  return (await mintElectricianLink(jobId, workerId, actorId)).url;
 }
 
-/** When the owner paid for the safety check. First round: the REAL paid time — the payment that took the safety check step
- *  to its amount (`stepPaidAt` over the payment ledger, the same facts `jobPaymentView` uses). A repeat round (job reopened) or
- *  any case where that isn't readable: the hand-over time of the current round (`own_job_piesa_handed`, written once the fee
- *  is paid). Null = not handed over. */
-async function paidAtFor(jobId: string): Promise<string | null> {
-  const { data, error } = await admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", OWN_JOB_PIESA_HANDED_EVENT).order("created_at", { ascending: false }).limit(1).maybeSingle();
-  if (error) throw new Error(error.message);
-  const handedAt = (data?.created_at as string | undefined) ?? null;
-  if (!handedAt) return null;
+/** After a successful allocation: give the electrician their link and text it. Never throws; a failure is logged on the job.
+ *  A person who already has a live link for this job (a retry) keeps it, so the link already in their phone keeps working. */
+export async function linkAfterAllocation(jobId: string, workerId: string, actorId: string | null, over: Partial<ElectricianLinkTextDeps> = {}): Promise<"sent" | "held" | "test_sent" | "no_mobile" | "already_has_link" | "link_failed" | "text_failed"> {
+  const d = { ...defaultDeps(), ...over };
+  const fail = async (what: string, e: unknown) => {
+    try { await d.record(jobId, ELECTRICIAN_LINK_TEXT_FAILED_EVENT, `Electrician job link: ${what}`, { worker_id: workerId, error: (e as Error).message.slice(0, 300) }); } catch (le) { console.error("Electrician link failure not logged", (le as Error).message); }
+  };
+  let url: string;
   try {
-    if (await (await import("./repeat-piesa.server")).latestReopenAt(jobId)) return handedAt; // repeat round: its own fee, own time
-    const [{ jobPaymentView }, { stepPaidAt }] = await Promise.all([import("./payments.server"), import("./payments.core")]);
-    const v = await jobPaymentView(jobId);
-    const real = v ? stepPaidAt(v.plan, "safety_check", (v.ledger ?? []).filter((l) => l.kind !== "reversal").map((l) => ({ amountCents: l.amountCents, paidAt: l.paidAt }))) : null;
-    return real ?? handedAt;
-  } catch { return handedAt; }
+    const { data: live, error: le } = await admin.from("worker_job_links").select("id, expires_at").eq("job_id", jobId).eq("worker_id", workerId).is("revoked_at", null);
+    if (le) throw dbErr("the links", le);
+    if ((live ?? []).some((l) => linkState({ revoked_at: null, expires_at: l.expires_at }, Date.now()) === "active")) {
+      // The link is already made. Only the text may be missing (held while the flag was off, or it failed). The URL can't be
+      // rebuilt from the stored hash, so a new link is made ONLY when no text was ever sent for this job and person;
+      // a link already in someone's phone is never replaced.
+      if (!d.approved) return "already_has_link";
+      const { data: sentBefore, error: se } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", ELECTRICIAN_LINK_TEXT_SENT_EVENT).contains("details", { key: electricianLinkTextKey(jobId, workerId) }).limit(1).maybeSingle();
+      if (se) throw dbErr("the text history", se);
+      if (sentBefore) return "already_has_link";
+    }
+    url = (await mintElectricianLink(jobId, workerId, actorId)).url;
+  } catch (e) { await fail("the link could not be made", e); return "link_failed"; }
+  try { return await textElectricianLink(jobId, workerId, url, over); } catch (e) { await fail("the text was not sent", e); return "text_failed"; }
 }
 
-/** The electrician's own worker row (the assignment's profile), else the business, for names and phone. */
-async function electricianPerson(a: Assignment, businessId: string): Promise<{ id: string; name: string; phone: string | null }> {
-  const [{ data: w }, { data: b }] = await Promise.all([
-    admin.from("partner_workers").select("id, full_legal_name, mobile").eq("business_id", businessId).eq("profile_id", a.user_id).is("removed_at", null).limit(1).maybeSingle(),
-    admin.from("businesses").select("name, trading_name, phone").eq("id", businessId).maybeSingle(),
+/** The job's assigned electrician's business as a contact (office phone and business email, never the worker's mobile); null when none. */
+export async function electricianBusinessFor(jobId: string): Promise<BusinessContact | null> {
+  return (await import("./owner-contact.server")).businessContactForJob(jobId, "electrician");
+}
+
+// ---------- the page's read ----------
+export type ElectricianLinkView = {
+  business: string; firstName: string | null; installer: string; jobNumber: string;
+  owner: { name: string; phone: string | null } | null; address: string | null;
+  /** Task 9 (Jo 2 Nov, answer 7): who lets the trades in when it isn't the owner — same contact_releases rule as the owner. */
+  access: { name: string; role: "tenant" | "property manager"; phone: string } | null;
+  view: ElectricianStepView; /** The Mitti form the step's button opens, when it has one. */ buttonUrl: string | null; upgradesDay: string | null;
+};
+
+// The installer's "who books" setting (Part 5 `whoBooksOf(businesses.piesa_booked_by)`), read fresh on every open — the one reader.
+const whoBooksFor = (installerBusinessId: string | null) => import("./who-books.server").then((m) => m.whoBooksFor(installerBusinessId));
+
+type AccessShown = { name: string; role: "tenant" | "property manager"; phone: string } | null;
+/** Owner contact + address, and the person who lets the trades in (Part 3 Task 19 rental answers), only while this business
+ *  has a current visit (existing contact_releases rule). A failed rental read shows no access person, never hides the job. */
+async function ownerContactFor(jobId: string, businessId: string, stage: string): Promise<{ owner: { name: string; phone: string | null } | null; address: string | null; access: AccessShown }> {
+  const none = { owner: null, address: null, access: null };
+  const [{ data: rels, error: re }, { data: asgs, error: ae }] = await Promise.all([
+    admin.from("contact_releases").select("assignment_id, visit_kind").eq("job_id", jobId).is("revoked_at", null),
+    admin.from("job_assignments").select("id, active").eq("job_id", jobId).eq("business_id", businessId),
   ]);
-  const { displayName } = await import("./display-name.core");
-  const bizName = displayName(b?.trading_name || b?.name) || "Your electrician";
-  return { id: (w?.id as string | undefined) ?? a.user_id, name: displayName(w?.full_legal_name as string | null | undefined) || bizName, phone: (w?.mobile as string | null | undefined) || (b?.phone as string | null | undefined) || null };
-}
-
-/** Owner contacts for this assignment's safety check only (same release as an accepted offer). Idempotent. */
-async function releaseOwnerContacts(jobId: string, assignmentId: string) {
-  const { data: ex, error } = await admin.from("contact_releases").select("id").eq("job_id", jobId).eq("assignment_id", assignmentId).eq("visit_kind", "piesa").is("revoked_at", null).maybeSingle();
-  if (error) throw new Error(error.message);
-  if (ex) return;
-  const { OWNER_CONTACT_NOTICE, TRADE_CONTACT_NOTICE } = await import("./allocation.core");
-  const { error: ie } = await admin.from("contact_releases").upsert({ job_id: jobId, assignment_id: assignmentId, visit_kind: "piesa", released_by: null, owner_notice: OWNER_CONTACT_NOTICE, trade_notice: TRADE_CONTACT_NOTICE }, { onConflict: "assignment_id,visit_kind", ignoreDuplicates: true });
-  if (ie) throw new Error(ie.message);
-}
-
-export type ElectricianLinkView =
-  | { ok: false; reason: string }
-  | { ok: true; step: ElectricianStep; jobNumber: string | null; address: string | null; ownerName: string | null; ownerMobile: string | null; bookedStart: string | null; firstDay: string; lastDay: string | null; electricianName: string;
-      /** Part 3: the booked upgrades visit (do_upgrades_in_mitti), and the upload limit for the certificate step. */ upgradesStart: string | null; certificateMaxBytes: number;
-      /** Fix round 1: the office rejected the current certificate — the line the certificate step shows (null = none). */ certificateRejected: string | null };
-
-/** What the /e/<token> page shows: only the next step. Owner contacts only while the safety check is still to book. */
-export async function electricianLinkView(token: string, now: Date = new Date()): Promise<ElectricianLinkView> {
-  const r = await resolveFull(token, now);
-  if (!r.ok) return r;
-  const [{ data: j }, who, paidAt] = await Promise.all([
-    admin.from("job_overview").select("job_number, property_address, owner_name, owner_phone").eq("id", r.jobId).maybeSingle(),
-    electricianPerson(r.assignment, r.electricianBusinessId),
-    paidAtFor(r.jobId),
+  if (re) throw dbErr("contact releases", re);
+  if (ae) throw dbErr("the assignments", ae);
+  const mine = new Set((asgs ?? []).filter((a) => a.active).map((a) => a.id));
+  const { visitIsCurrent } = await import("./allocation.core");
+  if (!(rels ?? []).some((r) => mine.has(r.assignment_id as string) && visitIsCurrent(String(r.visit_kind), stage))) return none;
+  // The owner and property rows themselves (not the `job_overview` view): the same name, phone and formatted address.
+  const [{ data: o, error }, ap] = await Promise.all([
+    admin.from("jobs").select("owners(full_name, phone), properties(address_line, suburb, state, postcode)").eq("id", jobId).maybeSingle(),
+    (async () => { try { return await (await import("./rental-answers.server")).accessPersonFor(jobId); } catch (e) { console.error("Electrician link: access person not read", (e as Error).message); return null; } })(),
   ]);
-  const booking = r.step === "book_piesa";
-  if (booking) await releaseOwnerContacts(r.jobId, r.assignment.id);
-  const [{ melbourneToday, addMelbourneCalendarDays }, { melbourneYmd }] = await Promise.all([import("./melbourne-time.core"), import("./piesa-windows.core")]);
-  const { displayName } = await import("./display-name.core");
+  if (error) throw dbErr("the owner", error);
+  const access: AccessShown = ap ? { name: ap.name, role: ap.who === "property_manager" ? "property manager" : "tenant", phone: ap.mobile } : null;
+  const owner = (o?.owners ?? null) as { full_name: string | null; phone: string | null } | null;
+  const prop = (o?.properties ?? null) as { address_line: string; suburb: string | null; state: string | null; postcode: string | null } | null;
+  const { formatPropertyAddress } = await import("./address");
+  const address = prop ? formatPropertyAddress(prop) : "";
+  return { owner: owner?.full_name ? { name: owner.full_name, phone: owner.phone ?? null } : null, address: address || null, access };
+}
+
+type Facts = { facts: ElectricianLinkFacts; piesaFormUrl: string | null; upgradesFormUrl: string | null; allDoneAt: string | null; /** The job's Mitti forms the electrician can see: the A3, and the A4 while it is open. */ auditIds: string[] };
+async function factsFor(jobId: string, whoBooks: WhoBooks, handedBack: boolean, now: number): Promise<Facts> {
+  const [{ data: a, error: ae }, { data: books, error: be }, { data: evs, error: ee }, { data: docs, error: de }] = await Promise.all([
+    admin.from("assessments").select("external_mitti_id, completed_at, piesa_outcome, mitti_raw_snapshot").eq("job_id", jobId).maybeSingle(),
+    admin.from("bookings").select("kind, scheduled_start").eq("job_id", jobId).eq("status", "confirmed").in("kind", ["assessment", "rectification"]).order("scheduled_start", { ascending: false }),
+    admin.from("workflow_events").select("event_type, created_at, summary, details").eq("job_id", jobId).in("event_type", ["fixes_form_created", "fixes_form_completed", "fixes_form_not_done", "fixes_form_held"]).order("created_at", { ascending: false }).limit(50),
+    admin.from("documents").select("created_at").eq("job_id", jobId).eq("kind", "piesa_evidence").eq("title", (await import("./fixes-day.core")).FIXES_COES_DOC_TITLE).order("created_at", { ascending: false }),
+  ]);
+  for (const [what, e] of [["the safety check", ae], ["the bookings", be], ["the upgrades form", ee], ["the certificate", de]] as const) if (e) throw dbErr(what, e);
+  const { fixesFormOutcome } = await import("./fixes-day.core");
+  const { shortAnswersFromEntries } = await import("./official-short.core");
+  const { mittiFormUrl } = await import("./mitti-link.core");
+  const outcome = a?.completed_at ? (a.piesa_outcome === "pass" ? "pass" : a.piesa_outcome === "fail" ? "upgrades" : null) : null;
+  const snapshot = Array.isArray(a?.mitti_raw_snapshot) ? (a!.mitti_raw_snapshot as { label: string; value: string }[]).filter((e) => e && typeof e.label === "string") : [];
+  const sameDay = outcome === "upgrades" && /^\s*yes\b/i.test(String(shortAnswersFromEntries("piesa", snapshot as never)["rectificationComplete"] ?? ""));
+  const fixes = fixesFormOutcome((evs ?? []) as never);
+  const startOf = (kind: string) => (books ?? []).find((b) => b.kind === kind)?.scheduled_start ?? null;
+  const piesaFormUrl = a?.external_mitti_id ? mittiFormUrl(a.external_mitti_id) : null;
+  const upgradesFormUrl = fixes.auditId ? mittiFormUrl(fixes.auditId) : null;
+  const certAt = (docs ?? [])[0]?.created_at ?? null;
   return {
-    ok: true, step: r.step, jobNumber: (j?.job_number as string | null | undefined) ?? null, address: (j?.property_address as string | null | undefined) ?? null,
-    ownerName: booking ? displayName(j?.owner_name as string | null | undefined) || null : null,
-    ownerMobile: booking ? (j?.owner_phone as string | null | undefined) ?? null : null,
-    bookedStart: r.bookedStart, firstDay: melbourneToday(now), lastDay: paidAt ? melbourneYmd(new Date(addMelbourneCalendarDays(paidAt, 30))) : null,
-    electricianName: who.name, upgradesStart: r.upgradesStart, certificateMaxBytes: CERTIFICATE_UPLOAD_MAX_BYTES,
-    certificateRejected: r.certificate?.certificateRejectedWhy != null ? certificateRejectedLine(r.certificate.certificateRejectedWhy) : null,
+    facts: {
+      whoBooks, handedBack, now: new Date(now), certificateIn: (docs ?? []).length > 0,
+      piesa: { start: startOf("assessment"), formUrl: piesaFormUrl, outcome, upgradesSameDay: sameDay },
+      upgrades: { start: startOf("rectification"), formUrl: upgradesFormUrl, formDone: fixes.outcome === "done" },
+    },
+    piesaFormUrl, upgradesFormUrl, allDoneAt: certAt ?? (outcome === "pass" ? a?.completed_at ?? null : null),
+    auditIds: [...(a?.external_mitti_id ? [a.external_mitti_id] : []), ...(fixes.auditId && fixes.outcome !== "done" ? [fixes.auditId] : [])],
   };
 }
 
-/** The ONE place an own job's safety check is booked (the electrician's link and the installer office both come here):
- *  check the time → claim (one booking per assignment) → confirmBooking (kind assessment; the contractor is always the job's
- *  active electrician assignment) → supersede any open proposed times (as an office reassignment does) → the owner's booking
- *  notice. `actorId` is who pressed Book; `by` names them in the job history. */
-export async function bookOwnJobPiesa(p: { jobId: string; assignment: Assignment; electricianBusinessId: string; startIso: string; actorId: string; by: string; now: Date }): Promise<{ ok: true; start: string }> {
-  const { jobId, assignment, startIso, now } = p;
-  const paidAt = await paidAtFor(jobId);
-  if (!paidAt) throw new Error("This job isn't ready to book yet. Call the installer.");
-  const problem = piesaBookingProblem(startIso, now, paidAt);
-  if (problem) throw new Error(problem);
-  const who = await electricianPerson(assignment, p.electricianBusinessId);
-  // Claim first (a double tap or two phones): one stable event per assignment; a second claim is "already booked".
-  const { stableUuid } = await import("./mitti-create-claim.core");
-  // The claim is per assignment AND per booking history: a cancelled booking (electrician still assigned) opens a new claim.
-  const { data: lastCancelled, error: lcErr } = await admin.from("bookings").select("id").eq("job_id", jobId).eq("kind", "assessment").eq("status", "cancelled").order("created_at", { ascending: false }).limit(1).maybeSingle();
-  if (lcErr) throw new Error(lcErr.message);
-  const claimId = await stableUuid(`own_job_piesa_link_booked:${assignment.id}:${(lastCancelled?.id as string | undefined) ?? "none"}`);
-  const { error: claimError } = await admin.from("workflow_events").insert({ id: claimId, job_id: jobId, actor_id: null, event_type: "own_job_piesa_link_booked", summary: "Safety check being booked", details: { assignment_id: assignment.id, start: startIso, by: p.by }, internal: true });
-  if (claimError) { if (claimError.code === "23505") throw new Error("The safety check is already booked."); throw new Error(claimError.message); }
-  try {
-    const { confirmBooking } = await import("./booking.server");
-    await confirmBooking(jobId, "assessment", startIso, p.actorId, p.by);
-  } catch (e) {
-    const { error: rel } = await admin.from("workflow_events").delete().eq("id", claimId); // nothing was booked: let them try again
-    if (rel) console.error("booking claim not released", jobId, rel.message);
-    throw e;
+/** Everything the page shows, resolved from the token alone. Throws the plain message for a link that can't be opened. */
+export async function electricianLinkView(token: string, now = Date.now()): Promise<ElectricianLinkView> {
+  try { return await readElectricianLinkView(token, now); } catch (e) {
+    if (!(e instanceof ReadError)) throw e;
+    console.error("Electrician link read failed", e.message);
+    throw new Error(ELECTRICIAN_LINK_NOT_VALID);
   }
-  const { error } = await admin.from("appointment_proposals").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "assessment").eq("status", "proposed");
-  if (error) console.error("open safety check times not superseded", jobId, error.message);
-  const { notifyOwnerBooked } = await import("./in-house-booking.server");
-  await notifyOwnerBooked(jobId, "piesa", startIso, who, now).catch((e) => console.error("owner booking notice held", jobId, (e as Error).message));
-  return { ok: true, start: startIso };
 }
+async function readElectricianLinkView(token: string, now: number): Promise<ElectricianLinkView> {
+  if (!isTokenShape(token)) throw new Error(ELECTRICIAN_LINK_NOT_VALID);
+  const { data: l, error } = await admin.from("worker_job_links").select("id, job_id, worker_id, business_id, expires_at, revoked_at, open_count").eq("token_hash", await hashToken(token)).maybeSingle();
+  if (error) throw dbErr("the link", error);
+  if (!l) throw new Error(ELECTRICIAN_LINK_NOT_VALID);
+  const installer = await installerOf(l.job_id);
+  const state = linkState(l, now);
+  if (state === "revoked") throw new Error(electricianLinkSwitchedOff(installer.name));
+  if (state === "expired") throw new Error(electricianLinkExpired(installer.name));
+  const [{ data: w, error: we }, { data: eb, error: ebe }, { data: job, error: je }] = await Promise.all([
+    admin.from("partner_workers").select("id, full_legal_name, trade_role, approval_status, certification_status, removed_at, profile_id").eq("id", l.worker_id).maybeSingle(),
+    admin.from("businesses").select("name, trading_name").eq("id", l.business_id).maybeSingle(),
+    admin.from("jobs").select("job_number, stage, deleted_at, updated_at").eq("id", l.job_id).maybeSingle(),
+  ]);
+  if (we) throw dbErr("the electrician", we);
+  if (ebe) throw dbErr("the business", ebe);
+  if (je) throw dbErr("the job", je);
+  const off = new Error(electricianLinkSwitchedOff(installer.name));
+  if (!w || w.trade_role !== "electrician" || w.removed_at || w.approval_status !== "approved" || certificationBlocker(w) || !job || job.deleted_at) throw off;
+  const asg = await electricianAssignment(l.job_id, l.business_id);
+  if (!asg || !sameElectrician(asg, w)) throw off;
 
-/** "Book it" from the electrician's link. */
-export async function linkBookPiesa(token: string, startIso: string, now: Date = new Date()): Promise<{ ok: true; start: string }> {
-  const r = await resolveFull(token, now);
-  if (!r.ok) throw new Error(r.reason);
-  if (r.step !== "book_piesa") throw new Error(r.step === "done" ? "The safety check is already done." : "The safety check is already booked.");
-  const who = await electricianPerson(r.assignment, r.electricianBusinessId);
-  return bookOwnJobPiesa({ jobId: r.jobId, assignment: r.assignment, electricianBusinessId: r.electricianBusinessId, startIso, actorId: r.assignment.user_id, by: `${who.name} (electrician's link)`, now });
-}
+  const whoBooks = await whoBooksFor(installer.id);
+  const f = await factsFor(l.job_id, whoBooks, job.stage === "cancelled", now);
+  const view = electricianStep(f.facts);
+  // Open: before All done every open renews the link; after, it ends 14 days after All done and is not pushed again.
+  // A closed or cancelled job ends the link 14 days after the close (the job's last change) and is never renewed.
+  const closedAt = view.step === "closed" && job.updated_at && !Number.isNaN(new Date(job.updated_at).getTime()) ? job.updated_at : null;
+  const expires = view.step === "closed" ? (closedAt ? electricianLinkExpiry({ allDoneAt: closedAt, now }) : l.expires_at) : view.step === "all_done" ? (f.allDoneAt ? electricianLinkExpiry({ allDoneAt: f.allDoneAt, now }) : l.expires_at) : electricianLinkExpiry({ allDoneAt: null, now });
+  if (new Date(expires).getTime() <= now) throw new Error(electricianLinkExpired(installer.name));
+  const { error: ue } = await admin.from("worker_job_links").update({ last_opened_at: new Date(now).toISOString(), open_count: (l.open_count ?? 0) + 1, expires_at: expires }).eq("id", l.id);
+  if (ue) console.error("Electrician link open not recorded", ue.message);
 
-export type CantDoResult = { ok: true; officeEmail: string };
-
-/** "Can't do this one": end the electrician's assignment, switch off the link, log the hand-back (one office item) and
- *  email the installer office (held until Jo approves the wording). */
-export async function linkCantDo(token: string, reason: CantDoReason, note?: string | null, now: Date = new Date()): Promise<CantDoResult> {
-  if (!(CANT_DO_REASONS as readonly string[]).includes(reason)) throw new Error("Pick a reason.");
-  const cleanNote = (note ?? "").replace(/\s+/g, " ").trim().slice(0, 500) || null;
-  if (reason === "other" && !cleanNote) throw new Error("Tell us why you can't do this one.");
-  const r = await resolveFull(token, now);
-  if (!r.ok) throw new Error(r.reason);
-  if (r.step !== "book_piesa") throw new Error("The safety check is already booked. Call the installer to change it.");
-  const label = cantDoReasonLabel(reason, cleanNote);
-  const who = await electricianPerson(r.assignment, r.electricianBusinessId);
-  // Claim first (a double tap): one stable event per assignment; a second claim is "already sent back".
-  const { stableUuid } = await import("./mitti-create-claim.core");
-  const claimId = await stableUuid(`own_job_piesa_link_cant_do:${r.assignment.id}`);
-  const { error: claimError } = await admin.from("workflow_events").insert({ id: claimId, job_id: r.jobId, actor_id: null, event_type: "own_job_piesa_link_cant_do_claim", summary: "Electrician sending the safety check back from their link", details: { assignment_id: r.assignment.id }, internal: true });
-  if (claimError) { if (claimError.code === "23505") throw new Error("Already sent back."); throw new Error(claimError.message); }
-  const undo = async (withEvent: boolean) => {
-    if (withEvent) { const { error } = await admin.from("workflow_events").delete().eq("job_id", r.jobId).eq("event_type", OWN_JOB_PIESA_HANDED_BACK_EVENT).contains("details", { assignment_id: r.assignment.id }); if (error) console.error("hand-back item not removed", r.jobId, error.message); }
-    const { error } = await admin.from("workflow_events").delete().eq("id", claimId);
-    if (error) console.error("can't-do claim not released", r.jobId, error.message);
+  const contact = await ownerContactFor(l.job_id, l.business_id, job.stage ?? "");
+  return {
+    business: bizName(eb) ?? "Your business", firstName: firstName(w.full_legal_name), installer: installer.name, jobNumber: job.job_number,
+    owner: contact.owner, address: contact.address, access: contact.access, view,
+    buttonUrl: view.step === "piesa_day" ? f.piesaFormUrl : view.step === "upgrades_day" ? f.upgradesFormUrl : null,
+    upgradesDay: f.facts.upgrades.start,
   };
-  const { logEvent } = await import("./workflow.server");
-  try {
-    await logEvent(r.jobId, null, OWN_JOB_PIESA_HANDED_BACK_EVENT, `${who.name} can't do the safety check (PIESA): ${label}. The installer picks another electrician or books it`,
-      { reason, note: cleanNote, electrician_business_id: r.electricianBusinessId, assignment_id: r.assignment.id, needs_office: true }, { internal: true });
-  } catch (e) { await undo(false); throw e; }
-  const { data: ended, error } = await admin.from("job_assignments").update({ active: false, ended_at: now.toISOString(), end_reason: `Electrician can't do this one: ${label}` })
-    .eq("id", r.assignment.id).eq("active", true).select("id");
-  if (error || !(ended ?? []).length) { await undo(true); throw new Error(error ? error.message : LINK_NOT_ASSIGNED); }
-  await revokeElectricianLinks(r.jobId, "cant_do", { electricianBusinessId: r.electricianBusinessId }, now);
-  await admin.from("contact_releases").update({ revoked_at: now.toISOString() }).eq("assignment_id", r.assignment.id).is("revoked_at", null);
-  let officeEmail = "not_sent";
-  try {
-    const { data: job } = await admin.from("jobs").select("originating_installer_business_id").eq("id", r.jobId).maybeSingle();
-    const { data: ov } = await admin.from("job_overview").select("property_address, job_number").eq("id", r.jobId).maybeSingle();
-    const installerId = (job?.originating_installer_business_id as string | null | undefined) ?? null;
-    if (!installerId) officeEmail = "no_installer";
-    else {
-      const address = (ov?.property_address as string | null | undefined) || (ov?.job_number as string | null | undefined) || "this job";
-      const mail = officeCantDoEmail({ address, electrician: who.name, reason: label, jobUrl: `${SET_PASSWORD_BASE}/field/${r.jobId}` });
-      const { emailInstallerOffice } = await import("./own-job-piesa-notices.server");
-      const out = await emailInstallerOffice({ jobId: r.jobId, businessId: installerId, key: `own-job-piesa:v1:${r.assignment.id}:cant-do`, subject: mail.subject, text: mail.text, jobUrl: `${SET_PASSWORD_BASE}/field/${r.jobId}`, approved: OWN_JOB_PIESA_CANT_DO_EMAIL_APPROVED });
-      officeEmail = out.status;
-    }
-  } catch (e) { console.error("can't-do office email skipped", r.jobId, (e as Error).message); }
-  return { ok: true, officeEmail };
 }
 
+// ---------- which link is this? (join 4 Nov 2026) ----------
+// Two kinds of /e/<token> link exist until Part 2's minting is retired at go-live: Part 6's worker links (this module,
+// `worker_job_links`) and main's Part 2 own-job links (`electrician_job_links`, own-job-electrician-link.server.ts). The
+// page asks ONE question; the worker link is tried first, then the own-job link. The token is still the only input.
+export type AnyElectricianLinkView =
+  | { kind: "worker"; data: ElectricianLinkView }
+  | { kind: "own_job"; data: import("./own-job-electrician-link.server").ElectricianLinkView };
+export async function electricianLinkAnyView(token: string, now = Date.now()): Promise<AnyElectricianLinkView> {
+  if (!isTokenShape(token)) throw new Error(ELECTRICIAN_LINK_NOT_VALID);
+  const { data: l, error } = await admin.from("worker_job_links").select("id").eq("token_hash", await hashToken(token)).maybeSingle();
+  if (error) { console.error("Electrician link read failed", error.message); throw new Error(ELECTRICIAN_LINK_NOT_VALID); }
+  if (l) return { kind: "worker", data: await electricianLinkView(token, now) };
+  const own = await (await import("./own-job-electrician-link.server")).electricianLinkView(token, new Date(now));
+  // Neither table knows the token: Part 6's plain message (the own-job reader's own refusals — moved, expired — stay its own).
+  if (!own.ok && own.reason === (await import("./own-job-electrician-link.core")).LINK_INVALID) throw new Error(ELECTRICIAN_LINK_NOT_VALID);
+  return { kind: "own_job", data: own };
+}
 
-// ====================================================================================================
-// Part 3 Task 3 (Jo 3 Nov 2026): the upgrades day and the certificate from the electrician's link.
-// ====================================================================================================
+// ---------- booking from the link ----------
+export const ELECTRICIAN_LINK_BOOKED_EVENT = "electrician_link_booked";
+export type ElectricianLinkBookResult = { ok: true; start: string } | { ok: false; message: string };
 
-/** An upgrades-day claim with no booking behind it older than this is stale (a crash mid-booking), not a second tap in flight. */
-const STALE_CLAIM_MS = 2 * 60_000;
+/** Serialises booking per job inside this process, so two presses at once make one booking. The booking path itself
+ *  cancels the earlier booking of the same kind, and the step is re-read inside the lock, so a second process is refused too. */
+const jobQueues = new Map<string, Promise<unknown>>();
+async function withJobLock<T>(jobId: string, fn: () => Promise<T>): Promise<T> {
+  const prev = jobQueues.get(jobId) ?? Promise.resolve();
+  const run = prev.then(fn, fn);
+  const tail = run.catch(() => undefined);
+  jobQueues.set(jobId, tail);
+  try { return await run; } finally { if (jobQueues.get(jobId) === tail) jobQueues.delete(jobId); }
+}
 
-/** "Enter the upgrades day": claim (one per assignment and booking round) → confirmBooking kind rectification (the real one,
- *  which also makes the A4 form — decision 293) → the owner's "You're booked" (held until Jo approves the wording). */
-export async function linkEnterUpgradesDay(token: string, startIso: string, now: Date = new Date()): Promise<{ ok: true; start: string }> {
-  const r = await resolveFull(token, now);
-  if (!r.ok) throw new Error(r.reason);
-  if (r.step !== "enter_upgrades_day") throw new Error(r.step === "do_upgrades_in_mitti" ? "The upgrades day is already set." : r.step === "add_certificate" ? "The upgrades are already recorded — add the certificate." : r.step === "done" ? "This job is all done." : "The safety check comes first.");
-  const problem = upgradesDayProblem(startIso, now);
-  if (problem) throw new Error(problem);
-  // Part 3 final fix wave: the upgrades day is booked only at the upgrades-booking stages. A job still parked at PIESA
-  // complete (e.g. completed before this fix) is moved on by the normal guarded auto-advance first; if it still isn't
-  // there, the electrician gets a plain reason and nothing is claimed or booked.
-  const { autoAdvanceJob } = await import("./autoadvance.server");
-  const { getStage, WorkflowError } = await import("./workflow.server");
-  const { officePhone } = await import("./office-phone.server");
-  const upgradesStages = ["rectification_scheduling", "rectification_booked"];
-  if (!upgradesStages.includes(r.stage)) {
-    await autoAdvanceJob(r.jobId, null, "upgrades day from the electrician's link").catch((e) => console.error("upgrades day auto-advance failed", r.jobId, (e as Error).message));
-    const now2 = await getStage(r.jobId).catch(() => null);
-    if (!now2 || !upgradesStages.includes(now2)) {
-      console.warn("upgrades day refused: job not at the upgrades booking", r.jobId, now2);
-      throw new Error(upgradesDayNotReady(officePhone()));
+/** Book the safety check ("assessment") or the upgrades day ("rectification") from the electrician's link. Everything is
+ *  resolved from the token and re-read fresh: the installer's who-books setting, the step, the electrician. The write is the
+ *  existing booking path (validateBooking + confirmBooking, every guard unchanged), then the existing in-house owner notice. */
+export async function bookFromElectricianLink(token: string, kind: "assessment" | "rectification", startIso: string, now = Date.now()): Promise<ElectricianLinkBookResult> {
+  if (!isTokenShape(token)) return { ok: false, message: ELECTRICIAN_LINK_NOT_VALID };
+  if (kind !== "assessment" && kind !== "rectification") return { ok: false, message: ELECTRICIAN_LINK_NOTHING_TO_BOOK };
+  const startMs = Date.parse(startIso);
+  if (!Number.isFinite(startMs) || startMs <= now) return { ok: false, message: ELECTRICIAN_LINK_BAD_TIME };
+  const start = new Date(startMs).toISOString();
+
+  const { data: l, error } = await admin.from("worker_job_links").select("id, job_id, worker_id, business_id, expires_at, revoked_at").eq("token_hash", await hashToken(token)).maybeSingle();
+  if (error) throw dbErr("the link", error);
+  if (!l) return { ok: false, message: ELECTRICIAN_LINK_NOT_VALID };
+  const installer = await installerOf(l.job_id);
+  const state = linkState(l, now);
+  if (state === "revoked") return { ok: false, message: electricianLinkSwitchedOff(installer.name) };
+  if (state === "expired") return { ok: false, message: electricianLinkExpired(installer.name) };
+  const off = { ok: false as const, message: electricianLinkSwitchedOff(installer.name) };
+  const [{ data: w, error: we }, { data: job, error: je }] = await Promise.all([
+    admin.from("partner_workers").select("id, full_legal_name, mobile, trade_role, approval_status, certification_status, removed_at, profile_id").eq("id", l.worker_id).maybeSingle(),
+    admin.from("jobs").select("stage, deleted_at").eq("id", l.job_id).maybeSingle(),
+  ]);
+  if (we) throw dbErr("the electrician", we);
+  if (je) throw dbErr("the job", je);
+  if (!w || w.trade_role !== "electrician" || w.removed_at || w.approval_status !== "approved" || certificationBlocker(w) || !job || job.deleted_at) return off;
+  const asg = await electricianAssignment(l.job_id, l.business_id);
+  if (!asg || !sameElectrician(asg, w)) return off;
+  const jobId = l.job_id as string;
+
+  return withJobLock(jobId, async () => {
+    // Fresh inside the lock: the setting, and what is already booked.
+    const whoBooks = await whoBooksFor(installer.id);
+    if (!canBookFromLink(whoBooks)) return { ok: false as const, message: ELECTRICIAN_LINK_OFFICE_BOOKS };
+    const f = await factsFor(jobId, whoBooks, job.stage === "cancelled", now);
+    const step = electricianStep(f.facts).step;
+    const existing = kind === "assessment" ? f.facts.piesa.start : f.facts.upgrades.start;
+    const existingMs = existing ? Date.parse(existing) : NaN;
+    if (existing) {
+      // Whose booking is it? Theirs when THEY booked that very time from this link (timestamps compared as instants, never
+      // as strings). The same time again is a retry; a new time is the approved "then update it on the job" — re-booked
+      // through the same canonical path, which cancels the earlier booking of this kind and logs booking_rescheduled.
+      // Anyone else's booking (the office, another electrician) stays theirs: "Already booked…".
+      const { data: evs, error: ee } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", ELECTRICIAN_LINK_BOOKED_EVENT).contains("details", { kind, worker_id: w.id });
+      if (ee) throw dbErr("the link bookings", ee);
+      const mine = (evs ?? []).some((e) => Date.parse(String((e.details as { start?: string } | null)?.start ?? "")) === existingMs);
+      if (!mine) return { ok: false as const, message: electricianLinkAlreadyBooked(existing) };
+      if (existingMs === startMs) return { ok: true as const, start: existing };
+      // A change of time only while the link is still on that visit's day (a done A4 or a passed PIESA never gets a second form).
+      if (step !== (kind === "assessment" ? "piesa_day" : "upgrades_day")) return { ok: false as const, message: ELECTRICIAN_LINK_NOTHING_TO_BOOK };
+    } else if (step !== (kind === "assessment" ? "book_piesa" : "set_upgrades_day")) return { ok: false as const, message: ELECTRICIAN_LINK_NOTHING_TO_BOOK };
+    // Main's Part 3 final fix wave (#137), carried onto this link at the join: the upgrades day is booked only at the
+    // upgrades-booking stages. A job still parked at PIESA complete (e.g. completed before that fix) is moved on by the
+    // normal guarded auto-advance first; if it still isn't there, the electrician gets a plain reason and nothing is booked.
+    if (kind === "rectification" && !(UPGRADES_BOOKING_STAGES as readonly string[]).includes(job.stage ?? "")) {
+      const { autoAdvanceJob } = await import("./autoadvance.server");
+      const { getStage } = await import("./workflow.server");
+      await autoAdvanceJob(jobId, null, "upgrades day from the electrician's link").catch((e) => console.error("upgrades day auto-advance failed", jobId, (e as Error).message));
+      const now2 = await getStage(jobId).catch(() => null);
+      if (!now2 || !(UPGRADES_BOOKING_STAGES as readonly string[]).includes(now2)) {
+        console.warn("upgrades day refused: job not at the upgrades booking", jobId, now2);
+        return { ok: false as const, message: upgradesDayNotReady((await import("./office-phone.server")).officePhone()) };
+      }
     }
-  }
-  const who = await electricianPerson(r.assignment, r.electricianBusinessId);
-  const { stableUuid } = await import("./mitti-create-claim.core");
-  // One claim per assignment AND per booking history: a cancelled upgrades booking (electrician still assigned) opens a new claim.
-  const { data: lastCancelled, error: lcErr } = await admin.from("bookings").select("id").eq("job_id", r.jobId).eq("kind", "rectification").eq("status", "cancelled").order("created_at", { ascending: false }).limit(1).maybeSingle();
-  if (lcErr) throw new Error(lcErr.message);
-  const claimId = await stableUuid(`${UPGRADES_DAY_LINK_CLAIM_EVENT}:${r.assignment.id}:${(lastCancelled?.id as string | undefined) ?? "none"}`);
-  const claimRow = (stale = false) => ({ id: claimId, job_id: r.jobId, actor_id: null, event_type: UPGRADES_DAY_LINK_CLAIM_EVENT, summary: "Electrical upgrades day being entered from the electrician's link", details: { assignment_id: r.assignment.id, start: startIso, by: `${who.name} (electrician's link)`, ...(stale ? { stale_claim_reset: true } : {}) }, internal: true });
-  let { error: claimError } = await admin.from("workflow_events").insert(claimRow());
-  if (claimError?.code === "23505") {
-    // Fix round 1: a claim with no booking behind it and older than the in-flight window is a crash between the claim and the
-    // booking — reset it (logged) so the step isn't locked. A younger claim is a second tap in flight: "already set".
-    const [{ data: prior }, { data: booked }] = await Promise.all([
-      admin.from("workflow_events").select("created_at").eq("id", claimId).maybeSingle(),
-      admin.from("bookings").select("id").eq("job_id", r.jobId).eq("kind", "rectification").eq("business_id", r.electricianBusinessId).in("status", ["confirmed", "completed"]).limit(1),
+    try {
+      const booking = await import("./booking.server");
+      // proposedWorkerId = this electrician (the job is already allocated to them). No actor: the electrician has no login.
+      await booking.validateBooking(jobId, kind, start, null, w.id);
+      await booking.confirmBooking(jobId, kind, start, null, "electrician link");
+    } catch (e) {
+      const { WorkflowError } = await import("./workflow.server");
+      // The upgrades day: a booking-rule refusal (stage moved, a guard) is shown in plain words; the real reason stays in the server log (main #137).
+      if (e instanceof WorkflowError && kind === "rectification") { console.warn("upgrades day refused", jobId, e.message); return { ok: false as const, message: upgradesDayNotReady((await import("./office-phone.server")).officePhone()) }; }
+      if (e instanceof WorkflowError) return { ok: false as const, message: e.message };
+      console.error("Electrician link booking failed", (e as Error).message);
+      return { ok: false as const, message: electricianLinkBookFailed(installer.name) };
+    }
+    const wf = await import("./workflow.server");
+    await wf.logEvent(jobId, null, ELECTRICIAN_LINK_BOOKED_EVENT, `${kind === "assessment" ? "Safety check" : "Upgrades day"} booked from the electrician's link`, { kind, start, worker_id: w.id }, { internal: true })
+      .catch((e) => console.error("Electrician link booking not logged", (e as Error).message));
+    // The owner's "You're booked" (PIESA) notice: the existing in-house path (held unless the job is an in-house one; TEST jobs go to test-send inside it).
+    if (kind === "assessment") {
+      await (await import("./in-house-booking.server")).notifyOwnerBooked(jobId, "piesa", start, { id: w.id, name: w.full_legal_name ?? "", phone: w.mobile ?? null })
+        .catch((e) => console.error("Booking confirmation held", (e as Error).message));
+    }
+    return { ok: true as const, start };
+  });
+}
+
+// ---------- uploading the Certificate of Electrical Safety from the link ----------
+export type ElectricianLinkUploadResult = { ok: true } | { ok: false; message: string };
+
+/** Upload the Certificate of Electrical Safety. Everything comes from the token: the job, the electrician and the business are
+ *  never sent by the browser. The file goes through the one upload path the installer office uses (coes-upload.server), so the
+ *  link, the office's Next step and the install gate all read the same record. Plain messages, never the raw error. */
+export async function uploadCoesFromElectricianLink(token: string, file: { name: string; type: string; /** The bytes, or a function that decodes them — called only once the token and link checks passed. */ bytes: Uint8Array | (() => Uint8Array) }, now = Date.now()): Promise<ElectricianLinkUploadResult> {
+  if (!isTokenShape(token)) return { ok: false, message: ELECTRICIAN_LINK_NOT_VALID };
+  const { data: l, error } = await admin.from("worker_job_links").select("id, job_id, worker_id, business_id, expires_at, revoked_at").eq("token_hash", await hashToken(token)).maybeSingle();
+  if (error) { console.error("Electrician link upload could not read the link", error.message); return { ok: false, message: ELECTRICIAN_LINK_NOT_VALID }; }
+  if (!l) return { ok: false, message: ELECTRICIAN_LINK_NOT_VALID };
+  try {
+    const installer = await installerOf(l.job_id);
+    const state = linkState(l, now);
+    if (state === "revoked") return { ok: false, message: electricianLinkSwitchedOff(installer.name) };
+    if (state === "expired") return { ok: false, message: electricianLinkExpired(installer.name) };
+    const off = { ok: false as const, message: electricianLinkSwitchedOff(installer.name) };
+    const [{ data: w, error: we }, { data: job, error: je }] = await Promise.all([
+      admin.from("partner_workers").select("id, trade_role, approval_status, certification_status, removed_at, profile_id").eq("id", l.worker_id).maybeSingle(),
+      admin.from("jobs").select("stage, deleted_at").eq("id", l.job_id).maybeSingle(),
     ]);
-    const age = prior?.created_at ? now.getTime() - Date.parse(prior.created_at as string) : 0;
-    if (!(booked ?? []).length && age > STALE_CLAIM_MS) {
-      console.warn("stale upgrades-day claim reset", r.jobId, claimId, `${Math.round(age / 1000)}s old, no booking`);
-      // Task 4: the delete only takes a claim that is STILL stale. Two taps that both saw the stale claim: the second one's
-      // delete finds nothing (the first tap's new claim is fresh) and is "already set" — never a second booking.
-      const { data: gone, error: del } = await admin.from("workflow_events").delete().eq("id", claimId).lt("created_at", new Date(now.getTime() - STALE_CLAIM_MS).toISOString()).select("id");
-      if (del) throw new Error(del.message);
-      if (((gone ?? []) as unknown[]).length) ({ error: claimError } = await admin.from("workflow_events").insert(claimRow(true)));
-    }
-  }
-  if (claimError) { if (claimError.code === "23505") throw new Error("The upgrades day is already set."); throw new Error(claimError.message); }
-  try {
-    const { confirmBooking } = await import("./booking.server");
-    await confirmBooking(r.jobId, "rectification", startIso, r.assignment.user_id, `${who.name} (electrician's link)`);
+    if (we) throw dbErr("the electrician", we);
+    if (je) throw dbErr("the job", je);
+    if (!w || w.trade_role !== "electrician" || w.removed_at || w.approval_status !== "approved" || certificationBlocker(w) || !job || job.deleted_at || job.stage === "cancelled") return off;
+    const asg = await electricianAssignment(l.job_id, l.business_id);
+    if (!asg || !sameElectrician(asg, w)) return off;
+    const { saveUploadedCoes, CoesUploadError } = await import("./coes-upload.server");
+    const bytes = typeof file.bytes === "function" ? file.bytes() : file.bytes;
+    try { await saveUploadedCoes(l.job_id, { name: file.name, type: file.type, bytes }, { kind: "electrician_link", workerId: w.id }); return { ok: true }; }
+    catch (e) { if (e instanceof CoesUploadError) return { ok: false, message: e.message }; throw e; }
   } catch (e) {
-    const { error: rel } = await admin.from("workflow_events").delete().eq("id", claimId); // nothing was booked: let them try again
-    if (rel) console.error("upgrades day claim not released", r.jobId, rel.message);
-    // A booking-rule refusal (stage moved, a guard) is shown in plain words; the real reason stays in the server log.
-    if (e instanceof WorkflowError) { console.warn("upgrades day refused", r.jobId, e.message); throw new Error(upgradesDayNotReady(officePhone())); }
-    throw e;
+    console.error("Electrician link upload failed", (e as Error).message);
+    return { ok: false, message: ELECTRICIAN_LINK_NOT_VALID };
   }
-  const { notifyOwnerBooked } = await import("./in-house-booking.server");
-  await notifyOwnerBooked(r.jobId, "upgrades", startIso, who, now).catch((e) => console.error("owner upgrades booking notice held", r.jobId, (e as Error).message));
-  return { ok: true, start: startIso };
 }
 
-/** A signed upload URL for the certificate (photo or PDF, ≤25 MB), minted only for a valid link at the certificate step. */
-export async function linkStartCertificateUpload(token: string, f: { fileName: string; mime: string; size: number }, now: Date = new Date()): Promise<{ path: string; token: string; mime: string }> {
-  const r = await resolveFull(token, now);
-  if (!r.ok) throw new Error(r.reason);
-  if (r.step !== "add_certificate") throw new Error(r.step === "done" ? "The certificate is already in." : "The upgrades aren't recorded yet.");
-  const { allowedUpload } = await import("./upload-safety.core");
-  const mime = allowedUpload(f.fileName, f.mime);
-  const ext = mime ? certificateFileExt(mime) : null;
-  if (!mime || !ext) throw new Error(CERTIFICATE_WRONG_TYPE);
-  if (!(f.size > 0)) throw new Error("That file is empty.");
-  if (f.size > CERTIFICATE_UPLOAD_MAX_BYTES) throw new Error(CERTIFICATE_TOO_BIG);
-  const path = certificateUploadPath(r.jobId, crypto.randomUUID(), mime);
-  const { data, error } = await admin.storage.from("job-files").createSignedUploadUrl(path);
-  if (error || !data) throw new Error("Could not start the upload. Check your connection and try again.");
-  return { path, token: data.token, mime };
-}
+// ---------- "Can't do this one" ----------
+export type ElectricianCantDoResult = { ok: true } | { ok: false; message: string };
+export type ElectricianCantDoDeps = {
+  emailApproved: boolean;
+  /** The existing guarded cancel writer (visit-events.server): cancels that business's confirmed booking of that kind, records
+   *  the trade cancellation, releases the trade and reopens the visit. Null = nothing of that kind was booked for them. */
+  cancelVisit: (jobId: string, kind: "assessment" | "rectification", businessId: string, reason: string) => Promise<{ id: string; scheduled_start: string } | null>;
+  /** Part 4's owner email ("your booked visit can't go ahead"), called once per cancelled booking AFTER it is cancelled; its own per-booking key stops a repeat. */
+  ownerNotice: (jobId: string, bookingId: string, by: "electrician") => Promise<string>;
+  /** Take this person's Mitti access off one form (the same calls the in-house hand-back cleanup uses); "no_user" = not in Mitti. */
+  removeMittiAccess: (auditId: string, email: string) => Promise<"removed" | "no_user">;
+  sendOfficeEmail: (p: { actorId: null; recipient: "partner"; to: string; contactName: string | null; subject: string; message: string; html: string; text: string; label: string; record: { businessId: string }; idempotencyKey: string }) => Promise<SendResult>;
+  sendTestEmail: (info: { jobId: string; jobSource: string | null; partnerIsTest: boolean; label: string }, to: string, subject: string, html: string, text: string) => Promise<SendResult>;
+  record: (jobId: string, eventType: string, summary: string, details: Record<string, unknown>) => Promise<void>;
+};
+const cantDoDeps = (): ElectricianCantDoDeps => ({
+  emailApproved: ELECTRICIAN_CANT_DO_EMAIL_APPROVED,
+  cancelVisit: async (jobId, kind, businessId, reason) => (await import("./visit-events.server")).cancelVisitFromElectricianLink(jobId, kind, businessId, reason),
+  ownerNotice: async (jobId, bookingId, by) => (await import("./visit-cancelled-owner.server")).queueVisitCancelledOwnerEmail(jobId, bookingId, by),
+  removeMittiAccess: async (auditId, email) => {
+    const m = await import("./mitti.server");
+    const call = await m.mittiCallFor(m.realMittiCall, email); // TEST people → the persistent simulator, as every Mitti flow does
+    const user = await m.findMittiUserByEmail(email, call);
+    if (!user) return "no_user";
+    await (await import("./mitti.core")).mittiApi(call).removeInspectionUserAccess(auditId, user);
+    return "removed";
+  },
+  sendOfficeEmail: async (p) => (await import("./office-email.server")).sendOfficeEmail(p),
+  sendTestEmail: async (info, to, subject, html, text) => (await import("./test-send.server")).sendTestEmail({ ...info, actorId: null }, to, subject, html, text),
+  record: async (jobId, eventType, summary, details) => (await import("./workflow.server")).logEvent(jobId, null, eventType, summary, details, { internal: true }),
+});
+export const ELECTRICIAN_CANT_DO_MITTI_FAILED_EVENT = "electrician_cant_do_mitti_failed";
+export const ELECTRICIAN_CANT_DO_EMAIL_HELD_EVENT = "electrician_cant_do_email_held";
+/** Written once every step after the claim has run; a later press of the same link then does nothing at all. */
+export const ELECTRICIAN_CANT_DO_FINISHED_EVENT = "electrician_cant_do_finished";
 
-/** "Add your Certificate of Electrical Safety": the stored upload is checked (bytes match a photo/PDF), then filed as the
- *  portal `rectification_completion` evidence — the place coes-check.server `currentCoes` reads (source "portal") — the number
- *  and date go onto the PIESA answers (Part C), and the existing certificate check runs (AI tick or one office row, owner copy).
- *  Part C was already recorded (A4 or same-day A3), so no second PIESA record is written. One claim per upload. */
-export async function linkAddCertificate(token: string, c: { number: string; date: string; filePath: string; fileName?: string | null }, now: Date = new Date()): Promise<{ ok: true; result: string }> {
-  const r = await resolveFull(token, now);
-  if (!r.ok) throw new Error(r.reason);
-  if (r.step !== "add_certificate") throw new Error(r.step === "done" ? "The certificate is already in." : "The upgrades aren't recorded yet.");
-  const { melbourneToday } = await import("./melbourne-time.core");
-  const problem = certificateProblem({ number: c.number, date: c.date, hasFile: !!c.filePath, today: melbourneToday(now) });
-  if (problem) throw new Error(problem);
-  const uploadId = parseCertificateUploadPath(r.jobId, c.filePath);
-  if (!uploadId) throw new Error("That upload doesn't belong to this job. Add the file again.");
-  // The stored object: present, a real size, within the limit, and its first bytes a photo or PDF (deleted if not).
-  const folder = c.filePath.slice(0, c.filePath.lastIndexOf("/"));
-  const { data: objs, error: le } = await admin.storage.from("job-files").list(folder, { search: uploadId });
-  if (le) throw new Error("Could not check the upload. Try again.");
-  const obj = (objs ?? []).find((o) => c.filePath.endsWith(`/${o.name}`));
-  if (!obj) throw new Error("The upload didn't finish. Check your connection and add the file again.");
-  const size = Number((obj.metadata as { size?: number } | null)?.size ?? 0);
-  const { allowedUpload } = await import("./upload-safety.core");
-  const mime = allowedUpload(c.filePath, (obj.metadata as { mimetype?: string } | null)?.mimetype ?? null) ?? allowedUpload(c.filePath, null);
-  if (!mime || !certificateFileExt(mime) || size <= 0 || size > CERTIFICATE_UPLOAD_MAX_BYTES) {
-    await admin.storage.from("job-files").remove([c.filePath]).catch(() => null);
-    throw new Error(size > CERTIFICATE_UPLOAD_MAX_BYTES ? CERTIFICATE_TOO_BIG : CERTIFICATE_WRONG_TYPE);
-  }
-  const { verifyStoredUpload } = await import("./upload-safety.server");
-  await verifyStoredUpload("job-files", c.filePath, mime);
-  // The portal evidence requirement this certificate is filed under (seeded with every job; made here if an old job lacks it).
-  const { data: reqRows, error: re } = await admin.from("evidence_requirements").select("id").eq("job_id", r.jobId).eq("category", "rectification_completion").order("id").limit(1);
-  if (re) throw new Error(re.message);
-  let requirementId = ((reqRows ?? []) as { id: string }[])[0]?.id ?? null;
-  if (!requirementId) {
-    const { stableUuid } = await import("./mitti-create-claim.core");
-    const newId = await stableUuid(`evidence_requirement:rectification_completion:${r.jobId}`);
-    const { error: ie } = await admin.from("evidence_requirements").insert({ id: newId, job_id: r.jobId, category: "rectification_completion", gate: "electrical", label: "Rectification completion evidence", required: true, responsible_role: "electrician", status: "outstanding", sort: 4 } as never);
-    if (ie && ie.code !== "23505") throw new Error(ie.message);
-    requirementId = newId;
-  }
-  // Claim first (a double tap): one stable event per upload; a second claim is "already added".
-  const { stableUuid } = await import("./mitti-create-claim.core");
-  const claimId = await stableUuid(`${CERTIFICATE_ADDED_EVENT}:${c.filePath}`);
-  const who = await electricianPerson(r.assignment, r.electricianBusinessId);
-  const { error: claimError } = await admin.from("workflow_events").insert({ id: claimId, job_id: r.jobId, actor_id: null, event_type: CERTIFICATE_ADDED_EVENT, summary: `${who.name} added the Certificate of Electrical Safety (${c.number.trim()}, certified ${c.date}) through their link`, details: { assignment_id: r.assignment.id, upload_id: uploadId, path: c.filePath, coes_number: c.number.trim(), cert_date: c.date, size_bytes: size, mime_type: mime }, internal: true });
-  if (claimError) { if (claimError.code === "23505") throw new Error("That certificate is already added."); throw new Error(claimError.message); }
-  const release = async () => { const { error } = await admin.from("workflow_events").delete().eq("id", claimId); if (error) console.error("certificate claim not released", r.jobId, error.message); };
-  try {
-    const { persistEvidenceConfirmation } = await import("./evidence-confirmation.server");
-    const safeName = (c.fileName ?? "").replace(/[^\w.\- ]+/g, "_").slice(0, 120) || `certificate.${certificateFileExt(mime)}`;
-    await persistEvidenceConfirmation(admin as never, {
-      requirement_id: requirementId, job_id: r.jobId, storage_path: c.filePath, file_name: safeName, mime_type: mime, size_bytes: size, uploaded_by: r.assignment.user_id,
-      lat: null, lng: null, location_accuracy_m: null, captured_at: null, distance_m: null, location_source: "not_required",
-    }, async () => undefined);
-    // Part C: the number and date onto the stored PIESA answers (the file stays the portal evidence above).
-    const { data: a, error: ae } = await admin.from("assessments").select("id, mitti_raw_snapshot").eq("job_id", r.jobId).maybeSingle();
-    if (ae) throw new Error(ae.message);
-    if (a) {
-      const snap = Array.isArray(a.mitti_raw_snapshot) ? (a.mitti_raw_snapshot as { label: string; value: string | null }[]).filter((e) => e && typeof e.label === "string") : [];
-      const { mergeCertificateIntoPiesaSnapshot } = await import("./fixes-day.core");
-      const merged = mergeCertificateIntoPiesaSnapshot(snap, { number: c.number, date: c.date });
-      const { error: ue } = await admin.from("assessments").update({ mitti_raw_snapshot: merged as never }).eq("id", a.id);
-      if (ue) throw new Error(ue.message);
+/** The electrician hands the job back from their link (Jo 2 Nov, answer 4). Everything comes from the token; only a live step
+ *  (not All done / closed) can be handed back. ONE `electrician_cant_do` event is the claim, written FIRST; everything after it is
+ *  idempotent and re-run on a later press of the same link, so a half-done hand-back finishes itself: their confirmed safety
+ *  check / upgrades booking is cancelled through the existing guarded cancel writer, their assignment ends, every link of theirs
+ *  for the job is switched off, their Mitti access to the job's forms is removed (best effort), then the owner is emailed straight
+ *  away for each cancelled booking (Part 4, keyed per booking) and the installer office is told (DRAFT email, keyed; test-send for
+ *  TEST jobs). A second press on the same link is the same { ok: true }. */
+export async function electricianCantDo(token: string, reason: string, now = Date.now(), over: Partial<ElectricianCantDoDeps> = {}): Promise<ElectricianCantDoResult> {
+  if (!electricianCantDoReasonOk(reason)) return { ok: false, message: ELECTRICIAN_CANT_DO_REASON_NEEDED };
+  const why = reason.trim().slice(0, 480);
+  if (!isTokenShape(token)) return { ok: false, message: ELECTRICIAN_LINK_NOT_VALID };
+  const d = { ...cantDoDeps(), ...over };
+  const { data: l, error } = await admin.from("worker_job_links").select("id, job_id, worker_id, business_id, expires_at, revoked_at").eq("token_hash", await hashToken(token)).maybeSingle();
+  if (error) throw dbErr("the link", error);
+  if (!l) return { ok: false, message: ELECTRICIAN_LINK_NOT_VALID };
+  const jobId = l.job_id as string;
+  type Claim = { assignment_id: string; cancelled_booking_ids: string[] };
+  const claimBefore = async (): Promise<Claim | null> => {
+    const { data } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", ELECTRICIAN_CANT_DO_EVENT).contains("details", { link_id: l.id }).limit(1).maybeSingle();
+    const det = (data?.details ?? null) as Partial<Claim> | null;
+    return det ? { assignment_id: String(det.assignment_id ?? ""), cancelled_booking_ids: Array.isArray(det.cancelled_booking_ids) ? det.cancelled_booking_ids.map(String) : [] } : null;
+  };
+  const installer = await installerOf(jobId);
+  const state = linkState(l, now);
+  const off = { ok: false as const, message: electricianLinkSwitchedOff(installer.name) };
+  // The first press switched this link off; the same press again finishes anything left and is simply done.
+  if (state === "revoked" && !(await claimBefore())) return off;
+  if (state === "expired") return { ok: false, message: electricianLinkExpired(installer.name) };
+  // approval_status / certificationBlocker are deliberately NOT checked: an unapproved or lapsed electrician can still hand a job back.
+  const [{ data: w, error: we }, { data: job, error: je }] = await Promise.all([
+    admin.from("partner_workers").select("id, email, full_legal_name, trade_role, removed_at, profile_id").eq("id", l.worker_id).maybeSingle(),
+    admin.from("jobs").select("job_number, source, stage, deleted_at").eq("id", jobId).maybeSingle(),
+  ]);
+  if (we) throw dbErr("the electrician", we);
+  if (je) throw dbErr("the job", je);
+  if (!w || w.trade_role !== "electrician" || w.removed_at || !job || job.deleted_at) return off;
+
+  return withJobLock(jobId, async () => {
+    let claim = await claimBefore();
+    let auditIds: string[];
+    if (claim) {
+      const { data: fin } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", ELECTRICIAN_CANT_DO_FINISHED_EVENT).contains("details", { link_id: l.id }).limit(1).maybeSingle();
+      if (fin) return { ok: true as const };
     }
-  } catch (e) { await release(); throw e; }
-  // The existing certificate check (AI tick or one office row) and the owner's copy, through their own guards. Never throws.
-  const result = await (await import("./coes-check.server")).checkCurrentCoes(r.jobId, r.assignment.user_id);
-  return { ok: true, result };
+    if (!claim) {
+      const asg = await electricianAssignment(jobId, l.business_id);
+      if (!asg || !sameElectrician(asg, w)) return off;
+      // Only a live step can be handed back: All done and a closed job are switched off, nothing written.
+      const f = await factsFor(jobId, await whoBooksFor(installer.id), job.stage === "cancelled", now);
+      const step = electricianStep(f.facts).step;
+      if (step === "all_done" || step === "closed") return off;
+      auditIds = f.auditIds;
+      const { data: booked, error: be } = await admin.from("bookings").select("id").eq("job_id", jobId).eq("status", "confirmed").eq("business_id", l.business_id).in("kind", ["assessment", "rectification"]);
+      if (be) throw dbErr("the bookings", be);
+      claim = { assignment_id: asg.id, cancelled_booking_ids: (booked ?? []).map((b) => b.id as string) };
+      // The claim (Part 9 reads it) goes first; every step below is idempotent and re-run on a later press.
+      await d.record(jobId, ELECTRICIAN_CANT_DO_EVENT, `Electrician can't do this one (${why})`, { worker_id: l.worker_id, reason: why, booking_cancelled: claim.cancelled_booking_ids.length > 0, link_id: l.id, assignment_id: claim.assignment_id, business_id: l.business_id, cancelled_booking_ids: claim.cancelled_booking_ids });
+    } else {
+      auditIds = (await factsFor(jobId, "office", job.stage === "cancelled", now)).auditIds;
+    }
+    // 1. Their booked visits, through the existing guarded cancel writer (it also releases the trade). Nothing confirmed = nothing to do.
+    const { data: still, error: se } = await admin.from("bookings").select("kind").eq("job_id", jobId).eq("status", "confirmed").eq("business_id", l.business_id).in("kind", ["assessment", "rectification"]);
+    if (se) throw dbErr("the bookings", se);
+    for (const kind of ["assessment", "rectification"] as const) if ((still ?? []).some((b) => b.kind === kind)) await d.cancelVisit(jobId, kind, l.business_id, why);
+    // 2. Off the job: the assignment ends (if the cancel writer hasn't already ended it) and every link of theirs is switched off.
+    const nowIso = new Date(now).toISOString();
+    const { error: ae } = await admin.from("job_assignments").update({ active: false, ended_at: nowIso, end_reason: `electrician can't do this one: ${why}`.slice(0, 300) }).eq("id", claim.assignment_id).eq("active", true);
+    if (ae) throw new Error(ae.message);
+    const { error: re } = await admin.from("worker_job_links").update({ revoked_at: nowIso, revoked_by: null }).eq("worker_id", l.worker_id).eq("job_id", jobId).is("revoked_at", null);
+    if (re) throw new Error(re.message);
+    // 3. Their Mitti access to the job's forms (A3, open A4). Best effort: a failure is logged on the job, never undoes the hand-back.
+    const mittiEmail = job.source === "qa_test" ? (await import("./onsite-ready-check.core")).TEST_MITTI_ASSIGNEE : (w.email ?? "").trim();
+    for (const auditId of auditIds) {
+      try {
+        if (!mittiEmail) throw new Error("no email on the electrician's record");
+        await d.removeMittiAccess(auditId, mittiEmail);
+      } catch (e) {
+        console.error("Can't do this one: Mitti access not removed", auditId, (e as Error).message);
+        await d.record(jobId, ELECTRICIAN_CANT_DO_MITTI_FAILED_EVENT, "Electrician's Mitti form access could not be removed", { audit_id: auditId, worker_id: l.worker_id, error: (e as Error).message.slice(0, 300) }).catch(() => undefined);
+      }
+    }
+    // 4. The owner, straight away, once per cancelled booking (Part 4's email; its own key stops a repeat). Never undoes the hand-back.
+    for (const id of claim.cancelled_booking_ids) await d.ownerNotice(jobId, id, "electrician").catch((e) => console.error("Visit cancelled owner email skipped", (e as Error).message));
+    // 5. The installer office (DRAFT wording; real jobs held until approved; keyed, so a retry never sends twice).
+    await tellInstallerOfficeCantDo(d, { jobId, jobNumber: job.job_number, source: job.source ?? null, assignmentId: claim.assignment_id, electrician: w.full_legal_name ?? "", electricianBusinessId: l.business_id, installerBusinessId: installer.id, reason: why })
+      .catch((e) => console.error("Can't do this one: installer office email skipped", (e as Error).message));
+    await d.record(jobId, ELECTRICIAN_CANT_DO_FINISHED_EVENT, "Hand-back finished", { link_id: l.id, worker_id: l.worker_id }).catch((e) => console.error("Can't do this one: finish mark not written", (e as Error).message));
+    return { ok: true as const };
+  });
+}
+
+type CantDoEmailInput = { jobId: string; jobNumber: string; source: string | null; assignmentId: string; electrician: string; electricianBusinessId: string; installerBusinessId: string | null; reason: string };
+/** The installer office email (DRAFT wording, names the PERSON). Recorded once per key before the send. Held = one
+ *  `electrician_cant_do_email_held` trace per key carrying what is needed to send it later: the tick's
+ *  sweepHeldElectricianCantDoEmails retries "awaiting approval" holds once the flag is on. */
+async function tellInstallerOfficeCantDo(d: ElectricianCantDoDeps, i: CantDoEmailInput): Promise<"sent" | "test_sent" | "held"> {
+  const key = electricianCantDoEmailKey(i.jobId, i.assignmentId);
+  const { data: done } = await admin.from("workflow_events").select("id").eq("job_id", i.jobId).eq("event_type", ELECTRICIAN_CANT_DO_EMAIL_EVENT).contains("details", { key }).limit(1).maybeSingle();
+  if (done) return "held";
+  const held = async (reason: string) => {
+    const { data: prior } = await admin.from("workflow_events").select("id").eq("job_id", i.jobId).eq("event_type", ELECTRICIAN_CANT_DO_EMAIL_HELD_EVENT).contains("details", { key }).limit(1).maybeSingle();
+    if (!prior) await d.record(i.jobId, ELECTRICIAN_CANT_DO_EMAIL_HELD_EVENT, `Installer office not told the electrician can't do this one: ${reason}`, { key, reason, job_number: i.jobNumber, source: i.source, assignment_id: i.assignmentId, electrician: i.electrician, electrician_business_id: i.electricianBusinessId, installer_business_id: i.installerBusinessId, text: i.reason });
+    return "held" as const;
+  };
+  if (!i.installerBusinessId) return held("no installer on the job");
+  const [{ data: ib, error: ie }, { data: eb, error: ee }] = await Promise.all([
+    admin.from("businesses").select("name, trading_name, email, onboarding_notes").eq("id", i.installerBusinessId).maybeSingle(),
+    admin.from("businesses").select("name, trading_name, onboarding_notes").eq("id", i.electricianBusinessId).maybeSingle(),
+  ]);
+  if (ie) throw dbErr("the installer", ie);
+  if (ee) throw dbErr("the electrician business", ee);
+  const to = (ib?.email ?? "").trim();
+  if (!to) return held("no installer office email");
+  const { isTestPartner } = await import("./test-send.core");
+  const partnerIsTest = isTestPartner(ib) || isTestPartner(eb);
+  const test = i.source === "qa_test" || partnerIsTest;
+  if (!test && !d.emailApproved) return held("awaiting approval");
+  const { electricianCantDoEmail } = await import("./electrician-cant-do-email.core");
+  const mail = electricianCantDoEmail({ jobNumber: i.jobNumber, electrician: i.electrician.trim() || bizName(eb) || "The electrician", reason: i.reason, test });
+  // Recorded BEFORE the send, once per key.
+  await d.record(i.jobId, ELECTRICIAN_CANT_DO_EMAIL_EVENT, "Installer office told the electrician can't do this one", { key, assignment_id: i.assignmentId, test });
+  if (test) {
+    const r = await d.sendTestEmail({ jobId: i.jobId, jobSource: i.source, partnerIsTest, label: `electrician_cant_do:${i.jobId}` }, to, mail.subject, mail.html, mail.text);
+    return r.status === "sent" ? "test_sent" : "held";
+  }
+  const r = await d.sendOfficeEmail({ actorId: null, recipient: "partner", to, contactName: bizName(ib), subject: mail.subject, message: mail.text, html: mail.html, text: mail.text, label: "electrician_cant_do", record: { businessId: i.installerBusinessId }, idempotencyKey: key });
+  return r.status === "sent" ? "sent" : "held";
+}
+
+/** The tick: can't-do emails held "awaiting approval" go once the flag is on (once per key; the sent event stops further tries). */
+export async function sweepHeldElectricianCantDoEmails(now = new Date(), over: Partial<ElectricianCantDoDeps> = {}): Promise<{ sent: number }> {
+  const d = { ...cantDoDeps(), ...over };
+  const out = { sent: 0 };
+  void now;
+  if (!d.emailApproved) return out;
+  try {
+    const held = await pagedRows("held can't-do emails", (a, b) => admin.from("workflow_events").select("job_id, details").eq("event_type", ELECTRICIAN_CANT_DO_EMAIL_HELD_EVENT).contains("details", { reason: "awaiting approval" }).order("created_at", { ascending: true }).range(a, b));
+    for (const h of held) {
+      const det = h["details"] as Partial<{ key: string; job_number: string; source: string | null; assignment_id: string; electrician: string; electrician_business_id: string; installer_business_id: string | null; text: string }>;
+      const jobId = String(h["job_id"]);
+      if (!det.key || !det.assignment_id || !det.electrician_business_id || !det.job_number) continue;
+      try {
+        const r = await tellInstallerOfficeCantDo(d, { jobId, jobNumber: det.job_number, source: det.source ?? null, assignmentId: det.assignment_id, electrician: det.electrician ?? "", electricianBusinessId: det.electrician_business_id, installerBusinessId: det.installer_business_id ?? null, reason: det.text ?? "" });
+        if (r === "sent" || r === "test_sent") out.sent++;
+      } catch (e) { console.error("held can't-do email: job skipped", jobId, (e as Error).message); }
+    }
+  } catch (e) { console.error("held can't-do email sweep: read failed, nothing sent", (e as Error).message); }
+  return out;
+}
+
+// ---------- the tick: every active electrician assignment gets its link text (fix wave I2) ----------
+export const ELECTRICIAN_LINK_TEXT_HELD_EVENT = "electrician_link_text_held";
+/** The sweep only ever texts assignments made from this instant on (or any with a Team allocation event), so switching the
+ *  wording on never texts old jobs. Deploy-date placeholder: Part 11 sets it to the go-live instant. */
+export const ELECTRICIAN_LINK_SWEEP_FROM_ISO = "2026-11-03T00:00:00Z";
+export type ElectricianLinkSweepDeps = {
+  /** The link + text step (linkAfterAllocation): returns how it went. */
+  link: (jobId: string, workerId: string) => Promise<Awaited<ReturnType<typeof linkAfterAllocation>>>;
+};
+const CLOSED_STAGES = new Set(["complete", "cancelled"]);
+const MAX_LINKS_PER_TICK = 100;
+async function pagedRows(what: string, page: (from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>): Promise<Record<string, unknown>[]> {
+  const out: Record<string, unknown>[] = [];
+  for (let from = 0; ; from += 200) {
+    const { data, error } = await page(from, from + 199);
+    if (error) throw new Error(`Could not read ${what}: ${error.message}`);
+    out.push(...((data ?? []) as Record<string, unknown>[]));
+    if ((data ?? []).length < 200) return out;
+  }
+}
+const chunk = <T,>(xs: T[], n = 200): T[][] => { const o: T[][] = []; for (let i = 0; i < xs.length; i += n) o.push(xs.slice(i, i + n)); return o; };
+
+/** On the 15-minute tick: an active electrician assignment with no `electrician_link_text_sent` for its person gets the link
+ *  step again (an allocation whose text was held while the wording was unapproved, or a path that never texted). The
+ *  person is the latest Team allocation's worker, else the assignment's profile. Not sent → ONE `electrician_link_text_held`
+ *  per key + reason (a trace, never a claim: the step runs again next tick and stops only when a text is recorded sent).
+ *  Reads page 200; a failed read logs and does nothing. Never throws. */
+export async function sweepElectricianLinks(now = new Date(), over: Partial<ElectricianLinkSweepDeps> = {}): Promise<{ checked: number; sent: number; held: number }> {
+  const d: ElectricianLinkSweepDeps = { link: (jobId, workerId) => linkAfterAllocation(jobId, workerId, null), ...over };
+  const out = { checked: 0, sent: 0, held: 0 };
+  try {
+    const asgs = await pagedRows("electrician assignments", (a, b) => admin.from("job_assignments").select("id, job_id, business_id, user_id, created_at").eq("role", "electrician").eq("active", true).order("id").range(a, b));
+    const jobIds = [...new Set(asgs.map((a) => String(a["job_id"])))];
+    if (!jobIds.length) return out;
+    const jobs = new Map<string, { stage: string; deleted_at: string | null }>();
+    const events: Record<string, unknown>[] = [];
+    const cutoff = Date.parse(ELECTRICIAN_LINK_SWEEP_FROM_ISO);
+    for (const c of chunk(jobIds)) {
+      for (const j of await pagedRows("jobs", (a, b) => admin.from("jobs").select("id, stage, deleted_at").in("id", c).range(a, b))) jobs.set(String(j["id"]), { stage: String(j["stage"]), deleted_at: (j["deleted_at"] as string | null) ?? null });
+      events.push(...(await pagedRows("link events", (a, b) => admin.from("workflow_events").select("job_id, event_type, details, created_at").in("job_id", c).in("event_type", ["in_house_electrician_allocated", ELECTRICIAN_LINK_TEXT_SENT_EVENT, ELECTRICIAN_LINK_TEXT_HELD_EVENT]).order("created_at", { ascending: false }).range(a, b))));
+    }
+    const det = (e: Record<string, unknown>) => (e["details"] ?? {}) as { key?: string; reason?: string; worker_id?: string };
+    const profileIds = [...new Set(asgs.map((a) => a["user_id"]).filter((x): x is string => typeof x === "string" && !!x))];
+    const byProfile = new Map<string, string>();
+    for (const c of chunk(profileIds)) for (const w of await pagedRows("electricians", (a, b) => admin.from("partner_workers").select("id, profile_id").in("profile_id", c).eq("trade_role", "electrician").is("removed_at", null).range(a, b))) byProfile.set(String(w["profile_id"]), String(w["id"]));
+    let budget = MAX_LINKS_PER_TICK;
+    for (const a of asgs) {
+      if (budget <= 0) break;
+      const jobId = String(a["job_id"]);
+      const job = jobs.get(jobId);
+      if (!job || job.deleted_at || CLOSED_STAGES.has(job.stage)) continue;
+      const mine = events.filter((e) => String(e["job_id"]) === jobId);
+      const allocated = mine.find((e) => e["event_type"] === "in_house_electrician_allocated");
+      // Scope: a Team allocation (new flow), or an assignment made from the cut-over instant; older ones are never texted.
+      if (!allocated && !(Date.parse(String(a["created_at"] ?? "")) >= cutoff)) continue;
+      const workerId = (allocated && det(allocated).worker_id) || (a["user_id"] ? byProfile.get(String(a["user_id"])) : null) || null;
+      if (!workerId) continue;
+      const key = electricianLinkTextKey(jobId, workerId);
+      if (mine.some((e) => e["event_type"] === ELECTRICIAN_LINK_TEXT_SENT_EVENT && det(e).key === key)) continue;
+      try {
+        // Only a live step gets a text: All done / closed jobs are left alone.
+        const installerBiz = (await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle()).data?.business_id ?? null;
+        const stepNow = electricianStep((await factsFor(jobId, await whoBooksFor(installerBiz), job.stage === "cancelled", now.getTime())).facts).step;
+        if (stepNow === "all_done" || stepNow === "closed") continue;
+      } catch (e) { console.error("electrician link sweep: step not read, job skipped", jobId, (e as Error).message); continue; }
+      budget--; out.checked++;
+      try {
+        const r = await d.link(jobId, workerId);
+        if (r === "sent" || r === "test_sent") { out.sent++; continue; }
+        if (mine.some((e) => e["event_type"] === ELECTRICIAN_LINK_TEXT_HELD_EVENT && det(e).key === key && det(e).reason === r)) continue;
+        await (await import("./workflow.server")).logEvent(jobId, null, ELECTRICIAN_LINK_TEXT_HELD_EVENT, `Electrician job link text not sent: ${r}`, { key, worker_id: workerId, assignment_id: a["id"], reason: r }, { internal: true });
+        out.held++;
+      } catch (e) { console.error("electrician link sweep: job skipped", jobId, (e as Error).message); }
+    }
+  } catch (e) { console.error("electrician link sweep: read failed, nothing done", (e as Error).message); }
+  return out;
 }

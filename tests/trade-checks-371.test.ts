@@ -66,7 +66,10 @@ describe("371(a) expiry watch: ONE Needs me row per document from 30 days before
 
   test("wiring: offers check the new blocker; office rows come from the pure rule", () => {
     expect(readFileSync(new URL("../src/lib/readycheck-booking.server.ts", import.meta.url), "utf8")).toContain('expiredBusinessDocsBlocker(');
-    expect(readFileSync(new URL("../src/lib/allocation.server.ts", import.meta.url), "utf8")).toContain('["public_liability_insurance", "rec_registration"]');
+    // G6 S6: public liability goes through businessDocsBlocker (insuranceBlocker); the expiry-only rule keeps the REC registration.
+    const alloc = readFileSync(new URL("../src/lib/allocation.server.ts", import.meta.url), "utf8");
+    expect(alloc).toContain("insuranceBlocker(b.id)");
+    expect(alloc).toContain('["rec_registration"]');
     expect(readFileSync(new URL("../src/lib/office.server.ts", import.meta.url), "utf8")).toContain("tradeExpiryRows(");
   });
 });

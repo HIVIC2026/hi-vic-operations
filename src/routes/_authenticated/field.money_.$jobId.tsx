@@ -1,7 +1,7 @@
 // Per-job pay detail = approved state M6-job-detail (Jo 24 Oct 2026, decision 235; payState rule decision 109): own pay
 // only, business owner only. Facts come from the same business-scoped money rows as the Money screen; words from the
 // pure `moneyJobDetail`. Never the owner's price or our margin.
-import { readTradeCache, writeTradeCache } from "@/lib/trade-cache";
+import { forgetRefusedCopy, readTradeCache, writeTradeCache } from "@/lib/trade-cache";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -23,15 +23,15 @@ function MoneyJob() {
   const uid = Route.useRouteContext().user.id;
   const ck = `money-job:${jobId}`;
   const seed = useMemo(() => readTradeCache<Awaited<ReturnType<typeof load>>>(uid, ck), [uid, ck]); // eslint-disable-line react-hooks/exhaustive-deps
-  const { data, error } = useQuery({ queryKey: ["trade-money-job", jobId], queryFn: async () => { const d = await load({ data: { jobId } }); if (d) writeTradeCache(uid, ck, d); return d; }, retry: false, ...(seed ? { initialData: seed.data, initialDataUpdatedAt: seed.at } : {}) });
-  if (error) return <TradeShell installer><p role="alert" className="rounded-[18px] border border-line bg-paper p-4 text-sm">{(error as Error).message}</p></TradeShell>;
+  const { data, error } = useQuery({ queryKey: ["trade-money-job", jobId], queryFn: async () => { try { const d = await load({ data: { jobId } }); if (d) writeTradeCache(uid, ck, d); return d; } catch (e) { forgetRefusedCopy(uid, ck, e); throw e; } }, retry: false, ...(seed ? { initialData: seed.data, initialDataUpdatedAt: seed.at } : {}) });
+  if (error) return <TradeShell installer><p role="alert" className="rounded-[18px] border border-line bg-paper p-4 text-sm">{(error as Error).message}</p><Link to="/field" className="mt-3 inline-flex min-h-11 items-center text-sm font-semibold text-hiv-blue">Back to My work</Link></TradeShell>;
   if (!data) return <TradeShell installer><p className="text-sm">Loading…</p></TradeShell>;
   const v = moneyJobDetail(data);
   const pill = payPill(v.pill.kind === "paid" || v.pill.kind === "coming" ? ({ kind: v.pill.kind, on: v.pill.on ?? "" } as never) : { kind: "checking" });
   const heldPill = v.held.length ? heldPayPill(v.held) : null;
   const shownPill = heldPill ?? pill;
   return (
-    <TradeShell installer boss>
+    <TradeShell installer money>
       <Screen>
         <Link to="/field/money" className="inline-flex min-h-9 items-center text-sm font-medium text-hiv-blue">‹ Money</Link>
         <div><h1 className="font-display text-[21px] font-semibold leading-[1.25]">{v.heading || "This job"}</h1>{v.sub && <p className="mt-1 text-[13px] text-sub">{v.sub}</p>}</div>

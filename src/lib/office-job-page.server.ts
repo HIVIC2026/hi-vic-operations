@@ -12,6 +12,7 @@ import { ELIGIBILITY_WORDS } from "./job-wording";
 import { withoutRetiredInstallDayPhotos } from "./ready-check-chase.core";
 import { installDaysLeft } from "./install-days.core";
 import { readJobAccess } from "./quick-taps-access.server";
+import { INSTALL_BEFORE_LINE_SHOWN } from "./install-before.core"; // G8 (5), Jo 4 Nov 2026 21:30
 
 const s = (v: unknown) => (v == null ? null : String(v));
 const n = (v: unknown) => (v == null || v === "" ? null : Number(v));
@@ -37,7 +38,7 @@ async function contactRows(jobId: string, job: { created_at: string; source: str
 }
 
 export async function loadJobPage(jobId: string, testOffice = false) {
-  const { data: job, error } = await admin.from("jobs").select("id, job_number, stage, prior_stage, source, channel, created_at, hold_reason, hold_revisit_at, cancelled_reason, life_support, deleted_at, installation_completed_at, estimated_area_m2, eligibility_outcome, eligibility_review_required, originating_installer_business_id, owners(full_name, email, phone), properties(address_line, suburb, postcode, state, occupancy, enrichment)").eq("id", jobId).maybeSingle();
+  const { data: job, error } = await admin.from("jobs").select("id, job_number, stage, prior_stage, source, channel, created_at, hold_reason, hold_revisit_at, cancelled_reason, life_support, deleted_at, installation_completed_at, estimated_area_m2, eligibility_outcome, eligibility_review_required, originating_installer_business_id, external_refs, owners(full_name, email, phone), properties(address_line, suburb, postcode, state, occupancy, enrichment)").eq("id", jobId).maybeSingle();
   if (error) throw new Error(`This job could not be loaded: ${error.message}`);
   if (!job) throw new Error("Job not found.");
   const now = Date.now();
@@ -130,15 +131,19 @@ export async function loadJobPage(jobId: string, testOffice = false) {
   const lastHeard = lastHeardFromUs(contacts);
   const { emailBouncedSet } = await import("./office-lists.server");
   const emailBounced = (await emailBouncedSet([jobId])).has(jobId);
+  const dnc = await (await import("./do-not-contact.server")).readDoNotContact(jobId);
   return {
     now,
     emailBounced,
     header: {
+      doNotContact: dnc.on, doNotContactStop: dnc.source === "sms_stop",
       jobId, jobNumber: job.job_number, isTest: job.source === "qa_test", ownJob, installerName: installer, stage: job.stage, deleted: !!job.deleted_at,
+      // Part 9 Task 14: real-run job marked "no ESC" (no-esc.core; same jobs read, no extra query).
+      noEsc: (await import("./no-esc.core")).noEscMarked(job.external_refs),
       inHouseHeld: !testOffice && !!facts?.inHouse,
       ownerName: displayName(owner?.full_name) || null, surname: surnameOf(owner?.full_name), phone: owner?.phone ?? null, email: owner?.email ?? null,
       access: access.line,
-      beforePhotos: beforePhotos?.line ?? null,
+      beforePhotos: INSTALL_BEFORE_LINE_SHOWN ? beforePhotos?.line ?? null : null, // G8 (5): hidden for go-live
       street: addr.street || prop?.address_line || null, suburb: addr.suburb || null, postcode: addr.postcode || null,
       sourceLabel: ownJob ? `Installer's own customer · ${installer ?? "installer"}` : job.source === "base44" ? "Website enquiry" : job.source === "qa_test" ? "TEST job" : "Phone / office enquiry",
       receivedAt: job.created_at, permissionAt: consent.data?.consent_status === "granted" ? s(consent.data.consented_at ?? consent.data.created_at) : null, permissionState: consent.data?.consent_status ?? null,

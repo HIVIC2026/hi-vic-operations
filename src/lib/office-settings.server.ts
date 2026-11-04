@@ -11,15 +11,13 @@ import { PROVISIONAL_RELEASE_OWNER_NOTICE_APPROVED } from "./deposit-release-not
 import { ESTIMATE_FOLLOWUP_APPROVED } from "./estimate-followup.core";
 import { SAVE_SPOT_REAL_SEND_APPROVED } from "./hot-leads.core";
 import { INSTALL_BOOKED_EMAIL_APPROVED } from "./install-booked-email.core";
-import { INSTALL_DAYS_EMAIL_APPROVED } from "./install-days-email.core";
 import { INSTALL_NO_ACCESS_NOTICE_APPROVED } from "./install-no-access-notice.core";
 import { INSTALLER_ACCEPTED_EMAIL_APPROVED, INSTALLER_DECLINED_EMAIL_APPROVED } from "./installer-accepted-email.core";
 import { OWNER_QUOTE_EMAIL_APPROVED, QUOTE_REMINDER_EMAIL_APPROVED } from "./owner-quote-email.core";
 import { PIESA_COPY_EMAIL_APPROVED } from "./piesa-delivery.core";
-import { FIXES_QUOTE_EMAIL_APPROVED } from "./rectification-quote-email.core";
-import { SAFETY_CHECK_EMAILS_APPROVED } from "./safety-check-emails.core";
 import { THIRTY_DAY_REMINDER_APPROVED } from "./thirty-day-rule.core";
-import { VEEC_COPY_EMAIL_APPROVED, VEEC_SIGN_EMAIL_APPROVED } from "./veec-emails.core";
+import { VEEC_COPY_EMAIL_APPROVED } from "./veec-emails.core";
+import { INSTALL_DAYS_EMAIL_APPROVED } from "./install-days-email.core";
 
 const db = admin as any; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -75,16 +73,13 @@ export function messageRegister() {
     email("Your quote is ready", "Owner · when the office presses Send", "Pressed", OWNER_QUOTE_EMAIL_APPROVED, "decision 87"),
     email("Quote reminder", "Owner · while the quote is open", "Automatic", QUOTE_REMINDER_EMAIL_APPROVED, "quote expiry nudges"),
     email("Quote accepted", "Owner · on acceptance", "Automatic", ACCEPTANCE_EMAIL_APPROVED, "acceptance email"),
-    email("Safety check (PIESA) emails", "Owner · booking and payment", "Automatic", SAFETY_CHECK_EMAILS_APPROVED, "decision 139"),
     email("PIESA copy", "Owner · after the PIESA", "Automatic", PIESA_COPY_EMAIL_APPROVED, "PIESA delivery rule"),
-    email("Electrical fixes quote", "Owner · fixes quote released", "Automatic", FIXES_QUOTE_EMAIL_APPROVED, "decision 142"),
-    email("Your installer has offered 3 days", "Owner · install days offered", "Automatic", INSTALL_DAYS_EMAIL_APPROVED, "decision 186"),
+    email("Your install day has changed", "Owner · a booked install day moved", "Automatic", INSTALL_DAYS_EMAIL_APPROVED, "decision 135"),
     email("Your install is booked", "Owner · install day agreed", "Automatic", INSTALL_BOOKED_EMAIL_APPROVED, "decision 151"),
     email("Install day released (deposit not received)", "Owner · 48h after booking", "Automatic", PROVISIONAL_RELEASE_OWNER_NOTICE_APPROVED, "decision 170"),
     email("30-day window reminder", "Owner · 20 and 10 days left", "Automatic", THIRTY_DAY_REMINDER_APPROVED, "decision 167"),
     email("We couldn't get in today", "Owner · install no access", "Automatic", INSTALL_NO_ACCESS_NOTICE_APPROVED, "decision 217"),
     email("All done — please sign the rebate form", "Owner · install complete", "Automatic", INSTALL_COMPLETE_EMAIL_APPROVED, "decision 169"),
-    email("Please sign the rebate form — reminder", "Owner · days 1, 3, 7", "Automatic", VEEC_SIGN_EMAIL_APPROVED, "decision 168"),
     email("Your signed rebate form (copy)", "Owner · within 10 business days", "Automatic", VEEC_COPY_EMAIL_APPROVED, "decision 120"),
     email("Your signed ESC consent (copy)", "Owner · after the AP signs", "Automatic", CONSENT_COPY_EMAIL_APPROVED, "decision 170"),
     email("Offer accepted / not for me", "Installer · offer answered", "Automatic", INSTALLER_ACCEPTED_EMAIL_APPROVED && INSTALLER_DECLINED_EMAIL_APPROVED, "installer emails"),

@@ -8,7 +8,7 @@ import { isTestPartner, normaliseAuMobile } from "./test-send.core";
 import { SET_PASSWORD_BASE } from "./set-password-link.core";
 import { mittiFormUrl } from "./mitti-link.core";
 import { TWILIO_FETCH_TIMEOUT_MS, timeoutSignal } from "./network-timeout.core";
-import { dailySendKey, dailyTextRecipient, visitKindOfBooking, type TextRecipient } from "./visit-allocation.core";
+import { dailySendKey, visitKindOfBooking, workerOnlyTextRecipient, type TextRecipient } from "./visit-allocation.core";
 
 const db = admin as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
 const OWNER_RECIPIENT = (name: string, phone: string | null): TextRecipient => ({ key: "owner", name, phone, who: "owner", note: null });
@@ -22,11 +22,12 @@ export async function dailyTextSettings() {
   return { enabled: data?.daily_mitti_text_enabled === true, time: String(data?.daily_mitti_text_time ?? "06:30"), missing };
 }
 
-/** One text = one business + one recipient (decision 161: the allocated person's mobile, else the owner's as before). */
+/** One text = one business + one recipient (fix I3: each unsigned signer on today's install plans, on their own mobile). */
 type Group = { trade: Trade & { name: string; isTest: boolean }; jobs: DayJob[]; qaOnly: boolean; recipient: TextRecipient };
 
-/** The Mitti audit a booking's link points at: Ready Check form, the installer's PIISA (install day) or the PIESA audit. */
-async function bookingFormAuditId(jobId: string, kind: string): Promise<string | null> {
+/** The Mitti audit a booking's link points at: Ready Check form, the installer's PIISA (install day) or the PIESA audit.
+ *  Exported for the Lead Installer's safety plan view (Part 7 Task 4): the real install audit's id, never a guessed one. */
+export async function bookingFormAuditId(jobId: string, kind: string): Promise<string | null> {
   const src = mittiFormSource(kind);
   if (src === "piisa_event") {
     const { data: ev } = await db.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "mitti_piisa_audit_created").order("created_at", { ascending: false }).limit(1).maybeSingle();
@@ -57,7 +58,6 @@ export async function collectDay(date: string): Promise<Group[]> {
   if (error) throw new Error(error.message);
   const groups = new Map<string, Group>();
   const bizRows = new Map<string, any>(); // eslint-disable-line @typescript-eslint/no-explicit-any
-  const { allocatedPersonFor } = await import("./visit-allocation.server");
   for (const b of bks ?? []) {
     let biz: string | null = b.business_id;
     let linked = false;
@@ -71,31 +71,64 @@ export async function collectDay(date: string): Promise<Group[]> {
       const { data: a } = await db.from("job_assignments").select("id").eq("job_id", b.job_id).eq("business_id", biz).eq("active", true).limit(1).maybeSingle();
       linked = !!a;
     }
+    // Decision #26 (Jo 2 Nov 2026): WORKERS ONLY — on their own mobile. No fallback to the business owner's number.
+    // PIESA visits are the electrician's (Part 6). Jo 3 Nov 23:08 (Task 7b + fix I3): EVERY worker on today's install
+    // plan who has NOT signed the safety plan for the install (current plan fingerprint — the same check the sign-link
+    // texts use) gets it — the Lead and the crew alike, each with their OWN sign link minted here; a signed worker gets
+    // nothing, a Ready Check (no SWMS) never gets this text. A signer with no staff row (typed-in name), a removed
+    // worker or one without a mobile is skipped (no row, never the owner).
+    const vk = visitKindOfBooking(b.kind);
+    if (vk !== "install") continue;
+    const recipients = await unsignedSignerRecipients(b.job_id);
+    if (!recipients.length) continue;
     if (!bizRows.has(biz)) {
-      const { data: bz } = await db.from("businesses").select("id, name, is_active, approved_at, mitti_account_invited, signer_mobile, phone, onboarding_notes").eq("id", biz).maybeSingle();
+      const { data: bz } = await db.from("businesses").select("id, name, is_active, approved_at, mitti_account_invited, onboarding_notes").eq("id", biz).maybeSingle();
       bizRows.set(biz, bz ?? null);
     }
     const bz = bizRows.get(biz);
-    const ownerPhone = normaliseAuMobile(bz?.signer_mobile ?? "") ?? normaliseAuMobile(bz?.phone ?? "");
-    // Decision 161: a Ready Check / install day allocated to a staff member is texted to THAT person's mobile; the owner
-    // keeps every other visit and any allocated person without a mobile (noted on the log row).
-    const vk = visitKindOfBooking(b.kind);
-    const recipient = dailyTextRecipient({ allocated: vk ? await allocatedPersonFor(b.job_id, vk) : null, owner: { name: bz?.name ?? "Trade", phone: ownerPhone } });
-    const gKey = `${biz}|${recipient.key}`;
-    let g = groups.get(gKey);
-    if (!g) {
-      g = { trade: { businessId: biz, name: bz?.name ?? "Trade", approved: !!bz?.approved_at && bz?.is_active !== false, linked: true, mittiInvited: bz?.mitti_account_invited === true,
-        phone: recipient.phone ? normaliseAuMobile(recipient.phone) ?? null : null, isTest: isTestPartner(bz ?? {}) }, jobs: [], qaOnly: true, recipient };
-      groups.set(gKey, g);
-    }
-    g.trade.linked = g.trade.linked && linked;
     const job = b.jobs as { source: string | null; properties: { address_line: string | null; suburb: string | null } | null };
-    if (job.source !== "qa_test") g.qaOnly = false;
     const auditId = await bookingFormAuditId(b.job_id, b.kind);
     const street = job.properties?.address_line?.split(",")[0] ?? null;
-    g.jobs.push({ jobId: b.job_id, bookingId: b.id, start: b.scheduled_start, end: b.scheduled_end, street, suburb: job.properties?.suburb ?? null, status: b.status, link: auditId ? mittiFormUrl(auditId) : null, kind: b.kind });
+    for (const { recipient, signLink } of recipients) {
+      const gKey = `${biz}|${recipient.key}`;
+      let g = groups.get(gKey);
+      if (!g) {
+        g = { trade: { businessId: biz, name: bz?.name ?? "Trade", approved: !!bz?.approved_at && bz?.is_active !== false, linked: true, mittiInvited: bz?.mitti_account_invited === true,
+          phone: recipient.phone ? normaliseAuMobile(recipient.phone) ?? null : null, isTest: isTestPartner(bz ?? {}) }, jobs: [], qaOnly: true, recipient };
+        groups.set(gKey, g);
+      }
+      g.trade.linked = g.trade.linked && linked;
+      if (job.source !== "qa_test") g.qaOnly = false;
+      g.jobs.push({ jobId: b.job_id, bookingId: b.id, start: b.scheduled_start, end: b.scheduled_end, street, suburb: job.properties?.suburb ?? null, status: b.status, link: auditId ? mittiFormUrl(auditId) : null, kind: b.kind, signLink });
+    }
   }
   return [...groups.values()];
+}
+
+/** Jo 3 Nov 2026 23:08 (fix I3): every UNSIGNED signer on the install's current safety plan who is a staff row with a
+ *  mobile (plan key `w:{partner_workers.id}`), each with their own sign link. A typed-in name (`n:` key, no staff row),
+ *  a removed worker or one with no mobile is skipped. Empty when the plan/links can't be read (then no text — never a
+ *  guessed link). Same reading as the per-person sign-link texts (loadSwms → swmsUnsignedSigners, current fingerprint). */
+async function unsignedSignerRecipients(jobId: string): Promise<{ recipient: TextRecipient; signLink: string }[]> {
+  try {
+    const { loadSwms } = await import("./swms.server");
+    const { swmsUnsignedSigners } = await import("./swms.core");
+    const { plan, signatures } = await loadSwms(jobId);
+    const unsigned = swmsUnsignedSigners(plan, signatures).filter((s) => s.key.startsWith("w:"));
+    if (!unsigned.length) return [];
+    const { data: workers } = await db.from("partner_workers").select("id, full_legal_name, mobile, removed_at").in("id", unsigned.map((s) => s.key.slice(2)));
+    const rows = new Map(((workers ?? []) as { id: string; full_legal_name: string; mobile: string | null; removed_at: string | null }[]).map((w) => [w.id, w]));
+    const { swmsSignLink } = await import("./swms-link.server");
+    const out: { recipient: TextRecipient; signLink: string }[] = [];
+    for (const s of unsigned) {
+      const w = rows.get(s.key.slice(2));
+      if (!w || w.removed_at) continue;
+      const recipient = workerOnlyTextRecipient({ workerId: w.id, name: w.full_legal_name, mobile: w.mobile ?? null });
+      if (!recipient) continue;
+      out.push({ recipient, signLink: await swmsSignLink(jobId, s.key, Date.now()) });
+    }
+    return out;
+  } catch { return []; }
 }
 
 async function sendSms(g: Group, to: string, body: string, kind: "daily" | "update" = "daily", key = ""): Promise<{ status: "sent" | "failed" | "blocked"; detail: string; sid: string | null }> {
@@ -143,15 +176,17 @@ export async function sweepDailyMittiTexts(now = new Date()) {
     const snaps = g.jobs.map(snap);
     if (!prior) {
       if (!g.jobs.some((j) => j.status !== "cancelled")) continue;
-      // Decision 266: today's installs whose safety plan is still unsigned get the job-page link on the morning text.
-      const body = (await import("./sms.core")).withSafetyPlanLinks(dailyText(g.jobs, myWork(date)), await unsignedSafetyPlanLinks(g.jobs));
+      // Jo 2 Nov 23:08: the morning text carries the recipient's OWN sign link(s) for today's install(s) they haven't signed.
+      const body = (await import("./sms.core")).withSafetyPlanLinks(dailyText(g.jobs, myWork(date)), ownSignLinks(g.jobs));
       if ((await sendOnce(g, date, "daily", dailySendKey("daily", g.trade.businessId, date, g.recipient.key), body, snaps)) !== "already") out.daily++;
       continue;
     }
     const changes = diffDay(prior.snapshot as Snap[], g.jobs);
     if (!changes.length) continue;
     const sig = changes.map((c) => `${c.kind}:${c.job.bookingId}:${c.job.start}`).join("|");
-    if ((await sendOnce(g, date, "update", dailySendKey("update", g.trade.businessId, date, g.recipient.key, sig), updateText(changes, myWork(date)), snaps)) !== "already") out.updates++;
+    // Jo 2 Nov 23:08: the update carries the recipient's own sign link for a changed install they haven't signed.
+    const updateBody = (await import("./sms.core")).withSafetyPlanLinks(updateText(changes, myWork(date)), ownSignLinks(changes.filter((c) => c.kind !== "cancelled").map((c) => c.job)));
+    if ((await sendOnce(g, date, "update", dailySendKey("update", g.trade.businessId, date, g.recipient.key, sig), updateBody, snaps)) !== "already") out.updates++;
   }
   await refreshDelivery(date);
   return out;
@@ -199,21 +234,9 @@ export async function sweepReadyCheckBookedTexts(now = new Date()) {
   return out;
 }
 
-/** Decision 266: safety plan links for today's installs whose safety plan is not yet signed. Decision 364: each unsigned
- *  person's OWN sign link ("<name>: <link>", this text goes to one person per business); the secure job-page link only
- *  when those can't be made (plan unreadable, no crew chosen, links not configured). Decision 377: someone whose own link
- *  was already texted to their mobile is listed by name only. */
-async function unsignedSafetyPlanLinks(jobs: { jobId: string; kind?: string; status: string }[]): Promise<string[]> {
-  const { unsignedSwmsSignerLinks } = await import("./swms-link.server");
-  const { safetyPlanSignerLinks } = await import("./sms.core");
-  const { SET_PASSWORD_BASE } = await import("./set-password-link.core");
-  const out: string[] = [];
-  for (const id of [...new Set(jobs.filter((j) => j.kind === "installation" && j.status !== "cancelled").map((j) => j.jobId))]) {
-    const own = await unsignedSwmsSignerLinks(id);
-    if (own) out.push(...safetyPlanSignerLinks(own));
-    else out.push(`${SET_PASSWORD_BASE}/field/${id}`);
-  }
-  return out;
+/** Jo 2 Nov 2026 23:08: the recipient's own sign links for today's live installs (one per install, minted in collectDay). */
+function ownSignLinks(jobs: DayJob[]): string[] {
+  return [...new Set(jobs.filter((j) => j.kind === "installation" && j.status !== "cancelled" && j.signLink).map((j) => j.signLink!))];
 }
 
 /** Update sent → delivered/failed from Twilio for today's real texts. */

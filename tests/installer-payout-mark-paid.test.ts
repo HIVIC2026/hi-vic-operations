@@ -20,6 +20,10 @@ mock.module("@tanstack/react-start", () => ({
   createMiddleware: () => ({ server: () => ({}) }),
 }));
 mock.module("@/integrations/supabase/auth-middleware", () => ({ requireSupabaseAuth: {} }));
+// J5 (4 Nov 2026, cause (i) fixture): since main #133 the handler's office check (requireOfficeJob) reads the caller's
+// identity from the request client (sb.auth.getUser); this fixture has no auth client, so the office identity is given here.
+const realOfficeAccess = await import("../src/lib/qa-office-access.server");
+mock.module("../src/lib/qa-office-access.server", () => ({ ...realOfficeAccess, requireOfficeJob: async () => "admin", requireOfficeIdentity: async () => "admin" }));
 
 type Row = Record<string, unknown>;
 const tables: Record<string, Row[]> = {};
@@ -45,7 +49,7 @@ mock.module("../src/lib/workflow.server", () => ({
 }));
 // Decision 318 form gate: the A5 is Complete with its evidence (so only the timing rule is under test).
 mock.module("../src/lib/trade-payout-gate.server", () => ({
-  payoutGateFacts: async (ids: string[]) => new Map(ids.map((id) => [id, { piesa: null, fixes: null, install: { formCompleted: true, evidence: [] } }])),
+  payoutGateFacts: async (ids: string[]) => new Map(ids.map((id) => [id, { piesa: null, fixes: null, install: { formCompleted: true, evidence: [], go: true } }])),
   payoutBlockersFor: async () => [],
   safetyVisitFacts: async () => new Map(), // batch 1 F5 (per-visit safety check pay)
   safetyVisitPayoutBlockers: async () => [],
@@ -81,7 +85,10 @@ function seedJob(channel: "installer_sourced" | "hivic_sourced", o: { ap: boolea
   tables["jobs"] = tables["jobs"]!.map((r) => ({ ...r, id: JOB }));
   for (const t of ["job_assignments", "quotes", "workflow_events", "invoices"]) tables[t] = tables[t]!.map((r) => ({ ...r, job_id: JOB }));
 }
-const displayHeld = async () => { const r = await moneyPayouts(); return { held: r.held.flatMap((h) => h.reasons), due: r.due.length }; };
+// J5 (4 Nov 2026): the display is read for the INSTALL row only — since J1 (4) / J3 (3) an installer-supplied job at Final
+// check also lists its electrician's safety-check row (held "No PIESA rate set — ask the office" / "Installer business no
+// longer on file" on this fixture, which has no Team electrician or rate); that row is covered by office-money-installer-payout.
+const displayHeld = async () => { const r = await moneyPayouts(); return { held: r.held.filter((h) => h.kind === "installation").flatMap((h) => h.reasons), due: r.due.filter((g) => g.trade === "installer").length }; };
 
 describe("R09: Mark paid (direct invocation) enforces the installer pay rule the Payouts tab shows", () => {
   test("A1 (installer-supplied), AP approved, owner NOT paid in full → refused, nothing recorded; display holds it too", async () => {

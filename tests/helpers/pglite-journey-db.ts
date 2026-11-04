@@ -177,6 +177,9 @@ export function journeySchemaSql(): { sql: string; rels: Rels } {
 /** Columns the server code writes/reads that the checked-in generated types do not list yet (live schema is ahead of
  *  types.ts). Each one is named here so a test failure on an unknown column stays visible rather than auto-created. */
 export const COLUMNS_MISSING_FROM_TYPES: Record<string, string[]> = {
+  // Part 9 Task 8 (pending docs/pending-migrations/2026-11-02-credential-amount-insured.sql): the office-typed public liability
+  // amount the insurance hard block reads on every booking; the journeys run as if Jo has applied it.
+  business_credentials: ["amount_insured_aud numeric"],
 };
 
 /** Unique constraints/indexes from the applied migration chain and the pending migrations (best effort: each statement

@@ -218,6 +218,13 @@ describe("price_rebate_eligibility", () => {
 
 describe("partner", () => {
   const partnerMail = (body: string, p: Parameters<typeof basePartner>[0] = {}): ReplyInput => ({ subject: "Question", body, from: "dan@sampleinsulation.example", fromName: "Dan Sample", fromPartner: true, now: SAMPLE_NOW, owner: null, partner: basePartner(p) });
+  test("Mitti question (Jo 3 Nov 22:14): the reply never says Complete sends the quote — the business owner enters the price first (DRAFT line)", async () => {
+    const { PARTNER_MITTI_COMPLETE_LINE_DRAFT } = await import("../src/lib/email-reply.core");
+    const d = draft(partnerMail("Where do I find the Mitti form for HV-3117?"));
+    expect(d.text).toContain(PARTNER_MITTI_COMPLETE_LINE_DRAFT);
+    expect(d.text).toContain("then the business owner enters the price in the portal and we send the owner their quote.");
+    expect(d.text).not.toMatch(/that's what sends the owner their quote|Complete only when|boss/i);
+  });
   test("open offers: count, suburb and closing time", () => {
     const d = draft(partnerMail("Hi Jo, any new job offers for us this week?", { offers: [{ kind: "ready_check", suburb: "Croydon", expiresAt: "2026-10-25T03:00:00Z" }] }));
     expect(d.text).toContain("You have 1 job offer waiting, including one in Croydon that closes 2pm Sunday 25 October.");

@@ -19,7 +19,7 @@ test("150 m² Metropolitan/Mild (3000): 21 VEECs × $70 = $1,470 on all four pat
   const bulk = wholeVeecDiscount(150, loc, 70).raw; // bulk-import calls this same helper (checked below)
   expect(office.veecs).toBe(21);
   for (const d of [calc, office.raw, installer, bulk]) expect(d).toBe(1470);
-  expect(veecDiscountLabel(office.veecs, 70)).toBe("VEU discount, 21 VEECs × $70");
+  expect(veecDiscountLabel(office.veecs, 70)).toBe("Rebate, 21 VEECs × $70");
   expect(benchmarkNote(70)).toContain("about $1,470");
 });
 

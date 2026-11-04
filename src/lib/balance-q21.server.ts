@@ -1,7 +1,9 @@
 import {supabaseAdmin as admin} from '@/integrations/supabase/client.server';
-import {balanceDueAt,balanceReminderDue} from './balance-q21.core';
-import {isStepPaid} from './payments.core';
-/** Existing tick owns retries; only completion-era jobs, no historical backlog. No new schedule. */
+/** Existing tick owns retries; only completion-era jobs, no historical backlog. No new schedule.
+ *  Keeps the completed-balance due date on the installation invoice (invoice-dates.server) for jobs completed in the last 9 days.
+ *  Part 4 Task 14 (Jo 2 Nov 2026, touchpoint 53): the day-5 "due in 2 days" and day-7 "due today" owner emails are gone —
+ *  they said the balance was due a week after the install, but it is due on install day. The after-install reminders
+ *  (after-install-reminders.server.ts, behind AFTER_INSTALL_REMINDERS_APPROVED) are the only balance reminders. */
 export async function sweepBalanceQ21(now=new Date()){
  let checked=0;
  for(let from=0;;from+=200){
@@ -12,19 +14,9 @@ export async function sweepBalanceQ21(now=new Date()){
     const v=await (await import('./payments.server')).jobPaymentView(job.id,now);if(!v)continue;
     const inv=v.invoices.install;if(!inv)continue;checked++;
     await (await import('./invoice-dates.server')).setCompletedBalanceDueDate(job.id,job.installation_completed_at??'',null);
-    const reminder=balanceReminderDue(job.installation_completed_at,isStepPaid(v.steps,'balance'),now);if(!reminder)continue;
-    const due=balanceDueAt(job.installation_completed_at);if(!due)continue;
-    const dueLabel=new Date(due).toLocaleDateString('en-AU',{timeZone:'Australia/Melbourne',day:'numeric',month:'long',year:'numeric'});
-    await (await import('./owner-template-send.server')).sendOwnerTemplateEmail({jobId:job.id,purpose:'balance_reminder',key:`balance-q21:${inv.id}:${due}:${reminder}`,approved:true,label:'Balance reminder',notSentEvent:'balance_reminder_not_sent',retryAfterDefiniteFailure:true,render:f=>{
-     const subject=reminder==='day5'?'Your balance is due in 2 days':'Your balance is due today';
-     const lines=[`Your remaining balance is due ${dueLabel}. Pay by card or bank transfer on My job.`];
-     return {subject,text:`${subject}\n\n${lines.join('\n\n')}\n\nPay my balance: ${f.myJobUrl}?screen=pay`,html:(requireMail)(subject,lines,`${f.myJobUrl}?screen=pay`,f.unsubscribeUrl)};
-    }});
-   }catch(error){console.error('Balance reminder held',job.id,error instanceof Error?error.message:'read failed');}
+   }catch(error){console.error('Balance due date not set',job.id,error instanceof Error?error.message:'read failed');}
   }
   if((data?.length??0)<200)break;
  }
  return{checked};
 }
-import {genericMail} from './mail-mjml.core';
-const requireMail=(subject:string,lines:string[],url:string,unsubscribe?:string|null)=>genericMail({subject,heading:subject,lines,button:{url,label:'Pay my balance'},unsubscribe:unsubscribe??null});

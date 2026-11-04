@@ -10,9 +10,11 @@
 // (piisa-a3.core readyCheckPart6Answers) — never from this form.
 import { norm } from "./mitti.core";
 import { installMittiLabel } from "./mitti-rebuild-labels.core";
-import { onsiteStartTicked } from "./official-short.core";
+import { ADULT_PRESENT_LABEL, onsiteStartTicked } from "./official-short.core";
 import { B1_OPTIONS, type OfficialAnswers } from "./official-forms.core";
 import { sectionCSigned } from "./piesa-rules-notice.core";
+import type { SwmsChange } from "./swms.core";
+import { INSTALLER_DECLARATION } from "./veec-assignment-form.core";
 import { mittiMediaFile, type MittiMediaFile } from "./piesa-evidence.core";
 
 export const INSTALL_DAY_TEMPLATE_NAME = "A5 – Install day";
@@ -20,8 +22,9 @@ export const INSTALL_DAY_RULE = "install-day-2026-10-24";
 export const INSTALL_DAY_SOLAR_BACK_OPTIONS = ["Yes", "No", "There isn't one"] as const;
 /** Q37, a text item (not a question) after the declaration signature. Decision 328 (Jo 25 Oct 2026) wording. */
 export const INSTALL_DAY_AFTER_SIGN_TEXT = "STOP. You are only halfway. Do not leave site. When the insulation is in, come back and finish the next pages: after videos, depth photos and finishing up.";
-/** Decision 328: the first item of Group 1 (before Q1), a text item. Replaces the decision-318 pay line on THIS form only. */
-export const INSTALL_DAY_READ_FIRST_TEXT = 'READ FIRST: The VEU will not accept this job unless every answer, photo and video on this form is filled in. Do not leave site until the whole form is done, you have pressed Complete, and the portal has texted you "All filled in". You are only paid when this form is 100% complete.';
+/** Decision 328: the first item of Group 1 (before Q1), a text item. Replaces the decision-318 pay line on THIS form only.
+ *  Last sentence APPROVED by Jo 4 Nov 2026 14:12 (no pay threat; pasted into the live A5 by docs/mitti-paste-2026-11-04-second.md). */
+export const INSTALL_DAY_READ_FIRST_TEXT = 'READ FIRST: The VEU will not accept this job unless every answer, photo and video on this form is filled in. Do not leave site until the whole form is done, you have pressed Complete, and the portal has texted you "All filled in". Press Complete before you leave — we can\'t claim the rebate or pay the job until it\'s done.';
 /** Decision 328: the first item of Group 8 (before the after videos), a text item. */
 export const INSTALL_DAY_AFTER_INSTALL_TEXT = "AFTER THE INSTALL: do this before you pack up. Every ceiling area needs its after video and depth photo.";
 export const INSTALL_DAY_DECLARATION_START = "INSTALLER DECLARATION – Sign BEFORE insulation work starts.";
@@ -150,6 +153,81 @@ export function installDayRulerPhotos(audit: unknown): InstallDayRulerRead {
 export function installDayRulerMissingQuestions(template: unknown): string[] {
   const items = labelledItems(template);
   return Object.values(INSTALL_DAY_RULER_Q).filter((l) => !allWithLabel(items, l).length);
+}
+
+/**
+ * New job flow Part 8 (Jo 2 Nov 2026, Code of Conduct): items added to the A5 on 2 Nov. Kept OUT of INSTALL_DAY_QUESTIONS
+ * (Q1–Q48 are never renumbered, and a form built before the paste can still be created). A form without the item reads
+ * as "not asked" and is never blocked for it. The Part B labels are added by Task 6.
+ */
+export const INSTALL_DAY_NOV2_Q = {
+  /** DRAFT wording shared with A3 (Jo has not approved it yet). */
+  adultPresent: ADULT_PRESENT_LABEL,
+  /** DRAFT labels (Jo has not approved them yet): the Lead Installer's VEEC Part B tick and signature on the new last page. */
+  partBTick: "I make this declaration as the Lead Installer",
+  partBSignature: "Lead Installer's signature for the rebate form (Part B)",
+  /** DRAFT labels (Jo 2 Nov, answer 16): "Changes during the job" — two optional text items that print on the SWMS. */
+  swmsChange: "Did anything new come up during the job that affects safety? What was it?",
+  swmsNewControl: "What did you do to keep everyone safe?",
+} as const;
+/** The new last page of the A5 (after the page holding Q48). */
+export const INSTALL_DAY_PART_B_PAGE = "Rebate form (VEEC) — Lead Installer";
+/** Official ESC form v1.1 Section 3 Part B, derived from INSTALLER_DECLARATION (never retyped), without its blank signature line. */
+export const INSTALL_DAY_PART_B_TEXT = INSTALLER_DECLARATION.split("\n").filter((l) => !/^Installer signature:/.test(l)).join("\n").trimEnd();
+/** The Lead Installer's Part B on a saved A5. `onForm` false = built before the paste (not asked, never blocked). */
+export function installDayPartB(audit: unknown): { onForm: boolean; ticked: boolean; signature: ReadSignature } {
+  const items = labelledItems(audit);
+  const t = allWithLabel(items, INSTALL_DAY_NOV2_Q.partBTick);
+  const s = allWithLabel(items, INSTALL_DAY_NOV2_Q.partBSignature);
+  return { onForm: t.length > 0 || s.length > 0, ticked: t.some((i) => !!i.value), signature: s.find((i) => i.signature.present)?.signature ?? s[0]?.signature ?? NO_SIGNATURE };
+}
+/** Does the saved A5 carry the adult question at all? (false = built before the paste: not asked.) */
+export function installDayAdultOnForm(audit: unknown): boolean {
+  return allWithLabel(labelledItems(audit), INSTALL_DAY_NOV2_Q.adultPresent).length > 0;
+}
+/** The adult-at-home answer: "Yes" / "No"; null = not on this form, or on it and not answered yet. */
+export function installDayAdultPresent(audit: unknown): "Yes" | "No" | null {
+  const v = allWithLabel(labelledItems(audit), INSTALL_DAY_NOV2_Q.adultPresent).map((i) => i.value?.trim() ?? "").find((x) => x);
+  return v == null ? null : /^yes\b/i.test(v) ? "Yes" : /^no\b/i.test(v) ? "No" : null;
+}
+/**
+ * Jo 2 Nov, answer 16: a change during the job (e.g. a wasp nest) and what the Lead Installer did about it. One row when the
+ * change item is filled; [] when it is blank or not on the form (built before the paste). `at` = the item's own answer time if
+ * Mitti gives one, else the audit's modified time. `by` is always the Lead Installer (who fills the A5).
+ */
+export function installDaySwmsChanges(audit: unknown, leadName: string): SwmsChange[] {
+  if (!audit || typeof audit !== "object") return [];
+  const items = labelledItems(audit);
+  const answer = (label: string) => allWithLabel(items, label).map((i) => i.value?.trim() ?? "").find((v) => v) ?? "";
+  const what = answer(INSTALL_DAY_NOV2_Q.swmsChange);
+  if (!what) return [];
+  const raw = audit as { modified_at?: unknown; audit_data?: { date_modified?: unknown } };
+  const own = findAnswerTime(audit, INSTALL_DAY_NOV2_Q.swmsChange);
+  const mod = [raw.modified_at, raw.audit_data?.date_modified].find((t) => typeof t === "string" && t.trim()) as string | undefined;
+  return [{ what, control: answer(INSTALL_DAY_NOV2_Q.swmsNewControl), by: leadName, at: own ?? mod ?? "" }];
+}
+/** The answer time Mitti gives on the first item with this label (responses.datetime / date), if any. */
+function findAnswerTime(doc: unknown, label: string): string | null {
+  let out: string | null = null;
+  const walk = (x: unknown) => {
+    if (out) return;
+    if (Array.isArray(x)) { x.forEach(walk); return; }
+    if (!x || typeof x !== "object") return;
+    const o = x as Record<string, any>;
+    if (o["label"] === label) {
+      const r = (o["responses"] ?? {}) as Record<string, any>;
+      const t = [r["datetime"], r["timestamp"], r["answered_at"], o["modified_at"]].find((v) => typeof v === "string" && !Number.isNaN(Date.parse(v)));
+      if (t) { out = t; return; }
+    }
+    Object.values(x).forEach(walk);
+  };
+  walk(doc);
+  return out;
+}
+/** The 2 Nov items the template does not carry yet (exact wording). Advisory — see INSTALL_DAY_NOV2_Q. */
+export function installDayNov2MissingQuestions(template: unknown): string[] {
+  const items = labelledItems(template);
+  return Object.values(INSTALL_DAY_NOV2_Q).filter((l) => !allWithLabel(items, l).length);
 }
 
 export type InstallDayType = "text" | "number" | "date" | "yes_no" | "pick_one" | "photo" | "video" | "checkbox" | "signature";

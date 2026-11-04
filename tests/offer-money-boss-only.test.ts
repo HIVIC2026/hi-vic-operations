@@ -14,7 +14,7 @@ describe("Offer money is for the business owner only", () => {
     expect(src).not.toMatch(/pay: s\.electrician_rate_inc_gst/);
     expect(src).not.toMatch(/ratePerM2: s\.installer_rate_per_m2/);
     expect(src).toContain("piesaDays, boss: c.boss,");
-    const ui = readFileSync("src/routes/_authenticated/field.offer.$offerId.tsx", "utf8");
-    expect(ui).toContain("{data.boss && <p className=\"-mt-1.5");
+    // Part 7 Task 9: the offer screen is gone (old links open My work), so no screen prints offer money at all.
+    expect(readFileSync("src/routes/_authenticated/field.offer.$offerId.tsx", "utf8")).not.toContain("data.boss");
   });
 });

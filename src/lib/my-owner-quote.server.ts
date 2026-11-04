@@ -27,8 +27,9 @@ export async function myOwnerQuoteFor(sb: Rpc, userId: string, jobId: string, sh
   // Jo 24 Oct: on our leads the installer sees the quote's status only — never the owner's price or our margin.
   if (a.channel === "hivic_sourced") return { applies: true as const, priceHidden: true as const, sent: a.sent, held: a.held, formCompleted: a.formCompleted === true, line: installerQuoteLine(a) };
   // Decision 278: on the installer's own jobs the figures are the business owner's — a team member gets the status only.
+  // Part 10 Task 4: the Office person sees them too (Part 5 role rule `seesPrices`); Lead Installers / crew never.
   const ctx = await ctxP;
-  if (!ctx?.boss) return { applies: true as const, priceHidden: true as const, sent: a.sent, held: a.held, formCompleted: a.formCompleted === true, line: installerQuoteLine(a) };
+  if (!ctx?.prices) return { applies: true as const, priceHidden: true as const, sent: a.sent, held: a.held, formCompleted: a.formCompleted === true, line: installerQuoteLine(a) };
   const blockers = a.sent ? [] : await (await import("./office-quote-review.server")).officeQuoteBlockers(jobId, a.quote);
   const q = a.quote;
   return {

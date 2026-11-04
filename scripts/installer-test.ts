@@ -23,6 +23,14 @@ const noBrowser = process.argv.includes("--no-browser") || onlyStep === "C16";
 // Morning operational QA: never run onboarding signing/approval/email steps or mint an office session.
 const installerAppOnly = process.argv.includes("--installer-app-only");
 const BIZ = "17793408-bf5c-4ddd-9bec-64199f64f9fb"; // [TEST PARTNER] Reinsulate
+/** Join ruling (4 Nov 2026): Add a job needs one of the TEST business's own verified Team electricians (My business › Team,
+ *  office-verified licence + REC). None = the C13/C15 steps cannot run; add one to the TEST business first. */
+async function testTeamElectrician(): Promise<string> {
+  const { teamElectricianChoices } = await import("../src/lib/in-house-electrician.server");
+  const ok = (await teamElectricianChoices(BIZ)).find((w) => w.allowed);
+  if (!ok) throw new Error("The TEST business has no verified Team electrician (My business › Team) — Add a job needs one.");
+  return ok.id;
+}
 const OWNER_EMAIL = "deep-test@hivic.test";
 const STAFF_EMAIL = "qa.staff.reinsulate@hivic-test.example";
 const TEST_EMAIL = /@(hivic-test\.example|hivic\.test)$/i;
@@ -471,8 +479,9 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     const offline = (async () => { throw new Error("Mitti could not be reached. Try again shortly."); }) as never; // never touches real Mitti
     let bad = false;
     const check = (name: string, ok: boolean, detail?: string) => { if (!ok) bad = true; c(name, ok, detail); };
+    const electricianWorkerId = await testTeamElectrician(); // join ruling (4 Nov 2026): the TEST business's own verified Team electrician
     const addNotQuoted = async (n: string) => {
-      const r = await os.startOnsiteReadyCheckFor(ownerId, BIZ, { full_name: `TEST ${tag} RC${n}`, address_line: `${n} ${tag} Ready Rd`, suburb: "Fraser Rise", postcode: "3336", phone: `0412 999 13${n}`, email: `qa.owner.${tag.toLowerCase()}.rc${n}@hivic-test.example`, contact_permission: true, consent_by: "installer" }, { mode: "hivic" }, offline, { leadOrigin: "owner_contacted" });
+      const r = await os.startOnsiteReadyCheckFor(ownerId, BIZ, { full_name: `TEST ${tag} RC${n}`, address_line: `${n} ${tag} Ready Rd`, suburb: "Fraser Rise", postcode: "3336", phone: `0412 999 13${n}`, email: `qa.owner.${tag.toLowerCase()}.rc${n}@hivic-test.example`, contact_permission: true, consent_by: "installer" }, null, offline, { leadOrigin: "owner_contacted", electricianWorkerId });
       madeJobs.push(r.jobId);
       return r.jobId;
     };
@@ -523,7 +532,8 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
   await step(steps, "C15", "C15 Add a job (basics only): creates the job, no booking, and prepares (or explains) the Mitti form", async (c) => {
     const os = await import("../src/lib/onsite-ready-check.server");
     const offline = (async () => { throw new Error("Mitti could not be reached. Try again shortly."); }) as never; // never touches real Mitti
-    const r = await os.startOnsiteReadyCheckFor(ownerId, BIZ, { full_name: `TEST ${tag} Onsite`, address_line: `3 ${tag} Onsite Rd`, suburb: "Fraser Rise", postcode: "3336", phone: "0412 000 315", email: `qa.owner.${tag.toLowerCase()}.onsite@hivic-test.example`, contact_permission: true, consent_by: "installer" }, { mode: "hivic" }, offline, { leadOrigin: "owner_contacted" });
+    const electricianWorkerId = await testTeamElectrician(); // join ruling (4 Nov 2026): the TEST business's own verified Team electrician
+    const r = await os.startOnsiteReadyCheckFor(ownerId, BIZ, { full_name: `TEST ${tag} Onsite`, address_line: `3 ${tag} Onsite Rd`, suburb: "Fraser Rise", postcode: "3336", phone: "0412 000 315", email: `qa.owner.${tag.toLowerCase()}.onsite@hivic-test.example`, contact_permission: true, consent_by: "installer" }, null, offline, { leadOrigin: "owner_contacted", electricianWorkerId });
     const { data: j } = await admin.from("jobs").select("stage, source, channel, installer_site_check, installer_site_check_date, originating_installer_business_id").eq("id", r.jobId).single();
     c("job is installer-supplied TEST work for this installer", j?.channel === "installer_sourced" && j?.source === "qa_test" && j?.originating_installer_business_id === BIZ, `${j?.channel} ${j?.source}`);
     c("no visit claimed (decision 34: the Mitti form answers the visit)", j?.installer_site_check === "no" && !j?.installer_site_check_date, `${j?.installer_site_check} ${j?.installer_site_check_date}`);
@@ -531,7 +541,7 @@ async function sectionC(steps: Step[], tag: string, ownerId: string, fixtures: s
     c("assigned to this installer", asg === 1, String(asg));
     c("screen always says what happens next", ["open", "preparing", "office", "owner_paperwork", "retry"].includes(r.state.kind) && ("message" in r.state ? r.state.message.length > 20 : true), `${r.state.kind}`);
     c("nothing booked by Add a job (decision 115): job waits at Ready Check ready to schedule", r.booking === "none" && j?.stage === "ready_check_ready_to_schedule", `${j?.stage} / ${r.booking}`);
-    const bad = await os.startOnsiteReadyCheckFor(ownerId, BIZ, { full_name: "X Y", address_line: "1 A St", suburb: "Canberra", postcode: "2604", phone: "0412000000", email: "a@b.co", contact_permission: false }, { mode: "hivic" }, offline, { leadOrigin: "owner_contacted" }).then(() => "made", (e) => (e as Error).message);
+    const bad = await os.startOnsiteReadyCheckFor(ownerId, BIZ, { full_name: "X Y", address_line: "1 A St", suburb: "Canberra", postcode: "2604", phone: "0412000000", email: "a@b.co", contact_permission: false }, null, offline, { leadOrigin: "owner_contacted", electricianWorkerId }).then(() => "made", (e) => (e as Error).message);
     c("no permission / ACT postcode refused", /Victorian/.test(bad) && /permission to contact|consent/.test(bad), bad);
     c("nothing sent to the owner", (await outboundFor([r.jobId])) === 0);
     await jobsOk(c, [r.jobId]);

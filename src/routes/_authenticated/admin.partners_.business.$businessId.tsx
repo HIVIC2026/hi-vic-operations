@@ -21,6 +21,7 @@ import { getBusinessFile, resolvePartnerChangeRequest, revealPartnerBank } from 
 import { getPartnerProfile, partnerFileUrl, saveBusiness } from "@/lib/pilot.functions";
 import { reviewHigherRates } from "@/lib/rate-requests.functions";
 import { inHouseEnableBlockers, type InHouseFacts } from "@/lib/in-house.core";
+import { moveInstallerToNewFlowFn } from "@/lib/new-flow-move.functions";
 import { approveInstallerElectrician, getInstallerElectricianReview, rejectInstallerElectrician } from "@/lib/my-electricians.functions";
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -81,7 +82,7 @@ function BusinessFile() {
         {p.data?.myRole === "hivic_admin" && p.data.inHouseFacts && <InHousePanel key={JSON.stringify(p.data.business)} businessId={businessId} business={p.data.business as unknown as { name: string; in_house?: boolean; rectification_billed_by?: "partner" | "hivic" }} facts={p.data.inHouseFacts} onDone={refresh} />}
         <Panel title="Insurance & licences">
           <dl data-why="193 PL insurance re-checked yearly; ESC scheme participant requirement">
-            {f.credentials.filter((c) => ["public_liability_insurance", "workers_comp_insurance", "electrical_licence", "rec_registration", "installer_certification"].includes(c.kind)).map((c) => (
+            {f.credentials.filter((c) => ["public_liability_insurance", "electrical_licence", "rec_registration", "installer_certification"].includes(c.kind)).map((c) => (
               <Row key={c.id} k={c.label}>{[c.issuer, c.number, c.expires_at && `to ${fmtDay(c.expires_at)}`].filter(Boolean).join(" · ")} {c.state === "expired" ? <Pill tone="rose">Expired</Pill> : c.state === "expiring" ? <Pill tone="amber">Expiring soon</Pill> : null} <span className="text-xs text-sub">· {c.verification}{c.document_path ? " · certificate on file" : ""}</span></Row>
             ))}
             <Row k="ABN">{b.abn ?? "—"}</Row>
@@ -148,7 +149,7 @@ function InstallerElectricianCard({ businessId, onDone }: { businessId: string; 
       {r.unfinished && <div className="mt-3"><Btn onClick={async () => { if (await approve({ businessId }, "Approval finished")) await onDone(); }}>Finish approval</Btn></div>}
       {waiting && <div className="mt-3 flex flex-wrap gap-2">
         <Btn disabled={r.problems.length > 0} onClick={async () => { if (await approve({ businessId }, "Electrician approved")) await onDone(); }}>Approve</Btn>
-        <Btn tone="secondary" onClick={async () => { const why = await reason.ask({ title: "Not approving this electrician?", description: "The installer sees this reason in My electricians and can fix it and resubmit.", placeholder: "What needs fixing", minLength: 3, confirmLabel: "Reject" }); if (why && await rejectFn({ businessId, reason: why }, "Not approved — the installer has been told")) await onDone(); }}>Reject</Btn>
+        <Btn tone="secondary" onClick={async () => { const why = await reason.ask({ title: "Not approving this electrician?", description: "The installer gets this reason by email and can add them again on the Team page.", placeholder: "What needs fixing", minLength: 3, confirmLabel: "Reject" }); if (why && await rejectFn({ businessId, reason: why }, "Not approved — the installer has been told")) await onDone(); }}>Reject</Btn>
         {r.problems.length > 0 && <span className="self-center text-xs text-sub">Approve unlocks when every check passes. There is no override.</span>}
       </div>}
       {reason.dialog}
@@ -162,6 +163,8 @@ function InHousePanel({ businessId, business, facts, onDone }: { businessId: str
   const [billing, setBilling] = useState<"partner" | "hivic">(business.rectification_billed_by ?? "hivic");
   const [busy, setBusy] = useState(false);
   const blockers = inHouseEnableBlockers(facts);
+  const move = useServerFn(moveInstallerToNewFlowFn);
+  const [moveBlockers, setMoveBlockers] = useState<string[]>([]);
   return <Panel title="In-house partner">
     <label className="flex items-center justify-between gap-3 text-sm font-semibold">In-house partner<Switch checked={enabled} onCheckedChange={setEnabled} disabled={busy || (!enabled && blockers.length > 0)} aria-label="In-house partner" /></label>
     {blockers.length > 0 && <ul className="mt-3 text-sm text-rose">{blockers.map(b => <li key={b}>{b}</li>)}</ul>}
@@ -175,6 +178,17 @@ function InHousePanel({ businessId, business, facts, onDone }: { businessId: str
       catch (e) { toast.error(e instanceof Error ? e.message : "Could not save in-house partner"); }
       finally { setBusy(false); }
     }}>Save</Btn>
+    {!(business.in_house ?? false) && <div className="mt-4 border-t pt-4" data-new-flow-move>
+      <Btn tone="secondary" disabled={busy} onClick={async () => {
+        setBusy(true); setMoveBlockers([]);
+        try {
+          const r = await move({ data: { businessId } });
+          if (r.moved) { await onDone(); toast.success("Moved to the new flow"); } else setMoveBlockers(r.blockers);
+        } catch (e) { toast.error(e instanceof Error ? e.message : "Could not move to the new flow"); }
+        finally { setBusy(false); }
+      }}>Move to the new flow</Btn>
+      {moveBlockers.length > 0 && <ul className="mt-3 text-sm text-rose" data-new-flow-move-blockers>{moveBlockers.map(b => <li key={b}>{b}</li>)}</ul>}
+    </div>}
   </Panel>;
 }
 

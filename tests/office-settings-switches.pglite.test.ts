@@ -68,10 +68,11 @@ describe("pending migration auto-offer-switches.sql on PGlite", () => {
 
 describe("per-type text switches and code switches", () => {
   test("a text switch only changes its own key (CAS on the whole map)", async () => {
-    expect(await setOfficeSwitch("veec_sign_reminder", true, false, "approved by Jo", ACTOR)).toMatchObject({ ok: true });
+    // Part 4 Task 14: the "Rebate form reminders" switch is gone with the retired veec_sign_reminder text; install_no_access stands in.
+    expect(await setOfficeSwitch("install_no_access", true, false, "approved by Jo", ACTOR)).toMatchObject({ ok: true });
     const m = (await db.query<{ sms_message_switches: Record<string, boolean> }>("select sms_message_switches from public.workflow_settings where id = 1")).rows[0]!.sms_message_switches;
-    expect(m).toEqual({ job_offer: true, veec_sign_reminder: true });
-    await expect(setOfficeSwitch("veec_sign_reminder", false, false, "stale", ACTOR)).rejects.toThrow(/changed this switch/);
+    expect(m).toEqual({ job_offer: true, install_no_access: true });
+    await expect(setOfficeSwitch("install_no_access", false, false, "stale", ACTOR)).rejects.toThrow(/changed this switch/);
     // Decision 388: Jo approved the spot-only spot saved text (25 Oct 2026), so its switch can be turned on.
     expect(await setOfficeSwitch("spot_saved", true, false, "approved by Jo", ACTOR)).toMatchObject({ ok: true });
   });

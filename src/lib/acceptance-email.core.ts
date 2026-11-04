@@ -1,11 +1,11 @@
 // "You're in!" acceptance + safety check receipt email (Jo 24 Oct 2026, decisions 90, 126).
 // Design: docs/templates/mjml/owner_O22.mjml (MJML email refresh, Jo 27 Oct 2026) — payment received box (amount, date, card, Paid, still-to-pay
-// balance with the 10% / install-day split); next steps (electrician offers times; separate quote only if fixes needed;
-// installer offers 3 install days within 30 days of the safety check); See my job; signed acceptance + receipt attached.
+// balance with the 10% / install-day split); next steps (electrician calls to book; electrical upgrades only if needed; installer calls to book the install day, decision 34); See my job; signed acceptance + receipt attached.
 // Sent through approved-owner-emails.server.ts (sendOwnerTemplateEmail): TEST jobs via test-send, real owners only with
 // ACCEPTANCE_EMAIL_APPROVED (on since decision 90) AND customer_comms_enabled, through the guarded owner-email path. Pure.
 import * as K from "./email-kit.core";
 import { esc, mjEmail } from "./mail-mjml.core";
+import { COMPLAINT_LINE, REST_ON_INSTALL_DAY } from "./owner-wording.core";
 
 /** Jo 24 Oct 2026, decision 90 (O22 "You're in!" + $349 receipt): approved. Delivery still behind customer_comms_enabled. */
 export const ACCEPTANCE_EMAIL_APPROVED = true as boolean;
@@ -25,8 +25,8 @@ export function renderYoureInEmail(i: AcceptanceEmailInput) {
   const intro = `Thanks for accepting your quote. Warmer winters and cooler summers are on the way${i.rebate && i.rebate > 0 ? `, with ${K.whole(i.rebate)} off` : ""}.`;
   const pay = i.payment;
   const remaining = pay ? Math.max(0, i.totalIncGst - pay.amount) : i.totalIncGst;
-  const remainingLine = `Still to pay: ${K.cents(remaining)} (10% to book your install day, the rest 7 days after your install is recorded complete)`;
-  const payLabel = pay?.label ?? "Electrical safety check";
+  const remainingLine = `Still to pay: ${K.cents(remaining)} (10% to book your install day, ${REST_ON_INSTALL_DAY})`;
+  const payLabel = pay?.label ?? "Electrical safety check (PIESA)";
   const preview = pay ? `We've got your ${K.cents(pay.amount)} payment. Next up: your electrical safety check.` : "Next up: your electrical safety check.";
   const payCard = pay
     ? `<mj-section><mj-column mj-class="panel"><mj-text mj-class="eyebrow" padding="18px 18px 10px">Payment received</mj-text><mj-table padding="0 18px 6px">`
@@ -37,9 +37,9 @@ export function renderYoureInEmail(i: AcceptanceEmailInput) {
     : "";
   const installer = i.installerName?.trim() || "Your installer";
   const steps: K.Step[] = [
-    { title: "Electrical safety check", detail: "A licensed electrician will offer you times. They check your wiring, downlights and switchboard are safe to insulate over." },
-    { title: "Only if something needs fixing", detail: "We'll send you a separate quote. Nothing is done without your OK." },
-    { title: "Book your install day", detail: `${installer} offers you 3 days. Your install is done within 30 days of the safety check.` },
+    { title: "Electrical safety check (PIESA)", detail: `${installer}'s licensed electrician will call you to book it. They check your wiring, downlights and switchboard are safe to insulate over.` },
+    { title: "Only if electrical upgrades are needed", detail: "Your electrician quotes and books them with you directly. Nothing is done without your OK." },
+    { title: "Book your install day", detail: `${installer} will call you to book it. Pay your 10% deposit to lock it in. Your install is done within 30 days of the electrical safety check (PIESA).` },
   ];
   const closing = i.factsheetAttached
     ? "Your signed acceptance and receipt are attached, with the Victorian Energy Upgrades consumer factsheet. Please keep this email. Questions? Just reply to this email."
@@ -48,13 +48,13 @@ export function renderYoureInEmail(i: AcceptanceEmailInput) {
   const body = [
     `<mj-section><mj-column><mj-text mj-class="h1" css-class="email-heading">${esc(headline)}</mj-text><mj-text>${esc(intro)}</mj-text></mj-column></mj-section>`,
     payCard,
-    `<mj-section><mj-column><mj-text mj-class="h2" css-class="email-sub" padding="18px 12px 12px">What happens next</mj-text><mj-table padding="0 12px 6px">${stepRows}</mj-table><mj-text mj-class="small" padding="0 12px 0">${esc(closing)}</mj-text></mj-column></mj-section>`,
+    `<mj-section><mj-column><mj-text mj-class="h2" css-class="email-sub" padding="18px 12px 12px">What happens next</mj-text><mj-table padding="0 12px 6px">${stepRows}</mj-table><mj-text mj-class="small" padding="0 12px 0">${esc(closing)}</mj-text><mj-text mj-class="small" padding="10px 12px 0">${esc(COMPLAINT_LINE)}</mj-text></mj-column></mj-section>`,
   ].join("");
   const html = mjEmail({ subject, preview, body, unsubscribe: null, testLabel: i.test === true });
   const text = K.plainText([
     headline, "", intro, "",
     ...(pay ? ["PAYMENT RECEIVED", `${payLabel}: ${K.cents(pay.amount)} — Paid ${pay.paidOn}${pay.cardLast4 ? ` (card ending ${pay.cardLast4})` : ""}`, remainingLine, ""] : []),
-    "WHAT HAPPENS NEXT", ...steps.map((s, n) => `${n + 1}. ${s.title}: ${s.detail}`), "",  "", closing,
+    "WHAT HAPPENS NEXT", ...steps.map((s, n) => `${n + 1}. ${s.title}: ${s.detail}`), "",  "", closing, "", COMPLAINT_LINE,
   ], { testLabel: i.test === true });
   return { subject, html, text };
 }

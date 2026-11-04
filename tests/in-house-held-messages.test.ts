@@ -28,9 +28,10 @@ function fixture(held: boolean, payee = false, failed = false) {
     './test-send.core':{isTestPartner:()=>true}, './set-password-link.core':{SET_PASSWORD_BASE:'https://example.test'},
     './worker-links.core':{firstName:()=> 'Test'}, './estimatelink.core':{linkUsable:()=>true}, './engagement.core':{CUSTOMER_BASE:'https://example.test'},
     './address':{fullAddress:()=> '1 Test St'}, './veec-copy-email.server':{ownerMyJobLink:async()=> 'https://example.test'},
-    './ready-check-times.server':{readyCheckTurnFor:async()=> 'owner_to_answer'}, './quote-hold.core':{smsQuietReason:()=>null},
+    './quote-hold.core':{smsQuietReason:()=>null},
     './mitti.core':{isClosedOrArchivedJob:()=>false}, './payments.server':{jobPaymentView:async()=>null},
     './approved-owner-emails.server':new Proxy({}, {get:(_,key)=>key==='then'?undefined:async()=>{calls.push('message');return 'sent';}}),
+    './owner-contact.server':{businessContactForJob:async()=>({name:'Test Electrical',tradingName:null,officePhone:'0399999999',email:'test@example.test'})},
     './booking.server':{confirmBooking:async()=>{writes.push('booking');return 'b';}},
   };
   const cache:Record<string,any>={};
@@ -38,6 +39,7 @@ function fixture(held: boolean, payee = false, failed = false) {
     const code=ts.transpile(readFileSync(`src/lib/${name}.ts`,'utf8')+extra,{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}); const out:any={};
     new Function('exports','require',code)(out,(dep:string)=>{
       if(dep in modules)return modules[dep];
+      if(dep.startsWith('node:'))return require(dep); // #135 job-facts.server uses AsyncLocalStorage (join 4 Nov 2026)
       if(dep.startsWith('./')&&dep.endsWith('.core'))return require(`../src/lib/${dep.slice(2)}.ts`);
       if(dep.startsWith('./')) {const key=dep.slice(2);return cache[key]??(cache[key]=load(key));}
       throw new Error(`Unexpected dependency ${dep}`);
@@ -45,15 +47,10 @@ function fixture(held: boolean, payee = false, failed = false) {
   }
   return {load,calls,writes,modules,tables};
 }
+// Part 4 Task 14 (Jo 2 Nov 2026): the retired senders (install clearance, O33 install days, O26 booked, I71 planning notice,
+// fixes-times link, the owner safety-check-booked text and O29) are gone from these lists.
 const entries = [
-  {file:'install-clearance.server',fn:'notifyInstallerClearance',args:['j']},
-  {file:'ready-check-times-email.server',fn:'emailOwnerReadyCheckTimes',args:['j',['2026-11-04T00:00:00Z']]},
-  {file:'ready-check-booked-email.server',fn:'emailOwnerReadyCheckBooked',args:['j','2026-11-04T00:00:00Z']},
-  {file:'owner-email-triggers.server',fn:'onInstallDaysOffered',args:['j',['2026-11-04T00:00:00Z'],'2026-11-29']},
-  {file:'owner-email-triggers.server',fn:'onSafetyCheckBooked',args:['j','2026-11-04T00:00:00Z',false]},
   {file:'owner-email-triggers.server',fn:'onInstallDayMoved',args:['j','2026-11-04T00:00:00Z','2026-11-03T00:00:00Z']},
-  {file:'approved-texts.server',fn:'textOwnerReadyCheckTimes',args:['j','e','2026-10-30T00:00:00Z',new Date('2026-10-30T00:00:00Z')]},
-  {file:'installer-texts.server',fn:'textInstallerOwnerSuggestedDays',args:['j','e','2026-10-30T00:00:00Z']},
   {file:'installer-texts.server',fn:'textTradeOwnerChangedVisit',args:[{jobId:'j',kind:'installation',triggerEventId:'e',changedAt:'2026-10-30T00:00:00Z',wasIso:'2026-11-04T00:00:00Z'}]},
 ];
 for(const entry of entries) {
@@ -63,33 +60,26 @@ for(const entry of entries) {
   });
 }
 for(const payee of [false,true]) {
-  for(const entry of entries.filter(e=> !['textInstallerOwnerSuggestedDays'].includes(e.fn))) test(`${entry.fn}: ${payee?'payee-only':'non-held'} keeps existing delivery`,async()=>{
+  for(const entry of entries) test(`${entry.fn}: ${payee?'payee-only':'non-held'} keeps existing delivery`,async()=>{
     const f=fixture(false,payee);await f.load(entry.file)[entry.fn](...entry.args);expect(f.calls.length).toBeGreaterThan(0);
   });
 }
-test('clearance sweep skips held partner without a delivery claim',async()=>{
-  const f=fixture(true);expect(await f.load('install-clearance.server').sweepInstallClearance(new Date('2026-10-30'))).toMatchObject({notified:0});expect(f.calls).toEqual([]);expect(f.writes).toEqual([]);
-});
 
 const otherEntries = [
   {file:'install-booked-email.server',fn:'emailOwnerInstallBooked',args:['j','2026-11-04T00:00:00Z']},
-  {file:'installer-planning-notice.server',fn:'notifyInstallerPlanning',args:[{jobId:'j',assignmentId:'a',piesaStartIso:'2026-11-04T00:00:00Z'}]},
   {file:'deposit-release-notice.server',fn:'sendDepositReleaseNotice',args:[{jobId:'j',bookingId:'bk',wasStart:'2026-11-04T00:00:00Z',depositCents:10000,bank:{},reference:'TEST'}]},
   {file:'install-no-access-notice.server',fn:'sendInstallNoAccessNotice',args:[{jobId:'j',bookingId:'bk',wasStart:'2026-11-04T00:00:00Z',reason:'TEST'}]},
   {file:'install-no-access-notice.server',fn:'resendInstallNoAccessText',args:[{jobId:'j',bookingId:'bk',wasStart:'2026-11-04T00:00:00Z',reason:'TEST',reportedAt:'2026-10-30'}]},
   {file:'visit-new-times.server',fn:'notifyOwnerVisitNewTimes',args:[{jobId:'j',bookingId:'bk',kind:'ready_check',wasIso:'2026-11-04T00:00:00Z'}]},
-  {file:'fixes-times-link.server',fn:'textFixesTimesLink',args:['j',{auditId:'audit',completedAt:'2026-10-30',short:{}}]},
-  {file:'approved-texts.server',fn:'textOwnerReadyCheckBooked',args:['j','2026-11-04T00:00:00Z','2026-10-30',new Date('2026-10-30')]},
-  {file:'approved-texts.server',fn:'textOwnerSafetyCheckBooked',args:['j','2026-11-04T00:00:00Z','2026-10-30',new Date('2026-10-30')]},
-  {file:'approved-texts.server',fn:'textOwnerVisitTomorrow',args:['installation','j',{id:'bk',scheduled_start:'2026-10-31T00:00:00Z'},new Date('2026-10-30T06:00:00Z')]},
+  // Part 4 (3 Nov 2026): textOwnerVisitTomorrow is NOT held for in-house jobs any more — the new flow is in-house for everyone,
+  // so the approved #25 day-before text goes to in-house owners too (tests/visit-tomorrow-in-house.test.ts).
   {file:'approved-texts.server',fn:'textOwnerInstallMoved',args:['j',{id:'bk',scheduled_start:'2026-11-04T00:00:00Z',created_at:'2026-10-30'},'2026-11-03',new Date('2026-10-30')]},
   {file:'owner-email-triggers.server',fn:'onSafetyCheckPaid',args:['j','invoice']},
-  {file:'owner-email-triggers.server',fn:'onFixesQuoteIssued',args:['j','quote']},
 ];
 for(const entry of otherEntries) for(const failure of [false,true]) test(`${entry.fn}: ${failure?'failed read':'held'} no ledger or provider`,async()=>{
   const f=fixture(true,false,failure);expect(await f.load(entry.file)[entry.fn](...entry.args)).toBe(failure?'in_house_read_failed':'in_house');expect(f.calls).toEqual([]);expect(f.writes).toEqual([]);
 });
-for(const purpose of ['quote_accepted','safety_check_times','safety_check_booked','fixes_quote','install_days','install_day_changed']) {
+for(const purpose of ['quote_accepted','install_day_changed']) {
   test(`direct template ${purpose}: held suppresses before rendering or recording`,async()=>{
     const f=fixture(true);expect(await f.load('owner-template-send.server').sendOwnerTemplateEmail({jobId:'j',purpose,key:'key',approved:true,label:'test',notSentEvent:'test',render:()=>{throw new Error('must not render');}})).toBe('in_house');expect(f.calls).toEqual([]);expect(f.writes).toEqual([]);
   });
@@ -106,10 +96,10 @@ for(const entry of otherEntries) for(const payee of [false,true]) test(`${entry.
  f.modules['./visit-events.server']={currentBooking:async()=>null};
  f.modules['./rectification.server']={rectificationWindowsExist:async()=>false};
  f.modules['./ai-email-reply.server']={installerNotes:async()=>null};
- f.modules['./ready-check-booked-email.server']={recordBookedNotSent:async()=>{}};
+ f.modules['./owner-contact.server']={businessContactForJob:async()=>({name:'Biz',tradingName:null,officePhone:'03 9000 0000',email:'b@x.test'})};
  f.modules['./payments.server']={jobPaymentView:async()=>({invoiceId:'invoice',steps:[{key:'safety_check',state:'paid'}],plan:{safetyCheckCents:34900,quoteTotalCents:100000,thresholds:{safety_check:34900}},ledger:[]})};
  // These render/eligibility dependencies are not the held rule under test.
- for(const name of ['installer-planning-notice','visit-new-times','install-no-access-notice','deposit-release-notice','fixes-times','ready-check-booked-email','approved-texts','owner-email-triggers']) {
+ for(const name of ['visit-new-times','install-no-access-notice','deposit-release-notice','fixes-times','ready-check-booked-email','approved-texts','owner-email-triggers']) {
    const core=require(`../src/lib/${name}.core.ts`);
    f.modules[`./${name}.core`]=new Proxy(core,{get:(o,k)=>{
      if(k==='fixesTimesNeeded')return ()=>true;

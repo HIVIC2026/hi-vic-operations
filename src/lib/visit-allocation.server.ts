@@ -7,7 +7,7 @@ import type { MittiCall } from "./mitti.core";
 import { effectiveWorkerRole, mittiEmailFor } from "./worker-role.core";
 import { melbourneToday } from "./worker-compliance.core";
 import { CREW_CLEARANCE_REASON } from "./worker-compliance.core";
-import { ALLOCATION_REASON, addInMittiFirst, allocationBlocker, allocationOptions, currentAllocation, leadNeedsHandover, visitsForStage, VISIT_ALLOCATED_EVENT, VISIT_LABEL, type AllocationCandidate, type VisitKind } from "./visit-allocation.core";
+import { ALLOCATION_REASON, addInMittiFirst, allocationBlocker, allocationOptions, currentAllocation, leadLockBlocker, leadNeedsHandover, visitsForStage, VISIT_ALLOCATED_EVENT, VISIT_LABEL, type AllocationCandidate, type VisitKind } from "./visit-allocation.core";
 import { crewSelectionProblems, leadWorkerId, type CrewSelection } from "./piisa-a3.core";
 import { early } from "./early-read";
 
@@ -70,6 +70,7 @@ export async function visitFormAuditId(jobId: string, kind: VisitKind): Promise<
 /** Job screen: which visits this job shows, who is on each, and the picker list with grey-out reasons. */
 export async function visitAllocationView(jobId: string, userId: string, pre?: import("./trade-view.server").TradeJobAccess) {
   const c = await (await import("./trade-view.server")).requireTradeJob(userId, jobId, pre);
+  const books = c.boss || c.role === "office"; // fix wave C2: an Office person allocates (books) like the boss
   const { data: job } = await db.from("jobs").select("stage").eq("id", jobId).maybeSingle();
   const kinds = visitsForStage(job?.stage ?? null);
   if (!kinds.length || c.kind !== "installer") return { canAllocate: false, visits: [] as { kind: VisitKind; label: string; current: { workerId: string; name: string } | null; hasForm: boolean; options: ReturnType<typeof allocationOptions> }[] };
@@ -77,7 +78,7 @@ export async function visitAllocationView(jobId: string, userId: string, pre?: i
   // read together (they need only the job, the business and the visit kinds); the visits keep the stage's order.
   const [events, candidates, bookingCreatedAt, forms] = await Promise.all([
     allocationEvents(jobId),
-    c.boss ? allocationCandidates(c.biz.id) : Promise.resolve([] as AllocationCandidate[]),
+    books ? allocationCandidates(c.biz.id) : Promise.resolve([] as AllocationCandidate[]),
     // Decision 319: install days also need a verified White Card unless the installation was booked before the cutoff.
     kinds.includes("install") ? installBookingCreatedAt(jobId) : Promise.resolve(null),
     Promise.all(kinds.map((kind) => visitFormAuditId(jobId, kind))),
@@ -87,9 +88,9 @@ export async function visitAllocationView(jobId: string, userId: string, pre?: i
   const visits = [];
   for (const [i, kind] of kinds.entries()) {
     const cur = currentAllocation(events, kind);
-    visits.push({ kind, label: VISIT_LABEL[kind], current: cur ? { workerId: cur.worker_id, name: cur.worker_name } : null, hasForm: !!forms[i], options: c.boss ? allocationOptions(kind, candidates, today, kind === "install" ? install : undefined) : [] });
+    visits.push({ kind, label: VISIT_LABEL[kind], current: cur ? { workerId: cur.worker_id, name: cur.worker_name } : null, hasForm: !!forms[i], options: books ? allocationOptions(kind, candidates, today, kind === "install" ? install : undefined) : [] });
   }
-  return { canAllocate: c.boss, visits };
+  return { canAllocate: books, visits };
 }
 
 /**
@@ -100,12 +101,16 @@ export async function visitAllocationView(jobId: string, userId: string, pre?: i
 export async function allocateVisit(jobId: string, userId: string, kind: VisitKind, workerId: string, call?: MittiCall, opts?: { crewPicker?: boolean }) {
   const tv = await import("./trade-view.server");
   const c = await tv.requireTradeJob(userId, jobId);
+  const books = c.boss || c.role === "office"; // fix wave C2: an Office person books like the boss
   // Jo 29 Oct 2026: staff can change the install Lead too, but only through the crew picker (saveCrewWithLead).
-  const staffLeadChange = !c.boss && opts?.crewPicker === true && kind === "install";
-  if (!c.boss && !staffLeadChange) throw new WorkflowError("Only the business owner can allocate a visit.");
+  const staffLeadChange = !books && opts?.crewPicker === true && kind === "install";
+  if (!books && !staffLeadChange) throw new WorkflowError("Only the business owner can allocate a visit.");
   if (c.kind !== "installer") throw new WorkflowError("Visits are allocated on installer jobs only.");
   const { data: job } = await db.from("jobs").select("stage, source").eq("id", jobId).maybeSingle();
   if (!visitsForStage(job?.stage ?? null).includes(kind)) throw new WorkflowError(`This job isn't at its ${VISIT_LABEL[kind]} yet.`);
+  // Part 7 fix I2: the install allocation is a Lead Installer writer too — from 5pm two days before the install a
+  // different Lead is refused (LEAD_LOCKED_MESSAGE) before anything is recorded or handed over.
+  if (kind === "install") await refuseLockedLeadChange(jobId, workerId);
   const cand = (await allocationCandidates(c.biz.id)).find((x) => x.workerId === workerId);
   if (!cand) throw new WorkflowError("That person isn't on your staff list.");
   const why = allocationBlocker(kind, cand, melbourneToday(), kind === "install" ? { bookingCreatedAt: await installBookingCreatedAt(jobId) } : undefined);
@@ -132,6 +137,7 @@ export async function allocateVisit(jobId: string, userId: string, kind: VisitKi
  */
 export async function saveCrewWithLead(jobId: string, userId: string, sel: CrewSelection, call?: MittiCall): Promise<{ needsVerification: string[] }> {
   await (await import('./trade-view.server')).requireTradeJob(userId,jobId);
+  await refuseLockedLeadChange(jobId, leadWorkerId(sel));
   const held=await (await import('./in-house-suppression.server')).readInHouseDispatchState([jobId]);
   if(held.failed)throw new WorkflowError('Could not check the in-house partner. Please try again.');
   if(held.held.has(jobId)){
@@ -140,6 +146,21 @@ export async function saveCrewWithLead(jobId: string, userId: string, sel: CrewS
     return {needsVerification:saved.needsVerification};
   }
   return saveCrewWithLeadInline(jobId,userId,sel,call);
+}
+
+/** Part 7 Task 6 (Jo 2 Nov 2026): from 5pm two days before the install the Lead Installer is locked (the ESC is told) —
+ *  a different Lead is refused with LEAD_LOCKED_MESSAGE; crew-only changes, a first Lead or the same Lead go through.
+ *  Reads the CURRENT confirmed install booking and current Lead here, never a page's copy. Rule: prestart.core (Part 9).
+ *  Callers: saveCrewWithLead (crew picker) and allocateVisit kind "install" (fix I2); the other two writers
+ *  (changeInHouseLeadInstaller, inHouseBookVisit) use assertLeadInstallerUnlocked in lead-installer-confirm.server. */
+async function refuseLockedLeadChange(jobId: string, newLeadId: string | null, now = new Date()): Promise<void> {
+  // Part 9 Task 9 (join): fails CLOSED — a booking read error refuses the change (never "unlocked"); a completed install is not locked.
+  const book = await (await import("./install-booking.server")).currentLockableInstallBooking(jobId).catch((e: Error) => { throw new WorkflowError(`Could not check the install booking: ${e.message}`); });
+  if (!book?.scheduled_start) return;
+  const cur = currentAllocation(await allocationEvents(jobId), "install");
+  const savedLead = cur?.worker_id ? null : leadWorkerId((await (await import("./piisa-a3.server")).loadCrew(jobId)).selection ?? { lead: null, additional: [] } as never);
+  const why = leadLockBlocker({ startIso: book.scheduled_start, now, currentLeadId: cur?.worker_id ?? savedLead ?? null, newLeadId });
+  if (why) throw new WorkflowError(why);
 }
 
 /** The original guarded inline crew path, also used before saved-work RPC deployment. */

@@ -51,17 +51,8 @@ export function deadlineAction(f: { dueAt: string; booked: boolean; alreadyRetur
 }
 
 /** Part 3 Task 4b (Jo 4 Nov 2026): electricians on installers' own jobs have no login, so nobody presses Complete PIESA.
- *  A Complete A3 synced at PIESA booked completes the PIESA itself, once per Mitti form (claim = this event). */
+ *  A Complete A3 synced at PIESA booked completes the PIESA itself, once per Mitti form version (claim = this event).
+ *  Join ruling 3 (4 Nov 2026): ONE automatic completion for own jobs AND in-house jobs lives in piesa-auto-complete.server.ts;
+ *  a refusal is its `piesa_auto_complete_held` office row (the earlier `own_job_piesa_complete_held` kind is retired — never
+ *  written; rows written before the join are history only). */
 export const PIESA_AUTO_COMPLETED_EVENT = "piesa_auto_completed";
-/** The auto-complete was refused: ONE office row per form, shown while the PIESA is still booked. */
-export const OWN_JOB_PIESA_COMPLETE_HELD_EVENT = "own_job_piesa_complete_held";
-
-export const ownJobPiesaCompleteHeldLine = (reason: string) => `PIESA done in Mitti but couldn't be completed — ${reason.trim() || "reason not recorded"}`;
-
-/** The open held row: the newest held event, only while the job is still at PIESA booked (a completed PIESA clears it). */
-export function ownJobPiesaCompleteHeldOpen(events: { event_type: string; created_at: string; details?: Record<string, unknown> | null }[], stage: string | null): { at: string; reason: string } | null {
-  if (stage !== "piesa_scheduled") return null;
-  const last = events.filter((e) => e.event_type === OWN_JOB_PIESA_COMPLETE_HELD_EVENT).sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
-  if (!last) return null;
-  return { at: last.created_at, reason: String(last.details?.["reason"] ?? "") };
-}

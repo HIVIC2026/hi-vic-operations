@@ -8,9 +8,9 @@ import {
 } from "../src/lib/installer-screens.core";
 import { HOME_EMPTY, homeIsEmpty, monthStripWords, offerPanelWords, offersListView } from "../src/lib/installer-home.core";
 import { QUOTE_DECLINED_LINE, QUOTE_HELD_LINE, QUOTE_SENT_LINE } from "../src/lib/installer-quote-status.core";
-import { ADD_JOB_OFFLINE_NOTE, addedView, errorSummary, fieldErrors } from "../src/lib/add-job-flow.core";
+import { ADD_JOB_OFFLINE_NOTE, errorSummary, fieldErrors } from "../src/lib/add-job-flow.core";
 import { PICK_ADDRESS } from "../src/lib/onsite-ready-check.core";
-import { AGREEMENT_COVERS, GUIDE_STEPS, TEAM_ADD_SHEET, TEAM_LOGIN, bankOnFileRows, escNoticeRowLine, signedOnLine, teamCountLine } from "../src/lib/trade-view.core";
+import { AGREEMENT_COVERS, TEAM_ADD_SHEET, TEAM_LOGIN, bankOnFileRows, escNoticeRowLine, signedOnLine, teamCountLine } from "../src/lib/trade-view.core";
 
 const base: JobNextFacts = {
   channel: "hivic_sourced", stage: "installation_scheduling", ownerFirstName: "Helen", formLinked: true, formCompleted: true, quoteLine: "Waiting on owner: quote accepted – waiting for owner's payment",
@@ -21,10 +21,9 @@ const base: JobNextFacts = {
 test("B6: one accepted label, one new-offer label", () => {
   expect(OFFER_LABEL).toEqual({ accepted: "Job accepted", new: "New job offer" });
   expect(offerAcceptedView({ ownerFirstName: null, suburb: null, jobNumber: null, times: [] }).pill).toBe(OFFER_LABEL.accepted);
+  // Part 7 Task 9 (Jo 2 Nov 2026): the offer page itself is gone (old links open My work); the labels stay pure history.
   const page = readFileSync("src/routes/_authenticated/field.offer.$offerId.tsx", "utf8");
-  for (const gone of ['"Booked"', "You've taken this job", "Job accepted · times sent", '"New job"', 'took ? "Job accepted"']) expect(page).not.toContain(gone);
-  expect(page.match(/OFFER_LABEL\.accepted/g)?.length).toBe(2);
-  expect(page).toContain("pill={OFFER_LABEL.new}");
+  expect(page).toMatch(/redirect\(\{ to: "\/field" \}\)/);
 });
 
 describe("M1 states", () => {
@@ -59,7 +58,7 @@ describe("M2 states", () => {
     expect(needsFinishingList(na)).toEqual(["Your price", "The owner's email", "The ceiling area", "The insulation product"]);
     expect(needsFinishingList("Needs finishing: owner mobile/email/permission on the Mitti form")).toEqual(["The owner's mobile", "The owner's email", "The owner's permission to contact"]);
     const n = jobNext({ ...base, channel: "installer_sourced", ownerFirstName: "Mei", formCompleted: false, quoteLine: null, needsFinishing: "You: add your price in Mitti", needsFinishingItems: needsFinishingList(na), readyCheckBookedAt: "2026-10-25T20:30:00Z" });
-    expect(n).toMatchObject({ panel: "mitti_form", title: "Add 4 things in Mitti", sub: "Ready Check done Mon 26 Oct at 7:30am. The form is still missing:", yours: true, note: "Press Complete only when it's fully finished — that sends Mei their quote." });
+    expect(n).toMatchObject({ panel: "mitti_form", title: "Add 4 things in Mitti", sub: "Ready Check done Mon 26 Oct at 7:30am. The form is still missing:", yours: true, note: "Press Complete in Mitti when the Ready Check is finished. Your boss then enters the price, and we send the owner their quote." });
     expect(n.items).toEqual(["Your price", "The owner's email", "The ceiling area", "The insulation product"]);
     expect(quoteStatusRow(null, { needsFinishing: true, formLinked: true }).label).toBe("Not drafted yet · waiting on the form");
   });
@@ -204,18 +203,9 @@ describe("M5 states", () => {
   });
   test("not for me: one confirmation, goes back to the office, nothing counts against you", () => {
     expect(NOT_FOR_ME_SHEET).toEqual({ title: "Not for me?", body: "The offer goes back to the office to pick another installer. It won't come back to you. Nothing counts against you.", yes: "Yes, not for me", keep: "Keep the offer" });
-    const page = readFileSync("src/routes/_authenticated/field.offer.$offerId.tsx", "utf8");
-    expect(page).toContain("data-not-for-me-sheet");
-    expect(page).toContain("sheet.keep");
   });
   test("B7: electrician Not for me asks first, with electrician words", () => {
     expect(NOT_FOR_ME_SHEET_ELECTRICIAN).toEqual({ title: "Not for me?", body: "The offer goes back to the office to pick another electrician. It won't come back to you.", yes: "Yes, not for me", keep: "Keep the offer" });
-    const page = readFileSync("src/routes/_authenticated/field.offer.$offerId.tsx", "utf8");
-    expect(page).toContain("sheet={NOT_FOR_ME_SHEET}");
-    expect(page.match(/sheet=\{NOT_FOR_ME_SHEET_ELECTRICIAN\}/g)?.length).toBe(1);
-    expect(page.match(/trigger="link"/g)?.length).toBe(1);
-    expect(page.match(/data-not-for-me-sheet/g)?.length).toBe(1);
-    expect(page).not.toMatch(/data-not-for-me onClick=\{\(\) => send\(/);
   });
 });
 
@@ -264,7 +254,7 @@ describe("M7 sub-page states", () => {
     expect(escNoticeRowLine({ state: "acknowledged", at: "2026-10-03T03:14:00Z" })).toBe("Acknowledged 3 Oct 2026");
     expect(escNoticeRowLine({ state: "pending", at: null, linkSentAt: "2026-10-20T22:00:00Z", reminderAt: "2026-10-23T22:00:00Z" })).toBe("Not yet · link sent Wed 21 Oct, reminder Sat 24 Oct");
     expect(escNoticeRowLine({ state: "pending", at: null })).toBe("Not yet · no link sent");
-    expect(GUIDE_STEPS.map((s) => s.title)).toEqual(["Get the job", "Ready Check", "PIESA", "Install days", "Install day"]);
+    // Task 11: the installer guide (GUIDE_STEPS) is retired with the How it works tab.
   });
 });
 
@@ -281,21 +271,11 @@ describe("M3 heavier Add a job (decision 237)", () => {
     expect(errorSummary(0)).toBeNull();
     expect(ADD_JOB_OFFLINE_NOTE).toBe("Your typed details stay on your phone if the signal drops.");
   });
-  test("Job added: tick header, Mitti card from the real form state, what we do now, two links", () => {
-    const v = addedView({ jobNumber: "HV-3166", address: "18 Bogong Avenue, Glen Waverley", ownerName: "Helen Yang", phone: "0412 345 678", ownerFirstName: "Helen", booking: "confirmed", visit: { day: "2026-10-26", time: "07:30" }, state: { kind: "open", url: "https://m" } });
-    expect(v.heading).toBe("Job added");
-    expect(v.line1).toBe("HV-3166 · 18 Bogong Avenue, Glen Waverley");
-    expect(v.line2).toBe("Helen Yang · 0412 345 678");
-    expect(v.card).toEqual({ title: "Your Ready Check form is ready in Mitti", body: "Ready Check Mon 26 Oct at 7:30am — it's in your 6:30am text. Fill in as much as you can at the visit. Press Complete only when it's fully finished — that sends Helen their quote.", button: "Open Mitti form" });
-    expect(v.steps).toEqual(["Nothing is sent to Helen until you press Complete.", "We prepare the quote from your Ready Check and the price you enter on the job page, plus our $349 fee.", "We arrange the electrical safety check once Helen accepts."]);
-    expect(addedView({ jobNumber: null, address: "x", ownerName: "A B", phone: "", ownerFirstName: "A", booking: "none", visit: { day: "", time: "" }, state: { kind: "preparing", message: "soon" } }).card).toMatchObject({ title: "Your Ready Check form is being set up in Mitti", button: null });
-    expect(addedView({ jobNumber: null, address: "x", ownerName: "A B", phone: "", ownerFirstName: "A", booking: "none", visit: { day: "", time: "" }, state: { kind: "retry", message: "No signal." } }).card).toMatchObject({ title: "Job added — form not ready yet", button: "Try again" });
-  });
   test("the screen is the heavier design: two mist cards, 52px fields, 56px button, red summary", () => {
     const flow = readFileSync("src/components/trade/add-job-flow.tsx", "utf8");
     const fields = readFileSync("src/components/trade/customer-fields.tsx", "utf8");
     expect(flow).toContain("data-owner-card");
-    expect(flow).toContain("data-visit-field");
+    expect(flow).toContain("data-electrician-picker"); // Task 7: the visit card is gone; the electrician picker sits under the owner
     expect(flow).toContain("min-h-14");
     expect(flow).toContain("errorSummary(");
     expect(fields).toContain("min-h-[52px]");

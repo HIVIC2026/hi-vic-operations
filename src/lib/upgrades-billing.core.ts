@@ -24,3 +24,7 @@ export const UPGRADES_BILLED_BY_ELECTRICIAN =
 
 /** Office-facing reason the Send button on an upgrades (rectification) quote is blocked. */
 export const UPGRADES_QUOTE_SEND_BLOCKER = "Electricians bill upgrades directly.";
+
+/** Office-facing refusal when Mark paid is pressed for an upgrades (rectification) payout: Home Insulation Victoria never
+ *  pays upgrades (Jo 4 Nov 2026 "WE DON'T PAY UPGRADES"). */
+export const UPGRADES_PAYOUT_REFUSED = "Electricians bill upgrades directly — Home Insulation Victoria doesn't pay this work.";

@@ -2,7 +2,7 @@ import { partnerAllowedForJob } from "./test-send.core";
 // Contractor allocation + direct coordination persistence. Pure rules: allocation.core.ts.
 // Never moves stages itself; acceptance is atomic in SQL (accept_partner_offer, migration 0086).
 import { workerOfferBlocker } from "./worker-compliance.core";
-import { expiredBusinessDocsBlocker } from "./trade-expiry.core";
+import { businessDocsBlocker, expiredBusinessDocsBlocker } from "./trade-expiry.core";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { clearanceFacts } from "./electrical-clearance.server";
 import type { Json } from "@/integrations/supabase/types";
@@ -58,6 +58,12 @@ export async function recCandidatesFor(jobId: string): Promise<{ postcode: strin
       : Promise.resolve({ data: [] as { business_id: string | null; scheduled_start: string; scheduled_end: string | null; jobs: unknown }[] }),
   ]);
   const { data: inst } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
+  // G6 S6 (final Part 9 review, 4 Nov 2026): offers use the SAME insurance hard block as every booking (Part 9 Task 8
+  // businessDocsBlocker through the one reader: public liability on file, verified, $5m+ — the business's recorded cover
+  // (B1) — unexpired; workers comp is not collected, Jo 4 Nov 2026). A read error throws: no offer goes out on an unchecked business.
+  const docs = await (await import("./business-docs.server")).businessDocsFor(ids);
+  const today = melbourneYmd(new Date());
+  const insuranceBlocker = (bid: string): string | null => { const d = docs.get(bid); return d ? businessDocsBlocker(d.credentials, today) : businessDocsBlocker([], today); };
   // The installer's choice on this job is offered first; otherwise their preferred electricians (Jo, 7 Oct).
   const { firstOfferedElectrician } = await import("./job-electrician.core");
   const preferred = firstOfferedElectrician(await (await import("./job-electrician.server")).jobChosenElectrician(jobId), (prefs ?? [])
@@ -87,9 +93,11 @@ export async function recCandidatesFor(jobId: string): Promise<{ postcode: strin
       // Only verified, unexpired electrical_licence / rec_registration credentials count.
       // Decision 371: a lapsed public liability / REC registration (latest stored date, whatever the `critical` flag) stops new offers too.
       has_valid_licence: !!b.rec_number && licenceKinds.every(verifiedCurrent) && !partnerWorkBlocker(b as unknown as BusinessLike, bc)
-        && !expiredBusinessDocsBlocker(bc.map((c) => ({ kind: c.kind, label: c.label ?? c.kind, expires: c.expires_at, verified: c.verification === "verified" })), melbourneYmd(new Date()), ["public_liability_insurance", "rec_registration"]),
-      // Phase 3 path 4 (27 Oct): say WHICH document stops the offer, not always "no licence".
-      licence_blocker: expiredBusinessDocsBlocker(bc.map((c) => ({ kind: c.kind, label: c.label ?? c.kind, expires: c.expires_at, verified: c.verification === "verified" })), melbourneYmd(new Date()), ["public_liability_insurance", "rec_registration"])
+        && !insuranceBlocker(b.id)
+        && !expiredBusinessDocsBlocker(bc.map((c) => ({ kind: c.kind, label: c.label ?? c.kind, expires: c.expires_at, verified: c.verification === "verified" })), today, ["rec_registration"]),
+      // Phase 3 path 4 (27 Oct): say WHICH document stops the offer, not always "no licence". S6: insurance first (the full rule).
+      licence_blocker: insuranceBlocker(b.id)
+        ?? expiredBusinessDocsBlocker(bc.map((c) => ({ kind: c.kind, label: c.label ?? c.kind, expires: c.expires_at, verified: c.verification === "verified" })), today, ["rec_registration"])
         ?? partnerWorkBlocker(b as unknown as BusinessLike, bc) ?? null,
       // Expired electrical licence: that electrician can't receive new offers.
       approved_workers: (workers ?? []).filter((w) => w.business_id === b.id && !workerOfferBlocker(w as never, melbourneYmd(new Date()))).length,
@@ -557,9 +565,9 @@ export async function releaseInstallationContacts(jobId: string, actorId: string
 // Decision 314 follow-up: moved to the lean electrical-clearance.server (read by stageEntryBlockers / autoAdvanceJob too).
 export { clearanceFacts } from "./electrical-clearance.server";
 
-/** 24h "no time proposed yet" points for released visits (F13: no outbox row). Decision 376: for an accepted safety check
- *  the electrician gets ONE reminder (E14 + text, piesa-times-reminder.server; approved by Jo, decision 384) after the event
- *  below is recorded; every other visit kind stays record-only (piesa-times-reminder.core says why). */
+/** 24h "no time proposed yet" points for released visits (F13: no outbox row). Record-only for every visit kind: the
+ *  decision 376 electrician reminder (E14 + text) was retired 2 Nov 2026 (Part 4 Task 14 — the electrician no longer
+ *  offers times; the installer's electrician books the safety check with the owner). */
 export async function sweepCoordination(actorId: string | null = null, testJobId?: string) {
   // An explicitly scoped QA sweep is fail-closed, record-only and cannot read another job's releases.
   if (testJobId !== undefined) {
@@ -603,10 +611,7 @@ export async function sweepCoordination(actorId: string | null = null, testJobId
     const remAt = reminded.get(`${r.job_id}|${r.assignment_id}|${r.visit_kind}`) ?? null;
     const s = coordinationState({ releasedAt: r.released_at, firstProposalAt: propAt, confirmedAt: a.booking_confirmed_at, reminderSentAt: remAt });
     if (s.state === "remind") {
-      const { coordinationReminderSends } = await import("./piesa-times-reminder.core");
-      const sends = testJobId === undefined && coordinationReminderSends(r.visit_kind);
-      await logEvent(r.job_id, actorId, "coordination_reminder", `24h: no ${r.visit_kind} time proposed yet${sends ? " — electrician reminder prepared (E14 + text)" : " (record only)"}`, { assignment_id: r.assignment_id, visit_kind: r.visit_kind }, { internal: true });
-      if (sends) await (await import("./piesa-times-reminder.server")).remindTradeToOfferTimes({ jobId: r.job_id, assignmentId: r.assignment_id, visitKind: r.visit_kind, remindedAt: new Date().toISOString() }, inHouseState).catch((e) => console.error("PIESA times reminder skipped", (e as Error).message));
+      await logEvent(r.job_id, actorId, "coordination_reminder", `24h: no ${r.visit_kind} time proposed yet (record only)`, { assignment_id: r.assignment_id, visit_kind: r.visit_kind }, { internal: true });
       reminders++;
     }
   }
@@ -688,7 +693,7 @@ export async function submitOwnerPiesaWindows(jobId: string, userId: string, pic
   if (w.futureOpen > 0) throw new WorkflowError("Your PIESA times are already with our electricians.");
   // Decision 333: new jobs never pick windows — the electrician offers the owner 3 times. Only a job that already
   // started the old way (round ≥ 1) may send more times, when asked or when its times were reopened.
-  if (w.round === 0) throw new WorkflowError("Your electrician will offer you 3 safety check times to choose from.");
+  if (w.round === 0) throw new WorkflowError("Your installer's licensed electrician will call you to book it.");
   const reopened = await (await import("./visit-events.server")).timesReopenedSince(jobId, "assessment", w.roundStart);
   if (!reopened && w.round >= PIESA_MAX_ROUNDS) throw new WorkflowError("Home Insulation Victoria will contact you to arrange this visit.");
   if (!reopened && w.round === 1) {

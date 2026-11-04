@@ -20,8 +20,8 @@ await db.query("insert into jobs values ($1,'piesa_and_install_window_pending',n
 await db.query("insert into job_assignments (job_id, role, business_id, user_id) values ($1,'electrician',$2,$3)", [J, ELEC, id(11)]);
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: postgrestShim(db) }));
 mock.module("../src/lib/comms.server", () => ({ customerCommsEnabled: async () => true, hasCurrentOwnerContactConsent: async () => true }));
-const realLink = await import("../src/lib/electrician-link.core");
-mock.module("../src/lib/electrician-link.core", () => ({ ...realLink, OWN_JOB_PIESA_TO_BOOK_EMAIL_APPROVED: false }));
+const realLink = await import("../src/lib/own-job-electrician-link.core");
+mock.module("../src/lib/own-job-electrician-link.core", () => ({ ...realLink, OWN_JOB_PIESA_TO_BOOK_EMAIL_APPROVED: false }));
 const realOwn = await import("../src/lib/own-job-piesa.server");
 mock.module("../src/lib/own-job-piesa.server", () => ({ ...realOwn, ownJobCallAndBook: async () => true }));
 const realWorkflow = await import("../src/lib/workflow.server");

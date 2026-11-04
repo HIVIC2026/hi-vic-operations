@@ -176,7 +176,7 @@ export function IntakeDetailsEditor({ facts, businessId, onSave, upload, electri
           })} onRemove={(path) => changeFiles(async () => setNewFiles((o) => o.filter((f) => f.path !== path)))} />
           <p className="text-xs text-sub">No quote file? Enter the amount and what it includes.</p>
           <label className="block text-sm font-bold">Total installer quote inc GST<Input className="mt-1 h-12" inputMode="decimal" placeholder="e.g. 3,450" value={amount} onChange={(e) => setAmount(e.target.value)} /></label>
-          <p className="text-xs text-sub">Your works price before the VEU discount. Removal or extras you priced separately go below — never include them twice.</p>
+          <p className="text-xs text-sub">Your works price before the rebate. Removal or extras you priced separately go below — never include them twice.</p>
           <label className="block text-sm font-bold">What the quote includes<Textarea className="mt-1" rows={3} maxLength={1000} value={includes} onChange={(e) => setIncludes(e.target.value)} /></label>
         </>}
         <ProposedRField value={proposedR} disabled={busy || fileBusy} onChange={setProposedR} />

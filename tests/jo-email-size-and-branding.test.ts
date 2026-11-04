@@ -13,6 +13,7 @@ import {
 import { joAreaBasis } from "../src/lib/jo-area-basis.core";
 import { withUnsubscribe } from "../src/lib/emailsafety.core";
 import { MAIL_LOGO_URL } from "../src/lib/mail-mjml.core";
+import { HOMEOWNER_PAGE_URL } from "../src/lib/email-kit.core";
 
 const RECIPIENT = {
   firstName: "Alex",
@@ -193,13 +194,13 @@ describe("F. the approved wording (decisions 66, 67, 69, 73) is what renders", (
       "Your estimated rebate", "You save $2,600", "You pay after the rebate", "$1,900", "full price", "$4,500",
       "Save your spot – it's free",
       // Decision 388 (Jo 25 Oct 2026): spot-only — no Ready Check, times or measuring before release.
-      "Thousands of Victorians have registered. Spots are released in the order they were saved. There's no cost and no obligation, and we'll be in touch when yours is released.",
-      "Save my free spot", "What's included in $1,900", "Licensed electrician safety check", "Premium R5.0 ceiling batts", "AS/NZS 4859.1",
-      "Fitted by an EEC-certified installer", "AS 3999", "We handle the rebate", "A003654", "Not included – only if needed", "Removing old insulation", "Ceiling access fee", "Electrical fixes", "A bigger ceiling",
-      "You'll see your exact price before you agree to anything.", "See your full estimate",
+      "Spots are released in the order they were saved. There's no cost and no obligation, and we'll be in touch when yours is released.",
+      "Save my free spot", "What's included in $1,900", "Electrical safety check (PIESA) by a licensed electrician", "Premium R5.0 ceiling batts", "AS/NZS 4859.1",
+      "Fitted by an EEC-certified installer", "AS 3999", "We handle the rebate", "A003654", "Not included – only if needed", "Removing old insulation", "Ceiling access fee", "Electrical upgrades", "A bigger ceiling",
+      "You'll see your exact price before you agree to anything.",
     ]) expect(m.html).toContain(t);
     expect(m.html).not.toContain("Ready Check");
-    expect(m.html).toContain(`href="${LINKS.saveMySpotUrl}"`);
+    expect(m.html).toContain(`href="${LINKS.saveMySpotUrl}?save=1"`);
     expect(m.html).not.toContain(`href="${LINKS.calculatorUrl}"`); // guide fix 1, Jo 29 Oct 2026
     expect(m.html).not.toContain("may qualify");
     expect(m.html).not.toContain("Your existing insulation");
@@ -207,7 +208,7 @@ describe("F. the approved wording (decisions 66, 67, 69, 73) is what renders", (
   test("O2 some insulation (T3/T4): 'may qualify', potential rebate, the existing-insulation card and the R2.0 line", () => {
     const m = render({ outcome: "likely_eligible", insulation: "present", deskCheckStatus: "looks_eligible", ceilingSizeKnown: true, figures: { ...figures(137, false), removalUpTo: 2055 } });
     for (const t of [
-      "Alex, you may qualify for $2,600 off ceiling insulation", "If it's thin or patchy (below R2.0)", "Your potential rebate", "Your cost if eligible",
+      "Alex, you may qualify for $2,600 off ceiling insulation", "If it's thin or patchy (below R2.0)", "Your potential rebate", "Your estimated quote based on what you've told us",
       "Your existing insulation", "it may be able to stay.", "If it can stay", "New batts go straight over the top", ">$0<", "If some needs removing", "Up to $2,055 for your 137 m² ceiling.", "$15/m²",
       "only if it can't stay ($15 per m², see above)", // decision 388: no "where they'll also check" Ready Check line
       "If your existing insulation is already R2.0 or above, the rebate isn't available and we'll let you know.",
@@ -224,7 +225,7 @@ describe("F. the approved wording (decisions 66, 67, 69, 73) is what renders", (
   test("O6 not eligible (T7): result headline, Why box, Review my result, friend card", () => {
     const t7 = render({ outcome: "does_not_appear_eligible", insulation: null, reason: "Built after 2010." });
     for (const t of ["Alex, your ceiling insulation result", "We'd rather tell you now than waste your time.", ">Why<", "Built after 2010.", "Something doesn't look right?", "Review my result", "Know someone thinking about insulation?", "Send to a friend"]) expect(t7.html).toContain(t);
-    expect(t7.html).toContain(`href="${LINKS.reviewResultUrl}"`);
+    expect(t7.html).toContain(`href="${HOMEOWNER_PAGE_URL}"`);
     expect(t7.plainText).toContain("Built after 2010.");
   });
 });

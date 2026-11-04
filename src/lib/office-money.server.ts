@@ -2,10 +2,12 @@
 // Server-only; every caller is an admin-checked server function in office-money.functions.ts. Read-only except
 // `setVeecSpotPrice` (the ONE place the VEEC spot price is entered, audited). TEST (qa_test) and deleted jobs never count.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
+import { electricianBillsUpgrades } from "./upgrades-billing.core";
 import { melbourneMonthStart, melbourneToday } from "./melbourne-time.core";
 import { installerPayExFor, jobMargin, marginTotal, veecValueReceived, type JobMargin } from "./job-margin.core";
 import { groupPayouts, invoiceRowState, stepsLine, veecRegistryLabel, type PayoutLine } from "./office-money.core";
 import { electricalBillingSource } from "./installer-led.core";
+import { PAYEE_BUSINESS_MISSING_ROW, PIESA_RATE_NOT_SET_ROW } from "./installer-paid-electricians.core";
 import { hivElectricianPayoutIncGst, ownerSafetyCheckIncGst, safetyCheckPayoutIncGst } from "./safety-check-price.core";
 import { payoutGateFacts } from "./trade-payout-gate.server";
 import { PAYOUT_FORM_NOT_COMPLETE, tradePayoutBlockers } from "./trade-payout-gate.core";
@@ -102,9 +104,13 @@ export async function moneyMargins(now = new Date()) {
     const usualPiesa = inst ? internals.find((x) => x.quote_id === inst.id)?.calc_snapshot?.piesa_electrician : null;
     const usualPiesaEx = usualPiesa?.source === "installer_usual" && Number(usualPiesa.rate_inc_gst) > 0 ? Number(usualPiesa.rate_inc_gst) / (1 + gstRate) : null;
     const paidToInstaller = installerPaid.get(id);
-    // Jo 3 Nov correction: installer-source jobs pass their full recorded/list fee to the installer; website leads use the office payout.
+    // Jo 4 Nov 2026 (final): on an installer's own customer the PIESA line IS the business's own PIESA rate (recorded quote
+    // line, else their rate card) and that same amount passes through to them in full — we keep nothing on that line
+    // (`safetyCheckPayeesFor`). Website leads: owner $349, the office payout to the electrician, the gap is ours.
     void piesaRate; void usualPiesaEx; void fallbackPiesa; void elec;
-    const piesaCostEx = ownerDirect ? 0 : paidToInstaller ? paidToInstaller.piesaIncGst / (1 + gstRate)
+    // J1 (4): no rate on the business never fails the whole list; J3 (3): a held PIESA cost is UNKNOWN (null → jobMargin's
+    // "Electrician PIESA rate not agreed" missing line), never $0 — the margin must not read as if the check were free.
+    const piesaCostEx = ownerDirect ? 0 : paidToInstaller ? (paidToInstaller.piesaIncGst == null ? null : paidToInstaller.piesaIncGst / (1 + gstRate))
       : safetyCheckPayoutIncGst({ channel: j.channel, offerRateInc: offerRate.get(id) ?? null, ownerPriceIncGst: ownerPiesa, hivPayoutIncGst: hivPayout }) / (1 + gstRate);
     const l = lodg.find((x) => x.job_id === id);
     const v = veecValueReceived({ lodgedQty: num(l?.quantity), salePrice: num(l?.sale_price_per_veec), quoteCount: num(inst?.veec_count), spotPrice: spot.price });
@@ -163,7 +169,8 @@ export async function moneyPayouts(testJobIds?: string[]) {
   const elecIds = [...new Set([...asg.filter((a) => a.role === "electrician").map((a) => a.business_id), ...visitBiz])];
   const { data: rates } = elecIds.length ? await db.from("electrician_rates").select("business_id, rate_inc_gst, effective_from").in("business_id", elecIds).eq("service_type", "piesa").in("status", ["active", "approved"]).order("effective_from", { ascending: false }) : { data: [] };
   // Jo 3 Nov 2026: our leads pay the electrician the office payout ($275), unless the accepted offer recorded a rate
-  // (HV-3682 stays $349); installer jobs pass the owner's $349 through.
+  // (HV-3682 stays $349). Jo 4 Nov 2026 (final): installer jobs pass the business's own PIESA rate through in full
+  // (`safetyCheckPayeesFor` — the recorded quote line, else their rate card; none → held, never $349).
   void rates;
   const hivPayoutInc = hivElectricianPayoutIncGst(pricing?.piesa_rec_cost_ex_gst ?? null, gst - 1);
   const [ownerPiesaInc, offerRates] = await Promise.all([standardOwnerPiesa(), acceptedPiesaOfferRates(ids)]);
@@ -198,15 +205,22 @@ export async function moneyPayouts(testJobIds?: string[]) {
     const safetyVisits: ({ id: string; business_id: string | null } | null)[] = elecVisits.filter((b) => b.job_id === id && b.kind === "assessment");
     if (!safetyVisits.length && atFinal) safetyVisits.push(null);
     const paidVisit = (v: { id: string } | null) => safetyVisitPaidAt(paidEv.filter((e) => e.job_id === id), safety.get(id), v?.id ?? null);
-    if (paidToInstaller) for (const v of safetyVisits)
-      lines.push({ jobId: id, jobNumber: j.job_number, businessId: paidToInstaller.businessId, business: `${paidToInstaller.name} (safety checks by their electricians)`, kind: "assessment", amountEx: Math.round((paidToInstaller.piesaIncGst / gst) * 100) / 100, dueAt: null, paidAt: paidVisit(v), ...(v ? { visitId: v.id } : {}) });
+    // J1 (4): a business with no PIESA rate (and no recorded line) gets one $0 row held "No PIESA rate set — ask the office".
+    // J3 (3) nit: a business no longer on file (payee businessId "") is a held row with no business id — never a payable
+    // group keyed to an empty id.
+    if (paidToInstaller) for (const v of safetyVisits) {
+      const noBusiness = !paidToInstaller.businessId;
+      const held = [...(paidToInstaller.piesaIncGst == null ? [PIESA_RATE_NOT_SET_ROW] : []), ...(noBusiness ? [PAYEE_BUSINESS_MISSING_ROW] : [])];
+      lines.push({ jobId: id, jobNumber: j.job_number, businessId: noBusiness ? null : paidToInstaller.businessId, business: `${paidToInstaller.name} (safety checks by their electricians)`, kind: "assessment", amountEx: paidToInstaller.piesaIncGst == null ? 0 : Math.round((paidToInstaller.piesaIncGst / gst) * 100) / 100, dueAt: null, paidAt: paidVisit(v), ...(v ? { visitId: v.id } : {}), ...(held.length ? { held } : {}) });
+    }
     if (elec && !ownerDirect) {
       // dueAt for electrician lines is set below from the decision-355 rule.
       if (!paidToInstaller) for (const v of safetyVisits) {
         const biz = v?.business_id ?? elec.business_id;
         lines.push({ jobId: id, jobNumber: j.job_number, businessId: biz, business: bizName.get(biz) ?? (biz === elec.business_id ? name(elec) : "Not assigned"), kind: "assessment", amountEx: piesaExFor(id, biz), dueAt: null, paidAt: paidVisit(v), ...(v ? { visitId: v.id } : {}) });
       }
-      if (quotes.some((q) => q.job_id === id && q.kind === "rectification") && (atFinal || visited("rectification"))) lines.push({ jobId: id, jobNumber: j.job_number, businessId: elec.business_id, business: name(elec), kind: "rectification", amountEx: costOf(id, "rectification"), dueAt: null, paidAt: paidFor("rectification") });
+      // G6 S8 (Jo 4 Nov 2026 "WE DON'T PAY UPGRADES"): the electrician bills the upgrades (always, since 2 Nov) — no line.
+      if (!electricianBillsUpgrades(id) && quotes.some((q) => q.job_id === id && q.kind === "rectification") && (atFinal || visited("rectification"))) lines.push({ jobId: id, jobNumber: j.job_number, businessId: elec.business_id, business: name(elec), kind: "rectification", amountEx: costOf(id, "rectification"), dueAt: null, paidAt: paidFor("rectification") });
     }
   }
   // Decision 318: no payout is payable until the matching Mitti form is Complete and its evidence checks pass.
@@ -385,7 +399,7 @@ export async function createInvoiceForJob(jobId: string, actorId: string | null)
   return { ok: true };
 }
 
-/** The single standard owner safety-check price ($349). */
+/** The single standard owner safety-check price ($349) — Home Insulation Victoria leads only (own customers use their installer's rate). */
 async function standardOwnerPiesa(): Promise<number> {
   const { data, error } = await db.from("retail_estimator_settings").select("piesa_assessment_inc_gst").eq("is_current", true).maybeSingle();
   if (error) throw new Error(`Could not read the standard safety check price: ${error.message}`);

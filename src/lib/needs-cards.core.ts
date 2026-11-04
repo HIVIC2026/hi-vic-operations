@@ -27,9 +27,9 @@ export const NEEDS_CARD_TITLE: Record<NeedsCardId, string> = {
 
 const CARD_OF: Record<NeedsKind, NeedsCardId> = {
   install_scope_change:'other',
-  in_house_esc_lead_changed:'deadlines',in_house_handed_back:'other',address_to_confirm:'other',mitti_electrician_choice:'other',own_job_piesa_held:'other',own_job_piesa_complete_held:'other',same_day_part_c_failed:'other',own_job_piesa_handed_back:'other',own_job_swap_form_not_moved:'other',own_job_installer_not_told:'other',
+  in_house_esc_lead_changed:'deadlines',in_house_handed_back:'other',address_to_confirm:'other',mitti_electrician_choice:'other',own_job_piesa_held:'other',same_day_part_c_failed:'other',own_job_piesa_handed_back:'other',own_job_swap_form_not_moved:'other',own_job_installer_not_told:'other',
   paid_gate_blocked: "owner",
-  in_house_form_sync_failed:'failed',install_deposit_request_failed:'payments',
+  in_house_form_sync_failed:'failed',install_deposit_request_failed:'payments',piesa_auto_complete_held:'failed',
   in_house_ready_check_not_booked: "other", in_house_piesa_overdue: "other", in_house_install_not_booked: "clock",
   choose_again: "offers", release_lapsed: "offers",
   sign_consent: "deadlines", esc_window: "deadlines", prestart_failed: "deadlines",
@@ -39,10 +39,14 @@ const CARD_OF: Record<NeedsKind, NeedsCardId> = {
   email_change: "emails", email_unmatched: "unmatched",
   choose_installer: "other", choose_electrician: "electrician", eligibility_review: "other",
   piesa_owner_unsigned: "owner", piesa_fixes_owner_unsigned: "owner", fixes_times_missing: "owner", booking_overdue: "owner", piesa_rules_failed: "owner", life_support_plan: "owner",
-  veec_a_held: "veec", veec_day_10: "veec",
+  veec_a_held: "veec", veec_b_held: "veec", veec_day_10: "veec",
   invoice_failed: "payments", old_fixes_invoice_unpaid: "payments", old_fixes_invoice_paid: "payments", payment_not_in_xero: "payments", payment_overdue: "payments", payment_reversed: "payments", payment_stalled: "payments", mitti_form_problem: "other",
-  ten_days_left: "clock", lapsed_window: "clock", second_no_access: "clock", repeat_piesa_choose: "clock",
+  ten_days_left: "clock", lapsed_window: "clock", upgrades_past_30_days: "clock", second_no_access: "clock", repeat_piesa_choose: "clock", tenant_notice_held: "clock",
   piesa_fixes_found: "other", quote_expired_blocked: "owner", new_quote_installer: "other", new_quote_unfinished: "other", coes_check: "other", upgrades_day_not_set: "electrician", upgrades_day_red: "clock", certificate_not_in: "electrician",
+  // Part 9 Tasks 11/12: a refund after VEEC creation (Payments); complaint acknowledge / resolve clocks (deadlines).
+  veec_refunded: "payments", complaint_ack_due: "deadlines", complaint_resolve_due: "deadlines",
+  // G7: a Ready Check tomorrow with nobody picked to go (installer side).
+  ready_check_person_missing: "other",
 };
 
 export const cardOf = (kind: NeedsKind): NeedsCardId => CARD_OF[kind] ?? "other";

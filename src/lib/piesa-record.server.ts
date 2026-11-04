@@ -70,9 +70,11 @@ export async function applyPiesaRecord(r: PostRectificationRecord): Promise<{ re
     mittiSource ? { source: mittiSource.kind, audit_id: mittiSource.auditId, record_id: rec?.id ?? null } : {});
   recordId = rec?.id ?? null;
   }
+  // Jo 2 Nov (answer 21) / Part 4 fix wave C1: the deposit is requested on ANY recorded PIESA result (idempotent per invoice:
+  // a job whose first PIESA already asked for it gets no second request after the later Section C / CoES). Before the stage
+  // moves, so a held transition never skips it.
+  await (await import('./deposit-request.server')).requestInstallDeposit(r.jobId).catch(e=>console.error('Install deposit request held',e instanceof Error?e.message:'read failed'));
   if (post && r.outcome === "pass") {
-    // Electrical work is recorded done even when the separate owner-declaration stage guard holds scheduling.
-    await (await import('./deposit-request.server')).requestInstallDeposit(r.jobId).catch(e=>console.error('Install deposit request held',e instanceof Error?e.message:'read failed'));
     if (!duplicate) {
     await admin.from("compliance_checks").update({ status: "pass", checked_at: new Date().toISOString() }).eq("job_id", r.jobId).in("check_key", ["rectification", "electrical_assessment"]);
     await admin.from("bookings").update({ status: "completed" }).eq("job_id", r.jobId).eq("kind", "rectification").eq("status", "confirmed");
@@ -92,8 +94,7 @@ export async function applyPiesaRecord(r: PostRectificationRecord): Promise<{ re
     catch (e) { if (!(e instanceof WorkflowError)) throw e; await admin.from("jobs").update({ next_action: e.message.replace(/^Blocked:\s*/, "") }).eq("id", r.jobId); }
   }
   await autoAdvanceJob(r.jobId, r.actorId, "PIESA recorded");
-  if(r.kind==='reassessment' && r.outcome==='pass')await (await import('./deposit-request.server')).requestInstallDeposit(r.jobId).catch(e=>console.error('Install deposit request held',e instanceof Error?e.message:'read failed'));
   // Decision 186: fixes complete + Section C signed is electrical clearance — tell the installer once (nothing when not cleared).
-  try { await (await import("./install-clearance.server")).notifyInstallerClearance(r.jobId); } catch (e) { console.error("install clearance notice failed", (e as Error).message); }
+  // Part 4 Task 14: the decision 186 "cleared — offer 3 install days" installer notice is retired (the installer calls the owner to book).
   return { recordId };
 }

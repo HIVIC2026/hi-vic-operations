@@ -5,12 +5,16 @@
 // `ownerPiesaLineIncGst`, our-lead-piesa-electrician.core). Installer-supplied jobs never use this (no installer markup there).
 export const HIV_PRICING_RULE = "hiv_fixed_owner_price_v1";
 const r2 = (n: number) => Math.round(n * 100) / 100;
+import { piesaItemLabel } from "./quote-wording.core";
 import { productQuoteDescription, type ProductRValue, type InsulationProduct } from "./insulation-product.core";
 
 /** Jo's rule: we are the "Accredited Person", never "Accredited Provider" (27 Oct 2026: quote, My job and invoice too). */
 export const AP_FEE_DESCRIPTION = "Accredited Person fee (Home Insulation Victoria)";
 /** Older quotes still store the old fee name; shown and invoiced with the current one (amounts never change). */
-export const currentFeeWording = (s: string) => s.replace(/Accredited Provider/g, "Accredited Person");
+/** Display mapping for quote item descriptions wherever an owner sees them (page, email, PDFs, invoice): "Accredited Provider"
+ *  → "Accredited Person"; Jo 4 Nov 2026 21:05: "Mandatory Pre Insulation Electrical Safety Assessment (PIESA)" → "Electrical
+ *  safety check (PIESA)". Stored descriptions are never rewritten. */
+export const currentFeeWording = (s: string) => piesaItemLabel(s.replace(/Accredited Provider/g, "Accredited Person"));
 
 /** Jo 22 Oct 2026: owner R6.0 price inc GST per m² ($33 from 29 Oct 2026, was $32; decision 427); Jo 27 Oct 2026: R7.0 $35 (was $33). R5.0 stays the office-set owner price ($30). */
 export const OWNER_HIGHER_R_INC_PER_M2: Record<Exclude<ProductRValue, "R5.0">, number> = { "R6.0": 33, "R7.0": 35 };

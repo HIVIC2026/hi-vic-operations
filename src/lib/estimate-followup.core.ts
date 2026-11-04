@@ -12,6 +12,8 @@
 // (O66 day 2, O67 day 7, O68 day 21). Real owners still need `customer_comms_enabled` (and consent); if the flag were
 // ever false, real owners get nothing and nothing is closed (a close needs a recorded day-21 send); TEST (qa_test) jobs
 // use test-send so the flow can be checked.
+import { ownCustomerPreQuoteBlocker } from "./own-customer-messages.core";
+import { oneTapSaveUrl } from "./one-tap-save.core";
 import * as K from "./email-kit.core";
 import { mjEmail } from "./mail-mjml.core";
 import { mjHeadline, mjRebateAndPrice, mjSmallEnd, mjSubSection, rebateAndPriceText } from "./jo-outcome-email.core";
@@ -46,6 +48,8 @@ const t = (iso: string) => Date.parse(iso);
 
 export type EstimateFollowupFacts = {
   stage: string | null; source: string | null; deletedAt: string | null; qaArchivedAt: string | null;
+  /** Part 10 Task 8: installer's own customers (installer_sourced) never get estimate reminders. Absent = unknown = unchanged. */
+  channel?: string | null;
   /** When the Save my spot estimate email was sent (customer_email_sends.sent_at); null = never offered. */
   estimateEmailedAt: string | null;
   spotSavedAt: string | null;
@@ -77,6 +81,7 @@ export function estimateFollowupStop(f: EstimateFollowupFacts): string | null {
   if (f.qaArchivedAt) return STOP.archived;
   if (f.stage !== ESTIMATE_FOLLOWUP_STAGE) return STOP.moved;
   if (!f.estimateEmailedAt) return STOP.not_offered;
+  { const own = ownCustomerPreQuoteBlocker(f.channel); if (own) return own; }
   if (f.spotSavedAt) return STOP.saved;
   if (f.optedOut) return STOP.opted_out;
   if (f.repliedAt && t(f.repliedAt) >= t(f.estimateEmailedAt)) return STOP.replied;
@@ -150,7 +155,7 @@ export function estimateFollowupCopy(step: EstimateFollowupStep, first: string, 
       preview: price ? `Your price could be ${price} after the rebate. Saving your spot takes a few seconds.` : "Saving your spot takes a few seconds.",
       intro: `A couple of days ago we sent your ceiling insulation estimate. Nothing has changed: the ${rebate} Victorian Energy Upgrades rebate is still available and your spot is still open.`,
       saveTitle: SAVE_TITLE,
-      save: "Thousands of Victorians have registered. Spots are released in the order they were saved. It takes a few seconds. No payment, no obligation.",
+      save: "Spots are released in the order they were saved. It takes a few seconds. No payment, no obligation.",
       after: null,
       closing: REPLY,
     };
@@ -180,12 +185,12 @@ export function renderEstimateFollowupEmail(i: EstimateFollowupEmailInput): { su
   const rebate = K.whole(i.rebate), price = K.whole(i.price);
   const c = estimateFollowupCopy(i.step, first, rebate, price);
   const some = i.someInsulation === true;
-  const box = { rebateLabel: some ? "Your potential rebate" : "Your estimated rebate", rebate: i.rebate, priceLabel: some ? "Your cost if eligible" : "You pay after the rebate", price: i.price, fullPrice: i.fullPrice, basis: i.basis, calculatorUrl: i.calculatorUrl };
+  const box = { rebateLabel: some ? "Your potential rebate" : "Your estimated rebate", rebate: i.rebate, priceLabel: some ? "Your estimated quote based on what you've told us" : "You pay after the rebate", price: i.price, fullPrice: i.fullPrice, basis: i.basis, calculatorUrl: i.calculatorUrl };
   const afterHtml = c.after ? K.esc(c.after).replace(COME_BACK_LABEL, `<a href="${COME_BACK_URL}" style="color:#3C51C4;font-weight:700;">${COME_BACK_LABEL}</a>`) : null;
   const body = [
     mjHeadline(c.subject, c.intro),
     mjRebateAndPrice(box),
-    mjSubSection(c.saveTitle, c.save, { href: i.saveUrl, label: SAVE_LABEL }),
+    mjSubSection(c.saveTitle, c.save, { href: oneTapSaveUrl(i.saveUrl), label: SAVE_LABEL }),
     afterHtml ? `<mj-section><mj-column><mj-text>${afterHtml}</mj-text></mj-column></mj-section>` : "",
     mjSmallEnd(K.esc(c.closing), "4px 12px 0"),
   ].filter(Boolean).join("\n");
@@ -193,7 +198,7 @@ export function renderEstimateFollowupEmail(i: EstimateFollowupEmailInput): { su
   const text = K.plainText([
     c.subject, "", c.intro, "",
     ...rebateAndPriceText(box), "",
-    c.saveTitle.toUpperCase(), c.save, `${SAVE_LABEL}: ${i.saveUrl}`, "",
+    c.saveTitle.toUpperCase(), c.save, `${SAVE_LABEL}: ${oneTapSaveUrl(i.saveUrl)}`, "",
     c.after, c.after ? "" : null, c.closing,
   ], { unsubscribe: i.unsubscribeUrl, testLabel: i.test === true });
   return { subject: c.subject, html, text };

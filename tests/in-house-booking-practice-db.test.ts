@@ -25,20 +25,25 @@ const DEADLINE = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10)
 await db.exec(`
 CREATE TYPE booking_kind AS ENUM ('assessment','ready_check','rectification','installation');
 CREATE TYPE booking_status AS ENUM ('proposed','confirmed','completed','cancelled');
-CREATE TABLE businesses(id uuid primary key, in_house boolean not null default false, pays_own_electricians boolean not null default false, rectification_billed_by text not null default 'hivic' CHECK(rectification_billed_by IN ('partner','hivic')), business_type text, onboarding_status text, is_active boolean, capabilities text[]);
+CREATE TABLE businesses(id uuid primary key, in_house boolean not null default false, pays_own_electricians boolean not null default false, rectification_billed_by text not null default 'hivic' CHECK(rectification_billed_by IN ('partner','hivic')), business_type text, onboarding_status text, is_active boolean, capabilities text[], name text, onboarding_notes text, public_liability_cover_amount numeric);
 CREATE TABLE business_members(id uuid primary key default gen_random_uuid(), business_id uuid references businesses(id), user_id uuid, active boolean not null default true, member_role text CHECK(member_role IN ('business_admin','member')));
 CREATE TABLE partner_workers(id uuid primary key default gen_random_uuid(),business_id uuid,profile_id uuid,full_legal_name text,email text,trade_role text,approval_status text,removed_at timestamptz,licence_number text,rec_number text,licence_expires_on text,licence_verified_at timestamptz);
-CREATE TABLE jobs(id uuid primary key, stage text, next_action text, source text, deleted_at timestamptz, signed boolean, fee_paid boolean, deposit_paid boolean, rectification_paid boolean, piesa_completed boolean, rectification_required boolean, part_c_signed boolean, install_deadline text);
+CREATE TABLE jobs(id uuid primary key, stage text, next_action text, source text, deleted_at timestamptz, signed boolean, fee_paid boolean, deposit_paid boolean, rectification_paid boolean, piesa_completed boolean, rectification_required boolean, part_c_signed boolean, install_deadline text, installation_completed_at timestamptz);
 CREATE TABLE job_assignments(id uuid primary key default gen_random_uuid(), job_id uuid references jobs(id), business_id uuid references businesses(id), user_id uuid, role text, active boolean not null default true, booking_confirmed_at timestamptz);
 CREATE TABLE bookings(id uuid primary key default gen_random_uuid(), job_id uuid not null references jobs(id), kind booking_kind not null, contractor_id uuid, assignment_id uuid references job_assignments(id), business_id uuid references businesses(id), scheduled_start timestamptz, scheduled_end timestamptz, booked_by uuid, notes text, status booking_status not null, created_at timestamptz not null default now());
 CREATE TABLE workflow_events(id uuid primary key default gen_random_uuid(), job_id uuid, actor_id uuid, event_type text not null, summary text, details jsonb, created_at timestamptz default now(), CONSTRAINT workflow_events_job_required CHECK(job_id IS NOT NULL OR event_type=ANY(ARRAY['email_unmatched','email_unmatched_dismissed','email_new_sender_replied','email_nojob_ai_draft','email_nojob_reply_sent','email_nojob_ai_draft_closed','email_nojob_followup_claim','email_nojob_followup_failed','email_nojob_ai_draft_failed'])));
 CREATE TABLE esc_notifications(id uuid primary key default gen_random_uuid(), job_id uuid references jobs(id), booking_id uuid references bookings(id), version integer, scheduled_start timestamptz, scheduled_end timestamptz, installation_days jsonb, premises_address text, owner_contact jsonb, consent_id uuid, consent_template_version text, consent_signed_at timestamptz, config_version text, payload_version text, payload_json jsonb, status text CHECK(status IN ('not_ready','configuration_required','ready','pending_submission','sent','accepted','error','stale','cancelled')), due_by timestamptz, earliest_send_at timestamptz, last_error text, updated_at timestamptz, created_at timestamptz default now(), sent_at timestamptz, submission_reference text, submission_method text, CHECK(status NOT IN ('sent','accepted') OR consent_id IS NOT NULL), CHECK(status NOT IN ('sent','accepted') OR (sent_at IS NOT NULL AND submission_reference IS NOT NULL AND submission_method IS NOT NULL)));
 `);
+// Part 9 Task 8 (Jo 2 Nov 2026): every booking kind runs the insurance hard block (business-docs.server, fail closed), so the
+// practice database carries the credential rows (with the pending amount column) and each run seeds a $10m verified policy + workers comp.
+await db.exec(`
+ALTER TABLE businesses ADD COLUMN workcover_exempt_declared_at timestamptz;
+CREATE TABLE business_credentials(id uuid primary key default gen_random_uuid(), business_id uuid references businesses(id), kind text not null, label text not null, expires_at date, verification text not null default 'pending', amount_insured_aud numeric);
+`);
 const rows = async <T,>(sql: string, args: unknown[] = []) => (await db.query<T>(sql, args)).rows;
 const job = async () => (await rows<any>("select * from jobs where id=$1", [JOB]))[0];
 class WorkflowError extends Error {}
 let failHeldRead = false;
-let failBillingRead = false;
 let rectificationGuardCalls = 0;
 let formCalls = 0, formAudits = 0, failForm = false;
 const shim = embedShim(db, { job_assignments: { businesses: { table: "businesses", fk: "business_id", on: "base" } } });
@@ -48,9 +53,6 @@ const admin = { from(table: string) {
     const select = query.select;
     query.select = (columns, ...args) => {
       if (failHeldRead && columns === "job_id, business_id, businesses(in_house)") throw new Error("read unavailable");
-      if (failBillingRead && columns === "businesses(in_house, rectification_billed_by)") {
-        query.single = async () => ({ data: null, error: { message: "billing read unavailable" } });
-      }
       return select(columns, ...args);
     };
   }
@@ -83,12 +85,12 @@ const overrides: Record<string, any> = {
   // This fixture exercises canonical gates; atomic persistence/parallel clicks are
   // proven separately on the real pending RPC in in-house-atomic-booking.test.ts.
   './in-house-atomic-save.server':{saveInHouseVisit:async(jobId:string,actor:string,input:any)=>{
-    await load('booking.server').validateBooking(jobId,input.kind,input.start,actor);
+    const validated=await load('booking.server').validateBooking(jobId,input.kind,input.start,actor);
     const existing=(await rows<any>('SELECT id FROM bookings WHERE job_id=$1 AND kind=$2 AND status=\'confirmed\' AND scheduled_start=$3',[jobId,input.kind,input.start]))[0];
     if(!existing)await load('booking.server').confirmBooking(jobId,input.kind,input.start,actor,'in-house partner');
     const saved=(await rows<any>('SELECT id FROM bookings WHERE job_id=$1 AND kind=$2 AND status=\'confirmed\'',[jobId,input.kind]))[0];
     if(input.kind==='ready_check'&&!existing){await db.query('UPDATE jobs SET next_action=$2 WHERE id=$1',[jobId,'Ready Check booked']);await logEvent(jobId,actor,'installer_ready_check_time_entered','Partner entered the Ready Check day and time');}
-    return {bookingId:saved.id,needsVerification:[]};
+    return {bookingId:saved.id,needsVerification:[],warnings:validated.warnings??[]};
   }},
   './in-house-booking.server':{prepareBookingWorker:async()=>({id:MEMBER,name:'TEST worker',phone:null}),notifyOwnerBooked:async()=>{}},
   "@/integrations/supabase/client.server": { supabaseAdmin: admin },
@@ -130,6 +132,7 @@ function load(name: string, cache: Record<string, any> = {}): any {
     if (path.startsWith("./")) return load(path.slice(2), cache);
     // Trade-view's static pure imports are irrelevant to this new member-scoped wrapper.
     if (name === "trade-view.server") return {};
+    if (path.startsWith("node:")) return require(path); // #135 job-facts.server uses AsyncLocalStorage (join 4 Nov 2026)
     throw new Error(`Unexpected dependency ${path}`);
   };
   new Function("exports","require",...Object.keys(extra),ts.transpile(source,{ module: ts.ModuleKind.CommonJS,target: ts.ScriptTarget.ES2022 }))(out,req,...Object.values(extra));
@@ -138,10 +141,11 @@ function load(name: string, cache: Record<string, any> = {}): any {
 const book = async (kind = "installation", actor = MEMBER, start = START) => load("trade-view.server").inHouseBookVisit(actor, { jobId: JOB, kind, start,workerId:MEMBER });
 const patch = async (field: string, value: unknown) => db.query(`update jobs set "${field}"=$1 where id=$2`, [value,JOB]);
 beforeEach(async () => {
-  failHeldRead = false; failBillingRead = false; rectificationGuardCalls = 0; formCalls = 0; formAudits = 0; failForm = false;
-  await db.exec("truncate partner_workers,esc_notifications,workflow_events,bookings,job_assignments,business_members,jobs,businesses cascade");
+  failHeldRead = false; rectificationGuardCalls = 0; formCalls = 0; formAudits = 0; failForm = false;
+  await db.exec("truncate partner_workers,esc_notifications,workflow_events,bookings,job_assignments,business_members,jobs,business_credentials,businesses cascade");
   await db.query("insert into businesses(id,in_house,rectification_billed_by,business_type,onboarding_status,is_active,capabilities) values($1,true,'partner','eec_installer','approved',true,ARRAY['installer','electrician']),($2,false,'hivic','eec_installer','approved',true,ARRAY['installer'])", [BIZ,OTHER]);
   await db.query("insert into business_members(business_id,user_id,member_role) values($1,$2,'member'),($3,$4,'business_admin')", [BIZ,MEMBER,OTHER,OUTSIDER]);
+  await db.query("insert into business_credentials(business_id,kind,label,expires_at,verification,amount_insured_aud) values($1,'public_liability_insurance','Public liability','2099-01-01','verified',10000000),($1,'workers_comp_insurance','Workers comp','2099-01-01','verified',null)", [BIZ]);
   await db.query("insert into jobs(id,stage,source,deleted_at,signed,fee_paid,deposit_paid,rectification_paid,piesa_completed,rectification_required,part_c_signed,install_deadline) values($1,'installation_scheduling','base44',null,true,true,true,false,true,false,true,$2)",[JOB,DEADLINE]);
   for (const role of ["installer","electrician"]) await db.query("insert into job_assignments(job_id,business_id,user_id,role) values($1,$2,$3,$4)",[JOB,BIZ,MEMBER,role]);
   await db.query("INSERT INTO partner_workers(business_id,profile_id,full_legal_name,email,trade_role,approval_status,licence_number,rec_number,licence_expires_on,licence_verified_at) VALUES ($1,$2,'TEST electrician','e@example.invalid','electrician','approved','A123','REC456','2099-01-01',now())",[BIZ,MEMBER]);
@@ -162,9 +166,9 @@ test("PIESA not complete returns the existing electrical clearance blocker", asy
   await patch("piesa_completed",false);
   expect(await book()).toEqual({ ok: false, blockers: ["Installation cannot be arranged yet: PIESA not completed and signed yet."] });
 });
-test("required Part C unsigned returns the existing clearance blocker", async () => {
+test("required Part C unsigned: the install is booked with the upgrades warning (Part 9 Task 10, Jo 2 Nov answer 21), never refused", async () => {
   await patch("rectification_required",true); await patch("part_c_signed",false);
-  expect(await book()).toEqual({ ok: false, blockers: ["Installation cannot be arranged yet: Section C not completed and signed yet."] });
+  expect(await book()).toMatchObject({ ok: true, warnings: [allocation.UPGRADES_NOT_DONE_WARNING] });
 });
 test("owner acceptance still blocks installation", async () => {
   await patch("signed",false);
@@ -186,35 +190,19 @@ test("partner-billed rectification skips only the HIV rectification payment guar
   await patch("stage","rectification_scheduling");
   expect((await book("rectification")).ok).toBe(true); expect(rectificationGuardCalls).toBe(0);
 });
-test("Home Insulation Victoria billed rectification still requires upfront payment", async () => {
+// J5 (4 Nov 2026): the Home Insulation Victoria-billed upgrades path is retired — Part 3 Task 1 (Jo 2 Nov 2026,
+// upgrades-billing.core electricianBillsUpgrades) has the electrician bill the upgrades on EVERY job, so the old "HIV billed
+// rectification requires upfront payment" / "non-in-house cannot bypass the gate" / "billing read fails closed" cases no
+// longer describe the product: no booking path reads businesses.rectification_billed_by for this gate any more.
+test("the upgrades visit books without any Home Insulation Victoria fixes payment on every business setting (electricians bill upgrades)", async () => {
   await patch("stage","rectification_scheduling"); await db.query("update businesses set rectification_billed_by='hivic' where id=$1",[BIZ]);
-  expect(await book("rectification")).toEqual({ ok: false, blockers: [`Blocked: ${FIXES_NOT_PAID_BLOCKER}`] });
-  expect(rectificationGuardCalls).toBe(1);
-  await patch("rectification_paid",true); expect((await book("rectification")).ok).toBe(true);
+  expect((await book("rectification")).ok).toBe(true); expect(rectificationGuardCalls).toBe(0);
+  await db.exec("truncate bookings cascade");
+  await db.query("update businesses set in_house=false where id=$1",[BIZ]);
+  await load("booking.server").confirmBooking(JOB,"rectification",START,MEMBER,"partner");
+  expect(rectificationGuardCalls).toBe(0);
+  expect(await rows("select id from bookings where kind='rectification' and status='confirmed'")).toHaveLength(1);
 });
-test("non-in-house partner setting cannot bypass the existing rectification payment gate", async () => {
-  await patch("stage","rectification_scheduling"); await db.query("update businesses set in_house=false where id=$1",[BIZ]);
-  await expect(load("booking.server").confirmBooking(JOB,"rectification",START,MEMBER,"partner")).rejects.toThrow(`Blocked: ${FIXES_NOT_PAID_BLOCKER}`);
-  expect(rectificationGuardCalls).toBe(1);
-  expect(await rows("select id from bookings")).toHaveLength(0);
-});
-for (const point of ["held", "billing"] as const) {
-  test(`direct rectification booking fails closed when the ${point} read fails`, async () => {
-    await patch("stage", "rectification_scheduling");
-    failHeldRead = point === "held"; failBillingRead = point === "billing";
-    await expect(load("booking.server").confirmBooking(JOB, "rectification", START, MEMBER, "partner"))
-      .rejects.toThrow("Couldn't check the job's partner — please try again.");
-    expect(await rows("select id from bookings")).toHaveLength(0);
-    expect(await rows("select id from workflow_events")).toHaveLength(0);
-    // Prove the read failure cannot become the partner-billed payment exception.
-    failHeldRead = false; failBillingRead = false;
-    await db.query("update businesses set rectification_billed_by='hivic' where id=$1", [BIZ]);
-    await expect(load("booking.server").confirmBooking(JOB, "rectification", START, MEMBER, "partner"))
-      .rejects.toThrow(`Blocked: ${FIXES_NOT_PAID_BLOCKER}`);
-    expect(rectificationGuardCalls).toBe(1);
-    expect(await rows("select id from bookings")).toHaveLength(0);
-  });
-}
 test("other business member is forbidden and cannot see booking controls", async () => {
   expect(await book("installation",OUTSIDER)).toEqual({ ok: false, blockers: ["forbidden"] });
   expect((await load("trade-view.server").inHouseBookingAccess(OUTSIDER,JOB)).allowed).toBe(false);
@@ -225,74 +213,36 @@ test("held lookup read failure fails closed", async () => {
   expect(await book()).toEqual({ ok: false, blockers: ["Couldn't check the job's partner — please try again."] });
   expect(await rows("select id from bookings")).toHaveLength(0);
 });
-test("TEST and deleted jobs are excluded only from this new booking surface", async () => {
+test("J4 G4: a TEST job is booked here ONLY by the TEST business (the one scripts/installer-test.ts drives); deleted jobs are excluded", async () => {
+  // Any ordinary business never sees a TEST job on this surface (main 4f3c495c pin, kept for non-TEST businesses).
   await patch("source","qa_test"); expect(await book()).toEqual({ ok: false, blockers: ["forbidden"] });
+  // The TEST business (name starts with "[TEST PARTNER]", as installer-test.ts recognises it) books its TEST jobs like any other.
+  await db.query("update businesses set name='[TEST PARTNER] Reinsulate' where id=$1",[BIZ]);
+  expect((await load("trade-view.server").inHouseBookingAccess(MEMBER, JOB)).allowed).toBe(true);
+  expect((await book()).ok).toBe(true);
+  await db.query("update businesses set name=null where id=$1",[BIZ]);
+  // The notes mark (test-send.core isTestPartner) counts too; a real-looking business does not.
+  await db.query("update businesses set onboarding_notes='[TEST PARTNER] practice' where id=$1",[BIZ]);
+  expect((await load("trade-view.server").inHouseBookingAccess(MEMBER, JOB)).allowed).toBe(true);
+  await db.query("update businesses set onboarding_notes=null where id=$1",[BIZ]);
+  expect(await book()).toEqual({ ok: false, blockers: ["forbidden"] });
   await patch("source","base44"); await patch("deleted_at",START); expect(await book()).toEqual({ ok: false, blockers: ["forbidden"] });
-});
+}, 30000);
 test("Ready Check also uses the existing booking writer", async () => {
   await patch("stage","ready_check_ready_to_schedule"); expect((await book("ready_check")).ok).toBe(true);
   expect(await rows("select id from bookings where kind='ready_check'")).toHaveLength(1);
 });
 
 // Execute the real page's card-selection conditions, rather than matching source strings.
-function pageCardConditions(component: string, access: unknown, panel = "offer_install_days") {
-  const source = ts.createSourceFile("field.tsx", readFileSync("src/routes/_authenticated/field.$jobId.tsx", "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
-  const conditions: string[] = [];
-  const walk = (node: ts.Node) => {
-    if (ts.isJsxExpression(node) && node.expression && ts.isBinaryExpression(node.expression)) {
-      const e = node.expression;
-      if (e.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken && ts.isJsxSelfClosingElement(e.right) && e.right.tagName.getText(source) === component) conditions.push(e.left.getText(source));
-    }
-    ts.forEachChild(node, walk);
-  };
-  walk(source);
-  return conditions.map(condition => new Function("inHouseAccess", "role", "next", "job", "a1ReadyCheckEntryAllowed", `return ${condition}`)(access, "electrician", { panel }, { channel: "installer_sourced", stage: "ready_check_ready_to_schedule" }, () => true));
-}
-for (const state of ["loading", "error"]) {
-  test(`${state} in-house access keeps legacy scheduling available and hides partner controls`, () => {
-    const access = { data: undefined, isLoading: state === "loading", isError: state === "error" };
-    for (const component of ["ElectricianPiesaTimesCard", "FixesTimesCard", "InstallerInstallDays", "InstallerReadyCheckTimesCard", "A1ReadyCheckTimeCard"]) {
-      const panel = component === "InstallerReadyCheckTimesCard" ? "ready_check_offer_times" : component === "A1ReadyCheckTimeCard" ? "ready_check_set_time" : "offer_install_days";
-      expect(pageCardConditions(component, access, panel)).toEqual([true]);
-    }
-    expect(renderBookingCard(access)).toBe("");
-  });
-}
-test("in-house install keeps its booked panel but not the legacy offer panel", () => {
-  expect(pageCardConditions("InstallerInstallDays", { data: { allowed: true } }, "install_booked")).toEqual([true]);
-  expect(pageCardConditions("InstallerInstallDays", { data: { allowed: true } }, "offer_install_days")).toEqual([false]);
-});
-function renderBookingCard(access: unknown) {
-  const out: any = {};
-  const element = (props: any) => React.createElement("div", props, props.children);
-  const deps: Record<string, any> = {
-    react: React, "react/jsx-runtime": require("react/jsx-runtime"),
-    "@tanstack/react-query": { useQuery: (o:any) => o.queryKey[0]==="in-house-booking-team" ? {data:{workers:[],depositPaid:true,selection:null}} : access, useQueryClient: () => ({ invalidateQueries: async () => {} }) },
-    "@tanstack/react-start": { useServerFn: (fn: unknown) => fn }, sonner: { toast: {} },
-    "@/lib/trade-view.functions": {}, "@/lib/in-house-booking.core": require("../src/lib/in-house-booking.core"), "@/lib/install-days.core": installDays,
-    "@/lib/office-list-refresh": { markOfficeChanged: () => {} },
-    "@/components/ui/input": { Input: (p: any) => React.createElement("input", p) },
-    "@/components/ui/label": { Label: element }, "@/components/ui/button": { Button: element }, "./installer-kit": { Group: element },
-    "./TeamElectricianPicker": { TeamElectricianPicker: () => null },
-  };
-  const code = ts.transpile(readFileSync("src/components/trade/InHouseBookingCard.tsx", "utf8"), { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX });
-  new Function("exports", "require", code)(out, (path: string) => deps[path]);
-  return renderToStaticMarkup(React.createElement(out.InHouseBookingCard, { jobId: JOB }));
-}
-test("partner card shows the current booking date, Melbourne time and status for every visit", () => {
-  const bookings = ["ready_check", "assessment", "rectification", "installation"].map(kind => ({ id: kind, kind, scheduled_start: "2026-11-02T22:00:00.000Z", status: "confirmed" }));
-  const html = renderBookingCard({ data: { allowed: true, blockers: [], bookings } });
-  expect(html.match(/3 Nov 2026/g)).toHaveLength(4);
-  expect(html.match(/9:00 am/g)).toHaveLength(4);
-  expect(html.match(/Confirmed/g)).toHaveLength(4);
-});
+// Task 11 (installer screens): the four-form partner booking card and the legacy time-offer cards on the job page are
+// gone (the Next step box books through the same guarded writers), so their render/condition tests went with them.
 test("current bookings are read only for the job's own active in-house member", async () => {
   await book("installation");
   const own = await load("trade-view.server").inHouseBookingAccess(MEMBER, JOB);
   expect(own.bookings).toHaveLength(1);
   expect(own.bookings[0]).toMatchObject({ kind: "installation", status: "confirmed" });
   expect((await load("trade-view.server").inHouseBookingAccess(OUTSIDER, JOB)).bookings ?? []).toEqual([]);
-});
+}, 30000); // a real booking through every gate plus two bundle reads (J3+J4 review (6))
 test("actual PIESA booking refuses unverified Team electrician with Jo's message and no booking", async () => {
   await patch("stage","piesa_and_install_window_pending");
   await db.query("UPDATE partner_workers SET licence_verified_at=null WHERE business_id=$1",[BIZ]);
@@ -318,7 +268,7 @@ test("in-house Ready Check schedules its form once; repeated callback retains on
   if (retry.ok) expect(await rows("select id from bookings where kind='ready_check'")).toHaveLength(1);
   await patch("stage", "installation_scheduling"); await book("installation");
   expect(formCalls).toBe(0); // forms run through recorded work, not in the booking response
-});
+}, 30000); // three real bookings through every gate (J3+J4 review nit 6)
 test("Ready Check Mitti failure keeps the confirmed booking and logs without undo", async () => {
   await patch("stage", "ready_check_ready_to_schedule"); failForm = true;
   const original = console.error; const errors: unknown[] = []; console.error = (...args) => errors.push(args);

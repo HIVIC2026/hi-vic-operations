@@ -1,5 +1,7 @@
 // Pure measurement provenance. Floor plan and Aerial image (Jo 4 Nov) answers never fall back to hidden dimensions.
-import { labelledItems } from './install-day.core';
+// Import-free on purpose: ceiling-layout.core → ready-check-basics.core → the installer My work route load this file, so the
+// Mitti media walk (`floorPlanFiles`) lives in ready-check-floor-plan-files.core.ts (join step 7: the home graph had grown to
+// 638 KB through install-day.core / mitti.core / official-forms.core; tests/trade-home-first-load pins the budget).
 export const FLOOR_PLAN_Q = {
  method: 'How did you measure this area?', area: 'Ceiling area from the floor plan (m²)', file: 'Upload the floor plan (photo or PDF)',
  instruction: "Got a floor plan for the whole house? Pick Floor plan and add just one area called 'Whole house'.",
@@ -20,11 +22,4 @@ export function floorPlanMeasurement(entries: {label:string;value:unknown}[]) {
  const raw=values(q.area), s=String(raw[0]??'').trim().replace(/,/g,'');
  const n=/^\d+(?:\.\d+)?$/.test(s)?Number(s):null;
  return {selected:kind!==null,kind,areaM2:kind&&raw.length===1&&n!==null&&n>0&&n<=5000?n:null,fileAnswered:values(q.file).some(v=>v!=null&&String(v).trim()!=='')};
-}
-export function floorPlanFiles(audit:unknown) {
- return labelledItems(audit).flatMap(i=>{
-  const l=i.label.split('\n')[0]?.trim();
-  const kind:MeasuredSourceKind|null=l===FLOOR_PLAN_Q.file?'floor_plan':l===AERIAL_Q.file?'aerial':null;
-  return kind?i.media.filter(f=>!!f.mediaId).map(f=>({...f,kind})):[];
- });
 }

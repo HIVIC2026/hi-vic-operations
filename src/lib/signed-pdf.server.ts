@@ -1,7 +1,10 @@
 // One way to turn a signed record's exact text into a PDF copy for the job file. Server-only.
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { pdfSafeText } from "./pdf-text.core";
+import { ownerVersionLabel } from "./owner-gates.core";
 import { LOGO_PNG } from "./email-hero-assets";
+import type { PdfBlock, PdfLayoutReport } from "./pdf-look.core";
+import { acceptancePage1, agreementSignedLine, type SignedAcceptanceInput } from "./signed-acceptance.core";
 
 export type SignedAcceptanceCopy = {
   ownerName: string; address: string; totalIncGst: number; signedAt: string; jobNumber: string;
@@ -49,7 +52,7 @@ export async function signedAcceptancePdf(copy: SignedAcceptanceCopy): Promise<U
   const time = new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", hour: "numeric", minute: "2-digit", hour12: true, timeZoneName: "short" }).format(new Date(copy.signedAt));
   print(`Signed: ${date}, ${time} (Melbourne time)`); y -= 18;
   for (const item of copy.items) {
-    print(`${item.title} (version ${item.version})`, 11, true);
+    print(`${item.title} (version ${ownerVersionLabel(item.version)})`, 11, true);
     print(item.text); y -= 16;
   }
   return pdf.save();
@@ -96,4 +99,19 @@ export async function textToPdf(header: string, text: string, images: Record<str
     flush();
   }
   return pdf.save();
+}
+
+/** Website-look signed acceptance: page 1 (quote, scope, ticks, both signatures) then the full agreement with its "Signed" box. */
+export async function signedAcceptancePdfV2(i: SignedAcceptanceInput): Promise<{ bytes: Uint8Array; layout: PdfLayoutReport }> {
+  // Loaded here, not at the top: the legacy text PDFs above must not pull in fontkit and the bundled fonts (flags off).
+  const [{ agreementBlocks }, { renderPdf }] = await Promise.all([import("./customer-agreement-pdf.server"), import("./pdf-look.server")]);
+  const agr = agreementBlocks({ version: i.agreement.version, body: i.agreement.body }, i.agreement.facts, { keptInsulation: i.agreement.keptInsulation === true });
+  // The plain "Version x" line closes section 10 of the unsigned agreement; here the signed box carries it.
+  const versionLine = `Version ${i.agreement.version}`;
+  const strip = (bs: PdfBlock[]): PdfBlock[] => bs.map((b) => (b.kind === "section" ? { ...b, children: strip(b.children).filter((c) => !(c.kind === "para" && c.text === versionLine)) } : b));
+  const body = strip(agr);
+  const note: PdfBlock = { id: "signed-note", kind: "noteBox", label: "Signed", text: agreementSignedLine(i), sub: `Version ${i.agreement.version}, ${i.agreement.approvedOn}` };
+  const br = body.findIndex((b) => b.kind === "pageBreak");
+  body.splice(br < 0 ? body.length : br, 0, note);
+  return renderPdf({ title: "Signed acceptance of your quote", blocks: [...acceptancePage1(i), { id: "a-pb", kind: "pageBreak" }, ...body] });
 }

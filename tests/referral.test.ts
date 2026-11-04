@@ -2,11 +2,9 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "fs";
 import { clickBody, isReferralToken, newReferralToken, planReferralToken, referralDedupe, referralShareUrl, submissionBody } from "../src/lib/referral.core";
 import { publicPayload } from "../src/lib/estimatelink.core";
-import { renderFollowupEmail } from "../src/lib/followup-email";
 
 const src = (p: string) => readFileSync(p, "utf8");
 const JOB = "7f1c2b9e-1111-4222-8333-944455556666";
-const estimateUrl = `https://estimate.homeinsulationvictoria.com.au/estimate/${newReferralToken()}`;
 
 describe("referral tokens", () => {
   test("opaque, 43 chars, unique", () => {
@@ -67,12 +65,5 @@ describe("customer payload + emails", () => {
     expect(p.referralShareUrl).toBe(url);
     expect(Object.keys(p).sort()).toEqual(["estimate", "job", "referralShareUrl"]);
     expect(src("src/lib/referral.server.ts")).toMatch(/Full share URL only/);
-  });
-  test("follow-ups carry a small referral line only when supplied", () => {
-    const url = referralShareUrl(newReferralToken());
-    const a = renderFollowupEmail({ kind: "estimate_unopened_3d", estimateUrl, referralUrl: url });
-    expect(a.html).toContain("Know someone else thinking about ceiling insulation?");
-    expect(a.plainText).toContain(url);
-    expect(renderFollowupEmail({ kind: "estimate_unopened_3d", estimateUrl }).html).not.toContain("Know someone else");
   });
 });

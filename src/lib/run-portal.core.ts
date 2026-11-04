@@ -199,13 +199,9 @@ export function slotDue(s: Slot, now: Date): SlotDue {
 }
 
 // ---- owner cancels a confirmed window (Task 8) -------------------------------------------------------------------------------
-/** New INSTALLER text (Task 8): the owner cancelled a confirmed window. Own switch `run_slot_cancelled`, off until Jo switches
- *  it on; wording approved by Jo 30 Oct 2026 (Task 8 fix round 1). */
-export const RUN_SLOT_CANCELLED_SMS_TYPE = "run_slot_cancelled" as const;
-export const runSlotCancelledText = (f: { name: string | null | undefined; day: string; time: string; link: string }) =>
-  `Hi ${first(f.name)}, an owner cancelled their Ready Check on ${f.day} ${f.time}. To offer that time to a nearby waiting owner: ${f.link} - Home Insulation Victoria`;
+/** The owner cancelled a confirmed window: recorded once per window (the installer's "An owner cancelled their Ready
+ *  Check in your run" text, #40, was retired by Part 7 Task 9, Jo 2 Nov 2026 — the run page still shows the freed time). */
 export const runSlotCancelledKey = (runId: string, jobId: string, seq: number) => `run-slot-cancelled:v1:${runId}:${jobId}:${seq}`;
-export const runSlotCancelledSmsKey = (runId: string, jobId: string, seq: number) => `run-slot-cancelled-sms:v1:${runId}:${jobId}:${seq}`;
 /** "Fill from nearby waiting owners": the slot goes to ONE owner, once per cancelled window. */
 export const runSlotFilledKey = (runId: string, cancelledJobId: string, seq: number) => `run-slot-filled:v1:${runId}:${cancelledJobId}:${seq}`;
 /** Nearby = within 10 km of the cancelled home (the batch radius). */

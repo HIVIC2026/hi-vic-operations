@@ -101,6 +101,9 @@ export const CERTIFICATE_NOW_HELP = "No? We'll text you a link to add it later."
 /** `FormField.addedByDecision` marker for the Part 3 certificate questions: asked as written on new builds, but a template
  *  published before 3 Nov 2026 still validates without them (its old forms read as "not recorded"). */
 export const CERTIFICATE_NOW_ADDED = 20261103;
+/** Existing PIESA Mitti wording (unchanged); constants so the life support plan reader matches it exactly. */
+export const LIFE_SUPPORT_CONSENT_LABEL = "Have you received written consent or a medical plan? Please attach a photo of it.";
+export const LIFE_SUPPORT_ATTACHMENT_LABEL = "Written consent or medical plan (kept as an attachment to this assessment)";
 export const LIFE_SUPPORT_NOT_RECEIVED = "No – not received";
 const LIFE_SUPPORT_PRESENT_WHEN = "Life support = Yes";
 const LIFE_SUPPORT_CONSENT_WHEN = "Consent or medical plan received";
@@ -283,6 +286,10 @@ export function applianceRows(short: Record<string, unknown>): ApplianceRow[] {
   }
   return out;
 }
+/** DRAFT Mitti wording (Part 8 Task 1 — Jo has not approved yet). Shared by A3 PIESA and A5 Install day. */
+export const ADULT_PRESENT_LABEL = "Is an adult (18 or over) who understands what's happening at home with you?";
+/** DRAFT stop line shown in Mitti when the A3 answer is No. */
+export const ADULT_PRESENT_STOP_A3 = "Stop. Don't start. Leave and call the installer's office.";
 export const SHORT_PIESA_FIELDS: FormField[] = [
   pre("jobRef", "Job Reference ID"),
   pre("address", "Address including postcode"),
@@ -294,8 +301,10 @@ export const SHORT_PIESA_FIELDS: FormField[] = [
   { id: "inspectionDate", label: "Date of inspection", type: "date", required: true, source: "short onsite form" },
   pre("lifeSupportRecord", LIFE_SUPPORT_RECORD),
   yn("lifeSupportPresent", LIFE_SUPPORT_PRESENT),
-  { id: "lifeSupportConsent", label: "Have you received written consent or a medical plan? Please attach a photo of it.", type: "choice", required: true, choices: ["Yes – received Consent", "Yes – received Medical Plan", LIFE_SUPPORT_NOT_RECEIVED], when: LIFE_SUPPORT_PRESENT_WHEN, source: "short onsite form" },
-  { id: "lifeSupportAttachment", label: "Written consent or medical plan (kept as an attachment to this assessment)", type: "media", required: true, when: LIFE_SUPPORT_CONSENT_WHEN, source: "short onsite form" },
+  { id: "lifeSupportConsent", label: LIFE_SUPPORT_CONSENT_LABEL, type: "choice", required: true, choices: ["Yes – received Consent", "Yes – received Medical Plan", LIFE_SUPPORT_NOT_RECEIVED], when: LIFE_SUPPORT_PRESENT_WHEN, source: "short onsite form" },
+  { id: "lifeSupportAttachment", label: LIFE_SUPPORT_ATTACHMENT_LABEL, type: "media", required: true, when: LIFE_SUPPORT_CONSENT_WHEN, source: "short onsite form" },
+  // Not part of the official DEECA form (official-expand.core.ts must not map it). Old forms without it read as "not asked".
+  { ...yn("adultPresent", ADULT_PRESENT_LABEL), addedByDecision: 900, source: "Code of Conduct cl 6, 22 (Jo 2 Nov 2026) – not part of the official form" },
   yn("mainsSafe", "Is the mains power set-up safe? This means the mains cable in the ceiling is identified and marked, the main switch works and can be locked off, the ceiling is confirmed dead when the switch is off, and safety switches (RCDs) are fitted and tested."),
   { id: "mainsProblems", label: "Please tick each item that is not right.", type: "multichoice", required: true, choices: [...MAINS_PROBLEMS], when: "mainsSafe = No", source: "short onsite form" },
   yn("solarPresent", "Is there solar, a battery or a generator at the property?"),
@@ -393,8 +402,8 @@ export const SHORT_PIISA_FIELDS: FormField[] = [
   yn("powerInformed", "Has the household been told the power will be off during the installation?"),
   pre("lifeSupportRecord", LIFE_SUPPORT_RECORD),
   yn("lifeSupportConfirm", LIFE_SUPPORT_CONFIRM),
-  { id: "lifeSupportConsent", label: "Have you received written consent or a medical plan? Please attach a photo of it.", type: "choice", required: true, choices: ["Yes – received Consent", "Yes – received Medical Plan"], when: LIFE_SUPPORT_WHEN, source: "short onsite form" },
-  { id: "lifeSupportAttachment", label: "Written consent or medical plan (kept as an attachment to this assessment)", type: "media", required: true, when: LIFE_SUPPORT_WHEN, source: "short onsite form" },
+  { id: "lifeSupportConsent", label: LIFE_SUPPORT_CONSENT_LABEL, type: "choice", required: true, choices: ["Yes – received Consent", "Yes – received Medical Plan"], when: LIFE_SUPPORT_WHEN, source: "short onsite form" },
+  { id: "lifeSupportAttachment", label: LIFE_SUPPORT_ATTACHMENT_LABEL, type: "media", required: true, when: LIFE_SUPPORT_WHEN, source: "short onsite form" },
   pre("p2.installDate", "Installation date:", "date"),
   pre("p2.ap", "Accredited person name:"),
   pre("p2.company", "Installer company name:"),

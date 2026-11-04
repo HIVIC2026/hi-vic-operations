@@ -26,14 +26,23 @@ export async function hasCurrentOwnerContactConsent(jobId: string): Promise<bool
   return data.consent_status === "granted";
 }
 
-export async function assertOwnerContactConsent(jobId: string, what: string) {
+/** Compliance sends (legal copies, the tenant notice): an unsubscribe's not_granted row does not stop them; any other
+ *  not_granted, or none, still does (consentAllowsDelivery). */
+export async function ownerConsentAllowsDelivery(jobId: string, purpose: string): Promise<boolean> {
+  const { consentAllowsDelivery } = await import("./do-not-contact.core");
+  const { data, error } = await admin.from("owner_contact_consents").select("consent_status, source").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  return !error && consentAllowsDelivery(data, purpose);
+}
+
+export async function assertOwnerContactConsent(jobId: string, what: string, purpose?: string) {
+  if (purpose && (await ownerConsentAllowsDelivery(jobId, purpose))) return;
   if (!(await hasCurrentOwnerContactConsent(jobId))) throw new WorkflowError(`${OWNER_CONSENT_MISSING_MESSAGE} (${what})`);
 }
 
 /** External delivery to the OWNER needs BOTH the global comms switch AND granted contact consent. Trade-only/internal messages never call this. */
-export async function assertCustomerDeliveryAllowed(jobId: string, what: string) {
+export async function assertCustomerDeliveryAllowed(jobId: string, what: string, purpose?: string) {
   await assertCustomerCommsEnabled(what);
-  await assertOwnerContactConsent(jobId, what);
+  await assertOwnerContactConsent(jobId, what, purpose);
 }
 
 /** Delivery state for a stored customer copy: locked globally -> pending_comms_lock; no consent -> not_ready; else ready_to_send. */

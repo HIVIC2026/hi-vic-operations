@@ -9,7 +9,7 @@ import { piisaAssessmentDay } from "./piisa-assessment-date.core";
 
 export type PiisaDeclSync = { status: "saved" | "already" | "pending" | "missing" | "no_form" | "error"; message: string };
 /** Decision 328: what the A5 sync read, for the install day confirmation (install-day-confirm.server). */
-export type A3SyncInfo = { auditId: string; completed: boolean; modifiedAt: string | null; installDay: boolean; finalTickTicked: boolean; summary: import("./install-evidence.core").InstallEvidenceSummary | null };
+export type A3SyncInfo = { auditId: string; completed: boolean; modifiedAt: string | null; installDay: boolean; finalTickTicked: boolean; partB?: { onForm: boolean; ticked: boolean; signature: import("./install-day.core").ReadSignature } | undefined; summary: import("./install-evidence.core").InstallEvidenceSummary | null };
 
 export async function syncPiisaDeclaration(jobId: string, actorId: string | null, call?: MittiCall, opts: { testTemplateId?: string; fetchMedia?: import("./mitti.server").MittiMediaFetch; onA3?: (info: A3SyncInfo) => void } = {}): Promise<PiisaDeclSync> {
   const { data: existing } = await admin.from("installer_declarations").select("id,snapshot").eq("job_id", jobId).eq("status", "signed").maybeSingle();
@@ -34,6 +34,8 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
   const installDay = isInstallDayDoc(audit);
   const isA3 = expectedTpl === A3_TPL || installDay;
   const fetchMedia = opts.fetchMedia ?? (isA3 ? (await import("./mitti.server")).realMittiMedia : undefined);
+  // Jo 2 Nov (answer 16): changes during the job re-file the SWMS. Own try/catch inside; never blocks the record.
+  if (installDay) { try { await (await import("./swms-changes.server")).syncSwmsChanges(jobId, actorId, audit); } catch { /* logged inside */ } }
   const finalPostworkVersion = "a3-final-postwork-2026-10-08";
   // Decision 205: read the Table 4 install-day items (per-zone videos/ruler photos, daily re-check) on every A5 sync,
   // signed or not — the gate reads the latest record; a failed read leaves the gate closed, never open.
@@ -50,13 +52,13 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
   if (isA3 && opts.onA3) {
     const raw = audit as { modified_at?: unknown; audit_data?: { date_modified?: unknown } } | null;
     const mod = raw?.modified_at ?? raw?.audit_data?.date_modified;
-    opts.onA3({ auditId, completed: !!p.completed, modifiedAt: typeof mod === "string" && mod.trim() ? mod : null, installDay, finalTickTicked, summary: installEvidence });
+    opts.onA3({ auditId, completed: !!p.completed, modifiedAt: typeof mod === "string" && mod.trim() ? mod : null, installDay, finalTickTicked, partB: installDay ? (await import("./install-day.core")).installDayPartB(audit) : undefined, summary: installEvidence });
   }
   // Decision 213: once the form is Complete and the declaration is saved, every evidence check passing records the
   // installation through the one guarded path; anything outstanding is held and shown as the installer's Next line.
   const finishInstall = async (declarationSaved: boolean) => {
     if (!isA3 || !p.completed) return;
-    try { await (await import("./install-complete-mitti.server")).maybeRecordInstallationFromMitti(jobId, actorId, auditId, { formCompleted: true, declarationSaved, summary: installEvidence, allFilledInTicked: installDay ? finalTickTicked : null }); }
+    try { await (await import("./install-complete-mitti.server")).maybeRecordInstallationFromMitti(jobId, actorId, auditId, { formCompleted: true, declarationSaved, summary: installEvidence, allFilledInTicked: installDay ? finalTickTicked : null, partB: installDay && fetchMedia ? { audit, fetchMedia } : undefined }); }
     catch (e) { try { await logEvent(jobId, actorId, "install_complete_auto_failed", "Installation could not be recorded from the Mitti form — use Complete installation", { audit_id: auditId, reason: e instanceof Error ? e.message : "error" }, { internal: true }); } catch { /* best effort */ } }
   };
   const auditOwnedFinalPostwork = isA3 && ((ev?.details as { native_version?: string } | null)?.native_version === finalPostworkVersion || (await import("./mitti.core")).flatten(audit).some((e) => e.id === "d11eaa63-198b-471f-b57c-d3717bce551c"));

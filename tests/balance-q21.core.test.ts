@@ -1,5 +1,5 @@
 import {test,expect} from 'bun:test';
-import {balanceDueAt,balanceReminderDue,balanceOverdue} from '../src/lib/balance-q21.core';
+import {balanceDueAt,balanceOverdue} from '../src/lib/balance-q21.core';
 import {paymentMethodsFor,paymentPlan,paymentSteps} from '../src/lib/payments.core';
 import {stripeBlocker,parseStripeEvent,checkoutSessionParams} from '../src/lib/stripe.core';
 test('Q21 due seven calendar days after recorded completion at Melbourne end of day across DST',()=>{
@@ -7,13 +7,7 @@ test('Q21 due seven calendar days after recorded completion at Melbourne end of 
  expect(balanceDueAt('2026-04-02T23:00:00Z')).toBe('2026-04-10T13:59:59.999Z');
  expect(balanceDueAt(null)).toBeNull();
 });
-test('Q21 day five and due-day reminders only, paid suppresses both',()=>{
- const completed='2026-11-01T23:00:00Z';
- expect(balanceReminderDue(completed,false,new Date('2026-11-06T23:00:00Z'))).toBe('day5');
- expect(balanceReminderDue(completed,false,new Date('2026-11-08T23:00:00Z'))).toBe('due');
- expect(balanceReminderDue(completed,false,new Date('2026-11-07T23:00:00Z'))).toBeNull();
- expect(balanceReminderDue(completed,true,new Date('2026-11-08T23:00:00Z'))).toBeNull();
-});
+// (The day-5 / due-day reminder rule was retired 2 Nov 2026, Part 4 Task 14 — the after-install reminders replace it.)
 test('Q21 unpaid overdue next Melbourne day, not on due day, clears on payment',()=>{
  expect(balanceOverdue('2026-11-01T23:00:00Z',false,new Date('2026-11-09T12:59:59.999Z'))).toBe(false);
  expect(balanceOverdue('2026-11-01T23:00:00Z',false,new Date('2026-11-09T13:00:00Z'))).toBe(true);

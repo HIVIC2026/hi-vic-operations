@@ -24,10 +24,14 @@ beforeEach(()=>{
 test('Complete PIESA pass calls the deposit request boundary',async()=>{
  await completePiesaAssessment({jobId:'j'},'electrician');expect(requests).toBe(1);
 });
-test('Complete PIESA with required rectification makes no deposit request',async()=>{
+test('Complete PIESA with upgrades still to come requests the deposit too (Jo answer 21, fix wave C1)',async()=>{
  const a=tables.assessments?.[0];if(a){a.piesa_outcome='fail';a.no_rectification_confirmed=false;}
  tables.rectification_items=[{id:'r',job_id:'j',status:'required',description:'Rectification',needs_office_pricing:false}];
- await completePiesaAssessment({jobId:'j'},'electrician');expect(requests).toBe(0);
+ await completePiesaAssessment({jobId:'j'},'electrician');expect(requests).toBe(1);
+});
+test('a post-rectification fail still goes through the (idempotent) deposit request boundary',async()=>{
+ await applyPiesaRecord({jobId:'j',actorId:'electrician',kind:'post_rectification',outcome:'fail',completedDate:'2026-10-31'});
+ expect(requests).toBe(1);
 });
 test('recorded rectification completion requests deposit even if owner declaration holds scheduling',async()=>{
  blockedTransition=true;

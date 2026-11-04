@@ -1,4 +1,5 @@
-import { requiredDepositCents } from "./payment-gate.core";
+import { paymentPlan } from "./payments.core";
+import { paymentTermsMoney, paymentTermsText } from "./owner-gates.core";
 import { safetyCheckIncGstFor } from "./safety-check-amount.core";
 // CENTRAL signing records (server-only, service role, after caller checks):
 //   customer_agreements  – Customer Agreement / Quote Acceptance (commercial; unlocks invoice/deposit only)
@@ -49,6 +50,8 @@ import {
   type VeecInstaller,
 } from "./veec-assignment-form.core";
 import { melbourneToday } from "./melbourne-time.core";
+import { PDF_LOOK_APPROVED } from "./pdf-approvals.core";
+import { VEEC_PART_B_IMAGE_HELD_EVENT } from "./veec-part-b-mitti.core";
 
 export async function loadTemplates(): Promise<Template[]> {
   const { data, error } = await admin
@@ -208,7 +211,11 @@ export async function buildAcceptancePackage(quoteId: string) {
     veu_benefit_inc_gst: Number(q.veec_discount_inc_gst),
     final_customer_price_inc_gst: total,
     rectification_scope: (rect ?? []).map((r) => r.description),
-    payment_terms: `One Xero invoice for ${total.toFixed(2)} inc GST. The Pre Insulation Electrical Safety Assessment (PIESA) payment of ${(requiredDepositCents(total, safetyCheckIncGstFor({ lines: items })) / 100).toFixed(2)} is required before the PIESA is booked. Then 10% of the remaining balance to book the install day (card, bank transfer or PayID) and the balance 7 days after recorded install completion, or paid in full at any time.`,
+    payment_terms: paymentTermsText(
+      paymentTermsMoney(
+        paymentPlan({ quoteTotalCents: Math.round(total * 100), safetyCheckCents: Math.round(safetyCheckIncGstFor({ lines: items }) * 100) }),
+      ),
+    ),
     ap_legal_entity: AP_LEGAL_ENTITY,
   };
 }
@@ -233,7 +240,7 @@ async function storeCopy(
   title: string,
   kind: string,
   actorId: string | null,
-  renderedPdf?: Uint8Array,
+  renderedPdf?: Uint8Array | null,
 ) {
   path = path.replace(/\.txt$/, ".pdf");
   const { textToPdf } = await import("./signed-pdf.server");
@@ -259,6 +266,60 @@ async function storeCopy(
 export async function assertAgreementCanSign(input: AgreementSignInput) {
   const b = agreementSignBlockers(input, await loadTemplates());
   if (b.length) throw new WorkflowError(b.join(" "));
+}
+
+/** Flag-on signed acceptance: page 1 + the full agreement. Returns null (and logs) when anything is missing, so signing never fails on the PDF. */
+async function signedAcceptancePdfV2OrNull(pkg: AcceptancePackage, p: { signatoryName: string; signatureName: string }, agreementSignedAt: string, jobId: string, actorId: string | null): Promise<Uint8Array | null> {
+  try {
+    const { activeCustomerAgreement } = await import("./customer-agreement.server");
+    const tpl = await activeCustomerAgreement();
+    if (!tpl) throw new Error("No approved Customer Agreement wording is active");
+    const [{ data: q }, { data: m }, { data: prof }] = await Promise.all([
+      admin.from("quotes").select("sent_at").eq("id", pkg.quote.id).maybeSingle(),
+      admin.from("ceiling_measurements").select("removal_required, removal_m2, insulation_present, zones").eq("job_id", pkg.job_id).eq("is_current", true).maybeSingle(),
+      pkg.installer.user_id ? admin.from("profiles").select("phone, email").eq("id", pkg.installer.user_id).maybeSingle() : Promise.resolve({ data: null }),
+    ]);
+    if (!q?.sent_at) throw new Error("Quote has no sent date");
+    const { quoteExpiresAt } = await import("./quote-expiry.core");
+    const core = await import("./signed-acceptance.core");
+    const validUntil = core.formatValidUntil(new Date(quoteExpiresAt(q.sent_at).getTime() - 1));
+    const totalC = Math.round(pkg.final_customer_price_inc_gst * 100);
+    const split = core.paymentSplitCents(totalC, Math.round(safetyCheckIncGstFor({ lines: pkg.quote.items }) * 100));
+    const { safetyCheckShort } = await import("./safety-check-amount.core");
+    const { signedAcceptancePdfV2 } = await import("./signed-pdf.server");
+    // Typed name and time recorded with the counter-signature at acceptance (same moment for both signatures).
+    const { readAcceptanceCountersignature } = await import("./acceptance-signature.server");
+    const rec = await readAcceptanceCountersignature(jobId, pkg.quote.id, pkg.quote.version).catch(() => null);
+    // No counter-signature recorded: use the agreement signature's own time and name, never the current time.
+    const { acceptancePdfSignature } = await import("./acceptance-signature.core");
+    const sig = acceptancePdfSignature(rec, { signedAt: agreementSignedAt, signatureName: p.signatureName });
+    p = { ...p, signatureName: sig.signatureName };
+    const signedAt = sig.signedAt;
+    const removalM2 = m?.removal_required ? Number(m.removal_m2) || null : null;
+    // Jo 4 Nov 2026 16:10: the signed copy's agreement says the old insulation stays when the Ready Check recorded that.
+    const keptInsulation = (await import("./kept-insulation.core")).oldInsulationKept(m);
+    const r = await signedAcceptancePdfV2({
+      jobNumber: pkg.job_number, installerName: pkg.installer.business ?? pkg.installer.name ?? "", ownerName: p.signatoryName, ownerTypedName: p.signatureName,
+      address: pkg.property_address, signedAt, validUntil,
+      quoteLine: `${pkg.quoted_product}${pkg.quoted_area_m2 != null ? `, ${pkg.quoted_area_m2} m²` : ""}, supplied and installed`,
+      priceBeforeRebate: pkg.price_before_benefit_inc_gst, rebate: pkg.veu_benefit_inc_gst, yourPrice: pkg.final_customer_price_inc_gst, removalM2,
+      agreement: {
+        version: tpl.version, approvedOn: tpl.approvedAt ? core.formatSignedAt(tpl.approvedAt).short.replace(/,.*$/, "") : "", body: tpl.body,
+        facts: {
+          owner_name: p.signatoryName, address: pkg.property_address, job_number: pkg.job_number, installer_name: pkg.installer.business ?? pkg.installer.name ?? "",
+          installer_phone: prof?.phone ?? "", installer_email: prof?.email ?? "", product: pkg.quoted_product, area_m2: String(pkg.quoted_area_m2 ?? ""),
+          price_before_rebate: core.aud(pkg.price_before_benefit_inc_gst), rebate: core.aud(pkg.veu_benefit_inc_gst), your_price: core.aud(pkg.final_customer_price_inc_gst),
+          valid_until: validUntil, safety_check: safetyCheckShort(split.safety), deposit: core.aud(split.deposit / 100), rest: core.aud(split.rest / 100),
+        },
+        keptInsulation,
+      },
+    });
+    return r.bytes;
+  } catch (e) {
+    // Internal only: the owner still gets the signed copy from the previous builder.
+    await logEvent(jobId, actorId, "signed_acceptance_pdf_fallback", "Signed acceptance used the previous layout (internal)", { reason: e instanceof Error ? e.message : String(e) }, { internal: true }).catch(() => undefined);
+    return null;
+  }
 }
 
 /** Quote-stage signing: Customer Agreement / Quote Acceptance (commercial) only. It is not ESC consent or VEEC assignment. */
@@ -327,8 +388,9 @@ export async function signCustomerAgreement(p: {
     }) });
   }
   items.push({ title: "Consumer rights information", version: rights.version, text: rights.body });
-  const renderedPdf = await signedAcceptancePdf({ ownerName: p.input.signatoryName, address: pkg.property_address,
-    totalIncGst: pkg.final_customer_price_inc_gst, signedAt: now.toISOString(), jobNumber: pkg.job_number, items });
+  const legacyPdf = { ownerName: p.input.signatoryName, address: pkg.property_address,
+    totalIncGst: pkg.final_customer_price_inc_gst, signedAt: now.toISOString(), jobNumber: pkg.job_number, items };
+  const renderedPdf = PDF_LOOK_APPROVED.signedAcceptance ? ((await signedAcceptancePdfV2OrNull(pkg, { signatoryName: p.input.signatoryName, signatureName: p.input.signatureName }, now.toISOString(), pkg.job_id, p.actorId)) ?? await signedAcceptancePdf(legacyPdf)) : await signedAcceptancePdf(legacyPdf);
   const path = await storeCopy(
     pkg.job_id,
     `${pkg.job_id}/agreement/quote-v${pkg.quote.version}-${hash.slice(0, 12)}.txt`,
@@ -518,11 +580,20 @@ async function partyFacts(jobId: string, role: "installer" | "electrician") {
     .eq("active", true)
     .maybeSingle();
   if (!a) return null;
-  const { data: p } = await admin
-    .from("profiles")
-    .select("id, email, full_name, licence_number, phone, business_id")
-    .eq("id", a.user_id)
-    .maybeSingle();
+  // Join (4 Nov 2026, Part 6): a Team electrician never logs in — the assignment's user_id is NULL and the person is the
+  // worker named by the allocation event; their office-verified Team row stands in for a profile (licence, REC, mobile).
+  let teamWorker: { id: string; full_legal_name: string; email: string | null; mobile: string | null; licence_number: string | null; rec_number: string | null } | null = null;
+  if (!a.user_id && role === "electrician") {
+    const workerId = await (await import("./in-house-electrician.server")).allocatedWorkerId(jobId);
+    teamWorker = workerId ? (await admin.from("partner_workers").select("id, full_legal_name, email, mobile, licence_number, rec_number").eq("id", workerId).is("removed_at", null).maybeSingle()).data : null;
+  }
+  const { data: p } = a.user_id
+    ? await admin
+      .from("profiles")
+      .select("id, email, full_name, licence_number, phone, business_id")
+      .eq("id", a.user_id)
+      .maybeSingle()
+    : { data: teamWorker ? { id: teamWorker.id, email: teamWorker.email, full_name: teamWorker.full_legal_name, licence_number: teamWorker.licence_number, phone: teamWorker.mobile, business_id: a.business_id } : null };
   const bid = a.business_id ?? p?.business_id ?? null;
   const { data: b } = bid
     ? await admin
@@ -532,10 +603,11 @@ async function partyFacts(jobId: string, role: "installer" | "electrician") {
         .maybeSingle()
     : { data: null };
   return {
-    userId: a.user_id as string,
+    userId: (a.user_id ?? teamWorker?.id ?? null) as string,
     businessId: bid as string | null,
     profile: p ?? null,
-    business: b ?? null,
+    // A Team electrician's REC number is on their own verified row, not the installer business's.
+    business: b ? { ...b, ...(teamWorker?.rec_number ? { rec_number: teamWorker.rec_number } : {}) } : null,
   };
 }
 
@@ -732,13 +804,16 @@ export async function veecJobFacts(
         ),
     );
   const products = reviewed?.products ?? [];
+  // Decisions 148/149: the approved ceiling batts (Bradford Gold, Pink Batts, Earthwool) are all ESC category 48A; any other
+  // reviewed product stays blank for the office to type at preparation.
+  const known48A = (brand: string | null) => /bradford|pink|earthwool/i.test(brand ?? "");
   if (products.length)
     areas = products.map((pr, i) => ({
       name: `Area ${i + 1}`,
       existing,
       existingRValue: existingR,
       removed,
-      productType: null,
+      productType: known48A(pr.brand) ? "48A" : null,
       brand: pr.brand,
       model: pr.model,
       rValue: `R${pr.rValue}`,
@@ -877,12 +952,12 @@ export async function apPrerequisites(jobId: string): Promise<string[]> {
     })),
   };
   // G1 (Jo 25 Oct) + decision 321: when no copy is recorded, say which installed product's warranty PDF is not on file (the All done email at install complete — or the completion pack — would have recorded it otherwise).
-  if (!f.warrantyCopyProvidedAt)
-    f.warrantyProductsNotOnFile = await (
-      await import("./product-warranty.server")
-    )
-      .warrantyGapsFor(jobId)
-      .catch(() => []);
+  // Bradford: the hold reason depends on the job's building class (no class → "Building class not recorded …").
+  if (!f.warrantyCopyProvidedAt) {
+    const gaps = await (await import("./product-warranty.server")).warrantyGapFactsFor(jobId).catch(() => ({ products: [] as string[], buildingClass: null }));
+    f.warrantyProductsNotOnFile = gaps.products;
+    f.warrantyBuildingClass = gaps.buildingClass;
+  }
   return apPrerequisiteBlockers(f);
 }
 
@@ -1414,6 +1489,38 @@ export async function reconfirmVariation(p: {
   await evaluateAndApply(v.job_id, p.actorId);
 }
 
+/** Flag-on final copy: the signed ESC form in the website look.
+ *  - Any rendering problem: `bytes` undefined, `held` undefined → the text copy is stored instead (signing never fails on the PDF).
+ *  - The Lead Installer's Mitti signature image is on record but can't be read: `held` set → the copy is NOT built (never a form without the signature) and the office is told once. */
+export async function veecFinalCopyPdf(a: NonNullable<Awaited<ReturnType<typeof currentAssignment>>>, values: Record<string, FieldValue>, jobNumber: string | null, jobId: string, actorId: string | null): Promise<{ bytes?: Uint8Array; layout?: import("./pdf-look.core").PdfLayoutReport; held?: string }> {
+  try {
+    const { veecFormPdf } = await import("./veec-form-pdf.server");
+    const at = (name: string | null, when: string | null) => (name && when ? { name, at: when } : undefined);
+    let installer = at(a.installer_signature_name, a.installer_signed_at) as { name: string; at: string; image?: Uint8Array } | undefined;
+    const ap = at(a.ap_signature_name, a.ap_signed_at), consumer = at(a.consumer_signature_name, a.consumer_signed_at);
+    // Mitti Part B: the drawn signature image kept in job-files (veec-part-b-mitti.server.ts). A portal-typed signature has no image path → name only.
+    const imagePath = (a.installer_snapshot as { image_path?: string } | null)?.image_path;
+    if (installer && imagePath) {
+      const dl = await admin.storage.from("job-files").download(imagePath).catch((e: unknown) => ({ data: null, error: { message: e instanceof Error ? e.message : String(e) } }));
+      const bytes = dl.data ? new Uint8Array(await dl.data.arrayBuffer()) : null;
+      if (!bytes?.length) {
+        const reason = "The Lead Installer's signature image could not be read, so the VEEC form was not built. Check the file and try again";
+        const { data: prev } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", VEEC_PART_B_IMAGE_HELD_EVENT).order("created_at", { ascending: false }).limit(1).maybeSingle();
+        if ((prev?.details as { reason?: string } | null)?.reason !== reason) await logEvent(jobId, actorId, VEEC_PART_B_IMAGE_HELD_EVENT, `VEEC form held: ${reason}`, { reason, image_path: imagePath, needs_office: true }, { internal: true }).catch(() => undefined);
+        return { held: reason };
+      }
+      installer = { ...installer, image: bytes };
+    }
+    const r = await veecFormPdf(values, { ...(installer ? { installer } : {}), ...(ap ? { ap } : {}), ...(consumer ? { consumer } : {}) }, { jobNumber });
+    // A section split across pages is kept (signing never fails on the PDF) but made visible to the office.
+    if (r.layout.split.length) await logEvent(jobId, actorId, "veec_form_pdf_fallback", "VEEC form split across pages (internal)", { reason: "veec form split across pages", blocks: r.layout.split }, { internal: true }).catch(() => undefined);
+    return { bytes: r.bytes, layout: r.layout };
+  } catch (e) {
+    await logEvent(jobId, actorId, "veec_form_pdf_fallback", "VEEC form used the previous layout (internal)", { reason: e instanceof Error ? e.message : String(e) }, { internal: true }).catch(() => undefined);
+    return {};
+  }
+}
+
 /** Recomputes the staged status from facts; effective only when every signature and final fact is complete.
  *  Decision 119: the owner's Gate B consent-to-assign is never applied as the form signature – the owner signs Section 4 Part B. */
 export async function evaluateAndApply(jobId: string, actorId: string | null) {
@@ -1477,6 +1584,10 @@ export async function evaluateAndApply(jobId: string, actorId: string | null) {
     stableJson(f),
   ].join("\n");
   const hash = await sha256Hex(finalText);
+  // Flag on: the website-look form (the text record, hash and facts above are unchanged). Flag off: the old text copy, byte for byte.
+  const built = PDF_LOOK_APPROVED.veecForm ? await veecFinalCopyPdf(a, f.form_values, job?.job_number ?? null, jobId, actorId) : null;
+  if (built?.held) return { ...r, status: a.status }; // signature image unreadable: stay as we are, the office has been told, the next tick retries
+  const renderedPdf = built ? (built.bytes ?? null) : undefined;
   const path = await storeCopy(
     jobId,
     `${jobId}/assignment/final-${hash.slice(0, 12)}.txt`,
@@ -1484,6 +1595,7 @@ export async function evaluateAndApply(jobId: string, actorId: string | null) {
     "Final Activity 48 VEEC Assignment (signed copy)",
     "veec_assignment_final",
     actorId ?? a.consumer_signed_by ?? null,
+    renderedPdf,
   );
   const { customerDeliveryState } = await import("./comms.server");
   const delivery = await customerDeliveryState(jobId); // global lock first, then owner contact consent

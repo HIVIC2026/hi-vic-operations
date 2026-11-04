@@ -29,7 +29,7 @@ export const CONSENT_AP_DEADLINE_ALERT_MS = 24 * 3600_000;
 export function consentAutoApRep(details: { fullName: string | null; phone: string | null } = AP_DETAILS, email: string | null = OFFICE_REPLY_TO): ApRep | null {
   const n = splitFullName(details.fullName);
   if (!n.first || !n.last) return null;
-  return { first_name: n.first, last_name: n.last, role: "AP representative", phone: details.phone ?? null, email };
+  return { first_name: n.first, last_name: n.last, role: "Director", phone: details.phone ?? null, email };
 }
 
 export type ConsentApAutoFacts = {

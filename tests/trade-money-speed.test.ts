@@ -162,7 +162,9 @@ beforeAll(async () => {
   setSystemTime(NOW);
   seed({ inHouse: true });
   // Warm the module cache so the rounds count reads, not first module loads.
-  for (const u of [U_BOSS, U_ELEC]) { await tradeMoney(u); await tradeMoneyExtras(u); }
+  // Task 8 (Jo 3 Nov): electricians have no Money page — tradeMoney refuses them, so the warm-up only expects the extras.
+  await tradeMoney(U_BOSS);
+  for (const u of [U_BOSS, U_ELEC]) await tradeMoneyExtras(u);
   await tradeMoneyJob(J1, U_BOSS); await tradeMoneyJob(J3, U_ELEC);
 });
 afterAll(() => { setSystemTime(); });
@@ -210,13 +212,7 @@ describe("rounds", () => {
       expect(r.rounds).toBeLessThanOrEqual(max);
     });
   }
-  test("tradeMoney electrician owner: at most 3 sequential rounds (was 4)", async () => {
-    failWhen = null; seed();
-    const r = await measured(() => tradeMoney(U_ELEC));
-    expect(r.out.rows.length).toBeGreaterThan(0);
-    if (r.rounds > 3) console.log(`tradeMoney electrician rounds = ${r.rounds}\n${roundsOf(r.log)}`);
-    expect(r.rounds).toBeLessThanOrEqual(3);
-  });
+  // Task 8 (Jo 3 Nov): no electrician Money — the rounds test for it is gone with the page.
   test("tradeMoneyExtras: at most 2 sequential rounds (was 2)", async () => {
     failWhen = null; seed();
     const r = await measured(() => tradeMoneyExtras(U_BOSS));
@@ -231,6 +227,20 @@ describe("TEST and real jobs never mix", () => {
     expect(m.rows.map((r) => r.jobNumber)).toEqual(["HV-1001"]);
     expect((await tradeMoneyJob(J2, U_BOSS)).found).toBe(false);
     expect((await tradeMoneyJob(J1, U_BOSS)).found).toBe(true);
+  });
+});
+
+describe("J4 G5: an own customer's install row with no amount on record is left out of the Money screen", () => {
+  test("own job (installer_sourced) install done, nothing recorded → no install row for it (never \"$0\")", async () => {
+    failWhen = null; seed();
+    tables["bookings"]!.push({ id: "in3", job_id: J3, business_id: B1, kind: "installation", status: "completed", scheduled_start: at(-1), scheduled_end: at(-1, 6) });
+    const m = await tradeMoney(U_BOSS);
+    const titles = m.screen.rows.map((r) => (r as { title: string }).title);
+    expect(titles.some((t) => /HV-1003 .* install pay/.test(t))).toBe(false);
+    expect(titles.some((t) => /\$0\b/.test(t))).toBe(false);
+    expect(titles.some((t) => /HV-1003 .* PIESA pay \$330/.test(t))).toBe(true); // the PIESA row (rate on record) stays
+    // the raw row still exists with no amount (the job page says their pay is their own quote), so nothing is summed for it
+    expect(m.rows.find((r) => r.jobId === J3 && r.kind === "installation")?.amount).toBeNull();
   });
 });
 
@@ -275,11 +285,11 @@ describe("failure rules unchanged", () => {
     await expect(tradeMoneyJob(J1, U_BOSS)).rejects.toThrow("Could not read installer_declarations for the payout check");
     failWhen = null;
   });
-  test("a failed safety-visit (money) read fails the electrician's Money, as today", async () => {
+  test("electricians have no Money page (Task 8, Jo 3 Nov): refused before any money read", async () => {
     seed();
-    failWhen = (t) => t === "piesa_records";
-    await expect(tradeMoney(U_ELEC)).rejects.toThrow("Could not read piesa_records for the payout check");
-    failWhen = null;
+    const before = log.length;
+    await expect(tradeMoney(U_ELEC)).rejects.toThrow("Money is only shown to installer businesses.");
+    expect(log.slice(before).map((l) => l.table).filter((t) => MONEY_TABLES.includes(t))).toEqual([]);
   });
   test("a failed in-house payer read keeps its display catch: Money still answers (safety checks not kept)", async () => {
     seed({ inHouse: true });

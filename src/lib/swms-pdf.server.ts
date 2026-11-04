@@ -1,13 +1,21 @@
-// Decision 358 (Jo 25 Oct 2026): the filed SWMS PDF in the WorkSafe Victoria sample-template layout
-// (Safe-work-method-statements-2023-07) — header box, bordered Tasks | Hazard | Control measures | How implemented |
-// Responsible table (cells wrap, rows split across pages, header row repeated), "How these are put in place", "Specific to
-// this house" and the sign-off table. Same words as `swmsRecordText` (swms.core.ts), which stays the content-hash source
-// for `fileSwms`. No database, no network: pdf-lib standard fonts only, every string through `pdfSafeText`.
+// The filed SWMS PDF. No database, no network.
+// Part 7 Task 2 (Jo 2 Nov 2026): behind PDF_LOOK_APPROVED.swms the plan is drawn in the approved website look
+// (docs/approved-samples/2026-11-02/swms-sample.pdf) through Part 1's kit: the pure model in swms-pdf-html.core.ts →
+// `renderPdf` (pdf-look.server.ts), with the "Changes during the job" box. While that flag is off (now), every byte of the
+// filed PDF is still decision 358's WorkSafe Victoria sample-template layout (Safe-work-method-statements-2023-07) — header
+// box, bordered Tasks | Hazard | Control measures | How implemented | Responsible table (cells wrap, rows split across
+// pages, header row repeated), "How these are put in place", "Specific to this house" and the sign-off table. Same words
+// as `swmsRecordText` (swms.core.ts), which stays the content-hash source for `fileSwms`; pdf-lib standard fonts, every
+// string through `pdfSafeText`.
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import { pdfSafeText } from "./pdf-text.core";
+import { wrapText, type PdfLayoutReport } from "./pdf-look.core";
+import { renderPdf } from "./pdf-look.server";
+import { PDF_LOOK_APPROVED } from "./pdf-approvals.core";
+import { SWMS_PDF_TITLE, swmsPdfBlocks, swmsPdfModel } from "./swms-pdf-html.core";
 import {
-  SWMS_COMPLIANCE_MEASURES, SWMS_HOW_IMPLEMENTED, SWMS_HOW_IN_PLACE, SWMS_RECORD_TASK, SWMS_REVIEW, SWMS_SIGN_STATEMENT,
-  latestSignatures, swmsDate, swmsDateTime, swmsHouseSection, type SwmsPlan, type SwmsSignature,
+  SWMS_RECORD_TASK, SWMS_SIGN_STATEMENT,
+  latestSignatures, swmsDate, swmsDateTime, swmsHouseSection, swmsRoleLabel, swmsWordingFor, type SwmsChange, type SwmsPlan, type SwmsSignature,
 } from "./swms.core";
 
 /** A4 landscape. */
@@ -16,6 +24,8 @@ export const SWMS_TABLE_HEADERS = ["Tasks", "Hazard", "Control measures", "How i
 export const SWMS_SIGNOFF_HEADERS = ["Name", "Signature (typed name)", "Date"] as const;
 const MAIN_WIDTHS = [128, 150, 252, 170, 86];
 const SIGN_WIDTHS = [300, 300, 186];
+export const SWMS_CHANGE_HEADERS = ["What changed", "What was done about it", "Recorded by (Lead Installer)", "When"] as const;
+const CHANGE_WIDTHS = [250, 250, 150, 136];
 const PAD = 4;
 const SIZE = 8.5;
 const LH = 10.5;
@@ -29,28 +39,7 @@ const HEAD_FILL = rgb(0.86, 0.9, 0.95);
 const LABEL_FILL = rgb(0.95, 0.96, 0.98);
 const BAND = rgb(0.11, 0.23, 0.4);
 
-/** Pure word wrap: explicit newlines kept, words wider than the cell broken by character. */
-export function wrapText(text: string, width: (s: string) => number, max: number): string[] {
-  const out: string[] = [];
-  for (const para of text.split("\n")) {
-    let line = "";
-    for (const word of para.split(/\s+/).filter(Boolean)) {
-      const cand = line ? `${line} ${word}` : word;
-      if (width(cand) <= max) { line = cand; continue; }
-      if (line) out.push(line);
-      line = "";
-      let w = word;
-      while (width(w) > max && w.length > 1) {
-        let n = w.length - 1;
-        while (n > 1 && width(w.slice(0, n)) > max) n--;
-        out.push(w.slice(0, n)); w = w.slice(n);
-      }
-      line = w;
-    }
-    out.push(line);
-  }
-  return out;
-}
+export { wrapText };
 
 /** Pure: how many body lines of a row fit in `space` points (cell padding top+bottom included); 0 = start a new page. */
 export function linesThatFit(space: number, lineH = LH, pad = PAD): number {
@@ -58,9 +47,27 @@ export function linesThatFit(space: number, lineH = LH, pad = PAD): number {
 }
 
 type Cell = { text: string; bold?: boolean; italic?: boolean; fill?: ReturnType<typeof rgb>; label?: string };
-export type SwmsPdfLayout = { pages: number; mainHeaderPages: number[]; signoffHeaderPages: number[]; noteHeaderPages: number[] };
+/** `look` = which layout was drawn; the header-page lists are filled by the WorkSafe layout only, `report` by the website look only. */
+export type SwmsPdfLayout = { pages: number; mainHeaderPages: number[]; signoffHeaderPages: number[]; noteHeaderPages: number[]; changeHeaderPages: number[]; look?: SwmsPdfLook; report?: PdfLayoutReport };
+export type SwmsPdfLook = "website" | "worksafe";
+export type SwmsPdfOpts = { recordRef?: string | null; changes?: SwmsChange[]; /** Overrides PDF_LOOK_APPROVED.swms (tests, samples). */ look?: SwmsPdfLook };
 
-export async function buildSwmsPdf(plan: SwmsPlan, sigs: SwmsSignature[], opts: { recordRef?: string | null } = {}): Promise<{ bytes: Uint8Array; layout: SwmsPdfLayout }> {
+/** `opts.changes` (default none → "None recorded" in the website look; the WorkSafe layout prints the box only when there are some). */
+export async function buildSwmsPdf(plan: SwmsPlan, sigs: SwmsSignature[], opts: SwmsPdfOpts = {}): Promise<{ bytes: Uint8Array; layout: SwmsPdfLayout }> {
+  const look: SwmsPdfLook = opts.look ?? (PDF_LOOK_APPROVED.swms ? "website" : "worksafe");
+  return look === "website" ? buildSwmsPdfWebsite(plan, sigs, opts) : buildSwmsPdfWorksafe(plan, sigs, opts);
+}
+
+/** Part 7 Task 2: the website look — the same model as `swmsPdfHtml`, drawn by Part 1's kit (footer "Page N of M",
+ *  blue bar on page 1, sections kept together except the hazards, which flow one whole hazard box at a time). */
+async function buildSwmsPdfWebsite(plan: SwmsPlan, sigs: SwmsSignature[], opts: SwmsPdfOpts): Promise<{ bytes: Uint8Array; layout: SwmsPdfLayout }> {
+  const model = swmsPdfModel(plan, sigs, opts.changes ?? []);
+  const { bytes, layout: report } = await renderPdf({ title: `${SWMS_PDF_TITLE} - Job ${plan.jobNumber}`, blocks: swmsPdfBlocks(model) });
+  return { bytes, layout: { pages: report.pages, mainHeaderPages: [], signoffHeaderPages: [], noteHeaderPages: [], changeHeaderPages: [], look: "website", report } };
+}
+
+/** Decision 358: the WorkSafe Victoria sample-template layout (unchanged; the filed PDF until PDF_LOOK_APPROVED.swms). */
+async function buildSwmsPdfWorksafe(plan: SwmsPlan, sigs: SwmsSignature[], opts: SwmsPdfOpts): Promise<{ bytes: Uint8Array; layout: SwmsPdfLayout }> {
   const pdf = await PDFDocument.create();
   pdf.setTitle(`Safe Work Method Statement — Job ${plan.jobNumber}`.replace("—", "-"));
   pdf.setSubject("SWMS — ceiling insulation (VEU Activity 48)".replace("—", "-"));
@@ -74,7 +81,7 @@ export async function buildSwmsPdf(plan: SwmsPlan, sigs: SwmsSignature[], opts: 
   const { width: W, height: H, margin: M, footer: F } = SWMS_PAGE;
   const CW = W - 2 * M;
   const bottom = M + F;
-  const layout: SwmsPdfLayout = { pages: 0, mainHeaderPages: [], signoffHeaderPages: [], noteHeaderPages: [] };
+  const layout: SwmsPdfLayout = { pages: 0, mainHeaderPages: [], signoffHeaderPages: [], noteHeaderPages: [], changeHeaderPages: [] };
   const val = (v: string | null | undefined) => (v && v.trim() ? v.trim() : "—");
   const lead = plan.signers.find((s) => s.role === "lead")?.name ?? null;
 
@@ -159,17 +166,19 @@ export async function buildSwmsPdf(plan: SwmsPlan, sigs: SwmsSignature[], opts: 
   row(pair("Work supervisor", val(lead), "Install date", swmsDate(plan.installDate)), half);
   row(pair("Site location / address", val(plan.address), "Work activity", plan.workActivity), half);
   row([{ label: "High-risk construction work", text: plan.highRiskWork.map((h) => `• ${h}`).join("\n") }], [CW]);
-  row(pair("Person responsible for ensuring compliance with SWMS", val(lead), "Measures to ensure compliance", SWMS_COMPLIANCE_MEASURES), half);
-  row([{ label: "How control measures will be reviewed", text: SWMS_REVIEW }], [CW]);
+  // Jo 2 Nov 2026 (Part 7 Task 1): the words of the plan's own rule, so a filed record prints what was signed.
+  const w = swmsWordingFor(plan.rule);
+  row(pair("Person responsible for ensuring compliance with SWMS", val(lead), "Measures to ensure compliance", w.complianceMeasures), half);
+  row([{ label: "How control measures will be reviewed", text: w.review }], [CW]);
   gap(12);
 
   // ── Hazard / control table ──
   heading("Tasks, hazards and control measures");
   table(SWMS_TABLE_HEADERS, MAIN_WIDTHS, layout.mainHeaderPages, plan.hazards.map((h) => [
-    { text: SWMS_RECORD_TASK }, { text: h.name, bold: true }, { text: `${h.short}: ${h.control}.` }, { text: SWMS_HOW_IMPLEMENTED }, { text: `${val(lead)} (lead installer)` },
+    { text: SWMS_RECORD_TASK }, { text: h.name, bold: true }, { text: `${h.short}: ${h.control}.` }, { text: w.howImplemented }, { text: `${val(lead)} (${swmsRoleLabel(plan.rule, "lead")})` },
   ]));
   gap(8);
-  row([{ text: SWMS_HOW_IN_PLACE, fill: LABEL_FILL }], [CW]);
+  row([{ text: w.howInPlace, fill: LABEL_FILL }], [CW]);
   gap(12);
 
   // ── Specific to this house ──
@@ -178,13 +187,22 @@ export async function buildSwmsPdf(plan: SwmsPlan, sigs: SwmsSignature[], opts: 
   table(["Specific to this house"], [CW], layout.noteHeaderPages, house.length ? house.map((t) => [{ text: t, bold: t.startsWith("Safety step:") }]) : [[{ text: "None recorded" }]]);
   gap(12);
 
+  // ── Changes during the job (Jo 2 Nov, answer 16) — only when the Lead Installer recorded some ──
+  if (opts.changes?.length) {
+    heading("Changes during the job");
+    table(SWMS_CHANGE_HEADERS, CHANGE_WIDTHS, layout.changeHeaderPages, opts.changes.map((c) => [
+      { text: c.what }, { text: c.control || "—" }, { text: c.by }, { text: c.at ? `${swmsDateTime(c.at)} (Melbourne time)` : "—" },
+    ]));
+    gap(12);
+  }
+
   // ── Sign-off ──
   heading(`Worker sign-off (${SWMS_SIGN_STATEMENT})`);
   const by = latestSignatures(sigs);
   table(SWMS_SIGNOFF_HEADERS, SIGN_WIDTHS, layout.signoffHeaderPages, plan.signers.map((s) => {
     const g = by.get(s.key);
     return [
-      { text: `${s.name} (${s.role === "lead" ? "lead installer" : "installer"})` },
+      { text: `${s.name} (${swmsRoleLabel(plan.rule, s.role)})` },
       g ? { text: `signed — typed "${g.typedName}"`, italic: true } : { text: "NOT SIGNED", bold: true },
       { text: g ? `${swmsDateTime(g.signedAt)} (Melbourne time)` : "—" },
     ];
@@ -199,5 +217,6 @@ export async function buildSwmsPdf(plan: SwmsPlan, sigs: SwmsSignature[], opts: 
     p.drawText(left, { x: M, y: M, size: 7, font: reg, color: MUTED });
     p.drawText(right, { x: W - M - reg.widthOfTextAtSize(right, 7), y: M, size: 7, font: reg, color: MUTED });
   });
+  layout.look = "worksafe";
   return { bytes: await pdf.save(), layout };
 }

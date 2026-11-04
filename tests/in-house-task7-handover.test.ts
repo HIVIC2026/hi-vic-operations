@@ -1,4 +1,7 @@
-import { expect, test } from 'bun:test';
+import { expect, setSystemTime, test } from 'bun:test';
+// Part 7 Task 6: the Lead Installer locks from 5pm two days before the install (3 Nov 11am here → 1 Nov 5pm Melbourne);
+// this handover happens the afternoon before that lock, so the clock is pinned (the real date is past the lock).
+setSystemTime(new Date('2026-11-01T05:00:00Z'));
 import ts from 'typescript';
 import { readFileSync } from 'node:fs';
 import { memoryPostgrest } from './helpers/memory-postgrest';
@@ -21,7 +24,8 @@ test('saved Lead Installer replacement hands the existing A5 and SWMS to the new
   const db=memoryPostgrest(rows),owner=new Map([['A5','old@example.invalid']]),access=new Set(['old@example.invalid']);
   let failRevoke=true;
   const call:any=async(method:string,path:string)=>{if(method==='DELETE'&&path.endsWith('/user/old%40example.invalid/access')){if(failRevoke)throw Error('Mitti access removal failed');access.delete('old@example.invalid');}return {};};
-  const shared:any={'@/integrations/supabase/client.server':{supabaseAdmin:db},'./workflow.server':{WorkflowError:Error},'./early-read':{early:(p:any)=>Promise.resolve(p)},'./piisa-a3.server':{loadCrew:async()=>({selection:rows.workflow_events.filter((e:any)=>e.event_type==='piisa_crew_selected').at(-1)?.details.selection,staff:[{workerId:'old',name:'Old Installer'},{workerId:'new',name:'New Installer'}]})}};
+  const shared:any={'@/integrations/supabase/client.server':{supabaseAdmin:db},'./job-facts.server':{jobAdmin:db}, // #135: the job page's admin client (join 4 Nov 2026)
+    './install-booking.server':load('src/lib/install-booking.server.ts',{'@/integrations/supabase/client.server':{supabaseAdmin:db},'./job-facts.server':{jobAdmin:db}}),'./workflow.server':{WorkflowError:Error},'./early-read':{early:(p:any)=>Promise.resolve(p)},'./piisa-a3.server':{loadCrew:async()=>({selection:rows.workflow_events.filter((e:any)=>e.event_type==='piisa_crew_selected').at(-1)?.details.selection,staff:[{workerId:'old',name:'Old Installer'},{workerId:'new',name:'New Installer'}]})}};
   const forms=load('src/lib/in-house-forms.server.ts',{...shared,'./mitti.core':{mittiApi},'./mitti-create-claim.core':claims,'./in-house-suppression.server':{readInHouseDispatchState:async()=>({held:new Set(['j']),failed:false})},'./visit-allocation.core':allocation,'./piisa-a3.core':crew,'./worker-role.core':roles,'./mitti.server':{mittiCallFor:async()=>call,findMittiUserByEmail:async(e:string)=>e,reassignMittiFormTo:async(p:any)=>{owner.set(p.auditId,p.mittiUserId);access.add(p.mittiUserId);},updateMittiInstallCrew:async()=>{}}});
   const safety=load('src/lib/swms.server.ts',{...shared,'node:crypto':{createHash},'./swms.core':swms,'./install-evidence.server':{melbourneDateOf:()=> '2026-11-03'},'./swms-house.core':{swmsHouseFacts:()=>({}),swmsHouseLines:()=>[],swmsHouseSteps:()=>[]}});
   const before=await safety.loadSwms('j');expect(before.plan.signers.map((p:any)=>p.key)).toEqual(['w:old']);

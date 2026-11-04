@@ -3,7 +3,7 @@
 // while we staff." So, BEFORE an owner's spot is released, nothing they see or receive may offer, promise or describe a
 // Ready Check, an installer visit, being offered times, measuring, when the quote comes, or any speed/timeframe
 // ("soon", "shortly", "this week", "as soon as", queue-position promises). Allowed: save your spot (free, no
-// obligation); thousands of Victorians have registered; spots are released in the order they were saved; we'll be in
+// obligation); spots are released in the order they were saved; we'll be in
 // touch when your spot is released. Messages AFTER release (Ready Check times/booking, quote, PIESA, install) are not
 // covered. PURE: wording only. Proposed wording awaiting Jo's approval: docs/decision-388-spot-only-wording.md.
 
@@ -11,13 +11,15 @@
 export const SPOT_PROCESS_STATEMENT = "We save spots and then I will manually, slowly release one by one to a chosen installer while we staff.";
 
 export const SPOT_FREE = "Saving your spot is free, with no obligation.";
-export const SPOT_REGISTERED = "Thousands of Victorians have registered.";
 export const SPOT_ORDER = "Spots are released in the order they were saved.";
 export const SPOT_IN_TOUCH = "We'll be in touch when your spot is released.";
 /** The two-sentence line Jo asked for. */
 export const SPOT_RELEASE_LINE = `${SPOT_ORDER} ${SPOT_IN_TOUCH}`;
-/** Registered + order + in touch, for messages that explain the wait. */
-export const SPOT_WAIT_LINE = `${SPOT_REGISTERED} ${SPOT_RELEASE_LINE}`;
+/** Order + in touch, for messages that explain the wait. */
+export const SPOT_WAIT_LINE = SPOT_RELEASE_LINE;
+/** Decision 19 (Jo 2 Nov 2026), reused by decisions 54–58 for the O76 spot-saved answers: the ONE sentence that opens
+ *  the ban below. Only renderers that Jo approved it for may use it; the scanner stays closed everywhere else. */
+export const SPOT_INSTALLER_CALLS = "When an EEC-certified installer is available, they'll call you to book your free Ready Check.";
 /** Price caveat with no Ready Check, no measuring and no quote timing. */
 export const SPOT_PRICE_NOTE = "This is an estimate. You'll see your exact price before you agree to anything.";
 
@@ -31,6 +33,12 @@ const PRE_RELEASE_STAGES: ReadonlySet<string> = new Set([
   "new_enquiry", "eligibility_review", "preliminary_estimate_ready", "ready_check_ready_to_schedule", "ready_check_awaiting_payment",
 ]);
 export const isPreReleaseStage = (stage: string | null | undefined): boolean => !!stage && PRE_RELEASE_STAGES.has(stage);
+
+/** The scan for a message Jo approved `allowed` sentences for (decisions 19, 54–58): each exact sentence is removed
+ *  first, so everything else in the message is still checked. Never widens `preReleaseViolations` itself. */
+export function preReleaseViolationsAllowing(text: string, allowed: readonly string[]): string[] {
+  return preReleaseViolations(allowed.reduce((t, a) => t.split(a).join(" "), text));
+}
 
 /** The forbidden phrases found in `text` (empty = spot-only). */
 export function preReleaseViolations(text: string): string[] {

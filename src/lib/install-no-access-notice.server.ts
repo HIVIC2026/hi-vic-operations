@@ -7,7 +7,11 @@ import { inHouseDispatchSkip } from "./in-house-suppression.server";
 import { myJobScreen } from "./mail-mjml.core";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
-import { INSTALL_NO_ACCESS_NOTICE_APPROVED, INSTALL_NO_ACCESS_NOTICE_EVENT, INSTALL_NO_ACCESS_SMS_TYPE, installNoAccessKeys, installNoAccessText, installNoAccessTextCatchUpDue, renderInstallNoAccessEmail } from "./install-no-access-notice.core";
+import { INSTALL_NO_ACCESS_NOTICE_APPROVED, INSTALL_NO_ACCESS_NOTICE_EVENT, INSTALL_NO_ACCESS_SMS_TYPE, INSTALL_NO_ACCESS_V2_APPROVED, installNoAccessKeys, installNoAccessText, installNoAccessTextCatchUpDue, installNoAccessV2Ready, renderInstallNoAccessEmail } from "./install-no-access-notice.core";
+
+/** Dependency injection for tests: the Touchpoint 51 flag and the email approval flag. */
+export type InstallNoAccessDeps = { v2: boolean; approved: boolean };
+const defaultDeps = (): InstallNoAccessDeps => ({ v2: INSTALL_NO_ACCESS_V2_APPROVED, approved: INSTALL_NO_ACCESS_NOTICE_APPROVED });
 
 export type InstallNoAccessNoticeInput = {
   jobId: string; bookingId: string;
@@ -22,11 +26,13 @@ export type InstallNoAccessNoticeInput = {
 async function noticeFacts(jobId: string, wasStart: string, newDayStarts: string[]) {
   const { data: job } = await admin.from("jobs").select("owner_id, source").eq("id", jobId).maybeSingle();
   if (!job) return null;
-  const [{ data: owner }, { data: asg }, link, ctx] = await Promise.all([
+  const [{ data: owner }, { data: asg }, link, ctx, contact] = await Promise.all([
     admin.from("owners").select("full_name, email, phone").eq("id", job.owner_id).maybeSingle(),
     admin.from("job_assignments").select("businesses(name, trading_name, onboarding_notes)").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle(),
     (await import("./veec-copy-email.server")).ownerMyJobLink(jobId),
     (await import("./install-days.server")).installDayContext(jobId),
+    // Touchpoint 51: the installer's OFFICE phone only (never a worker's mobile); missing = the new wording is held.
+    (await import("./owner-contact.server")).businessContactForJob(jobId, "installer"),
   ]);
   const { firstName } = await import("./worker-links.core");
   const { formatInstallDay } = await import("./install-days.core");
@@ -34,13 +40,13 @@ async function noticeFacts(jobId: string, wasStart: string, newDayStarts: string
   const biz = (asg?.businesses ?? null) as { name: string | null; trading_name: string | null; onboarding_notes: string | null } | null;
   const installBy = ctx.deadline ? new Intl.DateTimeFormat("en-AU", { timeZone: "UTC", day: "numeric", month: "long" }).format(new Date(`${ctx.deadline}T12:00:00Z`)) : null;
   const facts = {
-    firstName: firstName(owner?.full_name ?? null), installerName: (biz?.trading_name ?? biz?.name ?? null)?.replace(/^\[TEST PARTNER\]\s*/, "") ?? null,
-    day: formatInstallDay(wasStart, false), newDays: newDayStarts.map((s) => ({ ...splitDayTime(formatInstallDay(s)), href: link ? myJobScreen(link, "book") : "" })), installBy, link: link ?? "",
+    firstName: firstName(owner?.full_name ?? null), installerName: (biz?.trading_name ?? biz?.name ?? contact?.tradingName ?? contact?.name ?? null)?.replace(/^\[TEST PARTNER\]\s*/, "") ?? null,
+    day: formatInstallDay(wasStart, false), officePhone: contact?.officePhone ?? null, newDays: newDayStarts.map((s) => ({ ...splitDayTime(formatInstallDay(s)), href: link ? myJobScreen(link, "book") : "" })), installBy, link: link ?? "",
   };
   return { job, owner, biz, facts, missingLink: !link };
 }
 
-export async function sendInstallNoAccessNotice(p: InstallNoAccessNoticeInput): Promise<string> {
+export async function sendInstallNoAccessNotice(p: InstallNoAccessNoticeInput, deps: InstallNoAccessDeps = defaultDeps()): Promise<string> {
   const skipped = await inHouseDispatchSkip(p.jobId);
   if (skipped) return skipped;
   const { data: prior } = await admin.from("workflow_events").select("id").eq("job_id", p.jobId).eq("event_type", INSTALL_NO_ACCESS_NOTICE_EVENT).contains("details", { booking_id: p.bookingId }).limit(1).maybeSingle();
@@ -48,7 +54,14 @@ export async function sendInstallNoAccessNotice(p: InstallNoAccessNoticeInput): 
   await logEvent(p.jobId, null, INSTALL_NO_ACCESS_NOTICE_EVENT, "Owner told we couldn't get in on the install day: text + email prepared", { booking_id: p.bookingId, was: p.wasStart, reason: p.reason }, { internal: true });
   const nf = await noticeFacts(p.jobId, p.wasStart, p.newDayStarts ?? []);
   if (!nf) return "skipped";
-  if (nf.missingLink) {
+  if (deps.v2) {
+    // The new wording has no job link; it needs the installer's office phone and the install-by date.
+    const why = installNoAccessV2Ready(nf.facts);
+    if (why) {
+      await logEvent(p.jobId, null, "install_no_access_owner_notice_not_sent", `Couldn't-get-in notice held: ${why}. Add it on the installer's business, then tell the owner.`, { booking_id: p.bookingId, held: why }, { internal: true });
+      return `held — ${why}`;
+    }
+  } else if (nf.missingLink) {
     await logEvent(p.jobId, null, "install_no_access_owner_notice_not_sent", "No working owner job link, so the couldn't-get-in notice could not be sent", { booking_id: p.bookingId }, { internal: true });
     return "not sent — owner link missing";
   }
@@ -58,22 +71,22 @@ export async function sendInstallNoAccessNotice(p: InstallNoAccessNoticeInput): 
     const { isTestPartner } = await import("./test-send.core");
     const { sendTestEmail, sendTestSms } = await import("./test-send.server");
     const tctx = { jobId: p.jobId, jobSource: job.source, partnerIsTest: isTestPartner(biz), label: `install_no_access:${p.bookingId}`, actorId: null };
-    const mail = renderInstallNoAccessEmail({ ...facts, test: true });
+    const mail = renderInstallNoAccessEmail({ ...facts, test: true }, deps.v2);
     const e = await sendTestEmail(tctx, owner?.email ?? "", mail.subject, mail.html, mail.text);
-    const s = await sendTestSms(tctx, owner?.phone ?? "", installNoAccessText(facts));
+    const s = await sendTestSms(tctx, owner?.phone ?? "", installNoAccessText(facts, deps.v2));
     return `email ${e.status}: ${e.detail}; sms ${s.status}: ${s.detail}`;
   }
   const out: string[] = [];
-  if (!INSTALL_NO_ACCESS_NOTICE_APPROVED) out.push("email not sent — wording awaiting approval");
+  if (!deps.approved) out.push("email not sent — wording awaiting approval");
   else if (!owner?.email) out.push("email not sent — no owner email");
   else {
     try {
       await (await import("./comms.server")).assertCustomerDeliveryAllowed(p.jobId, "Couldn't get in email");
-      out.push(`email ${await (await import("./owner-email-send.server")).sendGuardedOwnerEmail({ jobId: p.jobId, jobSource: job.source, to: owner.email, purpose: "install_no_access", key: keys.email, build: () => renderInstallNoAccessEmail({ ...facts, test: false }) })}`);
+      out.push(`email ${await (await import("./owner-email-send.server")).sendGuardedOwnerEmail({ jobId: p.jobId, jobSource: job.source, to: owner.email, purpose: "install_no_access", key: keys.email, build: () => renderInstallNoAccessEmail({ ...facts, test: false }, deps.v2) })}`);
     } catch (e) { out.push(`email not sent — ${(e as Error).message}`); }
   }
   const { sendRealSms } = await import("./sms.server");
-  const s = await sendRealSms({ type: INSTALL_NO_ACCESS_SMS_TYPE, idempotencyKey: keys.sms, to: owner?.phone ?? null, body: installNoAccessText(facts), jobId: p.jobId, event: { at: p.reportedAt ?? new Date().toISOString() } });
+  const s = await sendRealSms({ type: INSTALL_NO_ACCESS_SMS_TYPE, idempotencyKey: keys.sms, to: owner?.phone ?? null, body: installNoAccessText(facts, deps.v2), jobId: p.jobId, event: { at: p.reportedAt ?? new Date().toISOString() } });
   out.push(`sms ${s.status}: ${s.detail}`);
   return out.join("; ");
 }
@@ -81,7 +94,7 @@ export async function sendInstallNoAccessNotice(p: InstallNoAccessNoticeInput): 
 /** Decision 215 / spec D4: a couldn't-get-in text held after 8pm goes at 7am — the same key, so never twice. Text only: the
  *  email already went at once and no new event is recorded. Skips when the job is gone or closed, or the owner already has
  *  a new install day booked (the text would be out of date). */
-export async function resendInstallNoAccessText(p: { jobId: string; bookingId: string; wasStart: string; reason: string; reportedAt: string }): Promise<string> {
+export async function resendInstallNoAccessText(p: { jobId: string; bookingId: string; wasStart: string; reason: string; reportedAt: string }, deps: InstallNoAccessDeps = defaultDeps()): Promise<string> {
   const skipped = await inHouseDispatchSkip(p.jobId);
   if (skipped) return skipped;
   const { data: j } = await admin.from("jobs").select("stage, deleted_at").eq("id", p.jobId).maybeSingle();
@@ -90,9 +103,9 @@ export async function resendInstallNoAccessText(p: { jobId: string; bookingId: s
   const { count } = await admin.from("bookings").select("id", { count: "exact", head: true }).eq("job_id", p.jobId).eq("kind", "installation").eq("status", "confirmed");
   if (count) return "skipped — new install day already booked";
   const nf = await noticeFacts(p.jobId, p.wasStart, []);
-  if (!nf || nf.missingLink) return "skipped";
+  if (!nf || (deps.v2 ? installNoAccessV2Ready(nf.facts) !== null : nf.missingLink)) return "skipped";
   const { sendRealSms } = await import("./sms.server");
-  const s = await sendRealSms({ type: INSTALL_NO_ACCESS_SMS_TYPE, idempotencyKey: installNoAccessKeys(p.bookingId).sms, to: nf.owner?.phone ?? null, body: installNoAccessText(nf.facts), jobId: p.jobId, event: { at: p.reportedAt } });
+  const s = await sendRealSms({ type: INSTALL_NO_ACCESS_SMS_TYPE, idempotencyKey: installNoAccessKeys(p.bookingId).sms, to: nf.owner?.phone ?? null, body: installNoAccessText(nf.facts, deps.v2), jobId: p.jobId, event: { at: p.reportedAt } });
   return `sms ${s.status}: ${s.detail}`;
 }
 

@@ -1,41 +1,28 @@
-// Part 2 (Jo 3 Nov 2026): the electrician's no-login page (/e/<token>). No auth middleware: the token is the only credential
-// (same pattern as swms-link.functions.ts). Logic in electrician-link.server.ts.
+// The electrician's no-login job page (/e/<token>). The token is the only credential; it names one job and one
+// electrician business. Everything is resolved from the token in electrician-link.server.ts, never from ids sent here.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 
-const tokenSchema = z.string().regex(/^[A-Za-z0-9_-]{40,64}$/);
-
 export const getElectricianLinkView = createServerFn({ method: "POST" })
-  .inputValidator((d) => z.object({ token: tokenSchema }).parse(d))
+  .inputValidator((d) => z.object({ token: z.string().max(100) }).parse(d))
   .handler(async ({ data }) => (await import("./electrician-link.server")).electricianLinkView(data.token));
 
-export const bookPiesaByLink = createServerFn({ method: "POST" })
-  .inputValidator((d) => z.object({ token: tokenSchema, day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), time: z.string().regex(/^\d{2}:\d{2}$/) }).parse(d))
-  .handler(async ({ data }) => {
-    const { melbourneWallToIso, melbourneWallProblem } = await import("./electrician-link.core");
-    const startIso = melbourneWallToIso(data.day, data.time);
-    if (!startIso) throw new Error(melbourneWallProblem(data.day, data.time) ?? "That date and time isn't valid.");
-    return (await import("./electrician-link.server")).linkBookPiesa(data.token, startIso);
-  });
+/** Join 4 Nov 2026: the page's one read — a Part 6 worker link, else main's Part 2 own-job link (both live until go-live). */
+export const getAnyElectricianLinkView = createServerFn({ method: "POST" })
+  .inputValidator((d) => z.object({ token: z.string().max(100) }).parse(d))
+  .handler(async ({ data }) => (await import("./electrician-link.server")).electricianLinkAnyView(data.token));
 
-export const cantDoByLink = createServerFn({ method: "POST" })
-  .inputValidator((d) => z.object({ token: tokenSchema, reason: z.enum(["busy", "owner_not_answering", "other"]), note: z.string().trim().max(500).optional() }).parse(d))
-  .handler(async ({ data }) => (await import("./electrician-link.server")).linkCantDo(data.token, data.reason, data.note));
+export const bookElectricianLinkVisit = createServerFn({ method: "POST" })
+  .inputValidator((d) => z.object({ token: z.string().max(100), kind: z.enum(["assessment", "rectification"]), start: z.string().max(40) }).parse(d))
+  .handler(async ({ data }) => (await import("./electrician-link.server")).bookFromElectricianLink(data.token, data.kind, data.start));
 
-// Part 3 Task 3 (Jo 3 Nov 2026): the upgrades day and the Certificate of Electrical Safety from the same link.
-export const enterUpgradesDayByLink = createServerFn({ method: "POST" })
-  .inputValidator((d) => z.object({ token: tokenSchema, day: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), time: z.string().regex(/^\d{2}:\d{2}$/) }).parse(d))
-  .handler(async ({ data }) => {
-    const { melbourneWallToIso, melbourneWallProblem } = await import("./electrician-link.core");
-    const startIso = melbourneWallToIso(data.day, data.time);
-    if (!startIso) throw new Error(melbourneWallProblem(data.day, data.time) ?? "That date and time isn't valid.");
-    return (await import("./electrician-link.server")).linkEnterUpgradesDay(data.token, startIso);
-  });
+/** The certificate is sent as base64 text (15 MB of file is about 20 MB of text). Only the token names the job. */
+export const uploadCoesByLink = createServerFn({ method: "POST" })
+  .inputValidator((d) => z.object({ token: z.string().max(100), name: z.string().max(200), type: z.string().max(100), data: z.string().max(21_000_000) }).parse(d))
+  // The body is decoded only after the server has checked the token and the link (a bad link costs nothing).
+  .handler(async ({ data }) => (await import("./electrician-link.server")).uploadCoesFromElectricianLink(data.token, { name: data.name, type: data.type, bytes: () => new Uint8Array(Buffer.from(data.data, "base64")) }));
 
-export const startCertificateUploadByLink = createServerFn({ method: "POST" })
-  .inputValidator((d) => z.object({ token: tokenSchema, fileName: z.string().min(1).max(200), mime: z.string().max(100), size: z.number().int().min(0) }).parse(d))
-  .handler(async ({ data }) => (await import("./electrician-link.server")).linkStartCertificateUpload(data.token, { fileName: data.fileName, mime: data.mime, size: data.size }));
-
-export const addCertificateByLink = createServerFn({ method: "POST" })
-  .inputValidator((d) => z.object({ token: tokenSchema, number: z.string().trim().min(1).max(80), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), filePath: z.string().min(10).max(300), fileName: z.string().max(200).optional() }).parse(d))
-  .handler(async ({ data }) => (await import("./electrician-link.server")).linkAddCertificate(data.token, { number: data.number, date: data.date, filePath: data.filePath, fileName: data.fileName ?? null }));
+/** "Can't do this one": the token names the job and the electrician; the reason is the only other input. */
+export const electricianCantDoByLink = createServerFn({ method: "POST" })
+  .inputValidator((d) => z.object({ token: z.string().max(100), reason: z.string().max(480) }).parse(d))
+  .handler(async ({ data }) => (await import("./electrician-link.server")).electricianCantDo(data.token, data.reason));

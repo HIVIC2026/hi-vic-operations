@@ -6,9 +6,9 @@
 // Run: bun test tests/decision-388-spot-only.test.ts
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { PRE_RELEASE_FORBIDDEN, SPOT_PROCESS_STATEMENT, SPOT_RELEASE_LINE, preReleaseViolations } from "../src/lib/spot-only-copy.core";
+import { SPOT_ORDER, PRE_RELEASE_FORBIDDEN, SPOT_INSTALLER_CALLS, SPOT_PROCESS_STATEMENT, SPOT_RELEASE_LINE, preReleaseViolations, preReleaseViolationsAllowing } from "../src/lib/spot-only-copy.core";
 import { O2_DONT_KNOW_INTRO, renderJoOutcomeEmail, type JoOutcomeEmailInput } from "../src/lib/jo-outcome-email.core";
-import { renderSpotSavedEmail, renderSpotSavedSms } from "../src/lib/spot-saved-messages.core";
+import { O10_NEXT_STEP_2, renderSpotSavedEmail, renderSpotSavedSms } from "../src/lib/spot-saved-messages.core";
 import { ESTIMATE_FOLLOWUP_APPROVED, ESTIMATE_FOLLOWUP_STEPS, renderEstimateFollowupEmail } from "../src/lib/estimate-followup.core";
 import { blastMessage } from "../src/lib/save-spot-reminder-blast.core";
 import { answerText, decideOwnerAutoReply, LONG_LIST, OWNER_EMAIL_AUTO_REPLY_APPROVED, renderOwnerAutoReplyEmail, type OwnerJobFacts } from "../src/lib/owner-email-auto-reply.core";
@@ -22,7 +22,6 @@ import { P1 } from "../src/lib/owner-pages.core";
 import { SPOT_SAVED_PROGRESS, ownerAction } from "../src/lib/owner-myjob.core";
 import { stageWording } from "../src/lib/job-wording";
 import { renderCoverageUnavailableEmail } from "../src/lib/coverage-email";
-import { renderFollowupEmail } from "../src/lib/followup-email";
 import { includedAndNotIncludedText, INCLUDED_CLOSING } from "../src/lib/email-kit.core";
 import { SMS_MESSAGE_TYPES } from "../src/lib/sms.core";
 import { INSULATION_DETAILS_REAL_SEND_APPROVED, SAVE_SPOT_REAL_SEND_APPROVED } from "../src/lib/hot-leads.core";
@@ -47,7 +46,7 @@ describe("the rule itself", () => {
     for (const bad of ["your free Ready Check", "an installer will offer you times", "they'll offer you times", "We measure your roof space", "a free onsite check",
       "we'll text you as soon as an installer is free", "Spots open soon", "we'll call shortly", "booked this week", "Want to jump the queue?", "so you could move up"])
       expect({ bad, hit: PRE_RELEASE_FORBIDDEN.test(bad) }).toEqual({ bad, hit: true });
-    for (const ok of ["Save your spot, it's free", SPOT_RELEASE_LINE, "Thousands of Victorians have registered.", "Fitted by an EEC-certified installer"]) clean(ok, ok);
+    for (const ok of ["Save your spot, it's free", SPOT_RELEASE_LINE, "Fitted by an EEC-certified installer"]) clean(ok, ok);
   });
 });
 
@@ -80,11 +79,13 @@ describe("pre-release emails and texts are spot-only", () => {
       estimate: { gross: 3798, customer: 2188, areaM2: 137, address: null, calculatorUrl: `${EST}/calculator` } };
     for (const removal of [null, { kind: "included" as const, amount: 900, areaM2: 60 }, { kind: "unknown" as const }]) {
       const e = renderSpotSavedEmail({ ...i, removal });
-      clean("O10 text", e.text); clean("O10 html", e.html.replace(/<[^>]+>/g, " ")); clean("O10 subject", e.subject);
+      // Decision 19 (2 Nov 2026): O10 step 2 may say the installer will call; nothing else is opened.
+      const ok = (t: string) => expect(preReleaseViolationsAllowing(t, [O10_NEXT_STEP_2.body, O10_NEXT_STEP_2.title, SPOT_INSTALLER_CALLS])).toEqual([]);
+      ok(e.text); ok(e.html.replace(/<[^>]+>/g, " ").replace(/&#x27;|&#39;/g, "'")); clean("O10 subject", e.subject);
     }
     const sms = renderSpotSavedSms(i);
-    clean("spot saved text", sms);
-    expect(sms).toContain(SPOT_RELEASE_LINE);
+    expect(preReleaseViolationsAllowing(sms, [SPOT_INSTALLER_CALLS])).toEqual([]); // decision 20
+    expect(sms).toContain(SPOT_ORDER);
   });
   test("O66–O68 estimate reminders (held)", () => {
     for (const step of ESTIMATE_FOLLOWUP_STEPS) {
@@ -92,22 +93,38 @@ describe("pre-release emails and texts are spot-only", () => {
       clean(`${step} text`, m.text); clean(`${step} subject`, m.subject);
     }
   });
-  test("save-spot reminder text (held), estimate-unopened follow-up, not-in-area O7", () => {
+  test("save-spot reminder text (held), not-in-area O7", () => {
     clean("blast", blastMessage("Helen", 2188, 1610, `${EST}/campaign`));
     clean("blast existing", blastMessage("Helen", 2188, 1610, `${EST}/campaign`, true));
-    clean("unopened", renderFollowupEmail({ kind: "estimate_unopened_3d", estimateUrl: EST }).plainText);
     clean("O7", renderCoverageUnavailableEmail({ firstName: "Helen", suburb: "Mildura", postcode: "3500", missing: ["installer"], reference: "HV-TEST" }).plainText);
   });
   test("O76 auto-replies before release: wording and routing (a waiting owner asking for the quote gets the spot-saved answer)", () => {
-    for (const a of ["save_spot", "answers_save_spot", "spot_saved", "answers_received"] as const) clean(a, answerText(a, { firstName: "Helen", link: "https://x/my-job/t" }));
-    expect(LONG_LIST).toBe("Thousands of Victorians have registered. Spots are released in the order they were saved.");
+    // Decisions 19 + 54–58 (Jo 2 Nov 2026): the spot-saved answers may say SPOT_INSTALLER_CALLS — that one sentence only.
+    const allowedFor = (a: string) => (a === "spot_saved" || a === "answers_received" ? [SPOT_INSTALLER_CALLS] : []);
+    const cleanO76 = (a: string, text: string) => expect({ a, found: preReleaseViolationsAllowing(text, allowedFor(a)) }).toEqual({ a, found: [] });
+    for (const a of ["save_spot", "answers_save_spot", "spot_saved", "answers_received"] as const) cleanO76(a, answerText(a, { firstName: "Helen", link: "https://x/my-job/t" }));
+    expect(LONG_LIST).toBe("Spots are released in the order they were saved.");
     for (const a of ["save_spot", "answers_save_spot", "spot_saved", "answers_received"] as const) {
       const m = renderOwnerAutoReplyEmail({ answer: a, facts: { firstName: "Helen", link: "https://x/my-job/t" }, theirSubject: "Quote" });
-      clean(`${a} html`, m.html.replace(/<[^>]+>/g, " "));
+      cleanO76(`${a}`, m.html.replace(/<[^>]+>/g, " "));
     }
     const f: OwnerJobFacts = { stage: "spot_saved", ownerFullName: "Helen Yang", spotSaved: true, questionsAnswered: false, nextVisit: null, quoteStatus: null, myJobLink: "https://x/my-job/t", questionsLink: "https://x/estimate/t/video" };
     const d = decideOwnerAutoReply({ subject: "Quote", body: "Where is my quote?", fromName: "Helen", hasAttachments: false, attachments: [], jobCount: 1, senderIsOwner: true, senderIsPartnerOrStaff: false, job: f });
     expect(d).toMatchObject({ kind: "send", answer: "spot_saved" });
+  });
+});
+
+describe("the decision-19 opening is narrow", () => {
+  test("only the exact sentence is allowed, only where a caller passes it; everything else stays forbidden", () => {
+    expect(SPOT_INSTALLER_CALLS).toBe("When an EEC-certified installer is available, they'll call you to book your free Ready Check.");
+    // The ordinary scanner (AI drafts, every other renderer) is NOT widened.
+    expect(preReleaseViolations(SPOT_INSTALLER_CALLS).length).toBeGreaterThan(0);
+    expect(PRE_RELEASE_FORBIDDEN.test(SPOT_INSTALLER_CALLS)).toBe(true);
+    expect(preReleaseViolationsAllowing(SPOT_INSTALLER_CALLS, [SPOT_INSTALLER_CALLS])).toEqual([]);
+    // Other forbidden content beside it, or a changed copy of it, is still caught.
+    for (const bad of [`${SPOT_INSTALLER_CALLS} We'll call shortly.`, `${SPOT_INSTALLER_CALLS} An installer will offer you times.`,
+      "When an EEC-certified installer is available, they'll call you to book your free Ready Check soon.", "They'll call you to book your free Ready Check.", "Book your free Ready Check this week."])
+      expect({ bad, found: preReleaseViolationsAllowing(bad, [SPOT_INSTALLER_CALLS]).length > 0 }).toEqual({ bad, found: true });
   });
 });
 
@@ -117,7 +134,7 @@ describe("pre-release page copy and shared constants", () => {
       ["SPOT_SAVED_BODY", SPOT_SAVED_BODY], ["PRELIMINARY_READY_CHECK", PRELIMINARY_READY_CHECK], ["SPOT_HELD_MESSAGE", SPOT_HELD_MESSAGE],
       ["READY_CHECK_BOOKING_CLOSED", READY_CHECK_BOOKING_CLOSED], ["EXISTING_PRELIMINARY", EXISTING_PRELIMINARY], ["REMOVAL_BUDGET_EMAIL_NOTE", REMOVAL_BUDGET_EMAIL_NOTE],
       ["removalNote included", removalNote({ kind: "included", amount: 900, areaM2: 60 })], ["REMOVAL_UPTO_NOTE", REMOVAL_UPTO_NOTE],
-      ["INSULATION_REVIEW_INVITATION", INSULATION_REVIEW_INVITATION], ["P1.photosSub", P1.photosSub], ["what could change", CUSTOMER_WHAT_COULD_CHANGE.intro],
+      ["INSULATION_REVIEW_INVITATION", INSULATION_REVIEW_INVITATION], ["what could change", CUSTOMER_WHAT_COULD_CHANGE.intro],
       ["spot_saved owner wording", stageWording("spot_saved").owner!], ["ready_check_ready_to_schedule owner wording", stageWording("ready_check_ready_to_schedule").owner!],
       ["My job progress", SPOT_SAVED_PROGRESS.map((p) => `${p.label} ${p.sub}`).join(" ")],
       ["My job: save your spot", JSON.stringify(ownerAction({ stage: "preliminary_estimate_ready", readyCheckRequested: false, visit: null, quoteOpen: null, bookingOpen: false }))],

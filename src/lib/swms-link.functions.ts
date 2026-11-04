@@ -12,3 +12,13 @@ export const getSwmsLinkView = createServerFn({ method: "POST" })
 export const signSwmsByLink = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ token: tokenSchema, typedName: z.string().trim().min(2).max(200) }).parse(d))
   .handler(async ({ data }) => (await import("./swms-link.server")).swmsLinkSign(data.token, data.typedName));
+
+/** Part 7 Task 3: the full plan as a PDF, fetched only when the person taps "Read the full safety plan (PDF)". */
+export const getSwmsLinkPdf = createServerFn({ method: "POST" })
+  .inputValidator((d) => z.object({ token: tokenSchema }).parse(d))
+  .handler(async ({ data }) => (await import("./swms-link.server")).swmsLinkPdf(data.token));
+
+/** Part 7 Task 4: the Lead Installer opens a crew member's own sign link on the Lead's phone ("Sign on my phone"). */
+export const openCrewSignOnLeadPhone = createServerFn({ method: "POST" })
+  .inputValidator((d) => z.object({ token: tokenSchema, crewKey: z.string().min(3).max(300) }).parse(d))
+  .handler(async ({ data }) => (await import("./swms-link.server")).swmsLinkLeadPhone(data.token, data.crewKey));

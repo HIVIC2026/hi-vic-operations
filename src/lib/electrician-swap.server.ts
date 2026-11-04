@@ -24,7 +24,7 @@ async function must<T>(p: PromiseLike<{ data: T; error: { message: string } | nu
 
 /** True once the safety check has been done: the job is past "PIESA booked", or this round's PIESA record exists. */
 async function piesaDone(jobId: string, stage: string): Promise<boolean> {
-  const { piesaDoneAtStage } = await import("./electrician-link.core");
+  const { piesaDoneAtStage } = await import("./own-job-electrician-link.core");
   if (piesaDoneAtStage(stage)) return true;
   const since = await (await import("./repeat-piesa.server")).latestReopenAt(jobId);
   let q = admin.from("piesa_records").select("id").eq("job_id", jobId);
@@ -204,7 +204,7 @@ export async function installerSwapElectrician(jobId: string, installerBusinessI
 
   // From here every step can be repeated. 3. The choice; the old electrician loses the link, the owner's contact details and open proposed times.
   await choose();
-  const { revokeElectricianLinks } = await import("./electrician-link.server");
+  const { revokeElectricianLinks } = await import("./own-job-electrician-link.server");
   for (const bid of new Set(old.map((o) => o.business_id).filter((b): b is string => !!b && b !== newElectricianBusinessId))) await revokeElectricianLinks(jobId, "swapped", { electricianBusinessId: bid }, now);
   if (old.length) await must(admin.from("contact_releases").update({ revoked_at: now.toISOString() }).in("assignment_id", old.map((o) => o.id)).is("revoked_at", null).select("id"), "The old electrician's access couldn't be ended");
   await must(admin.from("appointment_proposals").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "assessment").eq("status", "proposed").select("id"), "Open times couldn't be cleared");

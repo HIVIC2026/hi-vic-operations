@@ -60,17 +60,19 @@ export const AREA_BATCH_RETURNED_EVENT = "area_batch_returned";
 export const areaBatchReturnedKey = (batchId: string, jobId: string) => `area-batch-returned:v1:${batchId}:${jobId}`;
 export const AREA_BATCH_EVENTS = [AREA_BATCH_SENT_EVENT, AREA_BATCH_CLOSED_EVENT, AREA_BATCH_LEFT_EVENT, AREA_BATCH_RETURNED_EVENT] as const;
 
-/** New owner texts: each has its own SMS switch, off until Jo switches it on. */
+/** 2 Nov 2026 (decision #22): the batch send and its day-2 reminder are now the `spot_released` text + O77 email
+ *  (spot-release.core). `quick_taps` is no longer sent; `quick_taps_reminder` still reminds batches first sent the old way. */
 export const QUICK_TAPS_SMS_TYPE = "quick_taps" as const;
 export const QUICK_TAPS_REMINDER_SMS_TYPE = "quick_taps_reminder" as const;
 
 /** The owner's own My job link, on the quick taps screen. */
 export const quickTapsLink = (myJobLink: string) => `${myJobLink}?screen=taps`;
 const hiName = (fullName: string | null | undefined) => displayName(fullName).split(" ")[0] || "there";
-/** Jo approved 30 Oct 2026 (replaces the spec's first wording). Verbatim. No name → "Hi there," (Jo approved). */
+/** RETIRED 2 Nov 2026 (decision #22) — no longer sent; kept for history/tests. Jo approved 30 Oct 2026 (replaces the spec's first wording). Verbatim. No name → "Hi there," (Jo approved). */
 export const quickTapsText = (fullName: string | null | undefined, link: string) =>
   `Hi ${hiName(fullName)}, great news - it's almost time for your free Ready Check! Please confirm a few quick details for your quote: ${link} - Home Insulation Victoria`;
-/** Day-2 reminder (sent by Task 4's sweep). Jo approved 30 Oct 2026. Verbatim. */
+/** Day-2 reminder for batches sent BEFORE 2 Nov 2026 with the old quick taps text (area-batch.server legacyQuickTapsReminder;
+ *  batches sent since get the "It's your turn" reminder, decision #22). Jo approved 30 Oct 2026. Verbatim. */
 export const quickTapsReminderText = (fullName: string | null | undefined, link: string) =>
   `Hi ${hiName(fullName)}, just a reminder - please confirm a few quick details so we can book your free Ready Check: ${link}`;
 

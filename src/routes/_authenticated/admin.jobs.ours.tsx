@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { AppShell } from "@/components/portal/AppShell";
 import { startJobsList } from "@/lib/office-route-prefetch";
 import { JobsLaneScreen } from "@/components/portal/JobsLaneScreen";
-import { JOBS_STAGE_KEYS, type JobsStage } from "@/lib/office-jobs.core";
+import { JOBS_STAGE_KEYS, type JobsStage } from "@/lib/office-jobs-stage.core"; // speed (portal speed step 2B): keys only on first download
 
 // O3 Jobs › Our jobs. `?stage=` opens one stage (old Quote approvals links land on Quote).
 export const Route = createFileRoute("/_authenticated/admin/jobs/ours")({

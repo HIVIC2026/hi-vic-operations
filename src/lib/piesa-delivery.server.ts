@@ -11,6 +11,42 @@ import {
   PIESA_COPY_DELIVERED_EVENT, PIESA_COPY_EMAIL_APPROVED, PIESA_COPY_EMAIL_VERSION, PIESA_COPY_MAX_PER_TICK, PIESA_COPY_NOT_SENT_EVENT,
   piesaCopyKey, piesaDeliveryPlan, renderPiesaCopyEmail, type PiesaCopyRecipient,
 } from "./piesa-delivery.core";
+import { OWNER_STANDALONE_GRACE_MS, ownerStandaloneDue, piesaResultRoute, type PiesaResultRoute } from "./piesa-result-route.core";
+
+/** Part 4 Task 2: what the owner's PIESA message is for this job (piesa-result-route.core). Reads fail closed to the standalone legal copy. */
+export async function ownerPiesaRoute(jobId: string): Promise<PiesaResultRoute[]> {
+  try {
+    const [{ readInHouseDispatchState }, { readDoNotContact }, { fixesFormNeededFor }, { clearanceFacts }] = await Promise.all([
+      import("./in-house-suppression.server"), import("./do-not-contact.server"), import("./fixes-day.server"), import("./allocation.server"),
+    ]);
+    const [dispatch, dnc, c, fixes] = await Promise.all([readInHouseDispatchState([jobId]), readDoNotContact(jobId), clearanceFacts(jobId), fixesFormNeededFor(jobId)]);
+    if (dispatch.failed || !c.piesaOutcome) return ["standalone_copy"];
+    // Upgrades done on the PIESA visit: the PIESA form's "fixed on the same visit" answer is Yes.
+    const { shortAnswersFromEntries } = await import("./official-short.core");
+    const upgradesDoneSameDay = c.piesaOutcome === "fail" && /^\s*yes\b/i.test(String(shortAnswersFromEntries("piesa", fixes.snapshot)["rectificationComplete"] ?? ""));
+    return piesaResultRoute({ outcome: c.piesaOutcome === "pass" ? "all_clear" : "upgrades_needed", upgradesDoneSameDay, doNotContact: dnc.on, newFlow: dispatch.held.has(jobId) });
+  } catch (e) {
+    console.error("PIESA result route unavailable; sending the standalone copy", jobId, (e as Error).message);
+    return ["standalone_copy"];
+  }
+}
+
+/** When the current PIESA result was recorded (null when unreadable: the standalone copy then goes). */
+export async function piesaResultAt(jobId: string): Promise<string | null> {
+  try {
+    const { data } = await admin.from("piesa_records").select("created_at").eq("job_id", jobId).eq("is_current", true).maybeSingle();
+    return data?.created_at ?? null;
+  } catch { return null; }
+}
+
+export type PiesaDeliveryDeps = { route: (jobId: string) => Promise<PiesaResultRoute[]>; resultAt?: (jobId: string) => Promise<string | null> };
+
+/** Should the owner get the standalone signed copy now? Follows the route, with the 24h safety net (piesa-result-route.core). */
+export async function resolveOwnerStandalone(jobId: string, now: Date, ownerDelivered: boolean, deps: PiesaDeliveryDeps): Promise<boolean> {
+  const route = await deps.route(jobId);
+  const resultAt = route.includes("standalone_copy") || ownerDelivered ? null : await (deps.resultAt ?? piesaResultAt)(jobId);
+  return ownerStandaloneDue({ route, resultAt, now, ownerDelivered });
+}
 
 export type PiesaDeliveryResult = { jobId: string; hold: string | null; late: boolean; sent: PiesaCopyRecipient[]; held: Record<string, string> };
 
@@ -32,7 +68,7 @@ export async function recordDelivery(p: { jobId: string; recipient: PiesaCopyRec
 }
 
 /** Emails the signed PIESA copy to whoever hasn't got it yet, then records the deliveries. Safe to call every tick. */
-export async function deliverPiesaCopies(jobId: string, now = new Date()): Promise<PiesaDeliveryResult> {
+export async function deliverPiesaCopies(jobId: string, now = new Date(), deps: PiesaDeliveryDeps = { route: ownerPiesaRoute, resultAt: piesaResultAt }): Promise<PiesaDeliveryResult> {
   const out: PiesaDeliveryResult = { jobId, hold: null, late: false, sent: [], held: {} };
   const { data: job } = await admin.from("jobs").select("id, job_number, source, stage, deleted_at, qa_archived_at, owners(full_name, email), properties(address_line, suburb)").eq("id", jobId).maybeSingle();
   if (!job) return { ...out, hold: "job not found" };
@@ -41,7 +77,7 @@ export async function deliverPiesaCopies(jobId: string, now = new Date()): Promi
   const pe = await currentCopy(jobId, "piesa");
   if (pe.unavailable) return { ...out, hold: "signed-copy storage not set up" };
   const [{ data: rec }, { data: bk }, { data: asg }, { data: link }] = await Promise.all([
-    admin.from("piesa_records").select("id").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
+    admin.from("piesa_records").select("id, kind, outcome").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
     admin.from("bookings").select("scheduled_start").eq("job_id", jobId).eq("kind", "installation").eq("status", "confirmed").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("job_assignments").select("user_id, business_id, profiles:user_id(full_name, email), businesses(email, onboarding_notes)").eq("job_id", jobId).eq("role", "installer").eq("active", true).limit(1).maybeSingle(),
     admin.from("customer_estimate_links").select("token, status, expires_at").eq("job_id", jobId).eq("purpose", "step3_estimate").eq("status", "active").maybeSingle(),
@@ -56,12 +92,35 @@ export async function deliverPiesaCopies(jobId: string, now = new Date()): Promi
   const prof = (asg?.profiles ?? null) as { full_name: string | null; email: string | null } | null;
   const biz = (asg?.businesses ?? null) as { email: string | null; onboarding_notes: string | null } | null;
   const installerEmail = prof?.email?.trim() || biz?.email?.trim() || null;
+  // J4 G3 (join ruling, 4 Nov 2026): what this copy says follows the CURRENT PIESA record — never "all clear" on a result
+  // that found upgrades still to come. pass (initial) → the O28 all-clear words; pass after Part C, or upgrades fixed on
+  // the visit → the item-44 "upgrades done" words; fail with upgrades to come → the owner's copy is the upgrades-needed
+  // email (its own sender) and the installer's is the upgrades-needed variant; while that wording is unapproved both are
+  // HELD here with a reason (one event per copy), never sent with the wrong words.
+  const variant = await piesaCopyVariant(jobId, rec ? { kind: String(rec.kind), outcome: rec.outcome as string | null } : null);
+  // One owner message per result: a new-flow owner's PIESA rides on the clear-to-install / upgrades-needed email, so no standalone owner copy.
+  // The 24h safety net: after a day with no owner copy recorded (clear email blocked or never sent), the standalone copy goes anyway —
+  // except on an upgrades-still-to-come result (G3: the all-clear words must never go; the upgrades-needed email is the owner's copy).
+  const ownerStandalone = variant.kind === "upgrades_needed" ? false : await resolveOwnerStandalone(jobId, now, has("owner"), deps);
   const plan = piesaDeliveryPlan({
-    signedCopyId: copyId, piesaRecordId: rec?.id ?? null, installStart: bk?.scheduled_start ?? null,
+    ownerStandalone, signedCopyId: copyId, piesaRecordId: rec?.id ?? null, installStart: bk?.scheduled_start ?? null,
     delivered: { owner: has("owner"), installer: has("installer") }, email: { owner: owner?.email?.trim() || null, installer: installerEmail },
     closed: isClosedOrArchivedJob(job),
   }, now);
   out.late = plan.late;
+  if (variant.kind === "upgrades_needed" && copyId && rec && !isClosedOrArchivedJob(job)) {
+    const { UPGRADES_NEEDED_EMAIL_APPROVED } = await import("./piesa-result-route.core");
+    if (!UPGRADES_NEEDED_EMAIL_APPROVED) {
+      // Hold every copy on this result until the upgrades-needed wording is approved (the owner's goes with that email; the
+      // installer's is its upgrades-needed variant); recorded once per signed copy + recipient so the office can see why.
+      for (const recipient of [...(has("owner") ? [] : ["owner" as const]), ...(!has("installer") && bk?.scheduled_start && installerEmail ? ["installer" as const] : [])]) {
+        out.held[recipient] = UPGRADES_HOLD_REASON;
+        if (!(await alreadyLogged(jobId, PIESA_COPY_NOT_SENT_EVENT, { signed_copy_id: copyId, recipient })))
+          await logEvent(jobId, null, PIESA_COPY_NOT_SENT_EVENT, `Signed PIESA copy for the ${recipient} not sent: ${UPGRADES_HOLD_REASON}`, { signed_copy_id: copyId, recipient, version: PIESA_COPY_EMAIL_VERSION, late: plan.late, reason: "upgrades_needed_wording_unapproved" }, { internal: true });
+      }
+      return { ...out, hold: plan.hold ?? null };
+    }
+  }
   for (const r of plan.noAddress) out.held[r] = "no email address on file";
   if (plan.hold) return { ...out, hold: plan.hold };
 
@@ -82,7 +141,8 @@ export async function deliverPiesaCopies(jobId: string, now = new Date()): Promi
   for (const recipient of plan.send) {
     const to = recipient === "owner" ? owner!.email!.trim() : installerEmail!;
     const name = recipient === "owner" ? owner?.full_name : prof?.full_name;
-    const mail = renderPiesaCopyEmail({ recipient, firstName: name?.trim().split(/\s+/)[0] ?? null, address, jobNumber: job.job_number, signatureDate: pe.copy?.signatureDate ?? null, installStart: bk?.scheduled_start ?? null, link: recipient === "owner" ? ownerLink : `${SET_PASSWORD_BASE}/field/${jobId}`, test });
+    const mail = renderPiesaCopyEmail({ recipient, firstName: name?.trim().split(/\s+/)[0] ?? null, address, jobNumber: job.job_number, signatureDate: pe.copy?.signatureDate ?? null, installStart: bk?.scheduled_start ?? null, link: recipient === "owner" ? ownerLink : `${SET_PASSWORD_BASE}/field/${jobId}`, test,
+      repairs: variant.kind === "upgrades_done" ? { completed: true, cesNumber: variant.cesNumber } : null, upgradesNeeded: variant.kind === "upgrades_needed" });
     const key = piesaCopyKey(copyId!, recipient);
     if (test) {
       const r = await (await import("./test-send.server")).sendTestEmail({ jobId, jobSource: job.source, partnerIsTest: isTestPartner(biz as never), label: key, actorId: null }, to, mail.subject, mail.html, mail.text, { attachments });
@@ -100,7 +160,7 @@ export async function deliverPiesaCopies(jobId: string, now = new Date()): Promi
     let status: string, detail: string;
     if (recipient === "owner") {
       const { assertCustomerDeliveryAllowed } = await import("./comms.server");
-      try { await assertCustomerDeliveryAllowed(jobId, "Signed PIESA copy email"); } catch (e) { out.held[recipient] = `held: ${(e as Error).message}`; continue; }
+      try { await assertCustomerDeliveryAllowed(jobId, "Signed PIESA copy email", "piesa_copy"); } catch (e) { out.held[recipient] = `held: ${(e as Error).message}`; continue; }
       detail = await (await import("./owner-email-send.server")).sendGuardedOwnerEmail({ jobId, jobSource: job.source, to, purpose: "piesa_copy", key, build: () => ({ ...mail, attachments }) });
       status = detail === "sent" ? "sent" : "failed";
     } else {
@@ -113,13 +173,52 @@ export async function deliverPiesaCopies(jobId: string, now = new Date()): Promi
   return out;
 }
 
+/** Office-only held reason (workflow event) while UPGRADES_NEEDED_EMAIL_APPROVED is off. */
+export const UPGRADES_HOLD_REASON = "held: the safety check found electrical upgrades still to come — the upgrades-needed wording is waiting for Jo's approval (UPGRADES_NEEDED_EMAIL_APPROVED)";
+
+export type PiesaCopyVariant = { kind: "all_clear" } | { kind: "upgrades_done"; cesNumber: string | null } | { kind: "upgrades_needed" };
+/** J4 G3: which words this PIESA copy carries, from the current record (and the A3's "fixed on the same visit" answer). */
+export async function piesaCopyVariant(jobId: string, rec: { kind: string; outcome: string | null } | null): Promise<PiesaCopyVariant> {
+  if (!rec) return { kind: "all_clear" };
+  if (rec.outcome !== "pass" && rec.outcome !== "fail") return { kind: "all_clear" };
+  if (rec.outcome === "pass" && (rec.kind === "initial" || rec.kind === "reassessment")) return { kind: "all_clear" };
+  // The stored A3 answers: the certificate number (from the A4, merged in at Part C; or the same-visit q45) and the
+  // "fixed on the same visit" answer. A failed read on a fail result is treated as upgrades still to come (never all clear).
+  let answers: Record<string, string | null> = {};
+  try {
+    const { fixesFormNeededFor } = await import("./fixes-day.server");
+    const { shortAnswersFromEntries } = await import("./official-short.core");
+    answers = shortAnswersFromEntries("piesa", (await fixesFormNeededFor(jobId)).snapshot) as Record<string, string | null>;
+  } catch (e) { console.error("PIESA copy variant: stored answers unreadable", jobId, (e as Error).message); }
+  const cesNumber = String(answers["coesNumber"] ?? "").trim() || null;
+  if (rec.outcome === "pass") return { kind: "upgrades_done", cesNumber }; // post_rectification
+  const sameDay = /^\s*yes\b/i.test(String(answers["rectificationComplete"] ?? ""));
+  return sameDay ? { kind: "upgrades_done", cesNumber } : { kind: "upgrades_needed" };
+}
+
+const OVERDUE_LOOKBACK_MS = 60 * 24 * 60 * 60 * 1000;
+/** Open jobs whose current PIESA result is past the 24h grace and has no owner delivery row yet. */
+async function overdueOwnerCopyJobs(now: Date): Promise<string[]> {
+  const from = new Date(now.getTime() - OVERDUE_LOOKBACK_MS).toISOString(), to = new Date(now.getTime() - OWNER_STANDALONE_GRACE_MS).toISOString();
+  const { data: recs, error } = await admin.from("piesa_records").select("id, job_id, jobs!inner(stage, deleted_at)").eq("is_current", true).gte("created_at", from).lte("created_at", to)
+    .in("jobs.stage", ["piesa_complete", "electrical_variation_pending", "awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling"]).is("jobs.deleted_at", null).order("created_at").limit(PIESA_COPY_MAX_PER_TICK * 4);
+  if (error) throw new Error(`PIESA copy sweep could not read overdue safety checks: ${error.message}`);
+  if (!recs?.length) return [];
+  const { data: done, error: e2 } = await admin.from("piesa_deliveries").select("piesa_record_id").eq("recipient", "owner").in("piesa_record_id", recs.map((r) => r.id));
+  if (e2) throw new Error(`PIESA copy sweep could not read deliveries: ${e2.message}`);
+  const have = new Set((done ?? []).map((d) => d.piesa_record_id));
+  return recs.filter((r) => !have.has(r.id)).map((r) => r.job_id);
+}
+
 /** 15-minute tick: every job with a confirmed future install booking whose signed PIESA copies aren't both recorded yet. */
 export async function sweepPiesaCopyDeliveries(now = new Date()) {
   const { data: bks, error } = await admin.from("bookings").select("job_id, scheduled_start").eq("kind", "installation").eq("status", "confirmed").gt("scheduled_start", now.toISOString()).order("scheduled_start").limit(PIESA_COPY_MAX_PER_TICK * 2);
   if (error) throw new Error(`PIESA copy sweep could not read bookings: ${error.message}`);
   const {data:ready,error:readyError} = await admin.from('jobs').select('id').in('stage',['piesa_complete','electrical_variation_pending','awaiting_deposit_payment','rectification_scheduling','rectification_booked','installation_scheduling']).is('deleted_at',null).limit(PIESA_COPY_MAX_PER_TICK);
   if(readyError) throw new Error('Could not read completed safety checks');
-  const ids = [...new Set([...(ready ?? []).map(j=>j.id), ...(bks ?? []).map((b) => b.job_id)])].slice(0, PIESA_COPY_MAX_PER_TICK);
+  // Safety net: results older than the 24h grace with no owner copy recorded are always re-visited, so the sweep cannot starve them.
+  const overdue = await overdueOwnerCopyJobs(now);
+  const ids = [...new Set([...overdue, ...(ready ?? []).map(j=>j.id), ...(bks ?? []).map((b) => b.job_id)])].slice(0, PIESA_COPY_MAX_PER_TICK);
   const out = { checked: ids.length, sent: 0, held: 0, failed: 0 };
   for (const jobId of ids) {
     try {

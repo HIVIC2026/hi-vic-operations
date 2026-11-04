@@ -31,7 +31,8 @@ function OwnerElectricianTimes({ jobId }: { jobId: string }) {
   const run = async (f: () => Promise<unknown>) => { setBusy(true); try { await f(); setDays([]); setSuggesting(false); await qc.invalidateQueries({ queryKey: ["owner-piesa-times", jobId] }); } finally { setBusy(false); } };
   if (!data || !data.applies) return null;
   const title = "Your Pre Insulation Electrical Safety Assessment (PIESA) time";
-  if (data.turn === "electrician_to_offer" || data.turn === "no_electrician") return <Section title={title}><p className="text-sm text-muted-foreground">Your electrician will offer you 3 times to choose from.</p></Section>;
+  // Part 4 Task 14 (Jo 2 Nov 2026): no waiting note — the electrician calls the owner to book; only times already offered show.
+  if (data.turn === "electrician_to_offer" || data.turn === "no_electrician") return null;
   if (data.turn === "electrician_to_answer") return <Section title={title}><p className="text-sm text-muted-foreground">Your days are with your electrician. They'll take one and choose the time, or offer you new times.</p></Section>;
   if (data.turn !== "owner_to_answer") return null;
   const ackBlock = data.thirtyDayAck.needed && !understands;

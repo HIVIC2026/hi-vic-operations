@@ -104,6 +104,18 @@ export async function jobCertificateFacts(jobId: string): Promise<CertificateFac
   return { upgradesNeeded, upgradesToday, upgradesDaySet, upgradesDoneAt, partCRecorded, certificateFileAt, certificateTicked, certificateRejectedWhy, certificateKey, certificateWhy, electrician: who.name, state, line: certificateStatusLine({ state, electrician: who.name, upgradesDaySet }) };
 }
 
+/** Join (4 Nov 2026, #135 read budget): the job-page status line from rows the installer job page bundle already holds —
+ *  no extra reads. The rejected-certificate nuance (a file the office rejected reads as waiting) needs the coes events, which
+ *  the bundle does not read; here a file on the job reads as "in", so no line is shown (the office Needs me row carries the
+ *  rejection). The office page and the chases use the full `jobCertificateFacts`. Never throws. */
+export async function certificateLineFromParts(p: { snapshot: unknown; itemCount: number; hasPostRecord: boolean; upgradesDaySet: boolean; certificateOnFile: boolean; electrician: string | null }): Promise<{ state: CertificateState; line: string | null } | null> {
+  try {
+    const { upgradesNeeded, partCRecorded } = await upgradesFromRows(p.snapshot, p.itemCount, p.hasPostRecord);
+    const state = certificateState({ upgradesNeeded, upgradesDoneAt: partCRecorded ? "recorded" : null, partCRecorded, certificateFileAt: p.certificateOnFile ? "on file" : null, certificateTicked: false });
+    return { state, line: certificateStatusLine({ state, electrician: p.electrician, upgradesDaySet: p.upgradesDaySet }) };
+  } catch (e) { console.error("certificate line not built", (e as Error).message); return null; }
+}
+
 /** The job-page status line only (installer + office pages). Never throws: a failed read shows nothing rather than a wrong line. */
 export async function certificateLineFor(jobId: string): Promise<{ state: CertificateState; line: string | null } | null> {
   try { const f = await jobCertificateFacts(jobId); return { state: f.state, line: f.line }; } catch (e) { console.error("certificate facts not read", jobId, (e as Error).message); return null; }
@@ -147,6 +159,12 @@ export async function installCertificateWarningFor(jobId: string): Promise<strin
  *  Never throws — a booking is never undone by this. */
 export async function recordInstallCertificateWarning(jobId: string, actorId: string | null, startIso: string): Promise<string | null> {
   try {
+    // Join step 6 ruling 2 (4 Nov 2026, "double warning"): while the upgrades themselves are still outstanding the booking
+    // carries Part 9 Task 10's "Electrical upgrades aren't done yet…" line alone; this certificate line (and its history
+    // row) only once the upgrades are done and the certificate is still to come.
+    const { clearanceFacts } = await import("./electrical-clearance.server");
+    const { electricalClearance, upgradesOutstanding } = await import("./allocation.core");
+    if (upgradesOutstanding(electricalClearance(await clearanceFacts(jobId)))) return null;
     const warning = await installCertificateWarningFor(jobId);
     if (!warning) return null;
     const start = new Date(startIso).toISOString();
@@ -514,4 +532,19 @@ export async function chaseFlagsForJobs(jobIds: string[]): Promise<Map<string, i
     if (Object.keys(flags).length) out.set(id, flags);
   }
   return out;
+}
+
+// ---------- ONE sweep owns the upgrades chasing (join ruling 2, 4 Nov 2026) ----------
+/** The three chases, each for its own condition, in one place: (1) no upgrades day entered (sweepUpgradesDayChase), (2) Part C
+ *  recorded with no certificate file (sweepCertificateChase), (3) the booked upgrades day passed with no upgrades form in
+ *  (Part 6 Task 7 sweepUpgradesWatch, upgrades-watch.server). The conditions are exclusive by state — a job is never texted by
+ *  two of them on one day: (1) stops once a day is entered, (3) runs only after an entered day has passed with no Part C, and
+ *  (2) runs only once Part C is recorded. One failure never stops the others. */
+export async function sweepUpgradesChasing(now: Date = new Date()): Promise<{ upgradesDay: unknown; certificate: unknown; dayPassed: unknown; failed: string[] }> {
+  const failed: string[] = [];
+  const run = async <T,>(name: string, f: () => Promise<T>): Promise<T | "failed"> => { try { return await f(); } catch (e) { console.error(`upgrades chasing: ${name} failed`, (e as Error).message); failed.push(name); return "failed"; } };
+  const upgradesDay = await run("upgrades day", () => sweepUpgradesDayChase(now));
+  const certificate = await run("certificate", () => sweepCertificateChase(now));
+  const dayPassed = await run("day passed", async () => (await import("./upgrades-watch.server")).sweepUpgradesWatch(now));
+  return { upgradesDay, certificate, dayPassed, failed };
 }

@@ -7,10 +7,14 @@
 // change your {visit} here and {who} will be told straight away: {link}. If you'd rather cancel, you can do that on the
 // same page{cancel_note}. — Home Insulation Victoria". Design (MJML refresh, Jo 26 Oct 2026): the same words in short
 // sentences with a "Change my {visit}" button and the full link under it (docs/templates/mjml/owner_change-reply.mjml).
+// Decisions 54–58 item 3 (Jo 2 Nov 2026) REPLACE that body: "Call {installer/electrician} on {office phone} to change it.
+// To cancel, just reply to this email." — no job page link or button. The business is the visit's trade (electrician for
+// the safety check, else the installer), its OFFICE phone only (`businesses.phone`); none on file → the reply is held.
 import * as K from "./email-kit.core";
 import { mjEmail, esc } from "./mail-mjml.core";
 import { newSenderFirstName, newSenderReplySubject } from "./new-sender-reply.core";
 import type { OwnerScreen } from "./owner-myjob.core";
+import type { BusinessContact } from "./owner-wording.core";
 
 /** Decision 337 wording is approved (route given by Jo). Real delivery still needs customer_comms_enabled + consent. */
 export const EMAIL_CHANGE_REPLY_APPROVED = true as boolean;
@@ -69,7 +73,19 @@ export function changeReplyKey(jobId: string, messageId: string): string {
   return `email-change-reply:v1:${jobId}:${messageId}`;
 }
 
-export type ChangeReplyFacts = { firstName: string | null; visit: ChangeVisit; link: string; cancelNote: string };
+export type ChangeReplyFacts = { firstName: string | null; visit: ChangeVisit; business: string; officePhone: string };
+
+/** Whose office the owner calls: the electrician for the safety check, the installer for everything else. */
+export function changeReplyRole(visit: ChangeVisit): "installer" | "electrician" {
+  return visit === "piesa" ? "electrician" : "installer";
+}
+
+/** Trading name (else name) + office phone; no contact or no office phone → null: the server holds the reply. */
+export function changeReplyBusiness(c: BusinessContact | null): { business: string; officePhone: string } | null {
+  const phone = c?.officePhone?.trim();
+  const business = (c?.tradingName?.trim() || c?.name.trim()) ?? "";
+  return c && phone && business ? { business, officePhone: phone } : null;
+}
 
 export function changeReplySubject(theirSubject: string | null | undefined): string {
   return newSenderReplySubject(theirSubject);
@@ -82,17 +98,12 @@ export function changeReplyFirstName(ownerFullName: string | null | undefined, f
 
 const SIGN_OFF = "— Home Insulation Victoria";
 
-/** The approved route's words in the design's short sentences (docs/templates/mjml/owner_change-reply.mjml). The
- *  {cancel_note} ", or reply to this email…" becomes its own sentence: "Or reply to this email…". */
+/** Decisions 54–58 item 3: greeting, "No problem", the one approved sentence, sign-off. */
 export function changeReplyParagraphs(f: ChangeReplyFacts) {
-  const v = CHANGE_VISIT[f.visit];
-  const or = /^,\s*or\s+(.*)$/i.exec(f.cancelNote);
   return {
     greeting: `Hi ${f.firstName ?? "there"},`,
     headline: "No problem",
-    change: `You can change your ${v.visit} on your job page. ${v.who.charAt(0).toUpperCase()}${v.who.slice(1)} will be told straight away.`,
-    button: `Change my ${v.visit}`,
-    cancel: or ? `If you'd rather cancel, you can do that on the same page. Or ${or[1]}.` : `If you'd rather cancel, you can do that on the same page${f.cancelNote}.`,
+    change: `Call ${f.business} on ${f.officePhone} to change it. To cancel, just reply to this email.`,
     signOff: SIGN_OFF,
   };
 }
@@ -100,15 +111,14 @@ export function changeReplyParagraphs(f: ChangeReplyFacts) {
 /** The approved words as the plain-text body (same order as the email). */
 export function changeReplyText(f: ChangeReplyFacts): string {
   const p = changeReplyParagraphs(f);
-  return [p.greeting, "", p.headline, "", p.change, `${p.button}: ${f.link}`, "", p.cancel, "", p.signOff].join("\n");
+  return [p.greeting, "", p.headline, "", p.change, "", p.signOff].join("\n");
 }
 
 export function renderChangeReplyEmail(i: ChangeReplyFacts & { theirSubject: string | null; unsubscribe?: string | null; test?: boolean }) {
   const p = changeReplyParagraphs(i);
-  const v = CHANGE_VISIT[i.visit];
-  const preview = `You can change your ${v.visit} on your job page, and ${v.who} is told straight away.`;
+  const preview = p.change;
   const subject = changeReplySubject(i.theirSubject);
-  const body = `<mj-section><mj-column><mj-text mj-class="hi">${esc(p.greeting)}</mj-text><mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">${esc(p.headline)}</mj-text><mj-text>${esc(p.change)}</mj-text><mj-button href="${esc(i.link)}">${esc(p.button)}</mj-button><mj-text mj-class="small" padding="0 12px 14px">Or open this link: <a href="${esc(i.link)}" style="color:#3C51C4;font-weight:700;word-break:break-all;">${esc(i.link)}</a></mj-text><mj-text>${esc(p.cancel)}</mj-text><mj-text padding="0 12px 0">${esc(p.signOff)}</mj-text></mj-column></mj-section>`;
+  const body = `<mj-section><mj-column><mj-text mj-class="hi">${esc(p.greeting)}</mj-text><mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">${esc(p.headline)}</mj-text><mj-text>${esc(p.change)}</mj-text><mj-text padding="0 12px 0">${esc(p.signOff)}</mj-text></mj-column></mj-section>`;
   return {
     subject,
     html: mjEmail({ subject, preview, body, unsubscribe: i.unsubscribe ?? null, testLabel: i.test === true }),

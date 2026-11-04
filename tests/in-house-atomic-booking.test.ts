@@ -10,6 +10,7 @@ import * as safetyCore from '../src/lib/safety-check-amount.core';
 import * as stripeCore from '../src/lib/stripe.core';
 import * as earlyRead from '../src/lib/early-read';
 import * as melbourneCore from '../src/lib/melbourne-time.core';
+import * as balanceQ21Core from '../src/lib/balance-q21.core';
 import * as ownerConfirmCore from '../src/lib/piesa-owner-confirm.core';
 import * as officialShort from '../src/lib/official-short.core';
 const id=(n:number)=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
@@ -79,6 +80,8 @@ test('real stage SQL: atomic clicks and ESC refusal work, but canonical unpaid/u
  const cache:any={};
  const deps:any={
   '@/integrations/supabase/client.server':{supabaseAdmin:shim},
+  './job-facts.server':{jobAdmin:shim}, // speed stream (Task 11): payments.server reads through the job-page bundle's admin
+  './balance-q21.core':balanceQ21Core, // J1-5 (Q21): balance due on install day, pure
   './workflow.server':{paymentGateActiveForJob:async()=>true,logEvent:async()=>{throw Error('Unexpected write');}},
   './fixes-quote-current.server':{currentFixesQuote:async()=>null},
   './repeat-piesa.server':{repeatPiesaContext:async()=>null},

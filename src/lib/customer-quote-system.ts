@@ -127,7 +127,7 @@ export const CUSTOMER_READY_CHECK_PAGE = {
     "Existing insulation, removal and access are checked",
     "Eligibility evidence and site photos are collected",
   ],
-  notPiesa: "This is not the mandatory PIESA. Your PIESA is completed later by a licensed electrician, close to installation.",
+  notPiesa: "This is not the electrical safety check (PIESA). Your PIESA is completed later by a licensed electrician, close to installation.",
   acceptance: "I request the free Ready Check. I understand the installer will measure my ceiling and check eligibility, and it is not the PIESA.",
 } as const;
 
@@ -153,7 +153,7 @@ export const CUSTOMER_MEASURED_QUOTE = {
 
 export const CUSTOMER_PIESA_STAGE = {
   heading: "PIESA",
-  before: "Your mandatory PIESA is the next step before installation.",
+  before: "Your electrical safety check (PIESA) is the next step before installation.",
   after: "Your PIESA is complete.",
   performedBy: "Your PIESA is completed by a licensed electrician, close to installation.",
   requiredHeading: "ELECTRICAL WORK REQUIRED BEFORE INSTALLATION",

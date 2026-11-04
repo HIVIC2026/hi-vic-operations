@@ -38,7 +38,8 @@ describe("business file rows", () => {
     expect(latestExpiry([{ kind: "other", label: "Public Liability Certificate", expires: "2027-01-01T00:00:00Z", verified: false }], "public_liability_insurance")).toBe("2027-01-01");
   });
   test("insurance row", () => {
-    expect(insuranceRowSub(creds, TODAY)).toEqual({ text: "Public liability expires Wed 11 Nov · Workers comp current", warn: true });
+    // Jo 4 Nov 2026 21:08 (G8): workers comp is not collected — the row never mentions it, even when an old row exists.
+    expect(insuranceRowSub(creds, TODAY)).toEqual({ text: "Public liability expires Wed 11 Nov", warn: true });
     expect(insuranceRowSub([{ kind: "public_liability_insurance", label: "Public liability", expires: "2027-11-11", verified: true }], TODAY)).toEqual({ text: "Public liability current", warn: false });
     expect(insuranceRowSub([], TODAY)).toEqual({ text: "Public liability not on file", warn: true });
     expect(insuranceRowSub([{ kind: "public_liability_insurance", label: "Public liability", expires: "2026-10-01", verified: true }], TODAY).text).toBe("Public liability expired Thu 1 Oct");
@@ -89,7 +90,8 @@ describe("public liability expiry blocks offers and pre-start like the CII (H3)"
   test("blocker only once lapsed; no date on file is not a block", () => {
     expect(publicLiabilityBlocker("2026-10-23", TODAY)).toBe("Public liability insurance expired on 2026-10-23. Upload the renewed certificate under My business.");
     expect(publicLiabilityBlocker("2026-10-24", TODAY)).toBeNull();
-    expect(publicLiabilityBlocker(null, TODAY)).toBeNull();
+    // Part 9 Task 8 (Jo 2 Nov 2026): no date on file is a block too (insurance is a hard block until the office approves it).
+    expect(publicLiabilityBlocker(null, TODAY)).toBe("Public liability insurance not on file. Upload the certificate under My business.");
   });
   test("pre-start fails with the insurance line; older callers without the fact are unchanged", () => {
     const base: PrestartFacts = {
@@ -99,7 +101,7 @@ describe("public liability expiry blocks offers and pre-start like the CII (H3)"
       consentBlockers: [], piesaCompletedAt: "2026-10-20T00:00:00Z",
     };
     expect(prestartFailures(base)).toEqual([]);
-    expect(prestartFailures({ ...base, publicLiabilityBlocker: publicLiabilityBlocker("2026-10-01", TODAY) })).toEqual(["Installer business: Public liability insurance expired on 2026-10-01. Upload the renewed certificate under My business."]);
+    expect(prestartFailures({ ...base, businessDocsBlocker: publicLiabilityBlocker("2026-10-01", TODAY) })).toEqual(["Installer business: Public liability insurance expired on 2026-10-01. Upload the renewed certificate under My business."]);
   });
   test("Ready Check installer pick: lapsed documents make the business ineligible", () => {
     const facts = { business_id: "b", name: "Reinsulate", is_active: true, onboarding_status: "approved", accepting_new_jobs: true, receives_hivic_leads: true, coverage_verified: true, covers_postcode: true, exact_postcode: true, fullCertifiedInstallers: 1, freeMeasureUps: true, weekly_capacity: null, open_jobs: 0, recent_offers_30d: 0, acceptance_rate: null };

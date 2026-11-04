@@ -7,6 +7,10 @@
 //    My job link) once OWNER_QUOTE_EMAIL_APPROVED is true; until then only an approved
 //    `customer_communication_templates` row may be sent, and with none on file the office is told the quote went
 //    out with no email, instead of a made-up one. TEST jobs always get the rendered draft through test-send.
+//  • decision #29/#33 (Jo 2 Nov 2026): with OWNER_QUOTE_EMAIL_V4_APPROVED on, a 30-day quote gets the v4 email (same
+//    purpose + key) with the "What's changed from your estimate" box and the quote documents attached (Customer
+//    Agreement + payment terms, Statement of rights); if any document can't be made the email is HELD ("Quote documents
+//    not ready") with an office note, never sent without them. Flag off, or a 14-day quote: the v3 email, unchanged.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import { genericMail } from './mail-mjml.core';
@@ -47,7 +51,7 @@ export async function loadOwnerQuoteFacts(
       .maybeSingle(),
     admin
       .from("quote_items")
-      .select("description, line_total_inc_gst, sort")
+      .select("description, line_total_inc_gst, sort, code")
       .eq("quote_id", quoteId),
     admin
       .from("customer_estimate_links")
@@ -77,7 +81,7 @@ export async function loadOwnerQuoteFacts(
   const { CUSTOMER_BASE } = await import("./engagement.core");
   const { fullAddress } = await import("./address");
   const { firstName } = await import("./worker-links.core");
-  const { quoteExpiresAt } = await import("./quote-expiry.core");
+  const { quoteExpiresAt, quoteValidDaysFor } = await import("./quote-expiry.core");
   const { lastValidInstant, safetyCheckPriceFromLines } = await import("./owner-quote-email.core");
   // Lines/address are best-effort presentation: a failed read shows fewer details, never a wrong number.
   const lines = ie
@@ -87,6 +91,8 @@ export async function loadOwnerQuoteFacts(
         .map((l) => ({
           description: String(l.description ?? ""),
           lineTotalIncGst: Number(l.line_total_inc_gst),
+          // Part 10 Task 5: own customers' rows are built from the code, never the description.
+          code: (l as { code?: string | null }).code ?? null,
         }));
   const address =
     pe || !prop ? null : fullAddress(prop.address_line, prop.suburb, prop.postcode) || null;
@@ -96,7 +102,7 @@ export async function loadOwnerQuoteFacts(
     Promise.all([
       admin
         .from("ceiling_measurements")
-        .select("measured_area_m2, verified_area_m2, removal_required, removal_m2")
+        .select("measured_area_m2, verified_area_m2, removal_required, removal_m2, insulation_present, zones")
         .eq("job_id", jobId)
         .eq("is_current", true)
         .maybeSingle(),
@@ -116,19 +122,30 @@ export async function loadOwnerQuoteFacts(
         .eq("active", true)
         .limit(1)
         .maybeSingle(),
-    ]))().catch(() => [{ data: null }, { data: null }, { data: null }] as const);
-  const [{ data: m }, { data: prod }, { data: asg }] = extra as unknown as [
+      // Decision #29: the estimate side of "What's changed" — the saved estimate (as the Ready Check booked email reads it).
+      admin
+        .from("lead_campaign_responses")
+        .select("saved_total, saved_area_m2")
+        .eq("job_id", jobId)
+        .maybeSingle()
+        .then((r) => r, () => ({ data: null, error: null })),
+    ]))().catch(() => [{ data: null }, { data: null }, { data: null }, { data: null }] as const);
+  const [{ data: m }, { data: prod }, { data: asg }, savedRead] = extra as unknown as [
     {
       data: {
         measured_area_m2: unknown;
         verified_area_m2: unknown;
         removal_required: boolean | null;
         removal_m2: unknown;
+        insulation_present?: boolean | null;
+        zones?: unknown;
       } | null;
     },
     { data: { details: unknown } | null },
     { data: { businesses: unknown } | null },
+    { data: { saved_total: unknown; saved_area_m2: unknown } | null } | undefined,
   ];
+  const saved = savedRead?.data ?? null;
   const biz = (asg?.businesses ?? null) as {
     name: string | null;
     trading_name: string | null;
@@ -136,11 +153,26 @@ export async function loadOwnerQuoteFacts(
     is_active: boolean | null;
   } | null;
   const area = m ? Number(m.verified_area_m2 ?? m.measured_area_m2) || null : null;
+  const { quoteChangeRows } = await import("./quote-changes.core");
+  const savedNum = (v: unknown) => (v == null || !Number.isFinite(Number(v)) ? null : Number(v));
+  // No removal answer is recorded with the saved estimate, so that row only shows once one is (never guessed).
+  const changes = area == null ? [] : quoteChangeRows({
+    estimate: { areaM2: savedNum(saved?.saved_area_m2), removal: null, price: savedNum(saved?.saved_total) },
+    quote: { areaM2: area, removal: m?.removal_required === true, price: Number(quote.customer_total_inc_gst) },
+  });
   const product =
     (prod?.details as { product?: { option?: string } } | null)?.product?.option ?? null;
+  // Part 10 Task 5: an installer's own customer gets the co-branded variant — the originating business's name and Part 5's
+  // https logo (`businessLogoUrl`; none → our logo alone). Best-effort: a failed read leaves the brand out, never stops the email.
+  const ownCustomer = await ownCustomerBrand(jobId).catch(() => null);
+  // Jo 4 Nov 2026 16:10: the old insulation stays (Ready Check: not removed + good enough to lay over) → the approved notice
+  // on the quote email / page and in the agreement. Only when recorded (kept-insulation.core); the read failing = no notice.
+  const keptInsulation = (await import("./kept-insulation.core")).oldInsulationKept(m);
   return {
     missing: null,
     input: {
+      ...(ownCustomer ? { ownCustomer } : {}),
+      ...(keptInsulation ? { keptInsulation } : {}),
       firstName: firstName(ownerName),
       address,
       totalIncGst: Number(quote.customer_total_inc_gst),
@@ -152,6 +184,8 @@ export async function loadOwnerQuoteFacts(
         quote.kind === "installation" && quote.sent_at
           ? lastValidInstant(quoteExpiresAt(quote.sent_at))
           : null,
+      // Decision #30: 30-day quotes get the "valid for 30 days, until" wording in the reminders; older quotes keep 14 days.
+      ...(quote.kind === "installation" && quote.sent_at ? { validDays: quoteValidDaysFor(quote.sent_at) } : {}),
       officePhone: null,
       safetyCheckPrice: safetyCheckPriceFromLines(lines),
       subtotalIncGst: quote.subtotal_inc_gst == null ? null : Number(quote.subtotal_inc_gst),
@@ -160,8 +194,67 @@ export async function loadOwnerQuoteFacts(
       product,
       installerName: biz?.trading_name ?? biz?.name ?? null,
       installerCertified: biz?.onboarding_status === "approved" && biz.is_active === true,
+      changes,
     },
   };
+}
+
+/** Part 10 Task 5: `{ installerName, installerLogoUrl }` for a `channel = installer_sourced` job, else null. */
+async function ownCustomerBrand(jobId: string): Promise<{ installerName: string; installerLogoUrl: string | null } | null> {
+  const { data: j } = await admin.from("jobs").select("channel, originating_installer_business_id").eq("id", jobId).maybeSingle();
+  const biz = (j as { channel?: string | null; originating_installer_business_id?: string | null } | null);
+  if (biz?.channel !== "installer_sourced" || !biz.originating_installer_business_id) return null;
+  const { data: b } = await admin.from("businesses").select("name, trading_name").eq("id", biz.originating_installer_business_id).maybeSingle();
+  const name = ((b as { trading_name?: string | null; name?: string | null } | null)?.trading_name ?? (b as { name?: string | null } | null)?.name ?? "").trim();
+  if (!name) return null;
+  const installerLogoUrl = await (await import("./trade-view.server")).businessLogoUrl(biz.originating_installer_business_id).catch(() => null);
+  return { installerName: name, installerLogoUrl };
+}
+
+type QuoteEmailInput = NonNullable<OwnerQuoteFacts["input"]>;
+type EmailAttachment = import("./email-kit.core").EmailAttachment;
+
+/** Decision #33: the documents attached to the v4 quote email — Customer Agreement + payment terms (one PDF, the approved
+ *  v1.3 layout) and the ESC Statement of rights. `missing` names what isn't ready; the caller then never sends v4. */
+export async function quoteEmailDocuments(
+  jobId: string,
+  quoteId: string,
+  input: QuoteEmailInput,
+  ownerName: string | null,
+  jobNumber: string | null,
+): Promise<{ attachments: EmailAttachment[]; missing: null } | { attachments: null; missing: string }> {
+  const no = (missing: string) => ({ attachments: null, missing });
+  try {
+    // The agreement states "valid for 30 days, until {date}", so it only goes with a 30-day quote.
+    if (input.validDays !== 30) return no("not a 30-day quote");
+    const [{ activeCustomerAgreement }, { businessContactForJob }, { statementOfRightsPdf, STATEMENT_OF_RIGHTS_FILENAME }] = await Promise.all([
+      import("./customer-agreement.server"), import("./owner-contact.server"), import("./statement-of-rights.core"),
+    ]);
+    const [tpl, installer, { data: items, error: ie }] = await Promise.all([
+      activeCustomerAgreement(),
+      businessContactForJob(jobId, "installer"),
+      admin.from("quote_items").select("code, line_total_inc_gst").eq("quote_id", quoteId),
+    ]);
+    if (!tpl) return no("Customer Agreement wording not active");
+    if (ie) return no("quote lines unavailable");
+    const { safetyCheckCentsFor } = await import("./safety-check-amount.core");
+    const { quoteAgreementFacts } = await import("./owner-quote-email.core");
+    const facts = quoteAgreementFacts({
+      input, ownerName, jobNumber, installer,
+      safetyCents: safetyCheckCentsFor({ lines: (items ?? []) as { code: string | null; line_total_inc_gst: number | null }[] }).cents,
+    });
+    if (!facts) return no(installer?.officePhone && installer.email ? "agreement details missing" : "installer office phone or business email missing");
+    const { agreementBlocks, customerAgreementPdf, PAYMENT_TERMS_BLOCK_ID } = await import("./customer-agreement-pdf.server");
+    if (!agreementBlocks(tpl, facts, { keptInsulation: input.keptInsulation === true }).some((b) => (b as { id?: string }).id === PAYMENT_TERMS_BLOCK_ID)) return no("payment terms missing from the Customer Agreement");
+    const sor = statementOfRightsPdf();
+    if (!sor) return no("Statement of rights not on file");
+    const agreement = await customerAgreementPdf(tpl, facts, { keptInsulation: input.keptInsulation === true });
+    const { bytesToBase64 } = await import("./veec-emails.core");
+    const pdf = (filename: string, bytes: Uint8Array): EmailAttachment => ({ filename, content: bytesToBase64(bytes), contentType: "application/pdf" });
+    return { attachments: [pdf(agreement.fileName, agreement.bytes), pdf(STATEMENT_OF_RIGHTS_FILENAME, sor)], missing: null };
+  } catch (e) {
+    return no(e instanceof Error ? e.message : "documents could not be made");
+  }
 }
 
 /** The quote text is still worth sending only while that quote is issued and released (decision 165; batch 2 7am send). */
@@ -204,7 +297,7 @@ export async function notifyOwnerQuoteReady(
     .select("phone, email, full_name")
     .eq("id", job.owner_id)
     .maybeSingle();
-  const { renderOwnerQuoteEmail, ownerQuoteSms, OWNER_QUOTE_EMAIL_APPROVED } =
+  const { renderOwnerQuoteEmail, ownerQuoteSms, OWNER_QUOTE_EMAIL_APPROVED, OWNER_QUOTE_EMAIL_V4_APPROVED, QUOTE_DOCUMENTS_HELD } =
     await import("./owner-quote-email.core");
 
   if (job.source === "qa_test") {
@@ -250,7 +343,9 @@ export async function notifyOwnerQuoteReady(
     )
       .unsubscribeUrlForJob(jobId)
       .catch(() => null);
-    const mail = renderOwnerQuoteEmail({ ...facts.input, unsubscribeUrl: unsubscribe, test: true });
+    // TEST previews the v4 draft (decision #29) with whatever documents are ready; it is never held.
+    const docs = await quoteEmailDocuments(jobId, quoteId, facts.input, owner?.full_name ?? null, job.job_number ?? null);
+    const mail = renderOwnerQuoteEmail({ ...facts.input, v4: true, unsubscribeUrl: unsubscribe, test: true });
     const ctx = {
       jobId,
       jobSource: job.source,
@@ -258,7 +353,7 @@ export async function notifyOwnerQuoteReady(
       label: `quote_ready:${quoteId}`,
       actorId: null,
     };
-    const email = await sendTestEmail(ctx, owner?.email ?? "", mail.subject, mail.html, mail.text);
+    const email = await sendTestEmail(ctx, owner?.email ?? "", mail.subject, mail.html, mail.text, docs.attachments ? { attachments: docs.attachments } : {});
     const sms = await sendTestSms(
       ctx,
       owner?.phone ?? "",
@@ -334,7 +429,22 @@ export async function notifyOwnerQuoteReady(
   let email = OWNER_QUOTE_EMAIL_APPROVED
     ? `not sent — ${facts?.missing ?? "quote details unavailable"}`
     : "no approved wording — not sent";
-  if (wording && owner?.email) {
+  // Decision #29/#33: v4 (flag on, 30-day quotes) goes only with its documents; otherwise it is held for the office.
+  const v4 = wording === "rendered" && OWNER_QUOTE_EMAIL_V4_APPROVED && facts?.input?.validDays === 30;
+  const docs = v4 && facts?.input && owner?.email
+    ? await quoteEmailDocuments(jobId, quoteId, facts.input, owner.full_name ?? null, job.job_number ?? null)
+    : null;
+  if (docs?.missing) {
+    email = `held — ${QUOTE_DOCUMENTS_HELD} (${docs.missing})`;
+    await logEvent(
+      jobId,
+      null,
+      "ready_check_needs_office",
+      `Quote released to the owner — ${QUOTE_DOCUMENTS_HELD} (${docs.missing}), so the quote email is held`,
+      { quote_id: quoteId, needs_office: true, reason: "quote_documents_not_ready", missing: docs.missing },
+      { internal: true },
+    );
+  } else if (wording && owner?.email) {
     email = await (
       await import("./owner-email-send.server")
     ).sendGuardedOwnerEmail({
@@ -344,7 +454,10 @@ export async function notifyOwnerQuoteReady(
       purpose: "quote_ready",
       key: `quote-ready-email:v1:${quoteId}${keySuffix}`,
       build: (unsubscribe) => {
-        if (wording === "rendered" && facts?.input) return renderOwnerQuoteEmail({ ...facts.input, unsubscribeUrl: unsubscribe, test: false });
+        if (wording === "rendered" && facts?.input) {
+          if (v4 && docs?.attachments) return { ...renderOwnerQuoteEmail({ ...facts.input, v4: true, unsubscribeUrl: unsubscribe, test: false }), attachments: docs.attachments };
+          return renderOwnerQuoteEmail({ ...facts.input, v4: false, unsubscribeUrl: unsubscribe, test: false });
+        }
         if (!tpl) throw new Error('Approved quote wording unavailable');
         return { subject: tpl.subject, html: genericMail({subject:tpl.subject,bodyHtml:tpl.body_markdown,unsubscribe}), text: tpl.body_markdown };
       },

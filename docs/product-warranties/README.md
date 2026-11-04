@@ -13,26 +13,44 @@ How it works in the portal (`src/lib/product-warranty.core.ts`, `product-warrant
    warranty PDF(s) from this folder are attached, a copy is filed on the job (documents kind `product_warranty`) and
    `warranty_copy_provided` is recorded automatically — the AP auto-signature prerequisite is met without an office step.
 3. If a product's PDF is not on file, the pack still sends, **nothing is recorded**, and the AP signature holds with the
-   reason "Warranty copy for <product> not on file". The office "Record: warranty copy given to the consumer" button
+   reason "Warranty copy for <product> not on file" (Bradford with no building class: "Building class not recorded — can't choose the Bradford warranty"). The office "Record: warranty copy given to the consumer" button
    remains as the manual fallback once a copy has been given another way.
 
 The PDFs are bundled for the server by `bun scripts/embed-product-warranties.ts` → `src/lib/product-warranty.data.ts`.
 The script refuses anything that is not a real PDF (`%PDF-` header) and warns when the text does not mention a warranty.
 **Run it after adding or replacing any file here.**
 
-## Status (25 Oct 2026)
+## Status (3 Nov 2026)
 
-Three PDFs are on file and embedded (fetched through the Lovable sandbox on 25 Oct 2026; the build container's proxy
-blocks the manufacturer hosts): Pink Batts (insulation.com.au Rev2 29 Apr 2024), Earthwool unfaced (Knauf via the Bunnings
-media mirror, KIAU08181747WA), Bradford (eboss.co.nz NZ-issued lifetime warranty certificate — replace with the current
-Australian CSR Bradford 70-year document when the office has it). ECOWOOL is still missing (PGF to supply).
+Four PDFs are on file and embedded: Bradford Class 1, Bradford Class 2 to 10, Pink Batts (insulation.com.au Rev2 29 Apr 2024)
+and Earthwool unfaced (Knauf via the Bunnings media mirror, KIAU08181747WA).
+ECOWOOL is excluded (Jo, 2 Nov 2026): no warranty file, not in the product map. An old job that still holds an ECOWOOL answer
+sends the completion pack without a warranty and the AP signature holds with "ECOWOOL is an excluded product — no warranty copy on file."
+
+**Bradford depends on the building class.** CSR issues one certificate per class group, and each says it does not apply to the
+other. The job's class comes from the Ready Check answer (`building_class`, else the property type via installer-led.core
+`classFromPropertyType`: house/townhouse = Class 1, unit = Class 2), else the owner's declared property type.
+House or townhouse → Class 1 certificate; unit → Class 2 to 10 certificate. Ceiling batts are un-faced, so the un-faced term applies.
+Class not recorded → no Bradford attachment and the AP signature holds with "Building class not recorded — can't choose the Bradford warranty".
+
+Provenance (Bradford): CSR's current clean certificates, supplied by Jo on 3 Nov 2026 (originals kept byte for byte in `_incoming/`):
+
+- `bradford-glasswool-warranty-class-1.pdf` — "Glasswool Insulation Warranty — Faced & Un-Faced Glasswool Products — Class 1 Building
+  Applications", Version A, last revision June 2023: 70 years un-faced, 10 years faced. From `_incoming/Bradford_Glasswool_Insulation_-_Class_1_Warranty_Certificate.pdf`,
+  sha256 `6c0c39b5f42f749188e37ed63b5e00be5492d575b9efaf0a265d32234b18e3be`.
+- `bradford-glasswool-warranty-class-2-10.pdf` — "… Class 2 to 10 Building Applications", Version A, last revision March 2022: 25 years
+  un-faced, 10 years faced. From `_incoming/Bradford_Glasswool_Insulation_-_Class_2-10_Warranty_Certificate.pdf`,
+  sha256 `da15a2f66aa865376f0f9ecbcef8af6b76f2e19ff71b4004ca21edf9c152b870`.
+
+The 2010 CSR print proof (`bradford-au-lifetime-warranty.pdf`, used until 3 Nov 2026) is retired from this folder; it stays in
+`_incoming/bradford-lifetime-warranty-proof-2010.pdf` for the record only.
 
 | Product option(s) | Manufacturer | Warranty | Expected file (exact name) | Source |
 |---|---|---|---|---|
-| Bradford Gold R5 / R6 / R7 | CSR Bradford (CSR Building Products Ltd) | 70-year product performance warranty (decision 148) | `bradford-gold-70-year-warranty.pdf` | Current CSR Bradford Australia warranty PDF from https://www.csrbradford.com.au/ (search "Bradford Gold warranty"); fallback certificate https://www.eboss.co.nz/assets/literature/25/24959/125414-BRI-Product-Lifetime-Warranty-PRESS.pdf (NZ-issued — prefer the Australian document) |
+| Bradford Gold R5 / R6 / R7 — Class 1 (house, townhouse) | CSR Bradford (CSR Building Products Ltd) | Glasswool Insulation Warranty, Class 1 buildings: 70 years un-faced | `bradford-glasswool-warranty-class-1.pdf` | https://www.csrbradford.com.au/products/ceiling-insulation/insulation/goldceilingbatts (Australian document only) |
+| Bradford Gold R5 / R6 / R7 — Class 2 to 10 (unit) | CSR Bradford (CSR Building Products Ltd) | Glasswool Insulation Warranty, Class 2 to 10 buildings: 25 years un-faced | `bradford-glasswool-warranty-class-2-10.pdf` | https://www.csrbradford.com.au/products/ceiling-insulation/insulation/goldceilingbatts (Australian document only) |
 | Fletchers Pink Batts R5 / R6 / R7 | Fletcher Insulation Pty Ltd | Consumer lifetime product warranty (Rev 2, 29 Apr 2024) | `pink-batts-consumer-lifetime-warranty.pdf` | https://insulation.com.au/wp-content/uploads/2024/Warranty-Consumer-Lifetime-Product-Pink-Batts-Rev2-290424.pdf |
 | Earthwool R5 | Knauf Insulation Pty Ltd | 50-year warranty — Earthwool unfaced products | `earthwool-unfaced-50-year-warranty.pdf` | https://www.knauf.com/en-AU → Earthwool Ceiling Batts → "Knauf Insulation Warranty - Earthwool unfaced products.PDF"; mirror https://media.bunnings.com.au/api/public/content/00dae20abf0b4b2dafd88941ae435043 |
-| ECOWOOL R5 | PGF Insulation (PGF Australia) | **Not confirmed — no public warranty document found** | `ecowool-product-warranty.pdf` | To be requested from PGF Australia (sales@pgfinsulation.com.au). The term is recorded as unconfirmed, so ECOWOOL jobs hold on the warranty prerequisite until the office records a copy by hand; once the document arrives, set `warranty` in `product-warranty.core.ts` to the stated term (must be ≥ 5 years), add the file and run the embed script. |
 
 Checks to make when adding a file: it opens as a PDF, it is the manufacturer's own document (not a reseller summary),
 the warranty term is stated and is at least 5 years, and it covers the ceiling batt range we install. Record the download

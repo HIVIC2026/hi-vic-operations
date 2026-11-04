@@ -63,7 +63,7 @@ describe("installerAddElectrician", () => {
     const w = (await db.query<Record<string, unknown>>("select * from partner_workers where business_id=$1", [r.businessId])).rows;
     expect(w).toHaveLength(1); expect(w[0]).toMatchObject({ trade_role: "electrician", approval_status: "pending", licence_number: "L-5555" });
     const kinds = (await db.query<{ kind: string; verification: string }>("select kind, verification from business_credentials where business_id=$1 order by kind", [r.businessId])).rows;
-    expect(kinds.map((k) => k.kind)).toEqual(["electrical_licence", "public_liability_insurance", "rec_registration", "workers_comp_insurance"]);
+    expect(kinds.map((k) => k.kind)).toEqual(["electrical_licence", "public_liability_insurance", "rec_registration"]); // no WorkCover row (Jo 4 Nov 2026 21:08)
     expect(kinds.every((k) => k.verification === "pending")).toBe(true);
     const rel = (await db.query<Record<string, unknown>>("select * from partner_relationships where electrician_business_id=$1", [r.businessId])).rows[0]!;
     expect(rel).toMatchObject({ installer_business_id: INST, active: false, source: "installer_added" });
@@ -71,11 +71,11 @@ describe("installerAddElectrician", () => {
     expect(ev.filter((e) => e.event_type === "installer_added_electrician")).toHaveLength(1);
   });
 
-  test("sole trader gets no WorkCover credential and is marked exempt", async () => {
+  test("WorkCover is not collected (Jo 4 Nov 2026 21:08): no WorkCover credential, no exempt mark", async () => {
     const r = await els.installerAddElectrician(U_BOSS, input({ name: "Solo", email: "solo@x.test", licenceNumber: "L-7777" }));
     const kinds = (await db.query<{ kind: string }>("select kind from business_credentials where business_id=$1", [r.businessId])).rows.map((k) => k.kind);
     expect(kinds).not.toContain("workers_comp_insurance");
-    expect((await db.query<{ t: unknown }>("select workcover_exempt_declared_at t from businesses where id=$1", [r.businessId])).rows[0]!.t).not.toBeNull();
+    expect((await db.query<{ t: unknown }>("select workcover_exempt_declared_at t from businesses where id=$1", [r.businessId])).rows[0]!.t).toBeNull();
   });
 
   test("the same installer adding the same electrician again is refused", async () => {
@@ -171,7 +171,7 @@ describe("installerAddElectrician", () => {
     expect(await reject(els.installerAddElectrician(U_BOSS, input({ email: "a@x.test", licenceNumber: "INACT1" })))).toMatch(/^Their paperwork has expired/);
   });
   test("rejected, added by this installer: says why and where to fix it", async () => {
-    expect(await reject(els.installerAddElectrician(U_BOSS, input({ email: "a@x.test", licenceNumber: "REJ1" })))).toBe("Not approved: Blurry licence photo. Fix it in My electricians.");
+    expect(await reject(els.installerAddElectrician(U_BOSS, input({ email: "a@x.test", licenceNumber: "REJ1" })))).toBe("Not approved: Blurry licence photo. Add them on the Team page.");
   });
   test("rejected, added by another installer: neutral message, no reason shown", async () => {
     expect(await reject(els.installerAddElectrician(U_BOSS, input({ email: "a@x.test", licenceNumber: "REJ2" })))).toBe("This electrician can't be added right now — contact Home Insulation Victoria");
@@ -233,7 +233,7 @@ describe("installerAddElectrician", () => {
   });
 
   test("until the pending SQL is applied it refuses and writes nothing", async () => {
-    await db.exec("alter table businesses drop column workcover_exempt_declared_at");
+    await db.exec("alter table businesses drop column added_by_installer_business_id cascade");
     const before = [await count("businesses"), await count("partner_workers"), await count("partner_relationships")];
     expect(await reject(els.installerAddElectrician(U_BOSS, input({ email: "n6@x.test", licenceNumber: "N6" })))).toBe("This feature isn't switched on yet.");
     expect([await count("businesses"), await count("partner_workers"), await count("partner_relationships")]).toEqual(before);

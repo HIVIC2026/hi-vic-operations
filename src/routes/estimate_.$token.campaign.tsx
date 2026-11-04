@@ -2,7 +2,9 @@ import { INSULATION_REVIEW_INVITATION } from "@/lib/insulation-review.core";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { ONE_TAP_SAVE_EVENTS, shouldAutoSaveSpot, shouldFireOneTapSave } from "@/lib/one-tap-save.core";
+import { spotSavedBasedOn } from "@/lib/spot-saved-messages.core";
 import { CUSTOMER_BRAND } from "@/lib/customer-quote-system";
 import { OwnerHouse } from "@/components/owner/OwnerHouse";
 import { Button } from "@/components/ui/button";
@@ -12,10 +14,11 @@ import { EXISTING_PRELIMINARY, removalNote, type EstimateRemoval } from "@/lib/e
 import { REMOVAL_UPTO_NOTE, priceRangeLine, removalUpToLine } from "@/lib/estimate-removal-upto.core";
 // Decision 388: this page is shown BEFORE the spot is released, so it is spot-only (no Ready Check, times, measuring,
 // quote timing, speed or queue-jumping promises). Changed directly — no approval flag holds page copy.
-import { SPOT_FREE, SPOT_IN_TOUCH, SPOT_ORDER, SPOT_PRICE_NOTE, SPOT_REGISTERED, SPOT_RELEASE_LINE } from "@/lib/spot-only-copy.core";
+import { SPOT_FREE, SPOT_IN_TOUCH, SPOT_ORDER, SPOT_PRICE_NOTE, SPOT_RELEASE_LINE } from "@/lib/spot-only-copy.core";
 
 export const Route = createFileRoute("/estimate_/$token/campaign")({
   ssr: false,
+  validateSearch: (s: Record<string, unknown>): { save?: "1" } => (s["save"] === "1" || s["save"] === 1 ? { save: "1" } : {}),
   headers: () => ({ "Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "X-Robots-Tag": "noindex, nofollow" }),
   head: () => ({ meta: [{ title: "Your insulation savings — Home Insulation Victoria" }, { name: "description", content: "Review your preliminary ceiling insulation savings and save your spot. It's free, with no obligation." }, { property: "og:title", content: "Your insulation savings — Home Insulation Victoria" }, { property: "og:description", content: "Review your preliminary ceiling insulation savings." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex, nofollow" }, { name: "referrer", content: "no-referrer" }] }),
   component: CampaignPage,
@@ -23,6 +26,7 @@ export const Route = createFileRoute("/estimate_/$token/campaign")({
 
 function CampaignPage() {
   const { token } = Route.useParams();
+  const { save: saveParam } = Route.useSearch();
   const getPage = useServerFn(getLaunchCampaignPage);
   const save = useServerFn(saveMySpot);
   const optOut = useServerFn(takeMeOffList);
@@ -39,12 +43,27 @@ function CampaignPage() {
     catch (e) { setError(e instanceof Error ? e.message : "That didn't work. Please try again."); }
     finally { setBusy(null); }
   };
+  // One tap from the email: armed on load, the canonical save runs once on the first real user interaction (never on load).
+  const autoSaved = useRef(false);
+  const armed = !!data && shouldAutoSaveSpot({ save: saveParam, saveAllowed: data.saveAllowed, spotSavedAt: data.response?.spot_saved_at ?? null, optedOutAt: data.response?.opted_out_at ?? null });
+  useEffect(() => {
+    if (!armed) return;
+    const events = ONE_TAP_SAVE_EVENTS;
+    const onInteract = (e: Event) => {
+      if (!shouldFireOneTapSave({ armed, alreadyFired: autoSaved.current, eventIsTrusted: e.isTrusted, eventType: e.type, target: e.target as Element | null })) return;
+      autoSaved.current = true;
+      for (const n of events) window.removeEventListener(n, onInteract);
+      void act("save");
+    };
+    for (const n of events) window.addEventListener(n, onInteract, { passive: true });
+    return () => { for (const n of events) window.removeEventListener(n, onInteract); };
+  }, [armed]);
   return <div className="estimate-brand min-h-screen bg-estimate-canvas">
     <main className="pb-14">
       {isLoading ? <p role="status" className="py-16 text-center text-sm text-muted-foreground">Loading your estimate…</p>
       : isError || !data ? <section className="estimate-offset rounded-2xl border bg-white p-8 text-center"><h1 className="font-display text-2xl font-bold">This link isn't available</h1><p className="mt-2 text-sm">Please contact Home Insulation Victoria and we'll help.</p></section>
       : data.response?.opted_out_at ? <div className="mx-auto max-w-[760px] px-4 sm:px-8"><section className="estimate-offset rounded-[22px] border border-estimate-blue-soft bg-white p-8 text-center"><h1 className="font-display text-3xl font-extrabold text-estimate-navy">You're off the list</h1><p className="mt-3 text-estimate-navy/75">We won't send any more campaign messages about this enquiry.</p></section></div>
-      : data.response?.spot_saved_at ? <div className="mx-auto max-w-[760px] px-4 sm:px-8"><Result group={data.group} videoPriority={data.response.queue_priority === "video" || !!data.media?.excluded} token={token} rebate={data.response.saved_veu_discount ?? null} customer={data.response.saved_total ?? null} suburb={data.home?.suburb ?? null} home={data.home?.short ?? null} referralUrl={data.referralUrl ?? null} firstName={data.owner.firstName ?? null} /></div>
+      : data.response?.spot_saved_at ? <div className="mx-auto max-w-[760px] px-4 sm:px-8"><Result group={data.group} videoPriority={data.response.queue_priority === "video" || !!data.media?.excluded} token={token} rebate={data.response.saved_veu_discount ?? null} customer={data.response.saved_total ?? null} suburb={data.home?.suburb ?? null} home={data.home?.short ?? null} referralUrl={data.referralUrl ?? null} firstName={data.owner.firstName ?? null} basedOn={data.pricing && data.pricing.areaM2 > 0 ? spotSavedBasedOn({ areaM2: data.pricing.areaM2, insulation: data.pricing.insulation === "none" ? "no insulation" : data.pricing.insulation === "present" ? "some existing insulation" : "existing insulation not known yet" }) : null} /></div>
       : data.group === "onsite" && data.media?.excluded && !data.saveAllowed ? <section className="estimate-offset mx-auto max-w-[620px] px-6 py-8" role="status"><h1 className="font-display text-3xl font-bold">{data.media.received ? "We've received your insulation photos/video" : "We're checking your enquiry uploads"}</h1><p className="mt-3">{data.mediaReview === "over_r2" || data.response?.desk_check_status === "not_eligible" ? "Our office has assessed your existing insulation as not eligible. Please contact us with any questions." : data.mediaReview === "unclear" || data.response?.desk_check_status === "needs_onsite_check" ? "Your evidence has been reviewed. Our office will help with the next check." : data.media.received ? "Your existing evidence is with our office for review. You do not need to upload it again." : "You do not need to answer these questions or upload again while we check your original enquiry."}</p></section>
       : data.pricing ? <CampaignDesign saveAllowed={data.saveAllowed} ownerQualified={data.ownerQualified} reviewStatus={data.response?.desk_check_status ?? null} group={data.group} token={token} name={data.owner.firstName} suburb={data.home?.suburb ?? null} p={data.pricing} busy={busy} error={error} onSave={() => void act("save")} onOptOut={() => void act("optout")} />
       : <section className="estimate-offset mx-4 rounded-2xl border bg-white p-8 text-center"><h1 className="font-display text-2xl font-bold">Your estimate is being updated</h1><p className="mt-2 text-sm">Please check back later.</p></section>}
@@ -52,7 +71,7 @@ function CampaignPage() {
   </div>;
 }
 
-function Result({ group, videoPriority, token, rebate, customer, suburb, home, referralUrl, firstName }: { group: "likely" | "onsite"; videoPriority: boolean; token: string; rebate: number | null; customer: number | null; suburb: string | null; home: string | null; referralUrl: string | null; firstName: string | null }) {
+function Result({ group, videoPriority, token, rebate, customer, suburb, home, referralUrl, firstName, basedOn }: { basedOn: string | null; group: "likely" | "onsite"; videoPriority: boolean; token: string; rebate: number | null; customer: number | null; suburb: string | null; home: string | null; referralUrl: string | null; firstName: string | null }) {
   const $ = (n: number | null) => (n == null ? "—" : `$${Math.floor(Number(n)).toLocaleString("en-AU")}`);
   const [copied, setCopied] = useState(false);
   const shareChecker = async () => {
@@ -68,7 +87,7 @@ function Result({ group, videoPriority, token, rebate, customer, suburb, home, r
     <div className="mt-5 rounded-xl bg-estimate-heads-up p-4 text-estimate-navy">
       <p className="font-bold">Smart move{firstName ? `, ${firstName}` : ""}. Your spot is saved.</p>
       <p className="mt-0.5 font-bold text-estimate-logo-green">Your {$(rebate)} rebate is waiting.</p>
-      <p className="mt-2 text-sm">{SPOT_REGISTERED} {SPOT_ORDER} You've locked in your place, so there's nothing more you need to do.</p>
+      <p className="mt-2 text-sm">{SPOT_ORDER} You've locked in your place, so there's nothing more you need to do.</p>
       <p className="mt-2 text-sm">{SPOT_IN_TOUCH}</p>
     </div>
     <dl className="mt-4 grid gap-2 rounded-xl border border-estimate-line p-4 text-sm text-estimate-navy">
@@ -76,6 +95,7 @@ function Result({ group, videoPriority, token, rebate, customer, suburb, home, r
       <div className="flex justify-between gap-3"><dt>Your estimated quote based on what you've told us</dt><dd className="font-bold">{$(customer)}</dd></div>
       {home && <div className="flex justify-between gap-3"><dt>Home</dt><dd className="text-right">{home}</dd></div>}
     </dl>
+    {basedOn && <p className="mt-2 text-sm text-estimate-navy">{basedOn}</p>}
     <p className="mt-2 text-xs text-estimate-navy/70">{SPOT_PRICE_NOTE}</p>
     {group === "onsite" && !videoPriority && <div className="mt-5 rounded-xl bg-estimate-mint p-4 text-center"><h2 className="font-display text-lg font-bold text-estimate-navy">Help us check your insulation</h2><Button asChild className="mt-3 bg-estimate-green text-estimate-white hover:bg-estimate-accent"><Link to="/estimate/$token/video" params={{ token }}>Send a quick video</Link></Button></div>}
     {referralUrl && <div className="mt-5 rounded-xl bg-estimate-blush p-4 text-center">
@@ -106,8 +126,8 @@ function CampaignDesign({ saveAllowed, ownerQualified, reviewStatus, group, toke
     <section className="mt-7">
       <p className={`text-[11px] font-extrabold uppercase tracking-[0.13em] ${onsite ? "text-estimate-green" : "text-estimate-logo-green"}`}>{onsite ? "Check your insulation" : "🎉 Your rebate is waiting"}</p>
       <h1 className="mt-2 font-display text-[32px] font-extrabold leading-[1.15]">{onsite ? <>{name ? `${name}, take` : "Take"} <span className="text-estimate-logo-green">{rebate}</span> off your ceiling insulation</> : <>Great news{name ? `, ${name}` : ""}! You could take <span className="text-estimate-logo-green">{rebate}</span> off your ceiling insulation</>}</h1>
-      <p className="mt-4 text-[15px] leading-relaxed">Your {suburb ? `${suburb} ` : ""}home {onsite ? "could be eligible" : "looks eligible"} for the Victorian Energy Upgrades rebate. That means your estimated quote, based on what you've told us, is <strong>{money(p.total)}</strong> instead of {money(p.gross)}, and enjoy lower power bills for years to come.</p>
-      <p className="mt-3 text-sm font-extrabold">{onsite ? "Help us check your insulation so you can save your spot." : `${SPOT_REGISTERED} ${SPOT_ORDER}`}</p>
+      <p className="mt-4 text-[15px] leading-relaxed">Your {suburb ? `${suburb} ` : ""}home {onsite ? "could be eligible" : "looks eligible"} for the Victorian Energy Upgrades rebate. That means your estimated quote, based on what you've told us, is <strong>{money(p.total)}</strong> instead of {money(p.gross)}.</p>
+      <p className="mt-3 text-sm font-extrabold">{onsite ? "Help us check your insulation so you can save your spot." : SPOT_ORDER}</p>
       <div className="mt-5">{ownerQualified && <p className="mb-3 text-sm">Your owner declaration qualifies you to save your spot. Your eligibility and any removal costs are confirmed before you agree to anything.</p>}{onsite ? videoBtn : saveBtn}</div>
       {onsite ? <p className="mt-3 text-center text-sm">Answer either question Yes to qualify for the preliminary queue, or send photos or video for office review.</p> : <p className="mt-3 text-center text-sm">Free · no payment · no obligation</p>}
       {error && <p role="alert" className="mt-2 text-center text-sm text-danger">{error}</p>}
@@ -115,11 +135,11 @@ function CampaignDesign({ saveAllowed, ownerQualified, reviewStatus, group, toke
     {/* Jo 22 Oct: same look as the approved Save my spot email — rebate box, big price, removal box, facts, ticked list. */}
     <section data-campaign-estimate className="mt-7 rounded-[22px] bg-estimate-mist p-5">
       <div className="rounded-[18px] border-2 border-estimate-green bg-estimate-mint px-3 py-[18px] text-center">
-        <p className="text-[10px] font-extrabold uppercase tracking-[0.13em]">Your estimated VEU rebate</p>
+        <p className="text-[10px] font-extrabold uppercase tracking-[0.13em]">Your estimated rebate</p>
         <p className="mt-1 font-display text-[38px] font-extrabold leading-[42px] text-estimate-green">You could save {rebate}</p>
       </div>
       <div className="pb-3 pt-[18px] text-center">
-        <p className="text-[10px] font-extrabold uppercase tracking-[0.13em]">Your estimated cost after rebate</p>
+        <p className="text-[10px] font-extrabold uppercase tracking-[0.13em]">Your estimated quote based on what you've told us</p>
         <p className="mt-1 font-display text-[46px] font-extrabold leading-[50px] text-estimate-blue">{money(p.total)}</p>
         <p className="mt-1 text-xs font-bold">incl. GST · before rebate {money(p.gross)}</p>
       </div>
@@ -148,11 +168,11 @@ function CampaignDesign({ saveAllowed, ownerQualified, reviewStatus, group, toke
       {onsite ? <><p className="mt-3 text-sm leading-relaxed">{INSULATION_REVIEW_INVITATION}</p><p className="mt-2 text-xs">Only if you can do it safely. Please don’t climb into or walk through the roof space.</p><div className="mt-4">{videoBtn}</div><p className="mt-3 text-center text-sm">{reviewStatus === "pending" ? "Your insulation details are awaiting office review." : reviewStatus === "not_eligible" ? "Our office has assessed your insulation as not eligible. Please contact us with any questions." : reviewStatus === "needs_onsite_check" ? "Our office needs to check a few more details before we can offer Save my spot." : "Photos and video need office review. No payment. No obligation."}</p></>
         : <><p className="mt-3 text-sm leading-relaxed">One tap and you're in. {SPOT_FREE} {SPOT_RELEASE_LINE}</p><div className="mt-4">{ownerQualified && <p className="mb-3 text-sm text-estimate-navy">Your Yes answer qualifies you to save your spot. Your existing insulation and any removal needs are confirmed before you agree to a final price.</p>}{saveBtn}</div></>}
     </section>
-    <p className="mt-5 text-xs leading-relaxed text-estimate-navy/70">Estimate only. Your price can change if your ceiling is a different size, old insulation needs removing, access is tricky, or the electrician finds something to fix. We never add work or cost without showing you first and getting your OK.</p>
+    <p className="mt-5 text-xs leading-relaxed text-estimate-navy/70">Estimate only. Your price can change if your ceiling is a different size, old insulation needs removing, access is tricky, or the electrical safety check (PIESA) finds electrical upgrades are needed. We never add work or cost without showing you first and getting your OK.</p>
     <footer className="mt-6 border-t border-estimate-line pt-4 text-center text-xs text-estimate-navy/70">
       <p className="font-bold text-estimate-navy">Home Insulation Victoria</p>
       <p className="mt-1">DC Construction Solutions Pty Ltd trading as Home Insulation Victoria.</p>
-      <p className="mt-2"><Link to="/privacy" className="underline">Privacy</Link> · <button type="button" aria-label="Take me off the list" disabled={!!busy} onClick={onOptOut} className="underline">Remove my enquiry</button></p>
+      <p className="mt-2"><Link to="/privacy" className="underline">Privacy</Link> · <button type="button" data-no-autosave aria-label="Take me off the list" disabled={!!busy} onClick={onOptOut} className="underline">Remove my enquiry</button></p>
     </footer>
   </div>;
 }

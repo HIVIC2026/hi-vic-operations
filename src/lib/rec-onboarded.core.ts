@@ -83,6 +83,22 @@ export function onboardedElectricianResolution(i: { legacy: MittiElectricianReso
   return { ...legacy, ready: false, name, licence, priceIncGst: null, reasons: [notOnboardedReason(name)], needsProfile: false, recBusinessId: null, rateId: null, notOnboarded: { name, licence, email } };
 }
 
+/** Join ruling (4 Nov 2026): the Team electrician picked at Add a job IS the installer's own electrician. Ready while they
+ *  are still on the Team, office-approved and verified (`electricianVerified`): the quote names them, `recBusinessId` =
+ *  the installer's own business (so payouts and fixes pricing read "the installer's electrician"), and the owner's line is
+ *  the installer's own PIESA rate (applied by `withOwnerSafetyCheckPrice`; none set → held there, never $349). A worker
+ *  who left the Team, lost approval or whose licence lapsed holds the quote naming them — never silently someone else. */
+export const TEAM_ELECTRICIAN_GONE = "Electrician no longer on your Team — choose another on the job page";
+/** G7: the price card's Electrician row when the Team read itself failed (same words as the Add a job refusal). */
+export const TEAM_ELECTRICIAN_CHECK_FAILED = "We couldn't check your Team electrician. Please try again.";
+export function teamElectricianResolution(legacy: MittiElectricianResolution, worker: { id: string; name: string; licence: string | null; businessId: string; approved: boolean; verified: { ok: boolean; reason: string | null } } | null): MittiElectricianResolution {
+  const base = { ...legacy, choice: "usual" as const, source: "team_worker" as const, needsProfile: false, rateId: null, notOnboarded: null };
+  if (!worker) return { ...base, ready: false, name: null, licence: null, priceIncGst: null, reasons: [TEAM_ELECTRICIAN_GONE], recBusinessId: null, workerId: null };
+  const problem = !worker.approved ? "Waiting for office approval" : worker.verified.reason;
+  if (problem) return { ...base, ready: false, name: worker.name, licence: worker.licence, priceIncGst: null, reasons: [`Electrician not verified: ${worker.name} (${problem})`], recBusinessId: worker.businessId, workerId: worker.id };
+  return { ...base, ready: true, name: worker.name, licence: worker.licence, priceIncGst: legacy.priceIncGst, reasons: [], recBusinessId: worker.businessId, workerId: worker.id };
+}
+
 /**
  * Task 5 (3 Nov 2026): the electrician PICKED for the job (its open nomination with a business id — what the own-job
  * hand-over and the swap use) resolves from THAT business, never by name-matching the saved usual one. Ready = an approved

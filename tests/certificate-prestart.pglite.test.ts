@@ -41,6 +41,11 @@ ALTER TABLE jobs ADD COLUMN job_number text, ADD COLUMN deleted_at timestamptz, 
 ALTER TABLE quotes ADD COLUMN version int, ADD COLUMN customer_total_inc_gst numeric, ADD COLUMN accepted_at timestamptz;
 CREATE TABLE business_credentials (id uuid primary key default gen_random_uuid(), business_id uuid, kind text, label text, expires_at date, verification text);
 CREATE TABLE pre_start_checks (id uuid primary key default gen_random_uuid(), job_id uuid, booking_id uuid, scheduled_start timestamptz, passed boolean, failures jsonb, trigger text, checked_at timestamptz default clock_timestamp());
+-- Joined branch (4 Nov 2026): Part 9 Task 5's GO check facts read the life support answer and plan (job-records.server).
+ALTER TABLE jobs ADD COLUMN life_support boolean not null default false, ADD COLUMN life_support_status text;
+-- Part 9 Task 14: the GO check reads the "no ESC" real-run marker from jobs.external_refs (fails closed without the column).
+ALTER TABLE jobs ADD COLUMN external_refs jsonb;
+CREATE TABLE job_compliance_records (id uuid primary key default gen_random_uuid(), job_id uuid, record_key text, occurred_at timestamptz, reference text, notes text);
 `);
 const stored = new Map<string, Uint8Array>();
 const storage = { from: (_b: string) => ({ download: async (path: string) => { const b = stored.get(path); return b ? { data: new Blob([b]), error: null } : { data: null, error: { message: "not found" } }; } }) };
@@ -214,6 +219,13 @@ describe("booking the install with the certificate outstanding", () => {
       expect(await warnings(j)).toEqual([]);
     }
   });
+  test("J5 (join ruling 2, 'double warning'): while the upgrades themselves are outstanding (install booked before the upgrades day) the certificate line is NOT shown or recorded — Task 10's upgrades line carries the booking alone", async () => {
+    const J_OPEN = id(308);
+    await seedJob(J_OPEN, { snap: snapshot({ upgrades: "Yes", today: "No" }), item: true });
+    expect(electricalClearance(await clearanceFacts(J_OPEN))).toMatchObject({ cleared: false, blocker: "Electrical upgrades not completed yet." });
+    expect(await cls.recordInstallCertificateWarning(J_OPEN, U1, START)).toBeNull();
+    expect(await warnings(J_OPEN)).toEqual([]);
+  });
   test("every install booking path records it; the booking gate is gone; the pre-start reads it", () => {
     const src = (f: string) => readFileSync(new URL(`../src/lib/${f}`, import.meta.url), "utf8");
     expect(src("workflow.server.ts")).not.toContain("coesBlockerFor(");
@@ -364,12 +376,13 @@ describe("fix 2: held in-house install form released on any pre-start pass", () 
     expect(piisaCreates).not.toContain(J_IH_RUN);
     FORCED_FAILURES = [];
     try {
-      expect(await prestart.runPrestart(J_IH_RUN, "office", NOW)).toEqual({ passed: true, failures: [], changed: true });
+      expect(await prestart.runPrestart(J_IH_RUN, "office", NOW)).toEqual({ passed: true, failures: [], changed: true, slot: null });
       expect(piisaCreates.filter((j) => j === J_IH_RUN)).toHaveLength(1);
       expect(piisaNoAssignee).not.toContain(J_IH_RUN);
       await prestart.sweepPrestart(NOW);
       expect(piisaCreates.filter((j) => j === J_IH_RUN)).toHaveLength(1);
-      expect((await checks(J_IH_RUN)).map((c) => c.passed)).toEqual([false, true]);
+      // Part 9 Task 6 (joined branch): the due 2pm GO slot always writes its own row once; the form is still made once.
+      expect((await checks(J_IH_RUN)).map((c) => [c.trigger, c.passed])).toEqual([["timer", false], ["office", true], ["day_before_2pm", true]]);
     } finally { FORCED_FAILURES = null; }
   });
   test("a pass already on file (changed:false) still releases a held form — once", async () => {
@@ -384,7 +397,7 @@ describe("fix 2: held in-house install form released on any pre-start pass", () 
     const before = (await checks(J_IH_SWEEP)).length;
     FORCED_FAILURES = [];
     try {
-      expect(await prestart.runPrestart(J_IH_SWEEP, "timer", NOW)).toEqual({ passed: true, failures: [], changed: false });
+      expect(await prestart.runPrestart(J_IH_SWEEP, "timer", NOW)).toEqual({ passed: true, failures: [], changed: false, slot: null });
       expect(piisaCreates.filter((j) => j === J_IH_SWEEP)).toHaveLength(1);
       await prestart.sweepPrestart(NOW);
       await prestart.sweepPrestart(NOW);

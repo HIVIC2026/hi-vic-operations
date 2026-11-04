@@ -6,7 +6,7 @@ import type { PGlite } from "@electric-sql/pglite";
 const colRef = (c: string) => { const m = /^([a-z_0-9]+)->>([a-z_0-9]+)$/.exec(c); return m ? `("${m[1]}"->>'${m[2]}')` : `"${c}"`; };
 type Filter = { sql: string; vals: unknown[] };
 const splitTop = (x: string) => { const out: string[] = []; let d = 0, cur = ""; for (const ch of x) { if (ch === "(") d++; if (ch === ")") d--; if (ch === "," && d === 0) { out.push(cur.trim()); cur = ""; continue; } cur += ch; } if (cur.trim()) out.push(cur.trim()); return out; };
-/** PostgREST logical filter terms → SQL with $? placeholders (eq/neq/gt/gte/lt/lte/is/in/like/ilike, not.*, nested and/or). */
+/** PostgREST logical filter terms → SQL with $? placeholders (eq/neq/gt/gte/lt/lte/is/in/like/ilike/cs, not.*, nested and/or). */
 function orTerms(expr: string, vals: unknown[], join = "OR"): string {
   return splitTop(expr).map((t) => {
     const nested = /^(and|or)\((.*)\)$/.exec(t);
@@ -19,6 +19,8 @@ function orTerms(expr: string, vals: unknown[], join = "OR"): string {
     let sql: string;
     if (op === "is") sql = `"${col}" IS ${v === "null" ? "NULL" : v === "true" ? "TRUE" : "FALSE"}`;
     else if (op === "in") { vals.push(splitTop(v.replace(/^\(|\)$/g, ""))); sql = `"${col}"::text = ANY($?)`; }
+    // `col.cs.{a,b}` = array contains (businesses.capabilities in rec-onboarded.server & co.); a jsonb column is not needed here.
+    else if (op === "cs") { vals.push(splitTop(v.replace(/^\{|\}$/g, ""))); sql = `"${col}" @> $?::text[]`; }
     else if (ops[op]) { vals.push(op.endsWith("like") ? v.replace(/\*/g, "%") : v); sql = `"${col}" ${ops[op]} $?`; }
     else throw new Error(`shim: unsupported or() operator ${op}`);
     return neg ? `NOT (${sql})` : sql;

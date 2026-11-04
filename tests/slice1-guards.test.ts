@@ -52,6 +52,10 @@ const REVIEWED: Record<string, string> = {
   workerInviteCertSlot: "token-hash scoped invite (active, unused, unrevoked) before the signed upload slot is made",
   sendPartnerLoginLink: "makePartnerLogin() runs requireAdmin(context.supabase) first",
   ownerVeecAssignmentFn: "secure owner link token, usable link only, own job (read-only)",
+  ownerQuoteDocumentFn: "secure owner link token, own job: quoteId must equal the token job's current quote (read-only PDFs; Part 3 Task 11, controller-reviewed)",
+  ownerSignAndPayStateFn: "secure owner link token, usable link only, own job (read-only; Part 4 Task 11)",
+  ownerSignAndPayFormFn: "secure owner link token, usable link only, own job (read-only PDF; Part 4 Task 11)",
+  ownerSignAndPayFn: "verified owner code session (ownerSession) scoped to its own job; the order guard and invoice/payment guards run inside; Part 4 Task 11",
   ownerApproveFixesFn: "verified owner code session; the fixes quote must belong to the session job",
   ownerReviewFeedbackFn: "secure owner link token, usable link only, own job",
 };

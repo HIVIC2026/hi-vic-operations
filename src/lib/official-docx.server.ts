@@ -6,8 +6,9 @@ import { unzipSync, zipSync } from "fflate";
 import piesaDocx from "./official-docx-piesa.data";
 import piisaDocx from "./official-docx-piisa.data";
 import { OFFICIAL_TEMPLATES, officialFormUseBlocker, type OfficialKey } from "./official-forms.core";
-import { fillOfficialDocxParts, type SignatureInput, type SignatureSlot } from "./official-docx.core";
+import { fillOfficialDocxParts, officialDocxLayout, type DocxLayout, type SignatureInput, type SignatureSlot } from "./official-docx.core";
 import { signFile } from "./file-links.server";
+import { PDF_LOOK_APPROVED } from "./pdf-approvals.core";
 
 const DATA_PREFIX = "data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,";
 
@@ -17,7 +18,16 @@ function bundledDocx(key: OfficialKey): Uint8Array {
   return new Uint8Array(Buffer.from(b64, "base64"));
 }
 
+const layouts = new Map<OfficialKey, DocxLayout>();
+/** The bundled Word form's layout map (item id → field numbers), read once per form. Shared by the Word fill and the PDF fill. */
+export function officialDocxLayoutFor(key: OfficialKey): DocxLayout {
+  let l = layouts.get(key);
+  if (!l) { l = officialDocxLayout(new TextDecoder().decode(unzipSync(bundledDocx(key))["word/document.xml"]!), key); layouts.set(key, l); }
+  return l;
+}
+
 /** Fills the official Word form. Returns the filled docx bytes, the fill report, and the source SHA-256.
+ *  `skipped` lists answers that were present but not printed because their follow-up condition is false (absent answers are not listed).
  *  Decision 336: `signatures` = the Mitti signature images to embed (official-signature.server `officialSignatureImages`). */
 export function renderOfficialDocx(key: OfficialKey, answers: import("./official-forms.core").OfficialAnswers, signatures: Partial<Record<SignatureSlot, SignatureInput>> = {}) {
   const block = officialFormUseBlocker(key);
@@ -28,7 +38,7 @@ export function renderOfficialDocx(key: OfficialKey, answers: import("./official
   const parts = unzipSync(bytes);
   const r = fillOfficialDocxParts(parts, key, answers, signatures);
   const out = zipSync(r.parts, { level: 0 });
-  return { bytes: out, filled: r.filled, missed: r.missed, sha256, embedded: r.embedded.map((e) => e.slot), notEmbedded: r.notEmbedded };
+  return { bytes: out, filled: r.filled, missed: r.missed, skipped: r.skipped, sha256, embedded: r.embedded.map((e) => e.slot), notEmbedded: r.notEmbedded };
 }
 
 /** Fills from the job's current signed copy and stores the Word file privately. Office-only (caller checks). */
@@ -40,12 +50,27 @@ export async function storeOfficialDocx(jobId: string, key: OfficialKey) {
   const answers = copy.snapshot ? Object.fromEntries(copy.snapshot.document.filter((d) => d.value != null).map((d) => [d.id, d.value])) : {};
   // Decision 336: the actual Mitti signature images (missing = typed name kept + flagged).
   const sig = await (await import("./official-signature.server")).officialSignatureImages(jobId, key, answers as Record<string, unknown>).catch((e) => ({ signatures: {}, flags: [`Signature images could not be read: ${e instanceof Error ? e.message : "error"}`], facts: [] }));
-  const { bytes, filled, missed, sha256, embedded } = renderOfficialDocx(key, answers as never, sig.signatures);
+  const { bytes, filled, missed, skipped, sha256, embedded } = renderOfficialDocx(key, answers as never, sig.signatures);
   const path = `jobs/${jobId}/${key}/${copy.snapshot.hash}.docx`;
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const up = await supabaseAdmin.storage.from(OFFICIAL_BUCKET).upload(path, new Blob([bytes.buffer as ArrayBuffer], { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }), { upsert: true, contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
   if (up.error) throw new Error(up.error.message);
-  return { path, filled: filled.length, missed, sourceSha256: sha256, signaturesEmbedded: embedded, signatureFlags: sig.flags };
+  // Task 12: with PDF_LOOK_APPROVED.officialFormPdf on, the filled DEECA form as a PDF too, next to the Word file.
+  let pdfPath: string | null = null;
+  // If the PDF can't be made or stored, the Word file still stands (as with the flag off) and an internal event is logged.
+  if (PDF_LOOK_APPROVED.officialFormPdf) {
+    try {
+      const pdf = await (await import("./official-form-pdf.server")).officialFormPdf(key, answers as never, sig.signatures);
+      const target = `jobs/${jobId}/${key}/${copy.snapshot.hash}.pdf`;
+      const upPdf = await supabaseAdmin.storage.from(OFFICIAL_BUCKET).upload(target, new Blob([pdf.bytes.buffer as ArrayBuffer], { type: "application/pdf" }), { upsert: true, contentType: "application/pdf" });
+      if (upPdf.error) throw new Error(upPdf.error.message);
+      pdfPath = target;
+    } catch (e) {
+      const { logEvent } = await import("./workflow.server");
+      await logEvent(jobId, null, "official_form_pdf_fallback", `${key.toUpperCase()} form PDF not made; Word copy kept (internal)`, { form: key, reason: e instanceof Error ? e.message : String(e) }, { internal: true }).catch(() => undefined);
+    }
+  }
+  return { path, pdfPath, filled: filled.length, missed, skipped, sourceSha256: sha256, signaturesEmbedded: embedded, signatureFlags: sig.flags };
 }
 
 /** Short-lived signed URL for a stored filled Word form. Visibility decided by RLS on the caller's client. */

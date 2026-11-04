@@ -77,6 +77,30 @@ export const ownerAgreementFn = createServerFn({ method: "POST" })
     );
   });
 
+/** The quote page's PDF links (decision #33): the Customer Agreement + payment terms (one PDF) or the Statement of rights, the
+ *  same files attached to the quote email. Read-only, link token only. `null` = not ready (the page says so; nothing is guessed). */
+export const ownerQuoteDocumentFn = createServerFn({ method: "POST" })
+  .middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token, quoteId: z.string().uuid(), doc: z.enum(["agreement", "rights"]) }).parse(d))
+  .handler(async ({ data }) => {
+    const { resolveOwnerJob } = await import("./owner-myjob.server");
+    const v = await resolveOwnerJob(data.token);
+    if (!v?.quote || v.quote.id !== data.quoteId) throw new Error("Quote not found");
+    const jobId = await ownerJobId(data.token);
+    if (!jobId) return null;
+    const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
+    const { data: job } = await admin.from("jobs").select("job_number, property_id, owners(full_name)").eq("id", jobId).single();
+    if (!job) return null;
+    const { loadOwnerQuoteFacts, quoteEmailDocuments } = await import("./quote-ready-notify.server");
+    const ownerName = (job.owners as { full_name: string | null } | null)?.full_name ?? null;
+    const facts = await loadOwnerQuoteFacts(jobId, data.quoteId, ownerName, job.property_id ?? null);
+    if (!facts.input) return null;
+    const docs = await quoteEmailDocuments(jobId, data.quoteId, facts.input, ownerName, job.job_number ?? null);
+    if (!docs.attachments) return null;
+    const a = docs.attachments[data.doc === "agreement" ? 0 : 1];
+    return a ? { filename: a.filename, base64: a.content } : null;
+  });
+
 export const ownerAcceptQuoteFn = createServerFn({ method: "POST" })
   .middleware([withRequestMeta])
   .inputValidator((d) =>
@@ -86,12 +110,13 @@ export const ownerAcceptQuoteFn = createServerFn({ method: "POST" })
         session,
         quoteId: z.string().uuid(),
         expectedVersion: z.number().int(),
-        // Decision 425 (Jo 29 Oct 2026): no typed name and no 18+ tick — the owner's name on file is recorded.
+        // Touchpoint #33 + lawyer Q8 (Jo 2 Nov 2026): two ticks and a typed name. The ESC consent ticks move to the
+        // confirm-and-pay page (Part 4); the typed name is recorded by Task 12.
         signing: z.object({
           authorityType: z.enum(["owner", "authorised_representative"]),
-          readConsumerInfo: z.boolean(),
-          acceptAgreement: z.boolean(),
-          declarations: z.object({ owner_or_authorised:z.boolean(), details_accurate:z.boolean(), consent_ap_sends:z.boolean(), consent_commission_shares:z.boolean() }),
+          tick1: z.boolean(),
+          tick2: z.boolean(),
+          typedName: z.string().max(200),
           assistance: z.enum(["none", "interpreter", "support_understanding", "both"]),
         }),
       })
@@ -101,7 +126,7 @@ export const ownerAcceptQuoteFn = createServerFn({ method: "POST" })
     const { ownerSession } = await import("./owner-verify.server");
     const s = await ownerSession(data.token, data.session);
     const { quoteSittingBlockers } = await import('./owner-quote-sign.core');
-    const errors = quoteSittingBlockers({ ownerTick:data.signing.acceptAgreement && data.signing.readConsumerInfo, declarations:data.signing.declarations });
+    const errors = quoteSittingBlockers({ tick1: data.signing.tick1, tick2: data.signing.tick2, typedName: data.signing.typedName });
     if (errors.length) throw new Error(errors.join(' '));
     const { respondToQuoteImpl } = await import("./portal.functions");
     const { WorkflowError } = await import("./workflow.server");
@@ -111,7 +136,8 @@ export const ownerAcceptQuoteFn = createServerFn({ method: "POST" })
         accept: true,
         consent: true,
         expectedVersion: data.expectedVersion,
-        signing: data.signing,
+        // Tick 1 is the old "read" + "accept" in one (it covers the agreement, payment terms, rights and documents by email).
+        signing: { authorityType: data.signing.authorityType, signatureName: data.signing.typedName, readConsumerInfo: data.signing.tick1, acceptAgreement: data.signing.tick1, assistance: data.signing.assistance },
       },
       {
         userId: s.userId,
@@ -123,14 +149,12 @@ export const ownerAcceptQuoteFn = createServerFn({ method: "POST" })
         isOwner: async (jobId) => jobId === s.jobId,
         signQuoteSitting: async (jobId,quoteId,version) => {
           if (jobId !== s.jobId) throw new WorkflowError('This quote is not on your job.');
-          const { buildAcceptancePackage } = await import('./assignment.server');
-          const pkg = await buildAcceptancePackage(quoteId);
           const { signGateDoc,assertQuoteSittingWording } = await import('./owner-gates.server');
+          const { tidyTypedName } = await import('./acceptance-signature.core');
           await assertQuoteSittingWording(jobId);
-          // Prepare date-free consent before any signature writes: pending-schema failures leave the quote unsigned.
-          await (await import('./consent.server')).prepareQuoteConsent({jobId,actorId:s.userId,input:{signatoryName:pkg.consumer.name,signatureName:pkg.consumer.name,authorityType:data.signing.authorityType,accept:true,declarations:data.signing.declarations}});
-          for (const key of ['quote_acceptance','payment_terms'] as const) await signGateDoc({jobId,key,signatoryName:pkg.consumer.name,ticked:true,answers:{},method:'link_code',signedBy:s.userId,ip:context.ip,userAgent:context.userAgent,verified:{channel:s.channel,destination:s.destination,codeId:s.codeId},quoteSittingKey:`${quoteId}:${version}`});
-          await (await import('./consent.server')).signOwnerConsent({jobId,actorId:s.userId,ip:context.ip,userAgent:context.userAgent,input:{signatoryName:pkg.consumer.name,signatureName:pkg.consumer.name,authorityType:data.signing.authorityType,accept:true,declarations:data.signing.declarations}});
+          for (const key of ['quote_acceptance','payment_terms'] as const) await signGateDoc({jobId,key,signatoryName:tidyTypedName(data.signing.typedName),ticked:true,answers:{},method:'link_code',signedBy:s.userId,ip:context.ip,userAgent:context.userAgent,verified:{channel:s.channel,destination:s.destination,codeId:s.codeId},quoteSittingKey:`${quoteId}:${version}`});
+          const { recordAcceptanceSignature } = await import('./acceptance-signature.server');
+          await recordAcceptanceSignature(jobId,s.userId,{quoteId,version,typedName:data.signing.typedName,signedAt:new Date().toISOString()});
         },
       },
     );
@@ -454,15 +478,6 @@ export const ownerNoRunWindowFn = createServerFn({ method: "POST" })
     return (await import("./installer-run.server")).ownerNoRunWindow(s.jobId, s.userId);
   });
 
-/** Decision 80: owner "Change time" on a booked our-lead Ready Check → back to the installer to offer new times. */
-export const ownerChangeReadyCheckFn = createServerFn({ method: "POST" })
-  .middleware([withRequestMeta])
-  .inputValidator((d) => z.object({ token, session }).parse(d))
-  .handler(async ({ data }) => {
-    const s = await (await import("./owner-verify.server")).ownerSession(data.token, data.session);
-    return (await import("./ready-check-times.server")).ownerChangeReadyCheck(s.jobId, s.userId);
-  });
-
 export const ownerSignConsentFn = createServerFn({ method: "POST" })
   .middleware([withRequestMeta])
   // Approved P3 page (decision 128): the four Section 2 ticks travel with the signature; `signOwnerConsent` still enforces them.
@@ -627,43 +642,8 @@ export const ownerSignPiesaConfirmFn = createServerFn({ method: "POST" })
     });
   });
 
-/** Decision 330: what the owner confirms about the electrical fixes (date, electrician) — null when no fixes are recorded. Link token only (read). */
-export const ownerFixesConfirmFn = createServerFn({ method: "POST" })
-  .middleware([withRequestMeta])
-  .inputValidator((d) => z.object({ token }).parse(d))
-  .handler(async ({ data }) => {
-    const jobId = await ownerJobId(data.token);
-    if (!jobId) return null;
-    const { ownerFixesConfirmFacts } = await import("./piesa-fixes-confirm.server");
-    const { piesaFixesConfirmPage } = await import("./piesa-fixes-confirm.core");
-    const facts = await ownerFixesConfirmFacts(jobId);
-    return facts
-      ? (JSON.parse(JSON.stringify(piesaFixesConfirmPage(facts))) as ReturnType<
-          typeof piesaFixesConfirmPage
-        >)
-      : null;
-  });
-
-/** Decision 330: the owner confirms the electrical fixes via the secure link (one tick + typed full name, no code). Idempotent per fixes record. */
-export const ownerSignFixesConfirmFn = createServerFn({ method: "POST" })
-  .middleware([withRequestMeta])
-  .inputValidator((d) => z.object({ token, ...signer, confirmed: z.boolean() }).parse(d))
-  .handler(async ({ data, context }) => {
-    const jobId = await ownerJobId(data.token);
-    const { WorkflowError } = await import("./workflow.server");
-    if (!jobId)
-      throw new WorkflowError("This link isn't working any more. Please reply to our email.");
-    const { signOwnerFixesConfirmation } = await import("./piesa-fixes-confirm.server");
-    return signOwnerFixesConfirmation({
-      jobId,
-      fullName: data.signatoryName,
-      signatureName: data.signatureName,
-      authority: data.authorityType,
-      confirmed: data.confirmed,
-      ip: context.ip,
-      userAgent: context.userAgent,
-    });
-  });
+// Part 4 Task 14 (Jo 2 Nov 2026): the separate "confirm your electrical fixes" page (decision 330, P6F) is retired — the
+// confirm-and-pay page covers the upgrades declaration. The old confirmation records stay readable (piesa-fixes-confirm.server).
 
 // ---------- Decision 366 (audit F03): electrical fixes on My job (?screen=fixes) ----------
 /** The latest fixes quote (lines + total), the step the owner is on and, once paid, the electrician's offered times. Link token only (read). */
@@ -830,4 +810,122 @@ export const ownerAcceptRepeatPiesaFn = createServerFn({ method: "POST" })
     if (!jobId) throw new Error("This link isn't working.");
     const s = await (await import("./repeat-piesa.server")).acceptRepeatPiesa(jobId);
     return (await import("./repeat-piesa.core")).ownerRepeatView(s);
+  });
+
+// ---------- Part 4 Task 5 (Jo 2 Nov 2026, answers 10 and 21): ?screen=clear — confirm, sign and pay on ONE page ----------
+/** What the page shows (safety check facts, the consent form's Section 1, the deposit). Link token only (read); scoped to the token's job. */
+export const ownerConfirmSignPayStateFn = createServerFn({ method: "POST" })
+  .middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token }).parse(d))
+  .handler(async ({ data }) => {
+    const jobId = await ownerJobId(data.token);
+    if (!jobId) return null;
+    const { confirmSignPayPage } = await import("./confirm-sign-pay.server");
+    try {
+      return JSON.parse(JSON.stringify(await confirmSignPayPage(jobId))) as Awaited<ReturnType<typeof confirmSignPayPage>>;
+    } catch {
+      return null;
+    }
+  });
+
+/** "View the full form ›": the filled PIESA or the pre-filled consent form as a PDF. Link token only (read). */
+export const ownerConfirmSignPayFormFn = createServerFn({ method: "POST" })
+  .middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token, doc: z.enum(["piesa", "consent"]) }).parse(d))
+  .handler(async ({ data }) => {
+    const jobId = await ownerJobId(data.token);
+    if (!jobId) return null;
+    return (await import("./confirm-sign-pay.server")).confirmSignPayForm(jobId, data.doc);
+  });
+
+/** Signs the steps not yet signed (one typed name, 6-digit code session), sends the signed consent copy at once, then returns the card page or the bank lines. */
+export const ownerConfirmSignPayFn = createServerFn({ method: "POST" })
+  .middleware([withRequestMeta])
+  .inputValidator((d) =>
+    z
+      .object({
+        token,
+        session,
+        piesaTick: z.boolean(),
+        consentTicks: z.tuple([z.boolean(), z.boolean(), z.boolean(), z.boolean()]),
+        typedName: z.string().max(200),
+        authorityType: z.enum(["owner", "authorised_representative"]),
+        method: z.enum(["card", "bank"]),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const s = await (await import("./owner-verify.server")).ownerSession(data.token, data.session);
+    const { CUSTOMER_BASE } = await import("./engagement.core");
+    return (await import("./confirm-sign-pay.server")).confirmSignPay(s.jobId, s, {
+      piesaTick: data.piesaTick,
+      consentTicks: data.consentTicks,
+      typedName: data.typedName,
+      method: data.method,
+      authority: data.authorityType,
+      returnUrl: `${CUSTOMER_BASE}/my-job/${data.token}`,
+      ip: context.ip,
+      userAgent: context.userAgent,
+    });
+  });
+
+// ---------- Part 4 Task 11 (Jo 2 Nov 2026): ?screen=finish — sign the rebate form and pay the balance on ONE page ----------
+/** What the page shows (the install facts, signing and balance state). Link token only (read); scoped to the token's job. Null = the page falls back. */
+export const ownerSignAndPayStateFn = createServerFn({ method: "POST" })
+  .middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token }).parse(d))
+  .handler(async ({ data }) => {
+    const jobId = await ownerJobId(data.token);
+    if (!jobId) return null;
+    const { signAndPayPage } = await import("./sign-and-pay.server");
+    try {
+      return JSON.parse(JSON.stringify(await signAndPayPage(jobId))) as Awaited<ReturnType<typeof signAndPayPage>>;
+    } catch {
+      return null;
+    }
+  });
+
+/** "View the full form (PDF) ›": the official ESC VEEC form as a PDF. Link token only (read). */
+export const ownerSignAndPayFormFn = createServerFn({ method: "POST" })
+  .middleware([withRequestMeta])
+  .inputValidator((d) => z.object({ token }).parse(d))
+  .handler(async ({ data }) => {
+    const jobId = await ownerJobId(data.token);
+    if (!jobId) return null;
+    try {
+      return await (await import("./sign-and-pay.server")).signAndPayForm(jobId);
+    } catch {
+      return null;
+    }
+  });
+
+/** Signs the rebate form (one tick, one typed name, 6-digit code session) then returns the card page or the bank lines for the balance. */
+export const ownerSignAndPayFn = createServerFn({ method: "POST" })
+  .middleware([withRequestMeta])
+  .inputValidator((d) =>
+    z
+      .object({
+        token,
+        session,
+        tick: z.boolean(),
+        over18: z.boolean(),
+        typedName: z.string().max(200),
+        authorityType: z.enum(["owner", "authorised_representative"]),
+        method: z.enum(["card", "bank"]),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const s = await (await import("./owner-verify.server")).ownerSession(data.token, data.session);
+    const { CUSTOMER_BASE } = await import("./engagement.core");
+    return (await import("./sign-and-pay.server")).signAndPay(s.jobId, s, {
+      tick: data.tick,
+      over18: data.over18,
+      typedName: data.typedName,
+      method: data.method,
+      authority: data.authorityType,
+      returnUrl: `${CUSTOMER_BASE}/my-job/${data.token}?screen=finish`,
+      ip: context.ip,
+      userAgent: context.userAgent,
+    });
   });

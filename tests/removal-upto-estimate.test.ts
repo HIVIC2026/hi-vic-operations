@@ -32,6 +32,6 @@ describe("removal 'up to' amount (Jo 22 Oct)", () => {
   });
   test("reminder SMS adds '(plus removal if needed)' only for existing insulation", () => {
     expect(blastMessage("Jo", 3948, 1050, "L", true)).toContain("estimate is $3,948 (plus removal if needed), with $1,050 off thanks to the rebate.");
-    expect(blastMessage("Jo", 3948, 1050, "L")).toBe("Home Insulation Victoria: Hi Jo, your ceiling insulation estimate is $3,948, with $1,050 off thanks to the rebate. Thousands of Victorians have registered and spots are released in the order they were saved. Save yours, free and no obligation: L. Reply STOP to opt out.");
+    expect(blastMessage("Jo", 3948, 1050, "L")).toBe("Home Insulation Victoria: Hi Jo, your ceiling insulation estimate is $3,948, with $1,050 off thanks to the rebate. Spots are released in the order they were saved. Save yours, free and no obligation: L. Reply STOP to opt out.");
   });
 });

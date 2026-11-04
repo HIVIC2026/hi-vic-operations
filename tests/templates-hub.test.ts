@@ -59,13 +59,12 @@ describe("Templates navigation", () => {
     expect(p.kind === "email" && p.subject).toBe("New free Ready Check jobs from Home Insulation Victoria");
     expect(p.kind === "email" && p.html).toContain("Call each owner to book their free Ready Check.");
   });
-  test("decision 384: the four decision 376 messages are listed under who gets them, approved, with their designs filed there", () => {
+  test("decision 384: the decision 376 messages still in use are listed under who gets them, approved, with their designs filed there (E14 / I71 retired 2 Nov 2026, Part 4 Task 14)", () => {
     const where: Record<string, [string, string | null]> = {
       "owner:O74": ["owner", "docs/templates/mjml/owner_O74.mjml"], "owner:O74b": ["owner", "docs/templates/mjml/owner_O74b.mjml"],
-      "owner:sms-visit_new_times": ["owner", null], "owner:O75": ["owner", "docs/templates/mjml/owner_O75.mjml"],
-      "electrician:E14": ["electrician", "docs/templates/mjml/electrician_E14.mjml"], "electrician:sms-piesa_times_reminder": ["electrician", null],
-      "installer:I71": ["installer", "docs/templates/mjml/installer_I71.mjml"], "installer:sms-installer_planning_notice": ["installer", null],
+      "owner:sms-visit_new_times": ["owner", null],
     };
+    for (const id of ["electrician:E14", "electrician:sms-piesa_times_reminder", "installer:I71", "installer:sms-installer_planning_notice"]) expect(TEMPLATE_ENTRIES.find((x) => x.id === id)).toBeUndefined();
     for (const [id, [section, design]] of Object.entries(where)) {
       const e = TEMPLATE_ENTRIES.find((x) => x.id === id);
       expect({ id, section: e?.section, approval: e?.approval, design: e?.design ?? null, gate: e?.gate.kind }).toEqual({ id, section, approval: "approved", design, gate: design ? "email" : "text" });
@@ -76,9 +75,9 @@ describe("Templates navigation", () => {
     expect(entriesFor("waiting").some((e) => /visit_new_times|piesa_times_reminder|installer_planning_notice/.test(e.id))).toBe(false);
     // Approved is not live: emails wait for the customer messages switch, texts also for their own switch.
     const byId = (id: string) => TEMPLATE_ENTRIES.find((x) => x.id === id)!;
-    expect(templateStatus(byId("owner:O75"), { customer_comms: false }).label).toBe("Waits for customer messages switch");
-    expect(templateStatus(byId("owner:O75"), { customer_comms: true }).label).toBe("Live");
-    for (const t of ["owner:sms-visit_new_times", "electrician:sms-piesa_times_reminder", "installer:sms-installer_planning_notice"]) {
+    expect(templateStatus(byId("owner:O74"), { customer_comms: false }).label).toBe("Waits for customer messages switch");
+    expect(templateStatus(byId("owner:O74"), { customer_comms: true }).label).toBe("Live");
+    for (const t of ["owner:sms-visit_new_times"]) {
       expect(templateStatus(byId(t), { customer_comms: true }).label).toBe("Waits for its text switch");
       const type = (byId(t).gate as { smsType: string }).smsType;
       expect(templateStatus(byId(t), { customer_comms: true, [`sms:${type}`]: true }).label).toBe("Live");
@@ -136,7 +135,8 @@ describe("nothing live is missing from the page", () => {
   const listedFns = new Set(TEMPLATE_ENTRIES.map((e) => e.source.fn));
   test("every approved text type is on the page", () => {
     const listed = new Set(TEMPLATE_ENTRIES.flatMap((e) => (e.gate.kind === "text" ? [e.gate.smsType] : [])));
-    for (const [type, t] of Object.entries(SMS_MESSAGE_TYPES)) if (t.wordingApproved && type !== "piesa_owner_confirm") expect({ type, listed: listed.has(type) }).toEqual({ type, listed: true });
+    for (const [type, t] of Object.entries(SMS_MESSAGE_TYPES)) // quick_taps: retired 2 Nov 2026 (decision #22), nothing sends it any more (quick_taps_reminder still goes to batches sent the old way)
+    if (t.wordingApproved && !["piesa_owner_confirm", "quick_taps"].includes(type)) expect({ type, listed: listed.has(type) }).toEqual({ type, listed: true });
     for (const type of listed) expect({ type, known: type in SMS_MESSAGE_TYPES }).toEqual({ type, known: true });
   });
   test("every email builder in src/lib is on the page or explicitly not listed (with a reason)", () => {
@@ -150,6 +150,11 @@ describe("nothing live is missing from the page", () => {
       if (NOT_BUILDERS.has(name)) continue;
       expect({ name, accounted: listedFns.has(name) || name in NOT_LISTED_BUILDERS }).toEqual({ name, accounted: true });
     }
+  });
+  test("fix round 1: wording still sent to in-flight jobs keeps its own entry (legacy Release O77 + text, old quick taps reminder)", () => {
+    for (const fn of ["renderLegacySpotReleasedEmail", "legacySpotReleasedText", "quickTapsReminderText"]) expect({ fn, listed: listedFns.has(fn) }).toEqual({ fn, listed: true });
+    expect("quickTapsReminderText" in NOT_LISTED_BUILDERS).toBe(false);
+    expect("quickTapsText" in NOT_LISTED_BUILDERS).toBe(true);
   });
   test("builders left off as retired really have no live caller", () => {
     const srcFiles = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap((d) => (d.isDirectory() ? srcFiles(`${dir}/${d.name}`) : /\.tsx?$/.test(d.name) ? [`${dir}/${d.name}`] : []));
@@ -203,4 +208,12 @@ describe("the page is read-only", () => {
     expect(read("src/routes/_authenticated/admin.templates.tsx")).toContain('createFileRoute("/_authenticated/admin/templates")');
     expect(read("src/routes/_authenticated/admin.tsx")).toContain("redirect({ to: \"/home\" })");
   });
+});
+
+// Fix wave J1 (5), docs drift: the hub's O45 entry follows Q21 (balance due on install day, card on My job or bank transfer).
+test("O45 hub entry says the balance is due on install day (Q21), never 'due today'", async () => {
+  const o45 = TEMPLATE_ENTRIES.find((e) => e.id === "invoices:O45");
+  expect(o45?.name).toBe("Final invoice (balance due on install day)");
+  expect(o45?.when).toContain("card on My job or by bank transfer");
+  expect(`${o45?.name} ${o45?.when}`).not.toMatch(/due today/i);
 });

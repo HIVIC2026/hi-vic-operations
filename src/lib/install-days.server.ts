@@ -18,7 +18,7 @@ async function electricianLimit(jobId: string) {
 
 async function context(jobId: string, shared?: SharedJobReads) {
   const { clearanceFacts } = await import("./allocation.server");
-  const { electricalClearance } = await import("./allocation.core");
+  const { electricalClearance, upgradesOutstanding } = await import("./allocation.core");
   const [{ data: job }, clearance, piesa, { data: asg }, { data: booked }, { data: rows }] = await Promise.all([
     admin.from("jobs").select("stage, install_10day_flagged_at").eq("id", jobId).single(),
     shared ? shared.clearance() : clearanceFacts(jobId).then(electricalClearance),
@@ -27,7 +27,12 @@ async function context(jobId: string, shared?: SharedJobReads) {
     admin.from("bookings").select("id, scheduled_start").eq("job_id", jobId).eq("kind", "installation").eq("status", "confirmed").limit(1).maybeSingle(),
     admin.from("appointment_proposals").select("id, proposer_role, starts_at, ends_at, status").eq("job_id", jobId).eq("install_day", true).order("starts_at"),
   ]);
-  const deadline = clearance.cleared ? installWindowDeadline(clearance.timingDate, (piesa as { install_deadline?: string | null } | null)?.install_deadline ?? null) : null;
+  const ps = piesa as { install_deadline?: string | null; piesa_date?: string | null } | null;
+  // J5 (Part 9 Task 10 ruling, 4 Nov 2026): while only the upgrades are outstanding the 30 days still run from the official
+  // PIESA date (decision 316 — the same rule validateBooking applies), so the deposit messages and the install window have
+  // their last day before the Part C lands; any other uncleared reason still has no window.
+  const deadline = clearance.cleared ? installWindowDeadline(clearance.timingDate, ps?.install_deadline ?? null)
+    : upgradesOutstanding(clearance) && ps?.piesa_date ? installWindowDeadline(ps.piesa_date, ps.install_deadline ?? null) : null;
   const expired = !!deadline && melbourneYmd(new Date()) > deadline;
   const ready = job?.stage === "installation_scheduling" && clearance.cleared && !!asg;
   const { turn, open } = installDayTurn({ ready, booked: !!booked, expired, rows: rows ?? [] });
@@ -92,9 +97,7 @@ export async function installerOfferDays(jobId: string, userId: string, picks: {
   await propose(jobId, userId, "installer", picks, windowDays(c));
   await logEvent(jobId, userId, "install_days_offered_by_installer", `Installer offered ${picks.length} install day${picks.length === 1 ? "" : "s"} to the owner`, { days: picks, instead_of_owner_days: c.turn === "installer_to_answer" }, { internal: true });
   await admin.from("jobs").update({ next_action: "Waiting for the owner to pick one of the installer's install days" }).eq("id", jobId);
-  // Decision 325: O33 "Pick your install day" to the owner (guarded; best-effort, the offer stands either way).
-  const starts = picks.map((p) => installDayBounds(p.day, p.time).starts_at);
-  await (await import("./owner-email-triggers.server")).onInstallDaysOffered(jobId, starts, c.deadline).catch((e) => console.error("install days email skipped", (e as Error).message));
+  // Part 4 Task 14: the O33 "pick your install day" owner email is retired (the installer calls the owner and books the day).
   return { ok: true };
 }
 
@@ -103,7 +106,7 @@ export async function ownerSuggestDays(jobId: string, userId: string, picks: str
   const c = await context(jobId);
   if (c.expired) throw new WorkflowError("New PIESA needed: the 30-day installation window has passed.");
   if (c.turn !== "owner_to_answer") throw new WorkflowError("Install days can't be suggested right now.");
-  { const db = await (await import("./payments.server")).installDepositBlockerFor(jobId); if (db) throw new WorkflowError("Please pay your 10% deposit first — then you can pick your install day."); }
+  { const db = await (await import("./payments.server")).installDepositBlockerFor(jobId); if (db) throw new WorkflowError("Please pay your 10% deposit first."); }
   await propose(jobId, userId, "owner", picks.map((day) => ({ day })), windowDays(c));
   await logEvent(jobId, userId, "install_days_offered", `Owner suggested ${picks.length} other install day${picks.length === 1 ? "" : "s"} for the installer`, { days: picks }, { internal: true });
   await admin.from("jobs").update({ next_action: "Waiting for the installer to take one of the owner's days or offer new ones" }).eq("id", jobId);

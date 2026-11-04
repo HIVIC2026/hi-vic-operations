@@ -52,7 +52,7 @@ export const saveBusiness = createServerFn({ method: "POST" }).middleware([requi
     if (sb) throw new WorkflowError(sb);
     const { id, verify_coverage, ...patch } = data;
     delete (patch as Record<string, unknown>)["pays_own_electricians"]; // Defence in depth, including office creates.
-    delete (patch as Record<string, unknown>)["piesa_booked_by"]; // Set only by the installer boss through tradeSetPiesaBooker.
+    delete (patch as Record<string, unknown>)["piesa_booked_by"]; // Set only by the installer boss through tradeSetWhoBooks (My business).
     if (patch.service_postcodes) {
       const invalid = patch.service_postcodes.filter((entry) => !/^3\d{3}$/.test(entry) && !/^3\d{0,2}\*$/.test(entry));
       if (invalid.length) throw new WorkflowError(`Invalid Victorian postcode coverage: ${invalid.join(", ")}`);
@@ -133,7 +133,7 @@ export const setOnboardingStatus = createServerFn({ method: "POST" }).middleware
   });
 
 export const addCredential = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ businessId: uuid, profileId: uuid.nullish(), kind: z.enum(["public_liability_insurance", "workers_comp_insurance", "other_insurance", "electrical_licence", "rec_registration", "installer_certification", "business_registration", "other"]), label: z.string().trim().min(2).max(200), number: txt(100), issuer: txt(200), expires_at: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish(), critical: z.boolean().default(true), document_path: txt(500) }).parse(d))
+  .inputValidator((d) => z.object({ businessId: uuid, profileId: uuid.nullish(), kind: z.enum(["public_liability_insurance", "other_insurance", "electrical_licence", "rec_registration", "installer_certification", "business_registration", "other"]), label: z.string().trim().min(2).max(200), number: txt(100), issuer: txt(200), expires_at: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish(), critical: z.boolean().default(true), document_path: txt(500) }).parse(d))
   .handler(async ({ data, context }) => {
     if (!(await isAdmin(context.supabase))) await requireMember(context.userId, data.businessId, true);
     if (data.document_path && !data.document_path.startsWith(`partners/${data.businessId}/`)) throw new WorkflowError("Invalid document path");
@@ -144,10 +144,15 @@ export const addCredential = createServerFn({ method: "POST" }).middleware([requ
   });
 
 export const verifyCredential = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ id: uuid, verification: z.enum(["verified", "rejected", "pending"]) }).parse(d))
+  // Part 9 Task 8 (Jo 2 Nov 2026): the office types the amount insured (AUD) when it approves a public liability certificate;
+  // $5m or more is needed (businessDocsBlocker). Pending column `amount_insured_aud` — a missing column refuses the amount.
+  .inputValidator((d) => z.object({ id: uuid, verification: z.enum(["verified", "rejected", "pending"]), amountInsuredAud: z.number().finite().nonnegative().max(1_000_000_000).nullable().optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
-    await admin.from("business_credentials").update({ verification: data.verification, verified_by: context.userId, verified_at: new Date().toISOString() }).eq("id", data.id);
+    const patch: Record<string, unknown> = { verification: data.verification, verified_by: context.userId, verified_at: new Date().toISOString() };
+    if (data.amountInsuredAud !== undefined) patch["amount_insured_aud"] = data.amountInsuredAud;
+    const { error } = await admin.from("business_credentials").update(patch as never).eq("id", data.id);
+    if (error) throw new WorkflowError(data.amountInsuredAud !== undefined && /amount_insured_aud/i.test(error.message) ? "The amount insured can't be saved yet (database change pending). Ask Home Insulation Victoria to apply it." : error.message);
     return { ok: true };
   });
 
@@ -537,8 +542,7 @@ export const proposeTime = createServerFn({ method: "POST" }).middleware([requir
     await admin.from("appointment_proposals").insert({ job_id: data.jobId, kind: data.kind, assignment_id: a.id, proposed_by: context.userId, proposer_role: role, starts_at: data.start, note: data.note ?? null });
     if (a.user_id === context.userId && !a.first_response_at) await admin.from("job_assignments").update({ first_response_at: new Date().toISOString() }).eq("id", a.id);
     await logEvent(data.jobId, context.userId, data.kind === "ready_check" ? "ready_check_contact_recorded" : "appointment_proposed", `${role} proposed ${new Date(data.start).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" })} for ${data.kind === "ready_check" ? "the Ready Check" : data.kind}`, { note: data.note, assignment_id: a.id });
-    // Decision 325: the electrician offered a safety check (PIESA) time → O26 "Pick a time for your electrical safety check" (best-effort).
-    if (data.kind === "assessment" && role === "electrician") await (await import("./owner-email-triggers.server")).onSafetyCheckTimesOffered(data.jobId, [data.start]).catch((e) => console.error("safety check times email skipped", (e as Error).message));
+    // Part 4 Task 14: the O26 "pick a time" owner email is retired; the proposal is recorded only.
     return { ok: true };
   });
 

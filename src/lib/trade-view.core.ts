@@ -3,24 +3,9 @@
 
 export type TradeKind = "electrician" | "installer";
 
-/** "Hello Jo" + "{N} jobs booked this week." with a quiet-week variation. */
-export function tradeGreeting(firstName: string | null, jobsThisWeek: number): { title: string; sub: string } {
-  const title = `Hello${firstName ? ` ${firstName}` : ""}`;
-  if (jobsThisWeek <= 0) return { title, sub: "No jobs booked this week. New job offers will appear here." };
-  return { title, sub: `${jobsThisWeek} job${jobsThisWeek === 1 ? "" : "s"} booked this week.` };
-}
-
-/** Pink countdown pill: "Closes in 3h 20m". */
-export function goneIn(expiresAt: string | null, now = Date.now()): string | null {
-  if (!expiresAt) return null;
-  const ms = new Date(expiresAt).getTime() - now;
-  if (ms <= 0) return "Closing now";
-  const m = Math.round(ms / 60000);
-  if (m < 60) return `Closes in ${m} min`;
-  const h = Math.floor(m / 60), r = m % 60;
-  if (h < 48) return `Closes in ${h}h${r ? ` ${r}m` : ""}`;
-  return `Closes in ${Math.floor(h / 24)} days`;
-}
+// Speed (portal speed step 2B): the home's greeting, countdown, day tile and electrician words live in a small module of
+// their own so the My work page does not load this whole file; same values, re-exported here.
+export { tradeGreeting, goneIn, dayTile } from "./trade-home-words.core";
 
 /** Distance line. Google Maps drive time is not connected yet, so postcode distance is shown honestly. */
 export function distanceLine(km: number | null | undefined): string {
@@ -48,17 +33,27 @@ export type InsulationNow = "none" | "some" | "unknown";
 export const INSULATION_LABEL: Record<InsulationNow, string> = { none: "None", some: "Some", unknown: "Not sure" };
 
 /**
- * Decision 318 (Jo 25 Oct 2026, wording approved by Jo): one rule, the SAME words on every trade surface — the trade job
- * page next to the onsite form button, the Money page above the payouts, job offers (one short line), the installer
- * guide / welcome email and the electrician guide — and as a first-page instruction line on the A3/A4/A5 Mitti forms.
- * The rule itself is enforced by `trade-payout-gate.core.ts` `tradePayoutBlockers`.
+ * Pay-rule words (decision 318 rule, v2 wording): one rule, the SAME words on every trade surface — the trade job page
+ * next to the onsite form button, the Money page above the payouts, job offers (one short line), the installer guide /
+ * welcome email and the electrician guide. The rule itself is enforced by `trade-payout-gate.core.ts` `tradePayoutBlockers`.
+ *
+ * APPROVED by Jo 4 Nov 2026 14:12 (plain words, no threat) and switched ON by her 16:44 ruling ("we don't PAY FOR
+ * ELECTRICAL FIXES"): the decision-318 strings (the old headline, body, offer line and Mitti first-page line that named
+ * fixes and read as a threat) are DELETED, not kept behind the flag — no installer-facing pay wording may mention
+ * upgrades or fixes. Timing from decisions 30/109/344/355/410. There is no Mitti first-page line: the A5 READ
+ * FIRST item carries its own last sentence (install-day.core INSTALL_DAY_READ_FIRST_TEXT, also approved 4 Nov 14:12).
  */
-export const NO_FORM_NO_PAY = {
-  headline: "No complete form, no payment",
-  body: "We pay for the safety check, electrical fixes and installs only when the Mitti form is 100% finished and you've pressed Complete. Every photo and video must be taken in Mitti on site so it is geotagged. If anything is missing, we can't claim the rebate, so we can't pay you until it's fixed.",
-  offerLine: "Paid only when the Mitti form is complete with every geotagged photo.",
-  mittiInstruction: "Paid only when this form is 100% complete and you press Complete. Take every photo in Mitti on site so it's geotagged.",
+export const NO_FORM_NO_PAY_V2_APPROVED = true as boolean;
+export const NO_FORM_NO_PAY_V2 = {
+  headline: "When you get paid",
+  body: "We pay for the safety check and installs 7 days after we approve the finished Mitti form. Take every photo and video in Mitti on site so it's geotagged. If something's missing we can't claim the rebate, so we'll ask you to fix it before we can pay.",
+  /** The short line: job offers and the Money page. */
+  line: "Paid 7 days after we approve the finished Mitti form. Your own customers: once they've paid in full.",
 } as const;
+/** The pay-rule words in force — v2 only (one place decides, every surface follows). */
+export function payRuleWords(): { headline: string; body: string; line: string } {
+  return { headline: NO_FORM_NO_PAY_V2.headline, body: NO_FORM_NO_PAY_V2.body, line: NO_FORM_NO_PAY_V2.line };
+}
 
 /** Decision 318: a payout held by the form rule shows "Held" and its first reason, whatever its pay state would be. */
 export function heldPayPill(reasons: readonly string[] | null | undefined): { label: string; tone: "blush"; why: string } | null {
@@ -130,6 +125,17 @@ export function installerPayHeldReasons(f: { installerSupplied: boolean; apAppro
   if (!f.apApprovedAt) out.push(INSTALLER_PAY_WAITING_AP);
   if (f.installerSupplied && !f.ownerPaidInFullAt) out.push(INSTALLER_PAY_WAITING_OWNER);
   return out;
+}
+
+/** Jo 4 Nov 2026 21:20 (pack 2 batch 9): the installer's Money page says WHY their install pay is held in their words — an
+ *  own customer: "Paid once the owner has paid in full." (Jo's rule for own customers; never the office's AP line), a Home
+ *  Insulation Victoria lead: the 7-day line. Same gate as `installerPayHeldReasons` (the office's reasons); only the words differ. */
+export const OWN_CUSTOMER_PAY_HELD_LINE = "Paid once the owner has paid in full.";
+export const HIV_LEAD_PAY_HELD_LINE = "Paid 7 days after we approve the install paperwork."; // the approved Money rule (decisions 109/344) as a sentence
+export function installerMoneyHeldLines(f: { installerSupplied: boolean; apApprovedAt: string | null; ownerPaidInFullAt: string | null }): string[] {
+  const office = installerPayHeldReasons(f);
+  if (!office.length) return [];
+  return [f.installerSupplied ? OWN_CUSTOMER_PAY_HELD_LINE : HIV_LEAD_PAY_HELD_LINE];
 }
 
 /** Decision 410 (Jo 27 Oct 2026, replaces 355 for electricians): electricians are paid for the safety check (A3) and the
@@ -217,16 +223,6 @@ export function surname(full: string | null | undefined): string {
   return parts.length ? parts[parts.length - 1]! : "Owner";
 }
 
-/** Day tile: "TUE 14" + the exact arrival time "8:00am" (decision 43: no windows). */
-export function dayTile(startIso: string): { day: string; time: string } {
-  const tz = "Australia/Melbourne";
-  const s = new Date(startIso);
-  const wd = s.toLocaleDateString("en-AU", { weekday: "short", timeZone: tz }).toUpperCase().replace(/\.$/, "");
-  const dn = s.toLocaleDateString("en-AU", { day: "numeric", timeZone: tz });
-  const time = s.toLocaleTimeString("en-AU", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: tz }).replace(/\s/g, "").toLowerCase();
-  return { day: `${wd} ${dn}`, time };
-}
-
 /** Review E: "Couldn't get in" only from a booked Ready Check whose visit day (Melbourne) is today or earlier. */
 export function couldntGetInBlocker(stage: string | null, bookingStart: string | null, now: Date): string | null {
   if (stage !== "ready_check_scheduled") return "This job doesn't have a booked Ready Check.";
@@ -239,9 +235,10 @@ export function couldntGetInBlocker(stage: string | null, bookingStart: string |
 // ---------- trade job access (step 9, Jo 7 Oct) ----------
 export type AccessAssignment = { job_id: string; business_id: string | null; user_id: string | null; active: boolean };
 /** A trade may open a job only with an ACTIVE assignment for that job and their own business; staff only when the assignment names them. */
-export function tradeJobAllowed(a: { signedIn: boolean; userId: string | null; businessId: string | null; boss: boolean; jobId: string; assignments: AccessAssignment[] }): boolean {
+/** `office` (fix wave C2): an Office person reads the business's jobs like the boss. */
+export function tradeJobAllowed(a: { signedIn: boolean; userId: string | null; businessId: string | null; boss: boolean; office?: boolean; jobId: string; assignments: AccessAssignment[] }): boolean {
   if (!a.signedIn || !a.userId || !a.businessId) return false;
-  return a.assignments.some((x) => x.job_id === a.jobId && x.active && x.business_id === a.businessId && (a.boss || x.user_id === a.userId));
+  return a.assignments.some((x) => x.job_id === a.jobId && x.active && x.business_id === a.businessId && (a.boss || a.office === true || x.user_id === a.userId));
 }
 /** Visit-current rule: owner name/phone/address show while this business still has a visit to do (or is arranging one);
  *  once every one of its visits on the job is done, contact details are hidden. */
@@ -302,8 +299,7 @@ const daysUntil = (ymd: string, today: string) => Math.round((Date.parse(`${ymd.
 
 export type MittiLogin = "linked" | "not_set" | "email_changed";
 export type TeamMemberView = {
-  dateOfBirth?:string|null;
-  id: string | null; name: string; role: "owner" | "installer" | "electrician"; mobile: string | null; email: string | null;
+  id: string | null; name: string; role: "owner" | "office" | "installer" | "electrician"; mobile: string | null; email: string | null;
   hasLogin: boolean; mittiLogin: MittiLogin;
   /** True when the office has a Mitti record for this worker (linked, invited, reactivated or marked done); null = couldn't be read, so unknown. */
   mittiRecorded: boolean | null;
@@ -319,8 +315,15 @@ export type TeamMemberView = {
   declarationsDue: boolean;
   /** Jo 3 Nov: required details still missing ("mobile", "date of birth", "email"); undefined = owner or unknown. */
   missingDetails?: string[];
+  /** Task 10 (Team screen) checks, set by tradeBusiness for the boss's Team. Optional so older callers compile.
+   *  escRegistered: office ESC stamp (Lead Installers); licenceAndRec: electricianVerified ok; canSeeMoney: Office
+   *  people only; hasDob: a private date of birth is on file (true/false) or unknown (null) — never the date itself. */
+  escRegistered?: boolean;
+  licenceAndRec?: boolean;
+  canSeeMoney?: boolean;
+  hasDob?: boolean | null;
 };
-export const ROLE_LABEL: Record<TeamMemberView["role"], string> = { owner: "owner", installer: "installer", electrician: "electrician" };
+export const ROLE_LABEL: Record<TeamMemberView["role"], string> = { owner: "owner", office: "office", installer: "installer", electrician: "electrician" };
 
 /** "Lead · Mitti ✓" / "Crew · no Mitti" / "Mitti login not set": the Mitti words, with Lead or Crew first for installer staff. */
 export function teamMittiLine(m: Pick<TeamMemberView, "role" | "workerRole" | "mittiLogin" | "mittiRecorded">): string | null {
@@ -366,20 +369,22 @@ export const TEAM_SIGN = { due: "Not signed yet · can't go on jobs", needContac
 /** "Send login invite" asks the office; it sends nothing itself. */
 export const TEAM_LOGIN = { button: "Ask the office to send a login", asked: "Asked the office. They'll send the login." } as const;
 
-export type CredentialView = { kind: string; label: string; expires: string | null; verified: boolean };
-/** Latest expiry on file for one credential kind (a renewal upload supersedes the old date; null = none recorded). */
-export function latestExpiry(creds: CredentialView[], kind: string): string | null {
-  const isKind = (c: CredentialView) => c.kind === kind || (kind === "public_liability_insurance" && /liab/i.test(c.label) && !/product/i.test(c.label));
-  return creds.filter(isKind).map((c) => c.expires).filter((x): x is string => !!x).map((x) => x.slice(0, 10)).sort().at(-1) ?? null;
+/** Part 9 Task 8: `amountInsured` (AUD) is the office-typed cover on a public liability row (pending `amount_insured_aud`);
+ *  undefined = not loaded by this reader, null = not recorded. `pending` = uploaded, not yet checked by the office. */
+export type CredentialView = { kind: string; label: string; expires: string | null; verified: boolean; amountInsured?: number | null; pending?: boolean };
+/** One credential kind (public liability also by a "liability" label that isn't product liability). */
+export const isCredentialKind = (c: CredentialView, kind: string): boolean => c.kind === kind || (kind === "public_liability_insurance" && /liab/i.test(c.label) && !/product/i.test(c.label));
+/** Latest expiry on file for one credential kind (a renewal upload supersedes the old date; null = none recorded).
+ *  Part 9 Task 8: `verifiedOnly` counts only rows the office has verified (an upload alone never lifts a block). */
+export function latestExpiry(creds: CredentialView[], kind: string, opts: { verifiedOnly?: boolean } = {}): string | null {
+  return creds.filter((c) => isCredentialKind(c, kind) && (!opts.verifiedOnly || c.verified)).map((c) => c.expires).filter((x): x is string => !!x).map((x) => x.slice(0, 10)).sort().at(-1) ?? null;
 }
 
-/** Insurance row: "Public liability expires 11 Nov · Workers comp current". */
+/** Insurance row: "Public liability expires 11 Nov" (workers comp is not collected — Jo 4 Nov 2026). */
 export function insuranceRowSub(creds: CredentialView[], today: string): { text: string; warn: boolean } {
   const state = (exp: string | null) => exp == null ? { t: "not on file", warn: true } : daysUntil(exp, today) < 0 ? { t: `expired ${dayMonth(exp)}`, warn: true } : daysUntil(exp, today) <= 30 ? { t: `expires ${dayMonth(exp)}`, warn: true } : { t: "current", warn: false };
   const p = state(latestExpiry(creds, "public_liability_insurance"));
-  const parts = [`Public liability ${p.t}`];
-  if (creds.some((c) => c.kind === "workers_comp_insurance")) parts.push(`Workers comp ${state(latestExpiry(creds, "workers_comp_insurance")).t}`);
-  return { text: parts.join(" · "), warn: p.warn };
+  return { text: `Public liability ${p.t}`, warn: p.warn };
 }
 
 /** Bank row: "Reinsulate Pty Ltd · BSB 063-xxx · account ending 4471". Never the full numbers on the list. */
@@ -508,46 +513,12 @@ export function escNoticeRowLine(s: { state: string; at: string | null; linkSent
   return parts.length ? `Not yet · ${parts.join(", ")}` : "Not yet · no link sent";
 }
 
-/** Installer guide (approved state M7-guide, decisions 21/107/145/236): five steps, the 30 days, getting paid. Static wording, no job data. */
-export const GUIDE_STEPS = [
-  { title: "Get the job", body: "Your own customer: Add a job and enter their details exactly and in full. Our lead: we text and email you the job. Offer the owner three Ready Check times within 24 hours." },
-  { title: "Ready Check", body: "Fill in as much as you can in Mitti. Press Complete only when it's finished: that sends the owner their quote." },
-  { title: "PIESA", body: `We arrange it once the owner accepts. You get the ${PIESA_FULL} at least 24 hours before install.` },
-  { title: "Install days", body: "Once the PIESA is cleared, offer the owner 3 days with arrival times. Install within 30 days of the PIESA, or a new one is needed." },
-  { title: "Install day", body: "Follow the install form from the 6:30am text, top to bottom: the SWMS (Safe Work Method Statement: your safety plan for the job), the PIISA (Pre-installation installer safety assessment: your safety check before you start), then the photos. Press Complete in Mitti, then sign Part B (your declaration) of the VEEC form (the rebate form) on the job." },
-] as const;
-/** Browser tab title for the guide page: electricians see "Electrician guide" (Jo, 29 Oct 2026); installers unchanged. */
-export function guideTabTitle(kind: TradeKind): string {
-  return `${kind === "electrician" ? "Electrician" : "Installer"} guide – Home Insulation Victoria`;
-}
+// Task 11 (Jo 2 Nov 2026): the installer "How it works" guide (GUIDE_STEPS, GUIDE_WORDS, guideTabTitle) is retired — the
+// Job page's one Next step box says what to do next. The electrician guide words below stay until Part 6 removes them.
 /** What the approved business says it will take, on the welcome page (copy approved by Jo 29 Oct 2026). */
 export const WELCOME_TAKES = { installer: "Ready Checks and installs", electrician: `${PIESA_FULL} jobs` } as const;
-export const GUIDE_WORDS = {
-  eyebrow: "Installer guide",
-  title: "How every job works",
-  sub: "Two minutes. Five steps, the 30 days, getting paid.",
-  paidTitle: "Getting every job paid",
-  paidBody: "We check every form and photo before we claim the rebate. If anything's missing, we can't claim it, and the job can't be paid.",
-  photos: "Photos must be taken live at the property on the day (geotagged and timed). The lead installer signs personally.",
-  pay: "Getting paid: your customers when the owner pays the balance; our leads 7 days after we approve the job. We never mark up your price.",
-  back: "Back to My work",
-} as const;
-
-/** Electrician guide (copy approved by Jo 29 Oct 2026, word for word): four steps and getting paid. Static wording, no job data. */
-export const ELECTRICIAN_GUIDE_STEPS = [
-  { title: "Take the job", body: "We text and email you each offer. Accept it in My work if you can do it." },
-  { title: "Book the PIESA", body: "Offer the owner 3 times for the Pre Insulation Electrical Safety Assessment (PIESA). It's booked once they pick one." },
-  { title: "Do the PIESA in Mitti", body: "Fill in the PIESA form on site and take the photos in Mitti. If fixes are needed, add your price for them on the form. Press Complete when it's finished." },
-  { title: "Fixes, if needed", body: "If the owner says yes to the fixes, book a time with them, do the work and fill in the fixes form in Mitti. Press Complete when done." },
-] as const;
-export const ELECTRICIAN_GUIDE_WORDS = {
-  eyebrow: "Electrician guide",
-  title: "How every job works",
-  sub: "One minute. Four steps and getting paid.",
-  paidTitle: "Getting paid",
-  paidBody: "We pay your agreed rate 7 days after we approve your completed form. A form that isn't finished can't be paid.",
-  back: "Back to My work",
-} as const;
+// Part 6 (join 4 Nov 2026): the electrician guide words (ELECTRICIAN_GUIDE_STEPS / ELECTRICIAN_GUIDE_WORDS) are retired too —
+// electricians never log in; the no-login job link says what to do next.
 
 // Decision 317: the electrician's "Pre Insulation Electrical Safety Assessment (PIESA)" document row on their job page.
 export const SAFETY_CHECK_DOC_TITLE = PIESA_FULL;
@@ -580,11 +551,11 @@ export function accountEnding(raw: string | null | undefined): string | null {
   return digits.length >= 4 ? digits.slice(-4) : null;
 }
 
-/** Electrician My work: plain trade words for jobs that are waiting on someone else (Jo, 28 Oct 2026). */
-export const ELECTRICIAN_WORK_WORDS = {
-  waitingTile: "Waiting on others",
-  waitingSub: "Nothing for you to do now",
-  waitingFilter: "Waiting on others",
-  slowFilter: "Taking a while",
-  slowEmpty: "Nothing is taking a while right now.",
-} as const;
+/** G8 (6), 4 Nov 2026 (LOOKS WRONG 10): the unit line under a rate on Your rates. A per-unit rate reads "per m²"; a flat
+ *  rate (unit "flat" / "each" / "job") has NO line — never the raw unit code ("$349.00 per flat"). */
+export function rateUnitLine(unit: string | null | undefined): string | null {
+  const u = (unit ?? "").trim().replace(/^per\s+/i, "");
+  if (!u || /^(flat|flat[_ ]fee|each|job|fixed|per_job|visit)$/i.test(u)) return null;
+  return `per ${u.replace(/_/g, " ").replace(/\bm2\b/i, "m²")}`;
+}
+

@@ -191,6 +191,8 @@ async function resolveLink(token: string) {
     admin.from("businesses").select("name, trading_name").eq("id", l.business_id).maybeSingle(),
   ]);
   if (!w || w.removed_at || w.approval_status !== "approved" || certificationBlocker(w)) throw new Error("This link has been switched off. Ask your company for a new one.");
+  // Part 6: electricians never use /w/ links — each job reaches them as their own no-login link (/e/<token>).
+  if (w.trade_role === "electrician") throw new Error("This link has been switched off. Ask your company for a new one.");
   if (!(await jobBusinesses(l.job_id)).includes(l.business_id)) throw new Error("Your company is no longer on this job.");
   return { admin, l, w, bizName: b?.trading_name || b?.name || null };
 }
@@ -216,7 +218,7 @@ export const getWorkerJobView = createServerFn({ method: "POST" })
     if (!j) throw new Error("This job is no longer available.");
     const dispatch = await (await import("./in-house-suppression.server")).inHouseDispatchSkip(l.job_id);
     const heldText = dispatch ? (await import("./in-house-message.core")).inHouseTradeBookingText(j.stage) : null;
-    const mittiId = mb?.mitti_account_invited !== true ? null : w.trade_role === "electrician" ? a?.external_mitti_id : (m?.external_source === "mitti" ? m.external_id : null) ?? a?.external_mitti_id;
+    const mittiId = mb?.mitti_account_invited !== true ? null : (m?.external_source === "mitti" ? m.external_id : null) ?? a?.external_mitti_id;
     const released = (rels ?? []).some((r) => (r.job_assignments as { active: boolean }).active && visitIsCurrent(r.visit_kind, j.stage ?? ""));
     const { data: oc } = released ? await admin.from("job_overview").select("owner_name, owner_phone, owner_email").eq("id", l.job_id).maybeSingle() : { data: null };
     return {
@@ -228,34 +230,6 @@ export const getWorkerJobView = createServerFn({ method: "POST" })
       timeline: events ?? [],
       messages: (msgs ?? []).map((x) => ({ id: x.id, body: x.body, created_at: x.created_at, mine: x.worker_id === l.worker_id, from: x.sender_label ?? (x.profiles as { full_name: string | null } | null)?.full_name ?? "Home Insulation Victoria" })),
     };
-  });
-
-export const getWorkerApprovedRectificationRates = createServerFn({ method: "POST" })
-  .inputValidator((d) => z.object({ token: z.string().max(100) }).parse(d))
-  .handler(async ({ data }) => {
-    const { admin, l, w } = await resolveLink(data.token);
-    if (w.trade_role !== "electrician") return [];
-    const { data: card } = await admin.from("rate_cards").select("id").eq("business_id", l.business_id).eq("kind", "electrical").eq("is_active", true).order("version", { ascending: false }).limit(1).maybeSingle();
-    if (!card) return [];
-    const { data: rates, error } = await admin.from("rate_card_items").select("code,description,unit,display_unit").eq("rate_card_id", card.id).eq("category", "electrical").like("code", "CUSTOM_%").order("sort");
-    if (error) throw new Error("Your approved electrical fixes rates could not be loaded.");
-    return rates ?? [];
-  });
-
-export const addWorkerApprovedRectificationItem = createServerFn({ method: "POST" })
-  .inputValidator((d) => z.object({ token: z.string().max(100), rateCode: z.string().regex(/^CUSTOM_[A-Z0-9]{1,33}$/), quantity: z.number().positive().max(1000), explanation: z.string().trim().max(2000).optional() }).parse(d))
-  .handler(async ({ data }) => {
-    const { admin, l, w } = await resolveLink(data.token);
-    if (w.trade_role !== "electrician") throw new Error("Only approved electrician staff can add electrical fixes items.");
-    const { data: job } = await admin.from("jobs").select("stage").eq("id", l.job_id).maybeSingle();
-    if (!job || !["piesa_scheduled", "assessment_booked", "assessment_booking", "assessment_complete", "rectification_required"].includes(job.stage)) throw new Error("Approved items can only be added before the electrical fixes quote is issued for owner approval.");
-    const { data: cards } = await admin.from("rate_cards").select("id,rate_card_items(code,description)").eq("business_id", l.business_id).eq("kind", "electrical").eq("is_active", true).order("version", { ascending: false }).limit(1);
-    const approved = (cards?.[0]?.rate_card_items as { code: string; description: string }[] | undefined)?.find((item) => item.code === data.rateCode);
-    if (!approved) throw new Error("That item is not on your REC business's approved rate card.");
-    const { error } = await admin.from("rectification_items").insert({ job_id: l.job_id, rate_code: approved.code, description: approved.description, quantity: data.quantity, is_other: false, explanation: data.explanation ?? null, added_by: null });
-    if (error) throw new Error("The approved electrical fixes item could not be added.");
-    await logEvent(l.job_id, null, "rectification_approved_item_added", `Approved electrical fixes item added by ${w.full_legal_name}: ${approved.description}`, { rate_code: approved.code, quantity: data.quantity, worker_id: l.worker_id });
-    return { ok: true };
   });
 
 export const postWorkerMessage = createServerFn({ method: "POST" })

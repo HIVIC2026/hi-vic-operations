@@ -260,7 +260,7 @@ describe("officeRejectInstallerElectrician + installerResubmitElectrician", () =
     expect(emails).toHaveLength(1);
     expect(emails[0]).toMatchObject({ recipient: "partner", to: "office@insulone.test", record: { businessId: INST }, pauseJobId: null });
     expect(emails[0]!.subject).toBe("Rita Relay wasn't approved");
-    expect(emails[0]!.message).toBe("Rita Relay wasn't approved: Licence number doesn't match the photo. Fix it in My electricians.");
+    expect(emails[0]!.message).toBe("Rita Relay wasn't approved: Licence number doesn't match the photo. Add them on the Team page.");
     expect((await biz(RITA)).installer_added_rejected_reason).toBe("Licence number doesn't match the photo");
     const rows = await events("installer_added_electrician_rejected");
     expect(rows).toHaveLength(2);
@@ -270,7 +270,7 @@ describe("officeRejectInstallerElectrician + installerResubmitElectrician", () =
   test("Fix and resend (Task 5): what is on file comes back for the form — own, not-approved electricians only", async () => {
     expect(await els.installerMyElectricianDetails(U_BOSS, RITA)).toEqual({
       name: "Rita Relay", email: "rita@relay.test", mobile: "+61400111222", recNumber: "REC5555", licenceNumber: "L-7777", licenceExpiry: "2099-01-01",
-      plAmount: 5_000_000, plExpiry: "2099-01-01", employsAnyone: true, workcoverExpiry: "2099-02-02", reason: "Licence number doesn't match the photo",
+      plAmount: 5_000_000, plExpiry: "2099-01-01", reason: "Licence number doesn't match the photo", // no WorkCover (Jo 4 Nov 2026 21:08)
     });
     expect(await reject(els.installerMyElectricianDetails(U_BOSS2, RITA))).toBe("This electrician isn't on your list.");
     expect(await reject(els.installerMyElectricianDetails(U_BOSS, SAM))).toBe("They're already approved — nothing to resubmit.");
@@ -290,13 +290,13 @@ describe("officeRejectInstallerElectrician + installerResubmitElectrician", () =
     const b = await biz(RITA);
     expect(b).toMatchObject({ onboarding_status: "submitted", installer_added_rejected_reason: null, name: "Rita Relay-Smith", phone: "+61411222333", is_active: false });
     expect(Number(b.public_liability_cover_amount)).toBe(10_000_000);
-    expect(b.workcover_exempt_declared_at).toBeTruthy(); // now a sole trader
+    expect(b.workcover_exempt_declared_at).toBeNull(); // WorkCover is not collected (Jo 4 Nov 2026 21:08) — nothing written
     const w = await worker(RITA);
     expect(w).toMatchObject({ full_legal_name: "Rita Relay-Smith", licence_number: "L-7777", mobile: "+61411222333", approval_status: "pending" });
     expect(new Date(w.licence_expires_on as string).toISOString().slice(0, 10)).toBe("2098-06-06");
     const cs = await creds(RITA);
-    // Old rows are marked rejected (never deleted); fresh pending rows carry the new numbers and files. No new WorkCover: sole trader now.
-    expect(cs.filter((c) => c.verification === "rejected").map((c) => c.kind)).toEqual(["electrical_licence", "public_liability_insurance", "rec_registration", "workers_comp_insurance"]);
+    // Old rows are marked rejected (never deleted); fresh pending rows carry the new numbers and files. The seeded WorkCover row is not touched (not collected, Jo 4 Nov 2026).
+    expect(cs.filter((c) => c.verification === "rejected").map((c) => c.kind)).toEqual(["electrical_licence", "public_liability_insurance", "rec_registration"]);
     expect(cs.filter((c) => c.verification === "pending").map((c) => c.kind)).toEqual(["electrical_licence", "public_liability_insurance", "rec_registration"]);
     const docs = (await db.query<{ kind: string; document_path: string }>("select kind, document_path from business_credentials where business_id=$1 and verification='pending' order by kind", [RITA])).rows;
     expect(docs.find((d) => d.kind === "electrical_licence")!.document_path).toBe(`${P1}/new-licence.jpg`);
@@ -335,14 +335,26 @@ describe("after approval", () => {
     expect((await els.installerMyElectricians(U_BOSS)).find((r) => r.id === SAM)).toMatchObject({ status: "expired" });
   });
 
-  test("own-job pick: a lapsed business licence blocks an installer-added electrician; an HIV-onboarded REC is judged on PL + REC registration only", async () => {
+  // G6 S6 (final Part 9 review, 4 Nov 2026): the own-job pick uses the SAME insurance hard block as every booking
+  // (businessDocsBlocker: public liability verified, $5m+ — the business's recorded cover — unexpired; workers comp unless
+  // exempt), then the REC registration / business licence expiry rule.
+  test("own-job pick: a lapsed business licence blocks an installer-added electrician; an HIV-onboarded REC is judged on the insurance block + REC registration", async () => {
     await db.query("update business_credentials set expires_at='2026-10-01' where business_id=$1 and kind='electrical_licence'", [SAM]);
-    expect(await els.ownJobDocsBlocker(SAM, "2026-11-03")).toContain("Electrical licence expired on 2026-10-01");
+    expect(await els.ownJobDocsBlocker(SAM, "2026-11-03")).toContain("Electrical licence expired on 2026-10-01"); // Sam: PL verified $5m, sole trader (exempt) → only the licence
+    // Rita was approved above (PL + WorkCover verified, $5m on the business record) → clear; before approval her
+    // pending uploads say "waiting for Home Insulation Victoria to check it".
     expect(await els.ownJobDocsBlocker(RITA, "2026-11-03")).toBeNull();
+    await db.query("update business_credentials set verification='pending' where business_id=$1 and kind='public_liability_insurance'", [RITA]);
+    expect(await els.ownJobDocsBlocker(RITA, "2026-11-03")).toBe("Public liability insurance: uploaded, waiting for Home Insulation Victoria to check it.");
+    await db.query("update business_credentials set verification='verified' where business_id=$1 and kind='public_liability_insurance'", [RITA]);
     const REC = id(60);
-    await db.query(`insert into businesses (id, business_type, name, onboarding_status, is_active, capabilities) values ($1,'rec','Volt Co','approved',true,'["electrician"]')`, [REC]);
+    await db.query(`insert into businesses (id, business_type, name, onboarding_status, is_active, capabilities, public_liability_cover_amount, workcover_exempt_declared_at) values ($1,'rec','Volt Co','approved',true,'["electrician"]', 10000000, now())`, [REC]);
     await db.query("insert into business_credentials (business_id, kind, expires_at, verification) values ($1,'electrical_licence','2020-01-01','verified'), ($1,'public_liability_insurance','2099-01-01','verified')", [REC]);
-    expect(await els.ownJobDocsBlocker(REC, "2026-11-03")).toBeNull(); // per-person licence rules cover HIV-onboarded RECs
+    expect(await els.ownJobDocsBlocker(REC, "2026-11-03")).toBeNull(); // per-person licence rules cover HIV-onboarded RECs; PL $10m on the business record (B1), exempt from workers comp
+    await db.query("update businesses set public_liability_cover_amount = 2000000 where id=$1", [REC]);
+    expect(await els.ownJobDocsBlocker(REC, "2026-11-03")).toBe("Public liability insurance covers $2,000,000; $5,000,000 or more is needed.");
+    await db.query("update businesses set public_liability_cover_amount = 10000000, workcover_exempt_declared_at = null where id=$1", [REC]);
+    expect(await els.ownJobDocsBlocker(REC, "2026-11-03")).toBeNull(); // workers comp is not collected (Jo 4 Nov 2026 21:08)
     await db.query("insert into business_credentials (business_id, kind, expires_at, verification) values ($1,'public_liability_insurance','2026-01-01','rejected'), ($1,'rec_registration','2026-01-01','verified')", [REC]);
     expect(await els.ownJobDocsBlocker(REC, "2026-11-03")).toBe("REC registration expired on 2026-01-01. No new jobs until the renewed document is uploaded.");
     const swap = readFileSync(new URL("../src/lib/electrician-swap.server.ts", import.meta.url), "utf8");

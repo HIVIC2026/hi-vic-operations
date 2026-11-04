@@ -46,28 +46,25 @@ export function electricianChoiceProblem(choice: ElectricianChoice | null | unde
   return null;
 }
 
-// ---- Part 2b (Jo 3 Nov 2026): every approved electrician linked to the installer is pickable at Add a job ----
-/** One electrician the installer may pick for its own job: approved, linked, paperwork in date. `usual` = the one saved in My business. */
-export type PickableElectrician = { businessId: string; name: string; usual: boolean };
-export const NOT_ON_YOUR_LIST = "That electrician isn't on your list.";
-/** The radio options: the usual electrician first (same label as before), then the rest by name. */
-export function addJobElectricianOptions(list: PickableElectrician[]): { businessId: string; label: string }[] {
-  return [...list].sort((a, b) => Number(b.usual) - Number(a.usual) || a.name.localeCompare(b.name, "en-AU"))
-    .map((e) => ({ businessId: e.businessId, label: e.usual ? usualElectricianOptionLabel(e.name) : e.name }));
-}
-/** Preselected = the usual electrician when they are pickable; otherwise nothing is preselected. */
-export const defaultAddJobElectrician = (list: PickableElectrician[]): string | null => list.find((e) => e.usual)?.businessId ?? null;
-/** Why the pick cannot be saved (null = fine): nobody to pick, nothing picked, or a pick that isn't on the list. */
-export function addJobPickProblem(picked: string | null | undefined, list: PickableElectrician[]): string | null {
-  if (!list.length) return ELECTRICIAN_CHOICE_ISSUES.usual;
-  if (!picked) return ELECTRICIAN_CHOICE_ISSUES.missing;
-  return list.some((e) => e.businessId === picked) ? null : NOT_ON_YOUR_LIST;
-}
+// ---- Part 2b's REC-business pick at Add a job (Jo 3 Nov 2026) was superseded by the join ruling (4 Nov 2026): the
+// installer's own Team electrician is the pick (`teamElectricianChoiceRecord`); `pickableOwnElectricians` and its
+// list helpers are gone. ----
 
-/** What the event stores: the choice, and the usual electrician's name/licence at the time (declared, not verified). */
-export type ElectricianChoiceRecord = { choice: ElectricianChoice; usual_name: string | null; usual_licence: string | null; source: "add_job" | "bulk_upload" | "default" | "installer_switch" };
+/** What the event stores: the choice, and the usual electrician's name/licence at the time (declared, not verified).
+ *  Join ruling (4 Nov 2026): Add a job records the Team electrician the installer picked as "usual" naming THAT worker —
+ *  `worker_id` is their `partner_workers` row (office-verified, so not "declared"). */
+export type ElectricianChoiceRecord = { choice: ElectricianChoice; usual_name: string | null; usual_licence: string | null; source: "add_job" | "bulk_upload" | "default" | "installer_switch"; worker_id?: string | null };
 export function electricianChoiceRecord(choice: ElectricianChoice, usual: UsualElectrician | null, source: ElectricianChoiceRecord["source"]): ElectricianChoiceRecord {
   return { choice, usual_name: choice === "usual" ? usual?.name ?? null : null, usual_licence: choice === "usual" ? usual?.licence ?? null : null, source };
+}
+/** The Team electrician picked at Add a job: "usual", naming that person. */
+export function teamElectricianChoiceRecord(worker: { id: string; name: string; licence?: string | null }, source: ElectricianChoiceRecord["source"] = "add_job"): ElectricianChoiceRecord {
+  return { choice: "usual", usual_name: worker.name, usual_licence: worker.licence?.trim() || null, source, worker_id: worker.id };
+}
+/** The Team worker a stored `electrician_choice_set` event names, or null (no worker / not a Team pick). */
+export function teamWorkerFromEvent(details: unknown): string | null {
+  const w = details && typeof details === "object" ? (details as Record<string, unknown>)["worker_id"] : null;
+  return typeof w === "string" && w ? w : null;
 }
 export const electricianChoiceSummary = (r: ElectricianChoiceRecord) => (r.choice === "usual" ? `Electrical safety check by the installer's usual electrician${r.usual_name ? ` (${r.usual_name})` : ""}` : "Electrical safety check by Home Insulation Victoria's electrician");
 
@@ -84,6 +81,16 @@ export function resolveElectricianChoice(i: { recorded: ElectricianChoice | null
   if (i.recorded) return i.recorded;
   if (i.legacy === "hivic" || i.legacy === "usual" || i.legacy === "different") return i.legacy;
   return defaultElectricianChoice(i.usual);
+}
+
+/** G7 (Jo 4 Nov 2026, pack 2 batch 4): the price card's Electrician row names the Team electrician on the job — the one
+ *  put on it (allocated), else the one picked at Add a job — exactly as the Team page shows them. Gone from the Team → the
+ *  existing TEAM_ELECTRICIAN_GONE line. No Team electrician named → the legacy choice line, except that "usual" without a
+ *  saved usual electrician reads "Choose your own electrician" (never "My usual electrician (not saved yet…)"). */
+export function priceCardElectricianLine(i: { team: { name: string; gone: boolean } | null; choice: "hivic" | "usual" | "different" | null; usual: Pick<UsualElectrician, "name"> | null | undefined; legacyName?: string | null; goneLine: string }): string {
+  if (i.team) return i.team.gone ? i.goneLine : i.team.name;
+  if (i.choice === "usual" && !i.usual?.name) return electricianChoiceLine("hivic", null);
+  return electricianChoiceLine(i.choice, i.usual, i.legacyName);
 }
 
 /** Plain read-only line for the job page / price card. */

@@ -7,6 +7,9 @@
 import type { ColumnLists } from "./job-facts.core";
 
 export const FACT_COLUMNS: ColumnLists = {
+  customer_email_sends: ["communication_id", "created_at", "delivery_at", "delivery_detail", "delivery_result", "error", "estimate_link_id", "id", "idempotency_key", "job_id", "provider", "provider_message_id", "purpose", "sent_at", "status"],
+  documents: ["created_at", "external_id", "id", "job_id", "kind", "mime_type", "original_name", "size_bytes", "source_system", "storage_path", "title", "uploaded_by"],
+  pre_start_checks: ["booking_id", "checked_at", "failures", "id", "job_id", "passed", "scheduled_start", "trigger"],
   workflow_events: ["actor_id", "created_at", "details", "event_type", "from_stage", "id", "internal", "job_id", "summary", "to_stage"],
   bookings: ["assignment_id", "booked_by", "business_id", "contractor_id", "created_at", "id", "job_id", "kind", "notes", "scheduled_end", "scheduled_start", "status"],
   job_assignments: ["active", "assigned_at", "assigned_by", "booking_confirmed_at", "business_id", "cannot_attend_at", "end_reason", "ended_at", "first_response_at", "id", "job_id", "role", "user_id"],
@@ -27,6 +30,7 @@ export const FACT_COLUMNS: ColumnLists = {
   worker_job_links: ["business_id", "created_at", "created_by", "expires_at", "id", "job_id", "last_opened_at", "open_count", "revoked_at", "revoked_by", "token_hash", "worker_id"],
   partner_workers: ["account_status", "added_by", "approval_status", "approved_at", "approved_by", "business_id", "certification", "certification_status", "created_at", "declarations_due", "email", "esc_registered", "esc_registered_at", "esc_registered_by", "full_legal_name", "id", "licence_expires_on", "licence_number", "licence_verified_at", "licence_verified_by", "linked_at", "linked_by", "mobile", "piisa_certificate_path", "piisa_completed_on", "piisa_status", "piisa_verified_at", "piisa_verified_by", "profile_id", "qualification", "rec_number", "rejection_reason", "removed_at", "source_application_id", "trade_role", "updated_at", "worker_role"],
   business_members: ["active", "added_by", "business_id", "created_at", "id", "member_role", "user_id"],
+  rate_cards: ["business_id", "created_at", "effective_from", "id", "is_active", "kind", "name", "version"],
   partner_activations: ["activated_at", "activated_by", "application_id", "business_id", "id", "override_reason", "partner_enquiry_id", "partner_type", "rate_card_id", "snapshot"],
   properties: ["address_line", "created_at", "enrichment", "id", "is_residential", "managed_by_business_id", "occupancy", "owner_id", "postcode", "state", "suburb", "updated_at", "year_built"],
   quote_items: ["code", "description", "explanation", "id", "is_other", "line_total_inc_gst", "quantity", "quote_id", "sort", "unit", "unit_price_inc_gst"],

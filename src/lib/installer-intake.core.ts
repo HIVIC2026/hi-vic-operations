@@ -351,7 +351,7 @@ export const NOT_MEASURED_NOTE = "That’s fine — we’ll save the job now. Ad
 /** Who arranges/pays the electrician on an installer-supplied job (separate from who manages the job). */
 export type ElectricianPayer = "hivic" | "own" | "undecided";
 export const ELECTRICIAN_PAYER_CHOICES: { value: ElectricianPayer; label: string; body: string }[] = [
-  { value: "own", label: "I’ll use my own electrician", body: "Your electrician must sign up with us first. Their safety check price goes on the owner’s quote instead of our $349, the owner pays us, and we pay the electrician. The office still verifies the electrician, the PIESA, any conditions, evidence and notices before work." },
+  { value: "own", label: "I’ll use my own electrician", body: "Your electrician must sign up with us first. Your PIESA price goes on the owner’s quote, the owner pays us, and we pay it through. The office still verifies the electrician, the PIESA, any conditions, evidence and notices before work." },
   { value: "undecided", label: "To be arranged", body: "You can save now. The owner quote waits until the electrician and their cost are known." },
 ];
 export const FEE_AWARENESS_HIV_REC = "The owner has been advised of the $349 PIESA fee and $349 AP management fee, both including GST.";
@@ -433,12 +433,30 @@ export function planPayerChange(x: { currentPayer: ElectricianPayer; requested: 
 
 /** Release/accept guard (Jo 9 Oct): an installer quote's electrical billing lines must match the CURRENT payer,
  *  whichever path changed the payer. Accepted quotes are frozen and never re-checked/repriced. */
-export function electricalLineBlocker(codes: (string | null)[], payer: ElectricianPayer): string | null {
+export function electricalLineBlocker(lines: (string | null | { code: string | null; line_total_inc_gst?: number | string | null })[], payer: ElectricianPayer, piesaRateIncGst?: number | null): string | null {
   if (payer === "undecided") return "Electrician arrangement not decided yet — this quote can't go to the owner";
-  const has = codes.includes("PIESA");
+  const items = lines.map((l) => (l && typeof l === "object" ? l : { code: l, line_total_inc_gst: null }));
+  const has = items.some((i) => i.code === "PIESA");
   if (payer === "hivic" && !has) return "This quote has no PIESA line but Home Insulation Victoria is arranging the electrician — prepare a fresh quote first";
   // Jo 26 Oct 2026: the installer's own electrician is billed through us too, so their quote needs the PIESA line.
   if (payer === "own" && !has) return "This quote has no electrical safety check (PIESA) line for the installer's electrician — prepare a fresh quote first";
+  // Part 10 (final review M2) + Jo 4 Nov 2026: own customers' owner lines are exactly one $349 fee and exactly one PIESA
+  // line at the business's own PIESA rate (`piesaRateIncGst`, when the caller knows it; a rate of null = not set → held).
+  // An older intake draft priced at a stale rate (or Part 10's fixed $349) holds. Amounts are checked only when given.
+  const money = (n: number) => `$${n.toLocaleString("en-AU", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  for (const [code, name] of [["AP_FEE", "Home Insulation Victoria fee"], ["PIESA", "electrical safety check (PIESA)"]] as const) {
+    const found = items.filter((i) => i.code === code);
+    if (!found.length) return `This quote has no ${name} line — prepare a fresh quote first`;
+    if (found.length > 1) return `This quote's ${name} line is doubled — prepare a fresh quote first`;
+    const amt = found[0]!.line_total_inc_gst;
+    if (amt == null || amt === "") continue;
+    if (code === "AP_FEE" && Math.abs(Number(amt) - 349) > 0.005) return `This quote's ${name} line is ${money(Number(amt))}, not $349 — prepare a fresh quote first`;
+    if (code === "PIESA") {
+      if (!(Number(amt) > 0)) return `This quote's ${name} line is ${money(Number(amt) || 0)} — prepare a fresh quote first`;
+      if (piesaRateIncGst === null) return "Installer business has no PIESA rate on its rate card";
+      if (piesaRateIncGst != null && Math.abs(Number(amt) - piesaRateIncGst) > 0.005) return `This quote's ${name} line is ${money(Number(amt))}, not the installer's PIESA price ${money(piesaRateIncGst)} — prepare a fresh quote first`;
+    }
+  }
   return null;
 }
 

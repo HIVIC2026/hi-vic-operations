@@ -73,8 +73,6 @@ mock.module("../src/lib/readycheck-booking.server", () => ({
     { business_id: BIZ, name: "TEST Alpha", blocker: null }, { business_id: BIZ2, name: "TEST Beta", blocker: "No approved installer with a Full, current EEC certification recorded." },
   ] }),
 }));
-mock.module("../src/lib/ready-check-offer-text.server", () => ({ textInstallerAboutOffer: async (id: string) => { calls.texts.push(id); return "blocked: Wording not approved yet"; }, emailInstallerAboutOffer: async () => "blocked: TEST fixture" }));
-mock.module("../src/lib/ready-check-times-email.server", () => ({ emailOwnerReadyCheckTimes: async (_j: string, s: string[]) => { calls.emails.push(s); return "not sent — wording awaiting approval"; } }));
 mock.module("../src/lib/booking.server", () => ({
   confirmBooking: async (jobId: string, kind: string, start: string, actor: string, label: string) => {
     calls.bookings.push(`${kind}|${start}|${actor}|${label}`);
@@ -114,7 +112,8 @@ describe("office picks one installer", () => {
     expect(rows[0]!.business_id).toBe(BIZ);
     expect(Number(rows[0]!.hrs)).toBe(24);
     expect(rows[0]!.summary).toMatchObject({ office_choice: true, ready_check_times: true, suburb: "Frankston" });
-    expect(calls.texts).toEqual([r.offerId]);
+    expect(r.offerId).toBe((await q<{ id: string }>("select id from partner_offers where job_id=$1", [JOB]))[0]!.id);
+    expect(calls.texts).toEqual([]); // Part 7 Task 9: no installer offer text or email goes any more
     expect(await officeItem()).toBeNull(); // nothing for the office while the offer is open
     await expect(rc.officePickReadyCheckInstaller(JOB, null, [BIZ])).rejects.toThrow(/already open/);
   });
@@ -156,7 +155,7 @@ describe("installer offers 3 times; owner taps one → booked through the canoni
     const props = await q<{ proposer_role: string; status: string; note: string }>("select proposer_role, status, note from appointment_proposals where job_id=$1", [JOB]);
     expect(props).toHaveLength(3);
     expect(props.every((p) => p.proposer_role === "installer" && p.status === "proposed" && p.note === core.READY_CHECK_TIME_NOTE)).toBe(true);
-    expect(calls.emails).toHaveLength(1);
+    expect(calls.emails).toHaveLength(0); // the owner times email was removed (Part 3 Task 16)
     expect(calls.bookings).toHaveLength(0);
     const s = await rc.ownerReadyCheckTimesState(JOB);
     expect(s).toMatchObject({ applies: true, allowed: true, turn: "owner_to_answer" });

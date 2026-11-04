@@ -120,5 +120,6 @@ They must be inside the repeating section, so every ceiling area gets its own an
 Change nothing else. Publish both.
 ```
 
-After publishing all four, tell Claude "published" and the portal will re-read the templates to check them (after block 4,
-A1 has 38 questions and A2 has 39, the ceiling-area section counted once).
+After publishing all four, tell Claude "published" and the portal will re-read the templates to check them (after block 4 alone it is 38 and 39;
+once the photo ID paste in docs/mitti-paste-2026-11-02-A1-A2-photo-id.md is done,
+A1 has 39 questions and A2 has 40, the ceiling-area section counted once).

@@ -12,7 +12,7 @@ const ROUTE = "src/routes/_authenticated/field.$jobId.tsx";
 describe("C1 one PIESA name on the Job page", () => {
   test("no 'safety check' wording in Job page sources", () => {
     const core = read("src/lib/installer-screens.core.ts").split("// ---------- M4 · Today's job")[0]!;
-    for (const src of [core, read(ROUTE), read("src/components/trade/InstallerPriceCard.tsx"), read("src/components/portal/piesa-times-electrician.tsx"), read("src/components/trade/FixesTimesCard.tsx"), read("src/components/trade/FixesFormCard.tsx"), read("src/components/portal/mitti.tsx")])
+    for (const src of [core, read(ROUTE), read("src/components/trade/InstallerPriceCard.tsx"), read("src/components/portal/piesa-times-electrician.tsx"), read("src/components/trade/FixesFormCard.tsx"), read("src/components/portal/mitti.tsx")])
       expect(code(src).split(PIESA_FULL).join("").replace(/Pre Insulation Electrical Safety Assessment/g, "")).not.toMatch(/safety (check|assessment)|electrical assessment/i); // the standard name itself is allowed
   });
   test("shared constants use the standard name", () => {
@@ -41,13 +41,19 @@ test("C6: Open Mitti form has exactly one place", () => {
   expect(mittiLinkPlace({ ...f, panel: "waiting", yours: false })).toBe("ready_check");
   expect(mittiLinkPlace({ ...f, mittiInvited: false, panel: "mitti_form", yours: true })).toBeNull();
   const r = read(ROUTE);
-  expect(r).toMatch(/mittiLink === "next" && [^<]*<MittiFormLink/); expect(r).toMatch(/mittiLink === "ready_check" && [^<]*<MittiFormLink/);
+  // Job page redesign (Task 5): the Next step box holds the one "Open the Mitti form" button; the old Ready Check group is gone.
+  // Task 6: the box component holds that one button (page passes the audit id; nothing else in InstallerFlow links the form).
+  expect(r).toContain("mittiAuditId={mittiAudit}");
+  const box = read("src/components/trade/NextStepBox.tsx");
+  expect(box).toContain("box.button === NEXT_STEP_WORDS.mittiButton && mittiAuditId");
+  expect((r.split("function InstallerFlow")[1] ?? "").match(/<MittiFormLink auditId=\{mittiAudit\}/g)?.length ?? 0).toBe(0);
   expect(r).not.toContain('next.panel === "mitti_form" || (next.panel === "quote_status" && next.yours)'); // old inline rule gone
 });
 test("C7: plain staff-links label", () => {
   expect(STAFF_LINKS_LABEL).toBe("Send this job to a staff member");
   expect(read(ROUTE)).not.toContain("More · staff job links");
-  expect(read(ROUTE)).toContain("{STAFF_LINKS_LABEL}");
+  // Job page redesign (Task 5): the staff-links fold is gone from the installer page (the label stays in the core).
+  expect(read(ROUTE)).not.toContain("{STAFF_LINKS_LABEL}");
 });
 
 test("C3: electrician Call/Text follow their own visits", () => {
@@ -55,13 +61,20 @@ test("C3: electrician Call/Text follow their own visits", () => {
   expect(contactVisible([{ status: "completed" }, { status: "confirmed" }])).toBe(true);
   expect(contactVisible([{ status: "completed" }, { status: "cancelled" }])).toBe(false);
   expect(read("src/lib/job-status.server.ts")).toContain("ownerContactVisible: mineErr ? false : contactVisible(");
-  const elec = read(ROUTE).split("function FieldJobBody")[1]!.split("function A1ReadyCheckTimeCard")[0]!;
-  expect(elec).toContain("showOwnerContact && job.owner_phone && <a href={`tel:");
-  expect(elec).toContain("showOwnerContact && job.owner_phone && <a href={`sms:");
+  // Part 6 Task 8 (1685bcd1): electricians never log in, so the signed-in job page has no electrician Call/Text any more;
+  // the owner's number reaches them on the no-login link only while their own visit is current (contact_releases rule).
+  const route = read(ROUTE);
+  expect(route).not.toContain("showOwnerContact");
+  const link = read("src/lib/electrician-link.server.ts");
+  expect(link).toContain("mine.has(r.assignment_id as string) && visitIsCurrent(String(r.visit_kind), stage)");
+  const body = read("src/components/trade/ElectricianLinkBody.tsx");
+  expect(body).toContain("d.owner.phone ? <> · <a className=\"font-semibold underline\" href={telHref(d.owner.phone)}>");
 });
 test("C3: contact hidden while status loads, on read error, and in the overview once visits are done", () => {
-  expect(read(ROUTE)).toContain("status.data?.ownerContactVisible === true");
-  expect(read(ROUTE)).not.toContain("ownerContactVisible !== false");
+  // Part 6 Task 8: the electrician's job page is gone (electricians never log in); owner contact for electricians lives on
+  // the no-login link (electrician-link.server ownerContactFor), which reads the same contact_releases rule.
+  expect(read(ROUTE)).not.toContain("ownerContactVisible");
+  expect(read("src/lib/electrician-link.server.ts")).toContain("visitIsCurrent(String(r.visit_kind), stage)");
   const srv = read("src/lib/job-status.server.ts");
   expect(srv).toContain("mineErr ? false : contactVisible(");
   expect(srv).toContain("mineErr.code");
@@ -99,7 +112,7 @@ test("C2: one-way switch only on a job held for a not-onboarded electrician", ()
 
 test("C9: tidy-up keeps the same screen", () => {
   const r = read(ROUTE);
-  expect(r).not.toContain("4 · Electrical fixes items"); expect(r).toContain('title="Electrical fixes items"');
+  expect(r).not.toContain("4 · Electrical fixes items"); expect(r).not.toContain('title="Electrical fixes items"'); // the electrician's items list went with the electrician screens (Part 6 Task 8)
   expect(r).not.toContain("page.mittiInvited"); // one Mitti-account check: useMittiInvited()
   expect(r).not.toContain("The install is finished"); expect(r).toContain("<InstallFinishedButton run={");
   const b = read("src/components/trade/InstallFinishedButton.tsx");

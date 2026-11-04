@@ -20,7 +20,7 @@ import { expandPiesa } from "./official-expand.core";
 import { formatPropertyAddress } from "./address";
 import { todayMelbourne } from "./eligibility.server";
 import { refuseFuturePiesaDate } from "./piesa-date.core";
-import { PIESA_EVIDENCE_ISSUE_PREFIX, attachPiesaMedia, piesaEvidenceBlockers, piesaEvidenceFilesToStore, piesaMediaFromSnapshot, type PiesaSnapshotEntry } from "./piesa-evidence.core";
+import { PIESA_EVIDENCE_ISSUE_PREFIX, attachPiesaMedia, piesaEvidenceBlockers, piesaEvidenceFilesToStore, piesaLifeSupportFiles, piesaMediaFromSnapshot, type PiesaSnapshotEntry } from "./piesa-evidence.core";
 import { officialPrefillContext } from "./official-forms.server";
 import { draftInstallerQuoteFromReadyCheck } from "./installer-quote.server";
 import { applyCobrand } from "./pilot.server";
@@ -163,6 +163,10 @@ export async function createAssignMittiAudit(jobId: string, actorId: string | nu
   const existingAuditId = measureOnly ? (m?.external_source === "mitti" && m.status !== "complete" ? m.external_id : null) : a?.external_mitti_id ?? null;
   const prof = (asg as unknown as { profiles: { full_name: string | null; email: string | null } | null }).profiles;
   const address = formatPropertyAddress(prop);
+  // Jo 25 Oct 2026 (A3 items 23–27, "portal fills this in"): the electrician's B3 details — name, licence, REC name and
+  // number, phone — from the same office-verified record the official PIESA uses (a no-login Team electrician included).
+  // Blank when nothing verified is on file: the electrician types it, never a guess.
+  const b3 = measureOnly ? null : (await officialPrefillContext(jobId, todayMelbourne(), null).catch(() => null))?.electrician ?? null;
   let r;
   // T3: atomic per-job/per-form claim ("mitti_audit_create_started" row with a deterministic primary key; see
   // mitti-create-claim.core.ts). Only the create POST is non-idempotent, so it is tracked: a failure before it
@@ -191,6 +195,7 @@ export async function createAssignMittiAudit(jobId: string, actorId: string | nu
         estimatedAreaM2: job.estimated_area_m2 != null ? Number(job.estimated_area_m2) : null,
         occupancy: prop?.occupancy ? prop.occupancy.replace("_", " ") : null, lifeSupport: job.life_support ? "Yes – life support recorded" : "None recorded by office",
         inspectionDate: measureOnly ? null : todayMelbourne(),
+        electricianName: b3?.name ?? null, electricianLicence: b3?.licence ?? null, electricianRecName: b3?.recName ?? null, electricianRecNo: b3?.recNo ?? null, electricianPhone: b3?.phone ?? null,
         lifeSupportDeclared: measureOnly ? null : job.life_support_status === "yes" ? "Yes" : job.life_support_status === "no" ? "No" : null,
         builtLast5Years: measureOnly ? builtLast5YearsOption((prop?.enrichment as Any)?.base44?.declared?.over_five_years ?? null) : null,
         propertyType: propertyTypeOption((prop?.enrichment as Any)?.base44?.declared?.property_type ?? null),
@@ -346,6 +351,19 @@ async function applyPremisesType(jobId: string, actorId: string | null, entries:
   await logEvent(jobId, actorId, PREMISES_TYPE_EVENT, `Ready Check: who lives at the property — ${p.answer}${p.code ? "" : " (wording not recognised – office to confirm the premises type)"}`, { audit_id: auditId, answer: p.answer, premises_type: p.code, question: "Who lives at the property?" }, { internal: true });
 }
 
+/** Jo 3 Nov 2026 (A2): "Did the owner ask about a different R value?" → "Which R value?". An office note only ("Owner asked about
+ *  R6" on the job); nothing is sent to the owner. Append-only internal event, a new row only when the note changes. Absent → nothing. */
+export const OWNER_OTHER_R_EVENT = "mitti_owner_other_r_value"; // mitti_owner_other_r_value
+async function applyOwnerOtherRValue(jobId: string, actorId: string | null, entries: { label: string; value: string | null }[], auditId: string) {
+  const { ownerOtherRFromEntries } = await import("./ready-check-answers.core");
+  const r = ownerOtherRFromEntries(entries);
+  if (!r.note) return;
+  const { data: last } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", OWNER_OTHER_R_EVENT).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const prev = (last?.details ?? null) as { note?: string | null } | null;
+  if (prev && prev.note === r.note) return;
+  await logEvent(jobId, actorId, OWNER_OTHER_R_EVENT, r.note, { audit_id: auditId, note: r.note, r_value: r.r, question: "Did the owner ask about a different R value?" }, { internal: true });
+}
+
 /** Save Mitti's finished PDF report to the job's private files, once per completed audit version. Never throws. */
 export async function saveMittiReport(jobId: string, actorId: string | null, auditId: string, modifiedAt: string | null, label: string, call: MittiCall) {
   const key = `${auditId}:${modifiedAt ?? "completed"}`;
@@ -399,6 +417,34 @@ async function savePiesaEvidenceFiles(jobId: string, actorId: string | null, aud
     }
   }
   if (saved.length) await logEvent(jobId, actorId, "piesa_evidence_saved", `${saved.length} PIESA evidence file(s) saved to job files (decision 178)`, { audit_id: auditId, paths: saved, captured: files.map((f) => ({ item: f.id, media_id: f.file.mediaId, captured_at: f.file.capturedAt, geotagged: f.file.lat != null && f.file.lng != null })) });
+}
+
+/** New job flow part 8 task 4: the life support plan the electrician photographed on the PIESA is kept as the job's
+ *  `life_support_plan` document, so the install gate sees it as on file. One row per Mitti media id (a retry adds none);
+ *  returns how many were added. Failures are logged and never thrown to the sync. */
+export async function savePiesaLifeSupportPlan(jobId: string, auditId: string, files: { mediaId: string; capturedAt: string | null }[], fetchMedia: MittiMediaFetch): Promise<number> {
+  let added = 0;
+  if (!files.length) return 0;
+  const { LIFE_SUPPORT_PLAN_DOC_KIND } = await import("./job-records.server");
+  for (const file of files) {
+    const key = `${auditId}:life-support:${file.mediaId}`;
+    try {
+      const { data: ex, error: le } = await admin.from("documents").select("id").eq("job_id", jobId).eq("kind", LIFE_SUPPORT_PLAN_DOC_KIND).eq("source_system", "mitti").eq("external_id", key).maybeSingle();
+      if (le) throw new Error(le.message);
+      if (ex) continue;
+      const { bytes, contentType } = await fetchMedia(auditId, file.mediaId);
+      if (!bytes.length) throw new Error("empty media");
+      const path = `${jobId}/life-support/${file.mediaId}`;
+      const up = await admin.storage.from("job-files").upload(path, bytes, { contentType, upsert: false });
+      if (up.error && !/exists|duplicate/i.test(up.error.message)) throw new Error("storage upload failed");
+      const { error } = await admin.from("documents").insert({ job_id: jobId, kind: LIFE_SUPPORT_PLAN_DOC_KIND, title: "Life support plan (PIESA attachment)", storage_path: path, mime_type: contentType, uploaded_by: null, source_system: "mitti", external_id: key, original_name: file.mediaId, size_bytes: bytes.length });
+      if (error) throw new Error(error.message);
+      added++;
+    } catch (e) {
+      await logEvent(jobId, null, "piesa_life_support_plan_failed", "The life support plan photo could not be saved – sync again to retry", { audit_id: auditId, media_id: file.mediaId, reason: e instanceof Error ? e.message : "error" }, { internal: true }).catch(() => undefined);
+    }
+  }
+  return added;
 }
 
 /** Decision 314 (Jo 25 Oct 2026): one office item per job while the latest completed A3 says the electrician must be on site
@@ -502,14 +548,18 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
             await admin.from("rectification_items").insert({ ...base, job_id: jobId, assessment_id: a.id, is_other: true, source: "mitti", external_key: o.external_key, other_unit_price_inc_gst: o.unit_price_inc_gst, needs_office_pricing: o.needs_office_pricing, added_by: actorId });
           }
         }
+        let a3Signed = false;
         if (plan.completed) {
           await saveMittiReport(jobId, actorId, a.external_mitti_id, plan.modifiedAt ?? null, "PIESA", call);
           // Decision 178: the evidence that IS on the form is kept with the job file even while other items are still missing.
           await savePiesaEvidenceFiles(jobId, actorId, a.external_mitti_id, snapshot, fetchMedia);
+          // New job flow part 8 task 4: the life support plan photo counts as the plan on file.
+          await savePiesaLifeSupportPlan(jobId, a.external_mitti_id, piesaLifeSupportFiles(snapshot), fetchMedia);
           // Decision 336: the electrician's ACTUAL A3 signature image (media id + its own timestamp) is kept with the job for
           // the official PIESA Part B3 (Word form + PDF). Never throws; a failure is one internal event.
           const { mittiSignatureByLabel } = await import("./fixes-day.core");
           const a4Sig = mittiSignatureByLabel(audit, "Electrician signature");
+          a3Signed = a4Sig.present;
           await (await import("./official-signature.server")).savePiesaSignatureImage(jobId, actorId, "a4", a.external_mitti_id, a4Sig, fetchMedia);
           // A48 batch 1 task 5: after the evidence files and signature are kept, a same-visit repair's certificate (q45) is
           // read by the AI (time-limited; ticked, or one office row). Never throws.
@@ -521,20 +571,23 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
         const changed = syncStatus !== a.mitti_sync_status || completed !== (a.mitti_completed ?? false) || (plan.modifiedAt ?? null) !== (a.mitti_modified_at ?? null);
         if (changed) await logEvent(jobId, actorId, "mitti_synced", completed ? "Mitti assessment synced (completed in Mitti)" : plan.completed ? `Mitti PIESA marked complete but evidence is missing: ${evidenceBlockers.join("; ")}` : "Mitti partial data synced (audit not yet completed)",
           { audit_id: a.external_mitti_id, electrical_fields: Object.keys(electrical), measurement: "not_imported_from_piesa", measurement_fields: [], issues, other_items: plan.others.length, modified_at: plan.modifiedAt ?? null, evidence_blockers: evidenceBlockers });
+        // Part 4 Task 14 (Jo 2 Nov 2026): the electrician "pick fixes times" text (decision 315) and the automatic HIV fixes
+        // quote send (decision 354) are retired — the electrician quotes and books upgrades with the owner directly; the owner
+        // gets the "upgrades needed" email from the PIESA result route.
         // Part 3 Task 3 (Jo 3 Nov 2026): same-day upgrades with "Do you have the Certificate of Electrical Safety now?" = No →
         // Part C is recorded and the job waits for the certificate; the electrician gets ONE text with their link to add it
-        // (held until Jo approves the wording; the Task 5 chase has its own rounds). Never throws.
+        // (the Task 5 chase has its own rounds). Never throws.
         if (completed && (await import("./piesa-evidence.core")).piesaCertificateToCome(shortAnswers, piesaMediaFromSnapshot(snapshot)))
           await (await import("./own-job-piesa-notices.server")).textCertificateLink(jobId, "now").catch((e) => console.error("certificate link text skipped", jobId, (e as Error).message));
-        // Decision 315: PIESA completed + electrical fixes needed + no fixes times yet → ONE text to the assigned electrician
-        // with the job-page link to pick 3–5 times (event recorded before any send; never throws; on-site-only needs none).
-        if (completed) await (await import("./fixes-times-link.server")).textFixesTimesLink(jobId, { auditId: a.external_mitti_id, completedAt: plan.modifiedAt ?? now, short: shortAnswers });
-        // Decision 354: A3 Complete → prepare the electrician-priced fixes quote and send it automatically when every
-        // existing check passes (same release as the office Send); otherwise it stays on Needs me with the reason. Never throws.
-        if (completed) await (await import("./auto-fixes-quote-send.server")).maybeAutoSendFixesQuote(jobId, { actorId, generate: true });
-        // Part 3 Task 4b (Jo 4 Nov 2026): installers' own jobs only — their electrician has no login, so a Complete A3 at PIESA
-        // booked completes the PIESA itself, once per form; a refusal is one office row. HIV leads / in-house: pressed as before.
-        if (completed) await (await import("./own-job-piesa-complete.server")).autoCompleteOwnJobPiesa(jobId, a.external_mitti_id, actorId, plan.modifiedAt ?? null);
+        // ONE automatic completion (join ruling 3, 4 Nov 2026 — main's Part 3 Task 4b trigger + J4 G1's signature rule): on an
+        // in-house job or an installer's own job nobody presses "Complete PIESA", so a Complete A3 at PIESA booked that carries
+        // the electrician's signature completes the PIESA here through the same checks as the press, once per version of the
+        // form; a refusal is ONE office Needs me row (piesa_auto_complete_held), retried when the form is edited. Home
+        // Insulation Victoria-lead jobs that are not in-house keep the manual press. Never fails the sync.
+        if (completed && a.status !== "complete") {
+          try { await (await import("./piesa-auto-complete.server")).autoCompletePiesa(jobId, actorId, { completed, signed: a3Signed, auditId: a.external_mitti_id, modifiedAt: plan.modifiedAt ?? null }); }
+          catch (e) { console.error("PIESA auto-complete failed", jobId, e instanceof Error ? e.message : String(e)); }
+        }
       }
     }
   }
@@ -555,6 +608,7 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
         await (await import("./excluded-areas.server")).recordExcludedAreas(jobId, actorId, plan.excludedAreas ?? []).catch(() => undefined); // idempotent: the next sync tries again
         await applyContactAnswers(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: string | null }[], measureAudit);
         await applyPremisesType(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: string | null }[], measureAudit).catch(() => undefined);
+        await applyOwnerOtherRValue(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: string | null }[], measureAudit).catch(() => undefined);
         // Jo 23 Oct: draft for "Quotes to check" as soon as the basics are in — no need to wait for the whole form.
         const basics = await (await import("./ready-check-basics.server")).checkReadyCheckBasics(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: string | null }[], plan.completed, measureAudit).catch(() => null);
         const draftNow = plan.completed || !!basics?.ready;
@@ -924,7 +978,7 @@ export async function reassignMittiFormTo(p: { jobId: string; auditId: string; k
   } catch (e) { throw wrap(e); }
   if (p.kind === "piesa" || p.kind === "rectification") {
     await logEvent(p.jobId, p.actorId, p.kind === "rectification" ? "rectification_form_reshared" : "mitti_audit_reshared",
-      `${p.kind === "piesa" ? "PIESA form" : "Rectification form"} handed to ${p.email} (visit allocation)`, { audit_id: p.auditId, mitti_user_id: p.mittiUserId, reason: "visit_allocated", kind: p.kind });
+      `${p.kind === "piesa" ? "PIESA form" : "Rectification form"} handed to ${p.email} (visit allocation)`, { audit_id: p.auditId, mitti_user_id: p.mittiUserId, email: p.email, reason: "visit_allocated", kind: p.kind });
   } else {
     await logEvent(p.jobId, p.actorId, p.kind === "install" ? "mitti_piisa_audit_reshared" : "mitti_audit_reshared",
       `${p.kind === "install" ? "Installer safety form" : "Mitti Ready Check form"} handed to ${p.email} (visit allocation)`, { audit_id: p.auditId, mitti_user_id: p.mittiUserId, reason: "visit_allocated", ...(p.kind === "install" ? {} : { kind: "ready_check" as const }) });

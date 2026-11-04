@@ -18,10 +18,11 @@ const JOB = "00000000-0000-4000-8000-0000000a0601", INV = "00000000-0000-4000-80
 
 const db = new PGlite();
 await db.exec(`
-  CREATE TABLE public.jobs (id uuid primary key, job_number text, stage text, source text, business_unit text, last_activity_at timestamptz);
-  CREATE TABLE public.quotes (id uuid primary key, job_id uuid, kind text default 'installation', status text default 'accepted', accepted_at timestamptz, customer_total_inc_gst numeric);
+  CREATE TABLE public.jobs (id uuid primary key, job_number text, stage text, source text, business_unit text, last_activity_at timestamptz, installation_completed_at timestamptz);
+  CREATE TABLE public.quotes (id uuid primary key, job_id uuid, kind text default 'installation', status text default 'accepted', accepted_at timestamptz, customer_total_inc_gst numeric, version int default 1, created_at timestamptz default now());
   CREATE TABLE public.invoices (id uuid primary key, job_id uuid, quote_id uuid, kind text default 'installation', total_inc_gst numeric, total_paid numeric default 0, deposit_amount numeric default 0,
-    xero_invoice_number text, xero_reference text, xero_online_url text, xero_invoice_id text, balance_due_date date, created_at timestamptz default now());
+    xero_invoice_number text, xero_reference text, xero_online_url text, xero_invoice_id text, balance_due_date date, created_at timestamptz default now(), repeat_key text);
+  CREATE TABLE public.piesa_records (id uuid primary key default gen_random_uuid(), job_id uuid, outcome text, section_c_signed_at timestamptz, is_current boolean default true);
   CREATE TABLE public.workflow_settings (id int primary key, safety_check_payment_inc_gst numeric);
   CREATE TABLE public.bookings (id uuid primary key default gen_random_uuid(), job_id uuid, kind text, status text, created_at timestamptz default now(), scheduled_start timestamptz);
   CREATE TABLE public.payment_overrides (id uuid primary key default gen_random_uuid(), invoice_id uuid, gate text);

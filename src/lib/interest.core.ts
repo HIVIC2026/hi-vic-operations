@@ -8,6 +8,9 @@
 import { z } from "zod";
 import { CALC_MAX_M2, CALC_MIN_M2 } from "./estimate.core";
 
+/** Decision 1 (Jo 2 Nov 2026): "Register my interest" sends people here; the calculator creates no enquiry. */
+export const HOMEOWNER_URL = "https://homeinsulationvictoria.com.au/homeowner";
+
 export const INTEREST_CONSENT_VERSION = "interest-2026-10-01";
 export const INTEREST_CONSENT_STATEMENT =
   "Home Insulation Victoria may contact me about my ceiling insulation using these details.";

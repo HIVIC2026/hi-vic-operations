@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import type { Tables } from "./memory-postgrest";
 
 /** The tables the job page's fact reads take whole (job, the caller's business, settings). */
-export const FACT_TABLES = ["jobs", "workflow_events", "bookings", "job_assignments", "quotes", "quote_items", "quote_internals", "ceiling_measurements", "piesa_records", "assessments", "appointment_proposals", "customer_assignments", "installer_declarations", "rectification_items", "invoices", "payment_overrides", "ready_check_windows", "assessment_payments", "owner_esc_consents", "ready_checks", "properties", "businesses", "partner_workers", "business_members", "workflow_settings", "worker_job_links", "partner_activations"];
+export const FACT_TABLES = ["jobs", "workflow_events", "bookings", "job_assignments", "quotes", "quote_items", "quote_internals", "ceiling_measurements", "piesa_records", "assessments", "appointment_proposals", "customer_assignments", "installer_declarations", "rectification_items", "invoices", "payment_overrides", "ready_check_windows", "assessment_payments", "owner_esc_consents", "ready_checks", "properties", "businesses", "partner_workers", "business_members", "workflow_settings", "worker_job_links", "partner_activations", "customer_email_sends", "documents", "pre_start_checks"];
 
 const TYPES = readFileSync(new URL("../../src/integrations/supabase/types.ts", import.meta.url), "utf8");
 export function columnsOf(table: string): string[] {

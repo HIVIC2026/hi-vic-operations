@@ -20,8 +20,8 @@ class WorkflowError extends Error {}
 mock.module("../src/lib/workflow.server", () => ({ WorkflowError, logEvent: async () => {}, stageEntryBlockers: async () => [], transition: async () => {}, getStage: async () => "installation_booked" }));
 mock.module("../src/lib/requirements.server", () => ({ jobScope: async () => ({ scope: "x", label: "x" }), advanceSiteRequirements: async () => ({ advanced: false, scope: "x" }) }));
 mock.module("../src/lib/autoadvance.server", () => ({ autoAdvanceJob: async () => null }));
-// A48 batch 1's printed-rules check runs before the fixes check; it has its own tests.
-mock.module("../src/lib/piesa-rules-notice.server", () => ({ piesaRulesBlockerFor: async () => null, recheckPiesaRules: async () => undefined }));
+// A48 batch 1's printed-rules check runs before the fixes check; it has its own tests (G7: it reads the whole A3; this fixture holds one answer).
+mock.module("../src/lib/piesa-rules-notice.server", () => ({ piesaRulesBlockerFor: async () => null, piesaRulesFor: async () => null, recheckPiesaRules: async () => undefined }));
 const realEvidence = await import("../src/lib/piesa-evidence.core");
 mock.module("../src/lib/piesa-evidence.core", () => ({ ...realEvidence, piesaEvidenceBlockersFromSnapshot: () => [] }));
 

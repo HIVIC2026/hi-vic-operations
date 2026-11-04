@@ -57,7 +57,7 @@ export async function sendVeecCopyEmail(jobId: string): Promise<string> {
   if (!VEEC_COPY_EMAIL_APPROVED) { await logEvent(jobId, null, "veec_copy_email_not_sent", `Signed VEEC assignment copy prepared — wording awaiting Jo's approval, so no email was sent (due to the owner by ${dueAt})`, { due_at: dueAt }, { internal: true }); return "not sent — wording awaiting approval"; }
   if (!owner?.email) return "not sent — no owner email";
   const { assertCustomerDeliveryAllowed } = await import("./comms.server");
-  try { await assertCustomerDeliveryAllowed(jobId, "VEEC assignment copy email"); } catch (e) { return `not sent — ${(e as Error).message}`; }
+  try { await assertCustomerDeliveryAllowed(jobId, "VEEC assignment copy email", "veec_assignment_copy"); } catch (e) { return `not sent — ${(e as Error).message}`; }
   const r = await (await import("./owner-email-send.server")).sendGuardedOwnerEmail({ jobId, jobSource: job.source, to: owner.email, purpose: "veec_assignment_copy", key: `veec-copy:v1:${a.id}`, build: (unsubscribeUrl) => ({ ...renderVeecCopyEmail({ ...input, unsubscribeUrl, test: false }), attachments: [attachment] }) });
   if (r === "sent") await markSent("email");
   return r;

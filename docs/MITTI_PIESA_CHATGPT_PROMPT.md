@@ -15,7 +15,7 @@ You are helping me build a form template in **Mitti** (mitti.com.au field inspec
 Answer-type key: Text = single line text; Date = date picker; Yes/No = two choices "Yes" and "No"; Pick one = single-select multiple choice with the exact options listed; Tick all = multi-select multiple choice with the exact options listed; Number = numeric; Photo = photo/attachment; Checkbox = single checkbox that must be ticked; Signature = signature capture.
 
 ## Group 1: Job
-Text item (not a question), first item on this page (decision 318): `Paid only when this form is 100% complete and you press Complete. Take every photo in Mitti on site so it's geotagged.`
+(The decision-318 text item "Paid only when this form is 100% complete…" that used to sit first on this page was DELETED by Jo — 3 Nov 2026 "get rid of the payment threatening", removed from the live template by the 4 Nov paste docs/mitti-paste-2026-11-04-second.md. No pay wording goes on any form.)
 1. `Job Reference ID` — Text — Required — portal fills this in
 2. `Address including postcode` — Text — Required — portal fills this in
 2a. `I will not discuss any prices with the owner. Home Insulation Victoria sends the owner all prices.` — Checkbox (must tick) — Required — on EVERY job, no condition (decisions 312/323, not part of the official form)
@@ -28,6 +28,7 @@ Text item (not a question), first item on this page (decision 318): `Paid only w
 5. `Is there life support equipment at the property?` — Yes/No — Required — portal fills this in from the office record; the electrician corrects it
 6. `Have you received written consent or a medical plan? Please attach a photo of it.` — Pick one: `Yes – received Consent` / `Yes – received Medical Plan` / `No – not received` (red) — Required — only show when question 5 = Yes
 7. `Written consent or medical plan (kept as an attachment to this assessment)` — Photo — Required — only show when question 6 = `Yes – received Consent` or `Yes – received Medical Plan`
+7a. `Is an adult (18 or over) who understands what's happening at home with you?` — Yes/No — Required — Yes green, No red. Add a text item shown when this = No: `Stop. Don't start. Leave and call the installer's office.` (not part of the official form; DRAFT wording until Jo approves)
 
 ## Group 3: Mains power
 8. `Is the mains power set-up safe? This means the mains cable in the ceiling is identified and marked, the main switch works and can be locked off, the ceiling is confirmed dead when the switch is off, and safety switches (RCDs) are fitted and tested.` — Yes/No — Required
@@ -103,11 +104,11 @@ Finish with a checklist I can use to verify the published template: 45 questions
 
 ---
 
-## Second prompt: add the two product options (the two Ready Check forms)
+## Second prompt: add the product option (the two Ready Check forms)
 
 ---
 
-In Mitti, I have two existing **Ready Check** templates (one for installers' own customers, one for Home Insulation Victoria leads). Each has a single-select multiple-choice question `Insulation product` with six options. The Install day form does NOT have this question and must not be changed. Give me click-by-click steps to add two more options to that question on BOTH Ready Check templates, spelled exactly as below, keeping the existing six unchanged and in their current order, and then re-publish each template. The final list must read, in this order:
+In Mitti, I have two existing **Ready Check** templates (one for installers' own customers, one for Home Insulation Victoria leads). Each has a single-select multiple-choice question `Insulation product` with six options. The Install day form does NOT have this question and must not be changed. Give me click-by-click steps to add one more option to that question on BOTH Ready Check templates, spelled exactly as below, keeping the existing six unchanged and in their current order, and then re-publish each template. The final list must read, in this order:
 
 1. `Bradford Gold R5`
 2. `Bradford Gold R6`
@@ -116,9 +117,8 @@ In Mitti, I have two existing **Ready Check** templates (one for installers' own
 5. `Fletchers Pink Batts R6`
 6. `Fletchers Pink Batts R7`
 7. `Earthwool R5`
-8. `ECOWOOL R5`
 
-Finish with a check: open each Ready Check template, confirm eight options spelled exactly as above, and confirm a form already in progress still opens.
+Finish with a check: open each Ready Check template, confirm seven options spelled exactly as above, and confirm a form already in progress still opens.
 
 ---
 

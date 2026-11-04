@@ -4,7 +4,8 @@
 import { beforeEach, describe, expect, mock, setSystemTime, test } from "bun:test";
 import { PGlite } from "@electric-sql/pglite";
 
-// Decision 361: job_offer keeps SMS quiet hours (8pm–7am Melbourne), so these tests run at a fixed 1pm Melbourne.
+// boss_price_link keeps SMS quiet hours (8pm–7am Melbourne), so these tests run at a fixed 1pm Melbourne. (The sample type
+// was job_offer until Part 7 Task 9 retired it, 2 Nov 2026; the guards under test are type-independent.)
 setSystemTime(new Date("2026-10-22T02:00:00Z"));
 import { readFileSync } from "node:fs";
 import { postgrestShim } from "./helpers/pglite-postgrest-shim";
@@ -23,7 +24,7 @@ await db.exec(readFileSync("docs/pending-migrations/0141_real_sms_sender.sql", "
 let commsOn = true;
 const twilioCalls: string[] = [];
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: postgrestShim(db, { jsonColumns: { workflow_settings: ["sms_message_switches"] } }) }));
-mock.module("../src/lib/comms.server", () => ({ customerCommsEnabled: async () => commsOn, hasCurrentOwnerContactConsent: async () => true }));
+mock.module("../src/lib/comms.server", () => ({ customerCommsEnabled: async () => commsOn, hasCurrentOwnerContactConsent: async () => true, ownerConsentAllowsDelivery: async () => true }));
 mock.module("../src/lib/twilio-au1.server", () => ({
   au1Configured: () => true,
   au1SendMessage: async (p: URLSearchParams) => { twilioCalls.push(p.get("Body") ?? ""); return { ok: true, status: 201, text: JSON.stringify({ sid: `SM${twilioCalls.length}` }) }; },
@@ -40,8 +41,8 @@ beforeEach(() => { commsOn = true; });
 
 describe("decision 165: held attempts never claim the key", () => {
   test("switch off → held (no claim) → switch on → sent once → second attempt 'already'", async () => {
-    await setSwitch("job_offer", false);
-    const input = { type: "job_offer" as const, idempotencyKey: "job-offer:v1:offer-A", to: "0412 345 678", body: "New job offer", businessId: BIZ, event: { at: nowIso(), current: true } };
+    await setSwitch("boss_price_link", false);
+    const input = { type: "boss_price_link" as const, idempotencyKey: "job-offer:v1:offer-A", to: "0412 345 678", body: "New job offer", businessId: BIZ, event: { at: nowIso(), current: true } };
     const held = await sendRealSms(input);
     expect(held.status).toBe("blocked");
     expect(held.detail).toContain("switched off");
@@ -56,7 +57,7 @@ describe("decision 165: held attempts never claim the key", () => {
     expect((await sendRealSms(input)).status).toBe("blocked");
     expect((await rows("job-offer:v1:offer-A")).every((x) => x.status === "blocked" && x.idempotency_key.includes(HELD_KEY_MARK))).toBe(true);
 
-    await setSwitch("job_offer", true);
+    await setSwitch("boss_price_link", true);
     const sent = await sendRealSms(input);
     expect(sent.status).toBe("sent");
     expect(twilioCalls).toHaveLength(1);
@@ -70,8 +71,8 @@ describe("decision 165: held attempts never claim the key", () => {
   });
 
   test("master switch off is a hold too, and a hold after a real send stays 'already' without a new held row", async () => {
-    await setSwitch("job_offer", true);
-    const input = { type: "job_offer" as const, idempotencyKey: "job-offer:v1:offer-B", to: "0412 345 678", body: "Offer B", businessId: BIZ, event: { at: nowIso(), current: true } };
+    await setSwitch("boss_price_link", true);
+    const input = { type: "boss_price_link" as const, idempotencyKey: "job-offer:v1:offer-B", to: "0412 345 678", body: "Offer B", businessId: BIZ, event: { at: nowIso(), current: true } };
     commsOn = false;
     expect((await sendRealSms(input)).status).toBe("blocked");
     expect((await rows("job-offer:v1:offer-B")).map((x) => x.status)).toEqual(["blocked"]);
@@ -83,21 +84,21 @@ describe("decision 165: held attempts never claim the key", () => {
   });
 
   test("a stale one-off trigger is held without claiming; a fresh trigger with the same key then sends once", async () => {
-    await setSwitch("job_offer", true);
+    await setSwitch("boss_price_link", true);
     const old = new Date(Date.now() - 30 * 3600_000).toISOString();
     const key = "job-offer:v1:offer-C";
-    const stale = await sendRealSms({ type: "job_offer", idempotencyKey: key, to: "0412 345 678", body: "Offer C", businessId: BIZ, event: { at: old, current: true } });
+    const stale = await sendRealSms({ type: "boss_price_link", idempotencyKey: key, to: "0412 345 678", body: "Offer C", businessId: BIZ, event: { at: old, current: true } });
     expect(stale.status).toBe("blocked");
     expect(stale.detail).toContain("Too late");
-    const closed = await sendRealSms({ type: "job_offer", idempotencyKey: key, to: "0412 345 678", body: "Offer C", businessId: BIZ, event: { at: nowIso(), current: false } });
+    const closed = await sendRealSms({ type: "boss_price_link", idempotencyKey: key, to: "0412 345 678", body: "Offer C", businessId: BIZ, event: { at: nowIso(), current: false } });
     expect(closed.status).toBe("blocked");
     expect(closed.detail).toContain("no longer current");
-    const none = await sendRealSms({ type: "job_offer", idempotencyKey: key, to: "0412 345 678", body: "Offer C", businessId: BIZ });
+    const none = await sendRealSms({ type: "boss_price_link", idempotencyKey: key, to: "0412 345 678", body: "Offer C", businessId: BIZ });
     expect(none.status).toBe("blocked");
     expect(none.detail).toContain("No triggering event time");
     expect((await rows(key)).filter((x) => x.idempotency_key === key)).toHaveLength(0); // nothing claimed
     const before = twilioCalls.length;
-    expect((await sendRealSms({ type: "job_offer", idempotencyKey: key, to: "0412 345 678", body: "Offer C", businessId: BIZ, event: { at: nowIso(), current: true } })).status).toBe("sent");
+    expect((await sendRealSms({ type: "boss_price_link", idempotencyKey: key, to: "0412 345 678", body: "Offer C", businessId: BIZ, event: { at: nowIso(), current: true } })).status).toBe("sent");
     expect(twilioCalls).toHaveLength(before + 1);
   });
 
@@ -110,9 +111,9 @@ describe("decision 165: held attempts never claim the key", () => {
   });
 
   test("an earlier plain-key 'blocked' row from before decision 165 still reads as 'already' (old holds never re-fire)", async () => {
-    await db.query(`insert into public.sms_messages(message_type, idempotency_key, to_number, body, status, detail) values ('job_offer','job-offer:v1:legacy','+61412345678','x','blocked','held before decision 165')`);
-    await setSwitch("job_offer", true);
-    const r = await sendRealSms({ type: "job_offer", idempotencyKey: "job-offer:v1:legacy", to: "0412 345 678", body: "Legacy", businessId: BIZ, event: { at: nowIso(), current: true } });
+    await db.query(`insert into public.sms_messages(message_type, idempotency_key, to_number, body, status, detail) values ('boss_price_link','job-offer:v1:legacy','+61412345678','x','blocked','held before decision 165')`);
+    await setSwitch("boss_price_link", true);
+    const r = await sendRealSms({ type: "boss_price_link", idempotencyKey: "job-offer:v1:legacy", to: "0412 345 678", body: "Legacy", businessId: BIZ, event: { at: nowIso(), current: true } });
     expect(r.status).toBe("already"); // old holds never re-fire
   });
 });

@@ -152,11 +152,8 @@ describe("own job safety check hand-over", () => {
     expect(await n("select count(*)::int n from partner_offers")).toBe(0);
   });
 
-  test("the owner's safety check times email is skipped for own jobs only", async () => {
-    const { onSafetyCheckTimesOffered } = await import("../src/lib/owner-email-triggers.server");
-    expect(await onSafetyCheckTimesOffered(OWN, ["2026-11-10T00:00:00Z"])).toBe("own_job");
-    expect(await onSafetyCheckTimesOffered(INHOUSE, ["2026-11-10T00:00:00Z"])).toBe("in_house");
-  });
+  // The owner's "pick a safety check time" email (O26, onSafetyCheckTimesOffered) was retired by Part 4 (f887c70e, 3 Nov
+  // 2026) for every job — the in-house / own-job skip it pinned here has nothing left to skip.
 
   // ---- fix round 1 ----
   const newJob = async (n2: number, stg: string, opts: { nominate?: string | null; paidFee?: boolean } = {}) => {

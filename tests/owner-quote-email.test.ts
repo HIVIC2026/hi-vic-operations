@@ -58,7 +58,7 @@ test("v2 leads with the saving and says exactly what they get (Jo 24 Oct)", () =
     expect(body).toContain("accept and pay $349.00");
     expect(body).toContain("VEU Accredited Person A003654");
     expect(body).toContain("ABN 44 671 613 979");
-    expect(body).toContain("Not included: electrical fixes, only if the safety check finds any.");
+    expect(body).toContain("If the safety check finds electrical work is needed before insulation can go in, your electrician quotes that separately and you pay them direct. Nothing happens without your OK. This price and your rebate don't change."); // Jo 4 Nov 2026 21:05, wording B
     expect(body).not.toContain("Who we are"); // v3: shorter, no repeats
     expect(body).not.toMatch(/6-digit|code/i); // no signing code in the email
   }
@@ -256,7 +256,7 @@ test("qa_test notify sends the rendered owner quote email via sendTestEmail", as
 
 test("Jo 24 Oct (decision 86): fixes are quoted separately, nothing done without the owner's OK", () => {
   for (const body of [renderOwnerQuoteEmail(base).html, renderOwnerQuoteEmail(base).text]) {
-    expect(body).toContain("They're quoted separately, and nothing is done without your OK.");
+    expect(body).toContain("your electrician quotes that separately and you pay them direct. Nothing happens without your OK."); // Jo 4 Nov 2026 21:05, wording B
   }
 });
 
@@ -273,4 +273,115 @@ test("quote reminders (decisions 88/89/134): reminder line, price box, button, n
   expect(expiry.subject).toBe("Courtney, your quote price is held until 6 November");
   expect(expiry.text).toContain("Accept by then to keep your price with $1,850 off.");
   expect(QUOTE_REMINDER_EMAIL_APPROVED).toBe(true); // decisions 89/134
+});
+
+/* ---------------------------------------------------------------- Part 10 Task 5: own-customer quote email (co-branded) */
+import { OWN_CUSTOMER_COBRAND_APPROVED } from "../src/lib/cobrand.core";
+import { VEU_BOX_TEXT, VEU_BOX_LINK, VEU_FACTSHEET_URL } from "../src/lib/owner-wording.core";
+import { OWN_CUSTOMER_VEU_VOLUNTARY_LINE } from "../src/lib/owner-quote-email.core";
+
+// Jo 4 Nov 2026: an own customer's PIESA line is the installer's own rate — Rapid's $275 here (the fee stays $349).
+const ownInput: OwnerQuoteEmailInput = {
+  firstName: "Sarah", address: "12 Example St, Box Hill VIC 3128", totalIncGst: 2024, rebateIncGst: 600, subtotalIncGst: 2624,
+  lines: [
+    { code: "INSTALLER_PRICE", description: "Insulation works by your installer — includes: Ceiling insulation - supply & install", lineTotalIncGst: 2000 },
+    { code: "AP_FEE", description: "Home Insulation Victoria fee", lineTotalIncGst: 349 },
+    { code: "PIESA", description: "Electrical safety check (PIESA)", lineTotalIncGst: 275 },
+  ],
+  quoteUrl: url, validUntil: new Date("2026-12-04T12:59:59.999Z"), validDays: 30, officePhone: null,
+  unsubscribeUrl: "https://estimate.homeinsulationvictoria.com.au/unsubscribe/abc", safetyCheckPrice: 275, areaM2: 120, product: "Bradford Gold R5.0",
+  installerName: "Rapid Insulation", installerCertified: true, v4: true, changes: [],
+  ownCustomer: { installerName: "Rapid Insulation", installerLogoUrl: "https://x/rapid-logo.png" },
+};
+const on = { cobrandApproved: true };
+const render = (i: OwnerQuoteEmailInput, seam = on) => renderOwnerQuoteEmail(i, seam);
+/** Row titles in the plain-text "YOUR QUOTE" block (title, then optional " (detail)", then ": amount"). */
+const rowTitles = (text: string) => {
+  const block = text.slice(text.indexOf("YOUR QUOTE")).split("\n").slice(1);
+  const out: string[] = [];
+  for (const l of block) { if (!l.trim()) break; out.push(l.replace(/: [−$].*$/, "").replace(/^Insulation \(.*\)$/, "Insulation")); }
+  return out;
+};
+const withoutOwn = (i: OwnerQuoteEmailInput): OwnerQuoteEmailInput => { const { ownCustomer: _o, ...rest } = i; return rest; };
+
+test("Task 5: own-customer quote email (approved on) — approved lines by code, both logos, VEU box", () => {
+  const m = render(ownInput);
+  expect(rowTitles(m.text)).toEqual(["Insulation", "Home Insulation Victoria fee", "Electrical safety check (PIESA)", "Rebate", "Your price"]);
+  expect(m.text).toContain("Rebate: −$600.00");
+  expect(m.text).toContain("Your price: $2,024.00");
+  expect(m.text).toContain("Electrical safety check (PIESA): $275.00");
+  expect(m.text).not.toContain("$349.00 → "); // the installer's rate, never a fixed $349
+  expect(m.text).toContain("Insulation (Insulation works by your installer — includes: Ceiling insulation - supply & install): $2,000.00");
+  expect(m.text).not.toMatch(/Home Insulation Victoria fee \(VEU-approved/); // rows come from the code, never a description regex
+  expect(m.text).not.toContain("You pay:");
+  expect(m.text).not.toContain("Full price");
+  expect(m.text).toContain(`About the Victorian Energy Upgrades program — ${VEU_BOX_TEXT}`);
+  expect(m.text).toContain(VEU_BOX_LINK);
+  expect(m.html).toContain(VEU_FACTSHEET_URL);
+  expect(m.html).toContain("https://x/rapid-logo.png");
+  expect(m.html).toContain('alt="Rapid Insulation"');
+  expect(m.html.indexOf("Victorian Energy Upgrades program")).toBeGreaterThan(m.html.indexOf("Questions? Just reply"));
+  expect(m.html.indexOf("Victorian Energy Upgrades program")).toBeLessThan(m.html.indexOf("VEU Accredited Person A003654"));
+  // Jo 4 Nov 2026 14:18 (Round 5 A, approved): the voluntary / complaints line right under the VEU box, own customers only.
+  expect(OWN_CUSTOMER_VEU_VOLUNTARY_LINE).toBe("Taking part in the Victorian Energy Upgrades program is voluntary. If something's not right, reply to this email or write to info@homeinsulationvictoria.com.au — we reply within 5 business days. You can also contact the Essential Services Commission (esc.vic.gov.au).");
+  expect(m.text).toContain(`${VEU_BOX_LINK} ${VEU_FACTSHEET_URL}\n\n${OWN_CUSTOMER_VEU_VOLUNTARY_LINE}`);
+  expect(m.html.indexOf("program is voluntary")).toBeGreaterThan(m.html.indexOf(VEU_FACTSHEET_URL));
+  expect(m.html.indexOf("program is voluntary")).toBeLessThan(m.html.indexOf("VEU Accredited Person A003654"));
+  expect(renderOwnerQuoteEmail(withoutOwn(ownInput)).text).not.toContain("is voluntary"); // never on a Home Insulation Victoria lead
+  for (const body of [m.subject, m.text, m.html]) expect(body).not.toMatch(/VEU discount|VEU rebate|\bHIV\b|\bfixes\b|lawyer/);
+  // the v4 base is kept: rebate box, button, Next line, 30-day line
+  expect(m.text).toContain("Your rebate: you save $600.");
+  expect(m.text).toContain("Next: accept and pay $275.00 → electrical safety check (PIESA) → book your install day.");
+  expect(m.text).toContain("Your quote is valid for 30 days, until 4 December 2026.");
+});
+
+test("Task 5: own customer, no logo (or a bad one) → one logo, no empty img, same rows", () => {
+  for (const logo of [null, "http://x/logo.png", ""]) {
+    const m = render({ ...ownInput, ownCustomer: { installerName: "Rapid Insulation", installerLogoUrl: logo } });
+    expect(m.html).not.toMatch(/src=""/);
+    expect(m.html.match(/<img /g)?.length).toBe(1);
+    expect(rowTitles(m.text)).toEqual(["Insulation", "Home Insulation Victoria fee", "Electrical safety check (PIESA)", "Rebate", "Your price"]);
+  }
+});
+
+test("Task 5: separately agreed extras sit between Insulation and the fee under their own words", () => {
+  const m = render({ ...ownInput, totalIncGst: 2324, subtotalIncGst: 2924, lines: [ownInput.lines[0]!, { code: "INSTALLER_REMOVAL", description: "Removal of existing insulation (40 m²)", lineTotalIncGst: 300 }, ownInput.lines[1]!, ownInput.lines[2]!] });
+  expect(rowTitles(m.text)).toEqual(["Insulation", "Removal of existing insulation (40 m²)", "Home Insulation Victoria fee", "Electrical safety check (PIESA)", "Rebate", "Your price"]);
+  expect(m.text).toContain("Your price: $2,324.00");
+});
+
+test("Task 5 / I4: the ONE switch off (as shipped) → an own customer gets Part 3's v4 email unchanged (no rows, no VEU box, no logo)", () => {
+  expect(OWN_CUSTOMER_COBRAND_APPROVED).toBe(false);
+  expect(render(ownInput, { cobrandApproved: false })).toEqual(renderOwnerQuoteEmail(withoutOwn(ownInput)));
+  expect(renderOwnerQuoteEmail(ownInput)).toEqual(renderOwnerQuoteEmail(withoutOwn(ownInput)));
+});
+
+test("Task 5: a malformed own-customer line set (no fee line) never guesses — falls back to Part 3's rows", () => {
+  const m = render({ ...ownInput, lines: ownInput.lines.filter((l) => l.code !== "AP_FEE") });
+  expect(m.text).toContain("YOUR QUOTE");
+  expect(m.text).toContain("You pay: $2,024.00");
+  expect(m.html).toContain("https://x/rapid-logo.png"); // the brand still applies; only the rows fell back
+});
+
+test("Task 5: Home Insulation Victoria leads are byte-identical to the G7 re-record (v3 and v4; re-pinned 4 Nov 2026 after Jo 21:05 — wording B + the PIESA item label — changed every variant)", async () => {
+  const hivBase = { ...base, subtotalIncGst: 3848, areaM2: 120, removalM2: 40, product: "Bradford Gold R5.0", installerName: "Reinsulate", installerCertified: true, validDays: 30 as const };
+  const h = async (s: string) => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)))).map((b) => b.toString(16).padStart(2, "0")).join("");
+  const changes = [{ label: "Ceiling size", estimate: "100 m²", quote: "120 m²" }];
+  const v3 = renderOwnerQuoteEmail({ ...hivBase, v4: false, changes });
+  const v4 = renderOwnerQuoteEmail({ ...hivBase, v4: true, changes });
+  expect(await h(`${v3.subject}\n${v3.html}\n${v3.text}`)).toBe("b8985c79a4078aea4d7cb4d9a6a577fcc7eff238cda60f04677c30742f4f8c44");
+  expect(await h(`${v4.subject}\n${v4.html}\n${v4.text}`)).toBe("c5fbc465226a4d68d0c354b832a38292b285b8718aeed935fc2263b094d2b3c3");
+  // the seam on with no ownCustomer changes nothing either
+  expect(render({ ...hivBase, v4: true, changes })).toEqual(v4);
+});
+
+test("C1 (flags off, live today): an own customer's generic rows classify by code — the fee row is the fee, never 'insulation'", () => {
+  const m = renderOwnerQuoteEmail(withoutOwn(ownInput) as OwnerQuoteEmailInput & { lines: typeof ownInput.lines });
+  expect(m.text).toContain("Home Insulation Victoria fee (Home Insulation Victoria (VEU A003654): your quote, compliance checks, paperwork and rebate claim): $349.00");
+  expect(m.text).toContain("Electrical safety check (PIESA) (By a licensed electrician, before any insulation goes in): $275.00");
+  expect(m.text).not.toMatch(/Home Insulation Victoria fee \(VEU-approved/);
+  expect(m.text).not.toMatch(/Home Insulation Victoria fee \(.*installed by/);
+  // a line with no code still classifies by its wording (old quotes)
+  const old = renderOwnerQuoteEmail({ ...withoutOwn(ownInput), lines: ownInput.lines.map(({ code: _c, ...l }) => l) });
+  expect(old.text).toContain("Electrical safety check (PIESA) (By a licensed electrician, before any insulation goes in): $275.00");
 });

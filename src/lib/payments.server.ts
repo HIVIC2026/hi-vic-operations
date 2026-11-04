@@ -71,7 +71,11 @@ export async function recordXeroPayments(invoiceId: string, jobId: string, xeroP
   }
   const gone = opts.fullList === false ? [] : xeroReversals(raw, xeroPayments);
   for (const p of gone) {
-    if (await insertLedgerEvent(jobId, actorId, PAYMENT_REVERSED_EVENT, `Xero payment of $${(p.amountCents / 100).toFixed(2)} was deleted or voided in Xero – no longer counted`, { invoice_id: invoiceId, amount_cents: p.amountCents, source: "xero", paid_at: p.paidAt, xero_payment_id: p.xeroPaymentId, receipt_key: xeroReversalReceiptKey(invoiceId, p.xeroPaymentId) }) === "recorded") written++;
+    if (await insertLedgerEvent(jobId, actorId, PAYMENT_REVERSED_EVENT, `Xero payment of $${(p.amountCents / 100).toFixed(2)} was deleted or voided in Xero – no longer counted`, { invoice_id: invoiceId, amount_cents: p.amountCents, source: "xero", paid_at: p.paidAt, xero_payment_id: p.xeroPaymentId, receipt_key: xeroReversalReceiptKey(invoiceId, p.xeroPaymentId) }) === "recorded") {
+      written++;
+      // G6 S9: money reversed after VEECs were created → the office is told (same flag as a Stripe refund; never throws).
+      await import("./veec-refund-flag.server").then((m) => m.flagRefundAfterVeecCreation(jobId, { refundedCents: p.amountCents, source: "xero", xeroPaymentId: p.xeroPaymentId }));
+    }
   }
   return written;
 }

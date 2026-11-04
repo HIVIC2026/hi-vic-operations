@@ -9,22 +9,25 @@ test("Team page uses the new add and login words", () => {
   expect(team).toContain("addTeamPerson");
   expect(team).toContain("WorkerRoleSwitch");
   expect(team).toContain("TEAM_LOGIN.button");
-  expect(team).toContain("TEAM_RULE");
+  // G8 (3), Jo 4 Nov 2026 21:45: no worker logins — the login ask shows for Office people only.
+  expect(team).toContain('m.role === "office" && !m.hasLogin');
   expect(team).toContain("CertLinkInline");
   expect(team).toContain("removeWorker");
   expect(team).toContain("TEAM_ADD_SHEET.button");
 });
-test("licence only for electricians, Lead/Crew only for installers", () => {
+test("licence + REC for an electrician person; the four roles only for installer businesses (Task 10)", () => {
   expect(team).toContain('kind={data.kind}');
-  expect(team).toContain('{kind === "electrician" && (');
+  expect(team).toContain('{electricianFields && (');
   expect(team).toContain('{kind === "installer" && (');
   expect(team).toContain("TEAM_ADD_SHEET.licence");
-  expect(team).toContain("TEAM_ADD_SHEET.crew");
+  expect(team).toContain("ADD_PERSON_ROLES.map");
+  expect(team).toContain("TEAM_WORDS.rec");
 });
-test("intro: rule for installers, electrician text for electricians; rule shown once", () => {
+test("intro: the approved Team line for installers, electrician text for electricians (Task 10 replaced TEAM_RULE)", () => {
   expect(team).not.toContain("Everyone listed here can be given a Ready Check");
   expect(team).toContain("TEAM_ADD_SHEET.bodyElectrician");
-  expect(team.split("TEAM_RULE").length - 1).toBe(2); // import + one use
+  expect(team).not.toContain("TEAM_RULE");
+  expect(team.split("TEAM_INTRO").length - 1).toBe(3); // import + heading + Add a person sheet
 });
 test("signing line", () => {
   expect(TEAM_SIGN).toEqual({ due: "Not signed yet · can't go on jobs", needContact: "Add a mobile or email to send their signing link.", link: "Make signing link" });
@@ -58,7 +61,7 @@ test("People switch is unchanged", () => {
 });
 test("remove error shows outside the login branch", () => {
   expect(team).toContain("setRemoveErr");
-  expect(team).toMatch(/removeErr\[id\]\s*&&\s*<p role="alert"/);
+  expect(team).toMatch(/removeErr\s*&&\s*<p role="alert"/);
   expect(team).not.toMatch(/remove\(\{[^\n]*setAsked/);
-  expect(team.indexOf('role="alert" className="mt-1')).toBeGreaterThan(team.indexOf("</div>}"));
+  expect(team.indexOf('{removeErr && <p role="alert"')).toBeGreaterThan(team.indexOf("</div>}"));
 });

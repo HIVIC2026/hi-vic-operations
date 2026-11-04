@@ -44,8 +44,6 @@ afterAll(() => mock.restore());
 const core = await import("../src/lib/ai-email-reply.core");
 const { higherRFacts, splitAiOutput, draftActions, aiReplyInstructions, AI_REPLY_INSTRUCTIONS, newSizeFacts, cleanActions } = core;
 const { sendAiDraft, installerNotes } = await import("../src/lib/ai-email-reply.server");
-const { readyCheckBookedInstallerText } = await import("../src/lib/installer-texts.core");
-const { readyCheckOfferText } = await import("../src/lib/ready-check-times.core");
 
 describe("R6/R7 prices", () => {
   test("Mohamed: 90 m², $3,398 before, $840 rebate, R5 $30/m²", () => {
@@ -190,33 +188,14 @@ describe("installer sees the note", () => {
     ] };
     expect(await installerNotes("J")).toEqual(["new", "old"]);
   });
-  test("Ready Check booked text adds the latest note (≤100 chars)", () => {
-    const f = { startIso: "2026-10-27T22:00:00.000Z", address: "12 Smith St, Frankston", jobNumber: "HV-1", link: "https://x/field/J" };
-    const plain = readyCheckBookedInstallerText(f);
-    expect(readyCheckBookedInstallerText(f, [])).toBe(plain);
-    const t = readyCheckBookedInstallerText(f, ["Owner wants R7.0", "older"]);
-    expect(t.startsWith(plain)).toBe(true);
-    expect(t).toContain("Note: Owner wants R7.0");
-    expect(t).not.toContain("older");
-    const long = readyCheckBookedInstallerText(f, ["y".repeat(180)]);
-    expect(long.slice(plain.length).replace(/^\s*Note: /, "").length).toBeLessThanOrEqual(100);
-  });
-  test("fix 1-2: the pre-award offer text never carries a note (trades get details only once they accept)", () => {
-    expect(readFileSync("src/lib/ready-check-times.core.ts", "utf8")).not.toContain("installerNoteSuffix");
-    const t = readyCheckOfferText("Frankston", "https://x/field/offer/1", 120);
-    expect(t).not.toContain("Note:");
-  });
-  test("only the booked (after award) sender passes the job's notes", () => {
-    expect(readFileSync("src/lib/installer-texts.server.ts", "utf8")).toMatch(/readyCheckBookedInstallerText\([^;]*\}, notes\)/);
-    const offer = readFileSync("src/lib/ready-check-offer-text.server.ts", "utf8");
-    expect(offer).not.toContain("installerNotes(");
-    expect(offer).not.toMatch(/readyCheckOfferText\([^;]*notes\)/);
-  });
+  // Part 7 Task 9 (Jo 2 Nov 2026): the "Booked: Ready Check" installer text and the job offer text are retired, so the
+  // note no longer rides on a text; the installer reads notes on the job page below.
   test("installer job page lists the notes", () => {
     expect(readFileSync("src/lib/trade-view.server.ts", "utf8")).toContain("installerNotes(jobId)");
     const page = readFileSync("src/routes/_authenticated/field.$jobId.tsx", "utf8");
-    expect(page).toContain("(page.notes ?? [])");
-    expect(page).toContain("Notes from the office");
+    // Job page redesign (Task 5): the office notes are rows in the folded Site notes, built on the server.
+    expect(page).toContain("page.rows.siteNotes");
+    expect(readFileSync("src/lib/trade-view.server.ts", "utf8")).toContain("Notes from the office");
   });
 });
 

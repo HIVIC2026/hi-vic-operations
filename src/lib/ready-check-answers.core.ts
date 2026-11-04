@@ -3,7 +3,7 @@
 import { norm, num, yesNo } from "./mitti.core";
 import { excludedAreaName } from "./excluded-areas.core";
 import { canonicalMittiLabel } from "./mitti-rebuild-labels.core";
-import { isNoSafeAccess, isR2OrAbove, LEAN_ALIASES, LEAN_Q, LEAN_REMOVE, premisesTypeCode, type PremisesTypeCode } from "./ready-check-lean.core";
+import { isNoSafeAccess, isR2OrAbove, LEAN_ALIASES, LEAN_Q, LEAN_REMOVE, ownerOtherRValue, premisesTypeCode, type PremisesTypeCode } from "./ready-check-lean.core";
 
 type E = { label: string; value: unknown };
 const vals = (entries: E[], labels: string[], prefix = false) => {
@@ -49,16 +49,23 @@ export function premisesTypeFromEntries(entries: E[]): { answer: string | null; 
   return { answer, code: premisesTypeCode(answer) };
 }
 
+/** Jo 3 Nov 2026 (A2): "Did the owner ask about a different R value?" → "Which R value?". Office note only. Absent → nulls. */
+export function ownerOtherRFromEntries(entries: E[]): ReturnType<typeof ownerOtherRValue> {
+  return ownerOtherRValue(vals(entries, [LEAN_Q.otherRAsked])[0] ?? null, vals(entries, [LEAN_Q.otherRWhich])[0] ?? null);
+}
+
 /** Total of every area's removal answer (m²). Null when no area gave one. */
 export function removalTotalM2(entries: E[]): number | null {
   // Garage / carport / shed areas are left out: walk the form in order, tracking which area each removal answer belongs to.
   const nameLabels = [LEAN_Q.areaName, ...(LEAN_ALIASES.areaName ?? [])].map((l) => norm(l.split("\n")[0] ?? l));
   const removeLabel = norm(LEAN_Q.removeM2);
+  const typedNameLabel = norm(LEAN_Q.areaNameOther);
   let leftOut = false;
   const ns: number[] = [];
   for (const en of entries) {
     const l = norm(String(en.label ?? "").split("\n")[0] ?? "");
     if (nameLabels.includes(l)) leftOut = excludedAreaName(String(en.value ?? "").split("\n")[0] ?? "");
+    else if (l === typedNameLabel) { if (en.value != null && String(en.value).trim()) leftOut = excludedAreaName(String(en.value).split("\n")[0] ?? ""); } // Other → "Type the area name" (Jo 3 Nov)
     else if (l === removeLabel && !leftOut) { const n = en.value == null ? null : num(String(en.value).trim()); if (n != null && n > 0) ns.push(n); }
   }
   return ns.length ? Math.round(ns.reduce((a, b) => a + b, 0) * 100) / 100 : null;

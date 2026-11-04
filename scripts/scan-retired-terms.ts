@@ -7,7 +7,38 @@ const ROOT = new URL("..", import.meta.url).pathname;
 type Kind = "customer-visible" | "test-only" | "doc-only" | "internal-identifier";
 type Hit = { file: string; line: number; term: string; kind: Kind; action: string };
 
-const TERMS: { term: string; re: RegExp; action: string; strict?: boolean }[] = [
+type Term = { term: string; re: RegExp; action: string; strict?: boolean };
+// Global owner wording rules (Jo 2 Nov 2026, docs/hiv-touchpoint-decisions-2026-11-02.md). Strict in all src, comments included.
+export const OWNER_WORDING_TERMS: Term[] = [
+  { term: "Thousands of Victorians", re: /Thousands of Victorians/g, action: 'Delete; keep "Spots are released in the order they were saved."', strict: true },
+  { term: "lower power bills", re: /lower (?:power )?bills/gi, action: "Delete the claim", strict: true },
+  { term: "VEU discount", re: /VEU discount/g, action: 'Say "rebate" ("Rebate" as a label)', strict: true },
+  { term: "old price label", re: /Your cost if eligible|Your estimated cost after rebate/g, action: "Your estimated quote based on what you've told us", strict: true },
+  {
+    term: "fixes wording to owners",
+    re: /Electrical fixes, if the safety check finds any|electrical fixes, only if the safety check finds any|finds something to fix|Only if something needs fixing|Licensed electrician safety check/g,
+    action: 'Say "electrical upgrades" and "electrical safety check (PIESA)"',
+    strict: true,
+  },
+  { term: "mandatory PIESA", re: /mandatory PIESA/g, action: "electrical safety check (PIESA)", strict: true },
+  { term: "install duration", re: /About 4 hours|takes? (?:about )?a few hours|takes about 4 hours|How long:/g, action: "Delete (no install duration)", strict: true },
+  { term: "Wrong time link", re: /Wrong time\?/g, action: "Delete (no change links)", strict: true },
+  { term: "Just checking you got your estimate", re: /Just checking you got your estimate/g, action: "Delete (the day 2/7/21 reminders cover it)", strict: true },
+  { term: "owner picks a Ready Check time", re: /[Ii]nstaller will offer you 3 times|will offer you 3 times to pick from|offer you 3 times for your (?:free|Free) Ready Check/g, action: "Delete (the installer will call instead)", strict: true },
+  { term: "See where you're up to", re: /See where you're up to/g, action: "Delete the button (no My job home links)", strict: true },
+  // Part 4 Task 14 (Jo 2 Nov 2026): no owner picks install days or safety check times, no HIV fixes quote, no held-day deposit.
+  { term: "owner picks install days / safety check times", re: /Your installer will offer you 3 (?:new |install )?days|will offer you 3 (?:safety check )?times to choose from|then you can pick your install day|Pick one of the times offered/g, action: "Delete (the installer / electrician calls to book)", strict: true },
+  { term: "held for 48 hours while the deposit arrives", re: /is held for 48 hours|deposit within 48 hours|Your day is held until/g, action: "Delete (answer 21: the deposit is paid before the install day is booked)", strict: true },
+  {
+    term: "7-day balance",
+    re: /7 days after (?:your |the )?install(?:ation)? (?:is )?recorded complete|7 days after recorded install completion|due 7 days after install(?:ation)? completion/g,
+    action: "The rest of your payment is due on install day (overdue still after 7 days)",
+    strict: true,
+  },
+];
+
+const TERMS: Term[] = [
+  ...OWNER_WORDING_TERMS,
   { term: "Retired Ready Check service name", re: /measure[- ]up (?:&amp;|&|and) eligibility check/gi, action: "Use Ready Check", strict: true },
   {
     term: "HI VIC / HI VIC! / HIVIC",
@@ -64,6 +95,8 @@ const TERMS: { term: string; re: RegExp; action: string; strict?: boolean }[] = 
   { term: "deposit request in Xero", re: /deposit request in Xero|requested in Xero/gi, action: "Retired: no Xero deposit request step (decisions 139-144)" },
   // Batch 3b (Jo 29 Oct 2026): fixes and repeat safety checks have their own invoices; nothing is added to the install invoice.
   { term: "fixes / repeat added to the Xero invoice", re: /(?:fixes|repeat (?:safety check|PIESA))[^.\n]{0,60}added (?:as (?:one|a) line )?to the (?:same |ONE |job's )?(?:Xero )?invoice|add (?:it|the fixes|the repeat[^.\n]{0,20}) to the SAME Xero invoice/gi, action: "Retired: fixes and repeat checks are their own invoices (batch 3b)" },
+  // Part 7 Task 9 (Jo 2 Nov 2026): the Ready Check run and job offer trade messages are gone — installers call the owner and book.
+  { term: "retired Ready Check run / job offer trade texts", re: /you've got a run of|New Ready Check job near|Offer the owner 3 times within 24 hours to take it|suggested other days for their Ready Check\. Tap to pick one|an owner cancelled their Ready Check on|Owner details on the job:/g, action: "Part 7 Task 9: no job offers or runs to installers (#35, #40–43, #47, #50) — the installer calls the owner and books", strict: true },
   {
     term: "$220 lead fee",
     re: /\$220 lead fee/gi,
@@ -82,6 +115,9 @@ const RETAINED: { file: RegExp; re: RegExp; why: string }[] = [
     re: /HI VIC/,
     why: "Mitti label matched by sync parser",
   },
+  // Signed texts: any wording change needs a new version so earlier signatures keep their exact text.
+  { file: /^src\/lib\/(installer|rec)-agreement\.text\.ts$/, re: /VEU discount/, why: "Signed partner agreement text (new version needed)" },
+  { file: /^src\/lib\/owner-gates\.core\.ts$/, re: /^\s*body: "I (?:accept this quote|assign to DC Construction).*VEU discount/, why: "Signed owner gate bodies quote_acceptance and veec_assignment_consent (new version needed)" },
 ];
 const SKIP_DIRS = new Set([
   "node_modules",

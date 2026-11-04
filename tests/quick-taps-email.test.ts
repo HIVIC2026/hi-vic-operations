@@ -1,7 +1,6 @@
 // Quick taps email (Jo 2 Nov 2026): the owner's email with the quick taps link, plus the day-2 reminder, and their Template hub entries.
 import { describe, expect, test } from "bun:test";
 import { QUICK_TAPS_EMAIL_BUTTON, QUICK_TAPS_EMAIL_SUBJECT, QUICK_TAPS_REMINDER_EMAIL_SUBJECT, renderQuickTapsEmail } from "../src/lib/quick-taps-email.core";
-import { TEMPLATE_ENTRIES } from "../src/lib/template-hub.core";
 
 const link = "https://example.test/my-job/abc?screen=taps";
 const unsub = "https://example.test/unsubscribe?t=XYZ";
@@ -30,17 +29,5 @@ describe("renderQuickTapsEmail", () => {
   });
 });
 
-describe("template hub", () => {
-  for (const id of ["owner:quick-taps-email", "owner:quick-taps-reminder-email"]) {
-    test(id, () => {
-      const e = TEMPLATE_ENTRIES.find((x) => x.id === id);
-      expect(e).toBeTruthy();
-      expect(e!.kind).toBe("email");
-      expect(e!.approvalNote).toContain("Jo 2 Nov 2026");
-      expect(e!.render().kind).toBe("email");
-    });
-  }
-  test("final review 5: the reminder email says when it goes", () => {
-    expect(TEMPLATE_ENTRIES.find((x) => x.id === "owner:quick-taps-reminder-email")!.when).toBe("2 days after Send if the owner hasn't answered, with the reminder text");
-  });
-});
+// The Templates hub entries for this email (owner:quick-taps-email / owner:quick-taps-reminder-email) were retired at the
+// 4 Nov 2026 join: the O77 "It's your turn" email opens the quick taps (decision #22); the builder stays for history.

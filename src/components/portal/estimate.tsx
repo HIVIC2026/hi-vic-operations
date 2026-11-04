@@ -38,7 +38,7 @@ type Est = { scenarios: Scenario[]; access_adjustment: { moderate: number; diffi
 /** Customer-facing copy for the free check confirmation (presentation-only rename of the Home Insulation Ready Check). */
 export const FREE_CHECK_CONFIRM_COPY = {
   name: "Free Ready Check",
-  intro: "Confirm your request below. We will choose an approved installer near you, and they will offer you 3 times to pick from.",
+  intro: "Confirm your request below. We will choose an approved installer near you.",
   free: "FREE · No payment required",
   checklistHeading: "What happens at your visit",
   checklist: ["Measure your ceiling area.", "Assess any existing insulation and confirm whether it can stay or needs to be removed.", "Confirm whether your home meets the rebate eligibility requirements.", "Prepare the job scope so we can confirm your quote."],
@@ -49,7 +49,7 @@ export const FREE_CHECK_CONFIRM_COPY = {
   cta: "Confirm my free Ready Check →",
   stale: "Your estimate changed. Please review it and confirm your free Ready Check again.",
   successHeading: "We’ve received your request",
-  successBody: "We’ll choose an approved installer near you. They’ll offer you 3 times for your Free Ready Check, and we’ll send you a link to pick one. If none suit, you can suggest other days.",
+  successBody: "We’ll choose an approved installer near you.",
   successNext: "They’ll measure your ceiling, assess any existing insulation, confirm eligibility and prepare the job scope so we can confirm your quote.",
 } as const;
 
@@ -246,9 +246,9 @@ export function CustomerEstimate({ data, publicPage = false, onReadyCheck, ready
        </div>
       {data.rolloutHold && <p className="rounded-xl bg-estimate-blue-soft px-4 py-3 text-sm">Assessments for private homes open from 1 October 2026. This is a scheduling hold only, not an eligibility result.</p>}
       {!fees ? <p className="rounded-xl bg-estimate-blue-soft px-4 py-3 text-sm">Your estimate is being prepared.</p> : <>
-         {data.estimate ? <PriceResult est={data.estimate} area={data.estimate.area.m2} fees={fees} settings={data.calc?.settings} insulation={data.calc?.insulation} readyCheckClose={readyCheckClose} {...(onReadyCheck ? { onReadyCheck } : {})} /> : <p className="rounded-xl bg-estimate-blue-soft px-4 py-3 text-sm">{data.postcodeUnlisted ? "We can't calculate a VEU discount for this postcode yet because it isn't in the official VEU location list. We'll confirm your pricing directly." : "Your estimate is being prepared."}</p>}
+         {data.estimate ? <PriceResult est={data.estimate} area={data.estimate.area.m2} fees={fees} settings={data.calc?.settings} insulation={data.calc?.insulation} readyCheckClose={readyCheckClose} {...(onReadyCheck ? { onReadyCheck } : {})} /> : <p className="rounded-xl bg-estimate-blue-soft px-4 py-3 text-sm">{data.postcodeUnlisted ? "We can't calculate a rebate for this postcode yet because it isn't in the official VEU location list. We'll confirm your pricing directly." : "Your estimate is being prepared."}</p>}
          {data.estimate && <><RemovalNote est={data.estimate} /><HouseholdBenefits /><PriceProtection settings={data.calc?.settings} fees={fees} /><ManagedProcess /></>}
-        {data.calc && <details className="group border-b border-estimate-blue/20 pb-5 text-sm"><summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-bold text-estimate-blue focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">How is the VEU discount estimated? <ChevronDown aria-hidden="true" className="size-5 shrink-0 transition-transform group-open:rotate-180" /></summary><p className="mt-4 leading-relaxed">We use the official Activity 48 postcode/climate calculation and a {dollars(data.calc.settings.indicative_veec_value)} consumer benchmark calibrated to the Victorian Government&apos;s published example. Final certificate values can change. This is not the live VEEC market price.</p>{data.calc.settings.veec_value_source_url?.startsWith("https://") && <a className="mt-2 inline-block font-bold text-estimate-blue underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" href={data.calc.settings.veec_value_source_url} target="_blank" rel="noopener noreferrer">View the published example <span aria-hidden="true">↗</span></a>}</details>}
+        {data.calc && <details className="group border-b border-estimate-blue/20 pb-5 text-sm"><summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-bold text-estimate-blue focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">How is the rebate estimated? <ChevronDown aria-hidden="true" className="size-5 shrink-0 transition-transform group-open:rotate-180" /></summary><p className="mt-4 leading-relaxed">We use the official Activity 48 postcode/climate calculation and a {dollars(data.calc.settings.indicative_veec_value)} consumer benchmark calibrated to the Victorian Government&apos;s published example. Final certificate values can change. This is not the live VEEC market price.</p>{data.calc.settings.veec_value_source_url?.startsWith("https://") && <a className="mt-2 inline-block font-bold text-estimate-blue underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring" href={data.calc.settings.veec_value_source_url} target="_blank" rel="noopener noreferrer">View the published example <span aria-hidden="true">↗</span></a>}</details>}
       </>}
     </div>
   );

@@ -17,6 +17,8 @@ import {
 } from "../src/lib/ready-check-lean.core";
 import { APPROVED_PRODUCTS } from "../src/lib/insulation-product.core";
 
+/** Jo 3 Nov 2026 additions: pasted by docs/mitti-paste-2026-11-03-part8-second.md (and live), not in the older build prompts. */
+const NOV3_KEYS = ["areaNameOther", "areaSizeHow", "otherRAsked", "otherRWhich"] as const;
 const e = (label: string, value: string | null) => ({ label, value });
 const sel = (...labels: string[]) => ({ selected: labels.map((label) => ({ label })) });
 let n = 0;
@@ -219,11 +221,15 @@ describe("build sheet = the lean forms exactly (validateTemplate)", () => {
     expect(validateTemplate("ready_check_priced", leanItems("ready_check_priced"))).toEqual({ ok: true, issues: [] });
     expect(validateTemplate("ready_check", leanItems("ready_check"))).toEqual({ ok: true, issues: [] });
     // Decision 278: A1 lost its quote page (7 questions); decision 290 (corrected): both lost the access charge/fee pair
-    // — A1 34 questions; A2 keeps the no-pricing tick — 35. Decision 359 adds the four Part 6 questions per area → 38 / 39.
-    expect(leanQuestionCount("ready_check_priced", { beforeDecision: 359 })).toBe(35);
+    // — A1 34 questions; A2 keeps the no-pricing tick — 35. Decision 359 adds the four Part 6 questions per area → 38 / 39; the 2 Nov photo ID tick → 39 / 40.
+    expect(leanQuestionCount("ready_check_priced", { beforeDecision: 359 })).toBe(34);
     expect(leanQuestionCount("ready_check", { beforeDecision: 359 })).toBe(35);
-    expect(leanQuestionCount("ready_check_priced")).toBe(39);
-    expect(leanQuestionCount("ready_check")).toBe(39);
+    expect(leanQuestionCount("ready_check_priced", { beforeDecision: 901 })).toBe(39);
+    expect(leanQuestionCount("ready_check", { beforeDecision: 901 })).toBe(40);
+    // Jo 3 Nov 2026: the area-name text, the size choice and the m² number per area (+3 on both); A2 also gets the optional different-R-value pair (+2). The A2 note is an instruction, not a question.
+    // Jo 4 Nov 2026 (main rebuild): A1 gains the required "ready to price" tick (+1).
+    expect(leanQuestionCount("ready_check_priced")).toBe(43);
+    expect(leanQuestionCount("ready_check")).toBe(45);
     // A template built before decision 359 (no Part 6 questions) still validates.
     const before359 = (key: "ready_check" | "ready_check_priced") => FORMS[key].fields.filter((f) => !f.portalOnly && f.addedByDecision !== 359).map((f) => ({ label: f.label, type: typeOf(f) }));
     expect(validateTemplate("ready_check_priced", before359("ready_check_priced"))).toEqual({ ok: true, issues: [] });
@@ -235,14 +241,14 @@ describe("build sheet = the lean forms exactly (validateTemplate)", () => {
       expect(labels).toContain(LEAN_Q.access); // the rating stays: it IS the flag
     }
   });
-  test("one repeating area group: every per-area field is perArea, no 'how many', no copies needed; m² is legacy-only", () => {
+  test("one repeating area group: every per-area field is perArea, no 'how many', no copies needed; m² is asked when chosen (Jo 3 Nov)", () => {
     const f = FORMS.ready_check.fields;
     const perArea = f.filter((x) => x.perArea).map((x) => x.label);
-    expect(perArea).toEqual([LEAN_Q.areaName, LEAN_Q.lengthM, LEAN_Q.widthM, LEAN_Q.measuredM2, LEAN_Q.measuredHow, LEAN_Q.measuredHowOther, LEAN_Q.existing, LEAN_Q.existingType, LEAN_Q.rValue, LEAN_Q.depthPhoto, LEAN_Q.existingAction, LEAN_Q.removeM2, LEAN_Q.existingSuitable, LEAN_Q.existingConductive, LEAN_Q.existingConductivePhoto, LEAN_Q.existingKeepReason, LEAN_Q.beforeVideo, LEAN_Q.downlights, LEAN_Q.downlightsCount, LEAN_Q.issues, LEAN_Q.issueNote, LEAN_Q.issuePhoto]);
+    expect(perArea).toEqual([LEAN_Q.areaName, LEAN_Q.areaNameOther, LEAN_Q.areaSizeHow, LEAN_Q.measuredM2, LEAN_Q.lengthM, LEAN_Q.widthM, LEAN_Q.measuredHow, LEAN_Q.measuredHowOther, LEAN_Q.existing, LEAN_Q.existingType, LEAN_Q.rValue, LEAN_Q.depthPhoto, LEAN_Q.existingAction, LEAN_Q.removeM2, LEAN_Q.existingSuitable, LEAN_Q.existingConductive, LEAN_Q.existingConductivePhoto, LEAN_Q.existingKeepReason, LEAN_Q.beforeVideo, LEAN_Q.downlights, LEAN_Q.downlightsCount, LEAN_Q.issues, LEAN_Q.issueNote, LEAN_Q.issuePhoto]);
     expect(f.some((x) => /how many (separate )?ceiling areas/i.test(x.label))).toBe(false);
     const m2 = f.find((x) => x.label === LEAN_Q.measuredM2)!;
-    expect([m2.required, m2.portalOnly]).toEqual([false, true]);
-    for (const l of [LEAN_Q.lengthM, LEAN_Q.widthM]) expect(f.find((x) => x.label === l)?.notRequiredIf).toEqual([LEAN_Q.measuredM2, 'Ceiling area from the floor plan (m²)', 'Ceiling area from the aerial image (m²)']);
+    expect([m2.required, m2.portalOnly, m2.addedByDecision]).toEqual([true, undefined, 901]);
+    for (const l of [LEAN_Q.lengthM, LEAN_Q.widthM]) expect(f.find((x) => x.label === l)!.notRequiredIf).toEqual([LEAN_Q.measuredM2, "Ceiling area from the floor plan (m²)", "Ceiling area from the aerial image (m²)"]);
     // Three copies of the group (as a repeater reports them) are not "Duplicate".
     const items = leanItems("ready_check");
     const area = items.filter((i) => perArea.includes(i.label));
@@ -279,7 +285,7 @@ describe("build sheet = the lean forms exactly (validateTemplate)", () => {
       const p = mittiAiPrompt(key);
       expect(p).toContain(`"${AREA_GROUP_BUTTON}"`);
       expect(p).toContain("Do NOT ask how many areas");
-      expect(p).not.toContain(LEAN_Q.measuredM2); // legacy m² never asked for on a new build
+      expect(p).toContain(LEAN_Q.measuredM2); // Jo 3 Nov 2026: m² is one of the two ways to give the size
       expect(p).not.toContain("How many separate ceiling areas");
     }
   });
@@ -387,14 +393,16 @@ describe("docs/MITTI_READY_CHECK_CHATGPT_PROMPT.md carries every constant verbat
   const body = prompt.slice(prompt.indexOf("\n---\n"));
   test("every question label the portal reads, as a backticked line, in form order", () => {
     let last = -1;
-    const order: (keyof typeof LEAN_Q)[] = ["jobNumber", "siteAddress", "ownerName", "ownerPhone", "ownerEmail", "propertyType", "contactPermission", "lifeSupport", "builtLast5", "premisesType", "roofType", "access", "accessPhoto",
+    const order: (keyof typeof LEAN_Q)[] = ["jobNumber", "siteAddress", "ownerName", "ownerPhone", "ownerEmail", "propertyType", "contactPermission", "photoIdShown", "lifeSupport", "builtLast5", "premisesType", "roofType", "access", "accessPhoto",
       "areaName", "lengthM", "widthM", "measuredHow", "measuredHowOther", "existing", "existingType", "rValue", "depthPhoto", "existingAction", "removeM2", "existingSuitable", "existingConductive", "existingConductivePhoto", "existingKeepReason", "beforeVideo", "downlights", "downlightsCount", "issues", "issueNote", "issuePhoto",
       "product", "outcome", "failReasons", "noPricingTick", "signatureA1", "signatureA2"];
-    expect(new Set(order).size).toBe(Object.keys(LEAN_Q).length - 1 - A1_QUOTE_QUESTIONS.length); // every LEAN_Q key but the legacy m² entry and the deleted A1 quote page (decision 278)
+    // every LEAN_Q key but the m² entry, the deleted A1 quote page (decision 278) and the 3 Nov additions (pasted by their own prompts)
+    expect(new Set(order).size).toBe(Object.keys(LEAN_Q).length - 1 - A1_QUOTE_QUESTIONS.length - NOV3_KEYS.length);
     for (const k of order) {
-      const at = body.indexOf(`\`${LEAN_Q[k]}\` —`);
-      expect(at, LEAN_Q[k]).toBeGreaterThan(-1);
-      expect(at, `${LEAN_Q[k]} out of order`).toBeGreaterThan(last);
+      const label = k === "beforeVideo" ? LEAN_ALIASES.beforeVideo![0]! : LEAN_Q[k]; // this older prompt carries the 2 Nov wording
+      const at = body.indexOf(`\`${label}\` —`);
+      expect(at, label).toBeGreaterThan(-1);
+      expect(at, `${label} out of order`).toBeGreaterThan(last);
       last = at;
     }
     // The legacy m² entry is named only in the REMOVE list.
@@ -426,10 +434,11 @@ describe("docs/MITTI_READY_CHECK_CHATGPT_PROMPT.md carries every constant verbat
   test("mandatory mark-as-complete on, photo location on, Required as the build sheet says, and the question counts", () => {
     expect(body).toContain("turn ON **mandatory mark-as-complete**");
     expect(body).toContain("Turn ON location/GPS for every Photo question");
-    expect(body).toContain(`A1 has ${leanQuestionCount("ready_check_priced")} questions and A2 has ${leanQuestionCount("ready_check")}`);
+    expect(body).toContain(`A1 has ${leanQuestionCount("ready_check_priced", { beforeDecision: 901 })} questions and A2 has ${leanQuestionCount("ready_check", { beforeDecision: 901 })}`);
     // Every optional build-sheet question is "Not required" in the prompt; everything else is Required.
-    for (const f of FORMS.ready_check_priced.fields.filter((x) => !x.portalOnly)) {
-      const line = body.split("\n").find((l) => l.includes(`\`${f.label}\` —`))!;
+    // Jo 4 Nov 2026 (main rebuild): A1 photos/videos are optional on the rebuilt form (A1_OPTIONAL_MEDIA_INSTRUCTION); this older prompt predates it, so media is checked on A2's sheet.
+    for (const f of FORMS.ready_check_priced.fields.filter((x) => !x.portalOnly && (x.addedByDecision ?? 0) < 901 && x.type !== "media" && x.type !== "statement")) { // the 3 Nov additions are not in this older prompt
+      const line = body.split("\n").find((l) => l.includes(`\`${f.label === LEAN_Q.beforeVideo ? LEAN_ALIASES.beforeVideo![0] : f.label}\` —`))!;
       expect(line, f.label).toBeDefined();
       expect(line.includes("Not required"), f.label).toBe(!f.required);
     }
@@ -488,9 +497,9 @@ describe("decision 359: Part 6 facts per ceiling area (parse → zones → ready
     expect(block).toContain(`"${LEAN_Q.existingConductive}" — Yes/No — Required — only show when "${LEAN_Q.existing}" = Yes`);
     expect(block).toContain(`"${LEAN_Q.existingConductivePhoto}" — Photo, location on — Required — only show when "${LEAN_Q.existing}" = Yes`);
     expect(block).toContain(`"${LEAN_Q.existingKeepReason}" — Text — Required — only show when "${LEAN_Q.existingAction}" = Top up`);
-    expect(block).toContain(`straight after the question "${LEAN_Q.removeM2}" and before "${LEAN_Q.beforeVideo}"`);
+    expect(block).toContain(`straight after the question "${LEAN_Q.removeM2}" and before "${LEAN_ALIASES.beforeVideo![0]}"`);
     expect(block).toContain(`"A1 – Ready Check | Installer-Supplied Customer" and "A2 – Ready Check | HIVIC Sourced Customer"`);
-    expect(block).toContain(`A1 has ${leanQuestionCount("ready_check_priced")} questions and A2 has ${leanQuestionCount("ready_check")}`);
+    expect(block).toContain(`A1 has ${leanQuestionCount("ready_check_priced", { beforeDecision: 901 })} questions and A2 has ${leanQuestionCount("ready_check", { beforeDecision: 901 })}`);
     for (const f of FORMS.ready_check.fields.filter((x) => x.addedByDecision === 359)) expect(block, f.label).toContain(`"${f.label}"`);
   });
 });

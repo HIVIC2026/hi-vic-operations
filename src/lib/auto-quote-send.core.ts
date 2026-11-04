@@ -9,6 +9,10 @@
 export const READY_CHECK_AUTO_PREP_ENABLED = true;
 /** The automatic SEND to the owner: OFF for the first few weeks; Jo switches it on later. */
 export const AUTO_QUOTE_SEND_ENABLED = false;
+/** Part 10 Task 4 (Jo 3 Nov 2026): on an installer's own customer, pressing "Send quote to owner" on the Enter your price
+ *  step releases the quote at once through the SAME guarded auto-send (every check; a hold shows its reason). OFF until
+ *  Jo switches it on; while off the button says "Save" and the quote waits as before. */
+export const OWN_CUSTOMER_SEND_ON_PRESS_ENABLED = false;
 
 // Jo 24 Oct (later): no price-range or access-fee limit on the installer's own jobs ("he can charge what he wants as
 // long as our AP fee and the electrician fees are right"). Those lines come from our settings, not from the form.

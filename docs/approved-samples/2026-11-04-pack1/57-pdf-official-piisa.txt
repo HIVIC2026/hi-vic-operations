@@ -1,0 +1,277 @@
+Pre-installation installer
+safety assessment (Insulation)
+Victorian Energy Upgrades
+
+
+
+
+Completion of this form is mandatory prior to commencement of ceiling insulation installation work to
+comply with the requirements and conditions of the Victorian Energy Efficiency Target Regulations 2018.
+
+This form does not replace the need to undertake a Safe Work Method Statements (SWMS) that outlines the
+hazards associated with high-risk construction work (HRCW) and the control measures that will be used to
+eliminate or minimize those risks.
+Each ceiling insulation installation must be undertaken by an accredited person, or person contracted by an
+accredited person with consideration of the Occupational Health and Safety Act 2004, and Occupational Health
+and Safety Regulations 2017 which require employers and self-employed persons to prepare a SWMS before
+starting HRCW.
+The Pre-installation installer safety assessment must be completed within 30 days of the pre-installation
+electrical safety assessment completion date.
+
+Job Reference ID: HV-1234
+PART 1 – PROPERTY DETAILS
+
+Address including postcode: 12 Example Street, Box Hill VIC 3128
+
+Installation start date: 20/11/2026
+
+Predicted installation completion date: 20/11/2026
+
+Has the household/tenant been informed that the power will be turned off/       Yes     No
+isolated for the duration of the installation?
+Is anyone at this property dependent on life support?                           Yes     No
+If yes, has written consent or a medical plan been received prior to this       Yes – received Consent
+assessment commencing? You will need to keep this record as an attachment
+to this assessment.                                                             Yes – received Medical Plan
+
+If anyone at this property relies on life support and you don’t have a written consent or a medical plan,
+the installation CANNOT proceed.
+
+PART 2 - INSTALLATION DETAILS
+
+Installation date: 20/11/2026
+
+Accredited person name: DC Construction Solutions Pty Ltd
+
+Installer company name: Rapid Insulation
+
+Lead installer name:                                                         EEC certification number:
+Will Casdorff                                                                EEC-10001
+Additional installer/s Name/s:                                               EEC certification number:
+Jo Tester                                                                    EEC-10002
+Additional installer/s Name/s:                                               EEC certification number:
+
+
+Additional installer/s Name/s:                                               EEC certification number:
+
+
+
+
+                                                        OFFICIAL
+PART 3 – SAFE SYSTEM OF WORK
+
+Has a Safe Work Method Statement (SWMS) for the insulation upgrade at the                 Yes       No
+listed address been completed and all risks identified?
+Have all hazards listed in Table 1: Common hazards when installing                        Yes       No
+insulation been considered, and control measures been implemented when
+developing the SWMS for this job?
+Has the main and/or alternate power supply been isolated, locked out, tagged              Yes       No
+and has the roof cavity been confirmed as electrically safe to enter?
+If you’ve answered NO to any of the question in PART 3 – SAFE SYSTEM OF WORK, the installation CANNOT
+proceed.
+
+PART 4 – SOLAR POWER, BATTERY AND/OR ALTERNATIVE SUPPLY
+Is there a Solar PV, Battery system and/or alternative supply, such as a fuel             Yes       No
+driven generator present?
+If you have answered NO, go to PART 5 – PRE-INSTALLATION ELECTRICAL
+SAFETY ASSESSMENT
+Are instructions provided on the safe shutdown/isolation, and re-energisation of          Yes       No
+the solar, battery or alternative supply system?
+Is the ground level system AC and/or DC (may be part of the inverter) isolator            Yes       No
+accessible, operational and can be isolated safely?
+If you’ve answered NO to the second question in PART 4 - SOLAR, an electrician must be present at the start of the
+installation to isolate the mains/alternative power supply, lock out, tag and confirm the work area is electrically safe
+for anyone entering the roof cavity.
+
+PART 5 – PRE-INSTALLATION ELECTRICAL SAFETY ASSESSMENT
+Has the Pre-installation electrical safety assessment been reviewed by the                Yes       No
+lead installer and has the site been confirmed as safe to commence works?
+If the Pre-installation electrical safety assessment recommends an electrician            Yes       No        N/A
+is present at the start of the installation to ensure the area is electrically safe,
+has this occurred?
+Under the VEU program, eligible premises must only have IC and/or IC-4 light fittings in the ceiling area to be upgraded*. Any
+other lights (e.g. CA-class luminaires, non-IC luminaires, or ‘do-not-cover’ light fittings) need to be replaced with the required
+IC and/or IC-4 fittings that can be safely covered by insulation before the property can qualify for VEU incentives under the
+ceiling insulation activity.
+*Note: Downlight replacement does not need to occur in ceilings of rooms that have another room or sole occupancy unit
+above the subject portion of the ceiling, provided insulation is not being installed there. The VEU does not incentivise
+insulation being installed between floors.
+Are there recessed luminaires present in the ceiling?                                       Yes      No
+                                                                                       If ’Yes’, specify total number of luminaries:
+                                                                                       6
+Did the Pre-installation electrical safety assessment confirm that all luminaires         Yes       No
+present in the ceiling have been upgraded to IC and/or IC-4 rated (i.e.
+classified and marked)?
+(See Section C of the completed Pre-installation electrical safety assessment)
+Are all recessed luminaires deemed safe to cover with insulation?                         Yes       No
+(See Section C of the completed Pre-installation electrical safety assessment)
+Did the pre-installation electrical safety assessment confirm that all mains              Yes       No
+connected cables in the ceiling space are appropriately protected by an
+RCD where required?
+(See Section C of the completed Pre-installation electrical safety assessment)
+Did the Pre-installation electrical safety assessment confirm that all mains              Yes       No
+connected cables in the ceiling space are thermoplastic insulated and
+sheathed (TPS) or an equivalent cable type?
+(See Section C of the completed Pre-installation electrical safety assessment)
+Did the Pre-installation electrical safety assessment confirm that all mains              Yes       No
+connected cables in the ceiling space meet Basic Protection Requirements?
+(See Section C of the completed Pre-installation electrical safety assessment)
+
+
+OFFICIAL                                                            VEU Pre-installation installer safety assessment (Insulation)      2
+Has the owner/occupier confirmed that no one has accessed or carried out any               Yes    No
+works in the ceiling space since the completion of the Pre-installation electrical
+safety assessment?
+If you’ve answered NO to questions in PART 5 - PRE-INSTALLATION ELECTRICAL SAFETY ASSESSMENT (other
+than are there recessed luminaries present in the ceiling?), the activity CANNOT commence.
+
+
+PART 6 – EXISTING INSULATION
+Is there insulation present in the ceiling.                                                Yes    No
+If NO, go to Part 7 – PRODUCT DETAILS
+What is the average height of the existing insulation?                               50      mm
+What is the R-Value of existing insulation (if known)?                               1.5     RV
+Will the existing ceiling insulation be removed completely or topped up?                   Removed and/or
+Note: any foil backed or electrically conductive insulation cannot be                      Topped Up
+topped up and must be removed prior to installation.
+Is the existing insulation in a suitable condition for new insulation to be laid           Yes    No
+over?
+If the existing insulation is not removed, what is the reason?                       Provide details:
+Existing batts are in good condition and dry, so they are kept and topped
+up.
+
+
+
+
+PART 7 – PRODUCT DETAILS
+List the insulation product(s) brand, model and R-value being installed
+Bradford Gold Hi-Performance ceiling batts R5.0 (430 mm wide)
+
+
+
+
+OFFICIAL                                                           VEU Pre-installation installer safety assessment (Insulation)   3
+PART 8 – INSTALLER DECLARATION
+As the lead EEC Certified installer responsible for this installation, I confirm that:
+a. I have received a completed copy of the Pre-installation electrical safety assessment for the premises; and
+b. I have completed the current Pre-installation installer safety assessment, as published on the department’s Internet site
+   within 30 days of the completion of the pre-installation electrical safety assessment; and
+c. the Pre-installation installer safety assessment confirms
+   i.
+          the worksite is safe and the installation or upgrade will proceed in accordance with any recommendations or conditions
+          from the Pre-installation electrical safety assessment including, if required, that a licensed electrician must be present
+          during the insulation upgrade; and
+   ii.
+          that safe work methods are in place as per Occupational Health and Safety Regulations 2017 (Vic); and
+
+d. I will ensure that:
+   i.
+          all applicable occupation health and safety laws and requirements are complied with; and
+   ii.
+          the insulation will be installed in compliance with the effective version of AS 3999; and
+   iii.
+          if the installation is carried out on multiple days, that I will check that all items remain compliant with this assessment
+          form at the start of each day prior to undertaking the work; and
+   iv.
+          the insulation product/s being installed are listed on the ESC Register of Products.
+
+   All information contained in and attached to this form is correct and not misleading by inclusion or omission
+
+Privacy Collection Statement
+The Department of Energy, Environment, and Climate Action (DEECA) is committed to protecting personal information
+provided by you in accordance with the privacy principles in the Privacy and Data Protection Act 2014 (Vic). The personal
+information in this assessment form may be collected by the Essential Services Commission (the commission) to administer,
+monitor and enforce compliance with the Victorian Energy Upgrades program.
+The commission deals with personal information in accordance with the Privacy and Data Protection Act 2014 (Vic) and other
+applicable legislation.
+The commission may use and disclose your information as authorised or required by law, including for verification, audit, and
+program monitoring. This may include disclosure to external service providers, other regulators, law enforcement agencies,
+courts and other government bodies where relevant to the commission’s functions.
+Providing the requested information is voluntary. However, if you do not provide it, Victorian energy efficiency certificates may
+not be able to be created for insulation installation work undertaken.
+You may request access to, or correction of, your information by contacting the commission at privacy@esc.vic.gov.au or
+referring to its Privacy Policy. For more information about how the commission handles personal information, refer to its
+Privacy Policy.
+You may lodge a privacy complaint with the Office of the Victorian Information Commissioner at ovic.vic.gov.au.
+
+Signature
+(Type your signature)
+
+
+Signed in Mitti on 20/11/2026
+
+Installer full name: Will Casdorff
+
+Date: 20/11/2026
+
+
+
+
+OFFICIAL                                                             VEU Pre-installation installer safety assessment (Insulation)      4
+Table 1: Common hazards and guidance resources when installing insulation
+Common Hazards                                                                Resources/Guidance Material1
+
+ Working at height, in roofs, and in ceiling                                 WorkSafe guidance:
+  (enclosed) spaces                                                            Compliance code: Prevention of falls in general construction
+                                                                               Website page: Using portable ladders in the workplace
+                                                                               Safety Alert: Multiple workers seriously injured from
+                                                                                falls through plaster ceilings
+
+ High temperatures                                                           WorkSafe guidance:
+ Hot weather                                                                  Website page: Prevention and protection from heat illness
+                                                                               Guidance Material: Managing the risks of working in heat
+
+ Working Safely with Electricity                                             WorkSafe guidance:
+                                                                               One Pager: Safe elements of electrical isolation
+                                                                               Webpage: Preventing electric shocks when working in
+                                                                                ceiling spaces
+                                                                               Construction safety focus: Electrical safety
+
+ Hazardous noise, vibration levels                                           WorkSafe guidance:
+                                                                               Compliance Code: Noise
+
+ Hazardous substances                                                        WorkSafe guidance:
+ (Asbestos, chemicals, solvents, etc.)                                        Compliance code: Hazardous substances
+                                                                               Compliance code: Managing asbestos in workplaces
+
+ Respiratory and biological hazards (dust, animal                            WorkSafe guidance
+  sources, fugitive particles and fibres, mould, bacteria etc.)                Compliance Code: Hazardous substances
+
+ Potential heat or ignition sources including;                               Australian Standard:
+ Flue(s) from gas or wood combustion heaters that                             AS 3999:2015 Bulk thermal insulation—Installation
+  penetrate the roof space
+ Chimney(s) from fireplaces that penetrates the roof
+  space
+ Gas water heater(s) or gas space heater(s)
+ High intensity heating lamps in bathrooms
+ Exhaust fan(s) from the kitchens or bathrooms that
+  vent into the roof space
+ Downlights (recessed luminaires)
+ Electrical cables that will be partially or fully
+  surrounded by thermal insulation (lengths greater
+  than 400mm)
+
+ Working alone                                                               WorkSafe Guidance:
+                                                                              Information sheet: Working alone
+
+Please note: Guidance and information can change, please check the WorkSafe and DEECA internet sites for the latest
+updates.
+
+1 as updated from time.
+
+
+© The State of Victoria Department of Energy, Environment and Climate
+Action March 2026
+                                                                                Accessibility
+Disclaimer                                                                      To receive this publication in an
+This publication may be of assistance to you but the State of Victoria
+and its employees do not guaran-tee that the publication is without flaw        alternative format, please contact the
+of any kind or is wholly appropriate for your particular purposes and
+therefore disclaims all liability for any error, loss or other consequence
+                                                                                Victorian Energy Upgrades team at
+which may arise from you relying on any information in this publication.        energy.upgrades@deeca.vic.gov.au
+
+
+energy.vic.gov.au/veu
+OFFICIAL                                                                     VEU Pre-installation installer safety assessment (Insulation)     5
+

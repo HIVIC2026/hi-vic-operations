@@ -76,8 +76,10 @@ describe("enforcement (decision 130): no lead or crew without acknowledgement", 
     expect(workerOfferBlocker({ ...base, collection_notice_acknowledged: false }, T)).toBe(COLLECTION_NOTICE_BLOCK_MESSAGE);
     expect(workerOfferBlocker({ ...base }, T)).toBeNull(); // not loaded: unchanged behaviour for callers that don't pass it
     expect(workerOfferBlocker({ trade_role: "electrician", collection_notice_acknowledged: false }, T)).toBeNull();
-    expect(workerFlags({ ...base, certification_status: "verified", collection_notice_acknowledged: false }, T)).toEqual(["ESC notice not acknowledged"]);
-    expect(missingItems({ ...base, collection_notice_acknowledged: false })).toEqual(["esc_notice"]);
+    // Decision 319 (main): an installer with no White Card on file also flags "White Card missing" — a verified card is given
+    // here so this line isolates the ESC-notice flag (pre-existing red since the 4 Nov join, fixed by cause in G6).
+    expect(workerFlags({ ...base, certification_status: "verified", collection_notice_acknowledged: false, certification: { white_card: { path: "wc.pdf", verified_at: "2026-10-01T00:00:00Z" } } }, T)).toEqual(["ESC notice not acknowledged"]);
+    expect(missingItems({ ...base, collection_notice_acknowledged: false, certification: { white_card: { path: "wc.pdf", verified_at: "2026-10-01T00:00:00Z" } } })).toEqual(["esc_notice"]);
   });
   test("PIISA crew: lead and additional refused until acknowledged", () => {
     const cert = { id: "11111111-1111-4111-8111-111111111111", status: "verified", certificate_number: "C1", issuer: "EEC" };

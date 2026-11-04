@@ -42,11 +42,12 @@ describe("My work task wording", () => {
     const page = readFileSync("src/routes/_authenticated/field.index.tsx", "utf8") + readFileSync("src/routes/_authenticated/field.$jobId.tsx", "utf8");
     for (const bad of ["StageBadge", "SlaPill", "UrgencyBadge", "Deposit cleared", "Mitti record ID"]) expect(page).not.toContain(bad);
   });
-  test("worker link page uses the approved contact rule, not portal-only wording", () => {
+  test("worker link page is retired (G8 (3), Jo 4 Nov 2026 21:45): no owner contact, no portal-only wording", () => {
     const w = readFileSync("src/routes/w.$token.tsx", "utf8");
     expect(w).not.toContain("no calls or outside texts");
     expect(w).not.toContain("hidden automatically");
-    expect(w).toContain("Use these contact details only to arrange and complete this Home Insulation Victoria job.");
+    expect(w).not.toContain("ownerContact");
+    expect(w).toContain("data-worker-link-retired");
   });
 });
 
@@ -68,12 +69,14 @@ describe("Trade sign-in", () => {
   test("invite email approved by Jo 27 Oct 2026 (decision 406); only approved workers get access", () => {
     expect(TRADE_INVITE_EMAIL_APPROVED).toBe(true);
     const w = { email: "a@b.com", approval_status: "approved", removed_at: null, trade_role: "installer", certification_status: "verified" };
-    expect(tradeAccessBlocker(w, true)).toBeNull();
-    expect(tradeAccessBlocker({ ...w, approval_status: "pending" }, true)).not.toBeNull();
-    expect(tradeAccessBlocker({ ...w, certification_status: "unverified" }, true)).not.toBeNull();
-    expect(tradeAccessBlocker(w, false)).not.toBeNull();
+    // Lead Installers, Crew and Electricians never log in (new job flow part 5); only Office people do.
+    const office = { ...w, trade_role: "office", certification_status: null };
+    expect(tradeAccessBlocker(office, true)).toBeNull();
+    expect(tradeAccessBlocker(w, true)).not.toBeNull();
+    expect(tradeAccessBlocker({ ...office, approval_status: "pending" }, true)).not.toBeNull();
+    expect(tradeAccessBlocker(office, false)).not.toBeNull();
     expect(memberRoleFor("Boss@Biz.com", "boss@biz.com")).toBe("business_admin");
-    expect(grantedRole("electrician")).toBe("electrician");
+    expect(grantedRole("electrician")).toBe("installer"); // Part 6 Task 8: electricians never get a login (tradeAccessBlocker stops the invite first)
   });
   test("invite email (approved design): greeting once, set-password button, sign-in link, no unsubscribe", () => {
     const m = renderTradeInviteEmail({ firstName: "Sam", business: "Sample <Co>", setPasswordUrl: "https://x/reset-password?token_hash=T", signInUrl: "https://x/auth" });

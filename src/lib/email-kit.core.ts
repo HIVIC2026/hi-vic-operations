@@ -32,7 +32,7 @@ export const friendShareHref = (link: string) => `mailto:?subject=${encodeURICom
 
 export function includedItems(rebate: number): TickItem[] {
   return [
-    { title: "Licensed electrician safety check", detail: "Required before any insulation goes in. They check wiring, downlights and cables so your ceiling is safe." },
+    { title: "Electrical safety check (PIESA) by a licensed electrician", detail: "Required before any insulation goes in. They check wiring, downlights and cables so your ceiling is safe." },
     { title: "Premium R5.0 ceiling batts", detail: "Approved for the VEU program and made to Australian Standard AS/NZS 4859.1." },
     { title: "Fitted by an EEC-certified installer", detail: "Certified Insulation Installer (CII) through the Energy Efficiency Council, installing to Australian Standard AS 3999." },
     { title: "We handle the rebate", detail: `As a VEU Accredited Person (${AP_NUMBER}), we do all the government paperwork. The ${whole(rebate)} comes straight off your price.` },
@@ -43,7 +43,7 @@ export function notIncludedItems(someInsulation = false): string[] {
   return [
     someInsulation ? "<strong>Removing old insulation</strong>, only if it can't stay ($15 per m², see above)" : "<strong>Removing old insulation</strong>, if any needs to come out",
     "<strong>Ceiling access fee</strong>, if your ceiling is hard to get into",
-    "<strong>Electrical upgrades</strong>, if the safety check finds any",
+    "<strong>Electrical upgrades</strong>, if the electrical safety check (PIESA) finds any",
     "<strong>A bigger ceiling</strong> than you told us",
   ];
 }

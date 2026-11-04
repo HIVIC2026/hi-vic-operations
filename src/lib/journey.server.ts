@@ -510,12 +510,12 @@ const s7: StepFn = async (ctx, r) => {
     check(r, "safety plan lists the lead installer's line", (sw.myKeys ?? []).length > 0);
     for (const key of sw.myKeys ?? []) await act(r, "lead installer signs the safety plan (SWMS)", () => tv.tradeSwmsSign(ctx.jobId!, ctx.installer.id, key, lead!.name));
   }
-  // Noon the day before: the pre-start check (deposit, ESC notice, PIESA copies 24h ahead + Gate C receipt, the lead
+  // 2pm the day before (Part 9 Task 6): the GO check (deposit, ESC notice, PIESA copies 24h ahead + Gate C receipt, the lead
   // installer's CII / White Card / ESC notice, safety plan — decisions 153/319/367/395) runs as the 15-minute tick would then.
   const { data: bk } = await admin.from("bookings").select("scheduled_start").eq("job_id", ctx.jobId!).eq("kind", "installation").eq("status", "confirmed").maybeSingle();
   const startMs = Date.parse(bk!.scheduled_start);
   const ps = await import("./prestart.server");
-  const pre = await act(r, "pre-start check at noon the day before", () => ps.runPrestart(ctx.jobId!, "journey", new Date(startMs - 20 * 3_600_000 + 30 * 60_000)));
+  const pre = await act(r, "GO check at 2pm the day before", () => ps.runPrestart(ctx.jobId!, "journey", new Date(startMs - 18 * 3_600_000 + 30 * 60_000)));
   check(r, "pre-start check passed", pre?.passed === true, (pre?.failures ?? ["did not run"]).join(" "));
   // The install day form (A5, decision 262) is created by the real path; Mitti itself is SIMULATED (in-memory, never contacted).
   (r.simulated ??= []).push("Mitti A5 install day form (created by the real path in a simulated Mitti; the lead installer's answers filled in there)");
@@ -628,7 +628,7 @@ const s8: StepFn = async (ctx, r) => {
   const row = money.rows.find((x) => x.jobId === ctx.jobId);
   check(r, "installer Money shows this install", !!row, `${money.rows.length} rows`);
   check(r, "installer payout shows Coming", row!.state.kind === "coming", row!.state.kind);
-  ctx.screens.push({ step: "s8_ap_payout", persona: "installer", path: "/field/money", mustSee: ["Coming"] });
+  ctx.screens.push({ step: "s8_ap_payout", persona: "installer", path: "/field/money", mustSee: ["COMING TO YOU"] }); // Task 8: the approved Money tile
 };
 
 const STEP_FNS: Record<JourneyStepKey, StepFn> = {

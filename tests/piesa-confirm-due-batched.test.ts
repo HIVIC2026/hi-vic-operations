@@ -1,7 +1,7 @@
 // Perf 25 Oct 2026: the PIESA owner-confirmation sweep decides each job's next step from ONE batched read of records,
 // confirmations and recorded steps (was ownerPiesaConfirmFacts + doneSteps per job per tick). Same rule as before:
 // latest owner-confirmed-kind record (initial/reassessment), unsigned record → nothing, a confirmation of THAT record →
-// nothing, steps counted per record, one step per tick in schedule order. Also the fixes sweep (post_rectification).
+// nothing, steps counted per record, one step per tick in schedule order. (The fixes sweep was retired 2 Nov 2026, Part 4 Task 14.)
 import { describe, expect, mock, test } from "bun:test";
 import { makeCounterDb } from "./helpers/query-counter-db";
 
@@ -39,10 +39,5 @@ describe("batched confirmation-step decisions", () => {
     // One read each of records, confirmations and steps — not ~8 per job.
     expect(db.stats.requests).toBe(3);
     expect(db.stats.writes).toEqual([]);
-  });
-  test("electrical fixes confirmation: only post_rectification records count", async () => {
-    const { dueFixesConfirmSteps } = await import("@/lib/piesa-fixes-confirm-send.server");
-    const due = await dueFixesConfirmSteps(["A", "G"], NOW);
-    expect(Object.fromEntries(due)).toEqual({ G: "request" });
   });
 });

@@ -17,7 +17,9 @@ export type PayoutKind = "assessment" | "rectification" | "installation";
  *  the A4 completion event), null/absent when unknown or not complete. */
 export type PiesaFormFacts = { mittiForm: boolean; completed: boolean; evidence: string[]; completedAt?: string | null };
 export type FixesFormFacts = { sameVisitOnPiesa: boolean; outcome: "open" | "done" | "not_done" | "held" | null; detail: string | null; completedAt?: string | null };
-export type InstallFormFacts = { formCompleted: boolean; evidence: string[] };
+/** `go` (Part 9 Task 10): the latest GO check (`pre_start_checks`) for the booked install start passed; false = DON'T
+ *  START, null = no check recorded for that start. Absent (older callers) = not known — the install pay is held. */
+export type InstallFormFacts = { formCompleted: boolean; evidence: string[]; go?: boolean | null };
 /** Decision 410 (Jo 27 Oct 2026): when someone in the office pressed Approve on the electrician's form (A3 / A4). */
 export type ElectricianFormApprovals = { assessment: string | null; rectification: string | null };
 export type TradePayoutFacts = { piesa: PiesaFormFacts | null; fixes: FixesFormFacts | null; install: InstallFormFacts | null; electricianApprovedAt?: ElectricianFormApprovals };
@@ -27,6 +29,8 @@ export const PAYOUT_FORM_NOT_COMPLETE: Record<PayoutKind, string> = {
   rectification: "Mitti electrical fixes form (A4) not marked Complete",
   installation: "Mitti install day form (A5) not marked Complete",
 };
+/** Part 9 Task 10 (Jo 2 Nov 2026): no installer pay for an install without a GO. */
+export const NO_GO_FOR_INSTALL = "No GO for this install";
 const FORM_NAME: Record<PayoutKind, string> = { assessment: "Safety check form", rectification: "Electrical fixes form", installation: "Install day form" };
 
 const uniq = (xs: string[]) => [...new Set(xs.map((x) => x.trim()).filter(Boolean))];
@@ -57,7 +61,17 @@ export function tradePayoutBlockers(kind: PayoutKind, f: TradePayoutFacts): stri
   const i = f.install;
   if (!i) return [PAYOUT_FORM_NOT_COMPLETE.installation];
   const ev = evidenceLines("installation", i.evidence);
-  return [...(i.formCompleted ? [] : [PAYOUT_FORM_NOT_COMPLETE.installation]), ...ev];
+  return [...(i.formCompleted ? [] : [PAYOUT_FORM_NOT_COMPLETE.installation]), ...ev, ...(i.go === true ? [] : [NO_GO_FOR_INSTALL])];
+}
+
+/** Part 9 Task 10: the GO fact for the booked install start — the latest `pre_start_checks` row for that exact start
+ *  (checks are recorded with the booking's `scheduled_start`); null when no start is booked or no check names it. */
+export function installGoFor(checks: { scheduled_start: string; passed: boolean; checked_at: string }[], bookedStart: string | null | undefined): boolean | null {
+  if (!bookedStart) return null;
+  const t = Date.parse(bookedStart);
+  const mine = checks.filter((c) => Date.parse(c.scheduled_start) === t).sort((a, b) => Date.parse(b.checked_at) - Date.parse(a.checked_at));
+  const latest = mine[0];
+  return latest ? latest.passed === true : null;
 }
 
 /** Decision 355: when the electrician's form for this payout was 100% complete — null while the gate still holds it

@@ -14,6 +14,8 @@ import { PGlite } from "@electric-sql/pglite";
 import { embedShim, type Rels } from "./helpers/pglite-embed-shim";
 
 const BIZ = "30000000-0000-4000-8000-000000000001", INST = "40000000-0000-4000-8000-000000000001";
+const ELEC_WORKER = "50000000-0000-4000-8000-00000000e1ec"; // Task 7 + join ruling (4 Nov 2026): the verified Team electrician the installer picks = their own electrician
+const WAITING_WORKER = "50000000-0000-4000-8000-00000000e2ec"; // a Team electrician the office has not approved yet
 const TPL = "template_0123456789abcdef0123456789abcdef";
 const db = new PGlite();
 await db.exec(`
@@ -27,8 +29,11 @@ CREATE TABLE properties (id uuid primary key default gen_random_uuid(), owner_id
 CREATE TABLE job_assignments (id uuid primary key default gen_random_uuid(), job_id uuid, user_id uuid, role text, business_id uuid, assigned_by uuid, first_response_at timestamptz, active boolean default true, booking_confirmed_at timestamptz, assigned_at timestamptz default now());
 CREATE TABLE business_members (id uuid primary key default gen_random_uuid(), business_id uuid, user_id uuid, member_role text, active boolean default true);
 CREATE TABLE businesses (id uuid primary key, name text, trading_name text, abn text, branding jsonb, business_type text, capabilities text[], base_suburb text, coverage_radius_km int, covers_all_victoria boolean,
-  accepting_new_jobs boolean, onboarding_notes text, mitti_account_invited boolean, onboarding_status text, is_active boolean, approved_at timestamptz, signer_mobile text, phone text, rec_number text);
+  accepting_new_jobs boolean, onboarding_notes text, mitti_account_invited boolean, onboarding_status text, is_active boolean, approved_at timestamptz, signer_mobile text, phone text, rec_number text, in_house boolean default false, pays_own_electricians boolean default false);
+CREATE TABLE partner_workers (id uuid primary key default gen_random_uuid(), business_id uuid, profile_id uuid, full_legal_name text, email text, trade_role text, approval_status text, removed_at timestamptz, licence_number text, rec_number text, licence_expires_on text, licence_verified_at timestamptz);
 CREATE TABLE user_roles (user_id uuid, role text, unique (user_id, role));
+-- Part 9 Task 8 (Jo 2 Nov 2026): Add a job and every booking run the insurance hard block (business-docs.server, fail closed).
+CREATE TABLE business_credentials (id uuid primary key default gen_random_uuid(), business_id uuid, kind text not null, label text not null, expires_at date, verification text not null default 'pending', amount_insured_aud numeric);
 CREATE TABLE profiles (id uuid primary key, full_name text, email text, phone text, business_id uuid);
 CREATE TABLE workflow_settings (id int primary key, mitti_ready_check_template_id text, mitti_ready_check_priced_template_id text, mitti_piesa_template_id text, mitti_piisa_template_id text, auto_send_mitti boolean,
   customer_comms_enabled boolean, auto_send_quote boolean, installer_quote_min_inc_gst_per_m2 numeric, installer_quote_max_inc_gst_per_m2 numeric, mitti_auto_quote_enabled boolean, safety_check_payment_inc_gst numeric);
@@ -58,9 +63,19 @@ CREATE TABLE invoices (id uuid primary key default gen_random_uuid(), quote_id u
 CREATE TABLE ready_checks (id uuid primary key default gen_random_uuid(), job_id uuid, external_mitti_id text, status text, submitted_at timestamptz, version int, created_at timestamptz default now());
 CREATE TABLE external_action_queue (id uuid primary key default gen_random_uuid(), job_id uuid, action text, target text, payload text, key text unique);
 CREATE TABLE partner_relationships (installer_business_id uuid, electrician_business_id uuid, active boolean);
-CREATE TABLE electrician_nominations (id uuid primary key default gen_random_uuid(), job_id uuid, ended_at timestamptz, nominating_business_id uuid);
+CREATE TABLE electrician_nominations (id uuid primary key default gen_random_uuid(), job_id uuid, ended_at timestamptz, nominating_business_id uuid, business_id uuid, created_at timestamptz default clock_timestamp());
+CREATE TABLE electrician_rates (id uuid primary key default gen_random_uuid(), business_id uuid, service_type text, rate_inc_gst numeric, status text, effective_from date, effective_to date);
+CREATE TABLE rate_cards (id uuid primary key default gen_random_uuid(), business_id uuid, kind text, version int default 1, is_active boolean default true, effective_from date default '2026-01-01');
+CREATE TABLE rate_card_items (id uuid primary key default gen_random_uuid(), rate_card_id uuid, code text, unit_price_ex_gst numeric, unit text);
+CREATE TABLE worker_job_links (id uuid primary key default gen_random_uuid(), job_id uuid, worker_id uuid, token_hash text, expires_at timestamptz, revoked_at timestamptz, created_by uuid, created_at timestamptz default clock_timestamp());
 INSERT INTO businesses VALUES ('${BIZ}','TEST Reinsulate','TEST Reinsulate','11 222 333 444','{}','eec_installer','{installer}','Frankston',50,false,true,'[TEST PARTNER] practice',true,'approved',true,now(),'0477 511 901',null);
+INSERT INTO business_credentials (business_id, kind, label, expires_at, verification, amount_insured_aud) VALUES ('${BIZ}','public_liability_insurance','Public liability','2099-01-01','verified',10000000), ('${BIZ}','workers_comp_insurance','Workers comp','2099-01-01','verified',null);
 INSERT INTO business_members (business_id, user_id, member_role) VALUES ('${BIZ}','${INST}','business_admin');
+INSERT INTO partner_workers (id, business_id, profile_id, full_legal_name, email, trade_role, approval_status, licence_number, rec_number, licence_expires_on, licence_verified_at) VALUES ('${ELEC_WORKER}','${BIZ}',null,'Will Casdorff','will@hivic-test.example','electrician','approved','A12345','REC-1','2030-01-01',now()),
+  ('${WAITING_WORKER}','${BIZ}',null,'Wes Waiting','wes@hivic-test.example','electrician','pending','A99999','REC-9','2030-01-01',now());
+-- Jo 4 Nov 2026: the owner's PIESA line on an installer's own job = that installer's PIESA rate (rate card, ex GST): $317.27 ex = $349.00 inc.
+INSERT INTO rate_cards (id, business_id, kind) VALUES ('60000000-0000-4000-8000-00000000ca7d','${BIZ}','installer');
+INSERT INTO rate_card_items (rate_card_id, code, unit_price_ex_gst, unit) VALUES ('60000000-0000-4000-8000-00000000ca7d','PIESA',317.27,'flat');
 INSERT INTO user_roles VALUES ('${INST}','installer');
 INSERT INTO profiles VALUES ('${INST}','Deep Installer','deep@hivic-test.example','0400000001','${BIZ}');
 INSERT INTO workflow_settings VALUES (1, null, '${TPL}', 'template_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'template_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', true, true, false, null, null, false, 349);
@@ -78,6 +93,9 @@ const rels: Rels = {
   quotes: { quote_items: { table: "quote_items", fk: "quote_id", on: "rel" } }, // real FK quote_items.quote_id -> quotes.id; loadInstallerQuote embeds it
   assessments: { jobs: { table: "jobs", fk: "job_id", on: "base" } },
   job_assignments: { businesses: { table: "businesses", fk: "business_id", on: "base" }, profiles: { table: "profiles", fk: "user_id", on: "base" } },
+  business_members: { businesses: { table: "businesses", fk: "business_id", on: "base" } }, // Task 7: Add a job reads the sign-in's trade context (business embedded)
+  rate_card_items: { rate_cards: { table: "rate_cards", fk: "rate_card_id", on: "base" } },
+  rate_cards: { rate_card_items: { table: "rate_card_items", fk: "rate_card_id", on: "rel" } }, // J3 (4): the single-business PIESA rate read embeds the card lines // the installer's PIESA rate (installer-paid-electricians.server)
 };
 // A6: the staged one-transaction save (docs/pending-migrations/add-installer-job-atomic.sql) runs here as it will once live;
 // tests/journey-a1-complete-route-db.test.ts keeps covering the step-by-step fallback (function not deployed).
@@ -87,11 +105,35 @@ const q = async <T,>(sql: string, p: unknown[] = []) => (await db.query<T>(sql, 
 const shim = embedShim(db, rels);
 let createdUsers = 0;
 let atomicDeployed = true; // A6: false = the staged function is not live yet (PostgREST's answer) → step-by-step save
+// J3 (1): once a `jobs` insert has run, every `partner_workers` read fails (the signal dropped mid-save) — the step-by-step
+// save must still finish the job it already wrote.
+let failWorkersAfterJobInsert = false, jobInserted = false;
+const failingRead = (): unknown => new Proxy(() => {}, { get: (_t, prop) => prop === "then" ? (res: (v: unknown) => unknown) => Promise.resolve({ data: null, error: { message: "partner_workers read failed (test)", code: "XX000" } }).then(res) : () => failingRead(), apply: () => failingRead() });
 const admin = {
   ...shim,
+  from(table: string) {
+    if (table === "partner_workers" && failWorkersAfterJobInsert && jobInserted) return failingRead() as ReturnType<typeof shim.from>;
+    const b = shim.from(table);
+    if (table === "jobs") { const ins = b.insert.bind(b); b.insert = ((...a: Parameters<typeof b.insert>) => { jobInserted = true; return ins(...a); }) as typeof b.insert; }
+    return b;
+  },
   rpc: async (name: string, a: Record<string, unknown>) => {
     if (name === "has_role") return { data: true, error: null };
     if (name === "add_installer_job" && !atomicDeployed) return { data: null, error: { code: "PGRST202", message: "Could not find the function public.add_installer_job(_payload) in the schema cache" } };
+    // Part 6's `allocate_team_electrician` (pending SQL, proven on PGlite in tests/in-house-electrician-v2-practice-db.test.ts):
+    // the same writes here — electrician assignment (user_id null: electricians never log in), payer "preferred", the allocation event.
+    if (name === "allocate_team_electrician") {
+      const [w] = await q<{ full_legal_name: string; business_id: string; approval_status: string; licence_verified_at: string | null }>("select full_legal_name, business_id, approval_status, licence_verified_at from partner_workers where id=$1 and trade_role='electrician' and removed_at is null", [a["_worker"]]);
+      const [inst] = await q<{ business_id: string; in_house: boolean }>("select ja.business_id, b.in_house from job_assignments ja join businesses b on b.id = ja.business_id where ja.job_id=$1 and ja.role='installer' and ja.active", [a["_job"]]);
+      if (!inst?.in_house) return { data: null, error: { message: "This job is not assigned to your business" } };
+      if (!w || w.business_id !== inst.business_id) return { data: null, error: { message: "That electrician is not on your Team" } };
+      if (w.approval_status !== "approved" || !w.licence_verified_at) return { data: null, error: { message: "Electrician not verified" } };
+      await q("update job_assignments set active=false where job_id=$1 and role='electrician' and active", [a["_job"]]);
+      await q("insert into job_assignments (job_id, user_id, business_id, role, active, assigned_by) values ($1, null, $2, 'electrician', true, $3)", [a["_job"], inst.business_id, a["_actor"]]);
+      await q("update jobs set electrician_choice='preferred' where id=$1", [a["_job"]]);
+      await q("insert into workflow_events (job_id, actor_id, event_type, summary, details, internal) values ($1,$2,'in_house_electrician_allocated',$3,$4,true)", [a["_job"], a["_actor"], `Safety check allocated to ${w.full_legal_name}`, JSON.stringify({ worker_id: a["_worker"], business_id: inst.business_id, previous_assignment_id: null })]);
+      return { data: { already_allocated: false }, error: null };
+    }
     if (name === "add_installer_job") { try { return { data: await q("select * from public.add_installer_job($1::jsonb)", [JSON.stringify(a["_payload"])]), error: null }; } catch (e) { return { data: null, error: { message: (e as Error).message } }; } }
     if (name === "issue_owner_link_code") { const r = await q<{ id: string }>("insert into owner_link_codes (job_id, channel, destination_masked, code_hash, expires_at) values ($1,$2,$3,$4,$5) returning id", [a["_job"], a["_channel"], a["_masked"], a["_hash"], a["_expires"]]); return { data: r[0]!.id, error: null }; }
     if (name === "enqueue_external_action") { await q("insert into external_action_queue (job_id, action, target, payload, key) values ($1,$2,$3,$4,$5) on conflict (key) do nothing", [a["_job"], a["_action"], a["_target"], a["_payload"], a["_key"]]); return { data: null, error: null }; }
@@ -197,29 +239,37 @@ mock.module("../src/lib/mitti-pickup.server", () => ({ ...realPickup, updateMitt
 
 const os = await import("../src/lib/onsite-ready-check.server");
 const tv = await import("../src/lib/trade-view.server");
-const daily = await import("../src/lib/daily-mitti-text.server");
 const ms = await import("../src/lib/mitti.server");
 const mc = await import("../src/lib/mitti-complete.server");
 const rct = await import("../src/lib/ready-check-times.core");
-const { melbourneDate } = await import("../src/lib/daily-mitti-text.core");
+/** Add a job exactly as the phone does: basics + the Team electrician for the PIESA (join ruling: the installer's own electrician). */
+const addJob = (n: number, extra: Partial<Parameters<typeof os.startOnsiteReadyCheckFor>[5]> & { input?: Partial<ReturnType<typeof owner>> } = {}) => {
+  const { input, ...o } = extra;
+  return os.startOnsiteReadyCheckFor(INST, BIZ, { ...owner(n), ...(input ?? {}) }, null, call, { leadOrigin: "owner_contacted", electricianWorkerId: ELEC_WORKER, ...o });
+};
 const owner = (n: number) => ({ full_name: `Helen Yang${n}`, address_line: `${n} Test Street`, suburb: "Frankston", postcode: "3199", phone: `0412 000 ${String(300 + n).padStart(3, "0")}`, email: `qa.owner${n}@hivic-test.example`, contact_permission: true, consent_by: "installer" as const, address_verified: true });
 const events = (jobId: string, type: string) => q<{ summary: string; details: Record<string, unknown> }>("select summary, details from workflow_events where job_id=$1 and event_type=$2 order by created_at", [jobId, type]);
 const job = async (id: string) => (await q<Record<string, unknown>>("select * from jobs where id=$1", [id]))[0]!;
 const auditOf = async (jobId: string) => (await q<{ external_id: string }>("select external_id from ceiling_measurements where job_id=$1 and is_current and external_source='mitti'", [jobId]))[0]?.external_id ?? null;
 const days = rct.allowedReadyCheckDays();
-const DAY_A = days[2]!, DAY_B = days[4]!;
+const DAY_A = days[2]!;
 let A = "", B = "", C = "";
 
 afterAll(async () => { await db.close(); });
 
 describe("1. Add a job = basics only; the Mitti form is created straight away (decisions 34, 115)", () => {
   test("name, address, mobile, email + permission tick → job at ready_check_ready_to_schedule, consent row, no booking, form created", async () => {
-    const r = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(1), { mode: "hivic" }, call, { leadOrigin: "owner_contacted" });
+    const r = await addJob(1);
     A = r.jobId;
     expect(r.booking).toBe("none");
     expect(r.formCreation).toBe("scheduled");
     const j = await job(A);
-    expect(j).toMatchObject({ stage: "ready_check_ready_to_schedule", channel: "installer_sourced", source: "qa_test", installer_led: true, installer_site_check: "no", installer_quoted: "no", electrician_choice: "hivic_organise", originating_installer_business_id: BIZ });
+    // Join ruling (4 Nov 2026): the Team electrician picked IS the installer's own electrician — payer "own" (`preferred`), never HIV's.
+    expect(j).toMatchObject({ stage: "ready_check_ready_to_schedule", channel: "installer_sourced", source: "qa_test", installer_led: true, installer_site_check: "no", installer_quoted: "no", electrician_choice: "preferred", originating_installer_business_id: BIZ });
+    const choice = await events(A, "electrician_choice_set");
+    expect(choice).toHaveLength(1);
+    expect(choice[0]!.summary).toBe("Electrical safety check by the installer's usual electrician (Will Casdorff)");
+    expect(choice[0]!.details).toMatchObject({ choice: "usual", usual_name: "Will Casdorff", usual_licence: "A12345", worker_id: ELEC_WORKER, business_id: BIZ, declared_not_verified: false, source: "add_job" });
     expect(j["job_number"]).toMatch(/^HV-\d+$/);
     expect(await q("select id from bookings where job_id=$1", [A])).toHaveLength(0);
     expect(await q<{ consent_status: string; source: string }>("select consent_status, source from owner_contact_consents where job_id=$1", [A])).toEqual([{ consent_status: "granted", source: "onsite_ready_check" }]);
@@ -241,35 +291,58 @@ describe("1. Add a job = basics only; the Mitti form is created straight away (d
     expect(state).toEqual({ kind: "open", url: expect.stringContaining("audit_1") });
     expect(mitti.calls.filter((c) => c.startsWith("GET /audits"))).toHaveLength(0);
   });
-  test("a refused save leaves nothing behind: missing permission, ACT postcode or a bad visit time create no job", async () => {
-    const before = (await q("select id from jobs")).length;
-    await expect(os.startOnsiteReadyCheckFor(INST, BIZ, { ...owner(9), contact_permission: false }, { mode: "hivic" }, call, { leadOrigin: "owner_contacted" })).rejects.toThrow(/permission to contact/);
-    await expect(os.startOnsiteReadyCheckFor(INST, BIZ, { ...owner(9), postcode: "2604" }, { mode: "hivic" }, call, { leadOrigin: "owner_contacted" })).rejects.toThrow(/Victorian/);
-    await expect(os.startOnsiteReadyCheckFor(INST, BIZ, owner(9), { mode: "hivic" }, call, { leadOrigin: "owner_contacted", visit: { day: DAY_A, time: "03:00" } })).rejects.toThrow(/time/i);
-    expect((await q("select id from jobs")).length).toBe(before);
+  test("a refused save leaves nothing behind: missing consent tick, ACT postcode, no Team electrician or an unapproved one create no job (Task 7)", async () => {
+    const before = await q("select (select count(*) from jobs) j, (select count(*) from owners) o, (select count(*) from workflow_events) e");
+    // Task 7: the tick names Home Insulation Victoria and the installer's business.
+    await expect(addJob(9, { input: { contact_permission: false } })).rejects.toThrow(/agreed to Home Insulation Victoria and .* contacting them/);
+    await expect(addJob(9, { input: { postcode: "2604" } })).rejects.toThrow(/Victorian/);
+    await expect(addJob(9, { electricianWorkerId: null })).rejects.toThrow(/Choose the electrician for the PIESA/);
+    // Join ruling: the pick is checked against the Team list BEFORE anything is written — an unapproved person, or one not on the Team, saves nothing.
+    await expect(addJob(9, { electricianWorkerId: WAITING_WORKER })).rejects.toThrow(/Waiting for office approval/);
+    await expect(addJob(9, { electricianWorkerId: "50000000-0000-4000-8000-00000000dead" })).rejects.toThrow(/Choose the electrician for the PIESA/);
+    expect(await q("select (select count(*) from jobs) j, (select count(*) from owners) o, (select count(*) from workflow_events) e")).toEqual(before);
   });
 });
 
-describe("2. Optional visit day + time (decisions 110, 116) and the 6:30am list", () => {
-  test("decision 116: Add a job WITH a day → booking confirmed, form created once with the booked date; job C without a day → no booking", async () => {
-    const r = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(2), { mode: "hivic" }, call, { leadOrigin: "owner_contacted", visit: { day: DAY_B, time: "14:00" } });
+describe("2. The electrician for the PIESA (Task 7) and the day entered later (decision 110)", () => {
+  test("Task 7: a verified Team electrician on a business that is not in_house → job created, allocation refused and logged, Ready Check form still created", async () => {
+    const r = await addJob(2);
     B = r.jobId;
-    expect(r.booking).toBe("confirmed");
     await settle();
-    const bk = await q<{ status: string; scheduled_start: Date; business_id: string }>("select status, scheduled_start, business_id from bookings where job_id=$1", [B]);
-    expect(bk).toHaveLength(1);
-    expect(bk[0]).toMatchObject({ status: "confirmed", business_id: BIZ });
-    expect(bk[0]!.scheduled_start.toISOString()).toBe(rct.readyCheckStartAt(DAY_B, "14:00").toISOString());
-    expect((await job(B))["stage"]).toBe("ready_check_scheduled");
+    expect(r.electrician).toBe("not_allocated");
+    expect(r.ownerFirstName).toBe("Helen");
+    expect(await q("select id from job_assignments where job_id=$1 and role='installer' and active", [B])).toHaveLength(1);
+    expect(await q("select id from job_assignments where job_id=$1 and role='electrician'", [B])).toHaveLength(0);
+    const ev = await events(B, "add_job_electrician_not_allocated");
+    expect(ev).toHaveLength(1);
+    expect(ev[0]!.details).toMatchObject({ worker_id: ELEC_WORKER, reason: "This job is not assigned to your business" });
     expect(await auditOf(B)).toBe("audit_2");
-    expect(mitti.calls.filter((c) => c === "POST /audits")).toHaveLength(2);
-    expect(mitti.audits.get("audit_2")!.items.map((i) => i.label)).toContain("Assessment date/time");
-    const c = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(3), { mode: "hivic" }, call, { leadOrigin: "owner_contacted" });
+    // The consent row carries the Task 7 record (who / purpose / methods) and the event the plan's details.
+    const consent = (await q<{ snapshot: Record<string, unknown> }>("select snapshot from owner_contact_consents where job_id=$1", [B]))[0]!.snapshot;
+    expect(consent["who"]).toEqual(["Home Insulation Victoria", "TEST Reinsulate"]);
+    expect((await events(B, "installer_contact_permission"))[0]!.details).toMatchObject({ for: "this job", how: ["phone", "visit"], recorded_by: "installer" });
+    const c = await addJob(3);
     C = c.jobId;
     await settle();
     expect(c.booking).toBe("none");
     expect(await q("select id from bookings where job_id=$1", [C])).toHaveLength(0);
     expect(await auditOf(C)).toBe("audit_3");
+  });
+  test("join ruling (go-live model, every installer in_house): the Team electrician picked at Add a job is put on the job — assignment + allocation event, form created", async () => {
+    await q("update businesses set in_house=true where id=$1", [BIZ]);
+    try {
+      const r = await addJob(4);
+      await settle();
+      expect(r.electrician).toBe("allocated");
+      expect(await q("select user_id, business_id from job_assignments where job_id=$1 and role='electrician' and active", [r.jobId])).toEqual([{ user_id: null, business_id: BIZ }]);
+      expect((await events(r.jobId, "in_house_electrician_allocated")).map((e) => e.details["worker_id"])).toEqual([ELEC_WORKER]);
+      expect(await events(r.jobId, "add_job_electrician_not_allocated")).toHaveLength(0);
+      expect((await job(r.jobId))["electrician_choice"]).toBe("preferred");
+      expect(await auditOf(r.jobId)).toBe("audit_4");
+      // The quote pipeline reads the same person: the allocated worker is the job's electrician.
+      const { allocatedWorkerId } = await import("../src/lib/in-house-electrician.server");
+      expect(await allocatedWorkerId(r.jobId)).toBe(ELEC_WORKER);
+    } finally { await q("update businesses set in_house=false where id=$1", [BIZ]); }
   });
   test("decision 110: the day entered later on job A becomes the booking; the existing form is kept (no second form)", async () => {
     const r = await tv.tradeSetReadyCheckTime(INST, A, { day: DAY_A, time: "09:00" }, new Date(), call);
@@ -278,17 +351,8 @@ describe("2. Optional visit day + time (decisions 110, 116) and the 6:30am list"
     expect(await q<{ status: string }>("select status from bookings where job_id=$1", [A])).toEqual([{ status: "confirmed" }]);
     expect((await job(A))["stage"]).toBe("ready_check_scheduled");
     expect(await auditOf(A)).toBe("audit_1");
-    expect(mitti.calls.filter((c) => c === "POST /audits")).toHaveLength(3); // A, B, C — nothing extra for the booking
+    expect(mitti.calls.filter((c) => c === "POST /audits")).toHaveLength(4); // A, B, C, the in-house job — nothing extra for the booking
     await expect(tv.tradeSetReadyCheckTime(INST, A, { day: DAY_A, time: "03:00" }, new Date(), call)).rejects.toThrow();
-  });
-  test("collectDay lists the booked jobs with their Mitti form links; the job without a day is not in any list", async () => {
-    const dayA = await daily.collectDay(melbourneDate(rct.readyCheckStartAt(DAY_A, "09:00")));
-    const dayB = await daily.collectDay(melbourneDate(rct.readyCheckStartAt(DAY_B, "14:00")));
-    const flat = (g: Awaited<ReturnType<typeof daily.collectDay>>) => g.flatMap((x) => x.jobs.map((j) => ({ biz: x.trade.businessId, jobId: j.jobId, link: j.link, street: j.street, status: j.status })));
-    expect(flat(dayA)).toEqual([{ biz: BIZ, jobId: A, link: expect.stringContaining("audit_1"), street: "1 Test Street", status: "confirmed" }]);
-    expect(flat(dayB)).toEqual([{ biz: BIZ, jobId: B, link: expect.stringContaining("audit_2"), street: "2 Test Street", status: "confirmed" }]);
-    for (const d of days) expect(flat(await daily.collectDay(d)).some((x) => x.jobId === C)).toBe(false);
-    expect(dayA[0]!.trade).toMatchObject({ mittiInvited: true, approved: true, linked: true, isTest: true });
   });
 });
 
@@ -307,7 +371,12 @@ describe("3. Complete in Mitti → quote prepared and released to the owner (TES
     expect(qs).toHaveLength(1);
     expect(qs[0]).toMatchObject({ status: "draft", option_code: "INSTALLER_A1", release_state: "held", sent_at: null, partner_business_id: BIZ });
     const lines = await q<{ code: string; line_total_inc_gst: string }>("select code, line_total_inc_gst from quote_items qi join quotes qq on qq.id = qi.quote_id where qq.job_id=$1 order by sort", [A]);
-    expect(lines).toEqual([{ code: "INSTALLER_PRICE", line_total_inc_gst: "2500" }, { code: "PIESA", line_total_inc_gst: "349" }, { code: "AP_FEE", line_total_inc_gst: "349" }]);
+    // Decision 431 + Jo 4 Nov 2026: the installer's price, the $349 fee, and the PIESA at the installer's OWN rate ($317.27 ex = $349 inc).
+    expect(lines).toEqual([{ code: "INSTALLER_PRICE", line_total_inc_gst: "2500" }, { code: "AP_FEE", line_total_inc_gst: "349" }, { code: "PIESA", line_total_inc_gst: "349" }]);
+    // Join ruling: the quote names the Team electrician picked at Add a job (the old form answer "Home Insulation Victoria electrician" is ignored).
+    const rec = await events(A, "mitti_electrician_recorded");
+    expect(rec).toHaveLength(1);
+    expect(rec[0]!.details).toMatchObject({ ready: true, choice: "usual", source: "team_worker", name: "Will Casdorff", licence: "A12345", priceIncGst: 349, workerId: ELEC_WORKER, recBusinessId: BIZ, choice_source: "team_electrician", declared_not_verified: false });
     expect(Number(qs[0]!["subtotal_inc_gst"])).toBe(3198);
     expect(Number(qs[0]!["veec_discount_inc_gst"])).toBeGreaterThan(0);
     expect(Number(qs[0]!["customer_total_inc_gst"])).toBe(3198 - Number(qs[0]!["veec_discount_inc_gst"]));
@@ -331,21 +400,19 @@ describe("3. Complete in Mitti → quote prepared and released to the owner (TES
   });
 });
 
-describe("4. 'My usual electrician' with none saved → held; saved later → the next tick releases (decision 113)", () => {
-  test("Complete with My usual electrician and no usual electrician on the business: no quote, reason recorded, job waits at the quote stage", async () => {
+describe("4. The Team electrician loses verification → held; verified again → the next tick releases (join ruling, decision 113)", () => {
+  test("Complete while the job's electrician is not verified by the office: no quote, the reason names them, job waits at the quote stage", async () => {
     // Decision 289: the electrician is chosen at Add a job and that recorded choice wins over any old form answer. Job C was
-    // added with no usual electrician saved (default = HIV), so stand in for a job whose owner chose "my usual electrician"
-    // at Add a job and whose usual electrician is not on file any more: the recorded choice is "usual".
-    expect(await events(C, "electrician_choice_set")).toHaveLength(1);
-    expect((await events(C, "electrician_choice_set"))[0]!.details["choice"]).toBe("hivic");
-    await q("insert into workflow_events (job_id, event_type, summary, details) values ($1, 'electrician_choice_set', 'test: chosen at Add a job', $2)", [C, JSON.stringify({ choice: "usual", source: "add_job" })]);
+    // added with Will Casdorff (Team); the office's verification stamp is then withdrawn before the form is completed.
+    expect((await events(C, "electrician_choice_set")).map((e) => e.details["worker_id"])).toEqual([ELEC_WORKER]);
+    await q("update partner_workers set licence_verified_at = null where id=$1", [ELEC_WORKER]);
     completeForm("audit_3", "My usual electrician");
     const r = await ms.syncMittiAssessment(C, null, call);
     expect(r.completed).toBe(true);
     expect(await q("select id from quotes where job_id=$1", [C])).toHaveLength(0);
     const held = await events(C, "installer_quote_held");
     expect(held).toHaveLength(1);
-    expect(held[0]!.details["blockers"]).toContain("Installer has no usual electrician saved");
+    expect(held[0]!.details["blockers"]).toContain("Electrician not verified: Will Casdorff (Licence + REC not verified by the office)");
     expect((await job(C))["stage"]).toBe("measured_estimate_ready"); // no booking: the Mitti hold moved it to scheduled, then the form completed it
     expect((await q<{ status: string }>("select status from ceiling_measurements where job_id=$1 and is_current", [C]))[0]!.status).toBe("complete");
     await mc.sweepCompletedMittiReadyChecks({ enabled: true, sendEnabled: true, call });
@@ -353,16 +420,25 @@ describe("4. 'My usual electrician' with none saved → held; saved later → th
     expect(await events(C, "installer_quote_held")).toHaveLength(1);
     expect(sent.filter((s) => s.label.startsWith("quote_ready"))).toHaveLength(2);
   });
-  // Decisions 303 / 353 / 369 (JO_DECISIONS_LOG, Jo 25 Oct 2026) replace the old "usual electrician's saved price" rule:
-  // an installer job's electrician is Home Insulation Victoria's or an APPROVED REC only, priced at its own onboarding
-  // rate; anyone else holds the quote ("Electrician not onboarded: <name>"). Saving "Sam Sparks" (not an onboarded REC)
-  // under My business therefore must NOT release a quote priced from the form/My business.
-  test("decisions 303/369: saving a usual electrician who is not an onboarded REC releases nothing — no quote, no owner message", async () => {
+  // Decisions 303 / 353 / 369 (JO_DECISIONS_LOG, Jo 25 Oct 2026) and the join ruling (4 Nov 2026): the job's electrician is
+  // the Team worker picked at Add a job. Saving a "usual electrician" under My business (Sam Sparks, not on the Team, not an
+  // onboarded REC) changes nothing on this job and must NOT release a quote.
+  test("decisions 303/369: saving a usual electrician under My business releases nothing — no quote, no owner message", async () => {
     await tv.tradeSaveUsualElectrician(INST, { name: "Sam Sparks", licence: "REC 12345", priceIncGst: 299 });
     await mc.sweepCompletedMittiReadyChecks({ enabled: true, sendEnabled: true, call });
     expect(await q("select id from quotes where job_id=$1 and status in ('issued','accepted')", [C])).toHaveLength(0);
     expect(await q("select qi.id from quote_items qi join quotes qq on qq.id = qi.quote_id where qq.job_id=$1 and qi.line_total_inc_gst = 299", [C])).toHaveLength(0);
     expect(await q("select id from job_communications where job_id=$1 and source_event like 'jo_tradie:quote_ready:%'", [C])).toHaveLength(0);
+  });
+  test("the office verifies the Team electrician again → the next tick drafts and releases the quote at the installer's PIESA rate", async () => {
+    await q("update partner_workers set licence_verified_at = now() where id=$1", [ELEC_WORKER]);
+    await mc.sweepCompletedMittiReadyChecks({ enabled: true, sendEnabled: true, call });
+    const qs = await q<Record<string, unknown>>("select id, status, release_state from quotes where job_id=$1", [C]);
+    expect(qs).toHaveLength(1);
+    expect(qs[0]).toMatchObject({ status: "issued", release_state: "released" });
+    expect(await q<{ code: string; line_total_inc_gst: string }>("select code, line_total_inc_gst from quote_items where quote_id=$1 and code='PIESA'", [qs[0]!["id"]])).toEqual([{ code: "PIESA", line_total_inc_gst: "349" }]);
+    expect(await q("select id from job_communications where job_id=$1 and source_event like 'jo_tradie:quote_ready:%'", [C])).toHaveLength(2);
+    expect((await events(C, "mitti_electrician_recorded")).at(-1)!.details).toMatchObject({ ready: true, source: "team_worker", name: "Will Casdorff", workerId: ELEC_WORKER });
   });
 });
 
@@ -383,7 +459,11 @@ describe("5. The owner accepts on the secure link (6-digit code, signed agreemen
     const signing = { signatoryName: "Helen Yang1", authorityType: "owner" as const, signatureName: "Helen Yang1", over18: true, readConsumerInfo: true, acceptAgreement: true, assistance: "none" as const };
     const ctx = { userId: s.userId, ip: "127.0.0.1", userAgent: "test", authorize: async (j: string) => { if (j !== s.jobId) throw new Error("This quote isn't on your job."); }, isOwner: async (j: string) => j === s.jobId };
     await expect(respondToQuoteImpl({ quoteId: qq!.id, accept: true, consent: true, expectedVersion: qq!.version + 1, signing } as never, ctx)).rejects.toThrow(/updated since/);
+    // Fix wave J1 (1), ruling 4 Nov 2026: the installer's PIESA rate changed AFTER the quote went out — the owner still accepts the quote they were sent.
+    await q("update rate_card_items set unit_price_ex_gst = 300 where rate_card_id = '60000000-0000-4000-8000-00000000ca7d'");
     expect(await respondToQuoteImpl({ quoteId: qq!.id, accept: true, consent: true, expectedVersion: qq!.version, signing } as never, ctx)).toEqual({ ok: true });
+    expect(await q<{ line_total_inc_gst: string }>("select line_total_inc_gst from quote_items where quote_id=$1 and code='PIESA'", [qq!.id])).toEqual([{ line_total_inc_gst: "349" }]); // never re-priced
+    await q("update rate_card_items set unit_price_ex_gst = 317.27 where rate_card_id = '60000000-0000-4000-8000-00000000ca7d'");
     expect((await q<Record<string, unknown>>("select status, accepted_by from quotes where id=$1", [qq!.id]))[0]).toEqual({ status: "accepted", accepted_by: s.userId });
     expect(await q("select id from customer_agreements where job_id=$1 and quote_id=$2 and signed_by=$3", [A, qq!.id, s.userId])).toHaveLength(1);
     expect(await q("select id from declarations where job_id=$1 and kind='owner_consent'", [A])).toHaveLength(1);
@@ -396,9 +476,10 @@ describe("5. The owner accepts on the secure link (6-digit code, signed agreemen
     expect(await q("select id from job_communications where job_id=$1 and source_event=$2", [A, `jo_tradie:installer_accepted:${qq!.id}`])).toHaveLength(0);
     expect(await events(A, "installer_accepted_email")).toHaveLength(0);
     expect(xero).toEqual([qq!.id]);
-    // Accepting twice is refused; nothing doubles.
-    await expect(respondToQuoteImpl({ quoteId: qq!.id, accept: true, consent: true, expectedVersion: qq!.version, signing } as never, ctx)).rejects.toThrow(/no longer open/);
+    // Accepting twice (the same version replayed, e.g. a retried tap) is a no-op; nothing doubles.
+    expect(await respondToQuoteImpl({ quoteId: qq!.id, accept: true, consent: true, expectedVersion: qq!.version, signing } as never, ctx)).toEqual({ ok: true, outcome: "already accepted" });
     expect(await q("select id from customer_agreements where job_id=$1", [A])).toHaveLength(1);
+    expect(await events(A, "QUOTE_ACCEPTED")).toHaveLength(1);
   });
 });
 
@@ -409,7 +490,7 @@ describe("5. The owner accepts on the secure link (6-digit code, signed agreemen
 describe("6. HV-3151: an installer job parked at 'estimate sent' still gets its form on the next tick", () => {
   test("stage preliminary_estimate_ready + a stage refusal 10 minutes ago → the sweep makes ONE form and the job waits on the installer", async () => {
     await q("update workflow_settings set auto_send_mitti=false where id=1"); // keep Add a job from making the form so the sweep is what's tested
-    const r = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(9), { mode: "hivic" }, call, { leadOrigin: "owner_contacted" });
+    const r = await addJob(9);
     expect(r.formCreation).toBe("skipped");
     await settle();
     await q("update workflow_settings set auto_send_mitti=true where id=1");
@@ -448,7 +529,7 @@ describe("Jo 27 Oct completed Ready Check edit recovery", () => {
   });
   test("completed 75m² removal edit refreshes current measurement then redrafts a held quote once, without sends", async () => {
     const beforeSends = sent.length;
-    const added = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(20), { mode: "hivic" }, call, { leadOrigin: "owner_contacted", electricianChoice: "hivic" });
+    const added = await addJob(20);
     const auditId = await auditOf(added.jobId);
     if (!auditId) throw new Error("No fixture audit");
     completeForm(auditId, "Home Insulation Victoria electrician");
@@ -493,7 +574,7 @@ describe("7. A2 (Jo 28 Oct): Add a job at an HIV-lead address", () => {
       return j!;
     };
     const lead = await seed(77, "hivic_sourced");
-    const r = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(77), { mode: "hivic" }, call, { leadOrigin: "owner_contacted" });
+    const r = await addJob(77);
     expect(r.jobId).not.toBe(lead.id);
     const flags = await q<{ summary: string; details: Record<string, unknown>; internal: boolean }>("select summary, details, internal from workflow_events where job_id=$1 and event_type='duplicate_address_linked'", [r.jobId]);
     expect(flags).toHaveLength(1);
@@ -504,7 +585,7 @@ describe("7. A2 (Jo 28 Oct): Add a job at an HIV-lead address", () => {
 
     const other = await seed(78, "installer_sourced");
     const before = (await q("select id from jobs")).length;
-    await expect(os.startOnsiteReadyCheckFor(INST, BIZ, owner(78), { mode: "hivic" }, call, { leadOrigin: "owner_contacted" })).rejects.toThrow(/already has an open job/);
+    await expect(addJob(78)).rejects.toThrow(/already has an open job/);
     expect((await q("select id from jobs")).length).toBe(before);
     expect(await q("select id from workflow_events where job_id=$1 and event_type='duplicate_address_linked'", [other.id])).toHaveLength(1);
   });
@@ -514,9 +595,9 @@ describe("8. A2 fix: a second Add a job at an address that already has an instal
   test("lead + first installer job at the address → a second Add a job is refused, no extra job", async () => {
     const [p] = await q<{ id: string }>("insert into properties (address_line, suburb, postcode, state) values ('88 Test Street','Frankston','3199','VIC') returning id");
     await q("insert into jobs (property_id, stage, source, channel) values ($1,'enquiry','qa_test','hivic_sourced')", [p!.id]);
-    await os.startOnsiteReadyCheckFor(INST, BIZ, owner(88), { mode: "hivic" }, call, { leadOrigin: "owner_contacted" }); // A2 save
+    await addJob(88); // A2 save
     const before = (await q("select id from jobs")).length;
-    await expect(os.startOnsiteReadyCheckFor(INST, BIZ, owner(88), { mode: "hivic" }, call, { leadOrigin: "owner_contacted" })).rejects.toThrow(/already has an open job/);
+    await expect(addJob(88)).rejects.toThrow(/already has an open job/);
     expect((await q("select id from jobs")).length).toBe(before);
   });
 });
@@ -524,9 +605,9 @@ describe("8. A2 fix: a second Add a job at an address that already has an instal
 describe("9. A6: the signal drops after the save, then Try again", () => {
   test("same request key twice → the same job number, no second job, no extra records", async () => {
     const key = "6f1c2c1e-6a77-4b55-9d0e-2f3b1c9a0a99";
-    const a = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(99), { mode: "hivic" }, call, { leadOrigin: "owner_contacted", requestKey: key });
+    const a = await addJob(99, { requestKey: key });
     const before = await q("select (select count(*) from jobs) j, (select count(*) from owners) o, (select count(*) from owner_contact_consents) c, (select count(*) from workflow_events where event_type in ('installer_job_added','installer_contact_permission','electrician_choice_set')) e");
-    const b = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(99), { mode: "hivic" }, call, { leadOrigin: "owner_contacted", requestKey: key });
+    const b = await addJob(99, { requestKey: key });
     expect(b.jobId).toBe(a.jobId); expect(b.jobNumber).toBe(a.jobNumber);
     expect(await q("select (select count(*) from jobs) j, (select count(*) from owners) o, (select count(*) from owner_contact_consents) c, (select count(*) from workflow_events where event_type in ('installer_job_added','installer_contact_permission','electrician_choice_set')) e")).toEqual(before);
     expect(await q("select external_enquiry_id from jobs where id=$1", [a.jobId])).toEqual([{ external_enquiry_id: `onsite:${key}` }]);
@@ -536,11 +617,25 @@ describe("9. A6: the signal drops after the save, then Try again", () => {
     try {
       const [p] = await q<{ id: string }>("insert into properties (address_line, suburb, postcode, state) values ('98 Test Street','Frankston','3199','VIC') returning id");
       await q("insert into jobs (property_id, stage, source, channel) values ($1,'enquiry','qa_test','hivic_sourced')", [p!.id]);
-      const r = await os.startOnsiteReadyCheckFor(INST, BIZ, owner(98), { mode: "hivic" }, call, { leadOrigin: "owner_contacted", requestKey: "6f1c2c1e-6a77-4b55-9d0e-2f3b1c9a0a98" });
+      const r = await addJob(98, { requestKey: "6f1c2c1e-6a77-4b55-9d0e-2f3b1c9a0a98" });
       expect((await q<{ event_type: string }>("select event_type from workflow_events where job_id=$1 and event_type in ('electrician_choice_set','duplicate_address_linked','installer_job_added','installer_contact_permission') order by created_at", [r.jobId])).map((e) => e.event_type))
         .toEqual(["electrician_choice_set", "duplicate_address_linked", "installer_job_added", "installer_contact_permission"]);
       expect(await q("select consent_status from owner_contact_consents where job_id=$1", [r.jobId])).toEqual([{ consent_status: "granted" }]);
-      expect(await q("select electrician_choice from jobs where id=$1", [r.jobId])).toEqual([{ electrician_choice: "hivic_organise" }]);
+      // Both save paths record the same electrician: the Team worker as the job's own electrician (payer "preferred").
+      expect(await q("select electrician_choice from jobs where id=$1", [r.jobId])).toEqual([{ electrician_choice: "preferred" }]);
+      expect((await events(r.jobId, "electrician_choice_set"))[0]!.details).toMatchObject({ choice: "usual", worker_id: ELEC_WORKER, usual_name: "Will Casdorff", declared_not_verified: false });
     } finally { atomicDeployed = true; }
+  });
+  test("J3 (1): on the step-by-step save a Team read that fails AFTER the job is written does not throw the job away — consent row + events are all saved", async () => {
+    atomicDeployed = false; failWorkersAfterJobInsert = true; jobInserted = false;
+    try {
+      const r = await addJob(97, { requestKey: "6f1c2c1e-6a77-4b55-9d0e-2f3b1c9a0a97" });
+      expect(r.jobId).toBeTruthy();
+      expect(await q("select consent_status from owner_contact_consents where job_id=$1", [r.jobId])).toEqual([{ consent_status: "granted" }]);
+      expect((await q<{ event_type: string }>("select event_type from workflow_events where job_id=$1 and event_type in ('electrician_choice_set','installer_job_added','installer_contact_permission') order by created_at", [r.jobId])).map((e) => e.event_type))
+        .toEqual(["electrician_choice_set", "installer_job_added", "installer_contact_permission"]);
+      expect(await q("select electrician_choice from jobs where id=$1", [r.jobId])).toEqual([{ electrician_choice: "preferred" }]);
+      expect(await q("select count(*)::int as n from jobs where external_enquiry_id=$1", ["onsite:6f1c2c1e-6a77-4b55-9d0e-2f3b1c9a0a97"])).toEqual([{ n: 1 }]);
+    } finally { atomicDeployed = true; failWorkersAfterJobInsert = false; }
   });
 });

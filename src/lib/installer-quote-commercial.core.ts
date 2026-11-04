@@ -51,10 +51,10 @@ export function commercialInputProblems(c: QuoteCommercial, removal: RemovalQuot
  * boundaries, never at job creation. A null record (historic job) needs clarification — never assumed gross.
  */
 export function commercialBlockers(c: QuoteCommercial | null, removal: RemovalQuote | null): string[] {
-  if (!c) return ["Clarify the installer quote: price basis (before VEU discount?), GST and removal pricing are not recorded"];
+  if (!c) return ["Clarify the installer quote: price basis (before the rebate?), GST and removal pricing are not recorded"];
   const b: string[] = [];
-  if (c.basis === "after_discount") b.push("The installer quote is already discounted — enter the price before the VEU discount so the discount is applied once");
-  else if (c.basis !== "before_discount") b.push("Confirm the installer quote is the price before the VEU discount");
+  if (c.basis === "after_discount") b.push("The installer quote is already discounted — enter the price before the rebate so the discount is applied once");
+  else if (c.basis !== "before_discount") b.push("Confirm the installer quote is the price before the rebate");
   if (c.gst === "ex_gst") b.push("The installer quote is ex GST — enter the amount including GST (GST is never calculated for you)");
   else if (c.gst !== "inc_gst") b.push("Confirm the installer quote amount includes GST");
   if (removal?.answer === "yes") {
