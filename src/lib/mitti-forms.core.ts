@@ -205,7 +205,7 @@ export const FORMS: Record<FormKey, { title: string; role: "installer" | "electr
 /** Distinct questions an installer can be asked on a lean Ready Check (per-area group counted once; legacy-only items excluded).
  *  `beforeDecision`: the count on a template built before that decision's paste-prompt additions (e.g. 359 → 34 / 35). */
 export function leanQuestionCount(key: "ready_check" | "ready_check_priced", opts: { beforeDecision?: number } = {}): number {
-  return FORMS[key].fields.filter((f) => !f.portalOnly && !(opts.beforeDecision != null && f.addedByDecision != null && f.addedByDecision >= opts.beforeDecision)).length;
+  return FORMS[key].fields.filter((f) => !f.portalOnly && f.type !== 'statement' && !(opts.beforeDecision != null && f.addedByDecision != null && f.addedByDecision >= opts.beforeDecision)).length;
 }
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();

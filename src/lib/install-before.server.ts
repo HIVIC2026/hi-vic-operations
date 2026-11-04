@@ -15,7 +15,7 @@ export async function readInstallBeforePlan(jobId:string) {
   const isBefore=(r:{label:string;category:string})=>r.category==='before_ceiling_space'||/before|original condition|existing.*depth|old.*insulation.*(?:ruler|backing)/i.test(r.label);
   const beforeRejected=matching.some(r=>r.status==='rejected'&&isBefore(r));
   const accepted=matching.some(r=>r.status==='verified'&&r.category==='before_ceiling_space');
-  return {name,beforeVideo:accepted||z['beforeVideo']===true,wholeAreaPhoto:accepted||z['wholeAreaPhoto']===true,backingPhoto:accepted||z['backingPhoto']===true,depthPhoto:accepted||z['depthPhoto']===true,present:typeof z['present']==='boolean'?z['present']:null,rejected:beforeRejected};
+  return {name,beforeVideo:accepted||z['beforeVideo']===true,wholeAreaPhoto:accepted||z['wholeAreaPhoto']===true,backingPhoto:accepted||z['backingPhoto']===true,depthPhoto:accepted||z['depthPhoto']===true,present:typeof z['present']==='boolean'?z['present']:z['existing']==='none'?false:z['existing']==='present'?true:null,rejected:beforeRejected};
  });
  return installBeforePlan(m?.external_source==='mitti'&&!!m.external_id,areas);
 }

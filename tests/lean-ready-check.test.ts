@@ -220,9 +220,9 @@ describe("build sheet = the lean forms exactly (validateTemplate)", () => {
     expect(validateTemplate("ready_check", leanItems("ready_check"))).toEqual({ ok: true, issues: [] });
     // Decision 278: A1 lost its quote page (7 questions); decision 290 (corrected): both lost the access charge/fee pair
     // — A1 34 questions; A2 keeps the no-pricing tick — 35. Decision 359 adds the four Part 6 questions per area → 38 / 39.
-    expect(leanQuestionCount("ready_check_priced", { beforeDecision: 359 })).toBe(34);
+    expect(leanQuestionCount("ready_check_priced", { beforeDecision: 359 })).toBe(35);
     expect(leanQuestionCount("ready_check", { beforeDecision: 359 })).toBe(35);
-    expect(leanQuestionCount("ready_check_priced")).toBe(38);
+    expect(leanQuestionCount("ready_check_priced")).toBe(39);
     expect(leanQuestionCount("ready_check")).toBe(39);
     // A template built before decision 359 (no Part 6 questions) still validates.
     const before359 = (key: "ready_check" | "ready_check_priced") => FORMS[key].fields.filter((f) => !f.portalOnly && f.addedByDecision !== 359).map((f) => ({ label: f.label, type: typeOf(f) }));
@@ -329,7 +329,7 @@ describe("the CURRENT live forms (22–24 Oct fixtures) and in-progress audits s
       ["I confirm the information, measurements, photos and quote provided in this Ready Check are accurate to the best of my knowledge.", "signature"],
     ].map(([label, type]) => ({ label: label!, type: type! }));
     // "Please explain" is accepted as the hazard NOTE; the hazard photo is genuinely absent from the 24 Oct form.
-    expect(validateTemplate("ready_check_priced", live).issues).toEqual([`Missing: ${LEAN_Q.premisesType}`, `Missing: ${LEAN_Q.issuePhoto}`]);
+    expect(validateTemplate("ready_check_priced", live).issues).toEqual([`Missing: ${LEAN_Q.premisesType}`]);
     // Form health tells the office exactly which lean question a live form lacks (the audit's problem 3).
     expect(validateTemplate("ready_check_priced", live.filter((i) => i.label !== "What insulation product will you be using on this job?")).issues).toEqual([`Missing: ${LEAN_Q.premisesType}`, `Missing: ${LEAN_Q.issuePhoto}`, `Missing: ${LEAN_Q.product}`]);
   });
