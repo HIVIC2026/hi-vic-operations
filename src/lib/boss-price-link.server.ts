@@ -13,6 +13,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import { BOSS_PRICE_LINK_EVENT, bossPriceLink, bossPriceLinkBlocker, bossPriceLinkKey, bossPriceLinkText } from "./boss-price-link.core";
 import { ENTER_PRICE_EMAIL_APPROVED, ENTER_PRICE_EMAIL_HELD_EVENT, ENTER_PRICE_EMAIL_PURPOSE, enterPriceEmailKey, enterPriceEmailPlan, enterPriceFacts, enterPriceFresh, renderEnterPriceEmail } from "./enter-price-email.core";
+import { a1ReadyToPrice } from './ready-check-lean.core';
 
 type JobRow = { id: string; job_number: string; source: string | null; channel: string | null; deleted_at: string | null; originating_installer_business_id: string | null; properties: { address_line: string | null; suburb: string | null; postcode: string | null } | null; owners: { full_name: string | null } | null };
 type BizRow = { id: string; name: string | null; signer_name: string | null; signer_mobile: string | null; phone: string | null; email: string | null; onboarding_notes: string | null };
@@ -20,6 +21,7 @@ type Entry = { label: string; value: unknown };
 
 export async function textBossPriceLink(jobId: string, i: { auditId: string; completedAt: string | null; entries?: Entry[] | undefined }, opts: { emailApproved?: boolean } = {}): Promise<string> {
   try {
+    if (!a1ReadyToPrice(i.entries ?? [])) return 'skipped: ready-to-price confirmation is not ticked';
     const { data: job } = await admin.from("jobs").select("id, job_number, source, channel, deleted_at, originating_installer_business_id, properties(address_line, suburb, postcode), owners(full_name)").eq("id", jobId).maybeSingle();
     const j = job as unknown as JobRow | null;
     if (!j) return "skipped: job not found";

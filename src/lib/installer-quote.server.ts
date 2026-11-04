@@ -76,7 +76,9 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
     return { ready: false, blockers: stops, lines: [], subtotal: 0, discount: 0, afterDiscount: 0, discountNote: null };
   }
   const mittiElectrician = !intakePrice ? await (await import("./usual-electrician.server")).mittiElectricianForJob(jobId, actorId, entries, auditId) : null;
-  const mittiProduct = !intakePrice ? await (await import("./insulation-product.server")).mittiProductForJob(jobId, actorId, entries, auditId) : null;
+  // Jo 4 Nov follow-up: a new-wording Ready Check with the boss's per-area picks (brand + batts chosen on the price link).
+  const a1Layout = !intakePrice ? await a1LayoutForJob(jobId) : null;
+  const mittiProduct = !intakePrice && !a1Layout ? await (await import("./insulation-product.server")).mittiProductForJob(jobId, actorId, entries, auditId) : null;
 
   const { data: m } = await admin.from("ceiling_measurements").select("measured_area_m2, verified_area_m2, removal_required").eq("job_id", jobId).eq("is_current", true).maybeSingle();
   const m2 = (m ? Number(m.verified_area_m2 ?? m.measured_area_m2) || null : null) ?? intakePrice?.areaM2 ?? null; // intake: provisional installer scope
@@ -124,11 +126,23 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
     const { applyMittiProduct } = await import("./mitti-installer-quote.core");
     applyMittiProduct(draft, mittiProduct, m2);
   }
+  const accessIncluded = !intakePrice && (answers.a1DifficultAccessIncluded(entries) || !!accessFee.amountIncGst);
   if (!intakePrice) {
-    const { applyMittiRemoval } = await import("./mitti-installer-quote.core");
-    applyMittiRemoval(draft, answers.removalTotalM2(entries));
-    (await import("./mitti-installer-quote.core")).applyMittiAccessFeeIncluded(draft, answers.a1DifficultAccessIncluded(entries) || !!accessFee.amountIncGst, accessFee.amountIncGst);
+    const mq = await import("./mitti-installer-quote.core");
+    if (a1Layout) applyA1Wording(draft, a1Layout.mainLines);
+    else mq.applyMittiRemoval(draft, answers.removalTotalM2(entries));
+    mq.applyMittiAccessFeeIncluded(draft, accessIncluded, accessFee.amountIncGst);
   }
+  // The owner's "thicker too" option: the same builder at the boss's thicker total, same electrician/fees, its own rebate.
+  const buildThicker = async () => {
+    if (!a1Layout?.thicker || !(a1Layout.thickerTotal && a1Layout.thickerTotal > 0) || !draftInput.price.ok || !draftInput.price.price) return null;
+    const input = { ...draftInput, price: { ...draftInput.price, price: { ...draftInput.price.price, totalIncGst: Math.round(a1Layout.thickerTotal * 100) / 100 } } };
+    // Decision 431 (join): the thicker option carries the same own-customer PIESA line as the main draft (the business's own rate, never $349).
+    const t = mittiElectrician ? quoteCore.buildMittiInstallerQuote(input, mittiElectrician) : quoteCore.buildOwnCustomerQuoteDraft(input, listPiesa);
+    applyA1Wording(t, a1Layout.thickerLines);
+    (await import("./mitti-installer-quote.core")).applyMittiAccessFeeIncluded(t, accessIncluded, accessFee.amountIncGst);
+    return t;
+  };
   if (!draft.ready) {
     if (mittiProduct && !mittiProduct.ready) await (await import("./ready-check-quote.server")).recordNeedsOffice(jobId, actorId, null, mittiProduct.reasons);
     if (mittiElectrician?.needsProfile) {
@@ -189,6 +203,7 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
       if (se) throw new Error("Could not check the quote electrician snapshot.");
       if (!snapshot) await logEvent(jobId, actorId, "mitti_quote_electrician_snapshot", "Ready Check quote electrician price and identity snapshot retained", { quote_id: same.id, electrician: mittiElectrician }, { internal: true });
     }
+    await syncThickerDraft(jobId, actorId, a1Layout, await buildThicker(), holdReason, open ?? []);
     return draft;
   }
   await admin.from("quotes").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "installation").eq("status", "draft");
@@ -203,5 +218,55 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   if (ie) throw new Error(ie.message);
   await logEvent(jobId, actorId, "installer_quote_drafted", `Installer-supplied owner quote drafted — held: ${holdReason}`, { audit_id: auditId, quote_id: q.id, total: draft.subtotal, discount: draft.discount, release_state: "held" }, { internal: true });
   if (mittiElectrician) await logEvent(jobId, actorId, "mitti_quote_electrician_snapshot", "Ready Check quote electrician price and identity snapshot retained", { quote_id: q.id, electrician: mittiElectrician }, { internal: true });
+  await syncThickerDraft(jobId, actorId, a1Layout, await buildThicker(), holdReason, []);
   return draft;
+}
+
+type A1Layout = { mainLines: string[]; thickerLines: string[]; thicker: 6 | 7 | null; thickerTotal: number | null };
+/** The boss's saved per-area picks (latest price event) on the CURRENT new-wording Ready Check; null on old forms. */
+async function a1LayoutForJob(jobId: string): Promise<A1Layout | null> {
+  const [{ data: m, error: me }, { data: ev, error: ee }] = await Promise.all([
+    admin.from("ceiling_measurements").select("zones").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
+    admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "installer_price_set").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  if (me || ee) throw new Error("The Ready Check or the installer's price could not be read.");
+  const zones = Array.isArray((m as { zones?: unknown } | null)?.zones) ? (m as { zones: { layout?: unknown }[] }).zones : [];
+  const areas = zones.map((z) => z?.layout).filter(Boolean) as import("./ceiling-layout.core").LayoutArea[];
+  const layout = (ev?.details as { layout?: { mainPicks?: import("./ceiling-layout.core").A1Pick[]; thickerPicks?: import("./ceiling-layout.core").A1Pick[]; thickerTotalIncGst?: number | null; thicker?: 6 | 7 | null } } | null)?.layout;
+  if (!areas.length || !layout) return null;
+  const { a1QuoteLines } = await import("./ceiling-layout.core");
+  return { mainLines: a1QuoteLines(areas, layout.mainPicks ?? []), thickerLines: a1QuoteLines(areas, layout.thickerPicks ?? []), thicker: layout.thicker ?? null, thickerTotal: layout.thickerTotalIncGst ?? null };
+}
+
+/** Jo 4 Nov follow-up: the installer's line shows one exact line per area (and per removal), never "about". */
+function applyA1Wording(draft: { lines: { code: string | null; description: string }[] }, lines: string[]) {
+  const line = draft.lines.find((l) => l.code === "INSTALLER_PRICE");
+  if (line && lines.length) line.description = lines.join("\n");
+}
+
+/** Keeps exactly one held thicker-option draft next to the main draft (same signature → untouched). Never sends. */
+async function syncThickerDraft(jobId: string, actorId: string | null, layout: A1Layout | null, t: ReturnType<typeof import("./mitti-installer-quote.core").buildOwnCustomerQuoteDraft> | null, holdReason: string, open: { id: string; status: string; option_code: string | null; subtotal_inc_gst: unknown; veec_discount_inc_gst: unknown; discount_note?: string | null }[]) {
+  const { A1_THICKER_CODE, rLabel } = await import("./ceiling-layout.core");
+  const existing = open.filter((q) => q.status === "draft" && q.option_code === A1_THICKER_CODE);
+  if (!t || !layout?.thicker) {
+    if (existing.length) await admin.from("quotes").update({ status: "superseded" }).in("id", existing.map((q) => q.id)).eq("status", "draft");
+    return;
+  }
+  const sig = quoteLineSignature(t.lines, t.discountNote);
+  for (const q of existing) {
+    if (Number(q.subtotal_inc_gst) !== t.subtotal || Number(q.veec_discount_inc_gst) !== t.discount) continue;
+    const { data: items } = await admin.from("quote_items").select("code, line_total_inc_gst, description, quantity, unit, unit_price_inc_gst, explanation, is_other").eq("quote_id", q.id);
+    if (quoteLineSignature(items ?? [], q.discount_note) === sig) { await admin.from("quotes").update({ release_hold_reason: holdReason }).eq("id", q.id).eq("status", "draft"); return; }
+  }
+  if (existing.length) await admin.from("quotes").update({ status: "superseded" }).in("id", existing.map((q) => q.id)).eq("status", "draft");
+  const { data: q, error } = await admin.from("quotes").insert({
+    job_id: jobId, kind: "installation", option_label: `Thicker option – ${rLabel(layout.thicker)} total`, option_code: A1_THICKER_CODE, status: "draft", sent_at: null,
+    release_state: "held", release_hold_reason: holdReason,
+    subtotal_inc_gst: t.subtotal, gst_amount: Math.round((t.subtotal - t.subtotal / 1.1) * 100) / 100,
+    veec_discount_inc_gst: t.discount, discount_note: t.discountNote, customer_total_inc_gst: t.afterDiscount, created_by: actorId,
+  }).select("id").single();
+  if (error || !q) throw new Error(error?.message ?? "Thicker option could not be saved.");
+  const { error: ie } = await admin.from("quote_items").insert(t.lines.map((l) => ({ ...l, quote_id: q.id })));
+  if (ie) throw new Error(ie.message);
+  await logEvent(jobId, actorId, "installer_quote_drafted", `Thicker ${rLabel(layout.thicker)} option drafted — held: ${holdReason}`, { quote_id: q.id, total: t.subtotal, discount: t.discount, release_state: "held", option: "thicker" }, { internal: true });
 }

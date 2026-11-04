@@ -381,7 +381,7 @@ function run(c: Case) {
         `Case ${c.n}: A4 sample is not a complete fixes form: ${JSON.stringify(plan)}`,
       );
     snapshot = mergeFixesIntoPiesaSnapshot(snapshot, c.fixes.read, plan);
-    today = plan.certDate; // regenerateOfficialPiesa passes today = certification date
+    today = plan.certificate?.date ?? c.fixes.completedOn; // regenerateOfficialPiesa passes today = certification date (else the day the form was signed)
   }
   const short = shortAnswersFromEntries("piesa", snapshot);
   // The regenerated PIESA right after the A4 form (the owner has not confirmed the fixes yet) …

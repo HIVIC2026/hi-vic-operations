@@ -31,7 +31,7 @@ export type PaymentStepKey = "safety_check" | "fixes" | "install_deposit" | "bal
 export const PAYMENT_STEP_ORDER: PaymentStepKey[] = ["safety_check", "repeat_safety_check", "fixes", "install_deposit", "balance"];
 export const PAYMENT_STEP_LABEL: Record<PaymentStepKey, string> = {
   safety_check: "Pre Insulation Electrical Safety Assessment (PIESA) payment",
-  fixes: "Electrical fixes",
+  fixes: "Electrical upgrades",
   install_deposit: "Install deposit (10%)",
   balance: "Balance (due on install day)",
   repeat_safety_check: "Repeat safety check (PIESA)",
@@ -171,7 +171,7 @@ export function installDepositBlocker(plan: Pick<PaymentPlan, "installDepositCen
 }
 
 /** Decision 366: the fixes visit is booked only once the fixes are paid in full (card or bank transfer) on the newest fixes invoice. */
-export const FIXES_NOT_PAID_BLOCKER = "The electrical fixes must be paid in full before the fixes visit is booked.";
+export const FIXES_NOT_PAID_BLOCKER = "The electrical upgrades must be paid in full before the upgrades visit is booked.";
 /** The fixes invoice is paid in full (nothing to pay counts as paid). */
 export const fixesInvoicePaid = (totalCents: number, paidCents: number) => Math.round(totalCents) <= 0 || Math.round(paidCents) >= Math.round(totalCents);
 export function fixesPaymentBlocker(plan: Pick<PaymentPlan, "fixesCents">, steps: PaymentStep[]): string | null {

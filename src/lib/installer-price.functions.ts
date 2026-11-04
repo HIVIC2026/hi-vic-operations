@@ -28,6 +28,12 @@ export const setInstallerPriceFn = createServerFn({ method: "POST" })
         productOption: z.string().max(80).optional().nullable(),
         notes: z.string().max(1000).optional().nullable(),
         send: z.boolean().optional(),
+        // Jo 4 Nov 2026: per-area brand + batts (approved products only, checked on the server) and the thicker total.
+        layout: z.object({
+          mainPicks: z.array(z.object({ brand: z.enum(["Bradford Gold", "Pink Batts", "Earthwool", "Ecowool"]), r: z.number().min(0).max(10) }).nullable()).max(30),
+          thickerPicks: z.array(z.object({ brand: z.enum(["Bradford Gold", "Pink Batts", "Earthwool", "Ecowool"]), r: z.number().min(0).max(10) }).nullable()).max(30).optional(),
+          thickerTotalIncGst: z.number().positive().max(1_000_000).optional().nullable(),
+        }).optional().nullable(),
         // Decision 289: no electrician fields — chosen once at Add a job.
       })
       .parse(d),

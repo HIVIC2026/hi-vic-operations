@@ -63,8 +63,18 @@ function seed(values: Record<string, string>, mediaIds: string[], docs = mediaId
 }
 const events = (type: string) => tables["workflow_events"]!.filter((e) => e["event_type"] === type);
 const evRows = () => tables["workflow_events"]!.map((e) => ({ id: String(e["id"]), event_type: String(e["event_type"]), created_at: String(e["created_at"]), details: e["details"] as Record<string, unknown> }));
-const coesBlocked = async () => (await stageEntryBlockers(J, "installation_booked")).filter((b) => b.startsWith(LINE));
+// Part 3 Task 4 (Jo 3 Nov 2026): the certificate check is unchanged, but it is no longer an install-BOOKING gate — the
+// day-before pre-start check reads it. "Blocked" below = the check's own line (coesBlockerFor), which the pre-start uses.
+const coesBlocked = async () => [await server.coesBlockerFor(J)].filter((b): b is string => !!b && b.startsWith(LINE));
 const reply = (verdict: string, quote: string | null) => JSON.stringify({ verdict, quote });
+
+describe("Part 3 Task 4: booking the install is not gated by the certificate", () => {
+  test("repairs done, certificate not checked → the check still says so, but entering installation_booked carries no certificate blocker", async () => {
+    seed(repaired(), ["m1"]);
+    expect(await coesBlocked()).toEqual([`${LINE}${core.COES_WHY.not_checked}`]);
+    expect((await stageEntryBlockers(J, "installation_booked")).filter((b) => b.startsWith(LINE))).toEqual([]);
+  });
+});
 
 describe("pure: verdict, wording, Needs me row", () => {
   test("model reply → verdict (JSON, fenced JSON); ceiling_work needs a quote; anything else is unsure", () => {
@@ -438,5 +448,25 @@ describe("wiring", () => {
     for (const name of ["tickCoes", "rejectCoes", "recheckCoes"])
       expect(fns).toMatch(new RegExp(`export const ${name} = createServerFn\\(\\{ method: "POST" \\}\\)\\.middleware\\(\\[requireSupabaseAuth\\]\\)\\s*\\.inputValidator\\(`));
     expect(fns.match(/requireAdmin\(context\.supabase\)/g)?.length).toBe(3);
+  });
+});
+
+describe("Part 3 Task 5: no Tick/Reject row while no certificate file is on the job (the 4-business-day chase covers it)", () => {
+  test("repairs done, no file → no live row at installation_scheduling (Tick would refuse); the check itself still blocks", async () => {
+    seed(repaired(), []);
+    expect(await server.coesNeedsFor(J)).toBeNull();
+    expect((await server.coesNeedsForJobs([{ id: J, stage: "installation_scheduling" }], new Map())).get(J) ?? null).toBeNull();
+    expect((await coesBlocked()).length).toBe(1);
+  });
+  test("a check that found no file (event files: []) → no row at other stages either; a file brings the row back", async () => {
+    seed(repaired(), []);
+    await server.checkCurrentCoes(J, null);
+    const ev = evRows();
+    expect(ev.at(-1)!.details).toMatchObject({ files: [] });
+    expect((await server.coesNeedsForJobs([{ id: J, stage: "installation_booked" }], new Map([[J, ev]]))).get(J) ?? null).toBeNull();
+    seed(repaired(), ["m1"]);
+    ai.reply = reply("unsure", null);
+    await server.checkCurrentCoes(J, null);
+    expect((await server.coesNeedsForJobs([{ id: J, stage: "installation_booked" }], new Map([[J, evRows()]]))).get(J)).toMatchObject({ why: core.COES_WHY.unsure });
   });
 });

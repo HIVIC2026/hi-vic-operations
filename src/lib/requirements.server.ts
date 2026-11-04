@@ -62,8 +62,9 @@ export async function advanceSiteRequirements(jobId: string, actorId: string) {
     await admin.from("evidence_requirements").update({ required: true, status: "outstanding" }).eq("job_id", jobId).eq("category", "rectification_completion");
     await transition(jobId, "rectification_required", actorId, `${rectCount} electrical fixes item(s) required`);
     if (rectCount > 0) {
-      await generateRectificationQuote(jobId, actorId);
-      await transition(jobId, "awaiting_owner_rectification_approval", actorId, "Electrical fixes quote issued to owner");
+      // Part 3 Task 1: no quote is built (the electrician bills the upgrades), so the job stays at rectification_required.
+      const quote = await generateRectificationQuote(jobId, actorId);
+      if (typeof quote === "string") await transition(jobId, "awaiting_owner_rectification_approval", actorId, "Electrical fixes quote issued to owner");
     }
   } else {
     await admin.from("compliance_checks").update({ status: "pass" }).eq("job_id", jobId).eq("check_key", "rectification");

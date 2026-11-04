@@ -21,6 +21,8 @@ ALTER TABLE quotes ENABLE ROW LEVEL SECURITY; GRANT SELECT ON quotes, quote_item
 CREATE POLICY quote_visibility ON quotes FOR SELECT TO authenticated USING (true);
 CREATE TABLE workflow_settings (piesa_install_window_days int, urgency_red_days int, urgency_amber_days int);
 CREATE TABLE piesa_records (job_id uuid, completed_date date, outcome text, is_current boolean);
+-- The live one-current-record-per-job index (drizzle/migrations/0000_hivic_core_schema.sql:176).
+create unique index if not exists piesa_current_uq on piesa_records(job_id) where is_current;
 `;
 const J = "11111111-1111-1111-1111-111111111111", OWNER = "22222222-2222-2222-2222-222222222222", INST = "33333333-3333-3333-3333-333333333333";
 test("C: trades can't select quote rows; scope function returns lines without prices; undo restores", async () => {

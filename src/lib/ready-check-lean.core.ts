@@ -4,6 +4,16 @@
 // (mitti.core.ts, ready-check-answers.core.ts, ready-check-complete.core.ts, area-diagram.core.ts) and the ChatGPT
 // build prompt (docs/MITTI_READY_CHECK_CHATGPT_PROMPT.md, drift-tested) can never disagree. Pure: no I/O.
 import { APPROVED_PRODUCTS } from "./insulation-product.core";
+import { mittiLabelAliases } from "./mitti-rebuild-labels.core";
+
+export const A1_COMPLETE_INSTRUCTION = "⚠️ Pressing Complete means this Ready Check is finished. Your business then gets a text with a link to enter the price. Only press Complete when every answer is right.";
+export const A1_READY_TO_PRICE_TICK = "This job is ready to price. Everything I've filled in is correct. Any photos I skipped will be taken on install day.";
+export const A1_OPTIONAL_MEDIA_INSTRUCTION = "Take this if you're at the house. Not at the house? Skip it; it'll be done on install day.";
+/** Old submissions have no new declaration; a present declaration must be explicitly ticked. */
+export function a1ReadyToPrice(entries: { label: string; value: unknown }[]): boolean {
+  const declarations = entries.filter(e => e.label.split('\n')[0]?.trim() === A1_READY_TO_PRICE_TICK);
+  return declarations.length === 0 || (declarations.length === 1 && /^(true|yes|checked|1)$/i.test(String(declarations[0]?.value ?? '').trim()));
+}
 
 // The two Mitti template names (A1 installer-supplied customer, A2 our lead) are stated in the build prompt only; the
 // portal identifies a template by its ID (workflow_settings), never by name.
@@ -90,7 +100,8 @@ export const LEAN_Q = {
 
 /** Earlier wordings the readers still accept (22–24 Oct live forms, 7–23 Oct spec labels, in-progress audits). */
 export const LEAN_ALIASES: Partial<Record<keyof typeof LEAN_Q, readonly string[]>> = {
-  siteAddress: ["Site address (please edit street number if incorrect address shows)", "Property Address"],
+  jobNumber: ["Job number"],
+  siteAddress: ["Site address (please edit street number if incorrect address shows)", "Property Address", "Address"],
   ownerName: ["Owner name"],
   ownerPhone: ["Owner phone", "Owner mobile", "Homeowner mobile"],
   ownerEmail: ["Owner email"],
@@ -122,6 +133,11 @@ export const LEAN_ALIASES: Partial<Record<keyof typeof LEAN_Q, readonly string[]
 };
 
 export const YES_NO = ["Yes", "No"] as const;
+// Extend the old contract without rewriting historical labels or prompts.
+for (const key of Object.keys(LEAN_Q) as (keyof typeof LEAN_Q)[]) {
+  LEAN_ALIASES[key] = [...(LEAN_ALIASES[key] ?? []), ...mittiLabelAliases(LEAN_Q[key])];
+}
+LEAN_ALIASES.lifeSupport = [...(LEAN_ALIASES.lifeSupport ?? []), "Does anyone living here use life support equipment?"];
 export const PROPERTY_TYPE_OPTIONS = ["House", "Townhouse", "Unit or apartment"] as const;
 /** Activity Guide Appendix C premises type (VEEC claim). */
 export const PREMISES_TYPE_OPTIONS = ["Owner lives here", "Private rental – tenant lives here", "Public housing", "Community housing"] as const;

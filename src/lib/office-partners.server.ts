@@ -104,7 +104,7 @@ export async function partnersBoard() {
     ...((cards.data ?? []) as { id: string; business_id: string; kind: string; name: string; version: number; effective_from: string | null; rate_card_items: { code: string; unit_price_ex_gst: number; unit: string | null }[] }[]).map((c) => ({ id: c.id, businessId: c.business_id, business: nameOf(c.business_id) ?? "—", card: c.kind === "installer" ? "Installer price list" : `${c.kind} rate card`, says: `${rateCardLine(c.rate_card_items ?? [])} (ex GST)`, effective: c.effective_from, version: c.version })),
     ...Object.values(((eRates.data ?? []) as { business_id: string; service_type: string; rate_inc_gst: number; effective_from: string }[]).reduce((acc, r) => { (acc[r.business_id] ??= []).push(r); return acc; }, {} as Record<string, { business_id: string; service_type: string; rate_inc_gst: number; effective_from: string }[]>)).map((rs) => ({
       id: `elec:${rs[0]!.business_id}`, businessId: rs[0]!.business_id, business: nameOf(rs[0]!.business_id) ?? "—", card: "Electrician rate card",
-      says: rs.map((r) => `${r.service_type === "piesa" ? "PIESA" : r.service_type.replace(/_/g, " ")} $${Number(r.rate_inc_gst).toFixed(0)}`).join(" · ") + " · fixes by item · owner pays fixes + $100", effective: rs.map((r) => r.effective_from).sort()[0] ?? null, version: null,
+      says: rs.map((r) => `${r.service_type === "piesa" ? "PIESA" : r.service_type.replace(/_/g, " ")} $${Number(r.rate_inc_gst).toFixed(0)}`).join(" · ") + " · upgrades by item · owner pays upgrades + $100", effective: rs.map((r) => r.effective_from).sort()[0] ?? null, version: null,
     })),
   ];
   const changeRows = [

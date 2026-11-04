@@ -154,7 +154,9 @@ describe("A3 form fields (decisions 305/308)", () => {
     // Decision 338: "Does an electrician need to be on site at the start of the install?" right after Other, before the price.
     expect(SHORT_PIESA_FIELDS[i + 5]).toMatchObject({ id: "onsiteStartNeeded", label: ONSITE_START_LABEL, type: "yesno", required: true, choices: ["Yes", "No"], when: "rectificationNeeded = Yes" });
     expect(ONSITE_START_LABEL).toBe("Does an electrician need to be on site at the start of the install?");
-    expect(SHORT_PIESA_FIELDS[i + 6]).toMatchObject({ id: "fixesPriceIncGst", label: FIXES_PRICE_LABEL, type: "number", required: true, when: "rectificationNeeded = Yes" });
+    // Part 3 (Jo 2–3 Nov 2026): HIV no longer quotes upgrades — the price is legacy (read from old forms, never asked).
+    expect(SHORT_PIESA_FIELDS[i + 6]).toMatchObject({ id: "fixesPriceIncGst", label: FIXES_PRICE_LABEL, type: "number", required: false, portalOnly: true, when: "rectificationNeeded = Yes" });
+    expect(mittiAiPrompt("piesa")).not.toContain(FIXES_PRICE_LABEL);
     expect(FIXES_OTHER_HELP).toBe("Say exactly what you'll do, where, and how many.");
   });
   test("the decision-305 free text is legacy: read, never asked", () => {

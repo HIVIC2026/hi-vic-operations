@@ -14,8 +14,8 @@ const PROMPT = readFileSync("docs/MITTI_FIXES_FORM_PROMPT.md", "utf8");
 const body = PROMPT.slice(PROMPT.indexOf("\n---\n"));
 
 describe("prompt drift: docs/MITTI_FIXES_FORM_PROMPT.md carries every question verbatim, in order", () => {
-  test("15 questions, Q1..Q15, labels and only-show-when rules", () => {
-    expect(FIXES_DAY_QUESTIONS).toHaveLength(15);
+  test("16 questions, Q1..Q16, labels and only-show-when rules", () => {
+    expect(FIXES_DAY_QUESTIONS).toHaveLength(16);
     expect(body).toContain(`**Template name:** \`${FIXES_DAY_TEMPLATE_NAME}\``);
     let last = -1;
     for (const q of FIXES_DAY_QUESTIONS) {
@@ -63,7 +63,7 @@ const yes = (label: string) => item(label, { selected: [{ label: "Yes" }] });
 const no = (label: string) => item(label, { selected: [{ label: "No" }] });
 const fullAudit = () => ({ items: [
   item(Q.jobNumber, "HV-3001"), item(Q.electricianName, "Sam Sparks"), item(Q.licence, "A1"), item(Q.recName, "Sparks P/L"), item(Q.recNo, "REC9"), item(Q.phone, "0400"),
-  yes(Q.done), item(Q.coesNumber, "C123"), item(Q.certDate, "2026-10-20"),
+  yes(Q.done), yes(Q.certificateNow), item(Q.coesNumber, "C123"), item(Q.certDate, "2026-10-20"),
   item(Q.coesFile, null, { media: media() }), item(Q.workPhoto, null, { media: media(-37.8) }),
   item(Q.signature, { image: { media_id: "0123456789abcdef0123456789abcdef", timestamp: "2026-10-20T03:00:00Z" }, name: "Sam Sparks" }),
 ] });
@@ -81,16 +81,18 @@ describe("reading the audit and planning the Complete press", () => {
     const a = { items: [no(Q.done), item(Q.notDone, "RCD still on order")] };
     expect(fixesCompletionPlan(readFixesDay(a), { completed: true, today: "2026-10-25" })).toEqual({ kind: "not_done", text: "RCD still on order" });
   });
-  test("Q9 Yes needs CoES number, date (not future), CoES file, geotagged work photo and signature — each missing one is named", () => {
+  test("Q9 Yes + Q11 Yes needs CoES number, date (not future), CoES file, geotagged work photo and signature — each missing one is named", () => {
     const base = fullAudit();
     const plan = fixesCompletionPlan(readFixesDay(base), { completed: true, today: "2026-10-25" });
-    expect(plan.kind).toBe("done");
+    expect(plan).toMatchObject({ kind: "done", certificate: { number: "C123", date: "2026-10-20" }, certificateToCome: false });
     const without = (label: string, replace?: unknown) => ({ items: base.items.map((i) => (i.label === label ? (replace as typeof i) ?? item(label, null) : i)) });
     expect(fixesCompletionPlan(readFixesDay(without(Q.coesNumber)), { completed: true, today: "2026-10-25" })).toMatchObject({ kind: "missing", missing: [Q.coesNumber] });
     expect(fixesCompletionPlan(readFixesDay(without(Q.certDate, item(Q.certDate, "2026-12-01"))), { completed: true, today: "2026-10-25" })).toMatchObject({ kind: "missing", missing: [`${Q.certDate} (cannot be in the future)`] });
     expect(fixesCompletionPlan(readFixesDay(without(Q.coesFile)), { completed: true, today: "2026-10-25" })).toMatchObject({ kind: "missing", missing: [Q.coesFile] });
     expect(fixesCompletionPlan(readFixesDay(without(Q.workPhoto, item(Q.workPhoto, null, { media: media() }))), { completed: true, today: "2026-10-25" })).toMatchObject({ kind: "missing", missing: [`${Q.workPhoto} (must be geotagged)`] });
     expect(fixesCompletionPlan(readFixesDay(without(Q.signature)), { completed: true, today: "2026-10-25" })).toMatchObject({ kind: "missing", missing: [Q.signature] });
+    // Part 3 (Jo 3 Nov 2026): Q11 = No → done without the certificate, the job waits for it.
+    expect(fixesCompletionPlan(readFixesDay(without(Q.certificateNow, no(Q.certificateNow))), { completed: true, today: "2026-10-25" })).toMatchObject({ kind: "done", certificate: null, certificateToCome: true });
   });
 });
 

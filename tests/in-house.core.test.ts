@@ -18,10 +18,12 @@ describe("in-house partner", () => {
   test("allows all good facts", () => {
     expect(inHouseEnableBlockers({ approvedElectricianWorkers: 1, hasActiveRateCardWithPiesa: true, mittiElectricianLogins: 1, mittiAccountInvited: true })).toEqual([]);
   });
-  test("partner bills rectification only when in-house", () => {
+  // Part 3 Task 1 (Jo 2 Nov 2026): the electrician bills the upgrades on EVERY job (upgrades-billing.core), so the
+  // in-house flag and the rectification_billed_by column no longer decide this.
+  test("partner bills rectification on every job, whatever the columns say", () => {
     expect(partnerBillsRectification({ in_house: true, rectification_billed_by: "partner" })).toBe(true);
-    expect(partnerBillsRectification({ in_house: false, rectification_billed_by: "partner" })).toBe(false);
-    expect(partnerBillsRectification({ in_house: true, rectification_billed_by: "hivic" })).toBe(false);
+    expect(partnerBillsRectification({ in_house: false, rectification_billed_by: "partner" })).toBe(true);
+    expect(partnerBillsRectification({ in_house: true, rectification_billed_by: "hivic" })).toBe(true);
   });
 });
 

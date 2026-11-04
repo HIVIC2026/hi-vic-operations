@@ -68,13 +68,15 @@ describe("clearance and electrical fixes", () => {
     expect(electricalClearance({ ...r, rectificationQuoteAccepted: true, rectificationCompletedAt: "2026-10-05", sectionCSignedAt: "2026-10-06" })).toMatchObject({ cleared: true, basis: "section_c", timingDate: "2026-10-01" });
     expect(electricalClearance(c).pendingConfirmation).toContain("pending written confirmation");
   });
-  test("rectification quote needs office review before send; owner approval before visit", () => {
+  // Part 3 Task 1 (Jo 2 Nov 2026): the electrician bills the upgrades on every job — HIV never sends an upgrades quote
+  // and the visit never waits for the owner's approval of one (tests/upgrades-billing.core.test.ts has the full rule).
+  test("rectification quote is never sent by the office; the visit needs no owner approval, only an active REC", () => {
     const q = { kind: "rectification", status: "draft", office_reviewed_at: null, has_unpriced_items: false };
-    expect(rectificationSendBlocker(q, false)).not.toBeNull();
-    expect(rectificationSendBlocker(q, true)).not.toBeNull();
-    expect(rectificationSendBlocker({ ...q, office_reviewed_at: "x" }, true)).toBeNull();
-    expect(rectificationVisitBlocker({ quoteAccepted: false, recActiveApproved: true })).not.toBeNull();
-    expect(rectificationVisitBlocker({ quoteAccepted: true, recActiveApproved: true })).toBeNull();
+    expect(rectificationSendBlocker(q, false)).toBe("Electricians bill upgrades directly.");
+    expect(rectificationSendBlocker(q, true)).toBe("Electricians bill upgrades directly.");
+    expect(rectificationSendBlocker({ ...q, office_reviewed_at: "x" }, true)).toBe("Electricians bill upgrades directly.");
+    expect(rectificationVisitBlocker({ quoteAccepted: false, recActiveApproved: true })).toBeNull();
+    expect(rectificationVisitBlocker({ quoteAccepted: true, recActiveApproved: false })).not.toBeNull();
   });
   test("agreed installer decline goes to office, never substitution", () => {
     expect(installerUnavailableOutcome({ reason: "ill" })).toMatchObject({ substitute: false, exception: "installer_unavailable" });

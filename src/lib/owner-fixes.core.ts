@@ -33,29 +33,29 @@ export function ownerFixesStep(f: OwnerFixesFacts): OwnerFixesStep {
 
 /** Plain words for each step (owner-facing, decision 140: never a card fee). */
 export const OWNER_FIXES_COPY = {
-  kicker: "Electrical fixes",
-  title: "Your safety check found something to fix first",
-  approve: "Check the fixes and their price below. If you're happy, approve them — you then pay for the fixes in full.",
-  approveTick: "I approve these electrical fixes and I'll pay the total in full now",
-  approveButton: "Approve the fixes",
-  pay: "Thanks — the fixes are approved. Pay for them in full now (card or bank transfer, no fee). Once your payment arrives you can pick the electrician's time.",
-  pick: "Paid — thank you. Pick one of the electrician's times for the fixes visit.",
+  kicker: "Electrical upgrades",
+  title: "Your safety check found electrical upgrades needed first",
+  approve: "Check the upgrades and their price below. If you're happy, approve them — you then pay for the upgrades in full.",
+  approveTick: "I approve these electrical upgrades and I'll pay the total in full now",
+  approveButton: "Approve the upgrades",
+  pay: "Thanks — the upgrades are approved. Pay for them in full now (card or bank transfer, no fee). Once your payment arrives you can pick the electrician's time.",
+  pick: "Paid — thank you. Pick one of the electrician's times for the upgrades visit.",
   pickButton: "Book this time",
   waitingTimes: "Paid — thank you. We're waiting for the electrician's available times; we'll let you know as soon as they're in.",
   booking: "Thanks — we're booking the time you picked. It will show here once it's confirmed.",
-  booked: (when: string) => `Your fixes visit is booked for ${when}.`,
-  declined: "You said no to the electrical fixes. We'll be in touch about what happens next.",
-  homeButton: "See your electrical fixes",
+  booked: (when: string) => `Your upgrades visit is booked for ${when}.`,
+  declined: "You said no to the electrical upgrades. We'll be in touch about what happens next.",
+  homeButton: "See your electrical upgrades",
 } as const;
 
 /** Block #11 (Jo 28 Oct): the plain pay-first reason when the owner tries to book while the fixes are unpaid. */
-export const FIXES_PAY_FIRST = "Please pay for the electrical fixes before booking your install day.";
+export const FIXES_PAY_FIRST = "Please pay for the electrical upgrades before booking your install day.";
 /** Why the owner can't pick a fixes time right now (null = they can). */
 export function ownerFixesPickRefusal(step: OwnerFixesStep): string | null {
   if (step === "pay") return FIXES_PAY_FIRST;
-  if (step === "approve") return "Please approve the electrical fixes first.";
+  if (step === "approve") return "Please approve the electrical upgrades first.";
   if (step === "pick") return null;
-  return "There's no electrical fixes time to pick right now.";
+  return "There's no electrical upgrades time to pick right now.";
 }
 
 /** The Home card shows a button to the fixes screen only while the owner has something to do there. */

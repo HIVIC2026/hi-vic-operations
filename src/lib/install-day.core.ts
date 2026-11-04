@@ -9,6 +9,7 @@
 // come from the stored PIESA (piesaPart5Answers) and official Part 6 (existing insulation) from the Ready Check record
 // (piisa-a3.core readyCheckPart6Answers) — never from this form.
 import { norm } from "./mitti.core";
+import { installMittiLabel } from "./mitti-rebuild-labels.core";
 import { ADULT_PRESENT_LABEL, onsiteStartTicked } from "./official-short.core";
 import { B1_OPTIONS, type OfficialAnswers } from "./official-forms.core";
 import { sectionCSigned } from "./piesa-rules-notice.core";
@@ -305,7 +306,7 @@ export const INSTALL_DAY_QUESTIONS: readonly InstallDayQuestion[] = (() => {
 // Reading an audit / template by label (shared with install-evidence.core)
 // ======================================================================================================
 /** First line of a Mitti label, normalised (Mitti appends help text after a line break). */
-export const labelKey = (label: unknown) => norm(String(label ?? "").split("\n")[0]);
+export const labelKey = (label: unknown) => norm(installMittiLabel(String(label ?? "")).split("\n")[0]);
 export type ReadSignature = { present: boolean; name: string | null; signedAt: string | null; mediaId: string | null };
 export type Labelled = { id: string | null; label: string; value: string | null; values: string[]; media: MittiMediaFile[]; signature: ReadSignature };
 export const NO_SIGNATURE: ReadSignature = { present: false, name: null, signedAt: null, mediaId: null };
@@ -326,6 +327,7 @@ export function labelledItems(doc: unknown): Labelled[] {
     if (Array.isArray(x)) { x.forEach(walk); return; }
     if (!x || typeof x !== "object") return;
     const o = x as Record<string, any>;
+    if (o["inactive"] === true) return;
     if (typeof o["label"] === "string") {
       const r = (o["responses"] ?? {}) as Record<string, any>;
       const selected: string[] = Array.isArray(r["selected"]) ? r["selected"].map((s: any) => String(s?.label ?? s)) : [];
@@ -377,7 +379,7 @@ export function readInstallDay(audit: unknown): InstallDayRead {
   const text = (label: string) => { const v = one(label)?.value; return v && v.trim() ? v.trim() : null; };
   const sigs = allWithLabel(items, Q.signature);
   return {
-    text, yn: (l) => yesNo(text(l)), ticked: (l) => !!one(l)?.value, media: (l) => one(l)?.media ?? [],
+    text, yn: (l) => yesNo(text(l)), ticked: (l) => /^(yes|true|ticked|checked)$/i.test(text(l) ?? ""), media: (l) => one(l)?.media ?? [],
     declarationSignature: sigs[0]?.signature ?? NO_SIGNATURE, completionSignature: sigs[1]?.signature ?? NO_SIGNATURE,
   };
 }
@@ -410,10 +412,12 @@ export function installDayOfficialAnswers(audit: unknown): InstallDayOfficial {
   put("lifeSupportConsent", r.yn(Q.lifeSupportConsent));
   put("p3.swms", r.yn(Q.swmsSigned));
   put("p3.table1", r.yn(Q.hazardsCovered));
+  if (labelledItems(audit).some(i => i.label.split('\n')[0]?.trim() === 'Does the safety plan cover every hazard at this house?')) delete a['p3.table1'];
   put("p3.isolated", r.yn(Q.isolated));
   put("p4.present", r.yn(Q.solar));
   put("p4.instructions", r.yn(Q.solarInstructions));
   put("p4.isolator", r.yn(Q.solarIsolator));
+  if (labelledItems(audit).some(i => i.label.split('\n')[0]?.trim() === 'Does its isolator (at ground level) work and switch off safely?')) delete a['p4.isolator'];
   put("p5.reviewed", r.yn(Q.piesaRead));
   put("p5.electricianPresent", electricianPresentAnswer(r.yn(Q.electricianNeeded), r.yn(Q.electricianHere)));
   // Q30 asks the opposite of the official item: "anyone in the ceiling since the PIESA?" Yes = official No.
@@ -494,6 +498,7 @@ export type InstallDayPrefillFacts = {
   /** Decision 299: the rest of the crew from the portal booking; null = not on site / unknown. */
   secondName?: string | null; secondCii?: string | null; thirdName?: string | null; thirdCii?: string | null;
   lifeSupport: boolean | null; solarPresent: boolean | null; electricianAtStart: boolean | null;
+  areaOrder?:string|null;
 };
 type PrefillItem = { item_id: string; type: string; responses: Record<string, unknown> };
 /**
@@ -528,6 +533,7 @@ export function installDayPrefillItems(template: unknown, f: InstallDayPrefillFa
   const items = labelledItems(template);
   const out: PrefillItem[] = [];
   const yn = (b: boolean | null) => (b == null ? null : b ? "Yes" : "No");
+  if(f.areaOrder){const order=allWithLabel(items,'Ceiling areas in Ready Check order');if(order.length===1&&order[0]?.id)out.push({item_id:order[0].id,type:'text',responses:{text:f.areaOrder}});}
   for (const q of INSTALL_DAY_QUESTIONS) {
     if (!q.prefill) continue;
     const raw: string | null = (() => {

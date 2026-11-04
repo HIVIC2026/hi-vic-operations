@@ -1,6 +1,6 @@
 import { supabaseAdmin as admin } from '@/integrations/supabase/client.server';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { bookingWorkerBlocker, ownerBookedMessage, OWNER_BOOKED_V2_APPROVED, leadNoticePending, LEAD_INSTALLER_NOTICE_WAIT, type BookingWorker } from './in-house-booking.core';
+import { bookingWorkerBlocker, ownerBookedMessage, OWNER_BOOKED_V2_APPROVED, OWNER_UPGRADES_BOOKED_APPROVED, leadNoticePending, LEAD_INSTALLER_NOTICE_WAIT, type BookingNoticeKind, type BookingWorker } from './in-house-booking.core';
 import type { BookedKind } from './owner-booked-notice.core';
 import type { TradeContact } from './owner-will-call.core';
 /** Tests inject the approval flags; production uses OWNER_BOOKED_V2_APPROVED (owner-booked-notice.core, re-exported by in-house-booking.core). */
@@ -53,34 +53,42 @@ export async function prepareBookingWorker(jobId:string,userId:string,kind:strin
   else await (await import('./visit-allocation.server')).allocateVisit(jobId,userId,'ready_check',workerId);
   return w;
 }
-export async function notifyOwnerBooked(jobId:string,kind:'ready_check'|'piesa'|'install',startIso:string,who:Pick<BookingWorker,'id'|'name'|'phone'>,now=new Date(),deps:OwnerBookedDeps={}){
+export async function notifyOwnerBooked(jobId:string,kind:BookingNoticeKind,startIso:string,who:Pick<BookingWorker,'id'|'name'|'phone'>,now=new Date(),deps:OwnerBookedDeps={}){
   const held=await (await import('./in-house-suppression.server')).readInHouseDispatchState([jobId]);
   if(held.failed)return 'held';
   // Part 2 (Jo 3 Nov 2026): an installer's own job (call and book) gets the same booking notice as an in-house job.
-  if(!held.held.has(jobId)){
+  // Part 3 Task 3 (controller ruling): the electrical upgrades day is entered on the electrician's link on EVERY job, so its
+  // owner notice goes on every channel (HIV leads included) — the installer's office phone when there is an installer, else
+  // the HIV office line. Every other kind keeps the in-house / own-job gate.
+  if(kind!=='upgrades'&&!held.held.has(jobId)){
     const ch=await read<{channel:string|null}|null>(db.from('jobs').select('channel').eq('id',jobId).maybeSingle());
     if(!(await import('./own-job-piesa.core')).isOwnJobCallAndBook({channel:ch?.channel??null,heldInHouse:false}))return 'held';
   }
-  const bookingKind={ready_check:'ready_check',piesa:'assessment',install:'installation'}[kind];
+  const bookingKind={ready_check:'ready_check',piesa:'assessment',install:'installation',upgrades:'rectification'}[kind];
   const booking=await read<{id:string;created_at:string}|null>(db.from('bookings').select('id,created_at').eq('job_id',jobId).eq('kind',bookingKind).eq('status','confirmed').eq('scheduled_start',startIso).order('created_at',{ascending:false}).limit(1).maybeSingle());
   if(!booking||Date.parse(startIso)<=now.getTime())return 'not current';
   const job=await read<{source:string;deleted_at:string|null;stage:string;owners:{email:string|null;phone:string|null;full_name?:string|null}|null}|null>(db.from('jobs').select('source,deleted_at,stage,owners(email,phone,full_name)').eq('id',jobId).maybeSingle());
   const a=await read<{businesses:{name:string;trading_name:string|null;phone:string|null;email?:string|null;onboarding_notes?:string|null}|null}|null>(db.from('job_assignments').select('businesses(name,trading_name,phone,email,onboarding_notes)').eq('job_id',jobId).eq('role','installer').eq('active',true).maybeSingle());
-  if(!job||job.deleted_at||job.stage==='cancelled'||!job.owners?.email||!a?.businesses)return 'held';
+  if(!job||job.deleted_at||job.stage==='cancelled'||!job.owners?.email)return 'held';
+  if(!a?.businesses&&kind!=='upgrades')return 'held';
+  // Who the owner calls to change the time: the installer's office, else (upgrades on an HIV lead with no installer yet) ours.
+  const contact=a?.businesses?{installer:a.businesses.trading_name||a.businesses.name,phone:a.businesses.phone,hivOffice:false}:{installer:'Home Insulation Victoria',phone:(await import('./office-phone.server')).officePhone(),hivOffice:true};
   const key=`in-house-booked:v1:${booking.id}:${who.id}`;
   const intentId=await stableUuid(`${key}:intent`);
   const intent=await db.from('workflow_events').insert({id:intentId,job_id:jobId,actor_id:null,event_type:'in_house_booked_notice_pending',summary:'Booking confirmation awaiting delivery',details:{kind,startIso,who,booking_id:booking.id},internal:true});
   if(intent.error&&intent.error.code!=='23505')throw Error(intent.error.message);
-  const b=a.businesses;
+  // Part 3 Task 3: the upgrades-day wording is new — recorded as pending above, sent by the sweep once Jo approves it.
+  if(kind==='upgrades'&&!OWNER_UPGRADES_BOOKED_APPROVED)return 'held: wording not approved';
+  const b=a?.businesses??null;
   // Decisions #24 (Ready Check), #38 (PIESA), #46 (install): each kind uses the approved wording when its switch is on (office
   // phone + business email, else held); otherwise the current bookingNotice wording. Same purpose and key either way: one
   // version per booking. PIESA is the ELECTRICIAN's business (the installer is named in the 30-day rule); install carries the balance.
-  const v2=(deps.v2Approved??OWNER_BOOKED_V2_APPROVED)[kind];
+  const v2=kind!=='upgrades'&&(deps.v2Approved??OWNER_BOOKED_V2_APPROVED)[kind];
   const changed=v2&&(await read<{id:string}[]>(db.from('bookings').select('id').eq('job_id',jobId).eq('kind',bookingKind).eq('status','cancelled').limit(1))).length>0;
-  const installerBusiness:TradeContact={name:b.name,tradingName:b.trading_name,officePhone:b.phone,email:b.email??null};
+  const installerBusiness:TradeContact|null=b?{name:b.name,tradingName:b.trading_name,officePhone:b.phone,email:b.email??null}:null;
   const business=v2&&kind==='piesa'?await (deps.electrician??(async(id:string)=>(await import('./owner-contact.server')).businessContactForJob(id,'electrician')))(jobId):installerBusiness;
   const balanceCents=v2&&kind==='install'?await (deps.balanceCents??(async(id:string)=>{const v=await (await import('./payments.server')).jobPaymentView(id).catch(()=>null);return v?v.plan.balanceCents:null;}))(jobId):null;
-  const n=ownerBookedMessage({kind,start:startIso,who,installer:b.trading_name||b.name,phone:b.phone,ownerName:job.owners.full_name??null,business,changed,test:job.source==='qa_test',installerName:b.trading_name||b.name,balanceCents},deps.v2Approved);
+  const n=ownerBookedMessage({kind,start:startIso,who,installer:contact.installer,phone:contact.phone,hivOffice:contact.hivOffice,ownerName:job.owners.full_name??null,business,changed,test:job.source==='qa_test',installerName:contact.installer,balanceCents},deps.v2Approved);
   if('held' in n){
     // One office note per booking/person and reason; the pending intent stays, so the sweep sends once it's fixed.
     const held=await db.from('workflow_events').insert({id:await stableUuid(`${key}:held:${n.held}`),job_id:jobId,actor_id:null,event_type:'owner_booked_held',summary:`"You're booked" not sent: ${n.held}`,details:{kind,startIso,booking_id:booking.id,reason:n.held},internal:true});
@@ -105,7 +113,7 @@ export async function notifyOwnerBooked(jobId:string,kind:'ready_check'|'piesa'|
   // J4 G4 (join ruling, 4 Nov 2026): a TEST (qa_test) job's owner text goes through the test sender (allow-list; Jo's phone
   // walkthrough), never refused by the real sender's "TEST record" rule; real jobs keep the ONE real sender.
   const sms=job.source==='qa_test'
-    ?await (async()=>{const {isTestPartner}=await import('./test-send.core');const r=await (await import('./test-send.server')).sendTestSms({jobId,jobSource:job.source,partnerIsTest:isTestPartner({onboarding_notes:(b as {onboarding_notes?:string|null}).onboarding_notes??null}),label:`in_house_booked_owner:${key}`,actorId:null},job.owners?.phone??'',n.sms);return {status:r.status==='sent'?'sent':r.status,detail:r.detail};})()
+    ?await (async()=>{const {isTestPartner}=await import('./test-send.core');const r=await (await import('./test-send.server')).sendTestSms({jobId,jobSource:job.source,partnerIsTest:isTestPartner({onboarding_notes:b?.onboarding_notes??null}),label:`in_house_booked_owner:${key}`,actorId:null},job.owners?.phone??'',n.sms);return {status:r.status==='sent'?'sent':r.status,detail:r.detail};})()
     :await (await import('./sms.server')).sendRealSms({jobId,type:'in_house_booked_owner',to:job.owners.phone,body:n.sms,idempotencyKey:`${key}:sms`,event:{at:booking.created_at,current:true}});
   // Part 4 Task 15 (answer 7): after the owner's notice, the tenant / property manager who lets the trades in gets their own
   // PIESA / install "You're booked" text (own flag, own key per booking + person; a problem there never holds the owner's).
@@ -121,7 +129,7 @@ export async function notifyOwnerBooked(jobId:string,kind:'ready_check'|'piesa'|
 }
 export async function sweepOwnerBookedNotices(now=new Date(),deps:OwnerBookedDeps={}){
   if((await import('./quote-hold.core')).smsQuietReason(now.toISOString()))return {checked:0};
-  const rows:{job_id:string;details:{kind:'ready_check'|'piesa'|'install';startIso:string;who:Pick<BookingWorker,'id'|'name'|'phone'>}}[]=[];
+  const rows:{job_id:string;details:{kind:BookingNoticeKind;startIso:string;who:Pick<BookingWorker,'id'|'name'|'phone'>}}[]=[];
   for(let offset=0;;offset+=200){const page=await read<typeof rows>(db.from('workflow_events').select('job_id,details').eq('event_type','in_house_booked_notice_pending').order('id').range(offset,offset+199));rows.push(...page);if(page.length<200)break;}
   for(const row of rows)await notifyOwnerBooked(row.job_id,row.details.kind,row.details.startIso,row.details.who,now,deps);
   const workers:{job_id:string;details:{booking_id?:string;status?:string}}[]=[];

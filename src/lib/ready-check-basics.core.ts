@@ -3,6 +3,17 @@
 // Basics: ceiling area, insulation product, the business owner's price (A1, entered in the portal — decision 278; old
 // forms may still carry it) or our rate card (A2), owner mobile + email + contact permission, and no hard stop.
 // Photos / other answers can follow as notes.
+import { canonicalMittiLabel } from './mitti-rebuild-labels.core';
+import { approvedProduct, readLayoutOutcome, type Brand } from './ceiling-layout.core';
+
+/** Product readiness only; pricing, eligibility and official evidence retain their own guards. */
+export function layoutProductReady(entries: { label: string; value: unknown }[], picks: ({ brand: Brand; r: number } | null)[] | null): boolean {
+  if (!entries.some(e => e.label.split('\n')[0]?.trim() === 'Old insulation in this area?')) return false;
+  if (picks !== null) return picks.length > 0 && picks.every(p => p !== null && approvedProduct(p.brand, p.r) !== null);
+  const brand = readLayoutOutcome(entries).brand;
+  const batts = entries.filter(e => e.label.split('\n')[0]?.trim() === 'Which batts?' && e.value != null);
+  return batts.length > 0 && batts.every(e => { const r = /R\s*(\d+(?:\.\d+)?)/i.exec(String(e.value)); return r !== null && approvedProduct(brand, Number(r[1])) !== null; });
+}
 
 export type ReadyCheckBasicsInput = {
   installerSourced: boolean;
@@ -56,12 +67,12 @@ export function needsFinishingFromMissing(missing: string[]): string | null {
 }
 
 /** Labels the portal pre-fills on every form it creates: a value there is not an installer answer. */
-const PREFILLED = ["Portal Job Number", "Site address", "Site address (please edit street number if incorrect address shows)", "Property Address", "Homeowner name", "Owner name", "Homeowner phone", "Owner phone", "Owner mobile", "Homeowner mobile", "Homeowner email", "Owner email", "Property type", "Life support equipment at property?", "Office life support result", "Was the ceiling or roof built or replaced in the last 5 years?"].map((l) => l.toLowerCase());
+const PREFILLED = ["Portal Job Number", "Job number", "Address", "Site address", "Site address (please edit street number if incorrect address shows)", "Property Address", "Homeowner name", "Owner name", "Homeowner phone", "Owner phone", "Owner mobile", "Homeowner mobile", "Homeowner email", "Owner email", "Property type", "Life support equipment at property?", "Office life support result", "Was the ceiling or roof built or replaced in the last 5 years?"].map((l) => l.toLowerCase());
 /** Decision 279: "the form has answers" = the installer typed, ticked, photographed or signed anything beyond the pre-fill. */
 export function formHasInstallerAnswers(entries: { label: string; value: unknown }[]): boolean {
   return entries.some((e) => {
     const v = e.value;
     const filled = v != null && String(v).trim() !== "" && String(v).trim().toLowerCase() !== "false";
-    return filled && !PREFILLED.includes(String(e.label ?? "").trim().toLowerCase());
+    return filled && !PREFILLED.includes(canonicalMittiLabel(String(e.label ?? "")).split('\n')[0]?.trim().toLowerCase() ?? '');
   });
 }

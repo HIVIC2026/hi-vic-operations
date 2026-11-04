@@ -84,6 +84,25 @@ Every rule below is one Jo has already decided (dates in brackets). Nothing new 
 - **The balance (90%) is due on install day** (replaces 7 days after), by card or bank transfer, with reminders and then overdue. The customer agreement wording follows.
 - **Installer pay:** own jobs, once the owner has paid in full. HIV leads, 7 days after the paperwork is approved. No pay without the green light.
 
+### Part 5 addition — Home Insulation Victoria leads given to in-house partners (Jo, 4 Nov)
+
+Reinsulate, Rapid and INSolation jobs from Home Insulation Victoria leads follow the same install rules as installers' own jobs:
+- The Lead Installer and day lock 2 days before the install, so Home Insulation Victoria can lodge or update the ESC notice.
+- 3 days before: no Lead Installer picked → reminder email to the partner's office. 2 days before: still none → red flag in Needs me.
+- Crew are not on the ESC notice (only the Lead Installer: name, phone, EEC number), so crew can change up to the start. Anyone newly added gets their SWMS text straight away and must sign before starting. The Mitti install form keeps auto-updating crew names/EEC numbers.
+- GO / DON'T START email to the partner's office at 2pm the day before and 6:30am, every blocker in plain words, DON'T START copied to info@.
+- "You're clear to install" owner email applies here too.
+- Replaces the 2pm day-before "Keep or change Lead Installer" email for these jobs.
+
+### Crew fix and Ready Checks (Jo, 4 Nov)
+
+- Bug: the in-house booking screen judges every person with the install-day Lead rule, so Crew can't be ticked as crew or picked for a Ready Check. Fix: only the Lead Installer slot needs a Lead.
+- Anyone on the partner's team (Lead or Crew) can be picked for a Ready Check. No Mitti login → the form goes to the partner office's Mitti login.
+
+### Partner "Owner accepted – HV…" email (Jo, 4 Nov)
+
+- Still says the electrician offers times and "Offer 3 install days". Rewrite to match the new flow; Jo approves the new wording one message at a time before it goes live.
+
 ---
 
 ## Not changing

@@ -13,6 +13,8 @@ await db.exec(`
   create table workflow_settings(id int primary key, piesa_install_window_days int not null default 30, urgency_red_days int not null default 7, urgency_amber_days int not null default 14);
   insert into workflow_settings(id) values (1);
   create table piesa_records(id serial primary key, job_id text, kind text, outcome text, completed_date date, is_current boolean, created_at timestamptz);
+  -- The live one-current-record-per-job index (drizzle/migrations/0000_hivic_core_schema.sql:176).
+  create unique index if not exists piesa_current_uq on piesa_records(job_id) where is_current;
   insert into jobs(id) values ('fixes'), ('plain'), ('redo'), ('none');
   insert into piesa_records(job_id, kind, outcome, completed_date, is_current, created_at) values
     ('fixes','initial','fail','2026-10-01',false,'2026-10-01T01:00Z'),

@@ -2,7 +2,8 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useAction } from "@/hooks/use-me";
-import { getInstallerInstallDays, getOwnerInstallDays, installerChangeInstallDay, installerOfferInstallDays, installerTakeInstallDay, ownerSuggestInstallDays, ownerTakeInstallDay } from "@/lib/allocation.functions";
+import { toast } from "sonner";
+import { getInstallerInstallDays, getOwnerInstallDays, installerChangeInstallDay, installerOfferInstallDays, installerTakeInstallDay, ownerChangeInstallDay, ownerSuggestInstallDays, ownerTakeInstallDay } from "@/lib/allocation.functions";
 import { INSTALLER_OFFER_DAYS, INSTALL_TIMES, OWNER_SUGGEST_MAX, dayOfferBlockers, formatInstallDay, installTimeLabel } from "@/lib/install-days.core";
 import { Button } from "@/components/ui/button";
 import { Section } from "./panels";
@@ -133,7 +134,7 @@ export function InstallerInstallDays({ jobId, ownerFirstName, readOnly = false }
   if (data.turn === "installer_to_offer") return <div>{offerForm}{foot}</div>;
   return (
     <div data-install-answer-owner>
-      <div className="mt-3">{data.open.map((d, i) => <div key={d.id} className={`flex min-h-11 items-center justify-between gap-2 text-[15px] ${i < data.open.length - 1 ? "border-b border-line" : ""}`}><span>{formatInstallDay(d.starts_at, false)}</span><span className="flex items-center gap-2"><TimeSelect label={`Arrival time ${formatInstallDay(d.starts_at, false)}`} value={takeTime[d.id] ?? ""} onChange={(t) => setTakeTime({ ...takeTime, [d.id]: t })} /><button type="button" className="min-h-10 rounded-[10px] border border-hiv-blue px-3 text-sm font-semibold text-hiv-blue disabled:opacity-40" disabled={busy || !takeTime[d.id]} onClick={() => run(() => take({ jobId, proposalId: d.id, time: takeTime[d.id]! }, "Install day booked"))}>Book</button></span></div>)}</div>
+      <div className="mt-3">{data.open.map((d, i) => <div key={d.id} className={`flex min-h-11 items-center justify-between gap-2 text-[15px] ${i < data.open.length - 1 ? "border-b border-line" : ""}`}><span>{formatInstallDay(d.starts_at, false)}</span><span className="flex items-center gap-2"><TimeSelect label={`Arrival time ${formatInstallDay(d.starts_at, false)}`} value={takeTime[d.id] ?? ""} onChange={(t) => setTakeTime({ ...takeTime, [d.id]: t })} /><button type="button" className="min-h-10 rounded-[10px] border border-hiv-blue px-3 text-sm font-semibold text-hiv-blue disabled:opacity-40" disabled={busy || !takeTime[d.id]} onClick={() => run(async () => { const r = await take({ jobId, proposalId: d.id, time: takeTime[d.id]! }, "Install day booked"); if (r && "warning" in r && r.warning) toast.warning(r.warning); })}>Book</button></span></div>)}</div>
       {!offering ? <QuietButton className="mt-3.5" disabled={busy} onClick={() => setOffering(true)}>None of these work – offer 3 other days</QuietButton> : offerForm}
       {foot}
     </div>
