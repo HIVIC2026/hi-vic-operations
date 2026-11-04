@@ -2,7 +2,7 @@
 // plain rule. Pure: no database, no network. The installer's own pay only — never the owner's price.
 import { melbourneYmd } from "./piesa-windows.core";
 import { fmtDay } from "./next-step-dates.core";
-import type { PayState } from "./trade-view.core";
+import { NO_FORM_NO_PAY_V2, NO_FORM_NO_PAY_V2_APPROVED, type PayState } from "./trade-view.core";
 
 // Wording. Lines from the plan's Global Constraints are approved; every DRAFT line is listed for Jo (Task 12 paste).
 export const MONEY_WORDS = {
@@ -23,11 +23,11 @@ export const MONEY_WORDS = {
 } as const;
 
 /** Jo 3 Nov 2026 ruling: the pay rule stays (no complete Mitti form = no pay; a held payout shows its plain reason) but the
- *  wording must not read as a threat. The old NO_FORM_NO_PAY block shows while this is false; the line below ships once Jo
- *  approves it. Timing facts from decisions 30/109/344/355/410: 7 days after we approve the completed Mitti form; own
- *  customers once the owner has paid in full. */
-export const NO_FORM_NO_PAY_V2_APPROVED = false;
-export const PAY_RULE_LINE_V2 = "Paid 7 days after we approve the completed Mitti form. Your own customers: once they've paid in full."; // DRAFT
+ *  wording must not read as a threat. The old NO_FORM_NO_PAY block shows while the flag is false; the short line ships once
+ *  go-live flips it. Wording APPROVED by Jo 4 Nov 2026 14:12 — one source: trade-view.core NO_FORM_NO_PAY_V2 (the flag
+ *  lives there too and is re-exported here for the Money page and its tests). */
+export { NO_FORM_NO_PAY_V2_APPROVED };
+export const PAY_RULE_LINE_V2 = NO_FORM_NO_PAY_V2.line; // approved 4 Nov 2026 14:12 (flag still false)
 
 export type MoneyScreenRow = {
   jobId: string; jobNumber: string; owner: string | null; what: "install" | "piesa"; amount: number; ownCustomer: boolean;

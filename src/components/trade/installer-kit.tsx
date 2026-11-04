@@ -5,7 +5,7 @@
 // clearly on white (≥ 4.5:1); values stay ink.
 import * as React from "react";
 import { Link } from "@tanstack/react-router";
-import { NO_FORM_NO_PAY } from "@/lib/trade-view.core";
+import { NO_FORM_NO_PAY, NO_FORM_NO_PAY_V2 } from "@/lib/trade-view.core";
 import { NO_FORM_NO_PAY_V2_APPROVED, PAY_RULE_LINE_V2 } from "@/lib/money-screen.core";
 
 const cx = (...c: (string | false | null | undefined)[]) => c.filter(Boolean).join(" ");
@@ -116,9 +116,18 @@ export function LinkRow({ children, onClick, href, to, params, muted = false, bo
 /** Decision 318: "No complete form, no payment" — Jo's approved words (trade-view.core NO_FORM_NO_PAY), shown next to
  *  the Mitti form button and above the payouts. `line` = the one-line form used on job offers. */
 export function NoFormNoPay({ line = false, className }: { line?: boolean; className?: string }) {
-  // Jo 3 Nov 2026 (Part 10 Task 9): once NO_FORM_NO_PAY_V2_APPROVED is on, every block says the rule plainly (money-screen.core
-  // PAY_RULE_LINE_V2) — no "No complete form, no payment". Off as shipped: the earlier approved block below.
-  if (NO_FORM_NO_PAY_V2_APPROVED) return <p className={cx("text-[13px] leading-[1.45] text-sub", className)} data-pay-rule-v2>{PAY_RULE_LINE_V2}</p>;
+  // Jo 3 Nov 2026 (Part 10 Task 9) + 4 Nov 2026 14:12 APPROVED v2 words (trade-view.core NO_FORM_NO_PAY_V2): once
+  // NO_FORM_NO_PAY_V2_APPROVED is on (go-live), the block says "When you get paid" + the plain body, and the one-line form
+  // (offers) says the short line (money-screen.core PAY_RULE_LINE_V2) — never "No complete form, no payment". Off as shipped.
+  if (NO_FORM_NO_PAY_V2_APPROVED) {
+    if (line) return <p className={cx("text-[13px] leading-[1.45] text-sub", className)} data-pay-rule-v2="line">{PAY_RULE_LINE_V2}</p>;
+    return (
+      <section className={cx("rounded-[14px] border border-line bg-paper px-3.5 py-3", className)} data-pay-rule-v2>
+        <h2 className="text-[15px] font-semibold text-ink">{NO_FORM_NO_PAY_V2.headline}</h2>
+        <p className="mt-1 text-[13px] leading-[1.45] text-sub">{NO_FORM_NO_PAY_V2.body}</p>
+      </section>
+    );
+  }
   if (line) return <p className={cx("text-[13px] font-semibold leading-[1.45] text-ink", className)} data-no-form-no-pay="line">{NO_FORM_NO_PAY.offerLine}</p>;
   return (
     <section className={cx("rounded-[14px] border border-line bg-paper px-3.5 py-3", className)} data-no-form-no-pay>

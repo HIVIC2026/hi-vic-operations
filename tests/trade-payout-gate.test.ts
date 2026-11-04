@@ -3,7 +3,9 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { PAYOUT_FORM_NOT_COMPLETE, payoutHeldLine, tradePayoutBlockers, type TradePayoutFacts } from "../src/lib/trade-payout-gate.core";
 import { groupPayouts, type PayoutLine } from "../src/lib/office-money.core";
-import { NO_FORM_NO_PAY, heldPayPill } from "../src/lib/trade-view.core";
+import { NO_FORM_NO_PAY, NO_FORM_NO_PAY_V2, NO_FORM_NO_PAY_V2_APPROVED, heldPayPill, payRuleWords } from "../src/lib/trade-view.core";
+import { PAY_RULE_LINE_V2 } from "../src/lib/money-screen.core";
+import { PART8_TEMPLATES } from "../src/lib/mitti-part8-health.core";
 import { INSTALL_DAY_READ_FIRST_TEXT } from "../src/lib/install-day.core";
 import { FIXES_FORM_COMPLETED_EVENT, FIXES_FORM_CREATED_EVENT, FIXES_FORM_HELD_EVENT, FIXES_FORM_NOT_DONE_EVENT, fixesFormOutcome } from "../src/lib/fixes-day.core";
 import { partnerWelcomeEmail } from "../src/lib/partner-email.core";
@@ -102,26 +104,46 @@ describe("Jo's approved wording, the same everywhere", () => {
     expect(NO_FORM_NO_PAY.offerLine).toBe("Paid only when the Mitti form is complete with every geotagged photo.");
     expect(NO_FORM_NO_PAY.mittiInstruction).toBe("Paid only when this form is 100% complete and you press Complete. Take every photo in Mitti on site so it's geotagged.");
   });
+  test("v2 words APPROVED by Jo 4 Nov 2026 14:12 are verbatim; the flag stays off until go-live; no upgrades/fixes or threat in any pay wording", () => {
+    expect(NO_FORM_NO_PAY_V2_APPROVED).toBe(false);
+    expect(NO_FORM_NO_PAY_V2.headline).toBe("When you get paid");
+    expect(NO_FORM_NO_PAY_V2.body).toBe("We pay for the safety check and installs 7 days after we approve the finished Mitti form. Take every photo and video in Mitti on site so it's geotagged. If something's missing we can't claim the rebate, so we'll ask you to fix it before we can pay.");
+    expect(NO_FORM_NO_PAY_V2.line).toBe("Paid 7 days after we approve the finished Mitti form. Your own customers: once they've paid in full.");
+    expect(PAY_RULE_LINE_V2).toBe(NO_FORM_NO_PAY_V2.line); // the Money page line is the same source
+    for (const s of Object.values(NO_FORM_NO_PAY_V2)) expect(s).not.toMatch(/upgrade|fixes|no payment|No complete form|can't pay you|only paid|only when/i);
+    // One place decides which words every surface shows (flag off today = decision 318's).
+    expect(payRuleWords()).toEqual({ headline: NO_FORM_NO_PAY.headline, body: NO_FORM_NO_PAY.body, line: NO_FORM_NO_PAY.offerLine });
+    // A5 READ FIRST last sentence (same approval): no "only paid" threat.
+    expect(INSTALL_DAY_READ_FIRST_TEXT.endsWith("Press Complete before you leave — we can't claim the rebate or pay the job until it's done.")).toBe(true);
+    expect(INSTALL_DAY_READ_FIRST_TEXT).not.toMatch(/only paid/i);
+  });
   test("held pay pill", () => {
     expect(heldPayPill([])).toBeNull();
     expect(heldPayPill(["A"])).toEqual({ label: "Held", tone: "blush", why: "A" });
     expect(heldPayPill(["A", "B"])!.why).toBe("A (and 1 more)");
   });
   const src = (f: string) => readFileSync(f, "utf8");
-  test("the shared piece renders the constant (never a retyped copy)", () => {
+  test("the shared piece renders the constant (never a retyped copy) — and the v2 constant behind the flag", () => {
     const kit = src("src/components/trade/installer-kit.tsx");
     expect(kit).toContain("NO_FORM_NO_PAY.headline");
     expect(kit).toContain("NO_FORM_NO_PAY.body");
     expect(kit).toContain("NO_FORM_NO_PAY.offerLine");
+    expect(kit).toContain("NO_FORM_NO_PAY_V2.headline");
+    expect(kit).toContain("NO_FORM_NO_PAY_V2.body");
+    expect(kit).toContain("PAY_RULE_LINE_V2");
+    expect(src("src/lib/partner-email.core.ts")).toContain("payRuleWords()");
   });
   test("trade job page (installer + electrician), today's job, Money, offers and the guide all show it", () => {
     const job = src("src/routes/_authenticated/field.$jobId.tsx");
     expect(job.match(/<NoFormNoPay\b/g)?.length).toBeGreaterThanOrEqual(1); // installer NEXT panel (the electrician PIESA/fixes screen went with the electrician sign-in, Part 6 Task 8)
     expect(src("src/routes/_authenticated/field.day.$jobId.tsx")).toContain("<NoFormNoPay");
+    // Money (Part 5 Task 8 screen): the rule sits between the tiles and the pay rows; the v2 short line takes over with the flag.
     const money = src("src/routes/_authenticated/field.money.tsx");
     expect(money).toContain("<NoFormNoPay />");
-    expect(money.indexOf("<NoFormNoPay />")).toBeLessThan(money.indexOf('<Group title="Jobs">'));
-    expect(money).toContain("heldPayPill(r.held)");
+    expect(money).toContain("NO_FORM_NO_PAY_V2_APPROVED ? <p className=\"text-sm text-sub\" data-pay-rule-v2>{PAY_RULE_LINE_V2}</p> : <NoFormNoPay />");
+    expect(money.indexOf("<NoFormNoPay />")).toBeGreaterThan(money.indexOf("data-money-tiles"));
+    expect(money.indexOf("<NoFormNoPay />")).toBeLessThan(money.indexOf("data-money-rows"));
+    expect(src("src/routes/_authenticated/field.money_.$jobId.tsx")).toContain("heldPayPill(");
     // Part 7 Task 9: the offer page is gone (redirect only); Part 5 Task 11: so is the guide page — the Job page's Next
     // step box carries the rule (<NoFormNoPay className="mt-3" />).
     expect(src("src/routes/_authenticated/field.$jobId.tsx")).toContain("<NoFormNoPay className=\"mt-3\" />");
@@ -142,15 +164,17 @@ describe("Jo's approved wording, the same everywhere", () => {
     expect(src("src/lib/office-money.server.ts")).toContain("tradePayoutBlockers(l.kind, f)");
     expect(src("src/lib/trade-view.server.ts")).toContain("tradePayoutBlockers(");
   });
-  test("A3 / A4 / A5 Mitti prompts carry the first-page instruction line", () => {
+  test("Mitti prompts: the decision-318 first-page pay line is gone from A3 / A4 (Jo 3 Nov 2026); the A5 keeps READ FIRST with its approved last sentence; the health check never requires the deleted item", () => {
     for (const f of ["docs/MITTI_INSTALL_FORM_FIX_PROMPT.md", "docs/MITTI_PIESA_CHATGPT_PROMPT.md", "docs/MITTI_PIESA_BUILD_PROMPT.md", "docs/MITTI_FIXES_FORM_PROMPT.md"]) {
       const d = src(f);
-      const g1 = d.indexOf("## Group 1: Job\n");
-      expect(g1, f).toBeGreaterThan(-1);
-      // Decision 328: the A5 carries Jo's READ FIRST line instead (it includes the pay rule); A3 / A4 keep the 318 line.
-      const line = f === "docs/MITTI_INSTALL_FORM_FIX_PROMPT.md" ? INSTALL_DAY_READ_FIRST_TEXT : NO_FORM_NO_PAY.mittiInstruction;
-      expect(d.slice(g1).split("\n")[1], f).toContain(`\`${line}\``);
+      expect(d.indexOf("## Group 1: Job\n"), f).toBeGreaterThan(-1);
+      expect(d, f).not.toContain(`\`${NO_FORM_NO_PAY.mittiInstruction}\``);
     }
-    expect(src("docs/MITTI_INSTALL_FORM_FIX_PROMPT.md")).not.toContain(NO_FORM_NO_PAY.mittiInstruction);
+    const a5 = src("docs/MITTI_INSTALL_FORM_FIX_PROMPT.md");
+    expect(a5.slice(a5.indexOf("## Group 1: Job\n")).split("\n")[1]).toContain(`\`${INSTALL_DAY_READ_FIRST_TEXT}\``);
+    for (const spec of PART8_TEMPLATES) {
+      for (const t of spec.texts) expect(t, spec.key).not.toMatch(/Paid only when|only paid/i);
+      for (const l of spec.labels) expect(l, spec.key).not.toMatch(/Paid only when|only paid/i);
+    }
   });
 });

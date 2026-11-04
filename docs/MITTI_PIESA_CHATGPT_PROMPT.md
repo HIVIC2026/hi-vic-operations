@@ -15,7 +15,7 @@ You are helping me build a form template in **Mitti** (mitti.com.au field inspec
 Answer-type key: Text = single line text; Date = date picker; Yes/No = two choices "Yes" and "No"; Pick one = single-select multiple choice with the exact options listed; Tick all = multi-select multiple choice with the exact options listed; Number = numeric; Photo = photo/attachment; Checkbox = single checkbox that must be ticked; Signature = signature capture.
 
 ## Group 1: Job
-Text item (not a question), first item on this page (decision 318): `Paid only when this form is 100% complete and you press Complete. Take every photo in Mitti on site so it's geotagged.`
+(The decision-318 text item "Paid only when this form is 100% complete…" that used to sit first on this page was DELETED by Jo — 3 Nov 2026 "get rid of the payment threatening", removed from the live template by the 4 Nov paste docs/mitti-paste-2026-11-04-second.md. No pay wording goes on any form.)
 1. `Job Reference ID` — Text — Required — portal fills this in
 2. `Address including postcode` — Text — Required — portal fills this in
 2a. `I will not discuss any prices with the owner. Home Insulation Victoria sends the owner all prices.` — Checkbox (must tick) — Required — on EVERY job, no condition (decisions 312/323, not part of the official form)

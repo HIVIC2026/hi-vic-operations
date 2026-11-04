@@ -37,6 +37,8 @@ export const INSULATION_LABEL: Record<InsulationNow, string> = { none: "None", s
  * page next to the onsite form button, the Money page above the payouts, job offers (one short line), the installer
  * guide / welcome email and the electrician guide — and as a first-page instruction line on the A3/A4/A5 Mitti forms.
  * The rule itself is enforced by `trade-payout-gate.core.ts` `tradePayoutBlockers`.
+ * SUPERSEDED wording (Jo 3 Nov 2026: "get rid of the payment threatening"): still shown while NO_FORM_NO_PAY_V2_APPROVED
+ * is false; `mittiInstruction` was deleted from the live A3/A4/A5 forms by Jo's 4 Nov paste and nothing reads it.
  */
 export const NO_FORM_NO_PAY = {
   headline: "No complete form, no payment",
@@ -44,6 +46,28 @@ export const NO_FORM_NO_PAY = {
   offerLine: "Paid only when the Mitti form is complete with every geotagged photo.",
   mittiInstruction: "Paid only when this form is 100% complete and you press Complete. Take every photo in Mitti on site so it's geotagged.",
 } as const;
+
+/**
+ * NO_FORM_NO_PAY v2 — APPROVED by Jo 4 Nov 2026 14:12 (plain words, no threat; "WE DON'T PAY UPGRADES": no upgrades or
+ * fixes in any pay wording). Same rule, same gate (`tradePayoutBlockers`); timing from decisions 30/109/344/355/410.
+ * Replaces NO_FORM_NO_PAY on every surface (job page Next step box, today's job, Money, offers line, guide, partner
+ * welcome email) once NO_FORM_NO_PAY_V2_APPROVED is on — the flag stays false until go-live flips it (Part 11).
+ * There is no Mitti first-page line in v2: the A5 READ FIRST item carries its own last sentence
+ * (install-day.core INSTALL_DAY_READ_FIRST_TEXT, also approved 4 Nov 14:12).
+ */
+export const NO_FORM_NO_PAY_V2_APPROVED = false as boolean;
+export const NO_FORM_NO_PAY_V2 = {
+  headline: "When you get paid",
+  body: "We pay for the safety check and installs 7 days after we approve the finished Mitti form. Take every photo and video in Mitti on site so it's geotagged. If something's missing we can't claim the rebate, so we'll ask you to fix it before we can pay.",
+  /** The short line: job offers and the Money page. */
+  line: "Paid 7 days after we approve the finished Mitti form. Your own customers: once they've paid in full.",
+} as const;
+/** The pay-rule words in force: v2 once the flag is on, else decision 318's (one place decides, every surface follows). */
+export function payRuleWords(): { headline: string; body: string; line: string } {
+  return NO_FORM_NO_PAY_V2_APPROVED
+    ? { headline: NO_FORM_NO_PAY_V2.headline, body: NO_FORM_NO_PAY_V2.body, line: NO_FORM_NO_PAY_V2.line }
+    : { headline: NO_FORM_NO_PAY.headline, body: NO_FORM_NO_PAY.body, line: NO_FORM_NO_PAY.offerLine };
+}
 
 /** Decision 318: a payout held by the form rule shows "Held" and its first reason, whatever its pay state would be. */
 export function heldPayPill(reasons: readonly string[] | null | undefined): { label: string; tone: "blush"; why: string } | null {

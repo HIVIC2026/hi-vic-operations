@@ -38,7 +38,7 @@ location on; Video = video attachment with location on ("several files allowed" 
 signature capture.
 
 ## Group 1: Job
-Text item (not a question), first item on this page, before Q1 (decision 328; replaces the decision-318 line on this form): `READ FIRST: The VEU will not accept this job unless every answer, photo and video on this form is filled in. Do not leave site until the whole form is done, you have pressed Complete, and the portal has texted you "All filled in". You are only paid when this form is 100% complete.`
+Text item (not a question), first item on this page, before Q1 (decision 328; replaces the decision-318 line on this form): `READ FIRST: The VEU will not accept this job unless every answer, photo and video on this form is filled in. Do not leave site until the whole form is done, you have pressed Complete, and the portal has texted you "All filled in". Press Complete before you leave — we can't claim the rebate or pay the job until it's done.`
 Q1: `Portal Job Number` — Text — Required — portal fills this in
 Q2: `Site address` — Text — Required — portal fills this in
 Q3: `Install date` — Date — Required — portal fills this in

@@ -22,8 +22,9 @@ export const INSTALL_DAY_RULE = "install-day-2026-10-24";
 export const INSTALL_DAY_SOLAR_BACK_OPTIONS = ["Yes", "No", "There isn't one"] as const;
 /** Q37, a text item (not a question) after the declaration signature. Decision 328 (Jo 25 Oct 2026) wording. */
 export const INSTALL_DAY_AFTER_SIGN_TEXT = "STOP. You are only halfway. Do not leave site. When the insulation is in, come back and finish the next pages: after videos, depth photos and finishing up.";
-/** Decision 328: the first item of Group 1 (before Q1), a text item. Replaces the decision-318 pay line on THIS form only. */
-export const INSTALL_DAY_READ_FIRST_TEXT = 'READ FIRST: The VEU will not accept this job unless every answer, photo and video on this form is filled in. Do not leave site until the whole form is done, you have pressed Complete, and the portal has texted you "All filled in". You are only paid when this form is 100% complete.';
+/** Decision 328: the first item of Group 1 (before Q1), a text item. Replaces the decision-318 pay line on THIS form only.
+ *  Last sentence APPROVED by Jo 4 Nov 2026 14:12 (no pay threat; pasted into the live A5 by docs/mitti-paste-2026-11-04-second.md). */
+export const INSTALL_DAY_READ_FIRST_TEXT = 'READ FIRST: The VEU will not accept this job unless every answer, photo and video on this form is filled in. Do not leave site until the whole form is done, you have pressed Complete, and the portal has texted you "All filled in". Press Complete before you leave — we can\'t claim the rebate or pay the job until it\'s done.';
 /** Decision 328: the first item of Group 8 (before the after videos), a text item. */
 export const INSTALL_DAY_AFTER_INSTALL_TEXT = "AFTER THE INSTALL: do this before you pack up. Every ceiling area needs its after video and depth photo.";
 export const INSTALL_DAY_DECLARATION_START = "INSTALLER DECLARATION – Sign BEFORE insulation work starts.";

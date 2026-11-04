@@ -5,7 +5,7 @@ import { CUSTOMER_BRAND } from "./customer-quote-system";
 import { SET_PASSWORD_BASE } from "./set-password-link.core";
 import * as K from "./email-kit.core";
 import { mjEmail, mjEmailSource, esc } from "./mail-mjml.core";
-import { NO_FORM_NO_PAY } from "./trade-view.core";
+import { payRuleWords } from "./trade-view.core";
 
 /** Decision 107: the 2-minute installer guide page (src/routes/_authenticated/field.guide.tsx). */
 export const INSTALLER_GUIDE_URL = `${SET_PASSWORD_BASE}/field/guide`;
@@ -157,8 +157,10 @@ export function partnerWelcomeEmail(i: { firstName: string | null; businessName:
   const steps = WELCOME_STEPS[i.trade];
   const signIn = `You'll sign in with ${i.email}. The link works once and lasts 24 hours.`;
   // Decision 318 (Jo 25 Oct 2026): the pay rule, Jo's approved words, shown as two paragraphs in the yellow box.
-  const pay = NO_FORM_NO_PAY.body.indexOf(". ");
-  const payParas = pay > 0 ? [NO_FORM_NO_PAY.body.slice(0, pay + 1), NO_FORM_NO_PAY.body.slice(pay + 2)] : [NO_FORM_NO_PAY.body];
+  // Jo 4 Nov 2026 14:12: the v2 words ("When you get paid") take over once NO_FORM_NO_PAY_V2_APPROVED is on (trade-view.core payRuleWords).
+  const payWords = payRuleWords();
+  const pay = payWords.body.indexOf(". ");
+  const payParas = pay > 0 ? [payWords.body.slice(0, pay + 1), payWords.body.slice(pay + 2)] : [payWords.body];
   const body = [
     sec([txt(esc(hi), 'mj-class="hi"'), txt(esc(headline), 'mj-class="h1" css-class="email-heading" padding="4px 12px 10px"'), txt(esc(intro))].join("")),
     sec(`<mj-table padding="18px 18px 6px">${benefits.map((b, n) => tick(esc(b), n === benefits.length - 1 ? 12 : 14)).join("")}</mj-table>`, "panel-card"),
@@ -168,7 +170,7 @@ export function partnerWelcomeEmail(i: { firstName: string | null; businessName:
       `<mj-table padding="0 18px 6px">${num(esc(WELCOME_MITTI.steps[0]), 0, false)}${num(`${esc(WELCOME_MITTI.steps[1])} <a href="${MITTI_APP_STORE_URL}" style="${LINK}">App Store</a> &middot; <a href="${MITTI_GOOGLE_PLAY_URL}" style="${LINK}">Google Play</a>`, 1, true)}</mj-table>`,
       txt(esc(WELCOME_MITTI.forms[i.trade]), 'padding="0 18px 18px"')].join(""), "panel"),
     guide ? sec([txt(esc(guide.title), 'mj-class="h2" padding="18px 18px 6px"'), txt(`${esc(guide.body)}<br /><a href="${esc(guide.href)}" style="${LINK}">Read the guide &rarr;</a>`, 'padding="0 18px 18px"')].join(""), "panel") : "",
-    sec([txt(esc(NO_FORM_NO_PAY.headline), 'mj-class="h2" padding="18px 18px 6px"'), ...payParas.map((p, n) => txt(esc(p), `padding="0 18px ${n === payParas.length - 1 ? 18 : 10}px"`))].join(""), "panel-amber"),
+    sec([txt(esc(payWords.headline), 'mj-class="h2" padding="18px 18px 6px"'), ...payParas.map((p, n) => txt(esc(p), `padding="0 18px ${n === payParas.length - 1 ? 18 : 10}px"`))].join(""), "panel-amber"),
     sec(txt("Questions? Just reply to this email.", 'mj-class="small" padding="14px 12px 0"')),
   ].join("");
   const html = mjEmail({ subject, preview, body, unsubscribe: null, testLabel: i.test === true });
@@ -177,7 +179,7 @@ export function partnerWelcomeEmail(i: { firstName: string | null; businessName:
     `Set your password: ${i.link}`, signIn, "",
     "What happens next", ...steps.map((t, n) => `${n + 1}. ${t}`), "",
     WELCOME_MITTI.title, WELCOME_MITTI.lead, `1. ${WELCOME_MITTI.steps[0]}`, `2. ${WELCOME_MITTI.steps[1]} App Store ${MITTI_APP_STORE_URL} · Google Play ${MITTI_GOOGLE_PLAY_URL}`, WELCOME_MITTI.forms[i.trade], "",
-    ...(guide ? [`${guide.title} ${guide.body}`, `Read the guide: ${guide.href}`, ""] : []), `${NO_FORM_NO_PAY.headline}. ${NO_FORM_NO_PAY.body}`, "", "Questions? Just reply to this email.",
+    ...(guide ? [`${guide.title} ${guide.body}`, `Read the guide: ${guide.href}`, ""] : []), `${payWords.headline}. ${payWords.body}`, "", "Questions? Just reply to this email.",
   ], { testLabel: i.test === true });
   return { subject, html, text };
 }
