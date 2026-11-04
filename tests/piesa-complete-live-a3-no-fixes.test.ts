@@ -9,7 +9,7 @@ const rows = (t: string) => t === "assessments" ? assessment : null;
 const builder = (t: string) => {
   const b: Record<string, unknown> = {};
   const chain = () => b;
-  for (const m of ["select", "eq", "in", "neq", "order", "limit"]) b[m] = chain;
+  for (const m of ["select", "eq", "in", "neq", "not", "is", "order", "limit"]) b[m] = chain; // G7: `.not(..)` / `.is(..)` on the post-upgrades record read
   b["maybeSingle"] = async () => ({ data: rows(t), error: null });
   b["single"] = async () => ({ data: rows(t), error: null });
   b["then"] = (res: (v: unknown) => unknown) => res({ data: [], count: t === "rectification_items" ? rectItems : 0, error: null });
@@ -21,6 +21,8 @@ mock.module("../src/lib/workflow.server", () => ({ WorkflowError, logEvent: asyn
 mock.module("../src/lib/requirements.server", () => ({ jobScope: async () => ({ scope: "x", label: "x" }), advanceSiteRequirements: async () => ({ advanced: false, scope: "x" }) }));
 mock.module("../src/lib/autoadvance.server", () => ({ autoAdvanceJob: async () => null }));
 mock.module("../src/lib/piesa-evidence.core", () => ({ piesaEvidenceBlockersFromSnapshot: () => [] }));
+// G7: the official-rules check reads the whole A3 (tests/piesa-rules*.test.ts); this fixture holds one answer and checks the fixes rule only.
+mock.module("../src/lib/piesa-rules-notice.server", () => ({ piesaRulesBlockerFor: async () => null, piesaRulesFor: async () => null }));
 
 const { completePiesaAssessment } = await import("../src/lib/piesa-complete.server");
 const FIXES_ERROR = /No electrical fixes required/;
