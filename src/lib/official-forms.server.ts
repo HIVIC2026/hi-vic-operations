@@ -222,7 +222,25 @@ export async function officialPrefillContext(jobId: string, today: string, leadU
     a.from("job_assignments").select("user_id").eq("job_id", jobId).eq("role", "electrician").eq("active", true).maybeSingle(),
   ]);
   let electrician: import("./official-prefill.core").OfficialPrefillContext["electrician"] = null;
-  if (elecAsg?.user_id) {
+  if (elecAsg && !elecAsg.user_id) {
+    // Join (4 Nov 2026, Part 6): a Team electrician never logs in — the assignment's user_id is NULL and the person is the
+    // worker named by the allocation event. Their B3 block comes from the office-verified Team row (licence number only
+    // while the office's verification stands and the licence is current) and their business (the installer's own).
+    const workerId = await (await import("./in-house-electrician.server")).allocatedWorkerId(jobId);
+    const { data: w } = workerId ? await a.from("partner_workers").select("full_legal_name,licence_number,rec_number,licence_expires_on,licence_verified_at,business_id,mobile").eq("id", workerId).is("removed_at", null).maybeSingle() : { data: null };
+    if (w) {
+      const { electricianVerified } = await import("./worker-compliance.core");
+      const verified = electricianVerified(w).ok;
+      const { data: eb } = w.business_id ? await a.from("businesses").select("name,legal_name,phone").eq("id", w.business_id).maybeSingle() : { data: null };
+      electrician = {
+        name: w.full_legal_name ?? null,
+        licence: verified ? w.licence_number?.trim() || null : null,
+        recName: eb?.legal_name ?? eb?.name ?? null,
+        recNo: verified ? w.rec_number?.trim() || null : null,
+        phone: eb?.phone ?? w.mobile ?? null,
+      };
+    }
+  } else if (elecAsg?.user_id) {
     const { data: ep } = await a.from("profiles").select("full_name,business_id").eq("id", elecAsg.user_id).maybeSingle();
     const { data: eb } = ep?.business_id ? await a.from("businesses").select("name,legal_name,phone").eq("id", ep.business_id).maybeSingle() : { data: null };
     electrician = {

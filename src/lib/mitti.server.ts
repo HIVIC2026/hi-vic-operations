@@ -160,6 +160,10 @@ export async function createAssignMittiAudit(jobId: string, actorId: string | nu
   const existingAuditId = measureOnly ? (m?.external_source === "mitti" && m.status !== "complete" ? m.external_id : null) : a?.external_mitti_id ?? null;
   const prof = (asg as unknown as { profiles: { full_name: string | null; email: string | null } | null }).profiles;
   const address = formatPropertyAddress(prop);
+  // Jo 25 Oct 2026 (A3 items 23–27, "portal fills this in"): the electrician's B3 details — name, licence, REC name and
+  // number, phone — from the same office-verified record the official PIESA uses (a no-login Team electrician included).
+  // Blank when nothing verified is on file: the electrician types it, never a guess.
+  const b3 = measureOnly ? null : (await officialPrefillContext(jobId, todayMelbourne(), null).catch(() => null))?.electrician ?? null;
   let r;
   // T3: atomic per-job/per-form claim ("mitti_audit_create_started" row with a deterministic primary key; see
   // mitti-create-claim.core.ts). Only the create POST is non-idempotent, so it is tracked: a failure before it
@@ -188,6 +192,7 @@ export async function createAssignMittiAudit(jobId: string, actorId: string | nu
         estimatedAreaM2: job.estimated_area_m2 != null ? Number(job.estimated_area_m2) : null,
         occupancy: prop?.occupancy ? prop.occupancy.replace("_", " ") : null, lifeSupport: job.life_support ? "Yes – life support recorded" : "None recorded by office",
         inspectionDate: measureOnly ? null : todayMelbourne(),
+        electricianName: b3?.name ?? null, electricianLicence: b3?.licence ?? null, electricianRecName: b3?.recName ?? null, electricianRecNo: b3?.recNo ?? null, electricianPhone: b3?.phone ?? null,
         lifeSupportDeclared: measureOnly ? null : job.life_support_status === "yes" ? "Yes" : job.life_support_status === "no" ? "No" : null,
         builtLast5Years: measureOnly ? builtLast5YearsOption((prop?.enrichment as Any)?.base44?.declared?.over_five_years ?? null) : null,
         propertyType: propertyTypeOption((prop?.enrichment as Any)?.base44?.declared?.property_type ?? null),

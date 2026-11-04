@@ -237,6 +237,8 @@ export type PrefillCtx = {
   /** Official PIESA "Date of inspection" default (today, Melbourne); the electrician can change it. */ inspectionDate?: string | null;
   /** Ready Check "built or replaced in the last 5 years?" — from the owner's DECLARED enquiry answer: over 5 years "yes" → "No", "no" → "Yes"; unknown stays blank. */ builtLast5Years?: string | null;
   /** Official PIESA life-support question, from the owner's DECLARED enquiry answer ("Yes"/"No"); blank when unknown. */ lifeSupportDeclared?: string | null;
+  /** A3 items 23–27 (Jo 25 Oct 2026, "portal fills this in"): the electrician's B3 details from the office-verified record. */
+  electricianName?: string | null; electricianLicence?: string | null; electricianRecName?: string | null; electricianRecNo?: string | null; electricianPhone?: string | null;
 };
 const PREFILL: { key: keyof PrefillCtx; aliases: string[]; mandatory?: boolean; datetime?: boolean }[] = [
   // Not mandatory on the TEMPLATE (Jo 23 Oct): A1 drops "Portal Job Number"; A2 keeps it and still gets it prefilled.
@@ -260,6 +262,12 @@ const PREFILL: { key: keyof PrefillCtx; aliases: string[]; mandatory?: boolean; 
   { key: "builtLast5Years", aliases: ["Was the ceiling or roof built or replaced in the last 5 years?"] },
   { key: "inspectionDate", aliases: ["Date of inspection"], datetime: true },
   { key: "lifeSupportDeclared", aliases: ["Is anyone at this property dependent on life support?"] },
+  // A3 B3 block (official-short.core `pre(...)` labels): prefilled, the electrician checks them.
+  { key: "electricianLicence", aliases: ["Electrician licence number"] },
+  { key: "electricianName", aliases: ["Electrician full name"] },
+  { key: "electricianRecName", aliases: ["Electrical contractor (REC) business name"] },
+  { key: "electricianRecNo", aliases: ["REC registration number"] },
+  { key: "electricianPhone", aliases: ["Electrician phone"] },
 ];
 
 const PROPERTY_TYPE_OPTIONS = ["House", "Townhouse", "Unit or apartment"] as const;

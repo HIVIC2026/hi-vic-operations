@@ -34,10 +34,19 @@ export async function loadAdvanceFacts(jobId: string): Promise<AdvanceFacts> {
     onsiteStartOnly = await ec.onsiteStartOnlyFor(jobId).catch(() => false);
     if (onsiteStartOnly) onsiteStartCleared = await ec.onsiteStartClearedFor(jobId).catch(() => false);
   }
-  const partnerBilledRectification = job?.stage === "piesa_complete" && rect > 0 && !onsiteStartOnly && !onsiteStartCleared
+  // A live A3's "upgrades needed" result with no portal items (decisions 305/324): the current PIESA record says fail.
+  const upgradesOutstanding = job?.stage === "piesa_complete" && rect === 0
+    ? (await admin.from("piesa_records").select("outcome").eq("job_id", jobId).eq("is_current", true).maybeSingle()).data?.outcome === "fail"
+    : false;
+  const partnerBilledRectification = job?.stage === "piesa_complete" && (rect > 0 || upgradesOutstanding) && !onsiteStartOnly && !onsiteStartCleared
     ? await (await import("./in-house-rectification.server")).optionalPartnerBilledRectificationFor(jobId)
     : false;
+  // Join (4 Nov 2026): only a job waiting at the accepted quote reads whether its installer runs in-house (fail closed: stays).
+  const inHouseHeld = job?.stage === "measured_quote_accepted"
+    ? await (await import("./in-house-suppression.server")).readInHouseDispatchState([jobId]).then((s) => !s.failed && s.held.has(jobId)).catch(() => false)
+    : false;
   return {
+    inHouseHeld,
     eligibilityConfirmed: !!job && eligibilityConfirmedFor(job, todayMelbourne()),
     measureUpAccepted: measAccepted > 0,
     installerSourced: job?.channel === "installer_sourced",
@@ -47,6 +56,7 @@ export async function loadAdvanceFacts(jobId: string): Promise<AdvanceFacts> {
     onsiteStartOnly,
     onsiteStartCleared,
     partnerBilledRectification,
+    upgradesOutstanding,
     rectQuoteIssued: rqi > 0,
     rectQuoteAccepted: rqa > 0,
     installQuotesIssued: iqi > 0,

@@ -37,9 +37,9 @@ export async function issueOfficialPiesa(jobId: string, actorId: string | null):
   // A48 batch 1: never file an official PIESA whose answers break the form's own rules.
   const rulesBlocker = await (await import("./piesa-rules-notice.server")).piesaRulesBlockerFor(jobId);
   if (rulesBlocker) return hold(rulesBlocker);
-  const { data: asg } = await admin.from("job_assignments").select("user_id").eq("job_id", jobId).eq("role", "electrician").eq("active", true).maybeSingle();
-  if (!asg?.user_id) return hold("no assigned electrician to attribute the PIESA to");
-  const { data: prof } = await admin.from("profiles").select("full_name").eq("id", asg.user_id).maybeSingle();
+  // The signer: the assignment's profile, or (Part 6, no login) the Team electrician named by the allocation event.
+  const signer = await (await import("./in-house-electrician.server")).electricianSignerFor(jobId);
+  if (!signer) return hold("no assigned electrician to attribute the PIESA to");
   const { shortAnswersFromEntries } = await import("./official-short.core");
   const { expandPiesa } = await import("./official-expand.core");
   const { todayMelbourne } = await import("./eligibility.server");
@@ -48,7 +48,7 @@ export async function issueOfficialPiesa(jobId: string, actorId: string | null):
   const ownerConfirmation = await (await import("./piesa-owner-confirm.server")).ownerConfirmationForExpand(jobId).catch(() => null);
   const expanded = expandPiesa(shortAnswersFromEntries("piesa", entries), { lifeSupportDeclared: ctx.lifeSupportDeclared, today: a.assessed_on, ownerConfirmation, ownerFixesConfirmation: null });
   const { facts } = await materialFacts(jobId, null);
-  const id = await storeSignedCopy({ jobId, key: "piesa", answers: expanded.answers, signer: { userId: asg.user_id, name: prof?.full_name ?? "", role: "electrician" }, enteredDate: a.assessed_on, jobFacts: facts as unknown as Record<string, string>, acknowledgementIds: [], signature: `mitti:${a.external_mitti_id}` });
+  const id = await storeSignedCopy({ jobId, key: "piesa", answers: expanded.answers, signer: { userId: signer.userId, name: signer.name, role: "electrician" }, enteredDate: a.assessed_on, jobFacts: facts as unknown as Record<string, string>, acknowledgementIds: [], signature: `mitti:${a.external_mitti_id}` });
   let docx = "";
   try {
     const r = await (await import("./official-docx.server")).storeOfficialDocx(jobId, "piesa");

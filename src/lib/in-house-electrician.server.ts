@@ -35,6 +35,20 @@ export async function allocatedWorkerId(jobId: string): Promise<string | null> {
   const id = ev?.details?.worker_id;
   return typeof id === "string" && id ? id : null;
 }
+/** Join (4 Nov 2026): who signs as the job's electrician on the official PIESA / Section C — the assignment's profile when the
+ *  person has a login (legacy REC electricians), else the no-login Team worker named by the allocation event (their worker
+ *  id is the attribution; nothing reads `signer_user_id` as a profile). Null when nobody is assigned. */
+export async function electricianSignerFor(jobId: string): Promise<{ userId: string; name: string } | null> {
+  const asg = await read<{ user_id: string | null } | null>(db.from("job_assignments").select("user_id").eq("job_id", jobId).eq("role", "electrician").eq("active", true).maybeSingle());
+  if (!asg) return null;
+  if (asg.user_id) {
+    const prof = await read<{ full_name: string | null } | null>(db.from("profiles").select("full_name").eq("id", asg.user_id).maybeSingle());
+    return { userId: asg.user_id, name: prof?.full_name ?? "" };
+  }
+  const workerId = await allocatedWorkerId(jobId);
+  const w = workerId ? await read<{ id: string; full_legal_name: string } | null>(db.from("partner_workers").select("id, full_legal_name").eq("id", workerId).is("removed_at", null).maybeSingle()) : null;
+  return w ? { userId: w.id, name: w.full_legal_name } : null;
+}
 /** The assignment names this worker: by the allocation event, else (legacy) by the profile on the assignment. */
 export const isAllocated = (w: { id: string; profile_id: string | null }, assignment: { user_id: string | null } | null, allocatedId: string | null): boolean =>
   !!assignment && (allocatedId ? allocatedId === w.id : !!assignment.user_id && assignment.user_id === w.profile_id);

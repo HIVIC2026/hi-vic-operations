@@ -577,11 +577,20 @@ async function partyFacts(jobId: string, role: "installer" | "electrician") {
     .eq("active", true)
     .maybeSingle();
   if (!a) return null;
-  const { data: p } = await admin
-    .from("profiles")
-    .select("id, email, full_name, licence_number, phone, business_id")
-    .eq("id", a.user_id)
-    .maybeSingle();
+  // Join (4 Nov 2026, Part 6): a Team electrician never logs in — the assignment's user_id is NULL and the person is the
+  // worker named by the allocation event; their office-verified Team row stands in for a profile (licence, REC, mobile).
+  let teamWorker: { id: string; full_legal_name: string; email: string | null; mobile: string | null; licence_number: string | null; rec_number: string | null } | null = null;
+  if (!a.user_id && role === "electrician") {
+    const workerId = await (await import("./in-house-electrician.server")).allocatedWorkerId(jobId);
+    teamWorker = workerId ? (await admin.from("partner_workers").select("id, full_legal_name, email, mobile, licence_number, rec_number").eq("id", workerId).is("removed_at", null).maybeSingle()).data : null;
+  }
+  const { data: p } = a.user_id
+    ? await admin
+      .from("profiles")
+      .select("id, email, full_name, licence_number, phone, business_id")
+      .eq("id", a.user_id)
+      .maybeSingle()
+    : { data: teamWorker ? { id: teamWorker.id, email: teamWorker.email, full_name: teamWorker.full_legal_name, licence_number: teamWorker.licence_number, phone: teamWorker.mobile, business_id: a.business_id } : null };
   const bid = a.business_id ?? p?.business_id ?? null;
   const { data: b } = bid
     ? await admin
@@ -591,10 +600,11 @@ async function partyFacts(jobId: string, role: "installer" | "electrician") {
         .maybeSingle()
     : { data: null };
   return {
-    userId: a.user_id as string,
+    userId: (a.user_id ?? teamWorker?.id ?? null) as string,
     businessId: bid as string | null,
     profile: p ?? null,
-    business: b ?? null,
+    // A Team electrician's REC number is on their own verified row, not the installer business's.
+    business: b ? { ...b, ...(teamWorker?.rec_number ? { rec_number: teamWorker.rec_number } : {}) } : null,
   };
 }
 
@@ -791,13 +801,16 @@ export async function veecJobFacts(
         ),
     );
   const products = reviewed?.products ?? [];
+  // Decisions 148/149: the approved ceiling batts (Bradford Gold, Pink Batts, Earthwool) are all ESC category 48A; any other
+  // reviewed product stays blank for the office to type at preparation.
+  const known48A = (brand: string | null) => /bradford|pink|earthwool/i.test(brand ?? "");
   if (products.length)
     areas = products.map((pr, i) => ({
       name: `Area ${i + 1}`,
       existing,
       existingRValue: existingR,
       removed,
-      productType: null,
+      productType: known48A(pr.brand) ? "48A" : null,
       brand: pr.brand,
       model: pr.model,
       rValue: `R${pr.rValue}`,

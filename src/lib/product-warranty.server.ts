@@ -47,9 +47,15 @@ export async function warrantyBuildingClassFor(jobId: string): Promise<string | 
     ]);
     const str = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
     const fromType = (v: unknown) => { const t = str(v); return t ? classFromPropertyType(propertyTypeOption(t) ?? t) : null; };
-    const snap = (m?.raw_snapshot ?? null) as Record<string, unknown> | null;
+    const raw = m?.raw_snapshot ?? null;
+    // A Mitti Ready Check keeps its answers as labelled entries: the A1/A2 "Property type" tap (House / Townhouse = Class 1,
+    // Unit = Class 2 sole-occupancy unit) is the installer's own answer for an own-customer job with no website enquiry.
+    const entries = Array.isArray(raw) ? (raw as { label?: unknown; value?: unknown }[]) : [];
+    const { LEAN_Q } = await import("./ready-check-lean.core");
+    const answered = (label: string) => str(entries.find((e) => typeof e.label === "string" && e.label.trim().toLowerCase() === label.toLowerCase())?.value);
+    const snap = (!Array.isArray(raw) && raw ? raw : null) as Record<string, unknown> | null;
     const enrichment = ((job?.properties as unknown as { enrichment?: Record<string, unknown> | null } | null)?.enrichment ?? {}) as { base44?: { declared?: Record<string, unknown> | null } | null };
-    return str(snap?.["building_class"]) ?? fromType(snap?.["property_type"]) ?? fromType(enrichment.base44?.declared?.["property_type"]);
+    return str(snap?.["building_class"]) ?? fromType(snap?.["property_type"]) ?? fromType(answered(LEAN_Q.propertyType)) ?? fromType(enrichment.base44?.declared?.["property_type"]);
   } catch {
     return null;
   }

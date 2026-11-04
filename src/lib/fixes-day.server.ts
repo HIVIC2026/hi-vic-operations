@@ -483,7 +483,9 @@ export async function completeFixesForm(jobId: string, auditId: string, opts: { 
   await applyPiesaRecord({ jobId, actorId: asg?.user_id ?? null, kind: "post_rectification", outcome: "pass", completedDate: plan.certDate, sectionCSignedDate: plan.certDate, notes: `Recorded from the Mitti electrical fixes form ${auditId}. CoES ${plan.coesNumber}.`, source: { kind: "mitti_fixes_form", auditId } });
   // 4. Official PIESA + O28 copies through their existing guarded paths (each reports its own hold).
   let official: string;
-  try { official = await regenerateOfficialPiesa(jobId, actorId, merged, { userId: asg?.user_id ?? null, name: signerName }, plan.certDate); }
+  // Part 6 (no-login Team electricians): the assignment's profile, else the worker named by the allocation event.
+  const signer = asg?.user_id ? { userId: asg.user_id, name: signerName } : { userId: (await (await import("./in-house-electrician.server")).electricianSignerFor(jobId))?.userId ?? null, name: signerName };
+  try { official = await regenerateOfficialPiesa(jobId, actorId, merged, signer, plan.certDate); }
   catch (e) { official = `official PIESA not regenerated: ${e instanceof Error ? e.message : "error"}`; }
   let copies: string;
   try { const d = await (await import("./piesa-delivery.server")).deliverPiesaCopies(jobId); copies = d.hold ? `PIESA copies held: ${d.hold}` : `PIESA copies sent to ${d.sent.join(", ") || "nobody"}${Object.keys(d.held).length ? `; held: ${Object.entries(d.held).map(([k, v]) => `${k} ${v}`).join(", ")}` : ""}`; }
