@@ -197,7 +197,7 @@ function bookingFixture(creds: AnyRow[], biz: AnyRow = { id: "biz", name: "Rapid
     "./workflow": { installationDateBlocker: () => null, STAGE_LABEL: {} },
     "./install-days.core": { installEndAt: (s: string) => s, installWindowDeadline: () => "2026-12-31", installDayOutsideWindow: () => false, NEW_PIESA_NEEDED: "new PIESA" },
     "./invoice-dates.server": {}, "./autoadvance.server": {},
-    "./allocation.server": { clearanceFacts: async () => ({}) }, "./allocation.core": { electricalClearance: () => ({ cleared: true, timingDate: "2026-11-01" }), installationCoordinationBlocker: () => null },
+    "./allocation.server": { clearanceFacts: async () => ({}) }, "./allocation.core": { electricalClearance: () => ({ cleared: true, timingDate: "2026-11-01" }), installationCoordinationBlocker: () => null, installationCoordination: () => ({ block: null, warn: null }) }, // + Task 10's warn/block split (join)
     "./esc.core": { bookingLeadBlocker: () => null },
     "./piesa-owner-confirm.server": { ownerPiesaConfirmationBlockerFor: async () => null },
     "./pilot.server": { requireApprovedPartner: async () => ({}) },
@@ -220,14 +220,14 @@ describe("validateBooking: the insurance gate on every kind (server)", () => {
     const low = bookingFixture([{ ...GOOD[0]!, amount_insured_aud: "2000000" }, GOOD[1]!]);
     await expect(low.api.validateBooking("j", "installation", "2026-11-20T21:00:00Z", null)).rejects.toThrow(BUSINESS_DOCS_WORDS.amountLow(PL, 2_000_000));
     const ok = bookingFixture(GOOD);
-    await expect(ok.api.validateBooking("j", "installation", "2026-11-20T21:00:00Z", null)).resolves.toEqual({ stage: "installation_scheduling", target: "installation_booked" });
+    await expect(ok.api.validateBooking("j", "installation", "2026-11-20T21:00:00Z", null)).resolves.toEqual({ stage: "installation_scheduling", target: "installation_booked", warnings: [] });
   });
   test("Ready Check: the renewal is uploaded but not checked yet → throws; verified → allowed", async () => {
     const f = bookingFixture([{ ...GOOD[0]!, expires_at: "2026-10-01" }, { id: "c3", business_id: "biz", kind: "public_liability_insurance", label: "Public liability", expires_at: "2027-10-01", verification: "pending" }, GOOD[1]!]);
     f.setStage("ready_check_ready_to_schedule");
     await expect(f.api.validateBooking("j", "ready_check", "2026-11-10T21:00:00Z", null)).rejects.toThrow(BUSINESS_DOCS_WORDS.expiredWaiting(PL, "2026-10-01"));
     f.rows["business_credentials"]![1]!["verification"] = "verified"; f.rows["business_credentials"]![1]!["amount_insured_aud"] = "5000000";
-    await expect(f.api.validateBooking("j", "ready_check", "2026-11-10T21:00:00Z", null)).resolves.toEqual({ stage: "ready_check_ready_to_schedule", target: "ready_check_scheduled" });
+    await expect(f.api.validateBooking("j", "ready_check", "2026-11-10T21:00:00Z", null)).resolves.toEqual({ stage: "ready_check_ready_to_schedule", target: "ready_check_scheduled", warnings: [] });
   });
   test("nothing on file → throws (an installation never books on a missing certificate); a read failure blocks", async () => {
     const f = bookingFixture([]);

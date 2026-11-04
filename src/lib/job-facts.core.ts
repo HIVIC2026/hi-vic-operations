@@ -15,6 +15,8 @@ export const JOB_FACT_TABLES = [
   "payment_overrides", "ready_check_windows", "assessment_payments", "owner_esc_consents", "ready_checks", "worker_job_links",
   // Join 4 Nov 2026 (Part 5's job page inside the #135 budget): the owner messages sent and the job's documents (CoES).
   "customer_email_sends", "documents",
+  // Join 4 Nov 2026 (Part 9 Task 10): the GO checks the installer pay gate reads for the job page's Money rows.
+  "pre_start_checks",
 ] as const;
 export type JobFactTable = (typeof JOB_FACT_TABLES)[number];
 

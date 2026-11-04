@@ -89,12 +89,12 @@ const overrides: Record<string, any> = {
   // This fixture exercises canonical gates; atomic persistence/parallel clicks are
   // proven separately on the real pending RPC in in-house-atomic-booking.test.ts.
   './in-house-atomic-save.server':{saveInHouseVisit:async(jobId:string,actor:string,input:any)=>{
-    await load('booking.server').validateBooking(jobId,input.kind,input.start,actor);
+    const validated=await load('booking.server').validateBooking(jobId,input.kind,input.start,actor);
     const existing=(await rows<any>('SELECT id FROM bookings WHERE job_id=$1 AND kind=$2 AND status=\'confirmed\' AND scheduled_start=$3',[jobId,input.kind,input.start]))[0];
     if(!existing)await load('booking.server').confirmBooking(jobId,input.kind,input.start,actor,'in-house partner');
     const saved=(await rows<any>('SELECT id FROM bookings WHERE job_id=$1 AND kind=$2 AND status=\'confirmed\'',[jobId,input.kind]))[0];
     if(input.kind==='ready_check'&&!existing){await db.query('UPDATE jobs SET next_action=$2 WHERE id=$1',[jobId,'Ready Check booked']);await logEvent(jobId,actor,'installer_ready_check_time_entered','Partner entered the Ready Check day and time');}
-    return {bookingId:saved.id,needsVerification:[]};
+    return {bookingId:saved.id,needsVerification:[],warnings:validated.warnings??[]};
   }},
   './in-house-booking.server':{prepareBookingWorker:async()=>({id:MEMBER,name:'TEST worker',phone:null}),notifyOwnerBooked:async()=>{}},
   "@/integrations/supabase/client.server": { supabaseAdmin: admin },
@@ -170,9 +170,9 @@ test("PIESA not complete returns the existing electrical clearance blocker", asy
   await patch("piesa_completed",false);
   expect(await book()).toEqual({ ok: false, blockers: ["Installation cannot be arranged yet: PIESA not completed and signed yet."] });
 });
-test("required Part C unsigned returns the existing clearance blocker", async () => {
+test("required Part C unsigned: the install is booked with the upgrades warning (Part 9 Task 10, Jo 2 Nov answer 21), never refused", async () => {
   await patch("rectification_required",true); await patch("part_c_signed",false);
-  expect(await book()).toEqual({ ok: false, blockers: ["Installation cannot be arranged yet: Section C not completed and signed yet."] });
+  expect(await book()).toMatchObject({ ok: true, warnings: [allocation.UPGRADES_NOT_DONE_WARNING] });
 });
 test("owner acceptance still blocks installation", async () => {
   await patch("signed",false);

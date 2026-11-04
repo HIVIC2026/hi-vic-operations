@@ -99,7 +99,7 @@ function lockFixture(now: Date) {
     "./workflow": { installationDateBlocker: () => null, STAGE_LABEL: {} },
     "./install-days.core": { installEndAt: (s: string) => s, installWindowDeadline: () => "2026-12-31", installDayOutsideWindow: () => false, NEW_PIESA_NEEDED: "new PIESA" },
     "./invoice-dates.server": {}, "./autoadvance.server": {},
-    "./allocation.server": { clearanceFacts: async () => ({}) }, "./allocation.core": { electricalClearance: () => ({ cleared: true, timingDate: "2026-11-01" }), installationCoordinationBlocker: () => null },
+    "./allocation.server": { clearanceFacts: async () => ({}) }, "./allocation.core": { electricalClearance: () => ({ cleared: true, timingDate: "2026-11-01" }), installationCoordinationBlocker: () => null, installationCoordination: () => ({ block: null, warn: null }) }, // + Task 10's warn/block split (join)
     "./esc.core": { bookingLeadBlocker: () => null, isWithdrawn: () => false },
     "./piesa-owner-confirm.server": { ownerPiesaConfirmationBlockerFor: async () => null },
     "./payments.server": { installDepositBlockerFor: async () => null }, "./job-live.server": { jobDeletedBlocker: async () => null },
@@ -122,9 +122,9 @@ describe("validateBooking: moving a booked install after the lock (server)", () 
   test("Thu 8am install: moved at Tue 17:01 → LEAD_LOCKED_MESSAGE; at Tue 16:59 → allowed; the same start is never a move", async () => {
     const late = lockFixture(TUE_1701);
     await expect(late.booking.validateBooking("j", "installation", "2026-11-12T21:00:00Z", null)).rejects.toThrow(LEAD_LOCKED_MESSAGE);
-    await expect(late.booking.validateBooking("j", "installation", THU_8AM, null)).resolves.toEqual({ stage: "installation_booked", target: "installation_booked" });
+    await expect(late.booking.validateBooking("j", "installation", THU_8AM, null)).resolves.toEqual({ stage: "installation_booked", target: "installation_booked", warnings: [] });
     const early = lockFixture(TUE_1659);
-    await expect(early.booking.validateBooking("j", "installation", "2026-11-12T21:00:00Z", null)).resolves.toEqual({ stage: "installation_booked", target: "installation_booked" });
+    await expect(early.booking.validateBooking("j", "installation", "2026-11-12T21:00:00Z", null)).resolves.toEqual({ stage: "installation_booked", target: "installation_booked", warnings: [] });
   });
   test("a completed install is never locked; a booking read error refuses the move (fail closed)", async () => {
     const done = lockFixture(TUE_1701);

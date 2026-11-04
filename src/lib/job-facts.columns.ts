@@ -9,6 +9,7 @@ import type { ColumnLists } from "./job-facts.core";
 export const FACT_COLUMNS: ColumnLists = {
   customer_email_sends: ["communication_id", "created_at", "delivery_at", "delivery_detail", "delivery_result", "error", "estimate_link_id", "id", "idempotency_key", "job_id", "provider", "provider_message_id", "purpose", "sent_at", "status"],
   documents: ["created_at", "external_id", "id", "job_id", "kind", "mime_type", "original_name", "size_bytes", "source_system", "storage_path", "title", "uploaded_by"],
+  pre_start_checks: ["booking_id", "checked_at", "failures", "id", "job_id", "passed", "scheduled_start", "trigger"],
   workflow_events: ["actor_id", "created_at", "details", "event_type", "from_stage", "id", "internal", "job_id", "summary", "to_stage"],
   bookings: ["assignment_id", "booked_by", "business_id", "contractor_id", "created_at", "id", "job_id", "kind", "notes", "scheduled_end", "scheduled_start", "status"],
   job_assignments: ["active", "assigned_at", "assigned_by", "booking_confirmed_at", "business_id", "cannot_attend_at", "end_reason", "ended_at", "first_response_at", "id", "job_id", "role", "user_id"],
