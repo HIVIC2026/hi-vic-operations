@@ -32,9 +32,14 @@ describe("usual electrician without a price (decision 369)", () => {
     expect(usualElectricianLine({ name: "Sam Lee", licence: "28841" })).toBe("Sam Lee · Licence 28841");
     expect(read("src/lib/mitti-job-presentation.server.ts")).not.toMatch(/priceIncGst\.toFixed/);
   });
-  test("the usual electrician page never mentions a price and says 'licence number' only", () => {
+  test("the electricians page never asks the installer for a price or charge and says 'licence number' only", () => {
     const route = read("src/routes/_authenticated/field.business_.electrician.tsx");
-    expect(route).not.toMatch(/charge|price/i);
+    // Part 5 Task 9 (Jo's approved 2 Nov 2026 My business mock-ups) rebuilt this page: it SHOWS each Team electrician's PIESA
+    // price read from the business's rate card (the installer's own rate, which the owner's PIESA line follows — Jo 4 Nov
+    // 2026) and never asks for one. Decision 369's pin was "no typed price": no price/charge field, no "charge" wording.
+    expect(route).not.toMatch(/charge/i);
+    expect(route).not.toMatch(/<input[^>]*(price|charge)/i);
+    expect(route).not.toMatch(/name="price|placeholder="[^"]*(price|charge)/i);
     expect(route).not.toMatch(/REC number/);
     const form = read("src/components/trade/usual-electrician.tsx");
     expect(form).not.toMatch(/REC number/);
