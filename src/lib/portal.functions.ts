@@ -2809,6 +2809,8 @@ export const updateVeec = createServerFn({ method: "POST" })
       !["ready_for_veec", "complete"].includes(await getStage(jobId))
     )
       throw new WorkflowError("VEEC can only be lodged once the job is Ready for VEEC.");
+    // Part 9 Task 14: a job marked "no ESC" (real run) never has certificates recorded as created (read failure refuses).
+    if (["submitted", "approved"].includes(data.status)) await (await import("./no-esc.server")).assertNotNoEsc(jobId);
     const { data: prev } = await admin
       .from("veec_lodgements")
       .select(
@@ -2831,7 +2833,7 @@ export const updateVeec = createServerFn({ method: "POST" })
         jobProductProblems(jobId).catch((e: unknown) => [`Product check failed: ${e instanceof Error ? e.message : String(e)}`]),
         jobPaymentView(jobId).then((v) => (v ? v.paid.install : null)).catch(() => null),
       ]);
-      const gate = veecCreationBlockers({ productProblems, installPaidCents });
+      const gate = veecCreationBlockers({ productProblems, installPaidCents, noEsc: false }); // marked jobs were refused above
       if (gate.length) throw new WorkflowError(gate.join(" "));
     }
     await admin

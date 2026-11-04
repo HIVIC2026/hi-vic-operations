@@ -13,7 +13,7 @@ const N1 = "00000000-0000-4000-8000-0000000000e1", N2 = "00000000-0000-4000-8000
 const START = "2026-11-04T22:00:00Z";
 const db = new PGlite();
 await db.exec(`
-  create table public.jobs(id uuid primary key, job_number text not null, source text not null default 'website', stage text not null, last_activity_at timestamptz);
+  create table public.jobs(id uuid primary key, job_number text not null, source text not null default 'website', stage text not null, last_activity_at timestamptz, external_refs jsonb); -- external_refs: Part 9 Task 14 no-ESC marker read (fails closed without the column)
   insert into public.jobs(id, job_number, stage) values ('${JOB}', 'HV-1', 'installation_booked'), ('${JOB2}', 'HV-2', 'ready_for_veec');
   create table public.workflow_events(id uuid primary key default gen_random_uuid(), job_id uuid, actor_id uuid, event_type text not null, summary text not null, details jsonb not null default '{}'::jsonb,
     from_stage text, to_stage text, internal boolean not null default false, created_at timestamptz not null default clock_timestamp());

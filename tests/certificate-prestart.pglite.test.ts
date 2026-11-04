@@ -43,6 +43,8 @@ CREATE TABLE business_credentials (id uuid primary key default gen_random_uuid()
 CREATE TABLE pre_start_checks (id uuid primary key default gen_random_uuid(), job_id uuid, booking_id uuid, scheduled_start timestamptz, passed boolean, failures jsonb, trigger text, checked_at timestamptz default clock_timestamp());
 -- Joined branch (4 Nov 2026): Part 9 Task 5's GO check facts read the life support answer and plan (job-records.server).
 ALTER TABLE jobs ADD COLUMN life_support boolean not null default false, ADD COLUMN life_support_status text;
+-- Part 9 Task 14: the GO check reads the "no ESC" real-run marker from jobs.external_refs (fails closed without the column).
+ALTER TABLE jobs ADD COLUMN external_refs jsonb;
 CREATE TABLE job_compliance_records (id uuid primary key default gen_random_uuid(), job_id uuid, record_key text, occurred_at timestamptz, reference text, notes text);
 `);
 const stored = new Map<string, Uint8Array>();
