@@ -72,17 +72,23 @@ describe("decision 396: the A5 ruler questions (wording, paste file, form health
     const build = readFileSync("docs/MITTI_INSTALL_FORM_FIX_PROMPT.md", "utf8");
     for (const l of [RQ.existingDepth, RQ.newDepth, ...Object.values(INSTALL_DAY_RULER_HELP)]) expect(build).toContain(`\`${l}\``);
   });
-  test("decision 396: a template without them can still be created (Q1–Q48 check) but form health lists them", () => {
+  test("Jo 5 Nov 2026: form health never asks for the ruler page — the depth-photo question (Q1–Q48) is the proof", () => {
     const tpl = { items: installDayTemplate(INSTALL_DAY_QUESTIONS).items };
     expect(installDayMissingQuestions(tpl)).toEqual([]);
     expect(installDayRulerMissingQuestions(tpl)).toEqual([RQ.existingDepth, RQ.newDepth]);
     const health = validateSavedDefinition("piisa", tpl);
     expect(health.ok).toBe(true);
-    expect(health.issues.join(" ")).toContain(RQ.newDepth);
+    expect(health.issues.join(" ")).not.toContain(RQ.newDepth);
+    expect(health.issues.join(" ")).not.toContain("ruler");
+    // A form that still carries the ruler page is fine too; the two optional "Changes during the job" items are never listed.
     const built = { items: [...tpl.items, { item_id: "r1", label: RQ.existingDepth, type: "media" }, { item_id: "r2", label: RQ.newDepth, type: "media" }] };
     expect(installDayRulerMissingQuestions(built)).toEqual([]);
-    // Only the 2 Nov adult item (advisory, Part 8 Task 5) is still listed; the ruler items are not.
-    expect(validateSavedDefinition("piisa", built).issues.filter((i) => i.includes("ruler"))).toEqual([]);
+    const issues = validateSavedDefinition("piisa", built).issues;
+    expect(issues.filter((i) => i.includes("ruler"))).toEqual([]);
+    expect(issues.filter((i) => i.includes("affects safety") || i.includes("keep everyone safe"))).toEqual([]);
+    // Without the depth-photo question the form is wrong (not ok), as before.
+    const noDepth = { items: tpl.items.filter((i: { label?: string }) => i.label !== E.depthPhotos) };
+    expect(validateSavedDefinition("piisa", noDepth).ok).toBe(false);
   });
 });
 
@@ -143,11 +149,31 @@ describe("decision 396: the rule — Installation complete needs every area's ru
     expect(r.blockers).toEqual(["Main ceiling: existing insulation depth photo with a ruler is missing"]);
     expect(rulerPhotoEvaluation(installDayRulerPhotos(a5([])), [], SIG).blockers).toEqual([RULER_SECTION_MISSING]);
   });
-  test("decision 396: an A5 without the ruler page holds completion with the paste instruction", () => {
-    const s = evalA5([]);
-    expect(s.blockers).toEqual([RULER_SECTION_MISSING]);
-    expect(RULER_SECTION_MISSING).toContain("docs/mitti-paste-A5-ruler-photos.md");
+  test("Jo 5 Nov 2026: an A5 with neither the ruler page nor the depth-photo question holds completion", () => {
+    const noDepth = { items: a5([]).items.filter((i) => i.label !== E.depthPhotos) };
+    const s = evaluateInstallEvidence(readInstallEvidence(noDepth), ctx("2026-10-29"), SIG);
+    expect(s.blockers).toContain(RULER_SECTION_MISSING);
+    expect(RULER_SECTION_MISSING).toContain(E.depthPhotos);
     expect(installCompletionDecision({ formCompleted: true, declarationSaved: true, summary: s, alreadyCompleted: false, allFilledInTicked: true }).record).toBe(false);
+  });
+  test("Jo 5 Nov 2026 ('why the hell is there a ruler page'): the one depth-photo question IS the ruler proof — no ruler page needed", () => {
+    // Two areas, two geotagged + timed depth photos taken after work started: nothing holds completion.
+    const s = evalA5([]);
+    expect(s.rulerBlockers).toEqual([]);
+    expect(s.blockers).toEqual([]);
+    expect(s.rulerPhotos).toEqual([{ zone: 1, name: "All areas", existingRequired: false, existing: [], after: expect.arrayContaining([expect.objectContaining({ mediaId: "dp1" }), expect.objectContaining({ mediaId: "dp2" })]) }]);
+    expect(installCompletionDecision({ formCompleted: true, declarationSaved: true, summary: s, alreadyCompleted: false, allFilledInTicked: true }).record).toBe(true);
+    // One photo for two areas, or one without location / taken before work started: holds, in plain words.
+    const one = { items: a5([]).items.map((i) => (i.label === E.depthPhotos ? photo(E.depthPhotos, geo("dp1", "2026-10-30T03:05:00Z")) : i)) };
+    const s1 = evaluateInstallEvidence(readInstallEvidence(one), ctx("2026-10-29"), SIG);
+    expect(s1.rulerBlockers).toEqual(["Depth photos with a ruler (one per area — 2 ceiling areas): 1 of 2 uploaded"]);
+    const early = { items: a5([]).items.map((i) => (i.label === E.depthPhotos ? photo(E.depthPhotos, geo("dp1", "2026-10-29T19:00:00Z"), geo("dp2", "2026-10-30T03:06:00Z", { lat: null })) : i)) };
+    const s2 = evaluateInstallEvidence(readInstallEvidence(early), ctx("2026-10-29"), SIG);
+    expect(s2.rulerBlockers).toEqual(expect.arrayContaining([expect.stringContaining("location (GPS) not recorded"), "Depth photos with a ruler: 1 taken before work started — take them when the insulation is in"]));
+    // Before the effective date the depth photos still hold completion (rulerBlockers), like the ruler page did.
+    const s3 = evaluateInstallEvidence(readInstallEvidence(one), ctx("2026-01-05"), SIG);
+    expect(s3.applies).toBe(false);
+    expect(s3.blockers).toEqual(s1.rulerBlockers);
   });
   test("decision 396: 'All filled in — you can leave site' depends only on the A5 itself", () => {
     const s = evalA5([copy(1, [before("e1")], [after("n1")]), copy(2, null, [after("n2")])]);

@@ -2,6 +2,7 @@
 // Fail closed: nothing is "sent" unless an actual submission (adapter or audited manual record) set it.
 import { consentCompletedAt, consentValidityBlockers, type ConsentRecord } from "./consent.core";
 import { melbourneYmd } from "./piesa-windows.core";
+import { melbourneMidnight } from "./daily-brief.core";
 
 export const HOUR = 3600_000;
 export const LEAD_MS = 24 * HOUR;
@@ -351,13 +352,21 @@ export type Readiness = { ready: boolean; blockers: string[]; dueBy: string | nu
  *  automatically; a missing or late delivery means that send failed). ONE rule for readyToInstall (Installation complete)
  *  and the day-before pre-start check (decision 395), so both places say the same thing. */
 export type PiesaCopyDeliveries = { owner: string | string[] | null; installer: string | string[] | null };
+/** `piesa_records.section_c_signed_at` is a Melbourne DATE stored as `YYYY-MM-DDT00:00:00.000Z` (piesa-record.server), i.e.
+ *  11am Melbourne in summer. Read as an instant it would make a copy sent that same morning (after the real Part C) look
+ *  "before Part C" — the GO check and Installation complete then say the updated PIESA was never delivered (found 5 Nov
+ *  2026, journey A1 before 11am). A date-only value means the start of that Melbourne day; a real instant is used as is. */
+export function partCSignedTime(iso: string): number {
+  const m = /^(\d{4}-\d{2}-\d{2})T00:00:00(?:\.000)?Z$/.exec(iso);
+  return m ? melbourneMidnight(m[1]!) : Date.parse(iso);
+}
 export function piesaCopyDeliveryBlockers(scheduledStart: string, deliveries: PiesaCopyDeliveries, opts?: { partCSignedAt?: string | null }): string[] {
   const dueT = new Date(escDueBy(scheduledStart)).getTime();
   const times = (s: string | string[] | null) => (s == null ? [] : Array.isArray(s) ? s : [s]).map((t) => new Date(t).getTime()).filter(Number.isFinite);
   const fmt = new Date(dueT).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" });
   // Part 9 Task 5: once Part C is signed (upgrades done), only a copy delivered at or after that signature counts — the
   // owner and installer must hold the UPDATED PIESA 24h before the start. Unparseable Part C time = not signed (older rows).
-  const partCT = opts?.partCSignedAt ? Date.parse(opts.partCSignedAt) : NaN;
+  const partCT = opts?.partCSignedAt ? partCSignedTime(opts.partCSignedAt) : NaN;
   const b: string[] = [];
   for (const r of ["owner", "installer"] as const) {
     const ts = times(deliveries[r]);

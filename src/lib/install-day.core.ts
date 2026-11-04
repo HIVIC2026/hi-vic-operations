@@ -225,6 +225,8 @@ function findAnswerTime(doc: unknown, label: string): string | null {
   return out;
 }
 /** The 2 Nov items the template does not carry yet (exact wording). Advisory — see INSTALL_DAY_NOV2_Q. */
+/** Jo 5 Nov 2026: the two "Changes during the job" text items are optional — read when present, never required or chased. */
+export const INSTALL_DAY_NOV2_OPTIONAL: readonly string[] = [INSTALL_DAY_NOV2_Q.swmsChange, INSTALL_DAY_NOV2_Q.swmsNewControl];
 export function installDayNov2MissingQuestions(template: unknown): string[] {
   const items = labelledItems(template);
   return Object.values(INSTALL_DAY_NOV2_Q).filter((l) => !allWithLabel(items, l).length);

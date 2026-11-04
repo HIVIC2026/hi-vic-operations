@@ -860,7 +860,8 @@ describe("A1 step 10 — the day before and install day: ESC notice, PIESA copie
     const [b] = await q<{ scheduled_start: Date }>("select scheduled_start from bookings where job_id=$1 and kind='installation' and status='confirmed'", [JOB]);
     const capturedAt = new Date(b!.scheduled_start.getTime() + 2 * 3_600_000).toISOString();
     const a5 = [...providers.mitti.audits.values()].find((a) => a.template_id === TPL_A5)!;
-    // Decision 396: first the form WITHOUT the ruler photos — "not finished", naming the area; nothing is recorded.
+    // Jo 5 Nov 2026: the real A5 has NO ruler page — its one "Depth photos" question (one geotagged photo per area) is the
+    // ruler proof. First without the Part B page: "not finished" for Part B only; the ruler lock never appears.
     const def = forms.completedA5({ q: id.INSTALL_DAY_Q as unknown as Record<string, string>, capturedAt, mediaPrefix: "a5", lead: "Ivy Installer", areas: Math.max(1, zones.length) });
     for (const m of def.mediaIds) providers.mitti.media.set(m, { bytes: forms.PNG_1X1, type: "image/png" });
     for (const m of def.videoIds) providers.mitti.media.set(m, { bytes: forms.PNG_1X1, type: "video/mp4" });
@@ -869,16 +870,14 @@ describe("A1 step 10 — the day before and install day: ESC notice, PIESA copie
     const r1 = await tvf.checkTradeInstallForm({ data: { jobId: JOB }, context: instCtx }) as { state: string; missing: string[] };
     await settle();
     expect(r1.state).toBe("not_finished");
-    expect(r1.missing).toContain(ie396.RULER_SECTION_MISSING);
+    expect(r1.missing).not.toContain(ie396.RULER_SECTION_MISSING);
+    expect(r1.missing.join(" ")).not.toMatch(/ruler/i);
     expect((await q<{ c: Date | null }>("select installation_completed_at as c from jobs where id=$1", [JOB]))[0]!.c).toBeNull();
-    // Then the A5 with the ruler photo section: one copy per Ready Check area, both photos geotagged and timed.
-    const withRuler = forms.completedA5({ q: id.INSTALL_DAY_Q as unknown as Record<string, string>, capturedAt, mediaPrefix: "a5", lead: "Ivy Installer", areas: Math.max(1, zones.length), ruler: id.INSTALL_DAY_RULER_Q });
-    for (const m of withRuler.mediaIds) providers.mitti.media.set(m, { bytes: forms.PNG_1X1, type: "image/png" });
     // Part 8: the Lead Installer's VEEC Part B tick + signature on the A5's last page (required before the form counts as finished).
     const signedAt = new Date(b!.scheduled_start.getTime() + 6 * 3_600_000).toISOString();
     providers.mitti.media.set(forms.mediaId("a5-partb-signature"), { bytes: forms.PNG_1X1, type: "image/png" });
     const idc = await import("../src/lib/install-day.core");
-    fillAudit(a5, [...withRuler.items.filter((i) => i.label === ""), { item_id: "a5_partb_tick", label: idc.INSTALL_DAY_NOV2_Q.partBTick, type: "checkbox", responses: { value: true } } as MittiItem, forms.signature(idc.INSTALL_DAY_NOV2_Q.partBSignature, forms.mediaId("a5-partb-signature"), signedAt, "Ivy Installer")]);
+    fillAudit(a5, [{ item_id: "a5_partb_tick", label: idc.INSTALL_DAY_NOV2_Q.partBTick, type: "checkbox", responses: { value: true } } as MittiItem, forms.signature(idc.INSTALL_DAY_NOV2_Q.partBSignature, forms.mediaId("a5-partb-signature"), signedAt, "Ivy Installer")]);
     const r2 = await tvf.checkTradeInstallForm({ data: { jobId: JOB }, context: instCtx }) as { state: string; missing: string[] };
     await settle();
     DBG("A5-DONE", zones.length, JSON.stringify(r2), await stageOf(JOB), await recent(JOB, 12));
@@ -897,7 +896,8 @@ describe("A1 step 10 — the day before and install day: ESC notice, PIESA copie
     expect(r3.state).toBe("all_filled_in");
     expect(await q("select id from evidence_requirements where job_id=$1 and gate='installation' and label like 'Install day:%'", [JOB])).toHaveLength(0);
     const rulerDocs = await q<{ title: string }>("select title from documents where job_id=$1 and kind='install_ruler_photo' order by title", [JOB]);
-    expect(rulerDocs.length).toBe(2 * Math.max(1, zones.length));
+    // Jo 5 Nov 2026: the depth photos (one per area) are filed as the ruler photos.
+    expect(rulerDocs.length).toBe(Math.max(1, zones.length));
     expect((await q<{ c: Date | null }>("select installation_completed_at as c from jobs where id=$1", [JOB]))[0]!.c).not.toBeNull();
     expect(await events(JOB, "INSTALLATION_COMPLETED")).toHaveLength(1);
     expect(await stageOf(JOB)).toBe("evidence_outstanding");

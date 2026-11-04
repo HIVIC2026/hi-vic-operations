@@ -2,7 +2,7 @@
 import { flattenDefinition, definitionReadable, validateTemplate, type FormKey } from "./mitti-forms.core";
 import { a3MissingFields, A3_NATIVE_IDS } from "./piisa-a3.core";
 import { flatten } from "./mitti.core";
-import { installDayMissingQuestions, installDayNov2MissingQuestions, installDayRulerMissingQuestions, isInstallDayDoc } from "./install-day.core";
+import { INSTALL_DAY_NOV2_OPTIONAL, installDayMissingQuestions, installDayNov2MissingQuestions, isInstallDayDoc } from "./install-day.core";
 import { INSTALL_EVIDENCE_EFFECTIVE_DATE, installEvidenceMissingQuestions } from "./install-evidence.core";
 import { fixesDayMissingQuestions } from "./fixes-day.core";
 
@@ -13,12 +13,13 @@ export function validateSavedDefinition(form: FormKey, definition: unknown): { o
   // Decision 262: the "A5 – Install day" template, checked by its exact wording (install-day.core).
   if (form === "piisa" && isInstallDayDoc(definition)) {
     const missing = installDayMissingQuestions(definition);
-    // Decision 396: the ruler photo section is listed too (advisory here — the form stays usable; Installation complete
-    // holds until every area's ruler photos are in).
-    const ruler = installDayRulerMissingQuestions(definition);
-    // New job flow Part 8: the 2 Nov items are advisory too — a form without them reads as "not asked", so send a new form once they are pasted.
-    const nov2 = installDayNov2MissingQuestions(definition);
-    return { ok: missing.length === 0, issues: [...missing.map((q) => `Install day form: "${q}" not found (exact wording)`), ...ruler.map((q) => `Install day form: ruler photo question "${q}" not added yet (docs/mitti-paste-A5-ruler-photos.md) — Installation complete holds until it is`), ...nov2.map((q) => `Install day form: "${q}" not added yet (docs/mitti-paste-2026-11-02-A5-adult-part-b.md) — send a new form once it is`)], basis: "install day form — every question by exact wording (docs/MITTI_INSTALL_FORM_FIX_PROMPT.md)" };
+    // Jo 5 Nov 2026: the one "Depth photos: ruler …" question (in `missing` when absent) IS the ruler proof; the decision-396
+    // per-area repeat section is read when present and never asked for (installDayRulerMissingQuestions stays advisory-only
+    // for callers that want it).
+    // New job flow Part 8: the 2 Nov items are advisory — a form without them reads as "not asked", so send a new form once
+    // they are pasted. The two optional "Changes during the job" text items are never listed (Jo 5 Nov 2026: not required).
+    const nov2 = installDayNov2MissingQuestions(definition).filter((q) => !INSTALL_DAY_NOV2_OPTIONAL.includes(q));
+    return { ok: missing.length === 0, issues: [...missing.map((q) => `Install day form: "${q}" not found (exact wording)`), ...nov2.map((q) => `Install day form: "${q}" not added yet (docs/mitti-paste-2026-11-02-A5-adult-part-b.md) — send a new form once it is`)], basis: "install day form — every question by exact wording (docs/MITTI_INSTALL_FORM_FIX_PROMPT.md)" };
   }
   // Decision 293: the "A4 – Electrical fixes" template, checked by its exact wording (fixes-day.core).
   if (form === "fixes") {
