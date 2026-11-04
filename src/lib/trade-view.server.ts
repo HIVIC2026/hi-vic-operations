@@ -6,7 +6,7 @@ import { fullAddress, shortAddress } from "./address";
 import { isTestPartner } from "./test-send.core";
 import { offerTiming } from "./offer-timing.core";
 import { placeWorkJob, type WorkPlace } from "./work-places.core";
-import { COULDNT_GET_IN, offerMoney, electricianPayState, payState, type PayState, surname, type AreaSource, type InsulationNow, type TradeKind, type DayKind, SETUP_STEPS, type SetupKey, tradeJobAllowed, contactVisible, type AccessAssignment, type TeamMemberView, type BusinessNext, type CredentialView, type MittiLogin, latestExpiry, businessNext, type BusinessNextFacts, bankLine, installerPayHeldReasons, accountEnding, ownerPaidInFullAt } from "./trade-view.core";
+import { COULDNT_GET_IN, offerMoney, electricianPayState, payState, type PayState, surname, type AreaSource, type InsulationNow, type TradeKind, type DayKind, SETUP_STEPS, type SetupKey, tradeJobAllowed, contactVisible, type AccessAssignment, type TeamMemberView, type BusinessNext, type CredentialView, type MittiLogin, latestExpiry, businessNext, type BusinessNextFacts, bankLine, installerMoneyHeldLines, accountEnding, ownerPaidInFullAt } from "./trade-view.core";
 import { crewClearance, CREW_CLEARANCE_REASON, electricianVerified, melbourneToday, whiteCardState } from "./worker-compliance.core";
 import type { UsualElectrician } from "./usual-electrician.core";
 import type { InstallerQuote } from "./installer-quote-status.server";
@@ -744,7 +744,7 @@ async function tradeMoneyRows(bizId: string, kind: TradeKind, testOnly: boolean,
       : payState({ paidAt: pe?.created_at ?? null, apApprovedAt: (ap ?? []).find((x) => x.job_id === b.job_id)?.created_at ?? null, installerSupplied: (b.jobs as { channel?: string }).channel === "installer_sourced", ownerPaidInFullAt: paidInFull(b.job_id) });
     // Decision 318 form blockers, plus the decision-410 waiting-for-office-approve line (electricians) and the audit-F19
     // AP/owner-payment wait (installers) — the same reasons the office Payouts tab and Mark paid show.
-    const held = [...(timed.kind === "paid" || !gf ? [] : [...tradePayoutBlockers(b.kind as "assessment" | "rectification" | "installation", gf), ...(et?.waiting ?? []), ...(b.kind === "installation" && timed.kind === "checking" ? installerPayHeldReasons({ installerSupplied: (b.jobs as { channel?: string }).channel === "installer_sourced", apApprovedAt: (ap ?? []).find((x) => x.job_id === b.job_id)?.created_at ?? null, ownerPaidInFullAt: paidInFull(b.job_id) }) : [])]), ...(payee && payee.piesaIncGst == null && recordedAmount == null ? [PIESA_RATE_NOT_SET_ROW] : [])];
+    const held = [...(timed.kind === "paid" || !gf ? [] : [...tradePayoutBlockers(b.kind as "assessment" | "rectification" | "installation", gf), ...(et?.waiting ?? []), ...(b.kind === "installation" && timed.kind === "checking" ? installerMoneyHeldLines({ installerSupplied: (b.jobs as { channel?: string }).channel === "installer_sourced", apApprovedAt: (ap ?? []).find((x) => x.job_id === b.job_id)?.created_at ?? null, ownerPaidInFullAt: paidInFull(b.job_id) }) : [])]), ...(payee && payee.piesaIncGst == null && recordedAmount == null ? [PIESA_RATE_NOT_SET_ROW] : [])];
     // A held payout is never "Coming": it stays with the jobs being checked until the form is fixed (amounts unchanged).
     const state: PayState = held.length ? { kind: "checking" } : timed;
     const approvedAt = (ap ?? []).find((x) => x.job_id === b.job_id)?.created_at ?? null;

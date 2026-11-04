@@ -81,10 +81,10 @@ describe("wiring", () => {
     for (const f of ["src/lib/trade-view.server.ts", "src/lib/office-money.server.ts", "src/lib/job-status.server.ts", "src/lib/office.functions.ts"])
       expect(readFileSync(f, "utf8")).not.toContain("ownerElectricalStepsPaidAt");
   });
-  test("trade Money held lines carry the 410 approval wait and the F19 installer wait — the same reasons the office shows", () => {
+  test("trade Money held lines carry the 410 approval wait and the F19 installer wait — the same gate the office uses (Jo 4 Nov 2026 21:20: in the installer's words)", () => {
     const tv = readFileSync("src/lib/trade-view.server.ts", "utf8");
     expect(tv).toContain("...(et?.waiting ?? [])");
-    expect(tv).toContain("installerPayHeldReasons({ installerSupplied:");
+    expect(tv).toContain("installerMoneyHeldLines({ installerSupplied:");
     expect(ELECTRICIAN_FORM_AWAITING_APPROVAL.rectification).toContain("A4");
     expect(INSTALLER_PAY_WAITING_AP).toContain("Final check");
   });

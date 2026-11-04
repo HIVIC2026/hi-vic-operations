@@ -147,7 +147,7 @@ test("trade money display survives both in-house reads throwing and matches non-
       "./trade-view.core": { ownerPaidInFullAt: () => null },
       "./installer-paid-electricians.core": { PIESA_RATE_NOT_SET_ROW: pricing.PIESA_RATE_NOT_SET_ROW }, // J1 (4)
     };
-    new Function("exports", "require", "admin", "console", "payState", "installerPayHeldReasons", "VISIT", "surname", code)(exports, (name: string) => { if (!(name in dependencies)) throw new Error(name); return dependencies[name]; }, f.admin, { error: (...x: unknown[]) => errors.push(x) }, () => ({ kind: "checking" }), () => [], { installation: "Install" }, () => "Owner");
+    new Function("exports", "require", "admin", "console", "payState", "installerMoneyHeldLines", "VISIT", "surname", code)(exports, (name: string) => { if (!(name in dependencies)) throw new Error(name); return dependencies[name]; }, f.admin, { error: (...x: unknown[]) => errors.push(x) }, () => ({ kind: "checking" }), () => [], { installation: "Install" }, () => "Owner");
     return exports.run("a", "installer", true);
   };
   const errors: unknown[] = [];

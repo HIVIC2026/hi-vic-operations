@@ -127,6 +127,18 @@ export function installerPayHeldReasons(f: { installerSupplied: boolean; apAppro
   return out;
 }
 
+/** Jo 4 Nov 2026 21:20 (pack 2 batch 9): the installer's Money page says WHY their install pay is held in their words — an
+ *  own customer: "Paid once the owner has paid in full." (never the office's AP line); a Home Insulation Victoria lead keeps
+ *  the 7-day line. Same gate as `installerPayHeldReasons` (the office's reasons); only the words differ. */
+export const OWN_CUSTOMER_PAY_HELD_LINE = "Paid once the owner has paid in full.";
+export const HIV_LEAD_PAY_HELD_LINE = "Paid 7 days after we approve the install paperwork."; // the approved Money rule (decisions 109/344) as a sentence
+export function installerMoneyHeldLines(f: { installerSupplied: boolean; apApprovedAt: string | null; ownerPaidInFullAt: string | null }): string[] {
+  const office = installerPayHeldReasons(f);
+  if (!office.length) return [];
+  if (!f.installerSupplied) return [HIV_LEAD_PAY_HELD_LINE];
+  return [f.ownerPaidInFullAt ? HIV_LEAD_PAY_HELD_LINE : OWN_CUSTOMER_PAY_HELD_LINE];
+}
+
 /** Decision 410 (Jo 27 Oct 2026, replaces 355 for electricians): electricians are paid for the safety check (A3) and the
  *  fixes (A4) within 7 days of someone in the office pressing Approve on their completed Mitti form (Approve is offered
  *  once the decision-318 gate passes). It does NOT wait for the owner to pay. Installer pay is unchanged (`payState`). */

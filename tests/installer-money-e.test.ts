@@ -74,3 +74,18 @@ describe("E4 statement formula safety", () => {
     expect(statementCsv([row({})]).split("\r\n")[1]).toBe('"HV-1","Smith","Brunswick","Install","1200","Being checked"');
   });
 });
+
+// Jo 4 Nov 2026 21:20 (pack 2 batch 9, picture 97): the installer's Money page says why in their words.
+describe("installerMoneyHeldLines (installer Money page)", () => {
+  test("own customer, owner not paid in full → 'Paid once the owner has paid in full.' — never the office's AP line; paid in full but AP pending → the 7-day line; HIV lead → the 7-day line; nothing held → nothing", async () => {
+    const { installerMoneyHeldLines, OWN_CUSTOMER_PAY_HELD_LINE, HIV_LEAD_PAY_HELD_LINE } = await import("../src/lib/trade-view.core");
+    expect(OWN_CUSTOMER_PAY_HELD_LINE).toBe("Paid once the owner has paid in full.");
+    expect(installerMoneyHeldLines({ installerSupplied: true, apApprovedAt: null, ownerPaidInFullAt: null })).toEqual([OWN_CUSTOMER_PAY_HELD_LINE]);
+    expect(installerMoneyHeldLines({ installerSupplied: true, apApprovedAt: "2026-11-09T00:00:00Z", ownerPaidInFullAt: null })).toEqual([OWN_CUSTOMER_PAY_HELD_LINE]);
+    expect(installerMoneyHeldLines({ installerSupplied: true, apApprovedAt: null, ownerPaidInFullAt: "2026-11-04T00:00:00Z" })).toEqual([HIV_LEAD_PAY_HELD_LINE]);
+    expect(installerMoneyHeldLines({ installerSupplied: false, apApprovedAt: null, ownerPaidInFullAt: null })).toEqual([HIV_LEAD_PAY_HELD_LINE]);
+    expect(installerMoneyHeldLines({ installerSupplied: false, apApprovedAt: "2026-11-09T00:00:00Z", ownerPaidInFullAt: null })).toEqual([]);
+    expect(installerMoneyHeldLines({ installerSupplied: true, apApprovedAt: "2026-11-09T00:00:00Z", ownerPaidInFullAt: "2026-11-04T00:00:00Z" })).toEqual([]);
+    for (const l of [OWN_CUSTOMER_PAY_HELD_LINE, HIV_LEAD_PAY_HELD_LINE]) expect(l).not.toMatch(/Final check|AP approval|installer-supplied/);
+  });
+});
