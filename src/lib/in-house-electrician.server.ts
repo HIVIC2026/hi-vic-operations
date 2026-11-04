@@ -107,10 +107,11 @@ export async function allocateElectrician(jobId: string, userId: string, workerI
   const worker = await read<Worker | null>(db.from("partner_workers").select(COLS).eq("id", workerId).eq("business_id", businessId).eq("trade_role", "electrician").is("removed_at", null).maybeSingle());
   if (!worker || worker.business_id !== businessId) throw new Error("That electrician is not on your Team");
   if (!electricianVerified(worker).ok || worker.approval_status !== "approved") throw new Error("Electrician not verified");
-  // Electricians never log in (Part 6): no profile or Team login is needed; the Mitti email is (the forms are handed to them in Mitti).
-  if (!worker.email?.trim()) throw new Error("Electrician needs a Mitti email");
   const job = await read<{ source: string } | null>(db.from("jobs").select("source").eq("id", jobId).is("deleted_at", null).maybeSingle());
   if (!job) throw new Error("Job unavailable");
+  // Electricians never log in (Part 6): no profile or Team login is needed; the Mitti email is (the forms are handed to them in Mitti).
+  // Go-live 5 Nov 2026: a TEST job's forms go to the TEST Mitti account, so a TEST job never needs the person's email.
+  if (job.source !== "qa_test" && !worker.email?.trim()) throw new Error("Electrician needs a Mitti email");
   const mitti = await import("./mitti.server");
   const email = job.source === "qa_test" ? (await import("./onsite-ready-check.core")).TEST_MITTI_ASSIGNEE : worker.email.trim();
   const mittiUserId = await mitti.findMittiUserByEmail(email, call ?? mitti.realMittiCall);
