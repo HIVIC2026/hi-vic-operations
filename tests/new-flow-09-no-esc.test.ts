@@ -1,12 +1,16 @@
 // Part 9 Task 14 (Jo 2 Nov 2026, answers 18–19): a per-job "no ESC" marker for real runs — the ESC notice robot, every
 // Registry submission/update recorder and VEEC creation refuse marked jobs; the GO check and PIISA timing skip only the
 // ESC-notice lines; unmarked jobs behave exactly as before; the marker is one-way and fails closed on a read error.
-import { beforeEach, describe, expect, mock, test } from "bun:test";
+import { beforeEach, describe, expect, mock, setDefaultTimeout, test } from "bun:test";
 import { NO_ESC_BADGE, NO_ESC_MARKER_SET_EVENT, NO_ESC_NOTICE_ALREADY_SENT, NO_ESC_PRESTART_NOTE, NO_ESC_REF, NO_ESC_REFUSAL, noEscMarked, withNoEscMarker } from "../src/lib/no-esc.core";
 import { jobMode, planVeecCreation, type VeecCandidate } from "../src/lib/esc-registry-robot.core";
 import { COPAYMENT_TOO_LOW, veecCreationBlockers } from "../src/lib/veec-creation-gate.core";
 import { prestartFailures, prestartNotes, type PrestartFacts } from "../src/lib/prestart.core";
 import { piisaTimingBlockers } from "../src/lib/esc.core";
+// G6 N5 (final Part 9 review): the server half loads the robot, esc.server and the no-ESC functions through the hand-rolled
+// client — on a loaded box the first server test paid that cold start inside bun's 5 s default and timed out. 30 s, like the
+// isolated runner gives every file.
+setDefaultTimeout(30_000);
 
 // ---------- pure ----------
 describe("noEscMarked / withNoEscMarker", () => {
