@@ -68,7 +68,7 @@ export function typedJobDecision(typed: string, job: TypedPickupJob | null, form
 }
 
 const JOB_NUMBER_RE = /^HV-\d{1,6}$/i;
-const PJN_LABELS = ["portal job number", "job reference id"];
+const PJN_LABELS = ["portal job number", "job reference id", "job number"];
 
 /** Read one Ready Check audit's identity and header answers. Never trusts completion. */
 export function parsePickupAudit(audit: Any): MittiPickupItem | null {
@@ -83,9 +83,9 @@ export function parsePickupAudit(audit: Any): MittiPickupItem | null {
     templateId: String(audit?.template_id ?? ""),
     templateKind: "unknown",
     modifiedAt: audit?.modified_at ?? audit?.audit_data?.date_modified ?? null,
-    mittiRef: head("Portal Job Number") ?? head("Job Reference ID"),
+    mittiRef: head("Portal Job Number") ?? head("Job Reference ID") ?? head("Job number"),
     // Jo 23 Oct: the address question may carry an instruction suffix ("Site address (please edit street number…)").
-    siteAddress: head("Site address") ?? (entries.find((e) => e.header && e.norm.startsWith(norm("Site address")))?.value ?? null),
+    siteAddress: head("Site address") ?? head("Address") ?? (entries.find((e) => e.header && e.norm.startsWith(norm("Site address")))?.value ?? null),
     homeownerName: head("Homeowner name") ?? head("Owner name"),
     assessorName: head("Assessor"),
     mittiOwnerUserId: String(authorship.owner_id ?? "") || null,

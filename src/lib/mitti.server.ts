@@ -1,6 +1,9 @@
 // The ONLY Mitti network boundary. Callers must already be authorised (see portal.functions.ts).
 // Token is read per call, never logged or returned. Sync populates assessment / measure-up data only —
-// never completes a requirement, approves compliance, moves stages or issues quotes.
+// never completes a requirement, approves compliance, moves stages or issues quotes. Two exceptions, both through the
+// one existing write path with its own checks: the A4 fixes-form sync writes the post_rectification PIESA record
+// (piesa-record.server), and on an installer's own job a Complete A3 runs Complete PIESA through its own gate
+// (own-job-piesa-complete.server → completePiesaAssessment, which may write the same-day Part C record).
 import type { Json } from "@/integrations/supabase/types";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
@@ -455,7 +458,8 @@ async function syncOnsiteStartItem(jobId: string, actorId: string | null, onsite
   else if (!onsite && open) await logEvent(jobId, actorId, ONSITE_START_CLEARED_EVENT, "The safety check no longer says the electrician must be on site at the start of the install day", { rule: "decision 314" }, { internal: true });
 }
 
-/** Sync the STORED audit(s) only. Never completes a requirement. */
+/** Sync the STORED audit(s) only. Never completes a requirement itself — except (Part 3 Task 4b) an installer's own job,
+ *  where a Complete A3 runs the one Complete PIESA gate (`completePiesaAssessment`) once per form. */
 export async function syncMittiAssessment(jobId: string, actorId: string | null, call: MittiCall = realMittiCall, fetchMedia: MittiMediaFetch = realMittiMedia) {
   const { data: job } = await admin.from("jobs").select("job_number,business_unit,channel,stage,deleted_at,qa_archived_at").eq("id", jobId).single();
   if (!job) throw new WorkflowError("Job not found.");
@@ -474,8 +478,10 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
   let locked = false;
 
   if (a?.external_mitti_id) {
-    if (a.status === "complete") locked = true;
-    else {
+    if (a.status === "complete") {
+      locked = true;
+      await (await import("./piesa-complete.server")).retrySameDayPartC(jobId, actorId);
+    } else {
       let plan;
       let audit: unknown = null;
       try {
@@ -568,12 +574,19 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
         // Part 4 Task 14 (Jo 2 Nov 2026): the electrician "pick fixes times" text (decision 315) and the automatic HIV fixes
         // quote send (decision 354) are retired — the electrician quotes and books upgrades with the owner directly; the owner
         // gets the "upgrades needed" email from the PIESA result route.
-        // J4 G1 (join ruling, 4 Nov 2026): on an IN-HOUSE job a complete, evidenced AND electrician-signed A3 completes the
-        // PIESA here through the same checks as Complete PIESA (a failed check = one office Needs me row; retried next sync).
-        // Home Insulation Victoria-lead jobs are unchanged (nothing is completed by the sync). Never fails the sync.
+        // Part 3 Task 3 (Jo 3 Nov 2026): same-day upgrades with "Do you have the Certificate of Electrical Safety now?" = No →
+        // Part C is recorded and the job waits for the certificate; the electrician gets ONE text with their link to add it
+        // (the Task 5 chase has its own rounds). Never throws.
+        if (completed && (await import("./piesa-evidence.core")).piesaCertificateToCome(shortAnswers, piesaMediaFromSnapshot(snapshot)))
+          await (await import("./own-job-piesa-notices.server")).textCertificateLink(jobId, "now").catch((e) => console.error("certificate link text skipped", jobId, (e as Error).message));
+        // ONE automatic completion (join ruling 3, 4 Nov 2026 — main's Part 3 Task 4b trigger + J4 G1's signature rule): on an
+        // in-house job or an installer's own job nobody presses "Complete PIESA", so a Complete A3 at PIESA booked that carries
+        // the electrician's signature completes the PIESA here through the same checks as the press, once per version of the
+        // form; a refusal is ONE office Needs me row (piesa_auto_complete_held), retried when the form is edited. Home
+        // Insulation Victoria-lead jobs that are not in-house keep the manual press. Never fails the sync.
         if (completed && a.status !== "complete") {
-          try { await (await import("./piesa-auto-complete.server")).autoCompleteInHousePiesa(jobId, actorId, { completed, signed: a3Signed, auditId: a.external_mitti_id }); }
-          catch (e) { console.error("in-house PIESA auto-complete failed", jobId, e instanceof Error ? e.message : String(e)); }
+          try { await (await import("./piesa-auto-complete.server")).autoCompletePiesa(jobId, actorId, { completed, signed: a3Signed, auditId: a.external_mitti_id, modifiedAt: plan.modifiedAt ?? null }); }
+          catch (e) { console.error("PIESA auto-complete failed", jobId, e instanceof Error ? e.message : String(e)); }
         }
       }
     }
@@ -589,7 +602,7 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
       const tid = [ids.readyCheck, ids.readyCheckPriced].filter(Boolean).find((t) => sameMittiTemplateId(t, auditTemplate))
         ?? (readyCheckVariant(job.channel) === "ready_check_priced" ? ids.readyCheckPriced : ids.readyCheck);
       if (!tid) throw new WorkflowError(MEASUREUP_TEMPLATE_MISSING);
-      const plan = planSync(auditNow, { storedAuditId: measureAudit, jobNumber: job.job_number, assessmentStatus: null, templateId: tid });
+      const plan = planSync(auditNow, { storedAuditId: measureAudit, jobNumber: job.job_number, assessmentStatus: null, templateId: tid, installerSourced: job.channel === 'installer_sourced' });
       if (!plan.locked) {
         const mp = await applyMeasure(jobId, actorId, measureAudit, "installer", splitPatch(plan.patch).measure, plan.snapshot, plan.areas ?? null);
         await (await import("./excluded-areas.server")).recordExcludedAreas(jobId, actorId, plan.excludedAreas ?? []).catch(() => undefined); // idempotent: the next sync tries again
@@ -600,6 +613,7 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
         const basics = await (await import("./ready-check-basics.server")).checkReadyCheckBasics(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: string | null }[], plan.completed, measureAudit).catch(() => null);
         const draftNow = plan.completed || !!basics?.ready;
         const mIssues = plan.issues.filter((i) => !/PIESA|Switchboard/.test(i));
+        mIssues.push(...await (await import('./ready-check-floor-plan.server')).saveFloorPlanFiles(jobId,actorId,measureAudit,auditNow,fetchMedia));
         issues = [...issues, ...mIssues, ...(mp.action === "skip" ? [mp.reason] : []), ...(mp.zonesIssue ? [mp.zonesIssue] : [])];
         completed = completed || plan.completed;
         if (plan.completed) await saveMittiReport(jobId, actorId, measureAudit, plan.modifiedAt ?? null, "Ready Check", call);
@@ -840,6 +854,7 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string | nul
       const a3Short = a3Entries.length ? (await import("./official-short.core")).shortAnswersFromEntries("piesa", a3Entries) : null;
       const piesaFacts = id.installDayPiesaFacts({ piesaAnswers: piisaCtx.piesaAnswers as Record<string, unknown> | null, a3Short, lifeSupportDeclared: piisaCtx.lifeSupportDeclared });
       const facts = {
+        areaOrder: (await (await import('./install-evidence.server')).jobUpgradeZones(jobId)).map((z,i)=>`${i+1}. ${z.name?.trim()||`Area ${i+1}`}`).join(' · '),
         jobNumber: job.job_number, address: hv("address"), installDate: hv("startDate"), apName: hv("p2.ap"), businessName: hv("p2.company"),
         leadName: lead?.name ?? null, leadCii: lead?.eecVerified ? lead.eec : null,
         // Decision 299: the rest of the crew pre-filled from the booking's crew picks (staff row, or an "Other" entry).

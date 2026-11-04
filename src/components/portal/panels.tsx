@@ -1,6 +1,7 @@
 import { tradeBlockerLines } from "@/lib/portal-presentation.core";
 import { RectWindowChoice, useRectWindows } from "./rectification-times";
 import { useRef, useState } from "react";
+import { toast } from "sonner";
 import { requiredDepositCents } from "@/lib/payment-gate.core";
 import { getJobPayments, getOwnerPaymentPlan, refreshPayNowLink } from "@/lib/payments.functions";
 import { QUOTE_EXPIRED_OWNER_MESSAGE, quoteExpiresAt, quoteIsExpired } from "@/lib/quote-expiry.core";
@@ -346,7 +347,7 @@ export function BookingPanel({ jobId, kind, canBook, isAdmin = false }: { jobId:
     <Section title={`${kind[0]!.toUpperCase()}${kind.slice(1)} booking`}>
       {current ? <p className="text-sm">Booked: <strong>{fmtDateTime(current.scheduled_start)}</strong> <Pill t="good">{current.status}</Pill>{isAdmin && <Button size="sm" variant="ghost" className="ml-2" onClick={async () => { const r = await reason.ask({ title: "Cancel booking", description: "A reason is required and permanently audited.", placeholder: "Reason for cancelling this booking (required, audited)", minLength: 1 }); if (r) cancel({ jobId, kind, reason: r }, "Booking cancelled"); }}>Cancel booking</Button>}</p> : <p className="text-sm text-muted-foreground">Not booked yet.</p>}
       {canBook && (
-        <form className="mt-3 flex flex-col gap-2 sm:flex-row" onSubmit={(e) => { e.preventDefault(); if (when) book({ jobId, kind, start: new Date(when).toISOString() }, "Booking saved"); }}>
+        <form className="mt-3 flex flex-col gap-2 sm:flex-row" onSubmit={(e) => { e.preventDefault(); if (when) void book({ jobId, kind, start: new Date(when).toISOString() }, "Booking saved").then((r) => { if (r && "warning" in r && r.warning) toast.warning(r.warning); }); }}>
           <Input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} className="h-12" required />
           <Button type="submit" size="field">{current ? "Reschedule" : "Confirm date"}</Button>
         </form>
@@ -404,7 +405,7 @@ export function QuotesPanel({ jobId, canRespond }: { jobId: string; canRespond: 
       </div>
       {canRespond && open && (
         <><RectWindowChoice jobId={jobId} value={rectPick} onChange={setRectPick} />
-        <label className="mt-3 flex items-start gap-2 text-sm"><Checkbox checked={consent} onCheckedChange={(v) => setConsent(!!v)} className="mt-0.5" /> I have reviewed the electrical fixes scope and prices (inc GST). Nothing is payable yet – these lines are included in my final installation quote.</label></>
+        <label className="mt-3 flex items-start gap-2 text-sm"><Checkbox checked={consent} onCheckedChange={(v) => setConsent(!!v)} className="mt-0.5" /> I have reviewed the electrical upgrades scope and prices (inc GST). Nothing is payable yet – these lines are included in my final installation quote.</label></>
       )}
     </Section>
   );
@@ -431,7 +432,7 @@ function PaymentStepsBlock({ jobId, invoiceId, hasXeroInvoice }: { jobId: string
         <tbody>{p.steps.map((s) => <tr key={s.key} data-step={s.key} data-state={s.state} className="border-t"><td className="py-1 pr-2">{s.label}</td><td className="py-1 pr-2 tabular-nums">{aud(s.amountCents / 100)}</td><td className="py-1 pr-2">{s.methods.includes("card") ? "Card or bank" : "Bank / PayID only"}</td><td className={`py-1 font-semibold ${s.state === "paid" ? "text-success" : s.state === "overdue" ? "text-danger" : ""}`}>{STEP_STATE_LABEL[s.state] ?? s.state}{s.dueAt && s.state !== "paid" ? ` · due ${fmtDateTime(s.dueAt)}` : ""}</td></tr>)}</tbody></table>
       {p.provisional.decision === "provisional" && <p className="mt-2 rounded bg-warning-soft px-2 py-1 font-semibold">Install day held provisionally until {fmtDateTime(p.provisional.expiresAt)} – released automatically if the deposit is not received.</p>}
       {!p.bank.configured && <p className="mt-2 rounded bg-warning-soft px-2 py-1">Bank details (BSB / account / PayID) are not configured yet – owners see "to be confirmed". Set HIV_BANK_BSB, HIV_BANK_ACCOUNT_NUMBER, HIV_PAYID.</p>}
-      <p className="mt-2">Card (Stripe, $349, fixes and the install deposit): {p.stripe.available ? <span className="font-semibold text-success">available for the step due now</span> : <span className="text-muted-foreground">{p.stripe.blocker}</span>}</p>
+      <p className="mt-2">Card (Stripe, $349, upgrades and the install deposit): {p.stripe.available ? <span className="font-semibold text-success">available for the step due now</span> : <span className="text-muted-foreground">{p.stripe.blocker}</span>}</p>
       <div className="mt-2 flex flex-wrap items-center gap-2">
         {p.onlineInvoiceUrl ? <a href={p.onlineInvoiceUrl} target="_blank" rel="noreferrer" className="font-semibold text-primary underline">Xero online invoice (office view)</a> : <span className="text-muted-foreground">No Xero online invoice link yet{hasXeroInvoice ? "" : " – create the Xero invoice first"}.</span>}
         {hasXeroInvoice && <Button size="sm" variant="outline" onClick={() => refresh({ invoiceId }, "Xero invoice link refreshed")}>Refresh Xero link</Button>}
@@ -481,7 +482,7 @@ export function PaymentsPanel({ jobId, isAdmin }: { jobId: string; isAdmin: bool
           // Only the deposit-gate override speaks about the safety check payment.
           const safetyOverrides = ov.filter((o) => o.gate === "deposit");
           const remaining = Math.max(0, Number(i.total_inc_gst) - Number(i.total_paid));
-          // Batch 3b: a job can also have an electrical fixes invoice and a repeat safety check invoice. The office sees
+          // Batch 3b: a job can also have an electrical upgrades invoice and a repeat safety check invoice. The office sees
           // each card labelled with its kind + reference; the safety-check / deposit / install-day rows are install-only.
           const slot = invoiceSlotOf(i.kind);
           const install = slot === "install";

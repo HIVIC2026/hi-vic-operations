@@ -117,6 +117,34 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['fixesForms'] = "failed";
         }
         try {
+          // Part 3 Task 4b fix 2: a same-day Part C record (upgrades done on the safety check visit) whose write failed after
+          // Complete PIESA is retried here — completed A3s are never synced again. Open failure rows only, max 20 a tick.
+          const { sweepSameDayPartCRetries } = await import("@/lib/piesa-complete.server");
+          (out as Record<string, unknown>)['sameDayPartC'] = await timed("sweepSameDayPartCRetries", () => sweepSameDayPartCRetries());
+        } catch (e) {
+          console.error("allocation tick: same-day Part C retry sweep failed", (e as Error).message);
+          // Unlike its neighbours this does not set ok=false: the sweep never throws, and an open failure row stays on the
+          // office Needs list (and is retried next tick), so one bad tick here isn't a failed tick.
+          (out as Record<string, unknown>)['sameDayPartC'] = "failed";
+        }
+        try {
+          // ONE sweep owns the upgrades / certificate chasing (join ruling 2, 4 Nov 2026) — three conditions, never two senders
+          // for one: (1) upgrades needed, no day entered → day-1 electrician text, day-2 installer office email, red flag at 7
+          // days left on the 30-day clock (main Part 3 Task 5); (2) Part C recorded, no certificate file → day-2 text, day-4
+          // office flag (main Part 3 Task 5); (3) the booked upgrades day PASSED with no upgrades form in → electrician text
+          // the next day, office email the day after, red flag past the 30-day rule (Part 6 Task 7, Jo-approved 4 Nov).
+          const { sweepUpgradesChasing } = await import("@/lib/certificate-later.server");
+          const r = await timed("sweepUpgradesChasing", () => sweepUpgradesChasing());
+          (out as Record<string, unknown>)['upgradesDayChase'] = r.upgradesDay;
+          (out as Record<string, unknown>)['certificateChase'] = r.certificate;
+          (out as Record<string, unknown>)['upgradesWatch'] = r.dayPassed;
+          if (r.failed.length) { out['ok'] = false; (out as Record<string, unknown>)['upgradesChasingFailed'] = r.failed; }
+        } catch (e) {
+          console.error("allocation tick: upgrades chasing failed", (e as Error).message);
+          out['ok'] = false;
+          (out as Record<string, unknown>)['upgradesChasing'] = "failed";
+        }
+        try {
           const { sweepInstallHolds } = await import("@/lib/install-holds.server");
           (out as Record<string, unknown>)['installHolds'] = await timed("sweepInstallHolds", () => sweepInstallHolds());
         } catch (e) {
@@ -149,14 +177,6 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
         } catch (e) {
           console.error("allocation tick: electrician link sweep failed", (e as Error).message);
           (out as Record<string, unknown>)['electricianLinks'] = "failed";
-        }
-        try {
-          // New job flow Part 6 Task 7: upgrades-form nudges + the 30-day red flag (DRAFT sends; Needs me row always on).
-          const { sweepUpgradesWatch } = await import("@/lib/upgrades-watch.server");
-          (out as Record<string, unknown>)['upgradesWatch'] = await timed("sweepUpgradesWatch", () => sweepUpgradesWatch());
-        } catch (e) {
-          console.error("allocation tick: upgrades watch sweep failed", (e as Error).message);
-          (out as Record<string, unknown>)['upgradesWatch'] = "failed";
         }
         try {
           // Decision 317: the assigned electrician gets the official PIESA (PDF attached) once per PIESA record — first

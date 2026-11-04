@@ -235,7 +235,7 @@ export function readInstallEvidence(audit: unknown): InstallEvidenceRead {
   // The install-day form has no finish time: the completion signature's own time stands as the finish time.
   const completionSignature = sig(A.completionSignature);
   const finalTick = findExact(items, ID.allFilledIn);
-  const after: AfterInstallRead = { onForm: !!find(items, A.lockoutRemoved), allFilledIn: isInstallDayDoc(audit) ? !!finalTick?.value : null, lockoutRemoved: yn(v(A.lockoutRemoved)), lockoutRemovedBy: t(A.lockoutRemovedBy), switchboardAfterPhoto: m(A.switchboardAfterPhoto), solarRestarted: t(A.solarRestarted), finishedAt: t(LEGACY_FINISHED_AT_LABEL) ?? completionSignature.signedAt, leadPresent: !!v(A.leadPresent), completionSignature };
+  const after: AfterInstallRead = { onForm: !!find(items, A.lockoutRemoved), allFilledIn: isInstallDayDoc(audit) ? /^(yes|true|ticked|checked)$/i.test(finalTick?.value ?? "") : null, lockoutRemoved: yn(v(A.lockoutRemoved)), lockoutRemovedBy: t(A.lockoutRemovedBy), switchboardAfterPhoto: m(A.switchboardAfterPhoto), solarRestarted: t(A.solarRestarted), finishedAt: t(LEGACY_FINISHED_AT_LABEL) ?? completionSignature.signedAt, leadPresent: /^(yes|true|ticked|checked)$/i.test(v(A.leadPresent) ?? ""), completionSignature };
   const foil: FoilRead = { onForm: !!find(items, F.foil), foil: yn(v(F.foil)), foilPhoto: m(F.foilPhoto) };
   const files = { afterVideos: m(INSTALL_DAY_EVIDENCE.afterVideos), depthPhotos: m(INSTALL_DAY_EVIDENCE.depthPhotos) };
   const installDay = isInstallDayDoc(audit);

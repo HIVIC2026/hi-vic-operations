@@ -18,7 +18,8 @@ export async function sendCoesOwnerCopy(jobId: string, ref: CoesFileRef): Promis
  let size=0;
  for(const f of ref.files){
   if(!['application/pdf','image/jpeg','image/png'].includes(f.mimeType)) return 'not sent — unsupported certificate file';
-  if(!f.storagePath.startsWith(`${jobId}/`)) return 'not sent — certificate file is not on this job';
+  // Part 3 Task 3: the electrician's link files the certificate under `jobs/{jobId}/electrician-uploads/…` (same bucket, job-scoped).
+  if(!f.storagePath.startsWith(`${jobId}/`) && !f.storagePath.startsWith(`jobs/${jobId}/`)) return 'not sent — certificate file is not on this job';
   const {data:blob,error}=await admin.storage.from('job-files').download(f.storagePath);
   if(error || !blob) return 'not sent — certificate file unavailable';
   const bytes=new Uint8Array(await blob.arrayBuffer());size+=bytes.length;

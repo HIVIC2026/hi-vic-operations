@@ -1737,11 +1737,25 @@ async function r158OwnerPays(rec: Recorder, jobs: BranchResult["jobs"], setup: S
   } finally { await finish(ctx, jobs); }
 }
 
-export type Phase4Name = "m8-quote-payment" | "m10-deposit" | "m11-fixes-payment" | "m22-payout-form" | "m23-electrician-payout" | "m24-installer-payout" | "m9-piesa-prereqs" | "m7-quote-release" | "m42-comms-lock" | "m43-consent" | "m158-repeat-piesa" | "m158-owner-pays" | "m159-own-job-call-and-book";
+// ---------- Part 3 (Jo 3 Nov 2026): own job, electrical upgrades another day, certificate later ----------
+// Join step 5 (4 Nov 2026, ruling 4/7): main's m160 drove the Part 2 own-job electrician link (electrician_job_links:
+// handOwnJobPiesa, createElectricianJobLink, linkBookPiesa, linkEnterUpgradesDay, linkAddCertificate). On the joined branch the
+// electrician's page is Part 6's worker link (worker_job_links: bookFromElectricianLink kind assessment / rectification,
+// uploadCoesFromElectricianLink) and an own job's electrician is a Team worker (ruling 53) — Part 2's minting is retired at
+// go-live. The certificate-later flow on the Part 6 link (upgrades day entered on the link → A4 Complete without the
+// certificate → Waiting for certificate → the electrician uploads it on the link → ticked) is proven by
+// tests/journey-a1-complete-route-db.test.ts. This TEST-centre branch is BLOCKED until it is rewritten on the Part 6 link
+// (Part 11 / TEST centre task) — never faked.
+async function m160UpgradesCertificateLater(_rec: Recorder, _jobs: BranchResult["jobs"], _setup: StepResult[]) {
+  BLOCKED_REASON = "m160 drove the retired Part 2 own-job electrician link; rewrite on the Part 6 worker link (/e/<token>: bookFromElectricianLink, uploadCoesFromElectricianLink). The flow is proven by tests/journey-a1-complete-route-db.test.ts.";
+}
+
+export type Phase4Name = "m8-quote-payment" | "m10-deposit" | "m11-fixes-payment" | "m22-payout-form" | "m23-electrician-payout" | "m24-installer-payout" | "m9-piesa-prereqs" | "m7-quote-release" | "m42-comms-lock" | "m43-consent" | "m158-repeat-piesa" | "m158-owner-pays" | "m159-own-job-call-and-book" | "m160-upgrades-certificate-later";
 export const PHASE4: Record<Phase4Name, (rec: Recorder, jobs: BranchResult["jobs"], setup: StepResult[]) => Promise<void>> = {
   "m8-quote-payment": m8QuotePayment, "m10-deposit": m10Deposit, "m11-fixes-payment": m11FixesPayment, "m22-payout-form": m22PayoutForm,
   "m23-electrician-payout": m23ElectricianPayout, "m24-installer-payout": m24InstallerPayout, "m9-piesa-prereqs": m9PiesaPrereqs,
   "m7-quote-release": m7QuoteRelease, "m42-comms-lock": m42CommsLock, "m43-consent": m43Consent, "m158-repeat-piesa": r158RepeatPiesa, "m158-owner-pays": r158OwnerPays, "m159-own-job-call-and-book": m159OwnJobCallAndBook,
+  "m160-upgrades-certificate-later": m160UpgradesCertificateLater,
 };
 export async function runPhase4(name: Phase4Name, shotDir: string): Promise<Phase3Result> {
   SHOT_DIR = shotDir; SHOTS.length = 0; ANSWERS.length = 0; BLOCKED_REASON = null;

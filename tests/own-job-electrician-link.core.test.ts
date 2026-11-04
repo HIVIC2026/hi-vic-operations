@@ -27,8 +27,11 @@ describe("electricianStep", () => {
   test.each([
     [{ booked: false, piesaDone: false }, "book_piesa"],
     [{ booked: true, piesaDone: false }, "do_piesa_in_mitti"],
+    // No upgrades needed (or the upgrades facts not given, as the Part 2 caller did): done once the safety check is done.
     [{ booked: true, piesaDone: true }, "done"],
     [{ booked: false, piesaDone: true }, "done"],
+    [{ booked: true, piesaDone: true, upgradesNeeded: false }, "done"],
+    // Join (4 Nov 2026): the upgrades-day / certificate steps live on Part 6's worker link (electrician-link.core), not here.
   ] as const)("%o → %s", (f, step) => expect(electricianStep(f)).toBe(step));
   test("the safety check is done once the job is past the booked stage", () => {
     expect(piesaDoneAtStage("piesa_and_install_window_pending")).toBe(false);

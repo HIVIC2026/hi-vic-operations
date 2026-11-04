@@ -29,6 +29,8 @@ export const getOwnerPrices = createServerFn({ method: "GET" })
       current: c && {
         version: c.version, r5: Number(c.r5_install_inc_gst_per_m2), removal: Number(c.removal_inc_gst_per_m2), piesa: Number(c.piesa_assessment_inc_gst),
         apFee: Number(c.ap_management_inc_gst), moderate: Number(c.access_moderate_multiplier), difficult: Number(c.access_difficult_multiplier),
+        // Jo 4 Nov 2026: blank = not set (a quote that needs it is held for the office).
+        topup: c.topup_inc_gst_per_m2 == null ? null : Number(c.topup_inc_gst_per_m2), r6: c.r6_install_inc_gst_per_m2 == null ? null : Number(c.r6_install_inc_gst_per_m2), r7: c.r7_install_inc_gst_per_m2 == null ? null : Number(c.r7_install_inc_gst_per_m2),
         veecBuy: Number(c.veec_buy_price), veecSale: ws.data?.current_veec_price == null ? 83 : Number(ws.data.current_veec_price),
       },
       canChangeApFee: canChangeApFee(context.userId, resolveApFeeAllowedIds(process.env["AP_FEE_OVERRIDE_USER_IDS"])),
@@ -40,17 +42,18 @@ export const setOwnerPrices = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({
     r5: price, removal: price, piesa: price, apFee: price, moderate: z.number().min(1).max(5).optional(), difficult: z.number().min(1).max(5).optional(),
-    veecBuy: price, reason: z.string().trim().min(3).max(500),
+    veecBuy: price, topup: price, r6: price, r7: price, reason: z.string().trim().min(3).max(500),
   }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
     const { data: cur } = await admin.from("retail_estimator_settings").select("*").eq("is_current", true).single();
-    const map: [keyof typeof data, string][] = [["r5", "r5_install_inc_gst_per_m2"], ["removal", "removal_inc_gst_per_m2"], ["piesa", "piesa_assessment_inc_gst"], ["apFee", "ap_management_inc_gst"], ["moderate", "access_moderate_multiplier"], ["difficult", "access_difficult_multiplier"], ["veecBuy", "veec_buy_price"]];
+    const map: [keyof typeof data, string][] = [["r5", "r5_install_inc_gst_per_m2"], ["removal", "removal_inc_gst_per_m2"], ["piesa", "piesa_assessment_inc_gst"], ["apFee", "ap_management_inc_gst"], ["moderate", "access_moderate_multiplier"], ["difficult", "access_difficult_multiplier"], ["veecBuy", "veec_buy_price"], ["topup", "topup_inc_gst_per_m2"], ["r6", "r6_install_inc_gst_per_m2"], ["r7", "r7_install_inc_gst_per_m2"]];
     const changes: Record<string, number> = {};
     for (const [k, col] of map) {
       const v = data[k];
-      if (typeof v === "number" && Number((cur as Record<string, unknown>)[col]) !== v) changes[col] = v;
+      const was = (cur as Record<string, unknown>)[col];
+      if (typeof v === "number" && (was == null || Number(was) !== v)) changes[col] = v;
     }
     if (!Object.keys(changes).length) throw new Error("Nothing changed.");
     if ("ap_management_inc_gst" in changes && !canChangeApFee(context.userId, resolveApFeeAllowedIds(process.env["AP_FEE_OVERRIDE_USER_IDS"])))

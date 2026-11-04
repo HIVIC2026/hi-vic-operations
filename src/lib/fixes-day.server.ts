@@ -23,7 +23,7 @@ import { shortAnswersFromEntries } from "./official-short.core";
 import {
   FIXES_COES_DOC_TITLE, FIXES_DAY_RULE, FIXES_DAY_TEMPLATE_NAME, FIXES_FORM_COMPLETED_EVENT, FIXES_FORM_CREATED_EVENT, FIXES_FORM_HELD_EVENT, FIXES_FORM_NOT_DONE_EVENT, FIXES_FORM_NOT_SET_UP,
   FIXES_TEMPLATE_COLUMN, FIXES_TEMPLATE_MISSING, FIXES_TEMPLATE_PENDING_DB,
-  fixesCompletionPlan, fixesDayMissingQuestions, fixesFormOutcome, type FixesFormEvent, fixesDayPrefillItems, fixesFormNeeded, isFixesDayDoc, mergeFixesIntoPiesaSnapshot, readFixesDay, repairWorkList, type SnapshotEntry,
+  fixesCompletionPlan, fixesDayMissingQuestions, fixesFormOutcome, type FixesFormEvent, fixesDayPrefillItems, fixesFormNeeded, fixesSignedOnDate, isFixesDayDoc, mergeFixesIntoPiesaSnapshot, readFixesDay, repairWorkList, type SnapshotEntry,
 } from "./fixes-day.core";
 
 export const FIXES_SWEEP_MAX = 20;
@@ -451,10 +451,16 @@ export async function completeFixesForm(jobId: string, auditId: string, opts: { 
   }
   const { data: asg } = await admin.from("job_assignments").select("user_id, profiles:user_id(full_name)").eq("job_id", jobId).eq("role", "electrician").eq("active", true).maybeSingle();
   const signerName = plan.signerName ?? ((asg?.profiles ?? null) as { full_name: string | null } | null)?.full_name ?? read.electricianName;
-  // 1. Files with the job FIRST: CoES + finished-work photo(s). Any file not kept → one office item and stop here (no
-  //    Section C merge, no evidence marked uploaded, no PIESA record, no completion event), so the 15-minute sweep retries.
+  // Part 3 (Jo 3 Nov 2026): "Do you have the Certificate of Electrical Safety now?" = No → Part C is still recorded (dated the
+  // day the form was signed, else today) and the job waits for the certificate (Task 3). A certificate given here is kept as before.
+  const cert = plan.certificate;
+  const certFiles = cert?.files ?? [];
+  const doneDate = cert?.date ?? fixesSignedOnDate(plan.signedAt) ?? today;
+  const coesNote = cert ? (cert.number ? `CoES ${cert.number}` : "CoES file attached (number not given)") : "Certificate of Electrical Safety to come";
+  // 1. Files with the job FIRST: CoES (when attached) + finished-work photo(s). Any file not kept → one office item and stop
+  //    here (no Section C merge, no evidence marked uploaded, no PIESA record, no completion event), so the 15-minute sweep retries.
   const files = await saveFixesFiles(jobId, auditId, [
-    { label: "Certificate of Electrical Safety", title: FIXES_COES_DOC_TITLE, media: plan.coesFiles },
+    ...(certFiles.length ? [{ label: "Certificate of Electrical Safety", title: FIXES_COES_DOC_TITLE, media: certFiles }] : []),
     { label: "Finished work photo", title: "Electrical fixes – photo of the finished work", media: plan.workPhotos },
   ], fetchMedia);
   if (files.failed.length) {
@@ -480,12 +486,12 @@ export async function completeFixesForm(jobId: string, auditId: string, opts: { 
   await admin.from("evidence_requirements").update({ status: "uploaded", notes: `From the Mitti electrical fixes form ${auditId}` }).eq("job_id", jobId).in("category", ["rectification_completion", "piesa_signoff"]).in("status", ["outstanding", "rejected"]);
   // 3. The ONE post-rectification record path (items completed, piesa_records, compliance, booking completed, stage, installer notice).
   const { applyPiesaRecord } = await import("./piesa-record.server");
-  await applyPiesaRecord({ jobId, actorId: asg?.user_id ?? null, kind: "post_rectification", outcome: "pass", completedDate: plan.certDate, sectionCSignedDate: plan.certDate, notes: `Recorded from the Mitti electrical fixes form ${auditId}. CoES ${plan.coesNumber}.`, source: { kind: "mitti_fixes_form", auditId } });
+  await applyPiesaRecord({ jobId, actorId: asg?.user_id ?? null, kind: "post_rectification", outcome: "pass", completedDate: doneDate, sectionCSignedDate: doneDate, notes: `Recorded from the Mitti electrical fixes form ${auditId}. ${coesNote}.`, source: { kind: "mitti_fixes_form", auditId } });
   // 4. Official PIESA + O28 copies through their existing guarded paths (each reports its own hold).
   let official: string;
   // Part 6 (no-login Team electricians): the assignment's profile, else the worker named by the allocation event.
   const signer = asg?.user_id ? { userId: asg.user_id, name: signerName } : { userId: (await (await import("./in-house-electrician.server")).electricianSignerFor(jobId))?.userId ?? null, name: signerName };
-  try { official = await regenerateOfficialPiesa(jobId, actorId, merged, signer, plan.certDate); }
+  try { official = await regenerateOfficialPiesa(jobId, actorId, merged, signer, doneDate); }
   catch (e) { official = `official PIESA not regenerated: ${e instanceof Error ? e.message : "error"}`; }
   let copies: string;
   try { const d = await (await import("./piesa-delivery.server")).deliverPiesaCopies(jobId); copies = d.hold ? `PIESA copies held: ${d.hold}` : `PIESA copies sent to ${d.sent.join(", ") || "nobody"}${Object.keys(d.held).length ? `; held: ${Object.entries(d.held).map(([k, v]) => `${k} ${v}`).join(", ")}` : ""}`; }
@@ -495,15 +501,21 @@ export async function completeFixesForm(jobId: string, auditId: string, opts: { 
   // Part 4 Task 14 (Jo 2 Nov 2026): the separate "confirm your electrical fixes" email/text/page (decision 330) is retired —
   // the upgrades declaration is covered by the confirm-and-pay page once the Part C + certificate are in.
   const ownerAsk = "retired 2 Nov 2026 (confirm-and-pay page covers the upgrades declaration)";
-  await logEvent(jobId, actorId, FIXES_FORM_COMPLETED_EVENT, `Electrical fixes form complete: CoES ${plan.coesNumber} certified ${plan.certDate}; Section C recorded, ${saved.length} file(s) kept; ${official}; ${copies}`.slice(0, 500),
-    { audit_id: auditId, version, coes_number: plan.coesNumber, cert_date: plan.certDate, files: saved, official, copies, electrician_copy: elecCopy, owner_fixes_confirm: ownerAsk, signer: signerName, signed_at: plan.signedAt, rule: FIXES_DAY_RULE });
+  await logEvent(jobId, actorId, FIXES_FORM_COMPLETED_EVENT, `Electrical fixes form complete: ${coesNote}${cert?.date ? ` certified ${cert.date}` : ""}; Section C recorded ${doneDate}, ${saved.length} file(s) kept; ${official}; ${copies}`.slice(0, 500),
+    { audit_id: auditId, version, coes_number: cert?.number ?? null, cert_date: cert?.date ?? null, certificate_to_come: plan.certificateToCome, done_date: doneDate, files: saved, official, copies, electrician_copy: elecCopy, owner_fixes_confirm: ownerAsk, signer: signerName, signed_at: plan.signedAt, rule: FIXES_DAY_RULE });
   // A48 batch 1 task 5: last, once every record above is written — the certificate kept with the job is read by the AI
   // (time-limited; ticked, or one office row). Never throws, so it can't leave this completion half-done.
-  await (await import("./coes-check.server")).checkCurrentCoes(jobId, actorId);
+  // Part 3: no file yet = "Waiting for certificate" (Task 3), never an office "check the certificate" row for a missing file.
+  if (certFiles.length) await (await import("./coes-check.server")).checkCurrentCoes(jobId, actorId);
+  // Part 3 Task 3: no certificate yet → ONE text to the electrician with their link to add it (held until Jo approves the wording).
+  else if (plan.certificateToCome) await (await import("./own-job-piesa-notices.server")).textCertificateLink(jobId, "now").catch((e) => console.error("certificate link text skipped", jobId, (e as Error).message));
   return { status: "done", detail: `${official}; ${copies}` };
 }
 
-/** 15-minute tick: every open fixes form (created, not yet completed) on a live job. Mitti errors are logged per job, never thrown. */
+/** 15-minute tick: every open fixes form (created, not yet completed) on a live job. Mitti errors are logged per job, never thrown.
+ *  Part 3 Task 3 (carried item): Mitti is polled only for jobs that can have a completable A4 — at Electrical fixes booked, or at
+ *  PIESA complete / variation pending / fixes scheduling when the safety check said upgrades are needed (same-visit A4). A form
+ *  pre-made for a PIESA-booked in-house job (A3 not done yet) is not read every tick. */
 export async function sweepFixesForms(opts: { call?: MittiCall; fetchMedia?: import("./mitti.server").MittiMediaFetch; limit?: number; budgetMs?: number } = {}): Promise<{ checked: number; done: number; notDone: number; waiting: number; failed: number }> {
   const out = { checked: 0, done: 0, notDone: 0, waiting: 0, failed: 0 };
   const { runStoredMittiPull, recordMittiPullOutcome } = await import("./mitti-pull-progress.server");
@@ -511,7 +523,7 @@ export async function sweepFixesForms(opts: { call?: MittiCall; fetchMedia?: imp
   const batch = await runStoredMittiPull("rectification", {
     page: async (offset, size) => {
       const { data, error } = await admin.from("workflow_events").select("job_id, details, created_at, jobs!inner(stage, deleted_at, qa_archived_at, business_unit)").eq("event_type", FIXES_FORM_CREATED_EVENT)
-        .eq("jobs.business_unit", "hivic").is("jobs.deleted_at", null).is("jobs.qa_archived_at", null).in("jobs.stage", ["rectification_booked", "piesa_scheduled", "piesa_complete", "electrical_variation_pending", "rectification_scheduling"])
+        .eq("jobs.business_unit", "hivic").is("jobs.deleted_at", null).is("jobs.qa_archived_at", null).in("jobs.stage", ["rectification_booked", "piesa_complete", "electrical_variation_pending", "rectification_scheduling"])
         .order("created_at", { ascending: false }).order("id").range(offset, offset + size - 1);
       if (error) throw new Error(`Rectification forms could not be read: ${error.message}`);
       return (data ?? []).filter(r => r.job_id && (r.details as { audit_id?: string } | null)?.audit_id).map(r => {
@@ -529,7 +541,15 @@ export async function sweepFixesForms(opts: { call?: MittiCall; fetchMedia?: imp
       const auditId = (r.details as { audit_id?: string } | null)?.audit_id;
       if (!auditId) return { ok: true };
       const jobId = String(r.job_id);
-      if (r.jobs.stage !== "rectification_booked" && !await (await import("./in-house-rectification.server")).optionalPartnerBilledRectificationFor(jobId)) return { ok: true };
+      if (r.jobs.stage !== "rectification_booked") {
+        if (!await (await import("./in-house-rectification.server")).optionalPartnerBilledRectificationFor(jobId)) return { ok: true };
+        // Same-visit stages: only a job whose safety check found upgrades (form answers, else open items) can have a completable A4.
+        const need = await fixesFormNeededFor(jobId);
+        const short = need.snapshot.length ? shortAnswersFromEntries("piesa", need.snapshot) : null;
+        const { piesaRectificationDone } = await import("./piesa-evidence.core");
+        const upgradesNeeded = short && short["rectificationOutcome"] ? fixesFormNeeded(short) || piesaRectificationDone(short) : need.needed;
+        if (!upgradesNeeded) return { ok: true };
+      }
       out.checked++;
       const res = await completeFixesForm(jobId, auditId, { ...(opts.call ? { call: opts.call } : {}), ...(opts.fetchMedia ? { fetchMedia: opts.fetchMedia } : {}) });
       if (res.status === "done") out.done++; else if (res.status === "not_done") out.notDone++; else out.waiting++;

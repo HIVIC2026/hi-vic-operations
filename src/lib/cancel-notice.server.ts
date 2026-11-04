@@ -23,7 +23,8 @@ export type InstallerRecipient = {
 };
 
 /** The office phone number shown in O69/I70 — env only; no number on file = the "reply to this email" wording. */
-export const officePhone = () => process.env["HIV_OFFICE_PHONE"]?.trim() || null;
+import { officePhone } from "./office-phone.server";
+export { officePhone };
 
 type Outcome = { who: CancelNoticeWho; status: "sent" | "held" | "already"; detail: string; to: string | null };
 

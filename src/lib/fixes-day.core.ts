@@ -2,14 +2,17 @@
 // "A4 – Electrical fixes" Mitti template (decision 293, Jo 25 Oct 2026). PURE: no database, no network.
 // When the PIESA said repair work is needed (q20) and it was NOT fixed on the same visit (q30 not Yes), the fixes are done
 // on a later visit. The portal creates this short form for the electrician when that visit is booked, and reads it when
-// the electrician presses Complete: Q9 Yes with the CoES number, certification date, CoES file and finished-work photo
-// becomes PIESA Part C (the same facts the portal's "record fixes done" page writes), the files are kept with the job and
-// the O28 copies follow. Fixed on the same visit stays on the PIESA form (q30–q37, q45).
+// the electrician presses Complete: Q9 Yes with the finished-work photo and signature becomes PIESA Part C (the same facts
+// the portal's "record fixes done" page writes), the files are kept with the job and the O28 copies follow. Part 3 (Jo 3 Nov
+// 2026, certificate-later design): Q11 "Do you have the Certificate of Electrical Safety now?" — Yes → the number, date and
+// file show and are Required; No → hidden, `fixesCompletionPlan` is `done` with `certificate: null` / `certificateToCome` and
+// the job waits for the certificate (Task 3). Fixed on the same visit stays on the PIESA form (q30–q37, q45).
 // The exact wording of every question is fixed here; docs/MITTI_FIXES_FORM_PROMPT.md is the ChatGPT build prompt and
 // tests/fixes-day.test.ts fails if the two drift apart (same pattern as the Install day form, install-day.core.ts).
 import { norm } from "./mitti.core";
+import { canonicalMittiLabel, fixesMittiLabel } from "./mitti-rebuild-labels.core";
 import { mittiMediaFile, PIESA_EVIDENCE_BY_ID, type MittiMediaFile } from "./piesa-evidence.core";
-import { RECTIFICATION_OUTCOMES, SHORT_PIESA_FIELDS, repairWorkBesidesOnsite } from "./official-short.core";
+import { CERTIFICATE_NOW_ADDED, CERTIFICATE_NOW_HELP, CERTIFICATE_NOW_LABEL, RECTIFICATION_OUTCOMES, SHORT_PIESA_FIELDS, repairWorkBesidesOnsite } from "./official-short.core";
 import { B2_OPTIONS } from "./official-forms.core";
 import { FIXES_FORM_LINK_LABEL } from "./trade-shared-consts.core";
 
@@ -18,21 +21,21 @@ export const FIXES_DAY_RULE = "fixes-day-2026-10-25";
 /** workflow_settings column holding the connected template id (pending migration docs/pending-migrations/mitti-fixes-template.sql). */
 export const FIXES_TEMPLATE_COLUMN = "mitti_fixes_template_id";
 export const FIXES_TEMPLATE_MIGRATION = "docs/pending-migrations/mitti-fixes-template.sql";
-export const FIXES_TEMPLATE_MISSING = "Electrical fixes Mitti form is not set up. Connect the \"A4 – Electrical fixes\" form in Compliance → Mitti forms; until then the electrician records the fixes on the portal job page.";
-export const FIXES_TEMPLATE_PENDING_DB = `Electrical fixes Mitti form: waiting for the database change (${FIXES_TEMPLATE_MIGRATION}). The electrician records the fixes on the portal job page until then.`;
+export const FIXES_TEMPLATE_MISSING = "Electrical upgrades Mitti form is not set up. Connect the A4 electrical upgrades form in Compliance → Mitti forms.";
+export const FIXES_TEMPLATE_PENDING_DB = `Electrical upgrades Mitti form: waiting for the database change (${FIXES_TEMPLATE_MIGRATION}).`;
 /** Workflow events (append-only history; the latest per audit wins). */
 export const FIXES_FORM_CREATED_EVENT = "fixes_form_created";
 export const FIXES_FORM_HELD_EVENT = "fixes_form_held";
 export const FIXES_FORM_COMPLETED_EVENT = "fixes_form_completed";
 export const FIXES_FORM_NOT_DONE_EVENT = "fixes_form_not_done";
 /** Office item title when the form could not be created (template missing, electrician not in Mitti, Mitti error). */
-export const FIXES_FORM_NOT_SET_UP = "Fixes form not set up";
+export const FIXES_FORM_NOT_SET_UP = "Upgrades form not set up";
 /** Job-file title of the CoES file(s) kept from the A4 form (documents kind piesa_evidence, source mitti). Decision 322:
  *  the completion pack finds the CoES to attach by this exact title, so keep the two in step. */
 export const FIXES_COES_DOC_TITLE = "PIESA evidence – Certificate of Electrical Safety (photo or PDF)";
 export const FIXES_COES_DOC_KIND = "piesa_evidence";
 
-/** Every label, by key. Q8 is a read-only list the portal fills in; Q15 the electrician's signature. */
+/** Every label, by key. Q8 is a read-only list the portal fills in; Q16 the electrician's signature. */
 export const FIXES_DAY_Q = {
   jobNumber: "Job number",
   address: "Address",
@@ -44,6 +47,7 @@ export const FIXES_DAY_Q = {
   repairList: "The repair work listed on the safety assessment:",
   done: "Have you completed all of the repair work listed, and is the ceiling now safe for insulation?",
   notDone: "Anything not done or changed?",
+  certificateNow: CERTIFICATE_NOW_LABEL,
   coesNumber: "Certificate of Electrical Safety number",
   certDate: "Date of certification",
   coesFile: "Certificate of Electrical Safety (photo or PDF)",
@@ -65,10 +69,13 @@ export type FixesDayQuestion = {
   geotagged?: boolean;
   /** PDF files allowed as well as photos. */
   pdf?: boolean;
+  /** Added to live templates later (Part 3 = CERTIFICATE_NOW_ADDED): asked on new builds, but a template published before it
+   *  still validates / creates forms without it (its forms read as "not asked"). */
+  addedByDecision?: number;
 };
 
 const Q = FIXES_DAY_Q;
-/** Every question in form order (Q1–15). */
+/** Every question in form order (Q1–16). */
 export const FIXES_DAY_QUESTIONS: readonly FixesDayQuestion[] = (() => {
   const out: FixesDayQuestion[] = [];
   let n = 0;
@@ -83,9 +90,11 @@ export const FIXES_DAY_QUESTIONS: readonly FixesDayQuestion[] = (() => {
   q(3, Q.repairList, "text", false, { prefill: "repairList", help: "Filled in by the portal from the safety assessment. Don't retype it." });
   const done = q(3, Q.done, "yes_no", true);
   q(3, Q.notDone, "text", true, { showWhen: { n: done, is: ["No"] }, help: "Say what is still outstanding or what changed, so the office can follow it up." });
-  q(4, Q.coesNumber, "text", true, { showWhen: { n: done, is: ["Yes"] } });
-  q(4, Q.certDate, "date", true, { showWhen: { n: done, is: ["Yes"] } });
-  q(4, Q.coesFile, "photo", true, { showWhen: { n: done, is: ["Yes"] }, pdf: true, help: "A photo or the PDF of the certificate." });
+  // Part 3 (Jo 3 Nov 2026): the certificate can come later — Q11 asks; Yes → Q12–Q14 show and are Required, No → hidden.
+  const certNow = q(4, Q.certificateNow, "yes_no", true, { showWhen: { n: done, is: ["Yes"] }, help: CERTIFICATE_NOW_HELP, addedByDecision: CERTIFICATE_NOW_ADDED });
+  q(4, Q.coesNumber, "text", true, { showWhen: { n: certNow, is: ["Yes"] } });
+  q(4, Q.certDate, "date", true, { showWhen: { n: certNow, is: ["Yes"] } });
+  q(4, Q.coesFile, "photo", true, { showWhen: { n: certNow, is: ["Yes"] }, pdf: true, help: "A photo or the PDF of the certificate." });
   q(4, Q.workPhoto, "photo", true, { showWhen: { n: done, is: ["Yes"] }, multiple: true, geotagged: true, help: "Show the finished work. More than one photo is fine." });
   q(5, Q.signature, "signature", true);
   return out;
@@ -94,7 +103,7 @@ export const FIXES_DAY_QUESTIONS: readonly FixesDayQuestion[] = (() => {
 // ======================================================================================================
 // Reading an audit / template by label (same shape as install-day.core)
 // ======================================================================================================
-const labelKey = (label: unknown) => norm(String(label ?? "").split("\n")[0]);
+const labelKey = (label: unknown) => norm(canonicalMittiLabel(fixesMittiLabel(String(label ?? ""))).split("\n")[0]);
 type ReadSignature = { present: boolean; name: string | null; signedAt: string | null; mediaId: string | null };
 type Labelled = { id: string | null; label: string; value: string | null; media: MittiMediaFile[]; signature: ReadSignature };
 const NO_SIGNATURE: ReadSignature = { present: false, name: null, signedAt: null, mediaId: null };
@@ -114,6 +123,7 @@ function labelledItems(doc: unknown): Labelled[] {
     if (Array.isArray(x)) { x.forEach(walk); return; }
     if (!x || typeof x !== "object") return;
     const o = x as Record<string, any>;
+    if (o["inactive"] === true) return;
     if (typeof o["label"] === "string") {
       const r = (o["responses"] ?? {}) as Record<string, any>;
       const selected: string[] = Array.isArray(r["selected"]) ? r["selected"].map((s: any) => String(s?.label ?? s)) : [];
@@ -143,10 +153,11 @@ export function isFixesDayDoc(doc: unknown): boolean {
   const items = labelledItems(doc);
   return allWithLabel(items, Q.done).length > 0 && allWithLabel(items, Q.repairList).length > 0;
 }
-/** Question labels the template does not carry (exact wording). Empty = built. */
+/** Question labels the template does not carry (exact wording). Empty = built. A question added later (`addedByDecision`,
+ *  Part 3's certificate question) is not reported: a template from before it stays usable. */
 export function fixesDayMissingQuestions(template: unknown): string[] {
   const items = labelledItems(template);
-  return FIXES_DAY_QUESTIONS.filter((q) => allWithLabel(items, q.label).length === 0).map((q) => q.label);
+  return FIXES_DAY_QUESTIONS.filter((q) => q.addedByDecision == null && allWithLabel(items, q.label).length === 0).map((q) => q.label);
 }
 
 const yesNo = (v: string | null | undefined): "Yes" | "No" | null => (v == null ? null : /^\s*yes\b/i.test(v) ? "Yes" : /^\s*no\b/i.test(v) ? "No" : null);
@@ -156,6 +167,8 @@ export type FixesDayRead = {
   jobNumber: string | null;
   electricianName: string | null; licence: string | null; recName: string | null; recNo: string | null; phone: string | null;
   done: "Yes" | "No" | null; notDone: string | null;
+  /** Part 3: "Do you have the Certificate of Electrical Safety now?" — null on a form built before it. */
+  certificateNow: "Yes" | "No" | null;
   coesNumber: string | null; certDate: string | null;
   coesFiles: MittiMediaFile[]; workPhotos: MittiMediaFile[];
   signature: ReadSignature;
@@ -169,6 +182,7 @@ export function readFixesDay(audit: unknown): FixesDayRead {
     jobNumber: text(Q.jobNumber),
     electricianName: text(Q.electricianName), licence: text(Q.licence), recName: text(Q.recName), recNo: text(Q.recNo), phone: text(Q.phone),
     done: yesNo(text(Q.done)), notDone: text(Q.notDone),
+    certificateNow: yesNo(text(Q.certificateNow)),
     coesNumber: text(Q.coesNumber), certDate: ymd(text(Q.certDate)),
     coesFiles: one(Q.coesFile)?.media ?? [], workPhotos: one(Q.workPhoto)?.media ?? [],
     signature: one(Q.signature)?.signature ?? NO_SIGNATURE,
@@ -216,30 +230,45 @@ export function fixesFormOutcome(evs: FixesFormEvent[]): FixesFormOutcome {
   return { auditId, createdAt: created!.created_at, outcome, detail };
 }
 
+/** The certificate as the electrician gave it on the A4 (number / date may be blank on a form from before Part 3). */
+export type FixesCertificate = { number: string | null; date: string | null; files: MittiMediaFile[] };
 export type FixesCompletionPlan =
   | { kind: "waiting"; reason: string }
   | { kind: "not_done"; text: string }
   | { kind: "missing"; missing: string[] }
-  | { kind: "done"; coesNumber: string; certDate: string; coesFiles: MittiMediaFile[]; workPhotos: MittiMediaFile[]; signedAt: string | null; signerName: string | null };
+  | { kind: "done"; certificate: FixesCertificate | null; /** Part 3: no certificate on this form — the job waits for it (Task 3). */ certificateToCome: boolean; workPhotos: MittiMediaFile[]; signedAt: string | null; signerName: string | null };
 /**
  * What a Complete press means. `today` is the Melbourne date: a certification date in the future is never accepted.
- * Q9 No → office item with the Q10 text, nothing else. Q9 Yes needs Q11–Q14 (and the signature); anything missing is
- * listed, never guessed. Not completed in Mitti → waiting.
+ * Q9 No → office item with the Q10 text, nothing else. Q9 Yes needs the geotagged work photo and the signature; anything
+ * missing is listed, never guessed. Part 3 (Jo 3 Nov 2026), Q11 "Do you have the Certificate of Electrical Safety now?":
+ * Yes → the number, date and file are required exactly as before; No → `done` with `certificate: null`,
+ * `certificateToCome: true`; not asked (a form built before Part 3) → the certificate is what was given if a file exists,
+ * else to come. Not completed in Mitti → waiting.
  */
 export function fixesCompletionPlan(r: FixesDayRead, i: { completed: boolean; today: string }): FixesCompletionPlan {
   if (!i.completed) return { kind: "waiting", reason: "not marked Complete in Mitti" };
   if (r.done === "No") return { kind: "not_done", text: r.notDone ?? "(no detail given)" };
   if (r.done !== "Yes") return { kind: "missing", missing: [Q.done] };
   const missing: string[] = [];
-  if (!r.coesNumber) missing.push(Q.coesNumber);
-  if (!r.certDate) missing.push(Q.certDate);
-  else if (r.certDate > i.today) missing.push(`${Q.certDate} (cannot be in the future)`);
-  if (!r.coesFiles.length) missing.push(Q.coesFile);
+  if (r.certificateNow === "Yes") {
+    if (!r.coesNumber) missing.push(Q.coesNumber);
+    if (!r.certDate) missing.push(Q.certDate);
+    if (!r.coesFiles.length) missing.push(Q.coesFile);
+  }
+  // Task 3 carried item: the future-date rule applies to a certificate being recorded (Q11 = Yes, or an old form without Q11 that
+  // carries a file); with Q11 = No the certificate fields are ignored, so a date typed there blocks nothing.
+  if (r.certificateNow !== "No" && r.certDate && r.certDate > i.today) missing.push(`${Q.certDate} (cannot be in the future)`);
   if (!r.workPhotos.length) missing.push(Q.workPhoto);
   else if (!r.workPhotos.some((f) => f.lat != null && f.lng != null)) missing.push(`${Q.workPhoto} (must be geotagged)`);
   if (!r.signature.present) missing.push(Q.signature);
   if (missing.length) return { kind: "missing", missing };
-  return { kind: "done", coesNumber: r.coesNumber!, certDate: r.certDate!, coesFiles: r.coesFiles, workPhotos: r.workPhotos, signedAt: r.signature.signedAt, signerName: r.signature.name };
+  const hasFile = r.certificateNow !== "No" && r.coesFiles.length > 0;
+  const certificate: FixesCertificate | null = hasFile ? { number: r.coesNumber, date: r.certDate, files: r.coesFiles } : null;
+  return { kind: "done", certificate, certificateToCome: certificate == null, workPhotos: r.workPhotos, signedAt: r.signature.signedAt, signerName: r.signature.name };
+}
+/** The Melbourne date of the A4 signature (the day the upgrades were recorded done), when Mitti recorded one. */
+export function fixesSignedOnDate(signedAt: string | null): string | null {
+  return signedAt && Number.isFinite(Date.parse(signedAt)) ? new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(signedAt)) : null;
 }
 
 // ======================================================================================================
@@ -263,21 +292,40 @@ export function mergeFixesIntoPiesaSnapshot(snapshot: SnapshotEntry[], r: FixesD
     if (hit) { if (value != null) hit.value = value; if (media) hit.media = media; }
     else out.push({ label, value, section: "fixes day (A4)", ...(media ? { media } : {}) });
   };
-  // Unique labels on the PIESA: set the one occurrence (or append).
+  // Unique labels on the PIESA: set the one occurrence (or append). Part 3: the certificate fields are written only when the
+  // electrician gave them; blank stays blank (the certificate comes later through the texted link).
   setNth(shortLabel("rectificationComplete"), 0, "Yes");
-  setNth(shortLabel("coesNumber"), 0, done.coesNumber);
-  setNth(shortLabel("certDate"), 0, done.certDate);
+  // Part 3: the A4's "Do you have the Certificate of Electrical Safety now?" answer lands on the A3 id, so piesa-evidence reads
+  // "certificate to come" the same way from either form; a form built before Part 3 leaves it unanswered.
+  if (r.certificateNow) setNth(shortLabel("certificateNow"), 0, r.certificateNow);
+  if (done.certificate?.number) setNth(shortLabel("coesNumber"), 0, done.certificate.number);
+  if (done.certificate?.date) setNth(shortLabel("certDate"), 0, done.certificate.date);
   // Decision 329: the A4 signature's signer + Melbourne date, for the official Section C typed signature.
   const signer = done.signerName ?? r.electricianName;
   if (signer) setNth(shortLabel("fixesSignedBy"), 0, signer);
-  const signedOn = done.signedAt && Number.isFinite(Date.parse(done.signedAt)) ? new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(done.signedAt)) : done.certDate;
-  setNth(shortLabel("fixesSignedOn"), 0, signedOn);
+  const signedOn = fixesSignedOnDate(done.signedAt) ?? done.certificate?.date ?? null;
+  if (signedOn) setNth(shortLabel("fixesSignedOn"), 0, signedOn);
   // Electrician details: Part B3 (Section C is copied from it by expandPiesa). Only blanks are filled — the PIESA's own
   // pre-filled answers win over the fixes form.
   const b3: [string, string | null][] = [["b3.licence", r.licence], ["b3.name", r.electricianName], ["b3.recName", r.recName], ["b3.recNo", r.recNo], ["b3.phone", r.phone]];
   for (const [id, v] of b3) { if (!v) continue; const hit = out.find((e) => key(e.label) === key(shortLabel(id))); if (!hit) out.push({ label: shortLabel(id), value: v, section: "fixes day (A4)" }); else if (!hit.value) hit.value = v; }
-  // q45: the CES file, read by piesa-evidence.core from the same label.
-  setNth(CES_LABEL, 0, `${done.coesFiles.length} file${done.coesFiles.length === 1 ? "" : "s"}`, done.coesFiles);
+  // q45: the CES file, read by piesa-evidence.core from the same label (only when attached; absent = certificate to come).
+  const files = done.certificate?.files ?? [];
+  if (files.length) setNth(CES_LABEL, 0, `${files.length} file${files.length === 1 ? "" : "s"}`, files);
+  return out;
+}
+
+/** Part 3 Task 3: the certificate number and date from the electrician's LINK onto the PIESA short answers (Part C c.coes /
+ *  c.certDate via expandPiesa), the way the A4 merge above does; every other entry is untouched; a missing label is appended.
+ *  The FILE is not put here — it is the portal evidence file coes-check.server reads. Pure. */
+export function mergeCertificateIntoPiesaSnapshot<T extends { label: string; value: string | null; section?: string }>(snapshot: T[], c: { number: string; date: string }): T[] {
+  const out = snapshot.map((e) => ({ ...e }));
+  const set = (label: string, value: string) => {
+    const hit = out.find((e) => norm(e.label) === norm(label));
+    if (hit) hit.value = value; else out.push({ label, value, section: "certificate (electrician's link)" } as T);
+  };
+  set(shortLabel("coesNumber"), c.number.trim());
+  set(shortLabel("certDate"), c.date);
   return out;
 }
 

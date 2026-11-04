@@ -46,7 +46,7 @@ import { completeOwnerQuoteAcceptance, ownerQuoteCanAccept } from "@/lib/owner-q
 
 // Owner "My job" — no login. The secure link token is the only credential; nothing fetched during SSR.
 // Decision 335: "review" = the O51 star links (?screen=review&stars=N).
-// Decision 366: "fixes" = the electrical fixes screen (O29's approve link): approve → pay in full → pick the electrician's time.
+// Decision 366: "fixes" = the electrical upgrades screen (O29's approve link): approve → pay in full → pick the electrician's time.
 // Decision 389: "turn" = "It's your turn" (O77's link): Confirm the free Ready Check, or no longer interested.
 // Batch 3a: "newquote" = O78's "Send me a new quote" button: the request runs on arrival, then the approved thanks line.
 // A48 batch 2: "taps" = the quick taps (the batch text's link): one question per screen, big buttons.
@@ -840,7 +840,7 @@ function QuoteScreen({ v, token }: { v: View; token: string }) {
 }
 
 /** Decisions 139/140/141: what is due now and how to pay it. Card ("Pay now", Xero online invoice) only for the $349
- *  safety check, electrical fixes and the install deposit (Jo 29 Oct); the balance is bank transfer / PayID only. Never a card fee. */
+ *  safety check, electrical upgrades and the install deposit (Jo 29 Oct); the balance is bank transfer / PayID only. Never a card fee. */
 function PayNowCard({ v, token }: { v: View; token: string }) {
   const p = v.payment as { dueNow: number; remaining: number; paid: number; payNow: { title: string; amount: number; card: boolean; lines: string[] }; provisional: { expiresAt: string | null; deposit: number } | null } | null;
   const checkout = useServerFn(ownerCardCheckoutFn);
@@ -860,7 +860,7 @@ function PayNowCard({ v, token }: { v: View; token: string }) {
   </section>;
 }
 
-/** Decision 366 (audit F03): the Home card for an electrical fixes quote that needs the owner. */
+/** Decision 366 (audit F03): the Home card for an electrical upgrades quote that needs the owner. */
 /** A48 batch 1 final fix (Jo 29 Oct 2026, approved wording verbatim): life support yes / unknown and no plan on file →
  *  the owner uploads the written consent or medical plan (photo or PDF). That file alone clears the safety check block. */
 function LifeSupportPlanCard({ token }: { token: string }) {
@@ -911,8 +911,10 @@ function FixesScreen({ v, token }: { v: View; token: string }) {
     setErr(""); setBusy(true);
     try { await fn(session); await refresh(); } catch (e) { setErr(errText(e)); } finally { setBusy(false); }
   };
-  if (isLoading) return <><Back token={token} /><p role="status" className="py-10 text-center text-sm">Opening your electrical fixes…</p></>;
-  if (!data || data.step === "none" || !data.quote) return <><Back token={token} /><section className="rounded-[22px] bg-card p-5 shadow-sm"><p className="font-display text-lg font-extrabold">No electrical fixes to look at</p><p className="mt-1 text-sm">Your safety check didn't leave any electrical fixes for you to approve.</p></section></>;
+  if (isLoading) return <><Back token={token} /><p role="status" className="py-10 text-center text-sm">Opening your electrical upgrades…</p></>;
+  // Part 3 Task 1 (Jo 2 Nov 2026): no Home Insulation Victoria upgrades quote — the electrician arranges the upgrades directly.
+  if (data?.electricianBills && (data.step === "none" || !data.quote)) return <><Back token={token} /><section data-testid="fixes-electrician-bills" className="rounded-[22px] bg-card p-5 shadow-sm"><p className="text-sm">{data.electricianBills}</p></section></>;
+  if (!data || data.step === "none" || !data.quote) return <><Back token={token} /><section className="rounded-[22px] bg-card p-5 shadow-sm"><p className="font-display text-lg font-extrabold">No electrical upgrades to look at</p><p className="mt-1 text-sm">Your safety check didn't leave any electrical upgrades for you to approve.</p></section></>;
   const q = data.quote;
   return <>
     <Back token={token} />

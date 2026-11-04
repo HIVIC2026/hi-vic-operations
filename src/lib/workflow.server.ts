@@ -341,11 +341,8 @@ export async function stageEntryBlockers(jobId: string, to: Stage, actorId: stri
     const rb = await (await import("./piesa-rules-notice.server")).piesaRulesBlockerFor(jobId);
     if (rb) blockers.push(rb);
   }
-  // A48 batch 1 task 5: where repairs were done, the electrical certificate must be ticked (AI or office) before the install day.
-  if (to === "installation_booked") {
-    const cb = await (await import("./coes-check.server")).coesBlockerFor(jobId);
-    if (cb) blockers.push(cb);
-  }
+  // A48 batch 1 task 5 → Part 3 Task 4 (Jo 3 Nov 2026): the install can be BOOKED while the electrical certificate is still to
+  // come or not ticked; it can't START — the day-before pre-start check reads it (prestart.server `prestartFacts`).
   const piesa = await piesaStatus(jobId);
 
   if (["awaiting_deposit_payment", "rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked"].includes(to)) {
@@ -456,7 +453,8 @@ export async function stageEntryBlockers(jobId: string, to: Stage, actorId: stri
     if (!g.cleared) blockers.push(g.blocker);
   }
   // Decision 366 (audit F03): no fixes visit is booked until the electrical fixes are paid in full.
-  if (to === "rectification_booked") {
+  // Part 3 Task 1 (Jo 2 Nov 2026): the electrician bills the upgrades on every job, so the gate never applies.
+  if (to === "rectification_booked" && !(await import("./upgrades-billing.core")).electricianBillsUpgrades(jobId)) {
     const fb = await (await import("./payments.server")).fixesPaymentBlockerFor(jobId);
     if (fb) {
       // Resolve the exception only where the legacy quote/payment gate would block.
@@ -475,7 +473,8 @@ export async function stageEntryBlockers(jobId: string, to: Stage, actorId: stri
     // Decision 314 follow-up: open fixes items on an on-site-only job cleared on `electrician_at_start` are done on the
     // install day (read only when fixes items are open, so every other job reads exactly as before).
     const { installEntryElectricalBlockers } = await import("./allocation.core");
-    const onsiteStartCleared = rect > 0 ? await (await import("./electrical-clearance.server")).onsiteStartClearedFor(jobId) : false;
+    // Part 3 final fix wave: a failed safety check with NO items (a live A3 makes none for the on-site-only tick) reads it too.
+    const onsiteStartCleared = rect > 0 || piesa?.piesa_outcome === "fail" ? await (await import("./electrical-clearance.server")).onsiteStartClearedFor(jobId) : false;
     blockers.push(...installEntryElectricalBlockers({ openRectItems: rect, piesaDate: piesa?.piesa_date, piesaOutcome: piesa?.piesa_outcome, onsiteStartCleared }));
   }
   if (to === "installation_booked" || to === "evidence_outstanding") {
@@ -577,7 +576,8 @@ export async function transition(
 export async function nextStepBlockers(jobId: string) {
   const stage = await getStage(jobId);
   let next = TRANSITIONS[stage]?.[0] ?? null;
-  if (stage === "awaiting_deposit_payment") next = (await openRectCount(jobId)) > 0 ? "rectification_scheduling" : "installation_scheduling";
+  // Part 3 final fix wave: upgrades needed on the A3 answers (no items) also go to the upgrades booking first.
+  if (stage === "awaiting_deposit_payment") next = (await openRectCount(jobId)) > 0 || (await (await import("./electrical-clearance.server")).upgradesDayNeededFor(jobId).catch(() => false)) ? "rectification_scheduling" : "installation_scheduling";
   if (stage === "rectification_booked") next = "installation_scheduling";
   // Speed (decision 280): the entry blockers, PIESA status and assignment status are independent reads — one round trip.
   const [blockers, piesa, asgStatus] = await Promise.all([next ? stageEntryBlockers(jobId, next) : Promise.resolve([] as string[]), piesaStatus(jobId), assignmentStatus(jobId)]);

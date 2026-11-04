@@ -3,6 +3,8 @@ import { DEFAULT_REGISTRY_FIELDS, EARLIEST_MS, LEAD_MS, registryUpdateTimingReas
 import { melbourneAt, melbourneYmd } from "./piesa-windows.core";
 import { COLLECTION_NOTICE_BLOCK_MESSAGE } from "./esc-collection-notice.core";
 import { whiteCardBlocker, type WhiteCardState } from "./worker-compliance.core";
+import { coesOfficeLine } from "./coes-check.core";
+import type { PrestartCertificate } from "./certificate-later.core";
 
 export const ESC_URGENT_MS = 2 * 24 * 3600_000;
 export const PRESTART_HOUR = 12; // 12pm Melbourne, the day before the install
@@ -126,7 +128,13 @@ export type PrestartFacts = {
   /** Decision 395: the owner has not ticked "I have received it" for their safety check copy (Gate C piesa_copy_receipt,
    *  owner-gates.core piesaCopyReceiptBlocker); null = ticked; undefined = not loaded (older callers). */
   piesaCopyReceiptBlocker?: string | null | undefined;
+  /** Part 3 Task 4 (Jo 3 Nov 2026): the install can be booked without the Certificate of Electrical Safety but can't start
+   *  without it (certificate-later.core `prestartCertificate`); undefined = not loaded (older callers). */
+  certificate?: PrestartCertificate | undefined;
+  /** The existing certificate check's reason when `certificate` is "unchecked" (coes-check.core COES_WHY / rejected). */
+  certificateWhy?: string | null | undefined;
 };
+export const CERTIFICATE_NOT_IN_YET = "Certificate of Electrical Safety not in yet";
 
 /** Every failed pre-start condition, in plain words. Empty = cleared to start. */
 export function prestartFailures(f: PrestartFacts): string[] {
@@ -154,6 +162,8 @@ export function prestartFailures(f: PrestartFacts): string[] {
   if (f.installDepositBlocker) out.push(f.installDepositBlocker);
   for (const b of f.piesaCopyBlockers ?? []) out.push(b);
   if (f.piesaCopyReceiptBlocker) out.push(f.piesaCopyReceiptBlocker);
+  if (f.certificate === "missing") out.push(CERTIFICATE_NOT_IN_YET);
+  else if (f.certificate === "unchecked") out.push(coesOfficeLine(f.certificateWhy?.trim() || "not checked yet"));
   return out;
 }
 

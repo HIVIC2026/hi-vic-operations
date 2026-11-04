@@ -28,23 +28,15 @@ const entriesOf = (raw: unknown): Entry[] => (Array.isArray(raw) ? (raw as Entry
 
 export type CurrentCoes = { needed: boolean; ref: CoesFileRef | null; since: string | null; source: "mitti" | "portal" | "upload" | null };
 
-/** Is a certificate needed (repairs were done), and which one is on the job now. Certificates uploaded from the electrician's
- *  link or the installer office (documents source_system "upload", the same kind and title) join the Mitti / portal files in
- *  ONE ref keyed by the uploaded documents, so a new upload is a new certificate to check. */
+/** Is a certificate needed (repairs were done), and which one is on the job now.
+ *  Part 3 Task 3 (Jo 3 Nov 2026): the certificate can come AFTER Part C. The Mitti answers still say repairs were done (needed),
+ *  but the file may arrive later: through the electrician's link or the installer office (Part 6: `uploadCoesForJob`, documents
+ *  source_system "upload", the same kind and title), or as the portal `rectification_completion` evidence — so with no q45 file
+ *  those are read too. When MORE THAN ONE file exists, the one that arrived FIRST stays the current certificate (one certificate,
+ *  one check, one owner copy — Review Focus 2); a certificate the office rejected gives way to the other one. */
 export async function currentCoes(jobId: string): Promise<CurrentCoes> {
-  const base = await baseCoes(jobId);
-  if (!base.needed) return base;
-  const { FIXES_COES_DOC_KIND, FIXES_COES_DOC_TITLE } = await import("./fixes-day.core");
-  const { data, error } = await admin.from("documents").select("id, storage_path, mime_type, created_at").eq("job_id", jobId).eq("kind", FIXES_COES_DOC_KIND).eq("source_system", "upload").eq("title", FIXES_COES_DOC_TITLE).order("created_at", { ascending: true });
-  if (error) throw new Error(`Could not read the uploaded certificates: ${error.message}`);
-  const ups = (data ?? []) as { id: string; storage_path: string; mime_type: string | null; created_at: string | null }[];
-  if (!ups.length) return base;
-  const files = [...(base.ref?.files ?? []), ...ups.map((u) => ({ storagePath: u.storage_path, mimeType: u.mime_type ?? "application/octet-stream" }))];
-  const newest = ups.map((u) => u.created_at).filter((x): x is string => !!x).sort().at(-1) ?? base.since;
-  return { needed: true, ref: { key: coesUploadKey(ups.map((u) => u.id)), files }, since: newest, source: "upload" };
-}
-
-async function baseCoes(jobId: string): Promise<CurrentCoes> {
+  type Candidate = { ref: CoesFileRef; since: string | null; source: "mitti" | "portal" | "upload" };
+  let mitti: Candidate | null = null;
   const { data: a } = await admin.from("assessments").select("mitti_raw_snapshot").eq("job_id", jobId).maybeSingle();
   const entries = entriesOf(a?.mitti_raw_snapshot);
   if (entries.length) {
@@ -60,18 +52,40 @@ async function baseCoes(jobId: string): Promise<CurrentCoes> {
         const d = ((docs ?? []) as { storage_path: string; mime_type: string | null; external_id: string | null; created_at?: string | null }[]).find((x) => String(x.external_id ?? "").endsWith(`:${id}`));
         if (d) { files.push({ storagePath: d.storage_path, mimeType: d.mime_type ?? "application/octet-stream" }); if (d.created_at && (!since || d.created_at > since)) since = d.created_at; }
       }
-      return { needed: true, ref: { key: coesKey(mediaIds), files }, since, source: "mitti" };
+      mitti = { ref: { key: coesKey(mediaIds), files }, since, source: "mitti" };
     }
   }
-  // Portal "record fixes done" page: a post_rectification record, with the fixes evidence uploaded on that page.
+  // Portal: a post_rectification record (the "record fixes done" page or the A4), or Part C on the Mitti answers; the certificate =
+  // the fixes evidence uploaded on that page or through the electrician's link (evidence_files of `rectification_completion`).
   const { data: rec } = await admin.from("piesa_records").select("created_at").eq("job_id", jobId).eq("kind", "post_rectification").order("created_at", { ascending: false }).limit(1);
   const recAt = ((rec ?? []) as { created_at: string }[])[0]?.created_at ?? null;
-  if (!recAt) return { needed: false, ref: null, since: null, source: null };
+  if (!mitti && !recAt) return { needed: false, ref: null, since: null, source: null };
   const { data: req } = await admin.from("evidence_requirements").select("id").eq("job_id", jobId).eq("category", "rectification_completion");
   const reqIds = ((req ?? []) as { id: string }[]).map((r) => r.id);
   const { data: ev } = reqIds.length ? await admin.from("evidence_files").select("id, storage_path, mime_type, uploaded_at").eq("job_id", jobId).in("requirement_id", reqIds) : { data: [] };
   const rows = (ev ?? []) as { id: string; storage_path: string; mime_type: string | null; uploaded_at: string | null }[];
-  return { needed: true, ref: { key: coesPortalKey(rows.map((r) => r.id)), files: rows.map((r) => ({ storagePath: r.storage_path, mimeType: r.mime_type ?? "application/octet-stream" })) }, since: recAt, source: "portal" };
+  const portal: Candidate | null = rows.length
+    ? { ref: { key: coesPortalKey(rows.map((r) => r.id)), files: rows.map((r) => ({ storagePath: r.storage_path, mimeType: r.mime_type ?? "application/octet-stream" })) }, since: rows.map((r) => r.uploaded_at).filter((x): x is string => !!x).sort().at(-1) ?? recAt, source: "portal" }
+    : null;
+  // Part 6: certificates uploaded from the electrician's link or the installer office (uploadCoesForJob) — a new upload is a new certificate to check.
+  const { data: upDocs, error: upErr } = await admin.from("documents").select("id, storage_path, mime_type, created_at").eq("job_id", jobId).eq("kind", (await import("./fixes-day.core")).FIXES_COES_DOC_KIND).eq("source_system", "upload").eq("title", (await import("./fixes-day.core")).FIXES_COES_DOC_TITLE).order("created_at", { ascending: true });
+  if (upErr) throw new Error(`Could not read the uploaded certificates: ${upErr.message}`);
+  const ups = (upDocs ?? []) as { id: string; storage_path: string; mime_type: string | null; created_at: string | null }[];
+  const upload: Candidate | null = ups.length
+    ? { ref: { key: coesUploadKey(ups.map((u) => u.id)), files: ups.map((u) => ({ storagePath: u.storage_path, mimeType: u.mime_type ?? "application/octet-stream" })) }, since: ups.map((u) => u.created_at).filter((x): x is string => !!x).sort().at(-1) ?? null, source: "upload" }
+    : null;
+  const withFiles = [mitti?.ref.files.length ? mitti : null, portal, upload].filter((c): c is Candidate => !!c);
+  if (!withFiles.length) {
+    // Repairs done, no certificate file anywhere yet ("Waiting for certificate").
+    return mitti ? { needed: true, ref: mitti.ref, since: mitti.since, source: "mitti" } : { needed: true, ref: { key: coesPortalKey([]), files: [] }, since: recAt, source: "portal" };
+  }
+  let pick = withFiles[0]!;
+  if (withFiles.length > 1) {
+    const events = await coesEvents(jobId);
+    const live = withFiles.filter((c) => coesState(events, c.ref.key).state !== "rejected");
+    pick = (live.length ? live : withFiles).sort((x, y) => (x.since ?? "").localeCompare(y.since ?? ""))[0]!;
+  }
+  return { needed: true, ref: pick.ref, since: pick.since, source: pick.source };
 }
 
 async function coesEvents(jobId: string): Promise<CoesEvent[]> {
@@ -183,25 +197,38 @@ export async function checkCurrentCoes(jobId: string, actorId: string | null, op
     const c = await currentCoes(jobId);
     if (!c.needed || !c.ref) return "skipped: no repairs, no certificate needed";
     try {await (await import('./coes-owner-copy.server')).sendCoesOwnerCopy(jobId,c.ref);} catch(e){console.error('Certificate owner copy held',jobId,e instanceof Error?e.message:'Delivery unavailable');}
-    return await checkCoes(jobId, c.ref, actorId, opts);
+    const result = await checkCoes(jobId, c.ref, actorId, opts);
+    if (result === "ticked by AI") await releaseHeldAfterTick(jobId, actorId);
+    return result;
   } catch (e) {
     console.error("electrical certificate not checked", jobId, (e as Error).message);
     return `not checked — ${(e as Error).message}`;
   }
 }
 
-/** Install-day gate: repairs were done and the current certificate isn't ticked → "Check electrical certificate — {why}". */
-export async function coesBlockerFor(jobId: string): Promise<string | null> {
+/** Why the current certificate still needs the office (null = not needed, or ticked). The same rule as `coesBlockerFor`. */
+export async function coesWhyFor(jobId: string): Promise<string | null> {
   const c = await currentCoes(jobId);
   if (!c.needed || !c.ref) return null;
   const s = coesState(await coesEvents(jobId), c.ref.key);
-  return s.state === "ticked" ? null : coesOfficeLine(s.why ?? COES_WHY.not_checked);
+  return s.state === "ticked" ? null : s.why ?? COES_WHY.not_checked;
+}
+
+/** Repairs were done and the current certificate isn't ticked → "Check electrical certificate — {why}".
+ *  Part 3 Task 4 (Jo 3 Nov 2026): no longer an install-BOOKING gate; the day-before pre-start check reads the certificate
+ *  (prestart.server → certificate-later.server `prestartCertificateFacts`). */
+export async function coesBlockerFor(jobId: string): Promise<string | null> {
+  const why = await coesWhyFor(jobId);
+  return why ? coesOfficeLine(why) : null;
 }
 
 /** Needs me fact from the live certificate (used for jobs with no certificate event yet, so "not checked" is never a dead end). */
 export async function coesNeedsFor(jobId: string, now = new Date()): Promise<{ at: string; why: string; eventId: string | null } | null> {
   const c = await currentCoes(jobId);
   if (!c.needed || !c.ref) return null;
+  // Part 3 Task 5: no file on the job → no Tick/Reject row (Tick would refuse: a dead end). The 4-business-day
+  // "Certificate not in" chase flag covers it.
+  if (!c.ref.files.length) return null;
   const s = coesState(await coesEvents(jobId), c.ref.key);
   if (s.state === "ticked") return null;
   return { at: s.at ?? c.since ?? now.toISOString(), why: s.why ?? COES_WHY.not_checked, eventId: s.eventId };
@@ -209,7 +236,7 @@ export async function coesNeedsFor(jobId: string, now = new Date()): Promise<{ a
 
 type CoesNeeds = { at: string; why: string; eventId: string | null };
 /** Needs me facts for many jobs. Jobs waiting on the install booking (installation_scheduling) always read the CURRENT
- *  certificate live (`coesNeedsFor`, the same key the install gate checks), so a newer file after a tick shows "not
+ *  certificate live (`coesNeedsFor`, the same key the pre-start check reads), so a newer file after a tick shows "not
  *  checked yet" with Check again instead of no row while the gate blocks. Other jobs: the newest certificate event. */
 export async function coesNeedsForJobs(jobs: readonly { id: string; stage: string }[], eventsByJob: ReadonlyMap<string, CoesEvent[]>, cap = 200): Promise<Map<string, CoesNeeds>> {
   const out = new Map<string, CoesNeeds>();
@@ -217,7 +244,11 @@ export async function coesNeedsForJobs(jobs: readonly { id: string; stage: strin
   const liveIds = new Set(live.map((j) => j.id));
   for (const j of jobs) {
     if (liveIds.has(j.id)) continue;
-    const fact = coesNeedsFact(eventsByJob.get(j.id) ?? []);
+    const evs = eventsByJob.get(j.id) ?? [];
+    const fact = coesNeedsFact(evs);
+    // Part 3 Task 5: a check that found no file on the job (its `files` list is empty) is a dead end — hidden, as above.
+    const ev = fact?.eventId ? evs.find((e) => e.id === fact.eventId) : null;
+    if (fact && Array.isArray(ev?.details?.["files"]) && (ev!.details!["files"] as unknown[]).length === 0) continue;
     if (fact) out.set(j.id, fact);
   }
   const facts = await Promise.all(live.map(async (j) => [j.id, await coesNeedsFor(j.id)] as const));
@@ -245,7 +276,19 @@ export async function officeTickCoes(jobId: string, eventId: string | null, acto
   if (coesState(await coesEvents(jobId), r.key).state === "ticked") throw new Error("This certificate is already ticked.");
   await logEvent(jobId, actorId, COES_CHECKED_EVENT, "Electrical certificate ticked by the office", { by: "office", verdict: "ceiling_work", quote: null, key: r.key, check_event_id: r.checkEventId }, { internal: true });
   try {await (await import('./coes-owner-copy.server')).sendCoesOwnerCopy(jobId,r.ref);} catch(e){console.error('Certificate owner copy held',jobId,e instanceof Error?e.message:'Delivery unavailable');}
+  await releaseHeldAfterTick(jobId, actorId);
   return { ok: true };
+}
+
+/** Part 3 Task 4 fix 1 (4 Nov 2026): after a tick, an in-house job at installation_booked whose install form (PIISA Mitti
+ *  audit) was held for the certificate gets it now. While a failed day-before check still locks the start, it is left for
+ *  the pre-start sweep's next pass. Best effort: a failure is an office item, never a failed tick. Never throws. */
+async function releaseHeldAfterTick(jobId: string, actorId: string | null): Promise<void> {
+  try {
+    await (await import("./in-house-forms.server")).releaseHeldInstallForm(jobId, actorId, { skipWhenLocked: true });
+  } catch (e) {
+    await logEvent(jobId, actorId, "in_house_form_sync_failed", "In-house forms need office attention", { reason: e instanceof Error ? e.message : "Install form not created", needs_office: true }, { internal: true }).catch(() => undefined);
+  }
 }
 
 /** Office Reject: not good enough — the install stays blocked until a new certificate comes in (checked again). */

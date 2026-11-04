@@ -165,3 +165,29 @@ test("partner-billed separate rectification advances from PIESA complete without
     expect(r.steps).toEqual(partnerBilledRectification ? ["rectification_scheduling"] : []);
   }
 });
+
+// Part 3 final fix wave item 1 (CRITICAL): a live A3 with "upgrades needed" Yes, "doing them today" No and only standard
+// ticks makes NO rectification_items. The answers-based fact `upgradesNeeded` routes it to rectification scheduling.
+describe("upgrades needed from the A3 answers (no items)", () => {
+  test("PIESA complete → rectification scheduling", () => {
+    expect(planStep("piesa_complete", { ...base, upgradesNeeded: true })).toMatchObject({ kind: "transition", to: "rectification_scheduling" });
+  });
+  test("no upgrades → installation scheduling as before", () => {
+    expect(planStep("piesa_complete", { ...base })).toMatchObject({ kind: "transition", to: "installation_scheduling" });
+  });
+  test("rectification booked never jumps to installation scheduling while the upgrades are still to do", () => {
+    expect(planStep("rectification_booked", { ...base, upgradesNeeded: true })).toMatchObject({ kind: "stop" });
+    expect(planStep("rectification_booked", { ...base })).toMatchObject({ kind: "transition", to: "installation_scheduling" });
+  });
+  test("payment cleared at awaiting deposit → rectification scheduling", () => {
+    expect(planStep("awaiting_deposit_payment", { ...base, depositCleared: true, upgradesNeeded: true })).toMatchObject({ kind: "transition", to: "rectification_scheduling" });
+  });
+  test("on-site-only with no items never routes to an upgrades day (the install-entry guard reads its clearance)", () => {
+    expect(planStep("piesa_complete", { ...base, onsiteStartOnly: true, onsiteStartCleared: true, upgradesNeeded: true })).toMatchObject({ kind: "transition", to: "installation_scheduling" });
+    expect(planStep("rectification_booked", { ...base, onsiteStartOnly: true, upgradesNeeded: true })).toMatchObject({ kind: "transition", to: "installation_scheduling" });
+  });
+  test("items with the partner-billed route are unchanged", () => {
+    expect(planStep("piesa_complete", { ...base, openRectItems: 1, partnerBilledRectification: true })).toMatchObject({ kind: "transition", to: "rectification_scheduling", summary: "Partner needs to book rectification" });
+    expect(planStep("piesa_complete", { ...base, openRectItems: 1 })).toMatchObject({ kind: "stop" });
+  });
+});

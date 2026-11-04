@@ -92,6 +92,7 @@ export function JobHeader({ h, more }: { h: Header; more: ReactNode }) {
             {h.email && <><span className="ml-2 truncate">{h.email}</span><a href={`mailto:${h.email}`} className="font-semibold text-hiv-blue underline">Email</a></>}
           </div>
           {h.access && <p className="mt-1 text-sm text-ink" data-at-the-home>{h.access}</p>}
+          {h.beforePhotos && <p className="mt-1 text-sm text-ink">{h.beforePhotos}</p>}
           <p className="mt-2 text-xs text-sub">
             {h.sourceLabel} {day(h.receivedAt)} · {h.permissionAt ? `permission to contact given ${day(h.permissionAt)}` : h.permissionState === "declined" ? "permission to contact NOT given" : "no permission to contact recorded"} · Last heard from us: {h.lastHeard ? `${dayTime(h.lastHeard.at)} · ${h.lastHeard.channel.toLowerCase()}` : "never"}
           </p>
@@ -196,7 +197,7 @@ export function StageWorkspace({ jobId, k, page, onGo }: { jobId: string; k: Car
         <AssessmentView jobId={jobId} part="piesa" />
         <AssessmentView jobId={jobId} part="rectification" />
         <OfficeFixesQuoteReview jobId={jobId} />
-        <button type="button" className={cn(btn, "border border-line bg-paper text-hiv-blue")} onClick={() => void regen({ jobId }, "Electrical fixes quote re-priced")}>Re-price fixes quote</button>
+        <button type="button" className={cn(btn, "border border-line bg-paper text-hiv-blue")} onClick={() => void regen({ jobId }, "Electrical upgrades quote re-priced")}>Re-price upgrades quote</button>
         <details className="rounded-[12px] border border-line p-3"><summary className="cursor-pointer text-sm font-semibold">Earlier electrical assessment record (older jobs)</summary><div className="mt-2"><AssessmentView jobId={jobId} part="assessment" /></div></details>
         <SectionDocuments jobId={jobId} categories={["Electrical / PIESA"]} />
       </>;
@@ -320,7 +321,7 @@ export function MoneyCard({ jobId }: { jobId: string }) {
         <p className="mt-3 text-xs text-sub">
           {data.invoice.syncedAt ? `Synced with Xero ${dayTime(data.invoice.syncedAt)}` : "Not synced with Xero yet"}{data.invoice.syncError ? ` · last sync failed: ${data.invoice.syncError}` : ""} · <button type="button" className="font-semibold text-hiv-blue underline" onClick={() => void sync({ invoiceId: v.invoiceId }, "Synced with Xero")}>Sync with Xero</button>
           {v.bank?.configured ? ` · bank transfer to ${v.bank.accountName}, BSB ${v.bank.bsb} acct ${v.bank.accountNumber}, reference ${v.reference ?? ""}` : " · bank details to be confirmed"}
-          {" · Payments arrive from Stripe (the $349 and fixes) or Xero reconciliation · nothing is recorded by hand"}
+          {" · Payments arrive from Stripe (the $349 and upgrades) or Xero reconciliation · nothing is recorded by hand"}
           {" · "}<button type="button" className="font-semibold text-hiv-blue underline" onClick={() => setOverriding(!overriding)}>Override the $349 block…</button>
         </p>
       )}

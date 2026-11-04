@@ -1,44 +1,50 @@
-# Automatic Mitti invite for Leads — plan
+# A3/A4 Part 3 wording in the Mitti rebuild — check and safest order
 
-## What I found (read-only)
-- The code is ready but switched off three ways: the "Mitti calls checked" flag is off in the code, the auto-invite setting isn't saved, and the HIV trades group ID isn't saved either. The Mitti login secrets (token + user ID) are saved.
-- With the switch off, approving a Lead does nothing: no Mitti call, no message, no record.
+## What I found
+- The Part 3 branch and `docs/MITTI_PART3_EDIT_PROMPT.md` are not in this project, so I can't confirm the exact text in that file. The wording below comes from your message.
+- The live portal reads only the OLD A3/A4 wording. Nothing in it reads "Are electrical upgrades needed?", "Are you doing the electrical upgrades today?" or "Do you have the Certificate of Electrical Safety now?"
 
-## 1) Checking the Mitti user API safely (TEST person only)
-- One-off script, dry run by default, that refuses to run unless the person is a reserved TEST identity (TEST domain / TEST business). It would only ever use the persistent Mitti simulator otherwise.
-- Steps on Jo's "go", one at a time: (a) find by email for an existing TEST user (TEST Bravo Lead, already in Mitti) — read only; (b) create one new TEST Lite user at the TEST inbox jolowexo@hotmail.com (Mitti emails that inbox only); (c) add it to the trades group; (d) deactivate it again. Each step's result shown to Jo before the next.
-- MITTI_TRADES_GROUP_ID is NOT set. Jo/office needs to give us the HIV trades group ID from Mitti and add it in Settings → Secrets first.
+## 1. What breaks on the live portal if A3/A4 go to Mitti now
+- **Whether electrical upgrades are needed is lost.** The portal can't read the answer, so the official safety check result can't be worked out. Each new A3/A4 waits for the office.
+- **Same-visit upgrades are lost.** The portal can't tell that the electrician did the work today, so the job doesn't move on.
+- **Certificate.** The portal still needs the Q45 file before it counts the safety check as complete. Now Q45 only shows when "Certificate now?" = Yes. So when the electrician says No, the job stays held, and the "add it later" link doesn't exist yet (that's Part 3).
+- **Price removed.** The electrician's total price (incl GST) is gone, so the owner's electrical upgrades quote falls back to the old rate-card way or is held for the office.
+- **No harm:** deleting the "I will not discuss any prices…" checkbox. Forms without it are already accepted.
+- **Form check:** the office form-health check will say A3/A4 are "missing questions" until Part 3 is in.
+- A1, A2 and A5 are not affected.
 
-## 2) Switching it on
-- Needs all three: Mitti-checked flag turned on in code (after step 1 passes), MITTI_AUTO_INVITE_ENABLED=true added as a secret, group ID saved. Then publish (Jo publishes).
-- What a new Lead gets, when the office approves them:
-  - Mitti's own email (Mitti's wording, from Mitti) asking them to set a password — we don't control it.
-  - Our one message, by text if they have an Australian mobile, otherwise email. Wording: "You've been invited to Mitti, the app you'll use for Home Insulation Victoria job forms. Check your email from Mitti, set your password, and download the Mitti app." Email subject: "You've been invited to Mitti".
-  - Sent once only (recorded before sending), normal quiet hours/STOP/switches apply. Crew get nothing.
+## 2. Safest order (recommended)
+1. **Send A1, A2 and A5 to Mitti now. Keep A3 and A4 on today's wording.**
+2. Bring Part 3 into the live portal so it reads the new AND old A3/A4 wording. You'll need to share the branch or say "rebuild it", since you asked me to leave Part 3 alone.
+3. Prove it on practice forms. Then send the A3/A4 changes below to Mitti.
+4. After Mitti publishes, read A3/A4 back and check each question matches.
 
-## 3) Lead with no email of their own — question for Jo
-Today it uses the business's email (Jo 28 Oct). Then Mitti's set-password email goes to the boss, and the Lead's Mitti login is the business email. Options:
-- A) Keep business email fallback (as today).
-- B) Wait: record "Mitti invite waiting for Lead's own email" on the office/Team page, invite as soon as the boss adds it (the new "Add email" box).
-I'd recommend B, but won't decide.
+The other way round (A3/A4 to Mitti first) would hold every new safety check until Part 3 is live.
 
-## 4) Existing Leads not in Mitti (live, nothing sent)
-- Approved, marked Lead: none live (only TEST Bravo, already in Mitti).
-- Approved with no Lead/Crew set (older records): Silver Spirit Investments — Dominic Doherty (not in Mitti). Chris Lowe is already in Mitti.
-- Pending Leads (would be invited when approved): RAPID — James Sachinidis; Reinsulate — Manminder Singh, Wayne Fletcher (no own email, so question 3 applies).
-- Turning it on does NOT invite already-approved people; only new approvals. Any catch-up for Dominic would be a separate step for Jo's OK.
+## 3. Exact A3 and A4 wording to send (when step 3 is reached)
 
-## 5) Trade-message pause
-While "pause all trade messages" is on (it is now), nothing happens on approval — no Mitti user, no message, nothing recorded — and it does not auto-retry when unpaused. The office would need to re-approve or invite in Mitti. Question for Jo: keep that, or have paused Leads listed in office Needs me as "Mitti invite waiting for pause to lift" (still nothing sent until she un-pauses and confirms)?
+```text
+A3 – PIESA – Electrician safety assessment
+- Change "Is any electrical repair work needed before insulation can be installed?"
+  to: "Are electrical upgrades needed?"
+- Change "Have you completed all of the repair work listed above, and is the ceiling now safe for insulation?"
+  to: "Are you doing the electrical upgrades today?"
+- Add (Yes / No, Required): "Do you have the Certificate of Electrical Safety now?"
+  Help text: "No? We'll text you a link to add it later."
+- Certificate number, certificate date and the Q45 certificate photo/PDF:
+  show ONLY when "Do you have the Certificate of Electrical Safety now?" = Yes.
+- Delete: "Your total price for all the repair work, including GST"
+- Delete: the checkbox "I will not discuss any prices with the owner. Home Insulation Victoria sends the owner all prices."
 
-## 6) Tests (before any switch-on)
-- Switch off → nothing read/called/sent.
-- Lead approved → one create, one group add, one message; approved twice → no second invite or message.
-- Crew approved → no invite.
-- Paused → no create, no message.
-- No own email → behaviour per Jo's answer to Q3.
-- TEST people only reach the simulator; checker script refuses real people.
-- Removal deactivates once.
+A4 – Electrical upgrades
+- After Q10, add (Yes / No, Required): "Do you have the Certificate of Electrical Safety now?"
+  Help text: "No? We'll text you a link to add it later."
+- Certificate number, certificate date and certificate photo/PDF:
+  show ONLY when "Do you have the Certificate of Electrical Safety now?" = Yes.
+```
 
-## Not doing in this plan
-No code, sends, Mitti calls, data changes or publishing until Jo approves each step.
+## Questions for Jo
+- Part 3 code: (a) share the branch / project copy, (b) rebuild it, or (c) keep A3/A4 out of Mitti for now.
+- Should the A4 certificate question also have the help text "No? We'll text you a link to add it later."? Your message gave it for A3 only. I've included it above. Say if it should come out.
+
+No Mitti templates changed. Nothing built, sent or published.

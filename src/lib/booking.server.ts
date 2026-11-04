@@ -62,17 +62,11 @@ export async function validateBooking(jobId: string, kind: BookingKind, start: s
   if (kind !== "ready_check") { const cb = await commercialBlocker(jobId); if (cb) throw new WorkflowError(`Blocked: ${cb}`); }
   if (kind !== "ready_check") { const g = await paymentGate(jobId); if (!g.cleared) throw new WorkflowError(`Blocked: ${g.blocker}`); }
   // Decision 366 (audit F03): the electrical fixes are paid in full before their visit is booked (every booking path).
+  // Part 3 Task 1 (Jo 2 Nov 2026): the electrician bills the upgrades on every job, so no Home Insulation Victoria fixes
+  // payment is needed before the upgrades visit (the in-house partner-billed exception, now every job).
   if (kind === "rectification") {
-    const { readInHouseDispatchState } = await import("./in-house-suppression.server");
-    const { partnerBillsRectification } = await import("./in-house.core");
-    const state = await readInHouseDispatchState([jobId]);
-    if (state.failed) throw new WorkflowError("Couldn't check the job's partner — please try again.");
-    let partnerBilled = false;
-    if (state.held.has(jobId)) {
-      const { data: installer, error } = await admin.from("job_assignments").select("businesses(in_house, rectification_billed_by)").eq("job_id", jobId).eq("role", "installer").eq("active", true).single();
-      if (error || !installer?.businesses) throw new WorkflowError("Couldn't check the job's partner — please try again.");
-      partnerBilled = partnerBillsRectification(installer.businesses as unknown as import("./in-house.core").InHouseBusiness);
-    }
+    const { electricianBillsUpgrades } = await import("./upgrades-billing.core");
+    const partnerBilled = electricianBillsUpgrades(jobId);
     if (!partnerBilled) { const blocker = await (await import("./payments.server")).fixesPaymentBlockerFor(jobId); if (blocker) throw new WorkflowError(`Blocked: ${blocker}`); }
   }
   // Jo 26 Oct 2026: the install is booked only after the 10% install deposit is paid (the PIESA fee never unlocks it).
@@ -171,5 +165,8 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
     await logEvent(jobId, actorId, "in_house_form_sync_failed", "In-house forms need office attention", { reason: e instanceof Error ? e.message : "Form update failed", needs_office: true }, { internal: true });
   }
   await autoAdvanceJob(jobId, actorId, "booking confirmed");
-  return { ok: true };
+  // Part 3 Task 4 (Jo 3 Nov 2026): an install booked while the Certificate of Electrical Safety is outstanding is allowed —
+  // the warning is recorded once per start and returned for the screen (the pre-start check stops the start). Never throws.
+  const warning = kind === "installation" ? await (await import("./certificate-later.server")).recordInstallCertificateWarning(jobId, actorId, start) : null;
+  return { ok: true as const, ...(warning ? { warning } : {}) };
 }

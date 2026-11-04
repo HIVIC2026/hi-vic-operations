@@ -18,6 +18,9 @@ export const PIISA_AUTOSEND_FAILED_EVENT = "mitti_piisa_autosend_failed";
 export const PIISA_AUDIT_CREATED_EVENT = "mitti_piisa_audit_created";
 /** TEST jobs (source qa_test) are left to the office button unless a caller explicitly allows the TEST path. */
 export const PIISA_AUTOSEND_TEST_ALLOWED = false;
+/** Part 3 Task 4 fix 2 (4 Nov 2026): in-house jobs get their install form from the job (ensureInstallForm /
+ *  releaseHeldInstallForm, for the Lead Installer), never from the auto-send. */
+export const PIISA_AUTOSEND_IN_HOUSE_REASON = "in-house job — install form is made from the job";
 
 export type PiisaAutoSendFacts = {
   stage: string | null; source: string | null; deleted: boolean; archived: boolean;
@@ -26,6 +29,8 @@ export type PiisaAutoSendFacts = {
   /** officialFormUseBlocker("piisa") text, or null when the form may be used. */ formBlocker: string | null;
   /** prestartGate(...).locked — fail closed: unknown means locked. */ prestartLocked: boolean;
   /** When the last automatic attempt failed, if any. */ lastFailureAt: string | null;
+  /** isInHouseFormJob — true skips; null = couldn't be read (skip, fail closed). Left out = not read yet (cheap pass). */
+  inHouse?: boolean | null;
 };
 export type PiisaAutoSendDecision = { action: "create" } | { action: "skip"; reason: string };
 
@@ -62,6 +67,8 @@ export function piisaAutoSendDecision(f: PiisaAutoSendFacts, now: Date, opts: { 
   if (!installDayInWindow(f.installStart, now)) return skip("install is not today (before it starts), tomorrow or the day after");
   if (f.source === "qa_test" && !(opts.allowTest ?? PIISA_AUTOSEND_TEST_ALLOWED)) return skip("TEST job – office button only");
   if (f.formBlocker) return skip(f.formBlocker);
+  if (f.inHouse === true) return skip(PIISA_AUTOSEND_IN_HOUSE_REASON);
+  if (f.inHouse === null) return skip("couldn't check whether this is an in-house job — trying again next tick");
   if (f.prestartLocked) return skip("pre-start check not cleared");
   if (f.lastFailureAt && now.getTime() - Date.parse(f.lastFailureAt) < PIISA_AUTOSEND_RETRY_AFTER_HOURS * 3_600_000) return skip("last attempt failed – retrying within the hour");
   return { action: "create" };

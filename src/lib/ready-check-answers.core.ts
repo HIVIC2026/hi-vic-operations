@@ -2,13 +2,14 @@
 // Reads the flat form snapshot ({label, value}); repeated per-area labels are all scanned.
 import { norm, num, yesNo } from "./mitti.core";
 import { excludedAreaName } from "./excluded-areas.core";
+import { canonicalMittiLabel } from "./mitti-rebuild-labels.core";
 import { isNoSafeAccess, isR2OrAbove, LEAN_ALIASES, LEAN_Q, LEAN_REMOVE, ownerOtherRValue, premisesTypeCode, type PremisesTypeCode } from "./ready-check-lean.core";
 
 type E = { label: string; value: unknown };
 const vals = (entries: E[], labels: string[], prefix = false) => {
   const ns = labels.map(norm);
   return entries
-    .filter((e) => { const n = norm(e.label); return ns.some((l) => (prefix ? n.startsWith(l) : n === l)); })
+    .filter((e) => { const n = norm(canonicalMittiLabel(e.label)); return ns.some((l) => (prefix ? n.startsWith(l) : n === l)); })
     .map((e) => (e.value == null ? null : String(e.value).trim()))
     .filter((v): v is string => !!v && v !== "null" && v !== "<nil>");
 };
@@ -32,10 +33,12 @@ export function readyCheckStopReasons(entries: E[], opts: { ownerAnsweredOnWebsi
   const out: string[] = [];
   if (vals(entries, ["Homeowner agrees to be contacted by Home Insulation Victoria"]).some((v) => yesNo(v) === false)) out.push(STOP_NO_CONTACT);
   // Decision 222: lean option "R2.0 or above" (R2.0 exactly = ineligible); "Above R2.0" on 22–24 Oct forms reads the same.
-  if (vals(entries, [LEAN_Q.rValue]).some((v) => isR2OrAbove(v))) out.push(STOP_R2);
+  if (vals(entries, [LEAN_Q.rValue]).some((v) => isR2OrAbove(v))) out.push(STOP_R2)
+  // Jo 4 Nov 2026 forms: "Old insulation R value?" → "R2.0 or more" (the failed answer in Mitti).
+  else if (vals(entries, ["Old insulation R value?"]).some((v) => /R\s*2(?:\.0)?\s+or more/i.test(v))) out.push(STOP_R2);
   if (vals(entries, [LEAN_Q.access]).some((v) => isNoSafeAccess(v))) out.push(STOP_NO_SAFE_ACCESS);
   if (opts.ownerAnsweredOnWebsite) return out;
-  if (vals(entries, ["Life support equipment at property?"]).some((v) => yesNo(v) === true)) out.push(STOP_LIFE_SUPPORT);
+  if (vals(entries, ["Life support equipment at property?", "Does anyone living here use life support equipment?"]).some((v) => yesNo(v) === true)) out.push(STOP_LIFE_SUPPORT);
   if (vals(entries, ["Was the ceiling or roof built or replaced in the last 5 years?"]).some((v) => yesNo(v) === true)) out.push(STOP_BUILT_5);
   return out;
 }

@@ -322,6 +322,10 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   const facts = new Map<string, NeedsFacts>();
   for (const j of jobs) facts.set(j.id, { jobId: j.id, jobNumber: j.jobNumber, surname: surnameOf(j.owner), suburb: j.suburb, ...(j.source === "qa_test" ? { isTest: true } : {}) });
   const f = (id: string) => facts.get(id);
+  if(ids.length){
+    const changes=await byIds('install scope changes',ids,(c,a,b)=>admin.from('workflow_events').select('job_id,event_type,details,created_at').in('job_id',c).in('event_type',['install_scope_change_detected','install_scope_change_reviewed']).order('created_at',{ascending:false}).range(a,b));
+    for(const id of ids){const latest=changes.find(e=>e['job_id']===id);const x=f(id);if(!x||latest?.['event_type']!=='install_scope_change_detected')continue;const areas=(latest['details'] as {areas?:unknown}|null)?.areas;if(Array.isArray(areas))x.installScopeChange={at:String(latest['created_at']),areas:areas.filter((v):v is string=>typeof v==='string')};}
+  }
   const dispatch = await (await import("./in-house-suppression.server")).readInHouseDispatchState(jobs.map(j => j.id));
   for (const j of jobs) { const x = f(j.id); if (x) x.inHouseDispatch = dispatch.failed ? "in_house_read_failed" : dispatch.held.has(j.id) ? "in_house" : null; }
   const inHouse = await inHouseNeedsFacts(jobs.filter(j => j.source !== "qa_test").map(j => j.id));
@@ -646,8 +650,14 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     for (const [id, hit] of await oldFixesInvoicePaidFacts([], oldFixes)) { const x = f(id); if (x) x.oldFixesInvoicePaid = hit; }
   } catch { unavailable.push("old fixes invoices"); }
   // Decision 315: 24h after the fixes-times link with no times → one "Electrician hasn't given fixes times" row.
-  for (const [id, r] of fixesTimesMissing({ links: fixesLinks.map((e) => ({ job_id: String(e["job_id"]), created_at: String(e["created_at"]) })), given: fixesGiven.map((e) => ({ job_id: String(e["job_id"]), created_at: String(e["created_at"]) })), now })) {
-    const x = f(id); if (x) x.fixesTimesMissing = { at: r.at };
+  // Part 3 Task 1 (Jo 2 Nov 2026): the link is no longer sent; an old link on a job with no Home Insulation Victoria
+  // upgrades quote has nothing to chase, so the row stays only where a quote (any state but superseded) still exists.
+  const missingTimes = fixesTimesMissing({ links: fixesLinks.map((e) => ({ job_id: String(e["job_id"]), created_at: String(e["created_at"]) })), given: fixesGiven.map((e) => ({ job_id: String(e["job_id"]), created_at: String(e["created_at"]) })), now });
+  if (missingTimes.size) {
+    try {
+      const quoted = new Set((await all("fixes quotes", (a, b) => admin.from("quotes").select("job_id").eq("kind", "rectification").neq("status", "superseded").in("job_id", [...missingTimes.keys()]).range(a, b))).map((e) => String(e["job_id"])));
+      for (const [id, r] of missingTimes) { const x = f(id); if (x && quoted.has(id)) x.fixesTimesMissing = { at: r.at }; }
+    } catch { unavailable.push("fixes times chases"); }
   }
   // A48 batch 1: the newest A3 safety check breaks the official rules → one row until a corrected form / signed Section C.
   try {
@@ -660,6 +670,20 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
       const x = f(id); if (x && open) x.piesaRulesFailed = { at: open.at, reasons: open.reasons };
     }
   } catch { unavailable.push("safety check rule failures"); }
+  // Part 3 Task 4b fix 1: the PIESA completed but its same-day Part C record failed → one row until the portal's tick retry
+  // writes it (fix 2), Part C is recorded another way, or the job moves past the retry stages.
+  try {
+    const { SAME_DAY_PART_C_FAILED_EVENT, SAME_DAY_PART_C_RECOVERED_EVENT, sameDayPartCFailedOpen } = await import("./same-day-part-c.core");
+    const ev = await all("same-day Part C record failures", (a, b) => scoped(admin.from("workflow_events").select("job_id, event_type, created_at, details")).in("event_type", [SAME_DAY_PART_C_FAILED_EVENT, SAME_DAY_PART_C_RECOVERED_EVENT]).order("created_at").range(a, b));
+    const byJob = new Map<string, Row[]>();
+    for (const e of ev) { const id = String(e["job_id"]); if (idSet.has(id)) byJob.set(id, [...(byJob.get(id) ?? []), e]); }
+    // Fix 2: the row closes on its own once Part C is recorded another way (a current post_rectification pass record).
+    const withPart = byJob.size ? new Set((await all("same-day Part C records", (a, b) => admin.from("piesa_records").select("job_id").in("job_id", [...byJob.keys()]).eq("kind", "post_rectification").eq("outcome", "pass").eq("is_current", true).range(a, b))).map((r) => String(r["job_id"]))) : new Set<string>();
+    for (const [id, list] of byJob) {
+      const open = sameDayPartCFailedOpen(list.map((e) => ({ event_type: String(e["event_type"]), created_at: String(e["created_at"]), details: (e["details"] ?? null) as Record<string, unknown> | null })), { stage: jobById.get(id)?.stage ?? null, postRecord: withPart.has(id) });
+      const x = f(id); if (x && open) x.sameDayPartCFailed = open;
+    }
+  } catch { unavailable.push("same-day Part C record failures"); }
   // A48 batch 1 task 5: the electrical certificate after the repairs waits for the office (AI unsure / not ceiling / error, or rejected).
   try {
     const { COES_CHECKED_EVENT, COES_REJECTED_EVENT } = await import("./coes-check.core");
@@ -672,6 +696,14 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     const facts = await coesNeedsForJobs(jobs.filter((j) => byJob.has(j.id) || j.stage === "installation_scheduling").map((j) => ({ id: j.id, stage: j.stage })), byJob);
     for (const [id, fact] of facts) { const x = f(id); if (x) x.coesCheck = fact; }
   } catch { unavailable.push("electrical certificate checks"); }
+  // Part 3 Task 5 (Jo 3 Nov 2026): upgrades day not set (week; red at 7 days left) and certificate not in (4 business days).
+  // Raised by the chase sweeps; each clears by itself once the day is entered / the file is on the job (live facts).
+  try {
+    const { CHASE_STAGES, chaseFlagsForJobs } = await import("./certificate-later.server");
+    const chaseStages = new Set<string>(CHASE_STAGES);
+    const flags = await chaseFlagsForJobs(jobs.filter((j) => chaseStages.has(j.stage)).map((j) => j.id));
+    for (const [id, fl] of flags) { const x = f(id); if (x) Object.assign(x, fl); }
+  } catch { unavailable.push("upgrades day and certificate chases"); }
   // A48 batch 1 final fix (Jo 29 Oct): life support yes / unknown with no plan on file → one row until the owner's upload or
   // the office record is on file (the safety check offers and visit wait for it).
   try {

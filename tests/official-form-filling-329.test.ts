@@ -197,11 +197,12 @@ const A4_REPAIRS = [
 ];
 const A5: FixesDayRead = {
   jobNumber: "HV-2", electricianName: "Sam Spark", licence: "A 1", recName: "Spark", recNo: "REC 1", phone: "0400", done: "Yes", notDone: null,
-  coesNumber: "CES 9", certDate: "2026-11-03", coesFiles: [{ mediaId: "c", capturedAt: null, lat: null, lng: null }],
+  certificateNow: "Yes", coesNumber: "CES 9", certDate: "2026-11-03", coesFiles: [{ mediaId: "c", capturedAt: null, lat: null, lng: null }],
   workPhotos: [{ mediaId: "w", capturedAt: "2026-11-03T10:00:00+11:00", lat: -38, lng: 145 }],
   signature: { present: true, name: "Samuel Spark", signedAt: "2026-11-03T23:30:00Z", mediaId: "s" },
 } as FixesDayRead;
-const plan = { kind: "done" as const, coesNumber: "CES 9", certDate: "2026-11-03", coesFiles: A5.coesFiles, workPhotos: A5.workPhotos, signedAt: A5.signature.signedAt, signerName: A5.signature.name };
+// Part 3 (Jo 3 Nov 2026): the certificate travels as `certificate` (null when the electrician hasn't got it yet).
+const plan = { kind: "done" as const, certificate: { number: "CES 9", date: "2026-11-03", files: A5.coesFiles }, certificateToCome: false, workPhotos: A5.workPhotos, signedAt: A5.signature.signedAt, signerName: A5.signature.name };
 const afterFixes = shortAnswersFromEntries("piesa", mergeFixesIntoPiesaSnapshot(A4_REPAIRS, A5, plan));
 
 describe("typed electronic signatures (point 3)", () => {

@@ -89,6 +89,10 @@ export async function prestartFacts(jobId: string, start: string) {
     // rules Installation complete uses (esc.server installReadiness / owner-gates), so both places agree.
     piesaCopyBlockers: (await import("./esc.core")).piesaCopyDeliveryBlockers(start, await (await import("./esc.server")).piesaCopyDeliveries(jobId)),
     piesaCopyReceiptBlocker: null, // Retired owner receipt; recorded PIESA delivery remains independently checked.
+    // Part 3 Task 4 (Jo 3 Nov 2026): the install can be booked while the Certificate of Electrical Safety is outstanding; it
+    // can't start. Missing → "Certificate of Electrical Safety not in yet"; a file not ticked → "Check electrical certificate — …".
+    // On-site-only jobs (electrician at the start of the install day) are clear after the PIESA.
+    ...(await (await import("./certificate-later.server")).prestartCertificateFacts(jobId, { onsiteOnly: cf.onsiteStartOnly === true }).then((c) => ({ certificate: c.certificate, certificateWhy: c.certificateWhy }))),
   };
 }
 
@@ -124,13 +128,51 @@ export async function runPrestart(jobId: string, trigger: string, now = new Date
   const failures = prestartFailures(await prestartFacts(jobId, b.scheduled_start));
   const passed = failures.length === 0;
   const prev = await latestCheck(jobId);
-  if (prev && Date.parse(prev.scheduled_start) === Date.parse(b.scheduled_start) && prev.passed === passed && JSON.stringify(prev.failures) === JSON.stringify(failures)) return { passed, failures, changed: false };
+  if (prev && Date.parse(prev.scheduled_start) === Date.parse(b.scheduled_start) && prev.passed === passed && JSON.stringify(prev.failures) === JSON.stringify(failures)) {
+    if (passed) await afterPrestartPass(jobId);
+    return { passed, failures, changed: false };
+  }
   const { error } = await admin.from("pre_start_checks").insert({ job_id: jobId, booking_id: b.id, scheduled_start: b.scheduled_start, passed, failures: failures as unknown as Json, trigger });
   if (error) throw new Error(error.message);
   await logEvent(jobId, null, passed ? "prestart_cleared" : "prestart_failed", passed ? "Pre-start check passed — cleared to start" : `Pre-start check failed: ${failures.join(" ")} Installation form and evidence locked. Needs Home Insulation Victoria`, { scheduled_start: b.scheduled_start, failures, trigger }, { internal: true });
   // Decision 326: a failed check is an office item only (the event above → Needs me). There is no approved owner or
   // installer "pre-start check failed" wording, so nothing is queued or sent (the old outbox rows could never deliver).
+  if (passed) await afterPrestartPass(jobId);
   return { passed, failures, changed: true };
+}
+
+/** Part 3 Task 4 fix 2 (4 Nov 2026): on ANY pass (new or already on file, from the sweep, office "Run check" or the ESC
+ *  paths) an in-house job still holding its install form for the certificate gets it now. Idempotent (stage + existing-form
+ *  checks first). Never throws. A failure is ONE office row: none is added while an earlier one is still unrecovered.
+ *  Task 4b: once the form exists (made now or already there) an open failure row from here gets ONE recovered row. A job
+ *  that isn't in-house never gets either, and a failed partner read is not an office row (the next pass retries). */
+async function afterPrestartPass(jobId: string) {
+  const forms = await import("./in-house-forms.server");
+  let inHouse: boolean;
+  try { inHouse = await forms.isInHouseFormJob(jobId); } catch { return; }
+  if (!inHouse) return;
+  try {
+    const r = await forms.releaseHeldInstallForm(jobId, null);
+    if (r === "created" || r === "already has an install form") {
+      try {
+        if (await unrecoveredFormSyncFailure(jobId, { ownOnly: true })) await logEvent(jobId, null, "in_house_form_sync_recovered", "In-house install form created", { reason: "Install form created" }, { internal: true });
+      } catch { /* best effort: the next pass tries again */ }
+    }
+  } catch (e) {
+    try {
+      if (await unrecoveredFormSyncFailure(jobId)) return;
+      await logEvent(jobId, null, "in_house_form_sync_failed", "In-house forms need office attention", { reason: e instanceof Error ? e.message : "Install form not created", needs_office: true }, { internal: true });
+    } catch { /* best effort: the next pass tries again */ }
+  }
+}
+/** An in_house_form_sync_failed row with no later recovered row (same rule as office-needs). A read failure says no,
+ *  so the office still hears about it (a duplicate row beats a missed one). `ownOnly`: only rows with no work id (the ones
+ *  written above), so a recovered row is never added for another piece of in-house work's failure. */
+async function unrecoveredFormSyncFailure(jobId: string, opts: { ownOnly?: boolean } = {}): Promise<boolean> {
+  const { data, error } = await admin.from("workflow_events").select("event_type, details, created_at").eq("job_id", jobId).in("event_type", ["in_house_form_sync_failed", "in_house_form_sync_recovered"]);
+  if (error) return false;
+  const rows = (data ?? []) as { event_type: string; details: { work_id?: unknown } | null; created_at: string }[];
+  return rows.some((f) => f.event_type === "in_house_form_sync_failed" && (!opts.ownOnly || !f.details?.work_id) && !rows.some((r) => r.event_type === "in_house_form_sync_recovered" && r.created_at >= f.created_at && (!f.details?.work_id || r.details?.work_id === f.details.work_id)));
 }
 
 /** Server-side lock for the PIISA send and installation evidence. */
@@ -149,6 +191,11 @@ export async function requirePrestartClear(jobId: string) {
   // Live "Site conditions differ" review hold: works stay locked until the office reviews it.
   const sh = await siteHoldBlockers(jobId);
   if (sh.length) throw new WorkflowError(`Not cleared to start: ${sh.join(" ")}.`);
+  // Part 3 Task 4 fix 1 (4 Nov 2026): live Certificate of Electrical Safety check — the PIISA send and install evidence stay
+  // locked until it is ticked, whatever the time-based gate says. On-site-only / no upgrades / ticked pass. Fails closed.
+  const cert = await (await import("./certificate-later.server")).liveCertificateFact(jobId);
+  const certBlock = (await import("./certificate-later.core")).prestartCertificateBlocker(cert.certificate, cert.certificateWhy);
+  if (certBlock) throw new WorkflowError(certBlock);
   const g = await prestartGate(jobId);
   if (g.locked) throw new WorkflowError(`Not cleared to start: ${g.reasons.join(" ")}`);
 }
@@ -160,6 +207,8 @@ export async function sweepPrestart(now = new Date()) {
   for (const b of data ?? []) {
     const r = await runPrestart(b.job_id, "timer", now).catch((e) => { console.error("pre-start check failed to run", (e as Error).message); return null; });
     if (r) { ran++; if (!r.passed) failed++; }
+    // Part 3 Task 4 fix 2: every pass (changed or not) releases a held in-house install form inside runPrestart, so the
+    // sweep retries it each run and "Run check" / the ESC paths release it too.
   }
   return { ran, failed };
 }

@@ -2,7 +2,8 @@
 // Used by the portal "record fixes done" page (portal.functions recordPiesa) and, since decision 293 (Jo 25 Oct 2026),
 // by the Mitti "A4 – Electrical fixes" form completion (fixes-day.server.ts). Callers validate first (role, stage,
 // evidence, Section C dates); this module only writes the same records the portal page always wrote, in the same order:
-// rectification items completed → piesa_records (new current post_rectification row) → piesa_recorded event → on a pass
+// rectification items completed → the earlier record no longer current → piesa_records (new current post_rectification
+// row; clear-then-insert because of `piesa_current_uq`, one current record per job) → piesa_recorded event → on a pass
 // compliance checks, the fixes booking completed, the guarded transition to installation scheduling → autoAdvance →
 // the one installer clearance notice (decision 186). Nothing here sends to the owner.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
@@ -20,7 +21,7 @@ export type PostRectificationRecord = {
   sectionCSignedDate?: string | null;
   notes?: string | null;
   /** Where the record came from, kept on the event (portal page or the Mitti fixes form's audit id). */
-  source?: { kind: "portal" } | { kind: "mitti_fixes_form"; auditId: string };
+  source?: { kind: "portal" } | { kind: "mitti_fixes_form"; auditId: string } | { kind: "mitti_a3_same_day"; auditId: string };
 };
 
 /** Who may record a reassessment PIESA (null = allowed): the 30-day window expired, or (batch 1 task 6) the job was
@@ -42,14 +43,17 @@ export async function applyPiesaRecord(r: PostRectificationRecord): Promise<{ re
   if (post && r.outcome === "pass" && !r.sectionCSignedDate) throw new WorkflowError("Section C signed date is required for a post-rectification PIESA record.");
   let recordId: string | null = null;
   let duplicate = false;
-  if (r.source?.kind === "mitti_fixes_form") {
-    const { data: existing, error } = await admin.from("workflow_events").select("details").eq("job_id", r.jobId).eq("event_type", "piesa_recorded").contains("details", { source: "mitti_fixes_form", audit_id: r.source.auditId }).maybeSingle();
+  // Once per Mitti form: the A4 fixes form, or (Part 3 Task 4b) Part C done on the A3 PIESA itself (same-day upgrades).
+  const mittiSource = r.source?.kind === "mitti_fixes_form" || r.source?.kind === "mitti_a3_same_day" ? r.source : null;
+  if (mittiSource) {
+    const { data: existing, error } = await admin.from("workflow_events").select("details").eq("job_id", r.jobId).eq("event_type", "piesa_recorded").contains("details", { source: mittiSource.kind, audit_id: mittiSource.auditId }).maybeSingle();
     if (error) throw new Error(error.message);
     if (existing) { duplicate = true; recordId = (existing.details as { record_id?: string } | null)?.record_id ?? null; }
   }
   if (!duplicate) {
   await (await import("./fixes-day.server")).closeUnusedRectificationForm(r.jobId);
   if (post) await admin.from("rectification_items").update({ status: "completed" }).eq("job_id", r.jobId).eq("status", "required");
+  // clear the current record first — `piesa_current_uq` (one current record per job)
   await admin.from("piesa_records").update({ is_current: false }).eq("job_id", r.jobId).eq("is_current", true);
   const { data: rec, error: recordError } = await admin.from("piesa_records").insert({
     job_id: r.jobId,
@@ -62,8 +66,8 @@ export async function applyPiesaRecord(r: PostRectificationRecord): Promise<{ re
     ...(post && r.outcome === "pass" ? { section_c_signed_at: `${r.sectionCSignedDate}T00:00:00.000Z` } : {}),
   }).select("id").maybeSingle();
   if (recordError) throw new Error(recordError.message);
-  await logEvent(r.jobId, r.actorId, "piesa_recorded", `PIESA (${r.kind.replace("_", " ")}) ${r.outcome} on ${r.completedDate}${r.source?.kind === "mitti_fixes_form" ? " — from the Mitti rectification form" : ""}`,
-    r.source?.kind === "mitti_fixes_form" ? { source: "mitti_fixes_form", audit_id: r.source.auditId, record_id: rec?.id ?? null } : {});
+  await logEvent(r.jobId, r.actorId, "piesa_recorded", `PIESA (${r.kind.replace("_", " ")}) ${r.outcome} on ${r.completedDate}${mittiSource?.kind === "mitti_fixes_form" ? " — from the Mitti rectification form" : mittiSource?.kind === "mitti_a3_same_day" ? " — electrical upgrades done on the safety check visit (Mitti PIESA form)" : ""}`,
+    mittiSource ? { source: mittiSource.kind, audit_id: mittiSource.auditId, record_id: rec?.id ?? null } : {});
   recordId = rec?.id ?? null;
   }
   // Jo 2 Nov (answer 21) / Part 4 fix wave C1: the deposit is requested on ANY recorded PIESA result (idempotent per invoice:

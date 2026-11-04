@@ -13,7 +13,7 @@ export const CREW_SKIP = "Crew aren't invited automatically — the office adds 
 export const MIN_REC_PL_COVER = 5_000_000;
 
 /** fixes-day.core.ts: the short link label on the electrician's job page. */
-export const FIXES_FORM_LINK_LABEL = "Fixes form in Mitti";
+export const FIXES_FORM_LINK_LABEL = "Upgrades form in Mitti";
 
 /** Same text as PIESA_FULL in job-wording.ts (a test keeps them equal); repeated so this file has no imports. */
 const PIESA_FULL_TEXT = "Pre Insulation Electrical Safety Assessment (PIESA)";

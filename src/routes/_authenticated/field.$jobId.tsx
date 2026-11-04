@@ -366,6 +366,10 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
           {page.countdown.line}
         </p>
       )}
+      {/* Main Part 3 Task 3 (Jo 3 Nov 2026): "Waiting for {electrician}'s Certificate of Electrical Safety" / "Upgrades day not set yet". */}
+      {page.certificate?.line && <p className="text-sm font-semibold text-ink" data-certificate-line>{page.certificate.line}</p>}
+      {/* Main 4 Nov 2026 (Jo: A1 photos optional): the BEFORE evidence still to take on install day, per area. */}
+      {page.beforePhotos && <p className="text-sm text-ink" data-before-photos>{page.beforePhotos}</p>}
       {/* Fix wave minor 15: straight after Add a job (approved line), until the Ready Check is booked. */}
       {added === true && box.kind === "book_ready_check" && (
         <p className="text-[15px] font-semibold text-ink" data-added-next>{nextLine(page.ownerFirst ?? "the owner")}</p>
@@ -384,6 +388,12 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
           {ownerReady && bookedKinds.includes(box.kind) && (
             <p className={`mt-3 text-sm font-medium ${ownerReady.done ? "text-hiv-green" : "text-ink"}`} data-owner-ready>
               {ownerReady.text}
+            </p>
+          )}
+          {/* Part 3 Task 3: the Certificate of Electrical Safety — waiting for the electrician's certificate / upgrades day not set. */}
+          {page.certificate?.line && (
+            <p className="mt-2.5 text-sm font-medium text-ink" data-certificate-line>
+              {page.certificate.line}
             </p>
           )}
           {/* Decision 327: electrician needed at the start of the install day — confirmed / waiting, or the "can't make it" alert. */}

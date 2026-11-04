@@ -122,7 +122,7 @@ export const WELCOME_STEPS = {
     "You get a text when a PIESA job near you is available. The first electrician to accept gets it.",
     "Accept it, then offer the owner 3 times. You'll see their contact details once it's yours.",
     "Do the PIESA using the A3 form in Mitti, on site, and press Complete.",
-    "If fixes are needed, put your price on the A3 form and send us 3 to 5 times when we text you. We quote the owner. Once they've paid, they pick one of your times. Use the A4 form on the day.",
+    "If upgrades are needed, put your price on the A3 form and send us 3 to 5 times when we text you. We quote the owner. Once they've paid, they pick one of your times. Use the A4 form on the day.",
     "Get paid your agreed rate 7 days after we approve your completed form.",
   ],
 } as const;
@@ -132,7 +132,7 @@ export const WELCOME_MITTI = {
   steps: ["We'll invite you to Mitti. Look for the email from Mitti and set your password.", "Download the Mitti app:"],
   forms: {
     installer: "Use the Ready Check form when you measure, and the install form on install day.",
-    electrician: "Use the A3 PIESA form at the safety check, and the A4 fixes form if fixes are needed.",
+    electrician: "Use the A3 PIESA form at the safety check, and the A4 upgrades form if upgrades are needed.",
   },
 } as const;
 const num = (html: string, n: number, last: boolean) => `<tr><td width="32" valign="top" style="padding:2px 0 ${last ? 12 : 14}px;"><span class="num">${n + 1}</span></td><td style="padding:0 0 ${last ? 12 : 14}px;">${html}</td></tr>`;

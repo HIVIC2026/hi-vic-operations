@@ -52,6 +52,10 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
   const [busy, setBusy] = useState(false);
   // Task 4: the plain hold reasons from "Send quote to owner" (the price is saved either way).
   const [notSent, setNotSent] = useState<string[]>([]);
+  // Jo 4 Nov 2026: new-wording Ready Checks — brand + batts per area (approved products only) and the thicker total.
+  const [mainPicks, setMainPicks] = useState<string[]>([]);
+  const [thickerPicks, setThickerPicks] = useState<string[]>([]);
+  const [thickerTotal, setThickerTotal] = useState("");
   // Jo 27 Oct 2026: when the Ready Check positively says there is no removal, the removal tick stays unticked and can't
   // be ticked; tapping it shows the reason under it.
   const removalBlocked = view?.removalRequired === false;
@@ -64,6 +68,12 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
     setOther(cur.included_other ?? "");
     setProductOption(cur.product_option ?? "");
     setNotes(cur.notes ?? "");
+    const saved = view?.layout?.saved;
+    if (saved) {
+      setMainPicks(saved.mainPicks.map((p) => (p ? `${p.brand}|${p.r}` : "")));
+      setThickerPicks((saved.thickerPicks ?? []).map((p) => (p ? `${p.brand}|${p.r}` : "")));
+      setThickerTotal(saved.thickerTotalIncGst != null ? String(saved.thickerTotalIncGst) : "");
+    }
   }, [view?.current?.setAt, removalBlocked]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!view?.canSet) return null;
   const current = view.current?.record ?? null;
@@ -80,6 +90,18 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
   const showForm = !view.locked && (editing || !current);
   // Jo 4 Nov 2026: no PIESA rate on the business → the button is "Save" and the card says why; nothing can be sent.
   const canSend = view.sendOnPress && view.piesaPriceSet;
+  const layout = view.layout;
+  const toPick = (v: string | undefined) => {
+    if (!v) return null;
+    const [brand, r] = v.split("|");
+    return { brand: brand as "Bradford Gold" | "Pink Batts" | "Earthwool" | "Ecowool", r: Number(r) };
+  };
+  const thickerNumber = Number(thickerTotal.replace(/[$,\s]/g, ""));
+  const layoutReady =
+    !layout ||
+    (layout.areas.every((_, k) => !!mainPicks[k]) &&
+      (!layout.thickerTarget ||
+        (layout.areas.every((_, k) => !!thickerPicks[k]) && thickerNumber > 0)));
   const toggle = (o: string) => {
     // Tom 31 Oct 2026: tapping Removal again hides the note; any other change hides it too.
     if (o === REMOVAL_OPTION && removalBlocked) {
@@ -131,7 +153,7 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
           className="space-y-3 py-2"
           onSubmit={async (e) => {
             e.preventDefault();
-            if (!check.ok) return;
+            if (!check.ok || !layoutReady) return;
             setBusy(true);
             setNotSent([]);
             try {
@@ -144,6 +166,13 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
                   productOption: productOption || null,
                   notes: notes.trim() || null,
                   send: canSend,
+                  layout: layout
+                    ? {
+                        mainPicks: layout.areas.map((_, k) => toPick(mainPicks[k])),
+                        thickerPicks: layout.thickerTarget ? layout.areas.map((_, k) => toPick(thickerPicks[k])) : [],
+                        thickerTotalIncGst: layout.thickerTarget ? thickerNumber : null,
+                      }
+                    : null,
                 },
               );
               if (r) {
@@ -164,6 +193,47 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
             {access ? " Any difficult access is yours to price in." : ""}
           </Note>
           {view.sendOnPress && !view.piesaPriceSet && <Note data-piesa-price-not-set>{view.piesaPriceNote ?? PIESA_PRICE_NOT_SET}</Note>}
+          {layout && (
+            <div data-layout-areas className="space-y-3">
+              {layout.thicker && <Note className="mt-0">{layout.thicker}</Note>}
+              {layout.areas.map((a, k) => (
+                <div key={k} className="rounded-md border border-line p-3">
+                  <p className="text-[15px] font-semibold">{a.name}</p>
+                  <p className="text-sm text-sub">{a.facts}</p>
+                  <Label htmlFor={`ip-main-${k}`} className="mt-2 block">Brand and batts (R5.0 or more)</Label>
+                  <select
+                    id={`ip-main-${k}`}
+                    className="flex min-h-12 w-full rounded-md border border-input bg-transparent px-3 py-2 text-base"
+                    value={mainPicks[k] ?? ""}
+                    onChange={(e) => setMainPicks((xs) => { const n = [...xs]; n[k] = e.target.value; return n; })}
+                  >
+                    <option value="">Choose…</option>
+                    {a.main.map((c) => (
+                      <option key={c.label} value={`${c.brand}|${c.r}`}>{c.label}</option>
+                    ))}
+                  </select>
+                  {layout.thickerTarget && (
+                    <>
+                      <Label htmlFor={`ip-thick-${k}`} className="mt-2 block">Thicker option: brand and batts</Label>
+                      <select
+                        id={`ip-thick-${k}`}
+                        className="flex min-h-12 w-full rounded-md border border-input bg-transparent px-3 py-2 text-base"
+                        value={thickerPicks[k] ?? ""}
+                        onChange={(e) => setThickerPicks((xs) => { const n = [...xs]; n[k] = e.target.value; return n; })}
+                      >
+                        <option value="">Choose…</option>
+                        {a.thicker.map((c) => (
+                          <option key={c.label} value={`${c.brand}|${c.r}`}>{c.label}</option>
+                        ))}
+                      </select>
+                      {a.thicker.length === 0 && <p className="text-sm text-rose">No approved product reaches this total here.</p>}
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          {!layout && (
           <div>
             <Label htmlFor="ip-product">Insulation product</Label>
             <select
@@ -183,8 +253,9 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
               ))}
             </select>
           </div>
+          )}
           <div>
-            <Label htmlFor="ip-price">Your price to the owner (inc GST)</Label>
+            <Label htmlFor="ip-price">{layout ? "Your total price to the owner (inc GST)" : "Your price to the owner (inc GST)"}</Label>
             <Input
               id="ip-price"
               inputMode="decimal"
@@ -196,6 +267,12 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
               }}
             />
           </div>
+          {layout?.thickerTarget && (
+            <div>
+              <Label htmlFor="ip-thicker">Your total price for the thicker option (inc GST)</Label>
+              <Input id="ip-thicker" inputMode="decimal" value={thickerTotal} onChange={(e) => setThickerTotal(e.target.value)} />
+            </div>
+          )}
           <fieldset>
             <legend className="text-sm font-medium">What's included</legend>
             {PRICE_INCLUDED_OPTIONS.map((o) => (
@@ -249,7 +326,7 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
           )}
           <p className="text-sm text-sub" data-price-note>{ENTER_PRICE_STEP.note}</p>
           <div className="flex gap-2">
-            <PrimaryButton type="submit" disabled={busy || !check.ok} data-price-button>
+            <PrimaryButton type="submit" disabled={busy || !check.ok || !layoutReady} data-price-button>
               {busy ? (canSend ? "Sending…" : "Saving…") : enterPriceButton(canSend)}
             </PrimaryButton>
             {current && (

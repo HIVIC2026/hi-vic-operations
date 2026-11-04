@@ -3,17 +3,19 @@
 // owner email is gone, the office Send button is refused (`FIXES_QUOTE_RETIRED`), and only the Test Centre journeys still
 // release a quote (`how: "auto"`, no message) so the old money/payout checks keep a record. Idempotent: the status
 // flips only from draft.
+import { UPGRADES_QUOTE_SEND_BLOCKER, electricianBillsUpgrades } from "./upgrades-billing.core";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
 
 export type FixesReleaseHow = "office" | "auto";
 
-/** Jo 2 Nov 2026 (touchpoint decisions, Stage 8): no more HIV fixes quotes to owners. */
-export const FIXES_QUOTE_RETIRED = "Electrical fixes quotes to owners were retired on 2 Nov 2026: the electrician quotes and books the upgrades with the owner directly.";
+/** Jo 2 Nov 2026 (touchpoint decisions, Stage 8): no more HIV fixes quotes to owners. Join (4 Nov 2026, ruling 1): the ONE rule is
+ *  `electricianBillsUpgrades()` (upgrades-billing.core) and the office sees its wording, UPGRADES_QUOTE_SEND_BLOCKER. */
+export const FIXES_QUOTE_RETIRED = UPGRADES_QUOTE_SEND_BLOCKER;
 
 /** The office Send checks for this quote (null = may be sent). `auto` stands in for the office review (decision 354). */
 export async function fixesQuoteSendBlocker(q: { id: string; job_id: string; kind: string; status: string; office_reviewed_at: string | null }, how: FixesReleaseHow, opts: { ignoreTimesHold?: boolean } = {}): Promise<string | null> {
-  if (how === "office") return FIXES_QUOTE_RETIRED;
+  if (electricianBillsUpgrades(q)) return UPGRADES_QUOTE_SEND_BLOCKER;
   const { rectificationSendBlocker } = await import("./allocation.core");
   const { count, error } = await admin.from("rectification_items").select("id", { count: "exact", head: true }).eq("job_id", q.job_id).eq("needs_office_pricing", true);
   if (error) throw new Error(`Could not check the electrical fixes items: ${error.message}`);

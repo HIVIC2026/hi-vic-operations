@@ -15,8 +15,9 @@ export type { ResolvedAddress };
 //   and loose-fill insulation prohibited; separate minimum five-year product-defects warranty; AP-disclosure evidence for lead generation;
 //   PIESA fee and pricing wording removed from this agreement.
 // Earlier signed versions stay immutable and remain activatable.
-export const INSTALLER_AGREEMENT_VERSION = "HI-VIC-A48-INST-1.20-2026-10-19";
-export const ACTIVATABLE_INSTALLER_VERSIONS: readonly string[] = ["HI-VIC-A48-INST-1.11-2026-10-03", "HI-VIC-A48-INST-1.12-2026-10-03", "HI-VIC-A48-INST-1.13-2026-10-03", "HI-VIC-A48-INST-1.14-2026-10-03", "HI-VIC-A48-INST-1.16-2026-10-05", "HI-VIC-A48-INST-1.18-2026-10-09", "HI-VIC-A48-INST-1.19-2026-10-09", INSTALLER_AGREEMENT_VERSION];
+// 1.21 (Jo 4 Nov 2026): defect/complaint deadlines in clause 17 (2/5/15 business days, 24h for safety). Signed 1.20 stays activatable.
+export const INSTALLER_AGREEMENT_VERSION = "HI-VIC-A48-INST-1.21-2026-11-04";
+export const ACTIVATABLE_INSTALLER_VERSIONS: readonly string[] = ["HI-VIC-A48-INST-1.11-2026-10-03", "HI-VIC-A48-INST-1.12-2026-10-03", "HI-VIC-A48-INST-1.13-2026-10-03", "HI-VIC-A48-INST-1.14-2026-10-03", "HI-VIC-A48-INST-1.16-2026-10-05", "HI-VIC-A48-INST-1.18-2026-10-09", "HI-VIC-A48-INST-1.19-2026-10-09", "HI-VIC-A48-INST-1.20-2026-10-19", INSTALLER_AGREEMENT_VERSION];
 export const INSTALLER_AGREEMENT_TITLE = "Activity 48 Insulation Installer Partner Agreement";
 
 export const ACKNOWLEDGEMENTS = [

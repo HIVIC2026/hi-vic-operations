@@ -1,19 +1,15 @@
-import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
-import { readInHouseDispatchState } from "./in-house-suppression.server";
-import { partnerBillsRectification, type InHouseBusiness } from "./in-house.core";
+// Part 3 Task 1 (Jo 2 Nov 2026): the electrician quotes, books and bills the electrical upgrades on EVERY job, so the
+// in-house "partner bills rectification" exception is now the rule for every job (upgrades-billing.core). Every caller
+// that read this to skip the HIV upgrades quote, its payment gate or its clearance step keeps the same answer: true.
+// No database read: the held lookup and the business's `rectification_billed_by` column no longer decide anything.
+import { electricianBillsUpgrades } from "./upgrades-billing.core";
 
-/** Billing exceptions always require both the held lookup and the current active installer's configuration. */
+/** Is the upgrades (rectification) work billed by the electrician/partner, not Home Insulation Victoria? Every job. */
 export async function partnerBilledRectificationFor(jobId: string): Promise<boolean> {
-  const state = await readInHouseDispatchState([jobId]);
-  if (state.failed) throw new Error("Couldn't check the job's partner — please try again.");
-  if (!state.held.has(jobId)) return false;
-  const { data, error } = await admin.from("job_assignments").select("businesses(in_house, rectification_billed_by)").eq("job_id", jobId).eq("role", "installer").eq("active", true).single();
-  if (error || !data?.businesses) throw new Error("Couldn't check the job's partner — please try again.");
-  return partnerBillsRectification(data.businesses as unknown as InHouseBusiness);
+  return electricianBillsUpgrades(jobId);
 }
 
-/** Optional sync/clearance extension: uncertainty keeps the legacy gate, never aborts its caller. */
+/** Optional sync/clearance extension: same answer, kept for its callers. */
 export async function optionalPartnerBilledRectificationFor(jobId: string): Promise<boolean> {
-  try { return await partnerBilledRectificationFor(jobId); }
-  catch (error) { console.error('In-house rectification extension skipped', error instanceof Error ? error.message : 'Partner read failed'); return false; }
+  return electricianBillsUpgrades(jobId);
 }

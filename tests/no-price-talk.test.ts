@@ -19,10 +19,10 @@ const NEEDED = "Is any electrical repair work needed before insulation can be in
 const ctx = { lifeSupportDeclared: "no" as const, today: "2026-10-25", ownerConfirmation: null };
 
 describe("decision 323: no price talk on every job, whose-customer deleted", () => {
-  test("wording unchanged; a top-level Required tick with no condition; the question is gone", () => {
+  test("wording unchanged; a top-level tick with no condition (optional since Part 3, Jo 4 Nov 2026); the question is gone", () => {
     expect(NO_PRICE_TALK_LABEL).toBe("I will not discuss any prices with the owner. Home Insulation Victoria sends the owner all prices.");
     const t = SHORT_PIESA_FIELDS.find((f) => f.id === "noPriceTalk")!;
-    expect(t).toMatchObject({ type: "tick", required: true });
+    expect(t).toMatchObject({ type: "tick", required: false });
     expect(t.when).toBeUndefined();
     expect(SHORT_PIESA_FIELDS.find((f) => f.id === "customerOf")).toBeUndefined();
     expect(SHORT_PIESA_FIELDS.some((f) => f.label === CUSTOMER_OF_LEGACY_LABEL)).toBe(false);

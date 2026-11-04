@@ -369,7 +369,7 @@ describe("Mitti template contract: A1 without 'Your quote to the homeowner' vali
   test("A1 spec carries none of the seven questions; the build prompt forbids them; A2 unchanged", () => {
     const a1 = FORMS.ready_check_priced.fields.map((f) => f.label);
     for (const q of A1_QUOTE_QUESTIONS) expect(a1).not.toContain(q);
-    expect(a1.length).toBe(FORMS.ready_check.fields.length - 4); // A2 = A1 + the 3 Nov note and different-R-value pair + the no-pricing tick
+    expect(a1.length).toBe(FORMS.ready_check.fields.length - 2); // A2 = A1 + the 3 Nov note and different-R-value pair + the no-pricing tick, minus A1's 4 Nov Complete instruction and ready-to-price tick
     expect(mittiAiPrompt("ready_check_priced")).toContain(
       "Do NOT add a price, quote or electrician section",
     );

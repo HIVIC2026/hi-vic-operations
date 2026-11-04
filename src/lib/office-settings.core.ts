@@ -15,7 +15,7 @@ export type SwitchDef =
   | { key: string; label: string; what: string; why: string; kind: "code"; value: boolean; where: string };
 
 /** The ONLY workflow_settings columns the Settings page may write. Anything else is refused server-side. */
-export const OFFICE_SWITCH_COLUMNS = ["customer_comms_enabled", "auto_installer_offers", "auto_electrician_offers", "mitti_pickup_auto_enabled", "mitti_instant_notice_enabled", "daily_mitti_text_enabled", "esc_registry_robot_enabled", "trade_messages_paused"] as const;
+export const OFFICE_SWITCH_COLUMNS = ["customer_comms_enabled", "auto_installer_offers", "auto_electrician_offers", "mitti_pickup_auto_enabled", "mitti_instant_notice_enabled", "daily_mitti_text_enabled", "esc_registry_robot_enabled", "trade_messages_paused", "topups_count_existing_insulation"] as const;
 export type OfficeSwitchColumn = (typeof OFFICE_SWITCH_COLUMNS)[number];
 /** Columns that need a pending migration before they exist (fail closed: shown "waiting for the database change"). */
 export const PENDING_SWITCH_COLUMNS: Partial<Record<OfficeSwitchColumn, string>> = {
@@ -24,6 +24,7 @@ export const PENDING_SWITCH_COLUMNS: Partial<Record<OfficeSwitchColumn, string>>
   esc_registry_robot_enabled: "docs/pending-migrations/esc-registry-robot-switch.sql",
   mitti_instant_notice_enabled: "docs/pending-migrations/mitti-instant-notice-switch.sql",
   trade_messages_paused: "docs/pending-migrations/trade-messages-paused.sql",
+  topups_count_existing_insulation: "drizzle/migrations/0188_ceiling_layout_retail_prices.sql",
 };
 
 export const SWITCHES: SwitchDef[] = [
@@ -40,6 +41,7 @@ export const SWITCHES: SwitchDef[] = [
   { key: "daily_mitti", label: "Installer good-morning texts", what: "6:30am Mitti links on job days (each installer text type also has its own switch)", why: "decision 154", kind: "column", column: "daily_mitti_text_enabled" },
   { key: "mitti_pickup", label: "Mitti pick-up", what: "Forms started in Mitti become jobs every 15 minutes", why: "Mitti-first pickup rule", kind: "column", column: "mitti_pickup_auto_enabled" },
   { key: "mitti_instant", label: "Mitti instant updates", what: "Ready Check changes reach the portal within a minute (the 15-minute check stays as backup)", why: "Jo 27 Oct 2026", kind: "column", column: "mitti_instant_notice_enabled", pendingMigration: PENDING_SWITCH_COLUMNS.mitti_instant_notice_enabled },
+  { key: "topups_count_existing", label: "Top-ups can count old insulation towards R5.0", what: "ON: a top-up batt under R5.0 is quoted when old + new reach R5.0. OFF: it goes to Needs me instead (waiting on ESC confirmation)", why: "Jo 4 Nov 2026", kind: "column", column: "topups_count_existing_insulation", pendingMigration: PENDING_SWITCH_COLUMNS.topups_count_existing_insulation },
   { key: "esc_registry_robot", label: "ESC Registry robot", what: "Fills the VEU Registry install notification (24h–5 days before the install) and the VEEC creation (after the owner signs); dry run until the deployment is set live; TEST jobs never submit; a failure comes to Needs me", why: "decisions 195, 272; also needs ESC_REGISTRY_ROBOT_ENABLED on the deployment", kind: "column", column: "esc_registry_robot_enabled", pendingMigration: PENDING_SWITCH_COLUMNS.esc_registry_robot_enabled },
 ];
 

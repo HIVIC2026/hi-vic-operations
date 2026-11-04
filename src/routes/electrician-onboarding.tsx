@@ -1262,7 +1262,7 @@ function StepBody({
           <TickList
             items={[
               "PIESAs",
-              "Approved electrical fixes",
+              "Approved electrical upgrades",
               "Installation-day electrical attendance when required",
             ]}
           />
@@ -1505,7 +1505,7 @@ function StepBody({
               </div>
             )}
           </Group>
-          <Group title="Your other repeatable electrical fixes items">
+          <Group title="Your other repeatable electrical upgrades items">
             <p style={{ fontSize: 13, color: MUTED, margin: "0 0 10px" }}>
               Add work you regularly price. Each item remains a proposed supplier rate until the
               office approves it.

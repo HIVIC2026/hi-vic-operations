@@ -4,7 +4,9 @@
 // behind `fetch`, see tests/helpers/journey-harness.ts). At every step the persisted rows are read back: the job's
 // stage, its workflow_events, the sends recorded with their idempotency keys, and that the next step is refused when
 // tried too early.
-import { afterAll, describe, expect, mock, test } from "bun:test";
+import { afterAll, describe, expect, mock, setDefaultTimeout, test } from "bun:test";
+// Join (4 Nov 2026): the whole route on real code — a cold step (Mitti simulator + PGlite) can pass 5 s on a shared box.
+setDefaultTimeout(60_000);
 import { readFileSync } from "node:fs";
 import { fakeProviders, journeyAdmin, journeyDb, loadPendingFunctions, serverFnStandIn, fillAudit, stripePaidWebhook, type MittiItem } from "./helpers/journey-harness";
 

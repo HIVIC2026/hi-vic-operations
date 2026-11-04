@@ -53,8 +53,8 @@ describe("fixesTimesLinkBlocker (pure)", () => {
   test("every hold reason", () => {
     expect(fixesTimesLinkBlocker({ ...ok, deleted: true })).toBe("job closed");
     expect(fixesTimesLinkBlocker({ ...ok, piesaCompleted: false })).toBe("PIESA not completed in Mitti");
-    expect(fixesTimesLinkBlocker({ ...ok, timesNeeded: false })).toBe("no electrical fixes visit needed");
-    expect(fixesTimesLinkBlocker({ ...ok, windowsExist: true })).toBe("fixes times already given");
+    expect(fixesTimesLinkBlocker({ ...ok, timesNeeded: false })).toBe("no electrical upgrades visit needed");
+    expect(fixesTimesLinkBlocker({ ...ok, windowsExist: true })).toBe("upgrades times already given");
     expect(fixesTimesLinkBlocker({ ...ok, alreadySent: true })).toBe("already texted");
     expect(fixesTimesLinkBlocker({ ...ok, electricianAssigned: false })).toBe("no electrician assigned");
   });
@@ -66,9 +66,9 @@ describe("wording, key, link and SMS type", () => {
     expect(link).toBe(`https://estimate.homeinsulationvictoria.com.au/field/job-1#${FIXES_TIMES_ANCHOR}`);
     expect(FIXES_TIMES_ANCHOR).toBe("fixes-times");
     const body = fixesTimesLinkText({ address: installerTextAddress("12 Smith St, Frankston VIC 3199", "Frankston"), link });
-    expect(body).toBe("Your safety check at 12 Smith St, Frankston needs electrical fixes. Please pick 3 to 5 times you can do the work: https://estimate.homeinsulationvictoria.com.au/field/job-1#fixes-times");
+    expect(body).toBe("Your safety check at 12 Smith St, Frankston needs electrical upgrades. Please pick 3 to 5 times you can do the work: https://estimate.homeinsulationvictoria.com.au/field/job-1#fixes-times");
     expect(brandSmsBody(body)).toBe(`Home Insulation Victoria: ${body}`);
-    expect(fixesTimesLinkText({ address: null, link: "https://x/f" })).toBe("Your safety check at the property needs electrical fixes. Please pick 3 to 5 times you can do the work: https://x/f");
+    expect(fixesTimesLinkText({ address: null, link: "https://x/f" })).toBe("Your safety check at the property needs electrical upgrades. Please pick 3 to 5 times you can do the work: https://x/f");
   });
   test("one key per job + PIESA form; event names", () => {
     expect(fixesTimesLinkKey("job-1", "audit-9")).toBe("fixes-times-link:v1:job-1:audit-9");
@@ -87,13 +87,13 @@ describe("wording, key, link and SMS type", () => {
 describe("quote hold, card state, Needs me", () => {
   test("hold until the windows exist (only when times are needed); Send refuses with the reason", () => {
     expect(fixesTimesHoldReason({ timesNeeded: true, windowsExist: false })).toBe(FIXES_TIMES_HOLD_REASON);
-    expect(FIXES_TIMES_HOLD_REASON).toBe("Waiting for the electrician's fixes times");
+    expect(FIXES_TIMES_HOLD_REASON).toBe("Waiting for the electrician's upgrades times");
     expect(fixesTimesHoldReason({ timesNeeded: true, windowsExist: true })).toBeNull();
     expect(fixesTimesHoldReason({ timesNeeded: false, windowsExist: false })).toBeNull();
+    // Part 3 Task 1 (Jo 2 Nov 2026): HIV never sends an upgrades quote, so the Send check now refuses before this hold.
     const q = { kind: "rectification", status: "draft", office_reviewed_at: "x", has_unpriced_items: false };
-    expect(rectificationSendBlocker({ ...q, fixes_times_hold: FIXES_TIMES_HOLD_REASON }, true)).toBe(FIXES_TIMES_HOLD_REASON);
-    expect(rectificationSendBlocker({ ...q, fixes_times_hold: null }, true)).toBeNull();
-    expect(rectificationSendBlocker(q, true)).toBeNull();
+    expect(rectificationSendBlocker({ ...q, fixes_times_hold: FIXES_TIMES_HOLD_REASON }, true)).toBe("Electricians bill upgrades directly.");
+    expect(rectificationSendBlocker({ ...q, fixes_times_hold: null }, true)).toBe("Electricians bill upgrades directly.");
   });
   test("card: electricians only; shown once completed/linked and needed; times shown once given", () => {
     const base = { electrician: true, timesNeeded: true, piesaCompleted: true, linkSent: false, windowsExist: false };
@@ -112,19 +112,16 @@ describe("quote hold, card state, Needs me", () => {
     expect([...m.keys()]).toEqual(["A"]);
     const g = buildNeedsRows({ now, jobs: [{ jobId: "A", jobNumber: "HV-1", surname: "Smith", suburb: "Frankston", fixesTimesMissing: m.get("A")! }] });
     expect(g.week.map((r) => [r.kind, r.line, r.button])).toEqual([["fixes_times_missing", FIXES_TIMES_MISSING_LINE, { label: "Open job", to: "job", section: "piesa" }]]);
-    expect(FIXES_TIMES_MISSING_LINE).toBe("Electrician hasn't given fixes times");
+    expect(FIXES_TIMES_MISSING_LINE).toBe("Electrician hasn't given upgrades times");
   });
 });
 
-describe("decision 314 follow-up: on site at the start only → cleared on the accepted + paid fixes quote", () => {
+// Part 3 Task 1 (Jo 2 Nov 2026): the electrician bills the upgrades on every job, so the on-site-only answer no longer
+// waits for an HIV quote or its payment — it clears on the PIESA alone (tests/upgrades-billing.core.test.ts).
+describe("decision 314 follow-up: on site at the start only → cleared on the PIESA (no HIV quote or payment any more)", () => {
   const r = { piesaOutcome: "fail" as const, piesaCompletedAt: "2026-10-01", rectificationRequired: true, rectificationQuoteAccepted: false, rectificationCompletedAt: null, sectionCSignedAt: null, onsiteStartOnly: true, fixesPaymentCleared: false };
-  test("not before the owner accepts, not before the payment rule clears", () => {
-    expect(electricalClearance(r).cleared).toBe(false);
-    const accepted = electricalClearance({ ...r, rectificationQuoteAccepted: true });
-    expect(accepted.cleared).toBe(false);
-    expect(accepted.blocker).toMatch(/payment/);
-  });
-  test("accepted + paid → basis electrician_at_start, 30 days from the official PIESA date; no Section C needed", () => {
+  test("no owner acceptance or payment needed → basis electrician_at_start, 30 days from the official PIESA date; no Section C needed", () => {
+    expect(electricalClearance(r)).toMatchObject({ cleared: true, basis: "electrician_at_start", timingDate: "2026-10-01", blocker: null });
     expect(electricalClearance({ ...r, rectificationQuoteAccepted: true, fixesPaymentCleared: true })).toMatchObject({ cleared: true, basis: "electrician_at_start", timingDate: "2026-10-01", blocker: null });
   });
   test("other repair work still needs the fixes visit + Section C", () => {
@@ -151,16 +148,17 @@ describe("source pins", () => {
     expect(body.indexOf("rectPlanBlockers(hours, windows)")).toBeLessThan(body.indexOf('.from("appointment_proposals").insert('));
     expect(body).toContain("electrician_window: true");
     expect(body).toContain("logEvent(jobId, actorId, FIXES_TIMES_GIVEN_EVENT");
-    const pf = read("src/lib/portal.functions.ts");
-    expect(pf).toContain("recordRectificationWindows(data.jobId, context.userId, data.rectHours, data.rectWindows)");
-    expect(pf).not.toContain('"rectification_windows_given"');
+    // Part 4/6: the office Complete PIESA path (piesa-complete.server) and the trade view share the ONE write; portal.functions no longer calls it.
+    const pc = read("src/lib/piesa-complete.server.ts");
+    expect(pc).toContain("recordRectificationWindows(data.jobId, userId ?? signedOffBy, data.rectHours, data.rectWindows)");
+    expect(read("src/lib/portal.functions.ts")).not.toContain('"rectification_windows_given"');
   });
   test("the hold goes through the existing fixes-quote send check; the office card shows it", () => {
     const af = read("src/lib/allocation.functions.ts");
     expect(af.slice(af.indexOf("export const sendRectificationQuote"))).toContain('releaseFixesQuote(data.quoteId, context.userId, "office")');
     // Part 4 Task 14: the office Send is refused (HIV fixes quotes to owners are retired); the journey-only release still carries the check.
     const send = read("src/lib/fixes-quote-release.server.ts");
-    expect(send).toContain('if (how === "office") return FIXES_QUOTE_RETIRED;');
+    expect(send).toContain('if (electricianBillsUpgrades(q)) return UPGRADES_QUOTE_SEND_BLOCKER;');
     expect(send.indexOf("fixesTimesHoldFor(q.job_id)")).toBeLessThan(send.indexOf("rectificationSendBlocker({"));
     expect(send).toContain("fixes_times_hold: fixesTimesHold");
     expect(read("src/components/portal/allocation.tsx")).toContain("data-fixes-times-hold");

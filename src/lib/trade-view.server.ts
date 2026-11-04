@@ -1468,7 +1468,7 @@ export async function inHouseBookingAccess(userId: string, jobId: string, client
 }
 
 /** A thin member-scoped wrapper: all booking rules and writes stay in confirmBooking. */
-export async function inHouseBookVisit(userId: string, input: { jobId: string; kind: import("./booking.server").BookingKind; start: string; workerId?: string; crewIds?: string[] }, client = admin): Promise<{ ok: true; bookingId: string } | { ok: false; blockers: string[] }> {
+export async function inHouseBookVisit(userId: string, input: { jobId: string; kind: import("./booking.server").BookingKind; start: string; workerId?: string; crewIds?: string[] }, client = admin): Promise<{ ok: true; bookingId: string; warning?: string } | { ok: false; blockers: string[] }> {
   const access = await inHouseBookingAccess(userId, input.jobId, client);
   if (!access.allowed) return { ok: false, blockers: access.blockers };
   // Part 2: an installer's own job books its safety check ONLY through bookOwnJobPiesa (claim, 30-day check, owner notice); never this in-house writer.
@@ -1486,7 +1486,10 @@ export async function inHouseBookVisit(userId: string, input: { jobId: string; k
       ...(input.kind==='installation'?{selection:{lead:input.workerId,additional:(input.crewIds??[]).map(workerId=>({workerId}))}}:{}),
     });
     if(!result.bookingId)throw Error('Booking could not be saved.');
-    return {ok:true,bookingId:result.bookingId};
+    // Part 3 Task 4: the in-house writer (commit_in_house_visit) books without confirmBooking, so the certificate warning is
+    // recorded here too (once per start — confirmBooking's inline path records the same event, never twice).
+    const warning=input.kind==='installation'?await (await import('./certificate-later.server')).recordInstallCertificateWarning(input.jobId,userId,input.start):null;
+    return {ok:true,bookingId:result.bookingId,...(warning?{warning}:{})};
   } catch (error) {
     return {ok:false,blockers:[error instanceof Error?error.message:'Booking could not be saved.']};
   }
@@ -1675,12 +1678,15 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
   // Decision 296: the owner's PIESA confirmation; decision 327: the electrician at the start of the install day. Read only once cleared.
   const piesaConfirmedP = early(clearanceP.then((cl) => cl.cleared ? piesaOwnerConfirmServer.ownerPiesaConfirmFacts(jobId).then((f) => (f ? !!f.confirmation : null)).catch(() => null) : null));
   const attendanceP = early(clearanceP.then((cl) => cl.cleared ? installerAttendanceView(jobId).catch(() => null) : null));
+  // Part 3 Task 3 (Jo 3 Nov 2026): the certificate status line ("Waiting for {electrician}'s Certificate of Electrical Safety" /
+  // "Upgrades day not set yet") and the 4 Nov "Before photos: to be taken on install day" line — both built below from the
+  // rows this bundle already reads (join: the #135 read budget), never from their own reads.
   // Job page rows (Task 5): the extra facts the progress pills, countdown, Next step box and folded rows need. All start in this
   // same round (no extra round trip); each fails soft — a missing fact is left out, never guessed.
   const releaseP = early(Promise.resolve(admin.rpc("has_contact_release", { _job: jobId, _user: userId })).then((r) => r.data === true).catch(() => false));
   const mineBkP = early(admin.from("bookings").select("status").eq("job_id", jobId).eq("business_id", c.biz.id));
   const accessP = early(rentalAnswersServer.accessPersonFor(jobId).catch(() => null));
-  const piesaRecP = early(admin.from("piesa_records").select("outcome, rectification_completed_at, section_c_signed_at").eq("job_id", jobId).eq("is_current", true).maybeSingle());
+  const piesaRecP = early(admin.from("piesa_records").select("kind, outcome, rectification_completed_at, section_c_signed_at").eq("job_id", jobId).eq("is_current", true).maybeSingle());
   const sentP = early(admin.from("customer_email_sends").select("purpose, sent_at, created_at").eq("job_id", jobId).eq("status", "sent").order("created_at", { ascending: true }));
   const ledgerP = early(paymentsServer.paymentLedger(jobId).catch(() => [] as { amountCents: number; paidAt: string }[]));
   const depositP = early(import("./install-deposit-list.server").then((m2) => m2.installDepositPaidForJobs([jobId])).then((x) => x.get(jobId) === true).catch(() => false));
@@ -1708,13 +1714,13 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
   const coesP = early(coesOnFileForJobs([jobId]).then((set) => set.has(jobId)).catch(() => false));
   const allocatedElecP = early(inHouseElectricianServer.allocatedWorkerId(jobId).then(async (id) => id ? (await admin.from("partner_workers").select("full_legal_name").eq("id", id).maybeSingle()).data : null).catch(() => null));
   const [{ data: j }, { data: rcBook }, { data: inBook }, { data: m }, { data: a }, rebateSigned, quote, pay, form, clearance, mitti, payRows,
-    { data: declinedEv }, { data: basicsDone }, { data: piesaBook }, { data: elecAsg }, { data: fixes }, { data: evEv }, { data: alloc }, { data: decl }, { data: finalAsg }, ownerReady, notes,
+    { data: declinedEv }, { data: basicsDone }, { data: piesaBooks }, { data: elecAsg }, { data: fixes }, { data: evEv }, { data: alloc }, { data: decl }, { data: finalAsg }, ownerReady, notes,
     priceEntered, ownerPiesaConfirmed, electricianAttendance, released, { data: mineBk }, accessPerson, { data: piesaRec }, { data: sentRows }, ledger, depositPaid, { data: dl }, { data: given }, { data: consent }, { data: paidEv }, piesaPayRead, swmsRead, { data: quoteItemsRow }, whoBooks, coesOnFile, allocatedElec] = await Promise.all([
     jobP,
     admin.from("bookings").select("scheduled_start, status").eq("job_id", jobId).eq("kind", "ready_check").neq("status", "cancelled").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     inBookP,
-    admin.from("ceiling_measurements").select("measured_area_m2, removal_m2, removal_required, access_difficulty, raw_snapshot").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
-    admin.from("assessments").select("status, piesa_outcome, completed_at, hazards").eq("job_id", jobId).maybeSingle(),
+    admin.from("ceiling_measurements").select("measured_area_m2, removal_m2, removal_required, access_difficulty, raw_snapshot, external_source, external_id, zones").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
+    admin.from("assessments").select("status, piesa_outcome, completed_at, hazards, mitti_raw_snapshot").eq("job_id", jobId).maybeSingle(),
     rebateSignedByInstaller(jobId),
     shared ? shared.quote() : loadInstallerQuote(jobId),
     installerPayForJob(jobId),
@@ -1725,7 +1731,8 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
     // Approved states (decision 234): the dates and names each panel prints, every one a recorded fact.
     admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", "quote_declined").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", "ready_check_basics").contains("details", { completed: true }).order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    admin.from("bookings").select("scheduled_start").eq("job_id", jobId).eq("kind", "assessment").in("status", ["confirmed", "completed"]).order("scheduled_start", { ascending: false }).limit(1).maybeSingle(),
+    // The PIESA booking and (join) whether an upgrades day is booked, in ONE read.
+    admin.from("bookings").select("kind, scheduled_start").eq("job_id", jobId).in("kind", ["assessment", "rectification"]).in("status", ["confirmed", "completed"]).order("scheduled_start", { ascending: false }).then((r) => ({ data: r.data ? { piesa: (r.data as { kind: string; scheduled_start: string }[]).find((b) => b.kind === "assessment") ?? null, upgradesDaySet: (r.data as { kind: string }[]).some((b) => b.kind === "rectification") } : null, error: r.error })),
     admin.from("job_assignments").select("profiles:user_id(full_name)").eq("job_id", jobId).eq("role", "electrician").eq("active", true).limit(1).maybeSingle(),
     admin.from("rectification_items").select("description, status").eq("job_id", jobId).not("status", "in", "(cancelled,removed)"),
     admin.from("workflow_events").select("details, created_at").eq("job_id", jobId).eq("event_type", "install_evidence_synced").order("created_at", { ascending: false }).limit(1).maybeSingle(),
@@ -1742,6 +1749,18 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
   ]);
   const qq = quote.quote as { sent_at?: string | null; accepted_at?: string | null } | null;
   const elecName = electricianNameOf(allocatedElec, (elecAsg?.profiles as unknown as { full_name: string | null } | null)?.full_name ?? null);
+  const piesaBook = piesaBooks?.piesa ?? null;
+  // Part 3 Task 3 / 4 Nov before-photos line, from the rows above (one extra read for the office's BEFORE reviews).
+  const [certificate, beforePhotos] = await Promise.all([
+    import("./certificate-later.server").then((cl) => cl.certificateLineFromParts({
+      snapshot: (a as { mitti_raw_snapshot?: unknown } | null)?.mitti_raw_snapshot ?? null, itemCount: (fixes ?? []).filter((f) => ["required", "completed"].includes(String(f.status))).length,
+      hasPostRecord: (piesaRec as { kind?: string; outcome?: string } | null)?.kind === "post_rectification" && (piesaRec as { outcome?: string } | null)?.outcome === "pass",
+      upgradesDaySet: piesaBooks?.upgradesDaySet === true, certificateOnFile: coesOnFile, electrician: elecName,
+    })),
+    c.kind === "installer" && j?.channel === "installer_sourced" && !j.installation_completed_at
+      ? import("./install-before.server").then((ib) => ib.readInstallBeforePlan(jobId, { measurement: (m as { external_source: string | null; external_id: string | null; zones: unknown } | null) ?? null })).catch(() => null)
+      : Promise.resolve(null),
+  ]);
   const evidence = (evEv?.details as { summary?: { blockers?: string[] } ; blockers?: string[] } | null) ?? null;
   const evidenceBlockers = evidence?.summary?.blockers ?? evidence?.blockers ?? null;
   const installAlloc = currentAllocation((alloc ?? []) as { event_type: string; details: unknown; created_at: string }[], "install");
@@ -1761,6 +1780,7 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
   return {
     ...jobPage,
     jobNumber: j?.job_number ?? null, stage: j?.stage ?? null, channel: j?.channel ?? null, notes,
+    beforePhotos: beforePhotos?.line ?? null,
     readyCheck: { bookedAt: rcBook?.scheduled_start ?? null, done: rcBook?.status === "completed" },
     install: { bookedAt: inBook?.scheduled_start ?? null, recordedAt: j?.installation_completed_at ?? null, form, rebateSigned, formCompletedAt: decl?.signed_at ?? null, evidenceChecked: Array.isArray(evidenceBlockers) ? evidenceBlockers.length === 0 : false, crew, ownerReady },
     form: mitti.applies
@@ -1784,6 +1804,8 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
     ownerPiesaConfirmed,
     // Decision 327: electrician at the start of the install day — one line (confirmed / waiting) or the "can't make it" alert.
     electricianAttendance,
+    // Part 3 Task 3: the Certificate of Electrical Safety status line (null = nothing to say).
+    certificate,
     mittiInvited: c.biz.mitti_account_invited === true,
     // M2-complete summary (read-only; owner contact is hidden by the page once every visit is done).
     complete: { product, piisaSignedAt: decl?.signed_at ?? null, installerSignedAt: finalAsg?.installer_signed_at ?? null, ownerSignedAt: finalAsg?.consumer_final_signed_at ?? null, apSignedAt: finalAsg?.ap_signed_at ?? null,
