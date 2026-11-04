@@ -227,7 +227,8 @@ describe("build sheet = the lean forms exactly (validateTemplate)", () => {
     expect(leanQuestionCount("ready_check_priced", { beforeDecision: 901 })).toBe(39);
     expect(leanQuestionCount("ready_check", { beforeDecision: 901 })).toBe(40);
     // Jo 3 Nov 2026: the area-name text, the size choice and the m² number per area (+3 on both); A2 also gets the optional different-R-value pair (+2). The A2 note is an instruction, not a question.
-    expect(leanQuestionCount("ready_check_priced")).toBe(42);
+    // Jo 4 Nov 2026 (main rebuild): A1 gains the required "ready to price" tick (+1).
+    expect(leanQuestionCount("ready_check_priced")).toBe(43);
     expect(leanQuestionCount("ready_check")).toBe(45);
     // A template built before decision 359 (no Part 6 questions) still validates.
     const before359 = (key: "ready_check" | "ready_check_priced") => FORMS[key].fields.filter((f) => !f.portalOnly && f.addedByDecision !== 359).map((f) => ({ label: f.label, type: typeOf(f) }));
@@ -247,7 +248,7 @@ describe("build sheet = the lean forms exactly (validateTemplate)", () => {
     expect(f.some((x) => /how many (separate )?ceiling areas/i.test(x.label))).toBe(false);
     const m2 = f.find((x) => x.label === LEAN_Q.measuredM2)!;
     expect([m2.required, m2.portalOnly, m2.addedByDecision]).toEqual([true, undefined, 901]);
-    for (const l of [LEAN_Q.lengthM, LEAN_Q.widthM]) expect(f.find((x) => x.label === l)!.notRequiredIf).toEqual([LEAN_Q.measuredM2]);
+    for (const l of [LEAN_Q.lengthM, LEAN_Q.widthM]) expect(f.find((x) => x.label === l)!.notRequiredIf).toEqual([LEAN_Q.measuredM2, "Ceiling area from the floor plan (m²)", "Ceiling area from the aerial image (m²)"]);
     // Three copies of the group (as a repeater reports them) are not "Duplicate".
     const items = leanItems("ready_check");
     const area = items.filter((i) => perArea.includes(i.label));
@@ -334,9 +335,9 @@ describe("the CURRENT live forms (22–24 Oct fixtures) and in-progress audits s
       ["I confirm the information, measurements, photos and quote provided in this Ready Check are accurate to the best of my knowledge.", "signature"],
     ].map(([label, type]) => ({ label: label!, type: type! }));
     // "Please explain" is accepted as the hazard NOTE; the hazard photo is genuinely absent from the 24 Oct form.
-    expect(validateTemplate("ready_check_priced", live).issues).toEqual([`Missing: ${LEAN_Q.premisesType}`, `Missing: ${LEAN_Q.issuePhoto}`]);
+    expect(validateTemplate("ready_check_priced", live).issues).toEqual([`Missing: ${LEAN_Q.premisesType}`]);
     // Form health tells the office exactly which lean question a live form lacks (the audit's problem 3).
-    expect(validateTemplate("ready_check_priced", live.filter((i) => i.label !== "What insulation product will you be using on this job?")).issues).toEqual([`Missing: ${LEAN_Q.premisesType}`, `Missing: ${LEAN_Q.issuePhoto}`, `Missing: ${LEAN_Q.product}`]);
+    expect(validateTemplate("ready_check_priced", live.filter((i) => i.label !== "What insulation product will you be using on this job?")).issues).toEqual([`Missing: ${LEAN_Q.premisesType}`, `Missing: ${LEAN_Q.product}`]);
   });
   test("prefill still lands on both 22 Oct templates and both older versions", () => {
     const ctx = { jobNumber: "HV-TEST-1", address: "1 Test St", ownerName: "Test Owner", ownerEmail: "jolowexo@hotmail.com", ownerPhone: "0400000000", assessorName: "Test Installer", lifeSupport: "None recorded by office", propertyType: "House", builtLast5Years: "No", occupancy: "owner occupied" };
@@ -435,7 +436,8 @@ describe("docs/MITTI_READY_CHECK_CHATGPT_PROMPT.md carries every constant verbat
     expect(body).toContain("Turn ON location/GPS for every Photo question");
     expect(body).toContain(`A1 has ${leanQuestionCount("ready_check_priced", { beforeDecision: 901 })} questions and A2 has ${leanQuestionCount("ready_check", { beforeDecision: 901 })}`);
     // Every optional build-sheet question is "Not required" in the prompt; everything else is Required.
-    for (const f of FORMS.ready_check_priced.fields.filter((x) => !x.portalOnly && (x.addedByDecision ?? 0) < 901)) { // the 3 Nov additions are not in this older prompt
+    // Jo 4 Nov 2026 (main rebuild): A1 photos/videos are optional on the rebuilt form (A1_OPTIONAL_MEDIA_INSTRUCTION); this older prompt predates it, so media is checked on A2's sheet.
+    for (const f of FORMS.ready_check_priced.fields.filter((x) => !x.portalOnly && (x.addedByDecision ?? 0) < 901 && x.type !== "media" && x.type !== "statement")) { // the 3 Nov additions are not in this older prompt
       const line = body.split("\n").find((l) => l.includes(`\`${f.label === LEAN_Q.beforeVideo ? LEAN_ALIASES.beforeVideo![0] : f.label}\` —`))!;
       expect(line, f.label).toBeDefined();
       expect(line.includes("Not required"), f.label).toBe(!f.required);

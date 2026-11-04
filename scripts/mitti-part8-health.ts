@@ -1,6 +1,7 @@
 // New job flow Part 8: read-only check that the 2 Nov Mitti paste landed on the LIVE templates (A1, A2, A3, A5).
 // One GET per template through the existing Mitti bridge. Writes nothing to Mitti or the database. TEST routing never applies
 // (these are the real template IDs). Exit code 0 = all four pass, 1 = something missing/renamed/still there, 2 = unreadable/unreachable.
+// Join 4 Nov 2026: checks the UNION of the pastes (Part 8 + main Part 3 + the 4 Nov rebuild) on A1, A2, A3, A4, A5.
 // Usage: bun scripts/mitti-part8-health.ts                    (live)
 //        bun scripts/mitti-part8-health.ts A1=saved-a1.json    (offline: use a saved template JSON for that key)
 import { readFileSync } from "node:fs";
@@ -30,5 +31,5 @@ for (const spec of PART8_TEMPLATES) {
   for (const c of r.unexpected) console.log(`  still offered (should be deleted): "${c}"`);
   if (!r.ok && worst < 1) worst = 1;
 }
-console.log(worst === 0 ? "ALL FOUR PASS" : worst === 1 ? "SOMETHING TO FIX (see above)" : "COULD NOT CHECK EVERYTHING (see above)");
+console.log(worst === 0 ? "ALL FIVE PASS" : worst === 1 ? "SOMETHING TO FIX (see above)" : "COULD NOT CHECK EVERYTHING (see above)");
 process.exit(worst);

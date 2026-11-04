@@ -68,21 +68,12 @@ b) In Group 2 (life support), straight after "Written consent or medical plan (k
 Then add a text item that only shows when that answer is No:
 "Stop. Don't start. Leave and call the installer's office."
 
-c) Same-day electrical upgrades. The page after the electrician's signature currently holds these three or four questions:
-"Have you completed all of the repair work listed above, and is the ceiling now safe for insulation?",
-"Certificate of Electrical Safety number (required for any electrical works completed):", "Date of Certification:" and
-"Certificate of Electrical Safety (photo or PDF)". Rebuild that page so it is called "Same-day electrical upgrades" and holds,
-in this order:
-1. "Did you do the upgrades today?" — Yes/No — Required — Yes green, No red — only shows when "Is any electrical repair work needed before insulation can be installed?" is Yes
-2. A text item that only shows when question 1 is No: "No problem. The office books the fixes visit and sends you the Electrical fixes form for that day."
-3. "Have you completed all of the repair work listed, and is the ceiling now safe for insulation?" — Yes/No — Required — Yes green, No red — only shows when question 1 is Yes
-   (this is the old "…listed above…" question renamed; keep the old answers if Mitti lets you rename in place)
-4. "Anything not done or changed?" — Text (multi-line is fine) — Required — only shows when question 3 is No — help text: Say what is still outstanding or what changed, so the office can follow it up.
-5. "Certificate of Electrical Safety number" — Text — Required — only shows when question 3 is Yes (rename the old "…(required for any electrical works completed):" question)
-6. "Date of certification" — Date — Required — only shows when question 3 is Yes (rename the old "Date of Certification:" question)
-7. "Certificate of Electrical Safety (photo or PDF)" — Photo, PDF allowed, location on — Required — only shows when question 3 is Yes — help text: Must show: the whole certificate, number and date readable. Take it live — uploads not allowed.
-8. "Photo of the finished work at the switchboard / in the ceiling" — Photo, several files allowed, location on — Required — only shows when question 3 is Yes — help text: Must show: the finished work close up, and the switchboard or ceiling area it's in. Take it live — uploads not allowed.
-The job details and the electrician's signature are already on this form, so don't add them again.
+c) Same-day electrical upgrades — ALREADY DONE by the Part 3 paste (join 4 Nov 2026, ruling 5). The other chat's
+docs/MITTI_PART3_EDIT_PROMPT.md is pasted FIRST and gives this page its questions: "Are electrical upgrades needed?",
+"Are you doing the electrical upgrades today?", "Do you have the Certificate of Electrical Safety now?" (help "No? We'll text
+you a link to add it later.") and the three certificate questions shown only when that answer is Yes; the price questions are
+deleted there too. Do NOT add "Did you do the upgrades today?" or rename the Part C questions here — the portal reads the
+Part 3 wording (and the older wording on forms already done). Nothing to do in this step.
 
 d) Help text ("Must show" lines) — set the help text on these questions, titles unchanged:
 - "Photo showing you on site at the property, holding your licence / photo ID (geotagged)" → Must show: the front of the premises with the house number, and you holding your photo ID, face and ID readable.
@@ -209,14 +200,10 @@ If a template can't hold an image in help text, tell me which questions and leav
 For the builder on the portal side, before or straight after Jo publishes (the readers must accept both old and new
 wording, old forms keep reading):
 
-- A3 `src/lib/official-short.core.ts` SHORT_PIESA_FIELDS:
-  - `rectificationComplete`: add alias "Have you completed all of the repair work listed, and is the ceiling now safe for insulation?" (the A4 FIXES_DAY_Q.done wording); the old "…listed above…" label stays as the alias for old forms.
-  - `coesNumber`: add alias "Certificate of Electrical Safety number" (FIXES_DAY_Q.coesNumber).
-  - `certDate`: add alias "Date of certification" (FIXES_DAY_Q.certDate).
-  - New question to read: "Did you do the upgrades today?" (Yes/No) — Yes + `rectificationComplete` Yes + CoES number/date/file + work photo = same-day Part C (fill official PIESA Part C and send the updated copy, the same path the A4 form uses: `fixes-day.core` mergeFixesIntoPiesaSnapshot → `piesa-record.server applyPiesaRecord` → O28 copies); No = fixes visit still needed (A4 form on booking, decision 293); blank on an old form = not asked.
-  - New question to read: "Anything not done or changed?" (text, when done = No) → office item, same as A4 Q10.
-  - New media to keep: "Photo of the finished work at the switchboard / in the ceiling" on A3 → job files like the A4 work photo (`PIESA_EVIDENCE_BY_ID` / FIXES_COES_DOC_TITLE path for the CoES file is unchanged).
+- A3: nothing (join 4 Nov 2026, ruling 5) — the same-day upgrades block is main's Part 3 (`official-short.core.ts`
+  `rectificationNeeded` / `rectificationComplete` / `certificateNow`, legacy wordings as aliases; `fixes-day.core.ts` for the A4),
+  already live on origin/main. The Part 8 Task 13 reader ("Did you do the upgrades today?") is dropped.
 - A5 `src/lib/install-day.core.ts`: `INSTALL_DAY_READ_FIRST_TEXT` last sentence → "Press Complete before you leave — we can't claim the rebate or pay the job until it's done." (and `tests/install-day.test.ts` / the paste-prompt drift test, `docs/MITTI_INSTALL_FORM_FIX_PROMPT.md` line 41).
-- `scripts/mitti-part8-health.ts`: must not require the "Paid only when…" text item on A3/A4/A5 (already noted in CROSS-PART-NOTES); add the A3 "Did you do the upgrades today?" and the renamed Part C labels to the A3 check.
+- `scripts/mitti-part8-health.ts`: must not require the "Paid only when…" text item on A3/A4/A5 (already noted in CROSS-PART-NOTES); since the join it checks the UNION — Part 8 labels + main's Part 3 labels on A3/A4 (either wording) + the 4 Nov rebuild's A1 ready-to-price tick.
 - Help text is not read by the portal (readers match the first line of the title only), so the "Must show" lines and the camera-only line change nothing in `mitti.core.ts`, `ready-check-lean.core.ts`, `fixes-day.core.ts` or `install-day.core.ts`. The A4 `help` strings in `fixes-day.core.ts` Q13/Q14 and the A5 `help` strings in `install-day.core.ts` are documentation only, but `tests/fixes-day.test.ts` and `tests/install-day.test.ts` compare them with the old build prompts (`docs/MITTI_FIXES_FORM_PROMPT.md`, `docs/MITTI_INSTALL_FORM_FIX_PROMPT.md`), so update the core `help` strings and those two prompt docs together to the new "Must show: … Take it live — uploads not allowed." text.
 - No title is renamed on A1, A2, A4 or A5 by this paste.

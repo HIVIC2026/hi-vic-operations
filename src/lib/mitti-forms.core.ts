@@ -27,10 +27,13 @@ export type FormField = {
   addedByDecision?: number;
 };
 import { B1_OPTIONS, B2_OPTIONS, OFFICIAL_ITEMS, type ItemKind } from "./official-forms.core";
-import { SHORT_PIESA_FIELDS, SHORT_PIISA_FIELDS } from "./official-short.core";
+import { CERTIFICATE_NOW_ADDED, CERTIFICATE_NOW_LABEL, SHORT_PIESA_FIELDS, SHORT_PIISA_FIELDS } from "./official-short.core";
 import { PIISA_DECLARATION_FIELDS } from "./piisa-declaration.core";
 import { mittiItemType } from "./mitti.core";
+import { canonicalMittiLabel, mittiLabelAliases } from './mitti-rebuild-labels.core';
+import { SPLIT_MAINS_Q } from './official-short.core';
 import { PIESA_EVIDENCE } from "./piesa-evidence.core";
+import { A1_COMPLETE_INSTRUCTION, A1_READY_TO_PRICE_TICK, A1_OPTIONAL_MEDIA_INSTRUCTION } from './ready-check-lean.core';
 import { FIXES_DAY_QUESTIONS, FIXES_DAY_TEMPLATE_NAME, type FixesDayType } from "./fixes-day.core";
 import { A2_NO_PRICING_NOTE, ACCESS_OPTIONS, AREA_GROUP_BUTTON, AREA_NAME_OPTIONS, AREA_SIZE_LW, AREA_SIZE_M2, AREA_SIZE_OPTIONS, LIVE_ONLY_HELP, OTHER_R_OPTIONS, ELECTRICIAN_OPTIONS, EXISTING_ACTION_OPTIONS, EXISTING_TYPE_OPTIONS, FAIL_REASON_OPTIONS, INCLUDED_OPTIONS, LEAN_ALIASES, LEAN_Q, MEASURED_HOW_OPTIONS, OUTCOME_FAILED, OUTCOME_OPTIONS, PREMISES_TYPE_OPTIONS, PRODUCT_OPTIONS, PROPERTY_TYPE_OPTIONS, R_ABOVE_LEGACY, R_AT_OR_ABOVE, R_VALUE_OPTIONS, ROOF_OPTIONS, YES_NO } from "./ready-check-lean.core";
 
@@ -57,9 +60,10 @@ const sup = (label: string, source: string, extra: Partial<FormField> = {}): For
 // accepted earlier wordings come from piesa-evidence.core.ts so the form check and the completion gate never drift.
 const PIESA_SUPPLEMENTAL: FormField[] = PIESA_EVIDENCE.map((e) => sup(e.label, e.id === "ces_file" ? "ESC CES record after rectification (decision 178)" : `${G} Table 4 / ESC 30 Jul 2026 update (decision 178)`, {
   aliases: e.aliases,
-  // Decision 297: one "Photo of the problem" under each hazard section (up to four on the form); decision 298: the CES is on
-  // the A4 fixes form, never on the PIESA visit.
-  ...(e.id === "hazard_photos" ? { when: "Any hazard answered Yes", repeats: 4 } : e.id === "ces_file" ? { when: "A4 fixes form (decision 298)", required: false } : {}),
+  // Decision 297: one "Photo of the problem" under each hazard section (up to four on the form). Part 3 (Jo 3 Nov 2026):
+  // the certificate (q45) shows and is Required only when "Do you have the Certificate of Electrical Safety now?" = Yes;
+  // No = certificate to come (the electrician adds it later through the texted link). Templates from before 3 Nov validate without it.
+  ...(e.id === "hazard_photos" ? { when: "Any hazard answered Yes", repeats: 4 } : e.id === "ces_file" ? { when: `${CERTIFICATE_NOW_LABEL} = Yes`, addedByDecision: CERTIFICATE_NOW_ADDED } : {}),
 }));
 const PIISA_SUPPLEMENTAL: FormField[] = [
   sup("SWMS", `${G} SWMS`),
@@ -140,8 +144,8 @@ const READY_CHECK_FIELDS: FormField[] = [
   { label: LEAN_Q.areaNameOther, type: "text", required: true, perArea: true, when: `${LEAN_Q.areaName} = Other`, addedByDecision: 901, source: "portal – the area name when Other is chosen (Jo 3 Nov)" },
   { label: LEAN_Q.areaSizeHow, type: "choice", required: true, perArea: true, choices: [...AREA_SIZE_OPTIONS], addedByDecision: 901, source: "portal – m² or length × width per area (Jo 3 Nov); exactly one is read" },
   { label: LEAN_Q.measuredM2, type: "number", required: true, perArea: true, when: `${LEAN_Q.areaSizeHow} = ${AREA_SIZE_M2}`, types: ["text"], addedByDecision: 901, aliases: al("measuredM2"), source: "portal – one m² number; the diagram draws a square of that size, not the real shape (Jo 3 Nov). Also the 22–24 Oct single m² entry" },
-  { label: LEAN_Q.lengthM, type: "number", required: true, perArea: true, when: `${LEAN_Q.areaSizeHow} = ${AREA_SIZE_LW}`, notRequiredIf: [LEAN_Q.measuredM2], source: "portal – the portal works out the m² and draws the diagram (decision 222: Length + Width per area)" },
-  { label: LEAN_Q.widthM, type: "number", required: true, perArea: true, when: `${LEAN_Q.areaSizeHow} = ${AREA_SIZE_LW}`, notRequiredIf: [LEAN_Q.measuredM2], source: "portal – the portal works out the m² and draws the diagram (decision 222: Length + Width per area)" },
+  { label: LEAN_Q.lengthM, type: "number", required: true, perArea: true, when: `${LEAN_Q.areaSizeHow} = ${AREA_SIZE_LW}`, notRequiredIf: [LEAN_Q.measuredM2,"Ceiling area from the floor plan (m²)","Ceiling area from the aerial image (m²)"], source: "portal – the portal works out the m² and draws the diagram (decision 222: Length + Width per area); Jo 4 Nov: not when Floor plan or Aerial image gives the m²" },
+  { label: LEAN_Q.widthM, type: "number", required: true, perArea: true, when: `${LEAN_Q.areaSizeHow} = ${AREA_SIZE_LW}`, notRequiredIf: [LEAN_Q.measuredM2,"Ceiling area from the floor plan (m²)","Ceiling area from the aerial image (m²)"], source: "portal – the portal works out the m² and draws the diagram (decision 222: Length + Width per area); Jo 4 Nov: not when Floor plan or Aerial image gives the m²" },
   { label: LEAN_Q.measuredHow, type: "choice", required: true, perArea: true, choices: [...MEASURED_HOW_OPTIONS], aliases: al("measuredHow"), source: "portal – measurement provenance; aerial/online estimates never accepted" },
   { label: LEAN_Q.measuredHowOther, type: "text", required: true, perArea: true, when: `${LEAN_Q.measuredHow} = Other`, aliases: al("measuredHowOther"), source: "portal – provenance" },
   { label: LEAN_Q.existing, type: "yesno", required: true, perArea: true, choices: [...YES_NO], aliases: al("existing"), source: `${G} eligibility – insulation_present` },
@@ -182,7 +186,7 @@ const SIGNATURE_A2: FormField = { label: LEAN_Q.signatureA2, type: "signature", 
 const FIXES_TYPE: Record<FixesDayType, FieldType> = { text: "text", date: "date", yes_no: "yesno", photo: "media", signature: "signature" };
 function fixesField(q: (typeof FIXES_DAY_QUESTIONS)[number]): FormField {
   const when = q.showWhen ? `${FIXES_DAY_QUESTIONS.find((x) => x.n === q.showWhen!.n)!.label} = ${q.showWhen.is.join(" / ")}` : undefined;
-  return { label: q.label, type: FIXES_TYPE[q.type], required: q.required, ...(q.type === "yes_no" ? { choices: ["Yes", "No"] } : {}), ...(when ? { when } : {}), ...(q.prefill ? { prefill: true } : {}), source: "decision 293 – fixes day form (fixes-day.core)" };
+  return { label: q.label, type: FIXES_TYPE[q.type], required: q.required, ...(q.type === "yes_no" ? { choices: ["Yes", "No"] } : {}), ...(when ? { when } : {}), ...(q.prefill ? { prefill: true } : {}), ...(q.addedByDecision != null ? { addedByDecision: q.addedByDecision } : {}), source: "decision 293 – fixes day form (fixes-day.core)" };
 }
 
 export const FORMS: Record<FormKey, { title: string; role: "installer" | "electrician"; fields: FormField[] }> = {
@@ -197,7 +201,9 @@ export const FORMS: Record<FormKey, { title: string; role: "installer" | "electr
   ready_check_priced: {
     title: `${READY_CHECK_TITLE} – installer-supplied customer`,
     role: "installer",
-    fields: [...READY_CHECK_FIELDS, SIGNATURE_A1],
+    fields: [...READY_CHECK_FIELDS.map(f => f.type === 'media' ? { ...f, required: false, source: A1_OPTIONAL_MEDIA_INSTRUCTION } : f), SIGNATURE_A1,
+      { label: A1_COMPLETE_INSTRUCTION, type: 'statement', required: false, statement: 'statement', source: 'Jo 4 Nov' },
+      { label: A1_READY_TO_PRICE_TICK, type: 'tick', required: true, addedByDecision: 902, source: 'Jo 4 Nov (902 = the 4 Nov rebuild, after 901; no log number yet)' }],
   },
   // Short onsite forms (approved 3 Oct 2026): clear full-sentence questions. The portal expands the answers
   // into every official Word-form item (official-expand.core.ts) and fills the official document itself.
@@ -210,7 +216,7 @@ export const FORMS: Record<FormKey, { title: string; role: "installer" | "electr
 /** Distinct questions an installer can be asked on a lean Ready Check (per-area group counted once; legacy-only items excluded).
  *  `beforeDecision`: the count on a template built before that decision's paste-prompt additions (e.g. 359 → 34 / 35). */
 export function leanQuestionCount(key: "ready_check" | "ready_check_priced", opts: { beforeDecision?: number } = {}): number {
-  return FORMS[key].fields.filter((f) => !f.portalOnly && !f.statement && !(opts.beforeDecision != null && f.addedByDecision != null && f.addedByDecision >= opts.beforeDecision)).length;
+  return FORMS[key].fields.filter((f) => !f.portalOnly && !f.statement && f.type !== 'statement' && !(opts.beforeDecision != null && f.addedByDecision != null && f.addedByDecision >= opts.beforeDecision)).length;
 }
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
@@ -228,17 +234,37 @@ export function validateTemplate(key: FormKey, items: TemplateItem[]): { ok: boo
   const issues: string[] = [];
   const byLabel = new Map<string, TemplateItem[]>();
   for (const it of items) {
-    const full = norm(it.label ?? "");
+    const full = norm(canonicalMittiLabel(it.label ?? ""));
     if (!full) continue;
     byLabel.set(full, [...(byLabel.get(full) ?? []), it]);
     // Mitti appends help text after a line break (e.g. "How many ceiling areas need to be measured separately?\nCount areas...").
     // Index the first line too so the required wording still matches while the help text stays visible in Mitti.
-    const first = norm(String(it.label ?? "").split("\n")[0] ?? "");
+    const first = norm(canonicalMittiLabel(String(it.label ?? "").split("\n")[0] ?? ""));
     if (first && first !== full) byLabel.set(first, [...(byLabel.get(first) ?? []), it]);
   }
   // Official forms repeat some labels (e.g. "Licence no:" in B3 and Section C): expect exactly that many.
   const expected = new Map<string, number>();
-  const fields = FORMS[key].fields.filter((f) => !f.statement);
+  let fields: FormField[] = FORMS[key].fields.filter((f) => !f.statement).map(f => ({ ...f, aliases: [...(f.aliases ?? []), ...mittiLabelAliases(f.label)] }));
+  const rebuiltReady = (key === 'ready_check' || key === 'ready_check_priced') && byLabel.has(norm('Old insulation in this area?'));
+  if (key === 'ready_check_priced' && !rebuiltReady && !byLabel.has(norm(A1_READY_TO_PRICE_TICK))) fields = fields.filter(f => f.label !== A1_READY_TO_PRICE_TICK);
+  if (rebuiltReady) {
+    // Jo 4 Nov 2026: on the rebuilt A1 the ready-to-price tick is Required (its addedByDecision only spares older templates).
+    if (key === 'ready_check_priced') fields = fields.map(f => { if (f.label !== A1_READY_TO_PRICE_TICK) return f; const { addedByDecision: _a, ...rest } = f; return rest; });
+    if(byLabel.has(norm('Ceiling area from the floor plan (m²)'))){fields.push({label:'Ceiling area from the floor plan (m²)',type:'number',required:true,perArea:true,source:'4 Nov floor plan'},{label:'Upload the floor plan (photo or PDF)',type:'media',required:true,perArea:true,source:'4 Nov floor plan'});}
+    if(byLabel.has(norm('Ceiling area from the aerial image (m²)'))){fields.push({label:'Ceiling area from the aerial image (m²)',type:'number',required:true,perArea:true,source:'4 Nov aerial image'},{label:'Upload the aerial image (photo or PDF)',type:'media',required:true,perArea:true,source:'4 Nov aerial image'});}
+    const replaced = [LEAN_Q.existing, LEAN_Q.existingAction, LEAN_Q.rValue, LEAN_Q.product, LEAN_Q.premisesType];
+    const websiteOnly = [LEAN_Q.ownerPhone, LEAN_Q.ownerEmail, LEAN_Q.contactPermission, LEAN_Q.lifeSupport, LEAN_Q.builtLast5];
+    fields = fields.filter(f => !replaced.includes(f.label as typeof replaced[number]) && !(key === 'ready_check' && websiteOnly.includes(f.label as typeof websiteOnly[number])));
+    fields = fields.map(f => ({ ...f, ...(f.label === LEAN_Q.outcome ? { aliases: [...(f.aliases ?? []), 'Can the job go ahead?'] } : {}), ...(f.label === LEAN_Q.issuePhoto ? { aliases: [...(f.aliases ?? []), 'Photo of the problem'] } : {}) }));
+    fields.push({ label: 'Old insulation in this area?', type: 'choice', required: true, perArea: true, source: '4 Nov replacement' }, { label: 'Old insulation R value?', type: 'choice', required: true, perArea: true, source: '4 Nov replacement' });
+    if (key === 'ready_check') fields.push({ label: 'Which brand are you installing?', type: 'choice', required: true, source: '4 Nov replacement' }, { label: 'Which batts?', type: 'choice', required: true, perArea: true, source: '4 Nov replacement' });
+  }
+  if (key === 'piesa' && items.some(it => Object.values(SPLIT_MAINS_Q).some(label => norm(label) === norm(it.label)))) {
+    fields = fields.filter(f => f.id !== 'mainsSafe' && f.id !== 'mainsProblems');
+    for (const [id, label] of Object.entries(SPLIT_MAINS_Q)) fields.push({ id, label, aliases: id === 'switchSafe' ? ['Does the main switch work, can you reach it, does it safely isolate the ceiling circuits (excluding the mains cables), and can it be locked off?'] : [], type: 'yesno', required: true, source: '4 Nov split mains' });
+    fields = fields.map(f => ({ ...f, ...(f.id === 'solarProblems' ? { aliases: [...(f.aliases ?? []), "Tick everything that's not right."] } : {}), ...(f.repeats && f.label === 'Photo of the problem' ? { repeats: 6 } : {}) }));
+  }
+  if (key === 'ready_check_priced') fields = fields.map(f => f.type === 'media' ? { ...f, required: false } : f);
   for (const f of fields) if (!f.perArea && !f.perPriceLine && !f.row) expected.set(norm(f.label), (expected.get(norm(f.label)) ?? 0) + 1);
   // Deduplicated: a curly/straight apostrophe alias normalises to the same key and must not count the item twice.
   const labelsOf = (f: FormField) => [...new Set([norm(f.label), ...(f.aliases ?? []).map(norm)])];
