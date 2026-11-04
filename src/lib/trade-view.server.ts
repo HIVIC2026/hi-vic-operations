@@ -1132,7 +1132,7 @@ export async function tradeBusinessFile(userId: string) {
     details: { name: b.trading_name ?? b.name, legal: b.legal_name, abn: b.abn, phone: b.phone, email: b.email, address: b.address,
       area: b.covers_all_victoria ? "Anywhere in Victoria" : `Up to ${b.coverage_radius_km ?? "?"} km from ${b.base_suburb ?? "your base"}`,
       days: (b.typical_days ?? []).join(", ") || null, leadTime: b.lead_time, liabilityCover: b.public_liability_cover_amount },
-    credentials: (creds ?? []).map((x) => ({ id: x.id, label: x.label, expires: x.expires_at, verified: x.verification === "verified", hasFile: !!x.document_path, path: x.document_path })),
+    credentials: (creds ?? []).map((x) => ({ id: x.id, kind: x.kind as string | null, label: x.label, expires: x.expires_at, verified: x.verification === "verified", hasFile: !!x.document_path, path: x.document_path })),
     agreement: agr ? { version: agr.version, signer: agr.signer_name, signedAt: agr.signed_at } : null,
     rates, openRequests: (open ?? []) as { kind: string; message: string; created_at: string }[],
     // Rates agreed date: the active rate card's effective date (installer), else the signed agreement date.

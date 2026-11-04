@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { BizPage, field, greenBtn, navyBtn } from "@/components/trade/business-pages";
 import { addCredential, partnerFileUrl, partnerUploadUrl } from "@/lib/pilot.functions";
-import { expiryPill } from "@/lib/trade-view.core";
+import { INSURANCE_PAGE_WORDS, insuranceRowLabel, insuranceRowStatus } from "@/lib/business-insurance.core";
 import { openFileViewer } from "@/components/portal/file-viewer";
 import { Button } from "@/components/trade/trade-ui";
 
@@ -18,7 +18,8 @@ export const Route = createFileRoute("/_authenticated/field/business_/insurance"
 /** Upload re-checks expiry: the summary (NEXT panel, insurance row) is re-read from the new record, never from the page's own state. */
 function Insurance() {
   const qc = useQueryClient();
-  return <BizPage title="Insurance and licences" intro="Keep these current to keep receiving job offers. Lapsed public liability stops offers and install starts until the renewed certificate is uploaded.">{(d, refetch) => <Docs d={d} onDone={() => { refetch(); void qc.invalidateQueries({ queryKey: ["trade-business"] }); }} />}</BizPage>;
+  // Jo 4 Nov 2026 (pack 2 batch 3): the approved redraft — the top line, "Checked · current until {date}" rows, "Upload a new certificate".
+  return <BizPage title="Insurance and licences" intro={INSURANCE_PAGE_WORDS.intro}>{(d, refetch) => <Docs d={d} onDone={() => { refetch(); void qc.invalidateQueries({ queryKey: ["trade-business"] }); }} />}</BizPage>;
 }
 
 const KINDS = [["public_liability_insurance", "Public liability"], ["workers_comp_insurance", "Workers comp"], ["electrical_licence", "Electrical licence"], ["installer_certification", "Installer certificate"], ["other", "Something else"]] as const;
@@ -56,18 +57,15 @@ function Docs({ d, onDone }: { d: Parameters<Parameters<typeof BizPage>[0]["chil
   return (<>
     <ul className="divide-y divide-line overflow-hidden rounded-[18px] border border-line bg-paper shadow-card">
       {d.credentials.length === 0 && <li className="p-4 text-sm">Nothing on file yet.</li>}
-      {d.credentials.map((c) => { const p = expiryPill(c.expires); return (
-        <li key={c.id} className="flex items-center justify-between gap-3 p-4">
-          <span><span className="block font-bold capitalize">{c.label}</span><span className="block text-xs text-sub">{c.verified ? "Checked by the office" : "Waiting for the office to check"}</span></span>
-          <span className="flex shrink-0 flex-col items-end gap-1">
-            <span className={`rounded-[18px] px-2.5 py-0.5 text-[11px] font-semibold ${p.warn ? "bg-owner-house-pink" : "bg-estimate-green-soft text-estimate-green"}`}>{p.label}</span>
-            {c.hasFile && <Button type="button" variant="ghost" className="min-h-12" disabled={opening !== null} onClick={() => void view(c.id, c.path, c.label)}>{opening === c.id ? "Opening…" : "View"}</Button>}
-          </span>
+      {d.credentials.map((c) => { const st = insuranceRowStatus({ verified: c.verified, expires: c.expires }); return (
+        <li key={c.id} className="flex items-center justify-between gap-3 p-4" data-insurance-row>
+          <span><span className="block font-bold">{insuranceRowLabel(c.kind, c.label)}</span><span className={`block text-sm ${st.warn ? "font-semibold text-danger" : "text-sub"}`}>{st.line}</span></span>
+          {c.hasFile && <Button type="button" variant="ghost" className="min-h-12 shrink-0" disabled={opening !== null} onClick={() => void view(c.id, c.path, c.label)}>{opening === c.id ? "Opening…" : "View"}</Button>}
         </li>
       ); })}
     </ul>
     {viewError && <p role="alert" className="text-sm text-danger">{viewError}</p>}
-    {!show ? <button type="button" className={navyBtn} onClick={() => setShow(true)}>Upload a renewed certificate</button> : (
+    {!show ? <button type="button" className={navyBtn} onClick={() => setShow(true)}>{INSURANCE_PAGE_WORDS.upload}</button> : (
       <div className="space-y-3 rounded-[18px] border border-line bg-paper p-[19px] shadow-card">
         <label className="block text-sm font-bold">Which one<select className={field} value={kind} onChange={(e) => setKind(e.target.value as typeof kind)}>{KINDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>
         <label className="block text-sm font-bold">New expiry date<input type="date" className={field} value={expires} onChange={(e) => setExpires(e.target.value)} /></label>
