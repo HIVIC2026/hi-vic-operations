@@ -262,6 +262,31 @@ export function openEscWithdrawals(required: { job_id: string; created_at: strin
   return [...out.values()];
 }
 
+/** G6 S3 (final Part 9 review, 4 Nov 2026): the "withdraw the ESC notice" item is also DERIVED from the notices themselves,
+ *  not only from the recorded ask event — a notice recorded as sent (reference, not withdrawn) on a job that won't go
+ *  ahead: the job is cancelled or deleted, or it has no confirmed (or completed) installation booking at all. A job whose
+ *  install was done keeps nothing (the notice was right). Rows for notices that already carry an open ask are left to it. */
+export const ESC_WITHDRAW_DERIVED_REASON = "install_not_going_ahead";
+export function derivedEscWithdrawals(
+  notices: { id: string; job_id: string; status: string; sent_at: string | null; submission_reference: string | null; response?: unknown }[],
+  jobs: { id: string; stage: string | null; deleted_at?: string | null }[],
+  installBookings: { job_id: string; status: string }[],
+  skipNotificationIds: ReadonlySet<string> = new Set(),
+): OpenEscWithdrawal[] {
+  const job = new Map(jobs.map((j) => [j.id, j]));
+  const hasInstall = new Set(installBookings.filter((b) => b.status === "confirmed" || b.status === "completed").map((b) => b.job_id));
+  const out: OpenEscWithdrawal[] = [];
+  for (const n of notices) {
+    if (skipNotificationIds.has(n.id) || !n.sent_at || !n.submission_reference || isWithdrawn(n)) continue;
+    const j = job.get(n.job_id);
+    if (!j) continue;
+    const wontGoAhead = j.stage === "cancelled" || !!j.deleted_at || !hasInstall.has(j.id);
+    if (!wontGoAhead) continue;
+    out.push({ jobId: n.job_id, notificationId: n.id, reference: String(n.submission_reference), reason: ESC_WITHDRAW_DERIVED_REASON, at: n.sent_at });
+  }
+  return out.sort((a, b) => a.at.localeCompare(b.at) || a.notificationId.localeCompare(b.notificationId));
+}
+
 export type PayloadInput = {
   jobNumber: string; installationDays: string[]; scheduledStart: string; scheduledEnd: string | null; premisesAddress: string;
   owner: { name: string | null; email: string | null; phone: string | null }; extra: Record<string, unknown>;

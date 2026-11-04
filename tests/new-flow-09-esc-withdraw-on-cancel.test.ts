@@ -112,6 +112,44 @@ describe("cancelJobFully raises the withdrawal ask once per live notice; recordi
     expect(await openEscWithdrawalRows()).toEqual([]);
     expect(await openEscWithdrawalRows(["j1"])).toEqual([]);
   });
+  // G6 S3 (final Part 9 review): the Needs me row is derived from the notices themselves too — a sent, un-withdrawn notice on
+  // a job that won't go ahead (cancelled / deleted / no confirmed install booking) shows even when no ask event was written.
+  test("S3: a live notice on a cancelled job with no ask event still shows; an open job with a confirmed install or a done install does not; the event's row wins when both exist", async () => {
+    reset();
+    db["jobs"] = [
+      { id: "j1", stage: "cancelled", job_number: "HV-9001", source: "website", deleted_at: null },
+      { id: "j2", stage: "installation_booked", job_number: "HV-9002", source: "website", deleted_at: null },
+      { id: "j3", stage: "complete", job_number: "HV-9003", source: "website", deleted_at: null },
+      { id: "j4", stage: "installation_scheduling", job_number: "HV-9004", source: "website", deleted_at: null },
+      { id: "j5", stage: "installation_booked", job_number: "HV-9005", source: "website", deleted_at: "2026-11-03T00:00:00Z" },
+    ];
+    db["esc_notifications"] = [
+      { id: "n1", job_id: "j1", status: "sent", sent_at: "2026-11-01T23:00:00Z", submission_reference: "VEU-1", response: null, scheduled_start: "2026-11-04T23:00:00Z" },
+      { id: "n2", job_id: "j2", status: "sent", sent_at: "2026-11-01T23:00:00Z", submission_reference: "VEU-2", response: null, scheduled_start: "2026-11-04T23:00:00Z" },
+      { id: "n3", job_id: "j3", status: "sent", sent_at: "2026-11-01T23:00:00Z", submission_reference: "VEU-3", response: null, scheduled_start: "2026-11-04T23:00:00Z" },
+      { id: "n4", job_id: "j4", status: "stale", sent_at: "2026-11-01T23:00:00Z", submission_reference: "VEU-4", response: null, scheduled_start: "2026-11-04T23:00:00Z" },
+      { id: "n4b", job_id: "j4", status: "ready", sent_at: null, submission_reference: null, response: null, scheduled_start: "2026-11-06T23:00:00Z" },
+      { id: "n5", job_id: "j5", status: "sent", sent_at: "2026-11-01T23:00:00Z", submission_reference: "VEU-5", response: null, scheduled_start: "2026-11-04T23:00:00Z" },
+      { id: "n5w", job_id: "j5", status: "stale", sent_at: "2026-10-01T23:00:00Z", submission_reference: "VEU-5-OLD", response: { withdrawal: { withdrawn_at: "2026-10-02T00:00:00Z" } }, scheduled_start: "2026-10-04T23:00:00Z" },
+    ];
+    db["bookings"] = [
+      { id: "b2", job_id: "j2", kind: "installation", status: "confirmed", scheduled_start: "2026-11-04T23:00:00Z" },
+      { id: "b3", job_id: "j3", kind: "installation", status: "completed", scheduled_start: "2026-11-04T23:00:00Z" },
+      { id: "b4", job_id: "j4", kind: "installation", status: "cancelled", scheduled_start: "2026-11-04T23:00:00Z" },
+    ];
+    const { openEscWithdrawalRows, requireEscWithdrawal } = await import("../src/lib/esc.server");
+    expect((await openEscWithdrawalRows()).map((r) => [r.jobId, r.notificationId, r.reference, r.reason, r.at])).toEqual([
+      ["j1", "n1", "VEU-1", "install_not_going_ahead", "2026-11-01T23:00:00Z"],
+      ["j4", "n4", "VEU-4", "install_not_going_ahead", "2026-11-01T23:00:00Z"],
+      ["j5", "n5", "VEU-5", "install_not_going_ahead", "2026-11-01T23:00:00Z"],
+    ]);
+    expect((await openEscWithdrawalRows(["j2", "j4"])).map((r) => r.notificationId)).toEqual(["n4"]);
+    // The recorded ask (with its reason and time) wins over the derived row for the same notice.
+    await requireEscWithdrawal("j1", "owner_cancelled", "office-user");
+    const rows = await openEscWithdrawalRows();
+    expect(rows.filter((r) => r.notificationId === "n1")).toEqual([{ jobId: "j1", notificationId: "n1", reference: "VEU-1", reason: "owner_cancelled", at: required()[0]!["created_at"] }]);
+    expect(rows).toHaveLength(3);
+  });
   test("a job with no sent notice raises nothing", async () => {
     reset();
     db["esc_notifications"] = [{ id: "n-ready", job_id: "j1", status: "ready", sent_at: null, submission_reference: null, response: null, scheduled_start: "2026-11-04T23:00:00Z" }];

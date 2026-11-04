@@ -2,7 +2,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { Json } from "@/integrations/supabase/types";
 import { logEvent, piesaStatus, WorkflowError } from "./workflow.server";
-import { buildEscPayload, escDueBy, escEarliest, escWithdrawalNeeded, ESC_WITHDRAW_REQUIRED_EVENT, ESC_WITHDRAWN_EVENT, openEscWithdrawals, readyToInstall, registryChange, registryConditions, registryFacts, registryUpdatePatch, staleReasons, submissionBlockers, submissionPatch, withdrawalPatch, type EscConfig, type EscField, type EscFacts, type EscWithdrawReason, type OpenEscWithdrawal, melbDateTime } from "./esc.core";
+import { buildEscPayload, escDueBy, escEarliest, escWithdrawalNeeded, ESC_WITHDRAW_REQUIRED_EVENT, ESC_WITHDRAWN_EVENT, openEscWithdrawals, readyToInstall, registryChange, registryConditions, registryFacts, registryUpdatePatch, staleReasons, submissionBlockers, submissionPatch, withdrawalPatch, type EscConfig, type EscField, type EscFacts, type EscWithdrawReason, type OpenEscWithdrawal, melbDateTime, derivedEscWithdrawals } from "./esc.core";
 import { consentValidityBlockers } from "./consent.core";
 import { formatPropertyAddress } from "./address";
 import { assertNotNoEsc, noEscJobIds } from "./no-esc.server";
@@ -258,18 +258,39 @@ export async function escWithdrawalsFor(jobId: string): Promise<{ id: string; re
   });
 }
 
-/** Open "withdraw the ESC notice" items for Needs me (closed jobs included — that is the point); optionally some jobs only. */
+/** Open "withdraw the ESC notice" items for Needs me (closed jobs included — that is the point); optionally some jobs only.
+ *  G6 S3: the recorded asks first, then every other sent, un-withdrawn notice on a job that won't go ahead (cancelled /
+ *  deleted / no confirmed install booking) — derived from the notices, so a lost or never-written ask still surfaces.
+ *  A read failure throws (fail closed: never an empty list). */
 export async function openEscWithdrawalRows(onlyIds?: string[]): Promise<OpenEscWithdrawal[]> {
   let q = admin.from("workflow_events").select("job_id, created_at, details").eq("event_type", ESC_WITHDRAW_REQUIRED_EVENT).contains("details", { needs_office: true }).order("created_at", { ascending: true }).limit(500);
   if (onlyIds) q = q.in("job_id", onlyIds);
   const { data, error } = await q;
   if (error) throw new Error(`Could not load the ESC withdrawal asks: ${error.message}`);
   const required = (data ?? []).filter((e) => e.job_id).map((e) => ({ job_id: String(e.job_id), created_at: String(e.created_at), details: e.details }));
-  if (!required.length) return [];
-  const jobIds = [...new Set(required.map((r) => r.job_id))];
-  const { data: w, error: we } = await admin.from("workflow_events").select("details").eq("event_type", ESC_WITHDRAWN_EVENT).in("job_id", jobIds);
-  if (we) throw new Error(`Could not load the recorded ESC withdrawals: ${we.message}`);
-  return openEscWithdrawals(required, (w ?? []).map((e) => ({ details: e.details })));
+  let fromAsks: OpenEscWithdrawal[] = [];
+  if (required.length) {
+    const jobIds = [...new Set(required.map((r) => r.job_id))];
+    const { data: w, error: we } = await admin.from("workflow_events").select("details").eq("event_type", ESC_WITHDRAWN_EVENT).in("job_id", jobIds);
+    if (we) throw new Error(`Could not load the recorded ESC withdrawals: ${we.message}`);
+    fromAsks = openEscWithdrawals(required, (w ?? []).map((e) => ({ details: e.details })));
+  }
+  // Derived from the notices (S3): sent + referenced, whatever the status; withdrawn ones drop out in the pure rule.
+  let nq = admin.from("esc_notifications").select("id, job_id, status, sent_at, submission_reference, response").not("sent_at", "is", null).not("submission_reference", "is", null).limit(2000);
+  if (onlyIds) nq = nq.in("job_id", onlyIds);
+  const { data: notices, error: ne } = await nq;
+  if (ne) throw new Error(`Could not read the ESC notifications: ${ne.message}`);
+  const sent = (notices ?? []).map((n) => ({ id: String(n.id), job_id: String(n.job_id), status: String(n.status), sent_at: n.sent_at as string | null, submission_reference: n.submission_reference as string | null, response: n.response }));
+  if (!sent.length) return fromAsks;
+  const nJobIds = [...new Set(sent.map((n) => n.job_id))];
+  const [{ data: jobs, error: je }, { data: bk, error: be }] = await Promise.all([
+    admin.from("jobs").select("id, stage, deleted_at").in("id", nJobIds),
+    admin.from("bookings").select("job_id, status").eq("kind", "installation").in("status", ["confirmed", "completed"]).in("job_id", nJobIds),
+  ]);
+  if (je) throw new Error(`Could not read the jobs with an ESC notice: ${je.message}`);
+  if (be) throw new Error(`Could not read the install bookings: ${be.message}`);
+  const derived = derivedEscWithdrawals(sent, (jobs ?? []).map((j) => ({ id: String(j.id), stage: (j.stage as string | null) ?? null, deleted_at: (j as { deleted_at?: string | null }).deleted_at ?? null })), (bk ?? []).map((b) => ({ job_id: String(b.job_id), status: String(b.status) })), new Set(fromAsks.map((r) => r.notificationId)));
+  return [...fromAsks, ...derived];
 }
 
 /** Timer (15-min tick): raise each Office ESC reminder ONCE per booking start + stage — window open (5 days before),
