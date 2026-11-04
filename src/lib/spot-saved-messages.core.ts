@@ -38,9 +38,10 @@ export function addressBits(addressLine: string | null, suburb: string | null) {
   return { suburb: sub, short: shortAddress(line, sub) };
 }
 
-/** Spot saved text (decision 20, Jo 2 Nov 2026, verbatim). No link. `rebate` is already formatted, e.g. "$2,380". */
+/** Spot saved text (Jo 5 Nov 2026 09:50, verbatim; replaces decision 20's 2 Nov wording): stands on its own for an owner who
+ *  never saw the email. No link. `rebate` is already formatted, e.g. "$2,380". */
 export const spotSavedText = (first: string | null, rebate: string): string =>
-  `Home Insulation Victoria: Spot saved${first?.trim() ? `, ${first.trim()}` : ""}! 🎉 Smart move: your ${rebate} rebate is waiting. ${SPOT_ORDER} ${SPOT_INSTALLER_CALLS}`;
+  `Home Insulation Victoria: Spot saved${first?.trim() ? `, ${first.trim()}` : ""}! 🎉 Your ${rebate} rebate is held for you. Nothing to do now — spots are released in order. ${SPOT_INSTALLER_CALLS} We've emailed the details (check Spam if it's not there).`;
 
 export function renderSpotSavedSms(i: SpotSavedInput) {
   return spotSavedText(i.firstName, wholeDollars(i.rebate));

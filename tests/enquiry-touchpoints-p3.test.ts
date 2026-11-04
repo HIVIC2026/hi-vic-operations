@@ -10,7 +10,8 @@ const src = (p: string) => readFileSync(new URL(`../${p}`, import.meta.url), "ut
 
 describe("#20 Spot saved text", () => {
   test("approved wording, no link", () => {
-    expect(spotSavedText("Sarah", "$2,380")).toBe("Home Insulation Victoria: Spot saved, Sarah! 🎉 Smart move: your $2,380 rebate is waiting. Spots are released in the order they were saved. When an EEC-certified installer is available, they'll call you to book your free Ready Check.");
+    // Jo 5 Nov 2026 09:50 (verbatim): the text stands on its own for an owner who never saw the email.
+    expect(spotSavedText("Sarah", "$2,380")).toBe("Home Insulation Victoria: Spot saved, Sarah! 🎉 Your $2,380 rebate is held for you. Nothing to do now — spots are released in order. When an EEC-certified installer is available, they'll call you to book your free Ready Check. We've emailed the details (check Spam if it's not there).");
     expect(spotSavedText(null, "$2,380")).toContain("Spot saved! 🎉");
     expect(spotSavedText("Sarah", "$2,380")).not.toMatch(/https?:|Your job/);
   });
