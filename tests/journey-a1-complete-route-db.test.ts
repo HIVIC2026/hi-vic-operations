@@ -474,12 +474,19 @@ describe("A1 step 6 — the electrician's A3 in Mitti: electrical upgrades neede
     // goes straight to the upgrades day (no HIV fixes quote, no fixes payment step).
     expect((await stagePath(JOB)).slice(-2)).toEqual(["piesa_complete", "rectification_scheduling"]);
     expect(await q("select id from quotes where job_id=$1 and kind='rectification'", [JOB])).toHaveLength(0);
-    // The owner's signed PIESA copy (attached PDF) — once; the installer office copy too.
+    // J4 G3 (join ruling, 4 Nov 2026): the result found upgrades still to come, so the owner NEVER gets the "all clear"
+    // copy. Their copy is the upgrades-needed email (Part 4, UPGRADES_NEEDED_EMAIL_APPROVED) — off today, so the owner's
+    // copy is HELD with a recorded reason (one per copy), not sent with the wrong words. Nothing to the owner here.
     const sent = providers.emails.slice(n0);
-    const copies = sent.filter((e) => /Signed electrical safety check \(PIESA\)/.test(e.subject));
-    expect(copies).toHaveLength(1);
-    expect(copies[0]!.attachments).toBe(1);
-    expect((await q<{ recipient: string }>("select recipient from piesa_deliveries where job_id=$1 order by recipient", [JOB])).map((x) => x.recipient)).toEqual(["owner"]);
+    expect(sent.filter((e) => /Signed electrical safety check \(PIESA\)|all clear/i.test(`${e.subject}\n${e.text}`))).toHaveLength(0);
+    expect(await q("select recipient from piesa_deliveries where job_id=$1", [JOB])).toEqual([]);
+    const { UPGRADES_HOLD_REASON } = await import("../src/lib/piesa-delivery.server");
+    expect((await events(JOB, "piesa_copy_email_not_sent")).map((e) => [e.details["recipient"], e.details["reason"]])).toEqual([["owner", "upgrades_needed_wording_unapproved"]]);
+    expect((await events(JOB, "piesa_copy_email_not_sent"))[0]!.summary).toContain(UPGRADES_HOLD_REASON);
+    // The tick again: still held, recorded once.
+    await (await import("../src/lib/piesa-delivery.server")).sweepPiesaCopyDeliveries(); await settle();
+    expect(await events(JOB, "piesa_copy_email_not_sent")).toHaveLength(1);
+    expect(providers.emails.slice(n0)).toHaveLength(sent.length);
     // Nothing to the owner names what the electrician is paid; nothing to the installer names HIV's PIESA price.
     for (const e of sent) expect(e.text).not.toMatch(/\$\s?\d/);
     // Jo 2 Nov (answer 21): the 10% deposit opens straight after the result, upgrades or not — the request is recorded
@@ -551,7 +558,14 @@ describe("A1 step 7 — the upgrades day from the electrician's link, the A4 for
     DBG("A4-SENT", sent.map((e) => [e.to, e.subject]));
     expect(sent.filter((e) => /10% install deposit/.test(e.subject)).map((e) => e.to)).toEqual([[OWNER_EMAIL]]);
     expect(await events(JOB, "install_deposit_requested")).toHaveLength(1);
-    expect(sent.filter((e) => /Signed electrical safety check \(PIESA\)/.test(e.subject))).toHaveLength(1);
+    // J4 G3: after Part C the owner's copy is the item-44 "upgrades are done" words (never "all clear"), with the PDF; recorded once.
+    const ownerCopy = sent.filter((e) => e.to[0] === OWNER_EMAIL && /Your electrical upgrades are done — updated safety check attached/.test(e.subject));
+    expect(ownerCopy).toHaveLength(1);
+    expect(ownerCopy[0]!.attachments).toBe(1);
+    expect(ownerCopy[0]!.text).toContain("Electrical upgrades: Completed · certificate COES-778899");
+    expect(ownerCopy[0]!.text).not.toMatch(/all clear|repair/i);
+    expect(sent.filter((e) => /Signed electrical safety check \(PIESA\)/.test(e.subject) && !/would have gone to/.test(e.text))).toHaveLength(0);
+    expect((await q<{ recipient: string }>("select recipient from piesa_deliveries where job_id=$1 order by recipient", [JOB])).map((x) => x.recipient)).toEqual(["owner"]);
     expect(await events(JOB, "coes_owner_copy_delivered")).toHaveLength(1);
     expect(await events(JOB, "electrician_piesa_copy_sent")).toHaveLength(1);
     // Trade copies never show the owner's price; owner copies never show what the electrician is paid.
@@ -776,6 +790,9 @@ describe("A1 step 10 — the day before and install day: ESC notice, PIESA copie
     expect(installerCopy).toHaveLength(1);
     expect(installerCopy[0]!.text).toContain(`would have gone to: ${TRADE_EMAIL}`);
     expect(installerCopy[0]!.text).not.toMatch(/\$\s?\d/); // never HIV's PIESA price or the owner's quote
+    // J4 G3: the trade copy after the upgrades says so (item 44 trade variant) and, the install being booked, has no "call the owner and book" line.
+    expect(installerCopy[0]!.text).toContain("Electrical upgrades needed: Completed · CES COES-778899");
+    expect(installerCopy[0]!.text).not.toContain("Next: call the owner and book the install");
     // Noon the day before: the pre-start check runs and passes (CII, White Card, SWMS signed, deposit paid, PIESA confirmed).
     expect(await ps.sweepPrestart(noonBefore)).toEqual({ ran: 1, failed: 0 });
     expect(await ps.prestartGate(JOB, noonBefore)).toEqual({ locked: false, reasons: [] });

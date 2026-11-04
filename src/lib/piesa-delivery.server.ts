@@ -77,7 +77,7 @@ export async function deliverPiesaCopies(jobId: string, now = new Date(), deps: 
   const pe = await currentCopy(jobId, "piesa");
   if (pe.unavailable) return { ...out, hold: "signed-copy storage not set up" };
   const [{ data: rec }, { data: bk }, { data: asg }, { data: link }] = await Promise.all([
-    admin.from("piesa_records").select("id").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
+    admin.from("piesa_records").select("id, kind, outcome").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
     admin.from("bookings").select("scheduled_start").eq("job_id", jobId).eq("kind", "installation").eq("status", "confirmed").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("job_assignments").select("user_id, business_id, profiles:user_id(full_name, email), businesses(email, onboarding_notes)").eq("job_id", jobId).eq("role", "installer").eq("active", true).limit(1).maybeSingle(),
     admin.from("customer_estimate_links").select("token, status, expires_at").eq("job_id", jobId).eq("purpose", "step3_estimate").eq("status", "active").maybeSingle(),
@@ -92,15 +92,35 @@ export async function deliverPiesaCopies(jobId: string, now = new Date(), deps: 
   const prof = (asg?.profiles ?? null) as { full_name: string | null; email: string | null } | null;
   const biz = (asg?.businesses ?? null) as { email: string | null; onboarding_notes: string | null } | null;
   const installerEmail = prof?.email?.trim() || biz?.email?.trim() || null;
+  // J4 G3 (join ruling, 4 Nov 2026): what this copy says follows the CURRENT PIESA record — never "all clear" on a result
+  // that found upgrades still to come. pass (initial) → the O28 all-clear words; pass after Part C, or upgrades fixed on
+  // the visit → the item-44 "upgrades done" words; fail with upgrades to come → the owner's copy is the upgrades-needed
+  // email (its own sender) and the installer's is the upgrades-needed variant; while that wording is unapproved both are
+  // HELD here with a reason (one event per copy), never sent with the wrong words.
+  const variant = await piesaCopyVariant(jobId, rec ? { kind: String(rec.kind), outcome: rec.outcome as string | null } : null);
   // One owner message per result: a new-flow owner's PIESA rides on the clear-to-install / upgrades-needed email, so no standalone owner copy.
-  // The 24h safety net: after a day with no owner copy recorded (clear email blocked or never sent), the standalone copy goes anyway.
-  const ownerStandalone = await resolveOwnerStandalone(jobId, now, has("owner"), deps);
+  // The 24h safety net: after a day with no owner copy recorded (clear email blocked or never sent), the standalone copy goes anyway —
+  // except on an upgrades-still-to-come result (G3: the all-clear words must never go; the upgrades-needed email is the owner's copy).
+  const ownerStandalone = variant.kind === "upgrades_needed" ? false : await resolveOwnerStandalone(jobId, now, has("owner"), deps);
   const plan = piesaDeliveryPlan({
     ownerStandalone, signedCopyId: copyId, piesaRecordId: rec?.id ?? null, installStart: bk?.scheduled_start ?? null,
     delivered: { owner: has("owner"), installer: has("installer") }, email: { owner: owner?.email?.trim() || null, installer: installerEmail },
     closed: isClosedOrArchivedJob(job),
   }, now);
   out.late = plan.late;
+  if (variant.kind === "upgrades_needed" && copyId && rec && !isClosedOrArchivedJob(job)) {
+    const { UPGRADES_NEEDED_EMAIL_APPROVED } = await import("./piesa-result-route.core");
+    if (!UPGRADES_NEEDED_EMAIL_APPROVED) {
+      // Hold every copy on this result until the upgrades-needed wording is approved (the owner's goes with that email; the
+      // installer's is its upgrades-needed variant); recorded once per signed copy + recipient so the office can see why.
+      for (const recipient of [...(has("owner") ? [] : ["owner" as const]), ...(!has("installer") && bk?.scheduled_start && installerEmail ? ["installer" as const] : [])]) {
+        out.held[recipient] = UPGRADES_HOLD_REASON;
+        if (!(await alreadyLogged(jobId, PIESA_COPY_NOT_SENT_EVENT, { signed_copy_id: copyId, recipient })))
+          await logEvent(jobId, null, PIESA_COPY_NOT_SENT_EVENT, `Signed PIESA copy for the ${recipient} not sent: ${UPGRADES_HOLD_REASON}`, { signed_copy_id: copyId, recipient, version: PIESA_COPY_EMAIL_VERSION, late: plan.late, reason: "upgrades_needed_wording_unapproved" }, { internal: true });
+      }
+      return { ...out, hold: plan.hold ?? null };
+    }
+  }
   for (const r of plan.noAddress) out.held[r] = "no email address on file";
   if (plan.hold) return { ...out, hold: plan.hold };
 
@@ -121,7 +141,8 @@ export async function deliverPiesaCopies(jobId: string, now = new Date(), deps: 
   for (const recipient of plan.send) {
     const to = recipient === "owner" ? owner!.email!.trim() : installerEmail!;
     const name = recipient === "owner" ? owner?.full_name : prof?.full_name;
-    const mail = renderPiesaCopyEmail({ recipient, firstName: name?.trim().split(/\s+/)[0] ?? null, address, jobNumber: job.job_number, signatureDate: pe.copy?.signatureDate ?? null, installStart: bk?.scheduled_start ?? null, link: recipient === "owner" ? ownerLink : `${SET_PASSWORD_BASE}/field/${jobId}`, test });
+    const mail = renderPiesaCopyEmail({ recipient, firstName: name?.trim().split(/\s+/)[0] ?? null, address, jobNumber: job.job_number, signatureDate: pe.copy?.signatureDate ?? null, installStart: bk?.scheduled_start ?? null, link: recipient === "owner" ? ownerLink : `${SET_PASSWORD_BASE}/field/${jobId}`, test,
+      repairs: variant.kind === "upgrades_done" ? { completed: true, cesNumber: variant.cesNumber } : null, upgradesNeeded: variant.kind === "upgrades_needed" });
     const key = piesaCopyKey(copyId!, recipient);
     if (test) {
       const r = await (await import("./test-send.server")).sendTestEmail({ jobId, jobSource: job.source, partnerIsTest: isTestPartner(biz as never), label: key, actorId: null }, to, mail.subject, mail.html, mail.text, { attachments });
@@ -150,6 +171,29 @@ export async function deliverPiesaCopies(jobId: string, now = new Date(), deps: 
     else out.held[recipient] = `${status}: ${detail}`;
   }
   return out;
+}
+
+/** Office-only held reason (workflow event) while UPGRADES_NEEDED_EMAIL_APPROVED is off. */
+export const UPGRADES_HOLD_REASON = "held: the safety check found electrical upgrades still to come — the upgrades-needed wording is waiting for Jo's approval (UPGRADES_NEEDED_EMAIL_APPROVED)";
+
+export type PiesaCopyVariant = { kind: "all_clear" } | { kind: "upgrades_done"; cesNumber: string | null } | { kind: "upgrades_needed" };
+/** J4 G3: which words this PIESA copy carries, from the current record (and the A3's "fixed on the same visit" answer). */
+export async function piesaCopyVariant(jobId: string, rec: { kind: string; outcome: string | null } | null): Promise<PiesaCopyVariant> {
+  if (!rec) return { kind: "all_clear" };
+  if (rec.outcome !== "pass" && rec.outcome !== "fail") return { kind: "all_clear" };
+  if (rec.outcome === "pass" && (rec.kind === "initial" || rec.kind === "reassessment")) return { kind: "all_clear" };
+  // The stored A3 answers: the certificate number (from the A4, merged in at Part C; or the same-visit q45) and the
+  // "fixed on the same visit" answer. A failed read on a fail result is treated as upgrades still to come (never all clear).
+  let answers: Record<string, string | null> = {};
+  try {
+    const { fixesFormNeededFor } = await import("./fixes-day.server");
+    const { shortAnswersFromEntries } = await import("./official-short.core");
+    answers = shortAnswersFromEntries("piesa", (await fixesFormNeededFor(jobId)).snapshot) as Record<string, string | null>;
+  } catch (e) { console.error("PIESA copy variant: stored answers unreadable", jobId, (e as Error).message); }
+  const cesNumber = String(answers["coesNumber"] ?? "").trim() || null;
+  if (rec.outcome === "pass") return { kind: "upgrades_done", cesNumber }; // post_rectification
+  const sameDay = /^\s*yes\b/i.test(String(answers["rectificationComplete"] ?? ""));
+  return sameDay ? { kind: "upgrades_done", cesNumber } : { kind: "upgrades_needed" };
 }
 
 const OVERDUE_LOOKBACK_MS = 60 * 24 * 60 * 60 * 1000;

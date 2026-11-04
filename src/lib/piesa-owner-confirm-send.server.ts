@@ -33,7 +33,10 @@ export async function sendPiesaConfirmStep(jobId: string, step: PiesaConfirmStep
   // Task 5: one combined signed-copy/declaration email owns the request. No separate O71 email or text.
   if (step === 'request' || step === 'reminder_1' || step === 'reminder_3') {
     const result = await (await import('./piesa-delivery.server')).deliverPiesaCopies(jobId);
-    const { data: delivered, error } = await admin.from('piesa_deliveries').select('id').eq('job_id',jobId).eq('piesa_record_id',recordId).eq('recipient','owner').limit(1);
+    // J4 G3: on an upgrades-needed result the owner's copy is the one that follows Part C (the regenerated PIESA, recorded
+    // against the post-rectification row) — any owner copy delivered since this PIESA was recorded carries the declaration ask.
+    const { data: recRow } = await admin.from('piesa_records').select('created_at').eq('id', recordId).maybeSingle();
+    const { data: delivered, error } = await admin.from('piesa_deliveries').select('id').eq('job_id',jobId).eq('recipient','owner').gte('delivered_at', recRow?.created_at ?? '1970-01-01T00:00:00Z').limit(1);
     if (error) throw new Error('Could not confirm owner PIESA copy delivery');
     if (result.sent.includes('owner') || delivered?.length) await logEvent(jobId,null,PIESA_OWNER_CONFIRM_STEP_EVENT,'Combined PIESA copy and owner declaration email delivered',{step,piesa_record_id:recordId},{internal:true});
     return result.sent.includes('owner') ? 'email sent' : result.hold ?? result.held['owner'] ?? 'already delivered';

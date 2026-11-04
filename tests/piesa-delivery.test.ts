@@ -108,3 +108,39 @@ describe("owner PIESA copy after the electrical upgrades (pack 1 item 44)", () =
     expect(await h(`${clear.subject}\n${clear.html}\n${clear.text}`)).toBe("084e45d86ab228f5541969be841fa31ea63d662cebcea2694c9652d7a827763a");
   });
 });
+
+// Fix wave J4 G3 (join ruling, 4 Nov 2026): never "all clear" on a result that found upgrades still to come.
+describe("J4 G3: the copy's words follow the PIESA result; the installer's next line is stage-aware", () => {
+  const base = { firstName: "Deep", address: "1 A St", jobNumber: "HV-1", signatureDate: "2026-11-02", link: "https://example.invalid/field/j", electrician: { name: "Viking Electrical" } } as const;
+  test("installer copy, upgrades still to come (behind UPGRADES_NEEDED_EMAIL_APPROVED): says so, never 'all clear' or 'safe to insulate'", () => {
+    const m = renderPiesaCopyEmail({ ...base, recipient: "installer", installStart: null, upgradesNeeded: true });
+    expect(m.text).toContain("Electrical safety check for HV-1: electrical upgrades needed");
+    expect(m.text).toContain("Electrical upgrades needed first");
+    expect(m.text).toContain("Electrical upgrades needed: Yes — see the attached safety check");
+    expect(m.text).toContain("Next: the electrician books the upgrades with the owner. Once the certificate is in, call the owner and book the install.");
+    expect(`${m.subject}\n${m.text}\n${m.html}`).not.toMatch(/all clear|safe to insulate|repair|\$\s?\d/i);
+    expect(m.html).toContain("#FFF7EA"); expect(m.html).not.toContain("✓"); expect(m.html).not.toContain("#057D40\">Electrical");
+  });
+  test("installer 'Next: call the owner and book the install' only while no install is booked (all-clear and upgrades-done alike)", () => {
+    const unbooked = renderPiesaCopyEmail({ ...base, recipient: "installer", installStart: null, repairs: null });
+    const booked = renderPiesaCopyEmail({ ...base, recipient: "installer", installStart: "2026-11-20T21:00:00.000Z", repairs: null });
+    expect(unbooked.text).toContain("Next: call the owner and book the install in the portal.");
+    expect(booked.text).not.toContain("Next:"); expect(booked.html).not.toContain("Next:");
+    expect(renderPiesaCopyEmail({ ...base, recipient: "installer", installStart: "2026-11-20T21:00:00.000Z", upgradesNeeded: true }).text).not.toContain("Next:");
+    expect(renderPiesaCopyEmail({ ...base, recipient: "installer", installStart: "2026-11-20T21:00:00.000Z", repairs: { completed: true, cesNumber: "C1" } }).text).not.toContain("Next:");
+  });
+  test("an owner copy ignores upgradesNeeded (the owner's copy on that result is the upgrades-needed email): the all-clear words are untouched", () => {
+    const a = renderPiesaCopyEmail({ ...base, firstName: "Helen", recipient: "owner", installStart: null, link: "https://x/t" });
+    const b = renderPiesaCopyEmail({ ...base, firstName: "Helen", recipient: "owner", installStart: null, link: "https://x/t", upgradesNeeded: true });
+    expect(b).toEqual(a);
+  });
+  test("server: the owner's standalone copy never goes on an upgrades-still-to-come result (24h safety net included); both copies held with a reason while the wording is unapproved; pass after Part C = the item-44 words", () => {
+    const src = readFileSync(new URL("../src/lib/piesa-delivery.server.ts", import.meta.url), "utf8");
+    expect(src).toContain('const ownerStandalone = variant.kind === "upgrades_needed" ? false : await resolveOwnerStandalone(');
+    expect(src).toContain('if (variant.kind === "upgrades_needed" && copyId && rec && !isClosedOrArchivedJob(job)) {');
+    expect(src).toContain("if (!UPGRADES_NEEDED_EMAIL_APPROVED) {");
+    expect(src).toContain('reason: "upgrades_needed_wording_unapproved"');
+    expect(src).toContain('repairs: variant.kind === "upgrades_done" ? { completed: true, cesNumber: variant.cesNumber } : null, upgradesNeeded: variant.kind === "upgrades_needed"');
+    expect(src).toContain('if (rec.outcome === "pass" && (rec.kind === "initial" || rec.kind === "reassessment")) return { kind: "all_clear" };');
+  });
+});

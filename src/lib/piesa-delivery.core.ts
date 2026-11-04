@@ -86,7 +86,18 @@ export type PiesaCopyEmailInput = {
   electrician?: { name: string | null; licence?: string | null; rec?: string | null } | null;
   /** Electrical upgrades (code name kept): null/undefined = none recorded; a CES number means the upgrades were completed. */
   repairs?: { completed: boolean; cesNumber?: string | null } | null;
+  /** J4 G3: the PIESA found electrical upgrades still to come (installer copy only — the owner's copy on that result is the
+   *  upgrades-needed email, never this one). */
+  upgradesNeeded?: boolean;
 };
+
+/** J4 G3 (DRAFT, trade-facing, behind UPGRADES_NEEDED_EMAIL_APPROVED): the installer copy's "upgrades still to come" lines. */
+export const INSTALLER_UPGRADES_NEEDED = {
+  result: "Electrical upgrades needed first",
+  row: "Yes — see the attached safety check",
+  next: "Next: the electrician books the upgrades with the owner. Once the certificate is in, call the owner and book the install.",
+  preview: "Electrical upgrades needed first: the electrician books them with the owner. Tick Part 8(a) of your PIISA on install day.",
+} as const;
 
 /** Decision 131 wording. No prices, no other party's contact details. Pack 1 item 44 (Jo 4 Nov 2026, approved): after the
  *  electrical upgrades the OWNER variant is the "your electrical upgrades are done" redraft — never the word "repairs"
@@ -98,8 +109,10 @@ export function renderPiesaCopyEmail(i: PiesaCopyEmailInput) {
   const repaired = i.repairs?.completed === true;
   const first = K.cleanName(i.firstName) ?? "there";
   const owner = i.recipient === "owner";
+  // J4 G3: an owner never gets this copy on an upgrades-still-to-come result (their copy is the upgrades-needed email).
+  const needed = !owner && i.upgradesNeeded === true && !repaired;
   const subject = owner && repaired ? "Your electrical upgrades are done — updated safety check attached" : `Signed electrical safety check (PIESA) – ${i.jobNumber}`;
-  const outcome = repaired ? "electrical upgrades completed" : "all clear";
+  const outcome = repaired ? "electrical upgrades completed" : needed ? "electrical upgrades needed" : "all clear";
   const headline = owner
     ? repaired ? `${first}, your electrical upgrades are done` : `${first}, your electrical safety check: ${outcome}`
     : `Electrical safety check for ${i.jobNumber}: ${outcome}`;
@@ -110,12 +123,12 @@ export function renderPiesaCopyEmail(i: PiesaCopyEmailInput) {
       : "Here's your copy of the completed Pre Insulation Electrical Safety Assessment (PIESA) for your home. The VEU program says you must have it at least 24 hours before your install, so please keep this email."
     : `Here's the signed copy of the pre-installation electrical safety assessment (PIESA) for ${where} (${i.jobNumber}). The owner has been sent the same copy.`;
   const part8 = `Tick Part 8(a) of the installer safety assessment (PIISA): "I have received a completed copy of the pre-installation electrical safety assessment for the premises".`;
-  const result = repaired && !owner ? "Safe to insulate (after electrical upgrades)" : "Safe to insulate";
+  const result = needed ? INSTALLER_UPGRADES_NEEDED.result : repaired && !owner ? "Safe to insulate (after electrical upgrades)" : "Safe to insulate";
   const preview = owner
     ? repaired
       ? "Electrical upgrades done — safe to insulate. Please keep this copy – you need it at least 24 hours before your install."
       : "All clear, safe to insulate. Please keep this copy – you need it at least 24 hours before your install."
-    : `${repaired ? "Electrical upgrades completed" : "All clear"}: safe to insulate. Tick Part 8(a) of your PIISA on install day.`;
+    : needed ? INSTALLER_UPGRADES_NEEDED.preview : `${repaired ? "Electrical upgrades completed" : "All clear"}: safe to insulate. Tick Part 8(a) of your PIISA on install day.`;
   const el = i.electrician?.name?.trim() ? [i.electrician.name.trim(), i.electrician.licence ? `Lic. ${i.electrician.licence}` : null, i.electrician.rec ? `REC ${i.electrician.rec}` : null].filter(Boolean).join(" · ") : null;
   const certificate = i.repairs?.cesNumber?.trim() || null;
   const rows: { k: string; v: string }[] = [
@@ -123,14 +136,15 @@ export function renderPiesaCopyEmail(i: PiesaCopyEmailInput) {
     ...(el ? [{ k: "Electrician", v: el }] : []),
     owner && repaired
       ? { k: "Electrical upgrades", v: `Completed${certificate ? ` · certificate ${certificate}` : ""}` }
-      : { k: "Electrical upgrades needed", v: repaired ? `Completed${certificate ? ` · CES ${certificate}` : ""}` : "None" },
+      : { k: "Electrical upgrades needed", v: repaired ? `Completed${certificate ? ` · CES ${certificate}` : ""}` : needed ? INSTALLER_UPGRADES_NEEDED.row : "None" },
     ...(install ? [{ k: owner ? "Your install" : "Install", v: install }] : []),
   ];
   const after = owner
     ? `Your installer has the same copy. One thing to know: <strong>please don't let anyone into the ceiling before the install.</strong> If anything changes up there, the check may need to be done again.`
     : `Please keep this email with your records. If anything changes in the ceiling before the install, the check may need to be done again.`;
-  // #41 (Jo 2 Nov 2026): the installer office is told what happens next.
-  const next = owner ? null : "Next: call the owner and book the install in the portal. They pay their 10% deposit to lock it in.";
+  // #41 (Jo 2 Nov 2026): the installer office is told what happens next. J4 G3: stage-aware — nothing once the install is
+  // already booked; the upgrades-still-to-come line while the electrician has the upgrades to do.
+  const next = owner || i.installStart ? null : needed ? INSTALLER_UPGRADES_NEEDED.next : "Next: call the owner and book the install in the portal. They pay their 10% deposit to lock it in.";
   const questions = owner ? "Questions about the safety check? Just reply to this email." : "Questions? Just reply to this email.";
   // Link check (Jo 27 Oct 2026): the signed PIESA travels as the attached PDF; the button opens My job / the job page.
   const attached = "Your signed safety check is attached to this email (PDF).";
@@ -144,17 +158,19 @@ export function renderPiesaCopyEmail(i: PiesaCopyEmailInput) {
     ].join("")
     : [
       `<mj-section><mj-column><mj-text mj-class="hi">${esc(greeting)}</mj-text><mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">${esc(headline)}</mj-text><mj-text>${esc(intro)}</mj-text></mj-column></mj-section>`,
-      `<mj-section><mj-column mj-class="panel-mint"><mj-text mj-class="eyebrow center" padding="18px 12px 6px">Safety check result</mj-text><mj-text mj-class="big-green" padding="0 12px 18px" font-size="30px" line-height="36px">${esc(result)} &#10003;</mj-text></mj-column></mj-section>`,
+      needed
+        ? `<mj-section><mj-column mj-class="panel-amber"><mj-text mj-class="eyebrow center" padding="18px 12px 6px">Safety check result</mj-text><mj-text align="center" font-family="Outfit, Figtree, -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif" font-size="30px" line-height="36px" font-weight="800" color="#8A5A00" padding="0 12px 18px">${esc(result)}</mj-text></mj-column></mj-section>`
+        : `<mj-section><mj-column mj-class="panel-mint"><mj-text mj-class="eyebrow center" padding="18px 12px 6px">Safety check result</mj-text><mj-text mj-class="big-green" padding="0 12px 18px" font-size="30px" line-height="36px">${esc(result)} &#10003;</mj-text></mj-column></mj-section>`,
       `<mj-section><mj-column mj-class="panel-card"><mj-table padding="8px 18px 8px">${rows.map((r, n) => { const bt = n === 0 ? "" : "border-top:1px solid #E4E9F5;"; return `<tr><td valign="top" style="padding:10px 12px 10px 0;white-space:nowrap;${bt}" class="muted">${esc(r.k)}</td><td align="right" valign="top" style="padding:10px 0;${bt}font-weight:700;">${esc(r.v)}</td></tr>`; }).join("")}</mj-table></mj-column></mj-section>`,
       `<mj-section><mj-column mj-class="panel"><mj-text mj-class="h2" padding="18px 18px 6px">On install day</mj-text><mj-text padding="0 18px 18px">${esc(part8)}</mj-text></mj-column></mj-section>`,
-      `<mj-section><mj-column><mj-text padding="14px 12px 0"><strong>${esc(next!)}</strong></mj-text></mj-column></mj-section>`,
+      ...(next ? [`<mj-section><mj-column><mj-text padding="14px 12px 0"><strong>${esc(next)}</strong></mj-text></mj-column></mj-section>`] : []),
       `<mj-section><mj-column><mj-text padding="14px 12px 14px"><strong>${esc(attached)}</strong></mj-text>${button("")}<mj-text mj-class="small">${after}</mj-text><mj-text mj-class="small" padding="0 12px 0">${esc(questions)}</mj-text></mj-column></mj-section>`,
     ].join("");
   const html = mjEmail({ subject, preview, body, unsubscribe: null, testLabel: i.test === true });
   const text = K.plainText([
     ...(greeting ? [greeting] : []), headline, "", intro, "",
     "SAFETY CHECK RESULT", result, ...rows.map((r) => `${r.k}: ${r.v}`), "",
-    ...(owner ? [] : ["ON INSTALL DAY", part8, "", next!, ""]),
+    ...(owner ? [] : ["ON INSTALL DAY", part8, "", ...(next ? [next, ""] : [])]),
     attached, ...(i.link ? [`${label}: ${i.link}`] : []), "", K.stripTags(after), "", questions,
   ], { testLabel: i.test === true });
   return { subject, html, text };
