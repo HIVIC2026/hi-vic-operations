@@ -253,7 +253,7 @@ export async function updateMittiFormDate(jobId: string, start: string, actorId:
   if (!item) return { updated: false, reason: "form has no booked-date field" };
   // The A5's "Install date" is a date-only official PIISA field (startDate / p2.installDate: "must be a date only"): write the
   // Melbourne day, exactly as the form's creation prefill does; visit forms keep their booked date/time.
-  const value = form?.kind === "install" ? (await import("./piesa-windows.core")).melbourneYmd(new Date(start)) : start;
+  const value = form?.kind === "install" ? new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(start)) : start;
   const payload = [{ item_id: item.itemId, type: item.type, responses: { datetime: value } }];
   if (item.header) { try { await api.updateAuditHeader(auditId, payload); } catch { await api.updateAuditText(auditId, payload); } }
   else await api.updateAuditText(auditId, payload);
