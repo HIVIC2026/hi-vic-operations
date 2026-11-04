@@ -38,13 +38,15 @@ export function addressBits(addressLine: string | null, suburb: string | null) {
   return { suburb: sub, short: shortAddress(line, sub) };
 }
 
-/** Spot saved text (Jo 5 Nov 2026 09:50, verbatim; replaces decision 20's 2 Nov wording): stands on its own for an owner who
- *  never saw the email. No link. `rebate` is already formatted, e.g. "$2,380". */
-export const spotSavedText = (first: string | null, rebate: string): string =>
-  `Home Insulation Victoria: Spot saved${first?.trim() ? `, ${first.trim()}` : ""}! 🎉 Your ${rebate} rebate is held for you. Nothing to do now — spots are released in order. ${SPOT_INSTALLER_CALLS} We've emailed the details (check Spam if it's not there).`;
+/** Spot saved text (Jo 5 Nov 2026 10:47, verbatim; replaces decision 20's 2 Nov wording): the maths spelled out and the text
+ *  stands on its own for an owner who never saw the email. No link. `rebate` / `full` / `pay` are already formatted, e.g. "$2,380". */
+export const spotSavedText = (first: string | null, rebate: string, price?: { full: string; pay: string } | null): string =>
+  `Home Insulation Victoria: Spot saved${first?.trim() ? `, ${first.trim()}` : ""}! 🎉 ${price ? `Your price: ${price.full}, minus the ${rebate} rebate = ${price.pay} to pay.` : `Your ${rebate} rebate is locked in — it comes off your price.`} Nothing to do now — spots are released in order. ${SPOT_INSTALLER_CALLS} We've emailed the details (check Spam if it's not there).`;
 
 export function renderSpotSavedSms(i: SpotSavedInput) {
-  return spotSavedText(i.firstName, wholeDollars(i.rebate));
+  // The saved-spot snapshot carries the two figures; without one (older callers) the rebate line stands alone.
+  const e = i.estimate;
+  return spotSavedText(i.firstName, wholeDollars(i.rebate), e ? { full: wholeDollars(e.gross), pay: wholeDollars(e.customer) } : null);
 }
 
 /** O10 "What happens next" step 2 (decision 19, Jo 2 Nov 2026, verbatim). The pre-release check is opened for this and the

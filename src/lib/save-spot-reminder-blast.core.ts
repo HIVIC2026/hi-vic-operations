@@ -16,10 +16,10 @@ export const phoneKey = (raw: string | null | undefined) => toAuE164(raw)?.repla
 
 export function blastMessage(firstName: string, total: number, rebate: number, link: string, existingInsulation = false) {
   const money = (n: number) => Math.round(n).toLocaleString("en-AU");
-  // Decision 388: spot-only (no "close"/"filling fast" timing). Jo 5 Nov 2026 09:50 (verbatim): the text stands on its own —
-  // an owner who never saw the estimate email (Gmail Spam) must still understand it.
+  // Decision 388: spot-only (no "close"/"filling fast" timing). Jo 5 Nov 2026 10:47 (verbatim): the maths spelled out —
+  // full price, minus the rebate = to pay — and the text stands on its own for an owner who never saw the email.
   const removal = existingInsulation ? " (plus removal if needed)" : "";
-  return `Home Insulation Victoria: Hi ${firstName}, thanks for asking about ceiling insulation on our website. Your estimate is $${money(total)} with $${money(rebate)} off from the rebate${removal}. Save your spot here — free, no obligation: ${link}. Can't find our email? Check Spam. Reply STOP to opt out.`;
+  return `Home Insulation Victoria: Hi ${firstName}, thanks for asking about ceiling insulation on our website. Your estimate: $${money(total + rebate)}, minus the $${money(rebate)} rebate = $${money(total)} to pay${removal}. Save your spot here — free, no obligation: ${link}. Can't find our email? Check Spam. Reply STOP to opt out.`;
 }
 
 /** Use only an URL literally present in the offer, matched to its still-active token. */
