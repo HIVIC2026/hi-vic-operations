@@ -49,3 +49,10 @@ export function deadlineAction(f: { dueAt: string; booked: boolean; alreadyRetur
   const due = Date.parse(f.dueAt);
   return Number.isFinite(due) && f.now.getTime() > due ? "return" : "none";
 }
+
+/** Part 3 Task 4b (Jo 4 Nov 2026): electricians on installers' own jobs have no login, so nobody presses Complete PIESA.
+ *  A Complete A3 synced at PIESA booked completes the PIESA itself, once per Mitti form version (claim = this event).
+ *  Join ruling 3 (4 Nov 2026): ONE automatic completion for own jobs AND in-house jobs lives in piesa-auto-complete.server.ts;
+ *  a refusal is its `piesa_auto_complete_held` office row (the earlier `own_job_piesa_complete_held` kind is retired — never
+ *  written; rows written before the join are history only). */
+export const PIESA_AUTO_COMPLETED_EVENT = "piesa_auto_completed";

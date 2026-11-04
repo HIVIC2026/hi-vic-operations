@@ -26,7 +26,8 @@ export const NEEDS_CARD_TITLE: Record<NeedsCardId, string> = {
 };
 
 const CARD_OF: Record<NeedsKind, NeedsCardId> = {
-  in_house_esc_lead_changed:'deadlines',in_house_handed_back:'other',address_to_confirm:'other',mitti_electrician_choice:'other',own_job_piesa_held:'other',own_job_piesa_handed_back:'other',own_job_swap_form_not_moved:'other',own_job_installer_not_told:'other',
+  install_scope_change:'other',
+  in_house_esc_lead_changed:'deadlines',in_house_handed_back:'other',address_to_confirm:'other',mitti_electrician_choice:'other',own_job_piesa_held:'other',same_day_part_c_failed:'other',own_job_piesa_handed_back:'other',own_job_swap_form_not_moved:'other',own_job_installer_not_told:'other',
   paid_gate_blocked: "owner",
   in_house_form_sync_failed:'failed',install_deposit_request_failed:'payments',piesa_auto_complete_held:'failed',
   in_house_ready_check_not_booked: "other", in_house_piesa_overdue: "other", in_house_install_not_booked: "clock",
@@ -41,7 +42,7 @@ const CARD_OF: Record<NeedsKind, NeedsCardId> = {
   veec_a_held: "veec", veec_b_held: "veec", veec_day_10: "veec",
   invoice_failed: "payments", old_fixes_invoice_unpaid: "payments", old_fixes_invoice_paid: "payments", payment_not_in_xero: "payments", payment_overdue: "payments", payment_reversed: "payments", payment_stalled: "payments", mitti_form_problem: "other",
   ten_days_left: "clock", lapsed_window: "clock", upgrades_past_30_days: "clock", second_no_access: "clock", repeat_piesa_choose: "clock", tenant_notice_held: "clock",
-  piesa_fixes_found: "other", quote_expired_blocked: "owner", new_quote_installer: "other", new_quote_unfinished: "other", coes_check: "other",
+  piesa_fixes_found: "other", quote_expired_blocked: "owner", new_quote_installer: "other", new_quote_unfinished: "other", coes_check: "other", upgrades_day_not_set: "electrician", upgrades_day_red: "clock", certificate_not_in: "electrician",
 };
 
 export const cardOf = (kind: NeedsKind): NeedsCardId => CARD_OF[kind] ?? "other";
