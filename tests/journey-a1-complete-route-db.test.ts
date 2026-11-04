@@ -67,6 +67,9 @@ await q(`insert into user_roles (user_id, role) values ($1,'installer'), ($2,'ad
 // Join ruling (4 Nov 2026): Add a job's electrician is a verified electrician on the installer's OWN Team (office-verified licence + REC).
 await q(`insert into partner_workers (id, business_id, trade_role, full_legal_name, email, mobile, licence_number, rec_number, licence_expires_on, licence_verified_at, account_status, approval_status, approved_at)
   values ($1,$2,'electrician','Will Casdorff',$4,'0477 511 901','A67890','REC-67890',$3,now(),'active','approved',now())`, [TEAM_ELEC, BIZ, new Date(Date.now() + 365 * 86_400_000).toISOString().slice(0, 10), TRADE_EMAIL]);
+// Part 9 Task 9 (Jo 2 Nov 2026): everyone on a booking must be on file — a date of birth (kept privately for ESC registration)
+// and a mobile; the electrician's verified licence + REC; the Lead's verified CII — before the visit can be booked.
+await q(`insert into partner_worker_identity (worker_id, date_of_birth, updated_by) values ($1,'1985-03-14',$2)`, [TEAM_ELEC, INST]);
 // Jo 4 Nov 2026: the owner's PIESA line on an installer's own job = that installer's PIESA rate (rate card, ex GST): $317.27 ex = $349.00 inc.
 { const [rc] = await q<{ id: string }>(`insert into rate_cards (business_id, kind, name, version, is_active, effective_from) values ($1,'installer','TEST Journey installer rates',1,true,current_date - 1) returning id`, [BIZ]);
   await q(`insert into rate_card_items (rate_card_id, category, code, description, unit, unit_price_ex_gst, sort) values ($1,'electrical','PIESA','Pre Insulation Electrical Safety Assessment','flat',317.27,9)`, [rc!.id]); }
@@ -652,6 +655,7 @@ describe("A1 step 9 — the installer office books the install day with a Lead I
     const [w] = await q<{ id: string }>(`insert into partner_workers (business_id, trade_role, worker_role, full_legal_name, email, mobile, profile_id, account_status, approval_status, approved_at, certification, esc_registered, esc_registered_at)
       values ($1,'installer','lead','Ivy Installer',$2,'0477 511 901',$3,'active','approved',now(),$4,true,now()) returning id`, [BIZ, LEAD_EMAIL, INST, JSON.stringify({ white_card: { path: "journey/white-card.png", uploaded_at: new Date().toISOString(), verified_at: new Date().toISOString(), verified_by: OFFICE } })]);
     LEAD = w!.id;
+    await q(`insert into partner_worker_identity (worker_id, date_of_birth, updated_by) values ($1,'1990-07-02',$2)`, [LEAD, INST]); // Part 9 Task 9: on file before working
     const [c] = await q<{ id: string }>(`insert into partner_worker_certifications (worker_id, worker_email, status, evidence_note, evidence_source, recorded_by, certificate_number) values ($1,$2,'verified','journey onboarding','office',$3,'CII-1234') returning id`, [LEAD, LEAD_EMAIL, OFFICE]);
     await q(`insert into worker_certification_levels (certification_id, expires_on, level, recorded_by, worker_email) values ($1,$2,'full',$3,$4)`, [c!.id, far, OFFICE, LEAD_EMAIL]);
     await q(`update partner_workers set certification = certification || jsonb_build_object('verification_id', $2::text) where id=$1`, [LEAD, c!.id]);

@@ -154,7 +154,8 @@ export async function saveCrewWithLead(jobId: string, userId: string, sel: CrewS
  *  Callers: saveCrewWithLead (crew picker) and allocateVisit kind "install" (fix I2); the other two writers
  *  (changeInHouseLeadInstaller, inHouseBookVisit) use assertLeadInstallerUnlocked in lead-installer-confirm.server. */
 async function refuseLockedLeadChange(jobId: string, newLeadId: string | null, now = new Date()): Promise<void> {
-  const book = await (await import("./install-booking.server")).currentConfirmedInstallBooking(jobId).catch(() => null);
+  // Part 9 Task 9 (join): fails CLOSED — a booking read error refuses the change (never "unlocked"); a completed install is not locked.
+  const book = await (await import("./install-booking.server")).currentLockableInstallBooking(jobId).catch((e: Error) => { throw new WorkflowError(`Could not check the install booking: ${e.message}`); });
   if (!book?.scheduled_start) return;
   const cur = currentAllocation(await allocationEvents(jobId), "install");
   const savedLead = cur?.worker_id ? null : leadWorkerId((await (await import("./piisa-a3.server")).loadCrew(jobId)).selection ?? { lead: null, additional: [] } as never);

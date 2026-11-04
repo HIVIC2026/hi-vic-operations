@@ -63,7 +63,7 @@ export async function validateBooking(jobId: string, kind: BookingKind, start: s
   // ($5m+, office-verified) and workers comp must be in order (business-docs.server, fails closed on a read error); and the
   // safety check's electrician must hold a verified, unexpired licence + REC (electricianVerified) on every job, not only
   // the in-house path. Part 9 Task 9: the people on the booking must be on file (DOB + mobile, CII / licence).
-  await bookingComplianceGate(jobId, kind, contractor?.business_id ?? null, proposedWorkerId ?? null);
+  await bookingComplianceGate(jobId, kind, contractor?.business_id ?? null, proposedWorkerId ?? null, { reschedule: stage === target, start });
   if (kind !== "ready_check") { const cb = await commercialBlocker(jobId); if (cb) throw new WorkflowError(`Blocked: ${cb}`); }
   if (kind !== "ready_check") { const g = await paymentGate(jobId); if (!g.cleared) throw new WorkflowError(`Blocked: ${g.blocker}`); }
   // Decision 366 (audit F03): the electrical fixes are paid in full before their visit is booked (every booking path).
@@ -192,7 +192,12 @@ async function bookedElectricianWorker(jobId: string, businessId: string | null,
   return data;
 }
 
-async function bookingComplianceGate(jobId: string, kind: BookingKind, assignedBusinessId: string | null, proposedWorkerId: string | null): Promise<void> {
+async function bookingComplianceGate(jobId: string, kind: BookingKind, assignedBusinessId: string | null, proposedWorkerId: string | null, move: { reschedule: boolean; start: string }): Promise<void> {
+  // Part 9 Task 9: moving a booked install after the 5pm two-days-before Lead Installer lock is refused (LEAD_LOCKED_MESSAGE);
+  // the current booking is read inside the check (completed installs ignored, read errors refuse — fail closed).
+  if (kind === "installation" && move.reschedule) await (await import("./lead-installer-confirm.server")).assertLeadInstallerUnlocked(jobId, { newStart: move.start });
+  // Part 9 Task 9: the people on the booking must be on file (DOB + mobile; Lead/crew CII; electrician licence + REC).
+  await (await import("./people-on-file.server")).requirePeopleOnFileForBooking(jobId, kind, proposedWorkerId);
   const electrician = kind === "assessment" || kind === "rectification" ? await bookedElectricianWorker(jobId, assignedBusinessId, proposedWorkerId) : null;
   const businessId = assignedBusinessId ?? electrician?.business_id ?? null;
   if (!businessId) return; // no trade yet: the "No … assigned yet" refusal above already applies

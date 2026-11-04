@@ -254,3 +254,39 @@ export function withWhiteCardDecision(certification: unknown, d: { verified: boo
 
 /** The storage path prefix a worker's own White Card upload must use (partner-files bucket). */
 export const whiteCardPathPrefix = (workerId: string) => `workers/${workerId}/white-card-`;
+
+// ── Part 9 Task 9 (Jo 2 Nov 2026): required on file before working ─────────────────────────────────────────────────
+/** One person on a booking, as the server reads them (partner_workers + the verified CII / licence facts). */
+export type PersonOnFile = {
+  name: string;
+  role: "boss" | "office" | "lead" | "crew" | "electrician";
+  /** A date of birth is recorded (kept privately for ESC registration; the value itself never leaves the server). */
+  dateOfBirth: boolean;
+  mobile: string | null;
+  /** Lead Installer / Crew: the office-verified, current CII/EEC certificate (crewClearance). */
+  ciiVerified: boolean;
+  /** Electrician: licence + REC verified and unexpired (electricianVerified). */
+  licenceRecVerified: boolean;
+};
+export const REQUIRED_ON_FILE_WORDS = {
+  dob: (name: string) => `${name}: date of birth missing`,
+  mobile: (name: string) => `${name}: mobile missing`,
+  cii: (name: string) => `${name}: CII/EEC certificate not verified by Home Insulation Victoria`,
+  licence: (name: string) => `${name}: electrical licence + REC not verified by Home Insulation Victoria`,
+} as const;
+/**
+ * Every person going on a job must be on file before working: everyone a date of birth and a mobile; the Lead Installer
+ * and crew a verified CII/EEC; the electrician a verified licence + REC. One line per missing fact (empty = all on file).
+ * Used by validateBooking (the people on the booking) and offers. PURE.
+ */
+export function requiredOnFileBlockers(people: PersonOnFile[]): string[] {
+  const out: string[] = [];
+  for (const p of people) {
+    const name = p.name.trim() || "Unnamed person";
+    if (!p.dateOfBirth) out.push(REQUIRED_ON_FILE_WORDS.dob(name));
+    if (!p.mobile?.trim()) out.push(REQUIRED_ON_FILE_WORDS.mobile(name));
+    if ((p.role === "lead" || p.role === "crew") && !p.ciiVerified) out.push(REQUIRED_ON_FILE_WORDS.cii(name));
+    if (p.role === "electrician" && !p.licenceRecVerified) out.push(REQUIRED_ON_FILE_WORDS.licence(name));
+  }
+  return out;
+}

@@ -19,3 +19,16 @@ export async function currentConfirmedInstallBooking(jobId: string): Promise<Cur
   const b = await currentInstallBooking(jobId);
   return b && b.status === "confirmed" ? b : null;
 }
+
+/** Part 9 Task 9: the booking the Lead Installer lock reads — the current CONFIRMED install booking, or null once the job's
+ *  install is recorded complete (installation_completed_at set: nothing is locked after the install is done). A read error
+ *  THROWS (every lock reader fails closed; never "not locked" on a failed read). */
+export async function currentLockableInstallBooking(jobId: string): Promise<CurrentInstallBooking | null> {
+  const [b, { data: job, error }] = await Promise.all([
+    currentConfirmedInstallBooking(jobId),
+    admin.from("jobs").select("installation_completed_at").eq("id", jobId).maybeSingle(),
+  ]);
+  if (error) throw new Error(error.message);
+  if (!b) return null;
+  return (job as { installation_completed_at?: string | null } | null)?.installation_completed_at ? null : b;
+}

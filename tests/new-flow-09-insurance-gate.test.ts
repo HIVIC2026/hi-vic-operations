@@ -175,13 +175,21 @@ describe("sweepInsuranceReminders (server)", () => {
 
 // ── server: validateBooking throws the blocker for an installation and for a Ready Check ────────────────────────────
 class WorkflowError extends Error {}
+/** A client whose reads of `table` answer `{ error }` (a database read failure), every other table as normal. */
+function failingReads(shim: { from: (t: string) => unknown }, table: string) {
+  const failed = { data: null, error: { code: "XX000", message: `read failed: ${table}` } };
+  const chain: Record<string, unknown> = new Proxy({}, { get: (_t, k) => (k === "then" ? (res: (v: unknown) => unknown) => Promise.resolve(failed).then(res) : () => chain) });
+  return { from: (t: string) => (t === table ? chain : shim.from(t)) };
+}
 function bookingFixture(creds: AnyRow[], biz: AnyRow = { id: "biz", name: "Rapid Insulation", business_type: "eec_installer", onboarding_status: "approved", is_active: true, capabilities: ["installer"], workcover_exempt_declared_at: null }) {
   const rows: Record<string, AnyRow[]> = {
     jobs: [{ id: "j", stage: "installation_scheduling" }],
     job_assignments: [{ id: "a1", job_id: "j", role: "installer", active: true, user_id: "u1", business_id: "biz" }],
     businesses: [biz], business_credentials: creds, partner_workers: [], bookings: [], workflow_events: [],
   };
-  const shim = memoryPostgrest(rows as never);
+  const base = memoryPostgrest(rows as never);
+  const failing: { table: string | null } = { table: null };
+  const shim = { from: (t: string) => (failing.table ? failingReads(base, failing.table) : base).from(t) };
   let stage = "installation_scheduling";
   const deps: Record<string, unknown> = {
     "@/integrations/supabase/client.server": { supabaseAdmin: shim },
@@ -203,7 +211,7 @@ function bookingFixture(creds: AnyRow[], biz: AnyRow = { id: "biz", name: "Rapid
   deps["./lead-installer-confirm.server"] = { assertLeadInstallerUnlocked: async () => {} };
   deps["./people-on-file.server"] = { requirePeopleOnFileForBooking: async () => {} };
   const api = transpiled("src/lib/booking.server.ts", deps) as { validateBooking: (jobId: string, kind: string, start: string, actor: string | null) => Promise<unknown> };
-  return { api, rows, setStage: (s: string) => { stage = s; } };
+  return { api, rows, setStage: (s: string) => { stage = s; }, failReads: (table: string) => { failing.table = table; } };
 }
 const GOOD = [{ id: "c1", business_id: "biz", kind: "public_liability_insurance", label: "Public liability", expires_at: "2027-06-30", verification: "verified", amount_insured_aud: "10000000" }, { id: "c2", business_id: "biz", kind: "workers_comp_insurance", label: "Workers comp", expires_at: "2027-06-30", verification: "verified" }];
 
@@ -225,7 +233,7 @@ describe("validateBooking: the insurance gate on every kind (server)", () => {
     const f = bookingFixture([]);
     await expect(f.api.validateBooking("j", "installation", "2026-11-20T21:00:00Z", null)).rejects.toThrow(BUSINESS_DOCS_WORDS.notOnFile(PL));
     const broken = bookingFixture(GOOD);
-    (broken.rows as Record<string, unknown>)["business_credentials"] = undefined; // the table can't be read
-    await expect(broken.api.validateBooking("j", "installation", "2026-11-20T21:00:00Z", null)).rejects.toThrow();
+    broken.failReads("business_credentials"); // the insurance rows can't be read → refused, never "no block"
+    await expect(broken.api.validateBooking("j", "installation", "2026-11-20T21:00:00Z", null)).rejects.toThrow(/Couldn't read insurance records: read failed/);
   });
 });
