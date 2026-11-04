@@ -153,7 +153,7 @@ describe("Jo's approved wording, the same everywhere", () => {
       const m = partnerWelcomeEmail({ firstName: "Sam", businessName: "Reinsulate", trade, email: "sam@x.test", link: "https://example.test/l" });
       expect(m.text).toContain(`${NO_FORM_NO_PAY.headline}. ${NO_FORM_NO_PAY.body}`);
       expect(m.html).toContain(NO_FORM_NO_PAY.headline);
-      expect(m.html.indexOf(NO_FORM_NO_PAY.headline)).toBeGreaterThan(m.html.indexOf("Read the 2-minute guide"));
+      expect(m.html.indexOf(NO_FORM_NO_PAY.headline)).toBeGreaterThan(m.html.indexOf("Getting into Mitti")); // after the Mitti box (the guide box is gone, Jo 4 Nov 2026)
     }
   });
   test("office: Payouts shows Held and Mark paid refuses a held payout", () => {
