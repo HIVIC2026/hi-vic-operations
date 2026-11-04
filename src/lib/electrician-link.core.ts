@@ -15,6 +15,11 @@ export const LINK_INVALID = "This link isn't valid. Check you have the whole lin
 export const LINK_NOT_ASSIGNED = "You're no longer the electrician on this job.";
 export const LINK_UNAVAILABLE = "This link isn't working right now. Call the installer.";
 export const JOB_NOT_GOING_AHEAD = "This job is no longer going ahead.";
+/** Part 3 final fix wave: the upgrades day can't be saved because the job isn't at the upgrades-booking step yet (or a
+ *  booking check refused it). Plain words for the electrician — never the raw stage error. */
+export function upgradesDayNotReady(officePhone: string | null): string {
+  return `Home Insulation Victoria needs to check this job before the upgrades day can be saved. Please call them${officePhone ? ` on ${officePhone}` : ""}.`;
+}
 
 /** Why this link can't be used (null = fine). Revoked wins: a swap or "can't do" revokes the link. */
 export function electricianLinkRefusal(f: { found: boolean; revokedAt: string | null; expiresAt: string; now: Date; stillAssigned: boolean }): string | null {

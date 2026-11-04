@@ -22,6 +22,23 @@ async function piesaShortAnswersFor(jobId: string): Promise<Record<string, strin
   return shortAnswersFromEntries("piesa", entries) as Record<string, string | null>;
 }
 
+/** Part 3 final fix wave (CRITICAL): do the stored A3 answers say the electrical upgrades are done on ANOTHER day? q20 Yes and
+ *  q30 not Yes (fixes-times.core `fixesTimesNeeded` = fixes-day.core `fixesFormNeeded`, never the on-site-only answer — the
+ *  same reading that makes the A4 form at the upgrades booking), and no current post-upgrades pass record yet. A live A3
+ *  with only standard ticks makes no rectification_items, so the stage route reads this instead of the item count.
+ *  Fail-closed: no snapshot, or a read that fails, = false (the job never moves on a guess; every move is still guarded). */
+export async function upgradesDayNeededFor(jobId: string): Promise<boolean> {
+  const [short, { data: post, error }] = await Promise.all([
+    piesaShortAnswersFor(jobId).catch(() => null),
+    admin.from("piesa_records").select("id").eq("job_id", jobId).eq("kind", "post_rectification").eq("outcome", "pass").eq("is_current", true).limit(1),
+  ]);
+  if (!short || !short["rectificationOutcome"] || error) return false;
+  if ((post ?? []).length) return false;
+  const { fixesTimesNeeded } = await import("./fixes-times.core");
+  const { electricianBillsUpgrades } = await import("./upgrades-billing.core");
+  return electricianBillsUpgrades(jobId) && fixesTimesNeeded(short);
+}
+
 /** Part 3 Task 4: Part C recorded on the stored PIESA answers (A3 same-day upgrades, or the A4 merged onto them). No snapshot = false. */
 export async function partCRecordedOnFormFor(jobId: string): Promise<boolean> {
   const short = await piesaShortAnswersFor(jobId);

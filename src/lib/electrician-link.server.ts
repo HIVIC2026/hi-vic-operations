@@ -8,7 +8,7 @@ import { isMissingDbObject } from "./schema-compat.core";
 import { hashToken, isTokenShape, linkExpiry, newToken } from "./worker-links.core";
 import {
   JOB_NOT_GOING_AHEAD, LINK_NOT_ASSIGNED, LINK_UNAVAILABLE, OWN_JOB_PIESA_CANT_DO_EMAIL_APPROVED, OWN_JOB_PIESA_HANDED_BACK_EVENT,
-  CANT_DO_REASONS, cantDoReasonLabel, electricianLinkPath, electricianLinkRefusal, electricianStep, officeCantDoEmail, piesaBookingProblem, piesaDoneAtStage,
+  CANT_DO_REASONS, cantDoReasonLabel, electricianLinkPath, electricianLinkRefusal, electricianStep, officeCantDoEmail, piesaBookingProblem, piesaDoneAtStage, upgradesDayNotReady,
   type CantDoReason, type ElectricianStep,
 } from "./electrician-link.core";
 import { OWN_JOB_PIESA_HANDED_EVENT } from "./own-job-piesa.core";
@@ -276,6 +276,21 @@ export async function linkEnterUpgradesDay(token: string, startIso: string, now:
   if (r.step !== "enter_upgrades_day") throw new Error(r.step === "do_upgrades_in_mitti" ? "The upgrades day is already set." : r.step === "add_certificate" ? "The upgrades are already recorded — add the certificate." : r.step === "done" ? "This job is all done." : "The safety check comes first.");
   const problem = upgradesDayProblem(startIso, now);
   if (problem) throw new Error(problem);
+  // Part 3 final fix wave: the upgrades day is booked only at the upgrades-booking stages. A job still parked at PIESA
+  // complete (e.g. completed before this fix) is moved on by the normal guarded auto-advance first; if it still isn't
+  // there, the electrician gets a plain reason and nothing is claimed or booked.
+  const { autoAdvanceJob } = await import("./autoadvance.server");
+  const { getStage, WorkflowError } = await import("./workflow.server");
+  const { officePhone } = await import("./office-phone.server");
+  const upgradesStages = ["rectification_scheduling", "rectification_booked"];
+  if (!upgradesStages.includes(r.stage)) {
+    await autoAdvanceJob(r.jobId, null, "upgrades day from the electrician's link").catch((e) => console.error("upgrades day auto-advance failed", r.jobId, (e as Error).message));
+    const now2 = await getStage(r.jobId).catch(() => null);
+    if (!now2 || !upgradesStages.includes(now2)) {
+      console.warn("upgrades day refused: job not at the upgrades booking", r.jobId, now2);
+      throw new Error(upgradesDayNotReady(officePhone()));
+    }
+  }
   const who = await electricianPerson(r.assignment, r.electricianBusinessId);
   const { stableUuid } = await import("./mitti-create-claim.core");
   // One claim per assignment AND per booking history: a cancelled upgrades booking (electrician still assigned) opens a new claim.
@@ -308,6 +323,8 @@ export async function linkEnterUpgradesDay(token: string, startIso: string, now:
   } catch (e) {
     const { error: rel } = await admin.from("workflow_events").delete().eq("id", claimId); // nothing was booked: let them try again
     if (rel) console.error("upgrades day claim not released", r.jobId, rel.message);
+    // A booking-rule refusal (stage moved, a guard) is shown in plain words; the real reason stays in the server log.
+    if (e instanceof WorkflowError) { console.warn("upgrades day refused", r.jobId, e.message); throw new Error(upgradesDayNotReady(officePhone())); }
     throw e;
   }
   const { notifyOwnerBooked } = await import("./in-house-booking.server");

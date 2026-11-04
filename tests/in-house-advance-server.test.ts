@@ -12,7 +12,7 @@ function fixture(in_house: boolean, billing = "partner", fail = false, stage = "
   const admin = { from(table: string) {
     let kind = "", single = false;
     const q: any = { select: () => q, eq: (k: string, value: string) => { if (k === "kind") kind = value; return q; }, not: () => q, in: () => q,
-      single: () => { single = true; return q; },
+      single: () => { single = true; return q; }, maybeSingle: () => q,
       then: (resolve: (value: unknown) => unknown) => Promise.resolve({ error: null,
         data: table === "jobs" ? { stage, channel: "hivic_sourced" } : single && table === "job_assignments" ? { businesses: { in_house, rectification_billed_by: billing } } : null,
         count: table === "rectification_items" ? open : table === "quotes" && kind === "installation" ? 1 : 0 }).then(resolve) };
@@ -23,7 +23,7 @@ function fixture(in_house: boolean, billing = "partner", fail = false, stage = "
     "./workflow.server": { agreementSigned: async () => true, paymentOptionCleared: async () => true },
     "./quotes.server": {}, "./eligibility.core": { eligibilityConfirmedFor: () => true }, "./eligibility.server": { todayMelbourne: () => "2026-10-30" },
     "./autoadvance.core": advance, "./in-house.core": inHouse, "./upgrades-billing.core": upgradesBilling,
-    "./electrical-clearance.server": { onsiteStartOnlyFor: async () => false },
+    "./electrical-clearance.server": { onsiteStartOnlyFor: async () => false, upgradesDayNeededFor: async () => false },
     "./fixes-quote-current.server": { currentFixesQuote: async () => null },
     "./in-house-suppression.server": { readInHouseDispatchState: async () => { dispatchReads++; return { failed: fail, held: new Set(in_house ? ["j"] : []) }; } },
   };

@@ -28,11 +28,16 @@ export async function loadAdvanceFacts(jobId: string): Promise<AdvanceFacts> {
     count(admin.from("veec_lodgements").select("id", head).eq("job_id", jobId).in("status", ["submitted", "approved"])),
   ]);
   // Decision 314 follow-up: only a job with open fixes items reads the on-site-only answer and its clearance basis.
-  let onsiteStartOnly = false, onsiteStartCleared = false;
-  if (rect > 0) {
+  // Part 3 final fix wave: …or a job whose safety check failed (a live A3 makes no items for the on-site tick or for
+  // standard upgrade ticks), which also reads whether the A3 answers need an upgrades day (`upgradesNeeded`).
+  const { data: asmt } = await admin.from("assessments").select("piesa_outcome").eq("job_id", jobId).maybeSingle();
+  const piesaFailed = asmt?.piesa_outcome === "fail";
+  let onsiteStartOnly = false, onsiteStartCleared = false, upgradesNeeded = false;
+  if (rect > 0 || piesaFailed) {
     const ec = await import("./electrical-clearance.server");
     onsiteStartOnly = await ec.onsiteStartOnlyFor(jobId).catch(() => false);
     if (onsiteStartOnly) onsiteStartCleared = await ec.onsiteStartClearedFor(jobId).catch(() => false);
+    else upgradesNeeded = await ec.upgradesDayNeededFor(jobId).catch(() => false);
   }
   const partnerBilledRectification = job?.stage === "piesa_complete" && rect > 0 && !onsiteStartOnly && !onsiteStartCleared
     ? await (await import("./in-house-rectification.server")).optionalPartnerBilledRectificationFor(jobId)
@@ -46,6 +51,7 @@ export async function loadAdvanceFacts(jobId: string): Promise<AdvanceFacts> {
     openRectItems: rect,
     onsiteStartOnly,
     onsiteStartCleared,
+    upgradesNeeded,
     partnerBilledRectification,
     rectQuoteIssued: rqi > 0,
     rectQuoteAccepted: rqa > 0,

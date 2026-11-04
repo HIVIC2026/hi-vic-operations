@@ -93,10 +93,11 @@ describe("source pins", () => {
   test("stageEntryBlockers uses the pure rule and reads the clearance only when fixes items are open; items are never completed", () => {
     const s = read("src/lib/workflow.server.ts");
     expect(s).toContain("blockers.push(...installEntryElectricalBlockers({ openRectItems: rect, piesaDate: piesa?.piesa_date, piesaOutcome: piesa?.piesa_outcome, onsiteStartCleared }));");
-    expect(s).toContain('const onsiteStartCleared = rect > 0 ? await (await import("./electrical-clearance.server")).onsiteStartClearedFor(jobId) : false;');
+    // Part 3 final fix wave: also read for a failed safety check with no items (a live A3 makes none for the on-site tick).
+    expect(s).toContain('const onsiteStartCleared = rect > 0 || piesa?.piesa_outcome === "fail" ? await (await import("./electrical-clearance.server")).onsiteStartClearedFor(jobId) : false;');
     expect(s).toContain('rectification_scheduling: ["rectification_booked", "installation_scheduling"],');
     const a = read("src/lib/autoadvance.server.ts");
-    expect(a).toContain("if (rect > 0) {");
+    expect(a).toContain("if (rect > 0 || piesaFailed) {");
     const e = read("src/lib/electrical-clearance.server.ts");
     // Lean module: no senders, Xero or Mitti in the stage/auto-advance import graph.
     const imports = [...e.matchAll(/(?:from|import\()\s*["']([^"']+)["']/g)].map((m) => m[1]).sort();

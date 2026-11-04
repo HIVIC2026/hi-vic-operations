@@ -21,6 +21,11 @@ export type AdvanceFacts = {
   /** …and electrical clearance holds on the `electrician_at_start` basis (fixes quote accepted + payment rule cleared,
    *  allocation.core `onsiteStartAtInstall`). The open items are done on the install day. Absent = false. */
   onsiteStartCleared?: boolean;
+  /** Part 3 final fix wave (Jo 3–4 Nov 2026): the stored A3 answers say electrical upgrades are needed on ANOTHER day
+   *  (q20 Yes, q30 not Yes — fixes-day.core `fixesFormNeeded`), not the on-site-only answer, and no post-upgrades pass
+   *  record exists yet. A live A3 with only standard ticks makes no rectification_items, so this — not the item count —
+   *  says the job needs the upgrades day booked. Absent = false. */
+  upgradesNeeded?: boolean;
   /** Held in-house partner bills rectification; only separate visits use this route. */
   partnerBilledRectification?: boolean;
   rectQuoteIssued: boolean;
@@ -48,6 +53,7 @@ export const INSTALLER_OWN_CUSTOMER_SUMMARY = "Installer's own customer – the 
 
 /** The single deterministic next step for a stage, or a stop with the reason (who/what it waits on). */
 export const ONSITE_START_INSTALL_SUMMARY = "Electrician on site at the start of the install day (upgrades quote accepted and paid) – no upgrades visit, installation scheduling unlocked";
+export const UPGRADES_DAY_TO_BOOK_SUMMARY = "Electrical upgrades needed – the electrician books the upgrades day with the owner";
 export const ONSITE_START_WAITING = "Waiting for the owner to accept and pay the upgrades quote (electrician on site at the start of the install day)";
 
 export function planStep(stage: Stage, f: AdvanceFacts): Step {
@@ -56,6 +62,8 @@ export function planStep(stage: Stage, f: AdvanceFacts): Step {
   // Decision 314 follow-up: open fixes items that are done on the install day never route to a fixes visit.
   const onsiteCleared = f.openRectItems > 0 && !!f.onsiteStartCleared;
   const onsiteWaiting = f.openRectItems > 0 && !!f.onsiteStartOnly && !f.onsiteStartCleared;
+  // Upgrades still to do: open items, or the A3 answers (no items) — never the on-site-only answer.
+  const upgradesOpen = f.openRectItems > 0 || (!!f.upgradesNeeded && !f.onsiteStartOnly);
   switch (stage) {
     case "new_enquiry":
     case "eligibility_review":
@@ -83,6 +91,8 @@ export function planStep(stage: Stage, f: AdvanceFacts): Step {
       // is routed by Home Insulation Victoria (variation vs rectification scheduling is not automated).
       if (onsiteCleared) return t("installation_scheduling", ONSITE_START_INSTALL_SUMMARY);
       if (f.openRectItems > 0 && !f.onsiteStartOnly && f.partnerBilledRectification) return t("rectification_scheduling", "Partner needs to book rectification");
+      // Part 3 final fix wave: upgrades needed on the A3 with no items — the electrician books the upgrades day with the owner.
+      if (f.openRectItems === 0 && f.upgradesNeeded && !f.onsiteStartOnly) return t("rectification_scheduling", UPGRADES_DAY_TO_BOOK_SUMMARY);
       return f.openRectItems > 0 ? stop("Electrical upgrades listed at the PIESA – Home Insulation Victoria must route the electrical upgrades") : t("installation_scheduling", "PIESA complete, no electrical upgrades – installation scheduling unlocked");
     case "assessment_complete":
       return f.openRectItems > 0 ? t("rectification_required", `${f.openRectItems} electrical upgrades item(s) required`) : t("ready_for_installer_quotes", "No electrical upgrades required – ready for installer quotes");
@@ -103,13 +113,13 @@ export function planStep(stage: Stage, f: AdvanceFacts): Step {
       if (!f.depositCleared) return stop("Waiting on approved payment option (minimum deposit, paid in full or active 3-instalment plan)");
       if (onsiteCleared) return t("installation_scheduling", ONSITE_START_INSTALL_SUMMARY);
       if (onsiteWaiting) return stop(ONSITE_START_WAITING);
-      return f.openRectItems > 0 ? t("rectification_scheduling", "Payment option verified – electrical upgrades scheduling unlocked") : t("installation_scheduling", "Payment option verified – installation scheduling unlocked");
+      return upgradesOpen ? t("rectification_scheduling", "Payment option verified – electrical upgrades scheduling unlocked") : t("installation_scheduling", "Payment option verified – installation scheduling unlocked");
     case "rectification_scheduling":
       if (onsiteCleared) return t("installation_scheduling", ONSITE_START_INSTALL_SUMMARY);
       if (onsiteWaiting && !f.rectBookingConfirmed) return stop(ONSITE_START_WAITING);
       return f.rectBookingConfirmed ? t("rectification_booked", "Electrical upgrades booking confirmed") : stop("Electrical upgrades booking not confirmed");
     case "rectification_booked":
-      return f.openRectItems === 0 ? t("installation_scheduling", "Electrical upgrades complete, PIESA passed – installation scheduling unlocked") : stop("Electrical upgrades not yet completed");
+      return !upgradesOpen ? t("installation_scheduling", "Electrical upgrades complete, PIESA passed – installation scheduling unlocked") : stop("Electrical upgrades not yet completed");
     case "installation_scheduling":
       return f.installBookingConfirmed ? t("installation_booked", "Installation booking confirmed") : stop("Installation booking not confirmed");
     case "installation_booked":
