@@ -23,7 +23,8 @@ function partOf(t: string): Part {
   if (open < 0) return { kind: "col", name: t.trim() };
   const head = t.slice(0, open).trim(), body = t.slice(open + 1, t.lastIndexOf(")"));
   const inner = /!inner$/.test(head);
-  const h = head.replace(/!inner$/, "");
+  // `rel!fk_constraint_name(...)` (PostgREST's disambiguating hint): the relationship is still the named one.
+  const h = head.replace(/!inner$/, "").replace(/![a-z_0-9]+$/i, "");
   const [alias, key] = h.includes(":") ? h.split(":") as [string, string] : [h, h];
   return { kind: "embed", alias, key, inner, parts: parseSelect(body) };
 }
@@ -40,10 +41,12 @@ function orSql(expr: string, ph: (v: unknown) => string, join = "OR"): string {
   const one = (t: string): string => {
     const nested = /^(and|or)\((.*)\)$/.exec(t);
     if (nested) return `(${orSql(nested[2]!, ph, nested[1]!.toUpperCase())})`;
-    const m = /^([a-z_0-9]+)\.(not\.)?([a-z]+)\.(.*)$/.exec(t);
+    // A column, or a JSON path on one (`details->>status`, `details->a->>b`) as PostgREST accepts in or().
+    const m = /^([a-z_0-9]+((?:->>?[a-z_0-9]+)*))\.(not\.)?([a-z]+)\.(.*)$/.exec(t);
     if (!m) throw new Error(`embed shim: unsupported or() term ${t}`);
-    const [, col, neg, op, raw] = m as unknown as [string, string, string | undefined, string, string];
-    const ref = `t0."${col}"`;
+    const [, colPath, , neg, op, raw] = m as unknown as [string, string, string, string | undefined, string, string];
+    const [col, ...path] = colPath.split(/(?=->)/);
+    const ref = `t0."${col}"${path.map((p) => p.replace(/^(->>?)(.*)$/, (_, arrow, key) => `${arrow}'${key}'`)).join("")}`;
     const val = raw.replace(/^"(.*)"$/, "$1");
     let sql: string;
     switch (op) {
