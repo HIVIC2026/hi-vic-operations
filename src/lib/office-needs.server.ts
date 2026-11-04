@@ -597,6 +597,20 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
       }
     }
   } catch { unavailable.push("payment reversals"); }
+  // Part 9 Task 11: a refund after VEEC creation (veec_copayment_refunded, needs_office) → one row per job (the office calls Jo; the event stays as history).
+  try {
+    const { VEEC_COPAYMENT_REFUNDED_EVENT, VEEC_REFUND_NEEDS_LINE } = await import("./veec-creation-gate.core");
+    const rows = await all("VEEC refunds", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at, details")).eq("event_type", VEEC_COPAYMENT_REFUNDED_EVENT).contains("details", { needs_office: true }).order("created_at", { ascending: false }).range(a, b));
+    for (const r of rows) { const x = f(String(r["job_id"])); if (x && !x.veecRefunded) x.veecRefunded = { at: String(r["created_at"]), text: VEEC_REFUND_NEEDS_LINE }; }
+  } catch { unavailable.push("VEEC refunds"); }
+  // Part 9 Task 12: complaints — the three office events per job → the ack / resolve rows (complaints.core).
+  try {
+    const { COMPLAINT_ACKNOWLEDGED_EVENT, COMPLAINT_RECEIVED_EVENT, COMPLAINT_RESOLVED_EVENT, complaintNeeds } = await import("./complaints.core");
+    const rows = await all("complaints", (a, b) => scoped(admin.from("workflow_events").select("job_id, event_type, created_at, details")).in("event_type", [COMPLAINT_RECEIVED_EVENT, COMPLAINT_ACKNOWLEDGED_EVENT, COMPLAINT_RESOLVED_EVENT]).order("created_at", { ascending: true }).range(a, b));
+    const byJob = new Map<string, { event_type: string; created_at: string; details: Record<string, unknown> | null }[]>();
+    for (const r of rows) { const id = String(r["job_id"]); if (!byJob.has(id)) byJob.set(id, []); byJob.get(id)!.push({ event_type: String(r["event_type"]), created_at: String(r["created_at"]), details: (r["details"] ?? null) as Record<string, unknown> | null }); }
+    for (const [id, evs] of byJob) { const x = f(id); if (!x) continue; const open = complaintNeeds(evs, now); if (open.length) x.complaints = open; }
+  } catch { unavailable.push("complaints"); }
   // Batch 2: a STOP reply cancelled the job but releasing the installer failed → one row until `job_cancel_released` is written
   // (the tick retries). The job is usually already cancelled, so its facts are made here when the open-jobs read dropped it.
   try {

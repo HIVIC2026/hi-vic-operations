@@ -222,7 +222,8 @@ function BookingForm({ jobId, kind, mode, state, button, below, onDone, onCancel
       if (kind === "assessment" && who !== current) await allocate({ data: { jobId, workerId: who } });
       const r = await book({ data: { jobId, kind, start: installStartAt(day, arrival).toISOString(), workerId: who, crewIds: kind === "installation" ? crew : [] } });
       if (!r.ok) { setError(r.blockers.join(" ")); return; }
-      toast.success(mode === "book" ? W.booked(LABEL[kind]) : W.changed(`${LABEL[kind]} time`));
+      // Part 9 Task 10: the booking's plain warnings (e.g. upgrades still to come) are shown with the success, never as a refusal.
+      toast.success(mode === "book" ? W.booked(LABEL[kind]) : W.changed(`${LABEL[kind]} time`), r.warnings?.length ? { description: r.warnings.join(" ") } : undefined);
       markOfficeChanged();
       await qc.invalidateQueries();
       onDone();

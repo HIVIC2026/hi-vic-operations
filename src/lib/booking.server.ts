@@ -8,8 +8,10 @@ import { autoAdvanceJob } from "./autoadvance.server";
 
 export type BookingKind = "assessment" | "ready_check" | "rectification" | "installation";
 
-export async function validateBooking(jobId: string, kind: BookingKind, start: string, actorId: string | null, proposedWorkerId?: string) {
+export async function validateBooking(jobId: string, kind: BookingKind, start: string, actorId: string | null, proposedWorkerId?: string): Promise<{ stage: Stage; target: Stage; warnings: string[] }> {
   const need = kind === "installation" || kind === "ready_check" ? "installer" : "electrician";
+  // Part 9 Task 10 (Jo 2 Nov 2026, answer 21): plain lines the caller shows before success; never a refusal.
+  const warnings: string[] = [];
   const stage = await getStage(jobId);
   const map: Record<BookingKind, [Stage[], Stage]> = {
     // "assessment" booking kind = the PIESA visit (legacy enum name). Only after the PIESA gate.
@@ -41,16 +43,21 @@ export async function validateBooking(jobId: string, kind: BookingKind, start: s
   }
   if (kind === "installation") {
     const { clearanceFacts } = await import("./allocation.server");
-    const { electricalClearance, installationCoordinationBlocker } = await import("./allocation.core");
-    const cb0 = installationCoordinationBlocker(electricalClearance(await clearanceFacts(jobId)));
-    if (cb0) throw new WorkflowError(cb0);
+    const { electricalClearance, installationCoordination } = await import("./allocation.core");
+    // Part 9 Task 10 (answer 21): upgrades still to come = a warning only (the GO check needs the Part C + certificate);
+    // every other uncleared reason still refuses. The deposit blocker below still runs on every install booking.
+    const cf0 = await clearanceFacts(jobId);
+    const c0 = electricalClearance(cf0);
+    const coord = installationCoordination(c0);
+    if (coord.block) throw new WorkflowError(coord.block);
+    if (coord.warn) warnings.push(coord.warn);
     const ps = await piesaStatus(jobId);
     const blocked = installationDateBlocker(ps, start);
     if (blocked) throw new WorkflowError(blocked);
     // 30-day hard gate on every path: official PIESA date + 30 days (decision 316: never the fixes / Section C date).
+    // Upgrades outstanding (no clearance date yet): the 30 days still run from the official PIESA date.
     const { installWindowDeadline, installDayOutsideWindow, NEW_PIESA_NEEDED } = await import("./install-days.core");
-    const c0 = electricalClearance(await clearanceFacts(jobId));
-    const dl = installWindowDeadline(c0.timingDate, (ps as { install_deadline?: string | null } | null)?.install_deadline ?? null);
+    const dl = installWindowDeadline(c0.timingDate ?? (coord.warn ? cf0.piesaCompletedAt : null), (ps as { install_deadline?: string | null } | null)?.install_deadline ?? null);
     if (installDayOutsideWindow(start, dl)) throw new WorkflowError(dl ? `Installation must be on or before ${dl} (30 days from the safety check (PIESA)). If that has passed: ${NEW_PIESA_NEEDED}.` : "Installation cannot be booked: no electrical clearance date.");
     const { bookingLeadBlocker } = await import("./esc.core");
     const lead = bookingLeadBlocker(start, new Date().toISOString());
@@ -84,7 +91,7 @@ export async function validateBooking(jobId: string, kind: BookingKind, start: s
     const pre = (await stageEntryBlockers(jobId, target, actorId)).filter((b) => b !== READY_CHECK_BOOKING_RECORD_BLOCKER);
     if (pre.length) throw new WorkflowError(`Blocked: ${pre.join(" • ")}`);
   }
-  return {stage,target};
+  return {stage,target,warnings};
 }
 export async function confirmBooking(jobId: string, kind: BookingKind, start: string, actorId: string | null, roleLabel: string, notes?: string | null) {
   const {stage,target}=await validateBooking(jobId,kind,start,actorId);

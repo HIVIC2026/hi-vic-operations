@@ -127,6 +127,17 @@ export async function veecWork(mode: RobotMode): Promise<VeecWork[]> {
   ]);
   for (const r of [lodg, asg, quotes]) if (r.error) throw new Error(`VEEC facts could not be read: ${r.error.message}`);
   const out: VeecWork[] = [];
+  // Part 9 Task 11: product on the Register on the creation day (install-evidence.server, today = melbourneToday()) and
+  // the $200 co-payment on the installation invoice (payments.server jobPaymentView). A failed read = unknown → the plan
+  // skips for the office (veec-creation-gate.core fails closed).
+  const [{ jobProductProblems }, { jobPaymentView }] = await Promise.all([import("./install-evidence.server"), import("./payments.server")]);
+  const creationFacts = new Map(await Promise.all(rows.map(async (j) => {
+    const [productProblems, installPaidCents] = await Promise.all([
+      jobProductProblems(j.id).catch((e: unknown) => [`Product check failed: ${e instanceof Error ? e.message : String(e)}`]),
+      jobPaymentView(j.id).then((v) => (v ? v.paid.install : null)).catch(() => null),
+    ]);
+    return [j.id, { productProblems, installPaidCents }] as const;
+  })));
   for (const j of rows) {
     const l = (lodg.data ?? []).find((x) => x.job_id === j.id) ?? null;
     const a = (asg.data ?? []).find((x) => x.job_id === j.id) ?? null;
@@ -137,6 +148,7 @@ export async function veecWork(mode: RobotMode): Promise<VeecWork[]> {
       assignment: a ? { status: String(a.status), installerSignedAt: a.installer_signed_at, apSignedAt: a.ap_signed_at, consumerSignedAt: a.consumer_signed_at } : null,
       quantity: q?.veec_count != null ? Number(q.veec_count) : null,
       robotEvents: events.get(j.id) ?? [],
+      ...creationFacts.get(j.id),
     };
     const ff = (a?.final_facts ?? {}) as { form_values?: Record<string, unknown>; property_address?: string; completed_date?: string };
     const values: Record<string, string | null> = Object.fromEntries(Object.entries(ff.form_values ?? {}).map(([k, v]) => [k, v == null || v === "" ? null : String(v)]));

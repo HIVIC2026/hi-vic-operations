@@ -149,5 +149,16 @@ export async function recordStripeRefund(r: StripeRefundFact): Promise<string> {
   const outcome = await insertLedgerEvent(inv.job_id, null, PAYMENT_REVERSED_EVENT, `Card payment refunded in Stripe: $${(delta / 100).toFixed(2)} no longer counted`,
     { invoice_id: inv.id, amount_cents: delta, source: "card", paid_at: r.refundedAt, note: `stripe-refund:${r.paymentIntentId}`, stripe_payment_intent: r.paymentIntentId, stripe_charge: r.chargeId, stripe_event_id: r.eventId, refunded_total_cents: target, receipt_key: stripeRefundReceiptKey(r.paymentIntentId, target) });
   if (outcome === "duplicate") return "duplicate";
+  // Part 9 Task 11 (Review Focus 4): a refund that lands after VEECs were created can't be stopped — tell the office at
+  // once (one event per recorded reversal; a duplicate delivery returned above and raises nothing).
+  await flagRefundAfterVeecCreation(inv.job_id, { refundedCents: delta, paymentIntentId: r.paymentIntentId, stripeEventId: r.eventId }).catch((e) => console.error("VEEC refund flag skipped", (e as Error).message));
   return applyAfterStripeChange(inv);
+}
+
+async function flagRefundAfterVeecCreation(jobId: string, i: { refundedCents: number; paymentIntentId: string; stripeEventId: string }): Promise<void> {
+  const { veecCreatedBefore, veecRefundEventDetails, VEEC_COPAYMENT_REFUNDED_EVENT, VEEC_REFUND_NEEDS_LINE } = await import("./veec-creation-gate.core");
+  const { data: l, error } = await admin.from("veec_lodgements").select("status, submission_reference").eq("job_id", jobId).maybeSingle();
+  if (error) throw new Error(`VEEC lodgement could not be read: ${error.message}`);
+  if (!veecCreatedBefore(l)) return;
+  await logEvent(jobId, null, VEEC_COPAYMENT_REFUNDED_EVENT, VEEC_REFUND_NEEDS_LINE, veecRefundEventDetails({ ...i, veecReference: l?.submission_reference ?? null }), { internal: true });
 }

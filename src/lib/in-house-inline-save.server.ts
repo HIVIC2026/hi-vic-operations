@@ -13,7 +13,7 @@ export async function saveInHouseVisitInline(jobId:string,actorId:string,input:{
  const start=input.start??'';
  const booking=await import('./booking.server');
  // Refuse before any allocation/crew write, then confirmBooking rechecks before booking.
- await booking.validateBooking(jobId,input.kind,start,actorId,input.workerId);
+ const checked=await booking.validateBooking(jobId,input.kind,start,actorId,input.workerId);
  const service=await import('./in-house-booking.server');
  const who=await service.prepareBookingWorker(jobId,actorId,input.kind,input.workerId,input.selection?.additional.flatMap(w=>'workerId' in w?[w.workerId]:[])??[],{inline:true});
  const {data:existing,error:existingError}=await admin.from('bookings').select('id').eq('job_id',jobId).eq('kind',input.kind).eq('status','confirmed').eq('scheduled_start',start).order('created_at',{ascending:false}).limit(1).maybeSingle();
@@ -37,7 +37,7 @@ export async function saveInHouseVisitInline(jobId:string,actorId:string,input:{
  if(input.kind==='assessment'||input.kind==='rectification')await releaseElectricianContact(jobId,input.kind,actorId);
  const noticeKind=input.kind==='installation'?'install':input.kind==='assessment'?'piesa':input.kind==='ready_check'?'ready_check':null;
  if(noticeKind)await service.notifyOwnerBooked(jobId,noticeKind,start,who).catch(e=>console.error('Booking confirmation held',e));
- return {bookingId:saved.id,already:!!existing,needsVerification:[]};
+ return {bookingId:saved.id,already:!!existing,needsVerification:[],warnings:checked.warnings};
 }
 /** The same row commit_in_house_visit v2 writes: one audited owner-contact release per electrician assignment + visit. */
 export async function releaseElectricianContact(jobId:string,kind:'assessment'|'rectification',actorId:string|null){

@@ -346,6 +346,22 @@ export function installationCoordinationBlocker(c: Clearance): string | null {
   return c.cleared ? null : `Installation cannot be arranged yet: ${c.blocker}`;
 }
 
+// Part 9 Task 10 (Jo 2 Nov 2026, answer 21): the deposit can be paid before the upgrades are done, so the install can be
+// booked before the upgrades day — a warning, never a block; the GO check (prestart) is where the missing Part C +
+// certificate stops the install. "Upgrades outstanding" = the owner has accepted the fixes quote (or the partner bills
+// them) and only the work / Part C is still to come — exactly the two `electricalClearance` reasons below.
+export const UPGRADES_NOT_DONE_WARNING = "Electrical upgrades aren't done yet. The install can't start until the Part C and certificate are in."; // approved (Part 9 plan Task 10)
+// Join (4 Nov 2026): main's Part 3 wording for the two reasons ("Electrical upgrades not completed yet." / Part C).
+const UPGRADES_OUTSTANDING_REASONS = ["Electrical upgrades not completed yet.", "Section C not completed and signed yet."];
+export const upgradesOutstanding = (c: Pick<Clearance, "cleared" | "blocker">): boolean => !c.cleared && !!c.blocker && UPGRADES_OUTSTANDING_REASONS.includes(c.blocker);
+/** The install booking's electrical check: `warn` when only the upgrades are outstanding, `block` for every other
+ *  uncleared reason (PIESA not done / did not pass / fixes quote not accepted / on-site charge unpaid). */
+export function installationCoordination(c: Clearance): { block: string | null; warn: string | null } {
+  if (c.cleared) return { block: null, warn: null };
+  if (upgradesOutstanding(c)) return { block: null, warn: UPGRADES_NOT_DONE_WARNING };
+  return { block: installationCoordinationBlocker(c), warn: null };
+}
+
 export type RectQuoteFacts = { kind: string; status: string; office_reviewed_at: string | null; has_unpriced_items: boolean;
   /** Decision 315 hold (fixes-times.core `fixesTimesHoldReason`): "Waiting for the electrician's fixes times". */
   fixes_times_hold?: string | null };
@@ -388,7 +404,9 @@ export type NeedsCode =
   | "owner_no_show_repeat" | "trade_no_show" | "owner_cancelled_visit" | "rectification_new_times" | "installer_usual_electrician_missing"
   | "mitti_fix_form" | "mitti_review_pickup" | "ready_check_held" | "quote_held_review" | "quote_not_delivered" | "mitti_setup_installer" | "ready_check_chase_installer" | "quote_auto_send_held"
   | "xero_invoice_product_unconfirmed" | "veec_assignment_unsigned" | "electrician_install_attendance" | "install_deposit_unpaid_at_start"
-  | "payment_match_unclear" | "stop_installer_release_failed" | "esc_withdraw_required";
+  | "payment_match_unclear" | "stop_installer_release_failed" | "esc_withdraw_required"
+  // Part 9 Task 12: complaints (complaints.core) — acknowledge within 5 business days, aim to resolve within 20.
+  | "complaint_ack_due" | "complaint_resolve_due";
 export type NeedsUrgency = "urgent" | "today" | "soon";
 export type NeedsItem = { key: string; code: NeedsCode; jobId: string | null; jobNumber: string | null; why: string; next: string; tab: string; since: string | null; urgency: NeedsUrgency; stage: string | null; suburb: string | null };
 
@@ -407,6 +425,9 @@ export const NEEDS_TEXT: Record<NeedsCode, { why: string; next: string; tab: str
   install_deposit_unpaid_at_start: { why: "Install day has started but the 10% install deposit is not paid — the install is locked.", next: "Office needs to: call the owner about the deposit (card, bank transfer or PayID). Once it shows in Xero the install unlocks; otherwise move the install day.", tab: "quotes", urgency: "urgent" },
   payment_match_unclear: { why: "A card payment and a same-amount Xero payment have no shared Stripe id, so they are counted once until you confirm (audit R02).", next: "Office needs to: if it's the same money, add the Stripe id to the Xero payment reference. If they are two separate payments, press 'Two separate payments' on the job's Money card.", tab: "quotes", urgency: "soon" },
   // Batch 2 (Jo 29 Oct): the owner texted STOP but cancelling the job's installer failed; the office cancels again.
+  // Part 9 Task 12 (complaints.core complaintNeeds): office process only — the office acknowledges by hand.
+  complaint_ack_due: { why: "Complaint: acknowledge the owner within 5 business days of receiving it.", next: "Office needs to: contact the owner, acknowledge the complaint, then record it on the job (Acknowledge).", tab: "overview", urgency: "today" },
+  complaint_resolve_due: { why: "Complaint: aim to resolve it within 20 business days of receiving it.", next: "Office needs to: sort it out with the owner, then record it on the job (Resolve).", tab: "overview", urgency: "today" },
   stop_installer_release_failed: { why: "STOP received, but releasing the installer failed — retrying automatically; open the job if this stays", next: "Office needs to: the portal retries every 15 minutes; if this stays, open the job and check the installer is released.", tab: "overview", urgency: "today" },
   xero_invoice_product_unconfirmed: { why: "Xero invoice went out without the installed product/m² wording (ESC tax-invoice requirement).", next: "Office needs to: confirm the insulation product and measured area on the job, then add the brand, model, R-value and m² to the Xero invoice line.", tab: "quotes", urgency: "soon" },
   ready_check_chase_installer: { why: "Chase installer: the Ready Check is still missing answers or photos after 24 hours.", next: "Office needs to: call the installer and ask them to finish the Mitti form.", tab: "overview", urgency: "today" },

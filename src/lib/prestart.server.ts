@@ -95,7 +95,8 @@ export async function prestartFacts(jobId: string, start: string) {
     piesaCopyReceiptBlocker: null, // Retired owner receipt; recorded PIESA delivery remains independently checked.
     // Part 3 Task 4 (Jo 3 Nov 2026): the install can be booked while the Certificate of Electrical Safety is outstanding; it
     // can't start. Missing → "Certificate of Electrical Safety not in yet"; a file not ticked → "Check electrical certificate — …".
-    // On-site-only jobs (electrician at the start of the install day) are clear after the PIESA.
+    // On-site-only jobs (electrician at the start of the install day) are clear after the PIESA. Part 9 Task 10 (answer 21):
+    // this is the GO check's certificate gate for an install booked before the upgrades day too (fails closed on a read error).
     ...(await (await import("./certificate-later.server")).prestartCertificateFacts(jobId, { onsiteOnly: cf.onsiteStartOnly === true }).then((c) => ({ certificate: c.certificate, certificateWhy: c.certificateWhy }))),
     // Part 9 Task 5: electrician at the install (when the PIESA asked for it), life support plan on file. Read errors throw: the check is not recorded and the lock stays closed.
     electricianAttendance: await electricianAttendanceFor(jobId, start),

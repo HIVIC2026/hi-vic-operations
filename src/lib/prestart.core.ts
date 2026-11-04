@@ -157,6 +157,9 @@ export type PrestartFacts = {
   /** Part 9 Task 5: life support at the home and no written consent / medical plan on file (job-records.server
    *  lifeSupportPlanMissing, which counts the electrician's PIESA photo). undefined = not loaded (older callers). */
   lifeSupportPlanMissing?: boolean | undefined;
+  // Part 9 Task 10 (Jo 2 Nov 2026, answer 21): the GO check needs the Part C (the electrical clearance line above) and the
+  // electrical certificate — the certificate gate is main's `certificate` / `certificateWhy` fact (Part 3 Task 4: "not in
+  // yet" / "Check electrical certificate — …"), so T10's duplicate `coesBlocker` fact was dropped at the join (ruling 4).
 };
 export const CERTIFICATE_NOT_IN_YET = "Certificate of Electrical Safety not in yet";
 export const LEAD_NOT_ESC_REGISTERED = (name: string | null) => `Lead Installer${name ? ` ${name}` : ""} is not registered with the ESC yet.`;

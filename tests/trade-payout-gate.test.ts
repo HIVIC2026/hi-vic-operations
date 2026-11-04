@@ -11,7 +11,8 @@ import { partnerWelcomeEmail } from "../src/lib/partner-email.core";
 const ok: TradePayoutFacts = {
   piesa: { mittiForm: true, completed: true, evidence: [] },
   fixes: { sameVisitOnPiesa: false, outcome: "done", detail: null },
-  install: { formCompleted: true, evidence: [] },
+  // Part 9 Task 10: install pay also needs the GO check passed for the booked start.
+  install: { formCompleted: true, evidence: [], go: true },
 };
 
 describe("tradePayoutBlockers: complete form + evidence → payable", () => {
@@ -42,7 +43,7 @@ describe("tradePayoutBlockers: not Complete → held with a plain reason", () =>
       .toEqual([PAYOUT_FORM_NOT_COMPLETE.rectification, "Electrical fixes form: The fixes form was marked Complete but is missing: Photo of the finished work at the switchboard / in the ceiling (must be geotagged)"]);
   });
   test("install: A5 not Complete", () => {
-    expect(tradePayoutBlockers("installation", { ...ok, install: { formCompleted: false, evidence: [] } })).toEqual(["Mitti install day form (A5) not marked Complete"]);
+    expect(tradePayoutBlockers("installation", { ...ok, install: { formCompleted: false, evidence: [], go: true } })).toEqual(["Mitti install day form (A5) not marked Complete"]);
     expect(tradePayoutBlockers("installation", { ...ok, install: null })).toEqual([PAYOUT_FORM_NOT_COMPLETE.installation]);
   });
 });
@@ -56,7 +57,7 @@ describe("tradePayoutBlockers: missing geotag → held", () => {
       .toEqual(["Safety check form: Hazard photos must be geotagged (1 without a location)"]);
   });
   test("install Complete but a zone video is not geotagged", () => {
-    expect(tradePayoutBlockers("installation", { ...ok, install: { formCompleted: true, evidence: ["Install evidence: Area 1 after-install video must be geotagged"] } }))
+    expect(tradePayoutBlockers("installation", { ...ok, install: { formCompleted: true, evidence: ["Install evidence: Area 1 after-install video must be geotagged"], go: true } }))
       .toEqual(["Install day form: Area 1 after-install video must be geotagged"]);
   });
   test("one short held line", () => {

@@ -27,7 +27,7 @@ mock.module("../src/lib/installer-paid-electricians.server", () => ({ safetyChec
 mock.module("../src/lib/installer-price.server", () => ({ readInstallerPrices: async () => new Map() }));
 mock.module("../src/lib/trade-payout-gate.server", () => ({
   safetyVisitFacts: async () => new Map(), // batch 1 F5 (per-visit safety check pay)
-  payoutGateFacts: async (ids: string[]) => new Map(ids.map((id) => [id, { piesa: null, fixes: null, install: { formCompleted: true, evidence: [] } }])),
+  payoutGateFacts: async (ids: string[]) => new Map(ids.map((id) => [id, { piesa: null, fixes: null, install: { formCompleted: true, evidence: [], go: true } }])), // Part 9 Task 10: GO passed
 }));
 const { moneyPayouts, moneyMargins } = await import("../src/lib/office-money.server");
 const { PAYEE_BUSINESS_MISSING_ROW, PIESA_RATE_NOT_SET_ROW } = await import("../src/lib/installer-paid-electricians.core");

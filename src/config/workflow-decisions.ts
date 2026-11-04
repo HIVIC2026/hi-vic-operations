@@ -195,7 +195,21 @@ export const WORKFLOW_DECISIONS = {
     clockStartsWithRectification: "official_piesa_not_fixes",
     mustBe: "installation_commenced_within_window",
     status: "operational_rule_pending_written_confirmation",
+    // Part 9 Task 10 (Jo 2 Nov 2026, answer 21): the install can be booked before the upgrades day — a warning only
+    // (allocation.core `installationCoordination` → UPGRADES_NOT_DONE_WARNING; the deposit blocker still runs first and
+    // every other uncleared reason still refuses); the 30 days still run from the official PIESA date while the upgrades
+    // are outstanding. The GO check (prestart.core `prestartFailures`) is where the missing Part C (electrical clearance
+    // line) + certificate (main's Part 3 `certificate` fact, Jo 3 Nov 2026 — "not in yet" / "Check electrical certificate — …") stop the install. Installer pay for an install needs the latest GO check for
+    // the booked start passed (trade-payout-gate.core NO_GO_FOR_INSTALL). No "deposit by 2pm the day before" rule.
+    bookBeforeUpgrades: { booking: "warning_only", goCheckNeeds: ["part_c", "certificate"] as const, installerPayNeeds: "go_passed_for_booked_start" },
   },
+  // Part 9 Task 11 (4 Nov 2026): before VEEC creation (robot planVeecCreation + office updateVeec, one rule in
+  // veec-creation-gate.core) the product must be on the VEU Register on the creation day and the owner must have paid
+  // $200+ incl GST on the installation invoice; a refund after creation raises veec_copayment_refunded (Needs me, call Jo).
+  veecCreation: { productOnRegister: "install_day_and_creation_day", minCopaymentCents: 20000, refundAfterCreation: "veec_copayment_refunded_needs_office" },
+  // Part 9 Task 12 (4 Nov 2026): complaints — acknowledge within 5 business days, aim to resolve within 20 (Melbourne
+  // business days); office events only (complaints.core / complaints.functions), no automatic owner message.
+  complaints: { ackBusinessDays: 5, resolveBusinessDays: 20, ownerMessage: "none_office_by_hand" },
   // Decision #30 (Jo 2 Nov 2026): quotes valid 30 days; quotes sent before the change keep 14 (quote-expiry.core).
   // Decisions #29/#33 (Jo 2 Nov 2026): the quote email v4 (owner-quote-email.core, quote-ready-notify.server).
   quoteReadyEmail: {
