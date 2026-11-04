@@ -10,6 +10,7 @@ import { postgrestShim } from "./helpers/pglite-postgrest-shim";
 import { A3_REPAIR_NEEDED_LABEL, A3_UPGRADES_TODAY_LABEL, CERTIFICATE_NOW_LABEL, SHORT_PIESA_FIELDS } from "../src/lib/official-short.core";
 import { PIESA_EVIDENCE_BY_ID } from "../src/lib/piesa-evidence.core";
 import { CERTIFICATE_CHASE_ROUND_EVENT, CERTIFICATE_CHASE_SENT_EVENT, CHASE_ROUND } from "../src/lib/certificate-chase.core";
+import { SMS_MESSAGE_TYPES } from "../src/lib/sms.core";
 
 const db = new PGlite();
 await db.exec(`
@@ -69,7 +70,19 @@ await db.query("insert into bookings (job_id, kind, status, scheduled_start, bus
 const reqOf = async (j: string) => (await db.query<{ id: string }>("select id from evidence_requirements where job_id=$1", [j])).rows[0]!.id;
 await db.query("insert into evidence_files (requirement_id, job_id, storage_path, mime_type) values ($1,$2,'jobs/x/electrician-uploads/abcdefgh.pdf','application/pdf')", [await reqOf(J_CERT_FILE), J_CERT_FILE]);
 
-mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: postgrestShim(db) }));
+// Fix 1: every request through the shim is counted (reads AND writes), so the held path's cost per job is measured.
+const shim = postgrestShim(db);
+let requests = 0;
+mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { ...shim, from: (t: string) => { requests++; return shim.from(t); } } }));
+// The wording gates (fix 1 item 2). The first two blocks run with the wording approved (the send paths); the last block
+// puts them back to held, as they are in the code until Jo approves, then flips them.
+const realChase = { ...(await import("../src/lib/certificate-chase.core")) };
+const setWording = (approved: boolean) => {
+  (SMS_MESSAGE_TYPES.electrician_upgrades_day_link as { wordingApproved: boolean }).wordingApproved = approved;
+  (SMS_MESSAGE_TYPES.electrician_certificate_link as { wordingApproved: boolean }).wordingApproved = approved;
+  mock.module("../src/lib/certificate-chase.core", () => ({ ...realChase, UPGRADES_DAY_OFFICE_EMAIL_APPROVED: approved }));
+};
+setWording(true);
 mock.module("../src/lib/comms.server", () => ({ customerCommsEnabled: async () => true, hasCurrentOwnerContactConsent: async () => true, assertCustomerDeliveryAllowed: async () => undefined }));
 const realWorkflow = await import("../src/lib/workflow.server");
 mock.module("../src/lib/workflow.server", () => ({
@@ -138,7 +151,7 @@ describe("upgrades day not entered (Review Focus 1)", () => {
     await chase.sweepUpgradesDayChase(new Date("2026-11-04T23:00:00Z"));
     const e = emailsFor(J_UP);
     expect(e.length).toBe(1);
-    expect(e[0]).toMatchObject({ businessId: INST, approved: false, subject: "Upgrades day not set — 1 Example St, Clayton 3168" });
+    expect(e[0]).toMatchObject({ businessId: INST, approved: true, subject: "Upgrades day not set — 1 Example St, Clayton 3168" });
     expect(e[0]!.text).toContain("Sparky Sam");
     expect(textsFor(J_UP).length).toBe(1);
     expect(await flags(J_UP)).toMatchObject({ upgradesDayNotSet: { electrician: "Sparky Sam", address: "1 Example St, Clayton 3168" } });
@@ -221,6 +234,87 @@ describe("certificate not in", () => {
     await chase.sweepCertificateChase(new Date("2026-11-20T21:00:00Z"));
     expect(textsFor(J_CERT_FILE)).toEqual([]);
     expect(await rounds(J_CERT_FILE)).toEqual([]);
+  });
+});
+
+// Fix 1 (review): held sends must not starve the sweep. 30 due jobs with the wording held all get their rounds (and the office
+// rows) in ONE tick, cheaply; once Jo approves, each sends exactly once, the 25-per-tick cap counting only real sends.
+const MANY = Array.from({ length: 30 }, (_, i) => id(400 + i));
+const J_NOINST = id(450), J_REASS = id(451);
+const waiting = async (j: string) => (await db.query<{ summary: string; details: { round: string; reason: string } }>("select summary, details from workflow_events where job_id=$1 and event_type='certificate_chase_waiting' order by created_at", [j])).rows;
+const eventCount = async () => Number((await db.query<{ n: number }>("select count(*)::int as n from workflow_events")).rows[0]!.n);
+describe("held sends at scale (fix 1)", () => {
+  test("setup: earlier jobs closed, 32 new due jobs; wording held", async () => {
+    await db.query("update jobs set deleted_at = now()");
+    const all = [...MANY, J_NOINST, J_REASS];
+    for (const [i, j] of all.entries()) {
+      // Oldest first: the PIESA records are a minute apart, in this order.
+      const at = new Date(Date.parse(PIESA_AT) + i * 60_000).toISOString();
+      await db.query("insert into jobs (id, stage, originating_installer_business_id, channel, source, job_number) values ($1,'rectification_scheduling',$2,'installer_sourced','real',$3)", [j, j === J_NOINST ? null : INST, `HV-${j.slice(-3)}`]);
+      await db.query("insert into job_assignments (job_id, role, business_id, user_id) values ($1,'electrician',$2,$3)", [j, ELEC, U1]);
+      if (j !== J_NOINST) await db.query("insert into job_assignments (job_id, role, business_id, user_id) values ($1,'installer',$2,$3)", [j, INST, U_INST]);
+      await db.query("insert into assessments (job_id, mitti_raw_snapshot, completed_at) values ($1,$2,$3)", [j, JSON.stringify(snapshot("No")), at]);
+      await db.query("insert into piesa_records (job_id, kind, outcome, completed_date, created_at) values ($1,'initial','fail','2026-10-30',$2)", [j, at]);
+      await db.query("insert into rectification_items (job_id, description, status) values ($1,'Replace split conduit','required')", [j]);
+    }
+    setWording(false);
+  });
+  test("Thu 5 Nov: ONE tick claims every job's text + email rounds and writes each hold once — a few requests per job", async () => {
+    requests = 0;
+    await chase.sweepUpgradesDayChase(new Date("2026-11-04T22:00:00Z"));
+    const perJob = requests / 32;
+    console.log(`held path: ${requests} requests for 32 jobs = ${perJob.toFixed(2)} per job`);
+    expect(perJob).toBeLessThanOrEqual(4);
+    for (const j of [...MANY, J_REASS]) {
+      expect(await rounds(j)).toEqual([CHASE_ROUND.upgradesText, CHASE_ROUND.upgradesEmail]);
+      expect((await waiting(j)).map((w) => w.details.reason)).toEqual(["wording_not_approved", "wording_not_approved"]);
+    }
+    expect((await waiting(MANY[0]!))[0]!.summary).toBe("Electrician's upgrades day text not sent yet: wording not approved");
+    // The week office row is up for every job although nothing was sent.
+    expect(await flags(MANY[29]!)).toMatchObject({ upgradesDayNotSet: { electrician: "Sparky Sam", address: "1 Example St, Clayton 3168" } });
+    // No installer: its own reason, recorded once.
+    expect((await waiting(J_NOINST)).map((w) => `${w.details.round}:${w.details.reason}`)).toEqual([`${CHASE_ROUND.upgradesText}:wording_not_approved`, `${CHASE_ROUND.upgradesEmail}:no_installer`]);
+    expect(texts.filter((t) => MANY.includes(t.jobId)).length + emails.filter((e) => MANY.includes(e.jobId)).length).toBe(0);
+  });
+  test("the next ticks: nothing new is written and only the batched reads are paid", async () => {
+    const before = await eventCount();
+    requests = 0;
+    await chase.sweepUpgradesDayChase(new Date("2026-11-04T23:00:00Z"));
+    await chase.sweepUpgradesDayChase(new Date("2026-11-04T23:15:00Z"));
+    console.log(`two held ticks: ${requests} requests for 32 jobs`);
+    expect(requests).toBeLessThanOrEqual(30); // two ticks, no per-job reads
+    expect(await eventCount()).toBe(before);
+  });
+  test("Jo approves the wording → each job sends exactly once, oldest first, at most 25 jobs a tick", async () => {
+    setWording(true);
+    await chase.sweepUpgradesDayChase(new Date("2026-11-04T23:30:00Z"));
+    const textedAfter1 = new Set(texts.filter((t) => MANY.includes(t.jobId) || t.jobId === J_NOINST || t.jobId === J_REASS).map((t) => t.jobId));
+    expect(textedAfter1.size).toBe(25);
+    expect([...textedAfter1].sort()).toEqual(MANY.slice(0, 25));
+    await chase.sweepUpgradesDayChase(new Date("2026-11-04T23:45:00Z"));
+    await chase.sweepUpgradesDayChase(new Date("2026-11-05T00:00:00Z"));
+    for (const j of [...MANY, J_REASS]) {
+      expect(textsFor(j).length).toBe(1);
+      expect(emailsFor(j).length).toBe(1);
+      expect(await sentRounds(j)).toEqual(expect.arrayContaining([CHASE_ROUND.upgradesText, CHASE_ROUND.upgradesEmail]));
+    }
+    expect(textsFor(J_NOINST).length).toBe(1);
+  });
+  test("no installer: one waiting marker, no retry each tick; the email goes once an installer is assigned", async () => {
+    expect(emailsFor(J_NOINST)).toEqual([]);
+    expect((await waiting(J_NOINST)).filter((w) => w.details.reason === "no_installer").length).toBe(1);
+    await db.query("insert into job_assignments (job_id, role, business_id, user_id) values ($1,'installer',$2,$3)", [J_NOINST, INST, U_INST]);
+    await chase.sweepUpgradesDayChase(new Date("2026-11-05T00:15:00Z"));
+    await chase.sweepUpgradesDayChase(new Date("2026-11-05T00:30:00Z"));
+    expect(emailsFor(J_NOINST).length).toBe(1);
+    expect((await waiting(J_NOINST)).filter((w) => w.details.reason === "no_installer").length).toBe(1);
+  });
+  test("a reassessment clears the old 7-days-left flag (rows follow the current PIESA record)", async () => {
+    await chase.sweepUpgradesDayChase(new Date("2026-11-22T14:00:00Z"));
+    expect((await flags(J_REASS)).upgradesDayRed).toBeTruthy();
+    await db.query("update piesa_records set is_current = false where job_id = $1", [J_REASS]);
+    await db.query("insert into piesa_records (job_id, kind, outcome, completed_date, created_at) values ($1,'reassessment','fail','2026-11-23','2026-11-23T00:00:00Z')", [J_REASS]);
+    expect(await flags(J_REASS)).toEqual({});
   });
 });
 

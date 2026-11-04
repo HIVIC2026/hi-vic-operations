@@ -26,6 +26,18 @@ export const CERTIFICATE_CHASE_ROUND_EVENT = "certificate_chase_round";
 /** Logged once per job + anchor + round when that round's text / email has finished (sent, or can't ever go). Until then the
  *  sweep tries the send again each tick (held wording, quiet hours, paused trades): the senders send once per key. */
 export const CERTIFICATE_CHASE_SENT_EVENT = "certificate_chase_sent";
+/** Fix 1 (review 4 Nov 2026): logged once per job + anchor + round + reason when a round's text / email can't go yet for a
+ *  reason the sweep can see without per-job reads (wording held, no electrician, no installer, no installer email). While
+ *  the same reason holds the sweep skips the send at no cost; when the facts change (Jo approves the wording, someone is
+ *  assigned, an email is added) the send goes through the normal path. NOT a send claim: the sent event still is. */
+export const CERTIFICATE_CHASE_WAITING_EVENT = "certificate_chase_waiting";
+export type ChaseWaitingReason = "wording_not_approved" | "no_electrician" | "no_installer" | "no_email";
+export const CHASE_WAITING_REASON_TEXT: Record<ChaseWaitingReason, string> = {
+  wording_not_approved: "wording not approved",
+  no_electrician: "no electrician on the job",
+  no_installer: "no installer on the job",
+  no_email: "no email address on file for the installer",
+};
 /** The SMS round keys passed to the link senders (the sms idempotency key is per electrician assignment + round). */
 export const UPGRADES_DAY_TEXT_ROUND = "chase-1bd";
 export const CERTIFICATE_TEXT_ROUND = "chase-2bd";
@@ -100,15 +112,18 @@ export type ChaseFlags = {
 type ChaseEvent = { created_at: string; details: Record<string, unknown> | null };
 const str = (v: unknown) => (typeof v === "string" && v.trim() ? v : null);
 /** The open office flags from the job's round events and its LIVE certificate facts: each clears by itself once the day is
- *  entered (or done on the day) / the certificate file is on the job. The certificate flag counts only for the current Part C date. */
-export function chaseOfficeFlags(events: readonly ChaseEvent[], f: { state: CertificateState; upgradesDaySet: boolean; upgradesToday: boolean; upgradesDoneAt: string | null }): ChaseFlags {
+ *  entered (or done on the day) / the certificate file is on the job. The certificate flag counts only for the current Part C
+ *  date; the upgrades rows only for the current PIESA record (`upgradesAnchor`, its id — a reassessment clears the old rows;
+ *  null = unknown, no rows). */
+export function chaseOfficeFlags(events: readonly ChaseEvent[], f: { state: CertificateState; upgradesDaySet: boolean; upgradesToday: boolean; upgradesDoneAt: string | null; upgradesAnchor: string | null }): ChaseFlags {
   const out: ChaseFlags = {};
   const newest = (round: ChaseRound, pred: (d: Record<string, unknown>) => boolean = () => true) =>
     events.filter((e) => e.details?.["round"] === round && pred(e.details ?? {})).sort((a, b) => a.created_at.localeCompare(b.created_at)).at(-1) ?? null;
-  if (f.state === "upgrades_pending" && !f.upgradesDaySet && !f.upgradesToday) {
-    const email = newest(CHASE_ROUND.upgradesEmail);
+  if (f.state === "upgrades_pending" && !f.upgradesDaySet && !f.upgradesToday && f.upgradesAnchor) {
+    const current = (d: Record<string, unknown>) => d["anchor"] === f.upgradesAnchor;
+    const email = newest(CHASE_ROUND.upgradesEmail, current);
     if (email) out.upgradesDayNotSet = { at: email.created_at, electrician: str(email.details?.["electrician"]), address: str(email.details?.["address"]) ?? "this job" };
-    const red = newest(CHASE_ROUND.upgradesRed);
+    const red = newest(CHASE_ROUND.upgradesRed, current);
     if (red) out.upgradesDayRed = { at: red.created_at };
   }
   if (f.state === "waiting_for_certificate" && f.upgradesDoneAt) {

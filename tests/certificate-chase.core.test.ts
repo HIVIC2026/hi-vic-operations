@@ -90,7 +90,7 @@ describe("held wording", () => {
 
 describe("office flags (Needs me)", () => {
   const ev = (round: string, at: string, details: Record<string, unknown> = {}) => ({ created_at: at, details: { round, anchor: "a1", ...details } });
-  const pending = { state: "upgrades_pending" as const, upgradesDaySet: false, upgradesToday: false, upgradesDoneAt: null };
+  const pending = { state: "upgrades_pending" as const, upgradesDaySet: false, upgradesToday: false, upgradesDoneAt: null, upgradesAnchor: "a1" };
   test("upgrades day: the email round → week row; the 7-days-left round → red row; a day entered clears both", () => {
     const events = [ev(CHASE_ROUND.upgradesText, "2026-11-03T00:00:00Z"), ev(CHASE_ROUND.upgradesEmail, "2026-11-05T00:00:00Z", { electrician: "Sparky Co", address: "1 Example St" })];
     expect(chaseOfficeFlags(events, pending)).toEqual({ upgradesDayNotSet: { at: "2026-11-05T00:00:00Z", electrician: "Sparky Co", address: "1 Example St" } });
@@ -99,9 +99,14 @@ describe("office flags (Needs me)", () => {
     expect(chaseOfficeFlags(red, { ...pending, upgradesDaySet: true })).toEqual({});
     expect(chaseOfficeFlags(red, { ...pending, state: "waiting_for_certificate" })).toEqual({});
   });
+  test("fix 1 minor 2: upgrades rows count only for the current PIESA record — a reassessment clears the old rows", () => {
+    const red = [ev(CHASE_ROUND.upgradesEmail, "2026-11-05T00:00:00Z", { electrician: "Sparky Co", address: "1 Example St" }), ev(CHASE_ROUND.upgradesRed, "2026-11-23T00:00:00Z")];
+    expect(chaseOfficeFlags(red, { ...pending, upgradesAnchor: "a2" })).toEqual({});
+    expect(chaseOfficeFlags(red, { ...pending, upgradesAnchor: null })).toEqual({});
+  });
   test("certificate: the 4-business-day round → row with the phone; a file (state moved on) clears it; another Part C date doesn't count", () => {
     const events = [ev(CHASE_ROUND.certificateFlag, "2026-11-10T00:00:00Z", { anchor: "2026-11-02", electrician: "Sparky Sam", phone: "0411111111" })];
-    const waiting = { state: "waiting_for_certificate" as const, upgradesDaySet: true, upgradesToday: false, upgradesDoneAt: "2026-11-02" };
+    const waiting = { state: "waiting_for_certificate" as const, upgradesDaySet: true, upgradesToday: false, upgradesDoneAt: "2026-11-02", upgradesAnchor: null };
     expect(chaseOfficeFlags(events, waiting)).toEqual({ certificateNotIn: { at: "2026-11-10T00:00:00Z", electrician: "Sparky Sam", phone: "0411111111" } });
     expect(chaseOfficeFlags(events, { ...waiting, state: "certificate_in" })).toEqual({});
     expect(chaseOfficeFlags(events, { ...waiting, upgradesDoneAt: "2026-11-20" })).toEqual({});

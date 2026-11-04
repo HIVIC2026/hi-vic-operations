@@ -168,10 +168,16 @@ export async function recordInstallCertificateWarning(jobId: string, actorId: st
 
 /** Stages a job can sit at while its upgrades day or certificate is still to come (PIESA complete → install booked). */
 export const CHASE_STAGES = ["piesa_complete", "electrical_variation_pending", "rectification_required", "awaiting_owner_rectification_approval", "rectification_scheduling", "rectification_booked", "installation_scheduling", "installation_booked"] as const;
-/** At most this many jobs are acted on per tick per sweep (a held text is tried again each tick, so this bounds the work). */
+/** At most this many jobs get a REAL send per sweep per tick. Fix 1 (review 4 Nov 2026): flag-only rounds, held wording and
+ *  the other waiting reasons never count — they are cheap (no per-job reads) and always done, so held texts can't starve the
+ *  office rows of jobs further down the list. */
 const CHASE_MAX_PER_TICK = 25;
+/** Candidate jobs are read in pages of this many (keyset on id), up to CHASE_MAX_PAGES pages. */
+const CHASE_PAGE = 500;
+const CHASE_MAX_PAGES = 40;
 
 type R = Record<string, unknown>;
+const loose = () => admin as unknown as import("@supabase/supabase-js").SupabaseClient;
 async function chunked(what: string, ids: string[], q: (chunk: string[]) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>): Promise<R[]> {
   const out: R[] = [];
   for (let i = 0; i < ids.length; i += 200) {
@@ -181,108 +187,196 @@ async function chunked(what: string, ids: string[], q: (chunk: string[]) => Prom
   }
   return out;
 }
-const groupBy = (rows: R[]) => { const m = new Map<string, R[]>(); for (const r of rows) { const k = String(r["job_id"]); m.set(k, [...(m.get(k) ?? []), r]); } return m; };
+const groupBy = (rows: R[], key = "job_id") => { const m = new Map<string, R[]>(); for (const r of rows) { const k = String(r[key]); m.set(k, [...(m.get(k) ?? []), r]); } return m; };
 const ymd = (v: unknown) => (v ? String(v).slice(0, 10) : null);
+const newestFirst = (x: R, y: R) => String(y["created_at"]).localeCompare(String(x["created_at"]));
 
+type ChaseEventRow = { event_type: string; created_at: string; details: R | null };
 type ChaseRow = {
-  id: string; upgradesNeeded: boolean; upgradesToday: boolean; partCRecorded: boolean; daySet: boolean; hasFile: boolean;
+  id: string; source: string | null; originatingInstaller: string | null;
+  upgradesNeeded: boolean; upgradesToday: boolean; partCRecorded: boolean; daySet: boolean; hasFile: boolean;
   /** Newest initial / reassessment PIESA record: when upgrades were found (created_at) and the official date (completed_date). */
   piesa: { id: string; createdAt: string; date: string | null } | null;
-  /** Part C date as far as the batch can tell (the live facts decide before anything is sent). */
+  /** Part C date, the same rule as the live `upgradesDoneAt` (post-upgrades record → A4 done date → PIESA completion). */
   doneAt: string | null;
-  events: { event_type: string; created_at: string; details: R | null }[];
+  events: ChaseEventRow[];
 };
 
-/** ONE candidate read + batched facts for the chase sweeps (no per-job reads until something is due). */
+/** Every job at a chase stage, paged by id (fix 1: no 500-job ceiling; the sweeps then work oldest first). */
+async function chaseCandidates(): Promise<R[]> {
+  const out: R[] = [];
+  let after: string | null = null;
+  for (let page = 0; page < CHASE_MAX_PAGES; page++) {
+    let q = loose().from("jobs").select("id, source, originating_installer_business_id").in("stage", [...CHASE_STAGES]).is("deleted_at", null);
+    if (after) q = q.gt("id", after);
+    const { data, error } = await q.order("id").limit(CHASE_PAGE);
+    if (error) throw new Error(error.message);
+    const rows = (data ?? []) as R[];
+    out.push(...rows);
+    if (rows.length < CHASE_PAGE) return out;
+    after = String(rows[rows.length - 1]!["id"]);
+  }
+  console.warn("chase sweep: more than", CHASE_PAGE * CHASE_MAX_PAGES, "candidate jobs — the rest wait for a later tick");
+  return out;
+}
+
+/** The candidate read + batched facts for the chase sweeps (no per-job reads until a real send is due). */
 async function chaseRows(opts: { files: boolean }): Promise<ChaseRow[]> {
-  const { data: jobs, error } = await admin.from("jobs").select("id").in("stage", [...CHASE_STAGES]).is("deleted_at", null).order("id").limit(500);
-  if (error) throw new Error(error.message);
-  const ids = ((jobs ?? []) as { id: string }[]).map((j) => j.id);
+  const jobs = await chaseCandidates();
+  const ids = jobs.map((j) => String(j["id"]));
   if (!ids.length) return [];
-  const { CERTIFICATE_CHASE_ROUND_EVENT, CERTIFICATE_CHASE_SENT_EVENT } = await import("./certificate-chase.core");
+  const { CERTIFICATE_CHASE_ROUND_EVENT, CERTIFICATE_CHASE_SENT_EVENT, CERTIFICATE_CHASE_WAITING_EVENT } = await import("./certificate-chase.core");
   const { FIXES_COES_DOC_KIND, FIXES_COES_DOC_TITLE } = await import("./fixes-day.core");
-  const loose = admin as unknown as import("@supabase/supabase-js").SupabaseClient;
+  const db = loose();
   const [assess, recs, items, books, evs, docs, reqs] = await Promise.all([
-    chunked("PIESA answers", ids, (c) => loose.from("assessments").select("job_id, mitti_raw_snapshot, completed_at").in("job_id", c)),
-    chunked("PIESA records", ids, (c) => loose.from("piesa_records").select("id, job_id, kind, outcome, completed_date, created_at").in("job_id", c).in("kind", ["initial", "reassessment", "post_rectification"])),
-    chunked("upgrades items", ids, (c) => loose.from("rectification_items").select("job_id").in("job_id", c).in("status", ["required", "completed"])),
-    chunked("upgrades bookings", ids, (c) => loose.from("bookings").select("job_id").in("job_id", c).eq("kind", "rectification").in("status", ["confirmed", "completed"])),
-    chunked("chase rounds", ids, (c) => loose.from("workflow_events").select("job_id, event_type, created_at, details").in("job_id", c).in("event_type", [CERTIFICATE_CHASE_ROUND_EVENT, CERTIFICATE_CHASE_SENT_EVENT])),
-    opts.files ? chunked("certificate documents", ids, (c) => loose.from("documents").select("job_id").in("job_id", c).eq("kind", FIXES_COES_DOC_KIND).eq("source_system", "mitti").eq("title", FIXES_COES_DOC_TITLE)) : Promise.resolve([] as R[]),
-    opts.files ? chunked("certificate requirements", ids, (c) => loose.from("evidence_requirements").select("id, job_id").in("job_id", c).eq("category", "rectification_completion")) : Promise.resolve([] as R[]),
+    chunked("PIESA answers", ids, (c) => db.from("assessments").select("job_id, mitti_raw_snapshot, completed_at").in("job_id", c)),
+    chunked("PIESA records", ids, (c) => db.from("piesa_records").select("id, job_id, kind, outcome, completed_date, created_at").in("job_id", c).in("kind", ["initial", "reassessment", "post_rectification"])),
+    chunked("upgrades items", ids, (c) => db.from("rectification_items").select("job_id").in("job_id", c).in("status", ["required", "completed"])),
+    chunked("upgrades bookings", ids, (c) => db.from("bookings").select("job_id").in("job_id", c).eq("kind", "rectification").in("status", ["confirmed", "completed"])),
+    // fixes_form_completed: the A4 done date, part of the Part C date rule (fix 1 minor 6).
+    chunked("chase rounds", ids, (c) => db.from("workflow_events").select("job_id, event_type, created_at, details").in("job_id", c).in("event_type", [CERTIFICATE_CHASE_ROUND_EVENT, CERTIFICATE_CHASE_SENT_EVENT, CERTIFICATE_CHASE_WAITING_EVENT, "fixes_form_completed"])),
+    opts.files ? chunked("certificate documents", ids, (c) => db.from("documents").select("job_id").in("job_id", c).eq("kind", FIXES_COES_DOC_KIND).eq("source_system", "mitti").eq("title", FIXES_COES_DOC_TITLE)) : Promise.resolve([] as R[]),
+    opts.files ? chunked("certificate requirements", ids, (c) => db.from("evidence_requirements").select("id, job_id").in("job_id", c).eq("category", "rectification_completion")) : Promise.resolve([] as R[]),
   ]);
   const reqIds = reqs.map((r) => String(r["id"]));
-  const files = reqIds.length ? await chunked("certificate files", reqIds, (c) => loose.from("evidence_files").select("job_id").in("requirement_id", c)) : [];
+  const files = reqIds.length ? await chunked("certificate files", reqIds, (c) => db.from("evidence_files").select("job_id").in("requirement_id", c)) : [];
   const [byA, byRec, byItem, byBook, byEv] = [groupBy(assess), groupBy(recs), groupBy(items), groupBy(books), groupBy(evs)];
   const withFile = new Set([...docs, ...files].map((r) => String(r["job_id"])));
   const out: ChaseRow[] = [];
-  for (const id of ids) {
+  for (const j of jobs) {
+    const id = String(j["id"]);
     const a = byA.get(id)?.[0] ?? null;
     const rs = byRec.get(id) ?? [];
-    const post = rs.filter((r) => r["kind"] === "post_rectification" && r["outcome"] === "pass").sort((x, y) => String(y["created_at"]).localeCompare(String(x["created_at"])))[0] ?? null;
-    const initial = rs.filter((r) => r["kind"] !== "post_rectification").sort((x, y) => String(y["created_at"]).localeCompare(String(x["created_at"])))[0] ?? null;
+    const post = rs.filter((r) => r["kind"] === "post_rectification" && r["outcome"] === "pass").sort(newestFirst)[0] ?? null;
+    const initial = rs.filter((r) => r["kind"] !== "post_rectification").sort(newestFirst)[0] ?? null;
     const u = await upgradesFromRows(a?.["mitti_raw_snapshot"], (byItem.get(id) ?? []).length, !!post);
+    const all = byEv.get(id) ?? [];
+    const fixesDone = all.filter((e) => e["event_type"] === "fixes_form_completed").sort(newestFirst)[0] ?? null;
+    const doneDate = (fixesDone?.["details"] as R | null | undefined)?.["done_date"];
     out.push({
-      id, ...u, daySet: (byBook.get(id) ?? []).length > 0, hasFile: withFile.has(id),
+      id, source: (j["source"] as string | null) ?? null, originatingInstaller: (j["originating_installer_business_id"] as string | null) ?? null,
+      ...u, daySet: (byBook.get(id) ?? []).length > 0, hasFile: withFile.has(id),
       piesa: initial ? { id: String(initial["id"]), createdAt: new Date(String(initial["created_at"])).toISOString(), date: ymd(initial["completed_date"]) } : null,
-      doneAt: u.partCRecorded ? ymd(post?.["completed_date"]) ?? ymd(a?.["completed_at"]) : null,
-      events: (byEv.get(id) ?? []).map((e) => ({ event_type: String(e["event_type"]), created_at: String(e["created_at"]), details: (e["details"] ?? null) as R | null })),
+      doneAt: u.partCRecorded ? ymd(post?.["completed_date"]) ?? ymd(doneDate) ?? ymd(a?.["completed_at"]) : null,
+      events: all.filter((e) => e["event_type"] !== "fixes_form_completed").map((e) => ({ event_type: String(e["event_type"]), created_at: String(e["created_at"]), details: (e["details"] ?? null) as R | null })),
     });
   }
   return out;
 }
 
-const hasEvent = (row: ChaseRow, type: string, anchor: string, round: string) => row.events.some((e) => e.event_type === type && e.details?.["anchor"] === anchor && e.details?.["round"] === round);
+/** Who a due job's sends go to, read in one batch for the due jobs only (fix 1: no per-job recipient reads). Same rules as
+ *  `electricianNameFor` (newest active electrician; their worker name, else the business) and the installer office email
+ *  (active installer, else the originating installer). */
+type ChaseContact = {
+  address: string;
+  electrician: { name: string | null; phone: string | null; test: boolean } | null;
+  installer: { id: string; email: string; test: boolean } | null;
+};
+async function chaseContacts(rows: ChaseRow[]): Promise<Map<string, ChaseContact>> {
+  const out = new Map<string, ChaseContact>();
+  if (!rows.length) return out;
+  const ids = rows.map((r) => r.id);
+  const db = loose();
+  const [assigns, overview] = await Promise.all([
+    chunked("job assignments", ids, (c) => db.from("job_assignments").select("job_id, role, business_id, user_id, assigned_at").in("job_id", c).eq("active", true).in("role", ["electrician", "installer"])),
+    chunked("job addresses", ids, (c) => db.from("job_overview").select("id, property_address, job_number").in("id", c)),
+  ]);
+  const byJob = groupBy(assigns);
+  const elecOf = new Map<string, R>(), instOf = new Map<string, string>();
+  for (const r of rows) {
+    const as = byJob.get(r.id) ?? [];
+    const e = as.filter((x) => x["role"] === "electrician").sort((x, y) => String(y["assigned_at"]).localeCompare(String(x["assigned_at"])))[0];
+    if (e) elecOf.set(r.id, e);
+    const inst = (as.find((x) => x["role"] === "installer" && x["business_id"])?.["business_id"] as string | undefined) ?? r.originatingInstaller;
+    if (inst) instOf.set(r.id, inst);
+  }
+  const elecBiz = [...new Set([...elecOf.values()].map((e) => e["business_id"]).filter(Boolean).map(String))];
+  const bizIds = [...new Set([...elecBiz, ...instOf.values()])];
+  const [biz, workers] = await Promise.all([
+    bizIds.length ? chunked("businesses", bizIds, (c) => db.from("businesses").select("id, name, trading_name, phone, email, onboarding_notes").in("id", c)) : Promise.resolve([] as R[]),
+    elecBiz.length ? chunked("electrician workers", elecBiz, (c) => db.from("partner_workers").select("business_id, profile_id, full_legal_name, mobile").in("business_id", c).is("removed_at", null)) : Promise.resolve([] as R[]),
+  ]);
+  const bizById = new Map(biz.map((b) => [String(b["id"]), b]));
+  const [{ displayName }, { isTestPartner }] = await Promise.all([import("./display-name.core"), import("./test-send.core")]);
+  const ov = new Map(overview.map((o) => [String(o["id"]), o]));
+  for (const r of rows) {
+    const o = ov.get(r.id);
+    const e = elecOf.get(r.id);
+    const eb = e?.["business_id"] ? bizById.get(String(e["business_id"])) ?? null : null;
+    const w = e?.["business_id"] ? workers.find((x) => x["business_id"] === e["business_id"] && x["profile_id"] === e["user_id"]) ?? null : null;
+    const instId = instOf.get(r.id) ?? null;
+    const ib = instId ? bizById.get(instId) ?? null : null;
+    out.set(r.id, {
+      address: String(o?.["property_address"] || o?.["job_number"] || "this job"),
+      electrician: e?.["business_id"] ? {
+        name: displayName(w?.["full_legal_name"] as string | null) || displayName((eb?.["trading_name"] || eb?.["name"]) as string | null) || null,
+        phone: (w?.["mobile"] as string | null) || (eb?.["phone"] as string | null) || null,
+        test: isTestPartner(eb as { onboarding_notes?: string | null } | null),
+      } : null,
+      // A missing business row reads as "no installer" (nothing can be emailed); the send path would say the same.
+      installer: instId && ib ? { id: instId, email: String(ib["email"] ?? "").trim(), test: isTestPartner(ib as { onboarding_notes?: string | null }) } : null,
+    });
+  }
+  return out;
+}
 
-/** Log the round once (the stable id is the claim: a second sweep gets a duplicate key and logs nothing). */
-async function logChaseEvent(jobId: string, type: string, anchor: string, round: string, summary: string, details: R = {}): Promise<void> {
+const hasEvent = (row: ChaseRow, type: string, anchor: string, round: string, reason?: string) => row.events.some((e) => e.event_type === type && e.details?.["anchor"] === anchor && e.details?.["round"] === round && (reason === undefined || e.details?.["reason"] === reason));
+
+/** The stable id of a chase event (the claim: a second sweep gets a duplicate key and logs nothing). */
+async function chaseEventId(jobId: string, type: string, anchor: string, round: string, reason?: string): Promise<string> {
   const { stableUuid } = await import("./mitti-create-claim.core");
-  const id = await stableUuid(`certificate-chase:${jobId}:${anchor}:${round}${type.endsWith("_sent") ? ":sent" : ""}`);
+  const { CERTIFICATE_CHASE_WAITING_EVENT } = await import("./certificate-chase.core");
+  const suffix = type === CERTIFICATE_CHASE_WAITING_EVENT ? `:waiting:${reason}` : type.endsWith("_sent") ? ":sent" : "";
+  return stableUuid(`certificate-chase:${jobId}:${anchor}:${round}${suffix}`);
+}
+
+/** Log one event once (stable-id insert). Used for the sent events, after a real send. */
+async function logChaseEvent(jobId: string, type: string, anchor: string, round: string, summary: string, details: R = {}): Promise<void> {
+  const id = await chaseEventId(jobId, type, anchor, round);
   const { error } = await admin.from("workflow_events").insert({ id, job_id: jobId, actor_id: null, event_type: type, summary, details: { round, anchor, ...details }, internal: true } as never);
   if (error && (error as { code?: string }).code !== "23505") throw new Error(error.message);
 }
 
-/** Logs a round once: skipped when the batch already saw it (a held send being tried again), else one stable-id insert. The
- *  electrician's phone and the address are read only when a round is first logged (they go on the event for Needs me). */
-function claimer(row: ChaseRow, anchor: string, electrician: string | null) {
-  let contact: Promise<{ address: string; phone: string | null }> | null = null;
-  const get = () => (contact ??= chaseContact(row.id));
-  const claim = async (round: string, summary: string) => {
-    const { CERTIFICATE_CHASE_ROUND_EVENT } = await import("./certificate-chase.core");
-    if (hasEvent(row, CERTIFICATE_CHASE_ROUND_EVENT, anchor, round)) return;
-    const c = await get();
-    await logChaseEvent(row.id, CERTIFICATE_CHASE_ROUND_EVENT, anchor, round, summary, { electrician, address: c.address, phone: c.phone });
-  };
-  return Object.assign(claim, { contact: get });
+/** The cheap half of a sweep: every new round claim and waiting marker, written in batches (an existing id is skipped). */
+class ChaseWrites {
+  rows: R[] = [];
+  async add(row: ChaseRow, type: string, anchor: string, round: string, summary: string, details: R = {}) {
+    const reason = details["reason"] as string | undefined;
+    if (hasEvent(row, type, anchor, round, reason)) return false;
+    this.rows.push({ id: await chaseEventId(row.id, type, anchor, round, reason), job_id: row.id, actor_id: null, event_type: type, summary, details: { round, anchor, ...details }, internal: true });
+    return true;
+  }
+  async flush() {
+    for (let i = 0; i < this.rows.length; i += 200) {
+      const { error } = await loose().from("workflow_events").upsert(this.rows.slice(i, i + 200), { onConflict: "id", ignoreDuplicates: true });
+      if (error) throw new Error(`chase rounds could not be recorded: ${error.message}`);
+    }
+  }
 }
 
 /** The text / email has finished when it went, or can't ever go: anything held, refused or failed is tried again next tick. */
 const textDone = (r: string) => !/^(held|blocked|failed|no_electrician|not_|day_set)/.test(r);
 const emailDone = (r: string) => ["sent", "test_sent", "not_sent"].includes(r);
 
-/** The electrician's phone + the job address for the office rows (stored on the round event). */
-async function chaseContact(jobId: string): Promise<{ address: string; phone: string | null }> {
-  const who = await electricianNameFor(jobId);
-  const [{ data: ov }, { data: w }, { data: b }] = await Promise.all([
-    admin.from("job_overview").select("property_address, job_number").eq("id", jobId).maybeSingle(),
-    who.businessId && who.userId ? admin.from("partner_workers").select("mobile").eq("business_id", who.businessId).eq("profile_id", who.userId).is("removed_at", null).limit(1).maybeSingle() : Promise.resolve({ data: null }),
-    who.businessId ? admin.from("businesses").select("phone").eq("id", who.businessId).maybeSingle() : Promise.resolve({ data: null }),
-  ]);
-  const o = ov as { property_address?: string | null; job_number?: string | null } | null;
-  return { address: o?.property_address || o?.job_number || "this job", phone: (w as { mobile?: string | null } | null)?.mobile || (b as { phone?: string | null } | null)?.phone || null };
+/** Why the electrician's text can't go yet, from the batch (null = try the real path). TEST jobs / TEST partners always take
+ *  the real path (the test sender). */
+async function textWaitReason(row: ChaseRow, c: ChaseContact, type: "electrician_upgrades_day_link" | "electrician_certificate_link"): Promise<import("./certificate-chase.core").ChaseWaitingReason | null> {
+  if (!c.electrician) return "no_electrician";
+  if (row.source === "qa_test" || c.electrician.test) return null;
+  const { SMS_MESSAGE_TYPES } = await import("./sms.core");
+  return SMS_MESSAGE_TYPES[type].wordingApproved === false ? "wording_not_approved" : null;
+}
+/** Why the installer office email can't go yet (same order as emailInstallerOffice: TEST partner → TEST job → wording → email). */
+function emailWaitReason(row: ChaseRow, c: ChaseContact, approved: boolean): import("./certificate-chase.core").ChaseWaitingReason | null {
+  if (!c.installer) return "no_installer";
+  if (c.installer.test) return c.installer.email ? null : "no_email";
+  if (row.source === "qa_test") return null; // the sender refuses a real installer for a TEST job (a final "not_sent")
+  if (!approved) return "wording_not_approved";
+  return c.installer.email ? null : "no_email";
 }
 
-/** Email the installer's office (held wording) once per job + PIESA: active installer, else the originating installer. */
-async function emailUpgradesDayOffice(jobId: string, anchor: string, electrician: string | null, address: string): Promise<string> {
-  const { data: inst, error } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).limit(1).maybeSingle();
-  if (error) throw new Error(error.message);
-  let installerId = (inst as { business_id?: string | null } | null)?.business_id ?? null;
-  if (!installerId) {
-    const { data: j, error: je } = await admin.from("jobs").select("originating_installer_business_id").eq("id", jobId).maybeSingle();
-    if (je) throw new Error(je.message);
-    installerId = (j as { originating_installer_business_id?: string | null } | null)?.originating_installer_business_id ?? null;
-  }
-  if (!installerId) return "no_installer";
+/** Email the installer's office (held wording) once per job + PIESA. */
+async function emailUpgradesDayOffice(jobId: string, anchor: string, installerId: string, electrician: string | null, address: string): Promise<string> {
   const [{ upgradesDayOfficeEmail, UPGRADES_DAY_OFFICE_EMAIL_APPROVED }, { SET_PASSWORD_BASE }, { emailInstallerOffice }] = await Promise.all([import("./certificate-chase.core"), import("./set-password-link.core"), import("./own-job-piesa-notices.server")]);
   const jobUrl = `${SET_PASSWORD_BASE}/field/${jobId}`;
   const mail = upgradesDayOfficeEmail({ address, electrician, jobUrl });
@@ -292,40 +386,59 @@ async function emailUpgradesDayOffice(jobId: string, anchor: string, electrician
 }
 
 /** 15-minute tick: the PIESA says upgrades are needed, not today, and no upgrades day is entered → day 1 text, day 2 office
- *  email, red office flag at 7 days left on the 30-day clock. Each round once per job + PIESA (stable event id); a held send is
- *  tried again on later ticks (each sender sends once per key). Entering a day stops it (the live facts are read before acting). */
+ *  email, red office flag at 7 days left on the 30-day clock. Each round claimed once per job + PIESA (stable event id).
+ *  Fix 1: first, from the batch alone, every due round is claimed and every send that can't go yet (wording held, nobody to
+ *  send to) gets one waiting marker — no per-job reads, never capped. Then, oldest PIESA first, at most 25 jobs with a send
+ *  that can go read their live facts and send (each sender sends once per key; anything held is tried again next tick). */
 export async function sweepUpgradesDayChase(now: Date = new Date()): Promise<{ texted: number; emailed: number; flagged: number; held: number; failed: number }> {
   const out = { texted: 0, emailed: 0, flagged: 0, held: 0, failed: 0 };
-  const { CERTIFICATE_CHASE_ROUND_EVENT: ROUND, CERTIFICATE_CHASE_SENT_EVENT: SENT, CHASE_ROUND, UPGRADES_DAY_TEXT_ROUND, upgradesDayChaseAction } = await import("./certificate-chase.core");
-  let acted = 0;
+  const { CERTIFICATE_CHASE_ROUND_EVENT: ROUND, CERTIFICATE_CHASE_SENT_EVENT: SENT, CERTIFICATE_CHASE_WAITING_EVENT: WAITING, CHASE_WAITING_REASON_TEXT, CHASE_ROUND, UPGRADES_DAY_TEXT_ROUND, UPGRADES_DAY_OFFICE_EMAIL_APPROVED, upgradesDayChaseAction } = await import("./certificate-chase.core");
+  const due: { row: ChaseRow; anchor: string; actions: ReturnType<typeof upgradesDayChaseAction> }[] = [];
   for (const row of await chaseRows({ files: false })) {
-    if (acted >= CHASE_MAX_PER_TICK) break;
     if (!row.upgradesNeeded || row.partCRecorded || row.daySet || row.upgradesToday || !row.piesa) continue;
     const anchor = row.piesa.id;
     const sent = { text1: hasEvent(row, SENT, anchor, CHASE_ROUND.upgradesText), email2: hasEvent(row, SENT, anchor, CHASE_ROUND.upgradesEmail), flag7: hasEvent(row, ROUND, anchor, CHASE_ROUND.upgradesRed) };
-    const base = { upgradesNeededAt: row.piesa.createdAt, piesaAt: row.piesa.date ?? row.piesa.createdAt, now, sent };
-    if (!upgradesDayChaseAction({ ...base, dayEntered: false }).length) continue;
-    acted++;
+    const actions = upgradesDayChaseAction({ upgradesNeededAt: row.piesa.createdAt, piesaAt: row.piesa.date ?? row.piesa.createdAt, now, sent, dayEntered: false });
+    if (actions.length) due.push({ row, anchor, actions });
+  }
+  if (!due.length) return out;
+  due.sort((a, b) => a.row.piesa!.createdAt.localeCompare(b.row.piesa!.createdAt) || a.row.id.localeCompare(b.row.id));
+  const contacts = await chaseContacts(due.map((d) => d.row));
+  const writes = new ChaseWrites();
+  const toSend: { row: ChaseRow; anchor: string; contact: ChaseContact; text: boolean; email: boolean }[] = [];
+  for (const { row, anchor, actions } of due) {
+    const c = contacts.get(row.id)!;
+    const who = { electrician: c.electrician?.name ?? null, address: c.address, phone: c.electrician?.phone ?? null };
+    let text = false, email = false;
+    for (const act of actions) {
+      if (act === "text_electrician") {
+        await writes.add(row, ROUND, anchor, CHASE_ROUND.upgradesText, "Upgrades day not set after 1 business day: electrician reminded", who);
+        const why = await textWaitReason(row, c, "electrician_upgrades_day_link");
+        if (why) { await writes.add(row, WAITING, anchor, CHASE_ROUND.upgradesText, `Electrician's upgrades day text not sent yet: ${CHASE_WAITING_REASON_TEXT[why]}`, { reason: why }); out.held++; }
+        else text = true;
+      } else if (act === "email_office") {
+        // The office's week row comes from this claim, so it is made whether or not the email can go.
+        await writes.add(row, ROUND, anchor, CHASE_ROUND.upgradesEmail, "Upgrades day not set after 2 business days: installer office emailed", who);
+        const why = emailWaitReason(row, c, UPGRADES_DAY_OFFICE_EMAIL_APPROVED);
+        if (why) { await writes.add(row, WAITING, anchor, CHASE_ROUND.upgradesEmail, `Installer office email not sent yet: ${CHASE_WAITING_REASON_TEXT[why]}`, { reason: why }); out.held++; }
+        else email = true;
+      } else if (await writes.add(row, ROUND, anchor, CHASE_ROUND.upgradesRed, "Upgrades day not set — 7 days left on the 30-day clock", who)) out.flagged++;
+    }
+    if (text || email) toSend.push({ row, anchor, contact: c, text, email });
+  }
+  try { await writes.flush(); } catch (e) { out.failed += due.length; console.error("upgrades day chase:", (e as Error).message); return out; }
+  for (const { row, anchor, contact, text, email } of toSend.slice(0, CHASE_MAX_PER_TICK)) {
     try {
       const f = await jobCertificateFacts(row.id);
-      if (f.state !== "upgrades_pending") continue;
-      const actions = upgradesDayChaseAction({ ...base, dayEntered: f.upgradesDaySet || f.upgradesToday });
-      if (!actions.length) continue;
-      const claim = claimer(row, anchor, f.electrician);
-      for (const act of actions) {
-        if (act === "text_electrician") {
-          await claim(CHASE_ROUND.upgradesText, "Upgrades day not set after 1 business day: electrician reminded");
-          const { textUpgradesDayLink } = await import("./own-job-piesa-notices.server");
-          const r = await textUpgradesDayLink(row.id, UPGRADES_DAY_TEXT_ROUND, f);
-          if (textDone(r)) { await logChaseEvent(row.id, SENT, anchor, CHASE_ROUND.upgradesText, `Upgrades day reminder text: ${r}`, { status: r }); out.texted++; } else out.held++;
-        } else if (act === "email_office") {
-          await claim(CHASE_ROUND.upgradesEmail, "Upgrades day not set after 2 business days: installer office emailed");
-          const r = await emailUpgradesDayOffice(row.id, anchor, f.electrician, (await claim.contact()).address);
-          if (emailDone(r)) { await logChaseEvent(row.id, SENT, anchor, CHASE_ROUND.upgradesEmail, `Upgrades day installer email: ${r}`, { status: r }); out.emailed++; } else out.held++;
-        } else {
-          await claim(CHASE_ROUND.upgradesRed, "Upgrades day not set — 7 days left on the 30-day clock");
-          out.flagged++;
-        }
+      if (f.state !== "upgrades_pending" || f.upgradesDaySet || f.upgradesToday) continue;
+      if (text) {
+        const { textUpgradesDayLink } = await import("./own-job-piesa-notices.server");
+        const r = await textUpgradesDayLink(row.id, UPGRADES_DAY_TEXT_ROUND, f);
+        if (textDone(r)) { await logChaseEvent(row.id, SENT, anchor, CHASE_ROUND.upgradesText, `Upgrades day reminder text: ${r}`, { status: r }); out.texted++; } else out.held++;
+      }
+      if (email) {
+        const r = await emailUpgradesDayOffice(row.id, anchor, contact.installer!.id, f.electrician, contact.address);
+        if (emailDone(r)) { await logChaseEvent(row.id, SENT, anchor, CHASE_ROUND.upgradesEmail, `Upgrades day installer email: ${r}`, { status: r }); out.emailed++; } else out.held++;
       }
     } catch (e) { out.failed++; console.error("upgrades day chase failed", row.id, (e as Error).message); }
   }
@@ -333,56 +446,69 @@ export async function sweepUpgradesDayChase(now: Date = new Date()): Promise<{ t
 }
 
 /** 15-minute tick: Part C recorded, no certificate file → day 2 text with the link, day 4 office flag. Each round once per job +
- *  Part C date (stable event id); a held text is tried again on later ticks. A file on the job stops it. */
+ *  Part C date (stable event id). Same two halves as the upgrades sweep (fix 1): claims and waiting markers from the batch,
+ *  then at most 25 real sends, oldest Part C date first. A file on the job stops it. */
 export async function sweepCertificateChase(now: Date = new Date()): Promise<{ texted: number; flagged: number; held: number; failed: number }> {
   const out = { texted: 0, flagged: 0, held: 0, failed: 0 };
-  const { CERTIFICATE_CHASE_ROUND_EVENT: ROUND, CERTIFICATE_CHASE_SENT_EVENT: SENT, CHASE_ROUND, CERTIFICATE_TEXT_ROUND, certificateChaseAction } = await import("./certificate-chase.core");
-  const sentFor = (row: ChaseRow, anchor: string) => ({ text2: hasEvent(row, SENT, anchor, CHASE_ROUND.certificateText), flag4: hasEvent(row, ROUND, anchor, CHASE_ROUND.certificateFlag) });
-  let acted = 0;
+  const { CERTIFICATE_CHASE_ROUND_EVENT: ROUND, CERTIFICATE_CHASE_SENT_EVENT: SENT, CERTIFICATE_CHASE_WAITING_EVENT: WAITING, CHASE_WAITING_REASON_TEXT, CHASE_ROUND, CERTIFICATE_TEXT_ROUND, certificateChaseAction } = await import("./certificate-chase.core");
+  const due: { row: ChaseRow; anchor: string; actions: ReturnType<typeof certificateChaseAction> }[] = [];
   for (const row of await chaseRows({ files: true })) {
-    if (acted >= CHASE_MAX_PER_TICK) break;
     if (!row.partCRecorded || row.hasFile || !row.doneAt) continue;
-    if (!certificateChaseAction({ upgradesDoneAt: row.doneAt, fileAt: null, now, sent: sentFor(row, row.doneAt) }).length) continue;
-    acted++;
+    const anchor = row.doneAt;
+    const actions = certificateChaseAction({ upgradesDoneAt: anchor, fileAt: null, now, sent: { text2: hasEvent(row, SENT, anchor, CHASE_ROUND.certificateText), flag4: hasEvent(row, ROUND, anchor, CHASE_ROUND.certificateFlag) } });
+    if (actions.length) due.push({ row, anchor, actions });
+  }
+  if (!due.length) return out;
+  due.sort((a, b) => a.anchor.localeCompare(b.anchor) || a.row.id.localeCompare(b.row.id));
+  const contacts = await chaseContacts(due.map((d) => d.row));
+  const writes = new ChaseWrites();
+  const toSend: { row: ChaseRow; anchor: string }[] = [];
+  for (const { row, anchor, actions } of due) {
+    const c = contacts.get(row.id)!;
+    const who = { electrician: c.electrician?.name ?? null, address: c.address, phone: c.electrician?.phone ?? null };
+    for (const act of actions) {
+      if (act === "text_electrician") {
+        await writes.add(row, ROUND, anchor, CHASE_ROUND.certificateText, "Certificate not in after 2 business days: electrician reminded", who);
+        const why = await textWaitReason(row, c, "electrician_certificate_link");
+        if (why) { await writes.add(row, WAITING, anchor, CHASE_ROUND.certificateText, `Electrician's certificate text not sent yet: ${CHASE_WAITING_REASON_TEXT[why]}`, { reason: why }); out.held++; }
+        else toSend.push({ row, anchor });
+      } else if (await writes.add(row, ROUND, anchor, CHASE_ROUND.certificateFlag, "Certificate not in after 4 business days: office to call the electrician", who)) out.flagged++;
+    }
+  }
+  try { await writes.flush(); } catch (e) { out.failed += due.length; console.error("certificate chase:", (e as Error).message); return out; }
+  for (const { row, anchor } of toSend.slice(0, CHASE_MAX_PER_TICK)) {
     try {
       const f = await jobCertificateFacts(row.id);
-      if (f.state !== "waiting_for_certificate" || !f.upgradesDoneAt) continue;
-      const anchor = f.upgradesDoneAt;
-      const actions = certificateChaseAction({ upgradesDoneAt: anchor, fileAt: f.certificateFileAt, now, sent: sentFor(row, anchor) });
-      if (!actions.length) continue;
-      const claim = claimer(row, anchor, f.electrician);
-      for (const act of actions) {
-        if (act === "text_electrician") {
-          await claim(CHASE_ROUND.certificateText, "Certificate not in after 2 business days: electrician reminded");
-          const { textCertificateLink } = await import("./own-job-piesa-notices.server");
-          const r = await textCertificateLink(row.id, CERTIFICATE_TEXT_ROUND, { text: "chase", facts: f });
-          if (textDone(r)) { await logChaseEvent(row.id, SENT, anchor, CHASE_ROUND.certificateText, `Certificate reminder text: ${r}`, { status: r }); out.texted++; } else out.held++;
-        } else {
-          await claim(CHASE_ROUND.certificateFlag, "Certificate not in after 4 business days: office to call the electrician");
-          out.flagged++;
-        }
-      }
+      // The live Part C date must be the one the round was claimed for (the batch uses the same rule).
+      if (f.state !== "waiting_for_certificate" || f.upgradesDoneAt !== anchor) continue;
+      const { textCertificateLink } = await import("./own-job-piesa-notices.server");
+      const r = await textCertificateLink(row.id, CERTIFICATE_TEXT_ROUND, { text: "chase", facts: f });
+      if (textDone(r)) { await logChaseEvent(row.id, SENT, anchor, CHASE_ROUND.certificateText, `Certificate reminder text: ${r}`, { status: r }); out.texted++; } else out.held++;
     } catch (e) { out.failed++; console.error("certificate chase failed", row.id, (e as Error).message); }
   }
   return out;
 }
 
 /** Needs me: the open chase flags per job, from the round events and the job's LIVE certificate facts (each clears by itself
- *  when the day is entered / the file is on the job). Only jobs with a flag round are read live (max 200). Throws on a failed
- *  read (the caller shows the list as partly unavailable, never an empty one). */
+ *  when the day is entered / the file is on the job; the upgrades rows only for the current PIESA record). Only jobs with a
+ *  flag round are read live (max 200). Throws on a failed read (the caller shows the list as partly unavailable, never an
+ *  empty one). */
 export async function chaseFlagsForJobs(jobIds: string[]): Promise<Map<string, import("./certificate-chase.core").ChaseFlags>> {
   const out = new Map<string, import("./certificate-chase.core").ChaseFlags>();
   if (!jobIds.length) return out;
   const { CERTIFICATE_CHASE_ROUND_EVENT, CHASE_ROUND, chaseOfficeFlags } = await import("./certificate-chase.core");
-  const loose = admin as unknown as import("@supabase/supabase-js").SupabaseClient;
+  const db = loose();
   const flagRounds = [CHASE_ROUND.upgradesEmail, CHASE_ROUND.upgradesRed, CHASE_ROUND.certificateFlag];
-  const evs = (await chunked("chase rounds", [...new Set(jobIds)], (c) => loose.from("workflow_events").select("job_id, created_at, details").in("job_id", c).eq("event_type", CERTIFICATE_CHASE_ROUND_EVENT)))
+  const evs = (await chunked("chase rounds", [...new Set(jobIds)], (c) => db.from("workflow_events").select("job_id, created_at, details").in("job_id", c).eq("event_type", CERTIFICATE_CHASE_ROUND_EVENT)))
     .filter((e) => flagRounds.includes((e["details"] as R | null)?.["round"] as never));
   const byJob = groupBy(evs);
   const ids = [...byJob.keys()].slice(0, 200);
+  if (!ids.length) return out;
+  const recs = groupBy(await chunked("PIESA records", ids, (c) => db.from("piesa_records").select("id, job_id, created_at").in("job_id", c).in("kind", ["initial", "reassessment"])));
   const facts = await Promise.all(ids.map(async (id) => [id, await jobCertificateFacts(id)] as const));
   for (const [id, f] of facts) {
-    const flags = chaseOfficeFlags((byJob.get(id) ?? []).map((e) => ({ created_at: String(e["created_at"]), details: (e["details"] ?? null) as R | null })), f);
+    const anchor = (recs.get(id) ?? []).sort(newestFirst)[0]?.["id"];
+    const flags = chaseOfficeFlags((byJob.get(id) ?? []).map((e) => ({ created_at: String(e["created_at"]), details: (e["details"] ?? null) as R | null })), { ...f, upgradesAnchor: anchor ? String(anchor) : null });
     if (Object.keys(flags).length) out.set(id, flags);
   }
   return out;
