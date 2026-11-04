@@ -209,3 +209,11 @@ describe("the page is read-only", () => {
     expect(read("src/routes/_authenticated/admin.tsx")).toContain("redirect({ to: \"/home\" })");
   });
 });
+
+// Fix wave J1 (5), docs drift: the hub's O45 entry follows Q21 (balance due on install day, card on My job or bank transfer).
+test("O45 hub entry says the balance is due on install day (Q21), never 'due today'", async () => {
+  const o45 = TEMPLATE_ENTRIES.find((e) => e.id === "invoices:O45");
+  expect(o45?.name).toBe("Final invoice (balance due on install day)");
+  expect(o45?.when).toContain("card on My job or by bank transfer");
+  expect(`${o45?.name} ${o45?.when}`).not.toMatch(/due today/i);
+});
