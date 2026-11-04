@@ -7,7 +7,7 @@ import { isReadErrorLine, onDayGoCheck, type GoSlot, type PrestartFailure } from
 
 /** Wording APPROVED by Jo 4 Nov 2026 14:40 (GO as drafted; DON'T START split into "must move" / "fix before 6:30am").
  *  The switch stays false until the coordinator flips it (nothing reaches a real installer office, nothing is recorded). */
-export const GO_EMAIL_APPROVED = false as boolean;
+export const GO_EMAIL_APPROVED = true as boolean; // ON at go-live 5 Nov 2026 (Jo approved 4 Nov 14:40)
 /** Recorded once per key + recipient after a confirmed send (TEST: before the test send). */
 export const GO_EMAIL_EVENT = "go_email_sent" as const;
 /** Recorded once per key when a real send is held (comms off / trade pause / sender blocked); never claims the key. */

@@ -54,10 +54,14 @@ describe("decision 321: warranty with the All done email", () => {
   });
   test("O44 says the warranty is attached only when it is", () => {
     const i = { firstName: "Sam", installer: { name: "Ace", phone: null }, product: "Bradford Gold R5", areaM2: 80, rebate: 500, balancePaid: false, signRebateFormUrl: null };
-    expect(renderInstallCompleteEmail(i).text).not.toContain("manufacturer's warranty (PDF)");
-    const r = renderInstallCompleteEmail({ ...i, attachedWarranties: ["Bradford Gold"] });
+    // The 24 Oct All done (v2 = false); the v2 All done (ON since go-live 5 Nov 2026) names the warranty through `attached` below.
+    expect(renderInstallCompleteEmail(i, false).text).not.toContain("manufacturer's warranty (PDF)");
+    const r = renderInstallCompleteEmail({ ...i, attachedWarranties: ["Bradford Gold"] }, false);
     expect(r.text).toContain("Attached: your Bradford Gold manufacturer's warranty (PDF).");
     expect(r.html).toContain("Attached: your Bradford Gold manufacturer");
+    const v2 = renderInstallCompleteEmail({ ...i, attachedWarranties: ["Bradford Gold"], attached: { taxInvoice: false, rebateForm: false, warranty: true, instructions: false } }, true);
+    expect(v2.text).toContain("Attached: your product warranty (PDFs).");
+    expect(renderInstallCompleteEmail({ ...i, attached: { taxInvoice: false, rebateForm: false, warranty: false, instructions: false } }, true).text).not.toContain("Attached:");
     expect(attachedWarrantyLine([" ", ""])).toBeNull();
   });
 });

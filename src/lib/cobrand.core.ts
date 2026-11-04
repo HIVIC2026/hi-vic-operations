@@ -2,7 +2,7 @@
 // ours. Pure. One switch for all three surfaces, off until Jo approves the look. The installer's logo comes from Part 5's
 // `businessLogoUrl` (trade-view.server: businesses.branding.logo_url, https only); anything else → our logo alone — never
 // a broken image or an empty <img>.
-export const OWN_CUSTOMER_COBRAND_APPROVED: boolean = false;
+export const OWN_CUSTOMER_COBRAND_APPROVED: boolean = true; // ON at go-live 5 Nov 2026 (Jo approved 4 Nov 14:18)
 
 /** Both logos sit on one row at this width (ours is 132px in the shared header). */
 export const OWN_COBRAND_LOGO_WIDTH = 132;

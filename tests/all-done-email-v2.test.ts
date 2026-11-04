@@ -44,8 +44,8 @@ beforeEach(() => {
 });
 
 test("flag is off by default and the old wording stays when off", () => {
-  expect(ALL_DONE_V2_APPROVED).toBe(false);
-  const m = renderInstallCompleteEmail({ firstName: "Sarah", installer: { name: "Rapid" }, product: "x", areaM2: 1, rebate: 1, balancePaid: true, signRebateFormUrl: "https://e/x" });
+  expect(ALL_DONE_V2_APPROVED).toBe(true); // ON at go-live 5 Nov 2026
+  const m = renderInstallCompleteEmail({ firstName: "Sarah", installer: { name: "Rapid" }, product: "x", areaM2: 1, rebate: 1, balancePaid: true, signRebateFormUrl: "https://e/x" }, false);
   expect(m.html).toContain("One last thing: sign your rebate form");
   expect(m.text).toContain("Certificate of Completion");
 });
@@ -153,9 +153,9 @@ test("tax invoice approved but not makeable: held, retried next tick (nothing se
   expect(sent).toHaveLength(0);
 });
 
-test("flag off: the current email, only the warranty is attached", async () => {
+test("flag off (explicit): the current email, only the warranty is attached", async () => {
   PDF_LOOK_APPROVED.taxInvoice = true;
-  await emailOwnerInstallComplete("J", { product: "x", areaM2: 1, rebate: 1, balancePaid: true, signRebateFormUrl: "https://e/x" });
+  await emailOwnerInstallComplete("J", { product: "x", areaM2: 1, rebate: 1, balancePaid: true, signRebateFormUrl: "https://e/x" }, { v2: false });
   expect(sent[0].attachments.map((a: any) => a.filename)).toEqual(["Bradford-warranty.pdf"]);
   expect(sent[0].mail.text).toContain("Certificate of Completion");
 });

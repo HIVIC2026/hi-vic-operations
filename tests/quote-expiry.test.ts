@@ -60,11 +60,12 @@ describe("30-day quotes from the cutover", () => {
   // 1 Nov 2026 10:00 Melbourne, before the cutover
   const sent14 = "2026-10-31T23:00:00Z";
 
-  test("nothing changes live until the cutover is set", () => {
+  test("the cutover is the go-live publish instant: a quote sent after it gets 30 days, one sent before keeps 14", () => {
     expect(QUOTE_VALID_DAYS).toBe(30);
-    expect(QUOTE_30_DAY_FROM_ISO).toBeNull();
-    expect(quoteValidDaysFor(sent30)).toBe(14);
-    expect(quoteExpiresAt(sent30).toISOString()).toBe(quoteExpiresAt(sent30, null).toISOString());
+    expect(QUOTE_30_DAY_FROM_ISO).toBe("2026-11-04T21:40:00Z"); // go-live publish instant
+    expect(quoteValidDaysFor(sent30)).toBe(30);
+    expect(quoteValidDaysFor("2026-11-04T20:00:00Z")).toBe(14);
+    expect(quoteExpiresAt(sent30).toISOString()).toBe(quoteExpiresAt(sent30, QUOTE_30_DAY_FROM_ISO).toISOString());
   });
   test("sent 10 Nov after the cutover: last valid day 10 December 2026", () => {
     expect(quoteValidDaysFor(sent30, CUT)).toBe(30);

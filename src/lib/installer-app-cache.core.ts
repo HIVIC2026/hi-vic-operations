@@ -12,7 +12,7 @@
 
 /** The switch. OFF until Jo flips it: a one-line change here and a publish (no settings read the installer screens
  *  already make carries a global flag, and a new database switch would need a migration first). */
-export const SERVICE_WORKER_ENABLED = false;
+export const SERVICE_WORKER_ENABLED = true; // ON at go-live 5 Nov 2026
 
 export const SW_PATH = "/sw.js";
 /** Pages the worker controls: /field and everything under it (the installer app), nothing else. */

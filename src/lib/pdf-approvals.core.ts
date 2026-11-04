@@ -10,5 +10,5 @@ export const PDF_LOOK_APPROVED: Record<PdfLookKey, boolean> = {
   officialFormPdf: false,
   escConsent: false,
   /** Part 7 Task 2: the SWMS in the website look (swms-sample.pdf); off = the WorkSafe landscape layout stays. */
-  swms: false,
+  swms: true, // ON at go-live 5 Nov 2026 with SWMS_NOV2_WORDING_ON
 };

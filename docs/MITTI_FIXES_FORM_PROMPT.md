@@ -56,7 +56,7 @@ Q11: `Do you have the Certificate of Electrical Safety now?` — Yes/No — Requ
 Q12: `Certificate of Electrical Safety number` — Text — Required — only show when Q11 = `Yes`
 Q13: `Date of certification` — Date — Required — only show when Q11 = `Yes`
 Q14: `Certificate of Electrical Safety (photo or PDF)` — Photo, PDF allowed — Required — only show when Q11 = `Yes` — help text: `A photo or the PDF of the certificate.`
-Q15: `Photo of the finished work at the switchboard / in the ceiling` — Photo, several files allowed, location on — Required — only show when Q9 = `Yes` — help text: `Show the finished work. More than one photo is fine.`
+Q15: `Photo of the finished work at the switchboard / in the ceiling` — Photo, several files allowed, location on — only show when Q9 = `Yes` — help text: `Show the finished work. More than one photo is fine.` — **DELETED by Jo, 5 Nov 2026: do not build it; delete it from the live A4** (the regulator needs the Certificate, not a photo)
 
 ## Group 4: Sign
 Q16: `Electrician signature` — Signature — Required

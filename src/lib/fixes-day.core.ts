@@ -72,6 +72,9 @@ export type FixesDayQuestion = {
   /** Added to live templates later (Part 3 = CERTIFICATE_NOW_ADDED): asked on new builds, but a template published before it
    *  still validates / creates forms without it (its forms read as "not asked"). */
   addedByDecision?: number;
+  /** Jo 5 Nov 2026: deleted from the live A4 (the regulator needs the Certificate, not a photo). Read when present, never
+   *  required, never reported missing, not on new builds. */
+  retired?: string;
 };
 
 const Q = FIXES_DAY_Q;
@@ -95,7 +98,7 @@ export const FIXES_DAY_QUESTIONS: readonly FixesDayQuestion[] = (() => {
   q(4, Q.coesNumber, "text", true, { showWhen: { n: certNow, is: ["Yes"] } });
   q(4, Q.certDate, "date", true, { showWhen: { n: certNow, is: ["Yes"] } });
   q(4, Q.coesFile, "photo", true, { showWhen: { n: certNow, is: ["Yes"] }, pdf: true, help: "A photo or the PDF of the certificate." });
-  q(4, Q.workPhoto, "photo", true, { showWhen: { n: done, is: ["Yes"] }, multiple: true, geotagged: true, help: "Show the finished work. More than one photo is fine." });
+  q(4, Q.workPhoto, "photo", false, { showWhen: { n: done, is: ["Yes"] }, multiple: true, geotagged: true, help: "Show the finished work. More than one photo is fine.", retired: "Jo 5 Nov 2026 — delete it from the live A4" });
   q(5, Q.signature, "signature", true);
   return out;
 })();
@@ -157,7 +160,7 @@ export function isFixesDayDoc(doc: unknown): boolean {
  *  Part 3's certificate question) is not reported: a template from before it stays usable. */
 export function fixesDayMissingQuestions(template: unknown): string[] {
   const items = labelledItems(template);
-  return FIXES_DAY_QUESTIONS.filter((q) => q.addedByDecision == null && allWithLabel(items, q.label).length === 0).map((q) => q.label);
+  return FIXES_DAY_QUESTIONS.filter((q) => q.addedByDecision == null && !q.retired && allWithLabel(items, q.label).length === 0).map((q) => q.label);
 }
 
 const yesNo = (v: string | null | undefined): "Yes" | "No" | null => (v == null ? null : /^\s*yes\b/i.test(v) ? "Yes" : /^\s*no\b/i.test(v) ? "No" : null);
@@ -239,7 +242,7 @@ export type FixesCompletionPlan =
   | { kind: "done"; certificate: FixesCertificate | null; /** Part 3: no certificate on this form — the job waits for it (Task 3). */ certificateToCome: boolean; workPhotos: MittiMediaFile[]; signedAt: string | null; signerName: string | null };
 /**
  * What a Complete press means. `today` is the Melbourne date: a certification date in the future is never accepted.
- * Q9 No → office item with the Q10 text, nothing else. Q9 Yes needs the geotagged work photo and the signature; anything
+ * Q9 No → office item with the Q10 text, nothing else. Q9 Yes needs the signature (the work photo was deleted 5 Nov 2026); anything
  * missing is listed, never guessed. Part 3 (Jo 3 Nov 2026), Q11 "Do you have the Certificate of Electrical Safety now?":
  * Yes → the number, date and file are required exactly as before; No → `done` with `certificate: null`,
  * `certificateToCome: true`; not asked (a form built before Part 3) → the certificate is what was given if a file exists,
@@ -258,8 +261,7 @@ export function fixesCompletionPlan(r: FixesDayRead, i: { completed: boolean; to
   // Task 3 carried item: the future-date rule applies to a certificate being recorded (Q11 = Yes, or an old form without Q11 that
   // carries a file); with Q11 = No the certificate fields are ignored, so a date typed there blocks nothing.
   if (r.certificateNow !== "No" && r.certDate && r.certDate > i.today) missing.push(`${Q.certDate} (cannot be in the future)`);
-  if (!r.workPhotos.length) missing.push(Q.workPhoto);
-  else if (!r.workPhotos.some((f) => f.lat != null && f.lng != null)) missing.push(`${Q.workPhoto} (must be geotagged)`);
+  // Jo 5 Nov 2026: the finished-work photo is deleted from the A4 — kept on the record when an older form carries it, never required.
   if (!r.signature.present) missing.push(Q.signature);
   if (missing.length) return { kind: "missing", missing };
   const hasFile = r.certificateNow !== "No" && r.coesFiles.length > 0;

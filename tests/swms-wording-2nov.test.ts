@@ -21,7 +21,7 @@ const facts: SwmsFacts = {
   lead: { name: "John Smith", workerId: "w1" }, crew: [{ name: "Sam Lee", workerId: "w2" }, { name: "Ali Khan", workerId: "w3" }],
   yearBuilt: 1975, hazardNote: "Old wiring in the hallway", siteNote: "Dog in yard",
   houseLines: ["Roof: Tile", "Ceiling access: Easy", "Main house: 4 recessed downlights", "PIESA: passed"],
-  houseSteps: Object.values(SWMS_HOUSE_STEPS),
+  houseSteps: Object.values(swmsHouseStepTexts(false)), // the legacy steps (the base-commit hashes below were taken with them)
 };
 const sigs: SwmsSignature[] = [
   { key: "w:w1", name: "John Smith", typedName: "John Smith", signedAt: "2026-11-12T07:42:00Z" },
@@ -111,39 +111,42 @@ describe("the approved 2 Nov wording (the SWMS_NOV2_WORDING_ON set)", () => {
   });
 });
 
-describe("SWMS_NOV2_WORDING_ON is false: everything stays byte-identical to today", () => {
-  test("the flag is off in the code and the module exports are the legacy set", () => {
-    expect(SWMS_NOV2_WORDING_ON).toBe(false);
-    const legacy = swmsWording(false);
-    expect(swmsWording()).toBe(legacy);
-    expect(SWMS_RULE).toBe(TODAY.rule);
+describe("SWMS_NOV2_WORDING_ON is ON (go-live 5 Nov 2026): the module exports are the 2 Nov set; the legacy set stays byte-identical behind nov2:false", () => {
+  test("the flag is on in the code and the module exports are the 2 Nov set", () => {
+    expect(SWMS_NOV2_WORDING_ON).toBe(true); // ON at go-live 5 Nov 2026
+    const nov2 = swmsWording(true), legacy = swmsWording(false);
+    expect(swmsWording()).toBe(nov2);
+    expect(SWMS_RULE).toBe("swms-portal-2026-11-02");
     expect(legacy.rule).toBe(TODAY.rule);
-    expect(EXPORTED_COMPLIANCE_MEASURES).toBe(legacy.complianceMeasures);
-    expect(EXPORTED_HOW_IMPLEMENTED).toBe(legacy.howImplemented);
-    expect(EXPORTED_REVIEW).toBe(legacy.review);
-    expect(EXPORTED_HOW_IN_PLACE).toBe(legacy.howInPlace);
-    expect(EXPORTED_HAZARDS).toBe(legacy.hazards);
-    expect(SWMS_HOUSE_STEPS).toBe(swmsHouseStepTexts(false));
+    expect(EXPORTED_COMPLIANCE_MEASURES).toBe(nov2.complianceMeasures);
+    expect(EXPORTED_HOW_IMPLEMENTED).toBe(nov2.howImplemented);
+    expect(EXPORTED_REVIEW).toBe(nov2.review);
+    expect(EXPORTED_HOW_IN_PLACE).toBe(nov2.howInPlace);
+    expect(EXPORTED_HAZARDS).toBe(nov2.hazards);
+    expect(SWMS_HOUSE_STEPS).toBe(swmsHouseStepTexts(true));
     expect(legacy.roleLabel).toEqual({ lead: "lead installer", crew: "installer" });
   });
-  test("plan fingerprint, filed record text, standard-controls paragraph and house steps hash exactly as on the base commit", () => {
-    const plan = buildSwms(facts);
+  test("legacy (nov2:false) plan fingerprint, filed record text, standard-controls paragraph and house steps still hash exactly as on the base commit", () => {
+    const plan = buildSwms(facts, { nov2: false });
+    const legacy = swmsWording(false);
     expect(plan.rule).toBe(TODAY.rule);
     expect(swmsPlanSha(plan)).toBe(TODAY.fingerprint);
     expect(sha(swmsRecordText(plan, sigs))).toBe(TODAY.record);
-    expect(sha(SWMS_STANDARD_CONTROLS_TEXT)).toBe(TODAY.standardControls);
-    expect(sha(EXPORTED_HOW_IN_PLACE)).toBe(TODAY.howInPlace);
-    expect(sha(JSON.stringify(swmsHouseSteps(swmsHouseFacts(houseEntries, houseExtras))))).toBe(TODAY.houseSteps);
+    expect(sha(["Standard controls for the hazards of every ceiling insulation job.", ...legacy.hazards.map((h) => `${h.short}: ${h.control}.`), legacy.howInPlace].join(" "))).toBe(TODAY.standardControls);
+    expect(sha(legacy.howInPlace)).toBe(TODAY.howInPlace);
+    expect(sha(JSON.stringify(swmsHouseSteps(swmsHouseFacts(houseEntries, houseExtras), false)))).toBe(TODAY.houseSteps);
     expect(swmsRecordText(plan, sigs)).toContain("John Smith (lead installer) | signed");
-    expect(swmsStatus(buildSwms({ ...facts, lead: null, crew: [] }), []).missing).toEqual(["No lead installer is chosen for this install"]);
+    expect(swmsStatus(buildSwms({ ...facts, lead: null, crew: [] }, { nov2: false }), []).missing).toEqual(["No lead installer is chosen for this install"]);
+    expect(swmsStatus(buildSwms({ ...facts, lead: null, crew: [] }), []).missing).toEqual(["No Lead Installer is chosen for this install"]); // the 2 Nov label
     expect(swmsLeadPhoneBlocker(plan, [], "w:w2", ["w:w3"])).toBe("Only the lead installer can open someone's sign link on their phone.");
   });
 });
 
 describe("switched on: the rule and fingerprint change, so a signature on the old wording no longer counts", () => {
   test("rule swms-portal-2026-11-02; old signatures are filtered out by currentSignatures and every person is missing again", () => {
-    const oldPlan = buildSwms(facts);
+    const oldPlan = buildSwms(facts, { nov2: false });
     const newPlan = buildSwms(facts, { nov2: true });
+    expect(swmsPlanSha(buildSwms(facts))).toBe(swmsPlanSha(newPlan)); // the default IS the 2 Nov set now
     expect(newPlan.rule).toBe("swms-portal-2026-11-02");
     expect(swmsWording(true).rule).toBe("swms-portal-2026-11-02");
     expect(swmsPlanSha(newPlan)).not.toBe(swmsPlanSha(oldPlan));
@@ -154,6 +157,6 @@ describe("switched on: the rule and fingerprint change, so a signature on the ol
     expect(swmsStatus(newPlan, currentSignatures(oldSigs, swmsPlanSha(newPlan))).missing).toEqual(["John Smith", "Sam Lee", "Ali Khan"]);
     // The downlight step from the house facts changes with the flag too (it is part of the fingerprint).
     expect(swmsHouseSteps(swmsHouseFacts(houseEntries, houseExtras), true)).toContain(swmsHouseStepTexts(true).downlights);
-    expect(swmsHouseSteps(swmsHouseFacts(houseEntries, houseExtras), true)).not.toContain(SWMS_HOUSE_STEPS.downlights);
+    expect(swmsHouseSteps(swmsHouseFacts(houseEntries, houseExtras), true)).not.toContain(swmsHouseStepTexts(false).downlights);
   });
 });

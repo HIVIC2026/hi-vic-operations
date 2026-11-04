@@ -163,7 +163,7 @@ describe("A4 certificate (spec §1, Jo 3 Nov 2026)", () => {
     for (const l of [FQ.coesNumber, FQ.certDate, FQ.coesFile]) expect(byLabel[l]).toMatchObject({ required: true, showWhen: { n: 11, is: ["Yes"] } });
     expect(byLabel[FQ.coesFile]!.help).not.toBe(HELP);
     expect(byLabel[FQ.done]).toMatchObject({ required: true });
-    expect(byLabel[FQ.workPhoto]).toMatchObject({ required: true, n: 15 });
+    expect(byLabel[FQ.workPhoto]).toMatchObject({ required: false, n: 15, retired: expect.stringContaining("5 Nov 2026") }); // deleted by Jo, 5 Nov 2026
     expect(byLabel[FQ.signature]).toMatchObject({ required: true, n: 16 });
     expect(FORMS.fixes.fields.find((f) => f.label === NOW)).toMatchObject({ required: true, addedByDecision: CERTIFICATE_NOW_ADDED });
   });
@@ -187,11 +187,11 @@ describe("A4 certificate (spec §1, Jo 3 Nov 2026)", () => {
     expect(plan({ cert: true })).toMatchObject({ kind: "done", certificate: { number: "C123", date: "2026-10-20" }, certificateToCome: false });
     expect(plan({})).toMatchObject({ kind: "done", certificate: null, certificateToCome: true });
   });
-  test("a future certification date is still refused; the work photo and signature are still needed", () => {
+  test("a future certification date is still refused; the signature is still needed (the work photo was deleted 5 Nov 2026)", () => {
     const base = a4({ now: "Yes", cert: true });
     const swap = (label: string, replace: unknown) => ({ items: base.items.map((i) => (i.label === label ? (replace as typeof i) : i)) });
     expect(fixesCompletionPlan(readFixesDay(swap(FQ.certDate, item(FQ.certDate, "2026-12-01"))), { completed: true, today: "2026-10-25" })).toMatchObject({ kind: "missing", missing: [`${FQ.certDate} (cannot be in the future)`] });
-    expect(fixesCompletionPlan(readFixesDay(swap(FQ.workPhoto, item(FQ.workPhoto, null))), { completed: true, today: "2026-10-25" })).toMatchObject({ kind: "missing", missing: [FQ.workPhoto] });
+    expect(fixesCompletionPlan(readFixesDay(swap(FQ.workPhoto, item(FQ.workPhoto, null))), { completed: true, today: "2026-10-25" })).toMatchObject({ kind: "done" });
     expect(fixesCompletionPlan(readFixesDay(swap(FQ.signature, item(FQ.signature, null))), { completed: true, today: "2026-10-25" })).toMatchObject({ kind: "missing", missing: [FQ.signature] });
   });
   test("No → a certification date typed anyway (even a future one) is ignored, not a blocker (Task 3 carried item)", () => {

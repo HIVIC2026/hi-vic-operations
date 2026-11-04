@@ -68,7 +68,7 @@ describe("renderEnterPriceEmail — approved body wording (price-email.png), DRA
     expect(m.text).not.toMatch(/undefined|null/);
   });
   test("flag defaults off (DRAFT until Jo approves the subject and the pronoun)", () => {
-    expect(ENTER_PRICE_EMAIL_APPROVED).toBe(false);
+    expect(ENTER_PRICE_EMAIL_APPROVED).toBe(true); // ON at go-live 5 Nov 2026
   });
 });
 

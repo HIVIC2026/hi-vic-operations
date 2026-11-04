@@ -10,8 +10,8 @@ export type PiesaOutcome = "all_clear" | "upgrades_needed";
 // route stays on the standalone signed copy, so owners never lose the legal PIESA copy. Tasks 3/4: flip the flag only when
 // the email exists. When that email sends, it MUST also record the owner piesa_deliveries + official_form_deliveries rows
 // (see recordDelivery in piesa-delivery.server.ts) because readyToInstall and PIISA Part 8(a) read them.
-export const CLEAR_TO_INSTALL_EMAIL_APPROVED = false as boolean;
-export const UPGRADES_NEEDED_EMAIL_APPROVED = false as boolean;
+export const CLEAR_TO_INSTALL_EMAIL_APPROVED = true as boolean; // ON at go-live 5 Nov 2026
+export const UPGRADES_NEEDED_EMAIL_APPROVED = true as boolean; // ON at go-live 5 Nov 2026
 
 export type PiesaEmailApprovals = { clearToInstall: boolean; upgradesNeeded: boolean };
 const DEFAULT_APPROVALS = (): PiesaEmailApprovals => ({ clearToInstall: CLEAR_TO_INSTALL_EMAIL_APPROVED, upgradesNeeded: UPGRADES_NEEDED_EMAIL_APPROVED });

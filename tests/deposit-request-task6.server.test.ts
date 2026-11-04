@@ -22,7 +22,13 @@ mock.module('../src/lib/qa-inbox.server',()=>({qaDeliveryHeld:async()=>false}));
 mock.module('../src/lib/owner-email-send.server',()=>({sendGuardedOwnerEmail:async(p:any)=>{if(emailKeys.has(p.key))return 'already attempted';emailKeys.add(p.key);emails.push({...p,mail:p.build(null)});return 'sent';}}));
 mock.module('../src/lib/sms.server',()=>({sendRealSms:async(p:any)=>{if(smsKeys.has(p.idempotencyKey))return{status:'already'};smsKeys.add(p.idempotencyKey);texts.push(p);return {status:'sent'};}}));
 mock.module('../src/lib/office-email.server',()=>({sendOfficeEmail:async(p:any)=>{offices.push(p);return{status:officeOutcome,detail:officeOutcome==='failed'?"The email service didn't accept it":'mock'};}}));
-const {requestInstallDeposit,sweepDepositRequests,notifyInstallerDepositPaid}=await import('../src/lib/deposit-request.server');
+const dr=await import('../src/lib/deposit-request.server');
+// Task 6 behaviour with the clear-to-install / upgrades-needed emails OFF (they are ON since go-live 5 Nov 2026; the ON path has its own tests).
+const legacy=()=>({...dr.defaultClearToInstallDeps(),approved:false,upgradesApproved:false});
+type Deps=ReturnType<typeof legacy>;
+const requestInstallDeposit=(j:string,now?:Date,deps?:Deps)=>dr.requestInstallDeposit(j,now,deps??legacy());
+const sweepDepositRequests=(now?:Date,deps?:Deps)=>dr.sweepDepositRequests(now,deps??legacy());
+const notifyInstallerDepositPaid=(j:string,now?:Date,deps?:Deps)=>dr.notifyInstallerDepositPaid(j,now,deps??legacy());
 beforeEach(()=>{
  for(const k of Object.keys(tables))delete tables[k];
  tables.jobs=[{id:'j',job_number:'HV-1234',source:'website',stage:'installation_scheduling',owner_id:'o',property_id:'p',deleted_at:null,qa_archived_at:null}];
@@ -94,7 +100,7 @@ const UPGRADES_PIESA={id:'pr',job_id:'j',kind:'initial',outcome:'fail',is_curren
 // unapproved the request is HELD before anything is recorded (the pending intent retries each tick; no reminder starts from
 // a request that never went). Once that email is approved it carries the deposit button and the request is "covered".
 const { defaultClearToInstallDeps } = await import('../src/lib/deposit-request.server');
-const upgradesDeps=(on:boolean)=>({...defaultClearToInstallDeps(),upgradesApproved:on,route:async()=>on?['upgrades_needed' as const]:['standalone_copy' as const]});
+const upgradesDeps=(on:boolean)=>({...defaultClearToInstallDeps(),approved:false,upgradesApproved:on,route:async()=>on?['upgrades_needed' as const]:['standalone_copy' as const]});
 test('upgrades still to come at rectification_scheduling: the request is HELD (not recorded, no sends) while the Upgrades-needed email is unapproved; the intent stays for the tick',async()=>{
  tables.jobs![0]!.stage='rectification_scheduling';tables.piesa_records=[UPGRADES_PIESA];
  tables.rectification_items=[{id:'r',job_id:'j',status:'required',description:'Switchboard',needs_office_pricing:false}];

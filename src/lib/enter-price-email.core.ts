@@ -18,7 +18,7 @@ import { LEAN_Q } from "./ready-check-lean.core";
 import { areasFromReadyCheckEntries } from "./area-diagram.core";
 
 /** Subject ("{HV}: Ready Check done. Time to price it.") and the pronoun ("them") APPROVED by Jo 4 Nov 2026 14:05; the flag flips at go-live (Part 11). */
-export const ENTER_PRICE_EMAIL_APPROVED: boolean = false;
+export const ENTER_PRICE_EMAIL_APPROVED: boolean = true; // ON at go-live 5 Nov 2026 (Jo approved 4 Nov 14:05)
 
 /** Recorded ONCE per job when the email is held (flag off / no office email / trade messages paused); internal. */
 export const ENTER_PRICE_EMAIL_HELD_EVENT = "enter_price_email_held" as const;

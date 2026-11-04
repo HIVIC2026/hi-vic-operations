@@ -152,13 +152,13 @@ describe("own customer tax invoice (Task 7)", () => {
       expect(t).toContain("Your price");
     }
   });
-  test("switch off (as shipped) or a Home Insulation Victoria lead → Part 1's invoice exactly (model + blocks pinned at 40340e1)", () => {
-    expect(OWN_CUSTOMER_COBRAND_APPROVED).toBe(false);
+  test("a Home Insulation Victoria lead → Part 1's invoice exactly (model + blocks pinned at 40340e1), whatever the co-brand switch (ON since go-live 5 Nov 2026)", () => {
+    expect(typeof OWN_CUSTOMER_COBRAND_APPROVED).toBe("boolean");
     const hiv = taxInvoiceModel(SAMPLE) as any;
     expect(JSON.stringify(hiv)).toBe(MODEL_PIN);
     expect(JSON.stringify(taxInvoiceBlocks(SAMPLE, hiv))).toBe(BLOCKS_PIN);
     expect(JSON.stringify(taxInvoiceModel(SAMPLE, seam))).toBe(MODEL_PIN); // no ownCustomer → unchanged even with the seam on
-    const off = taxInvoiceModel(OWN) as any; // switch off → generic rows and labels (Part 1's), no logo
+    const off = taxInvoiceModel(OWN, { cobrandApproved: false }) as any; // switch off → generic rows and labels (Part 1's), no logo
     expect(off.rows.map((x: any) => x.label)).toEqual(["Bradford Gold R5.0 · R5.0 · 120 m² · supplied and installed", "Electrical safety check (PIESA)", "Home Insulation Victoria fee"]);
     expect(off.rebateLabel).toBeUndefined();
     expect(JSON.stringify(taxInvoiceBlocks(OWN, off))).not.toContain("partnerLogo");

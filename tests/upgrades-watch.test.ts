@@ -36,9 +36,9 @@ describe("upgrades-watch.core: rules", () => {
     expect(installBeforeUpgradesWarning({ installStart: "2026-11-09T23:00:00Z", upgradesStart: null })).toBeNull();
   });
   test("DRAFT wording behind its own flags (all false); plain, no 'fixes', no 'HIV'", () => {
-    expect(UPGRADES_NUDGE_TEXT_APPROVED).toBe(false);
-    expect(UPGRADES_OFFICE_EMAIL_APPROVED).toBe(false);
-    expect(UPGRADES_RED_FLAG_EMAIL_APPROVED).toBe(false);
+    expect(UPGRADES_NUDGE_TEXT_APPROVED).toBe(true); // ON at go-live 5 Nov 2026
+    expect(UPGRADES_OFFICE_EMAIL_APPROVED).toBe(true);
+    expect(UPGRADES_RED_FLAG_EMAIL_APPROVED).toBe(true);
     expect(UPGRADES_NUDGE_SMS_TYPE).toBe("upgrades_nudge");
     expect(upgradesNudgeText({ jobNumber: "HV-5001", url: "https://x/e/T" })).toBe("Home Insulation Victoria: HV-5001 upgrades were booked for yesterday. Open your job link to fill in the upgrades form: https://x/e/T");
     const o = upgradesOfficeEmail({ jobNumber: "HV-5001", electrician: "Spark Co", upgradesStart: UP, test: false });
@@ -65,7 +65,9 @@ mock.module("../src/lib/workflow.server", () => ({
   },
 }));
 const server = await import("../src/lib/upgrades-watch.server");
+// The three flags are ON since go-live 5 Nov 2026: the "flag off" cases below pass them as false explicitly.
 const deps = (over: Record<string, unknown> = {}) => ({
+  nudgeApproved: false, officeApproved: false, redFlagApproved: false,
   sendSms: async (i: unknown) => { calls.sms.push([i]); return { status: "sent", detail: "ok" }; },
   sendTestSms: async (...a: unknown[]) => { calls.testSms.push(a); order.push("send"); return { channel: "sms", to: a[1], status: smsStatus, detail: "test" }; },
   sendOfficeEmail: async (p: Record<string, unknown>) => { calls.office.push(p); return { channel: "email", to: p["to"], status: "sent", detail: "ok" }; },

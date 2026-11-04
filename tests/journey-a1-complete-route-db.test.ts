@@ -484,17 +484,16 @@ describe("A1 step 6 — the electrician's A3 in Mitti: electrical upgrades neede
     expect((await stagePath(JOB)).slice(-2)).toEqual(["piesa_complete", "rectification_scheduling"]);
     expect(await q("select id from quotes where job_id=$1 and kind='rectification'", [JOB])).toHaveLength(0);
     // J4 G3 (join ruling, 4 Nov 2026): the result found upgrades still to come, so the owner NEVER gets the "all clear"
-    // copy. Their copy is the upgrades-needed email (Part 4, UPGRADES_NEEDED_EMAIL_APPROVED) — off today, so the owner's
-    // copy is HELD with a recorded reason (one per copy), not sent with the wrong words. Nothing to the owner here.
+    // copy. Their copy is the upgrades-needed email (Part 4) — ON since go-live 5 Nov 2026 — so no standalone PIESA copy
+    // goes and nothing is held with the old "wording unapproved" reason. (The upgrades-needed email itself goes from its
+    // own tick sweep, checked in the next step.)
     const sent = providers.emails.slice(n0);
     expect(sent.filter((e) => /Signed electrical safety check \(PIESA\)|all clear/i.test(`${e.subject}\n${e.text}`))).toHaveLength(0);
     expect(await q("select recipient from piesa_deliveries where job_id=$1", [JOB])).toEqual([]);
-    const { UPGRADES_HOLD_REASON } = await import("../src/lib/piesa-delivery.server");
-    expect((await events(JOB, "piesa_copy_email_not_sent")).map((e) => [e.details["recipient"], e.details["reason"]])).toEqual([["owner", "upgrades_needed_wording_unapproved"]]);
-    expect((await events(JOB, "piesa_copy_email_not_sent"))[0]!.summary).toContain(UPGRADES_HOLD_REASON);
-    // The tick again: still held, recorded once.
+    expect(await events(JOB, "piesa_copy_email_not_sent")).toHaveLength(0);
+    // The tick again: still nothing standalone for the owner on an upgrades-needed result.
     await (await import("../src/lib/piesa-delivery.server")).sweepPiesaCopyDeliveries(); await settle();
-    expect(await events(JOB, "piesa_copy_email_not_sent")).toHaveLength(1);
+    expect(await events(JOB, "piesa_copy_email_not_sent")).toHaveLength(0);
     expect(providers.emails.slice(n0)).toHaveLength(sent.length);
     // Nothing to the owner names what the electrician is paid; nothing to the installer names HIV's PIESA price.
     for (const e of sent) expect(e.text).not.toMatch(/\$\s?\d/);
@@ -624,7 +623,9 @@ describe("A1 step 9 — the installer office books the install day with a Lead I
     const pf = await import("../src/lib/portal.functions");
     const officeCtx = { userId: OFFICE, supabase: admin, claims: {} };
     const { VEEC_FORM_VERSION } = await import("../src/lib/veec-assignment-form.core");
-    for (const [key, version, body] of [["esc_consent", "journey-esc-1", "TEST ESC information-sharing consent (journey fixture text, office-loaded)."], ["installer_declaration", "journey-decl-1", "TEST Activity 48 installer declaration (journey fixture text, office-loaded)."], ["consumer_declaration", VEEC_FORM_VERSION, "Official ESC VEEC assignment form v1.1 (journey fixture, office-approved in Compliance Setup)."]] as const) {
+    // The office-loaded consent wording is the official ESC template family (an older wording would hold the clear-to-install email's consent copy).
+    const { ESC_CONSENT_TEMPLATE_VERSION: ESC_V } = await import("../src/lib/consent.core");
+    for (const [key, version, body] of [["esc_consent", `${ESC_V}-journey`, "TEST ESC information-sharing consent (journey fixture text, office-loaded)."], ["installer_declaration", "journey-decl-1", "TEST Activity 48 installer declaration (journey fixture text, office-loaded)."], ["consumer_declaration", VEEC_FORM_VERSION, "Official ESC VEEC assignment form v1.1 (journey fixture, office-approved in Compliance Setup)."]] as const) {
       await pf.addComplianceTemplate({ data: { template_key: key, version, body }, context: officeCtx });
       const [t] = await q<{ id: string }>("select id from compliance_templates where template_key=$1 and version=$2", [key, version]);
       await pf.approveComplianceTemplate({ data: { id: t!.id }, context: officeCtx });
@@ -914,7 +915,8 @@ describe("A1 step 11 — All done: the rebate form (VEEC Part B from the A5, AP 
     const done = providers.emails.filter((e) => /All done, Helen/.test(e.subject));
     expect(done).toHaveLength(1);
     expect(done[0]!.to).toEqual([OWNER_EMAIL]);
-    expect(providers.emails.filter((e) => /final invoice/i.test(e.subject))).toHaveLength(1);
+    // ALL_DONE_V2_APPROVED (ON since go-live 5 Nov 2026): the balance is in the All done email — no separate O45 final invoice email.
+    expect(providers.emails.filter((e) => /final invoice/i.test(e.subject))).toHaveLength(0);
     expect(providers.texts.filter((t) => /sign your rebate form/.test(t.body))).toHaveLength(1);
     expect(await events(JOB, "veec_sign_reminder")).toHaveLength(1);
     for (const e of done) expect(e.text).not.toMatch(/electrician.*\$|paid|payout/i);
@@ -1077,9 +1079,16 @@ describe("A1 branch B — a second own job whose safety check is all clear: no u
     const el = await import("../src/lib/electrician-link.server");
     const linkB = await el.mintElectricianLink(JOB_B, TEAM_ELEC, INST);
     expect((await el.electricianLinkView(linkB.token)).view.step).toBe("all_done");
+    // The clear-to-install email needs the signed PIESA PDF, which is filed a moment after the sync: the tick's deposit sweep sends it.
+    const dr = await import("../src/lib/deposit-request.server");
+    await dr.sweepDepositRequests(); await settle();
     const sent = providers.emails.slice(n0);
-    expect(sent.filter((e) => /Signed electrical safety check \(PIESA\)/.test(e.subject)).map((e) => e.to)).toEqual([[OWNER_EMAIL]]);
-    expect(sent.filter((e) => /10% install deposit/.test(e.subject)).map((e) => e.to)).toEqual([[OWNER_EMAIL]]);
+    // CLEAR_TO_INSTALL_EMAIL_APPROVED (ON since go-live 5 Nov 2026): ONE owner email — "You're clear to install" with the
+    // signed PIESA attached and the 10% deposit ask — recorded as the owner's PIESA copy; no standalone copy, no old deposit email.
+    expect(sent.filter((e) => /Signed electrical safety check \(PIESA\)/.test(e.subject))).toHaveLength(0);
+    expect(sent.filter((e) => /10% install deposit/.test(e.subject))).toHaveLength(0);
+    expect(sent.filter((e) => /You're clear to install/.test(e.subject)).map((e) => e.to)).toEqual([[OWNER_EMAIL]]);
+    expect(await q("select recipient from piesa_deliveries where job_id=$1", [JOB_B])).toEqual([{ recipient: "owner" }]);
     expect(await events(JOB_B, "install_deposit_requested")).toHaveLength(1);
     for (const e of sent) expect(e.text).not.toMatch(/won't be paid|will not be paid|withheld/i);
     // The installer's Next step box: waiting on the deposit, then "Book the install" (Part 5 rules on the same facts).

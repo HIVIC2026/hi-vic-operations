@@ -634,7 +634,7 @@ export async function sweepHeldElectricianCantDoEmails(now = new Date(), over: P
 export const ELECTRICIAN_LINK_TEXT_HELD_EVENT = "electrician_link_text_held";
 /** The sweep only ever texts assignments made from this instant on (or any with a Team allocation event), so switching the
  *  wording on never texts old jobs. Deploy-date placeholder: Part 11 sets it to the go-live instant. */
-export const ELECTRICIAN_LINK_SWEEP_FROM_ISO = "2026-11-03T00:00:00Z";
+export const ELECTRICIAN_LINK_SWEEP_FROM_ISO = "2026-11-04T21:40:00Z"; // go-live publish, 5 Nov 2026 08:40 Melbourne
 export type ElectricianLinkSweepDeps = {
   /** The link + text step (linkAfterAllocation): returns how it went. */
   link: (jobId: string, workerId: string) => Promise<Awaited<ReturnType<typeof linkAfterAllocation>>>;

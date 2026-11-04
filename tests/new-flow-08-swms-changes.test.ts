@@ -117,8 +117,9 @@ describe("SWMS PDF", () => {
     const { buildSwmsPdf } = await import("../src/lib/swms-pdf.server");
     const plan = buildSwms({ jobNumber: "HV-TEST-1", address: "1 Test St", businessName: "TEST Co", installDate: "2026-11-03", lead: { name: "John Smith", workerId: "t1" }, crew: [], yearBuilt: 1972, hazardNote: null, siteNote: null });
     const sigs = [{ key: "w:t1", name: "John Smith", typedName: "John Smith", signedAt: "2026-11-02T08:15:00Z" }];
-    const none = await buildSwmsPdf(plan, sigs, {});
-    const some = await buildSwmsPdf(plan, sigs, { changes: [{ what: WHAT, control: CTRL, by: "John Smith", at: "2026-11-03T04:00:00Z" }] });
+    // The WorkSafe layout's change table (the website look, ON since go-live 5 Nov 2026, has its own box: swms-pdf-html tests).
+    const none = await buildSwmsPdf(plan, sigs, { look: "worksafe" });
+    const some = await buildSwmsPdf(plan, sigs, { look: "worksafe", changes: [{ what: WHAT, control: CTRL, by: "John Smith", at: "2026-11-03T04:00:00Z" }] });
     expect(none.layout.changeHeaderPages).toEqual([]);
     expect(some.layout.changeHeaderPages.length).toBeGreaterThan(0);
   });

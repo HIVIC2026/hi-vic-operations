@@ -13,7 +13,7 @@ describe("cobrandLogos", () => {
     expect(cobrandLogos({ installerName: " ", logoUrl: "https://x/logo.png" }).installer).toBeNull();
     expect(cobrandLogos({ installerName: "Rapid Insulation", logoUrl: "https://x/logo.png" }).installer).toEqual({ url: "https://x/logo.png", alt: "Rapid Insulation" });
   });
-  test("switch ships off", () => { expect(OWN_CUSTOMER_COBRAND_APPROVED).toBe(false); });
+  test("switch ON at go-live 5 Nov 2026", () => { expect(OWN_CUSTOMER_COBRAND_APPROVED).toBe(true); });
 });
 
 describe("mjEmail partnerLogo", () => {

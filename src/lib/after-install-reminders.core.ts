@@ -7,7 +7,7 @@ import { addYmd, melbourneToday } from './melbourne-time.core';
 import { genericMail } from './mail-mjml.core';
 
 /** Verbatim phrases from the decisions file (#53); the one-thing-left versions, subjects, greeting and button labels are drafts for Jo. */
-export const AFTER_INSTALL_REMINDERS_APPROVED = false as boolean;
+export const AFTER_INSTALL_REMINDERS_APPROVED = true as boolean; // ON at go-live 5 Nov 2026
 export type AfterInstallDay = 1 | 3 | 7;
 export const AFTER_INSTALL_DAYS: readonly AfterInstallDay[] = [1, 3, 7];
 export const AFTER_INSTALL_EVENT = 'after_install_reminder';

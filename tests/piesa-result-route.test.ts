@@ -28,10 +28,11 @@ describe("piesaResultRoute", () => {
 
 describe("email approval flags (owners must never lose the legal PIESA copy)", () => {
   const OFF = { clearToInstall: false, upgradesNeeded: false };
-  test("both flags ship off", () => { expect(CLEAR_TO_INSTALL_EMAIL_APPROVED).toBe(false); expect(UPGRADES_NEEDED_EMAIL_APPROVED).toBe(false); });
-  test("default (constants, off): every new-flow result keeps the standalone copy", () => {
-    for (const outcome of ["all_clear", "upgrades_needed"] as const) for (const s of [true, false])
-      expect(piesaResultRoute({ outcome, upgradesDoneSameDay: s, doNotContact: false, newFlow: true })).toEqual(["standalone_copy"]);
+  test("both flags ON at go-live 5 Nov 2026", () => { expect(CLEAR_TO_INSTALL_EMAIL_APPROVED).toBe(true); expect(UPGRADES_NEEDED_EMAIL_APPROVED).toBe(true); });
+  test("default (constants, ON since go-live 5 Nov 2026): the new-flow routes — clear to install, or the upgrades-needed email", () => {
+    expect(piesaResultRoute({ outcome: "all_clear", upgradesDoneSameDay: false, doNotContact: false, newFlow: true })).toEqual(["clear_to_install"]);
+    expect(piesaResultRoute({ outcome: "upgrades_needed", upgradesDoneSameDay: true, doNotContact: false, newFlow: true })).toEqual(["clear_to_install"]);
+    expect(piesaResultRoute({ outcome: "upgrades_needed", upgradesDoneSameDay: false, doNotContact: false, newFlow: true })).toEqual(["upgrades_needed"]);
   });
   test("flags off: standalone copy for every new-flow result", () => {
     for (const outcome of ["all_clear", "upgrades_needed"] as const) for (const s of [true, false])

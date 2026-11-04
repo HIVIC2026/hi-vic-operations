@@ -3,10 +3,16 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import {
-  SWMS_HAZARDS, SWMS_HOW_IMPLEMENTED, SWMS_HOW_IN_PLACE, SWMS_HRCW, SWMS_PREPARED_FOR, SWMS_RECORD_TASK, SWMS_STANDARD_CONTROLS_TEXT, SWMS_WORK_DEFAULT,
-  buildSwms, checkSwmsSign, swmsBlocker, swmsHighRiskWork, swmsRecordText, swmsSignerKey, swmsStatus, type SwmsFacts,
+  SWMS_HRCW, SWMS_PREPARED_FOR, SWMS_RECORD_TASK, SWMS_WORK_DEFAULT, swmsWording,
+  buildSwms as buildSwmsLive, checkSwmsSign, swmsBlocker, swmsHighRiskWork, swmsRecordText, swmsSignerKey, swmsStatus, type SwmsFacts,
 } from "../src/lib/swms.core";
 import { prestartFailures, type PrestartFacts } from "../src/lib/prestart.core";
+// These tests pin the 24 Oct 2026 wording / WorkSafe layout (the 2 Nov wording and website look are ON since go-live 5 Nov 2026
+// and have their own tests: swms-wording-2nov, swms-pdf-html).
+const buildSwms = (f: SwmsFacts, o: { nov2?: boolean } = {}) => buildSwmsLive(f, { nov2: false, ...o });
+const LEGACY = swmsWording(false);
+const SWMS_HAZARDS = LEGACY.hazards, SWMS_HOW_IMPLEMENTED = LEGACY.howImplemented, SWMS_HOW_IN_PLACE = LEGACY.howInPlace;
+const SWMS_STANDARD_CONTROLS_TEXT = ["Standard controls for the hazards of every ceiling insulation job.", ...SWMS_HAZARDS.map((h) => `${h.short}: ${h.control}.`), SWMS_HOW_IN_PLACE].join(" ");
 import { safetyPlanLine, withSafetyPlanLinks } from "../src/lib/sms.core";
 
 const facts: SwmsFacts = {

@@ -27,7 +27,7 @@ export const INSTALL_COMPLETE_EMAIL_APPROVED = true as boolean;
 
 /** Part 4 Task 9 (touchpoint 52, done2.png): ONE "All done" email at completion, paid or not. OFF = the current wording
  *  (same purpose `install_complete`, same key). The contacts block and the "Attached:" line are drafts for Jo. */
-export const ALL_DONE_V2_APPROVED = false as boolean;
+export const ALL_DONE_V2_APPROVED = true as boolean; // ON at go-live 5 Nov 2026
 /** Who owners can contact (cl 26): Home Insulation Victoria (the Accredited Person), the installer and, when there was electrical work, the electrician. Trades by OFFICE phone only. */
 export type AllDoneContacts = { ap: BusinessContact; installer: BusinessContact; electrician: BusinessContact | null };
 /** Home Insulation Victoria's own contact line: no phone is printed (the approved picture lists the email only). */

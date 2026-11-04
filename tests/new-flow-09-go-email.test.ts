@@ -15,7 +15,7 @@ const START = "2026-11-11T21:00:00Z"; // Thu 12 Nov 2026 8:00am Melbourne (AEDT)
 const base = { jobNumber: "HV-1234", address: "12 Example St, Box Hill VIC 3128", startIso: START, lead: "John Smith", link: "https://p/field/J1" };
 
 describe("goEmail (pure, DRAFT)", () => {
-  test("the flag is off in the code", () => expect(GO_EMAIL_APPROVED).toBe(false));
+  test("the flag is ON (go-live 5 Nov 2026)", () => expect(GO_EMAIL_APPROVED).toBe(true));
   test("GO at 2pm: subject and body match the draft exactly; no info@ line; button Open the job", () => {
     const m = goEmail({ ...base, failures: [], slot: "day_before_2pm" });
     expect(m.subject).toBe("HV-1234: GO for tomorrow 8:00am");
@@ -206,9 +206,9 @@ beforeEach(() => {
 });
 
 describe("sendGoEmail", () => {
-  test("flag false (the code): a real office gets nothing and nothing is recorded — 'awaiting approval'", async () => {
-    expect(await sendGoEmail("J1", "day_before_2pm", NO)).toBe("awaiting approval");
-    expect(await sendGoEmail("J1", "day_before_2pm", GO)).toBe("awaiting approval");
+  test("flag false (explicit; the code is ON since go-live 5 Nov 2026): a real office gets nothing and nothing is recorded — 'awaiting approval'", async () => {
+    expect(await sendGoEmail("J1", "day_before_2pm", NO, { approved: false })).toBe("awaiting approval");
+    expect(await sendGoEmail("J1", "day_before_2pm", GO, { approved: false })).toBe("awaiting approval");
     expect(office).toHaveLength(0); expect(alerts).toHaveLength(0); expect(testMail).toHaveLength(0);
     expect(tables["workflow_events"]).toHaveLength(0);
   });
@@ -288,10 +288,13 @@ describe("retryUnsentGoEmails", () => {
     expect(await retryUnsentGoEmails("J1", START, new Date("2026-11-11T19:45:00Z"))).toBe(1);
     expect(testMail.map((m) => m.subject)).toEqual(["HV-1234: DON'T START — 1 thing missing", "HV-1234: DON'T START — 1 thing missing", "HV-1234: GO for today 8:00am"]);
     expect(await retryUnsentGoEmails("J1", START, new Date("2026-11-11T21:00:00Z"))).toBe(0); // the install has started
-    // A real office with the flag off: nothing sent, nothing recorded (retried again once the flag flips).
+    // A real office (GO_EMAIL_APPROVED ON since go-live 5 Nov 2026): the unsent 2pm DON'T START goes to the installer office
+    // + the info@ copy, recorded once.
     tables["jobs"]![0]!["source"] = "website"; tables["workflow_events"] = [];
-    expect(await retryUnsentGoEmails("J1", START, new Date("2026-11-11T03:15:00Z"))).toBe(0);
-    expect(office).toHaveLength(0); expect(alerts).toHaveLength(0); expect(tables["workflow_events"]).toHaveLength(0);
+    // Both recorded slots (2pm DON'T START, 6:30am GO) are unclaimed again → two sends; only the DON'T START is copied to info@.
+    expect(await retryUnsentGoEmails("J1", START, new Date("2026-11-11T03:15:00Z"))).toBe(2);
+    expect(office.map((m) => m.to)).toEqual(["office@rapid.example", "office@rapid.example"]); expect(alerts).toHaveLength(1);
+    expect(events("go_email_sent")).toHaveLength(3); // two office sends + the info@ copy's own claim
   });
 });
 
