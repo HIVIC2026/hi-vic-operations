@@ -124,6 +124,9 @@ export type PrestartFacts = {
   clearance: { cleared: boolean; blocker: string | null };
   deadline: string | null; // 30-day window last day
   esc: EscNotice | null;
+  /** J5 (4 Nov 2026): the ESC notices could not be read — the check fails CLOSED with ESC_READ_FAILED (must move), never
+   *  "not marked submitted" (which reads as fixable). null/undefined = read fine (older callers). */
+  escReadError?: string | null | undefined;
   lead: LeadCert;
   consentBlockers: string[];
   piesaCompletedAt: string | null;
@@ -165,6 +168,8 @@ export const CERTIFICATE_NOT_IN_YET = "Certificate of Electrical Safety not in y
 export const LEAD_NOT_ESC_REGISTERED = (name: string | null) => `Lead Installer${name ? ` ${name}` : ""} is not registered with the ESC yet.`;
 export const ELECTRICIAN_NOT_CONFIRMED = "The PIESA needs an electrician at the install and they haven't confirmed.";
 export const LIFE_SUPPORT_PLAN_MISSING = "Life support at this home: the written consent or medical plan isn't on file.";
+/** J5: office-only GO check line when the ESC notices could not be read (fail closed; classified must move). */
+export const ESC_READ_FAILED = (reason: string) => `ESC notices could not be read (${reason}) — check again`;
 
 /** Every failed pre-start condition, in plain words. Empty = cleared to start. */
 export function prestartFailures(f: PrestartFacts): string[] {
@@ -173,7 +178,8 @@ export function prestartFailures(f: PrestartFacts): string[] {
   if (!f.clearance.cleared) out.push(`Electrical clearance is not valid: ${f.clearance.blocker ?? "not cleared"}`);
   if (!f.deadline || day > f.deadline) out.push(f.deadline ? `The 30-day window ended on ${f.deadline}. New PIESA needed.` : "No 30-day window date is recorded.");
   const e = f.esc;
-  if (!e || !(e.status === "sent" || e.status === "accepted") || !e.sent_at || !e.submission_reference || Date.parse(e.scheduled_start) !== Date.parse(f.start)) out.push("ESC notification is not marked submitted for this install date.");
+  if (f.escReadError) out.push(ESC_READ_FAILED(f.escReadError));
+  else if (!e || !(e.status === "sent" || e.status === "accepted") || !e.sent_at || !e.submission_reference || Date.parse(e.scheduled_start) !== Date.parse(f.start)) out.push("ESC notification is not marked submitted for this install date.");
   else { const t = sendTimingBlocker(e.sent_at, f.start); if (t) out.push(t); }
   if (!f.lead.found) out.push("No lead installer is recorded for this job.");
   else if (f.lead.status !== "verified") out.push(`Lead installer${f.lead.name ? ` ${f.lead.name}` : ""} has no office-verified EEC CII certification.`);

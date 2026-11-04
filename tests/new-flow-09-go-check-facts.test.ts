@@ -107,13 +107,15 @@ describe("GO check — pin the gates that are already right", () => {
 // The shared reader now returns EVERY delivery time per recipient (ascending) and the current record's Part C time.
 type Row = Record<string, unknown>;
 let tables: Record<string, Row[]> = {};
+let failTable: string | null = null; // J5: a table whose reads answer a database error
 function from(t: string) {
   let rows = [...(tables[t] ?? [])];
   const q: Record<string, unknown> = {};
+  const result = () => (failTable === t ? { data: null, error: { message: `read failed: ${t}` } } : { data: rows, error: null });
   Object.assign(q, {
-    select: () => q, eq: (k: string, v: unknown) => { rows = rows.filter((r) => r[k] === v); return q; },
-    maybeSingle: async () => ({ data: rows[0] ?? null, error: null }),
-    then: (res: (v: unknown) => unknown) => res({ data: rows, error: null }),
+    select: () => q, eq: (k: string, v: unknown) => { rows = rows.filter((r) => r[k] === v); return q; }, neq: () => q, order: () => q, limit: () => q,
+    maybeSingle: async () => { const r = result(); return { data: r.error ? null : (rows[0] ?? null), error: r.error }; },
+    then: (res: (v: unknown) => unknown) => res(result()),
   });
   return q;
 }
@@ -138,5 +140,31 @@ describe("piesaCopyDeliveries returns all delivery times per recipient and the P
     expect(await piesaCopyDeliveries("j1")).toEqual({ owner: [], installer: [], partCSignedAt: null });
     tables = { piesa_records: [], piesa_deliveries: [] };
     expect(await piesaCopyDeliveries("j1")).toEqual({ owner: [], installer: [], partCSignedAt: null });
+  });
+});
+
+describe("J5: the GO check fails CLOSED on a read error", () => {
+  test("latestNotices: a read error is returned (no notice assumed) → prestartFailures gives the ESC read-failed line, classified must move", async () => {
+    const { latestNotices } = await import("../src/lib/prestart.server");
+    const { classifyPrestartFailure, ESC_READ_FAILED } = await import("../src/lib/prestart.core");
+    tables = { esc_notifications: [{ id: "n1", job_id: "j1", status: "sent", sent_at: "2026-11-10T00:00:00Z", submission_reference: "R", scheduled_start: START, created_at: "2026-11-09T00:00:00Z", response: null, payload_json: null }] };
+    failTable = null;
+    expect((await latestNotices("j1")).readError).toBeNull();
+    failTable = "esc_notifications";
+    const n = await latestNotices("j1");
+    expect(n).toEqual({ current: null, previousSent: null, readError: "read failed: esc_notifications" });
+    const lines = prestartFailures({ ...ok, esc: n.current, escReadError: n.readError });
+    expect(lines).toEqual([ESC_READ_FAILED("read failed: esc_notifications")]);
+    expect(classifyPrestartFailure(lines[0]!, { start: START, now: new Date(Date.parse(START) - 3 * D) })).toBe("must_move");
+    failTable = null;
+  });
+  test("attendanceRequiredFor throws on a read error (prestartFacts then records nothing; onInstallBooked catches it)", async () => {
+    const att = await import("../src/lib/install-attendance.server");
+    tables = { assessments: [{ job_id: "j1", mitti_raw_snapshot: [] }] };
+    failTable = null;
+    expect(await att.attendanceRequiredFor("j1")).toBe(false);
+    failTable = "assessments";
+    await expect(att.attendanceRequiredFor("j1")).rejects.toThrow("Couldn't read the safety check answers: read failed: assessments");
+    failTable = null;
   });
 });

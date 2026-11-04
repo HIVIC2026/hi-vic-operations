@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { escTask, prestartFailures, prestartLocked, prestartRunAt, type PrestartFacts } from "../src/lib/prestart.core";
+import { escTask, prestartFailures, prestartLocked, prestartRunAt, type PrestartFacts, classifyPrestartFailure } from "../src/lib/prestart.core";
 import { buildNeedsHivic } from "../src/lib/allocation.core";
 
 const START = "2026-10-15T21:00:00Z"; // Fri 16 Oct 8am Melbourne
@@ -35,6 +35,12 @@ describe("pre-start check", () => {
     lead: { found: true, status: "verified", level: "full", expiresOn: "2027-01-01", name: "Lee" }, consentBlockers: [], piesaCompletedAt: "2026-10-01",
   };
   test("all good passes", () => expect(prestartFailures(ok)).toEqual([]));
+  test("J5: the ESC notices could not be read → the check fails CLOSED with its own line (must move), never 'not marked submitted' (fixable)", () => {
+    const lines = prestartFailures({ ...ok, escReadError: "timeout" });
+    expect(lines).toEqual(["ESC notices could not be read (timeout) — check again"]);
+    expect(classifyPrestartFailure(lines[0]!, { start: START, now: at(-3 * D) })).toBe("must_move");
+    expect(prestartFailures({ ...ok, esc: null, escReadError: null })).toEqual(["ESC notification is not marked submitted for this install date."]);
+  });
   test("decision 367: an unpaid install deposit fails the pre-start check (so the existing lock stops the install)", () => {
     expect(prestartFailures({ ...ok, installDepositBlocker: "Install deposit not paid" })).toEqual(["Install deposit not paid"]);
     expect(prestartFailures({ ...ok, installDepositBlocker: null })).toEqual([]);
