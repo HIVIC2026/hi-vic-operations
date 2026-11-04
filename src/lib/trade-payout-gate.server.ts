@@ -3,7 +3,7 @@
 // Callers: office Money › Payouts (office-money.server), office Mark paid (office.functions markPayoutPaid) and the trade
 // Money rows (trade-view.server) — one rule, one set of facts.
 import { jobAdmin as admin } from "./job-facts.server"; // speed (Task 11): the admin client; inside the job page bundle it answers from the job's rows
-import { tradePayoutBlockers, type PayoutKind, type SafetyVisitFacts, type TradePayoutFacts } from "./trade-payout-gate.core";
+import { installGoFor, tradePayoutBlockers, type PayoutKind, type SafetyVisitFacts, type TradePayoutFacts } from "./trade-payout-gate.core";
 import { piesaEvidenceBlockersFromSnapshot } from "./piesa-evidence.core";
 import { shortAnswersFromEntries } from "./official-short.core";
 import { FIXES_FORM_COMPLETED_EVENT, FIXES_FORM_CREATED_EVENT, FIXES_FORM_HELD_EVENT, FIXES_FORM_NOT_DONE_EVENT, fixesFormNeeded, fixesFormOutcome, type FixesFormEvent } from "./fixes-day.core";
@@ -36,7 +36,7 @@ export async function payoutGateFacts(jobIds: string[]): Promise<Map<string, Tra
   // Speed (installer screens, Task 5): the install start dates are read alongside the facts (two light reads for every
   // job) instead of one job at a time afterwards; they are used only where the facts say they are needed, as before.
   const datesP = installStartDates(ids).catch(() => new Map<string, string | null>());
-  const [assess, fixEv, decl, ieEv, apprEv, startDates] = await Promise.all([
+  const [assess, fixEv, decl, ieEv, apprEv, startDates, installBooks, goChecks] = await Promise.all([
     inJobs<{ job_id: string; external_mitti_id: string | null; mitti_completed: boolean | null; mitti_raw_snapshot: unknown; mitti_synced_at: string | null; mitti_modified_at: string | null }>("assessments", "job_id, external_mitti_id, mitti_completed, mitti_raw_snapshot, mitti_synced_at, mitti_modified_at", ids),
     inJobs<FixesFormEvent & { job_id: string }>("workflow_events", "job_id, event_type, created_at, summary, details", ids, (q) => q.in("event_type", [FIXES_FORM_CREATED_EVENT, FIXES_FORM_COMPLETED_EVENT, FIXES_FORM_NOT_DONE_EVENT, FIXES_FORM_HELD_EVENT]).order("created_at", { ascending: false })),
     inJobs<{ job_id: string }>("installer_declarations", "job_id", ids, (q) => q.eq("status", "signed")),
@@ -44,6 +44,9 @@ export async function payoutGateFacts(jobIds: string[]): Promise<Map<string, Tra
     // Decision 410: the office's Approve on the electrician's form (earliest one per form counts).
     inJobs<{ job_id: string; details: { kind?: string } | null; created_at: string }>("workflow_events", "job_id, details, created_at", ids, (q) => q.eq("event_type", ELECTRICIAN_FORM_APPROVED_EVENT).order("created_at", { ascending: true })),
     datesP,
+    // Part 9 Task 10: no installer pay without a GO — the latest GO check for the booked install start (fails closed).
+    inJobs<{ job_id: string; scheduled_start: string; created_at: string }>("bookings", "job_id, scheduled_start, created_at", ids, (q) => q.eq("kind", "installation").in("status", ["confirmed", "completed"]).order("created_at", { ascending: false })),
+    inJobs<{ job_id: string; scheduled_start: string; passed: boolean; checked_at: string }>("pre_start_checks", "job_id, scheduled_start, passed, checked_at", ids, (q) => q.order("checked_at", { ascending: false })),
   ]);
   const approvedAt = (id: string, kind: string) => apprEv.find((e) => e.job_id === id && e.details?.kind === kind)?.created_at ?? null;
   for (const id of ids) {
@@ -68,7 +71,7 @@ export async function payoutGateFacts(jobIds: string[]): Promise<Map<string, Tra
     out.set(id, {
       piesa,
       fixes: { sameVisitOnPiesa, outcome: fo.outcome, detail: fo.detail, completedAt: fixesDoneAt },
-      install: { formCompleted: declared, evidence: !declared && !summary ? [] : installEvidenceGateLines(summary, installDate) },
+      install: { formCompleted: declared, evidence: !declared && !summary ? [] : installEvidenceGateLines(summary, installDate), go: installGoFor(goChecks.filter((c) => c.job_id === id), installBooks.find((b) => b.job_id === id)?.scheduled_start ?? null) },
       electricianApprovedAt: { assessment: approvedAt(id, "assessment"), rectification: approvedAt(id, "rectification") },
     });
   }

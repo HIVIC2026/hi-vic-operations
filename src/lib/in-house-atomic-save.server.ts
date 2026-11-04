@@ -25,7 +25,7 @@ export async function saveInHouseVisit(jobId:string,actorId:string,input:{kind:B
   read<{id:string;details:{selection?:CrewSelection}}|null>(db.from('workflow_events').select('id,details').eq('job_id',jobId).eq('event_type','piisa_crew_selected').order('created_at',{ascending:false}).order('id',{ascending:false}).limit(1).maybeSingle()),
  ]);
  if(!job)throw Error('Job unavailable');
- if(input.kind!=='crew')await (await import('./booking.server')).validateBooking(jobId,input.kind,input.start??'',actorId,input.workerId);
+ const validated=input.kind!=='crew'?await (await import('./booking.server')).validateBooking(jobId,input.kind,input.start??'',actorId,input.workerId):null;
  const team=await bookingTeam(jobId,actorId);const who=team.workers.find(w=>w.id===input.workerId);const why=bookingWorkerBlocker(input.kind==='crew'?'installation':input.kind,who??null);if(why||!who)throw Error(why??'Not your Team member');
  let crewFacts:{needsVerification:string[];staff:unknown[]}={needsVerification:[],staff:[]};
  if(input.selection){const saved=await (await import('./piisa-a3.server')).loadCrew(jobId);const checked=crewSelectionProblems(input.selection,saved.staff);if(checked.problems.length)throw Error(checked.problems.join(' • '));crewFacts={needsVerification:checked.needsVerification,staff:saved.staff};}
@@ -44,7 +44,7 @@ export async function saveInHouseVisit(jobId:string,actorId:string,input:{kind:B
  const result=committed.data as {bookingId:string|null;workId?:string;already:boolean};
  const workId=result.workId;
  if(workId)void import('./in-house-saved-work.server').then(m=>m.startInHouseSavedWork(workId)).catch(()=>undefined);
- return {...result,needsVerification:crewFacts.needsVerification};
+ return {...result,needsVerification:crewFacts.needsVerification,warnings:validated?.warnings??[]};
 }
 function isMissingSavedWorkFunction(error:DbErrorLike,name:string){
  return error?.code==='PGRST202'&&isMissingDbObject(error)&&!!error.message?.includes(name);

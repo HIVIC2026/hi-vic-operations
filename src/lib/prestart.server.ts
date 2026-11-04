@@ -80,6 +80,9 @@ export async function prestartFacts(jobId: string, start: string) {
     // rules Installation complete uses (esc.server installReadiness / owner-gates), so both places agree.
     piesaCopyBlockers: (await import("./esc.core")).piesaCopyDeliveryBlockers(start, await (await import("./esc.server")).piesaCopyDeliveries(jobId)),
     piesaCopyReceiptBlocker: null, // Retired owner receipt; recorded PIESA delivery remains independently checked.
+    // Part 9 Task 10 (answer 21): an install booked before the upgrades day needs the certificate in by the GO check. A
+    // read failure holds the start (fails closed), never clears it.
+    coesBlocker: await (await import("./coes-check.server")).coesBlockerFor(jobId).catch((e: unknown) => `Electrical certificate could not be checked: ${e instanceof Error ? e.message : String(e)}`),
   };
 }
 

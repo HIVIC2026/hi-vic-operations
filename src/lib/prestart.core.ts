@@ -109,6 +109,10 @@ export type PrestartFacts = {
   /** Decision 395: the owner has not ticked "I have received it" for their safety check copy (Gate C piesa_copy_receipt,
    *  owner-gates.core piesaCopyReceiptBlocker); null = ticked; undefined = not loaded (older callers). */
   piesaCopyReceiptBlocker?: string | null | undefined;
+  /** Part 9 Task 10 (Jo 2 Nov 2026, answer 21): where upgrades were done, the electrical certificate (CoES) must be ticked
+   *  before the install day (coes-check.server `coesBlockerFor`, the installation_booked entry rule); null = ticked / not
+   *  needed; undefined = not loaded (older callers). The Part C itself is the electrical clearance line above. */
+  coesBlocker?: string | null | undefined;
 };
 
 /** Every failed pre-start condition, in plain words. Empty = cleared to start. */
@@ -137,6 +141,7 @@ export function prestartFailures(f: PrestartFacts): string[] {
   if (f.installDepositBlocker) out.push(f.installDepositBlocker);
   for (const b of f.piesaCopyBlockers ?? []) out.push(b);
   if (f.piesaCopyReceiptBlocker) out.push(f.piesaCopyReceiptBlocker);
+  if (f.coesBlocker) out.push(f.coesBlocker);
   return out;
 }
 

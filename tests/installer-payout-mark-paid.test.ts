@@ -45,7 +45,7 @@ mock.module("../src/lib/workflow.server", () => ({
 }));
 // Decision 318 form gate: the A5 is Complete with its evidence (so only the timing rule is under test).
 mock.module("../src/lib/trade-payout-gate.server", () => ({
-  payoutGateFacts: async (ids: string[]) => new Map(ids.map((id) => [id, { piesa: null, fixes: null, install: { formCompleted: true, evidence: [] } }])),
+  payoutGateFacts: async (ids: string[]) => new Map(ids.map((id) => [id, { piesa: null, fixes: null, install: { formCompleted: true, evidence: [], go: true } }])),
   payoutBlockersFor: async () => [],
   safetyVisitFacts: async () => new Map(), // batch 1 F5 (per-visit safety check pay)
   safetyVisitPayoutBlockers: async () => [],
