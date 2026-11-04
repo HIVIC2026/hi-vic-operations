@@ -111,23 +111,28 @@ describe("readJobAccess (office)", () => {
 
 describe("pages", () => {
   const read = (p: string) => readFileSync(p, "utf8");
-  test("installer page: line (text only) only when owner contact is shown", () => {
-    const r = read("src/routes/_authenticated/field.$jobId.tsx");
-    expect(r).toContain("const showOwnerContact = !!job.owner_phone && jobStatus.data?.ownerContactVisible === true;");
-    expect(r).toContain("showOwnerContact && jobStatus.data?.access &&");
+  // Part 5 (installer job page M2) moved the "who lets you in" line into the job page's Owner rows: trade-view.server
+  // `tradeJobPage` builds them with `ownerRows(..., access: accessPerson)` only while the owner contact is released
+  // (`showContact`), and job-page-rows.core adds the "Lets you in" row for a tenant / property manager only.
+  test("installer page: the access person is an Owner row, only when owner contact is shown", () => {
+    const srv = read("src/lib/trade-view.server.ts");
+    expect(srv).toContain("const owner = showContact ? ownerRows({ name: ownerName, phone: ownerPhone, email: j?.owners?.email?.trim() || null, access: i.accessPerson }) : [];");
+    const rows = read("src/lib/job-page-rows.core.ts");
+    expect(rows).toContain('if (f.access && f.access.who !== "owner")');
+    expect(rows).toContain("rows.push([W.letsYouIn,");
     // Final review 3: no "Call tenant" link and no tenant tel: link anywhere on the trade job page.
+    const r = read("src/routes/_authenticated/field.$jobId.tsx");
     expect(r).not.toContain("Call tenant");
     expect(r).not.toContain("accessTenantMobile");
   });
-  test("final review 3: the electrician view (FieldJobBody) has no access line", () => {
+  test("final review 3: the shared job body (FieldJobBody) has no access line of its own; electricians get theirs on the /e/ link (Part 6 Task 8)", () => {
     const r = read("src/routes/_authenticated/field.$jobId.tsx");
     const body = r.slice(r.indexOf("function FieldJobBody("), r.indexOf("function InstallerFlow("));
     expect(body.length).toBeGreaterThan(100);
     expect(body).not.toContain(".access");
     expect(body).not.toContain("data-at-the-home");
     expect(body).not.toContain("Call tenant");
-    const installer = r.slice(r.indexOf("function InstallerFlow("));
-    expect(installer).toContain("data-at-the-home");
+    expect(read("src/components/trade/ElectricianLinkBody.tsx")).toContain("Lets you in:");
   });
   test("office job page: header shows the line", () => {
     expect(read("src/lib/office-job-page.server.ts")).toContain("access: access.line");

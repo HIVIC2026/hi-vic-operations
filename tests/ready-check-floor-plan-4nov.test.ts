@@ -2,7 +2,7 @@ import { expect, test } from 'bun:test';
 import { parseAudit } from '../src/lib/mitti.core';
 import { readLayoutArea } from '../src/lib/ceiling-layout.core';
 import { areasFromReadyCheckEntries } from '../src/lib/area-diagram.core';
-import { floorPlanFiles } from '../src/lib/ready-check-floor-plan.core';
+import { floorPlanFiles } from '../src/lib/ready-check-floor-plan-files.core';
 const entries = [
  {label:'Name this area', value:'Whole house'},
  {label:'How did you measure this area?', value:'Floor plan'},

@@ -213,9 +213,11 @@ describe("fixes card stays on fixes", () => {
     expect(fixesBooked).toContain(J);
     let v = await pay.jobPaymentView(J, new Date(NOW));
     expect(v!.paid).toEqual({ install: S, fixes: 55_000, repeat: 0 });
-    expect(step(v, "install_deposit").state).toBe("not_yet");
+    // Jo 2 Nov 2026 (answer 21, replaces the 26 Oct "fixes first" order): the 10% deposit is due from piesa_complete on,
+    // upgrades still to come or not (INSTALL_DEPOSIT_DUE_STAGES) — so at rectification_scheduling it is already requested.
+    expect(step(v, "install_deposit").state).toBe("requested");
     expect(step(v, "install_deposit").outstandingCents).toBe(D);
-    expect(v!.due.step).toBeNull();
+    expect(v!.due.step!.key).toBe("install_deposit");
     setStage("installation_scheduling");
     v = await pay.jobPaymentView(J, new Date(NOW));
     expect(step(v, "install_deposit").state).toBe("requested");
@@ -228,20 +230,20 @@ describe("fixes card stays on fixes", () => {
   });
 });
 
-describe("deposit waits for fixes done", () => {
+describe("deposit is due from the PIESA result on (Jo 2 Nov 2026, answer 21 — replaces the 26 Oct 'fixes first' order)", () => {
   beforeEach(() => seed());
-  test("fixes paid but not yet done → the 10% step is not_yet (never requested); requested only after the fixes are done", async () => {
+  test("fixes paid but not yet done → the 10% step is still requested at every post-result stage; never before the result", async () => {
     payXero(INV, 349); payXero(INVF, 550);
-    for (const stage of ["rectification_scheduling", "rectification_booked"]) {
+    setStage("piesa_booked"); // result not in yet → not due
+    expect(step(await pay.jobPaymentView(J, new Date(NOW)), "install_deposit").state).toBe("not_yet");
+    for (const stage of ["piesa_complete", "rectification_scheduling", "rectification_booked", "electrical_variation_pending"]) {
       setStage(stage);
       const v = await pay.jobPaymentView(J, new Date(NOW));
-      expect(step(v, "install_deposit").state).toBe("not_yet");
-      expect(step(v, "install_deposit").requestedAt).toBeNull();
-      expect(v!.due.step).toBeNull();
+      expect(step(v, "install_deposit").state).toBe("requested");
+      expect(step(v, "install_deposit").requestedAt).not.toBeNull();
+      expect(v!.due.step!.key).toBe("install_deposit");
     }
-    setStage("piesa_complete"); // PIESA found fixes, Section C not signed yet
-    expect(step(await pay.jobPaymentView(J, new Date(NOW)), "install_deposit").state).toBe("not_yet");
-    tables["piesa_records"]![0]!["section_c_signed_at"] = "2026-10-28T00:00:00.000Z"; // fixes done and signed off
+    tables["piesa_records"]![0]!["section_c_signed_at"] = "2026-10-28T00:00:00.000Z"; // fixes done and signed off — unchanged
     const v = await pay.jobPaymentView(J, new Date(NOW));
     expect(step(v, "install_deposit").state).toBe("requested");
     expect(v!.due.step!.key).toBe("install_deposit");

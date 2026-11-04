@@ -11,8 +11,11 @@ await j.q("insert into jobs(id,job_number,owner_id,property_id,stage,source)valu
 await j.q("insert into job_assignments(job_id,business_id,role,active)values($1,$2,'installer',true)",[JOB,BIZ]);
 let paid=false;let officeSends=0;const emailKeys=new Set<string>(),textKeys=new Set<string>();
 mock.module('@/integrations/supabase/client.server',()=>({supabaseAdmin:admin}));
-mock.module('../src/lib/in-house-suppression.server',()=>({readInHouseDispatchState:async()=>({held:new Set([JOB]),failed:false})}));
+mock.module('../src/lib/in-house-suppression.server',()=>({readInHouseDispatchState:async()=>({held:new Set([JOB]),failed:false}),inHouseDispatchSkip:async()=>'in_house' as const}));
 mock.module('../src/lib/install-days.server',()=>({installDayContext:async()=>({clearance:{cleared:true,basis:'initial_piesa'},deadline:'2026-11-30',booked:false})}));
+// Jo 2 Nov (answer 21) + J5: the deposit request reads the PIESA result (clearanceFacts.piesaOutcome) — the practice DB has no
+// piesa_records row, so the passed result is mocked here (a null result = 'not due', which is right for a live job).
+mock.module('../src/lib/electrical-clearance.server',()=>({clearanceFacts:async()=>({piesaOutcome:'pass',sectionCSignedAt:null,initialSignedAt:'2026-10-20T00:00:00Z'})}));
 mock.module('../src/lib/payments.server',()=>({jobPaymentView:async()=>({invoiceId:INV,invoices:{install:{id:INV,xero_invoice_id:'xero-practice'}},plan:{installDepositCents:20000},steps:[{key:'install_deposit',state:paid?'paid':'requested',outstandingCents:20000}],bank:{configured:true,accountName:'Practice',bsb:'123456',accountNumber:'12345678'},reference:'INV-TEST',stripe:{available:true}})}));
 mock.module('../src/lib/veec-copy-email.server',()=>({ownerMyJobLink:async()=> 'https://example.invalid/my-job/test'}));
 mock.module('../src/lib/comms.server',()=>({assertCustomerDeliveryAllowed:async()=>{}}));

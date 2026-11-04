@@ -16,8 +16,13 @@ const ROOT = resolve(import.meta.dir, "..");
 const SRC = join(ROOT, "src");
 const HOME_ROUTE = join(SRC, "routes", "_authenticated", "field.index.tsx");
 
-/** Source bytes of the home route's static import graph: 335,328 on 3 Nov 2026 before this step; budget = 40% under. */
-const SOURCE_BUDGET = 200_000;
+/** Source bytes of the home route's static import graph: 335,328 on 3 Nov 2026 before this step; budget = 40% under.
+ *  Join step 7 (4 Nov 2026): main's ceiling-layout rule (Jo 4 Nov) made ready-check-basics.core read the approved 48A products
+ *  (ceiling-layout.core, 22.6 KB) and the rebuild alias labels (mitti-rebuild-labels.core, 12.4 KB) — both needed on My work's
+ *  "Ready Check's in" line — so the budget is 220 KB (214,419 measured). The 638 KB regression that came with it
+ *  (ready-check-floor-plan.core → install-day.core → mitti.core / official-forms.core / the MJML kit) is fixed by splitting
+ *  floorPlanFiles into ready-check-floor-plan-files.core.ts; this pin keeps it out. */
+const SOURCE_BUDGET = 220_000;
 /** Gzip bytes a cold /field visit downloads (entry + route chunks): 307,381 on 3 Nov 2026 before this step; 276,374 after
  *  the home's own imports were cut; 259,338 after the chunk groups in vite.config.ts (232,489 of it the entry: react-dom,
  *  router, query, start client, supabase-js, root). Budget = the result after this step + 3%. */

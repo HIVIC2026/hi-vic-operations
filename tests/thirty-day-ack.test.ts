@@ -49,7 +49,7 @@ describe("decision 307 source pins", () => {
   const choose = fns.slice(fns.indexOf("export const ownerChoosePiesaFn"), fns.indexOf("export const ownerTakeInstallDayFn"));
   test("ownerChoosePiesaFn passes the tick to submitOwnerPiesaWindows, which checks it (F17: one place for every owner path)", () => {
     expect(choose).toContain("understandsThirtyDays: z.boolean()");
-    expect(choose).toContain("submitOwnerPiesaWindows(s.jobId, s.userId, data.picks, { understandsThirtyDays: data.understandsThirtyDays");
+    expect(choose.replace(/\s+/g, " ")).toContain("submitOwnerPiesaWindows( s.jobId, s.userId, data.picks, { understandsThirtyDays: data.understandsThirtyDays"); // formatter-tolerant (the chain was re-wrapped by prettier)
     expect(choose).not.toContain("requireOwnerThirtyDayAck("); // no duplicate check
     const srv = readFileSync("src/lib/allocation.server.ts", "utf8");
     const fn = srv.slice(srv.indexOf("export async function submitOwnerPiesaWindows"), srv.indexOf("export async function ownerPiesaWindowState"));

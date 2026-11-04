@@ -68,7 +68,7 @@ describe("O51 review request (decision 105)", () => {
     expect(reviewRequestBlocker({ googleReviewUrl: "https://g.page/r/abc/review", reviewScreenReady: true })).toBeNull();
     // The screen exists: My job accepts "review" and reads ?stars= (decision 335).
     const page = readFileSync("src/routes/my-job.$token.tsx", "utf8");
-    expect(page).toContain('const SCREENS = ["home", "spot", "quote", "book", "done", "review"]');
+    expect(page).toMatch(/const SCREENS = \[[^\]]*"review"[^\]]*\] as const/); // the list has grown since (fixes, turn, taps, …) — "review" stays
     expect(page).toContain('screen === "review" ? <ReviewScreen');
     expect(page).toContain('parseStars(s["stars"])');
   });
@@ -165,7 +165,7 @@ describe("source pins: each trigger calls its sender exactly once with its key",
     const sites: [string, string][] = [
       ["src/lib/booking.server.ts", "onInstallBookingRescheduled(jobId, start, priorInstallStart)"],
       ["src/lib/install-days.server.ts", "onInstallDayMoved(jobId, startsAt, movedFrom)"],
-      ["src/lib/payments.server.ts", "onSafetyCheckPaid(jobId, invoiceId)"],
+      ["src/lib/payments.server.ts", "onSafetyCheckPaid(jobId, v.invoiceId)"],
       ["src/lib/install-complete.server.ts", "onFinalInvoiceDue(jobId)"],
     ];
     // Part 4 Task 14: the old call sites are gone.
@@ -181,9 +181,11 @@ describe("source pins: each trigger calls its sender exactly once with its key",
     expect(count(tick, "sweepReviewRequests()")).toBe(1);
     expect(count(tick, "sweepFinalInvoices()")).toBe(1);
   });
-  test("decision 334: O45 is wired (install complete + 15-minute retry) while ALL_DONE_V2_APPROVED is false, bank transfer only, no card wording, no invented PDF", () => {
+  test("decision 334 + Q21: O45 is wired (install complete + 15-minute retry) while ALL_DONE_V2_APPROVED is false; card only via My job (never a Stripe line), bank details, no invented PDF", () => {
     const core = src("src/lib/completion-emails.core.ts");
-    for (const gone of ["Secure card payment by Stripe", "Tap the button to pay by card", "payUrl"]) expect(core).not.toContain(gone);
+    for (const gone of ["Secure card payment by Stripe", "Tap the button to pay by card", "checkout.stripe.com"]) expect(core).not.toContain(gone);
+    // Q21 (Jo 2 Nov 2026; pin ruled superseded in 3c9810af): the optional payUrl is the owner's My job pay screen, never a Stripe link.
+    expect(src("src/lib/approved-owner-emails.server.ts")).toContain("payUrl:`${f.myJobUrl}?screen=pay`");
     expect(core).toContain("Pay by bank transfer");
     const t = src("src/lib/owner-email-triggers.server.ts");
     expect(t).toContain("bank: bankDetails()");

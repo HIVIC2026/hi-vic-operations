@@ -169,13 +169,17 @@ describe("tradeHome speed (Task 5)", () => {
   // results (assessments), the owner's payments (ledger), the CoES documents, the electrician allocation events. Same
   // three rounds. The caps below are the speed branch's +6 for those; anything above that is a regression.
   const P5_MY_WORK_READS = 6;
+  // Join step 7 (4 Nov 2026, PART 11 SPEED NOTE): main's Part 3 (certificate by document, piesa_records) and Part 9's GO-check
+  // facts (pre_start_checks, installer_declarations) add 2 reads to the owner's My work and 4 to the electrician owner's —
+  // still three rounds. Measured 61 / 57 / 49; anything above these is a regression.
+  const JOIN7_READS = 2;
   const CONTEXTS: { name: string; seed: Parameters<typeof seed>[0]; uid: string; reads: number }[] = [
-    { name: "owner, in-house installer business (pays its own electricians)", seed: { inHouse: true }, uid: U_BOSS, reads: 53 + P5_MY_WORK_READS },
-    { name: "owner, ordinary installer business", seed: { inHouse: false }, uid: U_BOSS, reads: 49 + P5_MY_WORK_READS },
+    { name: "owner, in-house installer business (pays its own electricians)", seed: { inHouse: true }, uid: U_BOSS, reads: 53 + P5_MY_WORK_READS + JOIN7_READS },
+    { name: "owner, ordinary installer business", seed: { inHouse: false }, uid: U_BOSS, reads: 49 + P5_MY_WORK_READS + JOIN7_READS },
     { name: "staff, in-house installer business", seed: { inHouse: true }, uid: U_STAFF, reads: 30 + P5_MY_WORK_READS },
     { name: "staff, ordinary installer business", seed: { inHouse: false }, uid: U_STAFF, reads: 30 + P5_MY_WORK_READS },
-    { name: "electrician owner", seed: { inHouse: false }, uid: U_ELEC, reads: 45 },
-    { name: "owner, TEST in-house business", seed: { test: true, inHouse: true }, uid: U_BOSS, reads: 53 + P5_MY_WORK_READS },
+    { name: "electrician owner", seed: { inHouse: false }, uid: U_ELEC, reads: 45 + 4 },
+    { name: "owner, TEST in-house business", seed: { test: true, inHouse: true }, uid: U_BOSS, reads: 53 + P5_MY_WORK_READS + JOIN7_READS },
     { name: "staff, TEST in-house business", seed: { test: true, inHouse: true }, uid: U_STAFF, reads: 30 + P5_MY_WORK_READS },
   ];
   for (const ctx of CONTEXTS) {

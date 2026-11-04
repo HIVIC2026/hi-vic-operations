@@ -32,7 +32,8 @@ describe("trade roles", () => {
     expect(tradeAccessBlocker({ ...worker, profile_id: null }, true)).toBe(NO_LOGIN_NEEDED);
     // existing logins stay recoverable
     expect(tradeAccessBlocker({ ...worker, profile_id: "p1" }, true)).toBeNull();
-    expect(tradeAccessBlocker({ ...worker, trade_role: "electrician", profile_id: "p2" }, true)).toBeNull();
+    // Part 6 Task 8: electricians never log in, even with an old profile — every job reaches them as a /e/ link.
+    expect(tradeAccessBlocker({ ...worker, trade_role: "electrician", profile_id: "p2" }, true)).toBe(NO_LOGIN_NEEDED);
     expect(tradeAccessBlocker({ ...worker, trade_role: "office", certification_status: null }, true)).toBeNull();
     expect(tradeAccessBlocker({ ...worker, trade_role: "office", email: null }, true)).toBe("This person needs a valid email.");
   });
@@ -58,7 +59,7 @@ describe("Money is guarded by the Money rule, not the boss rule", () => {
     expect(f).toContain("NO_LOGIN_NEEDED");
     expect(f).toContain("TradePublicShell");
     // fix wave minor 8: Home Insulation Victoria's own office staff (admin) are never shown the no-login page
-    expect(f).toContain("data.admin === true");
+    expect(f).toContain("data?.admin === true");
     expect(s).toMatch(/noLogin: !isAdmin && noLoginFor\(/);
   });
   test("the no-login page shows only with no active membership at all (a legacy 'member' keeps the normal layout)", () => {

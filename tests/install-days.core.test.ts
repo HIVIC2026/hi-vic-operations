@@ -53,7 +53,9 @@ describe("install days", () => {
     expect(srv).toContain('transition(jobId, "installation_scheduling"');
     expect(srv).toMatch(/update\(\{ status: "confirmed" \}\)/); // booking restored if the stage can't move back
     expect(readFileSync("src/components/portal/install-days.tsx", "utf8")).toContain("Change day");
-    expect(readFileSync("src/routes/my-job.$token.tsx", "utf8")).toContain("ownerChangeInstallDayFn");
+    // 3 Nov 2026 (f887c70e, owner-flow clean-up): the owner has no Change day button on My job any more — a matched owner's
+    // change email gets the decision-337 reply (call the installer); the server function stays for the office/installer paths.
+    expect(readFileSync("src/routes/my-job.$token.tsx", "utf8")).not.toContain("ownerChangeInstallDayFn");
   });
   test("installer selects an exact arrival time; owner sees day and time (Jo 24 Oct)", () => {
     expect(installStartAt("2026-10-27", "07:30").toISOString()).toBe("2026-10-26T20:30:00.000Z"); // 7:30am AEDT
