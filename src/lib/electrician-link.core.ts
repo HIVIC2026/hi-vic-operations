@@ -125,6 +125,14 @@ export const electricianLinkAlreadyBooked = (iso: string) => `Already booked for
 export const ELECTRICIAN_LINK_NOTHING_TO_BOOK = "There's nothing to book on this job right now.";
 export const ELECTRICIAN_LINK_BAD_TIME = "Choose a day and time that hasn't passed.";
 export const electricianLinkBookFailed = (installer: string) => `We couldn't save that. Try again, or call ${installer}.`;
+/** Main's Part 3 final fix wave (#137), carried onto this link at the join (4 Nov 2026): the upgrades day can't be saved
+ *  because the job isn't at the upgrades-booking step yet (or a booking check refused it). Plain words for the
+ *  electrician — never the raw stage error. Wording as live on main. */
+export function upgradesDayNotReady(officePhone: string | null): string {
+  return `Home Insulation Victoria needs to check this job before the upgrades day can be saved. Please call them${officePhone ? ` on ${officePhone}` : ""}.`;
+}
+/** The stages at which the upgrades day may be booked (booking.server's map for kind rectification). */
+export const UPGRADES_BOOKING_STAGES = ["rectification_scheduling", "rectification_booked"] as const;
 
 // ---- "Can't do this one" (Task 6) ------------------------------------------------------------------------------------
 /** The event Part 9 reads for ESC timing: details { worker_id, reason, booking_cancelled }. */

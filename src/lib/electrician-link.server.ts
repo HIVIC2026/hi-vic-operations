@@ -14,7 +14,7 @@ import { hashToken, isTokenShape, linkState, newToken, certificationBlocker, fir
 import {
   ELECTRICIAN_LINK_SMS_TYPE, ELECTRICIAN_LINK_TEXT_APPROVED, ELECTRICIAN_LINK_NOT_VALID, electricianLinkExpired, electricianLinkExpiry, electricianLinkSwitchedOff,
   electricianLinkText, electricianLinkTextKey, maskElectricianLinkInText, electricianStep, canBookFromLink, dayTime,
-  ELECTRICIAN_LINK_OFFICE_BOOKS, electricianLinkAlreadyBooked, ELECTRICIAN_LINK_NOTHING_TO_BOOK, ELECTRICIAN_LINK_BAD_TIME, electricianLinkBookFailed, type ElectricianLinkFacts, type ElectricianStepView, type WhoBooks,
+  ELECTRICIAN_LINK_OFFICE_BOOKS, electricianLinkAlreadyBooked, ELECTRICIAN_LINK_NOTHING_TO_BOOK, ELECTRICIAN_LINK_BAD_TIME, electricianLinkBookFailed, upgradesDayNotReady, UPGRADES_BOOKING_STAGES, type ElectricianLinkFacts, type ElectricianStepView, type WhoBooks,
   ELECTRICIAN_CANT_DO_EVENT, ELECTRICIAN_CANT_DO_EMAIL_EVENT, ELECTRICIAN_CANT_DO_EMAIL_APPROVED, ELECTRICIAN_CANT_DO_REASON_NEEDED, electricianCantDoReasonOk, electricianCantDoEmailKey,
 } from "./electrician-link.core";
 import type { RealSmsInput, RealSmsResult } from "./sms.server";
@@ -370,6 +370,19 @@ export async function bookFromElectricianLink(token: string, kind: "assessment" 
       // A change of time only while the link is still on that visit's day (a done A4 or a passed PIESA never gets a second form).
       if (step !== (kind === "assessment" ? "piesa_day" : "upgrades_day")) return { ok: false as const, message: ELECTRICIAN_LINK_NOTHING_TO_BOOK };
     } else if (step !== (kind === "assessment" ? "book_piesa" : "set_upgrades_day")) return { ok: false as const, message: ELECTRICIAN_LINK_NOTHING_TO_BOOK };
+    // Main's Part 3 final fix wave (#137), carried onto this link at the join: the upgrades day is booked only at the
+    // upgrades-booking stages. A job still parked at PIESA complete (e.g. completed before that fix) is moved on by the
+    // normal guarded auto-advance first; if it still isn't there, the electrician gets a plain reason and nothing is booked.
+    if (kind === "rectification" && !(UPGRADES_BOOKING_STAGES as readonly string[]).includes(job.stage ?? "")) {
+      const { autoAdvanceJob } = await import("./autoadvance.server");
+      const { getStage } = await import("./workflow.server");
+      await autoAdvanceJob(jobId, null, "upgrades day from the electrician's link").catch((e) => console.error("upgrades day auto-advance failed", jobId, (e as Error).message));
+      const now2 = await getStage(jobId).catch(() => null);
+      if (!now2 || !(UPGRADES_BOOKING_STAGES as readonly string[]).includes(now2)) {
+        console.warn("upgrades day refused: job not at the upgrades booking", jobId, now2);
+        return { ok: false as const, message: upgradesDayNotReady((await import("./office-phone.server")).officePhone()) };
+      }
+    }
     try {
       const booking = await import("./booking.server");
       // proposedWorkerId = this electrician (the job is already allocated to them). No actor: the electrician has no login.
@@ -377,6 +390,8 @@ export async function bookFromElectricianLink(token: string, kind: "assessment" 
       await booking.confirmBooking(jobId, kind, start, null, "electrician link");
     } catch (e) {
       const { WorkflowError } = await import("./workflow.server");
+      // The upgrades day: a booking-rule refusal (stage moved, a guard) is shown in plain words; the real reason stays in the server log (main #137).
+      if (e instanceof WorkflowError && kind === "rectification") { console.warn("upgrades day refused", jobId, e.message); return { ok: false as const, message: upgradesDayNotReady((await import("./office-phone.server")).officePhone()) }; }
       if (e instanceof WorkflowError) return { ok: false as const, message: e.message };
       console.error("Electrician link booking failed", (e as Error).message);
       return { ok: false as const, message: electricianLinkBookFailed(installer.name) };

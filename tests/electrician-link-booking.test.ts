@@ -45,7 +45,9 @@ function seed(over: { piesaBookedBy?: string | null; outcome?: "pass" | "fail" |
   for (const k of Object.keys(tables)) delete tables[k];
   calls.validate.length = 0; calls.confirm.length = 0; calls.notify.length = 0; validateFails = null;
   tables["properties"] = [{ id: "p1", address_line: "12 Smith St, Kew", suburb: "Kew" }];
-  tables["jobs"] = [{ id: J, job_number: "HV-5001", source: "qa_test", stage: "piesa_and_install_window_pending", property_id: "p1", deleted_at: null }];
+  // A failed PIESA (upgrades needed) puts the job at the upgrades-booking stage; the plain-reason rule (main #137, carried onto
+  // this link) moves nothing from there, so the mocked booking path is what books.
+  tables["jobs"] = [{ id: J, job_number: "HV-5001", source: "qa_test", stage: over.outcome === "fail" && !over.sameDay ? "rectification_scheduling" : "piesa_and_install_window_pending", property_id: "p1", deleted_at: null }];
   tables["businesses"] = [
     { id: INST, name: "Smith Insulation", trading_name: null, phone: "03 9000 0001", email: "office@smith.test", onboarding_notes: null, piesa_booked_by: "piesaBookedBy" in over ? over.piesaBookedBy : "electrician" },
     { id: ELEC, name: "Spark Co", trading_name: null, phone: "03 9000 0002", email: "office@spark.test", onboarding_notes: null },
@@ -201,6 +203,17 @@ describe("bookFromElectricianLink: existing guards and bad input", () => {
     validateFails = "Installation must be on or before 2026-12-01 (30 days from the safety check (PIESA)).";
     const r = await server.bookFromElectricianLink(await token(), "assessment", START, NOW);
     expect(r).toEqual({ ok: false, message: validateFails });
+    expect(tables["bookings"]).toHaveLength(0);
+    expect(calls.confirm).toHaveLength(0);
+  });
+  test("the upgrades day: a guard refusal is the plain reason (main #137, carried onto this link), never the raw rule; nothing is booked", async () => {
+    seed({ outcome: "fail" });
+    validateFails = "A rectification booking can't be made at PIESA complete.";
+    const r = await server.bookFromElectricianLink(await token(), "rectification", START, NOW);
+    expect(r.ok).toBe(false);
+    const msg = r.ok ? "" : r.message;
+    expect(msg).toMatch(/^Home Insulation Victoria needs to check this job before the upgrades day can be saved\. Please call them/);
+    expect(msg).not.toMatch(/can't be made at|Blocked:/);
     expect(tables["bookings"]).toHaveLength(0);
     expect(calls.confirm).toHaveLength(0);
   });
