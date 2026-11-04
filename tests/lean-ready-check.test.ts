@@ -242,7 +242,7 @@ describe("build sheet = the lean forms exactly (validateTemplate)", () => {
     expect(f.some((x) => /how many (separate )?ceiling areas/i.test(x.label))).toBe(false);
     const m2 = f.find((x) => x.label === LEAN_Q.measuredM2)!;
     expect([m2.required, m2.portalOnly]).toEqual([false, true]);
-    for (const l of [LEAN_Q.lengthM, LEAN_Q.widthM]) expect(f.find((x) => x.label === l)!.notRequiredIf).toEqual([LEAN_Q.measuredM2]);
+    for (const l of [LEAN_Q.lengthM, LEAN_Q.widthM]) expect(f.find((x) => x.label === l)?.notRequiredIf).toEqual([LEAN_Q.measuredM2, 'Ceiling area from the floor plan (m²)']);
     // Three copies of the group (as a repeater reports them) are not "Duplicate".
     const items = leanItems("ready_check");
     const area = items.filter((i) => perArea.includes(i.label));
