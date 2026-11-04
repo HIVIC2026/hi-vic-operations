@@ -165,18 +165,22 @@ describe("the trade is told when the owner changes on My job", () => {
     // The electrician business is read BEFORE ownerChangeVisit releases the assignment.
     expect(piesa.indexOf("electricianBusinessId = ")).toBeLessThan(piesa.indexOf("await ownerChangeVisit("));
     expect(piesa).toContain(`kind: "assessment"`);
-    // Owner suggestions already text the installer (decision 79); owner PIESA times start offers to electricians.
-    expect(rc).toContain("await tellInstallerDaysSuggested(jobId");
+    // J5 (4 Nov 2026, superseded pin): "The owner suggested other days" (#47, tellInstallerDaysSuggested) was retired by
+    // Part 7 Task 9 (12a65aef, Jo 2 Nov: installers call and book) — nothing texts the installer from that path any more.
+    expect(rc).not.toContain("tellInstallerDaysSuggested");
     expect(strip(readFileSync("src/lib/allocation.server.ts", "utf8"))).toMatch(/submitOwnerPiesaWindows[\s\S]*startPiesaAllocation\(jobId, null\)/);
   });
-  test("My job: booked safety check has a Change time button, and Cancel is on the Book screen too", () => {
+  test("My job: booked safety check shows the booked time with no Change button (decision #24: the owner calls the business); Cancel is on the Book screen too", () => {
     const route = readFileSync("src/routes/my-job.$token.tsx", "utf8");
-    expect(route).toContain("ownerChangePiesaFn");
+    // J5 (superseded pin): the My job Change-time button for a booked PIESA is gone (Jo 2 Nov 2026, decision #24 — the
+    // owner calls the trade's office; the email reply says the same). The server function stays for the booking screens.
+    expect(route).not.toContain("ownerChangePiesaFn");
+    expect(route).toContain("no change buttons — the owner calls the business to change a booked time");
     expect(route).toContain(`data-testid="piesa-booked"`);
     const book = route.slice(route.indexOf("function BookScreen"), route.indexOf("function DoneScreen"));
     expect(book).toContain("{v.canCancel && <CancelMyJob token={token} />}");
     const fns = readFileSync("src/lib/owner-link.functions.ts", "utf8");
-    expect(fns).toMatch(/export const ownerChangePiesaFn = createServerFn\(\{ method: "POST" \}\)\.middleware\(\[withRequestMeta\]\)\s*\.inputValidator/);
+    expect(fns).toMatch(/export const ownerChangePiesaFn = createServerFn\(\{ method: "POST" \}\)\s*\.middleware\(\[withRequestMeta\]\)\s*\.inputValidator/);
     expect(fns).toContain("ownerSession(data.token, data.session)");
   });
 });

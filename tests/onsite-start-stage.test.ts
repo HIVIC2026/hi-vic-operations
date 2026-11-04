@@ -60,7 +60,7 @@ describe("on site + another repair: still needs the fixes visit", () => {
   });
   test("routes to rectification_scheduling and waits for the fixes booking", () => {
     expect(planStep("awaiting_deposit_payment", f)).toMatchObject({ kind: "transition", to: "rectification_scheduling" });
-    expect(planStep("rectification_scheduling", f)).toEqual({ kind: "stop", reason: "Electrical fixes booking not confirmed" });
+    expect(planStep("rectification_scheduling", f)).toEqual({ kind: "stop", reason: "Electrical upgrades booking not confirmed" });
     expect(planStep("piesa_complete", f)).toMatchObject({ kind: "stop" });
     expect(installEntryElectricalBlockers({ openRectItems: 2, piesaDate: "2026-10-01", piesaOutcome: "fail", onsiteStartCleared: f.onsiteStartCleared })).toContain(FIXES_NOT_COMPLETED_BLOCKER);
   });
@@ -70,18 +70,18 @@ describe("normal fixes job and no-fixes job: unchanged", () => {
   const f: AdvanceFacts = { ...base, openRectItems: 1, rectQuoteAccepted: true };
   test("fixes job: rectification_scheduling → booked → installation once items are done", () => {
     expect(planStep("awaiting_deposit_payment", f)).toMatchObject({ kind: "transition", to: "rectification_scheduling" });
-    expect(planStep("rectification_scheduling", f)).toEqual({ kind: "stop", reason: "Electrical fixes booking not confirmed" });
+    expect(planStep("rectification_scheduling", f)).toEqual({ kind: "stop", reason: "Electrical upgrades booking not confirmed" });
     expect(planStep("rectification_scheduling", { ...f, rectBookingConfirmed: true })).toMatchObject({ kind: "transition", to: "rectification_booked" });
-    expect(planStep("rectification_booked", f)).toEqual({ kind: "stop", reason: "Electrical fixes not yet completed" });
+    expect(planStep("rectification_booked", f)).toEqual({ kind: "stop", reason: "Electrical upgrades not yet completed" });
     expect(planStep("rectification_booked", { ...f, openRectItems: 0 })).toMatchObject({ kind: "transition", to: "installation_scheduling" });
-    expect(planStep("piesa_complete", f)).toEqual({ kind: "stop", reason: "Electrical fixes listed at the PIESA – Home Insulation Victoria must route the electrical fixes" });
+    expect(planStep("piesa_complete", f)).toEqual({ kind: "stop", reason: "Electrical upgrades listed at the PIESA – Home Insulation Victoria must route the electrical upgrades" });
     expect(installEntryElectricalBlockers({ openRectItems: 1, piesaDate: "2026-10-01", piesaOutcome: "pass" })).toEqual([FIXES_NOT_COMPLETED_BLOCKER]);
   });
   test("no-fixes job: passing PIESA required exactly as before", () => {
     expect(planStep("awaiting_deposit_payment", base)).toMatchObject({ kind: "transition", to: "installation_scheduling" });
     expect(installEntryElectricalBlockers({ openRectItems: 0, piesaDate: "2026-10-01", piesaOutcome: "pass" })).toEqual([]);
     expect(installEntryElectricalBlockers({ openRectItems: 0, piesaDate: "2026-10-01", piesaOutcome: "fail" })).toEqual([PASSING_PIESA_BLOCKER]);
-    expect(FIXES_NOT_COMPLETED_BLOCKER).toBe("Electrical fixes not yet completed.");
+    expect(FIXES_NOT_COMPLETED_BLOCKER).toBe("Electrical upgrades not yet completed."); // J5: "upgrades" wording (standing rule, Part 3 / Part 4)
     expect(PASSING_PIESA_BLOCKER).toBe("A passing PIESA / electrical sign-off is required before installation.");
   });
   test("a stray on-site flag without open items changes nothing", () => {
@@ -100,12 +100,14 @@ describe("source pins", () => {
     expect(a).toContain("if (rect > 0 || piesaFailed) {");
     const e = read("src/lib/electrical-clearance.server.ts");
     // Lean module: no senders, Xero or Mitti in the stage/auto-advance import graph.
-    const imports = [...e.matchAll(/(?:from|import\()\s*["']([^"']+)["']/g)].map((m) => m[1]).sort();
+    const imports = [...new Set([...e.matchAll(/(?:from|import\()\s*["']([^"']+)["']/g)].map((m) => m[1]))].sort();
     // Review R08: the onsite charge is read through the lean ledger reader + pure rules (never payments.server's senders).
-    expect(imports).toEqual(["./allocation.core", "./fixes-times.core", "./in-house-rectification.server", "./job-facts.server", "./official-short.core", "./payment-ledger.server", "./payments.core", "./safety-check-amount.core", "./upgrades-billing.core", "./workflow.server"]);
+    // J5: main's Part 3 added the pure piesa-evidence.core (Part C on the A3) — still no senders, Xero or Mitti.
+    expect(imports).toEqual(["./allocation.core", "./fixes-times.core", "./in-house-rectification.server", "./job-facts.server", "./official-short.core", "./payment-ledger.server", "./payments.core", "./piesa-evidence.core", "./safety-check-amount.core", "./upgrades-billing.core", "./workflow.server"]);
     expect(e).toContain("(await onsiteChargePaidFor(jobId).catch(() => false))");
     const ledger = read("src/lib/payment-ledger.server.ts");
-    expect([...ledger.matchAll(/(?:from|import\()\s*["']([^"']+)["']/g)].map((m) => m[1]).sort()).toEqual(["./payments.core", "@/integrations/supabase/client.server"]);
+    // J5: since main #135 the admin client comes through job-facts.server (jobAdmin: the job page bundle's shared reads) — still only the client + pure rules.
+    expect([...ledger.matchAll(/(?:from|import\()\s*["']([^"']+)["']/g)].map((m) => m[1]).sort()).toEqual(["./job-facts.server", "./payments.core"]);
     expect(read("src/lib/allocation.server.ts")).toContain('export { clearanceFacts } from "./electrical-clearance.server";');
     expect(a + s + e).not.toMatch(/rectification_items"\)\.update/);
   });
