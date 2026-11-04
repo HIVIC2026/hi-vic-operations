@@ -5,6 +5,11 @@
 --
 -- Same audit style as trade-messages-paused.sql: any change, whatever wrote it, bumps updated_at and writes ONE
 -- admin_config_events `who_books_changed` row. Inserts are not changes.
+--
+-- IDEMPOTENT on the live database (G6, 4 Nov 2026 17:40 live check): main's 2026-11-03_piesa_booked_by.sql was already
+-- applied, so `businesses.piesa_booked_by` EXISTS live with the same default and an inline check (auto-named
+-- businesses_piesa_booked_by_check). Every statement below is "if not exists" / "drop if exists then add": on live it only
+-- re-states the check and adds the audit trigger. Its rollback removes the trigger and function ONLY — never the column.
 alter table public.businesses add column if not exists piesa_booked_by text not null default 'office';
 alter table public.businesses drop constraint if exists businesses_piesa_booked_by_check;
 alter table public.businesses add constraint businesses_piesa_booked_by_check check (piesa_booked_by in ('office', 'electrician', 'either'));
