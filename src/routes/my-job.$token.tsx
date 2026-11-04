@@ -39,7 +39,7 @@ import { ownerRequestNewQuoteFn } from "@/lib/new-quote-request.functions";
 import { NEW_QUOTE_THANKS } from "@/lib/new-quote-request.core";
 import { ownerQuickTapsAddressSearchFn, ownerQuickTapsDetailsFn, ownerQuickTapsSaveFn, ownerQuickTapsStateFn } from "@/lib/quick-taps.functions";
 import { QUICK_TAPS_COPY, nextTapStep, quickTapsGoLabel, quickTapsPassLine, tapOutcome, websiteQuestions, type QuickTapAnswers, type QuickTapsView } from "@/lib/quick-taps.core";
-import { RENTAL_DONE_LINE, RENTAL_LIVES_VALUES, RENTAL_MANAGER_VALUES, RENTAL_TAPS, nextRentalStep, rentalManagerProblems, rentalTenantProblems, rentalWhoChoices, type RentalAnswersInput, type RentalStep } from "@/lib/rental-answers.core";
+import { RENTAL_DONE_LINE, RENTAL_TAPS, nextRentalStep, rentalDetailsProblems, rentalWhoChoices, type RentalAnswersInput, type RentalStep } from "@/lib/rental-answers.core";
 import { createAddressPicker, type PickResult } from "@/lib/address-pick.core";
 import { assertInHouseActionSucceeded } from "@/lib/in-house.core";
 import { completeOwnerQuoteAcceptance, ownerQuoteCanAccept } from "@/lib/owner-quote-visibility.core";
@@ -379,21 +379,21 @@ function TapsScreen({ v, token, only }: { v: View; token: string; only?: "rental
   </>;
   else if (step === "hatch") body = <><h1 className="font-display text-2xl font-extrabold">{QUICK_TAPS_COPY.hatch.question}</h1>{options(QUICK_TAPS_COPY.hatch.options, (hatch) => answer({ ...a, hatch }))}</>;
   // The old "Who will be at the home to let the installer in?" tap (Me / My tenant) was retired 4 Nov 2026 (Jo, pack 2 batch 7):
-  // the rental screens ask "Who should we book the visits with?". The step is only reachable with the rental screens off.
-  else if (step === "access") body = <><h1 className="font-display text-2xl font-extrabold">Who should we book the visits with?</h1>{options([{ value: "owner" as const, label: "Me" }], () => answer({ ...a, access: { who: "owner" } }))}</>;
+  // the rental screens ask "Who should we arrange access with?". The step is only reachable with the rental screens off.
+  else if (step === "access") body = <><h1 className="font-display text-2xl font-extrabold">Who should we arrange access with?</h1>{options([{ value: "owner" as const, label: "Me" }], () => answer({ ...a, access: { who: "owner" } }))}</>;
   // Task 5 (Jo 2 Nov 2026): phone consent over 3 months old → "Yes, {installer} can call me".
   else if (step === "go") { const yes = quickTapsGoLabel(view); body = options(QUICK_TAPS_COPY.go.options.map((o) => (o.value === "yes" ? { ...o, label: yes } : o)), (go) => answer({ ...a, go })); }
-  // Task 19: "Do you live there or is it rented?" and what follows (only while the server says to ask).
-  else if (step === "lives" || step === "tenant" || step === "manager" || step === "who")
+  // Task 19 / Jo 4 Nov 2026 21:40: "Who should we arrange access with?" and their details (only while the server says to ask).
+  else if (step === "who" || step === "details")
     body = <RentalStepBody key={step} step={step} answers={a.rental ?? {}} busy={busy} set={(patch) => answer({ ...a, rental: { ...a.rental, ...patch } })} />;
   else if (step) { const w = QUICK_TAPS_COPY.website[step]; body = <><h1 className="font-display text-2xl font-extrabold">{w.label}</h1>{options(w.options, (value) => answer({ ...a, website: { ...a.website, [step]: value } }))}</>; }
   else body = <button type="button" className={tapPrimary} disabled={busy} onClick={() => void submit(a)}>Try again</button>;
   return <section data-testid="owner-taps" data-step={step ?? "saving"} className={card}>{body}{err && <p role="alert" className="text-sm font-semibold text-destructive">{err}</p>}</section>;
 }
 
-/** The four rental screens (Jo 4 Nov 2026 20:40, approved): live or rented → the tenant (name, mobile, email optional, one
- *  screen) → the property manager (no / yes + name, agency, mobile, email) → who we book the visits with. */
-function RentalStepBody({ step, answers, busy, set }: { step: RentalStep; answers: RentalAnswersInput; busy: boolean; set: (patch: Partial<RentalAnswersInput>) => void }) {
+/** The two rental screens (Jo 4 Nov 2026 21:40, approved): who we arrange access with (Me / My tenant / My property
+ *  manager) → their details (name, mobile, email optional) when it isn't the owner. */
+function RentalStepBody({ step, busy, set }: { step: RentalStep; answers: RentalAnswersInput; busy: boolean; set: (patch: Partial<RentalAnswersInput>) => void }) {
   const [draft, setDraft] = useState<RentalAnswersInput>({});
   const [problems, setProblems] = useState<string[]>([]);
   const field = "h-14 w-full rounded-2xl border border-estimate-line bg-card px-4 text-lg";
@@ -403,35 +403,16 @@ function RentalStepBody({ step, answers, busy, set }: { step: RentalStep; answer
     <label className="block space-y-1.5"><span className="text-sm font-bold">{label}</span>
       <input className={field} type={type} inputMode={mode} autoComplete="off" maxLength={120} value={(draft[key] as string | undefined) ?? ""} disabled={busy} onChange={(e) => { setDraft({ ...draft, [key]: e.target.value }); setProblems([]); }} /></label>;
   const problemList = problems.length > 0 && <ul role="alert" className="space-y-1 text-sm font-semibold text-destructive">{problems.map((p) => <li key={p}>{p}</li>)}</ul>;
-  if (step === "lives") return <><h1 className="font-display text-2xl font-extrabold">{RENTAL_TAPS.livesThere}</h1>{choices(RENTAL_LIVES_VALUES.map((value, i) => ({ value, label: RENTAL_TAPS.livesOptions[i]! })), (lives) => set({ lives }))}</>;
-  if (step === "tenant") {
-    const next = () => { const p = rentalTenantProblems(draft); if (p.length) { setProblems(p); return; } set({ tenantName: draft.tenantName?.trim(), tenantMobile: draft.tenantMobile?.trim(), tenantEmail: draft.tenantEmail?.trim() ?? "" }); };
-    return <>
-      <h1 className="font-display text-2xl font-extrabold">{RENTAL_TAPS.tenantTitle}</h1>
-      <p className="text-sm">{RENTAL_TAPS.tenantSub}</p>
-      {box(RENTAL_TAPS.tenantName, "tenantName", "text", "text")}
-      {box(RENTAL_TAPS.tenantMobile, "tenantMobile", "tel", "tel")}
-      {box(RENTAL_TAPS.tenantEmail, "tenantEmail", "email", "email")}
-      {problemList}
-      <button type="button" className={tapPrimary} disabled={busy} onClick={next}>{RENTAL_TAPS.next}</button>
-    </>;
-  }
-  if (step === "manager") {
-    const yes = draft.manager === "yes";
-    const next = () => { const p = rentalManagerProblems(draft); if (p.length) { setProblems(p); return; } set({ manager: "yes", managerName: draft.managerName?.trim(), managerAgency: draft.managerAgency?.trim() ?? "", managerMobile: draft.managerMobile?.trim(), managerEmail: draft.managerEmail?.trim() ?? "" }); };
-    return <>
-      <h1 className="font-display text-2xl font-extrabold">{RENTAL_TAPS.managerTitle}</h1>
-      {!yes ? choices(RENTAL_MANAGER_VALUES.map((value, i) => ({ value, label: RENTAL_TAPS.managerOptions[i]! })), (manager) => { if (manager === "no") set({ manager: "no" }); else setDraft({ ...draft, manager: "yes" }); }) : <>
-        {box(RENTAL_TAPS.managerName, "managerName", "text", "text")}
-        {box(RENTAL_TAPS.managerAgency, "managerAgency", "text", "text")}
-        {box(RENTAL_TAPS.managerMobile, "managerMobile", "tel", "tel")}
-        {box(RENTAL_TAPS.managerEmail, "managerEmail", "email", "email")}
-        {problemList}
-        <button type="button" className={tapPrimary} disabled={busy} onClick={next}>{RENTAL_TAPS.next}</button>
-      </>}
-    </>;
-  }
-  return <><h1 className="font-display text-2xl font-extrabold">{RENTAL_TAPS.whoTitle}</h1>{choices(rentalWhoChoices(answers), (who) => set({ who }))}</>;
+  if (step === "who") return <><h1 className="font-display text-2xl font-extrabold">{RENTAL_TAPS.whoTitle}</h1>{choices(rentalWhoChoices(), (who) => set({ who }))}</>;
+  const next = () => { const p = rentalDetailsProblems(draft); if (p.length) { setProblems(p); return; } set({ name: draft.name?.trim(), mobile: draft.mobile?.trim(), email: draft.email?.trim() ?? "" }); };
+  return <>
+    <h1 className="font-display text-2xl font-extrabold">{RENTAL_TAPS.detailsTitle}</h1>
+    {box(RENTAL_TAPS.name, "name", "text", "text")}
+    {box(RENTAL_TAPS.mobile, "mobile", "tel", "tel")}
+    {box(RENTAL_TAPS.email, "email", "email", "email")}
+    {problemList}
+    <button type="button" className={tapPrimary} disabled={busy} onClick={next}>{RENTAL_TAPS.next}</button>
+  </>;
 }
 
 /** Task 19 (answer 24): an installer's own customer answers ONLY the rental questions (`?screen=taps&only=rental`). */

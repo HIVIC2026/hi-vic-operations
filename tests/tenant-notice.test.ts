@@ -20,7 +20,9 @@ const rapid = { name: "Rapid Insulation Pty Ltd", tradingName: "Rapid Insulation
 const ADDRESS = "12 Sample Street, Glen Waverley VIC 3150";
 // Friday 13 November 2026, 7:30am Melbourne (AEDT = UTC+11).
 const START = "2026-11-12T20:30:00Z";
-const RENTED: RentalAnswers = { rented: true, tenant: { name: "Tina Lee", mobile: "+61400111222", email: "tina@example.com" }, access: { who: "property_manager", name: "Paul Manager", mobile: "+61400333444" } };
+// Jo 4 Nov 2026 21:40: the notice goes to the person the owner picked — "My tenant" here; "My property manager" below.
+const RENTED: RentalAnswers = { rented: true, tenant: { name: "Tina Lee", mobile: "+61400111222", email: "tina@example.com" }, manager: null, access: { who: "tenant", name: "Tina Lee", mobile: "+61400111222" } };
+const MANAGED: RentalAnswers = { rented: true, tenant: null, manager: { name: "Paul Manager", agency: "", mobile: "+61400333444", email: "paul@manage.example" }, access: { who: "property_manager", name: "Paul Manager", mobile: "+61400333444" } };
 const OWNER_LIVES: RentalAnswers = { rented: false, tenant: null, access: null };
 
 describe("tenant notice — pure rules (DRAFT wording)", () => {
@@ -142,7 +144,7 @@ function deps(over: Partial<TenantNoticeDeps> & { job?: Job | null; rental?: Ren
 }
 
 describe("sendTenantNotice", () => {
-  test("rented, Tina is the tenant, the property manager lets us in: install booked → ONE text AND ONE email to Tina", async () => {
+  test("the owner picked their tenant Tina: install booked → ONE text AND ONE email to Tina", async () => {
     const { d, sms, emails, events } = deps();
     expect(await sendTenantNotice("j1", "b1", NOW, d)).toBe("sent: sms sent, email sent");
     expect(sms).toHaveLength(1);
@@ -156,6 +158,13 @@ describe("sendTenantNotice", () => {
     // Once per booking and channel.
     expect(await sendTenantNotice("j1", "b1", NOW, d)).toBe("already handled");
     expect(sms).toHaveLength(1); expect(emails).toHaveLength(1);
+  });
+  test("the owner picked their property manager (Jo 4 Nov 2026 21:40): the notice goes to the manager instead", async () => {
+    const { d, sms, emails } = deps({ rental: MANAGED });
+    expect(await sendTenantNotice("j1", "b1", NOW, d)).toBe("sent: sms sent, email sent");
+    expect(sms[0]).toMatchObject({ to: "+61400333444" });
+    expect(emails[0]).toMatchObject({ to: "paul@manage.example" });
+    expect(sms[0]!.body).toContain("Paul");
   });
   test("Jo 4 Nov 2026: the tenant's email is optional — no email → the text alone goes, the email is noted as held; repeat adds nothing", async () => {
     const { d, sms, emails, events } = deps({ rental: { ...RENTED, tenant: { ...RENTED.tenant!, email: "" } } });

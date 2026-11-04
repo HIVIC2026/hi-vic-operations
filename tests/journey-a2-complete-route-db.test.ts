@@ -185,8 +185,8 @@ describe("A2 step 2 — Save my spot (decision 388), Jo's area batch Send and th
     expect(view).toMatchObject({ kind: "ask", name: "Harriet Journey" });
     expect(view.address).toContain("2 Journey Street");
     // Tap 1 / Tap 2: "Yes" to the name and address on file (they're sent back as the confirmed answers), then the 4 questions.
-    // Jo 4 Nov 2026 (pack 2 batch 7): the rental screens are ON — the owner says they live there (no tenant, no property manager).
-    const answers = { name: view.name, address: view.address, hatch: "yes", roof: "sloped", five_years: "no", rental: { lives: "live" }, go: "yes" } as const;
+    // Jo 4 Nov 2026 21:40 (pack 2): the two rental screens are ON — the owner says "Me" (we arrange access with them).
+    const answers = { name: view.name, address: view.address, hatch: "yes", roof: "sloped", five_years: "no", rental: { who: "owner" }, go: "yes" } as const;
     const done = await qt.ownerQuickTapsSaveFn({ data: { token, answers }, context: META });
     const again = await qt.ownerQuickTapsSaveFn({ data: { token, answers: { ...answers, go: "no_thanks" } }, context: META });
     await settle();

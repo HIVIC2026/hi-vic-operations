@@ -20,11 +20,9 @@ const answers = z.object({
   ]).optional(),
   website: z.object({ property_type: z.string().max(40), top_floor: z.string().max(40), over_five_years: z.string().max(40), insulation: z.string().max(40) }).partial().optional(),
   // Task 19: the rental questions.
-  // Jo 4 Nov 2026 (pack 2 batch 7): the four rental screens — the tenant (email optional), the property manager, who we book with.
+  // Jo 4 Nov 2026 21:40 (pack 2): two screens — who we arrange access with, then their details (email optional).
   rental: z.object({
-    lives: z.enum(["live", "rented"]), tenantName: z.string().max(200), tenantMobile: z.string().max(40), tenantEmail: z.string().max(200),
-    manager: z.enum(["no", "yes"]), managerName: z.string().max(200), managerAgency: z.string().max(200), managerMobile: z.string().max(40), managerEmail: z.string().max(200),
-    who: z.enum(["owner", "tenant", "property_manager"]),
+    who: z.enum(["owner", "tenant", "property_manager"]), name: z.string().max(200), mobile: z.string().max(40), email: z.string().max(200),
   }).partial().optional(),
 });
 /** Task 19 (answer 24): `rental` = an installer's own customer answering only the rental questions (`?only=rental`). */

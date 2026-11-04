@@ -4,7 +4,8 @@
 // owner's own sends, so the owner's email outcome never decides whether the tenant hears.
 // - Off while TENANT_NOTICE_APPROVED is false (DRAFT wording): "awaiting approval", nothing read or sent; the SMS type is
 //   also `wordingApproved: false` with its own switch, so nothing can go early.
-// - Rented (rentalAnswersFor, Part 3 Task 19) → tenant name/mobile/email from the owner's quick taps. Rented but details
+// - Rented (rentalAnswersFor, Part 3 Task 19) → the tenant's OR the property manager's name/mobile/email (whoever the owner
+//   picked on the quick taps, Jo 4 Nov 2026 21:40: `noticePersonOf`). Rented but details
 //   missing (taps taken before Task 19 shipped, or an own customer who hasn't answered yet) → "held: no tenant details" +
 //   ONE `tenant_notice_held` note per booking + reason → Needs me `tenant_notice_held` until a notice for that booking goes.
 // - Compliance send: purpose `tenant_notice` is in COMPLIANCE_OWNER_EMAIL_PURPOSES (the owner's Do not contact / unsubscribe
@@ -15,7 +16,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { smsQuietReason } from "./quote-hold.core";
 import { QUIET_HOURS_WAIT } from "./approved-texts.core";
-import type { RentalAnswers } from "./rental-answers.core";
+import { noticePersonOf, type RentalAnswers } from "./rental-answers.core";
 import type { TradeContact } from "./owner-will-call.core";
 import { toAuE164 } from "./sms.core";
 import type { RealSmsInput, RealSmsResult } from "./sms.server";
@@ -102,7 +103,8 @@ export async function sendTenantNotice(jobId: string, bookingId: string, now = n
     await d.recordEvent(jobId, TENANT_NOTICE_HELD_EVENT, { id: await eventId(`${TENANT_NOTICE_HELD_EVENT}:${jobId}:${booking.id}:${reason}`), booking_id: booking.id, starts_at: booking.scheduled_start, reason });
     return `held: ${reason}`;
   };
-  const tenant = rental?.tenant ?? null;
+  // Jo 4 Nov 2026 21:40: the notice goes to the person the owner picked on the quick taps — the tenant or the property manager.
+  const tenant = noticePersonOf(rental);
   const mobile = toAuE164(tenant?.mobile);
   const email = (tenant?.email ?? "").trim().toLowerCase();
   // Jo 4 Nov 2026 (pack 2 batch 7): the tenant's email is optional — no email → the text alone goes, the email is noted as held.

@@ -30,11 +30,8 @@ export async function tenantFor(jobId: string): Promise<TenantContact | null> { 
 export async function correctRentalAnswers(jobId: string, actorId: string, input: RentalAnswersInput): Promise<RentalAnswers> {
   const problems = rentalAnswersProblems(input);
   if (problems.length) { const { WorkflowError } = await import("./workflow.server"); throw new WorkflowError(problems.join(" ")); }
-  const { data: job, error } = await admin.from("jobs").select("owners(full_name, phone)").eq("id", jobId).maybeSingle();
-  if (error) throw new Error(`Could not read the owner: ${error.message}`);
-  const owner = (job as { owners?: { full_name: string | null; phone: string | null } | null } | null)?.owners ?? null;
-  const rental = buildRentalAnswers(input, { name: owner?.full_name ?? null, phone: owner?.phone ?? null });
+  const rental = buildRentalAnswers(input);
   const { logEvent } = await import("./workflow.server");
-  await logEvent(jobId, actorId, RENTAL_ANSWERS_CORRECTED_EVENT, rental.rented ? "Office corrected the rental answers: rented" : "Office corrected the rental answers: owner lives there", { answers: { rental } }, { internal: true });
+  await logEvent(jobId, actorId, RENTAL_ANSWERS_CORRECTED_EVENT, rental.rented ? "Office corrected the access answers: a tenant or property manager" : "Office corrected the access answers: the owner", { answers: { rental } }, { internal: true });
   return rental;
 }

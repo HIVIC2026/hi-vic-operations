@@ -90,9 +90,8 @@ const pages = [
     ["Go-ahead tap (consent current)", quickTapsGoLabel({ installer: "Reinsulate", consentCurrent: true })],
     ["Go-ahead tap (consent older than 3 months)", quickTapsGoLabel({ installer: "Reinsulate", consentCurrent: false })],
     ["Pass screen", quickTapsPassLine("Reinsulate")], ["No thanks", QUICK_TAPS_COPY.outcome.no_thanks],
-    ["Rental: lives", `${RENTAL_TAPS.livesThere}  [${RENTAL_TAPS.livesOptions.join("] [")}]`],
-    ["Rental: tenant", `${RENTAL_TAPS.tenantName} / ${RENTAL_TAPS.tenantMobile} / ${RENTAL_TAPS.tenantEmail}`],
-    ["Rental: who lets us in", `${RENTAL_TAPS.whoLetsIn}  [${RENTAL_TAPS.whoOptions.join("] [")}]  ${RENTAL_TAPS.accessName} / ${RENTAL_TAPS.accessMobile}`],
+    ["Rental: who", `${RENTAL_TAPS.whoTitle}  [${RENTAL_TAPS.whoOptions.join("] [")}]`],
+    ["Rental: their details", `${RENTAL_TAPS.detailsTitle}: ${RENTAL_TAPS.name} / ${RENTAL_TAPS.mobile} / ${RENTAL_TAPS.email}`],
     ["Rental: done", RENTAL_DONE_LINE],
   ]),
 ];

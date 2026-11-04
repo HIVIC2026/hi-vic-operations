@@ -1,7 +1,8 @@
 // A48 batch 2 (spec part 1 + Jo's 30 Oct amendment): the owner's quick taps on My job `?screen=taps`. PURE: no I/O.
 // One question per screen, in this order: full name, address, hatch, any website answer the owner left blank (never
-// "over 5 years"), then the rental screens (Task 19; Jo 4 Nov 2026: four screens, the last one "Who should we book the
-// visits with?" replaces the old "who lets the installer in" tap, which is only asked when the rental screens are off),
+// "over 5 years"), then the rental screens (Task 19; Jo 4 Nov 2026 21:40: TWO screens — "Who should we arrange access
+// with?" Me / My tenant / My property manager, then their details — which replace the old "who lets the installer in"
+// tap, only asked when the rental screens are off),
 // then "Yes, let's go" / "No thanks". Jo 3 Nov 2026: the roof and 5-year questions are no
 // longer asked (the installer checks both at the Ready Check); old answers keep their roof / five_years values. A decline tap ends the questions. "Not sure" always passes (the installer
 // checks on the day). Wording is Jo's, verbatim (29–30 Oct 2026); the website questions reuse the portal's existing owner
@@ -20,8 +21,8 @@ export type WebsiteKey = (typeof WEBSITE_KEYS)[number];
 export type WebsiteFacts = Record<WebsiteKey, string | null>;
 export type WebsiteAnswers = { [K in WebsiteKey]?: string | undefined };
 
-/** Who will be at the home to let the installer in. Jo 4 Nov 2026 (pack 2 batch 7): no longer tapped — derived from the rental
- *  answers (screen 4, "Who should we book the visits with?") by `accessFromRental`; old answers keep their stored shape. */
+/** Who will be at the home to let the installer in. Jo 4 Nov 2026 (pack 2): no longer tapped — derived from the rental
+ *  answers ("Who should we arrange access with?") by `accessFromRental`; old answers keep their stored shape. */
 export type Access = { who: "owner" } | { who: "tenant" | "property_manager"; name: string; mobile: string };
 
 export type QuickTapAnswers = {
@@ -35,7 +36,7 @@ export type QuickTapAnswers = {
   access?: Access | undefined;
   go?: GoAhead | undefined;
   website?: WebsiteAnswers | undefined;
-  /** Task 19: "Do you live there or is it rented?" and what follows (asked only when the view says so). */
+  /** Task 19: "Who should we arrange access with?" and their details (asked only when the view says so). */
   rental?: RentalAnswersInput | undefined;
 };
 /** Which optional question groups this owner is asked. */
@@ -59,7 +60,7 @@ export const QUICK_TAPS_COPY = {
   roof: { question: "Is your roof sloped, flat, or some of each?", options: opts<Roof>([["sloped", "Sloped"], ["flat", "Flat"], ["some", "Some of each"], ["not_sure", "Not sure"]]) },
   five_years: { question: "Was your home built, or its ceiling replaced, in the last 5 years?", options: opts<FiveYears>([["no", "No"], ["yes", "Yes"], ["not_sure", "Not sure"]]) },
   // The "Who will be at the home to let the installer in? Me / My tenant" tap was retired 4 Nov 2026 (Jo, pack 2 batch 7):
-  // the rental screens ask it ("Who should we book the visits with?").
+  // the rental screens ask it ("Who should we arrange access with?").
   go: { options: opts<GoAhead>([["yes", "Yes, let's go — you can share my name and number with the installer to book it"], ["no_thanks", "No thanks"]]) },
   /** Website answers left blank. Values are what the website stores (`apartment`, not the eligibility link's `unit`). */
   website: {
@@ -130,8 +131,8 @@ export function normaliseAccess(a: unknown): Access | null {
   if (!validAccess(x)) return null;
   return x!.who === "owner" ? { who: "owner" } : { who: x!.who, name: x!.name.trim(), mobile: normaliseAuMobile(x!.mobile)! };
 }
-/** Jo 4 Nov 2026: the stored `access` answer now comes from the rental screens — who we book the visits with. Owner lives
- *  there, or books with us themselves → the owner. */
+/** Jo 4 Nov 2026: the stored `access` answer now comes from the rental screens — who we arrange access with. "Me" → the
+ *  owner. */
 export function accessFromRental(r: { rented: boolean; access: { who: "owner" | "tenant" | "property_manager"; name: string; mobile: string } | null } | null | undefined): Access {
   if (!r?.rented || !r.access || r.access.who === "owner") return { who: "owner" };
   return { who: r.access.who, name: r.access.name, mobile: r.access.mobile };

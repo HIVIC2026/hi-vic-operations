@@ -21,8 +21,9 @@
 //   The email goes only AFTER the job is closed: a failed close sends nothing and records `quick_taps_close_failed`.
 // - finishDecline(jobId): close + email for a decline answer, idempotent — what saveQuickTaps runs, and what a later
 //   sweep calls again for decline answers whose job isn't cancelled yet.
-// - Task 19 (Jo 2 Nov 2026, answers 7, 22, 24): while RENTAL_TAPS_APPROVED, the owner is also asked "Do you live there or is
-//   it rented?" (+ tenant, who lets us in) after the website answers and before the go tap; the answers are stored in the
+// - Task 19 (Jo 2 Nov 2026, answers 7, 22, 24; Jo 4 Nov 2026 21:40 two screens): while RENTAL_TAPS_APPROVED, the owner is
+//   also asked "Who should we arrange access with?" (+ their details) after the website answers and before the go tap
+//   (the old "Do you live there or is it rented?" question is gone); the answers are stored in the
 //   same `quick_taps_answered` details (`answers.rental`), read by rental-answers.server. An installer's own customer
 //   (no batch) answers ONLY those questions via `?only=rental` (`opts.only`), stored the same way.
 // Nothing here raises a Needs me row.
@@ -377,7 +378,7 @@ export async function saveQuickTaps(token: string, answers: QuickTapAnswers, met
   await storeWebsiteAnswers(c, website, blanks);
   // Task 19: a decline never reaches the rental questions.
   const rental = askRental && (outcome === "pass" || outcome === "no_thanks") ? buildRentalAnswers(answers.rental ?? {}, { name: view.name, phone: c.job.owners?.phone ?? null }) : null;
-  // Jo 4 Nov 2026: who lets us in = the rental screens' "Who should we book the visits with?" (the same stored shape the
+  // Jo 4 Nov 2026: who lets us in = the rental screens' "Who should we arrange access with?" (the same stored shape the
   // installer's job page reads); without the rental screens, the tapped answer.
   const access = rental ? accessFromRental(rental) : tapped;
   const stored = {
@@ -415,7 +416,7 @@ async function saveRentalOnly(jobId: string, c: Ctx, answers: QuickTapAnswers): 
   if (rentalAnswersProblems(answers.rental).length) throw new WorkflowError("Please answer each question.");
   const rental = buildRentalAnswers(answers.rental ?? {}, { name: c.job.owners?.full_name ?? null, phone: c.job.owners?.phone ?? null });
   await claimAnswer(jobId, { answers: { rental }, rental_only: true, outcome: "rental_only", idempotency_key: `rental-taps:v1:${jobId}:answered` },
-    rental.rented ? "Owner answered the rental questions: rented" : "Owner answered the rental questions: lives there");
+    rental.rented ? "Owner answered the access questions: a tenant or property manager" : "Owner answered the access questions: the owner");
   return { kind: "rental_done" };
 }
 

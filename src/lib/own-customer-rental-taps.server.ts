@@ -1,5 +1,5 @@
 // Task 19 (Jo 2 Nov 2026, answer 24): an installer's OWN customer (no "It's your turn" text) is texted a link to the
-// rental quick taps right after the installer adds the job: "Do you live there or is it rented?" and what follows.
+// rental quick taps right after the installer adds the job: "Who should we arrange access with?" and their details.
 // - Off while OWN_CUSTOMER_RENTAL_TAPS_APPROVED is false (draft wording): "awaiting approval", nothing read or sent; the
 //   SMS type itself is also `wordingApproved: false` with its own switch, so it can never go early.
 // - Only jobs the installer brought (channel installer_sourced); Home Insulation Victoria's leads get the questions in the
