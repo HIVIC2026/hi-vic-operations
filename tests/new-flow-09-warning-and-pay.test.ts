@@ -161,6 +161,26 @@ describe("validateBooking('installation'): booking before the upgrades day", () 
     state.clearance = { ...base, piesaOutcome: "pass", rectificationRequired: false };
     expect((await run()).warnings).toEqual([]);
   });
+  // J5 (4 Nov 2026, controller ruling on Task 10's UNDECIDED): the install may be booked BEFORE the upgrades day — from
+  // piesa_complete (upgrades outstanding), rectification_scheduling and rectification_booked — recorded at the current stage
+  // with no stage move (target = stage), the installation_booked entry blockers applying at the later move, not here.
+  test("J5 ruling: booked before the upgrades day from the rectification stages — allowed with the warning, no stage move, no entry-blocker pre-check", async () => {
+    for (const stage of ["rectification_scheduling", "rectification_booked", "piesa_complete"]) {
+      state.stage = stage; state.entryBlockers = ["Gate B not signed"]; // would refuse a move to installation_booked — applies at that move, later
+      const r = await run();
+      expect(r).toEqual({ stage, target: stage, warnings: [UPGRADES_NOT_DONE_WARNING], beforeUpgrades: true });
+    }
+  });
+  test("J5 ruling: the deposit and the owner's PIESA confirmation still refuse at those stages; a job there for another reason (PIESA did not pass) is refused as before", async () => {
+    state.stage = "rectification_booked"; state.deposit = INSTALL_DEPOSIT_BLOCKER;
+    await expect(run()).rejects.toThrow(`Blocked: ${INSTALL_DEPOSIT_BLOCKER}`);
+    state.deposit = null; state.ownerConfirm = "Waiting for the owner to confirm the safety check";
+    await expect(run()).rejects.toThrow("Waiting for the owner to confirm the safety check");
+    state.ownerConfirm = null; state.stage = "piesa_complete"; state.clearance = { ...base, rectificationRequired: false };
+    await expect(run()).rejects.toThrow("Installation cannot be arranged yet: PIESA did not pass.");
+    state.stage = "rectification_required"; state.clearance = base; // not one of the ruling's stages
+    await expect(run()).rejects.toThrow("A installation booking can't be made at");
+  });
   test("owner PIESA confirmation (decision 296) and stage-entry blockers still refuse", async () => {
     state.ownerConfirm = "Waiting for the owner to confirm the safety check";
     await expect(run()).rejects.toThrow("Waiting for the owner to confirm the safety check");

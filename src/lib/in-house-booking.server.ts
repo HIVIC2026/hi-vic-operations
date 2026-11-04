@@ -113,7 +113,7 @@ export async function notifyOwnerBooked(jobId:string,kind:BookingNoticeKind,star
   // J4 G4 (join ruling, 4 Nov 2026): a TEST (qa_test) job's owner text goes through the test sender (allow-list; Jo's phone
   // walkthrough), never refused by the real sender's "TEST record" rule; real jobs keep the ONE real sender.
   const sms=job.source==='qa_test'
-    ?await (async()=>{const {isTestPartner}=await import('./test-send.core');const r=await (await import('./test-send.server')).sendTestSms({jobId,jobSource:job.source,partnerIsTest:isTestPartner({onboarding_notes:b?.onboarding_notes??null}),label:`in_house_booked_owner:${key}`,actorId:null},job.owners?.phone??'',n.sms);return {status:r.status==='sent'?'sent':r.status,detail:r.detail};})()
+    ?await (async()=>{const {isTestBusiness}=await import('./test-send.core');const r=await (await import('./test-send.server')).sendTestSms({jobId,jobSource:job.source,partnerIsTest:isTestBusiness(b?{name:b.name,onboarding_notes:b.onboarding_notes??null}:null),label:`in_house_booked_owner:${key}`,actorId:null},job.owners?.phone??'',n.sms);return {status:r.status==='sent'?'sent':r.status,detail:r.detail};})()
     :await (await import('./sms.server')).sendRealSms({jobId,type:'in_house_booked_owner',to:job.owners.phone,body:n.sms,idempotencyKey:`${key}:sms`,event:{at:booking.created_at,current:true}});
   // Part 4 Task 15 (answer 7): after the owner's notice, the tenant / property manager who lets the trades in gets their own
   // PIESA / install "You're booked" text (own flag, own key per booking + person; a problem there never holds the owner's).

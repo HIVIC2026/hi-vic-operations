@@ -38,12 +38,13 @@ export async function leadInstallerCert(jobId: string): Promise<LeadCert & { ema
 
 /** Current notice (not stale/cancelled) and the latest earlier notice that was actually sent and NOT withdrawn in the Registry. */
 export async function latestNotices(jobId: string) {
-  // A read error leaves both null: no notice is ever assumed sent (the task asks for a submission, the check fails).
-  const { data } = await admin.from("esc_notifications").select("id, status, sent_at, submission_reference, scheduled_start, created_at, response, payload_json").eq("job_id", jobId).neq("status", "cancelled").order("created_at", { ascending: false }).limit(10);
-  const rows = (data ?? []) as (EscNotice & { id: string; created_at: string; payload_json: unknown })[];
+  // A read error leaves both null: no notice is ever assumed sent. J5 (Part 9 T1 note, 4 Nov 2026): the error is returned
+  // too, so the GO check FAILS CLOSED with its own blocking line (prestartFacts escReadError) instead of asking for a submission.
+  const { data, error } = await admin.from("esc_notifications").select("id, status, sent_at, submission_reference, scheduled_start, created_at, response, payload_json").eq("job_id", jobId).neq("status", "cancelled").order("created_at", { ascending: false }).limit(10);
+  const rows = (error ? [] : data ?? []) as (EscNotice & { id: string; created_at: string; payload_json: unknown })[];
   const current = rows.find((r) => r.status !== "stale") ?? null;
   const previousSent = rows.find((r) => r !== current && !!r.sent_at && !isWithdrawn(r)) ?? null;
-  return { current, previousSent };
+  return { current, previousSent, readError: error ? (error.message || "unknown error") : null };
 }
 
 /** Part 9 Task 1: the robot's own rule (`registryChange`) for the office task and reminder — the sent notice's Table 5
@@ -74,10 +75,10 @@ export async function prestartFacts(jobId: string, start: string) {
   const clearance = electricalClearance(cf);
   const ps = await piesaStatus(jobId);
   const deadline = clearance.cleared ? installWindowDeadline(clearance.timingDate, (ps as { install_deadline?: string | null } | null)?.install_deadline ?? null) : null;
-  const { current } = await latestNotices(jobId);
+  const { current, readError: escReadError } = await latestNotices(jobId);
   const consent = await currentConsent(jobId);
   return {
-    start, clearance: { cleared: clearance.cleared, blocker: clearance.blocker }, deadline, esc: current,
+    start, clearance: { cleared: clearance.cleared, blocker: clearance.blocker }, deadline, esc: current, escReadError,
     lead: await leadInstallerCert(jobId), consentBlockers: consentValidityBlockers(consent as never, start), piesaCompletedAt: cf.piesaCompletedAt,
     readyCheckWorksBlockers: await (await import("./ready-check-draft.server")).rcWorksBlockers(jobId),
     siteHoldBlockers: await siteHoldBlockers(jobId),

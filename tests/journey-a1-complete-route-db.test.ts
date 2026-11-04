@@ -515,7 +515,7 @@ describe("A1 step 6 — the electrician's A3 in Mitti: electrical upgrades neede
   });
 });
 
-describe("A1 step 7 — the upgrades day from the electrician's link, the A4 form, Part C and the certificate (decisions 293/330; Part 6)", () => {
+describe("A1 step 7 — the upgrades day from the electrician's link (decisions 293/330; Part 6)", () => {
   test("the electrician enters the upgrades day on their link → upgrades booked, the A4 form made once; a second entry of the same day is a retry", async () => {
     const el = await import("../src/lib/electrician-link.server");
     const fd = await import("../src/lib/fixes-day.core");
@@ -540,52 +540,6 @@ describe("A1 step 7 — the upgrades day from the electrician's link, the A4 for
     expect(await q("select id from bookings where job_id=$1 and kind='rectification' and status='confirmed'", [JOB])).toHaveLength(1);
     expect((await el.electricianLinkView(ELEC_TOKEN)).view).toMatchObject({ step: "upgrades_day", button: "Open upgrades form" });
   });
-  test("the electrician completes the A4 (certificate, date, file, geotagged photo, signed) → Part C, PIESA re-issued as a pass, clear to install, deposit asked once, link All done", async () => {
-    const forms = await import("./helpers/journey-forms");
-    const fd = await import("../src/lib/fixes-day.core");
-    const a4 = [...providers.mitti.audits.values()].find((a) => a.template_id === TPL_A4)!;
-    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne" }).format(new Date());
-    const def = forms.completedA4({ q: fd.FIXES_DAY_Q as unknown as Record<string, string>, coesNumber: "COES-778899", certDate: today, capturedAt: new Date().toISOString(), mediaPrefix: "a4", electrician: "Will Casdorff" });
-    for (const id of def.mediaIds) providers.mitti.media.set(id, { bytes: forms.PNG_1X1, type: "image/png" });
-    fillAudit(a4, def.items);
-    const n0 = providers.emails.length;
-    const out = await (await import("../src/lib/fixes-day.server")).sweepFixesForms();
-    await settle();
-    expect(out).toMatchObject({ done: 1, failed: 0 });
-    expect(await events(JOB, "fixes_form_completed")).toHaveLength(1);
-    expect(await q("select kind, outcome from piesa_records where job_id=$1 and is_current", [JOB])).toEqual([{ kind: "post_rectification", outcome: "pass" }]);
-    expect(await events(JOB, "official_piesa_regenerated")).toHaveLength(1);
-    expect(await q("select signer_user_id, signer_name from official_form_signed_copies where job_id=$1 and status='current'", [JOB])).toEqual([{ signer_user_id: TEAM_ELEC, signer_name: "Will Casdorff" }]);
-    expect(await stageOf(JOB)).toBe("installation_scheduling");
-    expect(await q("select status from bookings where job_id=$1 and kind='rectification'", [JOB])).toEqual([{ status: "completed" }]);
-    // The certificate is on file (the A4's), so the install gate and the electrician's link both see it.
-    expect((await (await import("../src/lib/coes-check.server")).currentCoes(JOB)).ref).not.toBeNull();
-    expect((await (await import("../src/lib/electrician-link.server")).electricianLinkView(ELEC_TOKEN)).view.step).toBe("all_done");
-    // Sends at this step: the owner's updated PIESA copy + certificate copy, the electrician's copy, and ONE 10% deposit
-    // request (Jo 2 Nov answer 21; the request recorded at the PIESA result goes now that the invoice/clearance checks pass).
-    const sent = providers.emails.slice(n0);
-    DBG("A4-SENT", sent.map((e) => [e.to, e.subject]));
-    expect(sent.filter((e) => /10% install deposit/.test(e.subject)).map((e) => e.to)).toEqual([[OWNER_EMAIL]]);
-    expect(await events(JOB, "install_deposit_requested")).toHaveLength(1);
-    // J4 G3: after Part C the owner's copy is the item-44 "upgrades are done" words (never "all clear"), with the PDF; recorded once.
-    const ownerCopy = sent.filter((e) => e.to[0] === OWNER_EMAIL && /Your electrical upgrades are done — updated safety check attached/.test(e.subject));
-    expect(ownerCopy).toHaveLength(1);
-    expect(ownerCopy[0]!.attachments).toBe(1);
-    expect(ownerCopy[0]!.text).toContain("Electrical upgrades: Completed · certificate COES-778899");
-    expect(ownerCopy[0]!.text).not.toMatch(/all clear|repair/i);
-    expect(sent.filter((e) => /Signed electrical safety check \(PIESA\)/.test(e.subject) && !/would have gone to/.test(e.text))).toHaveLength(0);
-    expect((await q<{ recipient: string }>("select recipient from piesa_deliveries where job_id=$1 order by recipient", [JOB])).map((x) => x.recipient)).toEqual(["owner"]);
-    expect(await events(JOB, "coes_owner_copy_delivered")).toHaveLength(1);
-    expect(await events(JOB, "electrician_piesa_copy_sent")).toHaveLength(1);
-    // Trade copies never show the owner's price; owner copies never show what the electrician is paid.
-    for (const e of sent.filter((e) => /would have gone to: jo@act/.test(e.text))) expect(e.text).not.toMatch(/\$\s?\d/);
-    for (const e of sent) expect(e.text).not.toMatch(/won't be paid|will not be paid|withheld/i);
-    // The sweep again (next tick): the completed A4 is not processed twice and nothing is sent twice.
-    await (await import("../src/lib/fixes-day.server")).sweepFixesForms();
-    await settle();
-    expect(await events(JOB, "fixes_form_completed")).toHaveLength(1);
-    expect(providers.emails.slice(n0)).toHaveLength(sent.length);
-  });
 });
 
 /** Business days from `from` days ahead, as YYYY-MM-DD in Melbourne. */
@@ -605,8 +559,10 @@ describe("A1 step 8 — the owner confirms the safety check and pays the 10% dep
     const n0 = providers.emails.length, t0 = providers.texts.length;
     await pc.sweepOwnerPiesaConfirmations(); await settle();
     await pc.sweepOwnerPiesaConfirmations(); await settle();
-    // Part 4: the owner declaration travels with the combined PIESA copy — the tick sends no separate O71 / text.
-    expect((await q<{ summary: string }>("select summary from workflow_events where job_id=$1 and event_type='piesa_owner_confirm_reminder'", [JOB])).map((e) => e.summary)).toEqual(["Combined PIESA copy and owner declaration email delivered"]);
+    // Part 4: the owner declaration travels with the combined PIESA copy — the tick sends no separate O71 / text. J5: on an
+    // upgrades-needed result that copy is the Upgrades-needed email, HELD while UPGRADES_NEEDED_EMAIL_APPROVED is off (G3;
+    // go-live flips it), so nothing is delivered or recorded here yet — the owner still confirms on My job (the page shows the result).
+    expect((await q<{ summary: string }>("select summary from workflow_events where job_id=$1 and event_type='piesa_owner_confirm_reminder'", [JOB])).map((e) => e.summary)).toEqual([]);
     expect(providers.emails.slice(n0)).toHaveLength(0);
     expect(providers.texts.slice(t0)).toHaveLength(0);
     const ol = await import("../src/lib/owner-link.functions");
@@ -636,7 +592,7 @@ describe("A1 step 8 — the owner confirms the safety check and pays the 10% dep
     expect(await st.handleStripeWebhook(wh.body, wh.signature)).toEqual({ status: 200, outcome: "duplicate" });
     expect((await events(JOB, "owner_payment_recorded")).map((e) => e.details["step"])).toEqual(["safety_check", "install_deposit"]);
     expect(await events(JOB, "install_deposit_received")).toHaveLength(1);
-    expect(await stageOf(JOB)).toBe("installation_scheduling");
+    expect(await stageOf(JOB)).toBe("rectification_booked"); // J5: the deposit is paid while the upgrades day is still ahead
     const sent = providers.emails.slice(n0);
     expect(sent.map((e) => [e.to, e.subject])).toEqual([[[OWNER_EMAIL], "[TEST] Deposit received"], [[OWNER_EMAIL], "[TEST] HV-3300: deposit paid"]]);
     expect(sent[0]!.text).toContain("TEST Journey Insulation will call you to book your install day");
@@ -649,7 +605,7 @@ describe("A1 step 8 — the owner confirms the safety check and pays the 10% dep
 let LEAD = "";
 const LEAD_EMAIL = "ivy.lead@hivic-test.example"; // one email per business worker; the Lead gets texts, the office gets the emails
 const installDay = () => businessDays(1, 5)[0]!;
-describe("A1 step 9 — the installer office books the install day with a Lead Installer; safety plan links; the Lead confirm email; the 6:30 text (Part 7)", () => {
+describe("A1 step 9 — the installer office books the install day with a Lead Installer BEFORE the upgrades day (Part 9 Task 10 ruling); safety plan link (Part 7)", () => {
   test("owner ESC consent (confirm-and-pay ticks) and the office ESC setup; the install is booked in-house with the Lead Installer → A5 form, ESC notice prepared, owner \"You're booked\" email, the Lead's own safety plan link texted", async () => {
     // The installer's own onboarding record (done once when the business joined, not part of this job): the Lead Installer's
     // worker row with an office-verified EEC CII (full), White Card and ESC registration (Part 7: Lead Installers never log in).
@@ -706,10 +662,16 @@ describe("A1 step 9 — the installer office books the install day with a Lead I
     expect(backgroundErrors).toEqual([]);
     expect((await q<{ details: { status: string } }>("select details from workflow_events where job_id=$1 and event_type='in_house_saved_work' order by created_at", [JOB])).map((e) => e.details.status)).toEqual(["done", "done"]);
     expect(await q("select status from bookings where job_id=$1 and kind='installation'", [JOB])).toEqual([{ status: "confirmed" }]);
-    expect(await stageOf(JOB)).toBe("installation_booked");
+    // J5 (Part 9 Task 10 ruling): booked BEFORE the upgrades day — the booking carries the approved upgrades warning alone
+    // (never main's certificate line while the upgrades themselves are outstanding), the job stays at its stage with one
+    // history row, and the stage catches up once the Part C lands (step 9b).
+    const { UPGRADES_NOT_DONE_WARNING } = await import("../src/lib/allocation.core");
+    expect((r as { warnings: string[] }).warnings).toEqual([UPGRADES_NOT_DONE_WARNING]);
+    expect(await stageOf(JOB)).toBe("rectification_booked");
+    expect(await events(JOB, "install_booked_before_upgrades")).toHaveLength(1);
+    expect(await events(JOB, "install_booked_certificate_outstanding")).toHaveLength(0);
     expect(await events(JOB, "piisa_crew_selected")).toHaveLength(1);
-    // The A5 install form is made once, prefilled; the ESC notice is prepared (ready) for the office to submit.
-    expect([...providers.mitti.audits.values()].filter((a) => a.template_id === TPL_A5)).toHaveLength(1);
+    // The ESC notice is prepared (ready) for the office to submit; the A5 install form waits for the certificate (step 9b).
     expect((await q<{ status: string }>("select status from esc_notifications where job_id=$1 and status not in ('stale','cancelled')", [JOB])).map((x) => x.status)).toEqual(["ready"]);
     // The owner's "You're booked" install email: who is coming and the installer office number; the deposit is paid so no money line.
     const sent = providers.emails.slice(n0);
@@ -736,6 +698,68 @@ describe("A1 step 9 — the installer office books the install day with a Lead I
     expect(providers.emails.slice(n0)).toHaveLength(sent.length);
     expect(providers.texts.slice(t0)).toHaveLength(swmsTexts.length + ownerInstallTexts.length);
   });
+});
+
+describe("A1 step 9b — the upgrades day: the A4 form, Part C and the certificate land AFTER the install was booked (J5: Part 9 Task 10 ruling — booked before the upgrades day; the stage catches up)", () => {
+  test("the electrician completes the A4 (certificate, date, file, geotagged photo, signed) → Part C, PIESA re-issued as a pass, clear to install, deposit asked once, link All done", async () => {
+    const forms = await import("./helpers/journey-forms");
+    const fd = await import("../src/lib/fixes-day.core");
+    const a4 = [...providers.mitti.audits.values()].find((a) => a.template_id === TPL_A4)!;
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne" }).format(new Date());
+    const def = forms.completedA4({ q: fd.FIXES_DAY_Q as unknown as Record<string, string>, coesNumber: "COES-778899", certDate: today, capturedAt: new Date().toISOString(), mediaPrefix: "a4", electrician: "Will Casdorff" });
+    for (const id of def.mediaIds) providers.mitti.media.set(id, { bytes: forms.PNG_1X1, type: "image/png" });
+    fillAudit(a4, def.items);
+    const n0 = providers.emails.length;
+    const out = await (await import("../src/lib/fixes-day.server")).sweepFixesForms();
+    await settle();
+    expect(out).toMatchObject({ done: 1, failed: 0 });
+    expect(await events(JOB, "fixes_form_completed")).toHaveLength(1);
+    expect(await q("select kind, outcome from piesa_records where job_id=$1 and is_current", [JOB])).toEqual([{ kind: "post_rectification", outcome: "pass" }]);
+    expect(await events(JOB, "official_piesa_regenerated")).toHaveLength(1);
+    expect(await q("select signer_user_id, signer_name from official_form_signed_copies where job_id=$1 and status='current'", [JOB])).toEqual([{ signer_user_id: TEAM_ELEC, signer_name: "Will Casdorff" }]);
+    // J5: the install was booked before the upgrades day, so the Part C moves the job straight through installation
+    // scheduling to installation booked (autoadvance: the confirmed install booking; the entry blockers apply here).
+    expect((await stagePath(JOB)).slice(-3)).toEqual(["rectification_booked", "installation_scheduling", "installation_booked"]);
+    expect(await q("select status from bookings where job_id=$1 and kind='rectification'", [JOB])).toEqual([{ status: "completed" }]);
+    expect(await q("select status from bookings where job_id=$1 and kind='installation'", [JOB])).toEqual([{ status: "confirmed" }]);
+    // The certificate is on file (the A4's), so the install gate and the electrician's link both see it.
+    expect((await (await import("../src/lib/coes-check.server")).currentCoes(JOB)).ref).not.toBeNull();
+    expect((await (await import("../src/lib/electrician-link.server")).electricianLinkView(ELEC_TOKEN)).view.step).toBe("all_done");
+    // Sends at this step: the owner's updated PIESA copy + certificate copy and the electrician's copy. No deposit ask: the
+    // owner paid the 10% deposit before the upgrades day (step 8), so nothing about the deposit goes now.
+    const sent = providers.emails.slice(n0);
+    DBG("A4-SENT", sent.map((e) => [e.to, e.subject]));
+    expect(sent.filter((e) => /10% install deposit/.test(e.subject))).toHaveLength(0);
+    // J4 G3: after Part C the owner's copy is the item-44 "upgrades are done" words (never "all clear"), with the PDF; recorded once.
+    const ownerCopy = sent.filter((e) => e.to[0] === OWNER_EMAIL && /Your electrical upgrades are done — updated safety check attached/.test(e.subject));
+    expect(ownerCopy).toHaveLength(1);
+    expect(ownerCopy[0]!.attachments).toBe(1);
+    expect(ownerCopy[0]!.text).toContain("Electrical upgrades: Completed · certificate COES-778899");
+    expect(ownerCopy[0]!.text).not.toMatch(/all clear|repair/i);
+    expect(sent.filter((e) => /Signed electrical safety check \(PIESA\)/.test(e.subject) && !/would have gone to/.test(e.text))).toHaveLength(0);
+    // J5: the install is already booked, so the installer's copy (decision 111: once the install day is booked) goes NOW with
+    // the Part C words — once, through test-send; never HIV's PIESA price or the owner's quote; no "call the owner and book" line.
+    const installerCopy = sent.filter((e) => /Signed electrical safety check/.test(e.subject));
+    expect(installerCopy).toHaveLength(1);
+    expect(installerCopy[0]!.text).toContain(`would have gone to: ${TRADE_EMAIL}`);
+    expect(installerCopy[0]!.text).not.toMatch(/\$\s?\d/);
+    expect(installerCopy[0]!.text).toContain("Electrical upgrades needed: Completed · CES COES-778899");
+    expect(installerCopy[0]!.text).not.toContain("Next: call the owner and book the install");
+    expect((await q<{ recipient: string }>("select recipient from piesa_deliveries where job_id=$1 order by recipient", [JOB])).map((x) => x.recipient)).toEqual(["installer", "owner"]);
+    expect(await events(JOB, "coes_owner_copy_delivered")).toHaveLength(1);
+    expect(await events(JOB, "electrician_piesa_copy_sent")).toHaveLength(1);
+    // Trade copies never show the owner's price; owner copies never show what the electrician is paid.
+    for (const e of sent.filter((e) => /would have gone to: jo@act/.test(e.text))) expect(e.text).not.toMatch(/\$\s?\d/);
+    for (const e of sent) expect(e.text).not.toMatch(/won't be paid|will not be paid|withheld/i);
+    // The sweep again (next tick): the completed A4 is not processed twice and nothing is sent twice.
+    await (await import("../src/lib/fixes-day.server")).sweepFixesForms();
+    await settle();
+    expect(await events(JOB, "fixes_form_completed")).toHaveLength(1);
+    expect(providers.emails.slice(n0)).toHaveLength(sent.length);
+  });
+});
+
+describe("A1 step 9c — two days before and the morning of the install: the Lead confirm email, the 5pm lock, the 6:30 text (Part 7) — after the upgrades day changed the safety plan, the Lead signs it again", () => {
   test("9am two days before: ONE \"Confirm or change your Lead Installer by 5pm today\" email to the installer office; the Lead locks at 5pm", async () => {
     const lc = await import("../src/lib/lead-installer-confirm.server");
     const twoDaysBefore = new Date(`${installDay()}T09:05:00+11:00`); twoDaysBefore.setDate(twoDaysBefore.getDate() - 2);
@@ -796,18 +820,13 @@ describe("A1 step 10 — the day before and install day: ESC notice, PIESA copie
     expect(await q("select status, submission_reference from esc_notifications where id=$1", [n!.id])).toEqual([{ status: "sent", submission_reference: "ESC-JOURNEY-0001" }]);
     // The office records the pre-install consumer documents (Activity 48 record) given to the owner.
     await pf.recordComplianceItem({ data: { jobId: JOB, key: "pre_install_consumer_docs", occurredAt: new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne" }).format(new Date()), reference: "Emailed with the quote", notes: null }, context: officeCtx });
-    // Decision 111: the signed PIESA goes to the installer once the install day is booked — once; the owner already has theirs.
+    // Decision 111: the signed PIESA went to the installer once the install day was booked and the Part C landed (step 9b) —
+    // the tick sends nothing twice; the owner already has theirs.
     const pd = await import("../src/lib/piesa-delivery.server");
     await pd.sweepPiesaCopyDeliveries(); await settle();
     await pd.sweepPiesaCopyDeliveries(); await settle();
     expect((await q<{ recipient: string }>("select recipient from piesa_deliveries where job_id=$1 and recipient='installer'", [JOB]))).toHaveLength(1);
-    const installerCopy = providers.emails.slice(n0).filter((e) => /Signed electrical safety check/.test(e.subject));
-    expect(installerCopy).toHaveLength(1);
-    expect(installerCopy[0]!.text).toContain(`would have gone to: ${TRADE_EMAIL}`);
-    expect(installerCopy[0]!.text).not.toMatch(/\$\s?\d/); // never HIV's PIESA price or the owner's quote
-    // J4 G3: the trade copy after the upgrades says so (item 44 trade variant) and, the install being booked, has no "call the owner and book" line.
-    expect(installerCopy[0]!.text).toContain("Electrical upgrades needed: Completed · CES COES-778899");
-    expect(installerCopy[0]!.text).not.toContain("Next: call the owner and book the install");
+    expect(providers.emails.slice(n0).filter((e) => /Signed electrical safety check/.test(e.subject))).toHaveLength(0);
     // 2pm the day before: the GO check runs and passes (CII, White Card, SWMS signed, deposit paid, PIESA confirmed).
     expect(await ps.sweepPrestart(twoPmBefore)).toEqual({ ran: 1, failed: 0 });
     expect(await ps.prestartGate(JOB, twoPmBefore)).toEqual({ locked: false, reasons: [] });

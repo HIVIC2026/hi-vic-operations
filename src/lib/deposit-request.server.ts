@@ -156,7 +156,13 @@ export async function requestInstallDeposit(jobId:string,now=new Date(),deps:Cle
   try{
     const c=await factsFor(jobId,now);
     if(!c)throw Error('Installation invoice or deposit facts not available yet.');
-    if(!depositRequestEligible({piesaOutcome:await piesaOutcomeFor(jobId),paid:c.paid,booked:c.c.booked,deadline:c.c.deadline,now}))return 'not due';
+    const outcome=await piesaOutcomeFor(jobId);
+    if(!depositRequestEligible({piesaOutcome:outcome,paid:c.paid,booked:c.c.booked,deadline:c.c.deadline,now}))return 'not due';
+    // J5 (Part 9 Task 10 ruling, 4 Nov 2026): the deposit facts now exist while the upgrades are outstanding (the 30 days run
+    // from the PIESA date, decision 316), so on an upgrades-needed result the request is HELD until the Upgrades-needed email
+    // (which carries the deposit button) is approved — never the "clear to install" words on a fail result (J4 G3). Nothing is
+    // recorded: the pending intent above is retried each tick and no reminder starts from a request that never went.
+    if(outcome==='upgrades_needed'&&!c.c.clearance.cleared&&!deps.upgradesApproved)return 'held: electrical upgrades needed wording not approved';
     const prior=await requestRecord(jobId,c.v.invoiceId);
     if(!prior)await recordRequest(jobId,c.v.invoiceId,now,c.f.deadline);
     const record=prior??await requestRecord(jobId,c.v.invoiceId);
@@ -178,7 +184,10 @@ export async function requestInstallDeposit(jobId:string,now=new Date(),deps:Cle
 }
 /** Shared by card and Xero receipt handling; each channel owns a durable once-only claim. */
 export async function notifyInstallerDepositPaid(jobId:string,now=new Date(),deps:ClearToInstallDeps=defaultClearToInstallDeps()):Promise<string>{
-  const c=await factsFor(jobId,now);if(!c||!c.paid||!c.c.clearance.cleared||c.c.booked)return 'not due';
+  // J5 (Part 9 Task 10 ruling / Jo 2 Nov answer 21): a deposit paid while only the upgrades are outstanding is told now —
+  // the installer may book the install before the upgrades day; any other uncleared reason still waits for clearance.
+  const {upgradesOutstanding}=await import('./allocation.core');
+  const c=await factsFor(jobId,now);if(!c||!c.paid||!(c.c.clearance.cleared||upgradesOutstanding(c.c.clearance))||c.c.booked)return 'not due';
   const r=await admin.from('workflow_events').select('created_at').eq('job_id',jobId).eq('event_type','install_deposit_received').contains('details',{invoice_id:c.v.invoiceId}).limit(1).maybeSingle();
   if(r.error)throw Error('Could not read deposit receipt.');if(!r.data)return 'receipt not recorded';
   // Independent channels: owner consent holds must not prevent an authorised trade-office notice.

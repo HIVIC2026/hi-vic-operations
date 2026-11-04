@@ -62,7 +62,7 @@ describe("approval stays in the fixes flow", () => {
   test("respondToQuoteImpl: pickLater approval, accepted at the fixes-quote stages, no installer quotes regenerated on the new path", () => {
     const src = read("src/lib/portal.functions.ts");
     const i = src.indexOf("export async function respondToQuoteImpl");
-    const body = src.slice(i, src.indexOf("async function invoiceAfterAcceptance"));
+    const body = src.slice(i, src.indexOf("async function invoiceAfterAcceptance")).replace(/\s+/g, " "); // formatted over lines since main #133
     expect(body).toContain(`"awaiting_owner_rectification_approval", "piesa_complete", "electrical_variation_pending", "rectification_required"`);
     expect(body).toContain("data.pickLater");
     const branch = body.slice(body.indexOf("if (installAccepted) {"), body.indexOf("// Old model"));
@@ -135,7 +135,7 @@ describe("owner-fixes.server (PGlite)", () => {
     expect(s.step).toBe("pay");
     expect(s.windows).toEqual([]);
     expect(s.quote).toMatchObject({ id: Q, total: 550, lines: [{ description: "Replace damaged cable", amount: 550 }] });
-    await expect(ownerPickFixesTime(JOB, W1, OWNER)).rejects.toThrow(/pay for the electrical fixes before booking/);
+    await expect(ownerPickFixesTime(JOB, W1, OWNER)).rejects.toThrow(/pay for the electrical upgrades before booking/); // J5: "upgrades" wording (standing rule)
     expect((await db.query<{ status: string }>("select status from appointment_proposals order by starts_at")).rows.map((r) => r.status)).toEqual(["proposed", "proposed"]);
   });
   test("paid → pick one time → others superseded → booked through confirmBooking", async () => {

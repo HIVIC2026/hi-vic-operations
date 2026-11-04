@@ -44,7 +44,6 @@ const rows = async <T,>(sql: string, args: unknown[] = []) => (await db.query<T>
 const job = async () => (await rows<any>("select * from jobs where id=$1", [JOB]))[0];
 class WorkflowError extends Error {}
 let failHeldRead = false;
-let failBillingRead = false;
 let rectificationGuardCalls = 0;
 let formCalls = 0, formAudits = 0, failForm = false;
 const shim = embedShim(db, { job_assignments: { businesses: { table: "businesses", fk: "business_id", on: "base" } } });
@@ -54,9 +53,6 @@ const admin = { from(table: string) {
     const select = query.select;
     query.select = (columns, ...args) => {
       if (failHeldRead && columns === "job_id, business_id, businesses(in_house)") throw new Error("read unavailable");
-      if (failBillingRead && columns === "businesses(in_house, rectification_billed_by)") {
-        query.single = async () => ({ data: null, error: { message: "billing read unavailable" } });
-      }
       return select(columns, ...args);
     };
   }
@@ -145,7 +141,7 @@ function load(name: string, cache: Record<string, any> = {}): any {
 const book = async (kind = "installation", actor = MEMBER, start = START) => load("trade-view.server").inHouseBookVisit(actor, { jobId: JOB, kind, start,workerId:MEMBER });
 const patch = async (field: string, value: unknown) => db.query(`update jobs set "${field}"=$1 where id=$2`, [value,JOB]);
 beforeEach(async () => {
-  failHeldRead = false; failBillingRead = false; rectificationGuardCalls = 0; formCalls = 0; formAudits = 0; failForm = false;
+  failHeldRead = false; rectificationGuardCalls = 0; formCalls = 0; formAudits = 0; failForm = false;
   await db.exec("truncate partner_workers,esc_notifications,workflow_events,bookings,job_assignments,business_members,jobs,business_credentials,businesses cascade");
   await db.query("insert into businesses(id,in_house,rectification_billed_by,business_type,onboarding_status,is_active,capabilities) values($1,true,'partner','eec_installer','approved',true,ARRAY['installer','electrician']),($2,false,'hivic','eec_installer','approved',true,ARRAY['installer'])", [BIZ,OTHER]);
   await db.query("insert into business_members(business_id,user_id,member_role) values($1,$2,'member'),($3,$4,'business_admin')", [BIZ,MEMBER,OTHER,OUTSIDER]);
@@ -194,35 +190,19 @@ test("partner-billed rectification skips only the HIV rectification payment guar
   await patch("stage","rectification_scheduling");
   expect((await book("rectification")).ok).toBe(true); expect(rectificationGuardCalls).toBe(0);
 });
-test("Home Insulation Victoria billed rectification still requires upfront payment", async () => {
+// J5 (4 Nov 2026): the Home Insulation Victoria-billed upgrades path is retired — Part 3 Task 1 (Jo 2 Nov 2026,
+// upgrades-billing.core electricianBillsUpgrades) has the electrician bill the upgrades on EVERY job, so the old "HIV billed
+// rectification requires upfront payment" / "non-in-house cannot bypass the gate" / "billing read fails closed" cases no
+// longer describe the product: no booking path reads businesses.rectification_billed_by for this gate any more.
+test("the upgrades visit books without any Home Insulation Victoria fixes payment on every business setting (electricians bill upgrades)", async () => {
   await patch("stage","rectification_scheduling"); await db.query("update businesses set rectification_billed_by='hivic' where id=$1",[BIZ]);
-  expect(await book("rectification")).toEqual({ ok: false, blockers: [`Blocked: ${FIXES_NOT_PAID_BLOCKER}`] });
-  expect(rectificationGuardCalls).toBe(1);
-  await patch("rectification_paid",true); expect((await book("rectification")).ok).toBe(true);
+  expect((await book("rectification")).ok).toBe(true); expect(rectificationGuardCalls).toBe(0);
+  await db.exec("truncate bookings cascade");
+  await db.query("update businesses set in_house=false where id=$1",[BIZ]);
+  await load("booking.server").confirmBooking(JOB,"rectification",START,MEMBER,"partner");
+  expect(rectificationGuardCalls).toBe(0);
+  expect(await rows("select id from bookings where kind='rectification' and status='confirmed'")).toHaveLength(1);
 });
-test("non-in-house partner setting cannot bypass the existing rectification payment gate", async () => {
-  await patch("stage","rectification_scheduling"); await db.query("update businesses set in_house=false where id=$1",[BIZ]);
-  await expect(load("booking.server").confirmBooking(JOB,"rectification",START,MEMBER,"partner")).rejects.toThrow(`Blocked: ${FIXES_NOT_PAID_BLOCKER}`);
-  expect(rectificationGuardCalls).toBe(1);
-  expect(await rows("select id from bookings")).toHaveLength(0);
-});
-for (const point of ["held", "billing"] as const) {
-  test(`direct rectification booking fails closed when the ${point} read fails`, async () => {
-    await patch("stage", "rectification_scheduling");
-    failHeldRead = point === "held"; failBillingRead = point === "billing";
-    await expect(load("booking.server").confirmBooking(JOB, "rectification", START, MEMBER, "partner"))
-      .rejects.toThrow("Couldn't check the job's partner — please try again.");
-    expect(await rows("select id from bookings")).toHaveLength(0);
-    expect(await rows("select id from workflow_events")).toHaveLength(0);
-    // Prove the read failure cannot become the partner-billed payment exception.
-    failHeldRead = false; failBillingRead = false;
-    await db.query("update businesses set rectification_billed_by='hivic' where id=$1", [BIZ]);
-    await expect(load("booking.server").confirmBooking(JOB, "rectification", START, MEMBER, "partner"))
-      .rejects.toThrow(`Blocked: ${FIXES_NOT_PAID_BLOCKER}`);
-    expect(rectificationGuardCalls).toBe(1);
-    expect(await rows("select id from bookings")).toHaveLength(0);
-  });
-}
 test("other business member is forbidden and cannot see booking controls", async () => {
   expect(await book("installation",OUTSIDER)).toEqual({ ok: false, blockers: ["forbidden"] });
   expect((await load("trade-view.server").inHouseBookingAccess(OUTSIDER,JOB)).allowed).toBe(false);
@@ -262,7 +242,7 @@ test("current bookings are read only for the job's own active in-house member", 
   expect(own.bookings).toHaveLength(1);
   expect(own.bookings[0]).toMatchObject({ kind: "installation", status: "confirmed" });
   expect((await load("trade-view.server").inHouseBookingAccess(OUTSIDER, JOB)).bookings ?? []).toEqual([]);
-});
+}, 30000); // a real booking through every gate plus two bundle reads (J3+J4 review (6))
 test("actual PIESA booking refuses unverified Team electrician with Jo's message and no booking", async () => {
   await patch("stage","piesa_and_install_window_pending");
   await db.query("UPDATE partner_workers SET licence_verified_at=null WHERE business_id=$1",[BIZ]);

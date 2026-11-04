@@ -25,10 +25,12 @@ class WorkflowError extends Error {}
 mock.module("../src/lib/workflow.server", () => ({ WorkflowError, getStage: async () => stage, logEvent: async (job_id: string, _a: string | null, event_type: string, summary: string, details: Record<string, unknown>) => { events.push({ job_id, event_type, summary, details }); } }));
 mock.module("../src/lib/in-house-suppression.server", () => ({ readInHouseDispatchState: async (ids: string[]) => ({ failed: false, held: new Set(inHouse ? ids : []) }) }));
 mock.module("../src/lib/own-job-piesa.server", () => ({ ownJobCallAndBook: async () => ownJob }));
+let holderProblem: string | null = null;
+mock.module("../src/lib/piesa-form-holder.server", () => ({ PIESA_FORM_WITH_OTHER_ELECTRICIAN: "The safety check form is still with a different electrician", piesaFormHolderProblem: async () => holderProblem }));
 mock.module("../src/lib/piesa-complete.server", () => ({ completePiesaAssessment: async (d: { jobId: string }, actor: string | null) => { completions.push(actor); if (completeThrows) throw new WorkflowError(completeThrows); return d; } }));
 
 const { autoCompletePiesa, clearPiesaAutoCompleteHold, PIESA_AUTO_SIGNATURE_MISSING } = await import("../src/lib/piesa-auto-complete.server");
-const reset = () => { events.length = 0; completions.length = 0; inHouse = true; ownJob = false; stage = "piesa_scheduled"; completeThrows = null; };
+const reset = () => { events.length = 0; completions.length = 0; inHouse = true; ownJob = false; stage = "piesa_scheduled"; completeThrows = null; holderProblem = null; };
 const held = () => events.filter((e) => e.event_type === "piesa_auto_complete_held");
 const claims = () => events.filter((e) => e.event_type === "piesa_auto_completed");
 const f = (over: Partial<{ completed: boolean; signed: boolean; auditId: string; modifiedAt: string }> = {}) => ({ completed: true, signed: true, auditId: "a1", modifiedAt: "m1", ...over });
@@ -79,6 +81,16 @@ describe("ONE automatic PIESA completion (in-house jobs + installers' own jobs)"
     expect(events.filter((e) => /piesa_auto_complete_(held|recovered)/.test(e.event_type)).map((e) => e.event_type)).toEqual(["piesa_auto_complete_held", "piesa_auto_complete_recovered"]);
     await clearPiesaAutoCompleteHold("j", null); // nothing held any more → nothing added
     expect(events.filter((e) => /piesa_auto_complete_(held|recovered)/.test(e.event_type))).toHaveLength(2);
+  });
+  test("J5 (1): a form still with a different electrician is held (never completed under the wrong identity), after the signature check; moved to the right person → completed", async () => {
+    reset(); holderProblem = "The safety check form is still with a different electrician";
+    expect(await autoCompletePiesa("j", null, f())).toEqual({ outcome: "held", reason: "The safety check form is still with a different electrician" });
+    expect(completions).toEqual([]);
+    expect(held()[0]!.details).toMatchObject({ reason: "The safety check form is still with a different electrician", needs_office: true });
+    expect(await autoCompletePiesa("j", null, f({ signed: false, modifiedAt: "m2" }))).toEqual({ outcome: "held", reason: PIESA_AUTO_SIGNATURE_MISSING }); // the signature line comes first
+    holderProblem = null;
+    expect(await autoCompletePiesa("j", null, f({ modifiedAt: "m3" }))).toEqual({ outcome: "completed" });
+    expect(completions).toEqual([null]);
   });
   test("a completion check that fails (the same checks Complete PIESA runs) is the held reason; a changed reason on an edited form is a new row; 'already complete' is not a hold", async () => {
     reset(); completeThrows = "PIESA evidence still needed on the Mitti form: switchboard photo";

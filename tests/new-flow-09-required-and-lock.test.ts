@@ -126,6 +126,25 @@ describe("validateBooking: moving a booked install after the lock (server)", () 
     const early = lockFixture(TUE_1659);
     await expect(early.booking.validateBooking("j", "installation", "2026-11-12T21:00:00Z", null)).resolves.toEqual({ stage: "installation_booked", target: "installation_booked", warnings: [] });
   });
+  test("J5 ruling (a): the Home Insulation Victoria office (admin role) may still move the install after the lock — recorded once; the installer boss / anyone else is refused with the same line; an unreadable role is refused", async () => {
+    const office = lockFixture(TUE_1701);
+    const events: { type: string; details: Record<string, unknown> }[] = [];
+    (office.deps["./workflow.server"] as { logEvent: unknown }).logEvent = async (_j: string, _a: string | null, type: string, _s: string, details: Record<string, unknown>) => { events.push({ type, details }); };
+    const roles: Record<string, boolean> = { "hiv-office": true, "boss": false };
+    const rpcShim = office.deps["@/integrations/supabase/client.server"] as { supabaseAdmin: Record<string, unknown> };
+    rpcShim.supabaseAdmin["rpc"] = async (fn: string, args: { _user_id: string; _role: string }) => (fn === "has_role" && args._role === "admin" ? { data: roles[args._user_id] === true, error: null } : { data: null, error: { message: "unexpected" } });
+    office.deps["./lead-installer-confirm.server"] = { ...(office.deps["./lead-installer-confirm.server"] as object), leadInstallerLockState: (j: string) => office.lc.leadInstallerLockState(j, TUE_1701) }; // the fixture's clock
+    const booking = transpiled("src/lib/booking.server.ts", office.deps) as { validateBooking: (jobId: string, kind: string, start: string, actor: string | null) => Promise<unknown> };
+    await expect(booking.validateBooking("j", "installation", "2026-11-12T21:00:00Z", "hiv-office")).resolves.toEqual({ stage: "installation_booked", target: "installation_booked", warnings: [] });
+    expect(events.map((e) => e.type)).toEqual(["install_moved_after_lock"]);
+    expect(events[0]!.details).toMatchObject({ from: THU_8AM, to: "2026-11-12T21:00:00Z" });
+    await expect(booking.validateBooking("j", "installation", THU_8AM, "hiv-office")).resolves.toBeDefined(); // same start: not a move, nothing recorded
+    expect(events).toHaveLength(1);
+    await expect(booking.validateBooking("j", "installation", "2026-11-12T21:00:00Z", "boss")).rejects.toThrow(LEAD_LOCKED_MESSAGE);
+    await expect(booking.validateBooking("j", "installation", "2026-11-12T21:00:00Z", null)).rejects.toThrow(LEAD_LOCKED_MESSAGE);
+    rpcShim.supabaseAdmin["rpc"] = async () => ({ data: null, error: { message: "role read failed" } });
+    await expect(booking.validateBooking("j", "installation", "2026-11-12T21:00:00Z", "hiv-office")).rejects.toThrow(LEAD_LOCKED_MESSAGE); // fail closed
+  });
   test("a completed install is never locked; a booking read error refuses the move (fail closed)", async () => {
     const done = lockFixture(TUE_1701);
     done.rows["jobs"]![0]!["installation_completed_at"] = "2026-11-12T06:00:00Z";

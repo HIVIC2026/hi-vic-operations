@@ -125,6 +125,9 @@ export type PrestartFacts = {
   clearance: { cleared: boolean; blocker: string | null };
   deadline: string | null; // 30-day window last day
   esc: EscNotice | null;
+  /** J5 (4 Nov 2026): the ESC notices could not be read — the check fails CLOSED with ESC_READ_FAILED (must move), never
+   *  "not marked submitted" (which reads as fixable). null/undefined = read fine (older callers). */
+  escReadError?: string | null | undefined;
   lead: LeadCert;
   consentBlockers: string[];
   piesaCompletedAt: string | null;
@@ -174,6 +177,8 @@ export const CERTIFICATE_NOT_IN_YET = "Certificate of Electrical Safety not in y
 export const LEAD_NOT_ESC_REGISTERED = (name: string | null) => `Lead Installer${name ? ` ${name}` : ""} is not registered with the ESC yet.`;
 export const ELECTRICIAN_NOT_CONFIRMED = "The PIESA needs an electrician at the install and they haven't confirmed.";
 export const LIFE_SUPPORT_PLAN_MISSING = "Life support at this home: the written consent or medical plan isn't on file.";
+/** J5: office-only GO check line when the ESC notices could not be read (fail closed; classified must move). */
+export const ESC_READ_FAILED = (reason: string) => `ESC notices could not be read (${reason}) — check again`;
 
 /** Every failed pre-start condition, in plain words. Empty = cleared to start. */
 export function prestartFailures(f: PrestartFacts): string[] {
@@ -183,6 +188,7 @@ export function prestartFailures(f: PrestartFacts): string[] {
   if (!f.deadline || day > f.deadline) out.push(f.deadline ? `The 30-day window ended on ${f.deadline}. New PIESA needed.` : "No 30-day window date is recorded.");
   const e = f.esc;
   if (f.noEsc === true) { /* Part 9 Task 14: no ESC notice on a real-run job — the note goes on the check instead (prestartNotes) */ }
+  else if (f.escReadError) out.push(ESC_READ_FAILED(f.escReadError)); // J5 7: fail closed — unreadable notices are a must-move line
   else if (!e || !(e.status === "sent" || e.status === "accepted") || !e.sent_at || !e.submission_reference || Date.parse(e.scheduled_start) !== Date.parse(f.start)) out.push("ESC notification is not marked submitted for this install date.");
   else { const t = sendTimingBlocker(e.sent_at, f.start); if (t) out.push(t); }
   if (!f.lead.found) out.push("No lead installer is recorded for this job.");
@@ -243,7 +249,11 @@ const FIXABLE_WHILE_24H_LEFT: RegExp[] = [
 ];
 /** Fail closed: anything not listed above (the 30-day window, PIISA/ESC timing, consent/notice/copies <24h, electrical
  *  clearance, lines this module doesn't know) is `must_move`. */
+/** J5 (join step 6 ruling, 4 Nov 2026): a READ ERROR is never "fixable" — Task 8's "Installer business: Couldn't read…"
+ *  lines share the fixable insurance prefix, so the specific line is classified first (fail closed = must move). */
+const READ_ERROR_LINES: RegExp[] = [/^Installer business: Couldn't read/, /couldn'?t (read|check)/i, /could not be (read|checked)/i];
 export function classifyPrestartFailure(line: string, i: { start: string; now: Date }): PrestartFailureClass {
+  if (READ_ERROR_LINES.some((r) => r.test(line))) return "must_move";
   if (FIXABLE_ALWAYS.some((r) => r.test(line))) return "fixable";
   if (FIXABLE_WHILE_24H_LEFT.some((r) => r.test(line))) return i.now.getTime() <= Date.parse(i.start) - LEAD_MS ? "fixable" : "must_move";
   return "must_move";

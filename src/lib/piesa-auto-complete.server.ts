@@ -33,7 +33,7 @@ export type AutoCompleteResult = {
  *  Null = could not be read (fail closed: nothing is claimed, the next sync tries again). */
 export async function autoCompleteScope(jobId: string): Promise<"in_house" | "own_job" | null | false> {
   const state = await (await import("./in-house-suppression.server")).readInHouseDispatchState([jobId]);
-  if (state.failed) return null;
+  if (state.failed) { console.error("PIESA auto-complete: in-house state unreadable, nothing claimed", jobId); return null; }
   if (state.held.has(jobId)) return "in_house";
   const own = await (await import("./own-job-piesa.server")).ownJobCallAndBook(jobId);
   if (own === null) return null;
@@ -65,6 +65,10 @@ export async function autoCompletePiesa(jobId: string, actorId: string | null, f
     });
     if (claim.error) return isUniqueViolation(claim.error) ? { outcome: "already" } : { outcome: "unreadable" };
     if (!facts.signed) return hold(jobId, actorId, facts.auditId, PIESA_AUTO_SIGNATURE_MISSING);
+    // J5 (1): the form must be with the job's electrician — a form still with a different electrician (or one a swap could not
+    // move) is never completed under the wrong identity. Fails closed inside (read failure = the same hold).
+    const holderProblem = await (await import("./piesa-form-holder.server")).piesaFormHolderProblem(jobId, facts.auditId, scope);
+    if (holderProblem) return hold(jobId, actorId, facts.auditId, holderProblem);
     try {
       // A null actor: completePiesaAssessment records the sign-off against the electrician's login, else the installer account.
       await (await import("./piesa-complete.server")).completePiesaAssessment({ jobId }, actorId);

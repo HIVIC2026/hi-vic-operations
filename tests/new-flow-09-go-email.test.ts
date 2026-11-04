@@ -77,6 +77,12 @@ describe("goEmail (pure, DRAFT)", () => {
     for (const l of ["ESC notification was sent less than 24h before start – reschedule.", "Owner consent: Owner ESC consent was completed less than 24h before start – reschedule", "The 30-day window ended on 2026-11-10. New PIESA needed.", "No 30-day window date is recorded.", "The installer safety form (PIISA) can only be done within 30 days of the PIESA.", "PIESA completion date is missing.", "Lead installer's certification expired on 2026-10-15.", "Electrical clearance is not valid: upgrades outstanding", "Something this module has never heard of"]) {
       expect(classifyPrestartFailure(l, twoDaysOut), l).toBe("must_move");
     }
+    // J5 (join step 6 ruling): Task 8's read-error lines share the fixable "Installer business: " prefix — the specific line
+    // wins: a read error is must move (fail closed); the real insurance lines stay fixable.
+    for (const l of ["Installer business: Couldn't read insurance records: timeout", "Installer business: Couldn't read the installer assignment: boom", "Installer business: Couldn't read the business: boom", "Installer business: Couldn't read insurance records."]) {
+      expect(classifyPrestartFailure(l, twoDaysOut), l).toBe("must_move");
+    }
+    expect(classifyPrestartFailure("Installer business: Public liability insurance not on file. Upload the certificate under My business.", twoDaysOut)).toBe("fixable");
     expect(classifyPrestartFailures(["Install deposit not paid", "x"], at2pm)).toEqual([{ line: "Install deposit not paid", cls: "fixable" }, { line: "x", cls: "must_move" }]);
   });
   test("the key is per job + start + slot; the info@ copy adds :office", () => {

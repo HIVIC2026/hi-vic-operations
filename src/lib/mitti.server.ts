@@ -978,7 +978,7 @@ export async function reassignMittiFormTo(p: { jobId: string; auditId: string; k
   } catch (e) { throw wrap(e); }
   if (p.kind === "piesa" || p.kind === "rectification") {
     await logEvent(p.jobId, p.actorId, p.kind === "rectification" ? "rectification_form_reshared" : "mitti_audit_reshared",
-      `${p.kind === "piesa" ? "PIESA form" : "Rectification form"} handed to ${p.email} (visit allocation)`, { audit_id: p.auditId, mitti_user_id: p.mittiUserId, reason: "visit_allocated", kind: p.kind });
+      `${p.kind === "piesa" ? "PIESA form" : "Rectification form"} handed to ${p.email} (visit allocation)`, { audit_id: p.auditId, mitti_user_id: p.mittiUserId, email: p.email, reason: "visit_allocated", kind: p.kind });
   } else {
     await logEvent(p.jobId, p.actorId, p.kind === "install" ? "mitti_piisa_audit_reshared" : "mitti_audit_reshared",
       `${p.kind === "install" ? "Installer safety form" : "Mitti Ready Check form"} handed to ${p.email} (visit allocation)`, { audit_id: p.auditId, mitti_user_id: p.mittiUserId, reason: "visit_allocated", ...(p.kind === "install" ? {} : { kind: "ready_check" as const }) });

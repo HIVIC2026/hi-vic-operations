@@ -159,6 +159,12 @@ export async function installCertificateWarningFor(jobId: string): Promise<strin
  *  Never throws — a booking is never undone by this. */
 export async function recordInstallCertificateWarning(jobId: string, actorId: string | null, startIso: string): Promise<string | null> {
   try {
+    // Join step 6 ruling 2 (4 Nov 2026, "double warning"): while the upgrades themselves are still outstanding the booking
+    // carries Part 9 Task 10's "Electrical upgrades aren't done yet…" line alone; this certificate line (and its history
+    // row) only once the upgrades are done and the certificate is still to come.
+    const { clearanceFacts } = await import("./electrical-clearance.server");
+    const { electricalClearance, upgradesOutstanding } = await import("./allocation.core");
+    if (upgradesOutstanding(electricalClearance(await clearanceFacts(jobId)))) return null;
     const warning = await installCertificateWarningFor(jobId);
     if (!warning) return null;
     const start = new Date(startIso).toISOString();

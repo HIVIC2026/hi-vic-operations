@@ -18,7 +18,7 @@ async function electricianLimit(jobId: string) {
 
 async function context(jobId: string, shared?: SharedJobReads) {
   const { clearanceFacts } = await import("./allocation.server");
-  const { electricalClearance } = await import("./allocation.core");
+  const { electricalClearance, upgradesOutstanding } = await import("./allocation.core");
   const [{ data: job }, clearance, piesa, { data: asg }, { data: booked }, { data: rows }] = await Promise.all([
     admin.from("jobs").select("stage, install_10day_flagged_at").eq("id", jobId).single(),
     shared ? shared.clearance() : clearanceFacts(jobId).then(electricalClearance),
@@ -27,7 +27,12 @@ async function context(jobId: string, shared?: SharedJobReads) {
     admin.from("bookings").select("id, scheduled_start").eq("job_id", jobId).eq("kind", "installation").eq("status", "confirmed").limit(1).maybeSingle(),
     admin.from("appointment_proposals").select("id, proposer_role, starts_at, ends_at, status").eq("job_id", jobId).eq("install_day", true).order("starts_at"),
   ]);
-  const deadline = clearance.cleared ? installWindowDeadline(clearance.timingDate, (piesa as { install_deadline?: string | null } | null)?.install_deadline ?? null) : null;
+  const ps = piesa as { install_deadline?: string | null; piesa_date?: string | null } | null;
+  // J5 (Part 9 Task 10 ruling, 4 Nov 2026): while only the upgrades are outstanding the 30 days still run from the official
+  // PIESA date (decision 316 — the same rule validateBooking applies), so the deposit messages and the install window have
+  // their last day before the Part C lands; any other uncleared reason still has no window.
+  const deadline = clearance.cleared ? installWindowDeadline(clearance.timingDate, ps?.install_deadline ?? null)
+    : upgradesOutstanding(clearance) && ps?.piesa_date ? installWindowDeadline(ps.piesa_date, ps.install_deadline ?? null) : null;
   const expired = !!deadline && melbourneYmd(new Date()) > deadline;
   const ready = job?.stage === "installation_scheduling" && clearance.cleared && !!asg;
   const { turn, open } = installDayTurn({ ready, booked: !!booked, expired, rows: rows ?? [] });

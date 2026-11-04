@@ -202,7 +202,10 @@ describe("3. a confirmed Ready Check booking starts exactly one creation", () =>
     // Add a job never books by itself (decision 115): a visit entered there goes through the same job-page path.
     const onsite = readFileSync("src/lib/onsite-ready-check.server.ts", "utf8");
     expect(onsite).not.toContain("confirmBooking(");
-    expect(onsite).toContain("tradeSetReadyCheckTime(userId, job.id, opts.visit, now, call)");
+    // J5 (superseded pin): since Part 5/7 Task 7 Add a job takes no visit time at all — the Ready Check is booked from
+    // the job page's Next step box, so nothing here calls tradeSetReadyCheckTime either.
+    expect(onsite).not.toContain("tradeSetReadyCheckTime(");
+    expect(onsite).toContain("the Ready Check is booked from the job page");
   });
 });
 
@@ -318,7 +321,7 @@ describe("8. existing behaviour kept", () => {
     expect((await onsiteFormFor(JOB, INSTALLER, fakeMitti().call, true)).kind).toBe("office");
   });
   test("the office button passes officeOverride; the installer field-day button is an explicit request", () => {
-    expect(readFileSync("src/lib/portal.functions.ts", "utf8")).toContain("createAssignMittiAudit(data.jobId, context.userId, realMittiCall, { officeOverride: true })");
+    expect(readFileSync("src/lib/portal.functions.ts", "utf8").replace(/\s+/g, " ")).toContain("createAssignMittiAudit(data.jobId, context.userId, realMittiCall, { officeOverride: true, })"); // formatted over lines since main #133
     expect(readFileSync("src/routes/_authenticated/field.day.$jobId.tsx", "utf8")).toContain("get({ data: { jobId, retry: true } })");
   });
 });
