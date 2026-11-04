@@ -40,7 +40,7 @@ export async function sendGoEmail(jobId: string, slot: GoSlot, result: GoResult,
   const { isTestPartner } = await import("./test-send.core");
   const partnerIsTest = isTestPartner(bz ?? {});
   const test = j.source === "qa_test" || partnerIsTest;
-  if (!test && !approved) return "awaiting approval"; // DRAFT wording: nothing sent, nothing recorded
+  if (!test && !approved) return "awaiting approval"; // flag off (wording approved 4 Nov 2026, flips at go-live): nothing sent, nothing recorded
   const key = goEmailKey(jobId, result.start, slot);
   const officeKey = `${key}:office`;
   const copyOffice = !result.passed; // info@ gets every DON'T START, never a GO

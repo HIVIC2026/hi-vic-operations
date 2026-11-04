@@ -1,6 +1,8 @@
 // Pure rules for who can do what in the installer portal (new job flow part 5, task 1). No I/O.
 // Boss = the business admin. Office = a person the boss added to work the portal for the business.
 // Lead Installers, Crew and Electricians never log in (their jobs come to them by text).
+// Office role CONFIRMED by Jo 4 Nov 2026 13:50: Office people see every job and can book visits like the boss; Money only
+// with the boss's "Can see Money" switch; Team and business settings stay boss-only.
 
 export type TradeRole = "boss" | "office" | "none";
 

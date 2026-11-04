@@ -91,7 +91,8 @@ export type PiesaCopyEmailInput = {
   upgradesNeeded?: boolean;
 };
 
-/** J4 G3 (DRAFT, trade-facing, behind UPGRADES_NEEDED_EMAIL_APPROVED): the installer copy's "upgrades still to come" lines. */
+/** J4 G3 (trade-facing, behind UPGRADES_NEEDED_EMAIL_APPROVED): the installer copy's "upgrades still to come" lines —
+ *  APPROVED by Jo 4 Nov 2026 14:18 (Round 5 B) as in code; the flag flips at go-live (Part 11). */
 export const INSTALLER_UPGRADES_NEEDED = {
   result: "Electrical upgrades needed first",
   row: "Yes — see the attached safety check",

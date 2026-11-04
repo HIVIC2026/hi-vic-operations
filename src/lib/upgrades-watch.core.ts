@@ -1,8 +1,9 @@
-// New job flow, Part 6, Task 7: the upgrades day on the job. Pure rules + DRAFT wording for
+// New job flow, Part 6, Task 7: the upgrades day on the job. Pure rules + wording (APPROVED by Jo 4 Nov 2026 13:55 as drafted:
+// the four chasers and the installer warning line) for
 // - the install-booking warning when the install is booked before the upgrades day (never a block),
 // - the nudge when the upgrades form isn't in: the electrician the day after (from 9am Melbourne), the installer office the day after that,
 // - the 30-day red flag: an upgrades day after the 30-day install deadline.
-// Every send is DRAFT behind its own *_APPROVED = false; the Needs me row is internal and always on. Sweep: upgrades-watch.server.ts.
+// Every send sits behind its own *_APPROVED = false until go-live flips them; the Needs me row is internal and always on. Sweep: upgrades-watch.server.ts.
 import { addYmd } from "./melbourne-time.core";
 import { melbourneAt, melbourneYmd } from "./piesa-windows.core";
 import { partnerEmailLayout } from "./partner-email.core";

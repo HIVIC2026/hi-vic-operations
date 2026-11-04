@@ -1,7 +1,7 @@
 // Part 9 Task 7 (Jo 2 Nov 2026, "GO / DON'T START"): after each GO slot run (2pm the day before, 6:30am on the day) the
 // installer office gets ONE email per slot — GO, or DON'T START with the list of what is missing. By email only (no text
 // to the Lead Installer); info@homeinsulationvictoria.com.au gets a copy of every DON'T START, never of GO. PURE: wording
-// and key. No approved body text exists → DRAFT behind GO_EMAIL_APPROVED (false); the sender is go-email.server.
+// and key. Wording APPROVED by Jo 4 Nov 2026 14:40; GO_EMAIL_APPROVED stays false until go-live flips it; the sender is go-email.server.
 import { partnerEmailLayout, type PartnerBlock } from "./partner-email.core";
 import type { GoSlot, PrestartFailure } from "./prestart.core";
 

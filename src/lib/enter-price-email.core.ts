@@ -5,7 +5,7 @@
 // is its own channel under that claim (`enterPriceEmailKey`), so a held email is retried on a later sync without the
 // text going again, and a sent text is never followed by a second text.
 //
-// DRAFT: `ENTER_PRICE_EMAIL_APPROVED = false` until Jo approves the subject, the pronoun and the intro line. Body wording is
+// APPROVED by Jo 4 Nov 2026 14:05 as shown (subject + "them"); `ENTER_PRICE_EMAIL_APPROVED = false` until go-live flips it (Part 11). Body wording is
 // the approved price-email.png mock; the mock says "her" — the draft says "them" because the owner's gender isn't recorded —
 // and "sends them the quote straight away" became "…once every check passes" (true today: with AUTO_QUOTE_SEND_ENABLED off
 // the office presses Send after the checks; final review I4).
@@ -17,7 +17,7 @@ import { partnerEmailLayout, type PartnerBlock } from "./partner-email.core";
 import { LEAN_Q } from "./ready-check-lean.core";
 import { areasFromReadyCheckEntries } from "./area-diagram.core";
 
-/** DRAFT until Jo approves the subject ("{HV}: Ready Check done. Time to price it.") and the pronoun ("them"). */
+/** Subject ("{HV}: Ready Check done. Time to price it.") and the pronoun ("them") APPROVED by Jo 4 Nov 2026 14:05; the flag flips at go-live (Part 11). */
 export const ENTER_PRICE_EMAIL_APPROVED: boolean = false;
 
 /** Recorded ONCE per job when the email is held (flag off / no office email / trade messages paused); internal. */

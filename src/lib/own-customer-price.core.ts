@@ -18,7 +18,7 @@ import { cobrandLogos, type CobrandLogo } from "./cobrand.core";
 
 /** Installer-facing hold (Boss/Office) while the business has no PIESA rate: the quote can't be sent until it is set.
  *  Controller 4 Nov 2026: the rate card is office-managed (My business › Your rates is read-only), so the line asks the office.
- *  DRAFT for Jo (installer-facing wording) — on JO-APPROVAL-LIST. */
+ *  APPROVED (installer-facing wording; marked approved in the 4 Nov 2026 wording wave per the coordinator's brief) — JO-APPROVAL-LIST. */
 export const PIESA_PRICE_NOT_SET = "Your PIESA price isn't set yet. Ask the office to add it, then send.";
 /** Fix wave J1 (2), review 4 Nov 2026: a rate READ failure is not "no rate" — the price card holds with this line and
  *  never says the price isn't set; nothing is sent until the read works. */

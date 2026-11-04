@@ -1,9 +1,10 @@
 // New job flow, Part 6, Task 7: `sweepUpgradesWatch` on the 15-minute allocation tick. For every job with a confirmed upgrades
 // day (booking kind "rectification") it does, one job at a time:
-// - the nudge when the upgrades form isn't in (rules: upgrades-watch.core): a text to the electrician (DRAFT, UPGRADES_NUDGE_TEXT_APPROVED)
-//   with a fresh job link, then an email to the installer office (DRAFT, UPGRADES_OFFICE_EMAIL_APPROVED);
+// - the nudge when the upgrades form isn't in (rules: upgrades-watch.core): a text to the electrician (UPGRADES_NUDGE_TEXT_APPROVED)
+//   with a fresh job link, then an email to the installer office (UPGRADES_OFFICE_EMAIL_APPROVED);
 // - the 30-day red flag when the upgrades day is after the install deadline: ONE internal `upgrades_past_30_days` event per job + day
-//   (the office Needs me row, always on) + an installer office email with a copy to info@ (DRAFT, UPGRADES_RED_FLAG_EMAIL_APPROVED).
+//   (the office Needs me row, always on) + an installer office email with a copy to info@ (UPGRADES_RED_FLAG_EMAIL_APPROVED).
+// Wording approved by Jo 4 Nov 2026 13:55; the three flags (and the SMS type's switch) flip at go-live.
 // Every send is recorded (its key) BEFORE it goes, once per key. TEST jobs / TEST partners → test-send. Real sends only through the
 // guarded senders (`sendRealSms`, `sendOfficeEmail`). Reads page 200 at a time; a failed read logs and sends nothing. Never throws.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";

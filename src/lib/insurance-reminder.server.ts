@@ -4,7 +4,7 @@
 // electrician's own licence expiry (partner_workers.licence_expires_on). Each step (30, 7) goes ONCE per business +
 // document + expiry date: to the business's main email (businesses.email) AND a copy to info@homeinsulationvictoria.com.au
 // (answer 17) — two sends, one key each (`…:office` for the copy). TEST partners → test-send; real businesses → held
-// (recorded once per key as `insurance_reminder_held`) until INSURANCE_REMINDER_APPROVED, customer comms on and the trade
+// (recorded once per key as `insurance_reminder_held`) until INSURANCE_REMINDER_APPROVED (wording approved by Jo 4 Nov 2026; the flag flips at go-live), customer comms on and the trade
 // pause lifted, then the existing guarded partner sender (its Idempotency-Key = the key). The claim
 // (`insurance_reminder_sent`) is written only after the sender reports sent. A read failure logs and sends nothing.
 // Never changes a credential, a booking or a stage; the hard block (businessDocsBlocker) is separate.
