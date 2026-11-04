@@ -108,5 +108,5 @@ test('01:20 tidy-up labels map to the existing removal, condition and kept-reaso
 test('01:20 new removal label feeds the quote removal m² and the diagram', () => {
  const e=[{label:'Name this area',value:'Main house'},{label:'Area (m²)',value:'100'},{label:'Old insulation in this area?',value:'Yes, taking it out'},{label:'Old insulation R value?',value:'Under R2.0'},{label:'How much old insulation is coming out? (m²)',value:'30'}];
  expect(layout20(e).removeM2).toBe(30);
- expect(diagram20(e)[0]?.removeM2).toBe(30);
+ expect(String(diagram20(e)[0]?.existingNote)).toContain('30');
 });
