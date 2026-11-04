@@ -1,8 +1,9 @@
 ## Jo 4 Nov install-day BEFORE, floor plans and TEST quote browser check
-- [ ] Confirm Mitti conditional/prefill capability; automatic per-area missing/rejected BEFORE collection in Mitti only, area order and scope-change warning without repricing.
-- [ ] Red-first floor-plan area reading and evidence retention; preserve length × width and old submissions.
-- [ ] Sign in as TEST office; practice two-option TEST quote browser checks without delivery, real records or template changes.
-- [ ] Related tests, automatic checks and report supported Mitti option plus limitations; no publishing or sends.
+- [x] Capability investigation: configured alternate templates supported; hidden immutable answers/repeat prefills unproven. Staged automatic BEFORE rule/reader, ordinary area-order prefill and scope-change Needs me without repricing.
+- [ ] Operational per-area BEFORE creation/read/reuse and accepted-evidence suppression — blocked on Mitti immutable conditional or fixed-area draft definition; existing gates not bypassed.
+- [x] Red-first explicit floor-plan m² and private attachment-copy path; old length × width preserved.
+- [ ] Practice two-option browser review — TEST office sign-in reached /admin/needs-me but browser import error blocks content; no quote setup or no-delivery marker changes made.
+- [x] 151 related tests pass and automatic checks clean; limitations in docs/MITTI_INSTALL_BEFORE_FOLLOWUP_4NOV.md. No templates, real records, sends or publishing.
 
 ## Jo 4 Nov A1–A5 Mitti rebuild compatibility
 - [x] Source compatibility report covers changed/unchanged questions, official facts, evidence and prompt corrections.
