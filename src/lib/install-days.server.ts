@@ -120,7 +120,7 @@ async function bookAgreedDay(jobId: string, proposalId: string, startsAt: string
   const { releaseInstallationContacts } = await import("./allocation.server");
   try {
     const { confirmBooking } = await import("./booking.server");
-    await confirmBooking(jobId, "installation", startsAt, userId, roleLabel);
+    const booked = await confirmBooking(jobId, "installation", startsAt, userId, roleLabel);
     await releaseInstallationContacts(jobId, userId);
     // Decision 325: a new day after the installer moved a booked one → O42 "Your install day has changed" (it points back
     // to the booking email's checklist); otherwise the owner "Your install is booked" email. Both best-effort.
@@ -128,7 +128,8 @@ async function bookAgreedDay(jobId: string, proposalId: string, startsAt: string
     const movedFrom = await triggers.installDayMoveFor(jobId, startsAt);
     if (movedFrom) await triggers.onInstallDayMoved(jobId, startsAt, movedFrom).catch((e) => console.error("install day changed email skipped", (e as Error).message));
     else await (await import("./install-booked-email.server")).emailOwnerInstallBooked(jobId, startsAt, { depositReceived: true }).catch((e) => console.error("install booked email skipped", (e as Error).message));
-    return { ok: true, booked: true };
+    // Part 3 Task 4: booked with the certificate outstanding → the warning goes back to the screen (recorded by confirmBooking).
+    return { ok: true, booked: true, ...(booked.warning ? { warning: booked.warning } : {}) };
   } catch (e) {
     await admin.from("appointment_proposals").update({ status: "superseded" }).eq("id", proposalId);
     await logEvent(jobId, userId, "install_day_booking_blocked", `Install day agreed but booking not confirmed: ${(e as Error).message}`, { proposal_id: proposalId }, { internal: true });

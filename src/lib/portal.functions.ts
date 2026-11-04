@@ -1578,12 +1578,14 @@ export const regenerateRectificationQuote = createServerFn({ method: "POST" })
     await requireAdmin(context.supabase);
     const stage = await getStage(data.jobId);
     const quoteId = await generateRectificationQuote(data.jobId, context.userId);
-    if (typeof quoteId !== "string")
+    if (typeof quoteId !== "string") {
+      const { ELECTRICIAN_BILLS_SKIP, UPGRADES_QUOTE_SEND_BLOCKER } = await import("./upgrades-billing.core");
       return {
         ok: false,
         skipped: quoteId.skipped,
-        message: "The partner bills rectification directly.",
+        message: quoteId.skipped === ELECTRICIAN_BILLS_SKIP ? UPGRADES_QUOTE_SEND_BLOCKER : "The partner bills rectification directly.",
       };
+    }
     const { data: released } = await admin
       .from("quotes")
       .select("id")
@@ -2319,15 +2321,16 @@ export const createBooking = createServerFn({ method: "POST" })
     // changes nothing and leaves only an internal (office-only) diagnostic event.
     const override = data.kind === "assessment" || data.kind === "ready_check";
     const visit = data.kind === "ready_check" ? "Ready Check" : "assessment";
+    let warning: string | undefined;
     try {
-      await confirmBooking(
+      ({ warning } = await confirmBooking(
         data.jobId,
         data.kind,
         data.start,
         context.userId,
         role === "admin" && override ? "admin (override)" : role,
         data.notes,
-      );
+      ));
     } catch (e) {
       if (override)
         await logEvent(
@@ -2366,7 +2369,8 @@ export const createBooking = createServerFn({ method: "POST" })
         .onReadyCheckBooked(data.jobId, context.userId)
         .catch((err) => console.error("ready check form not scheduled", (err as Error).message));
     }
-    return { ok: true };
+    // Part 3 Task 4: an install booked with the certificate outstanding carries the warning back to the screen.
+    return { ok: true, ...(warning ? { warning } : {}) };
   });
 
 /** Admin-only: cancel the current booking of a kind. Installation cancellation clears the balance due date. */

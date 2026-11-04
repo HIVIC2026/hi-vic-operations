@@ -89,10 +89,10 @@ describe("quote hold, card state, Needs me", () => {
     expect(FIXES_TIMES_HOLD_REASON).toBe("Waiting for the electrician's fixes times");
     expect(fixesTimesHoldReason({ timesNeeded: true, windowsExist: true })).toBeNull();
     expect(fixesTimesHoldReason({ timesNeeded: false, windowsExist: false })).toBeNull();
+    // Part 3 Task 1 (Jo 2 Nov 2026): HIV never sends an upgrades quote, so the Send check now refuses before this hold.
     const q = { kind: "rectification", status: "draft", office_reviewed_at: "x", has_unpriced_items: false };
-    expect(rectificationSendBlocker({ ...q, fixes_times_hold: FIXES_TIMES_HOLD_REASON }, true)).toBe(FIXES_TIMES_HOLD_REASON);
-    expect(rectificationSendBlocker({ ...q, fixes_times_hold: null }, true)).toBeNull();
-    expect(rectificationSendBlocker(q, true)).toBeNull();
+    expect(rectificationSendBlocker({ ...q, fixes_times_hold: FIXES_TIMES_HOLD_REASON }, true)).toBe("Electricians bill upgrades directly.");
+    expect(rectificationSendBlocker({ ...q, fixes_times_hold: null }, true)).toBe("Electricians bill upgrades directly.");
   });
   test("card: electricians only; shown once completed/linked and needed; times shown once given", () => {
     const base = { electrician: true, timesNeeded: true, piesaCompleted: true, linkSent: false, windowsExist: false };
@@ -115,15 +115,12 @@ describe("quote hold, card state, Needs me", () => {
   });
 });
 
-describe("decision 314 follow-up: on site at the start only → cleared on the accepted + paid fixes quote", () => {
+// Part 3 Task 1 (Jo 2 Nov 2026): the electrician bills the upgrades on every job, so the on-site-only answer no longer
+// waits for an HIV quote or its payment — it clears on the PIESA alone (tests/upgrades-billing.core.test.ts).
+describe("decision 314 follow-up: on site at the start only → cleared on the PIESA (no HIV quote or payment any more)", () => {
   const r = { piesaOutcome: "fail" as const, piesaCompletedAt: "2026-10-01", rectificationRequired: true, rectificationQuoteAccepted: false, rectificationCompletedAt: null, sectionCSignedAt: null, onsiteStartOnly: true, fixesPaymentCleared: false };
-  test("not before the owner accepts, not before the payment rule clears", () => {
-    expect(electricalClearance(r).cleared).toBe(false);
-    const accepted = electricalClearance({ ...r, rectificationQuoteAccepted: true });
-    expect(accepted.cleared).toBe(false);
-    expect(accepted.blocker).toMatch(/payment/);
-  });
-  test("accepted + paid → basis electrician_at_start, 30 days from the official PIESA date; no Section C needed", () => {
+  test("no owner acceptance or payment needed → basis electrician_at_start, 30 days from the official PIESA date; no Section C needed", () => {
+    expect(electricalClearance(r)).toMatchObject({ cleared: true, basis: "electrician_at_start", timingDate: "2026-10-01", blocker: null });
     expect(electricalClearance({ ...r, rectificationQuoteAccepted: true, fixesPaymentCleared: true })).toMatchObject({ cleared: true, basis: "electrician_at_start", timingDate: "2026-10-01", blocker: null });
   });
   test("other repair work still needs the fixes visit + Section C", () => {

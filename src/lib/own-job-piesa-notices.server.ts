@@ -66,13 +66,13 @@ export async function emailInstallerOffice(p: { jobId: string; businessId: strin
   return sent ? { status: "sent" } : { status: "not_sent", detail: (r as { detail?: string } | null)?.detail ?? "Already tried." };
 }
 
-async function heldOnce(jobId: string, key: string, channel: "text" | "email", reason: string, needsOffice = false, as?: { eventType: string; extra: Record<string, unknown> }) {
+async function heldOnce(jobId: string, key: string, channel: "text" | "email", reason: string, needsOffice = false, as?: { eventType: string; extra: Record<string, unknown> }, what?: string) {
   const eventType = as?.eventType ?? OWN_JOB_PIESA_NOTICE_HELD_EVENT;
   const { count, error } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", eventType).contains("details", { key });
   if (error) throw new Error(error.message);
   if (count) return;
   const { logEvent } = await import("./workflow.server");
-  await logEvent(jobId, null, eventType, as ? `Installer office email not sent: ${reason}` : `Electrician's safety check ${channel === "text" ? "text" : "email"} not sent yet: ${reason}`, { key, channel, reason, ...(needsOffice ? { needs_office: true } : {}), ...(as?.extra ?? {}) }, { internal: true });
+  await logEvent(jobId, null, eventType, as ? `Installer office email not sent: ${reason}` : `${what ?? `Electrician's safety check ${channel === "text" ? "text" : "email"}`} not sent yet: ${reason}`, { key, channel, reason, ...(needsOffice ? { needs_office: true } : {}), ...(as?.extra ?? {}) }, { internal: true });
 }
 
 type Assignment = { id: string; user_id: string; business_id: string | null; booking_confirmed_at: string | null };
@@ -164,4 +164,102 @@ export async function sendOwnJobPiesaNotices(jobId: string): Promise<string> {
     catch (e) { out.push(`text: error ${(e as Error).message}`); }
   }
   return out.join("; ") || "nothing to send";
+}
+
+// ====================================================================================================
+// Part 3 Task 3 (Jo 3 Nov 2026): "add your Certificate of Electrical Safety" text with the electrician's link.
+// ====================================================================================================
+
+/** ONE text per electrician assignment and round ("now" = right after Part C was recorded without the certificate; the Task 5
+ *  chase uses its own rounds). Same rules as textElectrician: the link is minted only when the text can go now; TEST jobs /
+ *  TEST partners → the test sender, claimed once by a stable event; a hold is logged once per assignment, round and reason.
+ *  Wording HELD (SMS type electrician_certificate_link; the chase reminder electrician_certificate_chase; wordingApproved:false) until Jo approves — until then nothing is sent
+ *  and no link is minted. Returns a short status for logs and tests. Nothing when the certificate is already on the job.
+ *  Part 3 Task 5: `text: "chase"` = the 2-business-day reminder wording (certificate-chase.core certificateChaseText). */
+const CERT_TEXT = "Electrician's certificate text";
+export async function textCertificateLink(jobId: string, round: string, opts: { text?: "add" | "chase"; facts?: import("./certificate-later.server").CertificateFacts } = {}): Promise<string> {
+  const [{ certificateAddLinkText }, { certificateChaseText }] = await Promise.all([import("./certificate-later.core"), import("./certificate-chase.core")]);
+  // Final fix wave item 2: the reminder has its own SMS type (and key / TEST claim), so Jo approves each text on its own.
+  const chase = opts.text === "chase";
+  return textLinkRound(jobId, {
+    type: chase ? "electrician_certificate_chase" : "electrician_certificate_link", keyBase: chase ? "electrician-certificate-chase:v1" : "electrician-certificate-link:v1", round, what: CERT_TEXT,
+    testEvent: chase ? "electrician_certificate_chase_test_sent" : "electrician_certificate_link_test_sent", testSummary: chase ? "TEST: electrician's certificate reminder text" : "TEST: electrician's certificate link text",
+    due: (f) => (f.state === "waiting_for_certificate" ? null : `not_waiting (${f.state})`),
+    render: chase ? certificateChaseText : certificateAddLinkText,
+  }, opts.facts);
+}
+
+/** Part 3 Task 5 (Jo 3 Nov 2026): the reminder to enter the upgrades day, with the electrician's link (SMS type
+ *  electrician_upgrades_day_link, HELD wordingApproved:false). Only while upgrades are needed, not done on the day, and no day
+ *  is entered. Same once-per-assignment-and-round rules as textCertificateLink. */
+export async function textUpgradesDayLink(jobId: string, round: string, facts?: import("./certificate-later.server").CertificateFacts): Promise<string> {
+  const { upgradesDayLinkText } = await import("./certificate-chase.core");
+  return textLinkRound(jobId, {
+    type: "electrician_upgrades_day_link", keyBase: "electrician-upgrades-day-link:v1", round, what: "Electrician's upgrades day text",
+    testEvent: "electrician_upgrades_day_link_test_sent", testSummary: "TEST: electrician's upgrades day link text",
+    due: (f) => (f.state !== "upgrades_pending" ? `not_pending (${f.state})` : f.upgradesDaySet || f.upgradesToday ? "day_set" : null),
+    render: upgradesDayLinkText,
+  }, facts);
+}
+
+type LinkTextSpec = {
+  type: "electrician_certificate_link" | "electrician_certificate_chase" | "electrician_upgrades_day_link"; keyBase: string; round: string; what: string;
+  testEvent: string; testSummary: string;
+  /** Null = the text is still due; else why not (returned as the status). */
+  due: (f: import("./certificate-later.server").CertificateFacts) => string | null;
+  render: (i: { first: string | null; address: string; url: string }) => string;
+};
+/** `known` = the caller's fresh certificate facts for this job (the chase sweeps read them just before), else read here. */
+async function textLinkRound(jobId: string, spec: LinkTextSpec, known?: import("./certificate-later.server").CertificateFacts): Promise<string> {
+  const { data: job, error } = await admin.from("jobs").select("stage, deleted_at, source").eq("id", jobId).maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!job || job.deleted_at || job.stage === "cancelled") return "not_current";
+  const facts = known ?? await (await import("./certificate-later.server")).jobCertificateFacts(jobId);
+  const notDue = spec.due(facts);
+  if (notDue) return notDue;
+  const { data: rows, error: ae } = await admin.from("job_assignments").select("id, user_id, business_id, booking_confirmed_at").eq("job_id", jobId).eq("role", "electrician").eq("active", true).order("assigned_at", { ascending: false });
+  if (ae) throw new Error(ae.message);
+  const a = ((rows ?? []) as Assignment[])[0];
+  if (!a || !a.business_id) return "no_electrician";
+  const base = `${spec.keyBase}:${a.id}:${spec.round}`;
+  const { data: prior, error: pe } = await db.from("sms_messages").select("idempotency_key, status").eq("idempotency_key", base).maybeSingle();
+  if (pe) throw new Error(pe.message);
+  if (prior && !["failed", "undelivered"].includes((prior as { status: string }).status)) return "already";
+  const [{ data: w }, { data: b }, { data: ov }] = await Promise.all([
+    admin.from("partner_workers").select("mobile, full_legal_name").eq("business_id", a.business_id).eq("profile_id", a.user_id).is("removed_at", null).limit(1).maybeSingle(),
+    admin.from("businesses").select("phone, onboarding_notes").eq("id", a.business_id).maybeSingle(),
+    admin.from("job_overview").select("property_address, job_number").eq("id", jobId).maybeSingle(),
+  ]);
+  const { displayName } = await import("./display-name.core");
+  const first = (displayName((w as { full_legal_name?: string | null } | null)?.full_legal_name) || "").split(/\s+/)[0] || null;
+  const address = (ov?.property_address as string | null | undefined) || (ov?.job_number as string | null | undefined) || "this job";
+  const to = ((w as { mobile?: string | null } | null)?.mobile) || (b?.phone as string | null | undefined) || null;
+  const { isTestPartner } = await import("./test-send.core");
+  const els = await import("./electrician-link.server");
+  if ((job.source as string | null) === "qa_test" || isTestPartner(b)) {
+    const { stableUuid } = await import("./mitti-create-claim.core");
+    const claimId = await stableUuid(`${base}:test`);
+    const { data: done, error: de } = await db.from("workflow_events").select("id").eq("id", claimId).maybeSingle();
+    if (de) throw new Error(de.message);
+    if (done) return "already";
+    let link: { id: string; url: string };
+    try { link = await els.createElectricianLink(jobId, a.business_id); }
+    catch (e) { await heldOnce(jobId, `${base}:no_link`, "text", "the link isn't available yet", false, undefined, spec.what); return `held: ${(e as Error).message}`; }
+    const { error: ce } = await db.from("workflow_events").insert({ id: claimId, job_id: jobId, actor_id: null, event_type: spec.testEvent, summary: spec.testSummary, details: { key: base }, internal: true });
+    if (ce) { await els.revokeElectricianLinks(jobId, "text_not_sent", { linkId: link.id }).catch(() => 0); if (ce.code === "23505") return "already"; throw new Error(ce.message); }
+    const { sendTestSms } = await import("./test-send.server");
+    const r = await sendTestSms({ jobId, jobSource: (job.source as string | null) ?? null, partnerIsTest: isTestPartner(b), label: base, actorId: null }, to ?? "", spec.render({ first, address, url: link.url }));
+    return `test_${r.status}`;
+  }
+  // The recipient's business + the job reach the trade pause check inside the sender (sms.server, `businessId` + `jobId`).
+  const input = { type: spec.type, idempotencyKey: base, to, body: "", jobId, businessId: a.business_id };
+  const { smsHoldReason, sendRealSms } = await import("./sms.server");
+  const hold = await smsHoldReason(input);
+  if (hold) { await heldOnce(jobId, `${base}:${hold}`, "text", hold, false, undefined, spec.what); return `held: ${hold}`; }
+  let link: { id: string; url: string };
+  try { link = await els.createElectricianLink(jobId, a.business_id); }
+  catch (e) { await heldOnce(jobId, `${base}:no_link`, "text", "the link isn't available yet", false, undefined, spec.what); return `held: ${(e as Error).message}`; }
+  const r = await sendRealSms({ ...input, body: spec.render({ first, address, url: link.url }) });
+  if (["blocked", "failed", "already"].includes(r.status)) await els.revokeElectricianLinks(jobId, "text_not_sent", { linkId: link.id }).catch(() => 0);
+  return r.status;
 }

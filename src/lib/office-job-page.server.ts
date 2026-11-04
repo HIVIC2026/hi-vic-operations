@@ -45,7 +45,7 @@ export async function loadJobPage(jobId: string, testOffice = false) {
   const prop = job.properties as { address_line: string | null; suburb: string | null; postcode: string | null; state: string | null; occupancy: string | null; enrichment: Record<string, unknown> | null } | null;
   const addr = splitAddress(prop?.address_line, prop?.suburb, prop?.postcode);
 
-  const [gathered, consent, asg, offers, bookings, meas, diagram, quotes, piesa, rect, escConsent, escNotice, assignment, evidence, veec, campaign, links, media, readyForVeec, originBiz, proposals, contacts, access, beforePhotos] = await Promise.all([
+  const [gathered, consent, asg, offers, bookings, meas, diagram, quotes, piesa, rect, escConsent, escNotice, assignment, evidence, veec, campaign, links, media, readyForVeec, originBiz, proposals, contacts, access, certificate, beforePhotos] = await Promise.all([
     gatherNeedsFacts({ includeTest: true, onlyIds: [jobId], testOffice }),
     admin.from("owner_contact_consents").select("consent_status, consented_at, created_at").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("job_assignments").select("role, business_id, assigned_at, active, businesses(name)").eq("job_id", jobId).eq("active", true),
@@ -70,6 +70,8 @@ export async function loadJobPage(jobId: string, testOffice = false) {
     contactRows(jobId, { created_at: job.created_at, source: job.source, channel: job.channel }),
     // Quick taps (Jo 2 Nov 2026): who will be at the home; fails closed (a failed read shows nothing).
     readJobAccess(jobId),
+    // Part 3 Task 3: the Certificate of Electrical Safety status line (read-only; nothing on a failed read).
+    import("./certificate-later.server").then((m) => m.certificateLineFor(jobId)),
     job.channel === 'installer_sourced' && !job.installation_completed_at ? (await import('./install-before.server')).readInstallBeforePlan(jobId) : Promise.resolve(null),
   ]);
   const bizOf = (role: string) => ((asg.data ?? []).find((a) => a.role === role)?.businesses as { name?: string } | null)?.name ?? null;
@@ -114,7 +116,9 @@ export async function loadJobPage(jobId: string, testOffice = false) {
       safetyPaidAt: step("safety_check")?.state === "paid" ? ([...(pay?.ledger ?? [])].map((l) => l.paidAt).sort()[0] ?? null) : null, safetyCheckCents: step("safety_check")?.amountCents ?? null, declined: instQ?.status === "declined" ? "owner said not for them" : null },
     piesa: { electrician: displayName(bizOf("electrician")) || null, offer: piesaOffer ? `${displayName((piesaOffer.businesses as { name?: string } | null)?.name) || "Electrician"} · ${piesaOffer.status === "pending" ? `offered ${day(piesaOffer.offered_at)}` : piesaOffer.status}` : null, visitAt: book("assessment"),
       outcome: piesa.data ? `${piesa.data.outcome === "pass" ? "Passed" : piesa.data.outcome === "fail" ? "Fixes needed" : String(piesa.data.outcome)} ${day(String(piesa.data.completed_date))}` : null,
-      fixes: rect.data ? `${rect.data.status === "accepted" ? "Approved" : rect.data.sent_at ? "Quote sent" : "Quote being checked"} · $${Number(rect.data.customer_total_inc_gst).toLocaleString("en-AU", { maximumFractionDigits: 0 })}` : null },
+      fixes: rect.data ? `${rect.data.status === "accepted" ? "Approved" : rect.data.sent_at ? "Quote sent" : "Quote being checked"} · $${Number(rect.data.customer_total_inc_gst).toLocaleString("en-AU", { maximumFractionDigits: 0 })}` : null,
+      // Part 3 Task 3: "Waiting for {electrician}'s Certificate of Electrical Safety" / "Upgrades day not set yet".
+      certificate: certificate?.line ?? null },
     install: { deadline, daysLeft, deposit: deposit ? `$${(deposit.amountCents / 100).toLocaleString("en-AU", { maximumFractionDigits: 0 })} (10%) · ${deposit.state === "paid" ? "paid" : deposit.state === "requested" ? `held until ${pay?.provisional.expiresAt ? dayTime(pay.provisional.expiresAt) : "paid"}` : deposit.state === "overdue" ? "overdue" : "to book · bank transfer"}` : null,
       installAt: book("installation"), daysOffered: proposals.count ?? 0,
       consent: escConsent.data ? (escConsent.data.ap_signed_at ? `Signed ${day(escConsent.data.ap_signed_at)}` : escConsent.data.owner_signed_at ? "Owner signed · AP to sign" : "Waiting for the owner") : null,

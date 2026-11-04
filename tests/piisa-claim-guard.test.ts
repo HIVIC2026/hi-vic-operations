@@ -48,6 +48,8 @@ mock.module("../src/lib/official-forms.core", () => ({ ...realOfficialCore, offi
 mock.module("../src/lib/official-forms.server", () => ({ officialPrefillContext: async () => ({}) }));
 mock.module("../src/lib/official-prefill.core", () => ({ piisaPrefill: () => [] }));
 mock.module("../src/lib/piisa-ap.core", () => ({ ensurePiisaAp: async () => undefined }));
+// Part 3 Task 4 fix 2: the auto-send now skips in-house jobs (and fails closed when that can't be read); these are own jobs.
+mock.module("../src/lib/in-house-suppression.server", () => ({ readInHouseDispatchState: async () => ({ failed: false, held: new Set<string>() }), inHouseDispatchSkip: async () => null }));
 mock.module("../src/lib/prestart.server", () => ({ requirePrestartClear: async () => undefined, prestartGate: async () => ({ locked: false, reasons: [] }) }));
 
 const { createPiisaMittiAudit } = await import("../src/lib/mitti.server");

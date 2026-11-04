@@ -27,7 +27,7 @@ export type FormField = {
   addedByDecision?: number;
 };
 import { B1_OPTIONS, B2_OPTIONS, OFFICIAL_ITEMS, type ItemKind } from "./official-forms.core";
-import { SHORT_PIESA_FIELDS, SHORT_PIISA_FIELDS } from "./official-short.core";
+import { CERTIFICATE_NOW_ADDED, CERTIFICATE_NOW_LABEL, SHORT_PIESA_FIELDS, SHORT_PIISA_FIELDS } from "./official-short.core";
 import { PIISA_DECLARATION_FIELDS } from "./piisa-declaration.core";
 import { mittiItemType } from "./mitti.core";
 import { canonicalMittiLabel, mittiLabelAliases } from './mitti-rebuild-labels.core';
@@ -60,9 +60,10 @@ const sup = (label: string, source: string, extra: Partial<FormField> = {}): For
 // accepted earlier wordings come from piesa-evidence.core.ts so the form check and the completion gate never drift.
 const PIESA_SUPPLEMENTAL: FormField[] = PIESA_EVIDENCE.map((e) => sup(e.label, e.id === "ces_file" ? "ESC CES record after rectification (decision 178)" : `${G} Table 4 / ESC 30 Jul 2026 update (decision 178)`, {
   aliases: e.aliases,
-  // Decision 297: one "Photo of the problem" under each hazard section (up to four on the form); decision 298: the CES is on
-  // the A4 fixes form, never on the PIESA visit.
-  ...(e.id === "hazard_photos" ? { when: "Any hazard answered Yes", repeats: 4 } : e.id === "ces_file" ? { when: "A4 fixes form (decision 298)", required: false } : {}),
+  // Decision 297: one "Photo of the problem" under each hazard section (up to four on the form). Part 3 (Jo 3 Nov 2026):
+  // the certificate (q45) shows and is Required only when "Do you have the Certificate of Electrical Safety now?" = Yes;
+  // No = certificate to come (the electrician adds it later through the texted link). Templates from before 3 Nov validate without it.
+  ...(e.id === "hazard_photos" ? { when: "Any hazard answered Yes", repeats: 4 } : e.id === "ces_file" ? { when: `${CERTIFICATE_NOW_LABEL} = Yes`, addedByDecision: CERTIFICATE_NOW_ADDED } : {}),
 }));
 const PIISA_SUPPLEMENTAL: FormField[] = [
   sup("SWMS", `${G} SWMS`),
@@ -175,7 +176,7 @@ const SIGNATURE_A2: FormField = { label: LEAN_Q.signatureA2, type: "signature", 
 const FIXES_TYPE: Record<FixesDayType, FieldType> = { text: "text", date: "date", yes_no: "yesno", photo: "media", signature: "signature" };
 function fixesField(q: (typeof FIXES_DAY_QUESTIONS)[number]): FormField {
   const when = q.showWhen ? `${FIXES_DAY_QUESTIONS.find((x) => x.n === q.showWhen!.n)!.label} = ${q.showWhen.is.join(" / ")}` : undefined;
-  return { label: q.label, type: FIXES_TYPE[q.type], required: q.required, ...(q.type === "yes_no" ? { choices: ["Yes", "No"] } : {}), ...(when ? { when } : {}), ...(q.prefill ? { prefill: true } : {}), source: "decision 293 – fixes day form (fixes-day.core)" };
+  return { label: q.label, type: FIXES_TYPE[q.type], required: q.required, ...(q.type === "yes_no" ? { choices: ["Yes", "No"] } : {}), ...(when ? { when } : {}), ...(q.prefill ? { prefill: true } : {}), ...(q.addedByDecision != null ? { addedByDecision: q.addedByDecision } : {}), source: "decision 293 – fixes day form (fixes-day.core)" };
 }
 
 export const FORMS: Record<FormKey, { title: string; role: "installer" | "electrician"; fields: FormField[] }> = {

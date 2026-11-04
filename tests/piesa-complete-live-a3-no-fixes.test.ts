@@ -9,7 +9,7 @@ const rows = (t: string) => t === "assessments" ? assessment : null;
 const builder = (t: string) => {
   const b: Record<string, unknown> = {};
   const chain = () => b;
-  for (const m of ["select", "eq", "in", "neq", "order", "limit"]) b[m] = chain;
+  for (const m of ["select", "eq", "in", "neq", "order", "limit", "not", "is", "contains", "gte", "gt", "lt", "lte"]) b[m] = chain;
   b["maybeSingle"] = async () => ({ data: rows(t), error: null });
   b["single"] = async () => ({ data: rows(t), error: null });
   b["then"] = (res: (v: unknown) => unknown) => res({ data: [], count: t === "rectification_items" ? rectItems : 0, error: null });
@@ -20,7 +20,10 @@ class WorkflowError extends Error {}
 mock.module("../src/lib/workflow.server", () => ({ WorkflowError, logEvent: async () => {}, stageEntryBlockers: async () => [], transition: async () => {}, getStage: async () => "installation_booked" }));
 mock.module("../src/lib/requirements.server", () => ({ jobScope: async () => ({ scope: "x", label: "x" }), advanceSiteRequirements: async () => ({ advanced: false, scope: "x" }) }));
 mock.module("../src/lib/autoadvance.server", () => ({ autoAdvanceJob: async () => null }));
-mock.module("../src/lib/piesa-evidence.core", () => ({ piesaEvidenceBlockersFromSnapshot: () => [] }));
+// A48 batch 1's printed-rules check runs before the fixes check; it has its own tests.
+mock.module("../src/lib/piesa-rules-notice.server", () => ({ piesaRulesBlockerFor: async () => null, recheckPiesaRules: async () => undefined }));
+const realEvidence = await import("../src/lib/piesa-evidence.core");
+mock.module("../src/lib/piesa-evidence.core", () => ({ ...realEvidence, piesaEvidenceBlockersFromSnapshot: () => [] }));
 
 const { completePiesaAssessment } = await import("../src/lib/piesa-complete.server");
 const FIXES_ERROR = /No electrical fixes required/;
@@ -36,9 +39,13 @@ describe("Complete PIESA: live A3 'no fixes' (C4)", () => {
     expect(err).not.toMatch(FIXES_ERROR);
     expect(err).toMatch(WRONG_STAGE);
   });
-  test("live A3 fail with no items and no A4 price still errors", async () => {
+  // Part 3 Task 4b (Jo 4 Nov 2026): electricians quote and book the upgrades with the owner directly, so "upgrades needed"
+  // with no items and no price now passes the fixes check (it used to error here).
+  test("live A3 fail (upgrades needed) with no items and no price passes the fixes check", async () => {
     assessment = { ...base, piesa_outcome: "fail", mitti_raw_snapshot: live("Yes") }; rectItems = 0;
-    expect(await run()).toMatch(FIXES_ERROR);
+    const err = await run();
+    expect(err).not.toMatch(FIXES_ERROR);
+    expect(err).toMatch(WRONG_STAGE);
   });
   test("an older (non-live) form with no tick still errors, even on a pass", async () => {
     assessment = { ...base, piesa_outcome: "pass", mitti_raw_snapshot: [{ label: "Switchboard condition", value: "ok" }], switchboard_condition: "ok", rcds_present: true }; rectItems = 0;

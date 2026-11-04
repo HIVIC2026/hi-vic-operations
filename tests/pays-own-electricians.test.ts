@@ -3,14 +3,14 @@ import { paysOwnElectricians, safetyCheckPayee, IN_HOUSE_PIESA_HOLD_REASON } fro
 import { jobHeldByInHousePartner, partnerBillsRectification } from "../src/lib/in-house.core";
 import { suggestBatches } from "../src/lib/in-house-batch.core";
 
-test("Reinsulate pays its electricians at $350 without being held or partner-billed rectification", () => {
+test("Reinsulate pays its electricians at $350 without being held; upgrades are billed by the electrician like every job (Part 3 Task 1)", () => {
   const business = { id: "reinsulate", name: "Reinsulate", in_house: false, pays_own_electricians: true, piesaIncGst: 350, rectification_billed_by: "partner" as const };
   expect(paysOwnElectricians(business)).toBe(true);
   expect(safetyCheckPayee({ business, electricianChoice: "usual" })).toEqual({ businessId: "reinsulate", name: "Reinsulate", piesaIncGst: 350 });
   expect(safetyCheckPayee({ business, electricianChoice: "hivic" })).toBeNull();
   expect(safetyCheckPayee({ business: { ...business, piesaIncGst: null }, electricianChoice: "usual" })).toEqual({ businessId: "reinsulate", name: "Reinsulate", piesaIncGst: null, release_hold_reason: IN_HOUSE_PIESA_HOLD_REASON });
   expect(jobHeldByInHousePartner({ activeInstallerBusiness: business })).toBe(false);
-  expect(partnerBillsRectification(business)).toBe(false);
+  expect(partnerBillsRectification(business)).toBe(true);
 });
 
 test("in-house alone enables the flat PIESA payee AND held workflows; neither flag enables neither", () => {

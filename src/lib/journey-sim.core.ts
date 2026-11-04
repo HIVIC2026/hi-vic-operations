@@ -3,7 +3,7 @@
 // parameter) instead of a phone filling the form in Mitti, so every sync rule, evidence rule (decision 178) and stage
 // gate still runs. The question wording is the portal's own (official-short.core / piesa-evidence.core), exactly as the
 // journey tests' completed A3 (tests/helpers/journey-forms.ts completedA3Pass).
-import { LIFE_SUPPORT_PRESENT, NO_PRICE_TALK_LABEL } from "./official-short.core";
+import { A3_REPAIR_NEEDED_LABEL, LIFE_SUPPORT_PRESENT, NO_PRICE_TALK_LABEL } from "./official-short.core";
 import { PIESA_EVIDENCE_BY_ID } from "./piesa-evidence.core";
 import type { MittiCall } from "./mitti.core";
 
@@ -41,7 +41,7 @@ export function simulatedA3PassAnswers(o: { seed: string; inspectionDate: string
     pick("Are the cables, connections and fittings in the ceiling safe to work around and cover with insulation?", "Yes"),
     pick("Are there any downlights or other recessed lights in the ceiling?", "No"),
     pick("Are there any appliances, exhaust fans, flues or other hazards in the ceiling space?", "No"),
-    pick("Is any electrical repair work needed before insulation can be installed?", "No"),
+    pick(A3_REPAIR_NEEDED_LABEL, "No"),
     photo(PIESA_EVIDENCE_BY_ID.switchboard_photo.label, m("switchboard")),
     photo(PIESA_EVIDENCE_BY_ID.onsite_photo.label, m("onsite")),
     // The live A3's required electrician details (items 68–72), typed by the electrician in Mitti (Jo 30 Oct 2026).

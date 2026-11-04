@@ -239,7 +239,12 @@ async function generateA4FixesQuote(jobId: string, actorId: string | null, busin
   return q.id;
 }
 
+/** Part 3 Task 1 (Jo 2 Nov 2026): Home Insulation Victoria never builds an upgrades (rectification) quote — the
+ *  electrician quotes, books and bills the owner directly on every job (upgrades-billing.core). Returns the skip for
+ *  every job before any read or write; the builder below is kept intact so a reversal is one line in the predicate. */
 export async function generateRectificationQuote(jobId: string, actorId: string | null) {
+  const { ELECTRICIAN_BILLS_SKIP, electricianBillsUpgrades } = await import("./upgrades-billing.core");
+  if (electricianBillsUpgrades(jobId)) return { skipped: ELECTRICIAN_BILLS_SKIP };
   const { partnerBilledRectificationFor } = await import("./in-house-rectification.server");
   if (await partnerBilledRectificationFor(jobId)) return { skipped: "in_house_partner_bills" as const };
   const settings = await activePricing();

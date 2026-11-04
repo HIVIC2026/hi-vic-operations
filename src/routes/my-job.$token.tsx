@@ -919,6 +919,8 @@ function FixesScreen({ v, token }: { v: View; token: string }) {
     try { await fn(session); await refresh(); } catch (e) { setErr(errText(e)); } finally { setBusy(false); }
   };
   if (isLoading) return <><Back token={token} /><p role="status" className="py-10 text-center text-sm">Opening your electrical upgrades…</p></>;
+  // Part 3 Task 1 (Jo 2 Nov 2026): no Home Insulation Victoria upgrades quote — the electrician arranges the upgrades directly.
+  if (data?.electricianBills && (data.step === "none" || !data.quote)) return <><Back token={token} /><section data-testid="fixes-electrician-bills" className="rounded-[22px] bg-card p-5 shadow-sm"><p className="text-sm">{data.electricianBills}</p></section></>;
   if (!data || data.step === "none" || !data.quote) return <><Back token={token} /><section className="rounded-[22px] bg-card p-5 shadow-sm"><p className="font-display text-lg font-extrabold">No electrical upgrades to look at</p><p className="mt-1 text-sm">Your safety check didn't leave any electrical upgrades for you to approve.</p></section></>;
   const q = data.quote;
   return <>

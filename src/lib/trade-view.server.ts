@@ -1098,7 +1098,7 @@ export async function inHouseBookingAccess(userId: string, jobId: string, client
 }
 
 /** A thin member-scoped wrapper: all booking rules and writes stay in confirmBooking. */
-export async function inHouseBookVisit(userId: string, input: { jobId: string; kind: import("./booking.server").BookingKind; start: string; workerId?: string; crewIds?: string[] }, client = admin): Promise<{ ok: true; bookingId: string } | { ok: false; blockers: string[] }> {
+export async function inHouseBookVisit(userId: string, input: { jobId: string; kind: import("./booking.server").BookingKind; start: string; workerId?: string; crewIds?: string[] }, client = admin): Promise<{ ok: true; bookingId: string; warning?: string } | { ok: false; blockers: string[] }> {
   const access = await inHouseBookingAccess(userId, input.jobId, client);
   if (!access.allowed) return { ok: false, blockers: access.blockers };
   // Part 2: an installer's own job books its safety check ONLY through bookOwnJobPiesa (claim, 30-day check, owner notice); never this in-house writer.
@@ -1110,7 +1110,10 @@ export async function inHouseBookVisit(userId: string, input: { jobId: string; k
       ...(input.kind==='installation'?{selection:{lead:input.workerId,additional:(input.crewIds??[]).map(workerId=>({workerId}))}}:{}),
     });
     if(!result.bookingId)throw Error('Booking could not be saved.');
-    return {ok:true,bookingId:result.bookingId};
+    // Part 3 Task 4: the in-house writer (commit_in_house_visit) books without confirmBooking, so the certificate warning is
+    // recorded here too (once per start — confirmBooking's inline path records the same event, never twice).
+    const warning=input.kind==='installation'?await (await import('./certificate-later.server')).recordInstallCertificateWarning(input.jobId,userId,input.start):null;
+    return {ok:true,bookingId:result.bookingId,...(warning?{warning}:{})};
   } catch (error) {
     return {ok:false,blockers:[error instanceof Error?error.message:'Booking could not be saved.']};
   }
@@ -1194,10 +1197,13 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
   // Decision 296: the owner's PIESA confirmation; decision 327: the electrician at the start of the install day. Read only once cleared.
   const piesaConfirmedP = early(clearanceP.then((cl) => cl.cleared ? piesaOwnerConfirmServer.ownerPiesaConfirmFacts(jobId).then((f) => (f ? !!f.confirmation : null)).catch(() => null) : null));
   const attendanceP = early(clearanceP.then((cl) => cl.cleared ? installerAttendanceView(jobId).catch(() => null) : null));
+  // Part 3 Task 3 (Jo 3 Nov 2026): the certificate status line ("Waiting for {electrician}'s Certificate of Electrical Safety" /
+  // "Upgrades day not set yet"), read-only facts; a failed read shows nothing.
+  const certificateP = early(import("./certificate-later.server").then((m) => m.certificateLineFor(jobId)));
   const beforePhotosP = early(jobP.then(async ({ data: j }) => c.kind === 'installer' && j?.channel === 'installer_sourced' && !j.installation_completed_at ? (await import('./install-before.server')).readInstallBeforePlan(jobId) : null));
   const [{ data: j }, { data: rcBook }, { data: inBook }, { data: m }, { data: a }, rebateSigned, quote, pay, form, clearance, mitti, payRows,
     { data: declinedEv }, { data: basicsDone }, { data: piesaBook }, { data: elecAsg }, { data: fixes }, { data: evEv }, { data: alloc }, { data: decl }, { data: finalAsg }, ownerReady, notes,
-    priceEntered, ownerPiesaConfirmed, electricianAttendance, beforePhotos] = await Promise.all([
+    priceEntered, ownerPiesaConfirmed, electricianAttendance, certificate, beforePhotos] = await Promise.all([
     jobP,
     admin.from("bookings").select("scheduled_start, status").eq("job_id", jobId).eq("kind", "ready_check").neq("status", "cancelled").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     inBookP,
@@ -1226,6 +1232,7 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
     priceEnteredP,
     piesaConfirmedP,
     attendanceP,
+    certificateP,
     beforePhotosP,
   ]);
   const qq = quote.quote as { sent_at?: string | null; accepted_at?: string | null } | null;
@@ -1259,6 +1266,8 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
     ownerPiesaConfirmed,
     // Decision 327: electrician at the start of the install day — one line (confirmed / waiting) or the "can't make it" alert.
     electricianAttendance,
+    // Part 3 Task 3: the Certificate of Electrical Safety status line (null = nothing to say).
+    certificate,
     mittiInvited: c.biz.mitti_account_invited === true,
     // M2-complete summary (read-only; owner contact is hidden by the page once every visit is done).
     complete: { product, piisaSignedAt: decl?.signed_at ?? null, installerSignedAt: finalAsg?.installer_signed_at ?? null, ownerSignedAt: finalAsg?.consumer_final_signed_at ?? null, apSignedAt: finalAsg?.ap_signed_at ?? null,

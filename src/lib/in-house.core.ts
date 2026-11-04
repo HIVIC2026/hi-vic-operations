@@ -1,4 +1,5 @@
 /** Held visits and partner-billed rectification use in_house ONLY, never pays_own_electricians. No I/O. */
+import { electricianBillsUpgrades } from "./upgrades-billing.core";
 export type InHouseBusiness = { in_house: boolean; rectification_billed_by: "partner" | "hivic" };
 export type InHouseFacts = { approvedElectricianWorkers: number; hasActiveRateCardWithPiesa: boolean; mittiElectricianLogins: number; mittiAccountInvited: boolean };
 
@@ -37,6 +38,8 @@ export function newInHouseBlockers(): string[] {
   return inHouseEnableBlockers({ approvedElectricianWorkers: 0, hasActiveRateCardWithPiesa: false, mittiElectricianLogins: 0, mittiAccountInvited: false });
 }
 
+/** Part 3 Task 1 (Jo 2 Nov 2026): the electrician bills the upgrades on EVERY job, so this is true for every business.
+ *  The `rectification_billed_by` column is still read by callers; it no longer decides anything (upgrades-billing.core). */
 export function partnerBillsRectification(b: InHouseBusiness): boolean {
-  return isInHousePartner(b) && b.rectification_billed_by === "partner";
+  return electricianBillsUpgrades(b);
 }

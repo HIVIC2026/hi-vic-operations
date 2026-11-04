@@ -111,11 +111,16 @@ describe("approved message switches are on (Jo 24 Oct 2026)", () => {
     });
   }
   test("every SMS type is approved (decision 388 texts approved 25 Oct): the decision 376 held moments were approved by decision 384, the decision 377 crew link by 380 (the Ready Check booking text was removed by decision 171) (the decision-296 PIESA-confirm text approved by decision 311)", () => {
-    const off = Object.entries(SMS_MESSAGE_TYPES).filter(([, t]) => !t.wordingApproved).map(([k]) => k);
+    // Part 3 (3 Nov 2026): these texts are HELD until Jo approves their wording — docs/wording/2026-11-03-part3-messages.md
+    // (messages 1, 3 and 5). Remove a type from this list when Jo approves it; any OTHER unapproved type still fails here.
+    const HELD_UNTIL_JO_APPROVES = ["electrician_certificate_link", "electrician_certificate_chase", "electrician_upgrades_day_link"];
+    const off = Object.entries(SMS_MESSAGE_TYPES).filter(([k, t]) => !t.wordingApproved && !HELD_UNTIL_JO_APPROVES.includes(k)).map(([k]) => k);
     // Decision 388 (25 Oct 2026): Jo approved the spot-only spot saved and save-spot reminder texts.
     // Decision 389 (25 Oct 2026): the "It's your turn" text is approved (Jo saw the O77 picture).
     // Jo approved the address request texts and email on 28 Oct 2026 (full address required).
     expect(off).toEqual([]);
+    // Each listed type is still really held (an approved one must come off the list).
+    for (const k of HELD_UNTIL_JO_APPROVES) expect(SMS_MESSAGE_TYPES[k as keyof typeof SMS_MESSAGE_TYPES].wordingApproved).toBe(false);
     expect(ADDRESS_REQUEST_EMAIL_APPROVED).toBe(true);
     expect("ready_check_booking" in SMS_MESSAGE_TYPES).toBe(false);
   });

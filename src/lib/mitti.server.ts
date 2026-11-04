@@ -1,6 +1,9 @@
 // The ONLY Mitti network boundary. Callers must already be authorised (see portal.functions.ts).
 // Token is read per call, never logged or returned. Sync populates assessment / measure-up data only —
-// never completes a requirement, approves compliance, moves stages or issues quotes.
+// never completes a requirement, approves compliance, moves stages or issues quotes. Two exceptions, both through the
+// one existing write path with its own checks: the A4 fixes-form sync writes the post_rectification PIESA record
+// (piesa-record.server), and on an installer's own job a Complete A3 runs Complete PIESA through its own gate
+// (own-job-piesa-complete.server → completePiesaAssessment, which may write the same-day Part C record).
 import type { Json } from "@/integrations/supabase/types";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
@@ -409,7 +412,8 @@ async function syncOnsiteStartItem(jobId: string, actorId: string | null, onsite
   else if (!onsite && open) await logEvent(jobId, actorId, ONSITE_START_CLEARED_EVENT, "The safety check no longer says the electrician must be on site at the start of the install day", { rule: "decision 314" }, { internal: true });
 }
 
-/** Sync the STORED audit(s) only. Never completes a requirement. */
+/** Sync the STORED audit(s) only. Never completes a requirement itself — except (Part 3 Task 4b) an installer's own job,
+ *  where a Complete A3 runs the one Complete PIESA gate (`completePiesaAssessment`) once per form. */
 export async function syncMittiAssessment(jobId: string, actorId: string | null, call: MittiCall = realMittiCall, fetchMedia: MittiMediaFetch = realMittiMedia) {
   const { data: job } = await admin.from("jobs").select("job_number,business_unit,channel,stage,deleted_at,qa_archived_at").eq("id", jobId).single();
   if (!job) throw new WorkflowError("Job not found.");
@@ -428,8 +432,10 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
   let locked = false;
 
   if (a?.external_mitti_id) {
-    if (a.status === "complete") locked = true;
-    else {
+    if (a.status === "complete") {
+      locked = true;
+      await (await import("./piesa-complete.server")).retrySameDayPartC(jobId, actorId);
+    } else {
       let plan;
       let audit: unknown = null;
       try {
@@ -515,12 +521,20 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
         const changed = syncStatus !== a.mitti_sync_status || completed !== (a.mitti_completed ?? false) || (plan.modifiedAt ?? null) !== (a.mitti_modified_at ?? null);
         if (changed) await logEvent(jobId, actorId, "mitti_synced", completed ? "Mitti assessment synced (completed in Mitti)" : plan.completed ? `Mitti PIESA marked complete but evidence is missing: ${evidenceBlockers.join("; ")}` : "Mitti partial data synced (audit not yet completed)",
           { audit_id: a.external_mitti_id, electrical_fields: Object.keys(electrical), measurement: "not_imported_from_piesa", measurement_fields: [], issues, other_items: plan.others.length, modified_at: plan.modifiedAt ?? null, evidence_blockers: evidenceBlockers });
+        // Part 3 Task 3 (Jo 3 Nov 2026): same-day upgrades with "Do you have the Certificate of Electrical Safety now?" = No →
+        // Part C is recorded and the job waits for the certificate; the electrician gets ONE text with their link to add it
+        // (held until Jo approves the wording; the Task 5 chase has its own rounds). Never throws.
+        if (completed && (await import("./piesa-evidence.core")).piesaCertificateToCome(shortAnswers, piesaMediaFromSnapshot(snapshot)))
+          await (await import("./own-job-piesa-notices.server")).textCertificateLink(jobId, "now").catch((e) => console.error("certificate link text skipped", jobId, (e as Error).message));
         // Decision 315: PIESA completed + electrical fixes needed + no fixes times yet → ONE text to the assigned electrician
         // with the job-page link to pick 3–5 times (event recorded before any send; never throws; on-site-only needs none).
         if (completed) await (await import("./fixes-times-link.server")).textFixesTimesLink(jobId, { auditId: a.external_mitti_id, completedAt: plan.modifiedAt ?? now, short: shortAnswers });
         // Decision 354: A3 Complete → prepare the electrician-priced fixes quote and send it automatically when every
         // existing check passes (same release as the office Send); otherwise it stays on Needs me with the reason. Never throws.
         if (completed) await (await import("./auto-fixes-quote-send.server")).maybeAutoSendFixesQuote(jobId, { actorId, generate: true });
+        // Part 3 Task 4b (Jo 4 Nov 2026): installers' own jobs only — their electrician has no login, so a Complete A3 at PIESA
+        // booked completes the PIESA itself, once per form; a refusal is one office row. HIV leads / in-house: pressed as before.
+        if (completed) await (await import("./own-job-piesa-complete.server")).autoCompleteOwnJobPiesa(jobId, a.external_mitti_id, actorId, plan.modifiedAt ?? null);
       }
     }
   }

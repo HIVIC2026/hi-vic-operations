@@ -10,11 +10,15 @@ import { inHouseDispatchSkip } from "./in-house-suppression.server";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import { FIXES_TIMES_LINK_EVENT, FIXES_TIMES_SMS_TYPE, fixesTimesLink, fixesTimesLinkBlocker, fixesTimesLinkKey, fixesTimesLinkText, fixesTimesNeeded } from "./fixes-times.core";
+import { ELECTRICIAN_BILLS_SKIP, electricianBillsUpgrades } from "./upgrades-billing.core";
 
 type JobRow = { id: string; source: string | null; deleted_at: string | null; properties: { address_line: string | null; suburb: string | null } | null };
 type AsgRow = { business_id: string | null; profiles: { full_name: string | null; phone: string | null } | null; businesses: { id: string; signer_mobile: string | null; phone: string | null; onboarding_notes: string | null } | null };
 
 export async function textFixesTimesLink(jobId: string, i: { auditId: string; completedAt: string | null; short: Record<string, string | null | undefined> }): Promise<string> {
+  // Part 3 Task 1 (Jo 2 Nov 2026): the electrician books the upgrades day with the owner directly (Part 2's no-login link);
+  // Home Insulation Victoria no longer asks for fixes times for its own quote. Nothing is read, recorded or sent.
+  if (electricianBillsUpgrades(jobId)) return `skipped: ${ELECTRICIAN_BILLS_SKIP}`;
   const skipped = await inHouseDispatchSkip(jobId);
   if (skipped) return skipped;
   try {

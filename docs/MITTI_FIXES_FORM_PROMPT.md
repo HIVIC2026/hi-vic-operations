@@ -6,6 +6,11 @@ PIESA form (questions 30–37 and 45). This form is only for repair work done on
 answer by its question text, so the wording below is fixed in `src/lib/fixes-day.core.ts` and a test fails if this file
 and the code drift apart.
 
+**Part 3 (Jo 3 Nov 2026, certificate-later design):** the Certificate of Electrical Safety can come later (electricians
+have up to 30 days to issue it), so Q11 asks whether they have it now; Q12–Q14 show and are Required only when Q11 = Yes.
+Q9, the work photo (Q15) and the signature (Q16) stay Required. For a template already built, the exact edits are in
+`docs/MITTI_PART3_EDIT_PROMPT.md`.
+
 ---
 
 You are helping me build a form template in **Mitti** (mitti.com.au field inspection app, web template builder). I will
@@ -20,7 +25,7 @@ substituting.
 Build it as a NEW template. The existing "A3 – Electrical safety check (PIESA)" template is not changed.
 
 **Inspection title:** Job number + Address (Q1 and Q2).
-**Settings:** turn ON **mandatory mark-as-complete**. Turn ON location/GPS for Q14.
+**Settings:** turn ON **mandatory mark-as-complete**. Turn ON location/GPS for Q15.
 **Pages:** one page per ## group below.
 **Questions marked "portal fills this in"** are pre-filled by the software on every form it creates. Keep them as normal
 editable items so the electrician can correct them. Q8 is the list the portal fills in (Mitti can't lock a text field, so it stays editable); it is not Required.
@@ -47,13 +52,14 @@ Q8: `The repair work listed on the safety assessment:` — Text — portal fills
 Q9: `Have you completed all of the repair work listed, and is the ceiling now safe for insulation?` — Yes/No — Required
 Q10: `Anything not done or changed?` — Text — Required — only show when Q9 = `No` — help text: `Say what is still outstanding or what changed, so the office can follow it up.`
 
-Q11: `Certificate of Electrical Safety number` — Text — Required — only show when Q9 = `Yes`
-Q12: `Date of certification` — Date — Required — only show when Q9 = `Yes`
-Q13: `Certificate of Electrical Safety (photo or PDF)` — Photo, PDF allowed — Required — only show when Q9 = `Yes` — help text: `A photo or the PDF of the certificate.`
-Q14: `Photo of the finished work at the switchboard / in the ceiling` — Photo, several files allowed, location on — Required — only show when Q9 = `Yes` — help text: `Show the finished work. More than one photo is fine.`
+Q11: `Do you have the Certificate of Electrical Safety now?` — Yes/No — Required — only show when Q9 = `Yes` — help text: `No? We'll text you a link to add it later.`
+Q12: `Certificate of Electrical Safety number` — Text — Required — only show when Q11 = `Yes`
+Q13: `Date of certification` — Date — Required — only show when Q11 = `Yes`
+Q14: `Certificate of Electrical Safety (photo or PDF)` — Photo, PDF allowed — Required — only show when Q11 = `Yes` — help text: `A photo or the PDF of the certificate.`
+Q15: `Photo of the finished work at the switchboard / in the ceiling` — Photo, several files allowed, location on — Required — only show when Q9 = `Yes` — help text: `Show the finished work. More than one photo is fine.`
 
 ## Group 4: Sign
-Q15: `Electrician signature` — Signature — Required
+Q16: `Electrician signature` — Signature — Required
 
 Publish, then send me the **template ID**. It's in the Mitti web address when the template is open, or under the
 template's settings. I'll connect it in the portal (Compliance → Mitti forms → A4) and check it before any electrician

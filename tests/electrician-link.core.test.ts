@@ -27,8 +27,21 @@ describe("electricianStep", () => {
   test.each([
     [{ booked: false, piesaDone: false }, "book_piesa"],
     [{ booked: true, piesaDone: false }, "do_piesa_in_mitti"],
+    // No upgrades needed (or the upgrades facts not given, as the Part 2 caller did): done once the safety check is done.
     [{ booked: true, piesaDone: true }, "done"],
     [{ booked: false, piesaDone: true }, "done"],
+    [{ booked: true, piesaDone: true, upgradesNeeded: false }, "done"],
+    // Part 3: upgrades needed on another day → enter the day → do the A4 in Mitti → add the certificate → done.
+    [{ booked: true, piesaDone: true, upgradesNeeded: true, upgradesToday: false, upgradesDaySet: false, partCRecorded: false, certificateIn: false }, "enter_upgrades_day"],
+    [{ booked: true, piesaDone: true, upgradesNeeded: true, upgradesToday: false, upgradesDaySet: true, partCRecorded: false, certificateIn: false }, "do_upgrades_in_mitti"],
+    [{ booked: true, piesaDone: true, upgradesNeeded: true, upgradesToday: false, upgradesDaySet: true, partCRecorded: true, certificateIn: false }, "add_certificate"],
+    [{ booked: true, piesaDone: true, upgradesNeeded: true, upgradesToday: false, upgradesDaySet: true, partCRecorded: true, certificateIn: true }, "done"],
+    // Same-day upgrades on the A3 (q30 = Yes): no day to enter; Part C recorded → the certificate, else finish in Mitti.
+    [{ booked: true, piesaDone: true, upgradesNeeded: true, upgradesToday: true, upgradesDaySet: false, partCRecorded: true, certificateIn: false }, "add_certificate"],
+    [{ booked: true, piesaDone: true, upgradesNeeded: true, upgradesToday: true, upgradesDaySet: false, partCRecorded: false, certificateIn: false }, "do_upgrades_in_mitti"],
+    [{ booked: true, piesaDone: true, upgradesNeeded: true, upgradesToday: true, upgradesDaySet: false, partCRecorded: true, certificateIn: true }, "done"],
+    // The safety check still comes first whatever the upgrades facts say.
+    [{ booked: true, piesaDone: false, upgradesNeeded: true, upgradesDaySet: false, partCRecorded: false, certificateIn: false }, "do_piesa_in_mitti"],
   ] as const)("%o → %s", (f, step) => expect(electricianStep(f)).toBe(step));
   test("the safety check is done once the job is past the booked stage", () => {
     expect(piesaDoneAtStage("piesa_and_install_window_pending")).toBe(false);

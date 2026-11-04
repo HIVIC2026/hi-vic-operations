@@ -6,6 +6,7 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, getStage, logEvent } from "./workflow.server";
 import { ownerFixesPickRefusal, ownerFixesStep, type OwnerFixesStep } from "./owner-fixes.core";
 import { heldWindowAction, pickableRectWindows } from "./rectification.core";
+import { UPGRADES_BILLED_BY_ELECTRICIAN, electricianBillsUpgrades } from "./upgrades-billing.core";
 
 type QuoteRow = { id: string; status: string; version: number | null; customer_total_inc_gst: number | string | null; created_at: string; quote_items: { description: string | null; line_total_inc_gst: number | string | null; sort: number | null }[] | null };
 type WindowRow = { id: string; starts_at: string; ends_at: string | null; status: string; responded_at: string | null };
@@ -17,6 +18,8 @@ export type OwnerFixesState = {
   pickedAt: string | null;
   bookedAt: string | null;
   inHouseDispatch?: "in_house" | "in_house_read_failed" | null;
+  /** Part 3 Task 1 (Jo 2 Nov 2026): no Home Insulation Victoria upgrades quote on this job — the plain line the owner sees instead. */
+  electricianBills: string | null;
 };
 
 export async function ownerFixesState(jobId: string, now = new Date()): Promise<OwnerFixesState> {
@@ -37,6 +40,7 @@ export async function ownerFixesState(jobId: string, now = new Date()): Promise<
   const inHouseDispatch = await (await import("./in-house-suppression.server")).inHouseDispatchSkip(jobId);
   return {
     inHouseDispatch,
+    electricianBills: !q && electricianBillsUpgrades(jobId) ? UPGRADES_BILLED_BY_ELECTRICIAN : null,
     step,
     quote: q ? { id: q.id, version: q.version, status: q.status, total: Number(q.customer_total_inc_gst ?? 0), lines: [...(q.quote_items ?? [])].sort((a, b) => Number(a.sort ?? 0) - Number(b.sort ?? 0)).map((l) => ({ description: String(l.description ?? ""), amount: Number(l.line_total_inc_gst ?? 0) })) } : null,
     windows: step === "pick" ? pickable.map((w) => ({ id: w.id, startsAt: w.starts_at, endsAt: w.ends_at })) : [],

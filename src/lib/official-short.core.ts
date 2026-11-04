@@ -82,8 +82,25 @@ const LIFE_SUPPORT_CONFIRM = "Is the life support record shown above still corre
 const LIFE_SUPPORT_WHEN = "Life support confirmed Yes";
 /** Decision 294 (Jo 25 Oct 2026): the PIESA asks the fact directly; consent only when life support is present. */
 export const LIFE_SUPPORT_PRESENT = "Is there life support equipment at the property?";
-/** The live A3 repair question (Yes/No, Jo 25 Oct 2026): the electrician's own PIESA result on the visit. */
-export const A3_REPAIR_NEEDED_LABEL = "Is any electrical repair work needed before insulation can be installed?";
+/** The live A3 upgrades question (Yes/No): the electrician's own PIESA result on the visit. Part 3 (Jo 3 Nov 2026): reworded
+ *  from the 25 Oct wording below, which stays an alias so every form already done reads identically. */
+export const A3_REPAIR_NEEDED_LABEL = "Are electrical upgrades needed?";
+/** The 25 Oct 2026 wording of the same question (read from old forms only). */
+export const A3_REPAIR_NEEDED_LEGACY_LABEL = "Is any electrical repair work needed before insulation can be installed?";
+/** Part 3 (Jo 3 Nov 2026): the A3 "doing it today?" question (q30). Yes → Part C (q31–q37) and the certificate (q45) are on
+ *  the same form; No → the electrician enters the upgrades day and the A4 form is made for that visit. The old q30 wording
+ *  ("completed all of the repair work…") is an alias: both land on `rectificationComplete`. */
+export const A3_UPGRADES_TODAY_LABEL = "Are you doing the electrical upgrades today?";
+export const A3_UPGRADES_TODAY_LEGACY_LABEL = "Have you completed all of the repair work listed above, and is the ceiling now safe for insulation?";
+/** Part 3 (Jo 3 Nov 2026, verbatim): on BOTH forms, right after the Part C work questions. Yes → the certificate number, date
+ *  and photo/PDF show and are Required; No → hidden, the portal records "certificate to come" and texts the link later (Task 3).
+ *  No alias: an old form without it reads as "certificate present if a file exists, else to come". */
+export const CERTIFICATE_NOW_LABEL = "Do you have the Certificate of Electrical Safety now?";
+/** Help text under that question (both forms). */
+export const CERTIFICATE_NOW_HELP = "No? We'll text you a link to add it later.";
+/** `FormField.addedByDecision` marker for the Part 3 certificate questions: asked as written on new builds, but a template
+ *  published before 3 Nov 2026 still validates without them (its old forms read as "not recorded"). */
+export const CERTIFICATE_NOW_ADDED = 20261103;
 export const LIFE_SUPPORT_NOT_RECEIVED = "No – not received";
 const LIFE_SUPPORT_PRESENT_WHEN = "Life support = Yes";
 const LIFE_SUPPORT_CONSENT_WHEN = "Consent or medical plan received";
@@ -92,7 +109,9 @@ const LIFE_SUPPORT_CONSENT_WHEN = "Consent or medical plan received";
 /** Exact Mitti wording of the official Part 7 question (decision 210; docs/MITTI_PIESA_CHATGPT_PROMPT.md addendum). */
 export const PIESA_EFFECTIVE_QUESTION = "Does the action you described effectively reduce the risk from each hazard listed?"; // retired by decision 295; read from old forms only
 /** Decision 305 (Jo 25 Oct 2026): the electrician's ONE total price for the repair work (A3 Repair work page); what it
- *  covers is ticked (decision 308). Quote-only — never part of the official PIESA; the owner's fixes quote is built from these (fixes-price.core). */
+ *  covers is ticked (decision 308). Quote-only — never part of the official PIESA. Part 3 (Jo 2–3 Nov 2026): Home
+ *  Insulation Victoria no longer quotes upgrades (upgrades-billing.core), so the price is RETIRED from the A3 — read from
+ *  old forms only (fixes-price.core still parses it), never asked. */
 export const FIXES_PRICE_LABEL = "Your total price for all the repair work, including GST";
 /** Decision 305's free-text inclusions — retired by decision 308; read from old forms only (fallback), never asked. */
 export const FIXES_INCLUDED_LABEL = "What's included in that price?";
@@ -267,8 +286,11 @@ export function applianceRows(short: Record<string, unknown>): ApplianceRow[] {
 export const SHORT_PIESA_FIELDS: FormField[] = [
   pre("jobRef", "Job Reference ID"),
   pre("address", "Address including postcode"),
-  // Decision 323: Required on every job (no condition); "Whose customer is this?" (decision 312) is deleted.
-  { id: "noPriceTalk", label: NO_PRICE_TALK_LABEL, type: "tick", required: true, source: "Home Insulation Victoria (decisions 312/323) – not part of the official form" },
+  // Decision 323: on every job (no condition); "Whose customer is this?" (decision 312) is deleted.
+  // Part 3 (Jo 4 Nov 2026): electricians now price the upgrades with the owner directly, so the tick is deleted from the
+  // form by the Part 3 Mitti prompt (step 4b). Optional here: a form with it is still read (and an unticked one still raises
+  // `noPriceTalkIssue`); a form without it validates.
+  { id: "noPriceTalk", label: NO_PRICE_TALK_LABEL, type: "tick", required: false, source: "Home Insulation Victoria (decisions 312/323; optional since Part 3) – not part of the official form" },
   { id: "inspectionDate", label: "Date of inspection", type: "date", required: true, source: "short onsite form" },
   pre("lifeSupportRecord", LIFE_SUPPORT_RECORD),
   yn("lifeSupportPresent", LIFE_SUPPORT_PRESENT),
@@ -305,7 +327,8 @@ export const SHORT_PIESA_FIELDS: FormField[] = [
   { id: "applianceAction", label: APPLIANCE_Q.action, type: "text", required: true, when: "applianceSafe = No", source: "short onsite form (decision 336) – official Part 7 action" },
   // Jo 25 Oct 2026: Yes/No so Mitti can branch on it (a pick-one could not). The official outcome (`rectificationOutcome`,
   // RECTIFICATION_OUTCOMES) is DERIVED in shortAnswersFromEntries; an old form that answered the pick-one is still read.
-  yn("rectificationNeeded", A3_REPAIR_NEEDED_LABEL),
+  // Part 3 (Jo 3 Nov 2026): "Are electrical upgrades needed?"; the 25 Oct wording is an alias so old forms read the same.
+  { ...yn("rectificationNeeded", A3_REPAIR_NEEDED_LABEL), aliases: [A3_REPAIR_NEEDED_LEGACY_LABEL] },
   // Decision 309 (Jo 25 Oct 2026: "Remove it"): repairs ALWAYS happen before installation (same visit or the A4 fixes visit),
   // so "Can the repair work be done before installation?" is no longer asked. LEGACY (portalOnly): an old form's "No" is still
   // read, mapped to the before-installation outcome and flagged for the office (deriveRectificationOutcome).
@@ -322,7 +345,9 @@ export const SHORT_PIESA_FIELDS: FormField[] = [
   // Decision 338 (Jo 25 Oct 2026): the decision-314 tick became its own question (Yes = red, No = green); Yes = the official
   // "electrician present at the start of installation" outcome, priced inside the one total below.
   { ...yn("onsiteStartNeeded", ONSITE_START_LABEL, "rectificationNeeded = Yes"), source: "Home Insulation Victoria (decision 338, replaces the decision-314 tick) – sets the official B1 outcome" },
-  { id: "fixesPriceIncGst", label: FIXES_PRICE_LABEL, type: "number", required: true, when: "rectificationNeeded = Yes", source: "Home Insulation Victoria fixes quote (decisions 305/324: asked LAST) – not part of the official form" },
+  // Part 3 (Jo 2–3 Nov 2026): HIV no longer quotes upgrades, so the price is LEGACY (portalOnly): never asked on a new
+  // build, not required of a connected template, still read from old forms (fixes-price.core).
+  { id: "fixesPriceIncGst", label: FIXES_PRICE_LABEL, type: "number", required: false, portalOnly: true, when: "rectificationNeeded = Yes", source: "LEGACY (decisions 305/324, retired by Part 3: electricians bill upgrades directly) – read from old forms only" },
   // Decision 324: the official-wording ticks + other description are no longer asked. LEGACY (portalOnly): an old form's
   // answers are still read and, when present, used as the official B2 ticks exactly as before.
   { id: "rectificationWork", label: REPAIR_TICKS_LEGACY_LABEL, type: "multichoice", required: false, portalOnly: true, choices: [...B2_OPTIONS], when: "rectificationNeeded = Yes", source: "LEGACY (retired by decision 324) – read from old forms only" },
@@ -338,11 +363,19 @@ export const SHORT_PIESA_FIELDS: FormField[] = [
   pre("b3.phone", "Electrician phone"),
   { id: "b3.declaration", label: "I declare that all information contained in and attached to this form is correct and not misleading by inclusion or omission", type: "tick", required: true, source: "DEECA PIESA form B3" },
   { id: "electricianSignature", label: "Electrician signature", type: "signature", required: true, source: "short onsite form" },
-  // Decision 298 (Jo 25 Oct 2026): repair completion is never on the PIESA visit — these three come from the A4 fixes form
-  // (fixes-day.core mergeFixesIntoPiesaSnapshot) or an old PIESA; kept here only so the stored answers still map. Not asked on A3.
-  { ...yn("rectificationComplete", "Have you completed all of the repair work listed above, and is the ceiling now safe for insulation?", "rectificationNeeded = Yes"), required: false, source: "A4 fixes form (decision 298)" },
-  { id: "coesNumber", label: "Certificate of Electrical Safety number (required for any electrical works completed):", type: "text", required: false, when: "rectificationNeeded = Yes", source: "A4 fixes form (decision 298)" },
-  { id: "certDate", label: "Date of Certification:", type: "date", required: false, when: "rectificationNeeded = Yes", source: "A4 fixes form (decision 298)" },
+  // Part 3 (Jo 3 Nov 2026): q30 "Are you doing the electrical upgrades today?" — Yes = Part C on this form (the same id the
+  // A4 fixes form writes via fixes-day.core mergeFixesIntoPiesaSnapshot); the decision-298 wording is an alias. Not Required
+  // of a connected template (the 25 Oct published A3 has no after-upgrades page); Jo adds it with docs/MITTI_PART3_EDIT_PROMPT.md.
+  // q30 is Required on the Mitti form (docs/MITTI_PART3_EDIT_PROMPT.md) but optional here: the published 25 Oct A3 has no after-upgrades page, so requiring it would fail that live template's validation.
+  { ...yn("rectificationComplete", A3_UPGRADES_TODAY_LABEL, "rectificationNeeded = Yes"), required: false, aliases: [A3_UPGRADES_TODAY_LEGACY_LABEL], source: "A3 same-day upgrades (Part 3) or the A4 fixes form (decision 298)" },
+  // Part 3 (Jo 3 Nov 2026): "Do you have the Certificate of Electrical Safety now?" — Required when Part C is being filled in
+  // (q30 = Yes). Yes → q31/q32/q45 show and are Required; No → hidden, certificate to come (piesa-evidence.core). The A4 fixes
+  // form asks the same question and the merge writes its answer here. No alias; a template from before 3 Nov 2026 validates without it.
+  { ...yn("certificateNow", CERTIFICATE_NOW_LABEL, "rectificationComplete = Yes"), addedByDecision: CERTIFICATE_NOW_ADDED, source: "Part 3 (Jo 3 Nov 2026) – A3 same-day upgrades / A4 fixes form; not part of the official form" },
+  // The certificate number (q31) and date (q32): Required only when the electrician has the certificate now (Part 3). A
+  // template from before 3 Nov 2026 validates without them (decision 298 had them off the A3).
+  { id: "coesNumber", label: "Certificate of Electrical Safety number (required for any electrical works completed):", type: "text", required: true, when: `${CERTIFICATE_NOW_LABEL} = Yes`, addedByDecision: CERTIFICATE_NOW_ADDED, source: "A3 same-day upgrades or the A4 fixes form (decision 298 / Part 3)" },
+  { id: "certDate", label: "Date of Certification:", type: "date", required: true, when: `${CERTIFICATE_NOW_LABEL} = Yes`, addedByDecision: CERTIFICATE_NOW_ADDED, source: "A3 same-day upgrades or the A4 fixes form (decision 298 / Part 3)" },
   // Decision 329: who signed the A4 fixes form and when (Melbourne date) — written into the stored answers by
   // fixes-day.core mergeFixesIntoPiesaSnapshot and used for the official Section C typed signature. Never asked on A3.
   { id: "fixesSignedBy", label: FIXES_SIGNED_BY_LABEL, type: "text", required: false, portalOnly: true, when: "rectificationNeeded = Yes", source: "A4 fixes form signature (decision 329)" },
@@ -387,20 +420,23 @@ export const SHORT_PIISA_FIELDS: FormField[] = [
 ];
 
 export const SHORT_FIELDS: Record<"piesa" | "piisa", FormField[]> = { piesa: SHORT_PIESA_FIELDS, piisa: SHORT_PIISA_FIELDS };
-for (const f of SHORT_PIESA_FIELDS) f.aliases = [...(f.aliases ?? []), ...mittiLabelAliases(f.label), ...(f.id && A3_FIELD_ALIASES[f.id] ? [A3_FIELD_ALIASES[f.id]!] : [])];
-SHORT_PIESA_FIELDS.find(f => f.id === 'lifeSupportPresent')?.aliases?.push('Does anyone living here use life support equipment?');
-SHORT_PIESA_FIELDS.find(f => f.id === 'lifeSupportConsent')?.aliases?.push('Do you have their written consent or medical plan?');
-SHORT_PIESA_FIELDS.find(f => f.id === 'lifeSupportAttachment')?.aliases?.push('Photo of every page of the consent or medical plan');
+// 4 Nov rebuild aliases. A field with no aliases keeps `aliases` undefined (Part 3's certificateNow has none).
+const addAliases = (f: FormField | undefined, extra: string[]) => { if (f && extra.length) f.aliases = [...(f.aliases ?? []), ...extra]; };
+// Jo 4 Nov: plain field labels ("Your full name", "Your REC number" …) via A3_FIELD_ALIASES, through the same helper.
+for (const f of SHORT_PIESA_FIELDS) addAliases(f, [...mittiLabelAliases(f.label), ...(f.id && A3_FIELD_ALIASES[f.id] ? [A3_FIELD_ALIASES[f.id]!] : [])]);
+addAliases(SHORT_PIESA_FIELDS.find(f => f.id === 'lifeSupportPresent'), ['Does anyone living here use life support equipment?']);
+addAliases(SHORT_PIESA_FIELDS.find(f => f.id === 'lifeSupportConsent'), ['Do you have their written consent or medical plan?']);
+addAliases(SHORT_PIESA_FIELDS.find(f => f.id === 'lifeSupportAttachment'), ['Photo of every page of the consent or medical plan']);
 
-/** A stored PIESA snapshot from the live A3 (decisions 294–338): the electrician answered the Yes/No repair question.
- *  Older PIESA forms (B1 outcome, switchboard / RCD questions) return false. Pure. */
+/** A stored PIESA snapshot from the live A3 (decisions 294–338): the electrician answered the Yes/No upgrades question, in
+ *  either wording (Part 3 or the 25 Oct one). Older PIESA forms (B1 outcome, switchboard / RCD questions) return false. Pure. */
 export function isLiveA3Snapshot(snapshot: unknown): boolean {
   if (!Array.isArray(snapshot)) return false;
-  const k = A3_REPAIR_NEEDED_LABEL.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const keys = [A3_REPAIR_NEEDED_LABEL, A3_REPAIR_NEEDED_LEGACY_LABEL].map((l) => l.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim());
   return snapshot.some((e) => {
     const x = e as { label?: unknown; value?: unknown } | null;
     // First line only: Mitti appends a question's help text after a line break.
-    return !!x && typeof x.label === "string" && canonicalMittiLabel(x.label).split("\n")[0]?.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim() === k && /^\s*(yes|no)\b/i.test(String(x.value ?? ""));
+    return !!x && typeof x.label === "string" && keys.includes(canonicalMittiLabel(x.label).split("\n")[0]!.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()) && /^\s*(yes|no)\b/i.test(String(x.value ?? ""));
   });
 }
 
@@ -441,7 +477,7 @@ export function shortAnswersFromEntries(key: "piesa" | "piisa", entries: { label
     // matches nothing, the first line decides.
     if (!cands.length) {
       const first = nrm(String(e.label ?? "").split("\n")[0] ?? "");
-      if (first && first !== k) cands = fields.filter((f) => nrm(f.label) === first || (f.aliases ?? []).some(a => nrm(a) === first));
+      if (first && first !== k) cands = fields.filter((f) => nrm(f.label) === first || (f.aliases ?? []).some((a) => nrm(a) === first));
     }
     if (!cands.length) continue;
     // Decision 336: the repeating hazard block is numbered by ROW (a new row starts when a question repeats), so "What is the
