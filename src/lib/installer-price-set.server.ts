@@ -153,6 +153,9 @@ export async function installerPriceView(jobId: string, userId: string, sharedRe
     })),
   );
   const quoteP = early(shared ? shared.quote() : loadInstallerQuote(jobId));
+  // J3 (4): the business's own PIESA rate starts with the other reads (no serial query after them); inside the job page
+  // bundle it is answered from the business facts (rate cards + lines), outside it is one request.
+  const piesaCheckP = early(jobP.then(({ data: jj }) => readPiesaRate(jj?.originating_installer_business_id)));
   const sentAtP = early(
     latestQuoteSentAt(jobId).then(
       (at) => ({ at, failed: false }),
@@ -202,7 +205,7 @@ export async function installerPriceView(jobId: string, userId: string, sharedRe
   const { OWN_CUSTOMER_SEND_ON_PRESS_ENABLED } = await import("./auto-quote-send.core");
   // Jo 4 Nov 2026: the owner's PIESA line is this business's own PIESA rate; with none set the quote can't be sent.
   // J1 (2): a read failure is NOT "not set" — the card says the check failed and holds (button "Save"), never PIESA_PRICE_NOT_SET.
-  const piesaCheck = await readPiesaRate(j.originating_installer_business_id);
+  const piesaCheck = await piesaCheckP;
   const { PIESA_PRICE_NOT_SET, PIESA_PRICE_CHECK_FAILED } = await import("./own-customer-price.core");
   return {
     canSet: true as const,

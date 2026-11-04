@@ -33,6 +33,9 @@ export const NESTED: Readonly<Record<string, readonly Nest[]>> = {
   job_assignments: [{ name: "businesses", fk: "job_assignments_business_id_fkey", cols: "in_house" }, { name: "profiles", via: "user_id", cols: "full_name" }],
   worker_job_links: [{ name: "partner_workers", fk: "worker_job_links_worker_id_fkey", cols: "full_legal_name, trade_role" }],
   partner_workers: [{ name: "businesses", fk: "partner_workers_business_id_fkey", cols: "name" }],
+  // J3 (4): the business's rate cards with their lines — the own-customer PIESA rate (`installerSafetyCheckPrice`) is
+  // answered from the business facts inside the job page bundle instead of two serial reads.
+  rate_cards: [{ name: "rate_card_items", cols: "code, unit_price_ex_gst" }],
 };
 const nestSel = (t: string) => (NESTED[t] ?? []).map((n) => `, ${n.name}${n.via ? `:${n.via}` : n.fk ? `!${n.fk}` : ""}(${n.cols})`).join("");
 
@@ -40,7 +43,7 @@ const nestSel = (t: string) => (NESTED[t] ?? []).map((n) => `, ${n.name}${n.via 
 export const JOB_FACTS_SELECT = [`*${nestSel("jobs")}`, ...JOB_FACT_TABLES.map((t) => `${t}!${t}_job_id_fkey(*${nestSel(t)})`)].join(", ");
 
 /** The caller's own business (already verified by the access check): its row, people and activations. */
-export const BUSINESS_FACT_TABLES = ["partner_workers", "business_members", "partner_activations"] as const;
+export const BUSINESS_FACT_TABLES = ["partner_workers", "business_members", "partner_activations", "rate_cards"] as const;
 export const BUSINESS_FACTS_SELECT = ["*", ...BUSINESS_FACT_TABLES.map((t) => `${t}!${t}_business_id_fkey(*${nestSel(t)})`)].join(", ");
 
 type Row = Record<string, unknown>;

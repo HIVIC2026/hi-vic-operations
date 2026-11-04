@@ -1019,6 +1019,8 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
         "hivSwitch": null,
         "locked": true,
         "mittiProduct": null,
+        "piesaPriceNote": "Your PIESA price isn't set yet. Ask the office to add it, then send.",
+        "piesaPriceSet": false,
         "productOptions": [
           "Bradford Gold R5",
           "Bradford Gold R6",

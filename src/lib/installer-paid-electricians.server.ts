@@ -37,10 +37,8 @@ export async function installerSafetyCheckBusinessesFor(ids: string[]): Promise<
   const cardIds = new Set(cards.map(c => c.id));
   const lines = ((cardLines0 ?? []) as { rate_card_id: string; code: string | null; unit_price_ex_gst: number }[]).filter(l => cardIds.has(l.rate_card_id));
   for (const b of enabled) {
-    const card = (cards ?? []).find(c => c.business_id === b.id && (lines ?? []).some(l => l.rate_card_id === c.id));
-    const line = card ? (lines ?? []).find(l => l.rate_card_id === card.id) : null;
-    const ex = Number(line?.unit_price_ex_gst);
-    out.set(b.id, { id: b.id, name: b.name, in_house: b.in_house === true, pays_own_electricians: b.pays_own_electricians === true, piesaIncGst: Number.isFinite(ex) && ex > 0 ? Math.round(ex * 1.1 * 100) / 100 : null });
+    const own = cards.filter((c) => c.business_id === b.id).map((c) => ({ id: c.id, version: Number(c.version), effective_from: ymd(c.effective_from), piesaLines: lines.filter((l) => l.rate_card_id === c.id) }));
+    out.set(b.id, { id: b.id, name: b.name, in_house: b.in_house === true, pays_own_electricians: b.pays_own_electricians === true, piesaIncGst: piesaIncGstFromCards(own, today) });
   }
   return out;
 }
@@ -49,9 +47,26 @@ export async function ownElectricianBusinessesFor(ids: string[]): Promise<Map<st
   return new Map([...(await installerSafetyCheckBusinessesFor(ids))].filter(([, b]) => paysOwnElectricians(b)));
 }
 
+/** The PIESA line (inc GST) of the newest active card effective today that has one — the one rule both readers use.
+ *  `piesaLines` are the card's PIESA lines only (the batched read filters them in the database, the single read here). */
+function piesaIncGstFromCards(cards: { id: string; version: number; effective_from: string; piesaLines: { unit_price_ex_gst: number }[] }[], today: string): number | null {
+  const card = cards.filter((c) => !c.effective_from || c.effective_from <= today).sort((a, b) => (b.version || 0) - (a.version || 0)).find((c) => c.piesaLines.length > 0);
+  const ex = Number(card?.piesaLines[0]?.unit_price_ex_gst);
+  return Number.isFinite(ex) && ex > 0 ? Math.round(ex * 1.1 * 100) / 100 : null;
+}
+const isPiesa = (l: { code: string | null }) => String(l.code ?? "").toLowerCase() === "piesa";
+/** A date column as YYYY-MM-DD (PostgREST gives the string; a driver may give a Date). */
+const ymd = (v: unknown): string => (v instanceof Date ? v.toISOString().slice(0, 10) : v == null ? "" : String(v).slice(0, 10));
+
+/** ONE business's own PIESA rate (inc GST), or null when it has none. J3 (4): one eq-only read of its active cards with
+ *  their lines — inside the installer job page bundle it is answered from the business facts (no database read); outside
+ *  it is one request instead of two. The same card rule as `installerSafetyCheckBusinessesFor`; a read error throws. */
 export async function installerSafetyCheckPrice(businessId: string | null | undefined): Promise<number | null> {
   if (!businessId) return null;
-  return (await installerSafetyCheckBusinessesFor([businessId])).get(businessId)?.piesaIncGst ?? null;
+  const { data, error } = await (admin as unknown as SupabaseClient).from("rate_cards").select("id, business_id, version, effective_from, rate_card_items(code, unit_price_ex_gst)").eq("business_id", businessId).eq("is_active", true);
+  if (error) throw new Error("Could not read the in-house PIESA rate cards.");
+  const cards = ((data ?? []) as { id: string; version: number; effective_from: string; rate_card_items: { code: string | null; unit_price_ex_gst: number }[] | null }[]).map((c) => ({ id: c.id, version: Number(c.version), effective_from: ymd(c.effective_from), piesaLines: (c.rate_card_items ?? []).filter(isPiesa) }));
+  return piesaIncGstFromCards(cards, melbourneToday());
 }
 
 /** Compatibility alias for payment readers only; held readers must use in-house.core. */

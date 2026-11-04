@@ -56,9 +56,26 @@ function rateCardItemsJoin() {
   };
   return b;
 }
+/** J3 (4): `rate_cards … rate_card_items(code, unit_price_ex_gst)` (installerSafetyCheckPrice): the one embedded read the
+ *  single-business PIESA rate makes — answered with a real join on PGlite. */
+function rateCardsEmbed() {
+  const where: string[] = []; const vals: unknown[] = [];
+  const b = {
+    eq(c: string, v: unknown) { where.push(`rc."${c}" = $${vals.push(v)}`); return b; },
+    then(res: (v: unknown) => unknown, rej?: (e: unknown) => unknown) {
+      if (rateReadFails) return Promise.resolve(res({ data: null, error: { message: "rate_cards read failed (test)" } })).then(undefined, rej);
+      return db.query(`select rc.id, rc.business_id, rc.version, rc.effective_from, coalesce((select json_agg(json_build_object('code', i.code, 'unit_price_ex_gst', i.unit_price_ex_gst)) from rate_card_items i where i.rate_card_id = rc.id), '[]'::json) as rate_card_items from rate_cards rc${where.length ? " where " + where.join(" and ") : ""}`, vals)
+        .then((r) => res({ data: r.rows, error: null }), (e) => res({ data: null, error: { message: (e as Error).message } })).then(undefined, rej);
+    },
+  };
+  return b;
+}
 const admin = {
   ...shim,
   from(t: string) {
+    if (t === "rate_cards") {
+      return { select: (c: string) => (c.includes("rate_card_items(") ? rateCardsEmbed() : (shim.from(t) as { select: (c: string) => unknown }).select(c)) };
+    }
     if (t === "rate_card_items") {
       return { select: (c: string) => (c.includes("rate_cards!inner") ? rateCardItemsJoin() : (shim.from(t) as { select: (c: string) => unknown }).select(c)) };
     }

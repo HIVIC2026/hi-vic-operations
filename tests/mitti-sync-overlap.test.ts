@@ -82,7 +82,8 @@ const rels: Rels = {
   assessments: { jobs: { table: "jobs", fk: "job_id", on: "base" } },
   job_assignments: { businesses: { table: "businesses", fk: "business_id", on: "base" }, profiles: { table: "profiles", fk: "user_id", on: "base" } },
   business_members: { businesses: { table: "businesses", fk: "business_id", on: "base" } }, // Task 7: Add a job reads the sign-in's trade context (business embedded)
-  rate_card_items: { rate_cards: { table: "rate_cards", fk: "rate_card_id", on: "base" } }, // the installer's PIESA rate
+  rate_card_items: { rate_cards: { table: "rate_cards", fk: "rate_card_id", on: "base" } },
+  rate_cards: { rate_card_items: { table: "rate_card_items", fk: "rate_card_id", on: "rel" } }, // J3 (4): the single-business PIESA rate read embeds the card lines // the installer's PIESA rate
 };
 const q = async <T,>(sql: string, p: unknown[] = []) => (await db.query<T>(sql, p)).rows;
 const shim = embedShim(db, rels);

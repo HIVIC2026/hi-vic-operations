@@ -209,13 +209,20 @@ test("Rapid's saved 3 Nov electrical card feeds a $275 owner quote and $275 Rapi
   const card = "73d15d0d-11e0-448d-bcd1-dc045f49dda1";
   const f = reads({
     businesses: [{ id: rapid, name: "RAPID INSULATION", in_house: true }],
-    rate_cards: [{ id: card, business_id: rapid, name: "In-house PIESA", kind: "electrical", version: 1, is_active: true, effective_from: "2026-11-03" }],
+    // J3 (4): the single-business read is ONE eq-only `rate_cards` read with its lines embedded (answered from the job page
+    // bundle's business facts); the batched read keeps the two filtered reads.
+    rate_cards: [{ id: card, business_id: rapid, name: "In-house PIESA", kind: "electrical", version: 1, is_active: true, effective_from: "2026-11-03", rate_card_items: [{ code: "PIESA", unit_price_ex_gst: 250 }, { code: "COES", unit_price_ex_gst: 90 }] }],
     rate_card_items: [{ rate_card_id: card, code: "PIESA", unit_price_ex_gst: 250 }],
     quotes: [],
   });
   const api = priceModule(f, "2026-11-03");
   const fee = await api.installerSafetyCheckPrice(rapid);
   expect(fee).toBe(275);
+  expect(f.calls.map((c) => c.table)).toEqual(["rate_cards"]);
+  expect(f.calls[0]?.filters).toEqual([["select", "id, business_id, version, effective_from, rate_card_items(code, unit_price_ex_gst)"], ["eq", "business_id", rapid], ["eq", "is_active", true]]);
+  // a card dated after today, or one with no PIESA line, is not the rate
+  expect(await priceModule(reads({ rate_cards: [{ id: "x", business_id: rapid, version: 2, effective_from: "2026-11-04", rate_card_items: [{ code: "PIESA", unit_price_ex_gst: 400 }] }, { id: "y", business_id: rapid, version: 1, effective_from: "2026-11-01", rate_card_items: [{ code: "COES", unit_price_ex_gst: 90 }] }] }), "2026-11-03").installerSafetyCheckPrice(rapid)).toBeNull();
+  await expect(priceModule(reads({}, "rate_cards")).installerSafetyCheckPrice(rapid)).rejects.toThrow("Could not read the in-house PIESA rate cards.");
   const quote = buildInstallerQuoteDraft({ price: { ok: true, issues: [], price: { totalIncGst: 3000, included: ["Insulation"], otherDescription: "", agreedWithOwner: false } }, measuredM2: 100, wholeVeec: { veecs: 0, raw: 0 }, piesaIncGst: fee, apFeeIncGst: 349, caps: { metropolitan: true, minCopay: 200 } });
   const ownerFee = quote.lines.find(l => l.code === "PIESA")?.line_total_inc_gst;
   expect(ownerFee).toBe(275);
