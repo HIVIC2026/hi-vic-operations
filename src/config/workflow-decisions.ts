@@ -346,6 +346,15 @@ export const WORKFLOW_DECISIONS = {
     sweep: "15-minute tick: dueGoSlot = the latest passed slot not yet recorded for that exact install start; a slot run always writes ONE pre_start_checks row (trigger = slot key), other triggers record only when the result changed",
     oldRows: "a check recorded by the old 12pm 'timer' trigger is kept as history; the 2pm slot still runs and writes its own row once",
     replaces: "the 12pm day-before check (PRESTART_HOUR 12)",
+    // Part 9 Task 7: the email after each slot run (go-email.core / go-email.server).
+    email: {
+      to: "the installer business office email, by email only (no text to the Lead Installer); info@homeinsulationvictoria.com.au copies every DON'T START, never a GO",
+      go: "{HV}: GO for tomorrow|today {8:00am} — All set for {address}, {day time}. Lead Installer: {name}. + Open the job",
+      dontStart: "{HV}: DON'T START — {n} thing(s) missing — Don't start the install at {address} on {day time} until these are fixed: + the check's lines + We'll check again at 6:30am. (2pm run only) + Open the job",
+      key: "go-email:v1:{job}:{start}:{slot} (+ :office for the info@ copy); one send per recipient",
+      wording: "DRAFT behind GO_EMAIL_APPROVED=false — real offices get nothing and nothing is recorded (awaiting approval); TEST job / TEST partner → test-send",
+      senders: "installer office: sendOfficeEmail (master switch, trade pause, Idempotency-Key = key); info@: sendInHouseOfficeAlert; go_email_sent claimed only after a confirmed send, holds recorded once as go_email_held",
+    },
   },
 } as const;
 

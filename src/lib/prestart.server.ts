@@ -135,6 +135,13 @@ export async function runPrestart(jobId: string, trigger: string, now = new Date
   await logEvent(jobId, null, passed ? "prestart_cleared" : "prestart_failed", passed ? "Pre-start check passed — cleared to start" : `Pre-start check failed: ${failures.join(" ")} Installation form and evidence locked. Needs Home Insulation Victoria`, { scheduled_start: b.scheduled_start, failures, trigger }, { internal: true });
   // Decision 326: a failed check is an office item only (the event above → Needs me). There is no approved owner or
   // installer "pre-start check failed" wording, so nothing is queued or sent (the old outbox rows could never deliver).
+  // Part 9 Task 7: a GO slot run tells the installer office by email (GO / DON'T START; info@ copy on DON'T START only;
+  // DRAFT behind GO_EMAIL_APPROVED, TEST → test-send). The check is already recorded; a send problem is logged, never thrown.
+  if (slot) {
+    await import("./go-email.server").then((m) => m.sendGoEmail(jobId, slot, { passed, failures, start: b.scheduled_start }))
+      .then((r) => { if (!r.startsWith("sent") && r !== "awaiting approval") console.warn("GO email not sent", jobId, slot, r); })
+      .catch((e) => console.error("GO email failed", jobId, slot, (e as Error).message));
+  }
   return { passed, failures, changed: true, slot };
 }
 
