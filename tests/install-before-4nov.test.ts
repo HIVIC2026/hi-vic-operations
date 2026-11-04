@@ -1,0 +1,11 @@
+import {expect,test} from 'bun:test';
+import {installBeforePlan,installScopeChanges} from '../src/lib/install-before.core';
+const area={name:'Main house',beforeVideo:true,depthPhoto:true,present:true,rejected:false};
+test('accepted complete BEFORE evidence never asks again',()=>expect(installBeforePlan(true,[area]).needed).toEqual([]));
+test('missing video requires only that area',()=>expect(installBeforePlan(true,[area,{...area,name:'Rear extension',beforeVideo:false}]).needed.map(a=>a.name)).toEqual(['Rear extension']));
+test('old insulation without ruler requires recollection',()=>expect(installBeforePlan(true,[{...area,depthPhoto:false}]).needed[0]?.reasons).toContain('Old-insulation ruler photo missing'));
+test('no old insulation never needs an old ruler',()=>expect(installBeforePlan(true,[{...area,present:false,depthPhoto:false}]).needed).toEqual([]));
+test('office rejection requires that area regardless of presence',()=>expect(installBeforePlan(true,[{...area,rejected:true}]).needed[0]?.reasons).toContain('BEFORE evidence rejected by office'));
+test('no Mitti Ready Check requires every area',()=>expect(installBeforePlan(false,[area,{...area,name:'Rear extension'}]).needed.length).toBe(2));
+test('prefilled order is stable and names explicit',()=>expect(installBeforePlan(true,[area,{...area,name:'Rear extension'}]).areaOrder).toBe('1. Main house · 2. Rear extension'));
+test('added area is scope review only, never pricing',()=>expect(installScopeChanges(['Main house'],[' main HOUSE ','Rear extension'])).toEqual(['Rear extension']));
