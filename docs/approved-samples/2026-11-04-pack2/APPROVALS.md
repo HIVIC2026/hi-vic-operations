@@ -1,0 +1,11 @@
+- Batch 1 (01–04): APPROVED by Jo 19:25.
+- Batch 2 (05–09): APPROVED to go live as is; design tidy-up after go-live (Jo 19:35). RULING (Jo): REMOVE the old 'My electricians' page (/field/business/electricians, main Part 2b) — Team is the only way; retire its route/nav link, keep data.
+- Batch 3 (10, 11, 12, 14): APPROVED 19:50 with 11 REDRAFT (Jo): top line "Keep these current. If one runs out, you can't take new jobs, bookings or installs until the new certificate is uploaded and we've checked it. We'll remind you 30 days and 7 days before anything expires."; rows "Public liability — Checked · current until {date}" / "Workers comp — Checked · current until {date}"; states "Waiting for us to check" / "Expired {date} — upload the new one"; button "Upload a new certificate". → code change (field/business/insurance page) in G6/G7.
+- Batch 4 (18,19,20,25,27): APPROVED with fixes (price-card electrician row; Ready Check 'Not sure yet' + office email).
+- Batch 5: approved (controller) with G7 tidy-ups.
+- Batch 6: approved; link unchanged; G7 name fix on 53.
+- Batch 7: REJECTED → rental taps redraft approved (G7).
+- Batch 8: approved with upgrades line B + PIESA label (G7).
+- Batch 9: approved + 30-day tick reworded + Money own-customer line (G7).
+- Batch 10: approved; hide Before-photos line (G8).
+- Batch 11 (28, 84): approved.
