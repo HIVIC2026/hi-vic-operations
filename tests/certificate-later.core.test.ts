@@ -103,10 +103,10 @@ describe("the link's certificate step", () => {
 });
 
 describe("held wording", () => {
-  test("the certificate link text is held (not approved) and registered as a partner text with quiet hours", () => {
+  test("the certificate link text is approved (Jo, 4 Nov 2026) and registered as a partner text with quiet hours", () => {
     // Final fix wave item 2: ONE gate — the SMS type flag (the documentation-only constant is gone).
     expect("CERTIFICATE_ADD_LINK_TEXT_APPROVED" in laterCore).toBe(false);
-    expect(SMS_MESSAGE_TYPES.electrician_certificate_link).toMatchObject({ audience: "partner", wordingApproved: false, quietHours: true });
+    expect(SMS_MESSAGE_TYPES.electrician_certificate_link).toMatchObject({ audience: "partner", wordingApproved: true, quietHours: true });
     expect(SMS_FRESHNESS.electrician_certificate_link).toEqual({ kind: "window" });
     const t = certificateAddLinkText({ first: "Sam", address: "1 Example St, Clayton 3168", url: "https://portal.test/e/abc" });
     expect(t).toContain("Sam");
@@ -114,8 +114,8 @@ describe("held wording", () => {
     expect(t).toContain("1 Example St, Clayton 3168");
     expect(t).toContain("https://portal.test/e/abc");
   });
-  test("the owner's 'You're booked' for the upgrades day is held and says electrical upgrades", () => {
-    expect(OWNER_UPGRADES_BOOKED_APPROVED).toBe(false);
+  test("the owner's 'You're booked' for the upgrades day is approved (Jo, 4 Nov 2026) and says electrical upgrades", () => {
+    expect(OWNER_UPGRADES_BOOKED_APPROVED).toBe(true);
     const n = bookingNotice({ kind: "upgrades", start: "2026-11-10T22:00:00Z", who: { name: "Sparky Sam", phone: "0411111111" }, installer: "Reinsulate", phone: "0300000000" });
     expect(n.subject).toContain("electrical upgrades");
     expect(n.text).toContain("electrical upgrades");

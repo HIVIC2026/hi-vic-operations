@@ -71,28 +71,28 @@ describe("notifyOwnerBooked", () => {
 
 // Part 3 Task 3 (controller ruling, fix round 1): the electrical upgrades day is entered on the electrician's link on EVERY job,
 // so the owner's "You're booked" for the upgrades goes on every channel — HIV leads included — with the installer's office phone
-// when there is an installer, else the HIV office line. The wording is held (APPROVED=false): the attempt is RECORDED, not dropped.
+// when there is an installer, else the HIV office line. Jo approved the wording on 4 Nov 2026 (APPROVED=true): the attempt is
+// recorded once, sent, and the intent row becomes 'delivered' like the other booking notices.
 describe("notifyOwnerBooked — electrical upgrades day (kind 'upgrades')", () => {
-  const pending = async (job: string) => (await db.query<{ details: { kind: string } }>("select details from workflow_events where job_id=$1 and event_type='in_house_booked_notice_pending' and details->>'kind'='upgrades'", [job])).rows;
-  test("HIV lead: one owner notice recorded (held wording), nothing sent", async () => {
-    expect(await notifyOwnerBooked(id(12), "upgrades", startIso, who, beforeStart)).toBe("held: wording not approved");
+  const pending = async (job: string) => (await db.query<{ details: { kind: string } }>("select details from workflow_events where job_id=$1 and event_type='in_house_booked_notice_delivered' and details->>'kind'='upgrades'", [job])).rows;
+  test("HIV lead: one owner notice recorded and sent", async () => {
+    const before = { e: emails.length, t: texts.length };
+    expect(await notifyOwnerBooked(id(12), "upgrades", startIso, who, beforeStart)).toBe("sent; sent");
     expect(await pending(id(12))).toHaveLength(1);
-    expect(await notifyOwnerBooked(id(12), "upgrades", startIso, who, beforeStart)).toBe("held: wording not approved");
-    expect(await pending(id(12))).toHaveLength(1); // recorded once
-    expect(emails).toHaveLength(1); expect(texts).toHaveLength(1); // unchanged from the piesa tests above
+    expect(emails.length).toBe(before.e + 1); expect(texts.length).toBe(before.t + 1);
   });
   test("own job: the same one notice", async () => {
-    expect(await notifyOwnerBooked(id(11), "upgrades", startIso, who, beforeStart)).toBe("held: wording not approved");
+    expect(await notifyOwnerBooked(id(11), "upgrades", startIso, who, beforeStart)).toBe("sent; sent");
     expect(await pending(id(11))).toHaveLength(1);
   });
   test("in-house job: unchanged (its own path), the same one notice", async () => {
-    expect(await notifyOwnerBooked(id(13), "upgrades", startIso, who, beforeStart)).toBe("held: wording not approved");
+    expect(await notifyOwnerBooked(id(13), "upgrades", startIso, who, beforeStart)).toBe("sent; sent");
     expect(await pending(id(13))).toHaveLength(1);
     // Its safety check notice still goes as before.
     expect(await notifyOwnerBooked(id(13), "piesa", startIso, who, beforeStart)).toBe("sent; sent");
   });
-  test("HIV lead with no installer yet: still recorded (HIV office line stands in for the installer phone)", async () => {
-    expect(await notifyOwnerBooked(id(14), "upgrades", startIso, who, beforeStart)).toBe("held: wording not approved");
+  test("HIV lead with no installer yet: still sent (HIV office line stands in for the installer phone)", async () => {
+    expect(await notifyOwnerBooked(id(14), "upgrades", startIso, who, beforeStart)).toBe("sent; sent");
     expect(await pending(id(14))).toHaveLength(1);
     // Any other kind on that job stays held with nothing recorded (no installer, not own, not in-house).
     expect(await notifyOwnerBooked(id(14), "piesa", startIso, who, beforeStart)).toBe("held");
