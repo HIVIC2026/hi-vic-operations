@@ -1,12 +1,12 @@
 // ESC pre-install AP task + day-before pre-start check (Operating Model v2, step 10). Pure rules only.
-import { EARLIEST_MS, LEAD_MS, registryUpdateTimingReasons, sendTimingBlocker } from "./esc.core";
+import { EARLIEST_MS, LEAD_MS, PIISA_FROM_PIESA_DAYS, registryUpdateTimingReasons, sendTimingBlocker } from "./esc.core";
 import { melbourneAt, melbourneYmd } from "./piesa-windows.core";
 import { COLLECTION_NOTICE_BLOCK_MESSAGE } from "./esc-collection-notice.core";
 import { whiteCardBlocker, type WhiteCardState } from "./worker-compliance.core";
 
 export const ESC_URGENT_MS = 2 * 24 * 3600_000;
 export const PRESTART_HOUR = 12; // 12pm Melbourne, the day before the install
-export const PIISA_FROM_PIESA_DAYS = 30;
+export { PIISA_FROM_PIESA_DAYS }; // one constant (esc.core, Part 9 Task 4); re-exported for existing readers
 
 const fmt = (iso: string) => new Date(iso).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 function addDays(ymd: string, n: number) { const d = new Date(`${ymd}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }

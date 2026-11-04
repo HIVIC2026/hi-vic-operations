@@ -343,3 +343,27 @@ export function submissionPatch(p: { reference: string; sentAt: string; method: 
   if (new Date(p.sentAt).getTime() > new Date(nowIso).getTime() + 60_000) throw new Error("Submission time cannot be in the future.");
   return { status: "sent" as const, sent_at: p.sentAt, submission_reference: p.reference.trim(), submission_method: p.method, submitted_by: p.actorId };
 }
+
+// ── Part 9 Task 4 (4 Nov 2026): PIISA timing — Activity Guide v1.2 §3.3. The A5 before-work declaration (Q36 signature)
+// IS the PIISA: it must be signed at least 24h after the ESC notice was sent and within 30 days of the PIESA (Melbourne
+// dates). ONE rule, read at Installation complete (install-evidence.core installCompletionDecision); prestart.core reads
+// the same day count for the day-before check. Missing or unreadable facts block, never clear.
+export const PIISA_FROM_PIESA_DAYS = 30;
+const MELB_YMD = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" });
+const ymdPlusDays = (ymd: string, n: number) => { const d = new Date(`${ymd}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+export function piisaTimingBlockers(i: { piisaSignedAt: string | null; noticeSentAt: string | null; piesaCompletedAt: string | null }): string[] {
+  const b: string[] = [];
+  const sentT = i.noticeSentAt ? Date.parse(i.noticeSentAt) : NaN;
+  const signedT = i.piisaSignedAt ? Date.parse(i.piisaSignedAt) : NaN;
+  // A date-only PIESA completion ("2026-10-01") is that Melbourne day; a full timestamp is read as its Melbourne day.
+  const piesaYmd = !i.piesaCompletedAt ? null
+    : /^\d{4}-\d{2}-\d{2}$/.test(i.piesaCompletedAt.trim()) ? i.piesaCompletedAt.trim()
+    : Number.isFinite(Date.parse(i.piesaCompletedAt)) ? MELB_YMD.format(new Date(i.piesaCompletedAt)) : null;
+  if (!Number.isFinite(sentT)) b.push("No ESC notice recorded as sent");
+  if (!piesaYmd) b.push("PIESA completion date missing");
+  if (!Number.isFinite(signedT)) b.push("PIISA signature time missing");
+  if (!Number.isFinite(signedT)) return b;
+  if (Number.isFinite(sentT) && signedT < sentT + LEAD_MS) b.push(`PIISA signed less than 24 hours after the ESC notice was sent (sent ${melbDateTime(i.noticeSentAt!)}).`);
+  if (piesaYmd && MELB_YMD.format(new Date(signedT)) > ymdPlusDays(piesaYmd, PIISA_FROM_PIESA_DAYS)) b.push(`PIISA signed more than 30 days after the PIESA (${piesaYmd}).`);
+  return b;
+}
