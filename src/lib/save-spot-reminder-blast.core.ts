@@ -16,9 +16,10 @@ export const phoneKey = (raw: string | null | undefined) => toAuE164(raw)?.repla
 
 export function blastMessage(firstName: string, total: number, rebate: number, link: string, existingInsulation = false) {
   const money = (n: number) => Math.round(n).toLocaleString("en-AU");
-  const price = existingInsulation ? `$${money(total)} (plus removal if needed)` : `$${money(total)}`;
-  // Decision 388: spot-only (no "close"/"filling fast" timing). Held (`save_spot_reminder` wordingApproved=false) until Jo approves.
-  return `Home Insulation Victoria: Hi ${firstName}, your ceiling insulation estimate is ${price}, with $${money(rebate)} off thanks to the rebate. Spots are released in the order they were saved. Save yours, free and no obligation: ${link}. Reply STOP to opt out.`;
+  // Decision 388: spot-only (no "close"/"filling fast" timing). Jo 5 Nov 2026 09:50 (verbatim): the text stands on its own —
+  // an owner who never saw the estimate email (Gmail Spam) must still understand it.
+  const removal = existingInsulation ? " (plus removal if needed)" : "";
+  return `Home Insulation Victoria: Hi ${firstName}, thanks for asking about ceiling insulation on our website. Your estimate is $${money(total)} with $${money(rebate)} off from the rebate${removal}. Save your spot here — free, no obligation: ${link}. Can't find our email? Check Spam. Reply STOP to opt out.`;
 }
 
 /** Use only an URL literally present in the offer, matched to its still-active token. */

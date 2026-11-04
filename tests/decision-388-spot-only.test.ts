@@ -85,7 +85,7 @@ describe("pre-release emails and texts are spot-only", () => {
     }
     const sms = renderSpotSavedSms(i);
     expect(preReleaseViolationsAllowing(sms, [SPOT_INSTALLER_CALLS])).toEqual([]); // decision 20
-    expect(sms).toContain(SPOT_ORDER);
+    expect(sms).toContain("spots are released in order"); // Jo 5 Nov 2026 wording (SPOT_ORDER stays in the email)
   });
   test("O66–O68 estimate reminders (held)", () => {
     for (const step of ESTIMATE_FOLLOWUP_STEPS) {
