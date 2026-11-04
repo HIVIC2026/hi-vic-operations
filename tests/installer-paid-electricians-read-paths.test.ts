@@ -116,7 +116,7 @@ test("quote builder persists the exact missing-rate hold on an existing draft", 
   const updates: unknown[] = [];
   const admin = { from: () => ({ select: () => ({ eq: () => ({ eq: () => ({ order: () => ({ limit: () => ({ maybeSingle: async () => ({ data: null }) }) }) }) }) }), update: (patch: unknown) => { updates.push(patch); return { eq: () => ({ eq: async () => ({ error: null }) }) }; } }) };
   const exports: any = {};
-  new Function("exports", "require", "draft", "mittiProduct", "mittiElectrician", "admin", "jobId", "actorId", "auditId", "logEvent", "open", "INSTALLER_QUOTE_CODE", "IN_HOUSE_PIESA_HOLD_REASON", code)(exports, () => { throw new Error("Unexpected import"); }, draft, null, { ready: false, reasons: [reason], needsProfile: false, notOnboarded: null }, admin, "j", null, "audit", async () => {}, [{ id: "q", status: "draft", option_code: "INSTALLER_A1" }], "INSTALLER_A1", reason);
+  new Function("exports", "require", "draft", "mittiProduct", "mittiElectrician", "admin", "jobId", "actorId", "auditId", "logEvent", "open", "INSTALLER_QUOTE_CODE", "IN_HOUSE_PIESA_HOLD_REASON", "piesaReadFailed", code)(exports, () => { throw new Error("Unexpected import"); }, draft, null, { ready: false, reasons: [reason], needsProfile: false, notOnboarded: null }, admin, "j", null, "audit", async () => {}, [{ id: "q", status: "draft", option_code: "INSTALLER_A1" }], "INSTALLER_A1", reason, false);
   expect(await exports.run()).toEqual(draft);
   expect(updates).toEqual([{ release_state: "held", release_hold_reason: reason }]);
 });

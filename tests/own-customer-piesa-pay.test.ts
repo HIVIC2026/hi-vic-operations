@@ -90,9 +90,9 @@ describe("source pins: own-customer PIESA pay = the business's rate card line (t
     const standardFn = om.slice(om.indexOf("async function standardOwnerPiesa"), om.indexOf("async function acceptedPiesaOfferRates"));
     expect(om.match(/piesa_assessment_inc_gst/g)?.length).toBe(standardFn.match(/piesa_assessment_inc_gst/g)?.length);
     expect(om).toContain("Home Insulation Victoria leads only (own customers use their installer's rate)");
-    expect(om).toContain("paidToInstaller ? (paidToInstaller.piesaIncGst ?? 0) / (1 + gstRate)"); // J1 (4): no rate = $0 row, never a failed list
+    expect(om).toContain("paidToInstaller ? (paidToInstaller.piesaIncGst == null ? null : paidToInstaller.piesaIncGst / (1 + gstRate))"); // J3 (3): a held rate is unknown on the margin (missing line), never $0
     expect(om).toContain("if (paidToInstaller) for (const v of safetyVisits)");
-    expect(om).toContain("{ held: [PIESA_RATE_NOT_SET_ROW] }");
+    expect(om).toContain("[PIESA_RATE_NOT_SET_ROW]");
     expect(read("src/lib/trade-view.server.ts")).toContain("[PIESA_RATE_NOT_SET_ROW]");
     const reader = read("src/lib/installer-paid-electricians.server.ts");
     expect(reader).toContain('.ilike("code", "piesa")');
