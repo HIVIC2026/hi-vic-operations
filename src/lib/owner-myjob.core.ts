@@ -18,9 +18,13 @@ export function currentOwnerAction(facts: Record<Exclude<OwnerScreen,'home'|'don
 /** Part 4 Task 14 (Jo 2 Nov 2026): the old fixes and pick-a-day screens open ONLY for a job still mid-way through that step
  *  (its current action); any other old link falls through to the job's current single-action screen. */
 const OLD_STEP_SCREENS: readonly OwnerScreen[] = ['fixes', 'book'];
-export function resolveOwnerScreen(screen: OwnerScreen | undefined, facts: { currentAction?: Exclude<OwnerScreen, 'home' | 'done'> | null; clearStepsUnsigned?: boolean }): Exclude<OwnerScreen, 'home'> | 'all_set' {
+export function resolveOwnerScreen(screen: OwnerScreen | undefined, facts: { currentAction?: Exclude<OwnerScreen, 'home' | 'done'> | null; clearStepsUnsigned?: boolean; piesaConfirm?: boolean }): Exclude<OwnerScreen, 'home'> | 'all_set' {
   // Old links to the pay / PIESA screens land on the one confirm-and-pay page while a step there is still unsigned.
   if ((screen === 'pay' || screen === 'piesa') && facts.currentAction === 'clear' && facts.clearStepsUnsigned === true) return 'clear';
+  // G8 (4), LOOKS WRONG (8): ?screen=piesa before there is a safety check to confirm is blank → the job's current screen.
+  if (screen === 'piesa' && facts.piesaConfirm === false && facts.currentAction !== 'piesa') return facts.currentAction ?? 'all_set';
+  // G8 (4), LOOKS WRONG (13): an old "It's your turn" link (?screen=turn) while the quick taps are the live step → the taps.
+  if (screen === 'turn' && facts.currentAction === 'taps') return 'taps';
   if (screen && OLD_STEP_SCREENS.includes(screen) && facts.currentAction !== screen) return facts.currentAction ?? 'all_set';
   if (screen && screen !== 'home') return screen;
   return facts.currentAction ?? 'all_set';
@@ -171,4 +175,34 @@ export function parseLifeSupportPlanPath(jobId: string, path: unknown): string |
   if (typeof path !== "string") return null;
   const m = path.match(new RegExp(`^(${UUID_RE})/owner-life-support/(${UUID_RE})\\.(pdf|jpg|png|heic|heif|webp)$`));
   return m && m[1] === jobId ? m[2]! : null;
+}
+
+// ---- G8 (4), Jo 4 Nov 2026 ("show the next visit"): the booked visit on the all-set screen -------------------------------
+/** "Tue 10 Nov, 10:00am" in Melbourne time. */
+export function visitWhen(startsAt: string): string {
+  const p: Record<string, string> = {};
+  for (const x of new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit", hourCycle: "h23" }).formatToParts(new Date(startsAt))) p[x.type] = x.value;
+  const h = Number(p["hour"]) % 24;
+  return `${p["weekday"]} ${p["day"]} ${p["month"]}, ${h % 12 === 0 ? 12 : h % 12}:${p["minute"]}${h < 12 ? "am" : "pm"}`;
+}
+/** DRAFT wording (listed on JO-APPROVAL-LIST): the visit's name, when, who is coming, and the one note for the install. */
+export const NEXT_VISIT_WORDS = {
+  ready_check: "Your Ready Check",
+  assessment: "Your electrical safety check (PIESA)",
+  rectification: "Your electrical upgrades",
+  installation: "Your insulation install",
+  installNote: "Someone 18 or over needs to be home.",
+} as const;
+export type NextVisitCard = { title: string; line: string; note: string | null };
+/** The next booked visit, e.g. "Your electrical safety check (PIESA): Tue 10 Nov, 10:00am — Will from Rapid Insulation" /
+ *  "Your insulation install: Mon 9 Nov, 8:00am — Rapid Insulation" (+ the 18-or-over note). A visit kind this page doesn't
+ *  name, or no day, = null. The person is named on the electrical visits only (the business runs the install day). */
+export function nextVisitCard(v: { kind: string; startsAt: string | null; person: string | null; company: string | null }): NextVisitCard | null {
+  const title = (NEXT_VISIT_WORDS as Record<string, string>)[v.kind];
+  if (!title || !v.startsAt || !Number.isFinite(Date.parse(v.startsAt))) return null;
+  const electrical = v.kind === "assessment" || v.kind === "rectification";
+  const person = (v.person ?? "").trim();
+  const company = (v.company ?? "").trim();
+  const who = electrical && person && !/^your /i.test(person) ? (company ? `${person} from ${company}` : person) : company || null;
+  return { title, line: `${visitWhen(v.startsAt)}${who ? ` — ${who}` : ""}`, note: v.kind === "installation" ? NEXT_VISIT_WORDS.installNote : null };
 }

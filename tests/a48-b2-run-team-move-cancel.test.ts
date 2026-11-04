@@ -16,7 +16,13 @@ import { SMS_FRESHNESS, SMS_MESSAGE_TYPES } from "../src/lib/sms.core";
 // Part 3 Task 16: run_time / run_time_reminder are retired in the real registry (wordingApproved false, nothing can send).
 // This file covers the OLD run mechanics (Task 18 deletes them), so it switches the two types back on for this file only.
 // tests/old-flow-removed-p3.test.ts holds the real registry state.
-for (const k of ["run_time", "run_time_reminder"] as const) (SMS_MESSAGE_TYPES[k] as { wordingApproved: boolean }).wordingApproved = true;
+for (const k of ["run_time", "run_time_reminder", "ready_check_window"] as const) (SMS_MESSAGE_TYPES[k] as { wordingApproved: boolean }).wordingApproved = true;
+// G8 (4), 4 Nov 2026: the owner's window message is now the DRAFT ready_check_window text + email behind OWNER_WINDOW_CONFIRM_APPROVED
+// (false in the real registry); this file switches the flag on so the old run mechanics can be exercised. Emails are recorded, not sent.
+const windowCore = await import("../src/lib/ready-check-window-notice.core");
+mock.module("../src/lib/ready-check-window-notice.core", () => ({ ...windowCore, OWNER_WINDOW_CONFIRM_APPROVED: true }));
+const ownerEmails: { to: string; key: string; subject: string }[] = [];
+mock.module("../src/lib/owner-email-send.server", () => ({ sendGuardedOwnerEmail: async (p: { to: string; key: string; build: () => { subject: string } }) => { ownerEmails.push({ to: p.to, key: p.key, subject: p.build().subject }); return "sent"; } }));
 import { exactTimeWords, runTeamTimeText, windowWords } from "../src/lib/run-portal.core";
 import { SET_PASSWORD_BASE } from "../src/lib/set-password-link.core";
 
@@ -175,7 +181,7 @@ function standingPassOwner(id: string, o: { source?: string } = {}) {
 function seed() {
   for (const k of Object.keys(tables)) delete tables[k];
   sent.length = 0; booked.length = 0; followOns.length = 0; moved.length = 0; mittiReleased.length = 0; realAttempts.length = 0; failUpdates.clear();
-  tables["workflow_settings"] = [{ id: 1, customer_comms_enabled: true, sms_message_switches: { run_offered: true, run_time: true, run_time_reminder: true, run_slot_cancelled: true } }];
+  tables["workflow_settings"] = [{ id: 1, customer_comms_enabled: true, sms_message_switches: { run_offered: true, run_time: true, run_time_reminder: true, ready_check_window: true, run_slot_cancelled: true } }];
   for (const t of ["jobs", "lead_campaign_responses", "property_facts", "job_assignments", "partner_offers", "workflow_events", "appointment_proposals", "bookings"]) tables[t] = [];
   tables["businesses"] = [
     { id: "biz-1", name: "Sample Insulation", business_type: "eec_installer", signer_name: "Sam Smith", signer_mobile: "0411111111", phone: null, onboarding_notes: null, is_active: true },
@@ -192,7 +198,7 @@ function seed() {
 }
 const events = (type?: string, jobId?: string) => (tables["workflow_events"] ?? []).filter((e) => (!type || e["event_type"] === type) && (!jobId || e["job_id"] === jobId));
 const candidates = async () => (await A.batchCandidates({ includeTest: true, locate: 0 })).candidates;
-const ownerTexts = (type = "run_time") => sent.filter((s) => s.type === type);
+const ownerTexts = (type = "ready_check_window") => sent.filter((s) => s.type === type);
 async function offered(ids: string[], o: { batch?: string; installer?: string; source?: string } = {}) {
   for (const id of ids) addJob(id, { source: o.source });
   closedBatch(o.batch ?? "b1", ids, o.installer);

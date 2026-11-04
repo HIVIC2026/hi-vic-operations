@@ -4,7 +4,7 @@ import { currentFeeWording } from "./hiv-quote.core";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { isWellFormedToken, LINK_PURPOSE, linkUsable } from "./estimatelink.core";
 import { formatPropertyAddress, shortAddress } from "./address";
-import { DEFAULT_PIESA_INSTALL_GAP_DAYS, OWNER_STEPS, ownerAction, ownerCanCancel, ownerHero, ownerStage } from "./owner-myjob.core";
+import { DEFAULT_PIESA_INSTALL_GAP_DAYS, OWNER_STEPS, nextVisitCard, ownerAction, ownerCanCancel, ownerHero, ownerStage } from "./owner-myjob.core";
 import { splitForOption } from "./payment-gate.core";
 import { stepInvoiceKind } from "./payments.core";
 import { safetyCheckIncGstFor } from "./safety-check-amount.core";
@@ -63,13 +63,21 @@ export async function resolveOwnerJob(token: unknown) {
   const now = Date.now();
   const upcoming = (bookings ?? []).find((b) => b.status === "confirmed" && b.scheduled_start && new Date(b.scheduled_start).getTime() > now - 6 * 3600_000) ?? null;
   let trade: { name: string; company: string | null; phone: string | null; initial: string } | null = null;
-  if (upcoming?.contractor_id) {
-    const [{ data: p }, { data: b }] = await Promise.all([
-      admin.from("profiles").select("full_name, phone").eq("id", upcoming.contractor_id).maybeSingle(),
+  if (upcoming) {
+    // G8 (4): who is coming — the booking's profile when the person has a login; a safety check / upgrades visit by a no-login
+    // Team electrician names the worker on the job (teamElectricianOnJob); the business comes from the booking. ≤3 reads.
+    const electrical = upcoming.kind === "assessment" || upcoming.kind === "rectification";
+    const [{ data: p }, { data: b }, team] = await Promise.all([
+      upcoming.contractor_id ? admin.from("profiles").select("full_name, phone").eq("id", upcoming.contractor_id).maybeSingle() : Promise.resolve({ data: null }),
       upcoming.business_id ? admin.from("businesses").select("name, trading_name").eq("id", upcoming.business_id).maybeSingle() : Promise.resolve({ data: null }),
+      !upcoming.contractor_id && electrical ? (await import("./in-house-electrician.server")).teamElectricianOnJob(jobId).catch(() => null) : Promise.resolve(null),
     ]);
-    const name = p?.full_name?.split(" ")[0] ?? "Your trade";
-    trade = { name, company: (b as { trading_name: string | null; name: string } | null)?.trading_name ?? (b as { name: string } | null)?.name ?? null, phone: p?.phone ?? null, initial: name.charAt(0).toUpperCase() };
+    const full = (p as { full_name?: string | null } | null)?.full_name ?? team?.name ?? null;
+    const company = ((b as { trading_name: string | null; name: string } | null)?.trading_name ?? (b as { name: string } | null)?.name ?? null)?.replace(/^\[TEST PARTNER\]\s*/, "") ?? null;
+    if (full || company) {
+      const name = full?.trim().split(/\s+/)[0] || (electrical ? "Your electrician" : "Your trade");
+      trade = { name, company, phone: (p as { phone?: string | null } | null)?.phone ?? null, initial: name.charAt(0).toUpperCase() };
+    }
   }
   const paid = (invoices ?? []).reduce((s, i) => s + n(i.total_paid ?? i.amount_paid), 0);
   const quoteOpen = quote?.status === "issued" && (stage === "awaiting_quote_acceptance" || stage === "measured_estimate_ready") ? { expiresAt: quote.sent_at ? new Date(new Date(quote.sent_at).getTime() + 14 * 86400_000).toISOString() : null } : null;
@@ -144,13 +152,18 @@ export async function resolveOwnerJob(token: unknown) {
   const limits = (ws?.office_time_limits ?? {}) as Record<string, unknown>;
   let currentAction: Exclude<import('./owner-myjob.core').OwnerScreen,'home'|'done'> | null = null;
   let clearStepsUnsigned = false;
+  // G8 (4), 4 Nov 2026 (LOOKS WRONG 1): on an A2 run the installer picked the day and the portal proposed the owner's 1-hour
+  // Ready Check window — the owner confirms it on ?screen=book (OwnerRunTime). Read only at the one stage it can exist.
+  let readyCheckWindow = false;
   const {isQuoteExpiredCancelReason,quoteIsExpired}=await import('./quote-expiry.core');
   if (stage === 'cancelled' && isQuoteExpiredCancelReason(j.cancelled_reason)) currentAction='newquote';
   if (!['cancelled','on_hold'].includes(stage)) {
     const taps = await (await import('./quick-taps.server')).quickTapsState(String(token));
     const turn = stage === 'ready_check_ready_to_schedule' && !inHouseDispatch ? await (await import('./spot-release.server')).ownerTurnState(jobId) : {kind:'closed'};
+    if (stage === 'ready_check_ready_to_schedule') readyCheckWindow = (await (await import('./installer-run.server')).ownerRunSlotState(jobId).catch(() => ({ kind: 'none' as const }))).kind === 'proposed';
     if (turn.kind === 'ask') currentAction='turn';
     else if (taps.kind === 'ask' || taps.kind === 'retry') currentAction = 'taps';
+    else if (readyCheckWindow) currentAction = 'book';
     else if (quoteOpen) currentAction = quoteIsExpired({kind:'installation',sent_at:quote?.sent_at ?? null}) ? 'newquote' : 'quote';
     else {
       const confirmation = await (await import('./piesa-owner-confirm.server')).ownerPiesaConfirmFacts(jobId);
@@ -215,6 +228,10 @@ export async function resolveOwnerJob(token: unknown) {
     currentAction,
     clearStepsUnsigned,
     inHouseDispatch,
+    // G8 (4): the owner's Ready Check window is waiting for their Confirm (?screen=book shows OwnerRunTime).
+    readyCheckWindow,
+    // G8 (4), Jo 4 Nov 2026 ("show the next visit"): the next booked visit — day, time and who is coming — for the all-set screen.
+    nextVisit: upcoming?.scheduled_start ? nextVisitCard({ kind: upcoming.kind, startsAt: upcoming.scheduled_start, person: trade?.name ?? null, company: trade?.company ?? null }) : null,
     jobNumber: j.job_number, firstName: owner?.full_name?.trim().split(/\s+/)[0] ?? null,
     address: formatPropertyAddress(j.properties as never) || null, stage, hero, action, trade: upcoming ? trade : null,
     visit: upcoming ? { kind: upcoming.kind, startsAt: upcoming.scheduled_start } : null, progress,

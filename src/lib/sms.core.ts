@@ -133,6 +133,9 @@ export const SMS_MESSAGE_TYPES = {
   // switches, off until Jo switches them on.
   run_time: { audience: "owner", label: "Retired 2 Nov 2026 — Your free Ready Check is {day} {time} – tap to confirm (A48 batch 2 runs)", wordingApproved: false, quietHours: true },
   run_time_reminder: { audience: "owner", label: "Retired 2 Nov 2026 — Please confirm your free Ready Check – 12-hour reminder (A48 batch 2 runs)", wordingApproved: false, quietHours: true },
+  // G8 (4), 4 Nov 2026 (LOOKS WRONG 1): the owner's Ready Check WINDOW to confirm on their link after the installer picks the run
+  // day — DRAFT behind OWNER_WINDOW_CONFIRM_APPROVED (ready-check-window-notice.core); own switch, off until Jo switches it on.
+  ready_check_window: { audience: "owner", label: "Your free Ready Check is {day} {time} – tap to confirm (DRAFT, OWNER_WINDOW_CONFIRM_APPROVED; A2 run window)", wordingApproved: false, quietHours: true },
   // A48 batch 2 part 2, Task 8: retired by Part 7 Task 9 (Jo 2 Nov 2026) — the cancelled window is still freed and shown on the run page, nobody is texted.
   run_slot_cancelled: { audience: "partner", label: "Retired 2 Nov 2026 — An owner cancelled their Ready Check in your run – offer the time to a nearby owner (A48 batch 2 runs). History labels only, never sent", wordingApproved: false, quietHours: true },
   // Decision #23 (Jo 2 Nov 2026, wording approved): Jo gives the job to an in-house installer → the OWNER is told
@@ -252,6 +255,7 @@ export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
   quick_taps_reminder: { kind: "window" }, // key = batch + job + reminder; due on day 2, recomputed by the batch sweep
   run_offered: { kind: "event", maxAgeMinutes: 24 * 60 }, // retired (history): event = Jo's "Send to installer" tap
   run_time: { kind: "window" }, // key = run + job + window; the window is recorded before any send; held → the tick retries
+  ready_check_window: { kind: "window" }, // G8 (4): key = run + job + window; same tick and keys as run_time
   run_time_reminder: { kind: "window" }, // key = run + job + window; due 12h after the time text, recomputed by the tick
   run_slot_cancelled: { kind: "window" }, // retired (history): key = run + job + window
   owner_will_call: { kind: "window" }, // key = job (one per job); sent only with the email while the job still waits for its Ready Check booking (in-house-batch-email.server)

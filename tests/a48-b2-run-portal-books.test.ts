@@ -11,7 +11,13 @@ import { SMS_FRESHNESS, SMS_MESSAGE_TYPES } from "../src/lib/sms.core";
 // Part 3 Task 16: run_time / run_time_reminder are retired in the real registry (wordingApproved false, nothing can send).
 // This file covers the OLD run mechanics (Task 18 deletes them), so it switches the two types back on for this file only.
 // tests/old-flow-removed-p3.test.ts holds the real registry state.
-for (const k of ["run_time", "run_time_reminder"] as const) (SMS_MESSAGE_TYPES[k] as { wordingApproved: boolean }).wordingApproved = true;
+for (const k of ["run_time", "run_time_reminder", "ready_check_window"] as const) (SMS_MESSAGE_TYPES[k] as { wordingApproved: boolean }).wordingApproved = true;
+// G8 (4), 4 Nov 2026: the owner's window message is now the DRAFT ready_check_window text + email behind OWNER_WINDOW_CONFIRM_APPROVED
+// (false in the real registry); this file switches the flag on so the old run mechanics can be exercised. Emails are recorded, not sent.
+const windowCore = await import("../src/lib/ready-check-window-notice.core");
+mock.module("../src/lib/ready-check-window-notice.core", () => ({ ...windowCore, OWNER_WINDOW_CONFIRM_APPROVED: true }));
+const ownerEmails: { to: string; key: string; subject: string }[] = [];
+mock.module("../src/lib/owner-email-send.server", () => ({ sendGuardedOwnerEmail: async (p: { to: string; key: string; build: () => { subject: string } }) => { ownerEmails.push({ to: p.to, key: p.key, subject: p.build().subject }); return "sent"; } }));
 import { planRunDays, runTimeReminderText, runTimeText, windowWords } from "../src/lib/run-portal.core";
 
 type Row = Record<string, unknown>;
@@ -155,7 +161,7 @@ function closedBatch(batchId: string, jobIds: string[], installer = "biz-1") {
 function seed() {
   for (const k of Object.keys(tables)) delete tables[k];
   sent.length = 0; booked.length = 0; followOns.length = 0; realAttempts.length = 0; recipientHold.clear(); smsStatus = "sent"; bookingRefusal = null; failInsert = null; insertGate = null; factOverride = {};
-  tables["workflow_settings"] = [{ id: 1, customer_comms_enabled: true, sms_message_switches: { run_offered: true, run_time: true, run_time_reminder: true } }];
+  tables["workflow_settings"] = [{ id: 1, customer_comms_enabled: true, sms_message_switches: { run_offered: true, run_time: true, run_time_reminder: true, ready_check_window: true } }];
   for (const t of ["jobs", "lead_campaign_responses", "property_facts", "job_assignments", "partner_offers", "workflow_events", "appointment_proposals", "bookings"]) tables[t] = [];
   tables["businesses"] = [
     { id: "biz-1", name: "Sample Insulation", business_type: "eec_installer", signer_name: "Sam Smith", signer_mobile: "0411111111", phone: null, onboarding_notes: null, is_active: true },
@@ -174,7 +180,7 @@ function seed() {
 }
 const events = (type?: string, jobId?: string) => (tables["workflow_events"] ?? []).filter((e) => (!type || e["event_type"] === type) && (!jobId || e["job_id"] === jobId));
 const candidates = async () => (await A.batchCandidates({ includeTest: true, locate: 0 })).candidates;
-const ownerTexts = (type = "run_time") => sent.filter((s) => s.type === type);
+const ownerTexts = (type = "ready_check_window") => sent.filter((s) => s.type === type);
 /** A run offered (text sent) at hour 1 for these homes; returns the run id and its route order. */
 async function offered(ids: string[], o: { batch?: string; installer?: string; source?: string } = {}) {
   for (const id of ids) addJob(id, { source: o.source });
@@ -291,7 +297,7 @@ describe("chooseRunDay (Portal books)", () => {
     const { runId } = await offered(["a"], { batch: "bt", installer: "biz-t", source: "qa_test" });
     now(2);
     await R.chooseRunDay(runId, "u-tess", DAY, "08:00", null, { now: new Date(clock) });
-    expect(sent.map((x) => [x.via, x.label?.startsWith("run_time:")])).toEqual([["test-sms", true]]);
+    expect(sent.map((x) => [x.via, x.label?.startsWith("ready_check_window:")])).toEqual([["test-sms", true]]);
     expect(sent[0]!.body).toContain("your free Ready Check is Tuesday 27 October between 8:00 and 9:00am with Co.");
   });
 });
@@ -492,10 +498,10 @@ describe("fix round 1", () => {
   test("2: real run, owner time text would be held (customer messages off / run_time switch off) → refused, nothing written; TEST runs still go", async () => {
     const { runId } = await offered(["a", "b"]);
     now(2);
-    tables["workflow_settings"]![0]!["sms_message_switches"] = { run_offered: true, run_time: false, run_time_reminder: true };
+    tables["workflow_settings"]![0]!["sms_message_switches"] = { run_offered: true, run_time: false, run_time_reminder: true, ready_check_window: false };
     await expect(R.chooseRunDay(runId, "u-sam", DAY, "09:00", null, { now: new Date(clock) })).rejects.toThrow(/owner time texts are switched off/);
     nothingWritten();
-    tables["workflow_settings"]![0]!["sms_message_switches"] = { run_offered: true, run_time: true, run_time_reminder: true };
+    tables["workflow_settings"]![0]!["sms_message_switches"] = { run_offered: true, run_time: true, run_time_reminder: true, ready_check_window: true };
     tables["workflow_settings"]![0]!["customer_comms_enabled"] = false;
     await expect(R.chooseRunDay(runId, "u-sam", DAY, "09:00", null, { now: new Date(clock) })).rejects.toThrow(/Customer messages are switched off/);
     nothingWritten();
@@ -728,10 +734,10 @@ describe("fix round 2", () => {
     now(2);
     failInsert = (t, row) => t === "workflow_events" && row["event_type"] === "run_mode_chosen" && row["job_id"] === order[1];
     await expect(R.chooseRunDay(runId, "u-sam", DAY, "09:00", null, { now: new Date(clock) })).rejects.toThrow();
-    tables["workflow_settings"]![0]!["sms_message_switches"] = { run_offered: true, run_time: false, run_time_reminder: true };
+    tables["workflow_settings"]![0]!["sms_message_switches"] = { run_offered: true, run_time: false, run_time_reminder: true, ready_check_window: false };
     now(2.25); await R.sweepRunSlots(at(2.25));
     expect(events("run_slot_proposed")).toEqual([]);
-    tables["workflow_settings"]![0]!["sms_message_switches"] = { run_offered: true, run_time: true, run_time_reminder: true };
+    tables["workflow_settings"]![0]!["sms_message_switches"] = { run_offered: true, run_time: true, run_time_reminder: true, ready_check_window: true };
     now(2.5); await R.sweepRunSlots(at(2.5));
     expect(order.map((j) => slotOf(j)?.["start"])).toEqual(["09:00", "10:00"]);
     expect(runId).toBeTruthy();
@@ -794,11 +800,11 @@ describe("fix round 3", () => {
 
   test("owner time texts switched off → not released, proposed later once switched on", async () => {
     const { order } = await stop(["a", "b"]);
-    tables["workflow_settings"]![0]!["sms_message_switches"] = { run_offered: true, run_time: false, run_time_reminder: true };
+    tables["workflow_settings"]![0]!["sms_message_switches"] = { run_offered: true, run_time: false, run_time_reminder: true, ready_check_window: false };
     for (const h of [2.25, 8, 20]) { now(h); await R.sweepRunSlots(at(h)); }
     expect(events("run_slot_released")).toEqual([]);
     expect(events("run_slot_proposed")).toEqual([]);
-    tables["workflow_settings"]![0]!["sms_message_switches"] = { run_offered: true, run_time: true, run_time_reminder: true };
+    tables["workflow_settings"]![0]!["sms_message_switches"] = { run_offered: true, run_time: true, run_time_reminder: true, ready_check_window: true };
     now(21); await R.sweepRunSlots(at(21));
     expect(order.map((j) => slotOf(j)?.["start"])).toEqual(["09:00", "10:00"]);
     expect(events("run_slot_released")).toEqual([]);
@@ -832,7 +838,7 @@ describe("final review m5: owner texts held for the owner (STOP / no consent / n
     now(2);
     await R.chooseRunDay(runId, "u-sam", DAY, "09:00", null, { now: new Date(clock) });
     for (const h of [2.25, 2.5, 3, 4]) await R.sweepRunSlots(at(h));
-    expect(realAttempts.filter((x) => x.type === "run_time" && x.to === phone(a)).length).toBe(1);
+    expect(realAttempts.filter((x) => x.type === "ready_check_window" && x.to === phone(a)).length).toBe(1);
     expect(events("run_slot_released").map((e) => [e["job_id"], (e["details"] as Row)["why"]])).toEqual([[a, "not_textable"]]);
     expect(ownerTexts().map((t) => t.jobId)).toEqual([b]);
     expect((await candidates()).map((c) => [c.jobId, c.carriedPass])).toEqual([[a, true]]);
@@ -858,7 +864,7 @@ describe("final review m5: owner texts held for the owner (STOP / no consent / n
     const ws = tables["workflow_settings"]![0]!;
     ws["sms_message_switches"] = { run_offered: true, run_time: true, run_time_reminder: false };
     for (const h of [19.5, 20]) await R.sweepRunSlots(at(h)); // outside quiet hours (8am Melbourne from 19 h)
-    ws["sms_message_switches"] = { run_offered: true, run_time: true, run_time_reminder: true }; ws["customer_comms_enabled"] = false;
+    ws["sms_message_switches"] = { run_offered: true, run_time: true, run_time_reminder: true, ready_check_window: true }; ws["customer_comms_enabled"] = false;
     await R.sweepRunSlots(at(20.5));
     expect(realAttempts.filter((x) => x.type === "run_time_reminder")).toEqual([]);
     ws["customer_comms_enabled"] = true;

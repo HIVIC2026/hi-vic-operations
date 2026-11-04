@@ -87,6 +87,7 @@ import { swmsSignLinkText } from "./swms-sign-text.core";
 import { mittiFormUrl } from "./mitti-link.core";
 import { renderLeadInstallerConfirm } from "./lead-installer-confirm.core";
 import { renderReadyCheckPersonEmail } from "./ready-check-person.core";
+import { readyCheckWindowEmail, readyCheckWindowText } from "./ready-check-window-notice.core";
 import { goEmail } from "./go-email.core";
 import { leadInstallerLock } from "./prestart.core";
 import { renderVisitNewTimesEmail, visitNewTimesText } from "./visit-new-times.core";
@@ -471,6 +472,14 @@ const OWNER: TemplateEntry[] = [
   ENTRY({ id: "owner:sms-own_customer_rental_taps", section: "owner", step: "ready_check", kind: "text", code: "", name: "A few quick questions about your home (text, installer's own customer)", when: "Right after the installer adds the job (Add a job); opens only the rental screens: \"Who should we arrange access with?\" and their details", who: "Owner", approvalNote: "DRAFT wording for Jo to approve (answer 24, 2 Nov 2026); OWN_CUSTOMER_RENTAL_TAPS_APPROVED stays false", gate: { kind: "text", smsType: "own_customer_rental_taps" },
     source: { builder: "src/lib/rental-answers.core.ts", fn: "ownCustomerRentalTapsText", sender: "src/lib/own-customer-rental-taps.server.ts" },
     render: () => text(ownCustomerRentalTapsText({ firstName: "Helen", installer: "Sample Insulation", link: rentalOnlyLink(quickTapsLink(`${EST}/my-job/TOKEN`)) })) }),
+  // G8 (4), 4 Nov 2026 (LOOKS WRONG 1): on an A2 run the installer picks the day → the owner's 1-hour Ready Check window to
+  // confirm on their link (?screen=book). DRAFT text + email behind OWNER_WINDOW_CONFIRM_APPROVED (the old run_time text was retired 2 Nov).
+  ENTRY({ id: "owner:sms-ready_check_window", section: "owner", step: "ready_check", kind: "text", code: "", name: "Your free Ready Check is {day} {time} – tap to confirm (text)", when: "When the installer picks the run day and the portal proposes the owner's 1-hour window (15-minute tick); once per window", who: "Owner", approvalNote: "DRAFT (G8, 4 Nov 2026) — Jo's 30 Oct run_time words re-listed because that type was retired; OWNER_WINDOW_CONFIRM_APPROVED stays false, SMS type wordingApproved:false", gate: { kind: "text", smsType: "ready_check_window" },
+    source: { builder: "src/lib/ready-check-window-notice.core.ts", fn: "readyCheckWindowText", sender: "src/lib/installer-run.server.ts" },
+    render: () => text(readyCheckWindowText({ name: "Helen", day: "Tuesday 10 November", time: "between 9:00 and 10:00am", installer: "Sample Insulation", link: `${EST}/my-job/TOKEN?screen=book`, team: false })) }),
+  ENTRY({ id: "owner:ready-check-window", section: "owner", step: "ready_check", kind: "email", code: "", name: "Your free Ready Check: {day} (email, confirm the window)", when: "With the text above, once per window", who: "Owner", approvalNote: "DRAFT (G8, 4 Nov 2026) — OWNER_WINDOW_CONFIRM_APPROVED stays false; real owners held, TEST → test-send", gate: { kind: "code_off", flag: "OWNER_WINDOW_CONFIRM_APPROVED" },
+    source: { builder: "src/lib/ready-check-window-notice.core.ts", fn: "readyCheckWindowEmail", sender: "src/lib/installer-run.server.ts" },
+    render: () => email(readyCheckWindowEmail({ name: "Helen", day: "Tuesday 10 November", time: "between 9:00 and 10:00am", installer: "Sample Insulation", link: `${EST}/my-job/TOKEN?screen=book`, team: false })) }),
   // Decision #24 + Fix 5 (Jo 2 Nov 2026): in-house Ready Check booked → "You're booked" (email + text) with the installer's
   // OFFICE phone, contact block and AP line; same purpose/key as the current in-house wording, which keeps going out
   // until OWNER_BOOKED_READY_CHECK_APPROVED is on. Held with an office note if the office phone or business email is missing.

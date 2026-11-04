@@ -92,7 +92,7 @@ function MyJobPage() {
   const { screen: requestedScreen, stars, only } = Route.useSearch();
   const load = useServerFn(getOwnerMyJob);
   const { data, isLoading } = useQuery({ queryKey: ["my-job", token], queryFn: () => load({ data: { token } }) as Promise<View | null>, staleTime: 30_000, retry: false, refetchOnWindowFocus: false });
-  const screen = resolveOwnerScreen(requestedScreen, data ?? {});
+  const screen = resolveOwnerScreen(requestedScreen, data ? { ...data, piesaConfirm: data.piesaConfirm === true } : {});
   return (
     <div className="estimate-brand min-h-screen bg-estimate-canvas pb-10 text-estimate-navy">
       {/* Approved pages P2–P4 (Jo 24 Oct): white bar, logo left, job number right. */}
@@ -114,10 +114,26 @@ function MyJobPage() {
           : screen === "book" ? <BookScreen v={data} token={token} />
           : screen === "done" ? <DoneScreen v={data} token={token} />
           : screen === "spot" ? <SpotScreen v={data} token={token} />
-          : <section className="py-8"><h1 className="font-display text-2xl font-bold">You're all set{data.firstName ? `, ${data.firstName}` : ''}.</h1><p className="mt-3">We'll email you when there's a next step.</p></section>}
+          : <AllSetScreen v={data} />}
       </main>
     </div>
   );
+}
+
+/** Nothing is needed from the owner. G8 (4), Jo 4 Nov 2026: when a visit is booked, the screen says which one, when and who
+ *  is coming (owner-myjob.core nextVisitCard); otherwise the plain all-set line. */
+function AllSetScreen({ v }: { v: View }) {
+  const next = (v as { nextVisit?: { title: string; line: string; note: string | null } | null }).nextVisit ?? null;
+  return <section className="py-8" data-testid="owner-all-set">
+    <h1 className="font-display text-2xl font-bold">You're all set{v.firstName ? `, ${v.firstName}` : ''}.</h1>
+    {next ? <div className="mt-4 rounded-[22px] bg-card p-5 shadow-sm" data-testid="owner-next-visit">
+      <p className="text-xs font-bold uppercase tracking-wide text-estimate-navy/70">Your next visit</p>
+      <p className="mt-1 font-display text-lg font-extrabold">{next.title}</p>
+      <p className="mt-1 text-sm">{next.line}</p>
+      {next.note && <p className="mt-2 text-sm font-semibold">{next.note}</p>}
+    </div> : null}
+    <p className="mt-3">We'll email you when there's a next step.</p>
+  </section>;
 }
 
 function Unavailable() {
@@ -940,6 +956,8 @@ function FixesScreen({ v, token }: { v: View; token: string }) {
 /** Part 4 Task 14: only a job already mid-way through the old pick-a-day step reaches this screen (resolveOwnerScreen falls
  *  through otherwise). It shows the times/days already offered and nothing else: no "pick windows" intro, no change buttons. */
 function BookScreen({ v, token }: { v: View; token: string }) {
+  // G8 (4), 4 Nov 2026 (LOOKS WRONG 1): the owner's Ready Check window from the installer's run — Confirm / Can't make it.
+  if ((v as { readyCheckWindow?: boolean }).readyCheckWindow) return <><Back token={token} /><OwnerRunTime token={token} /></>;
   if (v.inHouseDispatch) return <><Back token={token} /><PayNowCard v={v} token={token} /><BookPickers token={token} /></>;
   return <>
     <Back token={token} />

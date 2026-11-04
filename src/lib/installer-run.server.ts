@@ -33,6 +33,7 @@ import {
 } from "./run-portal.core";
 import { isReadyCheckTime } from "./ready-check-times.core";
 import { SMS_MESSAGE_TYPES, smsHeldForRecipient } from "./sms.core";
+import { OWNER_WINDOW_CONFIRM_APPROVED, READY_CHECK_WINDOW_EMAIL_PURPOSE, READY_CHECK_WINDOW_SMS_TYPE, readyCheckWindowEmail, readyCheckWindowEmailKey, readyCheckWindowText } from "./ready-check-window-notice.core";
 import { isClosedOrArchivedJob } from "./mitti.core";
 import { distanceM } from "./geo.core";
 
@@ -327,8 +328,8 @@ const SLOT_LOOKBACK_DAYS = 45;
 /** The tick finishes a day pick that stopped part way once it is this old (the installer may still be finishing it). */
 const RESUME_AFTER_MINUTES = 10;
 
-type SlotJob = { id: string; job_number: string | null; stage: string | null; source: string | null; channel: string | null; deleted_at: string | null; qa_archived_at: string | null; owners: { full_name: string | null; phone: string | null } | null; properties: { postcode: string | null } | null };
-const slotJobsById = async (ids: string[]) => new Map((ids.length ? (await readByIds("the run's homes", ids, (c, f, t) => admin.from("jobs").select("id, job_number, stage, source, channel, deleted_at, qa_archived_at, owners(full_name, phone), properties(postcode)").in("id", c).range(f, t))) as unknown as SlotJob[] : []).map((j) => [j.id, j]));
+type SlotJob = { id: string; job_number: string | null; stage: string | null; source: string | null; channel: string | null; deleted_at: string | null; qa_archived_at: string | null; owners: { full_name: string | null; phone: string | null; email?: string | null } | null; properties: { postcode: string | null } | null };
+const slotJobsById = async (ids: string[]) => new Map((ids.length ? (await readByIds("the run's homes", ids, (c, f, t) => admin.from("jobs").select("id, job_number, stage, source, channel, deleted_at, qa_archived_at, owners(full_name, phone, email), properties(postcode)").in("id", c).range(f, t))) as unknown as SlotJob[] : []).map((j) => [j.id, j]));
 const slotEventsFor = async (jobIds: string[]) => (jobIds.length ? (await readByIds("run windows", jobIds, (c, f, t) => loose.from("workflow_events").select(EVENT_COLS).in("job_id", c).in("event_type", [...RUN_SLOT_EVENTS]).range(f, t))) : []) as unknown as RunEventRow[];
 /** Jobs with a confirmed Ready Check booking now (final review m6: a confirmed run window counts as booked — and holds the
  *  installer's time — only while that booking stands; the owner's Change time cancels it). */
@@ -466,9 +467,10 @@ async function ownerTextsBlocker(businessId: string, homes: readonly { isTest: b
   if (homes.some((h) => h.isTest) || isTestPartner(await businessOf(businessId))) return null;
   const { data: ws } = await loose.from("workflow_settings").select("*").eq("id", 1).maybeSingle();
   const w = (ws ?? null) as { customer_comms_enabled?: boolean | null; sms_message_switches?: Record<string, boolean> | null } | null;
-  if (!SMS_MESSAGE_TYPES[RUN_TIME_SMS_TYPE].wordingApproved) return "Owner time texts have been retired — nothing was sent.";
+  // G8 (4): the owner window message is the DRAFT ready_check_window text + email (run_time was retired 2 Nov 2026).
+  if (!OWNER_WINDOW_CONFIRM_APPROVED) return "The owner's Ready Check window message is a draft Jo hasn't approved — nothing was sent.";
   if (w?.customer_comms_enabled !== true) return "Customer messages are switched off — nothing was sent.";
-  if (w?.sms_message_switches?.[RUN_TIME_SMS_TYPE] !== true) return "The owner time texts are switched off — switch them on in Settings first. Nothing was sent.";
+  if (w?.sms_message_switches?.[READY_CHECK_WINDOW_SMS_TYPE] !== true) return "The owner time texts are switched off — switch them on in Settings first. Nothing was sent.";
   return null;
 }
 
@@ -651,8 +653,9 @@ async function ownerTextsOff(): Promise<OwnerTextsOff> {
   const { data, error } = await loose.from("workflow_settings").select("*").eq("id", 1).maybeSingle();
   if (error) throw new Error(`Could not read the message switches: ${error.message}`);
   const w = (data ?? null) as { customer_comms_enabled?: boolean | null; sms_message_switches?: Record<string, boolean> | null } | null;
-  const off = (type: "run_time" | "run_time_reminder") => !SMS_MESSAGE_TYPES[type].wordingApproved || w?.customer_comms_enabled !== true || w?.sms_message_switches?.[type] !== true;
-  return { time: off(RUN_TIME_SMS_TYPE), reminder: off(RUN_TIME_REMINDER_SMS_TYPE) };
+  const off = (type: "run_time" | "run_time_reminder" | "ready_check_window", approved: boolean = SMS_MESSAGE_TYPES[type].wordingApproved) => !approved || w?.customer_comms_enabled !== true || w?.sms_message_switches?.[type] !== true;
+  // G8 (4): the time message is the DRAFT ready_check_window text + email (OWNER_WINDOW_CONFIRM_APPROVED); the reminder keeps the retired run_time_reminder (never sends).
+  return { time: off(READY_CHECK_WINDOW_SMS_TYPE, OWNER_WINDOW_CONFIRM_APPROVED), reminder: off(RUN_TIME_REMINDER_SMS_TYPE) };
 }
 
 /** The owner's time text or 12-hour reminder, once per window. Quiet hours / held → nothing recorded (the tick retries).
@@ -663,7 +666,7 @@ async function textSlot(x: Slot, job: SlotJob, kind: "time" | "reminder", now: D
   const link = await (await import("./veec-copy-email.server")).ownerMyJobLink(x.jobId);
   if (!link) return "owner link missing";
   const to = job.owners?.phone ?? null;
-  const type = kind === "time" ? RUN_TIME_SMS_TYPE : RUN_TIME_REMINDER_SMS_TYPE;
+  const type = kind === "time" ? READY_CHECK_WINDOW_SMS_TYPE : RUN_TIME_REMINDER_SMS_TYPE;
   const notTextable = async () => {
     if (kind === "time") await releaseSlot(x, null, "not_textable");
     else await claimBatchEvent(x.jobId, null, RUN_TIME_REMINDED_EVENT, "Owner not reminded to confirm their Ready Check window: their number can't be texted (STOP, no consent or not a mobile)",
@@ -674,7 +677,10 @@ async function textSlot(x: Slot, job: SlotJob, kind: "time" | "reminder", now: D
   const biz = await businessOf(x.businessId);
   const f = { name: job.owners?.full_name ?? null, day: runDayWords(x.day), time: slotTimeWords(x), link };
   // A team-entered time (fix round 1, Jo 30 Oct): its own approved wording — no other times are offered.
-  const body = kind === "time" ? (x.by === "team" ? runTeamTimeText : runTimeText)({ ...f, installer: tradeName(biz) }) : runTimeReminderText(f);
+  // G8 (4): the window message is the DRAFT ready_check_window wording (a team-entered time offers no other times); the old
+  // runTimeText / runTeamTimeText stay in run-portal.core as the retired run_time history wording.
+  const windowFacts = { ...f, installer: tradeName(biz), team: x.by === "team" };
+  const body = kind === "time" ? readyCheckWindowText(windowFacts) : runTimeReminderText(f);
   const { isTestPartner } = await import("./test-send.core");
   const test = job.source === "qa_test" || isTestPartner(biz);
   if (!test && off?.[kind]) return "held";
@@ -687,8 +693,25 @@ async function textSlot(x: Slot, job: SlotJob, kind: "time" | "reminder", now: D
   if ((RUN_TEXT_WENT as readonly string[]).includes(r.status)) {
     await claimBatchEvent(x.jobId, null, kind === "time" ? RUN_TIME_TEXTED_EVENT : RUN_TIME_REMINDED_EVENT, kind === "time" ? "Owner texted their Ready Check window to confirm" : "Owner reminded to confirm their Ready Check window (12 hours)",
       { run_id: x.runId, business_id: x.businessId, seq: x.seq, status: r.status, idempotency_key: `${type}-sent:v1:${x.runId}:${x.jobId}:${x.seq}` });
+    // G8 (4): the same window by email (DRAFT, same flag), once per window; a failed email never undoes the text.
+    if (kind === "time") await emailSlot(x, job, windowFacts, test).catch((e) => console.error("Ready Check window email skipped", x.jobId, (e as Error).message));
   }
   return r.status;
+}
+
+/** The owner's Ready Check window by email (G8 (4), DRAFT): TEST → test-send; real → the guarded owner sender with a
+ *  once-only key. No email on file = nothing (the text carried the link). */
+async function emailSlot(x: Slot, job: SlotJob, f: { name: string | null; day: string; time: string; installer: string; link: string; team: boolean }, test: boolean): Promise<string> {
+  const to = (job.owners?.email ?? "").trim().toLowerCase();
+  if (!to) return "no email";
+  const mail = readyCheckWindowEmail(f, { test });
+  if (test) {
+    const { isTestPartner } = await import("./test-send.core");
+    const r = await (await import("./test-send.server")).sendTestEmail({ jobId: x.jobId, jobSource: job.source, partnerIsTest: isTestPartner(await businessOf(x.businessId)), label: `${READY_CHECK_WINDOW_SMS_TYPE}:email:${x.runId}:${x.seq}`, actorId: null }, to, mail.subject, mail.html, mail.text);
+    return r.status;
+  }
+  if (!OWNER_WINDOW_CONFIRM_APPROVED) return "held: draft";
+  return (await import("./owner-email-send.server")).sendGuardedOwnerEmail({ jobId: x.jobId, jobSource: job.source, to, purpose: READY_CHECK_WINDOW_EMAIL_PURPOSE, key: readyCheckWindowEmailKey(x.runId, x.jobId, x.seq), build: () => mail });
 }
 
 const RELEASE_SUMMARY = {

@@ -101,11 +101,12 @@ describe("approved message switches are on (Jo 24 Oct 2026)", () => {
     // Part 4 Task 10 (Jo 2 Nov 2026, touchpoint 53): the after-install reminder text is a DRAFT behind AFTER_INSTALL_REMINDERS_APPROVED.
     // Part 6 Task 2 / Task 7: the electrician job-link text and the upgrades-form nudge are DRAFTS until Jo approves them.
     // Part 7 Task 8/9 (Jo 2 Nov 2026): the usual-electrician text, the job offer and the Ready Check run / 79/82 installer texts are retired (label "Retired 2 Nov 2026 —").
-    const DRAFTS = ["own_customer_rental_taps", "access_person_booked", "access_person_tomorrow", "tenant_notice", "after_install_reminder", "electrician_job_link", "upgrades_nudge"];
+    // G8 (4), 4 Nov 2026: ready_check_window = the owner's Ready Check window to confirm (DRAFT, OWNER_WINDOW_CONFIRM_APPROVED).
+    const DRAFTS = ["own_customer_rental_taps", "access_person_booked", "access_person_tomorrow", "tenant_notice", "after_install_reminder", "electrician_job_link", "upgrades_nudge", "ready_check_window"];
     expect(off.sort()).toEqual([
       "access_person_booked", "access_person_tomorrow", "after_install_reminder", "electrician_job_link", "fixes_times_link", "install_clearance", "installer_planning_notice", "job_offer",
       "own_customer_rental_taps", "piesa_offer", "piesa_owner_confirm", "piesa_owner_fixes_confirm", "piesa_times_reminder", "ready_check_booked_installer", "ready_check_booked_owner",
-      "ready_check_days_suggested", "ready_check_times_owner", "run_offered", "run_slot_cancelled", "run_time", "run_time_reminder", "safety_check_booked_owner", "tenant_notice",
+      "ready_check_days_suggested", "ready_check_times_owner", "ready_check_window", "run_offered", "run_slot_cancelled", "run_time", "run_time_reminder", "safety_check_booked_owner", "tenant_notice",
       "upgrades_nudge", "usual_electrician_missing", "veec_sign_reminder",
     ]);
     for (const k of off) expect({ k, retired: SMS_MESSAGE_TYPES[k as keyof typeof SMS_MESSAGE_TYPES].label.startsWith("Retired 2 Nov 2026 —") || DRAFTS.includes(k) }).toEqual({ k, retired: true });
