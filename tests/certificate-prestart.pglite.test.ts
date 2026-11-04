@@ -217,6 +217,13 @@ describe("booking the install with the certificate outstanding", () => {
       expect(await warnings(j)).toEqual([]);
     }
   });
+  test("J5 (join ruling 2, 'double warning'): while the upgrades themselves are outstanding (install booked before the upgrades day) the certificate line is NOT shown or recorded — Task 10's upgrades line carries the booking alone", async () => {
+    const J_OPEN = id(308);
+    await seedJob(J_OPEN, { snap: snapshot({ upgrades: "Yes", today: "No" }), item: true });
+    expect(electricalClearance(await clearanceFacts(J_OPEN))).toMatchObject({ cleared: false, blocker: "Electrical upgrades not completed yet." });
+    expect(await cls.recordInstallCertificateWarning(J_OPEN, U1, START)).toBeNull();
+    expect(await warnings(J_OPEN)).toEqual([]);
+  });
   test("every install booking path records it; the booking gate is gone; the pre-start reads it", () => {
     const src = (f: string) => readFileSync(new URL(`../src/lib/${f}`, import.meta.url), "utf8");
     expect(src("workflow.server.ts")).not.toContain("coesBlockerFor(");
