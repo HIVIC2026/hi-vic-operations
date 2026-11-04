@@ -80,12 +80,11 @@ export function certificateChaseAction(f: { upgradesDoneAt: string; fileAt: stri
 }
 
 // ---------- Held wording (Jo approves each one; docs/wording/2026-11-03-part3-messages.md) ----------
+// Texts: the ONE gate is the SMS type's `wordingApproved` in sms.core (final fix wave item 2).
 /** Upgrades-day reminder text (SMS type electrician_upgrades_day_link). HELD. */
-export const UPGRADES_DAY_LINK_TEXT_APPROVED: boolean = false;
 export const upgradesDayLinkText = (i: { first: string | null; address: string; url: string }) =>
   `Hi ${i.first?.trim() || "there"}, the upgrades day for ${i.address} isn't booked yet. Add it here: ${i.url}`;
-/** Certificate reminder text, 2 business days after the upgrades (SMS type electrician_certificate_link, already held). HELD. */
-export const CERTIFICATE_CHASE_TEXT_APPROVED: boolean = false;
+/** Certificate reminder text, 2 business days after the upgrades (SMS type electrician_certificate_chase). HELD. */
 export const certificateChaseText = (i: { first: string | null; address: string; url: string }) =>
   `Hi ${i.first?.trim() || "there"}, we still need the Certificate of Electrical Safety for ${i.address}. Add it here: ${i.url}`;
 /** Installer office email, 2 business days with no upgrades day. HELD. */

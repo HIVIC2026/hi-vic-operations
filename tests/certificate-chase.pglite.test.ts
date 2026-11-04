@@ -80,6 +80,8 @@ const realChase = { ...(await import("../src/lib/certificate-chase.core")) };
 const setWording = (approved: boolean) => {
   (SMS_MESSAGE_TYPES.electrician_upgrades_day_link as { wordingApproved: boolean }).wordingApproved = approved;
   (SMS_MESSAGE_TYPES.electrician_certificate_link as { wordingApproved: boolean }).wordingApproved = approved;
+  // Final fix wave item 2: the 2-business-day certificate reminder has its own SMS type (its own approval).
+  (SMS_MESSAGE_TYPES.electrician_certificate_chase as { wordingApproved: boolean }).wordingApproved = approved;
   mock.module("../src/lib/certificate-chase.core", () => ({ ...realChase, UPGRADES_DAY_OFFICE_EMAIL_APPROVED: approved }));
 };
 setWording(true);
@@ -207,13 +209,20 @@ describe("certificate not in", () => {
     await chase.sweepCertificateChase(new Date("2026-11-05T09:00:00Z"));
     expect(textsFor(J_CERT)).toEqual([]);
   });
+  test("final fix wave: only the 'add your certificate' text approved → the 2-day reminder stays held (its own approval)", async () => {
+    (SMS_MESSAGE_TYPES.electrician_certificate_chase as { wordingApproved: boolean }).wordingApproved = false;
+    await chase.sweepCertificateChase(new Date("2026-11-05T21:00:00Z"));
+    expect(textsFor(J_CERT)).toEqual([]);
+    expect((await waiting(J_CERT)).map((w) => w.details.reason)).toEqual(["wording_not_approved"]);
+    (SMS_MESSAGE_TYPES.electrician_certificate_chase as { wordingApproved: boolean }).wordingApproved = true;
+  });
   test("Fri 6 Nov 8am → ONE certificate text with the link", async () => {
     await chase.sweepCertificateChase(new Date("2026-11-05T21:00:00Z"));
     await chase.sweepCertificateChase(new Date("2026-11-05T22:00:00Z"));
     const t = textsFor(J_CERT);
     expect(t.length).toBe(1);
-    expect(t[0]!.type).toBe("electrician_certificate_link");
-    expect(t[0]!.key).toMatch(/:chase-2bd$/);
+    expect(t[0]!.type).toBe("electrician_certificate_chase");
+    expect(t[0]!.key).toMatch(/^electrician-certificate-chase:v1:.*:chase-2bd$/);
     expect(t[0]!.body).toMatch(/^Hi Sparky, we still need the Certificate of Electrical Safety for 1 Example St, Clayton 3168\. Add it here: \S+\/e\/\S+$/);
     expect(await flags(J_CERT)).toEqual({});
   });

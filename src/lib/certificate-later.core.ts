@@ -125,8 +125,7 @@ export function parseCertificateUploadPath(jobId: string, path: string): string 
 }
 
 // ---------- Held wording ----------
-/** The "add your certificate" text (SMS type electrician_certificate_link). HELD until Jo approves it. */
-export const CERTIFICATE_ADD_LINK_TEXT_APPROVED: boolean = false;
+/** The "add your certificate" text (SMS type electrician_certificate_link — its `wordingApproved` is the one gate). HELD until Jo approves it. */
 export function certificateAddLinkText(i: { first: string | null; address: string; url: string }): string {
   return `Hi ${i.first?.trim() || "there"}, thanks for doing the electrical upgrades at ${i.address}. When you have the Certificate of Electrical Safety, add a photo or PDF here: ${i.url}`;
 }

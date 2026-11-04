@@ -13,6 +13,8 @@ export const SMS_MESSAGE_TYPES = {
   own_job_piesa_link: { audience: "partner", label: "Own job: electrician's link to book the safety check (Part 2)", wordingApproved: true, quietHours: true },
   // Part 3 Task 3 (Jo 3 Nov 2026): the electrician's link to add the Certificate of Electrical Safety later (certificate-later.core certificateAddLinkText). HELD until Jo approves.
   electrician_certificate_link: { audience: "partner", label: "Electrician's link to add the Certificate of Electrical Safety (Part 3)", wordingApproved: false, quietHours: true },
+  // Part 3 final fix wave: the 2-business-day certificate reminder (certificate-chase.core certificateChaseText) — its own type so Jo approves it on its own. HELD until Jo approves.
+  electrician_certificate_chase: { audience: "partner", label: "Electrician's reminder to add the Certificate of Electrical Safety, 2 business days after the upgrades (Part 3)", wordingApproved: false, quietHours: true },
   // Part 3 Task 5 (Jo 3 Nov 2026): the electrician's reminder to enter the upgrades day, 1 business day after the PIESA (certificate-chase.core upgradesDayLinkText). HELD until Jo approves.
   electrician_upgrades_day_link: { audience: "partner", label: "Electrician's reminder to set the upgrades day (Part 3)", wordingApproved: false, quietHours: true },
   // Part 2b Task 4 (Jo 3 Nov 2026): the office approved an electrician an installer added → ONE welcome text to that electrician. HELD until Jo approves the wording (my-electricians.core welcomeSmsText).
@@ -160,7 +162,8 @@ export type SmsFreshness = { kind: "event"; maxAgeMinutes: number } | { kind: "w
 export const SMS_FRESHNESS: Record<SmsMessageType, SmsFreshness> = {
   in_house_booked_owner: {kind:'event',maxAgeMinutes:24*60},
   own_job_piesa_link: { kind: "window" }, // key = the electrician's assignment (+ attempt); sent only while that assignment is active and unbooked
-  electrician_certificate_link: { kind: "window" }, // key = the electrician's assignment + round ("now", later the chase rounds); sent only while the certificate is still to come
+  electrician_certificate_link: { kind: "window" }, // key = the electrician's assignment + round ("now"); sent only while the certificate is still to come
+  electrician_certificate_chase: { kind: "window" }, // key = the electrician's assignment + chase round; sent only while the certificate is still to come
   electrician_upgrades_day_link: { kind: "window" }, // key = the electrician's assignment + round; sent only while the upgrades day is still not entered
   installer_added_electrician_welcome: { kind: "event", maxAgeMinutes: 24 * 60 }, // event = the office approving the electrician; one key per electrician business
   install_deposit_request: { kind: 'event', maxAgeMinutes: 24 * 60 },

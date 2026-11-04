@@ -1,6 +1,6 @@
 # Part 3 messages (electrical upgrades and the certificate)
 
-Every message here is HELD: nothing goes to a real person until Jo approves it and its flag is turned on. TEST jobs and TEST partners still get them through the test sender. Wording below is copied exactly from the code. Placeholders in {braces} are filled in by the portal.
+Every message here is HELD: nothing goes to a real person until Jo approves it and its flag is turned on. Each message has ONE approval flag, named under it. TEST jobs and TEST partners still get the texts (messages 1, 3, 5) and the office email (message 4) through the test sender. The owner's "You're booked" notice (message 2) is the exception: TEST jobs do NOT get it either until Jo approves it. Wording below is copied exactly from the code. Placeholders in {braces} are filled in by the portal.
 
 Installer offices are emailed, never texted. The electrician gets texts with their no-login link.
 
@@ -11,7 +11,7 @@ Installer offices are emailed, never texted. The electrician gets texts with the
 - Code: `certificateAddLinkText` in `src/lib/certificate-later.core.ts` (sent by `textCertificateLink(jobId, "now")` in `src/lib/own-job-piesa-notices.server.ts`)
 - Channel: text, with the electrician's link
 - Goes to: the job's electrician, once, straight after the upgrades are recorded (Part C) on the safety check form or the upgrades form without a Certificate of Electrical Safety
-- Approval flag: SMS type `electrician_certificate_link` has `wordingApproved: false` in `src/lib/sms.core.ts` (also `CERTIFICATE_ADD_LINK_TEXT_APPROVED = false` in `certificate-later.core.ts`). Note: message 5 shares this SMS type, so approving the type approves both.
+- Approval flag: SMS type `electrician_certificate_link` has `wordingApproved: false` in `src/lib/sms.core.ts`. This approves this text only (message 5 has its own type).
 - {first} is the electrician's first name (or "there"); {address} is the job address; {link} is their link
 
 ```
@@ -24,6 +24,7 @@ Hi {first}, thanks for doing the electrical upgrades at {address}. When you have
 - Channel: email and text (same notice as the other booking confirmations, new words for the upgrades day)
 - Goes to: the owner, once, when the electrician enters the upgrades day on their link. Every job, HIV leads included.
 - Approval flag: `OWNER_UPGRADES_BOOKED_APPROVED = false` in `src/lib/in-house-booking.core.ts`. While false the notice is saved as pending and goes once the flag is on. (The text uses SMS type `in_house_booked_owner`, already approved for the other bookings.)
+- TEST jobs: held too. The flag is checked before any TEST path, so a TEST job does NOT get this notice until Jo approves it (then it goes like any other booking notice).
 - {when} looks like "Friday 13 November at 9:00 am"; {electrician} is the electrician's name, with ", phone {phone}" when there is one; {installer} is the installer's business, or "Home Insulation Victoria" when the job has no installer
 
 Email subject:
@@ -48,7 +49,7 @@ You're booked for your electrical upgrades: {when}. {electrician} is coming. Det
 - Code: `upgradesDayLinkText` in `src/lib/certificate-chase.core.ts` (sent by `textUpgradesDayLink` in `src/lib/own-job-piesa-notices.server.ts`, from the tick sweep `sweepUpgradesDayChase`)
 - Channel: text, with the electrician's link
 - Goes to: the job's electrician, once, 1 business day (Victorian) after the safety check (PIESA) said upgrades are needed and not today, when no upgrades day is entered yet
-- Approval flag: SMS type `electrician_upgrades_day_link` has `wordingApproved: false` in `src/lib/sms.core.ts` (also `UPGRADES_DAY_LINK_TEXT_APPROVED = false` in `certificate-chase.core.ts`)
+- Approval flag: SMS type `electrician_upgrades_day_link` has `wordingApproved: false` in `src/lib/sms.core.ts`
 - {first} is the electrician's first name (or "there"); {address} is the job address; {link} is their link
 
 ```
@@ -78,7 +79,7 @@ The install can't go ahead until the upgrades are done. The job: {job link}
 - Code: `certificateChaseText` in `src/lib/certificate-chase.core.ts` (sent by `textCertificateLink(…, "chase-2bd", { text: "chase" })`, from `sweepCertificateChase`)
 - Channel: text, with the electrician's link
 - Goes to: the job's electrician, once, 2 business days after the electrical upgrades were recorded (Part C) when no Certificate of Electrical Safety file is on the job
-- Approval flag: SMS type `electrician_certificate_link` has `wordingApproved: false` in `src/lib/sms.core.ts` (also `CERTIFICATE_CHASE_TEXT_APPROVED = false`). Note: this text shares its SMS type with Task 3's "add your certificate" text, so approving that type approves both.
+- Approval flag: SMS type `electrician_certificate_chase` has `wordingApproved: false` in `src/lib/sms.core.ts`. Its own type, so it is approved separately from message 1.
 
 ```
 Hi {first}, we still need the Certificate of Electrical Safety for {address}. Add it here: {link}

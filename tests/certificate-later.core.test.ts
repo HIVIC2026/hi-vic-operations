@@ -1,11 +1,12 @@
 // Part 3 Task 3 (Jo 3 Nov 2026): "Waiting for certificate" — the pure state, the status lines, the link's certificate checks.
 import { describe, expect, test } from "bun:test";
 import {
-  CERTIFICATE_ADD_LINK_TEXT_APPROVED, CERTIFICATE_UPLOAD_MAX_BYTES, CERTIFICATE_WRONG_TYPE, UPGRADES_DAY_NOT_SET_LINE, certificateAddLinkText, certificateFileExt, certificateProblem, certificateRejectedLine, certificateState, certificateStatusLine,
+  CERTIFICATE_UPLOAD_MAX_BYTES, CERTIFICATE_WRONG_TYPE, UPGRADES_DAY_NOT_SET_LINE, certificateAddLinkText, certificateFileExt, certificateProblem, certificateRejectedLine, certificateState, certificateStatusLine,
   certificateUploadPath, parseCertificateUploadPath, upgradesDayProblem, waitingForCertificateLine,
 } from "../src/lib/certificate-later.core";
 import { mergeCertificateIntoPiesaSnapshot } from "../src/lib/fixes-day.core";
 import { SMS_FRESHNESS, SMS_MESSAGE_TYPES } from "../src/lib/sms.core";
+import * as laterCore from "../src/lib/certificate-later.core";
 import { A3_REPAIR_NEEDED_LABEL, SHORT_PIESA_FIELDS, shortAnswersFromEntries } from "../src/lib/official-short.core";
 import { OWNER_UPGRADES_BOOKED_APPROVED, bookingNotice } from "../src/lib/in-house-booking.core";
 
@@ -103,7 +104,8 @@ describe("the link's certificate step", () => {
 
 describe("held wording", () => {
   test("the certificate link text is held (not approved) and registered as a partner text with quiet hours", () => {
-    expect(CERTIFICATE_ADD_LINK_TEXT_APPROVED).toBe(false);
+    // Final fix wave item 2: ONE gate — the SMS type flag (the documentation-only constant is gone).
+    expect("CERTIFICATE_ADD_LINK_TEXT_APPROVED" in laterCore).toBe(false);
     expect(SMS_MESSAGE_TYPES.electrician_certificate_link).toMatchObject({ audience: "partner", wordingApproved: false, quietHours: true });
     expect(SMS_FRESHNESS.electrician_certificate_link).toEqual({ kind: "window" });
     const t = certificateAddLinkText({ first: "Sam", address: "1 Example St, Clayton 3168", url: "https://portal.test/e/abc" });

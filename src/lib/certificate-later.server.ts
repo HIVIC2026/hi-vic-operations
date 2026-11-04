@@ -360,7 +360,7 @@ const emailDone = (r: string) => ["sent", "test_sent", "not_sent"].includes(r);
 
 /** Why the electrician's text can't go yet, from the batch (null = try the real path). TEST jobs / TEST partners always take
  *  the real path (the test sender). */
-async function textWaitReason(row: ChaseRow, c: ChaseContact, type: "electrician_upgrades_day_link" | "electrician_certificate_link"): Promise<import("./certificate-chase.core").ChaseWaitingReason | null> {
+async function textWaitReason(row: ChaseRow, c: ChaseContact, type: "electrician_upgrades_day_link" | "electrician_certificate_chase"): Promise<import("./certificate-chase.core").ChaseWaitingReason | null> {
   if (!c.electrician) return "no_electrician";
   if (row.source === "qa_test" || c.electrician.test) return null;
   const { SMS_MESSAGE_TYPES } = await import("./sms.core");
@@ -469,7 +469,7 @@ export async function sweepCertificateChase(now: Date = new Date()): Promise<{ t
     for (const act of actions) {
       if (act === "text_electrician") {
         await writes.add(row, ROUND, anchor, CHASE_ROUND.certificateText, "Certificate not in after 2 business days: electrician reminded", who);
-        const why = await textWaitReason(row, c, "electrician_certificate_link");
+        const why = await textWaitReason(row, c, "electrician_certificate_chase");
         if (why) { await writes.add(row, WAITING, anchor, CHASE_ROUND.certificateText, `Electrician's certificate text not sent yet: ${CHASE_WAITING_REASON_TEXT[why]}`, { reason: why }); out.held++; }
         else toSend.push({ row, anchor });
       } else if (await writes.add(row, ROUND, anchor, CHASE_ROUND.certificateFlag, "Certificate not in after 4 business days: office to call the electrician", who)) out.flagged++;

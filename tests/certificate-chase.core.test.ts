@@ -2,11 +2,12 @@
 // days: a weekend and Melbourne Cup day, Tue 3 Nov 2026), the held wording, the office flags and the Needs rows.
 import { describe, expect, test } from "bun:test";
 import {
-  CERTIFICATE_CHASE_TEXT_APPROVED, UPGRADES_DAY_LINK_TEXT_APPROVED, UPGRADES_DAY_OFFICE_EMAIL_APPROVED,
+  UPGRADES_DAY_OFFICE_EMAIL_APPROVED,
   certificateChaseAction, certificateChaseText, certificateNotInLine, chaseOfficeFlags, upgradesDayChaseAction, upgradesDayLinkText,
   upgradesDayNotSetLine, upgradesDayOfficeEmail, UPGRADES_DAY_RED_LINE, CHASE_ROUND,
 } from "../src/lib/certificate-chase.core";
 import { SMS_FRESHNESS, SMS_MESSAGE_TYPES } from "../src/lib/sms.core";
+import * as chaseCore from "../src/lib/certificate-chase.core";
 import { buildNeedsRows, needsCandidates, type NeedsFacts } from "../src/lib/office-needs.core";
 import { cardOf } from "../src/lib/needs-cards.core";
 
@@ -66,9 +67,12 @@ describe("certificateChaseAction", () => {
 
 describe("held wording", () => {
   test("all three new messages are held until Jo approves them", () => {
-    expect(UPGRADES_DAY_LINK_TEXT_APPROVED).toBe(false);
-    expect(CERTIFICATE_CHASE_TEXT_APPROVED).toBe(false);
+    // Final fix wave item 2: ONE gate per text — the SMS type's wordingApproved (the documentation-only constants are gone).
+    expect("UPGRADES_DAY_LINK_TEXT_APPROVED" in chaseCore).toBe(false);
+    expect("CERTIFICATE_CHASE_TEXT_APPROVED" in chaseCore).toBe(false);
     expect(UPGRADES_DAY_OFFICE_EMAIL_APPROVED).toBe(false);
+    expect(SMS_MESSAGE_TYPES.electrician_certificate_chase).toMatchObject({ audience: "partner", wordingApproved: false, quietHours: true });
+    expect(SMS_FRESHNESS.electrician_certificate_chase).toEqual({ kind: "window" });
     expect(SMS_MESSAGE_TYPES.electrician_upgrades_day_link).toMatchObject({ audience: "partner", wordingApproved: false, quietHours: true });
     expect(SMS_FRESHNESS.electrician_upgrades_day_link).toEqual({ kind: "window" });
     expect(SMS_MESSAGE_TYPES.electrician_certificate_link.wordingApproved).toBe(false);

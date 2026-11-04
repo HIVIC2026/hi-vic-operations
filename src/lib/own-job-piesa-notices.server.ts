@@ -173,17 +173,19 @@ export async function sendOwnJobPiesaNotices(jobId: string): Promise<string> {
 /** ONE text per electrician assignment and round ("now" = right after Part C was recorded without the certificate; the Task 5
  *  chase uses its own rounds). Same rules as textElectrician: the link is minted only when the text can go now; TEST jobs /
  *  TEST partners → the test sender, claimed once by a stable event; a hold is logged once per assignment, round and reason.
- *  Wording HELD (SMS type electrician_certificate_link, wordingApproved:false) until Jo approves — until then nothing is sent
+ *  Wording HELD (SMS type electrician_certificate_link; the chase reminder electrician_certificate_chase; wordingApproved:false) until Jo approves — until then nothing is sent
  *  and no link is minted. Returns a short status for logs and tests. Nothing when the certificate is already on the job.
  *  Part 3 Task 5: `text: "chase"` = the 2-business-day reminder wording (certificate-chase.core certificateChaseText). */
 const CERT_TEXT = "Electrician's certificate text";
 export async function textCertificateLink(jobId: string, round: string, opts: { text?: "add" | "chase"; facts?: import("./certificate-later.server").CertificateFacts } = {}): Promise<string> {
   const [{ certificateAddLinkText }, { certificateChaseText }] = await Promise.all([import("./certificate-later.core"), import("./certificate-chase.core")]);
+  // Final fix wave item 2: the reminder has its own SMS type (and key / TEST claim), so Jo approves each text on its own.
+  const chase = opts.text === "chase";
   return textLinkRound(jobId, {
-    type: "electrician_certificate_link", keyBase: "electrician-certificate-link:v1", round, what: CERT_TEXT,
-    testEvent: "electrician_certificate_link_test_sent", testSummary: "TEST: electrician's certificate link text",
+    type: chase ? "electrician_certificate_chase" : "electrician_certificate_link", keyBase: chase ? "electrician-certificate-chase:v1" : "electrician-certificate-link:v1", round, what: CERT_TEXT,
+    testEvent: chase ? "electrician_certificate_chase_test_sent" : "electrician_certificate_link_test_sent", testSummary: chase ? "TEST: electrician's certificate reminder text" : "TEST: electrician's certificate link text",
     due: (f) => (f.state === "waiting_for_certificate" ? null : `not_waiting (${f.state})`),
-    render: opts.text === "chase" ? certificateChaseText : certificateAddLinkText,
+    render: chase ? certificateChaseText : certificateAddLinkText,
   }, opts.facts);
 }
 
@@ -201,7 +203,7 @@ export async function textUpgradesDayLink(jobId: string, round: string, facts?: 
 }
 
 type LinkTextSpec = {
-  type: "electrician_certificate_link" | "electrician_upgrades_day_link"; keyBase: string; round: string; what: string;
+  type: "electrician_certificate_link" | "electrician_certificate_chase" | "electrician_upgrades_day_link"; keyBase: string; round: string; what: string;
   testEvent: string; testSummary: string;
   /** Null = the text is still due; else why not (returned as the status). */
   due: (f: import("./certificate-later.server").CertificateFacts) => string | null;
