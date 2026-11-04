@@ -8,7 +8,13 @@ import { autoAdvanceJob } from "./autoadvance.server";
 
 export type BookingKind = "assessment" | "ready_check" | "rectification" | "installation";
 
-export async function validateBooking(jobId: string, kind: BookingKind, start: string, actorId: string | null, proposedWorkerId?: string): Promise<{ stage: Stage; target: Stage; warnings: string[] }> {
+/** Part 9 Task 10 ruling (controller, 4 Nov 2026): the install may be BOOKED while the electrical upgrades are still to come —
+ *  from these stages the booking is recorded at the current stage with NO stage change; the stage catches up through
+ *  autoadvance once the Part C (and certificate, main's Part 3) land, and the installation_booked entry blockers apply at
+ *  that move, not at the booking. The pre-start GO check reads the booking, not the stage, so it still stops the start. */
+export const INSTALL_BEFORE_UPGRADES_STAGES: readonly Stage[] = ["piesa_complete", "rectification_scheduling", "rectification_booked"];
+
+export async function validateBooking(jobId: string, kind: BookingKind, start: string, actorId: string | null, proposedWorkerId?: string): Promise<{ stage: Stage; target: Stage; warnings: string[]; beforeUpgrades?: true }> {
   const need = kind === "installation" || kind === "ready_check" ? "installer" : "electrician";
   // Part 9 Task 10 (Jo 2 Nov 2026, answer 21): plain lines the caller shows before success; never a refusal.
   const warnings: string[] = [];
@@ -18,8 +24,10 @@ export async function validateBooking(jobId: string, kind: BookingKind, start: s
     assessment: [["piesa_and_install_window_pending", "piesa_scheduled"], "piesa_scheduled"],
     ready_check: [["ready_check_ready_to_schedule", "ready_check_scheduled"], "ready_check_scheduled"],
     rectification: [["rectification_scheduling", "rectification_booked"], "rectification_booked"],
-    installation: [["installation_scheduling", "installation_booked"], "installation_booked"],
+    installation: [["installation_scheduling", "installation_booked", ...INSTALL_BEFORE_UPGRADES_STAGES], "installation_booked"],
   };
+  // Before the upgrades day: the booking stays at this stage (target = stage, no stage move; see INSTALL_BEFORE_UPGRADES_STAGES).
+  const beforeUpgrades = kind === "installation" && INSTALL_BEFORE_UPGRADES_STAGES.includes(stage);
   if (kind === "assessment" && !["piesa_and_install_window_pending", "piesa_scheduled"].includes(stage)) throw new WorkflowError("The PIESA can only be booked after the confirmed quote is approved and the payment option is cleared.");
   if (kind === "assessment") {
     const { piesaRequestFacts } = await import("./workflow.server");
@@ -29,8 +37,9 @@ export async function validateBooking(jobId: string, kind: BookingKind, start: s
     if(!proposedWorkerId){const teamBlocker = await (await import("./in-house-electrician.server")).inHousePiesaBookingBlockerFor(jobId);
     if (teamBlocker) throw new WorkflowError(teamBlocker);}
   }
-  const [allowed, target] = map[kind];
+  const [allowed, mapTarget] = map[kind];
   if (!allowed.includes(stage)) throw new WorkflowError(`A ${kind} booking can't be made at ${STAGE_LABEL[stage]}.`);
+  const target: Stage = beforeUpgrades ? stage : mapTarget;
   const { data: contractor } = await admin.from("job_assignments").select("id, user_id, business_id, businesses(business_type, onboarding_status, is_active, capabilities)").eq("job_id", jobId).eq("role", need).eq("active", true).maybeSingle();
   if (!contractor && !proposedWorkerId) throw new WorkflowError(`No ${need} assigned yet.`);
   if (kind === "ready_check") {
@@ -50,6 +59,9 @@ export async function validateBooking(jobId: string, kind: BookingKind, start: s
     const c0 = electricalClearance(cf0);
     const coord = installationCoordination(c0);
     if (coord.block) throw new WorkflowError(coord.block);
+    // Before the upgrades day (ruling): only while the upgrades are the one thing outstanding (the warning), or the job is
+    // already cleared and the stage is catching up; anything else at these stages is the same refusal as before.
+    if (beforeUpgrades && !coord.warn && !c0.cleared) throw new WorkflowError(`A ${kind} booking can't be made at ${STAGE_LABEL[stage]}.`);
     if (coord.warn) warnings.push(coord.warn);
     const ps = await piesaStatus(jobId);
     const blocked = installationDateBlocker(ps, start);
@@ -70,7 +82,7 @@ export async function validateBooking(jobId: string, kind: BookingKind, start: s
   // ($5m+, office-verified) and workers comp must be in order (business-docs.server, fails closed on a read error); and the
   // safety check's electrician must hold a verified, unexpired licence + REC (electricianVerified) on every job, not only
   // the in-house path. Part 9 Task 9: the people on the booking must be on file (DOB + mobile, CII / licence).
-  await bookingComplianceGate(jobId, kind, contractor?.business_id ?? null, proposedWorkerId ?? null, { reschedule: stage === target, start });
+  await bookingComplianceGate(jobId, kind, contractor?.business_id ?? null, proposedWorkerId ?? null, { reschedule: stage === target, start, actorId });
   if (kind !== "ready_check") { const cb = await commercialBlocker(jobId); if (cb) throw new WorkflowError(`Blocked: ${cb}`); }
   if (kind !== "ready_check") { const g = await paymentGate(jobId); if (!g.cleared) throw new WorkflowError(`Blocked: ${g.blocker}`); }
   // Decision 366 (audit F03): the electrical fixes are paid in full before their visit is booked (every booking path).
@@ -91,14 +103,15 @@ export async function validateBooking(jobId: string, kind: BookingKind, start: s
     const pre = (await stageEntryBlockers(jobId, target, actorId)).filter((b) => b !== READY_CHECK_BOOKING_RECORD_BLOCKER);
     if (pre.length) throw new WorkflowError(`Blocked: ${pre.join(" • ")}`);
   }
-  return {stage,target,warnings};
+  return beforeUpgrades ? {stage,target,warnings,beforeUpgrades:true} : {stage,target,warnings};
 }
 export async function confirmBooking(jobId: string, kind: BookingKind, start: string, actorId: string | null, roleLabel: string, notes?: string | null) {
-  const {stage,target}=await validateBooking(jobId,kind,start,actorId);
+  const {stage,target,beforeUpgrades}=await validateBooking(jobId,kind,start,actorId);
   const need=kind==='installation'||kind==='ready_check'?'installer':'electrician';
   const {data:contractor,error:contractorError}=await admin.from('job_assignments').select('id,user_id,business_id').eq('job_id',jobId).eq('role',need).eq('active',true).maybeSingle();
   if(contractorError||!contractor)throw new WorkflowError('Assigned contractor could not be read.');
   // Decision 325: a direct reschedule of a booked install day (O42) needs the start it replaces.
+  // Before the upgrades day (Task 10 ruling): target = stage; a confirmed install day already on the job is still a move (O42).
   const priorInstallStart = kind === "installation" && stage === target
     ? (await admin.from("bookings").select("scheduled_start").eq("job_id", jobId).eq("kind", "installation").eq("status", "confirmed").order("created_at", { ascending: false }).limit(1).maybeSingle()).data?.scheduled_start ?? null
     : null;
@@ -115,7 +128,8 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
     await regenerateEscNotification(jobId, actorId);
   }
   const when = new Date(start).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" });
-  if (stage === target) await logEvent(jobId, actorId, "booking_rescheduled", `${kind === "ready_check" ? "Ready Check" : kind === "assessment" ? "PIESA" : kind} rescheduled to ${when} by ${roleLabel}`, { assignment_id: contractor.id, installer_user_id: contractor.user_id, installer_business_id: contractor.business_id });
+  if (beforeUpgrades && !priorInstallStart) await logEvent(jobId, actorId, "install_booked_before_upgrades", `Installation booked for ${when} by ${roleLabel} before the upgrades day (the job stays at ${STAGE_LABEL[stage]} until the Part C and certificate are in)`, { assignment_id: contractor.id, installer_user_id: contractor.user_id, installer_business_id: contractor.business_id, scheduled_start: start, stage }, { internal: true });
+  else if (stage === target) await logEvent(jobId, actorId, "booking_rescheduled", `${kind === "ready_check" ? "Ready Check" : kind === "assessment" ? "PIESA" : kind} rescheduled to ${when} by ${roleLabel}`, { assignment_id: contractor.id, installer_user_id: contractor.user_id, installer_business_id: contractor.business_id });
   else {
     try { await transition(jobId, target, actorId, `${kind === "ready_check" ? "Ready Check" : kind === "assessment" ? "PIESA" : kind.charAt(0).toUpperCase() + kind.slice(1)} booked for ${when} by ${roleLabel}`, { assignment_id: contractor.id, installer_user_id: contractor.user_id, installer_business_id: contractor.business_id, scheduled_start: start }); }
     catch (e) {
@@ -196,10 +210,20 @@ async function bookedElectricianWorker(jobId: string, businessId: string | null,
   return data;
 }
 
-async function bookingComplianceGate(jobId: string, kind: BookingKind, assignedBusinessId: string | null, proposedWorkerId: string | null, move: { reschedule: boolean; start: string }): Promise<void> {
+async function bookingComplianceGate(jobId: string, kind: BookingKind, assignedBusinessId: string | null, proposedWorkerId: string | null, move: { reschedule: boolean; start: string; actorId?: string | null }): Promise<void> {
   // Part 9 Task 9: moving a booked install after the 5pm two-days-before Lead Installer lock is refused (LEAD_LOCKED_MESSAGE);
   // the current booking is read inside the check (completed installs ignored, read errors refuse — fail closed).
-  if (kind === "installation" && move.reschedule) await (await import("./lead-installer-confirm.server")).assertLeadInstallerUnlocked(jobId, { newStart: move.start });
+  // Part 9 Task 9 ruling (a) (controller, 4 Nov 2026): the Home Insulation Victoria OFFICE may still move a locked install —
+  // confirmBooking then re-prepares the ESC notice (a sent notice goes stale → withdraw / resubmit, Part 9 Tasks 1–2) and
+  // the GO check re-runs; the move is recorded once (internal). Installers and their boss keep LEAD_LOCKED_MESSAGE.
+  if (kind === "installation" && move.reschedule) {
+    const lic = await import("./lead-installer-confirm.server");
+    if (await officeActor(move.actorId ?? null)) {
+      const lock = await lic.leadInstallerLockState(jobId);
+      if (lock.locked && lock.start && !Number.isNaN(Date.parse(move.start)) && Date.parse(move.start) !== Date.parse(lock.start))
+        await logEvent(jobId, move.actorId ?? null, INSTALL_MOVED_AFTER_LOCK_EVENT, `Office moved the install after the Lead Installer lock (was ${new Date(lock.start).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" })}) — the ESC notice is re-prepared and the GO check re-runs`, { from: lock.start, to: move.start, booking_id: lock.bookingId }, { internal: true });
+    } else await lic.assertLeadInstallerUnlocked(jobId, { newStart: move.start });
+  }
   // Part 9 Task 9: the people on the booking must be on file (DOB + mobile; Lead/crew CII; electrician licence + REC).
   await (await import("./people-on-file.server")).requirePeopleOnFileForBooking(jobId, kind, proposedWorkerId);
   const electrician = kind === "assessment" || kind === "rectification" ? await bookedElectricianWorker(jobId, assignedBusinessId, proposedWorkerId) : null;
@@ -220,4 +244,15 @@ async function bookingComplianceGate(jobId: string, kind: BookingKind, assignedB
       if (why) throw new WorkflowError(why);
     }
   }
+}
+
+/** Part 9 Task 9 ruling (a): history row when the office moves an install after the 5pm lock. */
+export const INSTALL_MOVED_AFTER_LOCK_EVENT = "install_moved_after_lock";
+/** Is the actor a Home Insulation Victoria office person (admin role)? Null actor, a read error or no rpc → no (the lock stands). */
+async function officeActor(actorId: string | null): Promise<boolean> {
+  if (!actorId) return false;
+  try {
+    const r = await (admin as unknown as { rpc?: (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: unknown }> }).rpc?.("has_role", { _user_id: actorId, _role: "admin" });
+    return !!r && !r.error && r.data === true;
+  } catch { return false; }
 }
