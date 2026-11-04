@@ -19,8 +19,9 @@ const { hashToken } = await import("../src/lib/worker-links.core");
 
 function seed(over: { source?: string; piesaBookedBy?: string | null } = {}) {
   for (const k of Object.keys(tables)) delete tables[k];
-  tables["properties"] = [{ id: "p1", address_line: "12 Smith St, Kew", suburb: "Kew" }];
-  tables["jobs"] = [{ id: J, job_number: "HV-5001", source: over.source ?? "website", stage: "piesa_scheduled", property_id: "p1", deleted_at: null }];
+  tables["properties"] = [{ id: "p1", address_line: "12 Smith St", suburb: "Kew", state: "VIC", postcode: "3101" }];
+  tables["owners"] = [{ id: "o1", full_name: "Helen Owner", phone: "0411 111 111" }];
+  tables["jobs"] = [{ id: J, job_number: "HV-5001", source: over.source ?? "website", stage: "piesa_scheduled", property_id: "p1", owner_id: "o1", deleted_at: null }];
   tables["businesses"] = [
     { id: INST, name: "Smith Insulation", trading_name: "Smith Insulation Pty Ltd", phone: "03 9000 0001", email: "office@smith.test", onboarding_notes: null, piesa_booked_by: "piesaBookedBy" in over ? over.piesaBookedBy : "electrician" },
     { id: ELEC, name: "Spark Co", trading_name: null, phone: "03 9000 0002", email: "office@spark.test", onboarding_notes: null },
@@ -35,7 +36,6 @@ function seed(over: { source?: string; piesaBookedBy?: string | null } = {}) {
   ];
   tables["worker_job_links"] = [];
   tables["contact_releases"] = [{ id: "r1", job_id: J, assignment_id: "a2", visit_kind: "piesa", revoked_at: null }];
-  tables["job_overview"] = [{ id: J, owner_name: "Helen Owner", owner_phone: "0411 111 111", property_address: "12 Smith St, Kew VIC 3101" }];
   tables["bookings"] = [];
   tables["assessments"] = [{ id: "as1", job_id: J, external_mitti_id: "audit-a3", completed_at: null, piesa_outcome: "pending", mitti_raw_snapshot: null }];
   tables["workflow_events"] = [];
@@ -74,7 +74,7 @@ describe("electricianLinkView", () => {
   test("shows the business, installer, job, owner contact and the step", async () => {
     const { token } = await mint();
     const v = await server.electricianLinkView(token, NOW);
-    expect(v).toMatchObject({ business: "Spark Co", firstName: "Sam", installer: "Smith Insulation Pty Ltd", jobNumber: "HV-5001", address: "12 Smith St, Kew VIC 3101", owner: { name: "Helen Owner", phone: "0411 111 111" } });
+    expect(v).toMatchObject({ business: "Spark Co", firstName: "Sam", installer: "Smith Insulation Pty Ltd", jobNumber: "HV-5001", address: "12 Smith St, Kew, VIC 3101", owner: { name: "Helen Owner", phone: "0411 111 111" } });
     expect(v.view.step).toBe("book_piesa");
     expect(v.view.canBook).toBe(true);
   });
@@ -201,15 +201,14 @@ describe("electricianLinkView", () => {
   });
   test("a database error never reaches the page: the generic message comes back", async () => {
     const { token } = await mint();
-    const real = tables["job_overview"];
-    // Make the owner read fail by swapping in a table the memory db errors on.
+    // Make the owner read (jobs → owners/properties) fail by swapping in a builder the memory db errors on.
     const mod = await import("@/integrations/supabase/client.server");
     const orig = mod.supabaseAdmin.from;
-    (mod.supabaseAdmin as any).from = (t: string) => t === "job_overview" ? { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: { message: 'relation "secret_table" does not exist' } }) }) }) } : orig(t);
+    (mod.supabaseAdmin as any).from = (t: string) => t === "jobs" ? { select: (c: string) => (c.includes("owners(") ? { eq: () => ({ maybeSingle: async () => ({ data: null, error: { message: 'relation "secret_table" does not exist' } }) }) } : orig(t).select(c)) } : orig(t);
     try {
       await expect(server.electricianLinkView(token, NOW)).rejects.toThrow("This link isn't valid.");
       await server.electricianLinkView(token, NOW).catch((e: Error) => expect(e.message).not.toContain("secret_table"));
-    } finally { (mod.supabaseAdmin as any).from = orig; tables["job_overview"] = real; }
+    } finally { (mod.supabaseAdmin as any).from = orig; }
   });
   test("never returns prices or other businesses' contact details", async () => {
     const { token } = await mint();

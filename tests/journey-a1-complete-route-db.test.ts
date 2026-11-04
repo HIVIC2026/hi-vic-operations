@@ -89,7 +89,7 @@ afterAll(async () => { await j.db.close(); });
 
 describe("A1 journey — step 0: harness", () => {
   test("every pending SQL function the journey relies on compiled", () => {
-    for (const f of ["accept_install_day", "approve_rectification_with_window", "accept_partner_offer", "accept_partner_offer_slot", "issue_owner_link_code"]) expect(fns.loaded).toContain(f);
+    for (const f of ["accept_install_day", "approve_rectification_with_window", "accept_partner_offer", "accept_partner_offer_slot", "issue_owner_link_code", "commit_in_house_visit", "allocate_team_electrician", "add_installer_job"]) expect(fns.loaded).toContain(f);
   });
 });
 
@@ -401,12 +401,12 @@ describe("A1 step 5 — the installer office books the safety check for its Team
     DBG("ELEC-VIEW", JSON.stringify(view));
     expect(view.view.step).toBe("piesa_day");
     expect(view.view.button).toBe("Open safety check form");
-    // JOIN FINDING (not changed here): the link shows the owner only while a `contact_releases` row names this electrician's
-    // assignment (Jo 21 Oct: contact released when a trade accepts a visit). The in-house path (allocate_team_electrician +
-    // commit_in_house_visit) never writes one — only the REC offer-accept RPCs and Part 2's own-job hand-off do — so an
-    // in-house electrician's link shows no owner or address; their "PIESA booked" email carries them instead.
-    expect(view.owner).toBeNull();
-    expect(view.address).toBeNull();
+    // J4 G2 (join ruling, 4 Nov 2026): booking the safety check for the Team electrician released the owner's contact to that
+    // assignment (`contact_releases`, visit piesa — the same audited rule as an accepted offer, Jo 21 Oct), so the link
+    // shows the owner's name, phone and address.
+    expect(await q("select visit_kind, revoked_at from contact_releases cr join job_assignments ja on ja.id = cr.assignment_id where cr.job_id=$1 and ja.role='electrician'", [JOB])).toEqual([{ visit_kind: "piesa", revoked_at: null }]);
+    expect(view.owner).toMatchObject({ name: "Helen Journey", phone: OWNER_PHONE });
+    expect(view.address).toContain("1 Journey Street");
     expect(JSON.stringify(view)).not.toMatch(/\$\s?\d|price|rate|log ?in|password/i);
   });
 });

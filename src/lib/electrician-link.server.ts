@@ -192,13 +192,18 @@ async function ownerContactFor(jobId: string, businessId: string, stage: string)
   const mine = new Set((asgs ?? []).filter((a) => a.active).map((a) => a.id));
   const { visitIsCurrent } = await import("./allocation.core");
   if (!(rels ?? []).some((r) => mine.has(r.assignment_id as string) && visitIsCurrent(String(r.visit_kind), stage))) return none;
+  // The owner and property rows themselves (not the `job_overview` view): the same name, phone and formatted address.
   const [{ data: o, error }, ap] = await Promise.all([
-    admin.from("job_overview").select("owner_name, owner_phone, property_address").eq("id", jobId).maybeSingle(),
+    admin.from("jobs").select("owners(full_name, phone), properties(address_line, suburb, state, postcode)").eq("id", jobId).maybeSingle(),
     (async () => { try { return await (await import("./rental-answers.server")).accessPersonFor(jobId); } catch (e) { console.error("Electrician link: access person not read", (e as Error).message); return null; } })(),
   ]);
   if (error) throw dbErr("the owner", error);
   const access: AccessShown = ap ? { name: ap.name, role: ap.who === "property_manager" ? "property manager" : "tenant", phone: ap.mobile } : null;
-  return { owner: o?.owner_name ? { name: o.owner_name, phone: o.owner_phone ?? null } : null, address: o?.property_address ?? null, access };
+  const owner = (o?.owners ?? null) as { full_name: string | null; phone: string | null } | null;
+  const prop = (o?.properties ?? null) as { address_line: string; suburb: string | null; state: string | null; postcode: string | null } | null;
+  const { formatPropertyAddress } = await import("./address");
+  const address = prop ? formatPropertyAddress(prop) : "";
+  return { owner: owner?.full_name ? { name: owner.full_name, phone: owner.phone ?? null } : null, address: address || null, access };
 }
 
 type Facts = { facts: ElectricianLinkFacts; piesaFormUrl: string | null; upgradesFormUrl: string | null; allDoneAt: string | null; /** The job's Mitti forms the electrician can see: the A3, and the A4 while it is open. */ auditIds: string[] };

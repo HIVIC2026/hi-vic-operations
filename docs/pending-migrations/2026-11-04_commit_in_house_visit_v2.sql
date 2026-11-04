@@ -6,6 +6,10 @@
 -- allocation event's worker_id names the person. Every other guard is unchanged. Apply AFTER 2026-11-01_in_house_saved_work.sql
 -- and 2026-11-03_allocate_team_electrician_v2.sql. Rollback: re-run the function body from 2026-11-01_in_house_saved_work.sql.
 -- Proven on PGlite: tests/journey-a1-complete-route-db.test.ts (step 5).
+-- Fix wave J4 G2 (4 Nov 2026): booking the PIESA (assessment) or the upgrades (rectification) visit for a Team electrician
+-- also records the owner-contact release for that assignment + visit (`contact_releases`, the same audited rule as an
+-- accepted offer — Jo 21 Oct), so the electrician's /e/ link shows the owner's name, phone and address from the booking.
+-- Idempotent on (assignment_id, visit_kind). The TS fallback (in-house-inline-save.server) writes the identical row.
 CREATE OR REPLACE FUNCTION public.commit_in_house_visit(
  _job uuid,_actor uuid,_kind text,_start timestamptz,_worker uuid,
  _stage text,_version timestamptz,_booking uuid,_crew uuid,
@@ -70,6 +74,13 @@ BEGIN
   VALUES(_job,_kind::public.booking_kind,_start,CASE WHEN _kind='installation' THEN (((_start AT TIME ZONE 'Australia/Melbourne')::date+time '16:00') AT TIME ZONE 'Australia/Melbourne') ELSE NULL END,
    CASE WHEN _kind IN ('assessment','rectification') THEN w.profile_id ELSE a.user_id END,a.id,business,_actor,'confirmed') RETURNING id INTO new_booking;
   UPDATE public.job_assignments SET booking_confirmed_at=coalesce(booking_confirmed_at,now()) WHERE id=a.id;
+  IF _kind IN ('assessment','rectification') THEN
+   INSERT INTO public.contact_releases(job_id,assignment_id,visit_kind,released_by,owner_notice,trade_notice)
+   VALUES(_job,a.id,CASE _kind WHEN 'assessment' THEN 'piesa' ELSE 'rectification' END,_actor,
+    'To arrange this visit, Home Insulation Victoria will share your name, phone number and email with the assigned trade for this job only.',
+    'Use these contact details only to arrange and complete this Home Insulation Victoria job. Do not use them for unrelated marketing or future work unless the owner separately agrees.')
+   ON CONFLICT (assignment_id,visit_kind) DO NOTHING;
+  END IF;
   IF j.stage::text<>target THEN
    PERFORM public.commit_guarded_stage(_job,j.stage,target::public.job_stage,_actor,
     _kind||' booked by in-house partner',jsonb_build_object('assignment_id',a.id,'installer_user_id',a.user_id,'installer_business_id',business,'scheduled_start',_start),

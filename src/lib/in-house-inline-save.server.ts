@@ -33,7 +33,18 @@ export async function saveInHouseVisitInline(jobId:string,actorId:string,input:{
  }
  const {data:saved,error}=await admin.from('bookings').select('id').eq('job_id',jobId).eq('kind',input.kind).eq('status','confirmed').eq('scheduled_start',start).order('created_at',{ascending:false}).limit(1).single();
  if(error||!saved)throw Error(error?.message??'Booking could not be read back.');
+ // J4 G2: the booked electrician visit releases the owner's contact to that assignment (identical to commit_in_house_visit v2).
+ if(input.kind==='assessment'||input.kind==='rectification')await releaseElectricianContact(jobId,input.kind,actorId);
  const noticeKind=input.kind==='installation'?'install':input.kind==='assessment'?'piesa':input.kind==='ready_check'?'ready_check':null;
  if(noticeKind)await service.notifyOwnerBooked(jobId,noticeKind,start,who).catch(e=>console.error('Booking confirmation held',e));
  return {bookingId:saved.id,already:!!existing,needsVerification:[]};
+}
+/** The same row commit_in_house_visit v2 writes: one audited owner-contact release per electrician assignment + visit. */
+export async function releaseElectricianContact(jobId:string,kind:'assessment'|'rectification',actorId:string|null){
+ const {data:a,error}=await admin.from('job_assignments').select('id').eq('job_id',jobId).eq('role','electrician').eq('active',true).maybeSingle();
+ if(error)throw Error(error.message);
+ if(!a)return;
+ const {OWNER_CONTACT_NOTICE,TRADE_CONTACT_NOTICE}=await import('./allocation.core');
+ const {error:ie}=await admin.from('contact_releases').upsert({job_id:jobId,assignment_id:a.id,visit_kind:kind==='assessment'?'piesa':'rectification',released_by:actorId,owner_notice:OWNER_CONTACT_NOTICE,trade_notice:TRADE_CONTACT_NOTICE},{onConflict:'assignment_id,visit_kind',ignoreDuplicates:true});
+ if(ie)throw Error(ie.message);
 }
