@@ -286,8 +286,11 @@ export function applianceRows(short: Record<string, unknown>): ApplianceRow[] {
 export const SHORT_PIESA_FIELDS: FormField[] = [
   pre("jobRef", "Job Reference ID"),
   pre("address", "Address including postcode"),
-  // Decision 323: Required on every job (no condition); "Whose customer is this?" (decision 312) is deleted.
-  { id: "noPriceTalk", label: NO_PRICE_TALK_LABEL, type: "tick", required: true, source: "Home Insulation Victoria (decisions 312/323) – not part of the official form" },
+  // Decision 323: on every job (no condition); "Whose customer is this?" (decision 312) is deleted.
+  // Part 3 (Jo 4 Nov 2026): electricians now price the upgrades with the owner directly, so the tick is deleted from the
+  // form by the Part 3 Mitti prompt (step 4b). Optional here: a form with it is still read (and an unticked one still raises
+  // `noPriceTalkIssue`); a form without it validates.
+  { id: "noPriceTalk", label: NO_PRICE_TALK_LABEL, type: "tick", required: false, source: "Home Insulation Victoria (decisions 312/323; optional since Part 3) – not part of the official form" },
   { id: "inspectionDate", label: "Date of inspection", type: "date", required: true, source: "short onsite form" },
   pre("lifeSupportRecord", LIFE_SUPPORT_RECORD),
   yn("lifeSupportPresent", LIFE_SUPPORT_PRESENT),

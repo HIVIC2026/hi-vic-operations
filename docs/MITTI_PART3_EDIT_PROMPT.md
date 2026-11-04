@@ -54,7 +54,7 @@ These questions stay Required, but change their "only show when" rule to ONE rul
 - question 45 `Certificate of Electrical Safety (photo or PDF)`
 If these three are not on the A3 at all (the rebuilt form may not have the after-upgrades page), add them after
 `Do you have the Certificate of Electrical Safety now?`: a short text, a date, and a Photo/attachment that also accepts a PDF,
-all Required, all with the same "only show when" rule. No help text on these three.
+with exactly the wordings listed above, all Required, all with the same "only show when" rule. No help text on these three.
 
 ### 4. Delete the price questions
 4a. Delete the question `Your total price for all the upgrade work (inc GST)` (older forms:

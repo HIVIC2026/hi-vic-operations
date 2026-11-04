@@ -224,7 +224,7 @@ describe("The link never shows a raw stage error", () => {
     expect(msg).not.toMatch(/can't be made at|Blocked:|WorkflowError/);
     expect(msg).toMatch(/Home Insulation Victoria/);
     expect(await q("select id from bookings where job_id=$1 and kind='rectification'", [job])).toHaveLength(0);
-    expect(await events(job, "upgrades_day_link_claim")).toHaveLength(0);
+    expect(await events(job, "electrician_link_upgrades_day")).toHaveLength(0);
   });
 });
 

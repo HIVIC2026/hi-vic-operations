@@ -241,6 +241,12 @@ describe("A3 price questions are no longer asked (Task 1: electricians bill upgr
     expect(r.issues).not.toContain(`Missing: ${FIXES_PRICE_LABEL}`);
     expect(r.ok).toBe(true);
   });
+  test("validateTemplate(\"piesa\") passes a template without q22 AND without the no-price tick (prompt step 4b, Jo 4 Nov)", () => {
+    const items = FORMS.piesa.fields.filter((f) => f.label !== FIXES_PRICE_LABEL && f.id !== "noPriceTalk").map((f) => ({ label: f.label, type: f.type === "yesno" ? "question" : f.type === "choice" || f.type === "multichoice" || f.type === "tick" ? "list" : f.type === "date" ? "datetime" : f.type === "text" || f.type === "number" ? "textsingle" : f.type }));
+    const r = validateTemplate("piesa", items);
+    expect(r.issues.filter((i) => /^Missing/.test(i))).toEqual([]);
+    expect(r.ok).toBe(true);
+  });
 });
 
 // ---------- the paste-ready edit prompt for Jo ----------
