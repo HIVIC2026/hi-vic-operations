@@ -10,7 +10,7 @@ import { EXISTING_DEPTH_Q, isNoSafeAccess, isR2OrAbove, isRValueBandAnswer, LEAN
 import { norm } from "./trade-shared-consts.core";
 import { isLayoutForm, readLayoutArea, type LayoutArea } from "./ceiling-layout.core";
 import { canonicalMittiLabel } from "./mitti-rebuild-labels.core";
-import { floorPlanMeasurement, FLOOR_PLAN_Q } from './ready-check-floor-plan.core';
+import { floorPlanMeasurement, FLOOR_PLAN_Q, AERIAL_Q, MEASURED_SOURCE_FILE_LABELS } from './ready-check-floor-plan.core';
 
 export const MITTI_TEMPLATE_ID = "template_fd20c6437f4e4db2b49b2d6dbe0d3f91";
 /** Electrical rate codes Lovable can price. Everything else from Mitti is manual office review. */
@@ -244,8 +244,8 @@ export type PrefillCtx = {
 const PREFILL: { key: keyof PrefillCtx; aliases: string[]; mandatory?: boolean; datetime?: boolean }[] = [
   // Not mandatory on the TEMPLATE (Jo 23 Oct): A1 drops "Portal Job Number"; A2 keeps it and still gets it prefilled.
   // The job number itself stays required data (createOrReuseAudit blank check).
-  { key: "jobNumber", aliases: ["Portal Job Number", "Job Reference ID"] },
-  { key: "address", aliases: ["Property Address", "Site address", "Site Address", "Address including postcode"], mandatory: true },
+  { key: "jobNumber", aliases: ["Portal Job Number", "Job Reference ID", "Job number"] },
+  { key: "address", aliases: ["Property Address", "Site address", "Site Address", "Address including postcode", "Address"], mandatory: true },
   // Mitti titles can't use the location-type Site address, so A1 carries a plain-text copy for the title.
   { key: "titleAddress", aliases: ["Title address"] },
   { key: "ownerName", aliases: ["Owner name", "Homeowner name", "Owner full name", "Client name", "Property owner name"], mandatory: true },
@@ -409,7 +409,7 @@ export type MittiArea = {
   conductiveEvidence?: string | null; keepReason?: string | null;
   /** Decision 375: this area's existing insulation depth in mm (official PIISA Part 6 height); null = not recorded. */
   depthMm?: number | null;
-  measurementMethod?: string | null; floorPlanEvidence?: string | null; depthPhoto?: boolean;
+  measurementMethod?: string | null; floorPlanEvidence?: string | null; depthPhoto?: boolean; wholeAreaPhoto?: boolean; backingPhoto?: boolean;
   product: string | null; scope: string | null; sources: Record<string, never>;
   /** Jo 4 Nov 2026 forms only: the new per-area answers (old insulation, old R value, batts). */
   layout?: LayoutArea;
@@ -420,7 +420,7 @@ const UNSUPPORTED_WORK: [string, string][] = [
   ["circuit protection", "Circuit protection work"], ["cable replacement", "Cable replacement"], ["basic protection", "Basic protection work"],
 ];
 
-export function parseAudit(audit: Any) {
+export function parseAudit(audit: Any, opts: { installerSourced?: boolean } = {}) {
   const entries = flatten(audit?.audit_data ? { header_items: audit.header_items, items: audit.items } : audit);
   const auditId = String(audit?.audit_id ?? audit?.id ?? "");
   const patch: AssessmentPatch = {};
@@ -441,7 +441,7 @@ export function parseAudit(audit: Any) {
   // A2 (our leads) captures "Length (m)" × "Width (m)" per area; A1 (installer's own customers) captures the
   // measured m² directly. Legacy forms used "Measured area m2".
   // Decision 222: the lean repeating group asks "Length (m)" + "Width (m)" per area (the m² entry is the old-form fallback).
-  const isAreaKid = (e: Any) => !e.header && [norm("Measured area m2"), norm(LEAN_Q.lengthM), norm(LEAN_Q.widthM), norm(LEAN_Q.measuredM2), norm(FLOOR_PLAN_Q.area)].includes(e.norm) && e.value != null;
+  const isAreaKid = (e: Any) => !e.header && [norm("Measured area m2"), norm(LEAN_Q.lengthM), norm(LEAN_Q.widthM), norm(LEAN_Q.measuredM2), norm(FLOOR_PLAN_Q.area), norm(AERIAL_Q.area)].includes(e.norm) && e.value != null;
   const roomParents = new Set(entries.filter(isAreaKid).map((e) => e.parent ?? e.id));
   const areaM2Label = (kids: Entry[]) => kids.find((e) => [norm("Measured area m2"), norm("Enter the measured ceiling area (m²)")].includes(e.norm)) ?? kids.find((e) => e.norm.startsWith(norm("Measured area m2")));
   // Per-area questions can sit inside conditional sub-branches (empty-label containers), so an area's
@@ -457,10 +457,10 @@ export function parseAudit(audit: Any) {
     const kids = areaKids(p);
     const plan = floorPlanMeasurement(kids);
     const m2e = areaM2Label(kids);
-    let m2 = plan.selected ? {value:plan.areaM2,issue:plan.areaM2===null?'Floor plan ceiling area (m²) missing or invalid – office review required.':null} : physical(m2e?.value ?? null, m2e?.label ?? "Measured area m2");
+    let m2 = plan.selected ? {value:plan.areaM2,issue:plan.areaM2===null?`${plan.kind==='aerial'?'Aerial image':'Floor plan'} ceiling area (m²) missing or invalid – office review required.`:null} : physical(m2e?.value ?? null, m2e?.label ?? "Measured area m2");
     const len = physical(plan.selected ? null : val(kids, [LEAN_Q.lengthM]), LEAN_Q.lengthM);
     const wid = physical(plan.selected ? null : val(kids, [LEAN_Q.widthM]), LEAN_Q.widthM);
-    if (plan.selected && !plan.fileAnswered) issues.push('Floor plan file missing – office review required.');
+    if (plan.selected && !plan.fileAnswered && !opts.installerSourced) issues.push(`${plan.kind==='aerial'?'Aerial image':'Floor plan'} file missing – office review required.`);
     if (m2.value == null && !plan.selected) {
       if (len.issue) issues.push(len.issue);
       if (wid.issue) issues.push(wid.issue);
@@ -487,7 +487,7 @@ export function parseAudit(audit: Any) {
     const rv = layout ? layout.oldR : rValue(rvRaw, "R value").value;
     // Jo 23 Oct: photos are optional in Mitti — note which are missing so they move to the install-day lock.
     const has = (labels: string[]) => !!find(kids, labels, { withValue: true });
-    const photos = { depth: has([LEAN_Q.depthPhoto, ...(LEAN_ALIASES.depthPhoto ?? [])]), overview: has([LEAN_Q.beforeVideo, ...(LEAN_ALIASES.beforeVideo ?? [])]) };
+    const photos = { depth: has([LEAN_Q.depthPhoto, ...(LEAN_ALIASES.depthPhoto ?? [])]), overview: has([LEAN_Q.beforeVideo, ...(LEAN_ALIASES.beforeVideo ?? [])]), whole: has(['Photo of the whole area (well lit)', 'Whole-area photo', 'Photo of the whole ceiling area', 'Whole area photo', 'Upload an overview photo of this ceiling area', 'Photo of the empty ceiling space']), backing: has([LEAN_Q.existingConductivePhoto, ...(LEAN_ALIASES.existingConductivePhoto ?? [])]) };
     const remAnswer = physical(val(kids, [LEAN_Q.removeM2, ...(LEAN_ALIASES.removeM2 ?? [])]), LEAN_Q.removeM2);
     if (remAnswer.issue) issues.push(remAnswer.issue);
     // Decision 222 + Jo 24 Oct: the hazard flag, its note ("What is the issue, and where is it in this area?", or the 24 Oct
@@ -679,8 +679,8 @@ export function parseAudit(audit: Any) {
     removal: r.removal === true ? "yes" : r.removal === false ? "no" : r.remAnswer != null && r.remAnswer > 0 ? "yes" : null,
     removalM2: r.remAnswer, downlights: r.downlights, hazardFlag: r.hazardFlag, hazardEvidence: r.hazardEvidence, hazardNote: r.hazardNote, beforeVideo: r.photos.overview,
     suitable: r.suitable, conductive: r.conductive, conductiveEvidence: r.conductiveEvidence, keepReason: r.keepReason, depthMm: r.depthMm,
-    measurementMethod: val(areaKids(r.parent), [LEAN_Q.measuredHow]), depthPhoto: r.photos.depth,
-    floorPlanEvidence: (()=>{const f=find(areaKids(r.parent),[FLOOR_PLAN_Q.file],{withValue:true});return f?`mitti:${auditId}:item:${f.id}`:null;})(),
+    measurementMethod: val(areaKids(r.parent), [LEAN_Q.measuredHow]), depthPhoto: r.photos.depth, wholeAreaPhoto: r.photos.whole, backingPhoto: r.photos.backing,
+    floorPlanEvidence: (()=>{const f=find(areaKids(r.parent),[...MEASURED_SOURCE_FILE_LABELS],{withValue:true});return f?`mitti:${auditId}:item:${f.id}`:null;})(),
     product: null, scope: null, sources: {},
     ...(r.layout ? { layout: r.layout } : {}),
   }));
@@ -692,9 +692,9 @@ export function parseAudit(audit: Any) {
   return {
     auditId, patch, issues, others, completed, areas, excludedAreas,
     templateId: String(audit?.template_id ?? audit?.audit_data?.template_id ?? ""),
-    jobNumber: val(entries, ["Portal Job Number", "Job Reference ID"]),
+    jobNumber: val(entries, ["Portal Job Number", "Job Reference ID", "Job number"]),
     failReasons,
-    jobNumberField: !!find(entries, ["Portal Job Number", "Job Reference ID"]),
+    jobNumberField: !!find(entries, ["Portal Job Number", "Job Reference ID", "Job number"]),
     modifiedAt: audit?.modified_at ?? audit?.audit_data?.date_modified ?? null,
     snapshot: entries.filter((e) => e.label).map((e) => ({ id: e.id, label: e.label, section: e.section, value: e.value })),
   };
@@ -732,13 +732,13 @@ export function contactAnswersFromEntries(entries: { label: string; value: strin
 }
 
 /** Verify the stored audit's exact identity, template and job before any reuse write or sync. */
-export function validateStoredMittiAudit(audit: Any, ctx: { storedAuditId: string; jobNumber: string; templateId?: string }) {
-  const p = parseAudit(audit);
+export function validateStoredMittiAudit(audit: Any, ctx: { storedAuditId: string; jobNumber: string; templateId?: string; installerSourced?: boolean }) {
+  const p = parseAudit(audit, { installerSourced: ctx.installerSourced === true });
   if (!p.auditId || p.auditId !== ctx.storedAuditId) throw new MittiError("Mitti returned a different audit or no verifiable audit ID for this job.");
   if (!sameMittiTemplateId(p.templateId, ctx.templateId ?? MITTI_TEMPLATE_ID)) throw new MittiError("This Mitti audit does not use the expected Home Insulation Victoria assessment template.");
   // A1 no longer has a Portal Job Number question (Jo 23 Oct): the stored audit ID match above is the link.
   // When the field IS on the form (A2, older A1), it must match exactly as before.
-  const jobFields = flatten(audit).filter(e => [norm("Portal Job Number"), norm("Job Reference ID")].includes(e.norm));
+  const jobFields = flatten(audit).filter(e => [norm("Portal Job Number"), norm("Job Reference ID"), norm("Job number")].includes(e.norm));
   if (!jobFields.length) return p;
   if (!ctx.jobNumber?.trim() || jobFields.some(e => !e.value?.trim() || e.value.trim().toUpperCase() !== ctx.jobNumber.trim().toUpperCase()))
     throw new MittiError(`Mitti Portal Job Number (${p.jobNumber ?? "missing"}) does not match ${ctx.jobNumber}.`);
@@ -746,7 +746,7 @@ export function validateStoredMittiAudit(audit: Any, ctx: { storedAuditId: strin
 }
 
 /** Validate a fetched audit belongs to this job, then plan a safe (non-completing) sync. */
-export function planSync(audit: Any, ctx: { storedAuditId: string; jobNumber: string; assessmentStatus: string | null; templateId?: string }) {
+export function planSync(audit: Any, ctx: { storedAuditId: string; jobNumber: string; assessmentStatus: string | null; templateId?: string; installerSourced?: boolean }) {
   if (ctx.assessmentStatus === "complete") return { locked: true as const };
   const p = validateStoredMittiAudit(audit, ctx);
   return {

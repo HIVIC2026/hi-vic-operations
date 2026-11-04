@@ -95,3 +95,18 @@ test('A5 aliases preserve two separately timed signatures and private media meta
  expect(r.declarationSignature.signedAt).toBe('2026-11-04T00:00:00Z'); expect(r.completionSignature.signedAt).toBe('2026-11-04T02:00:00Z'); expect(r.media(INSTALL_DAY_Q.afterVideos)[0]?.lat).toBe(-37);
  expect(canonicalMittiLabel('Photo of the whole area, lights on')).toBe('Photo of the whole area, lights on');
 });
+// Jo 4 Nov 01:20 UTC wording tidy-up: new labels read as the old ones; old labels stay readable.
+import { canonicalMittiLabel as canon20 } from '../src/lib/mitti-rebuild-labels.core';
+import { readLayoutArea as layout20 } from '../src/lib/ceiling-layout.core';
+import { areasFromReadyCheckEntries as diagram20 } from '../src/lib/area-diagram.core';
+test('01:20 tidy-up labels map to the existing removal, condition and kept-reason questions', () => {
+ expect(canon20('How much old insulation is coming out? (m²)')).toBe('How much existing insulation needs to be removed? (m²)');
+ expect(canon20('Is the old insulation in good enough condition to lay new batts on top?')).toBe('Is the existing insulation in good enough condition to lay new insulation over?');
+ expect(canon20('Why is the old insulation staying?')).toBe('Why is the existing insulation being kept?');
+ expect(canon20('How much existing insulation needs to be removed? (m²)')).toBe('How much existing insulation needs to be removed? (m²)');
+});
+test('01:20 new removal label feeds the quote removal m² and the diagram', () => {
+ const e=[{label:'Name this area',value:'Main house'},{label:'Area (m²)',value:'100'},{label:'Old insulation in this area?',value:'Yes, taking it out'},{label:'Old insulation R value?',value:'Under R2.0'},{label:'How much old insulation is coming out? (m²)',value:'30'}];
+ expect(layout20(e).removeM2).toBe(30);
+ expect(String(diagram20(e)[0]?.existingNote)).toContain('30');
+});

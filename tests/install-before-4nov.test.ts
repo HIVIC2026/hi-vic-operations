@@ -2,7 +2,7 @@ import {expect,test} from 'bun:test';
 import {installBeforePlan,installScopeChanges} from '../src/lib/install-before.core';
 import {buildNeedsRows} from '../src/lib/office-needs.core';
 import {installDayPrefillItems} from '../src/lib/install-day.core';
-const area={name:'Main house',beforeVideo:true,depthPhoto:true,present:true,rejected:false};
+const area={name:'Main house',beforeVideo:true,wholeAreaPhoto:true,backingPhoto:true,depthPhoto:true,present:true,rejected:false};
 test('accepted complete BEFORE evidence never asks again',()=>expect(installBeforePlan(true,[area]).needed).toEqual([]));
 test('missing video requires only that area',()=>expect(installBeforePlan(true,[area,{...area,name:'Rear extension',beforeVideo:false}]).needed.map(a=>a.name)).toEqual(['Rear extension']));
 test('old insulation without ruler requires recollection',()=>expect(installBeforePlan(true,[{...area,depthPhoto:false}]).needed[0]?.reasons).toContain('Old-insulation ruler photo missing'));

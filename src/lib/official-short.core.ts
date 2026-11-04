@@ -4,7 +4,7 @@
 // (official-docx.core.ts). PURE: no I/O. Questions are full plain sentences — never shorthand.
 import type { FormField } from "./mitti-forms.core";
 import { B2_OPTIONS } from "./official-forms.core";
-import { canonicalMittiLabel, mittiLabelAliases } from "./mitti-rebuild-labels.core";
+import { A3_FIELD_ALIASES, canonicalMittiLabel, mittiLabelAliases } from "./mitti-rebuild-labels.core";
 
 export const SPLIT_MAINS_Q = {
  switchSafe: 'Does the main switch work, can you reach it, does it switch off every cable in the ceiling, and can it be locked off?',
@@ -422,7 +422,8 @@ export const SHORT_PIISA_FIELDS: FormField[] = [
 export const SHORT_FIELDS: Record<"piesa" | "piisa", FormField[]> = { piesa: SHORT_PIESA_FIELDS, piisa: SHORT_PIISA_FIELDS };
 // 4 Nov rebuild aliases. A field with no aliases keeps `aliases` undefined (Part 3's certificateNow has none).
 const addAliases = (f: FormField | undefined, extra: string[]) => { if (f && extra.length) f.aliases = [...(f.aliases ?? []), ...extra]; };
-for (const f of SHORT_PIESA_FIELDS) addAliases(f, mittiLabelAliases(f.label));
+// Jo 4 Nov: plain field labels ("Your full name", "Your REC number" …) via A3_FIELD_ALIASES, through the same helper.
+for (const f of SHORT_PIESA_FIELDS) addAliases(f, [...mittiLabelAliases(f.label), ...(f.id && A3_FIELD_ALIASES[f.id] ? [A3_FIELD_ALIASES[f.id]!] : [])]);
 addAliases(SHORT_PIESA_FIELDS.find(f => f.id === 'lifeSupportPresent'), ['Does anyone living here use life support equipment?']);
 addAliases(SHORT_PIESA_FIELDS.find(f => f.id === 'lifeSupportConsent'), ['Do you have their written consent or medical plan?']);
 addAliases(SHORT_PIESA_FIELDS.find(f => f.id === 'lifeSupportAttachment'), ['Photo of every page of the consent or medical plan']);

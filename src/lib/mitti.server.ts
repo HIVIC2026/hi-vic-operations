@@ -549,7 +549,7 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
       const tid = [ids.readyCheck, ids.readyCheckPriced].filter(Boolean).find((t) => sameMittiTemplateId(t, auditTemplate))
         ?? (readyCheckVariant(job.channel) === "ready_check_priced" ? ids.readyCheckPriced : ids.readyCheck);
       if (!tid) throw new WorkflowError(MEASUREUP_TEMPLATE_MISSING);
-      const plan = planSync(auditNow, { storedAuditId: measureAudit, jobNumber: job.job_number, assessmentStatus: null, templateId: tid });
+      const plan = planSync(auditNow, { storedAuditId: measureAudit, jobNumber: job.job_number, assessmentStatus: null, templateId: tid, installerSourced: job.channel === 'installer_sourced' });
       if (!plan.locked) {
         const mp = await applyMeasure(jobId, actorId, measureAudit, "installer", splitPatch(plan.patch).measure, plan.snapshot, plan.areas ?? null);
         await (await import("./excluded-areas.server")).recordExcludedAreas(jobId, actorId, plan.excludedAreas ?? []).catch(() => undefined); // idempotent: the next sync tries again

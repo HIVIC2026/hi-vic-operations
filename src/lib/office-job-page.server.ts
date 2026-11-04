@@ -45,7 +45,7 @@ export async function loadJobPage(jobId: string, testOffice = false) {
   const prop = job.properties as { address_line: string | null; suburb: string | null; postcode: string | null; state: string | null; occupancy: string | null; enrichment: Record<string, unknown> | null } | null;
   const addr = splitAddress(prop?.address_line, prop?.suburb, prop?.postcode);
 
-  const [gathered, consent, asg, offers, bookings, meas, diagram, quotes, piesa, rect, escConsent, escNotice, assignment, evidence, veec, campaign, links, media, readyForVeec, originBiz, proposals, contacts, access, certificate] = await Promise.all([
+  const [gathered, consent, asg, offers, bookings, meas, diagram, quotes, piesa, rect, escConsent, escNotice, assignment, evidence, veec, campaign, links, media, readyForVeec, originBiz, proposals, contacts, access, certificate, beforePhotos] = await Promise.all([
     gatherNeedsFacts({ includeTest: true, onlyIds: [jobId], testOffice }),
     admin.from("owner_contact_consents").select("consent_status, consented_at, created_at").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("job_assignments").select("role, business_id, assigned_at, active, businesses(name)").eq("job_id", jobId).eq("active", true),
@@ -72,6 +72,7 @@ export async function loadJobPage(jobId: string, testOffice = false) {
     readJobAccess(jobId),
     // Part 3 Task 3: the Certificate of Electrical Safety status line (read-only; nothing on a failed read).
     import("./certificate-later.server").then((m) => m.certificateLineFor(jobId)),
+    job.channel === 'installer_sourced' && !job.installation_completed_at ? (await import('./install-before.server')).readInstallBeforePlan(jobId) : Promise.resolve(null),
   ]);
   const bizOf = (role: string) => ((asg.data ?? []).find((a) => a.role === role)?.businesses as { name?: string } | null)?.name ?? null;
   const ownJob = job.channel === "installer_sourced";
@@ -137,6 +138,7 @@ export async function loadJobPage(jobId: string, testOffice = false) {
       inHouseHeld: !testOffice && !!facts?.inHouse,
       ownerName: displayName(owner?.full_name) || null, surname: surnameOf(owner?.full_name), phone: owner?.phone ?? null, email: owner?.email ?? null,
       access: access.line,
+      beforePhotos: beforePhotos?.line ?? null,
       street: addr.street || prop?.address_line || null, suburb: addr.suburb || null, postcode: addr.postcode || null,
       sourceLabel: ownJob ? `Installer's own customer · ${installer ?? "installer"}` : job.source === "base44" ? "Website enquiry" : job.source === "qa_test" ? "TEST job" : "Phone / office enquiry",
       receivedAt: job.created_at, permissionAt: consent.data?.consent_status === "granted" ? s(consent.data.consented_at ?? consent.data.created_at) : null, permissionState: consent.data?.consent_status ?? null,

@@ -33,6 +33,7 @@ import { mittiItemType } from "./mitti.core";
 import { canonicalMittiLabel, mittiLabelAliases } from './mitti-rebuild-labels.core';
 import { SPLIT_MAINS_Q } from './official-short.core';
 import { PIESA_EVIDENCE } from "./piesa-evidence.core";
+import { A1_COMPLETE_INSTRUCTION, A1_READY_TO_PRICE_TICK, A1_OPTIONAL_MEDIA_INSTRUCTION } from './ready-check-lean.core';
 import { FIXES_DAY_QUESTIONS, FIXES_DAY_TEMPLATE_NAME, type FixesDayType } from "./fixes-day.core";
 import { ACCESS_OPTIONS, AREA_GROUP_BUTTON, ELECTRICIAN_OPTIONS, EXISTING_ACTION_OPTIONS, EXISTING_TYPE_OPTIONS, FAIL_REASON_OPTIONS, INCLUDED_OPTIONS, LEAN_ALIASES, LEAN_Q, MEASURED_HOW_OPTIONS, OUTCOME_FAILED, OUTCOME_OPTIONS, PREMISES_TYPE_OPTIONS, PRODUCT_OPTIONS, PROPERTY_TYPE_OPTIONS, R_ABOVE_LEGACY, R_AT_OR_ABOVE, R_VALUE_OPTIONS, ROOF_OPTIONS, YES_NO } from "./ready-check-lean.core";
 
@@ -137,8 +138,8 @@ const READY_CHECK_FIELDS: FormField[] = [
   { label: LEAN_Q.accessPhoto, type: "media", required: false, aliases: al("accessPhoto"), source: `${G} access evidence – optional on the form (Jo 23 Oct; kept but not mandatory, Jo 26 Oct); never chased (decision 396)` },
   // Page 4 — Ceiling areas: ONE repeating group "Add a ceiling area"
   { label: LEAN_Q.areaName, type: "text", required: true, perArea: true, aliases: al("areaName"), source: `${G} Table 4 diagram box label + install-day zone name (decisions 211/222)` },
-  { label: LEAN_Q.lengthM, type: "number", required: true, perArea: true, notRequiredIf: [LEAN_Q.measuredM2,"Ceiling area from the floor plan (m²)"], source: "portal – length × width unless Floor plan" },
-  { label: LEAN_Q.widthM, type: "number", required: true, perArea: true, notRequiredIf: [LEAN_Q.measuredM2,"Ceiling area from the floor plan (m²)"], source: "portal – length × width unless Floor plan" },
+  { label: LEAN_Q.lengthM, type: "number", required: true, perArea: true, notRequiredIf: [LEAN_Q.measuredM2,"Ceiling area from the floor plan (m²)","Ceiling area from the aerial image (m²)"], source: "portal – length × width unless Floor plan or Aerial image" },
+  { label: LEAN_Q.widthM, type: "number", required: true, perArea: true, notRequiredIf: [LEAN_Q.measuredM2,"Ceiling area from the floor plan (m²)","Ceiling area from the aerial image (m²)"], source: "portal – length × width unless Floor plan or Aerial image" },
   // 22–24 Oct forms: the single m² entry. Legacy only (portalOnly = never asked for on a new build), still read as the fallback.
   { label: LEAN_Q.measuredM2, type: "number", required: false, perArea: true, portalOnly: true, types: ["text"], aliases: al("measuredM2"), source: "portal – LEGACY (22–24 Oct forms): single m² entry, read when no Length/Width" },
   { label: LEAN_Q.measuredHow, type: "choice", required: true, perArea: true, choices: [...MEASURED_HOW_OPTIONS], aliases: al("measuredHow"), source: "portal – measurement provenance; aerial/online estimates never accepted" },
@@ -190,7 +191,9 @@ export const FORMS: Record<FormKey, { title: string; role: "installer" | "electr
   ready_check_priced: {
     title: `${READY_CHECK_TITLE} – installer-supplied customer`,
     role: "installer",
-    fields: [...READY_CHECK_FIELDS, SIGNATURE_A1],
+    fields: [...READY_CHECK_FIELDS.map(f => f.type === 'media' ? { ...f, required: false, source: A1_OPTIONAL_MEDIA_INSTRUCTION } : f), SIGNATURE_A1,
+      { label: A1_COMPLETE_INSTRUCTION, type: 'statement', required: false, statement: 'statement', source: 'Jo 4 Nov' },
+      { label: A1_READY_TO_PRICE_TICK, type: 'tick', required: true, source: 'Jo 4 Nov' }],
   },
   // Short onsite forms (approved 3 Oct 2026): clear full-sentence questions. The portal expands the answers
   // into every official Word-form item (official-expand.core.ts) and fills the official document itself.
@@ -203,7 +206,7 @@ export const FORMS: Record<FormKey, { title: string; role: "installer" | "electr
 /** Distinct questions an installer can be asked on a lean Ready Check (per-area group counted once; legacy-only items excluded).
  *  `beforeDecision`: the count on a template built before that decision's paste-prompt additions (e.g. 359 → 34 / 35). */
 export function leanQuestionCount(key: "ready_check" | "ready_check_priced", opts: { beforeDecision?: number } = {}): number {
-  return FORMS[key].fields.filter((f) => !f.portalOnly && !(opts.beforeDecision != null && f.addedByDecision != null && f.addedByDecision >= opts.beforeDecision)).length;
+  return FORMS[key].fields.filter((f) => !f.portalOnly && f.type !== 'statement' && !(opts.beforeDecision != null && f.addedByDecision != null && f.addedByDecision >= opts.beforeDecision)).length;
 }
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
@@ -233,8 +236,10 @@ export function validateTemplate(key: FormKey, items: TemplateItem[]): { ok: boo
   const expected = new Map<string, number>();
   let fields: FormField[] = FORMS[key].fields.filter((f) => !f.statement).map(f => ({ ...f, aliases: [...(f.aliases ?? []), ...mittiLabelAliases(f.label)] }));
   const rebuiltReady = (key === 'ready_check' || key === 'ready_check_priced') && byLabel.has(norm('Old insulation in this area?'));
+  if (key === 'ready_check_priced' && !rebuiltReady && !byLabel.has(norm(A1_READY_TO_PRICE_TICK))) fields = fields.filter(f => f.label !== A1_READY_TO_PRICE_TICK);
   if (rebuiltReady) {
     if(byLabel.has(norm('Ceiling area from the floor plan (m²)'))){fields.push({label:'Ceiling area from the floor plan (m²)',type:'number',required:true,perArea:true,source:'4 Nov floor plan'},{label:'Upload the floor plan (photo or PDF)',type:'media',required:true,perArea:true,source:'4 Nov floor plan'});}
+    if(byLabel.has(norm('Ceiling area from the aerial image (m²)'))){fields.push({label:'Ceiling area from the aerial image (m²)',type:'number',required:true,perArea:true,source:'4 Nov aerial image'},{label:'Upload the aerial image (photo or PDF)',type:'media',required:true,perArea:true,source:'4 Nov aerial image'});}
     const replaced = [LEAN_Q.existing, LEAN_Q.existingAction, LEAN_Q.rValue, LEAN_Q.product, LEAN_Q.premisesType];
     const websiteOnly = [LEAN_Q.ownerPhone, LEAN_Q.ownerEmail, LEAN_Q.contactPermission, LEAN_Q.lifeSupport, LEAN_Q.builtLast5];
     fields = fields.filter(f => !replaced.includes(f.label as typeof replaced[number]) && !(key === 'ready_check' && websiteOnly.includes(f.label as typeof websiteOnly[number])));
@@ -247,6 +252,7 @@ export function validateTemplate(key: FormKey, items: TemplateItem[]): { ok: boo
     for (const [id, label] of Object.entries(SPLIT_MAINS_Q)) fields.push({ id, label, aliases: id === 'switchSafe' ? ['Does the main switch work, can you reach it, does it safely isolate the ceiling circuits (excluding the mains cables), and can it be locked off?'] : [], type: 'yesno', required: true, source: '4 Nov split mains' });
     fields = fields.map(f => ({ ...f, ...(f.id === 'solarProblems' ? { aliases: [...(f.aliases ?? []), "Tick everything that's not right."] } : {}), ...(f.repeats && f.label === 'Photo of the problem' ? { repeats: 6 } : {}) }));
   }
+  if (key === 'ready_check_priced') fields = fields.map(f => f.type === 'media' ? { ...f, required: false } : f);
   for (const f of fields) if (!f.perArea && !f.perPriceLine && !f.row) expected.set(norm(f.label), (expected.get(norm(f.label)) ?? 0) + 1);
   // Deduplicated: a curly/straight apostrophe alias normalises to the same key and must not count the item twice.
   const labelsOf = (f: FormField) => [...new Set([norm(f.label), ...(f.aliases ?? []).map(norm)])];

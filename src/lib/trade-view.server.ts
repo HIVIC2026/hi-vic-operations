@@ -1200,9 +1200,10 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
   // Part 3 Task 3 (Jo 3 Nov 2026): the certificate status line ("Waiting for {electrician}'s Certificate of Electrical Safety" /
   // "Upgrades day not set yet"), read-only facts; a failed read shows nothing.
   const certificateP = early(import("./certificate-later.server").then((m) => m.certificateLineFor(jobId)));
+  const beforePhotosP = early(jobP.then(async ({ data: j }) => c.kind === 'installer' && j?.channel === 'installer_sourced' && !j.installation_completed_at ? (await import('./install-before.server')).readInstallBeforePlan(jobId) : null));
   const [{ data: j }, { data: rcBook }, { data: inBook }, { data: m }, { data: a }, rebateSigned, quote, pay, form, clearance, mitti, payRows,
     { data: declinedEv }, { data: basicsDone }, { data: piesaBook }, { data: elecAsg }, { data: fixes }, { data: evEv }, { data: alloc }, { data: decl }, { data: finalAsg }, ownerReady, notes,
-    priceEntered, ownerPiesaConfirmed, electricianAttendance, certificate] = await Promise.all([
+    priceEntered, ownerPiesaConfirmed, electricianAttendance, certificate, beforePhotos] = await Promise.all([
     jobP,
     admin.from("bookings").select("scheduled_start, status").eq("job_id", jobId).eq("kind", "ready_check").neq("status", "cancelled").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     inBookP,
@@ -1232,6 +1233,7 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
     piesaConfirmedP,
     attendanceP,
     certificateP,
+    beforePhotosP,
   ]);
   const qq = quote.quote as { sent_at?: string | null; accepted_at?: string | null } | null;
   const elecName = (elecAsg?.profiles as unknown as { full_name: string | null } | null)?.full_name ?? null;
@@ -1244,6 +1246,7 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
   const payRow = payRows[0] ?? null;
   return {
     jobNumber: j?.job_number ?? null, stage: j?.stage ?? null, channel: j?.channel ?? null, notes,
+    beforePhotos: beforePhotos?.line ?? null,
     readyCheck: { bookedAt: rcBook?.scheduled_start ?? null, done: rcBook?.status === "completed" },
     install: { bookedAt: inBook?.scheduled_start ?? null, recordedAt: j?.installation_completed_at ?? null, form, rebateSigned, formCompletedAt: decl?.signed_at ?? null, evidenceChecked: Array.isArray(evidenceBlockers) ? evidenceBlockers.length === 0 : false, crew, ownerReady },
     form: mitti.applies
