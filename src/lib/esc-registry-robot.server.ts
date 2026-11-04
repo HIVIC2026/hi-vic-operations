@@ -213,8 +213,8 @@ export async function recordRobotNotificationUpdated(p: { notificationId: string
   const now = new Date().toISOString();
   const { registryChange } = await import("./esc.core");
   let patch;
-  try { patch = registryUpdatePatch({ prev, change: registryChange(prev, { scheduled_start: n.scheduled_start, payload_json: n.payload_json }, now), reference: p.reference, updatedAt: p.updatedAt, confirmed: true, actorId: ROBOT_ACTOR_LABEL }, now); } catch (e) { throw new WorkflowError((e as Error).message); }
-  if(Date.parse(prev.scheduled_start)===Date.parse(n.scheduled_start))patch={...patch,sent_at:prev.sent_at??patch.sent_at};
+  // Same-start updates keep the original sent_at and ID: one rule inside registryUpdatePatch (Part 9 Task 3).
+  try { patch = registryUpdatePatch({ prev, nextStart: n.scheduled_start, change: registryChange(prev, { scheduled_start: n.scheduled_start, payload_json: n.payload_json }, now), reference: p.reference, updatedAt: p.updatedAt, confirmed: true, actorId: ROBOT_ACTOR_LABEL }, now); } catch (e) { throw new WorkflowError((e as Error).message); }
   const response = { ...patch.response, robot: { updated_at: p.updatedAt, screenshot_path: p.screenshotPath, registry_url: p.registryUrl, by: ROBOT_ACTOR_LABEL } };
   const { data: upd, error } = await admin.from("esc_notifications").update({ ...patch, submission_method: ROBOT_SUBMISSION_METHOD, submitted_by: null, response: response as unknown as Json, updated_at: now }).eq("id", n.id).is("sent_at", null).select("id");
   if (error) throw new WorkflowError(error.message);

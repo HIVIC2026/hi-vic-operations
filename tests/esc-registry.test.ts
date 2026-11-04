@@ -120,12 +120,12 @@ describe("Update on the same notification ID vs withdraw + resubmit (Activity Gu
     const c = registryChange(prev, next, now);
     expect(c.action).toBe("update_same_id");
     expect(c.changed).toEqual(["installation_start", "lead_installer_phone"]);
-    const patch = registryUpdatePatch({ prev, change: c, reference: "VEU-123", updatedAt: now, confirmed: true, actorId: "u1" }, now);
+    const patch = registryUpdatePatch({ prev, nextStart: START, change: c, reference: "VEU-123", updatedAt: now, confirmed: true, actorId: "u1" }, now);
     expect(patch.submission_reference).toBe("VEU-123");
     expect(patch.status).toBe("sent");
     expect(patch.response.registry_update.changed).toContain("lead_installer_phone");
-    expect(() => registryUpdatePatch({ prev, change: c, reference: "VEU-999", updatedAt: now, confirmed: true, actorId: "u1" }, now)).toThrow(/same notification ID/);
-    expect(() => registryUpdatePatch({ prev, change: c, reference: "VEU-123", updatedAt: now, confirmed: false, actorId: "u1" }, now)).toThrow(/Confirm/);
+    expect(() => registryUpdatePatch({ prev, nextStart: START, change: c, reference: "VEU-999", updatedAt: now, confirmed: true, actorId: "u1" }, now)).toThrow(/same notification ID/);
+    expect(() => registryUpdatePatch({ prev, nextStart: START, change: c, reference: "VEU-123", updatedAt: now, confirmed: false, actorId: "u1" }, now)).toThrow(/Confirm/);
   });
   test("address/owner/PIESA changes, a passed original start, or a start beyond 5 days → withdraw and resubmit", () => {
     const addr = registryChange(prev, { scheduled_start: START, payload_json: mk({ ...facts, premises_address: "14 Other St" }) }, now);
@@ -137,7 +137,7 @@ describe("Update on the same notification ID vs withdraw + resubmit (Activity Gu
     expect(passed.reasons.join()).toMatch(/original installation date and time has passed/);
     const far = "2026-11-12T22:00:00Z";
     expect(registryChange(prev, { scheduled_start: far, payload_json: mk(registryFacts({ ...baseIn(), scheduledStart: far }), far) }, now).reasons.join()).toMatch(/more than 5 days/);
-    expect(() => registryUpdatePatch({ prev, change: addr, reference: "VEU-123", updatedAt: now, confirmed: true, actorId: "u1" }, now)).toThrow(/can't be updated/);
+    expect(() => registryUpdatePatch({ prev, nextStart: START, change: addr, reference: "VEU-123", updatedAt: now, confirmed: true, actorId: "u1" }, now)).toThrow(/can't be updated/);
   });
   test("nothing changed → none; a notice from the old field list → withdraw and resubmit", () => {
     expect(registryChange(prev, { scheduled_start: OLD, payload_json: prev.payload_json }, now).action).toBe("none");

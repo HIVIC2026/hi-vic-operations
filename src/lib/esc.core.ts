@@ -199,12 +199,16 @@ export function registryChange(prev: SentNotice, next: { scheduled_start: string
   return { action: reasons.length ? "withdraw_and_resubmit" : "update_same_id", changed, reasons };
 }
 
-/** Office records that it UPDATED the earlier notification in the Registry (same notification ID). The current notice is
- *  then recorded as sent under the SAME reference, with the update kept on the row. */
-export function registryUpdatePatch(p: { prev: SentNotice; change: RegistryChange; reference: string; updatedAt: string; confirmed: boolean; actorId: string }, nowIso: string) {
+/** Office (or the robot) records that it UPDATED the earlier notification in the Registry (same notification ID). The
+ *  current notice is then recorded as sent under the SAME reference, with the update kept on the row. ONE rule (root AGENTS,
+ *  Part 9 Task 3): with the SAME start (Lead Installer / details update) `sent_at` stays the original notice's time — the
+ *  ESC was told about this install then, so the 24h check never flips to DON'T START; a moved start = the update time. */
+export function registryUpdatePatch(p: { prev: SentNotice; nextStart: string; change: RegistryChange; reference: string; updatedAt: string; confirmed: boolean; actorId: string }, nowIso: string) {
   if (p.change.action !== "update_same_id") throw new Error(p.change.reasons.join(" ") || "Nothing changed that needs a Registry update.");
   if (p.reference.trim() !== String(p.prev.submission_reference ?? "").trim()) throw new Error(`An update keeps the same notification ID (${p.prev.submission_reference}). A different ID means a new notification — record it as a new submission after withdrawing the old one.`);
-  const base = submissionPatch({ reference: p.reference, sentAt: p.updatedAt, method: "manual_portal", confirmed: p.confirmed, actorId: p.actorId }, nowIso);
+  const sameStart = Date.parse(p.prev.scheduled_start) === Date.parse(p.nextStart);
+  const sentAt = sameStart && p.prev.sent_at ? p.prev.sent_at : p.updatedAt;
+  const base = submissionPatch({ reference: p.reference, sentAt, method: "manual_portal", confirmed: p.confirmed, actorId: p.actorId }, nowIso);
   return { ...base, response: { registry_update: { same_id: base.submission_reference, updated_at: p.updatedAt, changed: p.change.changed, updated_by: p.actorId } } };
 }
 

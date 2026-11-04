@@ -175,8 +175,8 @@ export async function recordEscRegistryUpdate(p: { notificationId: string; refer
   await assertCanUpdate(n,prev,p.updatedAt);
   const now = new Date().toISOString();
   let patch;
-  try { patch = registryUpdatePatch({ prev, change: registryChange(prev, { scheduled_start: n.scheduled_start, payload_json: n.payload_json }, now), reference: p.reference, updatedAt: p.updatedAt, confirmed: p.confirmed, actorId: p.actorId }, now); } catch (e) { throw new WorkflowError((e as Error).message); }
-  if(Date.parse(prev.scheduled_start)===Date.parse(n.scheduled_start))patch={...patch,sent_at:prev.sent_at??patch.sent_at};
+  // Same-start updates keep the original sent_at and ID: one rule inside registryUpdatePatch (Part 9 Task 3).
+  try { patch = registryUpdatePatch({ prev, nextStart: n.scheduled_start, change: registryChange(prev, { scheduled_start: n.scheduled_start, payload_json: n.payload_json }, now), reference: p.reference, updatedAt: p.updatedAt, confirmed: p.confirmed, actorId: p.actorId }, now); } catch (e) { throw new WorkflowError((e as Error).message); }
   const { error } = await admin.from("esc_notifications").update({ ...patch, response: patch.response as unknown as Json, updated_at: now }).eq("id", n.id);
   if (error) throw new WorkflowError(error.message);
   await import("./prestart.server").then((m) => m.runPrestart(n.job_id, "esc_submitted")).catch((e) => console.error("pre-start re-run skipped", (e as Error).message));
