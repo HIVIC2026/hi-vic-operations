@@ -164,6 +164,14 @@ describe("Send quote to owner — only through the guarded auto-send, only with 
     piesaRate = null;
     expect(await installerPriceView(JOB, BOSS)).toMatchObject({ piesaPriceSet: false, piesaPriceNote: PIESA_PRICE_NOT_SET });
   });
+  test("J3 (2): the draft's own 'couldn't check your PIESA price' hold coming back from the guarded send is kept as is — never turned into 'not set'", async () => {
+    autoSendResult = { sent: false, reasons: [PIESA_PRICE_CHECK_FAILED] };
+    const r = await setInstallerPrice(JOB, BOSS, input, { send: true, sendOnPressEnabled: true });
+    expect(r.sent).toBe(false);
+    expect(r.reasons).toEqual([PIESA_PRICE_CHECK_FAILED]);
+    expect(r.reasons).not.toContain(PIESA_PRICE_NOT_SET);
+    expect(r.reasons).not.toContain(IN_HOUSE_PIESA_HOLD_REASON);
+  });
   test("the office's 'no PIESA rate' hold coming back from the guarded send reads as the installer line", async () => {
     autoSendResult = { sent: false, reasons: [IN_HOUSE_PIESA_HOLD_REASON] };
     const r = await setInstallerPrice(JOB, OFFICE, input, { send: true, sendOnPressEnabled: true });

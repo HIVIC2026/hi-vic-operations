@@ -95,9 +95,13 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   // `installerSafetyCheckPrice`), paid through in full. The Ready Check path already carries that rate on the electrician
   // resolution (`mittiElectricianForJob` → `withOwnerSafetyCheckPrice`); the intake-price fallback reads it here. No rate →
   // held (`IN_HOUSE_PIESA_HOLD_REASON`), never $349. The settings' AP/PIESA amounts and `ap_fee_override_inc_gst` are not read.
+  // J3 (2): a rate READ failure is not "no rate" — the quote holds with PIESA_PRICE_CHECK_FAILED (try again in a minute),
+  // never the "not set / ask the office" hold; nothing is sent either way.
+  let piesaReadFailed = false;
   const listPiesa = mittiElectrician ? null : await (await import("./installer-paid-electricians.server")).installerSafetyCheckPrice(job.originating_installer_business_id).catch((e: unknown) => {
     console.error("draftInstallerQuoteFromReadyCheck: installer PIESA rate could not be read", (e as Error).message);
-    return null; // fail closed: the quote holds "no PIESA rate" until the read works; nothing is sent
+    piesaReadFailed = true;
+    return null; // fail closed: the quote holds until the read works; nothing is sent
   });
   const draftInput = {
     price: intakePrice ? { ok: true, issues: [], price: { included: [intakePrice.exclusions ? `${intakePrice.includes} (excludes: ${intakePrice.exclusions})` : intakePrice.includes], otherDescription: "", totalIncGst: Math.round(intakePrice.totalIncGst * 100) / 100, agreedWithOwner: false } } : quotedPriceFromEntries(entries, m?.removal_required ?? null), measuredM2: m2, wholeVeec,
@@ -111,6 +115,7 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   // Same lines on both branches (Task 2 review): the Ready Check path adds the electrician's hold reasons; the intake-price
   // fallback (no Mitti electrician) still holds below while the electrician is undecided.
   const draft = mittiElectrician ? quoteCore.buildMittiInstallerQuote(draftInput, mittiElectrician) : quoteCore.buildOwnCustomerQuoteDraft(draftInput, listPiesa);
+  if (piesaReadFailed) { const { PIESA_PRICE_CHECK_FAILED } = await import("./own-customer-price.core"); draft.blockers = draft.blockers.map((b) => (b === IN_HOUSE_PIESA_HOLD_REASON ? PIESA_PRICE_CHECK_FAILED : b)); draft.ready = false; }
   const payer = payerFromChoice(job.electrician_choice);
   if (!mittiElectrician && payer === "undecided") draft.blockers.unshift("Electrician not decided yet — the owner's electrician cost must be known before the quote");
   if (!mittiElectrician && payer === "undecided") draft.ready = false;
@@ -142,8 +147,8 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
     // An earlier held DRAFT (e.g. one priced from a free-text electrician) now carries the current hold reason, so the
     // Quote card and Quotes to check say why; `quoteBillingBlocker` refuses Send until a new snapshot is ready.
     const inHousePriceHeld = mittiElectrician?.reasons.includes(IN_HOUSE_PIESA_HOLD_REASON) || draft.blockers.includes(IN_HOUSE_PIESA_HOLD_REASON);
-    if (notOnboarded || inHousePriceHeld) {
-      const holdNow = inHousePriceHeld ? IN_HOUSE_PIESA_HOLD_REASON : [...draft.blockers, "Waiting for office review before sending"].join(" · ");
+    if (notOnboarded || inHousePriceHeld || piesaReadFailed) {
+      const holdNow = piesaReadFailed ? (await import("./own-customer-price.core")).PIESA_PRICE_CHECK_FAILED : inHousePriceHeld ? IN_HOUSE_PIESA_HOLD_REASON : [...draft.blockers, "Waiting for office review before sending"].join(" · ");
       for (const q of (open ?? []).filter((q) => q.status === "draft" && q.option_code === INSTALLER_QUOTE_CODE)) {
         const { error: holdError } = await admin.from("quotes").update({ release_state: "held", release_hold_reason: holdNow }).eq("id", q.id).eq("status", "draft");
         if (holdError) throw new Error("Quote hold reasons could not be refreshed.");

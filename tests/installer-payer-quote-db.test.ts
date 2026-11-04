@@ -40,6 +40,7 @@ CREATE TABLE admin_config_events (id uuid primary key default gen_random_uuid(),
 const shim = postgrestShim(db);
 /** `rate_card_items … rate_cards!inner(business_id)` (installer-paid-electricians.server): the one embedded-join read the
  *  own-customer PIESA rate needs (Jo 4 Nov 2026) — answered with a real join on PGlite. */
+let rateReadFails = false; // J3 (2): the rate READ fails (not "no rate")
 function rateCardItemsJoin() {
   const where: string[] = []; const vals: unknown[] = [];
   const b = {
@@ -48,6 +49,7 @@ function rateCardItemsJoin() {
     lte(c: string, v: unknown) { where.push(`rc."${c.replace("rate_cards.", "")}" <= $${vals.push(v)}`); return b; },
     ilike(c: string, v: string) { where.push(`i."${c}" ILIKE $${vals.push(v)}`); return b; },
     then(res: (v: unknown) => unknown, rej?: (e: unknown) => unknown) {
+      if (rateReadFails) return Promise.resolve(res({ data: null, error: { message: "rate_card_items read failed (test)" } })).then(undefined, rej);
       return db.query(`select i.rate_card_id, i.code, i.unit_price_ex_gst, json_build_object('business_id', rc.business_id) as rate_cards from rate_card_items i join rate_cards rc on rc.id = i.rate_card_id${where.length ? " where " + where.join(" and ") : ""}`, vals)
         .then((r) => res({ data: r.rows, error: null }), (e) => res({ data: null, error: { message: (e as Error).message } })).then(undefined, rej);
     },
@@ -225,6 +227,22 @@ describe("server-drafted owner quote follows the CURRENT electrician payer", () 
     expect(await quotes()).toEqual([]);
     const held = (await db.query<{ details: { blockers: string[] } }>("select details from workflow_events where job_id=$1 and event_type='installer_quote_held' order by created_at desc limit 1", [JOB])).rows[0];
     expect(held?.details.blockers).toContain("Installer business has no PIESA rate on its rate card");
+  });
+
+  test("J3 (2): the rate READ fails → held with 'We couldn't check your PIESA price just now…', never the 'no PIESA rate' hold, nothing drafted", async () => {
+    await db.query("update jobs set electrician_choice='preferred'");
+    rateReadFails = true;
+    try { await draftQuoteFromIntake(JOB, U); } finally { rateReadFails = false; }
+    expect(await quotes()).toEqual([]);
+    const held = (await db.query<{ details: { blockers: string[] } }>("select details from workflow_events where job_id=$1 and event_type='installer_quote_held' order by created_at desc limit 1", [JOB])).rows[0];
+    const { PIESA_PRICE_CHECK_FAILED, PIESA_PRICE_NOT_SET } = await import("../src/lib/own-customer-price.core");
+    expect(held?.details.blockers).toContain(PIESA_PRICE_CHECK_FAILED);
+    expect(held?.details.blockers).not.toContain("Installer business has no PIESA rate on its rate card");
+    expect(held?.details.blockers).not.toContain(PIESA_PRICE_NOT_SET);
+    // the read works again → the next draft prices the $275 PIESA line
+    await draftQuoteFromIntake(JOB, U);
+    const [q] = await current();
+    expect(await items(q!.id)).toEqual(["INSTALLER_PRICE:3450", "AP_FEE:349", "PIESA:275"]);
   });
 
   test("undecided: no quote drafted (held), never a guessed $349", async () => {
