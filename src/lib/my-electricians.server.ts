@@ -11,7 +11,7 @@ import { sameWorkerEmail } from "./worker-role.core";
 import { isMissingDbObject } from "./schema-compat.core";
 import { allowedUpload } from "./upload-safety.core";
 import { melbourneToday } from "./worker-compliance.core";
-import { addElectricianProblems, approveChecklist, approveElectricianLine, finishApprovingElectricianLine, myElectricianStatus, PAYS_OWN_ELECTRICIANS_HINT, rejectionEmail, REJECTION_EMAIL_APPROVED, welcomeSmsKey, welcomeSmsText, type AddElectricianInput, type MyElectricianStatus } from "./my-electricians.core";
+import { addElectricianProblems, approveChecklist, approveElectricianLine, finishApprovingElectricianLine, myElectricianStatus, rejectionEmail, REJECTION_EMAIL_APPROVED, welcomeSmsKey, welcomeSmsText, type AddElectricianInput, type MyElectricianStatus } from "./my-electricians.core";
 import { stableUuid } from "./mitti-create-claim.core";
 import { TEST_PARTNER_MARK, isTestPartner, normaliseAuMobile } from "./test-send.core";
 
@@ -435,43 +435,6 @@ export async function ownJobDocsBlocker(electricianBusinessId: string, today = m
   if (b.error) { if (!isMissingDbObject(b.error)) throw new WorkflowError("The electrician's paperwork couldn't be checked. Please try again."); } else installerAdded = !!b.data?.added_by_installer_business_id;
   const kinds = installerAdded ? (["public_liability_insurance", "rec_registration", "electrical_licence"] as const) : (["public_liability_insurance", "rec_registration"] as const);
   return expiredBusinessDocsBlocker((cr.data ?? []).map((c) => ({ kind: c.kind, label: c.label ?? c.kind, expires: c.expires_at as string | null, verified: c.verification === "verified" })), today, kinds);
-}
-
-/**
- * Task 5: the electricians an installer may pick for its OWN jobs (Add a job; the job-page swap applies the same facts
- * through electrician-swap `eligibility`): linked with an active `partner_relationships` row, an approved + active
- * business with an approved electrician person (`approvedRecBlocker` with `rateNotNeeded` — the installer pays its own
- * electricians), and no lapsed document (`ownJobDocsBlocker`). A waiting or not-approved electrician never appears.
- * `usual` marks the one saved in My business. Usual first, then by name. Read-only.
- */
-export async function pickableOwnElectricians(installerBusinessId: string): Promise<import("./electrician-choice.core").PickableElectrician[]> {
-  return (await ownElectricianPick(installerBusinessId)).electricians;
-}
-
-/** The pickable list plus the one plain hint for an empty list that has a reason the installer can act on (final review
- *  minor 3): an installer that does NOT pay its own electricians (`readInstallerPaidElectricians` gives no flat PIESA
- *  price) gets no list at all — picking one would only hold the quote "not onboarded" — and the hint to ask the office. */
-export async function ownElectricianPick(installerBusinessId: string): Promise<{ electricians: import("./electrician-choice.core").PickableElectrician[]; hint: string | null }> {
-  const { readInstallerPaidElectricians } = await import("./installer-paid-electricians.server");
-  const paid = await readInstallerPaidElectricians(installerBusinessId);
-  if (!paid || paid.piesaIncGst == null) return { electricians: [], hint: PAYS_OWN_ELECTRICIANS_HINT };
-  const rels = await admin.from("partner_relationships").select("electrician_business_id").eq("installer_business_id", installerBusinessId).eq("active", true);
-  if (rels.error) throw new WorkflowError("Could not load your electricians. Please try again.");
-  const ids = [...new Set((rels.data ?? []).map((r) => r.electrician_business_id as string))];
-  if (!ids.length) return { electricians: [], hint: null };
-  const [{ loadApprovedRecCandidates }, { approvedRecBlocker }, { readUsualElectrician }, { ourLeadUsualRecId }, { displayName }] = await Promise.all([
-    import("./rec-onboarded.server"), import("./rec-onboarded.core"), import("./usual-electrician.server"), import("./our-lead-piesa-electrician.core"), import("./display-name.core"),
-  ]);
-  const candidates = await loadApprovedRecCandidates();
-  const usualId = ourLeadUsualRecId((await readUsualElectrician(installerBusinessId)).electrician, candidates);
-  const out: import("./electrician-choice.core").PickableElectrician[] = [];
-  for (const bid of ids) {
-    const cand = candidates.find((c) => c.business_id === bid);
-    if (!cand || approvedRecBlocker(cand, { rateNotNeeded: true })) continue;
-    if (await ownJobDocsBlocker(bid)) continue;
-    out.push({ businessId: bid, name: displayName(cand.trading_name || cand.name) || "Your electrician", usual: bid === usualId });
-  }
-  return { electricians: out.sort((a, b) => Number(b.usual) - Number(a.usual) || a.name.localeCompare(b.name, "en-AU")), hint: null };
 }
 
 /**

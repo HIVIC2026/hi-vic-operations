@@ -106,10 +106,6 @@ export const approveElectricianLine = (electricianName: string, installerName: s
 /** The same item when the business is approved but a step (person, link, welcome text) didn't finish. */
 export const finishApprovingElectricianLine = (electricianName: string, installerName: string) => `Finish approving electrician ${electricianName.trim() || "name not given"} — added by ${installerName.trim() || "an installer"}`;
 
-/** Add a job, own electricians: an installer that does not pay its own electricians (no "pays own electricians" flag with a
- *  PIESA price on its list) can't pick one — the quote would hold "not onboarded" with no way out. Plain hint instead. */
-export const PAYS_OWN_ELECTRICIANS_HINT = "Ask Home Insulation Victoria to switch on 'pays own electricians' for your business";
-
 // ---- "My electricians" screen rules (pure; the component in components/trade/my-electricians.tsx only renders these) ----
 
 export const ANSWER_WORKCOVER = "Answer the WorkCover question";

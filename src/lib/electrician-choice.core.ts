@@ -46,23 +46,9 @@ export function electricianChoiceProblem(choice: ElectricianChoice | null | unde
   return null;
 }
 
-// ---- Part 2b (Jo 3 Nov 2026): every approved electrician linked to the installer is pickable at Add a job ----
-/** One electrician the installer may pick for its own job: approved, linked, paperwork in date. `usual` = the one saved in My business. */
-export type PickableElectrician = { businessId: string; name: string; usual: boolean };
-export const NOT_ON_YOUR_LIST = "That electrician isn't on your list.";
-/** The radio options: the usual electrician first (same label as before), then the rest by name. */
-export function addJobElectricianOptions(list: PickableElectrician[]): { businessId: string; label: string }[] {
-  return [...list].sort((a, b) => Number(b.usual) - Number(a.usual) || a.name.localeCompare(b.name, "en-AU"))
-    .map((e) => ({ businessId: e.businessId, label: e.usual ? usualElectricianOptionLabel(e.name) : e.name }));
-}
-/** Preselected = the usual electrician when they are pickable; otherwise nothing is preselected. */
-export const defaultAddJobElectrician = (list: PickableElectrician[]): string | null => list.find((e) => e.usual)?.businessId ?? null;
-/** Why the pick cannot be saved (null = fine): nobody to pick, nothing picked, or a pick that isn't on the list. */
-export function addJobPickProblem(picked: string | null | undefined, list: PickableElectrician[]): string | null {
-  if (!list.length) return ELECTRICIAN_CHOICE_ISSUES.usual;
-  if (!picked) return ELECTRICIAN_CHOICE_ISSUES.missing;
-  return list.some((e) => e.businessId === picked) ? null : NOT_ON_YOUR_LIST;
-}
+// ---- Part 2b's REC-business pick at Add a job (Jo 3 Nov 2026) was superseded by the join ruling (4 Nov 2026): the
+// installer's own Team electrician is the pick (`teamElectricianChoiceRecord`); `pickableOwnElectricians` and its
+// list helpers are gone. ----
 
 /** What the event stores: the choice, and the usual electrician's name/licence at the time (declared, not verified).
  *  Join ruling (4 Nov 2026): Add a job records the Team electrician the installer picked as "usual" naming THAT worker —
