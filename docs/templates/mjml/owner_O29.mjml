@@ -39,7 +39,7 @@
       <mj-section>
         <mj-column mj-class="panel-amber">
           <mj-text mj-class="h2" color="#8A5200" padding="18px 18px 6px">&#9200; The 30-day clock</mj-text>
-          <mj-text font-size="15px" line-height="23px" padding="0 18px 18px"><strong>Please approve this quickly.</strong> Your safety check expires 30 days after it was done (on <strong>5 December</strong>), and the fixes and the install both need to happen before then. If it expires, a new safety check is needed and may be charged.</mj-text>
+          <mj-text font-size="15px" line-height="23px" padding="0 18px 18px"><strong>Please approve this quickly.</strong> Your safety check expires 30 days after it was done (on <strong>5 December</strong>), and the upgrades and the install both need to happen before then. If it expires, a new safety check is needed and may be charged.</mj-text>
         </mj-column>
       </mj-section>
 

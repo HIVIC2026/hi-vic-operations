@@ -21,7 +21,9 @@ const tina = { rented: true, tenant: { name: "Tina Lee", mobile: "+61400111222",
 function seed(over: { rental?: unknown; released?: boolean } = {}) {
   for (const k of Object.keys(tables)) delete tables[k];
   tables["properties"] = [{ id: "p1", address_line: "12 Smith St, Kew", suburb: "Kew" }];
-  tables["jobs"] = [{ id: J, job_number: "HV-5001", source: "qa_test", stage: "piesa_scheduled", property_id: "p1", deleted_at: null }];
+  // The link reads the owner and property rows themselves (jobs.owners / jobs.properties), not the `job_overview` view.
+  tables["owners"] = [{ id: "o1", full_name: "Helen Owner", phone: "0411 111 111" }];
+  tables["jobs"] = [{ id: J, job_number: "HV-5001", source: "qa_test", stage: "piesa_scheduled", property_id: "p1", owner_id: "o1", deleted_at: null }];
   tables["businesses"] = [
     { id: INST, name: "Smith Insulation", trading_name: null, email: "office@smith.test", onboarding_notes: null, piesa_booked_by: "electrician" },
     { id: ELEC, name: "Spark Co", trading_name: null, email: "office@spark.test", onboarding_notes: null },
