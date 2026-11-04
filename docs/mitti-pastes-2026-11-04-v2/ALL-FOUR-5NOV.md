@@ -1,4 +1,4 @@
-# Mitti pastes — 5 Nov (from this morning's forms). One form at a time.
+# Mitti pastes — 5 Nov (from the restored pre-rebuild forms). One form at a time.
 
 Jo: four pastes, one per form (A1 and A2 share one). Each starts with what the form will look like after, then the box.
 Do them in this order, publish each, open it on your phone and check against the "after" list before the next one.
@@ -9,33 +9,44 @@ trigger instead of a separate page, say yes (position doesn't matter, wording do
 
 ## 1. A1 and A2 — Ready Check (same changes on both)
 
-**After:** your forms as they are this morning, plus — inside "Add a ceiling area", for areas measured with a laser,
-tape or "Other" — one new question **"How do you want to give the size?"** (Enter area (m²) / Length × width).
-Pick "Enter area (m²)" → one box **"Enter the measured ceiling area (m²)"**. Pick "Length × width" → the Length (m) and
-Width (m) boxes you have now. Floor plan and Aerial image keep working exactly as they do now (their own m² box + upload).
+**After:** your forms as restored, plus — inside "Add a ceiling area" — the measuring question gets five ways:
+**Laser measure / Tape measure / Floor plan / Aerial image / Other.**
+Floor plan → **"Ceiling area from the floor plan (m²)"** + **"Upload the floor plan (photo or PDF)"**.
+Aerial image → **"Ceiling area from the aerial image (m²)"** + **"Upload the aerial image (photo or PDF)"**.
+Laser / Tape / Other → **"How do you want to give the size?"** (Enter area (m²) / Length × width) → either one box
+**"Enter the measured ceiling area (m²)"** or the Length (m) and Width (m) boxes you have now.
+A one-line tip under the measuring question: "Got a floor plan for the whole house? Pick Floor plan and add just one area called 'Whole house'."
 Nothing else changes.
 
 ```
-Edit TWO existing Mitti templates and make the SAME change on both: "A1 – Ready Check | Installer-Supplied Customer" and "A2 – Ready Check | Home Insulation Victoria's Lead". Keep both template IDs. Change ONLY what is listed. Copy every wording exactly, character for character. Nest conditional questions beneath their trigger (Add logic → If answer is … → Ask questions). If Mitti cannot do something, stop and tell me.
+Edit TWO existing Mitti templates and make the SAME change on both: "A1 – Ready Check | Installer-Supplied Customer" and the A2 Ready Check template (whatever its current title is — keep it). Keep both template IDs. Change ONLY what is listed. Copy every wording exactly, character for character. Nest conditional questions beneath their trigger (Add logic → If answer is … → Ask questions). If Mitti cannot do something, stop and tell me.
 
 Inside the repeating section "Add a ceiling area":
 
-1. Find the question "How did you measure this area?" (older wording: "How was this ceiling area measured?"). Leave it and its answers (Laser measure / Tape measure / Floor plan / Aerial image / Other) exactly as they are.
+1. Find the measuring question "How was this ceiling area measured?" (or "How did you measure this area?"). Keep its wording. Make its answers exactly these five, single answer, Required: "Laser measure", "Tape measure", "Floor plan", "Aerial image", "Other". Add any that are missing; keep the existing ones' colours.
+   Directly under it add an Instruction (text) item with exactly: Got a floor plan for the whole house? Pick Floor plan and add just one area called 'Whole house'.
 
-2. Straight after it, add a NEW question:
+2. Under "Floor plan" add (if not already there), in this order:
+   Ceiling area from the floor plan (m²) — Number, Required
+   Upload the floor plan (photo or PDF) — attachment that accepts a photo or a PDF, Required
+   Help text on the upload exactly: The whole plan, readable, with the areas you're insulating marked.
+
+3. Under "Aerial image" add, in this order:
+   Ceiling area from the aerial image (m²) — Number, Required
+   Upload the aerial image (photo or PDF) — attachment that accepts a photo or a PDF, Required
+
+4. Under "Laser measure", "Tape measure" and "Other" (all three), add a NEW question:
    How do you want to give the size?
    Multiple choice, single answer, Required. Answers exactly: "Enter area (m²)" and "Length × width".
-   Only show when "How did you measure this area?" is "Laser measure", "Tape measure" or "Other" (NOT for Floor plan or Aerial image).
 
-3. Under "How do you want to give the size?" = "Enter area (m²)", add a NEW question:
-   Enter the measured ceiling area (m²)
-   Number, Required.
+5. Under "How do you want to give the size?" = "Enter area (m²)", add:
+   Enter the measured ceiling area (m²) — Number, Required.
 
-4. Change the EXISTING "Length (m)" and "Width (m)" questions so they only show (and are Required) when "How do you want to give the size?" = "Length × width". Keep any calculated area item that uses them as it is.
+6. Change the EXISTING "Length (m)" and "Width (m)" questions so they only show (and are Required) when "How do you want to give the size?" = "Length × width". Keep any calculated area item that uses them as it is. The existing "Explain the method" box under "Other" stays as it is.
 
-5. Leave the Floor plan branch ("Ceiling area from the floor plan (m²)", "Upload the floor plan (photo or PDF)") and the Aerial image branch ("Ceiling area from the aerial image (m²)", "Upload the aerial image (photo or PDF)") exactly as they are.
+7. Leave every other question in "Add a ceiling area" (area name, existing insulation, depth photo, before video, sketch upload and the rest) exactly as it is.
 
-Change nothing else. Publish both. Then list the five items and confirm each was made on both templates.
+Change nothing else. Publish both. Then list the seven items and confirm each was made on both templates, and anything you could not do.
 ```
 
 ---
