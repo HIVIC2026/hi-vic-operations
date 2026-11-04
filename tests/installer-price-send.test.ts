@@ -184,3 +184,38 @@ describe("Send quote to owner — only through the guarded auto-send, only with 
     expect(background).toHaveLength(1);
   });
 });
+
+// G7 (Jo 4 Nov 2026, pack 2 batch 4): the Electrician row names the Team electrician on the job — never "My usual electrician (not saved yet…)".
+describe("price card Electrician row = the Team electrician on the job", () => {
+  const W1 = "w-sam", W2 = "w-ana";
+  beforeEach(() => {
+    seed();
+    T["partner_workers"] = [
+      { id: W1, business_id: BIZ, full_legal_name: "Sam Lee", trade_role: "electrician", removed_at: null },
+      { id: W2, business_id: BIZ, full_legal_name: "Ana Volt", trade_role: "electrician", removed_at: null },
+    ];
+    T["admin_config_events"] = [];
+  });
+  test("picked at Add a job (electrician_choice_set worker_id) → their name", async () => {
+    T["workflow_events"]!.push({ job_id: JOB, event_type: "electrician_choice_set", created_at: "2026-11-04T01:00:00Z", details: { choice: "usual", usual_name: "Sam Lee", worker_id: W1, source: "add_job" } });
+    const v = await installerPriceView(JOB, BOSS);
+    expect(v?.electrician).toBe("Sam Lee");
+  });
+  test("put on the job later (in_house_electrician_allocated) wins over the Add a job pick", async () => {
+    T["workflow_events"]!.push(
+      { job_id: JOB, event_type: "electrician_choice_set", created_at: "2026-11-04T01:00:00Z", details: { choice: "usual", usual_name: "Sam Lee", worker_id: W1, source: "add_job" } },
+      { job_id: JOB, event_type: "in_house_electrician_allocated", created_at: "2026-11-04T02:00:00Z", details: { worker_id: W2 } },
+    );
+    expect((await installerPriceView(JOB, BOSS))?.electrician).toBe("Ana Volt");
+  });
+  test("the picked worker left the Team → the existing 'no longer on your Team' line; a 'usual' record with no worker and no saved usual → 'Choose your own electrician', never 'not saved yet'", async () => {
+    T["workflow_events"]!.push({ job_id: JOB, event_type: "electrician_choice_set", created_at: "2026-11-04T01:00:00Z", details: { choice: "usual", usual_name: "Sam Lee", worker_id: W1, source: "add_job" } });
+    T["partner_workers"]![0]!["removed_at"] = "2026-11-04T03:00:00Z";
+    const { TEAM_ELECTRICIAN_GONE } = await import("../src/lib/rec-onboarded.core");
+    expect((await installerPriceView(JOB, BOSS))?.electrician).toBe(TEAM_ELECTRICIAN_GONE);
+    T["workflow_events"] = [{ job_id: JOB, event_type: "electrician_choice_set", created_at: "2026-11-04T01:00:00Z", details: { choice: "usual", usual_name: "Old Sparky", source: "add_job" } }];
+    const line = (await installerPriceView(JOB, BOSS))?.electrician;
+    expect(line).toBe("Choose your own electrician");
+    expect(line).not.toContain("not saved yet");
+  });
+});

@@ -42,6 +42,16 @@ export async function ownerPiesaConfirmFacts(jobId: string): Promise<PiesaOwnerC
     const [{ data: ep }, { data: eb }] = await Promise.all([profileP, bizP]);
     electrician = { name: ep?.full_name ?? null, recName: (eb as { legal_name?: string | null; name?: string | null } | null)?.legal_name ?? (eb as { name?: string | null } | null)?.name ?? null };
   }
+  // G7 (Jo 4 Nov 2026, pack 2 batch 6): a Team electrician has no login (the assignment's user_id is null), so the owner's
+  // page names the worker put on the job (else the one picked at Add a job) and their business — never "Your electrician"
+  // while a name is on file. A read failure here leaves the name blank (the page still opens); nothing else changes.
+  if (!electrician.name) {
+    const team = await (await import("./in-house-electrician.server")).teamElectricianOnJob(jobId).catch(() => null);
+    if (team?.name) {
+      const { data: tb } = await admin.from("businesses").select("name, legal_name").eq("id", team.businessId).maybeSingle();
+      electrician = { name: team.name, recName: (tb as { legal_name?: string | null; name?: string | null } | null)?.legal_name ?? (tb as { name?: string | null } | null)?.name ?? electrician.recName };
+    }
+  }
   // "Electrician present on install day" = the PIESA's three-way outcome (short form) — never guessed from a blank.
   const entries = Array.isArray(a?.mitti_raw_snapshot) ? (a!.mitti_raw_snapshot as { label: string; value: string | null }[]) : [];
   const short = entries.length ? shortAnswersFromEntries("piesa", entries) : {};

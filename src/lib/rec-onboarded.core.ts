@@ -89,6 +89,8 @@ export function onboardedElectricianResolution(i: { legacy: MittiElectricianReso
  *  the installer's own PIESA rate (applied by `withOwnerSafetyCheckPrice`; none set → held there, never $349). A worker
  *  who left the Team, lost approval or whose licence lapsed holds the quote naming them — never silently someone else. */
 export const TEAM_ELECTRICIAN_GONE = "Electrician no longer on your Team — choose another on the job page";
+/** G7: the price card's Electrician row when the Team read itself failed (same words as the Add a job refusal). */
+export const TEAM_ELECTRICIAN_CHECK_FAILED = "We couldn't check your Team electrician. Please try again.";
 export function teamElectricianResolution(legacy: MittiElectricianResolution, worker: { id: string; name: string; licence: string | null; businessId: string; approved: boolean; verified: { ok: boolean; reason: string | null } } | null): MittiElectricianResolution {
   const base = { ...legacy, choice: "usual" as const, source: "team_worker" as const, needsProfile: false, rateId: null, notOnboarded: null };
   if (!worker) return { ...base, ready: false, name: null, licence: null, priceIncGst: null, reasons: [TEAM_ELECTRICIAN_GONE], recBusinessId: null, workerId: null };

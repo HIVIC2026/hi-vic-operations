@@ -35,6 +35,18 @@ export async function allocatedWorkerId(jobId: string): Promise<string | null> {
   const id = ev?.details?.worker_id;
   return typeof id === "string" && id ? id : null;
 }
+/** G7 (Jo 4 Nov 2026, pack 2 batches 4 and 6): the Team electrician ON the job, by name — the one put on it (latest
+ *  `in_house_electrician_allocated`, the job page's "choose again" included), else the one picked at Add a job
+ *  (`electrician_choice_set` worker_id) — read from their partner_workers row. `gone` = the row was removed from the Team
+ *  (the name is still returned so a screen can say who). Null = no Team electrician is named on the job (HIV leads, legacy
+ *  REC-business jobs). Read-only; the price card and the owner's confirm page show this name. */
+export async function teamElectricianOnJob(jobId: string): Promise<{ id: string; name: string; businessId: string; gone: boolean } | null> {
+  const workerId = (await allocatedWorkerId(jobId)) ?? (await (await import("./electrician-choice.server")).readElectricianChoiceRecord(jobId)).workerId;
+  if (!workerId) return null;
+  const w = await read<{ id: string; business_id: string; full_legal_name: string; removed_at: string | null } | null>(db.from("partner_workers").select("id, business_id, full_legal_name, removed_at").eq("id", workerId).maybeSingle());
+  if (!w) return null;
+  return { id: w.id, name: w.full_legal_name, businessId: w.business_id, gone: !!w.removed_at };
+}
 /** Join (4 Nov 2026): who signs as the job's electrician on the official PIESA / Section C — the assignment's profile when the
  *  person has a login (legacy REC electricians), else the no-login Team worker named by the allocation event (their worker
  *  id is the attribution; nothing reads `signer_user_id` as a profile). Null when nobody is assigned. */

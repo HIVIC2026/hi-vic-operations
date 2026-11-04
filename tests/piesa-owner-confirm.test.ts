@@ -200,7 +200,8 @@ describe("ownerPiesaConfirmFacts: latest initial OR reassessment record", () => 
     const b: Record<string, unknown> = {
       select: (_c?: string, o?: { count?: string }) => { count = o?.count === "exact"; return b; },
       eq: (c: string, v: unknown) => { f.push((r) => r[c] === v); return b; }, in: (c: string, v: unknown[]) => { f.push((r) => v.includes(r[c])); return b; },
-      not: () => b, order: (c: string, o?: { ascending?: boolean }) => { col = c; desc = o?.ascending === false; return b; }, limit: (n: number) => { lim = n; return b; },
+      not: () => b, is: (c: string, v: unknown) => { f.push((r) => (r[c] ?? null) === v); return b; },
+      order: (c: string, o?: { ascending?: boolean }) => { col = c; desc = o?.ascending === false; return b; }, limit: (n: number) => { lim = n; return b; },
       maybeSingle: () => { one = true; return b; },
       then: (res: (v: unknown) => unknown) => {
         let out = (tables[t] ?? []).filter((r) => f.every((x) => x(r)));
@@ -221,5 +222,29 @@ describe("ownerPiesaConfirmFacts: latest initial OR reassessment record", () => 
     expect(f?.piesaRecordId).toBe("rec-reassess");
     expect(f?.completedDate).toBe("2026-11-05");
     expect(f?.confirmation).toBeNull(); // the re-done PIESA needs its own confirmation
+  });
+  // G7 (Jo 4 Nov 2026, pack 2 batch 6): a Team electrician has no login — the owner's page names them, not "Your electrician".
+  test("Team electrician (assignment without a login) → the worker put on the job is named, with their business", async () => {
+    const { mock } = await import("bun:test");
+    tables["job_assignments"] = [{ job_id: JOB, role: "electrician", active: true, user_id: null }];
+    tables["workflow_events"]!.push(
+      { job_id: JOB, event_type: "electrician_choice_set", created_at: "2026-10-30T00:00:00Z", details: { choice: "usual", usual_name: "Sam Lee", worker_id: "w-sam" } },
+      { job_id: JOB, event_type: "in_house_electrician_allocated", created_at: "2026-11-01T00:00:00Z", details: { worker_id: "w-ana" } },
+    );
+    tables["partner_workers"] = [
+      { id: "w-sam", business_id: "biz-1", full_legal_name: "Sam Lee", removed_at: null },
+      { id: "w-ana", business_id: "biz-1", full_legal_name: "Ana Volt", removed_at: null },
+    ];
+    tables["businesses"] = [{ id: "biz-1", name: "Journey Insulation", legal_name: "Journey Insulation Pty Ltd" }];
+    mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: builder } }));
+    mock.module("../src/lib/official-forms.server", () => ({ currentCopy: async () => ({ copy: null }) }));
+    const { ownerPiesaConfirmFacts } = await import("../src/lib/piesa-owner-confirm.server");
+    const { piesaConfirmPage } = await import("../src/lib/piesa-owner-confirm.core");
+    const f = await ownerPiesaConfirmFacts(JOB);
+    expect(f?.electrician).toEqual({ name: "Ana Volt", recName: "Journey Insulation Pty Ltd" });
+    expect(piesaConfirmPage(f!).electricianLine).toBe("Ana Volt (Journey Insulation Pty Ltd)");
+    // the Add a job pick when nobody was put on the job later
+    tables["workflow_events"] = tables["workflow_events"]!.filter((e) => e["event_type"] !== "in_house_electrician_allocated");
+    expect((await ownerPiesaConfirmFacts(JOB))?.electrician.name).toBe("Sam Lee");
   });
 });

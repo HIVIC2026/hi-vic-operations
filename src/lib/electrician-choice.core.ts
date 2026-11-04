@@ -83,6 +83,16 @@ export function resolveElectricianChoice(i: { recorded: ElectricianChoice | null
   return defaultElectricianChoice(i.usual);
 }
 
+/** G7 (Jo 4 Nov 2026, pack 2 batch 4): the price card's Electrician row names the Team electrician on the job — the one
+ *  put on it (allocated), else the one picked at Add a job — exactly as the Team page shows them. Gone from the Team → the
+ *  existing TEAM_ELECTRICIAN_GONE line. No Team electrician named → the legacy choice line, except that "usual" without a
+ *  saved usual electrician reads "Choose your own electrician" (never "My usual electrician (not saved yet…)"). */
+export function priceCardElectricianLine(i: { team: { name: string; gone: boolean } | null; choice: "hivic" | "usual" | "different" | null; usual: Pick<UsualElectrician, "name"> | null | undefined; legacyName?: string | null; goneLine: string }): string {
+  if (i.team) return i.team.gone ? i.goneLine : i.team.name;
+  if (i.choice === "usual" && !i.usual?.name) return electricianChoiceLine("hivic", null);
+  return electricianChoiceLine(i.choice, i.usual, i.legacyName);
+}
+
 /** Plain read-only line for the job page / price card. */
 export function electricianChoiceLine(choice: "hivic" | "usual" | "different" | null, usual: Pick<UsualElectrician, "name"> | null | undefined, legacyName?: string | null): string {
   if (choice === "hivic" || choice === null) return "Choose your own electrician";

@@ -151,6 +151,14 @@ export async function installerPriceView(jobId: string, userId: string, sharedRe
     ),
   );
   const recordedP = early(electricianChoiceServer.readElectricianChoice(jobId).catch(() => null));
+  // G7 (Jo 4 Nov 2026): the Electrician row names the Team electrician on the job (allocated, else picked at Add a job).
+  // A read failure is NOT "nobody" — the row then says the check failed rather than falling back to a wrong name.
+  const teamP = early(
+    import("./in-house-electrician.server").then((m) => m.teamElectricianOnJob(jobId)).then(
+      (team) => ({ team, failed: false }),
+      () => ({ team: null, failed: true }),
+    ),
+  );
   const readyCheckP = early(
     currentReadyCheck(jobId).catch(() => ({
       entries: [] as { label: string; value: string | null }[],
@@ -174,16 +182,18 @@ export async function installerPriceView(jobId: string, userId: string, sharedRe
   const { data: j } = await jobP;
   if (!j || !priceFromPortal(j.channel) || !j.originating_installer_business_id) return null;
   if (!canEnterPrice(await roleP)) return null;
-  const [state, usual, recorded, readyCheck] = await Promise.all([
+  const [state, usual, recorded, readyCheck, teamRead] = await Promise.all([
     stateP,
     usualP,
     recordedP,
     readyCheckP,
+    teamP,
   ]);
   const stored = state.stored;
   const { entries, removalRequired } = readyCheck;
-  const { resolveElectricianChoice, electricianChoiceLine } =
+  const { resolveElectricianChoice, priceCardElectricianLine } =
     await import("./electrician-choice.core");
+  const { TEAM_ELECTRICIAN_GONE, TEAM_ELECTRICIAN_CHECK_FAILED } = await import("./rec-onboarded.core");
   const { contactAnswersFromEntries } = await import("./mitti.core");
   const { accessFlagFromEntries } = await import("./ready-check-answers.core");
   // Jo 27 Oct 2026 (redone): the card's Ready Check rows — same source the quote uses (current measurement + form removal m²).
@@ -234,11 +244,15 @@ export async function installerPriceView(jobId: string, userId: string, sharedRe
     productOptions: APPROVED_PRODUCTS.map((p) => p.option),
     mittiProduct: product?.option ?? null,
     hivSwitch,
-    electrician: electricianChoiceLine(
-      choice,
-      usual.electrician,
-      stored?.record.electrician?.name ?? contactAnswersFromEntries(entries).electricianName,
-    ),
+    electrician: teamRead.failed
+      ? TEAM_ELECTRICIAN_CHECK_FAILED
+      : priceCardElectricianLine({
+          team: teamRead.team,
+          choice,
+          usual: usual.electrician,
+          legacyName: stored?.record.electrician?.name ?? contactAnswersFromEntries(entries).electricianName,
+          goneLine: TEAM_ELECTRICIAN_GONE,
+        }),
     access,
     removalRequired,
     readyCheck: {
