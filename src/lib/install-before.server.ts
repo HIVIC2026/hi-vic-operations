@@ -1,11 +1,13 @@
 // Authorised callers only. No provider calls, pricing, approvals or sends.
 import {supabaseAdmin as admin} from '@/integrations/supabase/client.server';
 import {installBeforePlan, type BeforeArea} from './install-before.core';
-export async function readInstallBeforePlan(jobId:string) {
- const [measurement,reviews]=await Promise.all([
-  admin.from('ceiling_measurements').select('external_source,external_id,zones').eq('job_id',jobId).eq('is_current',true).maybeSingle(),
-  admin.from('evidence_requirements').select('label,status,category,area_key').eq('job_id',jobId).in('status',['rejected','verified']),
- ]);
+type MeasurementRow={external_source:string|null;external_id:string|null;zones:unknown}|null;
+/** `known` (join 4 Nov 2026, #135 read budget): the job page bundle already holds the current measurement — pass it so only the reviews are read. */
+export async function readInstallBeforePlan(jobId:string,known?:{measurement:MeasurementRow}) {
+ const measurement=known?{data:known.measurement,error:null}:await admin.from('ceiling_measurements').select('external_source,external_id,zones').eq('job_id',jobId).eq('is_current',true).maybeSingle();
+ // No recorded areas → no plan line whatever the office reviewed (installBeforePlan: unknownAreas), so the reviews are not read.
+ const hasZones=Array.isArray(measurement.data?.zones)&&measurement.data.zones.length>0;
+ const reviews=hasZones?await admin.from('evidence_requirements').select('label,status,category,area_key').eq('job_id',jobId).in('status',['rejected','verified']):{data:[] as {label:string;status:string;category:string;area_key:string|null}[],error:null};
  if(measurement.error||reviews.error)throw new Error('BEFORE evidence could not be checked – office review required.');
  const m=measurement.data;
  const zones:unknown[]=Array.isArray(m?.zones)?m.zones:[];

@@ -144,7 +144,12 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
         "applies": false,
       },
       "page": {
+        "beforePhotos": null,
         "boss": true,
+        "certificate": {
+          "line": null,
+          "state": "none_needed",
+        },
         "channel": "hivic_sourced",
         "clearance": {
           "cleared": false,
@@ -459,7 +464,12 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
         "applies": false,
       },
       "page": {
+        "beforePhotos": null,
         "boss": true,
+        "certificate": {
+          "line": null,
+          "state": "none_needed",
+        },
         "channel": "hivic_sourced",
         "clearance": {
           "cleared": false,
@@ -831,7 +841,12 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
         "total": 4000,
       },
       "page": {
+        "beforePhotos": null,
         "boss": true,
+        "certificate": {
+          "line": null,
+          "state": "none_needed",
+        },
         "channel": "installer_sourced",
         "clearance": {
           "cleared": false,
@@ -1017,6 +1032,7 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
         "current": null,
         "electrician": "Choose your own electrician",
         "hivSwitch": null,
+        "layout": null,
         "locked": true,
         "mittiProduct": null,
         "piesaPriceNote": "Your PIESA price isn't set yet. Ask the office to add it, then send.",
@@ -1154,7 +1170,12 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
         "applies": false,
       },
       "page": {
+        "beforePhotos": null,
         "boss": false,
+        "certificate": {
+          "line": null,
+          "state": "none_needed",
+        },
         "channel": "hivic_sourced",
         "clearance": {
           "cleared": false,
@@ -1479,7 +1500,12 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
         "applies": false,
       },
       "page": {
+        "beforePhotos": null,
         "boss": false,
+        "certificate": {
+          "line": null,
+          "state": "none_needed",
+        },
         "channel": "installer_sourced",
         "clearance": {
           "cleared": false,

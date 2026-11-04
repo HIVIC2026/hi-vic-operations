@@ -89,10 +89,12 @@ async function currentReadyCheck(jobId: string): Promise<{
   hasReadyCheck: boolean;
   installAreaM2: number | null;
   removalM2: number | null;
+  /** Jo 4 Nov 2026: the new-wording Ready Check's per-area layout answers (ceiling_measurements.zones[].layout), read with the same row. */
+  layout: { areas: import("./ceiling-layout.core").LayoutArea[]; thicker: 6 | 7 | null } | null;
 }> {
   const { data: m } = await admin
     .from("ceiling_measurements")
-    .select("raw_snapshot, removal_required, measured_area_m2")
+    .select("raw_snapshot, removal_required, measured_area_m2, zones")
     .eq("job_id", jobId)
     .eq("is_current", true)
     .maybeSingle();
@@ -107,14 +109,20 @@ async function currentReadyCheck(jobId: string): Promise<{
     m as { removal_required?: boolean | null } | null,
   );
   const measured = (m as { measured_area_m2?: number | null } | null)?.measured_area_m2 ?? null;
+  const zones = Array.isArray((m as { zones?: unknown } | null)?.zones) ? ((m as { zones: { layout?: unknown }[] }).zones) : [];
+  const areas = zones.map((z) => z?.layout).filter(Boolean) as import("./ceiling-layout.core").LayoutArea[];
+  const layout = areas.length ? { areas, thicker: (await import("./ceiling-layout.core")).readLayoutOutcome(entries as { label: string; value: unknown }[]).thicker } : null;
   return {
     entries,
     removalRequired,
     hasReadyCheck: !!m,
     installAreaM2: measured == null ? null : Number(measured),
     removalM2: removalTotalM2(entries),
+    layout,
   };
 }
+
+export type LayoutPriceInput = { mainPicks: ({ brand: import("./ceiling-layout.core").Brand; r: number } | null)[]; thickerPicks?: ({ brand: import("./ceiling-layout.core").Brand; r: number } | null)[] | undefined; thickerTotalIncGst?: number | null | undefined };
 
 /** The Boss's / Office's "Your price" card: the saved price, the job's electrician choice (read-only) and the access flag. Everyone else: null (nothing shown). */
 export async function installerPriceView(jobId: string, userId: string, sharedReads?: SharedJobReads) {
@@ -150,6 +158,7 @@ export async function installerPriceView(jobId: string, userId: string, sharedRe
       hasReadyCheck: false,
       installAreaM2: null,
       removalM2: null,
+      layout: null,
     })),
   );
   const quoteP = early(shared ? shared.quote() : loadInstallerQuote(jobId));
@@ -207,8 +216,13 @@ export async function installerPriceView(jobId: string, userId: string, sharedRe
   // J1 (2): a read failure is NOT "not set" — the card says the check failed and holds (button "Save"), never PIESA_PRICE_NOT_SET.
   const piesaCheck = await piesaCheckP;
   const { PIESA_PRICE_NOT_SET, PIESA_PRICE_CHECK_FAILED } = await import("./own-customer-price.core");
+  // Join (#135 read budget): the layout rides on the Ready Check row read above; the saved picks on the price state (same event).
+  const layoutNow = readyCheck.layout;
+  const { a1PriceLinkView } = await import("./ceiling-layout.core");
+  const savedLayout = (state.stored?.layout as LayoutPriceInput | null | undefined) ?? null;
   return {
     canSet: true as const,
+    layout: layoutNow ? { ...a1PriceLinkView(layoutNow.areas, layoutNow.thicker), thickerTarget: layoutNow.thicker, saved: savedLayout } : null,
     current: stored,
     locked,
     /** Task 4: the button says "Send quote to owner" only while pressing it sends (`enterPriceButton`). */
@@ -290,7 +304,7 @@ async function prepareQuoteFromPortal(jobId: string, userId: string, send = fals
 export async function setInstallerPrice(
   jobId: string,
   userId: string,
-  input: InstallerPriceInput,
+  input: InstallerPriceInput & { layout?: LayoutPriceInput | null | undefined },
   opts: { send?: boolean; sendOnPressEnabled?: boolean } = {},
 ): Promise<{ stored: StoredInstallerPrice; sent: boolean; reasons: string[] }> {
   const j = await a1JobOrThrow(jobId);
@@ -309,10 +323,24 @@ export async function setInstallerPrice(
     hasReadyCheck: false,
     installAreaM2: null,
     removalM2: null,
+    layout: null,
   }));
   const { removalRequired } = rc;
   const v = validateInstallerPrice({ ...input, removalRequired });
   if (!v.ok || !v.record) throw new WorkflowError(v.issues.join(" "));
+  // Jo 4 Nov 2026: on a new-wording Ready Check the boss picks brand + batts per area from approved products only, with
+  // ONE main total (the price above) and a thicker total only when the owner asked for it. Never a rate card or retail price.
+  const layoutNow = rc.layout;
+  let layout: (LayoutPriceInput & { thicker: 6 | 7 | null }) | null = null;
+  if (layoutNow) {
+    const { validateA1Price } = await import("./ceiling-layout.core");
+    const wf = await admin.from("workflow_settings").select("*").eq("id", 1).maybeSingle();
+    if (wf.error) throw new WorkflowError("Settings could not be read.");
+    const topupCountsExisting = (wf.data as Record<string, unknown> | null)?.["topups_count_existing_insulation"] !== false;
+    const issues = validateA1Price({ areas: layoutNow.areas, thicker: layoutNow.thicker, mainPicks: input.layout?.mainPicks ?? [], mainTotal: v.record.price_inc_gst, thickerPicks: input.layout?.thickerPicks ?? [], thickerTotal: input.layout?.thickerTotalIncGst ?? null, topupCountsExisting });
+    if (issues.length) throw new WorkflowError(issues.join(" "));
+    layout = { mainPicks: input.layout!.mainPicks, thickerPicks: layoutNow.thicker ? input.layout!.thickerPicks ?? [] : [], thickerTotalIncGst: layoutNow.thicker ? input.layout!.thickerTotalIncGst ?? null : null, thicker: layoutNow.thicker };
+  }
   // Product in force before this save: the boss's previous pick, else Mitti's own product, else none.
   const { resolveMittiProduct } = await import("./insulation-product.core");
   const { contactAnswersFromEntries } = await import("./mitti.core");
@@ -327,6 +355,7 @@ export async function setInstallerPrice(
     priceEventSummary({ record: v.record, previousProduct }),
     {
       ...v.record,
+      ...(layout ? { layout } : {}),
       business_id: j.originating_installer_business_id,
       set_by: userId,
       declared_not_verified: true,
