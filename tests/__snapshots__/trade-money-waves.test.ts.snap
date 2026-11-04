@@ -178,7 +178,7 @@ exports[`Money (Task 7): same value as before Money, the job money detail and pa
             "held": [
               "Install day form: Sync the current A5 Install day form — its ruler photos have not been checked yet",
               "No GO for this install",
-              "Waiting for Final check (AP approval) — installer pay falls due 7 days after it",
+              "Paid 7 days after we approve the install paperwork.",
             ],
             "jobId": "00000000-0000-4000-8000-000000000002",
             "jobNumber": "HV-1002",
@@ -1002,7 +1002,7 @@ exports[`Money (Task 7): same value as before Money, the job money detail and pa
             "held": [
               "Install day form: Sync the current A5 Install day form — its ruler photos have not been checked yet",
               "No GO for this install",
-              "Waiting for Final check (AP approval) — installer pay falls due 7 days after it",
+              "Paid 7 days after we approve the install paperwork.",
             ],
             "jobId": "00000000-0000-4000-8000-000000000002",
             "jobNumber": "HV-1002",
@@ -1341,7 +1341,7 @@ exports[`Money (Task 7): same value as before with each read failing: the same v
           "held": [
             "Install day form: Sync the current A5 Install day form — its ruler photos have not been checked yet",
             "No GO for this install",
-            "Waiting for Final check (AP approval) — installer pay falls due 7 days after it",
+            "Paid 7 days after we approve the install paperwork.",
           ],
           "jobId": "00000000-0000-4000-8000-000000000002",
           "jobNumber": "HV-1002",
@@ -1575,7 +1575,7 @@ exports[`Money (Task 7): same value as before with each read failing: the same v
           "held": [
             "Install day form: Sync the current A5 Install day form — its ruler photos have not been checked yet",
             "No GO for this install",
-            "Waiting for Final check (AP approval) — installer pay falls due 7 days after it",
+            "Paid 7 days after we approve the install paperwork.",
           ],
           "jobId": "00000000-0000-4000-8000-000000000002",
           "jobNumber": "HV-1002",
@@ -1948,7 +1948,7 @@ exports[`Money (Task 7): same value as before with each read failing: the same v
           "held": [
             "Install day form: Sync the current A5 Install day form — its ruler photos have not been checked yet",
             "No GO for this install",
-            "Waiting for Final check (AP approval) — installer pay falls due 7 days after it",
+            "Paid 7 days after we approve the install paperwork.",
           ],
           "jobId": "00000000-0000-4000-8000-000000000002",
           "jobNumber": "HV-1002",
@@ -2189,7 +2189,7 @@ exports[`Money (Task 7): same value as before with each read failing: the same v
           "held": [
             "Install day form: Sync the current A5 Install day form — its ruler photos have not been checked yet",
             "No GO for this install",
-            "Waiting for Final check (AP approval) — installer pay falls due 7 days after it",
+            "Paid 7 days after we approve the install paperwork.",
           ],
           "jobId": "00000000-0000-4000-8000-000000000002",
           "jobNumber": "HV-1002",
@@ -2325,7 +2325,7 @@ exports[`Money (Task 7): same value as before with each read failing: the same v
           "held": [
             "Install day form: Sync the current A5 Install day form — its ruler photos have not been checked yet",
             "No GO for this install",
-            "Waiting for Final check (AP approval) — installer pay falls due 7 days after it",
+            "Paid 7 days after we approve the install paperwork.",
           ],
           "jobId": "00000000-0000-4000-8000-000000000002",
           "jobNumber": "HV-1002",
@@ -2461,7 +2461,7 @@ exports[`Money (Task 7): same value as before with each read failing: the same v
           "held": [
             "Install day form: Sync the current A5 Install day form — its ruler photos have not been checked yet",
             "No GO for this install",
-            "Waiting for Final check (AP approval) — installer pay falls due 7 days after it",
+            "Paid 7 days after we approve the install paperwork.",
           ],
           "jobId": "00000000-0000-4000-8000-000000000002",
           "jobNumber": "HV-1002",
@@ -2757,7 +2757,7 @@ exports[`Money (Task 7): same value as before with each read failing: the same v
           "held": [
             "Install day form: Sync the current A5 Install day form — its ruler photos have not been checked yet",
             "No GO for this install",
-            "Waiting for Final check (AP approval) — installer pay falls due 7 days after it",
+            "Paid 7 days after we approve the install paperwork.",
           ],
           "jobId": "00000000-0000-4000-8000-000000000002",
           "jobNumber": "HV-1002",
