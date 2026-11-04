@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import { parseAudit } from '../src/lib/mitti.core';
 import { readLayoutArea } from '../src/lib/ceiling-layout.core';
 import { areasFromReadyCheckEntries } from '../src/lib/area-diagram.core';
+import { floorPlanFiles } from '../src/lib/ready-check-floor-plan.core';
 const entries = [
  {label:'Name this area', value:'Whole house'},
  {label:'How did you measure this area?', value:'Floor plan'},
@@ -22,4 +23,8 @@ test('missing plan m² cannot fall back to stale hidden dimensions',()=>{
 });
 test('plan area is positive explicit input, never a parsed range or negative',()=>{
  for (const value of ['-148','about 148','100–148','0','']) expect(readLayoutArea(entries.map(e=>e.label.startsWith('Ceiling area from')?{...e,value}:e)).m2).toBeNull();
+});
+test('floor plan attachments retain actual media IDs, not an answered text placeholder',()=>{
+ expect(floorPlanFiles({items:[{label:'Upload the floor plan (photo or PDF)',media:[{id:'plan-file',captured_at:'2026-11-04T00:00:00Z'}]}]}).map(f=>f.mediaId)).toEqual(['plan-file']);
+ expect(floorPlanFiles({items:[{label:'Upload the floor plan (photo or PDF)',responses:{text:'1 photo'}}]})).toEqual([]);
 });
