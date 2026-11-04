@@ -202,6 +202,8 @@ function Home({ v, token }: { v: View; token: string }) {
           <span className={p.state === "done" ? "text-estimate-green" : p.state === "now" ? "font-bold text-estimate-blue" : "text-estimate-navy/60"}>{p.state === "done" ? `Done${p.at ? ` ${day(p.at)}` : ""}` : p.mustBy ? `Must be by ${day(p.mustBy)}` : p.state === "now" ? "Now" : "To come"}</span>
         </li>))}</ol>
     </section>
+    {/* Jo 4 Nov 2026 16:10 (approved): "Your old insulation stays." stays on My job once the Ready Check recorded it was kept. */}
+    {v.keptInsulation && <section data-testid="kept-insulation" className="rounded-[22px] bg-card p-5 shadow-sm"><p className="text-sm leading-relaxed">{v.keptInsulation.line}</p></section>}
     {v.veecAssignment && <VeecAssignmentCard v={v} token={token} />}
     <OwnerPaperwork token={token} />
     <Numbers v={v} />
@@ -824,6 +826,8 @@ function QuoteScreen({ v, token }: { v: View; token: string }) {
         </ul>}
         <p className="border-t border-estimate-line py-2 text-[13px] leading-relaxed text-estimate-sub">{P2.notIncluded}</p>
       </section>
+      {/* Jo 4 Nov 2026 16:10 (approved): the Ready Check says the old insulation stays — same words as the quote email and the agreement. */}
+      {v.keptInsulation && <p data-testid="kept-insulation" className="rounded-[14px] bg-estimate-mist px-4 py-3.5 text-sm leading-relaxed">{v.keptInsulation.line}</p>}
       {ownerQuoteCanAccept(q, acknowledged)
         ? <div><AcceptQuote token={token} quote={q} safetyCheck={q.split?.deposit ?? null} showDocs={!!q.validLine} onAccepted={() => {
           setAcknowledged({ id: q.id, version: q.version });

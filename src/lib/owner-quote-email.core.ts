@@ -32,6 +32,7 @@ import { safetyCheckShort } from "./safety-check-amount.core";
 import { OWN_CUSTOMER_COBRAND_APPROVED, cobrandLogos } from "./cobrand.core";
 import { ownCustomerRows } from "./own-customer-price.core";
 import { VEU_BOX_TITLE, veuBoxMj, veuBoxText } from "./owner-wording.core";
+import { keptInsulationNotice } from "./kept-insulation.core";
 
 /** v3 approved 24 Oct 2026; design applied under decision 137. */
 export const OWNER_QUOTE_EMAIL_APPROVED = true as boolean;
@@ -84,6 +85,9 @@ export type OwnerQuoteEmailInput = {
   /** Part 10 Task 5: set on an installer's own customer (channel installer_sourced): the installer's name and Part 5's
    *  https logo URL (null = our logo alone). Ignored unless v4 and OWN_CUSTOMER_COBRAND_APPROVED (final review I4: one switch). */
   ownCustomer?: { installerName: string; installerLogoUrl: string | null } | null;
+  /** Jo 4 Nov 2026 16:10: the Ready Check says the old insulation stays (kept-insulation.core `oldInsulationKept`) — the
+   *  approved "Your old insulation stays." paragraph goes under the quote lines. Absent/false = the email is unchanged. */
+  keptInsulation?: boolean;
 };
 /** Test seam for the one Task 5 switch (OWN_CUSTOMER_COBRAND_APPROVED); callers never pass it (the constant decides). */
 export type OwnCustomerSeam = { cobrandApproved?: boolean };
@@ -215,12 +219,16 @@ export function renderOwnerQuoteEmail(i: OwnerQuoteEmailInput, seam: OwnCustomer
   const quote = rows.length
     ? `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px 10px">Your quote</mj-text><mj-table padding="0 18px 6px">${rows.map((r, n) => quoteRowHtml(r, n === 0)).join("")}${ownRows ? "" : youPay}</mj-table><mj-text mj-class="small" padding="0 18px 18px">${esc(NOT_INCLUDED)}</mj-text></mj-column></mj-section>`
     : `<mj-section><mj-column><mj-text mj-class="small" padding="0 12px 0">${esc(NOT_INCLUDED)}</mj-text></mj-column></mj-section>`;
+  // Jo 4 Nov 2026 16:10 (approved): when the old insulation is kept, say so right under the quote (both lead kinds).
+  const kept = i.keptInsulation === true ? keptInsulationNotice(own?.installerName ?? installer) : null;
+  const keptHtml = kept ? `<mj-section><mj-column><mj-text padding="14px 12px 0">${esc(kept)}</mj-text></mj-column></mj-section>` : "";
   const body = [
     `<mj-section><mj-column><mj-text mj-class="hi">${esc(hi)}</mj-text><mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">${esc(f.headline)}</mj-text></mj-column></mj-section>`,
     f.box,
     changes.html,
     `<mj-section><mj-column>${mjButton(i.quoteUrl)}</mj-column></mj-section>`,
     quote,
+    keptHtml,
     `<mj-section><mj-column><mj-text padding="18px 12px 14px">${next}</mj-text><mj-text mj-class="small" padding="0 12px 0">${esc(closing)}</mj-text></mj-column></mj-section>`,
     // Part 10 Task 5 / VEU Fix 1: the program box at the bottom of an own customer's first email, then (Jo 4 Nov 2026,
     // Round 5 A) the voluntary / complaints line.
@@ -232,7 +240,7 @@ export function renderOwnerQuoteEmail(i: OwnerQuoteEmailInput, seam: OwnCustomer
   const text = K.plainText([
     hi, "", f.headline, "", ...f.boxText, "", ...changes.text, `View and accept your quote: ${i.quoteUrl}`, "",
     ...(rows.length ? ["YOUR QUOTE", ...rows.map((r) => `${r.title}${r.detail ? ` (${r.detail})` : ""}: ${r.amount}`), ...(ownRows ? [] : [`You pay: ${f.total}`]), ""] : []),
-    NOT_INCLUDED, "", K.stripTags(next), "", closing, ...veu,
+    NOT_INCLUDED, "", ...(kept ? [kept, ""] : []), K.stripTags(next), "", closing, ...veu,
   ], { unsubscribe: i.unsubscribeUrl, testLabel: i.test === true });
   return { subject, html, text };
 }

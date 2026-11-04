@@ -15,7 +15,8 @@ export type SignedAcceptanceInput = {
   jobNumber: string; installerName: string; ownerName: string; ownerTypedName: string; address: string;
   signedAt: string; validUntil: string; quoteLine: string; priceBeforeRebate: number; rebate: number; yourPrice: number;
   removalM2: number | null;
-  agreement: { version: string; approvedOn: string; body: string; facts: AgreementFacts };
+  /** `keptInsulation` (Jo 4 Nov 2026 16:10): the Ready Check says the old insulation stays → section 1's approved notice. */
+  agreement: { version: string; approvedOn: string; body: string; facts: AgreementFacts; keptInsulation?: boolean };
 };
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;

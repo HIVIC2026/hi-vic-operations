@@ -42,13 +42,15 @@ export async function resolveOwnerJob(token: unknown) {
     admin.from("workflow_settings").select("office_time_limits, piesa_install_window_days, safety_check_payment_inc_gst").eq("id", 1).maybeSingle(),
   ]);
   if (!j) return null;
-  const [{ data: rc }, { data: spot }, { data: cancellableBookings }, { data: veecRows }, released] = await Promise.all([
+  const [{ data: rc }, { data: spot }, { data: cancellableBookings }, { data: veecRows }, released, { data: cm }] = await Promise.all([
     admin.from("ready_check_acceptances").select("accepted_at").eq("job_id", jobId).limit(1).maybeSingle(),
     admin.from("lead_campaign_responses").select("spot_saved_at, opted_out_at, media_received_at, video_requested, saved_veu_discount, saved_total").eq("job_id", jobId).maybeSingle(),
     admin.from("bookings").select("kind").eq("job_id", jobId).in("status", ["proposed", "confirmed"]),
     admin.from("customer_assignments").select("status, consumer_signed_at").eq("job_id", jobId).eq("record_kind", "final_veec_assignment").order("created_at", { ascending: false }),
     // Jo 29 Oct (HV-3542): once the spot is released the spot-saved page stops saying "we'll be in touch". Lapsed = back in the queue. A failed read = not released. (Six reads in this wave: at the cap.)
     admin.from("workflow_events").select("event_type, created_at, details").eq("job_id", jobId).in("event_type", [...SPOT_RELEASE_EVENTS]).then(({ data, error }) => !error && spotReleasedForPage(data ?? []), () => false),
+    // Jo 4 Nov 2026 16:10: the Ready Check's "old insulation stays" facts (kept-insulation.core). A failed read = no notice. (Sixth read in this wave: at the cap.)
+    admin.from("ceiling_measurements").select("insulation_present, removal_required, zones").eq("job_id", jobId).eq("is_current", true).maybeSingle().then((r) => r, () => ({ data: null })),
   ]);
   const veec = ((veecRows ?? []) as { status: string; consumer_signed_at: string | null }[]).find((a) => a.status !== "cancelled") ?? null;
   // An archived job reads as closed to the owner, the same as a cancelled one.
@@ -100,6 +102,21 @@ export async function resolveOwnerJob(token: unknown) {
     agreed = { agreed: true, installerName: b?.trading_name || b?.name || null };
   }
   const owner = j.owners as { full_name: string | null; email?: string | null; phone?: string | null } | null;
+  // Jo 4 Nov 2026 16:10 (approved): "Your old insulation stays." on the quote page and My job when the Ready Check recorded
+  // it was kept (not removed + good enough to lay over) — Home Insulation Victoria leads and own customers alike. The
+  // installer's name comes from the names already read, else one small read; unknown → "Your installer" (never a guess).
+  let keptInsulation: { line: string } | null = null;
+  if (quote && (await import("./kept-insulation.core")).oldInsulationKept(cm as { insulation_present?: boolean | null; removal_required?: boolean | null; zones?: unknown } | null)) {
+    let name: string | null = installerName ?? agreed.installerName ?? null;
+    if (!name) {
+      try {
+        const { data: ia } = await admin.from("job_assignments").select("businesses(name, trading_name)").eq("job_id", jobId).eq("role", "installer").eq("active", true).order("created_at", { ascending: false }).limit(1).maybeSingle();
+        const ib = ia?.businesses as { name: string | null; trading_name: string | null } | null;
+        name = (ib?.trading_name || ib?.name || null)?.replace(/^\[TEST PARTNER\]\s*/, "") ?? null;
+      } catch { name = null; }
+    }
+    keptInsulation = { line: (await import("./kept-insulation.core")).keptInsulationNotice(name) };
+  }
   // Quote page (#29/#33): the "What's changed" rows and the 30-day valid line. Best-effort presentation: a failed read shows
   // neither (never a wrong date or number); 14-day quotes keep "price held until" and have no valid line.
   let quoteChanges: { label: string; estimate: string; quote: string }[] = [];
@@ -202,6 +219,8 @@ export async function resolveOwnerJob(token: unknown) {
     address: formatPropertyAddress(j.properties as never) || null, stage, hero, action, trade: upcoming ? trade : null,
     visit: upcoming ? { kind: upcoming.kind, startsAt: upcoming.scheduled_start } : null, progress,
     numbers: { rebate, cost: total, paid }, agreed,
+    // Jo 4 Nov 2026 16:10: the approved "Your old insulation stays." paragraph (quote page + My job), null when not recorded as kept.
+    keptInsulation,
     // heldUntil: the "price held" date (30 days for a 30-day quote, else the 14-day date the action card already uses (approved P2 page shows it in the sub line).
     // Part 10 Task 6: the installer's logo beside ours (null = our logo alone) — behind OWN_CUSTOMER_COBRAND_APPROVED.
     cobrand: ownView.cobrand,
