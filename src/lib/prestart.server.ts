@@ -36,11 +36,20 @@ export async function leadInstallerCert(jobId: string): Promise<LeadCert & { ema
 
 /** Current notice (not stale/cancelled) and the latest earlier notice that was actually sent and NOT withdrawn in the Registry. */
 export async function latestNotices(jobId: string) {
-  const { data } = await admin.from("esc_notifications").select("id, status, sent_at, submission_reference, scheduled_start, created_at, response").eq("job_id", jobId).neq("status", "cancelled").order("created_at", { ascending: false }).limit(10);
-  const rows = (data ?? []) as (EscNotice & { id: string; created_at: string })[];
+  // A read error leaves both null: no notice is ever assumed sent (the task asks for a submission, the check fails).
+  const { data } = await admin.from("esc_notifications").select("id, status, sent_at, submission_reference, scheduled_start, created_at, response, payload_json").eq("job_id", jobId).neq("status", "cancelled").order("created_at", { ascending: false }).limit(10);
+  const rows = (data ?? []) as (EscNotice & { id: string; created_at: string; payload_json: unknown })[];
   const current = rows.find((r) => r.status !== "stale") ?? null;
   const previousSent = rows.find((r) => r !== current && !!r.sent_at && !isWithdrawn(r)) ?? null;
   return { current, previousSent };
+}
+
+/** Part 9 Task 1: the robot's own rule (`registryChange`) for the office task and reminder — the sent notice's Table 5
+ *  payload against the current (unsent) one, for this booking start. Null when there is nothing to compare. */
+export function registryChangeFor(start: string, n: Awaited<ReturnType<typeof latestNotices>>, now = new Date()): RegistryChange | null {
+  const prev = n.previousSent, cur = n.current;
+  if (!prev || !cur || escSentLine(cur)) return null;
+  return registryChange(prev, { scheduled_start: start, payload_json: cur.payload_json }, now.toISOString());
 }
 
 /** H3 (24 Oct 2026): the assigned installer business's public liability insurance must not have lapsed before the install starts. */
@@ -166,7 +175,7 @@ export async function prestartNeeds(now = new Date()) {
   const { whiteCardEnforced } = await import("./worker-compliance.core");
   for (const b of bk ?? []) {
     const n = await latestNotices(b.job_id);
-    const t = escTask({ start: b.scheduled_start, current: n.current, previousSent: n.previousSent, now });
+    const t = escTask({ start: b.scheduled_start, current: n.current, previousSent: n.previousSent, change: registryChangeFor(b.scheduled_start, n, now), now });
     if (t) esc.push({ job_id: b.job_id, ...t });
     const c = await latestCheck(b.job_id);
     if (c && !c.passed && Date.parse(c.scheduled_start) === Date.parse(b.scheduled_start)) failed.push({ job_id: b.job_id, since: now.toISOString(), detail: c.failures.join(" ") });
@@ -192,16 +201,12 @@ export async function prestartSummary(jobId: string) {
   const registry = cur ? registryBlock((cur.payload_json ?? {}) as Record<string, unknown>, fields) : null;
   const prev = n.previousSent;
   // Same-ID update vs withdraw + resubmit (Activity Guide v1.2 §3.3.3): only when an earlier notice was sent and the current one is not.
-  let change: RegistryChange | null = null;
-  if (prev && cur && !escSentLine(cur)) {
-    const { data: pp } = await admin.from("esc_notifications").select("scheduled_start, sent_at, submission_reference, payload_json").eq("id", prev.id).maybeSingle();
-    if (pp) change = registryChange(pp, { scheduled_start: b.scheduled_start, payload_json: cur.payload_json }, new Date().toISOString());
-  }
+  const change = registryChangeFor(b.scheduled_start, n);
   return {
     change,
     leadChange: await (await import('./in-house-booking.server')).latestLeadNotice(jobId),
     start: b.scheduled_start, runAt: prestartRunAt(b.scheduled_start),
-    task: escTask({ start: b.scheduled_start, current: n.current, previousSent: prev, now: new Date() }),
+    task: escTask({ start: b.scheduled_start, current: n.current, previousSent: prev, change, now: new Date() }),
     notification: cur ? { id: cur.id, version: cur.version, status: cur.status, payload: cur.payload_json, due_by: cur.due_by, earliest: cur.earliest_send_at, sent_at: cur.sent_at, reference: cur.submission_reference, method: cur.submission_method, last_error: cur.last_error, canRecord: ["ready", "pending_submission", "error"].includes(cur.status) } : null,
     registry, sentLine: escSentLine(cur ?? null), fieldsSource: cfg ? `approved config ${cfg.version}` : REGISTRY_FIELDS_SOURCE,
     previousSent: prev ? { id: prev.id, sent_at: prev.sent_at, reference: prev.submission_reference, scheduled_start: prev.scheduled_start, sentLine: escSentLine(prev) } : null,

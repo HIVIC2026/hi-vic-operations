@@ -1,5 +1,5 @@
 // ESC pre-install AP task + day-before pre-start check (Operating Model v2, step 10). Pure rules only.
-import { EARLIEST_MS, LEAD_MS, registryUpdateTimingReasons, sendTimingBlocker } from "./esc.core";
+import { DEFAULT_REGISTRY_FIELDS, EARLIEST_MS, LEAD_MS, registryUpdateTimingReasons, sendTimingBlocker, type RegistryChange } from "./esc.core";
 import { melbourneAt, melbourneYmd } from "./piesa-windows.core";
 import { COLLECTION_NOTICE_BLOCK_MESSAGE } from "./esc-collection-notice.core";
 import { whiteCardBlocker, type WhiteCardState } from "./worker-compliance.core";
@@ -14,14 +14,27 @@ function addDays(ymd: string, n: number) { const d = new Date(`${ymd}T12:00:00Z`
 export type EscNotice = { status: string; sent_at: string | null; submission_reference: string | null; scheduled_start: string; response?: unknown };
 export type EscTaskCode = "esc_submit_due" | "esc_submit_urgent" | "esc_update_registry" | "esc_withdraw_resubmit";
 
-/** What the AP must do for the ESC notification right now, if anything. */
-export function escTask(i: { start: string; current: EscNotice | null; previousSent: EscNotice | null; now: Date }): { code: EscTaskCode; detail: string } | null {
+const registryLabel = (k: string) => DEFAULT_REGISTRY_FIELDS.find((f) => f.key === k)?.label ?? k;
+
+/** What the AP must do for the ESC notification right now, if anything. `change` is the robot's own rule (`registryChange`,
+ *  Activity Guide v1.2 §3.3.3) comparing the sent notice's Table 5 payload with the current one: withdraw + resubmit when
+ *  anything not updatable changed (e.g. the address, same start) or the timing fails; update on the same ID otherwise.
+ *  Omitted / null (callers without a payload) keeps the start-only rule. */
+export function escTask(i: { start: string; current: EscNotice | null; previousSent: EscNotice | null; change?: RegistryChange | null; now: Date }): { code: EscTaskCode; detail: string } | null {
   const s = Date.parse(i.start), now = i.now.getTime();
   if (now >= s) return null;
   const c = i.current;
   const curSent = !!c && (c.status === "sent" || c.status === "accepted") && !!c.sent_at && !!c.submission_reference && Date.parse(c.scheduled_start) === s;
   if (curSent) return null;
   const by = new Date(s - LEAD_MS).toISOString();
+  const change = i.change ?? null;
+  if (i.previousSent?.sent_at && change && change.action !== "none") {
+    const moved = Date.parse(i.previousSent.scheduled_start) !== s;
+    const what = moved ? `Install moved to ${fmt(i.start)}` : `${change.changed.map(registryLabel).join(", ")} changed`;
+    return change.action === "withdraw_and_resubmit"
+      ? { code: "esc_withdraw_resubmit", detail: `${what}. ${change.reasons.join(" ")} Withdraw the notification in the Registry and resubmit by ${fmt(by)}.` }
+      : { code: "esc_update_registry", detail: `${what}. Update the notification in the Registry by ${fmt(by)}, then record it.` };
+  }
   if (i.previousSent?.sent_at && Date.parse(i.previousSent.scheduled_start) !== s) {
     // Activity Guide v1.2 §3.3.3: update (same ID) only while the original start has not passed and the new start is within 5 days.
     const ok = registryUpdateTimingReasons(i.previousSent.scheduled_start, i.start, i.now.toISOString()).length === 0;
@@ -36,16 +49,18 @@ export function escTask(i: { start: string; current: EscNotice | null; previousS
     : { code: "esc_submit_due", detail: `Submit ESC notification in the VEU Registry by ${fmt(by)} (window is open now).` };
 }
 
-export type EscReminderCode = "esc_window_open" | "esc_urgent_48h" | "esc_blocked_24h" | "esc_reopened";
+export type EscReminderCode = "esc_window_open" | "esc_urgent_48h" | "esc_blocked_24h" | "esc_reopened" | "esc_details_changed";
 /** Office reminder to raise right now for this booking (once per key). Derived from escTask: window open at 5 days,
- *  urgent at 48h, blocked at 24h, reopened when the install moved after a recorded submission. */
-export function escReminder(i: { start: string; current: EscNotice | null; previousSent: EscNotice | null; now: Date }): { code: EscReminderCode; key: string; detail: string } | null {
+ *  urgent at 48h, blocked at 24h, reopened when the install moved after a recorded submission, details changed when the
+ *  notice's Table 5 facts changed with the same start (Part 9 Task 1; `change` forwarded to escTask). */
+export function escReminder(i: { start: string; current: EscNotice | null; previousSent: EscNotice | null; change?: RegistryChange | null; now: Date }): { code: EscReminderCode; key: string; detail: string } | null {
   const t = escTask(i);
   if (!t) return null;
   const s = Date.parse(i.start), now = i.now.getTime();
+  const moved = !!i.previousSent && Date.parse(i.previousSent.scheduled_start) !== s;
   const code: EscReminderCode = t.code === "esc_submit_due" ? "esc_window_open"
     : t.code === "esc_submit_urgent" ? (now >= s - LEAD_MS ? "esc_blocked_24h" : "esc_urgent_48h")
-    : "esc_reopened";
+    : moved ? "esc_reopened" : "esc_details_changed";
   return { code, key: `${new Date(s).toISOString()}:${code}`, detail: t.detail };
 }
 export const ESC_REMINDER_TITLES: Record<EscReminderCode, string> = {
@@ -53,6 +68,8 @@ export const ESC_REMINDER_TITLES: Record<EscReminderCode, string> = {
   esc_urgent_48h: "ESC notification urgent — install in 48 hours or less",
   esc_blocked_24h: "ESC notification not recorded 24 hours before start — installation locked",
   esc_reopened: "Install date changed after the ESC notification — update, or withdraw and resubmit",
+  // DRAFT (Part 9 Task 1, JO-APPROVAL-LIST): same start, the notice's details changed (address, Lead Installer, …).
+  esc_details_changed: "Details changed after the ESC notification — update, or withdraw and resubmit",
 };
 
 // ── Lead Installer lock (Jo 2 Nov 2026, "Lead Installer / ESC 24h rule"). Part 9 Task 9 owns this rule — keep Part 9's

@@ -67,6 +67,11 @@ async function notificationFacts(jobId: string, extra: Record<string, string>, c
 
 /** Create/refresh the notification for the current installation booking. A changed booking stales the old notice. */
 export async function regenerateEscNotification(jobId: string, actorId: string | null, extra: Record<string, string> = {}) {
+  // Part 9 Task 1: every notice change (prepared, refreshed, staled, cancelled) re-runs the GO check, whatever path returns.
+  try { return await regenerate(); } finally {
+    await import("./prestart.server").then((m) => m.runPrestart(jobId, "esc_regenerated")).catch((e) => console.error("pre-start re-run skipped", (e as Error).message));
+  }
+  async function regenerate() {
   const { syncOwnerConsent, currentConsent } = await import("./consent.server");
   await syncOwnerConsent(jobId, actorId);
   const { data: b } = await admin.from("bookings").select("id, scheduled_start, scheduled_end").eq("job_id", jobId).eq("kind", "installation").in("status", ["confirmed", "completed"]).order("created_at", { ascending: false }).limit(1).maybeSingle();
@@ -111,6 +116,7 @@ export async function regenerateEscNotification(jobId: string, actorId: string |
   }).select("id").single();
   await logEvent(jobId, actorId, "esc_notification_prepared", `ESC notification v${nextVersion} prepared (${built.status.replace("_", " ")}) – send window ${new Date(escEarliest(b.scheduled_start)).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" })} to ${new Date(escDueBy(b.scheduled_start)).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" })}. NOT yet sent.`, { notification_id: ins?.id, missing: built.missing }, { internal: true });
   return ins?.id ?? null;
+  }
 }
 
 /** Valid owner consent + inside the window — shared by the office record paths and the Registry robot (decision 272). */
@@ -221,13 +227,13 @@ export async function withdrawEscNotification(p: { notificationId: string; reaso
  *  internal workflow events feeding the Needs me list and the job history; no customer or trade message is ever sent. */
 export async function sweepEscReminders(now = new Date()) {
   const { escReminder, ESC_REMINDER_TITLES } = await import("./prestart.core");
-  const { latestNotices } = await import("./prestart.server");
+  const { latestNotices, registryChangeFor } = await import("./prestart.server");
   const { data: bk } = await admin.from("bookings").select("job_id, scheduled_start").eq("kind", "installation").eq("status", "confirmed").gt("scheduled_start", now.toISOString()).lt("scheduled_start", new Date(now.getTime() + EARLIEST_MS_PLUS).toISOString());
   let checked = 0, raised = 0;
   for (const b of bk ?? []) {
     checked++;
     const n = await latestNotices(b.job_id);
-    const r = escReminder({ start: b.scheduled_start, current: n.current, previousSent: n.previousSent, now });
+    const r = escReminder({ start: b.scheduled_start, current: n.current, previousSent: n.previousSent, change: registryChangeFor(b.scheduled_start, n, now), now });
     if (!r) continue;
     const { data: already } = await admin.from("workflow_events").select("id").eq("job_id", b.job_id).eq("event_type", "esc_reminder").contains("details", { key: r.key }).limit(1).maybeSingle();
     if (already) continue;
