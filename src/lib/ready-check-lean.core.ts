@@ -81,7 +81,8 @@ export const LEAN_Q = {
 
 /** Earlier wordings the readers still accept (22–24 Oct live forms, 7–23 Oct spec labels, in-progress audits). */
 export const LEAN_ALIASES: Partial<Record<keyof typeof LEAN_Q, readonly string[]>> = {
-  siteAddress: ["Site address (please edit street number if incorrect address shows)", "Property Address"],
+  jobNumber: ["Job number"],
+  siteAddress: ["Site address (please edit street number if incorrect address shows)", "Property Address", "Address"],
   ownerName: ["Owner name"],
   ownerPhone: ["Owner phone", "Owner mobile", "Homeowner mobile"],
   ownerEmail: ["Owner email"],

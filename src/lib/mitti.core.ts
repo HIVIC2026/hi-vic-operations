@@ -244,8 +244,8 @@ export type PrefillCtx = {
 const PREFILL: { key: keyof PrefillCtx; aliases: string[]; mandatory?: boolean; datetime?: boolean }[] = [
   // Not mandatory on the TEMPLATE (Jo 23 Oct): A1 drops "Portal Job Number"; A2 keeps it and still gets it prefilled.
   // The job number itself stays required data (createOrReuseAudit blank check).
-  { key: "jobNumber", aliases: ["Portal Job Number", "Job Reference ID"] },
-  { key: "address", aliases: ["Property Address", "Site address", "Site Address", "Address including postcode"], mandatory: true },
+  { key: "jobNumber", aliases: ["Portal Job Number", "Job Reference ID", "Job number"] },
+  { key: "address", aliases: ["Property Address", "Site address", "Site Address", "Address including postcode", "Address"], mandatory: true },
   // Mitti titles can't use the location-type Site address, so A1 carries a plain-text copy for the title.
   { key: "titleAddress", aliases: ["Title address"] },
   { key: "ownerName", aliases: ["Owner name", "Homeowner name", "Owner full name", "Client name", "Property owner name"], mandatory: true },
@@ -691,9 +691,9 @@ export function parseAudit(audit: Any) {
   return {
     auditId, patch, issues, others, completed, areas, excludedAreas,
     templateId: String(audit?.template_id ?? audit?.audit_data?.template_id ?? ""),
-    jobNumber: val(entries, ["Portal Job Number", "Job Reference ID"]),
+    jobNumber: val(entries, ["Portal Job Number", "Job Reference ID", "Job number"]),
     failReasons,
-    jobNumberField: !!find(entries, ["Portal Job Number", "Job Reference ID"]),
+    jobNumberField: !!find(entries, ["Portal Job Number", "Job Reference ID", "Job number"]),
     modifiedAt: audit?.modified_at ?? audit?.audit_data?.date_modified ?? null,
     snapshot: entries.filter((e) => e.label).map((e) => ({ id: e.id, label: e.label, section: e.section, value: e.value })),
   };
@@ -737,7 +737,7 @@ export function validateStoredMittiAudit(audit: Any, ctx: { storedAuditId: strin
   if (!sameMittiTemplateId(p.templateId, ctx.templateId ?? MITTI_TEMPLATE_ID)) throw new MittiError("This Mitti audit does not use the expected Home Insulation Victoria assessment template.");
   // A1 no longer has a Portal Job Number question (Jo 23 Oct): the stored audit ID match above is the link.
   // When the field IS on the form (A2, older A1), it must match exactly as before.
-  const jobFields = flatten(audit).filter(e => [norm("Portal Job Number"), norm("Job Reference ID")].includes(e.norm));
+  const jobFields = flatten(audit).filter(e => [norm("Portal Job Number"), norm("Job Reference ID"), norm("Job number")].includes(e.norm));
   if (!jobFields.length) return p;
   if (!ctx.jobNumber?.trim() || jobFields.some(e => !e.value?.trim() || e.value.trim().toUpperCase() !== ctx.jobNumber.trim().toUpperCase()))
     throw new MittiError(`Mitti Portal Job Number (${p.jobNumber ?? "missing"}) does not match ${ctx.jobNumber}.`);
