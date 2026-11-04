@@ -5,7 +5,7 @@
 import * as K from "./email-kit.core";
 import { mjEmail, esc } from "./mail-mjml.core";
 import { AP_CERTIFICATES_LINE, contactLine } from "./owner-wording.core";
-import { installerName, type TradeContact } from "./owner-will-call.core";
+import { installerName, type Held, type TradeContact } from "./owner-will-call.core";
 
 /** Wording approved (pack 1 item 39); flips to true at go-live. Off: nothing is sent to real owners (TEST jobs still test-send). */
 export const NON_COMPLIANCE_NOTICE_APPROVED = false as boolean;
@@ -25,9 +25,20 @@ function fnv(s: string): string {
 /** One email per note per job, ever. The same what + fix pressed twice is the same note. */
 export const nonComplianceKey = (jobId: string, what: string, fix: string) => `non-compliance:v1:${jobId}:${fnv(`${norm(what)}|${norm(fix)}`)}`;
 
-export function nonComplianceNotice(i: { firstName: string | null; what: string; fix: string; contact: TradeContact }): { subject: string; text: string; html: string } {
+/** Fix wave J1 (3): like `ownerWillCallEmail`, a contact with no office phone or business email is a `held` result — the
+ *  builder never makes an email that says "call … on " with nothing after it; the server records the hold and sends nothing. */
+export function nonComplianceHeldReason(c: TradeContact): Held | null {
+  const who = installerName(c);
+  if (!(c.officePhone ?? "").trim()) return { held: `No office phone for ${who}` };
+  if (!(c.email ?? "").trim()) return { held: `No business email for ${who}` };
+  return null;
+}
+
+export function nonComplianceNotice(i: { firstName: string | null; what: string; fix: string; contact: TradeContact }): { subject: string; text: string; html: string } | Held {
   // Pack 1 item 39 (Jo 4 Nov 2026) — APPROVED redraft, text and html the same words. {Installer} = installerName(contact);
-  // the phone is the installer's OFFICE number only (contactLine holds the message when it is missing), never a mobile.
+  // the phone is the installer's OFFICE number only (J1 (3): missing → `held`, like owner-will-call.core), never a mobile.
+  const hold = nonComplianceHeldReason(i.contact);
+  if (hold) return hold;
   const first = K.cleanName(i.firstName) ?? "there";
   const who = installerName(i.contact);
   const line = contactLine(i.contact);

@@ -58,7 +58,7 @@ test("flag is off by default; purpose is a compliance purpose", () => {
 
 test("pack 1 item 39 (Jo 4 Nov 2026, approved): the exact words — what we found, the free fix, who calls, nothing else changes, the office phone; no banned words or links", () => {
   const c = { name: "Sample Insulation Pty Ltd", tradingName: "Sample Insulation", officePhone: "03 9000 0000", email: "office@sample.example" };
-  const m = core.nonComplianceNotice({ firstName: "Sarah", what: WHAT, fix: FIX, contact: c });
+  const m = core.nonComplianceNotice({ firstName: "Sarah", what: WHAT, fix: FIX, contact: c }) as { subject: string; text: string; html: string };
   expect(m.subject).toBe("About your ceiling insulation — one thing we need to put right");
   const lines = m.text.split("\n");
   expect(lines.slice(0, 7)).toEqual([
@@ -74,9 +74,12 @@ test("pack 1 item 39 (Jo 4 Nov 2026, approved): the exact words — what we foun
   // html carries the same words (entity-escaped apostrophes aside)
   for (const p of ["one thing that doesn", "at no cost to you", "will call you to arrange a time.", "Nothing else changes — your rebate and your price stay as they are.", "Reply to this email or call Sample Insulation on 03 9000 0000."]) expect(m.html.replace(/&#39;|&apos;/g, "'")).toContain(p);
   expect(`${m.subject}${m.text}`).not.toMatch(/lawyer|HIV\b|https?:\/\/|\brepairs?\b|\bfixes\b/);
-  expect(core.nonComplianceNotice({ firstName: null, what: WHAT, fix: FIX, contact: c }).text).toContain("Hi there,");
-  // the phone is the office number only: a contact with no office phone is held by the server, never a mobile substituted
-  expect(core.nonComplianceNotice({ firstName: "Sarah", what: WHAT, fix: FIX, contact: { ...c, officePhone: "  " } }).text).not.toMatch(/04\d{2}/);
+  expect((core.nonComplianceNotice({ firstName: null, what: WHAT, fix: FIX, contact: c }) as { text: string }).text).toContain("Hi there,");
+  // J1 (3): the phone is the office number only — no office phone / business email = a `held` result from the builder itself
+  // (same rule as owner-will-call.core), never an email with a mobile or a blank number.
+  expect(core.nonComplianceNotice({ firstName: "Sarah", what: WHAT, fix: FIX, contact: { ...c, officePhone: "  " } })).toEqual({ held: "No office phone for Sample Insulation" });
+  expect(core.nonComplianceNotice({ firstName: "Sarah", what: WHAT, fix: FIX, contact: { ...c, email: null } })).toEqual({ held: "No business email for Sample Insulation" });
+  expect(core.nonComplianceHeldReason(c)).toBeNull();
   expect(core.nonComplianceKey("j", WHAT, FIX)).toMatch(/^non-compliance:v1:j:/);
 });
 
