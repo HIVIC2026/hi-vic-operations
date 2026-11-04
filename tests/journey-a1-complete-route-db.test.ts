@@ -282,12 +282,12 @@ const recent = async (jobId: string, n = 12) => (await q<{ event_type: string; s
 
 describe("A1 step 4 — the $349 safety check, paid by card (decisions 139/144/302)", () => {
   test("before paying, the installer cannot book the safety check for their electrician (payment gate); no REC offer exists on an own job", async () => {
-    const al = await import("../src/lib/in-house-atomic-save.server");
+    const tv = await import("../src/lib/trade-view.server");
     const start = new Date(Date.now() + 3 * 86_400_000).toISOString();
-    let refused = "";
-    try { await al.saveInHouseVisit(JOB, INST, { kind: "assessment", start, workerId: TEAM_ELEC }); } catch (e) { refused = (e as Error).message; }
-    DBG("PIESA-BEFORE-PAY", refused, await stageOf(JOB));
-    expect(refused).not.toBe("");
+    const r = await tv.inHouseBookVisit(INST, { jobId: JOB, kind: "assessment", start, workerId: TEAM_ELEC });
+    DBG("PIESA-BEFORE-PAY", JSON.stringify(r), await stageOf(JOB));
+    expect(r.ok).toBe(false);
+    expect((r as { blockers: string[] }).blockers[0]).toBeTruthy();
     expect(await q("select id from bookings where job_id=$1 and kind='assessment'", [JOB])).toHaveLength(0);
     expect(await q("select id from partner_offers where job_id=$1", [JOB])).toHaveLength(0);
   });
@@ -331,21 +331,19 @@ describe("A1 step 5 — the installer office books the safety check for its Team
     expect(await ih.allocateElectrician(JOB, INST, TEAM_ELEC)).toEqual({ ok: true, name: "Will Casdorff" });
     expect(await events(JOB, "in_house_electrician_allocated")).toHaveLength(1);
     expect(await q("select worker_id from worker_job_links where job_id=$1 and revoked_at is null", [JOB])).toEqual([{ worker_id: TEAM_ELEC }]);
-    // JOIN FINDING (not changed here): the member-scoped wrapper `inHouseBookVisit` refuses every TEST job ("TEST and deleted
-    // jobs are excluded only from this new booking surface", tests/in-house-booking-practice-db, main 4f3c495c) — so the
-    // live TEST business cannot book a safety check or install in-house from its Job page. The journey books through the
-    // writer the wrapper calls (saveInHouseVisit: validateBooking + the atomic commit_in_house_visit RPC + the saved work).
-    expect(await tv.inHouseBookVisit(INST, { jobId: JOB, kind: "assessment", start, workerId: TEAM_ELEC })).toEqual({ ok: false, blockers: ["forbidden"] });
+    // J4 G4 (join ruling, 4 Nov 2026): the TEST business books its TEST jobs from its Job page like any other (the
+    // member-scoped wrapper `inHouseBookVisit` → saveInHouseVisit: validateBooking + the atomic commit_in_house_visit RPC +
+    // the saved work). Any other business still never sees a TEST job there.
+    expect((await tv.inHouseBookingAccess(INST, JOB)).allowed).toBe(true);
     const forms = await import("./helpers/journey-forms");
     const def = forms.completedA3({ inspectionDate: "2026-10-28", capturedAt: new Date().toISOString(), priceIncGst: 600, mediaPrefix: "a3" });
     // The live A3's portal-prefilled items (Jo 25 Oct 2026: the five B3 electrician details are pre-filled, never typed).
     const A3_PREFILLED = ["Job Reference ID", "Address including postcode", "Owner name", "Electrician licence number", "Electrician full name", "Electrical contractor (REC) business name", "REC registration number", "Electrician phone"];
     providers.templates[TPL_A3] = forms.templateOf([...A3_PREFILLED.map((l) => forms.text(l, "")), ...def.items]);
-    const n0 = providers.emails.length;
-    const al = await import("../src/lib/in-house-atomic-save.server");
-    const r = await al.saveInHouseVisit(JOB, INST, { kind: "assessment", start, workerId: TEAM_ELEC });
-    expect(r.bookingId).toBeTruthy();
-    expect(r.already).toBe(false);
+    const n0 = providers.emails.length, t0 = providers.texts.length;
+    const r = await tv.inHouseBookVisit(INST, { jobId: JOB, kind: "assessment", start, workerId: TEAM_ELEC });
+    expect(r).toMatchObject({ ok: true });
+    expect((r as { bookingId?: string }).bookingId).toBeTruthy();
     // The saved-work follow-through runs after the response (the 15-minute tick recovers it): A3 form, electrician email, owner notice.
     await settle();
     await (await import("../src/lib/in-house-saved-work.server")).sweepInHouseSavedWork();
@@ -369,9 +367,12 @@ describe("A1 step 5 — the installer office books the safety check for its Team
     expect(ownerBooked[0]!.text).toContain("Will Casdorff");
     expect(ownerBooked[0]!.text).toContain("Call TEST Journey Insulation on 0477 511 901");
     expect(ownerBooked[0]!.text).not.toMatch(/\$\s?\d/);
-    // JOIN FINDING (not changed here): the owner's "You're booked" TEXT goes through sendRealSms, which refuses TEST records
-    // ("use the test sender") — on a TEST job it is recorded blocked; live owners get it. The email alone is sent here.
-    expect(await q("select status, detail from sms_messages where job_id=$1 and message_type='in_house_booked_owner'", [JOB])).toEqual([{ status: "blocked", detail: "TEST record – use the test sender" }]);
+    // J4 G4: the owner's "You're booked" TEXT on a TEST job goes through the test sender (allow-listed TEST mobile), once —
+    // live owners get it through the one real sender; no "blocked: use the test sender" row any more.
+    const ownerTexts = providers.texts.slice(t0).filter((t) => /booked/i.test(t.body));
+    expect(ownerTexts.map((t) => t.to)).toEqual(["+61477511901"]);
+    expect(ownerTexts[0]!.body).not.toMatch(/\$\s?\d/);
+    expect(await q("select status from sms_messages where job_id=$1 and message_type='in_house_booked_owner'", [JOB])).toEqual([]);
     // The electrician's "PIESA booked" email (pre-approval wording while PIESA_BOOKED_EMAIL_APPROVED is off): day, address,
     // owner phone — no price, no HIV PIESA rate, no pay line.
     const elecBooked = sent.filter((e) => /PIESA\) booked/.test(e.subject));
@@ -674,7 +675,7 @@ describe("A1 step 9 — the installer office books the install day with a Lead I
     const cs = await import("../src/lib/consent.server");
     expect((await cs.currentConsent(JOB))?.status).toBe("valid");
     expect(await events(JOB, "consent_ap_signed_auto")).toHaveLength(1);
-    // The installer office books the install day with the Lead Installer (the same writer as the PIESA; the wrapper refuses TEST jobs — step 5).
+    // The installer office books the install day with the Lead Installer (the same writer as the PIESA, step 5).
     const forms = await import("./helpers/journey-forms");
     const idc = await import("../src/lib/install-day.core");
     const a5Tpl = forms.installDayTemplate(idc.INSTALL_DAY_QUESTIONS);
@@ -683,12 +684,13 @@ describe("A1 step 9 — the installer office books the install day with a Lead I
     providers.templates[TPL_A5] = a5Tpl;
     const start = new Date(`${installDay()}T08:00:00+11:00`).toISOString();
     const n0 = providers.emails.length, t0 = providers.texts.length;
-    const al = await import("../src/lib/in-house-atomic-save.server");
+    const tv = await import("../src/lib/trade-view.server");
     // A Lead who is not ESC-registered / not a Lead cannot be booked (the Team electrician is not an installer).
-    await expect(al.saveInHouseVisit(JOB, INST, { kind: "installation", start, workerId: TEAM_ELEC, selection: { lead: TEAM_ELEC, additional: [] } })).rejects.toThrow();
+    expect((await tv.inHouseBookVisit(INST, { jobId: JOB, kind: "installation", start, workerId: TEAM_ELEC })).ok).toBe(false);
     expect(await q("select id from bookings where job_id=$1 and kind='installation'", [JOB])).toHaveLength(0);
-    const r = await al.saveInHouseVisit(JOB, INST, { kind: "installation", start, workerId: LEAD, selection: { lead: LEAD, additional: [] } });
-    expect(r.bookingId).toBeTruthy();
+    // J4 G4: the TEST business books its install from the Job page (the member-scoped wrapper), like a live business.
+    const r = await tv.inHouseBookVisit(INST, { jobId: JOB, kind: "installation", start, workerId: LEAD });
+    expect(r).toMatchObject({ ok: true });
     await settle();
     await (await import("../src/lib/in-house-saved-work.server")).sweepInHouseSavedWork();
     await settle();
@@ -713,13 +715,17 @@ describe("A1 step 9 — the installer office books the install day with a Lead I
     const sw = await (await import("../src/lib/swms.server")).loadSwms(JOB);
     expect(sw.plan.signers.map((x) => [x.name, x.role])).toEqual([["Ivy Installer", "lead"]]);
     expect(sw.status.complete).toBe(false);
+    // J4 G4: the owner's "You're booked — install" text on this TEST job goes through the test sender, once (no price).
+    const ownerInstallTexts = providers.texts.slice(t0).filter((t) => !/\/sp\//.test(t.body));
+    expect(ownerInstallTexts).toHaveLength(1);
+    expect(ownerInstallTexts[0]!.to).toBe("+61477511901");
     for (const t of providers.texts.slice(t0)) expect(t.body).not.toMatch(/\$\s?\d|won't be paid|will not be paid|no pay|withheld/i);
     // The 15-minute tick again: nothing repeats.
     await (await import("../src/lib/in-house-saved-work.server")).sweepInHouseSavedWork();
     await (await import("../src/lib/in-house-booking.server")).sweepOwnerBookedNotices();
     await settle();
     expect(providers.emails.slice(n0)).toHaveLength(sent.length);
-    expect(providers.texts.slice(t0)).toHaveLength(swmsTexts.length);
+    expect(providers.texts.slice(t0)).toHaveLength(swmsTexts.length + ownerInstallTexts.length);
   });
   test("9am two days before: ONE \"Confirm or change your Lead Installer by 5pm today\" email to the installer office; the Lead locks at 5pm", async () => {
     const lc = await import("../src/lib/lead-installer-confirm.server");
@@ -1010,9 +1016,8 @@ describe("A1 branch B — a second own job whose safety check is all clear: no u
     // The office books the safety check with the Team electrician.
     const pc = await import("../src/lib/piesa-times.core");
     const start = new Date(`${pc.allowedPiesaTimeDays()[3]!}T09:00:00+11:00`).toISOString();
-    const al = await import("../src/lib/in-house-atomic-save.server");
     const n0 = providers.emails.length;
-    expect((await al.saveInHouseVisit(JOB_B, INST, { kind: "assessment", start, workerId: TEAM_ELEC })).bookingId).toBeTruthy();
+    expect(await (await import("../src/lib/trade-view.server")).inHouseBookVisit(INST, { jobId: JOB_B, kind: "assessment", start, workerId: TEAM_ELEC })).toMatchObject({ ok: true });
     await settle();
     await (await import("../src/lib/in-house-saved-work.server")).sweepInHouseSavedWork();
     await settle();

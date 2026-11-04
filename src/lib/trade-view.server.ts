@@ -1453,15 +1453,19 @@ export async function inHouseBookingAccess(userId: string, jobId: string, client
     const own = await (await import("./own-job-piesa.server")).ownJobOfficeBookingAccess(userId, jobId, client as never);
     return own.allowed ? { allowed: true, blockers: [], ownJob: true, bookings: own.bookings ?? [] } : { allowed: false, blockers: ["forbidden"] };
   }
-  const { data: assignment, error: assignmentError } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
+  const { data: assignment, error: assignmentError } = await admin.from("job_assignments").select("business_id, businesses(name, onboarding_notes)").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
   if (assignmentError) throw new Error(assignmentError.message);
   if (!assignment?.business_id) return { allowed: false, blockers: ["forbidden"] };
   const { data: member, error: memberError } = await client.from("business_members").select("business_id").eq("user_id", userId).eq("business_id", assignment.business_id).eq("active", true).maybeSingle();
   if (memberError) throw new Error(memberError.message);
   if (!member) return { allowed: false, blockers: ["forbidden"] };
-  const { data: job, error: jobError } = await admin.from("jobs").select("id").eq("id", jobId).is("deleted_at", null).neq("source", "qa_test").maybeSingle();
+  // J4 G4 (join ruling, 4 Nov 2026): a TEST (qa_test) job may be booked here ONLY by the TEST business (the one
+  // scripts/installer-test.ts drives — Jo's phone walkthrough); every other business still never sees TEST jobs.
+  const { isTestBusiness } = await import("./test-send.core");
+  const { data: job, error: jobError } = await admin.from("jobs").select("id, source").eq("id", jobId).is("deleted_at", null).maybeSingle();
   if (jobError) throw new Error(jobError.message);
   if (!job) return { allowed: false, blockers: ["forbidden"] };
+  if (job.source === "qa_test" && !isTestBusiness(assignment.businesses as { name?: string | null; onboarding_notes?: string | null } | null)) return { allowed: false, blockers: ["forbidden"] };
   const { data: bookings, error: bookingError } = await admin.from("bookings").select("id, kind, scheduled_start, status").eq("job_id", jobId).neq("status", "cancelled").order("created_at", { ascending: false });
   if (bookingError) throw new Error(bookingError.message);
   return { allowed: true, blockers: [], bookings: bookings ?? [] };

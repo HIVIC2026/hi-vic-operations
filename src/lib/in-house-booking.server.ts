@@ -65,7 +65,7 @@ export async function notifyOwnerBooked(jobId:string,kind:'ready_check'|'piesa'|
   const booking=await read<{id:string;created_at:string}|null>(db.from('bookings').select('id,created_at').eq('job_id',jobId).eq('kind',bookingKind).eq('status','confirmed').eq('scheduled_start',startIso).order('created_at',{ascending:false}).limit(1).maybeSingle());
   if(!booking||Date.parse(startIso)<=now.getTime())return 'not current';
   const job=await read<{source:string;deleted_at:string|null;stage:string;owners:{email:string|null;phone:string|null;full_name?:string|null}|null}|null>(db.from('jobs').select('source,deleted_at,stage,owners(email,phone,full_name)').eq('id',jobId).maybeSingle());
-  const a=await read<{businesses:{name:string;trading_name:string|null;phone:string|null;email?:string|null}|null}|null>(db.from('job_assignments').select('businesses(name,trading_name,phone,email)').eq('job_id',jobId).eq('role','installer').eq('active',true).maybeSingle());
+  const a=await read<{businesses:{name:string;trading_name:string|null;phone:string|null;email?:string|null;onboarding_notes?:string|null}|null}|null>(db.from('job_assignments').select('businesses(name,trading_name,phone,email,onboarding_notes)').eq('job_id',jobId).eq('role','installer').eq('active',true).maybeSingle());
   if(!job||job.deleted_at||job.stage==='cancelled'||!job.owners?.email||!a?.businesses)return 'held';
   const key=`in-house-booked:v1:${booking.id}:${who.id}`;
   const intentId=await stableUuid(`${key}:intent`);
@@ -102,7 +102,11 @@ export async function notifyOwnerBooked(jobId:string,kind:'ready_check'|'piesa'|
     if(!current)throw Error('Booking changed; confirmation held.');
     await (await import('./comms.server')).assertCustomerDeliveryAllowed(jobId,'Booking confirmation');
   },build:()=>n.version==='v2'?{subject:n.subject,html:n.html,text:n.text}:({subject:n.subject,...partnerEmailLayout({subject:n.subject,blocks:[{kind:'p',text:n.text}],test:job.source==='qa_test'})})});
-  const sms=await (await import('./sms.server')).sendRealSms({jobId,type:'in_house_booked_owner',to:job.owners.phone,body:n.sms,idempotencyKey:`${key}:sms`,event:{at:booking.created_at,current:true}});
+  // J4 G4 (join ruling, 4 Nov 2026): a TEST (qa_test) job's owner text goes through the test sender (allow-list; Jo's phone
+  // walkthrough), never refused by the real sender's "TEST record" rule; real jobs keep the ONE real sender.
+  const sms=job.source==='qa_test'
+    ?await (async()=>{const {isTestPartner}=await import('./test-send.core');const r=await (await import('./test-send.server')).sendTestSms({jobId,jobSource:job.source,partnerIsTest:isTestPartner({onboarding_notes:(b as {onboarding_notes?:string|null}).onboarding_notes??null}),label:`in_house_booked_owner:${key}`,actorId:null},job.owners.phone??'',n.sms);return {status:r.status==='sent'?'sent':r.status,detail:r.detail};})()
+    :await (await import('./sms.server')).sendRealSms({jobId,type:'in_house_booked_owner',to:job.owners.phone,body:n.sms,idempotencyKey:`${key}:sms`,event:{at:booking.created_at,current:true}});
   // Part 4 Task 15 (answer 7): after the owner's notice, the tenant / property manager who lets the trades in gets their own
   // PIESA / install "You're booked" text (own flag, own key per booking + person; a problem there never holds the owner's).
   if(kind!=='ready_check'){

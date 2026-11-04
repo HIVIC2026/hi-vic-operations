@@ -25,7 +25,7 @@ const DEADLINE = new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10)
 await db.exec(`
 CREATE TYPE booking_kind AS ENUM ('assessment','ready_check','rectification','installation');
 CREATE TYPE booking_status AS ENUM ('proposed','confirmed','completed','cancelled');
-CREATE TABLE businesses(id uuid primary key, in_house boolean not null default false, pays_own_electricians boolean not null default false, rectification_billed_by text not null default 'hivic' CHECK(rectification_billed_by IN ('partner','hivic')), business_type text, onboarding_status text, is_active boolean, capabilities text[]);
+CREATE TABLE businesses(id uuid primary key, in_house boolean not null default false, pays_own_electricians boolean not null default false, rectification_billed_by text not null default 'hivic' CHECK(rectification_billed_by IN ('partner','hivic')), business_type text, onboarding_status text, is_active boolean, capabilities text[], name text, onboarding_notes text);
 CREATE TABLE business_members(id uuid primary key default gen_random_uuid(), business_id uuid references businesses(id), user_id uuid, active boolean not null default true, member_role text CHECK(member_role IN ('business_admin','member')));
 CREATE TABLE partner_workers(id uuid primary key default gen_random_uuid(),business_id uuid,profile_id uuid,full_legal_name text,email text,trade_role text,approval_status text,removed_at timestamptz,licence_number text,rec_number text,licence_expires_on text,licence_verified_at timestamptz);
 CREATE TABLE jobs(id uuid primary key, stage text, next_action text, source text, deleted_at timestamptz, signed boolean, fee_paid boolean, deposit_paid boolean, rectification_paid boolean, piesa_completed boolean, rectification_required boolean, part_c_signed boolean, install_deadline text);
@@ -226,10 +226,21 @@ test("held lookup read failure fails closed", async () => {
   expect(await book()).toEqual({ ok: false, blockers: ["Couldn't check the job's partner — please try again."] });
   expect(await rows("select id from bookings")).toHaveLength(0);
 });
-test("TEST and deleted jobs are excluded only from this new booking surface", async () => {
+test("J4 G4: a TEST job is booked here ONLY by the TEST business (the one scripts/installer-test.ts drives); deleted jobs are excluded", async () => {
+  // Any ordinary business never sees a TEST job on this surface (main 4f3c495c pin, kept for non-TEST businesses).
   await patch("source","qa_test"); expect(await book()).toEqual({ ok: false, blockers: ["forbidden"] });
+  // The TEST business (name starts with "[TEST PARTNER]", as installer-test.ts recognises it) books its TEST jobs like any other.
+  await db.query("update businesses set name='[TEST PARTNER] Reinsulate' where id=$1",[BIZ]);
+  expect((await load("trade-view.server").inHouseBookingAccess(MEMBER, JOB)).allowed).toBe(true);
+  expect((await book()).ok).toBe(true);
+  await db.query("update businesses set name=null where id=$1",[BIZ]);
+  // The notes mark (test-send.core isTestPartner) counts too; a real-looking business does not.
+  await db.query("update businesses set onboarding_notes='[TEST PARTNER] practice' where id=$1",[BIZ]);
+  expect((await load("trade-view.server").inHouseBookingAccess(MEMBER, JOB)).allowed).toBe(true);
+  await db.query("update businesses set onboarding_notes=null where id=$1",[BIZ]);
+  expect(await book()).toEqual({ ok: false, blockers: ["forbidden"] });
   await patch("source","base44"); await patch("deleted_at",START); expect(await book()).toEqual({ ok: false, blockers: ["forbidden"] });
-});
+}, 30000);
 test("Ready Check also uses the existing booking writer", async () => {
   await patch("stage","ready_check_ready_to_schedule"); expect((await book("ready_check")).ok).toBe(true);
   expect(await rows("select id from bookings where kind='ready_check'")).toHaveLength(1);
