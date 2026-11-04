@@ -112,10 +112,10 @@ export async function completePiesaAssessment(data: CompletePiesaInput, userId: 
   if (stage === "piesa_scheduled") {
     await transition(data.jobId, "piesa_complete", userId, `PIESA complete – ${a.piesa_outcome}${rectCount ? `, ${rectCount} electrical fixes item(s) listed` : a3Priced ? ", electrical fixes priced on the A3 form" : ", no electrical fixes required"}`, { piesa_outcome: a.piesa_outcome, rectification_items: rectCount ?? 0 });
     res = { advanced: true, scope: s.scope };
-  } else res = await advanceSiteRequirements(data.jobId, userId);
+  } else res = await advanceSiteRequirements(data.jobId, userId ?? signedOffBy);
   if (rectCount && !timesAlreadyGiven && data.rectWindows?.length) {
     // The same shared write as the decision-315 job-page card (rectification.server recordRectificationWindows).
-    await (await import("./rectification.server")).recordRectificationWindows(data.jobId, userId, data.rectHours, data.rectWindows);
+    await (await import("./rectification.server")).recordRectificationWindows(data.jobId, userId ?? signedOffBy, data.rectHours, data.rectWindows);
   }
   // Jo 2 Nov (answer 21) / Part 4 fix wave C1: the 10% deposit is requested on ANY recorded PIESA result — pass, or upgrades
   // still to come (eligibility gates on depositOpenAfterPiesa; non-in-house jobs come back 'not applicable').
