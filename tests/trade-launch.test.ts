@@ -42,11 +42,12 @@ describe("My work task wording", () => {
     const page = readFileSync("src/routes/_authenticated/field.index.tsx", "utf8") + readFileSync("src/routes/_authenticated/field.$jobId.tsx", "utf8");
     for (const bad of ["StageBadge", "SlaPill", "UrgencyBadge", "Deposit cleared", "Mitti record ID"]) expect(page).not.toContain(bad);
   });
-  test("worker link page uses the approved contact rule, not portal-only wording", () => {
+  test("worker link page is retired (G8 (3), Jo 4 Nov 2026 21:45): no owner contact, no portal-only wording", () => {
     const w = readFileSync("src/routes/w.$token.tsx", "utf8");
     expect(w).not.toContain("no calls or outside texts");
     expect(w).not.toContain("hidden automatically");
-    expect(w).toContain("Use these contact details only to arrange and complete this Home Insulation Victoria job.");
+    expect(w).not.toContain("ownerContact");
+    expect(w).toContain("data-worker-link-retired");
   });
 });
 

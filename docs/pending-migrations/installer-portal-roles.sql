@@ -5,6 +5,10 @@
 --    required for all. Replaces calls to add_team_installer_with_identity (which stays for history).
 -- 4. set_member_can_see_money: boss only, writes an admin_config_events row.
 -- Safe to run twice. Rollback: installer-portal-roles.rollback.sql.
+-- G8 (3), Jo 4 Nov 2026 21:45 — NO worker logins: this file adds NO worker login role. The only login-side change is the
+-- business_members 'office' member role (Office people log in, with can_see_money for the boss to switch on); the
+-- partner_workers 'office' trade_role and add_team_person_with_identity are Team DATA (name, role, mobile, DOB, licence).
+-- Lead Installers, Crew and electricians never get a login from this file or from the Team page.
 
 -- ALTER TYPE ... ADD VALUE cannot be used in the same transaction, so nothing below compares the column to the new
 -- value except through ::text.

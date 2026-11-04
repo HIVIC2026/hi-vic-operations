@@ -92,7 +92,8 @@ function PersonSheet({ m, today, onChange, onClose }: { m: TeamMemberView; today
       {id && <div className="mt-2 flex flex-wrap items-center gap-2">
         {m.workerRole && <WorkerRoleSwitch workerId={id} role={m.workerRole} onDone={onChange} />}
         <MobileInline workerId={id} mobile={m.mobile} onSaved={onChange} />
-        {!m.hasLogin && (asked ? <span className="text-[13px] font-semibold text-estimate-green">{asked}</span> : <button type="button" className={smallBtn} onClick={async () => { try { await invite({ data: { workerId: id } }); setAsked(TEAM_LOGIN.asked); } catch (e) { setAsked((e as Error).message); } }}>{TEAM_LOGIN.button}</button>)}
+        {/* Jo 4 Nov 2026 21:45 (G8): NO worker logins — only the boss and Office people log in. The login ask shows for Office people only. */}
+        {m.role === "office" && !m.hasLogin && (asked ? <span className="text-[13px] font-semibold text-estimate-green">{asked}</span> : <button type="button" className={smallBtn} onClick={async () => { try { await invite({ data: { workerId: id } }); setAsked(TEAM_LOGIN.asked); } catch (e) { setAsked((e as Error).message); } }}>{TEAM_LOGIN.button}</button>)}
         {m.declarationsDue && (m.mobile?.trim() || m.email?.trim() ? <CertLinkInline workerId={id} name={m.name} label={TEAM_SIGN.link} /> : <span className="text-[13px] text-sub">{TEAM_SIGN.needContact}</span>)}
         {m.noticeAcknowledged === false && <SendNoticeLinkInline workerId={id} />}
         {!m.declarationsDue && m.cii && cii?.tone === "rose" && <CertLinkInline workerId={id} name={m.name} />}

@@ -1191,13 +1191,17 @@ export async function tradeTestSetPasswordLink(userId: string, base: string) {
   return { link: await issueSetPasswordLink(email, base) };
 }
 
-/** Boss taps "Send login invite" for a team member already listed at onboarding. Office sends it (sending stays office-controlled); nothing is sent here. */
+/** Boss taps "Ask the office to send a login" for an OFFICE person on the Team. Office sends it (sending stays
+ *  office-controlled); nothing is sent here. Jo 4 Nov 2026 21:45 (G8): NO worker logins — Lead Installers, Crew and
+ *  electricians are a list of people; a login ask for them is refused. */
+export const NO_WORKER_LOGINS = "Only the boss and Office people log in. Installers and electricians don't need a login."; // DRAFT
 export async function tradeRequestLoginInvite(userId: string, workerId: string) {
   const c = await ctxOrThrow(userId);
   if (!c.boss) throw new WorkflowError("Only the business boss can invite the team.");
-  const { data: w } = await admin.from("partner_workers").select("id, full_legal_name, business_id, profile_id").eq("id", workerId).is("removed_at", null).maybeSingle();
+  const { data: w } = await admin.from("partner_workers").select("id, full_legal_name, business_id, profile_id, trade_role").eq("id", workerId).is("removed_at", null).maybeSingle();
   if (!w || w.business_id !== c.biz.id) throw new WorkflowError("Team member not found.");
   if (w.profile_id) return { ok: true, already: true };
+  if (String(w.trade_role) !== "office") throw new WorkflowError(NO_WORKER_LOGINS);
   return { ...(await tradeChangeRequest(userId, "other", `Please send a login invite to ${w.full_legal_name} (team member ${w.id}).`)), already: false };
 }
 

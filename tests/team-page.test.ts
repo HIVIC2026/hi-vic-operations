@@ -9,6 +9,8 @@ test("Team page uses the new add and login words", () => {
   expect(team).toContain("addTeamPerson");
   expect(team).toContain("WorkerRoleSwitch");
   expect(team).toContain("TEAM_LOGIN.button");
+  // G8 (3), Jo 4 Nov 2026 21:45: no worker logins — the login ask shows for Office people only.
+  expect(team).toContain('m.role === "office" && !m.hasLogin');
   expect(team).toContain("CertLinkInline");
   expect(team).toContain("removeWorker");
   expect(team).toContain("TEAM_ADD_SHEET.button");

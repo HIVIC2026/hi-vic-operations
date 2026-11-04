@@ -61,7 +61,11 @@ describe("the electrician screens are gone", () => {
     for (const gone of ["getWorkerApprovedRectificationRates", "addWorkerApprovedRectificationItem", "approvedRates"]) expect(page).not.toContain(gone);
     const fns = read("src/lib/worker-links.functions.ts");
     for (const gone of ["getWorkerApprovedRectificationRates", "addWorkerApprovedRectificationItem"]) expect(fns).not.toContain(gone);
-    for (const kept of ["getWorkerJobView", "postWorkerMessage"]) { expect(fns).toContain(kept); expect(page).toContain(kept); }
+    // G8 (3), Jo 4 Nov 2026 21:45: the /w/ page is RETIRED (no worker pages or logins) — it reads nothing; the two server
+    // functions stay for history / the QA launcher only.
+    for (const kept of ["getWorkerJobView", "postWorkerMessage"]) expect(fns).toContain(kept);
+    expect(page).not.toContain("useServerFn("); // the page calls nothing
+    expect(page).toContain("data-worker-link-retired");
   });
   test("the sign-in page no longer says 'and electricians'", () => {
     expect(read("src/routes/portal.tsx")).not.toContain("and electricians");
