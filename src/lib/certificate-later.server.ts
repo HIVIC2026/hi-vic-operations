@@ -202,12 +202,14 @@ type ChaseRow = {
   events: ChaseEventRow[];
 };
 
-/** Every job at a chase stage, paged by id (fix 1: no 500-job ceiling; the sweeps then work oldest first). */
+/** Every live hivic job at a chase stage, paged by id (fix 1: no 500-job ceiling; the sweeps then work oldest first). */
 async function chaseCandidates(): Promise<R[]> {
   const out: R[] = [];
   let after: string | null = null;
   for (let page = 0; page < CHASE_MAX_PAGES; page++) {
-    let q = loose().from("jobs").select("id, source, originating_installer_business_id").in("stage", [...CHASE_STAGES]).is("deleted_at", null);
+    // Final fix wave item 4: live Home Insulation Victoria jobs only — never an archived TEST journey or another business
+    // unit (the same filter as sweepFixesForms).
+    let q = loose().from("jobs").select("id, source, originating_installer_business_id").in("stage", [...CHASE_STAGES]).is("deleted_at", null).is("qa_archived_at", null).eq("business_unit", "hivic");
     if (after) q = q.gt("id", after);
     const { data, error } = await q.order("id").limit(CHASE_PAGE);
     if (error) throw new Error(error.message);

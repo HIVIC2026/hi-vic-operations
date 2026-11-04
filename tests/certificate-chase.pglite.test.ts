@@ -15,7 +15,7 @@ import { SMS_MESSAGE_TYPES } from "../src/lib/sms.core";
 const db = new PGlite();
 await db.exec(`
 CREATE TABLE businesses (id uuid primary key, name text, trading_name text, email text, phone text, onboarding_notes text);
-CREATE TABLE jobs (id uuid primary key, stage text, deleted_at timestamptz, originating_installer_business_id uuid, channel text, source text, job_number text, created_at timestamptz default clock_timestamp());
+CREATE TABLE jobs (id uuid primary key, stage text, deleted_at timestamptz, originating_installer_business_id uuid, channel text, source text, job_number text, created_at timestamptz default clock_timestamp(), business_unit text default 'hivic', qa_archived_at timestamptz);
 CREATE VIEW job_overview AS SELECT id, job_number, '1 Example St, Clayton 3168'::text AS property_address FROM jobs;
 CREATE TABLE workflow_events (id uuid primary key default gen_random_uuid(), job_id uuid, actor_id uuid, event_type text, summary text, details jsonb, internal boolean, created_at timestamptz default clock_timestamp());
 CREATE TABLE partner_workers (id uuid primary key default gen_random_uuid(), business_id uuid, profile_id uuid, full_legal_name text, mobile text, removed_at timestamptz);
@@ -62,8 +62,12 @@ async function seedCertificate(j: string) {
   await db.query("insert into evidence_requirements (job_id, category) values ($1,'rectification_completion')", [j]);
 }
 const J_UP = id(301), J_UP_BOOKED = id(302), J_UP_HELD = id(303), J_CERT = id(311), J_CERT_FILE = id(312);
-for (const j of [J_UP, J_UP_BOOKED, J_UP_HELD]) await seedUpgrades(j);
-for (const j of [J_CERT, J_CERT_FILE]) await seedCertificate(j);
+// Final fix wave item 4: an archived TEST journey and a job of another business unit are never chased (like sweepFixesForms).
+const J_UP_ARCHIVED = id(304), J_UP_OTHER_UNIT = id(305), J_CERT_ARCHIVED = id(313), J_CERT_OTHER_UNIT = id(314);
+for (const j of [J_UP, J_UP_BOOKED, J_UP_HELD, J_UP_ARCHIVED, J_UP_OTHER_UNIT]) await seedUpgrades(j);
+for (const j of [J_CERT, J_CERT_FILE, J_CERT_ARCHIVED, J_CERT_OTHER_UNIT]) await seedCertificate(j);
+await db.query("update jobs set qa_archived_at = now() where id in ($1,$2)", [J_UP_ARCHIVED, J_CERT_ARCHIVED]);
+await db.query("update jobs set business_unit = 'act' where id in ($1,$2)", [J_UP_OTHER_UNIT, J_CERT_OTHER_UNIT]);
 // J_UP_BOOKED: the electrician entered the day on Mon 2 Nov — nothing is ever chased.
 await db.query("insert into bookings (job_id, kind, status, scheduled_start, business_id) values ($1,'rectification','confirmed','2026-11-12T00:00:00Z',$2)", [J_UP_BOOKED, ELEC]);
 // J_CERT_FILE: the certificate came in through the link before day 2.
@@ -252,6 +256,16 @@ const MANY = Array.from({ length: 30 }, (_, i) => id(400 + i));
 const J_NOINST = id(450), J_REASS = id(451);
 const waiting = async (j: string) => (await db.query<{ summary: string; details: { round: string; reason: string } }>("select summary, details from workflow_events where job_id=$1 and event_type='certificate_chase_waiting' order by created_at", [j])).rows;
 const eventCount = async () => Number((await db.query<{ n: number }>("select count(*)::int as n from workflow_events")).rows[0]!.n);
+describe("candidates (final fix wave item 4)", () => {
+  test("archived TEST journeys and other business units are never chased — no rounds, no texts, no emails", async () => {
+    for (const j of [J_UP_ARCHIVED, J_UP_OTHER_UNIT, J_CERT_ARCHIVED, J_CERT_OTHER_UNIT]) {
+      expect(await rounds(j)).toEqual([]);
+      expect(textsFor(j)).toEqual([]);
+      expect(emailsFor(j)).toEqual([]);
+    }
+  });
+});
+
 describe("held sends at scale (fix 1)", () => {
   test("setup: earlier jobs closed, 32 new due jobs; wording held", async () => {
     await db.query("update jobs set deleted_at = now()");
