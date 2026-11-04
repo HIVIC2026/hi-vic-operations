@@ -30,7 +30,7 @@ import { B1_OPTIONS, B2_OPTIONS, OFFICIAL_ITEMS, type ItemKind } from "./officia
 import { CERTIFICATE_NOW_ADDED, CERTIFICATE_NOW_LABEL, SHORT_PIESA_FIELDS, SHORT_PIISA_FIELDS } from "./official-short.core";
 import { PIISA_DECLARATION_FIELDS } from "./piisa-declaration.core";
 import { mittiItemType } from "./mitti.core";
-import { canonicalMittiLabel, mittiLabelAliases } from './mitti-rebuild-labels.core';
+import { canonicalMittiLabel, fixesMittiLabel, mittiLabelAliases } from './mitti-rebuild-labels.core';
 import { SPLIT_MAINS_Q } from './official-short.core';
 import { PIESA_EVIDENCE } from "./piesa-evidence.core";
 import { A1_COMPLETE_INSTRUCTION, A1_READY_TO_PRICE_TICK, A1_OPTIONAL_MEDIA_INSTRUCTION } from './ready-check-lean.core';
@@ -224,7 +224,7 @@ export function validateTemplate(key: FormKey, items: TemplateItem[]): { ok: boo
   const issues: string[] = [];
   const byLabel = new Map<string, TemplateItem[]>();
   for (const it of items) {
-    const full = norm(canonicalMittiLabel(it.label ?? ""));
+    const full = norm(canonicalMittiLabel(key === "fixes" ? fixesMittiLabel(it.label ?? "") : (it.label ?? "")));
     if (!full) continue;
     byLabel.set(full, [...(byLabel.get(full) ?? []), it]);
     // Mitti appends help text after a line break (e.g. "How many ceiling areas need to be measured separately?\nCount areas...").
