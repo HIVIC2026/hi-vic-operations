@@ -278,7 +278,7 @@ describe("the 5pm lock on the writers (server check, current booking read fresh)
     expect(change.indexOf("assertLeadInstallerUnlocked")).toBeLessThan(change.indexOf("saveCrewWithLead("));
     const tv = readFileSync("src/lib/trade-view.server.ts", "utf8");
     const book = tv.slice(tv.indexOf("export async function inHouseBookVisit"), tv.indexOf("export async function setMittiInvited"));
-    expect(book).toContain("assertLeadInstallerUnlocked(input.jobId, { newStart: input.start, newLeadId: input.workerId })");
+    expect(book).toContain("assertLeadInstallerUnlocked(input.jobId, { newStart: input.start, newLeadId: input.workerId ?? null })");
     expect(book.indexOf("assertLeadInstallerUnlocked")).toBeLessThan(book.indexOf("saveInHouseVisit("));
     const va = readFileSync("src/lib/visit-allocation.server.ts", "utf8");
     const save = va.slice(va.indexOf("export async function saveCrewWithLead("), va.indexOf("async function refuseLockedLeadChange"));
