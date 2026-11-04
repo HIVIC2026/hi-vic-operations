@@ -94,8 +94,9 @@ export type PrestartFacts = {
   piesaCompletedAt: string | null;
   readyCheckWorksBlockers?: string[] | undefined; // installer-intake jobs: original-condition answers not yet recorded
   siteHoldBlockers?: string[] | undefined; // open "Site conditions differ" review hold
-  /** H3 (24 Oct 2026): the assigned installer business's lapsed public liability insurance (publicLiabilityBlocker); undefined = not loaded (older callers). */
-  publicLiabilityBlocker?: string | null | undefined;
+  /** H3 (24 Oct 2026) → Part 9 Task 8: the assigned installer business's insurance problems (businessDocsBlocker: not on file /
+   *  unverified / expired / under $5m / no workers comp); undefined = not loaded (older callers). */
+  businessDocsBlocker?: string | null | undefined;
   /** Decision 261: "Safety plan not signed: …" until the lead and every listed installer signed the portal SWMS; undefined = not loaded (older callers). */
   swmsBlocker?: string | null | undefined;
   /** Decision 319: when this installation booking was made. Bookings made before `WHITE_CARD_ENFORCED_FROM` are never blocked by the White Card rule. */
@@ -132,7 +133,7 @@ export function prestartFailures(f: PrestartFacts): string[] {
   else if (day > addDays(f.piesaCompletedAt.slice(0, 10), PIISA_FROM_PIESA_DAYS)) out.push("The installer safety form (PIISA) can only be done within 30 days of the PIESA.");
   for (const b of f.readyCheckWorksBlockers ?? []) out.push(`Ready Check original condition not recorded: ${b}.`);
   for (const b of f.siteHoldBlockers ?? []) out.push(b);
-  if (f.publicLiabilityBlocker) out.push(`Installer business: ${f.publicLiabilityBlocker}`);
+  if (f.businessDocsBlocker) out.push(`Installer business: ${f.businessDocsBlocker}`);
   if (f.swmsBlocker) out.push(f.swmsBlocker);
   if (f.installDepositBlocker) out.push(f.installDepositBlocker);
   for (const b of f.piesaCopyBlockers ?? []) out.push(b);

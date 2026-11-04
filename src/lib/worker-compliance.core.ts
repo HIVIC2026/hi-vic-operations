@@ -138,11 +138,14 @@ export function crewClearance(f: CrewClearanceFacts, today: string): CrewClearan
 // ---------- Business public liability insurance (compliance checklist H3, 24 Oct 2026) ----------
 /**
  * Like the CII expiry: once the business's public liability insurance has lapsed (`expiresOn < today`), the business
- * gets no new offers and no install may start until a renewed certificate is uploaded. No date on file (older partners
- * never asked) is shown as missing on My business but is NOT a block here, exactly like the licence-expiry convention.
+ * gets no new offers and no install may start until a renewed certificate is uploaded. Part 9 Task 8 (Jo 2 Nov 2026):
+ * no date on file is a BLOCK too (insurance is a hard block until the office approves it); the full rule, including
+ * verification, the $5m amount and workers comp, is `businessDocsBlocker` (trade-expiry.core) — callers with the
+ * credential rows use that one.
  */
+export const PUBLIC_LIABILITY_MISSING = "Public liability insurance not on file. Upload the certificate under My business.";
 export function publicLiabilityBlocker(expiresOn: string | null | undefined, today: string): string | null {
-  if (!expiresOn) return null;
+  if (!expiresOn) return PUBLIC_LIABILITY_MISSING;
   if (expiresOn.slice(0, 10) < today) return `Public liability insurance expired on ${expiresOn.slice(0, 10)}. Upload the renewed certificate under My business.`;
   return null;
 }

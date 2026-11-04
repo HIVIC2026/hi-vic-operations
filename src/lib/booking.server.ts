@@ -59,6 +59,11 @@ export async function validateBooking(jobId: string, kind: BookingKind, start: s
     const ob = await (await import("./piesa-owner-confirm.server")).ownerPiesaConfirmationBlockerFor(jobId);
     if (ob) throw new WorkflowError(ob);
   }
+  // Part 9 Task 8 (Jo 2 Nov 2026): insurance is a hard block on EVERY booking kind — the trade business's public liability
+  // ($5m+, office-verified) and workers comp must be in order (business-docs.server, fails closed on a read error); and the
+  // safety check's electrician must hold a verified, unexpired licence + REC (electricianVerified) on every job, not only
+  // the in-house path. Part 9 Task 9: the people on the booking must be on file (DOB + mobile, CII / licence).
+  await bookingComplianceGate(jobId, kind, contractor?.business_id ?? null, proposedWorkerId ?? null);
   if (kind !== "ready_check") { const cb = await commercialBlocker(jobId); if (cb) throw new WorkflowError(`Blocked: ${cb}`); }
   if (kind !== "ready_check") { const g = await paymentGate(jobId); if (!g.cleared) throw new WorkflowError(`Blocked: ${g.blocker}`); }
   // Decision 366 (audit F03): the electrical fixes are paid in full before their visit is booked (every booking path).
@@ -172,4 +177,38 @@ export async function confirmBooking(jobId: string, kind: BookingKind, start: st
   }
   await autoAdvanceJob(jobId, actorId, "booking confirmed");
   return { ok: true };
+}
+
+// ── Part 9 Task 8: insurance + electrician licence gate on every booking kind (appended; called from validateBooking) ──
+/** The electrician worker a safety check / upgrades booking is for: the proposed Team worker, else the job's allocated
+ *  Team electrician, else null (the business as a whole is checked then). A read error throws (fail closed). */
+async function bookedElectricianWorker(jobId: string, businessId: string | null, proposedWorkerId: string | null): Promise<{ id: string; business_id: string; full_legal_name: string | null; licence_number: string | null; rec_number: string | null; licence_expires_on: string | null; licence_verified_at: string | null; approval_status: string | null } | null> {
+  const id = proposedWorkerId ?? (await (await import("./in-house-electrician.server")).allocatedWorkerId(jobId));
+  if (!id) return null;
+  const { data, error } = await admin.from("partner_workers").select("id, business_id, full_legal_name, licence_number, rec_number, licence_expires_on, licence_verified_at, approval_status").eq("id", id).maybeSingle();
+  if (error) throw new WorkflowError(`Couldn't check the electrician: ${error.message}`);
+  if (!data) throw new WorkflowError("The booked electrician is no longer on file.");
+  if (businessId && data.business_id !== businessId) throw new WorkflowError("The booked electrician isn't on the assigned business's Team.");
+  return data;
+}
+
+async function bookingComplianceGate(jobId: string, kind: BookingKind, assignedBusinessId: string | null, proposedWorkerId: string | null): Promise<void> {
+  const electrician = kind === "assessment" || kind === "rectification" ? await bookedElectricianWorker(jobId, assignedBusinessId, proposedWorkerId) : null;
+  const businessId = assignedBusinessId ?? electrician?.business_id ?? null;
+  if (!businessId) return; // no trade yet: the "No … assigned yet" refusal above already applies
+  const { requireBusinessDocs } = await import("./business-docs.server");
+  await requireBusinessDocs(businessId);
+  if (kind === "assessment") {
+    const { electricianVerified, melbourneToday } = await import("./worker-compliance.core");
+    if (electrician) {
+      const v = electricianVerified(electrician, melbourneToday());
+      if (!v.ok) throw new WorkflowError(`Electrician not verified: ${electrician.full_legal_name ?? "electrician"} (${v.reason}).`);
+    } else {
+      const { data, error } = await admin.from("partner_workers").select("licence_number, rec_number, licence_expires_on, licence_verified_at").eq("business_id", businessId).eq("trade_role", "electrician").eq("approval_status", "approved").is("removed_at", null);
+      if (error) throw new WorkflowError(`Couldn't check the electrician: ${error.message}`);
+      const { inHouseElectricianBookingBlocker } = await import("./worker-compliance.core");
+      const why = inHouseElectricianBookingBlocker((data ?? []) as import("./worker-compliance.core").ElectricianVerification[], melbourneToday());
+      if (why) throw new WorkflowError(why);
+    }
+  }
 }

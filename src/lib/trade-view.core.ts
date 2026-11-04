@@ -348,11 +348,15 @@ export const TEAM_SIGN = { due: "Not signed yet · can't go on jobs", needContac
 /** "Send login invite" asks the office; it sends nothing itself. */
 export const TEAM_LOGIN = { button: "Ask the office to send a login", asked: "Asked the office. They'll send the login." } as const;
 
-export type CredentialView = { kind: string; label: string; expires: string | null; verified: boolean };
-/** Latest expiry on file for one credential kind (a renewal upload supersedes the old date; null = none recorded). */
-export function latestExpiry(creds: CredentialView[], kind: string): string | null {
-  const isKind = (c: CredentialView) => c.kind === kind || (kind === "public_liability_insurance" && /liab/i.test(c.label) && !/product/i.test(c.label));
-  return creds.filter(isKind).map((c) => c.expires).filter((x): x is string => !!x).map((x) => x.slice(0, 10)).sort().at(-1) ?? null;
+/** Part 9 Task 8: `amountInsured` (AUD) is the office-typed cover on a public liability row (pending `amount_insured_aud`);
+ *  undefined = not loaded by this reader, null = not recorded. `pending` = uploaded, not yet checked by the office. */
+export type CredentialView = { kind: string; label: string; expires: string | null; verified: boolean; amountInsured?: number | null; pending?: boolean };
+/** One credential kind (public liability also by a "liability" label that isn't product liability). */
+export const isCredentialKind = (c: CredentialView, kind: string): boolean => c.kind === kind || (kind === "public_liability_insurance" && /liab/i.test(c.label) && !/product/i.test(c.label));
+/** Latest expiry on file for one credential kind (a renewal upload supersedes the old date; null = none recorded).
+ *  Part 9 Task 8: `verifiedOnly` counts only rows the office has verified (an upload alone never lifts a block). */
+export function latestExpiry(creds: CredentialView[], kind: string, opts: { verifiedOnly?: boolean } = {}): string | null {
+  return creds.filter((c) => isCredentialKind(c, kind) && (!opts.verifiedOnly || c.verified)).map((c) => c.expires).filter((x): x is string => !!x).map((x) => x.slice(0, 10)).sort().at(-1) ?? null;
 }
 
 /** Insurance row: "Public liability expires 11 Nov · Workers comp current". */

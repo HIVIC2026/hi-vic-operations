@@ -32,6 +32,8 @@ CREATE TABLE businesses (id uuid primary key, name text, trading_name text, abn 
   accepting_new_jobs boolean, onboarding_notes text, mitti_account_invited boolean, onboarding_status text, is_active boolean, approved_at timestamptz, signer_mobile text, phone text, rec_number text, in_house boolean default false, pays_own_electricians boolean default false);
 CREATE TABLE partner_workers (id uuid primary key default gen_random_uuid(), business_id uuid, profile_id uuid, full_legal_name text, email text, trade_role text, approval_status text, removed_at timestamptz, licence_number text, rec_number text, licence_expires_on text, licence_verified_at timestamptz);
 CREATE TABLE user_roles (user_id uuid, role text, unique (user_id, role));
+-- Part 9 Task 8 (Jo 2 Nov 2026): Add a job and every booking run the insurance hard block (business-docs.server, fail closed).
+CREATE TABLE business_credentials (id uuid primary key default gen_random_uuid(), business_id uuid, kind text not null, label text not null, expires_at date, verification text not null default 'pending', amount_insured_aud numeric);
 CREATE TABLE profiles (id uuid primary key, full_name text, email text, phone text, business_id uuid);
 CREATE TABLE workflow_settings (id int primary key, mitti_ready_check_template_id text, mitti_ready_check_priced_template_id text, mitti_piesa_template_id text, mitti_piisa_template_id text, auto_send_mitti boolean,
   customer_comms_enabled boolean, auto_send_quote boolean, installer_quote_min_inc_gst_per_m2 numeric, installer_quote_max_inc_gst_per_m2 numeric, mitti_auto_quote_enabled boolean, safety_check_payment_inc_gst numeric);
@@ -67,6 +69,7 @@ CREATE TABLE rate_cards (id uuid primary key default gen_random_uuid(), business
 CREATE TABLE rate_card_items (id uuid primary key default gen_random_uuid(), rate_card_id uuid, code text, unit_price_ex_gst numeric, unit text);
 CREATE TABLE worker_job_links (id uuid primary key default gen_random_uuid(), job_id uuid, worker_id uuid, token_hash text, expires_at timestamptz, revoked_at timestamptz, created_by uuid, created_at timestamptz default clock_timestamp());
 INSERT INTO businesses VALUES ('${BIZ}','TEST Reinsulate','TEST Reinsulate','11 222 333 444','{}','eec_installer','{installer}','Frankston',50,false,true,'[TEST PARTNER] practice',true,'approved',true,now(),'0477 511 901',null);
+INSERT INTO business_credentials (business_id, kind, label, expires_at, verification, amount_insured_aud) VALUES ('${BIZ}','public_liability_insurance','Public liability','2099-01-01','verified',10000000), ('${BIZ}','workers_comp_insurance','Workers comp','2099-01-01','verified',null);
 INSERT INTO business_members (business_id, user_id, member_role) VALUES ('${BIZ}','${INST}','business_admin');
 INSERT INTO partner_workers (id, business_id, profile_id, full_legal_name, email, trade_role, approval_status, licence_number, rec_number, licence_expires_on, licence_verified_at) VALUES ('${ELEC_WORKER}','${BIZ}',null,'Will Casdorff','will@hivic-test.example','electrician','approved','A12345','REC-1','2030-01-01',now()),
   ('${WAITING_WORKER}','${BIZ}',null,'Wes Waiting','wes@hivic-test.example','electrician','pending','A99999','REC-9','2030-01-01',now());

@@ -58,6 +58,9 @@ await q(`insert into businesses (id, name, trading_name, abn, business_type, cap
 // Electrical upgrades (decisions 34/36, Jo 2 Nov 2026): the installer's electrician quotes, books and invoices them with the
 // owner directly — partner-billed, no HIV fixes quote.
 await q("update businesses set in_house = true, piesa_booked_by = 'either', rectification_billed_by = 'partner', address = '2 Journey Road, Frankston VIC 3199' where id = $1", [BIZ]);
+// Part 9 Task 8 (Jo 2 Nov 2026): insurance is a hard block on every booking, Add a job and the pre-start check — the business
+// holds office-verified $10m public liability and workers comp, as a real approved installer must.
+await q(`insert into business_credentials (business_id, kind, label, expires_at, verification, amount_insured_aud) values ($1,'public_liability_insurance','Public liability','2099-01-01','verified',10000000), ($1,'workers_comp_insurance','Workers comp','2099-01-01','verified',null)`, [BIZ]);
 await q(`insert into profiles (id, full_name, email, phone) values ($1,'Ivy Installer',$2,'0477 511 901'), ($3,'Ollie Office','office@hivic-test.example',null)`, [INST, TRADE_EMAIL, OFFICE]);
 await q(`insert into business_members (business_id, user_id, member_role, active) values ($1,$2,'business_admin',true)`, [BIZ, INST]);
 await q(`insert into user_roles (user_id, role) values ($1,'installer'), ($2,'admin')`, [INST, OFFICE]);

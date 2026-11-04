@@ -29,6 +29,8 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
   const c = await (await import("./trade-view.server")).pricesOrThrow(userId);
   if (c.biz.id !== businessId) throw new WorkflowError("You are not part of this business.");
   await requireApprovedPartner(businessId);
+  // Part 9 Task 8 (Jo 2 Nov 2026): no new job while the business's insurance isn't on file, office-verified, $5m+ and current.
+  await (await import("./business-docs.server")).requireBusinessDocs(businessId);
   const now = opts.now ?? new Date();
   const businessName = c.biz.name;
   const problems = onsiteProblems(input, { businessName });

@@ -348,3 +348,14 @@ export type HardStopCode = (typeof WORKFLOW_DECISIONS.hardStops)[number];
 export function depositPctFor(_totalIncGst: number): number {
   return WORKFLOW_DECISIONS.payment.deposit.installPct;
 }
+
+/** New job flow Part 9 Task 8 (Jo 2 Nov 2026): insurance and licence are a HARD block until the office approves. */
+export const INSURANCE_GATE_DECISIONS = {
+  rule: "businessDocsBlocker (trade-expiry.core): public liability AND workers comp must be on file, office-VERIFIED, unexpired; public liability $5m+ (amount typed by the office when approving, pending column business_credentials.amount_insured_aud); a newer upload waiting to be checked never lifts the block; a verified row with no expiry date or no amount blocks ('not recorded')",
+  workersComp: "not needed only when the business declared it employs nobody (businesses.workcover_exempt_declared_at)",
+  where: ["validateBooking — every booking kind (booking.server bookingComplianceGate)", "Add a job (onsite-ready-check.server, before any write)", "the Ready Check installer pick (readycheck-booking.server)", "pre-start facts (prestart.server businessDocsBlocker → prestartFailures 'Installer business: …')"],
+  electrician: "validateBooking('assessment') also checks the booked electrician's licence + REC + expiry + office verification (electricianVerified) on every job, not only the in-house path; a business with no verified electrician can't book the safety check",
+  failClosed: "a read error blocks (business-docs.server throws; prestart records the error line); the pending amount column missing = amount not recorded = blocked",
+  reminders: "30 and 7 days before a document on file lapses (dueInsuranceReminder), once each, to the business's main email + a copy to info@homeinsulationvictoria.com.au (two sends, one key each, keys insurance-reminder:v1:…); electricians' licence reminders go the same way; DRAFT wording behind INSURANCE_REMINDER_APPROVED=false (real businesses held and recorded once, TEST partners → test-send)",
+  unchanged: "installer certification, REC registration and the electrical licence business document keep the expiry-only rule (expiredBusinessDocsBlocker); REC allocation unchanged",
+} as const;

@@ -43,13 +43,14 @@ export async function latestNotices(jobId: string) {
   return { current, previousSent };
 }
 
-/** H3 (24 Oct 2026): the assigned installer business's public liability insurance must not have lapsed before the install starts. */
-async function installerPublicLiabilityBlocker(jobId: string): Promise<string | null> {
-  const { data: a } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
+/** H3 (24 Oct 2026) → Part 9 Task 8 (Jo 2 Nov 2026): the assigned installer business's insurance must be on file, office-verified,
+ *  $5m+ public liability, workers comp and unexpired before the install starts (businessDocsBlocker). A read error BLOCKS. */
+async function installerBusinessDocsBlocker(jobId: string): Promise<string | null> {
+  const { data: a, error } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
+  if (error) return `Couldn't read the installer assignment: ${error.message}`;
   if (!a?.business_id) return null;
-  const { publicLiabilityExpiryFor } = await import("./business-insurance.server");
-  const { publicLiabilityBlocker, melbourneToday } = await import("./worker-compliance.core");
-  return publicLiabilityBlocker((await publicLiabilityExpiryFor([a.business_id])).get(a.business_id) ?? null, melbourneToday());
+  try { return await (await import("./business-docs.server")).businessDocsBlockerFor(a.business_id); }
+  catch (e) { return e instanceof Error ? e.message : "Couldn't read insurance records."; }
 }
 
 export async function prestartFacts(jobId: string, start: string) {
@@ -69,7 +70,7 @@ export async function prestartFacts(jobId: string, start: string) {
     lead: await leadInstallerCert(jobId), consentBlockers: consentValidityBlockers(consent as never, start), piesaCompletedAt: cf.piesaCompletedAt,
     readyCheckWorksBlockers: await (await import("./ready-check-draft.server")).rcWorksBlockers(jobId),
     siteHoldBlockers: await siteHoldBlockers(jobId),
-    publicLiabilityBlocker: await installerPublicLiabilityBlocker(jobId),
+    businessDocsBlocker: await installerBusinessDocsBlocker(jobId),
     // Decision 261: the portal's safety plan (SWMS) must be signed by the lead and every listed installer.
     swmsBlocker: (await import("./swms.core")).swmsBlocker(await (await import("./swms.server")).swmsStatusFor(jobId)),
     // Decision 319: the White Card rule applies only to installations booked on/after WHITE_CARD_ENFORCED_FROM.
