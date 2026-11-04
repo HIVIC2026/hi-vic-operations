@@ -1,4 +1,9 @@
 // Portal-owned decisions only. Workers never decide whether accepted evidence needs repeating.
+/** Jo 4 Nov 2026 21:30 (G8 (5)): the installer job page / office line "Before photos: to be taken on install day (…)" is
+ *  HIDDEN for go-live — the Mitti A5 capture it points to isn't built; the Ready Check before video + ruler photo remain
+ *  the before evidence. The rule (installBeforePlan) and the reader (install-before.server) stay; nothing renders the line
+ *  while this is false. */
+export const INSTALL_BEFORE_LINE_SHOWN = false as boolean;
 export const INSTALL_BEFORE_VIDEO_INSTRUCTION = 'The power is off, so use a bright torch or work light.';
 export const INSTALL_AFTER_VIDEO_INSTRUCTION = 'The power is still off, so use a bright torch or work light.';
 export const INSTALL_AREA_ORDER_LABEL = 'Ceiling areas in Ready Check order';

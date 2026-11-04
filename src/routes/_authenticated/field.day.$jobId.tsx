@@ -101,7 +101,8 @@ function DayPage() {
           <>
             <NextPanel title={next.title} sub={next.sub}>
               {next.signRebate ? signRebate
-                : data.mittiId ? (started
+                // G8 (5), Jo 4 Nov 2026 21:30: on the install day the three phone ticks are gone — the button opens Mitti directly.
+                : data.mittiId ? (started || data.kind === "install"
                   ? <div className="mt-3" data-mitti-handoff><MittiFormLink auditId={data.mittiId} className={primaryLinkClass}>{next.button}</MittiFormLink><Note className="text-center">Your answers and photos come back to this job. Press Complete in Mitti when it's fully finished.</Note>{data.kind !== "ready_check" && <NoFormNoPay className="mt-3" />}</div>
                   : <TradePrestart jobId={jobId} kind={data.kind} channel={data.channel} label={next.button} onStart={async () => { if (data.kind === "ready_check" && data.channel === "hivic_sourced") { try { await confirmPricing({ data: { jobId } }); } catch (e) { toast.error(e instanceof Error ? e.message : "Could not start the Ready Check."); return; } } markStarted(); }} />)
                 : <div className="mt-3" data-mitti-setup>

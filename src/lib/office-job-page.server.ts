@@ -12,6 +12,7 @@ import { ELIGIBILITY_WORDS } from "./job-wording";
 import { withoutRetiredInstallDayPhotos } from "./ready-check-chase.core";
 import { installDaysLeft } from "./install-days.core";
 import { readJobAccess } from "./quick-taps-access.server";
+import { INSTALL_BEFORE_LINE_SHOWN } from "./install-before.core"; // G8 (5), Jo 4 Nov 2026 21:30
 
 const s = (v: unknown) => (v == null ? null : String(v));
 const n = (v: unknown) => (v == null || v === "" ? null : Number(v));
@@ -142,7 +143,7 @@ export async function loadJobPage(jobId: string, testOffice = false) {
       inHouseHeld: !testOffice && !!facts?.inHouse,
       ownerName: displayName(owner?.full_name) || null, surname: surnameOf(owner?.full_name), phone: owner?.phone ?? null, email: owner?.email ?? null,
       access: access.line,
-      beforePhotos: beforePhotos?.line ?? null,
+      beforePhotos: INSTALL_BEFORE_LINE_SHOWN ? beforePhotos?.line ?? null : null, // G8 (5): hidden for go-live
       street: addr.street || prop?.address_line || null, suburb: addr.suburb || null, postcode: addr.postcode || null,
       sourceLabel: ownJob ? `Installer's own customer · ${installer ?? "installer"}` : job.source === "base44" ? "Website enquiry" : job.source === "qa_test" ? "TEST job" : "Phone / office enquiry",
       receivedAt: job.created_at, permissionAt: consent.data?.consent_status === "granted" ? s(consent.data.consented_at ?? consent.data.created_at) : null, permissionState: consent.data?.consent_status ?? null,

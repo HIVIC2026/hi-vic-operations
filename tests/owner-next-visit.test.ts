@@ -75,3 +75,15 @@ describe("the owner's Ready Check window message (DRAFT)", () => {
     expect(src).toContain("async function emailSlot(");
   });
 });
+
+describe("G8 (5), Jo 4 Nov 2026 21:30: install-day screen and the before-photos line", () => {
+  test("the before-photos line is hidden for go-live (rule and reader kept)", async () => {
+    const { INSTALL_BEFORE_LINE_SHOWN, installBeforePlan } = await import("../src/lib/install-before.core");
+    expect(INSTALL_BEFORE_LINE_SHOWN).toBe(false);
+    expect(installBeforePlan(false, [{ name: "Main", beforeVideo: null, depthPhoto: null, present: null, rejected: false }]).line).toContain("Before photos: to be taken on install day");
+    for (const f of ["src/lib/trade-view.server.ts", "src/lib/office-job-page.server.ts"]) expect(readFileSync(f, "utf8")).toContain("INSTALL_BEFORE_LINE_SHOWN ? beforePhotos?.line ?? null : null");
+  });
+  test("the install day opens Mitti directly — no three ticks", () => {
+    expect(readFileSync("src/routes/_authenticated/field.day.$jobId.tsx", "utf8")).toContain('data.mittiId ? (started || data.kind === "install"');
+  });
+});

@@ -165,6 +165,7 @@ type HomeJob = { id: string; job_number: string; stage: string; source: string; 
 
 // ---- Fix wave I4: the facts My work and the Job page must agree on, read the same way on both -----------------------------
 import { whoBooksFor } from "./who-books.server"; // the one who-books reader (join 4 Nov 2026)
+import { INSTALL_BEFORE_LINE_SHOWN } from "./install-before.core"; // G8 (5), Jo 4 Nov 2026 21:30
 export { whoBooksFor };
 /** The Certificate of Electrical Safety is on file: the A4 fixes form's CoES document (documents kind + title, decision 293). */
 export async function coesOnFileForJobs(jobIds: string[]): Promise<Set<string>> {
@@ -1795,7 +1796,8 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
   return {
     ...jobPage,
     jobNumber: j?.job_number ?? null, stage: j?.stage ?? null, channel: j?.channel ?? null, notes,
-    beforePhotos: beforePhotos?.line ?? null,
+    // G8 (5), Jo 4 Nov 2026 21:30: the line is hidden for go-live (INSTALL_BEFORE_LINE_SHOWN); the plan is still read.
+    beforePhotos: INSTALL_BEFORE_LINE_SHOWN ? beforePhotos?.line ?? null : null,
     readyCheck: { bookedAt: rcBook?.scheduled_start ?? null, done: rcBook?.status === "completed" },
     install: { bookedAt: inBook?.scheduled_start ?? null, recordedAt: j?.installation_completed_at ?? null, form, rebateSigned, formCompletedAt: decl?.signed_at ?? null, evidenceChecked: Array.isArray(evidenceBlockers) ? evidenceBlockers.length === 0 : false, crew, ownerReady },
     form: mitti.applies
