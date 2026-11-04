@@ -37,7 +37,7 @@ async function contactRows(jobId: string, job: { created_at: string; source: str
 }
 
 export async function loadJobPage(jobId: string, testOffice = false) {
-  const { data: job, error } = await admin.from("jobs").select("id, job_number, stage, prior_stage, source, channel, created_at, hold_reason, hold_revisit_at, cancelled_reason, life_support, deleted_at, installation_completed_at, estimated_area_m2, eligibility_outcome, eligibility_review_required, originating_installer_business_id, owners(full_name, email, phone), properties(address_line, suburb, postcode, state, occupancy, enrichment)").eq("id", jobId).maybeSingle();
+  const { data: job, error } = await admin.from("jobs").select("id, job_number, stage, prior_stage, source, channel, created_at, hold_reason, hold_revisit_at, cancelled_reason, life_support, deleted_at, installation_completed_at, estimated_area_m2, eligibility_outcome, eligibility_review_required, originating_installer_business_id, external_refs, owners(full_name, email, phone), properties(address_line, suburb, postcode, state, occupancy, enrichment)").eq("id", jobId).maybeSingle();
   if (error) throw new Error(`This job could not be loaded: ${error.message}`);
   if (!job) throw new Error("Job not found.");
   const now = Date.now();
@@ -137,6 +137,8 @@ export async function loadJobPage(jobId: string, testOffice = false) {
     header: {
       doNotContact: dnc.on, doNotContactStop: dnc.source === "sms_stop",
       jobId, jobNumber: job.job_number, isTest: job.source === "qa_test", ownJob, installerName: installer, stage: job.stage, deleted: !!job.deleted_at,
+      // Part 9 Task 14: real-run job marked "no ESC" (no-esc.core; same jobs read, no extra query).
+      noEsc: (await import("./no-esc.core")).noEscMarked(job.external_refs),
       inHouseHeld: !testOffice && !!facts?.inHouse,
       ownerName: displayName(owner?.full_name) || null, surname: surnameOf(owner?.full_name), phone: owner?.phone ?? null, email: owner?.email ?? null,
       access: access.line,

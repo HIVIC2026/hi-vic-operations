@@ -399,3 +399,11 @@ export const REQUIRED_ON_FILE_DECISIONS = {
   lock: "leadInstallerLock(startIso) → 9:00 email / 17:00 lock Melbourne wall-clock two calendar days before the install's Melbourne date (DST-safe), lockLabel 'Wed 11 Nov, 5pm'; leadInstallerLocked(startIso, now, { installCompleted }) false once the install is recorded complete; LEAD_LOCKED_MESSAGE approved; Parts 5 and 7 import, never re-implement",
 } as const;
 
+/** New job flow Part 9 Task 14 (Jo 2 Nov 2026, answers 18–19): real runs never reach the ESC. */
+export const NO_ESC_DECISIONS = {
+  marker: "jobs.external_refs.no_esc === true (no-esc.core noEscMarked); set once by the office (setNoEscMarker, event no_esc_marker_set), one-way, refused while a sent un-withdrawn ESC notice exists",
+  refuses: "the Registry robot (noticeWork / veecWork skip, jobMode off), submitEscViaAdapter, recordEscSubmission, recordEscRegistryUpdate, recordRobotNotificationSubmitted, recordRobotNotificationUpdated, recordRobotVeecSubmitted, updateVeec to submitted/approved, veecCreationBlockers; sweepEscReminders skips marked jobs",
+  gates: "the GO check and the PIISA timing rule drop only the ESC-notice lines (note 'No ESC (real-run job): ESC notice skipped' on the check); the 30-day PIESA rule, SWMS, Part C, certificate, deposit, insurance and every other gate still block",
+  failClosed: "a marker read error throws → the recorder refuses, the sweep stops, the GO check is not recorded",
+  unmarked: "byte-identical behaviour; no SQL",
+} as const;

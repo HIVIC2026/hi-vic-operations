@@ -390,7 +390,7 @@ export function submissionPatch(p: { reference: string; sentAt: string; method: 
 export const PIISA_FROM_PIESA_DAYS = 30;
 const MELB_YMD = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" });
 const ymdPlusDays = (ymd: string, n: number) => { const d = new Date(`${ymd}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
-export function piisaTimingBlockers(i: { piisaSignedAt: string | null; noticeSentAt: string | null; piesaCompletedAt: string | null }): string[] {
+export function piisaTimingBlockers(i: { piisaSignedAt: string | null; noticeSentAt: string | null; piesaCompletedAt: string | null; /** Part 9 Task 14: marked "no ESC" → the notice lines are skipped; the 30-day PIESA rule still applies. */ noEsc?: boolean }): string[] {
   const b: string[] = [];
   const sentT = i.noticeSentAt ? Date.parse(i.noticeSentAt) : NaN;
   const signedT = i.piisaSignedAt ? Date.parse(i.piisaSignedAt) : NaN;
@@ -398,11 +398,11 @@ export function piisaTimingBlockers(i: { piisaSignedAt: string | null; noticeSen
   const piesaYmd = !i.piesaCompletedAt ? null
     : /^\d{4}-\d{2}-\d{2}$/.test(i.piesaCompletedAt.trim()) ? i.piesaCompletedAt.trim()
     : Number.isFinite(Date.parse(i.piesaCompletedAt)) ? MELB_YMD.format(new Date(i.piesaCompletedAt)) : null;
-  if (!Number.isFinite(sentT)) b.push("No ESC notice recorded as sent");
+  if (!Number.isFinite(sentT) && i.noEsc !== true) b.push("No ESC notice recorded as sent");
   if (!piesaYmd) b.push("PIESA completion date missing");
   if (!Number.isFinite(signedT)) b.push("PIISA signature time missing");
   if (!Number.isFinite(signedT)) return b;
-  if (Number.isFinite(sentT) && signedT < sentT + LEAD_MS) b.push(`PIISA signed less than 24 hours after the ESC notice was sent (sent ${melbDateTime(i.noticeSentAt!)}).`);
+  if (Number.isFinite(sentT) && i.noEsc !== true && signedT < sentT + LEAD_MS) b.push(`PIISA signed less than 24 hours after the ESC notice was sent (sent ${melbDateTime(i.noticeSentAt!)}).`);
   if (piesaYmd && MELB_YMD.format(new Date(signedT)) > ymdPlusDays(piesaYmd, PIISA_FROM_PIESA_DAYS)) b.push(`PIISA signed more than 30 days after the PIESA (${piesaYmd}).`);
   return b;
 }

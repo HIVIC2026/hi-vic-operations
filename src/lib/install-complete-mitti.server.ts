@@ -52,12 +52,13 @@ export async function installCompleteHold(jobId: string): Promise<{ nextLine: st
  *  (esc.core piisaTimingBlockers). A read failure returns its own blocker line: the install is held, never recorded. */
 export async function piisaTimingFor(jobId: string, auditId: string): Promise<string[]> {
   try {
-    const [{ latestPrestart }, { latestNotices }, { clearanceFacts }, { piisaTimingBlockers }] = await Promise.all([
-      import("./piisa-prestart.server"), import("./prestart.server"), import("./electrical-clearance.server"), import("./esc.core"),
+    const [{ latestPrestart }, { latestNotices }, { clearanceFacts }, { piisaTimingBlockers }, { noEscFor }] = await Promise.all([
+      import("./piisa-prestart.server"), import("./prestart.server"), import("./electrical-clearance.server"), import("./esc.core"), import("./no-esc.server"),
     ]);
-    const [stored, { current }, cf] = await Promise.all([latestPrestart(jobId, auditId), latestNotices(jobId), clearanceFacts(jobId)]);
+    // Part 9 Task 14: a real-run job marked "no ESC" skips the notice lines only (the 30-day PIESA rule still holds); a failed marker read holds.
+    const [stored, { current }, cf, noEsc] = await Promise.all([latestPrestart(jobId, auditId), latestNotices(jobId), clearanceFacts(jobId), noEscFor(jobId)]);
     const sentAt = current && (current.status === "sent" || current.status === "accepted") && current.sent_at && current.submission_reference ? current.sent_at : null;
-    return piisaTimingBlockers({ piisaSignedAt: stored?.snapshot?.signature?.signed_at ?? null, noticeSentAt: sentAt, piesaCompletedAt: cf.piesaCompletedAt ?? null });
+    return piisaTimingBlockers({ piisaSignedAt: stored?.snapshot?.signature?.signed_at ?? null, noticeSentAt: sentAt, piesaCompletedAt: cf.piesaCompletedAt ?? null, noEsc });
   } catch (e) {
     return [`PIISA timing could not be checked (${e instanceof Error ? e.message : "read failed"}) — sync again`];
   }

@@ -5,6 +5,8 @@
 // A refund that lands AFTER creation can't be stopped in Stripe; stripe.server `recordStripeRefund` raises ONE
 // `veec_copayment_refunded` office event so the office is told at once.
 
+import { NO_ESC_REFUSAL } from "./no-esc.core";
+
 /** The VEU minimum consumer co-payment, incl GST, in cents. */
 export const MIN_COPAYMENT_CENTS = 20000;
 export const COPAYMENT_TOO_LOW = "Owner has paid less than $200 (incl GST) — VEECs can't be created yet."; // office-only
@@ -16,14 +18,15 @@ export type VeecCreationFacts = {
   productProblems: string[];
   /** Cents received on the installation invoice (payments.server `jobPaymentView().paid.install`); null = could not be read. */
   installPaidCents: number | null;
-  /** Part 9 Task 14 (real runs, Jo 2 Nov answers 18–19): the job is marked "no ESC" — nothing goes to the ESC Registry and no
-   *  certificates are created. Optional until Task 14 lands (undefined = not marked); Task 14 adds the refusal line. */
+  /** Part 9 Task 14 (real runs, Jo 2 Nov answers 18–19): the job is marked "no ESC" (no-esc.core) — nothing goes to the ESC
+   *  Registry and no certificates are created; the refusal line comes first. undefined = not marked (older callers; the
+   *  robot and updateVeec always pass the read value). */
   noEsc?: boolean | undefined;
 };
 
 /** Plain reasons VEECs can't be created yet. Empty = both checks pass. Unknown money fails closed. */
 export function veecCreationBlockers(i: VeecCreationFacts): string[] {
-  const out = [...i.productProblems];
+  const out = i.noEsc === true ? [NO_ESC_REFUSAL, ...i.productProblems] : [...i.productProblems];
   if (i.installPaidCents == null || !Number.isFinite(i.installPaidCents) || i.installPaidCents < MIN_COPAYMENT_CENTS) out.push(COPAYMENT_TOO_LOW);
   return out;
 }

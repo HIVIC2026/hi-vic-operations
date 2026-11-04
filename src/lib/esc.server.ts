@@ -5,6 +5,7 @@ import { logEvent, piesaStatus, WorkflowError } from "./workflow.server";
 import { buildEscPayload, escDueBy, escEarliest, escWithdrawalNeeded, ESC_WITHDRAW_REQUIRED_EVENT, ESC_WITHDRAWN_EVENT, openEscWithdrawals, readyToInstall, registryChange, registryConditions, registryFacts, registryUpdatePatch, staleReasons, submissionBlockers, submissionPatch, withdrawalPatch, type EscConfig, type EscField, type EscFacts, type EscWithdrawReason, type OpenEscWithdrawal, melbDateTime } from "./esc.core";
 import { consentValidityBlockers } from "./consent.core";
 import { formatPropertyAddress } from "./address";
+import { assertNotNoEsc, noEscJobIds } from "./no-esc.server";
 
 /** Submission adapter slot. No ESC endpoint is configured – adapter always reports not configured. */
 export interface EscAdapter { submit(payload: Record<string, unknown>): Promise<{ reference: string; response: unknown }> }
@@ -135,8 +136,9 @@ export async function assertCanUpdate(n:{job_id:string;scheduled_start:string},p
 
 export async function submitEscViaAdapter(notificationId: string, actorId: string) {
   const adapter = configuredEscAdapter();
-  if (!adapter) throw new WorkflowError("No ESC submission adapter is configured. Export the payload, submit it to ESC, then record the submission reference.");
   const { data: n } = await admin.from("esc_notifications").select("*").eq("id", notificationId).single();
+  if (n) await assertNotNoEsc(n.job_id); // Part 9 Task 14: a "no ESC" real-run job is refused before anything else
+  if (!adapter) throw new WorkflowError("No ESC submission adapter is configured. Export the payload, submit it to ESC, then record the submission reference.");
   if (!n || n.status !== "ready") throw new WorkflowError("Notification is not ready to submit.");
   await assertCanSubmit(n, new Date().toISOString());
   const r = await adapter.submit(n.payload_json as Record<string, unknown>);
@@ -149,6 +151,7 @@ export async function submitEscViaAdapter(notificationId: string, actorId: strin
 export async function recordEscSubmission(p: { notificationId: string; reference: string; sentAt: string; method: "manual_portal" | "manual_email"; confirmed: boolean; actorId: string }) {
   const { data: n } = await admin.from("esc_notifications").select("*").eq("id", p.notificationId).single();
   if (!n) throw new WorkflowError("Notification not found");
+  await assertNotNoEsc(n.job_id); // Part 9 Task 14
   if (n.status !== "ready" && n.status !== "pending_submission" && n.status !== "error") throw new WorkflowError(`Cannot record a submission for a ${n.status.replace("_", " ")} notification.`);
   if (!n.consent_id) throw new WorkflowError("Cannot notify ESC: no valid separate owner consent is linked to this notification.");
   await assertCanSubmit(n, p.sentAt);
@@ -165,6 +168,7 @@ export async function recordEscSubmission(p: { notificationId: string; reference
 export async function recordEscRegistryUpdate(p: { notificationId: string; reference: string; updatedAt: string; confirmed: boolean; actorId: string }) {
   const { data: n } = await admin.from("esc_notifications").select("*").eq("id", p.notificationId).single();
   if (!n) throw new WorkflowError("Notification not found");
+  await assertNotNoEsc(n.job_id); // Part 9 Task 14
   if (n.status !== "ready" && n.status !== "pending_submission" && n.status !== "error") throw new WorkflowError(`Cannot record an update for a ${n.status.replace("_", " ")} notification.`);
   if (!n.consent_id) throw new WorkflowError("Cannot notify ESC: no valid separate owner consent is linked to this notification.");
   const { latestNotices } = await import("./prestart.server");
@@ -276,7 +280,11 @@ export async function sweepEscReminders(now = new Date()) {
   const { latestNotices, registryChangeFor } = await import("./prestart.server");
   const { data: bk } = await admin.from("bookings").select("job_id, scheduled_start").eq("kind", "installation").eq("status", "confirmed").gt("scheduled_start", now.toISOString()).lt("scheduled_start", new Date(now.getTime() + EARLIEST_MS_PLUS).toISOString());
   let checked = 0, raised = 0;
+  // Part 9 Task 14: jobs marked "no ESC" (real runs) get no ESC reminder. A failed marker read throws: the sweep stops
+  // rather than nag the office about a notice that must never be sent.
+  const noEsc = await noEscJobIds([...new Set((bk ?? []).map((b) => b.job_id))]);
   for (const b of bk ?? []) {
+    if (noEsc.has(b.job_id)) continue;
     checked++;
     const n = await latestNotices(b.job_id);
     const r = escReminder({ start: b.scheduled_start, current: n.current, previousSent: n.previousSent, change: registryChangeFor(b.scheduled_start, n, now), now });

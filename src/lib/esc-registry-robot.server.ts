@@ -14,6 +14,8 @@ import {
   type NoticeCandidate, type RobotEvent, type RobotMode, type RobotPlan, type RobotTask, type VeecCandidate,
 } from "./esc-registry-robot.core";
 import { SELECTORS_VERIFIED } from "./esc-registry-selectors";
+import { noEscMarked } from "./no-esc.core";
+import { assertNotNoEsc } from "./no-esc.server";
 
 const db = admin as any; // eslint-disable-line @typescript-eslint/no-explicit-any
 const ROBOT_EVENT_TYPES = [ROBOT_EVENTS.attempt, ROBOT_EVENTS.dryRun, ROBOT_EVENTS.failed];
@@ -52,12 +54,13 @@ async function robotEventsFor(jobIds: string[]): Promise<Map<string, RobotEvent[
   return out;
 }
 
-async function jobsById(ids: string[]): Promise<Map<string, { source: string; job_number: string; stage: string }>> {
-  const out = new Map<string, { source: string; job_number: string; stage: string }>();
+// Part 9 Task 14: the "no ESC" marker (no-esc.core) is read with the job, so a marked job is skipped before any plan.
+async function jobsById(ids: string[]): Promise<Map<string, { source: string; job_number: string; stage: string; noEsc: boolean }>> {
+  const out = new Map<string, { source: string; job_number: string; stage: string; noEsc: boolean }>();
   for (let i = 0; i < ids.length; i += 150) {
-    const { data, error } = await admin.from("jobs").select("id, source, job_number, stage").in("id", ids.slice(i, i + 150));
+    const { data, error } = await admin.from("jobs").select("id, source, job_number, stage, external_refs").in("id", ids.slice(i, i + 150));
     if (error) throw new Error(`Jobs could not be read: ${error.message}`);
-    for (const j of data ?? []) out.set(j.id, { source: j.source, job_number: j.job_number, stage: j.stage });
+    for (const j of data ?? []) out.set(j.id, { source: j.source, job_number: j.job_number, stage: j.stage, noEsc: noEscMarked(j.external_refs) });
   }
   return out;
 }
@@ -87,7 +90,7 @@ export async function noticeWork(mode: RobotMode, now = new Date()): Promise<Not
   const out: NoticeWork[] = [];
   for (const n of rows) {
     const job = jobs.get(n.job_id);
-    if (!job) continue;
+    if (!job || job.noEsc) continue; // Part 9 Task 14: a marked job never gets a plan (not even a dry run)
     const { previousSent } = await latestNotices(n.job_id);
     let prev: NoticeCandidate["previousSent"] = null;
     if (previousSent) {
@@ -104,7 +107,7 @@ export async function noticeWork(mode: RobotMode, now = new Date()): Promise<Not
     const values: Record<string, string | null> = Object.fromEntries(block.rows.map((r) => [r.key, r.value]));
     values["installation_start"] = String(payload["scheduled_start"] ?? n.scheduled_start);
     values["installation_end"] = payload["scheduled_end"] ? String(payload["scheduled_end"]) : null;
-    out.push({ candidate, plan: planNotification(candidate, now), jobNumber: job.job_number, effectiveMode: jobMode(taskMode(mode, "install_notification", SELECTORS_VERIFIED), job.source), values, registryText: block.text });
+    out.push({ candidate, plan: planNotification(candidate, now), jobNumber: job.job_number, effectiveMode: jobMode(taskMode(mode, "install_notification", SELECTORS_VERIFIED), job.source, job.noEsc), values, registryText: block.text });
   }
   return out;
 }
@@ -114,9 +117,10 @@ export type VeecWork = { candidate: VeecCandidate; plan: RobotPlan; jobNumber: s
 
 /** Jobs at Ready for VEEC with nothing lodged, with the signed assignment's Section 2 values and the quote's VEEC count. */
 export async function veecWork(mode: RobotMode): Promise<VeecWork[]> {
-  const { data: jobs, error } = await admin.from("jobs").select("id, source, job_number, stage").eq("stage", "ready_for_veec");
+  const { data: jobs, error } = await admin.from("jobs").select("id, source, job_number, stage, external_refs").eq("stage", "ready_for_veec");
   if (error) throw new Error(`Jobs could not be read: ${error.message}`);
-  const rows = jobs ?? [];
+  // Part 9 Task 14: a job marked "no ESC" (real run) is left out before any plan — no VEECs are ever created for it.
+  const rows = (jobs ?? []).filter((j) => !noEscMarked(j.external_refs));
   if (!rows.length) return [];
   const ids = rows.map((j) => j.id);
   const [events, lodg, asg, quotes] = await Promise.all([
@@ -149,13 +153,14 @@ export async function veecWork(mode: RobotMode): Promise<VeecWork[]> {
       quantity: q?.veec_count != null ? Number(q.veec_count) : null,
       robotEvents: events.get(j.id) ?? [],
       ...creationFacts.get(j.id),
+      noEsc: false, // filtered above; a marked job never reaches a plan
     };
     const ff = (a?.final_facts ?? {}) as { form_values?: Record<string, unknown>; property_address?: string; completed_date?: string };
     const values: Record<string, string | null> = Object.fromEntries(Object.entries(ff.form_values ?? {}).map(([k, v]) => [k, v == null || v === "" ? null : String(v)]));
     if (!values["installation_address"] && ff.property_address) values["installation_address"] = ff.property_address;
     if (!values["date_completed"] && ff.completed_date) values["date_completed"] = ff.completed_date;
     values["veec_quantity"] = candidate.quantity != null ? String(candidate.quantity) : null;
-    out.push({ candidate, plan: planVeecCreation(candidate), jobNumber: j.job_number, effectiveMode: jobMode(taskMode(mode, "veec_creation", SELECTORS_VERIFIED), j.source), values });
+    out.push({ candidate, plan: planVeecCreation(candidate), jobNumber: j.job_number, effectiveMode: jobMode(taskMode(mode, "veec_creation", SELECTORS_VERIFIED), j.source, candidate.noEsc), values });
   }
   return out;
 }
@@ -197,6 +202,7 @@ export async function recordRobotNotificationSubmitted(p: { notificationId: stri
   if (!referenceLooksValid(p.reference)) throw new WorkflowError("The Registry reference read from the page does not look like a reference.");
   const { data: n } = await admin.from("esc_notifications").select("*").eq("id", p.notificationId).single();
   if (!n) throw new WorkflowError("Notification not found");
+  await assertNotNoEsc(n.job_id); // Part 9 Task 14: a marked job is refused before anything else
   if (n.sent_at || n.submission_reference) throw new WorkflowError(`Notification is already recorded as sent (ref ${n.submission_reference}).`);
   if (n.status !== "ready") throw new WorkflowError(`Cannot record a robot submission for a ${n.status.replace("_", " ")} notification.`);
   if (!n.consent_id) throw new WorkflowError("Cannot notify ESC: no valid separate owner consent is linked to this notification.");
@@ -216,6 +222,7 @@ export async function recordRobotNotificationSubmitted(p: { notificationId: stri
 export async function recordRobotNotificationUpdated(p: { notificationId: string; previousNotificationId: string; reference: string; updatedAt: string; screenshotPath: string | null; registryUrl: string | null }) {
   const { data: n } = await admin.from("esc_notifications").select("*").eq("id", p.notificationId).single();
   if (!n) throw new WorkflowError("Notification not found");
+  await assertNotNoEsc(n.job_id); // Part 9 Task 14
   if (n.sent_at || n.submission_reference) throw new WorkflowError(`Notification is already recorded as sent (ref ${n.submission_reference}).`);
   if (n.status !== "ready" || !n.consent_id) throw new WorkflowError("Notification is not ready or has no valid consent.");
   const { data: prev } = await admin.from("esc_notifications").select("scheduled_start, sent_at, submission_reference, payload_json").eq("id", p.previousNotificationId).single();
@@ -238,6 +245,7 @@ export async function recordRobotNotificationUpdated(p: { notificationId: string
 /** Robot created the VEECs: the lodgement becomes "submitted" through the same rules as the office form (veec.core). */
 export async function recordRobotVeecSubmitted(p: { jobId: string; reference: string; quantity: number; submittedDate: string; screenshotPath: string | null; registryUrl: string | null }) {
   if (!referenceLooksValid(p.reference)) throw new WorkflowError("The Registry reference read from the page does not look like a reference.");
+  await assertNotNoEsc(p.jobId); // Part 9 Task 14: no certificates for a marked job
   const { getStage } = await import("./workflow.server");
   if (!["ready_for_veec", "complete"].includes(await getStage(p.jobId))) throw new WorkflowError("VEEC can only be lodged once the job is Ready for VEEC.");
   const { data: prev } = await admin.from("veec_lodgements").select("status,quantity,submission_reference,submitted_date,notes").eq("job_id", p.jobId).maybeSingle();

@@ -1,4 +1,5 @@
 // ESC pre-install AP task + day-before pre-start check (Operating Model v2, step 10). Pure rules only.
+import { NO_ESC_PRESTART_NOTE } from "./no-esc.core";
 import { DEFAULT_REGISTRY_FIELDS, EARLIEST_MS, LEAD_MS, PIISA_FROM_PIESA_DAYS, registryUpdateTimingReasons, sendTimingBlocker, type RegistryChange } from "./esc.core";
 import { melbourneAt, melbourneYmd } from "./piesa-windows.core";
 import { COLLECTION_NOTICE_BLOCK_MESSAGE } from "./esc-collection-notice.core";
@@ -160,7 +161,15 @@ export type PrestartFacts = {
   // Part 9 Task 10 (Jo 2 Nov 2026, answer 21): the GO check needs the Part C (the electrical clearance line above) and the
   // electrical certificate — the certificate gate is main's `certificate` / `certificateWhy` fact (Part 3 Task 4: "not in
   // yet" / "Check electrical certificate — …"), so T10's duplicate `coesBlocker` fact was dropped at the join (ruling 4).
+  /** Part 9 Task 14: the job is marked "no ESC" (real run, no-esc.core). true = the ESC-notice lines are replaced by the
+   *  note `NO_ESC_PRESTART_NOTE` (prestartNotes), never a failure; every other gate still blocks. undefined = not marked. */
+  noEsc?: boolean | undefined;
 };
+export { NO_ESC_PRESTART_NOTE };
+/** Notes recorded with a check that are NOT failures (today only the no-ESC note). */
+export function prestartNotes(f: Pick<PrestartFacts, "noEsc">): string[] {
+  return f.noEsc === true ? [NO_ESC_PRESTART_NOTE] : [];
+}
 export const CERTIFICATE_NOT_IN_YET = "Certificate of Electrical Safety not in yet";
 export const LEAD_NOT_ESC_REGISTERED = (name: string | null) => `Lead Installer${name ? ` ${name}` : ""} is not registered with the ESC yet.`;
 export const ELECTRICIAN_NOT_CONFIRMED = "The PIESA needs an electrician at the install and they haven't confirmed.";
@@ -173,7 +182,8 @@ export function prestartFailures(f: PrestartFacts): string[] {
   if (!f.clearance.cleared) out.push(`Electrical clearance is not valid: ${f.clearance.blocker ?? "not cleared"}`);
   if (!f.deadline || day > f.deadline) out.push(f.deadline ? `The 30-day window ended on ${f.deadline}. New PIESA needed.` : "No 30-day window date is recorded.");
   const e = f.esc;
-  if (!e || !(e.status === "sent" || e.status === "accepted") || !e.sent_at || !e.submission_reference || Date.parse(e.scheduled_start) !== Date.parse(f.start)) out.push("ESC notification is not marked submitted for this install date.");
+  if (f.noEsc === true) { /* Part 9 Task 14: no ESC notice on a real-run job — the note goes on the check instead (prestartNotes) */ }
+  else if (!e || !(e.status === "sent" || e.status === "accepted") || !e.sent_at || !e.submission_reference || Date.parse(e.scheduled_start) !== Date.parse(f.start)) out.push("ESC notification is not marked submitted for this install date.");
   else { const t = sendTimingBlocker(e.sent_at, f.start); if (t) out.push(t); }
   if (!f.lead.found) out.push("No lead installer is recorded for this job.");
   else if (f.lead.status !== "verified") out.push(`Lead installer${f.lead.name ? ` ${f.lead.name}` : ""} has no office-verified EEC CII certification.`);

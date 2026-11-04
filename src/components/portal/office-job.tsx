@@ -24,6 +24,7 @@ import { sendNonComplianceNoticeFn } from "@/lib/non-compliance-notice.functions
 import { bulkJobAction } from "@/lib/bulk.functions";
 import { retryInvoiceFn } from "@/lib/office-money.functions";
 import { invoiceSlotLabel } from "@/lib/office-money.core";
+import { NO_ESC_BADGE } from "@/lib/no-esc.core";
 import { markPaymentsSeparateFn } from "@/lib/payments.functions";
 import { completeInstallation, overrideDepositGate, regenerateRectificationQuote, setHold, syncInvoice } from "@/lib/portal.functions";
 import { openJobDocument } from "@/lib/jobfile.functions";
@@ -80,6 +81,7 @@ export function JobHeader({ h, more }: { h: Header; more: ReactNode }) {
             <span className="rounded-full bg-mist px-2.5 py-0.5 text-[11px] font-semibold text-hiv-blue">{h.ownJob ? `Installer's own · ${h.installerName ?? "installer"}` : "Our lead"}</span>
             {h.statusPill && <span className={cn("rounded-full px-2.5 py-0.5 text-[11px] font-semibold", h.stage === "cancelled" ? "bg-pink text-rose" : "bg-mint text-hiv-green")}>{h.statusPill}</span>}
             {h.isTest && <span className="rounded-full bg-warning-soft px-2.5 py-0.5 text-[11px] font-bold">TEST</span>}
+            {h.noEsc && <span className="rounded-full bg-pink px-2.5 py-0.5 text-[11px] font-bold text-rose">{NO_ESC_BADGE}</span>}
             {h.doNotContact && <span className="rounded-full bg-pink px-2.5 py-0.5 text-[11px] font-semibold text-rose">Do not contact{h.doNotContactStop ? " · owner replied STOP" : ""}</span>}
             {h.lifeSupport && <span className="rounded-full bg-pink px-2.5 py-0.5 text-[11px] font-semibold text-rose">Life support</span>}
             {h.installBy && <span className="rounded-full bg-pink px-2.5 py-0.5 text-[11px] font-semibold text-rose">Install by {day(h.installBy)}</span>}
