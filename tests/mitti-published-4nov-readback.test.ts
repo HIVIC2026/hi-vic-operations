@@ -72,3 +72,12 @@ describe("A5 published wording", () => {
     expect(installMittiLabel(INSTALL_DAY_Q.allFilledIn)).toBe(INSTALL_DAY_Q.allFilledIn);
   });
 });
+
+import { installDayMissingQuestions } from "../src/lib/install-day.core";
+describe("A5 published per-area ruler photo", () => {
+  test("a form with the per-area ruler photo no longer reports the separate depth photos question missing", () => {
+    const tpl = { template: { items: [{ id: "r", label: "Take one clear photo per ceiling area, showing a vertical ruler measuring the insulation depth, with markings visible. Do not compress the insulation.", media: {} }] } };
+    expect(installDayMissingQuestions(tpl)).not.toContain(INSTALL_DAY_Q.depthPhotos);
+    expect(installDayMissingQuestions({ template: { items: [] } })).toContain(INSTALL_DAY_Q.depthPhotos);
+  });
+});
