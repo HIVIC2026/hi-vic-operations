@@ -112,6 +112,10 @@ export function safetyCheckPriceFromLines(lines: OwnerQuoteLine[]): number | nul
 export const INSULATION_BENEFIT = "Ceiling insulation is the best barrier against summer heat and winter cold, and can save you up to 20% on your heating and cooling costs (Sustainability Victoria). Warmer winters, cooler summers.";
 
 const NOT_INCLUDED = "Not included: electrical upgrades, only if the electrical safety check (PIESA) finds any. Your electrician quotes these directly, and nothing is done without your OK.";
+/** Jo 4 Nov 2026 14:18 (Round 5 A, APPROVED): VEU Code cl 13/14 line on an installer's OWN customer's quote email only
+ *  (under the VEU program box; the same switch as that box). Home Insulation Victoria leads' quote email is unchanged. */
+export const OWN_CUSTOMER_VEU_VOLUNTARY_LINE = "Taking part in the Victorian Energy Upgrades program is voluntary. If something's not right, reply to this email or write to info@homeinsulationvictoria.com.au — we reply within 5 business days. You can also contact the Essential Services Commission (esc.vic.gov.au).";
+const veuVoluntaryMj = () => `<mj-section><mj-column><mj-text mj-class="small" padding="0 12px 0">${esc(OWN_CUSTOMER_VEU_VOLUNTARY_LINE)}</mj-text></mj-column></mj-section>`;
 const NOT_FOR_YOU = "Not ready, or not for you? You can tell us on the same page.";
 /** Rule (Jo): "Accredited Person", never "Accredited Provider" — older quote lines still carry the old fee name. */
 const lineTitle = (d: string) => currentFeeWording(d);
@@ -218,12 +222,13 @@ export function renderOwnerQuoteEmail(i: OwnerQuoteEmailInput, seam: OwnCustomer
     `<mj-section><mj-column>${mjButton(i.quoteUrl)}</mj-column></mj-section>`,
     quote,
     `<mj-section><mj-column><mj-text padding="18px 12px 14px">${next}</mj-text><mj-text mj-class="small" padding="0 12px 0">${esc(closing)}</mj-text></mj-column></mj-section>`,
-    // Part 10 Task 5 / VEU Fix 1: the program box at the bottom of an own customer's first email.
-    own ? veuBoxMj() : "",
+    // Part 10 Task 5 / VEU Fix 1: the program box at the bottom of an own customer's first email, then (Jo 4 Nov 2026,
+    // Round 5 A) the voluntary / complaints line.
+    own ? veuBoxMj() + veuVoluntaryMj() : "",
   ].join("");
   const preview = [`You pay ${f.total}${f.rebate ? " after the rebate" : ""}.`, validity].filter(Boolean).join(" ");
   const html = mjEmail({ subject, preview, body, unsubscribe: i.unsubscribeUrl, testLabel: i.test === true, ...(partnerLogo ? { partnerLogo } : {}) });
-  const veu = own ? ["", `${VEU_BOX_TITLE} — ${veuBoxText()[1]}`, veuBoxText()[2]!] : [];
+  const veu = own ? ["", `${VEU_BOX_TITLE} — ${veuBoxText()[1]}`, veuBoxText()[2]!, "", OWN_CUSTOMER_VEU_VOLUNTARY_LINE] : [];
   const text = K.plainText([
     hi, "", f.headline, "", ...f.boxText, "", ...changes.text, `View and accept your quote: ${i.quoteUrl}`, "",
     ...(rows.length ? ["YOUR QUOTE", ...rows.map((r) => `${r.title}${r.detail ? ` (${r.detail})` : ""}: ${r.amount}`), ...(ownRows ? [] : [`You pay: ${f.total}`]), ""] : []),
