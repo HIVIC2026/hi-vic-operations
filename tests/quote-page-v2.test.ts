@@ -19,7 +19,11 @@ const acceptFn = fns.slice(fns.indexOf("export const ownerAcceptQuoteFn"), fns.i
 describe("P2 wording (decisions #33, Fix 3, 2 Nov payment timing)", () => {
   test("the approved lines, verbatim", () => {
     expect(P2.tick1).toBe("I accept this quote, the Customer Agreement and the payment terms, and I've been given my Statement of rights under the VEU program. I'm 18 or over, I own this home (or I'm allowed to sign for the owner), and I'm happy to get my documents by email.");
-    expect(P2.tick2).toBe("I understand my install must be done within 30 days of my electrical safety check (PIESA), as the rebate rules require.");
+    // Jo 4 Nov 2026 21:20 / 21:25: the 30-day tick names the consequence and carries the quote's own PIESA amount.
+    expect(P2.tick2).toBe("I understand my install must be done within 30 days of my electrical safety check (PIESA). If it isn't, the check has to be done again — and if the delay is mine, I pay for the new check ($349).");
+    expect(P2.tick2For("$275")).toBe("I understand my install must be done within 30 days of my electrical safety check (PIESA). If it isn't, the check has to be done again — and if the delay is mine, I pay for the new check ($275).");
+    // Jo 4 Nov 2026 21:05 (wording B) — the same words as the quote email and Customer Agreement section 2.
+    expect(P2.notIncluded).toBe("If the safety check finds electrical work is needed before insulation can go in, your electrician quotes that separately and you pay them direct. Nothing happens without your OK. This price and your rebate don't change.");
     expect(P2.howYouPay).toBe("How you pay: $349 now for the electrical safety check (PIESA). 10% to book your install day. The rest on install day. Card or bank transfer, no fees.");
     expect(P2.howYouPayFor("$220")).toBe("How you pay: $220 now for the electrical safety check (PIESA). 10% to book your install day. The rest on install day. Card or bank transfer, no fees.");
     expect(P2.timing).toBe("Your install will be done within 30 days of your electrical safety check (PIESA). Your installer will confirm the day with you. Most installs are finished on the day they start.");
@@ -46,10 +50,16 @@ describe("quoteSittingBlockers", () => {
 });
 
 describe("quote screen", () => {
+  test("Jo 4 Nov 2026 20:05 (pack 2 batch 5): 'How you pay' and the 30-day line sit above the two ticks; the address shows once (title line only)", () => {
+    expect(accept.indexOf("P2.howYouPayFor(")).toBeLessThan(accept.indexOf("P2.tick1"));
+    expect(accept.indexOf("P2.timing")).toBeLessThan(accept.indexOf("P2.tick1"));
+    expect(screen).toContain("{P2.measured}</p>");
+    expect(screen).not.toContain("{v.address && <>{v.address}<br /></>}{P2.measured}");
+  });
   test("two ticks, typed name, three PDF links, the attached-to-email note", () => {
     expect(accept).toContain("P2.twoTicks");
     expect(accept).toContain("P2.tick1");
-    expect(accept).toContain("P2.tick2");
+    expect(accept).toContain("P2.tick2For(fee)"); // Jo 4 Nov 2026 21:25: the quote's own PIESA amount
     expect(accept).toContain("P2.attachedNote");
     for (const l of ["P2.agreementLink", "P2.paymentTermsLink", "P2.rightsLink"]) expect(accept).toContain(l);
     expect(accept).toContain("P2.signLabel");

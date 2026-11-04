@@ -593,17 +593,18 @@ function AcceptQuote({ token, quote, safetyCheck, showDocs, onAccepted }: { toke
     <div data-testid="say-yes" className="mt-7 border-t-2 border-estimate-navy pt-5">
       <p className="text-xs font-bold tracking-[0.1em] text-estimate-logo-green">{P2.sayYes}</p>
       <h2 className="mt-1 font-display text-[21px] font-extrabold">{P2.twoTicks}</h2>
+      {/* Jo 4 Nov 2026 20:05 (pack 2 batch 5): "How you pay" and the 30-day line sit above the two ticks, not under the signature. */}
+      <p className="mt-3 text-[13px] leading-relaxed text-estimate-sub">{P2.howYouPayFor(fee)}</p>
+      <p className="mt-2 text-[13px] leading-relaxed text-estimate-sub">{P2.timing}</p>
       <TickCard on={tick1} set={setTick1} title={<>{P2.tick1}{showDocs && <> <span className="font-normal text-estimate-sub">{P2.attachedNote}</span></>}</>}
         sub={showDocs && <><button type="button" className={link} onClick={(e) => { e.preventDefault(); void openDoc("agreement"); }}>{P2.agreementLink}</button> · <button type="button" className={link} onClick={(e) => { e.preventDefault(); void openDoc("agreement"); }}>{P2.paymentTermsLink}</button> · <button type="button" className={link} onClick={(e) => { e.preventDefault(); void openDoc("rights"); }}>{P2.rightsLink}</button></>}
         {...(!showDocs ? { read: "Quote, terms and consumer information", readBody: ag ? <>{ag.agreementWording?.body ?? ''}{'\n\n'}{ag.consumerRights?.body ?? ''}{'\n\n'}{ag.paymentTerms ?? ''}</> : 'Loading…' } : {})} />
-      <TickCard on={tick2} set={setTick2} title={P2.tick2} bold={false} />
+      <TickCard on={tick2} set={setTick2} title={P2.tick2For(fee)} bold={false} />
       <section className="mt-[18px] rounded-[14px] border border-estimate-line bg-card px-4 py-3.5">
         <AuthorityChoice value={f.authority} onChange={(authority) => setF({ ...f, authority })} />
       </section>
       <TypedField label={P2.signLabel} value={typedName} onChange={setTypedName} placeholder={P2.typeHere} italic autoComplete="name" />
       <SmallNote>{P2.signSub}</SmallNote>
-      <p className="mt-4 text-[13px] leading-relaxed text-estimate-sub">{P2.howYouPayFor(fee)}</p>
-      <p className="mt-2 text-[13px] leading-relaxed text-estimate-sub">{P2.timing}</p>
       {blocked.length > 0 && <p role="alert" className="mt-3 rounded-[12px] bg-estimate-blush p-3 text-sm font-semibold">{blocked.join(" ")}</p>}
       {needCode && !session && <div className="mt-4"><OwnerCodeGate token={token} onVerified={(s) => { setSession(s); setNeedCode(false); }} /></div>}
       {err && <p role="alert" className="mt-3 text-sm font-semibold text-destructive">{err}</p>}
@@ -799,7 +800,8 @@ function QuoteScreen({ v, token }: { v: View; token: string }) {
           <p className="text-[11px] font-bold uppercase tracking-[0.12em]">{P2.priceEyebrow}</p>
           <p className="mt-1 font-display text-[42px] font-extrabold leading-none text-estimate-blue">{centsAud(q.total)}</p>
           {q.rebate > 0 && full != null && <p className="mt-1.5 text-[13px] font-bold">{P2.priceNote} <span className="line-through">{centsAud(full)}</span></p>}
-          <p className="mt-3 border-t border-estimate-line pt-3 text-[13px] leading-relaxed text-estimate-sub">{v.address && <>{v.address}<br /></>}{P2.measured}</p>
+          {/* Jo 4 Nov 2026 20:05 (pack 2 batch 5): the address is shown once, in the line under the title. */}
+          <p className="mt-3 border-t border-estimate-line pt-3 text-[13px] leading-relaxed text-estimate-sub">{P2.measured}</p>
         </div>
       </section>
       {q.validLine && <p data-testid="quote-valid-line" className="text-center text-[13px] font-semibold text-estimate-sub">{q.validLine}</p>}

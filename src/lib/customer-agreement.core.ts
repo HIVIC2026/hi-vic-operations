@@ -5,6 +5,7 @@
 // A literal \n inside a facts value or money label means a line break.
 import type { PdfBlock } from "./pdf-look.core";
 import { keptInsulationNotice } from "./kept-insulation.core";
+import { UPGRADES_LINE_B } from "./quote-wording.core";
 
 export const CUSTOMER_AGREEMENT_KEY = "customer_agreement";
 export const CUSTOMER_AGREEMENT_VERSION = "1.3";
@@ -94,6 +95,28 @@ export function applyKeptInsulation(body: string): string {
   const line = `- ${AGREEMENT_REMOVAL_LINE}`;
   if (!body.includes(line)) throw new Error("Customer Agreement: the removal line is missing, so the kept-insulation notice can't replace it");
   return body.replace(line, `- ${keptInsulationNotice("{installer_name}")}`); // filled with the rest of the facts
+}
+
+/** Section 2's v1.3 line. Jo 4 Nov 2026 21:05 (pack 2 batch 8): wording B replaces it at render time on every agreement
+ *  (Home Insulation Victoria leads and own customers) — the stored, approved body is never changed. */
+export const AGREEMENT_UPGRADES_LINE_V1_3 = "Electrical upgrades, only if the electrical safety check (PIESA) finds any. Your electrician quotes these directly, and nothing is done without your OK. You pay the electrician, not us.";
+export function applyUpgradesLineB(body: string): string {
+  if (!body.includes(AGREEMENT_UPGRADES_LINE_V1_3)) throw new Error("Customer Agreement: section 2's upgrades line is missing, so the approved wording can't replace it");
+  return body.replace(AGREEMENT_UPGRADES_LINE_V1_3, UPGRADES_LINE_B);
+}
+
+/** Jo 4 Nov 2026 21:25: every "$349" in the stored body means the electrical safety check (PIESA) — s.4 "In short: $349 now…",
+ *  s.5 "the $349 isn't refunded", s.8 "$349 electrical safety check:", payment terms "$349: refunded…" — and is substituted
+ *  at render time with the quote's own PIESA amount (`safety_check` fact: "$349" on a Home Insulation Victoria lead, so that
+ *  output is byte-identical; the installer's rate, e.g. "$275", on their own customer). Any other count of "$349" in the
+ *  body stops the document (fail closed) rather than guess which ones are the PIESA. */
+export const AGREEMENT_PIESA_AMOUNT_COUNT = 4;
+export function applyPiesaAmount(body: string, piesaAmount: string): string {
+  const amount = piesaAmount.trim();
+  if (!/^\$[\d,]+(?:\.\d{2})?$/.test(amount)) throw new Error(`Customer Agreement: the safety check amount "${piesaAmount}" is not a dollar amount`);
+  const hits = (body.match(/\$349\b/g) ?? []).length;
+  if (hits !== AGREEMENT_PIESA_AMOUNT_COUNT) throw new Error(`Customer Agreement: expected ${AGREEMENT_PIESA_AMOUNT_COUNT} "$349" safety check amounts in the body, found ${hits}`);
+  return amount === "$349" ? body : body.replace(/\$349\b/g, () => amount); // function replacer: "$2…" in the amount is never a group reference
 }
 
 const FACT_KEYS = [

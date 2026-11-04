@@ -1,3 +1,4 @@
+import { UPGRADES_LINE_B, thirtyDayTick } from "./quote-wording.core";
 // Wording for Jo's approved owner/installer PAGES (24 Oct 2026, decisions 125–130 and 137). PURE: labels and
 // formatting only. Source of truth: docs/templates/owner/P1…P4, P6 and docs/templates/installer/P5 HTML mock-ups — copied byte-for-byte (Jo rejects
 // paraphrases). Nothing here decides workflow, prices, eligibility or access: pages pass in facts they already have.
@@ -53,7 +54,8 @@ export const P2 = {
   fullPrice: "Full price", fullPriceSub: "incl. GST",
   rebateLine: "Rebate", rebateLineSub: "Taken off upfront, nothing to claim",
   youPay: "You pay",
-  notIncluded: "Not included: electrical upgrades, only if the electrical safety check (PIESA) finds any. Your electrician quotes these directly, and nothing is done without your OK.",
+  /** Jo 4 Nov 2026 21:05 (wording B): replaces "Not included: electrical upgrades, only if…" — same words on the quote email and agreement section 2. */
+  notIncluded: UPGRADES_LINE_B,
   sayYes: "SAY YES",
   twoTicks: "Two ticks, then accept",
   tick1: "I accept this quote, the Customer Agreement and the payment terms, and I've been given my Statement of rights under the VEU program. I'm 18 or over, I own this home (or I'm allowed to sign for the owner), and I'm happy to get my documents by email.",
@@ -61,7 +63,9 @@ export const P2 = {
   agreementLink: "Read the agreement (PDF) ›",
   paymentTermsLink: "Payment terms (PDF) ›",
   rightsLink: "Statement of rights (PDF) ›",
-  tick2: "I understand my install must be done within 30 days of my electrical safety check (PIESA), as the rebate rules require.",
+  /** Jo 4 Nov 2026 21:20 / 21:25: the 30-day tick names the consequence and the quote's own PIESA amount (`tick2For`); `tick2` = the $349 (Home Insulation Victoria lead) form. */
+  tick2For: thirtyDayTick,
+  tick2: thirtyDayTick("$349"),
   /** The safety-check amount is $349 unless the job's electrician is on a different rate (e.g. $220). */
   howYouPayFor: (safetyCheck: string) => `How you pay: ${safetyCheck} now for the electrical safety check (PIESA). 10% to book your install day. The rest on install day. Card or bank transfer, no fees.`,
   howYouPay: "How you pay: $349 now for the electrical safety check (PIESA). 10% to book your install day. The rest on install day. Card or bank transfer, no fees.",

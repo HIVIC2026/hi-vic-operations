@@ -29,6 +29,7 @@ import type { AgreementFacts } from "./customer-agreement.core";
 import type { BusinessContact } from "./owner-wording.core";
 import { aud as audCents, formatValidUntil, paymentSplitCents } from "./signed-acceptance.core";
 import { safetyCheckShort } from "./safety-check-amount.core";
+import { UPGRADES_LINE_B } from "./quote-wording.core";
 import { OWN_CUSTOMER_COBRAND_APPROVED, cobrandLogos } from "./cobrand.core";
 import { ownCustomerRows } from "./own-customer-price.core";
 import { VEU_BOX_TITLE, veuBoxMj, veuBoxText } from "./owner-wording.core";
@@ -115,7 +116,9 @@ export function safetyCheckPriceFromLines(lines: OwnerQuoteLine[]): number | nul
 /** Retained for callers/tests; the approved short quote email no longer repeats it. */
 export const INSULATION_BENEFIT = "Ceiling insulation is the best barrier against summer heat and winter cold, and can save you up to 20% on your heating and cooling costs (Sustainability Victoria). Warmer winters, cooler summers.";
 
-const NOT_INCLUDED = "Not included: electrical upgrades, only if the electrical safety check (PIESA) finds any. Your electrician quotes these directly, and nothing is done without your OK.";
+/** Jo 4 Nov 2026 21:05 (pack 2 batch 8, wording B): replaces "Not included: electrical upgrades, only if…" on every quote email
+ *  (Home Insulation Victoria leads and own customers) — the same words as the quote page and agreement section 2. */
+const NOT_INCLUDED = UPGRADES_LINE_B;
 /** Jo 4 Nov 2026 14:18 (Round 5 A, APPROVED): VEU Code cl 13/14 line on an installer's OWN customer's quote email only
  *  (under the VEU program box; the same switch as that box). Home Insulation Victoria leads' quote email is unchanged. */
 export const OWN_CUSTOMER_VEU_VOLUNTARY_LINE = "Taking part in the Victorian Energy Upgrades program is voluntary. If something's not right, reply to this email or write to info@homeinsulationvictoria.com.au — we reply within 5 business days. You can also contact the Essential Services Commission (esc.vic.gov.au).";

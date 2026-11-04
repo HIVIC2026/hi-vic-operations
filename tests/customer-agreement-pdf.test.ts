@@ -79,9 +79,11 @@ describe("Customer Agreement PDF", () => {
     const joined = items.join("\n");
     for (const e of ["info@homeinsulationvictoria.com.au", "office@rapidinsulation.com.au"]) expect(items.some((t) => t.includes(e))).toBe(true);
     expect(joined).not.toMatch(/\.co\s+m\.au/);
-    // Sections 1-10 are the 10 numbered sections in order: 1-3 on page 1, 4-7 on page 2, 8-10 on page 3 (as the approved sample).
+    // Sections 1-10 are the 10 numbered sections in order. The approved sample had 1-3 on page 1, 4-7 on page 2, 8-10 on page 3;
+    // Jo's 4 Nov 2026 wording B in section 2 is longer, so section 3 now starts page 2 and section 6 page 3 (still 4 pages,
+    // payment terms on their own page 4).
     const secs = Object.entries(r.layout.blockPage).filter(([id]) => id.startsWith("sec")).slice(0, 10).map(([, p]) => p);
-    expect(secs).toEqual([1, 1, 1, 2, 2, 2, 2, 3, 3, 3]);
+    expect(secs).toEqual([1, 1, 2, 2, 2, 3, 3, 3, 3, 3]);
     expect(r.layout.blockPage["payment-terms"]).toBe(4);
   });
 });

@@ -1,5 +1,5 @@
 // Customer Agreement + payment terms PDF in the website look: the stored template body, filled, parsed, rendered.
-import { applyKeptInsulation, fillAgreement, parseAgreement, type AgreementFacts } from "./customer-agreement.core";
+import { applyKeptInsulation, applyPiesaAmount, applyUpgradesLineB, fillAgreement, parseAgreement, type AgreementFacts } from "./customer-agreement.core";
 import type { PdfBlock, PdfLayoutReport } from "./pdf-look.core";
 import { renderPdf } from "./pdf-look.server";
 
@@ -11,7 +11,9 @@ export const AGREEMENT_BOLD_LEADS: readonly string[] = [
   "If your home isn't eligible:", "The insulation:", "The workmanship:", "$349 electrical safety check:", "10% deposit:",
   "Now:", "Before your install:", "After your install:", "$349:", "Deposit:",
 ];
-const leadOf = (line: string) => AGREEMENT_BOLD_LEADS.find((l) => line.startsWith(`${l} `));
+/** Jo 4 Nov 2026 21:25: the two "$349…" lead-ins carry the quote's own PIESA amount after `applyPiesaAmount`, so they match by shape. */
+const AMOUNT_LEADS = [/^(\$[\d,]+(?:\.\d{2})? electrical safety check:) /, /^(\$[\d,]+(?:\.\d{2})?:) /];
+const leadOf = (line: string) => AGREEMENT_BOLD_LEADS.find((l) => line.startsWith(`${l} `)) ?? AMOUNT_LEADS.map((re) => line.match(re)?.[1]).find((m): m is string => !!m);
 
 function boldLeads(blocks: PdfBlock[]): void {
   for (const b of blocks) {
@@ -42,7 +44,9 @@ export type AgreementRenderOptions = { keptInsulation?: boolean };
 /** The filled, parsed agreement blocks (bold lead-ins set, payment terms header tagged). Shared with the signed acceptance PDF. */
 export function agreementBlocks(t: { version: string; body: string }, facts: AgreementFacts, opts: AgreementRenderOptions = {}): PdfBlock[] {
   assertSafeFacts(facts);
-  const body = opts.keptInsulation ? applyKeptInsulation(t.body) : t.body;
+  // Jo 4 Nov 2026 (21:05 / 21:25): section 2 = wording B and every PIESA "$349" = the quote's own amount, on every agreement;
+  // a Home Insulation Victoria lead ($349) renders byte for byte as before apart from section 2.
+  const body = applyPiesaAmount(applyUpgradesLineB(opts.keptInsulation ? applyKeptInsulation(t.body) : t.body), facts.safety_check);
   const blocks: PdfBlock[] = parseAgreement(fillAgreement(body, facts, t.version));
   boldLeads(blocks);
   // The first header after the page break is the payment terms page.

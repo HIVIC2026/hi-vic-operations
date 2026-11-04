@@ -58,7 +58,7 @@ test("v2 leads with the saving and says exactly what they get (Jo 24 Oct)", () =
     expect(body).toContain("accept and pay $349.00");
     expect(body).toContain("VEU Accredited Person A003654");
     expect(body).toContain("ABN 44 671 613 979");
-    expect(body).toContain("Not included: electrical upgrades, only if the electrical safety check (PIESA) finds any.");
+    expect(body).toContain("If the safety check finds electrical work is needed before insulation can go in, your electrician quotes that separately and you pay them direct. Nothing happens without your OK. This price and your rebate don't change."); // Jo 4 Nov 2026 21:05, wording B
     expect(body).not.toContain("Who we are"); // v3: shorter, no repeats
     expect(body).not.toMatch(/6-digit|code/i); // no signing code in the email
   }
@@ -256,7 +256,7 @@ test("qa_test notify sends the rendered owner quote email via sendTestEmail", as
 
 test("Jo 24 Oct (decision 86): fixes are quoted separately, nothing done without the owner's OK", () => {
   for (const body of [renderOwnerQuoteEmail(base).html, renderOwnerQuoteEmail(base).text]) {
-    expect(body).toContain("Your electrician quotes these directly, and nothing is done without your OK.");
+    expect(body).toContain("your electrician quotes that separately and you pay them direct. Nothing happens without your OK."); // Jo 4 Nov 2026 21:05, wording B
   }
 });
 
@@ -363,14 +363,14 @@ test("Task 5: a malformed own-customer line set (no fee line) never guesses — 
   expect(m.html).toContain("https://x/rapid-logo.png"); // the brand still applies; only the rows fell back
 });
 
-test("Task 5: Home Insulation Victoria leads are byte-identical to d89d335 (v3 and v4)", async () => {
+test("Task 5: Home Insulation Victoria leads are byte-identical to the G7 re-record (v3 and v4; re-pinned 4 Nov 2026 after Jo 21:05 — wording B + the PIESA item label — changed every variant)", async () => {
   const hivBase = { ...base, subtotalIncGst: 3848, areaM2: 120, removalM2: 40, product: "Bradford Gold R5.0", installerName: "Reinsulate", installerCertified: true, validDays: 30 as const };
   const h = async (s: string) => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s)))).map((b) => b.toString(16).padStart(2, "0")).join("");
   const changes = [{ label: "Ceiling size", estimate: "100 m²", quote: "120 m²" }];
   const v3 = renderOwnerQuoteEmail({ ...hivBase, v4: false, changes });
   const v4 = renderOwnerQuoteEmail({ ...hivBase, v4: true, changes });
-  expect(await h(`${v3.subject}\n${v3.html}\n${v3.text}`)).toBe("4172cc0c6650efc1c2e5a0e4ee26a338c12bb449d160befdb91a3c1737649b0b");
-  expect(await h(`${v4.subject}\n${v4.html}\n${v4.text}`)).toBe("84b6860a9fb60798591620ce56b576cdc6aed6cc5f70aa9257c3ca29bf68d9a2");
+  expect(await h(`${v3.subject}\n${v3.html}\n${v3.text}`)).toBe("b8985c79a4078aea4d7cb4d9a6a577fcc7eff238cda60f04677c30742f4f8c44");
+  expect(await h(`${v4.subject}\n${v4.html}\n${v4.text}`)).toBe("c5fbc465226a4d68d0c354b832a38292b285b8718aeed935fc2263b094d2b3c3");
   // the seam on with no ownCustomer changes nothing either
   expect(render({ ...hivBase, v4: true, changes })).toEqual(v4);
 });

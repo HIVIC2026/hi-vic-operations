@@ -1,4 +1,4 @@
-import { expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { CUSTOMER_AGREEMENT_V1_3 as B, fillAgreement, parseAgreement, paymentTermsPart, type AgreementFacts } from "../src/lib/customer-agreement.core";
 const FACTS: AgreementFacts = {
   owner_name: "Sarah Brown", address: "12 Example St, Box Hill VIC 3128", job_number: "HV-1234",
@@ -32,4 +32,31 @@ test("filled agreement has no placeholders and parses into blocks", () => {
   const secs = blocks.filter((b) => b.kind === "section");
   expect(secs.length).toBeGreaterThanOrEqual(14);
   expect(new Set(blocks.map((b) => b.id)).size).toBe(blocks.length);
+});
+
+// Jo 4 Nov 2026 (pack 2 batch 8, 21:05 / 21:25): section 2 = wording B and every PIESA "$349" = the quote's own amount, at render time.
+describe("G7: render-time wording B and the PIESA amount", () => {
+  test("applyUpgradesLineB swaps section 2's line for wording B and nothing else; a body without the line stops", async () => {
+    const { AGREEMENT_UPGRADES_LINE_V1_3, applyUpgradesLineB, CUSTOMER_AGREEMENT_V1_3 } = await import("../src/lib/customer-agreement.core");
+    const { UPGRADES_LINE_B } = await import("../src/lib/quote-wording.core");
+    expect(CUSTOMER_AGREEMENT_V1_3).toContain(`## 2 What's not included\n${AGREEMENT_UPGRADES_LINE_V1_3}\n`);
+    const out = applyUpgradesLineB(CUSTOMER_AGREEMENT_V1_3);
+    expect(out).toContain(`## 2 What's not included\n${UPGRADES_LINE_B}\n`);
+    expect(out).not.toContain(AGREEMENT_UPGRADES_LINE_V1_3);
+    expect(out.replace(UPGRADES_LINE_B, AGREEMENT_UPGRADES_LINE_V1_3)).toBe(CUSTOMER_AGREEMENT_V1_3);
+    expect(() => applyUpgradesLineB(CUSTOMER_AGREEMENT_V1_3.replace(AGREEMENT_UPGRADES_LINE_V1_3, "Something else."))).toThrow(/section 2/);
+  });
+  test("applyPiesaAmount: $349 → the body untouched (Home Insulation Victoria lead); $275 → the four PIESA amounts only; any other count or a non-amount stops", async () => {
+    const { applyPiesaAmount, CUSTOMER_AGREEMENT_V1_3, AGREEMENT_PIESA_AMOUNT_COUNT } = await import("../src/lib/customer-agreement.core");
+    expect(AGREEMENT_PIESA_AMOUNT_COUNT).toBe(4);
+    expect(applyPiesaAmount(CUSTOMER_AGREEMENT_V1_3, "$349")).toBe(CUSTOMER_AGREEMENT_V1_3);
+    const own = applyPiesaAmount(CUSTOMER_AGREEMENT_V1_3, "$275");
+    expect(own).not.toContain("$349");
+    expect((own.match(/\$275\b/g) ?? []).length).toBe(4);
+    for (const line of ["In short: $275 now for the electrical safety check (PIESA)", "the $275 isn't refunded", "- $275 electrical safety check: refunded", "- $275: refunded if you cancel before your electrical safety check is done."]) expect(own).toContain(line);
+    expect(own).toContain("at least $200 (incl. GST)"); // the $200 rule is not a PIESA amount
+    expect(() => applyPiesaAmount(`${CUSTOMER_AGREEMENT_V1_3}\nAnother $349 line`, "$275")).toThrow(/expected 4/);
+    expect(() => applyPiesaAmount(CUSTOMER_AGREEMENT_V1_3, "275")).toThrow(/not a dollar amount/);
+    expect(() => applyPiesaAmount(CUSTOMER_AGREEMENT_V1_3, "$2 | x")).toThrow(/not a dollar amount/);
+  });
 });

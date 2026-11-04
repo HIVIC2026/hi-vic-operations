@@ -3,13 +3,16 @@
 import type { AgreementFacts } from "./customer-agreement.core";
 import type { PdfBlock } from "./pdf-look.core";
 import { paymentPlan } from "./payments.core";
+import { thirtyDayTick } from "./quote-wording.core";
 
 export const AP_COUNTERSIGNER = { name: "Chris Lowe", role: "Director, DC Construction Solutions Pty Ltd" } as const;
 
-export const ACCEPTANCE_TICKS = [
+/** The two ticks as printed: tick 2 carries the quote's own PIESA amount (Jo 4 Nov 2026 21:20 / 21:25); `ACCEPTANCE_TICKS` = the $349 form. */
+export const acceptanceTicks = (piesaAmount: string) => [
   "I accept this quote, the Customer Agreement and the payment terms, and I've been given my Statement of rights under the VEU program. I'm 18 or over, I own this home (or I'm allowed to sign for the owner), and I'm happy to get my documents by email.",
-  "I understand my install must be done within 30 days of my electrical safety check (PIESA), as the rebate rules require.",
+  thirtyDayTick(piesaAmount),
 ] as const;
+export const ACCEPTANCE_TICKS = acceptanceTicks("$349");
 
 export type SignedAcceptanceInput = {
   jobNumber: string; installerName: string; ownerName: string; ownerTypedName: string; address: string;
@@ -61,7 +64,7 @@ export function acceptancePage1(i: SignedAcceptanceInput): PdfBlock[] {
     ] },
     { id: "a-pay", kind: "para", compact: c, lead: "How you pay:", text: `${safety} now for the electrical safety check (PIESA). 10% to book your install day. The rest on install day.` },
     { id: "a-h-agreed", kind: "heading", text: `What ${firstName(i.ownerName)} agreed to` },
-    { id: "a-ticks", kind: "ticks", compact: c, items: [...ACCEPTANCE_TICKS] },
+    { id: "a-ticks", kind: "ticks", compact: c, items: [...acceptanceTicks(safety)] },
     { id: "a-sigs", kind: "signatures", cells: [
       { label: "Owner signature (typed online)", name: i.ownerTypedName, line: at.short },
       { label: "Signed for Home Insulation Victoria", name: AP_COUNTERSIGNER.name, line: `${at.short} · ${AP_COUNTERSIGNER.role}` },

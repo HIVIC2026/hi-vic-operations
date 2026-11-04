@@ -127,3 +127,29 @@ describe("owner pages", () => {
     expect(server).toContain("keptInsulation = { line: (await import(\"./kept-insulation.core\")).keptInsulationNotice(name) }");
   });
 });
+
+// G7 (Jo 4 Nov 2026 21:05 / 21:25): agreementBlocks applies wording B and the quote's PIESA amount to every agreement.
+describe("G7: agreementBlocks — wording B in section 2, the PIESA amount everywhere it is $349", () => {
+  test("Home Insulation Victoria lead ($349): section 2 is wording B; every other block is the approved v1.3 text; own customer ($275): the four PIESA amounts follow, bold lead-ins still bold", async () => {
+    const { agreementBlocks } = await import("../src/lib/customer-agreement-pdf.server");
+    const { CUSTOMER_AGREEMENT_V1_3 } = await import("../src/lib/customer-agreement.core");
+    const { UPGRADES_LINE_B } = await import("../src/lib/quote-wording.core");
+    const t = { version: "1.3", body: CUSTOMER_AGREEMENT_V1_3 };
+    const lead = JSON.stringify(agreementBlocks(t, FACTS));
+    expect(lead).toContain(UPGRADES_LINE_B);
+    expect(lead).not.toContain("You pay the electrician, not us.");
+    expect(lead).toContain("$349 now for the electrical safety check (PIESA)");
+    const own = agreementBlocks(t, { ...FACTS, safety_check: "$275" });
+    const flat = JSON.stringify(own);
+    expect(flat).not.toContain("$349");
+    expect(flat).toContain("In short: $275 now for the electrical safety check (PIESA)");
+    expect(flat).toContain("the $275 isn't refunded");
+    expect(flat).toContain("at least $200 (incl. GST)");
+    // the "$349 electrical safety check:" / "$349:" lead-ins are bold at the new amount too
+    const leads: string[] = [];
+    const walk = (bs: unknown[]) => { for (const b of bs as Record<string, unknown>[]) { if (b["kind"] === "section") walk(b["children"] as unknown[]); if (b["kind"] === "bullets" && Array.isArray(b["leads"])) leads.push(...(b["leads"] as string[])); } };
+    walk(own);
+    expect(leads).toContain("$275 electrical safety check:");
+    expect(leads).toContain("$275:");
+  });
+});

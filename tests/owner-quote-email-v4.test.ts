@@ -57,7 +57,9 @@ describe("v4 email (decision #29)", () => {
     expect(m.text).toContain("What's changed from your estimate");
     expect(m.text).toContain(QUOTE_CHANGES_FOOTNOTE);
     expect(m.text).toContain("Your quote uses what the installer measured at your Ready Check.");
-    expect(m.text).toContain("Not included: electrical upgrades, only if the electrical safety check (PIESA) finds any. Your electrician quotes these directly, and nothing is done without your OK.");
+    // Jo 4 Nov 2026 21:05 (pack 2 batch 8): wording B replaces "Not included: electrical upgrades, only if…".
+    expect(m.text).toContain("If the safety check finds electrical work is needed before insulation can go in, your electrician quotes that separately and you pay them direct. Nothing happens without your OK. This price and your rebate don't change.");
+    expect(m.text).not.toContain("Not included: electrical upgrades");
     expect(m.text).toContain("Your quote is valid for 30 days, until 10 December 2026.");
     expect(m.text).not.toMatch(/VEU rebate|electrical fixes|held until/);
     expect(m.text).toMatch(/electrical safety check \(PIESA\)/);

@@ -106,7 +106,7 @@ describe("approved owner email designs", () => {
   test("O18 Quote ready", () => {
     const m = renderOwnerQuoteEmail(quote);
     shell(m.html, m.text, true);
-    has(m.html, ["Hi Helen, your quote is ready.", "You save $1,850 on ceiling insulation", "Taken off upfront. Nothing for you to claim.", ">$2,200.00<", "$4,050.00", "Measured at your Ready Check", ">View and accept your quote<", ">Your quote</div>", "137.6 m² × $20.00 per m²", "installed by Reinsulate, EEC-certified (AS 3999)", "40 m² × $15.00 per m²", "By a licensed electrician, before any insulation goes in", "Home Insulation Victoria (VEU A003654)", ">Full price<", "−$1,850.00", ">You pay<", "Not included: electrical upgrades", "accept and pay $349.00", "held until 7 November 2026"]);
+    has(m.html, ["Hi Helen, your quote is ready.", "You save $1,850 on ceiling insulation", "Taken off upfront. Nothing for you to claim.", ">$2,200.00<", "$4,050.00", "Measured at your Ready Check", ">View and accept your quote<", ">Your quote</div>", "137.6 m² × $20.00 per m²", "installed by Reinsulate, EEC-certified (AS 3999)", "40 m² × $15.00 per m²", "By a licensed electrician, before any insulation goes in", "Home Insulation Victoria (VEU A003654)", ">Full price<", "−$1,850.00", ">You pay<", "your electrician quotes that separately and you pay them direct", "accept and pay $349.00", "held until 7 November 2026"]);
     expect(OWNER_QUOTE_EMAIL_APPROVED).toBe(true);
   });
   test("O19 Quote reminder", () => {

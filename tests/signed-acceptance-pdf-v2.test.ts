@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { PDFDocument } from "pdf-lib";
 import { CUSTOMER_AGREEMENT_V1_3 } from "../src/lib/customer-agreement.core";
-import { ACCEPTANCE_TICKS, AP_COUNTERSIGNER, formatSignedAt, type SignedAcceptanceInput } from "../src/lib/signed-acceptance.core";
+import { ACCEPTANCE_TICKS, acceptanceTicks, AP_COUNTERSIGNER, formatSignedAt, type SignedAcceptanceInput } from "../src/lib/signed-acceptance.core";
 import { signedAcceptancePdfV2 } from "../src/lib/signed-pdf.server";
 
 const pdfText = async (b: Uint8Array) => {
@@ -31,11 +31,12 @@ const SAMPLE: SignedAcceptanceInput = {
 };
 
 describe("signed acceptance PDF v2", () => {
-  test("exact tick wording", () => {
+  test("exact tick wording (tick 2: Jo 4 Nov 2026 21:20, with the quote's own PIESA amount — Jo 21:25)", () => {
     expect(ACCEPTANCE_TICKS).toEqual([
       "I accept this quote, the Customer Agreement and the payment terms, and I've been given my Statement of rights under the VEU program. I'm 18 or over, I own this home (or I'm allowed to sign for the owner), and I'm happy to get my documents by email.",
-      "I understand my install must be done within 30 days of my electrical safety check (PIESA), as the rebate rules require.",
+      "I understand my install must be done within 30 days of my electrical safety check (PIESA). If it isn't, the check has to be done again — and if the delay is mine, I pay for the new check ($349).",
     ]);
+    expect(acceptanceTicks("$275")[1]).toBe("I understand my install must be done within 30 days of my electrical safety check (PIESA). If it isn't, the check has to be done again — and if the delay is mine, I pay for the new check ($275).");
     expect(AP_COUNTERSIGNER).toEqual({ name: "Chris Lowe", role: "Director, DC Construction Solutions Pty Ltd" });
   });
   test("Melbourne date and time wording", () => {
