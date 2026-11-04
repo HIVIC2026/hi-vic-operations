@@ -12,14 +12,15 @@ export async function saveFloorPlanFiles(jobId:string,actorId:string|null,auditI
    if(error)throw error;
    if(existing?.storage_path){const check=await admin.storage.from('job-files').download(existing.storage_path);if(!check.error&&check.data.size>0)continue;}
    const {bytes,contentType}=await fetchMedia(auditId,mediaId);
-   if(!bytes.length)throw new Error('Empty floor plan');
+   if(!bytes.length)throw new Error('Empty file');
+   const aerial=file.kind==='aerial';
    const ext=contentType.includes('pdf')?'pdf':contentType.includes('png')?'png':contentType.includes('jpeg')?'jpg':'bin';
-   const path=existing?.storage_path||`${jobId}/mitti/floor-plans/${auditId}-${mediaId}.${ext}`;
+   const path=existing?.storage_path||`${jobId}/mitti/${aerial?'aerial-images':'floor-plans'}/${auditId}-${mediaId}.${ext}`;
    const upload=await admin.storage.from('job-files').upload(path,bytes,{contentType,upsert:false});
    if(upload.error&&!/exists|duplicate/i.test(upload.error.message))throw upload.error;
    const check=await admin.storage.from('job-files').download(path);if(check.error||!check.data.size)throw new Error('Floor plan copy could not be verified');
-   if(!existing){const saved=await admin.from('documents').insert({job_id:jobId,kind:'floor_plan',title:'Ready Check floor plan',storage_path:path,mime_type:contentType,uploaded_by:actorId,source_system:'mitti',external_id:key,original_name:`floor-plan-${mediaId}.${ext}`,size_bytes:bytes.length});if(saved.error)throw saved.error;}
-  }catch{failures.push('Floor plan file could not be saved – sync again to retry.');}
+   if(!existing){const saved=await admin.from('documents').insert({job_id:jobId,kind:aerial?'aerial_image':'floor_plan',title:aerial?'Ready Check aerial image':'Ready Check floor plan',storage_path:path,mime_type:contentType,uploaded_by:actorId,source_system:'mitti',external_id:key,original_name:`${aerial?'aerial-image':'floor-plan'}-${mediaId}.${ext}`,size_bytes:bytes.length});if(saved.error)throw saved.error;}
+  }catch{failures.push(`${file.kind==='aerial'?'Aerial image':'Floor plan'} file could not be saved – sync again to retry.`);}
  }
  return failures;
 }

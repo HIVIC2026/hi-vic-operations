@@ -970,3 +970,4 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [ ] Read back Jo's saved Mitti drafts (BLOCKED: Jo saves drafts)
 - [ ] Deep's first job plan: ADD 1–3 written into spec, awaiting Jo approval
 - [ ] Reader/completion checks follow Jo's 01:16 required/optional rule
+- [x] Aerial image measurement option (Jo 01:17)

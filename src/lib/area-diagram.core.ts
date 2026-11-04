@@ -65,7 +65,7 @@ const L = {
   name: ["Where is this area?", "Which part of the home does this ceiling area cover?", "Name this area"],
   length: ["Length (m)"],
   width: ["Width (m)"],
-  m2: ["Enter the measured ceiling area (m²)", "Measured area m2", "Area (m²)", "Ceiling area from the floor plan (m²)"],
+  m2: ["Enter the measured ceiling area (m²)", "Measured area m2", "Area (m²)", "Ceiling area from the floor plan (m²)", "Ceiling area from the aerial image (m²)"],
   existing: ["Is there existing insulation?", "Is there existing insulation in this ceiling area?"],
   action: ["What needs to happen to it?", "What is required for the existing insulation?"],
   removeM2: ["Area to remove (m2)", "How much existing insulation needs to be removed? (m²)"],
