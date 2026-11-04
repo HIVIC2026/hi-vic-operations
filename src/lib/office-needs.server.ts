@@ -291,7 +291,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     listMode ? (async () => (await import("./my-electricians.server")).pendingInstallerElectricianItems().catch(() => { unavailable.push("electricians added by installers"); return []; }))() : Promise.resolve([]),
     // Decision 335: 1–3 star private feedback → ONE row per job for 14 days (often on a closed job: read directly).
     listMode ? all("review feedback", (a, b) => admin.from("workflow_events").select("job_id, created_at, details").eq("event_type", OWNER_REVIEW_FEEDBACK_EVENT).gte("created_at", new Date(t0 - REVIEW_FEEDBACK_ROW_DAYS * DAY).toISOString()).range(a, b)) : Promise.resolve([] as Row[]),
-    // Decision 395: the day-before pre-start result for upcoming installs (prestart.server writes it from 12pm the day before).
+    // Decision 395: the day-before pre-start result for upcoming installs (prestart.server writes it at the GO slots: 2pm the day before, 6:30am on the day — Part 9 Task 6).
     all("pre-start checks", (a, b) => scoped(admin.from("pre_start_checks").select("job_id, scheduled_start, passed, failures, checked_at")).gt("scheduled_start", new Date(t0).toISOString()).order("checked_at", { ascending: false }).range(a, b)),
     all("upcoming installs", (a, b) => scoped(admin.from("bookings").select("id, job_id, scheduled_start")).eq("kind", "installation").eq("status", "confirmed").gt("scheduled_start", new Date(t0).toISOString()).range(a, b)),
     // Decision 398: the A3 PIESA form was not created automatically at the PIESA booking.

@@ -7,7 +7,8 @@ import { coesOfficeLine } from "./coes-check.core";
 import type { PrestartCertificate } from "./certificate-later.core";
 
 export const ESC_URGENT_MS = 2 * 24 * 3600_000;
-export const PRESTART_HOUR = 12; // 12pm Melbourne, the day before the install
+/** Part 9 Task 6 (Jo 2 Nov 2026): the GO / DON'T START check runs at 2pm Melbourne the day before (was 12pm) and 6:30am on the day. */
+export const PRESTART_HOUR = 14; // 2pm Melbourne, the day before the install (the first GO slot; also the lock time)
 export { PIISA_FROM_PIESA_DAYS }; // one constant (esc.core, Part 9 Task 4); re-exported for existing readers
 
 const fmt = (iso: string) => new Date(iso).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
@@ -95,9 +96,35 @@ export function leadInstallerLocked(startIso: string, now: Date): boolean {
   return now.getTime() >= Date.parse(leadInstallerLock(startIso).lockAt);
 }
 
-/** 12pm Melbourne on the day before the install. */
+// ── GO / DON'T START slots (Part 9 Task 6). The 2pm-day-before slot is also the lock time (`prestartRunAt`).
+export const GO_SLOTS = [
+  { key: "day_before_2pm", dayOffset: -1, hour: 14, minute: 0 },
+  { key: "on_day_630am", dayOffset: 0, hour: 6, minute: 30 },
+] as const;
+export type GoSlot = (typeof GO_SLOTS)[number]["key"];
+/** Melbourne wall-clock instant of each slot for this install start, as ISO. (Minutes are added after the whole-hour
+ *  DST-safe `melbourneAt`; neither slot sits inside a DST change, which happens at 2–3am.) */
+export function goSlotTimes(startIso: string): Record<GoSlot, string> {
+  const day = melbourneYmd(new Date(startIso));
+  const out = {} as Record<GoSlot, string>;
+  for (const s of GO_SLOTS) out[s.key] = new Date(melbourneAt(addDays(day, s.dayOffset), s.hour).getTime() + s.minute * 60_000).toISOString();
+  return out;
+}
+/** The slot to run now: the LATEST slot whose time has passed, not yet done, and before the install starts. Null = nothing due. */
+export function dueGoSlot(startIso: string, now: Date, done: readonly GoSlot[]): GoSlot | null {
+  const t = now.getTime();
+  if (t >= Date.parse(startIso)) return null;
+  const times = goSlotTimes(startIso);
+  const passed = GO_SLOTS.filter((s) => t >= Date.parse(times[s.key]));
+  const latest = passed[passed.length - 1];
+  if (!latest || done.includes(latest.key)) return null;
+  return latest.key;
+}
+export const isGoSlot = (s: string): s is GoSlot => GO_SLOTS.some((x) => x.key === s);
+
+/** 2pm Melbourne on the day before the install (the first GO slot; the lock time `prestartLocked` uses). */
 export function prestartRunAt(startIso: string): string {
-  return melbourneAt(addDays(melbourneYmd(new Date(startIso)), -1), PRESTART_HOUR).toISOString();
+  return goSlotTimes(startIso).day_before_2pm;
 }
 
 /** `noticeAcknowledged`: ESC collection notice (decision 130); false = not acknowledged, blocks the start. Undefined = not loaded (older callers). */
@@ -181,6 +208,41 @@ export function prestartFailures(f: PrestartFacts): string[] {
   if (f.lifeSupportPlanMissing) out.push(LIFE_SUPPORT_PLAN_MISSING);
   return out;
 }
+
+// ── Failure class for the DON'T START email (Jo 4 Nov 2026 14:40, Part 9 Task 7 fix). ─────────────────────────────
+/** `fixable` = can still be fixed before the booked start (signatures, office ticks, a missing Lead, the deposit…);
+ *  `must_move` = a timing rule is already broken relative to the booked start, so the install has to be rebooked. */
+export type PrestartFailureClass = "fixable" | "must_move";
+export type PrestartFailure = { line: string; cls: PrestartFailureClass };
+/** Lines that are fixable whatever the clock says (people, paperwork and money the office or trade can sort before the start). */
+const FIXABLE_ALWAYS: RegExp[] = [
+  /^Safety plan not signed/, // SWMS signatures (decision 261)
+  /^No lead installer is recorded/,
+  /^Lead installer.*(has no office-verified|re-record certification|holds a provisional)/, // office verifies / picks another Lead
+  /^Lead installer.*: /, // collection notice acknowledgement, White Card (worker-compliance lines are prefixed "Lead installer …: ")
+  /^Installer business: /, // insurance upload waiting for the office tick (H3 / Task 8)
+  /^Install deposit not paid/,
+  /^Ready Check original condition not recorded/,
+  /^Site conditions differ/,
+  /^Life support at this home/, // Task 5: plan goes on file
+];
+/** Lines about a 24-hour rule: fixable only while the start is still at least 24h away (the notice, consent, copies or
+ *  confirmation can still land in time); from then on the rule is already broken → must move. */
+const FIXABLE_WHILE_24H_LEFT: RegExp[] = [
+  /^ESC notification is not marked submitted/,
+  /^Owner consent: .*(not generated|not complete)/,
+  /^Signed PIESA copy delivery to (owner|installer) must be recorded/,
+  /not delivered to the (owner|installer) by/, // Task 5 Part C copy lines
+  /^The PIESA needs an electrician at the install and they haven't confirmed/, // Task 5
+];
+/** Fail closed: anything not listed above (the 30-day window, PIISA/ESC timing, consent/notice/copies <24h, electrical
+ *  clearance, lines this module doesn't know) is `must_move`. */
+export function classifyPrestartFailure(line: string, i: { start: string; now: Date }): PrestartFailureClass {
+  if (FIXABLE_ALWAYS.some((r) => r.test(line))) return "fixable";
+  if (FIXABLE_WHILE_24H_LEFT.some((r) => r.test(line))) return i.now.getTime() <= Date.parse(i.start) - LEAD_MS ? "fixable" : "must_move";
+  return "must_move";
+}
+export const classifyPrestartFailures = (lines: readonly string[], i: { start: string; now: Date }): PrestartFailure[] => lines.map((line) => ({ line, cls: classifyPrestartFailure(line, i) }));
 
 /** Office Needs me (decision 395): per job, the latest pre-start check when it FAILED for a currently confirmed install
  *  start — the same rule as prestartNeeds (latest check, same start). The office sees what is missing the day before. */
