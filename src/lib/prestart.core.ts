@@ -91,13 +91,35 @@ export const GO_SLOTS = [
   { key: "on_day_630am", dayOffset: 0, hour: 6, minute: 30 },
 ] as const;
 export type GoSlot = (typeof GO_SLOTS)[number]["key"];
+/** G6 N1 (final Part 9 review, 4 Nov 2026): an install booked to start at or before 6:30am Melbourne would have its on-day
+ *  check land after the start (never run). Those installs get the on-day check at 6:00am instead; one that starts at or
+ *  before 6:00am gets no on-day run (`onDayGoCheck` = null — the 2pm email then says "Fix before the install starts"). */
+const ON_DAY_EARLY = { hour: 6, minute: 0, label: "6:00am" } as const;
+const ON_DAY_USUAL = { hour: 6, minute: 30, label: "6:30am" } as const;
+function onDaySlotRule(startIso: string): typeof ON_DAY_EARLY | typeof ON_DAY_USUAL {
+  const day = melbourneYmd(new Date(startIso));
+  const minutesIntoDay = (Date.parse(startIso) - melbourneAt(day, 0).getTime()) / 60_000;
+  return minutesIntoDay <= ON_DAY_USUAL.hour * 60 + ON_DAY_USUAL.minute ? ON_DAY_EARLY : ON_DAY_USUAL;
+}
 /** Melbourne wall-clock instant of each slot for this install start, as ISO. (Minutes are added after the whole-hour
- *  DST-safe `melbourneAt`; neither slot sits inside a DST change, which happens at 2–3am.) */
+ *  DST-safe `melbourneAt`; neither slot sits inside a DST change, which happens at 2–3am.) The on-day slot moves to
+ *  6:00am for a start at or before 6:30am (N1). */
 export function goSlotTimes(startIso: string): Record<GoSlot, string> {
   const day = melbourneYmd(new Date(startIso));
+  const early = onDaySlotRule(startIso);
   const out = {} as Record<GoSlot, string>;
-  for (const s of GO_SLOTS) out[s.key] = new Date(melbourneAt(addDays(day, s.dayOffset), s.hour).getTime() + s.minute * 60_000).toISOString();
+  for (const s of GO_SLOTS) {
+    const { hour, minute } = s.key === "on_day_630am" ? early : s;
+    out[s.key] = new Date(melbourneAt(addDays(day, s.dayOffset), hour).getTime() + minute * 60_000).toISOString();
+  }
   return out;
+}
+/** The on-day GO check for this start: when it runs and how the email names it ("6:30am" / "6:00am"); null = it can't run
+ *  (the install starts at or before 6:00am), so the 2pm email must not promise a second check. */
+export function onDayGoCheck(startIso: string): { at: string; label: string } | null {
+  const at = goSlotTimes(startIso).on_day_630am;
+  if (Date.parse(at) >= Date.parse(startIso)) return null;
+  return { at, label: onDaySlotRule(startIso).label };
 }
 /** The slot to run now: the LATEST slot whose time has passed, not yet done, and before the install starts. Null = nothing due. */
 export function dueGoSlot(startIso: string, now: Date, done: readonly GoSlot[]): GoSlot | null {
@@ -179,6 +201,10 @@ export const ELECTRICIAN_NOT_CONFIRMED = "The PIESA needs an electrician at the 
 export const LIFE_SUPPORT_PLAN_MISSING = "Life support at this home: the written consent or medical plan isn't on file.";
 /** J5: office-only GO check line when the ESC notices could not be read (fail closed; classified must move). */
 export const ESC_READ_FAILED = (reason: string) => `ESC notices could not be read (${reason}) — check again`;
+/** G6 S2: office-only line recorded when a GO slot run itself crashed (a facts reader threw): the slot still gets its
+ *  failed row (install locked, Needs me row, DON'T START email with the plain trade line) instead of no row at all.
+ *  Classified must move (fail closed); the error text stays on the office event, never in the email. */
+export const GO_CHECK_NOT_COMPLETED = (reason: string) => `The GO check could not be completed (${reason}) — run it again`;
 
 /** Every failed pre-start condition, in plain words. Empty = cleared to start. */
 export function prestartFailures(f: PrestartFacts): string[] {
@@ -251,9 +277,11 @@ const FIXABLE_WHILE_24H_LEFT: RegExp[] = [
  *  clearance, lines this module doesn't know) is `must_move`. */
 /** J5 (join step 6 ruling, 4 Nov 2026): a READ ERROR is never "fixable" — Task 8's "Installer business: Couldn't read…"
  *  lines share the fixable insurance prefix, so the specific line is classified first (fail closed = must move). */
-const READ_ERROR_LINES: RegExp[] = [/^Installer business: Couldn't read/, /couldn'?t (read|check)/i, /could not be (read|checked)/i];
+const READ_ERROR_LINES: RegExp[] = [/^Installer business: Couldn't read/, /couldn'?t (read|check)/i, /couldn'?t be (read|checked|completed)/i, /could not be (read|checked|completed)/i];
+/** G6 S4/S5: is this GO-check line a read / check failure (a database or reader error, not a fact about the job)? */
+export const isReadErrorLine = (line: string): boolean => READ_ERROR_LINES.some((r) => r.test(line));
 export function classifyPrestartFailure(line: string, i: { start: string; now: Date }): PrestartFailureClass {
-  if (READ_ERROR_LINES.some((r) => r.test(line))) return "must_move";
+  if (isReadErrorLine(line)) return "must_move";
   if (FIXABLE_ALWAYS.some((r) => r.test(line))) return "fixable";
   if (FIXABLE_WHILE_24H_LEFT.some((r) => r.test(line))) return i.now.getTime() <= Date.parse(i.start) - LEAD_MS ? "fixable" : "must_move";
   return "must_move";

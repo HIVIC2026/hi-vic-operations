@@ -3,7 +3,7 @@
 // to the Lead Installer); info@homeinsulationvictoria.com.au gets a copy of every DON'T START, never of GO. PURE: wording
 // and key. Wording APPROVED by Jo 4 Nov 2026 14:40; GO_EMAIL_APPROVED stays false until go-live flips it; the sender is go-email.server.
 import { partnerEmailLayout, type PartnerBlock } from "./partner-email.core";
-import type { GoSlot, PrestartFailure } from "./prestart.core";
+import { isReadErrorLine, onDayGoCheck, type GoSlot, type PrestartFailure } from "./prestart.core";
 
 /** Wording APPROVED by Jo 4 Nov 2026 14:40 (GO as drafted; DON'T START split into "must move" / "fix before 6:30am").
  *  The switch stays false until the coordinator flips it (nothing reaches a real installer office, nothing is recorded). */
@@ -45,22 +45,57 @@ export const GO_EMAIL_TEXT = {
   mustMoveSubject: (jobNumber: string) => `${jobNumber}: DON'T START — the install must move`,
   mustMoveIntro: (address: string, when: string) => `Don't start the install at ${address} on ${when}.`,
   mustMoveList: "This can't be fixed in time — rebook the install for a later day and call the owner:",
-  /** Heading of the fixable list: Jo's "Fix before 6:30am:" at the 2pm run; the 6:30am run says "before the start". */
-  fixList: (slot: GoSlot) => (slot === "day_before_2pm" ? "Fix before 6:30am:" : "Fix before the install starts:"),
-  checkAgain: "We'll check again at 6:30am.", // 2pm run only, and only when everything is fixable
+  /** Heading of the fixable list: Jo's "Fix before 6:30am:" at the 2pm run; the 6:30am run says "before the start".
+   *  G6 N1: the time is the on-day check's ("6:00am" for an install starting at or before 6:30am); no on-day check
+   *  possible (start at or before 6:00am) → "before the install starts" at the 2pm run too. */
+  fixList: (slot: GoSlot, onDayLabel: string | null = "6:30am") => (slot === "day_before_2pm" && onDayLabel ? `Fix before ${onDayLabel}:` : "Fix before the install starts:"),
+  checkAgain: (onDayLabel = "6:30am") => `We'll check again at ${onDayLabel}.`, // 2pm run only, and only when everything is fixable AND an on-day check runs
   button: "Open the job",
 } as const;
+
+// G6 S5 (final Part 9 review, 4 Nov 2026): the GO check's lines are written for the office (Needs me). The installer
+// office's email shows a plain line per failure instead — never a database error (that stays on the office event), never
+// office voice, "Lead Installer" in full. DRAFT wording (JO-APPROVAL-LIST); the approved GO / DON'T START frame is unchanged.
+export const GO_EMAIL_PLAIN = {
+  couldNotCheck: "Something couldn't be checked — Home Insulation Victoria is looking into it.",
+  noLead: "No Lead Installer is chosen for this install.",
+  leadCertNotVerified: (name: string | null) => `Lead Installer${name ? ` ${name}` : ""}: CII/EEC certificate not verified by Home Insulation Victoria.`,
+  leadCertRecheck: (name: string | null) => `Lead Installer${name ? ` ${name}` : ""}: CII/EEC certificate needs checking by Home Insulation Victoria.`,
+  escNotSent: "ESC notice not sent yet — Home Insulation Victoria sends it.",
+} as const;
+/** One office GO-check line → the line the installer office reads. Unknown lines pass through with "Lead Installer" capitalised. */
+export function tradeSafeFailureLine(line: string): string {
+  if (isReadErrorLine(line)) return GO_EMAIL_PLAIN.couldNotCheck;
+  if (/^No lead installer is recorded for this job\.$/.test(line)) return GO_EMAIL_PLAIN.noLead;
+  const notVerified = /^Lead installer(?: (.+?))? has no office-verified EEC CII certification\.$/.exec(line);
+  if (notVerified) return GO_EMAIL_PLAIN.leadCertNotVerified(notVerified[1] ?? null);
+  const recheck = /^Lead installer(?: (.+?))?: re-record certification as Full with expiry date\.$/.exec(line);
+  if (recheck) return GO_EMAIL_PLAIN.leadCertRecheck(recheck[1] ?? null);
+  if (/^ESC notification is not marked submitted for this install date\.$/.test(line)) return GO_EMAIL_PLAIN.escNotSent;
+  return line.replace(/\b[Ll]ead installer\b/g, "Lead Installer");
+}
+/** Every failure as the installer office reads it, in order, one line each (two read errors = one plain line). */
+export function tradeSafeFailures(failures: readonly PrestartFailure[]): PrestartFailure[] {
+  const out: PrestartFailure[] = [];
+  for (const f of failures) {
+    const line = tradeSafeFailureLine(f.line);
+    if (!out.some((x) => x.line === line && x.cls === f.cls)) out.push({ line, cls: f.cls });
+  }
+  return out;
+}
 
 /** `failures` carry their class (prestart.core `classifyPrestartFailures`; unknown = must_move, fail closed). */
 export function goEmail(i: { jobNumber: string; address: string; startIso: string; lead: string | null; failures: PrestartFailure[]; slot: GoSlot; link: string; test?: boolean }): { subject: string; text: string; html: string } {
   const T = GO_EMAIL_TEXT;
   const when = goEmailWhen(i.startIso);
-  const go = i.failures.length === 0;
-  const mustMove = i.failures.filter((f) => f.cls === "must_move").map((f) => f.line);
-  const fixable = i.failures.filter((f) => f.cls === "fixable").map((f) => f.line);
+  const failures = tradeSafeFailures(i.failures); // S5: plain trade lines, never the office / database text
+  const onDay = onDayGoCheck(i.startIso)?.label ?? null; // N1: "6:30am", "6:00am" or none
+  const go = failures.length === 0;
+  const mustMove = failures.filter((f) => f.cls === "must_move").map((f) => f.line);
+  const fixable = failures.filter((f) => f.cls === "fixable").map((f) => f.line);
   // Plain bullets (the layout's `list` draws ticks, which would read as "done").
   const bullets = (lines: string[]): PartnerBlock[] => lines.map((f) => ({ kind: "p", text: `• ${f}` }));
-  const subject = go ? T.goSubject(i.jobNumber, i.slot, clock(i.startIso)) : mustMove.length ? T.mustMoveSubject(i.jobNumber) : T.dontStartSubject(i.jobNumber, i.failures.length);
+  const subject = go ? T.goSubject(i.jobNumber, i.slot, clock(i.startIso)) : mustMove.length ? T.mustMoveSubject(i.jobNumber) : T.dontStartSubject(i.jobNumber, failures.length);
   const blocks: PartnerBlock[] = go
     ? [{ kind: "p", text: T.goBody(i.address, when, i.lead ?? T.noLead) }]
     : mustMove.length
@@ -68,13 +103,13 @@ export function goEmail(i: { jobNumber: string; address: string; startIso: strin
         { kind: "p", text: T.mustMoveIntro(i.address, when) },
         { kind: "p", text: T.mustMoveList },
         ...bullets(mustMove),
-        ...(fixable.length ? [{ kind: "p", text: T.fixList(i.slot) } as PartnerBlock, ...bullets(fixable)] : []),
+        ...(fixable.length ? [{ kind: "p", text: T.fixList(i.slot, onDay) } as PartnerBlock, ...bullets(fixable)] : []),
       ]
       : [
         { kind: "p", text: T.dontStartIntro(i.address, when) },
-        { kind: "p", text: T.fixList(i.slot) },
+        { kind: "p", text: T.fixList(i.slot, onDay) },
         ...bullets(fixable),
-        ...(i.slot === "day_before_2pm" ? [{ kind: "p", text: T.checkAgain } as PartnerBlock] : []),
+        ...(i.slot === "day_before_2pm" && onDay ? [{ kind: "p", text: T.checkAgain(onDay) } as PartnerBlock] : []),
       ];
   blocks.push({ kind: "button", label: T.button, url: i.link });
   const m = partnerEmailLayout({ subject, heading: subject, blocks, test: i.test ?? false });

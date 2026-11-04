@@ -5,8 +5,8 @@
 // info@homeinsulationvictoria.com.au gets a copy of every DON'T START, never of GO; TEST jobs go to test-send; one send
 // per recipient per job + start + slot (key).
 import { beforeEach, describe, expect, mock, test } from "bun:test";
-import { GO_EMAIL_APPROVED, GO_EMAIL_TEXT, goEmail, goEmailKey } from "../src/lib/go-email.core";
-import { classifyPrestartFailure, classifyPrestartFailures, type PrestartFailure } from "../src/lib/prestart.core";
+import { GO_EMAIL_APPROVED, GO_EMAIL_PLAIN, GO_EMAIL_TEXT, goEmail, goEmailKey, tradeSafeFailureLine } from "../src/lib/go-email.core";
+import { GO_CHECK_NOT_COMPLETED, classifyPrestartFailure, classifyPrestartFailures, dueGoSlot, goSlotTimes, onDayGoCheck, type PrestartFailure } from "../src/lib/prestart.core";
 
 const fx = (line: string): PrestartFailure => ({ line, cls: "fixable" });
 const mv = (line: string): PrestartFailure => ({ line, cls: "must_move" });
@@ -84,6 +84,54 @@ describe("goEmail (pure, DRAFT)", () => {
     }
     expect(classifyPrestartFailure("Installer business: Public liability insurance not on file. Upload the certificate under My business.", twoDaysOut)).toBe("fixable");
     expect(classifyPrestartFailures(["Install deposit not paid", "x"], at2pm)).toEqual([{ line: "Install deposit not paid", cls: "fixable" }, { line: "x", cls: "must_move" }]);
+  });
+  // G6 S4 (final Part 9 review): any "couldn't be read / checked" or "could not be completed" line is a read error → must move.
+  test("S4: 'couldn't be read/checked' and 'could not be completed' lines are must move whatever the clock says", () => {
+    const twoDaysOut = { start: START, now: new Date("2026-11-09T03:00:00Z") };
+    for (const l of ["Installer business: insurance couldn't be read (timeout)", "Life support plan couldn't be checked (boom)", "ESC notices could not be read (x) — check again", GO_CHECK_NOT_COMPLETED("read failed")]) {
+      expect(classifyPrestartFailure(l, twoDaysOut), l).toBe("must_move");
+    }
+  });
+  // G6 S5: the email shows a plain line per failure — never a database error, never office voice; "Lead Installer" in full.
+  test("S5: trade-safe lines — read errors become one plain line (no DB text), office-voice Lead lines are reworded, 'Lead installer' is capitalised, nothing else changes", () => {
+    expect(tradeSafeFailureLine("Installer business: Couldn't read insurance records: connection reset by peer")).toBe(GO_EMAIL_PLAIN.couldNotCheck);
+    expect(tradeSafeFailureLine("ESC notices could not be read (relation missing) — check again")).toBe(GO_EMAIL_PLAIN.couldNotCheck);
+    expect(tradeSafeFailureLine(GO_CHECK_NOT_COMPLETED("TypeError: x is undefined"))).toBe(GO_EMAIL_PLAIN.couldNotCheck);
+    expect(tradeSafeFailureLine("No lead installer is recorded for this job.")).toBe(GO_EMAIL_PLAIN.noLead);
+    expect(tradeSafeFailureLine("Lead installer Lee has no office-verified EEC CII certification.")).toBe(GO_EMAIL_PLAIN.leadCertNotVerified("Lee"));
+    expect(tradeSafeFailureLine("Lead installer has no office-verified EEC CII certification.")).toBe(GO_EMAIL_PLAIN.leadCertNotVerified(null));
+    expect(tradeSafeFailureLine("Lead installer Lee: re-record certification as Full with expiry date.")).toBe(GO_EMAIL_PLAIN.leadCertRecheck("Lee"));
+    expect(tradeSafeFailureLine("ESC notification is not marked submitted for this install date.")).toBe(GO_EMAIL_PLAIN.escNotSent);
+    expect(tradeSafeFailureLine("Lead installer Lee holds a provisional certification, not full.")).toBe("Lead Installer Lee holds a provisional certification, not full.");
+    expect(tradeSafeFailureLine("Lead installer's certification expired on 2026-10-15.")).toBe("Lead Installer's certification expired on 2026-10-15.");
+    expect(tradeSafeFailureLine("Lead installer Lee: White Card not verified")).toBe("Lead Installer Lee: White Card not verified");
+    expect(tradeSafeFailureLine("Install deposit not paid")).toBe("Install deposit not paid");
+    expect(tradeSafeFailureLine("Safety plan not signed: John Smith")).toBe("Safety plan not signed: John Smith");
+    // In the email: two read errors collapse to ONE plain line; the DB text never appears; classification is kept.
+    const m = goEmail({ ...base, failures: [mv("Installer business: Couldn't read insurance records: connection reset by peer"), mv("ESC notices could not be read (relation missing) — check again"), fx("No lead installer is recorded for this job.")], slot: "day_before_2pm" });
+    expect(m.text).not.toContain("connection reset"); expect(m.text).not.toContain("relation missing"); expect(m.text).not.toMatch(/[Ll]ead installer/);
+    expect(m.text.split(GO_EMAIL_PLAIN.couldNotCheck)).toHaveLength(2);
+    expect(m.text).toContain(`• ${GO_EMAIL_PLAIN.couldNotCheck}`);
+    expect(m.text).toContain(`Fix before 6:30am:\n\n• ${GO_EMAIL_PLAIN.noLead}`);
+    expect(m.subject).toBe("HV-1234: DON'T START — the install must move");
+  });
+  // G6 N1: an install that starts at or before 6:30am gets its on-day check at 6:00am; the email says so.
+  test("N1: a 6:30am start → the on-day slot is 6:00am and the 2pm email says 'Fix before 6:00am' / 'check again at 6:00am'; a 6:00am start has no on-day run", () => {
+    const EARLY = "2026-11-11T19:30:00Z"; // Thu 12 Nov 6:30am Melbourne
+    expect(goSlotTimes(EARLY)).toEqual({ day_before_2pm: "2026-11-11T03:00:00.000Z", on_day_630am: "2026-11-11T19:00:00.000Z" });
+    expect(onDayGoCheck(EARLY)).toEqual({ at: "2026-11-11T19:00:00.000Z", label: "6:00am" });
+    expect(onDayGoCheck(START)).toEqual({ at: "2026-11-11T19:30:00.000Z", label: "6:30am" });
+    expect(dueGoSlot(EARLY, new Date("2026-11-11T19:00:00Z"), ["day_before_2pm"])).toBe("on_day_630am");
+    const m = goEmail({ ...base, startIso: EARLY, failures: [fx("Install deposit not paid")], slot: "day_before_2pm" });
+    expect(m.text).toContain("Fix before 6:00am:"); expect(m.text).toContain("We'll check again at 6:00am.");
+    const TOO_EARLY = "2026-11-11T19:00:00Z"; // 6:00am start: no on-day run is possible
+    expect(onDayGoCheck(TOO_EARLY)).toBeNull();
+    expect(dueGoSlot(TOO_EARLY, new Date("2026-11-11T18:59:00Z"), ["day_before_2pm"])).toBeNull();
+    const m2 = goEmail({ ...base, startIso: TOO_EARLY, failures: [fx("Install deposit not paid")], slot: "day_before_2pm" });
+    expect(m2.text).toContain("Fix before the install starts:"); expect(m2.text).not.toContain("check again");
+    // Unchanged for an 8am start.
+    const m3 = goEmail({ ...base, failures: [fx("Install deposit not paid")], slot: "day_before_2pm" });
+    expect(m3.text).toContain("Fix before 6:30am:"); expect(m3.text).toContain("We'll check again at 6:30am.");
   });
   test("the key is per job + start + slot; the info@ copy adds :office", () => {
     expect(goEmailKey("J1", START, "day_before_2pm")).toBe(`go-email:v1:J1:${START}:day_before_2pm`);
