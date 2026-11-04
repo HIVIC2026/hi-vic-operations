@@ -1,9 +1,15 @@
 // Part 9 Task 7: the GO / DON'T START email to the installer office after each GO slot run (2pm the day before, 6:30am
-// on the day). DRAFT wording behind GO_EMAIL_APPROVED = false: real offices get nothing (and nothing is recorded);
+// on the day). Wording approved by Jo 4 Nov 2026 14:40: GO as drafted; DON'T START splits the failures into "must move"
+// (a timing rule already broken → rebook) and "fix before 6:30am". GO_EMAIL_APPROVED stays false until the coordinator
+// flips it: real offices get nothing (and nothing is recorded);
 // info@homeinsulationvictoria.com.au gets a copy of every DON'T START, never of GO; TEST jobs go to test-send; one send
 // per recipient per job + start + slot (key).
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { GO_EMAIL_APPROVED, GO_EMAIL_TEXT, goEmail, goEmailKey } from "../src/lib/go-email.core";
+import { classifyPrestartFailure, classifyPrestartFailures, type PrestartFailure } from "../src/lib/prestart.core";
+
+const fx = (line: string): PrestartFailure => ({ line, cls: "fixable" });
+const mv = (line: string): PrestartFailure => ({ line, cls: "must_move" });
 
 const START = "2026-11-11T21:00:00Z"; // Thu 12 Nov 2026 8:00am Melbourne (AEDT)
 const base = { jobNumber: "HV-1234", address: "12 Example St, Box Hill VIC 3128", startIso: START, lead: "John Smith", link: "https://p/field/J1" };
@@ -22,23 +28,56 @@ describe("goEmail (pure, DRAFT)", () => {
   test("GO at 6:30am says today", () => {
     expect(goEmail({ ...base, failures: [], slot: "on_day_630am" }).subject).toBe("HV-1234: GO for today 8:00am");
   });
-  test("DON'T START at 2pm: count, bullet list of the failures, the 6:30am line, button", () => {
-    const m = goEmail({ ...base, failures: ["Safety plan not signed: John Smith", "Install deposit not paid"], slot: "day_before_2pm" });
+  test("DON'T START at 2pm, everything fixable: count, 'Fix before 6:30am:' bullets, the 6:30am line, button", () => {
+    const m = goEmail({ ...base, failures: [fx("Safety plan not signed: John Smith"), fx("Install deposit not paid")], slot: "day_before_2pm" });
     expect(m.subject).toBe("HV-1234: DON'T START — 2 things missing");
     expect(m.text).toContain("Don't start the install at 12 Example St, Box Hill VIC 3128 on Thu 12 Nov, 8:00am until these are fixed:");
-    expect(m.text).toContain("• Safety plan not signed: John Smith");
-    expect(m.text).toContain("• Install deposit not paid");
+    expect(m.text).toContain("Fix before 6:30am:\n\n• Safety plan not signed: John Smith\n\n• Install deposit not paid");
     expect(m.text).toContain("We'll check again at 6:30am.");
+    expect(m.text).not.toContain("must move"); expect(m.text).not.toContain("can't be fixed in time");
     expect(m.text).toContain("Open the job: https://p/field/J1");
     expect(m.html).toContain("Install deposit not paid");
   });
-  test("DON'T START at 6:30am: singular, no 'check again' line", () => {
-    const m = goEmail({ ...base, failures: ["Install deposit not paid"], slot: "on_day_630am" });
+  test("DON'T START at 6:30am, everything fixable: singular, 'Fix before the install starts:', no 'check again' line", () => {
+    const m = goEmail({ ...base, failures: [fx("Install deposit not paid")], slot: "on_day_630am" });
     expect(m.subject).toBe("HV-1234: DON'T START — 1 thing missing");
+    expect(m.text).toContain("Fix before the install starts:\n\n• Install deposit not paid");
     expect(m.text).not.toContain("check again");
+  });
+  test("DON'T START, the install must move (Jo 4 Nov 14:40): subject, plain intro, the can't-be-fixed list, then the fixable list, NO 'check again' line", () => {
+    const m = goEmail({ ...base, failures: [fx("Safety plan not signed: John Smith"), mv("Owner consent: Owner ESC consent was completed less than 24h before start – reschedule"), mv("The 30-day window ended on 2026-11-10. New PIESA needed.")], slot: "day_before_2pm" });
+    expect(m.subject).toBe("HV-1234: DON'T START — the install must move");
+    expect(m.text).toContain("Don't start the install at 12 Example St, Box Hill VIC 3128 on Thu 12 Nov, 8:00am.\n");
+    expect(m.text).not.toContain("until these are fixed");
+    expect(m.text).toContain("This can't be fixed in time — rebook the install for a later day and call the owner:\n\n• Owner consent: Owner ESC consent was completed less than 24h before start – reschedule\n\n• The 30-day window ended on 2026-11-10. New PIESA needed.\n\nFix before 6:30am:\n\n• Safety plan not signed: John Smith");
+    expect(m.text).not.toContain("check again");
+    expect(m.text).toContain("Open the job: https://p/field/J1");
+    expect(m.html).toContain("rebook the install for a later day");
+  });
+  test("must move with nothing fixable: no 'Fix before' heading at all; the 6:30am run reads the same (no check-again line)", () => {
+    for (const slot of ["day_before_2pm", "on_day_630am"] as const) {
+      const m = goEmail({ ...base, failures: [mv("ESC notification was sent less than 24h before start – reschedule.")], slot });
+      expect(m.subject).toBe("HV-1234: DON'T START — the install must move");
+      expect(m.text).not.toContain("Fix before"); expect(m.text).not.toContain("check again");
+    }
   });
   test("no Lead Installer picked reads plainly", () => {
     expect(goEmail({ ...base, lead: null, failures: [], slot: "day_before_2pm" }).text).toContain(`Lead Installer: ${GO_EMAIL_TEXT.noLead}.`);
+  });
+  test("classifyPrestartFailure: fixable people/paperwork/money lines; 24h-rule lines fixable only with 24h+ left; everything else must move (fail closed)", () => {
+    const at2pm = { start: START, now: new Date("2026-11-11T03:00:00Z") }; // 18h before the 8am start
+    const twoDaysOut = { start: START, now: new Date("2026-11-09T03:00:00Z") };
+    for (const l of ["Safety plan not signed: John Smith", "No lead installer is recorded for this job.", "Lead installer Lee has no office-verified EEC CII certification.", "Lead installer Lee: re-record certification as Full with expiry date.", "Lead installer Lee holds a provisional certification, not full.", "Lead installer Lee: White Card not verified", "Installer business: public liability insurance expired on 2026-10-01", "Install deposit not paid", "Ready Check original condition not recorded: insulation.", "Site conditions differ — office review required before the quote or works can continue: note", "Life support at this home: the written consent or medical plan isn't on file."]) {
+      expect(classifyPrestartFailure(l, at2pm), l).toBe("fixable");
+    }
+    for (const l of ["ESC notification is not marked submitted for this install date.", "Owner consent: Owner ESC consent not complete (owner + AP representative) – must be signed by x", "Signed PIESA copy delivery to owner must be recorded by x", "Updated PIESA (with Part C) not delivered to the installer by x", "The PIESA needs an electrician at the install and they haven't confirmed."]) {
+      expect(classifyPrestartFailure(l, twoDaysOut), l).toBe("fixable");
+      expect(classifyPrestartFailure(l, at2pm), l).toBe("must_move");
+    }
+    for (const l of ["ESC notification was sent less than 24h before start – reschedule.", "Owner consent: Owner ESC consent was completed less than 24h before start – reschedule", "The 30-day window ended on 2026-11-10. New PIESA needed.", "No 30-day window date is recorded.", "The installer safety form (PIISA) can only be done within 30 days of the PIESA.", "PIESA completion date is missing.", "Lead installer's certification expired on 2026-10-15.", "Electrical clearance is not valid: upgrades outstanding", "Something this module has never heard of"]) {
+      expect(classifyPrestartFailure(l, twoDaysOut), l).toBe("must_move");
+    }
+    expect(classifyPrestartFailures(["Install deposit not paid", "x"], at2pm)).toEqual([{ line: "Install deposit not paid", cls: "fixable" }, { line: "x", cls: "must_move" }]);
   });
   test("the key is per job + start + slot; the info@ copy adds :office", () => {
     expect(goEmailKey("J1", START, "day_before_2pm")).toBe(`go-email:v1:J1:${START}:day_before_2pm`);
@@ -99,7 +138,8 @@ mock.module("../src/lib/set-password-link.core", () => ({ SET_PASSWORD_BASE: "ht
 const { sendGoEmail } = await import("../src/lib/go-email.server");
 const events = (type: string) => (tables["workflow_events"] ?? []).filter((e) => e["event_type"] === type);
 const GO = { passed: true, failures: [] as string[], start: START };
-const NO = { passed: false, failures: ["Install deposit not paid"], start: START };
+const NO = { passed: false, failures: ["Install deposit not paid"], start: START }; // fixable
+const MOVE = { passed: false, failures: ["ESC notification was sent less than 24h before start – reschedule.", "Install deposit not paid"], start: START };
 
 beforeEach(() => {
   office.length = 0; alerts.length = 0; testMail.length = 0; paused = null; commsOn = true; qaHeld = false; leadName = "John Smith"; officeResult = { status: "sent", detail: "faked" };
@@ -137,6 +177,11 @@ describe("sendGoEmail", () => {
     expect(office.map((o) => o.key)).toEqual([`go-email:v1:J1:${START}:day_before_2pm`, `go-email:v1:J1:${START}:on_day_630am`]);
     expect(alerts.map((o) => o.key)).toEqual([`go-email:v1:J1:${START}:day_before_2pm:office`, `go-email:v1:J1:${START}:on_day_630am:office`]);
     expect(events("go_email_sent")).toHaveLength(4);
+  });
+  test("approved: a must-move DON'T START (classed on the server) goes to the installer office AND info@ with the must-move subject", async () => {
+    expect(await sendGoEmail("J1", "day_before_2pm", MOVE, { approved: true, now: new Date("2026-11-11T03:00:00Z") })).toMatch(/^sent/);
+    expect(office.map((o) => o.subject)).toEqual(["HV-1234: DON'T START — the install must move"]);
+    expect(alerts.map((o) => o.subject)).toEqual(["HV-1234: DON'T START — the install must move"]);
   });
   test("qa_test job → test-send even with the flag off: installer office on GO; both on DON'T START; once per recipient", async () => {
     tables["jobs"]![0]!["source"] = "qa_test";

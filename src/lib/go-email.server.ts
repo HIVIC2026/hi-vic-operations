@@ -2,14 +2,14 @@
 // Installer business office email through the guarded partner sender (`sendOfficeEmail`: master switch, trade pause,
 // recipient rule, Resend Idempotency-Key = the key); the info@ copy of a DON'T START through `sendInHouseOfficeAlert`
 // (key `:office`). TEST job / TEST partner → test-send. Real offices: nothing (and nothing recorded) while
-// GO_EMAIL_APPROVED is false ("awaiting approval"); when approved, a hold (comms off / trade pause / blocked / failed
+// GO_EMAIL_APPROVED is false ("awaiting approval"; wording approved by Jo 4 Nov 2026, switch flipped by the coordinator); when approved, a hold (comms off / trade pause / blocked / failed
 // send) is recorded once per key as `go_email_held`, claims nothing and is retried on the next call; a send is claimed
 // (`go_email_sent`, one per key + recipient) only after the sender reports `sent`. A read failure throws (the caller
 // logs it; the check itself is already recorded). Never changes a booking, a check or a stage.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import { GO_EMAIL_APPROVED, GO_EMAIL_EVENT, GO_EMAIL_HELD_EVENT, GO_EMAIL_OFFICE_COPY_TO, goEmail, goEmailKey } from "./go-email.core";
-import type { GoSlot } from "./prestart.core";
+import { classifyPrestartFailures, type GoSlot } from "./prestart.core";
 
 export type GoResult = { passed: boolean; failures: string[]; /** The install start the check was recorded for. */ start: string };
 
@@ -19,7 +19,7 @@ async function once(jobId: string, type: string, key: string, to?: string): Prom
   return !!data;
 }
 
-export async function sendGoEmail(jobId: string, slot: GoSlot, result: GoResult, opts: { approved?: boolean } = {}): Promise<string> {
+export async function sendGoEmail(jobId: string, slot: GoSlot, result: GoResult, opts: { approved?: boolean; now?: Date } = {}): Promise<string> {
   const approved = opts.approved ?? GO_EMAIL_APPROVED;
   if (await (await import("./qa-inbox.server")).qaDeliveryHeld(jobId)) return "skipped: TEST delivery held";
   const [{ data: job, error: je }, { data: asg, error: ae }] = await Promise.all([
@@ -53,7 +53,8 @@ export async function sendGoEmail(jobId: string, slot: GoSlot, result: GoResult,
   const address = [p?.address_line?.trim(), [p?.suburb?.trim(), p?.postcode?.trim()].filter(Boolean).join(" ")].filter(Boolean).join(", ") || j.job_number;
   const { TEST_APP_BASE } = await import("./test-send.server");
   const { SET_PASSWORD_BASE } = await import("./set-password-link.core");
-  const mail = goEmail({ jobNumber: j.job_number, address, startIso: result.start, lead, failures: result.failures, slot, link: `${test ? TEST_APP_BASE : SET_PASSWORD_BASE}/field/${j.id}`, test });
+  // Jo 4 Nov 14:40: each failure is classed fixable / must_move against the booked start and the clock now (unknown = must_move).
+  const mail = goEmail({ jobNumber: j.job_number, address, startIso: result.start, lead, failures: classifyPrestartFailures(result.failures, { start: result.start, now: opts.now ?? new Date() }), slot, link: `${test ? TEST_APP_BASE : SET_PASSWORD_BASE}/field/${j.id}`, test });
   const claim = (k: string, recipient: string) => logEvent(jobId, null, GO_EMAIL_EVENT, `${result.passed ? "GO" : "DON'T START"} email (${slot}) to ${recipient}`, { key: k, slot, passed: result.passed, start: result.start, to: recipient, business_id: bz!.id, test }, { internal: true });
   const hold = async (reason: string) => {
     if (!(await once(jobId, GO_EMAIL_HELD_EVENT, key))) await logEvent(jobId, null, GO_EMAIL_HELD_EVENT, `GO / DON'T START email held: ${reason}`, { key, slot, start: result.start, business_id: bz!.id, reason }, { internal: true });
