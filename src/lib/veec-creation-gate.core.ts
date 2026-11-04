@@ -37,7 +37,16 @@ export function veecCreatedBefore(l: { status: string; submission_reference: str
   return !!l && ["submitted", "query", "approved"].includes(l.status);
 }
 
-/** Details of the one office event raised when a refund lands after creation. */
-export function veecRefundEventDetails(i: { refundedCents: number; veecReference: string | null; paymentIntentId: string; stripeEventId: string }) {
-  return { refunded_cents: i.refundedCents, veec_reference: i.veecReference, stripe_payment_intent: i.paymentIntentId, stripe_event_id: i.stripeEventId, line: VEEC_REFUND_NEEDS_LINE, needs_office: true as const };
+/** G6 S9 (final Part 9 review, 4 Nov 2026): office-only line when a payment was reversed but the VEEC record could not be
+ *  read — the office checks by hand instead of nobody hearing (fail closed). DRAFT (JO-APPROVAL-LIST). */
+export const VEEC_REFUND_CHECK_FAILED_LINE = (reason: string) => `A payment was reversed but the VEEC record couldn't be checked (${reason}) — check whether VEECs were created before refunding.`;
+
+/** Details of the one office event raised when a refund lands after creation. `source`: card (Stripe) or xero (a Xero
+ *  payment deleted / voided — G6 S9 covers `owner_payment_reversed` from Xero too). */
+export function veecRefundEventDetails(i: { refundedCents: number; veecReference: string | null; source?: "card" | "xero"; paymentIntentId?: string | null; stripeEventId?: string | null; xeroPaymentId?: string | null }) {
+  return { refunded_cents: i.refundedCents, veec_reference: i.veecReference, source: i.source ?? "card", stripe_payment_intent: i.paymentIntentId ?? null, stripe_event_id: i.stripeEventId ?? null, xero_payment_id: i.xeroPaymentId ?? null, line: VEEC_REFUND_NEEDS_LINE, needs_office: true as const };
+}
+/** Details of the office event raised when the VEEC record could not be read after a reversal (S9: never silent). */
+export function veecRefundCheckFailedDetails(i: { refundedCents: number; reason: string; source?: "card" | "xero"; paymentIntentId?: string | null; stripeEventId?: string | null; xeroPaymentId?: string | null }) {
+  return { refunded_cents: i.refundedCents, veec_reference: null, source: i.source ?? "card", stripe_payment_intent: i.paymentIntentId ?? null, stripe_event_id: i.stripeEventId ?? null, xero_payment_id: i.xeroPaymentId ?? null, line: VEEC_REFUND_CHECK_FAILED_LINE(i.reason), check_failed: true as const, reason: i.reason, needs_office: true as const };
 }

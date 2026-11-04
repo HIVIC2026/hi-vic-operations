@@ -2,7 +2,7 @@
 // day and the owner must have paid $200+ (incl GST) — co-payment rule; a refund after creation is flagged to the office at
 // once (Review Focus 4: it can't be stopped in Stripe). Own file: the Stripe refund path mocks its persistence boundary.
 import { beforeEach, describe, expect, mock, test } from "bun:test";
-import { COPAYMENT_TOO_LOW, MIN_COPAYMENT_CENTS, VEEC_COPAYMENT_REFUNDED_EVENT, VEEC_REFUND_NEEDS_LINE, veecCreatedBefore, veecCreationBlockers } from "../src/lib/veec-creation-gate.core";
+import { COPAYMENT_TOO_LOW, MIN_COPAYMENT_CENTS, VEEC_COPAYMENT_REFUNDED_EVENT, VEEC_REFUND_CHECK_FAILED_LINE, VEEC_REFUND_NEEDS_LINE, veecCreatedBefore, veecCreationBlockers } from "../src/lib/veec-creation-gate.core";
 import { planVeecCreation, type VeecCandidate } from "../src/lib/esc-registry-robot.core";
 import { declaredProductProblems } from "../src/lib/install-evidence.core";
 import { buildNeedsRows } from "../src/lib/office-needs.core";
@@ -65,11 +65,12 @@ describe("Needs me: the refund-after-creation row", () => {
 const ledger: Record<string, unknown>[] = [];
 const logged: { type: string; details: Record<string, unknown> }[] = [];
 let lodgement: { status: string; submission_reference: string | null } | null = { status: "submitted", submission_reference: "VEU-9" };
+let lodgementReadError: string | null = null; // G6 S9: the VEEC record can't be read
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: {
   from: (table: string) => {
     const q: Record<string, unknown> = {};
     for (const m of ["select", "eq", "contains", "limit", "in", "order"]) q[m] = () => q;
-    q["maybeSingle"] = async () => ({ data: table === "invoices" ? { id: "inv-1", job_id: "job-1", kind: "installation", total_paid: 349, jobs: { source: "qa_test" } } : table === "veec_lodgements" ? lodgement : null, error: null });
+    q["maybeSingle"] = async () => (table === "veec_lodgements" && lodgementReadError ? { data: null, error: { message: lodgementReadError } } : { data: table === "invoices" ? { id: "inv-1", job_id: "job-1", kind: "installation", total_paid: 349, jobs: { source: "qa_test" } } : table === "veec_lodgements" ? lodgement : null, error: null });
     q["then"] = (r: (v: unknown) => unknown) => r({ data: table === "workflow_events" ? [{ job_id: "job-1", details: { invoice_id: "inv-1", amount_cents: 34900 } }] : [], error: null });
     return q;
   },
@@ -90,7 +91,7 @@ mock.module("../src/lib/payments.server", () => ({
 }));
 const { recordStripeRefund } = await import("../src/lib/stripe.server");
 const refund = (eventId = "evt_r1") => ({ eventId, paymentIntentId: "pi_1", chargeId: "ch_1", refundedCents: 20000, refundedAt: "2026-11-20T00:00:00Z", livemode: false });
-beforeEach(() => { ledger.length = 0; logged.length = 0; lodgement = { status: "submitted", submission_reference: "VEU-9" }; });
+beforeEach(() => { ledger.length = 0; logged.length = 0; lodgement = { status: "submitted", submission_reference: "VEU-9" }; lodgementReadError = null; });
 
 describe("recordStripeRefund: after lodgement → one veec_copayment_refunded needs_office event", () => {
   test("refund after lodgement → the reversal row AND one office event with the refunded cents and the VEEC reference", async () => {
@@ -111,5 +112,36 @@ describe("recordStripeRefund: after lodgement → one veec_copayment_refunded ne
     await recordStripeRefund(refund());
     expect(ledger).toHaveLength(1);
     expect(logged.filter((e) => e.type === VEEC_COPAYMENT_REFUNDED_EVENT)).toHaveLength(0);
+  });
+  // G6 S9 (final Part 9 review): the VEEC record can't be read → the office is still told (needs_office, the check-failed
+  // line) instead of a console line nobody sees; the refund itself is still recorded.
+  test("S9: the lodgement read fails → one needs_office event with the check-failed line (never silent); the reversal row still lands", async () => {
+    lodgementReadError = "relation veec_lodgements is locked";
+    expect(await recordStripeRefund(refund())).not.toBe("duplicate");
+    expect(ledger.map((r) => r["eventType"])).toEqual(["owner_payment_reversed"]);
+    const ev = logged.filter((e) => e.type === VEEC_COPAYMENT_REFUNDED_EVENT);
+    expect(ev).toHaveLength(1);
+    expect(ev[0]!.details).toMatchObject({ needs_office: true, check_failed: true, refunded_cents: 20000, line: VEEC_REFUND_CHECK_FAILED_LINE("relation veec_lodgements is locked") });
+  });
+});
+
+// G6 S9: a Xero reversal (owner_payment_reversed from a deleted / voided Xero payment) raises the same office flag.
+describe("flagRefundAfterVeecCreation (shared): Xero reversals are covered too", () => {
+  test("a Xero reversal after lodgement → one event carrying the Xero payment id; before lodgement → nothing; the Xero writer calls it", async () => {
+    const { flagRefundAfterVeecCreation } = await import("../src/lib/veec-refund-flag.server");
+    await flagRefundAfterVeecCreation("job-1", { refundedCents: 34900, source: "xero", xeroPaymentId: "xp-1" });
+    const ev = logged.filter((e) => e.type === VEEC_COPAYMENT_REFUNDED_EVENT);
+    expect(ev).toHaveLength(1);
+    expect(ev[0]!.details).toMatchObject({ refunded_cents: 34900, veec_reference: "VEU-9", source: "xero", xero_payment_id: "xp-1", needs_office: true, line: VEEC_REFUND_NEEDS_LINE });
+    lodgement = { status: "not_submitted", submission_reference: null };
+    await flagRefundAfterVeecCreation("job-1", { refundedCents: 100, source: "xero", xeroPaymentId: "xp-2" });
+    expect(logged.filter((e) => e.type === VEEC_COPAYMENT_REFUNDED_EVENT)).toHaveLength(1);
+    const payments = await Bun.file(new URL("../src/lib/payments.server.ts", import.meta.url)).text();
+    expect(payments).toMatch(/PAYMENT_REVERSED_EVENT[\s\S]*flagRefundAfterVeecCreation\(jobId, \{ refundedCents: p\.amountCents, source: "xero", xeroPaymentId: p\.xeroPaymentId \}\)/);
+    const stripe = await Bun.file(new URL("../src/lib/stripe.server.ts", import.meta.url)).text();
+    expect(stripe).toContain('import("./veec-refund-flag.server")');
+    // The Needs me reader shows the event's own line (the check-failed line when the record couldn't be read).
+    const needs = await Bun.file(new URL("../src/lib/office-needs.server.ts", import.meta.url)).text();
+    expect(needs).toMatch(/veecRefunded = \{ at: String\(r\["created_at"\]\), text: [^}]*line[^}]*\}/);
   });
 });

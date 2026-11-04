@@ -601,7 +601,8 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   try {
     const { VEEC_COPAYMENT_REFUNDED_EVENT, VEEC_REFUND_NEEDS_LINE } = await import("./veec-creation-gate.core");
     const rows = await all("VEEC refunds", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at, details")).eq("event_type", VEEC_COPAYMENT_REFUNDED_EVENT).contains("details", { needs_office: true }).order("created_at", { ascending: false }).range(a, b));
-    for (const r of rows) { const x = f(String(r["job_id"])); if (x && !x.veecRefunded) x.veecRefunded = { at: String(r["created_at"]), text: VEEC_REFUND_NEEDS_LINE }; }
+    // G6 S9: the event's own line (the check-failed line when the VEEC record couldn't be read), else the refunded line.
+    for (const r of rows) { const x = f(String(r["job_id"])); const line = (r["details"] as { line?: unknown } | null)?.line; if (x && !x.veecRefunded) x.veecRefunded = { at: String(r["created_at"]), text: typeof line === "string" && line ? line : VEEC_REFUND_NEEDS_LINE }; }
   } catch { unavailable.push("VEEC refunds"); }
   // Part 9 Task 12: complaints — the three office events per job → the ack / resolve rows (complaints.core).
   try {
