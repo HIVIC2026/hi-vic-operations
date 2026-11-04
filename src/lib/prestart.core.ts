@@ -217,6 +217,10 @@ const FIXABLE_ALWAYS: RegExp[] = [
   /^Ready Check original condition not recorded/,
   /^Site conditions differ/,
   /^Life support at this home/, // Task 5: plan goes on file
+  // Join (4 Nov 2026): main's Part 3 certificate lines — the electrician uploads the Certificate of Electrical Safety on
+  // their link, the office ticks it (an upload + an office tick, like the insurance line).
+  /^Certificate of Electrical Safety not in yet/,
+  /^Check electrical certificate — /,
 ];
 /** Lines about a 24-hour rule: fixable only while the start is still at least 24h away (the notice, consent, copies or
  *  confirmation can still land in time); from then on the rule is already broken → must move. */
