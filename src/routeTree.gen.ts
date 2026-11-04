@@ -91,7 +91,6 @@ import { Route as AuthenticatedFieldBusinessAgreementRouteImport } from './route
 import { Route as AuthenticatedFieldBusinessBankRouteImport } from './routes/_authenticated/field.business_.bank'
 import { Route as AuthenticatedFieldBusinessDetailsRouteImport } from './routes/_authenticated/field.business_.details'
 import { Route as AuthenticatedFieldBusinessElectricianRouteImport } from './routes/_authenticated/field.business_.electrician'
-import { Route as AuthenticatedFieldBusinessElectriciansRouteImport } from './routes/_authenticated/field.business_.electricians'
 import { Route as AuthenticatedFieldBusinessEscNoticeRouteImport } from './routes/_authenticated/field.business_.esc-notice'
 import { Route as AuthenticatedFieldBusinessInsuranceRouteImport } from './routes/_authenticated/field.business_.insurance'
 import { Route as AuthenticatedFieldBusinessRatesRouteImport } from './routes/_authenticated/field.business_.rates'
@@ -565,12 +564,6 @@ const AuthenticatedFieldBusinessElectricianRoute =
     path: '/business/electrician',
     getParentRoute: () => AuthenticatedFieldRoute,
   } as any)
-const AuthenticatedFieldBusinessElectriciansRoute =
-  AuthenticatedFieldBusinessElectriciansRouteImport.update({
-    id: '/business_/electricians',
-    path: '/business/electricians',
-    getParentRoute: () => AuthenticatedFieldRoute,
-  } as any)
 const AuthenticatedFieldBusinessEscNoticeRoute =
   AuthenticatedFieldBusinessEscNoticeRouteImport.update({
     id: '/business_/esc-notice',
@@ -835,7 +828,6 @@ export interface FileRoutesByFullPath {
   '/field/business/bank': typeof AuthenticatedFieldBusinessBankRoute
   '/field/business/details': typeof AuthenticatedFieldBusinessDetailsRoute
   '/field/business/electrician': typeof AuthenticatedFieldBusinessElectricianRoute
-  '/field/business/electricians': typeof AuthenticatedFieldBusinessElectriciansRoute
   '/field/business/esc-notice': typeof AuthenticatedFieldBusinessEscNoticeRoute
   '/field/business/insurance': typeof AuthenticatedFieldBusinessInsuranceRoute
   '/field/business/rates': typeof AuthenticatedFieldBusinessRatesRoute
@@ -946,7 +938,6 @@ export interface FileRoutesByTo {
   '/field/business/bank': typeof AuthenticatedFieldBusinessBankRoute
   '/field/business/details': typeof AuthenticatedFieldBusinessDetailsRoute
   '/field/business/electrician': typeof AuthenticatedFieldBusinessElectricianRoute
-  '/field/business/electricians': typeof AuthenticatedFieldBusinessElectriciansRoute
   '/field/business/esc-notice': typeof AuthenticatedFieldBusinessEscNoticeRoute
   '/field/business/insurance': typeof AuthenticatedFieldBusinessInsuranceRoute
   '/field/business/rates': typeof AuthenticatedFieldBusinessRatesRoute
@@ -1063,7 +1054,6 @@ export interface FileRoutesById {
   '/_authenticated/field/business_/bank': typeof AuthenticatedFieldBusinessBankRoute
   '/_authenticated/field/business_/details': typeof AuthenticatedFieldBusinessDetailsRoute
   '/_authenticated/field/business_/electrician': typeof AuthenticatedFieldBusinessElectricianRoute
-  '/_authenticated/field/business_/electricians': typeof AuthenticatedFieldBusinessElectriciansRoute
   '/_authenticated/field/business_/esc-notice': typeof AuthenticatedFieldBusinessEscNoticeRoute
   '/_authenticated/field/business_/insurance': typeof AuthenticatedFieldBusinessInsuranceRoute
   '/_authenticated/field/business_/rates': typeof AuthenticatedFieldBusinessRatesRoute
@@ -1180,7 +1170,6 @@ export interface FileRouteTypes {
     | '/field/business/bank'
     | '/field/business/details'
     | '/field/business/electrician'
-    | '/field/business/electricians'
     | '/field/business/esc-notice'
     | '/field/business/insurance'
     | '/field/business/rates'
@@ -1291,7 +1280,6 @@ export interface FileRouteTypes {
     | '/field/business/bank'
     | '/field/business/details'
     | '/field/business/electrician'
-    | '/field/business/electricians'
     | '/field/business/esc-notice'
     | '/field/business/insurance'
     | '/field/business/rates'
@@ -1407,7 +1395,6 @@ export interface FileRouteTypes {
     | '/_authenticated/field/business_/bank'
     | '/_authenticated/field/business_/details'
     | '/_authenticated/field/business_/electrician'
-    | '/_authenticated/field/business_/electricians'
     | '/_authenticated/field/business_/esc-notice'
     | '/_authenticated/field/business_/insurance'
     | '/_authenticated/field/business_/rates'
@@ -2076,13 +2063,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFieldBusinessElectricianRouteImport
       parentRoute: typeof AuthenticatedFieldRoute
     }
-    '/_authenticated/field/business_/electricians': {
-      id: '/_authenticated/field/business_/electricians'
-      path: '/business/electricians'
-      fullPath: '/field/business/electricians'
-      preLoaderRoute: typeof AuthenticatedFieldBusinessElectriciansRouteImport
-      parentRoute: typeof AuthenticatedFieldRoute
-    }
     '/_authenticated/field/business_/esc-notice': {
       id: '/_authenticated/field/business_/esc-notice'
       path: '/business/esc-notice'
@@ -2397,7 +2377,6 @@ interface AuthenticatedFieldRouteChildren {
   AuthenticatedFieldBusinessBankRoute: typeof AuthenticatedFieldBusinessBankRoute
   AuthenticatedFieldBusinessDetailsRoute: typeof AuthenticatedFieldBusinessDetailsRoute
   AuthenticatedFieldBusinessElectricianRoute: typeof AuthenticatedFieldBusinessElectricianRoute
-  AuthenticatedFieldBusinessElectriciansRoute: typeof AuthenticatedFieldBusinessElectriciansRoute
   AuthenticatedFieldBusinessEscNoticeRoute: typeof AuthenticatedFieldBusinessEscNoticeRoute
   AuthenticatedFieldBusinessInsuranceRoute: typeof AuthenticatedFieldBusinessInsuranceRoute
   AuthenticatedFieldBusinessRatesRoute: typeof AuthenticatedFieldBusinessRatesRoute
@@ -2424,8 +2403,6 @@ const AuthenticatedFieldRouteChildren: AuthenticatedFieldRouteChildren = {
     AuthenticatedFieldBusinessDetailsRoute,
   AuthenticatedFieldBusinessElectricianRoute:
     AuthenticatedFieldBusinessElectricianRoute,
-  AuthenticatedFieldBusinessElectriciansRoute:
-    AuthenticatedFieldBusinessElectriciansRoute,
   AuthenticatedFieldBusinessEscNoticeRoute:
     AuthenticatedFieldBusinessEscNoticeRoute,
   AuthenticatedFieldBusinessInsuranceRoute:
@@ -2552,13 +2529,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}

@@ -260,7 +260,7 @@ describe("officeRejectInstallerElectrician + installerResubmitElectrician", () =
     expect(emails).toHaveLength(1);
     expect(emails[0]).toMatchObject({ recipient: "partner", to: "office@insulone.test", record: { businessId: INST }, pauseJobId: null });
     expect(emails[0]!.subject).toBe("Rita Relay wasn't approved");
-    expect(emails[0]!.message).toBe("Rita Relay wasn't approved: Licence number doesn't match the photo. Fix it in My electricians.");
+    expect(emails[0]!.message).toBe("Rita Relay wasn't approved: Licence number doesn't match the photo. Add them on the Team page.");
     expect((await biz(RITA)).installer_added_rejected_reason).toBe("Licence number doesn't match the photo");
     const rows = await events("installer_added_electrician_rejected");
     expect(rows).toHaveLength(2);

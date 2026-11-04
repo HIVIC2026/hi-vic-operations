@@ -149,7 +149,7 @@ function InstallerElectricianCard({ businessId, onDone }: { businessId: string; 
       {r.unfinished && <div className="mt-3"><Btn onClick={async () => { if (await approve({ businessId }, "Approval finished")) await onDone(); }}>Finish approval</Btn></div>}
       {waiting && <div className="mt-3 flex flex-wrap gap-2">
         <Btn disabled={r.problems.length > 0} onClick={async () => { if (await approve({ businessId }, "Electrician approved")) await onDone(); }}>Approve</Btn>
-        <Btn tone="secondary" onClick={async () => { const why = await reason.ask({ title: "Not approving this electrician?", description: "The installer sees this reason in My electricians and can fix it and resubmit.", placeholder: "What needs fixing", minLength: 3, confirmLabel: "Reject" }); if (why && await rejectFn({ businessId, reason: why }, "Not approved — the installer has been told")) await onDone(); }}>Reject</Btn>
+        <Btn tone="secondary" onClick={async () => { const why = await reason.ask({ title: "Not approving this electrician?", description: "The installer gets this reason by email and can add them again on the Team page.", placeholder: "What needs fixing", minLength: 3, confirmLabel: "Reject" }); if (why && await rejectFn({ businessId, reason: why }, "Not approved — the installer has been told")) await onDone(); }}>Reject</Btn>
         {r.problems.length > 0 && <span className="self-center text-xs text-sub">Approve unlocks when every check passes. There is no override.</span>}
       </div>}
       {reason.dialog}

@@ -113,8 +113,7 @@ function Business() {
 
       {data.boss && data.details && <section>
         <SectionHead>Business file</SectionHead>
-        {/* #134 (Part 2b, Jo 3 Nov 2026): the installer's own electrician businesses (onboarding pages kept at the 4 Nov join). */}
-        {installer && <FileRow to="/field/business/electricians" title="My electricians" sub="Add electricians for your own jobs and see where each one stands" testId="my-electricians" />}
+        {/* Jo 4 Nov 2026 19:35: the "My electricians" page is gone — electricians are added on the Team page above. */}
         <FileRow to="/field/business/details" title="Business details" sub={detailsLine(data.details)} testId="details" />
         <FileRow to="/field/business/rates" title="Your rates" sub={ratesLine(data.ratesAgreedAt, data.hasRates)} testId="rates" />
         <FileRow to="/field/business/bank" title="Bank details" sub={data.bankLine} testId="bank" />

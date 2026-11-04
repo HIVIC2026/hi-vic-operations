@@ -171,7 +171,7 @@ describe("installerAddElectrician", () => {
     expect(await reject(els.installerAddElectrician(U_BOSS, input({ email: "a@x.test", licenceNumber: "INACT1" })))).toMatch(/^Their paperwork has expired/);
   });
   test("rejected, added by this installer: says why and where to fix it", async () => {
-    expect(await reject(els.installerAddElectrician(U_BOSS, input({ email: "a@x.test", licenceNumber: "REJ1" })))).toBe("Not approved: Blurry licence photo. Fix it in My electricians.");
+    expect(await reject(els.installerAddElectrician(U_BOSS, input({ email: "a@x.test", licenceNumber: "REJ1" })))).toBe("Not approved: Blurry licence photo. Add them on the Team page.");
   });
   test("rejected, added by another installer: neutral message, no reason shown", async () => {
     expect(await reject(els.installerAddElectrician(U_BOSS, input({ email: "a@x.test", licenceNumber: "REJ2" })))).toBe("This electrician can't be added right now — contact Home Insulation Victoria");

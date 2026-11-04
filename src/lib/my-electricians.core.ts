@@ -44,7 +44,7 @@ export type StatusFacts = {
   installerAdded: boolean;
 };
 
-/** What the installer's "My electricians" list shows. Rejected wins; approved electricians whose paperwork has lapsed show "expired". */
+/** What the installer's electrician list showed (My electricians page retired 4 Nov 2026; the office card still reads it). Rejected wins; approved electricians whose paperwork has lapsed show "expired". */
 export function myElectricianStatus(f: StatusFacts): MyElectricianStatus {
   if (!blank(f.rejectedReason)) return "not_approved";
   if (f.onboardingStatus !== "approved" || f.workerApproval !== "approved") return "waiting";
@@ -98,7 +98,7 @@ export function welcomeSmsText(i: { electricianName: string; installerName: stri
 export const REJECTION_EMAIL_APPROVED: boolean = true;
 export function rejectionEmail(i: { electricianName: string; reason: string }): { subject: string; message: string } {
   const name = i.electricianName.trim() || "Your electrician";
-  return { subject: `${name} wasn't approved`, message: `${name} wasn't approved: ${i.reason.trim()}. Fix it in My electricians.` };
+  return { subject: `${name} wasn't approved`, message: `${name} wasn't approved: ${i.reason.trim()}. Add them on the Team page.` };
 }
 
 /** The Needs me line for one waiting installer-added electrician. */
@@ -106,7 +106,7 @@ export const approveElectricianLine = (electricianName: string, installerName: s
 /** The same item when the business is approved but a step (person, link, welcome text) didn't finish. */
 export const finishApprovingElectricianLine = (electricianName: string, installerName: string) => `Finish approving electrician ${electricianName.trim() || "name not given"} — added by ${installerName.trim() || "an installer"}`;
 
-// ---- "My electricians" screen rules (pure; the component in components/trade/my-electricians.tsx only renders these) ----
+// ---- Former "My electricians" screen rules (pure; the page was retired 4 Nov 2026 — Team is the only way to add an electrician; kept for the office review card and the tests) ----
 
 export const ANSWER_WORKCOVER = "Answer the WorkCover question";
 

@@ -212,7 +212,7 @@ async function gradeMatch(b: BizRow, ws: WorkerRow[]): Promise<Grade> {
 
 export type MyElectricianRow = { id: string; name: string; status: MyElectricianStatus; reason: string | null; licenceExpiry: string | null; plExpiry: string | null };
 
-/** The installer's "My electricians": every electrician linked to the caller's installer that is live (link active) or still
+/** Every electrician linked to the caller's installer that is live (link active) or still
  *  on its way (waiting for approval, or not approved and fixable). A link the office switched off on an approved electrician
  *  is neither, so it is not shown. Sorted by name. */
 export async function installerMyElectricians(userId: string): Promise<MyElectricianRow[]> {
@@ -247,7 +247,7 @@ async function decideMatch(userId: string, installerId: string, b: BizRow, g: Gr
   if (re) throw new WorkflowError("Could not check your list. Please try again.");
   const mine = !!rel || b.added_by_installer_business_id === installerId;
   if (g.state === "waiting") throw new WorkflowError(mine ? "Already on your list" : "This electrician is already waiting for approval");
-  if (g.state === "not_approved") throw new WorkflowError(b.added_by_installer_business_id === installerId ? `Not approved: ${g.reason}. Fix it in My electricians.` : "This electrician can't be added right now — contact Home Insulation Victoria");
+  if (g.state === "not_approved") throw new WorkflowError(b.added_by_installer_business_id === installerId ? `Not approved: ${g.reason}. Add them on the Team page.` : "This electrician can't be added right now — contact Home Insulation Victoria");
   if (g.state === "expired") throw new WorkflowError("Their paperwork has expired. Ask them to update it with Home Insulation Victoria.");
   if (rel?.active) throw new WorkflowError("Already on your list");
   const { error: ue } = await admin.from("partner_relationships").upsert({ installer_business_id: installerId, electrician_business_id: b.id, active: true, ...(rel ? {} : { source: "installer_added", created_by: userId }) } as never, { onConflict: "installer_business_id,electrician_business_id" });
