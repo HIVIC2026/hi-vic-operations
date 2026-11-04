@@ -20,6 +20,9 @@ import { cobrandLogos, type CobrandLogo } from "./cobrand.core";
  *  Controller 4 Nov 2026: the rate card is office-managed (My business › Your rates is read-only), so the line asks the office.
  *  DRAFT for Jo (installer-facing wording) — on JO-APPROVAL-LIST. */
 export const PIESA_PRICE_NOT_SET = "Your PIESA price isn't set yet. Ask the office to add it, then send.";
+/** Fix wave J1 (2), review 4 Nov 2026: a rate READ failure is not "no rate" — the price card holds with this line and
+ *  never says the price isn't set; nothing is sent until the read works. */
+export const PIESA_PRICE_CHECK_FAILED = "We couldn't check your PIESA price just now. Try again in a minute.";
 /** Owner-facing Home Insulation Victoria (Accredited Person) fee on an own-customer quote: $349. */
 export const OWN_CUSTOMER_AP_FEE_INC_GST: number = MITTI_INSTALLER_FEE_INC_GST;
 

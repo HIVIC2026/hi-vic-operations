@@ -201,15 +201,19 @@ export async function installerPriceView(jobId: string, userId: string, sharedRe
   const hivSwitch: { priceIncGst: number } | null = null;
   const { OWN_CUSTOMER_SEND_ON_PRESS_ENABLED } = await import("./auto-quote-send.core");
   // Jo 4 Nov 2026: the owner's PIESA line is this business's own PIESA rate; with none set the quote can't be sent.
-  const piesaRate = await (await import("./installer-paid-electricians.server")).installerSafetyCheckPrice(j.originating_installer_business_id).catch(() => null);
+  // J1 (2): a read failure is NOT "not set" — the card says the check failed and holds (button "Save"), never PIESA_PRICE_NOT_SET.
+  const piesaCheck = await readPiesaRate(j.originating_installer_business_id);
+  const { PIESA_PRICE_NOT_SET, PIESA_PRICE_CHECK_FAILED } = await import("./own-customer-price.core");
   return {
     canSet: true as const,
     current: stored,
     locked,
     /** Task 4: the button says "Send quote to owner" only while pressing it sends (`enterPriceButton`). */
     sendOnPress: OWN_CUSTOMER_SEND_ON_PRESS_ENABLED,
-    /** Jo 4 Nov 2026: false → the card says `PIESA_PRICE_NOT_SET` and the button is "Save" (the price is saved, the quote holds). */
-    piesaPriceSet: piesaRate != null,
+    /** Jo 4 Nov 2026: false → the card says `piesaPriceNote` and the button is "Save" (the price is saved, the quote holds). */
+    piesaPriceSet: piesaCheck.kind === "set",
+    /** Why the quote can't be sent yet: no rate set (ask the office) or the rate could not be checked just now (try again). */
+    piesaPriceNote: piesaCheck.kind === "set" ? null : piesaCheck.kind === "failed" ? PIESA_PRICE_CHECK_FAILED : PIESA_PRICE_NOT_SET,
     productOptions: APPROVED_PRODUCTS.map((p) => p.option),
     mittiProduct: product?.option ?? null,
     hivSwitch,
@@ -332,12 +336,13 @@ export async function setInstallerPrice(
   if (opts.send && (opts.sendOnPressEnabled ?? OWN_CUSTOMER_SEND_ON_PRESS_ENABLED)) {
     // Jo 4 Nov 2026: no PIESA rate on the business → the quote can't be sent (never a default $349). The price is saved
     // and the draft is still prepared (held) in the background; the screen gets the one plain reason.
-    const { PIESA_PRICE_NOT_SET } = await import("./own-customer-price.core");
-    const piesaRate = await (await import("./installer-paid-electricians.server")).installerSafetyCheckPrice(j.originating_installer_business_id).catch(() => null);
-    if (piesaRate == null) {
+    const { PIESA_PRICE_NOT_SET, PIESA_PRICE_CHECK_FAILED } = await import("./own-customer-price.core");
+    // J1 (2): a rate READ failure holds with its own line (try again in a minute) and never reads as "not set".
+    const piesaCheck = await readPiesaRate(j.originating_installer_business_id);
+    if (piesaCheck.kind !== "set") {
       const { runAfterResponse } = await import("./background.server");
       runAfterResponse(() => prepareQuoteFromPortal(jobId, userId));
-      return { stored, sent: false, reasons: [PIESA_PRICE_NOT_SET] };
+      return { stored, sent: false, reasons: [piesaCheck.kind === "failed" ? PIESA_PRICE_CHECK_FAILED : PIESA_PRICE_NOT_SET] };
     }
     // Task 4: "Send quote to owner" — prepared and released inline through the one guarded auto-send; a hold's plain
     // reasons go back to the screen with the saved price (the office's "no PIESA rate" hold reads as the installer line).
@@ -358,4 +363,15 @@ export async function switchToHivElectrician(jobId: string, userId: string): Pro
   const { requireMember } = await import("./pilot.server");
   await requireMember(userId, j.originating_installer_business_id, true);
   throw new WorkflowError("Use one of your own electricians.");
+}
+
+/** The business's own PIESA rate (rate card PIESA line, inc GST): set / not set / could not be read (J1 (2): a read failure is never "not set"). */
+async function readPiesaRate(businessId: string | null | undefined): Promise<{ kind: "set"; rate: number } | { kind: "not_set" } | { kind: "failed" }> {
+  try {
+    const rate = await (await import("./installer-paid-electricians.server")).installerSafetyCheckPrice(businessId);
+    return rate == null ? { kind: "not_set" } : { kind: "set", rate };
+  } catch (e) {
+    console.error("installer PIESA rate could not be read", (e as Error).message);
+    return { kind: "failed" };
+  }
 }

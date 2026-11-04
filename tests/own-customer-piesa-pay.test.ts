@@ -101,7 +101,7 @@ describe("source pins: own-customer PIESA pay = the business's rate card line (t
     for (const f of ["src/lib/own-customer-price.core.ts", "src/lib/mitti-installer-quote.core.ts", "src/lib/installer-quote.server.ts"]) expect(read(f)).not.toMatch(/OWN_CUSTOMER_PIESA_INC_GST/);
     // the installer-facing card never shows Home Insulation Victoria's own PIESA price
     expect(read("src/lib/installer-price.core.ts")).not.toMatch(/\$349 PIESA|the \$349 PIESA/);
-    expect(read("src/lib/installer-price-set.server.ts")).toContain("piesaPriceSet: piesaRate != null");
+    expect(read("src/lib/installer-price-set.server.ts")).toContain('piesaPriceSet: piesaCheck.kind === "set"'); // J1 (2): set / not set / read failed
     expect(read("src/components/trade/InstallerPriceCard.tsx")).toContain("PIESA_PRICE_NOT_SET");
   });
   test("the rule is recorded", () => {

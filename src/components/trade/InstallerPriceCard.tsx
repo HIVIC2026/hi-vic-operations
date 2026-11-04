@@ -163,7 +163,7 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
             {ENTER_PRICE_INTRO}
             {access ? " Any difficult access is yours to price in." : ""}
           </Note>
-          {view.sendOnPress && !view.piesaPriceSet && <Note data-piesa-price-not-set>{PIESA_PRICE_NOT_SET}</Note>}
+          {view.sendOnPress && !view.piesaPriceSet && <Note data-piesa-price-not-set>{view.piesaPriceNote ?? PIESA_PRICE_NOT_SET}</Note>}
           <div>
             <Label htmlFor="ip-product">Insulation product</Label>
             <select

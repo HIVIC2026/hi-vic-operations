@@ -369,7 +369,7 @@ export const ENTER_PRICE_INTRO =
   "We add the $349 Home Insulation Victoria fee and your PIESA price, take off the rebate, and Home Insulation Victoria sends the owner the quote once every check passes.";
 /** Jo 4 Nov 2026: the own-customer PIESA line is the business's own PIESA rate; with none set the quote can't be sent.
  *  Boss/Office wording (plain, no pay talk) — the card shows it and "Send quote to owner" becomes "Save" until it is set. */
-export { PIESA_PRICE_NOT_SET } from "./own-customer-price.core";
+export { PIESA_PRICE_NOT_SET, PIESA_PRICE_CHECK_FAILED } from "./own-customer-price.core";
 /** DRAFT: shown with the plain hold reasons when "Send quote to owner" could not send (the price is still saved). */
 export const PRICE_NOT_SENT_PREFIX = "Saved. Not sent yet: ";
 /** DRAFT: server refusal for anyone who is not the Boss or Office of the job's business (Lead Installer, crew, electricians, strangers). */

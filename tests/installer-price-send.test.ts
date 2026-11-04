@@ -25,10 +25,11 @@ mock.module("../src/lib/installer-quote.server", () => ({ draftInstallerQuoteFro
 mock.module("../src/lib/auto-quote-send.server", () => ({ maybeAutoSendInstallerQuote: async (jobId: string, opts: unknown) => { calls.push({ fn: "maybeAutoSendInstallerQuote", args: { jobId, opts } }); return autoSendResult; } }));
 // Jo 4 Nov 2026: the business's own PIESA rate (rate card PIESA line) — null = not set → the quote can't be sent.
 let piesaRate: number | null = 275;
-mock.module("../src/lib/installer-paid-electricians.server", () => ({ installerSafetyCheckPrice: async (id: string | null) => { calls.push({ fn: "installerSafetyCheckPrice", args: id }); return id === BIZ ? piesaRate : null; } }));
+let piesaReadFails = false; // J1 (2): the rate READ fails (not "no rate")
+mock.module("../src/lib/installer-paid-electricians.server", () => ({ installerSafetyCheckPrice: async (id: string | null) => { calls.push({ fn: "installerSafetyCheckPrice", args: id }); if (piesaReadFails) throw new Error("Could not read the in-house PIESA rate cards."); return id === BIZ ? piesaRate : null; } }));
 
 const { setInstallerPrice, installerPriceView } = await import("../src/lib/installer-price-set.server");
-const { PRICE_LOCKED, PRICE_ENTRY_REFUSED, PIESA_PRICE_NOT_SET } = await import("../src/lib/installer-price.core");
+const { PRICE_LOCKED, PRICE_ENTRY_REFUSED, PIESA_PRICE_NOT_SET, PIESA_PRICE_CHECK_FAILED } = await import("../src/lib/installer-price.core");
 const { IN_HOUSE_PIESA_HOLD_REASON } = await import("../src/lib/installer-paid-electricians.core");
 
 const JOB = "job-1", BIZ = "biz-1", BOSS = "u-boss", OFFICE = "u-office", LEAD = "u-lead";
@@ -37,7 +38,7 @@ const priceEvents = () => (T["workflow_events"] ?? []).filter((e) => e["event_ty
 
 function seed(o: { channel?: string; readyCheckComplete?: boolean; quoteSentAt?: string | null } = {}) {
   for (const k of Object.keys(T)) delete T[k];
-  calls.length = 0; background.length = 0; autoSendResult = { sent: true, reasons: [] }; piesaRate = 275;
+  calls.length = 0; background.length = 0; autoSendResult = { sent: true, reasons: [] }; piesaRate = 275; piesaReadFails = false;
   T["jobs"] = [{ id: JOB, channel: o.channel ?? "installer_sourced", originating_installer_business_id: BIZ, stage: "ready_check_complete", deleted_at: null, property_id: "p1" }];
   T["properties"] = [{ id: "p1", address_line: "12 Example St", suburb: "Box Hill", state: "VIC", postcode: "3128" }];
   T["profiles"] = [{ id: BOSS, business_id: BIZ }, { id: OFFICE, business_id: BIZ }, { id: LEAD, business_id: BIZ }];
@@ -146,6 +147,22 @@ describe("Send quote to owner — only through the guarded auto-send, only with 
     expect(v).toMatchObject({ canSet: true, piesaPriceSet: false });
     piesaRate = 275;
     expect(await installerPriceView(JOB, BOSS)).toMatchObject({ piesaPriceSet: true });
+  });
+  test("J1 (2): the rate READ fails → saved, not sent, 'We couldn't check your PIESA price just now. Try again in a minute.' — never 'not set'; the card says the same", async () => {
+    piesaReadFails = true;
+    const r = await setInstallerPrice(JOB, BOSS, input, { send: true, sendOnPressEnabled: true });
+    expect(r.sent).toBe(false);
+    expect(r.reasons).toEqual([PIESA_PRICE_CHECK_FAILED]);
+    expect(PIESA_PRICE_CHECK_FAILED).toBe("We couldn't check your PIESA price just now. Try again in a minute.");
+    expect(r.reasons).not.toContain(PIESA_PRICE_NOT_SET);
+    expect(calls.map((c) => c.fn)).toEqual(["installerSafetyCheckPrice"]); // sender never asked
+    expect(priceEvents()).toHaveLength(1); // the price is still saved
+    const v = await installerPriceView(JOB, BOSS);
+    expect(v).toMatchObject({ canSet: true, piesaPriceSet: false, piesaPriceNote: PIESA_PRICE_CHECK_FAILED });
+    piesaReadFails = false;
+    expect(await installerPriceView(JOB, BOSS)).toMatchObject({ piesaPriceSet: true, piesaPriceNote: null });
+    piesaRate = null;
+    expect(await installerPriceView(JOB, BOSS)).toMatchObject({ piesaPriceSet: false, piesaPriceNote: PIESA_PRICE_NOT_SET });
   });
   test("the office's 'no PIESA rate' hold coming back from the guarded send reads as the installer line", async () => {
     autoSendResult = { sent: false, reasons: [IN_HOUSE_PIESA_HOLD_REASON] };
