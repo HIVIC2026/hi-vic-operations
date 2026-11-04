@@ -331,7 +331,7 @@ describe("the CURRENT live forms (22–24 Oct fixtures) and in-progress audits s
     // "Please explain" is accepted as the hazard NOTE; the hazard photo is genuinely absent from the 24 Oct form.
     expect(validateTemplate("ready_check_priced", live).issues).toEqual([`Missing: ${LEAN_Q.premisesType}`]);
     // Form health tells the office exactly which lean question a live form lacks (the audit's problem 3).
-    expect(validateTemplate("ready_check_priced", live.filter((i) => i.label !== "What insulation product will you be using on this job?")).issues).toEqual([`Missing: ${LEAN_Q.premisesType}`, `Missing: ${LEAN_Q.issuePhoto}`, `Missing: ${LEAN_Q.product}`]);
+    expect(validateTemplate("ready_check_priced", live.filter((i) => i.label !== "What insulation product will you be using on this job?")).issues).toEqual([`Missing: ${LEAN_Q.premisesType}`, `Missing: ${LEAN_Q.product}`]);
   });
   test("prefill still lands on both 22 Oct templates and both older versions", () => {
     const ctx = { jobNumber: "HV-TEST-1", address: "1 Test St", ownerName: "Test Owner", ownerEmail: "jolowexo@hotmail.com", ownerPhone: "0400000000", assessorName: "Test Installer", lifeSupport: "None recorded by office", propertyType: "House", builtLast5Years: "No", occupancy: "owner occupied" };

@@ -1,8 +1,8 @@
 ## Jo 4 Nov 02:03 UTC approved A1 and current Mitti reads
-- [ ] Test-first A1 optional media, corrected required ready-to-price tick and job missing-BEFORE area line; preserve A2 and old submissions.
-- [ ] Read-only current A1–A5 GET snapshots to mitti_template_dumps, published/draft readback and full question inventory.
-- [ ] Needs me browser recheck and practice two-option quote: requires available TEST office session and proven no-delivery safeguards.
-- [ ] Compare exact eight extra-suite failures against pre-rebuild code; leave Part 3 alone, no sends/publishing.
+- [x] Test-first A1 optional media, corrected required ready-to-price tick and job missing-BEFORE area line; preserve A2 and old submissions. Focused new tests 19/19; related historical doc expectations remain disclosed.
+- [x] Read-only current A1–A5 GET snapshots saved and read back as private dump rows 57–66; full question inventory provided. Individual required flags and conditional rules are not exposed by these responses.
+- [ ] Needs me and practice two-option quote browser check BLOCKED: existing TEST-office password attempt returned to sign-in at 390 and 1280. No resets, fixture creation or quote changes.
+- [x] Eight extra-suite failures compared against pre-rebuild 06428158: two already failed; six did not. Part 3 unchanged; no sends/publishing.
 
 ## Jo 4 Nov install-day BEFORE, floor plans and TEST quote browser check
 - [x] Capability investigation: configured alternate templates supported; hidden immutable answers/repeat prefills unproven. Staged automatic BEFORE rule/reader, ordinary area-order prefill and scope-change Needs me without repricing.
