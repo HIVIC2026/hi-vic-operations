@@ -1271,7 +1271,7 @@ export async function tradeAddTeamPerson(userId: string, p: { name: string; role
   if (c.kind === "installer") {
     const role: import("./team-screen.core").AddPersonRole = p.role ?? p.workerRole ?? "lead";
     const { addPersonProblems } = await import("./team-screen.core");
-    const problems = addPersonProblems({ name, role, mobile: v.mobile, dateOfBirth: p.dateOfBirth ?? null, licenceNumber: licence, recNumber: p.recNumber ?? null }, melbourneToday());
+    const problems = addPersonProblems({ name, role, mobile: v.mobile, dateOfBirth: p.dateOfBirth ?? null, licenceNumber: licence, recNumber: p.recNumber ?? null, email }, melbourneToday());
     if (problems.length) throw new WorkflowError(problems[0]!);
     const rpc = admin as unknown as import("@supabase/supabase-js").SupabaseClient;
     const rec = p.recNumber?.trim() || null;

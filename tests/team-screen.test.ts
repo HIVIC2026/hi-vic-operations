@@ -177,7 +177,9 @@ describe("server: Money switch and Add a person go through the Task 1 RPCs (mock
     const { tradeAddTeamPerson } = await import("../src/lib/trade-view.server");
     calls.length = 0; rpcError = null; memberRole = "business_admin";
     expect(await tradeAddTeamPerson("u1", { name: "Mia Chen", role: "office", mobile: "0412 000 111", email: null, dateOfBirth: "1990-05-12", licenceNumber: null, recNumber: null })).toEqual({ workerId: "w1" });
-    expect(await tradeAddTeamPerson("u1", { name: "Will Casdorff", role: "electrician", mobile: "0412 000 112", email: null, dateOfBirth: "1990-05-12", licenceNumber: "A12345", recNumber: "REC 1234" })).toEqual({ workerId: "w1" });
+    // Go-live 5 Nov 2026: an electrician needs their Mitti email at Add (the safety check form is handed to them in Mitti).
+    await expect(tradeAddTeamPerson("u1", { name: "Will Casdorff", role: "electrician", mobile: "0412 000 112", email: null, dateOfBirth: "1990-05-12", licenceNumber: "A12345", recNumber: "REC 1234" })).rejects.toThrow("Add their email — the safety check form goes to them in Mitti.");
+    expect(await tradeAddTeamPerson("u1", { name: "Will Casdorff", role: "electrician", mobile: "0412 000 112", email: "will@sparks.example", dateOfBirth: "1990-05-12", licenceNumber: "A12345", recNumber: "REC 1234" })).toEqual({ workerId: "w1" });
     expect(calls.map((c) => [c.fn, c.args._role, c.args._mobile, c.args._dob, c.args._licence, c.args._rec])).toEqual([
       ["add_team_person_with_identity", "office", "+61412000111", "1990-05-12", null, null],
       ["add_team_person_with_identity", "electrician", "+61412000112", "1990-05-12", "A12345", "REC 1234"],
@@ -192,6 +194,6 @@ describe("server: Money switch and Add a person go through the Task 1 RPCs (mock
     // 5 Nov 2026 (Tom, go-live morning): PostgREST's missing-function message lists the arguments (`_mobile` included) — it must
     // never read as "Add their mobile number." when the mobile was typed.
     rpcError = { code: "PGRST202", message: "Could not find the function public.add_team_person_with_identity(_actor, _business, _dob, _email, _licence, _mobile, _name, _rec, _role) in the schema cache" };
-    await expect(tradeAddTeamPerson("u1", { name: "Will Casdorff", role: "electrician", mobile: "0473 541 226", email: null, dateOfBirth: "1978-11-05", licenceNumber: "4556789", recNumber: "256678" })).rejects.toThrow("Adding people needs the office's database update first (go-live step 2). Try again once it's done.");
+    await expect(tradeAddTeamPerson("u1", { name: "Will Casdorff", role: "electrician", mobile: "0473 541 226", email: "will@sparks.example", dateOfBirth: "1978-11-05", licenceNumber: "4556789", recNumber: "256678" })).rejects.toThrow("Adding people needs the office's database update first (go-live step 2). Try again once it's done.");
   });
 });

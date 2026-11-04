@@ -60,7 +60,7 @@ describe("crew clearance (decision 153, Jo 24 Oct 2026)", () => {
 describe("installer sign-up (no PIISA training)", () => {
   const inst = (x: object) => ({ trade_role: "installer", ...x });
   // Decision 319: existing installers also show the White Card as missing (an Add it prompt, never a block here).
-  test("existing installers show missing with Add it", () => expect(missingItems(inst({}))).toEqual(["white_card"]));
+  test("existing installers: no White Card item (retired, Jo 5 Nov 2026)", () => expect(missingItems(inst({}))).toEqual([]));
   test("form never asks about PIISA training, whatever an old draft says", () => {
     const one = (x: object) => ({ installers: [{ full_legal_name: "Al", mobile: "0412345678", email: "al@ins.com.au", cii_holds: "not_held", ...x }] }) as never;
     const errs = (x: object) => instErrors("installers" as never, one(x)).join(" | ");

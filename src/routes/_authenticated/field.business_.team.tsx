@@ -198,7 +198,7 @@ function AddPerson({ count, kind, onAdded }: { count: number; kind: "installer" 
   const label = "mt-3 block text-sm font-bold text-ink";
   const today = melbourneToday();
   const problems = kind === "installer"
-    ? addPersonProblems({ name: f.name, role: f.role, mobile: f.mobile, dateOfBirth: f.dateOfBirth || null, licenceNumber: f.licence, recNumber: f.rec }, today)
+    ? addPersonProblems({ name: f.name, role: f.role, mobile: f.mobile, dateOfBirth: f.dateOfBirth || null, licenceNumber: f.licence, recNumber: f.rec, email: f.email }, today)
     : [...(f.name.trim().length < 2 ? ["name"] : []), ...(!f.licence.trim() ? ["licence"] : [])];
   const electricianFields = kind === "electrician" || f.role === "electrician";
   return (
@@ -241,7 +241,7 @@ function AddPerson({ count, kind, onAdded }: { count: number; kind: "installer" 
               <input type="date" required max={today} className={`${inputCls} mt-1.5`} value={f.dateOfBirth} onChange={(e) => setF({ ...f, dateOfBirth: e.target.value })} />
             </label>
           )}
-          <label className={label}>{TEAM_ADD_SHEET.email}
+          <label className={label}>{f.role === "electrician" ? TEAM_ADD_SHEET.emailElectrician : TEAM_ADD_SHEET.email}
             <input className={`${inputCls} mt-1.5`} value={f.email} inputMode="email" autoComplete="email" onChange={(e) => setF({ ...f, email: e.target.value })} />
           </label>
           {err && <p role="alert" className="mt-2 text-sm font-semibold text-rose">{err}</p>}

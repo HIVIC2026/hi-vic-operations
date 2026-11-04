@@ -1,6 +1,21 @@
 // Decision 319 (Jo 25 Oct 2026): White Card per installer person — upload + office verifies once; not verified = can't be
 // lead or crew on an installation booked on/after 00:00 26 Oct 2026 Melbourne; earlier bookings are never blocked.
 import { describe, expect, test } from "bun:test";
+import { WHITE_CARD_REQUIRED, whiteCardBlocker, whiteCardEnforced, whiteCardState } from "../src/lib/worker-compliance.core";
+
+// Jo 5 Nov 2026 (go-live): "we don't care about White Card — get rid of it". The rule is retired behind WHITE_CARD_REQUIRED
+// = false: nothing shows, asks for or blocks on it. The rule tests below are kept for history and run only if it ever comes back.
+describe("White Card retired (Jo 5 Nov 2026)", () => {
+  test("nothing is required, shown or blocked", () => {
+    expect(WHITE_CARD_REQUIRED).toBe(false);
+    expect(whiteCardState({ trade_role: "installer", certification: null })).toBe("not_applicable");
+    expect(whiteCardState({ trade_role: "installer", certification: { white_card: { path: "x", rejected_at: "2026-11-01T00:00:00Z" } } })).toBe("not_applicable");
+    expect(whiteCardEnforced(null)).toBe(false);
+    expect(whiteCardBlocker("missing", null)).toBeNull();
+    expect(whiteCardBlocker("rejected", "2026-11-04T00:00:00Z")).toBeNull();
+  });
+});
+const rule = WHITE_CARD_REQUIRED ? describe : describe.skip;
 import {
   WHITE_CARD_BLOCK_MESSAGE, WHITE_CARD_ENFORCED_FROM, approvalFlags, missingItems, whiteCardBlocker, whiteCardEnforced, whiteCardOf, whiteCardState,
   withWhiteCardDecision, withWhiteCardUpload,
@@ -18,7 +33,7 @@ const uploaded = withWhiteCardUpload({ declared: { holds: "held" }, verification
 const verified = withWhiteCardDecision(uploaded, { verified: true, by: "office", at: "2026-10-25T02:00:00Z" });
 const rejected = withWhiteCardDecision(uploaded, { verified: false, by: "office", at: "2026-10-25T02:00:00Z", reason: "blurry" });
 
-describe("White Card state and records", () => {
+rule("White Card state and records", () => {
   test("installers only; a file is not verification; verify/reject; re-upload resets the check", () => {
     expect(whiteCardState({ trade_role: "electrician", certification: verified })).toBe("not_applicable");
     expect(whiteCardState({ trade_role: "installer", certification: null })).toBe("missing");
@@ -48,7 +63,7 @@ describe("White Card state and records", () => {
   });
 });
 
-describe("cutoff: only installations booked on/after 00:00 26 Oct 2026 Melbourne", () => {
+rule("cutoff: only installations booked on/after 00:00 26 Oct 2026 Melbourne", () => {
   test("the cutoff instant is midnight AEDT", () => {
     expect(new Date(WHITE_CARD_ENFORCED_FROM).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", hour12: false })).toMatch(/^26\/10\/2026, (00|24):00:00$/);
   });
@@ -70,7 +85,7 @@ describe("cutoff: only installations booked on/after 00:00 26 Oct 2026 Melbourne
   });
 });
 
-describe("pre-start check (lead)", () => {
+rule("pre-start check (lead)", () => {
   const START = "2026-10-29T21:00:00Z";
   const ok: PrestartFacts = {
     start: START, clearance: { cleared: true, blocker: null }, deadline: "2026-11-20",
@@ -87,7 +102,7 @@ describe("pre-start check (lead)", () => {
   });
 });
 
-describe("crew selection", () => {
+rule("crew selection", () => {
   const C = "f334286a-9492-4c21-8508-aad48dfe4a77", C2 = "a334286a-9492-4c21-8508-aad48dfe4a77";
   const W = (id: string, name: string, ref: string, certification: Record<string, unknown>) => ({ id, full_legal_name: name, approval_status: "approved", removed_at: null, trade_role: "installer", licence_expires_on: null, certification: { ...certification, verification_id: ref } });
   const certs = [{ id: C, status: "verified", certificate_number: "CII-1", issuer: null, worker_id: null }, { id: C2, status: "verified", certificate_number: "CII-2", issuer: null, worker_id: null }];
@@ -111,7 +126,7 @@ describe("crew selection", () => {
   });
 });
 
-describe("install-day allocation", () => {
+rule("install-day allocation", () => {
   const cand = (whiteCard: AllocationCandidate["whiteCard"]): AllocationCandidate => ({ workerId: "w", name: "Ann", tradeRole: "installer", email: null, mobile: "0400", clearance: { certStatus: "verified", level: "full", expiresOn: "2028-01-01" }, whiteCard });
   test("install day needs a verified White Card for bookings after the change; Ready Checks never do", () => {
     expect(allocationBlocker("install", cand("missing"), "2026-10-25", { bookingCreatedAt: AFTER })).toBe(WHITE_CARD_BLOCK_MESSAGE);

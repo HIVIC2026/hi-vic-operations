@@ -115,7 +115,11 @@ export const LEAN_ALIASES: Partial<Record<keyof typeof LEAN_Q, readonly string[]
   measuredHowOther: ["Explain the method"],
   existing: ["Is there existing insulation?"],
   existingType: ["Insulation type (tick all that apply)"],
-  depthPhoto: ["Photo with tape measure showing depth"],
+  depthPhoto: [
+    "Photo with tape measure showing depth",
+    // Jo 5 Nov 2026 Mitti tidy-up wording (A1 + A2).
+    "Photo of the existing insulation depth — ruler standing upright in it, markings readable",
+  ],
   existingAction: ["What needs to happen to it?"],
   removeM2: ["Area to remove (m2)"],
   beforeVideo: ["Slow 360° video of this ceiling area, lit, saying its name", "Upload an overview photo of this ceiling area", "Photo of the empty ceiling space"],
