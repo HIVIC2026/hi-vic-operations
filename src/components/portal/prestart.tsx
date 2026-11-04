@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { useAction } from "@/hooks/use-me";
-import { getPrestartSummary, rerunPrestart } from "@/lib/allocation.functions";
+import { getEscWithdrawals, getPrestartSummary, rerunPrestart } from "@/lib/allocation.functions";
 import { recordInHouseEscNoticeUpdated } from '@/lib/trade-view.functions';
 import { recordEscRegistryUpdateFn, recordEscSubmissionFn, regenerateEscNotificationFn, withdrawEscNotificationFn } from "@/lib/portal.functions";
 import { VEU_REGISTRY_URL } from "@/lib/esc.core";
@@ -15,6 +15,33 @@ const when = (iso: string) => new Date(iso).toLocaleString("en-AU", { timeZone: 
 
 /** Office only: VEU Registry install notification (prepare → copy → record / withdraw), the AP task and the day-before pre-start result.
  *  Jo 24 Oct 2026 (decisions 118/121): the notification is submitted BY HAND in the Registry; the portal prepares, reminds and records. */
+/** Part 9 Task 2 (office only): a SENT notice on a job that won't go ahead — withdraw it in the Registry, record it here.
+ *  Renders nothing while there is nothing to withdraw. Wording DRAFT (JO-APPROVAL-LIST). */
+export function OfficeEscWithdrawCard({ jobId }: { jobId: string }) {
+  const load = useServerFn(getEscWithdrawals);
+  const withdraw = useAction(withdrawEscNotificationFn);
+  const q = useQuery({ queryKey: ["esc-withdrawals", jobId], queryFn: () => load({ data: { jobId } }) });
+  const [reason, setReason] = useState("");
+  const rows = q.data ?? [];
+  if (!rows.length) return null;
+  return (
+    <Section title="ESC notice to withdraw (office only)">
+      <div className="space-y-2 text-sm">
+        {rows.map((r) => (
+          <div key={r.id} className="rounded border border-danger/40 bg-danger-soft p-2">
+            <p className="font-medium text-danger">Install won't go ahead but the ESC notice is still live. Withdraw it in the Registry, then record the withdrawal here.</p>
+            <p className="text-xs">{r.sentLine ?? `Registry ref ${r.reference}`} · {r.reason.replace(/_/g, " ")}</p>
+            <div className="mt-1 flex flex-wrap items-center gap-2">
+              <Input className="max-w-sm" placeholder="Why it was withdrawn (e.g. owner cancelled the install)" value={reason} onChange={(e) => setReason(e.target.value)} />
+              <Button size="sm" variant="destructive" disabled={reason.trim().length < 3} onClick={async () => { await withdraw({ notificationId: r.id, reason, withdrawnAt: new Date().toISOString() }, "Withdrawal recorded (kept as history)"); setReason(""); await q.refetch(); }}>Record withdrawal (kept as history)</Button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </Section>
+  );
+}
+
 export function OfficePrestartCard({ jobId }: { jobId: string }) {
   const load = useServerFn(getPrestartSummary);
   const rerun = useAction(rerunPrestart);

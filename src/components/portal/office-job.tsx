@@ -45,7 +45,7 @@ import { InstallerQuoteDraftPanel } from "@/components/portal/installer-quote";
 import { EvidencePanel, QuotesPanel } from "@/components/portal/panels";
 import { AdminAssignmentPanel } from "@/components/portal/assignment";
 import { OfficeFixesQuoteReview } from "@/components/portal/allocation";
-import { OfficePrestartCard } from "@/components/portal/prestart";
+import { OfficeEscWithdrawCard, OfficePrestartCard } from "@/components/portal/prestart";
 import { PiisaPanel } from "@/components/portal/piisa-panel";
 import { AdminBookingOverride } from "@/components/portal/partner";
 import { manualVisitKind } from "@/lib/pilot.core";
@@ -202,6 +202,7 @@ export function StageWorkspace({ jobId, k, page, onGo }: { jobId: string; k: Car
       </>;
       case "install": return <>
         <OfficePrestartCard jobId={jobId} />
+        <OfficeEscWithdrawCard jobId={jobId} />
         <AdminAssignmentPanel jobId={jobId} sections={[2]} />
         <PiisaPanel jobId={jobId} />
         <EvidencePanel jobId={jobId} role="admin" gates={["installation"]} />

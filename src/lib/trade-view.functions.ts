@@ -186,7 +186,7 @@ export const tradeOwnerCancelled = createServerFn({method:'POST'}).middleware([r
     const result=await (await import('./office-actions.server')).cancelJobFully(data.jobId,`Owner cancelled: ${data.reason}`,context.userId,{tell:{owner:false,installer:false},suppressRunNotice:true});
     await (await import('./in-house-booking-notices.server')).notifyOfficeOwnerCancelled(data.jobId,data.reason,context.userId);
     // Task 6: Part 9's ESC withdrawal ask after the cancel; the owner already knows, so no visit email (answer 4).
-    try{const tv=await import('./trade-view.server');const requireEscWithdrawal=await tv.escWithdrawalFn();if(requireEscWithdrawal)await requireEscWithdrawal(data.jobId,"owner_cancelled",context.userId);}
+    try{await (await import('./esc.server')).requireEscWithdrawal(data.jobId,"owner_cancelled",context.userId);}
     catch(e){await (await import('./trade-view.server')).logTradeFollowUpFailed(data.jobId,context.userId,'ESC withdrawal',e);}
     return result;
   });

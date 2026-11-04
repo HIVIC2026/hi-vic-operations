@@ -376,7 +376,7 @@ export type NeedsCode =
   | "owner_no_show_repeat" | "trade_no_show" | "owner_cancelled_visit" | "rectification_new_times" | "installer_usual_electrician_missing"
   | "mitti_fix_form" | "mitti_review_pickup" | "ready_check_held" | "quote_held_review" | "quote_not_delivered" | "mitti_setup_installer" | "ready_check_chase_installer" | "quote_auto_send_held"
   | "xero_invoice_product_unconfirmed" | "veec_assignment_unsigned" | "electrician_install_attendance" | "install_deposit_unpaid_at_start"
-  | "payment_match_unclear" | "stop_installer_release_failed";
+  | "payment_match_unclear" | "stop_installer_release_failed" | "esc_withdraw_required";
 export type NeedsUrgency = "urgent" | "today" | "soon";
 export type NeedsItem = { key: string; code: NeedsCode; jobId: string | null; jobNumber: string | null; why: string; next: string; tab: string; since: string | null; urgency: NeedsUrgency; stage: string | null; suburb: string | null };
 
@@ -410,6 +410,8 @@ export const NEEDS_TEXT: Record<NeedsCode, { why: string; next: string; tab: str
   installation_booking_overdue: { why: "48 hours since installation contact details were shared and no installation time has been confirmed.", next: "Call the owner and installer and confirm a time on the Overview tab.", tab: "overview", urgency: "today" },
   piesa_timing_invalid: { why: "Installation may not commence within 30 days of the PIESA timing date.", next: "Check the PIESA tab; bring installation forward or arrange a new PIESA.", tab: "piesa", urgency: "urgent" },
   esc_or_distribution_timing: { why: "Installation is close but the PIESA copy or ESC pre-install notice is not done in time.", next: "Send the PIESA copy / ESC notice from the Compliance tab, or move the installation date.", tab: "compliance", urgency: "urgent" },
+  // Part 9 Task 2 (DRAFT, office-only): a SENT notice on a job that won't go ahead; the office withdraws by hand.
+  esc_withdraw_required: { why: "Install won't go ahead but the ESC notice is still live.", next: "Withdraw it in the Registry, then record the withdrawal on the job.", tab: "compliance", urgency: "urgent" },
   compliance_correction: { why: "A compliance record needs correcting before the job can continue.", next: "Open the Evidence tab and fix or request the missing/incorrect item.", tab: "evidence", urgency: "soon" },
   rectification_quote_unanswered: { why: "Electrical fixes quote unanswered — 30-day clock at risk. The owner has not responded 5 days after it was sent.", next: "Call the owner about the electrical fixes quote on the Quotes tab.", tab: "quotes", urgency: "today" },
   registry_query: { why: "The ESC/VEEC Registry raised a query or rejected the lodgement.", next: "Answer the query or correct and resubmit on the VEEC tab.", tab: "veec", urgency: "soon" },
@@ -474,6 +476,8 @@ export type NeedsInput = {
   installerUnavailable: { job_id: string; at: string; reason: string | null }[];
   piesaTiming: { job_id: string; urgency: string | null; piesa_expired: boolean | null; days_remaining: number | null }[];
   escTiming: { job_id: string; created_at: string | null }[];
+  /** Part 9 Task 2: open "withdraw the ESC notice" asks (esc.core openEscWithdrawals). */
+  escWithdrawRequired?: { job_id: string; created_at: string; reference: string }[];
   evidenceRejected: { job_id: string; created_at: string | null }[];
   registryQueries: { job_id: string; status: string; updated_at: string | null; query_received_at?: string | null; reply_sent_at?: string | null }[];
   officeOverdue: { job_id: string | null; title: string; since: string | null }[];
@@ -522,6 +526,7 @@ export function buildNeedsHivic(i: NeedsInput): NeedsItem[] {
   for (const c of i.prestart?.certs ?? []) add("cert_rerecord_needed", c.job_id, null, c.detail);
   for (const c of i.prestart?.whiteCards ?? []) add("white_card_not_verified", c.job_id, null, c.detail);
   for (const e of i.escTiming) if (!escTask.has(e.job_id)) add("esc_or_distribution_timing", e.job_id, e.created_at);
+  for (const e of i.escWithdrawRequired ?? []) add("esc_withdraw_required", e.job_id, e.created_at, `Registry ref ${e.reference}.`);
   for (const e of i.evidenceRejected) add("compliance_correction", e.job_id, e.created_at);
   for (const r of i.registryQueries) {
     const overdue = r.status === "query" && veecQueryOverdue(r.query_received_at, r.reply_sent_at, new Date());

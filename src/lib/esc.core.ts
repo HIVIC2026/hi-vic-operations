@@ -232,6 +232,32 @@ export function withdrawalPatch(p: { notice: { status: string; sent_at: string |
   return { response: { ...prev, withdrawal: { withdrawn_at: p.withdrawnAt, reason: p.reason.trim(), withdrawn_by: p.actorId, registry_reference: p.notice.submission_reference } }, status: "stale" };
 }
 
+// ---- Withdraw on "Owner cancelled" / "Can't do this one" (Part 9 Task 2) ----
+/** ONE internal event per live notice when the install won't go ahead; the office withdraws by hand (the robot has no
+ *  verified withdraw selector) and records it with `withdrawEscNotification`, which clears the item. */
+export const ESC_WITHDRAW_REQUIRED_EVENT = "esc_withdraw_required";
+export const ESC_WITHDRAWN_EVENT = "esc_notification_withdrawn";
+export type EscWithdrawReason = "owner_cancelled" | "cant_do_this_one" | "address_changed";
+/** Notices still live in the Registry: recorded as sent with a reference and not withdrawn — whatever their status
+ *  (a notice staled by a booking change was still submitted; an unsent one was never in the Registry). */
+export function escWithdrawalNeeded(notices: { id: string; status: string; sent_at: string | null; submission_reference: string | null; response?: unknown }[]): { id: string; reference: string }[] {
+  return notices.filter((n) => !!n.sent_at && !!n.submission_reference && !isWithdrawn(n)).map((n) => ({ id: n.id, reference: String(n.submission_reference) }));
+}
+export type OpenEscWithdrawal = { jobId: string; notificationId: string; reference: string; reason: string; at: string };
+/** Open items from the recorded asks minus the recorded withdrawals, one per notice (earliest ask = since). */
+export function openEscWithdrawals(required: { job_id: string; created_at: string; details: unknown }[], withdrawn: { details: unknown }[]): OpenEscWithdrawal[] {
+  const idOf = (d: unknown) => { const n = (d as { notification_id?: unknown } | null)?.notification_id; return typeof n === "string" && n ? n : null; };
+  const done = new Set(withdrawn.map((w) => idOf(w.details)).filter((x): x is string => !!x));
+  const out = new Map<string, OpenEscWithdrawal>();
+  for (const r of [...required].sort((a, b) => a.created_at.localeCompare(b.created_at))) {
+    const id = idOf(r.details);
+    if (!id || done.has(id) || out.has(id)) continue;
+    const d = r.details as { reference?: unknown; reason?: unknown };
+    out.set(id, { jobId: r.job_id, notificationId: id, reference: String(d.reference ?? ""), reason: String(d.reason ?? ""), at: r.created_at });
+  }
+  return [...out.values()];
+}
+
 export type PayloadInput = {
   jobNumber: string; installationDays: string[]; scheduledStart: string; scheduledEnd: string | null; premisesAddress: string;
   owner: { name: string | null; email: string | null; phone: string | null }; extra: Record<string, unknown>;

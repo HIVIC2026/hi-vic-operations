@@ -2,7 +2,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { Json } from "@/integrations/supabase/types";
 import { logEvent, piesaStatus, WorkflowError } from "./workflow.server";
-import { buildEscPayload, escDueBy, escEarliest, readyToInstall, registryChange, registryConditions, registryFacts, registryUpdatePatch, staleReasons, submissionBlockers, submissionPatch, withdrawalPatch, type EscConfig, type EscField, type EscFacts } from "./esc.core";
+import { buildEscPayload, escDueBy, escEarliest, escWithdrawalNeeded, ESC_WITHDRAW_REQUIRED_EVENT, ESC_WITHDRAWN_EVENT, openEscWithdrawals, readyToInstall, registryChange, registryConditions, registryFacts, registryUpdatePatch, staleReasons, submissionBlockers, submissionPatch, withdrawalPatch, type EscConfig, type EscField, type EscFacts, type EscWithdrawReason, type OpenEscWithdrawal, melbDateTime } from "./esc.core";
 import { consentValidityBlockers } from "./consent.core";
 import { formatPropertyAddress } from "./address";
 
@@ -216,10 +216,53 @@ export async function withdrawEscNotification(p: { notificationId: string; reaso
   try { patch = withdrawalPatch({ notice: n, reason: p.reason, withdrawnAt: p.withdrawnAt, actorId: p.actorId }, new Date().toISOString()); } catch (e) { throw new WorkflowError((e as Error).message); }
   const { error } = await admin.from("esc_notifications").update({ response: patch.response as unknown as Json, status: patch.status, last_error: `Withdrawn in the Registry: ${patch.response.withdrawal.reason}`, updated_at: new Date().toISOString() }).eq("id", n.id);
   if (error) throw new WorkflowError(error.message);
-  await logEvent(n.job_id, p.actorId, "esc_notification_withdrawn", `ESC notification (ref ${n.submission_reference}) withdrawn in the VEU Registry at ${p.withdrawnAt}: ${patch.response.withdrawal.reason}. A new notification must be submitted and recorded.`, { notification_id: n.id, ...patch.response.withdrawal }, { internal: true });
+  await logEvent(n.job_id, p.actorId, ESC_WITHDRAWN_EVENT, `ESC notification (ref ${n.submission_reference}) withdrawn in the VEU Registry at ${p.withdrawnAt}: ${patch.response.withdrawal.reason}. A new notification must be submitted and recorded.`, { notification_id: n.id, ...patch.response.withdrawal }, { internal: true });
   const next = await regenerateEscNotification(n.job_id, p.actorId);
   await import("./prestart.server").then((m) => m.runPrestart(n.job_id, "esc_withdrawn")).catch((e) => console.error("pre-start re-run skipped", (e as Error).message));
   return { ok: true, nextNotificationId: next };
+}
+
+/** Part 9 Task 2: the install won't go ahead ("Owner cancelled", "Can't do this one", address changed) but a notice was
+ *  SENT — ONE internal `esc_withdraw_required` per live notice (idempotent by notice id, Needs me until the office records
+ *  the withdrawal). Returns how many notices still need withdrawing. Never withdraws, never sends. */
+export async function requireEscWithdrawal(jobId: string, reason: EscWithdrawReason, actorId: string | null): Promise<number> {
+  const { data, error } = await admin.from("esc_notifications").select("id, status, sent_at, submission_reference, response").eq("job_id", jobId);
+  if (error) throw new WorkflowError(`Could not read the ESC notifications: ${error.message}`);
+  const live = escWithdrawalNeeded(data ?? []);
+  for (const n of live) {
+    const { data: already, error: ae } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", ESC_WITHDRAW_REQUIRED_EVENT).contains("details", { notification_id: n.id }).limit(1).maybeSingle();
+    if (ae) throw new WorkflowError(`Could not read the ESC withdrawal asks: ${ae.message}`);
+    if (already) continue;
+    await logEvent(jobId, actorId, ESC_WITHDRAW_REQUIRED_EVENT, `ESC notification (ref ${n.reference}) is still live in the VEU Registry but the install won't go ahead (${reason.replace(/_/g, " ")}). Withdraw it in the Registry, then record the withdrawal on the job. Needs Home Insulation Victoria`, { notification_id: n.id, reference: n.reference, reason, needs_office: true }, { internal: true });
+  }
+  return live.length;
+}
+
+/** Office job page: this job's live notices with an open withdrawal ask (the card to record the withdrawal from). */
+export async function escWithdrawalsFor(jobId: string): Promise<{ id: string; reference: string; sentLine: string | null; reason: string; at: string }[]> {
+  const open = await openEscWithdrawalRows([jobId]);
+  if (!open.length) return [];
+  const { data, error } = await admin.from("esc_notifications").select("id, status, sent_at, submission_reference, response").in("id", open.map((o) => o.notificationId));
+  if (error) throw new Error(`Could not read the ESC notifications: ${error.message}`);
+  const live = new Map(escWithdrawalNeeded(data ?? []).map((n) => [n.id, n]));
+  return open.filter((o) => live.has(o.notificationId)).map((o) => {
+    const n = (data ?? []).find((r) => r.id === o.notificationId)!;
+    return { id: o.notificationId, reference: o.reference, sentLine: n.sent_at && n.submission_reference ? `Sent to ESC on ${melbDateTime(n.sent_at)} · ref ${n.submission_reference}` : null, reason: o.reason, at: o.at };
+  });
+}
+
+/** Open "withdraw the ESC notice" items for Needs me (closed jobs included — that is the point); optionally some jobs only. */
+export async function openEscWithdrawalRows(onlyIds?: string[]): Promise<OpenEscWithdrawal[]> {
+  let q = admin.from("workflow_events").select("job_id, created_at, details").eq("event_type", ESC_WITHDRAW_REQUIRED_EVENT).contains("details", { needs_office: true }).order("created_at", { ascending: true }).limit(500);
+  if (onlyIds) q = q.in("job_id", onlyIds);
+  const { data, error } = await q;
+  if (error) throw new Error(`Could not load the ESC withdrawal asks: ${error.message}`);
+  const required = (data ?? []).filter((e) => e.job_id).map((e) => ({ job_id: String(e.job_id), created_at: String(e.created_at), details: e.details }));
+  if (!required.length) return [];
+  const jobIds = [...new Set(required.map((r) => r.job_id))];
+  const { data: w, error: we } = await admin.from("workflow_events").select("details").eq("event_type", ESC_WITHDRAWN_EVENT).in("job_id", jobIds);
+  if (we) throw new Error(`Could not load the recorded ESC withdrawals: ${we.message}`);
+  return openEscWithdrawals(required, (w ?? []).map((e) => ({ details: e.details })));
 }
 
 /** Timer (15-min tick): raise each Office ESC reminder ONCE per booking start + stage — window open (5 days before),

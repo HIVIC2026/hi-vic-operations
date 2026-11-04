@@ -3,7 +3,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { Database } from "@/integrations/supabase/types";
 import { loadOffice, type OfficeJob } from "./office.server";
-import { buildNeedsRows, duplicatesInvoiceFailed, type EmailRowInput, type NeedsFacts, type NeedsRow, type SystemRow } from "./office-needs.core";
+import { buildNeedsRows, duplicatesInvoiceFailed, escWithdrawRows, type EmailRowInput, type NeedsFacts, type NeedsRow, type SystemRow } from "./office-needs.core";
 import { FAILED_EMAIL_STATUSES, FAILED_SMS_STATUSES, SUCCESS_EMAIL_STATUSES, SUCCESS_SMS_STATUSES, UNSURE_EMAIL_STATUSES, UNSURE_SMS_STATUSES, partnerSendFailedRows, sendFailedRows, tradeTextCoveredKeys } from "./send-failed.core";
 import { AUTO_OFFER_RETURNED_EVENT } from "./auto-offer.core";
 import { surnameOf } from "./office-jobs.core";
@@ -830,6 +830,18 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
       const fbJobs = new Map<string, { jobNumber: string; surname: string; isTest?: boolean }>();
       for (const r of fbRows) fbJobs.set(String(r["id"]), { jobNumber: String(r["job_number"]), surname: surnameOf((r["owners"] as { full_name?: string } | null)?.full_name), ...(r["source"] === "qa_test" ? { isTest: true } : {}) });
       system.push(...reviewFeedbackRows(fb.map((e) => ({ job_id: String(e["job_id"]), created_at: String(e["created_at"]), details: (e["details"] ?? null) as { stars?: number; feedback?: string } | null })), fbJobs, now, opts.includeTest));
+    }
+  }
+  // Part 9 Task 2: ESC notices still live in the Registry on jobs that won't go ahead (usually cancelled, so read directly,
+  // closed jobs included); cleared when the office records the withdrawal. A failed read is named, never shown as nothing.
+  {
+    const open = await (await import("./esc.server")).openEscWithdrawalRows(opts.onlyIds).catch(() => { unavailable.push("ESC notices to withdraw"); return []; });
+    if (open.length) {
+      const wIds = [...new Set(open.map((o) => o.jobId))];
+      const wRows = await byIds("ESC withdrawal jobs", wIds, (chunk, a, b) => admin.from("jobs").select("id, job_number, source, owners(full_name)").in("id", chunk).range(a, b));
+      const wJobs = new Map<string, { jobNumber: string; surname: string; isTest?: boolean }>();
+      for (const r of wRows) wJobs.set(String(r["id"]), { jobNumber: String(r["job_number"]), surname: surnameOf((r["owners"] as { full_name?: string } | null)?.full_name), ...(r["source"] === "qa_test" ? { isTest: true } : {}) });
+      system.push(...escWithdrawRows(open, wJobs, opts.includeTest));
     }
   }
   return { now, jobs, facts, emails, system, unavailable };

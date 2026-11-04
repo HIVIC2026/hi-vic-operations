@@ -126,6 +126,8 @@ export async function loadNeedsHivic() {
     officeOverdue: [],
     rectUnanswered: ok(rsent, "electrical fixes quotes sent"),
     prestart: await (await import("./prestart.server")).prestartNeeds(now).catch((e) => { console.error("pre-start needs failed", (e as Error).message); return undefined; }),
+    // Part 9 Task 2: open "withdraw the ESC notice" asks. A failed read is an error, never an empty list (fail closed).
+    escWithdrawRequired: (await (await import("./esc.server")).openEscWithdrawalRows()).map((r) => ({ job_id: r.jobId, created_at: r.at, reference: r.reference })),
     visitFlags,
     offerNoTaker,
     chooseTrades,
@@ -142,7 +144,8 @@ export async function loadNeedsHivic() {
     if (!data || data.length < 1000) break;
   }
   const open = new Set(jobRows.filter((j) => !closed.has(j.id)).map((j) => j.id));
-  const kept = items.filter((it) => !it.jobId || open.has(it.jobId));
+  // Part 9 Task 2: the ESC withdrawal ask is exactly about a job that won't go ahead, so a closed job keeps it.
+  const kept = items.filter((it) => !it.jobId || open.has(it.jobId) || it.code === "esc_withdraw_required");
   // Part 7 Task 8 (Jo 2 Nov 2026): the "Installer has no usual electrician saved" row is retired with its text (decisions
   // 374/303 choose the electrician; an un-onboarded A1 electrician holds the quote instead). Old `mitti_electrician_recorded`
   // events stay as history and raise nothing.

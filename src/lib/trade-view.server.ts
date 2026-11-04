@@ -1391,13 +1391,6 @@ export async function logTradeFollowUpFailed(jobId: string, actorId: string, ste
   await log(jobId, actorId, "trade_followup_failed", `After the trade's action, "${step}" could not run: ${message}`, { step, message }, { internal: true }).catch((e) => console.error("trade_followup_failed not logged", e));
 }
 
-/** Part 9 Task 2 owns `requireEscWithdrawal` (esc.server.ts). TODO(join): once it is in this build the optional lookup
- *  below finds it; until then the trade action records nothing about the ESC notice (the office still sees the cancel). */
-export async function escWithdrawalFn(): Promise<((jobId: string, reason: "owner_cancelled" | "cant_do_this_one" | "address_changed", actorId: string | null) => Promise<number>) | null> {
-  const esc = (await import("./esc.server")) as { requireEscWithdrawal?: unknown };
-  return typeof esc.requireEscWithdrawal === "function" ? (esc.requireEscWithdrawal as (jobId: string, reason: "owner_cancelled" | "cant_do_this_one" | "address_changed", actorId: string | null) => Promise<number>) : null;
-}
-
 export type HandBackDeps = {
   bookingTeam: (jobId: string, userId: string) => Promise<unknown>;
   stillConfirmedBookings: (jobId: string) => Promise<{ id: string; kind: string; scheduled_start: string }[]>;
@@ -1415,7 +1408,7 @@ async function handBackDeps(): Promise<HandBackDeps> {
     pullBackInHouseJob: (await import("./in-house-batch.server")).pullBackInHouseJob,
     finishInHouseHandback: (await import("./in-house-handback-cleanup.server")).finishInHouseHandback,
     cancelBookingsAfterHandBack: (await import("./visit-events.server")).cancelBookingsAfterHandBack,
-    requireEscWithdrawal: await escWithdrawalFn(),
+    requireEscWithdrawal: (await import("./esc.server")).requireEscWithdrawal,
     queueVisitCancelledOwnerEmail: (await import("./visit-cancelled-owner.server")).queueVisitCancelledOwnerEmail,
     logEvent,
   };

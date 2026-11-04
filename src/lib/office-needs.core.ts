@@ -377,6 +377,20 @@ export function ageLabel(since: string, now: number): string {
 /** Partner & system fold (decision 221): one fold line; each item one line with one button. */
 export type SystemRow = { key: string; tag: string; who: string; line: string; since: string | null; button: string; href: string; jobId?: string };
 
+/** Part 9 Task 2: one Needs me row per ESC notice still live in the Registry on a job that won't go ahead (often a
+ *  cancelled job, so it is a system row read directly, like review feedback). Wording DRAFT (JO-APPROVAL-LIST). */
+export const ESC_WITHDRAW_WHY = "Install won't go ahead but the ESC notice is still live.";
+export const ESC_WITHDRAW_NEXT = "Withdraw it in the Registry, then record the withdrawal on the job.";
+export function escWithdrawRows(open: { jobId: string; notificationId: string; reference: string; reason: string; at: string }[], jobs: Map<string, { jobNumber: string; surname: string; isTest?: boolean }>, includeTest = false): SystemRow[] {
+  const out: SystemRow[] = [];
+  for (const o of open) {
+    const j = jobs.get(o.jobId);
+    if (!j || (j.isTest && !includeTest)) continue;
+    out.push({ key: `esc-withdraw:${o.notificationId}`, tag: "ESC", who: `${j.jobNumber} ${j.surname}`.trim(), line: `${ESC_WITHDRAW_WHY} ${ESC_WITHDRAW_NEXT} Registry ref ${o.reference}.`, since: o.at, button: "Open job", href: `/admin/jobs/${o.jobId}?section=installation`, jobId: o.jobId });
+  }
+  return out;
+}
+
 /** Phase 3 path 1 (27 Oct): a "needs review" eligibility result is office work, never "nothing to do". */
 export function eligibilityReviewLine(reason: string | null): string {
   const r = (reason ?? "").trim();
