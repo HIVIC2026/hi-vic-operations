@@ -27,8 +27,8 @@ describe("ESC AP task", () => {
 });
 
 describe("pre-start check", () => {
-  test("runs at 12pm Melbourne the day before", () => {
-    expect(prestartRunAt(START)).toBe("2026-10-15T01:00:00.000Z"); // Thu 15 Oct 12pm AEDT
+  test("runs at 2pm Melbourne the day before (Part 9 Task 6)", () => {
+    expect(prestartRunAt(START)).toBe("2026-10-15T03:00:00.000Z"); // Thu 15 Oct 2pm AEDT
   });
   const ok: PrestartFacts = {
     start: START, clearance: { cleared: true, blocker: null }, deadline: "2026-10-30", esc: sent(at(3 * D).toISOString()),
@@ -52,7 +52,7 @@ describe("pre-start check", () => {
     expect(f({ consentBlockers: ["not signed"] })[0]).toMatch("Owner consent");
     expect(f({ piesaCompletedAt: "2026-09-10" })[0]).toMatch("within 30 days of the PIESA");
   });
-  test("lock: failed check locks; no check after 12pm locks; before 12pm open", () => {
+  test("lock: failed check locks; no check after 2pm locks; before 2pm open", () => {
     expect(prestartLocked({ start: START, latest: { scheduled_start: START, passed: false, failures: ["x"] }, now: at(2 * D) }).locked).toBe(true);
     expect(prestartLocked({ start: START, latest: null, now: at(10 * H) }).locked).toBe(true);
     expect(prestartLocked({ start: START, latest: null, now: at(2 * D) }).locked).toBe(false);

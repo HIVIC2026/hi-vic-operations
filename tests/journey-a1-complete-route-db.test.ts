@@ -772,11 +772,11 @@ describe("A1 step 9 — the installer office books the install day with a Lead I
 });
 
 describe("A1 step 10 — the day before and install day: ESC notice, PIESA copies, pre-start check, Install tomorrow text, the A5 form → the installation is recorded (decisions 213/262/328/396; Part 7)", () => {
-  test("the office records the ESC notice; the PIESA copies go once the install is booked; noon pre-start passes; 4pm \"Install tomorrow\" text to the Lead only", async () => {
+  test("the office records the ESC notice; the PIESA copies go once the install is booked; 2pm GO check passes; 4pm \"Install tomorrow\" text to the Lead only", async () => {
     const ps = await import("../src/lib/prestart.server");
     const it = await import("../src/lib/installer-texts.server");
     const [b] = await q<{ scheduled_start: Date }>("select scheduled_start from bookings where job_id=$1 and kind='installation' and status='confirmed'", [JOB]);
-    const noonBefore = new Date(b!.scheduled_start.getTime() - 20 * 3_600_000);
+    const twoPmBefore = new Date(b!.scheduled_start.getTime() - 18 * 3_600_000); // 2pm the day before (Part 9 Task 6 GO slot)
     const fourPmBefore = new Date(b!.scheduled_start.getTime() - 16 * 3_600_000 + 5 * 60_000);
     const t0 = providers.texts.length, n0 = providers.emails.length;
     // The office submits the notice in the ESC Registry and records the reference.
@@ -799,9 +799,9 @@ describe("A1 step 10 — the day before and install day: ESC notice, PIESA copie
     // J4 G3: the trade copy after the upgrades says so (item 44 trade variant) and, the install being booked, has no "call the owner and book" line.
     expect(installerCopy[0]!.text).toContain("Electrical upgrades needed: Completed · CES COES-778899");
     expect(installerCopy[0]!.text).not.toContain("Next: call the owner and book the install");
-    // Noon the day before: the pre-start check runs and passes (CII, White Card, SWMS signed, deposit paid, PIESA confirmed).
-    expect(await ps.sweepPrestart(noonBefore)).toEqual({ ran: 1, failed: 0 });
-    expect(await ps.prestartGate(JOB, noonBefore)).toEqual({ locked: false, reasons: [] });
+    // 2pm the day before: the GO check runs and passes (CII, White Card, SWMS signed, deposit paid, PIESA confirmed).
+    expect(await ps.sweepPrestart(twoPmBefore)).toEqual({ ran: 1, failed: 0 });
+    expect(await ps.prestartGate(JOB, twoPmBefore)).toEqual({ locked: false, reasons: [] });
     // 4pm the day before (#47, Part 7 Task 5): ONE "Install tomorrow" text to the Lead Installer with the safety plan + Mitti form links.
     expect(await it.sweepInstallerTexts(fourPmBefore)).toEqual({ installTomorrow: 1, swmsSignLinks: 0 });
     expect(await it.sweepInstallerTexts(new Date(fourPmBefore.getTime() + 15 * 60_000))).toEqual({ installTomorrow: 0, swmsSignLinks: 0 });

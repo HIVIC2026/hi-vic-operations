@@ -340,6 +340,13 @@ export const WORKFLOW_DECISIONS = {
     "office_permission_failure",
     "illegal_transition",
   ],
+  // Part 9 Task 6 (Jo 2 Nov 2026, "VEU and ESC timing rules"): the GO / DON'T START check (prestart.core GO_SLOTS).
+  goCheck: {
+    slots: ["2pm Melbourne the day before (day_before_2pm; also the lock time prestartRunAt)", "6:30am Melbourne on the install day (on_day_630am)"],
+    sweep: "15-minute tick: dueGoSlot = the latest passed slot not yet recorded for that exact install start; a slot run always writes ONE pre_start_checks row (trigger = slot key), other triggers record only when the result changed",
+    oldRows: "a check recorded by the old 12pm 'timer' trigger is kept as history; the 2pm slot still runs and writes its own row once",
+    replaces: "the 12pm day-before check (PRESTART_HOUR 12)",
+  },
 } as const;
 
 export type HardStopCode = (typeof WORKFLOW_DECISIONS.hardStops)[number];

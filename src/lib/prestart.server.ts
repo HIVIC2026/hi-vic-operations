@@ -1,8 +1,8 @@
-// Day-before pre-start check + ESC AP task facts. Portal decides "cleared to start"; Mitti itself is unchanged.
+// GO / DON'T START check (2pm the day before, 6:30am on the day) + ESC AP task facts. Portal decides "cleared to start"; Mitti itself is unchanged.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { Json } from "@/integrations/supabase/types";
 import { WorkflowError, logEvent, piesaStatus } from "./workflow.server";
-import { escTask, prestartFailures, prestartLocked, prestartRunAt, type EscNotice, type LeadCert } from "./prestart.core";
+import { dueGoSlot, escTask, isGoSlot, prestartFailures, prestartLocked, prestartRunAt, type EscNotice, type GoSlot, type LeadCert } from "./prestart.core";
 import { escSentLine, isWithdrawn, registryBlock, registryChange, REGISTRY_FIELDS_SOURCE, type EscField, type RegistryChange } from "./esc.core";
 
 async function upcomingBooking(jobId: string) {
@@ -107,21 +107,35 @@ async function latestCheck(jobId: string) {
   return data ? { scheduled_start: data.scheduled_start, passed: data.passed, failures: (data.failures as string[]) ?? [] } : null;
 }
 
-/** Run the check (from 12pm Melbourne the day before until the start). Records only when the result changes. */
+/** Slot keys already recorded in pre_start_checks for this exact install start (Part 9 Task 6: one row per slot). */
+async function doneGoSlots(jobId: string, start: string): Promise<GoSlot[]> {
+  const { data, error } = await admin.from("pre_start_checks").select("scheduled_start, trigger").eq("job_id", jobId).eq("scheduled_start", start);
+  if (error) throw new Error(error.message); // fail closed: an unreadable history must not run (and email) a slot twice
+  return (data ?? []).map((r) => String((r as { trigger?: string }).trigger ?? "")).filter(isGoSlot);
+}
+
+/** Run the check (from 2pm Melbourne the day before until the start). A GO slot trigger (`day_before_2pm` /
+ *  `on_day_630am`) always writes ONE row per slot + start (the GO / DON'T START email needs one result per slot);
+ *  every other trigger records only when the result changes. */
 export async function runPrestart(jobId: string, trigger: string, now = new Date()) {
   const b = await upcomingBooking(jobId);
   if (!b) return null;
   if (now.getTime() < Date.parse(prestartRunAt(b.scheduled_start)) || now.getTime() >= Date.parse(b.scheduled_start)) return null;
+  const slot: GoSlot | null = isGoSlot(trigger) ? trigger : null;
+  if (slot && (await doneGoSlots(jobId, b.scheduled_start)).includes(slot)) {
+    const prev = await latestCheck(jobId);
+    return { passed: prev?.passed ?? false, failures: prev?.failures ?? [], changed: false, slot };
+  }
   const failures = prestartFailures(await prestartFacts(jobId, b.scheduled_start));
   const passed = failures.length === 0;
   const prev = await latestCheck(jobId);
-  if (prev && Date.parse(prev.scheduled_start) === Date.parse(b.scheduled_start) && prev.passed === passed && JSON.stringify(prev.failures) === JSON.stringify(failures)) return { passed, failures, changed: false };
+  if (!slot && prev && Date.parse(prev.scheduled_start) === Date.parse(b.scheduled_start) && prev.passed === passed && JSON.stringify(prev.failures) === JSON.stringify(failures)) return { passed, failures, changed: false, slot };
   const { error } = await admin.from("pre_start_checks").insert({ job_id: jobId, booking_id: b.id, scheduled_start: b.scheduled_start, passed, failures: failures as unknown as Json, trigger });
   if (error) throw new Error(error.message);
   await logEvent(jobId, null, passed ? "prestart_cleared" : "prestart_failed", passed ? "Pre-start check passed — cleared to start" : `Pre-start check failed: ${failures.join(" ")} Installation form and evidence locked. Needs Home Insulation Victoria`, { scheduled_start: b.scheduled_start, failures, trigger }, { internal: true });
   // Decision 326: a failed check is an office item only (the event above → Needs me). There is no approved owner or
   // installer "pre-start check failed" wording, so nothing is queued or sent (the old outbox rows could never deliver).
-  return { passed, failures, changed: true };
+  return { passed, failures, changed: true, slot };
 }
 
 /** Server-side lock for the PIISA send and installation evidence. */
@@ -144,13 +158,17 @@ export async function requirePrestartClear(jobId: string) {
   if (g.locked) throw new WorkflowError(`Not cleared to start: ${g.reasons.join(" ")}`);
 }
 
-/** Timer: run for every install whose 12pm-day-before time has passed and has not started. */
+/** Timer (15-minute tick): for every upcoming install, run the GO slot that is due (2pm the day before, 6:30am on the
+ *  day) and not yet recorded for that start. Counts only runs that wrote a row. */
 export async function sweepPrestart(now = new Date()) {
   const { data } = await admin.from("bookings").select("job_id, scheduled_start").eq("kind", "installation").eq("status", "confirmed").gt("scheduled_start", now.toISOString()).lt("scheduled_start", new Date(now.getTime() + 2 * 86_400_000).toISOString());
   let ran = 0, failed = 0;
   for (const b of data ?? []) {
-    const r = await runPrestart(b.job_id, "timer", now).catch((e) => { console.error("pre-start check failed to run", (e as Error).message); return null; });
-    if (r) { ran++; if (!r.passed) failed++; }
+    const r = await (async () => {
+      const slot = dueGoSlot(b.scheduled_start, now, await doneGoSlots(b.job_id, b.scheduled_start));
+      return slot ? runPrestart(b.job_id, slot, now) : null;
+    })().catch((e) => { console.error("pre-start check failed to run", (e as Error).message); return null; });
+    if (r?.changed) { ran++; if (!r.passed) failed++; }
   }
   return { ran, failed };
 }

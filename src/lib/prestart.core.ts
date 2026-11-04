@@ -5,7 +5,8 @@ import { COLLECTION_NOTICE_BLOCK_MESSAGE } from "./esc-collection-notice.core";
 import { whiteCardBlocker, type WhiteCardState } from "./worker-compliance.core";
 
 export const ESC_URGENT_MS = 2 * 24 * 3600_000;
-export const PRESTART_HOUR = 12; // 12pm Melbourne, the day before the install
+/** Part 9 Task 6 (Jo 2 Nov 2026): the GO / DON'T START check runs at 2pm Melbourne the day before (was 12pm) and 6:30am on the day. */
+export const PRESTART_HOUR = 14; // 2pm Melbourne, the day before the install (the first GO slot; also the lock time)
 export const PIISA_FROM_PIESA_DAYS = 30;
 
 const fmt = (iso: string) => new Date(iso).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
@@ -76,9 +77,35 @@ export function leadInstallerLocked(startIso: string, now: Date): boolean {
   return now.getTime() >= Date.parse(leadInstallerLock(startIso).lockAt);
 }
 
-/** 12pm Melbourne on the day before the install. */
+// ── GO / DON'T START slots (Part 9 Task 6). The 2pm-day-before slot is also the lock time (`prestartRunAt`).
+export const GO_SLOTS = [
+  { key: "day_before_2pm", dayOffset: -1, hour: 14, minute: 0 },
+  { key: "on_day_630am", dayOffset: 0, hour: 6, minute: 30 },
+] as const;
+export type GoSlot = (typeof GO_SLOTS)[number]["key"];
+/** Melbourne wall-clock instant of each slot for this install start, as ISO. (Minutes are added after the whole-hour
+ *  DST-safe `melbourneAt`; neither slot sits inside a DST change, which happens at 2–3am.) */
+export function goSlotTimes(startIso: string): Record<GoSlot, string> {
+  const day = melbourneYmd(new Date(startIso));
+  const out = {} as Record<GoSlot, string>;
+  for (const s of GO_SLOTS) out[s.key] = new Date(melbourneAt(addDays(day, s.dayOffset), s.hour).getTime() + s.minute * 60_000).toISOString();
+  return out;
+}
+/** The slot to run now: the LATEST slot whose time has passed, not yet done, and before the install starts. Null = nothing due. */
+export function dueGoSlot(startIso: string, now: Date, done: readonly GoSlot[]): GoSlot | null {
+  const t = now.getTime();
+  if (t >= Date.parse(startIso)) return null;
+  const times = goSlotTimes(startIso);
+  const passed = GO_SLOTS.filter((s) => t >= Date.parse(times[s.key]));
+  const latest = passed[passed.length - 1];
+  if (!latest || done.includes(latest.key)) return null;
+  return latest.key;
+}
+export const isGoSlot = (s: string): s is GoSlot => GO_SLOTS.some((x) => x.key === s);
+
+/** 2pm Melbourne on the day before the install (the first GO slot; the lock time `prestartLocked` uses). */
 export function prestartRunAt(startIso: string): string {
-  return melbourneAt(addDays(melbourneYmd(new Date(startIso)), -1), PRESTART_HOUR).toISOString();
+  return goSlotTimes(startIso).day_before_2pm;
 }
 
 /** `noticeAcknowledged`: ESC collection notice (decision 130); false = not acknowledged, blocks the start. Undefined = not loaded (older callers). */

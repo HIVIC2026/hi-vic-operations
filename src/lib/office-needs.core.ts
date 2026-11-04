@@ -115,7 +115,7 @@ export type NeedsFacts = {
   piisaFormFailed?: { at: string; text: string } | null;
   /** Decision 398: the A3 PIESA Mitti form was not created automatically at the PIESA booking (piesa-autoform.core). */
   piesaFormFailed?: { at: string; text: string } | null;
-  /** Decision 395: the day-before pre-start check (12pm Melbourne) failed for the booked install — what is missing. */
+  /** Decision 395: the GO check (2pm Melbourne the day before / 6:30am on the day, Part 9 Task 6) failed for the booked install — what is missing. */
   prestartFailed?: { at: string; reasons: string[] } | null;
   /** Part 4 Task 16 (cl 23): the tenant could not be told the install day (tenant details missing / no office phone) for the current install booking (tenant-notice.core). */
   tenantNoticeHeld?: { at: string; text: string } | null;
