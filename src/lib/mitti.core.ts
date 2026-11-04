@@ -121,7 +121,10 @@ const TYPE_KEYS = ["textsingle", "textmulti", "question", "list", "checkbox", "m
 export function mittiItemType(it: Any): string {
   const direct = String(it?.type ?? "").trim();
   if (direct) return direct;
-  return TYPE_KEYS.find((k) => it?.[k] != null) ?? "";
+  const known = TYPE_KEYS.find((k) => it?.[k] != null);
+  if (known) return known;
+  // Mitti v1 definitions carry multi-line text questions as `text: { options }` (4 Nov published A4).
+  return it?.text && typeof it.text === "object" && !Array.isArray(it.text) && it.text.options != null ? "textmulti" : "";
 }
 
 /** Flatten header_items + nested items; section = normalized labels of all ancestors. */

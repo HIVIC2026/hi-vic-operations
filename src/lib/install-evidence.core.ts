@@ -237,9 +237,13 @@ export function readInstallEvidence(audit: unknown): InstallEvidenceRead {
   const finalTick = findExact(items, ID.allFilledIn);
   const after: AfterInstallRead = { onForm: !!find(items, A.lockoutRemoved), allFilledIn: isInstallDayDoc(audit) ? /^(yes|true|ticked|checked)$/i.test(finalTick?.value ?? "") : null, lockoutRemoved: yn(v(A.lockoutRemoved)), lockoutRemovedBy: t(A.lockoutRemovedBy), switchboardAfterPhoto: m(A.switchboardAfterPhoto), solarRestarted: t(A.solarRestarted), finishedAt: t(LEGACY_FINISHED_AT_LABEL) ?? completionSignature.signedAt, leadPresent: /^(yes|true|ticked|checked)$/i.test(v(A.leadPresent) ?? ""), completionSignature };
   const foil: FoilRead = { onForm: !!find(items, F.foil), foil: yn(v(F.foil)), foilPhoto: m(F.foilPhoto) };
-  const files = { afterVideos: m(INSTALL_DAY_EVIDENCE.afterVideos), depthPhotos: m(INSTALL_DAY_EVIDENCE.depthPhotos) };
   const installDay = isInstallDayDoc(audit);
-  return { installDay, ...(installDay ? { ruler: installDayRulerPhotos(audit), adult: { onForm: installDayAdultOnForm(audit), answer: installDayAdultPresent(audit) } } : {}), files, formZoneCount: Number.isInteger(n) && n > 0 ? n : null, zones, multiDay: yn(v(Q.multiDay)), dailyRecheck: !!v(Q.dailyRecheck), questionsOnForm: !!find(items, Q.zoneCount), after, foil };
+  const ruler = installDay ? installDayRulerPhotos(audit) : undefined;
+  // 4 Nov published A5: the one per-area ruler photo (repeat section) IS the depth photo; a form without the separate
+  // multi-file depth question reads those files as the depth photos. Forms that carry it read it exactly as before.
+  const depthOnForm = !!find(items, INSTALL_DAY_EVIDENCE.depthPhotos);
+  const files = { afterVideos: m(INSTALL_DAY_EVIDENCE.afterVideos), depthPhotos: depthOnForm || !ruler?.onForm ? m(INSTALL_DAY_EVIDENCE.depthPhotos) : ruler.areas.flatMap((a) => a.after) };
+  return { installDay, ...(ruler ? { ruler, adult: { onForm: installDayAdultOnForm(audit), answer: installDayAdultPresent(audit) } } : {}), files, formZoneCount: Number.isInteger(n) && n > 0 ? n : null, zones, multiDay: yn(v(Q.multiDay)), dailyRecheck: !!v(Q.dailyRecheck), questionsOnForm: !!find(items, Q.zoneCount), after, foil };
 }
 
 /**

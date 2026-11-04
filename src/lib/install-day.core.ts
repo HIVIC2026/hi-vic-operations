@@ -357,7 +357,10 @@ export function installDayMissingQuestions(template: unknown): string[] {
   const items = labelledItems(template);
   const out: string[] = [];
   const seen = new Map<string, number>();
+  // 4 Nov published A5: the per-area ruler photo replaces the separate multi-file depth photos question.
+  const rulerNew = allWithLabel(items, INSTALL_DAY_RULER_Q.newDepth).length > 0;
   for (const q of INSTALL_DAY_QUESTIONS) {
+    if (rulerNew && q.label === Q.depthPhotos) continue;
     const k = labelKey(q.label);
     const want = (seen.get(k) ?? 0) + 1;
     seen.set(k, want);
