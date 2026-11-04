@@ -141,7 +141,7 @@ export function RequirementCards({ jobId, isAdmin, job }: { jobId: string; isAdm
             <dt className="text-muted-foreground">Assessment date</dt><dd>{el?.a?.assessed_on ? fmtDate(el.a.assessed_on) : "—"}</dd>
             <dt className="text-muted-foreground">Outcome</dt><dd>{el?.a?.piesa_outcome ?? "—"}{el?.a?.status === "complete" ? " (recorded)" : el?.a ? " (draft)" : ""}</dd>
             <dt className="text-muted-foreground">30-day deadline</dt><dd>{job.piesa_date ? `${fmtDate(job.install_deadline)} (${s.electrical.state === "expired" ? "expired" : `${job.days_remaining} days`})` : "—"}</dd>
-            <dt className="text-muted-foreground">Electrical fixes</dt><dd>{el?.rect ? `${el.rect} item(s) required` : "None open"}</dd>
+            <dt className="text-muted-foreground">Electrical upgrades</dt><dd>{el?.rect ? `${el.rect} item(s) required` : "None open"}</dd>
           </dl>
         </Section>
       </div>

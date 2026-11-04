@@ -93,6 +93,22 @@ async function currentReadyCheck(jobId: string): Promise<{
   };
 }
 
+/** Jo 4 Nov 2026: the new-wording Ready Check's areas (stored per area on the current measurement) and the owner's
+ *  "thicker too" request. Null on old-wording Ready Checks (the card then works exactly as before). */
+async function currentLayout(jobId: string): Promise<{ areas: import("./ceiling-layout.core").LayoutArea[]; thicker: 6 | 7 | null } | null> {
+  const { data: m, error } = await admin.from("ceiling_measurements").select("zones, raw_snapshot").eq("job_id", jobId).eq("is_current", true).maybeSingle();
+  if (error) throw new WorkflowError("The Ready Check could not be read.");
+  const zones = Array.isArray((m as { zones?: unknown } | null)?.zones) ? ((m as { zones: { layout?: unknown }[] }).zones) : [];
+  const areas = zones.map((z) => z?.layout).filter(Boolean) as import("./ceiling-layout.core").LayoutArea[];
+  if (!areas.length) return null;
+  const raw = (m as { raw_snapshot?: unknown } | null)?.raw_snapshot;
+  const entries = (Array.isArray(raw) ? raw : []).filter((e: { label?: unknown }) => e && typeof e.label === "string") as { label: string; value: unknown }[];
+  const { readLayoutOutcome } = await import("./ceiling-layout.core");
+  return { areas, thicker: readLayoutOutcome(entries).thicker };
+}
+
+export type LayoutPriceInput = { mainPicks: ({ brand: import("./ceiling-layout.core").Brand; r: number } | null)[]; thickerPicks?: ({ brand: import("./ceiling-layout.core").Brand; r: number } | null)[] | undefined; thickerTotalIncGst?: number | null | undefined };
+
 /** The boss's "Your price" card: the saved price, the job's electrician choice (read-only) and the access flag. Team members: null (nothing shown). */
 export async function installerPriceView(jobId: string, userId: string, sharedReads?: SharedJobReads) {
   const shared = sharedFor(sharedReads, userId, jobId);
@@ -136,6 +152,8 @@ export async function installerPriceView(jobId: string, userId: string, sharedRe
       () => ({ at: null as string | null, failed: true }),
     ),
   );
+  const layoutP = early(currentLayout(jobId).catch(() => null));
+  const lastLayoutP = early(admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", INSTALLER_PRICE_EVENT).order("created_at", { ascending: false }).limit(1).maybeSingle());
   const { data: j } = await jobP;
   if (!j || !priceFromPortal(j.channel) || !j.originating_installer_business_id) return null;
   if ((await mineP).get(j.originating_installer_business_id) !== "business_admin") return null;
@@ -175,8 +193,12 @@ export async function installerPriceView(jobId: string, userId: string, sharedRe
     priceCardLocked({ quoteSentAt: sent.at, newQuoteRequestedAt: state.newQuoteRequestedAt });
   const { APPROVED_PRODUCTS } = await import("./insulation-product.core");
   const hivSwitch: { priceIncGst: number } | null = null;
+  const layoutNow = await layoutP;
+  const { a1PriceLinkView } = await import("./ceiling-layout.core");
+  const savedLayout = state.stored ? (((await lastLayoutP).data?.details as { layout?: LayoutPriceInput } | null)?.layout ?? null) : null;
   return {
     canSet: true as const,
+    layout: layoutNow ? { ...a1PriceLinkView(layoutNow.areas, layoutNow.thicker), thickerTarget: layoutNow.thicker, saved: savedLayout } : null,
     current: stored,
     locked,
     productOptions: APPROVED_PRODUCTS.map((p) => p.option),
@@ -241,7 +263,7 @@ async function prepareQuoteFromPortal(jobId: string, userId: string): Promise<vo
 export async function setInstallerPrice(
   jobId: string,
   userId: string,
-  input: InstallerPriceInput,
+  input: InstallerPriceInput & { layout?: LayoutPriceInput | null | undefined },
 ): Promise<StoredInstallerPrice> {
   const j = await a1JobOrThrow(jobId);
   const { requireMember } = await import("./pilot.server");
@@ -264,6 +286,19 @@ export async function setInstallerPrice(
   const { removalRequired } = rc;
   const v = validateInstallerPrice({ ...input, removalRequired });
   if (!v.ok || !v.record) throw new WorkflowError(v.issues.join(" "));
+  // Jo 4 Nov 2026: on a new-wording Ready Check the boss picks brand + batts per area from approved products only, with
+  // ONE main total (the price above) and a thicker total only when the owner asked for it. Never a rate card or retail price.
+  const layoutNow = await currentLayout(jobId);
+  let layout: (LayoutPriceInput & { thicker: 6 | 7 | null }) | null = null;
+  if (layoutNow) {
+    const { validateA1Price } = await import("./ceiling-layout.core");
+    const wf = await admin.from("workflow_settings").select("*").eq("id", 1).maybeSingle();
+    if (wf.error) throw new WorkflowError("Settings could not be read.");
+    const topupCountsExisting = (wf.data as Record<string, unknown> | null)?.["topups_count_existing_insulation"] !== false;
+    const issues = validateA1Price({ areas: layoutNow.areas, thicker: layoutNow.thicker, mainPicks: input.layout?.mainPicks ?? [], mainTotal: v.record.price_inc_gst, thickerPicks: input.layout?.thickerPicks ?? [], thickerTotal: input.layout?.thickerTotalIncGst ?? null, topupCountsExisting });
+    if (issues.length) throw new WorkflowError(issues.join(" "));
+    layout = { mainPicks: input.layout!.mainPicks, thickerPicks: layoutNow.thicker ? input.layout!.thickerPicks ?? [] : [], thickerTotalIncGst: layoutNow.thicker ? input.layout!.thickerTotalIncGst ?? null : null, thicker: layoutNow.thicker };
+  }
   // Product in force before this save: the boss's previous pick, else Mitti's own product, else none.
   const { resolveMittiProduct } = await import("./insulation-product.core");
   const { contactAnswersFromEntries } = await import("./mitti.core");
@@ -278,6 +313,7 @@ export async function setInstallerPrice(
     priceEventSummary({ record: v.record, previousProduct }),
     {
       ...v.record,
+      ...(layout ? { layout } : {}),
       business_id: j.originating_installer_business_id,
       set_by: userId,
       declared_not_verified: true,

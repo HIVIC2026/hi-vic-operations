@@ -197,8 +197,8 @@ function renderEligibleNoInsulation(r: JoRecipient, f: JoEstimateFigures, thinPa
     : "We’ll confirm the ceiling measurements at your free Ready Check.";
   const removalBox = declaredThinPatchy && f.removalUpTo != null && f.removalUpTo > 0;
   const changePrice = removalBox
-    ? "Final measurements, ceiling access and any electrical fixes may affect the price. Electrical fixes are excluded."
-    : "Final measurements, ceiling access and any electrical fixes may affect the price. Insulation removal and electrical fixes are excluded.";
+    ? "Final measurements, ceiling access and any electrical upgrades may affect the price. Electrical upgrades are excluded."
+    : "Final measurements, ceiling access and any electrical upgrades may affect the price. Insulation removal and electrical upgrades are excluded.";
   return [
     `Hi ${r.firstName},`, "",
     "How much could you save on ceiling insulation?", "",
@@ -221,7 +221,7 @@ function renderEligibleNoInsulation(r: JoRecipient, f: JoEstimateFigures, thinPa
     "### What could change this price?", "",
     ...(declaredThinPatchy
       ? [declaredExisting ? EXISTING_SAVE_SPOT_LINE : THIN_PATCHY_SAVE_SPOT_LINE, changePrice]
-      : ["This quote is based on the information you supplied and assumes there is no existing ceiling insulation. Final measurements, ceiling access and any electrical fixes may affect the price. Insulation removal and electrical fixes are excluded."]),
+      : ["This quote is based on the information you supplied and assumes there is no existing ceiling insulation. Final measurements, ceiling access and any electrical upgrades may affect the price. Insulation removal and electrical upgrades are excluded."]),
     "",
     "We’ll confirm eligibility and your final quote, including any additional costs, for your approval before you commit.", "",
     "Home Insulation Victoria", "", footer(r.enquiryReference),
@@ -257,7 +257,7 @@ function renderBelowR2Reviewed(r: JoRecipient, f: JoEstimateFigures): string {
     "[Save my spot →]", "",
     "We’ll be in touch to arrange your free Ready Check when an installer is available in your area. No payment required. No obligation to proceed with installation.", "",
     "### What could change this price?", "",
-    "Your Ready Check will confirm eligibility, ceiling measurements, existing insulation and access. Electrical fixes are also excluded and will be quoted separately if required. Any changes will be explained and quoted for your approval.", "",
+    "Your Ready Check will confirm eligibility, ceiling measurements, existing insulation and access. Electrical upgrades are also excluded and will be quoted separately if required. Any changes will be explained and quoted for your approval.", "",
     "Home Insulation Victoria", "", footer(r.enquiryReference),
   ].join("\n");
 }
@@ -298,7 +298,7 @@ function renderPotentiallyEligible(r: JoRecipient, f: JoEstimateFigures, questio
     "[Tell us about your insulation]", "",
     "Only take photos or video if you can do so safely, and don’t enter the roof space.", "",
     "### What could change this price?", "",
-    removalBox ? "Final eligibility, measurements, access and any electrical fixes may affect the price. Electrical fixes are excluded. Any additional costs will be confirmed for your approval before you commit." : "If insulation is present, some may be able to stay and some may need removal. Allow $15 per m² including GST for the areas requiring removal only, assessed at your free Ready Check. Removal and electrical fixes are excluded.", "",
+    removalBox ? "Final eligibility, measurements, access and any electrical upgrades may affect the price. Electrical upgrades are excluded. Any additional costs will be confirmed for your approval before you commit." : "If insulation is present, some may be able to stay and some may need removal. Allow $15 per m² including GST for the areas requiring removal only, assessed at your free Ready Check. Removal and electrical upgrades are excluded.", "",
     "Home Insulation Victoria", "", footer(r.enquiryReference),
     ] : [
     "### Help us move your enquiry forward", "",
@@ -308,7 +308,7 @@ function renderPotentiallyEligible(r: JoRecipient, f: JoEstimateFigures, questio
     "Only take photos or video if you can do so safely, and don’t enter the roof space. If you’re unable to obtain them safely, reply and let us know.", "",
     "### What could change this price?", "",
     "If insulation is present, some may be able to stay and some may need removal. Allow $15 per m² including GST for the areas requiring removal only, assessed at your free Ready Check.", "",
-    "Removal and electrical fixes are excluded. Final eligibility, measurements, access and any additional costs will be confirmed for your approval before you commit.", "",
+    "Removal and electrical upgrades are excluded. Final eligibility, measurements, access and any additional costs will be confirmed for your approval before you commit.", "",
     "Home Insulation Victoria", "", footer(r.enquiryReference),
     ]),
   ].join("\n");

@@ -103,6 +103,12 @@ export async function generateInstallerQuotes(jobId: string, actorId: string | n
   const { ownerPiesaLineIncGst } = await import("./our-lead-piesa-electrician.core");
   const piesaOwnerIncGst = ownerPiesaLineIncGst(Number(rs.piesa_assessment_inc_gst));
   const piesaElectrician = { source: "ours" as const, business_id: null, rate_inc_gst: null, rate_id: null };
+  // Jo 4 Nov 2026: a Ready Check on the new ceiling-layout wording is priced from HIV's fixed retail prices with the
+  // installer's brand + batts per area (ceiling-layout.core). Old-wording Ready Checks carry on below, unchanged.
+  const layoutZones = (Array.isArray((m as { zones?: unknown } | null)?.zones) ? (m as { zones: { layout?: unknown }[] }).zones : []).map((z) => z?.layout).filter(Boolean);
+  if (layoutZones.length) {
+    return generateLayoutQuotes({ jobId, actorId, m: m as Record<string, unknown>, layoutAreas: layoutZones as import("./ceiling-layout.core").LayoutArea[], rate, rsBase: rs, settings, card, loc, piesaOwnerIncGst, apFeeIncGst: jobRow.ap_fee_override_inc_gst != null ? Number(jobRow.ap_fee_override_inc_gst) : Number(rs.ap_management_inc_gst), newQuote });
+  }
   const { priceHivQuote, HIV_PRICING_RULE, R_VALUE_CODE } = await import("./hiv-quote.core");
   const chosen = await (await import("./insulation-product.server")).productForHivQuote(jobId);
   const rValue = chosen.product?.rValue ?? "R5.0";
@@ -346,4 +352,70 @@ export async function adjustQuote(quoteId: string, actorId: string, reason: stri
   await admin.from("quote_adjustments").insert({ quote_id: quoteId, adjusted_by: actorId, reason, before_snapshot: before, after_snapshot: afterFull ?? {} });
   if (discountOverride && dr.veecs == null) await logEvent(before.job_id, actorId, "quote_discount_override", `Office discount override: ${reason}`, { quote_id: quoteId, requested: veecDiscount ?? null, applied: veec, reduced_for_minimum: dr.reducedForMin }, { internal: true });
   await logEvent(before.job_id, actorId, "quote_adjusted", `Quote manually adjusted: ${reason}`, { quote_id: quoteId, before_total: before.customer_total_inc_gst, after_total: after.customer_total_inc_gst }, { internal: true });
+}
+
+/** Jo 4 Nov 2026 (A2, HIV's customer): one quote row per option (main R5.0 + any "thicker too" option), each with its
+ *  own VEU discount and 15% check, all HELD as drafts for office review (as now). The installer's rate card is only what
+ *  HIV pays them. A blank retail price, a failed area or an unapproved product → no quote, office Needs me. */
+async function generateLayoutQuotes(i: {
+  jobId: string; actorId: string | null; m: Record<string, unknown>; layoutAreas: import("./ceiling-layout.core").LayoutArea[];
+  rate: (...codes: string[]) => number | null; rsBase: { removal_inc_gst_per_m2: unknown; r5_install_inc_gst_per_m2: unknown; minimum_customer_copayment_inc_gst: unknown; indicative_veec_value: unknown };
+  settings: { id: string; version: number; gst_rate: unknown }; card: { id: string; name: string; version: number };
+  loc: ReturnType<typeof lookupLocation>; piesaOwnerIncGst: number; apFeeIncGst: number; newQuote: boolean;
+}): Promise<string[]> {
+  const lc = await import("./ceiling-layout.core");
+  const { AP_FEE_DESCRIPTION } = await import("./hiv-quote.core");
+  const rawSnap = i.m["raw_snapshot"];
+  const entries = (Array.isArray(rawSnap) ? rawSnap : []).filter((e: { label?: unknown }) => e && typeof e.label === "string") as { label: string; value: unknown }[];
+  const outcome = lc.readLayoutOutcome(entries);
+  const [{ data: rsAll, error: re }, { data: wf, error: we }, { data: estimate }] = await Promise.all([
+    admin.from("retail_estimator_settings").select("*").eq("is_current", true).maybeSingle(),
+    admin.from("workflow_settings").select("*").eq("id", 1).maybeSingle(),
+    admin.from("indicative_estimates").select("scenarios").eq("job_id", i.jobId).eq("status", "current").order("created_at", { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  if (re || we) throw new WorkflowError("Retail prices or settings could not be read — nothing priced.");
+  const rsx = (rsAll ?? {}) as Record<string, unknown>;
+  const n = (v: unknown) => (v == null || v === "" ? null : Number(v));
+  const topupCountsExisting = (wf as Record<string, unknown> | null)?.["topups_count_existing_insulation"] !== false; // ON by default
+  const { options, reasons } = lc.priceA2Options({
+    areas: i.layoutAreas, brand: outcome.brand, thicker: outcome.thicker, topupCountsExisting, gstRate: Number(i.settings.gst_rate),
+    retail: { r5: n(i.rsBase.r5_install_inc_gst_per_m2), removal: n(i.rsBase.removal_inc_gst_per_m2), topup: n(rsx["topup_inc_gst_per_m2"]), r6: n(rsx["r6_install_inc_gst_per_m2"]), r7: n(rsx["r7_install_inc_gst_per_m2"]) },
+    installerRatesEx: { R5_BATTS: i.rate("R5_BATTS"), TOPUP_R5: i.rate("TOPUP_R5"), R6_BATTS: i.rate("R6_BATTS"), R7_BATTS: i.rate("R7_BATTS"), REMOVAL: i.rate("BATTS_REMOVAL", "REMOVAL", "LOOSE_FILL_REMOVAL") },
+  });
+  const ready = (await import("./ready-check-quote.server"));
+  if (!options.length) { await ready.recordNeedsOffice(i.jobId, i.actorId, null, reasons); throw new WorkflowError(reasons.join(" ")); }
+  if (!i.loc) throw new WorkflowError("VEU discount can't be worked out: the property postcode isn't in the official VEU location list. Quote this job manually.");
+  const tolerancePct = Number((wf as Record<string, unknown> | null)?.["quote_estimate_variance_tolerance_pct"] ?? 15);
+  const anyRemoval = i.layoutAreas.some((a) => a.old === "out");
+  const estimateTotal = currentEstimateTotal(estimate?.scenarios, anyRemoval);
+  const gstMul = 1 + Number(i.settings.gst_rate);
+  const ids: string[] = [];
+  for (const opt of options) {
+    const wv = wholeVeecDiscount(opt.areaM2, i.loc, Number(i.rsBase.indicative_veec_value));
+    const q = lc.assembleLayoutQuote({
+      label: opt.label, insulationLines: opt.lines.map(({ sort: _s, ...l }) => l), piesaIncGst: i.piesaOwnerIncGst, apFeeIncGst: i.apFeeIncGst, apFeeDescription: AP_FEE_DESCRIPTION,
+      veuRawDiscount: wv.raw, minimumCopayIncGst: Number(i.rsBase.minimum_customer_copayment_inc_gst), estimateTotal, tolerancePct,
+      extraHolds: [...(i.newQuote ? [NEW_QUOTE_HOLD_REASON] : []), ...reasons],
+    });
+    const holdReason = q.holds.length ? q.holds.join(" ") : "Waiting for office review before sending";
+    const { data: row, error } = await admin.from("quotes").insert({
+      job_id: i.jobId, kind: "installation", option_label: opt.label, option_code: `LAYOUT_R${opt.target}`, status: "draft", sent_at: null,
+      release_state: "held", release_hold_reason: holdReason, rate_card_id: i.card.id, pricing_settings_id: i.settings.id,
+      subtotal_inc_gst: q.subtotalIncGst, gst_amount: r2(q.subtotalIncGst - q.subtotalIncGst / gstMul), veec_discount_inc_gst: q.veuDiscountIncGst,
+      discount_note: q.reducedForMinimum ? discountNotes({ cappedAtMax: false, reducedForMin: true }).join(" ") : null,
+      veec_count: wv.veecs, veec_unit_value_inc_gst: wv.unitValue, customer_total_inc_gst: q.customerTotalIncGst, created_by: i.actorId,
+    }).select("id").single();
+    if (error || !row) throw new Error(error?.message ?? "Quote could not be saved.");
+    const { error: le } = await admin.from("quote_items").insert(q.lines.map((l) => ({ ...l, quote_id: row.id })));
+    const { error: ie } = le ? { error: null } : await admin.from("quote_internals").insert({
+      quote_id: row.id, cost_ex_gst: opt.installerCostEx, ap_margin_ex_gst: r2((opt.subtotalIncGst / gstMul) - opt.installerCostEx), ap_fee_ex_gst: r2(i.apFeeIncGst / gstMul),
+      calc_snapshot: { pricing_rule: "hiv_layout_retail_v1", measurement_id: String(i.m["id"] ?? ""), option_target: opt.target, brand: outcome.brand, thicker_requested: outcome.thicker, areas: i.layoutAreas as unknown as import("@/integrations/supabase/types").Json, topups_count_existing_insulation: topupCountsExisting, rate_card_version: i.card.version, pricing_version: i.settings.version, area_m2: opt.areaM2 },
+    });
+    if (le || ie) { await admin.from("quotes").update({ status: "superseded" }).in("id", [...ids, row.id]); throw new Error(`Quote lines could not be saved: ${(le ?? ie)!.message}`); }
+    ids.push(row.id);
+  }
+  await admin.from("quotes").update({ status: "superseded" }).eq("job_id", i.jobId).eq("kind", "installation").in("status", ["draft", "issued"]).not("id", "in", `(${ids.join(",")})`);
+  await logEvent(i.jobId, i.actorId, "installation_quote_held", `Ready Check quote${ids.length > 1 ? "s" : ""} held for office review (${options.map((o) => o.label).join(" + ")})`, { quote_ids: ids, rate_card: i.card.name, pricing_rule: "hiv_layout_retail_v1", release_state: "held" }, { internal: true });
+  if (reasons.length) await ready.recordNeedsOffice(i.jobId, i.actorId, ids[0] ?? null, reasons);
+  return ids;
 }

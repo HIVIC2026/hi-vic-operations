@@ -4,6 +4,7 @@
 // (mitti.core.ts, ready-check-answers.core.ts, ready-check-complete.core.ts, area-diagram.core.ts) and the ChatGPT
 // build prompt (docs/MITTI_READY_CHECK_CHATGPT_PROMPT.md, drift-tested) can never disagree. Pure: no I/O.
 import { APPROVED_PRODUCTS } from "./insulation-product.core";
+import { mittiLabelAliases } from "./mitti-rebuild-labels.core";
 
 // The two Mitti template names (A1 installer-supplied customer, A2 our lead) are stated in the build prompt only; the
 // portal identifies a template by its ID (workflow_settings), never by name.
@@ -112,6 +113,11 @@ export const LEAN_ALIASES: Partial<Record<keyof typeof LEAN_Q, readonly string[]
 };
 
 export const YES_NO = ["Yes", "No"] as const;
+// Extend the old contract without rewriting historical labels or prompts.
+for (const key of Object.keys(LEAN_Q) as (keyof typeof LEAN_Q)[]) {
+  LEAN_ALIASES[key] = [...(LEAN_ALIASES[key] ?? []), ...mittiLabelAliases(LEAN_Q[key])];
+}
+LEAN_ALIASES.lifeSupport = [...(LEAN_ALIASES.lifeSupport ?? []), "Does anyone living here use life support equipment?"];
 export const PROPERTY_TYPE_OPTIONS = ["House", "Townhouse", "Unit or apartment"] as const;
 /** Activity Guide Appendix C premises type (VEEC claim). */
 export const PREMISES_TYPE_OPTIONS = ["Owner lives here", "Private rental – tenant lives here", "Public housing", "Community housing"] as const;

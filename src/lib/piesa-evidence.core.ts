@@ -56,8 +56,8 @@ export type PiesaEvidenceSpec = {
 };
 
 export const PIESA_EVIDENCE: PiesaEvidenceSpec[] = [
-  { id: "switchboard_photo", q: 42, label: "Photo of the cables at the switchboard (geotagged)", aliases: ["Switchboard cable photo"], geotagged: true, short: "Switchboard photo" },
-  { id: "onsite_photo", q: 43, label: "Photo showing you on site at the property, holding your licence / photo ID (geotagged)", aliases: ["Photo showing you on site at the property (geotagged)", "Electrician photo at front of premises with photo ID"], geotagged: true, short: "On-site photo" },
+  { id: "switchboard_photo", q: 42, label: "Photo of the cables at the switchboard (geotagged)", aliases: ["Switchboard cable photo", "Photo of the cables at the switchboard"], geotagged: true, short: "Switchboard photo" },
+  { id: "onsite_photo", q: 43, label: "Photo showing you on site at the property, holding your licence / photo ID (geotagged)", aliases: ["Photo showing you on site at the property (geotagged)", "Electrician photo at front of premises with photo ID", "Photo of you (the electrician) standing in front of the house, holding your photo ID"], geotagged: true, short: "On-site photo" },
   // Decision 297 (Jo 25 Oct 2026): one "Photo of the problem" question sits under each hazard section (mains, solar, ceiling
   // wiring, downlights); every occurrence feeds this one evidence id. The old single end-of-form question is an alias.
   { id: "hazard_photos", q: 44, label: "Photo of the problem", aliases: ["Photo of each hazard listed (one per hazard; geotagged)"], geotagged: true, short: "Hazard photo" },

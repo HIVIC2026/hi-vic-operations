@@ -21,7 +21,7 @@ export const CONFIRMED_QUOTE_TITLE = "Your confirmed quote";
 
 /** Jo insists this is clear: quote page, confirm page, safety-check booking, plain-text email, signed summary. */
 export const PIESA_FIXES_NOTE =
-  "Your Pre Insulation Electrical Safety Assessment (PIESA) may find electrical work that needs fixing before insulation can go in. Any electrical fixes are completely separate from this price. If needed, you'll receive a separate quote for that work to approve. Nothing is done without your OK.";
+  "Your Pre Insulation Electrical Safety Assessment (PIESA) may find electrical upgrades needed before insulation can go in. Any electrical upgrades are completely separate from this price. If needed, you'll receive a separate quote for that work to approve. Nothing is done without your OK.";
 
 export type AgreedPrice = { agreed: boolean; installerName: string | null };
 

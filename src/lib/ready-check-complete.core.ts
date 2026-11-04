@@ -4,6 +4,7 @@
 import { contactAnswersFromEntries } from "./mitti.core";
 import { readyCheckStopReasons, STOP_BUILT_5, STOP_LIFE_SUPPORT, STOP_NO_CONTACT, STOP_NO_SAFE_ACCESS, STOP_R2 } from "./ready-check-answers.core";
 import { isBelowR2, LEAN_Q } from "./ready-check-lean.core";
+import { canonicalMittiLabel } from './mitti-rebuild-labels.core';
 
 /** A Mitti answer is "given" when it carries anything at all — a blank, "null" or <nil> never counts. */
 const answered = (v: unknown): boolean => {
@@ -14,7 +15,7 @@ const answered = (v: unknown): boolean => {
   return true;
 };
 const find = (entries: { label: string; value: unknown }[], labels: string[]) =>
-  entries.find((e) => labels.some((l) => String(e.label ?? "").trim().toLowerCase() === l.toLowerCase()))?.value ?? null;
+  entries.find((e) => labels.some((l) => canonicalMittiLabel(String(e.label ?? "")).split('\n')[0]?.trim().toLowerCase() === l.toLowerCase()))?.value ?? null;
 
 /**
  * Ready Check facts straight off the form snapshot. Absent-safe: a question the form never asked is
@@ -25,7 +26,8 @@ export function readyCheckFactsFromEntries(
   entries: { label: string; value: unknown }[],
   opts: { formComplete: boolean; electricianDecided: boolean; priceKnown: boolean },
 ): ReadyCheckFacts {
-  const present = find(entries, ["Is there existing insulation?", "Is there existing insulation in this ceiling area?"]);
+  const layoutOld = entries.filter(e => e.label.split('\n')[0]?.trim() === 'Old insulation in this area?').map(e => String(e.value ?? '').trim());
+  const present = layoutOld.length ? layoutOld.every(v => v === 'None') ? 'No' : layoutOld.some(v => v === 'Yes, taking it out' || v === 'Yes, topping up') ? 'Yes' : null : find(entries, ["Is there existing insulation?", "Is there existing insulation in this ceiling area?"]);
   const depthPhoto = answered(find(entries, ["Photo with tape measure showing depth", "Upload a photo clearly showing the measured insulation depth"]));
   const belowR2Tick = answered(find(entries, ["No photo? I confirm the existing insulation is below R2.0 and the home is eligible for the rebate"]));
   const overviewPhoto = answered(find(entries, ["Slow 360° video of this ceiling area, lit, saying its name", "Photo of the empty ceiling space", "Upload an overview photo of this ceiling area"]));

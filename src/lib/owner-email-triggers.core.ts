@@ -6,7 +6,7 @@
 //   O19 Quote reminder       15-minute tick: 3 days after the quote is sent, and 2 days before the price expires (decisions 88/89/134)
 //   O22 You're in + receipt  when the safety check payment on the accepted quote's invoice is received (decision 90)
 //   O26 Safety check times   when the electrician offers PIESA times (decisions 94/333); booked version when the PIESA is booked
-//   O29 Fixes quote          when the office sends the reviewed electrical fixes quote (decision 95)
+//   O29 Fixes quote          when the office sends the reviewed electrical upgrades quote (decision 95)
 //   O33 Pick your install day when the installer offers install days (decision 96)
 //   O42 Install day changed  when a booked install day moves (decision 135)
 //   O45 Final invoice        install recorded complete with a balance due, once per invoice (decision 334, bank transfer only)
@@ -20,7 +20,7 @@ export const OWNER_EMAIL_TRIGGER_EVENT = "owner_email_triggered";
 export type OwnerEmailCode = "O19" | "O22" | "O26" | "O26_booked" | "O29" | "O33" | "O42" | "O45" | "O51";
 export const OWNER_EMAIL_LABEL: Record<OwnerEmailCode, string> = {
   O19: "Quote reminder email", O22: "You're in email", O26: "Safety check times email", O26_booked: "Safety check booked email",
-  O29: "Electrical fixes quote email", O33: "Install days email", O42: "Install day changed email", O45: "Final invoice email", O51: "Review request email",
+  O29: "Electrical upgrades quote email", O33: "Install days email", O42: "Install day changed email", O45: "Final invoice email", O51: "Review request email",
 };
 
 export type QuoteReminderKind = "day3" | "expiry";

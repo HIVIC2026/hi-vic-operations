@@ -8,9 +8,11 @@ import { MIN_REC_PL_COVER, isAustralianAddress, isVictorianAddress, keepPickedNu
 
 // 2.6 incorporates Guide V1.2 role-owned evidence and retention; commercial and electrical warranty terms unchanged.
 // Decision 397 (Jo 26 Oct 2026): back to 2.6 with Schedule 4; 2.3–2.5 stay activatable.
-export const REC_AGREEMENT_VERSION = "HI-VIC-A48-REC-2.6-2026-10-09";
+// 2.7 (Jo 4 Nov 2026): defect/complaint deadlines (2/5/15 business days, 24h for safety); electrical upgrades quoted, invoiced and paid
+//   directly between the REC and the owner; REC may phone the owner to book. Signed 2.6 stays activatable.
+export const REC_AGREEMENT_VERSION = "HI-VIC-A48-REC-2.7-2026-11-04";
 /** Earlier signed agreements remain valid for office activation; only new signatures use the current version. */
-export const ACTIVATABLE_REC_VERSIONS: readonly string[] = ["HI-VIC-A48-REC-2.3-2026-10-01", "HI-VIC-A48-REC-2.4-2026-10-03", "HI-VIC-A48-REC-2.5-2026-10-05", REC_AGREEMENT_VERSION];
+export const ACTIVATABLE_REC_VERSIONS: readonly string[] = ["HI-VIC-A48-REC-2.3-2026-10-01", "HI-VIC-A48-REC-2.4-2026-10-03", "HI-VIC-A48-REC-2.5-2026-10-05", "HI-VIC-A48-REC-2.6-2026-10-09", REC_AGREEMENT_VERSION];
 export const REC_AGREEMENT_TITLE = "Activity 48 Registered Electrical Contractor Partner Agreement";
 export const AP_ENTITY = "DC Construction Solutions Pty Ltd ABN 44 671 613 979 trading as Home Insulation Victoria";
 export const MIN_PL_COVER = 5_000_000;

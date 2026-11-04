@@ -559,6 +559,7 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
         const basics = await (await import("./ready-check-basics.server")).checkReadyCheckBasics(jobId, actorId, (plan.snapshot ?? []) as { label: string; value: string | null }[], plan.completed, measureAudit).catch(() => null);
         const draftNow = plan.completed || !!basics?.ready;
         const mIssues = plan.issues.filter((i) => !/PIESA|Switchboard/.test(i));
+        mIssues.push(...await (await import('./ready-check-floor-plan.server')).saveFloorPlanFiles(jobId,actorId,measureAudit,auditNow,fetchMedia));
         issues = [...issues, ...mIssues, ...(mp.action === "skip" ? [mp.reason] : []), ...(mp.zonesIssue ? [mp.zonesIssue] : [])];
         completed = completed || plan.completed;
         if (plan.completed) await saveMittiReport(jobId, actorId, measureAudit, plan.modifiedAt ?? null, "Ready Check", call);
@@ -799,6 +800,7 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string | nul
       const a3Short = a3Entries.length ? (await import("./official-short.core")).shortAnswersFromEntries("piesa", a3Entries) : null;
       const piesaFacts = id.installDayPiesaFacts({ piesaAnswers: piisaCtx.piesaAnswers as Record<string, unknown> | null, a3Short, lifeSupportDeclared: piisaCtx.lifeSupportDeclared });
       const facts = {
+        areaOrder: (await (await import('./install-evidence.server')).jobUpgradeZones(jobId)).map((z,i)=>`${i+1}. ${z.name?.trim()||`Area ${i+1}`}`).join(' · '),
         jobNumber: job.job_number, address: hv("address"), installDate: hv("startDate"), apName: hv("p2.ap"), businessName: hv("p2.company"),
         leadName: lead?.name ?? null, leadCii: lead?.eecVerified ? lead.eec : null,
         // Decision 299: the rest of the crew pre-filled from the booking's crew picks (staff row, or an "Other" entry).

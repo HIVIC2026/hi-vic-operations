@@ -136,7 +136,7 @@ export const PIPELINE_PHASES: { key: Phase; label: string; stages: Stage[] }[] =
   { key: "site_assessment", label: "PIESA (earlier jobs)", stages: ["awaiting_electrician", "assessment_booking", "assessment_booked"] },
   { key: "quote_approval", label: "Quote", stages: ["assessment_complete", "rectification_required", "awaiting_owner_rectification_approval", "ready_for_installer_quotes", "awaiting_quote_acceptance"] },
   { key: "deposit", label: "Payment", stages: ["awaiting_deposit_payment"] },
-  { key: "rectification", label: "Electrical fixes", stages: ["rectification_scheduling", "rectification_booked"] },
+  { key: "rectification", label: "Electrical upgrades", stages: ["rectification_scheduling", "rectification_booked"] },
   { key: "installation", label: "Install", stages: ["installation_scheduling", "installation_booked"] },
   { key: "evidence_ap_veec", label: "Final check and VEECs", stages: ["evidence_outstanding", "ap_review", "ready_for_veec"] },
   { key: "complete", label: "Complete", stages: ["complete"] },

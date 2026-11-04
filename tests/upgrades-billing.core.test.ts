@@ -34,7 +34,7 @@ describe("electricalClearance never needs an HIV upgrades quote", () => {
     const c = electricalClearance(base);
     expect(c.cleared).toBe(false);
     expect(c.blocker).not.toContain("approved the electrical fixes quote");
-    expect(c.blocker).toBe("Electrical fixes not completed yet.");
+    expect(c.blocker).toBe("Electrical upgrades not completed yet.");
   });
   test("on-site-at-install-start job with no quote or payment: clears on the PIESA alone (electrician_at_start, no Section C)", () => {
     const c = electricalClearance({ ...base, onsiteStartOnly: true, fixesPaymentCleared: false });

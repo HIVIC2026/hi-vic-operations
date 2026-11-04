@@ -546,7 +546,7 @@ function ElectricianFlow({ jobId, stage }: { jobId: string; stage: string }) {
     );
   const planBlock =
     !locked && needsPlan ? (
-      <Section title="Electrical fixes time and hours">
+      <Section title="Electrical upgrades time and hours">
         <RectPlanFields value={plan} onChange={setPlan} />
       </Section>
     ) : null;
@@ -568,7 +568,7 @@ function ElectricianFlow({ jobId, stage }: { jobId: string; stage: string }) {
         stage,
       ) &&
         (stage === "awaiting_deposit_payment" ? (
-          <Section title="Electrical fixes booking">
+          <Section title="Electrical upgrades booking">
             <p className="text-sm font-medium text-rose">
               Waiting for the owner's payment. Booking opens once paid.
             </p>
@@ -642,7 +642,7 @@ function OtherItems({ jobId, editable }: { jobId: string; editable: boolean }) {
   const [o, setO] = useState({ description: "", quantity: "1", price: "", explanation: "" });
   const [approved, setApproved] = useState({ code: "", quantity: "1" });
   return (
-    <Section title="Electrical fixes items">
+    <Section title="Electrical upgrades items">
       {editable && approvedRates.length > 0 && (
         <div className="mb-4 rounded-lg border p-3">
           <p className="mb-2 text-sm font-semibold">Add from your approved rate schedule</p>
@@ -673,7 +673,7 @@ function OtherItems({ jobId, editable }: { jobId: string; editable: boolean }) {
               onClick={() =>
                 addApproved(
                   { jobId, rateCode: approved.code, quantity: Number(approved.quantity) },
-                  "Approved electrical fixes item added",
+                  "Approved electrical upgrades item added",
                 )
               }
             >

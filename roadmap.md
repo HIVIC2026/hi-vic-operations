@@ -1,3 +1,27 @@
+## Jo 4 Nov install-day BEFORE, floor plans and TEST quote browser check
+- [x] Capability investigation: configured alternate templates supported; hidden immutable answers/repeat prefills unproven. Staged automatic BEFORE rule/reader, ordinary area-order prefill and scope-change Needs me without repricing.
+- [ ] Operational per-area BEFORE creation/read/reuse and accepted-evidence suppression — blocked on Mitti immutable conditional or fixed-area draft definition; existing gates not bypassed.
+- [x] Red-first explicit floor-plan m² and private attachment-copy path; old length × width preserved.
+- [ ] Practice two-option browser review — TEST office sign-in reached /admin/needs-me but browser import error blocks content; no quote setup or no-delivery marker changes made.
+- [x] 151 related tests pass and automatic checks clean; limitations in docs/MITTI_INSTALL_BEFORE_FOLLOWUP_4NOV.md. No templates, real records, sends or publishing.
+
+## Jo 4 Nov A1–A5 Mitti rebuild compatibility
+- [x] Source compatibility report covers changed/unchanged questions, official facts, evidence and prompt corrections.
+- [x] Red-first exact aliases and independent A3 mains mapping; 177 related form/evidence/price tests pass, missing facts stay held.
+- [x] Current electrical-work display wording updated; internal keys, official/legacy labels, issued history and invoice-matching reference suffix retained.
+- [x] Automatic checks clean; additional suite has failures disclosed in the report, not claimed baseline. No templates, records, sends, publishing or switch changes.
+- [ ] Rebuilt Mitti draft readback and end-to-end verification — awaits actual draft definitions; source fixtures are not provider proof.
+
+## Jo 4 Nov A1/A2 Ready Check forms: ceiling layout, top-ups, approved products, quotes
+- [x] Pure core `ceiling-layout.core.ts`: exact wording, approved ESC 48A list with model numbers, rules 1–5, A2 options, A1 choices/validation, exact line wording, per-option VEU and 15% hold. 18 new tests + 1 practice-DB proof pass; 181 related Ready Check tests pass.
+- [x] Mitti reader: new area answers replace old ones on new forms only; "Can the job go ahead?" No = failed; R2.0-or-more stop.
+- [x] A2 quote builder: retail prices, installer paid TOPUP_R5/R5/R6/R7/removal, main + thicker option rows, all held for office review.
+- [x] A1 price card: area facts, approved-only brand+batt picks per area with totals, main total + thicker total; server validates.
+- [x] Settings switch + blank top-up/R6/R7 retail prices: pending SQL `docs/pending-migrations/ceiling-layout-4nov.sql` (PGlite-proven, NOT applied; needs Jo's OK). Until applied: switch reads ON, blank prices hold A2 quotes.
+- [ ] A1 thicker option: total is saved but its second owner quote is not built yet; A1 quote line still shows one installer line (per-area wording not on it yet).
+- [ ] Owner page showing two A2 options together: not checked in the browser.
+- [ ] Retail price editing on Settings: no screen exists today for these prices; Jo fills them after the SQL is applied.
+
 ## Jo 3 Nov 7:52pm active installer Team role choice
 - [x] Test-first: no preselected Lead/Crew, Add disabled until chosen, server requires installer workerRole, exact explanation; existing Mitti behaviour unchanged. 112 related tests pass, including missing-role zero-write and two-business email isolation; automatic checks build OK. Actual form extracted into a write-blocked browser fixture confirms neither selected initially and either choice enables Add; authenticated save not run (no data changes permitted). No data changes, sends or publishing.
 

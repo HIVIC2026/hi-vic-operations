@@ -1317,6 +1317,13 @@
       "when": 1793611481531,
       "tag": "0187_quick_tap_link_signing",
       "breakpoints": true
+    },
+    {
+      "idx": 188,
+      "version": "7",
+      "when": 1793743897269,
+      "tag": "0188_ceiling_layout_retail_prices",
+      "breakpoints": true
     }
   ]
 }

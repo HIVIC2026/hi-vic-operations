@@ -43,7 +43,7 @@ import { completeOwnerQuoteAcceptance, ownerQuoteCanAccept } from "@/lib/owner-q
 
 // Owner "My job" — no login. The secure link token is the only credential; nothing fetched during SSR.
 // Decision 335: "review" = the O51 star links (?screen=review&stars=N).
-// Decision 366: "fixes" = the electrical fixes screen (O29's approve link): approve → pay in full → pick the electrician's time.
+// Decision 366: "fixes" = the electrical upgrades screen (O29's approve link): approve → pay in full → pick the electrician's time.
 // Decision 389: "turn" = "It's your turn" (O77's link): Confirm the free Ready Check, or no longer interested.
 // Batch 3a: "newquote" = O78's "Send me a new quote" button: the request runs on arrival, then the approved thanks line.
 // A48 batch 2: "taps" = the quick taps (the batch text's link): one question per screen, big buttons.
@@ -164,7 +164,7 @@ function Home({ v, token }: { v: View; token: string }) {
     {/* Decision 296 (P6): between the electrician's PIESA and the install day the owner confirms the safety check here; unsigned = the page. */}
     {v.piesaConfirm && <PiesaConfirmCard v={v} token={token} />}
     {v.fixesConfirm && <FixesConfirmCard token={token} />}
-    {/* Decision 366: an electrical fixes quote waiting on the owner (approve / pay / pick a time) links to its screen. */}
+    {/* Decision 366: an electrical upgrades quote waiting on the owner (approve / pay / pick a time) links to its screen. */}
     <FixesHomeCard token={token} />
     <LifeSupportPlanCard token={token} />
     <Hero v={v} level={v.hero.level} headline={v.hero.headline} />
@@ -834,7 +834,7 @@ function QuoteScreen({ v, token }: { v: View; token: string }) {
 }
 
 /** Decisions 139/140/141: what is due now and how to pay it. Card ("Pay now", Xero online invoice) only for the $349
- *  safety check, electrical fixes and the install deposit (Jo 29 Oct); the balance is bank transfer / PayID only. Never a card fee. */
+ *  safety check, electrical upgrades and the install deposit (Jo 29 Oct); the balance is bank transfer / PayID only. Never a card fee. */
 function PayNowCard({ v, token }: { v: View; token: string }) {
   const p = v.payment as { dueNow: number; remaining: number; paid: number; payNow: { title: string; amount: number; card: boolean; lines: string[] }; provisional: { expiresAt: string | null; deposit: number } | null } | null;
   const checkout = useServerFn(ownerCardCheckoutFn);
@@ -855,7 +855,7 @@ function PayNowCard({ v, token }: { v: View; token: string }) {
   </section>;
 }
 
-/** Decision 366 (audit F03): the Home card for an electrical fixes quote that needs the owner. */
+/** Decision 366 (audit F03): the Home card for an electrical upgrades quote that needs the owner. */
 /** A48 batch 1 final fix (Jo 29 Oct 2026, approved wording verbatim): life support yes / unknown and no plan on file →
  *  the owner uploads the written consent or medical plan (photo or PDF). That file alone clears the safety check block. */
 function LifeSupportPlanCard({ token }: { token: string }) {
@@ -898,7 +898,7 @@ function FixesHomeCard({ token }: { token: string }) {
   </section>;
 }
 
-/** Decision 366 (audit F03): the electrical fixes screen (?screen=fixes, O29's link). The latest fixes quote (lines + total)
+/** Decision 366 (audit F03): the electrical upgrades screen (?screen=fixes, O29's link). The latest fixes quote (lines + total)
  *  → Approve (6-digit code session, same acceptance helper as the installation quote, without regenerating it) → pay in full
  *  (the existing PayNowCard `fixes` step: card when Stripe is on, else bank transfer) → pick one of the electrician's times → booked. */
 function FixesScreen({ v, token }: { v: View; token: string }) {
@@ -918,10 +918,10 @@ function FixesScreen({ v, token }: { v: View; token: string }) {
     setErr(""); setBusy(true);
     try { await fn(session); await refresh(); } catch (e) { setErr(errText(e)); } finally { setBusy(false); }
   };
-  if (isLoading) return <><Back token={token} /><p role="status" className="py-10 text-center text-sm">Opening your electrical fixes…</p></>;
+  if (isLoading) return <><Back token={token} /><p role="status" className="py-10 text-center text-sm">Opening your electrical upgrades…</p></>;
   // Part 3 Task 1 (Jo 2 Nov 2026): no Home Insulation Victoria upgrades quote — the electrician arranges the upgrades directly.
   if (data?.electricianBills && (data.step === "none" || !data.quote)) return <><Back token={token} /><section data-testid="fixes-electrician-bills" className="rounded-[22px] bg-card p-5 shadow-sm"><p className="text-sm">{data.electricianBills}</p></section></>;
-  if (!data || data.step === "none" || !data.quote) return <><Back token={token} /><section className="rounded-[22px] bg-card p-5 shadow-sm"><p className="font-display text-lg font-extrabold">No electrical fixes to look at</p><p className="mt-1 text-sm">Your safety check didn't leave any electrical fixes for you to approve.</p></section></>;
+  if (!data || data.step === "none" || !data.quote) return <><Back token={token} /><section className="rounded-[22px] bg-card p-5 shadow-sm"><p className="font-display text-lg font-extrabold">No electrical upgrades to look at</p><p className="mt-1 text-sm">Your safety check didn't leave any electrical upgrades for you to approve.</p></section></>;
   const q = data.quote;
   return <>
     <Back token={token} />
@@ -959,7 +959,7 @@ function FixesScreen({ v, token }: { v: View; token: string }) {
 
 /** Jo insists this is clear and boxed (7 Oct 2026). */
 function FixesNote() {
-  return <section role="note" data-piesa-fixes-note className="rounded-[22px] border-2 border-estimate-navy/40 bg-card p-5 text-sm"><p className="font-bold">About electrical fixes</p><p className="mt-1">{PIESA_FIXES_NOTE}</p></section>;
+  return <section role="note" data-piesa-fixes-note className="rounded-[22px] border-2 border-estimate-navy/40 bg-card p-5 text-sm"><p className="font-bold">About electrical upgrades</p><p className="mt-1">{PIESA_FIXES_NOTE}</p></section>;
 }
 
 function BookScreen({ v, token }: { v: View; token: string }) {
@@ -1037,7 +1037,7 @@ function PiesaConfirmCard({ v, token }: { v: View; token: string }) {
   </section>;
 }
 
-/** Decision 330: "Your electrical fixes — please confirm" (P6 pattern, no code): one tick "The electrical fixes were completed on
+/** Decision 330: "Your electrical upgrades — please confirm" (P6 pattern, no code): one tick "The electrical upgrades were completed on
  *  <date>" + typed full name. Nothing when no fixes are recorded; "Confirmed on <date>" afterwards. Never holds the booking. */
 function FixesConfirmCard({ token }: { token: string }) {
   const load = useServerFn(ownerFixesConfirmFn);

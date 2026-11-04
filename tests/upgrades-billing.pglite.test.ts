@@ -124,7 +124,7 @@ for (const [label, job] of [["an HIV lead", LEAD], ["an installer's own job", OW
       expect(facts).toMatchObject({ rectificationRequired: true, rectificationQuoteAccepted: false, partnerBilledRectification: true });
       const c = electricalClearance(facts);
       expect(c.cleared).toBe(false);
-      expect(c.blocker).toBe("Electrical fixes not completed yet.");
+      expect(c.blocker).toBe("Electrical upgrades not completed yet.");
     });
     test("the owner's My job upgrades screen says the electrician arranges it directly", async () => {
       const st = await ownerFixesState(job);

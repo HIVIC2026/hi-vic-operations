@@ -310,6 +310,10 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   const facts = new Map<string, NeedsFacts>();
   for (const j of jobs) facts.set(j.id, { jobId: j.id, jobNumber: j.jobNumber, surname: surnameOf(j.owner), suburb: j.suburb, ...(j.source === "qa_test" ? { isTest: true } : {}) });
   const f = (id: string) => facts.get(id);
+  if(ids.length){
+    const changes=await byIds('install scope changes',ids,(c,a,b)=>admin.from('workflow_events').select('job_id,event_type,details,created_at').in('job_id',c).in('event_type',['install_scope_change_detected','install_scope_change_reviewed']).order('created_at',{ascending:false}).range(a,b));
+    for(const id of ids){const latest=changes.find(e=>e['job_id']===id);const x=f(id);if(!x||latest?.['event_type']!=='install_scope_change_detected')continue;const areas=(latest['details'] as {areas?:unknown}|null)?.areas;if(Array.isArray(areas))x.installScopeChange={at:String(latest['created_at']),areas:areas.filter((v):v is string=>typeof v==='string')};}
+  }
   const dispatch = await (await import("./in-house-suppression.server")).readInHouseDispatchState(jobs.map(j => j.id));
   for (const j of jobs) { const x = f(j.id); if (x) x.inHouseDispatch = dispatch.failed ? "in_house_read_failed" : dispatch.held.has(j.id) ? "in_house" : null; }
   const inHouse = await inHouseNeedsFacts(jobs.filter(j => j.source !== "qa_test").map(j => j.id));

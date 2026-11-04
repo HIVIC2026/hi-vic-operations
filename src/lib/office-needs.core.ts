@@ -26,6 +26,7 @@ export const NEEDS_GROUPS: { key: NeedsGroup; label: string }[] = [
 ];
 
 export type NeedsKind =
+  | "install_scope_change"
   | "in_house_esc_lead_changed" | "in_house_handed_back" | "address_to_confirm" | "mitti_electrician_choice" | "own_job_piesa_held" | "own_job_piesa_complete_held" | "same_day_part_c_failed" | "own_job_piesa_handed_back" | "own_job_swap_form_not_moved" | "own_job_installer_not_told"
   | "paid_gate_blocked" | "install_deposit_request_failed" | "in_house_form_sync_failed"
   | "in_house_ready_check_not_booked" | "in_house_piesa_overdue" | "in_house_install_not_booked"
@@ -58,6 +59,7 @@ export type NeedsFacts = {
   paidGate?: PaidGateWarning | null;
   depositRequestFailed?:{at:string;reason:string}|null;
   inHouseFormSyncFailed?:{at:string;reason:string}|null;
+  installScopeChange?:{at:string;areas:string[]}|null;
   inHouse?: { partnerName: string; batchSentAt: string | null; readyCheckBooked: boolean;
     quoteAcceptedAt: string | null; piesaCompleted: boolean; installationBooked: boolean;
     daysRemaining: number | null; deadline: string | null;
@@ -191,11 +193,11 @@ export function stopReleaseFailedFact(events: { event_type: string; created_at: 
 
 /** Jo 28 Oct: one plain office line while a PIESA's electrical fixes are open. */
 export function fixesFoundLine(stage: string): string {
-  const what = stage === "awaiting_owner_rectification_approval" ? "waiting on owner approval of the fixes quote"
-    : stage === "rectification_scheduling" ? "waiting on the fixes booking"
-    : stage === "rectification_booked" ? "waiting on the fixes and Section C sign-off"
-    : "waiting on fixes quote/approval";
-  return `Safety check found electrical fixes — ${what}`;
+  const what = stage === "awaiting_owner_rectification_approval" ? "waiting on owner approval of the upgrades quote"
+    : stage === "rectification_scheduling" ? "waiting on the upgrades booking"
+    : stage === "rectification_booked" ? "waiting on the upgrades and Section C sign-off"
+    : "waiting on upgrades quote/approval";
+  return `Safety check found electrical upgrades — ${what}`;
 }
 
 /** The newest `invoice_create_failed` event, unless a Xero-linked invoice has appeared since (the office created it). */
@@ -211,12 +213,12 @@ export function invoiceFailedFact(
 }
 
 /** Batch 3b: the office line for an old fixes invoice that a newer fixes quote replaced (office-only wording). */
-export const OLD_FIXES_INVOICE_LINE = "Old fixes invoice unpaid — void it in Xero";
+export const OLD_FIXES_INVOICE_LINE = "Old upgrades invoice unpaid — void it in Xero";
 /** Final fix I3 (office-only wording): money on a replaced fixes invoice. */
 export const oldFixesInvoicePaidLine = (paid: number) =>
-  `Old fixes invoice has $${paid.toLocaleString("en-AU", { minimumFractionDigits: Number.isInteger(paid) ? 0 : 2, maximumFractionDigits: 2 })} paid — apply it or refund it`;
+  `Old upgrades invoice has $${paid.toLocaleString("en-AU", { minimumFractionDigits: Number.isInteger(paid) ? 0 : 2, maximumFractionDigits: 2 })} paid — apply it or refund it`;
 export const invoiceFailedLine = (kind: "installation" | "rectification" | "repeat_safety_check" | undefined) =>
-  `${kind === "rectification" ? "Fixes invoice" : kind === "repeat_safety_check" ? "Repeat safety check invoice" : "Invoice"} didn't reach Xero · owner can't pay yet`;
+  `${kind === "rectification" ? "Upgrades invoice" : kind === "repeat_safety_check" ? "Repeat safety check invoice" : "Invoice"} didn't reach Xero · owner can't pay yet`;
 
 /** The generic "System · Xero: …" row for an invoice that is not linked to Xero repeats the failed-invoice row: hide it. */
 export const duplicatesInvoiceFailed = (why: string, invoiceFailed: NeedsFacts["invoiceFailed"]): boolean => !!invoiceFailed && why.startsWith("Xero: ");
@@ -252,6 +254,7 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   if (f.mittiElectricianHeld) add({ rank: 20, group: "today", kind: "mitti_electrician_choice", line: "Installer to choose electrician", since: f.mittiElectricianHeld.at, button: { label: "Open job", to: "job", section: "piesa" } });
   if (f.addressToConfirm) add({ rank: 40, group: "today", kind: "address_to_confirm", line: `Address to confirm${f.addressToConfirm.candidates[0] ? ` · ${f.addressToConfirm.candidates[0]}` : ""}`, since: f.addressToConfirm.at, button: { label: "Open job", to: "job", section: "contact" } });
   const paidLine = paidGateWarningLine(f.paidGate);
+  if(f.installScopeChange)add({rank:18,group:'today',kind:'install_scope_change',line:`Install scope changed: ${f.installScopeChange.areas.join(', ')} – review before proceeding; quote unchanged`,since:f.installScopeChange.at,button:{label:'Open job',to:'job',section:'install'}});
   if (paidLine && f.paidGate) add({ rank: 19, group: "today", kind: "paid_gate_blocked", line: paidLine, since: f.paidGate.at, button: { label: "Open job", to: "job", section: "piesa" } });
   const ih = !f.isTest && f.source !== "qa_test" && !f.deletedAt ? f.inHouse : null;
   if (ih) {
@@ -287,7 +290,7 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   // Jo 2 Nov 2026: in-house jobs use the 5/10/7 stall rows above, never this 48-hour / 2-business-day row.
   if (f.bookingOverdue && !held) {
     const v = f.bookingOverdue.visit;
-    const label = v === "ready_check" ? "Ready Check" : v === "installation" ? "Install" : v === "rectification" ? "Fixes" : "PIESA";
+    const label = v === "ready_check" ? "Ready Check" : v === "installation" ? "Install" : v === "rectification" ? "Upgrades" : "PIESA";
     add({ rank: 21, group: "today", kind: "booking_overdue", line: `${label} time not confirmed after 48 hours`, since: f.bookingOverdue.at, button: { label: "Open job", to: "job", section: v === "ready_check" ? "ready-check" : v === "installation" ? "install" : "piesa" } });
   }
   if (f.consentToSign) {
@@ -305,14 +308,14 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   if (f.paymentReversed) add({ rank: 39, group: "today", kind: "payment_reversed", line: `Payment reversed · ${f.paymentReversed.text}`, since: f.paymentReversed.at, button: { label: "Open job", to: "job", section: "money" } });
   if (f.eligibilityReview) add({ rank: 38, group: "today", kind: "eligibility_review", line: eligibilityReviewLine(f.eligibilityReview.reason), since: f.eligibilityReview.at, button: { label: "Review eligibility", to: "job", section: "ready-check" } });
   if (f.quoteToCheck) add({ rank: 40, group: "today", kind: "quote_check", line: f.quoteToCheck.ready ? "Quote ready · all checks passed · press Send" : `Quote held · ${f.quoteToCheck.reason ?? "something is missing"}`, since: f.quoteToCheck.at, button: { label: "Check & send", to: "job", section: "quote" } });
-  if (f.fixesQuoteToCheck) add({ rank: 45, group: "today", kind: "fixes_quote_check", line: `Electrical fixes quote to check${f.fixesQuoteToCheck.reason ? ` · ${f.fixesQuoteToCheck.reason}` : ""}`, since: f.fixesQuoteToCheck.at, button: { label: "Review and send", to: "job", section: "piesa" } });
+  if (f.fixesQuoteToCheck) add({ rank: 45, group: "today", kind: "fixes_quote_check", line: `Electrical upgrades quote to check${f.fixesQuoteToCheck.reason ? ` · ${f.fixesQuoteToCheck.reason}` : ""}`, since: f.fixesQuoteToCheck.at, button: { label: "Review and send", to: "job", section: "piesa" } });
   if (f.finalCheck) add({ rank: 50, group: "today", kind: "final_check", line: `Final check · install complete · ${f.finalCheck.flags ? `${f.finalCheck.flags} flag${f.finalCheck.flags === 1 ? "" : "s"}` : "no flags"}`, since: f.finalCheck.at, button: { label: "Approve", to: "job", section: "final-check" } });
   if (!held && f.releaseLapsed) add({ rank: 98, group: "week", kind: "release_lapsed", line: `${LAPSED_NEEDS_LINE}${f.releaseLapsed.name ? ` · released to ${f.releaseLapsed.name}` : ""}`, since: f.releaseLapsed.at, button: { label: "Choose installer", to: "job", section: "ready-check" } });
   if (!held && f.spotSaved) add({ rank: 100, group: "week", kind: "choose_installer", line: "Spot saved · waiting for an installer", since: f.spotSaved.at, button: { label: "Choose installer", to: "job", section: "ready-check" } });
   if (!held && f.electricianToChoose) add({ rank: 105, group: "week", kind: "choose_electrician", line: `Quote accepted · $349 ${f.electricianToChoose.overridden ? "overridden" : "paid"} · PIESA next${f.electricianToChoose.usual ? ` · usual electrician ${f.electricianToChoose.usual}` : ""}`, since: f.electricianToChoose.at, button: { label: "Send offer", to: "job", section: "piesa" } });
   if (!held && f.fixesTimesMissing) add({ rank: 117, group: "week", kind: "fixes_times_missing", line: FIXES_TIMES_MISSING_LINE, since: f.fixesTimesMissing.at, button: { label: "Open job", to: "job", section: "piesa" } });
   if (f.piesaOwnerUnsigned) add({ rank: 118, group: "week", kind: "piesa_owner_unsigned", line: `Owner hasn't confirmed the safety check${f.piesaOwnerUnsigned.completedDate ? ` of ${fmtDay(`${f.piesaOwnerUnsigned.completedDate}T12:00:00+10:00`)}` : ""} · 5 days · install can't be booked`, since: f.piesaOwnerUnsigned.at, button: { label: "Open job", to: "job", section: "piesa" } });
-  if (f.fixesOwnerUnsigned) add({ rank: 119, group: "week", kind: "piesa_fixes_owner_unsigned", line: `Owner hasn't confirmed the electrical fixes${f.fixesOwnerUnsigned.fixesDate ? ` of ${fmtDay(`${f.fixesOwnerUnsigned.fixesDate}T12:00:00+10:00`)}` : ""} · 5 days · official PIESA owner declaration not ticked`, since: f.fixesOwnerUnsigned.at, button: { label: "Open job", to: "job", section: "piesa" } });
+  if (f.fixesOwnerUnsigned) add({ rank: 119, group: "week", kind: "piesa_fixes_owner_unsigned", line: `Owner hasn't confirmed the electrical upgrades${f.fixesOwnerUnsigned.fixesDate ? ` of ${fmtDay(`${f.fixesOwnerUnsigned.fixesDate}T12:00:00+10:00`)}` : ""} · 5 days · official PIESA owner declaration not ticked`, since: f.fixesOwnerUnsigned.at, button: { label: "Open job", to: "job", section: "piesa" } });
   // Jo 28 Oct: a PIESA that found fixes always tells the office (one row; clears when the fixes are done and Section C signed).
   if (f.fixesFound) add({ rank: 116, group: "week", kind: "piesa_fixes_found", line: fixesFoundLine(f.fixesFound.stage), since: f.fixesFound.at, button: { label: "Open job", to: "job", section: "piesa" } });
   if (f.repeatPiesaChoice) add({ rank: 37, group: "today", kind: "repeat_piesa_choose", line: `30-day window lapsed ${fmtDay(f.repeatPiesaChoice.deadline)} · choose who pays the repeat safety check${f.repeatPiesaChoice.suggested ? ` · suggested: ${f.repeatPiesaChoice.suggested}` : ""}`, since: f.repeatPiesaChoice.deadline, button: { label: "Choose who pays", to: "job", section: "install" } });

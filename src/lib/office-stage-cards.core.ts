@@ -69,7 +69,7 @@ export function buildStageCards(f: StageCardFacts): StageCard[] {
       { label: "Offer", value: p.offer ?? "Not sent yet" },
       { label: "Visit", value: p.visitAt ? dayTime(p.visitAt) : "Agreed between electrician and owner after the offer" },
       { label: "Result", value: p.outcome ?? dash },
-      { label: "Fixes", value: p.fixes ?? dash },
+      { label: "Upgrades", value: p.fixes ?? dash },
       ...(p.certificate ? [{ label: "Certificate", value: p.certificate }] : []),
     ] },
     { key: "install", n: 5, title: "Install", state: st.install, lines: [

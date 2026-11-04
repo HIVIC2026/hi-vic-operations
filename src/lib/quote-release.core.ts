@@ -34,9 +34,9 @@ export function rectificationQuoteDecision(input: {
   externalSendingEnabled: boolean;
 }): QuoteRelease {
   const reason = input.hasNonStandardItem
-    ? "Quote held: includes a non-standard electrical fixes item"
+    ? "Quote held: includes a non-standard electrical upgrades item"
     : input.manuallyPriced
-      ? "Quote held: includes a manually priced electrical fixes item"
+      ? "Quote held: includes a manually priced electrical upgrades item"
       : null;
   if (reason) return { state: "held", reason, status: "draft" };
   return { state: "held", reason: "Waiting for office review before sending", status: "draft" };

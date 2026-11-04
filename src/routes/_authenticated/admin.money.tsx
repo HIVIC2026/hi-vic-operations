@@ -184,7 +184,7 @@ function Invoices({ q }: { q: Q<InvoicesData> }) {
   if (q.isPending || !q.data) return <Loading what="invoices" />;
   return (
     <section data-why="decisions 139–144, 209; 240 Stripe/Xero only">
-      <TabCaption>Each job's invoices on their own rows (install, electrical fixes, safety check 2) · paid from Stripe or Xero reconciliation · steps are paid when the running total on that invoice reaches each amount · Chase opens Log a call or note</TabCaption>
+      <TabCaption>Each job's invoices on their own rows (install, electrical upgrades, safety check 2) · paid from Stripe or Xero reconciliation · steps are paid when the running total on that invoice reaches each amount · Chase opens Log a call or note</TabCaption>
       <OfficeTable why="decision 240: no Record payment; payments read from Xero/Stripe" isEmpty={!q.data.rows.length} empty="No invoices yet." head={["Invoice", "Owner", "Job", "Total", "Steps", "Paid", "State"]}>
         {q.data.rows.map((r) => (
           <tr key={r.invoiceId}>
@@ -241,8 +241,8 @@ function Veecs({ q }: { q: Q<VeecsData> }) {
   );
 }
 
-const PRICE_FIELDS: { key: "r5" | "removal" | "piesa" | "moderate" | "difficult"; label: string }[] = [
-  { key: "r5", label: "R5.0 batts per m² (inc GST)" }, { key: "removal", label: "Removal per m² (inc GST)" }, { key: "piesa", label: "Safety check (PIESA) payment" },
+const PRICE_FIELDS: { key: "r5" | "removal" | "piesa" | "moderate" | "difficult" | "topup" | "r6" | "r7"; label: string }[] = [
+  { key: "r5", label: "R5.0 batts per m² (inc GST)" }, { key: "topup", label: "Top-up per m² (inc GST)" }, { key: "r6", label: "R6.0 batts per m² (inc GST)" }, { key: "r7", label: "R7.0 batts per m² (inc GST)" }, { key: "removal", label: "Removal per m² (inc GST)" }, { key: "piesa", label: "Safety check (PIESA) payment" },
   { key: "moderate", label: "Moderate access multiplier" }, { key: "difficult", label: "Difficult access multiplier" },
 ];
 
@@ -254,7 +254,7 @@ function Prices() {
   const [f, setF] = useState<Record<string, string>>({});
   const [reasonText, setReasonText] = useState("");
   const c = q.data?.current;
-  useEffect(() => { if (c) setF({ r5: String(c.r5), removal: String(c.removal), piesa: String(c.piesa), moderate: String(c.moderate), difficult: String(c.difficult), apFee: String(c.apFee) }); }, [c]);
+  useEffect(() => { if (c) setF({ r5: String(c.r5), removal: String(c.removal), piesa: String(c.piesa), moderate: String(c.moderate), difficult: String(c.difficult), apFee: String(c.apFee), topup: c.topup == null ? "" : String(c.topup), r6: c.r6 == null ? "" : String(c.r6), r7: c.r7 == null ? "" : String(c.r7) }); }, [c]);
   if (q.error) return <LoadError what="Prices" error={q.error} retry={() => void q.refetch()} />;
   if (q.isPending) return <Loading what="prices" />;
   if (!c) return <p className="text-sm text-sub">No owner price list is set up.</p>;
@@ -265,15 +265,15 @@ function Prices() {
       <OfficeTable why="decisions 26, 139–142" head={["Setting", "What it says", "Effective", ""]}>
         <tr data-why="decision 26: our fixed owner price list">
           <td className="font-semibold">Owner price list</td>
-          <td>R5.0 batts ${c.r5}/m² · removal ${c.removal}/m² · access ×{c.moderate} moderate, ×{c.difficult} difficult · all inc GST, before the VEEC incentive</td>
+          <td>R5.0 batts ${c.r5}/m² · top-up {c.topup == null ? "not set" : `$${c.topup}/m²`} · R6.0 {c.r6 == null ? "not set" : `$${c.r6}/m²`} · R7.0 {c.r7 == null ? "not set" : `$${c.r7}/m²`} · removal ${c.removal}/m² · access ×{c.moderate} moderate, ×{c.difficult} difficult · all inc GST, before the VEEC incentive</td>
           <td className="text-xs">v{c.version}{lastChange ? ` · ${fmtDay(lastChange.created_at)}` : ""}</td>
           <td><Btn tone="secondary" onClick={() => setEdit((e) => !e)}>{edit ? "Close" : "Edit"}</Btn></td>
         </tr>
         <tr data-why="decisions 139/140: $349 at acceptance, card or bank"><td className="font-semibold">PIESA fee</td><td>${c.piesa} inc GST after acceptance · unlocks the PIESA booking only · card or bank transfer · no card fee is ever shown</td><td className="text-xs">24 Oct 2026</td><td><Pill>Fixed rule</Pill></td></tr>
         <tr data-why="Jo 26 Oct: 10% deposit paid before the install is booked"><td className="font-semibold">Install deposit</td><td>{Math.round(INSTALL_DEPOSIT_RATE * 100)}% of the install price (not the PIESA fee or fixes) · bank transfer / PayID · paid before the install is booked · balance 7 days after recorded install completion</td><td className="text-xs">26 Oct 2026</td><td><Pill>Fixed rule</Pill></td></tr>
-        <tr data-why="decision 142: electrician price + $100 inc GST"><td className="font-semibold">Electrical fixes</td><td>Electrician's price + $100 inc GST spread across lines · paid in full at approval</td><td className="text-xs">24 Oct 2026</td><td><Pill>Fixed rule</Pill></td></tr>
+        <tr data-why="decision 142: electrician price + $100 inc GST"><td className="font-semibold">Electrical upgrades</td><td>Electrician's price + $100 inc GST spread across lines · paid in full at approval</td><td className="text-xs">24 Oct 2026</td><td><Pill>Fixed rule</Pill></td></tr>
         <tr data-why="decision 107/AP fee: owner only may change"><td className="font-semibold">AP fee on installer jobs</td><td>${c.apFee} · the installer's own price is never marked up</td><td className="text-xs">v{c.version}</td><td>{q.data?.canChangeApFee ? <Btn tone="secondary" onClick={() => setEdit(true)}>Edit</Btn> : <Pill>Jo only</Pill>}</td></tr>
-        <tr data-why="decision 157: electrician rate card lives under Partners › Rates"><td className="font-semibold">Electrician rates</td><td>PIESA and fixes by item · per approved REC</td><td /><td><Link to="/admin/partners" search={{ tab: "rates" }} className="text-sm font-semibold text-hiv-blue hover:underline">Partners › Rates ›</Link></td></tr>
+        <tr data-why="decision 157: electrician rate card lives under Partners › Rates"><td className="font-semibold">Electrician rates</td><td>PIESA and upgrades by item · per approved REC</td><td /><td><Link to="/admin/partners" search={{ tab: "rates" }} className="text-sm font-semibold text-hiv-blue hover:underline">Partners › Rates ›</Link></td></tr>
       </OfficeTable>
       {edit && (
         <div className="mt-4 rounded-[18px] border border-line bg-paper p-5" data-why="decision 26: price change publishes a new version for NEW quotes only">
@@ -286,7 +286,9 @@ function Prices() {
           <label className="mt-3 block text-xs font-semibold text-ink">Reason for the change (required)<input className={`${fieldInput} mt-1`} value={reasonText} onChange={(e) => setReasonText(e.target.value)} placeholder="e.g. new installer rates agreed" /></label>
           <Btn className="mt-3" disabled={reasonText.trim().length < 3} onClick={async () => {
             const num = (k: string) => (f[k] !== undefined && f[k] !== "" && Number.isFinite(Number(f[k])) ? Number(f[k]) : undefined);
-            const r = await save({ r5: num("r5"), removal: num("removal"), piesa: num("piesa"), moderate: num("moderate"), difficult: num("difficult"), ...(q.data?.canChangeApFee ? { apFee: num("apFee") } : {}), reason: reasonText.trim() }, "New price version published");
+            const bad = (["topup", "r6", "r7"] as const).find((k) => f[k] !== undefined && f[k] !== "" && !(Number(f[k]) > 0));
+            if (bad) { toast.error("Prices must be above $0. Leave it blank if it isn't set yet."); return; }
+            const r = await save({ topup: num("topup"), r6: num("r6"), r7: num("r7"), r5: num("r5"), removal: num("removal"), piesa: num("piesa"), moderate: num("moderate"), difficult: num("difficult"), ...(q.data?.canChangeApFee ? { apFee: num("apFee") } : {}), reason: reasonText.trim() }, "New price version published");
             if (r) { setEdit(false); setReasonText(""); await q.refetch(); }
           }}>Publish new prices</Btn>
         </div>

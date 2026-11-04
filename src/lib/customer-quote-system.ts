@@ -85,7 +85,7 @@ export const CUSTOMER_APPROVAL_REASSURANCE = "We will never proceed with additio
 
 export const CUSTOMER_WHAT_COULD_CHANGE: { heading: string; intro: string; items: readonly { lead: string; copy: string }[]; closing: string; gst: string } = {
   heading: "WHAT COULD CHANGE MY ESTIMATE?",
-  intro: "This estimate is based on the information currently available. The final scope and price may change after we confirm your actual ceiling size, existing insulation and any required removal, ceiling access conditions, and any electrical fixes identified through the mandatory Pre Insulation Electrical Safety Assessment (PIESA).",
+  intro: "This estimate is based on the information currently available. The final scope and price may change after we confirm your actual ceiling size, existing insulation and any required removal, ceiling access conditions, and any electrical upgrades identified through the mandatory Pre Insulation Electrical Safety Assessment (PIESA).",
   items: [],
   closing: CUSTOMER_APPROVAL_REASSURANCE,
   gst: "All prices include GST.",
@@ -145,7 +145,7 @@ export const CUSTOMER_MEASURED_QUOTE = {
   allowanceNote: "Preliminary — confirmed by your licensed electrician at the PIESA.",
   stillChangeHeading: "WHAT COULD STILL CHANGE?",
   stillChange: [
-    "Your formal PIESA may confirm electrical fixes that is different from the preliminary electrical allowance.",
+    "Your formal PIESA may confirm electrical upgrades that are different from the preliminary electrical allowance.",
     "If the confirmed PIESA amount is lower, we’ll reduce your project price by the difference.",
     "If it is higher, we’ll show you the variation for your approval before anything proceeds.",
   ],

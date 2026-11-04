@@ -1,5 +1,5 @@
 // O2 Job page working parts kept from the old job page (decisions 218/223): trade coverage (229), the one eligibility
-// change-result form, the PIESA / electrical fixes records, compliance checks, VEEC lodgement and the
+// change-result form, the PIESA / electrical upgrades records, compliance checks, VEEC lodgement and the
 // Activity 48 records. Moved here unchanged; Approve now lives on the one-screen Final check (decision 372, final-check.tsx).
 import { Fragment, useState } from "react";
 import { Link } from "@tanstack/react-router";
@@ -79,7 +79,7 @@ export function AssessmentView({ jobId, part }: { jobId: string; part: "assessme
       return { a: readOrThrow(ra), items: readOrThrow(ri) ?? [], piesa: readOrThrow(rp) ?? [] };
     },
   });
-  const title = part === "piesa" ? "PIESA records (entered once by the electrician)" : part === "rectification" ? "Electrical fixes items" : "Electrical assessment record";
+  const title = part === "piesa" ? "PIESA records (entered once by the electrician)" : part === "rectification" ? "Electrical upgrades items" : "Electrical assessment record";
   if (panelLoad({ error, data }) === "failed") return <Section title={title}><LoadFailed what={title} onRetry={() => void refetch()} /></Section>;
   if (!data) return null;
   if (!data.a && part === "assessment") return <Section title="Assessment"><p className="text-sm text-muted-foreground">Not started by the electrician yet.</p></Section>;
@@ -98,8 +98,8 @@ export function AssessmentView({ jobId, part }: { jobId: string; part: "assessme
     );
   if (part === "rectification")
     return (
-      <Section title="Electrical fixes items">
-        {data.items.length ? <ul className="space-y-1 text-sm">{data.items.map((i) => <li key={i.id}><div className="flex justify-between gap-2"><span>{i.description} × {Number(i.quantity)}{i.is_other && <span className="text-xs text-muted-foreground"> — {i.other_unit_price_inc_gst != null ? `${aud(i.other_unit_price_inc_gst)} ea · ` : ""}{i.explanation}</span>}{i.source === "mitti" && <span className="text-xs text-muted-foreground"> · from Mitti</span>}</span><span className="flex gap-1">{i.needs_office_pricing && <Pill t="bad">needs office pricing</Pill>}<Pill t={i.status === "completed" ? "good" : "warn"}>{i.status}</Pill></span></div>{i.needs_office_pricing && i.status === "required" && <PriceItemForm itemId={i.id} />}</li>)}</ul> : <p className="text-sm text-muted-foreground">No electrical fixes required.</p>}
+      <Section title="Electrical upgrades items">
+        {data.items.length ? <ul className="space-y-1 text-sm">{data.items.map((i) => <li key={i.id}><div className="flex justify-between gap-2"><span>{i.description} × {Number(i.quantity)}{i.is_other && <span className="text-xs text-muted-foreground"> — {i.other_unit_price_inc_gst != null ? `${aud(i.other_unit_price_inc_gst)} ea · ` : ""}{i.explanation}</span>}{i.source === "mitti" && <span className="text-xs text-muted-foreground"> · from Mitti</span>}</span><span className="flex gap-1">{i.needs_office_pricing && <Pill t="bad">needs office pricing</Pill>}<Pill t={i.status === "completed" ? "good" : "warn"}>{i.status}</Pill></span></div>{i.needs_office_pricing && i.status === "required" && <PriceItemForm itemId={i.id} />}</li>)}</ul> : <p className="text-sm text-muted-foreground">No electrical upgrades required.</p>}
       </Section>
     );
   return (
