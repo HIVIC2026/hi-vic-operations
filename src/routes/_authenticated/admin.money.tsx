@@ -142,7 +142,7 @@ function Payouts({ q }: { q: Q<PayoutsData> }) {
   const forText = (g: PayoutsData["due"][number]) => g.trade === "installer" ? `${g.jobs.length} install${g.jobs.length === 1 ? "" : "s"} complete · installer pay` : `${g.jobs.filter((j) => j.kind === "assessment").length} PIESAs · ${g.jobs.filter((j) => j.kind === "rectification").length} fixes at cost`;
   return (
     <section data-why="decisions 30/109 Mark paid">
-      <TabCaption>What we owe installers and electricians · due within 7 days of Final check · paid by bank transfer · Mark paid records the bank reference · Held = the Mitti form isn't Complete or a geotagged photo/video is missing (decision 318: no complete form, no payment) · electricians: press Approve on their completed form, pay is due 7 days later (decision 410; never waits for the owner)</TabCaption>
+      <TabCaption>What we owe installers and electricians · due within 7 days of Final check · paid by bank transfer · Mark paid records the bank reference · Held = the Mitti form isn't Complete or a geotagged photo/video is missing (decision 318 rule; Jo 4 Nov 2026 wording "When you get paid") · electricians: press Approve on their completed form, pay is due 7 days later (decision 410; never waits for the owner)</TabCaption>
       <OfficeTable why="decisions 30/109" isEmpty={!q.data.due.length && !q.data.held.length && !q.data.paid.length} empty="No payouts yet." head={["Business", "Jobs", "For", "Amount", "Due", ""]}>
         {q.data.due.map((g) => (
           <tr key={g.key}>

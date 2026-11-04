@@ -58,15 +58,15 @@ describe("Money screen (approved mock-up)", () => {
   });
 });
 
-describe("the pay rule line (Jo 3 Nov ruling): plain, not a threat; old wording until approved", () => {
-  test("the V2 line is a DRAFT behind its flag and keeps the approved timing facts", () => {
-    expect(NO_FORM_NO_PAY_V2_APPROVED).toBe(false);
+describe("the pay rule line (Jo 3 Nov ruling): plain, not a threat; v2 ON since Jo 4 Nov 2026 16:44", () => {
+  test("the V2 line is ON and keeps the approved timing facts; the Money page shows it and nothing else", () => {
+    expect(NO_FORM_NO_PAY_V2_APPROVED).toBe(true);
     expect(PAY_RULE_LINE_V2).toContain("7 days");
     expect(PAY_RULE_LINE_V2).toContain("Mitti form");
-    expect(PAY_RULE_LINE_V2).not.toMatch(/can't pay you|no payment|No complete form/i);
+    expect(PAY_RULE_LINE_V2).not.toMatch(/can't pay you|no payment|No complete form|fixes/i);
     const page = read("src/routes/_authenticated/field.money.tsx");
-    expect(page).toContain("NO_FORM_NO_PAY_V2_APPROVED ?");
-    expect(page).toContain("<NoFormNoPay");
+    expect(page).toContain("data-pay-rule-v2>{PAY_RULE_LINE_V2}</p>");
+    expect(page).not.toContain("NoFormNoPay");
   });
 });
 

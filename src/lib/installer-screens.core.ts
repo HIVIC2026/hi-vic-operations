@@ -1266,7 +1266,7 @@ export function moneyWords(kind: "installer" | "electrician"): {
     return {
       emptyTitle: "No completed visits yet.",
       emptyBody:
-        "Your pay for each safety check and fixes visit shows here once the visit is done.",
+        "Your pay for each safety check shows here once the visit is done.", // Jo 4 Nov 2026 16:44: we don't pay for electrical fixes — no "fixes" in pay wording
       count: (n) => `${n} visit${n === 1 ? "" : "s"}`,
     };
   return {

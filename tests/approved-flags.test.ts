@@ -23,6 +23,7 @@ import { INSULATION_QUESTIONS_SEND_APPROVED } from "../src/lib/insulation-questi
 import { SMS_MESSAGE_TYPES } from "../src/lib/sms.core";
 import { ADDRESS_REQUEST_EMAIL_APPROVED } from "../src/lib/address-request.core";
 import { VISIT_NEW_TIMES_APPROVED } from "../src/lib/visit-new-times.core";
+import { NO_FORM_NO_PAY_V2_APPROVED } from "../src/lib/trade-view.core";
 
 /** flag → decision number(s) in docs/JO_DECISIONS_LOG.md. */
 const APPROVED_EMAIL_FLAGS: Record<string, { value: boolean; decisions: string }> = {
@@ -47,6 +48,7 @@ const APPROVED_EMAIL_FLAGS: Record<string, { value: boolean; decisions: string }
   CANCEL_NOTICE_EMAILS_APPROVED: { value: CANCEL_NOTICE_EMAILS_APPROVED, decisions: "291 (O69, I70 — Jo 25 Oct 2026)" },
   NEW_SENDER_REPLY_APPROVED: { value: NEW_SENDER_REPLY_APPROVED, decisions: "292 (O70 new-sender calculator reply — Jo 25 Oct 2026)" },
   VISIT_NEW_TIMES_APPROVED: { value: VISIT_NEW_TIMES_APPROVED, decisions: "384 (O74/O74b drafted in 376 — Jo 25 Oct 2026)" },
+  NO_FORM_NO_PAY_V2_APPROVED: { value: NO_FORM_NO_PAY_V2_APPROVED, decisions: "Jo 4 Nov 2026 14:12 (words) + 16:44 ('we don't pay for electrical fixes' — ON, old decision-318 strings deleted)" },
 };
 
 /** SMS type → decision. */

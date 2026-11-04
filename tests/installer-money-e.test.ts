@@ -23,7 +23,7 @@ describe("E1 electrician words", () => {
     expect(e.count(1)).toBe("1 visit");
     expect(e.count(3)).toBe("3 visits");
     expect(e.emptyTitle).toBe("No completed visits yet."); // Jo answer 1, exact
-    expect(e.emptyBody).toBe("Your pay for each safety check and fixes visit shows here once the visit is done.");
+    expect(e.emptyBody).toBe("Your pay for each safety check shows here once the visit is done."); // Jo 4 Nov 2026 16:44: no "fixes" in pay wording
     const i = moneyWords("installer");
     expect([i.emptyTitle, i.emptyBody, i.count(1), i.count(2)]).toEqual(["No completed jobs yet.", "Your pay for each install appears here once the install is done.", "1 install", "2 installs"]);
     // Task 8: the approved Money screen has no electrician branch (electricians have no Money page) and no install-count tiles.

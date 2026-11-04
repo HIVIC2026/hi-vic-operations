@@ -23,11 +23,11 @@ export const MONEY_WORDS = {
 } as const;
 
 /** Jo 3 Nov 2026 ruling: the pay rule stays (no complete Mitti form = no pay; a held payout shows its plain reason) but the
- *  wording must not read as a threat. The old NO_FORM_NO_PAY block shows while the flag is false; the short line ships once
- *  go-live flips it. Wording APPROVED by Jo 4 Nov 2026 14:12 — one source: trade-view.core NO_FORM_NO_PAY_V2 (the flag
- *  lives there too and is re-exported here for the Money page and its tests). */
+ *  wording must not read as a threat. Wording APPROVED by Jo 4 Nov 2026 14:12 and ON since her 16:44 ruling — one source:
+ *  trade-view.core NO_FORM_NO_PAY_V2 (the flag lives there, true, and is re-exported here for the Money page and its
+ *  tests); the old decision-318 block is deleted. */
 export { NO_FORM_NO_PAY_V2_APPROVED };
-export const PAY_RULE_LINE_V2 = NO_FORM_NO_PAY_V2.line; // approved 4 Nov 2026 14:12 (flag still false)
+export const PAY_RULE_LINE_V2 = NO_FORM_NO_PAY_V2.line; // approved 4 Nov 2026 14:12, ON 16:44
 
 export type MoneyScreenRow = {
   jobId: string; jobNumber: string; owner: string | null; what: "install" | "piesa"; amount: number; ownCustomer: boolean;

@@ -3,7 +3,7 @@ import { partnerWelcomeEmail, MITTI_APP_STORE_URL, MITTI_GOOGLE_PLAY_URL } from 
 const make = (trade: "installer" | "electrician") => partnerWelcomeEmail({ firstName: "Sam", businessName: "Co", trade, email: "s@x.test", link: "https://example.test/l", test: false });
 // Jo 27 Oct 2026: both welcome emails carry the official Mitti app links and the trade's own forms.
 test("both versions link the official Mitti apps", () => {
-  for (const t of ["installer", "electrician"] as const) { const m = make(t); expect(m.html).toContain(MITTI_APP_STORE_URL); expect(m.html).toContain(MITTI_GOOGLE_PLAY_URL); expect(m.text).toContain("No complete form, no payment"); }
+  for (const t of ["installer", "electrician"] as const) { const m = make(t); expect(m.html).toContain(MITTI_APP_STORE_URL); expect(m.html).toContain(MITTI_GOOGLE_PLAY_URL); expect(m.text).toContain("When you get paid"); expect(m.text).not.toMatch(/No complete form|electrical fixes/i); }
   expect(MITTI_APP_STORE_URL).toBe("https://apps.apple.com/au/app/mitti-by-safetyculture/id499999532");
   expect(MITTI_GOOGLE_PLAY_URL).toBe("https://play.google.com/store/apps/details?id=com.safetyculture.iauditor");
 });

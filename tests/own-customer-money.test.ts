@@ -1,6 +1,5 @@
 // Part 10 Task 9: labels, Job details money rows and the pay rule for an installer's own customer.
-// Jo 3 Nov 2026: pay wording is plain (no "No complete form, no payment" threat — PAY_RULE_LINE_V2 behind
-// NO_FORM_NO_PAY_V2_APPROVED); money rows only for Boss/Office (seesPrices); the electrician's rate never on an owner row.
+// Jo 3 Nov 2026: pay wording is plain (no "No complete form, no payment" threat — PAY_RULE_LINE_V2, ON since 4 Nov 16:44); money rows only for Boss/Office (seesPrices); the electrician's rate never on an owner row.
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { OWN_CUSTOMER_PAY_RULE, jobMoneyRows } from "../src/lib/own-customer-price.core";
@@ -71,10 +70,10 @@ describe("labels and the pay rule", () => {
     const screens = readFileSync("src/lib/installer-screens.core.ts", "utf8");
     expect(screens).toContain("OWN_CUSTOMER_PAY_RULE");
     expect(screens).not.toContain('"Your customers are paid once the office approves the paperwork and the owner has paid their balance."');
-    // Every NoFormNoPay block switches to the plain line together once Jo approves it (off as shipped).
-    expect(NO_FORM_NO_PAY_V2_APPROVED).toBe(false);
+    // Every NoFormNoPay block shows the plain v2 words (ON since Jo 4 Nov 2026 16:44; the old block is deleted).
+    expect(NO_FORM_NO_PAY_V2_APPROVED).toBe(true);
     const kit = readFileSync("src/components/trade/installer-kit.tsx", "utf8");
-    expect(kit).toContain("NO_FORM_NO_PAY_V2_APPROVED");
+    expect(kit).toContain("NO_FORM_NO_PAY_V2.body");
     expect(kit).toContain("PAY_RULE_LINE_V2");
   });
   test("installer pay on an own customer waits for the owner to pay in full (one rule, trade-view.core)", () => {

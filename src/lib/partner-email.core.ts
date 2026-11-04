@@ -157,8 +157,8 @@ export function partnerWelcomeEmail(i: { firstName: string | null; businessName:
     : ["PIESAs sent to you near where you work", "Get paid your agreed rate 7 days after we approve your completed form.", "Bookings, compliance and rebate paperwork handled by us"];
   const steps = WELCOME_STEPS[i.trade];
   const signIn = `You'll sign in with ${i.email}. The link works once and lasts 24 hours.`;
-  // Decision 318 (Jo 25 Oct 2026): the pay rule, Jo's approved words, shown as two paragraphs in the yellow box.
-  // Jo 4 Nov 2026 14:12: the v2 words ("When you get paid") take over once NO_FORM_NO_PAY_V2_APPROVED is on (trade-view.core payRuleWords).
+  // Decision 318 rule, Jo's 4 Nov 2026 14:12 v2 words ("When you get paid", trade-view.core payRuleWords), shown as two
+  // paragraphs in the yellow box. ON since Jo's 16:44 ruling; the old decision-318 words are deleted.
   const payWords = payRuleWords();
   const pay = payWords.body.indexOf(". ");
   const payParas = pay > 0 ? [payWords.body.slice(0, pay + 1), payWords.body.slice(pay + 2)] : [payWords.body];

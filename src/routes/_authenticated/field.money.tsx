@@ -10,8 +10,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { useMemo } from "react";
 import { TradeShell, card } from "@/components/trade/TradeShell";
 import { getTradeMoneyView } from "@/lib/trade-view.functions";
-import { MONEY_WORDS, NO_FORM_NO_PAY_V2_APPROVED, PAY_RULE_LINE_V2 } from "@/lib/money-screen.core";
-import { NoFormNoPay, Screen } from "@/components/trade/installer-kit";
+import { MONEY_WORDS, PAY_RULE_LINE_V2 } from "@/lib/money-screen.core";
+import { Screen } from "@/components/trade/installer-kit";
 
 export const Route = createFileRoute("/_authenticated/field/money")({
   head: () => ({ meta: [{ title: "Money – Home Insulation Victoria" }, { name: "description", content: "What's coming to you and what's been paid." }, { property: "og:title", content: "Money – Home Insulation Victoria" }, { property: "og:description", content: "What's coming to you and what's been paid." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex" }] }),
@@ -46,8 +46,8 @@ function Money() {
           {tile(MONEY_WORDS.coming, s.coming.total, s.coming.jobs, "green")}
           {tile(MONEY_WORDS.paidThisMonth, s.paidThisMonth.total, s.paidThisMonth.jobs, "sub")}
         </div>
-        {/* Jo 3 Nov 2026: the pay rule stays; the plain one-liner replaces the old block once she approves it. */}
-        {NO_FORM_NO_PAY_V2_APPROVED ? <p className="text-sm text-sub" data-pay-rule-v2>{PAY_RULE_LINE_V2}</p> : <NoFormNoPay />}
+        {/* Jo 3 Nov 2026: the pay rule stays, said plainly (approved 4 Nov 14:12, on since 16:44). */}
+        <p className="text-sm text-sub" data-pay-rule-v2>{PAY_RULE_LINE_V2}</p>
         <ul className="space-y-3" data-money-rows>
           {s.rows.map((r) => (
             <li key={`${r.jobId}:${r.title}`}>
