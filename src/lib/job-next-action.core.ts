@@ -38,6 +38,15 @@ const WHO_FROM_STATUS: Record<string, NextWho> = {
   Us: "us", Owner: "owner", Installer: "installer", Electrician: "electrician", "Owner + Installer": "installer", "Owner + Electrician": "electrician", System: "nobody", Nobody: "nobody", "Office / campaign": "nobody",
 };
 
+/** G8 (6), 4 Nov 2026 (LOOKS WRONG 9): a status label after "Waiting for the installer:" starts lower-case — except an
+ *  acronym (PIESA, ESC) or a proper name (Ready Check, Mitti, Lead Installer), which keep their capital. */
+const KEEP_CAPITAL = /^(PIESA|PIISA|ESC|VEEC|Ready Check|Mitti|Lead Installer|Xero|Stripe|Home Insulation Victoria)\b/;
+export function midSentence(label: string): string {
+  if (!label) return label;
+  if (KEEP_CAPITAL.test(label) || /^[A-Z]{2}/.test(label)) return label;
+  return `${label.charAt(0).toLowerCase()}${label.slice(1)}`;
+}
+
 export function nextAction(i: NextInput, now: number): NextAction {
   if (i.closed) return { who: "nobody", sentence: i.closed.kind === "complete" ? "Complete. The record is kept for six years." : `${i.closed.kind === "cancelled" ? "Cancelled" : "Not eligible"}${i.closed.reason ? `: ${i.closed.reason}` : ""}. Reopen it from Jobs › Closed if that was wrong.`, button: null, blocked: null };
   if (i.onHold) return { who: "us", sentence: `On hold${i.onHold.reason ? `: ${i.onHold.reason}` : ""}${i.onHold.until ? ` · until ${i.onHold.until}` : ""}. Reminders and texts are paused.`, button: null, blocked: null };
@@ -61,6 +70,6 @@ export function nextAction(i: NextInput, now: number): NextAction {
   if (i.status.key === "quote.sent_auto" && i.quoteIssued === false) return { who: "us", sentence: "Quote not made yet — see the reasons in Quote.", button: { label: "Open quote", section: "quote" }, blocked: i.blockers?.length ? i.blockers.join(" · ") : null };
   const who = WHO_FROM_STATUS[i.status.waitingOn] ?? "us";
   const tail = i.status.detail ? ` · ${i.status.detail}` : "";
-  const sentence = who === "nobody" ? `${i.status.label}${tail}. Nothing for the office to do — it happens automatically.` : who === "us" ? `${i.status.label}${tail}.` : `Waiting for the ${who}: ${i.status.label.charAt(0).toLowerCase()}${i.status.label.slice(1)}${tail}.`;
+  const sentence = who === "nobody" ? `${i.status.label}${tail}. Nothing for the office to do — it happens automatically.` : who === "us" ? `${i.status.label}${tail}.` : `Waiting for the ${who}: ${midSentence(i.status.label)}${tail}.`;
   return { who, sentence, button: null, blocked: i.blockers?.length ? i.blockers.join(" · ") : null };
 }

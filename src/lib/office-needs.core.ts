@@ -422,6 +422,15 @@ export function escWithdrawRows(open: { jobId: string; notificationId: string; r
   return out;
 }
 
+/** G8 (6), 4 Nov 2026 (LOOKS WRONG 12): the office one-off setup is missing a template the owner's quote page needs, so no
+ *  quote can be accepted. ONE system row (not per job); the owner page says only "This quote isn't ready to accept yet".
+ *  Wording DRAFT (JO-APPROVAL-LIST). */
+export const TEMPLATES_MISSING_LINE = "Owners can't accept a quote until this is set up:";
+export function templatesMissingRows(blockers: readonly string[], now: number): SystemRow[] {
+  if (!blockers.length) return [];
+  return [{ key: "templates-missing", tag: "Setup", who: "Every quote", line: `${TEMPLATES_MISSING_LINE} ${blockers.join(" ")} (go-live runbook: customer-agreement-v1-3.sql + the consent template.)`, since: new Date(now).toISOString(), button: "See templates", href: "/admin/templates" }];
+}
+
 /** Phase 3 path 1 (27 Oct): a "needs review" eligibility result is office work, never "nothing to do". */
 export function eligibilityReviewLine(reason: string | null): string {
   const r = (reason ?? "").trim();

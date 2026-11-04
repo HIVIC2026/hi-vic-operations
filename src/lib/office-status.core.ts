@@ -3,6 +3,14 @@
 // Limits are defaults Jo can change in workflow_settings.office_time_limits.
 
 import { SITUATION } from "./job-wording";
+/** G8 (6), 4 Nov 2026 (LOOKS WRONG 9): office "Waiting for…" details show a day as "Mon 9 Nov", never the raw ISO date.
+ *  A date-only value is read as that Melbourne day; a timestamp as its Melbourne day. Unreadable = the text as given. */
+export function officeDay(iso: string): string {
+  const v = /^\d{4}-\d{2}-\d{2}$/.test(iso) ? `${iso}T12:00:00+11:00` : iso;
+  const t = Date.parse(v);
+  if (!Number.isFinite(t)) return iso;
+  return new Date(t).toLocaleDateString("en-AU", { weekday: "short", day: "numeric", month: "short", timeZone: "Australia/Melbourne" }).replace(",", "");
+}
 
 export type OfficeStage = "waiting_list" | "enquiry" | "ready_check" | "quote" | "safety" | "install" | "signoff" | "ended";
 export type WaitingOn = "Us" | "Owner" | "Installer" | "Electrician" | "Owner + Installer" | "Owner + Electrician" | "System" | "Nobody" | "Office / campaign";
@@ -197,8 +205,8 @@ export function officeStatus(f: JobFacts, now: number, lim: Record<string, numbe
       // The stage alone never proves a booking: without a real Ready Check booking, classify as not yet scheduled
       // (an installer's own customer then reads "Ready Check" — the installer arranges it directly, never "needs estimate").
       if (!f.rcBookingAt) return officeStatus({ ...f, stage: "ready_check_ready_to_schedule" }, now, lim);
-      if (f.measurementStartedAt) return pick("ready_check.onsite_started", f.measurementStartedAt, { detail: `Booked ${f.rcBookingAt.slice(0, 10)}` });
-      return pick("ready_check.booked", f.enteredStageAt, { due: f.rcBookingAt ? new Date(new Date(f.rcBookingAt).getTime() + DAY).toISOString() : null, detail: f.rcBookingAt ? `Booked ${f.rcBookingAt.slice(0, 10)}` : null });
+      if (f.measurementStartedAt) return pick("ready_check.onsite_started", f.measurementStartedAt, { detail: `Booked ${officeDay(f.rcBookingAt)}` });
+      return pick("ready_check.booked", f.enteredStageAt, { due: f.rcBookingAt ? new Date(new Date(f.rcBookingAt).getTime() + DAY).toISOString() : null, detail: f.rcBookingAt ? `Booked ${officeDay(f.rcBookingAt)}` : null });
     }
     case "ready_check_complete": return f.rcSubmittedAt ? pick("ready_check.evidence_in", f.rcSubmittedAt) : pick("ready_check.done", f.enteredStageAt);
     case "assessment_complete": case "measured_estimate_ready": case "ready_for_installer_quotes": case "awaiting_quote_acceptance": {
@@ -213,7 +221,7 @@ export function officeStatus(f: JobFacts, now: number, lim: Record<string, numbe
       if (f.proposalPending) return pick("safety.arranging", f.proposalPending.since);
       if (f.elecOfferAt) return pick("safety.offered", f.elecOfferAt);
       return pick("safety.pick_times", f.enteredStageAt);
-    case "assessment_booked": case "piesa_scheduled": return pick("safety.booked", f.enteredStageAt, { due: f.elecBookingAt ? new Date(new Date(f.elecBookingAt).getTime() + DAY).toISOString() : null, detail: f.elecBookingAt ? `Booked ${f.elecBookingAt.slice(0, 10)}` : null });
+    case "assessment_booked": case "piesa_scheduled": return pick("safety.booked", f.enteredStageAt, { due: f.elecBookingAt ? new Date(new Date(f.elecBookingAt).getTime() + DAY).toISOString() : null, detail: f.elecBookingAt ? `Booked ${officeDay(f.elecBookingAt)}` : null });
     case "piesa_complete": {
       // Phase 3 path 2 (27 Oct): "piesa_complete" means the visit is done, not passed — a PIESA that found fixes never reads "PIESA passed".
       if (f.piesa && !f.piesa.passed && !f.piesa.sectionCAt) {
@@ -234,13 +242,13 @@ export function officeStatus(f: JobFacts, now: number, lim: Record<string, numbe
     case "rectification_scheduling": return f.proposalPending ? pick("safety.arranging", f.proposalPending.since) : pick("safety.pick_times", f.enteredStageAt);
     case "rectification_booked":
       if (f.piesa?.sectionCAt) return pick("safety.fixed", f.piesa.sectionCAt);
-      return pick("safety.fixes_booked", f.enteredStageAt, { due: f.rectBookingAt ? new Date(new Date(f.rectBookingAt).getTime() + DAY).toISOString() : null, detail: f.rectBookingAt ? `Booked ${f.rectBookingAt.slice(0, 10)}` : null });
-    case "installation_scheduling": return pick("install.agree", f.enteredStageAt, { due: f.installDeadline ?? null, detail: f.installDeadline ? `Must start by ${f.installDeadline.slice(0, 10)}` : null });
-    case "installation_booked": return pick("install.booked", f.enteredStageAt, { due: f.installDeadline ?? null, detail: [f.installBookingAt && `Booked ${f.installBookingAt.slice(0, 10)}`, f.installDeadline && `must start by ${f.installDeadline.slice(0, 10)}`].filter(Boolean).join(", ") || null });
+      return pick("safety.fixes_booked", f.enteredStageAt, { due: f.rectBookingAt ? new Date(new Date(f.rectBookingAt).getTime() + DAY).toISOString() : null, detail: f.rectBookingAt ? `Booked ${officeDay(f.rectBookingAt)}` : null });
+    case "installation_scheduling": return pick("install.agree", f.enteredStageAt, { due: f.installDeadline ?? null, detail: f.installDeadline ? `Must start by ${officeDay(f.installDeadline)}` : null });
+    case "installation_booked": return pick("install.booked", f.enteredStageAt, { due: f.installDeadline ?? null, detail: [f.installBookingAt && `Booked ${officeDay(f.installBookingAt)}`, f.installDeadline && `must start by ${officeDay(f.installDeadline)}`].filter(Boolean).join(", ") || null });
     case "evidence_outstanding": return (f.evidenceMissing ?? 0) > 0 && f.installedAt ? pick("install.evidence_missing", f.installedAt, { detail: `${f.evidenceMissing} item(s) missing` }) : pick("install.checking", f.installedAt ?? f.enteredStageAt);
     case "ap_review": return pick("signoff.ap", f.enteredStageAt);
     case "ready_for_veec":
-      if ((f.payoutsOpen ?? 0) > 0) return pick("signoff.payouts_due", f.apApprovedAt ?? f.enteredStageAt, { due: f.payoutDueAt ?? null, detail: f.payoutDueAt ? `Due ${f.payoutDueAt.slice(0, 10)}` : null });
+      if ((f.payoutsOpen ?? 0) > 0) return pick("signoff.payouts_due", f.apApprovedAt ?? f.enteredStageAt, { due: f.payoutDueAt ?? null, detail: f.payoutDueAt ? `Due ${officeDay(f.payoutDueAt)}` : null });
       return pick("signoff.veec_waiting", f.veecSubmittedAt ?? f.enteredStageAt);
     default: return null;
   }

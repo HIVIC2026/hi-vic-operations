@@ -550,3 +550,12 @@ export function accountEnding(raw: string | null | undefined): string | null {
   const digits = String(raw ?? "").replace(/\D/g, "");
   return digits.length >= 4 ? digits.slice(-4) : null;
 }
+
+/** G8 (6), 4 Nov 2026 (LOOKS WRONG 10): the unit line under a rate on Your rates. A per-unit rate reads "per m²"; a flat
+ *  rate (unit "flat" / "each" / "job") has NO line — never the raw unit code ("$349.00 per flat"). */
+export function rateUnitLine(unit: string | null | undefined): string | null {
+  const u = (unit ?? "").trim().replace(/^per\s+/i, "");
+  if (!u || /^(flat|flat[_ ]fee|each|job|fixed|per_job|visit)$/i.test(u)) return null;
+  return `per ${u.replace(/_/g, " ").replace(/\bm2\b/i, "m²")}`;
+}
+

@@ -8,7 +8,7 @@ import { OwnerHouse } from "@/components/owner/OwnerHouse";
 import { agreedWithLabel, ownerPriceTitle } from "@/lib/owner-confirm.core";
 import { HOUSE_LEVEL } from "@/lib/owner-house.core";
 import { ownerHeadline } from "@/lib/owner-headlines.core";
-import { gateACard, SPOT_SAVED_PROGRESS, spotSavedLayout, resolveOwnerScreen } from "@/lib/owner-myjob.core";
+import { gateACard, QUOTE_NOT_READY_OWNER_LINE, SPOT_SAVED_PROGRESS, spotSavedLayout, resolveOwnerScreen } from "@/lib/owner-myjob.core";
 import { quoteSittingBlockers } from '@/lib/owner-quote-sign.core';
 import { ownerPaperworkFn } from "@/lib/owner-gates.functions";
 import { visitPill, type OwnerScreen } from "@/lib/owner-myjob.core";
@@ -602,7 +602,8 @@ function AcceptQuote({ token, quote, safetyCheck, showDocs, onAccepted }: { toke
       </section>
       <TypedField label={P2.signLabel} value={typedName} onChange={setTypedName} placeholder={P2.typeHere} italic autoComplete="name" />
       <SmallNote>{P2.signSub}</SmallNote>
-      {blocked.length > 0 && <p role="alert" className="mt-3 rounded-[12px] bg-estimate-blush p-3 text-sm font-semibold">{blocked.join(" ")}</p>}
+      {/* G8 (6), 4 Nov 2026 (LOOKS WRONG 12): the office-internal template lines never reach the owner — one owner-safe line; the office gets a Needs me row. */}
+      {blocked.length > 0 && <p role="alert" className="mt-3 rounded-[12px] bg-estimate-blush p-3 text-sm font-semibold">{QUOTE_NOT_READY_OWNER_LINE}</p>}
       {needCode && !session && <div className="mt-4"><OwnerCodeGate token={token} onVerified={(s) => { setSession(s); setNeedCode(false); }} /></div>}
       {err && <p role="alert" className="mt-3 text-sm font-semibold text-destructive">{err}</p>}
       <LockedButton ready={ready} busy={busy} busyLabel={P2.signing} onClick={() => void sign()}>{P2.button(fee)}</LockedButton>
@@ -758,7 +759,7 @@ function Back({ token }: { token: string }) {
 function SpotScreen({ v, token }: { v: View; token: string }) {
   return <>
     <Back token={token} />
-    <Hero v={v} level={HOUSE_LEVEL.save_my_spot} size="sm" headline={ownerHeadline("spot_saved", v.numbers.rebate)} />
+    <Hero v={v} level={HOUSE_LEVEL.save_my_spot} size="sm" headline={ownerHeadline("save_my_spot", v.numbers.rebate)} />
     <section className="rounded-[22px] bg-card p-5 shadow-sm">
       <h2 className="font-display text-xl font-extrabold">Save my spot</h2>
       {/* Decision 388: saving a spot never offers times or a Ready Check. */}
@@ -1067,7 +1068,9 @@ function VeecAssignmentCard({ v, token }: { v: View; token: string }) {
       <SectionTitle className="mt-4 mb-0.5">{P4.section4}</SectionTitle>
       <p className="text-[13px] text-estimate-sub">{P4.declare}</p>
       <ul className="mt-1">{declarationBullets(data.consumerDeclaration).map((b) => <li key={b} className="flex gap-2 py-1 text-[13px] leading-[1.45]"><span className="text-estimate-blue">•</span><span>{b}</span></li>)}</ul>
-      <p className="mt-1 text-xs text-estimate-sub"><button type="button" className="font-bold text-estimate-blue" aria-expanded={showAll} onClick={() => setShowAll((s) => !s)}>{showAll ? "Hide the installer and Home Insulation Victoria declarations" : "Show the installer and Home Insulation Victoria declarations"}</button> · Official form {data.version}</p>
+      {/* G8 (6), 4 Nov 2026 (LOOKS WRONG 15): the form version on its own line — no "·" that wrapped onto a new line on the phone. */}
+      <p className="mt-1 text-xs text-estimate-sub"><button type="button" className="font-bold text-estimate-blue" aria-expanded={showAll} onClick={() => setShowAll((s) => !s)}>{showAll ? "Hide the installer and Home Insulation Victoria declarations" : "Show the installer and Home Insulation Victoria declarations"}</button></p>
+      <p className="mt-0.5 text-xs text-estimate-sub">Official form {data.version}</p>
       {showAll && <pre className="mt-2 whitespace-pre-wrap rounded-[10px] bg-estimate-panel p-3 font-sans text-[13px] leading-relaxed">{[data.apDeclaration, data.installerDeclaration].join("\n\n")}</pre>}
       {data.canSign && <>
         <TickCard on={okS2} set={setOkS2} title={P4.tick} />

@@ -3,7 +3,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { Database } from "@/integrations/supabase/types";
 import { loadOffice, type OfficeJob } from "./office.server";
-import { buildNeedsRows, duplicatesInvoiceFailed, escWithdrawRows, type EmailRowInput, type NeedsFacts, type NeedsRow, type SystemRow } from "./office-needs.core";
+import { buildNeedsRows, duplicatesInvoiceFailed, escWithdrawRows, templatesMissingRows, type EmailRowInput, type NeedsFacts, type NeedsRow, type SystemRow } from "./office-needs.core";
 import { FAILED_EMAIL_STATUSES, FAILED_SMS_STATUSES, SUCCESS_EMAIL_STATUSES, SUCCESS_SMS_STATUSES, UNSURE_EMAIL_STATUSES, UNSURE_SMS_STATUSES, partnerSendFailedRows, sendFailedRows, tradeTextCoveredKeys } from "./send-failed.core";
 import { AUTO_OFFER_RETURNED_EVENT } from "./auto-offer.core";
 import { surnameOf } from "./office-jobs.core";
@@ -907,6 +907,16 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
       for (const r of wRows) wJobs.set(String(r["id"]), { jobNumber: String(r["job_number"]), surname: surnameOf((r["owners"] as { full_name?: string } | null)?.full_name), ...(r["source"] === "qa_test" ? { isTest: true } : {}) });
       system.push(...escWithdrawRows(open, wJobs, opts.includeTest));
     }
+  }
+  // G8 (6), 4 Nov 2026 (LOOKS WRONG 12): the owner quote page needs the approved customer agreement / consumer rights / ESC
+  // consent templates; until the office loads them the owner sees a plain "not ready yet" line and Needs me gets ONE row.
+  if (listMode) {
+    try {
+      const { loadTemplates } = await import("./assignment.server");
+      const { templateBlockers } = await import("./assignment.core");
+      const templates = await loadTemplates();
+      system.push(...templatesMissingRows([...templateBlockers(templates, "agreement"), ...templateBlockers(templates, "consent")], now));
+    } catch { unavailable.push("quote templates"); }
   }
   return { now, jobs, facts, emails, system, unavailable };
 }

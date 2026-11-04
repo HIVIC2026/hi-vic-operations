@@ -1,11 +1,13 @@
 /** Jo-approved owner headlines (5 Oct 2026). Rebate = the owner's real rebate. Government mentioned only on the quote. */
-export type OwnerHeadlineStep = "spot_saved" | "ready_check_booked" | "quote_ready" | "booking_visits" | "install_booked" | "all_done";
+export type OwnerHeadlineStep = "save_my_spot" | "spot_saved" | "ready_check_booked" | "quote_ready" | "booking_visits" | "install_booked" | "all_done";
 
 const aud = (n: number) => `$${Math.floor(Math.max(0, n)).toLocaleString("en-AU")}`;
 
 export function ownerHeadline(step: OwnerHeadlineStep, rebate: number): string {
   const r = aud(rebate);
   switch (step) {
+    // G8 (6), 4 Nov 2026 (LOOKS WRONG 6): before the spot is saved the Save my spot card must not say "Spot saved". DRAFT.
+    case "save_my_spot": return `Save my spot. Your ${r} rebate is waiting.`;
     case "spot_saved": return `Spot saved. Your ${r} rebate is waiting.`;
     case "ready_check_booked": return "Booked in! Next stop: your exact price";
     case "quote_ready": return Number.isFinite(rebate) && rebate > 0 ? `You could save ${r} on ceiling insulation` : "Your ceiling insulation quote";

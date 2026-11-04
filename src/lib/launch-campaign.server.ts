@@ -346,9 +346,16 @@ export async function queueSpotSavedConfirmations(jobId: string, token: string) 
     // Historical TEST attempts lack delivery idempotency: never replay an uncertain attempt.
     if (done) return { queued: false as const };
     if (owner?.email) {
+      // G8 (6)/(7), 4 Nov 2026 (LOOKS WRONG 7): a double tap ran this twice before the queued event landed and sent two TEST
+      // emails. Reserve ONE customer_email_sends row per job first (unique idempotency_key, like the real sender): the
+      // second tap finds it taken and sends nothing.
+      const { SPOT_SAVED_EMAIL_PURPOSE } = await import("./spot-saved-send.core");
+      const { data: res, error: re } = await admin.from("customer_email_sends").insert({ job_id: jobId, purpose: SPOT_SAVED_EMAIL_PURPOSE, idempotency_key: `spot-saved-test:v1:${jobId}` }).select("id").single();
+      if (re || !res) return { queued: false as const };
       const { sendTestEmail } = await import("./test-send.server");
       const html = email.html ?? genericMail({subject:email.subject,lines:[email.text],testLabel:true});
       const t = await sendTestEmail({ jobId, jobSource: job.source, partnerIsTest: true, label: "spot_saved_confirmation", actorId: null } as never, owner.email, email.subject, html, email.text).catch((e) => ({ status: "failed", detail: (e as Error).message }));
+      await admin.from("customer_email_sends").update({ status: t.status === "sent" ? "sent" : "failed", provider: "test_send", error: t.status === "sent" ? null : t.detail, sent_at: t.status === "sent" ? new Date().toISOString() : null }).eq("id", res.id);
       await logEvent(jobId, null, "spot_saved_test_email", `Spot saved confirmation (TEST) ${t.status}: ${t.detail}`, {}, { internal: true }).catch(() => null);
     }
     await logEvent(jobId, null, "spot_saved_confirmation_completed", "Spot saved confirmation attempt completed", {}, { internal: true });

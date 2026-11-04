@@ -87,3 +87,50 @@ describe("G8 (5), Jo 4 Nov 2026 21:30: install-day screen and the before-photos 
     expect(readFileSync("src/routes/_authenticated/field.day.$jobId.tsx", "utf8")).toContain('data.mittiId ? (started || data.kind === "install"');
   });
 });
+
+describe("G8 (6): the small fixes", () => {
+  test("office 'Waiting for…': acronyms and proper names keep their capital; days read as Mon 9 Nov", async () => {
+    const { midSentence } = await import("../src/lib/job-next-action.core");
+    expect(midSentence("PIESA booked")).toBe("PIESA booked");
+    expect(midSentence("Ready Check started")).toBe("Ready Check started");
+    expect(midSentence("Quote sent")).toBe("quote sent");
+    const { officeDay } = await import("../src/lib/office-status.core");
+    expect(officeDay("2026-11-09")).toBe("Mon 9 Nov");
+    expect(officeDay("2026-11-08T21:00:00Z")).toBe("Mon 9 Nov"); // 8:00am Melbourne
+    expect(officeDay("nope")).toBe("nope");
+    expect(readFileSync("src/lib/office-status.core.ts", "utf8")).not.toMatch(/Booked \$\{f\.\w+\.slice\(0, 10\)\}/);
+  });
+  test("Your rates: a flat rate has no unit line; a per-unit rate reads 'per m²'", async () => {
+    const { rateUnitLine } = await import("../src/lib/trade-view.core");
+    expect(rateUnitLine("flat")).toBeNull();
+    expect(rateUnitLine("per flat")).toBeNull();
+    expect(rateUnitLine("each")).toBeNull();
+    expect(rateUnitLine("m2")).toBe("per m²");
+    expect(rateUnitLine("per m²")).toBe("per m²");
+    expect(rateUnitLine(null)).toBeNull();
+  });
+  test("the owner quote page never shows the office template lines; Needs me gets ONE setup row", async () => {
+    const { QUOTE_NOT_READY_OWNER_LINE } = await import("../src/lib/owner-myjob.core");
+    expect(QUOTE_NOT_READY_OWNER_LINE).toBe("This quote isn't ready to accept yet — we'll email you when it is.");
+    const src = readFileSync("src/routes/my-job.$token.tsx", "utf8");
+    expect(src).toContain("{QUOTE_NOT_READY_OWNER_LINE}</p>");
+    expect(src).not.toContain("{blocked.join(\" \")}");
+    const { templatesMissingRows } = await import("../src/lib/office-needs.core");
+    expect(templatesMissingRows([], 0)).toEqual([]);
+    const rows = templatesMissingRows(["Customer agreement is not ready: add the current VEU consumer information and consumer rights."], Date.parse("2026-11-04T12:00:00Z"));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ key: "templates-missing", tag: "Setup", href: "/admin/templates" });
+    expect(rows[0]!.line).toContain("Owners can't accept a quote until this is set up: Customer agreement is not ready");
+  });
+  test("Save my spot card says 'Save my spot' before the spot is saved; the rebate footer has no stray dot", () => {
+    const src = readFileSync("src/routes/my-job.$token.tsx", "utf8");
+    expect(src).toContain('ownerHeadline("save_my_spot", v.numbers.rebate)');
+    expect(src).not.toContain("</button> · Official form");
+    expect(src).toContain(">Official form {data.version}</p>");
+  });
+  test("a double tap on Save my spot sends ONE TEST email (reservation row first)", () => {
+    const src = readFileSync("src/lib/launch-campaign.server.ts", "utf8");
+    expect(src).toContain('idempotency_key: `spot-saved-test:v1:${jobId}`');
+    expect(src.indexOf("spot-saved-test:v1")).toBeLessThan(src.indexOf('label: "spot_saved_confirmation"'));
+  });
+});

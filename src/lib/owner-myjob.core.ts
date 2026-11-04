@@ -177,6 +177,10 @@ export function parseLifeSupportPlanPath(jobId: string, path: unknown): string |
   return m && m[1] === jobId ? m[2]! : null;
 }
 
+/** G8 (6), 4 Nov 2026 (LOOKS WRONG 12): the owner's line when the quote can't be accepted yet because the office setup is
+ *  missing a template (the office sees why on Needs me). DRAFT. */
+export const QUOTE_NOT_READY_OWNER_LINE = "This quote isn't ready to accept yet — we'll email you when it is.";
+
 // ---- G8 (4), Jo 4 Nov 2026 ("show the next visit"): the booked visit on the all-set screen -------------------------------
 /** "Tue 10 Nov, 10:00am" in Melbourne time. */
 export function visitWhen(startsAt: string): string {
