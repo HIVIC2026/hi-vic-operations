@@ -971,3 +971,4 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [ ] Deep's first job plan: ADD 1–3 written into spec, awaiting Jo approval
 - [ ] Reader/completion checks follow Jo's 01:16 required/optional rule
 - [x] Aerial image measurement option (Jo 01:17)
+- [x] 01:20 Ready Check label tidy-up

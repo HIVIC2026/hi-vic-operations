@@ -44,6 +44,10 @@ const pairs: readonly (readonly [string, string])[] = [
  ["What's not done, or what changed?", 'Anything not done or changed?'],
  ['Photos of the finished work', 'Photo of the finished work at the switchboard / in the ceiling'],
  ['Date on the certificate', 'Date of certification'],
+ // Jo 4 Nov 01:20 UTC tidy-up.
+ ['How much old insulation is coming out? (m²)', 'How much existing insulation needs to be removed? (m²)'],
+ ['Is the old insulation in good enough condition to lay new batts on top?', 'Is the existing insulation in good enough condition to lay new insulation over?'],
+ ['Why is the old insulation staying?', 'Why is the existing insulation being kept?'],
 ];
 const key = (s: unknown) => String(s ?? '').split('\n')[0]?.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim() ?? '';
 export function canonicalMittiLabel(label: string): string {
