@@ -89,30 +89,53 @@ test('installer deposit rejection retries after 24 hours and successful send nev
 });// Part 4 fix wave C1 (Jo answer 21): a partner-billed in-house job whose PIESA found upgrades auto-advances to
 // rectification_scheduling — the deposit request, its day 3/7 reminders and the sweep must all still cover it.
 const UPGRADES_PIESA={id:'pr',job_id:'j',kind:'initial',outcome:'fail',is_current:true,completed_date:'2026-10-30',signed_off_by:'e',created_at:'2026-10-30T00:00:00Z'};
-test('upgrades still to come at rectification_scheduling: one request, day 3 and day 7 reminders, nothing more after the later CoES',async()=>{
+// J5 (4 Nov 2026, J4 G3 "never all clear on an upgrades-needed result" + the Part 9 Task 10 ruling): the deposit facts now
+// exist while the upgrades are outstanding (the 30 days run from the PIESA date), so with the Upgrades-needed email still
+// unapproved the request is HELD before anything is recorded (the pending intent retries each tick; no reminder starts from
+// a request that never went). Once that email is approved it carries the deposit button and the request is "covered".
+const { defaultClearToInstallDeps } = await import('../src/lib/deposit-request.server');
+const upgradesDeps=(on:boolean)=>({...defaultClearToInstallDeps(),upgradesApproved:on,route:async()=>on?['upgrades_needed' as const]:['standalone_copy' as const]});
+test('upgrades still to come at rectification_scheduling: the request is HELD (not recorded, no sends) while the Upgrades-needed email is unapproved; the intent stays for the tick',async()=>{
  tables.jobs![0]!.stage='rectification_scheduling';tables.piesa_records=[UPGRADES_PIESA];
  tables.rectification_items=[{id:'r',job_id:'j',status:'required',description:'Switchboard',needs_office_pricing:false}];
  cleared=false;basis='none';
- await requestInstallDeposit('j',new Date('2026-11-01T00:00:00Z'));
- expect(emails).toHaveLength(1);expect(texts).toHaveLength(1);expect(emails[0].purpose).toBe('install_deposit_request');
- expect(tables.workflow_events?.filter(e=>e.event_type==='install_deposit_requested')).toHaveLength(1);
- // the sweep finds the job at a rectification_* stage without a pending row
- tables.workflow_events=tables.workflow_events!.filter(e=>e.event_type!=='install_deposit_request_pending'&&e.event_type!=='install_deposit_request_resolved');
+ expect(await requestInstallDeposit('j',new Date('2026-11-01T00:00:00Z'),upgradesDeps(false))).toBe('held: electrical upgrades needed wording not approved');
+ expect(emails).toHaveLength(0);expect(texts).toHaveLength(0);
+ expect(tables.workflow_events?.filter(e=>e.event_type==='install_deposit_requested')).toHaveLength(0);
+ expect(tables.workflow_events?.filter(e=>e.event_type==='install_deposit_request_pending')).toHaveLength(1);
+ // the sweep finds the job at a rectification_* stage: still held, no reminders start
  tables.jobs![0]!.stage='rectification_booked';
- await sweepDepositRequests(new Date('2026-11-04T00:00:00Z'));expect(emails).toHaveLength(2);expect(emails[1].purpose).toBe('install_deposit_day3');
- await sweepDepositRequests(new Date('2026-11-08T00:00:00Z'));expect(emails).toHaveLength(3);expect(emails[2].purpose).toBe('install_deposit_day7');expect(texts).toHaveLength(3);
- // the upgrades are done and the Section C / CoES recorded: the same invoice gets no second request
+ await sweepDepositRequests(new Date('2026-11-04T00:00:00Z'),upgradesDeps(false));expect(emails).toHaveLength(0);expect(texts).toHaveLength(0);
+ // the upgrades are done and the Section C / CoES recorded: the one request goes now (cleared)
  tables.piesa_records.push({id:'pr2',job_id:'j',kind:'post_rectification',outcome:'pass',is_current:true,completed_date:'2026-11-09',signed_off_by:'e',section_c_signed_at:'2026-11-09T00:00:00Z',rectification_completed_at:'2026-11-09T00:00:00Z',created_at:'2026-11-09T00:00:00Z'});
  UPGRADES_PIESA.is_current=false;tables.rectification_items[0]!.status='completed';tables.jobs![0]!.stage='installation_scheduling';cleared=true;basis='section_c';
- await requestInstallDeposit('j',new Date('2026-11-09T01:00:00Z'));await sweepDepositRequests(new Date('2026-11-09T01:00:00Z'));
- expect(emails).toHaveLength(3);expect(texts).toHaveLength(3);expect(tables.workflow_events?.filter(e=>e.event_type==='install_deposit_requested')).toHaveLength(1);
+ await sweepDepositRequests(new Date('2026-11-09T01:00:00Z'),upgradesDeps(false));
+ expect(emails).toHaveLength(1);expect(texts).toHaveLength(1);expect(emails[0].purpose).toBe('install_deposit_request');
+ expect(tables.workflow_events?.filter(e=>e.event_type==='install_deposit_requested')).toHaveLength(1);
  UPGRADES_PIESA.is_current=true;
 });
-test('the sweep picks up an unrequested upgrades-pending job at rectification_scheduling only through a recorded pending intent',async()=>{
+test('upgrades still to come with the Upgrades-needed email approved: that email carries the deposit, the request is recorded as covered; day 3 and day 7 reminders follow; nothing more after the later CoES',async()=>{
+ tables.jobs![0]!.stage='rectification_scheduling';tables.piesa_records=[UPGRADES_PIESA];
+ tables.rectification_items=[{id:'r',job_id:'j',status:'required',description:'Switchboard',needs_office_pricing:false}];
+ cleared=false;basis='none';
+ expect(await requestInstallDeposit('j',new Date('2026-11-01T00:00:00Z'),upgradesDeps(true))).toBe('covered by the electrical upgrades needed email');
+ expect(emails).toHaveLength(0);expect(tables.workflow_events?.filter(e=>e.event_type==='install_deposit_requested')).toHaveLength(1);
+ tables.workflow_events=tables.workflow_events!.filter(e=>e.event_type!=='install_deposit_request_pending'&&e.event_type!=='install_deposit_request_resolved');
+ tables.jobs![0]!.stage='rectification_booked';
+ await sweepDepositRequests(new Date('2026-11-04T00:00:00Z'),upgradesDeps(true));expect(emails).toHaveLength(1);expect(emails[0].purpose).toBe('install_deposit_day3');
+ await sweepDepositRequests(new Date('2026-11-08T00:00:00Z'),upgradesDeps(true));expect(emails).toHaveLength(2);expect(emails[1].purpose).toBe('install_deposit_day7');expect(texts).toHaveLength(2);
+ tables.piesa_records.push({id:'pr2',job_id:'j',kind:'post_rectification',outcome:'pass',is_current:true,completed_date:'2026-11-09',signed_off_by:'e',section_c_signed_at:'2026-11-09T00:00:00Z',rectification_completed_at:'2026-11-09T00:00:00Z',created_at:'2026-11-09T00:00:00Z'});
+ UPGRADES_PIESA.is_current=false;tables.rectification_items[0]!.status='completed';tables.jobs![0]!.stage='installation_scheduling';cleared=true;basis='section_c';
+ await requestInstallDeposit('j',new Date('2026-11-09T01:00:00Z'),upgradesDeps(true));await sweepDepositRequests(new Date('2026-11-09T01:00:00Z'),upgradesDeps(true));
+ expect(emails).toHaveLength(2);expect(texts).toHaveLength(2);expect(tables.workflow_events?.filter(e=>e.event_type==='install_deposit_requested')).toHaveLength(1);
+ UPGRADES_PIESA.is_current=true;
+});
+test('the sweep picks up an unrequested upgrades-pending job at rectification_scheduling only through a recorded pending intent (held until the Upgrades-needed email is approved)',async()=>{
  tables.jobs![0]!.stage='rectification_scheduling';tables.piesa_records=[UPGRADES_PIESA];cleared=false;
- await sweepDepositRequests(new Date('2026-11-01T00:00:00Z'));expect(emails).toHaveLength(0); // no historical catch-up without an intent
+ await sweepDepositRequests(new Date('2026-11-01T00:00:00Z'),upgradesDeps(true));expect(emails).toHaveLength(0);expect(tables.workflow_events?.filter(e=>e.event_type==='install_deposit_requested')).toHaveLength(0); // no historical catch-up without an intent
  tables.workflow_events!.push({id:'pend',job_id:'j',event_type:'install_deposit_request_pending',details:{attempts:0}});
- await sweepDepositRequests(new Date('2026-11-01T00:00:00Z'));expect(emails).toHaveLength(1);expect(texts).toHaveLength(1);
+ await sweepDepositRequests(new Date('2026-11-01T00:00:00Z'),upgradesDeps(false));expect(tables.workflow_events?.filter(e=>e.event_type==='install_deposit_requested')).toHaveLength(0); // held
+ await sweepDepositRequests(new Date('2026-11-01T00:00:00Z'),upgradesDeps(true));expect(tables.workflow_events?.filter(e=>e.event_type==='install_deposit_requested')).toHaveLength(1); // covered by that email
 });
 // Fix wave I1: the computed purpose reaches the delivery assert — Deposit received is a compliance send, the ask is not.
 test('unsubscribed owner: Deposit received still goes (install_deposit_paid is a compliance purpose); the request is held',async()=>{

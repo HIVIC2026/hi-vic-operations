@@ -6,6 +6,10 @@
 -- allocation event's worker_id names the person. Every other guard is unchanged. Apply AFTER 2026-11-01_in_house_saved_work.sql
 -- and 2026-11-03_allocate_team_electrician_v2.sql. Rollback: re-run the function body from 2026-11-01_in_house_saved_work.sql.
 -- Proven on PGlite: tests/journey-a1-complete-route-db.test.ts (step 5).
+-- Fix wave J5 (4 Nov 2026, Part 9 Task 10 ruling): an installation booking is accepted while the job is at piesa_complete /
+-- rectification_scheduling / rectification_booked (the upgrades day still to come) — recorded with no stage move
+-- (`install_booked_before_upgrades` history row); autoadvance moves the stage once the Part C is recorded. The TS path
+-- (booking.server validateBooking / confirmBooking) has the same rule. CHANGED again — re-apply at go-live.
 -- Fix wave J4 G2 (4 Nov 2026): booking the PIESA (assessment) or the upgrades (rectification) visit for a Team electrician
 -- also records the owner-contact release for that assignment + visit (`contact_releases`, the same audited rule as an
 -- accepted offer — Jo 21 Oct), so the electrician's /e/ link shows the owner's name, phone and address from the booking.
@@ -68,7 +72,10 @@ BEGIN
  old_start:=b.scheduled_start;
  IF _kind<>'crew' THEN
   target:=CASE _kind WHEN 'ready_check' THEN 'ready_check_scheduled' WHEN 'assessment' THEN 'piesa_scheduled' WHEN 'rectification' THEN 'rectification_booked' WHEN 'installation' THEN 'installation_booked' END;
-  IF _stage NOT IN (target,CASE _kind WHEN 'ready_check' THEN 'ready_check_ready_to_schedule' WHEN 'assessment' THEN 'piesa_and_install_window_pending' WHEN 'rectification' THEN 'rectification_scheduling' WHEN 'installation' THEN 'installation_scheduling' END) THEN RAISE EXCEPTION 'Booking stage changed'; END IF;
+  -- Part 9 Task 10 ruling (4 Nov 2026): the install may be booked before the upgrades day (piesa_complete / rectification
+  -- scheduling / rectification booked) — recorded at the current stage, no stage move (validateBooking has already allowed it).
+  IF _stage NOT IN (target,CASE _kind WHEN 'ready_check' THEN 'ready_check_ready_to_schedule' WHEN 'assessment' THEN 'piesa_and_install_window_pending' WHEN 'rectification' THEN 'rectification_scheduling' WHEN 'installation' THEN 'installation_scheduling' END)
+   AND NOT (_kind='installation' AND _stage IN ('piesa_complete','rectification_scheduling','rectification_booked')) THEN RAISE EXCEPTION 'Booking stage changed'; END IF;
   UPDATE public.bookings SET status='cancelled' WHERE job_id=_job AND kind::text=_kind AND status::text IN ('proposed','confirmed');
   INSERT INTO public.bookings(job_id,kind,scheduled_start,scheduled_end,contractor_id,assignment_id,business_id,booked_by,status)
   VALUES(_job,_kind::public.booking_kind,_start,CASE WHEN _kind='installation' THEN (((_start AT TIME ZONE 'Australia/Melbourne')::date+time '16:00') AT TIME ZONE 'Australia/Melbourne') ELSE NULL END,
@@ -81,7 +88,12 @@ BEGIN
     'Use these contact details only to arrange and complete this Home Insulation Victoria job. Do not use them for unrelated marketing or future work unless the owner separately agrees.')
    ON CONFLICT (assignment_id,visit_kind) DO NOTHING;
   END IF;
-  IF j.stage::text<>target THEN
+  IF _kind='installation' AND j.stage::text IN ('piesa_complete','rectification_scheduling','rectification_booked') THEN
+   INSERT INTO public.workflow_events(job_id,actor_id,event_type,summary,details,internal) VALUES(_job,_actor,
+    CASE WHEN b.id IS NULL THEN 'install_booked_before_upgrades' ELSE 'booking_rescheduled' END,
+    CASE WHEN b.id IS NULL THEN 'Installation booked by in-house partner before the upgrades day (the job stays at '||j.stage::text||' until the Part C and certificate are in)' ELSE 'installation rescheduled by in-house partner' END,
+    jsonb_build_object('assignment_id',a.id,'installer_user_id',a.user_id,'installer_business_id',business,'scheduled_start',_start,'stage',j.stage::text),true);
+  ELSIF j.stage::text<>target THEN
    PERFORM public.commit_guarded_stage(_job,j.stage,target::public.job_stage,_actor,
     _kind||' booked by in-house partner',jsonb_build_object('assignment_id',a.id,'installer_user_id',a.user_id,'installer_business_id',business,'scheduled_start',_start),
     CASE target WHEN 'ready_check_scheduled' THEN 'Ready Check booked' WHEN 'piesa_scheduled' THEN 'Safety check booked' WHEN 'rectification_booked' THEN 'Rectification booked' ELSE 'Installation booked' END);
