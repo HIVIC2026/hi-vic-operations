@@ -109,10 +109,21 @@ export async function loadNeedsHivic() {
   const { data: rcTimes } = await admin.from("appointment_proposals").select("job_id").eq("kind", "ready_check").eq("note", READY_CHECK_TIME_NOTE).eq("status", "proposed").gt("starts_at", now.toISOString());
   const rcTalking = new Set((rcTimes ?? []).map((r) => r.job_id));
   const { buildNeedsHivic } = await import("./allocation.core");
+  // Part 9 Task 2: open "withdraw the ESC notice" asks. A failed read is an error, never an empty list (fail closed).
+  const escWithdrawRequired = (await (await import("./esc.server")).openEscWithdrawalRows()).map((r) => ({ job_id: r.jobId, created_at: r.at, reference: r.reference }));
+  // J5 (controller ruling, 4 Nov 2026): the ask is exactly about a job that won't go ahead, so a CANCELLED (or complete) job
+  // with a live notice must still raise it — the jobs read above leaves those stages out, so they are read here for THIS
+  // item only (every other item on such a job is still dropped below: it is not an open job).
+  const escOnlyIds = [...new Set(escWithdrawRequired.map((r) => r.job_id))].filter((id) => !ok(jobs, "jobs").some((j) => j.id === id));
+  const escOnlyJobs = escOnlyIds.length ? await (async () => {
+    const { data, error } = await admin.from("jobs").select("id, job_number, source, stage, channel, properties(suburb, postcode)").in("id", escOnlyIds);
+    if (error) throw new Error(`Could not load the jobs with an ESC withdrawal ask: ${error.message}`);
+    return (data ?? []).filter((j) => j.source !== "qa_test");
+  })() : [];
   const items = buildNeedsHivic({
     readyCheckReturned,
     recNoLongerApproved,
-    now, jobs: jobRows.map((j) => { const p = j.properties as { suburb: string | null; postcode: string | null } | null; return { id: j.id, job_number: j.job_number, stage: j.stage, channel: j.channel, suburb: p ? [p.suburb, p.postcode].filter(Boolean).join(" ") : null }; }),
+    now, jobs: [...jobRows, ...escOnlyJobs].map((j) => { const p = j.properties as { suburb: string | null; postcode: string | null } | null; return { id: j.id, job_number: j.job_number, stage: j.stage, channel: j.channel, suburb: p ? [p.suburb, p.postcode].filter(Boolean).join(" ") : null }; }),
     coverageExhausted: coverage,
     releases: ok(rel, "contact releases").filter((r) => (r.job_assignments as { active: boolean }).active && !(r.visit_kind === "ready_check" && rcTalking.has(r.job_id))).map((r) => ({ job_id: r.job_id, visit_kind: r.visit_kind as never, released_at: r.released_at, confirmed_at: (r.job_assignments as { booking_confirmed_at: string | null }).booking_confirmed_at })),
     failedComms: ok(comms, "communications"),
@@ -126,8 +137,7 @@ export async function loadNeedsHivic() {
     officeOverdue: [],
     rectUnanswered: ok(rsent, "electrical fixes quotes sent"),
     prestart: await (await import("./prestart.server")).prestartNeeds(now).catch((e) => { console.error("pre-start needs failed", (e as Error).message); return undefined; }),
-    // Part 9 Task 2: open "withdraw the ESC notice" asks. A failed read is an error, never an empty list (fail closed).
-    escWithdrawRequired: (await (await import("./esc.server")).openEscWithdrawalRows()).map((r) => ({ job_id: r.jobId, created_at: r.at, reference: r.reference })),
+    escWithdrawRequired,
     visitFlags,
     offerNoTaker,
     chooseTrades,
