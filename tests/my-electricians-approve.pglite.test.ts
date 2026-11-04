@@ -270,7 +270,7 @@ describe("officeRejectInstallerElectrician + installerResubmitElectrician", () =
   test("Fix and resend (Task 5): what is on file comes back for the form — own, not-approved electricians only", async () => {
     expect(await els.installerMyElectricianDetails(U_BOSS, RITA)).toEqual({
       name: "Rita Relay", email: "rita@relay.test", mobile: "+61400111222", recNumber: "REC5555", licenceNumber: "L-7777", licenceExpiry: "2099-01-01",
-      plAmount: 5_000_000, plExpiry: "2099-01-01", employsAnyone: true, workcoverExpiry: "2099-02-02", reason: "Licence number doesn't match the photo",
+      plAmount: 5_000_000, plExpiry: "2099-01-01", reason: "Licence number doesn't match the photo", // no WorkCover (Jo 4 Nov 2026 21:08)
     });
     expect(await reject(els.installerMyElectricianDetails(U_BOSS2, RITA))).toBe("This electrician isn't on your list.");
     expect(await reject(els.installerMyElectricianDetails(U_BOSS, SAM))).toBe("They're already approved — nothing to resubmit.");
@@ -290,13 +290,13 @@ describe("officeRejectInstallerElectrician + installerResubmitElectrician", () =
     const b = await biz(RITA);
     expect(b).toMatchObject({ onboarding_status: "submitted", installer_added_rejected_reason: null, name: "Rita Relay-Smith", phone: "+61411222333", is_active: false });
     expect(Number(b.public_liability_cover_amount)).toBe(10_000_000);
-    expect(b.workcover_exempt_declared_at).toBeTruthy(); // now a sole trader
+    expect(b.workcover_exempt_declared_at).toBeNull(); // WorkCover is not collected (Jo 4 Nov 2026 21:08) — nothing written
     const w = await worker(RITA);
     expect(w).toMatchObject({ full_legal_name: "Rita Relay-Smith", licence_number: "L-7777", mobile: "+61411222333", approval_status: "pending" });
     expect(new Date(w.licence_expires_on as string).toISOString().slice(0, 10)).toBe("2098-06-06");
     const cs = await creds(RITA);
-    // Old rows are marked rejected (never deleted); fresh pending rows carry the new numbers and files. No new WorkCover: sole trader now.
-    expect(cs.filter((c) => c.verification === "rejected").map((c) => c.kind)).toEqual(["electrical_licence", "public_liability_insurance", "rec_registration", "workers_comp_insurance"]);
+    // Old rows are marked rejected (never deleted); fresh pending rows carry the new numbers and files. The seeded WorkCover row is not touched (not collected, Jo 4 Nov 2026).
+    expect(cs.filter((c) => c.verification === "rejected").map((c) => c.kind)).toEqual(["electrical_licence", "public_liability_insurance", "rec_registration"]);
     expect(cs.filter((c) => c.verification === "pending").map((c) => c.kind)).toEqual(["electrical_licence", "public_liability_insurance", "rec_registration"]);
     const docs = (await db.query<{ kind: string; document_path: string }>("select kind, document_path from business_credentials where business_id=$1 and verification='pending' order by kind", [RITA])).rows;
     expect(docs.find((d) => d.kind === "electrical_licence")!.document_path).toBe(`${P1}/new-licence.jpg`);
@@ -354,8 +354,7 @@ describe("after approval", () => {
     await db.query("update businesses set public_liability_cover_amount = 2000000 where id=$1", [REC]);
     expect(await els.ownJobDocsBlocker(REC, "2026-11-03")).toBe("Public liability insurance covers $2,000,000; $5,000,000 or more is needed.");
     await db.query("update businesses set public_liability_cover_amount = 10000000, workcover_exempt_declared_at = null where id=$1", [REC]);
-    expect(await els.ownJobDocsBlocker(REC, "2026-11-03")).toBe("Workers compensation insurance not on file. Upload it under My business.");
-    await db.query("update businesses set workcover_exempt_declared_at = now() where id=$1", [REC]);
+    expect(await els.ownJobDocsBlocker(REC, "2026-11-03")).toBeNull(); // workers comp is not collected (Jo 4 Nov 2026 21:08)
     await db.query("insert into business_credentials (business_id, kind, expires_at, verification) values ($1,'public_liability_insurance','2026-01-01','rejected'), ($1,'rec_registration','2026-01-01','verified')", [REC]);
     expect(await els.ownJobDocsBlocker(REC, "2026-11-03")).toBe("REC registration expired on 2026-01-01. No new jobs until the renewed document is uploaded.");
     const swap = readFileSync(new URL("../src/lib/electrician-swap.server.ts", import.meta.url), "utf8");

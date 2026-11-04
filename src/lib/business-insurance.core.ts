@@ -26,7 +26,7 @@ export function insuranceRowStatus(c: { verified: boolean; expires: string | nul
   return c.expires ? { line: INSURANCE_PAGE_WORDS.checkedUntil(insuranceDate(c.expires)), warn: false } : { line: INSURANCE_PAGE_WORDS.checkedNoDate, warn: true };
 }
 
-/** Row names as Jo wrote them ("Public liability", "Workers comp"); other kinds keep their stored label. */
+/** Row names as Jo wrote them ("Public liability"); other kinds keep their stored label. Workers comp is not collected (Jo 4 Nov 2026) and never shown. */
 export function insuranceRowLabel(kind: string | null | undefined, label: string): string {
-  return ({ public_liability_insurance: "Public liability", workers_comp_insurance: "Workers comp", electrical_licence: "Electrical licence", installer_certification: "Installer certificate" } as Record<string, string>)[kind ?? ""] ?? label;
+  return ({ public_liability_insurance: "Public liability", electrical_licence: "Electrical licence", installer_certification: "Installer certificate" } as Record<string, string>)[kind ?? ""] ?? label;
 }

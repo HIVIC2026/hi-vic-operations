@@ -59,11 +59,11 @@ export async function recCandidatesFor(jobId: string): Promise<{ postcode: strin
   ]);
   const { data: inst } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
   // G6 S6 (final Part 9 review, 4 Nov 2026): offers use the SAME insurance hard block as every booking (Part 9 Task 8
-  // businessDocsBlocker through the one reader: on file, verified, $5m+ — the business's recorded cover (B1) — unexpired,
-  // workers comp unless exempt). A read error throws: no offer goes out on an unchecked business.
+  // businessDocsBlocker through the one reader: public liability on file, verified, $5m+ — the business's recorded cover
+  // (B1) — unexpired; workers comp is not collected, Jo 4 Nov 2026). A read error throws: no offer goes out on an unchecked business.
   const docs = await (await import("./business-docs.server")).businessDocsFor(ids);
   const today = melbourneYmd(new Date());
-  const insuranceBlocker = (bid: string): string | null => { const d = docs.get(bid); return d ? businessDocsBlocker(d.credentials, today, { workersCompExempt: d.workersCompExempt }) : businessDocsBlocker([], today); };
+  const insuranceBlocker = (bid: string): string | null => { const d = docs.get(bid); return d ? businessDocsBlocker(d.credentials, today) : businessDocsBlocker([], today); };
   // The installer's choice on this job is offered first; otherwise their preferred electricians (Jo, 7 Oct).
   const { firstOfferedElectrician } = await import("./job-electrician.core");
   const preferred = firstOfferedElectrician(await (await import("./job-electrician.server")).jobChosenElectrician(jobId), (prefs ?? [])

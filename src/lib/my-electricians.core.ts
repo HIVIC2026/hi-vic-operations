@@ -7,7 +7,8 @@ export type AddElectricianInput = {
   name: string; email: string; mobile: string; recNumber: string;
   licenceNumber: string; licenceExpiry: string /* YYYY-MM-DD */; licenceFilePath: string;
   plFilePath: string; plAmount: number; plExpiry: string;
-  employsAnyone: boolean; workcoverFilePath?: string | null; workcoverExpiry?: string | null; soleTraderTick?: boolean;
+  /** Jo 4 Nov 2026 21:08 (G8): workers comp / WorkCover is NOT collected — these are ignored (kept so old drafts still parse). */
+  employsAnyone?: boolean; workcoverFilePath?: string | null; workcoverExpiry?: string | null; soleTraderTick?: boolean;
 };
 
 const blank = (s: string | null | undefined) => !String(s ?? "").trim();
@@ -27,20 +28,17 @@ export function addElectricianProblems(i: AddElectricianInput, today: string): s
   if (blank(i.plFilePath)) p.push("Add the public liability certificate");
   if (!(Number(i.plAmount) >= MIN_PUBLIC_LIABILITY)) p.push("Public liability must be at least $5 million");
   if (!inFuture(i.plExpiry, today)) p.push("Public liability expiry must be in the future");
-  if (i.employsAnyone) {
-    if (blank(i.workcoverFilePath)) p.push("Add the WorkCover certificate");
-    if (!inFuture(i.workcoverExpiry, today)) p.push("WorkCover expiry must be in the future");
-  } else if (!i.soleTraderTick) p.push("Tick that they're a sole trader with no staff");
+  // Workers comp / WorkCover is not collected (Jo 4 Nov 2026 21:08) — nothing about it is asked or checked.
   return p;
 }
 
 export type MyElectricianStatus = "waiting" | "approved" | "expired" | "not_approved";
 export type StatusFacts = {
   onboardingStatus: string | null; workerApproval: string | null; rejectedReason: string | null;
-  licenceExpiry: string | null; plExpiry: string | null; workcoverExpiry: string | null; workcoverExempt: boolean; today: string;
+  licenceExpiry: string | null; plExpiry: string | null; today: string;
   /** Added by an installer (businesses.added_by_installer_business_id set). Only these use the strict Part 2b rule: a missing
-   *  date counts as lapsed and WorkCover is needed unless declared exempt. A normally onboarded REC (the office's own
-   *  checklist already passed) follows the portal convention: no date on file = not blocked, and WorkCover is not checked here. */
+   *  date counts as lapsed. A normally onboarded REC (the office's own checklist already passed) follows the portal
+   *  convention: no date on file = not blocked. Workers comp is never checked (Jo 4 Nov 2026). */
   installerAdded: boolean;
 };
 
@@ -50,14 +48,12 @@ export function myElectricianStatus(f: StatusFacts): MyElectricianStatus {
   if (f.onboardingStatus !== "approved" || f.workerApproval !== "approved") return "waiting";
   const gone = f.installerAdded ? lapsed : (d: string | null | undefined, today: string) => !!d && d < today;
   if (gone(f.licenceExpiry, f.today) || gone(f.plExpiry, f.today)) return "expired";
-  if (f.installerAdded && !f.workcoverExempt && lapsed(f.workcoverExpiry, f.today)) return "expired";
   return "approved";
 }
 
 export type ChecklistFacts = {
   recNumber: string | null; licenceNumber: string | null; licenceExpiry: string | null; licenceFilePresent: boolean;
-  plAmount: number | null; plExpiry: string | null; plFilePresent: boolean;
-  workcoverExpiry: string | null; workcoverFilePresent: boolean; workcoverExempt: boolean; today: string;
+  plAmount: number | null; plExpiry: string | null; plFilePresent: boolean; today: string;
 };
 
 /** For the office: every reason this electrician can't be approved yet. Empty = nothing blocks approval. Hard block, no override. */
@@ -70,10 +66,7 @@ export function approveChecklist(f: ChecklistFacts): string[] {
   if (!f.plFilePresent) p.push("Public liability certificate is missing");
   if (!(Number(f.plAmount) >= MIN_PUBLIC_LIABILITY)) p.push("Public liability is under $5 million");
   if (!f.plExpiry) p.push("Public liability expiry is missing"); else if (f.plExpiry < f.today) p.push("Public liability has expired");
-  if (!f.workcoverExempt) {
-    if (!f.workcoverFilePresent) p.push("WorkCover certificate is missing");
-    if (!f.workcoverExpiry) p.push("WorkCover expiry is missing"); else if (f.workcoverExpiry < f.today) p.push("WorkCover has expired");
-  }
+  // Workers comp / WorkCover is not collected (Jo 4 Nov 2026 21:08).
   return p;
 }
 
@@ -108,8 +101,6 @@ export const finishApprovingElectricianLine = (electricianName: string, installe
 
 // ---- Former "My electricians" screen rules (pure; the page was retired 4 Nov 2026 — Team is the only way to add an electrician; kept for the office review card and the tests) ----
 
-export const ANSWER_WORKCOVER = "Answer the WorkCover question";
-
 /** The chip on each row of the installer's list. Plain words, one line. */
 export function statusChip(status: MyElectricianStatus, reason: string | null): { text: string; tone: "green" | "blue" | "pink" } {
   if (status === "approved") return { text: "Approved", tone: "green" };
@@ -123,14 +114,13 @@ export type ElectricianDraft = {
   name: string; email: string; mobile: string; recNumber: string;
   licenceNumber: string; licenceExpiry: string; licenceFile: { name: string } | null;
   plFile: { name: string } | null; plAmount: string; plExpiry: string;
-  employs: "" | "yes" | "no"; workcoverFile: { name: string } | null; workcoverExpiry: string; soleTraderTick: boolean;
 };
 
 // ---- Task 5 carried item: "Fix and resend" a not-approved electrician ----
 /** What is on file for the installer's own not-approved electrician (read by the server; never files). */
 export type MyElectricianDetails = {
   name: string; email: string; mobile: string; recNumber: string; licenceNumber: string; licenceExpiry: string | null;
-  plAmount: number | null; plExpiry: string | null; employsAnyone: boolean; workcoverExpiry: string | null; reason: string | null;
+  plAmount: number | null; plExpiry: string | null; reason: string | null;
 };
 export const RESUBMIT_FORM = { title: "Fix and resend", button: "Send again", note: "Upload every document again, even the ones that were fine." } as const;
 /** The add form, prefilled from what is on file. The office's reason is free text, so which document was the problem is
@@ -140,7 +130,6 @@ export function prefillDraft(d: MyElectricianDetails): ElectricianDraft {
     name: d.name, email: d.email, mobile: d.mobile, recNumber: d.recNumber,
     licenceNumber: d.licenceNumber, licenceExpiry: d.licenceExpiry ?? "", licenceFile: null,
     plFile: null, plAmount: d.plAmount == null ? "" : String(Math.round(d.plAmount)), plExpiry: d.plExpiry ?? "",
-    employs: d.employsAnyone ? "yes" : "no", workcoverFile: null, workcoverExpiry: d.employsAnyone ? d.workcoverExpiry ?? "" : "", soleTraderTick: false,
   };
 }
 
@@ -149,25 +138,19 @@ export const PROBLEM_FIELD: Record<string, keyof ElectricianDraft> = {
   "Add their name": "name", "Add their email": "email", "Add their mobile": "mobile", "Add their REC number": "recNumber",
   "Add their licence number": "licenceNumber", "Licence expiry must be in the future": "licenceExpiry", "Add a photo of their licence": "licenceFile",
   "Add the public liability certificate": "plFile", "Public liability must be at least $5 million": "plAmount", "Public liability expiry must be in the future": "plExpiry",
-  "Add the WorkCover certificate": "workcoverFile", "WorkCover expiry must be in the future": "workcoverExpiry",
-  "Tick that they're a sole trader with no staff": "soleTraderTick", [ANSWER_WORKCOVER]: "employs",
 };
 
 /** The draft as the server wants it, with the given stored file paths. */
-export function draftToInput(d: ElectricianDraft, paths: { licence: string; pl: string; workcover: string }): AddElectricianInput {
+export function draftToInput(d: ElectricianDraft, paths: { licence: string; pl: string }): AddElectricianInput {
   return {
     name: d.name, email: d.email, mobile: d.mobile, recNumber: d.recNumber,
     licenceNumber: d.licenceNumber, licenceExpiry: d.licenceExpiry, licenceFilePath: paths.licence,
     plFilePath: paths.pl, plAmount: Number(String(d.plAmount).replace(/[^\d.]/g, "")) || 0, plExpiry: d.plExpiry,
-    employsAnyone: d.employs === "yes", workcoverFilePath: d.employs === "yes" ? paths.workcover || null : null,
-    workcoverExpiry: d.employs === "yes" ? d.workcoverExpiry || null : null, soleTraderTick: d.employs === "no" && d.soleTraderTick,
   };
 }
 
 /** The same check the server runs, on the draft, so the boss sees every gap before anything is uploaded. */
 export function draftProblems(d: ElectricianDraft, today: string): string[] {
-  const picked = { licence: d.licenceFile ? "picked" : "", pl: d.plFile ? "picked" : "", workcover: d.workcoverFile ? "picked" : "" };
-  // The WorkCover question comes first; until it's answered the WorkCover rules can't apply, so they're skipped (not faked).
-  if (d.employs === "") return [ANSWER_WORKCOVER, ...addElectricianProblems({ ...draftToInput(d, picked), employsAnyone: false, soleTraderTick: true }, today)];
+  const picked = { licence: d.licenceFile ? "picked" : "", pl: d.plFile ? "picked" : "" };
   return addElectricianProblems(draftToInput(d, picked), today);
 }

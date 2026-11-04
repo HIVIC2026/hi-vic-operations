@@ -25,7 +25,7 @@ const mk = async (n: number, name: string, o: { status: string; active?: boolean
   if (o.wcExp) await db.query(`insert into business_credentials (business_id, kind, expires_at, verification) values ($1,'workers_comp_insurance',$2,'verified')`, [id(n), o.wcExp]);
   if (o.linkTo) await db.query(`insert into partner_relationships (installer_business_id, electrician_business_id, active, source) values ($1,$2,$3,'installer_added')`, [o.linkTo, id(n), o.linkActive ?? false]);
 };
-// Insul One's list: one waiting, one approved (linked, not added), one not approved, one approved whose licence lapsed, one approved with lapsed WorkCover.
+// Insul One's list: one waiting, one approved (linked, not added), one not approved, one approved whose licence lapsed, one approved with a lapsed WorkCover row (not collected since Jo 4 Nov 2026 21:08 → still approved).
 await mk(20, "Wendy Waiting", { status: "submitted", active: false, licExp: "2099-01-01", addedBy: INST, linkTo: INST });
 await mk(21, "Alan Approved", { status: "approved", licExp: "2099-03-04", plExp: "2098-05-06", linkTo: INST, linkActive: true });
 await mk(22, "Nina Nope", { status: "submitted", active: false, licExp: "2099-01-01", rejected: "Blurry licence photo", addedBy: INST, linkTo: INST });
@@ -58,7 +58,7 @@ describe("installerMyElectricians", () => {
       ["Eddie Expired", "expired", null],
       ["Nina Nope", "not_approved", "Blurry licence photo"],
       ["Solo Rec", "approved", null],
-      ["Wally WorkCover", "expired", null],
+      ["Wally WorkCover", "approved", null], // WorkCover is not collected (Jo 4 Nov 2026)
       ["Wendy Waiting", "waiting", null],
     ]);
     const alan = rows.find((r) => r.name === "Alan Approved")!;

@@ -112,10 +112,11 @@ export function latestCiiExpiryByWorker(
 }
 
 // ── Part 9 Task 8 (Jo 2 Nov 2026): insurance is a HARD block until the office approves it ────────────────────────────
-// Public liability and workers compensation must be on file, office-VERIFIED, unexpired, and public liability must cover
-// $5m or more (the office types the amount when approving). An upload alone never lifts a block; a missing date or
-// amount on a verified row blocks ("not recorded"), never "assumed fine". Installer certification and REC registration
-// keep the expiry-only rule above (expiredBusinessDocsBlocker). PURE.
+// Public liability must be on file, office-VERIFIED, unexpired and cover $5m or more (the office types the amount when
+// approving). Jo 4 Nov 2026 21:08 (G8): workers compensation is NOT collected at all — no requirement, no row, no
+// exemption. An upload alone never lifts a block; a missing date or amount on a verified row blocks ("not recorded"),
+// never "assumed fine". Installer certification and REC registration keep the expiry-only rule above
+// (expiredBusinessDocsBlocker). PURE.
 export const PUBLIC_LIABILITY_MIN_AUD = 5_000_000;
 /** Installer-facing refusal lines (one per problem; the blocker joins them). Listed for Jo in JO-APPROVAL-LIST.md. */
 export const BUSINESS_DOCS_WORDS = {
@@ -127,7 +128,7 @@ export const BUSINESS_DOCS_WORDS = {
   amountMissing: (doc: string) => `${doc}: amount insured not recorded. Ask Home Insulation Victoria to check it.`,
   amountLow: (doc: string, aud: number) => `${doc} covers $${aud.toLocaleString("en-AU")}; $${PUBLIC_LIABILITY_MIN_AUD.toLocaleString("en-AU")} or more is needed.`,
 } as const;
-const INSURANCE_DOCS = ["public_liability_insurance", "workers_comp_insurance"] as const;
+const INSURANCE_DOCS = ["public_liability_insurance"] as const;
 
 /** G6 B1 (4 Nov 2026): every business records its public liability cover on `businesses.public_liability_cover_amount`
  *  (filled for every live business; the office types it at onboarding). A public liability row with no amount of its own
@@ -167,14 +168,10 @@ export function insuranceDocProblems(creds: CredentialView[], kind: (typeof INSU
 
 /**
  * Why this business can't take new jobs, bookings or installs because of its insurance (null = fine). Blocks when public
- * liability or workers compensation is not on file, not yet verified, expired on the latest VERIFIED row (a newer upload
- * waiting to be checked is said so), has no expiry date recorded, or (public liability) has no amount / under $5m.
- * `workersCompExempt`: the business declared it employs nobody (businesses.workcover_exempt_declared_at) — workers comp not needed.
+ * liability is not on file, not yet verified, expired on the latest VERIFIED row (a newer upload waiting to be checked is
+ * said so), has no expiry date recorded, has no amount, or is under $5m. Workers compensation is never checked (Jo 4 Nov 2026).
  */
-export function businessDocsBlocker(creds: CredentialView[], today: string, opts: { workersCompExempt?: boolean } = {}): string | null {
-  const problems = [
-    ...insuranceDocProblems(creds, "public_liability_insurance", today),
-    ...(opts.workersCompExempt ? [] : insuranceDocProblems(creds, "workers_comp_insurance", today)),
-  ];
+export function businessDocsBlocker(creds: CredentialView[], today: string): string | null {
+  const problems = insuranceDocProblems(creds, "public_liability_insurance", today);
   return problems.length ? problems.join(" ") : null;
 }

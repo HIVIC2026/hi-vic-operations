@@ -1,5 +1,6 @@
 // New job flow Part 9 Task 8 (Jo 2 Nov 2026): insurance and licence are a HARD block until the office approves —
-// public liability on file, office-verified, $5m+, workers comp, unexpired; an upload alone never lifts the block;
+// public liability on file, office-verified, $5m+, unexpired (workers comp is NOT collected — Jo 4 Nov 2026 21:08, G8);
+// an upload alone never lifts the block;
 // reminders 30 and 7 days before expiry to the business email AND info@ (two sends, one key each), held until approved.
 import { describe, expect, test } from "bun:test";
 import ts from "typescript";
@@ -39,7 +40,7 @@ describe("businessDocsBlocker: the hard block (pure)", () => {
   });
   test("no public liability on file → blocked", () => {
     expect(businessDocsBlocker([wc("2027-06-30")], TODAY)).toBe(BUSINESS_DOCS_WORDS.notOnFile(PL));
-    expect(businessDocsBlocker([], TODAY)).toBe(`${BUSINESS_DOCS_WORDS.notOnFile(PL)} ${BUSINESS_DOCS_WORDS.notOnFile(WC)}`);
+    expect(businessDocsBlocker([], TODAY)).toBe(BUSINESS_DOCS_WORDS.notOnFile(PL));
   });
   test("uploaded but not yet verified → blocked ('waiting to check'); rejected only → not on file", () => {
     expect(businessDocsBlocker([pl("2027-06-30", false), wc("2027-06-30")], TODAY)).toBe(BUSINESS_DOCS_WORDS.waitingCheck(PL));
@@ -54,14 +55,15 @@ describe("businessDocsBlocker: the hard block (pure)", () => {
   test("a verified row with no expiry date → blocked (missing date never clears)", () => {
     expect(businessDocsBlocker([pl(null, true, 10_000_000), wc("2027-06-30")], TODAY)).toBe(BUSINESS_DOCS_WORDS.noExpiry(PL));
   });
-  test("workers comp missing → blocked; exempt (employs nobody) → not needed; expired → blocked", () => {
-    expect(businessDocsBlocker([pl("2027-06-30", true, 10_000_000)], TODAY)).toBe(BUSINESS_DOCS_WORDS.notOnFile(WC));
-    expect(businessDocsBlocker([pl("2027-06-30", true, 10_000_000)], TODAY, { workersCompExempt: true })).toBeNull();
-    expect(businessDocsBlocker([pl("2027-06-30", true, 10_000_000), wc("2026-11-03")], TODAY)).toBe(BUSINESS_DOCS_WORDS.expired(WC, "2026-11-03"));
-    expect(insuranceDocProblems([wc("2026-11-04")], "workers_comp_insurance", TODAY)).toEqual([]); // expires today = still current
+  test("workers comp is NOT collected (Jo 4 Nov 2026 21:08): missing, expired or present makes no difference", () => {
+    expect(businessDocsBlocker([pl("2027-06-30", true, 10_000_000)], TODAY)).toBeNull();
+    expect(businessDocsBlocker([pl("2027-06-30", true, 10_000_000), wc("2026-11-03")], TODAY)).toBeNull();
+    expect(businessDocsBlocker([pl("2027-06-30", true, 10_000_000), wc("2027-06-30")], TODAY)).toBeNull();
+    expect(insuranceDocProblems([pl("2026-11-04", true, 10_000_000)], "public_liability_insurance", TODAY)).toEqual([]); // expires today = still current
+    expect(WC).not.toBe(""); // the label stays for old rows only
   });
   test("several problems are all said; expiry-only rule for the installer certificate is unchanged", () => {
-    expect(businessDocsBlocker([pl("2026-10-01", true, 2_000_000)], TODAY)).toBe([BUSINESS_DOCS_WORDS.expired(PL, "2026-10-01"), BUSINESS_DOCS_WORDS.amountLow(PL, 2_000_000), BUSINESS_DOCS_WORDS.notOnFile(WC)].join(" "));
+    expect(businessDocsBlocker([pl("2026-10-01", true, 2_000_000)], TODAY)).toBe([BUSINESS_DOCS_WORDS.expired(PL, "2026-10-01"), BUSINESS_DOCS_WORDS.amountLow(PL, 2_000_000)].join(" "));
     expect(expiredBusinessDocsBlocker([{ kind: "installer_certification", label: "CII", expires: "2026-10-01", verified: true }], TODAY, ["installer_certification"])).toContain("expired on 2026-10-01");
     expect(expiredBusinessDocsBlocker([], TODAY, ["installer_certification"])).toBeNull();
   });
@@ -74,7 +76,7 @@ describe("businessDocsBlocker: the hard block (pure)", () => {
       lead: { found: true, status: "verified", level: "full", expiresOn: "2027-01-01", name: "Deep", noticeAcknowledged: true },
       consentBlockers: [], piesaCompletedAt: "2026-10-20T00:00:00Z",
     } as unknown as Parameters<typeof prestartFailures>[0];
-    expect(prestartFailures({ ...base, businessDocsBlocker: businessDocsBlocker([], TODAY) })).toContain(`Installer business: ${BUSINESS_DOCS_WORDS.notOnFile(PL)} ${BUSINESS_DOCS_WORDS.notOnFile(WC)}`);
+    expect(prestartFailures({ ...base, businessDocsBlocker: businessDocsBlocker([], TODAY) })).toContain(`Installer business: ${BUSINESS_DOCS_WORDS.notOnFile(PL)}`);
   });
 });
 

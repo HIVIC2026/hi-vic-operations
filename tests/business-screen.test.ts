@@ -55,7 +55,7 @@ describe("the folded rows", () => {
     expect(rows.map((r) => r.sub)).toEqual([
       "6 people · all have date of birth + mobile ✓",
       "Will Casdorff (Viking Electrical) · PIESA price $330",
-      "Workers comp ✓ · Public liability expiring",
+      "Public liability expiring",
       "Office 03 9000 0000 · logo ✓",
       "Agreed 28 Oct",
       "••••5678",
@@ -71,7 +71,7 @@ describe("the folded rows", () => {
     }, TODAY).map((r) => r.sub);
     expect(rows[0]).toBe("1 person · 1 missing date of birth or mobile");
     expect(rows[1]).toBe("Sam Lee · no PIESA price yet · Jo Volt (Volt Co) · PIESA price $300");
-    expect(rows[2]).toBe("Workers comp not on file · Public liability expired");
+    expect(rows[2]).toBe("Public liability expired"); // workers comp is not collected (Jo 4 Nov 2026)
     expect(rows[3]).toBe("No office phone · no logo yet");
     expect(rows[4]).toBe("Being confirmed with the office");
     expect(rows[5]).toBe("Add where we pay you");

@@ -9,7 +9,8 @@ describe("the approved words", () => {
     expect(INSURANCE_PAGE_WORDS.intro).toBe("Keep these current. If one runs out, you can't take new jobs, bookings or installs until the new certificate is uploaded and we've checked it. We'll remind you 30 days and 7 days before anything expires.");
     expect(INSURANCE_PAGE_WORDS.upload).toBe("Upload a new certificate");
     expect(insuranceRowLabel("public_liability_insurance", "Public Liability")).toBe("Public liability");
-    expect(insuranceRowLabel("workers_comp_insurance", "Workers Comp")).toBe("Workers comp");
+    // Jo 4 Nov 2026 21:08 (G8): workers comp is not collected — no row name of its own (the page hides any old row).
+    expect(insuranceRowLabel("workers_comp_insurance", "Workers Comp")).toBe("Workers Comp");
     expect(insuranceRowLabel("other", "Something else")).toBe("Something else");
   });
   test("row states: checked → 'Checked · current until {date}'; unchecked → 'Waiting for us to check'; expired → 'Expired {date} — upload the new one' (wins)", () => {

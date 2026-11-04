@@ -201,10 +201,10 @@ exports[`My business (Task 7): same value as before owner, staff, electrician ow
               "warn": true,
             },
             {
-              "sub": "Workers comp not on file · Public liability ✓",
+              "sub": "Public liability ✓",
               "title": "Insurance and licences",
               "to": "/field/business/insurance",
-              "warn": true,
+              "warn": false,
             },
             {
               "sub": "Office 0390000000 · no logo yet",
@@ -543,10 +543,10 @@ exports[`My business (Task 7): same value as before owner, staff, electrician ow
               "warn": true,
             },
             {
-              "sub": "Workers comp not on file · Public liability ✓",
+              "sub": "Public liability ✓",
               "title": "Insurance and licences",
               "to": "/field/business/insurance",
-              "warn": true,
+              "warn": false,
             },
             {
               "sub": "Office 0390000000 · no logo yet",
@@ -890,10 +890,10 @@ exports[`My business (Task 7): same value as before with each read failing: the 
               "warn": true,
             },
             {
-              "sub": "Workers comp not on file · Public liability ✓",
+              "sub": "Public liability ✓",
               "title": "Insurance and licences",
               "to": "/field/business/insurance",
-              "warn": true,
+              "warn": false,
             },
             {
               "sub": "No office phone · no logo yet",
@@ -1232,10 +1232,10 @@ exports[`My business (Task 7): same value as before with each read failing: the 
               "warn": true,
             },
             {
-              "sub": "Workers comp not on file · Public liability ✓",
+              "sub": "Public liability ✓",
               "title": "Insurance and licences",
               "to": "/field/business/insurance",
-              "warn": true,
+              "warn": false,
             },
             {
               "sub": "Office 0390000000 · no logo yet",
@@ -1554,7 +1554,7 @@ exports[`My business (Task 7): same value as before with each read failing: the 
               "warn": true,
             },
             {
-              "sub": "Workers comp not on file · Public liability not on file",
+              "sub": "Public liability not on file",
               "title": "Insurance and licences",
               "to": "/field/business/insurance",
               "warn": true,
@@ -1896,10 +1896,10 @@ exports[`My business (Task 7): same value as before with each read failing: the 
               "warn": true,
             },
             {
-              "sub": "Workers comp not on file · Public liability ✓",
+              "sub": "Public liability ✓",
               "title": "Insurance and licences",
               "to": "/field/business/insurance",
-              "warn": true,
+              "warn": false,
             },
             {
               "sub": "Office 0390000000 · no logo yet",
@@ -2234,10 +2234,10 @@ exports[`My business (Task 7): same value as before with each read failing: the 
               "warn": true,
             },
             {
-              "sub": "Workers comp not on file · Public liability ✓",
+              "sub": "Public liability ✓",
               "title": "Insurance and licences",
               "to": "/field/business/insurance",
-              "warn": true,
+              "warn": false,
             },
             {
               "sub": "Office 0390000000 · no logo yet",
@@ -2566,10 +2566,10 @@ exports[`My business (Task 7): same value as before with each read failing: the 
               "warn": true,
             },
             {
-              "sub": "Workers comp not on file · Public liability ✓",
+              "sub": "Public liability ✓",
               "title": "Insurance and licences",
               "to": "/field/business/insurance",
-              "warn": true,
+              "warn": false,
             },
             {
               "sub": "Office 0390000000 · no logo yet",
@@ -2895,10 +2895,10 @@ exports[`My business (Task 7): same value as before with each read failing: the 
               "warn": true,
             },
             {
-              "sub": "Workers comp not on file · Public liability ✓",
+              "sub": "Public liability ✓",
               "title": "Insurance and licences",
               "to": "/field/business/insurance",
-              "warn": true,
+              "warn": false,
             },
             {
               "sub": "Office 0390000000 · no logo yet",
@@ -3224,10 +3224,10 @@ exports[`My business (Task 7): same value as before with each read failing: the 
               "warn": true,
             },
             {
-              "sub": "Workers comp not on file · Public liability ✓",
+              "sub": "Public liability ✓",
               "title": "Insurance and licences",
               "to": "/field/business/insurance",
-              "warn": true,
+              "warn": false,
             },
             {
               "sub": "Office 0390000000 · no logo yet",
@@ -3566,10 +3566,10 @@ exports[`My business (Task 7): same value as before with each read failing: the 
               "warn": true,
             },
             {
-              "sub": "Workers comp not on file · Public liability ✓",
+              "sub": "Public liability ✓",
               "title": "Insurance and licences",
               "to": "/field/business/insurance",
-              "warn": true,
+              "warn": false,
             },
             {
               "sub": "Office 0390000000 · no logo yet",
@@ -3866,10 +3866,10 @@ exports[`My business (Task 7): same value as before with each read failing: the 
               "warn": true,
             },
             {
-              "sub": "Workers comp not on file · Public liability ✓",
+              "sub": "Public liability ✓",
               "title": "Insurance and licences",
               "to": "/field/business/insurance",
-              "warn": true,
+              "warn": false,
             },
             {
               "sub": "Office 0390000000 · no logo yet",
@@ -4302,10 +4302,10 @@ exports[`My business (Task 7): declarations_due missing (before migration 0230) 
               "warn": true,
             },
             {
-              "sub": "Workers comp not on file · Public liability ✓",
+              "sub": "Public liability ✓",
               "title": "Insurance and licences",
               "to": "/field/business/insurance",
-              "warn": true,
+              "warn": false,
             },
             {
               "sub": "Office 0390000000 · no logo yet",
@@ -4644,10 +4644,10 @@ exports[`My business (Task 7): declarations_due missing (before migration 0230) 
               "warn": true,
             },
             {
-              "sub": "Workers comp not on file · Public liability ✓",
+              "sub": "Public liability ✓",
               "title": "Insurance and licences",
               "to": "/field/business/insurance",
-              "warn": true,
+              "warn": false,
             },
             {
               "sub": "Office 0390000000 · no logo yet",

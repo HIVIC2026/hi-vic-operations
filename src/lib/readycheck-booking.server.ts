@@ -123,10 +123,9 @@ export async function installerOfferFacts(bizs: { id: string }[]): Promise<{ cre
   const { installerGapReason } = await import("./readycheck-booking.core");
   const credsOf = (id: string) => (creds ?? []).filter((x) => x.business_id === id);
   const docs = (id: string) => insurance.get(id)?.credentials ?? credsOf(id).map((x) => ({ kind: x.kind, label: x.label, expires: x.expires_at, verified: x.verification === "verified" }));
-  const exemptOf = (id: string) => insurance.get(id)?.workersCompExempt ?? false;
   return {
     credentialsOk: (b) => !partnerWorkBlocker(b as unknown as BusinessLike, credsOf(b.id))
-      && !businessDocsBlocker(docs(b.id), today, { workersCompExempt: exemptOf(b.id) })
+      && !businessDocsBlocker(docs(b.id), today)
       && !expiredBusinessDocsBlocker(docs(b.id), today, ["installer_certification"]),
     fullCertified: (businessId) => wk.filter((x) => x.business_id === businessId && fullWorker(x)).length,
     installerGap: (businessId) => installerGapReason(all.filter((x) => x.business_id === businessId).map((x) => ({
@@ -134,7 +133,7 @@ export async function installerOfferFacts(bizs: { id: string }[]): Promise<{ cre
       cert: certOf(x),
     })), today),
     credentialsGap: (b) => partnerWorkBlocker(b as unknown as BusinessLike, credsOf(b.id))
-      ?? businessDocsBlocker(docs(b.id), today, { workersCompExempt: exemptOf(b.id) })
+      ?? businessDocsBlocker(docs(b.id), today)
       ?? expiredBusinessDocsBlocker(docs(b.id), today, ["installer_certification"]) ?? null,
   };
 }

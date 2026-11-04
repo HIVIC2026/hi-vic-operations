@@ -82,7 +82,7 @@ function BusinessFile() {
         {p.data?.myRole === "hivic_admin" && p.data.inHouseFacts && <InHousePanel key={JSON.stringify(p.data.business)} businessId={businessId} business={p.data.business as unknown as { name: string; in_house?: boolean; rectification_billed_by?: "partner" | "hivic" }} facts={p.data.inHouseFacts} onDone={refresh} />}
         <Panel title="Insurance & licences">
           <dl data-why="193 PL insurance re-checked yearly; ESC scheme participant requirement">
-            {f.credentials.filter((c) => ["public_liability_insurance", "workers_comp_insurance", "electrical_licence", "rec_registration", "installer_certification"].includes(c.kind)).map((c) => (
+            {f.credentials.filter((c) => ["public_liability_insurance", "electrical_licence", "rec_registration", "installer_certification"].includes(c.kind)).map((c) => (
               <Row key={c.id} k={c.label}>{[c.issuer, c.number, c.expires_at && `to ${fmtDay(c.expires_at)}`].filter(Boolean).join(" · ")} {c.state === "expired" ? <Pill tone="rose">Expired</Pill> : c.state === "expiring" ? <Pill tone="amber">Expiring soon</Pill> : null} <span className="text-xs text-sub">· {c.verification}{c.document_path ? " · certificate on file" : ""}</span></Row>
             ))}
             <Row k="ABN">{b.abn ?? "—"}</Row>

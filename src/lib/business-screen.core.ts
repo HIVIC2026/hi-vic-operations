@@ -100,7 +100,8 @@ export function businessRows(f: BusinessScreenFacts, today: string): { title: st
     if (d <= 30) return { t: `${name} expiring`, warn: true };
     return { t: `${name} ✓`, warn: false };
   };
-  const wc = cover("workers_comp_insurance", "Workers comp"), pl = cover("public_liability_insurance", "Public liability");
+  // Jo 4 Nov 2026 21:08 (G8): workers comp is not collected — the row says public liability only.
+  const pl = cover("public_liability_insurance", "Public liability");
   const detailsSub = `${f.officePhone ? `Office ${f.officePhone}` : W.noOfficePhone} · ${f.logoUrl ? W.logoYes : W.logoNo}`;
   const ratesSub = f.hasRates ? `Agreed ${f.ratesAgreedAt ? dayMonthOf(f.ratesAgreedAt.length === 10 ? f.ratesAgreedAt : melbourneYmd(new Date(f.ratesAgreedAt))) : ""}`.trim() : W.ratesPending;
   const bankSub = f.bankSaved && f.bankLast4 ? `••••${f.bankLast4}` : W.bankMissing;
@@ -108,7 +109,7 @@ export function businessRows(f: BusinessScreenFacts, today: string): { title: st
   return [
     { title: W.rows.team, sub: teamSub, to: "/field/business/team", warn: f.team.missingDobOrMobile > 0 },
     { title: W.rows.electricians, sub: elecSub, to: "/field/business/electrician", warn: !f.electricians.length },
-    { title: W.rows.insurance, sub: `${wc.t} · ${pl.t}`, to: "/field/business/insurance", warn: wc.warn || pl.warn },
+    { title: W.rows.insurance, sub: pl.t, to: "/field/business/insurance", warn: pl.warn },
     { title: W.rows.details, sub: detailsSub, to: "/field/business/details", warn: !f.officePhone },
     { title: W.rows.rates, sub: ratesSub, to: "/field/business/rates", warn: !f.hasRates },
     { title: W.rows.bank, sub: bankSub, to: "/field/business/bank", warn: !f.bankSaved },

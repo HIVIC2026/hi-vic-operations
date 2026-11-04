@@ -156,7 +156,7 @@ export type PrestartFacts = {
   readyCheckWorksBlockers?: string[] | undefined; // installer-intake jobs: original-condition answers not yet recorded
   siteHoldBlockers?: string[] | undefined; // open "Site conditions differ" review hold
   /** H3 (24 Oct 2026) → Part 9 Task 8: the assigned installer business's insurance problems (businessDocsBlocker: not on file /
-   *  unverified / expired / under $5m / no workers comp); undefined = not loaded (older callers). */
+   *  unverified / expired / under $5m); undefined = not loaded (older callers). */
   businessDocsBlocker?: string | null | undefined;
   /** Decision 261: "Safety plan not signed: …" until the lead and every listed installer signed the portal SWMS; undefined = not loaded (older callers). */
   swmsBlocker?: string | null | undefined;

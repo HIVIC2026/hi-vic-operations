@@ -15,14 +15,14 @@ import { businessDocsBlocker, withBusinessCoverAmount } from "./trade-expiry.cor
 import { melbourneToday } from "./melbourne-time.core";
 
 type CredRow = { business_id: string; kind: string; label: string | null; expires_at: string | null; verification: string | null; amount_insured_aud?: number | string | null };
-export type BusinessDocs = { credentials: CredentialView[]; workersCompExempt: boolean; amountColumnLive: boolean };
+export type BusinessDocs = { credentials: CredentialView[]; amountColumnLive: boolean };
 
 const viewOf = (c: CredRow, amountLive: boolean): CredentialView => ({
   kind: c.kind, label: c.label ?? c.kind, expires: c.expires_at, verified: c.verification === "verified", pending: c.verification !== "rejected" && c.verification !== "verified",
   amountInsured: !amountLive || c.amount_insured_aud == null || c.amount_insured_aud === "" ? null : Number(c.amount_insured_aud),
 });
 
-/** The insurance documents (and workers-comp exemption) of each business. A read error throws. */
+/** The insurance documents of each business (workers comp is not collected — Jo 4 Nov 2026). A read error throws. */
 export async function businessDocsFor(businessIds: readonly string[]): Promise<Map<string, BusinessDocs>> {
   const ids = [...new Set(businessIds)];
   const out = new Map<string, BusinessDocs>();
@@ -40,21 +40,16 @@ export async function businessDocsFor(businessIds: readonly string[]): Promise<M
     if (plain.error) throw new WorkflowError(`Couldn't read insurance records: ${plain.error.message}`);
     rows = (plain.data ?? []) as unknown as CredRow[];
   } else rows = withAmount.data ?? [];
-  // `workcover_exempt_declared_at` is pending SQL too (2026-11-03_installer_added_electricians.sql): without the column
-  // nobody is exempt, so workers comp is required — the stricter reading; the business's public liability amount is still
-  // read (B1). Any other read error throws (fail closed).
-  type BizRow = { id: string; workcover_exempt_declared_at?: string | null; public_liability_cover_amount?: number | string | null };
+  // The business's public liability amount (B1). A read error throws (fail closed).
+  type BizRow = { id: string; public_liability_cover_amount?: number | string | null };
   type BizRead = { data: BizRow[] | null; error: { code?: string | null; message: string } | null };
-  let bizRead = (await admin.from("businesses").select("id, workcover_exempt_declared_at, public_liability_cover_amount").in("id", ids)) as unknown as BizRead;
-  if (bizRead.error && (bizRead.error.code === "42703" || bizRead.error.code === "PGRST204" || /workcover_exempt_declared_at/i.test(bizRead.error.message))) {
-    bizRead = (await admin.from("businesses").select("id, public_liability_cover_amount").in("id", ids)) as unknown as BizRead;
-  }
+  const bizRead = (await admin.from("businesses").select("id, public_liability_cover_amount").in("id", ids)) as unknown as BizRead;
   if (bizRead.error) throw new WorkflowError(`Couldn't read the business: ${bizRead.error.message}`);
   const biz = new Map((bizRead.data ?? []).map((b) => [b.id, b]));
   for (const id of ids) {
     const b = biz.get(id);
     const credentials = withBusinessCoverAmount(rows.filter((r) => r.business_id === id).map((r) => viewOf(r, amountLive)), b?.public_liability_cover_amount ?? null);
-    out.set(id, { credentials, workersCompExempt: !!b?.workcover_exempt_declared_at, amountColumnLive: amountLive });
+    out.set(id, { credentials, amountColumnLive: amountLive });
   }
   return out;
 }
@@ -63,7 +58,7 @@ export async function businessDocsFor(businessIds: readonly string[]): Promise<M
 export async function businessDocsBlockerFor(businessId: string, today = melbourneToday()): Promise<string | null> {
   const d = (await businessDocsFor([businessId])).get(businessId);
   if (!d) throw new WorkflowError("Couldn't read insurance records.");
-  return businessDocsBlocker(d.credentials, today, { workersCompExempt: d.workersCompExempt });
+  return businessDocsBlocker(d.credentials, today);
 }
 
 /** Refuses (WorkflowError) new work for a business whose insurance isn't in order. */

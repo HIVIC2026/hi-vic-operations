@@ -30,11 +30,11 @@ async function installerBoss(userId: string) {
 
 /** Fail closed: the new columns must exist before anything is written. */
 async function requireColumns() {
-  const { error } = await admin.from("businesses").select("id, added_by_installer_business_id, workcover_exempt_declared_at, installer_added_rejected_reason").limit(1);
+  const { error } = await admin.from("businesses").select("id, added_by_installer_business_id, installer_added_rejected_reason").limit(1);
   if (error) { if (isMissingDbObject(error)) throw new WorkflowError(NOT_SWITCHED_ON); throw new WorkflowError("Could not check this just now. Please try again."); }
 }
 
-export async function myElectricianUploadUrl(userId: string, kind: "licence" | "pl" | "workcover", fileName: string): Promise<{ path: string; signedUrl: string; token: string }> {
+export async function myElectricianUploadUrl(userId: string, kind: "licence" | "pl", fileName: string): Promise<{ path: string; signedUrl: string; token: string }> {
   const c = await installerBoss(userId);
   if (!allowedUpload(fileName, null)) throw new WorkflowError("That file type isn't accepted. Please upload a PDF or a photo.");
   const safe = fileName.replace(/[^\w.\-]+/g, "_").slice(0, 120);
@@ -44,7 +44,7 @@ export async function myElectricianUploadUrl(userId: string, kind: "licence" | "
   return { path, signedUrl: data.signedUrl, token: data.token };
 }
 
-type BizRow = { onboarding_notes: string | null; workcover_exempt_declared_at: string | null; installer_added_rejected_reason: string | null; id: string; business_type: string | null; capabilities: string[] | null; onboarding_status: string | null; is_active: boolean | null; added_by_installer_business_id: string | null };
+type BizRow = { onboarding_notes: string | null; installer_added_rejected_reason: string | null; id: string; business_type: string | null; capabilities: string[] | null; onboarding_status: string | null; is_active: boolean | null; added_by_installer_business_id: string | null };
 type WorkerRow = { licence_expires_on: string | null; id: string; business_id: string; email: string | null; licence_number: string | null; approval_status: string; profile_id?: string | null; full_legal_name?: string | null };
 
 /** Every live electrician person whose licence or email is this one (keyset-paged, never the 1000-row cap). */
@@ -67,12 +67,12 @@ function checkInput(input: AddElectricianInput, installerId: string): string[] {
   const shape: string[] = [];
   if (input.email.trim() && !validEmail(input.email)) shape.push("Enter a valid email");
   if (input.mobile.trim() && !normaliseAuMobile(input.mobile)) shape.push("Enter a valid Australian mobile");
-  for (const d of [input.licenceExpiry, input.plExpiry, input.employsAnyone ? input.workcoverExpiry : null]) if (d && !realDate(d)) { shape.push("Enter a real date"); break; }
+  for (const d of [input.licenceExpiry, input.plExpiry]) if (d && !realDate(d)) { shape.push("Enter a real date"); break; }
   if (shape.length) throw new WorkflowError(shape.join(". "));
   const problems = addElectricianProblems(input, melbourneToday());
   if (problems.length) throw new WorkflowError(problems.join(". "));
   const prefix = prefixFor(installerId);
-  const paths = [input.licenceFilePath, input.plFilePath, input.employsAnyone ? input.workcoverFilePath : null].filter((p): p is string => !!p);
+  const paths = [input.licenceFilePath, input.plFilePath].filter((p): p is string => !!p);
   for (const p of paths) {
     if (!p.startsWith(prefix) || p.includes("..")) throw new WorkflowError("That file doesn't belong to your business. Please upload it again.");
     if (!allowedUpload(p, null)) throw new WorkflowError("That file type isn't accepted. Please upload a PDF or a photo.");
@@ -87,7 +87,6 @@ function credentialRows(bid: string, input: AddElectricianInput, userId: string)
     cred("electrical_licence", "Electrical licence", input.licenceNumber.trim(), input.licenceExpiry, input.licenceFilePath),
     cred("rec_registration", "REC registration", input.recNumber.trim(), null, null),
     cred("public_liability_insurance", `Public liability insurance ($${Math.round(input.plAmount).toLocaleString("en-AU")} cover)`, null, input.plExpiry, input.plFilePath),
-    ...(input.employsAnyone ? [cred("workers_comp_insurance", "WorkCover", null, input.workcoverExpiry ?? null, input.workcoverFilePath ?? null)] : []),
   ];
 }
 
@@ -103,7 +102,7 @@ export async function installerAddElectrician(userId: string, input: AddElectric
   if (workers.length) {
     const ids = [...new Set(workers.map((w) => w.business_id))];
     // The added-by columns are pending SQL and not in the generated types yet; requireColumns() above proved they exist.
-    const res = (await admin.from("businesses").select("id, business_type, capabilities, onboarding_status, is_active, onboarding_notes, added_by_installer_business_id, workcover_exempt_declared_at, installer_added_rejected_reason").in("id", ids)) as unknown as { data: BizRow[] | null; error: unknown };
+    const res = (await admin.from("businesses").select("id, business_type, capabilities, onboarding_status, is_active, onboarding_notes, added_by_installer_business_id, installer_added_rejected_reason").in("id", ids)) as unknown as { data: BizRow[] | null; error: unknown };
     if (res.error) throw new WorkflowError("Could not check your electrician against the list. Please try again.");
     // TEST electricians are only ever matched by TEST installers, and real ones by real installers.
     const elec = (res.data ?? []).filter((b) => (b.business_type === "rec" || (b.capabilities ?? []).includes("electrician")) && isTestPartner(b) === testSide);
@@ -131,7 +130,6 @@ export async function installerAddElectrician(userId: string, input: AddElectric
     const b = await admin.from("businesses").insert({
       id: newId, business_type: "rec", capabilities: ["electrician"], name: input.name.trim(), email: input.email.trim(), phone: normaliseAuMobile(input.mobile) ?? input.mobile.trim(), rec_number: input.recNumber.trim(),
       onboarding_status: "submitted", is_active: false, public_liability_cover_amount: input.plAmount, added_by_installer_business_id: installerId,
-      workcover_exempt_declared_at: input.employsAnyone ? null : now,
       ...(testSide ? { onboarding_notes: TEST_PARTNER_MARK } : {}),
     } as never).select("id").single();
     if (b.error && (b.error as { code?: string }).code === "23505") {
@@ -185,7 +183,7 @@ const CRED_KINDS = ["electrical_licence", "public_liability_insurance", "workers
 
 /** Where an electrician stands from its rows: rejected, still waiting, lapsed paperwork, or approved. Shared by the add
  *  path (gradeMatch) and the installer's list so the two never disagree. */
-function gradeRows(b: Pick<BizRow, "id" | "onboarding_status" | "is_active" | "installer_added_rejected_reason" | "workcover_exempt_declared_at" | "added_by_installer_business_id">, ws: Pick<WorkerRow, "approval_status" | "licence_expires_on">[], creds: CredRow[], today: string): Grade & { licenceExpiry: string | null; plExpiry: string | null } {
+function gradeRows(b: Pick<BizRow, "id" | "onboarding_status" | "is_active" | "installer_added_rejected_reason" | "added_by_installer_business_id">, ws: Pick<WorkerRow, "approval_status" | "licence_expires_on">[], creds: CredRow[], today: string): Grade & { licenceExpiry: string | null; plExpiry: string | null } {
   const reason = b.installer_added_rejected_reason?.trim() || null;
   const day = (v: unknown) => (v ? String(v).slice(0, 10) : null);
   const latest = (kind: string) => creds.filter((x) => x.kind === kind && x.verification !== "rejected").map((x) => day(x.expires_at)).filter((x): x is string => !!x).sort().pop() ?? null;
@@ -194,8 +192,7 @@ function gradeRows(b: Pick<BizRow, "id" | "onboarding_status" | "is_active" | "i
   const plExpiry = latest("public_liability_insurance");
   const st = myElectricianStatus({
     onboardingStatus: b.onboarding_status, workerApproval: workerApproved ? "approved" : "pending", rejectedReason: reason,
-    licenceExpiry: licence, plExpiry, workcoverExpiry: latest("workers_comp_insurance"),
-    workcoverExempt: !!b.workcover_exempt_declared_at, installerAdded: !!b.added_by_installer_business_id, today,
+    licenceExpiry: licence, plExpiry, installerAdded: !!b.added_by_installer_business_id, today,
   });
   // Approved but switched off by the office counts as "can't use" with the same plain message as lapsed paperwork.
   const state = st === "approved" && b.is_active === false ? "expired" : st;
@@ -225,7 +222,7 @@ export async function installerMyElectricians(userId: string): Promise<MyElectri
   if (!links.length) return [];
   const ids = [...new Set(links.map((r) => r.electrician_business_id))];
   const [bz, ws, cr] = await Promise.all([
-    admin.from("businesses").select("id, name, onboarding_status, is_active, installer_added_rejected_reason, workcover_exempt_declared_at, added_by_installer_business_id").in("id", ids) as unknown as Promise<{ data: (Pick<BizRow, "id" | "onboarding_status" | "is_active" | "installer_added_rejected_reason" | "workcover_exempt_declared_at" | "added_by_installer_business_id"> & { name: string | null })[] | null; error: unknown }>,
+    admin.from("businesses").select("id, name, onboarding_status, is_active, installer_added_rejected_reason, added_by_installer_business_id").in("id", ids) as unknown as Promise<{ data: (Pick<BizRow, "id" | "onboarding_status" | "is_active" | "installer_added_rejected_reason" | "added_by_installer_business_id"> & { name: string | null })[] | null; error: unknown }>,
     admin.from("partner_workers").select("business_id, approval_status, licence_expires_on").in("business_id", ids).eq("trade_role", "electrician").is("removed_at", null),
     admin.from("business_credentials").select("business_id, kind, expires_at, verification").in("business_id", ids).in("kind", CRED_KINDS),
   ]);
@@ -266,7 +263,7 @@ type FullBiz = BizRow & { name: string | null; email: string | null; phone: stri
 type FullCred = CredRow & { id: string; document_path: string | null };
 type Installer = { id: string; name: string | null; email: string | null; onboarding_notes: string | null };
 const READ_FAIL = "Could not read this electrician just now. Please try again.";
-const BIZ_COLS = "id, name, email, phone, rec_number, public_liability_cover_amount, business_type, capabilities, onboarding_status, is_active, approved_at, onboarding_notes, added_by_installer_business_id, workcover_exempt_declared_at, installer_added_rejected_reason";
+const BIZ_COLS = "id, name, email, phone, rec_number, public_liability_cover_amount, business_type, capabilities, onboarding_status, is_active, approved_at, onboarding_notes, added_by_installer_business_id, installer_added_rejected_reason";
 
 /** The installer-added electrician's rows, or null when this business wasn't added by an installer. Columns pending → NOT_SWITCHED_ON. */
 async function loadInstallerElectrician(businessId: string): Promise<{ biz: FullBiz; workers: WorkerRow[]; creds: FullCred[]; installer: Installer } | null> {
@@ -294,7 +291,7 @@ function checklistProblems(biz: FullBiz, workers: WorkerRow[], creds: FullCred[]
   return approveChecklist({
     recNumber: biz.rec_number, licenceNumber, licenceExpiry: workers.map((w) => day(w.licence_expires_on)).filter((x): x is string => !!x).sort().pop() ?? latestExpiry("electrical_licence"), licenceFilePresent: filePresent("electrical_licence"),
     plAmount: plAmount == null ? null : Number(plAmount), plExpiry: latestExpiry("public_liability_insurance"), plFilePresent: filePresent("public_liability_insurance"),
-    workcoverExpiry: latestExpiry("workers_comp_insurance"), workcoverFilePresent: filePresent("workers_comp_insurance"), workcoverExempt: !!biz.workcover_exempt_declared_at, today,
+    today,
   });
 }
 
@@ -497,7 +494,7 @@ export async function installerMyElectricianDetails(userId: string, businessId: 
     name: r.biz.name?.trim() ?? "", email: r.biz.email?.trim() ?? "", mobile: r.biz.phone?.trim() ?? "", recNumber: r.biz.rec_number?.trim() ?? "",
     licenceNumber: w?.licence_number?.trim() ?? "", licenceExpiry: day(w?.licence_expires_on) ?? latestExpiry("electrical_licence"),
     plAmount: amount == null ? null : Number(amount), plExpiry: latestExpiry("public_liability_insurance"),
-    employsAnyone: !r.biz.workcover_exempt_declared_at, workcoverExpiry: latestExpiry("workers_comp_insurance"), reason: r.biz.installer_added_rejected_reason?.trim() || null,
+    reason: r.biz.installer_added_rejected_reason?.trim() || null,
   };
 }
 
@@ -516,7 +513,7 @@ export async function installerResubmitElectrician(userId: string, businessId: s
   const mobile = normaliseAuMobile(input.mobile) ?? input.mobile.trim();
   const bu = await admin.from("businesses").update({
     name: input.name.trim(), email: input.email.trim(), phone: mobile, rec_number: input.recNumber.trim(), public_liability_cover_amount: input.plAmount,
-    onboarding_status: "submitted", installer_added_rejected_reason: null, workcover_exempt_declared_at: input.employsAnyone ? null : now, updated_at: now,
+    onboarding_status: "submitted", installer_added_rejected_reason: null, updated_at: now,
   } as never).eq("id", businessId);
   if (bu.error) throw fail();
   const wu = await admin.from("partner_workers").update({ full_legal_name: input.name.trim(), email: input.email.trim(), mobile, rec_number: input.recNumber.trim(), licence_number: input.licenceNumber.trim(), licence_expires_on: input.licenceExpiry } as never)

@@ -380,13 +380,11 @@ export function latestExpiry(creds: CredentialView[], kind: string, opts: { veri
   return creds.filter((c) => isCredentialKind(c, kind) && (!opts.verifiedOnly || c.verified)).map((c) => c.expires).filter((x): x is string => !!x).map((x) => x.slice(0, 10)).sort().at(-1) ?? null;
 }
 
-/** Insurance row: "Public liability expires 11 Nov · Workers comp current". */
+/** Insurance row: "Public liability expires 11 Nov" (workers comp is not collected — Jo 4 Nov 2026). */
 export function insuranceRowSub(creds: CredentialView[], today: string): { text: string; warn: boolean } {
   const state = (exp: string | null) => exp == null ? { t: "not on file", warn: true } : daysUntil(exp, today) < 0 ? { t: `expired ${dayMonth(exp)}`, warn: true } : daysUntil(exp, today) <= 30 ? { t: `expires ${dayMonth(exp)}`, warn: true } : { t: "current", warn: false };
   const p = state(latestExpiry(creds, "public_liability_insurance"));
-  const parts = [`Public liability ${p.t}`];
-  if (creds.some((c) => c.kind === "workers_comp_insurance")) parts.push(`Workers comp ${state(latestExpiry(creds, "workers_comp_insurance")).t}`);
-  return { text: parts.join(" · "), warn: p.warn };
+  return { text: `Public liability ${p.t}`, warn: p.warn };
 }
 
 /** Bank row: "Reinsulate Pty Ltd · BSB 063-xxx · account ending 4471". Never the full numbers on the list. */

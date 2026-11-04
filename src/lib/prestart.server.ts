@@ -56,7 +56,7 @@ export function registryChangeFor(start: string, n: Awaited<ReturnType<typeof la
 }
 
 /** H3 (24 Oct 2026) → Part 9 Task 8 (Jo 2 Nov 2026): the assigned installer business's insurance must be on file, office-verified,
- *  $5m+ public liability, workers comp and unexpired before the install starts (businessDocsBlocker). A read error BLOCKS. */
+ *  $5m+ public liability and unexpired before the install starts (workers comp is not collected, Jo 4 Nov 2026) (businessDocsBlocker). A read error BLOCKS. */
 async function installerBusinessDocsBlocker(jobId: string): Promise<string | null> {
   const { data: a, error } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).maybeSingle();
   if (error) return `Couldn't read the installer assignment: ${error.message}`;

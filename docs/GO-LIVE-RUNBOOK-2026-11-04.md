@@ -18,12 +18,7 @@ insurance / people-on-file gates block bookings, Add a job and the Ready Check p
 select proname from pg_proc where proname in ('allocate_in_house_batch_job','commit_guarded_stage');
 select column_name from information_schema.columns where table_name='businesses' and column_name in ('in_house','rectification_billed_by','piesa_booked_by','public_liability_cover_amount');
 
--- b. Installer businesses with NO verified workers comp AND no "employs nobody" mark (the 17:40 check found: ALL of them).
-select b.id, b.name
-from businesses b
-where b.is_active and b.onboarding_status='approved'
-  and b.workcover_exempt_declared_at is null
-  and not exists (select 1 from business_credentials c where c.business_id=b.id and c.kind='workers_comp_insurance' and c.verification='verified' and c.expires_at >= current_date);
+-- b. (Removed — Jo 4 Nov 2026 21:08: workers comp is NOT collected. No check, no row, nothing to fix.)
 
 -- c. Public liability: verified, unexpired, and the amount on the business record is $5m+ (17:40 check: all 10 fine — confirm nothing lapsed).
 select b.id, b.name, b.public_liability_cover_amount, max(c.expires_at) pl_expires
@@ -95,7 +90,7 @@ If a file errors: stop, copy the error, run that file's undo, and don't continue
 For each installer business (Partners page, or SQL):
 1. Switch it to in-house: `in_house = true` (Partners › business › in-house). Every installer goes in-house for this release.
 2. Set `rectification_billed_by = 'partner'` for every in-house business (electricians bill upgrades — we don't pay upgrades).
-3. Workers comp: upload + verify the certificate (with expiry), OR tick "employs nobody" (`workcover_exempt_declared_at`) for a sole trader. The list from 0.b must be empty.
+3. (Removed — Jo 4 Nov 2026 21:08: workers comp is not collected; nothing to upload, verify or tick.)
 4. Dates of birth + mobiles for every installer and electrician on 0.d (the boss adds DOB on Team; the office can too).
 5. Team electricians: verify licence + REC + expiry for everyone on 0.e; every business on 0.f needs at least one.
 6. No Gap: enter their PIESA rate (rate card) — otherwise their own-customer quotes hold "Your PIESA price isn't set yet".

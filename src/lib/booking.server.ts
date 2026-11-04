@@ -79,7 +79,7 @@ export async function validateBooking(jobId: string, kind: BookingKind, start: s
     if (ob) throw new WorkflowError(ob);
   }
   // Part 9 Task 8 (Jo 2 Nov 2026): insurance is a hard block on EVERY booking kind — the trade business's public liability
-  // ($5m+, office-verified) and workers comp must be in order (business-docs.server, fails closed on a read error); and the
+  // ($5m+, office-verified) must be in order (business-docs.server, fails closed on a read error; workers comp is not collected, Jo 4 Nov 2026); and the
   // safety check's electrician must hold a verified, unexpired licence + REC (electricianVerified) on every job, not only
   // the in-house path. Part 9 Task 9: the people on the booking must be on file (DOB + mobile, CII / licence).
   await bookingComplianceGate(jobId, kind, contractor?.business_id ?? null, proposedWorkerId ?? null, { reschedule: stage === target, start, actorId });

@@ -1,6 +1,6 @@
 // G6 S6 (final Part 9 review, 4 Nov 2026): REC offers use the SAME insurance hard block as every booking — Part 9 Task 8's
 // businessDocsBlocker through the one reader (business-docs.server): public liability on file, office-verified, $5m+ (the
-// business's recorded cover, B1), unexpired; workers comp unless the business is exempt. An electrician business that fails
+// business's recorded cover, B1), unexpired; workers comp is NOT collected (Jo 4 Nov 2026 21:08, G8). An electrician business that fails
 // it is not a candidate and the blocker names the document. A read failure throws (no offer on an unchecked business).
 import { beforeEach, describe, expect, mock, test } from "bun:test";
 import { memoryPostgrest } from "./helpers/memory-postgrest";
@@ -40,14 +40,14 @@ beforeEach(() => {
 });
 
 describe("recCandidatesFor: the insurance hard block on offers", () => {
-  test("verified $10m + workers comp → candidate; $2m on the business record → blocked; no workers comp → blocked unless exempt; PL waiting to be checked → blocked", async () => {
+  test("verified $10m → candidate; $2m on the business record → blocked; no workers comp → still a candidate (not collected); PL waiting to be checked → blocked", async () => {
     const { recCandidatesFor } = await import("../src/lib/allocation.server");
     const r = await recCandidatesFor("J1");
     const by = Object.fromEntries(r.candidates.map((c) => [c.business_id, c]));
     expect(by["B-ok"]).toMatchObject({ has_valid_licence: true, licence_blocker: null, blocker: null });
     expect(by["B-low"]).toMatchObject({ has_valid_licence: false, licence_blocker: BUSINESS_DOCS_WORDS.amountLow("Public liability insurance", 2_000_000) });
     expect(by["B-low"]!.blocker).toBe(BUSINESS_DOCS_WORDS.amountLow("Public liability insurance", 2_000_000));
-    expect(by["B-nowc"]).toMatchObject({ has_valid_licence: false, licence_blocker: BUSINESS_DOCS_WORDS.notOnFile("Workers compensation insurance") });
+    expect(by["B-nowc"]).toMatchObject({ has_valid_licence: true, licence_blocker: null, blocker: null });
     expect(by["B-exempt"]).toMatchObject({ has_valid_licence: true, licence_blocker: null, blocker: null });
     expect(by["B-pending"]).toMatchObject({ has_valid_licence: false, licence_blocker: BUSINESS_DOCS_WORDS.waitingCheck("Public liability insurance") });
   });

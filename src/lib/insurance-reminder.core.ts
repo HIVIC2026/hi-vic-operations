@@ -16,7 +16,8 @@ export const OFFICE_COPY_EMAIL = "info@homeinsulationvictoria.com.au";
 export const INSURANCE_REMINDER_EVENT = "insurance_reminder_sent";
 export const INSURANCE_REMINDER_HELD_EVENT = "insurance_reminder_held";
 /** Documents reminded about (business documents by kind; a person's electrical licence as `worker_licence`). */
-export const INSURANCE_REMINDER_KINDS = ["public_liability_insurance", "workers_comp_insurance", "electrical_licence", "worker_licence"] as const;
+// Jo 4 Nov 2026 21:08 (G8): workers comp is not collected — no reminder for it.
+export const INSURANCE_REMINDER_KINDS = ["public_liability_insurance", "electrical_licence", "worker_licence"] as const;
 
 const daysBetween = (from: string, to: string) => Math.round((Date.parse(`${to.slice(0, 10)}T00:00:00Z`) - Date.parse(`${from.slice(0, 10)}T00:00:00Z`)) / 86_400_000);
 

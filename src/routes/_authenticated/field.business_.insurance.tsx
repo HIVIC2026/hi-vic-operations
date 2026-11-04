@@ -22,7 +22,8 @@ function Insurance() {
   return <BizPage title="Insurance and licences" intro={INSURANCE_PAGE_WORDS.intro}>{(d, refetch) => <Docs d={d} onDone={() => { refetch(); void qc.invalidateQueries({ queryKey: ["trade-business"] }); }} />}</BizPage>;
 }
 
-const KINDS = [["public_liability_insurance", "Public liability"], ["workers_comp_insurance", "Workers comp"], ["electrical_licence", "Electrical licence"], ["installer_certification", "Installer certificate"], ["other", "Something else"]] as const;
+// Jo 4 Nov 2026 21:08 (G8): workers comp is not collected — no row, no upload kind.
+const KINDS = [["public_liability_insurance", "Public liability"], ["electrical_licence", "Electrical licence"], ["installer_certification", "Installer certificate"], ["other", "Something else"]] as const;
 
 function Docs({ d, onDone }: { d: Parameters<Parameters<typeof BizPage>[0]["children"]>[0]; onDone: () => void }) {
   const upload = useServerFn(partnerUploadUrl);
@@ -56,8 +57,8 @@ function Docs({ d, onDone }: { d: Parameters<Parameters<typeof BizPage>[0]["chil
   };
   return (<>
     <ul className="divide-y divide-line overflow-hidden rounded-[18px] border border-line bg-paper shadow-card">
-      {d.credentials.length === 0 && <li className="p-4 text-sm">Nothing on file yet.</li>}
-      {d.credentials.map((c) => { const st = insuranceRowStatus({ verified: c.verified, expires: c.expires }); return (
+      {d.credentials.filter((c) => c.kind !== "workers_comp_insurance").length === 0 && <li className="p-4 text-sm">Nothing on file yet.</li>}
+      {d.credentials.filter((c) => c.kind !== "workers_comp_insurance").map((c) => { const st = insuranceRowStatus({ verified: c.verified, expires: c.expires }); return (
         <li key={c.id} className="flex items-center justify-between gap-3 p-4" data-insurance-row>
           <span><span className="block font-bold">{insuranceRowLabel(c.kind, c.label)}</span><span className={`block text-sm ${st.warn ? "font-semibold text-danger" : "text-sub"}`}>{st.line}</span></span>
           {c.hasFile && <Button type="button" variant="ghost" className="min-h-12 shrink-0" disabled={opening !== null} onClick={() => void view(c.id, c.path, c.label)}>{opening === c.id ? "Opening…" : "View"}</Button>}

@@ -1,6 +1,6 @@
 // New job flow Part 9 Task 8 (Jo 2 Nov 2026): the 30- and 7-day insurance / licence expiry reminders, swept from the
 // 15-minute allocation tick. Rules + DRAFT wording: insurance-reminder.core. For every active approved business:
-// public liability, workers comp and the business's electrical licence rows (latest expiry per kind), and each
+// public liability and the business's electrical licence rows (latest expiry per kind; workers comp is not collected, Jo 4 Nov 2026), and each
 // electrician's own licence expiry (partner_workers.licence_expires_on). Each step (30, 7) goes ONCE per business +
 // document + expiry date: to the business's main email (businesses.email) AND a copy to info@homeinsulationvictoria.com.au
 // (answer 17) — two sends, one key each (`…:office` for the copy). TEST partners → test-send; real businesses → held

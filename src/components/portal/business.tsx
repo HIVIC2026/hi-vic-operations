@@ -21,7 +21,8 @@ import { collectionNoticeLabel } from "@/lib/esc-collection-notice.core";
 import { SendNoticeLinkInline } from "@/components/portal/worker-compliance";
 import { proposeDeclaredCoverage } from "@/lib/declared-coverage-proposal.core";
 
-const CRED_KINDS = ["public_liability_insurance", "workers_comp_insurance", "other_insurance", "electrical_licence", "rec_registration", "installer_certification", "business_registration", "other"] as const;
+// Jo 4 Nov 2026 21:08 (G8): workers comp is not collected — not an upload kind.
+const CRED_KINDS = ["public_liability_insurance", "other_insurance", "electrical_licence", "rec_registration", "installer_certification", "business_registration", "other"] as const;
 const csv = (a: string[] | null | undefined) => (a ?? []).join(", ");
 const list = (s: string) => s.split(/[,;\n]/).map((x) => x.trim()).filter(Boolean);
 

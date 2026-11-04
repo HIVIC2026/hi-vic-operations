@@ -38,7 +38,8 @@ describe("business file rows", () => {
     expect(latestExpiry([{ kind: "other", label: "Public Liability Certificate", expires: "2027-01-01T00:00:00Z", verified: false }], "public_liability_insurance")).toBe("2027-01-01");
   });
   test("insurance row", () => {
-    expect(insuranceRowSub(creds, TODAY)).toEqual({ text: "Public liability expires Wed 11 Nov · Workers comp current", warn: true });
+    // Jo 4 Nov 2026 21:08 (G8): workers comp is not collected — the row never mentions it, even when an old row exists.
+    expect(insuranceRowSub(creds, TODAY)).toEqual({ text: "Public liability expires Wed 11 Nov", warn: true });
     expect(insuranceRowSub([{ kind: "public_liability_insurance", label: "Public liability", expires: "2027-11-11", verified: true }], TODAY)).toEqual({ text: "Public liability current", warn: false });
     expect(insuranceRowSub([], TODAY)).toEqual({ text: "Public liability not on file", warn: true });
     expect(insuranceRowSub([{ kind: "public_liability_insurance", label: "Public liability", expires: "2026-10-01", verified: true }], TODAY).text).toBe("Public liability expired Thu 1 Oct");

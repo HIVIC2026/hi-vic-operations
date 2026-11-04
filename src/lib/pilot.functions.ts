@@ -133,7 +133,7 @@ export const setOnboardingStatus = createServerFn({ method: "POST" }).middleware
   });
 
 export const addCredential = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ businessId: uuid, profileId: uuid.nullish(), kind: z.enum(["public_liability_insurance", "workers_comp_insurance", "other_insurance", "electrical_licence", "rec_registration", "installer_certification", "business_registration", "other"]), label: z.string().trim().min(2).max(200), number: txt(100), issuer: txt(200), expires_at: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish(), critical: z.boolean().default(true), document_path: txt(500) }).parse(d))
+  .inputValidator((d) => z.object({ businessId: uuid, profileId: uuid.nullish(), kind: z.enum(["public_liability_insurance", "other_insurance", "electrical_licence", "rec_registration", "installer_certification", "business_registration", "other"]), label: z.string().trim().min(2).max(200), number: txt(100), issuer: txt(200), expires_at: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullish(), critical: z.boolean().default(true), document_path: txt(500) }).parse(d))
   .handler(async ({ data, context }) => {
     if (!(await isAdmin(context.supabase))) await requireMember(context.userId, data.businessId, true);
     if (data.document_path && !data.document_path.startsWith(`partners/${data.businessId}/`)) throw new WorkflowError("Invalid document path");
