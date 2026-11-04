@@ -593,6 +593,12 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
       }
     }
   } catch { unavailable.push("payment reversals"); }
+  // Part 9 Task 11: a refund after VEEC creation (veec_copayment_refunded, needs_office) → one row per job (the office calls Jo; the event stays as history).
+  try {
+    const { VEEC_COPAYMENT_REFUNDED_EVENT, VEEC_REFUND_NEEDS_LINE } = await import("./veec-creation-gate.core");
+    const rows = await all("VEEC refunds", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at, details")).eq("event_type", VEEC_COPAYMENT_REFUNDED_EVENT).contains("details", { needs_office: true }).order("created_at", { ascending: false }).range(a, b));
+    for (const r of rows) { const x = f(String(r["job_id"])); if (x && !x.veecRefunded) x.veecRefunded = { at: String(r["created_at"]), text: VEEC_REFUND_NEEDS_LINE }; }
+  } catch { unavailable.push("VEEC refunds"); }
   // Batch 2: a STOP reply cancelled the job but releasing the installer failed → one row until `job_cancel_released` is written
   // (the tick retries). The job is usually already cancelled, so its facts are made here when the open-jobs read dropped it.
   try {

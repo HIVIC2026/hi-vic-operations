@@ -2819,6 +2819,17 @@ export const updateVeec = createServerFn({ method: "POST" })
       (await import("./veec.core")).melbourneToday(),
     );
     if (blockers.length) throw new WorkflowError(blockers.join(" "));
+    // Part 9 Task 11: the same two creation checks the Registry robot runs (veec-creation-gate.core) — the product on the
+    // Register today and the $200 co-payment received — before a lodgement is recorded as submitted / approved.
+    if (["submitted", "approved"].includes(data.status) && prev?.status !== data.status) {
+      const [{ veecCreationBlockers }, { jobProductProblems }, { jobPaymentView }] = await Promise.all([import("./veec-creation-gate.core"), import("./install-evidence.server"), import("./payments.server")]);
+      const [productProblems, installPaidCents] = await Promise.all([
+        jobProductProblems(jobId).catch((e: unknown) => [`Product check failed: ${e instanceof Error ? e.message : String(e)}`]),
+        jobPaymentView(jobId).then((v) => (v ? v.paid.install : null)).catch(() => null),
+      ]);
+      const gate = veecCreationBlockers({ productProblems, installPaidCents });
+      if (gate.length) throw new WorkflowError(gate.join(" "));
+    }
     await admin
       .from("veec_lodgements")
       .update({ ...patch, updated_at: new Date().toISOString() })

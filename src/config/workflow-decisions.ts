@@ -203,6 +203,10 @@ export const WORKFLOW_DECISIONS = {
     // the booked start passed (trade-payout-gate.core NO_GO_FOR_INSTALL). No "deposit by 2pm the day before" rule.
     bookBeforeUpgrades: { booking: "warning_only", goCheckNeeds: ["part_c", "certificate"] as const, installerPayNeeds: "go_passed_for_booked_start" },
   },
+  // Part 9 Task 11 (4 Nov 2026): before VEEC creation (robot planVeecCreation + office updateVeec, one rule in
+  // veec-creation-gate.core) the product must be on the VEU Register on the creation day and the owner must have paid
+  // $200+ incl GST on the installation invoice; a refund after creation raises veec_copayment_refunded (Needs me, call Jo).
+  veecCreation: { productOnRegister: "install_day_and_creation_day", minCopaymentCents: 20000, refundAfterCreation: "veec_copayment_refunded_needs_office" },
   // Decision #30 (Jo 2 Nov 2026): quotes valid 30 days; quotes sent before the change keep 14 (quote-expiry.core).
   // Decisions #29/#33 (Jo 2 Nov 2026): the quote email v4 (owner-quote-email.core, quote-ready-notify.server).
   quoteReadyEmail: {

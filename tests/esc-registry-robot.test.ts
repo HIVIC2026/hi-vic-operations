@@ -104,7 +104,9 @@ describe("install notification: which notices are due", () => {
 
 const veec = (o: Partial<VeecCandidate> = {}): VeecCandidate => ({
   jobId: "job-1", jobSource: "website", stage: "ready_for_veec", lodgement: { status: "not_submitted", submission_reference: null },
-  assignment: { status: "effective_complete", installerSignedAt: "a", apSignedAt: "b", consumerSignedAt: "c" }, quantity: 12, robotEvents: [], ...o,
+  assignment: { status: "effective_complete", installerSignedAt: "a", apSignedAt: "b", consumerSignedAt: "c" }, quantity: 12, robotEvents: [],
+  productProblems: [], installPaidCents: 20000, // Part 9 Task 11: product on the Register today + the $200 co-payment (tests/new-flow-09-veec-creation-gate.test.ts)
+  ...o,
 });
 
 describe("VEEC creation: only after every office gate", () => {

@@ -29,7 +29,8 @@ export type NeedsKind =
   | "choose_again" | "quote_check" | "fixes_quote_check" | "sign_consent" | "esc_window" | "final_check" | "send_failed" | "email_change" | "email_unmatched" | "robot_failed" | "piisa_form_failed"
   | "choose_installer" | "choose_electrician" | "veec_a_held" | "veec_b_held" | "piesa_owner_unsigned" | "piesa_fixes_owner_unsigned" | "fixes_times_missing"
   | "payment_not_in_xero" | "payment_overdue" | "ten_days_left" | "second_no_access" | "veec_day_10" | "lapsed_window" | "upgrades_past_30_days"
-  | "release_lapsed" | "piesa_form_failed" | "prestart_failed" | "eligibility_review" | "payment_reversed" | "mitti_form_problem" | "booking_overdue" | "piesa_fixes_found" | "repeat_piesa_choose" | "payment_stalled" | "invoice_failed" | "old_fixes_invoice_unpaid" | "old_fixes_invoice_paid" | "stop_release_failed" | "quote_expired_blocked" | "new_quote_installer" | "new_quote_unfinished" | "piesa_rules_failed" | "coes_check" | "life_support_plan" | "tenant_notice_held";
+  | "release_lapsed" | "piesa_form_failed" | "prestart_failed" | "eligibility_review" | "payment_reversed" | "mitti_form_problem" | "booking_overdue" | "piesa_fixes_found" | "repeat_piesa_choose" | "payment_stalled" | "invoice_failed" | "old_fixes_invoice_unpaid" | "old_fixes_invoice_paid" | "stop_release_failed" | "quote_expired_blocked" | "new_quote_installer" | "new_quote_unfinished" | "piesa_rules_failed" | "coes_check" | "life_support_plan" | "tenant_notice_held"
+  | "veec_refunded";
 
 /** Where the one button takes the office. `section` is the Job page stage card id; `act` are inline row actions. */
 export type NeedsButton =
@@ -91,6 +92,8 @@ export type NeedsFacts = {
   eligibilityReview?: { at: string; reason: string | null } | null;
   /** Hard stop (payment mismatch): an owner payment was reversed (deleted/voided in Xero, or refunded) and no payment came in since. */
   paymentReversed?: { at: string; text: string } | null;
+  /** Part 9 Task 11: a card payment was refunded AFTER VEECs were created (`veec_copayment_refunded`, veec-creation-gate.core) — call Jo. */
+  veecRefunded?: { at: string; text: string } | null;
   /** A48 batch 1: the newest A3 safety check breaks the official PIESA rules (piesa-rules-notice.core) — every reason. */
   piesaRulesFailed?: { at: string; reasons: string[] } | null;
   /** A48 batch 1 task 5: the electrical certificate after the repairs waits for the office (coes-check.core) — Tick, Reject
@@ -294,6 +297,7 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   }
   if (f.mittiFormProblem) add({ rank: 39, group: "today", kind: "mitti_form_problem", line: `Mitti form refused · ${f.mittiFormProblem.error.slice(0, 140)}`, since: f.mittiFormProblem.at, button: { label: "Open job", to: "job" } });
   if (f.paymentReversed) add({ rank: 39, group: "today", kind: "payment_reversed", line: `Payment reversed · ${f.paymentReversed.text}`, since: f.paymentReversed.at, button: { label: "Open job", to: "job", section: "money" } });
+  if (f.veecRefunded) add({ rank: 12, group: "today", kind: "veec_refunded", line: f.veecRefunded.text, since: f.veecRefunded.at, button: { label: "Open job", to: "job", section: "money" } });
   if (f.eligibilityReview) add({ rank: 38, group: "today", kind: "eligibility_review", line: eligibilityReviewLine(f.eligibilityReview.reason), since: f.eligibilityReview.at, button: { label: "Review eligibility", to: "job", section: "ready-check" } });
   if (f.quoteToCheck) add({ rank: 40, group: "today", kind: "quote_check", line: f.quoteToCheck.ready ? "Quote ready · all checks passed · press Send" : `Quote held · ${f.quoteToCheck.reason ?? "something is missing"}`, since: f.quoteToCheck.at, button: { label: "Check & send", to: "job", section: "quote" } });
   if (f.fixesQuoteToCheck) add({ rank: 45, group: "today", kind: "fixes_quote_check", line: `Electrical fixes quote to check${f.fixesQuoteToCheck.reason ? ` · ${f.fixesQuoteToCheck.reason}` : ""}`, since: f.fixesQuoteToCheck.at, button: { label: "Review and send", to: "job", section: "piesa" } });
