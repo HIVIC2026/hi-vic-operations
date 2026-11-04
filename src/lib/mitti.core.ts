@@ -487,7 +487,7 @@ export function parseAudit(audit: Any, opts: { installerSourced?: boolean } = {}
     const rv = layout ? layout.oldR : rValue(rvRaw, "R value").value;
     // Jo 23 Oct: photos are optional in Mitti — note which are missing so they move to the install-day lock.
     const has = (labels: string[]) => !!find(kids, labels, { withValue: true });
-    const photos = { depth: has([LEAN_Q.depthPhoto, ...(LEAN_ALIASES.depthPhoto ?? [])]), overview: has([LEAN_Q.beforeVideo]), whole: has(['Whole-area photo', 'Photo of the whole ceiling area', 'Whole area photo', 'Upload an overview photo of this ceiling area', 'Photo of the empty ceiling space']), backing: has([LEAN_Q.existingConductivePhoto, ...(LEAN_ALIASES.existingConductivePhoto ?? [])]) };
+    const photos = { depth: has([LEAN_Q.depthPhoto, ...(LEAN_ALIASES.depthPhoto ?? [])]), overview: has([LEAN_Q.beforeVideo, ...(LEAN_ALIASES.beforeVideo ?? [])]), whole: has(['Photo of the whole area (well lit)', 'Whole-area photo', 'Photo of the whole ceiling area', 'Whole area photo', 'Upload an overview photo of this ceiling area', 'Photo of the empty ceiling space']), backing: has([LEAN_Q.existingConductivePhoto, ...(LEAN_ALIASES.existingConductivePhoto ?? [])]) };
     const remAnswer = physical(val(kids, [LEAN_Q.removeM2, ...(LEAN_ALIASES.removeM2 ?? [])]), LEAN_Q.removeM2);
     if (remAnswer.issue) issues.push(remAnswer.issue);
     // Decision 222 + Jo 24 Oct: the hazard flag, its note ("What is the issue, and where is it in this area?", or the 24 Oct
@@ -732,7 +732,7 @@ export function contactAnswersFromEntries(entries: { label: string; value: strin
 
 /** Verify the stored audit's exact identity, template and job before any reuse write or sync. */
 export function validateStoredMittiAudit(audit: Any, ctx: { storedAuditId: string; jobNumber: string; templateId?: string; installerSourced?: boolean }) {
-  const p = parseAudit(audit, { installerSourced: ctx.installerSourced });
+  const p = parseAudit(audit, { installerSourced: ctx.installerSourced === true });
   if (!p.auditId || p.auditId !== ctx.storedAuditId) throw new MittiError("Mitti returned a different audit or no verifiable audit ID for this job.");
   if (!sameMittiTemplateId(p.templateId, ctx.templateId ?? MITTI_TEMPLATE_ID)) throw new MittiError("This Mitti audit does not use the expected Home Insulation Victoria assessment template.");
   // A1 no longer has a Portal Job Number question (Jo 23 Oct): the stored audit ID match above is the link.
