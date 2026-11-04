@@ -4,7 +4,7 @@
 // (official-docx.core.ts). PURE: no I/O. Questions are full plain sentences — never shorthand.
 import type { FormField } from "./mitti-forms.core";
 import { B2_OPTIONS } from "./official-forms.core";
-import { canonicalMittiLabel, mittiLabelAliases } from "./mitti-rebuild-labels.core";
+import { A3_FIELD_ALIASES, canonicalMittiLabel, mittiLabelAliases } from "./mitti-rebuild-labels.core";
 
 export const SPLIT_MAINS_Q = {
  switchSafe: 'Does the main switch work, can you reach it, does it switch off every cable in the ceiling, and can it be locked off?',
