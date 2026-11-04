@@ -4,7 +4,7 @@
 -- booking for a no-login Team electrician was refused "Electrician not verified". The booking's contractor_id stays the
 -- worker's profile when they happen to have one, else NULL (exactly what the inline confirmBooking path writes); the
 -- allocation event's worker_id names the person. Every other guard is unchanged. Apply AFTER 2026-11-01_in_house_saved_work.sql
--- and 2026-11-03_allocate_team_electrician_v2.sql. Rollback: re-run the function body from 2026-11-01_in_house_saved_work.sql.
+-- and 2026-11-03_allocate_team_electrician_v2.sql. Rollback: 2026-11-04_commit_in_house_visit_v2.rollback.sql (the exact prior body; G6 N4).
 -- Proven on PGlite: tests/journey-a1-complete-route-db.test.ts (step 5).
 -- Fix wave J5 (4 Nov 2026, Part 9 Task 10 ruling): an installation booking is accepted while the job is at piesa_complete /
 -- rectification_scheduling / rectification_booked (the upgrades day still to come) — recorded with no stage move
