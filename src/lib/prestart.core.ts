@@ -1,5 +1,5 @@
 // ESC pre-install AP task + day-before pre-start check (Operating Model v2, step 10). Pure rules only.
-import { DEFAULT_REGISTRY_FIELDS, EARLIEST_MS, LEAD_MS, registryUpdateTimingReasons, sendTimingBlocker, type RegistryChange } from "./esc.core";
+import { DEFAULT_REGISTRY_FIELDS, EARLIEST_MS, LEAD_MS, PIISA_FROM_PIESA_DAYS, registryUpdateTimingReasons, sendTimingBlocker, type RegistryChange } from "./esc.core";
 import { melbourneAt, melbourneYmd } from "./piesa-windows.core";
 import { COLLECTION_NOTICE_BLOCK_MESSAGE } from "./esc-collection-notice.core";
 import { whiteCardBlocker, type WhiteCardState } from "./worker-compliance.core";
@@ -8,7 +8,7 @@ import type { PrestartCertificate } from "./certificate-later.core";
 
 export const ESC_URGENT_MS = 2 * 24 * 3600_000;
 export const PRESTART_HOUR = 12; // 12pm Melbourne, the day before the install
-export const PIISA_FROM_PIESA_DAYS = 30;
+export { PIISA_FROM_PIESA_DAYS }; // one constant (esc.core, Part 9 Task 4); re-exported for existing readers
 
 const fmt = (iso: string) => new Date(iso).toLocaleString("en-AU", { timeZone: "Australia/Melbourne", weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" });
 function addDays(ymd: string, n: number) { const d = new Date(`${ymd}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
@@ -102,7 +102,8 @@ export function prestartRunAt(startIso: string): string {
 
 /** `noticeAcknowledged`: ESC collection notice (decision 130); false = not acknowledged, blocks the start. Undefined = not loaded (older callers). */
 /** `whiteCard`: decision 319 White Card state of the lead (worker-compliance.core); undefined = not loaded (older callers, never blocks). */
-export type LeadCert = { found: boolean; status: string | null; level: string | null; expiresOn: string | null; name: string | null; noticeAcknowledged?: boolean | null; whiteCard?: WhiteCardState | null };
+/** `escRegistered`: Part 9 Task 5 — the Lead Installer is registered with the ESC (partner_workers.esc_registered, office-audited); false blocks; undefined/null = not loaded (older callers, never blocks). */
+export type LeadCert = { found: boolean; status: string | null; level: string | null; expiresOn: string | null; name: string | null; noticeAcknowledged?: boolean | null; whiteCard?: WhiteCardState | null; escRegistered?: boolean | null };
 export type PrestartFacts = {
   start: string;
   clearance: { cleared: boolean; blocker: string | null };
@@ -133,8 +134,18 @@ export type PrestartFacts = {
   certificate?: PrestartCertificate | undefined;
   /** The existing certificate check's reason when `certificate` is "unchecked" (coes-check.core COES_WHY / rejected). */
   certificateWhy?: string | null | undefined;
+  /** Part 9 Task 5: the PIESA asked for the electrician at the start of the install (install-attendance.core
+   *  attendanceRequired) and their answer for THIS booking (attendanceState; never asked = waiting). null/undefined = not
+   *  loaded or not needed (older callers, never blocks). */
+  electricianAttendance?: { required: boolean; state: "confirmed" | "declined" | "waiting" } | null | undefined;
+  /** Part 9 Task 5: life support at the home and no written consent / medical plan on file (job-records.server
+   *  lifeSupportPlanMissing, which counts the electrician's PIESA photo). undefined = not loaded (older callers). */
+  lifeSupportPlanMissing?: boolean | undefined;
 };
 export const CERTIFICATE_NOT_IN_YET = "Certificate of Electrical Safety not in yet";
+export const LEAD_NOT_ESC_REGISTERED = (name: string | null) => `Lead Installer${name ? ` ${name}` : ""} is not registered with the ESC yet.`;
+export const ELECTRICIAN_NOT_CONFIRMED = "The PIESA needs an electrician at the install and they haven't confirmed.";
+export const LIFE_SUPPORT_PLAN_MISSING = "Life support at this home: the written consent or medical plan isn't on file.";
 
 /** Every failed pre-start condition, in plain words. Empty = cleared to start. */
 export function prestartFailures(f: PrestartFacts): string[] {
@@ -164,6 +175,10 @@ export function prestartFailures(f: PrestartFacts): string[] {
   if (f.piesaCopyReceiptBlocker) out.push(f.piesaCopyReceiptBlocker);
   if (f.certificate === "missing") out.push(CERTIFICATE_NOT_IN_YET);
   else if (f.certificate === "unchecked") out.push(coesOfficeLine(f.certificateWhy?.trim() || "not checked yet"));
+  // Part 9 Task 5: ESC registration (every job), the electrician at the install when the PIESA needs them, life support plan.
+  if (f.lead.found && f.lead.escRegistered === false) out.push(LEAD_NOT_ESC_REGISTERED(f.lead.name));
+  if (f.electricianAttendance?.required && f.electricianAttendance.state !== "confirmed") out.push(ELECTRICIAN_NOT_CONFIRMED);
+  if (f.lifeSupportPlanMissing) out.push(LIFE_SUPPORT_PLAN_MISSING);
   return out;
 }
 

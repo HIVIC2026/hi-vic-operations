@@ -314,21 +314,30 @@ export type ReadinessInput = {
   scheduledStart: string | null;
   consent: ConsentRecord;
   notification: { status: string; sent_at: string | null; submission_reference: string | null; scheduled_start: string } | null;
-  deliveries: { owner: string | null; installer: string | null };
+  deliveries: PiesaCopyDeliveries;
   piesa: { date: string | null; deadline: string | null; outcome: string | null } | null;
+  /** Part 9 Task 5: when Part C was signed (upgrades done); undefined/null = no Part C on the job (older callers). */
+  partCSignedAt?: string | null;
 };
 export type Readiness = { ready: boolean; blockers: string[]; dueBy: string | null };
 
 /** Signed PIESA copies must have reached the owner AND the installer at least 24h before the start (the copies go
  *  automatically; a missing or late delivery means that send failed). ONE rule for readyToInstall (Installation complete)
  *  and the day-before pre-start check (decision 395), so both places say the same thing. */
-export function piesaCopyDeliveryBlockers(scheduledStart: string, deliveries: { owner: string | null; installer: string | null }): string[] {
+export type PiesaCopyDeliveries = { owner: string | string[] | null; installer: string | string[] | null };
+export function piesaCopyDeliveryBlockers(scheduledStart: string, deliveries: PiesaCopyDeliveries, opts?: { partCSignedAt?: string | null }): string[] {
   const dueT = new Date(escDueBy(scheduledStart)).getTime();
-  const at = (s: string | null) => (s ? new Date(s).getTime() : Infinity);
+  const times = (s: string | string[] | null) => (s == null ? [] : Array.isArray(s) ? s : [s]).map((t) => new Date(t).getTime()).filter(Number.isFinite);
   const fmt = new Date(dueT).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" });
+  // Part 9 Task 5: once Part C is signed (upgrades done), only a copy delivered at or after that signature counts — the
+  // owner and installer must hold the UPDATED PIESA 24h before the start. Unparseable Part C time = not signed (older rows).
+  const partCT = opts?.partCSignedAt ? Date.parse(opts.partCSignedAt) : NaN;
   const b: string[] = [];
-  if (at(deliveries.owner) > dueT) b.push(`Signed PIESA copy delivery to owner must be recorded by ${fmt}`);
-  if (at(deliveries.installer) > dueT) b.push(`Signed PIESA copy delivery to installer must be recorded by ${fmt}`);
+  for (const r of ["owner", "installer"] as const) {
+    const ts = times(deliveries[r]);
+    if (!ts.some((t) => t <= dueT)) b.push(`Signed PIESA copy delivery to ${r} must be recorded by ${fmt}`);
+    else if (Number.isFinite(partCT) && !ts.some((t) => t >= partCT && t <= dueT)) b.push(`Updated PIESA (with Part C) not delivered to the ${r} by ${fmt}`);
+  }
   return b;
 }
 
@@ -350,7 +359,7 @@ export function readyToInstall(i: ReadinessInput): Readiness {
     const done = i.consent ? consentCompletedAt(i.consent) : null;
     if (!done || at(n.sent_at) < at(done)) b.push("ESC notification was sent before valid owner consent was obtained – re-notify");
   }
-  b.push(...piesaCopyDeliveryBlockers(i.scheduledStart, i.deliveries));
+  b.push(...piesaCopyDeliveryBlockers(i.scheduledStart, i.deliveries, { partCSignedAt: i.partCSignedAt ?? null }));
   if (!i.piesa?.date || i.piesa.outcome !== "pass") b.push("A current passing PIESA is required");
   else if (i.piesa.deadline && i.scheduledStart.slice(0, 10) > i.piesa.deadline) b.push(`Installation start is after the PIESA 30-day deadline (${i.piesa.deadline})`);
   return { ready: b.length === 0, blockers: b, dueBy: due };
@@ -372,4 +381,28 @@ export function submissionPatch(p: { reference: string; sentAt: string; method: 
   if (p.reference.trim().length < 3) throw new Error("An ESC submission reference is required.");
   if (new Date(p.sentAt).getTime() > new Date(nowIso).getTime() + 60_000) throw new Error("Submission time cannot be in the future.");
   return { status: "sent" as const, sent_at: p.sentAt, submission_reference: p.reference.trim(), submission_method: p.method, submitted_by: p.actorId };
+}
+
+// ── Part 9 Task 4 (4 Nov 2026): PIISA timing — Activity Guide v1.2 §3.3. The A5 before-work declaration (Q36 signature)
+// IS the PIISA: it must be signed at least 24h after the ESC notice was sent and within 30 days of the PIESA (Melbourne
+// dates). ONE rule, read at Installation complete (install-evidence.core installCompletionDecision); prestart.core reads
+// the same day count for the day-before check. Missing or unreadable facts block, never clear.
+export const PIISA_FROM_PIESA_DAYS = 30;
+const MELB_YMD = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" });
+const ymdPlusDays = (ymd: string, n: number) => { const d = new Date(`${ymd}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+export function piisaTimingBlockers(i: { piisaSignedAt: string | null; noticeSentAt: string | null; piesaCompletedAt: string | null }): string[] {
+  const b: string[] = [];
+  const sentT = i.noticeSentAt ? Date.parse(i.noticeSentAt) : NaN;
+  const signedT = i.piisaSignedAt ? Date.parse(i.piisaSignedAt) : NaN;
+  // A date-only PIESA completion ("2026-10-01") is that Melbourne day; a full timestamp is read as its Melbourne day.
+  const piesaYmd = !i.piesaCompletedAt ? null
+    : /^\d{4}-\d{2}-\d{2}$/.test(i.piesaCompletedAt.trim()) ? i.piesaCompletedAt.trim()
+    : Number.isFinite(Date.parse(i.piesaCompletedAt)) ? MELB_YMD.format(new Date(i.piesaCompletedAt)) : null;
+  if (!Number.isFinite(sentT)) b.push("No ESC notice recorded as sent");
+  if (!piesaYmd) b.push("PIESA completion date missing");
+  if (!Number.isFinite(signedT)) b.push("PIISA signature time missing");
+  if (!Number.isFinite(signedT)) return b;
+  if (Number.isFinite(sentT) && signedT < sentT + LEAD_MS) b.push(`PIISA signed less than 24 hours after the ESC notice was sent (sent ${melbDateTime(i.noticeSentAt!)}).`);
+  if (piesaYmd && MELB_YMD.format(new Date(signedT)) > ymdPlusDays(piesaYmd, PIISA_FROM_PIESA_DAYS)) b.push(`PIISA signed more than 30 days after the PIESA (${piesaYmd}).`);
+  return b;
 }

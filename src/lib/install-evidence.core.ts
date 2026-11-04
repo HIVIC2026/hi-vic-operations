@@ -581,6 +581,9 @@ export type InstallCompletionInput = {
   alreadyCompleted: boolean;
   /** Decision 328: the install day form's final tick (null/undefined = not on this form). false = not complete, whatever the date. */
   allFilledInTicked?: boolean | null;
+  /** Part 9 Task 4: esc.core piisaTimingBlockers for the Q36 signature (≥24h after the ESC notice, ≤30 days after the PIESA);
+   *  a read failure passes its own line. Undefined = not loaded (older callers, never holds). */
+  piisaTiming?: string[] | undefined;
 };
 export type InstallCompletionDecision = { record: boolean; reason: string; /** The installer's Next line when not recording; null when recording or already done. */ nextLine: string | null; outstanding: string[] };
 
@@ -590,6 +593,7 @@ export function installCompletionDecision(i: InstallCompletionInput): InstallCom
   if (!i.formCompleted) return { record: false, reason: "Install day form not marked Complete in Mitti", nextLine: "Finish the Install day form in Mitti and mark it Complete", outstanding: [] };
   if (i.allFilledInTicked === false) return { record: false, reason: "Final tick not ticked on the Install day form", nextLine: `Install day form: ${FINAL_TICK_MISSING}`, outstanding: [FINAL_TICK_MISSING] };
   if (!i.declarationSaved) return { record: false, reason: "Signed installer declaration not saved yet", nextLine: "Sign the safety form (PIISA) in Mitti — the portal has not got a signed copy yet", outstanding: [] };
+  if (i.piisaTiming?.length) return { record: false, reason: `PIISA timing: ${i.piisaTiming[0]}`, nextLine: i.piisaTiming[0]!, outstanding: [...i.piisaTiming] };
   if (!i.summary) return { record: false, reason: "Install-day evidence not read yet", nextLine: "Sync the Install day form — the evidence has not been read yet", outstanding: [] };
   if (!Array.isArray(i.summary.rulerBlockers)) {
     const outstanding = rulerPhotoBlockersOf(i.summary);
