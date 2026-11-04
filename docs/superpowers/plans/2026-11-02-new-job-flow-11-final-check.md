@@ -197,6 +197,18 @@ test("every part 1–10 has at least one row", () => expect(new Set(GO_LIVE_SWIT
 - [ ] **Step 6: Only INSolation on the new flow first** — move INSolation with Part 3 Task 18 (`moveInstallerToNewFlow`); every other installer stays where it is until Jo OKs the real runs (Task 9 Step 6).
 - [ ] **Step 7: Report to Jo** — short plain list: what's on, what's waiting (real runs next), anything NOT_RUN.
 
+#### Join fix waves J3/J4 (4 Nov 2026) — added go-live items
+
+Data the new flow needs before the first real in-house job (ruling G6; read-only check first, then one office action per business):
+- [ ] **Every in-house business: `businesses.rectification_billed_by = 'partner'`** (decisions 34/36: the installer's electrician quotes, books and invoices the upgrades with the owner; `hivic` keeps the retired HIV fixes-quote path alive) — query `select id, name from businesses where in_house and rectification_billed_by <> 'partner'`; set through the office partner settings (saveBusiness), one per business.
+- [ ] **Every in-house business has at least one verified Team electrician** — `partner_workers` row with `trade_role = 'electrician'`, `approval_status = 'approved'`, licence number + REC number + `licence_expires_on` in the future and `licence_verified_at` set (office verification RPC). Without one the business cannot Add a job (Team electrician required), book a PIESA (`commit_in_house_visit` refuses "Electrician not verified") or get an own-customer quote out. The live TEST business needs one too before `scripts/installer-test.ts` C13/C15.
+- [ ] **`workflow_settings.trade_messages_paused` off** (Jo 30 Oct "Pause all trade messages" ships ON) — until it is off, every partner text/email (electrician PIESA booked, Lead Installer confirm, SWMS links, 6:30 texts) is a recorded hold.
+- [ ] **`UPGRADES_NEEDED_EMAIL_APPROVED`** (Part 4) — since J4 G3 a PIESA result that found upgrades still to come HOLDS the owner's and installer's PIESA copies (event `piesa_copy_email_not_sent`, reason `upgrades_needed_wording_unapproved`) until this flag is on; the owner gets the item-44 copy after Part C either way. Flip it with Part 4's switches or those owners get no PIESA copy until the upgrades are done.
+
+Pending SQL the join added or changed — apply in this order, each after its PGlite proof:
+1. `2026-11-01_in_house_electrician.sql` → 2. `2026-11-01_in_house_saved_work.sql` → 3. `2026-11-03_allocate_team_electrician_v2.sql` (no-login electricians; Part 6 fix wave) → 4. `2026-11-04_commit_in_house_visit_v2.sql` (no-login electricians on the atomic booking + **J4 G2: the owner-contact release row on a booked PIESA / upgrades visit**; proof tests/journey-a1-complete-route-db step 5) → 5. `add-installer-job-atomic.sql` (re-apply: changed 75c8d516, Team-worker electrician choice; proof tests/installer-own-job-e2e-db) → 6. `installer-business-settings.sql` (Part 5, `piesa_booked_by`) → 7. the rest in their parts' order (Part 2's `2026-11-03_electrician_job_links.sql` / `installer_added_electricians.sql` only if Jo keeps main's Part 2 minting until it is retired).
+Until 4 is live, the TS fallback (`in-house-inline-save.server`) writes the same release row; until 5 is live, Add a job's step-by-step save runs (J3 (1): it never throws a saved job away).
+
 ---
 
 ## Self-review notes
