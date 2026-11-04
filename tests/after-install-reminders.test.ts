@@ -20,7 +20,7 @@ const at = (ymd: string) => D(`${ymd}T02:00:00Z`); // 1pm Melbourne
 const base = { installDay: INSTALL_DAY, veecSigned: false, balancePaid: false, done: [] as (1 | 3 | 7)[] };
 
 test('flag is off by default and key shape is fixed', () => {
-  expect(core.AFTER_INSTALL_REMINDERS_APPROVED).toBe(false);
+  expect(core.AFTER_INSTALL_REMINDERS_APPROVED).toBe(true); // ON at go-live 5 Nov 2026
   expect(afterInstallKey('j1', 3)).toBe('after-install:v1:j1:3');
 });
 

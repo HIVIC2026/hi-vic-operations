@@ -24,7 +24,11 @@ mock.module('../src/lib/trade-pause.server',()=>({tradeMessagesPausedNow:async()
 mock.module('../src/lib/owner-email-send.server',()=>({sendGuardedOwnerEmail:async(p:any)=>{emailKeys.add(p.key);return 'sent';}}));
 mock.module('../src/lib/sms.server',()=>({sendRealSms:async(p:any)=>{textKeys.add(p.idempotencyKey);return{status:'sent'};}}));
 mock.module('../src/lib/office-email.server',()=>({sendOfficeEmail:async()=>{officeSends++;return{status:'sent',detail:'mocked provider'};}}));
-const {requestInstallDeposit,notifyInstallerDepositPaid}=await import('../src/lib/deposit-request.server');
+const dr=await import('../src/lib/deposit-request.server');
+// The request's concurrency rules with the clear-to-install email OFF (ON since go-live 5 Nov 2026; that path needs the signed PIESA PDF — see clear-to-install-email tests).
+const legacy=()=>({...dr.defaultClearToInstallDeps(),approved:false,upgradesApproved:false});
+const requestInstallDeposit=(j:string,now?:Date)=>dr.requestInstallDeposit(j,now,legacy());
+const notifyInstallerDepositPaid=(j:string,now?:Date)=>dr.notifyInstallerDepositPaid(j,now,legacy());
 test('concurrent requests persist one real practice event and use identical per-channel keys',async()=>{
  await Promise.all([requestInstallDeposit(JOB,new Date('2026-11-01T00:00:00Z')),requestInstallDeposit(JOB,new Date('2026-11-01T00:00:00Z'))]);
  expect(await j.q("select event_type from workflow_events where job_id=$1 and event_type='install_deposit_requested'",[JOB])).toEqual([{event_type:'install_deposit_requested'}]);

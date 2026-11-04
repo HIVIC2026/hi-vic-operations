@@ -26,8 +26,8 @@ function seed() {
   tables["jobs"] = [{ id: J, job_number: "HV-5001", source: "website", stage: "piesa_and_install_window_pending", deleted_at: null }, { id: J2, job_number: "HV-5002", source: "website", stage: "cancelled", deleted_at: null }];
   tables["businesses"] = [{ id: ELEC, name: "Spark Co", trading_name: null, piesa_booked_by: "electrician" }];
   tables["job_assignments"] = [
-    { id: "a2", job_id: J, business_id: ELEC, role: "electrician", active: true, user_id: null, created_at: "2026-11-04T00:00:00Z" },
-    { id: "a9", job_id: J2, business_id: ELEC, role: "electrician", active: true, user_id: null, created_at: "2026-11-04T00:00:00Z" },
+    { id: "a2", job_id: J, business_id: ELEC, role: "electrician", active: true, user_id: null, created_at: "2026-11-06T00:00:00Z" },
+    { id: "a9", job_id: J2, business_id: ELEC, role: "electrician", active: true, user_id: null, created_at: "2026-11-06T00:00:00Z" },
   ];
   tables["assessments"] = [{ id: "as1", job_id: J, external_mitti_id: "audit-a3", completed_at: null, piesa_outcome: "pending", mitti_raw_snapshot: null }];
   tables["bookings"] = []; tables["documents"] = [];
@@ -79,7 +79,7 @@ describe("sweepElectricianLinks", () => {
     tables["job_assignments"]![0]!["created_at"] = "2026-10-01T00:00:00Z";
     expect(await server.sweepElectricianLinks(new Date(), deps())).toEqual({ checked: 0, sent: 0, held: 0 });
     expect(calls).toHaveLength(0);
-    expect(server.ELECTRICIAN_LINK_SWEEP_FROM_ISO).toBe("2026-11-03T00:00:00Z");
+    expect(server.ELECTRICIAN_LINK_SWEEP_FROM_ISO).toBe("2026-11-04T21:40:00Z"); // go-live publish instant
   });
   test("R4: an assignment whose link step is all done (safety check passed) gets no text", async () => {
     tables["assessments"]![0] = { ...tables["assessments"]![0]!, completed_at: "2026-11-02T00:00:00Z", piesa_outcome: "pass" };

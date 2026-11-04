@@ -46,9 +46,10 @@ test('text type: owner, approved wording, quiet hours, fresh for a day', () => {
   expect(SMS_FRESHNESS.upgrades_needed).toEqual({ kind: 'event', maxAgeMinutes: 24 * 60 });
 });
 test('flag is off, and the route follows it', () => {
-  expect(UPGRADES_NEEDED_EMAIL_APPROVED).toBe(false);
+  expect(UPGRADES_NEEDED_EMAIL_APPROVED).toBe(true); // ON at go-live 5 Nov 2026
   const f = { outcome: 'upgrades_needed' as const, upgradesDoneSameDay: false, doNotContact: false, newFlow: true };
-  expect(piesaResultRoute(f)).toEqual(['standalone_copy']);
+  expect(piesaResultRoute(f)).toEqual(['upgrades_needed']); // the constant is ON
+  expect(piesaResultRoute(f, { clearToInstall: false, upgradesNeeded: false })).toEqual(['standalone_copy']);
   expect(piesaResultRoute(f, { clearToInstall: false, upgradesNeeded: true })).toEqual(['upgrades_needed']);
   expect(piesaResultRoute({ ...f, upgradesDoneSameDay: true }, { clearToInstall: true, upgradesNeeded: true })).toEqual(['clear_to_install']);
   expect(piesaResultRoute({ ...f, doNotContact: true }, { clearToInstall: true, upgradesNeeded: true })).toEqual(['standalone_copy']);

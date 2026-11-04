@@ -13,7 +13,7 @@ import { sha256Hex } from "./sha256.core";
 // false, every plan, SWMS_RULE and fingerprint stay byte-identical to the 24 Oct wording (tests/swms-wording-2nov.test.ts).
 // Jo 4 Nov 2026 14:18 (Round 5 C) APPROVED the supervision paragraph and "No Lead Installer is chosen for this install"; the
 // flag may flip at go-live.
-export const SWMS_NOV2_WORDING_ON = false as boolean;
+export const SWMS_NOV2_WORDING_ON = true as boolean; // ON at go-live 5 Nov 2026 (Jo approved 4 Nov 14:18)
 
 export type SwmsRule = "swms-portal-2026-10-24" | "swms-portal-2026-11-02";
 export type SwmsHazard = { name: string; short: string; control: string };

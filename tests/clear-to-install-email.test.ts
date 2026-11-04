@@ -48,8 +48,9 @@ test('flag off (or reminders/paid) keeps the old wording', () => {
   expect(renderInstallDepositOwnerEmail(facts, 'day3', true).subject).toBe('Your install deposit reminder');
   expect(renderInstallDepositOwnerEmail(facts, 'paid', true).subject).toBe('Deposit received');
 });
-test('default flag is off', () => {
-  expect(renderInstallDepositOwnerEmail(facts, 'request').subject).toBe('Your 10% install deposit');
+test('the flag is ON since go-live 5 Nov 2026: the request is the clear-to-install email; off = the old deposit ask', () => {
+  expect(renderInstallDepositOwnerEmail(facts, 'request').subject).toBe("You're clear to install");
+  expect(renderInstallDepositOwnerEmail(facts, 'request', false).subject).toBe('Your 10% install deposit');
 });
 
 const PDF = { filename: 'x.pdf', content: 'AA==', contentType: 'application/pdf' };

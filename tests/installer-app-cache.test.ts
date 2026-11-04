@@ -147,7 +147,7 @@ describe("installer app cache: precache list (pure)", () => {
   });
 
   test("the switch is off until Jo flips it", () => {
-    expect(SERVICE_WORKER_ENABLED).toBe(false);
+    expect(SERVICE_WORKER_ENABLED).toBe(true); // ON at go-live 5 Nov 2026
   });
 });
 

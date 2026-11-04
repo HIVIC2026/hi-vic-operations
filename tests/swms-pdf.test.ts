@@ -3,8 +3,12 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { PDFDocument } from "pdf-lib";
-import { buildSwms, swmsDate, swmsDateTime, type SwmsFacts, type SwmsSignature } from "../src/lib/swms.core";
-import { SWMS_PAGE, buildSwmsPdf, linesThatFit, wrapText } from "../src/lib/swms-pdf.server";
+import { buildSwms as buildSwmsLive, swmsDate, swmsDateTime, type SwmsFacts, type SwmsSignature } from "../src/lib/swms.core";
+import { SWMS_PAGE, buildSwmsPdf as buildSwmsPdfLive, linesThatFit, wrapText } from "../src/lib/swms-pdf.server";
+// These tests pin the 24 Oct 2026 wording / WorkSafe layout (the 2 Nov wording and website look are ON since go-live 5 Nov 2026
+// and have their own tests: swms-wording-2nov, swms-pdf-html).
+const buildSwms = (f: SwmsFacts, o: { nov2?: boolean } = {}) => buildSwmsLive(f, { nov2: false, ...o });
+const buildSwmsPdf: typeof buildSwmsPdfLive = (plan, sigs, opts = {}) => buildSwmsPdfLive(plan, sigs, { look: "worksafe", ...opts });
 
 const facts = (siteNote: string | null): SwmsFacts => ({
   jobNumber: "HV-TEST-1", address: "1 Test Street, Testville, 3999", businessName: "TEST Insulation Co", installDate: "2026-11-03",

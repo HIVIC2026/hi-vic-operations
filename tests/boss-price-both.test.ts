@@ -52,7 +52,8 @@ function seed(o: { source?: string; channel?: string; testPartner?: boolean; ema
   T["workflow_events"] = [{ id: "ev-1", job_id: JOB, event_type: "visit_allocated", details: { visit: "ready_check", worker_id: "w-1", worker_name: "John Doe", by: "u", mitti_user_id: null, audit_id: "audit-1", form: "none" }, created_at: completedAt }];
   T["customer_email_sends"] = [];
 }
-const run = (opts?: { emailApproved?: boolean }) => textBossPriceLink(JOB, { auditId: "audit-1", completedAt, entries }, opts);
+// ENTER_PRICE_EMAIL_APPROVED is ON since go-live 5 Nov 2026: the "flag off" cases pass emailApproved: false explicitly.
+const run = (opts?: { emailApproved?: boolean }) => textBossPriceLink(JOB, { auditId: "audit-1", completedAt, entries }, { emailApproved: false, ...opts });
 
 describe("both channels under one claim", () => {
   beforeEach(() => seed());

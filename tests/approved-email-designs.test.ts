@@ -141,7 +141,8 @@ describe("approved owner email designs", () => {
     expect(m.subject).toBe("Your install has moved to Thursday 13 November at 7:30am");
   });
   test("O44 Install complete", () => {
-    const m = renderInstallCompleteEmail({ firstName: "Helen", installer: REINSULATE, product: "Bradford Gold R5.0", areaM2: 137.6, rebate: 1850, balancePaid: true, signRebateFormUrl: `${JOB}?screen=assignment` });
+    // The pre-v2 design (ALL_DONE_V2_APPROVED is ON since go-live 5 Nov 2026; the v2 email has its own test file).
+    const m = renderInstallCompleteEmail({ firstName: "Helen", installer: REINSULATE, product: "Bradford Gold R5.0", areaM2: 137.6, rebate: 1850, balancePaid: true, signRebateFormUrl: `${JOB}?screen=assignment` }, false);
     shell(m.html, m.text, false);
     has(m.html, ["All done, Helen. Enjoy a warmer home!", "137.6 m² Bradford Gold R5.0", "$1,850 off", "Paid in full ✓", "One last thing: sign your rebate form", ">Sign your rebate form<", "What you'll get from us", "Your completion pack", "1-year workmanship warranty, the 5-year product warranty", "A copy of your signed rebate form", "Contact Reinsulate first on 0400 000 000"]);
     expect(COMPLETION_EMAILS_APPROVED).toBe(true); // approved by Jo 24 Oct 2026 (tests/approved-flags.test.ts lists the decision)
@@ -162,7 +163,7 @@ describe("approved owner email designs", () => {
     shell(m.html, m.text, false);
     // Decision 209 / Activity Guide v1.2 Table 4: consumer name, installation address, business name/address/ABN, brand/model/R-value, m², price before, VEEC incentive, amount after, invoice date.
     // O45 is kept ONLY while ALL_DONE_V2_APPROVED is false (Part 4 Task 14 fix round 1): the one All done email replaces it once Jo approves.
-    expect(ALL_DONE_V2_APPROVED).toBe(false);
+    expect(ALL_DONE_V2_APPROVED).toBe(true); // ON at go-live 5 Nov 2026
     // Q21 (Jo 2 Nov 2026, main #123; 3b53c3d0): the balance is due on install day and may be paid by card on My job or by bank
     // transfer — this supersedes decision 334's "due today, bank transfer only" pin. The words below are O45's as it stands.
     has(m.html, ["Helen, your install is done. Here's your final invoice", "DC Construction Solutions Pty Ltd trading as Home Insulation Victoria · 1/33 Altree Court, Phillip ACT 2606 · ABN 44 671 613 979", ">$4,050.00<", "VEEC incentive (your VEU rebate, price reduction)", "Amount after VEEC incentive", ">$2,200.00<", "Paid: safety check (24 Oct)", "Balance due on install day", ">$1,665.90<", "completion pack"]);

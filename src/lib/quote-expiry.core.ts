@@ -11,7 +11,7 @@ export const QUOTE_VALID_DAYS = 30;
 export const QUOTE_OLD_VALID_DAYS = 14;
 /** First instant (UTC ISO) a sent quote gets 30 days. null = not switched on yet: every quote keeps 14 days.
  *  Set to the release commit's UTC time when Jo approves (Part 3 Task 20 Step 5). */
-export const QUOTE_30_DAY_FROM_ISO = null as string | null;
+export const QUOTE_30_DAY_FROM_ISO = "2026-11-04T21:40:00Z" as string | null; // go-live publish, 5 Nov 2026 08:40 Melbourne
 /** The expiry reminder point: this many days before the quote expires. */
 export const QUOTE_EXPIRY_NUDGE_LEAD_DAYS = 2;
 const TZ = "Australia/Melbourne";

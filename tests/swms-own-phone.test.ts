@@ -2,7 +2,7 @@
 // own line; without a login, through their own HMAC-signed text link that signs only that person's key.
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { buildSwms, swmsLineView, swmsOwnLineBlocker, swmsUnsignedSigners, type SwmsFacts, type SwmsSignature } from "../src/lib/swms.core";
+import { buildSwms as buildSwmsLive, swmsLineView, swmsOwnLineBlocker, swmsUnsignedSigners, type SwmsFacts, type SwmsSignature } from "../src/lib/swms.core";
 import { safetyPlanSignerLinks, withSafetyPlanLinks } from "../src/lib/sms.core";
 import { swmsLinkExpiry, swmsLinkSecret, swmsLinkSign, swmsLinkToken, swmsLinkView, verifySwmsLinkToken, type SwmsLinkDeps } from "../src/lib/swms-link.server";
 
@@ -10,6 +10,9 @@ const facts: SwmsFacts = {
   jobNumber: "HV-TEST-364", address: "1 Test Street, Testville, 3999", businessName: "TEST Insulation Co", installDate: "2026-11-03",
   lead: { name: "TEST Lead", workerId: "t1" }, crew: [{ name: "TEST Crew", workerId: "t2" }, { name: "TEST Casual", workerId: null }], yearBuilt: 2000, hazardNote: null, siteNote: null,
 };
+// These tests pin the 24 Oct 2026 wording / WorkSafe layout (the 2 Nov wording and website look are ON since go-live 5 Nov 2026
+// and have their own tests: swms-wording-2nov, swms-pdf-html).
+const buildSwms = (f: SwmsFacts, o: { nov2?: boolean } = {}) => buildSwmsLive(f, { nov2: false, ...o });
 const plan = buildSwms(facts);
 const SECRET = "test-secret";
 const NOW = Date.parse("2026-11-02T00:00:00Z");

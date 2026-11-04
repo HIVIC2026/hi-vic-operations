@@ -186,7 +186,7 @@ const SIGNATURE_A2: FormField = { label: LEAN_Q.signatureA2, type: "signature", 
 const FIXES_TYPE: Record<FixesDayType, FieldType> = { text: "text", date: "date", yes_no: "yesno", photo: "media", signature: "signature" };
 function fixesField(q: (typeof FIXES_DAY_QUESTIONS)[number]): FormField {
   const when = q.showWhen ? `${FIXES_DAY_QUESTIONS.find((x) => x.n === q.showWhen!.n)!.label} = ${q.showWhen.is.join(" / ")}` : undefined;
-  return { label: q.label, type: FIXES_TYPE[q.type], required: q.required, ...(q.type === "yes_no" ? { choices: ["Yes", "No"] } : {}), ...(when ? { when } : {}), ...(q.prefill ? { prefill: true } : {}), ...(q.addedByDecision != null ? { addedByDecision: q.addedByDecision } : {}), source: "decision 293 – fixes day form (fixes-day.core)" };
+  return { label: q.label, type: FIXES_TYPE[q.type], required: q.required, ...(q.type === "yes_no" ? { choices: ["Yes", "No"] } : {}), ...(when ? { when } : {}), ...(q.prefill ? { prefill: true } : {}), ...(q.addedByDecision != null ? { addedByDecision: q.addedByDecision } : q.retired ? { addedByDecision: 905 } : {}), source: q.retired ? `decision 293 – fixes day form (fixes-day.core); retired ${q.retired}` : "decision 293 – fixes day form (fixes-day.core)" };
 }
 
 export const FORMS: Record<FormKey, { title: string; role: "installer" | "electrician"; fields: FormField[] }> = {

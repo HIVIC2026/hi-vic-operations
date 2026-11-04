@@ -89,7 +89,10 @@ describe("reading the audit and planning the Complete press", () => {
     expect(fixesCompletionPlan(readFixesDay(without(Q.coesNumber)), { completed: true, today: "2026-10-25" })).toMatchObject({ kind: "missing", missing: [Q.coesNumber] });
     expect(fixesCompletionPlan(readFixesDay(without(Q.certDate, item(Q.certDate, "2026-12-01"))), { completed: true, today: "2026-10-25" })).toMatchObject({ kind: "missing", missing: [`${Q.certDate} (cannot be in the future)`] });
     expect(fixesCompletionPlan(readFixesDay(without(Q.coesFile)), { completed: true, today: "2026-10-25" })).toMatchObject({ kind: "missing", missing: [Q.coesFile] });
-    expect(fixesCompletionPlan(readFixesDay(without(Q.workPhoto, item(Q.workPhoto, null, { media: media() }))), { completed: true, today: "2026-10-25" })).toMatchObject({ kind: "missing", missing: [`${Q.workPhoto} (must be geotagged)`] });
+    // Jo 5 Nov 2026: the finished-work photo is deleted from the A4 — an ungeotagged one, or none at all, blocks nothing.
+    expect(fixesCompletionPlan(readFixesDay(without(Q.workPhoto, item(Q.workPhoto, null, { media: media() }))), { completed: true, today: "2026-10-25" })).toMatchObject({ kind: "done" });
+    expect(fixesCompletionPlan(readFixesDay(without(Q.workPhoto)), { completed: true, today: "2026-10-25" })).toMatchObject({ kind: "done", workPhotos: [] });
+    expect(fixesDayMissingQuestions({ template: { items: FIXES_DAY_QUESTIONS.filter((q) => !q.retired).map((q) => ({ item_id: `i${q.n}`, label: q.label, type: "textsingle" })) } })).toEqual([]);
     expect(fixesCompletionPlan(readFixesDay(without(Q.signature)), { completed: true, today: "2026-10-25" })).toMatchObject({ kind: "missing", missing: [Q.signature] });
     // Part 3 (Jo 3 Nov 2026): Q11 = No → done without the certificate, the job waits for it.
     expect(fixesCompletionPlan(readFixesDay(without(Q.certificateNow, no(Q.certificateNow))), { completed: true, today: "2026-10-25" })).toMatchObject({ kind: "done", certificate: null, certificateToCome: true });

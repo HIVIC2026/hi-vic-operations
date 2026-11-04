@@ -36,7 +36,8 @@ describe("pdf-look kit", () => {
   });
   test("every swap flag starts off", () => {
     expect(Object.keys(PDF_LOOK_APPROVED).sort()).toEqual(["escConsent", "officialFormPdf", "receipts", "signedAcceptance", "swms", "taxInvoice", "veecForm"]);
-    expect(Object.values(PDF_LOOK_APPROVED).every((v) => v === false)).toBe(true);
+    expect(Object.entries(PDF_LOOK_APPROVED).filter(([k]) => k !== "swms").every(([, v]) => v === false)).toBe(true);
+    expect(PDF_LOOK_APPROVED.swms).toBe(true); // ON at go-live 5 Nov 2026 with SWMS_NOV2_WORDING_ON
   });
 
   test("keepTogether false lets a block start on the current page and flow; default moves it whole", () => {

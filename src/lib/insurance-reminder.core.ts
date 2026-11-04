@@ -8,7 +8,7 @@
 import { TRADE_DOC_LABEL } from "./trade-expiry.core";
 
 /** Wording approved by Jo 4 Nov 2026 14:50; the flag flips at go-live (Part 11). Until then real sends are held (recorded once per key). */
-export const INSURANCE_REMINDER_APPROVED = false;
+export const INSURANCE_REMINDER_APPROVED = true; // ON at go-live 5 Nov 2026 (Jo approved 4 Nov 14:50)
 export const INSURANCE_REMINDER_DAYS = [30, 7] as const;
 export type InsuranceReminderDays = (typeof INSURANCE_REMINDER_DAYS)[number];
 export const OFFICE_COPY_EMAIL = "info@homeinsulationvictoria.com.au";

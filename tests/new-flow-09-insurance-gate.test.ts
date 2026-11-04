@@ -93,7 +93,7 @@ describe("dueInsuranceReminder (pure)", () => {
     expect(dueInsuranceReminder("2026-11-11", TODAY, [])).toBe(7); // a late tick sends the step that is due, never the missed 30
   });
   test("keys and DRAFT wording; the flag is off", () => {
-    expect(INSURANCE_REMINDER_APPROVED).toBe(false);
+    expect(INSURANCE_REMINDER_APPROVED).toBe(true); // ON at go-live 5 Nov 2026
     expect(insuranceReminderKey("b1", "public_liability_insurance", "2026-12-04", 30)).toBe("insurance-reminder:v1:b1:public_liability_insurance:2026-12-04:30");
     expect(insuranceReminderKey("b1", "worker_licence", "2026-12-04", 7, "w1")).toBe("insurance-reminder:v1:b1:worker_licence:w1:2026-12-04:7");
     const m = renderInsuranceReminder({ kind: "public_liability_insurance", expiresOn: "2026-12-04", businessName: "Rapid Insulation" });
@@ -148,10 +148,10 @@ describe("sweepInsuranceReminders (server)", () => {
     expect(f.sends[3]!.key).toBe("insurance-reminder:v1:b1:public_liability_insurance:2026-12-04:7:office");
     expect(await f.api.sweepInsuranceReminders(at("2026-11-27"), { approved: true })).toEqual({ checked: 1, sent: 0, held: 0 });
   });
-  test("real business, wording not approved (the default) → held once per key, nothing sent; TEST partner → test-send", async () => {
+  test("real business, wording not approved (explicit; ON since go-live 5 Nov 2026) → held once per key, nothing sent; TEST partner → test-send", async () => {
     const f = sweepFixture();
-    expect(await f.api.sweepInsuranceReminders(at("2026-11-04"))).toEqual({ checked: 1, sent: 0, held: 1 });
-    expect(await f.api.sweepInsuranceReminders(at("2026-11-04"))).toEqual({ checked: 1, sent: 0, held: 1 });
+    expect(await f.api.sweepInsuranceReminders(at("2026-11-04"), { approved: false })).toEqual({ checked: 1, sent: 0, held: 1 });
+    expect(await f.api.sweepInsuranceReminders(at("2026-11-04"), { approved: false })).toEqual({ checked: 1, sent: 0, held: 1 });
     expect(f.sends).toEqual([]);
     const held = f.rows["admin_config_events"]!.filter((e) => e["event_type"] === "insurance_reminder_held");
     expect(held).toHaveLength(1);

@@ -351,9 +351,10 @@ test("Task 5: separately agreed extras sit between Insulation and the fee under 
 });
 
 test("Task 5 / I4: the ONE switch off (as shipped) → an own customer gets Part 3's v4 email unchanged (no rows, no VEU box, no logo)", () => {
-  expect(OWN_CUSTOMER_COBRAND_APPROVED).toBe(false);
+  expect(OWN_CUSTOMER_COBRAND_APPROVED).toBe(true); // ON at go-live 5 Nov 2026
   expect(render(ownInput, { cobrandApproved: false })).toEqual(renderOwnerQuoteEmail(withoutOwn(ownInput)));
-  expect(renderOwnerQuoteEmail(ownInput)).toEqual(renderOwnerQuoteEmail(withoutOwn(ownInput)));
+  // With the switch ON (go-live) the own-customer email differs from Part 3's v4 (rows, VEU box, logo).
+  expect(renderOwnerQuoteEmail(ownInput)).not.toEqual(renderOwnerQuoteEmail(withoutOwn(ownInput)));
 });
 
 test("Task 5: a malformed own-customer line set (no fee line) never guesses — falls back to Part 3's rows", () => {

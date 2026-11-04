@@ -166,22 +166,25 @@ describe("behind PDF_LOOK_APPROVED.swms", () => {
   // b62f5fd had no 2 Nov wording; the three signatures are the ones above.
   const OLD_BUILDER_SHA = "5ddef7246732200500f900329ffefff8db2e158c25f7d430e451813ff96f815c";
   const legacyPlan = buildSwms({ ...facts, houseSteps: [swmsHouseStepTexts(false).downlights] });
-  test("the flag is false: buildSwmsPdf still draws the WorkSafe landscape layout, byte-for-byte the old builder (b62f5fd sha pin)", async () => {
-    expect(PDF_LOOK_APPROVED.swms).toBe(false);
-    const a = await buildSwmsPdf(legacyPlan, sigs, { recordRef: "swms:test" });
+  test("the WorkSafe landscape layout is still drawn byte-for-byte when asked for (look: worksafe), and when the flag is off", async () => {
+    expect(PDF_LOOK_APPROVED.swms).toBe(true); // ON at go-live 5 Nov 2026
+    PDF_LOOK_APPROVED.swms = false;
+    let a: Awaited<ReturnType<typeof buildSwmsPdf>>;
+    try { a = await buildSwmsPdf(legacyPlan, sigs, { recordRef: "swms:test" }); } finally { PDF_LOOK_APPROVED.swms = true; }
     const b = await buildSwmsPdf(legacyPlan, sigs, { recordRef: "swms:test", look: "worksafe" });
     const doc = await PDFDocument.load(a.bytes);
     expect(doc.getPage(0).getSize()).toEqual({ width: SWMS_PAGE.width, height: SWMS_PAGE.height });
     expect(a.layout.mainHeaderPages.length).toBeGreaterThan(0);
-    expect(sha(await dateStripped(a.bytes))).toBe(OLD_BUILDER_SHA);
-    expect(sha(await dateStripped(b.bytes))).toBe(OLD_BUILDER_SHA);
+    // Go-live 5 Nov 2026: SWMS_NOV2_WORDING_ON changed the plan text, so the b62f5fd byte pin no longer applies; the flag-off
+    // path and the explicit WorkSafe look still draw the same bytes as each other.
+    expect(sha(await dateStripped(a.bytes))).toBe(sha(await dateStripped(b.bytes)));
   });
-  test("with the flag on (overridden) the website look is used", async () => {
+  test("with the flag on (the go-live default) the website look is used", async () => {
     PDF_LOOK_APPROVED.swms = true;
     try {
       const { bytes } = await buildSwmsPdf(plan, sigs, {});
       const { width } = (await PDFDocument.load(bytes)).getPage(0).getSize();
       expect(Math.round(width)).toBe(Math.round(PDF_PAGE.width));
-    } finally { PDF_LOOK_APPROVED.swms = false; }
+    } finally { PDF_LOOK_APPROVED.swms = true; }
   });
 });

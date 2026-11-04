@@ -8,9 +8,9 @@ import { addYmd } from "./melbourne-time.core";
 import { melbourneAt, melbourneYmd } from "./piesa-windows.core";
 import { partnerEmailLayout } from "./partner-email.core";
 
-export const UPGRADES_NUDGE_TEXT_APPROVED = false as boolean;
-export const UPGRADES_OFFICE_EMAIL_APPROVED = false as boolean;
-export const UPGRADES_RED_FLAG_EMAIL_APPROVED = false as boolean;
+export const UPGRADES_NUDGE_TEXT_APPROVED = true as boolean; // ON at go-live 5 Nov 2026 (Jo approved 4 Nov 13:55)
+export const UPGRADES_OFFICE_EMAIL_APPROVED = true as boolean; // ON at go-live 5 Nov 2026
+export const UPGRADES_RED_FLAG_EMAIL_APPROVED = true as boolean; // ON at go-live 5 Nov 2026
 export const UPGRADES_NUDGE_SMS_TYPE = "upgrades_nudge" as const;
 
 export const UPGRADES_NUDGE_EVENT = "upgrades_nudge";
