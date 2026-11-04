@@ -214,6 +214,7 @@ export type FoilRead = { onForm: boolean; foil: boolean | null; foilPhoto: Mitti
 export const INSTALL_ADULT_BLOCKER = "No adult (18 or over) was at home — don't start; book a new day";
 export type InstallEvidenceRead = { /** Part 8: the adult-at-home question (install day form only; undefined = not on this form / read made before). */ adult?: { onForm: boolean; answer: "Yes" | "No" | null }; /** The "A5 – Install day" template (decision 262), not the old A3. */ installDay: boolean;
   /** Decision 396: the per-area ruler photos (install day form only; undefined on reads made before decision 396). */ ruler?: InstallDayRulerRead;
+  /** Jo 5 Nov 2026: whether the form carries the one "Depth photos: ruler …" question (undefined on older reads = judged by its files). */ depthQuestionOnForm?: boolean;
   /** Install day form (decisions 263/264): the two multi-file items. Empty on the old A3. */ files: { afterVideos: MittiMediaFile[]; depthPhotos: MittiMediaFile[] }; formZoneCount: number | null; zones: InstallEvidenceZoneRead[]; multiDay: boolean | null; dailyRecheck: boolean; questionsOnForm: boolean; after: AfterInstallRead; foil: FoilRead };
 
 /** Everything the Install day audit holds for the new items. Missing question = nothing read, never a neighbour's answer. */
@@ -243,7 +244,7 @@ export function readInstallEvidence(audit: unknown): InstallEvidenceRead {
   // multi-file depth question reads those files as the depth photos. Forms that carry it read it exactly as before.
   const depthOnForm = !!find(items, INSTALL_DAY_EVIDENCE.depthPhotos);
   const files = { afterVideos: m(INSTALL_DAY_EVIDENCE.afterVideos), depthPhotos: depthOnForm || !ruler?.onForm ? m(INSTALL_DAY_EVIDENCE.depthPhotos) : ruler.areas.flatMap((a) => a.after) };
-  return { installDay, ...(ruler ? { ruler, adult: { onForm: installDayAdultOnForm(audit), answer: installDayAdultPresent(audit) } } : {}), files, formZoneCount: Number.isInteger(n) && n > 0 ? n : null, zones, multiDay: yn(v(Q.multiDay)), dailyRecheck: !!v(Q.dailyRecheck), questionsOnForm: !!find(items, Q.zoneCount), after, foil };
+  return { installDay, ...(ruler ? { ruler, adult: { onForm: installDayAdultOnForm(audit), answer: installDayAdultPresent(audit) } } : {}), ...(installDay ? { depthQuestionOnForm: depthOnForm } : {}), files, formZoneCount: Number.isInteger(n) && n > 0 ? n : null, zones, multiDay: yn(v(Q.multiDay)), dailyRecheck: !!v(Q.dailyRecheck), questionsOnForm: !!find(items, Q.zoneCount), after, foil };
 }
 
 /**
@@ -379,17 +380,34 @@ export function foilBlockers(f: FoilRead, existingInsulation: boolean, workStart
 // Decision 396 (Jo, 26 Oct 2026): the A5 asks both ruler photos per ceiling area
 // ======================================================================================================
 export const RULER_LOCK = "Installation complete stays locked until the install day form has every ruler photo";
-export const RULER_SECTION_MISSING = `The install day form has no ruler photo questions yet ("${INSTALL_DAY_RULER_Q.newDepth}") — the office must add them to the A5 in Mitti (docs/mitti-paste-A5-ruler-photos.md) and send a new form`;
+export const RULER_SECTION_MISSING = `The install day form has no depth photo question yet ("${INSTALL_DAY_EVIDENCE.depthPhotos}") — the office must fix the A5 in Mitti and send a new form`;
+/** Jo 5 Nov 2026: the one depth-photo question is the ruler proof; its files are filed under this area name. */
+export const DEPTH_PHOTOS_AREA_NAME = "All areas";
 const areaName = (z: JobZone, i: number) => z.name?.trim() || (i === 0 ? DEFAULT_SINGLE_AREA_NAME : `Area ${i + 1}`);
-/** Activity Guide v1.2 Table 4, per Ready Check area (copy i of the A5 repeat section = area i): the existing-depth photo
- *  when the area had existing insulation (unknown = required, never silently exempt), the new-depth photo always. Each
- *  photo needs its location and capture time, exactly like the other A5 photos (mediaProblems); the existing one must
- *  be taken before work starts, the new one after. Applies to every install day form whatever the install date. */
-export function rulerPhotoEvaluation(ruler: InstallDayRulerRead | undefined, zones: JobZone[], workStartAt?: string | null): { items: InstallEvidenceItem[]; blockers: string[]; files: RulerAreaFiles[] } {
+/** The one "Depth photos: ruler …" question as read from the form (Jo 5 Nov 2026). */
+export type DepthPhotosRead = { onForm: boolean; files: MittiMediaFile[] };
+/** Activity Guide v1.2 Table 4 new-depth proof. Jo 5 Nov 2026 ("why the hell is there a ruler page"): the A5 carries ONE
+ *  "Depth photos: ruler standing straight up in the new insulation, one per area" question and that IS the ruler proof —
+ *  one geotagged photo per Ready Check area, taken after work started; the existing-depth photo per area is the Ready
+ *  Check's (A1/A2 depth photo), never asked again on the A5. A form that still carries the decision-396 repeat section
+ *  (per-area existing + new photos) is read exactly as before. Neither on the form = the form is wrong, completion holds.
+ *  Applies to every install day form whatever the install date. */
+export function rulerPhotoEvaluation(ruler: InstallDayRulerRead | undefined, zones: JobZone[], workStartAt?: string | null, depth?: DepthPhotosRead): { items: InstallEvidenceItem[]; blockers: string[]; files: RulerAreaFiles[] } {
   const items: InstallEvidenceItem[] = [];
   const blockers: string[] = [];
   const files: RulerAreaFiles[] = [];
-  if (!ruler?.onForm) return { items, blockers: [RULER_SECTION_MISSING], files };
+  if (!ruler?.onForm) {
+    if (!depth?.onForm) return { items, blockers: [RULER_SECTION_MISSING], files };
+    const zoneCount = Math.max(1, zones.length);
+    const per = `${zoneCount} ceiling area${zoneCount === 1 ? "" : "s"}`;
+    const r = mediaProblems(`Depth photos with a ruler (one per area — ${per})`, depth.files, { min: zoneCount, video: false, phase: "after" });
+    if (workStartAt) {
+      const early = depth.files.filter((f) => f.capturedAt && Date.parse(f.capturedAt) < Date.parse(workStartAt)).length;
+      if (early) r.problems.push(`Depth photos with a ruler: ${early} taken before work started — take them when the insulation is in`);
+    }
+    files.push({ zone: 1, name: DEPTH_PHOTOS_AREA_NAME, existingRequired: false, existing: [], after: depth.files });
+    return { items, blockers: r.problems, files };
+  }
   const list: JobZone[] = zones.length ? zones : [{ name: null, underInsulated: null }];
   list.forEach((z, i) => {
     const name = areaName(z, i);
@@ -438,7 +456,8 @@ export function evaluateInstallEvidence(read: InstallEvidenceRead, ctx: InstallE
     ? ctx.zones.map((z, i) => ({ zone: i + 1, name: z.name, product: z.product ?? null, areaM2: z.areaM2 ?? null }))
     : read.zones.slice(0, Math.min(zoneCount, MAX_FORM_ZONES)).map((z) => ({ zone: z.zone, name: z.name, product: z.product, areaM2: z.areaM2 }));
   // Decision 396: the ruler photos are required on every install day form, before or after the effective date.
-  const ruler = read.installDay ? rulerPhotoEvaluation(read.ruler, ctx.zones, workStartAt) : null;
+  // Jo 5 Nov 2026: the one depth-photo question is the ruler proof when the form has no per-area repeat section.
+  const ruler = read.installDay ? rulerPhotoEvaluation(read.ruler, ctx.zones, workStartAt, { onForm: read.depthQuestionOnForm ?? read.files.depthPhotos.length > 0, files: read.files.depthPhotos }) : null;
   const adultBlockers = read.installDay && read.adult?.onForm && read.adult.answer !== "Yes" ? [INSTALL_ADULT_BLOCKER] : [];
   const base = { rule: INSTALL_EVIDENCE_RULE, ...(adultBlockers.length ? { adultBlockers } : {}), applies, installDate: ctx.installDate, zoneCount, zoneProducts, foil: read.foil.foil, foilPhotoMediaId: read.foil.foilPhoto[0]?.mediaId ?? null, ...(ruler ? { rulerPhotos: ruler.files, rulerBlockers: [...new Set(ruler.blockers)] } : {}) } as const;
   if (!applies) return { ...base, items: ruler?.items ?? [], blockers: [...new Set([...adultBlockers, ...(ruler?.blockers ?? [])])], prestartBlockers: [] };

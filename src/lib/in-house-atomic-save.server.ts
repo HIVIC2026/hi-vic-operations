@@ -15,20 +15,26 @@ export async function saveInHouseVisit(jobId:string,actorId:string,input:{kind:B
  // Capture BEFORE validation. The locked writer refuses a changed version/booking/crew.
  // Probe the read-only prerequisite BEFORE any writes. Only absent deployment objects
  // permit the original inline path; permission/network/commit failures never do.
- const revisionResult=await db.rpc('in_house_visit_revision',{_job:jobId});
+ // Go-live 5 Nov 2026 (Tom: "takes 20 secs"): the revision probe and the three snapshot reads are independent, and so are
+ // validateBooking (job rules) and bookingTeam (the Team) — each is a read-only check, so they run side by side. The
+ // revision is still captured before any write; the locked writer refuses a changed version/booking/crew exactly as before.
+ const [revisionResult,job,book,crew]=await Promise.all([
+  db.rpc('in_house_visit_revision',{_job:jobId}),
+  read<{stage:string;updated_at:string}|null>(db.from('jobs').select('stage,updated_at').eq('id',jobId).is('deleted_at',null).maybeSingle()),
+  read<{id:string;scheduled_start:string}|null>(db.from('bookings').select('id,scheduled_start').eq('job_id',jobId).eq('kind',input.kind==='crew'?'installation':input.kind).eq('status','confirmed').order('created_at',{ascending:false}).limit(1).maybeSingle()),
+  read<{id:string;details:{selection?:CrewSelection}}|null>(db.from('workflow_events').select('id,details').eq('job_id',jobId).eq('event_type','piisa_crew_selected').order('created_at',{ascending:false}).order('id',{ascending:false}).limit(1).maybeSingle()),
+ ]);
  if(revisionResult.error){
   if(isMissingSavedWorkFunction(revisionResult.error,'in_house_visit_revision'))return (await import('./in-house-inline-save.server')).saveInHouseVisitInline(jobId,actorId,input);
   throw Error(revisionResult.error.message);
  }
  const revision=revisionResult.data as string;
- const [job,book,crew]=await Promise.all([
-  read<{stage:string;updated_at:string}|null>(db.from('jobs').select('stage,updated_at').eq('id',jobId).is('deleted_at',null).maybeSingle()),
-  read<{id:string;scheduled_start:string}|null>(db.from('bookings').select('id,scheduled_start').eq('job_id',jobId).eq('kind',input.kind==='crew'?'installation':input.kind).eq('status','confirmed').order('created_at',{ascending:false}).limit(1).maybeSingle()),
-  read<{id:string;details:{selection?:CrewSelection}}|null>(db.from('workflow_events').select('id,details').eq('job_id',jobId).eq('event_type','piisa_crew_selected').order('created_at',{ascending:false}).order('id',{ascending:false}).limit(1).maybeSingle()),
- ]);
  if(!job)throw Error('Job unavailable');
- const validated=input.kind!=='crew'?await (await import('./booking.server')).validateBooking(jobId,input.kind,input.start??'',actorId,input.workerId??undefined):null;
- const team=await bookingTeam(jobId,actorId);const who=input.workerId?team.workers.find(w=>w.id===input.workerId):undefined;
+ const [validated,team]=await Promise.all([
+  input.kind!=='crew'?(await import('./booking.server')).validateBooking(jobId,input.kind,input.start??'',actorId,input.workerId??undefined):Promise.resolve(null),
+  bookingTeam(jobId,actorId),
+ ]);
+ const who=input.workerId?team.workers.find(w=>w.id===input.workerId):undefined;
  if(input.kind==='ready_check'&&!input.workerId){/* "Not sure yet": the Team was still read (office/boss + in-house checks); no person to check */}
  else{const why=bookingWorkerBlocker(input.kind==='crew'?'installation':input.kind,who??null);if(why||!who)throw Error(why??'Not your Team member');}
  let crewFacts:{needsVerification:string[];staff:unknown[]}={needsVerification:[],staff:[]};

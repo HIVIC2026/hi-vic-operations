@@ -1279,9 +1279,11 @@ export async function tradeAddTeamPerson(userId: string, p: { name: string; role
     // Lead/Crew before the pending SQL is live: the applied function (0186) adds them exactly as before.
     if (r.error && ["PGRST202", "42883"].includes(r.error.code) && (role === "lead" || role === "crew"))
       r = await rpc.rpc("add_team_installer_with_identity", { _business: c.biz.id, _actor: userId, _name: name, _role: role, _mobile: v.mobile, _email: email, _dob: p.dateOfBirth });
-    if (r.error && /mobile/i.test(r.error.message)) throw new WorkflowError("Add their mobile number.");
     if (r.error) {
-      if (["PGRST202", "42883"].includes(r.error.code)) throw new WorkflowError("Private ESC registration details need the pending database update before this person can be added.");
+      // 5 Nov 2026 (Tom, go-live morning): the missing-function message names every argument, `_mobile` included, so the
+      // mobile check must come AFTER the missing-function check or a pending SQL file reads as "Add their mobile number."
+      if (["PGRST202", "42883"].includes(r.error.code)) throw new WorkflowError("Adding people needs the office's database update first (go-live step 2). Try again once it's done.");
+      if (/mobile/i.test(r.error.message)) throw new WorkflowError("Add their mobile number.");
       if (["23502", "PGRST204", "42703"].includes(r.error.code)) throw new WorkflowError("Adding someone without an email needs the office's database update first.");
       if (r.error.code === "23505") throw new WorkflowError("Someone with that email is already on your team.");
       throw new WorkflowError("Couldn't add them. Please try again.");

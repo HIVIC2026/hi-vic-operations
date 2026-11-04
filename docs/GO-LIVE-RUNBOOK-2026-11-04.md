@@ -138,6 +138,7 @@ Use the TEST business (it can book in-house now) and the test sender — nothing
 3. Book the safety check for the TEST Team electrician → the /e/ link text (test) → electrician's A3 in Mitti → Complete → PIESA completes by itself (or a "Needs me" row says what's missing).
 4. Book the install (10% deposit, test card) → Lead Installer confirm → SWMS signed → the 2pm GO check runs (or press "Run check" on the job) → GO / DON'T START email arrives in the test inbox.
 5. A5 in Mitti → Complete → All done → Money page shows the payouts (no "Electrical fixes" line anywhere).
+   Jo 5 Nov 2026: the A5 has NO ruler page — the one "Depth photos: ruler standing straight up in the new insulation, one per area" question is the ruler proof (one geotagged photo per Ready Check area, taken after work started). Before the TEST job: merge the `mitti-depth-photo-proof` PR and re-check Jo's fresh template dump (`/home/claude/mitti-check/check.ts`) so every label reads.
 Stop at the first screen that doesn't do this and read the job history — every hold is written there.
 
 ## 6. The hourly watch (first day)

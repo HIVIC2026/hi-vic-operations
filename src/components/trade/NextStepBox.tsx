@@ -236,7 +236,8 @@ function BookingForm({ jobId, kind, mode, state, button, below, onDone, onCancel
       // Part 9 Task 10: the booking's plain warnings (e.g. upgrades still to come) are shown with the success, never as a refusal.
       toast.success(mode === "book" ? W.booked(LABEL[kind]) : W.changed(`${LABEL[kind]} time`), r.warnings?.length ? { description: r.warnings.join(" ") } : undefined);
       markOfficeChanged();
-      await qc.invalidateQueries();
+      // Go-live 5 Nov 2026 (Tom: "takes 20 secs"): the booking is saved — close the form now and let the page refresh behind it.
+      void qc.invalidateQueries();
       onDone();
     } catch (err) {
       setError(readableError(err, W.saveFailed));

@@ -7,7 +7,7 @@
 // rebuild (A1 ready-to-price tick). A label counts when it is on the form under its own wording OR one of its read
 // aliases (the rebuild alias layer `mittiLabelAliases` + the Part 3 legacy wordings), because the portal reads either.
 import { definitionReadable } from "./mitti-forms.core";
-import { INSTALL_DAY_NOV2_Q, INSTALL_DAY_PART_B_PAGE, INSTALL_DAY_PART_B_TEXT } from "./install-day.core";
+import { INSTALL_DAY_NOV2_OPTIONAL, INSTALL_DAY_NOV2_Q, INSTALL_DAY_PART_B_PAGE, INSTALL_DAY_PART_B_TEXT } from "./install-day.core";
 import { A3_REPAIR_NEEDED_LABEL, A3_REPAIR_NEEDED_LEGACY_LABEL, A3_UPGRADES_TODAY_LABEL, A3_UPGRADES_TODAY_LEGACY_LABEL, ADULT_PRESENT_LABEL, ADULT_PRESENT_STOP_A3, CERTIFICATE_NOW_LABEL } from "./official-short.core";
 import { A1_READY_TO_PRICE_TICK, LEAN_Q } from "./ready-check-lean.core";
 import { mittiLabelAliases } from "./mitti-rebuild-labels.core";
@@ -39,7 +39,8 @@ export const PART8_TEMPLATES: Part8Template[] = [
   { key: "A4", templateId: A4_TEMPLATE_ID, labels: [CERTIFICATE_NOW_LABEL], texts: [], absentChoices: [] },
   {
     key: "A5", templateId: "1f325828-3f71-4b1a-988f-083c83414f95",
-    labels: Object.values(INSTALL_DAY_NOV2_Q),
+    // Jo 5 Nov 2026: the two optional "Changes during the job" items are not required on the form.
+    labels: Object.values(INSTALL_DAY_NOV2_Q).filter((l) => !INSTALL_DAY_NOV2_OPTIONAL.includes(l)),
     // Final review I3: the FULL Part B declaration (normalised: case, spacing and punctuation ignored), never just its first line.
     texts: [ADULT_PRESENT_STOP_A3, INSTALL_DAY_PART_B_PAGE, INSTALL_DAY_PART_B_TEXT],
     absentChoices: [],

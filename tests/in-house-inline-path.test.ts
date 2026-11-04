@@ -7,7 +7,7 @@ test('actual inline booking path validates before allocation and calls the canon
  const tables:any={bookings:[]};const db=memoryPostgrest(tables);const calls:string[]=[];let blocked=false;
  const deps:any={
   '@/integrations/supabase/client.server':{supabaseAdmin:db},
-  './booking.server':{validateBooking:async()=>{calls.push('validate');if(blocked)throw Error('Owner not signed');},confirmBooking:async(j:string,kind:string,start:string)=>{calls.push('confirm');tables.bookings.push({id:'b',job_id:j,kind,scheduled_start:start,status:'confirmed'});}},
+  './booking.server':{validateBooking:async()=>{calls.push('validate');if(blocked)throw Error('Owner not signed');return {stage:'ready_check_ready_to_schedule',target:'ready_check_scheduled',warnings:[]};},confirmBooking:async(j:string,kind:string,start:string)=>{calls.push('confirm');tables.bookings.push({id:'b',job_id:j,kind,scheduled_start:start,status:'confirmed'});}},
   './in-house-booking.server':{prepareBookingWorker:async(_j:string,actor:string,_k:string,_w:string,_c:string[],options:any)=>{expect(options).toEqual({inline:true});if(actor!=='own-office')throw Error('Not your in-house job');calls.push('allocate');return{id:'w',name:'TEST'};},notifyOwnerBooked:async()=>{calls.push('notice captured');}},
   './visit-allocation.server':{saveCrewWithLeadInline:async(_j:string,actor:string)=>{if(actor!=='own-office')throw Error('Not your in-house job');calls.push('crew and forms captured');return{needsVerification:[]};}},
  };

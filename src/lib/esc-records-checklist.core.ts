@@ -1,6 +1,6 @@
 // New job flow Part 8 Task 9: the records the ESC wants per job (VEET Guidelines v16), each pinned to the live form label that
 // collects it. Labels are imported, never retyped, so a reworded question shows up as a gap here.
-import { INSTALL_DAY_QUESTIONS, INSTALL_DAY_RULER_Q } from "./install-day.core";
+import { INSTALL_DAY_Q, INSTALL_DAY_QUESTIONS } from "./install-day.core";
 import { LEAN_ALIASES, LEAN_Q } from "./ready-check-lean.core";
 import { PIESA_EVIDENCE_BY_ID } from "./piesa-evidence.core";
 
@@ -16,8 +16,9 @@ export const ESC_RECORDS_CHECKLIST: readonly EscRecord[] = [
   { record: "Electrician at the PIESA", form: "A3", labels: [PIESA_EVIDENCE_BY_ID.onsite_photo.label] },
   { record: "Each installer on site", form: "A5", labels: [a5(8), a5(12), a5(16)] },
   { record: "Old R-values", form: "A1/A2", labels: [LEAN_Q.rValue, LEAN_Q.depthPhoto] },
-  { record: "Old insulation depth photo", form: "A5", labels: [INSTALL_DAY_RULER_Q.existingDepth] },
-  { record: "New R-values", form: "A5", labels: [a5(33), INSTALL_DAY_RULER_Q.newDepth] },
+  // Jo 5 Nov 2026: the old-depth photo is the Ready Check's; the new-depth proof is the A5's one "Depth photos" question.
+  { record: "Old insulation depth photo", form: "A1/A2", labels: [LEAN_Q.depthPhoto] },
+  { record: "New R-values", form: "A5", labels: [a5(33), INSTALL_DAY_Q.depthPhotos] },
   { record: "Power isolated", form: "A5", labels: [a5(27)] },
   { record: "Products", form: "A5", labels: [a5(33)] },
   { record: "Before video", form: "A1/A2", labels: [LEAN_Q.beforeVideo] },

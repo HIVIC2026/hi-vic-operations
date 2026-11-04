@@ -2,7 +2,7 @@
 // electrician booked at the install when the PIESA needs them, life support plan on file, and the UPDATED PIESA copy
 // (with Part C) delivered ≥24h before — and the gates that were already right are pinned by trying to break them.
 import { describe, expect, mock, test } from "bun:test";
-import { piesaCopyDeliveryBlockers, readyToInstall } from "../src/lib/esc.core";
+import { partCSignedTime, piesaCopyDeliveryBlockers, readyToInstall } from "../src/lib/esc.core";
 import { prestartFailures, type PrestartFacts } from "../src/lib/prestart.core";
 import { consentValidityBlockers } from "../src/lib/consent.core";
 
@@ -56,6 +56,15 @@ describe("GO check — full fixture passes, then one break at a time", () => {
     expect(piesaCopyDeliveryBlockers(START, { owner: [tue], installer: [tue] })).toEqual([]);
   });
 
+  test("5 Nov 2026: a DATE-ONLY Part C (piesa_records.section_c_signed_at = YYYY-MM-DDT00:00:00.000Z, i.e. 11am Melbourne) means the start of that Melbourne day — a copy sent that morning counts", () => {
+    const partCDate = "2026-11-11T00:00:00.000Z"; // the Wed 11 Nov record, as piesa-record.server stores it
+    expect(partCSignedTime(partCDate)).toBe(Date.parse("2026-11-10T13:00:00Z")); // Wed 11 Nov 00:00 Melbourne (AEDT)
+    expect(partCSignedTime("2026-11-11T04:00:00Z")).toBe(Date.parse("2026-11-11T04:00:00Z")); // a real instant is used as is
+    const wed9am = "2026-11-10T22:00:00Z"; // Wed 11 Nov 9am Melbourne — after the real Part C, before 11am
+    expect(piesaCopyDeliveryBlockers(START, { owner: [wed9am], installer: [wed9am] }, { partCSignedAt: partCDate })).toEqual([]);
+    const tue = "2026-11-10T03:00:00Z"; // Tue 10 Nov 2pm — the day before Part C: still not the updated PIESA
+    expect(piesaCopyDeliveryBlockers(START, { owner: [tue], installer: [tue] }, { partCSignedAt: partCDate })).toHaveLength(2);
+  });
   test("Part C copy re-delivered too late (inside 24h) → the Part C line, not the plain one; nothing delivered at all → the plain line", () => {
     const partC = "2026-11-11T04:00:00Z";
     const late = before(20);

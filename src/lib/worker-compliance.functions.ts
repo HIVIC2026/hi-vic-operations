@@ -28,6 +28,11 @@ export const officeVerifyElectrician = createServerFn({ method: "POST" }).middle
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin.rpc("verify_team_electrician" as never, { _worker: data.workerId, _licence: data.licenceNumber, _rec: data.recNumber, _expiry: data.expiresOn, _actor: context.userId } as never);
     if (error) throw new Error(error.message);
+    // Go-live 5 Nov 2026 (Jo, "still not showing as approved"): a Team electrician has no other office Approve button, and an
+    // unapproved one can't be put on a job ("Waiting for office approval"). The office checking the licence + REC IS the
+    // approval, so it is recorded here (once; repeated verifies change nothing). Never fails the verification.
+    try { await (await import("./worker-approval.server")).approvePartnerWorker(data.workerId, context.userId, { kind: "office", reason: "Licence + REC verified by the office" }); }
+    catch (e) { console.error("Electrician approval after verification skipped", (e as Error).message); }
     return { ok: true };
   });
 

@@ -2,7 +2,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { PART8_TEMPLATES, checkPart8Template, type Part8Template } from "../src/lib/mitti-part8-health.core";
-import { INSTALL_DAY_NOV2_Q, INSTALL_DAY_QUESTIONS, INSTALL_DAY_PART_B_PAGE, INSTALL_DAY_PART_B_TEXT } from "../src/lib/install-day.core";
+import { INSTALL_DAY_NOV2_Q, INSTALL_DAY_QUESTIONS, INSTALL_DAY_PART_B_PAGE, INSTALL_DAY_PART_B_TEXT, INSTALL_DAY_NOV2_OPTIONAL } from "../src/lib/install-day.core";
 import { A3_REPAIR_NEEDED_LABEL, A3_REPAIR_NEEDED_LEGACY_LABEL, A3_UPGRADES_TODAY_LABEL, A3_UPGRADES_TODAY_LEGACY_LABEL, ADULT_PRESENT_LABEL, ADULT_PRESENT_STOP_A3, CERTIFICATE_NOW_LABEL } from "../src/lib/official-short.core";
 import { A1_READY_TO_PRICE_TICK, LEAN_Q } from "../src/lib/ready-check-lean.core";
 
@@ -35,7 +35,9 @@ describe("Part 8 form-health check", () => {
     expect(spec("A1").absentChoices).toEqual(["ECOWOOL R5"]);
     expect(spec("A3").labels).toEqual([ADULT_PRESENT_LABEL, A3_REPAIR_NEEDED_LABEL, A3_UPGRADES_TODAY_LABEL, CERTIFICATE_NOW_LABEL]);
     expect(spec("A3").texts).toEqual([ADULT_PRESENT_STOP_A3]);
-    expect(spec("A5").labels).toEqual(Object.values(INSTALL_DAY_NOV2_Q));
+    // Jo 5 Nov 2026: the two optional "Changes during the job" items are never required.
+    expect(spec("A5").labels).toEqual(Object.values(INSTALL_DAY_NOV2_Q).filter((l) => !INSTALL_DAY_NOV2_OPTIONAL.includes(l)));
+    expect(spec("A5").labels).not.toContain(INSTALL_DAY_NOV2_Q.swmsChange);
     expect(spec("A5").texts).toContain(INSTALL_DAY_PART_B_PAGE);
     // Final review I3: the FULL Part B text is compared (normalised), never just its first line.
     expect(spec("A5").texts).toContain(INSTALL_DAY_PART_B_TEXT);
@@ -105,7 +107,7 @@ describe("Part 8 form-health check", () => {
   test("A5: an old form misses every 2 Nov label; a pasted one passes", () => {
     const old = { template: { items: INSTALL_DAY_QUESTIONS.map((q) => item(q.label)) } };
     const r0 = checkPart8Template(old, spec("A5"));
-    expect(r0.missing).toEqual(Object.values(INSTALL_DAY_NOV2_Q));
+    expect(r0.missing).toEqual(Object.values(INSTALL_DAY_NOV2_Q).filter((l) => !INSTALL_DAY_NOV2_OPTIONAL.includes(l)));
     expect(r0.ok).toBe(false);
     const full = { template: { items: [...old.template.items, ...Object.values(INSTALL_DAY_NOV2_Q).map(item), { type: "section", label: INSTALL_DAY_PART_B_PAGE }, { type: "text", text: INSTALL_DAY_PART_B_TEXT }, { type: "text", text: ADULT_PRESENT_STOP_A3 }] } };
     expect(checkPart8Template(full, spec("A5"))).toMatchObject({ ok: true, missing: [], textMissing: [] });

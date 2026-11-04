@@ -188,6 +188,10 @@ describe("server: Money switch and Add a person go through the Task 1 RPCs (mock
     expect(calls).toEqual([]);
     // Office / Electrician before the pending SQL is live: the existing message, no other write.
     rpcError = { code: "PGRST202", message: "function not found" };
-    await expect(tradeAddTeamPerson("u1", { name: "Mia Chen", role: "office", mobile: "0412 000 111", email: null, dateOfBirth: "1990-05-12", licenceNumber: null, recNumber: null })).rejects.toThrow("Private ESC registration details need the pending database update before this person can be added.");
+    await expect(tradeAddTeamPerson("u1", { name: "Mia Chen", role: "office", mobile: "0412 000 111", email: null, dateOfBirth: "1990-05-12", licenceNumber: null, recNumber: null })).rejects.toThrow("Adding people needs the office's database update first (go-live step 2). Try again once it's done.");
+    // 5 Nov 2026 (Tom, go-live morning): PostgREST's missing-function message lists the arguments (`_mobile` included) — it must
+    // never read as "Add their mobile number." when the mobile was typed.
+    rpcError = { code: "PGRST202", message: "Could not find the function public.add_team_person_with_identity(_actor, _business, _dob, _email, _licence, _mobile, _name, _rec, _role) in the schema cache" };
+    await expect(tradeAddTeamPerson("u1", { name: "Will Casdorff", role: "electrician", mobile: "0473 541 226", email: null, dateOfBirth: "1978-11-05", licenceNumber: "4556789", recNumber: "256678" })).rejects.toThrow("Adding people needs the office's database update first (go-live step 2). Try again once it's done.");
   });
 });
