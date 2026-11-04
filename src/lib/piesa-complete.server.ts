@@ -11,8 +11,10 @@ import { piesaCompletionKind } from "./repeat-piesa-form.core";
 
 export type CompletePiesaInput = { jobId: string; rectHours?: number | undefined; rectWindows?: { date: string; slot: "8-10" | "10-12" | "12-14" | "14-16" }[] | undefined };
 
-/** The caller must already be checked (admin, or the assigned electrician allowed to record clearance). */
-export async function completePiesaAssessment(data: CompletePiesaInput, userId: string) {
+/** The caller must already be checked (admin, or the assigned electrician allowed to record clearance). J4 G1: on an
+ *  in-house job the A3 sync completes the PIESA by itself (`piesa-auto-complete.server`), then the actor is the sync's
+ *  (null on the tick) — the official copy's signer is always the job's electrician, never this actor. */
+export async function completePiesaAssessment(data: CompletePiesaInput, userId: string | null) {
   const { data: a } = await admin.from("assessments").select("*").eq("job_id", data.jobId).maybeSingle();
   if (!a) throw new WorkflowError("Start the assessment first.");
   if (a.status === "complete") {
@@ -84,17 +86,23 @@ export async function completePiesaAssessment(data: CompletePiesaInput, userId: 
     if (entry.length) throw new WorkflowError(`PIESA cannot be completed yet: ${entry.join(" ")}`);
   }
   const now = new Date().toISOString();
-  await admin.from("assessments").update({ status: "complete", completed_at: now, assessor_id: a.assessor_id ?? userId, mitti_sync_status: a.external_mitti_id ? "synced" : "not_synced" }).eq("id", a.id);
+  // J4 G1: the automatic completion has no signed-in actor. The record's sign-off (`signed_off_by`, a profile — the clearance,
+  // owner-declaration and installer-quote readers take a null here as "not signed yet") is the electrician's own login when
+  // they have one, else the installer account running the job (the business that put its no-login Team electrician on the
+  // job and booked the visit); the official PIESA copy is attributed to the electrician either way (issueOfficialPiesa).
+  const signedOffBy = userId ?? await autoSignOffProfile(data.jobId);
+  if (!signedOffBy) throw new WorkflowError("No account to record the PIESA sign-off against (no electrician login and no installer on the job).");
+  await admin.from("assessments").update({ status: "complete", completed_at: now, assessor_id: a.assessor_id ?? signedOffBy, mitti_sync_status: a.external_mitti_id ? "synced" : "not_synced" }).eq("id", a.id);
   // Jo 29 Oct 2026: a repeat PIESA (its own new Mitti form) is recorded as a reassessment; the first check stays on record.
   const { count: prior, error: priorError } = await admin.from("piesa_records").select("id", { count: "exact", head: true }).eq("job_id", data.jobId).in("kind", ["initial", "reassessment"]);
   if (priorError) throw new WorkflowError("The earlier PIESA records could not be read, so the PIESA was not recorded. Please try again.");
   await admin.from("piesa_records").update({ is_current: false }).eq("job_id", data.jobId).eq("is_current", true);
-  await admin.from("piesa_records").insert({ job_id: data.jobId, assessment_id: a.id, kind: piesaCompletionKind(prior ?? 0), outcome: a.piesa_outcome, completed_date: a.assessed_on!, signed_off_by: userId, external_mitti_id: a.external_mitti_id });
+  await admin.from("piesa_records").insert({ job_id: data.jobId, assessment_id: a.id, kind: piesaCompletionKind(prior ?? 0), outcome: a.piesa_outcome, completed_date: a.assessed_on!, signed_off_by: signedOffBy, external_mitti_id: a.external_mitti_id });
   // The safety check visit is done: mark the confirmed assessment booking completed so the electrician's pay line shows in the
   // office Payouts (office-money lists it only for a completed assessment booking). Same as piesa-record.server does for fixes.
   const { error: visitErr } = await admin.from("bookings").update({ status: "completed" }).eq("job_id", data.jobId).eq("kind", "assessment").eq("status", "confirmed");
   if (visitErr) console.error("safety check visit not marked done", visitErr.message);
-  await logEvent(data.jobId, userId, "electrical_assessment_complete", `Electrical assessment complete – PIESA ${a.piesa_outcome} (${s.label})`, { scope: s.scope });
+  await logEvent(data.jobId, userId, "electrical_assessment_complete", `Electrical assessment complete – PIESA ${a.piesa_outcome} (${s.label})`, { scope: s.scope, ...(userId ? {} : { completed_by: "synced A3 (in-house)", signed_off_by: signedOffBy }) });
   // Decision 350: a PIESA done on the Mitti form files the official PIESA signed copy now (held with a reason, never
   // invented). Best-effort: the completion above stands either way.
   if (a.external_mitti_id) {
@@ -113,10 +121,19 @@ export async function completePiesaAssessment(data: CompletePiesaInput, userId: 
   // still to come (eligibility gates on depositOpenAfterPiesa; non-in-house jobs come back 'not applicable').
   await (await import('./deposit-request.server')).requestInstallDeposit(data.jobId).catch(e=>console.error('Install deposit request held',e instanceof Error?e.message:'read failed'));
   await autoAdvanceJob(data.jobId, userId, "assessment completed");
+  // J4 G1: a held "not completed by itself" office row (in-house jobs) is cleared by whichever path completed the PIESA.
+  await (await import("./piesa-auto-complete.server")).clearPiesaAutoCompleteHold(data.jobId, userId).catch((e) => console.error("PIESA auto-complete hold not cleared", e instanceof Error ? e.message : String(e)));
   if (a.piesa_outcome === "pass" && !rectCount) {
     await (await import("./in-house-forms.server")).closeUnneededForms(data.jobId, "no_upgrades", userId).catch(e=>console.error("Unused in-house rectification closure failed", e instanceof Error ? e.message : "Form read failed"));
   }
   // Decision 186: a pass with no fixes is electrical clearance — tell the installer once (nothing when not cleared).
   // Part 4 Task 14: the decision 186 "cleared — offer 3 install days" installer notice is retired (the installer calls the owner to book).
   return res;
+}
+
+/** J4 G1: the profile the automatic (synced-A3) completion records the sign-off against — see completePiesaAssessment. */
+async function autoSignOffProfile(jobId: string): Promise<string | null> {
+  const { data: asg } = await admin.from("job_assignments").select("role, user_id").eq("job_id", jobId).eq("active", true).in("role", ["electrician", "installer"]);
+  const rows = (asg ?? []) as { role: string; user_id: string | null }[];
+  return rows.find((r) => r.role === "electrician" && r.user_id)?.user_id ?? rows.find((r) => r.role === "installer" && r.user_id)?.user_id ?? null;
 }

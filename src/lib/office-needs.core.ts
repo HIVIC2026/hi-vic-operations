@@ -24,7 +24,7 @@ export const NEEDS_GROUPS: { key: NeedsGroup; label: string }[] = [
 
 export type NeedsKind =
   | "in_house_esc_lead_changed" | "in_house_handed_back" | "address_to_confirm" | "mitti_electrician_choice" | "own_job_piesa_held" | "own_job_piesa_handed_back" | "own_job_swap_form_not_moved" | "own_job_installer_not_told"
-  | "paid_gate_blocked" | "install_deposit_request_failed" | "in_house_form_sync_failed"
+  | "paid_gate_blocked" | "install_deposit_request_failed" | "in_house_form_sync_failed" | "piesa_auto_complete_held"
   | "in_house_ready_check_not_booked" | "in_house_piesa_overdue" | "in_house_install_not_booked"
   | "choose_again" | "quote_check" | "fixes_quote_check" | "sign_consent" | "esc_window" | "final_check" | "send_failed" | "email_change" | "email_unmatched" | "robot_failed" | "piisa_form_failed"
   | "choose_installer" | "choose_electrician" | "veec_a_held" | "veec_b_held" | "piesa_owner_unsigned" | "piesa_fixes_owner_unsigned" | "fixes_times_missing"
@@ -54,6 +54,8 @@ export type NeedsFacts = {
   paidGate?: PaidGateWarning | null;
   depositRequestFailed?:{at:string;reason:string}|null;
   inHouseFormSyncFailed?:{at:string;reason:string}|null;
+  /** J4 G1: an in-house job's synced A3 is complete but the PIESA could not complete by itself (what is missing). */
+  piesaAutoCompleteHeld?: { at: string; reason: string } | null;
   inHouse?: { partnerName: string; batchSentAt: string | null; readyCheckBooked: boolean;
     quoteAcceptedAt: string | null; piesaCompleted: boolean; installationBooked: boolean;
     daysRemaining: number | null; deadline: string | null;
@@ -232,6 +234,7 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   const out: Candidate[] = [];
   const held = !!f.inHouseDispatch || !!f.inHouse;
   const add = (c: Candidate) => out.push(c);
+  if (f.piesaAutoCompleteHeld) add({ rank: 3, group: "today", kind: "piesa_auto_complete_held", line: `Safety check (PIESA) not completed by itself: ${f.piesaAutoCompleteHeld.reason}`, since: f.piesaAutoCompleteHeld.at, button: { label: "Open job", to: "job", section: "piesa" } });
   if(f.inHouseFormSyncFailed)add({rank:3,group:'today',kind:'in_house_form_sync_failed',line:`In-house forms need office attention: ${f.inHouseFormSyncFailed.reason}`,since:f.inHouseFormSyncFailed.at,button:{label:'Open job',to:'job',section:'install'}});
   if(f.depositRequestFailed)add({rank:8,group:'today',kind:'install_deposit_request_failed',line:`Installation deposit request needs office attention: ${f.depositRequestFailed.reason}`,since:f.depositRequestFailed.at,button:{label:'Open job',to:'job',section:'money'}});
   if(f.inHouseLeadChanged)add({rank:1,group:'today',kind:'in_house_esc_lead_changed',line:f.inHouseLeadChanged.line,since:f.inHouseLeadChanged.at,button:{label:'Open job',to:'job',section:'install'}});

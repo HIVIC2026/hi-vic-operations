@@ -542,6 +542,7 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
             await admin.from("rectification_items").insert({ ...base, job_id: jobId, assessment_id: a.id, is_other: true, source: "mitti", external_key: o.external_key, other_unit_price_inc_gst: o.unit_price_inc_gst, needs_office_pricing: o.needs_office_pricing, added_by: actorId });
           }
         }
+        let a3Signed = false;
         if (plan.completed) {
           await saveMittiReport(jobId, actorId, a.external_mitti_id, plan.modifiedAt ?? null, "PIESA", call);
           // Decision 178: the evidence that IS on the form is kept with the job file even while other items are still missing.
@@ -552,6 +553,7 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
           // the official PIESA Part B3 (Word form + PDF). Never throws; a failure is one internal event.
           const { mittiSignatureByLabel } = await import("./fixes-day.core");
           const a4Sig = mittiSignatureByLabel(audit, "Electrician signature");
+          a3Signed = a4Sig.present;
           await (await import("./official-signature.server")).savePiesaSignatureImage(jobId, actorId, "a4", a.external_mitti_id, a4Sig, fetchMedia);
           // A48 batch 1 task 5: after the evidence files and signature are kept, a same-visit repair's certificate (q45) is
           // read by the AI (time-limited; ticked, or one office row). Never throws.
@@ -566,6 +568,13 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
         // Part 4 Task 14 (Jo 2 Nov 2026): the electrician "pick fixes times" text (decision 315) and the automatic HIV fixes
         // quote send (decision 354) are retired — the electrician quotes and books upgrades with the owner directly; the owner
         // gets the "upgrades needed" email from the PIESA result route.
+        // J4 G1 (join ruling, 4 Nov 2026): on an IN-HOUSE job a complete, evidenced AND electrician-signed A3 completes the
+        // PIESA here through the same checks as Complete PIESA (a failed check = one office Needs me row; retried next sync).
+        // Home Insulation Victoria-lead jobs are unchanged (nothing is completed by the sync). Never fails the sync.
+        if (completed && a.status !== "complete") {
+          try { await (await import("./piesa-auto-complete.server")).autoCompleteInHousePiesa(jobId, actorId, { completed, signed: a3Signed, auditId: a.external_mitti_id }); }
+          catch (e) { console.error("in-house PIESA auto-complete failed", jobId, e instanceof Error ? e.message : String(e)); }
+        }
       }
     }
   }

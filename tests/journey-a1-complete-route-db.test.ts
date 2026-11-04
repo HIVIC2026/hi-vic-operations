@@ -411,6 +411,7 @@ describe("A1 step 5 — the installer office books the safety check for its Team
   });
 });
 let ELEC_TOKEN = "";
+let SENT_AT_PIESA_RESULT = 0;
 
 describe("A1 step 6 — the electrician's A3 in Mitti: electrical upgrades needed (decisions 178/305/324/354; Parts 4/6)", () => {
   test("A3 Complete in Mitti: synced with its evidence, the prefilled B3 block passes the official rules, the job waits on Complete PIESA", async () => {
@@ -424,27 +425,45 @@ describe("A1 step 6 — the electrician's A3 in Mitti: electrical upgrades neede
     const def = forms.completedA3({ inspectionDate: new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne" }).format(new Date()), capturedAt: new Date().toISOString(), priceIncGst: 600, mediaPrefix: "a3" });
     for (const id of def.mediaIds) providers.mitti.media.set(id, { bytes: forms.PNG_1X1, type: "image/png" });
     fillAudit(a3, def.items);
+    // J4 G1 (join ruling, 4 Nov 2026): a form that is complete in Mitti but NOT yet signed by the electrician does not
+    // complete the PIESA by itself — the office sees one "not completed by itself" row saying the signature is missing.
+    const unsignedItems = def.items.filter((i) => i.label !== "Electrician signature");
+    a3.items = a3.items.filter((i) => i.label !== "Electrician signature"); // the template copy carried the fixture's signature slot
+    fillAudit(a3, unsignedItems);
     const n0 = providers.emails.length;
     const ms = await import("../src/lib/mitti.server");
+    const out0 = await ms.syncPendingMitti(null);
+    await settle();
+    expect(out0).toEqual([{ jobId: JOB, ok: true, message: "synced" }]);
+    const { PIESA_AUTO_SIGNATURE_MISSING } = await import("../src/lib/piesa-auto-complete.server");
+    expect((await events(JOB, "piesa_auto_complete_held")).map((e) => e.details["reason"])).toEqual([PIESA_AUTO_SIGNATURE_MISSING]);
+    expect(await q("select id from piesa_records where job_id=$1", [JOB])).toHaveLength(0);
+    expect(await stageOf(JOB)).toBe("piesa_scheduled");
+    // A second sync of the same unsigned form adds no second row.
+    await ms.syncPendingMitti(null); await settle();
+    expect(await events(JOB, "piesa_auto_complete_held")).toHaveLength(1);
+    // Now the electrician signs the A3.
+    fillAudit(a3, def.items);
     const out = await ms.syncPendingMitti(null);
     await settle();
     expect(out).toEqual([{ jobId: JOB, ok: true, message: "synced" }]);
-    expect((await q<Record<string, unknown>>("select status, mitti_completed, piesa_outcome from assessments where job_id=$1", [JOB]))[0]).toMatchObject({ status: "in_progress", mitti_completed: true, piesa_outcome: "fail" });
+    expect((await q<Record<string, unknown>>("select status, mitti_completed, piesa_outcome from assessments where job_id=$1", [JOB]))[0]).toMatchObject({ status: "complete", mitti_completed: true, piesa_outcome: "fail" });
     expect(await (await import("../src/lib/piesa-rules-notice.server")).piesaRulesFor(JOB)).toMatchObject({ rules: [] });
     expect(await events(JOB, "piesa_rules_failed")).toHaveLength(0);
     expect(await events(JOB, "piesa_evidence_saved")).toHaveLength(1);
-    expect(await stageOf(JOB)).toBe("piesa_scheduled");
-    expect(providers.emails.slice(n0)).toHaveLength(0);
+    // The signed, complete A3 completed the PIESA by itself (G1) and cleared the office row.
+    expect(await events(JOB, "piesa_auto_complete_recovered")).toHaveLength(1);
+    SENT_AT_PIESA_RESULT = n0;
   });
-  test("Complete PIESA (upgrades needed): PIESA record, official PIESA filed by the no-login electrician, partner-billed upgrades route, owner copy, deposit opens", async () => {
-    // JOIN FINDING (not changed here): no screen calls `completeAssessment` any more — Part 6 removed the electrician's
-    // job page (1685bcd1) with its Complete PIESA button, the office Job page never had one, and the Mitti sync explicitly
-    // completes nothing — so the office presses it here through the server function it still exposes (admin role).
-    const pf = await import("../src/lib/portal.functions");
-    const n0 = providers.emails.length;
-    await pf.completeAssessment({ data: { jobId: JOB }, context: { userId: OFFICE, supabase: asUser(OFFICE), claims: {} } });
-    await settle();
+  test("Complete PIESA (upgrades needed) by the synced A3: PIESA record, official PIESA filed by the no-login electrician, partner-billed upgrades route, owner copy, deposit opens", async () => {
+    // J4 G1 (join ruling, 4 Nov 2026): no screen presses Complete PIESA on an in-house job — the synced, signed A3 did it
+    // (previous test). Everything below is what that completion recorded and sent.
+    const n0 = SENT_AT_PIESA_RESULT;
     expect(await q("select kind, outcome, is_current from piesa_records where job_id=$1", [JOB])).toEqual([{ kind: "initial", outcome: "fail", is_current: true }]);
+    // No-login electrician: the record's sign-off is held against the installer account running the job; the official copy
+    // below is the electrician's.
+    expect(await q("select signed_off_by from piesa_records where job_id=$1", [JOB])).toEqual([{ signed_off_by: INST }]);
+    expect((await events(JOB, "electrical_assessment_complete")).map((e) => e.details["completed_by"])).toEqual(["synced A3 (in-house)"]);
     // Decision 350: the official PIESA is filed from the A3, attributed to the Team electrician (no login: the worker is the signer).
     expect(await events(JOB, "official_piesa_issued")).toHaveLength(1);
     expect(await events(JOB, "official_piesa_held")).toHaveLength(0);
@@ -466,9 +485,13 @@ describe("A1 step 6 — the electrician's A3 in Mitti: electrical upgrades neede
     // Jo 2 Nov (answer 21): the 10% deposit opens straight after the result, upgrades or not — the request is recorded
     // (held until the invoice/clearance checks pass on the tick), never a second $349 ask.
     expect(await events(JOB, "install_deposit_request_pending")).toHaveLength(1);
-    // Pressing Complete again changes nothing.
+    // The next sync of the same completed form changes nothing (and the office's fallback Complete says it is done).
+    await (await import("../src/lib/mitti.server")).syncPendingMitti(null); await settle();
+    expect(await q("select id from piesa_records where job_id=$1", [JOB])).toHaveLength(1);
+    const pf = await import("../src/lib/portal.functions");
     await expect(pf.completeAssessment({ data: { jobId: JOB }, context: { userId: OFFICE, supabase: asUser(OFFICE), claims: {} } })).rejects.toThrow(/already complete/);
     expect(await events(JOB, "official_piesa_issued")).toHaveLength(1);
+    expect(providers.emails.slice(n0)).toHaveLength(sent.length);
     // The electrician's link moves on: "When are you doing the upgrades?" (who-books "either" → they can enter the day).
     const el = await import("../src/lib/electrician-link.server");
     const view = await el.electricianLinkView(ELEC_TOKEN);
@@ -987,14 +1010,13 @@ describe("A1 branch B — a second own job whose safety check is all clear: no u
     const def = forms.completedA3Pass({ inspectionDate: new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne" }).format(new Date()), capturedAt: new Date().toISOString(), mediaPrefix: "a3b" });
     for (const id of def.mediaIds) providers.mitti.media.set(id, { bytes: forms.PNG_1X1, type: "image/png" });
     fillAudit(providers.mitti.audits.get(auditId)!, def.items);
+    const n0 = providers.emails.length;
+    // J4 G1: the signed, complete A3 completes the PIESA by itself on this in-house job (no Complete button anywhere).
     const out = await (await import("../src/lib/mitti.server")).syncPendingMitti(null);
     await settle();
     expect(out.find((x) => x.jobId === JOB_B)).toMatchObject({ ok: true, message: "synced" });
-    expect((await q<Record<string, unknown>>("select mitti_completed, piesa_outcome from assessments where job_id=$1", [JOB_B]))[0]).toMatchObject({ mitti_completed: true, piesa_outcome: "pass" });
-    const n0 = providers.emails.length;
-    const pf = await import("../src/lib/portal.functions");
-    await pf.completeAssessment({ data: { jobId: JOB_B }, context: { userId: OFFICE, supabase: asUser(OFFICE), claims: {} } });
-    await settle();
+    expect((await q<Record<string, unknown>>("select status, mitti_completed, piesa_outcome from assessments where job_id=$1", [JOB_B]))[0]).toMatchObject({ status: "complete", mitti_completed: true, piesa_outcome: "pass" });
+    expect(await events(JOB_B, "piesa_auto_complete_held")).toHaveLength(0);
     expect(await q("select kind, outcome from piesa_records where job_id=$1 and is_current", [JOB_B])).toEqual([{ kind: "initial", outcome: "pass" }]);
     expect(await events(JOB_B, "official_piesa_issued")).toHaveLength(1);
     expect((await stagePath(JOB_B)).slice(-2)).toEqual(["piesa_complete", "installation_scheduling"]);
@@ -1015,7 +1037,10 @@ describe("A1 branch B — a second own job whose safety check is all clear: no u
     const facts = { stage: await stageOf(JOB_B), quote: "accepted", acceptedAt: new Date().toISOString(), whoBooks: "either", electricianName: "Will Casdorff", ownerFirst: "Ben", ownerName: "Ben Clearway", ownerPhone: OWNER_PHONE, access: null, readyCheck: { start: null, done: true }, piesa: { start: null, outcome: "pass", upgradesDone: false, certificateIn: false }, depositPaidAt: null, install: { start: null, swmsSigned: 0, swmsTotal: 0 }, installDone: false, pay: null, now: new Date() } as never;
     expect(nextStepBox(facts).kind).toBe("waiting_deposit");
     expect(nextStepBox({ ...(facts as object), depositPaidAt: new Date().toISOString() } as never).kind).toBe("book_install");
-    // Pressing Complete again changes nothing; the sweep sends nothing twice.
+    // The next sync changes nothing; the office's fallback Complete says it is done; the sweep sends nothing twice.
+    await (await import("../src/lib/mitti.server")).syncPendingMitti(null); await settle();
+    expect(await events(JOB_B, "official_piesa_issued")).toHaveLength(1);
+    const pf = await import("../src/lib/portal.functions");
     await expect(pf.completeAssessment({ data: { jobId: JOB_B }, context: { userId: OFFICE, supabase: asUser(OFFICE), claims: {} } })).rejects.toThrow(/already complete/);
     await (await import("../src/lib/piesa-delivery.server")).sweepPiesaCopyDeliveries(); await settle();
     expect(providers.emails.slice(n0)).toHaveLength(sent.length);
