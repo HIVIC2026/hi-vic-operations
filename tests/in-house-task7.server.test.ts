@@ -35,7 +35,8 @@ for(const lodged of [false,true])test(`Lead Installer swap ${lodged?'after':'bef
  f.deps['./payments.server']={jobPaymentView:async()=>({steps:[]})};f.deps['./piisa-a3.server']={loadCrew:async()=>({selection:null})};
  f.deps['./payments.core']={isStepPaid:()=>true};
  f.deps['./worker-compliance.core']={crewClearance:()=>({cleared:true}),melbourneToday:()=> '2026-11-02',electricianVerified:()=>({ok:false})};
- f.deps['./visit-allocation.core']={allocationBlocker:()=>null};
+ f.deps['./visit-allocation.core']={allocationBlocker:()=>null,leadLockBlocker:()=>null};
+ f.deps['./install-booking.server']={currentLockableInstallBooking:async()=>f.rows.bookings[0]??null};
  f.rows.partner_workers=[{id:'new',business_id:'biz',trade_role:'installer',esc_registered:true,esc_registered_at:'2026-10-01',removed_at:null}];
  f.rows.esc_notifications=lodged?[{id:'notice',job_id:'j',sent_at:'2026-11-01T00:00:00Z',submission_reference:'VEU-1',response:null}]:[];
  f.deps['./esc.core']={isWithdrawn:()=>false};

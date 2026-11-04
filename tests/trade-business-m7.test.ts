@@ -89,7 +89,8 @@ describe("public liability expiry blocks offers and pre-start like the CII (H3)"
   test("blocker only once lapsed; no date on file is not a block", () => {
     expect(publicLiabilityBlocker("2026-10-23", TODAY)).toBe("Public liability insurance expired on 2026-10-23. Upload the renewed certificate under My business.");
     expect(publicLiabilityBlocker("2026-10-24", TODAY)).toBeNull();
-    expect(publicLiabilityBlocker(null, TODAY)).toBeNull();
+    // Part 9 Task 8 (Jo 2 Nov 2026): no date on file is a block too (insurance is a hard block until the office approves it).
+    expect(publicLiabilityBlocker(null, TODAY)).toBe("Public liability insurance not on file. Upload the certificate under My business.");
   });
   test("pre-start fails with the insurance line; older callers without the fact are unchanged", () => {
     const base: PrestartFacts = {
@@ -99,7 +100,7 @@ describe("public liability expiry blocks offers and pre-start like the CII (H3)"
       consentBlockers: [], piesaCompletedAt: "2026-10-20T00:00:00Z",
     };
     expect(prestartFailures(base)).toEqual([]);
-    expect(prestartFailures({ ...base, publicLiabilityBlocker: publicLiabilityBlocker("2026-10-01", TODAY) })).toEqual(["Installer business: Public liability insurance expired on 2026-10-01. Upload the renewed certificate under My business."]);
+    expect(prestartFailures({ ...base, businessDocsBlocker: publicLiabilityBlocker("2026-10-01", TODAY) })).toEqual(["Installer business: Public liability insurance expired on 2026-10-01. Upload the renewed certificate under My business."]);
   });
   test("Ready Check installer pick: lapsed documents make the business ineligible", () => {
     const facts = { business_id: "b", name: "Reinsulate", is_active: true, onboarding_status: "approved", accepting_new_jobs: true, receives_hivic_leads: true, coverage_verified: true, covers_postcode: true, exact_postcode: true, fullCertifiedInstallers: 1, freeMeasureUps: true, weekly_capacity: null, open_jobs: 0, recent_offers_30d: 0, acceptance_rate: null };

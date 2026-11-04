@@ -150,12 +150,16 @@ async function confirmOne(b: Booking, now: Date, approved: boolean): Promise<str
 // ── the 5pm lock on the writers ───────────────────────────────────────────────────────────────────────────────────
 /** The CURRENT confirmed install booking and Lead Installer, read fresh (never a page's copy). */
 export async function leadInstallerLockState(jobId: string, now = new Date()): Promise<{ locked: boolean; start: string | null; bookingId: string | null; leadId: string | null }> {
-  const { currentConfirmedInstallBooking } = await import("./install-booking.server");
-  const [b, { data: allocEv }, { data: crewEv }] = await Promise.all([
-    currentConfirmedInstallBooking(jobId).catch((e: Error) => { throw new WorkflowError(`Could not check the install booking: ${e.message}`); }),
+  // Part 9 Task 9: the lockable booking ignores a completed install and throws on a read error (fail closed); the event
+  // reads fail closed too — a lock state is never "unlocked" because something couldn't be read.
+  const { currentLockableInstallBooking } = await import("./install-booking.server");
+  const [b, { data: allocEv, error: ae }, { data: crewEv, error: ce }] = await Promise.all([
+    currentLockableInstallBooking(jobId).catch((e: Error) => { throw new WorkflowError(`Could not check the install booking: ${e.message}`); }),
     admin.from("workflow_events").select("details, created_at").eq("job_id", jobId).eq("event_type", "visit_allocated").order("created_at", { ascending: false }).limit(20),
     admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "piisa_crew_selected").order("created_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
+  if (ae) throw new WorkflowError(`Could not check the Lead Installer: ${ae.message}`);
+  if (ce) throw new WorkflowError(`Could not check the crew: ${ce.message}`);
   const { currentAllocation } = await import("./visit-allocation.core");
   const cur = currentAllocation(((allocEv ?? []) as { details: unknown; created_at: string }[]).map((e) => ({ event_type: "visit_allocated", details: e.details, created_at: e.created_at })), "install");
   const { leadWorkerId } = await import("./piisa-a3.core");

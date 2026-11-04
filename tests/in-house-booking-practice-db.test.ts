@@ -28,11 +28,17 @@ CREATE TYPE booking_status AS ENUM ('proposed','confirmed','completed','cancelle
 CREATE TABLE businesses(id uuid primary key, in_house boolean not null default false, pays_own_electricians boolean not null default false, rectification_billed_by text not null default 'hivic' CHECK(rectification_billed_by IN ('partner','hivic')), business_type text, onboarding_status text, is_active boolean, capabilities text[], name text, onboarding_notes text);
 CREATE TABLE business_members(id uuid primary key default gen_random_uuid(), business_id uuid references businesses(id), user_id uuid, active boolean not null default true, member_role text CHECK(member_role IN ('business_admin','member')));
 CREATE TABLE partner_workers(id uuid primary key default gen_random_uuid(),business_id uuid,profile_id uuid,full_legal_name text,email text,trade_role text,approval_status text,removed_at timestamptz,licence_number text,rec_number text,licence_expires_on text,licence_verified_at timestamptz);
-CREATE TABLE jobs(id uuid primary key, stage text, next_action text, source text, deleted_at timestamptz, signed boolean, fee_paid boolean, deposit_paid boolean, rectification_paid boolean, piesa_completed boolean, rectification_required boolean, part_c_signed boolean, install_deadline text);
+CREATE TABLE jobs(id uuid primary key, stage text, next_action text, source text, deleted_at timestamptz, signed boolean, fee_paid boolean, deposit_paid boolean, rectification_paid boolean, piesa_completed boolean, rectification_required boolean, part_c_signed boolean, install_deadline text, installation_completed_at timestamptz);
 CREATE TABLE job_assignments(id uuid primary key default gen_random_uuid(), job_id uuid references jobs(id), business_id uuid references businesses(id), user_id uuid, role text, active boolean not null default true, booking_confirmed_at timestamptz);
 CREATE TABLE bookings(id uuid primary key default gen_random_uuid(), job_id uuid not null references jobs(id), kind booking_kind not null, contractor_id uuid, assignment_id uuid references job_assignments(id), business_id uuid references businesses(id), scheduled_start timestamptz, scheduled_end timestamptz, booked_by uuid, notes text, status booking_status not null, created_at timestamptz not null default now());
 CREATE TABLE workflow_events(id uuid primary key default gen_random_uuid(), job_id uuid, actor_id uuid, event_type text not null, summary text, details jsonb, created_at timestamptz default now(), CONSTRAINT workflow_events_job_required CHECK(job_id IS NOT NULL OR event_type=ANY(ARRAY['email_unmatched','email_unmatched_dismissed','email_new_sender_replied','email_nojob_ai_draft','email_nojob_reply_sent','email_nojob_ai_draft_closed','email_nojob_followup_claim','email_nojob_followup_failed','email_nojob_ai_draft_failed'])));
 CREATE TABLE esc_notifications(id uuid primary key default gen_random_uuid(), job_id uuid references jobs(id), booking_id uuid references bookings(id), version integer, scheduled_start timestamptz, scheduled_end timestamptz, installation_days jsonb, premises_address text, owner_contact jsonb, consent_id uuid, consent_template_version text, consent_signed_at timestamptz, config_version text, payload_version text, payload_json jsonb, status text CHECK(status IN ('not_ready','configuration_required','ready','pending_submission','sent','accepted','error','stale','cancelled')), due_by timestamptz, earliest_send_at timestamptz, last_error text, updated_at timestamptz, created_at timestamptz default now(), sent_at timestamptz, submission_reference text, submission_method text, CHECK(status NOT IN ('sent','accepted') OR consent_id IS NOT NULL), CHECK(status NOT IN ('sent','accepted') OR (sent_at IS NOT NULL AND submission_reference IS NOT NULL AND submission_method IS NOT NULL)));
+`);
+// Part 9 Task 8 (Jo 2 Nov 2026): every booking kind runs the insurance hard block (business-docs.server, fail closed), so the
+// practice database carries the credential rows (with the pending amount column) and each run seeds a $10m verified policy + workers comp.
+await db.exec(`
+ALTER TABLE businesses ADD COLUMN workcover_exempt_declared_at timestamptz;
+CREATE TABLE business_credentials(id uuid primary key default gen_random_uuid(), business_id uuid references businesses(id), kind text not null, label text not null, expires_at date, verification text not null default 'pending', amount_insured_aud numeric);
 `);
 const rows = async <T,>(sql: string, args: unknown[] = []) => (await db.query<T>(sql, args)).rows;
 const job = async () => (await rows<any>("select * from jobs where id=$1", [JOB]))[0];
@@ -140,9 +146,10 @@ const book = async (kind = "installation", actor = MEMBER, start = START) => loa
 const patch = async (field: string, value: unknown) => db.query(`update jobs set "${field}"=$1 where id=$2`, [value,JOB]);
 beforeEach(async () => {
   failHeldRead = false; failBillingRead = false; rectificationGuardCalls = 0; formCalls = 0; formAudits = 0; failForm = false;
-  await db.exec("truncate partner_workers,esc_notifications,workflow_events,bookings,job_assignments,business_members,jobs,businesses cascade");
+  await db.exec("truncate partner_workers,esc_notifications,workflow_events,bookings,job_assignments,business_members,jobs,business_credentials,businesses cascade");
   await db.query("insert into businesses(id,in_house,rectification_billed_by,business_type,onboarding_status,is_active,capabilities) values($1,true,'partner','eec_installer','approved',true,ARRAY['installer','electrician']),($2,false,'hivic','eec_installer','approved',true,ARRAY['installer'])", [BIZ,OTHER]);
   await db.query("insert into business_members(business_id,user_id,member_role) values($1,$2,'member'),($3,$4,'business_admin')", [BIZ,MEMBER,OTHER,OUTSIDER]);
+  await db.query("insert into business_credentials(business_id,kind,label,expires_at,verification,amount_insured_aud) values($1,'public_liability_insurance','Public liability','2099-01-01','verified',10000000),($1,'workers_comp_insurance','Workers comp','2099-01-01','verified',null)", [BIZ]);
   await db.query("insert into jobs(id,stage,source,deleted_at,signed,fee_paid,deposit_paid,rectification_paid,piesa_completed,rectification_required,part_c_signed,install_deadline) values($1,'installation_scheduling','base44',null,true,true,true,false,true,false,true,$2)",[JOB,DEADLINE]);
   for (const role of ["installer","electrician"]) await db.query("insert into job_assignments(job_id,business_id,user_id,role) values($1,$2,$3,$4)",[JOB,BIZ,MEMBER,role]);
   await db.query("INSERT INTO partner_workers(business_id,profile_id,full_legal_name,email,trade_role,approval_status,licence_number,rec_number,licence_expires_on,licence_verified_at) VALUES ($1,$2,'TEST electrician','e@example.invalid','electrician','approved','A123','REC456','2099-01-01',now())",[BIZ,MEMBER]);
@@ -281,7 +288,7 @@ test("in-house Ready Check schedules its form once; repeated callback retains on
   if (retry.ok) expect(await rows("select id from bookings where kind='ready_check'")).toHaveLength(1);
   await patch("stage", "installation_scheduling"); await book("installation");
   expect(formCalls).toBe(0); // forms run through recorded work, not in the booking response
-});
+}, 30000); // three real bookings through every gate (J3+J4 review nit 6)
 test("Ready Check Mitti failure keeps the confirmed booking and logs without undo", async () => {
   await patch("stage", "ready_check_ready_to_schedule"); failForm = true;
   const original = console.error; const errors: unknown[] = []; console.error = (...args) => errors.push(args);

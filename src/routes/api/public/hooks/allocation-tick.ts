@@ -426,6 +426,15 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['leadInstallerConfirm'] = "failed";
         }
         try {
+          // Part 9 Task 8 (Jo 2 Nov): insurance / licence expiry reminders 30 and 7 days before, business email + info@ copy;
+          // DRAFT wording → real businesses held until INSURANCE_REMINDER_APPROVED, TEST partners → test-send.
+          const { sweepInsuranceReminders } = await import("@/lib/insurance-reminder.server");
+          (out as Record<string, unknown>)['insuranceReminders'] = await timed("sweepInsuranceReminders", () => sweepInsuranceReminders());
+        } catch (e) {
+          console.error("allocation tick: insurance reminder sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['insuranceReminders'] = "failed";
+        }
+        try {
           (out as Record<string,unknown>)['inHouseBookedNotices']=await timed('sweepOwnerBookedNotices',async()=> (await import('@/lib/in-house-booking.server')).sweepOwnerBookedNotices());
         }catch(e){console.error('allocation tick: booked notices failed',(e as Error).message);(out as Record<string,unknown>)['inHouseBookedNotices']='failed';}
         try {

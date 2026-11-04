@@ -16,7 +16,8 @@ const WED_0859 = "2026-11-10T21:59:00Z", WED_0900 = "2026-11-10T22:00:00Z", WED_
 
 describe("Part 9's clock (prestart.core): 9am email, 5pm lock, two days before", () => {
   test("instants and label", () => {
-    expect(leadInstallerLock(START)).toEqual({ emailAt: "2026-11-10T22:00:00.000Z", lockAt: "2026-11-11T06:00:00.000Z", lockLabel: "5pm Wed 11 Nov" });
+    // Part 9 Task 9 (owner of the rule): lockLabel is the approved Part 5 screen format "Wed 11 Nov, 5pm".
+    expect(leadInstallerLock(START)).toEqual({ emailAt: "2026-11-10T22:00:00.000Z", lockAt: "2026-11-11T06:00:00.000Z", lockLabel: "Wed 11 Nov, 5pm" });
     expect(leadInstallerLocked(START, at(WED_1659))).toBe(false);
     expect(leadInstallerLocked(START, at(WED_1700))).toBe(true);
     expect(LEAD_LOCKED_MESSAGE).toBe("Locked: ESC has been told. Email us to move this install.");

@@ -10,7 +10,7 @@
 //   worker_certification_levels.expires_on — each installer's verified CII (blocking already in crewClearance).
 // Not stored: a White Card has no expiry date (Victorian construction induction cards don't expire; the record keeps
 // only number/upload/verification) — reported, never invented.
-import { latestExpiry, type CredentialView } from "./trade-view.core";
+import { isCredentialKind, latestExpiry, type CredentialView } from "./trade-view.core";
 
 export const TRADE_EXPIRY_WARN_DAYS = 30;
 
@@ -109,4 +109,62 @@ export function latestCiiExpiryByWorker(
     if (l?.expires_on) out.set(w.id, l.expires_on.slice(0, 10));
   }
   return out;
+}
+
+// ── Part 9 Task 8 (Jo 2 Nov 2026): insurance is a HARD block until the office approves it ────────────────────────────
+// Public liability and workers compensation must be on file, office-VERIFIED, unexpired, and public liability must cover
+// $5m or more (the office types the amount when approving). An upload alone never lifts a block; a missing date or
+// amount on a verified row blocks ("not recorded"), never "assumed fine". Installer certification and REC registration
+// keep the expiry-only rule above (expiredBusinessDocsBlocker). PURE.
+export const PUBLIC_LIABILITY_MIN_AUD = 5_000_000;
+/** Installer-facing refusal lines (one per problem; the blocker joins them). Listed for Jo in JO-APPROVAL-LIST.md. */
+export const BUSINESS_DOCS_WORDS = {
+  notOnFile: (doc: string) => `${doc} not on file. Upload it under My business.`,
+  waitingCheck: (doc: string) => `${doc}: uploaded, waiting for Home Insulation Victoria to check it.`,
+  expired: (doc: string, ymd: string) => `${doc} expired on ${ymd}. Upload the renewed certificate under My business.`,
+  expiredWaiting: (doc: string, ymd: string) => `${doc} expired on ${ymd}. The new one is uploaded, waiting for Home Insulation Victoria to check it.`,
+  noExpiry: (doc: string) => `${doc}: expiry date not recorded. Ask Home Insulation Victoria to check it.`,
+  amountMissing: (doc: string) => `${doc}: amount insured not recorded. Ask Home Insulation Victoria to check it.`,
+  amountLow: (doc: string, aud: number) => `${doc} covers $${aud.toLocaleString("en-AU")}; $${PUBLIC_LIABILITY_MIN_AUD.toLocaleString("en-AU")} or more is needed.`,
+} as const;
+const INSURANCE_DOCS = ["public_liability_insurance", "workers_comp_insurance"] as const;
+
+/** The verified row with the latest expiry for one kind (the one whose amount counts), or null. */
+export function latestVerifiedCredential(creds: CredentialView[], kind: string): CredentialView | null {
+  return creds.filter((c) => isCredentialKind(c, kind) && c.verified && !!c.expires).sort((a, b) => a.expires!.slice(0, 10).localeCompare(b.expires!.slice(0, 10))).at(-1) ?? null;
+}
+
+/** Every problem with one insurance document (empty = fine). */
+export function insuranceDocProblems(creds: CredentialView[], kind: (typeof INSURANCE_DOCS)[number], today: string): string[] {
+  const doc = TRADE_DOC_LABEL[kind]!;
+  const rows = creds.filter((c) => isCredentialKind(c, kind));
+  if (!rows.length) return [BUSINESS_DOCS_WORDS.notOnFile(doc)];
+  const verifiedRows = rows.filter((c) => c.verified);
+  const pendingNewer = rows.some((c) => !c.verified && c.pending !== false);
+  if (!verifiedRows.length) return [pendingNewer ? BUSINESS_DOCS_WORDS.waitingCheck(doc) : BUSINESS_DOCS_WORDS.notOnFile(doc)];
+  const exp = latestExpiry(verifiedRows, kind, { verifiedOnly: true });
+  if (!exp) return [BUSINESS_DOCS_WORDS.noExpiry(doc)];
+  const out: string[] = [];
+  if (exp < today) out.push(pendingNewer ? BUSINESS_DOCS_WORDS.expiredWaiting(doc, exp) : BUSINESS_DOCS_WORDS.expired(doc, exp));
+  if (kind === "public_liability_insurance") {
+    const row = latestVerifiedCredential(verifiedRows, kind);
+    const amount = row?.amountInsured;
+    if (amount == null || !Number.isFinite(amount)) out.push(BUSINESS_DOCS_WORDS.amountMissing(doc));
+    else if (amount < PUBLIC_LIABILITY_MIN_AUD) out.push(BUSINESS_DOCS_WORDS.amountLow(doc, amount));
+  }
+  return out;
+}
+
+/**
+ * Why this business can't take new jobs, bookings or installs because of its insurance (null = fine). Blocks when public
+ * liability or workers compensation is not on file, not yet verified, expired on the latest VERIFIED row (a newer upload
+ * waiting to be checked is said so), has no expiry date recorded, or (public liability) has no amount / under $5m.
+ * `workersCompExempt`: the business declared it employs nobody (businesses.workcover_exempt_declared_at) — workers comp not needed.
+ */
+export function businessDocsBlocker(creds: CredentialView[], today: string, opts: { workersCompExempt?: boolean } = {}): string | null {
+  const problems = [
+    ...insuranceDocProblems(creds, "public_liability_insurance", today),
+    ...(opts.workersCompExempt ? [] : insuranceDocProblems(creds, "workers_comp_insurance", today)),
+  ];
+  return problems.length ? problems.join(" ") : null;
 }

@@ -144,10 +144,15 @@ export const addCredential = createServerFn({ method: "POST" }).middleware([requ
   });
 
 export const verifyCredential = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ id: uuid, verification: z.enum(["verified", "rejected", "pending"]) }).parse(d))
+  // Part 9 Task 8 (Jo 2 Nov 2026): the office types the amount insured (AUD) when it approves a public liability certificate;
+  // $5m or more is needed (businessDocsBlocker). Pending column `amount_insured_aud` — a missing column refuses the amount.
+  .inputValidator((d) => z.object({ id: uuid, verification: z.enum(["verified", "rejected", "pending"]), amountInsuredAud: z.number().finite().nonnegative().max(1_000_000_000).nullable().optional() }).parse(d))
   .handler(async ({ data, context }) => {
     await requireAdmin(context.supabase);
-    await admin.from("business_credentials").update({ verification: data.verification, verified_by: context.userId, verified_at: new Date().toISOString() }).eq("id", data.id);
+    const patch: Record<string, unknown> = { verification: data.verification, verified_by: context.userId, verified_at: new Date().toISOString() };
+    if (data.amountInsuredAud !== undefined) patch["amount_insured_aud"] = data.amountInsuredAud;
+    const { error } = await admin.from("business_credentials").update(patch as never).eq("id", data.id);
+    if (error) throw new WorkflowError(data.amountInsuredAud !== undefined && /amount_insured_aud/i.test(error.message) ? "The amount insured can't be saved yet (database change pending). Ask Home Insulation Victoria to apply it." : error.message);
     return { ok: true };
   });
 

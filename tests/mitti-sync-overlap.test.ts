@@ -25,6 +25,9 @@ CREATE TABLE business_members (id uuid primary key default gen_random_uuid(), bu
 CREATE TABLE businesses (id uuid primary key, name text, trading_name text, abn text, branding jsonb, business_type text, capabilities text[], base_suburb text, coverage_radius_km int, covers_all_victoria boolean,
   accepting_new_jobs boolean, onboarding_notes text, mitti_account_invited boolean, onboarding_status text, is_active boolean, approved_at timestamptz, signer_mobile text, phone text, in_house boolean not null default false, pays_own_electricians boolean not null default false);
 CREATE TABLE user_roles (user_id uuid, role text, unique (user_id, role));
+-- Part 9 Task 8 (Jo 2 Nov 2026): Add a job runs the insurance hard block (business-docs.server, fail closed); the practice database carries the rows.
+ALTER TABLE businesses ADD COLUMN workcover_exempt_declared_at timestamptz;
+CREATE TABLE business_credentials (id uuid primary key default gen_random_uuid(), business_id uuid, kind text not null, label text not null, expires_at date, verification text not null default 'pending', amount_insured_aud numeric);
 CREATE TABLE profiles (id uuid primary key, full_name text, email text, phone text, business_id uuid);
 CREATE TABLE workflow_settings (id int primary key, mitti_ready_check_template_id text, mitti_ready_check_priced_template_id text, mitti_piesa_template_id text, mitti_piisa_template_id text, auto_send_mitti boolean,
   customer_comms_enabled boolean, auto_send_quote boolean, installer_quote_min_inc_gst_per_m2 numeric, installer_quote_max_inc_gst_per_m2 numeric, mitti_auto_quote_enabled boolean, safety_check_payment_inc_gst numeric);
@@ -65,6 +68,7 @@ INSERT INTO rate_cards (id, business_id, kind) VALUES ('60000000-0000-4000-8000-
 INSERT INTO rate_card_items (rate_card_id, code, unit_price_ex_gst, unit) VALUES ('60000000-0000-4000-8000-00000000ca7d','PIESA',317.27,'flat');
 INSERT INTO businesses VALUES ('${BIZ}','TEST Reinsulate','TEST Reinsulate','11 222 333 444','{}','eec_installer','{installer}','Frankston',50,false,true,'[TEST PARTNER] practice',true,'approved',true,now(),'0477 511 901',null);
 INSERT INTO business_members (business_id, user_id, member_role) VALUES ('${BIZ}','${INST}','business_admin');
+INSERT INTO business_credentials (business_id, kind, label, expires_at, verification, amount_insured_aud) VALUES ('${BIZ}','public_liability_insurance','Public liability','2099-01-01','verified',10000000), ('${BIZ}','workers_comp_insurance','Workers comp','2099-01-01','verified',null);
 INSERT INTO user_roles VALUES ('${INST}','installer');
 INSERT INTO profiles VALUES ('${INST}','Deep Installer','deep@hivic-test.example','0400000001','${BIZ}');
 INSERT INTO workflow_settings VALUES (1, null, '${TPL}', 'template_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'template_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', true, true, false, null, null, false, 349);

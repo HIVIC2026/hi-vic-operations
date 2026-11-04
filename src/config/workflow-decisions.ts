@@ -258,7 +258,7 @@ export const WORKFLOW_DECISIONS = {
       email: "ONE office email at 9am Melbourne two days before the install (at once if booked after 9am that day, until 5pm): Confirm or change your Lead Installer by 5pm today (+ pick the crew)",
       to: "the installer business office email, every installer (not only in-house), one per job + install date (lead-confirm:v1:{job}:{Melbourne date})",
       wording: "DRAFT behind LEAD_INSTALLER_CONFIRM_EMAIL_APPROVED=false — real offices held and recorded once (lead_installer_confirm_held), TEST → test-send",
-      lock: "from 5pm that day: Lead Installer and install day locked (leadInstallerLocked); LEAD_LOCKED_MESSAGE = Locked: ESC has been told. Email us to move this install.",
+      lock: "from 5pm that day: Lead Installer and install day locked (leadInstallerLocked); LEAD_LOCKED_MESSAGE = Locked: ESC has been told. Email us to move this install. Part 9 Task 9 owns the rule (lead-installer-lock.core, re-exported by prestart.core; lockLabel 'Wed 11 Nov, 5pm'): a completed install is never locked, every reader (assertLeadInstallerUnlocked, refuseLockedLeadChange, recordLeadChange, validateBooking install move) reads currentLockableInstallBooking and fails CLOSED on a read error",
       writers: ["saveCrewWithLead (different Lead refused; crew-only allowed)", "changeInHouseLeadInstaller", "inHouseBookVisit (moved start or other Lead on an existing install booking)", "allocateVisit kind install (fix I2)"],
       claim: "fix I1: the lead_installer_confirm_email claim is written only after the sender reports sent; comms off / trade pause / blocked / failed = lead_installer_confirm_held once, key unclaimed, retried next tick",
       replaces: "the 2pm day-before crew reminder (#110)",
@@ -365,3 +365,23 @@ export type HardStopCode = (typeof WORKFLOW_DECISIONS.hardStops)[number];
 export function depositPctFor(_totalIncGst: number): number {
   return WORKFLOW_DECISIONS.payment.deposit.installPct;
 }
+
+/** New job flow Part 9 Task 8 (Jo 2 Nov 2026): insurance and licence are a HARD block until the office approves. */
+export const INSURANCE_GATE_DECISIONS = {
+  rule: "businessDocsBlocker (trade-expiry.core): public liability AND workers comp must be on file, office-VERIFIED, unexpired; public liability $5m+ (amount typed by the office when approving, pending column business_credentials.amount_insured_aud); a newer upload waiting to be checked never lifts the block; a verified row with no expiry date or no amount blocks ('not recorded')",
+  workersComp: "not needed only when the business declared it employs nobody (businesses.workcover_exempt_declared_at)",
+  where: ["validateBooking — every booking kind (booking.server bookingComplianceGate)", "Add a job (onsite-ready-check.server, before any write)", "the Ready Check installer pick (readycheck-booking.server)", "pre-start facts (prestart.server businessDocsBlocker → prestartFailures 'Installer business: …')"],
+  electrician: "validateBooking('assessment') also checks the booked electrician's licence + REC + expiry + office verification (electricianVerified) on every job, not only the in-house path; a business with no verified electrician can't book the safety check",
+  failClosed: "a read error blocks (business-docs.server throws; prestart records the error line); the pending amount column missing = amount not recorded = blocked",
+  reminders: "30 and 7 days before a document on file lapses (dueInsuranceReminder), once each, to the business's main email + a copy to info@homeinsulationvictoria.com.au (two sends, one key each, keys insurance-reminder:v1:…); electricians' licence reminders go the same way; DRAFT wording behind INSURANCE_REMINDER_APPROVED=false (real businesses held and recorded once, TEST partners → test-send)",
+  unchanged: "installer certification, REC registration and the electrical licence business document keep the expiry-only rule (expiredBusinessDocsBlocker); REC allocation unchanged",
+} as const;
+
+/** New job flow Part 9 Task 9 (Jo 2 Nov 2026): required on file before working + the Lead Installer lock. */
+export const REQUIRED_ON_FILE_DECISIONS = {
+  rule: "requiredOnFileBlockers (worker-compliance.core): every person on a booking has a date of birth (kept privately, partner_worker_identity) and a mobile; the Lead Installer and crew an office-verified current CII/EEC (crewClearance); the electrician a verified licence + REC (electricianVerified); boss/office people need no certificate",
+  where: "validateBooking on every kind (people-on-file.server: the proposed or allocated electrician, the Ready Check's allocated person, the install's current Lead + saved crew; nobody allocated yet = nothing to check here) and offers; a read error refuses (fail closed)",
+  wording: "Not on file yet: {name}: date of birth missing; {name}: mobile missing; {name}: CII/EEC certificate not verified by Home Insulation Victoria; {name}: electrical licence + REC not verified by Home Insulation Victoria.",
+  lock: "leadInstallerLock(startIso) → 9:00 email / 17:00 lock Melbourne wall-clock two calendar days before the install's Melbourne date (DST-safe), lockLabel 'Wed 11 Nov, 5pm'; leadInstallerLocked(startIso, now, { installCompleted }) false once the install is recorded complete; LEAD_LOCKED_MESSAGE approved; Parts 5 and 7 import, never re-implement",
+} as const;
+

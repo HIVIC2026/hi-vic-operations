@@ -103,7 +103,7 @@ describe("Mitti hand-over helper (source checks: existing form only, same share 
 // ---- allocateVisit against real rows (PGlite), Mitti + trade context mocked ----
 const db = new PGlite();
 await db.exec(`
-CREATE TABLE jobs (id uuid primary key, job_number text, stage text, source text);
+CREATE TABLE jobs (id uuid primary key, job_number text, stage text, source text, installation_completed_at timestamptz);
 CREATE TABLE partner_workers (id uuid primary key, business_id uuid, full_legal_name text, trade_role text, email text, mobile text, removed_at timestamptz, worker_role text);
 CREATE TABLE businesses (id uuid primary key, email text);
 CREATE TABLE workflow_events (id uuid primary key default gen_random_uuid(), job_id uuid, actor_id uuid, event_type text, summary text, details jsonb, internal boolean default false, created_at timestamptz default clock_timestamp());

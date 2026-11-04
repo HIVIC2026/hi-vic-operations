@@ -1,8 +1,7 @@
 // The installer Job page "Next step" box: one thing to do, or one thing being waited on. Pure.
 // Rules run from the end of the job back to the start; the first match wins.
 import { bookBy, fmtDay, overdue } from "./next-step-dates.core";
-import { addYmd, melbourneToday } from "./melbourne-time.core";
-import { melbourneMidnight } from "./daily-brief.core";
+import { melbourneToday } from "./melbourne-time.core";
 import { melbourneYmd } from "./piesa-windows.core";
 import type { AccessPerson } from "./rental-answers.core";
 import { QUOTE_PRICE_NEXT_LINE } from "./installer-quote-status.core";
@@ -80,16 +79,8 @@ export const NEXT_STEP_WORDS = {
 } as const;
 const W = NEXT_STEP_WORDS;
 
-// ---- Lead Installer lock ------------------------------------------------------------------------------------------
-// TODO(join): Part 9 Task 9 owns this rule (leadInstallerLock / leadInstallerLocked / LEAD_LOCKED_MESSAGE in prestart.core.ts)
-// and is not in this branch's base. This is the same rule from the plan (5pm Melbourne, two calendar days before the install
-// day); at join, delete this block and import Part 9's names so the clock lives in one place.
-const lockLabelOf = (lockAtMs: number): string => `${fmtDay(melbourneYmd(new Date(lockAtMs)))}, ${fmtHour(new Date(lockAtMs))}`;
-function leadInstallerLockAt(startIso: string): number {
-  const day = melbourneYmd(new Date(startIso));
-  return melbourneMidnight(addYmd(day, -1)) - 7 * 3600_000; // 17:00 on day-2 (DST-safe: transitions fall at 2-3am)
-}
-const leadInstallerLocked = (startIso: string, now: Date): boolean => now.getTime() >= leadInstallerLockAt(startIso);
+// ---- Lead Installer lock: the ONE rule lives in prestart.core (Part 9 Task 9); this screen only shows it ----------
+import { leadInstallerLock, leadInstallerLocked } from "./lead-installer-lock.core";
 
 // ---- Formatting (Melbourne) -----------------------------------------------------------------------------------------
 const fmtDayMonth = (ymd: string): string => fmtDay(ymd).split(" ").slice(1).join(" ");
@@ -146,7 +137,7 @@ export function nextStepBox(f: NextStepFacts): NextStepBox {
     if (leadInstallerLocked(f.install.start, f.now)) {
       return box("install_locked", W.installLockedTitle, { sub: when, lines: [...swms, W.lockedLine] });
     }
-    return box("install_booked", W.installBookedTitle, { sub: when, lines: [...swms, W.locksLine(lockLabelOf(leadInstallerLockAt(f.install.start)))] });
+    return box("install_booked", W.installBookedTitle, { sub: when, lines: [...swms, W.locksLine(leadInstallerLock(f.install.start).lockLabel)] });
   }
 
   const piesaCleared = f.piesa.outcome === "pass" || (f.piesa.outcome === "upgrades" && f.piesa.certificateIn);

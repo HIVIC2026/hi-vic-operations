@@ -151,6 +151,11 @@ export async function recordLeadChange(jobId:string,actorId:string,oldWorkerId:s
   if(!oldWorkerId||oldWorkerId===newWorkerId)return;
   const team=await bookingTeam(jobId,actorId);const w=team.workers.find(w=>w.id===newWorkerId);if(!w)throw Error('Not your Team member.');
   const book=await read<{id:string;scheduled_start:string}|null>(db.from('bookings').select('id,scheduled_start').eq('job_id',jobId).eq('kind','installation').eq('status','confirmed').order('created_at',{ascending:false}).limit(1).maybeSingle());if(!book)return;
+  // Part 9 Task 9: from 5pm two days before the install the Lead Installer is locked (LEAD_LOCKED_MESSAGE); the lockable
+  // booking ignores a completed install and throws on a read error (fail closed). Rule: prestart.core via leadLockBlocker.
+  {const lockBook=await (await import('./install-booking.server')).currentLockableInstallBooking(jobId);
+   const lock=lockBook?(await import('./visit-allocation.core')).leadLockBlocker({startIso:lockBook.scheduled_start,now,currentLeadId:oldWorkerId,newLeadId:newWorkerId}):null;
+   if(lock)throw Error(lock);}
   const notices=await read<{id:string;sent_at:string|null;submission_reference:string|null;response:unknown}[]>(db.from('esc_notifications').select('id,sent_at,submission_reference,response').eq('job_id',jobId).not('sent_at','is',null).order('created_at',{ascending:false}));
   const {isWithdrawn}=await import('./esc.core');
   const sent=notices.find(n=>n.sent_at&&n.submission_reference&&!isWithdrawn(n));
