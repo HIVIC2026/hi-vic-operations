@@ -54,6 +54,7 @@ export type NeedsFacts = {
   paidGate?: PaidGateWarning | null;
   depositRequestFailed?:{at:string;reason:string}|null;
   inHouseFormSyncFailed?:{at:string;reason:string}|null;
+  installScopeChange?:{at:string;areas:string[]}|null;
   inHouse?: { partnerName: string; batchSentAt: string | null; readyCheckBooked: boolean;
     quoteAcceptedAt: string | null; piesaCompleted: boolean; installationBooked: boolean;
     daysRemaining: number | null; deadline: string | null;
@@ -236,6 +237,7 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   if (f.mittiElectricianHeld) add({ rank: 20, group: "today", kind: "mitti_electrician_choice", line: "Installer to choose electrician", since: f.mittiElectricianHeld.at, button: { label: "Open job", to: "job", section: "piesa" } });
   if (f.addressToConfirm) add({ rank: 40, group: "today", kind: "address_to_confirm", line: `Address to confirm${f.addressToConfirm.candidates[0] ? ` · ${f.addressToConfirm.candidates[0]}` : ""}`, since: f.addressToConfirm.at, button: { label: "Open job", to: "job", section: "contact" } });
   const paidLine = paidGateWarningLine(f.paidGate);
+  if(f.installScopeChange)add({rank:18,group:'today',kind:'install_scope_change',line:`Install scope changed: ${f.installScopeChange.areas.join(', ')} – review before proceeding; quote unchanged`,since:f.installScopeChange.at,button:{label:'Open job',to:'job',section:'install'}});
   if (paidLine && f.paidGate) add({ rank: 19, group: "today", kind: "paid_gate_blocked", line: paidLine, since: f.paidGate.at, button: { label: "Open job", to: "job", section: "piesa" } });
   const ih = !f.isTest && f.source !== "qa_test" && !f.deletedAt ? f.inHouse : null;
   if (ih) {
