@@ -3,6 +3,7 @@
 // Pre-release owners get these too, so nothing here may give a date, timeframe or speed (aiPreReleaseViolations).
 
 import { OWNER_HIGHER_R_INC_PER_M2 } from "./hiv-quote.core";
+import { PHOTO_QUOTE_WORDS } from "./photo-quote.core";
 
 export type AiAnswer = { topic: string; answer: string };
 
@@ -56,4 +57,12 @@ export function rulesFromAnswers(rows: AiAnswer[] | null): string[] {
   // Q21 supersedes saved old balance answers without rewriting their audit history.
   const own = (rows ?? []).map((r) => r.answer.trim().replace(OLD_BALANCE_7_DAYS,'on install day').replace(/(?:The )?balance is (?:paid )?by bank transfer or PayID\.?/gi,'The balance is due on install day and can be paid by card, bank transfer or PayID.')).filter(Boolean);
   return own.length ? own : AI_SEED_ANSWERS.map((r) => r.answer.trim());
+}
+
+/** Photo-quote installers (Jo 5 Nov 2026, spec touchpoint 54): once the job is with a From photos installer there is no
+ *  Ready Check visit, so every answer that talks about the Ready Check is replaced by ONE line about the photo quote.
+ *  `rows` null/empty = the seed (as rulesFromAnswers). */
+export function answersForPhotoJob(rows: AiAnswer[] | null, installer: string): AiAnswer[] {
+  const base = rows?.length ? rows : AI_SEED_ANSWERS;
+  return [...base.filter((r) => !/ready check/i.test(`${r.topic} ${r.answer}`)), { topic: "No Ready Check visit", answer: PHOTO_QUOTE_WORDS.aiReply(installer) }];
 }

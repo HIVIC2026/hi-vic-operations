@@ -21,6 +21,7 @@
 //   to" / My job home buttons: only the one relevant page (quote, pay) or no button.
 // Wording (O76a–O76j in docs/templates/drafts/) approved by Jo 27 Oct 2026 (decision 406): OWNER_EMAIL_AUTO_REPLY_APPROVED = true;
 // real sends still need the customer messages switch + consent; TEST jobs → test-send.
+import { PHOTO_QUOTE_WORDS } from "./photo-quote.core";
 import * as K from "./email-kit.core";
 import { mjEmail, esc } from "./mail-mjml.core";
 import { classifyEmailIntents, type EmailIntent } from "./email-intent.core";
@@ -113,7 +114,9 @@ export type AutoReplyDecision =
 
 /** `installer`: the installer's business name + OFFICE phone (`businesses.phone`, never a worker's mobile), for the
  *  answers where the installer calls to book (`answerNeedsInstaller`). */
-export type AnswerFacts = { firstName: string | null; link: string; visit?: { kind: VisitKind; slot: Slot } | null; installer?: { name: string; officePhone: string } | null };
+export type AnswerFacts = { firstName: string | null; link: string; visit?: { kind: VisitKind; slot: Slot } | null; installer?: { name: string; officePhone: string } | null;
+  /** Photo-quote installers (Jo 5 Nov 2026): the job is with a From photos installer — no Ready Check visit to book. */
+  photoQuote?: { installer: string } | null };
 
 // ---------------------------------------------------------------- topic detection (latest reply text only)
 
@@ -293,7 +296,8 @@ export function payScreenLink(myJobLink: string): string {
 export type AnswerDesign = { heading: string; body: string[]; bold: string | null; button: string | null; href: string; preview: string | null };
 
 /** The answers where the installer calls to book: pick a time, and "quote after the Ready Check" with no booked time. */
-export function answerNeedsInstaller(answer: AnswerType, f: { visit?: AnswerFacts["visit"] }): boolean {
+export function answerNeedsInstaller(answer: AnswerType, f: { visit?: AnswerFacts["visit"]; photoQuote?: AnswerFacts["photoQuote"] }): boolean {
+  if (f.photoQuote) return false;
   return answer === "pick_times" || (answer === "quote_after_ready_check" && !f.visit);
 }
 
@@ -311,6 +315,11 @@ export function answerDesign(answer: AnswerType, f: AnswerFacts): AnswerDesign {
   // Decisions 54–58 item 1 (decision 19 wording, which opens the decision-388 ban for this one sentence).
   const waitingNext = `${LONG_LIST} ${SPOT_INSTALLER_CALLS}`;
   const d = (heading: string, body: string[], button: string | null, preview: string | null, href = f.link, bold: string | null = null): AnswerDesign => ({ heading, body, bold, button, href, preview });
+  // Spec touchpoint 54: on a From photos job the Ready Check answers say the installer is quoting from the photos.
+  if (f.photoQuote && (answer === "pick_times" || answer === "quote_after_ready_check" || answer === "quote_preparing")) {
+    const line = PHOTO_QUOTE_WORDS.aiReply(f.photoQuote.installer);
+    return d("Your quote is being prepared", [line], null, line);
+  }
   switch (answer) {
     case "save_spot":
       return d("It only takes a few seconds", ["Answer three quick questions about your ceiling (just tap, no typing), then press Save my spot.", `${LONG_LIST} No payment, no obligation.`], "Answer & save my spot", "Three quick taps, then one button. No payment needed.");

@@ -29,7 +29,7 @@ import {
 } from "./owner-email-auto-reply.core";
 import type { BusinessContact } from "./owner-wording.core";
 
-export type AutoReplyDeps = { businessContact?: (jobId: string, role: "installer" | "electrician") => Promise<BusinessContact | null> };
+export type AutoReplyDeps = { businessContact?: (jobId: string, role: "installer" | "electrician") => Promise<BusinessContact | null>; photoQuoteInstaller?: (jobId: string) => Promise<string | null> };
 
 const loose = admin as unknown as SupabaseClient;
 const lower = (s: string | null | undefined) => (s ?? "").trim().toLowerCase();
@@ -152,6 +152,10 @@ export async function autoReplyToOwner(p: { jobIds: string[]; message: MailMessa
     const code = ANSWER_CODES[decision.answer].code;
     // Decisions 54–58: the installer's business office phone, read before the claim. Missing → held, never a blank or a mobile.
     let facts: AnswerFacts = decision.facts;
+    // Photo-quote installers (Jo 5 Nov 2026): a From photos job never gets "will call you to book"; a failed read holds the reply.
+    const photoInstaller = await (p.deps?.photoQuoteInstaller ?? (async (id: string) => (await import("./photo-quote.server")).photoQuoteInstallerFor(id)))(jobId).catch(() => undefined);
+    if (photoInstaller === undefined) return draft("held", "couldn't check how this job is quoted");
+    if (photoInstaller) facts = { ...facts, photoQuote: { installer: photoInstaller } };
     if (answerNeedsInstaller(decision.answer, facts)) {
       const contactFor = p.deps?.businessContact ?? (await import("./owner-contact.server")).businessContactForJob;
       const c = await contactFor(jobId, "installer");

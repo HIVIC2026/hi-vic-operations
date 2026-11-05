@@ -128,6 +128,7 @@ export async function resolveOwnerJob(token: unknown) {
   // Quote page (#29/#33): the "What's changed" rows and the 30-day valid line. Best-effort presentation: a failed read shows
   // neither (never a wrong date or number); 14-day quotes keep "price held until" and have no valid line.
   let quoteChanges: { label: string; estimate: string; quote: string }[] = [];
+  let quoteChangesFootnote: string | null = null;
   let quoteValid: { line: string; until: string } | null = null;
   if (quote && quoteOpen) {
     try {
@@ -135,6 +136,7 @@ export async function resolveOwnerJob(token: unknown) {
       const { quoteValidLine } = await import("./quote-expiry.core");
       const facts = await loadOwnerQuoteFacts(jobId, quote.id, owner?.full_name ?? null, null);
       quoteChanges = facts.input?.changes ?? [];
+      quoteChangesFootnote = facts.input?.changesFootnote ?? null;
       if (facts.input?.validDays === 30 && facts.input.validUntil) quoteValid = { line: quoteValidLine(facts.input.validUntil), until: facts.input.validUntil.toISOString() };
     } catch (e) { console.error("owner quote page: changes/valid line unavailable", (e as Error).message); }
   }
@@ -243,7 +245,7 @@ export async function resolveOwnerJob(token: unknown) {
     cobrand: ownView.cobrand,
     quote: quote ? { id: quote.id, status: quote.status, accepted_at: quote.accepted_at, label: quote.option_label, total, rebate: n(quote.veec_discount_inc_gst), version: quote.version,
       // Part 10 Task 6: an own customer's approved rows (Insulation · extras · fee · PIESA · Rebate · Your price); null = the generic rows below.
-      ownRows: ownView.rows, heldUntil: quoteValid?.until ?? quoteOpen?.expiresAt ?? null, validLine: quoteValid?.line ?? null, changes: quoteChanges, lines: [...(quote.quote_items ?? [])].sort((a, b) => a.sort - b.sort).map((i) => ({ description: currentFeeWording(i.description), amount: n(i.line_total_inc_gst) })), split: total != null ? splitForOption(total, safetyCheckIncGstFor({ lines: quote.quote_items ?? [], settingIncGst: ws?.safety_check_payment_inc_gst ?? null })) : null } : null,
+      ownRows: ownView.rows, heldUntil: quoteValid?.until ?? quoteOpen?.expiresAt ?? null, validLine: quoteValid?.line ?? null, changes: quoteChanges, changesFootnote: quoteChangesFootnote, lines: [...(quote.quote_items ?? [])].sort((a, b) => a.sort - b.sort).map((i) => ({ description: currentFeeWording(i.description), amount: n(i.line_total_inc_gst) })), split: total != null ? splitForOption(total, safetyCheckIncGstFor({ lines: quote.quote_items ?? [], settingIncGst: ws?.safety_check_payment_inc_gst ?? null })) : null } : null,
     payment,
     // Part 4 Task 14: the separate P3 consent step is gone — the ESC consent is signed on the confirm-and-pay page (?screen=clear).
     spotSaved: isSpotSavedStage(stage, spot ?? null, !!upcoming || (bookings ?? []).some((b) => b.kind === "ready_check")) ? {

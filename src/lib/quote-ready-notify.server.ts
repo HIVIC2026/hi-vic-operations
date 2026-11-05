@@ -102,7 +102,7 @@ export async function loadOwnerQuoteFacts(
     Promise.all([
       admin
         .from("ceiling_measurements")
-        .select("measured_area_m2, verified_area_m2, removal_required, removal_m2, insulation_present, zones")
+        .select("measured_area_m2, verified_area_m2, removal_required, removal_m2, insulation_present, zones, external_source")
         .eq("job_id", jobId)
         .eq("is_current", true)
         .maybeSingle(),
@@ -139,6 +139,7 @@ export async function loadOwnerQuoteFacts(
         removal_m2: unknown;
         insulation_present?: boolean | null;
         zones?: unknown;
+        external_source?: string | null;
       } | null;
     },
     { data: { details: unknown } | null },
@@ -195,6 +196,8 @@ export async function loadOwnerQuoteFacts(
       installerName: biz?.trading_name ?? biz?.name ?? null,
       installerCertified: biz?.onboarding_status === "approved" && biz.is_active === true,
       changes,
+      // Photo-quote installers (Jo 5 Nov 2026): a quote from the installer's photo quote says so under the changes box.
+      ...(m?.external_source === "photo_quote" ? { changesFootnote: (await import("./quote-changes.core")).quoteChangesFootnote({ installer: biz?.trading_name ?? biz?.name ?? null, photoQuote: true }) } : {}),
     },
   };
 }

@@ -196,3 +196,12 @@ export async function photoQuoteMediaFor(jobId: string, db: Db = admin as unknow
   } catch (e) { console.error("Photo quote: owner-said rows skipped", e instanceof Error ? e.message : "error"); }
   return { media, ownerSaid };
 }
+
+/** The From photos installer's name (as the owner sees it) when the job's current give is From photos; else null. Throws on a failed read. */
+export async function photoQuoteInstallerFor(jobId: string): Promise<string | null> {
+  const give = await photoGiveFor(jobId);
+  if (!give) return null;
+  const c = await (await import("./owner-contact.server")).businessContactForJob(jobId, "installer");
+  const { displayName } = await import("./display-name.core");
+  return displayName(c?.tradingName || c?.name || null) || "your installer";
+}
