@@ -6,6 +6,7 @@
 // (tests/helpers/memory-postgrest.ts). Run on its own (bun shares mock.module across files in one process).
 import { afterAll, beforeAll, describe, expect, mock, setSystemTime, test } from "bun:test";
 import { memoryPostgrest, type Tables } from "./helpers/memory-postgrest";
+import { ROUND_LIMIT } from "./helpers/round-counter";
 
 const tables: Tables = {};
 
@@ -194,9 +195,9 @@ describe("parity: same value as before, field for field", () => {
 // The Money page draws once tradeMoney answers (getTradeMoneyView); extras load beside it; the job detail opens from a row.
 describe("rounds", () => {
   // Known limit (no database function, ruling 30 Oct): round 1 finds the business, round 2 its visits, round 3 the job-id
-  // facts. An in-house installer's safety checks are kept only once its PIESA rate card is read (round 3), so its job-id
-  // facts are round 4.
-  for (const [mode, max, was] of [[{ inHouse: false }, 3, 4], [{ inHouse: true }, 4, 5]] as const) {
+  // facts. Measured 5 Nov 2026 (portal speed step 2): the in-house installer's safety-check payees (rate card) come back in
+  // round 3 with the other job-id facts, so both modes are held to the screen budget (ROUND_LIMIT, tests/helpers/round-counter.ts).
+  for (const [mode, max, was] of [[{ inHouse: false }, ROUND_LIMIT, 4], [{ inHouse: true }, ROUND_LIMIT, 5]] as const) {
     test(`tradeMoney installer owner (${mode.inHouse ? "in-house" : "ordinary"}): at most ${max} sequential rounds (was ${was})`, async () => {
       failWhen = null; seed(mode);
       const r = await measured(() => tradeMoney(U_BOSS));

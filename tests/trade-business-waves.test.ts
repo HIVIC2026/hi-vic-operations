@@ -8,6 +8,7 @@ import { afterAll, beforeAll, describe, expect, mock, setSystemTime, test } from
 import type { Tables } from "./helpers/memory-postgrest";
 import { COLLECTION_NOTICE_SHA256 } from "../src/lib/esc-collection-notice.core";
 import { outcome, waveCounter } from "./helpers/wave-counter";
+import { addForeignBusiness, foreignTraces } from "./helpers/business-scope";
 
 const tables: Tables = {};
 const wc = waveCounter(tables);
@@ -210,5 +211,21 @@ describe("My business (Task 7): declarations_due missing (before migration 0230)
       expect(await teamReads(U_BOSS)).toEqual([false]);
       expect(r.afterCtx).toBeLessThanOrEqual(3);
     } finally { wc.state.missingColumns.clear(); }
+  });
+});
+
+// Portal speed step 2 (plan Review Focus 5): another business's sign-in, job, booking, offer, worker, credential, bank
+// details and payout change nothing on this screen, for every caller.
+describe("My business and Team: business-scoped", () => {
+  test("another business's rows never reach the answer", async () => {
+    wc.state.failWhen = null;
+    for (const [who, u] of [["installer owner", U_BOSS], ["installer staff", U_STAFF], ["electrician owner", U_ELEC], ["electrician staff", U_ESTAFF], ["no business", U_NONE]] as const) {
+      seedAll();
+      const before = await outcome(() => tradeBusiness(u));
+      addForeignBusiness(tables, at(-1));
+      const after = await outcome(() => tradeBusiness(u));
+      expect({ who, traces: foreignTraces(after) }).toEqual({ who, traces: [] });
+      expect(after).toEqual(before);
+    }
   });
 });

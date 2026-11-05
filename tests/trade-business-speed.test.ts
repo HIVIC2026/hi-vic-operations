@@ -7,6 +7,7 @@
 // mock.module across files in one process).
 import { afterAll, beforeAll, describe, expect, mock, setSystemTime, test } from "bun:test";
 import { memoryPostgrest, type Tables } from "./helpers/memory-postgrest";
+import { ROUND_LIMIT } from "./helpers/round-counter";
 import { COLLECTION_NOTICE_SHA256 } from "../src/lib/esc-collection-notice.core";
 
 const tables: Tables = {};
@@ -222,7 +223,7 @@ describe("rounds", () => {
   // Known limit (no database function, ruling 30 Oct; owner-only reads gated on the owner check as today): round 1 finds the
   // business and whether this person is its owner, round 2 every owner read that needs only the business, round 3 the reads
   // that need the team rows (profiles, Mitti records) and the second step of the CII / notice records.
-  for (const [who, u, max, was] of [["installer owner", U_BOSS, 3, 8], ["electrician owner", U_ELEC, 3, 6]] as const) {
+  for (const [who, u, max, was] of [["installer owner", U_BOSS, ROUND_LIMIT, 8], ["electrician owner", U_ELEC, ROUND_LIMIT, 6]] as const) {
     test(`tradeBusiness ${who}: at most ${max} sequential rounds (was ${was})`, async () => {
       failWhen = null; seed();
       const r = await measured(() => tradeBusiness(u));
