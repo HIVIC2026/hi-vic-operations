@@ -19,6 +19,7 @@ import { bulkMatchable, needsCards, needsHeadline, systemFoldLabel, unavailableN
 import { JobPeek, type Peek } from "@/components/portal/job-peek";
 import { btnClass } from "@/components/portal/kit";
 import { pickupLabel } from "@/lib/mitti-pickup.core";
+import { DismissPickupButton } from "@/components/portal/mitti-piles";
 import { INSTALLER_WAITING_PATH, foldChooseInstaller } from "@/lib/installer-waiting-columns.core";
 import { cn } from "@/lib/utils";
 
@@ -115,6 +116,7 @@ function Card({ card, now, open, selected, onToggle, onDone }: { card: NeedsCard
  *  (not on opening) so the line's number is the full count before opening and never changes when it is opened. */
 function PartnerSystemFold({ rows, rowsFailed }: { rows: SystemRow[]; rowsFailed: boolean }) {
   const [open, setOpen] = useState(false);
+  const [dismissNote, setDismissNote] = useState<{ ok: boolean; text: string } | null>(null);
   const pickupsFn = useServerFn(getMittiPickups);
   const syncFn = useServerFn(getMittiSyncProblems);
   const pickups = useQuery({ queryKey: ["mitti-pickups"], queryFn: () => pickupsFn(), staleTime: 60_000, retry: 1 });
@@ -134,13 +136,17 @@ function PartnerSystemFold({ rows, rowsFailed }: { rows: SystemRow[]; rowsFailed
       {open && (
         <ul className="mt-2 rounded-[14px] border border-line bg-paper px-4">
           {failed && <li role="alert" className="py-3 text-sm text-danger">{pickups.isError && sync.isError ? "Mitti forms and Mitti sync problems" : pickups.isError ? "Mitti forms" : "Mitti sync problems"} couldn't be checked just now — this does not mean nothing is waiting. <button type="button" className="font-semibold underline" onClick={() => { if (pickups.isError) void pickups.refetch(); if (sync.isError) void sync.refetch(); }}>Try again</button></li>}
+          {dismissNote && <li role={dismissNote.ok ? "status" : "alert"} className={cn("py-3 text-sm", dismissNote.ok ? "text-success" : "text-danger")}>{dismissNote.text}</li>}
           {all.length === 0 && !failed && !rowsFailed && <li className="py-3 text-sm text-sub">Nothing from partners or the system.</li>}
           {all.map((r) => (
             <li key={r.key} className="grid grid-cols-[minmax(0,1fr)] gap-x-4 gap-y-1 border-b border-line py-3 last:border-b-0 md:grid-cols-[90px_minmax(0,180px)_minmax(0,1fr)_auto] md:items-center">
               <span className="text-xs font-bold uppercase text-sub">{r.tag}</span>
               <span className="truncate font-semibold">{r.who}</span>
               <span className="min-w-0 break-words text-sm">{r.line}</span>
-              <a href={r.href} className={btn("secondary")}>{r.button}</a>
+              <span className="flex flex-wrap gap-2">
+                <a href={r.href} className={btn("secondary")}>{r.button}</a>
+                {r.key.startsWith("pickup:") && <DismissPickupButton auditId={r.key.slice("pickup:".length)} onDone={(n) => { setDismissNote(n); if (n.ok) void pickups.refetch(); }} />}
+              </span>
             </li>
           ))}
         </ul>

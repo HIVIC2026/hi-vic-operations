@@ -13,7 +13,8 @@ import { sameMittiTemplateId } from "./mitti-identity.core";
 import { jobScope } from "./requirements.server";
 import {
   classifyPortalJobNumber, parsePickupAudit, pickupAddressKey, pickupDuplicates, portalJobNumberItem,
-  propertyAddressKey, templateKindFor, pickupTemplateMatches, type ReadyCheckPickup, type TypedPickupJob,
+  propertyAddressKey, templateKindFor, pickupTemplateMatches, knownPickupAuditIds, visiblePickupForms, MITTI_PICKUP_DISMISSED_EVENT,
+  type ReadyCheckPickup, type TypedPickupJob,
 } from "./mitti-pickup.core";
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -66,7 +67,41 @@ export type PickupScanOpts = {
   onlyAuditIds?: string[] | undefined;
   /** TEST harness only: Mitti user id → business/user, used instead of the email match. */
   businessOverride?: Map<string, { id: string; name: string; userId: string }> | undefined;
+  /** Office list only: leave out forms whose owner, address or reference says TEST. The auto pickup does not set this. */
+  hideTestForms?: boolean | undefined;
 };
+
+/** Every audit id the pickup must never show or adopt: dismissed by the office, or an old form a job replaced. Fails closed. */
+async function knownAuditIds(): Promise<Set<string>> {
+  const read = async (table: "admin_config_events" | "workflow_events", type: string) => {
+    const all: { details: unknown }[] = [];
+    for (let offset = 0; ; offset += 200) {
+      const { data, error } = await admin.from(table).select("details").eq("event_type", type).order("created_at", { ascending: true }).order("id", { ascending: true }).range(offset, offset + 199);
+      if (error) throw new WorkflowError(`Could not check which Mitti forms are already known: ${error.message}`);
+      all.push(...(data ?? []));
+      if ((data?.length ?? 0) < 200) break;
+    }
+    return all;
+  };
+  const [dismissed, replaced] = await Promise.all([read("admin_config_events", MITTI_PICKUP_DISMISSED_EVENT), read("workflow_events", "mitti_form_replaced")]);
+  return knownPickupAuditIds({ dismissed, replaced });
+}
+
+/** Office action: hide one unmatched Mitti form from Needs me for good. Records an event only; nothing changes in Mitti. */
+export async function dismissMittiPickup(actorId: string | null, auditIdInput: string): Promise<{ dismissed: true; already: boolean }> {
+  const auditId = String(auditIdInput ?? "").trim();
+  if (!auditId) throw new WorkflowError("Choose the Mitti form to dismiss.");
+  const { data: existing, error: readError } = await admin.from("admin_config_events").select("id").eq("event_type", MITTI_PICKUP_DISMISSED_EVENT).contains("details", { audit_id: auditId }).limit(1);
+  if (readError) throw new WorkflowError(`Could not check this form: ${readError.message}`);
+  if ((existing ?? []).length) return { dismissed: true, already: true };
+  const { error } = await admin.from("admin_config_events").insert({
+    actor_id: actorId, event_type: MITTI_PICKUP_DISMISSED_EVENT,
+    summary: `Mitti form ${auditId} dismissed from Needs me (nothing changed in Mitti)`,
+    details: { audit_id: auditId, dismissed_at: new Date().toISOString() },
+  } as never);
+  if (error) throw new WorkflowError(`Could not dismiss this form: ${error.message}`);
+  return { dismissed: true, already: false };
+}
 
 /** Office scan: recent Ready Check audits in Mitti that are not linked to a portal job. Read-only. */
 export async function scanMittiReadyCheckPickups(actorId: string | null, call: MittiCall = realMittiCall, opts: PickupScanOpts = {}): Promise<{ rows: ReadyCheckPickup[] }> {
@@ -83,6 +118,7 @@ export async function scanMittiReadyCheckPickups(actorId: string | null, call: M
   if (!candidates.length) return { rows: [] };
 
   // A form already linked to a portal job is skipped (the portal's own forms are linked when made).
+  const known = await knownAuditIds();
   const candIds = candidates.map((c) => String(c.audit_id ?? "")).filter(Boolean);
   const { data: linkedRows } = await admin.from("ceiling_measurements").select("external_id").eq("external_source", "mitti").in("external_id", candIds);
   const linked = new Set((linkedRows ?? []).map((r) => String(r.external_id)));
@@ -101,7 +137,7 @@ export async function scanMittiReadyCheckPickups(actorId: string | null, call: M
   const rows: ReadyCheckPickup[] = [];
   for (const c of candidates) {
     const auditId = String(c.audit_id ?? "");
-    if (!auditId || linked.has(auditId)) continue;
+    if (!auditId || linked.has(auditId) || known.has(auditId)) continue;
     let audit: Any;
     try { audit = await api.getAudit(auditId); } catch { continue; } // one unreadable form must not hide the rest
     if (audit?.archived) continue; // completed-but-unlinked forms still need linking, so they stay listed
@@ -109,6 +145,7 @@ export async function scanMittiReadyCheckPickups(actorId: string | null, call: M
     if (!p) continue;
     // Blank drafts (nothing typed yet) are not actionable — the office links forms with real content.
     if (!p.siteAddress?.trim() && !p.homeownerName?.trim()) continue;
+    if (visiblePickupForms([p], known, !!opts.hideTestForms).length === 0) continue;
     p.templateKind = templateKindFor(p.templateId, ids);
     if (!bizMap) bizMap = await mittiBusinessMap(api);
     const business = p.mittiOwnerUserId ? bizMap.get(p.mittiOwnerUserId) ?? null : null;

@@ -6,8 +6,24 @@ import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { getMittiPickups, linkMittiPickup, getMittiSyncProblems, retryMittiSyncFn } from "@/lib/mitti-pickup.functions";
+import { getMittiPickups, linkMittiPickup, dismissMittiPickupFn, getMittiSyncProblems, retryMittiSyncFn } from "@/lib/mitti-pickup.functions";
 import { pickupLabel } from "@/lib/mitti-pickup.core";
+
+/** Admin-only "Dismiss" for one unmatched Mitti form: hides it from Needs me for good, changes nothing in Mitti.
+ *  Tells the caller the plain-words result so the message can stay on screen after the row goes. */
+export function DismissPickupButton({ auditId, onDone, className }: { auditId: string; onDone: (note: { ok: boolean; text: string }) => void; className?: string }) {
+  const dismiss = useServerFn(dismissMittiPickupFn);
+  const [busy, setBusy] = useState(false);
+  const act = async () => {
+    setBusy(true);
+    try {
+      await dismiss({ data: { auditId } });
+      onDone({ ok: true, text: "Dismissed. That Mitti form is hidden from Needs me. Nothing was changed in Mitti." });
+    } catch (e) { onDone({ ok: false, text: e instanceof Error ? e.message : "Could not dismiss this form." }); }
+    finally { setBusy(false); }
+  };
+  return <Button type="button" size="sm" variant="outline" className={className ?? "h-10"} disabled={busy} onClick={() => void act()}>{busy ? "Dismissing…" : "Dismiss"}</Button>;
+}
 
 /** Ready Checks an installer started straight in Mitti (no portal job yet) — office links each one. */
 export function MittiPickupsToLink() {
@@ -17,6 +33,7 @@ export function MittiPickupsToLink() {
   const [busy, setBusy] = useState<string | null>(null);
   const [jobNumber, setJobNumber] = useState<Record<string, string>>({});
   const [result, setResult] = useState<Record<string, { ok: string } | { err: string }>>({});
+  const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
   const act = async (auditId: string) => {
     setBusy(auditId); setResult((r) => ({ ...r, [auditId]: { err: "" } as { err: string } }));
     try {
@@ -38,6 +55,7 @@ export function MittiPickupsToLink() {
     <section aria-label="Ready Checks started in Mitti" className="rounded-md border-2 border-warning/50 bg-card p-4">
       <h2 className="font-display text-lg font-bold">Ready Checks started in Mitti <span className="ml-1 rounded-full bg-warning px-2 py-0.5 text-sm text-warning-foreground">{rows.length}</span></h2>
       <p className="mt-1 text-sm text-sub">Started in Mitti without a portal job. Enter the job number to link the form — its answers then sync onto the job. Nothing is sent to anyone.</p>
+      {note && <p role={note.ok ? "status" : "alert"} className={note.ok ? "mt-2 text-sm text-success" : "mt-2 text-sm text-danger"}>{note.text}</p>}
       <ul className="mt-2 divide-y">
         {rows.map((r) => {
           const res = result[r.auditId];
@@ -64,6 +82,7 @@ export function MittiPickupsToLink() {
                     className="h-10 w-32"
                   />
                   <Button size="sm" className="h-10" disabled={busy === r.auditId} onClick={() => act(r.auditId)}>{busy === r.auditId ? "Linking…" : "Link to job"}</Button>
+                  <DismissPickupButton auditId={r.auditId} onDone={(n) => { setNote(n); if (n.ok) void refetch(); }} />
                 </div>
               </div>
               {res && "ok" in res && <p role="status" className="text-sm text-success">{res.ok}</p>}
