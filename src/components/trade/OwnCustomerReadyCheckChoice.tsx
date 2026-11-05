@@ -34,7 +34,7 @@ export function OwnCustomerReadyCheckChoice({ jobId, auditId, address, jobNumber
     <p className="text-[15px] text-ink">{W.choiceIntro}</p>
     {!portalOpen && <div className="space-y-3">
       <Button type="button" variant="outline" className="h-auto min-h-12 w-full flex-col items-start gap-2 whitespace-normal py-4 text-left" aria-expanded={mittiOpen} onClick={() => setMittiOpen(!mittiOpen)}><span className="font-semibold">{W.onsiteOption}</span><span className="text-sm font-normal text-sub">{W.onsiteIntro(address, jobNumber)}</span></Button>
-      {mittiOpen && <div className="space-y-3">{auditId && <MittiFormLink auditId={auditId}>{W.onsiteOption}</MittiFormLink>}<p className="text-sm text-sub">{W.onsiteComplete}</p></div>}
+      {mittiOpen && auditId && <MittiFormLink auditId={auditId}>{W.onsiteOption}</MittiFormLink>}
     </div>}
     <OwnCustomerReadyCheck jobId={jobId} onOpenChange={setPortalOpen} />
     {!portalOpen && v.quoteCore.ready && <form className="space-y-3" onSubmit={async e => {
