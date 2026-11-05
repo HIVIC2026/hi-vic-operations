@@ -22,12 +22,12 @@ The Ready Check is a Home Insulation Victoria step, not a VEU rule. The VEU rule
    - Existing insulation under R2? Yes / No
    - Sqm to remove
    - Sqm to install
-   - Product (from their product list; allows top-ups, e.g. R3.5 over existing R1.5)
+   - Product (the same product list as the Mitti Ready Check; top-ups come with that list when it gets them)
    - Button: **Send for quote**
    No other fields. Only this photo quote is entered in the portal instead of Mitti. "Under R2 = No" can't be sent for quote. It must go through "Can't do this one".
 5. **Can't quote.** "Can't do this one" with a reason (photos not clear / looks over R2 / other) sends the job back to the office, like the existing button.
 6. **Time limit.** Not sent within 2 business days of the job being given → flagged to Jo on Active jobs (same style as the in-house stall flags). The installer keeps the job.
-7. **Quote.** Priced from the installer's agreed rates using their sqm, removal and product (Home Insulation Victoria leads only). It sends itself unless held, as now (over 15% off the estimate → held). Same quote email/page, valid 30 days.
+7. **Quote.** Priced exactly like every Home Insulation Victoria lead (same price builder) from their sqm, removal and product. The installer's pay still comes from their agreed rates. It sends itself unless held, as now (over 15% off the estimate → held). Same quote email/page, valid 30 days.
 8. **Price is firm.** If the real sqm differs at the PIESA or on install day, the installer installs at the quoted price. No new quote, no portal step.
 9. **After the $349.** Exactly like any in-house job: installer's office books the PIESA with their own electrician, Mitti for PIESA, upgrades and install, 10% deposit, balance on install day, PIISA + SWMS on install day.
 10. **Photo upload comes back.** Reverses touchpoint #13: the optional "Got photos or a video?" box (Add photos / Add a video) returns to the "Answer 3 quick questions" page `/estimate/{token}/video`.
