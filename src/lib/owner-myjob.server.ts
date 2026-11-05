@@ -80,7 +80,7 @@ export async function resolveOwnerJob(token: unknown) {
     }
   }
   const paid = (invoices ?? []).reduce((s, i) => s + n(i.total_paid ?? i.amount_paid), 0);
-  const quoteOpen = quote?.status === "issued" && (stage === "awaiting_quote_acceptance" || stage === "measured_estimate_ready") ? { expiresAt: quote.sent_at ? new Date(new Date(quote.sent_at).getTime() + 14 * 86400_000).toISOString() : null } : null;
+  const quoteOpen = quote?.status === "issued" && (stage === "awaiting_quote_acceptance" || stage === "measured_estimate_ready") ? { expiresAt: quote.sent_at ? (await import('./quote-expiry.core')).quoteExpiresAt(quote.sent_at).toISOString() : null } : null;
   const bookingOpen = ["measured_quote_accepted", "piesa_and_install_window_pending", "installation_scheduling"].includes(stage);
   const inHouseDispatch = await (await import("./in-house-suppression.server")).inHouseDispatchSkip(jobId);
   // Fix round 1 (Task 14): the installer's name for the "will call you to book" line while the install day is being arranged.
@@ -225,6 +225,7 @@ export async function resolveOwnerJob(token: unknown) {
     });
   })().catch(() => ({ cobrand: null, rows: null }));
   return {
+    replacedQuoteIds: (await admin.from('quotes').select('id').eq('job_id',jobId).eq('kind','installation').eq('status','superseded').not('sent_at','is',null)).data?.map(q=>q.id) ?? [],
     currentAction,
     clearStepsUnsigned,
     inHouseDispatch,

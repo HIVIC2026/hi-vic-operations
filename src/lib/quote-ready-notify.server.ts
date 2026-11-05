@@ -179,7 +179,7 @@ export async function loadOwnerQuoteFacts(
       rebateIncGst:
         quote.veec_discount_inc_gst == null ? null : Number(quote.veec_discount_inc_gst),
       lines,
-      quoteUrl: `${CUSTOMER_BASE}/my-job/${link.token}?screen=quote`,
+      quoteUrl: `${CUSTOMER_BASE}/my-job/${link.token}?screen=quote&quote=${quoteId}`,
       validUntil:
         quote.kind === "installation" && quote.sent_at
           ? lastValidInstant(quoteExpiresAt(quote.sent_at))

@@ -13,7 +13,7 @@ import { OwnCustomerReadyCheck } from './OwnCustomerReadyCheck';
 import { OwnerQuoteCard } from './OwnerQuoteCard';
 import { card } from './TradeShell';
 import { getOwnMittiStatus, requestOwnMittiForm } from '@/lib/own-customer-mitti-choice.functions';
-import { SavedPriceLine } from './PriceSavedConfirmation';
+import { PriceSavedConfirmation, SavedPriceLine } from './PriceSavedConfirmation';
 
 export function OwnCustomerReadyCheckChoice({ jobId, auditId, address, jobNumber }: { jobId: string; auditId: string | null; address: string; jobNumber: string }) {
   const load = useServerFn(getInstallerPriceFn);
@@ -36,8 +36,8 @@ export function OwnCustomerReadyCheckChoice({ jobId, auditId, address, jobNumber
   const current = savedPrice ?? v?.current;
   const confirmation = current ? <SavedPriceLine amount={current.record.price_inc_gst} at={current.setAt} submitted={current.sendToQuote === true} onChange={!v?.locked ? () => {setPrice(String(current.record.price_inc_gst));setEditing(true);setSubmitted(false);} : undefined} /> : null;
   if (!v?.canSet) return null;
-  if (v.locked) return <section className={`${card} space-y-3`} aria-label="Next step">{confirmation}<OwnerQuoteCard jobId={jobId} ownCustomerStatus /></section>;
-  if (!editing && (submitted || current)) return <section className={`${card} space-y-3`} aria-label="Next step">{confirmation}<p role="status" className="text-[15px] font-semibold text-ink">{W.preparing}</p></section>;
+  if (v.locked) return <section className={`${card} space-y-3`} aria-label="Next step"><PriceSavedConfirmation jobId={jobId}/><OwnerQuoteCard jobId={jobId} ownCustomerStatus /></section>;
+  if (!editing && (submitted || current)) return <section className={`${card} space-y-3`} aria-label="Next step">{q.data?.current ? <PriceSavedConfirmation jobId={jobId}/> : confirmation}<p role="status" className="text-[15px] font-semibold text-ink">{W.preparing}</p></section>;
   const included = [PRICE_INCLUDED_OPTIONS[0], ...(v.removalRequired === true ? [PRICE_INCLUDED_OPTIONS[1]] : [])];
   const valid = validateInstallerPrice({ priceIncGst: price, included });
   return <section aria-label="Next step" className={`${card} min-w-0 space-y-4`}>

@@ -16,7 +16,7 @@ export const OWN_READY_CHECK_COPY = {
   price: 'Your total for the whole job.',
   other: 'Anything Jo should know about this job.',
   submit: 'Send for quote',
-  locked: "You can't change the price once it's sent.",
+  locked: "You can change the price later; a new quote goes to the owner once Home Insulation Victoria checks it.",
   preparing: "Quote being prepared. Home Insulation Victoria will check it and send it to the owner. You'll get an email when it goes.",
   mitti: 'Mitti form done. Enter your price inc GST, then Send for quote.',
 } as const;
