@@ -15,7 +15,7 @@
 - Read `AGENTS.md`, `src/AGENTS.md` and `src/lib/AGENTS.md` (plus any nested `AGENTS.md`) before editing. Run `bun scripts/scan-retired-terms.ts` before workflow work.
 - No change to prices, payment steps, invoice content, Xero payloads, message wording, recipients or send timing.
 - The ledger keeps one row per `receipt_key`. Money is never counted twice. A message whose outcome is unclear is never re-sent.
-- Every pending SQL file goes in `docs/pending-migrations/<name>.sql` + `<name>.rollback.sql`, is proven on PGlite, and is never applied live without Jo's yes at that moment. Files: `recovery-work`, `complete-veec-assignment`, `apply-quote-adjustment`, `replace-current-estimate` (+ `sms-not-sent-status` only if `sms_messages.status` has a check constraint).
+- Every pending SQL file goes in `docs/pending-migrations/<name>.sql` + `<name>.rollback.sql`, is proven on PGlite, and is never applied live without Jo's yes at that moment. Files: `recovery-work`, `complete-veec-assignment`, `apply-quote-adjustment`, `replace-current-estimate`, `booking-transactions` (+ `sms-not-sent-status` only if `sms_messages.status` has a check constraint).
 - Backoff is 5, 15, then 30 min. The 3rd failed attempt sets `status='needs_office'`.
 - Needs me copy, exactly:
   - "Card payment saved but job not updated – {jobNumber}"
@@ -204,7 +204,30 @@
 - [ ] **Step 4: Run** the new tests plus `bun test tests/a4-clearance-guard.test.ts tests/a48-b1-piesa-enforce.test.ts tests/*stage*.test.ts tests/*autoadvance*.test.ts`. Expected: no new failures.
 - [ ] **Step 5: Commit** `fix: stage checks pause when records can't be read`.
 
-### Task 9: Empty Xero answers change nothing
+### Task 9: Reschedules and offered times save together
+
+**Files:** Modify `src/lib/booking.server.ts` (`confirmBooking`), `src/lib/ready-check-times.server.ts` (`acceptOfferWithTimes`, `insertTimes`), `src/lib/piesa-times.server.ts` (`acceptPiesaOfferWithTimes` and its times write). Create `docs/pending-migrations/booking-transactions.sql` (+ rollback), `tests/helpers/pglite-booking-tx.ts`. Test `tests/booking-reschedule-safe.test.ts`, `tests/offer-times-atomic.test.ts`, `tests/booking-tx-practice-db.test.ts`.
+
+**Interfaces — Produces:**
+- RPC `replace_booking(p_job_id uuid, p_kind text, p_row jsonb, p_restore_id uuid default null) returns uuid`. It cancels the job's proposed/confirmed bookings of that kind and inserts the new one in one transaction. With `p_restore_id` it cancels `p_row`'s booking and re-confirms `p_restore_id`.
+- RPC `replace_proposed_times(p_job_id uuid, p_kind text, p_note text, p_rows jsonb) returns int`.
+- RPC `accept_offer_with_times(p_offer uuid, p_user uuid, p_kind text, p_rows jsonb) returns text`. It returns the existing accept outcome and calls the existing accept function + `replace_proposed_times` in one transaction.
+- Retry rule: offer `accepted` + caller's business holds the active assignment + no `proposed` times → write times via `replace_proposed_times`, skip accept. Otherwise "This offer is no longer open."
+- RPC missing (`PGRST202`) → today's behaviour, logged (RF2).
+
+- [ ] **Step 1: Failing tests.**
+  - `reschedule_insert_fails_keeps_original` (Ready Check, PIESA, install).
+  - `stage_move_fails_restores_original`.
+  - `times_fail_offer_not_accepted`.
+  - `accepted_no_times_same_installer_retry_saves`.
+  - `accepted_other_installer_retry_closed`.
+- [ ] **Step 2: Failing PGlite tests.** Each RPC is all-or-nothing. Two concurrent `accept_offer_with_times` calls → exactly one accepted (RF1).
+- [ ] **Step 3: Run.** Expected: FAIL.
+- [ ] **Step 4: Implement.**
+- [ ] **Step 5: Run** the new tests plus `bun test tests/*booking*.test.ts tests/*ready-check*.test.ts tests/*piesa*.test.ts`. Expected: no new failures.
+- [ ] **Step 6: Commit** `fix: a failed reschedule keeps the original booking; offers and times save together`.
+
+### Task 10: Empty Xero answers change nothing
 
 **Files:** Modify `src/lib/xero.server.ts` (`syncInvoiceFromXero`), `src/lib/payments.server.ts` / `payments.core.ts` (the reversal guard in `recordXeroPayments` / `xeroReversals`). Test `tests/xero-empty-answer.test.ts`.
 
@@ -224,7 +247,7 @@
 - [ ] **Step 4: Run** the new tests plus `bun test tests/*xero*.test.ts tests/*payment*.test.ts`. Expected: no new failures.
 - [ ] **Step 5: Commit** `fix: an empty Xero answer never changes a balance`.
 
-### Task 10: Xero invoice matching must be unambiguous
+### Task 11: Xero invoice matching must be unambiguous
 
 **Files:** Modify `src/lib/xero.core.ts` (`findInvoiceByReference`), `src/lib/xero.server.ts` (`pushInvoiceToXero`). Test `tests/xero-invoice-match.test.ts`.
 
@@ -243,12 +266,12 @@
 - [ ] **Step 4: Run** the new tests plus `bun test tests/*xero*.test.ts`. Expected: no new failures.
 - [ ] **Step 5: Commit** `fix: only link a Xero invoice on an unambiguous match`.
 
-### Task 11: Xero payment check counts failures and keeps settled invoices
+### Task 12: Xero payment check counts failures and keeps settled invoices
 
 **Files:** Modify `src/lib/xero.server.ts` (`pollXeroPayments`), `src/lib/xero.core.ts` (`xeroPollEligible`, `pickXeroPollBatch`). Test `tests/xero-poll-summary.test.ts`.
 
 **Interfaces:**
-- Consumes: `syncInvoiceFromXero` result (Task 9).
+- Consumes: `syncInvoiceFromXero` result (Task 10).
 - Produces:
   - `pollXeroPayments(...)` → `{ enabled, checked, failed, failedInvoices: { invoiceId: string; jobNumber: string | null; reason: string }[] }`
   - `XERO_POLL_SETTLED_DAYS = 90`. The query includes `balance_paid_at is null or balance_paid_at >= now − 90d`. Unpaid invoices are ordered first, then settled ones.
@@ -264,12 +287,12 @@
 - [ ] **Step 4: Run** the new tests plus `bun test tests/*xero*.test.ts`. Expected: PASS.
 - [ ] **Step 5: Commit** `fix: Xero payment check reports every failure and still checks paid invoices`.
 
-### Task 12: Card payment follow-up resumes
+### Task 13: Card payment follow-up resumes
 
 **Files:** Modify `src/lib/stripe.server.ts` (`recordStripePayment`, `applyAfterStripeChange`). Test `tests/stripe-payment-followup-resume.test.ts`.
 
 **Interfaces:**
-- Consumes: `addWork`, `workStatus`, `markDone` (Task 2). `applyWaitingRefunds` (Task 13).
+- Consumes: `addWork`, `workStatus`, `markDone` (Task 2). `applyWaitingRefunds` (Task 14).
 - Produces: `finishStripePaymentFollowup(f: StripePaymentFact): Promise<"recorded">` (the invoice read with error check → `flagUnclearPaymentMatches` → `applyAfterStripeChange` → `markDone("stripe_payment_followup", stripeReceiptKey(stripePaymentKey(f)))`).
 
 - [ ] **Step 1: Failing tests** (pattern: `tests/stripe-webhook-modes.test.ts`).
@@ -282,7 +305,7 @@
 - [ ] **Step 4: Run** the new tests plus `bun test tests/stripe-webhook-modes.test.ts tests/stripe.core.test.ts`. Expected: PASS.
 - [ ] **Step 5: Commit** `fix: card payment retries finish invoice and job updates`.
 
-### Task 13: Early refunds wait, database errors retry
+### Task 14: Early refunds wait, database errors retry
 
 **Files:** Modify `src/lib/stripe.server.ts` (`recordStripeRefund`, the reads in `recordStripePayment`). Test `tests/stripe-refund-waiting.test.ts`.
 
@@ -296,10 +319,10 @@
   - `refund_lookup_timeout_is_500`.
 - [ ] **Step 2: Run.** Expected: FAIL.
 - [ ] **Step 3: Implement.** Check every read's error and throw. Unknown payment → `addWork("stripe_refund_waiting", stripeRefundReceiptKey(pi, refundedCents), null, fact)`.
-- [ ] **Step 4: Run** the new tests plus the Task 12 tests. Expected: PASS.
+- [ ] **Step 4: Run** the new tests plus the Task 13 tests. Expected: PASS.
 - [ ] **Step 5: Commit** `fix: keep early refunds and retry on database errors`.
 
-### Task 14: Spot saved email tells the truth
+### Task 15: Spot saved email tells the truth
 
 **Files:** Modify `src/lib/spot-saved-send.server.ts` (`sendEmail`, `alreadyCheck`, the `spotSavedEmailAlreadySent` call site). Test `tests/spot-saved-send-truth.test.ts`.
 
@@ -317,7 +340,7 @@
 - [ ] **Step 4: Run** the new tests plus `bun test tests/spot-saved-send.test.ts tests/spot-saved-recovery-isolated.test.ts`. Expected: PASS.
 - [ ] **Step 5: Commit** `fix: Spot saved email only says Already sent when it was`.
 
-### Task 15: Mitti sweep sees every job
+### Task 16: Mitti sweep sees every job
 
 **Files:** Modify `src/lib/mitti-autoform.server.ts` (`sweepReadyCheckForms`). Test `tests/mitti-autoform-paging.test.ts`.
 
@@ -333,7 +356,7 @@
 - [ ] **Step 4: Run** the new tests plus `bun test tests/mitti-autoform.test.ts tests/owner-link-and-mitti-auto.test.ts tests/decision-398-piesa-autoform.test.ts`. Expected: no new failures (`mitti-autoform.test.ts` "wired into the 15-minute tick" already fails at baseline).
 - [ ] **Step 5: Commit** `fix: Mitti sweep pages through every booked job`.
 
-### Task 16: Text replies go to the right job
+### Task 17: Text replies go to the right job
 
 **Files:** Modify `src/lib/sms.server.ts` (`recordInboundReply`). Create `src/lib/sms-reply-match.core.ts`. Test `tests/sms-reply-match.test.ts`.
 
@@ -353,7 +376,7 @@
 - [ ] **Step 4: Run** the new tests plus `bun test tests/*sms*.test.ts`. Expected: no new failures.
 - [ ] **Step 5: Commit** `fix: text replies only match texts that went out`.
 
-### Task 17: Text retry after no provider contact; status never goes backwards
+### Task 18: Text retry after no provider contact; status never goes backwards
 
 **Files:** Modify `src/lib/sms.server.ts` (`sendRealSms`, `settleStuckSending`, `recordSmsStatus`), `src/lib/sms.core.ts`. Optional `docs/pending-migrations/sms-not-sent-status.sql` (only if a status check constraint exists: check `drizzle/migrations` and `supabase/migrations`). Test `tests/sms-retry-and-status.test.ts`.
 
@@ -374,12 +397,12 @@
 - [ ] **Step 4: Run** the new tests plus `bun test tests/*sms*.test.ts`. Expected: no new failures.
 - [ ] **Step 5: Commit** `fix: retry texts that never reached the provider; keep confirmed delivery status`.
 
-### Task 18: Tick, Needs me and 6am report
+### Task 19: Tick, Needs me and 6am report
 
 **Files:** Modify `src/routes/api/public/hooks/allocation-tick.ts` (one try-block after `sweepReadyCheckForms`), `src/lib/office-needs.core.ts`, `src/lib/office-needs.server.ts`, the Needs me page component (add a "Not linked to a job" group), `src/lib/portal.functions.ts`. Create `src/lib/recovery-needs.core.ts`, `src/lib/recovery-needs.server.ts`. Test `tests/recovery-needs.test.ts`, `tests/recovery-tick.test.ts`.
 
 **Interfaces:**
-- Consumes: `runRecoveryWork` (2), `evaluateAndApply` (3), `repairVeecCopyEmail` (5), `finishStripePaymentFollowup` (12), `retryWaitingRefund` (13), `retrySpotSavedEmail` (14). Events `quote_totals_mismatch` (6), `estimate_refresh_failed` (7), `stage_check_unreadable` (8), `xero_invoice_match_unclear` (10), `sms_reply_unmatched` (16). `pollXeroPayments().failedInvoices` (11).
+- Consumes: `runRecoveryWork` (2), `evaluateAndApply` (3), `repairVeecCopyEmail` (5), `finishStripePaymentFollowup` (13), `retryWaitingRefund` (14), `retrySpotSavedEmail` (15). Events `quote_totals_mismatch` (6), `estimate_refresh_failed` (7), `stage_check_unreadable` (8), `xero_invoice_match_unclear` (11), `sms_reply_unmatched` (17). `pollXeroPayments().failedInvoices` (12).
 - Produces:
   - `recoveryNeedsLine(item: RecoveryItem, jobNumber: string | null): string` (exact Global Constraints copy; "not sure" when `last_error === "uncertain"`)
   - `recoveryNeedsFacts(jobIds: string[]): Promise<Map<string, RecoveryItem[]>>`
@@ -401,7 +424,7 @@
 - [ ] **Step 4: Run** the new tests plus `bun test tests/office-needs-me.test.ts tests/office-needs-snapshot.test.ts`. Expected: no new failures.
 - [ ] **Step 5: Commit** `feat: still-to-finish items on the tick, Needs me and the 6am report`.
 
-### Task 19: Whole check and hand-off
+### Task 20: Whole check and hand-off
 
 - [ ] **Step 1: Run** `bun scripts/scan-retired-terms.ts`. Expected: no new hits.
 - [ ] **Step 2: Run** `bun test` in chunks (the whole suite in one process was killed at 900 s at baseline). Expected: no new failures vs the SDD workspace `baseline-tests.txt`.
