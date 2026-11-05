@@ -285,7 +285,7 @@ export async function fixesPaymentBlockerFor(jobId: string): Promise<string | nu
   return fixesInvoicePaid(toCents(inv.total_inc_gst), paidCents) ? null : FIXES_NOT_PAID_BLOCKER;
 }
 
-/** Jo 26 Oct 2026: "The 10% install deposit must be paid…" until paid/waived; null with no invoice. Shared by
+/** Jo 26 Oct 2026: "The 50% install deposit must be paid…" until paid/waived; null with no invoice. Shared by
  *  confirmBooking (kind installation), stageEntryBlockers("installation_booked") and the install-day offers. */
 export async function installDepositBlockerFor(jobId: string): Promise<string | null> {
   const v = await jobPaymentView(jobId);
@@ -314,7 +314,7 @@ export async function afterPaymentsChanged(jobId: string, invoiceId: string, act
   // Jo 26 Oct 2026: deposit in → the install can be booked now (the installer offers days). The "Your install is booked"
   // email goes only when a day is actually booked (install-days bookAgreedDay), never before the deposit.
   if (v.plan.installDepositCents > 0 && isStepCleared(v.steps, "install_deposit") && !v.provisional.bookedAt
-    && await once("install_deposit_received", "10% install deposit received – the install day can now be booked", v.invoiceId, { amount_cents: v.plan.installDepositCents })) {
+    && await once("install_deposit_received", "50% install deposit received – the install day can now be booked", v.invoiceId, { amount_cents: v.plan.installDepositCents })) {
     const held=await (await import('./in-house-suppression.server')).readInHouseDispatchState([jobId]);
     if(held.failed)throw Error('Could not check installer booking responsibility.');
     await admin.from("jobs").update({ next_action: held.held.has(jobId)?"Deposit paid – installer to book the install":"Deposit paid – installer to offer 3 install days" }).eq("id", jobId);
@@ -341,7 +341,7 @@ export async function noteProvisionalBooking(jobId: string, actorId: string | nu
 /** Decision 367: ONE office row per booking whose install start passed with the deposit still unpaid. */
 export const DEPOSIT_UNPAID_AT_START_EVENT = "install_deposit_unpaid_at_start";
 
-/** 15-minute tick: release install bookings whose 10% deposit is still unpaid when the hold ends — min(booked + 48h,
+/** 15-minute tick: release install bookings whose 50% deposit is still unpaid when the hold ends — min(booked + 48h,
  *  noon Melbourne the day before the install) (decisions 139/367). Only jobs under the payment rule with an invoice. The
  *  office is alerted and the owner is told once per released booking (decision 170, deposit-release-notice.server.ts:
  *  text + email, TEST → test-send). With the booking cancelled and the job back in installation_scheduling,
@@ -383,7 +383,7 @@ export async function sweepProvisionalBookings(now = new Date()) {
     if (error || !rows?.length) continue;
     try {
       const { transition } = await import("./workflow.server");
-      await transition(b.job_id, "installation_scheduling", null, "Install booking released – 10% deposit not received in time (48 hours, or noon the day before the install if sooner); the installer offers new days", { booking_ids: [b.id] });
+      await transition(b.job_id, "installation_scheduling", null, "Install booking released – 50% deposit not received in time (48 hours, or noon the day before the install if sooner); the installer offers new days", { booking_ids: [b.id] });
     } catch (e) {
       await admin.from("bookings").update({ status: "confirmed" }).eq("id", b.id);
       console.error("provisional booking release failed", b.job_id, (e as Error).message);

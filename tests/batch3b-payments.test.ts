@@ -1,4 +1,4 @@
-// Batch 3b Task 4: each payment step is paid on its OWN invoice — the installation invoice ($349 safety check, 10% install
+// Batch 3b Task 4: each payment step is paid on its OWN invoice — the installation invoice ($349 safety check, 50% install
 // deposit, balance), the fixes invoice ("… fixes") and the repeat safety check invoice ("… safety check 2"). The pure
 // plan maths, then the REAL payments.server / stripe.server / owner-myjob.server against an in-memory database. Stripe
 // HTTP is mocked (global fetch); never reaches the network.
@@ -90,7 +90,7 @@ function seed(opts: { fixes?: boolean; fixesInvoice?: boolean; installInvoice?: 
     indicative_estimates: [], ready_check_acceptances: [], lead_campaign_responses: [], owner_esc_consents: [], customer_assignments: [], job_assignments: [],
   });
 }
-const S = 34_900, D = 36_510; // safety check; 10% of (4000 − 349)
+const S = 34_900, D = 182_550; // safety check; 50% of (4000 − 349)
 const step = (v: { steps: { key: PaymentStepKey }[] } | null, k: PaymentStepKey) => v!.steps.find((s) => s.key === k) as Awaited<ReturnType<typeof pay.jobPaymentView>> extends infer V ? V extends { steps: (infer T)[] } ? T : never : never;
 const addRepeat = (paidDollars = 0) => {
   ev("piesa_superseded_on_reopen", "2026-10-25T01:00:00.000Z", { key: KEY, had_check: true });
@@ -193,7 +193,7 @@ describe("jobPaymentView: one invoice per step", () => {
 
 describe("fixes card stays on fixes", () => {
   beforeEach(() => seed());
-  test("card checkout for the fixes carries the fixes invoice id and the fixes amount; afterwards the 10% is still unpaid and only asked for once the install is being booked", async () => {
+  test("card checkout for the fixes carries the fixes invoice id and the fixes amount; afterwards the 50% is still unpaid and only asked for once the install is being booked", async () => {
     payXero(INV, 349);
     const r = await stripe.createStepCheckout(J, "https://hiv.test/my-job/x", null);
     expect("url" in r).toBe(true);
@@ -213,7 +213,7 @@ describe("fixes card stays on fixes", () => {
     expect(fixesBooked).toContain(J);
     let v = await pay.jobPaymentView(J, new Date(NOW));
     expect(v!.paid).toEqual({ install: S, fixes: 55_000, repeat: 0 });
-    // Jo 2 Nov 2026 (answer 21, replaces the 26 Oct "fixes first" order): the 10% deposit is due from piesa_complete on,
+    // Jo 2 Nov 2026 (answer 21, replaces the 26 Oct "fixes first" order): the 50% deposit is due from piesa_complete on,
     // upgrades still to come or not (INSTALL_DEPOSIT_DUE_STAGES) — so at rectification_scheduling it is already requested.
     expect(step(v, "install_deposit").state).toBe("requested");
     expect(step(v, "install_deposit").outstandingCents).toBe(D);
@@ -232,7 +232,7 @@ describe("fixes card stays on fixes", () => {
 
 describe("deposit is due from the PIESA result on (Jo 2 Nov 2026, answer 21 — replaces the 26 Oct 'fixes first' order)", () => {
   beforeEach(() => seed());
-  test("fixes paid but not yet done → the 10% step is still requested at every post-result stage; never before the result", async () => {
+  test("fixes paid but not yet done → the 50% step is still requested at every post-result stage; never before the result", async () => {
     payXero(INV, 349); payXero(INVF, 550);
     setStage("piesa_booked"); // result not in yet → not due
     expect(step(await pay.jobPaymentView(J, new Date(NOW)), "install_deposit").state).toBe("not_yet");

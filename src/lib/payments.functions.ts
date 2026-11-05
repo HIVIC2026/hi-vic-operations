@@ -24,7 +24,7 @@ export const getJobPayments = createServerFn({ method: "POST" }).middleware([req
     return JSON.parse(JSON.stringify(out)) as Out;
   });
 
-/** The owner's own job only (requireJobRole "owner"): the install deposit (10% of the install price, never the fixes) and the balance. Figures only. */
+/** The owner's own job only (requireJobRole "owner"): the install deposit (50% of the install price, never the fixes) and the balance. Figures only. */
 export const getOwnerPaymentPlan = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
