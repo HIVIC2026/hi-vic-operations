@@ -28,6 +28,7 @@ Every rule below is one Jo has already decided (dates in brackets). Nothing new 
 ## Ready Check: Mitti or portal (own customers)
 
 Jo, 5 Nov: at Ready Check stage, installer-added own-customer jobs offer:
+- **7:14pm correction:** no Ready Check booking or clock on own-customer jobs. Remove Day, Arrival, Who's going, Book, Book by, the call-to-book next line and the five-business-day flag. A1 is already created in Mitti; Complete is detected through the existing sync/price-link path. Show **"Mitti form done — enter your price"** with the inline price box. Home Insulation Victoria leads keep booking. The PIESA 30-day installation window remains unchanged. Current Add a job collects no Ready Check time, so there is no optional time field to retain or remove.
 - **Do it in Mitti** — existing A1 → Complete → price link → quote path, unchanged.
 - **Put the details in the portal** — a phone-first form on the job page: Install m² (required); Removal m² (required, 0 if none); measurement method using the current A1 options and exact measurement/upload prompts; Photos (optional, no videos); Price inc GST (required, the installer's total for the job); Other (optional text).
 - Save must prepare the same office-check quote as completed A1 plus price, preserving all existing holds and the 15% rule. Retain history when closing the unused A1. Home Insulation Victoria leads still use A2 only. No publication or sending authorised.

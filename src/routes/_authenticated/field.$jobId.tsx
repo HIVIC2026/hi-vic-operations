@@ -361,7 +361,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
   // Jo 5 Nov 2026 (Reinsulate, "he just wants to enter the price"): on the installer's own job the price box is open as soon
   // as the Ready Check form exists — the rest of the form can be finished later; the quote drafts once size + product + price are in.
   const priceOpenEarly = page.channel === "installer_sourced" && page.prices && page.price.entered === false && page.form.linked && box.kind !== "enter_price";
-  const showPrice = (box.kind === "enter_price" && page.prices && page.channel === "installer_sourced") || priceOpenEarly;
+  const showPrice = (page.channel === "installer_sourced" && page.prices && (box.kind === "enter_price" || box.kind === "waiting_quote")) || priceOpenEarly;
   const mittiAudit = page.form.auditId;
   return (
     <div className="space-y-4" data-installer-job>
@@ -393,7 +393,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
           </li>
         ))}
       </ol>
-      {page.channel === "installer_sourced" && !page.form.auditId && (box.kind === "book_ready_check" || box.kind === "ready_check_booked") && <PendingReadyCheckForm jobId={jobId} />}
+      {page.channel === "installer_sourced" && !page.form.auditId && box.kind === "own_ready_check" && <PendingReadyCheckForm jobId={jobId} />}
       {page.countdown && (
         <p className={`text-sm font-semibold ${page.countdown.daysLeft <= 10 ? "text-rose" : "text-ink"}`} data-countdown>
           {page.countdown.line}
@@ -457,7 +457,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
         </NextStepBox>
         {showPrice && (
           <section className={`${card} mt-4 min-w-0`} aria-label="Your price" data-price-early={priceOpenEarly ? "true" : undefined}>
-            {priceOpenEarly && <p className="mb-2 text-sm text-sub">You can enter your price now. Finish the rest of the Mitti form when you can — the quote goes to Home Insulation Victoria once the ceiling size, product and price are in.</p>}
+            {priceOpenEarly && <p className="mb-2 text-sm text-sub">Enter your price and send it to Home Insulation Victoria to prepare the quote. The Mitti form can still have blanks.</p>}
             <InstallerPriceCard jobId={jobId} />
           </section>
         )}

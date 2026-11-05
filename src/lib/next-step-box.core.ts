@@ -4,7 +4,7 @@ import { bookBy, fmtDay, overdue } from "./next-step-dates.core";
 import { melbourneToday } from "./melbourne-time.core";
 import { melbourneYmd } from "./piesa-windows.core";
 import type { AccessPerson } from "./rental-answers.core";
-import { QUOTE_PRICE_NEXT_LINE } from "./installer-quote-status.core";
+import { QUOTE_PRICE_NEXT_LINE, OWN_CUSTOMER_QUOTE_PREPARING_LINE } from "./installer-quote-status.core";
 import { READY_CHECK_PERSON_WORDS } from "./ready-check-person.core";
 
 export type NextStepFacts = {
@@ -23,7 +23,7 @@ export type NextStepFacts = {
   installDone: boolean; pay: { kind: "hivic_after_paperwork" | "own_after_owner_paid"; amount: number | null; paidAt: string | null } | null;
   mittiFormUrl: string | null;
 };
-export type NextStepKind = "book_ready_check" | "ready_check_booked" | "ready_check_missing" | "enter_price" | "waiting_quote"
+export type NextStepKind = "own_ready_check" | "book_ready_check" | "ready_check_booked" | "ready_check_missing" | "enter_price" | "waiting_quote"
   | "book_piesa" | "waiting_electrician_book" | "piesa_booked" | "upload_certificate" | "waiting_deposit" | "book_install"
   | "install_booked" | "install_locked" | "after_install" | "closed";
 export type NextStepBox = {
@@ -173,6 +173,14 @@ export function nextStepBox(f: NextStepFacts): NextStepBox {
     return box("book_piesa", W.bookPiesaTitle, {
       sub: W.bookPiesaSub(name, d.label), yours: true, bookBy: d.by, overdue: d.late, phone: callPhone(), button: W.bookButton,
     });
+  }
+
+  // Jo 5 Nov: own-customer A1 has no booking or attendance clock, even with a legacy visit stored.
+  if (f.channel === "installer_sourced") {
+    if (f.quote !== "none") return box("waiting_quote", W.waitingQuoteTitle, { sub: f.quote === "declined" || f.quote === "expired" ? W.quoteDeclinedSub : W.waitingQuoteSub });
+    if (f.priceEntered === true) return box("waiting_quote", OWN_CUSTOMER_QUOTE_PREPARING_LINE);
+    if (f.readyCheck.done) return box("enter_price", "Mitti form done — enter your price", { yours: true });
+    return box("own_ready_check", "Ready Check", { yours: true, button: "Do it in Mitti" });
   }
 
   // Ready Check done

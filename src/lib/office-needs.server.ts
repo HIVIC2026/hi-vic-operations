@@ -52,7 +52,7 @@ async function byIds(what: string, ids: string[], q: (chunk: string[], from: num
 export async function inHouseNeedsFacts(jobIds: string[]): Promise<Map<string, NonNullable<NeedsFacts["inHouse"]>>> {
   const out = new Map<string, NonNullable<NeedsFacts["inHouse"]>>();
   if (!jobIds.length) return out;
-  const live = await byIds("in-house live jobs", jobIds, (c, a, b) => admin.from("jobs").select("id").in("id", c).is("deleted_at", null).neq("source", "qa_test").not("stage", "in", "(cancelled,complete)").order("id").range(a, b));
+  const live = await byIds("in-house live jobs", jobIds, (c, a, b) => admin.from("jobs").select("id,channel").in("id", c).is("deleted_at", null).neq("source", "qa_test").not("stage", "in", "(cancelled,complete)").order("id").range(a, b));
   const ids = live.map(j => String(j["id"]));
   if (!ids.length) return out;
   const { readInHouseDispatchState } = await import("./in-house-suppression.server");
@@ -79,6 +79,7 @@ export async function inHouseNeedsFacts(jobIds: string[]): Promise<Map<string, N
     const batch = batches.filter(e => e["job_id"] === id && (e["details"] as Row | null)?.["business_id"] === assignment["business_id"]).at(-1);
     const deadline = deadlines.find(d => d["job_id"] === id);
     out.set(id, { partnerName: business.trading_name || business.name, batchSentAt: s(batch?.["created_at"]),
+      ownCustomer: live.find(j => String(j["id"]) === id)?.["channel"] === "installer_sourced",
       readyCheckBooked: bookings.some(b => b["job_id"] === id && b["kind"] === "ready_check"),
       installationBooked: bookings.some(b => b["job_id"] === id && b["kind"] === "installation"),
       piesaBooked: bookings.some(b => b["job_id"] === id && b["kind"] === "assessment"),
@@ -644,7 +645,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
       const start = d?.booking_id ? open.get(d.booking_id) : undefined;
       if (!start || Date.parse(start) <= now) continue;
       const x = f(String(r["job_id"]));
-      if (x && !x.readyCheckPersonMissing && typeof d?.line === "string" && d.line) x.readyCheckPersonMissing = { at: String(r["created_at"]), text: d.line };
+      if (x && !jobById.get(String(r["job_id"]))?.facts.ownJob && !x.readyCheckPersonMissing && typeof d?.line === "string" && d.line) x.readyCheckPersonMissing = { at: String(r["created_at"]), text: d.line };
     }
   } catch { unavailable.push("Ready Check person missing"); }
   // Part 9 Task 12: complaints — the three office events per job → the ack / resolve rows (complaints.core).

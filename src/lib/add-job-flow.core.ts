@@ -12,7 +12,7 @@ export const ADD_JOB_WORDS = {
   electrician: "Electrician for the PIESA", button: "Add the job",
 } as const;
 /** Approved: shown once the job is added (the page moves on to the job). */
-export const nextLine = (first: string): string => `Next: call ${first} and book the Ready Check on the job.`;
+export const nextLine = (_first: string): string => "Added";
 /** DRAFT: the electrician picker's "nothing chosen" problem; the Team list's own reason wins for a listed person. */
 export const ELECTRICIAN_MISSING = "Choose the electrician for the PIESA."; // DRAFT
 export type TeamElectricianChoice = { id: string; name: string; allowed: boolean; reason: string | null };

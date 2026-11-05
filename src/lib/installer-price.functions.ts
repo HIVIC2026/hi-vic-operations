@@ -28,6 +28,7 @@ export const setInstallerPriceFn = createServerFn({ method: "POST" })
         productOption: z.string().max(80).optional().nullable(),
         notes: z.string().max(1000).optional().nullable(),
         send: z.boolean().optional(),
+        sendToQuote: z.boolean().optional(),
         // Jo 4 Nov 2026: per-area brand + batts (approved products only, checked on the server) and the thicker total.
         layout: z.object({
           mainPicks: z.array(z.object({ brand: z.enum(["Bradford Gold", "Pink Batts", "Earthwool", "Ecowool"]), r: z.number().min(0).max(10) }).nullable()).max(30),
@@ -40,8 +41,8 @@ export const setInstallerPriceFn = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { setInstallerPrice } = await import("./installer-price-set.server");
-    const { jobId, send, ...input } = data;
-    const r = await setInstallerPrice(jobId, context.userId, input, { send: send === true });
+    const { jobId, send, sendToQuote, ...input } = data;
+    const r = await setInstallerPrice(jobId, context.userId, input, { send: send === true, sendToQuote: sendToQuote === true });
     return { ok: true as const, setAt: r.stored.setAt, sent: r.sent, reasons: r.reasons };
   });
 

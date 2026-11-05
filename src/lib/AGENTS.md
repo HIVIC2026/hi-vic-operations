@@ -1,4 +1,5 @@
 # Server/domain rules (src/lib)
+- Own-customer partial A1 submissions use the existing price event's explicit submission intent and core area/removal/method check; no completion/evidence state is manufactured. Why: office drafting must not wait for optional answers or send to owners.
 - Ready Check bypasses the people-on-file install credential reader; its allocation writer retains current own-Team and Mitti/office-access checks. Why: identity and install compliance must not block a measure visit.
 - Install ruler reuse requires current area-bound Ready Check depth presence and verified BEFORE evidence, never another area's approval; the alternate A5 template stays inactive without explicit configuration and uses the same identity checks. Why: avoid duplicate evidence without clearing missing proof.
 - In-house additional Crew uses canonical crew eligibility independently of Lead allocation; Ready Check Mitti fallback is partner-office-only and retains the selected attendee. Why: allow Crew without broadening install Lead authority.

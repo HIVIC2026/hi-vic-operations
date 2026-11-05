@@ -13,6 +13,7 @@ import {
 
 export type StoredInstallerPrice = {
   record: InstallerPriceRecord;
+  sendToQuote?: boolean;
   layout?: { mainPicks?: ({ brand: import('./ceiling-layout.core').Brand; r: number } | null)[] } | null;
   setAt: string;
   setBy: string | null;
@@ -54,6 +55,7 @@ export async function readInstallerPriceState(jobId: string): Promise<{
     stored: record
       ? {
           record,
+          sendToQuote: (data?.details as { send_to_quote?: boolean } | null)?.send_to_quote === true,
           layout: (data?.details as { layout?: StoredInstallerPrice['layout'] } | null)?.layout ?? null,
           setAt: String(data!.created_at),
           setBy: (data!.actor_id as string | null) ?? null,

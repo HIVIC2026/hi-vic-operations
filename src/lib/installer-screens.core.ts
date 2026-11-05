@@ -513,17 +513,10 @@ export function jobNext(f: JobNextFacts): JobNext {
     };
   }
   if (f.channel === "installer_sourced" && READY_CHECK_STAGES.includes(f.stage ?? "")) {
-    if (f.readyCheckBookedAt)
-      return {
-        panel: "form_coming",
-        title: `Ready Check ${dayAndTime(f.readyCheckBookedAt)}`,
-        sub: "Your Ready Check form is being set up in Mitti. It appears within about 15 minutes.",
-        yours: false,
-      };
     return {
-      panel: "ready_check_set_time",
+      panel: "form_coming",
       title: "Your Ready Check form is being set up in Mitti",
-      sub: "It appears within about 15 minutes. Enter the visit day and time below if you've agreed one with the owner.",
+      sub: "It appears within about 15 minutes.",
       yours: false,
     };
   }
