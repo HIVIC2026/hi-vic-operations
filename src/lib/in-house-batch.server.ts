@@ -156,7 +156,8 @@ export async function sendInHouseBatch(input: { businessId: string; jobIds: stri
     if (outcome.sent) {
       sent.push(jobId);
       // Email failure never undoes allocation. The durable pending event is picked up after approval by the tick.
-      try { await sendInHousePartnerCall(jobId); } catch (error) { console.error("Partner call email after allocation failed", error instanceof Error ? error.message : "unknown"); }
+      const {runAfterResponse}=await import('./background.server');
+      runAfterResponse(()=>sendInHousePartnerCall(jobId));
     } else refused.push({ jobId, reason: outcome.reason ?? "Job unavailable" });
   }
   if (!sent.length) return { sent, refused };

@@ -149,7 +149,8 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
   // Jo approves it). Not on this form; a failure here never fails Add a job.
   try { await (await import("./own-customer-rental-taps.server")).textOwnRentalTaps(job.id); }
   catch (e) { console.error("rental questions text not sent", (e as Error).message); }
-  const state = await onsiteFormFor(job.id, userId, call, false);
+  // The saved job is the durable missing-form sweep candidate. Do not read the whole form state before returning.
+  const state: OnsiteState = { kind: "preparing", message: "Mitti form on its way" };
   return { jobId: job.id, jobNumber: job.job_number, booking, formCreation, state, electrician: electricianAllocated, ownerFirstName: input.full_name.trim().split(/\s+/)[0] ?? null };
 }
 

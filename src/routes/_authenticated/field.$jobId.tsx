@@ -49,6 +49,16 @@ import { MittiElectricianCard } from "@/components/trade/mitti-electrician-card"
 import { ReadyCheckPhotos } from "@/components/portal/ReadyCheckPhotos";
 import { nextLine } from "@/lib/add-job-flow.core";
 import { NO_LOGIN_NEEDED } from "@/lib/trade-access-role.core";
+import { onsiteFormStatus } from "@/lib/onsite-ready-check.functions";
+
+function PendingReadyCheckForm({ jobId }: { jobId: string }) {
+  const read = useServerFn(onsiteFormStatus);
+  const qc = useQueryClient();
+  const state = useQuery({ queryKey: ["onsite-form-state", jobId], queryFn: () => read({ data: { jobId } }), refetchInterval: q => q.state.data?.kind === "open" ? false : 5_000, retry: 1 });
+  useEffect(() => { if (state.data?.kind === "open") void qc.invalidateQueries({ queryKey: ["trade-job-page", jobId] }); }, [state.data?.kind, qc, jobId]);
+  if (state.data?.kind === "open") return null;
+  return <p role="status" className="mb-3 text-sm text-sub">{state.data?.kind === "preparing" ? "Mitti form on its way" : state.data?.message ?? "Mitti form on its way"}</p>;
+}
 
 export const Route = createFileRoute("/_authenticated/field/$jobId")({
   head: () => ({
@@ -383,6 +393,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
           </li>
         ))}
       </ol>
+      {page.channel === "installer_sourced" && !page.form.auditId && (box.kind === "book_ready_check" || box.kind === "ready_check_booked") && <PendingReadyCheckForm jobId={jobId} />}
       {page.countdown && (
         <p className={`text-sm font-semibold ${page.countdown.daysLeft <= 10 ? "text-rose" : "text-ink"}`} data-countdown>
           {page.countdown.line}

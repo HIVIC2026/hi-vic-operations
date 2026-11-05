@@ -5,6 +5,8 @@ import type { BookedKind } from './owner-booked-notice.core';
 import type { TradeContact } from './owner-will-call.core';
 /** Tests inject the approval flags; production uses OWNER_BOOKED_V2_APPROVED (owner-booked-notice.core, re-exported by in-house-booking.core). */
 export type OwnerBookedDeps = {
+  /** Persist the retry intent only; the caller schedules delivery after its booking response. */
+  prepareOnly?: boolean;
   v2Approved?: Record<BookedKind, boolean>;
   /** PIESA: the job's electrician business office contact (default: businessContactForJob). */
   electrician?: (jobId: string) => Promise<TradeContact | null>;
@@ -77,6 +79,7 @@ export async function notifyOwnerBooked(jobId:string,kind:BookingNoticeKind,star
   const intentId=await stableUuid(`${key}:intent`);
   const intent=await db.from('workflow_events').insert({id:intentId,job_id:jobId,actor_id:null,event_type:'in_house_booked_notice_pending',summary:'Booking confirmation awaiting delivery',details:{kind,startIso,who,booking_id:booking.id},internal:true});
   if(intent.error&&intent.error.code!=='23505')throw Error(intent.error.message);
+  if(deps.prepareOnly)return 'queued';
   // Part 3 Task 3: the upgrades-day wording is new — recorded as pending above, sent by the sweep once Jo approves it.
   if(kind==='upgrades'&&!OWNER_UPGRADES_BOOKED_APPROVED)return 'held: wording not approved';
   const b=a?.businesses??null;

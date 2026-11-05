@@ -24,7 +24,7 @@ import { readFileSync } from "node:fs";
 it("Add a job keeps the creation alive past a dropped connection and keeps the duplicate guard", () => {
   const src = readFileSync("src/lib/mitti-create.server.ts", "utf8");
   const fn = src.slice(src.indexOf("export async function onReadyCheckJobAdded"), src.indexOf("async function testAssignee"));
-  expect(fn).toContain("waitUntil?.(work)");
+  expect(fn).toContain("scheduleSavedForm(work, runAfterResponse)");
   expect(fn).toContain("runReadyCheckFormCreation(");
   expect(fn).toContain("IMMEDIATE_SKIP_EVENT");
 });

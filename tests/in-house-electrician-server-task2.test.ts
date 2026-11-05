@@ -15,6 +15,7 @@ function fixture() {
     return q;
   }, async rpc(name: string, args: unknown) {writes.push({name,args});return {error:null,data:{already_allocated:false}};} };
   const deps: Record<string, unknown> = {
+    "./background.server": { runAfterResponse: (task: () => Promise<unknown>) => { void task(); return "wait_until"; } },
     "@/integrations/supabase/client.server": {supabaseAdmin:admin}, "./job-facts.server":{jobAdmin:admin}, "./worker-compliance.core":compliance,
     "./in-house-suppression.server":{readInHouseDispatchState:async()=>({failed:false,held:new Set(["j"])})},
     "./fixes-day.server":{existingRectificationForm:async()=>({auditId:"A4",closed:false})},

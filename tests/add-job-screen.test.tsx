@@ -101,11 +101,14 @@ describe("Add a job screen", () => {
       expect(navigated).toEqual([{ to: "/field/$jobId", params: { jobId: "j-new" }, search: { added: true } }]);
     } finally { saveResult = was; }
   });
-  test("an allocated electrician goes straight to the job page with the Next line", async () => {
+  test("an allocated electrician shows Added before loading the job page", async () => {
     const r = draw();
     fillAll(r);
     await typeAddress(r);
     await act(async () => { fireEvent.click(r.getByRole("button", { name: ADD_JOB_WORDS.button })); });
+    expect(navigated).toEqual([]);
+    expect(r.getByRole("heading", { name: "Added" })).toBeTruthy();
+    await act(async () => { fireEvent.click(r.getByRole("button", { name: ADD_JOB_DRAFT_WORDS.goToJob })); });
     expect(navigated).toEqual([{ to: "/field/$jobId", params: { jobId: "j-new" }, search: { added: true } }]);
     expect(toasts).toEqual(["Next: call Sarah and book the Ready Check on the job."]);
   });

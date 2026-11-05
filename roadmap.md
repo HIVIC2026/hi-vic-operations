@@ -1,3 +1,7 @@
+## Jo 5 Nov fast button saves
+- [x] Add/Book Ready Check form creation uses tracked request lifetime with existing missing-form sweep fallback. Added screen no longer waits for job-page navigation; pending job form polls read-only. Booking owner notice intent saved before deferred delivery; committed electrician link SMS and Give owner call notice deferred with existing sweeps.
+- [ ] Remaining inline work: electrician Mitti membership preflight (safety check), rental taps lacks recovery intent, Give office email lacks sweep, handback cancellation email lacks retry sweep. Preserve these rather than silently lose messages. TEST protected existing-job retry showed Added in 1.840s; not comparable to fresh real HV-3794's 8s. Fresh Add/other-button timings unverified. 63 targeted tests pass, preview build OK; no real job runs or publication.
+
 ## Jo 5 Nov Needs me priorities
 - [x] Replaced Today/This week/Watch and folded partner link with Deadlines, Quotes to check, Partner & Team, Choose installers, Forms. Existing readers/actions and TEST boundaries retained; header count and longest waiting line kept. Phone/desktop TEST office read-only checks passed with no overflow/runtime errors; real partner approvals are not visible to TEST office by design.
 - [ ] Deadline day-to-due completeness: existing rows do not supply all due timestamps (ESC uses opening time; prestart uses failure time). Display preserves existing due text and waiting age, never fabricates rule dates; new deadline fact plumbing is outside this presentation-only change.
