@@ -1,3 +1,12 @@
+## Jo 5 Nov 7:44pm Deep first-job ordered work
+- [ ] Finish tonight's actionable fix queue; external verification blockers remain explicitly NOT RUN (Jo's Mitti republication, unavailable signed-in Team proof).
+- [ ] Part 1: retain only per-business pause switch; separate review/PR, no switch changes or sends.
+- [ ] Job page: remove Job details, exactly one conditional Money card with recorded channel-appropriate amounts/dates; compact collapsed Owner/Visits/Site notes/owner-message rows. Include in the ordered job-page work.
+- [ ] Part 4: partner-booked owner visit notices, 30-day quotes, own-customer partner quote logo; new wording approval required before live.
+- [ ] Part 5: owner clearance/PIESA/ESC/deposit, partner-office install booking, two-day Lead/day lock, three-day reminder/two-day red flag, Crew until start, GO/DON'T START 2pm/6:30am office-only with DON'T START copy, install-day balance and installer payouts. Preserve recorded accepted terms.
+- [ ] Apply in-house lead parity for Reinsulate/Rapid/INSolation and draft corrected Owner accepted partner email. Parts 2/2b/3 and completed Crew repair not rebuilt.
+- [ ] Separate part PRs, scoped TEST proofs, short per-part report. No sends, publication or Mitti changes; Jo approves wording and publishes.
+
 ## Jo 5 Nov 7:43pm remove White Cards
 - [x] Removed active White Card requests/gates/flags, stale Needs me/prestart holds and email lines; uploaded history retained. Lead-only DOB, Crew mobile+CII, electrician mobile/email/licence/REC/insurance retained; Office unchanged. New unsigned agreement version omits White Card sentence; earlier signed versions retained. No sending or publication.
 - [x] Team save change practice-proven (6 checks, two-business identity privacy/access) then applied as 0190 and permissions read back. 102 focused current-rule checks pass, plus 5 Team error checks. One older Team test source assertion still expects removed form wiring; not rewritten as it predates this request.
