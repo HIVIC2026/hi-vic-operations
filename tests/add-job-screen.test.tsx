@@ -52,6 +52,17 @@ const fillAll = (r: ReturnType<typeof render>) => {
 };
 
 describe("Add a job screen", () => {
+  test("a phone reload in StrictMode keeps entered details and retry key, but never restores consent", () => {
+    const key = "00000000-0000-4000-8000-000000000001";
+    localStorage.setItem("hiv-onsite-draft", JSON.stringify({ full_name: "TEST Stress Owner", address_line: "908822 TEST Stress Street", suburb: "Reservoir", postcode: "3073", phone: "0400000601", email: "stress@hivic-test.example", address_typed: true, contact_permission: true, request_key: key }));
+    const r = render(React.createElement(React.StrictMode, null, React.createElement(AddJobFlow, { businessId: "b1" })));
+    expect((r.getByLabelText(ADD_JOB_WORDS.name) as HTMLInputElement).value).toBe("TEST Stress Owner");
+    const saved = JSON.parse(localStorage.getItem("hiv-onsite-draft") ?? "{}");
+    expect(saved.full_name).toBe("TEST Stress Owner");
+    expect(saved.request_key).toBe(key);
+    expect((r.getByLabelText(addJobConsentLine("Rapid Insulation")) as HTMLInputElement).checked).toBe(false);
+  });
+
   test("while the business details load there is no consent tick at all, and never the old line", () => {
     const was = options;
     options = { data: undefined, isLoading: true, isSuccess: false, isError: false };

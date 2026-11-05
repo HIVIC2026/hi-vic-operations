@@ -1,5 +1,7 @@
 ## Jo 5 Nov TEST Reinsulate 20-job phone checks
-- [ ] Sign in as existing TEST installer boss and TEST office; verify delivery guards, exercise 10 Add and 10 received jobs only if safe, time pages/buttons, fix/retest observed bugs. No real jobs/partners, sends or publishing.
+- [x] TEST installer boss at 390px: ten Add attempts; eight qa_test jobs HV-3797–HV-3804 created, bad mobile and duplicate address refused. Simulator forms created in 1.05–1.65s with address/job prefills; eight SMS attempts blocked, no owner email rows. All eight now have qa_no_delivery. No real partners/jobs changed.
+- [x] Fixed phone reload overwriting its unfinished Add draft; failing StrictMode regression now passes, 6 screen + 12 core tests pass, phone reload checked without Save. Preview build OK; contradiction experiment unchanged.
+- [ ] BLOCKED: ten received jobs, Give batches, five bookings including Crew, two handbacks, one cancellation, owner booked notices and 6:30 queues. Existing published harness explicitly lacks provider capture/simulation proof; TEST Team has no Crew fixture. Do not manufacture PASSES or widen guards. Eight TEST jobs remain protected, not archived; local preview timings only, not live phone proof.
 
 ## Jo 5 Nov phone speed
 - [x] Identified p_view RPC as office_enquiry_page; practice-proven 0189 indexes applied/read back. Enquiry facts plan 179.814→147.566 ms, photos-count plan 127.905→108.739 ms (same queries, one sample each, tool read role). property_facts already indexed: warm 1000-row query 0.783 ms. Health normal, no resize recommended.

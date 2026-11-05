@@ -46,10 +46,11 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
   const [leadOrigin, setLeadOrigin] = useState<LeadOrigin | null>(null);
   // A6: one request key per draft, kept across Try again and reloads (in the phone draft).
   const [requestKey, setRequestKey] = useState<string>(() => crypto.randomUUID());
+  const [draftLoaded, setDraftLoaded] = useState(false);
 
   // Poor signal on site: typed details stay on the phone (never the consent tick) until saved.
-  useEffect(() => { try { const d = localStorage.getItem(DRAFT_KEY); if (d) { const raw = JSON.parse(d); setCustomer(restoreCustomer(raw)); const k = restoreRequestKey(raw); if (k) setRequestKey(k); } } catch { /* ignore */ } }, []);
-  useEffect(() => { try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...customer, contact_permission: false, consent_by: null, request_key: requestKey })); } catch { /* ignore */ } }, [customer, requestKey]);
+  useEffect(() => { try { const d = localStorage.getItem(DRAFT_KEY); if (d) { const raw = JSON.parse(d); setCustomer(restoreCustomer(raw)); const k = restoreRequestKey(raw); if (k) setRequestKey(k); } } catch { /* ignore */ } finally { setDraftLoaded(true); } }, []);
+  useEffect(() => { if (!draftLoaded) return; try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...customer, contact_permission: false, consent_by: null, request_key: requestKey })); } catch { /* ignore */ } }, [draftLoaded, customer, requestKey]);
   useEffect(() => { if (shown.length) bannerRef.current?.focus(); }, [shown]);
   // Fixing an answer clears the old hint list; it is rebuilt on the next tap.
   useEffect(() => { setShown([]); }, [customer, leadOrigin, electrician]);
