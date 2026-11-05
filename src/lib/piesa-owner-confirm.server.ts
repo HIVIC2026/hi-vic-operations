@@ -68,6 +68,19 @@ export async function ownerPiesaConfirmFacts(jobId: string): Promise<PiesaOwnerC
   };
 }
 
+/** Whether the owner has confirmed the job's current PIESA: null = no signed-off PIESA yet (as `ownerPiesaConfirmFacts`
+ *  → null), else `!!confirmation`. Portal speed step 2: the installer job page needs only this yes/no, so it reads the
+ *  PIESA record and the confirmation events together — the same two reads and the same rule (`confirmationFromEvents`)
+ *  as `ownerPiesaConfirmFacts`, without the electrician name, signed copy and form reads the yes/no never used. */
+export async function ownerPiesaConfirmedState(jobId: string): Promise<boolean | null> {
+  const [{ data: rec }, { data: events }] = await Promise.all([
+    admin.from("piesa_records").select("id, outcome, completed_date, created_at, signed_off_by").eq("job_id", jobId).in("kind", [...OWNER_CONFIRMED_PIESA_KINDS]).order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    admin.from("workflow_events").select("details, created_at").eq("job_id", jobId).eq("event_type", PIESA_OWNER_CONFIRMED_EVENT),
+  ]);
+  if (!rec || !rec.signed_off_by) return null;
+  return !!confirmationFromEvents(events ?? [], rec.id);
+}
+
 /** The confirmation for the job's current PIESA, or null. */
 export async function ownerPiesaConfirmation(jobId: string): Promise<OwnerPiesaConfirmation | null> {
   return (await ownerPiesaConfirmFacts(jobId))?.confirmation ?? null;

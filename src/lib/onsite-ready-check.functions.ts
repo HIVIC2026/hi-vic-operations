@@ -39,8 +39,11 @@ export const addJobStart = createServerFn({ method: "POST" }).middleware([requir
     const { myBusinesses } = await import("./pilot.server");
     const { addJobStartState } = await import("./add-job-flow.core");
     // Task 7: an Office person (Task 1 roles) may add jobs too; the pure rule decides from the memberships + that context.
-    const ctx = await (await import("./trade-view.server")).tradeContext(context.userId).catch(() => null);
-    return addJobStartState(await myBusinesses(context.userId), ctx ? { businessId: ctx.biz.id, prices: ctx.prices } : null);
+    // Portal speed step 2: the memberships and the trade context are independent reads, so they run together (were one
+    // after the other); same answers, the context's failure still reads as none and a membership failure still fails.
+    const ctxP = import("./trade-view.server").then((m) => m.tradeContext(context.userId)).catch(() => null);
+    const [businesses, ctx] = await Promise.all([myBusinesses(context.userId), ctxP]);
+    return addJobStartState(businesses, ctx ? { businessId: ctx.biz.id, prices: ctx.prices } : null);
   });
 
 export const onsiteFormStatus = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])

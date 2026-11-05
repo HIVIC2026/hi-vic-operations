@@ -5,6 +5,7 @@
 // (tests/helpers/memory-postgrest.ts). Run on its own (bun shares mock.module across files in one process).
 import { afterAll, beforeAll, describe, expect, mock, setSystemTime, test } from "bun:test";
 import { memoryPostgrest, type Tables } from "./helpers/memory-postgrest";
+import { ROUND_LIMIT } from "./helpers/round-counter";
 import { factReadTakes, fillLiveColumns } from "./helpers/live-columns";
 
 const tables: Tables = {};
@@ -116,7 +117,8 @@ function seed(opts: { test?: boolean; inHouse?: boolean } = {}) {
     quotes: [J1, J2].map((id, i) => ({ id: `q${i}`, job_id: id, kind: "installation", status: "accepted", sent_at: at(-9), accepted_at: at(-8), release_state: "released", release_hold_reason: null, option_code: "A1", created_at: at(-9), subtotal_inc_gst: 4000, veec_discount_inc_gst: 500, customer_total_inc_gst: 3500 })),
     quote_items: [J1, J2].map((_, i) => ({ id: `qi${i}`, quote_id: `q${i}`, code: "INSUL", description: "Ceiling batts", explanation: null, quantity: 92, unit: "m2", unit_price_inc_gst: 38, line_total_inc_gst: 3500, sort: 1 })),
     quote_internals: [J1, J2].map((_, i) => ({ id: `qn${i}`, quote_id: `q${i}`, cost_ex_gst: 2000 })),
-    invoices: [J1, J2].map((id, i) => ({ id: `inv${i}`, job_id: id, kind: "installation", status: "partially_paid", deposit_paid_at: at(-8), balance_paid_at: null, paid_at: null, total_paid: 349, deposit_paid_amount: 349, deposit_amount: 349, created_at: at(-9), updated_at: at(-8) })),
+    payment_overrides: [], // the table exists (empty) in a real database: the job facts then answer the deposit-override count
+    invoices: [J1, J2].map((id, i) => ({ id: `inv${i}`, job_id: id, kind: "installation", status: "partially_paid", quote_id: null, total_inc_gst: null, deposit_paid_at: at(-8), balance_paid_at: null, paid_at: null, total_paid: 349, deposit_paid_amount: 349, deposit_amount: 349, created_at: at(-9), updated_at: at(-8) })),
     owner_esc_consents: [J1, J2].map((id, i) => ({ id: `oc${i}`, job_id: id, status: "signed", owner_signed_at: at(-3), created_at: at(-4) })),
     workflow_events: [J1, J2].flatMap((id, i) => [
       { id: `w1${i}`, job_id: id, event_type: "ready_check_basics", created_at: at(-19), details: { completed: true, answered: true, missing: [], stops: [] } },
@@ -174,29 +176,36 @@ describe("parity: same value as before, field for field", () => {
 // and the bundle adds the trade access check (1) and the safety plan's crew chain (crew →
 // staff → certifications). Two rounds needs a read-only database function returning the screen's rows in one call —
 // deferred (controller ruling: a live change for Jo, held until the live timing shows it is needed).
+// Portal speed step 2 (5 Nov 2026): the job page asks only whether the owner confirmed the PIESA (two reads in one round,
+// `ownerPiesaConfirmedState`), not the electrician's name, profile and business in turn, so the page facts are 3 rounds
+// after the access check and the bundle 3–4 (ROUND_LIMIT; was 5, and 8 for the owner's own unsent quote). Known limit,
+// one round over ROUND_LIMIT: (a) a booked install — the owner's side is read only once the booking is known (decision
+// 251) and the shared payment reader then reads the invoice before its deposit overrides; (b) the business owner's own
+// unsent quote — the office quote-readiness checks (guards, not flattened here).
+const BUNDLE_KNOWN_LIMIT = ROUND_LIMIT + 1;
 describe("rounds", () => {
   for (const [who, u] of [["owner", U_BOSS], ["staff", U_STAFF]] as const) {
-    test(`tradeJobPage (${who}, checked context handed in): at most 4 sequential rounds (was 16)`, async () => {
+    test(`tradeJobPage (${who}, checked context handed in): at most ${ROUND_LIMIT} sequential rounds (was 16, then 4)`, async () => {
       failWhen = null; seed();
       const pre = await access(u, J1);
       const r = await measured(() => tradeJobPage(J1, u, pre));
-      if (r.rounds > 4) console.log(`tradeJobPage ${who} rounds = ${r.rounds}\n${roundsOf(r.log)}`);
-      expect(r.rounds).toBeLessThanOrEqual(4);
+      if (r.rounds > ROUND_LIMIT) console.log(`tradeJobPage ${who} rounds = ${r.rounds}\n${roundsOf(r.log)}`);
+      expect(r.rounds).toBeLessThanOrEqual(ROUND_LIMIT);
     });
-    test(`tradeJobBundle (${who}): at most 5 sequential rounds (was 23)`, async () => {
+    test(`tradeJobBundle (${who}, booked install): at most ${BUNDLE_KNOWN_LIMIT} sequential rounds (was 23, then 5)`, async () => {
       failWhen = null; seed();
       const r = await measured(() => tradeJobBundle(userClient("installer"), u, J1));
-      if (r.rounds > 5) console.log(`tradeJobBundle ${who} rounds = ${r.rounds}\n${roundsOf(r.log)}`);
-      expect(r.rounds).toBeLessThanOrEqual(5);
+      if (r.rounds > BUNDLE_KNOWN_LIMIT) console.log(`tradeJobBundle ${who} rounds = ${r.rounds}\n${roundsOf(r.log)}`);
+      expect(r.rounds).toBeLessThanOrEqual(BUNDLE_KNOWN_LIMIT);
     });
   }
   for (const mode of [{ inHouse: true }, { test: true }] as const) {
     test(`in-house / TEST businesses read in the same rounds (${JSON.stringify(mode)})`, async () => {
       failWhen = null; seed(mode);
       const page = await measured(async () => tradeJobPage(J1, U_BOSS, await requireTradeJob(U_BOSS, J1)));
-      expect(page.rounds).toBeLessThanOrEqual(5); // + the access check measured with it
+      expect(page.rounds).toBeLessThanOrEqual(BUNDLE_KNOWN_LIMIT); // + the access check measured with it
       const b = await measured(() => tradeJobBundle(userClient("installer"), U_BOSS, J1));
-      expect(b.rounds).toBeLessThanOrEqual(5);
+      expect(b.rounds).toBeLessThanOrEqual(BUNDLE_KNOWN_LIMIT);
     });
   }
   test("an unsent quote (its hold check) and a not-yet-booked install stay inside the same rounds", async () => {
@@ -206,12 +215,13 @@ describe("rounds", () => {
     const r = await measured(async () => tradeJobPage(J1, U_BOSS, await requireTradeJob(U_BOSS, J1)));
     expect(r.out.quote?.sent).toBe(false);
     expect(r.out.install.ownerReady).toBeNull();
-    expect(r.rounds).toBeLessThanOrEqual(5); // + the access check
-    expect((await measured(() => tradeJobBundle(userClient("installer"), U_STAFF, J1))).rounds).toBeLessThanOrEqual(5);
-    // Known follow-up: the business owner's own unsent quote card also runs the office quote-readiness checks
-    // (officeQuoteBlockers: intake, billing and product chains), which this task does not flatten — 8 rounds today.
+    expect(r.rounds).toBeLessThanOrEqual(BUNDLE_KNOWN_LIMIT); // + the access check
+    // Not booked: the whole job page inside the screen budget.
+    expect((await measured(() => tradeJobBundle(userClient("installer"), U_STAFF, J1))).rounds).toBeLessThanOrEqual(ROUND_LIMIT);
+    // Known limit (b): the business owner's own unsent quote card also runs the office quote-readiness checks
+    // (officeQuoteBlockers: intake, billing and product chains) — guards, not flattened here (was 8 rounds).
     await tradeJobBundle(userClient("installer"), U_BOSS, J1); // load the office-review modules first (a module load is not a read)
-    expect((await measured(() => tradeJobBundle(userClient("installer"), U_BOSS, J1))).rounds).toBeLessThanOrEqual(8);
+    expect((await measured(() => tradeJobBundle(userClient("installer"), U_BOSS, J1))).rounds).toBeLessThanOrEqual(BUNDLE_KNOWN_LIMIT);
   });
   test("the trade access check is one round (context and assignments together)", async () => {
     failWhen = null; seed();
