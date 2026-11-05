@@ -8,7 +8,7 @@ import { AP_CERTIFICATES_LINE, contactLine } from "./owner-wording.core";
 import { installerName, type Held, type TradeContact } from "./owner-will-call.core";
 
 /** Wording approved (pack 1 item 39); flips to true at go-live. Off: nothing is sent to real owners (TEST jobs still test-send). */
-export const NON_COMPLIANCE_NOTICE_APPROVED = false as boolean;
+export const NON_COMPLIANCE_NOTICE_APPROVED = true as boolean; // Jo 6 Nov 2026: on
 export const NON_COMPLIANCE_PURPOSE = "non_compliance_notice";
 /** Recorded once per note, before the send. */
 export const NON_COMPLIANCE_SENT_EVENT = "non_compliance_notice_sent";

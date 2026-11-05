@@ -139,6 +139,66 @@ describe("sweepReadyCheckForms", () => {
     expect(calls).toHaveLength(0);
   });
 
+  test("photo-quote installers: a job under a From photos give never gets a Ready Check form (Task 4)", async () => {
+    await db.query(`insert into workflow_events (job_id, event_type, summary, details, created_at) values
+      ($1,'in_house_quote_method','photo','{"batch_id":"B1","business_id":"${REAL}","quote_method":"photos"}','2026-10-22T09:00:00Z'),
+      ($1,'in_house_batch_sent','sent','{"batch_id":"B1","business_id":"${REAL}"}','2026-10-22T09:01:00Z')`, [j(8)]);
+    // main (Jo 5 Nov): an own job gets a Mitti Ready Check form only after the installer chose Mitti on the job page.
+    await db.query(`insert into workflow_events (job_id, event_type, summary, details, created_at) values ($1,'own_customer_mitti_requested','mitti','{}','2026-10-23T06:33:30Z')`, [j(1)]);
+    const r = await sweepReadyCheckForms({ now, dryRun: true, enabled: true });
+    expect(r.wouldCreate).not.toContain("HV-3542");
+    expect(r.wouldCreate).toContain("HV-3136");
+    await db.query("delete from workflow_events where job_id = $1 and event_type in ('in_house_quote_method','in_house_batch_sent')", [j(8)]);
+    await db.query("delete from workflow_events where job_id = $1 and event_type = 'own_customer_mitti_requested'", [j(1)]);
+    expect((await sweepReadyCheckForms({ now, dryRun: true, enabled: true })).wouldCreate).toContain("HV-3542");
+  });
+
+  // Re-review (5 Nov): the skip is keyed on the JOB having an own photo quote (its claim), not on the business setting —
+  // a Ready Check job a From photos business added before the switch still gets its form.
+  test("an own job with an own photo quote claim never gets a Ready Check form; the same business's older Ready Check job still does", async () => {
+    const PHOTOB = "00000000-0000-0000-0000-0000000000b3";
+    await db.exec(`ALTER TABLE businesses ADD COLUMN IF NOT EXISTS quote_method text;
+      INSERT INTO businesses (id, mitti_account_invited, quote_method) VALUES ('${PHOTOB}', true, 'photos');
+      INSERT INTO jobs VALUES ('${j(20)}','HV-3600','installer_sourced','installer_onsite','ready_check_ready_to_schedule','2026-10-23T06:40:00Z',null,null,'${PHOTOB}');
+      INSERT INTO job_assignments VALUES ('${j(20)}','${U}','${PHOTOB}','installer',true);
+      INSERT INTO jobs VALUES ('${j(21)}','HV-3601','installer_sourced','installer_onsite','ready_check_ready_to_schedule','2026-10-23T06:41:00Z',null,null,'${PHOTOB}');
+      INSERT INTO job_assignments VALUES ('${j(21)}','${U}','${PHOTOB}','installer',true);`);
+    await db.query(`insert into workflow_events (job_id, event_type, summary, details, created_at) values ($1,'photo_quote_submitted','own','{"own_customer":true,"business_id":"${PHOTOB}"}','2026-10-23T06:40:01Z')`, [j(20)]);
+    // main (Jo 5 Nov): an own job gets a Mitti Ready Check form only after the installer chose Mitti on the job page.
+    await db.query(`insert into workflow_events (job_id, event_type, summary, details, created_at) values ($1,'own_customer_mitti_requested','mitti','{}','2026-10-23T06:41:01Z')`, [j(21)]);
+    // main (Jo 5 Nov): an own job gets a Mitti Ready Check form only after the installer chose Mitti on the job page.
+    await db.query(`insert into workflow_events (job_id, event_type, summary, details, created_at) values ($1,'own_customer_mitti_requested','mitti','{}','2026-10-23T06:33:30Z')`, [j(1)]);
+    try {
+      const r = await sweepReadyCheckForms({ now, dryRun: true, enabled: true });
+      expect(r.wouldCreate).not.toContain("HV-3600"); // own photo quote claim
+      expect(r.wouldCreate).toContain("HV-3601"); // Ready Check job of the same (now From photos) business
+      expect(r.wouldCreate).toContain("HV-3136");
+      // A just-saved own job of a From photos business (claim not written yet) waits 10 minutes rather than racing it.
+      const fresh = new Date(Date.parse("2026-10-23T06:41:00Z") + 5 * 60_000);
+      expect((await sweepReadyCheckForms({ now: fresh, dryRun: true, enabled: true })).wouldCreate).not.toContain("HV-3601");
+    } finally {
+      await db.exec(`DELETE FROM workflow_events WHERE job_id IN ('${j(20)}','${j(21)}') OR (job_id = '${j(1)}' AND event_type = 'own_customer_mitti_requested'); DELETE FROM job_assignments WHERE job_id IN ('${j(20)}','${j(21)}'); DELETE FROM jobs WHERE id IN ('${j(20)}','${j(21)}'); DELETE FROM businesses WHERE id = '${PHOTOB}'; ALTER TABLE businesses DROP COLUMN quote_method;`);
+    }
+  });
+
+  // Re-review (5 Nov): the claim write failed after the save -> own_photo_quote_failed; that job must never get a Ready Check form.
+  test("an own job whose photo quote claim write failed (own_photo_quote_failed) never gets a Ready Check form", async () => {
+    const PHOTOB = "00000000-0000-0000-0000-0000000000b4";
+    await db.exec(`ALTER TABLE businesses ADD COLUMN IF NOT EXISTS quote_method text;
+      INSERT INTO businesses (id, mitti_account_invited, quote_method) VALUES ('${PHOTOB}', true, 'photos');
+      INSERT INTO jobs VALUES ('${j(22)}','HV-3602','installer_sourced','installer_onsite','ready_check_ready_to_schedule','2026-10-23T06:42:00Z',null,null,'${PHOTOB}');
+      INSERT INTO job_assignments VALUES ('${j(22)}','${U}','${PHOTOB}','installer',true);`);
+    // main (Jo 5 Nov): an own job gets a Mitti Ready Check form only after the installer chose Mitti on the job page.
+    await db.query(`insert into workflow_events (job_id, event_type, summary, details, created_at) values ($1,'own_customer_mitti_requested','mitti','{}','2026-10-23T06:42:01Z')`, [j(22)]);
+    try {
+      expect((await sweepReadyCheckForms({ now, dryRun: true, enabled: true })).wouldCreate).toContain("HV-3602"); // no claim, past the grace
+      await db.query(`insert into workflow_events (job_id, event_type, summary, details, created_at) values ($1,'own_photo_quote_failed','claim failed','{"needs_office":true}','2026-10-23T06:43:00Z')`, [j(22)]);
+      expect((await sweepReadyCheckForms({ now, dryRun: true, enabled: true })).wouldCreate).not.toContain("HV-3602");
+    } finally {
+      await db.exec(`DELETE FROM workflow_events WHERE job_id = '${j(22)}'; DELETE FROM job_assignments WHERE job_id = '${j(22)}'; DELETE FROM jobs WHERE id = '${j(22)}'; DELETE FROM businesses WHERE id = '${PHOTOB}'; ALTER TABLE businesses DROP COLUMN quote_method;`);
+    }
+  });
+
   test("HIV leads need the plain Ready Check template, installer jobs the priced one", async () => {
     await db.query("update workflow_settings set mitti_ready_check_template_id = null");
     const r = await sweepReadyCheckForms({ now, dryRun: true, enabled: true });

@@ -179,9 +179,9 @@ describe("electricianCantDo: idempotent", () => {
   });
 });
 
-describe("electricianCantDo: the installer office email (DRAFT)", () => {
-  test("the wording is DRAFT behind ELECTRICIAN_CANT_DO_EMAIL_APPROVED = false", () => {
-    expect(core.ELECTRICIAN_CANT_DO_EMAIL_APPROVED).toBe(false);
+describe("electricianCantDo: the installer office email", () => {
+  test("the wording is on (Jo 6 Nov 2026: ELECTRICIAN_CANT_DO_EMAIL_APPROVED = true)", () => {
+    expect(core.ELECTRICIAN_CANT_DO_EMAIL_APPROVED).toBe(true);
     const m = mail.electricianCantDoEmail({ jobNumber: "HV-5001", electrician: "Sam Spark", reason: "Sick that week", test: false });
     expect(m.subject).toBe("HV-5001: Sam Spark can't do this one");
     // Suite look (5 Nov 2026): greeting, heading, the reason, the approved "choose another" line.
@@ -202,10 +202,10 @@ describe("electricianCantDo: the installer office email (DRAFT)", () => {
     expect(calls.testMail[0]![2]).toBe("HV-5001: Sam Spark can't do this one"); // the person, not the business
     expect(events("electrician_cant_do_email")).toHaveLength(1);
   });
-  test("real job, flag off → held: nothing sent, ONE held trace (awaiting approval); the hand-back still happens; the tick sends it once the flag is on", async () => {
+  test("real job, flag off (explicit) → held: nothing sent, ONE held trace (awaiting approval); the hand-back still happens; the tick sends it once the flag is on", async () => {
     seed({ source: "website" });
     const t = await token();
-    expect(await server.electricianCantDo(t, "Sick that week", NOW)).toEqual({ ok: true });
+    expect(await server.electricianCantDo(t, "Sick that week", NOW, { emailApproved: false })).toEqual({ ok: true });
     expect(calls.office).toHaveLength(0);
     expect(calls.testMail).toHaveLength(0);
     expect(events("electrician_cant_do_email")).toHaveLength(0);

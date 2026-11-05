@@ -32,10 +32,10 @@ beforeEach(() => {
   deadline = "2026-11-21"; emails.length = 0; texts.length = 0;
 });
 
-test("flag is off by default; flag off keeps the current wording", () => {
-  expect(INSTALL_NO_ACCESS_V2_APPROVED).toBe(false);
-  expect(installNoAccessText({ ...f, newDays: [] })).toContain("will send you new days shortly");
-  expect(renderInstallNoAccessEmail({ ...f, newDays: [] }).text).toContain("will send you three new days soon");
+test("flag is on (Jo 6 Nov 2026); switched off explicitly keeps the earlier wording", () => {
+  expect(INSTALL_NO_ACCESS_V2_APPROVED).toBe(true);
+  expect(installNoAccessText({ ...f, newDays: [] }, false)).toContain("will send you new days shortly");
+  expect(renderInstallNoAccessEmail({ ...f, newDays: [] }, false).text).toContain("will send you three new days soon");
 });
 
 test("flag on: email and text have the verbatim call line and the 30-day rule with the install-by date", () => {

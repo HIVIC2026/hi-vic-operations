@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "bun:test";
-import { giveNotice, jobGiveOffer, saidYesLabel, suggestBatches, waitingForCallConsent, type BatchJob, type InHousePartner } from "../src/lib/in-house-batch.core";
+import { blockedForPartner, givenQuoteMethod, giveNotice, jobGiveOffer, photoLeadBlocked, saidYesLabel, suggestBatches, waitingForCallConsent, type BatchJob, type InHousePartner } from "../src/lib/in-house-batch.core";
 
 const job: BatchJob = { id: "j", stage: "preliminary_estimate_ready", source: "base44", quickTapsYes: true, deleted_at: null, spot_saved_at: "2026-10-30", optedOut: false, hasActiveInstaller: false, postcode: "3199", lat: -38.14, lng: 145.12 };
 const partner: InHousePartner = { id: "p", name: "Rapid Insulation", in_house: true, is_active: true, service_postcodes: ["3199"], covers_all_victoria: false, coverage_lat: null, coverage_lng: null, coverage_radius_km: null, openJobs: 0 };
@@ -62,7 +62,7 @@ test("give notice adds the installer email words", () => {
 
 test("job page give offer: said yes + nominated active in-house partner covering the home", () => {
   const yes: BatchJob = { ...job, ownerName: "WAYNE WILSON", channel: "website", waitingBusinessId: "p" };
-  expect(jobGiveOffer(yes, [partner])).toEqual({ businessId: "p", partnerName: "Rapid Insulation", label: "Wayne Wilson said yes · free Ready Check. Give to Rapid Insulation" });
+  expect(jobGiveOffer(yes, [partner])).toEqual({ businessId: "p", partnerName: "Rapid Insulation", label: "Wayne Wilson said yes · free Ready Check. Give to Rapid Insulation", blocked: null });
   expect(jobGiveOffer({ ...yes, ownerName: " " }, [partner])?.label).toBe("Owner said yes · free Ready Check. Give to Rapid Insulation");
 });
 test("job page give offer is null with no job, no nominee, switch off, not yes, or not covered", () => {
@@ -85,4 +85,40 @@ test("job page panel shows the give line and button and calls the existing give"
   expect(src).toContain("`Give to ${offer.partnerName}`");
   expect(src).toContain("giveNotice(r, offer.partnerName");
   expect(src).toContain("{offer.label}");
+});
+
+// Photo-quote installers Task 2 (Jo 5 Nov 2026): a "From photos" installer only gets leads with an owner photo or video.
+test("photoLeadBlocked: photos installer without owner media → the reason; with media or a Ready Check installer → null", () => {
+  const noGap: InHousePartner = { ...partner, id: "ng", quote_method: "photos", name: "No Gap Insulation" };
+  expect(photoLeadBlocked({ ...job, hasOwnerMedia: false }, noGap)).toBe("No Gap Insulation quotes from photos. This owner hasn't sent any.");
+  expect(photoLeadBlocked({ ...job }, noGap)).toBe("No Gap Insulation quotes from photos. This owner hasn't sent any."); // unknown = not sent
+  expect(photoLeadBlocked({ ...job, hasOwnerMedia: true }, noGap)).toBeNull();
+  expect(photoLeadBlocked({ ...job, hasOwnerMedia: false }, { ...partner, quote_method: "ready_check" })).toBeNull();
+  expect(photoLeadBlocked({ ...job, hasOwnerMedia: false }, partner)).toBeNull(); // no setting = Ready Check
+});
+test("suggestBatches never suggests a no-media job to a photos installer; it goes to a Ready Check one instead", () => {
+  const noGap: InHousePartner = { ...partner, id: "ng", quote_method: "photos", name: "No Gap Insulation" };
+  expect(suggestBatches([{ ...job, hasOwnerMedia: false }], [noGap])).toEqual([]);
+  expect(suggestBatches([{ ...job, hasOwnerMedia: true }], [noGap])).toEqual([{ businessId: "ng", jobIds: ["j"] }]);
+  expect(suggestBatches([{ ...job, hasOwnerMedia: false }], [noGap, { ...partner, id: "rc", openJobs: 5 }])).toEqual([{ businessId: "rc", jobIds: ["j"] }]);
+});
+test("blockedForPartner lists stuck jobs this photos installer covers, with the reason; none for Ready Check installers", () => {
+  const noGap: InHousePartner = { ...partner, id: "ng", quote_method: "photos", name: "No Gap Insulation" };
+  const stuck = { ...job, id: "s", hasOwnerMedia: false, waitingBusinessId: "ng" };
+  expect(blockedForPartner([stuck, { ...job, id: "m", hasOwnerMedia: true }], [noGap])).toEqual({ ng: [{ jobId: "s", reason: "No Gap Insulation quotes from photos. This owner hasn't sent any." }] });
+  expect(blockedForPartner([{ ...stuck, waitingBusinessId: null }], [noGap, { ...partner, id: "rc" }])).toEqual({}); // suggested to rc
+  expect(blockedForPartner([stuck], [{ ...partner, id: "ng" }])).toEqual({});
+});
+test("jobGiveOffer carries the grey-out reason for a photos installer and a no-media job", () => {
+  const noGap: InHousePartner = { ...partner, id: "ng", quote_method: "photos", name: "No Gap Insulation" };
+  const nominated = { ...job, ownerName: "Sam Lee", waitingBusinessId: "ng" };
+  expect(jobGiveOffer({ ...nominated, hasOwnerMedia: false }, [noGap])?.blocked).toBe("No Gap Insulation quotes from photos. This owner hasn't sent any.");
+  expect(jobGiveOffer({ ...nominated, hasOwnerMedia: true }, [noGap])?.blocked).toBeNull();
+});
+test("an installer's own customer is never photo-blocked (photo quotes are for Home Insulation Victoria leads only)", () => {
+  const noGap: InHousePartner = { ...partner, id: "ng", quote_method: "photos", name: "No Gap Insulation" };
+  expect(photoLeadBlocked({ ...job, channel: "installer_sourced", hasOwnerMedia: false }, noGap)).toBeNull();
+  expect(givenQuoteMethod({ ...job, channel: "installer_sourced", hasOwnerMedia: true }, noGap)).toBe("ready_check");
+  expect(givenQuoteMethod({ ...job, hasOwnerMedia: true }, noGap)).toBe("photos");
+  expect(givenQuoteMethod({ ...job, hasOwnerMedia: true }, partner)).toBe("ready_check");
 });

@@ -131,7 +131,7 @@ describe("send mode: approved flag, TEST allow-list, customer_comms_enabled", ()
 });
 
 describe("the O70 email (plain, MJML design docs/templates/mjml/owner_O70)", () => {
-  const RETIRED = [/\bHI ?VIC!?(?![a-z_])/, /50 ?% deposit/i, /measure[- ]up (?:&amp;|&|and) eligibility check/i, /combined ready check/i, /piesa before (quote|payment)/i, /\$220 lead fee/i, /5[- ]year workmanship/i];
+  const RETIRED = [/\bHI ?VIC!?(?![a-z_])/, /10 ?% deposit/i, /measure[- ]up (?:&amp;|&|and) eligibility check/i, /combined ready check/i, /piesa before (quote|payment)/i, /\$220 lead fee/i, /5[- ]year workmanship/i];
   test("shell, wording, the one link, no unsubscribe (no job), no retired words", () => {
     const m = renderNewSenderReplyEmail({ theirSubject: "Ceiling insulation quote", firstName: "Sam" });
     expect(m.subject).toBe("Re: Ceiling insulation quote");

@@ -4,9 +4,11 @@
 // always go through test-send.
 import { displayName } from "./display-name.core";
 import { jobDetails, partnerEmailLayout, partnerHi, type PartnerBlock } from "./partner-email.core";
+import { PHOTO_QUOTE_WORDS, type QuoteMethod } from "./photo-quote.core";
+import { SET_PASSWORD_BASE } from "./set-password-link.core";
 
 /** Off until Jo approves the rendered email in Templates (Waiting for Jo's approval). */
-export const IN_HOUSE_GIVE_EMAIL_APPROVED: boolean = false;
+export const IN_HOUSE_GIVE_EMAIL_APPROVED: boolean = true; // Jo 6 Nov 2026: on
 
 export const IN_HOUSE_GIVE_EMAIL_SUBJECT = "New free Ready Check jobs from Home Insulation Victoria";
 export const IN_HOUSE_GIVE_CALL_LINE = "Call each owner to book their free Ready Check.";
@@ -23,14 +25,33 @@ export function giveEmailLine(j: GiveEmailJob): string {
 }
 
 export const IN_HOUSE_GIVE_EMAIL_HEADING = "New free Ready Check jobs";
+/** Photo-quote installers (Jo 5 Nov 2026, spec PR #126 row): the From photos version. DRAFT, off until Jo approves it. */
+export const IN_HOUSE_PHOTO_GIVE_EMAIL_APPROVED: boolean = false;
+export const IN_HOUSE_PHOTO_GIVE_EMAIL_SUBJECT = "New photo quote jobs from Home Insulation Victoria";
+export const IN_HOUSE_PHOTO_GIVE_EMAIL_HEADING = "New photo quote jobs";
+export const IN_HOUSE_PHOTO_GIVE_BUTTON = "Open the job";
 /** One email for one Give — suite look (Jo 5 Nov 2026): greeting, heading, one job card per job (job, owner, mobile, address),
  *  then the approved call line in a box. No other words. `test` adds the TEST label (test-send only). */
-export function renderInHouseGiveEmail(i: { jobs: GiveEmailJob[]; contactName?: string | null; test?: boolean }): { subject: string; html: string; text: string } {
+export function renderInHouseGiveEmail(i: { jobs: GiveEmailJob[]; contactName?: string | null; test?: boolean; method?: QuoteMethod | undefined; appBase?: string | undefined }): { subject: string; html: string; text: string } {
+  if (i.method === "photos") return renderPhotoGiveEmail(i);
   const card = (j: GiveEmailJob): PartnerBlock =>
     jobDetails({ jobNumber: (j.jobNumber ?? "").trim() || "Job", owner: displayName(j.ownerName) || "Owner", mobile: (j.ownerMobile ?? "").trim() || "no mobile on file", address: (j.address ?? "").replace(/\s+/g, " ").trim() || "address not recorded" }, j.ownerSaid ?? []);
   const blocks: PartnerBlock[] = [partnerHi(i.contactName), ...i.jobs.map(card), { kind: "box", text: IN_HOUSE_GIVE_CALL_LINE }];
   const { html, text } = partnerEmailLayout({ subject: IN_HOUSE_GIVE_EMAIL_SUBJECT, heading: IN_HOUSE_GIVE_EMAIL_HEADING, preview: IN_HOUSE_GIVE_CALL_LINE, blocks, test: i.test === true });
   return { subject: IN_HOUSE_GIVE_EMAIL_SUBJECT, html, text };
+}
+
+/** From photos: one card per job with a button to the installer's job page, then the 2-business-day due line. */
+function renderPhotoGiveEmail(i: { jobs: GiveEmailJob[]; contactName?: string | null; test?: boolean; appBase?: string | undefined }): { subject: string; html: string; text: string } {
+  const base = (i.appBase ?? SET_PASSWORD_BASE).replace(/\/+$/, "");
+  const blocks: PartnerBlock[] = [partnerHi(i.contactName)];
+  for (const j of i.jobs) {
+    blocks.push(jobDetails({ jobNumber: (j.jobNumber ?? "").trim() || "Job", owner: displayName(j.ownerName) || "Owner", mobile: (j.ownerMobile ?? "").trim() || "no mobile on file", address: (j.address ?? "").replace(/\s+/g, " ").trim() || "address not recorded" }, j.ownerSaid ?? []));
+    blocks.push({ kind: "button", label: IN_HOUSE_PHOTO_GIVE_BUTTON, url: `${base}/field/${encodeURIComponent(j.jobId)}` });
+  }
+  blocks.push({ kind: "box", text: PHOTO_QUOTE_WORDS.giveEmailDue });
+  const { html, text } = partnerEmailLayout({ subject: IN_HOUSE_PHOTO_GIVE_EMAIL_SUBJECT, heading: IN_HOUSE_PHOTO_GIVE_EMAIL_HEADING, preview: PHOTO_QUOTE_WORDS.giveEmailDue, blocks, test: i.test === true });
+  return { subject: IN_HOUSE_PHOTO_GIVE_EMAIL_SUBJECT, html, text };
 }
 
 /** Once-only key: a repeated Give (same batch) sends once. */

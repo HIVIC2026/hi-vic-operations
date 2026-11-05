@@ -7,7 +7,7 @@ const RETIRED = [/3-instalment plan/i, /minimum upfront deposit/i, /deposit requ
 describe("retired payment wording (batch 3a task 4)", () => {
   test("acceptance record uses the approved line", () => {
     const s = read("src/lib/portal.functions.ts");
-    expect(s).toContain("safety check paid at acceptance; electrical fixes in full if needed; 10% install deposit to book the install; balance on installation day.");
+    expect(s).toContain("safety check paid at acceptance; electrical fixes in full if needed; 50% install deposit to book the install; balance on installation day.");
     for (const re of RETIRED) expect(s).not.toMatch(re);
   });
   test("Xero office notes name today's steps", () => {
@@ -15,7 +15,7 @@ describe("retired payment wording (batch 3a task 4)", () => {
     for (const re of RETIRED) expect(s).not.toMatch(re);
     expect(s).toContain("Safety check payment confirmed in Xero");
   });
-  test("office invoice panel: no deposit-request wording, 10% comes from the server payment plan", () => {
+  test("office invoice panel: no deposit-request wording, 50% comes from the server payment plan", () => {
     const s = read("src/components/portal/panels.tsx");
     for (const re of RETIRED) expect(s).not.toMatch(re);
     expect(s).not.toMatch(/Request deposit|Deposit request must be raised/);
@@ -37,11 +37,11 @@ describe("owner sees the After-the-PIESA row with plan figures (fix round 1)", (
     expect(s).toContain("<AfterSafetyCheckRow jobId={jobId} invoiceId={i.id} isAdmin={isAdmin} />");
     expect(s).not.toMatch(/paymentPlan\(/);
   });
-  test("fixes (their own invoice) do not change the 10%: install price only", async () => {
+  test("fixes (their own invoice) do not change the 50%: install price only", async () => {
     const { paymentPlan } = await import("../src/lib/payments.core");
     const quote = 500000, fixes = 120000, piesa = 34900;
     const plan = paymentPlan({ quoteTotalCents: quote, safetyCheckCents: piesa, fixesCents: fixes });
-    expect(plan.installDepositCents).toBe(Math.floor((quote - piesa) * 0.1 + 0.5));
-    expect(plan.installDepositCents).not.toBe(Math.floor((quote + fixes - piesa) * 0.1 + 0.5));
+    expect(plan.installDepositCents).toBe(Math.floor((quote - piesa) * 0.5 + 0.5));
+    expect(plan.installDepositCents).not.toBe(Math.floor((quote + fixes - piesa) * 0.5 + 0.5));
   });
 });

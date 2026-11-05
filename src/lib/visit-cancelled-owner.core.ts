@@ -6,7 +6,7 @@ import * as K from "./email-kit.core";
 import { mjEmail, esc } from "./mail-mjml.core";
 
 /** Flip to true only when Jo approves the subject + greeting on the picture. Off: nothing is sent to real owners (TEST jobs still test-send). */
-export const VISIT_CANCELLED_OWNER_APPROVED = false as boolean;
+export const VISIT_CANCELLED_OWNER_APPROVED = true as boolean; // Jo 6 Nov 2026: on
 export const VISIT_CANCELLED_PURPOSE = "visit_cant_go_ahead";
 /** Recorded once per booking, before the send. */
 export const VISIT_CANCELLED_EVENT = "visit_cancelled_owner_notice";

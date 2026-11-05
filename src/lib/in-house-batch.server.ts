@@ -1,7 +1,8 @@
 // Office-authorised callers only. Allocation is atomic; approved owner notices use the guarded sender afterwards.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { TEST_GIVE_REFUSED, WAITING_FOR_CALL_CONSENT, batchJobEligible, isTestGiveBusiness, testGiveBlocker, batchPartnerCovers, jobGiveOffer, suggestBatches, readyInHouseBatch, waitingForCallConsent, type BatchJob, type ConsentRow, type InHousePartner } from "./in-house-batch.core";
+import { TEST_GIVE_REFUSED, WAITING_FOR_CALL_CONSENT, batchJobEligible, isTestGiveBusiness, testGiveBlocker, batchPartnerCovers, blockedForPartner, givenQuoteMethod, jobGiveOffer, photoLeadBlocked, suggestBatches, readyInHouseBatch, waitingForCallConsent, type BatchJob, type ConsentRow, type InHousePartner } from "./in-house-batch.core";
+import { PHOTO_QUOTE_GIVE_EVENT, hasOwnerMedia, isMissingQuoteMethodColumn, quoteMethodOf, type OwnerMediaDoc } from "./photo-quote.core";
 import { QUICK_TAPS_ANSWERED_EVENT } from "./quick-taps.core";
 import { sendInHousePartnerCall } from "./in-house-batch-email.server";
 import { sendInHouseGiveEmail } from "./in-house-give-email.server";
@@ -48,7 +49,7 @@ export type TestOfficeScope = { jobIds: string[]; businessIds: string[] };
 export async function loadInHouseBatches(opts: { now?: Date | undefined; jobIds?: string[]; testOffice?: TestOfficeScope | undefined } = {}) {
   const nowIso = (opts.now ?? new Date()).toISOString();
   const test = opts.testOffice;
-  if (test && (!test.jobIds.length || !test.businessIds.length)) return { jobs: [] as BatchJob[], partners: [] as InHousePartner[], suggestions: [] as { businessId: string; jobIds: string[] }[], waitingForCallConsent: [] as string[] };
+  if (test && (!test.jobIds.length || !test.businessIds.length)) return { jobs: [] as BatchJob[], partners: [] as InHousePartner[], suggestions: [] as { businessId: string; jobIds: string[] }[], blocked: {} as Record<string, { jobId: string; reason: string }[]>, waitingForCallConsent: [] as string[], mediaReadFailed: false };
   const scoped = (q: any) => { const s = opts.jobIds ? q.in("id", opts.jobIds) : q; return test ? s.eq("source", "qa_test").in("id", test.jobIds) : s.neq("source", "qa_test"); };
   const [jobs, businesses] = await Promise.all([
     pagedRows<Job>((a,b) => scoped(db.from("jobs").select("id,job_number,property_id,owners(full_name,phone),stage,source,channel,originating_installer_business_id,deleted_at").is("deleted_at", null).not("stage", "in", "(complete,cancelled)")).order("id").range(a,b)),
@@ -67,7 +68,20 @@ export async function loadInHouseBatches(opts: { now?: Date | undefined; jobIds?
     byIds<{ job_id: string; event_type: string; details: Record<string, unknown> | null; created_at: string }>(ids, (c,a,b) => db.from("workflow_events").select("job_id,event_type,details,created_at").in("job_id", c).in("event_type", [QUICK_TAPS_ANSWERED_EVENT, "area_batch_sent"]).order("created_at", { ascending: false }).order("id", { ascending: false }).range(a,b)),
     byIds<ConsentRow & { job_id: string }>(ids, (c,a,b) => db.from("owner_contact_consents").select("job_id,consent_status,consented_at,snapshot,source,consent_key").in("job_id", c).order("id").range(a,b)),
   ]) : [[], [], [], [], [], [], []];
-  const partners: InHousePartner[] = businesses.map(b => ({ ...b, name: displayName(b.trading_name || b.name), openJobs: assignments.filter(a => a.business_id === b.id && a.role === "installer").length }));
+  // Photo-quote installers (Jo 5 Nov 2026): how each installer quotes. A missing column (pending SQL) = Ready Check.
+  const methods = new Map<string, string | null>();
+  if (businesses.length) {
+    const read = await db.from("businesses").select("id,quote_method").in("id", businesses.map(b => b.id));
+    if (read.error && !isMissingQuoteMethodColumn(read.error)) throw new Error(read.error.message);
+    for (const r of (read.error ? [] : read.data ?? []) as { id: string; quote_method?: string | null }[]) methods.set(r.id, r.quote_method ?? null);
+  }
+  // Owner photos/videos for the screened jobs (200-id pages). A failed read is kept, never treated as "no photos sent"
+  // silently: a photos installer is then refused the whole give (`mediaReadFailed`).
+  let media: (OwnerMediaDoc & { job_id: string })[] = [], mediaReadFailed = false;
+  try {
+    media = ids.length ? await byIds<OwnerMediaDoc & { job_id: string }>(ids, (c,a,b) => db.from("documents").select("job_id,kind,mime_type,storage_path").in("job_id", c).eq("kind", "intake_media").order("id").range(a,b)) : [];
+  } catch (e) { mediaReadFailed = true; console.error("Owner photo read for Choose installer failed", (e as Error).message); }
+  const partners: InHousePartner[] = businesses.map(b => ({ ...b, name: displayName(b.trading_name || b.name), quote_method: quoteMethodOf({ quote_method: methods.get(b.id) ?? null }), openJobs: assignments.filter(a => a.business_id === b.id && a.role === "installer").length }));
   const batchJobs: BatchJob[] = jobs.map(j => {
     const p = properties.find(p => p.id === j.property_id), coords = facts.find(f => f.property_id === j.property_id)?.value;
     const answer = events.find(e => e.job_id === j.id && e.event_type === QUICK_TAPS_ANSWERED_EVENT)?.details;
@@ -79,21 +93,25 @@ export async function loadInHouseBatches(opts: { now?: Date | undefined; jobIds?
       oldStylePass: answer?.["outcome"] === "pass" && !answer?.["go_label"],
       waitingBusinessId: j.channel === "installer_sourced" ? j.originating_installer_business_id : typeof batch?.["installer_business_id"] === "string" ? batch["installer_business_id"] : null,
       optedOut: optouts.some(o => o.job_id === j.id), hasActiveInstaller: assignments.some(a => a.job_id === j.id && a.role === "installer"),
+      hasOwnerMedia: hasOwnerMedia(media.filter(m => m.job_id === j.id)),
       postcode: p?.postcode ?? null, address: [p?.address_line, p?.suburb, p?.postcode].filter(Boolean).join(", "),
       lat: Array.isArray(coords) && typeof coords[1] === "number" ? coords[1] : null,
       lng: Array.isArray(coords) && typeof coords[0] === "number" ? coords[0] : null };
   });
   const waiting = new Set(batchJobs.filter(j => waitingForCallConsent(j, consents.filter(c => c.job_id === j.id), nowIso, !!test)).map(j => j.id));
   const eligibleJobs = batchJobs.filter(j => batchJobEligible(j, !!test) && !waiting.has(j.id));
-  return { jobs: eligibleJobs, partners, suggestions: suggestBatches(eligibleJobs, partners, !!test), waitingForCallConsent: [...waiting] };
+  return { jobs: eligibleJobs, partners, suggestions: suggestBatches(eligibleJobs, partners, !!test), blocked: blockedForPartner(eligibleJobs, partners, !!test), waitingForCallConsent: [...waiting], mediaReadFailed };
 }
 
 /** Job page offer (office only): null unless this job can be given to its nominated in-house partner right now. */
 export async function inHouseGiveForJob(jobId: string, opts: { testOffice?: TestOfficeScope | undefined } = {}) {
   const screen = await loadInHouseBatches({ jobIds: [jobId], testOffice: opts.testOffice });
-  return jobGiveOffer(screen.jobs.find(j => j.id === jobId), screen.partners);
+  const offer = jobGiveOffer(screen.jobs.find(j => j.id === jobId), screen.partners);
+  if (offer && screen.mediaReadFailed && screen.partners.find(p => p.id === offer.businessId)?.quote_method === "photos") return { ...offer, blocked: COULDNT_CHECK_PHOTOS };
+  return offer;
 }
 
+export const COULDNT_CHECK_PHOTOS = "Couldn't check the owner's photos. Try again.";
 async function selectWorkers(businessId: string) {
   const blockers = inHouseEnableBlockers(await inHouseFactsFor(businessId));
   if (blockers.length) return { reason: blockers.join("; ") };
@@ -132,10 +150,22 @@ export async function sendInHouseBatch(input: { businessId: string; jobIds: stri
   const requested = [...new Set(input.jobIds)].filter(id => !screen.waitingForCallConsent.includes(id));
   if (!requested.length) return { sent, refused };
   input = { ...input, jobIds: requested };
+  // Photo-quote installers: never give on a failed photo read; a lead without owner photos/videos is refused with the reason.
+  if (partner?.quote_method === "photos") {
+    if (screen.mediaReadFailed) return { sent, refused: [...refused, ...requested.map(jobId => ({ jobId, reason: COULDNT_CHECK_PHOTOS }))] };
+    const ok: string[] = [];
+    for (const jobId of requested) {
+      const job = screen.jobs.find(j => j.id === jobId);
+      const reason = job ? photoLeadBlocked(job, partner) : null;
+      if (reason) refused.push({ jobId, reason }); else ok.push(jobId);
+    }
+    if (!ok.length) return { sent, refused };
+    input = { ...input, jobIds: ok };
+  }
   if (partner) {
-    const eligible = requested.filter(id => screen.jobs.some(j => j.id === id && batchPartnerCovers(j, partner) && (!j.waitingBusinessId || j.waitingBusinessId === partner.id)));
+    const eligible = input.jobIds.filter(id => screen.jobs.some(j => j.id === id && batchPartnerCovers(j, partner) && (!j.waitingBusinessId || j.waitingBusinessId === partner.id)));
     const ready = readyInHouseBatch(eligible);
-    if (!ready.length) return { sent, refused: [...refused, ...requested.map(jobId => ({ jobId, reason: "No eligible jobs for this installer" }))] };
+    if (!ready.length) return { sent, refused: [...refused, ...input.jobIds.map(jobId => ({ jobId, reason: "No eligible jobs for this installer" }))] };
     input = { ...input, jobIds: ready };
   }
   const workers = partner ? await selectWorkers(input.businessId) : { reason: "Partner is not active in-house" };
@@ -144,6 +174,13 @@ export async function sendInHouseBatch(input: { businessId: string; jobIds: stri
     const job = screen.jobs.find(j => j.id === jobId);
     if (job && partner && !batchPartnerCovers(job, partner)) { refused.push({ jobId, reason: "Outside this partner's coverage" }); continue; }
     if ("reason" in workers) { refused.push({ jobId, reason: workers.reason ?? "Partner unavailable" }); continue; }
+    // Photo jobs: record the method under this batch id BEFORE allocating, so the job keeps it if the setting changes.
+    // jobQuoteMethod matches it to the allocation's own in_house_batch_sent event by batch id. No record → not given.
+    if (job && partner && givenQuoteMethod(job, partner) === "photos") {
+      const rec = await db.from("workflow_events").insert({ job_id: jobId, actor_id: input.actorId, event_type: PHOTO_QUOTE_GIVE_EVENT, internal: true,
+        summary: `Given to ${partner.name} to quote from photos`, details: { batch_id: batchId, business_id: input.businessId, quote_method: "photos" } });
+      if (rec.error) { refused.push({ jobId, reason: "Allocation could not be saved. Try again." }); console.error("Photo quote method record failed", rec.error.message); continue; }
+    }
     const result = await db.rpc("allocate_in_house_batch_job", { _batch: batchId, _business: input.businessId, _job: jobId, _actor: input.actorId, _installer: workers.installer, _electrician: workers.electrician });
     if (result.error) {
       if (["PGRST202", "42883", "42P01"].includes(result.error.code)) throw new Error("Batch allocation is awaiting the approved database change.");
@@ -184,7 +221,13 @@ export async function sendInHouseBatch(input: { businessId: string; jobIds: stri
       const j = screen.jobs.find(x => x.id === id);
       return { jobId: id, jobNumber: j?.job_number ?? "", ownerName: j?.ownerName ?? null, ownerMobile: j?.ownerPhone ?? null, address: j?.address ?? null, ownerSaid: said.get(id) ?? null };
     });
-    installerEmail = await sendInHouseGiveEmail({ batchId, businessId: input.businessId, jobs, actorId: input.actorId });
+    // Photo-quote installers: photo jobs get the From photos version; an installer's own customers keep the Ready Check one.
+    const photoIds = new Set(partner ? sent.filter(id => { const j = screen.jobs.find(x => x.id === id); return !!j && givenQuoteMethod(j, partner) === "photos"; }) : []);
+    const groups = [{ method: "ready_check" as const, jobs: jobs.filter(j => !photoIds.has(j.jobId)) }, { method: "photos" as const, jobs: jobs.filter(j => photoIds.has(j.jobId)) }].filter(g => g.jobs.length);
+    const outcomes: GiveEmailOutcome[] = [];
+    for (const g of groups) outcomes.push(await sendInHouseGiveEmail({ batchId, businessId: input.businessId, jobs: g.jobs, actorId: input.actorId, ...(g.method === "photos" ? { method: "photos" } : {}) }));
+    // One notice line: a not-sent outcome wins, so Jo is told to call.
+    installerEmail = outcomes.find(o => o.status !== "sent" && o.status !== "test_sent") ?? outcomes[0]!;
   } catch (error) {
     console.error("Installer email after Give failed", error instanceof Error ? error.message : "unknown");
     installerEmail = { status: "not_sent" };

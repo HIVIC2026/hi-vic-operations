@@ -14,7 +14,7 @@ import { SMS_QUIET_REASON, smsQuietReason } from "./quote-hold.core";
 export const INSTALL_NO_ACCESS_NOTICE_APPROVED = true as boolean; // Jo approved the text + O65 email wording 24 Oct 2026 (decision 217)
 /** Part 4 Task 7 (Jo 2 Nov 2026, touchpoint 51, noacc-both.png): "{Installer} will call you from {office phone} to book a new day." plus the 30-day rule with
  *  the install-by date; no "three new days", no job-page link. Off: the current wording above goes out unchanged (same purpose, same keys). */
-export const INSTALL_NO_ACCESS_V2_APPROVED = false as boolean;
+export const INSTALL_NO_ACCESS_V2_APPROVED = true as boolean; // Jo 6 Nov 2026: on
 export const INSTALL_NO_ACCESS_SMS_TYPE = "install_no_access";
 /** Recorded once per cancelled install booking BEFORE anything is sent, so a retry never repeats the notice. */
 export const INSTALL_NO_ACCESS_NOTICE_EVENT = "install_no_access_owner_notice";

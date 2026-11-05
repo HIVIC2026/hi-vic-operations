@@ -103,7 +103,7 @@ export function electricianLinkExpiry(f: { allDoneAt: string | null; now: number
 }
 
 /** The job-link text stays off until Jo approves the wording. */
-export const ELECTRICIAN_LINK_TEXT_APPROVED = false as boolean;
+export const ELECTRICIAN_LINK_TEXT_APPROVED = true as boolean; // Jo 6 Nov 2026: on
 export const ELECTRICIAN_LINK_SMS_TYPE = "electrician_job_link" as const;
 export const electricianLinkTextKey = (jobId: string, workerId: string) => `electrician-link:v1:${jobId}:${workerId}`;
 
@@ -153,7 +153,7 @@ export const electricianCantDoReasonOk = (reason: string) => reason.trim().lengt
 export const electricianCantDoEmailKey = (jobId: string, assignmentId: string) => `electrician-cant-do:v1:${jobId}:${assignmentId}`;
 
 /** The installer office email stays off for real jobs until Jo approves the wording (TEST jobs go to test-send). */
-export const ELECTRICIAN_CANT_DO_EMAIL_APPROVED = false as boolean;
+export const ELECTRICIAN_CANT_DO_EMAIL_APPROVED = true as boolean; // Jo 6 Nov 2026: on
 /** DRAFT: "{HV}: {electrician} can't do this one. Choose another electrician on the job." The reason line under it is also DRAFT. */
 export function electricianCantDoEmailLine(i: { jobNumber: string; electrician: string }): string {
   return `${tidy(i.jobNumber)}: ${tidy(i.electrician)} can't do this one. Choose another electrician on the job.`;

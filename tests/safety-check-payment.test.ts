@@ -106,15 +106,15 @@ describe("Pre Insulation Electrical Safety Assessment (PIESA) payment (Jo 7 Oct)
     const m = paymentTermsMoney(plan);
     expect(m).toEqual({
       fee: "$349.00",
-      deposit: "$337.90",
+      deposit: "$1,689.50",
       remaining: "$3,379.00",
-      balance: "$3,041.10",
+      balance: "$1,689.50",
       total: "$3,728.00",
     });
     const text = paymentTermsText(m);
     expect(text).toContain("Electrical safety check (PIESA): $349.00");
-    expect(text).toContain("10% deposit to book your install day: $337.90");
-    expect(text).toContain("The rest: $3,041.10");
+    expect(text).toContain("50% deposit to book your install day: $1,689.50");
+    expect(text).toContain("The rest: $1,689.50");
     expect(text).toContain("Your price (incl. GST): $3,728.00");
     expect(text).toContain("No fees.");
     expect(text).not.toMatch(/instalment|half|\{/i);
@@ -130,7 +130,7 @@ describe("Pre Insulation Electrical Safety Assessment (PIESA) payment (Jo 7 Oct)
     ).toContain(PAYMENT_TERMS_BODY);
     const v = answerVars({ payment_option: "pay_in_full", total: "$1.00", deposit: "$0.01" }, m);
     expect(v["total"]).toBe("$3,728.00");
-    expect(v["deposit"]).toBe("$337.90");
+    expect(v["deposit"]).toBe("$1,689.50");
     expect(v["payment_option"]).toBeUndefined();
   });
   test("decision 365: no option choice anywhere — signing needs no payment_option and the owner screen has no radio group", () => {

@@ -43,6 +43,12 @@ export async function sweepReadyCheckForms(opts: { call?: MittiCall; now?: Date;
   const bizIds = [...new Set(jobs.map((j) => assignments.data?.find((a) => a.job_id === j.id)?.business_id ?? j.originating_installer_business_id).filter(Boolean) as string[])];
   const { data: businesses, error: be } = bizIds.length ? await admin.from("businesses").select("id, mitti_account_invited, onboarding_notes").in("id", bizIds) : { data: [], error: null };
   if (be) throw new Error("Ready Check form sweep could not read installers.");
+  // Photo-quote installers (Jo 5 Nov 2026): a job under a From photos give never gets a Ready Check form.
+  const photoJobs = await photoGiveJobs(ids, (assignments.data ?? []) as { job_id: string; business_id: string | null }[]);
+  // Part 2 (re-review, 5 Nov): an installer's OWN job with an own photo quote (its claim, or a current photo_quote
+  // measurement) never gets one either — keyed on the job, so a Ready Check job added before the business switched to
+  // From photos still gets its form. A just-saved own job of a From photos business waits 10 minutes for its claim.
+  for (const id of await ownPhotoQuoteJobs(jobs, (measurements.data ?? []) as { job_id: string; external_source: string | null }[], now)) photoJobs.add(id);
   const measured = new Set((measurements.data ?? []).map((m) => m.job_id));
   const { provisionalGivesWayToMitti } = await import("./measurement.core");
   const provisional = new Set((measurements.data ?? []).filter((m) => provisionalGivesWayToMitti(m)).map((m) => m.job_id));
@@ -52,6 +58,7 @@ export async function sweepReadyCheckForms(opts: { call?: MittiCall; now?: Date;
   const wouldCreate: string[] = [];
   for (const j of jobs) {
     if (results.length >= AUTOFORM_MAX_PER_TICK) break;
+    if (photoJobs.has(j.id)) continue;
     if(j.channel === 'installer_sourced') {
       const {ownMittiChoice}=await import('./own-customer-mitti-choice.server');
       const {ownCustomerMittiAllowed}=await import('./own-customer-mitti-choice.core');
@@ -96,4 +103,47 @@ export async function sweepReadyCheckForms(opts: { call?: MittiCall; now?: Date;
     }
   }
   return { checked: jobs.length, results, wouldCreate };
+}
+
+/** Own jobs (installer_sourced) with an own photo quote: a `photo_quote_submitted` claim (own_customer) or a current
+ *  photo_quote measurement, or an `own_photo_quote_failed` event (the claim write failed after the save). Also, for 10 minutes after it is made, an own job of a From photos business (Add a job writes
+ *  the claim straight after the save; this stops the tick racing it). A missing quote_method column = no From photos
+ *  business; any other failed read throws (no forms this tick). */
+async function ownPhotoQuoteJobs(jobs: { id: string; channel: string | null; created_at: string; originating_installer_business_id: string | null }[], measurements: { job_id: string; external_source: string | null }[], now: Date): Promise<string[]> {
+  const own = jobs.filter((j) => j.channel === "installer_sourced");
+  if (!own.length) return [];
+  const { PHOTO_QUOTE_SUBMITTED_EVENT, isMissingQuoteMethodColumn, quoteMethodOf } = await import("./photo-quote.core");
+  const { chunkIds } = await import("./sweep-batch.core");
+  const out = new Set(measurements.filter((m) => m.external_source === "photo_quote").map((m) => m.job_id).filter((id) => own.some((j) => j.id === id)));
+  for (const chunk of chunkIds(own.map((j) => j.id))) {
+    const r = await admin.from("workflow_events").select("job_id").in("job_id", chunk).eq("event_type", PHOTO_QUOTE_SUBMITTED_EVENT).contains("details", { own_customer: true });
+    if (r.error) throw new Error("Ready Check form sweep could not read the photo quotes.");
+    for (const e of (r.data ?? []) as { job_id: string }[]) out.add(e.job_id);
+    // Re-review (5 Nov): the claim write failed after the save (own_photo_quote_failed) — still a From photos job, never a form.
+    const f = await admin.from("workflow_events").select("job_id").in("job_id", chunk).eq("event_type", "own_photo_quote_failed");
+    if (f.error) throw new Error("Ready Check form sweep could not read the photo quotes.");
+    for (const e of (f.data ?? []) as { job_id: string }[]) out.add(e.job_id);
+  }
+  const fresh = own.filter((j) => !out.has(j.id) && j.originating_installer_business_id && now.getTime() - Date.parse(j.created_at) < 10 * 60_000);
+  if (fresh.length) {
+    const r = await admin.from("businesses").select("id, quote_method").in("id", [...new Set(fresh.map((j) => j.originating_installer_business_id!))]);
+    if (r.error && !isMissingQuoteMethodColumn(r.error)) throw new Error("Ready Check form sweep could not read how installers quote.");
+    const photos = new Set(((r.error ? [] : r.data ?? []) as { id: string; quote_method?: string | null }[]).filter((b) => quoteMethodOf(b) === "photos").map((b) => b.id));
+    for (const j of fresh) if (photos.has(j.originating_installer_business_id!)) out.add(j.id);
+  }
+  return [...out];
+}
+
+/** Jobs (of `ids`) whose current give is From photos. Reads in 200-id chunks; a failed read throws (no forms this tick). */
+async function photoGiveJobs(ids: string[], assignments: { job_id: string; business_id: string | null }[]): Promise<Set<string>> {
+  const { PHOTO_QUOTE_GIVE_EVENT, photoGiveFrom } = await import("./photo-quote.core");
+  const { chunkIds } = await import("./sweep-batch.core");
+  const rows: { job_id: string; event_type: string; created_at: string; details: { batch_id?: unknown; business_id?: unknown } | null }[] = [];
+  for (const chunk of chunkIds(ids)) {
+    const r = await admin.from("workflow_events").select("job_id, event_type, created_at, details").in("job_id", chunk).in("event_type", ["in_house_batch_sent", PHOTO_QUOTE_GIVE_EVENT]);
+    if (r.error) throw new Error("Ready Check form sweep could not read how jobs are quoted.");
+    rows.push(...((r.data ?? []) as typeof rows));
+  }
+  const marked = new Set(rows.filter((r) => r.event_type === PHOTO_QUOTE_GIVE_EVENT).map((r) => r.job_id));
+  return new Set([...marked].filter((id) => photoGiveFrom(rows.filter((r) => r.job_id === id), assignments.filter((a) => a.job_id === id && a.business_id).map((a) => a.business_id!))));
 }

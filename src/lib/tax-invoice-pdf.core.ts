@@ -62,7 +62,8 @@ export function taxInvoiceModel(f: TaxInvoiceFacts, seam: TaxInvoiceSeam = {}): 
       { label: `${OWN_CUSTOMER_LABELS.insulation} · ${f.productLine!}`, amount: aud(f.productCents) },
       // A negative extra is the installer's discount (Task 6): shown like the rebate, "– $200.00".
       ...extras.map((e) => ({ label: e.label, amount: e.cents < 0 ? `– ${aud(-e.cents)}` : aud(e.cents) })),
-      ...(f.piesaCents > 0 ? [{ label: OWN_CUSTOMER_LABELS.piesa, amount: aud(f.piesaCents) }] : []),
+      // The invoice keeps its own label: Jo's 16:44 PIESA wording is for quotes (OWN_CUSTOMER_LABELS.piesa).
+      ...(f.piesaCents > 0 ? [{ label: PIESA_LINE_LABEL, amount: aud(f.piesaCents) }] : []),
     ],
     priceBeforeLabel: "Price before rebate", rebateLabel: OWN_CUSTOMER_LABELS.rebate, payableLabel: `${OWN_CUSTOMER_LABELS.total} (incl. GST)`,
     ...(logo && own.installerLogo?.bytes?.length ? { partnerLogo: { ...own.installerLogo, alt: logo.alt } } : {}),
@@ -98,7 +99,7 @@ export function taxInvoiceProductLine(line: { brand: string; model: string; rVal
 export function taxInvoicePayments(plan: Pick<PaymentPlan, "safetyCheckCents" | "installDepositCents" | "balanceCents" | "thresholds">, ledger: ReceiptPayment[], shortDate: (iso: string) => string) {
   const steps = [
     { label: "Electrical safety check (PIESA)", cents: plan.safetyCheckCents, at: reachedOn(ledger, plan.thresholds.safety_check) },
-    { label: "10% deposit", cents: plan.installDepositCents, at: reachedOn(ledger, plan.thresholds.install_deposit) },
+    { label: "50% deposit", cents: plan.installDepositCents, at: reachedOn(ledger, plan.thresholds.install_deposit) },
     { label: "Final payment", cents: plan.balanceCents, at: reachedOn(ledger, plan.thresholds.balance) },
   ];
   const payments = steps.filter((x) => x.at).map((x) => ({ label: x.label, paidOn: shortDate(x.at!), cents: x.cents }));

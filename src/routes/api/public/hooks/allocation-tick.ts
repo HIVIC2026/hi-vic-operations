@@ -170,6 +170,15 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['upgradesNeeded'] = "failed";
         }
         try {
+          // Jo 5 Nov 2026: the installer office's "Quote sent" email held at release (no office email / trade messages paused)
+          // is retried here — sent own-customer quotes of the last 30 days with no attempt yet, at most 50 a tick.
+          const { sweepInstallerQuoteSentEmails } = await import("@/lib/installer-quote-sent-email.server");
+          (out as Record<string, unknown>)['installerQuoteSent'] = await timed("sweepInstallerQuoteSentEmails", () => sweepInstallerQuoteSentEmails());
+        } catch (e) {
+          console.error("allocation tick: installer quote sent email sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['installerQuoteSent'] = "failed";
+        }
+        try {
           // New job flow Part 6 (fix wave I2): every active electrician assignment gets its job link text once (held = one trace per reason).
           const { sweepElectricianLinks, sweepHeldElectricianCantDoEmails } = await import("@/lib/electrician-link.server");
           (out as Record<string, unknown>)['electricianLinks'] = await timed("sweepElectricianLinks", () => sweepElectricianLinks());
@@ -560,6 +569,16 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
         } catch (e) {
           console.error("allocation tick: ready check form sweep failed", (e as Error).message);
           (out as Record<string, unknown>)['readyCheckForms'] = "failed";
+        }
+        try {
+          // Photo-quote installers Part 2 (review fix): finish any Add a job photo quote whose claim was saved but whose
+          // measurement/quote wasn't (a crash or failure after the save). Uses the existing guarded release only.
+          const { sweepOwnPhotoQuotes } = await import("@/lib/own-photo-quote.server");
+          const p = await timed("sweepOwnPhotoQuotes", () => sweepOwnPhotoQuotes());
+          (out as Record<string, unknown>)['ownPhotoQuotes'] = { checked: p.checked, finished: p.finished.length, failed: p.failed.length };
+        } catch (e) {
+          console.error("allocation tick: own photo quote sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['ownPhotoQuotes'] = "failed";
         }
         try {
           // Decision 328: today's installs only — an A5 Install day form newly marked Complete is checked and the lead

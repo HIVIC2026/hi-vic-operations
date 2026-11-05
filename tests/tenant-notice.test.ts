@@ -25,14 +25,14 @@ const RENTED: RentalAnswers = { rented: true, tenant: { name: "Tina Lee", mobile
 const MANAGED: RentalAnswers = { rented: true, tenant: null, manager: { name: "Paul Manager", agency: "", mobile: "+61400333444", email: "paul@manage.example" }, access: { who: "property_manager", name: "Paul Manager", mobile: "+61400333444" } };
 const OWNER_LIVES: RentalAnswers = { rented: false, tenant: null, access: null };
 
-describe("tenant notice — pure rules (DRAFT wording)", () => {
-  test("ships switched off; compliance purpose; its text type is an unapproved owner-side text with quiet hours", () => {
-    expect(TENANT_NOTICE_APPROVED).toBe(false);
+describe("tenant notice — pure rules (Jo 6 Nov 2026: on)", () => {
+  test("ships switched on; compliance purpose; its text type is an approved owner-side text with quiet hours", () => {
+    expect(TENANT_NOTICE_APPROVED).toBe(true);
     expect(COMPLIANCE_OWNER_EMAIL_PURPOSES).toContain(TENANT_NOTICE_EMAIL_PURPOSE);
     expect(doNotContactBlocks({ channel: "email", purpose: TENANT_NOTICE_EMAIL_PURPOSE, on: true })).toBeNull();
     const t = SMS_MESSAGE_TYPES[TENANT_NOTICE_SMS_TYPE];
     expect({ audience: t.audience, approved: t.wordingApproved, quiet: t.quietHours, side: t.ownerSideContact, purpose: t.compliancePurpose })
-      .toEqual({ audience: "owner", approved: false, quiet: true, side: true, purpose: TENANT_NOTICE_EMAIL_PURPOSE });
+      .toEqual({ audience: "owner", approved: true, quiet: true, side: true, purpose: TENANT_NOTICE_EMAIL_PURPOSE }); // Jo 6 Nov 2026: on
     expect(SMS_FRESHNESS.tenant_notice).toEqual({ kind: "event", maxAgeMinutes: 24 * 60 });
   });
   test("needed only when the owner answered rented", () => {
@@ -67,7 +67,7 @@ describe("tenant notice — pure rules (DRAFT wording)", () => {
   });
   test("the real sender: a STOP from the tenant's number blocks the text; the owner's Do not contact never does", () => {
     const base = { to: "+61400111222", commsEnabled: true, typeSwitchOn: true, senderConfigured: true, optedOut: false, consent: true, isTestRecord: false, nowIso: "2026-11-03T03:00:00Z" };
-    expect(smsBlocker({ ...base, type: TENANT_NOTICE_SMS_TYPE })).toBe("Wording not approved yet"); // DRAFT
+    expect(smsBlocker({ ...base, type: TENANT_NOTICE_SMS_TYPE })).toBeNull(); // Jo 6 Nov 2026: on.
     const types = SMS_MESSAGE_TYPES as unknown as Record<string, unknown>;
     const saved = types[TENANT_NOTICE_SMS_TYPE];
     types[TENANT_NOTICE_SMS_TYPE] = { ...SMS_MESSAGE_TYPES[TENANT_NOTICE_SMS_TYPE], wordingApproved: true };
@@ -92,10 +92,10 @@ describe("tenant notice — pure rules (DRAFT wording)", () => {
     const row = rows.today.find((r) => r.kind === "tenant_notice_held");
     expect(row).toMatchObject({ group: "today", line: expect.stringContaining("Tenant not told the install day"), button: { label: "Open job", to: "job", section: "install" } });
   });
-  test("template hub lists the draft text and email under Waiting, pointing at the live builder and sender", () => {
+  test("template hub lists the text and email under Owner (Jo 6 Nov 2026: on), pointing at the live builder and sender", () => {
     for (const id of ["owner:tenant-notice", "owner:sms-tenant_notice"]) {
       const e = TEMPLATE_ENTRIES.find((x) => x.id === id);
-      expect({ id, section: e?.section, approval: e?.approval, gate: e?.gate }).toEqual({ id, section: "waiting", approval: "waiting", gate: { kind: "code_off", flag: "TENANT_NOTICE_APPROVED" } });
+      expect({ id, section: e?.section, approval: e?.approval, gate: e?.gate }).toEqual({ id, section: "owner", approval: "approved", gate: id.includes("sms") ? { kind: "text", smsType: "tenant_notice" } : { kind: "email" } });
       expect(e?.source).toEqual({ builder: "src/lib/tenant-notice.core.ts", fn: "tenantNotice", sender: "src/lib/tenant-notice.server.ts" });
       const p = e!.render();
       expect(p.kind === "text" ? p.body : p.kind === "email" ? p.html : "").toContain("power will be off for the day");

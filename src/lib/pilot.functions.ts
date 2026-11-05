@@ -41,6 +41,7 @@ const businessInput = z.object({
   branding: z.object({ logo_url: z.string().url().max(1000).optional(), colour: z.string().max(20).optional() }).optional(),
   default_comms_owner: z.enum(["installer", "hivic"]).optional(), commercial_route: z.enum(["hivic_full_invoice", "split_invoicing"]).optional(),
   in_house: z.boolean().optional(), rectification_billed_by: z.enum(["partner", "hivic"]).optional(),
+  quote_method: z.enum(["ready_check", "photos"]).optional(), // Photo-quote installers (Jo 5 Nov 2026): admin-only, like in_house.
 });
 const CRITICAL_FIELDS = ["legal_name", "abn", "acn", "rec_number", "licence_number", "business_type", "capabilities", "commercial_route"] as const;
 
@@ -69,6 +70,7 @@ export const saveBusiness = createServerFn({ method: "POST" }).middleware([requi
       delete (patch as Record<string, unknown>)["commercial_route"]; // commercial route is Home Insulation Victoria-controlled
       delete patch.in_house;
       delete patch.rectification_billed_by;
+      delete patch.quote_method;
     }
     // Trades manage their own diaries: capacity fields are no longer used or saved.
     delete (patch as Record<string, unknown>)["daily_job_limit"];
@@ -83,6 +85,11 @@ export const saveBusiness = createServerFn({ method: "POST" }).middleware([requi
       const facts = await (await import("./installer-paid-electricians.server")).inHouseFactsFor(id);
       const blockers = inHouseEnableBlockers(facts);
       if (blockers.length) throw new WorkflowError(blockers.join(" • "));
+    }
+    // Pending installer-quote-method.sql: before it runs the column is missing, which reads as Ready Check.
+    if (patch.quote_method !== undefined && !("quote_method" in (before as Record<string, unknown>))) {
+      if (patch.quote_method === "photos") throw new WorkflowError("From photos can't be saved yet: the setting isn't switched on in the database.");
+      delete patch.quote_method;
     }
     const { in_house, rectification_billed_by, ...ordinaryPatch } = patch;
     const criticalChanged = CRITICAL_FIELDS.some((k) => k in patch && JSON.stringify((patch as Record<string, unknown>)[k]) !== JSON.stringify((before as Record<string, unknown>)[k]));

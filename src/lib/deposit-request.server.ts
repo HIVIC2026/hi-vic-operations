@@ -50,7 +50,7 @@ async function recordRequest(jobId:string,invoiceId:string,now:Date,deadline:str
   const key=installDepositRequestKey(invoiceId);
   const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(key)))).map(x=>x.toString(16).padStart(2,'0')).join('');
   const id=`${hash.slice(0,8)}-${hash.slice(8,12)}-4${hash.slice(13,16)}-8${hash.slice(17,20)}-${hash.slice(20,32)}`;
-  const r=await admin.from('workflow_events').insert({id,job_id:jobId,actor_id:null,event_type:INSTALL_DEPOSIT_REQUEST_EVENT,summary:'10% install deposit requested on the existing installation invoice',created_at:now.toISOString(),internal:true,details:{key,invoice_id:invoiceId,requested_at:now.toISOString(),deadline}});
+  const r=await admin.from('workflow_events').insert({id,job_id:jobId,actor_id:null,event_type:INSTALL_DEPOSIT_REQUEST_EVENT,summary:'50% install deposit requested on the existing installation invoice',created_at:now.toISOString(),internal:true,details:{key,invoice_id:invoiceId,requested_at:now.toISOString(),deadline}});
   if(r.error&&r.error.code!=='23505')throw Error(r.error.message);
 }
 /** Part 4 Task 3 (#40): everything the "You're clear to install" send needs, injected so it is testable without PDFs or a database. */
@@ -88,7 +88,7 @@ type Facts=NonNullable<Awaited<ReturnType<typeof factsFor>>>;
 async function ownerNotice(jobId:string,c:Facts,step:'request'|'paid'|DepositReminder,at:string,now:Date,deps:ClearToInstallDeps){
   // Quiet hours are checked before either channel; no deferred text at a different time to its email.
   if((await import('./quote-hold.core')).smsQuietReason(now.toISOString()))return 'quiet hours';
-  // Upgrades still to come and that email is on: its button already carries the 10% deposit, so no second request (reminders unchanged).
+  // Upgrades still to come and that email is on: its button already carries the 50% deposit, so no second request (reminders unchanged).
   if(step==='request'&&deps.upgradesApproved&&(await deps.route(jobId)).includes('upgrades_needed'))return 'covered by the electrical upgrades needed email';
   const clear=step==='request'&&deps.approved&&(await deps.route(jobId)).includes('clear_to_install');
   // The clear-to-install email carries the owner's legal PIESA copy, so the 24h stale rule never holds it back.

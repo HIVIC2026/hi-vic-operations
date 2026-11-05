@@ -66,6 +66,13 @@ export function captureLinkState(l: { status: string; expires_at: string } | nul
   return "ok";
 }
 
+/** Photo-quote installers (Jo 5 Nov 2026, reverses touchpoint #13): the optional "Got photos or a video?" box shows on an
+ *  open job (link state ok) whose original enquiry media isn't excluded, while under the file limit. The excluded/requested
+ *  rule is unchanged (requested uploads keep their own page). */
+export function optionalUploadAllowed(f: { excluded: boolean; received: number }): boolean {
+  return !f.excluded && f.received < CAPTURE_MAX_FILES;
+}
+
 /** Homeowner-video documents only: canonical homeowner media kind, a video type, one per storage path. Trade evidence is never counted. */
 export function homeownerVideoCount(docs: { kind: string; mime_type: string | null; storage_path: string }[]): number {
   return new Set(docs.filter((d) => d.kind === CAPTURE_KIND && (d.mime_type ?? "").startsWith("video/")).map((d) => d.storage_path)).size;

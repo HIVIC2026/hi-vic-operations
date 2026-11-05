@@ -7,7 +7,7 @@ const e = renderYoureInEmail({ firstName: "Sarah", rebate: 1610, totalIncGst: 21
 test("approved next steps (touchpoint 34)", () => {
   expect(e.text).toContain("1. Electrical safety check (PIESA): Rapid Insulation's licensed electrician will call you to book it. They check your wiring, downlights and switchboard are safe to insulate over.");
   expect(e.text).toContain("2. Only if electrical upgrades are needed: Your electrician quotes and books them with you directly. Nothing is done without your OK.");
-  expect(e.text).toContain("3. Book your install day: Rapid Insulation will call you to book it. Pay your 10% deposit to lock it in. Your install is done within 30 days of the electrical safety check (PIESA).");
+  expect(e.text).toContain("3. Book your install day: Rapid Insulation will call you to book it. Pay your 50% deposit to lock it in. Your install is done within 30 days of the electrical safety check (PIESA).");
   expect(e.text).toContain("Electrical safety check (PIESA): $349.00");
   expect(e.text).not.toMatch(/offer you times|offers you 3 days|separate quote/);
 });

@@ -250,7 +250,7 @@ describe("quote-ready sender — installer's own customer (Task 5)", () => {
     quotes: { customer_total_inc_gst: 2098, veec_discount_inc_gst: 600, subtotal_inc_gst: 2698, sent_at: sentAt, kind: "installation", status: "issued", release_state: "released" },
     quote_items: [
       { description: "Insulation works by your installer — includes: Ceiling insulation - supply & install", line_total_inc_gst: 2000, sort: 0, code: "INSTALLER_PRICE" },
-      { description: "Home Insulation Victoria fee", line_total_inc_gst: 349, sort: 1, code: "AP_FEE" },
+      { description: "Home Insulation Victoria AP management fee", line_total_inc_gst: 349, sort: 1, code: "AP_FEE" },
       { description: "Electrical safety check (PIESA)", line_total_inc_gst: 349, sort: 2, code: "PIESA" },
     ],
   });
@@ -261,8 +261,8 @@ describe("quote-ready sender — installer's own customer (Task 5)", () => {
     const r = await notifyOwnerQuoteReady("j", "q", "installation");
     expect(r.email).toBe("sent");
     const m = sends[0]!.mail;
-    expect(m.text).toContain("Home Insulation Victoria fee: $349.00");
-    expect(m.text).toContain("Electrical safety check (PIESA): $349.00");
+    expect(m.text).toContain("Home Insulation Victoria AP management fee: $349.00");
+    expect(m.text).toContain("Electrical safety check (PIESA) — charged by Home Insulation Victoria: $349.00");
     expect(m.text).toContain("Rebate: −$600.00");
     expect(m.text).toContain("Your price: $2,098.00");
     expect(m.text).toContain("About the Victorian Energy Upgrades program");

@@ -51,10 +51,10 @@ describe("Templates navigation", () => {
     expect(body("owner:address-request")).toContain("We need your full address to check your home.");
     expect(body("owner:address-request-reminder")).toContain("Just a reminder — we need your full address to check your home.");
   });
-  test("plan 2026-11-02: the in-house Give email waits for Jo, off by its code switch, rendered from the live builder", () => {
+  test("plan 2026-11-02 / Jo 6 Nov 2026 (on): the in-house Give email is live under Installer, rendered from the live builder", () => {
     const e = TEMPLATE_ENTRIES.find((x) => x.id === "waiting:in-house-give");
-    expect({ section: e?.section, approval: e?.approval, gate: e?.gate, who: e?.who, when: e?.when }).toEqual({ section: "waiting", approval: "waiting", gate: { kind: "code_off", flag: "IN_HOUSE_GIVE_EMAIL_APPROVED" }, who: "Installer office", when: "Jo taps Give on ticked jobs — one email per tap" });
-    expect(templateStatus(e!, null).label).toBe("Off — waiting for Jo's approval");
+    expect({ section: e?.section, approval: e?.approval, gate: e?.gate, who: e?.who, when: e?.when }).toEqual({ section: "installer", approval: "approved", gate: { kind: "email" }, who: "Installer office", when: "Jo taps Give on ticked jobs — one email per tap" });
+    expect(templateStatus(e!, null).label).toBe("Needs the customer messages switch");
     const p = e!.render();
     expect(p.kind === "email" && p.subject).toBe("New free Ready Check jobs from Home Insulation Victoria");
     expect(p.kind === "email" && p.html).toContain("Call each owner to book their free Ready Check.");

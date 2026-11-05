@@ -50,7 +50,7 @@ describe("decision 302 — the upfront safety check is the quote's PIESA line", 
     const block = payNowBlock({ step: due.step, cardAvailable: true, bank: HIV_BANK_DETAILS, reference: "HV-3193", remainingCents: due.remainingCents });
     expect(block.title).toBe("Pre Insulation Electrical Safety Assessment (PIESA) payment: $349.00 due now");
     expect(block.lines[0]).toBe(PAY_LINE_SAFETY_CHECK);
-    expect(stepsLine(steps)).toBe("$349 due · deposit $265 — · balance $2,386 —");
+    expect(stepsLine(steps)).toBe("$349 due · deposit $1,326 — · balance $1,326 —");
     expect(shortAud(splitForOption(3000, 349).deposit)).toBe("$349");
     expect(P2.button(centsAud(349))).toBe("Accept and pay $349.00");
     expect(P2.howYouPayFor(shortAud(349))).toBe(P2.howYouPay);
@@ -63,7 +63,7 @@ describe("decision 302 — the upfront safety check is the quote's PIESA line", 
   test("$220 case flows through plan, pay-now, Stripe amount, Xero deposit, P2 page, O18, Money line, installer summary", async () => {
     const plan = paymentPlan({ quoteTotalCents: 300_000, safetyCheckCents: piesaLineCents(lines220) });
     expect(plan.safetyCheckCents).toBe(22_000);
-    expect(plan.installDepositCents).toBe(27_800); // 10% of (3000 − 220)
+    expect(plan.installDepositCents).toBe(139_000); // 50% of (3000 − 220)
     expect(howYouPayLines(plan)[0]).toBe("$220.00 now for the electrical safety check (card or bank transfer, no fee)");
     const steps = paymentSteps(plan, { install: 0, fixes: 0, repeat: 0 }, { safety_check: { requestedAt: "2026-10-25T00:00:00Z" } }, "2026-10-25T01:00:00Z");
     const due = payableNow(plan, steps, { install: 0, fixes: 0, repeat: 0 });
@@ -84,12 +84,12 @@ describe("decision 302 — the upfront safety check is the quote's PIESA line", 
     const split = splitForOption(3000, safetyCheckIncGstFor({ lines: lines220 }));
     expect(split.deposit).toBe(220);
     expect(P2.button(centsAud(split.deposit))).toBe("Accept and pay $220.00");
-    expect(P2.howYouPayFor(shortAud(split.deposit))).toBe("How you pay: $220 now for the electrical safety check (PIESA). 10% to book your install day. The rest on install day. Card or bank transfer, no fees.");
+    expect(P2.howYouPayFor(shortAud(split.deposit))).toBe("How you pay: $220 now for the electrical safety check (PIESA). 50% to book your install day. The rest on install day. Card or bank transfer, no fees.");
     expect(paymentOptionSummary(220)).toContain("The $220 Pre Insulation Electrical Safety Assessment (PIESA) payment is needed");
     // O18 "Next" amount comes from the quote lines
     expect(safetyCheckPriceFromLines([{ description: "Pre Insulation Electrical Safety Assessment (PIESA)", lineTotalIncGst: 220 }] as never)).toBe(220);
     // Office Money line and installer summary
-    expect(stepsLine(steps)).toBe("$220 due · deposit $278 — · balance $2,502 —");
+    expect(stepsLine(steps)).toBe("$220 due · deposit $1,390 — · balance $1,390 —");
     expect(installerJobSummary({ installer: "Deep", consent: "granted", mittiAuditId: "a", formProblem: null, basics: { missing: [], stops: [], completed: true }, heldReasons: null, quote: { total: 3000, sent: true, accepted: true, held: false, safetyCheckIncGst: 220 }, warnings: [] }).upTo)
       .toBe("Owner accepted the quote — next is the $220 safety check payment, then the electrician");
   });
@@ -141,7 +141,7 @@ describe("decision 303 — only onboarded electricians", () => {
     // Jo 4 Nov 2026 (final, replaces Part 10's "$349 whatever the rate"): the owner's PIESA line is the rate the resolution
     // carries ($220 here; on a real own-customer job `withOwnerSafetyCheckPrice` makes that the installer's own rate) — never $349.
     expect(r.priceIncGst).toBe(220);
-    expect(draft.lines.find((l) => l.code === "PIESA")).toMatchObject({ description: "Electrical safety check (PIESA)", line_total_inc_gst: 220 });
+    expect(draft.lines.find((l) => l.code === "PIESA")).toMatchObject({ description: "Electrical safety check (PIESA) — charged by Home Insulation Victoria", line_total_inc_gst: 220 });
     expect(mittiQuoteElectricalBlocker(draft.lines as never, r, r)).toBeNull();
   });
 

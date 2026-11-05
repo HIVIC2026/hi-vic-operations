@@ -25,7 +25,7 @@ export function piesaResultRoute(
   return approvals.upgradesNeeded ? ["upgrades_needed"] : ["standalone_copy"];
 }
 
-/** Jo 2 Nov, answer 21: the confirm-and-pay page (and so the 10% deposit) opens straight after the PIESA result,
+/** Jo 2 Nov, answer 21: the confirm-and-pay page (and so the 50% deposit) opens straight after the PIESA result,
  *  including when electrical upgrades are still to come. Booking the install day still needs the deposit paid. */
 export function depositOpenAfterPiesa(f: { outcome: PiesaOutcome | null }): boolean {
   return f.outcome === "all_clear" || f.outcome === "upgrades_needed";

@@ -1,4 +1,4 @@
-// Receipt wording and maths for the $349 safety check, the 10% deposit and the final payment. PURE (no pdf-lib, no database).
+// Receipt wording and maths for the $349 safety check, the 50% deposit and the final payment. PURE (no pdf-lib, no database).
 // Amounts come from `paymentPlan` (payments.core.ts) and the ledger; nothing here recomputes the deposit.
 import { aud, stepAmountCents, type PaymentPlan } from "./payments.core";
 
@@ -11,10 +11,10 @@ export type ReceiptInput = {
 export type ReceiptModel = { heading: string; paidLine: string; rows: { label: string; amount: string }[]; stillToPay: string; gstLine: string | null };
 
 export const SAFETY_CHECK_LABEL = "Electrical safety check (PIESA)";
-export const DEPOSIT_LABEL = "10% deposit";
+export const DEPOSIT_LABEL = "50% deposit";
 const HEADING: Record<ReceiptStep, string> = { safety_check: "We've received your payment.", install_deposit: "We've received your deposit.", balance: "We've received your final payment." };
-const PAID_LINE: Record<ReceiptStep, string> = { safety_check: SAFETY_CHECK_LABEL, install_deposit: "10% deposit to book your install day", balance: "The rest of your price, due on install day" };
-const TODAY_LABEL: Record<ReceiptStep, string> = { safety_check: `${SAFETY_CHECK_LABEL}, paid today`, install_deposit: "10% deposit, paid today", balance: "Final payment, paid today" };
+const PAID_LINE: Record<ReceiptStep, string> = { safety_check: SAFETY_CHECK_LABEL, install_deposit: "50% deposit to book your install day", balance: "The rest of your price, due on install day" };
+const TODAY_LABEL: Record<ReceiptStep, string> = { safety_check: `${SAFETY_CHECK_LABEL}, paid today`, install_deposit: "50% deposit, paid today", balance: "Final payment, paid today" };
 
 /** GST inside a GST-inclusive amount (one eleventh), rounded half up to the cent. */
 const gstInside = (cents: number) => Math.floor(cents / 11 + 0.5);
@@ -36,6 +36,11 @@ const MELB = (o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en-AU",
 const fmtLong = (iso: string) => MELB({ weekday: "short", day: "numeric", month: "short", year: "numeric" }).format(new Date(iso)).replace(",", "");
 const fmtShort = (iso: string) => MELB({ day: "numeric", month: "short" }).format(new Date(iso));
 
+/** The ledger less ONE row matching `p` (same time, amount, source and kind). */
+export function withoutPayment(ledger: ReceiptPayment[], p: ReceiptPayment): ReceiptPayment[] {
+  const i = ledger.findIndex((r) => r === p || (r.paidAt === p.paidAt && Math.round(r.amountCents) === Math.round(p.amountCents) && r.source === p.source && (r.kind ?? "payment") === (p.kind ?? "payment")));
+  return i < 0 ? ledger : [...ledger.slice(0, i), ...ledger.slice(i + 1)];
+}
 /** When the running total of payments first reached `thresholdCents`; null if it never did. */
 export function reachedOn(ledger: ReceiptPayment[], thresholdCents: number): string | null {
   let sum = 0;
@@ -65,13 +70,16 @@ export function buildReceiptInput(f: ReceiptFacts): ReceiptInput | { held: strin
   const due = stepAmountCents(f.plan, f.step);
   if (Math.round(f.payment.amountCents) !== due) return held(`the payment of ${aud(f.payment.amountCents)} is not the ${aud(due)} due for this step`);
   const earlier: ReceiptEarlier[] = [];
+  // Earlier steps are dated from the OTHER payments only: with the 50% deposit (Jo 5 Nov 2026) this payment alone can exceed
+  // the $349, so counting it would date the safety check from the deposit itself.
+  const others = withoutPayment(f.ledger, f.payment);
   if (f.step !== "safety_check") {
-    const day = reachedOn(f.ledger, f.plan.thresholds.safety_check);
+    const day = reachedOn(others, f.plan.thresholds.safety_check);
     if (!day) return held("the date of the earlier safety check payment is not on record");
     earlier.push({ label: SAFETY_CHECK_LABEL, paidOn: fmtShort(day), cents: f.plan.safetyCheckCents });
   }
   if (f.step === "balance") {
-    const day = reachedOn(f.ledger, f.plan.thresholds.install_deposit);
+    const day = reachedOn(others, f.plan.thresholds.install_deposit);
     if (!day) return held("the date of the earlier deposit payment is not on record");
     earlier.push({ label: DEPOSIT_LABEL, paidOn: fmtShort(day), cents: f.plan.installDepositCents });
   }

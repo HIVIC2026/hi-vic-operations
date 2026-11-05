@@ -153,3 +153,19 @@ describe("old 7-day balance wording in saved rows", () => {
     expect(rulesFromAnswers([row(ok)])).toEqual([ok]);
   });
 });
+
+// Photo-quote installers Task 7: on a From photos job the Ready Check answers are replaced by the photo line.
+import { answersForPhotoJob } from "../src/lib/ai-answers.core";
+import { AI_SEED_ANSWERS as SEED7 } from "../src/lib/ai-answers.core";
+test("AI drafts on a photo job, flag off: only the Ready Check SENTENCES go — the rest of each answer stays, nothing new is added", () => {
+  const rows = [{ topic: "What the price includes", answer: "The price includes removal and install. Your Ready Check confirms the size." }, { topic: "Free Ready Check", answer: "Book your free Ready Check." }, { topic: "y", answer: "Ceilings only" }];
+  expect(answersForPhotoJob(rows, "No Gap", false)).toEqual([{ topic: "What the price includes", answer: "The price includes removal and install." }, { topic: "y", answer: "Ceilings only" }]);
+  const seed = answersForPhotoJob(null, "No Gap Insulation", false);
+  expect(seed.some((r) => /ready check/i.test(`${r.topic} ${r.answer}`))).toBe(false);
+  expect(seed.some((r) => /preparing your quote/i.test(r.answer))).toBe(false);
+  expect(seed.length).toBeGreaterThanOrEqual(SEED7.filter((r) => !/ready check/i.test(r.answer)).length);
+});
+test("AI drafts on a photo job, flag on + given From photos: the Ready Check sentence is replaced by the photo line", () => {
+  const a = answersForPhotoJob([{ topic: "x", answer: "Book your free Ready Check." }, { topic: "y", answer: "Ceilings only" }], "No Gap", true);
+  expect(a.map((r) => r.answer)).toEqual(["Ceilings only", "No Gap is preparing your quote from your photos."]);
+});

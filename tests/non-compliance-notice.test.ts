@@ -50,8 +50,8 @@ beforeEach(() => {
   contact = { name: "Sample Insulation Pty Ltd", tradingName: "Sample Insulation", officePhone: "03 9000 0000", email: "office@sample.example" };
 });
 
-test("flag is off by default; purpose is a compliance purpose", () => {
-  expect(core.NON_COMPLIANCE_NOTICE_APPROVED).toBe(false);
+test("flag is on (Jo 6 Nov 2026); purpose is a compliance purpose", () => {
+  expect(core.NON_COMPLIANCE_NOTICE_APPROVED).toBe(true);
   expect(core.NON_COMPLIANCE_PURPOSE).toBe("non_compliance_notice");
   expect(COMPLIANCE_OWNER_EMAIL_PURPOSES).toContain("non_compliance_notice");
 });

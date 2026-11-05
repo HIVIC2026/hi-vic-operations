@@ -21,9 +21,10 @@ import type { ElectricianPlan } from "./job-electrician.core";
 import type { MittiCall } from "./mitti.core";
 
 export type AddJobBooking = "none" | "confirmed" | "blocked";
-export type AddJobResult = { jobId: string; jobNumber: string | null; booking: AddJobBooking; formCreation: "scheduled" | "skipped"; state: OnsiteState; electricianReason?: string | null; /** Task 7: whether the chosen Team electrician was put on the job. */ electrician: "allocated" | "not_allocated" | "not_asked"; ownerFirstName: string | null };
+export type AddJobResult = { jobId: string; jobNumber: string | null; booking: AddJobBooking; formCreation: "scheduled" | "skipped"; state: OnsiteState; electricianReason?: string | null; /** Task 7: whether the chosen Team electrician was put on the job. */ electrician: "allocated" | "not_allocated" | "not_asked"; ownerFirstName: string | null;
+  /** Photo-quote installers Part 2: the own-customer photo quote's outcome (From photos businesses only). */ photoQuote?: { sent: boolean; held: string[]; /** Review IMPORTANT 1c: the quote didn't go through (plain line); the job is saved and Try again finishes it. */ failed?: string } };
 
-export async function startOnsiteReadyCheckFor(userId: string, businessId: string, input: OnsiteInput, _electrician: ElectricianPlan | null = null, call?: MittiCall, opts: { now?: Date; /** Task 7 + join ruling: the Team electrician for the PIESA — required; the installer's own electrician on this job. */ electricianWorkerId?: string | null; /** A1: how the installer got this customer; door-knock and cold call are refused. */ leadOrigin?: import("./onsite-ready-check.core").LeadOrigin | null; /** A6: the phone's key for this draft; a key already saved resumes that job. */ requestKey?: string | null } = {}): Promise<AddJobResult> {
+export async function startOnsiteReadyCheckFor(userId: string, businessId: string, input: OnsiteInput, _electrician: ElectricianPlan | null = null, call?: MittiCall, opts: { now?: Date; /** Task 7 + join ruling: the Team electrician for the PIESA — required; the installer's own electrician on this job. */ electricianWorkerId?: string | null; /** A1: how the installer got this customer; door-knock and cold call are refused. */ leadOrigin?: import("./onsite-ready-check.core").LeadOrigin | null; /** A6: the phone's key for this draft; a key already saved resumes that job. */ requestKey?: string | null; /** Photo-quote installers Part 2: the photo quote fields (From photos businesses only). */ photoQuote?: import("./own-photo-quote.core").OwnPhotoQuoteInput | null } = {}): Promise<AddJobResult> {
   const { requireApprovedPartner, intakeSourceFor } = await import("./pilot.server");
   // Task 7 (Task 1 roles): the boss and Office people add jobs for their own business; nobody else.
   const c = await (await import("./trade-view.server")).pricesOrThrow(userId);
@@ -45,6 +46,10 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
   const { electricianPlanBlocker, teamElectricianPlan } = await import("./job-electrician.core");
   const electrician: ElectricianPlan | null = teamWorker ? teamElectricianPlan(businessId, teamWorker.id) : null;
   const eb = electricianPlanBlocker(electrician); if (eb && !ecp) problems.push(eb);
+  // Photo-quote installers Part 2 (Jo 5 Nov 2026): a From photos business adds the photo quote with the job; checked before any write.
+  const ownPhoto = await import("./own-photo-quote.server");
+  const quoteMethod = await ownPhoto.businessQuoteMethod(businessId);
+  problems.push(...ownPhoto.ownPhotoQuoteGate(quoteMethod, opts.photoQuote));
   if (problems.length) throw new WorkflowError(problems.join(" • "));
   if (!electrician || !teamWorker) throw new WorkflowError(ELECTRICIAN_MISSING);
   const { teamElectricianChoiceRecord } = await import("./electrician-choice.core");
@@ -131,6 +136,12 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
     }
   }
 
+  // Review IMPORTANT 1b: the photo quote's claim row (with its answers) is written straight after the save, in this
+  // request, so even a crash before the quote records leaves it for the 15-minute tick (sweepOwnPhotoQuotes) to finish.
+  let photoFailure: unknown = null;
+  if (quoteMethod === "photos" && opts.photoQuote) {
+    try { await ownPhoto.claimOwnPhotoQuote(job.id, userId, businessId, opts.photoQuote); } catch (e) { photoFailure = e; }
+  }
   // Task 7: no visit time is taken here any more — the Ready Check is booked from the job page's Next step box.
   const booking: AddJobBooking = "none";
   // Task 7: the chosen Team electrician is put on the job through the existing allocation path (assignment RPC + Mitti form
@@ -144,14 +155,25 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
     await logEvent(job.id, userId, "add_job_electrician_not_allocated", "The electrician chosen on Add a job could not be put on the job; choose again on the job page", { worker_id: teamWorker.id, reason: error instanceof Error ? error.message : String(error) }, { internal: true }).catch(console.error);
   }
   // Own customers choose Mitti or the portal on the job page; Add never creates A1.
+  // Photo-quote installers Part 2: no Ready Check at all; the photo quote's records, the draft and the guarded release instead.
+  let photoQuote: AddJobResult["photoQuote"];
   const formCreation = 'skipped' as const;
+  if (quoteMethod === "photos" && opts.photoQuote) {
+    // Review IMPORTANT 1: a failure is never reported as success — the installer is told plainly and keeps the draft.
+    const failed = async (e: unknown) => {
+      await logEvent(job.id, userId, "own_photo_quote_failed", `Photo quote on Add a job not finished: ${(e as Error).message}`.slice(0, 500), { needs_office: true }, { internal: true }).catch(console.error);
+      const { OWN_PHOTO_QUOTE_WORDS } = await import("./own-photo-quote.core");
+      return { sent: false, held: [] as string[], failed: e instanceof WorkflowError ? e.message : OWN_PHOTO_QUOTE_WORDS.failed };
+    };
+    photoQuote = photoFailure ? await failed(photoFailure) : await ownPhoto.recordOwnPhotoQuote(job.id, userId, businessId, opts.photoQuote).catch(failed);
+  }
   // Task 19 (Jo 2 Nov 2026, answer 24): the installer's own customer is texted the rental questions (draft wording, off until
   // Jo approves it). Not on this form; a failure here never fails Add a job.
   try { await (await import("./own-customer-rental-taps.server")).textOwnRentalTaps(job.id); }
   catch (e) { console.error("rental questions text not sent", (e as Error).message); }
   // The saved job is the durable missing-form sweep candidate. Do not read the whole form state before returning.
   const state: OnsiteState = { kind: "preparing", message: "Measure and quote" };
-  return { jobId: job.id, jobNumber: job.job_number, booking, formCreation, state, electrician: electricianAllocated, electricianReason, ownerFirstName: input.full_name.trim().split(/\s+/)[0] ?? null };
+  return { jobId: job.id, jobNumber: job.job_number, booking, formCreation, state, electrician: electricianAllocated, electricianReason, ownerFirstName: input.full_name.trim().split(/\s+/)[0] ?? null, ...(photoQuote ? { photoQuote } : {}) };
 }
 
 /**

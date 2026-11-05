@@ -108,7 +108,7 @@ export async function fileTaxInvoicePdf(jobId: string): Promise<{ path: string }
     extraLines = [
       ...discountLines.map((r) => ({ label: OWN_CUSTOMER_LABELS.discount, cents: cents(r.line_total_inc_gst) })),
       ...sorted.filter((r) => (r.code === "INSTALLER_REMOVAL" || r.code === "INSTALLER_EXTRA") && cents(r.line_total_inc_gst) > 0).map((r) => ({ label: String(r.description ?? ""), cents: cents(r.line_total_inc_gst) })),
-      ...sorted.filter((r) => r.code === "AP_FEE" && cents(r.line_total_inc_gst) > 0).map((r) => ({ label: OWN_CUSTOMER_LABELS.apFee, cents: cents(r.line_total_inc_gst) })),
+      ...sorted.filter((r) => r.code === "AP_FEE" && cents(r.line_total_inc_gst) > 0).map((r) => ({ label: "Home Insulation Victoria fee", cents: cents(r.line_total_inc_gst) })),
     ];
     const other = sorted.filter((r) => !["INSTALLER_PRICE", "INSTALLER_DISCOUNT", "INSTALLER_REMOVAL", "INSTALLER_EXTRA", "AP_FEE", "PIESA"].includes(String(r.code)) && cents(r.line_total_inc_gst) !== 0);
     if (other.length || !(productCents > 0)) return { held: "Tax invoice not made: the quote lines are not the approved own-customer lines" };

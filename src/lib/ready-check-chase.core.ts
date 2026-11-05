@@ -46,7 +46,7 @@ export function readyCheckIncompleteText(jobNumber: string, address: string | nu
 /** Decision #27 (Jo 2 Nov 2026, chase-email.png): the "Nearly there" chase goes to the installer's business OFFICE email instead of a
  *  text. Wording approved verbatim; stays false until Jo OKs the picture. While false the old text (decision 83) keeps going, so one
  *  chase is only ever one version. */
-export const READY_CHECK_CHASE_EMAIL_APPROVED = false as boolean;
+export const READY_CHECK_CHASE_EMAIL_APPROVED = true as boolean; // Jo 6 Nov 2026: on
 
 export function readyCheckNearlyThereEmail(i: { jobNumber: string; address: string; missing: string[]; mittiFormUrl: string; contactName?: string | null; owner?: string | null; mobile?: string | null; test?: boolean }): { subject: string; text: string; html: string } {
   // Decision #27 words only (Jo 2 Nov 2026), in the suite look (5 Nov 2026): greeting, "Nearly there", the job card, what it
@@ -113,7 +113,7 @@ const RULES: { code: MittiOfficeCode; raise: (e: Ev) => boolean; clear: string[]
   { code: "mitti_setup_installer", raise: (e) => e.event_type === "mitti_access_needed", clear: ["mitti_access_override", "mitti_audit_linked", "mitti_synced", "mitti_measureup_synced"], detail: (e) => e.summary ?? null },
   // Decision 209: the Xero invoice went out with the rate-card wording because the product or measured area was unknown.
   { code: "xero_invoice_product_unconfirmed", raise: (e) => e.event_type === "xero_invoice_product_unconfirmed", clear: ["xero_invoice_product_confirmed"], detail: (e) => ((e.details?.["reasons"] as string[] | undefined) ?? []).join("; ") || e.summary || null },
-  // Decision 367: an install day started with the 10% deposit still unpaid (sweepProvisionalBookings); cleared once the
+  // Decision 367: an install day started with the 50% deposit still unpaid (sweepProvisionalBookings); cleared once the
   // deposit lands (install_booking_confirmed) or the booking is released.
   { code: "install_deposit_unpaid_at_start", raise: (e) => e.event_type === "install_deposit_unpaid_at_start", clear: ["install_booking_confirmed", "install_booking_released_unpaid"], detail: (e) => e.summary ?? null },
   // Audit R02: a card + Xero pair with the same amount and no shared Stripe id (both counted); cleared once the payments

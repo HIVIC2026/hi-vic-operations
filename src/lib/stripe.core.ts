@@ -1,7 +1,7 @@
 // Stripe card payments (Jo 24 Oct 2026, decision 144 – overrides 139/140 for these two payments only). Pure, no network.
 // Card = Stripe Checkout for (1) the $349 safety check at acceptance and (2) the electrical fixes at approval; the fee
 // is absorbed, no surcharge is ever shown (decision 140). The install deposit and the balance stay bank transfer /
-// PayID against the Xero invoice (the 10% install deposit may also be paid by card, Jo 29 Oct 2026). Keys live only in env (STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET); TEST (qa_test)
+// PayID against the Xero invoice (the 50% install deposit may also be paid by card, Jo 29 Oct 2026). Keys live only in env (STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET); TEST (qa_test)
 // jobs may only ever use a Stripe TEST key; real jobs need a live key AND the STRIPE_PAYMENTS_ENABLED switch.
 import type { PaymentStepKey } from "./payments.core";
 

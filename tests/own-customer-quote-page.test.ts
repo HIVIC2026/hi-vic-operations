@@ -6,7 +6,7 @@ import { OWN_CUSTOMER_LABELS, ownCustomerQuoteView } from "../src/lib/own-custom
 
 const items = [
   { code: "INSTALLER_PRICE", description: "Insulation works by your installer — includes: Ceiling insulation - supply & install", line_total_inc_gst: 2000 },
-  { code: "AP_FEE", description: "Home Insulation Victoria fee", line_total_inc_gst: 349 },
+  { code: "AP_FEE", description: "Home Insulation Victoria AP management fee", line_total_inc_gst: 349 },
   { code: "PIESA", description: "Electrical safety check (PIESA)", line_total_inc_gst: 275 }, // Rapid's own PIESA rate (Jo 4 Nov 2026)
 ];
 const own = { channel: "installer_sourced", approved: true, installerName: "Rapid Insulation", logoUrl: "https://x/rapid-logo.png", items, rebateIncGst: 600, totalIncGst: 2024 };
@@ -24,12 +24,12 @@ describe("ownCustomerQuoteView (pure)", () => {
     for (const f of [{ logoUrl: null }, { logoUrl: "http://x/logo.png" }, { installerName: null }]) {
       const v = ownCustomerQuoteView({ ...own, ...f });
       expect(v.cobrand).toBeNull();
-      expect(labels(v)).toEqual(["Insulation", "Home Insulation Victoria fee", "Electrical safety check (PIESA)", "Rebate", "Your price"]);
+      expect(labels(v)).toEqual(["Insulation", "Home Insulation Victoria AP management fee", "Electrical safety check (PIESA) — charged by Home Insulation Victoria", "Rebate", "Your price"]);
     }
   });
   test("extras sit between Insulation and the fee under their own words", () => {
     const v = ownCustomerQuoteView({ ...own, items: [items[0]!, { code: "INSTALLER_REMOVAL", description: "Removal of existing insulation (40 m²)", line_total_inc_gst: 300 }, items[1]!, items[2]!], totalIncGst: 2324 });
-    expect(labels(v)).toEqual(["Insulation", "Removal of existing insulation (40 m²)", "Home Insulation Victoria fee", "Electrical safety check (PIESA)", "Rebate", "Your price"]);
+    expect(labels(v)).toEqual(["Insulation", "Removal of existing insulation (40 m²)", "Home Insulation Victoria AP management fee", "Electrical safety check (PIESA) — charged by Home Insulation Victoria", "Rebate", "Your price"]);
   });
   test("not approved → both null; Home Insulation Victoria lead → both null; a malformed line set → rows null (never a guessed label)", () => {
     expect(ownCustomerQuoteView({ ...own, approved: false })).toEqual({ cobrand: null, rows: null });

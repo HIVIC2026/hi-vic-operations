@@ -40,8 +40,8 @@ beforeEach(() => {
 });
 const on = { approved: true };
 
-test("flag is off by default; Jo's line is verbatim", () => {
-  expect(core.VISIT_CANCELLED_OWNER_APPROVED).toBe(false);
+test("flag is on (Jo 6 Nov 2026); Jo's line is verbatim", () => {
+  expect(core.VISIT_CANCELLED_OWNER_APPROVED).toBe(true);
   expect(core.VISIT_CANT_GO_AHEAD_LINE("Fri 13 Nov")).toBe(LINE);
 });
 
@@ -85,8 +85,8 @@ test("second call: already attempted, not resent", async () => {
   expect(emails).toHaveLength(1);
 });
 
-test("flag false: awaiting approval, nothing recorded or sent", async () => {
-  expect(await server.queueVisitCancelledOwnerEmail("j", "bi", "installer")).toBe("awaiting approval");
+test("flag false (explicit): awaiting approval, nothing recorded or sent", async () => {
+  expect(await server.queueVisitCancelledOwnerEmail("j", "bi", "installer", { approved: false })).toBe("awaiting approval");
   expect(await server.queueVisitCancelledOwnerEmail("j", "bi", "installer", { approved: false })).toBe("awaiting approval");
   expect(emails).toHaveLength(0);
   expect(tests).toHaveLength(0);

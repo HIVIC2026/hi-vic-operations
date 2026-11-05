@@ -141,3 +141,33 @@ describe("Next step box", () => {
     }
   });
 });
+
+// Photo-quote installers Task 6: "Quote from photos" on a From photos give; Ready Check boxes never show for photos.
+describe("Next step box — From photos", () => {
+  const photos = (o: Partial<NextStepFacts> = {}) => f({ quoteMethod: "photos", photoQuoteSent: false, givenAt: "2026-11-05T23:00:00Z", now: new Date("2026-11-09T01:00:00Z"), ...o }); // given Fri 6 Nov
+  test("before the photo quote: quote_from_photos with the due date; overdue on Wed 11 Nov", () => {
+    const b = nextStepBox(photos());
+    expect(b).toMatchObject({ kind: "quote_from_photos", title: "Quote from photos", bookBy: "2026-11-10", overdue: false, yours: true });
+    expect(b.sub).toBe("Look at the owner's photos, fill this in and send it. Due by Tue 10 Nov.");
+    expect(nextStepBox(photos({ now: new Date("2026-11-10T13:30:00Z") })).overdue).toBe(true);
+    expect(b.phone).toBeNull();
+  });
+  test("never book_ready_check / ready_check_booked / ready_check_missing for photos", () => {
+    for (const rc of [{ start: null, done: false, missing: [] }, { start: "2026-11-09T22:00:00Z", done: false, missing: [] }, { start: null, done: true, missing: ["photos"] }])
+      expect(["book_ready_check", "ready_check_booked", "ready_check_missing"]).not.toContain(nextStepBox(photos({ readyCheck: rc })).kind);
+  });
+  test("after photo_quote_submitted: the existing waiting_quote box, status words only (HIV lead: no $ and no quote link)", () => {
+    const b = nextStepBox(photos({ photoQuoteSent: true }));
+    expect(b).toMatchObject({ kind: "waiting_quote", title: "Quote being prepared", sub: "Home Insulation Victoria is checking the quote." });
+    const sent = nextStepBox(photos({ photoQuoteSent: true, quote: "sent" }));
+    expect(sent.kind).toBe("waiting_quote");
+    for (const box of [b, sent, nextStepBox(photos())]) {
+      const text = JSON.stringify(box);
+      expect(text).not.toMatch(/\$\s?\d/);
+      expect(text).not.toMatch(/quote\s*\(PDF\)|View quote|my-job|\/quote\//i);
+    }
+  });
+  test("Ready Check job unchanged with or without the method", () => {
+    expect(nextStepBox(f({ quoteMethod: "ready_check" }))).toEqual(nextStepBox(base));
+  });
+});

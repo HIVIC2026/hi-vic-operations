@@ -132,7 +132,7 @@ export async function completePiesaAssessment(data: CompletePiesaInput, userId: 
     // The same shared write as the decision-315 job-page card (rectification.server recordRectificationWindows).
     await (await import("./rectification.server")).recordRectificationWindows(data.jobId, userId ?? signedOffBy, data.rectHours, data.rectWindows);
   }
-  // Jo 2 Nov (answer 21) / Part 4 fix wave C1: the 10% deposit is requested on ANY recorded PIESA result — pass, or upgrades
+  // Jo 2 Nov (answer 21) / Part 4 fix wave C1: the 50% deposit is requested on ANY recorded PIESA result — pass, or upgrades
   // still to come (eligibility gates on depositOpenAfterPiesa; non-in-house jobs come back 'not applicable').
   await (await import('./deposit-request.server')).requestInstallDeposit(data.jobId).catch(e=>console.error('Install deposit request held',e instanceof Error?e.message:'read failed'));
   await autoAdvanceJob(data.jobId, userId, "assessment completed");

@@ -1,4 +1,4 @@
-// Part 4 Task 6 (#44): which ledger payment is THE 10% deposit receipt. Pure: no database, no flags read here.
+// Part 4 Task 6 (#44): which ledger payment is THE 50% deposit receipt. Pure: no database, no flags read here.
 // Attach only on an exact match (the plan's deposit amount, not reversed, exactly one); else nothing.
 export type DepositReceiptEvent = { receipt_key?: string; amount_cents?: number; xero_payment_id?: string; stripe_payment_intent?: string };
 

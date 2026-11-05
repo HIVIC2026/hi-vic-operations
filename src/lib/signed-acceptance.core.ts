@@ -62,7 +62,7 @@ export function acceptancePage1(i: SignedAcceptanceInput): PdfBlock[] {
       ["Old insulation removal", i.removalM2 == null ? "No" : `Yes, ${i.removalM2} m²`],
       ["Electrical upgrades", "Not included. Your electrician quotes these if the safety check finds any."],
     ] },
-    { id: "a-pay", kind: "para", compact: c, lead: "How you pay:", text: `${safety} now for the electrical safety check (PIESA). 10% to book your install day. The rest on install day.` },
+    { id: "a-pay", kind: "para", compact: c, lead: "How you pay:", text: `${safety} now for the electrical safety check (PIESA). 50% to book your install day. The rest on install day.` },
     { id: "a-h-agreed", kind: "heading", text: `What ${firstName(i.ownerName)} agreed to` },
     { id: "a-ticks", kind: "ticks", compact: c, items: [...acceptanceTicks(safety)] },
     { id: "a-sigs", kind: "signatures", cells: [
@@ -82,7 +82,7 @@ export function agreementSignedLine(i: Pick<SignedAcceptanceInput, "ownerName" |
   return `Signed by ${i.ownerName} (typed name: ${i.ownerTypedName}) on the quote page on ${formatSignedAt(i.signedAt).short}.`;
 }
 
-/** The three payments printed in the agreement's payment terms: safety check, 10% of the rest to book, then the remainder. Cents in, cents out. */
+/** The three payments printed in the agreement's payment terms: safety check, 50% of the rest to book, then the remainder. Cents in, cents out. */
 export function paymentSplitCents(totalCents: number, safetyCents: number): { safety: number; deposit: number; rest: number } {
   // One rule: the payments plan (payments.core) decides the split, so the agreement and the money cards can't drift.
   const p = paymentPlan({ quoteTotalCents: totalCents, safetyCheckCents: safetyCents });
