@@ -10,14 +10,15 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { portalDestination } from "./set-password-link.core";
 import { early } from "./early-read";
+import type { Json } from "@/integrations/supabase/types";
 
 export type FirstScreen = {
   roles: string[];
   hasBusiness: boolean;
   /** My work's answer for `["trade-home"]` (null = this sign-in isn't linked, as getTradeHome says); absent = not handed over. */
-  home?: { value: unknown };
+  home?: { value: Json };
   /** Needs me's answer for `["needs-me-v2", false]`; absent = not handed over. */
-  needs?: { value: unknown };
+  needs?: { value: Json };
 };
 
 export type FirstScreenDeps = {
@@ -27,7 +28,8 @@ export type FirstScreenDeps = {
   needsMe: () => Promise<unknown>;
 };
 
-const plain = <T,>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
+/** The server-function return must be JSON-shaped (TanStack checks the type), so the handed-over answers are typed Json. */
+const plain = (v: unknown): Json => JSON.parse(JSON.stringify(v ?? null)) as Json;
 
 export async function firstScreenAfterSignIn(userId: string, deps: FirstScreenDeps): Promise<FirstScreen> {
   const homeP = early(deps.tradeHome(userId).then((v) => ({ value: plain(v) }), (e: Error) => (/isn't linked/.test(String(e?.message)) ? { value: null } : null)));
