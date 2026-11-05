@@ -10,13 +10,13 @@ const FILES = ["src/lib/acceptance-email.core.ts", "src/lib/deposit-request-emai
 
 describe("balance due on install day", () => {
   test("no source still states the 7-day rule", () => { for (const f of FILES) expect(readFileSync(f, "utf8")).not.toMatch(OLD); });
-  test("deposit = 10% of the price after the $349 (Jo 2 Nov, answer 1)", () => {
+  test("deposit = 50% of the price after the $349 (Jo 5 Nov 2026; was 10%)", () => {
     const p = paymentPlan({ quoteTotalCents: 218800, safetyCheckCents: 34900 });
-    expect([p.installDepositCents, p.balanceCents]).toEqual([18390, 165510]);
+    expect([p.installDepositCents, p.balanceCents]).toEqual([91950, 91950]);
   });
   test("You're in! still-to-pay line", () => {
     const e = renderYoureInEmail({ firstName: "Sarah", rebate: 1610, totalIncGst: 2188, payment: { amount: 349, paidOn: "8 Nov" }, installerName: "Rapid Insulation", myJobUrl: "x" } as any);
-    expect(e.text).toContain("Still to pay: $1,839.00 (10% to book your install day, the rest on install day)");
+    expect(e.text).toContain("Still to pay: $1,839.00 (50% to book your install day, the rest on install day)");
   });
   test("deposit emails say the rest is due on install day", () => {
     const f = { name: "Sarah", installer: "Rapid Insulation", jobNumber: "HV-1", address: "1 A St", ownerPhone: null, deadline: "2026-12-01", amountCents: 18390, link: "https://x.test", bank: { accountName: "A", bsb: "000-000", accountNumber: "1", payId: null } as any, reference: "HV-1", card: true };

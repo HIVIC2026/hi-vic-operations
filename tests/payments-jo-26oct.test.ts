@@ -10,10 +10,10 @@ const steps = (paid: number, p = plan, fixesPaid = 0) => paymentSteps(p, { insta
 
 describe("Payments — Jo 26 Oct 2026", () => {
   test("PIESA fee is $349", () => expect(plan.safetyCheckCents).toBe(34_900));
-  test("deposit is 10% of the install price only (not the PIESA fee)", () => expect(plan.installDepositCents).toBe(50_000));
-  test("deposit excludes the fixes", () => expect(paymentPlan({ quoteTotalCents: 534_900, safetyCheckCents: 34_900, fixesCents: 80_000 }).installDepositCents).toBe(50_000));
+  test("deposit is 50% of the install price only (not the PIESA fee)", () => expect(plan.installDepositCents).toBe(250_000));
+  test("deposit excludes the fixes", () => expect(paymentPlan({ quoteTotalCents: 534_900, safetyCheckCents: 34_900, fixesCents: 80_000 }).installDepositCents).toBe(250_000));
   test("PIESA fee alone never unlocks the install", () => expect(installDepositBlocker(plan, steps(34_900))).toBe(INSTALL_DEPOSIT_BLOCKER));
-  test("install unlocks once the 10% deposit is paid", () => expect(installDepositBlocker(plan, steps(84_900))).toBeNull());
+  test("install unlocks once the 50% deposit is paid", () => expect(installDepositBlocker(plan, steps(284_900))).toBeNull());
   test("fixes must be paid in full before the fixes booking", () => {
     const p = paymentPlan({ quoteTotalCents: 534_900, safetyCheckCents: 34_900, fixesCents: 80_000 });
     expect(fixesPaymentBlocker(p, steps(34_900, p, 79_999))).not.toBeNull();

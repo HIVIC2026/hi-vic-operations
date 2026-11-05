@@ -3,7 +3,7 @@
 // database, no Xero, no dates from the clock.
 //
 // Money (batch 3b, Jo 29 Oct 2026): each step is paid on its OWN invoice. The installation invoice (one per accepted
-// installation quote; it keeps the $349 safety check (PIESA) and $349 AP fee lines) carries the safety check, the 10% install
+// installation quote; it keeps the $349 safety check (PIESA) and $349 AP fee lines) carries the safety check, the 50% install
 // deposit and the balance; the electrical fixes have their own invoice ("… fixes"); a repeat safety check the owner pays
 // has its own invoice ("… safety check 2", 3…). A step is "paid" when the money received on ITS invoice reaches the step's
 // running threshold on that invoice. Xero is the system of record; card (Stripe) payments count until Xero shows the same
@@ -13,7 +13,7 @@
 // How owners pay (decision 140 — the RBA bans card surcharges from 1 July 2026, so a card fee is NEVER shown):
 //   • $349 safety check at acceptance: card (fee absorbed by Home Insulation Victoria) or bank transfer / PayID.
 //   • Electrical fixes at approval (decision 141): card or bank transfer / PayID, so fixes are never delayed.
-//   • 10% install deposit (Jo 29 Oct 2026): card, bank transfer or PayID. Balance on install day, pay in full: BANK TRANSFER / PayID ONLY — no card offered.
+//   • 50% install deposit (Jo 5 Nov 2026; was 10%) (Jo 29 Oct 2026): card, bank transfer or PayID. Balance on install day, pay in full: BANK TRANSFER / PayID ONLY — no card offered.
 // Card (decision 144) = Stripe Checkout for exactly the step amount (stripe.core.ts); Xero stays the invoice,
 // bank-transfer reference and reconciliation side. All amounts are integer cents.
 
@@ -21,7 +21,7 @@ import { melbourneAt, melbourneYmd } from "./piesa-windows.core";
 
 export const PAYMENT_DECISION = "Jo 24 Oct 2026 (decisions 139, 140, 141, 144)";
 export const SAFETY_CHECK_CENTS = 34_900;
-export const INSTALL_DEPOSIT_RATE = 0.10;
+export const INSTALL_DEPOSIT_RATE = 0.50; // Jo 5 Nov 2026: 50% deposit, 50% on install day (was 10%)
 export const PROVISIONAL_HOLD_HOURS = 48;
 export const PROVISIONAL_HOLD_MS = PROVISIONAL_HOLD_HOURS * 3_600_000;
 
@@ -32,7 +32,7 @@ export const PAYMENT_STEP_ORDER: PaymentStepKey[] = ["safety_check", "repeat_saf
 export const PAYMENT_STEP_LABEL: Record<PaymentStepKey, string> = {
   safety_check: "Pre Insulation Electrical Safety Assessment (PIESA) payment",
   fixes: "Electrical upgrades",
-  install_deposit: "Install deposit (10%)",
+  install_deposit: "Install deposit (50%)",
   balance: "Balance (due on install day)",
   repeat_safety_check: "Repeat safety check (PIESA)",
 };
@@ -61,7 +61,7 @@ export type PaymentPlan = {
   thresholds: Record<PaymentStepKey, number>;
 };
 
-/** The amount maths. Deposit = 10% of (quote total after rebate − safety check), rounded half up to the cent. */
+/** The amount maths. Deposit = 50% of (quote total after rebate − safety check), rounded half up to the cent. */
 export function paymentPlan(i: PaymentPlanInput): PaymentPlan {
   const quoteTotalCents = Math.max(0, Math.round(i.quoteTotalCents));
   const safetyCheckCents = Math.min(Math.max(0, Math.round(i.safetyCheckCents ?? SAFETY_CHECK_CENTS)), quoteTotalCents);
@@ -152,10 +152,10 @@ export function stepPaidAt(plan: PaymentPlan, key: PaymentStepKey, records: { am
   return fallback && fallback.at && Math.round(fallback.paidCents) >= threshold ? fallback.at : null;
 }
 
-/** Jo 26 Oct 2026: the install is booked only once the 10% install deposit (10% of the install price — never the PIESA
+/** Jo 26 Oct 2026: the install is booked only once the 50% install deposit (50% of the install price — never the PIESA
  *  fee or the fixes) is paid. No "book first, pay within 48 hours". The PIESA fee alone never unlocks the install. */
-export const INSTALL_DEPOSIT_BLOCKER = "The 10% install deposit must be paid before the install is booked.";
-/** Stages after the PIESA result where the 10% deposit is due now. Part 4 fix wave C1: a partner-billed in-house job whose
+export const INSTALL_DEPOSIT_BLOCKER = "The 50% install deposit must be paid before the install is booked.";
+/** Stages after the PIESA result where the 50% deposit is due now. Part 4 fix wave C1: a partner-billed in-house job whose
  *  PIESA found upgrades auto-advances straight to rectification_scheduling / rectification_booked (autoadvance.core), and a
  *  variation parks it at electrical_variation_pending — the deposit is still due there (answer 21: due straight after the
  *  result, upgrades still to come or not). */
@@ -207,7 +207,7 @@ export function payableNow(plan: PaymentPlan, steps: PaymentStep[], paid: PaidBy
 }
 
 // ---------- Provisional install booking (decision 367: 48h, or noon the day before the install if sooner) ----------
-/** Decision 367 (Jo 25 Oct 2026, "48h or noon day before"): the 10% deposit hold ends at 12:00 Melbourne the day before. */
+/** Decision 367 (Jo 25 Oct 2026, "48h or noon day before"): the deposit hold ends at 12:00 Melbourne the day before. */
 export const DEPOSIT_DEADLINE_HOUR = 12;
 export const INSTALL_DEPOSIT_NOT_PAID = "Install deposit not paid";
 const ymdMinus1 = (ymd: string) => { const d = new Date(`${ymd}T12:00:00Z`); d.setUTCDate(d.getUTCDate() - 1); return d.toISOString().slice(0, 10); };
@@ -480,7 +480,7 @@ export function howYouPayLines(plan: PaymentPlan): string[] {
   return [
     `${aud(plan.safetyCheckCents)} now for the electrical safety check (card or bank transfer, no fee)`,
     ...(plan.repeatCents > 0 ? [`${aud(plan.repeatCents)} for the repeat safety check (PIESA) (card or bank transfer, no fee)`] : []),
-    `${aud(plan.installDepositCents)} deposit (10% of the install price) before your install day can be booked, by card, bank transfer or PayID`,
+    `${aud(plan.installDepositCents)} deposit (50% of the install price) before your install day can be booked, by card, bank transfer or PayID`,
     `${aud(plan.balanceCents)} on install day, by card, bank transfer or PayID`,
     `Or pay the full ${aud(plan.quoteTotalCents)} any time by bank transfer or PayID`,
   ];
