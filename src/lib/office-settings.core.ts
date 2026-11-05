@@ -90,7 +90,7 @@ export const AUTOMATIC_RULES: { rule: string; what: string; why: string }[] = [
   { rule: "Automatic installer offers", what: "When switched on: one installer covering the postcode (fewest active jobs, then nearest), 24 hours each; after 2 misses the job goes to Needs me", why: "decision 246" },
   { rule: "Automatic electrician offers", what: "When switched on: the nearest approved electrician covering the postcode (our leads); installer's own customers use the electrician chosen at Add a job; same 24-hour rule", why: "decisions 246/374" },
   { rule: "Install days", what: "Installer offers 3 days after the PIESA; owner takes one or suggests 1–5; one office alert at 10 days left", why: "decisions 2, 186" },
-  { rule: "Deposit hold", what: "Install day is provisional for 48 hours until the 10% deposit is in", why: "decision 141" },
+  { rule: "Deposit hold", what: "Install day is provisional for 48 hours until the 50% deposit is in", why: "decision 141" },
   { rule: "Rebate form", what: "Owner asked at completion, reminded days 1, 3, 7; office alert on day 10", why: "decisions 119, 120, 169" },
   { rule: "Privacy notice", what: "Per person, reminders days 3 and 7; can't be on an install until acknowledged", why: "decision 130" },
   { rule: "30-day PIESA window", what: "Reminders at 20 and 10 days; a repeat PIESA is paid by whoever caused the delay", why: "decision 158" },

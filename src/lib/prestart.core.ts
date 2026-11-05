@@ -162,7 +162,7 @@ export type PrestartFacts = {
   swmsBlocker?: string | null | undefined;
   /** Decision 319: when this installation booking was made. Bookings made before `WHITE_CARD_ENFORCED_FROM` are never blocked by the White Card rule. */
   bookingCreatedAt?: string | null | undefined;
-  /** Decision 367: "Install deposit not paid" while the 10% deposit for this booking is unpaid (payment rule jobs);
+  /** Decision 367: "Install deposit not paid" while the 50% deposit for this booking is unpaid (payment rule jobs);
    *  null = paid / not under the payment rule; undefined = not loaded (older callers, never blocks). */
   installDepositBlocker?: string | null | undefined;
   /** Decision 395: signed PIESA copies not delivered to the owner / installer 24h before the start (esc.core

@@ -70,7 +70,7 @@ export async function inHouseNeedsFacts(jobIds: string[]): Promise<Map<string, N
     // Jo 2 Nov 2026: the PIESA clock starts when the job moved into the PIESA step (only after the $349 clears).
     byIds("in-house PIESA unlocked", held, (c,a,b) => admin.from("workflow_events").select("job_id,created_at").in("job_id",c).eq("to_stage","piesa_and_install_window_pending").order("created_at").order("id").range(a,b)),
   ]);
-  // Jo 2 Nov 2026: the install stall line says whether the 10% deposit is paid; unknown when the read fails.
+  // Jo 2 Nov 2026: the install stall line says whether the 50% deposit is paid; unknown when the read fails.
   const deposits: Map<string, boolean | null> = await (await import("./install-deposit-list.server")).installDepositPaidForJobs(held).catch(() => new Map());
   for (const id of held) {
     const assignment = assignments.find(a => a["job_id"] === id && (a["businesses"] as { in_house?: boolean } | null)?.in_house);
@@ -454,7 +454,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
       ? import("./consent-ap-auto.server").then(({ consentApHoldReasons }) => Promise.all(heldConsents.map(async (c) => [String(c["job_id"]), await consentApHoldReasons(String(c["job_id"])).catch(() => ["The consent checks could not be read."])] as const)))
       : Promise.resolve([] as (readonly [string, string[]])[]),
     aIds.length ? byIds("install day forms created", aIds, (chunk, a, b) => admin.from("workflow_events").select("job_id, event_type, created_at").in("job_id", chunk).eq("event_type", PIISA_AUDIT_CREATED_EVENT).range(a, b)) : Promise.resolve([] as Row[]),
-    // Install deposit (10%) not in Xero while the 48h provisional hold runs (decisions 139/240): watch only.
+    // Install deposit (50%) not in Xero while the 48h provisional hold runs (decisions 139/240): watch only.
     provisionalBookings.length && provisionalBookings.length <= 40
       ? import("./payments.server").then(({ jobPaymentView }) => Promise.all(provisionalBookings.map((b) => (f(String(b["job_id"])) ? jobPaymentView(String(b["job_id"]), new Date(now)).catch(() => { if (!unavailable.includes("install deposits")) unavailable.push("install deposits"); return null; }) : Promise.resolve(null)))))
       : Promise.resolve(null),
@@ -781,7 +781,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   // Jo 28 Oct 2026 (decision card 04:40 UTC, "Alert after 3 days unpaid"): a job paused on a homeowner payment that
   // stays unpaid for 3 full days raises ONE Needs me row naming the payment and since when (payment-stall.core).
   // The row is derived from the paid amount, never stored — recording the payment clears it by itself. Covered: the
-  // $349 safety check, the fixes, the 10% install deposit and the repeat safety check (the balance is not — Jo's list).
+  // $349 safety check, the fixes, the 50% install deposit and the repeat safety check (the balance is not — Jo's list).
   {
     const { jobPaymentStalls } = await import("./payment-stall.core");
     const { safetyCheckCentsFor } = await import("./safety-check-amount.core");

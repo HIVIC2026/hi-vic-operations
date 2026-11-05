@@ -464,7 +464,7 @@ export async function stageEntryBlockers(jobId: string, to: Stage, actorId: stri
       if (visit) blockers.push(fb);
     }
   }
-  // Jo 26 Oct 2026: no install booking until the 10% install deposit is paid.
+  // Jo 26 Oct 2026: no install booking until the 50% install deposit is paid.
   if (to === "installation_booked") {
     const db = await (await import("./payments.server")).installDepositBlockerFor(jobId);
     if (db) blockers.push(db);
