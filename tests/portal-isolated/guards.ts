@@ -1,0 +1,3 @@
+import { persona } from './fixtures';
+export const currentUser = async () => ({ data: { user: { id: `synthetic-${persona()}`, email: `${persona()}@isolated.invalid`, user_metadata: { full_name: 'Synthetic Tester' } } }, error: null });
+export const loadAccess = async () => ({ admin: persona() === 'office', businessAdmin: persona() === 'installer', installerBusinessAdmin: persona() === 'installer', installer: persona() === 'installer', electrician: persona() === 'rec' });
