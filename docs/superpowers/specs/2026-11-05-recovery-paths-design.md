@@ -200,7 +200,8 @@ Each review finding gets a test that fails on `a274d76` and passes after the fix
 12. Provider unavailable, then restored → the retry sends once. "delivered" then a late "sent" → stays delivered.
 13. Two Xero invoices share the reference ($500 other contact, $3,500 correct) → no link, conflict row. One times out in the poll → summary says 1 failed and names it.
 14. Xero returns no invoice → balance and ledger unchanged, sync reported failed. A paid invoice reversed in Xero → the poll still checks it and the reversal is recorded.
-N. Reschedule insert fails → the original booking is still confirmed. A stage move fails after a reschedule → the original is restored.
+15. Fixes count timeout → install booking blocked with the exact message. Compliance read timeout → Ready for VEEC blocked.
+16. Reschedule insert fails → the original booking is still confirmed. A stage move fails after a reschedule → the original is restored.
 17. Times save fails at offer acceptance → the offer isn't accepted. Already accepted with no times → the same installer's retry saves the times; another installer gets "no longer open".
 
 Plus: tick claim safety (two runs, one attempt), the 3-tries → Needs me rule, Mark sorted / Try again, and the SQL proven on PGlite. Run `bun scripts/scan-retired-terms.ts` and `bun test ./tests/`.
