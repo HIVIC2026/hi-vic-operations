@@ -60,7 +60,6 @@ export function addPersonProblems(p: AddPersonInput, today: string): string[] {
   if (p.email?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.email.trim())) out.push("Check their email address.");
   if (p.requireCertificate && (p.role === "lead" || p.role === "crew")) {
     if (!p.certificateNumber?.trim()) out.push("Add their CII/EEC certificate number.");
-    if (!p.certificatePath?.trim()) out.push("Upload a photo of their CII/EEC certificate.");
   }
   if (p.role === "electrician") {
     if (!(p.licenceNumber ?? "").trim()) out.push("Add their electrical licence number."); // existing (trade-view.server)

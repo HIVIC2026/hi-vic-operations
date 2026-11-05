@@ -6,7 +6,7 @@ test('Office requires email, never DOB or certificate',()=>{expect(problems({rol
 test('Lead requires DOB',()=>{expect(problems({dateOfBirth:null})).not.toEqual([]);});
 test('Crew requires DOB',()=>{expect(problems({role:'crew',dateOfBirth:null})).not.toEqual([]);});
 test('Lead and Crew require certificate number',()=>{for(const role of ['lead','crew'] as const)expect(problems({role,certificateNumber:''})).not.toEqual([]);});
-test('Lead and Crew require certificate photo',()=>{for(const role of ['lead','crew'] as const)expect(problems({role,certificatePath:''})).not.toEqual([]);});
+test('Lead and Crew can save a certificate number without a photo',()=>{for(const role of ['lead','crew'] as const)expect(problems({role,certificatePath:null})).toEqual([]);});
 test('Lead and Crew email is optional',()=>{for(const role of ['lead','crew'] as const)expect(problems({role,email:null})).toEqual([]);});
 test('Electrician requires email and licence and REC, never DOB or certificate',()=>{const electrician={role:'electrician' as const,dateOfBirth:null,certificatePath:null,certificateNumber:null,licenceNumber:'A63151',recNumber:'30614',email:'electrician@hivic-test.example'};expect(problems(electrician)).toEqual([]);for(const field of ['email','licenceNumber','recNumber'] as const)expect(problems({...electrician,[field]:null})).not.toEqual([]);});
 test('Every role requires full name and mobile',()=>{for(const role of ['office','lead','crew','electrician'] as const){expect(problems({role,name:''})).not.toEqual([]);expect(problems({role,mobile:''})).not.toEqual([]);}});

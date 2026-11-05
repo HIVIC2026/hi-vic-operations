@@ -1,7 +1,7 @@
 import { supabaseAdmin as admin } from '@/integrations/supabase/client.server';
 import { requireMember } from './pilot.server';
 import { addPersonProblems } from './team-screen.core';
-import { teamCertificatePath, type TeamPersonInput } from './team-person-form.core';
+import { type TeamPersonInput } from './team-person-form.core';
 import { melbourneToday } from './melbourne-time.core';
 import { crewMobileInput } from './swms-sign-text.core';
 
@@ -25,13 +25,7 @@ export async function saveTeamPerson(userId:string,p:TeamPersonInput) {
   if(!mobile.ok||!mobile.mobile)throw Error(mobile.ok?'Add their mobile number.':mobile.error);
   const problems=addPersonProblems({...p,hasDob:current?.hasDob===true,requireCertificate:photoNeeded,certificatePath:p.certificatePath||(current?.hasCertificate?'recorded':null),certificateNumber:p.certificateNumber||current?.certificateNumber||null},melbourneToday());
   if(problems.length)throw Error(problems[0]);
-  let certificate=null;
-  if(photoNeeded&&p.certificatePath) {
-    if(!teamCertificatePath(p.businessId,p.certificatePath))throw Error('Invalid certificate upload.');
-    const {data:proof,error:proofError}=await admin.from('admin_config_events').select('id').eq('actor_id',userId).eq('event_type','team_certificate_upload_checked').contains('details',{business_id:p.businessId,path:p.certificatePath}).limit(1).maybeSingle();
-    if(proofError||!proof)throw Error('The certificate photo must finish uploading and checking before saving.');
-    certificate={path:p.certificatePath,number:p.certificateNumber,uploaded_at:new Date().toISOString()};
-  } else if(photoNeeded&&current&&p.certificateNumber!==current.certificateNumber)throw Error('Upload the certificate photo when changing its number.');
+  const certificate=photoNeeded ? {number:p.certificateNumber} : null;
   const rpc=admin as unknown as import('@supabase/supabase-js').SupabaseClient;
   const {data,error}=await rpc.rpc('save_team_person_details',{_business:p.businessId,_actor:userId,_worker:p.workerId,_name:p.name,_role:p.role,_mobile:mobile.mobile,_email:p.email,_dob:photoNeeded?p.dateOfBirth:null,_licence:p.role==='electrician'?p.licenceNumber:null,_rec:p.role==='electrician'?p.recNumber:null,_certificate:certificate});
   if(error)throw Error(['PGRST202','42883'].includes(error.code)?'The Team update is not available yet. Your details have been kept.':"The person could not be saved. Your details have been kept; try again.");
