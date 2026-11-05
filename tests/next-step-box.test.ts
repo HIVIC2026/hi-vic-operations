@@ -103,17 +103,17 @@ describe("Next step box", () => {
   test("install booked", () => {
     const b = nextStepBox(f({ ...booked, now: new Date("2026-11-09T00:00:00Z") }));
     expect(b.kind).toBe("install_booked");
-    expect(b.lines).toEqual(["Safety plan signed 1 of 3", "Lead Installer locks Wed 11 Nov, 5pm"]);
+    expect(b.lines).toEqual(["Safety plan signed 1 of 3", "Lead Installer locks Wed 11 Nov, 7:30am"]); // Part 5a: 2 days before the start
   });
   test("rental: call the person who lets us in", () => {
     const b = nextStepBox(f({ ...depositIn, now: new Date("2026-11-07T01:00:00Z"), access: { who: "tenant", name: "Tina Lee", mobile: "0400 111 222" } }));
     expect(b.phone).toEqual({ name: "Tina Lee (tenant)", phone: "0400 111 222" });
   });
   test("lock moment", () => {
-    expect(nextStepBox(f({ ...booked, now: new Date("2026-11-11T05:59:00Z") })).kind).toBe("install_booked");
-    const b = nextStepBox(f({ ...booked, now: new Date("2026-11-11T06:00:00Z") })); // Wed 11 Nov 5:00pm
+    expect(nextStepBox(f({ ...booked, now: new Date("2026-11-10T20:29:00Z") })).kind).toBe("install_booked");
+    const b = nextStepBox(f({ ...booked, now: new Date("2026-11-10T20:30:00Z") })); // Wed 11 Nov 7:30am (Part 5a: 2 days before the start)
     expect(b.kind).toBe("install_locked");
-    expect(b.lines).toContain("Locked: ESC has been told. Email us to move this install.");
+    expect(b.lines).toContain("Locked — call Home Insulation Victoria to change the Lead Installer or the day");
   });
   const done = { ...booked, installDone: true };
   test("after install: our lead pay", () => {

@@ -241,6 +241,8 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   const reversalsP = early(all("payment reversals", (a, b) => scoped(admin.from("workflow_events").select("job_id")).eq("event_type", "owner_payment_reversed").range(a, b)));
   const veecRefundsP = early(import("./veec-creation-gate.core").then(({ VEEC_COPAYMENT_REFUNDED_EVENT }) => all("VEEC refunds", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at, details")).eq("event_type", VEEC_COPAYMENT_REFUNDED_EVENT).contains("details", { needs_office: true }).order("created_at", { ascending: false }).range(a, b))));
   const rcPersonP = early(import("./ready-check-person.core").then(({ READY_CHECK_PERSON_MISSING_EVENT }) => all("Ready Check person missing", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at, details")).eq("event_type", READY_CHECK_PERSON_MISSING_EVENT).contains("details", { needs_office: true }).order("created_at", { ascending: false }).range(a, b))));
+  // Deep Part 5a: the no-Lead-Installer flag and its cleared event (one read, both types; the pure rule keeps flag minus cleared per key).
+  const noLeadP = early(import("./lead-installer-reminder.core").then(({ LEAD_REMINDER_FLAG_EVENT, LEAD_REMINDER_FLAG_CLEARED_EVENT }) => all("no Lead Installer flags", (a, b) => scoped(admin.from("workflow_events").select("job_id, event_type, created_at, details")).in("event_type", [LEAD_REMINDER_FLAG_EVENT, LEAD_REMINDER_FLAG_CLEARED_EVENT]).order("created_at", { ascending: false }).range(a, b))));
   const complaintsP = early(import("./complaints.core").then(({ COMPLAINT_ACKNOWLEDGED_EVENT, COMPLAINT_RECEIVED_EVENT, COMPLAINT_RESOLVED_EVENT }) => all("complaints", (a, b) => scoped(admin.from("workflow_events").select("job_id, event_type, created_at, details")).in("event_type", [COMPLAINT_RECEIVED_EVENT, COMPLAINT_ACKNOWLEDGED_EVENT, COMPLAINT_RESOLVED_EVENT]).order("created_at", { ascending: true }).range(a, b))));
   const expiredRaisedP = early(all("expired quotes not emailable", (a, b) => scoped(admin.from("workflow_events").select("job_id")).eq("event_type", "quote_expired_not_emailable").range(a, b)));
   const newQuoteRaisedP = early(import("./new-quote-request.core").then(({ NEW_QUOTE_NEEDS_INSTALLER_EVENT, NEW_QUOTE_UNFINISHED_EVENT }) => all("new quotes needing the office", (a, b) => scoped(admin.from("workflow_events").select("job_id")).in("event_type", [NEW_QUOTE_NEEDS_INSTALLER_EVENT, NEW_QUOTE_UNFINISHED_EVENT]).range(a, b))));
@@ -647,6 +649,23 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
       if (x && !x.readyCheckPersonMissing && typeof d?.line === "string" && d.line) x.readyCheckPersonMissing = { at: String(r["created_at"]), text: d.line };
     }
   } catch { unavailable.push("Ready Check person missing"); }
+  // Deep Part 5a (Jo 4–5 Nov 2026): no Lead Installer picked 2 days before the install (no_lead_installer, needs_office) → the
+  // red top row per job while the flagged booking is still the confirmed one, hasn't started and no cleared event names the key.
+  try {
+    const { openNoLeadInstallerFlags } = await import("./lead-installer-reminder.core");
+    const rows = await noLeadP;
+    const open = openNoLeadInstallerFlags(rows.map((r) => ({ job_id: String(r["job_id"]), event_type: String(r["event_type"]), created_at: String(r["created_at"]), details: (r["details"] ?? null) as { key?: string; booking_id?: string; line?: string } | null })));
+    const bookingIds = [...new Set(open.map((o) => o.bookingId).filter(Boolean))];
+    const { data: live, error: le } = bookingIds.length ? await admin.from("bookings").select("id, scheduled_start").in("id", bookingIds).eq("status", "confirmed") : { data: [], error: null };
+    if (le) throw new Error(le.message);
+    const starts = new Map((live ?? []).map((b) => [String(b.id), String(b.scheduled_start)]));
+    for (const o of open) {
+      const start = starts.get(o.bookingId);
+      if (!start || Date.parse(start) <= now) continue;
+      const x = f(o.jobId);
+      if (x && !x.noLeadInstaller) x.noLeadInstaller = { at: o.at, text: o.line };
+    }
+  } catch { unavailable.push("no Lead Installer flags"); }
   // Part 9 Task 12: complaints — the three office events per job → the ack / resolve rows (complaints.core).
   try {
     const { complaintNeeds } = await import("./complaints.core");

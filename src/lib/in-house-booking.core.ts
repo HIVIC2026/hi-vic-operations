@@ -58,5 +58,6 @@ export function ownerBookedMessage(i:OwnerBookedInput,approved:Record<BookedKind
   const old=bookingNotice(i);
   return{version:'v1',subject:old.subject,text:old.text,sms:old.sms};
 }
-// Part 7 Task 8 (Jo 2 Nov 2026): the 2pm day-before Lead Installer email digest rule was retired — the
-// 9am two-days-before "Confirm or change your Lead Installer by 5pm today" email (lead-installer-confirm.core) replaces it.
+// Part 7 Task 8 (Jo 2 Nov 2026): the 2pm day-before Lead Installer email digest rule was retired. Deep Part 5a (Jo 4–5 Nov
+// 2026): the 9am "Confirm or change your Lead Installer by 5pm today" email that replaced it is retired too — the 3-day
+// "Pick the Lead Installer" reminder (lead-installer-reminder.core) and the GO / DON'T START email (go-email.core) remain.

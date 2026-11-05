@@ -6,6 +6,8 @@ import { melbourneYmd } from "./piesa-windows.core";
 import type { AccessPerson } from "./rental-answers.core";
 import { QUOTE_PRICE_NEXT_LINE } from "./installer-quote-status.core";
 import { READY_CHECK_PERSON_WORDS } from "./ready-check-person.core";
+// Lead Installer lock: the ONE rule lives in lead-installer-lock.core (re-exported by prestart.core); this screen only shows it.
+import { LEAD_LOCKED_MESSAGE, leadInstallerLock, leadInstallerLocked } from "./lead-installer-lock.core";
 
 export type NextStepFacts = {
   channel: string | null; stage: string; ownerFirst: string | null;
@@ -43,7 +45,7 @@ export const NEXT_STEP_WORDS = {
   bookInstallTitle: "Book the install", // approved (plan Task 3 table)
   bookInstallButton: "Book the install", // approved (plan Task 3 table)
   uploadCertificateTitle: "Upload the Certificate of Electrical Safety", // DRAFT
-  lockedLine: "Locked: ESC has been told. Email us to move this install.", // approved (Global Constraints)
+  lockedLine: LEAD_LOCKED_MESSAGE, // Deep Part 5a (Jo 4–5 Nov 2026): the ONE lock line, lead-installer-lock.core
   beforeUpgradesWarn: "Electrical upgrades aren't done yet. The install can't start until the Part C and certificate are in.", // approved (Part 9 Task 10 text in the plan)
   readyCheckLine: (when: string) => `Ready Check · ${when}`, // approved (plan Task 3 table)
   stillNeeds: (items: string) => `Still needs: ${items}`, // approved (plan Task 3 table)
@@ -83,9 +85,6 @@ export const NEXT_STEP_WORDS = {
   theOwnersPossessive: "The owner's", // approved (plan Task 3 table)
 } as const;
 const W = NEXT_STEP_WORDS;
-
-// ---- Lead Installer lock: the ONE rule lives in prestart.core (Part 9 Task 9); this screen only shows it ----------
-import { leadInstallerLock, leadInstallerLocked } from "./lead-installer-lock.core";
 
 // ---- Formatting (Melbourne) -----------------------------------------------------------------------------------------
 const fmtDayMonth = (ymd: string): string => fmtDay(ymd).split(" ").slice(1).join(" ");

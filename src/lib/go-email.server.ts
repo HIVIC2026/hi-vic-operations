@@ -19,6 +19,21 @@ async function once(jobId: string, type: string, key: string, to?: string): Prom
   return !!data;
 }
 
+/** Deep Part 5a: the additional crew's names from the saved crew picker (latest `piisa_crew_selected`: Team members by
+ *  id, "other" people by the typed name). Display only (Jo's V2 GO wording); a read error throws and the caller shows none. */
+async function installCrewNames(jobId: string): Promise<string[]> {
+  const { data: ev, error } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "piisa_crew_selected").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (error) throw new Error(error.message);
+  const additional = (ev as { details?: { selection?: { additional?: unknown[] } } } | null)?.details?.selection?.additional;
+  if (!Array.isArray(additional) || !additional.length) return [];
+  const ids = additional.map((a) => (typeof a === "string" ? a : (a as { workerId?: string } | null)?.workerId ?? null)).filter((x): x is string => !!x);
+  const others = additional.map((a) => (a && typeof a === "object" && "other" in a ? String((a as { other?: { name?: string } }).other?.name ?? "").trim() : "")).filter(Boolean);
+  const { data: workers, error: we } = ids.length ? await admin.from("partner_workers").select("id, full_legal_name").in("id", ids) : { data: [], error: null };
+  if (we) throw new Error(we.message);
+  const nameOf = new Map(((workers ?? []) as { id: string; full_legal_name: string | null }[]).map((w) => [w.id, w.full_legal_name?.trim() ?? ""]));
+  return [...ids.map((id) => nameOf.get(id) ?? "").filter(Boolean), ...others];
+}
+
 export async function sendGoEmail(jobId: string, slot: GoSlot, result: GoResult, opts: { approved?: boolean; now?: Date } = {}): Promise<string> {
   const approved = opts.approved ?? GO_EMAIL_APPROVED;
   if (await (await import("./qa-inbox.server")).qaDeliveryHeld(jobId)) return "skipped: TEST delivery held";
@@ -49,12 +64,14 @@ export async function sendGoEmail(jobId: string, slot: GoSlot, result: GoResult,
   if (officeDone && copyDone) return "already sent";
   // The Lead Installer the GO check itself read (prestart.server leadInstallerCert) — the same person, never another read.
   const lead = await (await import("./prestart.server")).leadInstallerCert(jobId).then((l) => (l.found ? l.name : null)).catch(() => null);
+  // Deep Part 5a: the crew names for Jo's V2 GO wording (display only — a failed read never holds the email).
+  const crew = await installCrewNames(jobId).catch(() => [] as string[]);
   const p = j.properties;
   const address = [p?.address_line?.trim(), [p?.suburb?.trim(), p?.postcode?.trim()].filter(Boolean).join(" ")].filter(Boolean).join(", ") || j.job_number;
   const { TEST_APP_BASE } = await import("./test-send.server");
   const { SET_PASSWORD_BASE } = await import("./set-password-link.core");
   // Jo 4 Nov 14:40: each failure is classed fixable / must_move against the booked start and the clock now (unknown = must_move).
-  const mail = goEmail({ jobNumber: j.job_number, address, startIso: result.start, lead, failures: classifyPrestartFailures(result.failures, { start: result.start, now: opts.now ?? new Date() }), slot, link: `${test ? TEST_APP_BASE : SET_PASSWORD_BASE}/field/${j.id}`, test });
+  const mail = goEmail({ jobNumber: j.job_number, address, startIso: result.start, lead, crew, failures: classifyPrestartFailures(result.failures, { start: result.start, now: opts.now ?? new Date() }), slot, link: `${test ? TEST_APP_BASE : SET_PASSWORD_BASE}/field/${j.id}`, test });
   const claim = (k: string, recipient: string) => logEvent(jobId, null, GO_EMAIL_EVENT, `${result.passed ? "GO" : "DON'T START"} email (${slot}) to ${recipient}`, { key: k, slot, passed: result.passed, start: result.start, to: recipient, business_id: bz!.id, test }, { internal: true });
   const hold = async (reason: string) => {
     if (!(await once(jobId, GO_EMAIL_HELD_EVENT, key))) await logEvent(jobId, null, GO_EMAIL_HELD_EVENT, `GO / DON'T START email held: ${reason}`, { key, slot, start: result.start, business_id: bz!.id, reason }, { internal: true });
