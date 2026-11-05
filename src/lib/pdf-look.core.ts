@@ -77,6 +77,14 @@ export function wrapText(text: string, width: (s: string) => number, max: number
   return out;
 }
 
+/** Space between a money row's label and its right-aligned amount (pt). */
+export const MONEY_AMOUNT_GAP = 9;
+/** Jo 5 Nov 2026: a money row's label wraps inside the space left of the amount (never runs under it); the amount stays on
+ *  the first line. A label that fits stays one line (so existing documents are unchanged). */
+export function moneyLabelLines(label: string, amount: string, w: number, width: (s: string) => number): string[] {
+  return wrapText(label, width, Math.max(w - width(amount) - MONEY_AMOUNT_GAP, w * 0.4));
+}
+
 const EPS = 0.01;
 
 /** Pure: groups of child indexes per page. The first group has `firstSpace`, later ones `pageSpace`; a child taller than a page sits alone. */
