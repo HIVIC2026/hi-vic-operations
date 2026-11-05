@@ -1,7 +1,7 @@
 import { JOB_LIST_COLUMNS } from "./job-list-columns";
 // All state-changing operations. Each verifies the caller (via RLS-backed RPC) then
 // delegates to the central workflow/quote modules which write with the service role.
-import { createServerFn } from "@tanstack/react-start";
+import { createServerFn, createServerOnlyFn } from "@tanstack/react-start";
 import { z } from "zod";
 import type { Json } from "@/integrations/supabase/types";
 import { withRequestMeta } from "./request-meta";
@@ -1725,7 +1725,7 @@ export type QuoteActor = {
 };
 
 /** Shared by the signed-in owner page and the no-login secure link (after a verified 6-digit code). */
-export async function respondToQuoteImpl(
+export const respondToQuoteImpl = createServerOnlyFn(async function respondToQuoteImpl(
   data: z.infer<typeof respondToQuoteSchema>,
   context: QuoteActor,
 ) {
@@ -2105,7 +2105,7 @@ export async function respondToQuoteImpl(
     await advanceAfterDeposit(q.job_id, context.userId);
   });
   return { ok: true };
-}
+});
 
 /** Signature, quote, audit and guarded stage move are committed. Keep the existing invoice recovery path;
  * only detach follow-through when the actual request lifecycle guarantees it runs after the response. */
@@ -3103,11 +3103,11 @@ export const getJobBlockers = createServerFn({ method: "POST" })
   });
 
 // ---------- Owner Authority ----------
-async function authorityJob(id: string) {
+const authorityJob = createServerOnlyFn(async function authorityJob(id: string) {
   const { data } = await admin.from("owner_authorities").select("job_id").eq("id", id).single();
   if (!data) throw new WorkflowError("Authority not found");
   return data.job_id;
-}
+});
 
 /** Retired legacy Owner Authority action – history is read-only; consent is signed at quote acceptance. */
 export const requestOwnerAuthority = createServerFn({ method: "POST" })

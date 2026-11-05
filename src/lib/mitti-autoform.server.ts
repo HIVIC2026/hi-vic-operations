@@ -64,13 +64,13 @@ export async function sweepReadyCheckForms(opts: { call?: MittiCall; now?: Date;
       lastFailureReason: (lastFailure?.details as { reason?: string } | null)?.reason ?? null,
       bookedAt: bookings.data?.find((b) => b.job_id === j.id)?.created_at ?? null, // latest confirmed booking (sorted newest first)
     }, now, true);
-    if (d.action !== "create") continue;
+    if (d.action !== "create" || !asg?.user_id) continue;
     if (opts.dryRun) { wouldCreate.push(j.job_number); continue; }
     // Practice jobs (qa_test or a TEST partner's job) only ever reach the TEST Mitti account.
     let assignee: { userId: string; fullName: string | null; email: string } | undefined;
     if (j.source === "qa_test" || isTestPartner(biz)) {
       const { TEST_MITTI_ASSIGNEE } = await import("./onsite-ready-check.core");
-      assignee = { userId: asg!.user_id, fullName: null, email: TEST_MITTI_ASSIGNEE };
+      assignee = { userId: asg.user_id, fullName: null, email: TEST_MITTI_ASSIGNEE };
     }
     const { createAssignMittiAudit, realMittiCall } = await import("./mitti.server");
     const { MittiClaimHeld, MittiOutcomeUncertain } = await import("./mitti-create.server");

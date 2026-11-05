@@ -15,7 +15,7 @@ admin.from = (table: string) => {
   return q;
 };
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: admin }));
-mock.module("@tanstack/react-start", () => ({ createServerFn: () => {
+mock.module("@tanstack/react-start", () => ({ createServerOnlyFn: <T>(fn: T) => fn, createServerFn: () => {
   const b = { middleware: () => b, inputValidator: () => b, handler: (h: unknown) => h }; return b;
 } }));
 mock.module("@/integrations/supabase/auth-middleware", () => ({ requireSupabaseAuth: {} }));
