@@ -47,7 +47,6 @@ import { PortalReadyCheckView } from '@/components/trade/PortalReadyCheckView';
 import { ELECTRICIAN_ATTENDANCE_CONFIRMED } from "@/lib/trade-view.core";
 import { ReturnActions, useInHouseBookingAccess } from "@/components/trade/ReturnActions";
 import { MittiElectricianCard } from "@/components/trade/mitti-electrician-card";
-import { ReadyCheckPhotos } from "@/components/portal/ReadyCheckPhotos";
 import { nextLine } from "@/lib/add-job-flow.core";
 import { NO_LOGIN_NEEDED } from "@/lib/trade-access-role.core";
 import { installerJobSections } from "@/lib/installer-job-sections.core";
@@ -499,7 +498,13 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
               ))}
             </ul>
             <SafetyPlanCard jobId={jobId} />
-            <ReadyCheckPhotos jobId={jobId} quietOnError />
+            <section aria-label="Ready Check" className="mt-4 border-t border-line pt-4">
+              <h3 className="font-display text-base font-semibold">Ready Check</h3>
+              {page.rows.paperwork.filter(r=>r.label === 'Ready Check').map(r=><p key={r.label} className="mt-1 flex flex-wrap items-center gap-x-1 text-sm text-sub">
+                <span>{r.ready || page.progress.some(p=>p.label === 'Ready Check' && p.state === 'done') ? r.note && r.note !== 'Not done yet' ? r.note : 'Done in Mitti' : 'Not done yet'}</span>
+                {(r.ready || page.progress.some(p=>p.label === 'Ready Check' && p.state === 'done')) && <><span>·</span>{r.source === 'portal' ? <PortalReadyCheckView jobId={jobId} /> : <ReadyCheckReportButton jobId={jobId} label="See report" />}</>}
+              </p>)}
+            </section>
           </Fold>
         </div>
       </div>

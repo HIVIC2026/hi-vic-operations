@@ -90,6 +90,19 @@ const disabledHaveReasons = (r: ReturnType<typeof render>) => {
 };
 
 describe("Next step box actions", () => {
+  test('safety check Book requires electrician, day and arrival independently', () => {
+    const r=draw(boxFor({quote:'accepted'}),{ownCustomer:true});
+    const button=r.getByRole('button',{name:'Book'}) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    fireEvent.change(r.getByLabelText('Electrician'),{target:{value:'elec1'}});
+    expect(button.disabled).toBe(true);
+    fireEvent.change(r.getByLabelText('Day'),{target:{value:'2026-11-10'}});
+    expect(button.disabled).toBe(true);
+    fireEvent.change(r.getByLabelText('Arrival'),{target:{value:'09:00'}});
+    expect(button.disabled).toBe(false);
+    fireEvent.change(r.getByLabelText('Electrician'),{target:{value:''}});
+    expect(button.disabled).toBe(true);
+  });
   test("book_ready_check: Day + Arrival + Who's going, Book → inHouseBookVisit kind ready_check", async () => {
     const r = draw(boxFor({}));
     expect(r.getByText("NEXT STEP")).toBeTruthy();
