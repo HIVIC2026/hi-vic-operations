@@ -63,6 +63,7 @@ export function memoryPostgrest(tables: Tables, backKeys: Record<string, string>
     return out;
   };
   const get = (table: string, row: Row, path: string): unknown => {
+    if (path.includes("->>")) { const [col, ...keys] = path.split("->>"); return keys.reduce<unknown>((o, k) => (o && typeof o === "object" ? (o as Row)[k] : undefined), row[col!]) ?? null; }
     if (!path.includes(".")) return row[path];
     const [rel, col] = path.split(".") as [string, string];
     const v = embed(table, row, rel);

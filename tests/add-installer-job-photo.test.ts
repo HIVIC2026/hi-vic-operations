@@ -152,3 +152,16 @@ test("the tick skips claims under 10 minutes old (the live Add a job request is 
   expect(drafts).toHaveLength(0);
   expect((await sweepOwnPhotoQuotes({ now: new Date(t0.getTime() + 11 * 60_000) }, tickDeps())).finished).toEqual(["j"]);
 });
+
+test("the claim read excludes finished claims in the query: 500 finished claims never crowd out an unfinished one", async () => {
+  seedJob();
+  const t0 = new Date();
+  await claimOwnPhotoQuote("j", "boss", "nogap", good, memoryPostgrest(t) as never);
+  const mine = t.workflow_events!.find((e) => e["event_type"] === "photo_quote_submitted")!;
+  const done = Array.from({ length: 500 }, (_, i) => ({ ...mine, id: `done${i}`, job_id: `done${i}`, created_at: new Date(t0.getTime() - 3_600_000 + i).toISOString(), details: { ...(mine["details"] as object), finished_at: t0.toISOString() } }));
+  mine["created_at"] = new Date(t0.getTime() - 60_000).toISOString();
+  t.workflow_events!.unshift(...done);
+  const r = await sweepOwnPhotoQuotes({ now: new Date(t0.getTime() + 11 * 60_000) }, tickDeps());
+  expect(r.checked).toBe(1);
+  expect(r.finished).toEqual(["j"]);
+});
