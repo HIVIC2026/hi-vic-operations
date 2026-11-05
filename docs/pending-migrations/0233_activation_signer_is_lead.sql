@@ -1,4 +1,4 @@
--- PENDING — NOT APPLIED. Jo 5 Nov 2026: when a new installer business signs up, the owner/signer of the application
+-- APPLIED LIVE 5 Nov 2026 (see APPLIED_MANUALLY.md). Jo 5 Nov 2026: when a new installer business signs up, the owner/signer of the application
 -- is the Lead and everyone else is Crew (an installer with no stored role counts as Crew).
 -- Recreates activate_partner_application from live drizzle 0083_certification_consistency with ONE change: installer
 -- workers get worker_role from the plan ('lead' only when the plan says 'lead', otherwise 'crew'; electricians stay NULL).
