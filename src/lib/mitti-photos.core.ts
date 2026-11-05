@@ -3,6 +3,9 @@
 import { labelledItems } from "./install-day.core";
 
 export const MITTI_PHOTO_DOC_KIND = "mitti_photo";
+/** documents kind of the once-only claim behind the archived-form office row (unique job/source/external id). */
+export const MITTI_ARCHIVED_FLAG_DOC_KIND = "mitti_archived_flag";
+export const archivedFlagKey = (auditId: string) => `archived-flag:${auditId}`;
 export const MITTI_ARCHIVED_UNREADABLE_EVENT = "mitti_archived_form_unreadable";
 export const archivedUnreadableText = (jobNumber: string) => `Old Mitti form for ${jobNumber} is archived – un-archive it so its photos can be copied`;
 
@@ -28,6 +31,7 @@ export const mittiPhotoKey = (auditId: string, photoId: string) => `photo:${audi
 
 const EXT: Record<string, string> = { "image/jpeg": "jpg", "image/jpg": "jpg", "image/png": "png", "image/heic": "heic", "image/heif": "heif", "image/webp": "webp", "image/gif": "gif" };
 export const photoExt = (contentType: string) => EXT[contentType.split(";")[0]!.trim().toLowerCase()] ?? "bin";
+export const PENDING_EXT = "pending";
 export const mittiPhotoPath = (jobId: string, auditId: string, photoId: string, ext: string) => `${jobId}/mitti-photos/${auditId}/${photoId}.${ext}`;
 
 /** Archived forms to read: each `mitti_form_replaced` old audit, in order, once. An event that says no photos were left
@@ -46,3 +50,17 @@ export function replacedAuditIds(events: { details: unknown }[]): string[] {
 
 /** A claim row (no file yet) older than this belongs to a run that stopped; the next run takes it over. */
 export const STALE_CLAIM_MS = 15 * 60_000;
+
+/** Mitti archived-form "not found": the only reading answer that raises the office row. Anything else (timeout, 5xx, rate
+ *  limit, token, TEST stop) is retried on the next pull without a row. */
+export const isMittiNotFound = (e: unknown) => {
+  const st = (e as { status?: unknown } | null)?.status;
+  return st === 404 || st === 410;
+};
+
+/** Rows the Job File never lists: a photo claim whose copy has not finished, and the archived-flag claim. */
+export function hiddenMittiPhotoRow(d: Record<string, unknown>): boolean {
+  if (d["kind"] === MITTI_ARCHIVED_FLAG_DOC_KIND) return true;
+  if (d["kind"] !== MITTI_PHOTO_DOC_KIND) return false;
+  return d["size_bytes"] == null || String(d["storage_path"] ?? "").endsWith(`.${PENDING_EXT}`);
+}
