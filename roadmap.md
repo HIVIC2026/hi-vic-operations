@@ -1,3 +1,7 @@
+## Jo 5 Nov Needs me priorities
+- [x] Replaced Today/This week/Watch and folded partner link with Deadlines, Quotes to check, Partner & Team, Choose installers, Forms. Existing readers/actions and TEST boundaries retained; header count and longest waiting line kept. Phone/desktop TEST office read-only checks passed with no overflow/runtime errors; real partner approvals are not visible to TEST office by design.
+- [ ] Deadline day-to-due completeness: existing rows do not supply all due timestamps (ESC uses opening time; prestart uses failure time). Display preserves existing due text and waiting age, never fabricates rule dates; new deadline fact plumbing is outside this presentation-only change.
+
 ## Jo 5 Nov TEST Reinsulate 20-job phone checks
 - [x] TEST installer boss at 390px: ten Add attempts; eight qa_test jobs HV-3797–HV-3804 created, bad mobile and duplicate address refused. Simulator forms created in 1.05–1.65s with address/job prefills; eight SMS attempts blocked, no owner email rows. All eight now have qa_no_delivery. No real partners/jobs changed.
 - [x] Fixed phone reload overwriting its unfinished Add draft; failing StrictMode regression now passes, 6 screen + 12 core tests pass, phone reload checked without Save. Preview build OK; contradiction experiment unchanged.
