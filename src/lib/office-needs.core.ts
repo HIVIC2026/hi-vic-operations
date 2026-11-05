@@ -63,7 +63,7 @@ export type NeedsFacts = {
   /** J4 G1: an in-house job's synced A3 is complete but the PIESA could not complete by itself (what is missing). */
   piesaAutoCompleteHeld?: { at: string; reason: string } | null;
   installScopeChange?:{at:string;areas:string[]}|null;
-  inHouse?: { partnerName: string; batchSentAt: string | null; readyCheckBooked: boolean;
+  inHouse?: { partnerName: string; batchSentAt: string | null; readyCheckBooked: boolean; ownCustomer?: boolean;
     quoteAcceptedAt: string | null; piesaCompleted: boolean; installationBooked: boolean;
     daysRemaining: number | null; deadline: string | null;
     /** Jo 2 Nov 2026 stall rules: missing reads as not booked / deposit unknown. */
@@ -279,7 +279,7 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
     const deposit = ih.depositPaid === true ? " · deposit paid" : ih.depositPaid === false ? " · deposit not paid" : "";
     if (!ih.installationBooked && ih.daysRemaining != null && ih.daysRemaining <= 7) add({ rank: 36, group: "today", kind: "in_house_install_not_booked", line: `Install not booked · ${ih.daysRemaining < 0 ? "30-day window expired" : `${ih.daysRemaining} days left`}${deposit}`, since: ih.deadline ?? ih.batchSentAt ?? new Date(now).toISOString(), button: { label: "Open job", to: "job", section: "install" } });
     if (!ih.piesaBooked && !ih.piesaCompleted && ih.piesaUnlockedAt && today > addVicBusinessDays(ih.piesaUnlockedAt, 10)) add({ rank: 90, group: "week", kind: "in_house_piesa_overdue", line: "PIESA not booked 10 business days after quote accepted", since: ih.piesaUnlockedAt, button: { label: "Open job", to: "job", section: "piesa" } });
-    if (!ih.readyCheckBooked && ih.batchSentAt && today > addVicBusinessDays(ih.batchSentAt, 5)) add({ rank: 91, group: "week", kind: "in_house_ready_check_not_booked", line: "Ready Check not booked after 5 business days", since: ih.batchSentAt, button: { label: "Open job", to: "job", section: "ready-check" } });
+    if (!ih.ownCustomer && !ih.readyCheckBooked && ih.batchSentAt && today > addVicBusinessDays(ih.batchSentAt, 5)) add({ rank: 91, group: "week", kind: "in_house_ready_check_not_booked", line: "Ready Check not booked after 5 business days", since: ih.batchSentAt, button: { label: "Open job", to: "job", section: "ready-check" } });
   }
   if (f.quoteExpiredBlocked) add({ rank: 9, group: "today", kind: "quote_expired_blocked", line: f.quoteExpiredBlocked.reason === QUOTE_EXPIRED_HELD_REASON ? QUOTE_EXPIRED_HELD_REASON : `Quote expired — owner can't be emailed (${f.quoteExpiredBlocked.reason})`, since: f.quoteExpiredBlocked.at, button: { label: "Open job", to: "job" } });
   if (f.newQuoteOffice) add({ rank: 9, group: "today", kind: f.newQuoteOffice.kind, line: f.newQuoteOffice.line, since: f.newQuoteOffice.at, button: { label: "Open job", to: "job", section: "ready-check" } });

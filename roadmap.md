@@ -1,4 +1,5 @@
 ## Jo 5 Nov own-customer portal Ready Check
+- [x] 7:14pm correction: own-customer Next step no booking/attendee/deadline, Add call-to-book line removed, own-customer five-business-day alert excluded; Home Insulation Victoria booking unchanged. Add a job already has no optional Ready Check time.
 - [ ] Quote-sent office email, owner-identical read-only quote view and sent/expiry/accepted dates: recorded in the spec; email wording awaits Jo's approval. Not wired or sent; scoped read-only access and no duplicate notification must be proven before activation.
 - [x] Jo 7:11pm: recorded exact preparing status for both paths; existing own-customer price card shows it after Save, and shared automatic sender refuses A1 draft release even with an enabled caller. Office Check & send unchanged. Short portal form remains blocked below.
 - [x] Saved the requested choice and short form in the Deep first-job spec; identified existing completion/quote paths and missing facts without changing their guards.

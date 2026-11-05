@@ -393,7 +393,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
           </li>
         ))}
       </ol>
-      {page.channel === "installer_sourced" && !page.form.auditId && (box.kind === "book_ready_check" || box.kind === "ready_check_booked") && <PendingReadyCheckForm jobId={jobId} />}
+      {page.channel === "installer_sourced" && !page.form.auditId && box.kind === "own_ready_check" && <PendingReadyCheckForm jobId={jobId} />}
       {page.countdown && (
         <p className={`text-sm font-semibold ${page.countdown.daysLeft <= 10 ? "text-rose" : "text-ink"}`} data-countdown>
           {page.countdown.line}
