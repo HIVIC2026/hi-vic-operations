@@ -282,7 +282,7 @@ exports[`parity: same value as before, field for field tradeBusiness and tradeBu
             "noticeAcknowledged": true,
             "role": "installer",
             "whiteCard": "not_applicable",
-            "workerRole": "lead",
+            "workerRole": "crew",
           },
           {
             "canSeeMoney": false,
@@ -752,7 +752,7 @@ exports[`parity: same value as before, field for field tradeBusiness and tradeBu
             "noticeAcknowledged": true,
             "role": "installer",
             "whiteCard": "not_applicable",
-            "workerRole": "lead",
+            "workerRole": "crew",
           },
           {
             "canSeeMoney": false,
@@ -1227,7 +1227,7 @@ exports[`parity: same value as before, field for field with each read failing, t
             "noticeAcknowledged": true,
             "role": "installer",
             "whiteCard": "not_applicable",
-            "workerRole": "lead",
+            "workerRole": "crew",
           },
           {
             "canSeeMoney": false,
@@ -1587,7 +1587,7 @@ exports[`parity: same value as before, field for field with each read failing, t
             "noticeAcknowledged": true,
             "role": "installer",
             "whiteCard": "not_applicable",
-            "workerRole": "lead",
+            "workerRole": "crew",
           },
           {
             "canSeeMoney": false,
@@ -2037,7 +2037,7 @@ exports[`parity: same value as before, field for field with each read failing, t
             "noticeAcknowledged": true,
             "role": "installer",
             "whiteCard": "not_applicable",
-            "workerRole": "lead",
+            "workerRole": "crew",
           },
           {
             "canSeeMoney": false,
@@ -2465,7 +2465,7 @@ exports[`parity: same value as before, field for field with each read failing, t
             "noticeAcknowledged": false,
             "role": "installer",
             "whiteCard": "not_applicable",
-            "workerRole": "lead",
+            "workerRole": "crew",
           },
           {
             "canSeeMoney": false,
@@ -2922,7 +2922,7 @@ exports[`parity: same value as before, field for field with each read failing, t
             "noticeAcknowledged": false,
             "role": "installer",
             "whiteCard": "not_applicable",
-            "workerRole": "lead",
+            "workerRole": "crew",
           },
           {
             "canSeeMoney": false,
@@ -3379,7 +3379,7 @@ exports[`parity: same value as before, field for field with each read failing, t
             "noticeAcknowledged": false,
             "role": "installer",
             "whiteCard": "not_applicable",
-            "workerRole": "lead",
+            "workerRole": "crew",
           },
           {
             "canSeeMoney": false,
@@ -3849,7 +3849,7 @@ exports[`parity: same value as before, field for field with each read failing, t
             "noticeAcknowledged": true,
             "role": "installer",
             "whiteCard": "not_applicable",
-            "workerRole": "lead",
+            "workerRole": "crew",
           },
           {
             "canSeeMoney": false,

@@ -52,7 +52,7 @@ export async function peopleOnFile(workerIds: string[], installLeadId: string | 
   }
   return rows.map((r) => ({
     name: r.full_legal_name?.trim() || "Unnamed person",
-    role: r.trade_role === "electrician" ? "electrician" : r.id === installLeadId || r.worker_role !== "crew" ? "lead" : "crew",
+    role: r.trade_role === "electrician" ? "electrician" : r.id === installLeadId || r.worker_role === "lead" ? "lead" : "crew",
     dateOfBirth: !!dobs.get(r.id),
     mobile: r.mobile,
     ciiVerified: clearance.get(r.id) ?? false,

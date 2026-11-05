@@ -4,5 +4,5 @@ export function dateOfBirthProblem(value:string|null|undefined,today:string):str
  return value>=today?'Date of birth must be before today.':null;
 }
 export function escRegistrationTasks(rows:readonly {id:string;business_id:string;full_legal_name:string;trade_role:string;worker_role?:string|null;esc_registered?:boolean;removed_at?:string|null}[]){
- return rows.filter(w=>!w.removed_at&&w.trade_role==='installer'&&w.worker_role!=='crew'&&!w.esc_registered).map(w=>({key:`esc-register:${w.id}`,tag:'Person',who:w.full_legal_name,line:`Register ${w.full_legal_name} with ESC`,since:null,button:'Register',href:`/admin/partners/business/${w.business_id}`}));
+ return rows.filter(w=>!w.removed_at&&w.trade_role==='installer'&&w.worker_role==='lead'&&!w.esc_registered).map(w=>({key:`esc-register:${w.id}`,tag:'Person',who:w.full_legal_name,line:`Register ${w.full_legal_name} with ESC`,since:null,button:'Register',href:`/admin/partners/business/${w.business_id}`}));
 }

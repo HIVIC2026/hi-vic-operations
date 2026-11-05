@@ -15,7 +15,7 @@ const db = new PGlite();
 await db.exec(`
 CREATE TABLE businesses (id uuid primary key default gen_random_uuid(), name text not null, trading_name text);
 CREATE TABLE partner_workers (id uuid primary key default gen_random_uuid(), business_id uuid not null references businesses(id), full_legal_name text, email text, mobile text,
-  trade_role text, licence_number text, qualification text, added_by uuid, approval_status text not null default 'pending', certification_status text, certification jsonb,
+  trade_role text, worker_role text CHECK (worker_role IS NULL OR worker_role IN ('lead','crew')), licence_number text, qualification text, added_by uuid, approval_status text not null default 'pending', certification_status text, certification jsonb,
   removed_at timestamptz, declarations_due boolean not null default false, UNIQUE (business_id, email));
 CREATE TABLE partner_worker_identity (worker_id uuid primary key references partner_workers(id) on delete cascade, date_of_birth date not null, updated_by uuid);
 CREATE TABLE partner_worker_invites (id uuid primary key default gen_random_uuid(), business_id uuid not null references businesses(id), created_by uuid, invitee_name text not null,
@@ -235,6 +235,7 @@ describe("registration link (new worker)", () => {
     const [w] = await workersByEmail("r2@sparks.test");
     expect((await inviteRow(id)).worker_id).toBe(w!.id);
     expect((await workerRow(w!.id))!.certification_status).toBe("unverified");
+    expect((await workerRow(w!.id))!.worker_role).toBe("crew"); // no role = Crew (Jo 5 Nov 2026): stored, never left null
   });
 
   test("a second submit is refused and changes nothing", async () => {

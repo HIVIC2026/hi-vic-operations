@@ -280,7 +280,7 @@ exports[`My business (Task 7): same value as before owner, staff, electrician ow
             "noticeAcknowledged": true,
             "role": "installer",
             "whiteCard": "not_applicable",
-            "workerRole": "lead",
+            "workerRole": "crew",
           },
           {
             "canSeeMoney": false,
@@ -622,7 +622,7 @@ exports[`My business (Task 7): same value as before owner, staff, electrician ow
             "noticeAcknowledged": true,
             "role": "installer",
             "whiteCard": "not_applicable",
-            "workerRole": "lead",
+            "workerRole": "crew",
           },
           {
             "canSeeMoney": false,
@@ -969,7 +969,7 @@ exports[`My business (Task 7): same value as before with each read failing: the 
             "noticeAcknowledged": true,
             "role": "installer",
             "whiteCard": "not_applicable",
-            "workerRole": "lead",
+            "workerRole": "crew",
           },
           {
             "canSeeMoney": false,
@@ -1311,7 +1311,7 @@ exports[`My business (Task 7): same value as before with each read failing: the 
             "noticeAcknowledged": true,
             "role": "installer",
             "whiteCard": "not_applicable",
-            "workerRole": "lead",
+            "workerRole": "crew",
           },
           {
             "canSeeMoney": false,
@@ -1633,7 +1633,7 @@ exports[`My business (Task 7): same value as before with each read failing: the 
             "noticeAcknowledged": true,
             "role": "installer",
             "whiteCard": "not_applicable",
-            "workerRole": "lead",
+            "workerRole": "crew",
           },
           {
             "canSeeMoney": false,
@@ -1974,7 +1974,7 @@ exports[`My business (Task 7): same value as before with each read failing: the 
             "noticeAcknowledged": true,
             "role": "installer",
             "whiteCard": "not_applicable",
-            "workerRole": "lead",
+            "workerRole": "crew",
           },
           {
             "canSeeMoney": false,
@@ -2316,7 +2316,7 @@ exports[`My business (Task 7): same value as before with each read failing: the 
             "noticeAcknowledged": true,
             "role": "installer",
             "whiteCard": "not_applicable",
-            "workerRole": "lead",
+            "workerRole": "crew",
           },
           {
             "canSeeMoney": false,
@@ -2645,7 +2645,7 @@ exports[`My business (Task 7): same value as before with each read failing: the 
             "noticeAcknowledged": false,
             "role": "installer",
             "whiteCard": "not_applicable",
-            "workerRole": "lead",
+            "workerRole": "crew",
           },
           {
             "canSeeMoney": false,
@@ -2974,7 +2974,7 @@ exports[`My business (Task 7): same value as before with each read failing: the 
             "noticeAcknowledged": false,
             "role": "installer",
             "whiteCard": "not_applicable",
-            "workerRole": "lead",
+            "workerRole": "crew",
           },
           {
             "canSeeMoney": false,
@@ -3303,7 +3303,7 @@ exports[`My business (Task 7): same value as before with each read failing: the 
             "noticeAcknowledged": false,
             "role": "installer",
             "whiteCard": "not_applicable",
-            "workerRole": "lead",
+            "workerRole": "crew",
           },
           {
             "canSeeMoney": false,
@@ -3645,7 +3645,7 @@ exports[`My business (Task 7): same value as before with each read failing: the 
             "noticeAcknowledged": true,
             "role": "installer",
             "whiteCard": "not_applicable",
-            "workerRole": "lead",
+            "workerRole": "crew",
           },
           {
             "canSeeMoney": false,

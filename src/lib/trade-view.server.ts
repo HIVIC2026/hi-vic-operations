@@ -1289,7 +1289,7 @@ export async function tradeAddTeamPerson(userId: string, p: { name: string; role
   if (!v.ok) throw new WorkflowError(v.error);
   const email = p.email?.trim().toLowerCase() || null;
   if (c.kind === "installer") {
-    const role: import("./team-screen.core").AddPersonRole = p.role ?? p.workerRole ?? "lead";
+    const role: import("./team-screen.core").AddPersonRole = p.role ?? p.workerRole ?? "crew"; // unreachable: teamWorkerRoleProblem already needs an explicit role
     const { addPersonProblems } = await import("./team-screen.core");
     const problems = addPersonProblems({ name, role, mobile: v.mobile, dateOfBirth: p.dateOfBirth ?? null, licenceNumber: licence, recNumber: p.recNumber ?? null, email }, melbourneToday());
     if (problems.length) throw new WorkflowError(problems[0]!);
