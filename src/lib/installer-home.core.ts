@@ -93,7 +93,7 @@ export function installerNext(j: InstallerHomeJob): { group: HomeGroup; next: st
   if (j.quoteLine === QUOTE_DECLINED_LINE) return { group: "progress", next: "Next: nothing yet — owner declined the quote" };
   if (j.place === "coming_up" && j.upcoming) return { group: "coming", next: `Next: ${j.upcoming.what.toLowerCase() === "install" ? "install" : j.upcoming.what} ${fmtWeekdayDayMonth(j.upcoming.start)} at ${exactTime(j.upcoming.start)}` };
   if(j.inHouseDispatch && j.stage==='installation_scheduling' && j.installDepositPaid!==true)
-    return{group:'progress',next:j.installDepositPaid===false?'Next: owner to pay the 10% install deposit':'Next: install deposit confirmation is being checked'};
+    return{group:'progress',next:j.installDepositPaid===false?'Next: owner to pay the 50% install deposit':'Next: install deposit confirmation is being checked'};
   const heldVisit = j.inHouseDispatch ? inHouseTradeBookingText(j.stage) : null;
   if (heldVisit) return { group: "action", next: j.inHouseDispatch === "in_house" ? `Next: ${heldVisit}` : "Visit booking details unavailable" };
   if (j.place === "needs_me") {

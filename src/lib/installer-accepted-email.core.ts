@@ -38,7 +38,7 @@ export function renderInstallerAcceptedEmail(i: InstallerAcceptedInput) {
     ? [
         { title: "Book the PIESA", detail: electrician ? `${electrician} will call ${first} to book it.` : `Pick your electrician on the job, call ${first}, then add the day and time in the portal within 2 business days.` },
         { title: "Electrical upgrades, if needed", detail: `Quote, book and invoice them with ${first} directly. Upload the Part C and Certificate of Electrical Safety before the install.` },
-        { title: "Book the install", detail: `Call ${first} and add the install day and Lead Installer in the portal. ${first} pays her 10% deposit to lock it in. Install within 30 days of the PIESA.` },
+        { title: "Book the install", detail: `Call ${first} and add the install day and Lead Installer in the portal. ${first} pays her 50% deposit to lock it in. Install within 30 days of the PIESA.` },
       ]
     : [
         { title: "Electrical safety check", detail: `The licensed electrician offers ${first} times. Nothing for you to do.` },

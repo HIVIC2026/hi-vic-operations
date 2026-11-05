@@ -1586,7 +1586,7 @@ async function rebateSignedByInstaller(jobId: string): Promise<boolean> {
 }
 
 /** Job page facts (M2): Ready Check visit, quote status, own pay, PIESA/clearance, install form, rebate signing. */
-/** Decision 251: the owner's side of a booked install for the installer's job page — consent signed? 10% deposit paid?
+/** Decision 251: the owner's side of a booked install for the installer's job page — consent signed? 50% deposit paid?
  *  Read-only, server-side, after `requireTradeJob` has scoped the job to the caller's business. Returns states only:
  *  no amounts, no owner prices, no ledger rows leave this function. Unknown → null (the page shows nothing for it). */
 async function ownerReadyFacts(jobId: string): Promise<import("./installer-screens.core").OwnerReadyFacts> {

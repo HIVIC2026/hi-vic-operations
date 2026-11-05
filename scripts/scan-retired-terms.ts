@@ -47,8 +47,11 @@ const TERMS: Term[] = [
   },
   // $349 is the CUSTOMER PIESA price, never an electrician fee/payout (owner decision 2026-10-04). Strict in all src.
   { term: "$349 electrician fee", re: /\$?349[^\n]{0,40}(electrician|REC) (fee|payout|rate)|(electrician|REC) (fee|payout|rate)[^\n]{0,40}\$?349|Agreed fee: \$/gi, action: "Electricians see only their own agreed rate (electricianRateText)", strict: true },
-  // Retired payment rule (owner decision 2026-10-03). strict = fails in ANY src file, comments included.
-  { term: "50% deposit", re: /50 ?% deposit|deposit[^.\n]{0,20}50 ?%|50 ?% of (this|the) invoice/gi, action: "Replace with the approved payment-option gate", strict: true },
+  // Jo 5 Nov 2026: the install deposit is 50% of the price after the $349 (was 10%). The old 50%-before-PIESA rule stays
+  // retired through its specific phrases below (Waiting on 50% deposit…, Owner to pay 50%…, AmountPaid >= 50%, total / 2).
+  // strict = fails in ANY src file, comments included.
+  { term: "10% install deposit", re: /\b10 ?% (install(ation)? )?deposit|\b10 ?% to book|\b10 ?% of the (rest|install price)|deposit \(10 ?%\)|\(10 ?%\) to book|\b90 ?% balance/gi, action: "Jo 5 Nov 2026: say the 50% deposit", strict: true },
+  { term: "50% of this invoice", re: /50 ?% of (this|the) invoice/gi, action: "Retired: the deposit is 50% of the price after the $349, not of the invoice", strict: true },
   { term: "total / 2", re: /total(_inc_gst)?\)? ?\/ ?2\b/g, action: "Deposit is the configured minimum (requiredDepositCents)", strict: true },
   { term: "deposit_pct: 0.5", re: /deposit_pct:? ?0?\.50*\b|deposit_pct \?\? 0\.5/g, action: "Deposit % comes from depositPctFor", strict: true },
   { term: "AmountPaid >= 50%", re: /AmountPaid\s*(>=|≥)\s*(50 ?%?|0?\.5)/gi, action: "Retired PIESA unlock rule", strict: true },
@@ -89,9 +92,9 @@ const TERMS: Term[] = [
   { term: "Office tells the trades the electrician-at-start day", re: /tell the installer and electrician the day/g, action: "Decision 327: the electrician is asked automatically once the install day is booked (install-attendance.core)" },
   // Decisions 283/285 (Jo 25 Oct 2026): no priority number and no chip panel on Enquiries.
   { term: "Enquiries priority number / chip panel", re: /1 = hottest|Pick as many as you like · every column is sortable · 1/g, action: "Decisions 283/285: sort hottest first silently; headings filter (286)" },
-  // Batch 3a (Jo 29 Oct 2026): the payment steps are safety check, fixes, 10% install deposit, balance. No deposit tiers, no plan, no Xero deposit request.
-  { term: "3-instalment plan", re: /3-instalment plan/gi, action: "Retired: payment steps are safety check, fixes, 10% install deposit, balance" },
-  { term: "minimum upfront deposit", re: /minimum upfront deposit/gi, action: "Retired: say the 10% install deposit" },
+  // Batch 3a (Jo 29 Oct 2026): the payment steps are safety check, fixes, install deposit (50% since Jo 5 Nov 2026), balance. No deposit tiers, no plan, no Xero deposit request.
+  { term: "3-instalment plan", re: /3-instalment plan/gi, action: "Retired: payment steps are safety check, fixes, 50% install deposit, balance" },
+  { term: "minimum upfront deposit", re: /minimum upfront deposit/gi, action: "Retired: say the 50% install deposit" },
   { term: "deposit request in Xero", re: /deposit request in Xero|requested in Xero/gi, action: "Retired: no Xero deposit request step (decisions 139-144)" },
   // Batch 3b (Jo 29 Oct 2026): fixes and repeat safety checks have their own invoices; nothing is added to the install invoice.
   { term: "fixes / repeat added to the Xero invoice", re: /(?:fixes|repeat (?:safety check|PIESA))[^.\n]{0,60}added (?:as (?:one|a) line )?to the (?:same |ONE |job's )?(?:Xero )?invoice|add (?:it|the fixes|the repeat[^.\n]{0,20}) to the SAME Xero invoice/gi, action: "Retired: fixes and repeat checks are their own invoices (batch 3b)" },
@@ -110,6 +113,9 @@ const ALLOWED = [/business_unit/, /'hivic'/];
 // and Mitti question labels that the label-based sync parser matches on.
 const RETAINED: { file: RegExp; re: RegExp; why: string }[] = [
   { file: /./, re: /"HIVIC-[A-Z-]+"/, why: "Internal rule code" },
+  // Jo 5 Nov 2026: Customer Agreement v1.3 (signed by owners, 10% deposit) is kept word for word as the signed record, and
+  // v1.4 is built from it by AGREEMENT_V1_4_CHANGES; the PDF keeps v1.3's "10% deposit:" bold lead so signed copies still render.
+  { file: /^src\/lib\/customer-agreement(\.core|-pdf\.server)\.ts$/, re: /10 ?% (deposit|to book)/, why: "Signed Customer Agreement v1.3 record and its v1.4 change list" },
   {
     file: /^src\/lib\/mitti-forms\.core\.ts$/,
     re: /HI VIC/,

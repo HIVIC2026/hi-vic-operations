@@ -87,7 +87,7 @@ export async function prestartFacts(jobId: string, start: string) {
     swmsBlocker: (await import("./swms.core")).swmsBlocker(await (await import("./swms.server")).swmsStatusFor(jobId)),
     // Decision 319: the White Card rule applies only to installations booked on/after WHITE_CARD_ENFORCED_FROM.
     bookingCreatedAt: await installationBookingCreatedAt(jobId, start),
-    // Decision 367: the install cannot start while its 10% deposit is unpaid (payment-rule jobs with an invoice).
+    // Decision 367: the install cannot start while its 50% deposit is unpaid (payment-rule jobs with an invoice).
     installDepositBlocker: await installDepositBlockerFor(jobId, start),
     // Decision 395: the PIESA copies (owner + installer, 24h before) and the owner's Gate C receipt — the same readers and
     // rules Installation complete uses (esc.server installReadiness / owner-gates), so both places agree.

@@ -2,7 +2,7 @@
 // PURE. A job paused waiting on a homeowner payment raises ONE Needs me row per invoice (batch 3b) for the office once the payment
 // has been outstanding for 3 full days; the row says plainly which payment and since when. The row is derived from
 // the paid amount, never stored — the moment the payment is recorded it clears by itself.
-// Covered (Jo's list): the $349 safety check (PIESA) at quote acceptance, the 10% install deposit, the electrical
+// Covered (Jo's list): the $349 safety check (PIESA) at quote acceptance, the 50% install deposit, the electrical
 // fixes, and the repeat safety check. Q21 balance has its own next-day overdue rule after completion +7 days;
 // it must never inherit this three-day pre-payment stall rule.
 
@@ -35,7 +35,7 @@ export function paymentStallLine(s: PaymentStall & { reference?: string | null }
   return `Waiting on the owner's payment — ${PAYMENT_STEP_LABEL[s.key]} unpaid since ${fmtDay(s.since)}${s.reference ? ` · ${s.reference}` : ""}`;
 }
 
-/** Batch 3b: one stall per INVOICE — the installation invoice ($349 safety check, 10% deposit), the fixes invoice and the
+/** Batch 3b: one stall per INVOICE — the installation invoice ($349 safety check, 50% deposit), the fixes invoice and the
  *  repeat safety check invoice each raise their own row, measured on that invoice's own money only. */
 export type InvoicePaymentStall = PaymentStall & { invoice: InvoiceSlot; reference: string | null };
 type StallInvoice = { id: string; kind: string | null; quote_id: string | null; total_inc_gst: number | string | null; total_paid: number | string | null; created_at: string | null; xero_invoice_number: string | null };
@@ -49,7 +49,7 @@ export type JobStallInput = {
   safetyCents: number;
   /** The office overrode the $349 gate on the installation invoice. */
   waived: boolean;
-  /** When the 10% deposit was first asked for (deposit-due stage entry) and whether it is due now (fixes done). */
+  /** When the 50% deposit was first asked for (deposit-due stage entry) and whether it is due now (fixes done). */
   depositSince: string | null; depositDueNow: boolean;
   /** The owner-paid repeat safety check for the current deadline (price in cents, accepted, recorded paid). */
   repeat: { cents: number; acceptedAt: string | null; paid: boolean } | null;

@@ -28,7 +28,7 @@ export function upgradesNeededEmail(i: UpgradesNeededInput): { subject: string; 
     'Your electrical safety check (PIESA) found electrical upgrades needed:',
     ...i.found.map((f) => `- ${f}`),
     `1. ${name} will quote the upgrades and book them with you directly. You pay them, not us.`,
-    `2. You don't need to wait for the upgrades: confirm your safety check and pay your 10% deposit now, then ${i.installer} will call you to book your install day.`,
+    `2. You don't need to wait for the upgrades: confirm your safety check and pay your 50% deposit now, then ${i.installer} will call you to book your install day.`,
     `${cents(i.depositCents / 100)} inc GST`,
   ];
   const after = [

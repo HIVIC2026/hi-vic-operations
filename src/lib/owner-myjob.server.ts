@@ -171,7 +171,7 @@ export async function resolveOwnerJob(token: unknown) {
     else {
       const confirmation = await (await import('./piesa-owner-confirm.server')).ownerPiesaConfirmFacts(jobId);
       // Part 4 T5 (Jo 2 Nov, answer 21): straight after the PIESA result — also with upgrades still to come — the ONE confirm-and-pay page,
-      // while the 10% deposit is unpaid. Everything it covers that is already signed (old flow) just shows as done there.
+      // while the 50% deposit is unpaid. Everything it covers that is already signed (old flow) just shows as done there.
       const { stepsUnsigned } = await import('./confirm-sign-pay.core');
       const { piesaOutcomeKind } = await import('./piesa-owner-confirm.core');
       const stepOf = (k: string) => payment?.steps.find((x) => x.key === k);

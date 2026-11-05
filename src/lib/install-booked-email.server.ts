@@ -28,12 +28,12 @@ export async function emailOwnerInstallBooked(jobId: string, startIso: string, o
   const { firstName } = await import("./worker-links.core");
   const { formatInstallDay } = await import("./install-days.core");
   const { renderInstallBookedEmail, INSTALL_BOOKED_EMAIL_APPROVED } = await import("./install-booked-email.core");
-  // Answer 21 (Jo 2 Nov 2026): the 10% deposit is paid BEFORE the install day is booked, so this email never shows a held day.
+  // Answer 21 (Jo 2 Nov 2026): the 50% deposit is paid BEFORE the install day is booked, so this email never shows a held day.
   const pay = await (await import("./payments.server")).jobPaymentView(jobId).catch(() => null);
   const depositStep = pay?.steps.find((s) => s.key === "install_deposit");
-  // Jo 26 Oct 2026: never "Your install is booked" while the 10% deposit is unpaid.
+  // Jo 26 Oct 2026: never "Your install is booked" while the 50% deposit is unpaid.
   if (pay && depositStep && depositStep.amountCents > 0 && !["paid", "waived"].includes(depositStep.state)) {
-    await logEvent(jobId, null, "install_booked_email_not_sent", "Install booked email not sent — the 10% install deposit is not paid", { starts_at: startIso }, { internal: true });
+    await logEvent(jobId, null, "install_booked_email_not_sent", "Install booked email not sent — the 50% install deposit is not paid", { starts_at: startIso }, { internal: true });
     return "not sent — deposit not paid";
   }
   // Decision 151: once the deposit has cleared, the same email says "Deposit received ✓" with the balance due on the day.

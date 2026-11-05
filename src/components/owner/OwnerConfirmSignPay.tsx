@@ -1,5 +1,5 @@
 // Part 4 Task 5 (Jo 2 Nov 2026, answers 10 and 21): ?screen=clear — ONE page: 1 confirm the safety check, 2 sign the government
-// consent form, 3 pay the 10% deposit. Phone-first. Steps already done (old flow) show as done and are not asked again.
+// consent form, 3 pay the 50% deposit. Phone-first. Steps already done (old flow) show as done and are not asked again.
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useQueryClient } from "@tanstack/react-query";

@@ -64,11 +64,11 @@ function seed(o: Opts = {}) {
     quotes: [1, 3, 4].map((n) => ({ id: `q${n}`, job_id: J(n), kind: "installation", status: "accepted", sent_at: at(-9), accepted_at: at(-8), release_state: "released", release_hold_reason: null, option_code: "R5_BATTS", created_at: at(-9), subtotal_inc_gst: 4000, veec_discount_inc_gst: 500, customer_total_inc_gst: 3500 })),
     quote_items: [1, 3, 4].map((n) => ({ id: `qi${n}`, quote_id: `q${n}`, code: "INSUL", description: "Ceiling batts", quantity: 92, unit: "m2", unit_price_inc_gst: 38, line_total_inc_gst: 3500, sort: 1 })),
     quote_internals: [1, 3, 4].map((n) => ({ id: `qn${n}`, quote_id: `q${n}`, cost_ex_gst: 2000 })),
-    // Owner paid the $349 + 10% deposit on J1/J4 four days ago: the ledger row carries the real date; jobs.updated_at is yesterday.
-    invoices: [1, 4].map((n) => ({ id: `inv${n}`, job_id: J(n), kind: "installation", status: "partially_paid", total_inc_gst: 3500, total_paid: 700, created_at: at(-9), updated_at: at(-1), quote_id: `q${n}` })),
+    // Owner paid the $349 + 50% deposit on J1/J4 four days ago: the ledger row carries the real date; jobs.updated_at is yesterday.
+    invoices: [1, 4].map((n) => ({ id: `inv${n}`, job_id: J(n), kind: "installation", status: "partially_paid", total_inc_gst: 3500, total_paid: 2000, created_at: at(-9), updated_at: at(-1), quote_id: `q${n}` })),
     workflow_events: [
       ...[1, 2, 3, 4].map((n) => ({ id: `rcb${n}`, job_id: J(n), event_type: "ready_check_basics", created_at: at(-14), details: { completed: true, answered: true } })),
-      ...[1, 4].map((n) => ({ id: `pay${n}`, job_id: J(n), event_type: "owner_payment_recorded", created_at: at(-4), actor_id: null, details: { invoice_id: `inv${n}`, amount_cents: 70000, source: "stripe", paid_at: at(-4), receipt_key: `k${n}` } })),
+      ...[1, 4].map((n) => ({ id: `pay${n}`, job_id: J(n), event_type: "owner_payment_recorded", created_at: at(-4), actor_id: null, details: { invoice_id: `inv${n}`, amount_cents: 200000, source: "stripe", paid_at: at(-4), receipt_key: `k${n}` } })),
       { id: "alloc3", job_id: J(3), event_type: "in_house_electrician_allocated", created_at: at(-2), details: { worker_id: W_ELEC, business_id: B1 } },
     ],
     owner_esc_consents: [], customer_email_sends: [], customer_assignments: [], installer_declarations: [], rectification_items: [], appointment_proposals: [], partner_offers: [],
