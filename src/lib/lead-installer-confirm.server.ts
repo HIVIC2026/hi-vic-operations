@@ -81,16 +81,16 @@ async function confirmOne(b: Booking, now: Date, approved: boolean): Promise<str
   if (due !== "send") return `skipped: ${due}`;
   if (await once(b.job_id, LEAD_CONFIRM_EVENT, key)) return "skipped: already sent";
   const [{ data: job }, { data: asg }, { data: crewEv }, { data: allocEv }] = await Promise.all([
-    admin.from("jobs").select("id, job_number, source, deleted_at, owners(full_name), properties(address_line, suburb, postcode)").eq("id", b.job_id).maybeSingle(),
+    admin.from("jobs").select("id, job_number, source, deleted_at, owners(full_name, phone), properties(address_line, suburb, postcode)").eq("id", b.job_id).maybeSingle(),
     admin.from("job_assignments").select("business_id").eq("job_id", b.job_id).eq("role", "installer").eq("active", true).limit(1).maybeSingle(),
     admin.from("workflow_events").select("details").eq("job_id", b.job_id).eq("event_type", "piisa_crew_selected").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("workflow_events").select("details").eq("job_id", b.job_id).eq("event_type", "visit_allocated").order("created_at", { ascending: false }).limit(20),
   ]);
-  const j = job as { id: string; job_number: string; source: string | null; deleted_at: string | null; owners: { full_name: string | null } | { full_name: string | null }[] | null; properties: { address_line: string | null; suburb: string | null; postcode: string | null } | null } | null;
+  const j = job as { id: string; job_number: string; source: string | null; deleted_at: string | null; owners: { full_name: string | null; phone?: string | null } | { full_name: string | null; phone?: string | null }[] | null; properties: { address_line: string | null; suburb: string | null; postcode: string | null } | null } | null;
   if (!j || j.deleted_at) return "skipped: job not found";
   const bizId = (asg as { business_id: string | null } | null)?.business_id ?? null;
   if (!bizId) return "skipped: no installer assigned";
-  const { data: biz } = await admin.from("businesses").select("id, name, email, onboarding_notes").eq("id", bizId).maybeSingle();
+  const { data: biz } = await admin.from("businesses").select("id, name, email, onboarding_notes, signer_name").eq("id", bizId).maybeSingle();
   const bz = biz as { id: string; name: string | null; email: string | null; onboarding_notes: string | null } | null;
   const to = bz?.email?.trim().toLowerCase() ?? "";
   if (!to) return "skipped: installer business has no office email";
@@ -129,7 +129,7 @@ async function confirmOne(b: Booking, now: Date, approved: boolean): Promise<str
   const owner = (Array.isArray(j.owners) ? j.owners[0] : j.owners)?.full_name ?? "";
   const { TEST_APP_BASE } = await import("./test-send.server");
   const { SET_PASSWORD_BASE } = await import("./set-password-link.core");
-  const mail = renderLeadInstallerConfirm({ jobNumber: j.job_number, owner, startIso: b.scheduled_start, address, lead, crew, jobUrl: `${test ? TEST_APP_BASE : SET_PASSWORD_BASE}/field/${j.id}`, lockLabel: leadInstallerLock(b.scheduled_start).lockLabel, business: bz?.name ?? null, test });
+  const mail = renderLeadInstallerConfirm({ jobNumber: j.job_number, owner, startIso: b.scheduled_start, address, lead, crew, jobUrl: `${test ? TEST_APP_BASE : SET_PASSWORD_BASE}/field/${j.id}`, lockLabel: leadInstallerLock(b.scheduled_start).lockLabel, contactName: (bz as { signer_name?: string | null } | null)?.signer_name ?? null, ownerMobile: (Array.isArray(j.owners) ? j.owners[0] : j.owners)?.phone ?? null, test });
   const claim = () => logEvent(j.id, null, LEAD_CONFIRM_EVENT, `Lead Installer confirm email to the installer office for the ${day} install`, { key, install_date: day, booking_id: b.id, business_id: bz!.id, to, test, lead_worker_id: leadId }, { internal: true });
   if (test) {
     // TEST sends are recorded once before the send (the test sender has no idempotency key of its own).

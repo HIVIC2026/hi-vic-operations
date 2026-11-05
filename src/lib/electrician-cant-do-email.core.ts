@@ -1,19 +1,18 @@
 // New job flow, Part 6, Task 6: the installer office email when the electrician taps "Can't do this one" on their link.
 // DRAFT wording (no approved wording yet): off for real jobs behind ELECTRICIAN_CANT_DO_EMAIL_APPROVED in
 // electrician-link.core.ts; TEST jobs go to test-send. Own file so the link's pure core never pulls the email kit.
-import { partnerEmailLayout, type PartnerBlock } from "./partner-email.core";
+import { jobDetails, partnerEmailLayout, partnerHi, type PartnerBlock } from "./partner-email.core";
 import { electricianCantDoEmailLine, electricianCantDoReasonLine } from "./electrician-link.core";
 
-/** Suite look (Jo 5 Nov 2026): greeting line, big heading "{Electrician} can't do this one", what they said in a card, the
- *  "choose another electrician" line, one button to the job when the caller has its link. DRAFT words unchanged. */
+/** Suite look (Jo 5 Nov 2026): greeting, the DRAFT heading "{Electrician} can't do this one", the job card (job, address, owner,
+ *  mobile, electrician, what they said), the DRAFT "Choose another electrician on the job." line in a box, the job button. */
 export const ELECTRICIAN_CANT_DO_HEADING = (electrician: string) => `${electrician.trim()} can't do this one`;
 export const ELECTRICIAN_CANT_DO_CHOOSE_LINE = "Choose another electrician on the job.";
-export function electricianCantDoEmail(i: { jobNumber: string; electrician: string; reason: string; business?: string | null; jobUrl?: string | null; test: boolean }): { subject: string; html: string; text: string } {
+export function electricianCantDoEmail(i: { jobNumber: string; electrician: string; reason: string; contactName?: string | null; address?: string | null; owner?: string | null; mobile?: string | null; jobUrl?: string | null; test: boolean }): { subject: string; html: string; text: string } {
   const line = electricianCantDoEmailLine(i);
-  const hi = i.business?.trim() ? `Hi ${i.business.trim()},` : "Hi,";
   const blocks: PartnerBlock[] = [
-    { kind: "hi", text: hi },
-    { kind: "p", text: `Job ${i.jobNumber.trim()}: ${electricianCantDoReasonLine(i.reason)}` },
+    partnerHi(i.contactName),
+    jobDetails({ jobNumber: i.jobNumber, address: i.address, owner: i.owner, mobile: i.mobile }, [["Electrician", i.electrician], ["They said", i.reason.trim()]]),
     { kind: "box", text: ELECTRICIAN_CANT_DO_CHOOSE_LINE },
     ...(i.jobUrl ? [{ kind: "button", label: "Open the job", url: i.jobUrl } as PartnerBlock] : []),
   ];

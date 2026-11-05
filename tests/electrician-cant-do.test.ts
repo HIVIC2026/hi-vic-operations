@@ -186,7 +186,8 @@ describe("electricianCantDo: the installer office email (DRAFT)", () => {
     expect(m.subject).toBe("HV-5001: Sam Spark can't do this one");
     // Suite look (5 Nov 2026): greeting, heading, the reason, the approved "choose another" line.
     expect(m.text).toContain("Sam Spark can't do this one");
-    expect(m.text).toContain("Job HV-5001: They said: Sick that week");
+    expect(m.text).toContain("Job: HV-5001");
+    expect(m.text).toContain("They said: Sick that week");
     expect(m.text).toContain("Choose another electrician on the job.");
     expect(m.text).toContain("Sick that week");
     expect(m.html).toContain("Choose another electrician on the job.");

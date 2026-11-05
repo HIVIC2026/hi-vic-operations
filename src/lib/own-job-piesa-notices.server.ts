@@ -14,7 +14,8 @@
 // - Missing link table (pending SQL): the text is held ("link not available"); the office email still goes.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { OWN_JOB_PIESA_INSTALLER_NOT_TOLD_EVENT, OWN_JOB_PIESA_TO_BOOK_EMAIL_APPROVED, electricianLinkText, officeToBookEmail } from "./own-job-electrician-link.core";
+import { OWN_JOB_PIESA_INSTALLER_NOT_TOLD_EVENT, OWN_JOB_PIESA_TO_BOOK_EMAIL_APPROVED, electricianLinkText } from "./own-job-electrician-link.core";
+import { officeToBookEmail } from "./own-job-office-emails.core";
 import { SET_PASSWORD_BASE } from "./set-password-link.core";
 
 const db = admin as unknown as SupabaseClient;
@@ -26,7 +27,7 @@ export type InstallerOfficeEmailOutcome = { status: "sent" | "test_sent" | "not_
 
 /** One email to an installer office, once per key. Order: business → TEST partner (test-send) → approval → email on file →
  *  "Pause all trade messages" (before the claim, so a later try still sends) → claim once (deliverOnce) → partner sender. */
-export async function emailInstallerOffice(p: { jobId: string; businessId: string; key: string; subject: string; text: string; jobUrl?: string; approved: boolean; /** Suite look (5 Nov 2026): the structured email when the builder gives one; otherwise the text lines are laid out. */ mail?: import("./own-job-electrician-link.core").OfficeEmail }): Promise<InstallerOfficeEmailOutcome> {
+export async function emailInstallerOffice(p: { jobId: string; businessId: string; key: string; subject: string; text: string; jobUrl?: string; approved: boolean; /** Suite look (5 Nov 2026): the structured email when the builder gives one; otherwise the text lines are laid out. */ mail?: import("./own-job-office-emails.core").OfficeEmail }): Promise<InstallerOfficeEmailOutcome> {
   const { data: biz, error } = await admin.from("businesses").select("id, name, trading_name, email, onboarding_notes").eq("id", p.businessId).maybeSingle();
   if (error) throw new Error(`Installer could not be read: ${error.message}`);
   if (!biz) return { status: "not_sent", detail: "Installer not found." };
@@ -38,11 +39,21 @@ export async function emailInstallerOffice(p: { jobId: string; businessId: strin
   const partnerIsTest = isTestPartner(biz);
   // A TEST job never emails a real installer office (same guard as the in-house notices).
   const { data: jobRow, error: jobErr } = await admin.from("jobs").select("source").eq("id", p.jobId).maybeSingle();
+  // Suite look (5 Nov 2026): the job card and the greeting are best-effort reads — a job with no owner or property row still emails.
+  const jobFacts = await (async () => {
+    try {
+      const { data: jf } = await admin.from("jobs").select("job_number, owners(full_name, phone), properties(address_line, suburb)").eq("id", p.jobId).maybeSingle();
+      const jo = (Array.isArray(jf?.owners) ? jf?.owners[0] : jf?.owners) as { full_name: string | null; phone: string | null } | null | undefined;
+      const jp = jf?.properties as { address_line: string | null; suburb: string | null } | null | undefined;
+      return jf ? { jobNumber: (jf as { job_number?: string | null }).job_number ?? null, address: [jp?.address_line, jp?.suburb].filter(Boolean).join(", ") || null, owner: jo?.full_name ?? null, mobile: jo?.phone ?? null } : null;
+    } catch { return null; }
+  })();
+  const signer = await (async () => { try { const { data } = await admin.from("businesses").select("signer_name").eq("id", p.businessId).maybeSingle(); return (data as { signer_name?: string | null } | null)?.signer_name ?? null; } catch { return null; } })();
   if (jobErr) throw new Error(`Job could not be read: ${jobErr.message}`);
   if ((jobRow?.source as string | null | undefined) === "qa_test" && !partnerIsTest) return { status: "not_sent", detail: "TEST job: not sent to a real installer." };
-  const { officeEmailBlocks } = await import("./own-job-electrician-link.core");
+  const { officeEmailBlocks } = await import("./own-job-office-emails.core");
   const render = (test: boolean) => ({ to, subject: p.subject, ...(p.mail
-    ? partnerEmailLayout({ subject: p.subject, heading: p.mail.heading, preview: p.mail.lines[0], test, blocks: officeEmailBlocks(p.mail, contactName, p.jobUrl ?? null) })
+    ? partnerEmailLayout({ subject: p.subject, heading: p.mail.heading, preview: p.mail.lines[0], test, blocks: officeEmailBlocks(p.mail, signer, jobFacts, p.jobUrl ?? null) })
     : partnerEmailLayout({ subject: p.subject, test, blocks: [...p.text.split("\n").filter(Boolean).map((t) => ({ kind: "p" as const, text: t })), ...(p.jobUrl ? [{ kind: "button" as const, label: "Open the job", url: p.jobUrl }] : [])] })) });
   if (partnerIsTest) {
     if (!to) return { status: "no_email" };

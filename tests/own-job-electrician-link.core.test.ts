@@ -2,9 +2,10 @@
 import { describe, expect, test } from "bun:test";
 import {
   ELECTRICIAN_LINK_MOVED, LINK_EXPIRED, LINK_INVALID, LINK_NOT_ASSIGNED, CANT_DO_REASONS, cantDoReasonLabel,
-  electricianLinkRefusal, electricianStep, piesaBookingProblem, piesaDoneAtStage, electricianLinkText, officeToBookEmail, officeCantDoEmail,
+  electricianLinkRefusal, electricianStep, piesaBookingProblem, piesaDoneAtStage, electricianLinkText,
   OWN_JOB_PIESA_TO_BOOK_EMAIL_APPROVED, OWN_JOB_PIESA_CANT_DO_EMAIL_APPROVED, OWN_JOB_PIESA_NOT_BOOKED_EMAIL_APPROVED, melbourneWallToIso, melbourneWallProblem,
 } from "../src/lib/own-job-electrician-link.core";
+import { officeToBookEmail, officeCantDoEmail } from "../src/lib/own-job-office-emails.core"; // 5 Nov 2026: own file (off the /e/ page bundle)
 import { SMS_MESSAGE_TYPES, SMS_FRESHNESS } from "../src/lib/sms.core";
 
 const now = new Date("2026-11-04T01:00:00Z"); // Wed 4 Nov 2026, 12pm Melbourne

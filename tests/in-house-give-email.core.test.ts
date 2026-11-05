@@ -26,9 +26,9 @@ describe("in-house Give email builder", () => {
     expect(m.subject).toBe(IN_HOUSE_GIVE_EMAIL_SUBJECT);
     expect(/^<!doctype html/i.test(m.html.trimStart())).toBe(true);
     // Suite look (5 Nov 2026): one card per job (number, owner, mobile, address), then the call line.
-    for (const line of ["HV-2730\nWayne Wilson", "Mobile: 0412 000 000", "Address: 1 Example St, Clayton 3168", "HV-2731\nOwner", "Mobile: no mobile on file", "Address: address not recorded", IN_HOUSE_GIVE_CALL_LINE]) expect(m.text).toContain(line);
+    for (const line of ["Job: HV-2730", "Owner: Wayne Wilson", "Mobile: 0412 000 000", "Address: 1 Example St, Clayton 3168", "Job: HV-2731", "Owner: Owner", "Mobile: no mobile on file", "Address: address not recorded", IN_HOUSE_GIVE_CALL_LINE]) expect(m.text).toContain(line);
     expect(m.text.indexOf("HV-2730")).toBeLessThan(m.text.indexOf(IN_HOUSE_GIVE_CALL_LINE));
-    for (const bit of ["HV-2731", ">Owner<", "Mobile: no mobile on file", "Address: address not recorded"]) expect(m.html).toContain(bit);
+    for (const bit of ["HV-2731", ">Owner<", "no mobile on file", "address not recorded"]) expect(m.html).toContain(bit);
     expect(JSON.stringify(m)).not.toMatch(/null|undefined/);
     expect(m.html).not.toContain("TEST — only sent to Jo");
     expect(renderInHouseGiveEmail({ jobs: [WAYNE], test: true }).html).toContain("TEST");

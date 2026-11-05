@@ -8,12 +8,12 @@ import { displayName } from "./display-name.core";
 import { isTestPartner } from "./test-send.core";
 import { deliverOnce } from "./in-house-booking-notices.server";
 
-type Biz = { id: string; name: string | null; email: string | null; onboarding_notes: string | null };
+type Biz = { id: string; name: string | null; email: string | null; onboarding_notes: string | null; signer_name?: string | null };
 
 export async function sendInHouseGiveEmail(p: { batchId: string; businessId: string; jobs: GiveEmailJob[]; actorId: string | null; approved?: boolean }): Promise<GiveEmailOutcome> {
   const first = p.jobs[0];
   if (!first) return { status: "not_sent", detail: "No jobs were given." };
-  const { data, error } = await admin.from("businesses").select("id, name, email, onboarding_notes").eq("id", p.businessId).maybeSingle();
+  const { data, error } = await admin.from("businesses").select("id, name, email, onboarding_notes, signer_name").eq("id", p.businessId).maybeSingle();
   if (error) throw new Error(`Installer could not be read: ${error.message}`);
   const biz = data as Biz | null;
   if (!biz) return { status: "not_sent", detail: "Installer not found." };
@@ -23,7 +23,7 @@ export async function sendInHouseGiveEmail(p: { batchId: string; businessId: str
   const partnerIsTest = isTestPartner(biz);
   if (partnerIsTest) {
     if (!to) return { status: "no_email" };
-    const mail = { to, ...renderInHouseGiveEmail({ jobs: p.jobs, business: displayName(biz.name) || null, test: true }) };
+    const mail = { to, ...renderInHouseGiveEmail({ jobs: p.jobs, contactName: biz.signer_name ?? null, test: true }) };
     let r: { status: string; detail?: string } | null = null;
     const sent = await deliverOnce(first.jobId, key, mail, async (frozen) => {
       const { sendTestEmail } = await import("./test-send.server");
@@ -37,7 +37,7 @@ export async function sendInHouseGiveEmail(p: { batchId: string; businessId: str
   if (!to) return { status: "no_email" };
   const paused = await (await import("./trade-pause.server")).tradeMessagesPausedNow({ businessId: biz.id });
   if (paused) return { status: "held", detail: paused };
-  const mail = { to, ...renderInHouseGiveEmail({ jobs: p.jobs, business: displayName(biz.name) || null }) };
+  const mail = { to, ...renderInHouseGiveEmail({ jobs: p.jobs, contactName: biz.signer_name ?? null }) };
   let r: { status: string; detail?: string } | null = null;
   const sent = await deliverOnce(first.jobId, key, mail, async (frozen) => {
     const { sendOfficeEmail } = await import("./office-email.server");

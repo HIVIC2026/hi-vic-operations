@@ -7,9 +7,10 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isMissingDbObject } from "./schema-compat.core";
 import { hashToken, isTokenShape, linkExpiry, newToken } from "./worker-links.core";
+import { officeCantDoEmail } from "./own-job-office-emails.core";
 import {
   JOB_NOT_GOING_AHEAD, LINK_NOT_ASSIGNED, LINK_UNAVAILABLE, OWN_JOB_PIESA_CANT_DO_EMAIL_APPROVED, OWN_JOB_PIESA_HANDED_BACK_EVENT,
-  CANT_DO_REASONS, cantDoReasonLabel, electricianLinkPath, electricianLinkRefusal, electricianStep, officeCantDoEmail, piesaBookingProblem, piesaDoneAtStage,
+  CANT_DO_REASONS, cantDoReasonLabel, electricianLinkPath, electricianLinkRefusal, electricianStep, piesaBookingProblem, piesaDoneAtStage,
   type CantDoReason, type ElectricianStep,
 } from "./own-job-electrician-link.core";
 import { OWN_JOB_PIESA_HANDED_EVENT } from "./own-job-piesa.core";

@@ -30,10 +30,29 @@ export type PartnerBlock =
   | { kind: "box"; text: string }
   | { kind: "small"; text: string }
   | { kind: "card"; title: string; subtitle?: string | null; blocks: PartnerBlock[] }
+  /** Job facts as label / value rows in a white card (Jo 5 Nov 2026: every installer email shows the job). Empty values are skipped. */
+  | { kind: "details"; title?: string | null; rows: [label: string, value: string | null | undefined][] }
   | { kind: "preview"; text: string };
+
+/** The job facts every installer email shows (Jo 5 Nov 2026, "what details do they get about the job?"). Missing facts are skipped. */
+export type PartnerJobFacts = { jobNumber?: string | null | undefined; address?: string | null | undefined; owner?: string | null | undefined; mobile?: string | null | undefined };
+export const jobDetails = (f: PartnerJobFacts, extra: [string, string | null | undefined][] = []): PartnerBlock =>
+  ({ kind: "details", rows: [["Job", f.jobNumber], ["Address", f.address], ["Owner", f.owner], ["Mobile", f.mobile], ...extra] });
+/** "Hi Tom," from the business signer (businesses.signer_name), else "Hi," */
+export const partnerHi = (contactName: string | null | undefined): PartnerBlock => {
+  const first = (contactName ?? "").trim().split(/\s+/)[0] ?? "";
+  return { kind: "hi", text: first ? `Hi ${first},` : "Hi," };
+};
+
+/** Label / value rows, the same shape as the owner "booked" emails. */
+const detailRow = (label: string, value: string) =>
+  `<tr><td style="padding:8px 0;color:#5B6478;white-space:nowrap;vertical-align:top;" width="36%">${esc(label)}</td><td style="padding:8px 0;font-weight:700;">${esc(value)}</td></tr>`;
+const detailRows = (b: Extract<PartnerBlock, { kind: "details" }>) => b.rows.filter((r): r is [string, string] => !!(r[1] ?? "").trim());
 
 const sec = (rows: string, cls?: string) => `<mj-section><mj-column${cls ? ` mj-class="${cls}"` : ""}>${rows}</mj-column></mj-section>`;
 const txt = (html: string, attrs = "") => `<mj-text${attrs ? ` ${attrs}` : ""}>${html}</mj-text>`;
+/** A plain bullet row (an item written "– x"): things still missing, not things done. */
+const bullet = (html: string, pad: number) => `<tr><td width="32" valign="top" style="padding:0 0 ${pad}px;font-weight:700;">&bull;</td><td style="padding:0 0 ${pad}px;">${html}</td></tr>`;
 const tick = (html: string, pad: number) => `<tr><td width="32" valign="top" style="padding:2px 0 ${pad}px;"><span class="tick">&#10003;</span></td><td style="padding:0 0 ${pad}px;">${html}</td></tr>`;
 const LINK = "color:#3C51C4;font-weight:700;";
 /** Email addresses inside escaped text become mailto links (the ESC notice's privacy address). */
@@ -59,10 +78,11 @@ function cardRows(b: Extract<PartnerBlock, { kind: "card" }>): string {
 function blockText(b: PartnerBlock): string[] {
   switch (b.kind) {
     case "p": case "hi": case "box": case "small": return [b.text, ""];
-    case "list": return [...b.items.map((x) => `• ${x}`), ""];
+    case "list": return [...b.items.map((x) => `• ${x.replace(/^– /, "")}`), ""];
     case "button": case "link": return [`${b.label}: ${b.url}`, ""];
     case "sign": return [...b.lines, ""];
     case "card": return [b.title, ...(b.subtitle ? [b.subtitle] : []), "", ...b.blocks.flatMap(blockText)];
+    case "details": return [...(b.title ? [b.title] : []), ...detailRows(b).map(([l, v]) => `${l}: ${v}`), ""];
     case "preview": return [];
   }
 }
@@ -88,8 +108,9 @@ export function partnerEmailLayout(i: { subject: string; heading?: string | null
     else if (b.kind === "link") rows.push(txt(`<a href="${esc(b.url)}" style="${LINK}">${esc(b.label)}</a>`, `mj-class="small"${first ? ' padding="14px 12px 0"' : ""}`));
     else if (b.kind === "sign") rows.push(txt(b.lines.map(esc).join("<br />")));
     else if (b.kind === "box") panel("panel-amber", txt(esc(b.text), 'padding="18px 18px 18px"'));
-    else if (b.kind === "list") panel("panel-card", `<mj-table padding="18px 18px 6px">${b.items.map((x, n, all) => tick(esc(x), n === all.length - 1 ? 12 : 14)).join("")}</mj-table>`);
+    else if (b.kind === "list") panel("panel-card", `<mj-table padding="18px 18px 6px">${b.items.map((x, n, all) => x.startsWith("– ") ? bullet(esc(x.slice(2)), n === all.length - 1 ? 12 : 14) : tick(esc(x), n === all.length - 1 ? 12 : 14)).join("")}</mj-table>`);
     else if (b.kind === "card") panel("panel-card", cardRows(b));
+    else if (b.kind === "details") panel("panel-card", `${b.title ? txt(esc(b.title), 'mj-class="h2" padding="18px 18px 0"') : ""}<mj-table padding="10px 18px" font-size="16px">${detailRows(b).map(([l, v]) => detailRow(l, v)).join("")}</mj-table>`);
   }
   flush();
   const mail = { subject: i.subject, preview, body: out.join(""), unsubscribe: null, testLabel: i.test !== false };

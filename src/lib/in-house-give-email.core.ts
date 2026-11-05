@@ -3,7 +3,7 @@
 // Real installers get nothing until Jo approves the wording in Templates (IN_HOUSE_GIVE_EMAIL_APPROVED); TEST partners
 // always go through test-send.
 import { displayName } from "./display-name.core";
-import { partnerEmailLayout, type PartnerBlock } from "./partner-email.core";
+import { jobDetails, partnerEmailLayout, partnerHi, type PartnerBlock } from "./partner-email.core";
 
 /** Off until Jo approves the rendered email in Templates (Waiting for Jo's approval). */
 export const IN_HOUSE_GIVE_EMAIL_APPROVED: boolean = false;
@@ -23,16 +23,12 @@ export function giveEmailLine(j: GiveEmailJob): string {
 }
 
 export const IN_HOUSE_GIVE_EMAIL_HEADING = "New free Ready Check jobs";
-export const IN_HOUSE_GIVE_INTRO = (n: number) => n === 1 ? "Home Insulation Victoria has given you 1 new job." : `Home Insulation Victoria has given you ${n} new jobs.`;
-/** One email for one Give — suite look (Jo 5 Nov 2026): greeting line, big heading, how many, one card per job (number, owner,
- *  mobile, address), then the call line in a box. `test` adds the TEST label (test-send only). */
-export function renderInHouseGiveEmail(i: { jobs: GiveEmailJob[]; business?: string | null; test?: boolean }): { subject: string; html: string; text: string } {
-  const hi = i.business?.trim() ? `Hi ${i.business.trim()},` : "Hi,";
-  const card = (j: GiveEmailJob): PartnerBlock => ({
-    kind: "card", title: (j.jobNumber ?? "").trim() || "Job", subtitle: displayName(j.ownerName) || "Owner",
-    blocks: [{ kind: "p", text: `Mobile: ${(j.ownerMobile ?? "").trim() || "no mobile on file"}` }, { kind: "p", text: `Address: ${(j.address ?? "").replace(/\s+/g, " ").trim() || "address not recorded"}` }],
-  });
-  const blocks: PartnerBlock[] = [{ kind: "hi", text: hi }, { kind: "p", text: IN_HOUSE_GIVE_INTRO(i.jobs.length) }, ...i.jobs.map(card), { kind: "box", text: IN_HOUSE_GIVE_CALL_LINE }];
+/** One email for one Give — suite look (Jo 5 Nov 2026): greeting, heading, one job card per job (job, owner, mobile, address),
+ *  then the approved call line in a box. No other words. `test` adds the TEST label (test-send only). */
+export function renderInHouseGiveEmail(i: { jobs: GiveEmailJob[]; contactName?: string | null; test?: boolean }): { subject: string; html: string; text: string } {
+  const card = (j: GiveEmailJob): PartnerBlock =>
+    jobDetails({ jobNumber: (j.jobNumber ?? "").trim() || "Job", owner: displayName(j.ownerName) || "Owner", mobile: (j.ownerMobile ?? "").trim() || "no mobile on file", address: (j.address ?? "").replace(/\s+/g, " ").trim() || "address not recorded" });
+  const blocks: PartnerBlock[] = [partnerHi(i.contactName), ...i.jobs.map(card), { kind: "box", text: IN_HOUSE_GIVE_CALL_LINE }];
   const { html, text } = partnerEmailLayout({ subject: IN_HOUSE_GIVE_EMAIL_SUBJECT, heading: IN_HOUSE_GIVE_EMAIL_HEADING, preview: IN_HOUSE_GIVE_CALL_LINE, blocks, test: i.test === true });
   return { subject: IN_HOUSE_GIVE_EMAIL_SUBJECT, html, text };
 }
