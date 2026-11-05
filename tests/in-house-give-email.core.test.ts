@@ -13,8 +13,8 @@ describe("in-house Give email builder", () => {
   test("exact subject and call line; stays off until Jo approves (exact constant form)", () => {
     expect(IN_HOUSE_GIVE_EMAIL_SUBJECT).toBe("New free Ready Check jobs from Home Insulation Victoria");
     expect(IN_HOUSE_GIVE_CALL_LINE).toBe("Call each owner to book their free Ready Check.");
-    expect(IN_HOUSE_GIVE_EMAIL_APPROVED).toBe(false);
-    expect(readFileSync("src/lib/in-house-give-email.core.ts", "utf8")).toContain("export const IN_HOUSE_GIVE_EMAIL_APPROVED: boolean = false;");
+    expect(IN_HOUSE_GIVE_EMAIL_APPROVED).toBe(true); // Jo 6 Nov 2026: on.
+    expect(readFileSync("src/lib/in-house-give-email.core.ts", "utf8")).toContain("export const IN_HOUSE_GIVE_EMAIL_APPROVED: boolean = true;");
   });
   test("one line per job: job number · owner name · owner mobile · address", () => {
     expect(giveEmailLine(WAYNE)).toBe("HV-2730 · Wayne Wilson · 0412 000 000 · 1 Example St, Clayton 3168");

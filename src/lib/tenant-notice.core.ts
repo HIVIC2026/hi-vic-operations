@@ -12,7 +12,7 @@ import { installerName, type TradeContact } from "./owner-will-call.core";
 import type { RentalAnswers } from "./rental-answers.core";
 
 /** Off until Jo approves the rendered text + email (JO-APPROVAL-LIST). The SMS type is also `wordingApproved: false`. */
-export const TENANT_NOTICE_APPROVED = false as boolean;
+export const TENANT_NOTICE_APPROVED = true as boolean; // Jo 6 Nov 2026: on
 export const TENANT_NOTICE_SMS_TYPE = "tenant_notice" as const;
 /** Email purpose; listed in COMPLIANCE_OWNER_EMAIL_PURPOSES (do-not-contact.core) so Do not contact / unsubscribe never hold it. */
 export const TENANT_NOTICE_EMAIL_PURPOSE = "tenant_notice";

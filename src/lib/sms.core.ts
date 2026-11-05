@@ -159,10 +159,10 @@ export const SMS_MESSAGE_TYPES = {
   // `compliancePurpose` makes the real sender read the owner's consent the compliance way (an unsubscribe never holds it) and
   // `ownerSideContact` keeps the owner's "Do not contact" out of it; a STOP from the tenant's own number still holds it.
   // DRAFT wording: never sends until Jo approves it (also behind TENANT_NOTICE_APPROVED); own switch, off until Jo switches it on.
-  tenant_notice: { audience: "owner", ownerSideContact: true, compliancePurpose: "tenant_notice", label: "Install day booked – tenant told the day, time and power-off (cl 23, answers 7/22; DRAFT wording, TENANT_NOTICE_APPROVED)", wordingApproved: false, quietHours: true },
+  tenant_notice: { audience: "owner", ownerSideContact: true, compliancePurpose: "tenant_notice", label: "Install day booked – tenant told the day, time and power-off (cl 23, answers 7/22; Jo 6 Nov 2026: on, TENANT_NOTICE_APPROVED)", wordingApproved: true, quietHours: true },
   // New job flow Part 6 Task 2: the electrician is texted their no-login job link (/e/{token}) right after the installer picks them.
   // DRAFT wording (electricianLinkText, electrician-link.core.ts) until Jo approves it; also behind ELECTRICIAN_LINK_TEXT_APPROVED.
-  electrician_job_link: { audience: "partner", label: "New safety check job – electrician's job link (Part 6; DRAFT wording, ELECTRICIAN_LINK_TEXT_APPROVED)", wordingApproved: false, quietHours: true },
+  electrician_job_link: { audience: "partner", label: "New safety check job – electrician's job link (Part 6; Jo 6 Nov 2026: on, ELECTRICIAN_LINK_TEXT_APPROVED)", wordingApproved: true, quietHours: true },
   upgrades_nudge: { audience: "partner", label: "Upgrades form not in – nudge to the electrician the day after the upgrades day (Part 6; wording approved by Jo 4 Nov 2026, UPGRADES_NUDGE_TEXT_APPROVED flips at go-live)", wordingApproved: true /* ON 5 Nov 2026 (Jo: all designed templates on) */, quietHours: true },
 } as const;
 export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;

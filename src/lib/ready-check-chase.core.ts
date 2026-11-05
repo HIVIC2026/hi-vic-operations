@@ -46,7 +46,7 @@ export function readyCheckIncompleteText(jobNumber: string, address: string | nu
 /** Decision #27 (Jo 2 Nov 2026, chase-email.png): the "Nearly there" chase goes to the installer's business OFFICE email instead of a
  *  text. Wording approved verbatim; stays false until Jo OKs the picture. While false the old text (decision 83) keeps going, so one
  *  chase is only ever one version. */
-export const READY_CHECK_CHASE_EMAIL_APPROVED = false as boolean;
+export const READY_CHECK_CHASE_EMAIL_APPROVED = true as boolean; // Jo 6 Nov 2026: on
 
 export function readyCheckNearlyThereEmail(i: { jobNumber: string; address: string; missing: string[]; mittiFormUrl: string; contactName?: string | null; owner?: string | null; mobile?: string | null; test?: boolean }): { subject: string; text: string; html: string } {
   // Decision #27 words only (Jo 2 Nov 2026), in the suite look (5 Nov 2026): greeting, "Nearly there", the job card, what it
