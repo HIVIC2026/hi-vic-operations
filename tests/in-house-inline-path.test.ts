@@ -8,15 +8,20 @@ test('actual inline booking path validates before allocation and calls the canon
  const deps:any={
   '@/integrations/supabase/client.server':{supabaseAdmin:db},
   './booking.server':{validateBooking:async()=>{calls.push('validate');if(blocked)throw Error('Owner not signed');return {stage:'ready_check_ready_to_schedule',target:'ready_check_scheduled',warnings:[]};},confirmBooking:async(j:string,kind:string,start:string)=>{calls.push('confirm');tables.bookings.push({id:'b',job_id:j,kind,scheduled_start:start,status:'confirmed'});}},
-  './in-house-booking.server':{prepareBookingWorker:async(_j:string,actor:string,_k:string,_w:string,_c:string[],options:any)=>{expect(options).toEqual({inline:true});if(actor!=='own-office')throw Error('Not your in-house job');calls.push('allocate');return{id:'w',name:'TEST'};},notifyOwnerBooked:async(_j:string,_k:string,_s:string,_w:unknown,_now:Date,options:any)=>{expect(options).toEqual({prepareOnly:true});calls.push('notice captured');}},
+  './in-house-booking.server':{prepareBookingWorker:async(_j:string,actor:string,_k:string,_w:string,_c:string[],options:any)=>{expect(options).toEqual({inline:true});if(actor!=='own-office')throw Error('Not your in-house job');calls.push('allocate');return{id:'w',name:'TEST'};},notifyOwnerBooked:async(_j:string,k:string,_s:string,_w:unknown,_now:Date,options:any)=>{expect(options).toEqual({prepareOnly:true});calls.push(`notice captured:${k}`);}},
   './background.server':{runAfterResponse:()=> 'queue_only'},
+  './in-house-booking.core':await import('../src/lib/in-house-booking.core'),
   './visit-allocation.server':{saveCrewWithLeadInline:async(_j:string,actor:string)=>{if(actor!=='own-office')throw Error('Not your in-house job');calls.push('crew and forms captured');return{needsVerification:[]};}},
  };
  const api:any={};new Function('exports','require',ts.transpile(readFileSync('src/lib/in-house-inline-save.server.ts','utf8'),{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}))(api,(p:string)=>{if(!(p in deps))throw Error(`Unmocked ${p}`);return deps[p];});
  const input={kind:'installation',start:'2026-11-10',workerId:'w',selection:{lead:'w',additional:[]}};
  blocked=true;await expect(api.saveInHouseVisitInline('j','own-office',input)).rejects.toThrow('Owner not signed');expect(tables.bookings).toHaveLength(0);expect(calls).toEqual(['validate']);
  blocked=false;calls.length=0;await expect(api.saveInHouseVisitInline('j','other-office',input)).rejects.toThrow('Not your in-house job');expect(tables.bookings).toHaveLength(0);
- calls.length=0;expect(await api.saveInHouseVisitInline('j','own-office',input)).toMatchObject({bookingId:'b'});expect(calls).toEqual(['validate','allocate','confirm','notice captured']);
+ calls.length=0;expect(await api.saveInHouseVisitInline('j','own-office',input)).toMatchObject({bookingId:'b'});expect(calls).toEqual(['validate','allocate','confirm','notice captured:install']);
+ // Deep Part 4(b): the electrical upgrades day (rectification) gets the owner's "You're booked" too (it sent nothing before).
+ calls.length=0;tables.bookings.length=0;expect(await api.saveInHouseVisitInline('j','own-office',{...input,kind:'rectification'})).toMatchObject({bookingId:'b'});expect(calls).toEqual(['validate','allocate','confirm','notice captured:upgrades']);
+ calls.length=0;tables.bookings.length=0;await api.saveInHouseVisitInline('j','own-office',{...input,kind:'assessment'});expect(calls).toEqual(['validate','allocate','confirm','notice captured:piesa']);
+ tables.bookings.length=0;tables.bookings.push({id:'b',job_id:'j',kind:'installation',scheduled_start:input.start,status:'confirmed'});
  calls.length=0;await api.saveInHouseVisitInline('j','own-office',{...input,kind:'crew'});expect(calls).toEqual(['crew and forms captured']);
  await expect(api.saveInHouseVisitInline('j','other-office',{...input,kind:'crew'})).rejects.toThrow('Not your in-house job');expect(tables.bookings).toHaveLength(1);
 });

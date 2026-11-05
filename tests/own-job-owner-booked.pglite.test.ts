@@ -71,6 +71,13 @@ describe("notifyOwnerBooked", () => {
   test("a booking time that has passed is 'not current' for an own job", async () => {
     expect(await notifyOwnerBooked(id(11), "piesa", startIso, who, afterStart)).toBe("not current");
   });
+  // Deep Part 4(b), Jo 5 Nov 2026: no Ready Check booking on an installer's own customer, so no Ready Check notice there.
+  test("an own job never gets a Ready Check 'You're booked' (held with the reason, nothing recorded or sent)", async () => {
+    const before = { e: emails.length, t: texts.length };
+    expect(await notifyOwnerBooked(id(11), "ready_check", startIso, who, beforeStart)).toBe("held: No Ready Check booking on an installer's own customer (Jo 5 Nov 2026)");
+    expect(emails.length).toBe(before.e); expect(texts.length).toBe(before.t);
+    expect((await db.query("select id from workflow_events where job_id=$1 and details->>'kind'='ready_check'", [id(11)])).rows).toHaveLength(0);
+  });
 });
 
 // Part 3 Task 3 (controller ruling, fix round 1): the electrical upgrades day is entered on the electrician's link on EVERY job,

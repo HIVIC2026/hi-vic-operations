@@ -37,7 +37,8 @@ export async function saveInHouseVisitInline(jobId:string,actorId:string,input:{
  if(error||!saved)throw Error(error?.message??'Booking could not be read back.');
  // J4 G2: the booked electrician visit releases the owner's contact to that assignment (identical to commit_in_house_visit v2).
  if(input.kind==='assessment'||input.kind==='rectification')await releaseElectricianContact(jobId,input.kind,actorId);
- const noticeKind=input.kind==='installation'?'install':input.kind==='assessment'?'piesa':input.kind==='ready_check'?'ready_check':null;
+ // Deep Part 4(b): every booked visit, the electrical upgrades day (rectification) included, gets the owner's "You're booked".
+ const noticeKind=(await import('./in-house-booking.core')).bookingNoticeKindFor(input.kind);
  if(noticeKind){
   // Durable intent first: the existing booked-notice sweep owns recovery if the request lifetime ends.
   await service.notifyOwnerBooked(jobId,noticeKind,start,who,new Date(),{prepareOnly:true});
