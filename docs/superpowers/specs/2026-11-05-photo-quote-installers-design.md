@@ -24,7 +24,7 @@ The Ready Check is a Home Insulation Victoria step, not a VEU rule. The VEU rule
    - Sqm to install
    - Product (from their product list; allows top-ups, e.g. R3.5 over existing R1.5)
    - Button: **Send for quote**
-   No other fields. Entered in the portal, not Mitti (no Mitti seat needed). "Under R2 = No" can't be sent for quote. It must go through "Can't do this one".
+   No other fields. Only this photo quote is entered in the portal instead of Mitti. "Under R2 = No" can't be sent for quote. It must go through "Can't do this one".
 5. **Can't quote.** "Can't do this one" with a reason (photos not clear / looks over R2 / other) sends the job back to the office, like the existing button.
 6. **Time limit.** Not sent within 2 business days of the job being given → flagged to Jo on Active jobs (same style as the in-house stall flags). The installer keeps the job.
 7. **Quote.** Priced from the installer's agreed rates using their sqm, removal and product (Home Insulation Victoria leads only). It sends itself unless held, as now (over 15% off the estimate → held). Same quote email/page, valid 30 days.
@@ -54,7 +54,7 @@ Not changed: #19–22 (Spot saved, texts, It's your turn, quick-taps thanks) sti
 - **SWMS "Specific to this house" and the job page's Site notes** fill in from the PIESA (and the installer note) when there's no Ready Check.
 - **A2 "different R value?" question**: there's no visit, so it isn't asked. The owner is quoted for the product the installer picks.
 - **Paperwork list / progress bar:** the "Ready Check" step shows as "Photo quote" on these jobs, so nothing shows missing or overdue. The Ready Check 5-business-day stall flag doesn't apply.
-- **Mitti:** no Ready Check form is created for these jobs. The 15-minute backup that makes missing Ready Check forms must skip them.
+- **Mitti:** No Gap still uses Mitti for the rest of the job: the electrician's PIESA form, the upgrades form and the Lead Installer's install-day form (incl. PIISA), all created as normal. Only the Mitti Ready Check form is skipped, and the 15-minute backup that makes missing Ready Check forms must skip these jobs.
 
 ## Not in scope
 
