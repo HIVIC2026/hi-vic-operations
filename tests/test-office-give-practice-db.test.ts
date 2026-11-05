@@ -127,7 +127,7 @@ test("applying twice is a no-op; only the body changes (secdef/config/acl identi
     expect({ ...applied, def: null }).toEqual({ ...before, def: null });
     await db.exec(readFileSync("drizzle/migrations/0189_test_office_give.sql", "utf8"));
     expect(await fnShape(db)).toEqual(applied);
-    await db.exec(readFileSync("drizzle/migrations/0189_test_office_give.rollback.sql", "utf8"));
+    await db.exec(readFileSync("docs/applied-migrations/2026-11-05_test_office_give.rollback.sql", "utf8"));
     expect(await fnShape(db)).toEqual(before);
     await expect(give(db, TEST_JOB, TEST_BIZ, QA, TEST_INSTALLER)).rejects.toThrow("Office only");
     expect(await give(db, REAL_JOB, REAL_BIZ, ADMIN, REAL_INSTALLER)).toEqual({ sent: true });
