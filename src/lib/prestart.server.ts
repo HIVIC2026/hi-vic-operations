@@ -19,7 +19,8 @@ export async function leadInstallerCert(jobId: string): Promise<LeadCert & { ema
   const selection=(selected?.details as {selection?:{lead?:unknown}}|null)?.selection;
   const selectedWorkerId=typeof selection?.lead==='string'?selection.lead:null;
   let workerQuery=admin.from("partner_workers").select("id, email, full_legal_name, mobile, business_id, trade_role, removed_at, certification, esc_registered").eq("business_id", a.business_id ?? "").is("removed_at", null);
-  workerQuery=selectedWorkerId?workerQuery.eq('id',selectedWorkerId):workerQuery.eq('profile_id',a.user_id);
+  if (!selectedWorkerId && !a.user_id) return none;
+  workerQuery=selectedWorkerId?workerQuery.eq('id',selectedWorkerId):workerQuery.eq('profile_id',a.user_id ?? '');
   const {data:w}=await workerQuery.limit(1).maybeSingle();
   if (!w) return none;
   const email = (w.email ?? "").trim().toLowerCase() || null;
