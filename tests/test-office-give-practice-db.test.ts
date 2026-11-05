@@ -1,6 +1,6 @@
 // Pending 2026-11-05_test_office_give.sql (Jo 5 Nov 2026): the TEST office may give a qa_test job to a TEST partner
 // through the normal atomic allocation RPC; the admin path is unchanged. Proven on PGlite over the current function body
-// (same setup as in-house-batch-practice-db: batch + coverage + quick taps + Team electrician), then rolled back.
+// (journaled 0181/0182 baseline; same setup as in-house-batch-practice-db: batch + coverage + quick taps + Team electrician), then rolled back.
 import { expect, test } from "bun:test";
 import { PGlite } from "@electric-sql/pglite";
 import { readFileSync } from "node:fs";
@@ -26,7 +26,7 @@ async function setup(apply = true) {
     INSERT INTO partner_workers(business_id,profile_id,trade_role,approval_status) VALUES ('${id(REAL_BIZ)}','${id(REAL_INSTALLER)}','installer','approved'),('${id(TEST_BIZ)}','${id(TEST_INSTALLER)}','installer','approved');
     CREATE TABLE properties(id uuid primary key,postcode text); INSERT INTO properties VALUES ('${id(12)}','3199');
     CREATE TABLE property_facts(property_id uuid,fact_key text,value jsonb,is_current boolean,created_at timestamptz default now());
-    CREATE TABLE jobs(id uuid primary key,source text not null default 'base44',stage text not null default 'preliminary_estimate_ready',deleted_at timestamptz,electrician_choice text,property_id uuid default '${id(12)}');
+    CREATE TABLE jobs(id uuid primary key,source text not null default 'base44',stage text not null default 'preliminary_estimate_ready',deleted_at timestamptz,qa_archived_at timestamptz,electrician_choice text,property_id uuid default '${id(12)}');
     INSERT INTO jobs(id,source) VALUES ('${id(REAL_JOB)}','base44'),('${id(21)}','base44'),('${id(TEST_JOB)}','qa_test'),('${id(31)}','qa_test');
     CREATE TABLE lead_campaign_responses(job_id uuid,spot_saved_at timestamptz); INSERT INTO lead_campaign_responses SELECT id,now() FROM jobs;
     CREATE TABLE customer_email_optouts(id uuid primary key default gen_random_uuid(),job_id uuid not null,token text not null,opted_out_at timestamptz,created_at timestamptz not null default now());
@@ -39,9 +39,9 @@ async function setup(apply = true) {
   await db.exec(readFileSync("docs/pending-migrations/2026-10-30_in_house_batch.sql", "utf8"));
   await db.exec(readFileSync("docs/pending-migrations/2026-10-30_in_house_batch_coverage.sql", "utf8"));
   await db.exec("ALTER TABLE jobs ADD COLUMN channel text DEFAULT 'hivic_sourced'; ALTER TABLE workflow_events ADD COLUMN created_at timestamptz DEFAULT now();");
-  await db.exec(readFileSync("docs/pending-migrations/2026-11-01_in_house_quick_taps.sql", "utf8"));
+  await db.exec(readFileSync("drizzle/migrations/0181_in_house_quick_taps.sql", "utf8"));
   await db.exec("ALTER TABLE partner_workers ADD COLUMN id uuid DEFAULT gen_random_uuid(), ADD COLUMN full_legal_name text, ADD COLUMN licence_number text;");
-  await db.exec(readFileSync("docs/pending-migrations/2026-11-01_in_house_electrician.sql", "utf8"));
+  await db.exec(readFileSync("drizzle/migrations/0182_in_house_team_electrician.sql", "utf8"));
   await db.exec(`INSERT INTO workflow_events(job_id,event_type,summary,details) SELECT id,'quick_taps_answered','yes','{"outcome":"pass","consent_share":true}' FROM jobs`);
   if (apply) await db.exec(readFileSync("docs/pending-migrations/2026-11-05_test_office_give.sql", "utf8"));
   return db;
@@ -53,6 +53,9 @@ const writes = async (db: PGlite) => ({
   batches: (await db.query("SELECT count(*)::int n FROM in_house_batches")).rows[0],
   events: (await db.query("SELECT count(*)::int n FROM workflow_events WHERE event_type<>'quick_taps_answered'")).rows[0],
 });
+const FN = "'allocate_in_house_batch_job(uuid,uuid,uuid,uuid,uuid,uuid)'::regprocedure";
+const fnShape = async (db: PGlite) => (await db.query<{ def: string; prosecdef: boolean; proconfig: string[] | null; proacl: string[] | null }>(
+  `SELECT pg_get_functiondef(${FN}) def, prosecdef, proconfig, proacl::text[] proacl FROM pg_proc WHERE oid=${FN}`)).rows[0]!;
 const REFUSED = "The TEST office can only give TEST jobs to TEST installers";
 
 test("before the change (today): the TEST office cannot give at all", async () => {
@@ -105,15 +108,28 @@ test("admin path unchanged: real job gives; qa_test job stays unavailable even t
     await expect(give(db, 21, REAL_BIZ, REAL_INSTALLER, REAL_INSTALLER)).rejects.toThrow("Office only");
   } finally { await db.close(); }
 });
-test("applying twice is a no-op; rollback restores today's refusal exactly", async () => {
+test("an archived qa_test job is refused by the function for a qa_office caller (no writes)", async () => {
   const db = await setup();
   try {
+    await db.exec(`UPDATE jobs SET qa_archived_at=now() WHERE id='${id(TEST_JOB)}'`);
+    expect(await give(db, TEST_JOB, TEST_BIZ, QA, TEST_INSTALLER)).toEqual({ sent: false, reason: "Job unavailable" });
+    expect(await writes(db)).toEqual({ assignments: { n: 0 }, batches: { n: 0 }, events: { n: 0 } });
+  } finally { await db.close(); }
+});
+test("applying twice is a no-op; only the body changes (secdef/config/acl identical); rollback restores BEFORE byte for byte", async () => {
+  const db = await setup(false);
+  try {
+    const before = await fnShape(db);
     await db.exec(readFileSync("docs/pending-migrations/2026-11-05_test_office_give.sql", "utf8"));
+    const applied = await fnShape(db);
+    expect(applied.def).not.toBe(before.def);
+    expect(applied.def).toContain("TEST office Give");
+    expect({ ...applied, def: null }).toEqual({ ...before, def: null });
+    await db.exec(readFileSync("docs/pending-migrations/2026-11-05_test_office_give.sql", "utf8"));
+    expect(await fnShape(db)).toEqual(applied);
     await db.exec(readFileSync("docs/pending-migrations/2026-11-05_test_office_give.rollback.sql", "utf8"));
+    expect(await fnShape(db)).toEqual(before);
     await expect(give(db, TEST_JOB, TEST_BIZ, QA, TEST_INSTALLER)).rejects.toThrow("Office only");
     expect(await give(db, REAL_JOB, REAL_BIZ, ADMIN, REAL_INSTALLER)).toEqual({ sent: true });
-    const body = (await db.query<{ d: string }>("SELECT pg_get_functiondef('allocate_in_house_batch_job(uuid,uuid,uuid,uuid,uuid,uuid)'::regprocedure) d")).rows[0]!.d;
-    expect(body).not.toContain("TEST office Give");
-    expect(body).toContain("AND source<>'qa_test' FOR UPDATE;");
   } finally { await db.close(); }
 });

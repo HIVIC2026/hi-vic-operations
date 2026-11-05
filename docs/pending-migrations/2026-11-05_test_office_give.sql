@@ -27,11 +27,10 @@ BEGIN
   END IF;$old$, $new$  -- TEST office Give (Jo 5 Nov 2026): a qa_office actor (never also admin) may give only a qa_test job to a TEST partner.
   IF EXISTS (SELECT 1 FROM public.user_roles WHERE user_id=_actor AND role::text='qa_office') THEN
     IF EXISTS (SELECT 1 FROM public.user_roles WHERE user_id=_actor AND role::text='admin') THEN RAISE EXCEPTION 'Office only'; END IF;
-    IF NOT EXISTS (SELECT 1 FROM public.businesses WHERE id=_business
+    PERFORM 1 FROM public.businesses WHERE id=_business
       AND position('[TEST PARTNER]' IN COALESCE(onboarding_notes,''))>0
-      AND trim(COALESCE(email,'')) ~* '^[^@[:space:]]+@hivic-test\.example$') THEN
-      RAISE EXCEPTION 'The TEST office can only give TEST jobs to TEST installers';
-    END IF;
+      AND trim(COALESCE(email,'')) ~* '^[^@[:space:]]+@hivic-test\.example$' FOR SHARE;
+    IF NOT FOUND THEN RAISE EXCEPTION 'The TEST office can only give TEST jobs to TEST installers'; END IF;
     PERFORM 1 FROM public.jobs WHERE id=_job AND source='qa_test';
     IF NOT FOUND THEN RAISE EXCEPTION 'The TEST office can only give TEST jobs to TEST installers'; END IF;
   ELSIF NOT EXISTS (SELECT 1 FROM public.user_roles WHERE user_id=_actor AND role::text='admin') THEN
@@ -39,6 +38,6 @@ BEGIN
   END IF;$new$);
   body := replace(body, $old$  SELECT * INTO job_row FROM public.jobs WHERE id=_job AND deleted_at IS NULL AND source<>'qa_test' FOR UPDATE;$old$,
     $new$  SELECT * INTO job_row FROM public.jobs WHERE id=_job AND deleted_at IS NULL
-    AND CASE WHEN EXISTS (SELECT 1 FROM public.user_roles WHERE user_id=_actor AND role::text='qa_office') THEN source='qa_test' ELSE source<>'qa_test' END FOR UPDATE;$new$);
+    AND CASE WHEN EXISTS (SELECT 1 FROM public.user_roles WHERE user_id=_actor AND role::text='qa_office') THEN (source='qa_test' AND qa_archived_at IS NULL) ELSE source<>'qa_test' END FOR UPDATE;$new$);
   EXECUTE body;
 END $$;
