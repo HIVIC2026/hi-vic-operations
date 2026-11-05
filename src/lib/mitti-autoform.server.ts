@@ -45,6 +45,9 @@ export async function sweepReadyCheckForms(opts: { call?: MittiCall; now?: Date;
   if (be) throw new Error("Ready Check form sweep could not read installers.");
   // Photo-quote installers (Jo 5 Nov 2026): a job under a From photos give never gets a Ready Check form.
   const photoJobs = await photoGiveJobs(ids, (assignments.data ?? []) as { job_id: string; business_id: string | null }[]);
+  // Part 2 (fix round): an installer's OWN job of a From photos business never gets one either (its quote comes from
+  // the photo quote on Add a job; a missing measurement is finished by the own-photo-quote tick, never by a form).
+  for (const id of await photosBusinessOwnJobs(jobs)) photoJobs.add(id);
   const measured = new Set((measurements.data ?? []).map((m) => m.job_id));
   const { provisionalGivesWayToMitti } = await import("./measurement.core");
   const provisional = new Set((measurements.data ?? []).filter((m) => provisionalGivesWayToMitti(m)).map((m) => m.job_id));
@@ -94,6 +97,19 @@ export async function sweepReadyCheckForms(opts: { call?: MittiCall; now?: Date;
     }
   }
   return { checked: jobs.length, results, wouldCreate };
+}
+
+/** Installer-sourced jobs whose originating business quotes From photos. A missing quote_method column (pending SQL)
+ *  means none; any other failed read throws (no forms this tick). */
+async function photosBusinessOwnJobs(jobs: { id: string; channel: string | null; originating_installer_business_id: string | null }[]): Promise<string[]> {
+  const own = jobs.filter((j) => j.channel === "installer_sourced" && j.originating_installer_business_id);
+  if (!own.length) return [];
+  const { isMissingQuoteMethodColumn, quoteMethodOf } = await import("./photo-quote.core");
+  const bizIds = [...new Set(own.map((j) => j.originating_installer_business_id!))];
+  const r = await admin.from("businesses").select("id, quote_method").in("id", bizIds);
+  if (r.error) { if (isMissingQuoteMethodColumn(r.error)) return []; throw new Error("Ready Check form sweep could not read how installers quote."); }
+  const photos = new Set(((r.data ?? []) as { id: string; quote_method?: string | null }[]).filter((b) => quoteMethodOf(b) === "photos").map((b) => b.id));
+  return own.filter((j) => photos.has(j.originating_installer_business_id!)).map((j) => j.id);
 }
 
 /** Jobs (of `ids`) whose current give is From photos. Reads in 200-id chunks; a failed read throws (no forms this tick). */

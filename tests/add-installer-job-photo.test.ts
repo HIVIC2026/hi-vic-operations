@@ -81,3 +81,49 @@ test("final review fix: the own photo job moves to Ready Check complete so the r
   await recordOwnPhotoQuote("j", "boss", "nogap", good, deps());
   expect(moves).toEqual(["ready_check_complete"]);
 });
+
+// ---- Review fix round, IMPORTANT 1 ----
+const { claimOwnPhotoQuote, sweepOwnPhotoQuotes } = await import("../src/lib/own-photo-quote.server");
+const tickDeps = () => ({ ...deps(), draft: async (...a: unknown[]) => { drafts.push(a); t.quotes!.push({ id: `q${t.quotes!.length}`, job_id: a[0], kind: "installation", status: "draft" }); } });
+const seedJob = () => { t.jobs = [{ id: "j", stage: "ready_check_ready_to_schedule", deleted_at: null, qa_archived_at: null }]; t.quotes = []; };
+
+test("crash between the job save and the quote records: the claim alone → the tick finishes it once (idempotent)", async () => {
+  seedJob();
+  await claimOwnPhotoQuote("j", "boss", "nogap", good, memoryPostgrest(t) as never);
+  expect(ev("photo_quote_submitted")).toHaveLength(1);
+  expect(ev("photo_quote_submitted")[0]!["details"]).toMatchObject({ own_customer: true, business_id: "nogap", inputs: { installM2: 80, removeM2: 10, priceIncGst: 2400, product: "Bradford Gold R5" } });
+  expect(t.ceiling_measurements).toHaveLength(0);
+  const first = await sweepOwnPhotoQuotes({}, tickDeps());
+  expect(first.finished).toEqual(["j"]);
+  expect(t.ceiling_measurements!.filter((m) => m["is_current"] && m["external_source"] === "photo_quote")).toHaveLength(1);
+  expect(ev("installer_price_set")).toHaveLength(1);
+  expect(drafts).toHaveLength(1); expect(sends).toHaveLength(1);
+  const again = await sweepOwnPhotoQuotes({}, tickDeps());
+  expect(again.finished).toEqual([]);
+  expect(drafts).toHaveLength(1); expect(sends).toHaveLength(1);
+  expect(ev("installer_price_set")).toHaveLength(1);
+});
+test("the tick leaves a finished Add a job photo quote alone, and flags a failure once a day", async () => {
+  seedJob();
+  await claimOwnPhotoQuote("j", "boss", "nogap", good, memoryPostgrest(t) as never);
+  const broken = { ...tickDeps(), draft: async () => { throw new Error("boom"); }, logEvent: async (job_id: string, actor_id: string | null, event_type: string, summary: string, details?: Record<string, unknown>) => { t.workflow_events!.push({ id: `e${t.workflow_events!.length}`, job_id, actor_id, event_type, summary, details: details ?? {}, created_at: new Date().toISOString() }); } };
+  expect((await sweepOwnPhotoQuotes({}, broken)).failed).toEqual(["j"]);
+  expect((await sweepOwnPhotoQuotes({}, broken)).failed).toEqual(["j"]);
+  expect(ev("own_photo_quote_failed").filter((e) => (e["details"] as { from?: string }).from === "tick")).toHaveLength(1);
+});
+test("Try again with a changed price before any quote → the claim and installer_price_set follow the new price", async () => {
+  seedJob();
+  await claimOwnPhotoQuote("j", "boss", "nogap", good, memoryPostgrest(t) as never);
+  await recordOwnPhotoQuote("j", "boss", "nogap", { ...good, priceIncGst: 2600 }, deps());
+  expect(ev("photo_quote_submitted")).toHaveLength(1);
+  expect((ev("photo_quote_submitted")[0]!["details"] as { inputs: { priceIncGst: number } }).inputs.priceIncGst).toBe(2600);
+  expect(ev("installer_price_set").at(-1)!["details"]).toMatchObject({ price_inc_gst: 2600 });
+  expect((drafts.at(-1) as unknown[])[3]).toMatchObject({ totalIncGst: 2600 });
+});
+test("Try again with a changed price once the quote exists → refused with a plain line; nothing changes", async () => {
+  seedJob();
+  await recordOwnPhotoQuote("j", "boss", "nogap", good, tickDeps());
+  await expect(recordOwnPhotoQuote("j", "boss", "nogap", { ...good, priceIncGst: 2600 }, tickDeps())).rejects.toThrow("This job's quote is already made, so the answers can't change here. Email us if something's wrong.");
+  expect(ev("installer_price_set")).toHaveLength(1);
+  expect((ev("photo_quote_submitted")[0]!["details"] as { inputs: { priceIncGst: number } }).inputs.priceIncGst).toBe(2400);
+});

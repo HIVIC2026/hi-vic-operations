@@ -100,3 +100,44 @@ describe("Add a job screen", () => {
     expect(toasts).toEqual(["Next: call Sarah and book the Ready Check on the job."]);
   });
 });
+
+// Review fix round IMPORTANT 1c: a From photos business's Add a job never reports a failed photo quote as success.
+const { OWN_PHOTO_QUOTE_WORDS } = await import("../src/lib/own-photo-quote.core");
+const { TRY_AGAIN_LABEL } = await import("../src/lib/add-job-flow.core");
+describe("Add a job — From photos photo quote outcome", () => {
+  const fillPhoto = (r: ReturnType<typeof render>) => {
+    fireEvent.click(r.getByLabelText("Yes"));
+    fireEvent.change(r.getByLabelText("Sqm to remove"), { target: { value: "10" } });
+    fireEvent.change(r.getByLabelText("Sqm to install"), { target: { value: "80" } });
+    fireEvent.change(r.getByLabelText("Product"), { target: { value: (r.getByLabelText("Product") as HTMLSelectElement).options[1]!.value } });
+    fireEvent.change(r.getByLabelText(OWN_PHOTO_QUOTE_WORDS.price), { target: { value: "2400" } });
+  };
+  const withPhotos = async (result: Record<string, unknown>, body: () => Promise<void>) => {
+    const wasO = options, wasR = saveResult;
+    options = { ...options, data: { ...(options.data as object), quoteMethod: "photos" } };
+    saveResult = { ...saveResult, ...result };
+    try { await body(); } finally { options = wasO; saveResult = wasR; }
+  };
+  test("failed: the plain message shows, nothing says success, the draft stays and Try again sends the same request key", () => withPhotos({ photoQuote: { sent: false, held: [], failed: OWN_PHOTO_QUOTE_WORDS.failed } }, async () => {
+    const r = draw();
+    fillAll(r); await typeAddress(r); fillPhoto(r);
+    await act(async () => { fireEvent.click(r.getByRole("button", { name: OWN_PHOTO_QUOTE_WORDS.submit })); });
+    expect(calls).toHaveLength(1);
+    expect(r.getByText(OWN_PHOTO_QUOTE_WORDS.failed)).toBeTruthy();
+    expect(toasts).toEqual([]); expect(navigated).toEqual([]);
+    expect(localStorage.getItem("hiv-onsite-draft")).toContain("Sarah Brown");
+    await act(async () => { fireEvent.click(r.getByRole("button", { name: TRY_AGAIN_LABEL })); });
+    expect(calls).toHaveLength(2);
+    const key = (n: number) => (calls[n] as { data: { requestKey: string; photoQuote: { priceIncGst: number } } }).data;
+    expect(key(1).requestKey).toBe(key(0).requestKey);
+    expect(key(1).photoQuote.priceIncGst).toBe(2400);
+  }));
+  test("held: the job is added and the installer is told plainly the quote is waiting (not 'sent')", () => withPhotos({ photoQuote: { sent: false, held: ["Waiting for office review before sending"] } }, async () => {
+    const r = draw();
+    fillAll(r); await typeAddress(r); fillPhoto(r);
+    await act(async () => { fireEvent.click(r.getByRole("button", { name: OWN_PHOTO_QUOTE_WORDS.submit })); });
+    expect(r.getByText(OWN_PHOTO_QUOTE_WORDS.held)).toBeTruthy();
+    expect(toasts).toEqual([]);
+    expect(r.container.querySelector("[data-electrician-not-allocated]")).toBeNull();
+  }));
+});

@@ -150,6 +150,23 @@ describe("sweepReadyCheckForms", () => {
     expect((await sweepReadyCheckForms({ now, dryRun: true, enabled: true })).wouldCreate).toContain("HV-3542");
   });
 
+  test("fix round: an own job of a From photos business with no measurement never gets a Ready Check form", async () => {
+    const PHOTOB = "00000000-0000-0000-0000-0000000000b3";
+    await db.exec(`ALTER TABLE businesses ADD COLUMN IF NOT EXISTS quote_method text;
+      INSERT INTO businesses (id, mitti_account_invited, quote_method) VALUES ('${PHOTOB}', true, 'photos');
+      INSERT INTO jobs VALUES ('${j(20)}','HV-3600','installer_sourced','installer_onsite','ready_check_ready_to_schedule','2026-10-23T06:40:00Z',null,null,'${PHOTOB}');
+      INSERT INTO job_assignments VALUES ('${j(20)}','${U}','${PHOTOB}','installer',true);`);
+    try {
+      const r = await sweepReadyCheckForms({ now, dryRun: true, enabled: true });
+      expect(r.wouldCreate).not.toContain("HV-3600");
+      expect(r.wouldCreate).toContain("HV-3136");
+      await db.exec(`UPDATE businesses SET quote_method = 'ready_check' WHERE id = '${PHOTOB}'`);
+      expect((await sweepReadyCheckForms({ now, dryRun: true, enabled: true })).wouldCreate).toContain("HV-3600");
+    } finally {
+      await db.exec(`DELETE FROM job_assignments WHERE job_id = '${j(20)}'; DELETE FROM jobs WHERE id = '${j(20)}'; DELETE FROM businesses WHERE id = '${PHOTOB}'; ALTER TABLE businesses DROP COLUMN quote_method;`);
+    }
+  });
+
   test("HIV leads need the plain Ready Check template, installer jobs the priced one", async () => {
     await db.query("update workflow_settings set mitti_ready_check_template_id = null");
     const r = await sweepReadyCheckForms({ now, dryRun: true, enabled: true });

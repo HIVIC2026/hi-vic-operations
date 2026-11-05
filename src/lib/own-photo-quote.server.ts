@@ -4,7 +4,7 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError } from "./workflow.server";
 import { quoteMethodOf, isMissingQuoteMethodColumn, PHOTO_QUOTE_SUBMITTED_EVENT, sqm1, type QuoteMethod } from "./photo-quote.core";
-import { ownPhotoIncludes, ownPhotoQuotePreview, ownPhotoQuoteProblems, type OwnPhotoPreview, type OwnPhotoQuoteInput } from "./own-photo-quote.core";
+import { OWN_PHOTO_QUOTE_WORDS, ownPhotoIncludes, ownPhotoQuotePreview, ownPhotoQuoteProblems, type OwnPhotoPreview, type OwnPhotoQuoteInput } from "./own-photo-quote.core";
 import { insulationProduct } from "./insulation-product.core";
 import { isUniqueViolation, stableUuid } from "./mitti-create-claim.core";
 
@@ -69,38 +69,89 @@ function ownPhotoDeps(): OwnPhotoDeps {
 }
 
 export const OWN_PHOTO_REF = "photo:own";
-/** After the Add a job save: the photo quote's measurement, product, eligibility and the boss's price (once per job — a
- *  Try again resumes), then the own-customer draft and the one guarded release (send-on-press rule unchanged). */
-export async function recordOwnPhotoQuote(jobId: string, userId: string, businessId: string, i: OwnPhotoQuoteInput, over: Partial<OwnPhotoDeps> = {}): Promise<{ sent: boolean; held: string[] }> {
-  const { OWN_CUSTOMER_SEND_ON_PRESS_ENABLED } = await import("./auto-quote-send.core");
-  const d = { ...ownPhotoDeps(), sendOnPress: OWN_CUSTOMER_SEND_ON_PRESS_ENABLED, ...over };
-  const removeM2 = sqm1(i.removeM2) ?? 0, installM2 = sqm1(i.installM2)!, product = insulationProduct(i.product)!;
-  const price = Math.round(i.priceIncGst! * 100) / 100;
-  const inputs = { underR2: true, removeM2, installM2, product: product.option, priceIncGst: price };
+export type OwnPhotoInputs = { underR2: true; removeM2: number; installM2: number; product: string; priceIncGst: number };
+/** The stored form of the Add a job photo quote (what the claim row and the price record carry). */
+export function ownPhotoInputs(i: OwnPhotoQuoteInput): OwnPhotoInputs {
+  const product = insulationProduct(i.product);
+  const installM2 = sqm1(i.installM2);
+  if (!product || !(installM2 && installM2 > 0) || !(typeof i.priceIncGst === "number" && i.priceIncGst > 0)) throw new WorkflowError(ownPhotoQuoteProblems(i)[0] ?? "Fill in the photo quote.");
+  return { underR2: true, removeM2: sqm1(i.removeM2) ?? 0, installM2, product: product.option, priceIncGst: Math.round(i.priceIncGst * 100) / 100 };
+}
+const sameInputs = (a: unknown, b: OwnPhotoInputs) => !!a && typeof a === "object" && (["removeM2", "installM2", "product", "priceIncGst"] as const).every((k) => (a as Record<string, unknown>)[k] === b[k]);
+
+/** Fix round (review IMPORTANT 1b): the photo quote's claim row, written in the SAME request straight after the Add a job
+ *  save, so a crash before the quote records still leaves the inputs for the 15-minute tick (`sweepOwnPhotoQuotes`).
+ *  One row per job (stable id). A Try again with changed answers updates the row while no quote exists yet; once a quote
+ *  exists it is refused with a plain line (the price can't silently differ from the quote). */
+export async function claimOwnPhotoQuote(jobId: string, userId: string, businessId: string, i: OwnPhotoQuoteInput, db: Db = admin as unknown as Db): Promise<OwnPhotoInputs> {
+  const inputs = ownPhotoInputs(i);
   const claimId = await stableUuid(`photo-quote:${jobId}:own`);
-  const ins = await d.db.from("workflow_events").insert({ id: claimId, job_id: jobId, actor_id: userId, event_type: PHOTO_QUOTE_SUBMITTED_EVENT, internal: true,
-    summary: `Photo quote on Add a job: ${installM2} m² to install, ${removeM2} m² to remove, ${product.option}`, details: { own_customer: true, business_id: businessId, ref: OWN_PHOTO_REF, inputs } });
-  if (ins.error && !isUniqueViolation(ins.error)) throw new Error(`The photo quote could not be saved: ${ins.error.message}`);
-  const cur = await d.db.from("ceiling_measurements").select("id,external_source").eq("job_id", jobId).eq("is_current", true).maybeSingle();
+  const details = { own_customer: true, business_id: businessId, ref: OWN_PHOTO_REF, inputs };
+  const summary = `Photo quote on Add a job: ${inputs.installM2} m² to install, ${inputs.removeM2} m² to remove, ${inputs.product}, $${inputs.priceIncGst}`;
+  const read = async () => {
+    const r = await db.from("workflow_events").select("id, details").eq("id", claimId).maybeSingle();
+    if (r.error) throw new Error("Could not read the photo quote.");
+    return r.data as { id: string; details: { inputs?: unknown } | null } | null;
+  };
+  let have = await read();
+  if (!have) {
+    const ins = await db.from("workflow_events").insert({ id: claimId, job_id: jobId, actor_id: userId, event_type: PHOTO_QUOTE_SUBMITTED_EVENT, internal: true, summary, details });
+    if (!ins.error) return inputs;
+    if (!isUniqueViolation(ins.error)) throw new Error(`The photo quote could not be saved: ${ins.error.message}`);
+    have = await read();
+  }
+  if (!have || sameInputs(have.details?.inputs, inputs)) return inputs;
+  const q = await db.from("quotes").select("id").eq("job_id", jobId).eq("kind", "installation").in("status", ["draft", "issued", "accepted"]).limit(1);
+  if (q.error) throw new Error("Could not check the job's quote.");
+  if (((q.data ?? []) as unknown[]).length) throw new WorkflowError(OWN_PHOTO_QUOTE_WORDS.changedAfterQuote);
+  const up = await db.from("workflow_events").update({ summary, details }).eq("id", claimId);
+  if (up.error) throw new Error("The changed photo quote could not be saved.");
+  return inputs;
+}
+
+/** After the Add a job save: the claim (see above), then the photo quote's measurement, product, eligibility and the
+ *  boss's price (each written once per set of answers — a Try again resumes; changed answers before any quote replace
+ *  them), then the own-customer draft and the one guarded release (send-on-press rule unchanged). */
+export async function recordOwnPhotoQuote(jobId: string, userId: string, businessId: string, i: OwnPhotoQuoteInput, over: Partial<OwnPhotoDeps> = {}): Promise<{ sent: boolean; held: string[] }> {
+  const d = await depsWith(over);
+  const inputs = await claimOwnPhotoQuote(jobId, userId, businessId, i, d.db);
+  return finishOwnPhotoQuote(jobId, userId, businessId, inputs, d);
+}
+
+async function depsWith(over: Partial<OwnPhotoDeps>): Promise<OwnPhotoDeps> {
+  const { OWN_CUSTOMER_SEND_ON_PRESS_ENABLED } = await import("./auto-quote-send.core");
+  return { ...ownPhotoDeps(), sendOnPress: OWN_CUSTOMER_SEND_ON_PRESS_ENABLED, ...over };
+}
+
+async function finishOwnPhotoQuote(jobId: string, userId: string, businessId: string, inputs: OwnPhotoInputs, d: OwnPhotoDeps): Promise<{ sent: boolean; held: string[] }> {
+  const { removeM2, installM2, priceIncGst: price } = inputs;
+  const product = insulationProduct(inputs.product)!;
+  const cur = await d.db.from("ceiling_measurements").select("id,external_source,measured_area_m2,removal_m2").eq("job_id", jobId).eq("is_current", true).maybeSingle();
   if (cur.error) throw new Error("Could not read the job's measurement.");
-  if ((cur.data as { external_source?: string } | null)?.external_source !== "photo_quote") {
-    if (cur.data) await d.db.from("ceiling_measurements").update({ is_current: false }).eq("id", (cur.data as { id: string }).id).eq("is_current", true);
+  const c = cur.data as { id: string; external_source?: string; measured_area_m2?: number | string | null; removal_m2?: number | string | null } | null;
+  if (!(c?.external_source === "photo_quote" && Number(c.measured_area_m2) === installM2 && Number(c.removal_m2 ?? 0) === removeM2)) {
+    if (c) await d.db.from("ceiling_measurements").update({ is_current: false }).eq("id", c.id).eq("is_current", true);
     const m = await d.db.from("ceiling_measurements").insert({ job_id: jobId, is_current: true, status: "complete", completed_at: new Date().toISOString(), completed_by: userId, created_by: userId,
       source_role: "installer", measured_by_business_id: businessId, external_source: "photo_quote", external_id: OWN_PHOTO_REF,
       measured_area_m2: installM2, removal_required: removeM2 > 0, removal_m2: removeM2, insulation_present: removeM2 > 0, access_difficulty: "easy", review_flags: [], raw_snapshot: { photo_quote: inputs } });
     if (m.error) throw new Error(`The photo quote measurement could not be saved: ${m.error.message}`);
   }
-  const prior = await d.db.from("workflow_events").select("event_type").eq("job_id", jobId).in("event_type", ["mitti_product_recorded", "ready_check_form_eligible", "installer_price_set"]).contains("details", { source_ref: OWN_PHOTO_REF });
+  const prior = await d.db.from("workflow_events").select("event_type, details, created_at").eq("job_id", jobId).in("event_type", ["mitti_product_recorded", "ready_check_form_eligible", "installer_price_set"]).contains("details", { source_ref: OWN_PHOTO_REF }).order("created_at", { ascending: true });
   if (prior.error) throw new Error("Could not read the photo quote records.");
-  const have = new Set(((prior.data ?? []) as { event_type: string }[]).map((e) => e.event_type));
-  if (!have.has("mitti_product_recorded")) await d.logEvent(jobId, userId, "mitti_product_recorded", `Insulation product recorded from the photo quote (declared, not verified): ${product.option}`, { ready: true, product, source: "photo_quote", reasons: [], declared_not_verified: true, source_ref: OWN_PHOTO_REF }, { internal: true });
-  if (!have.has("ready_check_form_eligible")) await d.logEvent(jobId, userId, "ready_check_form_eligible", "Eligible from the installer's photo quote (existing insulation under R2)", { audit_id: OWN_PHOTO_REF, basis: "photo_quote", source_ref: OWN_PHOTO_REF, ruleset: "photo-quote-v1" }, { internal: true });
-  if (!have.has("installer_price_set")) {
+  const rows = (prior.data ?? []) as { event_type: string; details: Record<string, unknown> | null }[];
+  const latest = (type: string) => rows.filter((e) => e.event_type === type).at(-1)?.details ?? null;
+  const lastProduct = latest("mitti_product_recorded") as { product?: { option?: string } } | null;
+  if (lastProduct?.product?.option !== product.option) await d.logEvent(jobId, userId, "mitti_product_recorded", `Insulation product recorded from the photo quote (declared, not verified): ${product.option}`, { ready: true, product, source: "photo_quote", reasons: [], declared_not_verified: true, source_ref: OWN_PHOTO_REF }, { internal: true });
+  if (!latest("ready_check_form_eligible")) await d.logEvent(jobId, userId, "ready_check_form_eligible", "Eligible from the installer's photo quote (existing insulation under R2)", { audit_id: OWN_PHOTO_REF, basis: "photo_quote", source_ref: OWN_PHOTO_REF, ruleset: "photo-quote-v1" }, { internal: true });
+  // Review IMPORTANT 1d: a Try again with a changed price (allowed only before a quote exists) writes a new price record
+  // (latest wins), so the price record and the quote never disagree.
+  const lastPrice = latest("installer_price_set") as { photo_inputs?: unknown } | null;
+  if (!lastPrice || !sameInputs(lastPrice.photo_inputs, inputs)) {
     const { validateInstallerPrice } = await import("./installer-price.core");
     const { INCLUDED_OPTIONS } = await import("./ready-check-lean.core");
     const v = validateInstallerPrice({ priceIncGst: price, included: removeM2 > 0 ? [INCLUDED_OPTIONS[0], INCLUDED_OPTIONS[1]] : [INCLUDED_OPTIONS[0]], productOption: product.option, removalRequired: removeM2 > 0 });
     if (!v.ok || !v.record) throw new Error(v.issues.join(" "));
-    await d.logEvent(jobId, userId, "installer_price_set", `Price set on Add a job (photo quote): $${price}`, { ...v.record, business_id: businessId, set_by: userId, declared_not_verified: true, source_ref: OWN_PHOTO_REF }, { internal: true });
+    await d.logEvent(jobId, userId, "installer_price_set", `Price set on Add a job (photo quote): $${price}`, { ...v.record, business_id: businessId, set_by: userId, declared_not_verified: true, source_ref: OWN_PHOTO_REF, photo_inputs: inputs }, { internal: true });
   }
   // Like a completed Mitti Ready Check: the job moves to Ready Check complete (guarded), so the release can take it to the
   // quote stage. A refusal is held for the office; the quote is still drafted.
@@ -112,6 +163,60 @@ export async function recordOwnPhotoQuote(jobId: string, userId: string, busines
   await d.draft(jobId, userId, OWN_PHOTO_REF, { totalIncGst: price, includes: ownPhotoIncludes({ product: product.option, removeM2 }), areaM2: installM2 });
   const r = await d.autoSend(jobId, { formCompleted: true, formModifiedAt: new Date().toISOString(), entries: [], ...(d.sendOnPress ? { enabled: true } : {}) });
   return { sent: r.sent, held: r.reasons };
+}
+
+export const OWN_PHOTO_SWEEP_MAX = 5;
+/** Review IMPORTANT 1b: the 15-minute tick finishes every Add a job photo quote whose claim exists but whose photo
+ *  measurement or quote never got written (a crash or failure after the save). Once finished (photo measurement current
+ *  AND a quote or a recorded hold) the job is left alone, so it runs once. A failure is flagged to the office at most
+ *  once a day per job. Never sends anything itself (the release is the existing guarded one). */
+export async function sweepOwnPhotoQuotes(opts: { now?: Date } = {}, over: Partial<OwnPhotoDeps> = {}): Promise<{ checked: number; finished: string[]; failed: string[] }> {
+  const d = await depsWith(over);
+  const now = opts.now ?? new Date();
+  const since = new Date(now.getTime() - 30 * 86_400_000).toISOString();
+  const claims = await d.db.from("workflow_events").select("job_id, actor_id, details, created_at").eq("event_type", PHOTO_QUOTE_SUBMITTED_EVENT).contains("details", { own_customer: true }).gte("created_at", since).order("created_at", { ascending: true }).limit(500);
+  if (claims.error) throw new Error("Own photo quote sweep could not read the photo quotes.");
+  const list = (claims.data ?? []) as { job_id: string; actor_id: string | null; details: { business_id?: string; inputs?: OwnPhotoInputs } | null }[];
+  const out = { checked: list.length, finished: [] as string[], failed: [] as string[] };
+  if (!list.length) return out;
+  const { chunkIds } = await import("./sweep-batch.core");
+  const ids = [...new Set(list.map((c) => c.job_id))];
+  const jobs: { id: string; stage: string | null; deleted_at: string | null; qa_archived_at: string | null }[] = [];
+  const measured = new Set<string>(), quoted = new Set<string>();
+  const failures: { job_id: string; created_at: string | null }[] = [];
+  for (const chunk of chunkIds(ids)) {
+    const [j, m, q, e] = await Promise.all([
+      d.db.from("jobs").select("id, stage, deleted_at, qa_archived_at").in("id", chunk),
+      d.db.from("ceiling_measurements").select("job_id, external_source").in("job_id", chunk).eq("is_current", true),
+      d.db.from("quotes").select("job_id").in("job_id", chunk).eq("kind", "installation").in("status", ["draft", "issued", "accepted"]),
+      d.db.from("workflow_events").select("job_id, event_type, created_at").in("job_id", chunk).in("event_type", ["installer_quote_held", "own_photo_quote_failed"]),
+    ]);
+    if (j.error || m.error || q.error || e.error) throw new Error("Own photo quote sweep could not read job facts.");
+    jobs.push(...(j.data ?? []));
+    for (const r of (m.data ?? []) as { job_id: string; external_source: string | null }[]) if (r.external_source === "photo_quote") measured.add(r.job_id);
+    for (const r of (q.data ?? []) as { job_id: string }[]) quoted.add(r.job_id);
+    for (const r of (e.data ?? []) as { job_id: string; event_type: string; created_at: string | null }[]) {
+      if (r.event_type === "installer_quote_held") quoted.add(r.job_id); else failures.push(r);
+    }
+  }
+  const { isClosedOrArchivedJob } = await import("./mitti.core");
+  for (const c of list) {
+    if (out.finished.length + out.failed.length >= OWN_PHOTO_SWEEP_MAX) break;
+    const job = jobs.find((j) => j.id === c.job_id);
+    if (!job || isClosedOrArchivedJob(job)) continue;
+    if (measured.has(c.job_id) && quoted.has(c.job_id)) continue;
+    const businessId = c.details?.business_id, inputs = c.details?.inputs;
+    try {
+      if (!businessId || !inputs || !c.actor_id) throw new Error("The photo quote's answers are missing.");
+      await finishOwnPhotoQuote(c.job_id, c.actor_id, businessId, inputs, d);
+      out.finished.push(c.job_id);
+    } catch (e) {
+      out.failed.push(c.job_id);
+      const recent = failures.some((f) => f.job_id === c.job_id && (!f.created_at || now.getTime() - new Date(f.created_at).getTime() < 86_400_000));
+      if (!recent) await d.logEvent(c.job_id, null, "own_photo_quote_failed", `Photo quote on Add a job not finished: ${(e as Error).message}`.slice(0, 500), { needs_office: true, from: "tick" }, { internal: true }).catch(console.error);
+    }
+  }
+  return out;
 }
 
 /** "View quote (PDF)": the owner's quote as a PDF with both logos. Refused (server side) unless the job is the caller's

@@ -562,6 +562,16 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['readyCheckForms'] = "failed";
         }
         try {
+          // Photo-quote installers Part 2 (review fix): finish any Add a job photo quote whose claim was saved but whose
+          // measurement/quote wasn't (a crash or failure after the save). Uses the existing guarded release only.
+          const { sweepOwnPhotoQuotes } = await import("@/lib/own-photo-quote.server");
+          const p = await timed("sweepOwnPhotoQuotes", () => sweepOwnPhotoQuotes());
+          (out as Record<string, unknown>)['ownPhotoQuotes'] = { checked: p.checked, finished: p.finished.length, failed: p.failed.length };
+        } catch (e) {
+          console.error("allocation tick: own photo quote sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['ownPhotoQuotes'] = "failed";
+        }
+        try {
           // Decision 328: today's installs only — an A5 Install day form newly marked Complete is checked and the lead
           // installer texted the result once per form revision; at 5pm a still-incomplete form gets ONE reminder.
           // Runs before the long Mitti sync so today's sites are never starved. Events recorded before any send.

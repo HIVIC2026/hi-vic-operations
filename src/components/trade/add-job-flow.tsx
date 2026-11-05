@@ -34,6 +34,8 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
   const [err, setErr] = useState<string | null>(null);
   // Jo 3 Nov ruling: a job whose electrician could not be put on it is still added; the installer is told, then goes to the job.
   const [addedJobId, setAddedJobId] = useState<string | null>(null);
+  const [electricianMissed, setElectricianMissed] = useState(false);
+  const [photoHeld, setPhotoHeld] = useState(false);
   const bannerRef = useRef<HTMLParagraphElement>(null);
   const inFlight = useRef(false);
   // Task 7: the business name (for the consent line) and its Team electricians, read once before the form is used.
@@ -75,8 +77,12 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
     inFlight.current = true; setBusy(true);
     try {
       const r = await start({ data: { businessId, owner: customer, leadOrigin, requestKey, electricianWorkerId: electrician, ...(photos && photoQuote ? { photoQuote } : {}) } });
+      // Review IMPORTANT 1c: the job is saved but its photo quote didn't go through — say so plainly and keep the draft
+      // (same request key), so Try again finishes the same job and its quote.
+      if (r.photoQuote?.failed) { setErr(r.photoQuote.failed); return; }
       try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
-      if (r.electrician === "not_allocated") { setAddedJobId(r.jobId); return; }
+      const quoteHeld = !!r.photoQuote && !r.photoQuote.sent;
+      if (r.electrician === "not_allocated" || quoteHeld) { setPhotoHeld(quoteHeld); setElectricianMissed(r.electrician === "not_allocated"); setAddedJobId(r.jobId); return; }
       toast.success(nextLine(r.ownerFirstName ?? "the owner"));
       await navigate({ to: "/field/$jobId", params: { jobId: r.jobId }, search: { added: true } }); // the job page prints the same line (fix wave minor 15)
     } catch (e) { setErr(saveErrorMessage(e instanceof Error ? e.message : null)); }
@@ -89,7 +95,8 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
   const consentLabel = businessName ? addJobConsentLine(businessName) : undefined;
   if (addedJobId) return (
     <div className="space-y-4" data-add-job-flow data-step="added">
-      <p role="alert" className="rounded-[12px] border-2 border-line bg-paper p-3 text-[15px]" data-electrician-not-allocated>{ADD_JOB_DRAFT_WORDS.electricianNotAllocated}</p>
+      {electricianMissed && <p role="alert" className="rounded-[12px] border-2 border-line bg-paper p-3 text-[15px]" data-electrician-not-allocated>{ADD_JOB_DRAFT_WORDS.electricianNotAllocated}</p>}
+      {photoHeld && <p role="status" className="rounded-[12px] border-2 border-line bg-paper p-3 text-[15px]" data-photo-quote-held>{OWN_PHOTO_QUOTE_WORDS.held}</p>}
       <button type="button" className={PRIMARY_BTN} onClick={() => void navigate({ to: "/field/$jobId", params: { jobId: addedJobId }, search: { added: true } })}>{ADD_JOB_DRAFT_WORDS.goToJob}</button>
     </div>
   );

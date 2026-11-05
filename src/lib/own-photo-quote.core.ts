@@ -16,6 +16,12 @@ export const OWN_PHOTO_QUOTE_WORDS = {
   overR2: "Over R2 isn't eligible for the rebate.",
   lines: { price: "Your price", piesa: "PIESA fee", apFee: "Home Insulation Victoria AP management fee", rebate: "Rebate" },
   ownerPays: "Owner pays",
+  /** DRAFT (installer-facing, fix round). */
+  changedAfterQuote: "This job's quote is already made, so the answers can't change here. Email us if something's wrong.",
+  /** DRAFT (installer-facing, fix round): Add a job saved the job but the quote didn't go through. */
+  failed: "The job is saved, but the quote didn't go through. Press Try again.",
+  /** DRAFT (installer-facing, fix round): the quote was made but is waiting (a check held it, or the office sends it). */
+  held: "Job added. The quote is made and waiting for the office to check it before it goes to the owner.",
 } as const;
 
 export function money(n: number): string {
