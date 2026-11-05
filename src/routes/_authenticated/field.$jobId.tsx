@@ -44,6 +44,7 @@ import { InstallerPriceCard } from "@/components/trade/InstallerPriceCard";
 import { ELECTRICIAN_ATTENDANCE_CONFIRMED } from "@/lib/trade-view.core";
 import { ReturnActions, useInHouseBookingAccess } from "@/components/trade/ReturnActions";
 import { MittiElectricianCard } from "@/components/trade/mitti-electrician-card";
+import { ReadyCheckPhotos } from "@/components/portal/ReadyCheckPhotos";
 import { nextLine } from "@/lib/add-job-flow.core";
 import { NO_LOGIN_NEEDED } from "@/lib/trade-access-role.core";
 
@@ -436,6 +437,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
         {/* #134 (Jo 3 Nov 2026): a Mitti pickup still waiting for the installer's one electrician answer — kept at the 4 Nov join
             (no Part 5 equivalent for Mitti pickups); the card renders nothing once answered. */}
         {page.channel === "installer_sourced" && <MittiElectricianCard jobId={jobId} />}
+        <ReadyCheckPhotos jobId={jobId} quietOnError />
         </div>
 
         <div className="md:col-start-2 md:row-start-1">
