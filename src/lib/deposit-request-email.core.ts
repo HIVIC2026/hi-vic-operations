@@ -70,7 +70,7 @@ function renderPaidV2(f:DepositMessageFacts,receiptAttached:boolean){
 }
 export function renderInstallDepositOwnerEmail(f:DepositMessageFacts,step:'request'|'paid'|DepositReminder,approved:boolean=CLEAR_TO_INSTALL_EMAIL_APPROVED,v2:boolean=DEPOSIT_MESSAGES_V2_APPROVED,opts:{receiptAttached?:boolean}={}) {
   if(isClearToInstall(f,step,approved))return renderClearToInstall(f);
-  if(v2&&(step==='day3'||step==='day7'))return renderReminderV2(f);
+  if(v2&&(step==='day1'||step==='day3'||step==='day7'))return renderReminderV2(f);
   if(v2&&step==='paid'&&paidV2Ready(f))return renderPaidV2(f,opts.receiptAttached===true);
   const deadline=weekdayDayMonthLabel(f.deadline)??f.deadline;
   const subject=step==='paid'?'Deposit received':step==='request'?'Your 10% install deposit':'Your install deposit reminder';

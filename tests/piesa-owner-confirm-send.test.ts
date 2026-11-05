@@ -193,3 +193,26 @@ describe("Task 5 combined PIESA email and timing sweep", () => {
   expect(copyEmails).toEqual([J,T]);expect(sms).toEqual([]);
  });
 });
+
+
+// Part 5b (Jo 1–5 Nov 2026): with the one "You're clear to install" series on, the day 1/3 confirm reminders fold into it —
+// only the timing marker is recorded (so the day-5 office flag still follows), no copy send is attempted on those days.
+describe("Part 5b: confirm reminders fold into the clear-to-install series", () => {
+ test("flag on: reminder_1 / reminder_3 record the marker and send nothing; request and the day-5 flag are unchanged", async () => {
+  const real = { ...(await import("../src/lib/clear-to-install-v2.core")) }; // a plain copy: bun's module namespace is live
+  mock.module("../src/lib/clear-to-install-v2.core", () => ({ ...real, CLEAR_TO_INSTALL_V2_APPROVED: true }));
+  try {
+   expect(await sendPiesaConfirmStep(J, "request")).toBe("email sent");
+   expect(await sendPiesaConfirmStep(J, "reminder_1")).toBe("covered by the clear-to-install reminders");
+   expect(await sendPiesaConfirmStep(J, "reminder_1")).toBe("already handled");
+   expect(await sendPiesaConfirmStep(J, "reminder_3")).toBe("covered by the clear-to-install reminders");
+   expect(copyCalls).toEqual([J]); expect(sms).toEqual([]);
+   expect(events(PIESA_OWNER_CONFIRM_STEP_EVENT).map(e => (e["details"] as Row)["step"])).toEqual(["request", "reminder_1", "reminder_3"]);
+   expect(await sendPiesaConfirmStep(J, "office_alert_5")).toBe("office alerted");
+  } finally { mock.module("../src/lib/clear-to-install-v2.core", () => ({ ...real, CLEAR_TO_INSTALL_V2_APPROVED: false })); }
+ });
+ test("flag off (default): the existing reminder path is untouched", async () => {
+  await sendPiesaConfirmStep(J, "request");
+  expect(await sendPiesaConfirmStep(J, "reminder_1")).not.toBe("covered by the clear-to-install reminders");
+ });
+});

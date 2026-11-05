@@ -117,10 +117,10 @@ describe("Next step box", () => {
   });
   const done = { ...booked, installDone: true };
   test("after install: our lead pay", () => {
-    expect(nextStepBox(f({ ...done, pay: { kind: "hivic_after_paperwork", amount: 3000, paidAt: null } }))).toMatchObject({ kind: "after_install", sub: "Your $3,000 is paid 7 days after we approve the install paperwork." });
+    expect(nextStepBox(f({ ...done, pay: { kind: "hivic_after_paperwork", amount: 3000, paidAt: null } }))).toMatchObject({ kind: "after_install", sub: "Your $3,000 is paid 7 days after Home Insulation Victoria approves the paperwork." });
   });
   test("after install: own customer pay", () => {
-    expect(nextStepBox(f({ ...done, channel: "own", pay: { kind: "own_after_owner_paid", amount: 3275, paidAt: null } })).sub).toBe("Your $3,275 is paid once Sarah has paid in full.");
+    expect(nextStepBox(f({ ...done, channel: "own", pay: { kind: "own_after_owner_paid", amount: 3275, paidAt: null } })).sub).toBe("You're paid your $3,275 once Sarah has paid in full.");
   });
   test("after install: paid", () => {
     expect(nextStepBox(f({ ...done, pay: { kind: "hivic_after_paperwork", amount: 3000, paidAt: "2026-11-02T22:00:00Z" } })).sub).toBe("Paid ✓ 3 Nov");

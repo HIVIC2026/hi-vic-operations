@@ -172,3 +172,54 @@ test('upgrades route (email on): the old deposit request is not sent; the upgrad
   await requestInstallDeposit('j', at, { ...deps(), upgradesApproved: true, route: async () => ['upgrades_needed' as const] });
   expect(emails).toHaveLength(0); expect(texts).toHaveLength(0);
 });
+
+
+// ---- Part 5b (Jo 1–5 Nov 2026): the one-page "You're clear to install" wording + ONE day 1/3/7 reminder series, OFF by default ----
+const { sweepDepositRequests } = await import('../src/lib/deposit-request.server');
+const steps = { piesa: { checkedOn: '2026-11-01', electrician: 'Viking', result: 'Safe to insulate' as const, done: false }, consent: { name: 'Sarah', address: '', phone: '', email: '', done: false, signedOn: null }, deposit: { amountCents: 15700, paid: false } };
+const v2Deps = (o: Partial<ReturnType<typeof deps>> & { v2Clear?: boolean; clearSteps?: any } = {}) => ({ ...deps(), v2Clear: true, clearSteps: async () => steps, ...o });
+const day = (n: number) => new Date(at.getTime() + n * 86_400_000 + 60_000);
+
+test('Part 5b off (default deps): the current clear-to-install wording and the day 3/7 reminders are unchanged', async () => {
+  await requestInstallDeposit('j', at, deps());
+  expect(emails[0].mail.subject).toBe("You're clear to install");
+  await sweepDepositRequests(day(1), deps());
+  expect(emails).toHaveLength(1); // no day-1 reminder in the old series
+  await sweepDepositRequests(day(3), deps()); await sweepDepositRequests(day(7), deps());
+  expect(emails.map((e) => e.key)).toEqual(['install-deposit:v1:i', 'install-deposit-day3:v1:i', 'install-deposit-day7:v1:i']);
+  expect(emails[1].mail.subject).not.toMatch(/clear to install/i);
+});
+
+test("Part 5b on: Jo's wording, same key, same PIESA attachment, delivery recorded; the existing request text still goes", async () => {
+  await requestInstallDeposit('j', at, v2Deps()); await requestInstallDeposit('j', at, v2Deps());
+  expect(emails).toHaveLength(1);
+  expect(emails[0].key).toBe('install-deposit:v1:i');
+  expect(emails[0].mail.subject).toBe("You're clear to install – 1 Practice St, Melbourne VIC 3000");
+  expect(emails[0].mail.text).toContain('Hi Sarah, the electrical safety check is done and your ceiling is clear for insulation. Three quick things on one page, then Practice Insulation will call you to book the install day:');
+  expect(emails[0].mail.text).toContain('3. Pay your 10% deposit ($157.00).');
+  expect(emails[0].mail.text).toContain('screen=clear');
+  expect(emails[0].mail.attachments).toHaveLength(2);
+  expect(emails[0].purpose).toBe('piesa_copy');
+  expect(recorded).toHaveLength(1);
+  expect(new Set(texts.map((t) => t.idempotencyKey)).size).toBe(1); expect(texts[0].type).toBe('install_deposit_request'); // the real sender is once per key
+});
+
+test('Part 5b on: ONE reminder series at days 1, 3 and 7 (same keys as before plus day 1), naming only what is left; none after paid', async () => {
+  await requestInstallDeposit('j', at, v2Deps());
+  await sweepDepositRequests(day(1), v2Deps()); await sweepDepositRequests(day(1), v2Deps());
+  expect(emails).toHaveLength(2);
+  expect(emails[1].key).toBe('install-deposit-day1:v1:i');
+  expect(emails[1].mail.subject).toBe("Reminder: you're clear to install – 1 Practice St, Melbourne VIC 3000");
+  expect(emails[1].mail.text).toContain('3 quick things on one page');
+  await sweepDepositRequests(day(3), v2Deps({ clearSteps: async () => ({ ...steps, piesa: { ...steps.piesa, done: true } }) }));
+  expect(emails[2].key).toBe('install-deposit-day3:v1:i');
+  expect(emails[2].mail.text).toContain('2 quick things on one page');
+  expect(emails[2].mail.text).not.toContain('Confirm the safety check');
+  await sweepDepositRequests(day(7), v2Deps({ clearSteps: async () => null })); // unreadable steps = list all three, never a dead end
+  expect(emails[3].key).toBe('install-deposit-day7:v1:i');
+  expect(emails[3].mail.text).toContain('1. Confirm the safety check happened.');
+  expect(new Set(texts.filter((t) => t.type === 'install_deposit_reminder').map((t) => t.idempotencyKey)).size).toBe(3);
+  paidNow = true;
+  await sweepDepositRequests(day(8), v2Deps());
+  expect(emails).toHaveLength(4);
+});
