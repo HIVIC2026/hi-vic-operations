@@ -43,7 +43,7 @@ async function setup(apply = true) {
   await db.exec("ALTER TABLE partner_workers ADD COLUMN id uuid DEFAULT gen_random_uuid(), ADD COLUMN full_legal_name text, ADD COLUMN licence_number text;");
   await db.exec(readFileSync("drizzle/migrations/0182_in_house_team_electrician.sql", "utf8"));
   await db.exec(`INSERT INTO workflow_events(job_id,event_type,summary,details) SELECT id,'quick_taps_answered','yes','{"outcome":"pass","consent_share":true}' FROM jobs`);
-  if (apply) await db.exec(readFileSync("docs/pending-migrations/2026-11-05_test_office_give.sql", "utf8"));
+  if (apply) await db.exec(readFileSync("drizzle/migrations/0189_test_office_give.sql", "utf8"));
   return db;
 }
 const give = async (db: PGlite, job: number, business: number, actor: number, installer: number) =>
@@ -120,14 +120,14 @@ test("applying twice is a no-op; only the body changes (secdef/config/acl identi
   const db = await setup(false);
   try {
     const before = await fnShape(db);
-    await db.exec(readFileSync("docs/pending-migrations/2026-11-05_test_office_give.sql", "utf8"));
+    await db.exec(readFileSync("drizzle/migrations/0189_test_office_give.sql", "utf8"));
     const applied = await fnShape(db);
     expect(applied.def).not.toBe(before.def);
     expect(applied.def).toContain("TEST office Give");
     expect({ ...applied, def: null }).toEqual({ ...before, def: null });
-    await db.exec(readFileSync("docs/pending-migrations/2026-11-05_test_office_give.sql", "utf8"));
+    await db.exec(readFileSync("drizzle/migrations/0189_test_office_give.sql", "utf8"));
     expect(await fnShape(db)).toEqual(applied);
-    await db.exec(readFileSync("docs/pending-migrations/2026-11-05_test_office_give.rollback.sql", "utf8"));
+    await db.exec(readFileSync("drizzle/migrations/0189_test_office_give.rollback.sql", "utf8"));
     expect(await fnShape(db)).toEqual(before);
     await expect(give(db, TEST_JOB, TEST_BIZ, QA, TEST_INSTALLER)).rejects.toThrow("Office only");
     expect(await give(db, REAL_JOB, REAL_BIZ, ADMIN, REAL_INSTALLER)).toEqual({ sent: true });

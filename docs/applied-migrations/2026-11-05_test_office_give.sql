@@ -1,4 +1,4 @@
--- TEST office Give (Jo 5 Nov 2026). PENDING: not applied. Proven on PGlite by tests/test-office-give-practice-db.test.ts.
+-- TEST office Give (Jo 5 Nov 2026). APPLIED live 5 Nov 2026 ~16:40 AEDT (Jo OK). Proven on PGlite by tests/test-office-give-practice-db.test.ts.
 -- Undo: 2026-11-05_test_office_give.rollback.sql.
 --
 -- allocate_in_house_batch_job is the one atomic writer behind Choose installer "Give to installer". Today it refuses any
