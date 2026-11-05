@@ -36,7 +36,7 @@ export async function bookingTeam(jobId:string,userId:string){
   const rowsById = new Map(rows.map(row => [row.id, row]));
   const {electricianVerified,crewClearance,melbourneToday}=await import('./worker-compliance.core');
   const {allocationBlocker}=await import('./visit-allocation.core');
-  const workers:BookingWorker[]=candidates.map(w=>{const r=rowsById.get(w.workerId);return{id:w.workerId,name:w.name,phone:w.mobile,tradeRole:w.tradeRole,workerRole:w.workerRole??null,cleared:crewClearance(w.clearance??{certStatus:null,level:null,expiresOn:null},melbourneToday()).cleared,reason:w.tradeRole==='installer'?allocationBlocker('install',w,melbourneToday(),{bookingCreatedAt:null}):w.declarationsDue?'Worker declarations must be signed before booking.':null,electricianVerified:r?.trade_role==='electrician'&&electricianVerified(r).ok,escRegistered:r?.esc_registered===true,escRegisteredAt:r?.esc_registered_at??null};});
+  const workers:BookingWorker[]=candidates.map(w=>{const r=rowsById.get(w.workerId);return{id:w.workerId,name:w.name,phone:w.mobile,tradeRole:w.tradeRole,workerRole:w.workerRole??null,cleared:crewClearance(w.clearance??{certStatus:null,level:null,expiresOn:null},melbourneToday()).cleared,reason:w.tradeRole==='installer'?allocationBlocker('install',w,melbourneToday(),{bookingCreatedAt:null}):null,electricianVerified:r?.trade_role==='electrician'&&electricianVerified(r).ok,escRegistered:r?.esc_registered===true,escRegisteredAt:r?.esc_registered_at??null};});
   const paid=!!view&&(await import('./payments.core')).isStepPaid(view.steps,'install_deposit');
   return{workers,depositPaid:paid,selection:crew.selection};
 }

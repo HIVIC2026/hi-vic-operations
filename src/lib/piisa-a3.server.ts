@@ -24,9 +24,7 @@ export async function crewStaff(businessId: string, whiteCardFor?: { bookingCrea
   // levels both need only the certification ids — one round.
   const notice = await import("./esc-collection-notice.server");
   const acksP = early(notice.loadNoticeAcks([businessId]));
-  let { data, error } = await load(`${cols}, declarations_due`);
-  // Until 0230 is live the column is missing: re-read without it and treat everyone as signed (preflight ruling 10).
-  if (error && (await import("./schema-compat.core")).isMissingDbObject(error)) ({ data, error } = await load(cols));
+  const { data, error } = await load(cols);
   if (error) throw new Error(`Couldn't load your staff: ${error.message}`);
   // Decision 130: a person who has not acknowledged the ESC collection notice can't be lead or crew.
   const ids = [...new Set((data ?? []).map((w) => certificationRef(w.certification)).filter((x): x is string => !!x))];

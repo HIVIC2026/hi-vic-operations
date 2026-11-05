@@ -329,9 +329,18 @@ export const WORKFLOW_DECISIONS = {
       everyInstallerNeedsCii: true,
       readyCheckNeedsMittiLogin: true,
       crewSwitchKeepsMitti: true,
-      teamAddedSignDeclarationsByLink: true,
-      signLinkNeedsMobileOrEmail: true,
       officeInvitesMittiByHand: true,
+    },
+    // Jo 5 Nov 2026: REPLACES "workers the boss adds directly must sign the 6 worker declarations before being sent to jobs" (Jo 29 Oct).
+    workerDeclarations: {
+      by: "Jo 5 Nov 2026",
+      replaces: "Jo 29 Oct 2026",
+      required: false,
+      addedOnTeamHeldBack: false,
+      joinLink: "details only: name, mobile, email, date of birth, licence (electrician) or qualification and EEC certificate (installer); no promises to tick, no signature",
+      completionLink: "certificate only, and only when one is needed (installer, not verified, none uploaded or last one rejected)",
+      kept: ["CII certificate checks", "Lead Installer ESC registration", "ESC collection notice acknowledgement", "date of birth and mobile on file", "every other gate"],
+      column: "partner_workers.declarations_due is ignored by app code (never read, never written). The live SQL (add_team_installer_with_identity, 0186, and pending add_team_person_with_identity) still sets it true on installer adds; a later SQL change should stop that or drop the column.",
     },
   },
   hardStops: [

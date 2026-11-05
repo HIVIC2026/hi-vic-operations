@@ -1,9 +1,9 @@
 // Portal speed step 1, Task 7: My business (`tradeBusiness`) reads in few sequential waves after the sign-in context and returns
 // the same value as before (installer and electrician; owner and staff; normal and TEST; with display reads failing; with the
-// `declarations_due` column missing). `loadTeamWorkers` reads the team once when `declarations_due` exists, and once the
-// column is known to be missing it reads without it straight away (remembered for the life of the server). REAL server
+// office-stamp column missing). `loadTeamWorkers` reads the team once, never asks for `declarations_due` (Jo 5 Nov 2026: the
+// worker declarations are dropped), and when the licence/ESC stamp columns are missing it re-reads the base columns. REAL server
 // modules against an in-memory database with a wave counter (tests/helpers/wave-counter.ts). The fixture is the
-// trade-business-speed one. Run on its own. The missing-column tests run last: the server remembers a missing column.
+// trade-business-speed one. Run on its own.
 import { afterAll, beforeAll, describe, expect, mock, setSystemTime, test } from "bun:test";
 import type { Tables } from "./helpers/memory-postgrest";
 import { COLLECTION_NOTICE_SHA256 } from "../src/lib/esc-collection-notice.core";
@@ -165,7 +165,8 @@ describe("My business (Task 7): same value as before", () => {
     seedAll();
     const b = await tradeBusiness(U_BOSS);
     const staff = b.team.find((m) => m.id === W_STAFF)!, nologin = b.team.find((m) => m.id === W_NOLOGIN)!;
-    expect(staff.declarationsDue).toBe(true);
+    // The fixture row still carries a stale declarations_due: true; it is ignored (Jo 5 Nov 2026).
+    expect((staff as unknown as Record<string, unknown>)["declarationsDue"]).toBeUndefined();
     expect(JSON.stringify(nologin.missingDetails)).not.toBe(JSON.stringify(staff.missingDetails));
     expect(b.usualElectrician?.name).toBe("New Sparky");
   });
@@ -182,34 +183,26 @@ describe("My business (Task 7): waves after the sign-in context", () => {
       expect(r.afterCtx).toBeLessThanOrEqual(3);
     });
   }
-  test("loadTeamWorkers: one team read per page load while declarations_due exists", async () => {
+  test("loadTeamWorkers: one team read per page load, and it never asks for declarations_due", async () => {
     wc.state.failWhen = null; seedAll();
     for (let i = 0; i < 2; i++) {
       const r = await wc.measured(() => tradeBusiness(U_ELEC));
-      expect(r.log.filter((l) => l.table === "partner_workers" && l.sel.includes("full_legal_name, trade_role, approval_status")).map((l) => l.sel.includes("declarations_due"))).toEqual([true]);
+      expect(r.log.filter((l) => l.table === "partner_workers" && l.sel.includes("full_legal_name, trade_role, approval_status")).map((l) => l.sel.includes("declarations_due"))).toEqual([false]);
     }
   });
 });
 
-// Last: once the server has seen the column missing, it remembers that for the rest of this process.
-describe("My business (Task 7): declarations_due missing (before migration 0230)", () => {
-  const teamReads = async (u: string) => (await wc.measured(() => tradeBusiness(u))).log.filter((l) => l.table === "partner_workers" && l.sel.includes("full_legal_name, trade_role, approval_status")).map((l) => l.sel.includes("declarations_due"));
-  test("same value as before (nobody is due)", async () => {
-    wc.state.missingColumns.add("partner_workers.declarations_due");
-    const out: Record<string, unknown> = {};
-    try { for (const mode of [{}, { test: true }] as const) out[JSON.stringify(mode)] = await all(mode); } finally { wc.state.missingColumns.clear(); }
-    expect(out).toMatchSnapshot();
-  });
-  test("once seen missing, later loads read the team once, without the column, in at most 3 waves after the sign-in context", async () => {
+describe("My business (Task 7): office stamp columns missing (before 0182/0184)", () => {
+  const teamReads = async (u: string) => (await wc.measured(() => tradeBusiness(u))).log.filter((l) => l.table === "partner_workers" && l.sel.includes("full_legal_name, trade_role, approval_status")).map((l) => l.sel.includes("licence_verified_at"));
+  test("the team is re-read with the base columns only, in at most 3 waves after the sign-in context", async () => {
     wc.state.failWhen = null; seedAll();
-    wc.state.missingColumns.add("partner_workers.declarations_due");
+    wc.state.missingColumns.add("partner_workers.licence_verified_at");
     try {
       const r = await wc.measured(() => tradeBusiness(U_BOSS));
-      console.log(`tradeBusiness installer owner (column missing): ${r.afterCtx} waves after ctx (${r.waves} total)`);
+      expect(r.out.boss).toBe(true);
       if (r.afterCtx > 3) console.log(wc.wavesOf(r.log));
-      expect(await teamReads(U_ELEC)).toEqual([false]);
-      expect(await teamReads(U_BOSS)).toEqual([false]);
       expect(r.afterCtx).toBeLessThanOrEqual(3);
+      expect(await teamReads(U_ELEC)).toEqual([true, false]);
     } finally { wc.state.missingColumns.clear(); }
   });
 });
