@@ -166,13 +166,28 @@ async function finishOwnPhotoQuote(jobId: string, userId: string, businessId: st
   }
   await d.draft(jobId, userId, OWN_PHOTO_REF, { totalIncGst: price, includes: record.included.join(", "), areaM2: installM2, photo: { record, product: product.option, removeM2 } });
   const r = await d.autoSend(jobId, { formCompleted: true, formModifiedAt: new Date().toISOString(), entries: [], ...(d.sendOnPress ? { enabled: true } : {}) });
+  await markOwnPhotoQuoteFinished(jobId, d.db);
   return { sent: r.sent, held: r.reasons };
+}
+
+/** Re-review (5 Nov): once the draft and the release have run, the claim carries `finished_at`, so the tick never
+ *  re-drafts it — whatever later happens to the quote (declined, expired, superseded). Best effort: a failed write is
+ *  covered by the tick's own "any quote / drafted / held" check. */
+async function markOwnPhotoQuoteFinished(jobId: string, db: Db): Promise<void> {
+  const claimId = await stableUuid(`photo-quote:${jobId}:own`);
+  const r = await db.from("workflow_events").select("details").eq("id", claimId).maybeSingle();
+  if (r.error || !r.data) return;
+  const details = (r.data as { details: Record<string, unknown> | null }).details ?? {};
+  if (details["finished_at"]) return;
+  const up = await db.from("workflow_events").update({ details: { ...details, finished_at: new Date().toISOString() } }).eq("id", claimId);
+  if (up.error) console.error("own photo quote: finished marker not written", up.error.message);
 }
 
 export const OWN_PHOTO_SWEEP_MAX = 5;
 /** Review IMPORTANT 1b: the 15-minute tick finishes every Add a job photo quote whose claim exists but whose photo
- *  measurement or quote never got written (a crash or failure after the save). Once finished (photo measurement current
- *  AND a quote or a recorded hold) the job is left alone, so it runs once. A failure is flagged to the office at most
+ *  measurement or quote never got written (a crash or failure after the save). Re-review (5 Nov): a claim is
+ *  finished once it carries `finished_at`, or (older claims) the job has an installation quote in ANY status or an
+ *  installer_quote_drafted / held event — so a declined, expired or superseded quote is never re-drafted. A failure is flagged to the office at most
  *  once a day per job. Never sends anything itself (the release is the existing guarded one). */
 export async function sweepOwnPhotoQuotes(opts: { now?: Date } = {}, over: Partial<OwnPhotoDeps> = {}): Promise<{ checked: number; finished: string[]; failed: string[] }> {
   const d = await depsWith(over);
@@ -180,27 +195,28 @@ export async function sweepOwnPhotoQuotes(opts: { now?: Date } = {}, over: Parti
   const since = new Date(now.getTime() - 30 * 86_400_000).toISOString();
   const claims = await d.db.from("workflow_events").select("job_id, actor_id, details, created_at").eq("event_type", PHOTO_QUOTE_SUBMITTED_EVENT).contains("details", { own_customer: true }).gte("created_at", since).order("created_at", { ascending: true }).limit(500);
   if (claims.error) throw new Error("Own photo quote sweep could not read the photo quotes.");
-  const list = (claims.data ?? []) as { job_id: string; actor_id: string | null; details: { business_id?: string; inputs?: OwnPhotoInputs } | null }[];
+  // Re-review: finished claims (marker) are never touched.
+  const list = ((claims.data ?? []) as { job_id: string; actor_id: string | null; created_at?: string | null; details: { business_id?: string; inputs?: OwnPhotoInputs; finished_at?: string } | null }[])
+    .filter((c) => !c.details?.finished_at);
   const out = { checked: list.length, finished: [] as string[], failed: [] as string[] };
   if (!list.length) return out;
   const { chunkIds } = await import("./sweep-batch.core");
   const ids = [...new Set(list.map((c) => c.job_id))];
   const jobs: { id: string; stage: string | null; deleted_at: string | null; qa_archived_at: string | null }[] = [];
-  const measured = new Set<string>(), quoted = new Set<string>();
+  const quoted = new Set<string>();
   const failures: { job_id: string; created_at: string | null }[] = [];
   for (const chunk of chunkIds(ids)) {
-    const [j, m, q, e] = await Promise.all([
+    const [j, q, e] = await Promise.all([
       d.db.from("jobs").select("id, stage, deleted_at, qa_archived_at").in("id", chunk),
-      d.db.from("ceiling_measurements").select("job_id, external_source").in("job_id", chunk).eq("is_current", true),
-      d.db.from("quotes").select("job_id").in("job_id", chunk).eq("kind", "installation").in("status", ["draft", "issued", "accepted"]),
-      d.db.from("workflow_events").select("job_id, event_type, created_at").in("job_id", chunk).in("event_type", ["installer_quote_held", "own_photo_quote_failed"]),
+      // Re-review: ANY installation quote, whatever its status, means the photo quote was made (older claims with no marker).
+      d.db.from("quotes").select("job_id").in("job_id", chunk).eq("kind", "installation"),
+      d.db.from("workflow_events").select("job_id, event_type, created_at").in("job_id", chunk).in("event_type", ["installer_quote_drafted", "installer_quote_held", "own_photo_quote_failed"]),
     ]);
-    if (j.error || m.error || q.error || e.error) throw new Error("Own photo quote sweep could not read job facts.");
+    if (j.error || q.error || e.error) throw new Error("Own photo quote sweep could not read job facts.");
     jobs.push(...(j.data ?? []));
-    for (const r of (m.data ?? []) as { job_id: string; external_source: string | null }[]) if (r.external_source === "photo_quote") measured.add(r.job_id);
     for (const r of (q.data ?? []) as { job_id: string }[]) quoted.add(r.job_id);
     for (const r of (e.data ?? []) as { job_id: string; event_type: string; created_at: string | null }[]) {
-      if (r.event_type === "installer_quote_held") quoted.add(r.job_id); else failures.push(r);
+      if (r.event_type === "own_photo_quote_failed") failures.push(r); else quoted.add(r.job_id);
     }
   }
   const { isClosedOrArchivedJob } = await import("./mitti.core");
@@ -208,7 +224,7 @@ export async function sweepOwnPhotoQuotes(opts: { now?: Date } = {}, over: Parti
     if (out.finished.length + out.failed.length >= OWN_PHOTO_SWEEP_MAX) break;
     const job = jobs.find((j) => j.id === c.job_id);
     if (!job || isClosedOrArchivedJob(job)) continue;
-    if (measured.has(c.job_id) && quoted.has(c.job_id)) continue;
+    if (quoted.has(c.job_id)) continue;
     const businessId = c.details?.business_id, inputs = c.details?.inputs;
     try {
       if (!businessId || !inputs || !c.actor_id) throw new Error("The photo quote's answers are missing.");
