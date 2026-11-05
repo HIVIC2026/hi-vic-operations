@@ -6,7 +6,7 @@ Date: 5 Nov 2026 · Approved design: Jo (chat, 5 Nov 2026) · Base: GitHub main 
 
 The portal must never say "done" when part of a job is still unfinished. Four places can do that today:
 
-Order of fixing (Jo, 5 Nov 2026): VEEC assignment → quotes → estimates → Xero invoice matching → payments → emails → Mitti → SMS.
+Order of fixing (Jo, 5 Nov 2026): VEEC assignment → quotes → estimates → stage checks → Xero (empty answers, then invoice matching) → payments → emails → Mitti → SMS.
 
 1. **VEEC assignment:** the portal can say "signed copy stored" when the PDF upload failed. "Signed" can be logged when a signature didn't save. A failed variation check counts as "no variations". The signed-copy email can get stuck after one failure, and "emailed" can be logged when the sent date didn't save.
 2. **Quotes:** a rejected office edit still saves the line, and a database hiccup can save a $0 total.
@@ -14,7 +14,8 @@ Order of fixing (Jo, 5 Nov 2026): VEEC assignment → quotes → estimates → X
 4. **Payments:** a card payment is saved, but the job and invoice updates get cut off. When it comes again, they're skipped. A refund that arrives before its payment is thrown away, and a database hiccup is treated as "unknown invoice, all good".
 5. **Emails:** a Spot saved email can show "Already sent to this owner" when nothing was sent.
 6. **Mitti:** the sweep only looks at the oldest 500 booked Ready Checks, so job 501 can be missed.
-7. **Xero:** a recovered invoice can be linked to the wrong Xero invoice that shares the reference, and the payment check can say "0 failed" when Xero didn't answer.
+7. **Xero:** an empty Xero answer can make a paid invoice look unpaid and undo recorded payments. A recovered invoice can be linked to the wrong Xero invoice that shares the reference. The payment check can say "0 failed" when Xero didn't answer, and it skips paid invoices, so a later reversal is missed.
+7b. **Stage checks:** a database timeout can hide outstanding electrical fixes at install booking, and pending compliance checks at Ready for VEEC.
 8. **SMS:** a reply can be filed on the wrong job. A text that never reached the provider can't be retried. "Delivered" can go back to "sent".
 
 The fix: one **still-to-finish list**. Anything not finished goes on it. The 15-minute check finishes it. After 3 failed tries it shows as one Needs me row and in the 6am report. Every save that has to happen together happens together.
@@ -90,7 +91,20 @@ New table `recovery_work` (pending SQL in `docs/pending-migrations/recovery-work
 - `syncInvoiceFromXero` returns `{ ok: true } | { ok: false; reason: string }` (no longer a silent return after recording a failure). Voided, sync error and timeout are all `ok: false`. The old-fixes-invoice voided-on-purpose case stays `ok: true`.
 - `pollXeroPayments` returns `{ enabled, checked, failed, failedInvoices: { invoiceId, jobNumber, reason }[] }`. Both `ok: false` and thrown errors count as failed. The allocation tick output and the 6am report show `failed` and each failed invoice (TEST jobs left out).
 
+**Empty Xero answer (`syncInvoiceFromXero`)** — fixed first in this section, before trusting paid/unpaid totals
+- The sync changes nothing unless Xero's answer holds an invoice whose `InvoiceID` equals the portal's `xero_invoice_id` and has a numeric `AmountPaid`. Otherwise it returns `{ ok: false, reason: "Xero gave no usable invoice – balance not changed" }`, and the payment ledger, `total_paid` and reversals are untouched.
+- Reversals (`xeroReversals`) only run when the `Payments` list is present and its sum equals `AmountPaid` (±$0.01). A missing or short list is never treated as "all payments deleted".
+
+**Settled invoices still checked (`pollXeroPayments`)**
+- Invoices fully paid in the last 90 days (`balance_paid_at >= now() - 90 days`) stay in the poll after unpaid ones. A reversal in Xero then reaches the portal and the office (existing reversal events + Needs me). Closed/cancelled jobs follow the same 90-day rule.
+
 **Live check (read-only, 5 Nov 2026, portal side only, Xero not checked):** 1 real invoice (HV-3682 installation $3,568.00, INV-1908). It matches its accepted quote, and there are no duplicate references or Xero ids in the portal.
+
+## E. Stage checks never pass on a failed read (`autoadvance.server.ts`, `workflow.server.ts` `stageEntryBlockers`)
+
+- `autoadvance.server.ts` `count()` throws on a query error. It never returns 0. When the facts read fails, the job stays at its current stage and logs `stage_check_unreadable` (internal, needs_office, once per job per hour).
+- In `stageEntryBlockers`, every read checks `error` (compliance checks for `ready_for_veec`, VEEC lodgement for `complete`, and all others in the function). A failed read adds the blocker `Couldn't verify {what}. {Stage name} is paused. Please try again.` and nothing passes. For example, "Couldn't verify outstanding electrical fixes. Installation booking is paused. Please try again." and "Couldn't verify compliance checks. Ready for VEEC is paused. Please try again."
+- The same blocker text is shown wherever the stage blockers already show (office job page, installer booking). Nothing new is added on screen.
 
 ## 1. Card payments (`stripe.server.ts` `recordStripePayment`)
 
@@ -172,6 +186,8 @@ Each review finding gets a test that fails on `a274d76` and passes after the fix
 11. Delivered to Job A, blocked for Job B, then a reply → filed on A. Two open jobs with sent texts → "which job?" row.
 12. Provider unavailable, then restored → the retry sends once. "delivered" then a late "sent" → stays delivered.
 13. Two Xero invoices share the reference ($500 other contact, $3,500 correct) → no link, conflict row. One times out in the poll → summary says 1 failed and names it.
+14. Xero returns no invoice → balance and ledger unchanged, sync reported failed. A paid invoice reversed in Xero → the poll still checks it and the reversal is recorded.
+15. Fixes count timeout → install booking blocked with the exact message. Compliance read timeout → Ready for VEEC blocked.
 
 Plus: tick claim safety (two runs, one attempt), the 3-tries → Needs me rule, Mark sorted / Try again, and the SQL proven on PGlite. Run `bun scripts/scan-retired-terms.ts` and `bun test ./tests/`.
 
