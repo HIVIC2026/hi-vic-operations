@@ -39,8 +39,8 @@ let team: unknown = {
   depositPaid: true, selection: null,
   workers: [
     { id: "lead1", name: "Dave Lead", phone: null, tradeRole: "installer", workerRole: "lead", cleared: true, reason: null, escRegistered: true, escRegisteredAt: "2026-11-01" },
-    { id: "crew1", name: "Sam Crew", phone: null, tradeRole: "installer", workerRole: "crew", cleared: true, reason: null },
-    { id: "crew2", name: "Jo Crew", phone: null, tradeRole: "installer", workerRole: "crew", cleared: true, reason: null },
+    { id: "crew1", name: "Sam Crew", phone: null, tradeRole: "installer", workerRole: "crew", cleared: true, reason: null, crewAllowed:true },
+    { id: "crew2", name: "Jo Crew", phone: null, tradeRole: "installer", workerRole: "crew", cleared: true, reason: null, crewAllowed:true },
     { id: "elec1", name: "Will Casdorff", phone: null, tradeRole: "electrician", cleared: true, reason: null, electricianVerified: true },
   ],
 };
@@ -262,7 +262,7 @@ describe("Next step box actions", () => {
     fireEvent.click(a);
     expect(b.disabled).toBe(false);
     // a third crew member appears → disabled once two are ticked
-    const three = { ...(team as { workers: unknown[] }), workers: [...(team as { workers: unknown[] }).workers, { id: "crew3", name: "Lee Crew", phone: null, tradeRole: "installer", workerRole: "crew", cleared: true, reason: null }] };
+    const three = { ...(team as { workers: unknown[] }), workers: [...(team as { workers: unknown[] }).workers, { id: "crew3", name: "Lee Crew", phone: null, tradeRole: "installer", workerRole: "crew", cleared: true, reason: null,crewAllowed:true }] };
     const was = team; team = three;
     try {
       cleanup();
