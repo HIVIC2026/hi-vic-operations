@@ -73,10 +73,10 @@ export function renderInstallDepositOwnerEmail(f:DepositMessageFacts,step:'reque
   if(v2&&(step==='day3'||step==='day7'))return renderReminderV2(f);
   if(v2&&step==='paid'&&paidV2Ready(f))return renderPaidV2(f,opts.receiptAttached===true);
   const deadline=weekdayDayMonthLabel(f.deadline)??f.deadline;
-  const subject=step==='paid'?'Deposit received':step==='request'?'Your 50% install deposit':'Your install deposit reminder';
+  const subject=step==='paid'?'Deposit received':step==='request'?'Your install deposit':'Your install deposit reminder';
   const lines=step==='paid'?[`Deposit received, ${f.installer} will call you to book your install day.`,`Your installation must start by ${deadline} (30-day limit).`,REST_DUE_SENTENCE]:[
     `You're clear to install, ${f.name}!`,
-    `${step==='request'?'Please pay':'Reminder: please pay'} your 50% install deposit of ${cents(f.amountCents/100)} inc GST against your existing installation invoice so ${f.installer} can book your install day.`,
+    `${step==='request'?'Please pay':'Reminder: please pay'} your install deposit of ${cents(f.amountCents/100)} inc GST against your existing installation invoice so ${f.installer} can book your install day.`,
     f.card?'Pay by card (Stripe) or bank transfer.':'Pay by bank transfer.',
     ...bankDetailLines(f.bank,f.reference),
     `Your installation must start by ${deadline} (30-day limit).`,

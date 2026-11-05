@@ -84,7 +84,7 @@ describe("decision 302 — the upfront safety check is the quote's PIESA line", 
     const split = splitForOption(3000, safetyCheckIncGstFor({ lines: lines220 }));
     expect(split.deposit).toBe(220);
     expect(P2.button(centsAud(split.deposit))).toBe("Accept and pay $220.00");
-    expect(P2.howYouPayFor(shortAud(split.deposit))).toBe("How you pay: $220 now for the electrical safety check (PIESA). 50% to book your install day. The rest on install day. Card or bank transfer, no fees.");
+    expect(P2.howYouPayFor(shortAud(split.deposit))).toBe("How you pay: $220 now for the electrical safety check (PIESA). Your deposit to book your install day. The rest on install day. Card or bank transfer, no fees.");
     expect(paymentOptionSummary(220)).toContain("The $220 Pre Insulation Electrical Safety Assessment (PIESA) payment is needed");
     // O18 "Next" amount comes from the quote lines
     expect(safetyCheckPriceFromLines([{ description: "Pre Insulation Electrical Safety Assessment (PIESA)", lineTotalIncGst: 220 }] as never)).toBe(220);

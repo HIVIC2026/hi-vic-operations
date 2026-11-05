@@ -1234,7 +1234,7 @@ async function m10Deposit(rec: Recorder, jobs: BranchResult["jobs"], setup: Step
     // Fix: the owner pays the 50% deposit (TEST payment, Demo Company) — then the same offering works and the owner books.
     const r: StepResult = { key: "s7_install", label: "deposit", passed: true, checks: [] };
     let pay = "paid";
-    try { await J.payStep(ctx, r, "install_deposit", "50% install deposit (TEST payment, Demo Company)"); } catch (e) { pay = `failed: ${(e as Error).message.slice(0, 200)}`; }
+    try { await J.payStep(ctx, r, "install_deposit", "Install deposit (TEST payment, Demo Company)"); } catch (e) { pay = `failed: ${(e as Error).message.slice(0, 200)}`; }
     let offered2 = "not tried";
     try { await idays.installerOfferDays(ctx.jobId!, ctx.installer.id, days.map((day) => ({ day, time: "08:00" }))); offered2 = "offered"; }
     catch (e) { offered2 = `refused: ${(e as Error).message.slice(0, 200)}`; }

@@ -128,7 +128,7 @@ export async function loadJobPage(jobId: string, testOffice = false) {
       fixes: rect.data ? `${rect.data.status === "accepted" ? "Approved" : rect.data.sent_at ? "Quote sent" : "Quote being checked"} · $${Number(rect.data.customer_total_inc_gst).toLocaleString("en-AU", { maximumFractionDigits: 0 })}` : null,
       // Part 3 Task 3: "Waiting for {electrician}'s Certificate of Electrical Safety" / "Upgrades day not set yet".
       certificate: certificate?.line ?? null },
-    install: { deadline, daysLeft, deposit: deposit ? `$${(deposit.amountCents / 100).toLocaleString("en-AU", { maximumFractionDigits: 0 })} (50%) · ${deposit.state === "paid" ? "paid" : deposit.state === "requested" ? `held until ${pay?.provisional.expiresAt ? dayTime(pay.provisional.expiresAt) : "paid"}` : deposit.state === "overdue" ? "overdue" : "to book · bank transfer"}` : null,
+    install: { deadline, daysLeft, deposit: deposit ? `$${(deposit.amountCents / 100).toLocaleString("en-AU", { maximumFractionDigits: 0 })} · ${deposit.state === "paid" ? "paid" : deposit.state === "requested" ? `held until ${pay?.provisional.expiresAt ? dayTime(pay.provisional.expiresAt) : "paid"}` : deposit.state === "overdue" ? "overdue" : "to book · bank transfer"}` : null,
       installAt: book("installation"), daysOffered: proposals.count ?? 0,
       consent: escConsent.data ? (escConsent.data.ap_signed_at ? `Signed ${day(escConsent.data.ap_signed_at)}` : escConsent.data.owner_signed_at ? "Owner signed · AP to sign" : "Waiting for the owner") : null,
       escNotice: escNotice.data ? (escNotice.data.sent_at ? `Submitted ${day(escNotice.data.sent_at)}` : `Due by ${dayTime(escNotice.data.due_by)}`) : null },

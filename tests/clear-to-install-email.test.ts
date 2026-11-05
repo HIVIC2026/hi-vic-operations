@@ -44,13 +44,13 @@ test('upgrades done on the day shows Done', () => {
 });
 test('flag off (or reminders/paid) keeps the old wording', () => {
   const old = renderInstallDepositOwnerEmail(facts, 'request', false);
-  expect(old.subject).toBe('Your 50% install deposit');
+  expect(old.subject).toBe('Your install deposit');
   expect(renderInstallDepositOwnerEmail(facts, 'day3', true).subject).toBe('Your install deposit reminder');
   expect(renderInstallDepositOwnerEmail(facts, 'paid', true).subject).toBe('Deposit received');
 });
 test('the flag is ON since go-live 5 Nov 2026: the request is the clear-to-install email; off = the old deposit ask', () => {
   expect(renderInstallDepositOwnerEmail(facts, 'request').subject).toBe("You're clear to install");
-  expect(renderInstallDepositOwnerEmail(facts, 'request', false).subject).toBe('Your 50% install deposit');
+  expect(renderInstallDepositOwnerEmail(facts, 'request', false).subject).toBe('Your install deposit');
 });
 
 const PDF = { filename: 'x.pdf', content: 'AA==', contentType: 'application/pdf' };
@@ -103,7 +103,7 @@ test('PIESA or consent PDF missing: held, nothing sent, not recorded', async () 
 test('flag off: old deposit request, no attachments, nothing recorded', async () => {
   await requestInstallDeposit('j', at, { ...deps(), approved: false });
   expect(emails).toHaveLength(1);
-  expect(emails[0].mail.subject).toBe('Your 50% install deposit');
+  expect(emails[0].mail.subject).toBe('Your install deposit');
   expect(emails[0].purpose).toBe('install_deposit_request');
   expect(emails[0].mail.attachments).toBeUndefined();
   expect(recorded).toHaveLength(0);
@@ -111,7 +111,7 @@ test('flag off: old deposit request, no attachments, nothing recorded', async ()
 test('route says standalone (upgrades still to come / do not contact): old deposit request, no recording', async () => {
   routeClear = false;
   await requestInstallDeposit('j', at, deps());
-  expect(emails[0].mail.subject).toBe('Your 50% install deposit');
+  expect(emails[0].mail.subject).toBe('Your install deposit');
   expect(recorded).toHaveLength(0);
 });
 

@@ -62,7 +62,7 @@ export function acceptancePage1(i: SignedAcceptanceInput): PdfBlock[] {
       ["Old insulation removal", i.removalM2 == null ? "No" : `Yes, ${i.removalM2} m²`],
       ["Electrical upgrades", "Not included. Your electrician quotes these if the safety check finds any."],
     ] },
-    { id: "a-pay", kind: "para", compact: c, lead: "How you pay:", text: `${safety} now for the electrical safety check (PIESA). 50% to book your install day. The rest on install day.` },
+    { id: "a-pay", kind: "para", compact: c, lead: "How you pay:", text: `${safety} now for the electrical safety check (PIESA). Your deposit to book your install day. The rest on install day.` },
     { id: "a-h-agreed", kind: "heading", text: `What ${firstName(i.ownerName)} agreed to` },
     { id: "a-ticks", kind: "ticks", compact: c, items: [...acceptanceTicks(safety)] },
     { id: "a-sigs", kind: "signatures", cells: [

@@ -109,6 +109,7 @@ const TERMS: Term[] = [
   // "electrician" (never "usual electrician"). Fails on quoted strings in src/ and on templates; comments and names may stay.
   { term: "10% deposit", re: /10 ?% deposit/gi, action: 'Say "your deposit" / "the deposit" (Jo 6 Nov 2026); never a percentage', quoted: true },
   { term: "50% deposit", re: /50 ?% deposit/gi, action: 'Say "your deposit" / "the deposit" (Jo 6 Nov 2026); never a percentage', quoted: true },
+  { term: "50% to book / install deposit / of the", re: /50 ?% (?:to book|install deposit|of the)/gi, action: 'Say "your deposit" / "the deposit" / "deposit" (Jo 6 Nov 2026); never a percentage, amounts stay', quoted: true },
   { term: "usual electrician", re: /usual electricians?\b/gi, action: 'Say "electrician" (Jo 6 Nov 2026); the legacy Mitti answer text stays only as an alias', quoted: true },
 ];
 
@@ -118,10 +119,10 @@ const ALLOWED = [/business_unit/, /'hivic'/];
 // and Mitti question labels that the label-based sync parser matches on.
 const RETAINED: { file: RegExp; re: RegExp; why: string }[] = [
   { file: /./, re: /"HIVIC-[A-Z-]+"/, why: "Internal rule code" },
-  // Jo 5–6 Nov 2026: Customer Agreement v1.3 (signed by owners, 10% deposit) is kept word for word as the signed record, and
-  // v1.4 (no percentage) is built from it by AGREEMENT_V1_4_CHANGES, whose "from" side quotes v1.3; the PDF keeps v1.3's
-  // "10% deposit:" bold lead so signed copies still render. No 50% exception: v1.4 names no percentage.
-  { file: /^src\/lib\/customer-agreement(\.core|-pdf\.server)\.ts$/, re: /10 ?% (deposit|to book)/, why: "Signed Customer Agreement v1.3 record and the v1.4 change list's v1.3 side" },
+  // Jo 5–6 Nov 2026: Customer Agreement v1.3 (signed by owners, 10% deposit) and v1.4 (approved and live 5 Nov 2026, 50%
+  // deposit) are kept word for word as history: v1.4 is built from v1.3 by AGREEMENT_V1_4_CHANGES and v1.5 (no percentage)
+  // from v1.4 by AGREEMENT_V1_5_CHANGES; the PDF keeps both bold leads so signed v1.3/v1.4 copies still render. v1.5 needs no exception.
+  { file: /^src\/lib\/customer-agreement(\.core|-pdf\.server)\.ts$/, re: /(?:10|50) ?% (deposit|to book)/, why: "Signed Customer Agreement v1.3 / v1.4 records and their change lists (new version needed)" },
   {
     file: /^src\/lib\/mitti-forms\.core\.ts$/,
     re: /HI VIC/,
@@ -133,6 +134,7 @@ const RETAINED: { file: RegExp; re: RegExp; why: string }[] = [
   // Jo 6 Nov 2026 wording: the old Mitti answer text is still accepted as a legacy alias; history and audit lines are never rewritten.
   { file: /^src\/lib\/(?:usual-electrician|ready-check-lean|mitti)\.core\.ts$/, re: /"My usual electrician"/, why: "Legacy Mitti answer text kept as an alias" },
   { file: /^src\/lib\/(?:electrician-choice\.core|signup-electrician\.server|rec-auto-link\.server|mitti-electrician\.server)\.ts$/, re: /(?:summary|Summary|logEvent|the installer's usual electrician\$\{)/, why: "History / audit line (never rewritten)" },
+  { file: /^src\/lib\/(?:payments\.server|deposit-request\.server|install-booked-email\.server)\.ts$/, re: /(?:once\("install_deposit_received"|summary:'|logEvent\()/, why: "History / audit line (never rewritten)" },
 ];
 const SKIP_DIRS = new Set([
   "node_modules",

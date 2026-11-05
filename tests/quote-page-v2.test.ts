@@ -24,8 +24,8 @@ describe("P2 wording (decisions #33, Fix 3, 2 Nov payment timing)", () => {
     expect(P2.tick2For("$275")).toBe("I understand my install must be done within 30 days of my electrical safety check (PIESA). If it isn't, the check has to be done again — and if the delay is mine, I pay for the new check ($275).");
     // Jo 4 Nov 2026 21:05 (wording B) — the same words as the quote email and Customer Agreement section 2.
     expect(P2.notIncluded).toBe("If the safety check finds electrical work is needed before insulation can go in, your electrician quotes that separately and you pay them direct. Nothing happens without your OK. This price and your rebate don't change.");
-    expect(P2.howYouPay).toBe("How you pay: $349 now for the electrical safety check (PIESA). 50% to book your install day. The rest on install day. Card or bank transfer, no fees.");
-    expect(P2.howYouPayFor("$220")).toBe("How you pay: $220 now for the electrical safety check (PIESA). 50% to book your install day. The rest on install day. Card or bank transfer, no fees.");
+    expect(P2.howYouPay).toBe("How you pay: $349 now for the electrical safety check (PIESA). Your deposit to book your install day. The rest on install day. Card or bank transfer, no fees.");
+    expect(P2.howYouPayFor("$220")).toBe("How you pay: $220 now for the electrical safety check (PIESA). Your deposit to book your install day. The rest on install day. Card or bank transfer, no fees.");
     expect(P2.timing).toBe("Your install will be done within 30 days of your electrical safety check (PIESA). Your installer will confirm the day with you. Most installs are finished on the day they start.");
     expect(P2.button("$349")).toBe("Accept and pay $349");
     expect(P2.twoTicks).toBe("Two ticks, then accept");

@@ -2062,7 +2062,7 @@ export const respondToQuoteImpl = createServerOnlyFn(async function respondToQuo
       job_id: q.job_id,
       kind: "owner_consent",
       declared_by: context.userId,
-      statement: `Owner accepted ${q.option_label} (${q.customer_total_inc_gst} inc GST): safety check paid at acceptance; electrical fixes in full if needed; 50% install deposit to book the install; balance on installation day.`,
+      statement: `Owner accepted ${q.option_label} (${q.customer_total_inc_gst} inc GST): safety check paid at acceptance; electrical fixes in full if needed; install deposit to book the install; balance on installation day.`,
     },
     { onConflict: "job_id,kind" },
   );

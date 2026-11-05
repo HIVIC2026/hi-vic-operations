@@ -1,8 +1,7 @@
 -- Run with psql -v ON_ERROR_STOP=1
--- customer-agreement-v1-4.sql (5–6 Nov 2026, Jo): loads Customer Agreement v1.4 as the approved, active customer_agreement wording.
--- v1.4 = v1.3 word for word except the install deposit lines, which name no percentage (v1.3 said 10%; Jo 6 Nov 2026: no
--- percentage in any deposit wording). The "10% a year" penalty interest line is not the deposit and is unchanged.
--- Body = src/lib/customer-agreement.core.ts CUSTOMER_AGREEMENT_V1_4.
+-- customer-agreement-v1-4.sql (5 Nov 2026, Jo): loads Customer Agreement v1.4 as the approved, active customer_agreement wording.
+-- v1.4 = v1.3 word for word except the install deposit: 50% to book the install day (was 10%). The "10% a year" penalty
+-- interest line is not the deposit and is unchanged. Body = src/lib/customer-agreement.core.ts CUSTOMER_AGREEMENT_V1_4.
 -- The v1.3 row and every signed copy stay untouched as history (approved templates are immutable).
 -- Idempotent; one transaction. Proven on PGlite: tests/customer-agreement-template-db.test.ts.
 -- ROLLBACK: customer-agreement-v1-4.rollback.sql. NEVER run live without Jo's go-ahead.
@@ -37,7 +36,7 @@ The 30-day rule: the rebate rules say your insulation must be installed within 3
 $ Price before rebate | {price_before_rebate}
 $ Rebate | – {rebate}
 $ Your price (incl. GST) | {your_price}
-How and when you pay is in your payment terms (attached). In short: $349 now for the electrical safety check (PIESA), then your deposit to book your install day, and the rest on install day. There are no other fees.
+How and when you pay is in your payment terms (attached). In short: $349 now for the electrical safety check (PIESA), 50% to book your install day, and the rest on install day. There are no other fees.
 Once your install is done, the rebate rules say you must have paid at least $200 (incl. GST). None of that $200 can be given back to you in any way.
 Your quote is valid for 30 days, until {valid_until}.
 Cooling-off: no cooling-off period applies. You asked for a quote and accepted it online in your own time.
@@ -57,7 +56,7 @@ If we find out later that something about your install doesn't meet the rebate r
 ## 8 Changing or cancelling
 To change a visit time, call your installer on their office number. To cancel, reply to any of our emails or write to info@homeinsulationvictoria.com.au.
 - $349 electrical safety check: refunded if you cancel before the check is done. Not refunded once it's done.
-- Deposit: refunded if you cancel at least 2 business days before your install day. Not refunded after that.
+- 50% deposit: refunded if you cancel at least 2 business days before your install day. Not refunded after that.
 ## 9 Your information
 To run the rebate program, we share your details and job information with the Essential Services Commission, which may share them with WorkSafe and Energy Safe Victoria. You'll sign a separate consent form for this before your install.
 ## 10 Your documents
@@ -70,7 +69,7 @@ Version {version}
 # PAYMENT TERMS | How you pay
 Job {job_number} · {owner_name} · {address}
 $ 1. When you accept your quote\nElectrical safety check (PIESA) | {safety_check}
-$ 2. Once you're clear to install\nDeposit to book your install day | {deposit}
+$ 2. Once you're clear to install\n50% deposit to book your install day | {deposit}
 $ 3. On install day\nThe rest | {rest}
 $ Your price (incl. GST) | {your_price}
 ## ✓ How to pay
@@ -83,7 +82,7 @@ If you need electrical upgrades, you pay your electrician directly. They're not 
 ## ↩ Refunds
 - $349: refunded if you cancel before your electrical safety check is done.
 - Deposit: refunded if you cancel at least 2 business days before your install day.
-$body$, true, '950fa0b6-dc44-49af-a754-6a65f26a661e'::uuid, '2026-11-06', true, 'Approved 6 Nov 2026 by Jo: v1.3 with the install deposit named, no percentage')
+$body$, true, '950fa0b6-dc44-49af-a754-6a65f26a661e'::uuid, '2026-11-05', true, 'Approved 5 Nov 2026 by Jo: v1.3 with a 50% install deposit')
 ON CONFLICT (template_key, version) DO NOTHING;
 
 -- Fail closed: if v1.4 already existed in another state, DO NOTHING would leave it unused; abort the whole transaction.

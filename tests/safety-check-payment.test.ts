@@ -113,7 +113,7 @@ describe("Pre Insulation Electrical Safety Assessment (PIESA) payment (Jo 7 Oct)
     });
     const text = paymentTermsText(m);
     expect(text).toContain("Electrical safety check (PIESA): $349.00");
-    expect(text).toContain("50% deposit to book your install day: $1,689.50");
+    expect(text).toContain("Deposit to book your install day: $1,689.50");
     expect(text).toContain("The rest: $1,689.50");
     expect(text).toContain("Your price (incl. GST): $3,728.00");
     expect(text).toContain("No fees.");

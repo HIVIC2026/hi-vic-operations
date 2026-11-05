@@ -25,7 +25,7 @@ export function renderYoureInEmail(i: AcceptanceEmailInput) {
   const intro = `Thanks for accepting your quote. Warmer winters and cooler summers are on the way${i.rebate && i.rebate > 0 ? `, with ${K.whole(i.rebate)} off` : ""}.`;
   const pay = i.payment;
   const remaining = pay ? Math.max(0, i.totalIncGst - pay.amount) : i.totalIncGst;
-  const remainingLine = `Still to pay: ${K.cents(remaining)} (50% to book your install day, ${REST_ON_INSTALL_DAY})`;
+  const remainingLine = `Still to pay: ${K.cents(remaining)} (your deposit to book your install day, ${REST_ON_INSTALL_DAY})`;
   const payLabel = pay?.label ?? "Electrical safety check (PIESA)";
   const preview = pay ? `We've got your ${K.cents(pay.amount)} payment. Next up: your electrical safety check.` : "Next up: your electrical safety check.";
   const payCard = pay

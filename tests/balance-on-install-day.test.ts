@@ -16,7 +16,7 @@ describe("balance due on install day", () => {
   });
   test("You're in! still-to-pay line", () => {
     const e = renderYoureInEmail({ firstName: "Sarah", rebate: 1610, totalIncGst: 2188, payment: { amount: 349, paidOn: "8 Nov" }, installerName: "Rapid Insulation", myJobUrl: "x" } as any);
-    expect(e.text).toContain("Still to pay: $1,839.00 (50% to book your install day, the rest on install day)");
+    expect(e.text).toContain("Still to pay: $1,839.00 (your deposit to book your install day, the rest on install day)");
   });
   test("deposit emails say the rest is due on install day", () => {
     const f = { name: "Sarah", installer: "Rapid Insulation", jobNumber: "HV-1", address: "1 A St", ownerPhone: null, deadline: "2026-12-01", amountCents: 18390, link: "https://x.test", bank: { accountName: "A", bsb: "000-000", accountNumber: "1", payId: null } as any, reference: "HV-1", card: true };

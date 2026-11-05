@@ -32,7 +32,7 @@ export const PAYMENT_STEP_ORDER: PaymentStepKey[] = ["safety_check", "repeat_saf
 export const PAYMENT_STEP_LABEL: Record<PaymentStepKey, string> = {
   safety_check: "Pre Insulation Electrical Safety Assessment (PIESA) payment",
   fixes: "Electrical upgrades",
-  install_deposit: "Install deposit (50%)",
+  install_deposit: "Install deposit",
   balance: "Balance (due on install day)",
   repeat_safety_check: "Repeat safety check (PIESA)",
 };
@@ -154,7 +154,7 @@ export function stepPaidAt(plan: PaymentPlan, key: PaymentStepKey, records: { am
 
 /** Jo 26 Oct 2026: the install is booked only once the 50% install deposit (50% of the install price — never the PIESA
  *  fee or the fixes) is paid. No "book first, pay within 48 hours". The PIESA fee alone never unlocks the install. */
-export const INSTALL_DEPOSIT_BLOCKER = "The 50% install deposit must be paid before the install is booked.";
+export const INSTALL_DEPOSIT_BLOCKER = "The install deposit must be paid before the install is booked.";
 /** Stages after the PIESA result where the 50% deposit is due now. Part 4 fix wave C1: a partner-billed in-house job whose
  *  PIESA found upgrades auto-advances straight to rectification_scheduling / rectification_booked (autoadvance.core), and a
  *  variation parks it at electrical_variation_pending — the deposit is still due there (answer 21: due straight after the
@@ -480,7 +480,7 @@ export function howYouPayLines(plan: PaymentPlan): string[] {
   return [
     `${aud(plan.safetyCheckCents)} now for the electrical safety check (card or bank transfer, no fee)`,
     ...(plan.repeatCents > 0 ? [`${aud(plan.repeatCents)} for the repeat safety check (PIESA) (card or bank transfer, no fee)`] : []),
-    `${aud(plan.installDepositCents)} deposit (50% of the install price) before your install day can be booked, by card, bank transfer or PayID`,
+    `${aud(plan.installDepositCents)} deposit before your install day can be booked, by card, bank transfer or PayID`,
     `${aud(plan.balanceCents)} on install day, by card, bank transfer or PayID`,
     `Or pay the full ${aud(plan.quoteTotalCents)} any time by bank transfer or PayID`,
   ];
