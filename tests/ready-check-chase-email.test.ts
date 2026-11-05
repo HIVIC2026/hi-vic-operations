@@ -14,7 +14,7 @@ describe("#27 Nearly there email", () => {
     expect(m.text).toContain("• whether the homeowner agrees to be contacted");
     expect(m.text).toContain("Add them in Mitti and we'll prepare the owner's quote.");
     expect(m.text).toContain(`Finish the Ready Check form: ${i.mittiFormUrl}`); // Jo 5 Nov 2026: the button names the action
-    expect(m.html).toContain("Open the Mitti form");
+    expect(m.html).toContain("Finish the Ready Check form");
     expect(m.html).toContain(i.mittiFormUrl);
     expect(m.html).toContain("Add them in Mitti and we&#39;ll prepare the owner&#39;s quote.".replace(/&#39;/g, "'")) ;
     expect(`${m.subject}${m.text}${m.html}`).not.toMatch(/\bHIV\b|lawyer/);
