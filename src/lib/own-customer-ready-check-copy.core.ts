@@ -1,4 +1,12 @@
 export const OWN_READY_CHECK_COPY = {
+  stage: 'Measure & quote',
+  choiceTitle: 'Measure and quote',
+  choiceIntro: 'Measure the ceiling, then send us your price. Two ways:',
+  onsiteOption: 'Do a Ready Check on site',
+  onsiteIntro: (address: string, jobNumber: string) => `Use our Mitti form at the house. It's in your Mitti app under Inspections, named "${address} – ${jobNumber}".`,
+  onsiteComplete: "When you've pressed Complete in Mitti, come back here to enter your price.",
+  portalOption: 'Enter the details here',
+  portalIntro: 'Already measured? Type the sizes, upload your evidence and send your price. Takes a couple of minutes.',
   title: 'Ready Check details',
   intro: 'Fill this in instead of the Mitti form. Takes a couple of minutes.',
   install: "How many square metres you'll install.",

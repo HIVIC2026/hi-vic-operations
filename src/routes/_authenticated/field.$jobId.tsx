@@ -42,7 +42,6 @@ import { CheckMyFormButton } from "@/components/trade/CheckMyFormButton";
 import { NextStepBox } from "@/components/trade/NextStepBox";
 import { ContactButtons, Group, LinkRow, NextPanel, NoFormNoPay, Row, Screen, ScreenHead } from "@/components/trade/installer-kit";
 import { completeView, ownerReadyLine } from "@/lib/installer-screens.core";
-import { InstallerPriceCard } from "@/components/trade/InstallerPriceCard";
 import { OwnCustomerReadyCheckChoice } from "@/components/trade/OwnCustomerReadyCheckChoice";
 import { PortalReadyCheckView } from '@/components/trade/PortalReadyCheckView';
 import { ELECTRICIAN_ATTENDANCE_CONFIRMED } from "@/lib/trade-view.core";
@@ -53,6 +52,7 @@ import { nextLine } from "@/lib/add-job-flow.core";
 import { NO_LOGIN_NEEDED } from "@/lib/trade-access-role.core";
 import { onsiteFormStatus } from "@/lib/onsite-ready-check.functions";
 import { installerJobSections } from "@/lib/installer-job-sections.core";
+import { OWN_READY_CHECK_COPY } from "@/lib/own-customer-ready-check-copy.core";
 
 function PendingReadyCheckForm({ jobId }: { jobId: string }) {
   const read = useServerFn(onsiteFormStatus);
@@ -377,7 +377,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
       <div className="min-w-0">
         <h1 className="font-display text-[24px] font-semibold leading-tight">{job.owner_name || streetAndSuburb(job.property_address) || "Your job"}</h1>
         <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-sub">
-          {page.label && <Pill tone="plain">{page.label}</Pill>}
+          {page.label && <Pill tone="plain">{ownReadyCheck ? OWN_READY_CHECK_COPY.stage : page.label}</Pill>}
           <span>
             {[job.job_number, streetAndSuburb(job.property_address)].filter(Boolean).join(" · ")}
           </span>
@@ -394,7 +394,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
           <li key={p.label}>
             <Pill tone={p.state === "done" ? "green" : p.state === "now" ? "amber" : "plain"}>
               {p.state === "done" ? "✓ " : ""}
-              {p.label}
+              {ownReadyCheck && p.label === 'Ready Check' ? OWN_READY_CHECK_COPY.stage : p.label}
             </Pill>
           </li>
         ))}
@@ -416,7 +416,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
 
       <div className="flex min-w-0 flex-col gap-3">
         <div className="min-w-0" data-job-section="Next step">
-        {ownReadyCheck ? <OwnCustomerReadyCheckChoice jobId={jobId} auditId={mittiAudit} /> : <NextStepBox
+        {ownReadyCheck ? <OwnCustomerReadyCheckChoice jobId={jobId} auditId={mittiAudit} address={job.property_address ?? ''} jobNumber={job.job_number ?? ''} /> : <NextStepBox
           jobId={jobId}
           box={box}
           ownerFirst={page.ownerFirst}
@@ -461,12 +461,6 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
             </div>
           )}
         </NextStepBox>}
-        {showPrice && !ownReadyCheck && (
-          <section className={`${card} mt-4 min-w-0`} aria-label="Your price" data-price-early={priceOpenEarly ? "true" : undefined}>
-            {priceOpenEarly && <p className="mb-2 text-sm text-sub">Enter your price and send it to Home Insulation Victoria to prepare the quote. The Mitti form can still have blanks.</p>}
-            <InstallerPriceCard jobId={jobId} />
-          </section>
-        )}
         {/* #134 (Jo 3 Nov 2026): a Mitti pickup still waiting for the installer's one electrician answer — kept at the 4 Nov join
             (no Part 5 equivalent for Mitti pickups); the card renders nothing once answered. */}
         {page.channel === "installer_sourced" && <MittiElectricianCard jobId={jobId} />}

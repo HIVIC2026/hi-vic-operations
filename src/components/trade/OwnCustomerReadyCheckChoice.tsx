@@ -11,12 +11,14 @@ import { Button } from '@/components/ui/button';
 import { MittiFormLink } from '@/components/portal/MittiFormLink';
 import { OwnCustomerReadyCheck } from './OwnCustomerReadyCheck';
 import { OwnerQuoteCard } from './OwnerQuoteCard';
+import { card } from './TradeShell';
 
-export function OwnCustomerReadyCheckChoice({ jobId, auditId }: { jobId: string; auditId: string | null }) {
+export function OwnCustomerReadyCheckChoice({ jobId, auditId, address, jobNumber }: { jobId: string; auditId: string | null; address: string; jobNumber: string }) {
   const load = useServerFn(getInstallerPriceFn);
   const q = useQuery({ queryKey: ['installer-price', jobId], queryFn: () => load({ data: { jobId } }), staleTime: 20_000 });
   const save = useAction(setInstallerPriceFn);
   const [portalOpen, setPortalOpen] = useState(false);
+  const [mittiOpen, setMittiOpen] = useState(false);
   const [price, setPrice] = useState('');
   const [busy, setBusy] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -24,11 +26,16 @@ export function OwnCustomerReadyCheckChoice({ jobId, auditId }: { jobId: string;
   const v = q.data;
   if (!v?.canSet) return null;
   if (v.locked) return <OwnerQuoteCard jobId={jobId} ownCustomerStatus />;
-  if (submitted || v.current?.sendToQuote) return <p role="status" className="text-[15px] font-semibold text-ink">{W.preparing}</p>;
+  if (submitted || v.current?.sendToQuote) return <section className={card} aria-label="Next step"><p role="status" className="text-[15px] font-semibold text-ink">{W.preparing}</p></section>;
   const included = [PRICE_INCLUDED_OPTIONS[0], ...(v.removalRequired === true ? [PRICE_INCLUDED_OPTIONS[1]] : [])];
   const valid = validateInstallerPrice({ priceIncGst: price, included });
-  return <section aria-label="Ready Check details" className="min-w-0 space-y-4">
-    {!portalOpen && auditId && <MittiFormLink auditId={auditId}>Do it in Mitti</MittiFormLink>}
+  return <section aria-label="Next step" className={`${card} min-w-0 space-y-4`}>
+    <h2 className="font-display text-[22px] font-semibold">{W.choiceTitle}</h2>
+    <p className="text-[15px] text-ink">{W.choiceIntro}</p>
+    {!portalOpen && <div className="space-y-3">
+      <Button type="button" variant="outline" className="h-auto min-h-12 w-full flex-col items-start gap-2 whitespace-normal py-4 text-left" aria-expanded={mittiOpen} onClick={() => setMittiOpen(!mittiOpen)}><span className="font-semibold">{W.onsiteOption}</span><span className="text-sm font-normal text-sub">{W.onsiteIntro(address, jobNumber)}</span></Button>
+      {mittiOpen && <div className="space-y-3">{auditId && <MittiFormLink auditId={auditId}>{W.onsiteOption}</MittiFormLink>}<p className="text-sm text-sub">{W.onsiteComplete}</p></div>}
+    </div>}
     <OwnCustomerReadyCheck jobId={jobId} onOpenChange={setPortalOpen} />
     {!portalOpen && v.quoteCore.ready && <form className="space-y-3" onSubmit={async e => {
       e.preventDefault(); if (!valid.ok || busy) return;
@@ -39,7 +46,6 @@ export function OwnCustomerReadyCheckChoice({ jobId, auditId }: { jobId: string;
       } catch (e) { setError(e instanceof Error ? e.message : 'The price could not be saved. Try again.'); }
       finally { setBusy(false); }
     }}>
-      <p className="text-[15px]">{W.mitti}</p>
       <Label htmlFor={`mitti-price-${jobId}`}>Your price inc GST</Label>
       <Input id={`mitti-price-${jobId}`} inputMode="decimal" value={price} onChange={e => setPrice(e.target.value)} />
       {error && <p role="alert" className="text-sm text-rose">{error}</p>}

@@ -46,7 +46,7 @@ export function OwnCustomerReadyCheck({jobId,onOpenChange}:{jobId:string;onOpenC
  }
  if(saved)return <p role="status" className="mt-4 text-sm font-semibold text-ink">{W.preparing}</p>;
  return <div className="mt-4 min-w-0">
-  <Button type="button" variant="outline" className="min-h-12 w-full whitespace-normal" onClick={()=>{setOpen(!open);onOpenChange?.(!open);}} aria-expanded={open}>Put the details in the portal</Button>
+  <Button type="button" variant="outline" className="h-auto min-h-12 w-full flex-col items-start gap-2 whitespace-normal py-4 text-left" onClick={()=>{setOpen(!open);onOpenChange?.(!open);}} aria-expanded={open}><span className="font-semibold">{W.portalOption}</span><span className="text-sm font-normal text-sub">{W.portalIntro}</span></Button>
   {open&&<form onSubmit={submit} className="mt-4 min-w-0 space-y-4" aria-label="Ready Check details">
    <h2 className="font-display text-[22px] font-semibold">{W.title}</h2><p className="text-sm text-sub">{W.intro}</p><div className="grid min-w-0 grid-cols-1 gap-4">
     <div className="min-w-0"><Label htmlFor={`${prefix}-install`}>Install m²</Label><p className="my-2 text-sm text-sub">{W.install}</p><Input id={`${prefix}-install`} className={inputCls} required type="number" min="0.01" step="0.01" inputMode="decimal" value={install} onChange={e=>setInstall(e.target.value)}/></div>
