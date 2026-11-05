@@ -21,7 +21,7 @@ mock.module("../src/lib/workflow.server", () => ({
 mock.module("../src/lib/background.server", () => ({ runAfterResponse: (t: () => Promise<unknown>) => { background.push(t); return "queue_only"; } }));
 mock.module("../src/lib/mitti.server", () => ({ syncMittiAssessment: async () => { calls.push({ fn: "syncMittiAssessment", args: null }); }, realMittiCall: async () => ({}) }));
 const mittiCore = await import("../src/lib/mitti.core");
-mock.module("../src/lib/mitti.core", () => ({ ...mittiCore, mittiApi: () => ({ getAudit: async () => ({ audit_id: "audit-1", template_id: 'a1-template', modified_at: "2026-11-04T01:00:00Z", items: partialAudit ? [
+mock.module("../src/lib/mitti.core", () => ({ ...mittiCore, mittiApi: () => ({ getAudit: async () => ({ audit_id: "audit-1", template_id: 'template_11111111111111111111111111111111', modified_at: "2026-11-04T01:00:00Z", items: partialAudit ? [
   { item_id: 'm', label: 'Measurement method', responses: { text: 'Laser' } },
   { item_id: 'r', label: 'Removal m²', responses: { text: '0' } },
   { item_id: 'a', label: 'Total area to insulate', responses: { text: '120' } },
@@ -101,7 +101,7 @@ describe('partial A1 Send to quote', () => {
     partialAudit = true;
     const job = T['jobs']?.[0];
     if (job) job['job_number'] = 'HV-TEST';
-    T['workflow_settings'] = [{ id: 1, mitti_ready_check_priced_template_id: 'a1-template' }];
+    T['workflow_settings'] = [{ id: 1, mitti_ready_check_priced_template_id: 'template_11111111111111111111111111111111' }];
     const m = T['ceiling_measurements']?.[0];
     if (m) m['raw_snapshot'] = [{ label: 'Measurement method', value: 'Laser' }, { label: 'Removal m²', value: '0' }];
   });
