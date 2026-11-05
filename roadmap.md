@@ -978,3 +978,6 @@ Blocked on Jo: Xero Demo Company reconnect, Mitti template IDs, wording approval
 - [ ] Reader/completion checks follow Jo's 01:16 required/optional rule
 - [x] Aerial image measurement option (Jo 01:17)
 - [x] 01:20 Ready Check label tidy-up
+
+## Jo 5 Nov — isolated Ready Check contradiction experiment
+- [x] Inspect existing parser/checks, add pure sample-only validator, run sample/related tests and report data/freshness limitations; no live calls or production screens/gates.
