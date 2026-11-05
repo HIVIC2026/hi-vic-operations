@@ -142,9 +142,20 @@ export async function sendInHouseBatch(input: { businessId: string; jobIds: stri
   // never passed, so the sender's own switch decides.
   let installerEmail: GiveEmailOutcome;
   try {
+    // Jo 5 Nov 2026: each job card carries what the owner told us on the website (best-effort read; a gap shows nothing).
+    const { ownerSaidLine } = await import("./owner-said.core");
+    const said = new Map<string, string | null>();
+    try {
+      const { data: rows } = await db.from("jobs").select("id, estimated_area_m2, properties(enrichment, occupancy)").in("id", sent);
+      for (const r of (rows ?? []) as { id: string; estimated_area_m2: number | string | null; properties: { enrichment: Record<string, unknown> | null; occupancy: string | null } | { enrichment: Record<string, unknown> | null; occupancy: string | null }[] | null }[]) {
+        const prop = Array.isArray(r.properties) ? r.properties[0] : r.properties;
+        const answers = ((prop?.enrichment?.["base44"] ?? {}) as { raw?: { answers?: Record<string, unknown> } }).raw?.answers ?? null;
+        said.set(r.id, ownerSaidLine({ answers, estimatedAreaM2: r.estimated_area_m2, occupancy: prop?.occupancy ?? null }));
+      }
+    } catch (e) { console.error("Give email: owner-said line skipped", (e as Error).message); }
     const jobs = sent.map(id => {
       const j = screen.jobs.find(x => x.id === id);
-      return { jobId: id, jobNumber: j?.job_number ?? "", ownerName: j?.ownerName ?? null, ownerMobile: j?.ownerPhone ?? null, address: j?.address ?? null };
+      return { jobId: id, jobNumber: j?.job_number ?? "", ownerName: j?.ownerName ?? null, ownerMobile: j?.ownerPhone ?? null, address: j?.address ?? null, ownerSaid: said.get(id) ?? null };
     });
     installerEmail = await sendInHouseGiveEmail({ batchId, businessId: input.businessId, jobs, actorId: input.actorId });
   } catch (error) {

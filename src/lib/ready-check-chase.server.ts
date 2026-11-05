@@ -67,7 +67,7 @@ async function emailInstallerOffice(jobId: string, actorId: string | null, audit
   if (!j) return { status: "missing" };
   const { data: asg } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).limit(1).maybeSingle();
   if (!asg?.business_id) return { status: "no_installer" };
-  const { data: b } = await admin.from("businesses").select("email, name, signer_name").eq("id", asg.business_id).maybeSingle();
+  const { data: b } = await admin.from("businesses").select("email, name, trading_name").eq("id", asg.business_id).maybeSingle();
   const textKey = `ready-check-incomplete:v1:${jobId}:${auditId}:${sig}`;
   const { data: texted } = await admin.from("sms_messages").select("id").eq("idempotency_key", textKey).maybeSingle();
   const plan = chaseEmailPlan({ approved: READY_CHECK_CHASE_EMAIL_APPROVED, test: j.source === "qa_test", officeEmail: b?.email, textAlreadySent: !!texted });
@@ -82,7 +82,7 @@ async function emailInstallerOffice(jobId: string, actorId: string | null, audit
   if (claim.error || !claim.data) return { status: "already_attempted" };
   const prop = j.properties as { address_line: string | null; suburb: string | null } | null;
   const owner = (Array.isArray(j.owners) ? j.owners[0] : j.owners) as { full_name: string | null; phone: string | null } | null;
-  const m = readyCheckNearlyThereEmail({ jobNumber: j.job_number, address: [prop?.address_line, prop?.suburb].filter(Boolean).join(", "), missing, mittiFormUrl: mittiFormUrl(auditId), contactName: (b as { signer_name?: string | null } | null)?.signer_name ?? null, owner: owner?.full_name ?? null, mobile: owner?.phone ?? null, test: plan.action === "test_send" });
+  const m = readyCheckNearlyThereEmail({ jobNumber: j.job_number, address: [prop?.address_line, prop?.suburb].filter(Boolean).join(", "), missing, mittiFormUrl: mittiFormUrl(auditId), contactName: ((b as { trading_name?: string | null } | null)?.trading_name ?? "").trim() || b?.name || null, owner: owner?.full_name ?? null, mobile: owner?.phone ?? null, test: plan.action === "test_send" });
   const r = plan.action === "test_send"
     ? await (await import("./test-send.server")).sendTestEmail({ jobId, jobSource: j.source, partnerIsTest: true, label: key, actorId: null }, plan.to, m.subject, m.html, m.text)
     : await (await import("./office-email.server")).sendOfficeEmail({ actorId: null, recipient: "partner", to: plan.to, contactName: b?.name ?? null, subject: m.subject, message: m.text, label: "ready_check_nearly_there", record: { businessId: asg.business_id }, html: m.html, text: m.text, idempotencyKey: key });

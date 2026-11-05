@@ -48,12 +48,12 @@ export async function emailInstallerOffice(p: { jobId: string; businessId: strin
       return jf ? { jobNumber: (jf as { job_number?: string | null }).job_number ?? null, address: [jp?.address_line, jp?.suburb].filter(Boolean).join(", ") || null, owner: jo?.full_name ?? null, mobile: jo?.phone ?? null } : null;
     } catch { return null; }
   })();
-  const signer = await (async () => { try { const { data } = await admin.from("businesses").select("signer_name").eq("id", p.businessId).maybeSingle(); return (data as { signer_name?: string | null } | null)?.signer_name ?? null; } catch { return null; } })();
+  const greetName = contactName; // "Hi Rapid," — the trading name (Jo 5 Nov 2026)
   if (jobErr) throw new Error(`Job could not be read: ${jobErr.message}`);
   if ((jobRow?.source as string | null | undefined) === "qa_test" && !partnerIsTest) return { status: "not_sent", detail: "TEST job: not sent to a real installer." };
   const { officeEmailBlocks } = await import("./own-job-office-emails.core");
   const render = (test: boolean) => ({ to, subject: p.subject, ...(p.mail
-    ? partnerEmailLayout({ subject: p.subject, heading: p.mail.heading, preview: p.mail.lines[0], test, blocks: officeEmailBlocks(p.mail, signer, jobFacts, p.jobUrl ?? null) })
+    ? partnerEmailLayout({ subject: p.subject, heading: p.mail.heading, preview: p.mail.lines[0], test, blocks: officeEmailBlocks(p.mail, greetName, jobFacts, p.jobUrl ?? null) })
     : partnerEmailLayout({ subject: p.subject, test, blocks: [...p.text.split("\n").filter(Boolean).map((t) => ({ kind: "p" as const, text: t })), ...(p.jobUrl ? [{ kind: "button" as const, label: "Open the job", url: p.jobUrl }] : [])] })) });
   if (partnerIsTest) {
     if (!to) return { status: "no_email" };

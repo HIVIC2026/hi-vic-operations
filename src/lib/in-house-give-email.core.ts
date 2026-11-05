@@ -11,7 +11,7 @@ export const IN_HOUSE_GIVE_EMAIL_APPROVED: boolean = false;
 export const IN_HOUSE_GIVE_EMAIL_SUBJECT = "New free Ready Check jobs from Home Insulation Victoria";
 export const IN_HOUSE_GIVE_CALL_LINE = "Call each owner to book their free Ready Check.";
 
-export type GiveEmailJob = { jobId: string; jobNumber: string; ownerName: string | null; ownerMobile: string | null; address: string | null };
+export type GiveEmailJob = { jobId: string; jobNumber: string; ownerName: string | null; ownerMobile: string | null; address: string | null; /** Jo 5 Nov 2026: what the owner told us on the website (ownerSaidLine), shown on each job card. */ ownerSaid?: string | null };
 
 /** "HV-2730 · Wayne Wilson · 0412 000 000 · 1 Example St, Clayton 3168"; gaps say so in words, never null/undefined. */
 export function giveEmailLine(j: GiveEmailJob): string {
@@ -27,7 +27,7 @@ export const IN_HOUSE_GIVE_EMAIL_HEADING = "New free Ready Check jobs";
  *  then the approved call line in a box. No other words. `test` adds the TEST label (test-send only). */
 export function renderInHouseGiveEmail(i: { jobs: GiveEmailJob[]; contactName?: string | null; test?: boolean }): { subject: string; html: string; text: string } {
   const card = (j: GiveEmailJob): PartnerBlock =>
-    jobDetails({ jobNumber: (j.jobNumber ?? "").trim() || "Job", owner: displayName(j.ownerName) || "Owner", mobile: (j.ownerMobile ?? "").trim() || "no mobile on file", address: (j.address ?? "").replace(/\s+/g, " ").trim() || "address not recorded" });
+    jobDetails({ jobNumber: (j.jobNumber ?? "").trim() || "Job", owner: displayName(j.ownerName) || "Owner", mobile: (j.ownerMobile ?? "").trim() || "no mobile on file", address: (j.address ?? "").replace(/\s+/g, " ").trim() || "address not recorded" }, [["Owner told us", j.ownerSaid ?? null]]);
   const blocks: PartnerBlock[] = [partnerHi(i.contactName), ...i.jobs.map(card), { kind: "box", text: IN_HOUSE_GIVE_CALL_LINE }];
   const { html, text } = partnerEmailLayout({ subject: IN_HOUSE_GIVE_EMAIL_SUBJECT, heading: IN_HOUSE_GIVE_EMAIL_HEADING, preview: IN_HOUSE_GIVE_CALL_LINE, blocks, test: i.test === true });
   return { subject: IN_HOUSE_GIVE_EMAIL_SUBJECT, html, text };

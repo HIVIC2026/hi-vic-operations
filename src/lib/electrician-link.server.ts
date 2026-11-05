@@ -586,7 +586,7 @@ async function tellInstallerOfficeCantDo(d: ElectricianCantDoDeps, i: CantDoEmai
   };
   if (!i.installerBusinessId) return held("no installer on the job");
   const [{ data: ib, error: ie }, { data: eb, error: ee }] = await Promise.all([
-    admin.from("businesses").select("name, trading_name, email, onboarding_notes, signer_name").eq("id", i.installerBusinessId).maybeSingle(),
+    admin.from("businesses").select("name, trading_name, email, onboarding_notes").eq("id", i.installerBusinessId).maybeSingle(),
     admin.from("businesses").select("name, trading_name, onboarding_notes").eq("id", i.electricianBusinessId).maybeSingle(),
   ]);
   if (ie) throw dbErr("the installer", ie);
@@ -602,7 +602,7 @@ async function tellInstallerOfficeCantDo(d: ElectricianCantDoDeps, i: CantDoEmai
   const { data: jf } = await admin.from("jobs").select("owners(full_name, phone), properties(address_line, suburb)").eq("id", i.jobId).maybeSingle();
   const jo = (Array.isArray(jf?.owners) ? jf?.owners[0] : jf?.owners) as { full_name: string | null; phone: string | null } | null | undefined;
   const jp = jf?.properties as { address_line: string | null; suburb: string | null } | null | undefined;
-  const mail = electricianCantDoEmail({ jobNumber: i.jobNumber, electrician: i.electrician.trim() || bizName(eb) || "The electrician", reason: i.reason, contactName: (ib as { signer_name?: string | null } | null)?.signer_name ?? null, address: [jp?.address_line, jp?.suburb].filter(Boolean).join(", ") || null, owner: jo?.full_name ?? null, mobile: jo?.phone ?? null, jobUrl: `${test ? TEST_APP_BASE : SET_PASSWORD_BASE}/field/${i.jobId}`, test });
+  const mail = electricianCantDoEmail({ jobNumber: i.jobNumber, electrician: i.electrician.trim() || bizName(eb) || "The electrician", reason: i.reason, contactName: bizName(ib), address: [jp?.address_line, jp?.suburb].filter(Boolean).join(", ") || null, owner: jo?.full_name ?? null, mobile: jo?.phone ?? null, jobUrl: `${test ? TEST_APP_BASE : SET_PASSWORD_BASE}/field/${i.jobId}?go=electrician`, test });
   // Recorded BEFORE the send, once per key.
   await d.record(i.jobId, ELECTRICIAN_CANT_DO_EMAIL_EVENT, "Installer office told the electrician can't do this one", { key, assignment_id: i.assignmentId, test });
   if (test) {

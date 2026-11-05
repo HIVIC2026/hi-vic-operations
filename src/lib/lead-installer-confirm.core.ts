@@ -49,7 +49,7 @@ export const LEAD_CONFIRM_TEXT = {
   intro: "Your install is in two days. Check the Lead Installer and crew below on the job, and change them if you need to.", // DRAFT
   noLead: "Not picked yet", // DRAFT
   noCrew: "None picked yet", // DRAFT
-  button: "Confirm on the job", // DRAFT
+  button: "Confirm the Lead Installer", // Jo 5 Nov 2026: names the action; the link opens the install day page (crew picker)
   lockLine: "After 5pm the Lead Installer is locked because the ESC is told. To change it after that, the install day has to move.", // DRAFT
   rows: { install: "Install", address: "Address", lead: "Lead Installer", crew: "Crew" },
 } as const;

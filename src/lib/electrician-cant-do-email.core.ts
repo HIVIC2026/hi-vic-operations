@@ -14,7 +14,7 @@ export function electricianCantDoEmail(i: { jobNumber: string; electrician: stri
     partnerHi(i.contactName),
     jobDetails({ jobNumber: i.jobNumber, address: i.address, owner: i.owner, mobile: i.mobile }, [["Electrician", i.electrician], ["They said", i.reason.trim()]]),
     { kind: "box", text: ELECTRICIAN_CANT_DO_CHOOSE_LINE },
-    ...(i.jobUrl ? [{ kind: "button", label: "Open the job", url: i.jobUrl } as PartnerBlock] : []),
+    ...(i.jobUrl ? [{ kind: "button", label: "Choose a different electrician", url: i.jobUrl } as PartnerBlock] : []), // Jo 5 Nov 2026: the button names the action and lands on it
   ];
   const subject = `${i.jobNumber.trim()}: ${ELECTRICIAN_CANT_DO_HEADING(i.electrician)}`;
   const { html, text } = partnerEmailLayout({ subject, heading: ELECTRICIAN_CANT_DO_HEADING(i.electrician), preview: line, blocks, test: i.test });

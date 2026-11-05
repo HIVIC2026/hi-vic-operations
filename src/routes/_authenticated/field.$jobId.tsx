@@ -59,7 +59,11 @@ export const Route = createFileRoute("/_authenticated/field/$jobId")({
     ],
   }),
   // Fix wave minor 15: Add a job lands here with ?added=1 so the approved "Next: call {first}…" line sits on the page, not only in a toast.
-  validateSearch: (s: Record<string, unknown>): { added?: true } => (s["added"] === true || s["added"] === "1" || s["added"] === 1 ? { added: true } : {}),
+  // Jo 5 Nov 2026: installer emails land on the action — ?go=electrician scrolls to the "Choose a different electrician" card.
+  validateSearch: (s: Record<string, unknown>): { added?: true; go?: "electrician" } => ({
+    ...(s["added"] === true || s["added"] === "1" || s["added"] === 1 ? { added: true } : {}),
+    ...(s["go"] === "electrician" ? { go: "electrician" as const } : {}),
+  }),
   // Speed: the screen's server call starts as soon as the route matches, while this page's code downloads (trade-route-prefetch).
   loader: ({ context, params, preload }) => startTradeScreen(context, "job", params, preload),
   component: FieldJob,
@@ -318,7 +322,13 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
   const { data: page } = useInstallerPage(jobId);
   const done = useAction(completeInstallation);
   const inHouseAccess = useInHouseBookingAccess(jobId);
-  const { added } = Route.useSearch();
+  const { added, go } = Route.useSearch();
+  // ?go=electrician (the "can't do this one" email button): scroll to the electrician card once the page has painted.
+  useEffect(() => {
+    if (!go || !page) return;
+    const t = window.setTimeout(() => document.querySelector<HTMLElement>("[data-mitti-electrician-question]")?.scrollIntoView({ behavior: "smooth", block: "start" }), 150);
+    return () => window.clearTimeout(t);
+  }, [go, page]);
 
   if (page && job.stage === "complete") return <CompleteSummary jobId={jobId} job={job} page={page} />;
   if (!page) return <p className="text-sub">Loading…</p>;

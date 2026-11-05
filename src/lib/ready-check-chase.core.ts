@@ -59,7 +59,7 @@ export function readyCheckNearlyThereEmail(i: { jobNumber: string; address: stri
     { kind: "p", text: `${i.address.trim() || i.jobNumber} still needs:` },
     { kind: "list", items: i.missing.map((m) => `– ${m}`) },
     { kind: "p", text: close },
-    { kind: "button", label: "Open the Mitti form", url: i.mittiFormUrl },
+    { kind: "button", label: "Finish the Ready Check form", url: i.mittiFormUrl }, // Jo 5 Nov 2026: the button names the action
   ];
   const { html, text } = partnerEmailLayout({ subject, heading: "Nearly there", preview: close, blocks, test: i.test === true });
   return { subject, text, html };

@@ -38,10 +38,10 @@ export type PartnerBlock =
 export type PartnerJobFacts = { jobNumber?: string | null | undefined; address?: string | null | undefined; owner?: string | null | undefined; mobile?: string | null | undefined };
 export const jobDetails = (f: PartnerJobFacts, extra: [string, string | null | undefined][] = []): PartnerBlock =>
   ({ kind: "details", rows: [["Job", f.jobNumber], ["Address", f.address], ["Owner", f.owner], ["Mobile", f.mobile], ...extra] });
-/** "Hi Tom," from the business signer (businesses.signer_name), else "Hi," */
-export const partnerHi = (contactName: string | null | undefined): PartnerBlock => {
-  const first = (contactName ?? "").trim().split(/\s+/)[0] ?? "";
-  return { kind: "hi", text: first ? `Hi ${first},` : "Hi," };
+/** "Hi Rapid," — the business's trading name (Jo 5 Nov 2026: "it should be hi Rapid or hi ReInsulate"), else "Hi," */
+export const partnerHi = (businessName: string | null | undefined): PartnerBlock => {
+  const name = (businessName ?? "").trim();
+  return { kind: "hi", text: name ? `Hi ${name},` : "Hi," };
 };
 
 /** Label / value rows, the same shape as the owner "booked" emails. */
