@@ -1,4 +1,5 @@
 ## Jo 5 Nov own-customer portal Ready Check
+- [ ] Quote-sent office email, owner-identical read-only quote view and sent/expiry/accepted dates: recorded in the spec; email wording awaits Jo's approval. Not wired or sent; scoped read-only access and no duplicate notification must be proven before activation.
 - [x] Jo 7:11pm: recorded exact preparing status for both paths; existing own-customer price card shows it after Save, and shared automatic sender refuses A1 draft release even with an enabled caller. Office Check & send unchanged. Short portal form remains blocked below.
 - [x] Saved the requested choice and short form in the Deep first-job spec; identified existing completion/quote paths and missing facts without changing their guards.
 - [ ] BLOCKED: Jo must choose whether missing old-insulation/R-value, access and product facts are collected in the short form or left for office review. The requested short form alone cannot prove completed-A1 equivalence without changing existing safeguards. Actual Mitti audit closure also needs a scoped lifecycle decision; existing closure is portal-only. No UI or production writers changed; no sends or publication.
