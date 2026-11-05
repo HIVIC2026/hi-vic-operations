@@ -19,11 +19,4 @@ export const OWN_READY_CHECK_COPY = {
   mitti: 'Mitti form done. Enter your price inc GST, then Send for quote.',
 } as const;
 
-// Draft only: intentionally not imported by any sender or release handler.
-export const INSTALLER_QUOTE_SENT_EMAIL_APPROVED = false;
-export function installerQuoteSentDraft(v: { jobNumber: string; firstName: string; address: string; validUntil: string }) {
-  return {
-    subject: `${v.jobNumber} – quote sent to the owner`,
-    text: `Hi ${v.firstName}, the quote for ${v.address} went to the owner today. It's valid until ${v.validUntil}. You can see it on the job page in the portal. If the owner asks you anything about it, call me on 0477 511 901. Jo`,
-  };
-}
+// The "Quote sent" email to the installer's office lives in installer-quote-sent-email.core.ts (approved by Jo 5 Nov 2026 22:45).
