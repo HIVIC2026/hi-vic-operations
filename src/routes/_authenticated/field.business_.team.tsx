@@ -7,10 +7,10 @@ import { TradeShell, card, ghostBtn, greenBtn, inputCls } from "@/components/tra
 import { BackToBusiness, Chevron, Switch } from "@/components/trade/business-kit";
 import { addTeamPerson, getTradeBusiness, requestTeamLoginInvite, setTeamMemberDob, setTeamMemberMobile, setTeamMoneyAccess } from "@/lib/trade-view.functions";
 import { removeWorker } from "@/lib/worker-links.functions";
-import { TEAM_ADD_SHEET, TEAM_LOGIN, TEAM_MOBILE_NOTE, teamMobileButton, teamCiiLine, teamCountLine, teamFactsLine, teamWhiteCardLine, type TeamMemberView } from "@/lib/trade-view.core";
+import { TEAM_ADD_SHEET, TEAM_LOGIN, TEAM_MOBILE_NOTE, teamMobileButton, teamCiiLine, teamCountLine, teamFactsLine, type TeamMemberView } from "@/lib/trade-view.core";
 import { ADD_PERSON_ROLES, ADD_PERSON_ROLE_LABEL, TEAM_INTRO, TEAM_WORDS, addPersonProblems, teamRow, type AddPersonRole } from "@/lib/team-screen.core";
 import { melbourneToday } from "@/lib/melbourne-time.core";
-import { CertLinkInline, SendNoticeLinkInline, WhiteCardUploadInline } from "@/components/portal/worker-compliance";
+import { CertLinkInline, SendNoticeLinkInline } from "@/components/portal/worker-compliance";
 import { WorkerRoleSwitch } from "@/components/portal/worker-role-switch";
 
 export const Route = createFileRoute("/_authenticated/field/business_/team")({
@@ -23,7 +23,7 @@ const smallBtn = "min-h-11 rounded-[10px] border border-line bg-paper px-3 text-
 
 /** Team (installer screens Task 10; approved mock-up team-phone.png): one card per person with the role and its checks
  *  from `teamRow`, missing items in orange. Tapping a card opens that person's sheet: the existing actions (mobile, CII
- *  certificate link (only when a certificate is needed), White Card, ESC notice link, Remove) and, for Office people, the boss's "Can see Money" switch.
+ *  certificate link (only when a certificate is needed), ESC notice link, Remove) and, for Office people, the boss's "Can see Money" switch.
  *  A date of birth is never shown — only whether one is on file. Electrician businesses get the same list. */
 function Team() {
   const load = useServerFn(getTradeBusiness);
@@ -76,17 +76,14 @@ function PersonSheet({ m, today, onChange, onClose }: { m: TeamMemberView; today
   const remove = useServerFn(removeWorker);
   const [asked, setAsked] = useState<string | null>(null);
   const [removeErr, setRemoveErr] = useState<string | null>(null);
-  const [wcOpen, setWcOpen] = useState(false);
   const cii = teamCiiLine(m.cii, today);
-  const wc = teamWhiteCardLine(m.whiteCard);
   const id = m.id;
   return (
     <div className="mt-3 border-t border-line pt-3" data-person-sheet>
       <p className="text-[13px] text-sub">{teamFactsLine(m)}{m.email ? ` · ${m.email}` : ""}</p>
-      {m.hasDob != null && <p className={`mt-0.5 text-[13px] ${m.hasDob ? "text-sub" : `font-semibold ${WARN}`}`} data-dob-state>{m.hasDob ? TEAM_WORDS.dobOnFile : TEAM_WORDS.dobMissing}</p>}
-      {id && m.hasDob === false && <DobInline workerId={id} onSaved={onChange} />}
+      {m.role === "installer" && m.workerRole !== "crew" && m.hasDob != null && <p className={`mt-0.5 text-[13px] ${m.hasDob ? "text-sub" : `font-semibold ${WARN}`}`} data-dob-state>{m.hasDob ? TEAM_WORDS.dobOnFile : TEAM_WORDS.dobMissing}</p>}
+      {id && m.role === "installer" && m.workerRole !== "crew" && m.hasDob === false && <DobInline workerId={id} onSaved={onChange} />}
       {cii && <p className={`mt-0.5 text-[13px] font-semibold ${cii.tone === "green" ? "text-estimate-green" : WARN}`}>{cii.text}</p>}
-      {wc && <p data-white-card className={`mt-0.5 text-[13px] font-semibold ${wc.tone === "green" ? "text-estimate-green" : WARN}`}>{wc.text}</p>}
       {id && m.role === "office" && <MoneySwitch workerId={id} on={m.canSeeMoney === true} hasLogin={m.hasLogin} onSaved={onChange} />}
       {id && <div className="mt-2 flex flex-wrap items-center gap-2">
         {m.workerRole && <WorkerRoleSwitch workerId={id} role={m.workerRole} onDone={onChange} />}
@@ -95,8 +92,6 @@ function PersonSheet({ m, today, onChange, onClose }: { m: TeamMemberView; today
         {m.role === "office" && !m.hasLogin && (asked ? <span className="text-[13px] font-semibold text-estimate-green">{asked}</span> : <button type="button" className={smallBtn} onClick={async () => { try { await invite({ data: { workerId: id } }); setAsked(TEAM_LOGIN.asked); } catch (e) { setAsked((e as Error).message); } }}>{TEAM_LOGIN.button}</button>)}
         {m.noticeAcknowledged === false && <SendNoticeLinkInline workerId={id} />}
         {m.certNeeded && <CertLinkInline workerId={id} name={m.name} />}
-        {wc?.canUpload && !wcOpen && <button type="button" className={smallBtn} onClick={() => setWcOpen(true)}>Upload White Card</button>}
-        {wc?.canUpload && wcOpen && <WhiteCardUploadInline workerId={id} onDone={onChange} />}
         {m.role !== "owner" && <button type="button" data-team-remove className="min-h-11 px-3 text-[13px] font-semibold text-rose" onClick={async () => { if (!confirm("Remove this team member? Their job links stop working straight away.")) return; try { setRemoveErr(null); await remove({ data: { id } }); onChange(); onClose(); } catch (e) { setRemoveErr((e as Error).message); } }}>Remove</button>}
       </div>}
       {removeErr && <p role="alert" className="mt-1 text-[13px] font-semibold text-rose">{removeErr}</p>}
@@ -197,7 +192,7 @@ function AddPerson({ count, kind, onAdded }: { count: number; kind: "installer" 
   const today = melbourneToday();
   const problems = kind === "installer"
     ? addPersonProblems({ name: f.name, role: f.role, mobile: f.mobile, dateOfBirth: f.dateOfBirth || null, licenceNumber: f.licence, recNumber: f.rec, email: f.email }, today)
-    : [...(f.name.trim().length < 2 ? ["name"] : []), ...(!f.licence.trim() ? ["licence"] : [])];
+    : addPersonProblems({name:f.name,role:"electrician",mobile:f.mobile,dateOfBirth:null,licenceNumber:f.licence,recNumber:f.rec,email:f.email},today);
   const electricianFields = kind === "electrician" || f.role === "electrician";
   return (
     <div data-add-team>
@@ -226,7 +221,7 @@ function AddPerson({ count, kind, onAdded }: { count: number; kind: "installer" 
               <input className={`${inputCls} mt-1.5`} value={f.licence} onChange={(e) => setF({ ...f, licence: e.target.value })} />
             </label>
           )}
-          {kind === "installer" && f.role === "electrician" && (
+          {electricianFields && (
             <label className={label}>{TEAM_WORDS.rec}
               <input className={`${inputCls} mt-1.5`} value={f.rec} onChange={(e) => setF({ ...f, rec: e.target.value })} />
             </label>
@@ -234,7 +229,7 @@ function AddPerson({ count, kind, onAdded }: { count: number; kind: "installer" 
           <label className={label}>{kind === "installer" ? TEAM_WORDS.mobile : TEAM_ADD_SHEET.mobile}
             <input className={`${inputCls} mt-1.5`} value={f.mobile} inputMode="tel" autoComplete="tel" placeholder="0412 345 678" onChange={(e) => setF({ ...f, mobile: e.target.value })} />
           </label>
-          {kind === "installer" && (
+          {kind === "installer" && (f.role === "lead" || f.role === "office") && (
             <label className={label}>{TEAM_WORDS.dob}
               <input type="date" required max={today} className={`${inputCls} mt-1.5`} value={f.dateOfBirth} onChange={(e) => setF({ ...f, dateOfBirth: e.target.value })} />
               {f.role === "lead" && <span className="mt-1 block text-sm font-normal text-sub">Needed to approve a Lead Installer for ESC registration, not to book a Ready Check.</span>}
@@ -249,7 +244,7 @@ function AddPerson({ count, kind, onAdded }: { count: number; kind: "installer" 
             try {
               await add({ data: kind === "installer"
                 ? { name: f.name.trim(), role: f.role, mobile: f.mobile.trim() || null, email: f.email.trim() || null, licenceNumber: f.role === "electrician" ? f.licence.trim() : null, recNumber: f.role === "electrician" ? f.rec.trim() : null, dateOfBirth: f.dateOfBirth || null }
-                : { name: f.name.trim(), workerRole: "lead", mobile: f.mobile.trim() || null, email: f.email.trim() || null, licenceNumber: f.licence.trim(), dateOfBirth: null } });
+                : { name: f.name.trim(), workerRole: "lead", mobile: f.mobile.trim() || null, email: f.email.trim() || null, licenceNumber: f.licence.trim(), recNumber:f.rec.trim(), dateOfBirth: null } });
               setOpen(false); setF(EMPTY); onAdded();
             } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
           }}>{busy ? "Adding…" : TEAM_ADD_SHEET.button}</button>

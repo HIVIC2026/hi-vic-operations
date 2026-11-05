@@ -52,7 +52,7 @@ async function byIds(what: string, ids: string[], q: (chunk: string[], from: num
 export async function inHouseNeedsFacts(jobIds: string[]): Promise<Map<string, NonNullable<NeedsFacts["inHouse"]>>> {
   const out = new Map<string, NonNullable<NeedsFacts["inHouse"]>>();
   if (!jobIds.length) return out;
-  const live = await byIds("in-house live jobs", jobIds, (c, a, b) => admin.from("jobs").select("id").in("id", c).is("deleted_at", null).neq("source", "qa_test").not("stage", "in", "(cancelled,complete)").order("id").range(a, b));
+  const live = await byIds("in-house live jobs", jobIds, (c, a, b) => admin.from("jobs").select("id,channel").in("id", c).is("deleted_at", null).neq("source", "qa_test").not("stage", "in", "(cancelled,complete)").order("id").range(a, b));
   const ids = live.map(j => String(j["id"]));
   if (!ids.length) return out;
   const { readInHouseDispatchState } = await import("./in-house-suppression.server");
@@ -79,6 +79,7 @@ export async function inHouseNeedsFacts(jobIds: string[]): Promise<Map<string, N
     const batch = batches.filter(e => e["job_id"] === id && (e["details"] as Row | null)?.["business_id"] === assignment["business_id"]).at(-1);
     const deadline = deadlines.find(d => d["job_id"] === id);
     out.set(id, { partnerName: business.trading_name || business.name, batchSentAt: s(batch?.["created_at"]),
+      ownCustomer: live.find(j => String(j["id"]) === id)?.["channel"] === "installer_sourced",
       readyCheckBooked: bookings.some(b => b["job_id"] === id && b["kind"] === "ready_check"),
       installationBooked: bookings.some(b => b["job_id"] === id && b["kind"] === "installation"),
       piesaBooked: bookings.some(b => b["job_id"] === id && b["kind"] === "assessment"),
@@ -345,6 +346,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   // Portal speed step 2: the job-keyed reads below need only the open jobs' ids, so they all start now (they ran one after
   // another); each is still awaited, and its failure raised or caught, exactly where it was. Reads only.
   const scopeChangesP = ids.length ? early(byIds('install scope changes',ids,(c,a,b)=>admin.from('workflow_events').select('job_id,event_type,details,created_at').in('job_id',c).in('event_type',['install_scope_change_detected','install_scope_change_reviewed']).order('created_at',{ascending:false}).range(a,b))) : null;
+  const beforeStopsP=ids.length?early(byIds('A5 before-condition checks',ids,(c,a,b)=>admin.from('workflow_events').select('job_id,details,created_at').in('job_id',c).eq('event_type','install_evidence_synced').order('created_at',{ascending:false}).range(a,b))):null;
   const dispatchP = early(import("./in-house-suppression.server").then((m) => m.readInHouseDispatchState(jobs.map(j => j.id))));
   const inHouseP = early(inHouseNeedsFacts(jobs.filter(j => j.source !== "qa_test").map(j => j.id)));
   const leadEvP = ids.length ? early(byIds('Lead Installer changes and handbacks',ids,(c,a,b)=>admin.from('workflow_events').select('job_id,id,event_type,summary,details,created_at').in('job_id',c).in('event_type',['in_house_lead_changed','in_house_esc_notice_updated','in_house_pulled_back','in_house_batch_sent','install_deposit_request_failed','install_deposit_request_recovered','in_house_form_sync_failed','in_house_form_sync_recovered','piesa_auto_complete_held','piesa_auto_complete_recovered']).order('created_at',{ascending:false}).range(a,b))) : null;
@@ -609,6 +611,11 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     for (const e of elig) { const x = f(String(e["job_id"])); if (x) x.eligibilityReview = { at: String(e["created_at"]), reason: s(e["note"]) ?? s(e["reason"]) }; }
   } catch { unavailable.push("eligibility reviews"); }
   // Hard stop: a refused Mitti form (wrong job number / wrong form) → one row until a good sync clears the error.
+  if(beforeStopsP){
+   const rows=await beforeStopsP;
+   const {installBeforeStopReasons}=await import('./install-evidence.core');
+   for(const id of ids){const latest=rows.find(r=>r['job_id']===id);const reasons=installBeforeStopReasons((latest?.['details'] as {summary?:unknown}|null)?.summary);const x=f(id);if(x&&latest&&reasons.length)x.mittiFormProblem={at:String(latest['created_at']),error:reasons.join(' · ')};}
+  }
   try {
     const mf = await mittiFormP;
     for (const r of mf) { const x = f(String(r["job_id"])); if (x && !x.mittiFormProblem) x.mittiFormProblem = { at: String(r["updated_at"]), error: String(r["mitti_last_error"]) }; }
@@ -646,7 +653,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
       const start = d?.booking_id ? open.get(d.booking_id) : undefined;
       if (!start || Date.parse(start) <= now) continue;
       const x = f(String(r["job_id"]));
-      if (x && !x.readyCheckPersonMissing && typeof d?.line === "string" && d.line) x.readyCheckPersonMissing = { at: String(r["created_at"]), text: d.line };
+      if (x && !jobById.get(String(r["job_id"]))?.facts.ownJob && !x.readyCheckPersonMissing && typeof d?.line === "string" && d.line) x.readyCheckPersonMissing = { at: String(r["created_at"]), text: d.line };
     }
   } catch { unavailable.push("Ready Check person missing"); }
   // Deep Part 5a (Jo 4–5 Nov 2026): no Lead Installer picked 2 days before the install (no_lead_installer, needs_office) → the

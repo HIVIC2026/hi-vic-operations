@@ -40,7 +40,8 @@ export async function peopleOnFile(workerIds: string[], installLeadId: string | 
   const missing = workerIds.filter((id) => !rows.some((r) => r.id === id));
   if (missing.length) throw new WorkflowError("Someone on this booking is no longer on file. Choose the people again.");
   const { privateBirthDates } = await import("./worker-identity.server");
-  const dobs = await privateBirthDates(workerIds);
+  const leadIds=rows.filter(r=>r.trade_role === "installer" && (r.id===installLeadId || r.worker_role!=="crew")).map(r=>r.id);
+  const dobs = leadIds.length ? await privateBirthDates(leadIds) : new Map<string,string>();
   const { crewClearance, electricianVerified, melbourneToday } = await import("./worker-compliance.core");
   const today = melbourneToday();
   const installers = rows.filter((r) => r.trade_role === "installer");

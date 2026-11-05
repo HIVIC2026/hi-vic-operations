@@ -9,7 +9,7 @@ import { isNotOnboardedReason } from "./rec-onboarded.core";
 const notOnboardedHold = (q: { sent_at: string | null; status: string; release_hold_reason: string | null }) =>
   !q.sent_at && q.status === "draft" && (q.release_hold_reason ?? "").split(" · ").some((r) => isNotOnboardedReason(r));
 
-const QUOTE_COLS = "id, job_id, status, sent_at, release_state, release_hold_reason, option_code, created_at, subtotal_inc_gst, veec_discount_inc_gst, customer_total_inc_gst, quote_items(code, description, explanation, quantity, unit, unit_price_inc_gst, line_total_inc_gst, sort)";
+const QUOTE_COLS = "id, job_id, status, sent_at, accepted_at, expired_at, release_state, release_hold_reason, option_code, created_at, subtotal_inc_gst, veec_discount_inc_gst, customer_total_inc_gst, quote_items(code, description, explanation, quantity, unit, unit_price_inc_gst, line_total_inc_gst, sort)";
 
 export type InstallerQuote = InstallerQuoteFacts & { applies: boolean; quote: any | null; channel: string | null };
 
@@ -19,7 +19,7 @@ const NONE = (channel: string | null): InstallerQuote => ({ applies: false, quot
 export async function loadInstallerQuote(jobId: string): Promise<InstallerQuote> {
   const [{ data: job }, { data: qs, error }, { data: m }, { data: basics, error: be }] = await Promise.all([
     admin.from("jobs").select("channel").eq("id", jobId).maybeSingle(),
-    admin.from("quotes").select(QUOTE_COLS).eq("job_id", jobId).eq("kind", "installation").in("status", ["draft", "issued", "accepted", "declined"]).order("created_at", { ascending: false }).limit(1),
+    admin.from("quotes").select(QUOTE_COLS).eq("job_id", jobId).eq("kind", "installation").in("status", ["draft", "issued", "accepted", "declined", "expired"]).order("created_at", { ascending: false }).limit(1),
     admin.from("ceiling_measurements").select("external_source,external_id").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
     admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "ready_check_basics").order("created_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
@@ -41,7 +41,7 @@ export async function loadInstallerQuote(jobId: string): Promise<InstallerQuote>
   };
 }
 
-const QUOTE_STATUSES = ["draft", "issued", "accepted", "declined"] as const;
+const QUOTE_STATUSES = ["draft", "issued", "accepted", "declined", "expired"] as const;
 
 /** Speed (decision 280): the same facts as `loadInstallerQuote`, for many jobs in five reads instead of five per job.
  *  Per job the result is identical: latest Ready Check installation quote, its plain status, hold and form completion. */

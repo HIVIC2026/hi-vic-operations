@@ -43,8 +43,6 @@ import {
   confirmInstallerInsuranceUpload,
   getInstallerAgreement,
   installerInsuranceUploadUrl,
-  installerWhiteCardUploadUrl,
-  confirmInstallerWhiteCardUpload,
   loadInstallerOnboarding,
   saveInstallerOnboarding,
   signInstallerAgreement,
@@ -2287,21 +2285,6 @@ function InstallersStep({
                 certification and our office has verified it.
               </p>
             )}
-            <Field
-              label="White Card (construction induction card)"
-              hint="Optional now. They can't be lead or crew on an install until our office has checked it."
-            >
-              <WhiteCardUpload
-                email={x.email ?? ""}
-                uploaded={!!x.white_card_uploaded}
-                onDone={() => set(i, { white_card_uploaded: true })}
-                token={token}
-                setError={setError}
-                preview={preview}
-                revision={revision}
-                onUploadBusy={onUploadBusy}
-              />
-            </Field>
             <Field label="Other relevant training">
               <input
                 style={input}
@@ -2771,96 +2754,3 @@ const SAMPLE_INSTALLER_DATA: InstData = {
   bank_account_number: "12345678",
   agreement_reviewed: false,
 };
-
-/** Decision 319: each installer's White Card (optional at onboarding; the office verifies it once after approval). */
-function WhiteCardUpload({
-  email,
-  uploaded,
-  onDone,
-  token,
-  setError,
-  preview,
-  revision,
-  onUploadBusy,
-}: {
-  email: string;
-  uploaded: boolean;
-  onDone: () => void;
-  token: string;
-  setError: (s: string | null) => void;
-  preview: boolean;
-  revision: RevisionRef;
-  onUploadBusy: (b: boolean) => void;
-}) {
-  const [busy, setBusy] = useState(false);
-  async function onFile(picked: File | undefined) {
-    if (!picked) return;
-    if (preview) {
-      setError("Sample preview only — upload is disabled.");
-      return;
-    }
-    if (!email.trim()) {
-      setError("Add this installer's email first.");
-      return;
-    }
-    setError(null);
-    let f: File, mime: "application/pdf" | "image/jpeg" | "image/png";
-    try {
-      ({ file: f, mime } = await prepareCertificate(picked));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Upload a PDF, JPG or PNG.");
-      return;
-    }
-    setBusy(true);
-    onUploadBusy(true);
-    try {
-      const u = await installerWhiteCardUploadUrl({
-        data: { token, content_type: mime, size: f.size, filename: f.name },
-      });
-      const { error: upErr } = await supabase.storage
-        .from("partner-files")
-        .uploadToSignedUrl(u.path, u.token, f, { contentType: mime });
-      if (upErr) throw new Error("Upload failed. Please try again.");
-      await uploadWithRevision(revision, (base) =>
-        confirmInstallerWhiteCardUpload({
-          data: {
-            token,
-            path: u.path,
-            content_type: mime,
-            email: email.trim().toLowerCase(),
-            base_updated_at: base,
-          },
-        }),
-      );
-      onDone();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Upload failed.");
-    } finally {
-      setBusy(false);
-      onUploadBusy(false);
-    }
-  }
-  const accept = "application/pdf,image/jpeg,image/png,image/heic,image/heif,.heic,.heif";
-  return uploaded ? (
-    <p style={okLine}>
-      ✓ White Card uploaded.{" "}
-      {!preview && (
-        <label style={{ color: BLUE, fontWeight: 700, cursor: "pointer", marginLeft: 6 }}>
-          Replace
-          <input type="file" hidden accept={accept} onChange={(e) => onFile(e.target.files?.[0])} />
-        </label>
-      )}
-    </p>
-  ) : (
-    <label style={{ ...btn(false, busy), display: "inline-flex", alignItems: "center" }}>
-      {busy ? "Uploading…" : "Upload White Card"}
-      <input
-        type="file"
-        hidden
-        disabled={busy}
-        accept={accept}
-        onChange={(e) => onFile(e.target.files?.[0])}
-      />
-    </label>
-  );
-}

@@ -14,6 +14,7 @@ import { ageLabel, type NeedsRow, type SystemRow } from "@/lib/office-needs.core
 import { bulkMatchable, unavailableNote } from "@/lib/needs-cards.core";
 import { btnClass } from "@/components/portal/kit";
 import { pickupLabel } from "@/lib/mitti-pickup.core";
+import { DismissPickupButton } from "@/components/portal/mitti-piles";
 import { INSTALLER_WAITING_PATH, foldChooseInstaller } from "@/lib/installer-waiting-columns.core";
 import { partitionNeeds, deadlineDisplay } from "@/lib/needs-sections.core";
 import { Button } from "@/components/ui/button";
@@ -75,6 +76,7 @@ function NeedsMe() {
   const pickups = useQuery({ queryKey: ["mitti-pickups"], queryFn: () => pickupsFn(), staleTime: 60_000, retry: 1, enabled: !qaOffice });
   const sync = useQuery({ queryKey: ["mitti-sync-problems"], queryFn: () => syncFn(), staleTime: 60_000, retry: 1, enabled: !qaOffice });
   const [done, setDone] = useState<Set<string>>(() => new Set());
+  const [dismissNote, setDismissNote] = useState<{ ok: boolean; text: string } | null>(null);
   const { data, error, refetch, isPending } = useQuery({
     queryKey: ["needs-me-v2", includeTest], queryFn: () => load({ data: { includeTest } }), staleTime: 60_000, retry: 1,
     refetchInterval: q => q.state.data?.refreshing ? 5_000 : 120_000,
@@ -87,7 +89,7 @@ function NeedsMe() {
   };
   const rows = data ? Object.values(data.groups).flat().filter(r => !done.has(r.key)) : [];
   const mitti: SystemRow[] = qaOffice ? [] : [
-    ...(pickups.data?.rows ?? []).map(p => ({ key: `pickup:${p.auditId}`, tag: "Mitti", who: p.business?.name ?? "Mitti user not matched", line: `${pickupLabel(p)} · Ready Check started, no portal job`, since: p.modifiedAt, button: "Link form", href: "/admin/jobs/installers" })),
+    ...(pickups.data?.rows ?? []).map(p => ({ key: `pickup:${p.auditId}`, auditId: p.auditId, tag: "Mitti", who: p.business?.name ?? "Mitti user not matched", line: `${pickupLabel(p)} · Ready Check started, no portal job`, since: p.modifiedAt, button: "Link form", href: "/admin/jobs/installers" })),
     ...(sync.data?.rows ?? []).map(p => ({ key: `sync:${p.jobId}`, tag: "Mitti", who: `${p.jobNumber} ${p.owner ?? ""}`.trim(), line: `Mitti sync problem · ${p.message}`, since: p.since, button: "Open job", href: `/admin/jobs/${p.jobId}`, jobId: p.jobId })),
   ];
   const sections = partitionNeeds(rows, [...(data?.system ?? []), ...mitti], data?.now ?? Date.now());
@@ -104,13 +106,14 @@ function NeedsMe() {
         {sections.map(section => <section key={section.key} aria-label={section.label} className="mb-8">
           <h2 className="mb-2 border-b border-line pb-2 text-sm font-bold uppercase text-ink">{section.label} <span className="text-sub">· {section.rows.length + section.system.length}</span></h2>
           {section.key === "forms" && <h3 className="mb-2 text-sm font-semibold text-sub">Sends and forms that failed</h3>}
-          {section.key === "forms" && (pickups.isError || sync.isError) && <div role="alert" className="mb-3 text-sm text-danger">Mitti forms couldn't be checked — this does not mean nothing is waiting. <Button variant="outline" onClick={() => { if (pickups.isError) void pickups.refetch(); if (sync.isError) void sync.refetch(); }}>Try again</Button></div>}
+          {section.key === "forms" && (pickups.isError || sync.isError) && <div role="alert" className="mb-3 text-sm text-danger">Mitti forms couldn't be checked — this does not mean nothing is waiting. <Button variant="outline" onClick={() => { setDismissNote(null); if (pickups.isError) void pickups.refetch(); if (sync.isError) void sync.refetch(); }}>Try again</Button></div>}
+          {section.key === "forms" && dismissNote && <div role={dismissNote.ok ? "status" : "alert"} className={dismissNote.ok ? "mb-3 text-sm text-success" : "mb-3 text-sm text-danger"}>{dismissNote.text}</div>}
           {section.key === "installers" ? waiting.length > 0 && <Link to={INSTALLER_WAITING_PATH} className="flex min-h-14 items-center gap-3 border-b border-line py-3"><span className="font-bold text-hiv-blue">{waiting.length}</span><span className="min-w-0 flex-1"><span className="block font-semibold">Choose installers</span><span className="text-xs text-sub">Spots saved, ready for you to choose (released ones not counted) · longest {oldest ? ageLabel(oldest, data.now) : ""}</span></span><span aria-hidden>›</span></Link>
             : <><BulkMatch rows={bulkMatchable(section.rows)} onDone={refresh} /><ul>{section.rows.map((r, index) => <li key={r.key} className="list-none">
               {section.key === "quotes" && r.kind !== "quote_check" && r.kind !== "fixes_quote_check" && (index === 0 || section.rows[index - 1]?.kind === "quote_check" || section.rows[index - 1]?.kind === "fixes_quote_check") && <h3 className="mt-3 text-sm font-semibold text-sub">Owner replies waiting</h3>}
               <ul><Row row={section.key === "deadlines" ? { ...r, line: deadlineDisplay(r, data.now) } : r} now={data.now} onDone={() => refresh([r.key])} /></ul>
             </li>)}</ul></>}
-          <ul>{section.system.map(r => <li key={r.key} className="grid gap-1 border-b border-line py-3 sm:grid-cols-[minmax(0,1fr)_auto]"><div className="min-w-0"><span className="block font-semibold">{r.who}</span><span className="block break-words text-sm">{r.line}</span></div><a href={r.href} className={btn("secondary")}>{r.button}</a></li>)}</ul>
+          <ul>{section.system.map(r => <li key={r.key} className="grid gap-1 border-b border-line py-3 sm:grid-cols-[minmax(0,1fr)_auto]"><div className="min-w-0"><span className="block font-semibold">{r.who}</span><span className="block break-words text-sm">{r.line}</span></div><span className="flex flex-wrap gap-2"><a href={r.href} className={btn("secondary")}>{r.button}</a>{r.auditId && <DismissPickupButton auditId={r.auditId} onStart={() => setDismissNote(null)} onDone={(n) => { setDismissNote(n); if (n.ok) void pickups.refetch(); }} />}</span></li>)}</ul>
           {!section.rows.length && !section.system.length && <p className="py-2 text-sm text-sub">Nothing waiting{data.unavailable?.length ? " in the checks that loaded" : ""}.</p>}
         </section>)}
       </>}

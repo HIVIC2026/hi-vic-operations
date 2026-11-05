@@ -359,8 +359,7 @@ export function teamCiiLine(cii: TeamMemberView["cii"], today: string): { text: 
 
 /** Decision 319: White Card line for an installer row. Green when verified, rose otherwise; null when not applicable. */
 export function teamWhiteCardLine(state: WhiteCardState | null | undefined): { text: string; tone: "green" | "rose"; canUpload: boolean } | null {
-  if (!state || state === "not_applicable") return null;
-  return { text: WHITE_CARD_TEAM_LABEL[state], tone: state === "verified" ? "green" : "rose", canUpload: state === "missing" || state === "rejected" };
+  return null;
 }
 
 /** Decision 161 in one line under the team list. */
@@ -465,8 +464,8 @@ export function businessNext(f: BusinessNextFacts, today: string): BusinessNext 
 /** Team → Add a team member sheet (Jo 29 Oct: no email needed; Jo 5 Nov: no declarations to sign). */
 export const TEAM_ADD_SHEET = {
   title: "Add a team member",
-  bodyInstaller: "Mobile and date of birth are needed. We check their CII certificate before they go on a job.",
-  bodyElectrician: "Mobile, date of birth and email are needed. Each electrician needs a current electrical licence.",
+  bodyInstaller: "Lead Installers need mobile, date of birth (ESC) and an EEC/CII certificate. Crew need mobile and EEC/CII.",
+  bodyElectrician: "Electricians need mobile, email, licence, REC and insurance.",
   name: "Full name",
   licence: "Electrical licence number",
   role: "Lead or Crew",

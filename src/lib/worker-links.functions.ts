@@ -14,6 +14,7 @@ const workerInput = z.object({
   mobile: z.string().trim().min(8).max(30),
   trade_role: z.enum(["electrician", "installer"]),
   licence_number: z.string().trim().max(60).optional().nullable(),
+  worker_role: z.enum(["lead","crew"]).optional().nullable(),
   qualification: z.string().trim().max(200).optional().nullable(),
   // Jo 3 Nov: required for every new person (stored privately); ignored on edits.
   date_of_birth: z.string().trim().optional().nullable(),
@@ -45,7 +46,7 @@ export const saveWorker = createServerFn({ method: "POST" }).middleware([require
     const { id, date_of_birth, ...rest } = data;
     const fields = { ...rest, email: rest.email ?? null, licence_number: rest.licence_number ?? null, qualification: rest.qualification ?? null };
     // Jo 3 Nov 2:37pm: a new person needs an Australian mobile + date of birth (+ email for electricians).
-    const req = id ? null : (await import("./team-required.core")).teamMemberDetails(data.trade_role, { mobile: rest.mobile, email: rest.email, dateOfBirth: date_of_birth }, (await import("./melbourne-time.core")).melbourneToday());
+    const req = id ? null : (await import("./team-required.core")).teamMemberDetails(data.trade_role, { mobile: rest.mobile, email: rest.email, dateOfBirth: date_of_birth, workerRole:rest.worker_role }, (await import("./melbourne-time.core")).melbourneToday());
     if (req && !req.ok) throw new Error(req.error);
     if (req?.ok) { fields.mobile = req.mobile; fields.email = req.email; }
     if (id) {
@@ -59,7 +60,7 @@ export const saveWorker = createServerFn({ method: "POST" }).middleware([require
     const { data: added, error } = await admin.from("partner_workers").insert({ ...fields, added_by: context.userId, approval_status: office ? "approved" : "pending", ...(office ? { approved_by: context.userId, approved_at: new Date().toISOString() } : {}) } as never).select("id").single();
     if (error) throw new Error(error.code === "23505" ? "A worker with that email is already listed." : error.message);
     const workerId = (added as { id: string }).id;
-    const { error: ie } = await admin.from("partner_worker_identity" as never).insert({ worker_id: workerId, date_of_birth: req?.ok ? req.dateOfBirth : null, updated_by: context.userId } as never);
+    const ie = req?.ok && req.dateOfBirth ? (await admin.from("partner_worker_identity" as never).insert({ worker_id: workerId, date_of_birth: req.dateOfBirth, updated_by: context.userId } as never)).error : null;
     if (ie) { await admin.from("partner_workers").delete().eq("id", workerId); throw new Error("Couldn't add them. Please try again."); }
     return { ok: true, pending: !office };
   });

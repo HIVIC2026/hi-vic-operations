@@ -43,7 +43,7 @@ export const PICK_ADDRESS = "Choose the address from the list so the suburb and 
 
 /** Installer screens Task 7 (decided — VEU rule 1 names the installer): the consent tick on Add a job. */
 export const addJobConsentLine = (businessName: string): string =>
-  `The owner has agreed to Home Insulation Victoria and ${businessName} contacting them about this job.`;
+  `The owner is happy for Home Insulation Victoria and ${businessName} to contact them about this job.`;
 /** The problem shown when that tick is missing. Without a business name (older callers) the older line stays. */
 export const consentProblem = (businessName?: string | null): string =>
   businessName ? `Confirm the owner has agreed to Home Insulation Victoria and ${businessName} contacting them about this job` // DRAFT
@@ -118,12 +118,12 @@ export const retryable = (msg: string) => /could not be reached|failed \(5|timeo
 
 /** A1 (Jo, 29 Oct 2026): how the installer got this customer. Door-knocked and cold-called jobs can't be added. */
 export type LeadOrigin = "owner_contacted" | "referral" | "door_knock" | "cold_call";
-export const LEAD_ORIGIN_QUESTION = "How did you get this customer?";
+export const LEAD_ORIGIN_QUESTION = "How did they find you?";
 export const LEAD_ORIGINS: { value: LeadOrigin; label: string }[] = [
-  { value: "owner_contacted", label: "They contacted us" }, // approved (mock-up, plan Task 7)
-  { value: "referral", label: "Referral or past customer" },
-  { value: "door_knock", label: "Door-knocking" },
-  { value: "cold_call", label: "Cold call" },
+  { value: "owner_contacted", label: "They got in touch with us" },
+  { value: "referral", label: "A past customer or a referral" },
+  { value: "door_knock", label: "We knocked on their door" },
+  { value: "cold_call", label: "We cold-called them" },
 ];
 export const LEAD_ORIGIN_MISSING = "Choose how you got this customer.";
 export const LEAD_ORIGIN_BLOCKED = "Jobs from door-knocking or cold calls can't be added — the VEU Code of Conduct doesn't allow them.";

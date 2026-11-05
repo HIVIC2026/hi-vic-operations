@@ -72,6 +72,7 @@ export async function sweepCompletedMittiReadyChecks(opts: { enabled?: boolean; 
   const enabled = opts.enabled ?? READY_CHECK_AUTO_PREP_ENABLED;
   const sendEnabled = opts.sendEnabled ?? AUTO_QUOTE_SEND_ENABLED;
   if (!enabled) return { retried: 0, watched: 0 };
+  await (await import('./own-customer-portal-ready-check.server')).retryPortalReadyCheckQuotes();
   const { runStoredMittiPull, recordMittiPullOutcome } = await import("./mitti-pull-progress.server");
   let retried = 0, watched = 0;
   const { mittiApi, parseAudit } = await import("./mitti.core");

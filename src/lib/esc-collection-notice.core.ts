@@ -110,7 +110,8 @@ const isCurrent = (a: NoticeAck) => a.notice_sha256 === COLLECTION_NOTICE_SHA256
 export function collectionNoticeStatus(workers: readonly NoticeWorker[], acks: readonly NoticeAck[]): NoticeStatus[] {
   return workers.filter((w) => w.trade_role === "installer" && !w.removed_at).map((w) => {
     const email = noticeEmailKey(w.email);
-    const mine = email ? acks.filter((a) => noticeEmailKey(a.worker_email) === email) : w.id ? acks.filter((a) => !noticeEmailKey(a.worker_email) && a.worker_id === w.id) : [];
+    // Worker id first (Wayne Fletcher, 5 Nov 2026: acknowledged with an empty email, email added later); then the email.
+    const mine = acks.filter((a) => (!!w.id && a.worker_id === w.id) || (!!email && noticeEmailKey(a.worker_email) === email));
     const best = mine.filter(isCurrent).reduce<NoticeAck | null>((b, a) => (!b || a.at > b.at ? a : b), null);
     return { workerId: w.id ?? null, email, name: w.full_legal_name, state: best ? "acknowledged" : "missing", at: best?.at ?? null, byName: best?.by_name ?? null, source: best?.source ?? null, superseded: !best && mine.length > 0, lead: effectiveWorkerRole({ tradeRole: w.trade_role, stored: w.worker_role }) === "lead" };
   });

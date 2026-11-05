@@ -35,6 +35,9 @@ async function installCrewNames(jobId: string): Promise<string[]> {
 }
 
 export async function sendGoEmail(jobId: string, slot: GoSlot, result: GoResult, opts: { approved?: boolean; now?: Date } = {}): Promise<string> {
+  const currentFailures=(await import("./worker-compliance.core")).currentWorkerRequirementLines(result.failures);
+  if(currentFailures.length!==result.failures.length && currentFailures.length===0)return "skipped: retired requirement only; await current GO check";
+  result={...result,failures:currentFailures};
   const approved = opts.approved ?? GO_EMAIL_APPROVED;
   if (await (await import("./qa-inbox.server")).qaDeliveryHeld(jobId)) return "skipped: TEST delivery held";
   const [{ data: job, error: je }, { data: asg, error: ae }] = await Promise.all([

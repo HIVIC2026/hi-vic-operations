@@ -69,7 +69,9 @@ export function mittiQuoteElectricalBlocker(lines: { code: string | null; line_t
 export function applyMittiProduct(
   draft: { ready: boolean; blockers: string[]; lines: { code: string | null; description: string; explanation?: string | null }[] },
   product: import("./insulation-product.core").MittiProductResolution, areaM2: number | null,
+  opts: { optionalMissing?: boolean } = {},
 ) {
+  if (opts.optionalMissing && !product.product) return draft;
   if (!product.ready || !product.product) { draft.blockers.push(...product.reasons); draft.ready = false; return draft; }
   const line = draft.lines.find((l) => l.code === "INSTALLER_PRICE");
   if (line) line.description = productQuoteDescription(product.product, areaM2);

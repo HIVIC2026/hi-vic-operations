@@ -6,7 +6,7 @@
 // Mitti form to that person's own Mitti user (looked up by the email on their staff row) and the 6:30am text goes to
 // their mobile instead of the owner's. Nothing here changes stages, bookings, quotes or pay.
 import type { WorkerRole } from "./worker-role.core";
-import { crewClearance, whiteCardBlocker, type CrewClearanceFacts, type WhiteCardState } from "./worker-compliance.core";
+import { crewClearance, type CrewClearanceFacts, type WhiteCardState } from "./worker-compliance.core";
 
 export type VisitKind = "ready_check" | "install" | "piesa";
 export const VISIT_ALLOCATED_EVENT = "visit_allocated";
@@ -49,7 +49,7 @@ export function allocationBlocker(kind: VisitKind, c: AllocationCandidate, today
   if (c.workerRole === "crew") return ALLOCATION_REASON.crew;
   const cl = crewClearance(c.clearance ?? { certStatus: null, level: null, expiresOn: null }, today);
   if (!cl.cleared) return cl.reason;
-  return install ? whiteCardBlocker(c.whiteCard, install.bookingCreatedAt) : null;
+  return null;
 }
 
 /** The picker list: everyone still on the list, greyed out with the reason when not allowed for this visit. */

@@ -24,7 +24,7 @@ export type CustomerFieldLabels = { name: string; mobile: string; email: string;
 const DEFAULT_LABELS: CustomerFieldLabels = { name: "Owner's full name", mobile: "Mobile", email: "Email", address: "Address" };
 
 /** `hideConsent`: Task 7 — Add a job renders no consent tick until it knows the exact line to show (never a fallback line). */
-export function CustomerFields({ value, onChange, consentLabel, hideConsent = false, labels = DEFAULT_LABELS, offline = false, errors = {}, addressProvider }: { addressProvider?: Parameters<typeof VerifiedAddressInput>[0]["provider"]; value: OnsiteInput; onChange: (v: OnsiteInput) => void; consentLabel?: string | undefined; hideConsent?: boolean; labels?: CustomerFieldLabels; offline?: boolean; errors?: Partial<Record<AddJobField, string>> }) {
+export function CustomerFields({ value, onChange, consentLabel, hideConsent = false, labels = DEFAULT_LABELS, offline = false, errors = {}, addressProvider, addressHelper = "Start typing, then pick the address from the list." }: { addressHelper?: string; addressProvider?: Parameters<typeof VerifiedAddressInput>[0]["provider"]; value: OnsiteInput; onChange: (v: OnsiteInput) => void; consentLabel?: string | undefined; hideConsent?: boolean; labels?: CustomerFieldLabels; offline?: boolean; errors?: Partial<Record<AddJobField, string>> }) {
   // Jo 24 Oct: the address is picked from the Google list, so street number, suburb and postcode always match.
   // Typing afterwards clears the pick; the suburb/postcode are shown, never typed.
   const [text, setText] = useState(() => addressText(value));
@@ -58,7 +58,7 @@ export function CustomerFields({ value, onChange, consentLabel, hideConsent = fa
         <FieldError>{errors.address}</FieldError>
         {value.address_verified && <div className="mt-2 rounded-[12px] border-2 border-hiv-green bg-[#E9FBF1] px-3.5 py-2.5 text-sm leading-[1.45]" data-address-confirmed><span className="font-bold text-hiv-green">✓ Address found</span> <span className="break-words font-medium">{resolved?.label ?? `${value.address_line}, ${value.suburb} VIC ${value.postcode}`}</span></div>}
         {noMatch && !value.address_verified && <button type="button" className="mt-1.5 text-[14px] font-bold text-hiv-blue underline" data-address-type-in onClick={() => onChange({ ...latest.current, address_typed: true, address_verified: false })}>{ADDRESS_TYPE_IN}</button>}
-        <p className="mt-1.5 text-[13px] text-sub">Start typing, then pick the address from the list.</p>
+        <p className="mt-1.5 text-[13px] text-sub">{addressHelper}</p>
       </div>}
     {field("phone", labels.mobile, { inputMode: "tel", autoComplete: "tel", maxLength: 40 }, errors.phone)}
     {field("email", labels.email, { type: "email", autoComplete: "email", maxLength: 200 }, errors.email)}

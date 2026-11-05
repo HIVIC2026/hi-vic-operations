@@ -27,6 +27,7 @@ export const greeting = (business: string, yourTurnCount: number): { title: stri
 });
 
 const REASON: Record<NextStepKind, string> = {
+  own_ready_check: "Ready Check",
   book_ready_check: "New job", // approved (plan Task 4 test)
   ready_check_booked: "Ready Check booked", // DRAFT
   ready_check_missing: "Ready Check needs finishing", // DRAFT
@@ -45,7 +46,7 @@ const REASON: Record<NextStepKind, string> = {
 };
 /** `box` (fix wave I5): a "waiting_quote" box before any quote has gone is "Ready Check done" (approved), not "Waiting for the owner". */
 export const reasonFor = (kind: NextStepKind, box?: Pick<NextStepBox, "title">): string =>
-  kind === "waiting_quote" && box?.title === NEXT_STEP_WORDS.quotePreparingTitle ? REASON.enter_price : REASON[kind];
+  kind === "waiting_quote" && box?.title.startsWith(NEXT_STEP_WORDS.quotePreparingTitle) ? REASON.enter_price : REASON[kind];
 
 // Overdue first, then the earliest book-by date, cards with no date last. Stable otherwise.
 function byUrgency(a: MyWorkCard, b: MyWorkCard): number {

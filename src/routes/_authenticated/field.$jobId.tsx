@@ -43,6 +43,8 @@ import { NextStepBox } from "@/components/trade/NextStepBox";
 import { ContactButtons, Group, LinkRow, NextPanel, NoFormNoPay, Row, Screen, ScreenHead } from "@/components/trade/installer-kit";
 import { completeView, ownerReadyLine } from "@/lib/installer-screens.core";
 import { InstallerPriceCard } from "@/components/trade/InstallerPriceCard";
+import { OwnCustomerReadyCheckChoice } from "@/components/trade/OwnCustomerReadyCheckChoice";
+import { PortalReadyCheckView } from '@/components/trade/PortalReadyCheckView';
 import { ELECTRICIAN_ATTENDANCE_CONFIRMED } from "@/lib/trade-view.core";
 import { ReturnActions, useInHouseBookingAccess } from "@/components/trade/ReturnActions";
 import { MittiElectricianCard } from "@/components/trade/mitti-electrician-card";
@@ -361,7 +363,8 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
   // Jo 5 Nov 2026 (Reinsulate, "he just wants to enter the price"): on the installer's own job the price box is open as soon
   // as the Ready Check form exists — the rest of the form can be finished later; the quote drafts once size + product + price are in.
   const priceOpenEarly = page.channel === "installer_sourced" && page.prices && page.price.entered === false && page.form.linked && box.kind !== "enter_price";
-  const showPrice = (box.kind === "enter_price" && page.prices && page.channel === "installer_sourced") || priceOpenEarly;
+  const showPrice = (page.channel === "installer_sourced" && page.prices && (box.kind === "enter_price" || box.kind === "waiting_quote")) || priceOpenEarly;
+  const ownReadyCheck = page.channel === "installer_sourced" && page.prices && (showPrice || box.kind === "own_ready_check");
   const mittiAudit = page.form.auditId;
   return (
     <div className="space-y-4" data-installer-job>
@@ -393,7 +396,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
           </li>
         ))}
       </ol>
-      {page.channel === "installer_sourced" && !page.form.auditId && (box.kind === "book_ready_check" || box.kind === "ready_check_booked") && <PendingReadyCheckForm jobId={jobId} />}
+      {page.channel === "installer_sourced" && !page.form.auditId && box.kind === "own_ready_check" && <PendingReadyCheckForm jobId={jobId} />}
       {page.countdown && (
         <p className={`text-sm font-semibold ${page.countdown.daysLeft <= 10 ? "text-rose" : "text-ink"}`} data-countdown>
           {page.countdown.line}
@@ -410,7 +413,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
 
       <div className="grid items-start gap-4 md:grid-cols-2">
         <div className="md:col-start-1 md:row-span-3 md:row-start-1">
-        <NextStepBox
+        {ownReadyCheck ? <OwnCustomerReadyCheckChoice jobId={jobId} auditId={mittiAudit} /> : <NextStepBox
           jobId={jobId}
           box={box}
           ownerFirst={page.ownerFirst}
@@ -454,10 +457,11 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
               )}
             </div>
           )}
-        </NextStepBox>
-        {showPrice && (
+        </NextStepBox>}
+        {!ownReadyCheck && page.channel === 'installer_sourced' && page.prices && <OwnerQuoteCard jobId={jobId} ownCustomerStatus />}
+        {showPrice && !ownReadyCheck && (
           <section className={`${card} mt-4 min-w-0`} aria-label="Your price" data-price-early={priceOpenEarly ? "true" : undefined}>
-            {priceOpenEarly && <p className="mb-2 text-sm text-sub">You can enter your price now. Finish the rest of the Mitti form when you can — the quote goes to Home Insulation Victoria once the ceiling size, product and price are in.</p>}
+            {priceOpenEarly && <p className="mb-2 text-sm text-sub">Enter your price and send it to Home Insulation Victoria to prepare the quote. The Mitti form can still have blanks.</p>}
             <InstallerPriceCard jobId={jobId} />
           </section>
         )}
@@ -492,7 +496,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
         </div>
         <div className="md:col-start-2 md:row-start-4">
           <Fold title="What the owner's been told">
-            <FoldRows rows={page.rows.ownerTold} empty={FOLD_EMPTY} />
+            <FoldRows rows={page.rows.ownerTold} empty={page.channel === 'installer_sourced' ? "Nothing yet. The first message to the owner is the quote from Home Insulation Victoria." : FOLD_EMPTY} />
           </Fold>
         </div>
         <div className="md:col-start-2 md:row-start-5">
@@ -501,8 +505,8 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
               {page.rows.paperwork.map((r) => (
                 <li key={r.label} className="flex flex-wrap items-center justify-between gap-x-4 border-b border-line py-2.5 text-[15px] last:border-b-0">
                   <span>{r.label}</span>
-                  <span className={r.ready ? "font-medium text-hiv-green" : "text-sub"}>
-                    {r.ready ? paperworkLink(r.label, page.form.auditId, page.install.form.auditId, jobId) : r.note}
+                  <span className={`min-w-0 ${r.ready ? "font-medium text-hiv-green" : "text-sub"}`}>
+                    {r.label === 'Ready Check' ? <span className="flex flex-wrap items-center gap-x-3"><span>{r.note}</span>{r.ready && (r.source === 'portal' ? <PortalReadyCheckView jobId={jobId} /> : paperworkLink(r.label,page.form.auditId,page.install.form.auditId,jobId))}</span> : r.ready ? paperworkLink(r.label, page.form.auditId, page.install.form.auditId, jobId) : r.note}
                   </span>
                 </li>
               ))}
@@ -512,7 +516,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
         </div>
         {inHouseAccess.data?.allowed === true && (
           <div className="md:col-start-1 md:row-start-5">
-            <ReturnActions jobId={jobId} />
+            <ReturnActions jobId={jobId} ownCustomer={page.channel === 'installer_sourced'} />
           </div>
         )}
       </div>
@@ -524,7 +528,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
  *  Jo 5 Nov 2026 (HV-3117): the Ready Check report row also opens the portal's saved PDF (photos included), for installers
  *  without a Mitti login. */
 function paperworkLink(label: string, readyCheckAudit: string | null, installAudit: string | null, jobId: string) {
-  const isReadyCheck = label.startsWith("Ready Check report");
+  const isReadyCheck = label === 'Ready Check' || label.startsWith("Ready Check report");
   const audit = isReadyCheck ? readyCheckAudit : label.startsWith("Install form") ? installAudit : null;
   if (!audit) return "Ready ✓";
   return (
