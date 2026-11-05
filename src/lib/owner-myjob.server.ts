@@ -225,6 +225,7 @@ export async function resolveOwnerJob(token: unknown) {
     });
   })().catch(() => ({ cobrand: null, rows: null }));
   return {
+    replacementSentAt: quote?.sent_at ?? null,
     replacedQuoteIds: (await admin.from('quotes').select('id').eq('job_id',jobId).eq('kind','installation').eq('status','superseded').not('sent_at','is',null)).data?.map(q=>q.id) ?? [],
     currentAction,
     clearStepsUnsigned,

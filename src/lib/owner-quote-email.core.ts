@@ -89,6 +89,8 @@ export type OwnerQuoteEmailInput = {
   /** Jo 4 Nov 2026 16:10: the Ready Check says the old insulation stays (kept-insulation.core `oldInsulationKept`) — the
    *  approved "Your old insulation stays." paragraph goes under the quote lines. Absent/false = the email is unchanged. */
   keptInsulation?: boolean;
+  /** Explicit own-customer template only; existing email/reminders stay unchanged. */
+  ownCustomerMessage?: { intro: string; measuredBy: string | null };
 };
 /** Test seam for the one Task 5 switch (OWN_CUSTOMER_COBRAND_APPROVED); callers never pass it (the constant decides). */
 export type OwnCustomerSeam = { cobrandApproved?: boolean };
@@ -141,9 +143,10 @@ function quoteFigures(i: OwnerQuoteEmailInput, rebateLabel = "Your VEU rebate") 
   const rebateBox = both
     ? `<mj-section><mj-column mj-class="panel-mint"><mj-text mj-class="eyebrow center" padding="18px 12px 6px">${esc(rebateLabel)}</mj-text><mj-text mj-class="big-green">You save ${esc(K.whole(rebate!))}</mj-text><mj-text mj-class="center" font-size="14px" line-height="20px" padding="0 16px 18px">Taken off upfront. Nothing for you to claim.</mj-text></mj-column></mj-section>`
     : "";
-  const priceBox = `<mj-section><mj-column mj-class="panel"><mj-text mj-class="eyebrow center" padding="18px 12px 6px">Your price</mj-text><mj-text mj-class="big-blue">${esc(total)}</mj-text><mj-text mj-class="center" font-size="14px" line-height="20px" font-weight="700">incl. GST${both ? ` · full price before rebate <span class="strike">${esc(money(full!))}</span>` : ""}</mj-text><mj-text mj-class="small center" padding="0 16px 18px">${address ? `${esc(address)}<br />` : ""}Measured at your Ready Check</mj-text></mj-column></mj-section>`;
+  const measured = i.ownCustomerMessage?.measuredBy ? `Measured by ${i.ownCustomerMessage.measuredBy}` : 'Measured at your Ready Check';
+  const priceBox = `<mj-section><mj-column mj-class="panel"><mj-text mj-class="eyebrow center" padding="18px 12px 6px">Your price</mj-text><mj-text mj-class="big-blue">${esc(total)}</mj-text><mj-text mj-class="center" font-size="14px" line-height="20px" font-weight="700">incl. GST${both ? ` · full price before rebate <span class="strike">${esc(money(full!))}</span>` : ""}</mj-text><mj-text mj-class="small center" padding="0 16px 18px">${address ? `${esc(address)}<br />` : ""}${esc(measured)}</mj-text></mj-column></mj-section>`;
   const box = rebateBox + priceBox;
-  const boxText = [rebate ? `${rebateLabel}: you save ${K.whole(rebate)}. Taken off upfront. Nothing for you to claim.` : null, `Your price: ${total} incl. GST${both ? ` (full price before rebate ${money(full!)})` : ""}`, address, "Measured at your Ready Check"].filter((l): l is string => !!l);
+  const boxText = [rebate ? `${rebateLabel}: you save ${K.whole(rebate)}. Taken off upfront. Nothing for you to claim.` : null, `Your price: ${total} incl. GST${both ? ` (full price before rebate ${money(full!)})` : ""}`, address, measured].filter((l): l is string => !!l);
   return { name, address, rebate, full, total, headline, box, boxText };
 }
 const mjButton = (href: string) => `<mj-button href="${esc(href)}" padding="14px 12px 14px">View and accept your quote</mj-button>`;
@@ -227,6 +230,7 @@ export function renderOwnerQuoteEmail(i: OwnerQuoteEmailInput, seam: OwnCustomer
   const keptHtml = kept ? `<mj-section><mj-column><mj-text padding="14px 12px 0">${esc(kept)}</mj-text></mj-column></mj-section>` : "";
   const body = [
     `<mj-section><mj-column><mj-text mj-class="hi">${esc(hi)}</mj-text><mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">${esc(f.headline)}</mj-text></mj-column></mj-section>`,
+    i.ownCustomerMessage ? `<mj-section><mj-column><mj-text>${esc(i.ownCustomerMessage.intro)}</mj-text></mj-column></mj-section>` : '',
     f.box,
     changes.html,
     `<mj-section><mj-column>${mjButton(i.quoteUrl)}</mj-column></mj-section>`,
@@ -241,7 +245,7 @@ export function renderOwnerQuoteEmail(i: OwnerQuoteEmailInput, seam: OwnCustomer
   const html = mjEmail({ subject, preview, body, unsubscribe: i.unsubscribeUrl, testLabel: i.test === true, ...(partnerLogo ? { partnerLogo } : {}) });
   const veu = own ? ["", `${VEU_BOX_TITLE} — ${veuBoxText()[1]}`, veuBoxText()[2]!, "", OWN_CUSTOMER_VEU_VOLUNTARY_LINE] : [];
   const text = K.plainText([
-    hi, "", f.headline, "", ...f.boxText, "", ...changes.text, `View and accept your quote: ${i.quoteUrl}`, "",
+    hi, "", f.headline, "", ...(i.ownCustomerMessage ? [i.ownCustomerMessage.intro, ''] : []), ...f.boxText, "", ...changes.text, `View and accept your quote: ${i.quoteUrl}`, "",
     ...(rows.length ? ["YOUR QUOTE", ...rows.map((r) => `${r.title}${r.detail ? ` (${r.detail})` : ""}: ${r.amount}`), ...(ownRows ? [] : [`You pay: ${f.total}`]), ""] : []),
     NOT_INCLUDED, "", ...(kept ? [kept, ""] : []), K.stripTags(next), "", closing, ...veu,
   ], { unsubscribe: i.unsubscribeUrl, testLabel: i.test === true });

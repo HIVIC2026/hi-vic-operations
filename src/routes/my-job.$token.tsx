@@ -43,6 +43,7 @@ import { RENTAL_DONE_LINE, RENTAL_TAPS, nextRentalStep, rentalDetailsProblems, r
 import { createAddressPicker, type PickResult } from "@/lib/address-pick.core";
 import { assertInHouseActionSucceeded } from "@/lib/in-house.core";
 import { completeOwnerQuoteAcceptance, ownerQuoteCanAccept } from "@/lib/owner-quote-visibility.core";
+import { replacedOwnQuoteLine } from '@/lib/own-customer-quote-messages.core';
 
 // Owner "My job" — no login. The secure link token is the only credential; nothing fetched during SSR.
 // Decision 335: "review" = the O51 star links (?screen=review&stars=N).
@@ -105,8 +106,8 @@ function MyJobPage() {
           : screen === "turn" ? <TurnScreen token={token} />
           : screen === "taps" ? <TapsScreen v={data} token={token} only={only} />
           : screen === "newquote" ? <NewQuoteScreen v={data} token={token} />
-          : screen === "quote" && requestedQuote && data.replacedQuoteIds?.includes(requestedQuote) ? <section className="py-8"><p role="status" className="text-lg font-semibold">This quote has been replaced</p><Link to="/my-job/$token" params={{token}} search={{screen:'quote'}} className="mt-3 inline-flex min-h-12 items-center underline">See the current quote</Link></section>
-          : screen === "quote" ? <>{!requestedQuote && data.replacedQuoteIds?.length > 0 && <p role="status" className="text-sm font-semibold">This quote has been replaced</p>}<QuoteScreen v={data} token={token} /></>
+          : screen === "quote" && requestedQuote && data.replacedQuoteIds?.includes(requestedQuote) ? <section className="py-8"><p role="status" className="text-lg font-semibold">{replacedOwnQuoteLine(data.replacementSentAt)}</p><Link to="/my-job/$token" params={{token}} search={{screen:'quote'}} className="mt-3 inline-flex min-h-12 items-center underline">See the current quote</Link></section>
+          : screen === "quote" ? <>{!requestedQuote && data.replacedQuoteIds?.length > 0 && <p role="status" className="text-sm font-semibold">{replacedOwnQuoteLine(data.replacementSentAt)}</p>}<QuoteScreen v={data} token={token} /></>
           : screen === "pay" ? <><RepeatPiesaCard token={token} /><PayNowCard v={data} token={token} /></>
           : screen === "clear" ? <OwnerConfirmSignPay v={data} token={token} />
           : screen === "finish" ? <OwnerSignAndPay token={token} />
