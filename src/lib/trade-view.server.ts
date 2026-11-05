@@ -2142,7 +2142,7 @@ export async function tradeReadyCheckReportPdf(jobId: string, userId: string, de
   const c = await deps.access(userId, jobId);
   if (c.kind !== "installer") throw new WorkflowError("Only the installing business can open the Ready Check report.");
   const { data: doc } = await admin.from("documents").select("storage_path, title, created_at").eq("job_id", jobId).eq("kind", "mitti_report").ilike("title", "%Ready Check%").order("created_at", { ascending: false }).limit(1).maybeSingle();
-  if (!doc?.storage_path) throw new WorkflowError("The Ready Check report hasn't been saved to the job yet — sync the form first.");
+  if (!doc?.storage_path) throw new WorkflowError("Ready Check report not in yet. It comes through within 15 minutes of pressing Complete in Mitti.");
   const dl = await admin.storage.from("job-files").download(doc.storage_path);
   if (dl.error || !dl.data) throw new WorkflowError("The Ready Check report could not be opened.");
   const { data: job } = await admin.from("jobs").select("job_number").eq("id", jobId).maybeSingle();

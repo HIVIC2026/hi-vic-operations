@@ -77,7 +77,7 @@ export const NEXT_STEP_WORDS = {
   afterInstallTitle: "Install done", // DRAFT
   paidSub: (date: string) => `Paid ✓ ${date}`, // approved (plan Task 3 table)
   hivicPaySub: (money: string) => `Your ${money} is paid 7 days after we approve the install paperwork.`, // DRAFT sentence from the approved Money line
-  ownPaySub: (money: string, name: string) => `Your ${money} is paid once ${name} has paid in full.`, // DRAFT sentence from the approved Money line
+  ownPaySub: (money: string, _name: string) => `You're paid ${money} once the owner has paid in full.`, // Jo 5 Nov exact sentence
   closedTitle: "Closed", // DRAFT
   theOwner: "the owner", // DRAFT
   theOwnersPossessive: "The owner's", // approved (plan Task 3 table)

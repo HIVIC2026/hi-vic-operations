@@ -46,7 +46,7 @@ describe("jobDetailsRows", () => {
     expect(jobDetailsRows({ ...base, piesaPayApplies: false }).map((x) => x[0])).not.toContain("Your PIESA pay");
   });
   test("own customer pay rule", () => {
-    expect(JOB_PAGE_WORDS.ownPayRule("Sam")).toBe("paid once Sam has paid in full");
+    expect(JOB_PAGE_WORDS.ownPayRule("Sam")).toBe("paid once the owner has paid in full");
   });
 });
 

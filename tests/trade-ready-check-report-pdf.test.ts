@@ -26,6 +26,6 @@ describe("tradeReadyCheckReportPdf", () => {
     kind = "electrician";
     await expect(tv.tradeReadyCheckReportPdf(JOB, "u", deps)).rejects.toThrow("Only the installing business");
     kind = "installer"; doc = null;
-    await expect(tv.tradeReadyCheckReportPdf(JOB, "u", deps)).rejects.toThrow("hasn't been saved");
+    await expect(tv.tradeReadyCheckReportPdf(JOB, "u", deps)).rejects.toThrow("Ready Check report not in yet. It comes through within 15 minutes of pressing Complete in Mitti.");
   });
 });
