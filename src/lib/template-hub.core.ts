@@ -893,8 +893,8 @@ const WAITING: TemplateEntry[] = [
   ENTRY({ id: "waiting:in-house-give", section: "waiting", step: "ready_check", kind: "email", code: "", name: "New free Ready Check jobs (one email per Give)", when: "Jo taps Give on ticked jobs — one email per tap", who: "Installer office", approval: "waiting", approvalNote: "Plan 2026-11-02 (obvious yes, tick to send); off until Jo approves (IN_HOUSE_GIVE_EMAIL_APPROVED)", gate: { kind: "code_off", flag: "IN_HOUSE_GIVE_EMAIL_APPROVED" },
     source: { builder: "src/lib/in-house-give-email.core.ts", fn: "renderInHouseGiveEmail", sender: "src/lib/in-house-give-email.server.ts" },
     render: () => email(renderInHouseGiveEmail({ jobs: [
-      { jobId: "TEST-1", jobNumber: "HV-TEST", ownerName: "Helen Yang", ownerMobile: "0400 000 000", address: ADDRESS, ownerSaid: "No insulation · about 120 m² · owner-occupied" },
-      { jobId: "TEST-2", jobNumber: "HV-TEST2", ownerName: null, ownerMobile: null, address: null },
+      { jobId: "TEST-1", jobNumber: "HV-TEST", ownerName: "Helen Yang", ownerMobile: "0400 000 000", address: ADDRESS, ownerSaid: [["Insulation (owner said)", "Some — batts, about a hand thick, patchy"], ["Ceiling size (owner said)", "About 120 m²"]] },
+      { jobId: "TEST-2", jobNumber: "HV-TEST2", ownerName: null, ownerMobile: null, address: null, ownerSaid: [["Insulation (owner said)", "None"], ["Ceiling size (owner said)", null]] },
     ], contactName: "Sample Insulation" })) }),
   ENTRY({ id: "installer:trade-invite", section: "installer", step: "enquiry", kind: "email", code: "", name: "Trade sign-in invite", when: "Goes when the office gives an approved trade worker their own sign-in", who: "Installer / electrician worker", approvalNote: "Jo 27 Oct 2026, decision 406 (the whole email refresh suite)", gate: { kind: "email" },
     source: { builder: "src/lib/trade-access.core.ts", fn: "renderTradeInviteEmail", sender: "src/lib/trade-access.functions.ts" },

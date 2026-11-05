@@ -100,7 +100,7 @@ export async function loadJobPage(jobId: string, testOffice = false) {
   const deadline = officeJob?.facts.installDeadline ?? null;
   const daysLeft = deadline ? installDaysLeft(deadline, new Date(now)) : null;
   const b44 = ((prop?.enrichment?.["base44"] ?? {}) as { raw?: { answers?: Record<string, unknown> } }).raw?.answers ?? null;
-  const ownerSaid = (await import("./owner-said.core")).ownerSaidLine({ answers: b44, estimatedAreaM2: job.estimated_area_m2, occupancy: prop?.occupancy ?? null });
+  const ownerSaid = (await import("./owner-said.core")).ownerSaidLine({ answers: b44, declared: ((prop?.enrichment?.["base44"] ?? {}) as { declared?: Record<string, unknown> }).declared ?? null, estimatedAreaM2: job.estimated_area_m2, occupancy: prop?.occupancy ?? null });
   const deposit = step("install_deposit");
   const cardFacts: StageCardFacts = {
     current: stage, closed, ownJob,

@@ -143,16 +143,20 @@ export async function sendInHouseBatch(input: { businessId: string; jobIds: stri
   let installerEmail: GiveEmailOutcome;
   try {
     // Jo 5 Nov 2026: each job card carries what the owner told us on the website (best-effort read; a gap shows nothing).
-    const { ownerSaidLine } = await import("./owner-said.core");
-    const said = new Map<string, string | null>();
+    const { ownerSaidRows } = await import("./owner-said.core");
+    const said = new Map<string, [string, string | null][]>();
     try {
-      const { data: rows } = await db.from("jobs").select("id, estimated_area_m2, properties(enrichment, occupancy)").in("id", sent);
-      for (const r of (rows ?? []) as { id: string; estimated_area_m2: number | string | null; properties: { enrichment: Record<string, unknown> | null; occupancy: string | null } | { enrichment: Record<string, unknown> | null; occupancy: string | null }[] | null }[]) {
+      const [{ data: rows }, { data: savedRows }] = await Promise.all([
+        db.from("jobs").select("id, estimated_area_m2, properties(enrichment)").in("id", sent),
+        db.from("lead_campaign_responses").select("job_id, saved_insulation").in("job_id", sent),
+      ]);
+      for (const r of (rows ?? []) as { id: string; estimated_area_m2: number | string | null; properties: { enrichment: Record<string, unknown> | null } | { enrichment: Record<string, unknown> | null }[] | null }[]) {
         const prop = Array.isArray(r.properties) ? r.properties[0] : r.properties;
-        const answers = ((prop?.enrichment?.["base44"] ?? {}) as { raw?: { answers?: Record<string, unknown> } }).raw?.answers ?? null;
-        said.set(r.id, ownerSaidLine({ answers, estimatedAreaM2: r.estimated_area_m2, occupancy: prop?.occupancy ?? null }));
+        const b44 = (prop?.enrichment?.["base44"] ?? {}) as { raw?: { answers?: Record<string, unknown> }; declared?: Record<string, unknown> };
+        const savedIns = ((savedRows ?? []) as { job_id: string; saved_insulation: string | null }[]).find((x) => x.job_id === r.id)?.saved_insulation ?? null;
+        said.set(r.id, ownerSaidRows({ answers: b44.raw?.answers ?? null, declared: b44.declared ?? null, savedInsulation: savedIns, estimatedAreaM2: r.estimated_area_m2 }));
       }
-    } catch (e) { console.error("Give email: owner-said line skipped", (e as Error).message); }
+    } catch (e) { console.error("Give email: owner-said rows skipped", (e as Error).message); }
     const jobs = sent.map(id => {
       const j = screen.jobs.find(x => x.id === id);
       return { jobId: id, jobNumber: j?.job_number ?? "", ownerName: j?.ownerName ?? null, ownerMobile: j?.ownerPhone ?? null, address: j?.address ?? null, ownerSaid: said.get(id) ?? null };
