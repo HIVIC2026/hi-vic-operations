@@ -167,7 +167,7 @@ describe("accepting a fixes quote raises its own invoice", () => {
 
   test("owner approval of fixes goes through the once-only invoice step, never onto the installation invoice", () => {
     const src = readFileSync("src/lib/portal.functions.ts", "utf8");
-    const body = src.slice(src.indexOf("export async function respondToQuoteImpl"), src.indexOf("async function invoiceAfterAcceptance"));
+    const body = src.slice(src.indexOf("export const respondToQuoteImpl"), src.indexOf("async function invoiceAfterAcceptance"));
     expect(body).not.toContain("addRepairsToXeroInvoice");
     const accepted = body.slice(body.indexOf(`if (q.kind === "rectification") {`));
     expect(accepted.indexOf("// Old model")).toBeGreaterThan(0);
