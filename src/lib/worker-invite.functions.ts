@@ -137,6 +137,18 @@ export const createWorkerCompletionLink = createServerFn({ method: "POST" }).mid
     return { token };
   });
 
+/** The worker's signature is saved but `declarations_due` could not be cleared: log it and leave the office an
+ *  admin_config_events row (`worker_declarations_due_clear_failed`) so they can clear it by hand. Never throws. */
+async function recordDeclarationsDueClearFailed(admin: AdminDb, workerId: string, inviteId: string, message: string) {
+  console.error(`[worker-invite] declarations signed on invite ${inviteId} but declarations_due not cleared for worker ${workerId}: ${message}`);
+  const { error } = await admin.from("admin_config_events").insert({
+    actor_id: null, event_type: "worker_declarations_due_clear_failed",
+    summary: "Worker signed their declarations but is still marked as due. Clear declarations_due for this worker.",
+    details: { worker_id: workerId, invite_id: inviteId, error: message },
+  });
+  if (error) console.error(`[worker-invite] could not record worker_declarations_due_clear_failed for worker ${workerId}: ${error.message}`);
+}
+
 export const submitWorkerInvite = createServerFn({ method: "POST" }).middleware([withRequestMeta])
   .inputValidator((d) => z.object({
     token: z.string(),
@@ -182,30 +194,28 @@ export const submitWorkerInvite = createServerFn({ method: "POST" }).middleware(
           return { ok: false as const, errors: [e instanceof Error ? e.message : "Upload not found. Please try again."] };
         }
       }
-      const { data: claimed } = await admin.from("partner_worker_invites").update({ used_at: now }).eq("id", inv.id).is("used_at", null).is("revoked_at", null).select("id");
-      if (!claimed?.length) return { ok: false as const, errors: ["This link has already been used."] };
+      // A used invite can never be updated again (0072 trigger `signed_worker_invite_immutable`), so the certificate is
+      // saved first, then ONE update claims the link and records the signature. Nothing touches the invite row after it.
       if (certPath) {
         const { error: ue } = await admin.from("partner_workers").update({
           // certification_status stays 'unverified' — the office must verify. Existing JSON fields are preserved.
           certification: mergeEec(w.certification, eecUploadMeta(certPath, now, data.certificate_number)) as never,
         }).eq("id", w.id);
-        if (ue) {
-          await admin.from("partner_worker_invites").update({ used_at: null }).eq("id", inv.id);
-          return { ok: false as const, errors: ["We couldn't save your certificate. Please try again."] };
-        }
+        if (ue) return { ok: false as const, errors: ["We couldn't save your certificate. Please try again."] };
       }
+      const { data: claimed, error: ce } = await admin.from("partner_worker_invites").update({
+        used_at: now, signed_ip: context.ip, signed_user_agent: context.userAgent,
+        // Same signed record as registration.
+        ...(due ? { signed_name: data.signed_name, declarations: { version: WORKER_DECLARATIONS_VERSION, accepted: decls, signed_at: now } } : {}),
+      }).eq("id", inv.id).is("used_at", null).is("revoked_at", null).select("id");
+      if (ce) return { ok: false as const, errors: [due ? "We couldn't save your signature. Please try again." : "We couldn't save your certificate. Please try again."] };
+      if (!claimed?.length) return { ok: false as const, errors: ["This link has already been used."] };
       if (due) {
-        // Same signed record as registration, then the person is no longer held back from jobs.
-        const { error: se } = await admin.from("partner_worker_invites").update({
-          signed_name: data.signed_name, declarations: { version: WORKER_DECLARATIONS_VERSION, accepted: decls, signed_at: now },
-        }).eq("id", inv.id);
-        const { error: de } = se ? { error: se } : await admin.from("partner_workers").update({ declarations_due: false } as never).eq("id", w.id);
-        if (de) {
-          await admin.from("partner_worker_invites").update({ used_at: null }).eq("id", inv.id);
-          return { ok: false as const, errors: ["We couldn't save your signature. Please try again."] };
-        }
+        // The signature is recorded; now the person is no longer held back from jobs. If this write fails the link is
+        // already used, so tell the office instead of failing the worker.
+        const { error: de } = await admin.from("partner_workers").update({ declarations_due: false } as never).eq("id", w.id);
+        if (de) await recordDeclarationsDueClearFailed(admin as never, w.id, inv.id, de.message);
       }
-      await admin.from("partner_worker_invites").update({ signed_ip: context.ip, signed_user_agent: context.userAgent }).eq("id", inv.id);
       return { ok: true as const };
     }
 
@@ -225,9 +235,9 @@ export const submitWorkerInvite = createServerFn({ method: "POST" }).middleware(
         return { ok: false as const, errors: [e instanceof Error ? e.message : "Upload not found. Please try again."] };
       }
     }
-    // Claim the invite first so it can only ever be used once.
-    const { data: claimed } = await admin.from("partner_worker_invites").update({ used_at: now }).eq("id", inv.id).is("used_at", null).is("revoked_at", null).select("id");
-    if (!claimed?.length) return { ok: false as const, errors: ["This invite link has already been used."] };
+    // A used invite can never be updated again (0072 trigger `signed_worker_invite_immutable`): the worker and their
+    // date of birth are saved first, then ONE update claims the invite and records the signature. If that claim does
+    // not happen, the just-created worker is deleted (identity cascades). Never reset used_at.
     const { data: w, error } = await admin.from("partner_workers").insert({
       business_id: inv.business_id, full_legal_name: data.full_legal_name, email: data.email, mobile: data.mobile, trade_role: t,
       licence_number: t === "electrician" ? data.licence_number ?? null : null, qualification: t === "installer" ? data.qualification ?? null : null,
@@ -236,19 +246,25 @@ export const submitWorkerInvite = createServerFn({ method: "POST" }).middleware(
       certification_status: t === "installer" ? "unverified" : null,
       certification: t === "installer" ? (mergeEec(null, eecUploadMeta(data.certificate_path!, now, data.certificate_number)) as never) : null,
     }).select("id").single();
-    if (error) {
-      await admin.from("partner_worker_invites").update({ used_at: null }).eq("id", inv.id);
-      return { ok: false as const, errors: [error.code === "23505" ? "Someone with that email is already registered under this business." : "We couldn't save your details. Please try again."] };
+    if (error || !w) {
+      return { ok: false as const, errors: [error?.code === "23505" ? "Someone with that email is already registered under this business." : "We couldn't save your details. Please try again."] };
     }
+    const dropWorker = async () => {
+      const { error: xe } = await admin.from("partner_workers").delete().eq("id", w.id);
+      if (xe) console.error(`[worker-invite] could not delete unclaimed worker ${w.id} for invite ${inv.id}: ${xe.message}`);
+    };
     const { error: ide } = await admin.from("partner_worker_identity" as never).insert({ worker_id: w.id, date_of_birth: data.date_of_birth, updated_by: inv.created_by } as never);
     if (ide) {
-      await admin.from("partner_workers").delete().eq("id", w.id);
-      await admin.from("partner_worker_invites").update({ used_at: null }).eq("id", inv.id);
+      await dropWorker();
       return { ok: false as const, errors: ["We couldn't save your details. Please try again."] };
     }
-    await admin.from("partner_worker_invites").update({
-      worker_id: w.id, signed_name: data.signed_name, signed_ip: context.ip, signed_user_agent: context.userAgent,
+    const { data: claimed, error: ce } = await admin.from("partner_worker_invites").update({
+      used_at: now, worker_id: w.id, signed_name: data.signed_name, signed_ip: context.ip, signed_user_agent: context.userAgent,
       declarations: { version: WORKER_DECLARATIONS_VERSION, accepted: decls, signed_at: now },
-    }).eq("id", inv.id);
+    }).eq("id", inv.id).is("used_at", null).is("revoked_at", null).select("id");
+    if (ce || !claimed?.length) {
+      await dropWorker();
+      return { ok: false as const, errors: [ce ? "We couldn't save your details. Please try again." : "This invite link has already been used."] };
+    }
     return { ok: true as const };
   });
