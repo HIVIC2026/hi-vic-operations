@@ -222,7 +222,7 @@ export const submitWorkerInvite = createServerFn({ method: "POST" }).middleware(
     // date of birth are saved first, then ONE update claims the invite. If that claim does
     // not happen, the just-created worker is deleted (identity cascades). Never reset used_at.
     const { data: w, error } = await admin.from("partner_workers").insert({
-      business_id: inv.business_id, full_legal_name: data.full_legal_name, email: data.email, mobile: data.mobile, trade_role: t,
+      business_id: inv.business_id, full_legal_name: data.full_legal_name, email: data.email, mobile: data.mobile, trade_role: t, worker_role: t === "installer" ? "crew" : null, // no role = Crew (Jo 5 Nov 2026)
       licence_number: t === "electrician" ? data.licence_number ?? null : null, qualification: t === "installer" ? data.qualification ?? null : null,
       added_by: inv.created_by, approval_status: "pending",
       // Installer certificate metadata: uploaded is NOT verified. Office verification sets certification_status='verified'.

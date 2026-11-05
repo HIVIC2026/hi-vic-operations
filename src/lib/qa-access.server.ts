@@ -272,7 +272,7 @@ export async function prepareQaAccess(admin: Admin, actorId: string, jobId: stri
   }
   const workerAccount = workerIdentity ?? await createMissingIdentity(admin, WORKER_EMAIL, "TEST Alpha Field Worker");
   await addIdentityAssociations(admin, actorId, workerAccount, "TEST Alpha Field Worker", "installer", installer.businessId, "member");
-  if (!worker) checked(await admin.from("partner_workers").insert({ business_id: installer.businessId, profile_id: workerAccount.userId, trade_role: "installer",
+  if (!worker) checked(await admin.from("partner_workers").insert({ business_id: installer.businessId, profile_id: workerAccount.userId, trade_role: "installer", worker_role: "crew",
     full_legal_name: "TEST Alpha Field Worker", email: WORKER_EMAIL, mobile: "0400000199", qualification: installerQualification({}),
     approval_status: "pending", certification_status: "unverified", added_by: actorId }), "Could not add the missing TEST worker");
   return { message: worker ? "Missing TEST associations prepared. Existing access and verification states were retained."

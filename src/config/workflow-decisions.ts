@@ -318,9 +318,9 @@ export const WORKFLOW_DECISIONS = {
     },
     leadCrew: {
       by: "Jo 27–29 Oct 2026",
-      replaces: "Jo 28 Oct 2026 (null = Crew unless Mitti access; Lead → Crew deactivates Mitti)",
+      replaces: "Jo 28 Oct 2026 (null = Crew unless Mitti access; Lead → Crew deactivates Mitti); Jo 5 Nov 2026 reversed the 29 Oct \"null = Lead\" line: no role = Crew",
       installerRoles: ["lead", "crew"],
-      nullReadsAs: "lead",
+      nullReadsAs: "crew", // Jo 5 Nov 2026 (was "lead", Jo 29 Oct); the 8 live no-role installers were set to crew in the database
       mittiAutoInviteOnlyFor: "lead",
       installLeadOnlyFor: "lead",
       leadNoEmailUses: "business_office_email",

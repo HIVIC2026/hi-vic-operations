@@ -91,7 +91,7 @@ export function teamRow(m: TeamRowFacts, today: string): TeamRow {
     const r = tradeRoleOf({ memberRole: "office", workerTradeRole: "office" });
     parts.push("Office", "prices ✓", moneySwitchLine(seesMoney(r, m.canSeeMoney)));
   } else if (m.role === "installer") {
-    const lead = m.workerRole !== "crew"; // worker-role rule: null = Lead
+    const lead = m.workerRole === "lead"; // worker-role rule: no role = Crew (Jo 5 Nov 2026)
     parts.push(lead ? "Lead Installer" : "Crew");
     const cleared = !!m.cii && crewClearance(m.cii, today).cleared;
     if (cleared) parts.push("CII ✓");
