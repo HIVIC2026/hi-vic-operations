@@ -1,7 +1,7 @@
 // Office-authorised callers only. Allocation is atomic; approved owner notices use the guarded sender afterwards.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
-import { WAITING_FOR_CALL_CONSENT, batchJobEligible, batchPartnerCovers, jobGiveOffer, suggestBatches, readyInHouseBatch, waitingForCallConsent, type BatchJob, type ConsentRow, type InHousePartner } from "./in-house-batch.core";
+import { TEST_GIVE_REFUSED, WAITING_FOR_CALL_CONSENT, batchJobEligible, isTestGiveBusiness, testGiveBlocker, batchPartnerCovers, jobGiveOffer, suggestBatches, readyInHouseBatch, waitingForCallConsent, type BatchJob, type ConsentRow, type InHousePartner } from "./in-house-batch.core";
 import { QUICK_TAPS_ANSWERED_EVENT } from "./quick-taps.core";
 import { sendInHousePartnerCall } from "./in-house-batch-email.server";
 import { sendInHouseGiveEmail } from "./in-house-give-email.server";
@@ -41,13 +41,21 @@ async function pagedRows<T>(query: (from: number, to: number) => PromiseLike<{ d
 async function byIds<T>(ids: string[], query: (ids: string[], from: number, to: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>): Promise<T[]> {
   return (await Promise.all(chunkIds([...new Set(ids)], 200).map(ids => pagedRows<T>((from, to) => query(ids, from, to))))).flat();
 }
-/** `now` is injectable (tests); the phone consent check is against it. `jobIds` scopes the read (job page offer). */
-export async function loadInHouseBatches(opts: { now?: Date; jobIds?: string[] } = {}) {
+/** TEST office only (Jo 5 Nov 2026): the job and business ids its own guards already checked (qa_office-access). */
+export type TestOfficeScope = { jobIds: string[]; businessIds: string[] };
+/** `now` is injectable (tests); the phone consent check is against it. `jobIds` scopes the read (job page offer).
+ *  `testOffice`: read ONLY those qa_test jobs and TEST businesses; without it (the real office) qa_test jobs are never read. */
+export async function loadInHouseBatches(opts: { now?: Date | undefined; jobIds?: string[]; testOffice?: TestOfficeScope | undefined } = {}) {
   const nowIso = (opts.now ?? new Date()).toISOString();
-  const scoped = (q: any) => opts.jobIds ? q.in("id", opts.jobIds) : q;
+  const test = opts.testOffice;
+  if (test && (!test.jobIds.length || !test.businessIds.length)) return { jobs: [] as BatchJob[], partners: [] as InHousePartner[], suggestions: [] as { businessId: string; jobIds: string[] }[], waitingForCallConsent: [] as string[] };
+  const scoped = (q: any) => { const s = opts.jobIds ? q.in("id", opts.jobIds) : q; return test ? s.eq("source", "qa_test").in("id", test.jobIds) : s.neq("source", "qa_test"); };
   const [jobs, businesses] = await Promise.all([
-    pagedRows<Job>((a,b) => scoped(db.from("jobs").select("id,job_number,property_id,owners(full_name,phone),stage,source,channel,originating_installer_business_id,deleted_at").is("deleted_at", null).neq("source", "qa_test").not("stage", "in", "(complete,cancelled)")).order("id").range(a,b)),
-    pagedRows<Omit<InHousePartner, "openJobs"> & { trading_name: string | null }>((a,b) => db.from("businesses").select("id,name,trading_name,in_house,is_active,service_postcodes,covers_all_victoria,coverage_lat,coverage_lng,coverage_radius_km").eq("in_house", true).eq("is_active", true).order("id").range(a,b)),
+    pagedRows<Job>((a,b) => scoped(db.from("jobs").select("id,job_number,property_id,owners(full_name,phone),stage,source,channel,originating_installer_business_id,deleted_at").is("deleted_at", null).not("stage", "in", "(complete,cancelled)")).order("id").range(a,b)),
+    test
+      ? pagedRows<Omit<InHousePartner, "openJobs"> & { trading_name: string | null; email: string | null; onboarding_notes: string | null }>((a,b) => db.from("businesses").select("id,name,trading_name,email,onboarding_notes,in_house,is_active,service_postcodes,covers_all_victoria,coverage_lat,coverage_lng,coverage_radius_km").eq("in_house", true).eq("is_active", true).in("id", test.businessIds).order("id").range(a,b))
+        .then(rows => rows.filter(isTestGiveBusiness).map(({ email: _e, onboarding_notes: _n, ...b }) => b))
+      : pagedRows<Omit<InHousePartner, "openJobs"> & { trading_name: string | null }>((a,b) => db.from("businesses").select("id,name,trading_name,in_house,is_active,service_postcodes,covers_all_victoria,coverage_lat,coverage_lng,coverage_radius_km").eq("in_house", true).eq("is_active", true).order("id").range(a,b)),
   ]);
   const ids = jobs.map(j => j.id), propertyIds = [...new Set(jobs.map(j => j.property_id))];
   const [assignments, saved, optouts, properties, facts, events, consents] = ids.length ? await Promise.all([
@@ -75,14 +83,14 @@ export async function loadInHouseBatches(opts: { now?: Date; jobIds?: string[] }
       lat: Array.isArray(coords) && typeof coords[1] === "number" ? coords[1] : null,
       lng: Array.isArray(coords) && typeof coords[0] === "number" ? coords[0] : null };
   });
-  const waiting = new Set(batchJobs.filter(j => waitingForCallConsent(j, consents.filter(c => c.job_id === j.id), nowIso)).map(j => j.id));
-  const eligibleJobs = batchJobs.filter(j => batchJobEligible(j) && !waiting.has(j.id));
-  return { jobs: eligibleJobs, partners, suggestions: suggestBatches(eligibleJobs, partners), waitingForCallConsent: [...waiting] };
+  const waiting = new Set(batchJobs.filter(j => waitingForCallConsent(j, consents.filter(c => c.job_id === j.id), nowIso, !!test)).map(j => j.id));
+  const eligibleJobs = batchJobs.filter(j => batchJobEligible(j, !!test) && !waiting.has(j.id));
+  return { jobs: eligibleJobs, partners, suggestions: suggestBatches(eligibleJobs, partners, !!test), waitingForCallConsent: [...waiting] };
 }
 
 /** Job page offer (office only): null unless this job can be given to its nominated in-house partner right now. */
-export async function inHouseGiveForJob(jobId: string) {
-  const screen = await loadInHouseBatches({ jobIds: [jobId] });
+export async function inHouseGiveForJob(jobId: string, opts: { testOffice?: TestOfficeScope | undefined } = {}) {
+  const screen = await loadInHouseBatches({ jobIds: [jobId], testOffice: opts.testOffice });
   return jobGiveOffer(screen.jobs.find(j => j.id === jobId), screen.partners);
 }
 
@@ -100,10 +108,24 @@ async function selectWorkers(businessId: string) {
   return { installer: installer.profile_id, electrician: null };
 }
 
-export async function sendInHouseBatch(input: { businessId: string; jobIds: string[]; actorId: string }, opts: { now?: Date } = {}): Promise<{ sent: string[]; refused: { jobId: string; reason: string }[]; installerEmail?: GiveEmailOutcome }> {
+/** `testOffice` (TEST office only, Jo 5 Nov 2026): refused whole unless EVERY job is a qa_test job inside the checked scope
+ *  and the business is a TEST partner (fresh read here; the allocation RPC re-checks under lock). Messages stay on test-send. */
+export async function sendInHouseBatch(input: { businessId: string; jobIds: string[]; actorId: string }, opts: { now?: Date; testOffice?: TestOfficeScope } = {}): Promise<{ sent: string[]; refused: { jobId: string; reason: string }[]; installerEmail?: GiveEmailOutcome }> {
   const sent: string[] = [], refused: { jobId: string; reason: string }[] = [];
   const batchId = crypto.randomUUID();
-  const screen = await loadInHouseBatches(opts);
+  const test = opts.testOffice;
+  if (test) {
+    const ids = [...new Set(input.jobIds)];
+    if (!ids.every(id => test.jobIds.includes(id)) || !test.businessIds.includes(input.businessId)) throw new Error(TEST_GIVE_REFUSED);
+    const [jobRows, biz] = await Promise.all([
+      db.from("jobs").select("id,source,deleted_at").in("id", ids),
+      db.from("businesses").select("id,email,onboarding_notes").eq("id", input.businessId).maybeSingle(),
+    ]);
+    if (jobRows.error || biz.error) throw new Error("The TEST give could not be checked. Try again.");
+    const blocked = testGiveBlocker(ids, (jobRows.data ?? []) as { id: string; source: string | null; deleted_at: string | null }[], biz.data as { email: string | null; onboarding_notes: string | null } | null);
+    if (blocked) throw new Error(blocked);
+  }
+  const screen = await loadInHouseBatches({ now: opts.now, testOffice: test });
   const partner = screen.partners.find(p => p.id === input.businessId);
   // Task 5: a lead whose owner hasn't tapped "can call me" (phone consent over 3 months old) is never handed off.
   for (const jobId of new Set(input.jobIds)) if (screen.waitingForCallConsent.includes(jobId)) refused.push({ jobId, reason: WAITING_FOR_CALL_CONSENT });

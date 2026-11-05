@@ -18,4 +18,29 @@ test("dedicated TEST office home; ordinary admin destination unchanged", () => {
  expect(portalDestination({ roles: ["qa_office"], hasBusiness: false })).toBe("/admin/needs-me");
  expect(portalDestination({ roles: ["qa_office", "admin"], hasBusiness: false })).toBe("no-access");
  expect(portalDestination({ roles: ["admin"], hasBusiness: false })).toBe("/admin/needs-me");
+});// Exactness (Jo 5 Nov 2026): the whole TEST-office function allowlist, so any added or removed name is a deliberate change here.
+import { QA_OFFICE_FUNCTIONS } from "../src/lib/qa-office-policy.core";
+test("TEST office function allowlist is exactly this list", () => {
+ expect(JSON.parse(JSON.stringify(QA_OFFICE_FUNCTIONS))).toEqual({
+  "src/lib/office-screens.functions.ts": ["getNeedsMePage", "getEnquiriesList", "getActiveJobsList", "getJobsLaneCounts", "getOfficeJobPage", "getOfficeJobMoney", "logOfficeCallOrNote"],
+  "src/lib/office-money.functions.ts": ["getMoneyPayouts"],
+  "src/lib/office.functions.ts": ["searchOffice", "approveElectricianForm", "markPayoutPaid"],
+  "src/lib/ap-queue.functions.ts": ["getFinalCheck", "approveApJob"],
+  "src/lib/spot-release.functions.ts": ["getSpotRelease", "releaseSpotFn"],
+  "src/lib/offer-dispatch.functions.ts": ["listChooseTrades", "sendChosenOffers"],
+  "src/lib/installer-waiting.functions.ts": ["getInstallerWaitingList"],
+  "src/lib/coverage.functions.ts": ["getJobCoverage"],
+  "src/lib/installer-quote.functions.ts": ["getInstallerQuoteDraft", "sendInstallerQuote"],
+  "src/lib/test-accounts.functions.ts": ["prepareQaJourneyAccess", "issueQaPersonaLink", "issueQaWorkerLink", "simulateQaJourneyTime", "simulateQaPayment", "archiveQaJourney"],
+  "src/lib/portal.functions.ts": ["createTestEnquiry", "getQaJourneys"],
+  "src/lib/in-house-batch.functions.ts": ["allocateInHouseBatch", "getInHouseGiveForJob"],
+ });
+});
+test("Choose installer Give: TEST office may give and read the give offer; the rest of in-house stays denied", () => {
+ for (const fn of ["allocateInHouseBatch", "getInHouseGiveForJob"]) {
+  expect(qaOfficeFunctionAllowed("src/lib/in-house-batch.functions.ts", fn)).toBe(true);
+  expect(qaOfficeFunctionBlocker(qa, "/abs/path/src/lib/in-house-batch.functions.ts", fn)).toBeNull();
+ }
+ expect(qaOfficeFunctionAllowed("src/lib/installer-waiting.functions.ts", "getInstallerWaitingList")).toBe(true);
+ for (const fn of ["getInHouseBatches", "takeBackInHouseJob", "pullBackInHouseJob"]) expect(qaOfficeFunctionBlocker(qa, "src/lib/in-house-batch.functions.ts", fn)).toBe(TEST_OFFICE_UNAVAILABLE);
 });
