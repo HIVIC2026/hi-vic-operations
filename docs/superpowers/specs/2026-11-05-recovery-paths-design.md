@@ -6,7 +6,7 @@ Date: 5 Nov 2026 · Approved design: Jo (chat, 5 Nov 2026) · Base: GitHub main 
 
 The portal must never say "done" when part of a job is still unfinished. Four places can do that today:
 
-Order of fixing (Jo, 5 Nov 2026): VEEC assignment → quotes → estimates → payments → emails → Mitti → SMS.
+Order of fixing (Jo, 5 Nov 2026): VEEC assignment → quotes → estimates → Xero invoice matching → payments → emails → Mitti → SMS.
 
 1. **VEEC assignment:** the portal can say "signed copy stored" when the PDF upload failed. "Signed" can be logged when a signature didn't save. A failed variation check counts as "no variations". The signed-copy email can get stuck after one failure, and "emailed" can be logged when the sent date didn't save.
 2. **Quotes:** a rejected office edit still saves the line, and a database hiccup can save a $0 total.
@@ -14,7 +14,8 @@ Order of fixing (Jo, 5 Nov 2026): VEEC assignment → quotes → estimates → p
 4. **Payments:** a card payment is saved, but the job and invoice updates get cut off. When it comes again, they're skipped. A refund that arrives before its payment is thrown away, and a database hiccup is treated as "unknown invoice, all good".
 5. **Emails:** a Spot saved email can show "Already sent to this owner" when nothing was sent.
 6. **Mitti:** the sweep only looks at the oldest 500 booked Ready Checks, so job 501 can be missed.
-7. **SMS:** a reply can be filed on the wrong job. A text that never reached the provider can't be retried. "Delivered" can go back to "sent".
+7. **Xero:** a recovered invoice can be linked to the wrong Xero invoice that shares the reference, and the payment check can say "0 failed" when Xero didn't answer.
+8. **SMS:** a reply can be filed on the wrong job. A text that never reached the provider can't be retried. "Delivered" can go back to "sent".
 
 The fix: one **still-to-finish list**. Anything not finished goes on it. The 15-minute check finishes it. After 3 failed tries it shows as one Needs me row and in the 6am report. Every save that has to happen together happens together.
 
@@ -77,6 +78,20 @@ New table `recovery_work` (pending SQL in `docs/pending-migrations/recovery-work
 - Replacing an estimate is one RPC `replace_current_estimate(p_job_id, p_expected_current_id, p_row jsonb)` (pending SQL). In one transaction it inserts the new `current` row and supersedes the old one (only if it is still current). There's always exactly one current estimate.
 - Owner link callers catch `EstimateRefreshFailed`. They show the last current estimate unchanged and log `estimate_refresh_failed` (internal, once per job per hour). That makes one Needs me row "Estimate refresh failed – HV-xxxx", which clears after the next successful refresh.
 
+## D. Xero (`xero.core.ts`, `xero.server.ts`) — invoice matching first
+
+**Invoice matching (`findInvoiceByReference`, `pushInvoiceToXero`)**
+- `findInvoiceByReference` returns `{ kind: "none" } | { kind: "match"; invoice } | { kind: "conflict"; candidates: { invoiceId; number; contactId; total; status }[] }`.
+- Candidates are invoices with the exact reference that aren't voided/deleted and aren't already linked to another portal invoice.
+- A match must be the **only** candidate, with total = the portal invoice's `total_inc_gst` (±$0.01) and contact = the owner's `xero_contact_id` when the portal has one. Anything else is a conflict.
+- On a conflict: don't link, don't create a new Xero invoice, throw `XeroInvoiceConflict`. That records `xero_invoice_match_unclear` (needs_office, candidate numbers/totals/contacts) once per candidate set. Needs me shows "Xero invoice match unclear – HV-xxxx (INV-1, INV-2)". The existing Sync button retries after the office fixes Xero.
+
+**Payment check summary (`pollXeroPayments`)**
+- `syncInvoiceFromXero` returns `{ ok: true } | { ok: false; reason: string }` (no longer a silent return after recording a failure). Voided, sync error and timeout are all `ok: false`. The old-fixes-invoice voided-on-purpose case stays `ok: true`.
+- `pollXeroPayments` returns `{ enabled, checked, failed, failedInvoices: { invoiceId, jobNumber, reason }[] }`. Both `ok: false` and thrown errors count as failed. The allocation tick output and the 6am report show `failed` and each failed invoice (TEST jobs left out).
+
+**Live check (read-only, 5 Nov 2026, portal side only, Xero not checked):** 1 real invoice (HV-3682 installation $3,568.00, INV-1908). It matches its accepted quote, and there are no duplicate references or Xero ids in the portal.
+
 ## 1. Card payments (`stripe.server.ts` `recordStripePayment`)
 
 - Before the ledger insert: `addWork('stripe_payment_followup', receiptKey, jobId, fact)`.
@@ -137,7 +152,7 @@ New table `recovery_work` (pending SQL in `docs/pending-migrations/recovery-work
   - "Spot saved email not sure it sent – HV-xxxx" / "Spot saved email not sent after 3 tries – HV-xxxx"
   - "Signed VEEC copy couldn't be saved – HV-xxxx"
   - "Signed VEEC copy email not sure it sent – HV-xxxx" / "Signed VEEC copy email not sent after 3 tries – HV-xxxx"
-- Rows from their own events (not the list): "Quote totals don't add up – HV-xxxx", "Estimate refresh failed – HV-xxxx", "Text reply – which job? HV-A or HV-B".
+- Rows from their own events (not the list): "Quote totals don't add up – HV-xxxx", "Xero invoice match unclear – HV-xxxx (INV-1, INV-2)", "Estimate refresh failed – HV-xxxx", "Text reply – which job? HV-A or HV-B".
 - Office actions on the row: **Try again** (resets attempts) and **Mark sorted** (sets `done` with an audit event).
 - The 6am report lists the open `needs_office` items (count + one line each). TEST jobs (`qa_test`) are left out.
 
@@ -155,6 +170,7 @@ Each review finding gets a test that fails on `a274d76` and passes after the fix
 9. $3,000 → $3,200 with a rejected discount → nothing saved. Item read timeout → no $0 total.
 10. Measurement read timeout → the estimate stays at 140 m², not 90 m². Replacement insert fails → the old estimate is still current.
 11. Delivered to Job A, blocked for Job B, then a reply → filed on A. Two open jobs with sent texts → "which job?" row.
+13. Two Xero invoices share the reference ($500 other contact, $3,500 correct) → no link, conflict row. One times out in the poll → summary says 1 failed and names it.
 12. Provider unavailable, then restored → the retry sends once. "delivered" then a late "sent" → stays delivered.
 
 Plus: tick claim safety (two runs, one attempt), the 3-tries → Needs me rule, Mark sorted / Try again, and the SQL proven on PGlite. Run `bun scripts/scan-retired-terms.ts` and `bun test ./tests/`.
