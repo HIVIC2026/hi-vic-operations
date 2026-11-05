@@ -247,6 +247,11 @@ expect(photoQuoteDueBy("2026-11-06T01:00:00Z")).toBe("2026-11-10"); // Fri → T
 - [ ] **Step 2:** Run → FAIL. **Step 3:** Implement. **Step 4:** Run → PASS, plus existing add-installer-job and installer-price tests → PASS.
 - [ ] **Step 5: Commit** `feat: From photos installers add their own job with the quote in one step`
 
+**Change round (Jo 5 Nov 16:44 — replaces the 16:10 split-row layout):**
+- [ ] **Step 6: Failing tests:** Add a job for a From photos business carries the "Your price" card's ticks (`INCLUDED_OPTIONS`, base tick required, "Other" needs words) and product; sqm to remove > 0 without the removal tick is refused, 0 sqm with it is refused; the ticks reach `installer_price_set` through `validateInstallerPrice` exactly as the card saves them. The live box, the owner's quote and "View quote (PDF)" show the `ownCustomerRows` rows only (Insulation — {what it includes} · Home Insulation Victoria fee · Electrical safety check (PIESA) — charged by Home Insulation Victoria · Rebate · Your price); no split sqm rows. The INSTALLER_PRICE wording is the Ready Check path's (`applyMittiProduct` + `applyMittiRemoval`). The preview-vs-issued match test still runs both real paths on one in-memory database. The PIESA label change applies to `OWN_CUSTOMER_LABELS.piesa` (every own-customer quote); the tax invoice keeps its own label.
+- [ ] **Step 7:** Keep from 16:10: money rows wrap; both logos (header option set by the quote PDF only, tax invoice unchanged); quote date + "Valid for 30 days, until {date}"; footer. Re-render the sample PDF.
+- [ ] **Step 8: Commit** per part.
+
 ---
 
 ### Task 9: Whole-flow check

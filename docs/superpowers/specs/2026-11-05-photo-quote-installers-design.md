@@ -65,12 +65,19 @@ No Gap won't do Ready Checks on their own customers either. For an installer set
    - Existing insulation under R2? Yes / No ("No" can't be sent)
    - Sqm to remove
    - Sqm to install
-   - Product (same list as the Mitti Ready Check)
-   - Your price (inc GST, install + removal)
+   - Product: the SAME product list and the SAME "What's included" ticks as the "Your price" card on other installers' own jobs (`installer-price.core.ts` / `INCLUDED_OPTIONS`: "Ceiling insulation - supply & install" (must be ticked), "Removal of existing insulation", "Other" + what else). Sqm to remove above 0 needs the removal tick; 0 sqm to remove can't have it (Jo 5 Nov 16:44).
+   - Your price (inc GST)
    - Button: **Add the job and send the quote**
-2. **Live quote under the price**, worked out with the SAME calculation the owner's quote uses: "Your price $X + PIESA fee $349 + Home Insulation Victoria AP management fee $349 − rebate $Y = owner pays $Z", with the line "We add our $349 AP management fee and the $349 PIESA fee to your price." The PIESA figure is the installer's PIESA price on file (No Gap's must be $349; the office checks it before switching No Gap on). A test proves the screen and the issued quote always match.
+   The ticks and product are saved as `installer_price_set` exactly as the "Your price" card saves them, so the quote text is the same as every other installer's own-customer quote.
+2. **Live quote under the price**, worked out with the SAME calculation the owner's quote uses, showing the SAME rows as every other installer's own-customer quote (`own-customer-price.core.ts` `ownCustomerRows`; Jo 5 Nov 16:44 — no split sqm rows):
+   - "Insulation — {what it includes}" at the installer's price
+   - "Home Insulation Victoria fee $349" (the shared approved label; Jo's 16:44 note called it "Home Insulation Victoria AP management fee" — kept as the shared label so every own-customer quote reads the same, asked back to Jo)
+   - "Electrical safety check (PIESA) — charged by Home Insulation Victoria $349" (Jo's wording, 5 Nov 16:44; true for every own-customer quote, so the shared row label changed for all of them)
+   - "Rebate −$Y"
+   - "Your price $Z" (what the owner pays)
+   with the line "We add our $349 AP management fee and the $349 PIESA fee to your price." The PIESA figure is the installer's PIESA price on file (No Gap's must be $349; the office checks it before switching No Gap on). The owner's quote and "View quote (PDF)" show these same rows. A test proves the screen and the issued quote always match (both real paths on one in-memory database).
 3. **Quote goes out the normal way** for installers' own customers: the portal adds the PIESA and AP fee, takes off the rebate, and releases it through the existing own-customer send-on-press path, unless a check holds it. While the "send on press" switch (`OWN_CUSTOMER_SEND_ON_PRESS_ENABLED`) is off, the quote waits on Quotes to check for the office to press Send. The switch is not changed by this build.
-4. **View and save the quote:** once the quote exists, the installer's job page shows "View quote (PDF)": the exact quote the owner gets, with BOTH logos: the installer's own logo and Home Insulation Victoria's real logo (Jo, 5 Nov 14:40; installers' own customers already show the installer logo on the quote), downloadable as a PDF. The owner's quote for these jobs shows both logos too. Only people who can see prices (boss, or Office with Money on) see it.
+4. **View and save the quote:** once the quote exists, the installer's job page shows "View quote (PDF)": the exact quote the owner gets, with BOTH logos: the installer's own logo and Home Insulation Victoria's real logo (Jo, 5 Nov 14:40; installers' own customers already show the installer logo on the quote), downloadable as a PDF. The owner's quote for these jobs shows both logos too. The PDF (Jo 5 Nov 16:10, kept 16:44): long money rows wrap with the amount right-aligned; the installer's logo top-left and ours top-right (this header is the quote PDF's only; other co-branded PDFs such as the tax invoice are unchanged); the quote date and "Valid for 30 days, until {date}"; the standard footer. Only people who can see prices (boss, or Office with Money on) see it.
 5. **No Ready Check:** no Mitti Ready Check form, no Ready Check booking, chase or flags, no "will call" email. The quote email is the owner's first email. After the $349, everything is the normal in-house flow (PIESA, upgrades, install, all in Mitti).
 6. Ready Check installers' Add a job is unchanged.
 
