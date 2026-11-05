@@ -53,7 +53,7 @@ export function PeopleTable({ people, showBusiness = true, invalidate }: { peopl
                   </tr></thead>
                   <tbody className="[&>tr]:border-t [&>tr]:border-line [&_td]:px-2.5 [&_td]:py-1.5 [&_td]:align-top">
                     {g.people.map((p) => {
-                      const approval = personApproval({ ciiVerified: p.ciiOk === true, noticeSigned: p.noticeOk === true, dateOfBirth: p.dateOfBirth });
+                      const approval = personApproval({ ciiVerified: p.ciiOk === true, noticeSigned: p.noticeOk === true, workerRole:p.workerRole, dateOfBirth: p.dateOfBirth });
                       const cii = p.ciiTone === "plain" ? <span>{p.ciiLabel}</span> : <Pill tone={p.ciiTone}>{p.ciiLabel}</Pill>;
                       const mitti = <span data-why="decisions 22/188: Mitti membership checked per person">{p.inMitti ? "Yes" : "No"}</span>;
                       const actions = (
@@ -79,8 +79,8 @@ export function PeopleTable({ people, showBusiness = true, invalidate }: { peopl
                           {nameCell}
                           <td data-why="decision 153: clearance derived from verified CII + level + expiry">{cii}</td>
                           <td data-why="decision 130: per-person ESC notice">{p.noticeOk ? <Pill tone="green">Signed</Pill> : <Pill tone="rose">Not signed</Pill>}</td>
-                          <td><EscRegisteredCell person={p} onDone={refreshAll} /></td>
-                          <td className={p.dateOfBirth ? "" : "text-rose"}>{p.dateOfBirth ? dobLabel(p.dateOfBirth) : "No"}</td>
+                          <td>{p.workerRole !== "crew" ? <EscRegisteredCell person={p} onDone={refreshAll} /> : "—"}</td>
+                          <td className={p.workerRole === "crew" || p.dateOfBirth ? "" : "text-rose"}>{p.workerRole === "crew" ? "—" : p.dateOfBirth ? dobLabel(p.dateOfBirth) : "No"}</td>
                           <td>{mitti}</td>
                           <td data-approval={approval.approved ? "approved" : "not-approved"}>{approval.approved ? <Pill tone="green">Approved</Pill> : <><span className="font-semibold text-sub">{approval.label}</span>{approval.missingLine && <span className="block text-sub">{approval.missingLine}</span>}</>}</td>
                         </tr>

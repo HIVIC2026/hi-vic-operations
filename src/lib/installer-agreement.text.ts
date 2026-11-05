@@ -1,4 +1,4 @@
-// DRAFT installer agreement v1.21 (2026-11-04): defect and complaint deadlines added to clause 17. Lawyer review required before live use.
+// DRAFT installer agreement v1.22 (2026-11-05): defect and complaint deadlines added to clause 17. Lawyer review required before live use.
 // Any wording change needs a NEW version string so earlier signatures keep their exact text.
 export const INSTALLER_AGREEMENT_SECTIONS: { n: number; title: string; paras: string[] }[] = [
  {
@@ -41,7 +41,7 @@ export const INSTALLER_AGREEMENT_SECTIONS: { n: number; title: string; paras: st
   "n": 5,
   "title": "Installer status, licences, competency and personnel",
   "paras": [
-   "The Installer warrants that all installation work is performed by persons who hold the training, competency and any registration required by current Activity 48 and VEU requirements for ceiling-insulation installation. Every person who performs insulation installation work must hold a current White Card (general construction induction training certificate) before they are assigned to, or attend a site for, installation work on a Home Insulation Victoria Job, and the Installer must not assign or allow that person to attend until Home Insulation Victoria has recorded and verified the current White Card. Each Nominated Installer must use their own Home Insulation Victoria account.",
+   "The Installer warrants that all installation work is performed by persons who hold the training, competency and any registration required by current Activity 48 and VEU requirements for ceiling-insulation installation. Each Nominated Installer must use their own Home Insulation Victoria account.",
    "The Installer must ensure every employee, contractor and Nominated Installer engaged on a Home Insulation Victoria Job understands and complies with the obligations that apply to them under this agreement, the VEU Code of Conduct, safety requirements and Home Insulation Victoria procedures, and completes all training required by the ESC, VEU rules or Home Insulation Victoria before performing the regulated action.",
    "Where the VEU Registry or ESC process requires the Installer or an installer to be recorded as a scheme participant, the Installer authorises Home Insulation Victoria to use the verified identity, qualification and business information supplied through Home Insulation Victoria for that purpose and must keep that information current.",
    "The Installer must immediately notify Home Insulation Victoria of any suspension, restriction, expiry, investigation, prohibition or other circumstance affecting a qualification, the ability to work safely, or eligibility to undertake the services."

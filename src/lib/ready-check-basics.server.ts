@@ -21,7 +21,7 @@ export async function checkReadyCheckBasics(jobId: string, actorId: string | nul
   const answered = formHasInstallerAnswers(formEntries);
   const [{ data: job }, { data: m }, { data: perm }, { data: last }] = await Promise.all([
     admin.from("jobs").select("channel, stage, owner_id, life_support_status, owners(phone,email), properties(enrichment)").eq("id", jobId).maybeSingle(),
-    admin.from("ceiling_measurements").select("measured_area_m2, verified_area_m2, zones").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
+    admin.from("ceiling_measurements").select("measured_area_m2, verified_area_m2, zones, external_source").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
     admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "mitti_contact_permission").limit(1).maybeSingle(),
     admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", BASICS_EVENT).order("created_at", { ascending: false }).limit(1).maybeSingle(),
   ]);
@@ -48,7 +48,7 @@ export async function checkReadyCheckBasics(jobId: string, actorId: string | nul
     ownerMobile: owner?.phone ?? a.phone ?? null, ownerEmail: owner?.email ?? a.email ?? null, contactPermission: permission, stops, formCompleted,
   });
   if (installerSourced && priceRecord?.sendToQuote) {
-    const core = partialA1QuoteCore({ areaM2: m ? Number(m.measured_area_m2) || null : null, areas: Array.isArray(m?.zones) ? m.zones as unknown as import("./mitti.core").MittiArea[] : [], entries: formEntries });
+    const core = partialA1QuoteCore({ areaM2: m ? Number(m.measured_area_m2) || null : null, areas: m?.external_source !== 'portal_ready_check' && Array.isArray(m?.zones) ? m.zones as unknown as import("./mitti.core").MittiArea[] : [], entries: formEntries });
     r.missing = core.missing;
     r.notes = core.information;
     r.ready = core.ready && !stops.length;

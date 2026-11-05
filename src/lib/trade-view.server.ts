@@ -939,7 +939,7 @@ export async function tradeBusiness(userId: string) {
   // (Part 5's private read above). Unknown births → left unset, never "everyone missing".
   if (births != null) {
     const { teamMissingDetails } = await import("./team-required.core");
-    for (const m of team) if (m.role !== "owner" && m.id) m.missingDetails = teamMissingDetails(m.role === "electrician" ? "electrician" : "installer", { mobile: m.mobile, email: m.email, hasDateOfBirth: births.has(m.id) });
+    for (const m of team) if (m.role !== "owner" && m.id) m.missingDetails = teamMissingDetails(m.role === "electrician" ? "electrician" : "installer", { mobile: m.mobile, email: m.email, hasDateOfBirth: births.has(m.id), workerRole:m.role === "office" ? "office" : m.workerRole });
   }
   const credentials: CredentialView[] = (creds ?? []).map((x) => ({ kind: x.kind, label: x.label, expires: x.expires_at, verified: x.verification === "verified" }));
   const liability = latestExpiry(credentials, "public_liability_insurance");
@@ -1271,11 +1271,13 @@ export async function tradeAddTeamPerson(userId: string, p: { name: string; role
   if (!name) throw new WorkflowError("Add their full name.");
   const licence = p.licenceNumber?.trim() || null;
   if (c.kind === "electrician" && !licence) throw new WorkflowError("Add their electrical licence number.");
+  if(c.kind === "electrician" && !p.recNumber?.trim())throw new WorkflowError("Add their REC number.");
   const { teamMemberDetails, teamWorkerRoleProblem } = await import("./team-required.core");
   // Task 10 roles (Office / Electrician) are checked by addPersonProblems below; the Lead/Crew rule applies to the rest.
   const roleProblem = p.role === "office" || p.role === "electrician" ? null : teamWorkerRoleProblem(c.kind, p.workerRole ?? (p.role === "lead" || p.role === "crew" ? p.role : undefined));
   if (roleProblem) throw new WorkflowError(roleProblem);
-  const v = teamMemberDetails(c.kind, { mobile: p.mobile, email: p.email, dateOfBirth: p.dateOfBirth }, (await import("./melbourne-time.core")).melbourneToday());
+  if(p.role === "electrician" && !p.email?.trim())throw new WorkflowError((await import("./team-screen.core")).ELECTRICIAN_EMAIL_NEEDED);
+  const v = teamMemberDetails(p.role === "electrician" ? "electrician" : c.kind, { mobile: p.mobile, email: p.email, dateOfBirth: p.dateOfBirth, workerRole:p.role ?? p.workerRole }, (await import("./melbourne-time.core")).melbourneToday());
   if (!v.ok) throw new WorkflowError(v.error);
   const email = p.email?.trim().toLowerCase() || null;
   if (c.kind === "installer") {
@@ -1285,10 +1287,10 @@ export async function tradeAddTeamPerson(userId: string, p: { name: string; role
     if (problems.length) throw new WorkflowError(problems[0]!);
     const rpc = admin as unknown as import("@supabase/supabase-js").SupabaseClient;
     const rec = p.recNumber?.trim() || null;
-    let r = await rpc.rpc("add_team_person_with_identity", { _business: c.biz.id, _actor: userId, _name: name, _role: role, _mobile: v.mobile, _email: email, _dob: p.dateOfBirth, _licence: role === "electrician" ? licence : null, _rec: role === "electrician" ? rec : null });
+    let r = await rpc.rpc("add_team_person_with_identity", { _business: c.biz.id, _actor: userId, _name: name, _role: role, _mobile: v.mobile, _email: email, _dob: v.dateOfBirth, _licence: role === "electrician" ? licence : null, _rec: role === "electrician" ? rec : null });
     // Lead/Crew before the pending SQL is live: the applied function (0186) adds them exactly as before.
     if (r.error && ["PGRST202", "42883"].includes(r.error.code) && (role === "lead" || role === "crew"))
-      r = await rpc.rpc("add_team_installer_with_identity", { _business: c.biz.id, _actor: userId, _name: name, _role: role, _mobile: v.mobile, _email: email, _dob: p.dateOfBirth });
+      r = await rpc.rpc("add_team_installer_with_identity", { _business: c.biz.id, _actor: userId, _name: name, _role: role, _mobile: v.mobile, _email: email, _dob: v.dateOfBirth });
     if (r.error) {
       // 5 Nov 2026 (Tom, go-live morning): the missing-function message names every argument, `_mobile` included, so the
       // mobile check must come AFTER the missing-function check or a pending SQL file reads as "Add their mobile number."
@@ -1300,7 +1302,7 @@ export async function tradeAddTeamPerson(userId: string, p: { name: string; role
     }
     return { workerId: r.data as string };
   }
-  const row = { trade_role: c.kind, licence_number: licence, worker_role: null };
+  const row = { trade_role: c.kind, licence_number: licence, rec_number:p.recNumber?.trim()??null, worker_role: null };
   const { data, error } = await admin.from("partner_workers").insert({ business_id: c.biz.id, full_legal_name: name, email, mobile: v.mobile, ...row, approval_status: "pending", added_by: userId } as never).select("id").single();
   if (error) {
     const needsDbUpdate = "Adding someone without an email needs the office's database update first.";
@@ -1313,7 +1315,7 @@ export async function tradeAddTeamPerson(userId: string, p: { name: string; role
   const workerId = (data as { id: string }).id;
   // Electrician date of birth: private identity row (same table/RLS as installers). If it can't be saved the new person is
   // removed again, so nobody is ever left without their required date of birth.
-  const { error: ie } = await admin.from("partner_worker_identity" as never).insert({ worker_id: workerId, date_of_birth: v.dateOfBirth, updated_by: userId } as never);
+  const ie = v.dateOfBirth ? (await admin.from("partner_worker_identity" as never).insert({ worker_id: workerId, date_of_birth: v.dateOfBirth, updated_by: userId } as never)).error : null;
   if (ie) {
     await admin.from("partner_workers").delete().eq("id", workerId);
     throw new WorkflowError("Couldn't add them. Please try again.");
@@ -1588,7 +1590,8 @@ function installerJobPageParts(i: {
   /** G7: who's going to the Ready Check — null = booked with "Not sure yet", nobody picked; undefined = nothing recorded. */
   readyCheckPerson?: string | null | undefined;
   a: { status: string | null; piesa_outcome: string | null; hazards?: string | null } | null;
-  m: { measured_area_m2: number | string | null; removal_m2: number | string | null; removal_required: boolean | null; access_difficulty: string | null; raw_snapshot: unknown } | null;
+  m: { measured_area_m2: number | string | null; removal_m2: number | string | null; removal_required: boolean | null; access_difficulty: string | null; raw_snapshot: unknown; external_source?: string | null; completed_at?: string | null } | null;
+  readyCheckSubmittedAt?: string | null;
   form: { auditId: string | null; complete: boolean }; clearance: { cleared: boolean };
   quote: { declined?: boolean; accepted?: boolean; sent?: boolean }; qq: { accepted_at?: string | null } | null; pay: number | null; elecName: string | null;
   piesaRec: { outcome: string | null; rectification_completed_at: string | null; section_c_signed_at: string | null } | null;
@@ -1674,7 +1677,7 @@ function installerJobPageParts(i: {
   const owner = showContact ? ownerRows({ name: ownerName, phone: ownerPhone, email: j?.owners?.email?.trim() || null, access: i.accessPerson }) : [];
   const installBooked = !!i.inBook && i.inBook.status !== "cancelled";
   const paperwork = paperworkRows({
-    readyCheckReport: readyCheckDone, signedPiesa: piesaDone, ownerConsent: i.consentSigned, safetyPlan: !!i.swmsRead, installForm: !!i.form.auditId, installBooked,
+    readyCheckReport: ownCustomer ? !!i.readyCheckSubmittedAt : readyCheckDone, readyCheckSource: i.m?.external_source === 'portal_ready_check' ? 'portal' : 'mitti', readyCheckSubmittedAt: i.readyCheckSubmittedAt ?? i.m?.completed_at ?? null, signedPiesa: i.a?.status === 'complete', ownerConsent: i.consentSigned, safetyPlan: !!i.swmsRead, installForm: !!i.form.auditId, installBooked,
   });
   const visits = visitsRows({ readyCheck: i.rcBook?.scheduled_start ?? null, piesa: i.piesaBook?.scheduled_start ?? null, install: i.inBook?.scheduled_start ?? null });
   return {
@@ -1700,7 +1703,7 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
   // Decision 251: the owner's side is read only once the install is booked (the M2-install-booked state); nothing is read before that.
   const ownerReadyP = early(inBookP.then(async ({ data: inBook }) => inBook?.status === "confirmed" ? await ownerReadyFacts(jobId).catch(() => null) : null));
   // Decision 278: only whether the boss has entered the price (true/false on the installer's own jobs, null otherwise).
-  const priceEnteredP = early(jobP.then(async ({ data: j }) => j?.channel === "installer_sourced" ? !!(await installerPriceServer.readInstallerPrice(jobId).catch(() => null)) : null));
+  const priceEnteredP = early(jobP.then(async ({ data: j }) => j?.channel === "installer_sourced" ? await installerPriceServer.readInstallerPrice(jobId).catch(() => null) : null));
   // Decision 296: the owner's PIESA confirmation; decision 327: the electrician at the start of the install day. Read only once cleared.
   const piesaConfirmedP = early(clearanceP.then((cl) => cl.cleared ? piesaOwnerConfirmServer.ownerPiesaConfirmedState(jobId).catch(() => null) : null));
   const attendanceP = early(clearanceP.then((cl) => cl.cleared ? installerAttendanceView(jobId).catch(() => null) : null));
@@ -1741,11 +1744,11 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
   const allocatedElecP = early(inHouseElectricianServer.allocatedWorkerId(jobId).then(async (id) => id ? (await admin.from("partner_workers").select("full_legal_name").eq("id", id).maybeSingle()).data : null).catch(() => null));
   const [{ data: j }, { data: rcBook }, { data: inBook }, { data: m }, { data: a }, rebateSigned, quote, pay, form, clearance, mitti, payRows,
     { data: declinedEv }, { data: basicsDone }, { data: piesaBooks }, { data: elecAsg }, { data: fixes }, { data: evEv }, { data: alloc }, { data: decl }, { data: finalAsg }, ownerReady, notes,
-    priceEntered, ownerPiesaConfirmed, electricianAttendance, released, { data: mineBk }, accessPerson, { data: piesaRec }, { data: sentRows }, ledger, depositPaid, { data: dl }, { data: given }, { data: consent }, { data: paidEv }, piesaPayRead, swmsRead, { data: quoteItemsRow }, whoBooks, coesOnFile, allocatedElec] = await Promise.all([
+    priceRecord, ownerPiesaConfirmed, electricianAttendance, released, { data: mineBk }, accessPerson, { data: piesaRec }, { data: sentRows }, ledger, depositPaid, { data: dl }, { data: given }, { data: consent }, { data: paidEv }, piesaPayRead, swmsRead, { data: quoteItemsRow }, whoBooks, coesOnFile, allocatedElec] = await Promise.all([
     jobP,
     admin.from("bookings").select("id, scheduled_start, status").eq("job_id", jobId).eq("kind", "ready_check").neq("status", "cancelled").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     inBookP,
-    admin.from("ceiling_measurements").select("measured_area_m2, removal_m2, removal_required, access_difficulty, raw_snapshot, external_source, external_id, zones").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
+    admin.from("ceiling_measurements").select("measured_area_m2, removal_m2, removal_required, access_difficulty, raw_snapshot, external_source, external_id, zones, completed_at").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
     admin.from("assessments").select("status, piesa_outcome, completed_at, hazards, mitti_raw_snapshot").eq("job_id", jobId).maybeSingle(),
     rebateSignedByInstaller(jobId),
     shared ? shared.quote() : loadInstallerQuote(jobId),
@@ -1800,11 +1803,12 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
   const jobPage = installerJobPageParts({
     c, j: j as JobPageJob | null, rcBook, inBook, piesaBook, a, m, form, clearance, quote, qq, pay, elecName, piesaRec, accessPerson, mineBk: mineBk ?? [], released,
     readyCheckPerson: rcPerson.pending ? null : rcPerson.name ?? undefined,
+    readyCheckSubmittedAt: priceRecord?.sendToQuote ? priceRecord.setAt : null,
     sentRows: sentRows ?? [], ledger, depositPaid, deadline: dl?.install_deadline ? String(dl.install_deadline) : null, givenAt: (given as { assigned_at?: string | null } | null)?.assigned_at ?? null,
     consentSigned: !!consent, paidEv: (paidEv ?? []) as { created_at: string; details: unknown }[], piesaPayRead, swmsRead, quoteItems: ((quoteItemsRow as unknown as { quote_items: unknown }[] | null)?.[0]?.quote_items as { code: string | null; description: string | null; sort: number | null; line_total_inc_gst?: number | string | null }[] | null) ?? [],
     // Part 10 Task 9 / I3: the quotes the Job details money rows read (own customers only; figures never shown to staff).
     quotesForMoney: ((quoteItemsRow as unknown as { status: string | null; created_at: string | null; customer_total_inc_gst: number | string | null; quote_items: { code: string | null; line_total_inc_gst: number | string | null }[] | null }[] | null) ?? []).map((q) => ({ status: q.status, created_at: q.created_at, customer_total_inc_gst: q.customer_total_inc_gst, items: q.quote_items ?? [] })),
-    priceEntered, notes, product, payRow, mittiCompleted: mitti.applies ? mitti.completed === true : false, needsFinishingItems: needsFinishingList(j?.next_action ?? ""), mittiMissing: mitti.applies ? mitti.missing : [],
+    priceEntered: j?.channel === 'installer_sourced' ? !!priceRecord : null, notes, product, payRow, mittiCompleted: mitti.applies ? mitti.completed === true : false, needsFinishingItems: needsFinishingList(j?.next_action ?? ""), mittiMissing: mitti.applies ? mitti.missing : [],
     whoBooks, coesOnFile,
   });
   return {
@@ -1819,7 +1823,7 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
       : { linked: false, auditId: null as string | null, completed: false, missing: [] as string[], stops: [] as string[], electrician: null as string | null, needsFinishing: null as string | null, needsFinishingItems: [] as string[], completedAt: null as string | null, hasAnswers: null as boolean | null },
     // Decision 278: only whether the boss has entered the price (true/false on the installer's own jobs, null otherwise).
     // The price itself is read by the boss-only card (installer-price.functions) and never travels with the page.
-    price: { entered: priceEntered },
+    price: { entered: j?.channel === 'installer_sourced' ? !!priceRecord : null },
     boss: c.boss,
     // Fix wave C2: the page branches on these (an Office person has no my_job_role answer).
     role: c.role, kind: c.kind,

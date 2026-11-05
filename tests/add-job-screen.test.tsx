@@ -43,7 +43,7 @@ const typeAddress = async (r: ReturnType<typeof render>) => {
   fireEvent.change(r.getByLabelText("Postcode"), { target: { value: "3121" } });
 };
 const fillAll = (r: ReturnType<typeof render>) => {
-  fireEvent.click(r.getByLabelText("They contacted us"));
+  fireEvent.click(r.getByLabelText("They got in touch with us"));
   fireEvent.change(r.getByLabelText(ADD_JOB_WORDS.name), { target: { value: "Sarah Brown" } });
   fireEvent.change(r.getByLabelText(ADD_JOB_WORDS.mobile), { target: { value: "0412 345 678" } });
   fireEvent.change(r.getByLabelText(ADD_JOB_WORDS.email), { target: { value: "sarah@example.com" } });
@@ -52,6 +52,18 @@ const fillAll = (r: ReturnType<typeof render>) => {
 };
 
 describe("Add a job screen", () => {
+  test("door-knock and cold-call disable Add without saving; permitted origins re-enable it", () => {
+    const r=draw();
+    for(const value of ['door_knock','cold_call']) {
+      fireEvent.click(r.container.querySelector(`input[value="${value}"]`) as HTMLInputElement);
+      expect((r.getByRole('button',{name:'Add job'}) as HTMLButtonElement).disabled).toBe(true);
+      expect(calls).toHaveLength(0);
+    }
+    for(const value of ['owner_contacted','referral']) {
+      fireEvent.click(r.container.querySelector(`input[value="${value}"]`) as HTMLInputElement);
+      expect((r.getByRole('button',{name:'Add job'}) as HTMLButtonElement).disabled).toBe(false);
+    }
+  });
   test("a phone reload in StrictMode keeps entered details and retry key, but never restores consent", () => {
     const key = "00000000-0000-4000-8000-000000000001";
     localStorage.setItem("hiv-onsite-draft", JSON.stringify({ full_name: "TEST Stress Owner", address_line: "908822 TEST Stress Street", suburb: "Reservoir", postcode: "3073", phone: "0400000601", email: "stress@hivic-test.example", address_typed: true, contact_permission: true, request_key: key }));

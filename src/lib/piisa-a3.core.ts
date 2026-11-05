@@ -13,7 +13,7 @@ import type { OfficialAnswers } from "./official-forms.core";
 import { crewClearance, melbourneToday, whiteCardBlocker, whiteCardState } from "./worker-compliance.core";
 import { effectiveWorkerRole } from "./worker-role.core";
 import { INSTALL_EVIDENCE_RELABELS, INSTALL_EVIDENCE_RELABELS_LONG, zoneVideoFiles } from "./install-evidence.core";
-import { INSTALL_DAY_Q, allWithLabel, installDayMedia, installDayMissingQuestions, installDayOfficialAnswers, isInstallDayDoc, labelledItems, readInstallDay } from "./install-day.core";
+import { INSTALL_DAY_Q, allWithLabel, installDayMedia, installDayMissingQuestions, installDayOfficialAnswers, isInstallDayDoc, labelledItems, readInstallDay, type InstallDayBeforeRead } from "./install-day.core";
 
 import { A3_NATIVE_CREW_LOOKUP, CREW_NOT_LEAD_MESSAGE, crewSelectionProblems, leadWorkerId, savedCrewNeedsRepick, type CrewPick, type CrewSelection, type StaffOption } from "./piisa-crew.core";
 export { A3_NATIVE_CREW_LOOKUP, CREW_NOT_LEAD_MESSAGE, crewSelectionProblems, leadWorkerId, savedCrewNeedsRepick };
@@ -429,6 +429,14 @@ export type Part6Result = {
   fullRemoval: boolean;
 };
 const NO_EXTRA: Part6Extra = { suitable: null, conductive: null, reason: null };
+/** New A5 owns before-condition facts; no Ready Check substitution or photo-to-numeric-depth inference. */
+export function installDayBeforePart6Answers(read:InstallDayBeforeRead):Part6Result|null {
+ if(!read.onForm||!read.conditionsOnForm)return null;
+ const areas:RcArea[]=read.areas.map(a=>({name:a.name,present:a.present,rValue:a.rValue,removal:a.removal==='yes'?true:a.removal==='no'?false:null,suitable:a.suitable??null,keepReason:a.keepReason??null,depthMm:a.depthMm??null,conductive:a.conductive??null,conductiveEvidence:a.conductiveEvidence??null}));
+ const result=readyCheckPart6Answers(areas);
+ result.missing=result.missing.map(m=>m.replace(/Ready Check:/g,'A5 Before you start:'));
+ return result;
+}
 /** Decision 375: average existing insulation depth weighted by each area's m², rounded to the nearest mm. */
 export function weightedDepthMm(areas: { depthMm: number; areaM2: number }[]): number {
   const m2 = areas.reduce((s, a) => s + a.areaM2, 0);

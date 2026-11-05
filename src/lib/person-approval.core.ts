@@ -2,14 +2,14 @@ import { melbourneToday } from "./melbourne-time.core";
 import { effectiveWorkerRole } from "./worker-role.core";
 // Partners › People: "Approved" is worked out from three facts and is DISPLAY ONLY (Jo 5 Nov 2026).
 // It never gates a job or booking; those rules stay in worker-compliance.core / crewClearance.
-export type ApprovalFacts = { ciiVerified: boolean; noticeSigned: boolean; dateOfBirth: string | null | undefined };
+export type ApprovalFacts = { ciiVerified: boolean; noticeSigned: boolean; workerRole?: "lead"|"crew"|null|undefined; dateOfBirth: string | null | undefined };
 export type Approval = { approved: boolean; label: "Approved" | "Not approved yet"; missing: string[]; missingLine: string | null };
 
 export function personApproval(f: ApprovalFacts): Approval {
   const missing: string[] = [];
   if (!f.ciiVerified) missing.push("CII");
   if (!f.noticeSigned) missing.push("ESC notice");
-  if (!f.dateOfBirth) missing.push("date of birth");
+  if (f.workerRole !== "crew" && !f.dateOfBirth) missing.push("date of birth");
   return missing.length
     ? { approved: false, label: "Not approved yet", missing, missingLine: `Missing: ${missing.join(", ")}` }
     : { approved: true, label: "Approved", missing, missingLine: null };

@@ -1,3 +1,50 @@
+## Jo 5 Nov 7:44pm Deep first-job ordered work
+- [ ] Targeted installer refresh regression: disposable TEST browser normal login vs restored session; delayed hydration, expired session, exact job deep-link after re-login. Evidence HV-3675 opened /field/ffbbe968-8a21-43cd-982f-0eea5b2e7140 then reported F5 → /auth?next=%2Ffield; do not access/mutate real job or infer all installers affected. Reproduce before repair, same browser assertions after; no auth bypass or publication.
+- [x] Initial read-only auth investigation: clean browser nonexistent job path preserves exact path/query/hash into /auth and through reload; 6 login-core tests pass; no published Unauthorized logs in available hour. No auth source change or claim of reproduction/fix.
+- [ ] Normal TEST login/restored/delayed/expired/re-login matrix BLOCKED: reserved Bravo account found, but explicit TEST-session mint was refused because approval is unavailable; no password/session/role/data modification or workaround. Requires permitted TEST login/session.
+- [ ] Finish tonight's actionable fix queue; external verification blockers remain explicitly NOT RUN (Jo's Mitti republication, unavailable signed-in Team proof).
+- [ ] Part 1: retain only per-business pause switch; separate review/PR, no switch changes or sends.
+- [ ] Job page: remove Job details, exactly one conditional Money card with recorded channel-appropriate amounts/dates; compact collapsed Owner/Visits/Site notes/owner-message rows. Include in the ordered job-page work.
+- [ ] Part 4: partner-booked owner visit notices, 30-day quotes, own-customer partner quote logo; new wording approval required before live.
+- [ ] Part 5: owner clearance/PIESA/ESC/deposit, partner-office install booking, two-day Lead/day lock, three-day reminder/two-day red flag, Crew until start, GO/DON'T START 2pm/6:30am office-only with DON'T START copy, install-day balance and installer payouts. Preserve recorded accepted terms.
+- [ ] Apply in-house lead parity for Reinsulate/Rapid/INSolation and draft corrected Owner accepted partner email. Parts 2/2b/3 and completed Crew repair not rebuilt.
+- [ ] Separate part PRs, scoped TEST proofs, short per-part report. No sends, publication or Mitti changes; Jo approves wording and publishes.
+
+## Jo 5 Nov 7:43pm remove White Cards
+- [x] Removed active White Card requests/gates/flags, stale Needs me/prestart holds and email lines; uploaded history retained. Lead-only DOB, Crew mobile+CII, electrician mobile/email/licence/REC/insurance retained; Office unchanged. New unsigned agreement version omits White Card sentence; earlier signed versions retained. No sending or publication.
+- [x] Team save change practice-proven (6 checks, two-business identity privacy/access) then applied as 0190 and permissions read back. 102 focused current-rule checks pass, plus 5 Team error checks. One older Team test source assertion still expects removed form wiring; not rewritten as it predates this request.
+- [x] 390px read-only installer onboarding and electrician signup checked, no White Card/DOB request for electrician; preview build OK.
+- [ ] Signed-in Team and two-user browser saves NOT RUN: managed sign-in could not mint Jo's account. Practice two-business guards verified; no real Team records changed.
+
+## Jo 5 Nov 7:38pm A5 BEFORE shared A1/A2 labels
+- [x] Replaced superseded reader labels; required BEFORE video and old-insulation type/band/depth/conductivity/backing; shared aliases scoped to BEFORE repeats, official A5 facts and unchanged STOP/v23/AFTER paths. 133 focused isolated checks pass; private media retries verified on practice storage/database, preview build OK. No Mitti edits, records, sends or publication.
+- [ ] Actual republished A5 readback and hosted STOP/office flow await Jo's republication.
+
+## Jo 5 Nov 7:36pm expanded A5 BEFORE conditions (superseded by 7:38pm)
+- [x] Exact per-area condition readers and applicable requirements using shared area keys/label aliases; A5 snapshot and official Part 6 condition source; R2+ and top-up condition No STOP with latest-summary office form flag; no prefills, v23 retained. Focused isolated checks pass; no records/Mitti edits/sends/publication.
+- [ ] Actual republished A5 readback and hosted STOP/office flow await Jo's republication. Superseded field-list omissions resolved by the 7:38pm recorded depth/conductivity fields; numeric R is not inferred from the R band.
+
+## Jo 5 Nov 7:34pm final A5 BEFORE correction
+- [x] Exact final labels; fresh area names without mismatch blocks; A5 Yes/No owns old-depth requiredness; no BEFORE name/order prefills; retain v23 and AFTER checks. 83 checks pass across six isolated files. Combined test run had shared-mock interference; each file passes separately. No Mitti edits, sends or publication.
+- [ ] Republished Mitti readback and hosted completion await Jo's new A5 publication; not claimed verified.
+
+## Jo 5 Nov 7:32pm single A5 BEFORE page (superseded by 7:34pm)
+- [x] Removed alternate template/switch code and error; new A5 name-bound BEFORE photo + old-depth ruler checks, private retry-safe copies, v23 reader retained and AFTER unchanged. 121 checks pass across 11 isolated files; preview build OK. Exact paste in docs/MITTI_A5_BEFORE_SINGLE_FORM_5NOV.md. No Mitti edits, records, sends or publication.
+- [ ] New Mitti draft/readback remains unverified until Jo republishes; automatic BEFORE name prefills withdrawn by 7:34pm correction. Full hosted install completion not run.
+
+## Jo 5 Nov 7:26pm measurement rules
+- [x] Required multiple floor-plan files/aerial file, onsite dimensions and editable calculated area, optional sketch, Other note/upload, nonblocking >10% nudge. 38 focused checks pass in isolated files including two-business read refusal; signed-in 390px TEST phone calculation/edit/nudge and choices checked, desktop no overflow, preview build OK. Upload/submit/readback not repeated; no records, sends or publication.
+
+## Jo 5 Nov 7:24pm lower own-customer job page
+- [x] Paperwork shows Ready Check source/date and read-only portal details from submission; PIESA/consent availability no longer tied to install booking, SWMS/install form retain booking timing.
+- [x] Own-customer cancel only; exact owner-message empty text and PIESA-price label; lead return action preserved. Existing cancellation still uses canonical cancel + guarded info@ notice, not exercised because no sending authorised.
+- [x] 39 isolated focused checks pass including two-user read refusal; 390px TEST HV-3798 paperwork/view read back, no overflow/runtime errors. Real HV-3794 untouched; no sends/publication.
+
+## Jo 5 Nov 7:21pm own-customer Ready Check replacement
+- [x] Replaced old price block with exact Ready Check choice/form and simple Mitti price submission; A2 leads unchanged. Protected TEST HV-3798 Send for quote saved and preparing status read back after reload.
+- [x] Preparing/sent/expiry/accepted dates and existing read-only quote display; installer email exact-copy builder is an unconnected approval-off draft, no delivery wiring activated.
+- [x] 46 focused checks pass including two-business isolation; phone/desktop form no overflow or runtime errors. Related 69 pass, two retired source-wiring assertions fail (old price card required). No Mitti changes, messages or publication. Actual sent/accepted/expired browser fixtures not run.
+
 ## Jo 5 Nov own-customer portal Ready Check
 - [x] 7:15pm partial A1: Send to quote with core measurements/removal/method + price, no Complete prerequisite; missing non-core details informational; background draft uses existing office list and financial guards, no manufactured completion. Parser/price isolation tests and 390px signed-in TEST page checked; live partial-A1 submit/readback NOT RUN (no provider sends permitted). No publication.
 - [x] 7:14pm correction: own-customer Next step no booking/attendee/deadline, Add call-to-book line removed, own-customer five-business-day alert excluded; Home Insulation Victoria booking unchanged. Add a job already has no optional Ready Check time.

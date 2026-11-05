@@ -454,7 +454,7 @@ export const NEEDS_TEXT: Record<NeedsCode, { why: string; next: string; tab: str
   esc_update_registry: { why: "Install date moved after the ESC notification was submitted. Update notification in Registry.", next: "Update the notification in the Registry, then record the update with the date and reference.", tab: "compliance", urgency: "urgent" },
   esc_withdraw_resubmit: { why: "Install date moved beyond the notification's 5-day window. Withdraw and resubmit.", next: "Withdraw the old notification in the Registry, submit a new one, then record it.", tab: "compliance", urgency: "urgent" },
   prestart_failed: { why: "Pre-start check failed. Installation form and evidence are locked.", next: "Fix each reason listed; the check re-runs automatically within 15 minutes.", tab: "compliance", urgency: "urgent" },
-  white_card_not_verified: { why: "The lead installer's White Card is not verified (decision 319). Installs booked from 26 Oct 2026 are blocked until it is; earlier bookings go ahead.", next: "Open Partners › People, ask the installer to upload their White Card under My business › Team, then verify it.", tab: "overview", urgency: "today" },
+  white_card_not_verified: { why: "Retired requirement", next: "", tab: "overview", urgency: "today" },
   cert_rerecord_needed: { why: "Lead installer certification has no Full/Provisional level or expiry. Re-record certification as Full with expiry date.", next: "Open Partners, find the installer's certification check and record the level and expiry.", tab: "overview", urgency: "today" },
   install_ten_days_left: { why: "10 days or fewer left in the 30-day installation window and no installation is booked.", next: "Call the owner and the quoted installer and book a day on the Installation section before the window closes.", tab: "compliance", urgency: "urgent" },
   install_days_declined: { why: "The quoted installer could not do any of the owner's install days. The installer is never replaced automatically.", next: "Call the owner and installer to agree a day, or agree a replacement installer with the owner.", tab: "compliance", urgency: "today" },
@@ -557,7 +557,7 @@ export function buildNeedsHivic(i: NeedsInput): NeedsItem[] {
   for (const e of i.prestart?.esc ?? []) add(e.code as NeedsCode, e.job_id, null, e.detail);
   for (const f of i.prestart?.failed ?? []) add("prestart_failed", f.job_id, f.since, f.detail);
   for (const c of i.prestart?.certs ?? []) add("cert_rerecord_needed", c.job_id, null, c.detail);
-  for (const c of i.prestart?.whiteCards ?? []) add("white_card_not_verified", c.job_id, null, c.detail);
+  // White Card chase retired; ignore stale caller inputs.
   for (const e of i.escTiming) if (!escTask.has(e.job_id)) add("esc_or_distribution_timing", e.job_id, e.created_at);
   for (const e of i.escWithdrawRequired ?? []) add("esc_withdraw_required", e.job_id, e.created_at, `Registry ref ${e.reference}.`);
   for (const e of i.evidenceRejected) add("compliance_correction", e.job_id, e.created_at);

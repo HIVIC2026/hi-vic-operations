@@ -107,12 +107,12 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
             <input type="radio" name="add-job-lead-origin" value={o.value} checked={leadOrigin === o.value} disabled={busy} onChange={() => { setLeadOrigin(o.value); setErr(null); }} />{o.label}
           </label>
         ))}
-        <p className="mt-1 text-[13px] leading-[1.45] text-sub">{ADD_JOB_WORDS.howNote}</p>
+        {(leadOrigin === "door_knock" || leadOrigin === "cold_call") && <p role="alert" className="mt-1 text-[13px] leading-[1.45] text-sub">{ADD_JOB_WORDS.howNote}</p>}
         <FieldError>{errors.lead_origin}</FieldError>
       </fieldset>
       <section className={CARD} data-owner-card>
         <h2 className={CARD_TITLE}>{OWNER_CARD_TITLE}</h2>
-        <div className="mt-3.5"><CustomerFields value={customer} labels={{ name: ADD_JOB_WORDS.name, mobile: ADD_JOB_WORDS.mobile, email: ADD_JOB_WORDS.email, address: ADD_JOB_WORDS.address }} consentLabel={consentLabel} hideConsent={!consentLabel} errors={errors} onChange={(n) => { setCustomer(n); setErr(null); }} /></div>
+        <div className="mt-3.5"><CustomerFields value={customer} addressHelper="Start typing, then pick it from the list." labels={{ name: ADD_JOB_WORDS.name, mobile: ADD_JOB_WORDS.mobile, email: ADD_JOB_WORDS.email, address: ADD_JOB_WORDS.address }} consentLabel={consentLabel} hideConsent={!consentLabel} errors={errors} onChange={(n) => { setCustomer(n); setErr(null); }} /></div>
         {!consentLabel && <p className="mt-3 text-sm text-sub" data-consent-loading>{ADD_JOB_DRAFT_WORDS.loadingBusiness}</p>}
       </section>
       <section className={CARD} data-electrician-picker>
@@ -128,7 +128,7 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
         <FieldError>{errors.electrician}</FieldError>
       </section>
       {err && <p role="status" className="rounded-[12px] border-2 border-line bg-paper p-3 text-sm" data-save-error>{err}</p>}
-      <button type="button" className={PRIMARY_BTN} disabled={busy} aria-busy={busy} onClick={save}>{busy ? BUSY_LABEL : err && !/already has an open job/i.test(err) ? TRY_AGAIN_LABEL : ADD_JOB_WORDS.button}</button>
+      <button type="button" className={PRIMARY_BTN} disabled={busy || leadOrigin === "door_knock" || leadOrigin === "cold_call"} aria-busy={busy} onClick={save}>{busy ? BUSY_LABEL : err && !/already has an open job/i.test(err) ? TRY_AGAIN_LABEL : ADD_JOB_WORDS.button}</button>
       <p className="text-center text-[13px] leading-[1.5] text-sub" data-next-step>{ADD_JOB_OFFLINE_NOTE}</p>
     </div>
   );

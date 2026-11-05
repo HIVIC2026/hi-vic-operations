@@ -155,34 +155,6 @@ export const confirmInstallerInsuranceUpload = createServerFn({ method: "POST" }
     return { ok: true, updated_at: done.updated_at };
   });
 
-// White Card (decision 319, per installer person, optional at onboarding): same quarantine + byte checks as insurance; path kept
-// server-side in data.white_card_files and carried onto the person's staff row at activation for the office to verify.
-export const installerWhiteCardUploadUrl = createServerFn({ method: "POST" })
-  .inputValidator((d) => z.object({ token: tokenSchema, content_type: z.enum(["application/pdf", "image/jpeg", "image/png"]), size: z.number().int().min(1).max(10 * 1024 * 1024), filename: z.string().max(200) }).parse(d))
-  .handler(async ({ data }) => {
-    const { db, app } = await findApp(data.token);
-    if (app.status !== "draft") throw new Error("Already submitted.");
-    const { safeOriginalName } = await import("./onboarding-security.core");
-    if (!safeOriginalName(data.filename)) throw new Error("Please upload a single PDF, PNG or JPEG file.");
-    const sec = await import("./onboarding-security.server");
-    return sec.quarantineSlot(db as never, "installer-onboarding", app.id);
-  });
-
-export const confirmInstallerWhiteCardUpload = createServerFn({ method: "POST" })
-  .inputValidator((d) => z.object({ token: tokenSchema, path: z.string().max(300), content_type: z.enum(["application/pdf", "image/jpeg", "image/png"]), email: z.string().trim().toLowerCase().email().max(320), base_updated_at: z.string().max(40).refine(isInstallerRevisionTimestamp) }).parse(d))
-  .handler(async ({ data }) => {
-    const { db, app } = await findApp(data.token);
-    if (app.status !== "draft") throw new Error("Already submitted.");
-    const sec = await import("./onboarding-security.server");
-    if (Date.parse(data.base_updated_at) !== Date.parse(app.updated_at)) throw new Error(sec.UPLOAD_STALE_MESSAGE);
-    const d = app.data as InstData & { white_card_files?: Record<string, string> };
-    const { finalPath } = await sec.verifyAndStoreDoc(db as never, "installer-onboarding", app.id, data.path, data.content_type, "white-card");
-    const next = { ...d, white_card_files: { ...(d.white_card_files ?? {}), [data.email]: finalPath } };
-    const { data: row } = await db.from("rec_onboarding_applications").update({ data: next as never } as never).eq("id", app.id).eq("status", "draft").eq("updated_at", app.updated_at).select("updated_at").maybeSingle();
-    if (!row) { await db.storage.from("partner-files").remove([finalPath]); throw new Error(sec.UPLOAD_STALE_MESSAGE); }
-    return { ok: true, updated_at: String((row as { updated_at: string }).updated_at) };
-  });
-
 export const getInstallerAgreement = createServerFn({ method: "POST" })
   .inputValidator((d) => z.object({ token: tokenSchema }).parse(d))
   .handler(async ({ data }) => {

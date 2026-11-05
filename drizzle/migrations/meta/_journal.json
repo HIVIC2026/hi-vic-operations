@@ -1331,6 +1331,13 @@
       "when": 1793867231279,
       "tag": "0189_portal_read_indexes_5nov",
       "breakpoints": true
+    },
+    {
+      "idx": 190,
+      "version": "7",
+      "when": 1793875510006,
+      "tag": "0190_team_lead_only_birth_date",
+      "breakpoints": true
     }
   ]
 }

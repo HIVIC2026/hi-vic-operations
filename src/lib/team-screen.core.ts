@@ -7,7 +7,7 @@ import { dateOfBirthProblem } from "./worker-identity.core";
 import type { TeamMemberView } from "./trade-view.core";
 
 // Wording. Lines from the plan's Global Constraints are approved; every DRAFT line is listed for Jo (Task 12 paste).
-export const TEAM_INTRO = "Everyone needs a date of birth and mobile. Lead Installers are registered with the ESC by Home Insulation Victoria."; // approved
+export const TEAM_INTRO = "Lead Installers: mobile, date of birth (ESC), EEC/CII certificate. Crew: mobile, EEC/CII. Electricians: mobile, email, licence, REC, insurance."; // approved
 export const TEAM_WORDS = {
   title: "Team", // approved
   intro: TEAM_INTRO, // approved
@@ -54,7 +54,7 @@ export function addPersonProblems(p: AddPersonInput, today: string): string[] {
   const out: string[] = [];
   if ((p.name ?? "").trim().length < 2) out.push("Add their full name."); // existing (trade-view.server)
   if (!(p.mobile ?? "").trim()) out.push("Add their mobile number."); // existing (trade-view.server)
-  const dob = dateOfBirthProblem(p.dateOfBirth, today);
+  const dob = p.role === "lead" || p.role === "office" ? dateOfBirthProblem(p.dateOfBirth, today) : null;
   if (dob) out.push(dob); // existing (worker-identity.core)
   if (p.role === "electrician") {
     if (!(p.licenceNumber ?? "").trim()) out.push("Add their electrical licence number."); // existing (trade-view.server)
@@ -102,7 +102,7 @@ export function teamRow(m: TeamRowFacts, today: string): TeamRow {
     if (m.licenceAndRec) parts.push("licence + REC ✓");
     else { parts.push(TEAM_WORDS.needsLicenceRec); warn = true; }
   }
-  if (m.hasDob === false) { parts.push(TEAM_WORDS.needsDob); warn = true; }
+  if (m.role === "installer" && m.workerRole !== "crew" && m.hasDob === false) { parts.push(TEAM_WORDS.needsDob); warn = true; }
   if (!(m.mobile ?? "").trim()) { parts.push(TEAM_WORDS.needsMobile); warn = true; }
   return { name: m.name, line: `${parts.join(" · ")} ›`, warn };
 }

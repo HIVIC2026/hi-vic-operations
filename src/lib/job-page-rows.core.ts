@@ -80,7 +80,7 @@ export function jobDetailsRows(f: {
   if (f.access) rows.push(["Access", f.access]);
   if (f.installPay != null) rows.push(["Your install pay", `${money(f.installPay)} · ${f.installPayRule}`]);
   if (f.piesaPayApplies !== false) {
-    rows.push(["Your PIESA pay", f.piesaPay == null ? W.noRate : f.piesaPaidAt ? `${money(f.piesaPay)} · ${W.paidTick}` : money(f.piesaPay)]);
+    rows.push([f.ownCustomer ? "Your PIESA price (owner pays you)" : "Your PIESA pay", f.piesaPay == null ? W.noRate : f.piesaPaidAt ? `${money(f.piesaPay)} · ${W.paidTick}` : money(f.piesaPay)]);
   }
   return rows;
 }
@@ -102,15 +102,17 @@ export function ownerToldRows(events: { at: string; type: string; summary: strin
   return out;
 }
 
-export type PaperworkRow = { label: string; ready: boolean; note: string | null };
-export function paperworkRows(f: { readyCheckReport: boolean; signedPiesa: boolean; ownerConsent: boolean; safetyPlan: boolean; installForm: boolean; installBooked: boolean }): PaperworkRow[] {
-  const row = (label: string, ready: boolean): PaperworkRow => ({ label, ready, note: ready ? null : f.installBooked ? W.notInYet : W.notThereYet });
+export type PaperworkRow = { label: string; ready: boolean; note: string | null; source?: 'portal' | 'mitti' };
+export function paperworkRows(f: { readyCheckReport: boolean; readyCheckSource?: 'portal' | 'mitti'; readyCheckSubmittedAt?: string | null; signedPiesa: boolean; ownerConsent: boolean; safetyPlan: boolean; installForm: boolean; installBooked: boolean }): PaperworkRow[] {
+  const row = (label: string, ready: boolean, waiting: string): PaperworkRow => ({ label, ready, note: ready ? null : waiting });
+  const rcReady = !!f.readyCheckSubmittedAt || f.readyCheckReport;
+  const rcNote = f.readyCheckSubmittedAt ? `Done in ${f.readyCheckSource === 'portal' ? 'the portal' : 'Mitti'} on ${dayLabel(f.readyCheckSubmittedAt)}` : rcReady ? 'Done in Mitti' : 'Not done yet';
   return [
-    row("Ready Check report (Mitti, with photos)", f.readyCheckReport),
-    row("Signed PIESA", f.signedPiesa),
-    row("Owner's ESC consent", f.ownerConsent),
-    row("Safety plan (SWMS)", f.safetyPlan),
-    row("Install form (Mitti)", f.installForm),
+    { label:'Ready Check', ready:rcReady, note:rcNote, source:f.readyCheckSource ?? 'mitti' },
+    row("Signed PIESA", f.signedPiesa, 'Ready after the PIESA is done'),
+    row("Owner's ESC consent", f.ownerConsent, 'Ready once the owner signs'),
+    row("Safety plan (SWMS)", f.installBooked && f.safetyPlan, f.installBooked ? W.notInYet : W.notThereYet),
+    row("Install form (Mitti)", f.installBooked && f.installForm, f.installBooked ? W.notInYet : W.notThereYet),
   ];
 }
 
