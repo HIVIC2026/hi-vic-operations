@@ -19,12 +19,7 @@ export function renderOwnCustomerUpdatedQuoteEmail(i: UpdatedOwnerQuoteInput) {
 }
 
 export type InstallerOwnMessageInput = { name: string; jobNumber: string; address: string; validUntil: string; test?: boolean };
-export function renderOwnInstallerQuoteSentEmail(i: InstallerOwnMessageInput, updated = false) {
-  const subject = `${i.jobNumber} – quote sent to the owner`;
-  const sentence = updated ? `Your new price is in. The updated quote for ${i.address} went to the owner today.` : `the quote for ${i.address} went to the owner today.`;
-  const text = `Hi ${i.name}, ${sentence} It's valid until ${i.validUntil}. You can see it on the job page in the portal. If the owner asks you anything about it, call me on 0477 511 901. Jo`;
-  return { subject, ...partnerEmailLayout({ subject, test: i.test === true, blocks: [{ kind: 'p', text }] }) };
-}
+// The installer office "Quote sent" / "Updated quote sent" email is the branded one in installer-quote-sent-email.core.ts (Jo 6 Nov 2026).
 export function renderOwnInstallerAcceptedEmail(i: Omit<InstallerOwnMessageInput, 'validUntil'>) {
   const subject = `${i.jobNumber} – owner accepted`;
   const text = `Hi ${i.name}, the owner at ${i.address} has accepted the quote and paid for the safety check. Next step: book the safety check on the job page. Jo`;

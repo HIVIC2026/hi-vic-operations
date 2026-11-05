@@ -13,7 +13,7 @@ mock.module('../src/lib/estimatelink.server',()=>({ensureOwnerLink:async()=>true
 mock.module('../src/lib/pilot.server',()=>({applyCobrand:async()=>{}}));
 let notified=0;
 mock.module('../src/lib/quote-ready-notify.server',()=>({notifyOwnerQuoteReady:async()=>{notified++;return {email:'TEST capture',sms:'blocked'};}}));
-mock.module('../src/lib/installer-quote-sent.server',()=>({notifyInstallerQuoteSent:async()=>{}}));
+mock.module('../src/lib/installer-quote-sent-email.server',()=>({emailInstallerQuoteSent:async()=>'mocked'}));
 mock.module('../src/lib/workflow.server',()=>({WorkflowError:Error,commercialBlocker:async()=>null,logEvent:async()=>{},stageEntryBlockers:async()=>[],transition:async()=>{}}));
 const {releaseQuoteToOwner}=await import('../src/lib/office-quote-review.server');
 beforeEach(()=>{for(const key of Object.keys(tables))delete tables[key];notified=0;

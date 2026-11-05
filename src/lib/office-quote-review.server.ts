@@ -224,10 +224,18 @@ export async function releaseQuoteToOwner(
   const notification = await (
     await import("./quote-ready-notify.server")
   ).notifyOwnerQuoteReady(jobId, quoteId, quote.kind);
-  // Companion options share one installer notice; unapproved wording returns without reads or sends.
-  await (await import('./installer-quote-sent.server')).notifyInstallerQuoteSent(jobId, quoteId)
-    .catch(error => console.warn('Installer quote notice held', jobId, String(error)));
+  // Jo 5 Nov 2026 22:45: the installer's office gets ONE branded "Quote sent" email when an own-customer quote goes to
+  // the owner (HIV leads: nothing — the sender decides). The quote is committed above; this never throws and is keyed per
+  // quote, so a re-run sends nothing. Detached only when the request lifecycle keeps it alive, otherwise inline.
+  await afterQuoteRelease(async () => { await (await import("./installer-quote-sent-email.server")).emailInstallerQuoteSent(jobId, quoteId); });
   return { delivery: "ready_to_send" as const, notification };
+}
+
+/** Same rule as portal.functions `finishInstallationAcceptance`: detach only with a real waitUntil; never silently drop it. */
+async function afterQuoteRelease(task: () => Promise<unknown>) {
+  const { requestContext, runAfterResponse } = await import("./background.server");
+  if (requestContext.getStore()?.waitUntil) { runAfterResponse(task); return; }
+  await task().catch((e) => console.error("installer quote-sent email failed", (e as Error).message));
 }
 /** Jo 24 Oct: a declined quote back to a draft on Quotes to check (fresh 14 days once sent again). Never sends. */
 export async function reopenDeclinedQuoteImpl(jobId: string, quoteId: string, actorId: string) {
