@@ -406,7 +406,7 @@ export function ageLabel(since: string, now: number): string {
 }
 
 /** Partner & system fold (decision 221): one fold line; each item one line with one button. */
-export type SystemRow = { key: string; tag: string; who: string; line: string; since: string | null; button: string; href: string; jobId?: string };
+export type SystemRow = { key: string; tag: string; who: string; line: string; since: string | null; button: string; href: string; jobId?: string; auditId?: string };
 
 /** Part 9 Task 2: one Needs me row per ESC notice still live in the Registry on a job that won't go ahead (often a
  *  cancelled job, so it is a system row read directly, like review feedback). Wording DRAFT (JO-APPROVAL-LIST). */
