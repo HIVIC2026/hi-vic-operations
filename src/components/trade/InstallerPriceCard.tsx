@@ -33,6 +33,7 @@ import {
 const REMOVAL_OPTION = PRICE_INCLUDED_OPTIONS[1]; // "Removal of existing insulation"
 import { PRICE_CARD_ANCHOR } from "@/lib/boss-price-link.core";
 import { LinkRow, Note, PrimaryButton, Row } from "@/components/trade/installer-kit";
+import { OWN_CUSTOMER_QUOTE_PREPARING_LINE } from "@/lib/installer-quote-status.core";
 
 export function InstallerPriceCard({ jobId }: { jobId: string }) {
   const load = useServerFn(getInstallerPriceFn);
@@ -142,6 +143,7 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
         </>
       )}
       {view.locked && <Note>{PRICE_LOCKED}</Note>}
+      {current && !view.locked && !showForm && <p role="status" className="py-3 text-[15px] text-sub">{OWN_CUSTOMER_QUOTE_PREPARING_LINE}</p>}
       {notSent.length > 0 && !view.locked && (
         <Note data-price-not-sent>
           {PRICE_NOT_SENT_PREFIX}
