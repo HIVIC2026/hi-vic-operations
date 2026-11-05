@@ -15,7 +15,7 @@ import { getInHouseBookingTeam, inHouseBookVisit, changeInHouseLeadInstaller, se
 import { useInHouseBookingAccess } from "@/components/trade/ReturnActions";
 import { getTeamElectricians, changeJobElectricianFn } from "@/lib/visit-allocation.functions";
 import { defaultPick } from "@/lib/installer-electricians.core";
-import { bookingWorkerBlocker, emptyBookingTeamBlocker, type BookingWorker } from "@/lib/in-house-booking.core";
+import { bookingWorkerBlocker, emptyBookingTeamBlocker, installLeadChoices, readyCheckChoices, type BookingWorker } from "@/lib/in-house-booking.core";
 import { NEXT_STEP_WORDS, type NextStepBox as NextStepBoxShape } from "@/lib/next-step-box.core";
 import { installStartAt, installTimeLabel } from "@/lib/install-days.core";
 import { fmtDay } from "@/lib/next-step-dates.core";
@@ -228,7 +228,8 @@ function BookingForm({ jobId, kind, mode, state, button, below, onDone, onCancel
   const electricianChosen = kind !== "assessment" || !!who;
   const reason = bookingReason({ kind, state, day, arrival, who, electricianChosen });
   const workers = team?.workers ?? [];
-  const choices = kind === "installation" ? workers.filter((w) => w.tradeRole === "installer" && w.workerRole === "lead") : kind === "ready_check" ? workers : [];
+  // Part 7 Task 9 (Jo 5 Nov 2026): the Ready Check lists the whole installer Team (Leads and Crew); the install day lists Leads only.
+  const choices = kind === "installation" ? installLeadChoices(workers) : kind === "ready_check" ? readyCheckChoices(workers) : [];
   const crewChoices = kind === "installation" ? workers.filter((w) => w.id !== who && w.tradeRole === "installer" && w.crewAllowed === true) : [];
   const disabled = busy || !!reason || (!!error && !error.startsWith("Couldn’t save") && !error.startsWith("Couldn't save"));
   const reasonId = `${id}-reason`;
@@ -332,7 +333,7 @@ function PickPersonForm({ jobId, start, state, onDone }: { jobId: string; start:
   const reason = bookingReason({ kind: "ready_check", state, day: "x", arrival: "x", who, electricianChosen: true });
   const disabled = busy || !!reason || (!!error && !error.startsWith("Couldn’t save") && !error.startsWith("Couldn't save"));
   const reasonId = `${id}-reason`;
-  const choices = state.team?.workers ?? [];
+  const choices = readyCheckChoices(state.team?.workers ?? []);
   return (
     <form className="mt-4 space-y-3" data-pick-person onSubmit={async (e) => {
       e.preventDefault();
@@ -422,7 +423,7 @@ function ChangeLeadForm({ jobId, state, onDone, onCancel }: { jobId: string; sta
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const workers = state.team?.workers ?? [];
-  const leads = workers.filter((w) => w.tradeRole === "installer" && w.workerRole === "lead");
+  const leads = installLeadChoices(workers);
   const reason = !state.allowed ? W.notHere : state.failed ? W.teamFailed : !state.team ? W.checkingTeam : bookingWorkerBlocker("installation", workers.find((w) => w.id === who) ?? null);
   const disabled = busy || !!reason || (!!error && !error.startsWith("Couldn’t save") && !error.startsWith("Couldn't save"));
   const reasonId = `${id}-reason`;

@@ -174,6 +174,29 @@ describe("Next step box actions", () => {
     expect(calls).toEqual([{ fn: "inHouseBookVisit", data: { jobId: "j1", kind: "installation", start: "2026-11-12T20:30:00.000Z", workerId: "lead1", crewIds: ["crew1"] } }]);
   });
 
+  // Part 7 Task 9 (Jo 5 Nov 2026): anyone on the installer's Team can do the Ready Check (it's just measuring up).
+  test("Ready Check 'Who's going' lists the whole Team (6 installers, Leads and Crew, no electrician) + Not sure yet; install Lead lists the 2 Leads", async () => {
+    const saved = team;
+    const person = (id: string, name: string, role: "lead" | "crew") => ({ id, name, phone: null, tradeRole: "installer", workerRole: role, cleared: true, reason: role === "crew" ? "Crew can't be the install-day Lead" : null, crewAllowed: true, escRegistered: role === "lead", escRegisteredAt: role === "lead" ? "2026-11-01" : null });
+    team = { depositPaid: true, selection: null, workers: [person("deep", "Deep", "lead"), person("raj", "Raj", "lead"), person("amit", "Amit", "crew"), person("sunny", "Sunny", "crew"), person("harpreet", "Harpreet", "crew"), person("manny", "Manny", "crew"),
+      { id: "elec1", name: "Will Casdorff", phone: null, tradeRole: "electrician", cleared: true, reason: null, electricianVerified: true }] };
+    try {
+      const rc = draw(boxFor({}));
+      const who = rc.getByLabelText("Who's going") as HTMLSelectElement;
+      const ids = Array.from(who.options).map((o) => o.value).filter(Boolean);
+      expect(ids).toEqual(["__not_sure_yet__", "deep", "raj", "amit", "sunny", "harpreet", "manny"]);
+      expect(Array.from(who.options).filter((o) => o.value && o.value !== "__not_sure_yet__").every((o) => !o.disabled)).toBe(true);
+      fill(rc);
+      fireEvent.change(who, { target: { value: "manny" } });
+      await click(rc, "Book");
+      expect(calls).toEqual([{ fn: "inHouseBookVisit", data: { jobId: "j1", kind: "ready_check", start: "2026-11-09T22:00:00.000Z", workerId: "manny", crewIds: [] } }]);
+      cleanup(); calls.length = 0;
+      const inst = draw(boxFor({ readyCheck: { start: null, done: true, missing: [] }, quote: "accepted", piesa: { start: null, outcome: "pass", upgradesDone: false, certificateIn: false }, depositPaidAt: "2026-11-05T00:00:00Z" }));
+      const lead = inst.getByLabelText("Lead Installer") as HTMLSelectElement;
+      expect(Array.from(lead.options).map((o) => o.value).filter(Boolean)).toEqual(["deep", "raj"]);
+    } finally { team = saved; }
+  });
+
   test("book_install stays blocked (with a visible reason) while the deposit is not confirmed paid", () => {
     team = { ...(team as object), depositPaid: false };
     try {
