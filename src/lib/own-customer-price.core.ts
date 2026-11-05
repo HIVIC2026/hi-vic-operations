@@ -164,13 +164,14 @@ export function jobMoneyRows(f: {
 }
 
 /** I3: the quote the Job details money rows read — an ACCEPTED installation quote first (as `installerPayForJob`), else the
- *  newest; the installer's pay = their own lines (INSTALLER_PRICE + INSTALLER_REMOVAL + INSTALLER_EXTRA), never the fee,
- *  the PIESA or the owner's total. Nothing usable → nulls (rows left out). */
+ *  newest; the installer's pay = their own lines (INSTALLER_PRICE + INSTALLER_REMOVAL + INSTALLER_EXTRA, less their own
+ *  INSTALLER_DISCOUNT — Task 6, review 2: the discount comes off the installer's price, so the row shows what they are
+ *  actually paid), never the fee, the PIESA or the owner's total. Nothing usable → nulls (rows left out). */
 export function ownCustomerQuoteFigures(quotes: readonly { status: string | null; created_at: string | null; customer_total_inc_gst: number | string | null; items: readonly { code: string | null; line_total_inc_gst: number | string | null }[] }[]): { installerPayIncGst: number | null; ownerPriceIncGst: number | null } {
   const sorted = [...quotes].sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")));
   const pick = sorted.find((q) => q.status === "accepted") ?? sorted[0];
   if (!pick) return { installerPayIncGst: null, ownerPriceIncGst: null };
-  const mine = pick.items.filter((it) => it.code === "INSTALLER_PRICE" || it.code === "INSTALLER_REMOVAL" || it.code === "INSTALLER_EXTRA");
+  const mine = pick.items.filter((it) => it.code === "INSTALLER_PRICE" || it.code === "INSTALLER_REMOVAL" || it.code === "INSTALLER_EXTRA" || it.code === DISCOUNT_CODE);
   const pay = mine.reduce((a, it) => a + (Number(it.line_total_inc_gst) || 0), 0);
   const total = pick.customer_total_inc_gst == null ? NaN : Number(pick.customer_total_inc_gst);
   return { installerPayIncGst: mine.some((it) => it.code === "INSTALLER_PRICE") && pay > 0 ? Math.round(pay * 100) / 100 : null, ownerPriceIncGst: Number.isFinite(total) ? total : null };

@@ -50,6 +50,16 @@ describe("I3: the installer's pay on an own customer = their own lines on the qu
     expect(ownCustomerQuoteFigures([])).toEqual({ installerPayIncGst: null, ownerPriceIncGst: null });
     expect(ownCustomerQuoteFigures([{ ...draft, items: [{ code: "AP_FEE", line_total_inc_gst: 349 }] }])).toEqual({ installerPayIncGst: null, ownerPriceIncGst: 2598 });
   });
+  test("Task 6 (review 2): the installer's own INSTALLER_DISCOUNT comes off their pay, so the job page shows the discounted figure", async () => {
+    const { ownCustomerQuoteFigures } = await import("../src/lib/own-customer-price.core");
+    const base = [{ code: "INSTALLER_PRICE", line_total_inc_gst: 2000 }, { code: "INSTALLER_EXTRA", line_total_inc_gst: 150 }, { code: "AP_FEE", line_total_inc_gst: 349 }, { code: "PIESA", line_total_inc_gst: 349 }];
+    const sent = { status: "issued", created_at: "2026-11-01T00:00:00Z", customer_total_inc_gst: 2248, items: base };
+    const discounted = { status: "issued", created_at: "2026-11-03T00:00:00Z", customer_total_inc_gst: 2048, items: [...base, { code: "INSTALLER_DISCOUNT", line_total_inc_gst: -200 }] };
+    expect(ownCustomerQuoteFigures([sent])).toEqual({ installerPayIncGst: 2150, ownerPriceIncGst: 2248 });
+    expect(ownCustomerQuoteFigures([discounted, sent])).toEqual({ installerPayIncGst: 1950, ownerPriceIncGst: 2048 });
+    // Accepted discount version wins over anything newer, and the string amount from the database still counts.
+    expect(ownCustomerQuoteFigures([{ ...sent, created_at: "2026-11-05T00:00:00Z" }, { ...discounted, status: "accepted", items: [...base, { code: "INSTALLER_DISCOUNT", line_total_inc_gst: "-200" }] }])).toEqual({ installerPayIncGst: 1950, ownerPriceIncGst: 2048 });
+  });
   test("the job page reads several quotes and picks with the pure helper", () => {
     const s = readFileSync("src/lib/trade-view.server.ts", "utf8");
     expect(s).toContain("ownCustomerQuoteFigures(");
