@@ -29,7 +29,8 @@ test('optional A1 aerial photo does not hold measurement; A2 still flags missing
 });
 const area={name:'Main house',beforeVideo:true,wholeAreaPhoto:true,depthPhoto:true,backingPhoto:true,present:true,rejected:false};
 test('missing whole-area photo requires install-day BEFORE evidence',()=>expect(installBeforePlan(true,[{...area,wholeAreaPhoto:false}]).needed.map(a=>a.name)).toEqual(['Main house']));
-test('old insulation without backing photo requires install-day BEFORE evidence',()=>expect(installBeforePlan(true,[{...area,backingPhoto:false}]).needed.map(a=>a.name)).toEqual(['Main house']));
+// Jo 5 Nov 2026: the foil/backing photo is off the Ready Check forms — never a reason for install-day BEFORE evidence.
+test('old insulation without backing photo needs nothing more on install day',()=>expect(installBeforePlan(true,[{...area,backingPhoto:false}]).needed).toEqual([]));
 test('no old insulation does not require backing photo',()=>expect(installBeforePlan(true,[{...area,present:false,depthPhoto:false,backingPhoto:false}]).needed).toEqual([]));
 test('job line lists only missing or rejected areas in Ready Check order',()=>{
   const result=installBeforePlan(true,[{...area,beforeVideo:false},{...area,name:'Rear extension',rejected:true},{...area,name:'Front bedroom'}]);

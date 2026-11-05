@@ -7,6 +7,7 @@ export const INSTALL_BEFORE_LINE_SHOWN = false as boolean;
 export const INSTALL_BEFORE_VIDEO_INSTRUCTION = 'The power is off, so use a bright torch or work light.';
 export const INSTALL_AFTER_VIDEO_INSTRUCTION = 'The power is still off, so use a bright torch or work light.';
 export const INSTALL_AREA_ORDER_LABEL = 'Ceiling areas in Ready Check order';
+/** `backingPhoto` is read but no longer required (Jo 5 Nov 2026: the foil photo is off the Ready Check forms). */
 export type BeforeArea = {name:string|null;beforeVideo:boolean|null;depthPhoto:boolean|null;wholeAreaPhoto?:boolean|null;backingPhoto?:boolean|null;present:boolean|null;rejected:boolean};
 export function installBeforePlan(hasMittiReadyCheck:boolean,areas:BeforeArea[]) {
  const named=areas.map((a,i)=>({...a,name:a.name?.trim()||`Area ${i+1}`}));
@@ -17,7 +18,6 @@ export function installBeforePlan(hasMittiReadyCheck:boolean,areas:BeforeArea[])
    if(a.beforeVideo!==true) reasons.push('Ready Check BEFORE video missing');
    if(a.wholeAreaPhoto!==true) reasons.push('Whole-area photo missing');
    if(a.present!==false&&a.depthPhoto!==true) reasons.push('Old-insulation ruler photo missing');
-   if(a.present!==false&&a.backingPhoto!==true) reasons.push('Old-insulation backing photo missing');
    if(a.rejected) reasons.push('BEFORE evidence rejected by office');
   }
   return reasons.length?[{...a,reasons}]:[];

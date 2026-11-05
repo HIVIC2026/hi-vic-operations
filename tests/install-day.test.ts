@@ -196,7 +196,6 @@ describe("official Part 6 existing insulation comes from the Ready Check record"
       "Ready Check: reason the existing insulation is being kept not recorded",
       "Ready Check: condition of the existing insulation (suitable to lay over) not recorded",
       "Ready Check: whether the existing insulation is foil, metallic or conductive is not recorded",
-      "Ready Check: photo showing whether the existing insulation is foil-backed or conductive not added",
     ]);
     expect(readyCheckPart6Answers([], none).missing[0]).toContain("no current measure-up");
   });
@@ -219,7 +218,9 @@ describe("official Part 6 existing insulation comes from the Ready Check record"
     // An old form (no new answers) on a top-up names the areas still missing.
     const old = readyCheckPart6Answers([{ name: "Main", present: true, depthMm: 60, removal: false }, { name: "Rear", present: true, depthMm: 60, removal: false, suitable: true, conductive: false, conductiveEvidence: "e", keepReason: "x" }]);
     expect(old.missing).toContain("Ready Check: reason the existing insulation is being kept not recorded (Main)");
-    expect(old.missing).toContain("Ready Check: photo showing whether the existing insulation is foil-backed or conductive not added (Main)");
+    // Jo 5 Nov 2026: the foil photo is off the Ready Check forms — never listed missing (the photo still carries when present).
+    expect(old.missing.some((m) => /photo showing whether/.test(m))).toBe(false);
+    expect(old.conductiveEvidence).toBe("e");
   });
   test("decision 360: every area removed → the portal fills Part 6 (not laid over, no reason, no foil answer needed)", () => {
     const r = readyCheckPart6Answers([{ name: "Main", present: true, depthMm: 50, removal: true }, { name: "Garage", present: false }]);
@@ -231,7 +232,7 @@ describe("official Part 6 existing insulation comes from the Ready Check record"
     // Mixed: the top-up area still needs its answers.
     const mixed = readyCheckPart6Answers([{ name: "Main", present: true, depthMm: 50, removal: true }, { name: "Rear", present: true, depthMm: 50, removal: false }]);
     expect(mixed.fullRemoval).toBe(false);
-    expect(mixed.missing.length).toBe(4);
+    expect(mixed.missing.length).toBe(3); // reason, condition, foil answer (the photo is off the forms, Jo 5 Nov 2026)
   });
 });
 

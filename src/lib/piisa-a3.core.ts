@@ -501,19 +501,15 @@ export function readyCheckPart6Answers(areas: RcArea[], extra: Part6Extra = NO_E
     if (noAns.length) missing.push(`Ready Check: condition of the existing insulation (suitable to lay over) not recorded${gap(noAns)}`);
     else answers["p6.suitable"] = named.every((x) => x.a.suitable === true) ? "Yes" : "No";
   }
-  // Foil / metallic / conductive (+ the HI VIC photo) for every area being topped up.
+  // Foil / metallic / conductive for every area being topped up.
   let conductive: boolean | null = extra.conductive;
   if (conductive == null) {
     const noAns = named.filter((x) => x.a.conductive == null);
     if (noAns.length) missing.push(`Ready Check: whether the existing insulation is foil, metallic or conductive is not recorded${gap(noAns)}`);
     else conductive = named.some((x) => x.a.conductive === true);
   }
-  let conductiveEvidence: string | null = extra.conductiveEvidence ?? null;
-  if (!conductiveEvidence) {
-    const noPhoto = named.filter((x) => !x.a.conductiveEvidence);
-    if (noPhoto.length) missing.push(`Ready Check: photo showing whether the existing insulation is foil-backed or conductive not added${gap(noPhoto)}`);
-    else conductiveEvidence = named[0]!.a.conductiveEvidence!;
-  }
+  // Jo 5 Nov 2026: the foil photo is off the Ready Check forms — kept as a reference when an area has one, never listed missing.
+  const conductiveEvidence: string | null = extra.conductiveEvidence ?? named.map((x) => x.a.conductiveEvidence).find((e) => !!e) ?? null;
   return { answers, missing, conductive, conductiveEvidence, fullRemoval: false };
 }
 
