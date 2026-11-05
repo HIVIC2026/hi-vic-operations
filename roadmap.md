@@ -1,3 +1,7 @@
+## Jo 5 Nov own-customer portal Ready Check
+- [x] Saved the requested choice and short form in the Deep first-job spec; identified existing completion/quote paths and missing facts without changing their guards.
+- [ ] BLOCKED: Jo must choose whether missing old-insulation/R-value, access and product facts are collected in the short form or left for office review. The requested short form alone cannot prove completed-A1 equivalence without changing existing safeguards. Actual Mitti audit closure also needs a scoped lifecycle decision; existing closure is portal-only. No UI or production writers changed; no sends or publication.
+
 ## Jo 5 Nov installer phone layout
 - [x] Safari date/time sizing, safe-area header, separate Your price panel, booking warnings before grey disabled buttons; retain dropped-connection retry. Six installer screens checked at 390px with no overflow; stage-specific action tests run separately.
 - [ ] Physical iPhone notch/Safari and every live job stage remain unverified (no isolated stage fixtures); no real jobs or messages exercised.

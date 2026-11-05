@@ -25,6 +25,15 @@ Every rule below is one Jo has already decided (dates in brackets). Nothing new 
 - An electrician linked to an installer counts as that installer's business for this check (Peter → Reinsulate).
 - Jo switches it on for Reinsulate only. Claude runs the database change, after asking her.
 
+## Ready Check: Mitti or portal (own customers)
+
+Jo, 5 Nov: at Ready Check stage, installer-added own-customer jobs offer:
+- **Do it in Mitti** — existing A1 → Complete → price link → quote path, unchanged.
+- **Put the details in the portal** — a phone-first form on the job page: Install m² (required); Removal m² (required, 0 if none); measurement method using the current A1 options and exact measurement/upload prompts; Photos (optional, no videos); Price inc GST (required, the installer's total for the job); Other (optional text).
+- Save must prepare the same office-check quote as completed A1 plus price, preserving all existing holds and the 15% rule. Retain history when closing the unused A1. Home Insulation Victoria leads still use A2 only. No publication or sending authorised.
+
+**Implementation clarification required:** the listed fields do not establish existing insulation/R-value, access or the product/area facts required by the current completed-A1/quote paths. Reuse facts already recorded, never infer missing answers from removal m², price or photos. Jo must choose whether missing answers are collected in this portal form or left for office review; neither bypassing those checks nor adding questions is approved by this section. Current unused-form closure is portal-only and does not close the actual Mitti audit.
+
 ## Part 2 — The electrician calls and books the PIESA (1 Nov, 2 Nov)
 
 **Today:** the electrician gets a login link, offers the owner 3 times, the owner picks one, and there are 24 hours to reply.
