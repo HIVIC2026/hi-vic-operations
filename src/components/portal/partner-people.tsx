@@ -48,27 +48,49 @@ export function PeopleTable({ people, showBusiness = true, invalidate }: { peopl
           <section key={g.key} aria-label={g.title}>
             <h3 className="mb-1.5 text-sm font-semibold text-ink">{g.title} <span className="font-normal text-sub">· {g.people.length}</span></h3>
             {g.people.length === 0 ? <p className="rounded-[13px] border border-line bg-paper px-3 py-2 text-xs text-sub">Nobody here.</p> : (
-              <ul className="divide-y divide-line overflow-hidden rounded-[18px] border border-line bg-paper shadow-card">
-                {g.people.map((p) => (
-                  <li key={p.id} className="space-y-1 px-3 py-2 text-sm">
-                    <div><span className="font-semibold">{p.name}</span> <span className="text-xs text-sub break-all">{p.email}</span>
-                      {showBusiness && <> <Link to="/admin/partners/business/$businessId" params={{ businessId: p.businessId }} className="text-xs text-hiv-blue hover:underline">{p.business}</Link></>}</div>
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <span className="text-xs text-sub">{ROLE[p.role] ?? p.role}</span>
-                      {p.workerRole && <WorkerRoleSwitch tone="office" workerId={p.id} role={p.workerRole} onDone={() => void refreshAll()} />}
-                      {p.role === "installer" && p.workerRole === "lead" && <LeadEscRegistration person={p} onDone={refreshAll} />}
-                    </div>
-                    <PersonChecks p={p} />
-                    <div className="flex flex-wrap items-center gap-2" data-why="decisions 22/188: Mitti membership checked per person">
-                      <span className="text-xs"><b className="text-sub">Mitti</b> {p.inMitti ? "Yes" : "No"}</span>
-                      {p.role === "electrician" && <Btn tone="secondary" className="min-h-8 px-2.5 py-1 text-xs" onClick={() => setElectrician(p)}>Verify licence + REC</Btn>}
-                      {p.action === "verify_cii" && <Btn tone="secondary" className="min-h-8 px-2.5 py-1 text-xs" data-why="decision 153: office verifies CII with level + expiry" onClick={() => setVerify(p)}>Verify CII</Btn>}
-                      {p.action === "send_notice" && <span data-why="decision 130: secure link, guarded senders"><SendNoticeLinkInline workerId={p.id} /></span>}
-                      {p.action === "invite_mitti" && !p.inMitti && <Btn tone="secondary" className="min-h-8 px-2.5 py-1 text-xs" data-why="decisions 22/188: Mitti invite per person (office confirm)" onClick={() => setInvite(p)}>Invite to Mitti</Btn>}
-                    </div>
-                  </li>
-                ))}
-              </ul>
+              <div className="overflow-x-auto rounded-[18px] border border-line bg-paper shadow-card">
+                <table className="w-full min-w-[560px] text-xs">
+                  <thead className="bg-table-head text-left font-semibold text-sub"><tr>
+                    {(g.key === "electricians" ? ["Name", "Licence", "Mitti", ""] : ["Name", "CII", "ESC notice", "ESC registered", "Date of birth", "Mitti", "Approved"]).map((h, i) => <th key={i} scope="col" className="px-2.5 py-1.5">{h}</th>)}
+                  </tr></thead>
+                  <tbody className="[&>tr]:border-t [&>tr]:border-line [&_td]:px-2.5 [&_td]:py-1.5 [&_td]:align-top">
+                    {g.people.map((p) => {
+                      const approval = personApproval({ ciiVerified: p.ciiOk === true, noticeSigned: p.noticeOk === true, dateOfBirth: p.dateOfBirth });
+                      const cii = p.ciiTone === "plain" ? <span>{p.ciiLabel}</span> : <Pill tone={p.ciiTone}>{p.ciiLabel}</Pill>;
+                      const mitti = <span data-why="decisions 22/188: Mitti membership checked per person">{p.inMitti ? "Yes" : "No"}</span>;
+                      const actions = (
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                          {p.role === "electrician" && <Btn tone="secondary" className="min-h-8 px-2.5 py-1 text-xs" onClick={() => setElectrician(p)}>Verify licence + REC</Btn>}
+                          {p.action === "verify_cii" && <Btn tone="secondary" className="min-h-8 px-2.5 py-1 text-xs" data-why="decision 153: office verifies CII with level + expiry" onClick={() => setVerify(p)}>Verify CII</Btn>}
+                          {p.action === "send_notice" && <span data-why="decision 130: secure link, guarded senders"><SendNoticeLinkInline workerId={p.id} /></span>}
+                          {p.action === "invite_mitti" && !p.inMitti && <Btn tone="secondary" className="min-h-8 px-2.5 py-1 text-xs" data-why="decisions 22/188: Mitti invite per person (office confirm)" onClick={() => setInvite(p)}>Invite to Mitti</Btn>}
+                        </div>
+                      );
+                      const nameCell = (
+                        <td>
+                          <span className="text-sm font-semibold">{p.name}</span> <span className="break-all text-sub">{p.email}</span>
+                          {showBusiness && <> <Link to="/admin/partners/business/$businessId" params={{ businessId: p.businessId }} className="text-hiv-blue hover:underline">{p.business}</Link></>}
+                          {p.workerRole && <div className="mt-1"><WorkerRoleSwitch tone="office" workerId={p.id} role={p.workerRole} onDone={() => void refreshAll()} /></div>}
+                          {actions}
+                        </td>
+                      );
+                      return g.key === "electricians" ? (
+                        <tr key={p.id}>{nameCell}<td>{cii}</td><td>{mitti}</td><td /></tr>
+                      ) : (
+                        <tr key={p.id}>
+                          {nameCell}
+                          <td data-why="decision 153: clearance derived from verified CII + level + expiry">{cii}</td>
+                          <td data-why="decision 130: per-person ESC notice">{p.noticeOk ? <Pill tone="green">Signed</Pill> : <Pill tone="rose">Not signed</Pill>}</td>
+                          <td><EscRegisteredCell person={p} onDone={refreshAll} /></td>
+                          <td className={p.dateOfBirth ? "" : "text-rose"}>{p.dateOfBirth ? dobLabel(p.dateOfBirth) : "No"}</td>
+                          <td>{mitti}</td>
+                          <td data-approval={approval.approved ? "approved" : "not-approved"}>{approval.approved ? <Pill tone="green">Approved</Pill> : <><span className="font-semibold text-sub">{approval.label}</span>{approval.missingLine && <span className="block text-sub">{approval.missingLine}</span>}</>}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             )}
           </section>
         ))}
@@ -80,35 +102,28 @@ export function PeopleTable({ people, showBusiness = true, invalidate }: { peopl
   );
 }
 
-function PersonChecks({ p }: { p: PersonView }) {
-  const wrap = "flex flex-wrap items-center gap-x-3 gap-y-1 text-xs";
-  const cii = p.ciiTone === "plain" ? <span>{p.ciiLabel}</span> : <Pill tone={p.ciiTone}>{p.ciiLabel}</Pill>;
-  if (p.role !== "installer") return <div className={wrap}><span className="inline-flex items-center gap-1"><b className="text-sub">Licence</b>{cii}</span></div>;
-  const approval = personApproval({ ciiVerified: p.ciiOk === true, noticeSigned: p.noticeOk === true, dateOfBirth: p.dateOfBirth });
-  return (
-    <>
-      <div className={wrap} data-why="decision 153 CII, decision 130 ESC notice; Approved is display only">
-        <span className="inline-flex items-center gap-1"><b className="text-sub">CII</b>{cii}</span>
-        <span className="inline-flex items-center gap-1"><b className="text-sub">ESC notice</b>{p.noticeOk ? <Pill tone="green">Signed</Pill> : <Pill tone="rose">Not signed</Pill>}</span>
-        <span className="inline-flex items-center gap-1"><b className="text-sub">Date of birth</b><span className={p.dateOfBirth ? "" : "text-rose"}>{dobLabel(p.dateOfBirth)}</span></span>
-        <span data-approval={approval.approved ? "approved" : "not-approved"}>{approval.approved ? <Pill tone="green">Approved</Pill> : <span className="font-semibold text-sub">{approval.label}</span>}</span>
-      </div>
-      {approval.missingLine && <p className="text-xs text-sub">{approval.missingLine}</p>}
-    </>
-  );
-}
-
-/** Lead Installers only: small control. Same server function as before (the server enforces its own rules); today's Melbourne date. */
-function LeadEscRegistration({ person, onDone }: { person: PersonView; onDone: () => Promise<void> }) {
+/** Small Yes/No switch. On = records ESC registered with today's Melbourne date; off = clears it. Both go through the existing
+ *  admin-only, audited officeRecordEscRegistered (the database function writes the audit row); the server keeps its own rules. */
+function EscRegisteredCell({ person, onDone }: { person: PersonView; onDone: () => Promise<void> }) {
   const save = useServerFn(officeRecordEscRegistered);
   const [busy, setBusy] = useState(false);
-  if (person.escRegistered) return <span className="text-xs text-sub">{escRegisteredLabel(person.escRegisteredAt)}</span>;
-  return <Btn tone="secondary" className="min-h-8 px-2.5 py-1 text-xs" disabled={busy} onClick={async () => {
-    setBusy(true);
-    try { await save({ data: { workerId: person.id, registered: true, date: melbourneToday() } }); await onDone(); toast.success("ESC registration recorded"); }
-    catch (e) { toast.error(e instanceof Error ? e.message : "Could not record registration."); }
-    finally { setBusy(false); }
-  }}>Mark ESC registered</Btn>;
+  const on = person.escRegistered === true;
+  return (
+    <button type="button" role="switch" aria-checked={on} disabled={busy} aria-label={`ESC registered for ${person.name}`} title={on ? escRegisteredLabel(person.escRegisteredAt) : "Not ESC registered"}
+      className="inline-flex min-h-8 items-center gap-1.5 text-xs font-semibold disabled:opacity-60"
+      onClick={async () => {
+        setBusy(true);
+        try {
+          await save({ data: { workerId: person.id, registered: !on, date: on ? null : melbourneToday() } });
+          await onDone();
+          toast.success(on ? "ESC registration cleared" : "Marked ESC registered");
+        } catch (e) { toast.error(e instanceof Error ? e.message : "Could not change ESC registration. Nothing was saved."); }
+        finally { setBusy(false); }
+      }}>
+      <span className={`relative h-5 w-9 rounded-full transition-colors ${on ? "bg-hiv-green" : "bg-line"}`}><span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${on ? "left-[18px]" : "left-0.5"}`} /></span>
+      {on ? "Yes" : "No"}
+    </button>
+  );
 }
 
 function VerifyElectricianDialog({ person, invalidate, onClose }: { person: PersonView; invalidate: string[]; onClose: () => void }) {

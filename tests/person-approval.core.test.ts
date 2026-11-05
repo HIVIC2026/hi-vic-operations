@@ -58,8 +58,10 @@ describe("People row source", () => {
   test("old big ESC date box is gone; small Lead-only control uses the existing server function", () => {
     expect(src).not.toContain("ESC registration date");
     expect(src).not.toContain("Record ESC registered");
-    expect(src).toContain("Mark ESC registered");
-    expect(src).toContain('p.workerRole === "lead" && <LeadEscRegistration');
+    expect(src).not.toContain("Mark ESC registered");
+    expect(src).toContain('"ESC registered"');
+    expect(src).toContain('role="switch"');
+    expect(src).toContain("registered: !on, date: on ? null : melbourneToday()");
     expect(src).toContain("officeRecordEscRegistered");
     expect(src).toContain("melbourneToday()");
   });
