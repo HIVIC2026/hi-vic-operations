@@ -22,10 +22,10 @@ const byDate = (id: string, givenAt: string) => row(id, { givenAt });
 
 describe("greeting", () => {
   test("business and count", () => {
-    expect(greeting("Rapid", 3)).toEqual({ title: "Good morning, Rapid crew!", sub: "3 jobs need you today." });
+    expect(greeting("Rapid", 3)).toEqual({ title: "Hi, Rapid team", sub: "3 jobs need you today." });
     // fix wave minor 11: a TEST partner's name loses its TEST mark in the greeting, like Money
-    expect(greeting("TEST Rapid", 1).title).toBe("Good morning, Rapid crew!");
-    expect(greeting("[TEST PARTNER] Rapid", 1).title).toBe("Good morning, Rapid crew!");
+    expect(greeting("TEST Rapid", 1).title).toBe("Hi, Rapid team");
+    expect(greeting("[TEST PARTNER] Rapid", 1).title).toBe("Hi, Rapid team");
     expect(greeting("Rapid", 1).sub).toBe("1 job needs you today.");
     expect(greeting("Rapid", 0).sub).toBe("Nothing needs you today."); // DRAFT
   });

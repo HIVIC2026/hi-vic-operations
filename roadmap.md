@@ -1,3 +1,6 @@
+## Jo 5 Nov 8pm portal greetings
+- [x] Reproduced fixed morning greeting; shared installer home now uses Jo's neutral "Hi, {business} team". All source greetings and message templates audited: remaining morning text is the scheduled 6:30am digest; emails unchanged. 49 focused checks pass and preview build OK; two separate home-size checks fail (not changed). Signed-in screen check NOT RUN: permitted TEST session remains unavailable. No sending, switches, live records or publication.
+
 ## Jo 5 Nov 7:44pm Deep first-job ordered work
 - [x] Jo 7:55pm HV-3675: exact missing-report and owner-neutral pay messages updated; new regression proves matching Job number + blank legacy copy accepted, filled conflicts refused; private saved-PDF byte test passes. Live read-only qa_test job has zero saved reports and later partial read with missing area. Publication alone cannot confirm PDF recovery; no job writes/publishing. Broader identity suite: 15 pass/12 fail (stale blank-copy expectation + harness missing alias dependency), not rewritten.
 - [ ] HV-3675 actual report opening after publication NOT RUN: no saved PDF currently and publication not authorised.

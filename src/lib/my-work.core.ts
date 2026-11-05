@@ -9,7 +9,7 @@ export type MyWorkRow = { jobId: string; jobNumber: string; owner: string | null
 
 // Wording. Every line here is a DRAFT (no approved text yet) except where marked.
 export const MY_WORK_WORDS = {
-  greetingTitle: (business: string) => `Good morning, ${business} crew!`, // approved (Global Constraints)
+  greetingTitle: (business: string) => `Hi, ${business} team`, // Jo 5 Nov: neutral greeting stays correct at any Melbourne time.
   needYou: (n: number) => (n === 1 ? "1 job needs you today." : `${n} jobs need you today.`), // approved (Global Constraints)
   nothing: "Nothing needs you today.", // DRAFT
   leadPill: "Home Insulation Victoria lead" as const, // approved
