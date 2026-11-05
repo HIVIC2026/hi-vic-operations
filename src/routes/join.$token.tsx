@@ -53,7 +53,7 @@ function Join() {
     ? <><h1 className="mb-2 text-2xl font-bold">Thanks — your certificate is uploaded.</h1><p className="text-sub">{inv.businessName} and Home Insulation Victoria will check it. You'll be able to take jobs once it's verified.</p></>
     : <><h1 className="mb-2 text-2xl font-bold">Thanks, {f.full_legal_name.split(" ")[0]} — you're registered.</h1><p className="text-sub">{inv.businessName} and Home Insulation Victoria will check your details. Once you're approved, the business owner can send you to jobs — you'll get a private link for each job.</p></>);
   // A completion link with nothing left to collect (certificate already with the office, or verified).
-  if (completion && !inv.needsCert) return wrap(<><h1 className="mb-2 text-2xl font-bold">Nothing more to do</h1><p className="text-sub">Your certificate is already with {inv.businessName} and Home Insulation Victoria. We'll let the business know once it's checked.</p></>);
+  if (completion && !inv.needsCert) return wrap(<><h1 className="mb-2 text-2xl font-bold">Nothing more to do</h1><p className="text-sub">Your certificate is already with us. There's nothing more to do on this link.</p></>);
 
   // Upload the certificate to private storage via a token-gated signed slot; returns the stored path.
   const uploadCert = async (): Promise<string> => {

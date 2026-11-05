@@ -38,7 +38,7 @@ test("no signing line: nothing on Team asks a person to sign (Jo 5 Nov 2026)", (
   expect(TEAM_ADD_SHEET.bodyInstaller).not.toMatch(/sign|declaration/i);
   expect(TEAM_ADD_SHEET.bodyElectrician).not.toMatch(/sign|declaration/i);
   // The certificate link stays for an installer whose CII is not cleared.
-  expect(team).toContain('m.cii && cii?.tone === "rose"');
+  expect(team).toContain("m.certNeeded &&");
 });
 test("old invite-only keys are gone", () => {
   for (const k of ["body", "fields", "inviteButton", "linkNote"]) expect(Object.keys(TEAM_ADD_SHEET)).not.toContain(k);

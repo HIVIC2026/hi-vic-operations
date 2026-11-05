@@ -320,6 +320,8 @@ export type TeamMemberView = {
   licenceAndRec?: boolean;
   canSeeMoney?: boolean;
   hasDob?: boolean | null;
+  /** Installers only: a certificate is still needed (none uploaded, or the last one was not accepted). */
+  certNeeded?: boolean;
 };
 export const ROLE_LABEL: Record<TeamMemberView["role"], string> = { owner: "owner", office: "office", installer: "installer", electrician: "electrician" };
 

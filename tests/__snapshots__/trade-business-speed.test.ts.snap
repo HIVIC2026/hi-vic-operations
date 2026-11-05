@@ -46,6 +46,7 @@ exports[`parity: same value as before, field for field tradeBusiness and tradeBu
         "team": [
           {
             "canSeeMoney": false,
+            "certNeeded": false,
             "cii": null,
             "email": "eli@example.com",
             "escRegistered": false,
@@ -64,6 +65,7 @@ exports[`parity: same value as before, field for field tradeBusiness and tradeBu
           },
           {
             "canSeeMoney": false,
+            "certNeeded": false,
             "cii": null,
             "email": "ed@example.com",
             "escRegistered": false,
@@ -235,6 +237,7 @@ exports[`parity: same value as before, field for field tradeBusiness and tradeBu
         "team": [
           {
             "canSeeMoney": false,
+            "certNeeded": false,
             "cii": {
               "certStatus": "verified",
               "expiresOn": "2027-06-30",
@@ -252,11 +255,12 @@ exports[`parity: same value as before, field for field tradeBusiness and tradeBu
             "name": "Bea Boss",
             "noticeAcknowledged": true,
             "role": "owner",
-            "whiteCard": "missing",
+            "whiteCard": "not_applicable",
             "workerRole": "lead",
           },
           {
             "canSeeMoney": false,
+            "certNeeded": true,
             "cii": {
               "certStatus": "rejected",
               "expiresOn": null,
@@ -277,11 +281,12 @@ exports[`parity: same value as before, field for field tradeBusiness and tradeBu
             "name": "Sam Staff",
             "noticeAcknowledged": true,
             "role": "installer",
-            "whiteCard": "missing",
+            "whiteCard": "not_applicable",
             "workerRole": "lead",
           },
           {
             "canSeeMoney": false,
+            "certNeeded": true,
             "cii": {
               "certStatus": null,
               "expiresOn": null,
@@ -303,7 +308,7 @@ exports[`parity: same value as before, field for field tradeBusiness and tradeBu
             "name": "Nat Nologin",
             "noticeAcknowledged": false,
             "role": "installer",
-            "whiteCard": "missing",
+            "whiteCard": "not_applicable",
             "workerRole": "crew",
           },
         ],
@@ -511,6 +516,7 @@ exports[`parity: same value as before, field for field tradeBusiness and tradeBu
         "team": [
           {
             "canSeeMoney": false,
+            "certNeeded": false,
             "cii": null,
             "email": "eli@example.com",
             "escRegistered": false,
@@ -529,6 +535,7 @@ exports[`parity: same value as before, field for field tradeBusiness and tradeBu
           },
           {
             "canSeeMoney": false,
+            "certNeeded": false,
             "cii": null,
             "email": "ed@example.com",
             "escRegistered": false,
@@ -700,6 +707,7 @@ exports[`parity: same value as before, field for field tradeBusiness and tradeBu
         "team": [
           {
             "canSeeMoney": false,
+            "certNeeded": false,
             "cii": {
               "certStatus": "verified",
               "expiresOn": "2027-06-30",
@@ -717,11 +725,12 @@ exports[`parity: same value as before, field for field tradeBusiness and tradeBu
             "name": "Bea Boss",
             "noticeAcknowledged": true,
             "role": "owner",
-            "whiteCard": "missing",
+            "whiteCard": "not_applicable",
             "workerRole": "lead",
           },
           {
             "canSeeMoney": false,
+            "certNeeded": true,
             "cii": {
               "certStatus": "rejected",
               "expiresOn": null,
@@ -742,11 +751,12 @@ exports[`parity: same value as before, field for field tradeBusiness and tradeBu
             "name": "Sam Staff",
             "noticeAcknowledged": true,
             "role": "installer",
-            "whiteCard": "missing",
+            "whiteCard": "not_applicable",
             "workerRole": "lead",
           },
           {
             "canSeeMoney": false,
+            "certNeeded": true,
             "cii": {
               "certStatus": null,
               "expiresOn": null,
@@ -768,7 +778,7 @@ exports[`parity: same value as before, field for field tradeBusiness and tradeBu
             "name": "Nat Nologin",
             "noticeAcknowledged": false,
             "role": "installer",
-            "whiteCard": "missing",
+            "whiteCard": "not_applicable",
             "workerRole": "crew",
           },
         ],
@@ -981,6 +991,7 @@ exports[`parity: same value as before, field for field with each read failing, t
         "team": [
           {
             "canSeeMoney": false,
+            "certNeeded": false,
             "cii": null,
             "email": "eli@example.com",
             "escRegistered": false,
@@ -999,6 +1010,7 @@ exports[`parity: same value as before, field for field with each read failing, t
           },
           {
             "canSeeMoney": false,
+            "certNeeded": false,
             "cii": null,
             "email": "ed@example.com",
             "escRegistered": false,
@@ -1170,6 +1182,7 @@ exports[`parity: same value as before, field for field with each read failing, t
         "team": [
           {
             "canSeeMoney": false,
+            "certNeeded": false,
             "cii": {
               "certStatus": "verified",
               "expiresOn": "2027-06-30",
@@ -1187,11 +1200,12 @@ exports[`parity: same value as before, field for field with each read failing, t
             "name": "Bea Boss",
             "noticeAcknowledged": true,
             "role": "owner",
-            "whiteCard": "missing",
+            "whiteCard": "not_applicable",
             "workerRole": "lead",
           },
           {
             "canSeeMoney": false,
+            "certNeeded": true,
             "cii": {
               "certStatus": "rejected",
               "expiresOn": null,
@@ -1212,11 +1226,12 @@ exports[`parity: same value as before, field for field with each read failing, t
             "name": "Sam Staff",
             "noticeAcknowledged": true,
             "role": "installer",
-            "whiteCard": "missing",
+            "whiteCard": "not_applicable",
             "workerRole": "lead",
           },
           {
             "canSeeMoney": false,
+            "certNeeded": true,
             "cii": {
               "certStatus": null,
               "expiresOn": null,
@@ -1238,7 +1253,7 @@ exports[`parity: same value as before, field for field with each read failing, t
             "name": "Nat Nologin",
             "noticeAcknowledged": false,
             "role": "installer",
-            "whiteCard": "missing",
+            "whiteCard": "not_applicable",
             "workerRole": "crew",
           },
         ],
@@ -1336,6 +1351,7 @@ exports[`parity: same value as before, field for field with each read failing, t
         "team": [
           {
             "canSeeMoney": false,
+            "certNeeded": false,
             "cii": null,
             "email": "eli@example.com",
             "escRegistered": false,
@@ -1354,6 +1370,7 @@ exports[`parity: same value as before, field for field with each read failing, t
           },
           {
             "canSeeMoney": false,
+            "certNeeded": false,
             "cii": null,
             "email": "ed@example.com",
             "escRegistered": false,
@@ -1525,6 +1542,7 @@ exports[`parity: same value as before, field for field with each read failing, t
         "team": [
           {
             "canSeeMoney": false,
+            "certNeeded": false,
             "cii": {
               "certStatus": null,
               "expiresOn": null,
@@ -1542,11 +1560,12 @@ exports[`parity: same value as before, field for field with each read failing, t
             "name": "Bea Boss",
             "noticeAcknowledged": true,
             "role": "owner",
-            "whiteCard": "missing",
+            "whiteCard": "not_applicable",
             "workerRole": "lead",
           },
           {
             "canSeeMoney": false,
+            "certNeeded": true,
             "cii": {
               "certStatus": null,
               "expiresOn": null,
@@ -1567,11 +1586,12 @@ exports[`parity: same value as before, field for field with each read failing, t
             "name": "Sam Staff",
             "noticeAcknowledged": true,
             "role": "installer",
-            "whiteCard": "missing",
+            "whiteCard": "not_applicable",
             "workerRole": "lead",
           },
           {
             "canSeeMoney": false,
+            "certNeeded": true,
             "cii": {
               "certStatus": null,
               "expiresOn": null,
@@ -1593,7 +1613,7 @@ exports[`parity: same value as before, field for field with each read failing, t
             "name": "Nat Nologin",
             "noticeAcknowledged": false,
             "role": "installer",
-            "whiteCard": "missing",
+            "whiteCard": "not_applicable",
             "workerRole": "crew",
           },
         ],
@@ -1794,6 +1814,7 @@ exports[`parity: same value as before, field for field with each read failing, t
         "team": [
           {
             "canSeeMoney": false,
+            "certNeeded": false,
             "cii": null,
             "email": "eli@example.com",
             "escRegistered": false,
@@ -1812,6 +1833,7 @@ exports[`parity: same value as before, field for field with each read failing, t
           },
           {
             "canSeeMoney": false,
+            "certNeeded": false,
             "cii": null,
             "email": "ed@example.com",
             "escRegistered": false,
@@ -1970,6 +1992,7 @@ exports[`parity: same value as before, field for field with each read failing, t
         "team": [
           {
             "canSeeMoney": false,
+            "certNeeded": false,
             "cii": {
               "certStatus": "verified",
               "expiresOn": "2027-06-30",
@@ -1987,11 +2010,12 @@ exports[`parity: same value as before, field for field with each read failing, t
             "name": "Bea Boss",
             "noticeAcknowledged": true,
             "role": "owner",
-            "whiteCard": "missing",
+            "whiteCard": "not_applicable",
             "workerRole": "lead",
           },
           {
             "canSeeMoney": false,
+            "certNeeded": true,
             "cii": {
               "certStatus": "rejected",
               "expiresOn": null,
@@ -2012,11 +2036,12 @@ exports[`parity: same value as before, field for field with each read failing, t
             "name": "Sam Staff",
             "noticeAcknowledged": true,
             "role": "installer",
-            "whiteCard": "missing",
+            "whiteCard": "not_applicable",
             "workerRole": "lead",
           },
           {
             "canSeeMoney": false,
+            "certNeeded": true,
             "cii": {
               "certStatus": null,
               "expiresOn": null,
@@ -2038,7 +2063,7 @@ exports[`parity: same value as before, field for field with each read failing, t
             "name": "Nat Nologin",
             "noticeAcknowledged": false,
             "role": "installer",
-            "whiteCard": "missing",
+            "whiteCard": "not_applicable",
             "workerRole": "crew",
           },
         ],
@@ -2217,6 +2242,7 @@ exports[`parity: same value as before, field for field with each read failing, t
         "team": [
           {
             "canSeeMoney": false,
+            "certNeeded": false,
             "cii": null,
             "email": "eli@example.com",
             "escRegistered": false,
@@ -2235,6 +2261,7 @@ exports[`parity: same value as before, field for field with each read failing, t
           },
           {
             "canSeeMoney": false,
+            "certNeeded": false,
             "cii": null,
             "email": "ed@example.com",
             "escRegistered": false,
@@ -2393,6 +2420,7 @@ exports[`parity: same value as before, field for field with each read failing, t
         "team": [
           {
             "canSeeMoney": false,
+            "certNeeded": false,
             "cii": {
               "certStatus": null,
               "expiresOn": null,
@@ -2410,11 +2438,12 @@ exports[`parity: same value as before, field for field with each read failing, t
             "name": "Bea Boss",
             "noticeAcknowledged": false,
             "role": "owner",
-            "whiteCard": "missing",
+            "whiteCard": "not_applicable",
             "workerRole": "lead",
           },
           {
             "canSeeMoney": false,
+            "certNeeded": true,
             "cii": {
               "certStatus": null,
               "expiresOn": null,
@@ -2435,11 +2464,12 @@ exports[`parity: same value as before, field for field with each read failing, t
             "name": "Sam Staff",
             "noticeAcknowledged": false,
             "role": "installer",
-            "whiteCard": "missing",
+            "whiteCard": "not_applicable",
             "workerRole": "lead",
           },
           {
             "canSeeMoney": false,
+            "certNeeded": true,
             "cii": {
               "certStatus": null,
               "expiresOn": null,
@@ -2461,7 +2491,7 @@ exports[`parity: same value as before, field for field with each read failing, t
             "name": "Nat Nologin",
             "noticeAcknowledged": false,
             "role": "installer",
-            "whiteCard": "missing",
+            "whiteCard": "not_applicable",
             "workerRole": "crew",
           },
         ],
@@ -2669,6 +2699,7 @@ exports[`parity: same value as before, field for field with each read failing, t
         "team": [
           {
             "canSeeMoney": false,
+            "certNeeded": false,
             "cii": null,
             "email": "eli@example.com",
             "escRegistered": false,
@@ -2687,6 +2718,7 @@ exports[`parity: same value as before, field for field with each read failing, t
           },
           {
             "canSeeMoney": false,
+            "certNeeded": false,
             "cii": null,
             "email": "ed@example.com",
             "escRegistered": false,
@@ -2845,6 +2877,7 @@ exports[`parity: same value as before, field for field with each read failing, t
         "team": [
           {
             "canSeeMoney": false,
+            "certNeeded": false,
             "cii": {
               "certStatus": null,
               "expiresOn": null,
@@ -2862,11 +2895,12 @@ exports[`parity: same value as before, field for field with each read failing, t
             "name": "Bea Boss",
             "noticeAcknowledged": false,
             "role": "owner",
-            "whiteCard": "missing",
+            "whiteCard": "not_applicable",
             "workerRole": "lead",
           },
           {
             "canSeeMoney": false,
+            "certNeeded": true,
             "cii": {
               "certStatus": null,
               "expiresOn": null,
@@ -2887,11 +2921,12 @@ exports[`parity: same value as before, field for field with each read failing, t
             "name": "Sam Staff",
             "noticeAcknowledged": false,
             "role": "installer",
-            "whiteCard": "missing",
+            "whiteCard": "not_applicable",
             "workerRole": "lead",
           },
           {
             "canSeeMoney": false,
+            "certNeeded": true,
             "cii": {
               "certStatus": null,
               "expiresOn": null,
@@ -2913,7 +2948,7 @@ exports[`parity: same value as before, field for field with each read failing, t
             "name": "Nat Nologin",
             "noticeAcknowledged": false,
             "role": "installer",
-            "whiteCard": "missing",
+            "whiteCard": "not_applicable",
             "workerRole": "crew",
           },
         ],
@@ -3121,6 +3156,7 @@ exports[`parity: same value as before, field for field with each read failing, t
         "team": [
           {
             "canSeeMoney": false,
+            "certNeeded": false,
             "cii": null,
             "email": "eli@example.com",
             "escRegistered": false,
@@ -3139,6 +3175,7 @@ exports[`parity: same value as before, field for field with each read failing, t
           },
           {
             "canSeeMoney": false,
+            "certNeeded": false,
             "cii": null,
             "email": "ed@example.com",
             "escRegistered": false,
@@ -3297,6 +3334,7 @@ exports[`parity: same value as before, field for field with each read failing, t
         "team": [
           {
             "canSeeMoney": false,
+            "certNeeded": false,
             "cii": {
               "certStatus": null,
               "expiresOn": null,
@@ -3314,11 +3352,12 @@ exports[`parity: same value as before, field for field with each read failing, t
             "name": "Bea Boss",
             "noticeAcknowledged": false,
             "role": "owner",
-            "whiteCard": "missing",
+            "whiteCard": "not_applicable",
             "workerRole": "lead",
           },
           {
             "canSeeMoney": false,
+            "certNeeded": true,
             "cii": {
               "certStatus": null,
               "expiresOn": null,
@@ -3339,11 +3378,12 @@ exports[`parity: same value as before, field for field with each read failing, t
             "name": "Sam Staff",
             "noticeAcknowledged": false,
             "role": "installer",
-            "whiteCard": "missing",
+            "whiteCard": "not_applicable",
             "workerRole": "lead",
           },
           {
             "canSeeMoney": false,
+            "certNeeded": true,
             "cii": {
               "certStatus": null,
               "expiresOn": null,
@@ -3365,7 +3405,7 @@ exports[`parity: same value as before, field for field with each read failing, t
             "name": "Nat Nologin",
             "noticeAcknowledged": false,
             "role": "installer",
-            "whiteCard": "missing",
+            "whiteCard": "not_applicable",
             "workerRole": "crew",
           },
         ],
@@ -3573,6 +3613,7 @@ exports[`parity: same value as before, field for field with each read failing, t
         "team": [
           {
             "canSeeMoney": false,
+            "certNeeded": false,
             "cii": null,
             "email": "eli@example.com",
             "escRegistered": false,
@@ -3591,6 +3632,7 @@ exports[`parity: same value as before, field for field with each read failing, t
           },
           {
             "canSeeMoney": false,
+            "certNeeded": false,
             "cii": null,
             "email": "ed@example.com",
             "escRegistered": false,
@@ -3762,6 +3804,7 @@ exports[`parity: same value as before, field for field with each read failing, t
         "team": [
           {
             "canSeeMoney": false,
+            "certNeeded": false,
             "cii": {
               "certStatus": "verified",
               "expiresOn": "2027-06-30",
@@ -3779,11 +3822,12 @@ exports[`parity: same value as before, field for field with each read failing, t
             "name": "Bea Boss",
             "noticeAcknowledged": true,
             "role": "owner",
-            "whiteCard": "missing",
+            "whiteCard": "not_applicable",
             "workerRole": "lead",
           },
           {
             "canSeeMoney": false,
+            "certNeeded": true,
             "cii": {
               "certStatus": "rejected",
               "expiresOn": null,
@@ -3804,11 +3848,12 @@ exports[`parity: same value as before, field for field with each read failing, t
             "name": "Sam Staff",
             "noticeAcknowledged": true,
             "role": "installer",
-            "whiteCard": "missing",
+            "whiteCard": "not_applicable",
             "workerRole": "lead",
           },
           {
             "canSeeMoney": false,
+            "certNeeded": true,
             "cii": {
               "certStatus": null,
               "expiresOn": null,
@@ -3830,7 +3875,7 @@ exports[`parity: same value as before, field for field with each read failing, t
             "name": "Nat Nologin",
             "noticeAcknowledged": false,
             "role": "installer",
-            "whiteCard": "missing",
+            "whiteCard": "not_applicable",
             "workerRole": "crew",
           },
         ],
@@ -4038,6 +4083,7 @@ exports[`parity: same value as before, field for field with each read failing, t
         "team": [
           {
             "canSeeMoney": false,
+            "certNeeded": false,
             "cii": null,
             "email": "eli@example.com",
             "escRegistered": false,
@@ -4186,6 +4232,7 @@ exports[`parity: same value as before, field for field with each read failing, t
         "team": [
           {
             "canSeeMoney": false,
+            "certNeeded": false,
             "cii": null,
             "email": "bea@example.com",
             "escRegistered": false,
@@ -4407,6 +4454,7 @@ exports[`parity: same value as before, field for field with each read failing, t
         "team": [
           {
             "canSeeMoney": false,
+            "certNeeded": false,
             "cii": null,
             "email": "eli@example.com",
             "escRegistered": false,
@@ -4425,6 +4473,7 @@ exports[`parity: same value as before, field for field with each read failing, t
           },
           {
             "canSeeMoney": false,
+            "certNeeded": false,
             "cii": null,
             "email": "ed@example.com",
             "escRegistered": false,

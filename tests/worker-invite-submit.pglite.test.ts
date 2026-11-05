@@ -136,7 +136,7 @@ describe("completion link (existing installer uploads the certificate; nothing t
     const w = await worker({ trade: "installer", email: "c8@sparks.test", certStatus: "unverified", certification: { eec_upload: { path: "worker-invites/old/eec-1.pdf", uploaded_at: "2026-11-01", number: null } } });
     const { token, id } = await invite({ trade: "installer", workerId: w });
     expect(await getWorkerInvite({ data: { token } })).toMatchObject({ ok: true, mode: "completion", needsCert: false });
-    expect(await submitWorkerInvite(sign(token))).toEqual({ ok: false, errors: ["Your certificate is already with us — nothing more to do."] });
+    expect(await submitWorkerInvite(sign(token))).toEqual({ ok: false, errors: ["Your certificate is already with us. There's nothing more to do on this link."] });
     expect((await inviteRow(id)).used_at).toBeNull();
   });
 
@@ -153,6 +153,15 @@ describe("completion link (existing installer uploads the certificate; nothing t
     const { token, id } = await invite({ trade: "electrician", workerId: w });
     expect(await submitWorkerInvite(sign(token))).toEqual({ ok: false, errors: ["This completion link is no longer available. Ask the business owner for a new one."] });
     expect((await inviteRow(id)).used_at).toBeNull();
+  });
+
+  test("the page gets the server's refusal words for electrician and verified links", async () => {
+    const e = await worker({ trade: "electrician", email: "c12@sparks.test" });
+    const ei = await invite({ trade: "electrician", workerId: e });
+    expect(await getWorkerInvite({ data: { token: ei.token } })).toEqual({ ok: false, message: "This completion link is no longer available. Ask the business owner for a new one." });
+    const v = await worker({ trade: "installer", email: "c13@sparks.test", certStatus: "verified" });
+    const vi = await invite({ trade: "installer", workerId: v });
+    expect(await getWorkerInvite({ data: { token: vi.token } })).toEqual({ ok: false, message: "This certificate is already verified — nothing more to do." });
   });
 
   test("a verified certificate is not replaced", async () => {
@@ -199,9 +208,6 @@ describe("completion link (existing installer uploads the certificate; nothing t
     expect((await inviteRow(id)).used_at).toBeNull();
   });
 
-  test("the code never writes admin_config_events for declarations any more", async () => {
-    expect((await db.query("select 1 from admin_config_events where event_type = 'worker_declarations_due_clear_failed'")).rows).toHaveLength(0);
-  });
 });
 
 describe("registration link (new worker)", () => {

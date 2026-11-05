@@ -23,7 +23,7 @@ const smallBtn = "min-h-11 rounded-[10px] border border-line bg-paper px-3 text-
 
 /** Team (installer screens Task 10; approved mock-up team-phone.png): one card per person with the role and its checks
  *  from `teamRow`, missing items in orange. Tapping a card opens that person's sheet: the existing actions (mobile, CII
- *  link, White Card, signing link, ESC notice link, Remove) and, for Office people, the boss's "Can see Money" switch.
+ *  certificate link (only when a certificate is needed), White Card, ESC notice link, Remove) and, for Office people, the boss's "Can see Money" switch.
  *  A date of birth is never shown — only whether one is on file. Electrician businesses get the same list. */
 function Team() {
   const load = useServerFn(getTradeBusiness);
@@ -94,7 +94,7 @@ function PersonSheet({ m, today, onChange, onClose }: { m: TeamMemberView; today
         {/* Jo 4 Nov 2026 21:45 (G8): NO worker logins — only the boss and Office people log in. The login ask shows for Office people only. */}
         {m.role === "office" && !m.hasLogin && (asked ? <span className="text-[13px] font-semibold text-estimate-green">{asked}</span> : <button type="button" className={smallBtn} onClick={async () => { try { await invite({ data: { workerId: id } }); setAsked(TEAM_LOGIN.asked); } catch (e) { setAsked((e as Error).message); } }}>{TEAM_LOGIN.button}</button>)}
         {m.noticeAcknowledged === false && <SendNoticeLinkInline workerId={id} />}
-        {m.cii && cii?.tone === "rose" && <CertLinkInline workerId={id} name={m.name} />}
+        {m.certNeeded && <CertLinkInline workerId={id} name={m.name} />}
         {wc?.canUpload && !wcOpen && <button type="button" className={smallBtn} onClick={() => setWcOpen(true)}>Upload White Card</button>}
         {wc?.canUpload && wcOpen && <WhiteCardUploadInline workerId={id} onDone={onChange} />}
         {m.role !== "owner" && <button type="button" data-team-remove className="min-h-11 px-3 text-[13px] font-semibold text-rose" onClick={async () => { if (!confirm("Remove this team member? Their job links stop working straight away.")) return; try { setRemoveErr(null); await remove({ data: { id } }); onChange(); onClose(); } catch (e) { setRemoveErr((e as Error).message); } }}>Remove</button>}

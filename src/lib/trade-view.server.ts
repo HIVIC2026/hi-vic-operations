@@ -73,6 +73,7 @@ import { paysOwnElectricians } from "./installer-paid-electricians.core";
 import * as schemaCompatCore from "./schema-compat.core";
 import { mittiAccessOf } from "./mitti-membership.core";
 import { OWNER_ONLY_REFUSALS } from "./owner-only.core";
+import { completionNeedsCert } from "./worker-invite.core";
 const loadInstallerQuotes = (ids: string[], shared?: import("./installer-quote-status.server").SharedQuoteReads) => quoteStatusServer.loadInstallerQuotes(ids, shared);
 // Speed (portal speed step 2B, home flatten): the home's deposit facts and Mitti electrician question load at module
 // scope too (namespaces, read at call time), instead of an awaited import() inside the loader.
@@ -878,7 +879,7 @@ export async function tradeBusiness(userId: string) {
   // Task 10: "Can see Money" per Office sign-in (business_members.can_see_money; the boss's switch on Team).
   const canSeeMoneyOf = (profileId: string | null | undefined) => !!profileId && (members ?? []).some((m) => m.user_id === profileId && m.member_role === "office" && m.can_see_money === true);
   const profileIds = [...new Set([...ownerIds, ...(workers ?? []).map((w) => w.profile_id).filter((x): x is string => !!x)])];
-  const staffRows = (workers ?? []) as { id: string; full_legal_name: string; trade_role: string; profile_id: string | null; email: string | null; mobile: string | null; certification: unknown; worker_role?: string | null; licence_number?: string | null; rec_number?: string | null; licence_expires_on?: string | null; licence_verified_at?: string | null; esc_registered?: boolean | null }[];
+  const staffRows = (workers ?? []) as { id: string; full_legal_name: string; trade_role: string; profile_id: string | null; email: string | null; mobile: string | null; certification: unknown; certification_status?: string | null; worker_role?: string | null; licence_number?: string | null; rec_number?: string | null; licence_expires_on?: string | null; licence_verified_at?: string | null; esc_registered?: boolean | null }[];
   const needCrew = c.kind === "installer" || staffRows.some((w) => w.trade_role === "installer");
   // Round 3. Office Mitti records (linked, invited, reactivated, marked done) per worker: Crew show "Mitti ✓" once the office has added them.
   const [{ data: profs }, recsRes, cii, notice, births] = await Promise.all([
@@ -898,6 +899,8 @@ export async function tradeBusiness(userId: string) {
   // Task 10 (Team screen): the three office stamps shown as ticks. Every value comes from the row; nothing inferred.
   const teamRole = (tradeRole: string): TeamMemberView["role"] => tradeRole === "installer" ? "installer" : tradeRole === "office" ? "office" : "electrician";
   const checksOf = (w: (typeof staffRows)[number] | null) => ({
+    // Jo 5 Nov 2026: the certificate link shows only when a certificate is actually needed from this installer.
+    certNeeded: !!w && completionNeedsCert({ trade_role: w.trade_role, certification_status: w.certification_status ?? null, certification: w.certification }),
     escRegistered: w?.esc_registered === true,
     licenceAndRec: !!w && w.trade_role === "electrician" && electricianVerified({ licence_number: w.licence_number ?? null, rec_number: w.rec_number ?? null, licence_expires_on: w.licence_expires_on ?? null, licence_verified_at: w.licence_verified_at ?? null }, today).ok,
     canSeeMoney: !!w && w.trade_role === "office" && canSeeMoneyOf(w.profile_id),

@@ -12,6 +12,16 @@ async function workerById<T>(admin: AdminDb, id: string, cols: string): Promise<
   return error || !data ? null : (data as T);
 }
 
+const COMPLETION_GONE = "This completion link is no longer available. Ask the business owner for a new one.";
+const COMPLETION_NOTHING_MORE = "Your certificate is already with us. There's nothing more to do on this link.";
+/** The words a completion link is refused with (null = usable): removed people and electricians (old signing links) get
+ *  "no longer available"; a verified certificate says so. */
+function completionRefusal(w: { trade_role: string; removed_at: string | null; certification_status: string | null }): string | null {
+  if (w.removed_at || w.trade_role !== "installer") return COMPLETION_GONE;
+  if (w.certification_status === "verified") return "This certificate is already verified — nothing more to do.";
+  return null;
+}
+
 const uuid = z.string().uuid();
 const trade = z.enum(["electrician", "installer"]);
 
@@ -79,8 +89,11 @@ export const getWorkerInvite = createServerFn({ method: "POST" })
     const mode = inviteMode(inv);
     if (mode === "registration") return { ok: true as const, mode, inviteeName: inv.invitee_name, trade: t, businessName, needsCert: t === "installer" };
     // Completion: the certificate only, and only when one is needed (Jo 5 Nov 2026: no declarations to sign).
-    const w = await workerById<{ trade_role: string; certification_status: string | null; certification: unknown }>(admin as never, inv.worker_id!, "trade_role, certification_status, certification");
-    return { ok: true as const, mode, inviteeName: inv.invitee_name, trade: t, businessName, needsCert: w ? completionNeedsCert(w) : false };
+    const w = await workerById<{ trade_role: string; removed_at: string | null; certification_status: string | null; certification: unknown }>(admin as never, inv.worker_id!, "trade_role, removed_at, certification_status, certification");
+    if (!w) return { ok: false as const, message: COMPLETION_GONE };
+    const refusal = completionRefusal(w);
+    if (refusal) return { ok: false as const, message: refusal };
+    return { ok: true as const, mode, inviteeName: inv.invitee_name, trade: t, businessName, needsCert: completionNeedsCert(w) };
   });
 
 /** Verify the worker's certificate upload exists in private storage and the bytes match an accepted type. */
@@ -155,15 +168,15 @@ export const submitWorkerInvite = createServerFn({ method: "POST" }).middleware(
     // ---- Completion mode: an existing worker uploads their own missing certificate. Never inserts a worker. ----
     if (inviteMode(inv) === "completion") {
       const w = await workerById<{ id: string; trade_role: string; removed_at: string | null; certification_status: string | null; certification: unknown }>(admin as never, inv.worker_id!, "id, trade_role, removed_at, certification_status, certification");
-      const gone = ["This completion link is no longer available. Ask the business owner for a new one."];
       // Completion links are certificate links for installers only (electricians' old signing links stop here).
-      if (!w || w.removed_at || w.trade_role !== "installer") return { ok: false as const, errors: gone };
-      if (w.certification_status === "verified") return { ok: false as const, errors: ["This certificate is already verified — nothing more to do."] };
+      if (!w) return { ok: false as const, errors: [COMPLETION_GONE] };
+      const refusal = completionRefusal(w);
+      if (refusal) return { ok: false as const, errors: [refusal] };
       const needsCert = completionNeedsCert(w);
       const certPath = data.certificate_path?.trim() || null;
       // Nothing to collect and no file sent: the link has no job to do. (A file sent anyway is taken, so a retry after a
       // failed claim — the certificate is saved first — still works.)
-      if (!needsCert && !certPath) return { ok: false as const, errors: ["Your certificate is already with us — nothing more to do."] };
+      if (!needsCert && !certPath) return { ok: false as const, errors: [COMPLETION_NOTHING_MORE] };
       const errors = completionErrors(data, { cert: needsCert });
       if (errors.length) return { ok: false as const, errors };
       if (certPath) {

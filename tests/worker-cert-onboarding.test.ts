@@ -120,7 +120,7 @@ describe("installer EEC/CII certificate onboarding", () => {
   test("completion mode asks only for the certificate (no declarations, no re-sign)", () => {
     expect(completionErrors({})).toContain("Upload the EEC / Certified Insulation Installer certificate.");
     expect(completionErrors({ certificate_path: "worker-invites/i/eec-a.pdf" })).toEqual([]);
-    expect(inviteFns).toContain("needsCert: w ? completionNeedsCert(w) : false");
+    expect(inviteFns).toContain("needsCert: completionNeedsCert(w)");
     expect(inviteFns).not.toContain("workerDeclarations");
   });
 

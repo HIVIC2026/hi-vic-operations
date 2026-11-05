@@ -105,3 +105,12 @@ describe("the decision is recorded", () => {
     expect(src("src/lib/AGENTS.md")).toContain("no declarations or signature (Jo 5 Nov 2026");
   });
 });
+
+describe("Team certificate link", () => {
+  test("shows only when a certificate is actually needed", () => {
+    const team = src("src/routes/_authenticated/field.business_.team.tsx");
+    expect(team).toContain("{m.certNeeded && <CertLinkInline");
+    expect(team).not.toMatch(/signing link/i);
+    expect(src("src/lib/trade-view.server.ts")).toContain("completionNeedsCert({ trade_role: w.trade_role");
+  });
+});

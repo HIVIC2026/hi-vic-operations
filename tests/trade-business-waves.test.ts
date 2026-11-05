@@ -200,7 +200,25 @@ describe("My business (Task 7): office stamp columns missing (before 0182/0184)"
     try {
       const r = await wc.measured(() => tradeBusiness(U_BOSS));
       expect(r.out.boss).toBe(true);
+      if (r.afterCtx > 3) console.log(wc.wavesOf(r.log));
+      expect(r.afterCtx).toBeLessThanOrEqual(3);
       expect(await teamReads(U_ELEC)).toEqual([true, false]);
     } finally { wc.state.missingColumns.clear(); }
+  });
+});
+
+// Portal speed step 2 (plan Review Focus 5): another business's sign-in, job, booking, offer, worker, credential, bank
+// details and payout change nothing on this screen, for every caller.
+describe("My business and Team: business-scoped", () => {
+  test("another business's rows never reach the answer", async () => {
+    wc.state.failWhen = null;
+    for (const [who, u] of [["installer owner", U_BOSS], ["installer staff", U_STAFF], ["electrician owner", U_ELEC], ["electrician staff", U_ESTAFF], ["no business", U_NONE]] as const) {
+      seedAll();
+      const before = await outcome(() => tradeBusiness(u));
+      addForeignBusiness(tables, at(-1));
+      const after = await outcome(() => tradeBusiness(u));
+      expect({ who, traces: foreignTraces(after) }).toEqual({ who, traces: [] });
+      expect(after).toEqual(before);
+    }
   });
 });
