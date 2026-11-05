@@ -135,7 +135,7 @@ export async function readyCheckFormFacts(jobId: string) {
 export async function onReadyCheckBooked(jobId: string, actorId: string | null, call?: MittiCall): Promise<"scheduled" | "skipped"> {
   const { bookedSkipReason, bookedNoteSummary, BOOKED_SKIP_EVENT } = await import("./mitti-immediate.core");
   const note = (reason: string) => logEvent(jobId, actorId, BOOKED_SKIP_EVENT, bookedNoteSummary(reason), { reason }, { internal: true }).catch(() => undefined);
-  const work = (async (): Promise<"scheduled" | "skipped"> => {
+  const work = async (): Promise<"scheduled" | "skipped"> => {
     try {
       const f = await readyCheckFormFacts(jobId);
       const inHouse = f?.booked ? await (await import("./in-house-forms.server")).isInHouseFormJob(jobId).catch(e=>{ console.error("In-house form preparation skipped", e instanceof Error ? e.message : "Partner read failed"); return false; }) : false;
@@ -152,11 +152,10 @@ export async function onReadyCheckBooked(jobId: string, actorId: string | null, 
       await note(`stopped unexpectedly: ${(e instanceof Error ? e.message : "error").slice(0, 200)}`);
       return "skipped";
     }
-  })();
-  // Keep going if the phone drops the connection: the platform keeps this promise alive past the request.
-  const { requestContext } = await import("./background.server");
-  requestContext.getStore()?.waitUntil?.(work);
-  return work;
+  };
+  const { runAfterResponse } = await import("./background.server");
+  const { scheduleSavedForm } = await import("./saved-form-response.core");
+  return scheduleSavedForm(work, runAfterResponse);
 }
 
 /** Decisions 34/115 (Jo 24 Oct): Add a job creates the installer's Mitti Ready Check form straight away — no booking
@@ -164,7 +163,7 @@ export async function onReadyCheckBooked(jobId: string, actorId: string | null, 
 export async function onReadyCheckJobAdded(jobId: string, actorId: string | null, call?: MittiCall): Promise<"scheduled" | "skipped"> {
   const { immediateSkipReason, immediateOutcomeNote, immediateNoteSummary, IMMEDIATE_SKIP_EVENT } = await import("./mitti-immediate.core");
   const note = (reason: string) => logEvent(jobId, actorId, IMMEDIATE_SKIP_EVENT, immediateNoteSummary(reason), { reason }, { internal: true }).catch(() => undefined);
-  const work = (async (): Promise<"scheduled" | "skipped"> => {
+  const work = async (): Promise<"scheduled" | "skipped"> => {
     try {
       const f = await readyCheckFormFacts(jobId);
       const skip = immediateSkipReason(f);
@@ -178,11 +177,10 @@ export async function onReadyCheckJobAdded(jobId: string, actorId: string | null
       await note(`stopped unexpectedly: ${(e instanceof Error ? e.message : "error").slice(0, 200)}`);
       return "skipped";
     }
-  })();
-  // Keep going if the phone drops the connection: the platform keeps this promise alive past the request.
-  const { requestContext } = await import("./background.server");
-  requestContext.getStore()?.waitUntil?.(work);
-  return work;
+  };
+  const { runAfterResponse } = await import("./background.server");
+  const { scheduleSavedForm } = await import("./saved-form-response.core");
+  return scheduleSavedForm(work, runAfterResponse);
 }
 
 export async function testAssignee(source: string | null, installerUserId: string): Promise<ReadyCheckAssignee | null> {

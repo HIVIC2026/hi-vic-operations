@@ -764,7 +764,8 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string | nul
   const block = officialFormUseBlocker("piisa");
   if (block) throw new WorkflowError(block);
   const { data: ws } = await admin.from("workflow_settings").select("mitti_piisa_template_id").eq("id", 1).maybeSingle();
-  const MITTI_PIISA_TEMPLATE_ID = ws?.mitti_piisa_template_id?.trim() ?? "";
+  const installTemplate = await (await import('./install-before-template.server')).installTemplateForJob(jobId,ws?.mitti_piisa_template_id?.trim() ?? "");
+  const MITTI_PIISA_TEMPLATE_ID = installTemplate.templateId;
   if (!canonicalMittiTemplateId(MITTI_PIISA_TEMPLATE_ID)) throw new WorkflowError("PIISA Mitti form is not configured with a valid ID. Add the validated PIISA form before it can be sent.");
   const { data: job } = await admin.from("jobs").select("job_number,business_unit,stage").eq("id", jobId).single();
   if (!job) throw new WorkflowError("Job not found.");
@@ -881,6 +882,12 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string | nul
         lifeSupport: piesaFacts.lifeSupport ?? yes(hv("lifeSupport")), solarPresent: piesaFacts.solarPresent ?? yes(hv("p4.present")), electricianAtStart: (await a3Ctx(jobId, template)).electricianRequiredAtStart,
       };
       const prefill = id.installDayPrefillItems(template, facts, (await import("./mitti.core")).choiceOption);
+      if (installTemplate.before) {
+        const {INSTALL_BEFORE_AREAS_LABEL}=await import('./install-before-template.core');
+        const fields=id.allWithLabel(id.labelledItems(template),INSTALL_BEFORE_AREAS_LABEL);
+        if(fields.length!==1||!fields[0]?.id)throw new WorkflowError('A5 + BEFORE photos needs its exact area-list field — form not created.');
+        prefill.push({item_id:fields[0].id,type:'text',responses:{text:installTemplate.areas}});
+      }
       const headerIds = new Set((await import("./mitti.core")).flatten(template).filter((e) => e.header).map((e) => String(e.id)));
       const header_items = prefill.filter((x) => headerIds.has(x.item_id)), items = prefill.filter((x) => !headerIds.has(x.item_id));
       const created = (await api.createAudit({ template_id: MITTI_PIISA_TEMPLATE_ID, header_items, items } as never)) as { audit_id?: string; id?: string };
@@ -975,7 +982,7 @@ export async function reassignMittiFormTo(p: { jobId: string; auditId: string; k
     admin.from("workflow_settings").select("mitti_ready_check_template_id,mitti_ready_check_priced_template_id,mitti_piisa_template_id,mitti_piesa_template_id,mitti_fixes_template_id").eq("id", 1).maybeSingle(),
   ]);
   if (!job) throw new WorkflowError("Job not found.");
-  const allowed = (p.kind === "piesa" ? [ws?.mitti_piesa_template_id] : p.kind === "rectification" ? [ws?.mitti_fixes_template_id] : p.kind === "install" ? [ws?.mitti_piisa_template_id] : [ws?.mitti_ready_check_template_id, ws?.mitti_ready_check_priced_template_id]).filter((t): t is string => !!t?.trim());
+  const allowed = (p.kind === "piesa" ? [ws?.mitti_piesa_template_id] : p.kind === "rectification" ? [ws?.mitti_fixes_template_id] : p.kind === "install" ? (await import('./install-before-template.server')).configuredInstallTemplates(ws?.mitti_piisa_template_id) : [ws?.mitti_ready_check_template_id, ws?.mitti_ready_check_priced_template_id]).filter((t): t is string => !!t?.trim());
   if (!allowed.length) throw new WorkflowError(p.kind === "install" ? PIESA_TEMPLATE_MISSING.replace("PIESA", "PIISA") : MEASUREUP_TEMPLATE_MISSING);
   const api = mittiApi(await mittiCallFor(call, p.email));
   let audit: Any;
@@ -1010,7 +1017,9 @@ export async function updateMittiInstallCrew(jobId: string, auditId: string, act
   const routingEmail = source?.source === "qa_test" ? (await import("./onsite-ready-check.core")).TEST_MITTI_ASSIGNEE : null;
   const api = mittiApi(await mittiCallFor(call,routingEmail));
   const audit = await api.getAudit(auditId);
-  validateStoredMittiAudit(audit,{storedAuditId:auditId,jobNumber:job.job_number,templateId:ws.mitti_piisa_template_id});
+  const templateId=(await import('./install-before-template.server')).configuredInstallTemplates(ws.mitti_piisa_template_id).find(t=>sameMittiTemplateId(parseAudit(audit).templateId,t));
+  if(!templateId)throw new WorkflowError('The install form does not match a configured template.');
+  validateStoredMittiAudit(audit,{storedAuditId:auditId,jobNumber:job.job_number,templateId});
   if (parseAudit(audit).completed) return;
   const {staff,selection} = await (await import("./piisa-a3.server")).loadCrew(jobId);
   if (!selection) throw new WorkflowError("Choose the install crew first.");

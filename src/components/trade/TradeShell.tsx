@@ -18,15 +18,15 @@ export function TradeShell({ children, installer, boss: bossProp, money: moneyPr
   const money = moneyProp ?? boss;
   return (
     <div className={`estimate-brand portal-theme min-h-screen text-ink ${redesign ? "installer-redesign bg-paper" : "bg-canvas"}`}>
-      <header className="border-b border-line bg-paper">
-        <div className="mx-auto flex max-w-[1180px] items-center gap-[26px] px-5 py-3 md:px-[26px] md:py-[18px]">
+      <header className="trade-safe-header sticky top-0 z-30 border-b border-line bg-paper pt-[env(safe-area-inset-top)]">
+        <div className="mx-auto grid max-w-[1180px] grid-cols-[minmax(0,1fr)_auto] items-center gap-[26px] px-5 py-3 md:flex md:px-[26px] md:py-[18px]">
           <img src={logo.url} alt="Home Insulation Victoria" className="h-auto w-24 shrink-0 md:w-28" />
           <TradeTopNav installer={installer} boss={boss} money={money} />
           <TradeAvatar />
         </div>
       </header>
       {test && <p className="mx-auto max-w-[1180px] px-5 pt-3 md:px-[26px]"><span className="inline-flex rounded-[18px] bg-pink px-[9px] py-[5px] text-[11px] font-semibold text-rose">TEST account — practice jobs only</span></p>}
-      <main className={`trade-forms mx-auto max-w-[1180px] px-5 pb-28 pt-5 md:px-[26px] md:pb-[30px] md:pt-7 ${redesign ? "space-y-[22px]" : "space-y-[19px]"}`}>{children}</main>
+      <main className={`trade-forms mx-auto min-w-0 max-w-[1180px] px-5 pb-28 pt-5 md:px-[26px] md:pb-[30px] md:pt-7 ${redesign ? "space-y-[22px]" : "space-y-[19px]"}`}>{children}</main>
       <TradeTabBar installer={installer} boss={boss} money={money} />
     </div>
   );
@@ -79,7 +79,7 @@ function TradeTabBar({ installer, boss, money }: { installer: boolean; boss: boo
   return (
     <nav aria-label="Trade menu" className="estimate-brand fixed inset-x-0 bottom-0 z-40 border-t border-line bg-paper pb-[max(22px,env(safe-area-inset-bottom))] pt-2 md:hidden">
       <div className="mx-auto grid max-w-md px-1.5" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
-        {items.map((i) => <Link key={i.to} to={i.to as never} aria-current={i.on ? "page" : undefined} className={`flex min-h-11 items-center justify-center text-center text-[13px] ${i.on ? "font-bold text-hiv-blue" : "font-medium text-sub"}`}>{i.label}</Link>)}
+        {items.map((i) => <Link key={i.to} to={i.to as never} aria-current={i.on ? "page" : undefined} className={`flex min-h-11 min-w-0 items-center justify-center whitespace-normal text-center text-[13px] ${i.on ? "font-bold text-hiv-blue" : "font-medium text-sub"}`}>{i.label}</Link>)}
       </div>
     </nav>
   );

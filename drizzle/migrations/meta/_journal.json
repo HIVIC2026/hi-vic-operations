@@ -1324,6 +1324,13 @@
       "when": 1793743897269,
       "tag": "0188_ceiling_layout_retail_prices",
       "breakpoints": true
+    },
+    {
+      "idx": 189,
+      "version": "7",
+      "when": 1793867231279,
+      "tag": "0189_portal_read_indexes_5nov",
+      "breakpoints": true
     }
   ]
 }

@@ -286,6 +286,7 @@ export function journeyAdmin(j: JourneyDb) {
 
 /** TanStack server-function stand-in: keeps the literal chain, runs the input validator, calls the handler with the given context. */
 export const serverFnStandIn = () => ({
+  createServerOnlyFn: <T extends (...args: never[]) => unknown>(fn:T):T => fn,
   createServerFn: () => {
     let validator: unknown = null;
     const b = {

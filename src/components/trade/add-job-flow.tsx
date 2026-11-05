@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { CustomerFields, FieldError } from "./customer-fields";
 import { addJobOptions, startOnsiteReadyCheck } from "@/lib/onsite-ready-check.functions";
@@ -32,6 +32,8 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
   const [err, setErr] = useState<string | null>(null);
   // Jo 3 Nov ruling: a job whose electrician could not be put on it is still added; the installer is told, then goes to the job.
   const [addedJobId, setAddedJobId] = useState<string | null>(null);
+  const [electricianNotAllocated, setElectricianNotAllocated] = useState(false);
+  const [electricianReason, setElectricianReason] = useState<string | null>(null);
   const bannerRef = useRef<HTMLParagraphElement>(null);
   const inFlight = useRef(false);
   // Task 7: the business name (for the consent line) and its Team electricians, read once before the form is used.
@@ -46,10 +48,11 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
   const [leadOrigin, setLeadOrigin] = useState<LeadOrigin | null>(null);
   // A6: one request key per draft, kept across Try again and reloads (in the phone draft).
   const [requestKey, setRequestKey] = useState<string>(() => crypto.randomUUID());
+  const [draftLoaded, setDraftLoaded] = useState(false);
 
   // Poor signal on site: typed details stay on the phone (never the consent tick) until saved.
-  useEffect(() => { try { const d = localStorage.getItem(DRAFT_KEY); if (d) { const raw = JSON.parse(d); setCustomer(restoreCustomer(raw)); const k = restoreRequestKey(raw); if (k) setRequestKey(k); } } catch { /* ignore */ } }, []);
-  useEffect(() => { try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...customer, contact_permission: false, consent_by: null, request_key: requestKey })); } catch { /* ignore */ } }, [customer, requestKey]);
+  useEffect(() => { try { const d = localStorage.getItem(DRAFT_KEY); if (d) { const raw = JSON.parse(d); setCustomer(restoreCustomer(raw)); const k = restoreRequestKey(raw); if (k) setRequestKey(k); } } catch { /* ignore */ } finally { setDraftLoaded(true); } }, []);
+  useEffect(() => { if (!draftLoaded) return; try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...customer, contact_permission: false, consent_by: null, request_key: requestKey })); } catch { /* ignore */ } }, [draftLoaded, customer, requestKey]);
   useEffect(() => { if (shown.length) bannerRef.current?.focus(); }, [shown]);
   // Fixing an answer clears the old hint list; it is rebuilt on the next tap.
   useEffect(() => { setShown([]); }, [customer, leadOrigin, electrician]);
@@ -70,9 +73,10 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
     try {
       const r = await start({ data: { businessId, owner: customer, leadOrigin, requestKey, electricianWorkerId: electrician } });
       try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
-      if (r.electrician === "not_allocated") { setAddedJobId(r.jobId); return; }
+      setElectricianNotAllocated(r.electrician === "not_allocated");
+      setElectricianReason(r.electricianReason ?? null);
+      setAddedJobId(r.jobId);
       toast.success(nextLine(r.ownerFirstName ?? "the owner"));
-      await navigate({ to: "/field/$jobId", params: { jobId: r.jobId }, search: { added: true } }); // the job page prints the same line (fix wave minor 15)
     } catch (e) { setErr(saveErrorMessage(e instanceof Error ? e.message : null)); }
     finally { setBusy(false); inFlight.current = false; }
   };
@@ -83,7 +87,9 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
   const consentLabel = businessName ? addJobConsentLine(businessName) : undefined;
   if (addedJobId) return (
     <div className="space-y-4" data-add-job-flow data-step="added">
-      <p role="alert" className="rounded-[12px] border-2 border-line bg-paper p-3 text-[15px]" data-electrician-not-allocated>{ADD_JOB_DRAFT_WORDS.electricianNotAllocated}</p>
+      <h2 className="font-display text-xl font-semibold">Added</h2>
+      <p role="status" className="text-sm text-sub">Mitti form on its way</p>
+      {electricianNotAllocated && <div role="alert" className="space-y-2 text-sm" data-electrician-not-allocated><p>{electricianReason ?? "The electrician couldn't be put on the job. Your choice is saved."}</p><Link to="/field/business/team" className="inline-flex min-h-12 items-center font-semibold text-hiv-blue underline">Open Team</Link></div>}
       <button type="button" className={PRIMARY_BTN} onClick={() => void navigate({ to: "/field/$jobId", params: { jobId: addedJobId }, search: { added: true } })}>{ADD_JOB_DRAFT_WORDS.goToJob}</button>
     </div>
   );

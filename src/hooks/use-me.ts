@@ -7,6 +7,7 @@ import { readMyProfile, type ProfileClient } from "@/lib/my-profile";
 import { markOfficeChanged } from "@/lib/office-list-refresh";
 import { forgetHeadStarts } from "@/lib/trade-route-prefetch";
 import { isOptimistic } from "@/lib/optimistic.core";
+import { actionJobId, refreshAfterJobAction } from "@/lib/job-action-refresh.core";
 
 export type AppRole = "admin" | "qa_office" | "electrician" | "installer" | "owner" | "property_manager";
 
@@ -42,7 +43,11 @@ export function useAction<TIn, TOut>(fn: (opts: { data: TIn }) => Promise<TOut>,
       markOfficeChanged(); // decision 383: the office lists work themselves out fresh on their next read
       if (success) toast.success(success);
       if (options?.refresh !== false) {
-        const refreshed = qc.invalidateQueries();
+        const jobId = actionJobId(data);
+        // Mark ALL cached answers stale, including inactive lists; only defer their network reads.
+        // The next list visit still uses markOfficeChanged and the existing fresh-copy safety rules.
+        await qc.invalidateQueries({ refetchType: "none" });
+        const refreshed = qc.refetchQueries({ type: "active", predicate: (query) => refreshAfterJobAction(query.queryKey, jobId) });
         if (isOptimistic(options?.name)) void refreshed.catch(() => undefined);
         else await refreshed;
       }

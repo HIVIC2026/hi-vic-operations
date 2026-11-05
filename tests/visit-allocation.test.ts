@@ -182,14 +182,16 @@ describe("allocateVisit (server wiring)", () => {
     expect(reassigns).toHaveLength(before);
     expect((await events(J_INST)).map((e) => e.details.worker_id)).toEqual([W_DEEP]);
   });
-  test("Crew with a Mitti login can take a Ready Check but never the install day; Crew without Mitti is told to add them first", async () => {
+  test("Crew can take a Ready Check through their own Mitti or partner office, but never the install Lead slot", async () => {
     await expect(allocateVisit(J_INST, OWNER, "install", W_CREW)).rejects.toThrow("Crew can't be the install-day Lead");
     const r = await allocateVisit(J_RC, OWNER, "ready_check", W_CREW);
     expect(r).toMatchObject({ ok: true, name: "Cara Crew" });
     expect(reassigns.at(-1)).toMatchObject({ jobId: J_RC, mittiUserId: "mu-cara", email: "cara@example.test" });
     const before = (await events(J_RC)).length;
-    await expect(allocateVisit(J_RC, OWNER, "ready_check", W_CREW_NOMITTI)).rejects.toThrow("Add them in Mitti first");
-    expect(await events(J_RC)).toHaveLength(before);
+    await allocateVisit(J_RC, OWNER, "ready_check", W_CREW_NOMITTI);
+    expect(await events(J_RC)).toHaveLength(before + 1);
+    expect(reassigns.at(-1)).toMatchObject({jobId:J_RC,mittiUserId:"mu-office",email:"office@reinsulate.test"});
+    expect((await events(J_RC)).at(-1)?.details.worker_id).toBe(W_CREW_NOMITTI);
   });
   test("a Lead with no email of their own is found by the business email", async () => {
     await allocateVisit(J_INST, OWNER, "install", W_LEAD_BIZ);

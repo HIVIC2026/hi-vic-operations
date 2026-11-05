@@ -272,7 +272,9 @@ export type JobZone = { name: string | null; /** existing insulation present = u
   /** Ready Check m² and product option for the area (decision 263: the installed figures unless the office edits). undefined = not loaded. */
   areaM2?: number | null; product?: string | null;
   /** Decision 264: the Ready Check holds this area's before video. undefined = not loaded. */
-  beforeVideo?: boolean | null };
+  beforeVideo?: boolean | null;
+  /** Current Ready Check old-depth evidence accepted for this specific area; false/unknown never clears it. */
+  existingDepthAccepted?: boolean | null };
 export type InstallEvidenceCtx = {
   /** Installation start date (Melbourne YYYY-MM-DD). null = unknown → rule applies. */
   installDate: string | null;
@@ -401,6 +403,9 @@ export function rulerPhotoEvaluation(ruler: InstallDayRulerRead | undefined, zon
     const zoneCount = Math.max(1, zones.length);
     const per = `${zoneCount} ceiling area${zoneCount === 1 ? "" : "s"}`;
     const r = mediaProblems(`Depth photos with a ruler (one per area — ${per})`, depth.files, { min: zoneCount, video: false, phase: "after" });
+    zones.forEach((z,i)=>{
+      if(z.underInsulated!==false&&z.existingDepthAccepted!==true)r.problems.push(`${areaName(z,i)}: existing insulation depth photo with a ruler is missing`);
+    });
     if (workStartAt) {
       const early = depth.files.filter((f) => f.capturedAt && Date.parse(f.capturedAt) < Date.parse(workStartAt)).length;
       if (early) r.problems.push(`Depth photos with a ruler: ${early} taken before work started — take them when the insulation is in`);
@@ -412,7 +417,7 @@ export function rulerPhotoEvaluation(ruler: InstallDayRulerRead | undefined, zon
   list.forEach((z, i) => {
     const name = areaName(z, i);
     const copy = ruler.areas[i] ?? { existing: [], after: [] };
-    const existingRequired = z.underInsulated !== false;
+    const existingRequired = z.underInsulated !== false && z.existingDepthAccepted !== true;
     files.push({ zone: i + 1, name, existingRequired, existing: copy.existing, after: copy.after });
     const check = (id: string, label: string, what: string, fs: MittiMediaFile[], phase: Phase) => {
       if (!fs.length) {

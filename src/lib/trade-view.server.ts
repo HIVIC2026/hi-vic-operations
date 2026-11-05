@@ -1431,7 +1431,9 @@ export async function handBackJob(jobId: string, actorId: string, reason: string
   await d.bookingTeam(jobId, actorId);
   const booked = await d.stillConfirmedBookings(jobId).catch(async (e) => { await logTradeFollowUpFailed(jobId, actorId, "read booked visits", e); return []; });
   await d.pullBackInHouseJob({ jobId, actorId, reason });
-  await d.finishInHouseHandback(jobId, actorId).catch((e) => console.error("Handback cleanup pending", e));
+  // The pull-back event is durable and sweepInHouseHandbacks retries form-access cleanup.
+  if(deps) await d.finishInHouseHandback(jobId, actorId).catch((e) => console.error("Handback cleanup pending", e));
+  else (await import('./background.server')).runAfterResponse(()=>d.finishInHouseHandback(jobId, actorId));
   try { if (booked.length) await d.cancelBookingsAfterHandBack(jobId, booked.map((b) => b.id), actorId, reason); }
   catch (e) { await logTradeFollowUpFailed(jobId, actorId, "cancel booked visits", e, d.logEvent); }
   try { if (d.requireEscWithdrawal) await d.requireEscWithdrawal(jobId, "cant_do_this_one", actorId); }

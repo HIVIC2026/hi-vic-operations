@@ -1,3 +1,43 @@
+## Jo 5 Nov own-customer portal Ready Check
+- [ ] Quote-sent office email, owner-identical read-only quote view and sent/expiry/accepted dates: recorded in the spec; email wording awaits Jo's approval. Not wired or sent; scoped read-only access and no duplicate notification must be proven before activation.
+- [x] Jo 7:11pm: recorded exact preparing status for both paths; existing own-customer price card shows it after Save, and shared automatic sender refuses A1 draft release even with an enabled caller. Office Check & send unchanged. Short portal form remains blocked below.
+- [x] Saved the requested choice and short form in the Deep first-job spec; identified existing completion/quote paths and missing facts without changing their guards.
+- [ ] BLOCKED: Jo must choose whether missing old-insulation/R-value, access and product facts are collected in the short form or left for office review. The requested short form alone cannot prove completed-A1 equivalence without changing existing safeguards. Actual Mitti audit closure also needs a scoped lifecycle decision; existing closure is portal-only. No UI or production writers changed; no sends or publication.
+
+## Jo 5 Nov installer phone layout
+- [x] Safari date/time sizing, safe-area header, separate Your price panel, booking warnings before grey disabled buttons; retain dropped-connection retry. Six installer screens checked at 390px with no overflow; stage-specific action tests run separately.
+- [ ] Physical iPhone notch/Safari and every live job stage remain unverified (no isolated stage fixtures); no real jobs or messages exercised.
+
+## Jo 5 Nov Ready Check attendance
+- [x] Exempt Ready Check booking from private identity/install credential gate; keep Team membership and Mitti/office fallback. Preserve Lead approval/install checks and clarify Team Lead DOB wording. 43 focused tests pass; phone TEST picker/Book enabled, no submission or delivery. Team suite: 20 pass, one pre-existing source-name assertion fails (expects teamMemberDetails in form, already uses addPersonProblems). No real records or publication.
+
+## Jo 5 Nov Add electrician email
+- [x] Shared Add/job picker disables missing email; failure explains repair and links Team; recorded failed choice is preselected for one-tap job-page retry. No real records, sends or publication.
+
+## Jo 5 Nov fast button saves
+- [x] Add/Book Ready Check form creation uses tracked request lifetime with existing missing-form sweep fallback. Added screen no longer waits for job-page navigation; pending job form polls read-only. Booking owner notice intent saved before deferred delivery; committed electrician link SMS and Give owner call notice deferred with existing sweeps.
+- [ ] Remaining inline work: electrician Mitti membership preflight (safety check), rental taps lacks recovery intent, Give office email lacks sweep, handback cancellation email lacks retry sweep. Preserve these rather than silently lose messages. TEST protected existing-job retry showed Added in 1.840s; not comparable to fresh real HV-3794's 8s. Fresh Add/other-button timings unverified. 63 targeted tests pass, preview build OK; no real job runs or publication.
+
+## Jo 5 Nov Needs me priorities
+- [x] Replaced Today/This week/Watch and folded partner link with Deadlines, Quotes to check, Partner & Team, Choose installers, Forms. Existing readers/actions and TEST boundaries retained; header count and longest waiting line kept. Phone/desktop TEST office read-only checks passed with no overflow/runtime errors; real partner approvals are not visible to TEST office by design.
+- [ ] Deadline day-to-due completeness: existing rows do not supply all due timestamps (ESC uses opening time; prestart uses failure time). Display preserves existing due text and waiting age, never fabricates rule dates; new deadline fact plumbing is outside this presentation-only change.
+
+## Jo 5 Nov TEST Reinsulate 20-job phone checks
+- [x] TEST installer boss at 390px: ten Add attempts; eight qa_test jobs HV-3797–HV-3804 created, bad mobile and duplicate address refused. Simulator forms created in 1.05–1.65s with address/job prefills; eight SMS attempts blocked, no owner email rows. All eight now have qa_no_delivery. No real partners/jobs changed.
+- [x] Fixed phone reload overwriting its unfinished Add draft; failing StrictMode regression now passes, 6 screen + 12 core tests pass, phone reload checked without Save. Preview build OK; contradiction experiment unchanged.
+- [ ] BLOCKED: ten received jobs, Give batches, five bookings including Crew, two handbacks, one cancellation, owner booked notices and 6:30 queues. Existing published harness explicitly lacks provider capture/simulation proof; TEST Team has no Crew fixture. Do not manufacture PASSES or widen guards. Eight TEST jobs remain protected, not archived; local preview timings only, not live phone proof.
+
+## Jo 5 Nov phone speed
+- [x] Identified p_view RPC as office_enquiry_page; practice-proven 0189 indexes applied/read back. Enquiry facts plan 179.814→147.566 ms, photos-count plan 127.905→108.739 ms (same queries, one sample each, tool read role). property_facts already indexed: warm 1000-row query 0.783 ms. Health normal, no resize recommended.
+- [x] Single-job actions mark all queries stale but defer whole office lists/other job pages; active safety panels retain refresh/wait. Published assets prove #133 list-prefetch/identity/last-copy code is present, but global invalidation remains in published use-me. New code awaits Jo publication. Focused checks pass; existing last-copy field.guide assertion still fails.
+- [ ] BLOCKED: authenticated phone Needs me/job/Jobs/Enquiries timings and UI action proof — no usable session; --self has no matching account and explicit Jo session unavailable for approval. No access bypass. job_overview and office_enquiry_page EXPLAIN refused EXECUTE under read-tool role; privileges unchanged. Sign-in only measured: live 3.006→2.004 s, preview 0.247→0.198 s; sign-in code unchanged so not a claimed speed gain. Full portal publishability blockers above remain. No sends, switches, record changes or publishing.
+
+## Jo 5 Nov 7pm publishability repairs
+- [ ] Full-suite historical comparison run: 10,991 pass/546 fail before reader release, 13,170/321 at turn start; final 13,288/374 including 20 extra MJS files. Turn-introduced fixture failures rechecked 112/0; 82 historical new failed identities require further triage, not all fixed. One historical timeout and excluded owner-accept-speed wrapper limit comparability.
+- [x] Accepted area-bound Ready Check ruler reuse, normal A5 AFTER proof, inactive switchable alternate template selector and shared identity checks. Alternate capture remains BLOCKED on template ID/definition and per-area BEFORE parser proof; never activate yet.
+- [x] Crew selectable independently of Lead-only install eligibility; Ready Check permits Team members and partner-office Mitti fallback, including creation handover. Existing canonical writer guards retained; targeted checks pass.
+- [ ] TEST journey: 7 passed, 14 blocked, 1 runner error; HV-3795 archived, no delivery. Existing runner uses Bravo, not Reinsulate, and cannot reach downstream bookings/forms; full Reinsulate browser flow NOT RUN. Preview automatic checks build OK; experiment unchanged. No messages, switches, real-data changes or publication.
+
 ## Jo 4 Nov 02:03 UTC approved A1 and current Mitti reads
 - [x] Test-first A1 optional media, corrected required ready-to-price tick and job missing-BEFORE area line; preserve A2 and old submissions. Focused new tests 19/19; related historical doc expectations remain disclosed.
 - [x] Read-only current A1–A5 GET snapshots saved and read back as private dump rows 57–66; full question inventory provided. Individual required flags and conditional rules are not exposed by these responses.

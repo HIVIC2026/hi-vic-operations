@@ -61,6 +61,9 @@ export async function peopleOnFile(workerIds: string[], installLeadId: string | 
 
 /** Refuses (WorkflowError, one line per missing fact) a booking whose people aren't on file. */
 export async function requirePeopleOnFileForBooking(jobId: string, kind: Kind, proposedWorkerId: string | null): Promise<void> {
+  // Jo 5 Nov: Ready Check attendance is Team membership + Mitti/office access,
+  // validated by the allocation writer, never install-day identity or credentials.
+  if (kind === "ready_check") return;
   const ids = await workerIdsOnBooking(jobId, kind, proposedWorkerId);
   if (!ids.length) return;
   const problems = requiredOnFileBlockers(await peopleOnFile(ids, kind === "installation" ? ids[0]! : null));

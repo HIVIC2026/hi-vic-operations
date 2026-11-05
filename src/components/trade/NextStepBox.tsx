@@ -220,8 +220,8 @@ function BookingForm({ jobId, kind, mode, state, button, below, onDone, onCancel
   const reason = bookingReason({ kind, state, day, arrival, who, electricianChosen });
   const workers = team?.workers ?? [];
   const choices = kind === "installation" ? workers.filter((w) => w.tradeRole === "installer" && w.workerRole === "lead") : kind === "ready_check" ? workers : [];
-  const crewChoices = kind === "installation" ? workers.filter((w) => w.id !== who && w.tradeRole === "installer" && w.cleared && !w.reason) : [];
-  const disabled = busy || !!reason;
+  const crewChoices = kind === "installation" ? workers.filter((w) => w.id !== who && w.tradeRole === "installer" && w.crewAllowed === true) : [];
+  const disabled = busy || !!reason || (!!error && !error.startsWith("Couldn’t save") && !error.startsWith("Couldn't save"));
   const reasonId = `${id}-reason`;
 
   const submit = async (e: FormEvent) => {
@@ -249,9 +249,9 @@ function BookingForm({ jobId, kind, mode, state, button, below, onDone, onCancel
   return (
     <form className="mt-4 space-y-3" data-booking-form={kind} onSubmit={submit}>
       {kind === "assessment" && (
-        <label className="block text-sm font-medium">
+        <label className="block min-w-0 text-sm font-medium">
           {W.electrician}
-          <select className={`${inputCls} mt-1`} value={who} onChange={(e) => setWho(e.target.value)} disabled={!state.electricians}>
+          <select className={`${inputCls} mt-1`} value={who} onChange={(e) => { setError(""); setWho(e.target.value); }} disabled={!state.electricians}>
             <option value="">{W.chooseElectrician}</option>
             {(state.electricians?.workers ?? []).map((w) => (
               <option key={w.id} value={w.id} disabled={!w.allowed}>{w.name}{w.reason ? ` — ${w.reason}` : ""}</option>
@@ -259,20 +259,20 @@ function BookingForm({ jobId, kind, mode, state, button, below, onDone, onCancel
           </select>
         </label>
       )}
-      <div className="grid grid-cols-2 gap-2">
-        <label className="block text-sm font-medium">
+      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2">
+        <label className="block min-w-0 text-sm font-medium">
           {W.day}
-          <input type="date" className={`${inputCls} mt-1`} value={day} onChange={(e) => setDay(e.target.value)} />
+          <input type="date" className={`${inputCls} mt-1`} value={day} onChange={(e) => { setError(""); setDay(e.target.value); }} />
         </label>
-        <label className="block text-sm font-medium">
+        <label className="block min-w-0 text-sm font-medium">
           {W.arrival}
-          <input type="time" className={`${inputCls} mt-1`} value={arrival} onChange={(e) => setArrival(e.target.value)} />
+          <input type="time" className={`${inputCls} mt-1`} value={arrival} onChange={(e) => { setError(""); setArrival(e.target.value); }} />
         </label>
       </div>
       {(kind === "ready_check" || kind === "installation") && (
-        <label className="block text-sm font-medium">
+        <label className="block min-w-0 text-sm font-medium">
           {kind === "installation" ? W.leadInstaller : W.whosGoing}
-          <select className={`${inputCls} mt-1`} value={who} onChange={(e) => { setWho(e.target.value); setCrew((c) => c.filter((x) => x !== e.target.value)); }} disabled={!team}>
+          <select className={`${inputCls} mt-1`} value={who} onChange={(e) => { setError(""); setWho(e.target.value); setCrew((c) => c.filter((x) => x !== e.target.value)); }} disabled={!team}>
             <option value="">{kind === "installation" ? W.chooseLead : W.choosePerson}</option>
             {kind === "ready_check" && <option value={NOT_SURE_YET}>{READY_CHECK_PERSON_WORDS.notSureYet}</option>}
             {choices.map((w) => {
@@ -295,13 +295,13 @@ function BookingForm({ jobId, kind, mode, state, button, below, onDone, onCancel
           </div>
         </fieldset>
       )}
+      {disabled && !error && <p id={reasonId} className="text-sm text-sub">{busy ? W.saving : reason}</p>}
+      {error && <p id={reasonId} role="alert" className="text-sm text-rose">{error}</p>}
       <div className="flex flex-wrap items-center gap-2">
         <button type="submit" className={greenBtn} disabled={disabled} aria-describedby={disabled ? reasonId : undefined}>{busy ? W.saving : button}</button>
         {onCancel && <button type="button" className={ghostBtn} onClick={onCancel}>{W.neverMind}</button>}
       </div>
-      {disabled && <p id={reasonId} className="text-sm text-sub">{busy ? W.saving : reason}</p>}
       {below && <p className="text-sm text-sub" data-booked-line>{below}</p>}
-      {error && <p role="alert" className="text-sm text-rose">{error}</p>}
     </form>
   );
 }
@@ -316,7 +316,7 @@ function PickPersonForm({ jobId, start, state, onDone }: { jobId: string; start:
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const reason = bookingReason({ kind: "ready_check", state, day: "x", arrival: "x", who, electricianChosen: true });
-  const disabled = busy || !!reason;
+  const disabled = busy || !!reason || (!!error && !error.startsWith("Couldn’t save") && !error.startsWith("Couldn't save"));
   const reasonId = `${id}-reason`;
   const choices = state.team?.workers ?? [];
   return (
@@ -333,9 +333,9 @@ function PickPersonForm({ jobId, start, state, onDone }: { jobId: string; start:
         onDone();
       } catch (err) { setError(readableError(err, W.saveFailed)); } finally { setBusy(false); }
     }}>
-      <label className="block text-sm font-medium">
+      <label className="block min-w-0 text-sm font-medium">
         {W.whosGoing}
-        <select className={`${inputCls} mt-1`} value={who} onChange={(e) => setWho(e.target.value)} disabled={!state.team}>
+        <select className={`${inputCls} mt-1`} value={who} onChange={(e) => { setError(""); setWho(e.target.value); }} disabled={!state.team}>
           <option value="">{W.choosePerson}</option>
           {choices.map((w) => {
             const why = bookingWorkerBlocker("ready_check", w);
@@ -343,9 +343,9 @@ function PickPersonForm({ jobId, start, state, onDone }: { jobId: string; start:
           })}
         </select>
       </label>
+      {disabled && !error && <p id={reasonId} className="text-sm text-sub">{busy ? W.saving : reason}</p>}
+      {error && <p id={reasonId} role="alert" className="text-sm text-rose">{error}</p>}
       <button type="submit" className={greenBtn} disabled={disabled} aria-describedby={disabled ? reasonId : undefined}>{busy ? W.saving : READY_CHECK_PERSON_WORDS.pickButton}</button>
-      {disabled && <p id={reasonId} className="text-sm text-sub">{busy ? W.saving : reason}</p>}
-      {error && <p role="alert" className="text-sm text-rose">{error}</p>}
     </form>
   );
 }
@@ -363,7 +363,7 @@ function OwnCustomerReadyCheckForm({ jobId, now, onDone }: { jobId: string; now?
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const blockers = time ? a1ReadyCheckTimeBlockers({ day, time }, at) : [W.pickDayTime];
-  const disabled = busy || blockers.length > 0;
+  const disabled = busy || blockers.length > 0 || (!!error && !error.startsWith("Couldn’t save") && !error.startsWith("Couldn't save"));
   const reasonId = `${id}-reason`;
   return (
     <form className="mt-4 space-y-3" data-booking-form="ready_check_own" onSubmit={async (e) => {
@@ -378,22 +378,22 @@ function OwnCustomerReadyCheckForm({ jobId, now, onDone }: { jobId: string; now?
         onDone();
       } catch (err) { setError(readableError(err, W.saveFailed)); } finally { setBusy(false); }
     }}>
-      <div className="grid grid-cols-2 gap-2">
-        <label className="block text-sm font-medium">
+      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2">
+        <label className="block min-w-0 text-sm font-medium">
           {W.day}
-          <input type="date" className={`${inputCls} mt-1`} value={day} min={days[0]} max={days[days.length - 1]} onChange={(e) => { setDay(e.target.value); setTime(""); }} />
+          <input type="date" className={`${inputCls} mt-1`} value={day} min={days[0]} max={days[days.length - 1]} onChange={(e) => { setError(""); setDay(e.target.value); setTime(""); }} />
         </label>
-        <label className="block text-sm font-medium">
+        <label className="block min-w-0 text-sm font-medium">
           {W.arrival}
-          <select className={`${inputCls} mt-1`} value={time} onChange={(e) => setTime(e.target.value)}>
+          <select className={`${inputCls} mt-1`} value={time} onChange={(e) => { setError(""); setTime(e.target.value); }}>
             <option value="">{W.timePlaceholder}</option>
             {allowedReadyCheckTimes(day, at).map((t) => <option key={t} value={t}>{installTimeLabel(t)}</option>)}
           </select>
         </label>
       </div>
+      {disabled && !error && <p id={reasonId} className="text-sm text-sub">{busy ? W.saving : blockers.join(" ")}</p>}
+      {error && <p id={reasonId} role="alert" className="text-sm text-rose">{error}</p>}
       <button type="submit" className={greenBtn} disabled={disabled} aria-describedby={disabled ? reasonId : undefined}>{busy ? W.saving : W.book}</button>
-      {disabled && <p id={reasonId} className="text-sm text-sub">{busy ? W.saving : blockers.join(" ")}</p>}
-      {error && <p role="alert" className="text-sm text-rose">{error}</p>}
     </form>
   );
 }
@@ -408,7 +408,7 @@ function ChangeLeadForm({ jobId, state, onDone, onCancel }: { jobId: string; sta
   const workers = state.team?.workers ?? [];
   const leads = workers.filter((w) => w.tradeRole === "installer" && w.workerRole === "lead");
   const reason = !state.allowed ? W.notHere : state.failed ? W.teamFailed : !state.team ? W.checkingTeam : bookingWorkerBlocker("installation", workers.find((w) => w.id === who) ?? null);
-  const disabled = busy || !!reason;
+  const disabled = busy || !!reason || (!!error && !error.startsWith("Couldn’t save") && !error.startsWith("Couldn't save"));
   const reasonId = `${id}-reason`;
   return (
     <form className="mt-3 space-y-3" data-change-form="lead" onSubmit={async (e) => {
@@ -423,19 +423,19 @@ function ChangeLeadForm({ jobId, state, onDone, onCancel }: { jobId: string; sta
         onDone();
       } catch (err) { setError(readableError(err, W.saveFailed)); } finally { setBusy(false); }
     }}>
-      <label className="block text-sm font-medium">
+      <label className="block min-w-0 text-sm font-medium">
         {W.leadInstaller}
-        <select className={`${inputCls} mt-1`} value={who} onChange={(e) => setWho(e.target.value)} disabled={!state.team}>
+        <select className={`${inputCls} mt-1`} value={who} onChange={(e) => { setError(""); setWho(e.target.value); }} disabled={!state.team}>
           <option value="">{W.chooseLead}</option>
           {leads.map((w) => { const why = bookingWorkerBlocker("installation", w); return <option key={w.id} value={w.id} disabled={!!why}>{w.name}{why ? ` — ${why}` : ""}</option>; })}
         </select>
       </label>
+      {disabled && !error && <p id={reasonId} className="text-sm text-sub">{busy ? W.saving : reason}</p>}
+      {error && <p id={reasonId} role="alert" className="text-sm text-rose">{error}</p>}
       <div className="flex flex-wrap items-center gap-2">
         <button type="submit" className={greenBtn} disabled={disabled} aria-describedby={disabled ? reasonId : undefined}>{busy ? W.saving : W.saveLead}</button>
         <button type="button" className={ghostBtn} onClick={onCancel}>{W.neverMind}</button>
       </div>
-      {disabled && <p id={reasonId} className="text-sm text-sub">{busy ? W.saving : reason}</p>}
-      {error && <p role="alert" className="text-sm text-rose">{error}</p>}
     </form>
   );
 }
@@ -453,7 +453,7 @@ function ChangeElectricianForm({ jobId, state, onDone, onCancel }: { jobId: stri
   const list = state.electricians?.workers ?? [];
   const chosen = list.find((w) => w.id === who) ?? null;
   const reason = !state.allowed ? W.notHere : !state.electricians ? W.loadingElectricians : !state.piesaStart ? W.noPiesaTime : !chosen ? bookingWorkerBlocker("assessment", null) : !chosen.allowed ? chosen.reason ?? bookingWorkerBlocker("assessment", null) : null;
-  const disabled = busy || !!reason;
+  const disabled = busy || !!reason || (!!error && !error.startsWith("Couldn’t save") && !error.startsWith("Couldn't save"));
   const reasonId = `${id}-reason`;
   return (
     <form className="mt-3 space-y-3" data-change-form="electrician" onSubmit={async (e) => {
@@ -470,19 +470,19 @@ function ChangeElectricianForm({ jobId, state, onDone, onCancel }: { jobId: stri
         onDone();
       } catch (err) { setError(readableError(err, W.saveFailed)); } finally { setBusy(false); }
     }}>
-      <label className="block text-sm font-medium">
+      <label className="block min-w-0 text-sm font-medium">
         {W.electrician}
-        <select className={`${inputCls} mt-1`} value={who} onChange={(e) => setWho(e.target.value)} disabled={!state.electricians}>
+        <select className={`${inputCls} mt-1`} value={who} onChange={(e) => { setError(""); setWho(e.target.value); }} disabled={!state.electricians}>
           <option value="">{W.chooseElectrician}</option>
           {list.map((w) => <option key={w.id} value={w.id} disabled={!w.allowed}>{w.name}{w.reason ? ` — ${w.reason}` : ""}</option>)}
         </select>
       </label>
+      {disabled && !error && <p id={reasonId} className="text-sm text-sub">{busy ? W.saving : reason}</p>}
+      {error && <p id={reasonId} role="alert" className="text-sm text-rose">{error}</p>}
       <div className="flex flex-wrap items-center gap-2">
         <button type="submit" className={greenBtn} disabled={disabled} aria-describedby={disabled ? reasonId : undefined}>{busy ? W.saving : W.saveElectrician}</button>
         <button type="button" className={ghostBtn} onClick={onCancel}>{W.neverMind}</button>
       </div>
-      {disabled && <p id={reasonId} className="text-sm text-sub">{busy ? W.saving : reason}</p>}
-      {error && <p role="alert" className="text-sm text-rose">{error}</p>}
     </form>
   );
 }

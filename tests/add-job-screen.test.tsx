@@ -16,7 +16,7 @@ mock.module("@tanstack/react-start/server", () => ({ getCookie: () => undefined,
 // The address lookup's own server function module is not needed on this screen: the test types the address in.
 mock.module("@/lib/address-search.functions", () => ({ searchAddresses: async () => [], addressDetails: async () => null }));
 mock.module("@/components/trade/TradeShell", () => ({ inputCls: "input", card: "card", greenBtn: "green", ghostBtn: "ghost" }));
-mock.module("@tanstack/react-router", () => ({ useNavigate: () => async (to: unknown) => { navigated.push(to); } }));
+mock.module("@tanstack/react-router", () => ({ Link: ({children}: {children: unknown}) => children, useNavigate: () => async (to: unknown) => { navigated.push(to); } }));
 mock.module("@tanstack/react-query", () => ({ useQuery: () => options }));
 mock.module("sonner", () => ({ toast: { success: (m: string) => { toasts.push(m); } } }));
 mock.module("@/lib/onsite-ready-check.functions", () => ({
@@ -52,6 +52,17 @@ const fillAll = (r: ReturnType<typeof render>) => {
 };
 
 describe("Add a job screen", () => {
+  test("a phone reload in StrictMode keeps entered details and retry key, but never restores consent", () => {
+    const key = "00000000-0000-4000-8000-000000000001";
+    localStorage.setItem("hiv-onsite-draft", JSON.stringify({ full_name: "TEST Stress Owner", address_line: "908822 TEST Stress Street", suburb: "Reservoir", postcode: "3073", phone: "0400000601", email: "stress@hivic-test.example", address_typed: true, contact_permission: true, request_key: key }));
+    const r = render(React.createElement(React.StrictMode, null, React.createElement(AddJobFlow, { businessId: "b1" })));
+    expect((r.getByLabelText(ADD_JOB_WORDS.name) as HTMLInputElement).value).toBe("TEST Stress Owner");
+    const saved = JSON.parse(localStorage.getItem("hiv-onsite-draft") ?? "{}");
+    expect(saved.full_name).toBe("TEST Stress Owner");
+    expect(saved.request_key).toBe(key);
+    expect((r.getByLabelText(addJobConsentLine("Rapid Insulation")) as HTMLInputElement).checked).toBe(false);
+  });
+
   test("while the business details load there is no consent tick at all, and never the old line", () => {
     const was = options;
     options = { data: undefined, isLoading: true, isSuccess: false, isError: false };
@@ -84,17 +95,20 @@ describe("Add a job screen", () => {
       await act(async () => { fireEvent.click(r.getByRole("button", { name: ADD_JOB_WORDS.button })); });
       expect(calls).toHaveLength(1);
       expect((calls[0] as { data: { electricianWorkerId: string } }).data.electricianWorkerId).toBe("e1");
-      expect(r.getByText(ADD_JOB_DRAFT_WORDS.electricianNotAllocated)).toBeTruthy();
+      expect(r.getByText("The electrician couldn't be put on the job. Your choice is saved.")).toBeTruthy();
       expect(navigated).toHaveLength(0);
       await act(async () => { fireEvent.click(r.getByRole("button", { name: ADD_JOB_DRAFT_WORDS.goToJob })); });
       expect(navigated).toEqual([{ to: "/field/$jobId", params: { jobId: "j-new" }, search: { added: true } }]);
     } finally { saveResult = was; }
   });
-  test("an allocated electrician goes straight to the job page with the Next line", async () => {
+  test("an allocated electrician shows Added before loading the job page", async () => {
     const r = draw();
     fillAll(r);
     await typeAddress(r);
     await act(async () => { fireEvent.click(r.getByRole("button", { name: ADD_JOB_WORDS.button })); });
+    expect(navigated).toEqual([]);
+    expect(r.getByRole("heading", { name: "Added" })).toBeTruthy();
+    await act(async () => { fireEvent.click(r.getByRole("button", { name: ADD_JOB_DRAFT_WORDS.goToJob })); });
     expect(navigated).toEqual([{ to: "/field/$jobId", params: { jobId: "j-new" }, search: { added: true } }]);
     expect(toasts).toEqual(["Next: call Sarah and book the Ready Check on the job."]);
   });

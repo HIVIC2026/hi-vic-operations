@@ -65,7 +65,7 @@ export async function electricianSignerFor(jobId: string): Promise<{ userId: str
 export const isAllocated = (w: { id: string; profile_id: string | null }, assignment: { user_id: string | null } | null, allocatedId: string | null): boolean =>
   !!assignment && (allocatedId ? allocatedId === w.id : !!assignment.user_id && assignment.user_id === w.profile_id);
 /** Allowed = verified + office-approved. No profile or Team login is needed: electricians never log in (their forms are handed to them in Mitti). */
-const choiceOf = (w: Worker) => { const result = electricianVerified(w); return { id: w.id, name: w.full_legal_name, licence: w.licence_number?.trim() || null, allowed: result.ok && w.approval_status === "approved", reason: result.reason ?? (w.approval_status !== "approved" ? "Waiting for office approval" : null) }; };
+const choiceOf = (w: Worker) => { const result = electricianVerified(w); const reason = result.reason ?? (w.approval_status !== "approved" ? "Waiting for office approval" : !w.email?.trim() ? "add their email on the Team page first" : null); return { id: w.id, name: w.full_legal_name, licence: w.licence_number?.trim() || null, allowed: result.ok && !reason, reason }; };
 async function teamWorkers(businessId: string): Promise<Worker[]> {
   const workers: Worker[] = [];
   for (let offset = 0; ; offset += 200) {
@@ -81,7 +81,8 @@ export async function electricianPicker(jobId: string, userId: string) {
     read<{ user_id: string | null } | null>(db.from("job_assignments").select("user_id").eq("job_id", jobId).eq("business_id", businessId).eq("role", "electrician").eq("active", true).maybeSingle()),
     allocatedWorkerId(jobId),
   ]);
-  return { workers: workers.map(w => ({ ...choiceOf(w), selected: isAllocated(w, assignment, allocatedId) })) };
+  const pendingWorkerId = assignment || allocatedId ? null : (await (await import('./electrician-choice.server')).readElectricianChoiceRecord(jobId)).workerId;
+  return { pendingWorkerId, workers: workers.map(w => ({ ...choiceOf(w), selected: isAllocated(w, assignment, allocatedId) })) };
 }
 /** Installer screens Task 7: the business's Team electricians for Add a job (no job yet, so business-scoped; the caller has
  *  already checked the person may add jobs for this business). Same allowed/reason rule as `electricianPicker`. */
@@ -123,7 +124,9 @@ export async function allocateElectrician(jobId: string, userId: string, workerI
   const r = await db.rpc("allocate_team_electrician", { _job: jobId, _actor: userId, _worker: workerId });
   if (r.error) throw new Error(r.error.message);
   // The electrician's no-login job link (Part 6): made and texted only after the atomic assignment held. Never fails the allocation.
-  await (await import("./electrician-link.server")).linkAfterAllocation(jobId, workerId, userId);
+  // The committed allocation/event is recovered by sweepElectricianLinks; never wait on its text provider.
+  const {runAfterResponse}=await import('./background.server');
+  runAfterResponse(async()=> (await import("./electrician-link.server")).linkAfterAllocation(jobId, workerId, userId));
   // Same-person retries repair outstanding handovers using the existing audit identities.
   if (assessment?.external_mitti_id) await mitti.reassignMittiFormTo({ jobId, auditId: assessment.external_mitti_id, kind: "piesa", mittiUserId, email, actorId: userId }, call ?? mitti.realMittiCall);
   if (rectification && !rectification.closed) await mitti.reassignMittiFormTo({ jobId, auditId: rectification.auditId, kind: "rectification", mittiUserId, email, actorId: userId }, call ?? mitti.realMittiCall);

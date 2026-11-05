@@ -24,6 +24,24 @@ function setup() {
 }
 
 describe("useAction", () => {
+  test("single-job save leaves whole lists stale without rereading them; refreshes only its job", async () => {
+    const qc = new QueryClient();
+    const counts = { own: 0, other: 0, list: 0 };
+    const wrapper = ({ children }: { children: React.ReactNode }) => React.createElement(QueryClientProvider, { client: qc }, children);
+    const save = mock(async () => ({ ok: true }));
+    const { result } = renderHook(() => ({
+      own: useQuery({ queryKey: ["office-job-page", "j1"], queryFn: async () => ++counts.own }),
+      other: useQuery({ queryKey: ["office-job-page", "j2"], queryFn: async () => ++counts.other }),
+      list: useQuery({ queryKey: ["office-enquiries", "offered"], queryFn: async () => ++counts.list }),
+      act: useAction(save as never),
+    }), { wrapper });
+    await waitFor(() => expect(result.current.list.data).toBe(1));
+    await result.current.act({ jobId: "j1" } as never);
+    expect(counts).toEqual({ own: 2, other: 1, list: 1 });
+    expect(qc.getQueryState(["office-enquiries", "offered"])?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(["office-job-page", "j2"])?.isInvalidated).toBe(true);
+  });
+
   test("a note finishes once saved; the screen refreshes in the background (once)", async () => {
     const s = setup();
     const save = mock(async () => ({ ok: true as const }));

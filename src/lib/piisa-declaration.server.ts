@@ -20,7 +20,9 @@ export async function syncPiisaDeclaration(jobId: string, actorId: string | null
   if (!auditId) return { status: "no_form", message: "The installer safety form (PIISA) hasn't been sent in Mitti yet." };
   const { data: ws } = await admin.from("workflow_settings").select("mitti_piisa_template_id").eq("id", 1).maybeSingle();
   // A test template id is only accepted on TEST jobs (journey simulation).
-  const expectedTpl = (job.source === "qa_test" && opts.testTemplateId) || ws?.mitti_piisa_template_id?.trim() || "";
+  const configured=(await import('./install-before-template.server')).configuredInstallTemplates(ws?.mitti_piisa_template_id);
+  const recordedTpl=(ev?.details as {template?:string}|null)?.template;
+  const expectedTpl = (job.source === "qa_test" && opts.testTemplateId) || (recordedTpl&&configured.includes(recordedTpl)?recordedTpl:null) || ws?.mitti_piisa_template_id?.trim() || "";
   if (!expectedTpl) return { status: "no_form", message: "PIISA Mitti form is not configured." };
   const realCall = call ?? (await import("./mitti.server")).realMittiCall;
   const audit = await mittiApi(realCall).getAudit(auditId);

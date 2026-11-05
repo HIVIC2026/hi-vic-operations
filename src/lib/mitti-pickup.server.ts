@@ -286,7 +286,7 @@ export async function updateMittiFormDate(jobId: string, start: string, actorId:
       admin.from("workflow_settings").select("mitti_ready_check_template_id,mitti_ready_check_priced_template_id,mitti_piesa_template_id,mitti_fixes_template_id,mitti_piisa_template_id").eq("id",1).maybeSingle(),
     ]);
     if (je || we || !job) throw new WorkflowError("The form's job and template could not be checked.");
-    const allowed = form.kind === "install" ? [ws?.mitti_piisa_template_id] : form.kind === "piesa" ? [ws?.mitti_piesa_template_id] : form.kind === "rectification" ? [ws?.mitti_fixes_template_id] : [ws?.mitti_ready_check_template_id,ws?.mitti_ready_check_priced_template_id];
+    const allowed = form.kind === "install" ? (await import('./install-before-template.server')).configuredInstallTemplates(ws?.mitti_piisa_template_id) : form.kind === "piesa" ? [ws?.mitti_piesa_template_id] : form.kind === "rectification" ? [ws?.mitti_fixes_template_id] : [ws?.mitti_ready_check_template_id,ws?.mitti_ready_check_priced_template_id];
     const templateId = allowed.find(t=>t && sameMittiTemplateId(parseAudit(audit).templateId, t));
     if (!templateId) throw new WorkflowError("The form does not match this job's configured template.");
     validateStoredMittiAudit(audit,{storedAuditId:auditId,jobNumber:job.job_number,templateId});
