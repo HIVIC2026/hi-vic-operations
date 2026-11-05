@@ -69,6 +69,8 @@ function usualModule(priceRead: () => Promise<unknown>, candidates: rec.Approved
     "./rec-onboarded.core": rec, "./rec-onboarded.server": { loadApprovedRecCandidates: async () => candidates }, "./job-electrician.server": { jobChosenElectrician: async () => null },
     "./installer-paid-electricians.server": { readInstallerPaidElectricians: priceRead, installerSafetyCheckPrice: async () => (await priceRead() as { piesaIncGst?: number } | null)?.piesaIncGst ?? 999 },
     "./safety-check-price.core": safetyPrice, "./installer-paid-electricians.core": pricing,
+    // Jo 5 Nov 2026: the Main electrician read; never ticked = the saved usual electrician in this fixture.
+    "./installer-electricians.server": { readMainElectrician: async () => ({ electrician: usual.usualElectrician({ name: "REC", licence: "A1" }), revision: "revision", ticked: false, electricianBusinessId: null, workerId: null, entry: null }) },
   });
 }
 test("usual-electrician refuses a failed configuration read instead of pricing", async () => {

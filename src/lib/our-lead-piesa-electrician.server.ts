@@ -20,7 +20,8 @@ export async function electricianSourceForJob(jobId: string, electricianBusiness
   if (!job) return "ours";
   if (job.channel !== "installer_sourced") return electricianSourceForOurLead();
   const installerBiz = job.originating_installer_business_id ?? inst?.business_id ?? null;
-  const usual = installerBiz ? (await (await import("./usual-electrician.server")).readUsualElectrician(installerBiz)).electrician : null;
+  // Jo 5 Nov 2026: the installer's Main electrician (never ticked = the old saved usual electrician).
+  const usual = installerBiz ? (await (await import("./installer-electricians.server")).readMainElectrician(installerBiz)).electrician : null;
   const [{ data: b, error: be }, { data: workers, error: we }] = await Promise.all([
     admin.from("businesses").select("id, name, trading_name, rec_number").eq("id", electricianBusinessId).maybeSingle(),
     admin.from("partner_workers").select("licence_number").eq("business_id", electricianBusinessId).eq("trade_role", "electrician").eq("approval_status", "approved").is("removed_at", null),

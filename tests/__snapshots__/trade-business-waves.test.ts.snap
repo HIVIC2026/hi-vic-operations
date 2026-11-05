@@ -83,7 +83,6 @@ exports[`My business (Task 7): same value as before owner, staff, electrician ow
             "workerRole": null,
           },
         ],
-        "usualElectrician": null,
       },
     },
     "electrician staff": {
@@ -109,7 +108,6 @@ exports[`My business (Task 7): same value as before owner, staff, electrician ow
         "screen": null,
         "taking": false,
         "team": [],
-        "usualElectrician": null,
       },
     },
     "no business": {
@@ -195,7 +193,7 @@ exports[`My business (Task 7): same value as before owner, staff, electrician ow
               "warn": true,
             },
             {
-              "sub": "No electricians on your Team yet",
+              "sub": "No electricians yet",
               "title": "Electricians",
               "to": "/field/business/electrician",
               "warn": true,
@@ -309,12 +307,6 @@ exports[`My business (Task 7): same value as before owner, staff, electrician ow
             "workerRole": "crew",
           },
         ],
-        "usualElectrician": {
-          "email": "new@example.com",
-          "licence": "REC 2",
-          "name": "New Sparky",
-          "priceIncGst": 330,
-        },
       },
     },
     "staff": {
@@ -340,7 +332,6 @@ exports[`My business (Task 7): same value as before owner, staff, electrician ow
         "screen": null,
         "taking": true,
         "team": [],
-        "usualElectrician": null,
       },
     },
   },
@@ -425,7 +416,6 @@ exports[`My business (Task 7): same value as before owner, staff, electrician ow
             "workerRole": null,
           },
         ],
-        "usualElectrician": null,
       },
     },
     "electrician staff": {
@@ -451,7 +441,6 @@ exports[`My business (Task 7): same value as before owner, staff, electrician ow
         "screen": null,
         "taking": false,
         "team": [],
-        "usualElectrician": null,
       },
     },
     "no business": {
@@ -537,7 +526,7 @@ exports[`My business (Task 7): same value as before owner, staff, electrician ow
               "warn": true,
             },
             {
-              "sub": "No electricians on your Team yet",
+              "sub": "No electricians yet",
               "title": "Electricians",
               "to": "/field/business/electrician",
               "warn": true,
@@ -651,12 +640,6 @@ exports[`My business (Task 7): same value as before owner, staff, electrician ow
             "workerRole": "crew",
           },
         ],
-        "usualElectrician": {
-          "email": "new@example.com",
-          "licence": "REC 2",
-          "name": "New Sparky",
-          "priceIncGst": 330,
-        },
       },
     },
     "staff": {
@@ -682,7 +665,6 @@ exports[`My business (Task 7): same value as before owner, staff, electrician ow
         "screen": null,
         "taking": true,
         "team": [],
-        "usualElectrician": null,
       },
     },
   },
@@ -772,7 +754,6 @@ exports[`My business (Task 7): same value as before with each read failing: the 
             "workerRole": null,
           },
         ],
-        "usualElectrician": null,
       },
     },
     "electrician staff": {
@@ -798,7 +779,6 @@ exports[`My business (Task 7): same value as before with each read failing: the 
         "screen": null,
         "taking": false,
         "team": [],
-        "usualElectrician": null,
       },
     },
     "no business": {
@@ -884,7 +864,7 @@ exports[`My business (Task 7): same value as before with each read failing: the 
               "warn": true,
             },
             {
-              "sub": "No electricians on your Team yet",
+              "sub": "No electricians yet",
               "title": "Electricians",
               "to": "/field/business/electrician",
               "warn": true,
@@ -998,12 +978,6 @@ exports[`My business (Task 7): same value as before with each read failing: the 
             "workerRole": "crew",
           },
         ],
-        "usualElectrician": {
-          "email": "new@example.com",
-          "licence": "REC 2",
-          "name": "New Sparky",
-          "priceIncGst": 330,
-        },
       },
     },
     "staff": {
@@ -1029,7 +1003,6 @@ exports[`My business (Task 7): same value as before with each read failing: the 
         "screen": null,
         "taking": true,
         "team": [],
-        "usualElectrician": null,
       },
     },
   },
@@ -1114,7 +1087,6 @@ exports[`My business (Task 7): same value as before with each read failing: the 
             "workerRole": null,
           },
         ],
-        "usualElectrician": null,
       },
     },
     "electrician staff": {
@@ -1140,7 +1112,6 @@ exports[`My business (Task 7): same value as before with each read failing: the 
         "screen": null,
         "taking": false,
         "team": [],
-        "usualElectrician": null,
       },
     },
     "no business": {
@@ -1226,7 +1197,7 @@ exports[`My business (Task 7): same value as before with each read failing: the 
               "warn": true,
             },
             {
-              "sub": "No electricians on your Team yet",
+              "sub": "No electricians yet",
               "title": "Electricians",
               "to": "/field/business/electrician",
               "warn": true,
@@ -1340,12 +1311,6 @@ exports[`My business (Task 7): same value as before with each read failing: the 
             "workerRole": "crew",
           },
         ],
-        "usualElectrician": {
-          "email": "new@example.com",
-          "licence": "REC 2",
-          "name": "New Sparky",
-          "priceIncGst": 330,
-        },
       },
     },
     "staff": {
@@ -1371,7 +1336,6 @@ exports[`My business (Task 7): same value as before with each read failing: the 
         "screen": null,
         "taking": true,
         "team": [],
-        "usualElectrician": null,
       },
     },
   },
@@ -1449,7 +1413,6 @@ exports[`My business (Task 7): same value as before with each read failing: the 
             "workerRole": null,
           },
         ],
-        "usualElectrician": null,
       },
     },
     "electrician staff": {
@@ -1475,7 +1438,6 @@ exports[`My business (Task 7): same value as before with each read failing: the 
         "screen": null,
         "taking": false,
         "team": [],
-        "usualElectrician": null,
       },
     },
     "no business": {
@@ -1548,7 +1510,7 @@ exports[`My business (Task 7): same value as before with each read failing: the 
               "warn": true,
             },
             {
-              "sub": "No electricians on your Team yet",
+              "sub": "No electricians yet",
               "title": "Electricians",
               "to": "/field/business/electrician",
               "warn": true,
@@ -1662,12 +1624,6 @@ exports[`My business (Task 7): same value as before with each read failing: the 
             "workerRole": "crew",
           },
         ],
-        "usualElectrician": {
-          "email": "new@example.com",
-          "licence": "REC 2",
-          "name": "New Sparky",
-          "priceIncGst": 330,
-        },
       },
     },
     "staff": {
@@ -1693,7 +1649,6 @@ exports[`My business (Task 7): same value as before with each read failing: the 
         "screen": null,
         "taking": true,
         "team": [],
-        "usualElectrician": null,
       },
     },
   },
@@ -1778,7 +1733,6 @@ exports[`My business (Task 7): same value as before with each read failing: the 
             "workerRole": null,
           },
         ],
-        "usualElectrician": null,
       },
     },
     "electrician staff": {
@@ -1804,7 +1758,6 @@ exports[`My business (Task 7): same value as before with each read failing: the 
         "screen": null,
         "taking": false,
         "team": [],
-        "usualElectrician": null,
       },
     },
     "no business": {
@@ -1890,7 +1843,7 @@ exports[`My business (Task 7): same value as before with each read failing: the 
               "warn": true,
             },
             {
-              "sub": "No electricians on your Team yet",
+              "sub": "No electricians yet",
               "title": "Electricians",
               "to": "/field/business/electrician",
               "warn": true,
@@ -2000,12 +1953,6 @@ exports[`My business (Task 7): same value as before with each read failing: the 
             "workerRole": "crew",
           },
         ],
-        "usualElectrician": {
-          "email": "new@example.com",
-          "licence": "REC 2",
-          "name": "New Sparky",
-          "priceIncGst": 330,
-        },
       },
     },
     "staff": {
@@ -2031,7 +1978,6 @@ exports[`My business (Task 7): same value as before with each read failing: the 
         "screen": null,
         "taking": true,
         "team": [],
-        "usualElectrician": null,
       },
     },
   },
@@ -2116,7 +2062,6 @@ exports[`My business (Task 7): same value as before with each read failing: the 
             "workerRole": null,
           },
         ],
-        "usualElectrician": null,
       },
     },
     "electrician staff": {
@@ -2142,7 +2087,6 @@ exports[`My business (Task 7): same value as before with each read failing: the 
         "screen": null,
         "taking": false,
         "team": [],
-        "usualElectrician": null,
       },
     },
     "no business": {
@@ -2228,7 +2172,7 @@ exports[`My business (Task 7): same value as before with each read failing: the 
               "warn": true,
             },
             {
-              "sub": "No electricians on your Team yet",
+              "sub": "No electricians yet",
               "title": "Electricians",
               "to": "/field/business/electrician",
               "warn": true,
@@ -2345,12 +2289,6 @@ exports[`My business (Task 7): same value as before with each read failing: the 
             "workerRole": "crew",
           },
         ],
-        "usualElectrician": {
-          "email": "new@example.com",
-          "licence": "REC 2",
-          "name": "New Sparky",
-          "priceIncGst": 330,
-        },
       },
     },
     "staff": {
@@ -2376,7 +2314,6 @@ exports[`My business (Task 7): same value as before with each read failing: the 
         "screen": null,
         "taking": true,
         "team": [],
-        "usualElectrician": null,
       },
     },
   },
@@ -2461,7 +2398,6 @@ exports[`My business (Task 7): same value as before with each read failing: the 
             "workerRole": null,
           },
         ],
-        "usualElectrician": null,
       },
     },
     "electrician staff": {
@@ -2487,7 +2423,6 @@ exports[`My business (Task 7): same value as before with each read failing: the 
         "screen": null,
         "taking": false,
         "team": [],
-        "usualElectrician": null,
       },
     },
     "no business": {
@@ -2560,7 +2495,7 @@ exports[`My business (Task 7): same value as before with each read failing: the 
               "warn": true,
             },
             {
-              "sub": "No electricians on your Team yet",
+              "sub": "No electricians yet",
               "title": "Electricians",
               "to": "/field/business/electrician",
               "warn": true,
@@ -2674,12 +2609,6 @@ exports[`My business (Task 7): same value as before with each read failing: the 
             "workerRole": "crew",
           },
         ],
-        "usualElectrician": {
-          "email": "new@example.com",
-          "licence": "REC 2",
-          "name": "New Sparky",
-          "priceIncGst": 330,
-        },
       },
     },
     "staff": {
@@ -2705,7 +2634,6 @@ exports[`My business (Task 7): same value as before with each read failing: the 
         "screen": null,
         "taking": true,
         "team": [],
-        "usualElectrician": null,
       },
     },
   },
@@ -2790,7 +2718,6 @@ exports[`My business (Task 7): same value as before with each read failing: the 
             "workerRole": null,
           },
         ],
-        "usualElectrician": null,
       },
     },
     "electrician staff": {
@@ -2816,7 +2743,6 @@ exports[`My business (Task 7): same value as before with each read failing: the 
         "screen": null,
         "taking": false,
         "team": [],
-        "usualElectrician": null,
       },
     },
     "no business": {
@@ -2889,7 +2815,7 @@ exports[`My business (Task 7): same value as before with each read failing: the 
               "warn": true,
             },
             {
-              "sub": "No electricians on your Team yet",
+              "sub": "No electricians yet",
               "title": "Electricians",
               "to": "/field/business/electrician",
               "warn": true,
@@ -3003,12 +2929,6 @@ exports[`My business (Task 7): same value as before with each read failing: the 
             "workerRole": "crew",
           },
         ],
-        "usualElectrician": {
-          "email": "new@example.com",
-          "licence": "REC 2",
-          "name": "New Sparky",
-          "priceIncGst": 330,
-        },
       },
     },
     "staff": {
@@ -3034,7 +2954,6 @@ exports[`My business (Task 7): same value as before with each read failing: the 
         "screen": null,
         "taking": true,
         "team": [],
-        "usualElectrician": null,
       },
     },
   },
@@ -3119,7 +3038,6 @@ exports[`My business (Task 7): same value as before with each read failing: the 
             "workerRole": null,
           },
         ],
-        "usualElectrician": null,
       },
     },
     "electrician staff": {
@@ -3145,7 +3063,6 @@ exports[`My business (Task 7): same value as before with each read failing: the 
         "screen": null,
         "taking": false,
         "team": [],
-        "usualElectrician": null,
       },
     },
     "no business": {
@@ -3218,7 +3135,7 @@ exports[`My business (Task 7): same value as before with each read failing: the 
               "warn": true,
             },
             {
-              "sub": "No electricians on your Team yet",
+              "sub": "No electricians yet",
               "title": "Electricians",
               "to": "/field/business/electrician",
               "warn": true,
@@ -3332,12 +3249,6 @@ exports[`My business (Task 7): same value as before with each read failing: the 
             "workerRole": "crew",
           },
         ],
-        "usualElectrician": {
-          "email": "new@example.com",
-          "licence": "REC 2",
-          "name": "New Sparky",
-          "priceIncGst": 330,
-        },
       },
     },
     "staff": {
@@ -3363,7 +3274,6 @@ exports[`My business (Task 7): same value as before with each read failing: the 
         "screen": null,
         "taking": true,
         "team": [],
-        "usualElectrician": null,
       },
     },
   },
@@ -3448,7 +3358,6 @@ exports[`My business (Task 7): same value as before with each read failing: the 
             "workerRole": null,
           },
         ],
-        "usualElectrician": null,
       },
     },
     "electrician staff": {
@@ -3474,7 +3383,6 @@ exports[`My business (Task 7): same value as before with each read failing: the 
         "screen": null,
         "taking": false,
         "team": [],
-        "usualElectrician": null,
       },
     },
     "no business": {
@@ -3560,7 +3468,7 @@ exports[`My business (Task 7): same value as before with each read failing: the 
               "warn": true,
             },
             {
-              "sub": "No electricians on your Team yet",
+              "sub": "No electricians yet",
               "title": "Electricians",
               "to": "/field/business/electrician",
               "warn": true,
@@ -3674,12 +3582,6 @@ exports[`My business (Task 7): same value as before with each read failing: the 
             "workerRole": "crew",
           },
         ],
-        "usualElectrician": {
-          "email": "new@example.com",
-          "licence": "REC 2",
-          "name": "New Sparky",
-          "priceIncGst": 330,
-        },
       },
     },
     "staff": {
@@ -3705,7 +3607,6 @@ exports[`My business (Task 7): same value as before with each read failing: the 
         "screen": null,
         "taking": true,
         "team": [],
-        "usualElectrician": null,
       },
     },
   },
@@ -3771,7 +3672,6 @@ exports[`My business (Task 7): same value as before with each read failing: the 
             "workerRole": null,
           },
         ],
-        "usualElectrician": null,
       },
     },
     "electrician staff": {
@@ -3797,7 +3697,6 @@ exports[`My business (Task 7): same value as before with each read failing: the 
         "screen": null,
         "taking": false,
         "team": [],
-        "usualElectrician": null,
       },
     },
     "no business": {
@@ -3860,7 +3759,7 @@ exports[`My business (Task 7): same value as before with each read failing: the 
               "warn": true,
             },
             {
-              "sub": "No electricians on your Team yet",
+              "sub": "No electricians yet",
               "title": "Electricians",
               "to": "/field/business/electrician",
               "warn": true,
@@ -3920,12 +3819,6 @@ exports[`My business (Task 7): same value as before with each read failing: the 
             "workerRole": null,
           },
         ],
-        "usualElectrician": {
-          "email": "new@example.com",
-          "licence": "REC 2",
-          "name": "New Sparky",
-          "priceIncGst": 330,
-        },
       },
     },
     "staff": {
@@ -3951,7 +3844,6 @@ exports[`My business (Task 7): same value as before with each read failing: the 
         "screen": null,
         "taking": true,
         "team": [],
-        "usualElectrician": null,
       },
     },
   },
@@ -4036,7 +3928,6 @@ exports[`My business (Task 7): same value as before with each read failing: the 
             "workerRole": null,
           },
         ],
-        "usualElectrician": null,
       },
     },
     "electrician staff": {
@@ -4062,14 +3953,13 @@ exports[`My business (Task 7): same value as before with each read failing: the 
         "screen": null,
         "taking": false,
         "team": [],
-        "usualElectrician": null,
       },
     },
     "no business": {
       "refused": "Your sign-in isn't linked to an approved business yet.",
     },
     "owner": {
-      "refused": "Could not load your usual electrician.",
+      "refused": "Could not load your Main electrician.",
     },
     "staff": {
       "ok": {
@@ -4094,7 +3984,6 @@ exports[`My business (Task 7): same value as before with each read failing: the 
         "screen": null,
         "taking": true,
         "team": [],
-        "usualElectrician": null,
       },
     },
   },

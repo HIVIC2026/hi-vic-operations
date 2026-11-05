@@ -83,7 +83,6 @@ exports[`parity: same value as before, field for field tradeBusiness and tradeBu
             "workerRole": null,
           },
         ],
-        "usualElectrician": null,
       },
     },
     "business electrician staff": {
@@ -109,7 +108,6 @@ exports[`parity: same value as before, field for field tradeBusiness and tradeBu
         "screen": null,
         "taking": false,
         "team": [],
-        "usualElectrician": null,
       },
     },
     "business no business": {
@@ -195,7 +193,7 @@ exports[`parity: same value as before, field for field tradeBusiness and tradeBu
               "warn": true,
             },
             {
-              "sub": "No electricians on your Team yet",
+              "sub": "No electricians yet",
               "title": "Electricians",
               "to": "/field/business/electrician",
               "warn": true,
@@ -312,12 +310,6 @@ exports[`parity: same value as before, field for field tradeBusiness and tradeBu
             "workerRole": "crew",
           },
         ],
-        "usualElectrician": {
-          "email": "new@example.com",
-          "licence": "REC 2",
-          "name": "New Sparky",
-          "priceIncGst": 330,
-        },
       },
     },
     "business staff": {
@@ -343,7 +335,6 @@ exports[`parity: same value as before, field for field tradeBusiness and tradeBu
         "screen": null,
         "taking": true,
         "team": [],
-        "usualElectrician": null,
       },
     },
     "file electrician owner": {
@@ -389,7 +380,6 @@ exports[`parity: same value as before, field for field tradeBusiness and tradeBu
           },
         ],
         "ratesAgreedAt": null,
-        "usualElectrician": null,
       },
     },
     "file electrician staff": {
@@ -460,12 +450,6 @@ exports[`parity: same value as before, field for field tradeBusiness and tradeBu
           },
         ],
         "ratesAgreedAt": "2026-01-01",
-        "usualElectrician": {
-          "email": "new@example.com",
-          "licence": "REC 2",
-          "name": "New Sparky",
-          "priceIncGst": 330,
-        },
       },
     },
     "file staff": {
@@ -553,7 +537,6 @@ exports[`parity: same value as before, field for field tradeBusiness and tradeBu
             "workerRole": null,
           },
         ],
-        "usualElectrician": null,
       },
     },
     "business electrician staff": {
@@ -579,7 +562,6 @@ exports[`parity: same value as before, field for field tradeBusiness and tradeBu
         "screen": null,
         "taking": false,
         "team": [],
-        "usualElectrician": null,
       },
     },
     "business no business": {
@@ -665,7 +647,7 @@ exports[`parity: same value as before, field for field tradeBusiness and tradeBu
               "warn": true,
             },
             {
-              "sub": "No electricians on your Team yet",
+              "sub": "No electricians yet",
               "title": "Electricians",
               "to": "/field/business/electrician",
               "warn": true,
@@ -782,12 +764,6 @@ exports[`parity: same value as before, field for field tradeBusiness and tradeBu
             "workerRole": "crew",
           },
         ],
-        "usualElectrician": {
-          "email": "new@example.com",
-          "licence": "REC 2",
-          "name": "New Sparky",
-          "priceIncGst": 330,
-        },
       },
     },
     "business staff": {
@@ -813,7 +789,6 @@ exports[`parity: same value as before, field for field tradeBusiness and tradeBu
         "screen": null,
         "taking": true,
         "team": [],
-        "usualElectrician": null,
       },
     },
     "file electrician owner": {
@@ -859,7 +834,6 @@ exports[`parity: same value as before, field for field tradeBusiness and tradeBu
           },
         ],
         "ratesAgreedAt": null,
-        "usualElectrician": null,
       },
     },
     "file electrician staff": {
@@ -930,12 +904,6 @@ exports[`parity: same value as before, field for field tradeBusiness and tradeBu
           },
         ],
         "ratesAgreedAt": "2026-01-01",
-        "usualElectrician": {
-          "email": "new@example.com",
-          "licence": "REC 2",
-          "name": "New Sparky",
-          "priceIncGst": 330,
-        },
       },
     },
     "file staff": {
@@ -1028,7 +996,6 @@ exports[`parity: same value as before, field for field with each read failing, t
             "workerRole": null,
           },
         ],
-        "usualElectrician": null,
       },
     },
     "business electrician staff": {
@@ -1054,7 +1021,6 @@ exports[`parity: same value as before, field for field with each read failing, t
         "screen": null,
         "taking": false,
         "team": [],
-        "usualElectrician": null,
       },
     },
     "business no business": {
@@ -1140,7 +1106,7 @@ exports[`parity: same value as before, field for field with each read failing, t
               "warn": true,
             },
             {
-              "sub": "No electricians on your Team yet",
+              "sub": "No electricians yet",
               "title": "Electricians",
               "to": "/field/business/electrician",
               "warn": true,
@@ -1257,12 +1223,6 @@ exports[`parity: same value as before, field for field with each read failing, t
             "workerRole": "crew",
           },
         ],
-        "usualElectrician": {
-          "email": "new@example.com",
-          "licence": "REC 2",
-          "name": "New Sparky",
-          "priceIncGst": 330,
-        },
       },
     },
     "business staff": {
@@ -1288,7 +1248,6 @@ exports[`parity: same value as before, field for field with each read failing, t
         "screen": null,
         "taking": true,
         "team": [],
-        "usualElectrician": null,
       },
     },
     "file electrician owner": {
@@ -1388,7 +1347,6 @@ exports[`parity: same value as before, field for field with each read failing, t
             "workerRole": null,
           },
         ],
-        "usualElectrician": null,
       },
     },
     "business electrician staff": {
@@ -1414,7 +1372,6 @@ exports[`parity: same value as before, field for field with each read failing, t
         "screen": null,
         "taking": false,
         "team": [],
-        "usualElectrician": null,
       },
     },
     "business no business": {
@@ -1500,7 +1457,7 @@ exports[`parity: same value as before, field for field with each read failing, t
               "warn": true,
             },
             {
-              "sub": "No electricians on your Team yet",
+              "sub": "No electricians yet",
               "title": "Electricians",
               "to": "/field/business/electrician",
               "warn": true,
@@ -1617,12 +1574,6 @@ exports[`parity: same value as before, field for field with each read failing, t
             "workerRole": "crew",
           },
         ],
-        "usualElectrician": {
-          "email": "new@example.com",
-          "licence": "REC 2",
-          "name": "New Sparky",
-          "priceIncGst": 330,
-        },
       },
     },
     "business staff": {
@@ -1648,7 +1599,6 @@ exports[`parity: same value as before, field for field with each read failing, t
         "screen": null,
         "taking": true,
         "team": [],
-        "usualElectrician": null,
       },
     },
     "file electrician owner": {
@@ -1694,7 +1644,6 @@ exports[`parity: same value as before, field for field with each read failing, t
           },
         ],
         "ratesAgreedAt": null,
-        "usualElectrician": null,
       },
     },
     "file electrician staff": {
@@ -1765,12 +1714,6 @@ exports[`parity: same value as before, field for field with each read failing, t
           },
         ],
         "ratesAgreedAt": "2026-01-01",
-        "usualElectrician": {
-          "email": "new@example.com",
-          "licence": "REC 2",
-          "name": "New Sparky",
-          "priceIncGst": 330,
-        },
       },
     },
     "file staff": {
@@ -1851,7 +1794,6 @@ exports[`parity: same value as before, field for field with each read failing, t
             "workerRole": null,
           },
         ],
-        "usualElectrician": null,
       },
     },
     "business electrician staff": {
@@ -1877,7 +1819,6 @@ exports[`parity: same value as before, field for field with each read failing, t
         "screen": null,
         "taking": false,
         "team": [],
-        "usualElectrician": null,
       },
     },
     "business no business": {
@@ -1950,7 +1891,7 @@ exports[`parity: same value as before, field for field with each read failing, t
               "warn": true,
             },
             {
-              "sub": "No electricians on your Team yet",
+              "sub": "No electricians yet",
               "title": "Electricians",
               "to": "/field/business/electrician",
               "warn": true,
@@ -2067,12 +2008,6 @@ exports[`parity: same value as before, field for field with each read failing, t
             "workerRole": "crew",
           },
         ],
-        "usualElectrician": {
-          "email": "new@example.com",
-          "licence": "REC 2",
-          "name": "New Sparky",
-          "priceIncGst": 330,
-        },
       },
     },
     "business staff": {
@@ -2098,7 +2033,6 @@ exports[`parity: same value as before, field for field with each read failing, t
         "screen": null,
         "taking": true,
         "team": [],
-        "usualElectrician": null,
       },
     },
     "file electrician owner": {
@@ -2134,7 +2068,6 @@ exports[`parity: same value as before, field for field with each read failing, t
           },
         ],
         "ratesAgreedAt": null,
-        "usualElectrician": null,
       },
     },
     "file electrician staff": {
@@ -2186,12 +2119,6 @@ exports[`parity: same value as before, field for field with each read failing, t
           },
         ],
         "ratesAgreedAt": "2026-01-01",
-        "usualElectrician": {
-          "email": "new@example.com",
-          "licence": "REC 2",
-          "name": "New Sparky",
-          "priceIncGst": 330,
-        },
       },
     },
     "file staff": {
@@ -2279,7 +2206,6 @@ exports[`parity: same value as before, field for field with each read failing, t
             "workerRole": null,
           },
         ],
-        "usualElectrician": null,
       },
     },
     "business electrician staff": {
@@ -2305,7 +2231,6 @@ exports[`parity: same value as before, field for field with each read failing, t
         "screen": null,
         "taking": false,
         "team": [],
-        "usualElectrician": null,
       },
     },
     "business no business": {
@@ -2378,7 +2303,7 @@ exports[`parity: same value as before, field for field with each read failing, t
               "warn": true,
             },
             {
-              "sub": "No electricians on your Team yet",
+              "sub": "No electricians yet",
               "title": "Electricians",
               "to": "/field/business/electrician",
               "warn": true,
@@ -2495,12 +2420,6 @@ exports[`parity: same value as before, field for field with each read failing, t
             "workerRole": "crew",
           },
         ],
-        "usualElectrician": {
-          "email": "new@example.com",
-          "licence": "REC 2",
-          "name": "New Sparky",
-          "priceIncGst": 330,
-        },
       },
     },
     "business staff": {
@@ -2526,7 +2445,6 @@ exports[`parity: same value as before, field for field with each read failing, t
         "screen": null,
         "taking": true,
         "team": [],
-        "usualElectrician": null,
       },
     },
     "file electrician owner": {
@@ -2572,7 +2490,6 @@ exports[`parity: same value as before, field for field with each read failing, t
           },
         ],
         "ratesAgreedAt": null,
-        "usualElectrician": null,
       },
     },
     "file electrician staff": {
@@ -2643,12 +2560,6 @@ exports[`parity: same value as before, field for field with each read failing, t
           },
         ],
         "ratesAgreedAt": "2026-01-01",
-        "usualElectrician": {
-          "email": "new@example.com",
-          "licence": "REC 2",
-          "name": "New Sparky",
-          "priceIncGst": 330,
-        },
       },
     },
     "file staff": {
@@ -2736,7 +2647,6 @@ exports[`parity: same value as before, field for field with each read failing, t
             "workerRole": null,
           },
         ],
-        "usualElectrician": null,
       },
     },
     "business electrician staff": {
@@ -2762,7 +2672,6 @@ exports[`parity: same value as before, field for field with each read failing, t
         "screen": null,
         "taking": false,
         "team": [],
-        "usualElectrician": null,
       },
     },
     "business no business": {
@@ -2835,7 +2744,7 @@ exports[`parity: same value as before, field for field with each read failing, t
               "warn": true,
             },
             {
-              "sub": "No electricians on your Team yet",
+              "sub": "No electricians yet",
               "title": "Electricians",
               "to": "/field/business/electrician",
               "warn": true,
@@ -2952,12 +2861,6 @@ exports[`parity: same value as before, field for field with each read failing, t
             "workerRole": "crew",
           },
         ],
-        "usualElectrician": {
-          "email": "new@example.com",
-          "licence": "REC 2",
-          "name": "New Sparky",
-          "priceIncGst": 330,
-        },
       },
     },
     "business staff": {
@@ -2983,7 +2886,6 @@ exports[`parity: same value as before, field for field with each read failing, t
         "screen": null,
         "taking": true,
         "team": [],
-        "usualElectrician": null,
       },
     },
     "file electrician owner": {
@@ -3029,7 +2931,6 @@ exports[`parity: same value as before, field for field with each read failing, t
           },
         ],
         "ratesAgreedAt": null,
-        "usualElectrician": null,
       },
     },
     "file electrician staff": {
@@ -3100,12 +3001,6 @@ exports[`parity: same value as before, field for field with each read failing, t
           },
         ],
         "ratesAgreedAt": "2026-01-01",
-        "usualElectrician": {
-          "email": "new@example.com",
-          "licence": "REC 2",
-          "name": "New Sparky",
-          "priceIncGst": 330,
-        },
       },
     },
     "file staff": {
@@ -3193,7 +3088,6 @@ exports[`parity: same value as before, field for field with each read failing, t
             "workerRole": null,
           },
         ],
-        "usualElectrician": null,
       },
     },
     "business electrician staff": {
@@ -3219,7 +3113,6 @@ exports[`parity: same value as before, field for field with each read failing, t
         "screen": null,
         "taking": false,
         "team": [],
-        "usualElectrician": null,
       },
     },
     "business no business": {
@@ -3292,7 +3185,7 @@ exports[`parity: same value as before, field for field with each read failing, t
               "warn": true,
             },
             {
-              "sub": "No electricians on your Team yet",
+              "sub": "No electricians yet",
               "title": "Electricians",
               "to": "/field/business/electrician",
               "warn": true,
@@ -3409,12 +3302,6 @@ exports[`parity: same value as before, field for field with each read failing, t
             "workerRole": "crew",
           },
         ],
-        "usualElectrician": {
-          "email": "new@example.com",
-          "licence": "REC 2",
-          "name": "New Sparky",
-          "priceIncGst": 330,
-        },
       },
     },
     "business staff": {
@@ -3440,7 +3327,6 @@ exports[`parity: same value as before, field for field with each read failing, t
         "screen": null,
         "taking": true,
         "team": [],
-        "usualElectrician": null,
       },
     },
     "file electrician owner": {
@@ -3486,7 +3372,6 @@ exports[`parity: same value as before, field for field with each read failing, t
           },
         ],
         "ratesAgreedAt": null,
-        "usualElectrician": null,
       },
     },
     "file electrician staff": {
@@ -3557,12 +3442,6 @@ exports[`parity: same value as before, field for field with each read failing, t
           },
         ],
         "ratesAgreedAt": "2026-01-01",
-        "usualElectrician": {
-          "email": "new@example.com",
-          "licence": "REC 2",
-          "name": "New Sparky",
-          "priceIncGst": 330,
-        },
       },
     },
     "file staff": {
@@ -3650,7 +3529,6 @@ exports[`parity: same value as before, field for field with each read failing, t
             "workerRole": null,
           },
         ],
-        "usualElectrician": null,
       },
     },
     "business electrician staff": {
@@ -3676,7 +3554,6 @@ exports[`parity: same value as before, field for field with each read failing, t
         "screen": null,
         "taking": false,
         "team": [],
-        "usualElectrician": null,
       },
     },
     "business no business": {
@@ -3762,7 +3639,7 @@ exports[`parity: same value as before, field for field with each read failing, t
               "warn": true,
             },
             {
-              "sub": "No electricians on your Team yet",
+              "sub": "No electricians yet",
               "title": "Electricians",
               "to": "/field/business/electrician",
               "warn": true,
@@ -3879,12 +3756,6 @@ exports[`parity: same value as before, field for field with each read failing, t
             "workerRole": "crew",
           },
         ],
-        "usualElectrician": {
-          "email": "new@example.com",
-          "licence": "REC 2",
-          "name": "New Sparky",
-          "priceIncGst": 330,
-        },
       },
     },
     "business staff": {
@@ -3910,7 +3781,6 @@ exports[`parity: same value as before, field for field with each read failing, t
         "screen": null,
         "taking": true,
         "team": [],
-        "usualElectrician": null,
       },
     },
     "file electrician owner": {
@@ -3956,7 +3826,6 @@ exports[`parity: same value as before, field for field with each read failing, t
           },
         ],
         "ratesAgreedAt": null,
-        "usualElectrician": null,
       },
     },
     "file electrician staff": {
@@ -4027,12 +3896,6 @@ exports[`parity: same value as before, field for field with each read failing, t
           },
         ],
         "ratesAgreedAt": "2026-01-01",
-        "usualElectrician": {
-          "email": "new@example.com",
-          "licence": "REC 2",
-          "name": "New Sparky",
-          "priceIncGst": 330,
-        },
       },
     },
     "file staff": {
@@ -4101,7 +3964,6 @@ exports[`parity: same value as before, field for field with each read failing, t
             "workerRole": null,
           },
         ],
-        "usualElectrician": null,
       },
     },
     "business electrician staff": {
@@ -4127,7 +3989,6 @@ exports[`parity: same value as before, field for field with each read failing, t
         "screen": null,
         "taking": false,
         "team": [],
-        "usualElectrician": null,
       },
     },
     "business no business": {
@@ -4190,7 +4051,7 @@ exports[`parity: same value as before, field for field with each read failing, t
               "warn": true,
             },
             {
-              "sub": "No electricians on your Team yet",
+              "sub": "No electricians yet",
               "title": "Electricians",
               "to": "/field/business/electrician",
               "warn": true,
@@ -4250,12 +4111,6 @@ exports[`parity: same value as before, field for field with each read failing, t
             "workerRole": null,
           },
         ],
-        "usualElectrician": {
-          "email": "new@example.com",
-          "licence": "REC 2",
-          "name": "New Sparky",
-          "priceIncGst": 330,
-        },
       },
     },
     "business staff": {
@@ -4281,7 +4136,6 @@ exports[`parity: same value as before, field for field with each read failing, t
         "screen": null,
         "taking": true,
         "team": [],
-        "usualElectrician": null,
       },
     },
     "file electrician owner": {
@@ -4327,7 +4181,6 @@ exports[`parity: same value as before, field for field with each read failing, t
           },
         ],
         "ratesAgreedAt": null,
-        "usualElectrician": null,
       },
     },
     "file electrician staff": {
@@ -4398,12 +4251,6 @@ exports[`parity: same value as before, field for field with each read failing, t
           },
         ],
         "ratesAgreedAt": "2026-01-01",
-        "usualElectrician": {
-          "email": "new@example.com",
-          "licence": "REC 2",
-          "name": "New Sparky",
-          "priceIncGst": 330,
-        },
       },
     },
     "file staff": {
@@ -4491,7 +4338,6 @@ exports[`parity: same value as before, field for field with each read failing, t
             "workerRole": null,
           },
         ],
-        "usualElectrician": null,
       },
     },
     "business electrician staff": {
@@ -4517,14 +4363,13 @@ exports[`parity: same value as before, field for field with each read failing, t
         "screen": null,
         "taking": false,
         "team": [],
-        "usualElectrician": null,
       },
     },
     "business no business": {
       "refused": "Your sign-in isn't linked to an approved business yet.",
     },
     "business owner": {
-      "refused": "Could not load your usual electrician.",
+      "refused": "Could not load your Main electrician.",
     },
     "business staff": {
       "ok": {
@@ -4549,7 +4394,6 @@ exports[`parity: same value as before, field for field with each read failing, t
         "screen": null,
         "taking": true,
         "team": [],
-        "usualElectrician": null,
       },
     },
     "file electrician owner": {
@@ -4595,7 +4439,6 @@ exports[`parity: same value as before, field for field with each read failing, t
           },
         ],
         "ratesAgreedAt": null,
-        "usualElectrician": null,
       },
     },
     "file electrician staff": {
@@ -4605,7 +4448,68 @@ exports[`parity: same value as before, field for field with each read failing, t
       "refused": "Your sign-in isn't linked to an approved business yet.",
     },
     "file owner": {
-      "refused": "Could not load your usual electrician.",
+      "ok": {
+        "agreement": {
+          "signedAt": "2026-07-21T03:00:00.000Z",
+          "signer": "Bea Boss",
+          "version": 2,
+        },
+        "boss": true,
+        "businessId": "00000000-0000-4000-8000-0000000000b1",
+        "credentials": [
+          {
+            "expires": "2027-01-31",
+            "hasFile": true,
+            "id": "cr1",
+            "kind": "public_liability_insurance",
+            "label": "PL insurance",
+            "path": "b1/pl.pdf",
+            "verified": true,
+          },
+          {
+            "expires": "2026-01-31",
+            "hasFile": false,
+            "id": "cr2",
+            "kind": "public_liability_insurance",
+            "label": "PL insurance (old)",
+            "path": null,
+            "verified": false,
+          },
+        ],
+        "details": {
+          "abn": "11 222 333 444",
+          "address": "1 Base St",
+          "area": "Up to 50 km from Geelong",
+          "days": "Mon, Tue",
+          "email": "inst@example.com",
+          "leadTime": "1 week",
+          "legal": "Inst Co Pty Ltd",
+          "liabilityCover": 20000000,
+          "name": "Inst Co",
+          "phone": "0390000000",
+        },
+        "kind": "installer",
+        "openRequests": [
+          {
+            "created_at": "2026-10-27T03:00:00.000Z",
+            "kind": "details",
+            "message": "New phone",
+          },
+        ],
+        "rates": [
+          {
+            "inc_gst": 25,
+            "label": "R4.0 batts",
+            "unit": "m2",
+          },
+          {
+            "inc_gst": 30,
+            "label": "R5.0 batts",
+            "unit": "m²",
+          },
+        ],
+        "ratesAgreedAt": "2026-01-01",
+      },
     },
     "file staff": {
       "refused": "Only the business owner can see this.",

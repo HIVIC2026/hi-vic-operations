@@ -51,8 +51,10 @@ export function postgrestShim(db: PGlite, options: { jsonColumns?: Record<string
         upsert(p: Record<string, unknown>, o?: { onConflict?: string }) { op = "insert"; patch = p; conflict = o?.onConflict ?? "id"; return b; },
         delete() { op = "delete"; return b; },
         not(c: string, o: string, v: null) { if (o !== "is" || v !== null) throw new Error("shim: only not(col, 'is', null)"); filters.push({ sql: `"${c}" IS NOT NULL`, vals: [] }); return b; },
-        order(c: string, o?: { ascending?: boolean }) { orderBy = ` ORDER BY "${c}" ${o?.ascending === false ? "DESC" : "ASC"}`; return b; },
+        /** Repeated order() calls add sort keys, as PostgREST does. */
+        order(c: string, o?: { ascending?: boolean }) { orderBy = `${orderBy ? `${orderBy}, ` : " ORDER BY "}"${c}" ${o?.ascending === false ? "DESC" : "ASC"}`; return b; },
         limit(n: number) { lim = ` LIMIT ${Number(n)}`; return b; },
+        range(a: number, z: number) { lim = ` LIMIT ${Number(z) - Number(a) + 1} OFFSET ${Number(a)}`; return b; },
         single() { single = "one"; return b; },
         maybeSingle() { single = "maybe"; return b; },
         async run() {

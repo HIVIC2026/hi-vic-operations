@@ -1,6 +1,6 @@
 // O5b business file (approved, decisions 232/249): agreement, rates + change requests, insurance & licences (+ upload),
-// people, usual electrician, masked bank details with a LOGGED reveal, jobs, coverage (edit) and documents.
-// Writes reuse the existing guarded functions (verifyCredential/addCredential, reviewHigherRates, setPartnerRelationship,
+// people, Electricians (Jo 5 Nov 2026), masked bank details with a LOGGED reveal, jobs, coverage (edit) and documents.
+// Writes reuse the existing guarded functions (verifyCredential/addCredential, reviewHigherRates, the Electricians list (installer-electricians.functions),
 // saveBusiness for coverage, officeVerifyEec / notice link / Mitti check for people).
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -12,7 +12,9 @@ import { Btn, Panel, Pill } from "@/components/portal/kit";
 import { Loading, LoadError, fmtDay } from "@/components/portal/office-tabs";
 import { PeopleTable } from "@/components/portal/partner-people";
 import { CoverageDialog } from "@/components/portal/partner-coverage";
-import { Credentials, Electricians } from "@/components/portal/business";
+import { Credentials } from "@/components/portal/business";
+import { InstallerElectricians } from "@/components/portal/installer-electricians";
+import { ELECTRICIANS_WORDS } from "@/lib/installer-electricians.core";
 import { openFileViewer } from "@/components/portal/file-viewer";
 import { useReasonDialog } from "@/components/portal/reason-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -67,7 +69,7 @@ function BusinessFile() {
         </div>
       </section>
       {p.error && <div role="alert" className="mb-5 flex flex-wrap items-center gap-3 rounded-[19px] border border-rose bg-pink p-4 text-sm text-ink" data-profile-error>
-        <span className="font-semibold">Couldn't load — try again.</span> Some actions on this page (certificate upload and verify, Move to the new flow, usual electrician) are hidden until it loads.
+        <span className="font-semibold">Couldn't load — try again.</span> Some actions on this page (certificate upload and verify, Move to the new flow) are hidden until it loads.
         <Btn tone="secondary" onClick={() => void p.refetch()}>Try again</Btn>
       </div>}
       <div className="grid gap-5 lg:grid-cols-2">
@@ -85,16 +87,8 @@ function BusinessFile() {
         <RatesPanel f={f} onDone={refresh} />
         {p.data?.myRole === "hivic_admin" && p.data.inHouseFacts && <InHouseAndNewFlowPanel key={JSON.stringify(p.data.business)} businessId={businessId} business={p.data.business as unknown as { name: string; in_house?: boolean }} facts={p.data.inHouseFacts} onDone={refresh} />}
         <Panel className="lg:col-span-2" title={`People · ${f.people.length}`}><div data-why="153 CII, 130 privacy notice, 22/188 Mitti"><PeopleTable people={f.people} showBusiness={false} invalidate={["business-file"]} /></div></Panel>
-        {f.canBeUsualElectrician && <Panel title="Usual electrician" action={f.usual ? <Link to="/admin/partners/business/$businessId" params={{ businessId: f.usual.id }} className="text-sm font-semibold text-hiv-blue hover:underline">Open {f.usual.name} ›</Link> : undefined}>
-          <dl data-why="289/374: the usual electrician is an option on the installer's own customers (A1); on our leads we always choose the electrician">
-            {f.usual ? <>
-              <Row k="Business">{f.usual.name} · {f.usual.approved ? "approved REC" : <Pill tone="rose">not approved yet</Pill>}</Row>
-              <Row k="REC">{f.usual.rec ?? "—"}</Row>
-              <Row k="PIESA rate">{f.usual.piesaRate != null ? `$${f.usual.piesaRate} agreed · upgrades by item (owner pays upgrades + $100)` : "Rate to agree"}</Row>
-              <Row k="Used on">{f.usual.usedThisMonth} of {f.usual.jobsThisMonth} jobs this month</Row>
-            </> : <Row k="Usual electrician">None named · HIV electrician does the PIESAs</Row>}
-          </dl>
-          {p.data && <details className="mt-3"><summary className="cursor-pointer text-sm font-semibold text-hiv-blue">Change usual electrician</summary><div className="mt-2"><Electricians businessId={businessId} rels={p.data.relationships as never} options={(p.data.electricianBusinesses as { id: string; name: string; onboarding_status: string }[]).filter((e) => e.id !== businessId)} canEdit onDone={() => void refresh()} /></div></details>}
+        {f.canBeUsualElectrician && <Panel title={ELECTRICIANS_WORDS.title}>
+          <div data-why="Jo 5 Nov 2026: one Electricians list per installer — linked electrician businesses and Team electricians, one Main (the default pick on new jobs)"><InstallerElectricians businessId={businessId} /></div>
         </Panel>}
         <BankPanel businessId={businessId} f={f} />
         <Panel title="Jobs" action={<Link to={b.kind === "Installer" ? "/admin/jobs/installers" : "/admin/jobs/ours"} search={{ q: b.name } as never} className="text-sm font-semibold text-hiv-blue hover:underline">Open Jobs ›</Link>}>
@@ -259,7 +253,7 @@ function DocumentsPanel({ businessId, f, profile, onDone }: { businessId: string
             {c.document_path && <Btn tone="secondary" className="ml-2" onClick={() => void view(c.document_path!)}>View</Btn>}</Row>
         ))}
         <Row k="ABN">{b.abn ?? "—"}</Row>
-        <Row k="Licences">{b.kind === "Electrician" ? `REC ${b.rec ?? "—"}${b.licence ? ` · licence ${b.licence}` : ""}` : "No electrical work · usual electrician holds the REC"}</Row>
+        <Row k="Licences">{b.kind === "Electrician" ? `REC ${b.rec ?? "—"}${b.licence ? ` · licence ${b.licence}` : ""}` : "No electrical work · their electricians hold the REC"}</Row>
       </dl>
       <ul className="divide-y divide-line border-t border-line text-sm" data-why="6-year record">
         {f.agreements.map((a) => {

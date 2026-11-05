@@ -8,7 +8,6 @@ import { offerTiming } from "./offer-timing.core";
 import { placeWorkJob, type WorkPlace } from "./work-places.core";
 import { COULDNT_GET_IN, offerMoney, electricianPayState, payState, type PayState, surname, type AreaSource, type InsulationNow, type TradeKind, type DayKind, SETUP_STEPS, type SetupKey, tradeJobAllowed, contactVisible, type AccessAssignment, type TeamMemberView, type BusinessNext, type CredentialView, type MittiLogin, latestExpiry, businessNext, type BusinessNextFacts, bankLine, installerMoneyHeldLines, accountEnding, ownerPaidInFullAt } from "./trade-view.core";
 import { crewClearance, CREW_CLEARANCE_REASON, electricianVerified, melbourneToday, whiteCardState } from "./worker-compliance.core";
-import type { UsualElectrician } from "./usual-electrician.core";
 import type { InstallerQuote } from "./installer-quote-status.server";
 // Speed (installer screens, Task 5): module-scope imports instead of awaited import() calls inside the loaders.
 import { statusFactsFor, statusView } from "./job-status.server";
@@ -65,7 +64,7 @@ import * as piisaA3Server from "./piisa-a3.server";
 import * as escNoticeServer from "./esc-collection-notice.server";
 import * as escNoticeCore from "./esc-collection-notice.core";
 import * as mittiInviteServer from "./mitti-invite.server";
-import * as usualElectricianServer from "./usual-electrician.server";
+import * as installerElectriciansServer from "./installer-electricians.server";
 import * as workerIdentityServer from "./worker-identity.server";
 import * as recOnboardedServer from "./rec-onboarded.server";
 import * as installerPaidServer from "./installer-paid-electricians.server";
@@ -839,7 +838,7 @@ export async function tradeBusiness(userId: string) {
   const today = melbourneToday();
   // Staff logins get only the business name and job-taking status: no rates, bank, agreement, insurance or team.
   const staffOnly = { kind: c.kind, boss: false as boolean, name: c.biz.name, taking: c.biz.accepting_new_jobs !== false, approvedSince: null as string | null, area: null as string | null, licenceExpires: null as string | null, liabilityExpires: null as string | null, rate: null as number | null, agreementSigned: false, bankSaved: false,
-    team: [] as TeamMemberView[], next: null as BusinessNext, usualElectrician: null as UsualElectrician | null, details: null as null | { legal: string | null; name: string; abn: string | null; baseSuburb: string | null; allVictoria: boolean }, ratesAgreedAt: null as string | null, hasRates: false, bankLine: null as string | null, credentials: [] as CredentialView[], agreement: null as null | { version: string; signer: string; signedAt: string }, notice: [] as { name: string; state: string }[], screen: null as ReturnType<typeof installerBusinessScreen> | null };
+    team: [] as TeamMemberView[], next: null as BusinessNext, details: null as null | { legal: string | null; name: string; abn: string | null; baseSuburb: string | null; allVictoria: boolean }, ratesAgreedAt: null as string | null, hasRates: false, bankLine: null as string | null, credentials: [] as CredentialView[], agreement: null as null | { version: string; signer: string; signedAt: string }, notice: [] as { name: string; state: string }[], screen: null as ReturnType<typeof installerBusinessScreen> | null };
   if (!c.boss) return staffOnly;
   // Speed (installer screens, Task 9): three rounds — (1) sign-in context and the owner check above, (2) every owner read that
   // needs only the business (started only after the owner check, as before), (3) the reads that need the team rows (profiles,
@@ -860,8 +859,9 @@ export async function tradeBusiness(userId: string) {
     admin.from("businesses").select("public_liability_cover_amount").eq("id", c.biz.id).maybeSingle(),
     admin.from("partner_activations").select("application_id").eq("business_id", c.biz.id).limit(1).maybeSingle(),
   ]).then(async ([bzRes, actRes]) => ({ bzRes, actRes, appRes: !actRes.error && actRes.data?.application_id ? await admin.from("rec_onboarding_applications").select("data").eq("id", actRes.data.application_id).maybeSingle() : { data: null, error: null } }))) : null;
-  // The usual electrician's failure fails the page (as before); started now, awaited after round 3 like before (last read).
-  const usualEarly = c.kind === "installer" ? early(usualElectricianServer.readUsualElectrician(c.biz.id)) : null;
+  // The Main electrician (Jo 5 Nov 2026; never ticked = the old saved usual electrician) — its failure fails the page (as
+  // before); started now, awaited after round 3 like before (last read). Only the NEXT panel uses it.
+  const usualEarly = c.kind === "installer" ? early(installerElectriciansServer.readMainElectrician(c.biz.id)) : null;
   // Task 9 (approved My business screen): the business-only reads start with round 2; the Team-dependent one (private
   // birth dates, counts only) runs in round 3. Each read's failure leaves its fact empty, never a crash (rounds unchanged).
   const screenEarly = c.kind === "installer" ? early(businessScreenReads(c.biz.id)) : null;
@@ -975,7 +975,7 @@ export async function tradeBusiness(userId: string) {
     area: c.biz.covers_all_victoria ? "Anywhere in Victoria" : `Up to ${c.biz.coverage_radius_km ?? "?"} km from ${c.biz.base_suburb ?? "your base"}`,
     licenceExpires: licence, liabilityExpires: liability, rate: rate ? Number((rate as { rate_inc_gst: number }).rate_inc_gst) : null,
     agreementSigned: !!agr?.signed_at, bankSaved: !!bank,
-    team, next, usualElectrician: usual, details, ratesAgreedAt, hasRates, bankLine: bankLine(bank ?? null), credentials,
+    team, next, details, ratesAgreedAt, hasRates, bankLine: bankLine(bank ?? null), credentials,
     agreement: agr ? { version: String(agr.version), signer: agr.signer_name, signedAt: agr.signed_at } : null, notice: noticeStatuses,
     screen,
   };
@@ -984,25 +984,37 @@ export async function tradeBusiness(userId: string) {
 /** Task 9: the business-only reads for the approved My business screen (who books — tolerant of the pending column —,
  *  branding + office phone, the approved REC businesses with their PIESA rates, the business's own PIESA line). */
 async function businessScreenReads(businessId: string) {
-  const [whoRes, brandRes, recs, own] = await Promise.all([
+  const [whoRes, brandRes, recs, own, list] = await Promise.all([
     (admin as unknown as { from: (t: string) => any }).from("businesses").select("piesa_booked_by").eq("id", businessId).maybeSingle() as Promise<{ data: { piesa_booked_by?: unknown } | null; error: { code?: string; message: string } | null }>, // eslint-disable-line @typescript-eslint/no-explicit-any
     admin.from("businesses").select("branding, phone").eq("id", businessId).maybeSingle(),
     recOnboardedServer.loadApprovedRecCandidates().catch(() => [] as Awaited<ReturnType<typeof recOnboardedServer.loadApprovedRecCandidates>>),
     installerPaidServer.readInstallerPaidElectricians(businessId).catch(() => null),
+    // Jo 5 Nov 2026: the Electricians row lists the ONE Electricians list (Team + linked businesses, Main first). A failed
+    // read falls back to the Team electricians, as before.
+    installerElectriciansServer.electriciansForInstaller(businessId).catch(() => null),
   ]);
   if (whoRes.error && !schemaCompatCore.isMissingDbObject(whoRes.error) && !["42703", "PGRST204"].includes(whoRes.error.code ?? "")) console.error("tradeBusiness: who-books could not be read", whoRes.error.code ?? "unknown");
-  return { whoBooks: whoBooksOf(whoRes.error ? undefined : whoRes.data?.piesa_booked_by) as WhoBooks, branding: (brandRes.data?.branding ?? {}) as { logo_url?: unknown }, phone: brandRes.data?.phone?.trim() || null, recs, own };
+  return { whoBooks: whoBooksOf(whoRes.error ? undefined : whoRes.data?.piesa_booked_by) as WhoBooks, branding: (brandRes.data?.branding ?? {}) as { logo_url?: unknown }, phone: brandRes.data?.phone?.trim() || null, recs, own, list };
 }
 
 /** Task 9: the installer's My business facts beyond M7 (pure derivation over the reads above; the dates of birth never leave — counts only). */
 function installerBusinessScreen(businessName: string, r: Awaited<ReturnType<typeof businessScreenReads>>, births: Set<string>, staffRows: { id: string; full_legal_name: string; trade_role: string; mobile: string | null; licence_number?: string | null; rec_number?: string | null }[], team: TeamMemberView[], base: { credentials: CredentialView[]; ratesAgreedAt: string | null; hasRates: boolean; bank: { account_number: string } | null; agreementSigned: boolean; noticeStatuses: { name: string; state: string }[]; ciiBlocked: { name: string }[] }, today: string) {
   const logoUrl = typeof r.branding.logo_url === "string" && r.branding.logo_url.startsWith("https://") ? r.branding.logo_url : null;
   const ownRate = r.own && !r.own.release_hold_reason ? r.own.piesaIncGst : null;
-  const electricians = staffRows.filter((w) => w.trade_role === "electrician").map((w) => {
+  const priced = (p: number | null) => (p != null && Number.isFinite(p) && p > 0 ? p : null);
+  const teamElectrician = (w: { id: string; full_legal_name: string; rec_number?: string | null }) => {
     const rec = w.rec_number ? r.recs.find((x) => x.rec_number && x.rec_number === w.rec_number && x.onboarding_status === "approved" && x.is_active !== false) ?? null : null;
     const price = rec?.piesa_rate ? Number(rec.piesa_rate.rate_inc_gst) : ownRate;
-    return { id: w.id, name: w.full_legal_name.trim(), business: rec ? rec.trading_name || rec.name : null, piesaPrice: price != null && Number.isFinite(price) && price > 0 ? price : null };
-  });
+    return { id: w.id, name: w.full_legal_name.trim(), business: rec ? rec.trading_name || rec.name : null, piesaPrice: priced(price) };
+  };
+  const staffElectricians = staffRows.filter((w) => w.trade_role === "electrician");
+  const electricians = r.list
+    ? r.list.map((e) => {
+      if (e.kind === "team") { const w = staffElectricians.find((x) => x.id === e.workerId); return w ? teamElectrician(w) : { id: e.workerId!, name: e.name, business: null, piesaPrice: priced(ownRate) }; }
+      const rec = r.recs.find((x) => x.business_id === e.businessId && x.onboarding_status === "approved" && x.is_active !== false);
+      return { id: e.businessId!, name: e.name, business: null, piesaPrice: priced(rec?.piesa_rate ? Number(rec.piesa_rate.rate_inc_gst) : ownRate) };
+    })
+    : staffElectricians.map(teamElectrician);
   const missingDobOrMobile = team.filter((m) => !m.mobile || (m.id ? !births.has(m.id) : true)).length;
   const facts: BusinessScreenFacts = {
     team: { people: team.length, missingDobOrMobile }, electricians: electricians.map(({ name, business, piesaPrice }) => ({ name, business, piesaPrice })),
@@ -1106,11 +1118,8 @@ export async function tradeSetupMark(userId: string, key: SetupKey, done: boolea
 /** My business sections (Jo, 7 Oct): read-only facts for the trade-style pages. Partners never edit details or rates here. */
 export async function tradeBusinessFile(userId: string) {
   const c = await bossOrThrow(userId);
-  // Speed (installer screens, Task 9): the usual electrician is read with the other reads (one round after the owner check,
-  // was two). Its failure still fails the page, before the "Business not found." check, as before.
   const r = admin as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
-  const [usual, { data: b }, { data: creds }, { data: agr }, { data: cards }, { data: erates }, { data: open }] = await Promise.all([
-    c.kind === "installer" ? usualElectricianServer.readUsualElectrician(c.biz.id) : Promise.resolve(null),
+  const [{ data: b }, { data: creds }, { data: agr }, { data: cards }, { data: erates }, { data: open }] = await Promise.all([
     admin.from("businesses").select("id, name, legal_name, trading_name, abn, phone, email, address, base_suburb, coverage_radius_km, covers_all_victoria, typical_days, lead_time, public_liability_cover_amount, onboarding_status").eq("id", c.biz.id).single(),
     admin.from("business_credentials").select("id, kind, label, number, issuer, expires_at, verification, document_path").eq("business_id", c.biz.id).order("created_at", { ascending: false }),
     admin.from("partner_agreements").select("version, signer_name, signed_at").eq("business_id", c.biz.id).order("signed_at", { ascending: false }).limit(1).maybeSingle(),
@@ -1126,7 +1135,7 @@ export async function tradeBusinessFile(userId: string) {
     ...((erates ?? []) as { service_type: string; rate_inc_gst: number }[]).map((e) => ({ label: e.service_type === "piesa" ? "Pre Insulation Electrical Safety Assessment (PIESA)" : e.service_type.replace(/_/g, " "), unit: "each", inc_gst: Number(e.rate_inc_gst) })),
   ];
   return {
-    businessId: b.id, kind: c.kind, boss: c.boss, usualElectrician: usual?.electrician ?? null,
+    businessId: b.id, kind: c.kind, boss: c.boss,
     details: { name: b.trading_name ?? b.name, legal: b.legal_name, abn: b.abn, phone: b.phone, email: b.email, address: b.address,
       area: b.covers_all_victoria ? "Anywhere in Victoria" : `Up to ${b.coverage_radius_km ?? "?"} km from ${b.base_suburb ?? "your base"}`,
       days: (b.typical_days ?? []).join(", ") || null, leadTime: b.lead_time, liabilityCover: b.public_liability_cover_amount },
@@ -1162,19 +1171,6 @@ export async function officeAgreementPdf(businessId: string, agreementId: string
   const { textToPdf } = await import("./signed-pdf.server");
   const t = agreementPdfText(a, biz?.name ?? "Business");
   return { fileName: t.fileName, base64: toB64(await textToPdf(t.title, t.body)) };
-}
-
-/** Jo 22 Oct: this nomination alone is editable; legal details, rate cards and approvals are unchanged. */
-export async function tradeSaveUsualElectrician(userId: string, value: unknown) {
-  const c = await bossOrThrow(userId);
-  if (c.kind !== "installer") throw new WorkflowError("Only installer businesses can save a usual electrician.");
-  const { usualElectrician, USUAL_ELECTRICIAN_EVENT } = await import("./usual-electrician.core");
-  const electrician = usualElectrician(value);
-  if (!electrician) throw new WorkflowError("Enter the electrician name and licence number.");
-  const { error } = await admin.from("admin_config_events").insert({ actor_id: userId, event_type: USUAL_ELECTRICIAN_EVENT,
-    summary: "Installer saved usual electrician", details: { business_id: c.biz.id, electrician } });
-  if (error) throw new WorkflowError("Could not save your usual electrician.");
-  return { electrician };
 }
 
 function toB64(u: Uint8Array): string {
