@@ -163,13 +163,19 @@ export function jobMoneyRows(f: {
   return rows;
 }
 
-/** I3: the quote the Job details money rows read — an ACCEPTED installation quote first (as `installerPayForJob`), else the
- *  newest; the installer's pay = their own lines (INSTALLER_PRICE + INSTALLER_REMOVAL + INSTALLER_EXTRA, less their own
+/** The quote the installer's job-page money reads: an ACCEPTED quote first, else the newest SENT (issued) one, else the
+ *  newest of what's left (a first quote still held as a draft). A held discount draft never shows while a sent quote
+ *  exists — the office hasn't sent it yet. */
+export function quoteForJobMoney<Q extends { status: string | null; created_at: string | null }>(quotes: readonly Q[]): Q | undefined {
+  const sorted = [...quotes].sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")));
+  return sorted.find((q) => q.status === "accepted") ?? sorted.find((q) => q.status !== "draft") ?? sorted[0];
+}
+
+/** I3: the quote the Job details money rows read — `quoteForJobMoney` (accepted, else sent, else draft); the installer's pay = their own lines (INSTALLER_PRICE + INSTALLER_REMOVAL + INSTALLER_EXTRA, less their own
  *  INSTALLER_DISCOUNT — Task 6, review 2: the discount comes off the installer's price, so the row shows what they are
  *  actually paid), never the fee, the PIESA or the owner's total. Nothing usable → nulls (rows left out). */
 export function ownCustomerQuoteFigures(quotes: readonly { status: string | null; created_at: string | null; customer_total_inc_gst: number | string | null; items: readonly { code: string | null; line_total_inc_gst: number | string | null }[] }[]): { installerPayIncGst: number | null; ownerPriceIncGst: number | null } {
-  const sorted = [...quotes].sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")));
-  const pick = sorted.find((q) => q.status === "accepted") ?? sorted[0];
+  const pick = quoteForJobMoney(quotes);
   if (!pick) return { installerPayIncGst: null, ownerPriceIncGst: null };
   const mine = pick.items.filter((it) => it.code === "INSTALLER_PRICE" || it.code === "INSTALLER_REMOVAL" || it.code === "INSTALLER_EXTRA" || it.code === DISCOUNT_CODE);
   const pay = mine.reduce((a, it) => a + (Number(it.line_total_inc_gst) || 0), 0);

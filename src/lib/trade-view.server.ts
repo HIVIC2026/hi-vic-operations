@@ -23,7 +23,7 @@ import { LOGO_MAX_BYTES, LOGO_TYPES, businessRows, logoFileProblem, needsYou, wh
 import { CUSTOMER_BASE } from "./engagement.core";
 import { PRESS_COMPLETE_LINE } from "./installer-quote-status.core";
 import { installCountdown } from "./next-step-dates.core";
-import { jobMoneyRows, ownCustomerQuoteFigures } from "./own-customer-price.core";
+import { jobMoneyRows, ownCustomerQuoteFigures, quoteForJobMoney } from "./own-customer-price.core";
 import { ownQuoteBreakdown } from "./own-photo-quote.core";
 import { JOB_PAGE_WORDS, jobDetailsRows, nextForOwner, ownerRows, ownerToldRows, ownerToldSummary, paperworkRows, progressSteps, siteNotesRows, visitsRows } from "./job-page-rows.core";
 import { swmsHouseFacts } from "./swms-house.core";
@@ -1705,8 +1705,7 @@ export function installerJobPageParts(i: {
   }), ...ownMoney];
   // Jo's one Money card uses the chosen recorded quote, never current rates or another invoice's payments.
   if (ownCustomer && c.money) {
-    const selected = [...(i.quotesForMoney ?? [])].sort((a, b) => String(b.created_at ?? '').localeCompare(String(a.created_at ?? '')));
-    const quoteForMoney = selected.find(q => q.status === 'accepted') ?? selected[0];
+    const quoteForMoney = quoteForJobMoney(i.quotesForMoney ?? []);
     const amount = (n: number) => n.toLocaleString('en-AU', { style: 'currency', currency: 'AUD' });
     if (figures.installerPayIncGst != null) {
       const oldPay = jobDetails.findIndex(([label]) => label === 'Your pay');

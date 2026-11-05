@@ -105,7 +105,7 @@ export function ownPhotoQuotePreview(i: OwnPhotoQuoteInput & { priceIncGst: numb
 }
 
 // ---------------------------------------------------------------- the quote breakdown (Jo 5 Nov 16:44 / 16:50)
-import { ownCustomerRows, type OwnCustomerQuoteItem } from "./own-customer-price.core";
+import { ownCustomerRows, quoteForJobMoney, type OwnCustomerQuoteItem } from "./own-customer-price.core";
 
 export type OwnQuoteRow = { label: string; amount: string; total?: true };
 /** The standard own-customer rows (ownCustomerRows) as text: "Insulation — {what it includes}", the fee, the PIESA, the
@@ -116,11 +116,10 @@ export function ownQuoteRows(items: readonly OwnCustomerQuoteItem[], rebateIncGs
 }
 
 /** The job page breakdown (Jo 16:50: no PDF, "it's just to show them their price"): the quote the Owner's quote row
- *  reads (an accepted one first, else the newest), as the standard rows. Null when there is none or its lines can't be
+ *  reads (accepted first, else the newest sent one, else a held draft — `quoteForJobMoney`), as the standard rows. Null when there is none or its lines can't be
  *  shown (never a guessed row). Who may see it is decided by the caller (own customer, price-seeing people only). */
 export function ownQuoteBreakdown(quotes: readonly { status: string | null; created_at: string | null; customer_total_inc_gst: number | string | null; veec_discount_inc_gst?: number | string | null; items: readonly { code: string | null; description?: string | null; sort?: number | null; line_total_inc_gst: number | string | null }[] }[]): OwnQuoteRow[] | null {
-  const sorted = [...quotes].sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")));
-  const q = sorted.find((x) => x.status === "accepted") ?? sorted[0];
+  const q = quoteForJobMoney(quotes);
   if (!q || q.customer_total_inc_gst == null) return null;
   const items = [...q.items].sort((a, b) => Number(a.sort ?? 0) - Number(b.sort ?? 0)).map((i) => ({ code: i.code, description: String(i.description ?? ""), line_total_inc_gst: Number(i.line_total_inc_gst) }));
   try { return ownQuoteRows(items, Number(q.veec_discount_inc_gst ?? 0), Number(q.customer_total_inc_gst)); } catch { return null; }
