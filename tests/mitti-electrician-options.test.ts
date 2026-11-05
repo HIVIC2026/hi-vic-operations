@@ -35,7 +35,7 @@ describe("Jo's three Mitti electrician options", () => {
     const r = resolveMittiElectrician({ choice: "usual", usual: null, different });
     expect(r).toMatchObject({ ready: false, needsProfile: true, priceIncGst: null, reasons: [MISSING_USUAL_ELECTRICIAN] });
     const d = buildMittiInstallerQuote(base, r);
-    expect(d.ready).toBe(false); expect(d.blockers).toContain("Installer has no usual electrician saved");
+    expect(d.ready).toBe(false); expect(d.blockers).toContain("Installer has no electrician saved");
   });
   test("invalid/partial different details hold", () => {
     for (const input of [{ ...different, licence: "" }, { ...different, priceIncGst: "not known" }, { ...different, priceIncGst: "-1" }]) {
@@ -49,7 +49,7 @@ describe("Jo's three Mitti electrician options", () => {
     expect(usualElectrician({ ...usual, priceIncGst: "" })?.priceIncGst).toBeUndefined();
   });
   test("all three exact choices parse; unrecognised remains undecided", () => {
-    for (const [label, result] of [["Home Insulation Victoria electrician", "hivic"], ["My usual electrician", "usual"], ["A different electrician", "different"], ["maybe", null]]) {
+    for (const [label, result] of [["Home Insulation Victoria electrician", "hivic"], ["My electrician", "usual"], ["My usual electrician", "usual"], ["A different electrician", "different"], ["maybe", null]]) {
       expect(contactAnswersFromEntries([{ label: "Who is doing the electrical safety check?", value: label }]).electricianChoice).toBe(result);
     }
   });

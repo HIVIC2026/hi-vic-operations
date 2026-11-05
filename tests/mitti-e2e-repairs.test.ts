@@ -13,7 +13,7 @@ describe("Jo's approved Mitti E2E repairs", () => {
     expect(installerQuoteReleaseBlockers({ consentStatus: "granted", feeAwarenessRecorded: false })).toContain("Owner fee awareness not recorded yet");
   });
   test("all three electrical choices clear only with required identity and price", () => {
-    for (const [answer, choice] of [["Home Insulation Victoria electrician", "hivic"], ["My usual electrician", "usual"], ["A different electrician", "different"]] as const) {
+    for (const [answer, choice] of [["Home Insulation Victoria electrician", "hivic"], ["My electrician", "usual"], ["My usual electrician", "usual"], ["A different electrician", "different"]] as const) {
       const parsed = contactAnswersFromEntries([{ label: "Who is doing the electrical safety check?", value: answer }]);
       expect(parsed.electricianChoice).toBe(choice);
       const e = resolveMittiElectrician({ choice, usual: { name: "TEST usual", licence: "TEST-REC-2", priceIncGst: 275 }, different });

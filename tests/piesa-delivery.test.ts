@@ -60,7 +60,7 @@ describe("installer PIESA copy (touchpoint 41, Jo 2 Nov 2026)", () => {
   test("says electrical upgrades, not repairs, and what to do next", () => {
     expect(mail.text).toContain("Electrical upgrades needed: None");
     expect(mail.text).not.toContain("Repairs needed");
-    expect(mail.text).toContain("Next: call the owner and book the install in the portal. They pay their 10% deposit to lock it in.");
+    expect(mail.text).toContain("Next: call the owner and book the install in the portal. They pay their deposit to lock it in.");
     expect(mail.html).toContain("Electrical upgrades needed");
   });
   test("owner standalone copy uses the same row label", () => {

@@ -234,7 +234,7 @@ describe("portal price FIRST, old-form answers as the fallback", () => {
     ).toEqual([LEAN_Q.included, LEAN_Q.includedOther, LEAN_Q.totalPrice, LEAN_Q.electrician]);
     expect(ELECTRICIAN_CHOICE_LABEL).toEqual({
       hivic: "Home Insulation Victoria electrician",
-      usual: "My usual electrician",
+      usual: "My electrician",
       different: "A different electrician",
     });
   });

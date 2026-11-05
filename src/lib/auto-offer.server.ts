@@ -117,7 +117,7 @@ async function electricianCandidates(jobId: string, channel: string | null, jobI
         const approved = electrician ? await (await import("./rec-onboarded.server")).loadApprovedRecCandidates() : [];
         ourLeadUsualBusinessId = ourLeadPreferredId(electrician, approved, candidates.map((c) => c.business_id));
       }
-    } catch (e) { console.error("auto-offer: usual electrician lookup failed", jobId, e); }
+    } catch (e) { console.error("auto-offer: electrician lookup failed", jobId, e); }
   }
   const usualBusinessId = autoOfferPreferredElectrician({ channel, a1PreferredBusinessId: autoOfferInstallerElectrician(preferredIds, mapped, jobIsTest), ourLeadUsualBusinessId });
   return { usualBusinessId, candidates: mapped };

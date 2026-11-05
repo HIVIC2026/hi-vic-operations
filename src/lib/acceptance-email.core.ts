@@ -39,7 +39,7 @@ export function renderYoureInEmail(i: AcceptanceEmailInput) {
   const steps: K.Step[] = [
     { title: "Electrical safety check (PIESA)", detail: `${installer}'s licensed electrician will call you to book it. They check your wiring, downlights and switchboard are safe to insulate over.` },
     { title: "Only if electrical upgrades are needed", detail: "Your electrician quotes and books them with you directly. Nothing is done without your OK." },
-    { title: "Book your install day", detail: `${installer} will call you to book it. Pay your 10% deposit to lock it in. Your install is done within 30 days of the electrical safety check (PIESA).` },
+    { title: "Book your install day", detail: `${installer} will call you to book it. Pay your deposit to lock it in. Your install is done within 30 days of the electrical safety check (PIESA).` },
   ];
   const closing = i.factsheetAttached
     ? "Your signed acceptance and receipt are attached, with the Victorian Energy Upgrades consumer factsheet. Please keep this email. Questions? Just reply to this email."

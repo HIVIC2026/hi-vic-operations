@@ -8,7 +8,7 @@ import { receiptPdf } from "../src/lib/receipt-pdf.server";
 const text = async (b: Uint8Array) => { const d = await getDocument({ data: b.slice() }).promise; const out: string[] = []; for (let i = 1; i <= d.numPages; i++) out.push((await (await d.getPage(i)).getTextContent()).items.map((x: any) => x.str).join(" ")); return out; };
 const BASE = { jobNumber: "HV-1234", ownerName: "Sarah Brown", firstName: "Sarah", address: "12 Example St, Box Hill VIC 3128", yourPriceCents: 218800 };
 const PIESA = { label: "Electrical safety check (PIESA)", paidOn: "8 Nov", cents: 34900 };
-const DEP = { label: "10% deposit", paidOn: "10 Nov", cents: 18390 };
+const DEP = { label: "Deposit", paidOn: "10 Nov", cents: 18390 };
 const SAFETY: ReceiptInput = { ...BASE, step: "safety_check", method: "card", paidOn: "Sat 8 Nov 2026", amountCents: 34900, earlier: [] };
 const DEPOSIT: ReceiptInput = { ...BASE, step: "install_deposit", method: "card", paidOn: "Mon 10 Nov 2026", amountCents: 18390, earlier: [PIESA] };
 const FINAL: ReceiptInput = { ...BASE, step: "balance", method: "bank", paidOn: "Thu 13 Nov 2026", amountCents: 165510, earlier: [PIESA, DEP] };
@@ -22,9 +22,9 @@ describe("receipt maths and wording", () => {
   test("deposit receipt running list", () => {
     const m = receiptModel({ step: "install_deposit", firstName: "Sarah", method: "card", amountCents: 18390, yourPriceCents: 218800, earlier: [{ label: "Electrical safety check (PIESA)", paidOn: "8 Nov", cents: 34900 }], paidOn: "Mon 10 Nov 2026" } as never);
     expect(m.heading).toBe("We've received your deposit.");
-    expect(m.rows).toEqual([{ label: "Your price (incl. GST)", amount: "$2,188.00" }, { label: "Electrical safety check (PIESA), paid 8 Nov", amount: "– $349.00" }, { label: "10% deposit, paid today", amount: "– $183.90" }]);
+    expect(m.rows).toEqual([{ label: "Your price (incl. GST)", amount: "$2,188.00" }, { label: "Electrical safety check (PIESA), paid 8 Nov", amount: "– $349.00" }, { label: "Your deposit, paid today", amount: "– $183.90" }]);
     expect(m.stillToPay).toBe("$1,655.10 on install day");
-    expect(m.paidLine).toBe("10% deposit to book your install day");
+    expect(m.paidLine).toBe("Your deposit to book your install day");
   });
   test("final receipt ends Paid in full", () => {
     expect(receiptModel(FINAL).stillToPay).toBe("$0.00 · Paid in full ✓");

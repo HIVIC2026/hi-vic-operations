@@ -70,7 +70,7 @@ test("age column", () => {
 test("Next panel: same facts as Needs me, else who it waits on", () => {
   const facts = job("3104", { electricianToChoose: { at: "2026-10-23T23:00:00Z", usual: "Volt Right Electrical" } });
   expect(nextAction({ facts, status: null, stage: "piesa", closed: null, onHold: null }, NOW)).toEqual({
-    who: "us", sentence: "Choose the electrician for the PIESA — Volt Right Electrical is the installer's usual electrician.", button: { label: "Send offer", section: "piesa" }, blocked: null,
+    who: "us", sentence: "Choose the electrician for the PIESA — Volt Right Electrical is the installer's electrician.", button: { label: "Send offer", section: "piesa" }, blocked: null,
   });
   expect(nextAction({ facts: job("x", {}), status: { label: "Quote sent", waitingOn: "Owner", detail: null, dueAt: null }, stage: "quote", closed: null, onHold: null }, NOW))
     .toEqual({ who: "owner", sentence: "Waiting for the owner: quote sent.", button: null, blocked: null });

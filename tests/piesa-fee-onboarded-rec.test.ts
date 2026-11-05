@@ -182,7 +182,7 @@ describe("decision 303 — only onboarded electricians", () => {
     expect(recInviteDecision({ electrician: { ...el, email: null }, commsEnabled: true, alreadyIssued: false, existingNomination: null })).toMatchObject({ action: "skip", reason: "no_email" });
     expect(recInviteDecision({ electrician: el, commsEnabled: true, alreadyIssued: false, existingNomination: { business_id: "rec-1", status: "approved", invite_sent_at: null, invite_link_issued_at: null, attempted: false } })).toMatchObject({ action: "skip", reason: "already_onboarded" });
     expect(recInviteDecision({ electrician: el, commsEnabled: true, alreadyIssued: false, existingNomination: { business_id: null, status: "invited", invite_sent_at: "2026-10-01T00:00:00Z", invite_link_issued_at: null, attempted: false } })).toMatchObject({ action: "skip", reason: "nomination_exists" });
-    expect(INVITE_SKIP_TEXT.no_email).toBe("No email on file for this electrician — the installer adds it under My business › My usual electrician.");
+    expect(INVITE_SKIP_TEXT.no_email).toBe("No email on file for this electrician — the installer adds it under My business › My electrician.");
   });
 
   test("HV-3193 (Deep): held quote 7e4ab160… with free-text 'ornaldo' A123212 $200 is held 'Electrician not onboarded: ornaldo' on the next sweep and nothing is sent", () => {
@@ -221,7 +221,7 @@ describe("decision 303 — only onboarded electricians", () => {
     expect(AUTO_LINK_SOURCE).toBe("auto_linked_on_approval");
     expect(recLinkedLine("Volt Right Electrical", "Deep", 1)).toBe("Volt Right Electrical onboarded and linked to Deep — 1 quote ready to check");
     expect(recLinkedLine("Volt Right Electrical", "Deep", 2)).toBe("Volt Right Electrical onboarded and linked to Deep — 2 quotes ready to check");
-    expect(recConflictLine("Volt Right Electrical", "Kim")).toContain("has a different usual electrician saved · office to decide");
+    expect(recConflictLine("Volt Right Electrical", "Kim")).toContain("has a different electrician saved · office to decide");
   });
 
   test("source guards: pipeline records the hold, only the tick sends the invite, approval/rate activation trigger the auto-link", () => {

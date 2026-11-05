@@ -34,7 +34,7 @@ export async function receiptPdf(i: ReceiptInput): Promise<Uint8Array> {
 }
 
 const RECEIPT_KIND = "receipt";
-const STEP_TITLE: Record<ReceiptStep, string> = { safety_check: "Receipt - electrical safety check (PIESA)", install_deposit: "Receipt - 10% deposit", balance: "Receipt - final payment" };
+const STEP_TITLE: Record<ReceiptStep, string> = { safety_check: "Receipt - electrical safety check (PIESA)", install_deposit: "Receipt - deposit", balance: "Receipt - final payment" };
 
 /** Reads the job, the owner and the ledger (existing readers), builds the receipt and files it once per `receiptKey`.
  *  Anything missing returns `{ held }`; nothing is guessed. */

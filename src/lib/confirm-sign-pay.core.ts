@@ -11,7 +11,7 @@ export const CONFIRM_SIGN_PAY = {
   step1: "Confirm your safety check",
   step2: "Sign the government consent form",
   step2Sub: "The law says we must tell the Essential Services Commission about every install before it happens. This is the Commission's own form.",
-  step3: "Pay your 10% deposit",
+  step3: "Pay your deposit",
   nameLabel: "Type your full name to sign steps 1 and 2",
   card: "Sign and pay by card",
   bank: "Sign and pay by bank transfer",

@@ -31,7 +31,7 @@ export const AI_SEED_ANSWERS: AiAnswer[] = [
   { topic: "Underfloor / walls", answer: "We only do ceilings. For underfloor, the installer can quote it directly at the free Ready Check, outside our system." },
   { topic: "Cancel / not going ahead", answer: "If they say they're cancelling or not going ahead, reply with a short, kind note. Only if the job facts show the job is closed or cancelled, say we've closed it and they can reply if they change their mind. Otherwise thank them kindly and say we've got their message and will take care of it, without promising it's closed. A plain \"thanks\" still needs no reply." },
   { topic: "Rental / landlord", answer: "Rentals qualify. It's the same steps and the same rebate." },
-  { topic: "Paying by card", answer: "They can pay by card for the $349 electrical safety check (PIESA) and the 10% deposit. The balance is due on install day and can be paid by card, bank transfer or PayID." },
+  { topic: "Paying by card", answer: "They can pay by card for the $349 electrical safety check (PIESA) and the deposit. The balance is due on install day and can be paid by card, bank transfer or PayID." },
   { topic: "Home on install day", answer: "Someone 18 or over needs to be home for each visit." },
   { topic: "Other languages", answer: "If they write in another language, reply in simple English." },
   { topic: "Tenant", answer: "If a tenant writes, we're happy to help, but the owner needs to give permission." },

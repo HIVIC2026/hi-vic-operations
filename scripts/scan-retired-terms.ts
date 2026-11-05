@@ -7,7 +7,7 @@ const ROOT = new URL("..", import.meta.url).pathname;
 type Kind = "customer-visible" | "test-only" | "doc-only" | "internal-identifier";
 type Hit = { file: string; line: number; term: string; kind: Kind; action: string };
 
-type Term = { term: string; re: RegExp; action: string; strict?: boolean };
+type Term = { term: string; re: RegExp; action: string; strict?: boolean; quoted?: boolean };
 // Global owner wording rules (Jo 2 Nov 2026, docs/hiv-touchpoint-decisions-2026-11-02.md). Strict in all src, comments included.
 export const OWNER_WORDING_TERMS: Term[] = [
   { term: "Thousands of Victorians", re: /Thousands of Victorians/g, action: 'Delete; keep "Spots are released in the order they were saved."', strict: true },
@@ -102,6 +102,10 @@ const TERMS: Term[] = [
     re: /\$220 lead fee/gi,
     action: "Not a live rule unless in the current signed agreement",
   },
+  // Jo 6 Nov 2026: owners, installers and the office read "your deposit" / "the deposit" (never a percentage) and
+  // "electrician" (never "usual electrician"). Fails on quoted strings in src/ and on templates; comments and names may stay.
+  { term: "10% deposit", re: /10 ?% deposit/gi, action: 'Say "your deposit" / "the deposit" (Jo 6 Nov 2026); never a percentage', quoted: true },
+  { term: "usual electrician", re: /usual electricians?\b/gi, action: 'Say "electrician" (Jo 6 Nov 2026); the legacy Mitti answer text stays only as an alias', quoted: true },
 ];
 
 // Approved exceptions: locked Xero reference and already-signed agreement texts (see project rules).
@@ -118,6 +122,11 @@ const RETAINED: { file: RegExp; re: RegExp; why: string }[] = [
   // Signed texts: any wording change needs a new version so earlier signatures keep their exact text.
   { file: /^src\/lib\/(installer|rec)-agreement\.text\.ts$/, re: /VEU discount/, why: "Signed partner agreement text (new version needed)" },
   { file: /^src\/lib\/owner-gates\.core\.ts$/, re: /^\s*body: "I (?:accept this quote|assign to DC Construction).*VEU discount/, why: "Signed owner gate bodies quote_acceptance and veec_assignment_consent (new version needed)" },
+  // Jo 6 Nov 2026 wording: the signed Customer Agreement v1.3 keeps its exact text until a new version is approved.
+  { file: /^src\/lib\/customer-agreement(?:-pdf\.server|\.core)\.ts$/, re: /10% deposit/, why: "Signed Customer Agreement v1.3 body / its bold lead-ins (new version needed)" },
+  // Jo 6 Nov 2026 wording: the old Mitti answer text is still accepted as a legacy alias; history and audit lines are never rewritten.
+  { file: /^src\/lib\/(?:usual-electrician|ready-check-lean|mitti)\.core\.ts$/, re: /"My usual electrician"/, why: "Legacy Mitti answer text kept as an alias" },
+  { file: /^src\/lib\/(?:electrician-choice\.core|signup-electrician\.server|rec-auto-link\.server|mitti-electrician\.server)\.ts$/, re: /(?:summary|Summary|logEvent|the installer's usual electrician\$\{)/, why: "History / audit line (never rewritten)" },
 ];
 const SKIP_DIRS = new Set([
   "node_modules",
@@ -139,13 +148,15 @@ const SELF = new Set([
   "src/routeTree.gen.ts",
 ]);
 
-function kindOf(file: string, text: string, strict = false): Kind {
+function kindOf(file: string, text: string, strict = false, quoted?: RegExp): Kind {
   if (file.startsWith("tests/")) return "test-only";
   if (file.startsWith("docs/") || file.endsWith(".md")) return "doc-only";
   const line = text.trim();
   if (RETAINED.some((r) => r.file.test(file) && r.re.test(text))) return "internal-identifier";
   if (strict && /^(src|scripts)\//.test(file)) return "customer-visible";
   if (/^(\/\/|\*|\/\*|--)/.test(line)) return "internal-identifier";
+  // `quoted` terms: a hit inside a string literal (or JSX text) of src/scripts is customer-visible; a comment is not.
+  if (quoted && /^(src|scripts)\//.test(file) && new RegExp(`["'\`>][^"'\`<]*(?:${quoted.source})`, "i").test(text.replace(/\s\/\/ .*$/, ""))) return "customer-visible";
   if (/^src\/(routes|components)\/.*\.tsx$/.test(file)) return "customer-visible";
   if (/["'`>][^"'`<]*HI ?VIC|HI ?VIC[^"'`<]*["'`<]/.test(text) || file.endsWith(".html"))
     return "customer-visible";
@@ -185,7 +196,7 @@ export function scan(): Hit[] {
                 file,
                 line: i + 1,
                 term: t.term,
-                kind: kindOf(file, text, t.strict),
+                kind: kindOf(file, text, t.strict, t.quoted ? t.re : undefined),
                 action: t.action,
               });
           }

@@ -30,7 +30,7 @@ function renderClearToInstall(f:DepositMessageFacts){
   const lines=[
     `${first},`,
     'Your electrical safety check (PIESA) is all clear. One last step to book your install day:',
-    'Confirm your safety check and pay your 10% deposit',
+    'Confirm your safety check and pay your deposit',
     `${cents(f.amountCents/100)} inc GST`,
   ];
   const after=[
@@ -49,7 +49,7 @@ const escHtml=(s:string)=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/
 function renderReminderV2(f:DepositMessageFacts){
   const subject='Reminder: one last step to book your install';
   const deadline=weekdayDayMonthLabel(f.deadline)??f.deadline;
-  const ask=`Confirm your safety check and pay your 10% deposit, then ${f.installer} will call you to book your install day. It takes about a minute.`;
+  const ask=`Confirm your safety check and pay your deposit, then ${f.installer} will call you to book your install day. It takes about a minute.`;
   const lines=[f.upgradesToCome?ask:`You're clear to install. ${ask}`,`${cents(f.amountCents/100)} inc GST`];
   const after=['Card or bank transfer.',`Install by ${deadline}.`,REST_DUE_SENTENCE];
   const label='Confirm and pay my deposit';const url=f.link.replace('screen=pay','screen=clear');

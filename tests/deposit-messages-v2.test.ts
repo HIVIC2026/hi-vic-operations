@@ -34,7 +34,7 @@ for (const step of ['day3', 'day7'] as const) test(`#43 reminder ${step}`, () =>
   const m = renderInstallDepositOwnerEmail(facts, step, false, true);
   expect(m.subject).toBe('Reminder: one last step to book your install');
   for (const s of [
-    "You're clear to install. Confirm your safety check and pay your 10% deposit, then Rapid Insulation will call you to book your install day. It takes about a minute.",
+    "You're clear to install. Confirm your safety check and pay your deposit, then Rapid Insulation will call you to book your install day. It takes about a minute.",
     '$157.00', 'Confirm and pay my deposit: https://example.invalid/my-job/t?screen=clear', 'Card or bank transfer.', 'Install by Sunday 6 December', 'The rest of your payment is due on install day.',
   ]) expect(m.text).toContain(s);
   expect(m.text).not.toMatch(/Bank details: we'll send these|\(Stripe\)|lawyer|HIV\b/);
@@ -44,7 +44,7 @@ for (const step of ['day3', 'day7'] as const) test(`#43 reminder ${step}`, () =>
 test('#43 upgrades still to come: opening sentence dropped, rest kept', () => {
   const m = renderInstallDepositOwnerEmail({ ...facts, upgradesToCome: true }, 'day3', false, true);
   expect(m.text).not.toContain("You're clear to install.");
-  expect(m.text).toContain('Confirm your safety check and pay your 10% deposit, then Rapid Insulation will call you to book your install day. It takes about a minute.');
+  expect(m.text).toContain('Confirm your safety check and pay your deposit, then Rapid Insulation will call you to book your install day. It takes about a minute.');
   expect(m.text).toContain('Card or bank transfer.');
 });
 test('#44 Deposit received wording', () => {

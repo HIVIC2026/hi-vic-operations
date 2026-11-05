@@ -146,8 +146,8 @@ export type OwnerReadyFacts = {
 export type OwnerReadyLine = { text: string; done: boolean };
 export const OWNER_READY_CONSENT_DONE = "Consent signed ✓";
 export const OWNER_READY_CONSENT_WAITING = "Consent not signed yet";
-export const OWNER_READY_DEPOSIT_DONE = "10% deposit paid ✓";
-export const OWNER_READY_DEPOSIT_WAITING = "10% deposit not paid yet";
+export const OWNER_READY_DEPOSIT_DONE = "Deposit paid ✓";
+export const OWNER_READY_DEPOSIT_WAITING = "Deposit not paid yet";
 /** "Consent signed ✓ · 10% deposit paid ✓", or which part is still outstanding. Null when neither fact is known. */
 export function ownerReadyLine(f: OwnerReadyFacts | null | undefined): OwnerReadyLine | null {
   if (!f) return null;

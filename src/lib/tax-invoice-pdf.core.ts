@@ -97,7 +97,7 @@ export function taxInvoiceProductLine(line: { brand: string; model: string; rVal
 export function taxInvoicePayments(plan: Pick<PaymentPlan, "safetyCheckCents" | "installDepositCents" | "balanceCents" | "thresholds">, ledger: ReceiptPayment[], shortDate: (iso: string) => string) {
   const steps = [
     { label: "Electrical safety check (PIESA)", cents: plan.safetyCheckCents, at: reachedOn(ledger, plan.thresholds.safety_check) },
-    { label: "10% deposit", cents: plan.installDepositCents, at: reachedOn(ledger, plan.thresholds.install_deposit) },
+    { label: "Deposit", cents: plan.installDepositCents, at: reachedOn(ledger, plan.thresholds.install_deposit) },
     { label: "Final payment", cents: plan.balanceCents, at: reachedOn(ledger, plan.thresholds.balance) },
   ];
   const payments = steps.filter((x) => x.at).map((x) => ({ label: x.label, paidOn: shortDate(x.at!), cents: x.cents }));

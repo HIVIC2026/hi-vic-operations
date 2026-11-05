@@ -28,7 +28,7 @@ test('clear-to-install wording (clear.png + decision 40)', () => {
   expect(m.subject).toBe("You're clear to install");
   for (const s of [
     'Your electrical safety check (PIESA) is all clear. One last step to book your install day:',
-    'Confirm your safety check and pay your 10% deposit',
+    'Confirm your safety check and pay your deposit',
     '$157.00 inc GST',
     'Confirm and pay my deposit: https://example.invalid/my-job/t?screen=clear',
     'Takes about a minute. Card or bank transfer. Then Rapid Insulation will call you to book your install day.',

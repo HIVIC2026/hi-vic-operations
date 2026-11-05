@@ -35,7 +35,7 @@ export const SMS_MESSAGE_TYPES = {
   quote_ready: { audience: "owner", label: "Installation quote ready for the owner", wordingApproved: true /* decision 87 (Jo 24 Oct 2026), text B: ownerQuoteSms in owner-quote-email.core.ts */, quietHours: true },
   veec_sign_request: { audience: "owner", label: "Sign your rebate (VEEC assignment) form – install done (decision 120; wording approved 24 Oct, decision 166)", wordingApproved: true, quietHours: true },
   veec_sign_reminder: { audience: "owner", label: "Retired 2 Nov 2026 — Rebate form still needs your signature – days 1/3/7 (decision 120; wording approved 24 Oct, decision 168)", wordingApproved: false, quietHours: true },
-  usual_electrician_missing: { audience: "partner", label: "Retired 2 Nov 2026 — Add usual electrician details (decision 83/113; replaced by decisions 374/303: we choose the electrician). History labels only, never sent", wordingApproved: false, quietHours: true },
+  usual_electrician_missing: { audience: "partner", label: "Retired 2 Nov 2026 — Add electrician details (decision 83/113; replaced by decisions 374/303: we choose the electrician). History labels only, never sent", wordingApproved: false, quietHours: true },
   // Decision #27: with READY_CHECK_CHASE_EMAIL_APPROVED on, this chase is an office email and no new text is sent (type kept for history).
   ready_check_incomplete: { audience: "partner", label: "Ready Check form missing answers/photos", wordingApproved: true /* Jo 22 Oct 22:57 */, quietHours: true },
   job_offer: { audience: "partner", label: "Retired 2 Nov 2026 — New Ready Check job offer to an installer (decisions 76/154/361; Part 7 Task 9: installers call and book, no offers). History labels only, never sent", wordingApproved: false, quietHours: true },

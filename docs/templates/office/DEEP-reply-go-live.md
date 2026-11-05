@@ -46,7 +46,7 @@ Once the safety check is cleared, we text and email you to offer the customer th
 When the install is booked, we text you a link to the job's safety plan. We write it for you from the job; you and your crew sign it with one tap before the day (the link is in your 6:30am text too if it's still unsigned). On the morning of the install, your 6:30am text includes the link to that job's install form in Mitti. It's short: the official safety checks, your declaration, then the after videos and depth photos the rebate needs. Everything is geotagged and timed, so photos must be taken at the property on the day.
 
 **10. Getting paid**
-The customer pays a 10% deposit when the install is booked and the balance on install day, by bank transfer. For your own customers, you're paid once that balance is paid. For jobs we send you, 7 days after we approve the job.
+The customer pays a deposit when the install is booked and the balance on install day, by bank transfer. For your own customers, you're paid once that balance is paid. For jobs we send you, 7 days after we approve the job.
 
 **Jobs we send you (our leads)**
 These work the same way, with one difference at the start. We text and email you the job. Within 24 hours, you open it and offer the customer three days and times for the Ready Check (whenever suits you over the coming weeks). The customer taps the one that suits them, or suggests other days, and it's booked: you get a text with the day, time and address, and it's in your 6:30am reminder with the Mitti link. From there it's exactly the same as your own jobs, except the price is our price list, we arrange the electrician, and you're paid 7 days after we approve the job.
@@ -56,7 +56,7 @@ I have some of these ready now. If you'd like to trial a few, let me know and I'
 **What I need from you now**
 A few of your Ready Checks are missing details (for example surnames on HV-3118, HV-3119, HV-3139 and HV-3144, and the unit number on HV-3146). Go into Mitti and open each Ready Check: the missing details are shown on each form. For any job you'd like us to send the quote on, finalise the form and press **Complete**. The quote goes to the customer the moment you do, so only press Complete once the form is fully finished and correct.
 
-For HV-3117 (High Street Road, Glen Waverley), the Ready Check says you're using your usual electrician, so we need their details before we can prepare the quote: add them once under **My business** (name, licence number, REC number and price). If you ticked that by mistake and don't have one, just change the answer on that Ready Check form to **Home Insulation Victoria electrician** and we'll use ours.
+For HV-3117 (High Street Road, Glen Waverley), the Ready Check says you're using your electrician, so we need their details before we can prepare the quote: add them once under **My business** (name, licence number, REC number and price). If you ticked that by mistake and don't have one, just change the answer on that Ready Check form to **Home Insulation Victoria electrician** and we'll use ours.
 
 I'll send you the full guide as soon as we go live this weekend, and I'll walk you through it.
 

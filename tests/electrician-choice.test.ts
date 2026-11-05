@@ -11,7 +11,7 @@ const usual = { name: "Sam Lee", licence: "A12345", priceIncGst: 300 };
 
 describe("Add a job: one required choice, usual electrician only when set, default = usual when set", () => {
   test("options and default with a usual electrician saved", () => {
-    expect(electricianChoiceOptions(usual)).toEqual([{ value: "usual", label: "My usual electrician (Sam Lee)" }]);
+    expect(electricianChoiceOptions(usual)).toEqual([{ value: "usual", label: "My electrician (Sam Lee)" }]);
     expect(defaultElectricianChoice(usual)).toBe("usual");
     expect(ELECTRICIAN_CHOICE_QUESTION).toBe("Electrical safety check by");
     expect(ELECTRICIAN_CHOICE_HIVIC).toBe("Home Insulation Victoria's electrician");
@@ -50,7 +50,7 @@ describe("the event and the one resolver the quote pipeline reads", () => {
     expect(resolveElectricianChoice({ recorded: null, legacy: null, usual: null })).toBeNull();
   });
   test("read-only line", () => {
-    expect(electricianChoiceLine("usual", usual)).toBe("My usual electrician (Sam Lee)");
+    expect(electricianChoiceLine("usual", usual)).toBe("My electrician (Sam Lee)");
     expect(electricianChoiceLine("usual", null)).toContain("not saved yet");
     expect(electricianChoiceLine("hivic", usual)).toBe("Choose your own electrician");
     expect(electricianChoiceLine("different", usual, "Jo Volt")).toBe("A different electrician (Jo Volt)");

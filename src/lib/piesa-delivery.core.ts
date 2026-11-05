@@ -145,7 +145,7 @@ export function renderPiesaCopyEmail(i: PiesaCopyEmailInput) {
     : `Please keep this email with your records. If anything changes in the ceiling before the install, the check may need to be done again.`;
   // #41 (Jo 2 Nov 2026): the installer office is told what happens next. J4 G3: stage-aware — nothing once the install is
   // already booked; the upgrades-still-to-come line while the electrician has the upgrades to do.
-  const next = owner || i.installStart ? null : needed ? INSTALLER_UPGRADES_NEEDED.next : "Next: call the owner and book the install in the portal. They pay their 10% deposit to lock it in.";
+  const next = owner || i.installStart ? null : needed ? INSTALLER_UPGRADES_NEEDED.next : "Next: call the owner and book the install in the portal. They pay their deposit to lock it in.";
   const questions = owner ? "Questions about the safety check? Just reply to this email." : "Questions? Just reply to this email.";
   // Link check (Jo 27 Oct 2026): the signed PIESA travels as the attached PDF; the button opens My job / the job page.
   const attached = "Your signed safety check is attached to this email (PDF).";

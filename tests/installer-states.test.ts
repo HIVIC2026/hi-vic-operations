@@ -90,13 +90,13 @@ describe("M2 states", () => {
   });
   test("install booked: owner consent + 10% deposit line from recorded facts only (decision 251), no amounts", () => {
     const booked = { ...base, stage: "installation_booked", installTurn: "booked" as const, installBookedAt: "2026-10-26T20:30:00Z" };
-    expect(jobNext({ ...booked, ownerReady: { consent: "signed", deposit: "paid" } }).ownerReady).toEqual({ text: "Consent signed ✓ · 10% deposit paid ✓", done: true });
-    expect(jobNext({ ...booked, ownerReady: { consent: "signed", deposit: "waiting" } }).ownerReady).toEqual({ text: "Consent signed ✓ · 10% deposit not paid yet", done: false });
-    expect(jobNext({ ...booked, ownerReady: { consent: "waiting", deposit: "paid" } }).ownerReady).toEqual({ text: "Consent not signed yet · 10% deposit paid ✓", done: false });
-    expect(jobNext({ ...booked, ownerReady: { consent: "waiting", deposit: "waiting" } }).ownerReady!.text).toBe("Consent not signed yet · 10% deposit not paid yet");
+    expect(jobNext({ ...booked, ownerReady: { consent: "signed", deposit: "paid" } }).ownerReady).toEqual({ text: "Consent signed ✓ · Deposit paid ✓", done: true });
+    expect(jobNext({ ...booked, ownerReady: { consent: "signed", deposit: "waiting" } }).ownerReady).toEqual({ text: "Consent signed ✓ · Deposit not paid yet", done: false });
+    expect(jobNext({ ...booked, ownerReady: { consent: "waiting", deposit: "paid" } }).ownerReady).toEqual({ text: "Consent not signed yet · Deposit paid ✓", done: false });
+    expect(jobNext({ ...booked, ownerReady: { consent: "waiting", deposit: "waiting" } }).ownerReady!.text).toBe("Consent not signed yet · Deposit not paid yet");
     // Unknown parts are left out (no consent record yet / no invoice to read), never shown as done.
     expect(ownerReadyLine({ consent: "signed", deposit: null })).toEqual({ text: "Consent signed ✓", done: false });
-    expect(ownerReadyLine({ consent: null, deposit: "paid" })).toEqual({ text: "10% deposit paid ✓", done: false });
+    expect(ownerReadyLine({ consent: null, deposit: "paid" })).toEqual({ text: "Deposit paid ✓", done: false });
     expect(ownerReadyLine({ consent: null, deposit: null })).toBeNull();
     expect(ownerReadyLine(null)).toBeNull();
     // Only the install-booked panel carries it.

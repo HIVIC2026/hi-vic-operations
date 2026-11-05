@@ -86,7 +86,7 @@ export const P3 = {
   kicker: "STEP 1 OF 2 · BOOK YOUR INSTALL",
   /** "Tuesday 11 November, arriving 7:30am" */
   title: (startsAt: string) => `${weekdayDate(startsAt)}, arriving ${clock(startsAt)}`,
-  sub: (deposit: string | null) => `To lock this in: sign the consent below${deposit ? `, then pay your 10% deposit (${deposit})` : ""}. Takes about a minute.`,
+  sub: (deposit: string | null) => `To lock this in: sign the consent below${deposit ? `, then pay your deposit (${deposit})` : ""}. Takes about a minute.`,
   whyLead: "Why we need this:",
   why: " the Victorian Government requires us to tell the Essential Services Commission about every insulation install before it happens, so safety regulators can check the work. This is your consent for us to share the details below with them. It's the Commission's own form.",
   formEyebrow: "OWNER'S CONSENT · ESSENTIAL SERVICES COMMISSION",

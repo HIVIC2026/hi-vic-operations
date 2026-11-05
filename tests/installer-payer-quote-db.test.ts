@@ -173,7 +173,7 @@ describe("Mitti electrician answers on an installer's own job, on practice Postg
     expect((await current()).length).toBe(1);
     expect((await db.query("select id from workflow_events where event_type='mitti_electrician_recorded'", [])).rows.length).toBe(1);
     await db.query("insert into admin_config_events(event_type,details) values ('installer_usual_electrician_saved',$1)", [JSON.stringify({business_id: BIZ, electrician: {name: "TEST Other REC", licence: "TEST-OTHER-LIC"}})]);
-    expect(await quoteBillingBlocker(q.id)).toContain("profile changed");
+    expect(await quoteBillingBlocker(q.id)).toContain("Electrician changed or missing");
   });
   test("Jo 5 Nov 2026 (HV-3193): the usual electrician is matched by LICENCE (case and spaces ignored) — a different name with the same licence never holds; a different licence holds", async () => {
     await db.query("insert into admin_config_events(event_type,details) values ('installer_usual_electrician_saved',$1)", [JSON.stringify({business_id: BIZ, electrician: {name: "ORLANDO POWERED", licence: "TEST-PROFILE-LIC"}})]);
@@ -185,7 +185,7 @@ describe("Mitti electrician answers on an installer's own job, on practice Postg
     await db.query("insert into admin_config_events(event_type,details) values ('installer_usual_electrician_saved',$1)", [JSON.stringify({business_id: BIZ, electrician: {name: "Peter orlando", licence: "TEST PROFILE LIC"}})]);
     expect(await quoteBillingBlocker(q.id)).toBeNull(); // dashes ignored too
     await db.query("insert into admin_config_events(event_type,details) values ('installer_usual_electrician_saved',$1)", [JSON.stringify({business_id: BIZ, electrician: {name: "Peter orlando", licence: "A99999"}})]);
-    expect(await quoteBillingBlocker(q.id)).toContain("profile changed");
+    expect(await quoteBillingBlocker(q.id)).toContain("Electrician changed or missing");
   });
   test("the installer's PIESA rate changes after the draft: the old draft holds 'does not match' and is never sent at the old amount (Jo 4 Nov 2026)", async () => {
     await db.query("insert into admin_config_events(event_type,details) values ('installer_usual_electrician_saved',$1)", [JSON.stringify({business_id: BIZ, electrician: {name: "TEST Profile REC", licence: "TEST-PROFILE-LIC"}})]);
@@ -222,7 +222,7 @@ describe("Mitti electrician answers on an installer's own job, on practice Postg
     for (let i=0; i<2; i++) await draftInstallerQuoteFromReadyCheck(JOB, U, entries("My usual electrician"), "audit_test");
     expect(await current()).toEqual([]);
     const rows = (await db.query<{details: {reasons: string[]}}>("select details from workflow_events where event_type='ready_check_needs_office'", [])).rows;
-    expect(rows.length).toBe(1); expect(rows[0]?.details.reasons).toEqual(["Installer has no usual electrician saved"]);
+    expect(rows.length).toBe(1); expect(rows[0]?.details.reasons).toEqual(["Installer has no electrician saved"]);
   });
 });
 

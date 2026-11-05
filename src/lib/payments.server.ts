@@ -383,7 +383,7 @@ export async function sweepProvisionalBookings(now = new Date()) {
     if (error || !rows?.length) continue;
     try {
       const { transition } = await import("./workflow.server");
-      await transition(b.job_id, "installation_scheduling", null, "Install booking released – 10% deposit not received in time (48 hours, or noon the day before the install if sooner); the installer offers new days", { booking_ids: [b.id] });
+      await transition(b.job_id, "installation_scheduling", null, "Install booking released – deposit not received in time (48 hours, or noon the day before the install if sooner); the installer offers new days", { booking_ids: [b.id] });
     } catch (e) {
       await admin.from("bookings").update({ status: "confirmed" }).eq("id", b.id);
       console.error("provisional booking release failed", b.job_id, (e as Error).message);
