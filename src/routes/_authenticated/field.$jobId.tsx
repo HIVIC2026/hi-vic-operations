@@ -19,6 +19,7 @@ const streetAndSuburb = (a?: string | null) =>
     .trim();
 import { useJob } from "@/components/portal/panels";
 import { useServerFn } from "@tanstack/react-start";
+import { LastCopyWait } from "@/lib/last-copy-wait";
 import { getTradeJobBundle, getTradeJobPage } from "@/lib/trade-view.functions";
 import {
   BUNDLE_QUERY_KEYS,
@@ -136,7 +137,10 @@ function useTradeJobBundle(jobId: string, uid: string) {
     refetchOnReconnect: false,
     ...(seed ? { initialData: seed.data, initialDataUpdatedAt: seed.at } : {}),
   });
-  return { ...q, ready };
+  // Portal speed step 2 (Task 5): true while the page is still the last copy from this phone (the fresh bundle has not
+  // arrived); a failed fresh bundle drops the copy (evict above), so it is never "waiting" then.
+  const isCopy = !!seed && q.dataUpdatedAt === seed.at && !q.isError;
+  return { ...q, ready, isCopy };
 }
 
 function FieldJob() {
@@ -151,10 +155,10 @@ function FieldJob() {
         <p className="text-sub">Loading…</p>
       </TradeShell>
     );
-  return <FieldJobBody jobId={jobId} />;
+  return <FieldJobBody jobId={jobId} waiting={bundle.isCopy} />;
 }
 
-function FieldJobBody({ jobId }: { jobId: string }) {
+function FieldJobBody({ jobId, waiting = false }: { jobId: string; waiting?: boolean }) {
   const { data: job, isError, error } = useJob(jobId);
   const { data: role, isFetched: roleKnown } = useQuery({
     queryKey: ["myrole", jobId],
@@ -188,7 +192,10 @@ function FieldJobBody({ jobId }: { jobId: string }) {
   if (installer)
     return (
       <TradeShell installer redesign>
-        <InstallerFlow jobId={jobId} job={job} />
+        {/* Task 5: "Updating…" and the buttons wait while this is still the last copy on this phone. */}
+        <LastCopyWait waiting={waiting}>
+          <InstallerFlow jobId={jobId} job={job} />
+        </LastCopyWait>
       </TradeShell>
     );
   if (role !== "electrician" && (!roleKnown || pageLoading))
