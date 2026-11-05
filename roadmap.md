@@ -1,3 +1,8 @@
+## Jo 5 Nov 7:21pm own-customer Ready Check replacement
+- [x] Replaced old price block with exact Ready Check choice/form and simple Mitti price submission; A2 leads unchanged. Protected TEST HV-3798 Send for quote saved and preparing status read back after reload.
+- [x] Preparing/sent/expiry/accepted dates and existing read-only quote display; installer email exact-copy builder is an unconnected approval-off draft, no delivery wiring activated.
+- [x] 46 focused checks pass including two-business isolation; phone/desktop form no overflow or runtime errors. Related 69 pass, two retired source-wiring assertions fail (old price card required). No Mitti changes, messages or publication. Actual sent/accepted/expired browser fixtures not run.
+
 ## Jo 5 Nov own-customer portal Ready Check
 - [x] 7:15pm partial A1: Send to quote with core measurements/removal/method + price, no Complete prerequisite; missing non-core details informational; background draft uses existing office list and financial guards, no manufactured completion. Parser/price isolation tests and 390px signed-in TEST page checked; live partial-A1 submit/readback NOT RUN (no provider sends permitted). No publication.
 - [x] 7:14pm correction: own-customer Next step no booking/attendee/deadline, Add call-to-book line removed, own-customer five-business-day alert excluded; Home Insulation Victoria booking unchanged. Add a job already has no optional Ready Check time.

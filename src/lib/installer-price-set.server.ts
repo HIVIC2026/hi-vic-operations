@@ -96,7 +96,7 @@ async function currentReadyCheck(jobId: string): Promise<{
 }> {
   const { data: m, error } = await admin
     .from("ceiling_measurements")
-    .select("raw_snapshot, removal_required, measured_area_m2, zones")
+    .select("raw_snapshot, removal_required, measured_area_m2, zones, external_source")
     .eq("job_id", jobId)
     .eq("is_current", true)
     .maybeSingle();
@@ -117,7 +117,7 @@ async function currentReadyCheck(jobId: string): Promise<{
   const layout = areas.length ? { areas, thicker: (await import("./ceiling-layout.core")).readLayoutOutcome(entries as { label: string; value: unknown }[]).thicker } : null;
   return {
     entries,
-    quoteCore: partialA1QuoteCore({ areaM2: measured == null ? null : Number(measured), areas: zones as import("./mitti.core").MittiArea[], entries }),
+    quoteCore: partialA1QuoteCore({ areaM2: measured == null ? null : Number(measured), areas: m?.external_source === 'portal_ready_check' ? [] : zones as import("./mitti.core").MittiArea[], entries }),
     removalRequired,
     hasReadyCheck: !!m,
     installAreaM2: measured == null ? null : Number(measured),
@@ -282,6 +282,14 @@ const NOT_COMPLETE: PriceSendOutcome = { sent: false, reasons: ["Ready Check not
  *  release check still applies and a hold comes back as plain reasons. Without `send` nothing is sent here; any failure
  *  is picked up by the 15-minute tick. */
 async function prepareQuoteFromPortal(jobId: string, userId: string, send = false): Promise<PriceSendOutcome> {
+  const {data: portal, error: portalError} = await admin.from('ceiling_measurements').select('external_source,raw_snapshot').eq('job_id',jobId).eq('is_current',true).maybeSingle();
+  if(portalError) throw new WorkflowError('The Ready Check could not be read.');
+  if(portal?.external_source === 'portal_ready_check') {
+    const entries = Array.isArray(portal.raw_snapshot) ? portal.raw_snapshot as {label:string;value:string|null}[] : [];
+    await (await import('./ready-check-basics.server')).checkReadyCheckBasics(jobId,userId,entries,false,`portal:${jobId}`);
+    await (await import('./installer-quote.server')).draftInstallerQuoteFromReadyCheck(jobId,userId,entries,`portal:${jobId}`);
+    return {sent:false,reasons:[]};
+  }
   try {
     await (await import("./mitti.server")).syncMittiAssessment(jobId, userId);
   } catch {

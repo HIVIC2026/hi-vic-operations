@@ -43,6 +43,7 @@ import { NextStepBox } from "@/components/trade/NextStepBox";
 import { ContactButtons, Group, LinkRow, NextPanel, NoFormNoPay, Row, Screen, ScreenHead } from "@/components/trade/installer-kit";
 import { completeView, ownerReadyLine } from "@/lib/installer-screens.core";
 import { InstallerPriceCard } from "@/components/trade/InstallerPriceCard";
+import { OwnCustomerReadyCheckChoice } from "@/components/trade/OwnCustomerReadyCheckChoice";
 import { ELECTRICIAN_ATTENDANCE_CONFIRMED } from "@/lib/trade-view.core";
 import { ReturnActions, useInHouseBookingAccess } from "@/components/trade/ReturnActions";
 import { MittiElectricianCard } from "@/components/trade/mitti-electrician-card";
@@ -362,6 +363,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
   // as the Ready Check form exists — the rest of the form can be finished later; the quote drafts once size + product + price are in.
   const priceOpenEarly = page.channel === "installer_sourced" && page.prices && page.price.entered === false && page.form.linked && box.kind !== "enter_price";
   const showPrice = (page.channel === "installer_sourced" && page.prices && (box.kind === "enter_price" || box.kind === "waiting_quote")) || priceOpenEarly;
+  const ownReadyCheck = page.channel === "installer_sourced" && page.prices && (showPrice || box.kind === "own_ready_check");
   const mittiAudit = page.form.auditId;
   return (
     <div className="space-y-4" data-installer-job>
@@ -410,7 +412,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
 
       <div className="grid items-start gap-4 md:grid-cols-2">
         <div className="md:col-start-1 md:row-span-3 md:row-start-1">
-        <NextStepBox
+        {ownReadyCheck ? <OwnCustomerReadyCheckChoice jobId={jobId} auditId={mittiAudit} /> : <NextStepBox
           jobId={jobId}
           box={box}
           ownerFirst={page.ownerFirst}
@@ -454,8 +456,9 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
               )}
             </div>
           )}
-        </NextStepBox>
-        {showPrice && (
+        </NextStepBox>}
+        {!ownReadyCheck && page.channel === 'installer_sourced' && page.prices && <OwnerQuoteCard jobId={jobId} ownCustomerStatus />}
+        {showPrice && !ownReadyCheck && (
           <section className={`${card} mt-4 min-w-0`} aria-label="Your price" data-price-early={priceOpenEarly ? "true" : undefined}>
             {priceOpenEarly && <p className="mb-2 text-sm text-sub">Enter your price and send it to Home Insulation Victoria to prepare the quote. The Mitti form can still have blanks.</p>}
             <InstallerPriceCard jobId={jobId} />
