@@ -45,7 +45,11 @@ export async function sendVeecCopyEmail(jobId: string): Promise<string> {
   if (!attachment) { await logEvent(jobId, null, "veec_copy_email_not_sent", `Signed VEEC assignment copy not emailed — the stored signed PDF could not be read (due by ${dueAt})`, { due_at: dueAt, final_copy_path: a.final_copy_path ?? null }, { internal: true }); return "not sent — signed copy file unavailable"; }
   const { firstName } = await import("./worker-links.core");
   const input: Omit<VeecCopyEmailInput, "unsubscribeUrl" | "test"> = { firstName: firstName(owner?.full_name ?? null), jobNumber, signedAt: a.consumer_signed_at, myJobUrl: `${link}?screen=done` };
-  const markSent = async (how: string) => { await admin.from("customer_assignments").update({ copy_sent_at: new Date().toISOString() }).eq("id", a.id); await logEvent(jobId, null, "veec_copy_email_sent", `Signed VEEC assignment copy emailed to the owner (${how}, PDF attached)`, { due_at: dueAt, attachment: attachment.filename }); };
+  const markSent = async (how: string) => {
+    const { error } = await admin.from("customer_assignments").update({ copy_sent_at: new Date().toISOString() }).eq("id", a.id);
+    if (error) { const { addWork } = await import("./recovery-work.server"); await addWork("veec_copy_email", a.id, jobId, {}); return; }
+    await logEvent(jobId, null, "veec_copy_email_sent", `Signed VEEC assignment copy emailed to the owner (${how}, PDF attached)`, { due_at: dueAt, attachment: attachment.filename });
+  };
   if (job.source === "qa_test") {
     const { isTestPartner } = await import("./test-send.core");
     const { sendTestEmail } = await import("./test-send.server");
@@ -58,7 +62,32 @@ export async function sendVeecCopyEmail(jobId: string): Promise<string> {
   if (!owner?.email) return "not sent — no owner email";
   const { assertCustomerDeliveryAllowed } = await import("./comms.server");
   try { await assertCustomerDeliveryAllowed(jobId, "VEEC assignment copy email", "veec_assignment_copy"); } catch (e) { return `not sent — ${(e as Error).message}`; }
-  const r = await (await import("./owner-email-send.server")).sendGuardedOwnerEmail({ jobId, jobSource: job.source, to: owner.email, purpose: "veec_assignment_copy", key: `veec-copy:v1:${a.id}`, build: (unsubscribeUrl) => ({ ...renderVeecCopyEmail({ ...input, unsubscribeUrl, test: false }), attachments: [attachment] }) });
+  const r = await (await import("./owner-email-send.server")).sendGuardedOwnerEmail({ jobId, jobSource: job.source, to: owner.email, purpose: "veec_assignment_copy", key: `veec-copy:v1:${a.id}`, retryAfterDefiniteFailure: true, build: (unsubscribeUrl) => ({ ...renderVeecCopyEmail({ ...input, unsubscribeUrl, test: false }), attachments: [attachment] }) });
   if (r === "sent") await markSent("email");
   return r;
+}
+
+/** Finish a signed-copy email whose date never saved: copy the send record's time, or send again when it definitely failed. */
+export async function repairVeecCopyEmail(jobId: string): Promise<string> {
+  const { data: a } = await admin.from("customer_assignments").select("id, status, consumer_signed_at, copy_sent_at").eq("job_id", jobId).eq("record_kind", "final_veec_assignment").eq("status", "effective_complete").maybeSingle();
+  if (!a?.consumer_signed_at) return "skipped — not effective";
+  if (a.copy_sent_at) return "already sent";
+  const { data: row, error } = await admin.from("customer_email_sends").select("status, sent_at").eq("idempotency_key", `veec-copy:v1:${a.id}`).maybeSingle();
+  if (error) throw new Error(error.message);
+  if (row?.status === "sent") {
+    const { error: upErr } = await admin.from("customer_assignments").update({ copy_sent_at: row.sent_at }).eq("id", a.id);
+    if (upErr) throw new Error(upErr.message);
+    const { data: ev, error: evErr } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", "veec_copy_email_sent").limit(1);
+    if (evErr) throw new Error(evErr.message);
+    if (!ev?.length) await logEvent(jobId, null, "veec_copy_email_sent", "Signed VEEC assignment copy emailed to the owner (email, PDF attached)", { repaired: true });
+    const { markDone } = await import("./recovery-work.server");
+    await markDone("veec_copy_email", a.id);
+    return "repaired";
+  }
+  if (row?.status === "sending" || row?.status === "delivered_unrecorded") {
+    const { addWork } = await import("./recovery-work.server");
+    await addWork("veec_copy_email", a.id, jobId, {}, { status: "needs_office", lastError: "uncertain" });
+    return "needs_office";
+  }
+  return await sendVeecCopyEmail(jobId);
 }
