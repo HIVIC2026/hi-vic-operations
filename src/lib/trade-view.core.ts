@@ -1,3 +1,4 @@
+import { certificateExpiryWarning } from './team-certificate-expiry.core';
 // Trade view (Jo-approved designs, 5–6 Oct 2026). PURE presentation: labels existing facts for electricians and
 // installers. Never decides workflow, eligibility, pay or allocation.
 
@@ -348,6 +349,8 @@ export function teamFactsLine(m: Pick<TeamMemberView, "mobile" | "role" | "worke
 /** Third line: CII clearance from `crewClearance` (decision 153). Green when cleared, rose otherwise; null when not applicable. */
 export function teamCiiLine(cii: TeamMemberView["cii"], today: string): { text: string; tone: "green" | "rose" } | null {
   if (!cii) return null;
+  const expiryWarning = certificateExpiryWarning(cii.expiresOn, today);
+  if (expiryWarning) return { text: expiryWarning, tone: 'rose' };
   const c = crewClearance(cii, today);
   if (c.cleared) return { text: `CII cleared${cii.expiresOn ? ` · expires ${shortDate(cii.expiresOn)}` : ""}`, tone: "green" };
   const why = c.reason === CREW_CLEARANCE_REASON.expired ? "CII expired" : c.reason === CREW_CLEARANCE_REASON.withdrawn ? "CII not accepted" : "CII being checked";

@@ -5,6 +5,7 @@ import { crewClearance } from "./worker-compliance.core";
 import { tradeRoleOf, seesMoney } from "./trade-access-role.core";
 import { dateOfBirthProblem } from "./worker-identity.core";
 import type { TeamMemberView } from "./trade-view.core";
+import { certificateExpiryValid, certificateExpiryWarning } from './team-certificate-expiry.core';
 
 // Wording. Lines from the plan's Global Constraints are approved; every DRAFT line is listed for Jo (Task 12 paste).
 export const TEAM_INTRO = "Lead Installers and Crew: mobile, date of birth, CII/EEC certificate. Office: mobile and email. Electricians: mobile, email, licence and REC.";
@@ -46,7 +47,7 @@ export type AddPersonRole = "office" | "lead" | "crew" | "electrician";
 export const ADD_PERSON_ROLES: readonly AddPersonRole[] = ["office", "lead", "crew", "electrician"];
 export const ADD_PERSON_ROLE_LABEL: Record<AddPersonRole, string> = { office: "Office", lead: "Lead Installer", crew: "Crew", electrician: "Electrician" }; // approved (team-phone.png / decisions)
 
-export type AddPersonInput = { name: string; role: AddPersonRole; mobile: string | null; dateOfBirth: string | null; licenceNumber: string | null; recNumber: string | null; email?: string | null; certificateNumber?: string | null; certificatePath?: string | null; hasDob?: boolean; requireCertificate?: boolean };
+export type AddPersonInput = { name: string; role: AddPersonRole; mobile: string | null; dateOfBirth: string | null; licenceNumber: string | null; recNumber: string | null; email?: string | null; certificateNumber?: string | null; certificateExpiry?: string | null; certificatePath?: string | null; hasDob?: boolean; requireCertificate?: boolean };
 /** Everything missing before a person can be added, in field order. Mobile and date of birth for every role (approved
  *  rule); licence + REC for electricians. Empty = fine. Mobile format is checked by the server (crewMobileInput). */
 export const ELECTRICIAN_EMAIL_NEEDED = "Add their email — the safety check form goes to them in Mitti.";
@@ -60,6 +61,7 @@ export function addPersonProblems(p: AddPersonInput, today: string): string[] {
   if (p.email?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.email.trim())) out.push("Check their email address.");
   if (p.requireCertificate && (p.role === "lead" || p.role === "crew")) {
     if (!p.certificateNumber?.trim()) out.push("Add their CII/EEC certificate number.");
+    if (!certificateExpiryValid(p.certificateExpiry)) out.push('Add their CII/EEC expiry date.');
   }
   if (p.role === "electrician") {
     if (!(p.licenceNumber ?? "").trim()) out.push("Add their electrical licence number."); // existing (trade-view.server)
@@ -101,6 +103,8 @@ export function teamRow(m: TeamRowFacts, today: string): TeamRow {
     const cleared = !!m.cii && crewClearance(m.cii, today).cleared;
     if (cleared) parts.push("CII ✓");
     else { parts.push(TEAM_WORDS.needsCii); warn = true; }
+    const expiryWarning = certificateExpiryWarning(m.cii?.expiresOn, today);
+    if (expiryWarning) { parts.push(expiryWarning); warn = true; }
     if (lead) parts.push(m.escRegistered ? TEAM_WORDS.escRegistered : TEAM_WORDS.escPending);
   } else {
     parts.push("Electrician");

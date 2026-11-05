@@ -7,6 +7,7 @@
 // their mobile instead of the owner's. Nothing here changes stages, bookings, quotes or pay.
 import type { WorkerRole } from "./worker-role.core";
 import { crewClearance, type CrewClearanceFacts, type WhiteCardState } from "./worker-compliance.core";
+import { certificateExpiryWarning } from './team-certificate-expiry.core';
 
 export type VisitKind = "ready_check" | "install" | "piesa";
 export const VISIT_ALLOCATED_EVENT = "visit_allocated";
@@ -47,6 +48,8 @@ export function allocationBlocker(kind: VisitKind, c: AllocationCandidate, today
   if (kind === "ready_check") return null;
   if (c.tradeRole !== "installer") return ALLOCATION_REASON.notInstaller;
   if (c.workerRole === "crew") return ALLOCATION_REASON.crew;
+  const expiryWarning = certificateExpiryWarning(c.clearance?.expiresOn, today);
+  if (expiryWarning) return expiryWarning;
   const cl = crewClearance(c.clearance ?? { certStatus: null, level: null, expiresOn: null }, today);
   if (!cl.cleared) return cl.reason;
   return null;

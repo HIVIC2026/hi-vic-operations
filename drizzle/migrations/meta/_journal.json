@@ -1352,6 +1352,13 @@
       "when": 1793879577894,
       "tag": "0192_team_certificate_number_only",
       "breakpoints": true
+    },
+    {
+      "idx": 193,
+      "version": "7",
+      "when": 1793879827517,
+      "tag": "0193_team_certificate_expiry",
+      "breakpoints": true
     }
   ]
 }

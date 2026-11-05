@@ -11,6 +11,7 @@ import { flatten, norm, type Entry, type NativeMapping } from "./mitti.core";
 import { mittiMediaFile, type MittiMediaFile } from "./piesa-evidence.core";
 import type { OfficialAnswers } from "./official-forms.core";
 import { crewClearance, melbourneToday, whiteCardBlocker, whiteCardState } from "./worker-compliance.core";
+import { declaredCertificateExpiry, effectiveCertificateExpiry, certificateExpiryWarning } from './team-certificate-expiry.core';
 import { effectiveWorkerRole } from "./worker-role.core";
 import { INSTALL_EVIDENCE_RELABELS, INSTALL_EVIDENCE_RELABELS_LONG, zoneVideoFiles } from "./install-evidence.core";
 import { INSTALL_DAY_Q, allWithLabel, installDayMedia, installDayMissingQuestions, installDayOfficialAnswers, isInstallDayDoc, labelledItems, readInstallDay, type InstallDayBeforeRead } from "./install-day.core";
@@ -538,9 +539,12 @@ export function staffFromRecords(workers: WorkerRow[], certs: CertRow[], levels:
     const ref = certificationRef(w.certification);
     const c = ref ? byId.get(ref) : undefined;
     const ok = !!c && c.status === "verified" && !!c.certificate_number?.trim() && (!c.worker_id || c.worker_id === w.id);
-    const level = ok ? lv.get(c!.id)?.level ?? null : null, expiresOn = ok ? lv.get(c!.id)?.expires_on ?? null : null;
+    const level = ok && c ? lv.get(c.id)?.level ?? null : null;
+    const expiresOn = effectiveCertificateExpiry(ok && c ? lv.get(c.id)?.expires_on ?? null : null, declaredCertificateExpiry(w.certification));
     // Decision 153: clearance is derived from the verified check + recorded level/expiry, never from approval_status.
     const cl = crewClearance({ removed_at: w.removed_at, certStatus: ok ? "verified" : c?.status === "rejected" ? "rejected" : null, level, expiresOn }, today);
+    const expiryWarning = certificateExpiryWarning(expiresOn, today);
+    if (expiryWarning) { cl.cleared = false; cl.reason = expiryWarning; }
     const wc = whiteCardState({ trade_role: w.trade_role, certification: w.certification });
     return { workerId: w.id, name: w.full_legal_name.trim(), workerRole: effectiveWorkerRole({ tradeRole: w.trade_role ?? "", stored: w.worker_role }), eec: ok ? c!.certificate_number!.trim() : null, eecVerified: ok, approved: w.approval_status === "approved", cleared: cl.cleared, clearanceReason: cl.reason, issuer: ok ? c!.issuer?.trim() || null : null, certificationId: ok ? c!.id : null, level, expiresOn, ...(noticeAck ? { noticeAcknowledged: noticeAck.get(w.id) === true } : {}),
       whiteCard: wc, ...(whiteCardFor ? { whiteCardBlocked: whiteCardBlocker(wc, whiteCardFor.bookingCreatedAt) !== null } : {}) };
