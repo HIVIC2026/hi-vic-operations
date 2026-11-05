@@ -73,35 +73,40 @@ describe("round counter", () => {
   test("the budget is three rounds", () => expect(ROUND_LIMIT).toBe(3));
 });
 
-describe("office screens (synthetic office; budgets pinned per screen as each task lands)", () => {
+// Known limits (portal speed step 2, Task 4 ruling): the office job page reads the SAME facts as Needs me
+// (gatherNeedsFacts), whose open-jobs read must come before the job-keyed reads — 5 rounds (was 30). Needs me's full
+// work-out runs only after an office action or with no saved copy (the screen opens from the copy in 1 round) — 16 (was 37).
+const JOB_PAGE_KNOWN_LIMIT = 5, NEEDS_WORKOUT_KNOWN_LIMIT = 16;
+describe("office screens (synthetic office)", () => {
   test("office job page (loadJobPage) loads", async () => {
     const { loadJobPage } = await import("@/lib/office-job-page.server");
     const r = await measure("loadJobPage", () => loadJobPage(LIVE_JOB));
     expect(r.result.header.jobId).toBe(LIVE_JOB);
+    expect(r.rounds).toBeLessThanOrEqual(JOB_PAGE_KNOWN_LIMIT);
   }, 60_000);
   test("office job page Money card (loadJobMoney) loads", async () => {
     const { loadJobMoney } = await import("@/lib/office-job-page.server");
-    await measure("loadJobMoney", () => loadJobMoney(LIVE_JOB));
+    expect((await measure("loadJobMoney", () => loadJobMoney(LIVE_JOB))).rounds).toBeLessThanOrEqual(ROUND_LIMIT);
   }, 60_000);
   test("Needs me: saved copy and the full work-out", async () => {
     const { getNeedsMeSnapshot } = await import("@/lib/office-needs-snapshot.server");
     const { loadNeedsMePage } = await import("@/lib/office-needs.server");
-    await measure("Needs me (served from the saved copy)", () => getNeedsMeSnapshot(false));
-    await measure("Needs me (loadNeedsMePage)", () => loadNeedsMePage(false));
+    expect((await measure("Needs me (served from the saved copy)", () => getNeedsMeSnapshot(false))).rounds).toBe(1);
+    expect((await measure("Needs me (loadNeedsMePage)", () => loadNeedsMePage(false))).rounds).toBeLessThanOrEqual(NEEDS_WORKOUT_KNOWN_LIMIT);
   }, 120_000);
   test("Enquiries and Active jobs: saved copy path and the full work-out", async () => {
     const snap = await import("@/lib/office-needs-snapshot.server");
     const lists = await import("@/lib/office-lists.server");
     const jobs = { lane: "ours" as const, search: "", sort: "", dir: "desc" as const, page: 1, filters: {}, needsUs: false, includeTest: false };
-    await measure("Enquiries (loadEnquiriesList)", () => lists.loadEnquiriesList({ search: "", sort: "", dir: "asc", page: 1, filters: {} }));
-    await measure("Active jobs (loadActiveJobsList)", () => lists.loadActiveJobsList(jobs));
-    await measure("Active jobs (served from the saved copy)", () => snap.getActiveJobsListServed(jobs));
-    await measure("Jobs lane counts (loadJobsLaneCounts)", () => lists.loadJobsLaneCounts());
-    await measure("Enquiries (served from the saved copy)", () => snap.getEnquiriesListServed({ search: "", sort: "", dir: "asc", page: 1, filters: {} }));
+    expect((await measure("Enquiries (loadEnquiriesList)", () => lists.loadEnquiriesList({ search: "", sort: "", dir: "asc", page: 1, filters: {} }))).rounds).toBeLessThanOrEqual(ROUND_LIMIT);
+    expect((await measure("Active jobs (loadActiveJobsList)", () => lists.loadActiveJobsList(jobs))).rounds).toBeLessThanOrEqual(ROUND_LIMIT);
+    expect((await measure("Active jobs (served from the saved copy)", () => snap.getActiveJobsListServed(jobs))).rounds).toBe(1);
+    expect((await measure("Jobs lane counts (loadJobsLaneCounts)", () => lists.loadJobsLaneCounts())).rounds).toBeLessThanOrEqual(ROUND_LIMIT);
+    expect((await measure("Enquiries (served from the saved copy)", () => snap.getEnquiriesListServed({ search: "", sort: "", dir: "asc", page: 1, filters: {} }))).rounds).toBe(1);
   }, 120_000);
   test("Choose installer (loadInstallerWaitingList, installerFacts)", async () => {
     const w = await import("@/lib/installer-waiting.server");
-    await measure("Choose installer list", () => w.loadInstallerWaitingList({ includeTest: false }));
-    await measure("Choose installer installerFacts", () => w.installerFacts());
+    expect((await measure("Choose installer list", () => w.loadInstallerWaitingList({ includeTest: false }))).rounds).toBeLessThanOrEqual(ROUND_LIMIT);
+    expect((await measure("Choose installer installerFacts", () => w.installerFacts())).rounds).toBeLessThanOrEqual(ROUND_LIMIT);
   }, 60_000);
 });

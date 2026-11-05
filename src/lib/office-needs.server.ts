@@ -7,6 +7,7 @@ import { buildNeedsRows, duplicatesInvoiceFailed, escWithdrawRows, templatesMiss
 import { FAILED_EMAIL_STATUSES, FAILED_SMS_STATUSES, SUCCESS_EMAIL_STATUSES, SUCCESS_SMS_STATUSES, UNSURE_EMAIL_STATUSES, UNSURE_SMS_STATUSES, partnerSendFailedRows, sendFailedRows, tradeTextCoveredKeys } from "./send-failed.core";
 import { AUTO_OFFER_RETURNED_EVENT } from "./auto-offer.core";
 import { surnameOf } from "./office-jobs.core";
+import { early } from "./early-read";
 import { VEEC_OFFICE_ALERT_EVENT } from "./veec-assignment-form.core";
 import { apAutoHoldAlert } from "./veec-ap-auto.core";
 import { consentApHoldAlert } from "./consent-ap-auto.core";
@@ -232,6 +233,23 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   const { openEmailItems } = await import("./email-office.server");
   const { CHANGE_LINE } = await import("./office-needs.core");
   const unavailable: string[] = [];
+  // Portal speed step 2: these rare-event reads need only the scope (all jobs, or the one job page), so they start with
+  // wave 1 instead of one after another further down. Each is still awaited — and a failure still lands in its own
+  // `unavailable` line or error — exactly where it was; only the start moved. Reads only.
+  const eligP = early(all("eligibility reviews", (a, b) => { const q = (admin as unknown as { from: (t: string) => { select: (c: string) => { eq: (k: string, v: unknown) => { eq: (k: string, v: unknown) => { in: (c: string, v: string[]) => never; range: (a: number, b: number) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }> } } } } }).from("eligibility_verifications").select("*").eq("is_current", true).eq("outcome", "needs_review"); return (opts.onlyIds ? (q as unknown as { in: (c: string, v: string[]) => typeof q }).in("job_id", opts.onlyIds) : q).range(a, b); }));
+  const mittiFormP = early(all("Mitti form problems", (a, b) => scoped(admin.from("assessments").select("job_id, mitti_last_error, updated_at")).eq("mitti_sync_status", "error").not("mitti_last_error", "is", null).neq("status", "complete").range(a, b)));
+  const reversalsP = early(all("payment reversals", (a, b) => scoped(admin.from("workflow_events").select("job_id")).eq("event_type", "owner_payment_reversed").range(a, b)));
+  const veecRefundsP = early(import("./veec-creation-gate.core").then(({ VEEC_COPAYMENT_REFUNDED_EVENT }) => all("VEEC refunds", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at, details")).eq("event_type", VEEC_COPAYMENT_REFUNDED_EVENT).contains("details", { needs_office: true }).order("created_at", { ascending: false }).range(a, b))));
+  const rcPersonP = early(import("./ready-check-person.core").then(({ READY_CHECK_PERSON_MISSING_EVENT }) => all("Ready Check person missing", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at, details")).eq("event_type", READY_CHECK_PERSON_MISSING_EVENT).contains("details", { needs_office: true }).order("created_at", { ascending: false }).range(a, b))));
+  const complaintsP = early(import("./complaints.core").then(({ COMPLAINT_ACKNOWLEDGED_EVENT, COMPLAINT_RECEIVED_EVENT, COMPLAINT_RESOLVED_EVENT }) => all("complaints", (a, b) => scoped(admin.from("workflow_events").select("job_id, event_type, created_at, details")).in("event_type", [COMPLAINT_RECEIVED_EVENT, COMPLAINT_ACKNOWLEDGED_EVENT, COMPLAINT_RESOLVED_EVENT]).order("created_at", { ascending: true }).range(a, b))));
+  const expiredRaisedP = early(all("expired quotes not emailable", (a, b) => scoped(admin.from("workflow_events").select("job_id")).eq("event_type", "quote_expired_not_emailable").range(a, b)));
+  const newQuoteRaisedP = early(import("./new-quote-request.core").then(({ NEW_QUOTE_NEEDS_INSTALLER_EVENT, NEW_QUOTE_UNFINISHED_EVENT }) => all("new quotes needing the office", (a, b) => scoped(admin.from("workflow_events").select("job_id")).in("event_type", [NEW_QUOTE_NEEDS_INSTALLER_EVENT, NEW_QUOTE_UNFINISHED_EVENT]).range(a, b))));
+  const invoiceFailsP = early(all("failed invoices", (a, b) => scoped(admin.from("workflow_events").select("job_id")).eq("event_type", "invoice_create_failed").range(a, b)));
+  const piesaRulesP = early(import("./piesa-rules-notice.core").then(({ PIESA_RULES_CLEARED_EVENT, PIESA_RULES_FAILED_EVENT }) => all("safety check rule failures", (a, b) => scoped(admin.from("workflow_events").select("job_id, event_type, created_at, details")).in("event_type", [PIESA_RULES_FAILED_EVENT, PIESA_RULES_CLEARED_EVENT]).order("created_at").range(a, b))));
+  const sameDayPartCP = early(import("./same-day-part-c.core").then(({ SAME_DAY_PART_C_FAILED_EVENT, SAME_DAY_PART_C_RECOVERED_EVENT }) => all("same-day Part C record failures", (a, b) => scoped(admin.from("workflow_events").select("job_id, event_type, created_at, details")).in("event_type", [SAME_DAY_PART_C_FAILED_EVENT, SAME_DAY_PART_C_RECOVERED_EVENT]).order("created_at").range(a, b))));
+  const coesChecksP = early(import("./coes-check.core").then(({ COES_CHECKED_EVENT, COES_REJECTED_EVENT }) => all("electrical certificate checks", (a, b) => scoped(admin.from("workflow_events").select("id, job_id, event_type, created_at, details")).in("event_type", [COES_CHECKED_EVENT, COES_REJECTED_EVENT]).order("created_at").range(a, b))));
+  const escWithdrawP = early(import("./esc.server").then((m) => m.openEscWithdrawalRows(opts.onlyIds)));
+  const stopReleaseP = early(import("./stop-release.server").then(({ stopReleaseNeeds }) => stopReleaseNeeds(admin, { includeTest: opts.includeTest, ...(opts.onlyIds ? { onlyIds: opts.onlyIds } : {}) })));
 
   // Review R04: owner emails whose delivery outcome is unknown (warranty follow-up, completion pack) are never resent —
   // one row each until the fact is recorded. Started alongside wave 1 (rare events, then their closing events by job id).
@@ -322,16 +340,26 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   const facts = new Map<string, NeedsFacts>();
   for (const j of jobs) facts.set(j.id, { jobId: j.id, jobNumber: j.jobNumber, surname: surnameOf(j.owner), suburb: j.suburb, ...(j.source === "qa_test" ? { isTest: true } : {}) });
   const f = (id: string) => facts.get(id);
+  // Portal speed step 2: the job-keyed reads below need only the open jobs' ids, so they all start now (they ran one after
+  // another); each is still awaited, and its failure raised or caught, exactly where it was. Reads only.
+  const scopeChangesP = ids.length ? early(byIds('install scope changes',ids,(c,a,b)=>admin.from('workflow_events').select('job_id,event_type,details,created_at').in('job_id',c).in('event_type',['install_scope_change_detected','install_scope_change_reviewed']).order('created_at',{ascending:false}).range(a,b))) : null;
+  const dispatchP = early(import("./in-house-suppression.server").then((m) => m.readInHouseDispatchState(jobs.map(j => j.id))));
+  const inHouseP = early(inHouseNeedsFacts(jobs.filter(j => j.source !== "qa_test").map(j => j.id)));
+  const leadEvP = ids.length ? early(byIds('Lead Installer changes and handbacks',ids,(c,a,b)=>admin.from('workflow_events').select('job_id,id,event_type,summary,details,created_at').in('job_id',c).in('event_type',['in_house_lead_changed','in_house_esc_notice_updated','in_house_pulled_back','in_house_batch_sent','install_deposit_request_failed','install_deposit_request_recovered','in_house_form_sync_failed','in_house_form_sync_recovered','piesa_auto_complete_held','piesa_auto_complete_recovered']).order('created_at',{ascending:false}).range(a,b))) : null;
+  const paidGatesP = early(import("./paid-gate-warning.server").then(({ paidGateWarnings }) => paidGateWarnings(jobs.map(j => ({ id: j.id, stage: j.stage, at: j.status?.since ?? j.facts.createdAt })))));
+  const releasesP = ids.length ? early(byIds("unconfirmed visit releases", ids, (chunk, a, b) => admin.from("contact_releases").select("job_id, visit_kind, released_at, job_assignments!inner(active, booking_confirmed_at)").in("job_id", chunk).is("revoked_at", null).range(a, b))) : null;
+  const curPiesaP = ids.length ? early(byIds("current PIESA outcomes", ids, (chunk, a, b) => admin.from("piesa_records").select("job_id, kind, outcome, created_at").in("job_id", chunk).eq("is_current", true).range(a, b))) : null;
+  const oldFixesP = early(oldFixesInvoiceRows([...idSet]));
   if(ids.length){
-    const changes=await byIds('install scope changes',ids,(c,a,b)=>admin.from('workflow_events').select('job_id,event_type,details,created_at').in('job_id',c).in('event_type',['install_scope_change_detected','install_scope_change_reviewed']).order('created_at',{ascending:false}).range(a,b));
+    const changes=await scopeChangesP!;
     for(const id of ids){const latest=changes.find(e=>e['job_id']===id);const x=f(id);if(!x||latest?.['event_type']!=='install_scope_change_detected')continue;const areas=(latest['details'] as {areas?:unknown}|null)?.areas;if(Array.isArray(areas))x.installScopeChange={at:String(latest['created_at']),areas:areas.filter((v):v is string=>typeof v==='string')};}
   }
-  const dispatch = await (await import("./in-house-suppression.server")).readInHouseDispatchState(jobs.map(j => j.id));
+  const dispatch = await dispatchP;
   for (const j of jobs) { const x = f(j.id); if (x) x.inHouseDispatch = dispatch.failed ? "in_house_read_failed" : dispatch.held.has(j.id) ? "in_house" : null; }
-  const inHouse = await inHouseNeedsFacts(jobs.filter(j => j.source !== "qa_test").map(j => j.id));
+  const inHouse = await inHouseP;
   for (const [id, ih] of inHouse) { const x = f(id); if (x) x.inHouse = ih; }
   if(ids.length){
-    const ev=await byIds('Lead Installer changes and handbacks',ids,(c,a,b)=>admin.from('workflow_events').select('job_id,id,event_type,summary,details,created_at').in('job_id',c).in('event_type',['in_house_lead_changed','in_house_esc_notice_updated','in_house_pulled_back','in_house_batch_sent','install_deposit_request_failed','install_deposit_request_recovered','in_house_form_sync_failed','in_house_form_sync_recovered','piesa_auto_complete_held','piesa_auto_complete_recovered']).order('created_at',{ascending:false}).range(a,b));
+    const ev=await leadEvP!;
     for(const id of ids){const x=f(id);if(!x)continue;const mine=ev.filter(e=>e['job_id']===id);const change=mine.find(e=>e['event_type']==='in_house_lead_changed');
       if(change&&(change['details'] as Row|null)?.['requires_esc_update']!==false&&!mine.some(e=>e['event_type']==='in_house_esc_notice_updated'&&(e['details'] as Row|null)?.['change_id']===change['id']))x.inHouseLeadChanged={at:String(change['created_at']),line:String(change['summary'])};
       for(const [failed,recovered,field] of [['install_deposit_request_failed','install_deposit_request_recovered','depositRequestFailed'],['in_house_form_sync_failed','in_house_form_sync_recovered','inHouseFormSyncFailed'],['piesa_auto_complete_held','piesa_auto_complete_recovered','piesaAutoCompleteHeld']] as const){const failure=mine.find(e=>e['event_type']===failed&&!mine.some(r=>r['event_type']===recovered&&String(r['created_at'])>=String(e['created_at'])&&(!(e['details'] as Row|null)?.['work_id']||(r['details'] as Row|null)?.['work_id']===(e['details'] as Row|null)?.['work_id'])));if(failure)x[field]={at:String(failure['created_at']),reason:String((failure['details'] as Row|null)?.['reason']??failure['summary'])};}
@@ -340,12 +368,11 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
     }
   }
   // Paid owners must never be hidden behind a generic automatic status. Same facts feed Needs me and Next.
-  const { paidGateWarnings } = await import("./paid-gate-warning.server");
-  const paidGates = await paidGateWarnings(jobs.map(j => ({ id: j.id, stage: j.stage, at: j.status?.since ?? j.facts.createdAt })));
+  const paidGates = await paidGatesP;
   for (const [id, paidGate] of paidGates) { const x = f(id); if (x) x.paidGate = paidGate; }
   // Same 48h rule as the legacy exceptions queue; current Needs me must not silently omit it.
   if (ids.length) {
-    const releases = await byIds("unconfirmed visit releases", ids, (chunk, a, b) => admin.from("contact_releases").select("job_id, visit_kind, released_at, job_assignments!inner(active, booking_confirmed_at)").in("job_id", chunk).is("revoked_at", null).range(a, b));
+    const releases = await releasesP!;
     const { coordinationState, visitIsCurrent, readyCheckOverdueApplies } = await import("./allocation.core");
     for (const r of releases) {
       const id = String(r["job_id"]), x = f(id), j = jobById.get(id);
@@ -378,7 +405,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   }
   // Jo 28 Oct: a current failed PIESA (fixes found) with no Section C pass yet also tells the office (stage may be piesa_complete).
   if (ids.length) {
-    const cur = await byIds("current PIESA outcomes", ids, (chunk, a, b) => admin.from("piesa_records").select("job_id, kind, outcome, created_at").in("job_id", chunk).eq("is_current", true).range(a, b));
+    const cur = await curPiesaP!;
     for (const r of cur) {
       const x = f(String(r["job_id"])); const j = jobById.get(String(r["job_id"]));
       if (x && j && !x.fixesFound && r["outcome"] === "fail" && r["kind"] !== "post_rectification" && !j.facts.installedAt) x.fixesFound = { at: String(r["created_at"]), stage: j.stage };
@@ -576,18 +603,18 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   }
   // Hard stop: current eligibility result "needs review" (missing/conflicting evidence) → one row until a new result replaces it.
   try {
-    const elig = await all("eligibility reviews", (a, b) => { const q = (admin as unknown as { from: (t: string) => { select: (c: string) => { eq: (k: string, v: unknown) => { eq: (k: string, v: unknown) => { in: (c: string, v: string[]) => never; range: (a: number, b: number) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }> } } } } }).from("eligibility_verifications").select("*").eq("is_current", true).eq("outcome", "needs_review"); return (opts.onlyIds ? (q as unknown as { in: (c: string, v: string[]) => typeof q }).in("job_id", opts.onlyIds) : q).range(a, b); });
+    const elig = await eligP;
     for (const e of elig) { const x = f(String(e["job_id"])); if (x) x.eligibilityReview = { at: String(e["created_at"]), reason: s(e["note"]) ?? s(e["reason"]) }; }
   } catch { unavailable.push("eligibility reviews"); }
   // Hard stop: a refused Mitti form (wrong job number / wrong form) → one row until a good sync clears the error.
   try {
-    const mf = await all("Mitti form problems", (a, b) => scoped(admin.from("assessments").select("job_id, mitti_last_error, updated_at")).eq("mitti_sync_status", "error").not("mitti_last_error", "is", null).neq("status", "complete").range(a, b));
+    const mf = await mittiFormP;
     for (const r of mf) { const x = f(String(r["job_id"])); if (x && !x.mittiFormProblem) x.mittiFormProblem = { at: String(r["updated_at"]), error: String(r["mitti_last_error"]) }; }
   } catch { unavailable.push("Mitti form problems"); }
   // Hard stop: a reversed owner payment with nothing paid since → one Money row until a new payment is recorded.
   try {
     const { openPaymentReversal } = await import("./office-needs.core");
-    const rev = await all("payment reversals", (a, b) => scoped(admin.from("workflow_events").select("job_id")).eq("event_type", "owner_payment_reversed").range(a, b));
+    const rev = await reversalsP;
     const revIds = [...new Set(rev.map((e) => String(e["job_id"])).filter((id) => idSet.has(id)))];
     if (revIds.length) {
       const pe = await byIds("payment history", revIds, (c, a, b) => admin.from("workflow_events").select("job_id, event_type, created_at, details").in("job_id", c).in("event_type", ["owner_payment_recorded", "owner_payment_reversed"]).range(a, b));
@@ -599,16 +626,15 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   } catch { unavailable.push("payment reversals"); }
   // Part 9 Task 11: a refund after VEEC creation (veec_copayment_refunded, needs_office) → one row per job (the office calls Jo; the event stays as history).
   try {
-    const { VEEC_COPAYMENT_REFUNDED_EVENT, VEEC_REFUND_NEEDS_LINE } = await import("./veec-creation-gate.core");
-    const rows = await all("VEEC refunds", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at, details")).eq("event_type", VEEC_COPAYMENT_REFUNDED_EVENT).contains("details", { needs_office: true }).order("created_at", { ascending: false }).range(a, b));
+    const { VEEC_REFUND_NEEDS_LINE } = await import("./veec-creation-gate.core");
+    const rows = await veecRefundsP;
     // G6 S9: the event's own line (the check-failed line when the VEEC record couldn't be read), else the refunded line.
     for (const r of rows) { const x = f(String(r["job_id"])); const line = (r["details"] as { line?: unknown } | null)?.line; if (x && !x.veecRefunded) x.veecRefunded = { at: String(r["created_at"]), text: typeof line === "string" && line ? line : VEEC_REFUND_NEEDS_LINE }; }
   } catch { unavailable.push("VEEC refunds"); }
   // G7 (Jo 4 Nov 2026): a Ready Check tomorrow with nobody picked to go (ready_check_person_missing, needs_office) → one row per
   // job while that booking is still the confirmed one and hasn't started (picking the person re-records the booking under a new id).
   try {
-    const { READY_CHECK_PERSON_MISSING_EVENT } = await import("./ready-check-person.core");
-    const rows = await all("Ready Check person missing", (a, b) => scoped(admin.from("workflow_events").select("job_id, created_at, details")).eq("event_type", READY_CHECK_PERSON_MISSING_EVENT).contains("details", { needs_office: true }).order("created_at", { ascending: false }).range(a, b));
+    const rows = await rcPersonP;
     const bookingIds = [...new Set(rows.map((r) => String((r["details"] as { booking_id?: unknown } | null)?.booking_id ?? "")).filter(Boolean))];
     const { data: live, error: le } = bookingIds.length ? await admin.from("bookings").select("id, scheduled_start").in("id", bookingIds).eq("status", "confirmed") : { data: [], error: null };
     if (le) throw new Error(le.message);
@@ -623,8 +649,8 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   } catch { unavailable.push("Ready Check person missing"); }
   // Part 9 Task 12: complaints — the three office events per job → the ack / resolve rows (complaints.core).
   try {
-    const { COMPLAINT_ACKNOWLEDGED_EVENT, COMPLAINT_RECEIVED_EVENT, COMPLAINT_RESOLVED_EVENT, complaintNeeds } = await import("./complaints.core");
-    const rows = await all("complaints", (a, b) => scoped(admin.from("workflow_events").select("job_id, event_type, created_at, details")).in("event_type", [COMPLAINT_RECEIVED_EVENT, COMPLAINT_ACKNOWLEDGED_EVENT, COMPLAINT_RESOLVED_EVENT]).order("created_at", { ascending: true }).range(a, b));
+    const { complaintNeeds } = await import("./complaints.core");
+    const rows = await complaintsP;
     const byJob = new Map<string, { event_type: string; created_at: string; details: Record<string, unknown> | null }[]>();
     for (const r of rows) { const id = String(r["job_id"]); if (!byJob.has(id)) byJob.set(id, []); byJob.get(id)!.push({ event_type: String(r["event_type"]), created_at: String(r["created_at"]), details: (r["details"] ?? null) as Record<string, unknown> | null }); }
     for (const [id, evs] of byJob) { const x = f(id); if (!x) continue; const open = complaintNeeds(evs, now); if (open.length) x.complaints = open; }
@@ -632,8 +658,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   // Batch 2: a STOP reply cancelled the job but releasing the installer failed → one row until `job_cancel_released` is written
   // (the tick retries). The job is usually already cancelled, so its facts are made here when the open-jobs read dropped it.
   try {
-    const { stopReleaseNeeds } = await import("./stop-release.server");
-    for (const n of await stopReleaseNeeds(admin, { includeTest: opts.includeTest, ...(opts.onlyIds ? { onlyIds: opts.onlyIds } : {}) })) {
+    for (const n of await stopReleaseP) {
       const x = f(n.jobId) ?? { jobId: n.jobId, jobNumber: n.jobNumber, surname: n.surname, suburb: n.suburb, ...(n.isTest ? { isTest: true } : {}) };
       x.stopReleaseFailed = { at: n.at };
       facts.set(n.jobId, x);
@@ -648,7 +673,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   // Batch 3a: an expired quote could not close the job because the owner can't be emailed → one row until the close completes.
   try {
     const { quoteExpiredBlockedFact } = await import("./office-needs.core");
-    const raised = await all("expired quotes not emailable", (a, b) => scoped(admin.from("workflow_events").select("job_id")).eq("event_type", "quote_expired_not_emailable").range(a, b));
+    const raised = await expiredRaisedP;
     const raisedIds = await withExpiryClosedJobs([...new Set(raised.map((e) => String(e["job_id"])))]);
     if (raisedIds.length) {
       const ev = await byIds("expired quote history", raisedIds, (c, a, b) => admin.from("workflow_events").select("job_id, event_type, created_at, details").in("job_id", c).in("event_type", ["quote_expired_not_emailable", "quote_expired_closed"]).range(a, b));
@@ -664,20 +689,19 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   // Batch 3a: the owner asked for a new quote but the installer could not be put back, or the reopen half-finished →
   // one row until an installation quote is created after it.
   try {
-    const { NEW_QUOTE_NEEDS_INSTALLER_EVENT, NEW_QUOTE_UNFINISHED_EVENT } = await import("./new-quote-request.core");
-    const raised = await all("new quotes needing the office", (a, b) => scoped(admin.from("workflow_events").select("job_id")).in("event_type", [NEW_QUOTE_NEEDS_INSTALLER_EVENT, NEW_QUOTE_UNFINISHED_EVENT]).range(a, b));
+    const raised = await newQuoteRaisedP;
     const raisedIds = await withExpiryClosedJobs([...new Set(raised.map((e) => String(e["job_id"])))]);
     for (const [id, hit] of await newQuoteOfficeFacts(raisedIds)) { const x = f(id); if (x) x.newQuoteOffice = hit; }
   } catch { unavailable.push("new quotes needing the office"); }
   // Batch 1: the owner accepted but the invoice step failed → one Money row until a Xero-linked invoice exists.
   try {
-    const fails = await all("failed invoices", (a, b) => scoped(admin.from("workflow_events").select("job_id")).eq("event_type", "invoice_create_failed").range(a, b));
+    const fails = await invoiceFailsP;
     const failIds = [...new Set(fails.map((e) => String(e["job_id"])).filter((id) => idSet.has(id)))];
     for (const [id, hit] of await invoiceFailedFacts(failIds)) { const x = f(id); if (x) x.invoiceFailed = hit; }
   } catch { unavailable.push("failed invoices"); }
   // Batch 3b: a newer fixes quote replaced an accepted one whose own Xero invoice is still unpaid → one Money row.
   try {
-    const oldFixes = await oldFixesInvoiceRows([...idSet]);
+    const oldFixes = await oldFixesP;
     for (const [id, hit] of await oldFixesInvoiceFacts([], oldFixes)) { const x = f(id); if (x) x.oldFixesInvoiceUnpaid = hit; }
     for (const [id, hit] of await oldFixesInvoicePaidFacts([], oldFixes)) { const x = f(id); if (x) x.oldFixesInvoicePaid = hit; }
   } catch { unavailable.push("old fixes invoices"); }
@@ -693,8 +717,8 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   }
   // A48 batch 1: the newest A3 safety check breaks the official rules → one row until a corrected form / signed Section C.
   try {
-    const { PIESA_RULES_CLEARED_EVENT, PIESA_RULES_FAILED_EVENT, piesaRulesOpen } = await import("./piesa-rules-notice.core");
-    const ev = await all("safety check rule failures", (a, b) => scoped(admin.from("workflow_events").select("job_id, event_type, created_at, details")).in("event_type", [PIESA_RULES_FAILED_EVENT, PIESA_RULES_CLEARED_EVENT]).order("created_at").range(a, b));
+    const { piesaRulesOpen } = await import("./piesa-rules-notice.core");
+    const ev = await piesaRulesP;
     const byJob = new Map<string, Row[]>();
     for (const e of ev) { const id = String(e["job_id"]); if (idSet.has(id)) byJob.set(id, [...(byJob.get(id) ?? []), e]); }
     for (const [id, list] of byJob) {
@@ -705,8 +729,8 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   // Part 3 Task 4b fix 1: the PIESA completed but its same-day Part C record failed → one row until the portal's tick retry
   // writes it (fix 2), Part C is recorded another way, or the job moves past the retry stages.
   try {
-    const { SAME_DAY_PART_C_FAILED_EVENT, SAME_DAY_PART_C_RECOVERED_EVENT, sameDayPartCFailedOpen } = await import("./same-day-part-c.core");
-    const ev = await all("same-day Part C record failures", (a, b) => scoped(admin.from("workflow_events").select("job_id, event_type, created_at, details")).in("event_type", [SAME_DAY_PART_C_FAILED_EVENT, SAME_DAY_PART_C_RECOVERED_EVENT]).order("created_at").range(a, b));
+    const { sameDayPartCFailedOpen } = await import("./same-day-part-c.core");
+    const ev = await sameDayPartCP;
     const byJob = new Map<string, Row[]>();
     for (const e of ev) { const id = String(e["job_id"]); if (idSet.has(id)) byJob.set(id, [...(byJob.get(id) ?? []), e]); }
     // Fix 2: the row closes on its own once Part C is recorded another way (a current post_rectification pass record).
@@ -718,8 +742,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   } catch { unavailable.push("same-day Part C record failures"); }
   // A48 batch 1 task 5: the electrical certificate after the repairs waits for the office (AI unsure / not ceiling / error, or rejected).
   try {
-    const { COES_CHECKED_EVENT, COES_REJECTED_EVENT } = await import("./coes-check.core");
-    const ev = await all("electrical certificate checks", (a, b) => scoped(admin.from("workflow_events").select("id, job_id, event_type, created_at, details")).in("event_type", [COES_CHECKED_EVENT, COES_REJECTED_EVENT]).order("created_at").range(a, b));
+    const ev = await coesChecksP;
     const byJob = new Map<string, { id: string; event_type: string; created_at: string; details: Record<string, unknown> | null }[]>();
     for (const e of ev) { const id = String(e["job_id"]); if (idSet.has(id)) byJob.set(id, [...(byJob.get(id) ?? []), { id: String(e["id"]), event_type: String(e["event_type"]), created_at: String(e["created_at"]), details: (e["details"] ?? null) as Record<string, unknown> | null }]); }
     // Jobs waiting on the install booking read the CURRENT certificate live (the key the install gate checks), so a newer
@@ -899,7 +922,7 @@ export async function gatherNeedsFacts(opts: { includeTest: boolean; onlyIds?: s
   // Part 9 Task 2: ESC notices still live in the Registry on jobs that won't go ahead (usually cancelled, so read directly,
   // closed jobs included); cleared when the office records the withdrawal. A failed read is named, never shown as nothing.
   {
-    const open = await (await import("./esc.server")).openEscWithdrawalRows(opts.onlyIds).catch(() => { unavailable.push("ESC notices to withdraw"); return []; });
+    const open = await escWithdrawP.catch(() => { unavailable.push("ESC notices to withdraw"); return []; });
     if (open.length) {
       const wIds = [...new Set(open.map((o) => o.jobId))];
       const wRows = await byIds("ESC withdrawal jobs", wIds, (chunk, a, b) => admin.from("jobs").select("id, job_number, source, owners(full_name)").in("id", chunk).range(a, b));
