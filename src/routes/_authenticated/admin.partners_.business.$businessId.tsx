@@ -17,14 +17,12 @@ import { openFileViewer } from "@/components/portal/file-viewer";
 import { useReasonDialog } from "@/components/portal/reason-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAction } from "@/hooks/use-me";
+import { agreementPdfLink, bankChangedLine, rateIncGst } from "@/lib/office-partners.core";
 import { getBusinessFile, resolvePartnerChangeRequest, revealPartnerBank } from "@/lib/office-partners.functions";
-import { getPartnerProfile, partnerFileUrl, saveBusiness } from "@/lib/pilot.functions";
+import { getPartnerProfile, partnerFileUrl } from "@/lib/pilot.functions";
 import { reviewHigherRates } from "@/lib/rate-requests.functions";
-import { inHouseEnableBlockers, type InHouseFacts } from "@/lib/in-house.core";
 import { moveInstallerToNewFlowFn } from "@/lib/new-flow-move.functions";
 import { approveInstallerElectrician, getInstallerElectricianReview, rejectInstallerElectrician } from "@/lib/my-electricians.functions";
-import { Switch } from "@/components/ui/switch";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 
 export const Route = createFileRoute("/_authenticated/admin/partners_/business/$businessId")({
   head: () => ({ meta: [{ title: "Business file – Home Insulation Victoria" }, { name: "description", content: "Office partner business details, approved rates and in-house configuration." }, { property: "og:title", content: "Business file – Home Insulation Victoria" }, { property: "og:description", content: "Office partner business details, approved rates and in-house configuration." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex, nofollow" }] }),
@@ -79,17 +77,7 @@ function BusinessFile() {
           </dl>
         </Panel>
         <RatesPanel f={f} onDone={refresh} />
-        {p.data?.myRole === "hivic_admin" && p.data.inHouseFacts && <InHousePanel key={JSON.stringify(p.data.business)} businessId={businessId} business={p.data.business as unknown as { name: string; in_house?: boolean; rectification_billed_by?: "partner" | "hivic" }} facts={p.data.inHouseFacts} onDone={refresh} />}
-        <Panel title="Insurance & licences">
-          <dl data-why="193 PL insurance re-checked yearly; ESC scheme participant requirement">
-            {f.credentials.filter((c) => ["public_liability_insurance", "electrical_licence", "rec_registration", "installer_certification"].includes(c.kind)).map((c) => (
-              <Row key={c.id} k={c.label}>{[c.issuer, c.number, c.expires_at && `to ${fmtDay(c.expires_at)}`].filter(Boolean).join(" · ")} {c.state === "expired" ? <Pill tone="rose">Expired</Pill> : c.state === "expiring" ? <Pill tone="amber">Expiring soon</Pill> : null} <span className="text-xs text-sub">· {c.verification}{c.document_path ? " · certificate on file" : ""}</span></Row>
-            ))}
-            <Row k="ABN">{b.abn ?? "—"}</Row>
-            <Row k="Licences">{b.kind === "Electrician" ? `REC ${b.rec ?? "—"}${b.licence ? ` · licence ${b.licence}` : ""}` : "No electrical work · usual electrician holds the REC"}</Row>
-          </dl>
-          {p.data && <details className="mt-3" id="upload"><summary className="cursor-pointer text-sm font-semibold text-hiv-blue">Upload a new certificate › / verify</summary><div className="mt-2"><Credentials businessId={businessId} creds={p.data.credentials as never} isHivicAdmin canAdd onDone={() => void refresh()} /></div></details>}
-        </Panel>
+        {p.data?.myRole === "hivic_admin" && p.data.inHouseFacts && <InHousePanel key={JSON.stringify(p.data.business)} businessId={businessId} business={p.data.business as unknown as { in_house?: boolean }} onDone={refresh} />}
         <Panel className="lg:col-span-2" title={`People · ${f.people.length}`}><div data-why="153 CII, 130 privacy notice, 22/188 Mitti"><PeopleTable people={f.people} showBusiness={false} invalidate={["business-file"]} /></div></Panel>
         {f.canBeUsualElectrician && <Panel title="Usual electrician" action={f.usual ? <Link to="/admin/partners/business/$businessId" params={{ businessId: f.usual.id }} className="text-sm font-semibold text-hiv-blue hover:underline">Open {f.usual.name} ›</Link> : undefined}>
           <dl data-why="289/374: the usual electrician is an option on the installer's own customers (A1); on our leads we always choose the electrician">
@@ -117,7 +105,7 @@ function BusinessFile() {
             {(b.coverage.origin || b.coverage.radiusKm) && <Row k="Radius">{b.coverage.radiusKm ? `Up to ${b.coverage.radiusKm} km` : ""}{b.coverage.origin ? ` from ${b.coverage.origin}` : ""}</Row>}
           </dl>
         </Panel>
-        <DocumentsPanel businessId={businessId} f={f} />
+        <DocumentsPanel businessId={businessId} f={f} profile={p.data ?? undefined} onDone={refresh} />
       </div>
       {coverage && <CoverageDialog row={{ id: businessId, name: b.name, rawName: (p.data?.business as { name?: string } | undefined)?.name ?? b.legalName, regions: b.coverage.regions, postcodeList: b.coverage.postcodes }} onClose={() => setCoverage(false)} />}
       {agreementOpen && latest && <Dialog open onOpenChange={(o) => !o && setAgreementOpen(false)}><DialogContent className="max-h-[90vh] overflow-y-auto"><DialogHeader><DialogTitle>Agreement {latest.version} · signed by {latest.signer_name}</DialogTitle></DialogHeader><p className="break-all text-xs text-sub">Fingerprint SHA-256 {latest.snapshot_sha256}</p><pre className="whitespace-pre-wrap text-xs">{latest.body}</pre></DialogContent></Dialog>}
@@ -157,28 +145,16 @@ function InstallerElectricianCard({ businessId, onDone }: { businessId: string; 
   );
 }
 
-function InHousePanel({ businessId, business, facts, onDone }: { businessId: string; business: { name: string; in_house?: boolean; rectification_billed_by?: "partner" | "hivic" }; facts: InHouseFacts; onDone: () => Promise<void> }) {
-  const save = useServerFn(saveBusiness);
-  const [enabled, setEnabled] = useState(business.in_house ?? false);
-  const [billing, setBilling] = useState<"partner" | "hivic">(business.rectification_billed_by ?? "hivic");
+// The In-house switch, "No electrician Mitti login" line and billing radio were removed from this page (Jo, 5 Nov 2026: the electrician
+// always bills the owner directly since 2 Nov). Only the existing "Move to the new flow" action stays. The saved in_house /
+// rectification_billed_by values are untouched.
+function InHousePanel({ businessId, business, onDone }: { businessId: string; business: { in_house?: boolean }; onDone: () => Promise<void> }) {
   const [busy, setBusy] = useState(false);
-  const blockers = inHouseEnableBlockers(facts);
   const move = useServerFn(moveInstallerToNewFlowFn);
   const [moveBlockers, setMoveBlockers] = useState<string[]>([]);
-  return <Panel title="In-house partner">
-    <label className="flex items-center justify-between gap-3 text-sm font-semibold">In-house partner<Switch checked={enabled} onCheckedChange={setEnabled} disabled={busy || (!enabled && blockers.length > 0)} aria-label="In-house partner" /></label>
-    {blockers.length > 0 && <ul className="mt-3 text-sm text-rose">{blockers.map(b => <li key={b}>{b}</li>)}</ul>}
-    <RadioGroup className="my-4" value={billing} onValueChange={v => { if (v === "partner" || v === "hivic") setBilling(v); }} disabled={busy} aria-label="Rectification billing">
-      <label className="flex items-center gap-3 text-sm"><RadioGroupItem value="partner" />Partner's electrician bills the owner</label>
-      <label className="flex items-center gap-3 text-sm"><RadioGroupItem value="hivic" />HIV bills the owner</label>
-    </RadioGroup>
-    <Btn disabled={busy || (enabled === (business.in_house ?? false) && billing === (business.rectification_billed_by ?? "hivic"))} onClick={async () => {
-      setBusy(true);
-      try { await save({ data: { id: businessId, name: business.name, in_house: enabled, rectification_billed_by: billing } }); await onDone(); toast.success("In-house partner saved"); }
-      catch (e) { toast.error(e instanceof Error ? e.message : "Could not save in-house partner"); }
-      finally { setBusy(false); }
-    }}>Save</Btn>
-    {!(business.in_house ?? false) && <div className="mt-4 border-t pt-4" data-new-flow-move>
+  if (business.in_house ?? false) return null;
+  return <Panel title="New flow">
+    <div data-new-flow-move>
       <Btn tone="secondary" disabled={busy} onClick={async () => {
         setBusy(true); setMoveBlockers([]);
         try {
@@ -188,7 +164,7 @@ function InHousePanel({ businessId, business, facts, onDone }: { businessId: str
         finally { setBusy(false); }
       }}>Move to the new flow</Btn>
       {moveBlockers.length > 0 && <ul className="mt-3 text-sm text-rose" data-new-flow-move-blockers>{moveBlockers.map(b => <li key={b}>{b}</li>)}</ul>}
-    </div>}
+    </div>
   </Panel>;
 }
 
@@ -199,7 +175,7 @@ function RatesPanel({ f, onDone }: { f: FileData; onDone: () => Promise<void> })
   return (
     <Panel title="Rates">
       <dl data-why="approved partner rates; change requests approved by office">
-        {f.rates ? f.rates.items.map((i) => <Row key={i.code} k={i.description}>${Number(i.unit_price_ex_gst).toFixed(2)}{i.unit === "m2" ? "/m²" : ""} ex GST <span className="text-xs text-sub">· from {fmtDay(f.rates!.effective)}</span></Row>)
+        {f.rates ? f.rates.items.map((i) => <Row key={i.code} k={i.description}>${rateIncGst(i.unit_price_ex_gst).toFixed(2)}{i.unit === "m2" ? "/m²" : ""} inc GST <span className="text-xs text-sub">· from {fmtDay(f.rates!.effective)}</span></Row>)
           : f.electricianRates.length ? f.electricianRates.map((r) => <Row key={r.service_type} k={r.service_type === "piesa" ? "PIESA" : r.service_type.replace(/_/g, " ")}>${Number(r.rate_inc_gst).toFixed(2)} inc GST <span className="text-xs text-sub">· from {fmtDay(r.effective_from)}</span></Row>)
           : <Row k="Rates">No agreed rate card yet</Row>}
         {f.changes.map((c) => (
@@ -226,7 +202,7 @@ function BankPanel({ businessId, f }: { businessId: string; f: FileData }) {
         {m ? <>
           <Row k="Account name">{full?.accountName ?? m.accountName}</Row>
           <Row k="BSB · account">{full ? `${full.bsb} · ${full.account}` : `${m.bsb} · ${m.account}`}</Row>
-          <Row k="Changed">{f.bank.changedAt ? fmtDay(f.bank.changedAt) : "—"}{f.bank.changedHow ? ` · ${f.bank.changedHow}` : ""}{f.bank.review ? ` · ${f.bank.review}` : ""}</Row>
+          <Row k="Changed">{bankChangedLine(f.bank.changedAt ? fmtDay(f.bank.changedAt) : null, f.bank.changedHow)}</Row>
         </> : <Row k="Bank">Not given yet (collected after approval on My business)</Row>}
         <Row k="Xero supplier">{f.business.xero.status === "synced" ? "Linked" : f.business.xero.status ? f.business.xero.status.replace(/_/g, " ") : "Not set up"}{f.business.xero.error ? <span className="block text-xs text-rose">{f.business.xero.error}</span> : null}</Row>
       </dl>
@@ -234,21 +210,41 @@ function BankPanel({ businessId, f }: { businessId: string; f: FileData }) {
   );
 }
 
-function DocumentsPanel({ businessId, f }: { businessId: string; f: FileData }) {
+const BUSINESS_DOC_KINDS = ["public_liability_insurance", "electrical_licence", "rec_registration"];
+
+function DocumentsPanel({ businessId, f, profile, onDone }: { businessId: string; f: FileData; profile: { credentials: unknown } | undefined; onDone: () => Promise<void> }) {
   const open = useServerFn(partnerFileUrl);
-  const docs = f.credentials.filter((c) => c.document_path);
+  const view = async (path: string) => { try { const r = await open({ data: { businessId, path } }); openFileViewer(r.url); } catch (e) { toast.error(e instanceof Error ? e.message : "Couldn't open"); } };
+  const b = f.business;
+  const cover = f.credentials.filter((c) => BUSINESS_DOC_KINDS.includes(c.kind));
+  const docs = f.credentials.filter((c) => c.document_path && !BUSINESS_DOC_KINDS.includes(c.kind));
   return (
-    <Panel title={`Documents · ${docs.length + f.agreements.length}`} action={<a href="#upload" className="text-sm font-semibold text-hiv-blue hover:underline">Upload a document ›</a>}>
-      <ul className="divide-y divide-line text-sm" data-why="6-year record">
-        {f.agreements.map((a) => <li key={a.id} className="py-2">{a.version.startsWith("v") ? "" : "Agreement "}{a.version} · signed<span className="block text-xs text-sub">{fmtDay(a.signed_at)} · signed record</span></li>)}
+    <Panel title={`Documents · ${cover.length + docs.length + f.agreements.length}`} action={<a href="#upload" className="text-sm font-semibold text-hiv-blue hover:underline">Upload a document ›</a>}>
+      <dl data-why="193 PL insurance re-checked yearly; ESC scheme participant requirement">
+        {cover.map((c) => (
+          <Row key={c.id} k={c.label}>{[c.issuer, c.number, c.expires_at && `to ${fmtDay(c.expires_at)}`].filter(Boolean).join(" · ")} {c.state === "expired" ? <Pill tone="rose">Expired</Pill> : c.state === "expiring" ? <Pill tone="amber">Expiring soon</Pill> : null} <span className="text-xs text-sub">· {c.verification}{c.document_path ? " · certificate on file" : ""}</span>
+            {c.document_path && <Btn tone="secondary" className="ml-2" onClick={() => void view(c.document_path!)}>View</Btn>}</Row>
+        ))}
+        <Row k="ABN">{b.abn ?? "—"}</Row>
+        <Row k="Licences">{b.kind === "Electrician" ? `REC ${b.rec ?? "—"}${b.licence ? ` · licence ${b.licence}` : ""}` : "No electrical work · usual electrician holds the REC"}</Row>
+      </dl>
+      <ul className="divide-y divide-line border-t border-line text-sm" data-why="6-year record">
+        {f.agreements.map((a) => {
+          const link = agreementPdfLink(a, businessId);
+          const label = <>{a.version.startsWith("v") ? "" : "Agreement "}{a.version} · signed<span className="block text-xs text-sub">{fmtDay(a.signed_at)} · signed record{"none" in link ? " (no PDF on file)" : ""}</span></>;
+          return "path" in link
+            ? <li key={a.id} className="flex items-center justify-between gap-3 py-2"><span className="min-w-0">{label}</span><Btn tone="secondary" onClick={() => void view(link.path)}>View</Btn></li>
+            : <li key={a.id} className="py-2">{label}</li>;
+        })}
         {docs.map((c) => (
           <li key={c.id} className="flex items-center justify-between gap-3 py-2">
             <span className="min-w-0">{c.label}<span className="block text-xs text-sub">{fmtDay(c.created_at)}{c.expires_at ? ` · to ${fmtDay(c.expires_at)}` : ""}</span></span>
-            <Btn tone="secondary" onClick={async () => { try { const r = await open({ data: { businessId, path: c.document_path! } }); openFileViewer(r.url); } catch (e) { toast.error(e instanceof Error ? e.message : "Couldn't open"); } }}>View</Btn>
+            <Btn tone="secondary" onClick={() => void view(c.document_path!)}>View</Btn>
           </li>
         ))}
-        {!docs.length && !f.agreements.length && <li className="py-2 text-sub">No documents yet.</li>}
+        {!docs.length && !f.agreements.length && !cover.length && <li className="py-2 text-sub">No documents yet.</li>}
       </ul>
+      {profile && <details className="mt-3" id="upload"><summary className="cursor-pointer text-sm font-semibold text-hiv-blue">Upload a new certificate › / verify</summary><div className="mt-2"><Credentials businessId={businessId} creds={profile.credentials as never} isHivicAdmin canAdd onDone={() => void onDone()} /></div></details>}
     </Panel>
   );
 }

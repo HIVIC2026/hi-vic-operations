@@ -101,7 +101,7 @@ export async function partnersBoard() {
     };
   }).sort((a, b) => a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name));
   const rateRows = [
-    ...((cards.data ?? []) as { id: string; business_id: string; kind: string; name: string; version: number; effective_from: string | null; rate_card_items: { code: string; unit_price_ex_gst: number; unit: string | null }[] }[]).map((c) => ({ id: c.id, businessId: c.business_id, business: nameOf(c.business_id) ?? "—", card: c.kind === "installer" ? "Installer price list" : `${c.kind} rate card`, says: `${rateCardLine(c.rate_card_items ?? [])} (ex GST)`, effective: c.effective_from, version: c.version })),
+    ...((cards.data ?? []) as { id: string; business_id: string; kind: string; name: string; version: number; effective_from: string | null; rate_card_items: { code: string; unit_price_ex_gst: number; unit: string | null }[] }[]).map((c) => ({ id: c.id, businessId: c.business_id, business: nameOf(c.business_id) ?? "—", card: c.kind === "installer" ? "Installer price list" : `${c.kind} rate card`, says: `${rateCardLine(c.rate_card_items ?? [], { incGst: true })} (inc GST)`, effective: c.effective_from, version: c.version })),
     ...Object.values(((eRates.data ?? []) as { business_id: string; service_type: string; rate_inc_gst: number; effective_from: string }[]).reduce((acc, r) => { (acc[r.business_id] ??= []).push(r); return acc; }, {} as Record<string, { business_id: string; service_type: string; rate_inc_gst: number; effective_from: string }[]>)).map((rs) => ({
       id: `elec:${rs[0]!.business_id}`, businessId: rs[0]!.business_id, business: nameOf(rs[0]!.business_id) ?? "—", card: "Electrician rate card",
       says: rs.map((r) => `${r.service_type === "piesa" ? "PIESA" : r.service_type.replace(/_/g, " ")} $${Number(r.rate_inc_gst).toFixed(0)}`).join(" · ") + " · upgrades by item · owner pays upgrades + $100", effective: rs.map((r) => r.effective_from).sort()[0] ?? null, version: null,
@@ -160,6 +160,7 @@ export async function businessFile(businessId: string) {
     peopleFor([businessId]),
     (async () => (await import("./esc-collection-notice.server")).businessNoticeStatuses(businessId).catch(() => []))(),
   ]);
+  for (const [label, e] of [["agreements", agreements.error], ["bank details", bank.error], ["bank history", bankEv.error]] as const) if (e) throw new Error(`Could not read the business ${label}: ${e.message}`);
   const jobs = ((asg.data ?? []) as { job_id: string; assigned_at: string; jobs: { stage: string; source: string; deleted_at: string | null; installation_completed_at: string | null } }[]).filter((a) => a.jobs.source !== "qa_test" && !a.jobs.deleted_at);
   const usualRel = ((rels.data ?? []) as { preferred: boolean; businesses: { id: string; name: string; trading_name: string | null; rec_number: string | null; onboarding_status: string } | null }[]).find((r) => r.preferred) ?? null;
   let usual: { id: string; name: string; rec: string | null; approved: boolean; piesaRate: number | null; usedThisMonth: number; jobsThisMonth: number } | null = null;
@@ -183,7 +184,8 @@ export async function businessFile(businessId: string) {
       xero: { status: b.xero_contact_status as string | null, error: b.xero_contact_error as string | null },
       coverage: { regions: b.service_regions ?? [], postcodes: b.service_postcodes ?? [], summary: postcodeSummary(b.service_postcodes), verifiedAt: b.coverage_verified_at, origin: b.declared_service_origin, radiusKm: b.declared_travel_radius_km },
     },
-    agreements: (agreements.data ?? []) as { id: string; version: string; signer_name: string; signed_at: string; snapshot_sha256: string; body: string }[],
+    // partner_agreements keeps the signed text only (no file column), so no agreement has a stored PDF to link to yet.
+    agreements: ((agreements.data ?? []) as { id: string; version: string; signer_name: string; signed_at: string; snapshot_sha256: string; body: string }[]).map((a) => ({ ...a, pdfPath: null as string | null })),
     notices: notices as { name: string; email: string; state: string; workerId?: string | null }[],
     credentials: ((creds.data ?? []) as { id: string; kind: string; label: string; number: string | null; issuer: string | null; expires_at: string | null; verification: string; document_path: string | null; created_at: string }[]).map((c) => ({ ...c, state: credentialState(c) })),
     rates: activeCard ? { version: activeCard.version, effective: activeCard.effective_from, items: [...(activeCard.rate_card_items ?? [])].sort((a, c) => a.sort - c.sort) } : null,
