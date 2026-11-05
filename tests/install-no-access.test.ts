@@ -47,22 +47,23 @@ describe("decision 215 — owner told at once; office alerted on the second no-a
     const server = readFileSync("src/lib/trade-view.server.ts", "utf8");
     expect(server).toContain("needs_office: alertOffice");
   });
-  test("DRAFT text: nobody charged, new days or 'will send', STOP last, under 2 segments", () => {
-    const t = installNoAccessText(f);
+  // Jo 6 Nov 2026: the (installer will call) wording is on by default; these pin the earlier wording with the switch passed as off.
+  test("earlier text: nobody charged, new days or 'will send', STOP last, under 2 segments", () => {
+    const t = installNoAccessText(f, false);
     expect(t).toBe("Hi Helen, we couldn't get in today for your insulation install. You're not charged anything. Reinsulate will send you new days shortly – see your job: https://estimate.homeinsulationvictoria.com.au/my-job/abc Reply STOP to opt out.");
-    expect(installNoAccessText({ ...f, newDays: [{ day: "Thu 29 Oct", time: "8am" }, { day: "Fri 30 Oct", time: "8am" }, { day: "Mon 2 Nov", time: "8am" }] })).toContain("has offered 3 new days – pick one here");
+    expect(installNoAccessText({ ...f, newDays: [{ day: "Thu 29 Oct", time: "8am" }, { day: "Fri 30 Oct", time: "8am" }, { day: "Mon 2 Nov", time: "8am" }] }, false)).toContain("has offered 3 new days – pick one here");
     expect(t.length).toBeLessThan(306);
   });
-  test("DRAFT email O65: not charged, end date of the 30-day window, days when offered, otherwise 'will send'", () => {
-    const e = renderInstallNoAccessEmail(f);
+  test("earlier email O65: not charged, end date of the 30-day window, days when offered, otherwise 'will send'", () => {
+    const e = renderInstallNoAccessEmail(f, false);
     expect(e.subject).toBe("Helen, we couldn't get in today");
     expect(e.text).toContain("Nothing is charged for today");
     expect(e.text).toContain("by 21 November");
     expect(e.text).toContain("will send you three new days soon");
-    const d = renderInstallNoAccessEmail({ ...f, newDays: [{ day: "Thursday 29 October", time: "8am", href: f.link }] });
+    const d = renderInstallNoAccessEmail({ ...f, newDays: [{ day: "Thursday 29 October", time: "8am", href: f.link }] }, false);
     expect(d.text).toContain("PICK A NEW INSTALL DAY");
     expect(d.html).toContain("Thursday 29 October");
-    expect(renderInstallNoAccessEmail({ ...f, installBy: null }).text).toContain("within 30 days of your safety check");
+    expect(renderInstallNoAccessEmail({ ...f, installBy: null }, false).text).toContain("within 30 days of your safety check");
   });
   test("approved by Jo 24 Oct (decision 217): email flag on, SMS wording approved, still behind customer_comms_enabled and the owner guards", () => {
     expect(INSTALL_NO_ACCESS_NOTICE_APPROVED).toBe(true);

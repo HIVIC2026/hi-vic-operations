@@ -22,7 +22,7 @@ describe("#27 Nearly there email", () => {
   test("no address: falls back to the job number", () => {
     expect(readyCheckNearlyThereEmail({ ...i, address: "" }).text).toContain("HV-1234 still needs:");
   });
-  test("flag is off until Jo OKs the pictures", () => { expect(READY_CHECK_CHASE_EMAIL_APPROVED).toBe(false); });
+  test("flag is on (Jo 6 Nov 2026)", () => { expect(READY_CHECK_CHASE_EMAIL_APPROVED).toBe(true); });
 });
 
 describe("one version per chase", () => {

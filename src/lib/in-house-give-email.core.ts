@@ -6,7 +6,7 @@ import { displayName } from "./display-name.core";
 import { jobDetails, partnerEmailLayout, partnerHi, type PartnerBlock } from "./partner-email.core";
 
 /** Off until Jo approves the rendered email in Templates (Waiting for Jo's approval). */
-export const IN_HOUSE_GIVE_EMAIL_APPROVED: boolean = false;
+export const IN_HOUSE_GIVE_EMAIL_APPROVED: boolean = true; // Jo 6 Nov 2026: on
 
 export const IN_HOUSE_GIVE_EMAIL_SUBJECT = "New free Ready Check jobs from Home Insulation Victoria";
 export const IN_HOUSE_GIVE_CALL_LINE = "Call each owner to book their free Ready Check.";

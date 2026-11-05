@@ -103,12 +103,13 @@ describe("approved message switches are on (Jo 24 Oct 2026)", () => {
     // Part 7 Task 8/9 (Jo 2 Nov 2026): the usual-electrician text, the job offer and the Ready Check run / 79/82 installer texts are retired (label "Retired 2 Nov 2026 —").
     // G8 (4), 4 Nov 2026: ready_check_window = the owner's Ready Check window to confirm (DRAFT, OWNER_WINDOW_CONFIRM_APPROVED).
     // 5 Nov 2026 (Jo: all designed templates on): own_customer_rental_taps, access_person_booked/tomorrow, after_install_reminder and
-    // upgrades_nudge are approved. Still DRAFT (no sample on file): tenant_notice, electrician_job_link, ready_check_window.
-    const DRAFTS = ["tenant_notice", "electrician_job_link", "ready_check_window"];
+    // upgrades_nudge are approved. 6 Nov 2026 (Jo: all redesigned messages on): tenant_notice and electrician_job_link approved.
+    // Still DRAFT: ready_check_window (retired for good, 5 Nov 2026).
+    const DRAFTS = ["ready_check_window"];
     expect(off.sort()).toEqual([
-      "electrician_job_link", "fixes_times_link", "install_clearance", "installer_planning_notice", "job_offer",
+      "fixes_times_link", "install_clearance", "installer_planning_notice", "job_offer",
       "piesa_offer", "piesa_owner_confirm", "piesa_owner_fixes_confirm", "piesa_times_reminder", "ready_check_booked_installer", "ready_check_booked_owner",
-      "ready_check_days_suggested", "ready_check_times_owner", "ready_check_window", "run_offered", "run_slot_cancelled", "run_time", "run_time_reminder", "safety_check_booked_owner", "tenant_notice",
+      "ready_check_days_suggested", "ready_check_times_owner", "ready_check_window", "run_offered", "run_slot_cancelled", "run_time", "run_time_reminder", "safety_check_booked_owner",
       "usual_electrician_missing", "veec_sign_reminder",
     ]);
     for (const k of off) expect({ k, retired: SMS_MESSAGE_TYPES[k as keyof typeof SMS_MESSAGE_TYPES].label.startsWith("Retired 2 Nov 2026 —") || DRAFTS.includes(k) }).toEqual({ k, retired: true });

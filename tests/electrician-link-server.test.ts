@@ -236,9 +236,9 @@ describe("textElectricianLink", () => {
       },
     };
   }
-  test("the flag is off by default and nothing is sent", async () => {
-    expect(core.ELECTRICIAN_LINK_TEXT_APPROVED).toBe(false);
-    const x = deps({ approved: core.ELECTRICIAN_LINK_TEXT_APPROVED });
+  test("the flag is on (Jo 6 Nov 2026); switched off explicitly, nothing is sent", async () => {
+    expect(core.ELECTRICIAN_LINK_TEXT_APPROVED).toBe(true);
+    const x = deps({ approved: false });
     expect(await server.textElectricianLink(J, W, URL, x.d)).toBe("held");
     expect(x.sent).toHaveLength(0);
     expect(x.tested).toHaveLength(0);
@@ -274,9 +274,9 @@ describe("textElectricianLink", () => {
     const x = deps({ sendSms: async () => ({ status: "blocked", detail: "Messages are switched off", sid: null }) });
     expect(await server.textElectricianLink(J, W, URL, x.d)).toBe("held");
   });
-  test("the SMS type is a worker/electrician (partner) text, wording not approved, quiet hours on", async () => {
+  test("the SMS type is a worker/electrician (partner) text, wording approved (Jo 6 Nov 2026), quiet hours on", async () => {
     const { SMS_MESSAGE_TYPES } = await import("../src/lib/sms.core");
-    expect(SMS_MESSAGE_TYPES["electrician_job_link"]).toMatchObject({ audience: "partner", wordingApproved: false, quietHours: true });
+    expect(SMS_MESSAGE_TYPES["electrician_job_link"]).toMatchObject({ audience: "partner", wordingApproved: true, quietHours: true });
   });
 });
 

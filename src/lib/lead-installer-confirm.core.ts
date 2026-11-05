@@ -7,7 +7,7 @@ import { partnerEmailLayout, partnerHi } from "./partner-email.core";
 import { leadInstallerLock } from "./prestart.core";
 
 /** DRAFT wording: nothing reaches a real installer office until Jo approves the rendered email. */
-export const LEAD_INSTALLER_CONFIRM_EMAIL_APPROVED = false as boolean;
+export const LEAD_INSTALLER_CONFIRM_EMAIL_APPROVED = true as boolean; // Jo 6 Nov 2026: on
 /** Recorded once per key BEFORE a send (TEST or real). */
 export const LEAD_CONFIRM_EVENT = "lead_installer_confirm_email" as const;
 /** Recorded once per key when a real send is held (flag off / trade messages paused); never claims the key. */

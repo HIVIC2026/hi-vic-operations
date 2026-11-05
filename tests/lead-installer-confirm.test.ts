@@ -59,7 +59,7 @@ describe("the rendered email (DRAFT)", () => {
     expect(mail.html).not.toMatch(/lead installer/);
     expect(mail.text).not.toMatch(/lead installer/);
     expect(mail.html).not.toMatch(/\bHIV\b/);
-    expect(LEAD_INSTALLER_CONFIRM_EMAIL_APPROVED).toBe(false);
+    expect(LEAD_INSTALLER_CONFIRM_EMAIL_APPROVED).toBe(true); // Jo 6 Nov 2026: on.
   });
   test("no Lead or crew picked yet reads plainly", () => {
     const m = renderLeadInstallerConfirm({ jobNumber: "HV-1", owner: "", startIso: START, address: "1 Test St", lead: null, crew: [], jobUrl: "https://p/field/J1", lockLabel: "5pm Wed 11 Nov" });
@@ -150,9 +150,9 @@ beforeEach(() => {
 });
 
 describe("sweepLeadInstallerConfirm", () => {
-  test("flag false (the code): a real office is held and recorded once, nothing sent; a second sweep adds nothing", async () => {
-    expect(await sweepLeadInstallerConfirm(at(WED_0900))).toEqual({ checked: 1, sent: 0, held: 1 });
-    expect(await sweepLeadInstallerConfirm(at(WED_1100))).toEqual({ checked: 1, sent: 0, held: 1 });
+  test("flag false (explicit; the code is on since Jo 6 Nov 2026): a real office is held and recorded once, nothing sent; a second sweep adds nothing", async () => {
+    expect(await sweepLeadInstallerConfirm(at(WED_0900), { approved: false })).toEqual({ checked: 1, sent: 0, held: 1 });
+    expect(await sweepLeadInstallerConfirm(at(WED_1100), { approved: false })).toEqual({ checked: 1, sent: 0, held: 1 });
     expect(office).toHaveLength(0); expect(testMail).toHaveLength(0);
     expect(events("lead_installer_confirm_held")).toHaveLength(1);
     expect(events("lead_installer_confirm_held")[0]!["details"]).toMatchObject({ key: "lead-confirm:v1:J1:2026-11-13", reason: "wording not approved yet" });
