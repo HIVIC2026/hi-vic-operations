@@ -38,6 +38,26 @@ Existing tests failing on the base commit (snapshot drift, not part of this work
 `trade-business-waves` (3), `job-bundle-waves` (1), `installer-waiting-waves` (4), `trade-business-speed` (2),
 `trade-job-speed` (1), `office-read-budget` (3: Needs me / Active jobs / Enquiries request counts above their caps).
 
-## After
+## After (branch perf/portal-speed-step2)
 
-Filled in as each task lands (Task 8).
+| Screen | Rounds before → after | First-draw server calls before → after | Pinned by |
+|---|---|---|---|
+| My work | 3 → 3 | 1 → 1 | trade-home-speed (ROUND_LIMIT), trade-home-waves (+ business scope) |
+| Money | 3 (in-house allowed 4) → 3 | 1 → 1 | trade-money-speed (ROUND_LIMIT both modes), trade-money-waves (+ business scope) |
+| My business / Team | 3 boss, 1 staff → same | 1 → 1 | trade-business-speed (ROUND_LIMIT), trade-business-waves (+ business scope) |
+| Installer job page | 5 (8 for the boss's own unsent quote) → 3 not booked, 4 booked install or boss's unsent quote (known limit) | 1 bundle → 1 bundle | trade-job-speed |
+| Install day page | 2 + 2 → unchanged (two calls at once) | 2 → 2 | trade-day-speed |
+| Add a job | memberships after trade context → together | 1 → 1 | (not counted by a test) |
+| Safety plan no-login link | — → 1 (≤ 2 pinned) | 1 → 1 | swms-link-rounds |
+| Needs me (opens from saved copy) | 1 → 1 | 1 → 1 | speed-rounds |
+| Needs me work-out (after an action / no copy) | 37 → 16 | — | speed-rounds |
+| Enquiries / Active jobs (saved copy) | 1 → 1 | 1 → 1 | speed-rounds |
+| Enquiries / Active jobs work-outs | 2 / 3 → 2 / 3 | — | speed-rounds |
+| Choose installer | 3 / 3 → 3 / 3 | 1 → 1 | speed-rounds |
+| Office job page | **30 → 5** (known limit) | page + Money + side panels, all at once → same | speed-rounds |
+| Office job page Money card | 2 → 2 | separate call → same | speed-rounds |
+| Sign-in → first screen | user → profile + roles → navigate → guard roles → screen call (≈ 4 trips after the password) → user → ONE call (≤ 3 rounds; guard roles alongside) → screen draws from the handed-over answer (≈ 2 trips) | — | first-screen |
+| Job pages on a return visit | installer page drew from its kept copy; office page loaded fresh → both draw the last copy at once, say "Updating…", buttons wait for the fresh copy | — | job-page-last-copy |
+| Buttons | every action waited for the whole screen to reload → audited screen-only actions (log a call/note, log a communication, VEEC reply ticked) finish once saved; Send / Give / Pay / Book / Cancel unchanged (wait) | — | optimistic.core, use-action-instant |
+
+Timed runs (`scripts/qa-timing.ts`, 390 px and 1280 px): NOT RUN — no TEST sessions in this sandbox.
