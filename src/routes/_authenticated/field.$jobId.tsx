@@ -43,6 +43,7 @@ import { NextStepBox } from "@/components/trade/NextStepBox";
 import { ContactButtons, Group, LinkRow, NextPanel, NoFormNoPay, Row, Screen, ScreenHead } from "@/components/trade/installer-kit";
 import { completeView, ownerReadyLine } from "@/lib/installer-screens.core";
 import { InstallerPriceCard } from "@/components/trade/InstallerPriceCard";
+import { OwnCustomerReadyCheck } from "@/components/trade/OwnCustomerReadyCheck";
 import { ELECTRICIAN_ATTENDANCE_CONFIRMED } from "@/lib/trade-view.core";
 import { ReturnActions, useInHouseBookingAccess } from "@/components/trade/ReturnActions";
 import { MittiElectricianCard } from "@/components/trade/mitti-electrician-card";
@@ -338,6 +339,7 @@ function FoldRows({ rows, empty }: { rows: ([string, string] | [string, string, 
 const FOLD_EMPTY = "Nothing here yet."; // DRAFT
 
 function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
+  const [portalReadyCheckOpen, setPortalReadyCheckOpen] = useState(false);
   const { data: page } = useInstallerPage(jobId);
   const done = useAction(completeInstallation);
   const inHouseAccess = useInHouseBookingAccess(jobId);
@@ -418,6 +420,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
           ownCustomer={page.channel === "installer_sourced"}
           mittiAuditId={mittiAudit}
         >
+          {page.channel === 'installer_sourced' && page.prices && box.kind === 'own_ready_check' && <OwnCustomerReadyCheck jobId={jobId} onOpenChange={setPortalReadyCheckOpen} />}
           {ownerReady && bookedKinds.includes(box.kind) && (
             <p className={`mt-3 text-sm font-medium ${ownerReady.done ? "text-hiv-green" : "text-ink"}`} data-owner-ready>
               {ownerReady.text}
@@ -455,7 +458,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
             </div>
           )}
         </NextStepBox>
-        {showPrice && (
+        {showPrice && !portalReadyCheckOpen && (
           <section className={`${card} mt-4 min-w-0`} aria-label="Your price" data-price-early={priceOpenEarly ? "true" : undefined}>
             {priceOpenEarly && <p className="mb-2 text-sm text-sub">Enter your price and send it to Home Insulation Victoria to prepare the quote. The Mitti form can still have blanks.</p>}
             <InstallerPriceCard jobId={jobId} />
