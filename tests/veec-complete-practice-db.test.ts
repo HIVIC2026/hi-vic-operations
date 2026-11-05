@@ -16,6 +16,7 @@ describe("complete_veec_assignment", () => {
     expect(s.a).toEqual({ status: "effective_complete", final_copy_path: "j/assignment/final-abc.pdf", delivery_status: "ready_to_send", eff: true });
     expect(s.c).toEqual({ status: "pass", notes: "Final VEEC assignment effective" });
     expect(s.e).toHaveLength(1);
+    expect((await db.query<any>(`SELECT last_activity_at IS NOT NULL AS set FROM public.jobs`)).rows[0].set).toBe(true);
     expect(s.e[0].event_type).toBe("VEEC_ASSIGNMENT_EFFECTIVE");
     expect(s.e[0].actor_id).toBe(VC.actor);
     expect(s.e[0].details).toEqual({ assignment_id: VC.assignment, sha256: "sha-1" });

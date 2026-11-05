@@ -1625,6 +1625,7 @@ export async function evaluateAndApply(jobId: string, actorId: string | null) {
   if (rpcError && rpcError.code !== "PGRST202" && rpcError.code !== "42883") throw new Error(rpcError.message);
   if (rpcError) {
     // The completion function isn't deployed yet: the old three writes, each checked, the event last.
+    // A failure after the first write leaves a partial state (accepted only until the SQL is deployed).
     console.error("complete_veec_assignment not deployed, using the three writes:", rpcError.message);
     const { error: e1 } = await admin
       .from("customer_assignments")

@@ -23,6 +23,7 @@ BEGIN
   INSERT INTO public.workflow_events (job_id, actor_id, event_type, summary, details)
   VALUES (p_job_id, p_actor, 'VEEC_ASSIGNMENT_EFFECTIVE', p_summary,
           jsonb_build_object('assignment_id', p_assignment_id, 'sha256', p_sha256));
+  UPDATE public.jobs SET last_activity_at = now() WHERE id = p_job_id;
   RETURN true;
 END $$;
 

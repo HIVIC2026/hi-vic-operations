@@ -18,7 +18,7 @@ GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
 CREATE TYPE public.assignment_status AS ENUM ('draft','consumer_signed_pending_install','final_details_pending','installer_signed_pending_install','variation_required','awaiting_installer_signature','awaiting_ap_signature','awaiting_consumer_signature','effective_complete','cancelled');
 CREATE TYPE public.pass_fail AS ENUM ('pending','pass','fail');
 CREATE TABLE public.profiles (id uuid primary key);
-CREATE TABLE public.jobs (id uuid primary key, job_number text);
+CREATE TABLE public.jobs (id uuid primary key, job_number text, last_activity_at timestamptz);
 CREATE TABLE public.customer_assignments (
   id uuid primary key, job_id uuid not null references public.jobs(id), status public.assignment_status not null default 'draft',
   effective_at timestamptz, completed_at timestamptz, final_copy_path text, final_copy_at timestamptz,
