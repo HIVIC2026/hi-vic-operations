@@ -17,9 +17,10 @@ const st = {
   assignment: {} as Row,
   variation: {} as Row,
   events: [] as Row[],
+  decl: null as Row | null, declRow: null as Row | null,
 };
 const reset = () => {
-  st.write = { ...OK }; st.upsert = { ...OK }; st.agreement = null; st.events = [];
+  st.write = { ...OK }; st.upsert = { ...OK }; st.agreement = null; st.events = []; st.decl = null; st.declRow = null;
   st.assignment = {
     id: A, job_id: J, record_kind: "final_veec_assignment", status: "awaiting_installer_signature",
     final_facts: { template_version: "v1.1" }, final_facts_sha256: "facts", installer_user_id: U,
@@ -44,6 +45,9 @@ function chain(table: string, op: string) {
         case "assignment_variations": return single ? { data: st.variation, error: null } : { data: null, count: 0, error: null };
         case "job_assignments": return { data: { user_id: U, business_id: null }, error: null };
         case "profiles": return { data: { full_name: "Ivy", licence_number: "1", business_id: null }, error: null };
+        case "installer_declarations": return { data: st.decl, error: null };
+        case "declarations": return { data: st.declRow, error: null };
+        case "workflow_events": return { data: st.events.filter((e) => e.event_type === "INSTALLER_DECLARATION_SIGNED").map(() => ({ id: "e" })), error: null };
         case "owner_gate_signatures": return { data: [], error: null };
         default: return { data: null, error: null };
       }
@@ -53,10 +57,12 @@ function chain(table: string, op: string) {
     if (["customer_agreements", "installer_declarations", "assignment_variations", "customer_assignments"].includes(table)) w = st.write;
     else if (table === "declarations") w = st.upsert;
     if (w.error) return { data: null, error: w.error };
+    if (table === "installer_declarations" && w.rows[0]) st.decl = { id: "new", status: "signed", signed_by: U, template_version: "v1", installed_product: "Batts", signed_at: "t", snapshot_sha256: "h" };
+    if (table === "declarations" && w.rows[0]) st.declRow = { id: "d" };
     return single ? { data: w.rows[0] ?? null, error: w.rows[0] ? null : { code: "PGRST116", message: "0 rows" } } : { data: w.rows, error: null };
   };
   const q: any = {
-    eq: () => q, neq: () => q, is: () => q, order: () => q, limit: () => q, select: () => q,
+    eq: () => q, neq: () => q, is: () => q, in: () => q, gte: () => q, lte: () => q, not: () => q, or: () => q, ilike: () => q, order: () => q, limit: () => q, select: () => q,
     maybeSingle: async () => run(true), single: async () => run(true),
     then: (res: any, rej: any) => Promise.resolve(run(false)).then(res, rej),
   };
@@ -75,6 +81,8 @@ mock.module("../src/lib/workflow.server", () => ({
 }));
 mock.module("../src/lib/comms.server", () => ({ customerDeliveryState: async () => "ready_to_send" }));
 mock.module("../src/lib/signed-pdf.server", () => ({ textToPdf: async () => new Uint8Array([1]), signedAcceptancePdf: async () => new Uint8Array([1]) }));
+const realForm = await import("../src/lib/veec-assignment-form.core");
+mock.module("../src/lib/veec-assignment-form.core", () => ({ ...realForm, apPrerequisiteBlockers: () => [] })); // prerequisites are not under test
 mock.module("../src/lib/recovery-work.server", () => ({ addWork: async () => undefined }));
 
 const { signCustomerAgreement, signInstallerDecl, signFinalAssignment, writeApSignature, reconfirmVariation } = await import("../src/lib/assignment.server");
@@ -128,6 +136,24 @@ describe("signature save check", () => {
       expect(signedEvents()).toHaveLength(0);
     });
   }
+
+  test("signInstallerDecl: failed declarations upsert is repaired on retry, with exactly one signed event", async () => {
+    st.agreement = { id: "ag", quoted_product: "Batts" };
+    st.upsert = errWrite;
+    await expect(signInstallerDecl(declArgs())).rejects.toThrow(MSG);
+    expect(signedEvents()).toHaveLength(0);
+    st.upsert = { ...OK };
+    await expect(signInstallerDecl(declArgs())).resolves.toBe("new");
+    expect(signedEvents()).toHaveLength(1);
+    await expect(signInstallerDecl(declArgs())).rejects.toThrow("Installer declaration already signed.");
+    expect(signedEvents()).toHaveLength(1);
+  });
+  test("signFinalAssignment (ap): a writeApSignature write error surfaces the exact message", async () => {
+    st.assignment = { ...st.assignment, installer_signed_at: "t" };
+    st.write = errWrite;
+    await expect(signFinalAssignment(finalArgs("ap"))).rejects.toThrow(MSG);
+    expect(signedEvents()).toHaveLength(0);
+  });
 
   const apArgs = () => ({ assignmentId: A, templates: TEMPLATES as any, officialVersion: "v1.1", sig: { at: "t" }, hash: "h", signatureName: "AP Rep", actorId: null, method: "automatic" as const });
   test("writeApSignature: a write error throws the exact message", async () => {

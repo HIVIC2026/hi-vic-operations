@@ -56,7 +56,7 @@ import { VEEC_PART_B_IMAGE_HELD_EVENT } from "./veec-part-b-mitti.core";
 
 /** A signature only counts as signed once the row is really saved: a write error or no row written is "didn't save". */
 const SIGNATURE_NOT_SAVED = "Your signature didn't save – please try again.";
-function assertSignatureSaved(error: { message: string } | null, rows: unknown): void {
+function assertSignatureSaved<T>(error: { message: string } | null, rows: T | null | undefined): asserts rows is NonNullable<T> {
   if (error || !rows || (Array.isArray(rows) && rows.length === 0)) {
     if (error) console.error("Signature write failed:", error.message);
     throw new WorkflowError(SIGNATURE_NOT_SAVED);
@@ -455,7 +455,6 @@ export async function signCustomerAgreement(p: {
     if(prior?.quote_id===p.quoteId && prior.quote_version===pkg.quote.version && prior.signed_by===p.actorId)return prior.id;
   }
   assertSignatureSaved(error, row);
-  if (!row) throw new WorkflowError(SIGNATURE_NOT_SAVED);
   await logEvent(
     pkg.job_id,
     p.actorId,
@@ -488,8 +487,22 @@ export async function signInstallerDecl(p: {
     throw new WorkflowError(
       "The installer declaration is signed after the installation is recorded as complete.",
     );
-  if (await currentInstallerDeclaration(p.jobId))
-    throw new WorkflowError("Installer declaration already signed.");
+  const already = await currentInstallerDeclaration(p.jobId);
+  if (already) {
+    // Repair on retry: the declaration saved but a later step (the declarations row / signed event) did not.
+    const { data: declRow, error: declReadError } = await admin.from("declarations").select("id").eq("job_id", p.jobId).eq("kind", "installer_declaration").maybeSingle();
+    if (declReadError || declRow || already.signed_by !== p.actorId) throw new WorkflowError("Installer declaration already signed.");
+    const tpl = activeTemplate(await loadTemplates(), "installer_declaration");
+    const { data: fixed, error: fixError } = await admin.from("declarations").upsert(
+      { job_id: p.jobId, kind: "installer_declaration", declared_by: p.actorId, statement: `${already.template_version}: ${tpl?.body ?? ""}`, declared_at: already.signed_at },
+      { onConflict: "job_id,kind" },
+    ).select("id");
+    assertSignatureSaved(fixError, fixed);
+    const { data: logged } = await admin.from("workflow_events").select("id").eq("job_id", p.jobId).eq("event_type", EV.INSTALLER_DECLARATION_SIGNED).limit(1);
+    if (!logged?.length)
+      await logEvent(p.jobId, p.actorId, EV.INSTALLER_DECLARATION_SIGNED, `Installer declaration signed (${already.template_version}) – ${already.installed_product}`, { declaration_id: already.id, sha256: already.snapshot_sha256 });
+    return already.id;
+  }
   const agreement = await currentAgreement(p.jobId);
   if (!agreement) throw new WorkflowError("Customer agreement has not been signed.");
   const templates = await loadTemplates();
@@ -559,7 +572,6 @@ export async function signInstallerDecl(p: {
     .select("id")
     .single();
   assertSignatureSaved(error, row);
-  if (!row) throw new WorkflowError(SIGNATURE_NOT_SAVED);
   const { data: declRows, error: declError } = await admin.from("declarations").upsert(
     {
       job_id: p.jobId,
@@ -1209,7 +1221,10 @@ export async function writeApSignature(p: {
     .is("ap_signed_at", null)
     .select("id");
   // 0 rows is NOT a failure here: the write is conditional, so it means the signature was already recorded.
-  if (error) assertSignatureSaved(error, null);
+  if (error) {
+    console.error("Signature write failed:", error.message);
+    throw new WorkflowError(SIGNATURE_NOT_SAVED);
+  }
   return (data ?? []).length > 0;
 }
 
