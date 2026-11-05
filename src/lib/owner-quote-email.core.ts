@@ -83,8 +83,8 @@ export type OwnerQuoteEmailInput = {
   v4?: boolean;
   /** quote-changes.core `quoteChangeRows` — v4 only; empty/absent = no box. */
   changes?: QuoteChangeRow[];
-  /** The box's footnote (`quoteChangesFootnote`); absent = the Ready Check wording. */
-  changesFootnote?: string;
+  /** The footnote (`quoteChangesFootnote`): absent = the Ready Check wording; null = none (a photo quote, never "Ready Check"). */
+  changesFootnote?: string | null;
   /** Part 10 Task 5: set on an installer's own customer (channel installer_sourced): the installer's name and Part 5's
    *  https logo URL (null = our logo alone). Ignored unless v4 and OWN_CUSTOMER_COBRAND_APPROVED (final review I4: one switch). */
   ownCustomer?: { installerName: string; installerLogoUrl: string | null } | null;
@@ -140,12 +140,14 @@ function quoteFigures(i: OwnerQuoteEmailInput, rebateLabel = "Your VEU rebate") 
   const total = money(i.totalIncGst);
   const headline = rebate ? `You save ${K.whole(rebate)} on ceiling insulation` : "Your ceiling insulation quote is ready";
   const both = !!(rebate && full);
+  // Photo quotes never say "Measured at your Ready Check" (review fix): absent footnote = a Ready Check quote.
+  const measured = i.changesFootnote === undefined ? "Measured at your Ready Check" : i.changesFootnote;
   const rebateBox = both
     ? `<mj-section><mj-column mj-class="panel-mint"><mj-text mj-class="eyebrow center" padding="18px 12px 6px">${esc(rebateLabel)}</mj-text><mj-text mj-class="big-green">You save ${esc(K.whole(rebate!))}</mj-text><mj-text mj-class="center" font-size="14px" line-height="20px" padding="0 16px 18px">Taken off upfront. Nothing for you to claim.</mj-text></mj-column></mj-section>`
     : "";
-  const priceBox = `<mj-section><mj-column mj-class="panel"><mj-text mj-class="eyebrow center" padding="18px 12px 6px">Your price</mj-text><mj-text mj-class="big-blue">${esc(total)}</mj-text><mj-text mj-class="center" font-size="14px" line-height="20px" font-weight="700">incl. GST${both ? ` · full price before rebate <span class="strike">${esc(money(full!))}</span>` : ""}</mj-text><mj-text mj-class="small center" padding="0 16px 18px">${address ? `${esc(address)}<br />` : ""}Measured at your Ready Check</mj-text></mj-column></mj-section>`;
+  const priceBox = `<mj-section><mj-column mj-class="panel"><mj-text mj-class="eyebrow center" padding="18px 12px 6px">Your price</mj-text><mj-text mj-class="big-blue">${esc(total)}</mj-text><mj-text mj-class="center" font-size="14px" line-height="20px" font-weight="700">incl. GST${both ? ` · full price before rebate <span class="strike">${esc(money(full!))}</span>` : ""}</mj-text>${address || measured ? `<mj-text mj-class="small center" padding="0 16px 18px">${[address, measured].filter(Boolean).map((l) => esc(l!)).join("<br />")}</mj-text>` : ""}</mj-column></mj-section>`;
   const box = rebateBox + priceBox;
-  const boxText = [rebate ? `${rebateLabel}: you save ${K.whole(rebate)}. Taken off upfront. Nothing for you to claim.` : null, `Your price: ${total} incl. GST${both ? ` (full price before rebate ${money(full!)})` : ""}`, address, "Measured at your Ready Check"].filter((l): l is string => !!l);
+  const boxText = [rebate ? `${rebateLabel}: you save ${K.whole(rebate)}. Taken off upfront. Nothing for you to claim.` : null, `Your price: ${total} incl. GST${both ? ` (full price before rebate ${money(full!)})` : ""}`, address, measured].filter((l): l is string => !!l);
   return { name, address, rebate, full, total, headline, box, boxText };
 }
 const mjButton = (href: string) => `<mj-button href="${esc(href)}" padding="14px 12px 14px">View and accept your quote</mj-button>`;
@@ -159,13 +161,13 @@ function quoteRowHtml(r: K.QuoteRow, first: boolean): string {
 }
 
 /** Decision #29: the Estimate vs Quote box (only changed rows), with its footnote. Empty when nothing changed. */
-function changesBox(rows: QuoteChangeRow[], footnote: string = QUOTE_CHANGES_FOOTNOTE): { html: string; text: string[] } {
+function changesBox(rows: QuoteChangeRow[], footnote: string | null = QUOTE_CHANGES_FOOTNOTE): { html: string; text: string[] } {
   if (!rows.length) return { html: "", text: [] };
   const cell = (v: string, align: string, extra = "") => `<td align="${align}" style="padding:8px 0 8px 8px;border-top:1px solid #E4E9F5;${extra}">${esc(v)}</td>`;
   const head = `<tr><td></td><td align="right" style="padding:0 0 6px 8px;font-size:13px;color:#5A6785;">Estimate</td><td align="right" style="padding:0 0 6px 8px;font-size:13px;color:#5A6785;">Quote</td></tr>`;
   const body = rows.map((r) => `<tr><td style="padding:8px 8px 8px 0;border-top:1px solid #E4E9F5;"><strong>${esc(r.label)}</strong></td>${cell(r.estimate, "right", "white-space:nowrap;")}${cell(r.quote, "right", "white-space:nowrap;font-weight:700;")}</tr>`).join("");
-  const html = `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px 10px">${esc(QUOTE_CHANGES_HEADING)}</mj-text><mj-table padding="0 18px 6px">${head}${body}</mj-table><mj-text mj-class="small" padding="0 18px 18px">${esc(footnote)}</mj-text></mj-column></mj-section>`;
-  return { html, text: [QUOTE_CHANGES_HEADING, ...rows.map((r) => `${r.label}: estimate ${r.estimate}, quote ${r.quote}`), footnote, ""] };
+  const html = `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px 10px">${esc(QUOTE_CHANGES_HEADING)}</mj-text><mj-table padding="0 18px ${footnote ? 6 : 18}px">${head}${body}</mj-table>${footnote ? `<mj-text mj-class="small" padding="0 18px 18px">${esc(footnote)}</mj-text>` : ""}</mj-column></mj-section>`;
+  return { html, text: [QUOTE_CHANGES_HEADING, ...rows.map((r) => `${r.label}: estimate ${r.estimate}, quote ${r.quote}`), ...(footnote ? [footnote] : []), ""] };
 }
 
 /** Part 10 Task 5: the own-customer rows by `code` (never a description regex). Null = fall back to Part 3's rows (a

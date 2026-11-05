@@ -102,7 +102,7 @@ export async function loadOwnerQuoteFacts(
     Promise.all([
       admin
         .from("ceiling_measurements")
-        .select("measured_area_m2, verified_area_m2, removal_required, removal_m2, insulation_present, zones, external_source")
+        .select("measured_area_m2, verified_area_m2, removal_required, removal_m2, insulation_present, zones, external_source, external_id")
         .eq("job_id", jobId)
         .eq("is_current", true)
         .maybeSingle(),
@@ -140,6 +140,7 @@ export async function loadOwnerQuoteFacts(
         insulation_present?: boolean | null;
         zones?: unknown;
         external_source?: string | null;
+        external_id?: string | null;
       } | null;
     },
     { data: { details: unknown } | null },
@@ -197,7 +198,10 @@ export async function loadOwnerQuoteFacts(
       installerCertified: biz?.onboarding_status === "approved" && biz.is_active === true,
       changes,
       // Photo-quote installers (Jo 5 Nov 2026): a quote from the installer's photo quote says so under the changes box.
-      ...(m?.external_source === "photo_quote" ? { changesFootnote: (await import("./quote-changes.core")).quoteChangesFootnote({ installer: biz?.trading_name ?? biz?.name ?? null, photoQuote: true }) } : {}),
+      // Review fix: no footnote (never "Ready Check") until Jo approves the photo line, and the photo line only on jobs given
+      // From photos (external_id 'photo:{batch}'), never an installer's own customer ('photo:own').
+      ...(m?.external_source === "photo_quote" ? { changesFootnote: (await import("./quote-changes.core")).quoteChangesFootnote({ installer: biz?.trading_name ?? biz?.name ?? null, photoQuote: true,
+        newWording: (await import("./photo-quote.core")).photoOwnerWording(m.external_id !== "photo:own") }) } : {}),
     },
   };
 }

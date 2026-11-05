@@ -17,6 +17,8 @@ import { renderQuickTapsDeclineEmail } from "./quick-taps-email.core";
 import { renderQuoteExpiredEmail } from "./quote-expired-email.core";
 import { renderInHouseGiveEmail } from "./in-house-give-email.core";
 import { ownerPhotoQuoteEmail } from "./owner-photo-quote-notice.core";
+import { PHOTO_QUOTE_WORDS } from "./photo-quote.core";
+import { quoteChangesFootnote } from "./quote-changes.core";
 import { bookingNotice, ownerBookedMessage } from './in-house-booking.core';
 import { renderJoOutcomeEmail } from "./jo-outcome-email.core";
 import { withUnsubscribe } from "./emailsafety.core";
@@ -906,6 +908,14 @@ const WAITING: TemplateEntry[] = [
   ENTRY({ id: "waiting:owner-photo-quote-notice", section: "waiting", step: "ready_check", kind: "email", code: "", name: "Good news: no visit needed", when: "Jo gives the job to a From photos installer (replaces \"{Installer} will call you\" for these jobs; no text); held with an office note if the installer has no office phone or business email", who: "Owner", approval: "waiting", approvalNote: "Photo-quote installers spec 5 Nov 2026, decision 3; off until Jo approves (OWNER_PHOTO_QUOTE_NOTICE_APPROVED)", gate: { kind: "code_off", flag: "OWNER_PHOTO_QUOTE_NOTICE_APPROVED" },
     source: { builder: "src/lib/owner-photo-quote-notice.core.ts", fn: "ownerPhotoQuoteEmail", sender: "src/lib/in-house-batch-email.server.ts" },
     render: () => email(ownerPhotoQuoteEmail({ firstName: "Helen", installer: WILL_CALL_SAMPLE, unsubscribeUrl: UNSUB }) as { subject: string; html: string }) }),
+  // Review fix round (5 Nov): the two new owner lines on photo jobs, off until Jo approves (PHOTO_QUOTE_OWNER_WORDING_APPROVED).
+  // While off, photo jobs just leave out the untrue Ready Check line; only jobs given From photos ever get these.
+  ENTRY({ id: "waiting:photo-quote-footnote", section: "waiting", step: "quote", kind: "page", code: "", name: "Photo quote footnote (quote email + quote page)", when: "Quote email and My job quote page on a job given to a From photos installer (never an installer's own customer)", who: "Owner", approval: "waiting", approvalNote: "Photo-quote installers spec 5 Nov 2026, touchpoint 29; off until Jo approves (PHOTO_QUOTE_OWNER_WORDING_APPROVED) — until then no footnote on photo quotes", gate: { kind: "code_off", flag: "PHOTO_QUOTE_OWNER_WORDING_APPROVED" },
+    source: { builder: "src/lib/quote-changes.core.ts", fn: "quoteChangesFootnote", sender: "src/lib/quote-ready-notify.server.ts" },
+    render: () => ({ kind: "doc", title: "Footnote under the price", body: quoteChangesFootnote({ installer: "Sample Insulation", photoQuote: true, newWording: true }) ?? "" }) }),
+  ENTRY({ id: "waiting:photo-quote-reply-line", section: "waiting", step: "quote", kind: "email", code: "", name: "Photo quote line in automatic replies and AI drafts", when: "Owner asks about the Ready Check or their quote while a From photos installer is quoting from their photos (never an installer's own customer)", who: "Owner", approval: "waiting", approvalNote: "Photo-quote installers spec 5 Nov 2026, touchpoint 54; off until Jo approves (PHOTO_QUOTE_OWNER_WORDING_APPROVED) — until then the Ready Check sentences are just left out", gate: { kind: "code_off", flag: "PHOTO_QUOTE_OWNER_WORDING_APPROVED" },
+    source: { builder: "src/lib/photo-quote.core.ts", fn: "photoOwnerWording", sender: "src/lib/owner-email-auto-reply.server.ts" },
+    render: () => ({ kind: "doc", title: "Reply line", body: PHOTO_QUOTE_WORDS.aiReply("Sample Insulation") }) }),
   ENTRY({ id: "installer:trade-invite", section: "installer", step: "enquiry", kind: "email", code: "", name: "Trade sign-in invite", when: "Goes when the office gives an approved trade worker their own sign-in", who: "Installer / electrician worker", approvalNote: "Jo 27 Oct 2026, decision 406 (the whole email refresh suite)", gate: { kind: "email" },
     source: { builder: "src/lib/trade-access.core.ts", fn: "renderTradeInviteEmail", sender: "src/lib/trade-access.functions.ts" },
     render: () => email(renderTradeInviteEmail({ firstName: "Sam", business: "Sample Insulation Co", setPasswordUrl: `${BASE}/reset-password?token_hash=TEST&type=invite`, signInUrl: `${BASE}/auth` })) }),

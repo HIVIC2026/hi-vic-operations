@@ -59,10 +59,15 @@ export function rulesFromAnswers(rows: AiAnswer[] | null): string[] {
   return own.length ? own : AI_SEED_ANSWERS.map((r) => r.answer.trim());
 }
 
-/** Photo-quote installers (Jo 5 Nov 2026, spec touchpoint 54): once the job is with a From photos installer there is no
- *  Ready Check visit, so every answer that talks about the Ready Check is replaced by ONE line about the photo quote.
- *  `rows` null/empty = the seed (as rulesFromAnswers). */
-export function answersForPhotoJob(rows: AiAnswer[] | null, installer: string): AiAnswer[] {
+/** Photo-quote installers (Jo 5 Nov 2026, spec touchpoint 54): a photo job has no Ready Check visit, so only the
+ *  SENTENCES that mention the Ready Check are taken out of each answer (the rest of the answer stays; an answer left empty
+ *  goes). The photo line is added only with `newWording` (photoOwnerWording: approved AND given From photos — never an
+ *  installer's own customer). `rows` null/empty = the seed (as rulesFromAnswers). */
+export function answersForPhotoJob(rows: AiAnswer[] | null, installer: string, newWording: boolean): AiAnswer[] {
   const base = rows?.length ? rows : AI_SEED_ANSWERS;
-  return [...base.filter((r) => !/ready check/i.test(`${r.topic} ${r.answer}`)), { topic: "No Ready Check visit", answer: PHOTO_QUOTE_WORDS.aiReply(installer) }];
+  const kept = base.flatMap((r) => {
+    const answer = (r.answer.match(/[^.!?]+(?:[.!?]+|$)/g) ?? []).filter((s) => !/ready check/i.test(s)).join("").trim();
+    return answer ? [{ topic: r.topic.replace(/\s*ready check\s*/gi, " ").trim() || r.topic, answer }] : [];
+  });
+  return newWording ? [...kept, { topic: "No Ready Check visit", answer: PHOTO_QUOTE_WORDS.aiReply(installer) }] : kept;
 }

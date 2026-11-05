@@ -5,9 +5,12 @@ import * as K from "./email-kit.core";
 
 export const QUOTE_CHANGES_HEADING = "What's changed from your estimate";
 export const QUOTE_CHANGES_FOOTNOTE = "Your quote uses what the installer measured at your Ready Check.";
-/** Photo-quote installers (Jo 5 Nov 2026, spec touchpoint 29): a photo quote says who worked it out and from what. */
-export function quoteChangesFootnote(o: { installer: string | null; photoQuote: boolean }): string {
-  return o.photoQuote ? `Your quote uses what ${o.installer?.trim() || "the installer"} worked out from your photos.` : QUOTE_CHANGES_FOOTNOTE;
+/** Photo-quote installers (Jo 5 Nov 2026, spec touchpoint 29). Ready Check quotes keep the Ready Check line. A photo quote
+ *  never says "Ready Check": null = no footnote; the photo line only with `newWording` (photoOwnerWording: approved AND
+ *  given From photos — never an installer's own customer). */
+export function quoteChangesFootnote(o: { installer: string | null; photoQuote: boolean; newWording?: boolean }): string | null {
+  if (!o.photoQuote) return QUOTE_CHANGES_FOOTNOTE;
+  return o.newWording ? `Your quote uses what ${o.installer?.trim() || "the installer"} worked out from your photos.` : null;
 }
 
 export type EstimateVsQuote = {

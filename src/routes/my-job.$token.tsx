@@ -799,7 +799,7 @@ function QuoteScreen({ v, token }: { v: View; token: string }) {
           <p className="mt-1 font-display text-[42px] font-extrabold leading-none text-estimate-blue">{centsAud(q.total)}</p>
           {q.rebate > 0 && full != null && <p className="mt-1.5 text-[13px] font-bold">{P2.priceNote} <span className="line-through">{centsAud(full)}</span></p>}
           {/* Jo 4 Nov 2026 20:05 (pack 2 batch 5): the address is shown once, in the line under the title. */}
-          <p className="mt-3 border-t border-estimate-line pt-3 text-[13px] leading-relaxed text-estimate-sub">{q.changesFootnote ?? P2.measured}</p>
+          {q.changesFootnote !== null && <p className="mt-3 border-t border-estimate-line pt-3 text-[13px] leading-relaxed text-estimate-sub">{q.changesFootnote ?? P2.measured}</p>}
         </div>
       </section>
       {q.validLine && <p data-testid="quote-valid-line" className="text-center text-[13px] font-semibold text-estimate-sub">{q.validLine}</p>}
@@ -807,7 +807,7 @@ function QuoteScreen({ v, token }: { v: View; token: string }) {
         <h2 className="text-[15px] font-bold">{QUOTE_CHANGES_HEADING}</h2>
         <p className="mt-1 text-right text-xs text-estimate-sub">Estimate → Quote</p>
         <ul>{q.changes.map((r: { label: string; estimate: string; quote: string }) => <li key={r.label} className="flex items-baseline justify-between gap-2.5 border-t border-estimate-line py-2.5 text-sm"><span>{r.label}</span><span className="tabular-nums">{r.estimate} → <b>{r.quote}</b></span></li>)}</ul>
-        <p className="mt-1 text-[13px] text-estimate-sub">{q.changesFootnote ?? QUOTE_CHANGES_FOOTNOTE}</p>
+        {q.changesFootnote !== null && <p className="mt-1 text-[13px] text-estimate-sub">{q.changesFootnote ?? QUOTE_CHANGES_FOOTNOTE}</p>}
       </section>}
       <section className="rounded-[14px] border border-estimate-line bg-card px-4 pt-3.5 pb-1.5">
         <h2 className="mb-1 text-[15px] font-bold">{P2.itemsTitle}</h2>

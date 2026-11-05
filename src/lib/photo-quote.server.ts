@@ -197,11 +197,19 @@ export async function photoQuoteMediaFor(jobId: string, db: Db = admin as unknow
   return { media, ownerSaid };
 }
 
-/** The From photos installer's name (as the owner sees it) when the job's current give is From photos; else null. Throws on a failed read. */
-export async function photoQuoteInstallerFor(jobId: string): Promise<string | null> {
-  const give = await photoGiveFor(jobId);
-  if (!give) return null;
+/** A photo job, for owner wording: given From photos (`fromPhotos`, an HIV lead whose owner sent photos) or a From photos
+ *  installer's OWN customer (the Add a job photo quote claim; `fromPhotos` false — that owner sent no photos). Null = a
+ *  Ready Check job. `installer` = the name the owner sees. Throws on a failed read. */
+export async function photoQuoteJobFor(jobId: string, db: Db = admin as unknown as Db): Promise<{ installer: string; fromPhotos: boolean } | null> {
+  const give = await photoGiveFor(jobId, db);
+  let fromPhotos = !!give;
+  if (!give) {
+    const own = await db.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", PHOTO_QUOTE_SUBMITTED_EVENT).contains("details", { own_customer: true }).limit(1);
+    if (own.error) throw new Error("Could not read how this job is quoted.");
+    if (!((own.data ?? []) as unknown[]).length) return null;
+    fromPhotos = false;
+  }
   const c = await (await import("./owner-contact.server")).businessContactForJob(jobId, "installer");
   const { displayName } = await import("./display-name.core");
-  return displayName(c?.tradingName || c?.name || null) || "your installer";
+  return { installer: displayName(c?.tradingName || c?.name || null) || "your installer", fromPhotos };
 }

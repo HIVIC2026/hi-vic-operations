@@ -79,8 +79,8 @@ export async function writeAiReplyDraft(p: { jobId: string; message: MailMessage
     // Step 3: Jo's recent replies as style examples; any failure just means no examples.
     const [answersRes, style] = await Promise.all([loadAiAnswers(), loadStyleExamples(p.jobId, m.body).catch(() => [] as StyleExample[])]);
     // Photo-quote installers (Jo 5 Nov 2026): a job with a From photos installer has no Ready Check visit to talk about.
-    const photoInstaller = preRelease ? null : await (await import("./photo-quote.server")).photoQuoteInstallerFor(p.jobId).catch(() => null);
-    const answers = photoInstaller ? (await import("./ai-answers.core")).answersForPhotoJob(answersRes.answers, photoInstaller) : answersRes.answers;
+    const photoJob = preRelease ? null : await (await import("./photo-quote.server")).photoQuoteJobFor(p.jobId).catch(() => null);
+    const answers = photoJob ? (await import("./ai-answers.core")).answersForPhotoJob(answersRes.answers, photoJob.installer, (await import("./photo-quote.core")).photoOwnerWording(photoJob.fromPhotos)) : answersRes.answers;
     const inputWith = (factLines: string[]) => buildAiReplyInput({
       jobNumber: job.job_number, ownerFirstName: firstNameOf(owner.full_name), stageLabel: (STAGE_LABEL as Record<string, string>)[job.stage] ?? job.stage,
       facts: factLines, links, changeLink: bookingChangeLink(facts.myJobLink, job.stage),

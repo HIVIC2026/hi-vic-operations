@@ -117,3 +117,19 @@ test("photoQuoteMediaFor: photos and videos only, app links, owner said rows, no
   const text = JSON.stringify(r);
   expect(text).not.toMatch(/\$\s?\d|2400|quote_|my-job/i);
 });
+
+// Review fix round IMPORTANT 2: which owner wording a photo job gets — given From photos vs an installer's own customer.
+test("photoQuoteJobFor: a From photos give → fromPhotos; an Add a job photo quote (own customer) → not fromPhotos; else null", async () => {
+  mock.module("../src/lib/owner-contact.server", () => ({ businessContactForJob: async () => ({ name: "No Gap Insulation Pty Ltd", tradingName: "No Gap Insulation" }) }));
+  const { photoQuoteJobFor } = await import("../src/lib/photo-quote.server");
+  t.workflow_events = [
+    { job_id: "lead", event_type: "in_house_quote_method", created_at: "2026-11-05T09:00:00Z", details: { batch_id: "B1", business_id: "nogap", quote_method: "photos" } },
+    { job_id: "lead", event_type: "in_house_batch_sent", created_at: "2026-11-05T09:01:00Z", details: { batch_id: "B1", business_id: "nogap" } },
+    { job_id: "own", event_type: "photo_quote_submitted", created_at: "2026-11-05T09:00:00Z", details: { own_customer: true, business_id: "nogap" } },
+  ];
+  t.job_assignments = [{ job_id: "lead", business_id: "nogap", role: "installer", active: true }, { job_id: "own", business_id: "nogap", role: "installer", active: true }];
+  const db = memoryPostgrest(t) as never;
+  expect(await photoQuoteJobFor("lead", db)).toEqual({ installer: "No Gap Insulation", fromPhotos: true });
+  expect(await photoQuoteJobFor("own", db)).toEqual({ installer: "No Gap Insulation", fromPhotos: false });
+  expect(await photoQuoteJobFor("rc", db)).toBeNull();
+});

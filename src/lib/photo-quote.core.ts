@@ -30,6 +30,15 @@ export function isMissingQuoteMethodColumn(e: { code?: string | null; message?: 
   return !!e && (e.code === "42703" || /quote_method[^]*does not exist|column [^ ]*quote_method/i.test(e.message ?? ""));
 }
 
+/** Hard rule (review fix round): new owner wording (the photo quote footnote, touchpoint 29, and the photo reply line,
+ *  touchpoint 54) stays off until Jo approves it. While off, photo jobs just drop the untrue Ready Check wording. */
+export const PHOTO_QUOTE_OWNER_WORDING_APPROVED = false;
+/** Whether an owner gets the NEW photo wording: only jobs given From photos (an HIV lead whose owner sent photos), never an
+ *  installer's own customer (who sent no photos), and only once approved. */
+export function photoOwnerWording(fromPhotos: boolean, approved: boolean = PHOTO_QUOTE_OWNER_WORDING_APPROVED): boolean {
+  return approved && fromPhotos;
+}
+
 /** Days the installer has to send a photo quote, counted from the Melbourne day the job was given. */
 export const PHOTO_QUOTE_BUSINESS_DAYS = 2;
 
@@ -48,7 +57,8 @@ export const PHOTO_QUOTE_WORDS = {
   paperworkStep: "Photo quote",
   overdueFlag: "Photo quote not sent after 2 business days",
   giveEmailDue: "Quote each one from the owner's photos within 2 business days.",
-  aiReply: (installer: string) => `${installer} is preparing your quote from the photos you sent, so there's no Ready Check visit.`,
+  /** Spec touchpoint 54, exact words. Owner-facing: only behind PHOTO_QUOTE_OWNER_WORDING_APPROVED. */
+  aiReply: (installer: string) => `${installer} is preparing your quote from your photos.`,
   cantDoReasons: ["Photos not clear enough", "Looks over R2", "Other"] as const,
 } as const;
 
