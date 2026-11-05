@@ -23,7 +23,7 @@ export type PersonFacts = {
 };
 
 export type PersonAction = "verify_cii" | "send_notice" | "invite_mitti" | null;
-export type PersonRow = { ciiLabel: string; ciiTone: "green" | "rose" | "amber" | "plain"; noticeLabel: string; noticeTone: "green" | "rose" | "plain"; mittiLabel: string; inMitti: boolean; action: PersonAction };
+export type PersonRow = { ciiLabel: string; ciiTone: "green" | "rose" | "amber" | "plain"; noticeLabel: string; noticeTone: "green" | "rose" | "plain"; mittiLabel: string; inMitti: boolean; action: PersonAction; /** Display-only approval facts (person-approval.core). */ ciiOk: boolean; noticeOk: boolean };
 
 const fmt = (ymd: string | null | undefined, withYear = true) => {
   if (!ymd) return "";
@@ -51,10 +51,10 @@ export function personRow(p: PersonFacts, today: string): PersonRow {
   const noticeLabel = p.noticeAck == null ? "—" : p.noticeAck ? "Acknowledged" : p.noticeFirstSentAt ? `Outstanding ${days(p.noticeFirstSentAt, today)}d` : "Not sent yet";
   const noticeTone: PersonRow["noticeTone"] = p.noticeAck == null ? "plain" : p.noticeAck ? "green" : "rose";
   const inMitti = p.mitti === "member";
-  const mittiLabel = p.mitti == null ? "No login yet" : inMitti ? "Yes" : p.mitti === "unchecked" ? "Not checked" : p.mitti === "email_changed" ? "Email changed" : "No";
+  const mittiLabel = inMitti ? "Yes" : "No"; // Jo 5 Nov: only Yes or No
   const needsCii = p.role === "installer" && !(p.eec === "verified" && p.cii?.cleared);
   const action: PersonAction = needsCii && p.eec !== "missing" ? "verify_cii" : p.noticeAck === false ? "send_notice" : !inMitti ? "invite_mitti" : null;
-  return { ciiLabel, ciiTone, noticeLabel, noticeTone, mittiLabel, inMitti, action };
+  return { ciiLabel, ciiTone, noticeLabel, noticeTone, mittiLabel, inMitti, action, ciiOk: p.role === "installer" && p.eec === "verified" && p.cii?.cleared === true, noticeOk: p.noticeAck === true };
 }
 
 /** "3145–3170 · 3199" from a postcode list (wildcards like 31* kept as written). */

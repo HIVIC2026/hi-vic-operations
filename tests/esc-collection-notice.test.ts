@@ -204,3 +204,15 @@ test("G4: lead follows the one Lead/Crew rule — never just the first row", () 
   expect(page).not.toContain("i === 0");
   expect(readFileSync("src/routes/notice.$token.tsx", "utf8")).not.toContain("leadSuffix");
 });
+
+describe("collectionNoticeStatus matches by worker id first", () => {
+  test("an acknowledgement saved with an empty email still counts once the worker has an email", () => {
+    const wayne = { id: "f6b59098", email: "wayne@reinsulate.au", full_legal_name: "Wayne Fletcher", trade_role: "installer" };
+    const [s] = collectionNoticeStatus([wayne], [{ ...ack(""), worker_id: "f6b59098" }]);
+    expect(s?.state).toBe("acknowledged");
+  });
+  test("an acknowledgement for another worker id with no email match does not count", () => {
+    const [s] = collectionNoticeStatus([{ id: "w1", email: "a@x.au", full_legal_name: "A", trade_role: "installer" }], [{ ...ack(""), worker_id: "w2" }]);
+    expect(s?.state).toBe("missing");
+  });
+});
