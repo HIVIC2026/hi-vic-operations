@@ -23,7 +23,7 @@ test("server wiring", () => {
   const add = srv.slice(srv.indexOf("export async function tradeAddTeamPerson"), srv.indexOf("\n}\n", srv.indexOf("export async function tradeAddTeamPerson")));
   expect(add).toContain("c.kind");
   expect(add).not.toContain('trade_role: "installer"');
-  expect(add).toContain("declarations_due: true");
+  expect(add).not.toContain("declarations_due"); // Jo 5 Nov 2026: a new person is not held back from jobs
   const fns = src("src/lib/trade-view.functions.ts");
   expect(fns).toContain("export const addTeamPerson");
   expect(fns).not.toMatch(/setTeamCrewRole|tradeSetCrewRole/);

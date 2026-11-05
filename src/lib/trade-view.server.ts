@@ -813,22 +813,16 @@ export async function tradeMoney(userId: string) {
  * insurance expiries, agreement, notice summary. The NEXT panel is derived by pure `businessNext`. Never quotes,
  * prices or other partners.
  */
-/** Speed (portal speed step 1, Task 7): set once this server has seen `partner_workers.declarations_due` missing, so later
- *  loads read the team once, without it, instead of failing first and reading again. A new server instance checks again. */
-let declarationsDueMissing = false;
-/** The team rows with `declarations_due`. Until 0230 is live the column is missing: re-read without it (nobody is due). */
-async function loadTeamWorkers(businessId: string): Promise<{ data: { id: string; full_legal_name: string; trade_role: string; profile_id: string | null; email: string | null; mobile: string | null; certification: unknown; worker_role?: string | null; declarations_due?: boolean; licence_expires_on: string | null; licence_number?: string | null; rec_number?: string | null; licence_verified_at?: string | null; esc_registered?: boolean | null }[] | null; error?: { code?: string } | null }> {
+/** The team rows. The office's licence-verified (0182) and ESC-registered (0184) stamps are read with the row; a column that
+ *  isn't live yet is simply unknown, so the read falls back to the base columns. (Jo 5 Nov 2026: no declarations flag.) */
+async function loadTeamWorkers(businessId: string): Promise<{ data: { id: string; full_legal_name: string; trade_role: string; profile_id: string | null; email: string | null; mobile: string | null; certification: unknown; worker_role?: string | null; licence_expires_on: string | null; licence_number?: string | null; rec_number?: string | null; licence_verified_at?: string | null; esc_registered?: boolean | null }[] | null; error?: { code?: string } | null }> {
   const load = (cols: string) => (admin as unknown as { from: (t: string) => any }).from("partner_workers").select(cols).eq("business_id", businessId).is("removed_at", null); // eslint-disable-line @typescript-eslint/no-explicit-any
   const base = "id, full_legal_name, trade_role, approval_status, licence_expires_on, profile_id, email, mobile, certification_status, certification, worker_role, licence_number, rec_number";
-  if (declarationsDueMissing) return await load(base);
   // Task 10 (Team screen): the office's licence + REC verification stamp (0182) and ESC registration stamp (0184) are
   // read with the row; a column that isn't live yet is simply unknown (nobody shown as verified or registered).
-  const first = await load(`${base}, declarations_due, licence_verified_at, esc_registered`);
-  if (!first.error) return first;
-  if (!schemaCompatCore.isMissingDbObject(first.error)) return first;
-  const second = await load(`${base}, declarations_due`);
-  if (second.error && schemaCompatCore.isMissingDbObject(second.error)) { declarationsDueMissing = true; return await load(base); }
-  return second;
+  const first = await load(`${base}, licence_verified_at, esc_registered`);
+  if (!first.error || !schemaCompatCore.isMissingDbObject(first.error)) return first;
+  return await load(base);
 }
 
 /** The business's active sign-ins with the pending "Can see Money" flag (missing column = nobody has it, never a crash). */
@@ -884,7 +878,7 @@ export async function tradeBusiness(userId: string) {
   // Task 10: "Can see Money" per Office sign-in (business_members.can_see_money; the boss's switch on Team).
   const canSeeMoneyOf = (profileId: string | null | undefined) => !!profileId && (members ?? []).some((m) => m.user_id === profileId && m.member_role === "office" && m.can_see_money === true);
   const profileIds = [...new Set([...ownerIds, ...(workers ?? []).map((w) => w.profile_id).filter((x): x is string => !!x)])];
-  const staffRows = (workers ?? []) as { id: string; full_legal_name: string; trade_role: string; profile_id: string | null; email: string | null; mobile: string | null; certification: unknown; worker_role?: string | null; declarations_due?: boolean; licence_number?: string | null; rec_number?: string | null; licence_expires_on?: string | null; licence_verified_at?: string | null; esc_registered?: boolean | null }[];
+  const staffRows = (workers ?? []) as { id: string; full_legal_name: string; trade_role: string; profile_id: string | null; email: string | null; mobile: string | null; certification: unknown; worker_role?: string | null; licence_number?: string | null; rec_number?: string | null; licence_expires_on?: string | null; licence_verified_at?: string | null; esc_registered?: boolean | null }[];
   const needCrew = c.kind === "installer" || staffRows.some((w) => w.trade_role === "installer");
   // Round 3. Office Mitti records (linked, invited, reactivated, marked done) per worker: Crew show "Mitti ✓" once the office has added them.
   const [{ data: profs }, recsRes, cii, notice, births] = await Promise.all([
@@ -931,11 +925,11 @@ export async function tradeBusiness(userId: string) {
     ...ownerIds.map((uid) => {
       const p = profile(uid), w = ownerRow(uid);
       return { id: w?.id ?? null, name: (p?.full_name ?? w?.full_legal_name ?? "Business owner").trim(), role: "owner" as const, mobile: w?.mobile ?? p?.phone ?? null, email: p?.email ?? w?.email ?? null, hasLogin: true,
-        mittiLogin: mittiLogin(uid), mittiRecorded: !mittiRecordsKnown ? null : w ? mittiRecordedIds.has(w.id) : false, noticeAcknowledged: w ? noticeOf(w.id, w.trade_role) : null, cii: w ? ciiFacts(w.id, w.trade_role) : null, whiteCard: w ? whiteCardOfRow(w) : null, workerRole: w ? roles.get(w.id) ?? null : null, declarationsDue: w?.declarations_due === true, ...checksOf(w) };
+        mittiLogin: mittiLogin(uid), mittiRecorded: !mittiRecordsKnown ? null : w ? mittiRecordedIds.has(w.id) : false, noticeAcknowledged: w ? noticeOf(w.id, w.trade_role) : null, cii: w ? ciiFacts(w.id, w.trade_role) : null, whiteCard: w ? whiteCardOfRow(w) : null, workerRole: w ? roles.get(w.id) ?? null : null, ...checksOf(w) };
     }),
     ...staffRows.filter((w) => !ownerIds.includes(w.profile_id ?? "") && !ownerEmails.has((w.email ?? "").trim().toLowerCase())).map((w) => ({
       id: w.id as string | null, name: w.full_legal_name.trim(), role: teamRole(w.trade_role), mobile: w.mobile ?? null, email: w.email, hasLogin: !!w.profile_id,
-      mittiLogin: mittiLogin(w.profile_id), mittiRecorded: mittiRecordsKnown ? mittiRecordedIds.has(w.id) : null, noticeAcknowledged: noticeOf(w.id, w.trade_role), cii: ciiFacts(w.id, w.trade_role), whiteCard: whiteCardOfRow(w), workerRole: roles.get(w.id) ?? null, declarationsDue: w.declarations_due === true, ...checksOf(w),
+      mittiLogin: mittiLogin(w.profile_id), mittiRecorded: mittiRecordsKnown ? mittiRecordedIds.has(w.id) : null, noticeAcknowledged: noticeOf(w.id, w.trade_role), cii: ciiFacts(w.id, w.trade_role), whiteCard: whiteCardOfRow(w), workerRole: roles.get(w.id) ?? null, ...checksOf(w),
     })),
   ];
   // Jo 3 Nov (#134): which required details each person is missing (owner row excluded); the date of birth is a yes/no only
@@ -1253,7 +1247,8 @@ export async function tradeFillWorkerMissing(userId: string, workerId: string, p
  *  (`add_team_person_with_identity`, pending installer-portal-roles.sql; the date of birth goes straight into the private
  *  identity table and never comes back to a trade screen). Until that SQL is live, Lead/Crew still go through the live
  *  `add_team_installer_with_identity` exactly as before, and Office/Electrician get the existing "pending database
- *  update" message. Always pending; they sign the worker declarations (declarations_due) before any job. Sends nothing.
+ *  update" message. Always pending. No worker declarations to sign (Jo 5 Nov 2026): nothing here sets or reads
+ *  the old declarations flag, so a new person is not held back from jobs. Sends nothing.
  *  Electrician businesses keep their own add path (name + licence; Jo 29 Oct) — unchanged here. */
 export async function tradeAddTeamPerson(userId: string, p: { name: string; role?: import("./team-screen.core").AddPersonRole | undefined; workerRole?: import("./worker-role.core").WorkerRole | undefined; mobile: string | null; email: string | null; licenceNumber: string | null; recNumber?: string | null | undefined; dateOfBirth?: string | null | undefined }): Promise<{ workerId: string }> {
   const c = await bossOrThrow(userId);
@@ -1291,11 +1286,11 @@ export async function tradeAddTeamPerson(userId: string, p: { name: string; role
     return { workerId: r.data as string };
   }
   const row = { trade_role: c.kind, licence_number: licence, worker_role: null };
-  const { data, error } = await admin.from("partner_workers").insert({ business_id: c.biz.id, full_legal_name: name, email, mobile: v.mobile, ...row, approval_status: "pending", declarations_due: true, added_by: userId } as never).select("id").single();
+  const { data, error } = await admin.from("partner_workers").insert({ business_id: c.biz.id, full_legal_name: name, email, mobile: v.mobile, ...row, approval_status: "pending", added_by: userId } as never).select("id").single();
   if (error) {
     const needsDbUpdate = "Adding someone without an email needs the office's database update first.";
     if (error.code === "23502") throw new WorkflowError(needsDbUpdate);
-    // Before 0230 (declarations_due) is live: same plain message, no retry without the column.
+    // A column the live table does not have yet: same plain message, no retry.
     if (error.code === "PGRST204" || (await import("./schema-compat.core")).isMissingDbObject(error)) throw new WorkflowError(needsDbUpdate);
     if (error.code === "23505") throw new WorkflowError("Someone with that email is already on your team.");
     throw new WorkflowError("Couldn't add them. Please try again.");

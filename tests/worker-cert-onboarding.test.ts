@@ -12,13 +12,12 @@ const complianceFns = readFileSync("src/lib/worker-compliance.functions.ts", "ut
 const complianceUi = readFileSync("src/components/portal/worker-compliance.tsx", "utf8");
 const teamPage = readFileSync("src/routes/_authenticated/field.business_.team.tsx", "utf8");
 
-const keys = ["a", "b", "c"];
-const okRegistration = { full_legal_name: "Sam Taylor", mobile: "0412 345 678", email: "sam@x.com", qualification: "Cert III", certificate_path: "worker-invites/inv1/eec-abc.pdf", accepted: keys, signed_name: "Sam Taylor" };
+const okRegistration = { full_legal_name: "Sam Taylor", mobile: "0412 345 678", email: "sam@x.com", qualification: "Cert III", certificate_path: "worker-invites/inv1/eec-abc.pdf" };
 
 describe("installer EEC/CII certificate onboarding", () => {
   test("1) new installer invite cannot complete without a certificate", () => {
-    expect(workerSubmissionErrors("installer", { ...okRegistration, certificate_path: undefined }, keys)).toContain("Upload the EEC / Certified Insulation Installer certificate.");
-    expect(workerSubmissionErrors("installer", okRegistration, keys)).toEqual([]);
+    expect(workerSubmissionErrors("installer", { ...okRegistration, certificate_path: undefined })).toContain("Upload the EEC / Certified Insulation Installer certificate.");
+    expect(workerSubmissionErrors("installer", okRegistration)).toEqual([]);
     // The public join page gates installer submission on the certificate file.
     expect(joinPage).toContain("certificate_path = inv.trade === \"installer\" ? await uploadCert() : undefined");
   });
@@ -72,7 +71,7 @@ describe("installer EEC/CII certificate onboarding", () => {
     expect(inviteFns).toContain("await requireMember(context.userId, w.business_id, true)");
     // Verified workers never get a link.
     expect(inviteFns).toContain("const blocker = signLinkBlocker(w);");
-    expect(signLinkBlocker({ trade_role: "installer", declarations_due: false, email: null, mobile: null, certification_status: "verified" })).toBe("This worker's certificate is already verified.");
+    expect(signLinkBlocker({ trade_role: "installer", email: null, mobile: null, certification_status: "verified" })).toBe("This worker's certificate is already verified.");
   });
 
   test("6) office can view and verify the uploaded certificate", () => {
@@ -102,11 +101,11 @@ describe("installer EEC/CII certificate onboarding", () => {
 
   test("8) electrician path is unchanged", () => {
     // Electricians still need their licence number and are never asked for an EEC certificate.
-    const elec = { full_legal_name: "Ed Spark", mobile: "0412 345 678", email: "ed@x.com", licence_number: "A1", accepted: keys, signed_name: "Ed Spark" };
-    expect(workerSubmissionErrors("electrician", elec, keys)).toEqual([]);
-    expect(workerSubmissionErrors("electrician", elec, keys)).not.toContain("Upload the EEC / Certified Insulation Installer certificate.");
+    const elec = { full_legal_name: "Ed Spark", mobile: "0412 345 678", email: "ed@x.com", licence_number: "A1" };
+    expect(workerSubmissionErrors("electrician", elec)).toEqual([]);
+    expect(workerSubmissionErrors("electrician", elec)).not.toContain("Upload the EEC / Certified Insulation Installer certificate.");
     // Completion links are installer-only.
-    expect(signLinkBlocker({ trade_role: "electrician", declarations_due: false, email: null, mobile: null, certification_status: null })).toBe("Certificate completion links are only for installer workers.");
+    expect(signLinkBlocker({ trade_role: "electrician", email: null, mobile: null, certification_status: null })).toBe("Certificate completion links are only for installer workers.");
     expect(eecState({ trade_role: "electrician" })).toBe("not_applicable");
     expect(joinPage).toContain('inv.trade === "electrician"');
   });
@@ -121,7 +120,8 @@ describe("installer EEC/CII certificate onboarding", () => {
   test("completion mode asks only for the certificate (no declarations, no re-sign)", () => {
     expect(completionErrors({})).toContain("Upload the EEC / Certified Insulation Installer certificate.");
     expect(completionErrors({ certificate_path: "worker-invites/i/eec-a.pdf" })).toEqual([]);
-    expect(inviteFns).toContain("declarations: due ? workerDeclarations(t, businessName) : []");
+    expect(inviteFns).toContain("needsCert: w ? completionNeedsCert(w) : false");
+    expect(inviteFns).not.toContain("workerDeclarations");
   });
 
   test("team labels are owner-safe and never expose file paths", () => {

@@ -7,7 +7,7 @@ import { TradeShell, card, ghostBtn, greenBtn, inputCls } from "@/components/tra
 import { BackToBusiness, Chevron, Switch } from "@/components/trade/business-kit";
 import { addTeamPerson, getTradeBusiness, requestTeamLoginInvite, setTeamMemberDob, setTeamMemberMobile, setTeamMoneyAccess } from "@/lib/trade-view.functions";
 import { removeWorker } from "@/lib/worker-links.functions";
-import { TEAM_ADD_SHEET, TEAM_LOGIN, TEAM_MOBILE_NOTE, TEAM_SIGN, teamMobileButton, teamCiiLine, teamCountLine, teamFactsLine, teamWhiteCardLine, type TeamMemberView } from "@/lib/trade-view.core";
+import { TEAM_ADD_SHEET, TEAM_LOGIN, TEAM_MOBILE_NOTE, teamMobileButton, teamCiiLine, teamCountLine, teamFactsLine, teamWhiteCardLine, type TeamMemberView } from "@/lib/trade-view.core";
 import { ADD_PERSON_ROLES, ADD_PERSON_ROLE_LABEL, TEAM_INTRO, TEAM_WORDS, addPersonProblems, teamRow, type AddPersonRole } from "@/lib/team-screen.core";
 import { melbourneToday } from "@/lib/melbourne-time.core";
 import { CertLinkInline, SendNoticeLinkInline, WhiteCardUploadInline } from "@/components/portal/worker-compliance";
@@ -85,7 +85,6 @@ function PersonSheet({ m, today, onChange, onClose }: { m: TeamMemberView; today
       <p className="text-[13px] text-sub">{teamFactsLine(m)}{m.email ? ` · ${m.email}` : ""}</p>
       {m.hasDob != null && <p className={`mt-0.5 text-[13px] ${m.hasDob ? "text-sub" : `font-semibold ${WARN}`}`} data-dob-state>{m.hasDob ? TEAM_WORDS.dobOnFile : TEAM_WORDS.dobMissing}</p>}
       {id && m.hasDob === false && <DobInline workerId={id} onSaved={onChange} />}
-      {m.declarationsDue && <p data-sign-due className={`mt-0.5 text-[13px] font-semibold ${WARN}`}>{TEAM_SIGN.due}</p>}
       {cii && <p className={`mt-0.5 text-[13px] font-semibold ${cii.tone === "green" ? "text-estimate-green" : WARN}`}>{cii.text}</p>}
       {wc && <p data-white-card className={`mt-0.5 text-[13px] font-semibold ${wc.tone === "green" ? "text-estimate-green" : WARN}`}>{wc.text}</p>}
       {id && m.role === "office" && <MoneySwitch workerId={id} on={m.canSeeMoney === true} hasLogin={m.hasLogin} onSaved={onChange} />}
@@ -94,9 +93,8 @@ function PersonSheet({ m, today, onChange, onClose }: { m: TeamMemberView; today
         <MobileInline workerId={id} mobile={m.mobile} onSaved={onChange} />
         {/* Jo 4 Nov 2026 21:45 (G8): NO worker logins — only the boss and Office people log in. The login ask shows for Office people only. */}
         {m.role === "office" && !m.hasLogin && (asked ? <span className="text-[13px] font-semibold text-estimate-green">{asked}</span> : <button type="button" className={smallBtn} onClick={async () => { try { await invite({ data: { workerId: id } }); setAsked(TEAM_LOGIN.asked); } catch (e) { setAsked((e as Error).message); } }}>{TEAM_LOGIN.button}</button>)}
-        {m.declarationsDue && (m.mobile?.trim() || m.email?.trim() ? <CertLinkInline workerId={id} name={m.name} label={TEAM_SIGN.link} /> : <span className="text-[13px] text-sub">{TEAM_SIGN.needContact}</span>)}
         {m.noticeAcknowledged === false && <SendNoticeLinkInline workerId={id} />}
-        {!m.declarationsDue && m.cii && cii?.tone === "rose" && <CertLinkInline workerId={id} name={m.name} />}
+        {m.cii && cii?.tone === "rose" && <CertLinkInline workerId={id} name={m.name} />}
         {wc?.canUpload && !wcOpen && <button type="button" className={smallBtn} onClick={() => setWcOpen(true)}>Upload White Card</button>}
         {wc?.canUpload && wcOpen && <WhiteCardUploadInline workerId={id} onDone={onChange} />}
         {m.role !== "owner" && <button type="button" data-team-remove className="min-h-11 px-3 text-[13px] font-semibold text-rose" onClick={async () => { if (!confirm("Remove this team member? Their job links stop working straight away.")) return; try { setRemoveErr(null); await remove({ data: { id } }); onChange(); onClose(); } catch (e) { setRemoveErr((e as Error).message); } }}>Remove</button>}

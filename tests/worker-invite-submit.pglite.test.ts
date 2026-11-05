@@ -2,6 +2,8 @@
 // migration 0072 (`guard_signed_worker_invite` + `signed_worker_invite_immutable`): once used_at is set, any update or
 // delete on that invite row raises "Signed worker invitation is immutable". The bug (5 Nov 2026): the function claimed
 // the invite first and wrote the signature afterwards, so every signature write and every "reset used_at" failed.
+// Jo 5 Nov 2026: the worker declarations are dropped. Registration saves details only (no ticks, no signature) and the
+// completion link takes the certificate only, when one is needed. `declarations_due` is never read or written any more.
 // Real server code; storage, the upload byte check and the request middleware are stubbed. Never touches the live DB.
 import { afterAll, beforeEach, describe, expect, mock, spyOn, test } from "bun:test";
 import { readFileSync } from "node:fs";
@@ -70,11 +72,10 @@ mock.module("@tanstack/react-start", () => ({
   },
   createMiddleware: () => ({ server: () => ({}) }),
 }));
-const { submitWorkerInvite } = (await import("../src/lib/worker-invite.functions")) as unknown as { submitWorkerInvite: (a: { data: unknown }) => Promise<{ ok: boolean; errors?: string[] }> };
+const { submitWorkerInvite, getWorkerInvite } = (await import("../src/lib/worker-invite.functions")) as unknown as { submitWorkerInvite: (a: { data: unknown }) => Promise<{ ok: boolean; errors?: string[] }>; getWorkerInvite: (a: { data: unknown }) => Promise<Record<string, unknown>> };
 
 const BIZ = "00000000-0000-4000-8000-000000000001", OWNER = "00000000-0000-4000-8000-0000000000b1";
 await db.query("insert into businesses (id, name, trading_name) values ($1, 'Sparks Pty Ltd', 'Sparks')", [BIZ]);
-const KEYS = ["own_behalf", "customer_owner", "licence_current", "compliance", "no_bypass", "true_info"];
 afterAll(async () => { await db.close(); });
 beforeEach(() => { faults.length = 0; before.length = 0; });
 
@@ -85,16 +86,17 @@ async function invite(o: { trade: "electrician" | "installer"; workerId?: string
     [BIZ, OWNER, o.trade, await hashToken(token), o.workerId ?? null]);
   return { token, id: rows[0]!.id };
 }
-async function worker(o: { trade: "electrician" | "installer"; due: boolean; email: string }) {
+/** `due` is the OLD flag: a stale `true` left on a row must change nothing. */
+async function worker(o: { trade: "electrician" | "installer"; due?: boolean; email: string; certification?: unknown; certStatus?: string }) {
   const { rows } = await db.query<{ id: string }>(
-    "insert into partner_workers (business_id, full_legal_name, email, mobile, trade_role, approval_status, declarations_due) values ($1,'Ed Spark',$2,'0412345678',$3,'pending',$4) returning id",
-    [BIZ, o.email, o.trade, o.due]);
+    "insert into partner_workers (business_id, full_legal_name, email, mobile, trade_role, approval_status, declarations_due, certification, certification_status) values ($1,'Ed Spark',$2,'0412345678',$3,'pending',$4,$5,$6) returning id",
+    [BIZ, o.email, o.trade, o.due ?? false, o.certification ? JSON.stringify(o.certification) : null, o.certStatus ?? null]);
   return rows[0]!.id;
 }
 const inviteRow = async (id: string) => (await db.query<Record<string, any>>("select * from partner_worker_invites where id = $1", [id])).rows[0]!; // eslint-disable-line @typescript-eslint/no-explicit-any
 const workerRow = async (id: string) => (await db.query<Record<string, any>>("select * from partner_workers where id = $1", [id])).rows[0]; // eslint-disable-line @typescript-eslint/no-explicit-any
 const workersByEmail = async (email: string) => (await db.query<{ id: string }>("select id from partner_workers where email = $1", [email])).rows;
-const sign = (token: string, extra: Record<string, unknown> = {}) => ({ data: { token, full_legal_name: "Ed Spark", mobile: "0412345678", email: "ed@sparks.test", accepted: KEYS, signed_name: "Ed Spark", ...extra } });
+const sign = (token: string, extra: Record<string, unknown> = {}) => ({ data: { token, full_legal_name: "Ed Spark", mobile: "0412345678", email: "ed@sparks.test", ...extra } });
 const register = (token: string, email: string, extra: Record<string, unknown> = {}) => sign(token, { email, licence_number: "A12345", date_of_birth: "1990-05-01", ...extra });
 
 describe("the practice database really carries the 0072 guard", () => {
@@ -106,104 +108,118 @@ describe("the practice database really carries the 0072 guard", () => {
   });
 });
 
-describe("completion link (existing worker signs their declarations)", () => {
-  test("declarations due: signature recorded, declarations_due cleared, link used", async () => {
-    const w = await worker({ trade: "electrician", due: true, email: "c1@sparks.test" });
-    const { token, id } = await invite({ trade: "electrician", workerId: w });
-    const r = await submitWorkerInvite(sign(token));
-    expect(r).toEqual({ ok: true });
-    const inv = await inviteRow(id);
-    expect(inv.used_at).not.toBeNull();
-    expect(inv.signed_name).toBe("Ed Spark");
-    expect(inv.declarations.version).toBe("worker-v1");
-    expect(inv.declarations.accepted.map((d: { key: string }) => d.key)).toEqual(KEYS);
-    expect(inv.signed_ip).toBe("203.0.113.9");
-    expect(inv.signed_user_agent).toBe("TestPhone/1");
-    expect((await workerRow(w))!.declarations_due).toBe(false);
-  });
-
-  test("installer certificate-only link: certificate saved, link used, no declarations written", async () => {
-    const w = await worker({ trade: "installer", due: false, email: "c2@sparks.test" });
+describe("completion link (existing installer uploads the certificate; nothing to sign)", () => {
+  const cert = (id: string) => ({ certificate_path: `worker-invites/${id}/eec-abc.pdf` });
+  test("certificate saved, link used, no declarations or signature written", async () => {
+    const w = await worker({ trade: "installer", email: "c2@sparks.test" });
     const { token, id } = await invite({ trade: "installer", workerId: w });
-    const r = await submitWorkerInvite(sign(token, { certificate_path: `worker-invites/${id}/eec-abc.pdf`, accepted: [], signed_name: "" }));
-    expect(r).toEqual({ ok: true });
+    expect(await submitWorkerInvite(sign(token, cert(id)))).toEqual({ ok: true });
     const inv = await inviteRow(id);
     expect(inv.used_at).not.toBeNull();
     expect(inv.declarations).toBeNull();
+    expect(inv.signed_name).toBeNull();
     expect(inv.signed_ip).toBe("203.0.113.9");
+    expect(inv.signed_user_agent).toBe("TestPhone/1");
     expect((await workerRow(w))!.certification.eec_upload.path).toBe(`worker-invites/${id}/eec-abc.pdf`);
   });
 
-  test("a second submit on the same link is refused and changes nothing", async () => {
-    const w = await worker({ trade: "electrician", due: true, email: "c3@sparks.test" });
+  test("a stale declarations_due flag changes nothing: the link still takes only the certificate and leaves the flag alone", async () => {
+    const w = await worker({ trade: "installer", due: true, email: "c1@sparks.test" });
+    const { token, id } = await invite({ trade: "installer", workerId: w });
+    expect(await submitWorkerInvite(sign(token))).toEqual({ ok: false, errors: ["Upload the EEC / Certified Insulation Installer certificate."] });
+    expect(await submitWorkerInvite(sign(token, cert(id)))).toEqual({ ok: true });
+    expect((await workerRow(w))!.declarations_due).toBe(true);
+    expect((await inviteRow(id)).declarations).toBeNull();
+  });
+
+  test("the certificate is asked for only when needed: already uploaded = nothing to do, nothing burned", async () => {
+    const w = await worker({ trade: "installer", email: "c8@sparks.test", certStatus: "unverified", certification: { eec_upload: { path: "worker-invites/old/eec-1.pdf", uploaded_at: "2026-11-01", number: null } } });
+    const { token, id } = await invite({ trade: "installer", workerId: w });
+    expect(await getWorkerInvite({ data: { token } })).toMatchObject({ ok: true, mode: "completion", needsCert: false });
+    expect(await submitWorkerInvite(sign(token))).toEqual({ ok: false, errors: ["Your certificate is already with us — nothing more to do."] });
+    expect((await inviteRow(id)).used_at).toBeNull();
+  });
+
+  test("a rejected certificate can be uploaded again", async () => {
+    const w = await worker({ trade: "installer", email: "c9@sparks.test", certStatus: "rejected", certification: { eec_upload: { path: "worker-invites/old/eec-1.pdf", uploaded_at: "2026-11-01", number: null } } });
+    const { token, id } = await invite({ trade: "installer", workerId: w });
+    expect(await getWorkerInvite({ data: { token } })).toMatchObject({ ok: true, needsCert: true });
+    expect(await submitWorkerInvite(sign(token, cert(id)))).toEqual({ ok: true });
+    expect((await workerRow(w))!.certification.eec_upload.path).toBe(`worker-invites/${id}/eec-abc.pdf`);
+  });
+
+  test("an old electrician signing link is closed politely and nothing is written", async () => {
+    const w = await worker({ trade: "electrician", due: true, email: "c10@sparks.test" });
     const { token, id } = await invite({ trade: "electrician", workerId: w });
-    expect((await submitWorkerInvite(sign(token))).ok).toBe(true);
+    expect(await submitWorkerInvite(sign(token))).toEqual({ ok: false, errors: ["This completion link is no longer available. Ask the business owner for a new one."] });
+    expect((await inviteRow(id)).used_at).toBeNull();
+  });
+
+  test("a verified certificate is not replaced", async () => {
+    const w = await worker({ trade: "installer", email: "c11@sparks.test", certStatus: "verified" });
+    const { token, id } = await invite({ trade: "installer", workerId: w });
+    expect((await submitWorkerInvite(sign(token, cert(id)))).errors![0]).toContain("already verified");
+    expect((await inviteRow(id)).used_at).toBeNull();
+  });
+
+  test("a second submit on the same link is refused and changes nothing", async () => {
+    const w = await worker({ trade: "installer", email: "c3@sparks.test" });
+    const { token, id } = await invite({ trade: "installer", workerId: w });
+    expect((await submitWorkerInvite(sign(token, cert(id)))).ok).toBe(true);
     const first = await inviteRow(id);
-    const again = await submitWorkerInvite(sign(token, { signed_name: "Someone Else" }));
+    const again = await submitWorkerInvite(sign(token, cert(id)));
     expect(again.ok).toBe(false);
     expect(again.errors![0]).toContain("already been used");
     expect(await inviteRow(id)).toEqual(first);
   });
 
   test("lost race at the single update: 'This link has already been used.'", async () => {
-    const w = await worker({ trade: "electrician", due: true, email: "c4@sparks.test" });
-    const { token, id } = await invite({ trade: "electrician", workerId: w });
+    const w = await worker({ trade: "installer", email: "c4@sparks.test" });
+    const { token, id } = await invite({ trade: "installer", workerId: w });
     before.push({ table: "partner_worker_invites", op: "update", fn: () => db.query("update partner_worker_invites set used_at = now(), signed_name = 'Winner' where id = $1", [id]) });
-    expect(await submitWorkerInvite(sign(token))).toEqual({ ok: false, errors: ["This link has already been used."] });
+    expect(await submitWorkerInvite(sign(token, cert(id)))).toEqual({ ok: false, errors: ["This link has already been used."] });
     expect((await inviteRow(id)).signed_name).toBe("Winner");
-    expect((await workerRow(w))!.declarations_due).toBe(true);
   });
 
   test("the single update fails: nothing burned, and a retry succeeds", async () => {
-    const w = await worker({ trade: "electrician", due: true, email: "c5@sparks.test" });
-    const { token, id } = await invite({ trade: "electrician", workerId: w });
+    const w = await worker({ trade: "installer", email: "c5@sparks.test" });
+    const { token, id } = await invite({ trade: "installer", workerId: w });
     faults.push({ table: "partner_worker_invites", op: "update" });
-    expect(await submitWorkerInvite(sign(token))).toEqual({ ok: false, errors: ["We couldn't save your signature. Please try again."] });
-    const inv = await inviteRow(id);
-    expect(inv.used_at).toBeNull();
-    expect(inv.declarations).toBeNull();
-    expect((await workerRow(w))!.declarations_due).toBe(true);
-    expect(await submitWorkerInvite(sign(token))).toEqual({ ok: true });
-    expect((await inviteRow(id)).declarations.version).toBe("worker-v1");
-    expect((await workerRow(w))!.declarations_due).toBe(false);
+    expect(await submitWorkerInvite(sign(token, cert(id)))).toEqual({ ok: false, errors: ["We couldn't save your certificate. Please try again."] });
+    expect((await inviteRow(id)).used_at).toBeNull();
+    expect(await submitWorkerInvite(sign(token, cert(id)))).toEqual({ ok: true });
+    expect((await inviteRow(id)).used_at).not.toBeNull();
   });
 
   test("certificate save fails: nothing burned", async () => {
-    const w = await worker({ trade: "installer", due: false, email: "c6@sparks.test" });
+    const w = await worker({ trade: "installer", email: "c6@sparks.test" });
     const { token, id } = await invite({ trade: "installer", workerId: w });
     faults.push({ table: "partner_workers", op: "update" });
-    expect(await submitWorkerInvite(sign(token, { certificate_path: `worker-invites/${id}/eec-abc.pdf` }))).toEqual({ ok: false, errors: ["We couldn't save your certificate. Please try again."] });
+    expect(await submitWorkerInvite(sign(token, cert(id)))).toEqual({ ok: false, errors: ["We couldn't save your certificate. Please try again."] });
     expect((await inviteRow(id)).used_at).toBeNull();
   });
 
-  test("clearing declarations_due fails after the signature is saved: ok, logged, office event written", async () => {
-    const w = await worker({ trade: "electrician", due: true, email: "c7@sparks.test" });
-    const { token, id } = await invite({ trade: "electrician", workerId: w });
-    faults.push({ table: "partner_workers", op: "update" });
-    const err = spyOn(console, "error").mockImplementation(() => {});
-    expect(await submitWorkerInvite(sign(token))).toEqual({ ok: true });
-    expect(err).toHaveBeenCalled();
-    err.mockRestore();
-    expect((await inviteRow(id)).declarations.version).toBe("worker-v1");
-    const ev = (await db.query<{ details: { worker_id: string; invite_id: string } }>("select details from admin_config_events where event_type = 'worker_declarations_due_clear_failed'")).rows;
-    expect(ev).toHaveLength(1);
-    expect(ev[0]!.details.worker_id).toBe(w);
+  test("the code never writes admin_config_events for declarations any more", async () => {
+    expect((await db.query("select 1 from admin_config_events where event_type = 'worker_declarations_due_clear_failed'")).rows).toHaveLength(0);
   });
 });
 
 describe("registration link (new worker)", () => {
-  test("the invite records worker_id, signature and declarations; the worker and DOB are stored", async () => {
+  test("details only: no ticks and no signature needed; the worker is created and held back from nothing", async () => {
     const { token, id } = await invite({ trade: "electrician" });
+    expect((await getWorkerInvite({ data: { token } }))["declarations"]).toBeUndefined();
     expect(await submitWorkerInvite(register(token, "r1@sparks.test"))).toEqual({ ok: true });
     const inv = await inviteRow(id);
     const [w] = await workersByEmail("r1@sparks.test");
     expect(w).toBeDefined();
     expect(inv.used_at).not.toBeNull();
     expect(inv.worker_id).toBe(w!.id);
-    expect(inv.signed_name).toBe("Ed Spark");
-    expect(inv.declarations.version).toBe("worker-v1");
+    expect(inv.signed_name).toBeNull();
+    expect(inv.declarations).toBeNull();
     expect(inv.signed_ip).toBe("203.0.113.9");
     expect(inv.signed_user_agent).toBe("TestPhone/1");
+    expect((await workerRow(w!.id))!.declarations_due).toBe(false);
+    expect((await workerRow(w!.id))!.approval_status).toBe("pending");
     expect((await db.query("select 1 from partner_worker_identity where worker_id = $1", [w!.id])).rows).toHaveLength(1);
   });
 

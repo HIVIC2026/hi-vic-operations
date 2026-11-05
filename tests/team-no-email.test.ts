@@ -9,7 +9,7 @@ test("blank emails never match", () => {
   expect(workerEmailKey(null)).toBe("");
   expect(certOrFilter([{ id: "a", email: null }, { id: "b", email: "" }])).toBe("worker_id.in.(a,b)");
 });
-test("types follow 0229 and 0230; login invite still refuses a blank email", () => {
+test("types follow 0229 (and still list the old declarations_due column); login invite still refuses a blank email", () => {
   const t = src("src/integrations/supabase/types.ts");
   const pw = t.slice(t.indexOf("partner_workers: {"), t.indexOf("Relationships", t.indexOf("partner_workers: {")));
   expect(pw.match(/email: string \| null/g)?.length).toBeGreaterThanOrEqual(1);

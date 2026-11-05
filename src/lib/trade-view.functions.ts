@@ -127,7 +127,7 @@ export const setTeamMemberMissing = createServerFn({ method: "POST" }).middlewar
   .inputValidator((d) => z.object({ workerId: z.string().uuid(), dateOfBirth: z.string().trim().max(10).nullable().optional(), email: z.string().trim().max(254).nullable().optional() }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeFillWorkerMissing(context.userId, data.workerId, { dateOfBirth: data.dateOfBirth ?? null, email: data.email ?? null }));
 
-/** Jo 29 Oct: add a person to the team with no email needed; they sign their declarations by link before any job.
+/** Jo 29 Oct: add a person to the team with no email needed (Jo 5 Nov: no declarations to sign, not held back from jobs).
  *  Task 10 (Jo 2 Nov): role Office / Lead Installer / Crew / Electrician; mobile + date of birth required for everyone
  *  (checked server-side); electricians also give licence + REC. `workerRole` is kept for older callers. */
 export const addTeamPerson = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
