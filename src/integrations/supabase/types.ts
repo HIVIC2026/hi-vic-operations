@@ -1452,6 +1452,7 @@ export type Database = {
           phone: string | null
           piesa_booked_by: string
           public_liability_cover_amount: number | null
+          quote_method: string
           rec_number: string | null
           receives_hivic_leads: boolean | null
           rectification_billed_by: string
@@ -1527,6 +1528,7 @@ export type Database = {
           phone?: string | null
           piesa_booked_by?: string
           public_liability_cover_amount?: number | null
+          quote_method?: string
           rec_number?: string | null
           receives_hivic_leads?: boolean | null
           rectification_billed_by?: string
@@ -1602,6 +1604,7 @@ export type Database = {
           phone?: string | null
           piesa_booked_by?: string
           public_liability_cover_amount?: number | null
+          quote_method?: string
           rec_number?: string | null
           receives_hivic_leads?: boolean | null
           rectification_billed_by?: string

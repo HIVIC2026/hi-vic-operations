@@ -21,6 +21,7 @@ import { getBusinessFile, resolvePartnerChangeRequest, revealPartnerBank } from 
 import { getPartnerProfile, partnerFileUrl, saveBusiness } from "@/lib/pilot.functions";
 import { reviewHigherRates } from "@/lib/rate-requests.functions";
 import { inHouseEnableBlockers, type InHouseFacts } from "@/lib/in-house.core";
+import { PHOTO_QUOTE_WORDS, QUOTE_METHODS, quoteMethodOf, type QuoteMethod } from "@/lib/photo-quote.core";
 import { moveInstallerToNewFlowFn } from "@/lib/new-flow-move.functions";
 import { approveInstallerElectrician, getInstallerElectricianReview, rejectInstallerElectrician } from "@/lib/my-electricians.functions";
 import { Switch } from "@/components/ui/switch";
@@ -79,7 +80,7 @@ function BusinessFile() {
           </dl>
         </Panel>
         <RatesPanel f={f} onDone={refresh} />
-        {p.data?.myRole === "hivic_admin" && p.data.inHouseFacts && <InHousePanel key={JSON.stringify(p.data.business)} businessId={businessId} business={p.data.business as unknown as { name: string; in_house?: boolean; rectification_billed_by?: "partner" | "hivic" }} facts={p.data.inHouseFacts} onDone={refresh} />}
+        {p.data?.myRole === "hivic_admin" && p.data.inHouseFacts && <InHousePanel key={JSON.stringify(p.data.business)} businessId={businessId} business={p.data.business as unknown as { name: string; in_house?: boolean; rectification_billed_by?: "partner" | "hivic"; quote_method?: string | null }} facts={p.data.inHouseFacts} onDone={refresh} />}
         <Panel title="Insurance & licences">
           <dl data-why="193 PL insurance re-checked yearly; ESC scheme participant requirement">
             {f.credentials.filter((c) => ["public_liability_insurance", "electrical_licence", "rec_registration", "installer_certification"].includes(c.kind)).map((c) => (
@@ -157,10 +158,11 @@ function InstallerElectricianCard({ businessId, onDone }: { businessId: string; 
   );
 }
 
-function InHousePanel({ businessId, business, facts, onDone }: { businessId: string; business: { name: string; in_house?: boolean; rectification_billed_by?: "partner" | "hivic" }; facts: InHouseFacts; onDone: () => Promise<void> }) {
+function InHousePanel({ businessId, business, facts, onDone }: { businessId: string; business: { name: string; in_house?: boolean; rectification_billed_by?: "partner" | "hivic"; quote_method?: string | null }; facts: InHouseFacts; onDone: () => Promise<void> }) {
   const save = useServerFn(saveBusiness);
   const [enabled, setEnabled] = useState(business.in_house ?? false);
   const [billing, setBilling] = useState<"partner" | "hivic">(business.rectification_billed_by ?? "hivic");
+  const [method, setMethod] = useState<QuoteMethod>(quoteMethodOf(business));
   const [busy, setBusy] = useState(false);
   const blockers = inHouseEnableBlockers(facts);
   const move = useServerFn(moveInstallerToNewFlowFn);
@@ -172,9 +174,13 @@ function InHousePanel({ businessId, business, facts, onDone }: { businessId: str
       <label className="flex items-center gap-3 text-sm"><RadioGroupItem value="partner" />Partner's electrician bills the owner</label>
       <label className="flex items-center gap-3 text-sm"><RadioGroupItem value="hivic" />HIV bills the owner</label>
     </RadioGroup>
-    <Btn disabled={busy || (enabled === (business.in_house ?? false) && billing === (business.rectification_billed_by ?? "hivic"))} onClick={async () => {
+    <p className="text-sm font-semibold">{PHOTO_QUOTE_WORDS.settingLabel}</p>
+    <RadioGroup className="mb-4 mt-2" value={method} onValueChange={v => { if (v === "ready_check" || v === "photos") setMethod(v); }} disabled={busy} aria-label={PHOTO_QUOTE_WORDS.settingLabel} data-quote-method>
+      {QUOTE_METHODS.map(m => <label key={m} className="flex items-center gap-3 text-sm"><RadioGroupItem value={m} />{PHOTO_QUOTE_WORDS.methodLabel[m]}</label>)}
+    </RadioGroup>
+    <Btn disabled={busy || (enabled === (business.in_house ?? false) && billing === (business.rectification_billed_by ?? "hivic") && method === quoteMethodOf(business))} onClick={async () => {
       setBusy(true);
-      try { await save({ data: { id: businessId, name: business.name, in_house: enabled, rectification_billed_by: billing } }); await onDone(); toast.success("In-house partner saved"); }
+      try { await save({ data: { id: businessId, name: business.name, in_house: enabled, rectification_billed_by: billing, ...(method !== quoteMethodOf(business) ? { quote_method: method } : {}) } }); await onDone(); toast.success("In-house partner saved"); }
       catch (e) { toast.error(e instanceof Error ? e.message : "Could not save in-house partner"); }
       finally { setBusy(false); }
     }}>Save</Btn>

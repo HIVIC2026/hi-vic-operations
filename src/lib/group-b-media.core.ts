@@ -2,7 +2,8 @@
 export type EnquiryMediaDocument = { kind?: string; mime_type?: string | null; storage_path: string; external_id?: string | null; source_system?: string | null };
 export type GroupBMediaState = { excluded: boolean; received: boolean; uncertain: boolean; pendingSync: boolean; count: number };
 const record = (x: unknown): Record<string, unknown> | null => x && typeof x === "object" && !Array.isArray(x) ? x as Record<string, unknown> : null;
-const mediaType = (mime: unknown, name: unknown) => (typeof mime === "string" && /^(image|video)\//i.test(mime)) || (typeof name === "string" && /\.(jpe?g|png|webp|heic|heif|gif|mp4|mov|webm|m4v)(?:[?#].*)?$/i.test(name));
+/** True when a MIME type or file name is a photo or video. */
+export const mediaType = (mime: unknown, name: unknown): boolean => (typeof mime === "string" && /^(image|video)\//i.test(mime)) || (typeof name === "string" && /\.(jpe?g|png|webp|heic|heif|gif|mp4|mov|webm|m4v)(?:[?#].*)?$/i.test(name));
 const ATTACHMENT_KEYS = ["media", "photos", "videos", "attachments", "uploaded_files", "uploaded_photos", "uploaded_videos"];
 
 /** Explicit empty arrays confirm no media; missing or historically uncertain manifests still hold. Radio intent is ignored. */
