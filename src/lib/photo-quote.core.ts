@@ -19,6 +19,17 @@ export function hasOwnerMedia(docs: readonly OwnerMediaDoc[]): boolean {
   return docs.some((d) => d.kind === "intake_media" && !!d.storage_path && mediaType(d.mime_type, d.storage_path));
 }
 
+/** Recorded (internal) just before a "From photos" allocation, with the allocation's batch id, so a job keeps the method
+ *  it was given under even if the installer's setting changes later. No event for the batch = Ready Check. */
+export const PHOTO_QUOTE_GIVE_EVENT = "in_house_quote_method";
+/** The installer sent the photo quote (Task 5). */
+export const PHOTO_QUOTE_SUBMITTED_EVENT = "photo_quote_submitted";
+
+/** A missing `businesses.quote_method` column (pending SQL not run yet) reads as Ready Check; other errors are real. */
+export function isMissingQuoteMethodColumn(e: { code?: string | null; message?: string | null } | null | undefined): boolean {
+  return !!e && (e.code === "42703" || /quote_method[^]*does not exist|column [^ ]*quote_method/i.test(e.message ?? ""));
+}
+
 /** Days the installer has to send a photo quote, counted from the Melbourne day the job was given. */
 export const PHOTO_QUOTE_BUSINESS_DAYS = 2;
 

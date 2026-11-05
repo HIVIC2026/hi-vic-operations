@@ -80,3 +80,13 @@ describe("PHOTO_QUOTE_WORDS", () => {
     for (const s of Object.values(PHOTO_QUOTE_WORDS).flatMap((v) => typeof v === "string" ? [v] : [])) expect(s).not.toMatch(/\bHIV\b|\babout\b|\bfixes\b/);
   });
 });
+
+describe("isMissingQuoteMethodColumn", () => {
+  test("only the missing-column error reads as Ready Check", async () => {
+    const { isMissingQuoteMethodColumn } = await import("../src/lib/photo-quote.core");
+    expect(isMissingQuoteMethodColumn({ code: "42703", message: "column businesses.quote_method does not exist" })).toBe(true);
+    expect(isMissingQuoteMethodColumn({ message: "column businesses.quote_method does not exist" })).toBe(true);
+    expect(isMissingQuoteMethodColumn({ code: "57014", message: "canceling statement due to statement timeout" })).toBe(false);
+    expect(isMissingQuoteMethodColumn(null)).toBe(false);
+  });
+});

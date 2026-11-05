@@ -6,6 +6,7 @@ import * as displayName from "../src/lib/display-name.core";
 import * as inHouse from "../src/lib/in-house.core";
 import * as membership from "../src/lib/mitti-membership.core";
 import { QUICK_TAPS_ANSWERED_EVENT } from "../src/lib/quick-taps.core";
+import * as photoQuote from "../src/lib/photo-quote.core";
 
 // Task 5: every pass carries a current phone consent (the pass tap records one naming the installer).
 const consentRow = (jobId: string, at = new Date().toISOString()) => ({ job_id: jobId, consent_status: "granted", consented_at: at, snapshot: {}, source: "quick_taps_reconsent" });
@@ -16,6 +17,8 @@ function fixture(failedTable?: string, failPage = -1) {
   const emailCalls: string[] = [];
   const giveCalls: any[] = [];
   const refuseJobs = new Set<string>();
+  const inserts: { table: string; row: any }[] = [];
+  const failInsert = { on: false };
   const giveMode: { fail: boolean; outcome: any } = { fail: false, outcome: { status: "not_approved" } };
   const data: Record<string, unknown[]> = {
     jobs: [{ id: "j", job_number: "HV-1", property_id: "p", stage: "preliminary_estimate_ready", source: "base44", deleted_at: null }],
@@ -30,7 +33,8 @@ function fixture(failedTable?: string, failPage = -1) {
   };
   const admin = { from(table: string) {
     const call = { table, filters: [] as unknown[][] }; calls.push(call);
-    const q: any = { then(resolve: (value: unknown) => unknown) {
+    const q: any = { insert(row: any) { inserts.push({ table, row }); return Promise.resolve({ data: null, error: failInsert.on ? { message: "insert unavailable" } : null }); }, then(resolve: (value: unknown) => unknown) {
+      if (table === failedTable && failedTable === "documents") return Promise.resolve({ data: null, error: { message: "read unavailable" } }).then(resolve);
       let result = data[table] ?? [];
       for (const [key, column, ids] of call.filters) if (key === "in") result = result.filter((r: any) => r[column as string] === undefined || (ids as unknown[]).includes(r[column as string]));
       const range = call.filters.find(([key]) => key === "range");
@@ -47,7 +51,7 @@ function fixture(failedTable?: string, failPage = -1) {
     "./in-house-give-email.server": { sendInHouseGiveEmail: async (p: any) => { giveCalls.push(p); if (giveMode.fail) throw new Error("boom"); return giveMode.outcome; } },
     "./owner-said.core": { ownerSaidRows: () => [] }, // 5 Nov 2026: the Give email's "Owner told us" line (pure; the fixture DB has no website answers)
     "./sweep-batch.core": { chunkIds: (ids: unknown[], n: number) => Array.from({length:Math.ceil(ids.length/n)},(_,i)=>ids.slice(i*n,(i+1)*n)) },
-    "./display-name.core": displayName, "./quick-taps.core": { QUICK_TAPS_ANSWERED_EVENT }, "./in-house.core": inHouse, "./mitti-membership.core": membership, "./melbourne-time.core": { melbourneToday: () => "2026-10-30" },
+    "./display-name.core": displayName, "./photo-quote.core": photoQuote, "./quick-taps.core": { QUICK_TAPS_ANSWERED_EVENT }, "./in-house.core": inHouse, "./mitti-membership.core": membership, "./melbourne-time.core": { melbourneToday: () => "2026-10-30" },
     "./installer-paid-electricians.server": { inHouseFactsFor: async () => ({ approvedElectricianWorkers: 1, hasActiveRateCardWithPiesa: true, mittiElectricianLogins: 1, mittiAccountInvited: true }) },
   };
   const output: any = {};
@@ -62,7 +66,7 @@ function fixture(failedTable?: string, failPage = -1) {
     }
     return ["j", "j1", "j2", "j3", "j4"];
   };
-  return { api: output, data, calls, rpcCalls, emailCalls, giveCalls, giveMode, refuseJobs, five };
+  return { api: output, data, calls, rpcCalls, emailCalls, giveCalls, giveMode, refuseJobs, five, inserts, failInsert };
 }
 test("real loader excludes deleted/TEST jobs in its query and maps saved spots with opt-out protection", async () => {
   const f = fixture();
@@ -235,8 +239,47 @@ test("give offer for a job: said yes and nominated in-house partner; null otherw
   f.data.workflow_events.push({ job_id: "j", event_type: "area_batch_sent", details: { batch_id: "x", installer_business_id: "b" } });
   f.data.workflow_events[0] = { job_id: "j", event_type: QUICK_TAPS_ANSWERED_EVENT, details: { outcome: "pass", consent_share: true, batch_id: "x" } };
   f.data.jobs[0] = { ...(f.data.jobs[0] as object), owners: { full_name: "WAYNE WILSON", phone: "0400" }, channel: "website" };
-  expect(await f.api.inHouseGiveForJob("j")).toEqual({ businessId: "b", partnerName: "Rapid Insulation", label: "Wayne Wilson said yes · free Ready Check. Give to Rapid Insulation" });
+  expect(await f.api.inHouseGiveForJob("j")).toEqual({ businessId: "b", partnerName: "Rapid Insulation", label: "Wayne Wilson said yes · free Ready Check. Give to Rapid Insulation", blocked: null });
   expect(await f.api.inHouseGiveForJob("nope")).toBeNull();
   f.data.businesses = [];
   expect(await f.api.inHouseGiveForJob("j")).toBeNull();
+});
+
+// Photo-quote installers Task 2 (Jo 5 Nov 2026).
+const NO_PHOTOS = "Rapid Insulation quotes from photos. This owner hasn't sent any.";
+test("photos installer: a lead without owner photos is refused with the reason before any allocation; Ready Check unchanged", async () => {
+  const f = fixture(); (f.data.businesses[0] as any).quote_method = "photos";
+  const screen = await f.api.loadInHouseBatches();
+  expect(screen.partners[0].quote_method).toBe("photos");
+  expect(screen.suggestions).toEqual([]);
+  expect(screen.blocked).toEqual({ b: [{ jobId: "j", reason: NO_PHOTOS }] });
+  expect(await f.api.sendInHouseBatch({ businessId: "b", jobIds: ["j"], actorId: "office" })).toEqual({ sent: [], refused: [{ jobId: "j", reason: NO_PHOTOS }] });
+  expect(f.rpcCalls).toEqual([]); expect(f.inserts).toEqual([]);
+  const rc = fixture(); // no quote_method column at all = Ready Check: given as before, no method record
+  expect((await rc.api.sendInHouseBatch({ businessId: "b", jobIds: ["j"], actorId: "office" })).sent).toEqual(["j"]);
+  expect(rc.inserts).toEqual([]);
+});
+test("photos installer: a lead with an owner photo is given, and the method is recorded under the batch id before allocating", async () => {
+  const f = fixture(); (f.data.businesses[0] as any).quote_method = "photos";
+  f.data.documents = [{ job_id: "j", kind: "intake_media", mime_type: "image/jpeg", storage_path: "j/roof.jpg" }];
+  const r = await f.api.sendInHouseBatch({ businessId: "b", jobIds: ["j"], actorId: "office" });
+  expect(r.sent).toEqual(["j"]);
+  expect(f.inserts).toHaveLength(1);
+  expect(f.inserts[0]).toMatchObject({ table: "workflow_events", row: { job_id: "j", event_type: "in_house_quote_method", internal: true, details: { business_id: "b", quote_method: "photos" } } });
+  expect(f.inserts[0]!.row.details.batch_id).toBe((f.rpcCalls[0] as any).input._batch);
+  expect(f.calls.find(c => c.table === "documents")?.filters).toContainEqual(["eq", "kind", "intake_media"]);
+});
+test("photos installer: a failed method record refuses that job (never allocated without it)", async () => {
+  const f = fixture(); (f.data.businesses[0] as any).quote_method = "photos";
+  f.data.documents = [{ job_id: "j", kind: "intake_media", mime_type: "video/mp4", storage_path: "j/roof.mp4" }];
+  f.failInsert.on = true;
+  expect(await f.api.sendInHouseBatch({ businessId: "b", jobIds: ["j"], actorId: "office" })).toEqual({ sent: [], refused: [{ jobId: "j", reason: "Allocation could not be saved. Try again." }] });
+  expect(f.rpcCalls).toEqual([]);
+});
+test("photos installer: a failed photo read refuses the whole give; Ready Check installers are not affected", async () => {
+  const f = fixture("documents"); (f.data.businesses[0] as any).quote_method = "photos";
+  expect(await f.api.sendInHouseBatch({ businessId: "b", jobIds: ["j"], actorId: "office" })).toEqual({ sent: [], refused: [{ jobId: "j", reason: "Couldn't check the owner's photos. Try again." }] });
+  expect(f.rpcCalls).toEqual([]);
+  const rc = fixture("documents");
+  expect((await rc.api.sendInHouseBatch({ businessId: "b", jobIds: ["j"], actorId: "office" })).sent).toEqual(["j"]);
 });
