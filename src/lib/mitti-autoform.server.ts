@@ -43,6 +43,8 @@ export async function sweepReadyCheckForms(opts: { call?: MittiCall; now?: Date;
   const bizIds = [...new Set(jobs.map((j) => assignments.data?.find((a) => a.job_id === j.id)?.business_id ?? j.originating_installer_business_id).filter(Boolean) as string[])];
   const { data: businesses, error: be } = bizIds.length ? await admin.from("businesses").select("id, mitti_account_invited, onboarding_notes").in("id", bizIds) : { data: [], error: null };
   if (be) throw new Error("Ready Check form sweep could not read installers.");
+  // Photo-quote installers (Jo 5 Nov 2026): a job under a From photos give never gets a Ready Check form.
+  const photoJobs = await photoGiveJobs(ids, (assignments.data ?? []) as { job_id: string; business_id: string | null }[]);
   const measured = new Set((measurements.data ?? []).map((m) => m.job_id));
   const { provisionalGivesWayToMitti } = await import("./measurement.core");
   const provisional = new Set((measurements.data ?? []).filter((m) => provisionalGivesWayToMitti(m)).map((m) => m.job_id));
@@ -52,6 +54,7 @@ export async function sweepReadyCheckForms(opts: { call?: MittiCall; now?: Date;
   const wouldCreate: string[] = [];
   for (const j of jobs) {
     if (results.length >= AUTOFORM_MAX_PER_TICK) break;
+    if (photoJobs.has(j.id)) continue;
     const asg = assignments.data?.find((a) => a.job_id === j.id) ?? null;
     const biz = businesses?.find((b) => b.id === (asg?.business_id ?? j.originating_installer_business_id)) ?? null;
     const lastFailure = failures.data?.find((f) => f.job_id === j.id) ?? null;
@@ -91,4 +94,18 @@ export async function sweepReadyCheckForms(opts: { call?: MittiCall; now?: Date;
     }
   }
   return { checked: jobs.length, results, wouldCreate };
+}
+
+/** Jobs (of `ids`) whose current give is From photos. Reads in 200-id chunks; a failed read throws (no forms this tick). */
+async function photoGiveJobs(ids: string[], assignments: { job_id: string; business_id: string | null }[]): Promise<Set<string>> {
+  const { PHOTO_QUOTE_GIVE_EVENT, photoGiveFrom } = await import("./photo-quote.core");
+  const { chunkIds } = await import("./sweep-batch.core");
+  const rows: { job_id: string; event_type: string; created_at: string; details: { batch_id?: unknown; business_id?: unknown } | null }[] = [];
+  for (const chunk of chunkIds(ids)) {
+    const r = await admin.from("workflow_events").select("job_id, event_type, created_at, details").in("job_id", chunk).in("event_type", ["in_house_batch_sent", PHOTO_QUOTE_GIVE_EVENT]);
+    if (r.error) throw new Error("Ready Check form sweep could not read how jobs are quoted.");
+    rows.push(...((r.data ?? []) as typeof rows));
+  }
+  const marked = new Set(rows.filter((r) => r.event_type === PHOTO_QUOTE_GIVE_EVENT).map((r) => r.job_id));
+  return new Set([...marked].filter((id) => photoGiveFrom(rows.filter((r) => r.job_id === id), assignments.filter((a) => a.job_id === id && a.business_id).map((a) => a.business_id!))));
 }

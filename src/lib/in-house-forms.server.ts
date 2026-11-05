@@ -76,20 +76,35 @@ async function leadAssignee(jobId: string) {
 }
 export async function ensureInHouseForms(jobId: string, actorId: string | null, call?: MittiCall): Promise<{readyCheck:string|null;piesa:string|null;fixes:string|null}> {
   if (!await isInHouseFormJob(jobId)) return {readyCheck:null,piesa:null,fixes:null};
+  // Photo-quote installers (Jo 5 Nov 2026): a From photos give has no Ready Check form and no Ready Check booking.
+  if (await (await import("./photo-quote.server")).photoGiveFor(jobId)) return {readyCheck:null,...await ensurePhotoJobForms(jobId,actorId,call)};
   const f = await (await import("./mitti-create.server")).readyCheckFormFacts(jobId);
   if (!f?.booked) throw new Error("The Ready Check isn't booked yet");
   if (!f.mittiInvited || !f.autoSend || !f.templateSet) throw new Error("Ready Check form preparation is not enabled for this partner");
   const mitti = await import("./mitti.server");
   const forms = await formFacts(jobId);
   let readyCheck = forms.find(f=>f.kind==="ready_check")?.auditId ?? null;
-  let piesa = forms.find(f=>f.kind==="piesa")?.auditId ?? null;
-  let fixes = (await (await import("./fixes-day.server")).existingRectificationForm(jobId,true))?.auditId ?? null;
   if (!readyCheck) {
     const job = await read<{source:string}|null>(db.from("jobs").select("source").eq("id",jobId).maybeSingle());
     const installer = await assignment(jobId,"installer");
     const testEmail = job?.source === "qa_test" ? (await import("./onsite-ready-check.core")).TEST_MITTI_ASSIGNEE : null;
     readyCheck = (await mitti.createAssignMittiAudit(jobId,actorId,call ?? mitti.realMittiCall,{readyCheck:true,...(testEmail && installer ? {assignee:{userId:installer.user_id,fullName:installer.profiles?.full_name ?? null,email:testEmail}} : {})})).auditId;
   }
+  return {readyCheck,...await preparePiesaAndFixes(jobId,actorId,forms,call)};
+}
+/** Photo-quote installers: the PIESA and upgrades (fixes) forms only — never a Ready Check form. Needs a From photos give
+ *  and an enabled partner (invited to Mitti, auto-send on); same creators, claims and handover as the Ready Check path. */
+export async function ensurePhotoJobForms(jobId: string, actorId: string | null, call?: MittiCall): Promise<{piesa:string|null;fixes:string|null}> {
+  if (!await isInHouseFormJob(jobId)) return {piesa:null,fixes:null};
+  if (!await (await import("./photo-quote.server")).photoGiveFor(jobId)) throw new Error("Not a photo quote job");
+  const f = await (await import("./mitti-create.server")).readyCheckFormFacts(jobId);
+  if (!f?.mittiInvited || !f.autoSend) throw new Error("Form preparation is not enabled for this partner");
+  return preparePiesaAndFixes(jobId,actorId,await formFacts(jobId),call);
+}
+async function preparePiesaAndFixes(jobId: string, actorId: string | null, forms: Form[], call?: MittiCall): Promise<{piesa:string|null;fixes:string|null}> {
+  const mitti = await import("./mitti.server");
+  let piesa = forms.find(f=>f.kind==="piesa")?.auditId ?? null;
+  let fixes = (await (await import("./fixes-day.server")).existingRectificationForm(jobId,true))?.auditId ?? null;
   const holder = await inHousePreparationAssignee(jobId);
   if (!piesa) piesa = (await mitti.createAssignMittiAudit(jobId,actorId,call ?? mitti.realMittiCall,{inHousePreparation:true,assignee:holder})).auditId;
   if (!fixes) {
@@ -102,7 +117,7 @@ export async function ensureInHouseForms(jobId: string, actorId: string | null, 
     if (!mittiUserId) throw new Error("Add this electrician in Mitti first.");
     for (const [kind,auditId] of [["piesa",piesa],["rectification",fixes]] as const) if (auditId) await mitti.reassignMittiFormTo({jobId,auditId,kind,mittiUserId,email:holder.email,actorId},call ?? mitti.realMittiCall);
   }
-  return {readyCheck,piesa,fixes};
+  return {piesa,fixes};
 }
 export async function ensureInstallForm(jobId: string, actorId: string | null, call?: MittiCall): Promise<string|null> {
   if (!await isInHouseFormJob(jobId)) return null;

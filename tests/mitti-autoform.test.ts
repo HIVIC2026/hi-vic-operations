@@ -139,6 +139,17 @@ describe("sweepReadyCheckForms", () => {
     expect(calls).toHaveLength(0);
   });
 
+  test("photo-quote installers: a job under a From photos give never gets a Ready Check form (Task 4)", async () => {
+    await db.query(`insert into workflow_events (job_id, event_type, summary, details, created_at) values
+      ($1,'in_house_quote_method','photo','{"batch_id":"B1","business_id":"${REAL}","quote_method":"photos"}','2026-10-22T09:00:00Z'),
+      ($1,'in_house_batch_sent','sent','{"batch_id":"B1","business_id":"${REAL}"}','2026-10-22T09:01:00Z')`, [j(8)]);
+    const r = await sweepReadyCheckForms({ now, dryRun: true, enabled: true });
+    expect(r.wouldCreate).not.toContain("HV-3542");
+    expect(r.wouldCreate).toContain("HV-3136");
+    await db.query("delete from workflow_events where job_id = $1 and event_type in ('in_house_quote_method','in_house_batch_sent')", [j(8)]);
+    expect((await sweepReadyCheckForms({ now, dryRun: true, enabled: true })).wouldCreate).toContain("HV-3542");
+  });
+
   test("HIV leads need the plain Ready Check template, installer jobs the priced one", async () => {
     await db.query("update workflow_settings set mitti_ready_check_template_id = null");
     const r = await sweepReadyCheckForms({ now, dryRun: true, enabled: true });

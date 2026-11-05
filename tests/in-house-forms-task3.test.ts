@@ -11,7 +11,7 @@ function fixture() {
     bookings: [{ job_id: "j", kind: "ready_check", status: "confirmed", scheduled_start: "2026-11-03T00:00:00Z" }],
   };
   const creates: string[] = [], dates: any[] = [], handovers: any[] = [], apiCalls: string[] = [];
-  let held = true, failed = false, cert: any = { certificate: "not_needed", certificateWhy: null }, gateLocked = false;
+  let held = true, photo: any = null, failed = false, cert: any = { certificate: "not_needed", certificateWhy: null }, gateLocked = false;
   const from = (t: string) => {
     const filters: ((r: any) => boolean)[] = []; let single = false, patch: any = null;
     const q: any = { select: () => q, eq: (k: string, v: any) => { filters.push(r => r[k] === v); return q; }, is: (k: string, v: any) => { filters.push(r => (r[k] ?? null) === v); return q; }, in: (k: string, v: any[]) => { filters.push(r => v.includes(r[k])); return q; }, neq: (k: string, v: any) => { filters.push(r => r[k] !== v); return q; }, order: () => q, limit: () => q, range: () => q, contains: (k: string, v: any) => { filters.push(r => Object.entries(v).every(([key,val]) => r[k]?.[key] === val)); return q; }, insert: (p: any) => { patch = p; return q; }, maybeSingle: () => { single = true; return q; }, single: () => { single = true; return q; }, then: (resolve: any, reject: any) => Promise.resolve().then(() => {
@@ -24,6 +24,7 @@ function fixture() {
     "@/integrations/supabase/client.server": { supabaseAdmin: { from } },
     "./in-house-suppression.server": { readInHouseDispatchState: async () => ({ failed, held: new Set(held ? ["j"] : []) }) },
     "./mitti-create-claim.core": claims,
+    "./photo-quote.server": { photoGiveFor: async () => photo },
     "./visit-allocation.core": { currentAllocation: (events: any[], kind: string) => events.find(e => e.details?.visit === kind)?.details ?? null },
     "./piisa-a3.core": { leadWorkerId: (s: any) => s?.lead ?? null },
     "./worker-role.core": { effectiveWorkerRole: (p:any) => p.tradeRole === "installer" && p.stored !== "crew" ? "lead" : null, mittiEmailFor: (p: any) => ({ email: p.ownEmail || p.businessEmail }) },
@@ -46,7 +47,7 @@ function fixture() {
   const api: any = {};
   const load = () => { new Function("exports","require",ts.transpile(readFileSync("src/lib/in-house-forms.server.ts","utf8"),{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}))(api,(p:string) => { if (!(p in deps)) throw new Error(`Unexpected dependency ${p}`); return deps[p]; }); return api; };
   const lead = () => { tables.workflow_events.push({job_id:"j",event_type:"visit_allocated",details:{visit:"install",worker_id:"lead",mitti_user_id:"lead-mitti"}}); tables.partner_workers = [{id:"lead",business_id:"b",removed_at:null,email:"lead@example.invalid",worker_role:"lead",trade_role:"installer"}]; tables.bookings.push({job_id:"j",kind:"installation",status:"confirmed",scheduled_start:"2026-11-16T00:00:00Z"}); tables.jobs[0].stage="installation_booked"; };
-  return {load,tables,creates,dates,handovers,apiCalls,lead,nonHouse:()=>{held=false;},outage:()=>{failed=true;},cert:(c:any)=>{cert=c;},lock:(l:boolean)=>{gateLocked=l;}};
+  return {photos:()=>{photo={batchId:"B1",businessId:"b",givenAt:"2026-11-05T23:00:00Z"};tables.bookings=[];},load,tables,creates,dates,handovers,apiCalls,lead,nonHouse:()=>{held=false;},outage:()=>{failed=true;},cert:(c:any)=>{cert=c;},lock:(l:boolean)=>{gateLocked=l;}};
 }
 test("Ready Check booking creates RC A3 A4 once; a second call creates nothing", async () => { const f=fixture(),s=f.load(); expect(await s.ensureInHouseForms("j","actor")).toEqual({readyCheck:"RC",piesa:"A3",fixes:"A4"}); await s.ensureInHouseForms("j","actor"); expect(f.creates).toEqual(["readyCheck","piesa","fixes"]); });
 test("A3 and A4 use the selected electrician", async () => { const f=fixture(); await f.load().ensureInHouseForms("j","actor"); expect(f.handovers.map(p=>[p.auditId,p.email])).toEqual([["A3","electrician@example.invalid"],["A4","electrician@example.invalid"]]); });
@@ -81,3 +82,8 @@ test("fix 1: releaseHeldInstallForm skips non-in-house jobs, jobs not at install
   const b=fixture();b.lead();b.tables.jobs[0].stage="installation_scheduling";expect(await b.load().releaseHeldInstallForm("j","office")).toBe("not at installation_booked");
   const c=fixture();c.lead();c.lock(true);expect(await c.load().releaseHeldInstallForm("j","office",{skipWhenLocked:true})).toBe("held: pre-start check locked");
   expect([...a.creates,...b.creates,...c.creates]).toEqual([]);});
+
+// Photo-quote installers Task 4: a From photos give makes the PIESA + upgrades forms only, with no Ready Check booking.
+test("photo job: ensurePhotoJobForms makes exactly a PIESA and an upgrades form, no Ready Check form, no booking needed",async()=>{const f=fixture();f.photos();const s=f.load();expect(await s.ensurePhotoJobForms("j","actor")).toEqual({piesa:"A3",fixes:"A4"});await s.ensurePhotoJobForms("j","actor");expect(f.creates).toEqual(["piesa","fixes"]);});
+test("photo job: ensureInHouseForms skips the Ready Check form and the booking requirement",async()=>{const f=fixture();f.photos();expect(await f.load().ensureInHouseForms("j","actor")).toEqual({readyCheck:null,piesa:"A3",fixes:"A4"});expect(f.creates).toEqual(["piesa","fixes"]);});
+test("ensurePhotoJobForms refuses a Ready Check job",async()=>{const f=fixture();await expect(f.load().ensurePhotoJobForms("j","actor")).rejects.toThrow("Not a photo quote job");expect(f.creates).toEqual([]);});
