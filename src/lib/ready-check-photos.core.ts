@@ -24,3 +24,7 @@ export function visiblePhotoRows<T extends Record<string, unknown>>(rows: T[]): 
     .filter((d) => d["kind"] === MITTI_PHOTO_DOC_KIND && !hiddenMittiPhotoRow(d) && !!d["storage_path"])
     .sort((a, b) => String(a["created_at"] ?? "").localeCompare(String(b["created_at"] ?? "")));
 }
+
+export const READY_CHECK_PHOTO_LOAD_ERROR = "Ready Check photos could not be loaded. Please try again.";
+/** A refusal (not allowed) is a different signal from a failed load. */
+export class ReadyCheckRefusal extends Error {}

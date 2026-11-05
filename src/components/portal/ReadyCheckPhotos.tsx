@@ -9,13 +9,14 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
  *  `quietOnError` hides the card when the sign-in is not allowed to see photos (the server refuses; nothing leaks). */
 export function ReadyCheckPhotos({ jobId, quietOnError = false }: { jobId: string; quietOnError?: boolean }) {
   const load = useServerFn(getReadyCheckPhotos);
-  const { data, error, isLoading } = useQuery({ queryKey: ["ready-check-photos", jobId], queryFn: () => load({ data: { jobId } }), staleTime: 60_000, retry: false });
+  const { data, error, isLoading } = useQuery({ queryKey: ["ready-check-photos", jobId], queryFn: () => load({ data: { jobId } }), staleTime: 60_000, refetchInterval: 240_000, retry: false });
   const [open, setOpen] = useState<number | null>(null);
   if (isLoading) return null;
+  if (data?.refused) return quietOnError ? null : <Panel title="Ready Check photos"><p className="text-sm text-sub">Ready Check photos are only for the office and the installer business on this job.</p></Panel>;
   if (error) {
-    return quietOnError ? null : <Panel title="Ready Check photos"><p role="alert" className="text-sm text-danger">The photos could not be loaded. {(error as Error).message}</p></Panel>;
+    return <Panel title="Ready Check photos"><p role="alert" className="text-sm text-danger">{(error as Error).message}</p></Panel>;
   }
-  const photos = data ?? [];
+  const photos = data?.photos ?? [];
   const current = open != null ? photos[open] : undefined;
   return (
     <Panel title={photos.length ? `Ready Check photos (${photos.length})` : "Ready Check photos"} className="mt-4" >
