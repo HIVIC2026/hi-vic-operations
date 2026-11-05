@@ -9,6 +9,7 @@ const T: Tables = {};
 const admin = memoryPostgrest(T);
 const calls: { fn: string; args: unknown }[] = [];
 let autoSendResult: { sent: boolean; reasons: string[] } = { sent: true, reasons: [] };
+let partialAudit = false;
 const background: (() => Promise<unknown>)[] = [];
 
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: admin }));
@@ -20,7 +21,11 @@ mock.module("../src/lib/workflow.server", () => ({
 mock.module("../src/lib/background.server", () => ({ runAfterResponse: (t: () => Promise<unknown>) => { background.push(t); return "queue_only"; } }));
 mock.module("../src/lib/mitti.server", () => ({ syncMittiAssessment: async () => { calls.push({ fn: "syncMittiAssessment", args: null }); }, realMittiCall: async () => ({}) }));
 const mittiCore = await import("../src/lib/mitti.core");
-mock.module("../src/lib/mitti.core", () => ({ ...mittiCore, mittiApi: () => ({ getAudit: async () => ({ audit_id: "audit-1", modified_at: "2026-11-04T01:00:00Z", items: [] }) }) }));
+mock.module("../src/lib/mitti.core", () => ({ ...mittiCore, mittiApi: () => ({ getAudit: async () => ({ audit_id: "audit-1", template_id: 'a1-template', modified_at: "2026-11-04T01:00:00Z", items: partialAudit ? [
+  { item_id: 'm', label: 'Measurement method', responses: { text: 'Laser' } },
+  { item_id: 'r', label: 'Removal m²', responses: { text: '0' } },
+  { item_id: 'a', label: 'Total area to insulate', responses: { text: '120' } },
+] : [] }) }) }));
 mock.module("../src/lib/installer-quote.server", () => ({ draftInstallerQuoteFromReadyCheck: async (...a: unknown[]) => { calls.push({ fn: "draft", args: a }); return { ready: true }; } }));
 mock.module("../src/lib/auto-quote-send.server", () => ({ maybeAutoSendInstallerQuote: async (jobId: string, opts: unknown) => { calls.push({ fn: "maybeAutoSendInstallerQuote", args: { jobId, opts } }); return autoSendResult; } }));
 // Jo 4 Nov 2026: the business's own PIESA rate (rate card PIESA line) — null = not set → the quote can't be sent.
@@ -38,7 +43,7 @@ const priceEvents = () => (T["workflow_events"] ?? []).filter((e) => e["event_ty
 
 function seed(o: { channel?: string; readyCheckComplete?: boolean; quoteSentAt?: string | null } = {}) {
   for (const k of Object.keys(T)) delete T[k];
-  calls.length = 0; background.length = 0; autoSendResult = { sent: true, reasons: [] }; piesaRate = 275; piesaReadFails = false;
+  calls.length = 0; background.length = 0; autoSendResult = { sent: true, reasons: [] }; piesaRate = 275; piesaReadFails = false; partialAudit = false;
   T["jobs"] = [{ id: JOB, channel: o.channel ?? "installer_sourced", originating_installer_business_id: BIZ, stage: "ready_check_complete", deleted_at: null, property_id: "p1" }];
   T["properties"] = [{ id: "p1", address_line: "12 Example St", suburb: "Box Hill", state: "VIC", postcode: "3128" }];
   T["profiles"] = [{ id: BOSS, business_id: BIZ }, { id: OFFICE, business_id: BIZ }, { id: LEAD, business_id: BIZ }];
@@ -87,6 +92,41 @@ describe("who can enter the price", () => {
     await expect(setInstallerPrice(JOB, BOSS, input, { send: true })).rejects.toThrow(PRICE_LOCKED);
     expect(priceEvents()).toHaveLength(0);
     expect(calls).toHaveLength(0);
+  });
+});
+
+describe('partial A1 Send to quote', () => {
+  beforeEach(() => {
+    seed({ readyCheckComplete: false });
+    partialAudit = true;
+    const job = T['jobs']?.[0];
+    if (job) job['job_number'] = 'HV-TEST';
+    T['workflow_settings'] = [{ id: 1, mitti_ready_check_priced_template_id: 'a1-template' }];
+    const m = T['ceiling_measurements']?.[0];
+    if (m) m['raw_snapshot'] = [{ label: 'Measurement method', value: 'Laser' }, { label: 'Removal m²', value: '0' }];
+  });
+  test('boss saves 2500 immediately, queues draft and never calls owner sender', async () => {
+    const r = await setInstallerPrice(JOB, BOSS, input, { sendToQuote: true, send: true, sendOnPressEnabled: true });
+    expect(r.stored.record.price_inc_gst).toBe(2500);
+    expect(r.stored.sendToQuote).toBe(true);
+    expect(calls).toHaveLength(0);
+    const task = background[0];
+    expect(task).toBeDefined();
+    if (task) await task();
+    expect(calls.some(c => c.fn === 'draft')).toBe(true);
+    expect(calls.some(c => c.fn === 'maybeAutoSendInstallerQuote')).toBe(false);
+    expect(T['ceiling_measurements']?.[0]?.['status']).toBe('in_progress');
+  });
+  test('missing core details refuse before price write', async () => {
+    const m = T['ceiling_measurements']?.[0];
+    if (m) m['raw_snapshot'] = [];
+    await expect(setInstallerPrice(JOB, BOSS, input, { sendToQuote: true })).rejects.toThrow('how measured');
+    expect(priceEvents()).toHaveLength(0);
+  });
+  test('another business cannot submit or read the price', async () => {
+    await expect(setInstallerPrice(JOB, 'u-stranger', input, { sendToQuote: true })).rejects.toThrow(PRICE_ENTRY_REFUSED);
+    expect(await installerPriceView(JOB, 'u-stranger')).toBeNull();
+    expect(priceEvents()).toHaveLength(0);
   });
 });
 

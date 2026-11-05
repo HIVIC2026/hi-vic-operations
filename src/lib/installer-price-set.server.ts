@@ -23,6 +23,7 @@ import { IN_HOUSE_PIESA_HOLD_REASON } from "./installer-paid-electricians.core";
 import { readInstallerPriceState, type StoredInstallerPrice } from "./installer-price.server";
 import { early } from "./early-read";
 import { sharedFor, type SharedJobReads } from "./job-shared-reads";
+import { partialA1QuoteCore } from "./own-customer-partial-a1.core";
 // Namespaces: tests replace these modules with partial mocks; a namespace never fails on a missing export.
 import * as usualElectricianServer from "./usual-electrician.server";
 import * as electricianChoiceServer from "./electrician-choice.server";
@@ -91,13 +92,15 @@ async function currentReadyCheck(jobId: string): Promise<{
   removalM2: number | null;
   /** Jo 4 Nov 2026: the new-wording Ready Check's per-area layout answers (ceiling_measurements.zones[].layout), read with the same row. */
   layout: { areas: import("./ceiling-layout.core").LayoutArea[]; thicker: 6 | 7 | null } | null;
+  quoteCore: ReturnType<typeof partialA1QuoteCore>;
 }> {
-  const { data: m } = await admin
+  const { data: m, error } = await admin
     .from("ceiling_measurements")
     .select("raw_snapshot, removal_required, measured_area_m2, zones")
     .eq("job_id", jobId)
     .eq("is_current", true)
     .maybeSingle();
+  if (error) throw new WorkflowError("The Ready Check could not be read. Try again.");
   const raw = (m as { raw_snapshot?: unknown } | null)?.raw_snapshot;
   const list = Array.isArray(raw) ? raw : [];
   const entries = (list as { label?: unknown; value?: unknown }[])
@@ -114,6 +117,7 @@ async function currentReadyCheck(jobId: string): Promise<{
   const layout = areas.length ? { areas, thicker: (await import("./ceiling-layout.core")).readLayoutOutcome(entries as { label: string; value: unknown }[]).thicker } : null;
   return {
     entries,
+    quoteCore: partialA1QuoteCore({ areaM2: measured == null ? null : Number(measured), areas: zones as import("./mitti.core").MittiArea[], entries }),
     removalRequired,
     hasReadyCheck: !!m,
     installAreaM2: measured == null ? null : Number(measured),
@@ -230,8 +234,12 @@ export async function installerPriceView(jobId: string, userId: string, sharedRe
   const layoutNow = readyCheck.layout;
   const { a1PriceLinkView } = await import("./ceiling-layout.core");
   const savedLayout = (state.stored?.layout as LayoutPriceInput | null | undefined) ?? null;
+  const quoteCore = "quoteCore" in readyCheck ? readyCheck.quoteCore : { ready: false, missing: ["Ready Check details"], information: [] as string[] };
+  if (!access.rating && !quoteCore.information.includes('Ceiling access')) quoteCore.information.push('Ceiling access');
+  if (!product && !quoteCore.information.includes('Insulation product')) quoteCore.information.push('Insulation product');
   return {
     canSet: true as const,
+    quoteCore,
     layout: layoutNow ? { ...a1PriceLinkView(layoutNow.areas, layoutNow.thicker), thickerTarget: layoutNow.thicker, saved: savedLayout } : null,
     current: stored,
     locked,
@@ -286,15 +294,32 @@ async function prepareQuoteFromPortal(jobId: string, userId: string, send = fals
       .eq("job_id", jobId)
       .eq("is_current", true)
       .maybeSingle();
-    if (m?.external_source === "mitti" && m.external_id && m.status === "complete") {
-      const { mittiApi, parseAudit } = await import("./mitti.core");
+    const state = await readInstallerPriceState(jobId);
+    if (m?.external_source === "mitti" && m.external_id && (m.status === "complete" || state.stored?.sendToQuote)) {
+      const { mittiApi, parseAudit, validateStoredMittiAudit } = await import("./mitti.core");
       const a = await mittiApi((await import("./mitti.server")).realMittiCall).getAudit(
         String(m.external_id),
       );
-      const entries = parseAudit(a).snapshot as { label: string; value: string | null }[];
+      const parsed = parseAudit(a, { installerSourced: true });
+      const entries = parsed.snapshot as { label: string; value: string | null }[];
+      if (state.stored?.sendToQuote) {
+        const [{ data: identity, error: ie }, { data: config, error: ce }] = await Promise.all([
+          admin.from('jobs').select('job_number').eq('id', jobId).maybeSingle(),
+          admin.from('workflow_settings').select('mitti_ready_check_priced_template_id').eq('id', 1).maybeSingle(),
+        ]);
+        if (ie || ce || !identity || !config?.mitti_ready_check_priced_template_id) throw new WorkflowError('The job’s Mitti form could not be verified.');
+        validateStoredMittiAudit(a, { storedAuditId: String(m.external_id), jobNumber: identity.job_number ?? '', templateId: config.mitti_ready_check_priced_template_id, installerSourced: true });
+        const core = partialA1QuoteCore({ areaM2: parsed.patch.measured_area_m2 ?? null, areas: parsed.areas, entries });
+        if (!core.ready) {
+          await (await import("./ready-check-quote.server")).recordNeedsOffice(jobId, userId, null, core.missing);
+          return { sent: false, reasons: core.missing };
+        }
+      }
       await (
         await import("./installer-quote.server")
       ).draftInstallerQuoteFromReadyCheck(jobId, userId, entries, String(m.external_id));
+      // Office preparation only: never claim a partial audit is Complete or dispatch an owner message.
+      if (state.stored?.sendToQuote) return { sent: false, reasons: [] };
       const r = await (
         await import("./auto-quote-send.server")
       ).maybeAutoSendInstallerQuote(jobId, {
@@ -307,6 +332,10 @@ async function prepareQuoteFromPortal(jobId: string, userId: string, send = fals
     }
     return NOT_COMPLETE;
   } catch (e) {
+    if ((await readInstallerPriceState(jobId)).stored?.sendToQuote) {
+      const reason = e instanceof Error ? e.message : 'Quote could not be prepared';
+      await (await import('./ready-check-quote.server')).recordNeedsOffice(jobId, userId, null, [reason]);
+    }
     // Without `send` the tick retries; with it the screen is told plainly (the price is saved either way).
     return { sent: false, reasons: [send ? `Couldn't prepare the quote: ${(e as Error).message}` : NOT_COMPLETE.reasons[0]!] };
   }
@@ -319,7 +348,7 @@ export async function setInstallerPrice(
   jobId: string,
   userId: string,
   input: InstallerPriceInput & { layout?: LayoutPriceInput | null | undefined },
-  opts: { send?: boolean; sendOnPressEnabled?: boolean } = {},
+  opts: { send?: boolean; sendOnPressEnabled?: boolean; sendToQuote?: boolean } = {},
 ): Promise<{ stored: StoredInstallerPrice; sent: boolean; reasons: string[] }> {
   const j = await a1JobOrThrow(jobId);
   await requireCanEnterPrice(userId, j.originating_installer_business_id);
@@ -340,20 +369,25 @@ export async function setInstallerPrice(
     layout: null,
   }));
   const { removalRequired } = rc;
+  if (opts.sendToQuote) {
+    const core = "quoteCore" in rc ? rc.quoteCore : null;
+    if (!core?.ready) throw new WorkflowError(`Add the Ready Check details first: ${core?.missing.join(", ") ?? "Ready Check could not be read"}.`);
+  }
   const v = validateInstallerPrice({ ...input, removalRequired });
   if (!v.ok || !v.record) throw new WorkflowError(v.issues.join(" "));
   // Jo 4 Nov 2026: on a new-wording Ready Check the boss picks brand + batts per area from approved products only, with
   // ONE main total (the price above) and a thicker total only when the owner asked for it. Never a rate card or retail price.
   const layoutNow = rc.layout;
   let layout: (LayoutPriceInput & { thicker: 6 | 7 | null }) | null = null;
-  if (layoutNow) {
+  if (layoutNow && (!opts.sendToQuote || input.layout?.mainPicks?.some(Boolean))) {
     const { validateA1Price } = await import("./ceiling-layout.core");
     const wf = await admin.from("workflow_settings").select("*").eq("id", 1).maybeSingle();
     if (wf.error) throw new WorkflowError("Settings could not be read.");
     const topupCountsExisting = (wf.data as Record<string, unknown> | null)?.["topups_count_existing_insulation"] !== false;
     const issues = validateA1Price({ areas: layoutNow.areas, thicker: layoutNow.thicker, mainPicks: input.layout?.mainPicks ?? [], mainTotal: v.record.price_inc_gst, thickerPicks: input.layout?.thickerPicks ?? [], thickerTotal: input.layout?.thickerTotalIncGst ?? null, topupCountsExisting });
     if (issues.length) throw new WorkflowError(issues.join(" "));
-    layout = { mainPicks: input.layout!.mainPicks, thickerPicks: layoutNow.thicker ? input.layout!.thickerPicks ?? [] : [], thickerTotalIncGst: layoutNow.thicker ? input.layout!.thickerTotalIncGst ?? null : null, thicker: layoutNow.thicker };
+    if (!input.layout) throw new WorkflowError("Choose the brand and batts for each area.");
+    layout = { mainPicks: input.layout.mainPicks, thickerPicks: layoutNow.thicker ? input.layout.thickerPicks ?? [] : [], thickerTotalIncGst: layoutNow.thicker ? input.layout.thickerTotalIncGst ?? null : null, thicker: layoutNow.thicker };
   }
   // Product in force before this save: the boss's previous pick, else Mitti's own product, else none.
   const { resolveMittiProduct } = await import("./insulation-product.core");
@@ -373,13 +407,14 @@ export async function setInstallerPrice(
       business_id: j.originating_installer_business_id,
       set_by: userId,
       declared_not_verified: true,
+      ...(opts.sendToQuote ? { send_to_quote: true } : {}),
     },
     { internal: true },
   );
   const stored = (await readInstallerPriceState(jobId)).stored;
   if (!stored) throw new WorkflowError("The price was not saved.");
   const { OWN_CUSTOMER_SEND_ON_PRESS_ENABLED } = await import("./auto-quote-send.core");
-  if (opts.send && (opts.sendOnPressEnabled ?? OWN_CUSTOMER_SEND_ON_PRESS_ENABLED)) {
+  if (!opts.sendToQuote && opts.send && (opts.sendOnPressEnabled ?? OWN_CUSTOMER_SEND_ON_PRESS_ENABLED)) {
     // Jo 4 Nov 2026: no PIESA rate on the business → the quote can't be sent (never a default $349). The price is saved
     // and the draft is still prepared (held) in the background; the screen gets the one plain reason.
     const { PIESA_PRICE_NOT_SET, PIESA_PRICE_CHECK_FAILED } = await import("./own-customer-price.core");

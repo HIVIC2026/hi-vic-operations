@@ -59,6 +59,7 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   // Decision 278: price, inclusions and electrician come from the business owner's portal entry (`installer_price_set`,
   // latest wins) FIRST; the Mitti answers are read only on old forms that still carry them.
   const entries = intakePrice ? formEntries : (await (await import("./installer-price.server")).entriesWithInstallerPrice(jobId, formEntries)) as { label: string; value: string | null }[];
+  const partialSubmission = !intakePrice && (await (await import("./installer-price.server")).readInstallerPrice(jobId))?.sendToQuote === true;
   // Fee awareness is an office quote-SEND prerequisite (Jo, 8 Oct 2026): the draft is still prepared, but held.
   const { data: feeConfirmation } = await admin.from("workflow_events").select("id, details").eq("job_id", jobId).eq("event_type", "installer_owner_fee_awareness").order("created_at", { ascending: false }).limit(1).maybeSingle();
   const { data: open } = await admin.from("quotes").select("id, status, subtotal_inc_gst, veec_discount_inc_gst, option_code, discount_note").eq("job_id", jobId).eq("kind", "installation").in("status", ["draft", "issued", "accepted"]);
@@ -124,7 +125,7 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   // Jo 23 Oct: insulation product on the owner quote; incomplete product holds the quote.
   if (mittiProduct) {
     const { applyMittiProduct } = await import("./mitti-installer-quote.core");
-    applyMittiProduct(draft, mittiProduct, m2);
+    applyMittiProduct(draft, mittiProduct, m2, { optionalMissing: partialSubmission && !(await import('./mitti.core')).contactAnswersFromEntries(entries).productOption });
   }
   const accessIncluded = !intakePrice && (answers.a1DifficultAccessIncluded(entries) || !!accessFee.amountIncGst);
   if (!intakePrice) {
