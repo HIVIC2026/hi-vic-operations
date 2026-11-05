@@ -1690,7 +1690,7 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
   // Decision 278: only whether the boss has entered the price (true/false on the installer's own jobs, null otherwise).
   const priceEnteredP = early(jobP.then(async ({ data: j }) => j?.channel === "installer_sourced" ? !!(await installerPriceServer.readInstallerPrice(jobId).catch(() => null)) : null));
   // Decision 296: the owner's PIESA confirmation; decision 327: the electrician at the start of the install day. Read only once cleared.
-  const piesaConfirmedP = early(clearanceP.then((cl) => cl.cleared ? piesaOwnerConfirmServer.ownerPiesaConfirmFacts(jobId).then((f) => (f ? !!f.confirmation : null)).catch(() => null) : null));
+  const piesaConfirmedP = early(clearanceP.then((cl) => cl.cleared ? piesaOwnerConfirmServer.ownerPiesaConfirmedState(jobId).catch(() => null) : null));
   const attendanceP = early(clearanceP.then((cl) => cl.cleared ? installerAttendanceView(jobId).catch(() => null) : null));
   // Part 3 Task 3 (Jo 3 Nov 2026): the certificate status line ("Waiting for {electrician}'s Certificate of Electrical Safety" /
   // "Upgrades day not set yet") and the 4 Nov "Before photos: to be taken on install day" line — both built below from the
