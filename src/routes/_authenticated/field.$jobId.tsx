@@ -438,12 +438,6 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
               {page.electricianAttendance.alert ?? page.electricianAttendance.line}
             </p>
           )}
-          {showPrice && (
-            <div className="mt-4" data-price-early={priceOpenEarly ? "true" : undefined}>
-              {priceOpenEarly && <p className="mb-2 text-sm text-sub">You can enter your price now. Finish the rest of the Mitti form when you can — the quote goes to Home Insulation Victoria once the ceiling size, product and price are in.</p>}
-              <InstallerPriceCard jobId={jobId} />
-            </div>
-          )}
           {bookedKinds.includes(box.kind) && !signRebate && (
             <Link to="/field/day/$jobId" params={{ jobId }} className={`${ghostBtn} mt-4`} data-todays-job>
               Today's job
@@ -461,6 +455,12 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
             </div>
           )}
         </NextStepBox>
+        {showPrice && (
+          <section className={`${card} mt-4 min-w-0`} aria-label="Your price" data-price-early={priceOpenEarly ? "true" : undefined}>
+            {priceOpenEarly && <p className="mb-2 text-sm text-sub">You can enter your price now. Finish the rest of the Mitti form when you can — the quote goes to Home Insulation Victoria once the ceiling size, product and price are in.</p>}
+            <InstallerPriceCard jobId={jobId} />
+          </section>
+        )}
         {/* #134 (Jo 3 Nov 2026): a Mitti pickup still waiting for the installer's one electrician answer — kept at the 4 Nov join
             (no Part 5 equivalent for Mitti pickups); the card renders nothing once answered. */}
         {page.channel === "installer_sourced" && <MittiElectricianCard jobId={jobId} />}

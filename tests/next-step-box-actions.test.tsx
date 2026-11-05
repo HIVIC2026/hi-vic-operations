@@ -287,6 +287,9 @@ describe("Next step box actions", () => {
     refuse = "The deposit hasn't been paid yet.";
     await click(r, "Book");
     expect(r.getByRole("alert").textContent).toContain("The deposit hasn't been paid yet.");
+    expect((r.getByRole("button", { name: "Book" }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(r.getByLabelText("Arrival"), { target: { value: "10:00" } });
+    expect((r.getByRole("button", { name: "Book" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
   test("no greyed-out button without a reason, across the booking kinds", () => {

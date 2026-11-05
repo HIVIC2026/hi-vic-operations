@@ -1,3 +1,7 @@
+## Jo 5 Nov installer phone layout
+- [x] Safari date/time sizing, safe-area header, separate Your price panel, booking warnings before grey disabled buttons; retain dropped-connection retry. Six installer screens checked at 390px with no overflow; stage-specific action tests run separately.
+- [ ] Physical iPhone notch/Safari and every live job stage remain unverified (no isolated stage fixtures); no real jobs or messages exercised.
+
 ## Jo 5 Nov Ready Check attendance
 - [x] Exempt Ready Check booking from private identity/install credential gate; keep Team membership and Mitti/office fallback. Preserve Lead approval/install checks and clarify Team Lead DOB wording. 43 focused tests pass; phone TEST picker/Book enabled, no submission or delivery. Team suite: 20 pass, one pre-existing source-name assertion fails (expects teamMemberDetails in form, already uses addPersonProblems). No real records or publication.
 
