@@ -1,8 +1,8 @@
 ## Jo 5 Nov 7pm publishability repairs
-- [ ] Complete isolated full-suite before/after comparison and fix newly introduced failures only.
-- [ ] Reuse accepted Ready Check old-insulation ruler evidence; switchable A5 + BEFORE path, old forms readable.
-- [ ] Crew selectable for install crew and Ready Check; only Lead Installer slot requires Lead; preserve office Mitti fallback.
-- [ ] Verify preview checks and TEST-only journey; no sends, switches, real data, Mitti changes or publication.
+- [ ] Full-suite historical comparison run: 10,991 pass/546 fail before reader release, 13,170/321 at turn start; final 13,288/374 including 20 extra MJS files. Turn-introduced fixture failures rechecked 112/0; 82 historical new failed identities require further triage, not all fixed. One historical timeout and excluded owner-accept-speed wrapper limit comparability.
+- [x] Accepted area-bound Ready Check ruler reuse, normal A5 AFTER proof, inactive switchable alternate template selector and shared identity checks. Alternate capture remains BLOCKED on template ID/definition and per-area BEFORE parser proof; never activate yet.
+- [x] Crew selectable independently of Lead-only install eligibility; Ready Check permits Team members and partner-office Mitti fallback, including creation handover. Existing canonical writer guards retained; targeted checks pass.
+- [ ] TEST journey: 7 passed, 14 blocked, 1 runner error; HV-3795 archived, no delivery. Existing runner uses Bravo, not Reinsulate, and cannot reach downstream bookings/forms; full Reinsulate browser flow NOT RUN. Preview automatic checks build OK; experiment unchanged. No messages, switches, real-data changes or publication.
 
 ## Jo 4 Nov 02:03 UTC approved A1 and current Mitti reads
 - [x] Test-first A1 optional media, corrected required ready-to-price tick and job missing-BEFORE area line; preserve A2 and old submissions. Focused new tests 19/19; related historical doc expectations remain disclosed.
