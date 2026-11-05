@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { PDFDocument } from "pdf-lib";
-import { CUSTOMER_AGREEMENT_V1_3, type AgreementFacts } from "../src/lib/customer-agreement.core";
+import { CUSTOMER_AGREEMENT_V1_3, CUSTOMER_AGREEMENT_V1_4, type AgreementFacts } from "../src/lib/customer-agreement.core";
 import { AGREEMENT_BOLD_LEADS, customerAgreementPdf } from "../src/lib/customer-agreement-pdf.server";
 
 const pdfText = async (b: Uint8Array) => {
@@ -49,7 +49,8 @@ describe("Customer Agreement PDF", () => {
   });
 
   test("every bold lead-in is in the body and is drawn in the Bold font", async () => {
-    const lines = CUSTOMER_AGREEMENT_V1_3.split("\n").map((l) => l.replace(/^- /, ""));
+    // v1.3 (signed copies) and v1.4 (Jo 5 Nov 2026) differ only in the deposit lead-in ("10% deposit:" / "50% deposit:").
+    const lines = `${CUSTOMER_AGREEMENT_V1_3}\n${CUSTOMER_AGREEMENT_V1_4}`.split("\n").map((l) => l.replace(/^- /, ""));
     for (const lead of AGREEMENT_BOLD_LEADS) expect(lines.some((l) => l.startsWith(`${lead} `))).toBe(true);
     const r = await customerAgreementPdf(T, SAMPLE_FACTS);
     const d = await getDocument({ data: r.bytes.slice() }).promise;
@@ -64,7 +65,7 @@ describe("Customer Agreement PDF", () => {
       }
     }
     const boldText = bold.join(" ");
-    for (const lead of AGREEMENT_BOLD_LEADS) {
+    for (const lead of AGREEMENT_BOLD_LEADS.filter((l) => T.body.split("\n").some((x) => x.replace(/^- /, "").startsWith(`${l} `)))) {
       for (const word of lead.split(" ")) expect(boldText).toContain(word);
     }
     // The text after a lead-in is not bold.

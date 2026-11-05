@@ -95,7 +95,7 @@ export type JobNextFacts = {
   installFormCompletedAt?: string | null;
   evidenceChecked?: boolean;
   crew?: string[];
-  /** Decision 251: the owner's side of an install booking (consent + 10% deposit), read-only facts; null = not read. */
+  /** Decision 251: the owner's side of an install booking (consent + 50% deposit), read-only facts; null = not read. */
   ownerReady?: OwnerReadyFacts | null;
   /** Decision 279: the installer has answered something on the Mitti form beyond the pre-fill (null = not known yet). */
   formHasAnswers?: boolean | null;
@@ -148,7 +148,7 @@ export const OWNER_READY_CONSENT_DONE = "Consent signed ✓";
 export const OWNER_READY_CONSENT_WAITING = "Consent not signed yet";
 export const OWNER_READY_DEPOSIT_DONE = "Deposit paid ✓";
 export const OWNER_READY_DEPOSIT_WAITING = "Deposit not paid yet";
-/** "Consent signed ✓ · 10% deposit paid ✓", or which part is still outstanding. Null when neither fact is known. */
+/** "Consent signed ✓ · Deposit paid ✓", or which part is still outstanding. Null when neither fact is known. */
 export function ownerReadyLine(f: OwnerReadyFacts | null | undefined): OwnerReadyLine | null {
   if (!f) return null;
   const parts: string[] = [];

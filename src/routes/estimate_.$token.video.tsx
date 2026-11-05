@@ -15,6 +15,8 @@ import { getLaunchCampaignPage, saveMySpot, takeMeOffList } from "@/lib/launch-c
 import { REMOVAL_UPTO_NOTE, priceRangeLine, removalUpToLine } from "@/lib/estimate-removal-upto.core";
 import { NOT_INTERESTED_REASONS, NOT_INTERESTED_THANKS, type NotInterestedReason } from "@/lib/not-interested.core";
 
+const OPTIONAL_UPLOADS = { heading: "Got photos or a video? (optional)", photos: "Add photos", video: "Add a video" } as const;
+
 // Public no-login optional homeowner video. The token is the only credential; nothing is fetched during SSR.
 export const Route = createFileRoute("/estimate_/$token/video")({
   ssr: false,
@@ -123,6 +125,16 @@ function VideoPage() {
             {!declaring&&!declared&&unanswered(answers)&&<LockHint>{P1.lockHint(unanswered(answers)!)}</LockHint>}
             <SmallNote className="mt-1"><span className="text-[13px]">{P1.noObligation}</span></SmallNote>
             {declarationError&&<p role="alert" className="mt-2 text-sm text-destructive">{declarationError}</p>}
+            {/* Photo-quote installers (Jo 5 Nov 2026, reverses #13): optional photos/video under the 3 questions. */}
+            {data.optionalUploadAllowed && <section className="mt-[22px] space-y-3 rounded-[14px] border border-estimate-line bg-card p-4" data-optional-uploads>
+              <h2 className="text-lg font-bold">{OPTIONAL_UPLOADS.heading}</h2>
+              <div className="flex gap-2">
+                <Button variant={option === 'photos' ? 'default' : 'outline'} disabled={uploading} onClick={() => setOption('photos')}>{OPTIONAL_UPLOADS.photos}</Button>
+                <Button variant={option === 'video' ? 'default' : 'outline'} disabled={uploading} onClick={() => setOption('video')}>{OPTIONAL_UPLOADS.video}</Button>
+              </div>
+              {(option === 'photos' || option === 'video') && <CaptureUploads kind={option} remaining={data.remaining} received={data.received} uploadFile={upload} onSaved={refetch} onBusyChange={setUploading} />}
+              <p className="text-sm text-muted-foreground">Do not enter the roof space. If you cannot check safely, contact us.</p>
+            </section>}
             <div className="mt-[22px] text-center">{!leaving ? <button type="button" className="min-h-11 text-[13px] text-estimate-sub underline" onClick={()=>setLeaving(true)}>{P1.notInterested}</button> : (
               <fieldset className="space-y-2 rounded-[14px] border border-estimate-line bg-card p-4 text-left"><legend className="mb-2 font-semibold">Sorry to see you go. What's the main reason?</legend>
                 {NOT_INTERESTED_REASONS.map(r=><Button key={r.value} role="radio" aria-checked={reason===r.value} variant={reason===r.value?"default":"outline"} className="h-12 w-full justify-start" onClick={()=>setReason(r.value)}>{r.label}</Button>)}

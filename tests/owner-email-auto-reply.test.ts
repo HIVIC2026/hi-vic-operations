@@ -466,6 +466,24 @@ describe("server (mocked): guards, idempotency, TEST routing, approval gate, fil
     await run({ id: "s9" }); // spot saved answer: no installer lookup at all
     expect(asked.length).toBe(n);
   });
+  test("review fix: a photo job (given From photos while the wording is unapproved, or an own customer) never gets the Ready Check pick-a-time answer — held, nothing sent", async () => {
+    reset();
+    db.jobs!.push({ id: "job-pick", stage: "ready_check_awaiting_acceptance", source: "website", owner_id: "o5", deleted_at: null });
+    db.owners!.push({ id: "o5", full_name: "Pat Kim", email: "pat@example.com" });
+    db.lead_campaign_responses!.push({ job_id: "job-pick", spot_saved_at: "2026-10-20T00:00:00Z", opted_out_at: null });
+    db.customer_estimate_links!.push({ job_id: "job-pick", purpose: "step3_estimate", status: "active", token: "tokpick", expires_at: FUTURE });
+    const asked: string[] = [];
+    const contact = async (jobId: string) => { asked.push(jobId); return { name: "No Gap", tradingName: "No Gap Insulation", officePhone: "03 9000 0000", email: null }; };
+    for (const [id, fromPhotos] of [["ph1", true], ["ph2", false]] as const) {
+      const r = await autoReplyToOwner({ jobIds: ["job-pick"], message: msg({ id, from: "pat@example.com", body: "What's next?" }), mailbox: MAILBOX,
+        switches: { approved: true, archive: false }, deps: { businessContact: contact, photoQuoteJob: async () => ({ installer: "No Gap Insulation", fromPhotos }) } });
+      expect(r).toMatchObject({ status: "held" });
+      expect(r.detail).toContain("no Ready Check on this photo job");
+    }
+    expect(asked).toEqual([]);
+    expect(calls.owner.length + calls.testEmail.length).toBe(0);
+    expect(ev(EMAIL_AUTO_REPLIED_EVENT).length).toBe(0);
+  });
   test("archive switch off → sent, nothing moved, nothing recorded about filing", async () => {
     reset();
     expect((await run({}, ["job-real"], { approved: true, archive: false })).status).toBe("sent");

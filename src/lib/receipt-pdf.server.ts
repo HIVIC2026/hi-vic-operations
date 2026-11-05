@@ -1,4 +1,4 @@
-// Receipt PDFs (website look): the $349 safety check, the 10% deposit and the final payment. Server-only.
+// Receipt PDFs (website look): the $349 safety check, the 50% deposit and the final payment. Server-only.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { aud } from "./payments.core";
 import type { PdfBlock } from "./pdf-look.core";

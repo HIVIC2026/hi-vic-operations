@@ -44,9 +44,9 @@ export const WORKFLOW_DECISIONS = {
     "Mitti directly moves job state without portal validation",
   ],
   payment: {
-    retired: ["10%/5% minimum deposit", "3-instalment plan", "50% deposit gate", "AmountPaid >= 50% as the PIESA unlock rule", "total / 2", "deposit_pct: 0.5"],
+    retired: ["10%/5% minimum deposit", "10% install deposit (retired Jo 5 Nov 2026 for 50%)", "3-instalment plan", "50% deposit gate" /* the old PIESA unlock rule — not Jo's 5 Nov 2026 50% install deposit */, "AmountPaid >= 50% as the PIESA unlock rule", "total / 2", "deposit_pct: 0.5"],
     gateFlag: "payment_option_gate_enabled", // default OFF: PIESA + scheduling blocked "payment rule pending activation"; never falls back to 50%
-    minimumNotExact: true, // paying more than 10%/5% counts; one cent short does not
+    minimumNotExact: true, // paying more than the 50% deposit counts; one cent short does not
     instalmentActiveRequires: ["office_approved_current_quote_plan", "owner_accepted_terms", "first_instalment_verified_in_xero", "payment_method_or_collection_recorded", "not_cancelled_failed_overdue_or_superseded"],
     piesaRequires: [
       "ready_check_complete",
@@ -72,9 +72,9 @@ export const WORKFLOW_DECISIONS = {
     // deposit paid before booking, no 48-hour hold), O45, the balance day-5/due emails and O61 + veec_sign_reminder. Retired text
     // types stay as "Retired 2 Nov 2026 —" with wordingApproved:false. A job mid-way through an old step keeps its old screen.
     oldAfterAcceptanceFlowRemoved: { on: "2026-11-02", keptForInFlight: ["fixes", "book"] as const, countScript: "scripts/old-flow-inflight-count.ts" },
-    safetyCheck: { settingColumn: "safety_check_payment_inc_gst", defaultIncGst: 349, decided: "2026-10-07", balance: [] as string[], balanceNote: "Decision 365 (Jo 25 Oct 2026): no balance option — one payment statement of the paymentPlan() steps (safety check, 10% to book, balance on install day (Jo 2 Nov 2026); overdue after 7 days). Electrical upgrades are paid to the electrician directly (Customer Agreement v1.3 payment terms, version customer-agreement-1.3)" },
-    // Jo 26 Oct: flat 10% install deposit on the install price only (not the PIESA fee or fixes). 5% tier removed.
-    deposit: { installPct: 10, base: "install_price_excluding_piesa_and_fixes" },
+    safetyCheck: { settingColumn: "safety_check_payment_inc_gst", defaultIncGst: 349, decided: "2026-10-07", balance: [] as string[], balanceNote: "Decision 365 (Jo 25 Oct 2026): no balance option — one payment statement of the paymentPlan() steps (safety check, 50% to book, balance on install day (Jo 2 Nov 2026); overdue after 7 days). Electrical upgrades are paid to the electrician directly (Customer Agreement v1.3 payment terms, version customer-agreement-1.3)" },
+    // Jo 5 Nov 2026 (replaces Jo 26 Oct flat 10%): flat 50% install deposit on the install price only (not the PIESA fee or fixes); the other 50% on install day.
+    deposit: { installPct: 50, base: "install_price_excluding_piesa_and_fixes" },
     // Jo 2 Nov 2026 (answer 21): the deposit opens straight after the PIESA result, even with electrical upgrades still to come (piesa-result-route.core `depositOpenAfterPiesa`); replaces "fixes signed off BEFORE the deposit".
     // Part 4 fix wave C1: "after the result" means every stage from piesa_complete on — rectification_scheduling / rectification_booked /
     // electrical_variation_pending (where partner-billed in-house jobs auto-advance to) as well as installation_scheduling / installation_booked
@@ -112,7 +112,7 @@ export const WORKFLOW_DECISIONS = {
         noRateSet: "quote held — Your PIESA price isn't set yet. Ask the office to add it, then send. (never $349; office-managed rate card, controller 4 Nov 2026)",
         supersedes: ["302", "303", "2026-11-02 FEES $349 PIESA", "main 6f759d0 $349 pass-through"] as const,
         supersededScope: "own_customer_owner_price_only",
-        lineLabels: ["Insulation", "Home Insulation Victoria fee", "Electrical safety check (PIESA)", "Rebate", "Your price"] as const,
+        lineLabels: ["Insulation", "Home Insulation Victoria AP management fee", "Electrical safety check (PIESA) — charged by Home Insulation Victoria", "Rebate", "Your price"] as const, // PIESA wording: Jo 5 Nov 2026 16:44
       },
       // Jo 3 Nov 2026 22:58 (Part 10 Task 3): after an A1 Ready Check is Complete with no price the BUSINESS OWNER gets BOTH the
       // decision-288 text AND the "Enter your price" email (`enter-price-email.core`, sent by `boss-price-link.server`) — the plan's
@@ -150,7 +150,7 @@ export const WORKFLOW_DECISIONS = {
         approvedFlag: "OWN_CUSTOMER_COBRAND_APPROVED (one switch: email rows/VEU box, My job page, tax invoice)",
         cobrandFlag: "OWN_CUSTOMER_COBRAND_APPROVED",
         rowsFrom: "ownCustomerRows (quote_items.code)",
-        rows: ["Insulation", "extras", "Home Insulation Victoria fee", "Electrical safety check (PIESA)", "Rebate", "Your price"] as const,
+        rows: ["Insulation", "extras", "Home Insulation Victoria AP management fee", "Electrical safety check (PIESA) — charged by Home Insulation Victoria", "Rebate", "Your price"] as const,
         installerLogo: "businessLogoUrl https only, else ours alone",
         veuBox: "owner-wording.core veuBoxMj (Fix 1) at the bottom",
         hivLeadsUnchanged: true,
@@ -226,7 +226,7 @@ export const WORKFLOW_DECISIONS = {
     typedNameRequired: true,
     escDeclarationsOnQuotePage: false,
     buttonLockedUntil: "both_ticks_and_typed_name",
-    payLine: "$349 now (PIESA), 10% to book the install day, the rest on install day",
+    payLine: "$349 now (PIESA), 50% to book the install day, the rest on install day",
     whatsChangedBox: "only_changed_rows_hidden_when_none",
   },
   // Part 3 Task 12 (Jo 2 Nov 2026): the typed name is the owner's signature; the AP counter-signs at the same moment.
@@ -384,7 +384,7 @@ export const WORKFLOW_DECISIONS = {
 
 export type HardStopCode = (typeof WORKFLOW_DECISIONS.hardStops)[number];
 
-/** Install deposit % (Jo 26 Oct): flat 10% at any price. */
+/** Install deposit % (Jo 5 Nov 2026): flat 50% at any price (was 10%). */
 export function depositPctFor(_totalIncGst: number): number {
   return WORKFLOW_DECISIONS.payment.deposit.installPct;
 }

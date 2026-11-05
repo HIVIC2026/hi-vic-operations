@@ -21,9 +21,10 @@ export const JOB_PAGE_WORDS = {
 } as const;
 const W = JOB_PAGE_WORDS;
 
-export type ProgressLabel = "Ready Check" | "PIESA" | "Deposit" | "Install";
-export function progressSteps(f: { readyCheckDone: boolean; piesaDone: boolean; depositPaid: boolean; installDone: boolean }): { label: ProgressLabel; state: "done" | "now" | "later" }[] {
-  const steps: [ProgressLabel, boolean][] = [["Ready Check", f.readyCheckDone], ["PIESA", f.piesaDone], ["Deposit", f.depositPaid], ["Install", f.installDone]];
+export type ProgressLabel = "Ready Check" | "Photo quote" | "PIESA" | "Deposit" | "Install";
+export function progressSteps(f: { readyCheckDone: boolean; piesaDone: boolean; depositPaid: boolean; installDone: boolean; photoQuote?: boolean }): { label: ProgressLabel; state: "done" | "now" | "later" }[] {
+  // Photo-quote installers (Jo 5 Nov 2026): on a From photos job the first step is the photo quote (readyCheckDone = sent).
+  const steps: [ProgressLabel, boolean][] = [[f.photoQuote ? "Photo quote" : "Ready Check", f.readyCheckDone], ["PIESA", f.piesaDone], ["Deposit", f.depositPaid], ["Install", f.installDone]];
   let nowTaken = false;
   return steps.map(([label, done]) => {
     if (done) return { label, state: "done" as const };
@@ -103,12 +104,14 @@ export function ownerToldRows(events: { at: string; type: string; summary: strin
 }
 
 export type PaperworkRow = { label: string; ready: boolean; note: string | null; source?: 'portal' | 'mitti' };
-export function paperworkRows(f: { readyCheckReport: boolean; readyCheckSource?: 'portal' | 'mitti'; readyCheckSubmittedAt?: string | null; signedPiesa: boolean; ownerConsent: boolean; safetyPlan: boolean; installForm: boolean; installBooked: boolean }): PaperworkRow[] {
+export function paperworkRows(f: { readyCheckReport: boolean; readyCheckSource?: 'portal' | 'mitti'; readyCheckSubmittedAt?: string | null; signedPiesa: boolean; ownerConsent: boolean; safetyPlan: boolean; installForm: boolean; installBooked: boolean; photoQuote?: boolean }): PaperworkRow[] {
   const row = (label: string, ready: boolean, waiting: string): PaperworkRow => ({ label, ready, note: ready ? null : waiting });
   const rcReady = !!f.readyCheckSubmittedAt || f.readyCheckReport;
   const rcNote = f.readyCheckSubmittedAt ? `Done in ${f.readyCheckSource === 'portal' ? 'the portal' : 'Mitti'} on ${dayLabel(f.readyCheckSubmittedAt)}` : rcReady ? 'Done in Mitti' : 'Not done yet';
   return [
-    { label:'Ready Check', ready:rcReady, note:rcNote, source:f.readyCheckSource ?? 'mitti' },
+    // Photo-quote installers: "Photo quote" (readyCheckReport = the photo quote was sent) instead of the Ready Check.
+    f.photoQuote ? { label:'Photo quote', ready:f.readyCheckReport, note:f.readyCheckReport ? null : 'Not done yet' }
+      : { label:'Ready Check', ready:rcReady, note:rcNote, source:f.readyCheckSource ?? 'mitti' },
     row("Signed PIESA", f.signedPiesa, 'Ready after the PIESA is done'),
     row("Owner's ESC consent", f.ownerConsent, 'Ready once the owner signs'),
     row("Safety plan (SWMS)", f.installBooked && f.safetyPlan, f.installBooked ? W.notInYet : W.notThereYet),

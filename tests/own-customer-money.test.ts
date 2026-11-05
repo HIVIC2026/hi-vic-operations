@@ -46,13 +46,51 @@ describe("I3: the installer's pay on an own customer = their own lines on the qu
     const accepted = { status: "accepted", created_at: "2026-11-01T00:00:00Z", customer_total_inc_gst: 2098, items: [{ code: "INSTALLER_PRICE", line_total_inc_gst: 2000 }, { code: "AP_FEE", line_total_inc_gst: 349 }, { code: "PIESA", line_total_inc_gst: 349 }] };
     const draft = { status: "draft", created_at: "2026-11-03T00:00:00Z", customer_total_inc_gst: 2598, items: [{ code: "INSTALLER_PRICE", line_total_inc_gst: 2500 }, { code: "AP_FEE", line_total_inc_gst: 349 }, { code: "PIESA", line_total_inc_gst: 349 }] };
     expect(ownCustomerQuoteFigures([draft, accepted])).toEqual({ installerPayIncGst: 2000, ownerPriceIncGst: 2098 });
-    expect(ownCustomerQuoteFigures([draft, { ...accepted, status: "issued" }])).toEqual({ installerPayIncGst: 2500, ownerPriceIncGst: 2598 });
+    // A sent quote beats a newer held draft (the office hasn't sent it yet); a newer sent version wins as before.
+    expect(ownCustomerQuoteFigures([draft, { ...accepted, status: "issued" }])).toEqual({ installerPayIncGst: 2000, ownerPriceIncGst: 2098 });
+    expect(ownCustomerQuoteFigures([{ ...draft, status: "issued" }, { ...accepted, status: "issued" }])).toEqual({ installerPayIncGst: 2500, ownerPriceIncGst: 2598 });
     expect(ownCustomerQuoteFigures([])).toEqual({ installerPayIncGst: null, ownerPriceIncGst: null });
     expect(ownCustomerQuoteFigures([{ ...draft, items: [{ code: "AP_FEE", line_total_inc_gst: 349 }] }])).toEqual({ installerPayIncGst: null, ownerPriceIncGst: 2598 });
+  });
+  test("Task 6 (review 2): the installer's own INSTALLER_DISCOUNT comes off their pay, so the job page shows the discounted figure", async () => {
+    const { ownCustomerQuoteFigures } = await import("../src/lib/own-customer-price.core");
+    const base = [{ code: "INSTALLER_PRICE", line_total_inc_gst: 2000 }, { code: "INSTALLER_EXTRA", line_total_inc_gst: 150 }, { code: "AP_FEE", line_total_inc_gst: 349 }, { code: "PIESA", line_total_inc_gst: 349 }];
+    const sent = { status: "issued", created_at: "2026-11-01T00:00:00Z", customer_total_inc_gst: 2248, items: base };
+    const discounted = { status: "issued", created_at: "2026-11-03T00:00:00Z", customer_total_inc_gst: 2048, items: [...base, { code: "INSTALLER_DISCOUNT", line_total_inc_gst: -200 }] };
+    expect(ownCustomerQuoteFigures([sent])).toEqual({ installerPayIncGst: 2150, ownerPriceIncGst: 2248 });
+    expect(ownCustomerQuoteFigures([discounted, sent])).toEqual({ installerPayIncGst: 1950, ownerPriceIncGst: 2048 });
+    // Accepted discount version wins over anything newer, and the string amount from the database still counts.
+    expect(ownCustomerQuoteFigures([{ ...sent, created_at: "2026-11-05T00:00:00Z" }, { ...discounted, status: "accepted", items: [...base, { code: "INSTALLER_DISCOUNT", line_total_inc_gst: "-200" }] }])).toEqual({ installerPayIncGst: 1950, ownerPriceIncGst: 2048 });
+  });
+  test("a held discount draft never shows while a sent quote exists: sent + newer draft → sent; accepted + newer draft → accepted; draft only → draft", async () => {
+    const { ownCustomerQuoteFigures, quoteForJobMoney } = await import("../src/lib/own-customer-price.core");
+    const { ownQuoteBreakdown } = await import("../src/lib/own-photo-quote.core");
+    const items = (price: number, discount?: number) => [
+      { code: "INSTALLER_PRICE", description: "Supply and install of Bradford Gold R5 ceiling insulation – 80 m²", sort: 0, line_total_inc_gst: price },
+      { code: "AP_FEE", description: "Home Insulation Victoria AP management fee", sort: 1, line_total_inc_gst: 349 },
+      { code: "PIESA", description: "Electrical safety check (PIESA)", sort: 2, line_total_inc_gst: 349 },
+      ...(discount ? [{ code: "INSTALLER_DISCOUNT", description: "Installer discount", sort: 3, line_total_inc_gst: -discount }] : []) ];
+    const sent = { status: "issued", created_at: "2026-11-01T00:00:00Z", customer_total_inc_gst: 1898, veec_discount_inc_gst: 1200, items: items(2400) };
+    const draft = { status: "draft", created_at: "2026-11-03T00:00:00Z", customer_total_inc_gst: 1698, veec_discount_inc_gst: 1200, items: items(2400, 200) };
+    const accepted = { ...sent, status: "accepted" };
+    expect(quoteForJobMoney([draft, sent])).toBe(sent);
+    expect(ownCustomerQuoteFigures([draft, sent])).toEqual({ installerPayIncGst: 2400, ownerPriceIncGst: 1898 });
+    expect(quoteForJobMoney([draft, accepted])).toBe(accepted);
+    expect(ownCustomerQuoteFigures([draft, accepted])).toEqual({ installerPayIncGst: 2400, ownerPriceIncGst: 1898 });
+    expect(quoteForJobMoney([draft])).toBe(draft);
+    expect(ownCustomerQuoteFigures([draft])).toEqual({ installerPayIncGst: 2200, ownerPriceIncGst: 1698 });
+    // A newer sent version does show (the office has sent it); the breakdown reads the same quote.
+    const resent = { ...draft, status: "issued" };
+    expect(quoteForJobMoney([resent, sent])).toBe(resent);
+    expect(ownQuoteBreakdown([sent])).not.toBeNull();
+    expect(ownQuoteBreakdown([draft, sent])).toEqual(ownQuoteBreakdown([sent]));
+    expect(ownQuoteBreakdown([draft, sent])).not.toEqual(ownQuoteBreakdown([draft]));
   });
   test("the job page reads several quotes and picks with the pure helper", () => {
     const s = readFileSync("src/lib/trade-view.server.ts", "utf8");
     expect(s).toContain("ownCustomerQuoteFigures(");
+    expect(s).toContain("quoteForJobMoney(");
+    expect(s).not.toContain("selected.find(q => q.status === 'accepted')");
     expect(s).toContain('.in("status", ["issued", "accepted", "draft"]).order("created_at", { ascending: false }).limit(5)');
   });
 });

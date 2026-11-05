@@ -1226,15 +1226,15 @@ async function m10Deposit(rec: Recorder, jobs: BranchResult["jobs"], setup: Step
     catch (e) { offered = `refused: ${(e as Error).message.slice(0, 250)}`; }
     const { count: booked } = await admin.from("bookings").select("id", { count: "exact", head: true }).eq("job_id", ctx.jobId!).eq("kind", "installation");
     const stage1 = await J.stageOf(ctx);
-    const told = await officeToldOnce(ctx, (await shoot("m10-blocked", [ownerPage(ctx), { who: "installer", email: INST, path: `/field/day/${ctx.jobId}` }, ...officePages(ctx)]))[2], /deposit|payment|10%/i);
+    const told = await officeToldOnce(ctx, (await shoot("m10-blocked", [ownerPage(ctx), { who: "installer", email: INST, path: `/field/day/${ctx.jobId}` }, ...officePages(ctx)]))[2], /deposit|payment|50%/i);
     const shots = SHOTS.filter((x) => x.moment === "m10-blocked");
     answer("stops", offered.startsWith("refused") && (booked ?? 0) === 0 && stage1 === stage0, `installer offering days ${offered}; install bookings=${booked}; stage ${stage0}→${stage1}`);
     answer("reason", sees(shots[1], /deposit|pay/i) || sees(shots[0], /deposit|pay/i), `installer page mentions the deposit=${sees(shots[1], /deposit|pay/i)}; owner page=${sees(shots[0], /deposit|pay/i)}; plain refusal: ${offered.slice(0, 200)}`);
     answer("office_once", told.ok, told.detail);
-    // Fix: the owner pays the 10% deposit (TEST payment, Demo Company) — then the same offering works and the owner books.
+    // Fix: the owner pays the 50% deposit (TEST payment, Demo Company) — then the same offering works and the owner books.
     const r: StepResult = { key: "s7_install", label: "deposit", passed: true, checks: [] };
     let pay = "paid";
-    try { await J.payStep(ctx, r, "install_deposit", "10% install deposit (TEST payment, Demo Company)"); } catch (e) { pay = `failed: ${(e as Error).message.slice(0, 200)}`; }
+    try { await J.payStep(ctx, r, "install_deposit", "50% install deposit (TEST payment, Demo Company)"); } catch (e) { pay = `failed: ${(e as Error).message.slice(0, 200)}`; }
     let offered2 = "not tried";
     try { await idays.installerOfferDays(ctx.jobId!, ctx.installer.id, days.map((day) => ({ day, time: "08:00" }))); offered2 = "offered"; }
     catch (e) { offered2 = `refused: ${(e as Error).message.slice(0, 200)}`; }

@@ -48,3 +48,25 @@ describe("in-house Give email builder", () => {
     expect(installerEmailWords({ status: "sent" }, "")).toBe("Emailed the installer the job list.");
   });
 });
+
+// Photo-quote installers Task 3 (spec PR #126 row): the From photos version of the Give email.
+describe("in-house Give email — From photos version", () => {
+  test("photo subject, heading, due line and an Open the job button per job; no Ready Check promise", async () => {
+    const { IN_HOUSE_PHOTO_GIVE_EMAIL_APPROVED } = await import("../src/lib/in-house-give-email.core");
+    expect(IN_HOUSE_PHOTO_GIVE_EMAIL_APPROVED).toBe(false);
+    const m = renderInHouseGiveEmail({ jobs: [WAYNE, BLANK], contactName: "No Gap Insulation", method: "photos" });
+    expect(m.subject).toBe("New photo quote jobs from Home Insulation Victoria");
+    expect(m.text).toContain("New photo quote jobs");
+    expect(m.text).toContain("Quote each one from the owner's photos within 2 business days.");
+    expect(m.text).not.toContain(IN_HOUSE_GIVE_CALL_LINE);
+    expect(m.text).not.toMatch(/Ready Check|\bHIV\b|\babout\b/);
+    expect(m.html.match(/Open the job/g)?.length).toBe(2);
+    expect(m.html).toContain("https://estimate.homeinsulationvictoria.com.au/field/j1");
+    expect(m.html).toContain("https://estimate.homeinsulationvictoria.com.au/field/j2");
+    const t = renderInHouseGiveEmail({ jobs: [WAYNE], method: "photos", appBase: "https://preview.example", test: true });
+    expect(t.html).toContain("https://preview.example/field/j1");
+  });
+  test("Ready Check version is unchanged (same output with or without the method)", () => {
+    expect(renderInHouseGiveEmail({ jobs: [WAYNE, BLANK], contactName: "Rapid", method: "ready_check" })).toEqual(renderInHouseGiveEmail({ jobs: [WAYNE, BLANK], contactName: "Rapid" }));
+  });
+});

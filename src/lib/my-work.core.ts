@@ -44,10 +44,16 @@ const REASON: Record<NextStepKind, string> = {
   install_locked: "Install locked in", // DRAFT
   after_install: "Install done", // DRAFT
   closed: "Closed", // DRAFT
+  quote_from_photos: "Quote from photos", // DRAFT (photo-quote installers, Jo 5 Nov 2026)
 };
 /** `box` (fix wave I5): a "waiting_quote" box before any quote has gone is "Ready Check done" (approved), not "Waiting for the owner". */
-export const reasonFor = (kind: NextStepKind, box?: Pick<NextStepBox, "title">): string =>
-  kind === "waiting_quote" && box?.title.startsWith(NEXT_STEP_WORDS.quotePreparingTitle) ? REASON.enter_price : REASON[kind];
+/** `photos`: a From photos job never says "Ready Check done" — its quote-being-prepared card reads "Photo quote sent" (DRAFT). */
+export const reasonFor = (kind: NextStepKind, box?: Pick<NextStepBox, "title">, photos = false): string =>
+  kind === "waiting_quote" && box?.title.startsWith(NEXT_STEP_WORDS.quotePreparingTitle) ? (photos ? "Photo quote sent" : REASON.enter_price) : REASON[kind];
+
+/** The My work card reason from the same facts as the box: any photo job (a From photos give OR an installer's own photo
+ *  quote) reads "Photo quote sent", never "Ready Check done" (review fix round). */
+export const myWorkReason = (box: Pick<NextStepBox, "kind" | "title">, facts: { quoteMethod?: string | null }): string => reasonFor(box.kind, box, facts.quoteMethod === "photos");
 
 // Overdue first, then the earliest book-by date, cards with no date last. Stable otherwise.
 function byUrgency(a: MyWorkCard, b: MyWorkCard): number {

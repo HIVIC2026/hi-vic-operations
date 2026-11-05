@@ -188,3 +188,29 @@ describe("M6: fetchPartnerLogo reads the stored logo by key", () => {
     expect(src).toContain('r.code === "AP_FEE" && cents(r.line_total_inc_gst) > 0');
   });
 });
+
+// Review 1 + fix round 1 (Task 6 discount): the discounted own-customer quote carries a negative INSTALLER_DISCOUNT line.
+// The tax invoice prints it as "Discount · – $200.00" straight under Insulation and the total still adds up.
+describe("own customer tax invoice with the installer's discount", () => {
+  const DISCOUNTED: TaxInvoiceFacts = { ...OWN, extraLines: [{ label: "Discount", cents: -20000 }, { label: "Home Insulation Victoria fee", cents: 34900 }] };
+  test("Discount row under Insulation, shown like the rebate; price before rebate and payable take it off", () => {
+    const m = taxInvoiceModel(DISCOUNTED, seam) as any;
+    expect(m.rows.map((x: any) => [x.label, x.amount])).toEqual([
+      ["Insulation · Bradford Gold R5.0 · R5.0 · 120 m² · supplied and installed", "$2,000.00"],
+      ["Discount", "– $200.00"],
+      ["Home Insulation Victoria fee", "$349.00"],
+      ["Electrical safety check (PIESA)", "$275.00"],
+    ]);
+    expect(m.priceBeforeRebate).toBe("$2,424.00");
+    expect(m.payable).toBe("$1,824.00");
+  });
+  test("the loader subtracts the INSTALLER_DISCOUNT line as an explicit extra line (not held as 'do not add up')", () => {
+    const src = readFileSync("src/lib/tax-invoice-pdf.server.ts", "utf8");
+    const own = src.slice(src.indexOf("if (ownJob) {"), src.indexOf("const extrasCents"));
+    expect(own).toContain('sorted.filter((r) => r.code === "INSTALLER_DISCOUNT")');
+    expect(own).toContain("label: OWN_CUSTOMER_LABELS.discount, cents: cents(r.line_total_inc_gst)");
+    expect(own).toContain('"INSTALLER_DISCOUNT"'); // in the approved-codes list, never "not the approved own-customer lines"
+    expect(own).toContain("discountLines.some((r) => !(cents(r.line_total_inc_gst) < 0))"); // a positive "discount" holds
+    expect(src).toContain("productCents + extrasCents + piesaCents - rebateCents !== cents(inv.total_inc_gst)"); // the sum check now includes it
+  });
+});

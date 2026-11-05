@@ -56,7 +56,10 @@ export async function quoteBillingBlocker(quoteId: string): Promise<string | nul
   return electricalLineBlocker(items ?? [], payerFromChoice(j.electrician_choice), rate);
 }
 
-export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: string | null, formEntries: { label: string; value: string | null }[], auditId: string, intakePrice?: { totalIncGst: number; includes: string; areaM2?: number; separateLines?: { code: string; description: string; amountIncGst: number }[]; exclusions?: string | null }) {
+export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: string | null, formEntries: { label: string; value: string | null }[], auditId: string, intakePrice?: { totalIncGst: number; includes: string; areaM2?: number; separateLines?: { code: string; description: string; amountIncGst: number }[]; exclusions?: string | null;
+  /** Photo quote Part 2 (Jo 5 Nov 16:44): the From photos installer's own price record (the Your price card's ticks) and
+   *  product — read the way the Ready Check path reads a portal price, worded the same (own-photo-quote.core). */
+  photo?: { record: import("./installer-price.core").InstallerPriceRecord; product: string; removeM2: number } }) {
   const { data: job } = await admin.from("jobs").select("channel, stage, deleted_at, qa_archived_at, ap_fee_override_inc_gst, electrician_choice, originating_installer_business_id, properties(postcode)").eq("id", jobId).single();
   if (!job || job.channel !== "installer_sourced") return null;
   if ((await import("./mitti.core")).isClosedOrArchivedJob(job)) return null; // HV-1351: no draft, no hold, no events
@@ -111,8 +114,9 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
     piesaReadFailed = true;
     return null; // fail closed: the quote holds until the read works; nothing is sent
   });
+  const ownPhoto = intakePrice?.photo ? await import("./own-photo-quote.core") : null;
   const draftInput = {
-    price: intakePrice ? { ok: true, issues: [], price: { included: [intakePrice.exclusions ? `${intakePrice.includes} (excludes: ${intakePrice.exclusions})` : intakePrice.includes], otherDescription: "", totalIncGst: Math.round(intakePrice.totalIncGst * 100) / 100, agreedWithOwner: false } } : quotedPriceFromEntries(entries, m?.removal_required ?? null), measuredM2: m2, wholeVeec,
+    price: intakePrice?.photo && ownPhoto ? ownPhoto.ownPhotoDraftInput({ record: intakePrice.photo.record, installM2: m2 ?? 0, removeM2: intakePrice.photo.removeM2, wholeVeec, metropolitan: null, minCopay: 0 }).price : intakePrice ? { ok: true, issues: [], price: { included: [intakePrice.exclusions ? `${intakePrice.includes} (excludes: ${intakePrice.exclusions})` : intakePrice.includes], otherDescription: "", totalIncGst: Math.round(intakePrice.totalIncGst * 100) / 100, agreedWithOwner: false } } : quotedPriceFromEntries(entries, m?.removal_required ?? null), measuredM2: m2, wholeVeec,
     separateLines: intakePrice?.separateLines ?? [],
     caps: {
       metropolitan: loc ? (loc as unknown as LocationVariables).metropolitan_or_regional === "Metropolitan" : null,
@@ -123,6 +127,7 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   // Same lines on both branches (Task 2 review): the Ready Check path adds the electrician's hold reasons; the intake-price
   // fallback (no Mitti electrician) still holds below while the electrician is undecided.
   const draft = mittiElectrician ? quoteCore.buildMittiInstallerQuote(draftInput, mittiElectrician) : quoteCore.buildOwnCustomerQuoteDraft(draftInput, listPiesa);
+  if (intakePrice?.photo && ownPhoto) ownPhoto.applyOwnPhotoWording(draft, { product: intakePrice.photo.product, installM2: m2 ?? 0, removeM2: intakePrice.photo.removeM2 });
   if (piesaReadFailed) { const { PIESA_PRICE_CHECK_FAILED } = await import("./own-customer-price.core"); draft.blockers = draft.blockers.map((b) => (b === IN_HOUSE_PIESA_HOLD_REASON ? PIESA_PRICE_CHECK_FAILED : b)); draft.ready = false; }
   const payer = payerFromChoice(job.electrician_choice);
   if (!mittiElectrician && payer === "undecided") draft.blockers.unshift("Electrician not decided yet — the owner's electrician cost must be known before the quote");

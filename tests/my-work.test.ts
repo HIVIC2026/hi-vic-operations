@@ -85,3 +85,17 @@ describe("search", () => {
   test.each(["hv1234", "1234", "HV-1234", "example", "BROWN", "box hill", ""])("matches %p", (q) => expect(matchesSearch(card, q)).toBe(true));
   test("does not match another number", () => expect(matchesSearch(card, "1250")).toBe(false));
 });
+
+// Review fix round (minor): an installer's OWN photo job (no give, photo quote sent) never says "Ready Check done".
+import { myWorkReason } from "../src/lib/my-work.core";
+test("My work reason: own photo job → Photo quote sent; Ready Check job unchanged", () => {
+  const base = { channel: "installer_sourced", stage: "ready_check_complete", ownerFirst: "Amy", ownerName: "Amy Clarke", ownerPhone: null, now: new Date("2026-11-06T01:00:00Z"), givenAt: null,
+    readyCheck: { start: null, done: true, missing: [] }, priceEntered: true, quote: "none", acceptedAt: null, whoBooks: "installer", electricianName: null,
+    piesa: { start: null, outcome: null, upgradesDone: false, certificateIn: false }, access: null, depositPaidAt: null, install: { start: null, lead: null, swmsSigned: 0, swmsTotal: 0 }, installDone: false, pay: null, mittiFormUrl: null } as unknown as NextStepFacts;
+  const own = { ...base, quoteMethod: "photos", photoQuoteSent: true } as NextStepFacts;
+  const box = nextStepBox(own);
+  expect(box.kind).toBe("waiting_quote");
+  expect(myWorkReason(box, own)).toBe("Photo quote sent");
+  const rc = nextStepBox(base);
+  expect(myWorkReason(rc, base)).toBe(reasonFor(rc.kind, rc));
+});

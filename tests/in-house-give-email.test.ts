@@ -124,3 +124,22 @@ test("no jobs given → no email", async () => {
   expect((await f.api.sendInHouseGiveEmail({ batchId: "B1", businessId: "biz", jobs: [], actorId: "jo", approved: true })).status).toBe("not_sent");
   expect(f.office).toHaveLength(0);
 });
+
+// Photo-quote installers Task 3: the From photos version goes through the same sender with its own switch and key.
+test("photos: the photo wording, its own once-only key, and its own switch (off by default)", async () => {
+  const f = fixture();
+  expect((await f.api.sendInHouseGiveEmail({ batchId: "B1", businessId: "biz", jobs: JOBS, actorId: "jo", method: "photos" })).status).toBe("not_approved");
+  expect(f.office).toHaveLength(0);
+  expect(await f.api.sendInHouseGiveEmail({ batchId: "B1", businessId: "biz", jobs: JOBS, actorId: "jo", method: "photos", approved: true })).toEqual({ status: "sent" });
+  const m = f.office[0];
+  expect(m.subject).toBe("New photo quote jobs from Home Insulation Victoria");
+  expect(m.idempotencyKey).toBe("in-house-give:v1:B1:photos");
+  expect(m.text).toContain("Quote each one from the owner's photos within 2 business days.");
+  expect(m.text).not.toContain("Ready Check");
+  expect(m.html).toContain("/field/j1");
+});
+test("photos TEST partner → test-send with the photo wording", async () => {
+  const f = fixture({ id: "biz", name: "TEST INSTALLER", email: "jolowexo@hotmail.com", onboarding_notes: "[TEST PARTNER] demo" });
+  expect(await f.api.sendInHouseGiveEmail({ batchId: "B1", businessId: "biz", jobs: JOBS, actorId: "jo", method: "photos" })).toEqual({ status: "test_sent" });
+  expect(f.tests[0].subject).toBe("New photo quote jobs from Home Insulation Victoria");
+});

@@ -1,4 +1,4 @@
-// Xero integration boundary – ONE full invoice per accepted quote: the installation invoice (safety check, 10% install deposit,
+// Xero integration boundary – ONE full invoice per accepted quote: the installation invoice (safety check, 50% install deposit,
 // balance) and, batch 3b, a separate fixes invoice per accepted fixes quote and a separate invoice per owner-paid repeat safety
 // check. Payments are confirmed only by Xero payments and the card ledger.
 // Xero is the system of record; the portal mirrors state and enforces gates.

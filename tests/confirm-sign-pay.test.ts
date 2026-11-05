@@ -1,4 +1,4 @@
-// Part 4 Task 5 (Jo 2 Nov 2026, answers 10 and 21): ONE page — PIESA owner declarations + ESC consent + 10% deposit.
+// Part 4 Task 5 (Jo 2 Nov 2026, answers 10 and 21): ONE page — PIESA owner declarations + ESC consent + 50% deposit.
 // Pure rules + the server orchestration run against recorded fakes (no database, nothing is sent).
 import { describe, expect, test } from "bun:test";
 import { CONFIRM_SIGN_PAY, confirmSignPayBlockers, confirmSignPayFooter, piesaConfirmTick, piesaResultLabel, clearScreenOpen, consentTickLine, clearAction, consentOnlyOpen, consentOnlyPiesa, hasDepositStep, hasPiesaStep, withNoDeposit, type ConfirmSignPayState } from "../src/lib/confirm-sign-pay.core";

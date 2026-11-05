@@ -1,4 +1,4 @@
-// Batch 3a task 3: card is allowed for the 10% install deposit (balance stays bank transfer / PayID). Pure. Run: bun test tests/batch3a-card-deposit.test.ts
+// Batch 3a task 3: card is allowed for the 50% install deposit (balance stays bank transfer / PayID). Pure. Run: bun test tests/batch3a-card-deposit.test.ts
 import { readFileSync } from "node:fs";
 import { describe, expect, test } from "bun:test";
 import {
@@ -121,7 +121,7 @@ describe("owner wording", () => {
         balanceCents: 328_590,
       }),
     );
-    expect(text).toContain("10% deposit to book your install day: $365.10");
+    expect(text).toContain("50% deposit to book your install day: $365.10");
     expect(text).toContain("The rest: $3,285.90");
     expect(text).toContain("By card or bank transfer. No fees.");
   });
@@ -165,12 +165,12 @@ describe("fix round 1", () => {
   test("email-reply deposit is card-inclusive whether or not Stripe is available", () => {
     const s = read("email-reply.core.ts");
     expect(s).toContain(
-      'install_deposit: { what: "booking payment (10%)", how: "by card, bank transfer or PayID" }',
+      'install_deposit: { what: "booking payment (50%)", how: "by card, bank transfer or PayID" }',
     );
     expect(s).not.toMatch(/comes through, \$\{due\.cardAvailable/);
   });
   test("office text matches", () => {
-    expect(read("office-stage-cards.core.ts")).toContain("10% to book · card or bank");
+    expect(read("office-stage-cards.core.ts")).toContain("50% to book · card or bank");
     expect(read("allocation.core.ts")).toContain(
       "about the deposit (card, bank transfer or PayID)",
     );

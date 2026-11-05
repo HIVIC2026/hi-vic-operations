@@ -93,7 +93,7 @@ export async function validateBooking(jobId: string, kind: BookingKind, start: s
     const partnerBilled = electricianBillsUpgrades(jobId);
     if (!partnerBilled) { const blocker = await (await import("./payments.server")).fixesPaymentBlockerFor(jobId); if (blocker) throw new WorkflowError(`Blocked: ${blocker}`); }
   }
-  // Jo 26 Oct 2026: the install is booked only after the 10% install deposit is paid (the PIESA fee never unlocks it).
+  // Jo 26 Oct 2026: the install is booked only after the 50% install deposit is paid (the PIESA fee never unlocks it).
   if (kind === "installation") { const db = await (await import("./payments.server")).installDepositBlockerFor(jobId); if (db) throw new WorkflowError(`Blocked: ${db}`); }
   { const { jobDeletedBlocker } = await import("./job-live.server"); const del = await jobDeletedBlocker(jobId); if (del) throw new WorkflowError(del); }
   // Guard BEFORE writing: a booking must never exist when the job cannot enter the booked stage (e.g. Gate A not signed).

@@ -60,3 +60,16 @@ describe("G7: render-time wording B and the PIESA amount", () => {
     expect(() => applyPiesaAmount(CUSTOMER_AGREEMENT_V1_3, "$2 | x")).toThrow(/not a dollar amount/);
   });
 });
+
+describe("Customer Agreement v1.4 (Jo 5 Nov 2026: 50% deposit)", () => {
+  test("only the deposit % changes; interest and refund rule stay", async () => {
+    const { CUSTOMER_AGREEMENT_V1_3: v13, CUSTOMER_AGREEMENT_V1_4: v14, CUSTOMER_AGREEMENT_VERSION } = await import("../src/lib/customer-agreement.core");
+    expect(CUSTOMER_AGREEMENT_VERSION).toBe("1.4");
+    expect(v14).toContain("(PIESA), 50% to book your install day, and the rest on install day.");
+    expect(v14).toContain("- 50% deposit: refunded if you cancel at least 2 business days before your install day.");
+    expect(v14).toContain("50% deposit to book your install day | {deposit}");
+    expect(v14).toContain("(currently 10% a year)");
+    expect(v14.match(/10 ?%/g)).toEqual(["10%"]); // the interest line only
+    expect(v14.replace(/50%/g, "10%")).toBe(v13);
+  });
+});

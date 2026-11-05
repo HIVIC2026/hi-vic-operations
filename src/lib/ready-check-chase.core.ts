@@ -113,7 +113,7 @@ const RULES: { code: MittiOfficeCode; raise: (e: Ev) => boolean; clear: string[]
   { code: "mitti_setup_installer", raise: (e) => e.event_type === "mitti_access_needed", clear: ["mitti_access_override", "mitti_audit_linked", "mitti_synced", "mitti_measureup_synced"], detail: (e) => e.summary ?? null },
   // Decision 209: the Xero invoice went out with the rate-card wording because the product or measured area was unknown.
   { code: "xero_invoice_product_unconfirmed", raise: (e) => e.event_type === "xero_invoice_product_unconfirmed", clear: ["xero_invoice_product_confirmed"], detail: (e) => ((e.details?.["reasons"] as string[] | undefined) ?? []).join("; ") || e.summary || null },
-  // Decision 367: an install day started with the 10% deposit still unpaid (sweepProvisionalBookings); cleared once the
+  // Decision 367: an install day started with the 50% deposit still unpaid (sweepProvisionalBookings); cleared once the
   // deposit lands (install_booking_confirmed) or the booking is released.
   { code: "install_deposit_unpaid_at_start", raise: (e) => e.event_type === "install_deposit_unpaid_at_start", clear: ["install_booking_confirmed", "install_booking_released_unpaid"], detail: (e) => e.summary ?? null },
   // Audit R02: a card + Xero pair with the same amount and no shared Stripe id (both counted); cleared once the payments

@@ -7,7 +7,7 @@ import { LINK_PURPOSE, isWellFormedToken } from "./estimatelink.core";
 import { groupBMediaForJob } from "./group-b-media.server";
 import { logEvent } from "./workflow.server";
 import { requestedMorePhotosUploadAllowed } from './owner-capture-permission.core';
-import { CAPTURE_KIND, CAPTURE_MAX_FILES, CAPTURE_SOURCE_SYSTEM, captureLinkState, capturePath, parseCapturePath, validateCaptureFile, normaliseCaptureType, CAPTURE_MAX_BYTES } from "./owner-capture.core";
+import { CAPTURE_KIND, CAPTURE_MAX_FILES, CAPTURE_SOURCE_SYSTEM, captureLinkState, optionalUploadAllowed, capturePath, parseCapturePath, validateCaptureFile, normaliseCaptureType, CAPTURE_MAX_BYTES } from "./owner-capture.core";
 
 const BUCKET = "job-files";
 const GENERIC = "This link is not available. Please contact Home Insulation Victoria.";
@@ -55,7 +55,8 @@ export async function captureStatus(token: unknown) {
   const tap=(await import("./insulation-details.core")).savedInsulationTap((c?.job.properties as {enrichment?:Record<string,unknown>}|null)?.enrichment);
   const resume = captureResume({ spotSaved: !!resp?.spot_saved_at && !resp?.opted_out_at, ownerQualified: !!c?.ownerQualified });
   const morePhotosUploadAllowed = await requestedUploads(r.link.job_id, media);
-  return { state: "ok" as const, suburb, reference: r.job.job_number, originalMedia: media, mediaReview, morePhotosUploadAllowed, resume, detailsRoute:tap?.route??null, received: files.length, remaining: Math.max(0, CAPTURE_MAX_FILES - files.length) };
+  return { state: "ok" as const, suburb, reference: r.job.job_number, originalMedia: media, mediaReview, morePhotosUploadAllowed, resume, detailsRoute:tap?.route??null, received: files.length, remaining: Math.max(0, CAPTURE_MAX_FILES - files.length),
+    optionalUploadAllowed: optionalUploadAllowed({ excluded: !!media.excluded, received: files.length }) };
 }
 
 export async function startCapture(token: unknown, f: { fileName: string; mime: string; size: number }) {

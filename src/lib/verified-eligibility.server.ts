@@ -184,7 +184,8 @@ export async function verifiedEligible(jobId: string): Promise<boolean> {
 export const FORM_ELIGIBLE_EVENT = "ready_check_form_eligible";
 export async function formEligibleForCurrentReadyCheck(jobId: string): Promise<boolean> {
   const { data: m, error } = await admin.from("ceiling_measurements").select("external_source, external_id, status").eq("job_id", jobId).eq("is_current", true).maybeSingle();
-  if (error || !m || m.external_source !== "mitti" || !m.external_id || m.status !== "complete") return false;
+  // Photo-quote installers (Jo 5 Nov 2026): the installer's photo quote stands in for the Mitti form (same event, its own ref).
+  if (error || !m || !["mitti", "photo_quote"].includes(String(m.external_source)) || !m.external_id || m.status !== "complete") return false;
   const { count, error: ee } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", FORM_ELIGIBLE_EVENT).contains("details", { audit_id: m.external_id });
   return !ee && (count ?? 0) > 0;
 }

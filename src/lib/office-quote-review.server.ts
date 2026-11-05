@@ -99,7 +99,7 @@ export async function releaseQuoteToOwner(
   const { data: quote, error } = await admin
     .from("quotes")
     .select(
-      "id, job_id, kind, status, sent_at, release_state, release_hold_reason, created_at, option_code",
+      "id, job_id, kind, status, sent_at, release_state, release_hold_reason, created_at, option_code, option_label",
     )
     .eq("id", quoteId)
     .eq("job_id", jobId)
@@ -137,6 +137,13 @@ export async function releaseQuoteToOwner(
   if (!decision.ok) throw new WorkflowError(decision.reason);
   const siblings = decision.releaseCompanions ? companions.map((c) => c.row) : [];
   if (!permission.allowed) throw permission.error;
+  // Task 6 (Jo 5 Nov 2026): an installer's discount version replaces the quote the owner already has. Checked before
+  // any write: an earlier quote the owner accepted meanwhile means nothing is sent.
+  const discount = await import("./installer-discount.core");
+  const discountSource = (quote as { option_label?: string | null }).option_label === discount.DISCOUNT_QUOTE_LABEL
+    ? await (await import("./installer-discount.server")).discountSourceFor(jobId, quoteId)
+    : null;
+  if (discountSource?.status === "accepted") throw new WorkflowError(discount.DISCOUNT_SOURCE_ACCEPTED);
   // Jo 24 Oct: release only when the owner can actually accept it — right stage, invoicing settled, and a secure link.
   if (st?.stage === "ready_check_complete") {
     // Sending the quote IS the move to the quote stage; its entry checks (Ready Check complete, eligibility) still apply.
@@ -193,6 +200,7 @@ export async function releaseQuoteToOwner(
     .maybeSingle();
   if (ce) throw new WorkflowError(ce.message);
   if (!claimed) throw new WorkflowError("The quote changed or was already sent. Reload it.");
+  if (discountSource) await (await import("./installer-discount.server")).replaceDiscountSource(jobId, quoteId, discountSource.sourceQuoteId, actorId);
   for (const s of siblings) {
     const { error: se } = await admin.from("quotes").update({ status: "issued", release_state: "released", release_hold_reason: null, sent_at: now, ...(how === "office" ? { office_reviewed_at: now, office_reviewed_by: actorId } : {}) })
       .eq("id", s.id).eq("job_id", jobId).eq("status", s.status).is("sent_at", null);

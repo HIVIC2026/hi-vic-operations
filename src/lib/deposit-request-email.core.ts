@@ -9,7 +9,7 @@ import { CLEAR_TO_INSTALL_EMAIL_APPROVED } from './piesa-result-route.core';
 export type DepositMessageFacts={name:string;installer:string;jobNumber:string;address:string;ownerPhone:string|null;deadline:string;amountCents:number;link:string;bank:BankDetails;reference:string|null;card:boolean;
   /** "You're clear to install" (#40) extras; all four are needed for the new wording. */
   firstName?:string;checkedOn?:string;electrician?:string;upgrades?:'None'|'Done';
-  /** #43/#44/#45 (Task 6): installer OFFICE phone, balance due on install day, the plan's 10% deposit, upgrades still to come, full owner name, installer portal link. */
+  /** #43/#44/#45 (Task 6): installer OFFICE phone, balance due on install day, the plan's 50% deposit, upgrades still to come, full owner name, installer portal link. */
   officePhone?:string|null;balanceCents?:number;depositCents?:number;upgradesToCome?:boolean;ownerFullName?:string;bookUrl?:string};
 /** Task 6: Jo's approved #43/#44/#45 wording. Off: the current reminder, Deposit received and office wording go out unchanged. */
 export const DEPOSIT_MESSAGES_V2_APPROVED=false as boolean;
@@ -73,10 +73,10 @@ export function renderInstallDepositOwnerEmail(f:DepositMessageFacts,step:'reque
   if(v2&&(step==='day3'||step==='day7'))return renderReminderV2(f);
   if(v2&&step==='paid'&&paidV2Ready(f))return renderPaidV2(f,opts.receiptAttached===true);
   const deadline=weekdayDayMonthLabel(f.deadline)??f.deadline;
-  const subject=step==='paid'?'Deposit received':step==='request'?'Your 10% install deposit':'Your install deposit reminder';
+  const subject=step==='paid'?'Deposit received':step==='request'?'Your 50% install deposit':'Your install deposit reminder';
   const lines=step==='paid'?[`Deposit received, ${f.installer} will call you to book your install day.`,`Your installation must start by ${deadline} (30-day limit).`,REST_DUE_SENTENCE]:[
     `You're clear to install, ${f.name}!`,
-    `${step==='request'?'Please pay':'Reminder: please pay'} your 10% install deposit of ${cents(f.amountCents/100)} inc GST against your existing installation invoice so ${f.installer} can book your install day.`,
+    `${step==='request'?'Please pay':'Reminder: please pay'} your 50% install deposit of ${cents(f.amountCents/100)} inc GST against your existing installation invoice so ${f.installer} can book your install day.`,
     f.card?'Pay by card (Stripe) or bank transfer.':'Pay by bank transfer.',
     ...bankDetailLines(f.bank,f.reference),
     `Your installation must start by ${deadline} (30-day limit).`,

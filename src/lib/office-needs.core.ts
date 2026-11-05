@@ -3,6 +3,7 @@
 // system items as one fold line, no numbers strip, no "Later". One row per job: its most urgent office action.
 // PURE: the server gathers facts; this decides the row, its group and its one button. Never moves a job.
 
+import { PHOTO_QUOTE_WORDS, photoQuoteOverdue, type QuoteMethod } from "./photo-quote.core";
 import { complaintNeedsLine, type ComplaintNeed } from "./complaints.core";
 import { FIXES_TIMES_MISSING_LINE } from "./fixes-times.core";
 import { LAPSED_NEEDS_LINE } from "./spot-release.core";
@@ -29,7 +30,7 @@ export type NeedsKind =
   | "install_scope_change"
   | "in_house_esc_lead_changed" | "in_house_handed_back" | "address_to_confirm" | "mitti_electrician_choice" | "own_job_piesa_held" | "same_day_part_c_failed" | "own_job_piesa_handed_back" | "own_job_swap_form_not_moved" | "own_job_installer_not_told"
   | "paid_gate_blocked" | "install_deposit_request_failed" | "in_house_form_sync_failed" | "piesa_auto_complete_held"
-  | "in_house_ready_check_not_booked" | "in_house_piesa_overdue" | "in_house_install_not_booked"
+  | "in_house_ready_check_not_booked" | "in_house_piesa_overdue" | "in_house_install_not_booked" | "in_house_photo_quote_overdue"
   | "choose_again" | "quote_check" | "fixes_quote_check" | "sign_consent" | "esc_window" | "final_check" | "send_failed" | "email_change" | "email_unmatched" | "robot_failed" | "piisa_form_failed"
   | "choose_installer" | "choose_electrician" | "veec_a_held" | "veec_b_held" | "piesa_owner_unsigned" | "piesa_fixes_owner_unsigned" | "fixes_times_missing"
   | "payment_not_in_xero" | "payment_overdue" | "ten_days_left" | "second_no_access" | "veec_day_10" | "lapsed_window" | "upgrades_past_30_days"
@@ -67,7 +68,10 @@ export type NeedsFacts = {
     quoteAcceptedAt: string | null; piesaCompleted: boolean; installationBooked: boolean;
     daysRemaining: number | null; deadline: string | null;
     /** Jo 2 Nov 2026 stall rules: missing reads as not booked / deposit unknown. */
-    piesaBooked?: boolean; depositPaid?: boolean | null; piesaUnlockedAt?: string | null } | null;
+    piesaBooked?: boolean; depositPaid?: boolean | null; piesaUnlockedAt?: string | null;
+    /** Photo-quote installers (Jo 5 Nov 2026): how the CURRENT give is quoted (missing = Ready Check) and whether the
+     *  installer has sent the photo quote (`photo_quote_submitted`). Photo jobs never get the Ready Check flag. */
+    quoteMethod?: QuoteMethod; photoQuoteSent?: boolean } | null;
   /** 24-hour installer / electrician offer lapsed or said Not for me (decision 220): "Choose again". */
   offerLapsed?: { role: "installer" | "electrician"; name: string | null; declined: boolean; at: string; note?: string } | null;
   bookingOverdue?: { at: string; visit: "ready_check" | "piesa" | "rectification" | "installation" } | null;
@@ -279,7 +283,9 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
     const deposit = ih.depositPaid === true ? " · deposit paid" : ih.depositPaid === false ? " · deposit not paid" : "";
     if (!ih.installationBooked && ih.daysRemaining != null && ih.daysRemaining <= 7) add({ rank: 36, group: "today", kind: "in_house_install_not_booked", line: `Install not booked · ${ih.daysRemaining < 0 ? "30-day window expired" : `${ih.daysRemaining} days left`}${deposit}`, since: ih.deadline ?? ih.batchSentAt ?? new Date(now).toISOString(), button: { label: "Open job", to: "job", section: "install" } });
     if (!ih.piesaBooked && !ih.piesaCompleted && ih.piesaUnlockedAt && today > addVicBusinessDays(ih.piesaUnlockedAt, 10)) add({ rank: 90, group: "week", kind: "in_house_piesa_overdue", line: "PIESA not booked 10 business days after quote accepted", since: ih.piesaUnlockedAt, button: { label: "Open job", to: "job", section: "piesa" } });
-    if (!ih.ownCustomer && !ih.readyCheckBooked && ih.batchSentAt && today > addVicBusinessDays(ih.batchSentAt, 5)) add({ rank: 91, group: "week", kind: "in_house_ready_check_not_booked", line: "Ready Check not booked after 5 business days", since: ih.batchSentAt, button: { label: "Open job", to: "job", section: "ready-check" } });
+    if (ih.quoteMethod === "photos") {
+      if (!ih.photoQuoteSent && ih.batchSentAt && photoQuoteOverdue(ih.batchSentAt, new Date(now))) add({ rank: 91, group: "week", kind: "in_house_photo_quote_overdue", line: PHOTO_QUOTE_WORDS.overdueFlag, since: ih.batchSentAt, button: { label: "Open job", to: "job", section: "ready-check" } });
+    } else if (!ih.ownCustomer && !ih.readyCheckBooked && ih.batchSentAt && today > addVicBusinessDays(ih.batchSentAt, 5)) add({ rank: 91, group: "week", kind: "in_house_ready_check_not_booked", line: "Ready Check not booked after 5 business days", since: ih.batchSentAt, button: { label: "Open job", to: "job", section: "ready-check" } });
   }
   if (f.quoteExpiredBlocked) add({ rank: 9, group: "today", kind: "quote_expired_blocked", line: f.quoteExpiredBlocked.reason === QUOTE_EXPIRED_HELD_REASON ? QUOTE_EXPIRED_HELD_REASON : `Quote expired — owner can't be emailed (${f.quoteExpiredBlocked.reason})`, since: f.quoteExpiredBlocked.at, button: { label: "Open job", to: "job" } });
   if (f.newQuoteOffice) add({ rank: 9, group: "today", kind: f.newQuoteOffice.kind, line: f.newQuoteOffice.line, since: f.newQuoteOffice.at, button: { label: "Open job", to: "job", section: "ready-check" } });

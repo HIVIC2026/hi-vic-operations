@@ -23,6 +23,8 @@ import { agreementRowState, bankChangedLine, rateIncGst } from "@/lib/office-par
 import { getBusinessFile, getPartnerAgreementPdf, resolvePartnerChangeRequest, revealPartnerBank } from "@/lib/office-partners.functions";
 import { getPartnerProfile, partnerFileUrl, saveBusiness } from "@/lib/pilot.functions";
 import { inHouseEnableBlockers, type InHouseFacts } from "@/lib/in-house.core";
+import { PHOTO_QUOTE_WORDS, QUOTE_METHODS, quoteMethodOf, type QuoteMethod } from "@/lib/photo-quote.core";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { reviewHigherRates } from "@/lib/rate-requests.functions";
 import { moveInstallerToNewFlowFn } from "@/lib/new-flow-move.functions";
@@ -85,7 +87,7 @@ function BusinessFile() {
           </dl>
         </Panel>
         <RatesPanel f={f} onDone={refresh} />
-        {p.data?.myRole === "hivic_admin" && p.data.inHouseFacts && <InHouseAndNewFlowPanel key={JSON.stringify(p.data.business)} businessId={businessId} business={p.data.business as unknown as { name: string; in_house?: boolean }} facts={p.data.inHouseFacts} onDone={refresh} />}
+        {p.data?.myRole === "hivic_admin" && p.data.inHouseFacts && <InHouseAndNewFlowPanel key={JSON.stringify(p.data.business)} businessId={businessId} business={p.data.business as unknown as { name: string; in_house?: boolean; quote_method?: string | null }} facts={p.data.inHouseFacts} onDone={refresh} />}
         <Panel className="lg:col-span-2" title={`People · ${f.people.length}`}><div data-why="153 CII, 130 privacy notice, 22/188 Mitti"><PeopleTable people={f.people} showBusiness={false} invalidate={["business-file"]} /></div></Panel>
         {f.canBeUsualElectrician && <Panel title={ELECTRICIANS_WORDS.title}>
           <div data-why="Jo 5 Nov 2026: one Electricians list per installer — linked electrician businesses and Team electricians, one Main (the default pick on new jobs)"><InstallerElectricians businessId={businessId} /></div>
@@ -148,7 +150,7 @@ function InstallerElectricianCard({ businessId, onDone }: { businessId: string; 
 // One In-house Yes/No switch (Rapid and No Gap book this way) and the "Move to the new flow" action. The billing radio, the
 // "No electrician Mitti login" line and the separate Save were removed (Jo, 5 Nov 2026: the electrician always bills the owner
 // directly since 2 Nov). The switch saves straight away through saveBusiness, as before; rectification_billed_by is not sent.
-function InHouseAndNewFlowPanel({ businessId, business, facts, onDone }: { businessId: string; business: { name: string; in_house?: boolean }; facts: InHouseFacts; onDone: () => Promise<void> }) {
+function InHouseAndNewFlowPanel({ businessId, business, facts, onDone }: { businessId: string; business: { name: string; in_house?: boolean; quote_method?: string | null }; facts: InHouseFacts; onDone: () => Promise<void> }) {
   const save = useServerFn(saveBusiness);
   const inHouse = business.in_house ?? false;
   const blockers = inHouseEnableBlockers(facts);
@@ -163,9 +165,22 @@ function InHouseAndNewFlowPanel({ businessId, business, facts, onDone }: { busin
     catch (e) { toast.error(e instanceof Error ? e.message : "Could not save in-house partner"); }
     finally { setBusy(false); }
   };
+  // Photo-quote installers (Jo 5 Nov 2026): "How they quote: Ready Check / From photos". Saves straight away, like the switch.
+  const method: QuoteMethod = quoteMethodOf(business);
+  const setMethod = async (next: QuoteMethod) => {
+    if (next === method) return;
+    setBusy(true);
+    try { await save({ data: { id: businessId, name: business.name, quote_method: next } }); await onDone(); toast.success(`${PHOTO_QUOTE_WORDS.settingLabel}: ${PHOTO_QUOTE_WORDS.methodLabel[next]}`); }
+    catch (e) { toast.error(e instanceof Error ? e.message : "Could not save how they quote"); }
+    finally { setBusy(false); }
+  };
   return <Panel title="In-house and new flow">
     <label className="flex items-center justify-between gap-3 text-sm font-semibold">In-house: {inHouse ? "Yes" : "No"}<Switch checked={inHouse} onCheckedChange={(v) => void setInHouse(v)} disabled={busy || (!inHouse && blockers.length > 0)} aria-label="In-house partner" /></label>
     {blockers.length > 0 && <ul className="mt-3 text-sm text-rose">{blockers.map((x) => <li key={x}>{x}</li>)}</ul>}
+    <p className="mt-4 text-sm font-semibold">{PHOTO_QUOTE_WORDS.settingLabel}</p>
+    <RadioGroup className="mb-4 mt-2" value={method} onValueChange={v => { if (v === "ready_check" || v === "photos") void setMethod(v); }} disabled={busy} aria-label={PHOTO_QUOTE_WORDS.settingLabel} data-quote-method>
+      {QUOTE_METHODS.map(m => <label key={m} className="flex items-center gap-3 text-sm"><RadioGroupItem value={m} />{PHOTO_QUOTE_WORDS.methodLabel[m]}</label>)}
+    </RadioGroup>
     {!inHouse && <div className="mt-4 border-t pt-4" data-new-flow-move>
       <Btn tone="secondary" disabled={busy} onClick={async () => {
         setBusy(true); setMoveBlockers([]);

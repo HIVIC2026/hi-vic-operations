@@ -88,7 +88,7 @@ describe("M2 states", () => {
     expect(JSON.stringify(n)).not.toMatch(/rebate/i);
     expect(n.ownerReady ?? null).toBeNull(); // nothing read → nothing shown, never a guess
   });
-  test("install booked: owner consent + 10% deposit line from recorded facts only (decision 251), no amounts", () => {
+  test("install booked: owner consent + 50% deposit line from recorded facts only (decision 251), no amounts", () => {
     const booked = { ...base, stage: "installation_booked", installTurn: "booked" as const, installBookedAt: "2026-10-26T20:30:00Z" };
     expect(jobNext({ ...booked, ownerReady: { consent: "signed", deposit: "paid" } }).ownerReady).toEqual({ text: "Consent signed ✓ · Deposit paid ✓", done: true });
     expect(jobNext({ ...booked, ownerReady: { consent: "signed", deposit: "waiting" } }).ownerReady).toEqual({ text: "Consent signed ✓ · Deposit not paid yet", done: false });

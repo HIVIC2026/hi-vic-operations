@@ -1,4 +1,4 @@
-// Decision 170 (Jo, 24 Oct 2026): when the 10% install deposit is not received within 48 hours and the provisional
+// Decision 170 (Jo, 24 Oct 2026): when the 50% install deposit is not received within 48 hours and the provisional
 // install day is released (payments.server sweepProvisionalBookings, decision 139), the owner is told by text + email.
 // Approved wording lives here; design docs/templates/mjml/owner_O64.mjml. Pure: no I/O.
 // Delivery: TEST jobs → test-send; real owners → the guarded owner-email path and the one real SMS sender (type

@@ -67,8 +67,8 @@ export const P2 = {
   tick2For: thirtyDayTick,
   tick2: thirtyDayTick("$349"),
   /** The safety-check amount is $349 unless the job's electrician is on a different rate (e.g. $220). */
-  howYouPayFor: (safetyCheck: string) => `How you pay: ${safetyCheck} now for the electrical safety check (PIESA). 10% to book your install day. The rest on install day. Card or bank transfer, no fees.`,
-  howYouPay: "How you pay: $349 now for the electrical safety check (PIESA). 10% to book your install day. The rest on install day. Card or bank transfer, no fees.",
+  howYouPayFor: (safetyCheck: string) => `How you pay: ${safetyCheck} now for the electrical safety check (PIESA). 50% to book your install day. The rest on install day. Card or bank transfer, no fees.`,
+  howYouPay: "How you pay: $349 now for the electrical safety check (PIESA). 50% to book your install day. The rest on install day. Card or bank transfer, no fees.",
   timing: "Your install will be done within 30 days of your electrical safety check (PIESA). Your installer will confirm the day with you. Most installs are finished on the day they start.",
   signLabel: "Your full name",
   signSub: "Typing your name here is your signature. We record the time and the exact document you signed.",

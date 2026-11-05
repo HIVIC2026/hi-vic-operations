@@ -1,5 +1,5 @@
 // Part 4 Task 5 (Jo 2 Nov 2026, answers 10 and 21): ONE page (?screen=clear) — confirm the electrical safety check (PIESA owner
-// declarations), sign the ESC consent (official Section 2 ticks) and pay the 10% deposit. PURE rules and wording, no I/O.
+// declarations), sign the ESC consent (official Section 2 ticks) and pay the 50% deposit. PURE rules and wording, no I/O.
 // Wording below is Jo's, verbatim from the task brief; the PIESA/consent tick lines are the official form text.
 import { installDepositDueNow } from "./payments.core";
 import { depositOpenAfterPiesa, type PiesaOutcome } from "./piesa-result-route.core";
