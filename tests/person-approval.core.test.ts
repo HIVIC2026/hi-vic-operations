@@ -46,10 +46,10 @@ describe("groupPeople", () => {
   test("Lead Installers, Crew, Electricians in order, with counts; switching moves a person", () => {
     const people = [P("a", "installer", "crew"), P("b", "installer", "lead"), P("c", "electrician", null), P("d", "installer", null)];
     const g = groupPeople(people);
-    // no role set = Lead Installer (worker-role.core rule)
-    expect(g.map((x) => [x.title, x.people.map((p) => p.id)])).toEqual([["Lead Installers", ["b", "d"]], ["Crew", ["a"]], ["Electricians", ["c"]]]);
+    // no role set = Crew (worker-role.core rule, Jo 5 Nov 2026)
+    expect(g.map((x) => [x.title, x.people.map((p) => p.id)])).toEqual([["Lead Installers", ["b"]], ["Crew", ["a", "d"]], ["Electricians", ["c"]]]);
     const moved = groupPeople(people.map((p) => (p.id === "b" ? { ...p, workerRole: "crew" as const } : p)));
-    expect(moved.map((x) => x.people.length)).toEqual([1, 2, 1]);
+    expect(moved.map((x) => x.people.length)).toEqual([0, 3, 1]);
   });
 });
 

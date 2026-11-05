@@ -8,6 +8,7 @@ import { markOfficeChanged } from "@/lib/office-list-refresh";
 import { forgetHeadStarts } from "@/lib/trade-route-prefetch";
 import { isOptimistic } from "@/lib/optimistic.core";
 import { actionJobId, refreshAfterJobAction } from "@/lib/job-action-refresh.core";
+import { showTradeSaved } from '@/lib/trade-save-confirmation';
 
 export type AppRole = "admin" | "qa_office" | "electrician" | "installer" | "owner" | "property_manager";
 
@@ -41,7 +42,7 @@ export function useAction<TIn, TOut>(fn: (opts: { data: TIn }) => Promise<TOut>,
       const out = await call({ data });
       forgetHeadStarts(); // a screen call started before this action must not be shown after it (trade-route-prefetch)
       markOfficeChanged(); // decision 383: the office lists work themselves out fresh on their next read
-      if (success) toast.success(success);
+      if (success) { toast.success(success); showTradeSaved(success); }
       if (options?.refresh !== false) {
         const jobId = actionJobId(data);
         // Mark ALL cached answers stale, including inactive lists; only defer their network reads.

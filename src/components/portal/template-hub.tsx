@@ -15,7 +15,10 @@ import {
 } from "@/lib/template-hub.core";
 import type { FormKey } from "@/lib/mitti-forms.core";
 import { getMittiForms } from "@/lib/mitti-forms.functions";
-import { getOfficeSwitches } from "@/lib/office-settings.functions";
+import { getOfficeSwitches, setOfficeSwitch } from "@/lib/office-settings.functions";
+import { useQueryClient } from '@tanstack/react-query';
+import { Button } from '@/components/ui/button';
+import { ownMessageSwitch, type OwnCustomerMessageKey } from '@/lib/own-customer-message-approval.core';
 import { paperworkCatalogueFn } from "@/lib/owner-gates.functions";
 
 /** Approved page designs (My job P-pages, the P5 notice page), loaded only when opened. */
@@ -97,16 +100,36 @@ function TemplateDetail({ entry, switches }: { entry: TemplateEntry; switches: S
           <dt className="text-sub">Who gets it</dt><dd>{entry.who}</dd>
           <dt className="text-sub">When</dt><dd>{entry.when}</dd>
           <dt className="text-sub">Status</dt><dd><Pill tone={TONE[status.tone]}>{status.label}</Pill></dd>
-          <dt className="text-sub">Approved</dt><dd>{entry.approval === "waiting" ? <span className="text-rose">Waiting for Jo — {entry.approvalNote}</span> : entry.approvalNote}</dd>
+          <dt className="text-sub">Approved</dt><dd>{entry.ownMessageKey && switches?.[ownMessageSwitch(entry.ownMessageKey)] === true ? 'Approved in Templates' : entry.approval === "waiting" ? <span className="text-rose">Waiting for Jo — {entry.approvalNote}</span> : entry.approvalNote}</dd>
           <dt className="text-sub">Live code</dt><dd className="break-all text-xs"><code>{entry.source.fn}</code> in <code>{entry.source.builder}</code>, used by <code>{entry.source.sender}</code></dd>
           {entry.design && <><dt className="text-sub">Design file</dt><dd className="break-all text-xs"><code>{entry.design}</code></dd></>}
         </dl>
         {entry.paperworkKey && <PaperworkApproval docKey={entry.paperworkKey} />}
+        {entry.ownMessageKey && <OwnMessageApproval messageKey={entry.ownMessageKey} switches={switches} />}
       </div>
       {preview.ok ? <Preview p={preview.p} /> : <p role="alert" className="rounded-[14px] border border-line bg-paper p-4 text-sm text-rose">This template could not be rendered with sample data: {preview.error}</p>}
       {mittiKey && <MittiConnection formKey={mittiKey} />}
     </div>
   );
+}
+
+function OwnMessageApproval({ messageKey, switches }: { messageKey: OwnCustomerMessageKey; switches: SwitchStates | null }) {
+  const save = useServerFn(setOfficeSwitch);
+  const cache = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const [feedback, setFeedback] = useState('');
+  const key = ownMessageSwitch(messageKey);
+  const approved = switches?.[key] === true;
+  async function change() {
+    setBusy(true); setFeedback('');
+    try {
+      await save({ data: { key, on: !approved, expected: approved, reason: approved ? 'Jo paused this email in Templates' : 'Jo approved this exact email wording in Templates' } });
+      await cache.invalidateQueries({ queryKey: ['office-switches'] });
+      setFeedback(approved ? 'Email switched OFF.' : 'Wording approved. Nothing sent.');
+    } catch (e) { setFeedback(e instanceof Error ? e.message : 'Approval not saved.'); }
+    finally { setBusy(false); }
+  }
+  return <div className="mt-3 space-y-2"><Button variant="outline" disabled={busy || !switches} onClick={() => void change()}>{busy ? 'Saving…' : approved ? 'Switch OFF' : 'Approve this email'}</Button>{feedback && <p role="status" className="text-sm">{feedback}</p>}</div>;
 }
 
 function Preview({ p }: { p: TemplatePreview }) {

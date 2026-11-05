@@ -43,6 +43,7 @@ import { RENTAL_DONE_LINE, RENTAL_TAPS, nextRentalStep, rentalDetailsProblems, r
 import { createAddressPicker, type PickResult } from "@/lib/address-pick.core";
 import { assertInHouseActionSucceeded } from "@/lib/in-house.core";
 import { completeOwnerQuoteAcceptance, ownerQuoteCanAccept } from "@/lib/owner-quote-visibility.core";
+import { replacedOwnQuoteLine } from '@/lib/own-customer-quote-messages.core';
 
 // Owner "My job" — no login. The secure link token is the only credential; nothing fetched during SSR.
 // Decision 335: "review" = the O51 star links (?screen=review&stars=N).
@@ -56,10 +57,11 @@ export const Route = createFileRoute("/my-job/$token")({
   ssr: false,
   // Same rule as the former zod schema (optional enum, anything else rejected) without pulling zod into every page's first load (decision 280).
   // SCREENS mirrors the OwnerScreen union in owner-myjob.core.
-  validateSearch: (s: Record<string, unknown>): { screen?: OwnerScreen; stars?: number; only?: "rental" } => {
+  validateSearch: (s: Record<string, unknown>): { screen?: OwnerScreen; stars?: number; only?: "rental"; quote?: string } => {
     const screen = s["screen"];
     if (screen === undefined) return {};
     if (typeof screen === "string" && (SCREENS as readonly string[]).includes(screen)) {
+      if(screen==='quote' && typeof s['quote']==='string' && /^[0-9a-f-]{36}$/i.test(s['quote'])) return {screen:'quote',quote:s['quote']};
       // Decision 335: ?stars=1..5 only on the review screen; anything else is ignored (never an error page from an email).
       const stars = screen === "review" ? parseStars(s["stars"]) : null;
       // Task 19 (answer 24): ?screen=taps&only=rental = an installer's own customer answering only the rental questions.
@@ -89,7 +91,7 @@ const day = (iso: string) => new Date(iso).toLocaleDateString("en-AU", { weekday
 
 function MyJobPage() {
   const { token } = Route.useParams();
-  const { screen: requestedScreen, stars, only } = Route.useSearch();
+  const { screen: requestedScreen, stars, only, quote: requestedQuote } = Route.useSearch();
   const load = useServerFn(getOwnerMyJob);
   const { data, isLoading } = useQuery({ queryKey: ["my-job", token], queryFn: () => load({ data: { token } }) as Promise<View | null>, staleTime: 30_000, retry: false, refetchOnWindowFocus: false });
   const screen = resolveOwnerScreen(requestedScreen, data ? { ...data, piesaConfirm: data.piesaConfirm === true } : {});
@@ -104,7 +106,8 @@ function MyJobPage() {
           : screen === "turn" ? <TurnScreen token={token} />
           : screen === "taps" ? <TapsScreen v={data} token={token} only={only} />
           : screen === "newquote" ? <NewQuoteScreen v={data} token={token} />
-          : screen === "quote" ? <QuoteScreen v={data} token={token} />
+          : screen === "quote" && requestedQuote && data.replacedQuoteIds?.includes(requestedQuote) ? <section className="py-8"><p role="status" className="text-lg font-semibold">{replacedOwnQuoteLine(data.replacementSentAt)}</p><Link to="/my-job/$token" params={{token}} search={{screen:'quote'}} className="mt-3 inline-flex min-h-12 items-center underline">See the current quote</Link></section>
+          : screen === "quote" ? <>{!requestedQuote && data.replacedQuoteIds?.length > 0 && <p role="status" className="text-sm font-semibold">{replacedOwnQuoteLine(data.replacementSentAt)}</p>}<QuoteScreen v={data} token={token} /></>
           : screen === "pay" ? <><RepeatPiesaCard token={token} /><PayNowCard v={data} token={token} /></>
           : screen === "clear" ? <OwnerConfirmSignPay v={data} token={token} />
           : screen === "finish" ? <OwnerSignAndPay token={token} />

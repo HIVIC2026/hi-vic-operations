@@ -8,7 +8,6 @@ import { offerTiming } from "./offer-timing.core";
 import { placeWorkJob, type WorkPlace } from "./work-places.core";
 import { COULDNT_GET_IN, offerMoney, electricianPayState, payState, type PayState, surname, type AreaSource, type InsulationNow, type TradeKind, type DayKind, SETUP_STEPS, type SetupKey, tradeJobAllowed, contactVisible, type AccessAssignment, type TeamMemberView, type BusinessNext, type CredentialView, type MittiLogin, latestExpiry, businessNext, type BusinessNextFacts, bankLine, installerMoneyHeldLines, accountEnding, ownerPaidInFullAt } from "./trade-view.core";
 import { crewClearance, CREW_CLEARANCE_REASON, electricianVerified, melbourneToday, whiteCardState } from "./worker-compliance.core";
-import type { UsualElectrician } from "./usual-electrician.core";
 import type { InstallerQuote } from "./installer-quote-status.server";
 // Speed (installer screens, Task 5): module-scope imports instead of awaited import() calls inside the loaders.
 import { statusFactsFor, statusView } from "./job-status.server";
@@ -65,7 +64,7 @@ import * as piisaA3Server from "./piisa-a3.server";
 import * as escNoticeServer from "./esc-collection-notice.server";
 import * as escNoticeCore from "./esc-collection-notice.core";
 import * as mittiInviteServer from "./mitti-invite.server";
-import * as usualElectricianServer from "./usual-electrician.server";
+import * as installerElectriciansServer from "./installer-electricians.server";
 import * as workerIdentityServer from "./worker-identity.server";
 import * as recOnboardedServer from "./rec-onboarded.server";
 import * as installerPaidServer from "./installer-paid-electricians.server";
@@ -228,6 +227,7 @@ export async function tradeHome(userId: string) {
   // real Promise: a query builder is a thenable that runs its query again for every `then`, so sharing it as-is would read twice.
   const msP = Promise.resolve(formReads ? admin.from("ceiling_measurements").select("job_id, external_source, external_id").in("job_id", liveIds).eq("is_current", true) : { data: [] as { job_id: string; external_source: string | null; external_id: string | null }[] });
   const basicsP = Promise.resolve(formReads ? admin.from("workflow_events").select("job_id, details, created_at").in("job_id", liveIds).eq("event_type", "ready_check_basics").order("created_at", { ascending: false }) : { data: [] as { job_id: string | null; details: unknown; created_at: string }[] });
+  const choiceP = Promise.resolve(formReads ? admin.from('workflow_events').select('job_id').in('job_id',liveIds).eq('event_type','own_customer_mitti_requested') : {data:[] as {job_id:string|null}[],error:null});
   // Round 3: every read that needs the job ids, together.
   const [{ data: books }, { data: missing }, { data: deadlines }, sf, rcQuotes, { data: ms }, { data: basics }, prices, { data: histJobs }, { data: assessRows }, ledgers, coesOnFile, { data: allocEvents }] = await Promise.all([
     admin.from("bookings").select("job_id, kind, status, scheduled_start, scheduled_end").in("job_id", ids).in("status", ["confirmed", "completed"]).order("scheduled_start"),
@@ -251,6 +251,9 @@ export async function tradeHome(userId: string) {
     formReads ? admin.from("workflow_events").select("job_id, details, created_at").in("job_id", liveIds).eq("event_type", "in_house_electrician_allocated").order("created_at", { ascending: false }) : Promise.resolve({ data: [] as { job_id: string | null; details: unknown; created_at: string }[] }),
   ]);
   const moneyAll = await moneyP;
+  const choiceRows=await choiceP;
+  if(choiceRows.error) throw new WorkflowError('The Ready Check choices could not be read.');
+  const mittiRequested=new Set((choiceRows.data??[]).map(r=>r.job_id));
   const depositIds = c.kind === 'installer' ? live.filter(j => j.stage === 'installation_scheduling' && !!sf.get(j.id)?.inHouseDispatch).map(j => j.id) : [];
   const depositFacts = await depositsP;
   const installDeposits = new Map<string, boolean | null>(depositIds.map((id) => [id, depositFacts?.get(id) ?? null]));
@@ -356,7 +359,7 @@ export async function tradeHome(userId: string) {
         pay: null, mittiFormUrl: null,
       };
       const box = nextStepBox(facts);
-      return { jobId: j.jobId, jobNumber: String(j.jobNumber), owner: j.owner, street: j.street, suburb: j.suburb, channel: j.channel, box, reason: reasonFor(box.kind, box) };
+      return { jobId: j.jobId, jobNumber: String(j.jobNumber), owner: j.owner, street: j.street, suburb: j.suburb, channel: j.channel, box, reason: reasonFor(box.kind, box), mittiLinked: formFacts.get(j.jobId)?.linked === true, mittiRequested:mittiRequested.has(j.jobId), quoteSentAt: facts.quote === "sent" ? q?.quote?.sent_at ?? null : null };
     });
     // A job with a pending offer shows as the offer card only (owner details stay hidden until the offer is taken); the card's key is the offer id.
     // Part 7 Task 9: no "Job offer" card — a job with a leftover pending offer stays hidden from My work (the office closes the offer).
@@ -839,7 +842,7 @@ export async function tradeBusiness(userId: string) {
   const today = melbourneToday();
   // Staff logins get only the business name and job-taking status: no rates, bank, agreement, insurance or team.
   const staffOnly = { kind: c.kind, boss: false as boolean, name: c.biz.name, taking: c.biz.accepting_new_jobs !== false, approvedSince: null as string | null, area: null as string | null, licenceExpires: null as string | null, liabilityExpires: null as string | null, rate: null as number | null, agreementSigned: false, bankSaved: false,
-    team: [] as TeamMemberView[], next: null as BusinessNext, usualElectrician: null as UsualElectrician | null, details: null as null | { legal: string | null; name: string; abn: string | null; baseSuburb: string | null; allVictoria: boolean }, ratesAgreedAt: null as string | null, hasRates: false, bankLine: null as string | null, credentials: [] as CredentialView[], agreement: null as null | { version: string; signer: string; signedAt: string }, notice: [] as { name: string; state: string }[], screen: null as ReturnType<typeof installerBusinessScreen> | null };
+    team: [] as TeamMemberView[], next: null as BusinessNext, details: null as null | { legal: string | null; name: string; abn: string | null; baseSuburb: string | null; allVictoria: boolean }, ratesAgreedAt: null as string | null, hasRates: false, bankLine: null as string | null, credentials: [] as CredentialView[], agreement: null as null | { version: string; signer: string; signedAt: string }, notice: [] as { name: string; state: string }[], screen: null as ReturnType<typeof installerBusinessScreen> | null };
   if (!c.boss) return staffOnly;
   // Speed (installer screens, Task 9): three rounds — (1) sign-in context and the owner check above, (2) every owner read that
   // needs only the business (started only after the owner check, as before), (3) the reads that need the team rows (profiles,
@@ -860,8 +863,9 @@ export async function tradeBusiness(userId: string) {
     admin.from("businesses").select("public_liability_cover_amount").eq("id", c.biz.id).maybeSingle(),
     admin.from("partner_activations").select("application_id").eq("business_id", c.biz.id).limit(1).maybeSingle(),
   ]).then(async ([bzRes, actRes]) => ({ bzRes, actRes, appRes: !actRes.error && actRes.data?.application_id ? await admin.from("rec_onboarding_applications").select("data").eq("id", actRes.data.application_id).maybeSingle() : { data: null, error: null } }))) : null;
-  // The usual electrician's failure fails the page (as before); started now, awaited after round 3 like before (last read).
-  const usualEarly = c.kind === "installer" ? early(usualElectricianServer.readUsualElectrician(c.biz.id)) : null;
+  // The Main electrician (Jo 5 Nov 2026; never ticked = the old saved usual electrician) — its failure fails the page (as
+  // before); started now, awaited after round 3 like before (last read). Only the NEXT panel uses it.
+  const usualEarly = c.kind === "installer" ? early(installerElectriciansServer.readMainElectrician(c.biz.id)) : null;
   // Task 9 (approved My business screen): the business-only reads start with round 2; the Team-dependent one (private
   // birth dates, counts only) runs in round 3. Each read's failure leaves its fact empty, never a crash (rounds unchanged).
   const screenEarly = c.kind === "installer" ? early(businessScreenReads(c.biz.id)) : null;
@@ -975,7 +979,7 @@ export async function tradeBusiness(userId: string) {
     area: c.biz.covers_all_victoria ? "Anywhere in Victoria" : `Up to ${c.biz.coverage_radius_km ?? "?"} km from ${c.biz.base_suburb ?? "your base"}`,
     licenceExpires: licence, liabilityExpires: liability, rate: rate ? Number((rate as { rate_inc_gst: number }).rate_inc_gst) : null,
     agreementSigned: !!agr?.signed_at, bankSaved: !!bank,
-    team, next, usualElectrician: usual, details, ratesAgreedAt, hasRates, bankLine: bankLine(bank ?? null), credentials,
+    team, next, details, ratesAgreedAt, hasRates, bankLine: bankLine(bank ?? null), credentials,
     agreement: agr ? { version: String(agr.version), signer: agr.signer_name, signedAt: agr.signed_at } : null, notice: noticeStatuses,
     screen,
   };
@@ -984,25 +988,37 @@ export async function tradeBusiness(userId: string) {
 /** Task 9: the business-only reads for the approved My business screen (who books — tolerant of the pending column —,
  *  branding + office phone, the approved REC businesses with their PIESA rates, the business's own PIESA line). */
 async function businessScreenReads(businessId: string) {
-  const [whoRes, brandRes, recs, own] = await Promise.all([
+  const [whoRes, brandRes, recs, own, list] = await Promise.all([
     (admin as unknown as { from: (t: string) => any }).from("businesses").select("piesa_booked_by").eq("id", businessId).maybeSingle() as Promise<{ data: { piesa_booked_by?: unknown } | null; error: { code?: string; message: string } | null }>, // eslint-disable-line @typescript-eslint/no-explicit-any
     admin.from("businesses").select("branding, phone").eq("id", businessId).maybeSingle(),
     recOnboardedServer.loadApprovedRecCandidates().catch(() => [] as Awaited<ReturnType<typeof recOnboardedServer.loadApprovedRecCandidates>>),
     installerPaidServer.readInstallerPaidElectricians(businessId).catch(() => null),
+    // Jo 5 Nov 2026: the Electricians row lists the ONE Electricians list (Team + linked businesses, Main first). A failed
+    // read falls back to the Team electricians, as before.
+    installerElectriciansServer.electriciansForInstaller(businessId).catch(() => null),
   ]);
   if (whoRes.error && !schemaCompatCore.isMissingDbObject(whoRes.error) && !["42703", "PGRST204"].includes(whoRes.error.code ?? "")) console.error("tradeBusiness: who-books could not be read", whoRes.error.code ?? "unknown");
-  return { whoBooks: whoBooksOf(whoRes.error ? undefined : whoRes.data?.piesa_booked_by) as WhoBooks, branding: (brandRes.data?.branding ?? {}) as { logo_url?: unknown }, phone: brandRes.data?.phone?.trim() || null, recs, own };
+  return { whoBooks: whoBooksOf(whoRes.error ? undefined : whoRes.data?.piesa_booked_by) as WhoBooks, branding: (brandRes.data?.branding ?? {}) as { logo_url?: unknown }, phone: brandRes.data?.phone?.trim() || null, recs, own, list };
 }
 
 /** Task 9: the installer's My business facts beyond M7 (pure derivation over the reads above; the dates of birth never leave — counts only). */
 function installerBusinessScreen(businessName: string, r: Awaited<ReturnType<typeof businessScreenReads>>, births: Set<string>, staffRows: { id: string; full_legal_name: string; trade_role: string; mobile: string | null; licence_number?: string | null; rec_number?: string | null }[], team: TeamMemberView[], base: { credentials: CredentialView[]; ratesAgreedAt: string | null; hasRates: boolean; bank: { account_number: string } | null; agreementSigned: boolean; noticeStatuses: { name: string; state: string }[]; ciiBlocked: { name: string }[] }, today: string) {
   const logoUrl = typeof r.branding.logo_url === "string" && r.branding.logo_url.startsWith("https://") ? r.branding.logo_url : null;
   const ownRate = r.own && !r.own.release_hold_reason ? r.own.piesaIncGst : null;
-  const electricians = staffRows.filter((w) => w.trade_role === "electrician").map((w) => {
+  const priced = (p: number | null) => (p != null && Number.isFinite(p) && p > 0 ? p : null);
+  const teamElectrician = (w: { id: string; full_legal_name: string; rec_number?: string | null }) => {
     const rec = w.rec_number ? r.recs.find((x) => x.rec_number && x.rec_number === w.rec_number && x.onboarding_status === "approved" && x.is_active !== false) ?? null : null;
     const price = rec?.piesa_rate ? Number(rec.piesa_rate.rate_inc_gst) : ownRate;
-    return { id: w.id, name: w.full_legal_name.trim(), business: rec ? rec.trading_name || rec.name : null, piesaPrice: price != null && Number.isFinite(price) && price > 0 ? price : null };
-  });
+    return { id: w.id, name: w.full_legal_name.trim(), business: rec ? rec.trading_name || rec.name : null, piesaPrice: priced(price) };
+  };
+  const staffElectricians = staffRows.filter((w) => w.trade_role === "electrician");
+  const electricians = r.list
+    ? r.list.map((e) => {
+      if (e.kind === "team") { const w = staffElectricians.find((x) => x.id === e.workerId); return w ? teamElectrician(w) : { id: e.workerId!, name: e.name, business: null, piesaPrice: priced(ownRate) }; }
+      const rec = r.recs.find((x) => x.business_id === e.businessId && x.onboarding_status === "approved" && x.is_active !== false);
+      return { id: e.businessId!, name: e.name, business: null, piesaPrice: priced(rec?.piesa_rate ? Number(rec.piesa_rate.rate_inc_gst) : ownRate) };
+    })
+    : staffElectricians.map(teamElectrician);
   const missingDobOrMobile = team.filter((m) => !m.mobile || (m.id ? !births.has(m.id) : true)).length;
   const facts: BusinessScreenFacts = {
     team: { people: team.length, missingDobOrMobile }, electricians: electricians.map(({ name, business, piesaPrice }) => ({ name, business, piesaPrice })),
@@ -1106,11 +1122,8 @@ export async function tradeSetupMark(userId: string, key: SetupKey, done: boolea
 /** My business sections (Jo, 7 Oct): read-only facts for the trade-style pages. Partners never edit details or rates here. */
 export async function tradeBusinessFile(userId: string) {
   const c = await bossOrThrow(userId);
-  // Speed (installer screens, Task 9): the usual electrician is read with the other reads (one round after the owner check,
-  // was two). Its failure still fails the page, before the "Business not found." check, as before.
   const r = admin as unknown as { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
-  const [usual, { data: b }, { data: creds }, { data: agr }, { data: cards }, { data: erates }, { data: open }] = await Promise.all([
-    c.kind === "installer" ? usualElectricianServer.readUsualElectrician(c.biz.id) : Promise.resolve(null),
+  const [{ data: b }, { data: creds }, { data: agr }, { data: cards }, { data: erates }, { data: open }] = await Promise.all([
     admin.from("businesses").select("id, name, legal_name, trading_name, abn, phone, email, address, base_suburb, coverage_radius_km, covers_all_victoria, typical_days, lead_time, public_liability_cover_amount, onboarding_status").eq("id", c.biz.id).single(),
     admin.from("business_credentials").select("id, kind, label, number, issuer, expires_at, verification, document_path").eq("business_id", c.biz.id).order("created_at", { ascending: false }),
     admin.from("partner_agreements").select("version, signer_name, signed_at").eq("business_id", c.biz.id).order("signed_at", { ascending: false }).limit(1).maybeSingle(),
@@ -1126,7 +1139,7 @@ export async function tradeBusinessFile(userId: string) {
     ...((erates ?? []) as { service_type: string; rate_inc_gst: number }[]).map((e) => ({ label: e.service_type === "piesa" ? "Pre Insulation Electrical Safety Assessment (PIESA)" : e.service_type.replace(/_/g, " "), unit: "each", inc_gst: Number(e.rate_inc_gst) })),
   ];
   return {
-    businessId: b.id, kind: c.kind, boss: c.boss, usualElectrician: usual?.electrician ?? null,
+    businessId: b.id, kind: c.kind, boss: c.boss,
     details: { name: b.trading_name ?? b.name, legal: b.legal_name, abn: b.abn, phone: b.phone, email: b.email, address: b.address,
       area: b.covers_all_victoria ? "Anywhere in Victoria" : `Up to ${b.coverage_radius_km ?? "?"} km from ${b.base_suburb ?? "your base"}`,
       days: (b.typical_days ?? []).join(", ") || null, leadTime: b.lead_time, liabilityCover: b.public_liability_cover_amount },
@@ -1162,19 +1175,6 @@ export async function officeAgreementPdf(businessId: string, agreementId: string
   const { textToPdf } = await import("./signed-pdf.server");
   const t = agreementPdfText(a, biz?.name ?? "Business");
   return { fileName: t.fileName, base64: toB64(await textToPdf(t.title, t.body)) };
-}
-
-/** Jo 22 Oct: this nomination alone is editable; legal details, rate cards and approvals are unchanged. */
-export async function tradeSaveUsualElectrician(userId: string, value: unknown) {
-  const c = await bossOrThrow(userId);
-  if (c.kind !== "installer") throw new WorkflowError("Only installer businesses can save a usual electrician.");
-  const { usualElectrician, USUAL_ELECTRICIAN_EVENT } = await import("./usual-electrician.core");
-  const electrician = usualElectrician(value);
-  if (!electrician) throw new WorkflowError("Enter the electrician name and licence number.");
-  const { error } = await admin.from("admin_config_events").insert({ actor_id: userId, event_type: USUAL_ELECTRICIAN_EVENT,
-    summary: "Installer saved usual electrician", details: { business_id: c.biz.id, electrician } });
-  if (error) throw new WorkflowError("Could not save your usual electrician.");
-  return { electrician };
 }
 
 function toB64(u: Uint8Array): string {
@@ -1285,7 +1285,7 @@ export async function tradeAddTeamPerson(userId: string, p: { name: string; role
   if (!v.ok) throw new WorkflowError(v.error);
   const email = p.email?.trim().toLowerCase() || null;
   if (c.kind === "installer") {
-    const role: import("./team-screen.core").AddPersonRole = p.role ?? p.workerRole ?? "lead";
+    const role: import("./team-screen.core").AddPersonRole = p.role ?? p.workerRole ?? "crew"; // unreachable: teamWorkerRoleProblem already needs an explicit role
     const { addPersonProblems } = await import("./team-screen.core");
     const problems = addPersonProblems({ name, role, mobile: v.mobile, dateOfBirth: p.dateOfBirth ?? null, licenceNumber: licence, recNumber: p.recNumber ?? null, email }, melbourneToday());
     if (problems.length) throw new WorkflowError(problems[0]!);
@@ -1601,6 +1601,7 @@ function installerJobPageParts(i: {
   piesaRec: { outcome: string | null; rectification_completed_at: string | null; section_c_signed_at: string | null } | null;
   accessPerson: import("./rental-answers.core").AccessPerson | null; mineBk: { status: string }[]; released: boolean;
   sentRows: { purpose: string; sent_at: string | null; created_at: string }[]; ledger: { amountCents: number; paidAt: string }[]; depositPaid: boolean;
+  receiptDates?: { depositPaidAt: string | null; balancePaidAt: string | null } | null;
   deadline: string | null; givenAt: string | null; consentSigned: boolean; paidEv: { created_at: string; details: unknown }[];
   piesaPayRead: { piesaIncGst: number | null } | null; swmsRead: { plan: { signers: { role?: string; name: string }[] }; status: { signed: unknown[] } } | null;
   quoteItems: { code: string | null; description: string | null; sort: number | null; line_total_inc_gst?: number | string | null }[]; quotesForMoney?: Parameters<typeof ownCustomerQuoteFigures>[0]; priceEntered: boolean | null; notes: string[]; product: string | null;
@@ -1674,6 +1675,31 @@ function installerJobPageParts(i: {
     installPayRule: ownCustomer ? JOB_PAGE_WORDS.ownPayRule(ownerFirst ?? "the owner") : JOB_PAGE_WORDS.hivicPayRule,
     piesaPay: i.piesaPayRead?.piesaIncGst ?? null, piesaPaidAt: piesaPaidEv?.created_at ?? null, piesaPayApplies: piesaPaysOwn, ownCustomer,
   }), ...ownMoney];
+  // Jo's one Money card uses the chosen recorded quote, never current rates or another invoice's payments.
+  if (ownCustomer && c.money) {
+    const selected = [...(i.quotesForMoney ?? [])].sort((a, b) => String(b.created_at ?? '').localeCompare(String(a.created_at ?? '')));
+    const quoteForMoney = selected.find(q => q.status === 'accepted') ?? selected[0];
+    const amount = (n: number) => n.toLocaleString('en-AU', { style: 'currency', currency: 'AUD' });
+    if (figures.installerPayIncGst != null) {
+      const oldPay = jobDetails.findIndex(([label]) => label === 'Your pay');
+      if (oldPay >= 0) jobDetails.splice(oldPay, 1);
+      jobDetails.push(['Your price inc GST', amount(figures.installerPayIncGst)]);
+    }
+    const safety = quoteForMoney?.items.filter(it => it.code === 'PIESA') ?? [];
+    if (safety.length === 1 && Number(safety[0]?.line_total_inc_gst) > 0) {
+      const oldSafety = jobDetails.findIndex(([label]) => label === 'Your PIESA price (owner pays you)');
+      if (oldSafety >= 0) jobDetails.splice(oldSafety, 1);
+      jobDetails.push(['Safety check (owner pays you)', amount(Number(safety[0]?.line_total_inc_gst))]);
+    }
+    const rebate = (quoteForMoney as { veec_discount_inc_gst?: number | string | null } | undefined)?.veec_discount_inc_gst;
+    if (rebate != null && Number.isFinite(Number(rebate))) jobDetails.push(["Rebate taken off the owner's total", amount(Number(rebate))]);
+  }
+  if (c.money) {
+    const day = (iso: string) => new Intl.DateTimeFormat('en-AU', { timeZone: 'Australia/Melbourne', day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(iso));
+    if (i.receiptDates?.depositPaidAt) jobDetails.push(['Deposit paid', day(i.receiptDates.depositPaidAt)]);
+    if (i.receiptDates?.balancePaidAt) jobDetails.push(['Balance paid', day(i.receiptDates.balancePaidAt)]);
+    if (i.payRow?.state.kind === 'paid') jobDetails.push(['Paid to you', day(i.payRow.state.on)]);
+  }
 
   const events = i.sentRows.flatMap((s) => { const t = ownerToldSummary(s.purpose); return t ? [{ at: s.sent_at ?? s.created_at, type: s.purpose, summary: t }] : []; });
   const payments = i.ledger.map((l) => ({ at: l.paidAt, label: `paid ${centsWords(l.amountCents)} ✓` }));
@@ -1722,7 +1748,8 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
   const piesaRecP = early(admin.from("piesa_records").select("kind, outcome, rectification_completed_at, section_c_signed_at").eq("job_id", jobId).eq("is_current", true).maybeSingle());
   const sentP = early(admin.from("customer_email_sends").select("purpose, sent_at, created_at").eq("job_id", jobId).eq("status", "sent").order("created_at", { ascending: true }));
   const ledgerP = early(paymentsServer.paymentLedger(jobId).catch(() => [] as { amountCents: number; paidAt: string }[]));
-  const depositP = early(import("./install-deposit-list.server").then((m2) => m2.installDepositPaidForJobs([jobId])).then((x) => x.get(jobId) === true).catch(() => false));
+  const receiptsP = early(import("./install-deposit-list.server").then((m2) => m2.installationReceiptFactsForJobs([jobId])).then((x) => x.get(jobId) ?? null));
+  const depositP = early(receiptsP.then(r => r?.depositPaid === true));
   // Join (Task 11 budget): the same deadlines query the overview's piesaStatus makes, so inside the bundle it is asked once.
   const deadlineP = early(piesaStatus(jobId).then((d) => ({ data: d as { install_deadline?: string | null } | null })));
   const givenP = early(admin.from("job_assignments").select("assigned_at").eq("job_id", jobId).eq("business_id", c.biz.id).eq("role", "installer").order("assigned_at", { ascending: true }).limit(1).maybeSingle());
@@ -1741,7 +1768,7 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
   const swmsP = early(inBookP.then(async ({ data: ib }) => ib ? await import("./swms.server").then((m2) => m2.loadSwms(jobId)).catch(() => null) : null));
   // I3: up to five quotes so the money rows can prefer an ACCEPTED quote over a newer draft (ownCustomerQuoteFigures); the
   // product detection below keeps reading the newest, as before.
-  const quoteItemsP = early(admin.from("quotes").select("status, created_at, customer_total_inc_gst, quote_items(code, description, sort, line_total_inc_gst)").eq("job_id", jobId).eq("kind", "installation").in("status", ["issued", "accepted", "draft"]).order("created_at", { ascending: false }).limit(5));
+  const quoteItemsP = early(admin.from("quotes").select("status, created_at, customer_total_inc_gst, veec_discount_inc_gst, quote_items(code, description, sort, line_total_inc_gst)").eq("job_id", jobId).eq("kind", "installation").in("status", ["issued", "accepted", "draft"]).order("created_at", { ascending: false }).limit(5));
   // Fix wave I4: who books (business setting), the CoES document, and the electrician the allocation event names.
   const whoBooksP = early(whoBooksFor(c.biz.id));
   const coesP = early(coesOnFileForJobs([jobId]).then((set) => set.has(jobId)).catch(() => false));
@@ -1811,7 +1838,8 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
     sentRows: sentRows ?? [], ledger, depositPaid, deadline: dl?.install_deadline ? String(dl.install_deadline) : null, givenAt: (given as { assigned_at?: string | null } | null)?.assigned_at ?? null,
     consentSigned: !!consent, paidEv: (paidEv ?? []) as { created_at: string; details: unknown }[], piesaPayRead, swmsRead, quoteItems: ((quoteItemsRow as unknown as { quote_items: unknown }[] | null)?.[0]?.quote_items as { code: string | null; description: string | null; sort: number | null; line_total_inc_gst?: number | string | null }[] | null) ?? [],
     // Part 10 Task 9 / I3: the quotes the Job details money rows read (own customers only; figures never shown to staff).
-    quotesForMoney: ((quoteItemsRow as unknown as { status: string | null; created_at: string | null; customer_total_inc_gst: number | string | null; quote_items: { code: string | null; line_total_inc_gst: number | string | null }[] | null }[] | null) ?? []).map((q) => ({ status: q.status, created_at: q.created_at, customer_total_inc_gst: q.customer_total_inc_gst, items: q.quote_items ?? [] })),
+    quotesForMoney: ((quoteItemsRow as unknown as { status: string | null; created_at: string | null; customer_total_inc_gst: number | string | null; veec_discount_inc_gst?: number | string | null; quote_items: { code: string | null; line_total_inc_gst: number | string | null }[] | null }[] | null) ?? []).map((q) => ({ status: q.status, created_at: q.created_at, customer_total_inc_gst: q.customer_total_inc_gst, veec_discount_inc_gst: q.veec_discount_inc_gst, items: q.quote_items ?? [] })),
+    receiptDates: c.money ? await receiptsP : null,
     priceEntered: j?.channel === 'installer_sourced' ? !!priceRecord : null, notes, product, payRow, mittiCompleted: mitti.applies ? mitti.completed === true : false, needsFinishingItems: needsFinishingList(j?.next_action ?? ""), mittiMissing: mitti.applies ? mitti.missing : [],
     whoBooks, coesOnFile,
   });

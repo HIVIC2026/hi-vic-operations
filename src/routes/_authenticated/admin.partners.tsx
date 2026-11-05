@@ -109,14 +109,14 @@ function Approved({ d }: { d: Board }) {
         <TabCaption>{d.approved.length} businesses · {installers} installer{installers === 1 ? "" : "s"}, {d.approved.length - installers} electrician{d.approved.length - installers === 1 ? "" : "s"}</TabCaption>
         <Btn tone="secondary" data-why="decision 193: PL insurance and licences re-checked" onClick={() => void sweep(undefined as never, "Expiry check complete")}>Check expiries</Btn>
       </div>
-      <OfficeTable why="approved businesses; row opens the business file" isEmpty={!d.approved.length} empty="No approved partners yet." head={["Business", "Area", "CII cleared", "PL insurance", "Usual electrician", "Taking new jobs"]}>
+      <OfficeTable why="approved businesses; row opens the business file" isEmpty={!d.approved.length} empty="No approved partners yet." head={["Business", "Area", "CII cleared", "PL insurance", "Main electrician", "Taking new jobs"]}>
         {d.approved.map((b) => (
           <tr key={b.id}>
             <td><Link to="/admin/partners/business/$businessId" params={{ businessId: b.id }} data-partner-record-name className="font-semibold text-hiv-blue hover:underline">{b.name}</Link><span className="block text-xs text-sub">{b.kind}</span></td>
             <td>{b.area}</td>
             <td>{b.ciiCleared ?? "—"}</td>
             <td>{b.plExpires ? (b.plState === "valid" ? `to ${fmtDay(b.plExpires)}` : <Pill tone="rose">{b.plState === "expired" ? "expired" : "to"} {fmtDay(b.plExpires)}</Pill>) : <Pill tone="rose">Not on file</Pill>}</td>
-            <td>{b.kind === "Electrician" ? "—" : b.usualElectrician ? <span data-partner-record-name>{b.usualElectrician}</span> : <span className="text-sub">HIV electrician</span>}</td>
+            <td>{b.kind === "Electrician" ? "—" : b.usualElectrician ? <span data-partner-record-name>{b.usualElectrician}</span> : <span className="text-sub">None yet</span>}</td>
             <td>{b.takingJobs ? <Pill tone="green">On</Pill> : <Pill>Paused by them</Pill>}</td>
           </tr>
         ))}

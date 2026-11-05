@@ -86,7 +86,7 @@ describe("Mitti: Leads only, business email for a Lead with no email", () => {
     const r = await inv.onPartnerPersonApproved("00000000-0000-4000-8000-0000000000a2", "office", { switches: SW, call });
     expect(r.action).toBe("skip");
     expect(calls).toEqual([]); expect(events()).toEqual([]);
-    expect((await inv.workerRolesFor([{ id: "x", trade_role: "installer", worker_role: null, profile_id: null }])).get("x")).toBe("lead");
+    expect((await inv.workerRolesFor([{ id: "x", trade_role: "installer", worker_role: null, profile_id: null }])).get("x")).toBe("crew");
   });
 });
 

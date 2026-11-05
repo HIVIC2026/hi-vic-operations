@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAction } from "@/hooks/use-me";
 import { Section } from "@/components/portal/panels";
+import { InstallerElectricians } from "@/components/portal/installer-electricians";
+import { ELECTRICIANS_WORDS } from "@/lib/installer-electricians.core";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -12,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   addCredential, addTeamMember, getBankDetails, getPartnerAgreementTemplate, getPartnerProfile, partnerFileUrl, partnerUploadUrl, removeTeamMember,
-  saveBusiness, savePartnerMethod, reviewPartnerMethod, getMeasurementStandard, setMeasurementStandard, setBankDetails, setOnboardingStatus, setPartnerRelationship, signPartnerAgreement, syncXeroSupplier, verifyCredential,
+  saveBusiness, savePartnerMethod, reviewPartnerMethod, getMeasurementStandard, setMeasurementStandard, setBankDetails, setOnboardingStatus, signPartnerAgreement, syncXeroSupplier, verifyCredential,
 } from "@/lib/pilot.functions";
 import { credentialState, ONBOARDING_STATUSES } from "@/lib/pilot.core";
 import { getHigherRates, requestHigherRates, reviewHigherRates } from "@/lib/rate-requests.functions";
@@ -54,7 +56,7 @@ export function BusinessProfile({ businessId, isHivicAdmin }: { businessId?: str
           </div>
         ))}
       </Section>}
-      <Electricians businessId={b.id} rels={data.relationships} options={data.electricianBusinesses.filter((e) => e.id !== b.id)} canEdit={canEdit} onDone={refetch} />
+      {!(b["business_type"] === "rec" || ((b["capabilities"] as string[] | null) ?? []).includes("electrician")) && <Electricians businessId={b.id} canEdit={canEdit} />}
       <MeasurementMethods businessId={b.id} methods={data.measurementMethods as MethodRow[]} canEdit={canEdit} isHivicAdmin={isHivicAdmin} onDone={refetch} />
       <Section title="Rate cards">{data.rateCards.length === 0 ? <p className="text-sm text-muted-foreground">No agreed rate card on file yet – Home Insulation Victoria sets these up.</p> : data.rateCards.map((r) => <div key={r.id} className="text-sm">{r.name} · {r.kind} · v{r.version} · from {r.effective_from} {r.is_active && <Badge variant="outline">Active</Badge>}</div>)}</Section>
       <HigherRates businessId={b.id} canEdit={canEdit} isHivicAdmin={isHivicAdmin} />
@@ -238,21 +240,9 @@ function Team({ businessId, members, workers, canEdit, onDone }: { businessId: s
   );
 }
 
-export function Electricians({ businessId, rels, options, canEdit, onDone }: { businessId: string; rels: { id: string; electrician_business_id: string; preferred: boolean; active: boolean; businesses: unknown }[]; options: { id: string; name: string; onboarding_status: string }[]; canEdit: boolean; onDone: () => void }) {
-  const set = useAction(setPartnerRelationship);
-  const [pick, setPick] = useState("");
-  return (
-    <Section title="Usual electrician">
-      {rels.filter((r) => r.active).map((r) => { const e = r.businesses as { name: string; onboarding_status: string } | null; return (
-        <div key={r.id} className="flex items-center justify-between border-b py-1 text-sm last:border-0">
-          <span>{e?.name} <Badge variant="outline" className="ml-1 capitalize">{e?.onboarding_status.replace("_", " ")}</Badge></span>
-          {canEdit && <label className="flex items-center gap-2 text-xs"><Checkbox checked={r.preferred} onCheckedChange={async (v) => { await set({ installerBusinessId: businessId, electricianBusinessId: r.electrician_business_id, preferred: !!v, active: true }, "Saved"); onDone(); }} /> Usual</label>}
-        </div>
-      ); })}
-      {canEdit && !options.length && <p className="mt-2 text-xs text-muted-foreground">To add your own electrician, choose "Use my electrician" when you add a job and enter their name and mobile.</p>}
-      {canEdit && options.length > 0 && <div className="mt-2 flex gap-2"><select className="h-10 flex-1 rounded border bg-background px-2 text-sm" value={pick} onChange={(e) => setPick(e.target.value)}><option value="">Add an electrician business…</option>{options.map((o) => <option key={o.id} value={o.id}>{o.name} ({o.onboarding_status})</option>)}</select><Button disabled={!pick} onClick={async () => { await set({ installerBusinessId: businessId, electricianBusinessId: pick, preferred: true, active: true }, "Usual electrician added"); setPick(""); onDone(); }}>Add</Button></div>}
-    </Section>
-  );
+/** Jo 5 Nov 2026: the ONE Electricians list (installer-electricians.*) replaces the old "Usual electrician" checkbox list. */
+export function Electricians({ businessId, canEdit }: { businessId: string; canEdit: boolean }) {
+  return <Section title={ELECTRICIANS_WORDS.title}><InstallerElectricians businessId={businessId} canEdit={canEdit} /></Section>;
 }
 
 function Bank({ businessId, canEdit }: { businessId: string; canEdit: boolean }) {

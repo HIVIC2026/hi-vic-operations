@@ -8,6 +8,7 @@
 import { AUTO_QUOTE_SEND_ENABLED } from "./auto-quote-send.core";
 import { CONSENT_COPY_EMAIL_APPROVED } from "./consent-copy-email.core";
 import { SMS_MESSAGE_TYPES, type SmsMessageType } from "./sms.core";
+import { OWN_CUSTOMER_MESSAGE_KEYS, ownMessageSwitch } from './own-customer-message-approval.core';
 
 export type SwitchDef =
   | { key: string; label: string; what: string; why: string; kind: "column"; column: OfficeSwitchColumn; pendingMigration?: string | undefined }
@@ -28,6 +29,7 @@ export const PENDING_SWITCH_COLUMNS: Partial<Record<OfficeSwitchColumn, string>>
 };
 
 export const SWITCHES: SwitchDef[] = [
+  ...OWN_CUSTOMER_MESSAGE_KEYS.map(key => ({ key: ownMessageSwitch(key), label: `Own-customer email: ${key.replace(/^own_/, '').replaceAll('_', ' ')}`, what: 'Individual wording approval in Templates; OFF until Jo approves this version', why: 'Jo 5 Nov 8:17pm', kind: 'sms' as const, smsType: ownMessageSwitch(key) })),
   { key: "auto_quote_send", label: "Auto quote send", what: "Ready Check quotes go to the owner when the Mitti form is Complete and every check passes", why: "Jo 24 Oct (A1/A2 auto quote); AUTO_QUOTE_SEND_ENABLED", kind: "code", value: AUTO_QUOTE_SEND_ENABLED, where: "auto-quote-send.core.ts AUTO_QUOTE_SEND_ENABLED" },
   { key: "auto_installer_offers", label: "Automatic installer offers", what: "Offer goes to one installer covering the postcode (fewest active jobs, then nearest); 24h each; after 2 misses → Needs me", why: "decision 246", kind: "column", column: "auto_installer_offers", pendingMigration: PENDING_SWITCH_COLUMNS.auto_installer_offers },
   { key: "auto_electrician_offers", label: "Automatic electrician offers", what: "Nearest approved electrician covering the postcode (our leads); installer's own customers use the electrician chosen at Add a job; same 24h rule", why: "decisions 246/374", kind: "column", column: "auto_electrician_offers", pendingMigration: PENDING_SWITCH_COLUMNS.auto_electrician_offers },

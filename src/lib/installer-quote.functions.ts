@@ -11,7 +11,7 @@ export const getInstallerQuoteDraft = createServerFn({ method: "POST" }).middlew
     // Admin, or the TEST office on a fully isolated TEST job only.
     await requireOfficeJob(context.supabase, data.jobId, context);
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
-    const { data: job, error: je } = await admin.from("jobs").select("channel").eq("id", data.jobId).single();
+    const { data: job, error: je } = await admin.from("jobs").select("channel,originating_installer_business_id").eq("id", data.jobId).single();
     if (je) throw new Error(je.message);
     const [{ data: q, error }, { data: held, error: he }] = await Promise.all([
       admin.from("quotes").select("id, status, sent_at, option_code, option_label, release_state, release_hold_reason, discount_note, subtotal_inc_gst, veec_discount_inc_gst, customer_total_inc_gst, cobrand, created_at, quote_items(id, code, description, explanation, quantity, unit, unit_price_inc_gst, line_total_inc_gst, sort)")
@@ -41,6 +41,8 @@ export const getInstallerQuoteDraft = createServerFn({ method: "POST" }).middlew
     return {
       applies: true as const,
       companions,
+      priceChange: await (await import('./installer-price-change.server')).readPriceChange(data.jobId),
+      installerName: job.originating_installer_business_id ? (await admin.from('businesses').select('name').eq('id',job.originating_installer_business_id).maybeSingle()).data?.name ?? null : null,
       quote: q ? { ...q, quote_items: [...(q.quote_items ?? [])].sort((a, b) => a.sort - b.sort) } : null,
       heldBlockers: [...new Set([...blockers, ...(heldNewer ? (((held.details as { blockers?: string[]; reasons?: string[] } | null)?.blockers) ?? (held.details as { reasons?: string[] } | null)?.reasons ?? []) : [])])],
       channel: job.channel,

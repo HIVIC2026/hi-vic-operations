@@ -25,7 +25,7 @@ import { early } from "./early-read";
 import { sharedFor, type SharedJobReads } from "./job-shared-reads";
 import { partialA1QuoteCore } from "./own-customer-partial-a1.core";
 // Namespaces: tests replace these modules with partial mocks; a namespace never fails on a missing export.
-import * as usualElectricianServer from "./usual-electrician.server";
+import * as installerElectriciansServer from "./installer-electricians.server";
 import * as electricianChoiceServer from "./electrician-choice.server";
 import * as quoteStatusServer from "./installer-quote-status.server";
 const loadInstallerQuote = (jobId: string) => quoteStatusServer.loadInstallerQuote(jobId);
@@ -148,8 +148,9 @@ export async function installerPriceView(jobId: string, userId: string, sharedRe
   const usualP = early(
     jobP.then(({ data: jj }) =>
       jj?.originating_installer_business_id
-        ? usualElectricianServer
-            .readUsualElectrician(jj.originating_installer_business_id)
+        ? // Jo 5 Nov 2026: the installer's Main electrician (never ticked = the old saved usual electrician).
+          installerElectriciansServer
+            .readMainElectrician(jj.originating_installer_business_id)
             .catch(() => ({ electrician: null }))
         : { electrician: null },
     ),
@@ -242,6 +243,7 @@ export async function installerPriceView(jobId: string, userId: string, sharedRe
     quoteCore,
     layout: layoutNow ? { ...a1PriceLinkView(layoutNow.areas, layoutNow.thicker), thickerTarget: layoutNow.thicker, saved: savedLayout } : null,
     current: stored,
+    quoteSentAt: sent.at,
     locked,
     /** Task 4: the button says "Send quote to owner" only while pressing it sends (`enterPriceButton`). */
     sendOnPress: OWN_CUSTOMER_SEND_ON_PRESS_ENABLED,
@@ -355,7 +357,7 @@ async function prepareQuoteFromPortal(jobId: string, userId: string, send = fals
 export async function setInstallerPrice(
   jobId: string,
   userId: string,
-  input: InstallerPriceInput & { layout?: LayoutPriceInput | null | undefined },
+  input: InstallerPriceInput & { layout?: LayoutPriceInput | null | undefined; changeReason?: string | undefined },
   opts: { send?: boolean; sendOnPressEnabled?: boolean; sendToQuote?: boolean } = {},
 ): Promise<{ stored: StoredInstallerPrice; sent: boolean; reasons: string[] }> {
   const j = await a1JobOrThrow(jobId);
@@ -365,8 +367,14 @@ export async function setInstallerPrice(
     readInstallerPriceState(jobId),
     latestQuoteSentAt(jobId),
   ]);
-  if (priceCardLocked({ quoteSentAt, newQuoteRequestedAt: state.newQuoteRequestedAt }))
+  const requestedPrice=Number(String(input.priceIncGst).replace(/[$,\s]/g,''));
+  const changing = opts.sendToQuote === true && !!state.stored && requestedPrice !== state.stored.record.price_inc_gst;
+  if (!changing && priceCardLocked({ quoteSentAt, newQuoteRequestedAt: state.newQuoteRequestedAt }))
     throw new WorkflowError(PRICE_LOCKED);
+  const reasonProblem = (await import('./installer-price-change.core')).validatePriceChangeReason(!!quoteSentAt, input.changeReason);
+  if (changing && reasonProblem) throw new WorkflowError(reasonProblem);
+  const { data: prior, error: priorError } = changing && quoteSentAt ? await admin.from('quotes').select('id').eq('job_id',jobId).eq('kind','installation').not('sent_at','is',null).order('sent_at',{ascending:false}).limit(1).maybeSingle() : {data:null,error:null};
+  if(priorError) throw new WorkflowError('The old quote could not be checked.');
   // Jo 27 Oct 2026: the server refuses the removal tick when the current Ready Check says there is no removal.
   const rc = await currentReadyCheck(jobId).catch(() => ({
     entries: [] as { label: string; value: string | null }[],
@@ -415,6 +423,7 @@ export async function setInstallerPrice(
       business_id: j.originating_installer_business_id,
       set_by: userId,
       declared_not_verified: true,
+      ...(changing && state.stored ? {price_changed_by_installer:true,previous_price_inc_gst:state.stored.record.price_inc_gst,change_reason:input.changeReason?.trim() || null,replaces_quote_id:prior?.id ?? null} : {}),
       ...(opts.sendToQuote ? { send_to_quote: true } : {}),
     },
     { internal: true },

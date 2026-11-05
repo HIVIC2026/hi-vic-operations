@@ -66,8 +66,16 @@ export async function recCandidatesFor(jobId: string): Promise<{ postcode: strin
   const insuranceBlocker = (bid: string): string | null => { const d = docs.get(bid); return d ? businessDocsBlocker(d.credentials, today) : businessDocsBlocker([], today); };
   // The installer's choice on this job is offered first; otherwise their preferred electricians (Jo, 7 Oct).
   const { firstOfferedElectrician } = await import("./job-electrician.core");
-  const preferred = firstOfferedElectrician(await (await import("./job-electrician.server")).jobChosenElectrician(jobId), (prefs ?? [])
-    .filter((r) => r.installer_business_id === inst?.business_id).map((r) => r.electrician_business_id));
+  // Jo 5 Nov 2026: once the installer ticks a Main electrician, only that electrician business is theirs here (a Team Main
+  // = none); never ticked = every active link, as before. A failed Main read keeps the links (logged).
+  let mine = (prefs ?? []).filter((r) => r.installer_business_id === inst?.business_id);
+  if (inst?.business_id) {
+    try {
+      const main = await (await import("./installer-electricians.server")).readMainElectrician(inst.business_id);
+      if (main.ticked) mine = mine.filter((r) => r.electrician_business_id === main.electricianBusinessId);
+    } catch (e) { console.error("allocation: Main electrician not read; linked electricians used", (e as Error).message); }
+  }
+  const preferred = firstOfferedElectrician(await (await import("./job-electrician.server")).jobChosenElectrician(jobId), mine.map((r) => r.electrician_business_id));
   const rel = await (await import("./visit-events.server")).reliabilityFor(ids);
   const { acceptanceWithCancellations } = await import("./visit-events.core");
   const candidates = (bizs ?? []).map((b) => {
