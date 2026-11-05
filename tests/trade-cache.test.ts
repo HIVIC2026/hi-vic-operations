@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { clearTradeCache, forgetRefusedCopy, readTradeCache, writeTradeCache } from "../src/lib/trade-cache";
+import { clearTradeCache, forgetRefusedCopy, readLastCopy, readTradeCache, writeLastCopy, writeTradeCache } from "../src/lib/trade-cache";
 import { OWNER_ONLY_REFUSALS } from "../src/lib/owner-only.core";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -14,8 +14,10 @@ class FakeStorage {
 }
 const g = globalThis as unknown as { localStorage?: unknown };
 let orig: unknown;
-beforeEach(() => { resetTradeCacheSignOut(); orig = g.localStorage; g.localStorage = new FakeStorage(); });
-afterEach(() => { g.localStorage = orig; });
+const realNow = Date.now;
+const setNow = (t: number) => { Date.now = () => t; };
+beforeEach(() => { Date.now = realNow; resetTradeCacheSignOut(); orig = g.localStorage; g.localStorage = new FakeStorage(); });
+afterEach(() => { Date.now = realNow; g.localStorage = orig; });
 
 describe("trade cache", () => {
   test("write then read returns the data for the same user", () => {
@@ -129,5 +131,47 @@ describe("owner-only screens: a refusal drops the kept copy", () => {
       const code = readFileSync(join(import.meta.dir, "..", f), "utf8");
       expect(code).toContain("forgetRefusedCopy(uid,");
     }
+  });
+});
+
+describe("job-page copies are capped", () => {
+  const s = () => g.localStorage as FakeStorage;
+  test("the 16th office job copy evicts the oldest", () => {
+    const t0 = Date.now();
+    for (let i = 1; i <= 16; i++) { setNow(t0 + i * 1000); writeLastCopy("u1", `office-job:j${i}`, { i }); }
+    setNow(t0 + 20_000);
+    expect(readLastCopy("u1", "office-job:j1")).toBeNull();
+    expect(readLastCopy("u1", "office-job:j2")?.data).toEqual({ i: 2 });
+    expect(readLastCopy("u1", "office-job:j16")?.data).toEqual({ i: 16 });
+    expect([...s().m.keys()].filter((k) => k.includes("office-job:")).length).toBe(15);
+  });
+  test("the 16th installer job copy evicts the oldest, and lists are untouched", () => {
+    const t0 = Date.now();
+    writeLastCopy("u1", "jobs:active", 1);
+    for (let i = 1; i <= 16; i++) { setNow(t0 + i * 1000); writeTradeCache("u1", `job-bundle:j${i}`, { i }); }
+    setNow(t0 + 20_000);
+    expect(readTradeCache("u1", "job-bundle:j1")).toBeNull();
+    expect(readTradeCache("u1", "job-bundle:j2")).not.toBeNull();
+    expect(readLastCopy("u1", "jobs:active")).not.toBeNull();
+  });
+  test("another user's copies do not count toward the limit", () => {
+    const t0 = Date.now();
+    for (let i = 1; i <= 15; i++) { setNow(t0 + i * 1000); writeLastCopy("u2", `office-job:j${i}`, i); }
+    setNow(t0 + 20_000);
+    writeLastCopy("u1", "office-job:a", 1);
+    expect(readLastCopy("u2", "office-job:j1")).not.toBeNull();
+  });
+  test("an expired copy is removed when read", () => {
+    s().setItem("hiv-last:v1:u1:office-job:old", JSON.stringify({ at: Date.now() - 24 * 3600_000 - 1000, data: 1 }));
+    expect(readLastCopy("u1", "office-job:old")).toBeNull();
+    expect(s().getItem("hiv-last:v1:u1:office-job:old")).toBeNull();
+  });
+  test("sign-out clears every job copy and a different user sees none", () => {
+    writeLastCopy("u1", "office-job:a", 1);
+    writeTradeCache("u1", "job-bundle:a", 1);
+    expect(readLastCopy("u2", "office-job:a")).toBeNull();
+    expect(readTradeCache("u2", "job-bundle:a")).toBeNull();
+    clearTradeCache();
+    expect([...s().m.keys()]).toEqual([]);
   });
 });

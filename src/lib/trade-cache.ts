@@ -6,6 +6,9 @@ import { isOwnerOnlyRefusal } from "./owner-only.core";
 const PREFIX = "hiv-trade:v1:";
 const LAST_PREFIX = "hiv-last:v1:";
 const MAX_AGE_MS = 24 * 60 * 60 * 1000;
+// Job pages get one copy each, so they are capped: the 15 most recently saved per user (oldest dropped on write).
+const MAX_JOB_COPIES = 15;
+const JOB_COPY_NAMES = ["office-job:", "job-bundle:"];
 
 // Set by clearTradeCache (sign-out): a fetch still in flight must not write the old user's answer back. Sign-out reloads the page.
 let signedOut = false;
@@ -23,14 +26,36 @@ function read<T>(prefix: string, userId: string, key: string): { data: T; at: nu
     if (!raw) return null;
     const v = JSON.parse(raw) as { at?: unknown; data?: unknown };
     if (typeof v.at !== "number" || v.data === undefined) return null;
-    if (Date.now() - v.at > MAX_AGE_MS || v.at > Date.now()) return null; // too old, or stamped in the future (clock set back)
+    if (Date.now() - v.at > MAX_AGE_MS) { try { store()?.removeItem(`${prefix}${userId}:${key}`); } catch { /* ignore */ } return null; } // too old: delete it
+    if (v.at > Date.now()) return null; // stamped in the future (clock set back)
     return { data: v.data as T, at: v.at };
   } catch { return null; }
 }
 
 function write(prefix: string, userId: string, key: string, data: unknown): void {
   if (signedOut || !userId) return;
-  try { store()?.setItem(`${prefix}${userId}:${key}`, JSON.stringify({ at: Date.now(), data })); } catch { /* no cache is fine */ }
+  try {
+    store()?.setItem(`${prefix}${userId}:${key}`, JSON.stringify({ at: Date.now(), data }));
+    if (JOB_COPY_NAMES.some((n) => key.startsWith(n))) capJobCopies(prefix, userId, key);
+  } catch { /* no cache is fine */ }
+}
+
+/** Keep at most MAX_JOB_COPIES job-page copies of this kind for this user; the oldest saved go first. */
+function capJobCopies(prefix: string, userId: string, key: string): void {
+  const s = store();
+  if (!s) return;
+  const family = `${prefix}${userId}:${JOB_COPY_NAMES.find((n) => key.startsWith(n))}`;
+  const found: { k: string; at: number }[] = [];
+  for (let i = 0; i < s.length; i++) {
+    const k = s.key(i);
+    if (!k || !k.startsWith(family)) continue;
+    let at = 0;
+    try { const a = (JSON.parse(s.getItem(k) ?? "") as { at?: unknown }).at; if (typeof a === "number") at = a; } catch { /* unreadable = oldest */ }
+    found.push({ k, at });
+  }
+  if (found.length <= MAX_JOB_COPIES) return;
+  found.sort((a, b) => b.at - a.at);
+  for (const f of found.slice(MAX_JOB_COPIES)) s.removeItem(f.k);
 }
 
 export function readTradeCache<T>(userId: string, key: string): { data: T; at: number } | null { return read<T>(PREFIX, userId, key); }
