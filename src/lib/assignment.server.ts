@@ -54,6 +54,15 @@ import { addWork } from "./recovery-work.server";
 import { PDF_LOOK_APPROVED } from "./pdf-approvals.core";
 import { VEEC_PART_B_IMAGE_HELD_EVENT } from "./veec-part-b-mitti.core";
 
+/** A signature only counts as signed once the row is really saved: a write error or no row written is "didn't save". */
+const SIGNATURE_NOT_SAVED = "Your signature didn't save – please try again.";
+function assertSignatureSaved(error: { message: string } | null, rows: unknown): void {
+  if (error || !rows || (Array.isArray(rows) && rows.length === 0)) {
+    if (error) console.error("Signature write failed:", error.message);
+    throw new WorkflowError(SIGNATURE_NOT_SAVED);
+  }
+}
+
 export async function loadTemplates(): Promise<Template[]> {
   const { data, error } = await admin
     .from("compliance_templates")
@@ -445,7 +454,8 @@ export async function signCustomerAgreement(p: {
     const prior=await currentAgreement(pkg.job_id);
     if(prior?.quote_id===p.quoteId && prior.quote_version===pkg.quote.version && prior.signed_by===p.actorId)return prior.id;
   }
-  if (error || !row) throw new Error(error?.message ?? "Could not record agreement");
+  assertSignatureSaved(error, row);
+  if (!row) throw new WorkflowError(SIGNATURE_NOT_SAVED);
   await logEvent(
     pkg.job_id,
     p.actorId,
@@ -548,8 +558,9 @@ export async function signInstallerDecl(p: {
     })
     .select("id")
     .single();
-  if (error || !row) throw new Error(error?.message);
-  await admin.from("declarations").upsert(
+  assertSignatureSaved(error, row);
+  if (!row) throw new WorkflowError(SIGNATURE_NOT_SAVED);
+  const { data: declRows, error: declError } = await admin.from("declarations").upsert(
     {
       job_id: p.jobId,
       kind: "installer_declaration",
@@ -558,7 +569,8 @@ export async function signInstallerDecl(p: {
       declared_at: now,
     },
     { onConflict: "job_id,kind" },
-  );
+  ).select("id");
+  assertSignatureSaved(declError, declRows);
   await logEvent(
     p.jobId,
     p.actorId,
@@ -1177,7 +1189,7 @@ export async function writeApSignature(p: {
   const { AP_DECLARATION } = await import("./veec-assignment-form.core");
   const ap = activeTemplate(p.templates, "ap_declaration");
   const now = String(p.sig["at"] ?? new Date().toISOString());
-  const { data } = await admin
+  const { data, error } = await admin
     .from("customer_assignments")
     .update({
       ap_declaration_version: ap?.version ?? p.officialVersion,
@@ -1196,6 +1208,8 @@ export async function writeApSignature(p: {
     .eq("id", p.assignmentId)
     .is("ap_signed_at", null)
     .select("id");
+  // 0 rows is NOT a failure here: the write is conditional, so it means the signature was already recorded.
+  if (error) assertSignatureSaved(error, null);
   return (data ?? []).length > 0;
 }
 
@@ -1272,7 +1286,7 @@ export async function signFinalAssignment(p: {
     if (a.installer_user_id !== p.actorId)
       throw new WorkflowError("Only the lead installer on this job can sign.");
     const { INSTALLER_DECLARATION } = await import("./veec-assignment-form.core");
-    await admin
+    const { data: instRows, error: instError } = await admin
       .from("customer_assignments")
       .update({
         installer_signature_name: p.signatureName,
@@ -1286,7 +1300,9 @@ export async function signFinalAssignment(p: {
         } as unknown as Json,
         installer_snapshot_sha256: hash,
       })
-      .eq("id", a.id);
+      .eq("id", a.id)
+      .select("id");
+    assertSignatureSaved(instError, instRows);
   } else if (p.party === "ap") {
     // Manual fallback (decision 271: Part A normally signs itself from veec-ap-auto.server.ts) — same prerequisites, same write.
     const pre = await apPrerequisites(p.jobId);
@@ -1319,7 +1335,7 @@ export async function signFinalAssignment(p: {
       .eq("id", p.jobId)
       .single();
     const oo = o?.owners as unknown as { email: string | null; phone: string | null } | null;
-    await admin
+    const { data: consRows, error: consError } = await admin
       .from("customer_assignments")
       .update({
         signatory_name: p.signatoryName,
@@ -1340,7 +1356,9 @@ export async function signFinalAssignment(p: {
         } as unknown as Json,
         consumer_snapshot_sha256: hash,
       })
-      .eq("id", a.id);
+      .eq("id", a.id)
+      .select("id");
+    assertSignatureSaved(consError, consRows);
   }
   await logEvent(
     p.jobId,
@@ -1445,7 +1463,7 @@ export async function reconfirmVariation(p: {
       ip: p.ip,
     }),
   );
-  await admin
+  const { data: reconRows, error: reconError } = await admin
     .from("assignment_variations")
     .update({
       status: "reconfirmed",
@@ -1456,7 +1474,9 @@ export async function reconfirmVariation(p: {
       user_agent: p.userAgent,
       snapshot_sha256: hash,
     })
-    .eq("id", v.id);
+    .eq("id", v.id)
+    .select("id");
+  assertSignatureSaved(reconError, reconRows);
   await admin
     .from("customer_assignments")
     .update({ status: v.resume_status })
