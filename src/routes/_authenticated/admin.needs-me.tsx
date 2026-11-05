@@ -122,7 +122,7 @@ function PartnerSystemFold({ rows, rowsFailed }: { rows: SystemRow[]; rowsFailed
   const pickups = useQuery({ queryKey: ["mitti-pickups"], queryFn: () => pickupsFn(), staleTime: 60_000, retry: 1 });
   const sync = useQuery({ queryKey: ["mitti-sync-problems"], queryFn: () => syncFn(), staleTime: 60_000, retry: 1 });
   const mitti: SystemRow[] = [
-    ...(pickups.data?.rows ?? []).map((p) => ({ key: `pickup:${p.auditId}`, tag: "Mitti", who: p.business?.name ?? "Mitti user not matched", line: `${pickupLabel(p)} · Ready Check started, no portal job`, since: p.modifiedAt, button: "Link form", href: "/admin/jobs/installers" })),
+    ...(pickups.data?.rows ?? []).map((p) => ({ key: `pickup:${p.auditId}`, auditId: p.auditId, tag: "Mitti", who: p.business?.name ?? "Mitti user not matched", line: `${pickupLabel(p)} · Ready Check started, no portal job`, since: p.modifiedAt, button: "Link form", href: "/admin/jobs/installers" })),
     ...(sync.data?.rows ?? []).map((p) => ({ key: `sync:${p.jobId}`, tag: "Mitti", who: `${p.jobNumber} ${p.owner ?? ""}`.trim(), line: `Mitti sync problem · ${p.message}`, since: p.since, button: "Open job", href: `/admin/jobs/${p.jobId}`, jobId: p.jobId })),
   ];
   const all = [...rows, ...mitti];
@@ -130,12 +130,12 @@ function PartnerSystemFold({ rows, rowsFailed }: { rows: SystemRow[]; rowsFailed
   const failed = pickups.isError || sync.isError;
   return (
     <div className="mt-6" data-why="decision 221: partner & system items as one fold line">
-      <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="text-sm font-semibold text-hiv-blue">
+      <button type="button" aria-expanded={open} onClick={() => { setDismissNote(null); setOpen(!open); }} className="text-sm font-semibold text-hiv-blue">
         {label} {open ? "▾" : "›"}
       </button>
       {open && (
         <ul className="mt-2 rounded-[14px] border border-line bg-paper px-4">
-          {failed && <li role="alert" className="py-3 text-sm text-danger">{pickups.isError && sync.isError ? "Mitti forms and Mitti sync problems" : pickups.isError ? "Mitti forms" : "Mitti sync problems"} couldn't be checked just now — this does not mean nothing is waiting. <button type="button" className="font-semibold underline" onClick={() => { if (pickups.isError) void pickups.refetch(); if (sync.isError) void sync.refetch(); }}>Try again</button></li>}
+          {failed && <li role="alert" className="py-3 text-sm text-danger">{pickups.isError && sync.isError ? "Mitti forms and Mitti sync problems" : pickups.isError ? "Mitti forms" : "Mitti sync problems"} couldn't be checked just now — this does not mean nothing is waiting. <button type="button" className="font-semibold underline" onClick={() => { setDismissNote(null); if (pickups.isError) void pickups.refetch(); if (sync.isError) void sync.refetch(); }}>Try again</button></li>}
           {dismissNote && <li role={dismissNote.ok ? "status" : "alert"} className={cn("py-3 text-sm", dismissNote.ok ? "text-success" : "text-danger")}>{dismissNote.text}</li>}
           {all.length === 0 && !failed && !rowsFailed && <li className="py-3 text-sm text-sub">Nothing from partners or the system.</li>}
           {all.map((r) => (
@@ -145,7 +145,7 @@ function PartnerSystemFold({ rows, rowsFailed }: { rows: SystemRow[]; rowsFailed
               <span className="min-w-0 break-words text-sm">{r.line}</span>
               <span className="flex flex-wrap gap-2">
                 <a href={r.href} className={btn("secondary")}>{r.button}</a>
-                {r.key.startsWith("pickup:") && <DismissPickupButton auditId={r.key.slice("pickup:".length)} onDone={(n) => { setDismissNote(n); if (n.ok) void pickups.refetch(); }} />}
+                {r.auditId && <DismissPickupButton auditId={r.auditId} onStart={() => setDismissNote(null)} onDone={(n) => { setDismissNote(n); if (n.ok) void pickups.refetch(); }} />}
               </span>
             </li>
           ))}

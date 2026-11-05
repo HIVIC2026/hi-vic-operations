@@ -121,7 +121,8 @@ export async function scanMittiReadyCheckPickups(actorId: string | null, call: M
   // A form already linked to a portal job is skipped (the portal's own forms are linked when made).
   const known = await knownAuditIds();
   const candIds = candidates.map((c) => String(c.audit_id ?? "")).filter(Boolean);
-  const { data: linkedRows } = await admin.from("ceiling_measurements").select("external_id").eq("external_source", "mitti").in("external_id", candIds);
+  const { data: linkedRows, error: linkedError } = await admin.from("ceiling_measurements").select("external_id").eq("external_source", "mitti").in("external_id", candIds);
+  if (linkedError) throw new WorkflowError(`Could not check which Mitti forms are already linked: ${linkedError.message}`);
   const linked = new Set((linkedRows ?? []).map((r) => String(r.external_id)));
 
   const { data: jobs } = await admin.from("jobs")
@@ -183,9 +184,10 @@ export async function linkMittiReadyCheckToJob(actorId: string | null, input: { 
     throw new WorkflowError("This is an old Mitti form that was replaced – it can't be linked.");
   // The Office box takes the HV number; older callers pass the job id. Accept both.
   const sel = "id,job_number,business_unit,stage,channel,deleted_at";
-  const { data: job } = UUID_RE.test(jobRef)
+  const { data: job, error: jobError } = UUID_RE.test(jobRef)
     ? await admin.from("jobs").select(sel).eq("id", jobRef).maybeSingle()
     : await admin.from("jobs").select(sel).ilike("job_number", jobRef.toUpperCase().replace(/^(\d)/, "HV-$1")).maybeSingle();
+  if (jobError) throw new WorkflowError(`Could not look up the job: ${jobError.message}`);
   if (!job) throw new WorkflowError(`No job found for "${jobRef}".`);
   const jobId = job.id;
   if (!job || job.deleted_at) throw new WorkflowError("Job not found.");

@@ -81,7 +81,14 @@ export async function sweepMittiPickupAuto(opts: { dryRun?: boolean; call?: Mitt
     }
   }
   const call = opts.call ?? realMittiCall;
-  const { rows } = await scanMittiReadyCheckPickups(null, call, { onlyAuditIds: opts.onlyAuditIds, businessOverride: opts.businessOverride });
+  // A scan that cannot be trusted (a database read failed) skips this tick: log it and adopt nothing.
+  let rows: Awaited<ReturnType<typeof scanMittiReadyCheckPickups>>["rows"];
+  try {
+    ({ rows } = await scanMittiReadyCheckPickups(null, call, { onlyAuditIds: opts.onlyAuditIds, businessOverride: opts.businessOverride }));
+  } catch (e) {
+    console.error("mitti auto-pickup: scan failed, skipping this tick:", e instanceof Error ? e.message : e);
+    return { enabled: true, results: [] };
+  }
   const results: PickupAutoResult[] = [];
   for (const r of rows) {
     const form = pickupFormLabel(r.templateKind);
