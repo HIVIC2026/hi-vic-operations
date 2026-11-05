@@ -7,12 +7,14 @@ import { wholeVeecDiscount } from "../src/lib/estimate.core";
 const loc = { metropolitan_or_regional: "Metropolitan", climate_region: "Mild" } as never;
 const veec = (m2: number) => wholeVeecDiscount(m2, loc, 40);
 
-test("preview for price 2400, 80 m², PIESA 349: the four lines and owner pays = the builder's total", async () => {
+// Jo 5 Nov 16:44: the SAME rows as every other installer's own-customer quote (ownCustomerRows), no split sqm rows.
+test("preview for price 2400, 80 m², PIESA 349: the standard own-customer rows and owner pays = the builder's total", async () => {
   const p = ownPhotoQuotePreview({ underR2: true, removeM2: 0, included: ["Ceiling insulation - supply & install"], priceIncGst: 2400, installM2: 80, product: "Bradford Gold R5", piesaIncGst: 349, wholeVeec: veec(80), metropolitan: true, minCopay: 200 });
   if ("held" in p) throw new Error("held");
-  expect(p.lines.map((l) => l.label)).toEqual(["Your price", "PIESA fee", "Home Insulation Victoria AP management fee", "Rebate"]);
-  expect(p.lines.slice(0, 3).map((l) => l.amount)).toEqual([2400, 349, 349]);
-  expect(p.lines[3]!.amount).toBeLessThanOrEqual(0);
+  expect(p.rows.map((l) => l.label)).toEqual(["Insulation — Supply and install of Bradford Gold R5 ceiling insulation – 80 m²", "Home Insulation Victoria fee", "Electrical safety check (PIESA) — charged by Home Insulation Victoria", "Rebate", "Your price"]);
+  expect(p.rows.slice(0, 3).map((l) => l.amount)).toEqual(["$2,400", "$349", "$349"]);
+  expect(p.rows[3]!.amount.startsWith("−$") || p.rows[3]!.amount === "$0").toBe(true);
+  expect(p.rows[4]).toEqual({ label: "Your price", amount: `$${p.ownerPays.toLocaleString("en-AU", { maximumFractionDigits: 2 })}`, total: true });
   const { ownPhotoPriceRecord } = await import("../src/lib/own-photo-quote.core");
   const record = ownPhotoPriceRecord({ underR2: true, removeM2: 0, installM2: 80, product: "Bradford Gold R5", priceIncGst: 2400, included: ["Ceiling insulation - supply & install"] });
   const d = buildOwnCustomerQuoteDraft(ownPhotoDraftInput({ record, installM2: 80, removeM2: 0, wholeVeec: veec(80), metropolitan: true, minCopay: 200 }), 349);
@@ -61,7 +63,11 @@ test("match: live preview vs the issued quote on one in-memory database — 20 r
     expect(issued).toHaveLength(1);
     expect({ n, owner: preview.ownerPays }).toEqual({ n, owner: Number(issued[0]!["customer_total_inc_gst"]) });
     const piesa = t.quote_items!.filter((i) => i["quote_id"] === issued[0]!["id"] && i["code"] === "PIESA").reduce((a, i) => a + Number(i["line_total_inc_gst"]), 0);
-    expect(preview.lines.find((l) => l.label === "PIESA fee")!.amount).toBe(piesa);
+    expect(piesa).toBeGreaterThan(0);
+    // Jo 16:44: the live box shows exactly the rows the issued quote shows (the owner's quote and the job page use the same).
+    const { ownQuoteRows } = await import("../src/lib/own-photo-quote.core");
+    const its = t.quote_items!.filter((i) => i["quote_id"] === issued[0]!["id"]).sort((a, b) => Number(a["sort"] ?? 0) - Number(b["sort"] ?? 0)).map((i) => ({ code: i["code"] as string, description: String(i["description"]), line_total_inc_gst: Number(i["line_total_inc_gst"]) }));
+    expect(preview.rows).toEqual(ownQuoteRows(its, Number(issued[0]!["veec_discount_inc_gst"] ?? 0), Number(issued[0]!["customer_total_inc_gst"])));
     // Jo 16:44: the insulation line reads exactly as other installers' own-customer quotes (the Ready Check path's
     // applyMittiProduct + applyMittiRemoval wording).
     const ins = t.quote_items!.find((i) => i["quote_id"] === issued[0]!["id"] && i["code"] === "INSTALLER_PRICE")!;

@@ -15,8 +15,6 @@ export const OWN_PHOTO_QUOTE_WORDS = {
   noPiesa: "Set this installer's PIESA price first",
   priceMissing: "Enter your price",
   overR2: "Over R2 isn't eligible for the rebate.",
-  lines: { price: "Your price", piesa: "PIESA fee", apFee: "Home Insulation Victoria AP management fee", rebate: "Rebate" },
-  ownerPays: "Owner pays",
   /** DRAFT (Jo 5 Nov 16:44: sqm to remove above 0 needs the removal tick; 0 can't have it). */
   removalTick: `You've put sqm to remove, so tick "${PRICE_INCLUDED_OPTIONS[1]}".`,
   removalUntick: `Sqm to remove is 0, so untick "${PRICE_INCLUDED_OPTIONS[1]}".`,
@@ -90,21 +88,20 @@ export function ownPhotoQuoteDraft(i: { record: InstallerPriceRecord; installM2:
   return applyOwnPhotoWording(buildOwnCustomerQuoteDraft(ownPhotoDraftInput(i), piesaIncGst), i);
 }
 
-export type OwnPhotoPreview = { lines: { label: string; amount: number }[]; ownerPays: number; feesLine: string } | { held: string };
-/** The live quote under the price: Your price + PIESA fee + AP management fee − rebate = owner pays. */
+export type OwnPhotoPreview = { rows: OwnQuoteRow[]; ownerPays: number; feesLine: string } | { held: string };
+/** The live quote under the price (Jo 5 Nov 16:44): the SAME rows as every other installer's own-customer quote —
+ *  Insulation — {what it includes} · Home Insulation Victoria fee · Electrical safety check (PIESA) — charged by Home
+ *  Insulation Victoria · Rebate · Your price — from the draft the issued quote is built from. */
 export function ownPhotoQuotePreview(i: OwnPhotoQuoteInput & { priceIncGst: number; installM2: number; piesaIncGst: number | null; wholeVeec: OwnCustomerDraftInput["wholeVeec"]; metropolitan: boolean | null; minCopay: number }): OwnPhotoPreview {
   if (!(i.piesaIncGst != null && i.piesaIncGst > 0)) return { held: OWN_PHOTO_QUOTE_WORDS.noPiesa };
   let record: InstallerPriceRecord;
   try { record = ownPhotoPriceRecord(i); } catch (e) { return { held: (e as Error).message }; }
   const draft = ownPhotoQuoteDraft({ ...i, record, removeM2: i.removeM2 ?? 0 }, i.piesaIncGst);
   const amount = (code: string) => draft.lines.filter((l) => l.code === code).reduce((t, l) => t + l.line_total_inc_gst, 0);
-  const W = OWN_PHOTO_QUOTE_WORDS.lines;
-  const ap = amount("AP_FEE"), piesa = amount("PIESA");
-  return {
-    lines: [{ label: W.price, amount: amount("INSTALLER_PRICE") }, { label: W.piesa, amount: piesa }, { label: W.apFee, amount: ap }, { label: W.rebate, amount: -draft.discount }],
-    ownerPays: Math.round((draft.subtotal - draft.discount) * 100) / 100,
-    feesLine: OWN_PHOTO_QUOTE_WORDS.feesLine(ap, piesa),
-  };
+  const ownerPays = Math.round((draft.subtotal - draft.discount) * 100) / 100;
+  let rows: OwnQuoteRow[];
+  try { rows = ownQuoteRows(draft.lines, draft.discount, ownerPays); } catch { return { held: draft.blockers[0] ?? OWN_PHOTO_QUOTE_WORDS.priceMissing }; }
+  return { rows, ownerPays, feesLine: OWN_PHOTO_QUOTE_WORDS.feesLine(amount("AP_FEE"), amount("PIESA")) };
 }
 
 // ---------------------------------------------------------------- the quote breakdown (Jo 5 Nov 16:44 / 16:50)

@@ -26,7 +26,7 @@ const parts = (o: { channel?: string; origin?: string | null; c?: Record<string,
 
 test("own customer, boss: the standard own-customer rows from the quote's own lines", () => {
   const b = parts().quoteBreakdown!;
-  expect(b.map((r) => r.label)).toEqual(["Insulation — Supply and install of Bradford Gold R5 ceiling insulation – 80 m²", "Home Insulation Victoria fee", expect.stringMatching(/^Electrical safety check \(PIESA\)/), "Rebate", "Your price"]);
+  expect(b.map((r) => r.label)).toEqual(["Insulation — Supply and install of Bradford Gold R5 ceiling insulation – 80 m²", "Home Insulation Victoria fee", "Electrical safety check (PIESA) — charged by Home Insulation Victoria", "Rebate", "Your price"]);
   expect(b.map((r) => r.amount)).toEqual(["$2,400", "$349", "$349", "−$1,200", "$1,898"]);
 });
 test("Office with Money on sees it; Office without Money, Lead Installer / Crew do not", () => {

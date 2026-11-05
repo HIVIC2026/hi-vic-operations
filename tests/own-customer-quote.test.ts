@@ -26,7 +26,7 @@ describe("own-customer quote: $349 fee + the installer's PIESA rate, approved li
     test(`PIESA line is $${rate} when the installer's PIESA rate is $${rate} (Jo 4 Nov 2026)`, () => {
       const d = buildMittiInstallerQuote(baseInput, { ...readyElectrician, priceIncGst: rate });
       const piesa = d.lines.filter((l) => l.code === "PIESA");
-      expect(piesa.map((l) => [l.description, l.line_total_inc_gst])).toEqual([["Electrical safety check (PIESA)", rate]]);
+      expect(piesa.map((l) => [l.description, l.line_total_inc_gst])).toEqual([["Electrical safety check (PIESA) — charged by Home Insulation Victoria", rate]]);
       expect(d.lines.find((l) => l.code === "AP_FEE")).toMatchObject({ description: "Home Insulation Victoria fee", line_total_inc_gst: 349 });
       expect(d.subtotal).toBe(2349 + rate);
       expect(d.afterDiscount).toBe(1749 + rate);
@@ -160,7 +160,7 @@ describe("Home Insulation Victoria leads are untouched", () => {
     expect(own).toMatchObject({ apFeeIncGst: 349, decided: "2026-11-04", piesaLineWhateverElectricianRate: false });
     expect(own.piesaIncGst).toMatch(/installer's own onboarded PIESA rate/);
     expect(own.noRateSet).toMatch(/never \$349/);
-    expect(own.lineLabels).toEqual(["Insulation", "Home Insulation Victoria fee", "Electrical safety check (PIESA)", "Rebate", "Your price"]);
+    expect(own.lineLabels).toEqual(["Insulation", "Home Insulation Victoria fee", "Electrical safety check (PIESA) — charged by Home Insulation Victoria", "Rebate", "Your price"]);
     expect(WORKFLOW_DECISIONS.routes.hiv_lead).toEqual({
       paymentRule: "hiv_confirmed_quote_rule",
       leadFee: "none",

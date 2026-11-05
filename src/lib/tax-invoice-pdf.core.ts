@@ -61,7 +61,8 @@ export function taxInvoiceModel(f: TaxInvoiceFacts, seam: TaxInvoiceSeam = {}): 
     rows: [
       { label: `${OWN_CUSTOMER_LABELS.insulation} · ${f.productLine!}`, amount: aud(f.productCents) },
       ...extras.map((e) => ({ label: e.label, amount: aud(e.cents) })),
-      ...(f.piesaCents > 0 ? [{ label: OWN_CUSTOMER_LABELS.piesa, amount: aud(f.piesaCents) }] : []),
+      // The invoice keeps its own label: Jo's 16:44 PIESA wording is for quotes (OWN_CUSTOMER_LABELS.piesa).
+      ...(f.piesaCents > 0 ? [{ label: PIESA_LINE_LABEL, amount: aud(f.piesaCents) }] : []),
     ],
     priceBeforeLabel: "Price before rebate", rebateLabel: OWN_CUSTOMER_LABELS.rebate, payableLabel: `${OWN_CUSTOMER_LABELS.total} (incl. GST)`,
     ...(logo && own.installerLogo?.bytes?.length ? { partnerLogo: { ...own.installerLogo, alt: logo.alt } } : {}),

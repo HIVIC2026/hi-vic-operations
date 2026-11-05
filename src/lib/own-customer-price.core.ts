@@ -30,7 +30,8 @@ export const OWN_CUSTOMER_AP_FEE_INC_GST: number = MITTI_INSTALLER_FEE_INC_GST;
 export const OWN_CUSTOMER_LABELS = {
   insulation: "Insulation",
   apFee: "Home Insulation Victoria fee",
-  piesa: "Electrical safety check (PIESA)",
+  /** Jo 5 Nov 2026 16:44 (her wording): HIV charges the PIESA on every own-customer quote. */
+  piesa: "Electrical safety check (PIESA) — charged by Home Insulation Victoria",
   rebate: "Rebate",
   total: "Your price",
 } as const;

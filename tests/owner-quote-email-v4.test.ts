@@ -262,7 +262,7 @@ describe("quote-ready sender — installer's own customer (Task 5)", () => {
     expect(r.email).toBe("sent");
     const m = sends[0]!.mail;
     expect(m.text).toContain("Home Insulation Victoria fee: $349.00");
-    expect(m.text).toContain("Electrical safety check (PIESA): $349.00");
+    expect(m.text).toContain("Electrical safety check (PIESA) — charged by Home Insulation Victoria: $349.00");
     expect(m.text).toContain("Rebate: −$600.00");
     expect(m.text).toContain("Your price: $2,098.00");
     expect(m.text).toContain("About the Victorian Energy Upgrades program");

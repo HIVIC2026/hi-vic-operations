@@ -6,7 +6,8 @@ import { useServerFn } from "@tanstack/react-start";
 import { ownPhotoQuotePreview } from "@/lib/onsite-ready-check.functions";
 import { APPROVED_PRODUCTS } from "@/lib/insulation-product.core";
 import { PHOTO_QUOTE_WORDS } from "@/lib/photo-quote.core";
-import { OWN_PHOTO_QUOTE_WORDS, money, type OwnPhotoPreview, type OwnPhotoQuoteInput } from "@/lib/own-photo-quote.core";
+import { OwnQuoteBreakdown } from "@/components/trade/OwnQuoteBreakdown";
+import { OWN_PHOTO_QUOTE_WORDS, type OwnPhotoPreview, type OwnPhotoQuoteInput } from "@/lib/own-photo-quote.core";
 import { inputCls } from "@/components/trade/TradeShell";
 import { PRICE_INCLUDED_OPTIONS } from "@/lib/installer-price.core";
 
@@ -63,11 +64,7 @@ export function OwnPhotoQuoteFields({ businessId, postcode, disabled, onChange }
         {included.includes("Other") && <input className={inputCls} aria-label="What else is included?" placeholder="What else is included?" value={other} disabled={disabled} onChange={(e) => setOther(e.target.value)} />}
       </fieldset>
       {box && ("held" in box ? <p className="text-sm text-sub" data-own-quote-held>{box.held}</p> : (
-        <div className="rounded-[12px] bg-paper p-3 text-[15px]" data-own-quote-preview>
-          {box.lines.map((l) => <p key={l.label} className="flex justify-between gap-3"><span>{l.label}</span><span className="tabular-nums">{l.amount < 0 ? "−" : ""}{money(Math.abs(l.amount))}</span></p>)}
-          <p className="mt-1 flex justify-between gap-3 border-t border-line pt-1 font-bold"><span>{OWN_PHOTO_QUOTE_WORDS.ownerPays}</span><span className="tabular-nums">{money(box.ownerPays)}</span></p>
-          <p className="mt-2 text-[13px] text-sub">{box.feesLine}</p>
-        </div>
+        <div data-own-quote-preview><OwnQuoteBreakdown rows={box.rows} note={box.feesLine} className="" /></div>
       ))}
     </section>
   );
