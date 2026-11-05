@@ -88,7 +88,6 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
   if (addedJobId) return (
     <div className="space-y-4" data-add-job-flow data-step="added">
       <h2 className="font-display text-xl font-semibold">Added</h2>
-      <p role="status" className="text-sm text-sub">Mitti form on its way</p>
       {electricianNotAllocated && <div role="alert" className="space-y-2 text-sm" data-electrician-not-allocated><p>{electricianReason ?? "The electrician couldn't be put on the job. Your choice is saved."}</p><Link to="/field/business/team" className="inline-flex min-h-12 items-center font-semibold text-hiv-blue underline">Open Team</Link></div>}
       <button type="button" className={PRIMARY_BTN} onClick={() => void navigate({ to: "/field/$jobId", params: { jobId: addedJobId }, search: { added: true } })}>{ADD_JOB_DRAFT_WORDS.goToJob}</button>
     </div>

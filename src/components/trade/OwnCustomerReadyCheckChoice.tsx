@@ -12,11 +12,15 @@ import { MittiFormLink } from '@/components/portal/MittiFormLink';
 import { OwnCustomerReadyCheck } from './OwnCustomerReadyCheck';
 import { OwnerQuoteCard } from './OwnerQuoteCard';
 import { card } from './TradeShell';
+import { getOwnMittiStatus, requestOwnMittiForm } from '@/lib/own-customer-mitti-choice.functions';
 
 export function OwnCustomerReadyCheckChoice({ jobId, auditId, address, jobNumber }: { jobId: string; auditId: string | null; address: string; jobNumber: string }) {
   const load = useServerFn(getInstallerPriceFn);
   const q = useQuery({ queryKey: ['installer-price', jobId], queryFn: () => load({ data: { jobId } }), staleTime: 20_000 });
   const save = useAction(setInstallerPriceFn);
+  const loadMitti = useServerFn(getOwnMittiStatus);
+  const requestMitti = useAction(requestOwnMittiForm);
+  const mitti = useQuery({queryKey:['own-mitti-choice',jobId],queryFn:()=>loadMitti({data:{jobId}}),staleTime:20_000,refetchInterval:15_000});
   const [portalOpen, setPortalOpen] = useState(false);
   const [mittiOpen, setMittiOpen] = useState(false);
   const [price, setPrice] = useState('');
@@ -24,6 +28,8 @@ export function OwnCustomerReadyCheckChoice({ jobId, auditId, address, jobNumber
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
   const v = q.data;
+  const linkedAuditId = mitti.data?.auditId ?? auditId;
+  const mittiChosen = mittiOpen || mitti.data?.requested === true || !!linkedAuditId;
   if (!v?.canSet) return null;
   if (v.locked) return <section className={card} aria-label="Next step"><OwnerQuoteCard jobId={jobId} ownCustomerStatus /></section>;
   if (submitted || v.current?.sendToQuote) return <section className={card} aria-label="Next step"><p role="status" className="text-[15px] font-semibold text-ink">{W.preparing}</p></section>;
@@ -33,8 +39,16 @@ export function OwnCustomerReadyCheckChoice({ jobId, auditId, address, jobNumber
     <h2 className="font-display text-[22px] font-semibold">{W.choiceTitle}</h2>
     <p className="text-[15px] text-ink">{W.choiceIntro}</p>
     {!portalOpen && <div className="space-y-3">
-      <Button type="button" variant="outline" className="h-auto min-h-12 w-full flex-col items-start gap-2 whitespace-normal py-4 text-left" aria-expanded={mittiOpen} onClick={() => setMittiOpen(!mittiOpen)}><span className="font-semibold">{W.onsiteOption}</span><span className="text-sm font-normal text-sub">{W.onsiteIntro(address, jobNumber)}</span></Button>
-      {mittiOpen && auditId && <MittiFormLink auditId={auditId}>{W.onsiteOption}</MittiFormLink>}
+      <Button type="button" variant="outline" className="h-auto min-h-12 w-full flex-col items-start gap-2 whitespace-normal py-4 text-left" aria-expanded={mittiChosen} disabled={busy || mitti.data?.portalSaved === true} onClick={async () => {
+        if(busy) return;
+        setBusy(true); setError('');
+        try { const result=await requestMitti({jobId}); if(result) {setMittiOpen(true); void mitti.refetch();} }
+        catch(e) {setError(e instanceof Error ? e.message : 'The Ready Check could not start. Try again.');}
+        finally {setBusy(false);}
+      }}><span className="font-semibold">{W.onsiteOption}</span><span className="text-sm font-normal text-sub">{W.onsiteIntro(address, jobNumber)}</span></Button>
+      {mittiChosen && <p role="status" className="text-sm text-sub">{linkedAuditId ? W.onsiteReady : W.onsiteWaiting(address,jobNumber)}</p>}
+      {mittiChosen && linkedAuditId && <MittiFormLink auditId={linkedAuditId}>{W.onsiteOption}</MittiFormLink>}
+      {error && <p role="alert" className="text-sm text-rose">{error}</p>}
     </div>}
     <OwnCustomerReadyCheck jobId={jobId} onOpenChange={setPortalOpen} />
     {!portalOpen && v.quoteCore.ready && <form className="space-y-3" onSubmit={async e => {

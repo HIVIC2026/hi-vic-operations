@@ -143,16 +143,14 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
     electricianReason = (await import('./electrician-allocation-message.core')).electricianAllocationMessage(error instanceof Error ? error.message : String(error), teamWorker.name);
     await logEvent(job.id, userId, "add_job_electrician_not_allocated", "The electrician chosen on Add a job could not be put on the job; choose again on the job page", { worker_id: teamWorker.id, reason: error instanceof Error ? error.message : String(error) }, { internal: true }).catch(console.error);
   }
-  // Start the guarded create immediately after saving, booking or not. A booking background attempt can share
-  // the atomic claim; an existing form skips. The tick remains the backup after a failure.
-  const { onReadyCheckJobAdded } = await import("./mitti-create.server");
-  const formCreation = await onReadyCheckJobAdded(job.id, userId, call).catch((e) => { console.error("ready check form not scheduled", (e as Error).message); return "skipped" as const; });
+  // Own customers choose Mitti or the portal on the job page; Add never creates A1.
+  const formCreation = 'skipped' as const;
   // Task 19 (Jo 2 Nov 2026, answer 24): the installer's own customer is texted the rental questions (draft wording, off until
   // Jo approves it). Not on this form; a failure here never fails Add a job.
   try { await (await import("./own-customer-rental-taps.server")).textOwnRentalTaps(job.id); }
   catch (e) { console.error("rental questions text not sent", (e as Error).message); }
   // The saved job is the durable missing-form sweep candidate. Do not read the whole form state before returning.
-  const state: OnsiteState = { kind: "preparing", message: "Mitti form on its way" };
+  const state: OnsiteState = { kind: "preparing", message: "Measure and quote" };
   return { jobId: job.id, jobNumber: job.job_number, booking, formCreation, state, electrician: electricianAllocated, electricianReason, ownerFirstName: input.full_name.trim().split(/\s+/)[0] ?? null };
 }
 

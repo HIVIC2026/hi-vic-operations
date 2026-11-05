@@ -6,7 +6,7 @@ export type MyWorkCard = {
   jobId: string; owner: string; hvSuburb: string; pill: "Home Insulation Victoria lead" | "Your customer";
   step: string; reason: string; by: string | null; overdue: boolean; button: string | null; yours: boolean;
 };
-export type MyWorkRow = { jobId: string; jobNumber: string; owner: string | null; street: string | null; suburb: string | null; channel: string | null; box: NextStepBox; reason: string; mittiLinked?: boolean; quoteSentAt?: string | null };
+export type MyWorkRow = { jobId: string; jobNumber: string; owner: string | null; street: string | null; suburb: string | null; channel: string | null; box: NextStepBox; reason: string; mittiLinked?: boolean; mittiRequested?: boolean; quoteSentAt?: string | null };
 
 // Wording. Every line here is a DRAFT (no approved text yet) except where marked.
 export const MY_WORK_WORDS = {
@@ -67,7 +67,7 @@ function ownCustomerCard(r: MyWorkRow): Partial<MyWorkCard> {
   if (r.channel !== "installer_sourced") return {};
   const noDeadline = { by: null, overdue: false };
   if (r.box.kind === "own_ready_check") return {
-    ...noDeadline, step: "Measure and quote", reason: `New job · Mitti form ${r.mittiLinked ? "ready" : "on its way"}`,
+    ...noDeadline, step: "Measure and quote", reason: r.mittiLinked ? 'New job · Mitti form ready' : r.mittiRequested ? 'New job · Mitti form on its way' : 'New job',
     button: "Measure and quote", yours: true,
   };
   if (r.box.kind === "enter_price") return {

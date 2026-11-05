@@ -228,6 +228,7 @@ export async function tradeHome(userId: string) {
   // real Promise: a query builder is a thenable that runs its query again for every `then`, so sharing it as-is would read twice.
   const msP = Promise.resolve(formReads ? admin.from("ceiling_measurements").select("job_id, external_source, external_id").in("job_id", liveIds).eq("is_current", true) : { data: [] as { job_id: string; external_source: string | null; external_id: string | null }[] });
   const basicsP = Promise.resolve(formReads ? admin.from("workflow_events").select("job_id, details, created_at").in("job_id", liveIds).eq("event_type", "ready_check_basics").order("created_at", { ascending: false }) : { data: [] as { job_id: string | null; details: unknown; created_at: string }[] });
+  const choiceP = Promise.resolve(formReads ? admin.from('workflow_events').select('job_id').in('job_id',liveIds).eq('event_type','own_customer_mitti_requested') : {data:[] as {job_id:string|null}[],error:null});
   // Round 3: every read that needs the job ids, together.
   const [{ data: books }, { data: missing }, { data: deadlines }, sf, rcQuotes, { data: ms }, { data: basics }, prices, { data: histJobs }, { data: assessRows }, ledgers, coesOnFile, { data: allocEvents }] = await Promise.all([
     admin.from("bookings").select("job_id, kind, status, scheduled_start, scheduled_end").in("job_id", ids).in("status", ["confirmed", "completed"]).order("scheduled_start"),
@@ -251,6 +252,9 @@ export async function tradeHome(userId: string) {
     formReads ? admin.from("workflow_events").select("job_id, details, created_at").in("job_id", liveIds).eq("event_type", "in_house_electrician_allocated").order("created_at", { ascending: false }) : Promise.resolve({ data: [] as { job_id: string | null; details: unknown; created_at: string }[] }),
   ]);
   const moneyAll = await moneyP;
+  const choiceRows=await choiceP;
+  if(choiceRows.error) throw new WorkflowError('The Ready Check choices could not be read.');
+  const mittiRequested=new Set((choiceRows.data??[]).map(r=>r.job_id));
   const depositIds = c.kind === 'installer' ? live.filter(j => j.stage === 'installation_scheduling' && !!sf.get(j.id)?.inHouseDispatch).map(j => j.id) : [];
   const depositFacts = await depositsP;
   const installDeposits = new Map<string, boolean | null>(depositIds.map((id) => [id, depositFacts?.get(id) ?? null]));
@@ -356,7 +360,7 @@ export async function tradeHome(userId: string) {
         pay: null, mittiFormUrl: null,
       };
       const box = nextStepBox(facts);
-      return { jobId: j.jobId, jobNumber: String(j.jobNumber), owner: j.owner, street: j.street, suburb: j.suburb, channel: j.channel, box, reason: reasonFor(box.kind, box), mittiLinked: formFacts.get(j.jobId)?.linked === true, quoteSentAt: facts.quote === "sent" ? q?.quote?.sent_at ?? null : null };
+      return { jobId: j.jobId, jobNumber: String(j.jobNumber), owner: j.owner, street: j.street, suburb: j.suburb, channel: j.channel, box, reason: reasonFor(box.kind, box), mittiLinked: formFacts.get(j.jobId)?.linked === true, mittiRequested:mittiRequested.has(j.jobId), quoteSentAt: facts.quote === "sent" ? q?.quote?.sent_at ?? null : null };
     });
     // A job with a pending offer shows as the offer card only (owner details stay hidden until the offer is taken); the card's key is the offer id.
     // Part 7 Task 9: no "Job offer" card — a job with a leftover pending offer stays hidden from My work (the office closes the offer).
