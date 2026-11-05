@@ -9,6 +9,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/portal/AppShell";
 import { getOfficeJobPage } from "@/lib/office-screens.functions";
+import { ReadyCheckPhotos } from "@/components/portal/ReadyCheckPhotos";
 import { AiReplyDrafts } from "@/components/portal/AiReplyDrafts";
 import { parseJobSection } from "@/lib/job-section.core";
 import type { CardKey } from "@/lib/office-stage-cards.core";
@@ -72,6 +73,7 @@ function JobPageRoute() {
       <StageCards cards={data.cards} open={open} onOpen={(k) => (open === k ? setOpen(null) : go(k))} />
       {open && <div id="stage-workspace" className="scroll-mt-24"><StageWorkspace jobId={jobId} k={open} page={data} onGo={go} /></div>}
       <MoneyCard jobId={jobId} />
+      {!qaOffice && <ReadyCheckPhotos jobId={jobId} />}
       {!qaOffice && <AiReplyDrafts jobId={jobId} />}
       <ContactHistory jobId={jobId} rows={data.contacts} waitingFor={data.waitingFor} emailBounced={data.emailBounced} onLog={() => setLogOpen(true)} />
       {qaOffice ? <p className="text-sm text-sub">Not available for the TEST office login</p> : <FileList jobId={jobId} />}
