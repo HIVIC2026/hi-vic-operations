@@ -150,20 +150,27 @@ describe("sweepReadyCheckForms", () => {
     expect((await sweepReadyCheckForms({ now, dryRun: true, enabled: true })).wouldCreate).toContain("HV-3542");
   });
 
-  test("fix round: an own job of a From photos business with no measurement never gets a Ready Check form", async () => {
+  // Re-review (5 Nov): the skip is keyed on the JOB having an own photo quote (its claim), not on the business setting —
+  // a Ready Check job a From photos business added before the switch still gets its form.
+  test("an own job with an own photo quote claim never gets a Ready Check form; the same business's older Ready Check job still does", async () => {
     const PHOTOB = "00000000-0000-0000-0000-0000000000b3";
     await db.exec(`ALTER TABLE businesses ADD COLUMN IF NOT EXISTS quote_method text;
       INSERT INTO businesses (id, mitti_account_invited, quote_method) VALUES ('${PHOTOB}', true, 'photos');
       INSERT INTO jobs VALUES ('${j(20)}','HV-3600','installer_sourced','installer_onsite','ready_check_ready_to_schedule','2026-10-23T06:40:00Z',null,null,'${PHOTOB}');
-      INSERT INTO job_assignments VALUES ('${j(20)}','${U}','${PHOTOB}','installer',true);`);
+      INSERT INTO job_assignments VALUES ('${j(20)}','${U}','${PHOTOB}','installer',true);
+      INSERT INTO jobs VALUES ('${j(21)}','HV-3601','installer_sourced','installer_onsite','ready_check_ready_to_schedule','2026-10-23T06:41:00Z',null,null,'${PHOTOB}');
+      INSERT INTO job_assignments VALUES ('${j(21)}','${U}','${PHOTOB}','installer',true);`);
+    await db.query(`insert into workflow_events (job_id, event_type, summary, details, created_at) values ($1,'photo_quote_submitted','own','{"own_customer":true,"business_id":"${PHOTOB}"}','2026-10-23T06:40:01Z')`, [j(20)]);
     try {
       const r = await sweepReadyCheckForms({ now, dryRun: true, enabled: true });
-      expect(r.wouldCreate).not.toContain("HV-3600");
+      expect(r.wouldCreate).not.toContain("HV-3600"); // own photo quote claim
+      expect(r.wouldCreate).toContain("HV-3601"); // Ready Check job of the same (now From photos) business
       expect(r.wouldCreate).toContain("HV-3136");
-      await db.exec(`UPDATE businesses SET quote_method = 'ready_check' WHERE id = '${PHOTOB}'`);
-      expect((await sweepReadyCheckForms({ now, dryRun: true, enabled: true })).wouldCreate).toContain("HV-3600");
+      // A just-saved own job of a From photos business (claim not written yet) waits 10 minutes rather than racing it.
+      const fresh = new Date(Date.parse("2026-10-23T06:41:00Z") + 5 * 60_000);
+      expect((await sweepReadyCheckForms({ now: fresh, dryRun: true, enabled: true })).wouldCreate).not.toContain("HV-3601");
     } finally {
-      await db.exec(`DELETE FROM job_assignments WHERE job_id = '${j(20)}'; DELETE FROM jobs WHERE id = '${j(20)}'; DELETE FROM businesses WHERE id = '${PHOTOB}'; ALTER TABLE businesses DROP COLUMN quote_method;`);
+      await db.exec(`DELETE FROM workflow_events WHERE job_id IN ('${j(20)}','${j(21)}'); DELETE FROM job_assignments WHERE job_id IN ('${j(20)}','${j(21)}'); DELETE FROM jobs WHERE id IN ('${j(20)}','${j(21)}'); DELETE FROM businesses WHERE id = '${PHOTOB}'; ALTER TABLE businesses DROP COLUMN quote_method;`);
     }
   });
 
