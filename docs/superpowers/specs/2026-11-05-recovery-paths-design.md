@@ -170,8 +170,8 @@ Each review finding gets a test that fails on `a274d76` and passes after the fix
 9. $3,000 → $3,200 with a rejected discount → nothing saved. Item read timeout → no $0 total.
 10. Measurement read timeout → the estimate stays at 140 m², not 90 m². Replacement insert fails → the old estimate is still current.
 11. Delivered to Job A, blocked for Job B, then a reply → filed on A. Two open jobs with sent texts → "which job?" row.
-13. Two Xero invoices share the reference ($500 other contact, $3,500 correct) → no link, conflict row. One times out in the poll → summary says 1 failed and names it.
 12. Provider unavailable, then restored → the retry sends once. "delivered" then a late "sent" → stays delivered.
+13. Two Xero invoices share the reference ($500 other contact, $3,500 correct) → no link, conflict row. One times out in the poll → summary says 1 failed and names it.
 
 Plus: tick claim safety (two runs, one attempt), the 3-tries → Needs me rule, Mark sorted / Try again, and the SQL proven on PGlite. Run `bun scripts/scan-retired-terms.ts` and `bun test ./tests/`.
 
