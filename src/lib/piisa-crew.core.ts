@@ -2,7 +2,7 @@
 // so the trade screens do not download mitti.core, install-day.core, official forms or the email code with them.
 // Code moved unchanged; piisa-a3.core re-exports every name, so other importers are unchanged.
 import { COLLECTION_NOTICE_BLOCK_MESSAGE, norm } from "./trade-shared-consts.core";
-import { DECLARATIONS_DUE_MESSAGE, WHITE_CARD_BLOCK_MESSAGE, type WhiteCardState } from "./worker-compliance.core";
+import { type WhiteCardState } from "./worker-compliance.core";
 import type { WorkerRole } from "./worker-role.core";
 
 // ---------- crew ----------
@@ -23,8 +23,6 @@ export type StaffOption = {
   whiteCard?: WhiteCardState;
   /** Decision 319: true = White Card not verified and this installation was booked on/after the cutoff → can't be lead or crew. Undefined = rule not applied (older callers). */
   whiteCardBlocked?: boolean;
-  /** Jo 29 Oct 2026: true = added on Team and not signed the worker declarations yet → can't be Lead or crew. Undefined = not loaded. */
-  declarationsDue?: boolean;
 };
 
 /** Portal lookup only. Native direct-entry schema awaits concrete edited IDs; the observed native choice mapping remains fail closed. */
@@ -58,8 +56,6 @@ export function crewSelectionProblems(sel: CrewSelection, staff: StaffOption[]):
   else if (notCleared(lead)) p.push(clearMsg(lead));
   else if (!lead.eecVerified || !lead.eec) p.push(`${lead.name}: EEC certification not verified`);
   else if (lead.noticeAcknowledged === false) p.push(`${lead.name}: ${COLLECTION_NOTICE_BLOCK_MESSAGE}`);
-  else if (lead.whiteCardBlocked) p.push(`${lead.name}: ${WHITE_CARD_BLOCK_MESSAGE}`);
-  else if (lead.declarationsDue === true) p.push(`${lead.name}: ${DECLARATIONS_DUE_MESSAGE}`);
   if (lead) { seenName.add(norm(lead.name)); if (lead.eec) seenEec.add(norm(lead.eec)); }
   if (sel.additional.length > 2) p.push("The install form has room for a Lead and 2 more");
   for (const a of sel.additional) {
@@ -71,8 +67,6 @@ export function crewSelectionProblems(sel: CrewSelection, staff: StaffOption[]):
       if (notCleared(s)) p.push(clearMsg(s));
       else if (!s.eecVerified || !s.eec) p.push(`${s.name}: EEC certification not verified`);
       else if (s.noticeAcknowledged === false) p.push(`${s.name}: ${COLLECTION_NOTICE_BLOCK_MESSAGE}`);
-      else if (s.whiteCardBlocked) p.push(`${s.name}: ${WHITE_CARD_BLOCK_MESSAGE}`);
-      else if (s.declarationsDue === true) p.push(`${s.name}: ${DECLARATIONS_DUE_MESSAGE}`);
     } else {
       const name = a.other.name.trim(), eec = a.other.eec.trim();
       if (!name || !eec) { p.push("Other installer needs a full name and EEC certification number"); continue; }

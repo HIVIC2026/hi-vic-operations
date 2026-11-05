@@ -35,3 +35,13 @@ test("office-screens browser evaluation cannot reach node:async_hooks through st
   visit(entry, ["src/lib/office-screens.functions.ts"]);
   expect(leaks).toEqual([]);
 });
+
+test("served portal functions keep acceptance and authority helpers out of the browser", async () => {
+  const response = await fetch("http://localhost:8080/src/lib/portal.functions.ts");
+  expect(response.ok).toBe(true);
+  const source = (await response.text()).split("//# sourceMappingURL")[0] ?? "";
+  const imports = new Bun.Transpiler({ loader: "tsx" }).scan(source).imports;
+  expect(imports.filter((dependency) => dependency.kind === "import-statement" &&
+    (/\.server\.ts(?:\?|$)/.test(dependency.path) || dependency.path.includes("async_hooks")))).toEqual([]);
+  expect(source).toContain("createClientRpc");
+});

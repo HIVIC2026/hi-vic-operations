@@ -3,7 +3,8 @@ import { crewPrefill, crewSelectionProblems, rcAreasFromRecord, readyCheckPartPr
 
 // Exact production shape (read-only readback): certification is an OBJECT with declared + verification_id.
 const workers = [
-  { id: "d22a6ed2-7a47-4bbd-b293-9636c5e74740", full_legal_name: "Dominic Doherty", approval_status: "pending", removed_at: null, trade_role: "installer", licence_expires_on: null,
+  // Stored as Lead (Jo 5 Nov 2026: no stored role = Crew), so the Lead test reaches the certificate check.
+  { id: "d22a6ed2-7a47-4bbd-b293-9636c5e74740", full_legal_name: "Dominic Doherty", approval_status: "pending", removed_at: null, trade_role: "installer", worker_role: "lead", licence_expires_on: null,
     certification: { declared: { holds: "held", issuer: "Eec", issue_date: null, certificate_number: "4546" }, verification_id: "f13f7aad-9f80-4af4-9c1f-197b6f4a7d05" } },
   { id: "w-train", full_legal_name: "Trainee", approval_status: "approved", removed_at: null, trade_role: "installer",
     certification: { declared: { holds: "in_training", issuer: null, issue_date: null, certificate_number: null }, verification_id: null } },

@@ -46,6 +46,7 @@ function fixture(failedTable?: string, failPage = -1) {
     return q;
   }, async rpc(name: string, input: unknown) { rpcCalls.push({ name, input }); return { data: refuseJobs.has((input as any)._job) ? { sent: false, reason: "Already booked" } : { sent: true }, error: null }; } };
   const dependencies: Record<string, unknown> = {
+    "./background.server": { runAfterResponse: (task: () => Promise<unknown>) => { void task(); return "wait_until"; } },
     "@/integrations/supabase/client.server": { supabaseAdmin: admin }, "./in-house-batch.core": rules,
     "./in-house-batch-email.server": { sendInHousePartnerCall:async(id:string)=>{expect(rpcCalls.length).toBeGreaterThan(0);emailCalls.push(id);return "draft";} },
     "./in-house-give-email.server": { sendInHouseGiveEmail: async (p: any) => { giveCalls.push(p); if (giveMode.fail) throw new Error("boom"); return giveMode.outcome; } },

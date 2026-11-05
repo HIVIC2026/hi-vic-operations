@@ -5,6 +5,8 @@ import type { BookedKind } from './owner-booked-notice.core';
 import type { TradeContact } from './owner-will-call.core';
 /** Tests inject the approval flags; production uses OWNER_BOOKED_V2_APPROVED (owner-booked-notice.core, re-exported by in-house-booking.core). */
 export type OwnerBookedDeps = {
+  /** Persist the retry intent only; the caller schedules delivery after its booking response. */
+  prepareOnly?: boolean;
   v2Approved?: Record<BookedKind, boolean>;
   /** PIESA: the job's electrician business office contact (default: businessContactForJob). */
   electrician?: (jobId: string) => Promise<TradeContact | null>;
@@ -36,7 +38,7 @@ export async function bookingTeam(jobId:string,userId:string){
   const rowsById = new Map(rows.map(row => [row.id, row]));
   const {electricianVerified,crewClearance,melbourneToday}=await import('./worker-compliance.core');
   const {allocationBlocker}=await import('./visit-allocation.core');
-  const workers:BookingWorker[]=candidates.map(w=>{const r=rowsById.get(w.workerId);return{id:w.workerId,name:w.name,phone:w.mobile,tradeRole:w.tradeRole,workerRole:w.workerRole??null,cleared:crewClearance(w.clearance??{certStatus:null,level:null,expiresOn:null},melbourneToday()).cleared,reason:w.tradeRole==='installer'?allocationBlocker('install',w,melbourneToday(),{bookingCreatedAt:null}):w.declarationsDue?'Worker declarations must be signed before booking.':null,electricianVerified:r?.trade_role==='electrician'&&electricianVerified(r).ok,escRegistered:r?.esc_registered===true,escRegisteredAt:r?.esc_registered_at??null};});
+  const workers:BookingWorker[]=candidates.map(w=>{const r=rowsById.get(w.workerId);const s=crew.staff?.find(s=>s.workerId===w.workerId);const crewAllowed=!!s&&s.cleared!==false&&s.eecVerified&&!!s.eec&&s.noticeAcknowledged!==false;return{id:w.workerId,name:w.name,phone:w.mobile,tradeRole:w.tradeRole,workerRole:w.workerRole??null,cleared:crewClearance(w.clearance??{certStatus:null,level:null,expiresOn:null},melbourneToday()).cleared,reason:w.tradeRole==='installer'?allocationBlocker('install',w,melbourneToday(),{bookingCreatedAt:null}):null,crewAllowed,electricianVerified:r?.trade_role==='electrician'&&electricianVerified(r).ok,escRegistered:r?.esc_registered===true,escRegisteredAt:r?.esc_registered_at??null};});
   const paid=!!view&&(await import('./payments.core')).isStepPaid(view.steps,'install_deposit');
   return{workers,depositPaid:paid,selection:crew.selection};
 }
@@ -77,6 +79,7 @@ export async function notifyOwnerBooked(jobId:string,kind:BookingNoticeKind,star
   const intentId=await stableUuid(`${key}:intent`);
   const intent=await db.from('workflow_events').insert({id:intentId,job_id:jobId,actor_id:null,event_type:'in_house_booked_notice_pending',summary:'Booking confirmation awaiting delivery',details:{kind,startIso,who,booking_id:booking.id},internal:true});
   if(intent.error&&intent.error.code!=='23505')throw Error(intent.error.message);
+  if(deps.prepareOnly)return 'queued';
   // Part 3 Task 3: the upgrades-day wording is new — recorded as pending above, sent by the sweep once Jo approves it.
   if(kind==='upgrades'&&!OWNER_UPGRADES_BOOKED_APPROVED)return 'held: wording not approved';
   const b=a?.businesses??null;

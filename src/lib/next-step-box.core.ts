@@ -4,7 +4,7 @@ import { bookBy, fmtDay, overdue } from "./next-step-dates.core";
 import { melbourneToday } from "./melbourne-time.core";
 import { melbourneYmd } from "./piesa-windows.core";
 import type { AccessPerson } from "./rental-answers.core";
-import { QUOTE_PRICE_NEXT_LINE } from "./installer-quote-status.core";
+import { QUOTE_PRICE_NEXT_LINE, OWN_CUSTOMER_QUOTE_PREPARING_LINE } from "./installer-quote-status.core";
 import { READY_CHECK_PERSON_WORDS } from "./ready-check-person.core";
 import { PHOTO_QUOTE_WORDS, photoQuoteDueBy, photoQuoteOverdue, type QuoteMethod } from "./photo-quote.core";
 
@@ -27,7 +27,7 @@ export type NextStepFacts = {
    *  time for photos. `photoQuoteSent`: the installer has sent the photo quote. */
   quoteMethod?: QuoteMethod; photoQuoteSent?: boolean;
 };
-export type NextStepKind = "quote_from_photos" | "book_ready_check" | "ready_check_booked" | "ready_check_missing" | "enter_price" | "waiting_quote"
+export type NextStepKind = "quote_from_photos" | "own_ready_check" | "book_ready_check" | "ready_check_booked" | "ready_check_missing" | "enter_price" | "waiting_quote"
   | "book_piesa" | "waiting_electrician_book" | "piesa_booked" | "upload_certificate" | "waiting_deposit" | "book_install"
   | "install_booked" | "install_locked" | "after_install" | "closed";
 export type NextStepBox = {
@@ -81,7 +81,7 @@ export const NEXT_STEP_WORDS = {
   afterInstallTitle: "Install done", // DRAFT
   paidSub: (date: string) => `Paid ✓ ${date}`, // approved (plan Task 3 table)
   hivicPaySub: (money: string) => `Your ${money} is paid 7 days after we approve the install paperwork.`, // DRAFT sentence from the approved Money line
-  ownPaySub: (money: string, name: string) => `Your ${money} is paid once ${name} has paid in full.`, // DRAFT sentence from the approved Money line
+  ownPaySub: (money: string, _name: string) => `You're paid ${money} once the owner has paid in full.`, // Jo 5 Nov exact sentence
   closedTitle: "Closed", // DRAFT
   theOwner: "the owner", // DRAFT
   theOwnersPossessive: "The owner's", // approved (plan Task 3 table)
@@ -188,6 +188,16 @@ export function nextStepBox(f: NextStepFacts): NextStepBox {
     return box("quote_from_photos", W.quoteFromPhotosTitle, {
       sub: W.quoteFromPhotosSub(due ? fmtDay(due) : ""), yours: true, bookBy: due, overdue: f.givenAt ? photoQuoteOverdue(f.givenAt, f.now) : false,
     });
+  }
+
+  // Jo 5 Nov: own-customer A1 has no booking or attendance clock, even with a legacy visit stored.
+  if (f.channel === "installer_sourced") {
+    if (f.quote !== "none") return box("waiting_quote", W.waitingQuoteTitle, { sub: f.quote === "declined" || f.quote === "expired" ? W.quoteDeclinedSub : W.waitingQuoteSub });
+    if (f.priceEntered === true) return box("waiting_quote", OWN_CUSTOMER_QUOTE_PREPARING_LINE);
+    // Photo quotes: the photo quote stands in for the Ready Check — never "Do it in Mitti" or "Mitti form done".
+    if (photos) return box("enter_price", W.enterPriceTitle, { yours: true });
+    if (f.readyCheck.done) return box("enter_price", "Mitti form done — enter your price", { yours: true });
+    return box("own_ready_check", "Ready Check", { yours: true, button: "Do it in Mitti" });
   }
 
   // Ready Check done (or, for photos, the photo quote sent)

@@ -50,8 +50,8 @@ export async function a3Ctx(jobId: string, audit: unknown): Promise<A3EvidenceCt
 export async function installDayPortalAnswers(jobId: string, audit?: unknown): Promise<{ answers: Record<string, string | string[]>; missing: string[]; conductive: boolean | null; conductiveEvidence: string | null; fullRemoval: boolean }> {
   const { currentCopy } = await import("./official-forms.server");
   const { answersFromDocument } = await import("./official-forms.core");
-  const { piesaPart5Answers, readInstallDay, INSTALL_DAY_Q } = await import("./install-day.core");
-  const { readyCheckPart6Answers } = await import("./piisa-a3.core");
+  const { piesaPart5Answers, readInstallDay, INSTALL_DAY_Q, installDayBeforePhotos } = await import("./install-day.core");
+  const { readyCheckPart6Answers, installDayBeforePart6Answers } = await import("./piisa-a3.core");
   const { readyCheckAreas } = await import("./piisa-a3.server");
   const pe = await currentCopy(jobId, "piesa");
   // Decision 362: an "electrician at the start" PIESA needs this form's "Is the electrician here?" = Yes with the photo.
@@ -60,8 +60,10 @@ export async function installDayPortalAnswers(jobId: string, audit?: unknown): P
   const p5 = piesaPart5Answers(pe.copy ? (answersFromDocument(pe.copy.snapshot.document) as Record<string, unknown>) : null, here);
   // Decisions 359/360: condition, reason, foil/conductive and its photo come from each Ready Check area (old forms without
   // them stay missing for a top-up); a full removal is filled by the portal.
-  const p6 = readyCheckPart6Answers(await readyCheckAreas(jobId));
-  return { answers: { ...p5.answers, ...p6.answers }, missing: [...p5.missing, ...p6.missing], conductive: p6.conductive, conductiveEvidence: p6.conductiveEvidence, fullRemoval: p6.fullRemoval };
+  const before=installDayBeforePhotos(audit);
+  const p6 = installDayBeforePart6Answers(before)??readyCheckPart6Answers(await readyCheckAreas(jobId));
+  const beforeBlockers=(await import('./install-evidence.core')).beforePhotoEvaluation(before,[]).blockers;
+  return { answers: { ...p5.answers, ...p6.answers }, missing: [...p5.missing, ...p6.missing, ...beforeBlockers], conductive: p6.conductive, conductiveEvidence: p6.conductiveEvidence, fullRemoval: p6.fullRemoval };
 }
 
 export async function storeSignatureImage(jobId: string, auditId: string, sig: A3PrestartSnapshot["signature"], fetchMedia: MittiMediaFetch): Promise<StoredSignature> {

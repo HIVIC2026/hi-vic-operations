@@ -605,8 +605,8 @@ export function evaluatePiisa(a: OfficialAnswers, ctx: PiisaContext = {}): Evalu
     const fullRemoval = treatment.length > 0 && treatment.every((t) => t === "Removed");
     if (!fullRemoval && ctx.conductiveExistingInsulation !== true && ctx.conductiveExistingInsulation !== false)
       blockers.push({ rule: "P6-FOIL-UNKNOWN", message: CONDUCTIVITY_UNCONFIRMED, confirmation: "NEEDS OFFICIAL/LEGAL CONFIRMATION" });
-    // Authority: Home Insulation Victoria operational requirement only. The official PIISA asks for no photo; this is separate supporting evidence.
-    if (!fullRemoval && !ctx.conductivityEvidence) blockers.push({ rule: "HIVIC-CONDUCTIVITY-PHOTO", message: CONDUCTIVITY_PHOTO_MISSING });
+    // Jo 5 Nov 2026: the Home Insulation Victoria foil photo is off the Ready Check forms, so it is no longer a blocker
+    // (the official PIISA never asked for it); a photo still carries as supporting evidence when an area has one.
     if (ctx.conductiveExistingInsulation === true && treatment.includes("Topped Up")) blockers.push({ rule: "P6-FOIL", message: "\"Note: any foil backed or electrically conductive insulation cannot be topped up and must be removed prior to installation.\"" });
     if (ctx.conductiveExistingInsulation === true && !treatment.includes("Removed")) blockers.push({ rule: "P6-FOIL", message: "\"…must be removed prior to installation.\" Removed is not ticked." });
   }

@@ -416,6 +416,7 @@
 
 /* Trade screens: older form pages (upload, add one job, staff) inherit the Work/Money/My business look. */
 .estimate-brand .trade-forms {
+  min-width: 0;
   --primary: var(--hiv-green);
   --primary-foreground: oklch(1 0 0);
   --foreground: var(--estimate-navy);
@@ -427,6 +428,13 @@
   --secondary: var(--estimate-mist);
   --secondary-foreground: var(--estimate-navy);
 }
+.trade-forms :is(input, select, textarea) { min-width: 0; max-width: 100%; box-sizing: border-box; }
+.trade-forms input:is([type="date"], [type="time"]) { width: 100%; overflow: hidden; }
+.trade-forms input::-webkit-date-and-time-value { min-width: 0; text-align: left; }
+.trade-forms :is(h1, h2, h3, p, label) { overflow-wrap: anywhere; }
+.trade-forms > * { min-width: 0; }
+.trade-forms :is(button, input):disabled { cursor: not-allowed; }
+.trade-forms button[type="submit"]:disabled { background: var(--hiv-mist); color: var(--hiv-sub); opacity: 1; }
 /* Trade portal (Jo-approved design, 7 Oct 2026): panels, buttons and fields follow the approved trade design. */
 .estimate-brand .trade-forms [data-slot="button"] { border-radius: 10px; min-height: 42px; font-weight: 700; font-size: 13px; }
 .estimate-brand .trade-forms [data-slot="card"] { border-radius: 18px; border-color: var(--hiv-line); background: var(--hiv-paper); box-shadow: var(--shadow-card); }

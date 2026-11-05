@@ -90,6 +90,13 @@ export async function ensureInHouseForms(jobId: string, actorId: string | null, 
     const testEmail = job?.source === "qa_test" ? (await import("./onsite-ready-check.core")).TEST_MITTI_ASSIGNEE : null;
     readyCheck = (await mitti.createAssignMittiAudit(jobId,actorId,call ?? mitti.realMittiCall,{readyCheck:true,...(testEmail && installer ? {assignee:{userId:installer.user_id,fullName:installer.profiles?.full_name ?? null,email:testEmail}} : {})})).auditId;
   }
+  // The allocation can precede form creation. Hand the newly created/current form to that recorded attendee's
+  // Mitti account, or the same partner-office fallback used by Ready Check allocation, without changing the attendee.
+  if (readyCheck) {
+    const {currentAllocation}=await import('./visit-allocation.core');
+    const allocated=currentAllocation(await events(jobId),'ready_check');
+    if (allocated?.worker_id && actorId) await (await import('./visit-allocation.server')).allocateVisit(jobId,actorId,'ready_check',allocated.worker_id,call);
+  }
   return {readyCheck,...await preparePiesaAndFixes(jobId,actorId,forms,call)};
 }
 /** Photo-quote installers: the PIESA and upgrades (fixes) forms only — never a Ready Check form. Needs a From photos give

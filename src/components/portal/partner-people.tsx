@@ -10,7 +10,6 @@ import { Link } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Btn, Pill, fieldInput } from "@/components/portal/kit";
-import { OfficeTable } from "@/components/portal/office-tabs";
 import { SendNoticeLinkInline } from "@/components/portal/worker-compliance";
 import { openFileViewer } from "@/components/portal/file-viewer";
 import { officeEecFileUrl, officeVerifyEec, officeVerifyElectrician, officeRecordEscRegistered } from "@/lib/worker-compliance.functions";
@@ -18,48 +17,82 @@ import { checkMittiAccess } from "@/lib/mitti-membership.functions";
 import { mittiInviteLine } from "@/lib/mitti-membership.core";
 import { type PersonAction } from "@/lib/office-partners.core";
 import { WorkerRoleSwitch } from "@/components/portal/worker-role-switch";
+import { personApproval, dobLabel, escRegisteredLabel, escSwitchPayload, groupPeople } from "@/lib/person-approval.core";
+import { displayName } from "@/lib/display-name.core";
 
 export type PersonView = {
-  dateOfBirth?:string|null;escRegistered?:boolean;
+  dateOfBirth?:string|null;escRegistered?:boolean;escRegisteredAt?:string|null;
   id: string; name: string; email: string | null; businessId: string; business: string; role: string; profileId: string | null; certNumber: string | null; hasCertFile: boolean;
   /** Decision 319: worker-compliance.core whiteCardState + the card number recorded so far. */
   whiteCard?: string | null; whiteCardNumber?: string | null;
   /** Jo 28 Oct: Lead / Crew for installers; null = not applicable. */
   workerRole?: "lead" | "crew" | null;
   licenceNumber?: string | null; recNumber?: string | null; licenceExpiresOn?: string | null; licenceVerifiedAt?: string | null;
-  ciiLabel: string; ciiTone: "green" | "rose" | "amber" | "plain"; noticeLabel: string; noticeTone: "green" | "rose" | "plain"; mittiLabel: string; inMitti: boolean; action: PersonAction; clearedReason: string | null;
+  ciiLabel: string; ciiTone: "green" | "rose" | "amber" | "plain"; noticeLabel: string; noticeTone: "green" | "rose" | "plain"; inMitti: boolean; action: PersonAction; ciiOk?: boolean; noticeOk?: boolean; clearedReason: string | null;
 };
-
-const ROLE: Record<string, string> = { installer: "Installer", electrician: "Electrician" };
 
 export function PeopleTable({ people, showBusiness = true, invalidate }: { people: PersonView[]; showBusiness?: boolean; invalidate: string[] }) {
   const [verify, setVerify] = useState<PersonView | null>(null);
   const [electrician, setElectrician] = useState<PersonView | null>(null);
   const qc = useQueryClient();
   const [invite, setInvite] = useState<PersonView | null>(null);
+  const refreshAll = async () => { for (const k of invalidate) await qc.invalidateQueries({ queryKey: [k] }); await qc.invalidateQueries({ queryKey: ["needs-me-v2"] }); };
+  const groups = groupPeople(people);
   return (
     <>
-      <OfficeTable why="153 CII, 130 privacy notice, 22/188 Mitti invite per person" isEmpty={!people.length} empty="No people listed yet."
-        head={["Person", ...(showBusiness ? ["Business"] : []), "Role", "CII", "Privacy notice", "Mitti", ""]}>
-        {people.map((p) => (
-          <tr key={p.id}>
-            <td className="font-semibold">{p.name}<span className="block text-xs font-normal text-sub">{p.email}</span></td>
-            {showBusiness && <td><Link to="/admin/partners/business/$businessId" params={{ businessId: p.businessId }} className="text-hiv-blue hover:underline">{p.business}</Link></td>}
-            <td>{ROLE[p.role] ?? p.role}{p.workerRole && <div className="mt-1"><WorkerRoleSwitch tone="office" workerId={p.id} role={p.workerRole} onDone={() => { for (const k of invalidate) void qc.invalidateQueries({ queryKey: [k] }); }} /></div>}</td>
-            <td data-why="decision 153: clearance derived from verified CII + level + expiry">{p.ciiTone === "plain" ? p.ciiLabel : <Pill tone={p.ciiTone}>{p.ciiLabel}</Pill>}</td>
-            {/* White Card column retired (Jo 5 Nov 2026: "we don't care about White Card") — worker-compliance.core WHITE_CARD_REQUIRED */}
-            <td data-why="decision 130: per-person ESC privacy notice">{p.noticeTone === "plain" ? p.noticeLabel : <Pill tone={p.noticeTone}>{p.noticeLabel}</Pill>}</td>
-            <td data-why="decisions 22/188: Mitti membership checked per person">{p.mittiLabel}</td>
-            <td>
-              {p.role==='installer'&&<><span className="block text-xs text-sub">Date of birth: {p.dateOfBirth??'Not recorded'}</span>{p.escRegistered?<Pill tone="green">ESC registered</Pill>:<EscRegistration workerId={p.id} onDone={async()=>{for(const k of invalidate)await qc.invalidateQueries({queryKey:[k]});await qc.invalidateQueries({queryKey:['needs-me-v2']});}}/>}</>}
-              {p.role === "electrician" && <Btn tone="secondary" onClick={() => setElectrician(p)}>Verify licence + REC</Btn>}
-              {p.action === "verify_cii" && <Btn tone="secondary" data-why="decision 153: office verifies CII with level + expiry" onClick={() => setVerify(p)}>Verify CII</Btn>}
-              {p.action === "send_notice" && <span data-why="decision 130: secure link, guarded senders"><SendNoticeLinkInline workerId={p.id} /></span>}
-              {p.action === "invite_mitti" && <Btn tone="secondary" data-why="decisions 22/188: Mitti invite per person (office confirm)" onClick={() => setInvite(p)}>Invite to Mitti</Btn>}
-            </td>
-          </tr>
+      {!people.length && <div className="rounded-[18px] border border-line bg-paper p-6 text-sm text-sub">No people listed yet.</div>}
+      {!!people.length && <div className="space-y-4" data-why="153 CII, 130 ESC notice, 22/188 Mitti invite per person">
+        {groups.map((g) => (
+          <section key={g.key} aria-label={g.title}>
+            <h3 className="mb-1.5 text-sm font-semibold text-ink">{g.title} <span className="font-normal text-sub">· {g.people.length}</span></h3>
+            {g.people.length === 0 ? <p className="rounded-[13px] border border-line bg-paper px-3 py-2 text-xs text-sub">Nobody here.</p> : (
+              <div className="overflow-x-auto rounded-[18px] border border-line bg-paper shadow-card">
+                <table className="w-full min-w-[560px] text-xs">
+                  <thead className="bg-table-head text-left font-semibold text-sub"><tr>
+                    {(g.key === "electricians" ? ["Name", "Licence", "Mitti", ""] : ["Name", "CII", "ESC notice", "ESC registered", "Date of birth", "Mitti", "Approved"]).map((h, i) => <th key={i} scope="col" className="px-2.5 py-1.5">{h}</th>)}
+                  </tr></thead>
+                  <tbody className="[&>tr]:border-t [&>tr]:border-line [&_td]:px-2.5 [&_td]:py-1.5 [&_td]:align-top">
+                    {g.people.map((p) => {
+                      const approval = personApproval({ ciiVerified: p.ciiOk === true, noticeSigned: p.noticeOk === true, workerRole:p.workerRole, dateOfBirth: p.dateOfBirth });
+                      const cii = p.ciiTone === "plain" ? <span>{p.ciiLabel}</span> : <Pill tone={p.ciiTone}>{p.ciiLabel}</Pill>;
+                      const mitti = <span data-why="decisions 22/188: Mitti membership checked per person">{p.inMitti ? "Yes" : "No"}</span>;
+                      const actions = (
+                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                          {p.role === "electrician" && <Btn tone="secondary" className="min-h-8 px-2.5 py-1 text-xs" onClick={() => setElectrician(p)}>Verify licence + REC</Btn>}
+                          {p.action === "verify_cii" && <Btn tone="secondary" className="min-h-8 px-2.5 py-1 text-xs" data-why="decision 153: office verifies CII with level + expiry" onClick={() => setVerify(p)}>Verify CII</Btn>}
+                          {p.action === "send_notice" && <span data-why="decision 130: secure link, guarded senders"><SendNoticeLinkInline workerId={p.id} /></span>}
+                          {p.action === "invite_mitti" && !p.inMitti && <Btn tone="secondary" className="min-h-8 px-2.5 py-1 text-xs" data-why="decisions 22/188: Mitti invite per person (office confirm)" onClick={() => setInvite(p)}>Invite to Mitti</Btn>}
+                        </div>
+                      );
+                      const nameCell = (
+                        <td>
+                          <span className="text-sm font-semibold">{displayName(p.name)}</span> <span className="break-all text-sub">{p.email}</span>
+                          {showBusiness && <> <Link to="/admin/partners/business/$businessId" params={{ businessId: p.businessId }} className="text-hiv-blue hover:underline">{displayName(p.business)}</Link></>}
+                          {p.workerRole && <div className="mt-1"><WorkerRoleSwitch tone="office" workerId={p.id} role={p.workerRole} onDone={() => void refreshAll()} /></div>}
+                          {actions}
+                        </td>
+                      );
+                      return g.key === "electricians" ? (
+                        <tr key={p.id}>{nameCell}<td>{cii}</td><td>{mitti}</td><td /></tr>
+                      ) : (
+                        <tr key={p.id}>
+                          {nameCell}
+                          <td data-why="decision 153: clearance derived from verified CII + level + expiry">{cii}</td>
+                          <td data-why="decision 130: per-person ESC notice">{p.noticeOk ? <Pill tone="green">Signed</Pill> : <Pill tone="rose">Not signed</Pill>}</td>
+                          <td>{p.workerRole !== "crew" ? <EscRegisteredCell person={p} onDone={refreshAll} /> : "—"}</td>
+                          <td className={p.workerRole === "crew" || p.dateOfBirth ? "" : "text-rose"}>{p.workerRole === "crew" ? "—" : p.dateOfBirth ? dobLabel(p.dateOfBirth) : "No"}</td>
+                          <td>{mitti}</td>
+                          <td data-approval={approval.approved ? "approved" : "not-approved"}>{approval.approved ? <Pill tone="green">Approved</Pill> : <><span className="font-semibold text-sub">{approval.label}</span>{approval.missingLine && <span className="block text-sub">{approval.missingLine}</span>}</>}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
         ))}
-      </OfficeTable>
+      </div>}
       {verify && <VerifyCiiDialog person={verify} invalidate={invalidate} onClose={() => setVerify(null)} />}
       {electrician && <VerifyElectricianDialog person={electrician} invalidate={invalidate} onClose={() => setElectrician(null)} />}
       {invite && <MittiInviteDialog person={invite} invalidate={invalidate} onClose={() => setInvite(null)} />}
@@ -67,9 +100,28 @@ export function PeopleTable({ people, showBusiness = true, invalidate }: { peopl
   );
 }
 
-function EscRegistration({workerId,onDone}:{workerId:string;onDone:()=>Promise<void>}){
-  const save=useServerFn(officeRecordEscRegistered);const [date,setDate]=useState('');const [busy,setBusy]=useState(false);
-  return <div className="space-y-1"><label className="text-xs">ESC registration date<input type="date" className={fieldInput} value={date} onChange={e=>setDate(e.target.value)}/></label><Btn tone="secondary" disabled={!date||busy} onClick={async()=>{setBusy(true);try{await save({data:{workerId,registered:true,date}});await onDone();toast.success('ESC registration recorded');}catch(e){toast.error(e instanceof Error?e.message:'Could not record registration.');}finally{setBusy(false);}}}>Record ESC registered</Btn>{(!date||busy)&&<p className="text-xs text-sub">{busy?'Saving the ESC registration; please wait.':'Enter the recorded registration date. Only ESC-registered scheme participants can be the Lead Installer.'}</p>}</div>;
+/** Small Yes/No switch. On = records ESC registered with today's Melbourne date; off = clears it. Both go through the existing
+ *  admin-only, audited officeRecordEscRegistered (the database function writes the audit row); the server keeps its own rules. */
+function EscRegisteredCell({ person, onDone }: { person: PersonView; onDone: () => Promise<void> }) {
+  const save = useServerFn(officeRecordEscRegistered);
+  const [busy, setBusy] = useState(false);
+  const on = person.escRegistered === true;
+  return (
+    <button type="button" role="switch" aria-checked={on} disabled={busy} aria-label={`ESC registered for ${displayName(person.name)}`} title={on ? escRegisteredLabel(person.escRegisteredAt) : "Not ESC registered"}
+      className="inline-flex min-h-8 items-center gap-1.5 text-xs font-semibold disabled:opacity-60"
+      onClick={async () => {
+        setBusy(true);
+        try {
+          await save({ data: { workerId: person.id, ...escSwitchPayload(on) } }); // date rule: see escRegistrationDate
+          await onDone();
+          toast.success(on ? "ESC registration cleared" : "Marked ESC registered");
+        } catch (e) { toast.error(e instanceof Error ? e.message : "Could not change ESC registration. Nothing was saved."); }
+        finally { setBusy(false); }
+      }}>
+      <span className={`relative h-5 w-9 rounded-full transition-colors ${on ? "bg-hiv-green" : "bg-line"}`}><span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${on ? "left-[18px]" : "left-0.5"}`} /></span>
+      {on ? "Yes" : "No"}
+    </button>
+  );
 }
 
 function VerifyElectricianDialog({ person, invalidate, onClose }: { person: PersonView; invalidate: string[]; onClose: () => void }) {

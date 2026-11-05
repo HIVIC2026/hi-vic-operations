@@ -18,7 +18,6 @@ import {
   setInstallerPriceFn,
 } from "@/lib/installer-price.functions";
 import {
-  ENTER_PRICE_INTRO,
   ENTER_PRICE_STEP,
   PRICE_INCLUDED_OPTIONS,
   PRICE_ISSUES,
@@ -26,13 +25,13 @@ import {
   PRICE_LOCKED,
   PRICE_NOT_SENT_PREFIX,
   accessFlagLine,
-  enterPriceButton,
   priceCardLines,
   validateInstallerPrice,
 } from "@/lib/installer-price.core";
 const REMOVAL_OPTION = PRICE_INCLUDED_OPTIONS[1]; // "Removal of existing insulation"
 import { PRICE_CARD_ANCHOR } from "@/lib/boss-price-link.core";
 import { LinkRow, Note, PrimaryButton, Row } from "@/components/trade/installer-kit";
+import { OWN_CUSTOMER_QUOTE_PREPARING_LINE } from "@/lib/installer-quote-status.core";
 
 export function InstallerPriceCard({ jobId }: { jobId: string }) {
   const load = useServerFn(getInstallerPriceFn);
@@ -89,7 +88,6 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
   });
   const showForm = !view.locked && (editing || !current);
   // Jo 4 Nov 2026: no PIESA rate on the business → the button is "Save" and the card says why; nothing can be sent.
-  const canSend = view.sendOnPress && view.piesaPriceSet;
   const layout = view.layout;
   const toPick = (v: string | undefined) => {
     if (!v) return null;
@@ -98,7 +96,7 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
   };
   const thickerNumber = Number(thickerTotal.replace(/[$,\s]/g, ""));
   const layoutReady =
-    !layout ||
+    !layout || !mainPicks.some(Boolean) ||
     (layout.areas.every((_, k) => !!mainPicks[k]) &&
       (!layout.thickerTarget ||
         (layout.areas.every((_, k) => !!thickerPicks[k]) && thickerNumber > 0)));
@@ -142,6 +140,7 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
         </>
       )}
       {view.locked && <Note>{PRICE_LOCKED}</Note>}
+      {current && !view.locked && !showForm && <p role="status" className="py-3 text-[15px] text-sub">{OWN_CUSTOMER_QUOTE_PREPARING_LINE}</p>}
       {notSent.length > 0 && !view.locked && (
         <Note data-price-not-sent>
           {PRICE_NOT_SENT_PREFIX}
@@ -153,7 +152,7 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
           className="space-y-3 py-2"
           onSubmit={async (e) => {
             e.preventDefault();
-            if (!check.ok || !layoutReady) return;
+            if (!check.ok || !layoutReady || !view.quoteCore.ready) return;
             setBusy(true);
             setNotSent([]);
             try {
@@ -165,8 +164,9 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
                   includedOther: other || null,
                   productOption: productOption || null,
                   notes: notes.trim() || null,
-                  send: canSend,
-                  layout: layout
+                  send: false,
+                  sendToQuote: true,
+                  layout: layout && mainPicks.some(Boolean)
                     ? {
                         mainPicks: layout.areas.map((_, k) => toPick(mainPicks[k])),
                         thickerPicks: layout.thickerTarget ? layout.areas.map((_, k) => toPick(thickerPicks[k])) : [],
@@ -189,7 +189,7 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
           }}
         >
           <Note className="mt-0">
-            {ENTER_PRICE_INTRO}
+            Home Insulation Victoria will prepare the quote for office check.
             {access ? " Any difficult access is yours to price in." : ""}
           </Note>
           {view.sendOnPress && !view.piesaPriceSet && <Note data-piesa-price-not-set>{view.piesaPriceNote ?? PIESA_PRICE_NOT_SET}</Note>}
@@ -325,9 +325,11 @@ export function InstallerPriceCard({ jobId }: { jobId: string }) {
             </ul>
           )}
           <p className="text-sm text-sub" data-price-note>{ENTER_PRICE_STEP.note}</p>
+          {view.quoteCore.information.length > 0 && <Note><p>Still missing (for information only):</p><ul>{view.quoteCore.information.map(label => <li key={label}>{label}</li>)}</ul></Note>}
+          {!view.quoteCore.ready && <Note>Add first: {view.quoteCore.missing.join(" · ")}</Note>}
           <div className="flex gap-2">
-            <PrimaryButton type="submit" disabled={busy || !check.ok || !layoutReady} data-price-button>
-              {busy ? (canSend ? "Sending…" : "Saving…") : enterPriceButton(canSend)}
+            <PrimaryButton type="submit" disabled={busy || !check.ok || !layoutReady || !view.quoteCore.ready} data-price-button>
+              {busy ? "Saving…" : "Send to quote"}
             </PrimaryButton>
             {current && (
               <button

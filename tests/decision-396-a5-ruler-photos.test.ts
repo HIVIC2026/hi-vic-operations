@@ -158,20 +158,21 @@ describe("decision 396: the rule — Installation complete needs every area's ru
   });
   test("Jo 5 Nov 2026 ('why the hell is there a ruler page'): the one depth-photo question IS the ruler proof — no ruler page needed", () => {
     // Two areas, two geotagged + timed depth photos taken after work started: nothing holds completion.
-    const s = evalA5([]);
+    const acceptedCtx = {...ctx("2026-10-29"),zones:zones.map(z=>({...z,existingDepthAccepted:true}))};
+    const s = evaluateInstallEvidence(readInstallEvidence(a5([])),acceptedCtx,SIG);
     expect(s.rulerBlockers).toEqual([]);
     expect(s.blockers).toEqual([]);
     expect(s.rulerPhotos).toEqual([{ zone: 1, name: "All areas", existingRequired: false, existing: [], after: expect.arrayContaining([expect.objectContaining({ mediaId: "dp1" }), expect.objectContaining({ mediaId: "dp2" })]) }]);
     expect(installCompletionDecision({ formCompleted: true, declarationSaved: true, summary: s, alreadyCompleted: false, allFilledInTicked: true }).record).toBe(true);
     // One photo for two areas, or one without location / taken before work started: holds, in plain words.
     const one = { items: a5([]).items.map((i) => (i.label === E.depthPhotos ? photo(E.depthPhotos, geo("dp1", "2026-10-30T03:05:00Z")) : i)) };
-    const s1 = evaluateInstallEvidence(readInstallEvidence(one), ctx("2026-10-29"), SIG);
+    const s1 = evaluateInstallEvidence(readInstallEvidence(one), acceptedCtx, SIG);
     expect(s1.rulerBlockers).toEqual(["Depth photos with a ruler (one per area — 2 ceiling areas): 1 of 2 uploaded"]);
     const early = { items: a5([]).items.map((i) => (i.label === E.depthPhotos ? photo(E.depthPhotos, geo("dp1", "2026-10-29T19:00:00Z"), geo("dp2", "2026-10-30T03:06:00Z", { lat: null })) : i)) };
-    const s2 = evaluateInstallEvidence(readInstallEvidence(early), ctx("2026-10-29"), SIG);
+    const s2 = evaluateInstallEvidence(readInstallEvidence(early), acceptedCtx, SIG);
     expect(s2.rulerBlockers).toEqual(expect.arrayContaining([expect.stringContaining("location (GPS) not recorded"), "Depth photos with a ruler: 1 taken before work started — take them when the insulation is in"]));
     // Before the effective date the depth photos still hold completion (rulerBlockers), like the ruler page did.
-    const s3 = evaluateInstallEvidence(readInstallEvidence(one), ctx("2026-01-05"), SIG);
+    const s3 = evaluateInstallEvidence(readInstallEvidence(one), {...acceptedCtx,installDate:"2026-01-05"}, SIG);
     expect(s3.applies).toBe(false);
     expect(s3.blockers).toEqual(s1.rulerBlockers);
   });

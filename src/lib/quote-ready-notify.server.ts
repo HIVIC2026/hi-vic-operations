@@ -181,7 +181,7 @@ export async function loadOwnerQuoteFacts(
       rebateIncGst:
         quote.veec_discount_inc_gst == null ? null : Number(quote.veec_discount_inc_gst),
       lines,
-      quoteUrl: `${CUSTOMER_BASE}/my-job/${link.token}?screen=quote`,
+      quoteUrl: `${CUSTOMER_BASE}/my-job/${link.token}?screen=quote&quote=${quoteId}`,
       validUntil:
         quote.kind === "installation" && quote.sent_at
           ? lastValidInstant(quoteExpiresAt(quote.sent_at))
@@ -293,7 +293,7 @@ export async function notifyOwnerQuoteReady(
   await assertCustomerDeliveryAllowed(jobId, "Office quote notification");
   const { data: job } = await admin
     .from("jobs")
-    .select("owner_id, property_id, job_number, source, stage, deleted_at, qa_archived_at")
+    .select("owner_id, property_id, job_number, source, stage, deleted_at, qa_archived_at, channel")
     .eq("id", jobId)
     .maybeSingle();
   if (!job) return { sms: "skipped", email: "skipped" };
@@ -306,6 +306,28 @@ export async function notifyOwnerQuoteReady(
     .maybeSingle();
   const { renderOwnerQuoteEmail, ownerQuoteSms, OWNER_QUOTE_EMAIL_APPROVED, OWNER_QUOTE_EMAIL_V4_APPROVED, QUOTE_DOCUMENTS_HELD } =
     await import("./owner-quote-email.core");
+  const ownMessages = await import('./own-customer-messages.server');
+  const replacement = job.channel === 'installer_sourced' ? await ownMessages.ownQuoteReplacement(jobId, quoteId) : null;
+  const ownEmailApproved = job.channel !== 'installer_sourced' || await ownMessages.approvedOwnMessage(replacement ? 'own_owner_updated_quote' : 'own_owner_quote');
+  // New wording holds apply to TEST delivery too; existing quote text/reminders are untouched.
+  const officeNumber = replacement ? (await import('./completion-emails.core')).HIV_AP_CONTACT.officePhone?.trim() || null : null;
+  const ownEmailHeld = !ownEmailApproved ? 'held — awaiting wording approval' : replacement && !officeNumber ? 'held — office number required for updated quote email' : null;
+  let readyCheckVisit = false;
+  if (job.channel === 'installer_sourced' && ownEmailApproved && !replacement) {
+    const { count, error } = await admin.from('bookings').select('id', { count: 'exact', head: true }).eq('job_id', jobId).eq('kind', 'ready_check').in('status', ['confirmed', 'completed']);
+    if (error || count == null) throw new Error('Ready Check visit could not be checked; quote email held.');
+    readyCheckVisit = count > 0;
+  }
+  const { renderOwnCustomerQuoteEmail: renderOwnCustomerQuoteEmailChecked, renderOwnCustomerUpdatedQuoteEmail } = await import('./own-customer-quote-messages.core');
+  const date = (iso: string) => new Intl.DateTimeFormat('en-AU', { timeZone: 'Australia/Melbourne', day: 'numeric', month: 'short' }).format(new Date(iso));
+  const renderQuote = (input: import('./owner-quote-email.core').OwnerQuoteEmailInput) => {
+    if (job.channel !== 'installer_sourced') return renderOwnerQuoteEmail(input);
+    if (replacement) {
+      if (!officeNumber || !input.validUntil || !input.ownCustomer?.installerName) throw new Error('Updated quote email details unavailable.');
+      return renderOwnCustomerUpdatedQuoteEmail({ firstName: input.firstName || 'there', installer: input.ownCustomer.installerName, address: input.address || job.job_number, link: input.quoteUrl, previousSentDate: date(replacement.previousSentAt), validUntil: date(input.validUntil.toISOString()), officeNumber, unsubscribeUrl: input.unsubscribeUrl, test: input.test === true });
+    }
+    return renderOwnCustomerQuoteEmailChecked({ ...input, readyCheckVisit });
+  };
 
   if (job.source === "qa_test") {
     // Partner verification and quote facts are independent reads. Keep partner
@@ -352,7 +374,7 @@ export async function notifyOwnerQuoteReady(
       .catch(() => null);
     // TEST previews the v4 draft (decision #29) with whatever documents are ready; it is never held.
     const docs = await quoteEmailDocuments(jobId, quoteId, facts.input, owner?.full_name ?? null, job.job_number ?? null);
-    const mail = renderOwnerQuoteEmail({ ...facts.input, v4: true, unsubscribeUrl: unsubscribe, test: true });
+    const mail = ownEmailHeld ? null : renderQuote({ ...facts.input, v4: true, unsubscribeUrl: unsubscribe, test: true });
     const ctx = {
       jobId,
       jobSource: job.source,
@@ -360,7 +382,7 @@ export async function notifyOwnerQuoteReady(
       label: `quote_ready:${quoteId}`,
       actorId: null,
     };
-    const email = await sendTestEmail(ctx, owner?.email ?? "", mail.subject, mail.html, mail.text, docs.attachments ? { attachments: docs.attachments } : {});
+    const email = mail ? await sendTestEmail(ctx, owner?.email ?? "", mail.subject, mail.html, mail.text, docs.attachments ? { attachments: docs.attachments } : {}) : { status: 'held', detail: ownEmailHeld };
     const sms = await sendTestSms(
       ctx,
       owner?.phone ?? "",
@@ -441,7 +463,9 @@ export async function notifyOwnerQuoteReady(
   const docs = v4 && facts?.input && owner?.email
     ? await quoteEmailDocuments(jobId, quoteId, facts.input, owner.full_name ?? null, job.job_number ?? null)
     : null;
-  if (docs?.missing) {
+  if (ownEmailHeld) {
+    email = ownEmailHeld;
+  } else if (docs?.missing) {
     email = `held — ${QUOTE_DOCUMENTS_HELD} (${docs.missing})`;
     await logEvent(
       jobId,
@@ -462,8 +486,8 @@ export async function notifyOwnerQuoteReady(
       key: `quote-ready-email:v1:${quoteId}${keySuffix}`,
       build: (unsubscribe) => {
         if (wording === "rendered" && facts?.input) {
-          if (v4 && docs?.attachments) return { ...renderOwnerQuoteEmail({ ...facts.input, v4: true, unsubscribeUrl: unsubscribe, test: false }), attachments: docs.attachments };
-          return renderOwnerQuoteEmail({ ...facts.input, v4: false, unsubscribeUrl: unsubscribe, test: false });
+          if (v4 && docs?.attachments) return { ...renderQuote({ ...facts.input, v4: true, unsubscribeUrl: unsubscribe, test: false }), attachments: docs.attachments };
+          return renderQuote({ ...facts.input, v4: false, unsubscribeUrl: unsubscribe, test: false });
         }
         if (!tpl) throw new Error('Approved quote wording unavailable');
         return { subject: tpl.subject, html: genericMail({subject:tpl.subject,bodyHtml:tpl.body_markdown,unsubscribe}), text: tpl.body_markdown };

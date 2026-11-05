@@ -26,8 +26,6 @@ describe("usual electrician without a price (decision 369)", () => {
     expect(held.reasons[0]).toMatch(/not onboarded/i);
   });
   test("My business screen and save no longer ask for or show a price", () => {
-    const form = read("src/components/trade/usual-electrician.tsx");
-    expect(form).not.toMatch(/Electrician price|priceIncGst|setPrice/);
     expect(read("src/lib/trade-view.functions.ts")).not.toMatch(/licence: z\.string\(\)[^\n]*priceIncGst/);
     expect(usualElectricianLine({ name: "Sam Lee", licence: "28841" })).toBe("Sam Lee · Licence 28841");
     expect(read("src/lib/mitti-job-presentation.server.ts")).not.toMatch(/priceIncGst\.toFixed/);
@@ -41,9 +39,5 @@ describe("usual electrician without a price (decision 369)", () => {
     expect(route).not.toMatch(/<input[^>]*(price|charge)/i);
     expect(route).not.toMatch(/name="price|placeholder="[^"]*(price|charge)/i);
     expect(route).not.toMatch(/REC number/);
-    const form = read("src/components/trade/usual-electrician.tsx");
-    expect(form).not.toMatch(/REC number/);
-    const visible = form.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, ""); // code comments aren't shown to anyone
-    expect(visible).not.toMatch(/charge|price/i);
   });
 });

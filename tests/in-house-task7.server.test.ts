@@ -13,20 +13,23 @@ function fixture(){
  const api:any={};new Function('exports','require',ts.transpile(readFileSync('src/lib/in-house-booking.server.ts','utf8'),{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}))(api,(p:string)=>{if(!(p in deps))throw Error(`Unmocked dependency ${p}`);return deps[p];});
  return{api,rows,sends,now,deps};
 }
-test('actual owner booking helper attempts one email and link-free owner text per booking/person replay',async()=>{const f=fixture();const who={id:'w',name:'Pat',phone:'0411111111'};for(let i=0;i<2;i++)await f.api.notifyOwnerBooked('j','install','2026-11-02T21:00:00Z',who,f.now);expect(f.sends.map(x=>x.channel)).toEqual(['email','sms']);expect(f.sends[1].to).toBe('0400000000');expect(f.sends[1].body).not.toMatch(/https?:/);});
+// #149 (Jo 5 Nov 2026): every "You're booked" switch is ON as shipped. The mechanics tests below (replay, quiet hours, pause)
+// and the "switch off" wording tests pass OFF explicitly; the shipped v2 wording is covered by the ON / PIESA_ON / install tests.
+const OFF={v2Approved:{ready_check:false,piesa:false,install:false}};
+test('actual owner booking helper attempts one email and link-free owner text per booking/person replay',async()=>{const f=fixture();const who={id:'w',name:'Pat',phone:'0411111111'};for(let i=0;i<2;i++)await f.api.notifyOwnerBooked('j','install','2026-11-02T21:00:00Z',who,f.now,OFF);expect(f.sends.map(x=>x.channel)).toEqual(['email','sms']);expect(f.sends[1].to).toBe('0400000000');expect(f.sends[1].body).not.toMatch(/https?:/);});
 test('no booking confirmation for a cancelled or no-longer-current booking',async()=>{const f=fixture();f.rows.bookings[0].status='cancelled';await f.api.notifyOwnerBooked('j','install','2026-11-02T21:00:00Z',{id:'w',name:'Pat',phone:null},f.now);expect(f.sends).toEqual([]);});
 test('same-day live block clears only for acknowledgment of latest Lead Installer change',async()=>{const f=fixture();f.rows.workflow_events.push({id:'c',job_id:'j',event_type:'in_house_lead_changed',created_at:'2026-11-02T20:00:00Z',details:{start:'2026-11-02T21:00:00Z',worker_id:'w'}});expect(await f.api.leadNoticeBlocker('j',new Date('2026-11-02T21:00:00Z'))).toBe(core.LEAD_INSTALLER_NOTICE_WAIT);f.rows.workflow_events.push({id:'ack',job_id:'j',event_type:'in_house_esc_notice_updated',details:{change_id:'c'}});expect(await f.api.leadNoticeBlocker('j',new Date('2026-11-02T21:00:00Z'))).toBeNull();});
 test('quiet-hours booking persists intent and sweep delivers at 7am once',async()=>{
  const f=fixture();let quiet=true;f.deps['./quote-hold.core'].smsQuietReason=()=>quiet?'quiet':null;
- await f.api.notifyOwnerBooked('j','install','2026-11-02T21:00:00Z',{id:'w',name:'Pat',phone:null},new Date('2026-11-02T10:00:00Z'));
+ await f.api.notifyOwnerBooked('j','install','2026-11-02T21:00:00Z',{id:'w',name:'Pat',phone:null},new Date('2026-11-02T10:00:00Z'),OFF);
  expect(f.sends).toHaveLength(0);expect(f.rows.workflow_events.some((e:any)=>e.event_type==='in_house_booked_notice_pending')).toBe(true);
- quiet=false;await f.api.sweepOwnerBookedNotices(new Date('2026-11-02T20:00:00Z'));await f.api.sweepOwnerBookedNotices(new Date('2026-11-02T20:00:00Z'));
+ quiet=false;await f.api.sweepOwnerBookedNotices(new Date('2026-11-02T20:00:00Z'),OFF);await f.api.sweepOwnerBookedNotices(new Date('2026-11-02T20:00:00Z'),OFF);
  expect(f.sends.map((s:any)=>s.channel)).toEqual(['email','sms']);
 });
 test('paused booking notice resumes from recorded intent without rebooking',async()=>{
  const f=fixture();let paused=true;f.deps['./comms.server'].assertCustomerDeliveryAllowed=async()=>{if(paused)throw Error('paused');};
- await f.api.notifyOwnerBooked('j','install','2026-11-02T21:00:00Z',{id:'w',name:'Pat',phone:null},f.now);
- expect(f.sends).toHaveLength(0);paused=false;await f.api.sweepOwnerBookedNotices(f.now);expect(f.sends).toHaveLength(2);expect(f.rows.bookings).toHaveLength(1);
+ await f.api.notifyOwnerBooked('j','install','2026-11-02T21:00:00Z',{id:'w',name:'Pat',phone:null},f.now,OFF);
+ expect(f.sends).toHaveLength(0);paused=false;await f.api.sweepOwnerBookedNotices(f.now,OFF);expect(f.sends).toHaveLength(2);expect(f.rows.bookings).toHaveLength(1);
 });
 for(const lodged of [false,true])test(`Lead Installer swap ${lodged?'after':'before'} lodged notice raises only required office work`,async()=>{
  const f=fixture();
@@ -48,7 +51,7 @@ for(const lodged of [false,true])test(`Lead Installer swap ${lodged?'after':'bef
  if(lodged)expect(f.sends.find(s=>s.channel==='office-email')?.line).toBe('Update ESC: Lead Installer for HV-1 is now Pat Smith.');
  else expect(await f.api.leadNoticeBlocker('j',new Date('2026-11-02T21:00:00Z'))).toBeNull();
 });// Decision #24 + Fix 5 (Jo 2 Nov 2026): the Ready Check "You're booked" uses the approved wording once
-// OWNER_BOOKED_V2_APPROVED.ready_check is on; same purpose + key either way, so a booking gets one version.
+// OWNER_BOOKED_V2_APPROVED.ready_check is on (#149); same purpose + key either way, so a booking gets one version.
 function readyCheckFixture(){
  const f=fixture();
  f.rows.bookings[0]={id:'b',job_id:'j',kind:'ready_check',status:'confirmed',scheduled_start:'2026-11-03T22:00:00Z',created_at:f.now.toISOString()};
@@ -74,16 +77,16 @@ test('Ready Check with the new wording on: approved #24 email + text, office pho
  expect(JSON.stringify(f.sends)).not.toContain('0411 111 111');
  expect(f.rows.workflow_events.some((e:any)=>e.event_type==='in_house_booked_notice_delivered')).toBe(true);
 });
-test('new wording off (as shipped): the Ready Check gets the current wording, same purpose and key',async()=>{
+test('new wording switched off: the Ready Check gets the current wording, same purpose and key',async()=>{
  const f=readyCheckFixture();
- expect(await f.api.notifyOwnerBooked('j','ready_check','2026-11-03T22:00:00Z',who,f.now)).toBe('sent; sent');
+ expect(await f.api.notifyOwnerBooked('j','ready_check','2026-11-03T22:00:00Z',who,f.now,OFF)).toBe('sent; sent');
  const old=core.bookingNotice({kind:'ready_check',start:'2026-11-03T22:00:00Z',who,installer:'Rapid Insulation',phone:'03 9000 0000'});
  expect(f.sends[0]).toMatchObject({key:'in-house-booked:v1:b:w',purpose:'in_house_booked',subject:old.subject});
  expect(f.sends[1].body).toBe(old.sms);
 });
 test('a job that already had the old wording for this booking gets nothing more when the new wording turns on',async()=>{
  const f=readyCheckFixture();
- await f.api.notifyOwnerBooked('j','ready_check','2026-11-03T22:00:00Z',who,f.now);
+ await f.api.notifyOwnerBooked('j','ready_check','2026-11-03T22:00:00Z',who,f.now,OFF);
  await f.api.notifyOwnerBooked('j','ready_check','2026-11-03T22:00:00Z',who,f.now,ON);
  expect(f.sends.filter((s:any)=>s.channel==='email')).toHaveLength(1);
  expect(f.sends.filter((s:any)=>s.channel==='sms')).toHaveLength(1);
@@ -139,9 +142,9 @@ test('PIESA with the new wording on: electrician office phone, installer named i
  expect(sms.body).toBe("Home Insulation Victoria: Hi Sarah, you're booked for your electrical safety check (PIESA): Sat 7 Nov, 10:00am. Dan Lee from Viking Electrical is coming. Need to change it? Call Viking Electrical on 03 9111 1111.");
  expect(JSON.stringify(f.sends)).not.toContain('0422 222 222');
 });
-test('PIESA switched off (as shipped): the current wording keeps going, same purpose and key',async()=>{
+test('PIESA switched off: the current wording keeps going, same purpose and key',async()=>{
  const f=piesaFixture();
- expect(await f.api.notifyOwnerBooked('j','piesa','2026-11-06T23:00:00Z',dan,f.now)).toBe('sent; sent');
+ expect(await f.api.notifyOwnerBooked('j','piesa','2026-11-06T23:00:00Z',dan,f.now,OFF)).toBe('sent; sent');
  const old=core.bookingNotice({kind:'piesa',start:'2026-11-06T23:00:00Z',who:dan,installer:'Rapid Insulation',phone:'03 9000 0000'});
  expect(f.sends[0]).toMatchObject({key:'in-house-booked:v1:b:d',purpose:'in_house_booked',subject:old.subject});
  expect(f.sends[1].body).toBe(old.sms);
@@ -173,7 +176,7 @@ test('install on, no balance on file → held, nothing sent',async()=>{
 });
 test('a PIESA booking that already got the old wording gets nothing more when the new wording turns on',async()=>{
  const f=piesaFixture();
- await f.api.notifyOwnerBooked('j','piesa','2026-11-06T23:00:00Z',dan,f.now);
+ await f.api.notifyOwnerBooked('j','piesa','2026-11-06T23:00:00Z',dan,f.now,OFF);
  await f.api.notifyOwnerBooked('j','piesa','2026-11-06T23:00:00Z',dan,f.now,PIESA_ON);
  expect(f.sends.filter((s:any)=>s.channel==='email')).toHaveLength(1);
 });

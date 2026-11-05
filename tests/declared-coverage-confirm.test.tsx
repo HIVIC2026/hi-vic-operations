@@ -30,6 +30,8 @@ mock.module("@/lib/pilot.functions", () => ({ ...pilot,
 mock.module("@/lib/rate-requests.functions", () => ({ getHigherRates: async () => null, requestHigherRates: async () => null, reviewHigherRates: async () => null }));
 mock.module("@/components/portal/file-viewer", () => ({ openFileViewer: () => {} }));
 mock.module("@/components/portal/worker-compliance", () => ({ SendNoticeLinkInline: () => null }));
+// Jo 5 Nov 2026: the Electricians section has its own tests (installer-electricians*).
+mock.module("@/components/portal/installer-electricians", () => ({ InstallerElectricians: () => null }));
 const { BusinessProfile } = await import("../src/components/portal/business");
 afterEach(() => { cleanup(); businesses.clear(); saves = []; });
 const fixture = (id: string, type: string) => ({ id, name: `TEST ${id}`, business_type: type, onboarding_status: "submitted", service_postcodes: [], coverage_verified_at: null, declared_service_origin: "Frankston VIC 3199", declared_travel_radius_km: 10, declared_excluded_areas: "No islands" });

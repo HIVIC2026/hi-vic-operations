@@ -4,7 +4,21 @@ import { ACTIVATABLE_REC_VERSIONS, MIN_REC_PL_COVER, REC_AGREEMENT_VERSION, type
 
 export type PartnerType = "rec" | "installer";
 
-export function activationWorkers(type: PartnerType, application: RecData | InstData, businessId: string, applicationId: string, certifications?: Map<string, CertVerification>) {
+/**
+ * Jo 5 Nov 2026: when a new business signs up, the owner/signer of the application is the Lead and everyone else is Crew.
+ * The signer is the person whose email matches the application's recorded signer_email. If no listed installer has that
+ * email, the applicant's own row (`is_self`, "Are you one of the installers? Yes") is the Lead. At most one Lead; if
+ * neither matches, everyone is Crew and the office picks the Lead on the Team page.
+ */
+export function activationLeadEmail(installers: { email?: string; is_self?: boolean }[], signerEmail?: string | null): string | null {
+  const norm = (e?: string | null) => (e ?? "").trim().toLowerCase();
+  const signer = norm(signerEmail);
+  if (signer && installers.some((w) => norm(w.email) === signer)) return signer;
+  const self = installers.find((w) => w.is_self === true && norm(w.email));
+  return self ? norm(self.email) : null;
+}
+
+export function activationWorkers(type: PartnerType, application: RecData | InstData, businessId: string, applicationId: string, certifications?: Map<string, CertVerification>, signerEmail?: string | null) {
   if (type === "rec") return effectiveElectricians(application as RecData).map((worker) => ({
     business_id: businessId, trade_role: "electrician" as const,
     full_legal_name: worker.full_legal_name?.trim() ?? "", email: worker.email?.trim().toLowerCase() ?? "",
@@ -12,11 +26,14 @@ export function activationWorkers(type: PartnerType, application: RecData | Inst
     licence_expires_on: worker.licence_expiry ?? null,
     qualification: null, source_application_id: applicationId,
   }));
-  return ((application as InstData).installers ?? []).map((worker) => {
+  const installers = (application as InstData).installers ?? [];
+  const leadEmail = activationLeadEmail(installers, signerEmail);
+  return installers.map((worker) => {
     const email = worker.email?.trim().toLowerCase() ?? "";
     const v = certifications?.get(email) ?? null;
     return {
       business_id: businessId, trade_role: "installer" as const,
+      worker_role: (leadEmail !== null && email === leadEmail ? "lead" : "crew") as "lead" | "crew",
       full_legal_name: worker.full_legal_name?.trim() ?? "", email,
       mobile: worker.mobile?.trim() || null, licence_number: null,
       // partner_workers_check requires a qualification for installers: use stated training, else the CII certificate the office checks.
@@ -117,7 +134,7 @@ export function partnerPreferences(type: PartnerType, raw: RecData | InstData) {
 }
 
 /** Everything the single activation transaction writes, computed purely from the signed application. */
-export function planActivation(type: PartnerType, app: { id: string; partner_enquiry_id: string; agreement_version: string | null; agreement_text: string | null; agreement_sha256: string | null; signer_name: string | null; signed_at: string | null; signed_ip: string | null; signed_user_agent: string | null; acknowledgements: unknown; insurance_certificate_path: string | null }, raw: RecData | InstData, certifications: Map<string, CertVerification>, blockers: string[]) {
+export function planActivation(type: PartnerType, app: { id: string; partner_enquiry_id: string; agreement_version: string | null; agreement_text: string | null; agreement_sha256: string | null; signer_name: string | null; signer_email?: string | null; signed_at: string | null; signed_ip: string | null; signed_user_agent: string | null; acknowledgements: unknown; insurance_certificate_path: string | null }, raw: RecData | InstData, certifications: Map<string, CertVerification>, blockers: string[]) {
   const application = (type === "installer" ? normaliseInstallerDraft(raw as InstData) : raw) as RecData & InstData;
   const capability = type === "rec" ? "electrician" : "installer";
   const items = approvedRateItems(type, application);
@@ -137,7 +154,7 @@ export function planActivation(type: PartnerType, app: { id: string; partner_enq
       gst_registered: application.gst_registered ?? null,
       ...partnerPreferences(type, application),
     },
-    workers: activationWorkers(type, application, "00000000-0000-0000-0000-000000000000", app.id, certifications).map(({ business_id: _b, ...w }) => w),
+    workers: activationWorkers(type, application, "00000000-0000-0000-0000-000000000000", app.id, certifications, app.signer_email ?? null).map(({ business_id: _b, ...w }) => w),
     credential: { kind: "public_liability_insurance", label: "Public liability insurance", number: application.insurance_policy_number ?? null, issuer: application.insurer ?? null, expires_at: application.public_liability_expiry ?? null, critical: true, document_path: app.insurance_certificate_path, verification: "verified" },
     rate_kind: type === "rec" ? "electrical" : "installer",
     card_name: `${application.trading_name || application.legal_entity_name} agreed rates`,

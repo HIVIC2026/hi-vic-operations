@@ -3,7 +3,7 @@ import { NO_ESC_PRESTART_NOTE } from "./no-esc.core";
 import { DEFAULT_REGISTRY_FIELDS, EARLIEST_MS, LEAD_MS, PIISA_FROM_PIESA_DAYS, registryUpdateTimingReasons, sendTimingBlocker, type RegistryChange } from "./esc.core";
 import { melbourneAt, melbourneYmd } from "./piesa-windows.core";
 import { COLLECTION_NOTICE_BLOCK_MESSAGE } from "./esc-collection-notice.core";
-import { whiteCardBlocker, type WhiteCardState } from "./worker-compliance.core";
+import { currentWorkerRequirementLines, type WhiteCardState } from "./worker-compliance.core";
 import { coesOfficeLine } from "./coes-check.core";
 import type { PrestartCertificate } from "./certificate-later.core";
 
@@ -223,7 +223,6 @@ export function prestartFailures(f: PrestartFacts): string[] {
   else if (f.lead.level !== "full") out.push(`Lead installer${f.lead.name ? ` ${f.lead.name}` : ""} holds a provisional certification, not full.`);
   else if (f.lead.expiresOn < day) out.push(`Lead installer's certification expired on ${f.lead.expiresOn}.`);
   if (f.lead.found && f.lead.noticeAcknowledged === false) out.push(`Lead installer${f.lead.name ? ` ${f.lead.name}` : ""}: ${COLLECTION_NOTICE_BLOCK_MESSAGE}`);
-  { const wc = f.lead.found ? whiteCardBlocker(f.lead.whiteCard, f.bookingCreatedAt) : null; if (wc) out.push(`Lead installer${f.lead.name ? ` ${f.lead.name}` : ""}: ${wc}`); }
   for (const c of f.consentBlockers) out.push(`Owner consent: ${c}`);
   if (!f.piesaCompletedAt) out.push("PIESA completion date is missing.");
   else if (day > addDays(f.piesaCompletedAt.slice(0, 10), PIISA_FROM_PIESA_DAYS)) out.push("The installer safety form (PIISA) can only be done within 30 days of the PIESA.");
@@ -299,14 +298,14 @@ export function prestartFailedFor(
   const latest = new Map<string, (typeof checks)[number]>();
   for (const c of checks) { const p = latest.get(c.job_id); if (!p || c.checked_at > p.checked_at) latest.set(c.job_id, c); }
   const out = new Map<string, { at: string; reasons: string[] }>();
-  for (const [id, c] of latest) if (!c.passed && starts.get(id)?.has(Date.parse(c.scheduled_start))) out.set(id, { at: c.checked_at, reasons: c.failures });
+  for (const [id, c] of latest) if (!c.passed && starts.get(id)?.has(Date.parse(c.scheduled_start))) { const reasons=currentWorkerRequirementLines(c.failures); if(reasons.length)out.set(id, { at: c.checked_at, reasons }); }
   return out;
 }
 
 /** Is installation work (PIISA send, install evidence) locked for this booking? */
 export function prestartLocked(i: { start: string; latest: { scheduled_start: string; passed: boolean; failures: string[] } | null; now: Date }): { locked: boolean; reasons: string[] } {
   const same = i.latest && Date.parse(i.latest.scheduled_start) === Date.parse(i.start) ? i.latest : null;
-  if (same && !same.passed) return { locked: true, reasons: same.failures };
+  if (same && !same.passed) { const reasons=currentWorkerRequirementLines(same.failures); return {locked:reasons.length>0,reasons}; }
   if (!same && i.now.getTime() >= Date.parse(prestartRunAt(i.start))) return { locked: true, reasons: ["The pre-start check has not run yet for this install date."] };
   return { locked: false, reasons: [] };
 }

@@ -23,7 +23,7 @@ async function must<T>(p: PromiseLike<{ data: T; error: { message: string } | nu
 }
 
 /** True once the safety check has been done: the job is past "PIESA booked", or this round's PIESA record exists. */
-async function piesaDone(jobId: string, stage: string): Promise<boolean> {
+export async function piesaDone(jobId: string, stage: string): Promise<boolean> {
   const { piesaDoneAtStage } = await import("./own-job-electrician-link.core");
   if (piesaDoneAtStage(stage)) return true;
   const since = await (await import("./repeat-piesa.server")).latestReopenAt(jobId);
@@ -243,19 +243,17 @@ export async function swapOptions(jobId: string, installerBusinessId: string): P
   if (error || !job || job.deleted_at || job.originating_installer_business_id !== installerBusinessId) return no;
   if ((await (await import("./own-job-piesa.server")).ownJobCallAndBook(jobId)) !== true) return no;
   if (await piesaDone(jobId, job.stage as string)) return no;
-  const rels = (await must(admin.from("partner_relationships").select("electrician_business_id").eq("installer_business_id", installerBusinessId).eq("active", true), "Electricians couldn't be read")) ?? [];
-  const names = rels.length ? (await must(admin.from("businesses").select("id, name, trading_name").in("id", rels.map((r) => r.electrician_business_id as string)), "Electricians couldn't be read")) ?? [] : [];
+  // Jo 5 Nov 2026: the ONE Electricians list (installer-electricians.server) — its linked businesses, Main first.
+  const linked = (await (await import("./installer-electricians.server")).electriciansForInstaller(installerBusinessId)).filter((e) => e.kind === "business");
   const active = await must(admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "electrician").eq("active", true), "The electrician couldn't be read");
   const stage = job.stage as string;
   const current = (active?.[0]?.business_id as string | null | undefined) ?? (stage === PIESA_STAGE || stage === BOOKED_STAGE ? null : await (await import("./job-electrician.server")).jobChosenElectrician(jobId)); // at the PIESA stages: active electrician only
-  const { displayName } = await import("./display-name.core");
   const options: { businessId: string; name: string }[] = [];
-  for (const r of rels) {
-    const bid = r.electrician_business_id as string;
+  for (const e of linked) {
+    const bid = e.businessId as string;
     if (bid === current) continue;
     if (!(await eligibility(installerBusinessId, bid)).onboarded) continue;
-    const n = names.find((x) => x.id === bid);
-    options.push({ businessId: bid, name: displayName(n?.trading_name || n?.name) || "Your electrician" });
+    options.push({ businessId: bid, name: e.name || "Your electrician" });
   }
   return { allowed: true, current, options };
 }

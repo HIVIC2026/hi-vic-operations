@@ -16,6 +16,8 @@ export const QA_OFFICE_FUNCTIONS = {
   // Jo 30 Oct: cut-down Test Centre for automatic tests. Every action re-checks the job is an active TEST job.
   "src/lib/test-accounts.functions.ts": ["prepareQaJourneyAccess", "issueQaPersonaLink", "issueQaWorkerLink", "simulateQaJourneyTime", "simulateQaPayment", "archiveQaJourney"],
   "src/lib/portal.functions.ts": ["createTestEnquiry", "getQaJourneys"],
+  // Jo 5 Nov 2026: Choose installer "Give to installer". The server allows only qa_test jobs to TEST partners.
+  "src/lib/in-house-batch.functions.ts": ["allocateInHouseBatch", "getInHouseGiveForJob"],
 } as const;
 export function qaOfficeFunctionAllowed(filename: string, name: string): boolean {
   const path = filename.replaceAll("\\", "/").replace(/^.*?(?=src\/)/, "");

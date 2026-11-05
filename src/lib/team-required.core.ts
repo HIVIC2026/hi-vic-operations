@@ -19,26 +19,27 @@ export function teamWorkerRoleProblem(kind: TeamKind, workerRole: unknown): stri
 }
 
 /** First plain problem, or the cleaned values to save. */
-export function teamMemberDetails(kind: TeamKind, p: { mobile: string | null | undefined; email: string | null | undefined; dateOfBirth: string | null | undefined }, today: string):
-  { ok: true; mobile: string; email: string | null; dateOfBirth: string } | { ok: false; error: string } {
+export function teamMemberDetails(kind: TeamKind, p: { mobile: string | null | undefined; email: string | null | undefined; dateOfBirth: string | null | undefined; workerRole?: string | null | undefined }, today: string):
+  { ok: true; mobile: string; email: string | null; dateOfBirth: string | null } | { ok: false; error: string } {
   const rawMobile = (p.mobile ?? "").trim();
   if (!rawMobile) return { ok: false, error: TEAM_ERRORS.mobile };
   const m = crewMobileInput(rawMobile);
   if (!m.ok || !m.mobile) return { ok: false, error: m.ok ? TEAM_ERRORS.mobile : m.error };
-  const dob = dateOfBirthProblem(p.dateOfBirth, today);
+  const needsDob = kind === "installer" && p.workerRole !== "office" && p.workerRole !== "electrician";
+  const dob = needsDob ? dateOfBirthProblem(p.dateOfBirth, today) : null;
   if (dob) return { ok: false, error: dob };
   const email = (p.email ?? "").trim().toLowerCase() || null;
-  if (kind === "electrician" && !email) return { ok: false, error: TEAM_ERRORS.email };
+  if ((kind === "electrician" || p.workerRole === "office") && !email) return { ok: false, error: TEAM_ERRORS.email };
   if (email && !EMAIL.test(email)) return { ok: false, error: TEAM_ERRORS.badEmail };
-  return { ok: true, mobile: m.mobile, email, dateOfBirth: p.dateOfBirth! };
+  return { ok: true, mobile: m.mobile, email, dateOfBirth: needsDob ? p.dateOfBirth ?? null : null };
 }
 
 /** Which required details an existing person is missing (owner rows excluded by the caller). */
-export function teamMissingDetails(kind: TeamKind, w: { mobile: string | null; email: string | null; hasDateOfBirth: boolean }): string[] {
+export function teamMissingDetails(kind: TeamKind, w: { mobile: string | null; email: string | null; hasDateOfBirth: boolean; workerRole?: string | null | undefined }): string[] {
   const out: string[] = [];
   if (!(w.mobile ?? "").trim()) out.push("mobile");
-  if (!w.hasDateOfBirth) out.push("date of birth");
-  if (kind === "electrician" && !(w.email ?? "").trim()) out.push("email");
+  if (kind === "installer" && w.workerRole !== "office" && !w.hasDateOfBirth) out.push("date of birth");
+  if ((kind === "electrician" || w.workerRole === "office") && !(w.email ?? "").trim()) out.push("email");
   return out;
 }
 

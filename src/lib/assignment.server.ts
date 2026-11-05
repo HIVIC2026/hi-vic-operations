@@ -118,11 +118,11 @@ async function installerFacts(jobId: string) {
       abn: null,
       licence: null,
     };
-  const { data: p } = await admin
+  const { data: p } = a.user_id ? await admin
     .from("profiles")
     .select("full_name, licence_number, business_id")
     .eq("id", a.user_id)
-    .maybeSingle();
+    .maybeSingle() : { data: null };
   const bid = a.business_id ?? p?.business_id ?? null;
   const { data: b } = bid
     ? await admin.from("businesses").select("name, abn, licence_number").eq("id", bid).maybeSingle()

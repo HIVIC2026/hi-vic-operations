@@ -248,13 +248,13 @@ describe("PIISA installation-day gate", () => {
     const mixed = copy("piisa", { ...piisaPass(), "p8.date": "2026-10-10", "p6.present": "Yes", "p6.height": 50, "p6.treatment": ["Removed", "Topped Up"], "p6.suitable": "Yes", "p6.reason": "Rear kept" }, "2026-10-10");
     expect(base({ piisa: mixed, conductiveExistingInsulation: null }).blockers.some((b) => b.includes(CONDUCTIVITY_UNCONFIRMED))).toBe(true);
   });
-  test("rule B: conductivity blank is never No; needs answer and evidence", () => {
+  test("rule B: conductivity blank is never No; needs the answer (the photo is off the forms, Jo 5 Nov 2026)", () => {
     const a = { ...piisaPass(), "p8.date": "2026-10-10", "p6.present": "Yes", "p6.height": 50, "p6.treatment": ["Topped Up"], "p6.suitable": "Yes", "p6.reason": "Good condition, topped up" };
     const p = copy("piisa", a, "2026-10-10");
     expect(base({ piisa: p, conductiveExistingInsulation: null }).blockers.some((b) => b.includes(CONDUCTIVITY_UNCONFIRMED))).toBe(true);
     const noPhoto = base({ piisa: p, conductivityEvidence: null }).blockers;
        expect(noPhoto.some((b) => b.includes(CONDUCTIVITY_UNCONFIRMED))).toBe(false); // the Yes/No answer is recorded
-       expect(noPhoto.some((b) => b.includes("Home Insulation Victoria supporting evidence"))).toBe(true); // separate Home Insulation Victoria photo requirement
+       expect(noPhoto.some((b) => b.includes("Home Insulation Victoria supporting evidence"))).toBe(false); // the foil photo is no longer asked for
     expect(base({ piisa: p }).blockers.some((b) => b.includes(CONDUCTIVITY_UNCONFIRMED))).toBe(false);
   });
   test("storage missing fails closed", () => expect(base({ storageUnavailable: true }).due).toBe("blocked"));

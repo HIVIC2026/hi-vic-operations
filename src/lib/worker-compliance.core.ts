@@ -74,9 +74,7 @@ export function approvalFlags(w: WorkerCompliance, today: string): string[] {
       if (c.reason === CREW_CLEARANCE_REASON.expired) out.push("CII certificate expired");
     }
     if (w.collection_notice_acknowledged === false) out.push("ESC notice not acknowledged");
-    // Decision 319: existing people with no White Card are shown as missing (an office item), never auto-blocked here.
-    const wc = whiteCardState(w);
-    if (wc === "missing" || wc === "awaiting_check" || wc === "rejected") out.push(WHITE_CARD_OFFICE_FLAG[wc]);
+
   }
   return out;
 }
@@ -158,9 +156,6 @@ export function missingItems(w: WorkerCompliance): ("licence_expiry" | "esc_noti
   const m: ("licence_expiry" | "esc_notice" | "white_card")[] = [];
   if (w.trade_role === "electrician" && !w.licence_expires_on) m.push("licence_expiry");
   if (w.trade_role === "installer" && w.collection_notice_acknowledged === false) m.push("esc_notice");
-  // Decision 319: every installer person needs their own White Card on file (missing or not accepted → upload again).
-  const wc = whiteCardState(w);
-  if (wc === "missing" || wc === "rejected") m.push("white_card");
   return m;
 }
 
@@ -184,8 +179,6 @@ export type WhiteCardRecord = {
 };
 export type WhiteCardState = "not_applicable" | "missing" | "awaiting_check" | "verified" | "rejected";
 export const WHITE_CARD_BLOCK_MESSAGE = "White Card not verified";
-/** Jo 29 Oct 2026: people added on Team (`partner_workers.declarations_due`) can't go on any job until they sign by link. */
-export const DECLARATIONS_DUE_MESSAGE = "Hasn't signed their worker declarations yet.";
 /** 00:00 on 26 Oct 2026 in Melbourne (AEDT, UTC+11). Installation bookings created before this instant are never blocked. */
 export const WHITE_CARD_ENFORCED_FROM = "2026-10-25T13:00:00.000Z";
 /** Jo 5 Nov 2026 (go-live): "we don't care about White Card — get rid of it". Nothing asks for, shows or blocks on the
@@ -202,12 +195,7 @@ export function whiteCardOf(certification: unknown): WhiteCardRecord | null {
 
 /** White Card state for installers. Verified only by an office check against an uploaded file; rejected until a new upload. */
 export function whiteCardState(w: { trade_role?: string | null; certification?: unknown }): WhiteCardState {
-  if (!WHITE_CARD_REQUIRED || w.trade_role !== "installer") return "not_applicable";
-  const r = whiteCardOf(w.certification);
-  if (!r?.path) return "missing";
-  if (r.verified_at) return "verified";
-  if (r.rejected_at) return "rejected";
-  return "awaiting_check";
+  return "not_applicable";
 }
 
 /** Business-owner / worker facing line (no paths, no office-only data). */
@@ -226,16 +214,12 @@ export const WHITE_CARD_OFFICE_FLAG: Record<"missing" | "awaiting_check" | "reje
 
 /** Is the White Card rule enforced for an installation booked at `bookingCreatedAt`? No booking yet = new work = enforced. */
 export function whiteCardEnforced(bookingCreatedAt: string | null | undefined): boolean {
-  if (!WHITE_CARD_REQUIRED) return false;
-  if (!bookingCreatedAt) return true;
-  const t = Date.parse(bookingCreatedAt);
-  return !Number.isFinite(t) || t >= Date.parse(WHITE_CARD_ENFORCED_FROM);
+  return false;
 }
 
 /** Why this person can't be lead or crew on this installation (null = allowed). Undefined/null state = not loaded → no block (older callers). */
 export function whiteCardBlocker(state: WhiteCardState | null | undefined, bookingCreatedAt: string | null | undefined): string | null {
-  if (state === undefined || state === null || state === "not_applicable" || state === "verified") return null;
-  return whiteCardEnforced(bookingCreatedAt) ? WHITE_CARD_BLOCK_MESSAGE : null;
+  return null;
 }
 
 /** New upload: replaces the record (clears any earlier verification/rejection), preserving every other certification field. */
@@ -288,10 +272,13 @@ export function requiredOnFileBlockers(people: PersonOnFile[]): string[] {
   const out: string[] = [];
   for (const p of people) {
     const name = p.name.trim() || "Unnamed person";
-    if (!p.dateOfBirth) out.push(REQUIRED_ON_FILE_WORDS.dob(name));
+    if (p.role === "lead" && !p.dateOfBirth) out.push(REQUIRED_ON_FILE_WORDS.dob(name));
     if (!p.mobile?.trim()) out.push(REQUIRED_ON_FILE_WORDS.mobile(name));
     if ((p.role === "lead" || p.role === "crew") && !p.ciiVerified) out.push(REQUIRED_ON_FILE_WORDS.cii(name));
     if (p.role === "electrician" && !p.licenceRecVerified) out.push(REQUIRED_ON_FILE_WORDS.licence(name));
   }
   return out;
 }
+
+/** Retired White Card lines never remain actionable; stored audit/history stays untouched. */
+export const currentWorkerRequirementLines = (lines: readonly string[]): string[] => lines.filter(line => !/white[ _-]?card/i.test(line));

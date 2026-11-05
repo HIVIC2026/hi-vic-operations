@@ -19,7 +19,7 @@ export async function leadInstallerCert(jobId: string): Promise<LeadCert & { ema
   const selection=(selected?.details as {selection?:{lead?:unknown}}|null)?.selection;
   const selectedWorkerId=typeof selection?.lead==='string'?selection.lead:null;
   let workerQuery=admin.from("partner_workers").select("id, email, full_legal_name, mobile, business_id, trade_role, removed_at, certification, esc_registered").eq("business_id", a.business_id ?? "").is("removed_at", null);
-  workerQuery=selectedWorkerId?workerQuery.eq('id',selectedWorkerId):workerQuery.eq('profile_id',a.user_id);
+  workerQuery=selectedWorkerId?workerQuery.eq('id',selectedWorkerId):workerQuery.eq('profile_id',a.user_id ?? "");
   const {data:w}=await workerQuery.limit(1).maybeSingle();
   if (!w) return none;
   const email = (w.email ?? "").trim().toLowerCase() || null;
@@ -141,7 +141,9 @@ export async function installationBookingCreatedAt(jobId: string, start?: string
 
 async function latestCheck(jobId: string) {
   const { data } = await admin.from("pre_start_checks").select("scheduled_start, passed, failures, checked_at").eq("job_id", jobId).order("checked_at", { ascending: false }).limit(1).maybeSingle();
-  return data ? { scheduled_start: data.scheduled_start, passed: data.passed, failures: (data.failures as string[]) ?? [] } : null;
+  if(!data)return null;
+  const failures=(await import("./worker-compliance.core")).currentWorkerRequirementLines((data.failures as string[])??[]);
+  return {scheduled_start:data.scheduled_start,passed:data.passed||failures.length===0,failures};
 }
 
 /** Slot keys already recorded in pre_start_checks for this exact install start (Part 9 Task 6: one row per slot). */
@@ -281,9 +283,6 @@ export async function prestartNeeds(now = new Date()) {
   const esc: { job_id: string; code: string; detail: string }[] = [];
   const failed: { job_id: string; since: string; detail: string }[] = [];
   const certs: { job_id: string; detail: string }[] = [];
-  // Decision 319: an office item for every upcoming install whose lead has no verified White Card (blocked or not).
-  const whiteCards: { job_id: string; detail: string }[] = [];
-  const { whiteCardEnforced } = await import("./worker-compliance.core");
   for (const b of bk ?? []) {
     const n = await latestNotices(b.job_id);
     const t = escTask({ start: b.scheduled_start, current: n.current, previousSent: n.previousSent, change: registryChangeFor(b.scheduled_start, n, now), now });
@@ -292,12 +291,9 @@ export async function prestartNeeds(now = new Date()) {
     if (c && !c.passed && Date.parse(c.scheduled_start) === Date.parse(b.scheduled_start)) failed.push({ job_id: b.job_id, since: now.toISOString(), detail: c.failures.join(" ") });
     const l = await leadInstallerCert(b.job_id);
     if (l.found && l.status === "verified" && (!l.level || !l.expiresOn)) certs.push({ job_id: b.job_id, detail: `${l.name ?? "Lead installer"}: re-record certification as Full with expiry date.` });
-    if (l.found && l.whiteCard && l.whiteCard !== "verified" && l.whiteCard !== "not_applicable") {
-      const enforced = whiteCardEnforced((b as { created_at?: string | null }).created_at ?? null);
-      whiteCards.push({ job_id: b.job_id, detail: `${l.name ?? "Lead installer"}: White Card ${l.whiteCard === "awaiting_check" ? "uploaded, to verify" : l.whiteCard === "rejected" ? "not accepted" : "missing"}${enforced ? " — this install is blocked until it is verified." : " — booked before 26 Oct 2026, so not blocked."}` });
-    }
+
   }
-  return { esc, failed, certs, whiteCards };
+  return { esc, failed, certs };
 }
 
 /** Office: copy-ready Registry block, AP task, recorded submission and the day-before pre-start result for the job page. */

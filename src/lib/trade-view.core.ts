@@ -1,3 +1,4 @@
+import { certificateExpiryWarning } from './team-certificate-expiry.core';
 // Trade view (Jo-approved designs, 5–6 Oct 2026). PURE presentation: labels existing facts for electricians and
 // installers. Never decides workflow, eligibility, pay or allocation.
 
@@ -311,8 +312,6 @@ export type TeamMemberView = {
   whiteCard?: WhiteCardState | null;
   /** Jo 28 Oct: Lead / Crew for installer staff rows; null/undefined = not applicable. */
   workerRole?: "lead" | "crew" | null;
-  /** Jo 29 Oct: added on Team and not yet signed the worker declarations; can't go on jobs until they do. */
-  declarationsDue: boolean;
   /** Jo 3 Nov: required details still missing ("mobile", "date of birth", "email"); undefined = owner or unknown. */
   missingDetails?: string[];
   /** Task 10 (Team screen) checks, set by tradeBusiness for the boss's Team. Optional so older callers compile.
@@ -322,6 +321,8 @@ export type TeamMemberView = {
   licenceAndRec?: boolean;
   canSeeMoney?: boolean;
   hasDob?: boolean | null;
+  /** Installers only: a certificate is still needed (none uploaded, or the last one was not accepted). */
+  certNeeded?: boolean;
 };
 export const ROLE_LABEL: Record<TeamMemberView["role"], string> = { owner: "owner", office: "office", installer: "installer", electrician: "electrician" };
 
@@ -348,6 +349,8 @@ export function teamFactsLine(m: Pick<TeamMemberView, "mobile" | "role" | "worke
 /** Third line: CII clearance from `crewClearance` (decision 153). Green when cleared, rose otherwise; null when not applicable. */
 export function teamCiiLine(cii: TeamMemberView["cii"], today: string): { text: string; tone: "green" | "rose" } | null {
   if (!cii) return null;
+  const expiryWarning = certificateExpiryWarning(cii.expiresOn, today);
+  if (expiryWarning) return { text: expiryWarning, tone: 'rose' };
   const c = crewClearance(cii, today);
   if (c.cleared) return { text: `CII cleared${cii.expiresOn ? ` · expires ${shortDate(cii.expiresOn)}` : ""}`, tone: "green" };
   const why = c.reason === CREW_CLEARANCE_REASON.expired ? "CII expired" : c.reason === CREW_CLEARANCE_REASON.withdrawn ? "CII not accepted" : "CII being checked";
@@ -356,8 +359,7 @@ export function teamCiiLine(cii: TeamMemberView["cii"], today: string): { text: 
 
 /** Decision 319: White Card line for an installer row. Green when verified, rose otherwise; null when not applicable. */
 export function teamWhiteCardLine(state: WhiteCardState | null | undefined): { text: string; tone: "green" | "rose"; canUpload: boolean } | null {
-  if (!state || state === "not_applicable") return null;
-  return { text: WHITE_CARD_TEAM_LABEL[state], tone: state === "verified" ? "green" : "rose", canUpload: state === "missing" || state === "rejected" };
+  return null;
 }
 
 /** Decision 161 in one line under the team list. */
@@ -365,7 +367,6 @@ export function teamWhiteCardLine(state: WhiteCardState | null | undefined): { t
 export const TEAM_MOBILE_NOTE = "Their own safety plan link is texted here before each install.";
 export const teamMobileButton = (mobile: string | null | undefined) => (mobile?.trim() ? "Change mobile" : "Add mobile");
 export const TEAM_RULE = "Every installer, Lead and Crew, needs a CII certificate checked by our office. Only a Lead can run an install day. Crew can do Ready Checks once our office adds them to Mitti.";
-export const TEAM_SIGN = { due: "Not signed yet · can't go on jobs", needContact: "Add a mobile or email to send their signing link.", link: "Make signing link" } as const;
 /** "Send login invite" asks the office; it sends nothing itself. */
 export const TEAM_LOGIN = { button: "Ask the office to send a login", asked: "Asked the office. They'll send the login." } as const;
 
@@ -460,11 +461,11 @@ export function businessNext(f: BusinessNextFacts, today: string): BusinessNext 
 }
 
 // ---------- M7 sub-page states (approved 24 Oct 2026, decision 236). PURE words over recorded facts. ----------
-/** Team → Add a team member sheet (Jo 29 Oct: no email needed; they sign their declarations by link). */
+/** Team → Add a team member sheet (Jo 29 Oct: no email needed; Jo 5 Nov: no declarations to sign). */
 export const TEAM_ADD_SHEET = {
   title: "Add a team member",
-  bodyInstaller: "Mobile and date of birth are needed. They sign their declarations by link, and we check their CII certificate, before they go on a job.",
-  bodyElectrician: "Mobile, date of birth and email are needed. They sign their declarations by link before they go on a job. Each electrician needs a current electrical licence.",
+  bodyInstaller: "Lead Installers need mobile, date of birth (ESC) and an EEC/CII certificate. Crew need mobile and EEC/CII.",
+  bodyElectrician: "Electricians need mobile, email, licence, REC and insurance.",
   name: "Full name",
   licence: "Electrical licence number",
   role: "Lead or Crew",

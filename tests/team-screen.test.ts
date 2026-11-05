@@ -32,8 +32,8 @@ describe("teamRow — the one line under each name (team-phone.png)", () => {
     expect(teamRow(base({ name: "Ali Khan", workerRole: "crew", cii: { certStatus: null, level: null, expiresOn: null } }), TODAY)).toEqual({ name: "Ali Khan", line: "Crew · needs CII certificate ›", warn: true });
     expect(teamRow(base({ workerRole: "crew", cii: { certStatus: "verified", level: "CII", expiresOn: "2026-01-01" } }), TODAY)).toEqual({ name: "Person", line: "Crew · needs CII certificate ›", warn: true }); // expired = not cleared
   });
-  test("an installer row with no Lead/Crew recorded is a Lead Installer (worker-role rule: null = Lead)", () => {
-    expect(teamRow(base({ workerRole: null }), TODAY).line).toBe("Lead Installer · CII ✓ · ESC registered ✓ ›");
+  test("an installer row with no Lead/Crew recorded is Crew (worker-role rule: null = Crew, Jo 5 Nov 2026)", () => {
+    expect(teamRow(base({ workerRole: null }), TODAY).line).toBe("Crew · CII ✓ ›");
   });
   test("Electrician with and without licence + REC", () => {
     expect(teamRow(base({ name: "Will Casdorff", role: "electrician", workerRole: null, cii: null, licenceAndRec: true }), TODAY)).toEqual({ name: "Will Casdorff", line: "Electrician · licence + REC ✓ ›", warn: false });
@@ -45,7 +45,7 @@ describe("teamRow — the one line under each name (team-phone.png)", () => {
     expect(r).toEqual({ name: "Person", line: "Lead Installer · CII ✓ · ESC registered ✓ · needs date of birth ›", warn: true });
     expect(teamRow(base({ mobile: null }), TODAY)).toEqual({ name: "Person", line: "Lead Installer · CII ✓ · ESC registered ✓ · needs mobile ›", warn: true });
     expect(teamRow(base({ mobile: "  ", hasDob: false }), TODAY).line).toBe("Lead Installer · CII ✓ · ESC registered ✓ · needs date of birth · needs mobile ›");
-    expect(teamRow(base({ role: "office", workerRole: null, cii: null, hasDob: false }), TODAY)).toEqual({ name: "Person", line: "Office · prices ✓ · Money: Off · needs date of birth ›", warn: true });
+    expect(teamRow(base({ role: "office", workerRole: null, cii: null, hasDob: false }), TODAY)).toEqual({ name: "Person", line: "Office · prices ✓ · Money: Off ›", warn: false });
     // Unknown (the private table couldn't be read, or the boss has no staff row): nothing is claimed either way.
     expect(teamRow(base({ hasDob: null }), TODAY).warn).toBe(false);
   });
@@ -56,7 +56,7 @@ describe("teamRow — the one line under each name (team-phone.png)", () => {
 
 describe("Add a person", () => {
   test("approved words", () => {
-    expect(TEAM_INTRO).toBe("Everyone needs a date of birth and mobile. Lead Installers are registered with the ESC by Home Insulation Victoria.");
+    expect(TEAM_INTRO).toBe("Lead Installers: mobile, date of birth (ESC), EEC/CII certificate. Crew: mobile, EEC/CII. Electricians: mobile, email, licence, REC, insurance.");
     expect(TEAM_WORDS.title).toBe("Team");
     expect(TEAM_WORDS.addPerson).toBe("Add a person");
   });
@@ -70,7 +70,8 @@ describe("Add a person", () => {
       const extra = role === "electrician" ? { licenceNumber: "A12345", recNumber: "REC 1234" } : {};
       expect(addPersonProblems({ ...ok, ...extra, role }, TODAY)).toEqual([]);
       expect(addPersonProblems({ ...ok, ...extra, role, mobile: "" }, TODAY)).toContain("Add their mobile number.");
-      expect(addPersonProblems({ ...ok, ...extra, role, dateOfBirth: "" }, TODAY)).toContain("Add their date of birth for ESC registration.");
+      if(role === "lead" || role === "office") expect(addPersonProblems({ ...ok, ...extra, role, dateOfBirth: "" }, TODAY)).toContain("Add their date of birth for ESC registration.");
+      else expect(addPersonProblems({ ...ok, ...extra, role, dateOfBirth: "" }, TODAY)).toEqual([]);
     }
     expect(addPersonProblems({ ...ok, role: "electrician" }, TODAY)).toEqual(["Add their electrical licence number.", "Add their REC number."]);
     expect(addPersonProblems({ ...ok, name: "M" }, TODAY)).toContain("Add their full name.");
@@ -182,11 +183,11 @@ describe("server: Money switch and Add a person go through the Task 1 RPCs (mock
     expect(await tradeAddTeamPerson("u1", { name: "Will Casdorff", role: "electrician", mobile: "0412 000 112", email: "will@sparks.example", dateOfBirth: "1990-05-12", licenceNumber: "A12345", recNumber: "REC 1234" })).toEqual({ workerId: "w1" });
     expect(calls.map((c) => [c.fn, c.args._role, c.args._mobile, c.args._dob, c.args._licence, c.args._rec])).toEqual([
       ["add_team_person_with_identity", "office", "+61412000111", "1990-05-12", null, null],
-      ["add_team_person_with_identity", "electrician", "+61412000112", "1990-05-12", "A12345", "REC 1234"],
+      ["add_team_person_with_identity", "electrician", "+61412000112", null, "A12345", "REC 1234"],
     ]);
     calls.length = 0;
     await expect(tradeAddTeamPerson("u1", { name: "Sam Lee", role: "crew", mobile: null, email: null, dateOfBirth: "1990-05-12", licenceNumber: null, recNumber: null })).rejects.toThrow("Add their Australian mobile, like 0412 345 678.") // #134 (Jo 3 Nov) wording runs first at the join;
-    await expect(tradeAddTeamPerson("u1", { name: "Sam Lee", role: "crew", mobile: "0412 000 111", email: null, dateOfBirth: null, licenceNumber: null, recNumber: null })).rejects.toThrow("Add their date of birth for ESC registration.");
+    await expect(tradeAddTeamPerson("u1", { name: "Sam Lee", role: "lead", mobile: "0412 000 111", email: null, dateOfBirth: null, licenceNumber: null, recNumber: null })).rejects.toThrow("Add their date of birth for ESC registration.");
     expect(calls).toEqual([]);
     // Office / Electrician before the pending SQL is live: the existing message, no other write.
     rpcError = { code: "PGRST202", message: "function not found" };

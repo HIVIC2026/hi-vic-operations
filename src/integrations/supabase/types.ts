@@ -1348,6 +1348,7 @@ export type Database = {
           active: boolean
           added_by: string | null
           business_id: string
+          can_see_money: boolean
           created_at: string
           id: string
           member_role: string
@@ -1357,6 +1358,7 @@ export type Database = {
           active?: boolean
           added_by?: string | null
           business_id: string
+          can_see_money?: boolean
           created_at?: string
           id?: string
           member_role?: string
@@ -1366,6 +1368,7 @@ export type Database = {
           active?: boolean
           added_by?: string | null
           business_id?: string
+          can_see_money?: boolean
           created_at?: string
           id?: string
           member_role?: string
@@ -5859,7 +5862,7 @@ export type Database = {
           id: string
           job_id: string
           role: Database["public"]["Enums"]["assignment_role"]
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           active?: boolean
@@ -5874,7 +5877,7 @@ export type Database = {
           id?: string
           job_id: string
           role: Database["public"]["Enums"]["assignment_role"]
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           active?: boolean
@@ -5889,7 +5892,7 @@ export type Database = {
           id?: string
           job_id?: string
           role?: Database["public"]["Enums"]["assignment_role"]
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -13869,6 +13872,20 @@ export type Database = {
         }
         Returns: string
       }
+      add_team_person_with_identity: {
+        Args: {
+          _actor: string
+          _business: string
+          _dob: string
+          _email: string
+          _licence: string
+          _mobile: string
+          _name: string
+          _rec: string
+          _role: string
+        }
+        Returns: string
+      }
       allocate_in_house_batch_job: {
         Args: {
           _actor: string
@@ -13984,6 +14001,10 @@ export type Database = {
           source: string
         }[]
       }
+      claim_in_house_saved_work: {
+        Args: { _id: string; _lease: string; _now: string }
+        Returns: boolean
+      }
       claim_partner_login_link: {
         Args: { _token_hash: string }
         Returns: {
@@ -14049,6 +14070,23 @@ export type Database = {
           _to: Database["public"]["Enums"]["job_stage"]
         }
         Returns: boolean
+      }
+      commit_in_house_visit: {
+        Args: {
+          _actor: string
+          _booking: string
+          _crew: string
+          _crew_facts: Json
+          _job: string
+          _kind: string
+          _selection: Json
+          _stage: string
+          _start: string
+          _version: string
+          _work: string
+          _worker: string
+        }
+        Returns: Json
       }
       confirm_outlook_mailbox: {
         Args: { _actor: string; _mailbox: string }
@@ -14210,6 +14248,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      in_house_visit_revision: { Args: { _job: string }; Returns: string }
       instalment_plan_active: { Args: { _inv: string }; Returns: boolean }
       invoice_deposit_cleared: { Args: { _inv: string }; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
@@ -14425,6 +14464,22 @@ export type Database = {
         Args: { p_answers: Json; p_token: string }
         Returns: Json
       }
+      save_team_person_details: {
+        Args: {
+          _actor: string
+          _business: string
+          _certificate: Json
+          _dob: string
+          _email: string
+          _licence: string
+          _mobile: string
+          _name: string
+          _rec: string
+          _role: string
+          _worker: string
+        }
+        Returns: string
+      }
       set_bulk_import_plan: {
         Args: { _actor: string; _batch: string; _plan: Json }
         Returns: undefined
@@ -14438,8 +14493,21 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_member_can_see_money: {
+        Args: {
+          _actor: string
+          _business: string
+          _on: boolean
+          _worker: string
+        }
+        Returns: undefined
+      }
       set_ready_check_booking_enabled: {
         Args: { _enabled: boolean }
+        Returns: undefined
+      }
+      set_worker_identity_dob: {
+        Args: { p_actor: string; p_dob: string; p_worker: string }
         Returns: undefined
       }
       shares_job_with: { Args: { _profile: string }; Returns: boolean }
@@ -14517,7 +14585,11 @@ export type Database = {
         | "owner"
         | "property_manager"
         | "qa_office"
-      assignment_role: "electrician" | "installer" | "property_manager"
+      assignment_role:
+        | "electrician"
+        | "installer"
+        | "property_manager"
+        | "office"
       assignment_status:
         | "draft"
         | "consumer_signed_pending_install"
@@ -14780,7 +14852,12 @@ export const Constants = {
         "property_manager",
         "qa_office",
       ],
-      assignment_role: ["electrician", "installer", "property_manager"],
+      assignment_role: [
+        "electrician",
+        "installer",
+        "property_manager",
+        "office",
+      ],
       assignment_status: [
         "draft",
         "consumer_signed_pending_install",

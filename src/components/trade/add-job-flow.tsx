@@ -6,10 +6,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { CustomerFields, FieldError } from "./customer-fields";
 import { addJobOptions, startOnsiteReadyCheck } from "@/lib/onsite-ready-check.functions";
+import { defaultPick } from "@/lib/installer-electricians.core";
 import { LEAD_ORIGINS, leadOriginProblem, type LeadOrigin, type OnsiteInput } from "@/lib/onsite-ready-check.core";
 import {
   ADD_JOB_DRAFT_WORDS, ADD_JOB_OFFLINE_NOTE, ADD_JOB_WORDS, BUSY_LABEL, OWNER_CARD_TITLE, TRY_AGAIN_LABEL, addJobConsentLine, blankCustomer, customerProblems, electricianProblem,
@@ -34,7 +35,8 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
   const [err, setErr] = useState<string | null>(null);
   // Jo 3 Nov ruling: a job whose electrician could not be put on it is still added; the installer is told, then goes to the job.
   const [addedJobId, setAddedJobId] = useState<string | null>(null);
-  const [electricianMissed, setElectricianMissed] = useState(false);
+  const [electricianNotAllocated, setElectricianNotAllocated] = useState(false);
+  const [electricianReason, setElectricianReason] = useState<string | null>(null);
   const [photoHeld, setPhotoHeld] = useState(false);
   const bannerRef = useRef<HTMLParagraphElement>(null);
   const inFlight = useRef(false);
@@ -47,16 +49,19 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
   // Photo-quote installers Part 2: a From photos business adds the photo quote with the job.
   const photos = options.data?.quoteMethod === "photos";
   const [photoQuote, setPhotoQuote] = useState<OwnPhotoQuoteInput | null>(null);
+  // Jo 5 Nov 2026: the Main electrician is the default pick on a new job (only when it can be picked here).
+  useEffect(() => { if (!electrician && options.data) { const m = defaultPick(options.data.electricians); if (m) setElectrician(m); } }, [options.data]); // eslint-disable-line react-hooks/exhaustive-deps
   // Consent integrity: the tick is only ever shown with the exact line for THIS business; if the name changes the tick is reset.
   useEffect(() => { setCustomer((c) => (c.contact_permission || c.consent_by ? { ...c, contact_permission: false, consent_by: null } : c)); }, [businessName]);
   // A1: asked fresh every time (not kept in the phone draft).
   const [leadOrigin, setLeadOrigin] = useState<LeadOrigin | null>(null);
   // A6: one request key per draft, kept across Try again and reloads (in the phone draft).
   const [requestKey, setRequestKey] = useState<string>(() => crypto.randomUUID());
+  const [draftLoaded, setDraftLoaded] = useState(false);
 
   // Poor signal on site: typed details stay on the phone (never the consent tick) until saved.
-  useEffect(() => { try { const d = localStorage.getItem(DRAFT_KEY); if (d) { const raw = JSON.parse(d); setCustomer(restoreCustomer(raw)); const k = restoreRequestKey(raw); if (k) setRequestKey(k); } } catch { /* ignore */ } }, []);
-  useEffect(() => { try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...customer, contact_permission: false, consent_by: null, request_key: requestKey })); } catch { /* ignore */ } }, [customer, requestKey]);
+  useEffect(() => { try { const d = localStorage.getItem(DRAFT_KEY); if (d) { const raw = JSON.parse(d); setCustomer(restoreCustomer(raw)); const k = restoreRequestKey(raw); if (k) setRequestKey(k); } } catch { /* ignore */ } finally { setDraftLoaded(true); } }, []);
+  useEffect(() => { if (!draftLoaded) return; try { localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...customer, contact_permission: false, consent_by: null, request_key: requestKey })); } catch { /* ignore */ } }, [draftLoaded, customer, requestKey]);
   useEffect(() => { if (shown.length) bannerRef.current?.focus(); }, [shown]);
   // Fixing an answer clears the old hint list; it is rebuilt on the next tap.
   useEffect(() => { setShown([]); }, [customer, leadOrigin, electrician]);
@@ -81,10 +86,12 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
       // (same request key), so Try again finishes the same job and its quote.
       if (r.photoQuote?.failed) { setErr(r.photoQuote.failed); return; }
       try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
-      const quoteHeld = !!r.photoQuote && !r.photoQuote.sent;
-      if (r.electrician === "not_allocated" || quoteHeld) { setPhotoHeld(quoteHeld); setElectricianMissed(r.electrician === "not_allocated"); setAddedJobId(r.jobId); return; }
+      setElectricianNotAllocated(r.electrician === "not_allocated");
+      setElectricianReason(r.electricianReason ?? null);
+      // Photo-quote installers Part 2: the quote was made but held (a check, or the office sends it) — said on the Added screen.
+      setPhotoHeld(!!r.photoQuote && !r.photoQuote.sent);
+      setAddedJobId(r.jobId);
       toast.success(nextLine(r.ownerFirstName ?? "the owner"));
-      await navigate({ to: "/field/$jobId", params: { jobId: r.jobId }, search: { added: true } }); // the job page prints the same line (fix wave minor 15)
     } catch (e) { setErr(saveErrorMessage(e instanceof Error ? e.message : null)); }
     finally { setBusy(false); inFlight.current = false; }
   };
@@ -95,7 +102,8 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
   const consentLabel = businessName ? addJobConsentLine(businessName) : undefined;
   if (addedJobId) return (
     <div className="space-y-4" data-add-job-flow data-step="added">
-      {electricianMissed && <p role="alert" className="rounded-[12px] border-2 border-line bg-paper p-3 text-[15px]" data-electrician-not-allocated>{ADD_JOB_DRAFT_WORDS.electricianNotAllocated}</p>}
+      <h2 className="font-display text-xl font-semibold">Added</h2>
+      {electricianNotAllocated && <div role="alert" className="space-y-2 text-sm" data-electrician-not-allocated><p>{electricianReason ?? "The electrician couldn't be put on the job. Your choice is saved."}</p><Link to="/field/business/team" className="inline-flex min-h-12 items-center font-semibold text-hiv-blue underline">Open Team</Link></div>}
       {photoHeld && <p role="status" className="rounded-[12px] border-2 border-line bg-paper p-3 text-[15px]" data-photo-quote-held>{OWN_PHOTO_QUOTE_WORDS.held}</p>}
       <button type="button" className={PRIMARY_BTN} onClick={() => void navigate({ to: "/field/$jobId", params: { jobId: addedJobId }, search: { added: true } })}>{ADD_JOB_DRAFT_WORDS.goToJob}</button>
     </div>
@@ -111,12 +119,12 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
             <input type="radio" name="add-job-lead-origin" value={o.value} checked={leadOrigin === o.value} disabled={busy} onChange={() => { setLeadOrigin(o.value); setErr(null); }} />{o.label}
           </label>
         ))}
-        <p className="mt-1 text-[13px] leading-[1.45] text-sub">{ADD_JOB_WORDS.howNote}</p>
+        {(leadOrigin === "door_knock" || leadOrigin === "cold_call") && <p role="alert" className="mt-1 text-[13px] leading-[1.45] text-sub">{ADD_JOB_WORDS.howNote}</p>}
         <FieldError>{errors.lead_origin}</FieldError>
       </fieldset>
       <section className={CARD} data-owner-card>
         <h2 className={CARD_TITLE}>{OWNER_CARD_TITLE}</h2>
-        <div className="mt-3.5"><CustomerFields value={customer} labels={{ name: ADD_JOB_WORDS.name, mobile: ADD_JOB_WORDS.mobile, email: ADD_JOB_WORDS.email, address: ADD_JOB_WORDS.address }} consentLabel={consentLabel} hideConsent={!consentLabel} errors={errors} onChange={(n) => { setCustomer(n); setErr(null); }} /></div>
+        <div className="mt-3.5"><CustomerFields value={customer} addressHelper="Start typing, then pick it from the list." labels={{ name: ADD_JOB_WORDS.name, mobile: ADD_JOB_WORDS.mobile, email: ADD_JOB_WORDS.email, address: ADD_JOB_WORDS.address }} consentLabel={consentLabel} hideConsent={!consentLabel} errors={errors} onChange={(n) => { setCustomer(n); setErr(null); }} /></div>
         {!consentLabel && <p className="mt-3 text-sm text-sub" data-consent-loading>{ADD_JOB_DRAFT_WORDS.loadingBusiness}</p>}
       </section>
       <section className={CARD} data-electrician-picker>
@@ -134,7 +142,7 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
       {photos && <OwnPhotoQuoteFields businessId={businessId} postcode={customer.postcode} disabled={busy} onChange={setPhotoQuote} />}
       {photos && shown.length > 0 && photoQuote && ownPhotoQuoteProblems(photoQuote)[0] && <p className="text-sm text-rose" data-photo-quote-problem>{ownPhotoQuoteProblems(photoQuote)[0]}</p>}
       {err && <p role="status" className="rounded-[12px] border-2 border-line bg-paper p-3 text-sm" data-save-error>{err}</p>}
-      <button type="button" className={PRIMARY_BTN} disabled={busy} aria-busy={busy} onClick={save}>{busy ? BUSY_LABEL : err && !/already has an open job/i.test(err) ? TRY_AGAIN_LABEL : photos ? OWN_PHOTO_QUOTE_WORDS.submit : ADD_JOB_WORDS.button}</button>
+      <button type="button" className={PRIMARY_BTN} disabled={busy || leadOrigin === "door_knock" || leadOrigin === "cold_call"} aria-busy={busy} onClick={save}>{busy ? BUSY_LABEL : err && !/already has an open job/i.test(err) ? TRY_AGAIN_LABEL : photos ? OWN_PHOTO_QUOTE_WORDS.submit : ADD_JOB_WORDS.button}</button>
       <p className="text-center text-[13px] leading-[1.5] text-sub" data-next-step>{ADD_JOB_OFFLINE_NOTE}</p>
     </div>
   );

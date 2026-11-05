@@ -38,7 +38,7 @@ export async function peopleFor(businessIds: string[]) {
   // Jo 28 Oct: Lead / Crew per installer person (null for electricians).
   const roles = await (await import("./mitti-invite.server")).workerRolesFor(workers);
   const births=await (await import('./worker-identity.server')).privateBirthDates(workers.map(w=>w.id));
-  const registration=must<{id:string;esc_registered:boolean}[]>(await db.from('partner_workers').select('id,esc_registered').in('business_id',businessIds),'ESC registration');
+  const registration=must<{id:string;esc_registered:boolean;esc_registered_at:string|null}[]>(await db.from('partner_workers').select('id,esc_registered,esc_registered_at').in('business_id',businessIds),'ESC registration');
   return workers.map((w) => {
     const c = certs.find((r) => r.worker_id === w.id || sameWorkerEmail(w.email, r.worker_email)) ?? null;
     const l = c ? levels.find((r) => r.certification_id === c.id) ?? null : null;
@@ -55,7 +55,7 @@ export async function peopleFor(businessIds: string[]) {
     const b = ((biz ?? []) as { id: string; name: string; trading_name: string | null }[]).find((x) => x.id === w.business_id);
     return {
       id: w.id, name: w.full_legal_name, email: w.email, businessId: w.business_id, business: b ? bizName(b) : "—", role: w.trade_role, profileId: w.profile_id,
-      dateOfBirth:births.get(w.id)??null,escRegistered:registration.find(r=>r.id===w.id)?.esc_registered===true,
+      dateOfBirth:births.get(w.id)??null,escRegistered:registration.find(r=>r.id===w.id)?.esc_registered===true,escRegisteredAt:registration.find(r=>r.id===w.id)?.esc_registered_at??null,
       licenceNumber: w.licence_number, recNumber: w.rec_number, licenceExpiresOn: w.licence_expires_on, licenceVerifiedAt: w.licence_verified_at,
       whiteCard: whiteCardState(w as never) as string, whiteCardNumber: whiteCardOf(w.certification)?.number ?? null,
       certNumber: ((w.certification as { eec_upload?: { number?: string | null } } | null)?.eec_upload?.number) ?? null, hasCertFile: !!(w.certification as { eec_upload?: { path?: string } } | null)?.eec_upload?.path,
@@ -77,10 +77,12 @@ export async function partnersBoard() {
   const businesses = must<{ id: string; name: string; trading_name: string | null; business_type: string; capabilities: string[] | null; onboarding_status: string; onboarding_notes: string | null; is_active: boolean; accepting_new_jobs: boolean | null; approved_at: string | null; service_regions: string[] | null; service_postcodes: string[] | null; coverage_verified_at: string | null; base_suburb: string | null; declared_service_origin: string | null; declared_travel_radius_km: number | null; rec_number: string | null }[]>(bizR, "businesses");
   const approved = businesses.filter((b) => b.onboarding_status === "approved" && !isTestBiz(b));
   const ids = approved.map((b) => b.id);
-  const [people, creds, rels, cards, eRates, rateReqs, changeReqs] = await Promise.all([
+  const [people, creds, mainNames, cards, eRates, rateReqs, changeReqs] = await Promise.all([
     peopleFor(ids),
     ids.length ? db.from("business_credentials").select("business_id, kind, expires_at, verification").in("business_id", ids) : { data: [] },
-    ids.length ? db.from("partner_relationships").select("installer_business_id, electrician_business_id, preferred, active").in("installer_business_id", ids).eq("active", true) : { data: [] },
+    // Jo 5 Nov 2026: the "Main electrician" column is the real Main (Team or linked), by the one list's rule.
+    (await import("./installer-electricians.server")).mainElectricianNamesFor(approved.filter((b) => !isElectricianBiz(b as never)).map((b) => b.id))
+      .catch((e: Error) => { console.error("partners board: Main electricians not read", e.message); return new Map<string, string>(); }),
     ids.length ? db.from("rate_cards").select("id, business_id, kind, name, version, effective_from, is_active, rate_card_items(code, unit_price_ex_gst, unit)").in("business_id", ids).eq("is_active", true) : { data: [] },
     ids.length ? db.from("electrician_rates").select("business_id, service_type, rate_inc_gst, status, effective_from").in("business_id", ids).in("status", ["active", "approved"]) : { data: [] },
     ids.length ? db.from("installer_rate_requests").select("id, business_id, r6_rate, r7_rate, topup_r5_rate, vacuum_only_rate, gst_registered, requested_at").in("business_id", ids).eq("status", "pending") : { data: [] },
@@ -92,16 +94,15 @@ export async function partnersBoard() {
   const approvedRows = approved.map((b) => {
     const mine = people.filter((p) => p.businessId === b.id && p.role === "installer");
     const pl = plOf(b.id);
-    const usual = ((rels.data ?? []) as { installer_business_id: string; electrician_business_id: string; preferred: boolean }[]).find((r) => r.installer_business_id === b.id && r.preferred);
     return {
       id: b.id, name: bizName(b), kind: isElectricianBiz(b as never) ? "Electrician" : "Installer", area: (b.service_regions ?? []).join(", ") || b.base_suburb || b.declared_service_origin || "—",
       ciiCleared: isElectricianBiz(b as never) && !mine.length ? null : `${mine.filter((p) => p.ciiTone === "green" || p.ciiTone === "amber").length} of ${mine.length}`,
-      plExpires: pl?.expires_at ?? null, plState: pl ? credentialState(pl) : "missing", usualElectrician: usual ? nameOf(usual.electrician_business_id) : null,
+      plExpires: pl?.expires_at ?? null, plState: pl ? credentialState(pl) : "missing", usualElectrician: mainNames.get(b.id) ?? null,
       takingJobs: b.accepting_new_jobs !== false, active: b.is_active,
     };
   }).sort((a, b) => a.kind.localeCompare(b.kind) || a.name.localeCompare(b.name));
   const rateRows = [
-    ...((cards.data ?? []) as { id: string; business_id: string; kind: string; name: string; version: number; effective_from: string | null; rate_card_items: { code: string; unit_price_ex_gst: number; unit: string | null }[] }[]).map((c) => ({ id: c.id, businessId: c.business_id, business: nameOf(c.business_id) ?? "—", card: c.kind === "installer" ? "Installer price list" : `${c.kind} rate card`, says: `${rateCardLine(c.rate_card_items ?? [])} (ex GST)`, effective: c.effective_from, version: c.version })),
+    ...((cards.data ?? []) as { id: string; business_id: string; kind: string; name: string; version: number; effective_from: string | null; rate_card_items: { code: string; unit_price_ex_gst: number; unit: string | null }[] }[]).map((c) => ({ id: c.id, businessId: c.business_id, business: nameOf(c.business_id) ?? "—", card: c.kind === "installer" ? "Installer price list" : `${c.kind} rate card`, says: `${rateCardLine(c.rate_card_items ?? [], { incGst: true })} (inc GST)`, effective: c.effective_from, version: c.version })),
     ...Object.values(((eRates.data ?? []) as { business_id: string; service_type: string; rate_inc_gst: number; effective_from: string }[]).reduce((acc, r) => { (acc[r.business_id] ??= []).push(r); return acc; }, {} as Record<string, { business_id: string; service_type: string; rate_inc_gst: number; effective_from: string }[]>)).map((rs) => ({
       id: `elec:${rs[0]!.business_id}`, businessId: rs[0]!.business_id, business: nameOf(rs[0]!.business_id) ?? "—", card: "Electrician rate card",
       says: rs.map((r) => `${r.service_type === "piesa" ? "PIESA" : r.service_type.replace(/_/g, " ")} $${Number(r.rate_inc_gst).toFixed(0)}`).join(" · ") + " · upgrades by item · owner pays upgrades + $100", effective: rs.map((r) => r.effective_from).sort()[0] ?? null, version: null,
@@ -144,12 +145,11 @@ export async function businessFile(businessId: string) {
   if (error) throw new Error(`Could not read the business: ${error.message}`);
   if (!b) return null;
   const monthStart = melbourneMonthStart();
-  const [members, agreements, creds, cards, rels, bank, bankEv, eRates, rateReqs, changeReqs, asg, own, people, notices] = await Promise.all([
+  const [members, agreements, creds, cards, bank, bankEv, eRates, rateReqs, changeReqs, asg, own, people, notices] = await Promise.all([
     db.from("business_members").select("user_id, member_role, active, profiles!business_members_user_id_fkey(full_name, email, phone)").eq("business_id", businessId).eq("active", true),
     db.from("partner_agreements").select("id, version, signer_name, signed_at, snapshot_sha256, body").eq("business_id", businessId).order("signed_at", { ascending: false }),
     db.from("business_credentials").select("id, kind, label, number, issuer, expires_at, verification, document_path, created_at").eq("business_id", businessId).order("created_at", { ascending: false }),
     db.from("rate_cards").select("id, kind, name, version, effective_from, is_active, rate_card_items(code, description, unit, unit_price_ex_gst, sort)").eq("business_id", businessId).order("version", { ascending: false }),
-    db.from("partner_relationships").select("electrician_business_id, preferred, active, businesses!partner_relationships_electrician_business_id_fkey(id, name, trading_name, rec_number, onboarding_status)").eq("installer_business_id", businessId).eq("active", true),
     db.from("business_bank_details").select("account_name, bsb, account_number, updated_at, review_status").eq("business_id", businessId).maybeSingle(),
     db.from("business_bank_detail_events").select("event_type, actor_id, created_at").eq("business_id", businessId).order("created_at", { ascending: false }).limit(1),
     db.from("electrician_rates").select("service_type, rate_inc_gst, status, effective_from").eq("business_id", businessId).in("status", ["active", "approved"]),
@@ -160,18 +160,8 @@ export async function businessFile(businessId: string) {
     peopleFor([businessId]),
     (async () => (await import("./esc-collection-notice.server")).businessNoticeStatuses(businessId).catch(() => []))(),
   ]);
+  for (const [label, e] of [["people", members.error], ["agreements", agreements.error], ["documents and insurance", creds.error], ["rate cards", cards.error], ["bank details", bank.error], ["bank history", bankEv.error], ["electrician rates", eRates.error], ["rate requests", rateReqs.error], ["change requests", changeReqs.error], ["job assignments", asg.error], ["own jobs", own.error]] as const) if (e) throw new Error(`Could not read the business ${label}: ${e.message}`);
   const jobs = ((asg.data ?? []) as { job_id: string; assigned_at: string; jobs: { stage: string; source: string; deleted_at: string | null; installation_completed_at: string | null } }[]).filter((a) => a.jobs.source !== "qa_test" && !a.jobs.deleted_at);
-  const usualRel = ((rels.data ?? []) as { preferred: boolean; businesses: { id: string; name: string; trading_name: string | null; rec_number: string | null; onboarding_status: string } | null }[]).find((r) => r.preferred) ?? null;
-  let usual: { id: string; name: string; rec: string | null; approved: boolean; piesaRate: number | null; usedThisMonth: number; jobsThisMonth: number } | null = null;
-  if (usualRel?.businesses) {
-    const e = usualRel.businesses;
-    const [{ data: rate }, { data: eAsg }] = await Promise.all([
-      db.from("electrician_rates").select("rate_inc_gst").eq("business_id", e.id).eq("service_type", "piesa").in("status", ["active", "approved"]).order("effective_from", { ascending: false }).limit(1).maybeSingle(),
-      db.from("job_assignments").select("job_id, assigned_at").eq("business_id", e.id).eq("role", "electrician").gte("assigned_at", monthStart),
-    ]);
-    const myMonth = jobs.filter((j) => j.assigned_at >= monthStart).map((j) => j.job_id);
-    usual = { id: e.id, name: bizName(e), rec: e.rec_number, approved: e.onboarding_status === "approved", piesaRate: rate ? Number(rate.rate_inc_gst) : null, usedThisMonth: ((eAsg ?? []) as { job_id: string }[]).filter((x) => myMonth.includes(x.job_id)).length, jobsThisMonth: myMonth.length };
-  }
   const activeCard = ((cards.data ?? []) as { id: string; kind: string; version: number; effective_from: string | null; is_active: boolean; rate_card_items: { code: string; description: string; unit: string | null; unit_price_ex_gst: number; sort: number }[] }[]).find((c) => c.is_active) ?? null;
   const owner = ((members.data ?? []) as { member_role: string; profiles: { full_name: string | null; email: string | null; phone: string | null } | null }[]).find((m) => m.member_role === "business_admin")?.profiles ?? null;
   const lastBank = (bankEv.data ?? [])[0] as { event_type: string; actor_id: string | null; created_at: string } | undefined;
@@ -194,7 +184,6 @@ export async function businessFile(businessId: string) {
       ...((changeReqs.data ?? []) as { id: string; kind: string; message: string; created_at: string }[]).map((c) => ({ id: c.id, source: "change" as const, at: c.created_at, says: `${c.kind === "rates" ? "Rates" : c.kind === "area" ? "Area" : c.kind === "details" ? "Details" : "Other"}: ${c.message}` })),
     ],
     people,
-    usual,
     bank: { masked: maskBank(bank.data ?? null), changedAt: lastBank?.created_at ?? bank.data?.updated_at ?? null, changedHow: lastBank?.event_type ?? null, review: bank.data?.review_status ?? null },
     jobs: {
       thisMonth: jobs.filter((j) => j.assigned_at >= monthStart).length,

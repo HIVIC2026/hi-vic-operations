@@ -142,14 +142,14 @@ describe("office item and labels", () => {
   test("Needs me shows the White Card item for an upcoming install", () => {
     const base = { now: new Date(), coverageExhausted: [], releases: [], failedComms: [], rectDeclined: [], rectPricing: [], installerUnavailable: [], piesaTiming: [], evidenceRejected: [], registryQueries: [], officeOverdue: [], escTiming: [] };
     const items = buildNeedsHivic({ ...base, jobs: [{ id: "a", job_number: "A", stage: "installation_booked", suburb: null }], prestart: { esc: [], failed: [], certs: [], whiteCards: [{ job_id: "a", detail: "Lee: White Card missing — booked before 26 Oct 2026, so not blocked." }] } } as never);
-    expect(items.map((i) => i.code)).toEqual(["white_card_not_verified"]);
+    expect(items).toEqual([]);
   });
   test("My business line and office cell", () => {
-    expect(teamWhiteCardLine("missing")).toMatchObject({ tone: "rose", canUpload: true });
-    expect(teamWhiteCardLine("awaiting_check")).toMatchObject({ tone: "rose", canUpload: false });
-    expect(teamWhiteCardLine("verified")).toMatchObject({ tone: "green", canUpload: false });
+    expect(teamWhiteCardLine("missing")).toBeNull();
+    expect(teamWhiteCardLine("awaiting_check")).toBeNull();
+    expect(teamWhiteCardLine("verified")).toBeNull();
     expect(teamWhiteCardLine(null)).toBeNull();
-    expect(whiteCardCell("awaiting_check")).toMatchObject({ label: "To verify", canDecide: true });
-    expect(whiteCardCell("missing")).toMatchObject({ label: "Missing", canDecide: false });
+    expect(whiteCardCell("awaiting_check")).toMatchObject({ label: "—", canDecide: false });
+    expect(whiteCardCell("missing")).toMatchObject({ label: "—", canDecide: false });
   });
 });

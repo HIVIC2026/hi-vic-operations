@@ -38,7 +38,12 @@ export async function saveInHouseVisitInline(jobId:string,actorId:string,input:{
  // J4 G2: the booked electrician visit releases the owner's contact to that assignment (identical to commit_in_house_visit v2).
  if(input.kind==='assessment'||input.kind==='rectification')await releaseElectricianContact(jobId,input.kind,actorId);
  const noticeKind=input.kind==='installation'?'install':input.kind==='assessment'?'piesa':input.kind==='ready_check'?'ready_check':null;
- if(noticeKind)await service.notifyOwnerBooked(jobId,noticeKind,start,who).catch(e=>console.error('Booking confirmation held',e));
+ if(noticeKind){
+  // Durable intent first: the existing booked-notice sweep owns recovery if the request lifetime ends.
+  await service.notifyOwnerBooked(jobId,noticeKind,start,who,new Date(),{prepareOnly:true});
+  const {runAfterResponse}=await import('./background.server');
+  runAfterResponse(()=>service.notifyOwnerBooked(jobId,noticeKind,start,who));
+ }
  return {bookingId:saved.id,already:!!existing,needsVerification:[],warnings:checked.warnings};
 }
 /** The same row commit_in_house_visit v2 writes: one audited owner-contact release per electrician assignment + visit. */

@@ -34,7 +34,11 @@ export async function myOwnerQuoteFor(sb: Rpc, userId: string, jobId: string, sh
   const q = a.quote;
   return {
     applies: true as const, priceHidden: false as const,
+    priceChangePending: !!(await (await import('./installer-price-change.server')).pendingChangeFor(jobId)),
     quoteId: q.id as string,
+    sentAt: q.sent_at as string | null,
+    acceptedAt: q.accepted_at as string | null,
+    expiredAt: q.expired_at as string | null,
     lines: (q.quote_items as { description: string; explanation: string | null; quantity: number; unit: string | null; line_total_inc_gst: number }[]).map((l) => ({ description: l.description, explanation: l.explanation, quantity: Number(l.quantity), unit: l.unit, total: Number(l.line_total_inc_gst) })),
     subtotal: Number(q.subtotal_inc_gst), rebate: Number(q.veec_discount_inc_gst), total: Number(q.customer_total_inc_gst),
     blockers, sent: a.sent, held: a.held, formCompleted: a.formCompleted === true,

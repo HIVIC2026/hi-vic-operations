@@ -11,9 +11,10 @@ import { flatten, norm, type Entry, type NativeMapping } from "./mitti.core";
 import { mittiMediaFile, type MittiMediaFile } from "./piesa-evidence.core";
 import type { OfficialAnswers } from "./official-forms.core";
 import { crewClearance, melbourneToday, whiteCardBlocker, whiteCardState } from "./worker-compliance.core";
+import { declaredCertificateExpiry, effectiveCertificateExpiry, certificateExpiryWarning } from './team-certificate-expiry.core';
 import { effectiveWorkerRole } from "./worker-role.core";
 import { INSTALL_EVIDENCE_RELABELS, INSTALL_EVIDENCE_RELABELS_LONG, zoneVideoFiles } from "./install-evidence.core";
-import { INSTALL_DAY_Q, allWithLabel, installDayMedia, installDayMissingQuestions, installDayOfficialAnswers, isInstallDayDoc, labelledItems, readInstallDay } from "./install-day.core";
+import { INSTALL_DAY_Q, allWithLabel, installDayMedia, installDayMissingQuestions, installDayOfficialAnswers, isInstallDayDoc, labelledItems, readInstallDay, type InstallDayBeforeRead } from "./install-day.core";
 
 import { A3_NATIVE_CREW_LOOKUP, CREW_NOT_LEAD_MESSAGE, crewSelectionProblems, leadWorkerId, savedCrewNeedsRepick, type CrewPick, type CrewSelection, type StaffOption } from "./piisa-crew.core";
 export { A3_NATIVE_CREW_LOOKUP, CREW_NOT_LEAD_MESSAGE, crewSelectionProblems, leadWorkerId, savedCrewNeedsRepick };
@@ -429,6 +430,14 @@ export type Part6Result = {
   fullRemoval: boolean;
 };
 const NO_EXTRA: Part6Extra = { suitable: null, conductive: null, reason: null };
+/** New A5 owns before-condition facts; no Ready Check substitution or photo-to-numeric-depth inference. */
+export function installDayBeforePart6Answers(read:InstallDayBeforeRead):Part6Result|null {
+ if(!read.onForm||!read.conditionsOnForm)return null;
+ const areas:RcArea[]=read.areas.map(a=>({name:a.name,present:a.present,rValue:a.rValue,removal:a.removal==='yes'?true:a.removal==='no'?false:null,suitable:a.suitable??null,keepReason:a.keepReason??null,depthMm:a.depthMm??null,conductive:a.conductive??null,conductiveEvidence:a.conductiveEvidence??null}));
+ const result=readyCheckPart6Answers(areas);
+ result.missing=result.missing.map(m=>m.replace(/Ready Check:/g,'A5 Before you start:'));
+ return result;
+}
 /** Decision 375: average existing insulation depth weighted by each area's m², rounded to the nearest mm. */
 export function weightedDepthMm(areas: { depthMm: number; areaM2: number }[]): number {
   const m2 = areas.reduce((s, a) => s + a.areaM2, 0);
@@ -501,24 +510,20 @@ export function readyCheckPart6Answers(areas: RcArea[], extra: Part6Extra = NO_E
     if (noAns.length) missing.push(`Ready Check: condition of the existing insulation (suitable to lay over) not recorded${gap(noAns)}`);
     else answers["p6.suitable"] = named.every((x) => x.a.suitable === true) ? "Yes" : "No";
   }
-  // Foil / metallic / conductive (+ the HI VIC photo) for every area being topped up.
+  // Foil / metallic / conductive for every area being topped up.
   let conductive: boolean | null = extra.conductive;
   if (conductive == null) {
     const noAns = named.filter((x) => x.a.conductive == null);
     if (noAns.length) missing.push(`Ready Check: whether the existing insulation is foil, metallic or conductive is not recorded${gap(noAns)}`);
     else conductive = named.some((x) => x.a.conductive === true);
   }
-  let conductiveEvidence: string | null = extra.conductiveEvidence ?? null;
-  if (!conductiveEvidence) {
-    const noPhoto = named.filter((x) => !x.a.conductiveEvidence);
-    if (noPhoto.length) missing.push(`Ready Check: photo showing whether the existing insulation is foil-backed or conductive not added${gap(noPhoto)}`);
-    else conductiveEvidence = named[0]!.a.conductiveEvidence!;
-  }
+  // Jo 5 Nov 2026: the foil photo is off the Ready Check forms — kept as a reference when an area has one, never listed missing.
+  const conductiveEvidence: string | null = extra.conductiveEvidence ?? named.map((x) => x.a.conductiveEvidence).find((e) => !!e) ?? null;
   return { answers, missing, conductive, conductiveEvidence, fullRemoval: false };
 }
 
 // ---------- crew ----------
-type WorkerRow = { id: string; full_legal_name: string; approval_status: string | null; removed_at: string | null; trade_role: string | null; worker_role?: string | null; declarations_due?: boolean | null; licence_expires_on?: string | null; certification: unknown };
+type WorkerRow = { id: string; full_legal_name: string; approval_status: string | null; removed_at: string | null; trade_role: string | null; worker_role?: string | null; licence_expires_on?: string | null; certification: unknown };
 type CertRow = { id: string; status: string | null; certificate_number: string | null; issuer: string | null; worker_id?: string | null };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const certificationRef = (c: unknown): string | null => { const v = (c as { verification_id?: unknown } | null)?.verification_id; return typeof v === "string" && UUID.test(v) ? v : null; };
@@ -534,12 +539,15 @@ export function staffFromRecords(workers: WorkerRow[], certs: CertRow[], levels:
     const ref = certificationRef(w.certification);
     const c = ref ? byId.get(ref) : undefined;
     const ok = !!c && c.status === "verified" && !!c.certificate_number?.trim() && (!c.worker_id || c.worker_id === w.id);
-    const level = ok ? lv.get(c!.id)?.level ?? null : null, expiresOn = ok ? lv.get(c!.id)?.expires_on ?? null : null;
+    const level = ok && c ? lv.get(c.id)?.level ?? null : null;
+    const expiresOn = effectiveCertificateExpiry(ok && c ? lv.get(c.id)?.expires_on ?? null : null, declaredCertificateExpiry(w.certification));
     // Decision 153: clearance is derived from the verified check + recorded level/expiry, never from approval_status.
     const cl = crewClearance({ removed_at: w.removed_at, certStatus: ok ? "verified" : c?.status === "rejected" ? "rejected" : null, level, expiresOn }, today);
+    const expiryWarning = certificateExpiryWarning(expiresOn, today);
+    if (expiryWarning) { cl.cleared = false; cl.reason = expiryWarning; }
     const wc = whiteCardState({ trade_role: w.trade_role, certification: w.certification });
     return { workerId: w.id, name: w.full_legal_name.trim(), workerRole: effectiveWorkerRole({ tradeRole: w.trade_role ?? "", stored: w.worker_role }), eec: ok ? c!.certificate_number!.trim() : null, eecVerified: ok, approved: w.approval_status === "approved", cleared: cl.cleared, clearanceReason: cl.reason, issuer: ok ? c!.issuer?.trim() || null : null, certificationId: ok ? c!.id : null, level, expiresOn, ...(noticeAck ? { noticeAcknowledged: noticeAck.get(w.id) === true } : {}),
-      whiteCard: wc, ...(whiteCardFor ? { whiteCardBlocked: whiteCardBlocker(wc, whiteCardFor.bookingCreatedAt) !== null } : {}), ...(typeof w.declarations_due === "boolean" ? { declarationsDue: w.declarations_due } : {}) };
+      whiteCard: wc, ...(whiteCardFor ? { whiteCardBlocked: whiteCardBlocker(wc, whiteCardFor.bookingCreatedAt) !== null } : {}) };
   }).sort((a, b) => a.name.localeCompare(b.name));
 }
 /** Crew -> official Part 2 prefill (lead + additional rows, with their verified certification numbers). */

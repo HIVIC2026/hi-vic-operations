@@ -15,7 +15,7 @@ export const BUSINESS_WORDS = {
   logoRule: "PNG or JPEG, up to 2 MB. It goes on the quotes we send your own customers.", // DRAFT
   logoSaved: "Logo saved", // DRAFT
   whoBooksSaved: "Saved", // DRAFT
-  noElectricians: "No electricians on your Team yet", // DRAFT
+  noElectricians: "No electricians yet", // DRAFT (Jo 5 Nov 2026: the row lists the one Electricians list, not only the Team)
   noPiesaPrice: "no PIESA price yet", // DRAFT
   noOfficePhone: "No office phone", // DRAFT
   logoYes: "logo ✓", // DRAFT

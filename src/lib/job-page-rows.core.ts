@@ -8,7 +8,7 @@ import type { AccessPerson } from "./rental-answers.core";
 // Wording. Lines from the plan / decisions are marked approved; anything else is a DRAFT Jo has not seen.
 export const JOB_PAGE_WORDS = {
   hivicPayRule: "paid 7 days after we approve the paperwork", // approved (plan Task 5 test)
-  ownPayRule: (first: string) => `paid once ${first} has paid in full`, // approved (Money line, Global Constraints)
+  ownPayRule: (_first: string) => "paid once the owner has paid in full", // Jo 5 Nov: never the owner's name
   paidTick: "paid ✓", // approved (plan Task 5 test)
   noRate: "—", // approved (plan Task 5: missing rate shows a dash)
   letsYouIn: "Lets you in", // DRAFT (plan)
@@ -81,7 +81,7 @@ export function jobDetailsRows(f: {
   if (f.access) rows.push(["Access", f.access]);
   if (f.installPay != null) rows.push(["Your install pay", `${money(f.installPay)} · ${f.installPayRule}`]);
   if (f.piesaPayApplies !== false) {
-    rows.push(["Your PIESA pay", f.piesaPay == null ? W.noRate : f.piesaPaidAt ? `${money(f.piesaPay)} · ${W.paidTick}` : money(f.piesaPay)]);
+    rows.push([f.ownCustomer ? "Your PIESA price (owner pays you)" : "Your PIESA pay", f.piesaPay == null ? W.noRate : f.piesaPaidAt ? `${money(f.piesaPay)} · ${W.paidTick}` : money(f.piesaPay)]);
   }
   return rows;
 }
@@ -103,16 +103,19 @@ export function ownerToldRows(events: { at: string; type: string; summary: strin
   return out;
 }
 
-export type PaperworkRow = { label: string; ready: boolean; note: string | null };
-export function paperworkRows(f: { readyCheckReport: boolean; signedPiesa: boolean; ownerConsent: boolean; safetyPlan: boolean; installForm: boolean; installBooked: boolean; photoQuote?: boolean }): PaperworkRow[] {
-  const row = (label: string, ready: boolean): PaperworkRow => ({ label, ready, note: ready ? null : f.installBooked ? W.notInYet : W.notThereYet });
+export type PaperworkRow = { label: string; ready: boolean; note: string | null; source?: 'portal' | 'mitti' };
+export function paperworkRows(f: { readyCheckReport: boolean; readyCheckSource?: 'portal' | 'mitti'; readyCheckSubmittedAt?: string | null; signedPiesa: boolean; ownerConsent: boolean; safetyPlan: boolean; installForm: boolean; installBooked: boolean; photoQuote?: boolean }): PaperworkRow[] {
+  const row = (label: string, ready: boolean, waiting: string): PaperworkRow => ({ label, ready, note: ready ? null : waiting });
+  const rcReady = !!f.readyCheckSubmittedAt || f.readyCheckReport;
+  const rcNote = f.readyCheckSubmittedAt ? `Done in ${f.readyCheckSource === 'portal' ? 'the portal' : 'Mitti'} on ${dayLabel(f.readyCheckSubmittedAt)}` : rcReady ? 'Done in Mitti' : 'Not done yet';
   return [
-    // Photo-quote installers: "Photo quote" (readyCheckReport = the photo quote was sent) instead of the Mitti report.
-    row(f.photoQuote ? "Photo quote" : "Ready Check report (Mitti, with photos)", f.readyCheckReport),
-    row("Signed PIESA", f.signedPiesa),
-    row("Owner's ESC consent", f.ownerConsent),
-    row("Safety plan (SWMS)", f.safetyPlan),
-    row("Install form (Mitti)", f.installForm),
+    // Photo-quote installers: "Photo quote" (readyCheckReport = the photo quote was sent) instead of the Ready Check.
+    f.photoQuote ? { label:'Photo quote', ready:f.readyCheckReport, note:f.readyCheckReport ? null : 'Not done yet' }
+      : { label:'Ready Check', ready:rcReady, note:rcNote, source:f.readyCheckSource ?? 'mitti' },
+    row("Signed PIESA", f.signedPiesa, 'Ready after the PIESA is done'),
+    row("Owner's ESC consent", f.ownerConsent, 'Ready once the owner signs'),
+    row("Safety plan (SWMS)", f.installBooked && f.safetyPlan, f.installBooked ? W.notInYet : W.notThereYet),
+    row("Install form (Mitti)", f.installBooked && f.installForm, f.installBooked ? W.notInYet : W.notThereYet),
   ];
 }
 

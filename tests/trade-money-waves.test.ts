@@ -8,6 +8,7 @@
 import { afterAll, beforeAll, describe, expect, mock, setSystemTime, test } from "bun:test";
 import type { Tables } from "./helpers/memory-postgrest";
 import { outcome, waveCounter } from "./helpers/wave-counter";
+import { addForeignBusiness, foreignTraces } from "./helpers/business-scope";
 
 const tables: Tables = {};
 const wc = waveCounter(tables);
@@ -233,4 +234,20 @@ describe("Money (Task 7): waves after the sign-in context", () => {
       expect(r.afterCtx).toBeLessThanOrEqual(3);
     });
   }
+});
+
+// Portal speed step 2 (plan Review Focus 5): another business's sign-in, job, booking, offer, worker, credential, bank
+// details and payout change nothing on this screen, for every caller.
+describe("Money: business-scoped", () => {
+  test("another business's rows never reach the answer", async () => {
+    wc.state.failWhen = null;
+    for (const [who, u] of [["owner", U_BOSS], ["staff", U_STAFF], ["electrician", U_ELEC], ["in-house owner", U_BOSS]] as const) {
+      seedAll(who === "in-house owner" ? { inHouse: true } : {});
+      const before = await outcome(() => tradeMoney(u));
+      addForeignBusiness(tables, at(-1));
+      const after = await outcome(() => tradeMoney(u));
+      expect({ who, traces: foreignTraces(after) }).toEqual({ who, traces: [] });
+      expect(after).toEqual(before);
+    }
+  });
 });

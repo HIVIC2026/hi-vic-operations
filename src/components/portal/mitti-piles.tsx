@@ -6,8 +6,24 @@ import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { getMittiPickups, linkMittiPickup, getMittiSyncProblems, retryMittiSyncFn } from "@/lib/mitti-pickup.functions";
+import { getMittiPickups, linkMittiPickup, dismissMittiPickupFn, getMittiSyncProblems, retryMittiSyncFn } from "@/lib/mitti-pickup.functions";
 import { pickupLabel } from "@/lib/mitti-pickup.core";
+
+/** Admin-only "Dismiss" for one unmatched Mitti form: hides it from Needs me for good, changes nothing in Mitti.
+ *  Tells the caller the plain-words result so the message can stay on screen after the row goes. */
+export function DismissPickupButton({ auditId, onStart, onDone, className }: { auditId: string; onStart?: () => void; onDone: (note: { ok: boolean; text: string }) => void; className?: string }) {
+  const dismiss = useServerFn(dismissMittiPickupFn);
+  const [busy, setBusy] = useState(false);
+  const act = async () => {
+    setBusy(true); onStart?.();
+    try {
+      await dismiss({ data: { auditId } });
+      onDone({ ok: true, text: "Dismissed. That Mitti form is hidden from Needs me. Nothing was changed in Mitti." });
+    } catch (e) { onDone({ ok: false, text: e instanceof Error ? e.message : "Could not dismiss this form." }); }
+    finally { setBusy(false); }
+  };
+  return <Button type="button" size="sm" variant="outline" className={className ?? "h-10"} disabled={busy} onClick={() => void act()}>{busy ? "Dismissing…" : "Dismiss"}</Button>;
+}
 
 /** Ready Checks an installer started straight in Mitti (no portal job yet) — office links each one. */
 export function MittiPickupsToLink() {

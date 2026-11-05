@@ -46,7 +46,7 @@ describe("jobDetailsRows", () => {
     expect(jobDetailsRows({ ...base, piesaPayApplies: false }).map((x) => x[0])).not.toContain("Your PIESA pay");
   });
   test("own customer pay rule", () => {
-    expect(JOB_PAGE_WORDS.ownPayRule("Sam")).toBe("paid once Sam has paid in full");
+    expect(JOB_PAGE_WORDS.ownPayRule("Sam")).toBe("paid once the owner has paid in full");
   });
 });
 
@@ -113,9 +113,9 @@ describe("ownerToldRows", () => {
 describe("paperworkRows", () => {
   test("lists the five documents; not-there-yet ones say when", () => {
     const r = paperworkRows({ readyCheckReport: true, signedPiesa: true, ownerConsent: false, safetyPlan: false, installForm: false, installBooked: false });
-    expect(r.map((x) => x.label)).toEqual(["Ready Check report (Mitti, with photos)", "Signed PIESA", "Owner's ESC consent", "Safety plan (SWMS)", "Install form (Mitti)"]);
+    expect(r.map((x) => x.label)).toEqual(["Ready Check", "Signed PIESA", "Owner's ESC consent", "Safety plan (SWMS)", "Install form (Mitti)"]);
     expect(r.map((x) => x.ready)).toEqual([true, true, false, false, false]);
-    expect(r[2]!.note).toBe("Ready once the install is booked");
+    expect(r[2]?.note).toBe("Ready once the owner signs");
   });
   test("once booked, the install form says it opens on the day", () => {
     const r = paperworkRows({ readyCheckReport: true, signedPiesa: true, ownerConsent: true, safetyPlan: true, installForm: true, installBooked: true });

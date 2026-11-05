@@ -2,29 +2,54 @@ import { expect, test } from "bun:test";
 import ts from "typescript";
 import { readFileSync } from "node:fs";
 import * as compliance from "../src/lib/worker-compliance.core";
+import * as electricians from "../src/lib/installer-electricians.core";
 function fixture() {
   const worker = { id: "w", business_id: "b", profile_id: "electrician", full_legal_name: "Example Electrician", email: "e@example.invalid", trade_role: "electrician", approval_status: "approved", removed_at: null, licence_number: "A123", rec_number: "REC456", licence_expires_on: "2099-01-01", licence_verified_at: "2026-11-01" };
   const forms: unknown[] = [], writes: unknown[] = [], links: unknown[][] = [];
   let access = true;
+  let assigned = true;
   const admin = { from(table: string) {
     const q: any = {};
     let filters: unknown[][] = [];
     for (const key of ["select","eq","is","order","limit","range"]) q[key] = (...args: unknown[]) => { filters.push([key,...args]); return q; };
-    q.maybeSingle = q.single = async () => ({ error: null, data: table === "partner_workers" ? (filters.some(x => x[1] === "business_id" && x[2] !== worker.business_id) ? null : worker) : table === "business_members" ? (access ? { user_id: "owner" } : null) : table === "assessments" ? { external_mitti_id: "A3" } : table === "workflow_events" ? { details: { worker_id: "w" } } : table === "job_assignments" ? { business_id: "b", user_id: "electrician" } : {source:"base44"} });
+    q.maybeSingle = q.single = async () => ({ error: null, data: table === "partner_workers" ? (filters.some(x => x[1] === "business_id" && x[2] !== worker.business_id) ? null : worker) : table === "business_members" ? (access ? { user_id: "owner" } : null) : table === "assessments" ? { external_mitti_id: "A3" } : table === "workflow_events" ? (assigned ? { details: { worker_id: "w" } } : null) : table === "job_assignments" ? (assigned || filters.some(x => x[1] === "role" && x[2] === "installer") ? { business_id: "b", user_id: "electrician" } : null) : {source:"base44"} });
     q.then = (resolve: any) => Promise.resolve({data:[worker],error:null}).then(resolve);
     return q;
   }, async rpc(name: string, args: unknown) {writes.push({name,args});return {error:null,data:{already_allocated:false}};} };
   const deps: Record<string, unknown> = {
+    "./electrician-choice.server": { readElectricianChoiceRecord: async () => ({ workerId: "w" }) },
+    "./background.server": { runAfterResponse: (task: () => Promise<unknown>) => { void task(); return "wait_until"; } },
     "@/integrations/supabase/client.server": {supabaseAdmin:admin}, "./job-facts.server":{jobAdmin:admin}, "./worker-compliance.core":compliance,
     "./in-house-suppression.server":{readInHouseDispatchState:async()=>({failed:false,held:new Set(["j"])})},
     "./fixes-day.server":{existingRectificationForm:async()=>({auditId:"A4",closed:false})},
     "./electrician-link.server":{linkAfterAllocation:async(...a:unknown[])=>{links.push(a);}},
     "./mitti.server":{realMittiCall:()=>{},findMittiUserByEmail:async()=>"mitti-e",reassignMittiFormTo:async(p:unknown)=>forms.push(p)},
+    // Jo 5 Nov 2026: the Team pickers mark the Main from the ONE Electricians list (installer-electricians.server, its own
+    // PGlite test), built from the Team rows the picker already read; here nobody is Main.
+    "./installer-electricians.core": electricians,
+    "./installer-electricians.server": { electriciansForInstaller: async (_b: string, o: { team?: electricians.TeamElectricianRow[] } = {}) => electricians.buildInstallerElectricians({ linked: [], team: o.team ?? [], mainChoice: null, usual: null }) },
   };
   const api: any = {};
-  return {worker,forms,writes,links,deny:()=>{access=false;},load:()=>{new Function("exports","require",ts.transpile(readFileSync("src/lib/in-house-electrician.server.ts","utf8"),{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}))(api,(name:string)=>{if(!(name in deps))throw new Error(`Unexpected dependency ${name}`);return deps[name];});return api;}};
+  return {worker,forms,writes,links,unassign:()=>{assigned=false;},deny:()=>{access=false;},load:()=>{new Function("exports","require",ts.transpile(readFileSync("src/lib/in-house-electrician.server.ts","utf8"),{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}))(api,(name:string)=>{if(!(name in deps))throw new Error(`Unexpected dependency ${name}`);return deps[name];});return api;}};
 }
 test("allocate unverified refuses with no assignment or form handover",async()=>{const f=fixture();f.worker.licence_verified_at="";await expect(f.load().allocateElectrician("j","owner","w")).rejects.toThrow("Electrician not verified");expect(f.writes).toEqual([]);expect(f.forms).toEqual([]);});
+test("failed allocation retains the recorded worker for retry after email repair", async () => {
+  const f = fixture(); f.unassign(); f.worker.email = "";
+  const api = f.load();
+  expect(await api.electricianPicker("j", "owner")).toMatchObject({ pendingWorkerId: "w", workers: [{ id: "w", allowed: false }] });
+  f.worker.email = "e@example.invalid";
+  expect(await api.electricianPicker("j", "owner")).toMatchObject({ pendingWorkerId: "w", workers: [{ id: "w", allowed: true }] });
+  await api.allocateElectrician("j", "owner", "w");
+  expect(f.writes).toHaveLength(1);
+});
+test("missing electrician email is disabled in Add and job pickers; adding it restores eligibility", async () => {
+  const f = fixture(); f.worker.email = "";
+  const api = f.load();
+  expect((await api.teamElectricianChoices("b"))[0]).toMatchObject({ allowed: false, reason: "add their email on the Team page first" });
+  expect((await api.electricianPicker("j", "owner")).workers[0].allowed).toBe(false);
+  f.worker.email = "e@example.invalid";
+  expect((await api.teamElectricianChoices("b"))[0].allowed).toBe(true);
+});
 test("another business worker or user cannot allocate",async()=>{const f=fixture();f.worker.business_id="other";await expect(f.load().allocateElectrician("j","owner","w")).rejects.toThrow("That electrician is not on your Team");expect(f.writes).toEqual([]);const g=fixture();g.deny();await expect(g.load().allocateElectrician("j","outsider","w")).rejects.toThrow("This job is not assigned to your business");expect(g.forms).toEqual([]);});
 test("verified allocation updates atomic assignment and hands A3 and A4 to selected person",async()=>{const f=fixture();await f.load().allocateElectrician("j","owner","w");expect(f.writes).toEqual([{name:"allocate_team_electrician",args:{_job:"j",_actor:"owner",_worker:"w"}}]);expect(f.forms).toEqual([
   {jobId:"j",auditId:"A3",kind:"piesa",mittiUserId:"mitti-e",email:"e@example.invalid",actorId:"owner"},
@@ -49,7 +74,7 @@ test("C1: picker and Add-a-job choices allow a no-profile verified electrician; 
   const f = fixture(); f.worker.profile_id = null as unknown as string;
   const api = f.load();
   const choices = await api.teamElectricianChoices("b");
-  expect(choices).toEqual([{ id: "w", name: "Example Electrician", licence: "A123", allowed: true, reason: null }]); // licence: the Add a job choice record names it (join ruling)
+  expect(choices).toEqual([{ id: "w", name: "Example Electrician", licence: "A123", allowed: true, reason: null, main: false }]); // licence: the Add a job choice record names it (join ruling)
   const picker = await api.electricianPicker("j", "owner");
   expect(picker.workers[0]).toMatchObject({ id: "w", allowed: true, reason: null, selected: true }); // fixture: latest event names "w"
   expect(await api.allocatedWorkerId("j")).toBe("w");

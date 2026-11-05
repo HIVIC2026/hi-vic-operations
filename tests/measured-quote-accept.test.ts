@@ -3,7 +3,7 @@ import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 const src = readFileSync(new URL("../src/lib/portal.functions.ts", import.meta.url), "utf8");
 // Formatter-tolerant: prettier re-wrapped the function (arrays and calls across lines), so the pins read a one-space form.
-const impl = src.slice(src.indexOf("export async function respondToQuoteImpl"), src.indexOf("// ---------- Payments")).replace(/\s+/g, " ").replace(/\[ /g, "[").replace(/, \]/g, "]").replace(/\( /g, "(").replace(/, \)/g, ")");
+const impl = src.slice(src.indexOf("export const respondToQuoteImpl"), src.indexOf("// ---------- Payments")).replace(/\s+/g, " ").replace(/\[ /g, "[").replace(/, \]/g, "]").replace(/\( /g, "(").replace(/, \)/g, ")");
 test("both installation stages accept; a fixes quote is answered at the stages it is sent from (decision 366)", () => {
   expect(impl).toContain('["awaiting_quote_acceptance", "measured_estimate_ready"]');
   expect(impl).toContain('["awaiting_owner_rectification_approval", "piesa_complete", "electrical_variation_pending", "rectification_required", "rectification_scheduling", "rectification_booked"]');

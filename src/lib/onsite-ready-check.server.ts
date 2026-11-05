@@ -21,7 +21,7 @@ import type { ElectricianPlan } from "./job-electrician.core";
 import type { MittiCall } from "./mitti.core";
 
 export type AddJobBooking = "none" | "confirmed" | "blocked";
-export type AddJobResult = { jobId: string; jobNumber: string | null; booking: AddJobBooking; formCreation: "scheduled" | "skipped"; state: OnsiteState; /** Task 7: whether the chosen Team electrician was put on the job. */ electrician: "allocated" | "not_allocated" | "not_asked"; ownerFirstName: string | null;
+export type AddJobResult = { jobId: string; jobNumber: string | null; booking: AddJobBooking; formCreation: "scheduled" | "skipped"; state: OnsiteState; electricianReason?: string | null; /** Task 7: whether the chosen Team electrician was put on the job. */ electrician: "allocated" | "not_allocated" | "not_asked"; ownerFirstName: string | null;
   /** Photo-quote installers Part 2: the own-customer photo quote's outcome (From photos businesses only). */ photoQuote?: { sent: boolean; held: string[]; /** Review IMPORTANT 1c: the quote didn't go through (plain line); the job is saved and Try again finishes it. */ failed?: string } };
 
 export async function startOnsiteReadyCheckFor(userId: string, businessId: string, input: OnsiteInput, _electrician: ElectricianPlan | null = null, call?: MittiCall, opts: { now?: Date; /** Task 7 + join ruling: the Team electrician for the PIESA — required; the installer's own electrician on this job. */ electricianWorkerId?: string | null; /** A1: how the installer got this customer; door-knock and cold call are refused. */ leadOrigin?: import("./onsite-ready-check.core").LeadOrigin | null; /** A6: the phone's key for this draft; a key already saved resumes that job. */ requestKey?: string | null; /** Photo-quote installers Part 2: the photo quote fields (From photos businesses only). */ photoQuote?: import("./own-photo-quote.core").OwnPhotoQuoteInput | null } = {}): Promise<AddJobResult> {
@@ -147,16 +147,17 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
   // Task 7: the chosen Team electrician is put on the job through the existing allocation path (assignment RPC + Mitti form
   // hand-over). The job is already saved; a refusal here is logged on the job and the installer can pick again on the job page.
   let electricianAllocated: "allocated" | "not_allocated" | "not_asked" = "not_asked";
+  let electricianReason: string | null = null;
   try { await (await import("./in-house-electrician.server")).allocateElectrician(job.id, userId, teamWorker.id, call); electricianAllocated = "allocated"; }
   catch (error) {
     electricianAllocated = "not_allocated";
+    electricianReason = (await import('./electrician-allocation-message.core')).electricianAllocationMessage(error instanceof Error ? error.message : String(error), teamWorker.name);
     await logEvent(job.id, userId, "add_job_electrician_not_allocated", "The electrician chosen on Add a job could not be put on the job; choose again on the job page", { worker_id: teamWorker.id, reason: error instanceof Error ? error.message : String(error) }, { internal: true }).catch(console.error);
   }
-  // Start the guarded create immediately after saving, booking or not. A booking background attempt can share
-  // the atomic claim; an existing form skips. The tick remains the backup after a failure.
-  // Photo-quote installers Part 2: no Mitti Ready Check form; the photo quote's records, the draft and the guarded release instead.
+  // Own customers choose Mitti or the portal on the job page; Add never creates A1.
+  // Photo-quote installers Part 2: no Ready Check at all; the photo quote's records, the draft and the guarded release instead.
   let photoQuote: AddJobResult["photoQuote"];
-  let formCreation: "scheduled" | "skipped" = "skipped";
+  const formCreation = 'skipped' as const;
   if (quoteMethod === "photos" && opts.photoQuote) {
     // Review IMPORTANT 1: a failure is never reported as success — the installer is told plainly and keeps the draft.
     const failed = async (e: unknown) => {
@@ -165,16 +166,14 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
       return { sent: false, held: [] as string[], failed: e instanceof WorkflowError ? e.message : OWN_PHOTO_QUOTE_WORDS.failed };
     };
     photoQuote = photoFailure ? await failed(photoFailure) : await ownPhoto.recordOwnPhotoQuote(job.id, userId, businessId, opts.photoQuote).catch(failed);
-  } else {
-    const { onReadyCheckJobAdded } = await import("./mitti-create.server");
-    formCreation = await onReadyCheckJobAdded(job.id, userId, call).catch((e) => { console.error("ready check form not scheduled", (e as Error).message); return "skipped" as const; });
   }
   // Task 19 (Jo 2 Nov 2026, answer 24): the installer's own customer is texted the rental questions (draft wording, off until
   // Jo approves it). Not on this form; a failure here never fails Add a job.
   try { await (await import("./own-customer-rental-taps.server")).textOwnRentalTaps(job.id); }
   catch (e) { console.error("rental questions text not sent", (e as Error).message); }
-  const state = await onsiteFormFor(job.id, userId, call, false);
-  return { jobId: job.id, jobNumber: job.job_number, booking, formCreation, state, electrician: electricianAllocated, ownerFirstName: input.full_name.trim().split(/\s+/)[0] ?? null, ...(photoQuote ? { photoQuote } : {}) };
+  // The saved job is the durable missing-form sweep candidate. Do not read the whole form state before returning.
+  const state: OnsiteState = { kind: "preparing", message: "Measure and quote" };
+  return { jobId: job.id, jobNumber: job.job_number, booking, formCreation, state, electrician: electricianAllocated, electricianReason, ownerFirstName: input.full_name.trim().split(/\s+/)[0] ?? null, ...(photoQuote ? { photoQuote } : {}) };
 }
 
 /**

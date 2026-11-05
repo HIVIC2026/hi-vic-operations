@@ -25,6 +25,30 @@ Every rule below is one Jo has already decided (dates in brackets). Nothing new 
 - An electrician linked to an installer counts as that installer's business for this check (Peter → Reinsulate).
 - Jo switches it on for Reinsulate only. Claude runs the database change, after asking her.
 
+## Ready Check: Mitti or portal (own customers)
+
+Jo, 5 Nov: at Ready Check stage, installer-added own-customer jobs offer:
+- **7:14pm correction:** no Ready Check booking or clock on own-customer jobs. Remove Day, Arrival, Who's going, Book, Book by, the call-to-book next line and the five-business-day flag. A1 is already created in Mitti; Complete is detected through the existing sync/price-link path. Show **"Mitti form done — enter your price"** with the inline price box. Home Insulation Victoria leads keep booking. The PIESA 30-day installation window remains unchanged. Current Add a job collects no Ready Check time, so there is no optional time field to retain or remove.
+- **Do it in Mitti** — existing A1 → Complete → price link → quote path, unchanged.
+- **Put the details in the portal** — a phone-first form on the job page: Install m² (required); Removal m² (required, 0 if none); measurement method using the current A1 options and exact measurement/upload prompts; Photos (optional, no videos); Price inc GST (required, the installer's total for the job); Other (optional text).
+- Save must prepare the same office-check quote as completed A1 plus price, preserving all existing holds and the 15% rule. Retain history when closing the unused A1. Home Insulation Victoria leads still use A2 only. No publication or sending authorised.
+- After portal Save, or after the Mitti path's price is saved, show the status **"Quote being prepared — Home Insulation Victoria will send it to the owner"**, not a button. The job belongs in office Needs me → Quotes to check for Jo to check and send. Own-customer quotes never automatically send to the owner.
+- When Jo sends the own-customer quote, email the installer business office through its usual job-email channel, once per quote send (no SMS). The job page shows **"Quote sent to the owner on {date}"**, the quote expiry date, then **"Owner accepted on {date}"** or **"Quote expired"** as applicable. A read-only link opens exactly the owner's quote, without owner acceptance/payment/signature actions or access to another business's jobs. Preserve the issued version and recorded dates; never calculate acceptance from another event. All new wording awaits Jo's approval before going live.
+
+### Quote-sent office email — wording proposed, not approved
+
+**Subject:** Quote sent to the owner — {job number}
+
+The quote for {address} was sent to the owner on {date}.
+
+The quote expires on {expiry date}.
+
+**View quote**
+
+Home Insulation Victoria
+
+**Implementation clarification required:** the listed fields do not establish existing insulation/R-value, access or the product/area facts required by the current completed-A1/quote paths. Reuse facts already recorded, never infer missing answers from removal m², price or photos. Jo must choose whether missing answers are collected in this portal form or left for office review; neither bypassing those checks nor adding questions is approved by this section. Current unused-form closure is portal-only and does not close the actual Mitti audit.
+
 ## Part 2 — The electrician calls and books the PIESA (1 Nov, 2 Nov)
 
 **Today:** the electrician gets a login link, offers the owner 3 times, the owner picks one, and there are 24 hours to reply.

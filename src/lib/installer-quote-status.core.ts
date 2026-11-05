@@ -9,7 +9,7 @@ export const A2_RATE_CARD_CODES = ["R5_BATTS", "R6_BATTS", "R7_BATTS"] as const;
 /** A Ready Check owner quote: the installer's own job (A1), one of our leads priced from the rate card (A2), or any
  *  quote on a job whose current measurement is a linked Mitti form. */
 export function isReadyCheckQuote(optionCode: string | null | undefined, mitti: { external_source?: string | null; external_id?: string | null } | null | undefined): boolean {
-  if (optionCode === INSTALLER_A1_CODE || (A2_RATE_CARD_CODES as readonly string[]).includes(optionCode ?? "")) return true;
+  if (optionCode === INSTALLER_A1_CODE || optionCode === 'INSTALLER_A1_THICKER' || (A2_RATE_CARD_CODES as readonly string[]).includes(optionCode ?? "")) return true;
   return mitti?.external_source === "mitti" && !!mitti.external_id;
 }
 
@@ -21,6 +21,8 @@ import { PRESS_COMPLETE_LINE } from "./installer-status-line.core";
 export const QUOTE_PRICE_NEXT_LINE = "Your boss enters the price next, then we send the owner their quote."; // DRAFT
 /** Shown while the quote is held for the office after the price is in. */
 export const QUOTE_HELD_LINE = "Waiting on office: checking the quote";
+/** Jo 5 Nov: own-customer price saved; a status only, never an installer Send action. */
+export const OWN_CUSTOMER_QUOTE_PREPARING_LINE = "Quote being prepared — Home Insulation Victoria will send it to the owner";
 export const QUOTE_DECLINED_LINE = "Waiting on office: the owner declined the quote";
 export const QUOTE_ACCEPTED_LINE = "Waiting on owner: quote accepted – waiting for owner's payment";
 export const QUOTE_SENT_LINE = "Waiting on owner: to accept the quote";

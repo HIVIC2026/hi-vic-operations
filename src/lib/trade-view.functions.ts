@@ -81,11 +81,6 @@ export const getTradeBusinessFile = createServerFn({ method: "POST" }).middlewar
   .handler(async ({ context }) => plain(await (await import("./trade-view.server")).tradeBusinessFile(context.userId)));
 
 
-export const saveTradeUsualElectrician = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  // Decision 369: no price — the electrician's onboarding rate is the only rate (decision 353).
-  .inputValidator((d) => z.object({ name: z.string().trim().min(1).max(200), licence: z.string().trim().min(1).max(100), email: z.string().trim().email().max(320).nullish(), phone: z.string().trim().max(40).nullish() }).parse(d))
-  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSaveUsualElectrician(context.userId, data));
-
 /** ESC collection notice: the business's installers and their acknowledgement state (boss sees all; a worker only their own row). */
 export const getTradeCollectionNotice = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .handler(async ({ context }) => plain(await (await import("./esc-collection-notice-send.server")).tradeNoticeView(context.userId)));
@@ -127,7 +122,7 @@ export const setTeamMemberMissing = createServerFn({ method: "POST" }).middlewar
   .inputValidator((d) => z.object({ workerId: z.string().uuid(), dateOfBirth: z.string().trim().max(10).nullable().optional(), email: z.string().trim().max(254).nullable().optional() }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeFillWorkerMissing(context.userId, data.workerId, { dateOfBirth: data.dateOfBirth ?? null, email: data.email ?? null }));
 
-/** Jo 29 Oct: add a person to the team with no email needed; they sign their declarations by link before any job.
+/** Jo 29 Oct: add a person to the team with no email needed (Jo 5 Nov: no declarations to sign, not held back from jobs).
  *  Task 10 (Jo 2 Nov): role Office / Lead Installer / Crew / Electrician; mobile + date of birth required for everyone
  *  (checked server-side); electricians also give licence + REC. `workerRole` is kept for older callers. */
 export const addTeamPerson = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
@@ -349,6 +344,11 @@ export const getTradeSafetyCheckDoc = createServerFn({ method: "POST" }).middlew
 export const getTradeSafetyCheckPdf = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeSafetyCheckPdf(data.jobId, context.userId));
+
+/** Jo 5 Nov 2026: the installer opens the saved Mitti Ready Check report (PDF with photos) from the job page. */
+export const getTradeReadyCheckReportPdf = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeReadyCheckReportPdf(data.jobId, context.userId));
 
 /** Decision 328: "Check my form now" — runs the single-job A5 Install day sync for this installer's job and returns the
  *  result (the same words as the text). Installers only; business-scoped through requireTradeJob. */

@@ -83,7 +83,7 @@ describe("enforcement (decision 130): no lead or crew without acknowledgement", 
   });
   test("PIISA crew: lead and additional refused until acknowledged", () => {
     const cert = { id: "11111111-1111-4111-8111-111111111111", status: "verified", certificate_number: "C1", issuer: "EEC" };
-    const row = (id: string, name: string) => ({ id, full_legal_name: name, approval_status: "approved", removed_at: null, trade_role: "installer", certification: { verification_id: cert.id } });
+    const row = (id: string, name: string) => ({ id, full_legal_name: name, approval_status: "approved", removed_at: null, trade_role: "installer", worker_role: "lead", certification: { verification_id: cert.id } });
     // Decision 153: both are cleared (verified + recorded level + current expiry) so only the notice stands in the way.
     const lv = { certification_id: cert.id, level: "full", expires_on: "2028-01-01", recorded_at: "2026-10-01T00:00:00Z" };
     const staff = staffFromRecords([row("w1", "Lead One"), row("w2", "Crew Two")] as never, [cert] as never, [lv], new Map([["w1", false], ["w2", true]]), "2026-10-24");
@@ -195,7 +195,7 @@ describe("onboarding (applicant's own row only) and office surfaces", () => {
 
 test("G4: lead follows the one Lead/Crew rule — never just the first row", () => {
   const s = collectionNoticeStatus([{ ...w("a@x.au"), worker_role: "crew" }, w("b@x.au", "C D"), { ...w("c@x.au"), worker_role: "lead" }], []);
-  expect(s.map((x) => x.lead)).toEqual([false, true, true]); // crew → false; null installer → Lead (Jo F answer 1)
+  expect(s.map((x) => x.lead)).toEqual([false, false, true]); // crew → false; no role → Crew (Jo 5 Nov 2026); stored lead → true
   expect(readFileSync("src/lib/esc-collection-notice.core.ts", "utf8")).toContain("effectiveWorkerRole(");
   expect(readFileSync("src/lib/esc-collection-notice.core.ts", "utf8")).not.toContain('worker_role === "lead"');
   expect(readFileSync("src/lib/esc-collection-notice.server.ts", "utf8")).toMatch(/NOTICE_WORKER_COLS = "[^"]*worker_role/);
@@ -203,4 +203,20 @@ test("G4: lead follows the one Lead/Crew rule — never just the first row", () 
   expect(page).toContain("s.lead ? P5.leadSuffix");
   expect(page).not.toContain("i === 0");
   expect(readFileSync("src/routes/notice.$token.tsx", "utf8")).not.toContain("leadSuffix");
+});
+
+describe("collectionNoticeStatus matches by worker id first", () => {
+  test("an acknowledgement saved with an empty email still counts once the worker has an email", () => {
+    const wayne = { id: "f6b59098", email: "wayne@reinsulate.au", full_legal_name: "Wayne Fletcher", trade_role: "installer" };
+    const [s] = collectionNoticeStatus([wayne], [{ ...ack(""), worker_id: "f6b59098" }]);
+    expect(s?.state).toBe("acknowledged");
+  });
+  test("an acknowledgement for another worker id with no email match does not count", () => {
+    const [s] = collectionNoticeStatus([{ id: "w1", email: "a@x.au", full_legal_name: "A", trade_role: "installer" }], [{ ...ack(""), worker_id: "w2" }]);
+    expect(s?.state).toBe("missing");
+  });
+  test("a worker with no email and an acknowledgement with an empty email but another worker id is missing", () => {
+    const [s] = collectionNoticeStatus([{ id: "w1", email: null, full_legal_name: "A", trade_role: "installer" }], [{ ...ack(""), worker_id: "w2" }]);
+    expect(s?.state).toBe("missing");
+  });
 });

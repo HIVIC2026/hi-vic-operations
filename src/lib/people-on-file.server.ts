@@ -40,7 +40,8 @@ export async function peopleOnFile(workerIds: string[], installLeadId: string | 
   const missing = workerIds.filter((id) => !rows.some((r) => r.id === id));
   if (missing.length) throw new WorkflowError("Someone on this booking is no longer on file. Choose the people again.");
   const { privateBirthDates } = await import("./worker-identity.server");
-  const dobs = await privateBirthDates(workerIds);
+  const leadIds=rows.filter(r=>r.trade_role === "installer" && (r.id===installLeadId || r.worker_role!=="crew")).map(r=>r.id);
+  const dobs = leadIds.length ? await privateBirthDates(leadIds) : new Map<string,string>();
   const { crewClearance, electricianVerified, melbourneToday } = await import("./worker-compliance.core");
   const today = melbourneToday();
   const installers = rows.filter((r) => r.trade_role === "installer");
@@ -51,7 +52,7 @@ export async function peopleOnFile(workerIds: string[], installLeadId: string | 
   }
   return rows.map((r) => ({
     name: r.full_legal_name?.trim() || "Unnamed person",
-    role: r.trade_role === "electrician" ? "electrician" : r.id === installLeadId || r.worker_role !== "crew" ? "lead" : "crew",
+    role: r.trade_role === "electrician" ? "electrician" : r.id === installLeadId || r.worker_role === "lead" ? "lead" : "crew",
     dateOfBirth: !!dobs.get(r.id),
     mobile: r.mobile,
     ciiVerified: clearance.get(r.id) ?? false,
@@ -61,6 +62,9 @@ export async function peopleOnFile(workerIds: string[], installLeadId: string | 
 
 /** Refuses (WorkflowError, one line per missing fact) a booking whose people aren't on file. */
 export async function requirePeopleOnFileForBooking(jobId: string, kind: Kind, proposedWorkerId: string | null): Promise<void> {
+  // Jo 5 Nov: Ready Check attendance is Team membership + Mitti/office access,
+  // validated by the allocation writer, never install-day identity or credentials.
+  if (kind === "ready_check") return;
   const ids = await workerIdsOnBooking(jobId, kind, proposedWorkerId);
   if (!ids.length) return;
   const problems = requiredOnFileBlockers(await peopleOnFile(ids, kind === "installation" ? ids[0]! : null));

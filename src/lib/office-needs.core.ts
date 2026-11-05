@@ -64,7 +64,7 @@ export type NeedsFacts = {
   /** J4 G1: an in-house job's synced A3 is complete but the PIESA could not complete by itself (what is missing). */
   piesaAutoCompleteHeld?: { at: string; reason: string } | null;
   installScopeChange?:{at:string;areas:string[]}|null;
-  inHouse?: { partnerName: string; batchSentAt: string | null; readyCheckBooked: boolean;
+  inHouse?: { partnerName: string; batchSentAt: string | null; readyCheckBooked: boolean; ownCustomer?: boolean;
     quoteAcceptedAt: string | null; piesaCompleted: boolean; installationBooked: boolean;
     daysRemaining: number | null; deadline: string | null;
     /** Jo 2 Nov 2026 stall rules: missing reads as not booked / deposit unknown. */
@@ -285,7 +285,7 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
     if (!ih.piesaBooked && !ih.piesaCompleted && ih.piesaUnlockedAt && today > addVicBusinessDays(ih.piesaUnlockedAt, 10)) add({ rank: 90, group: "week", kind: "in_house_piesa_overdue", line: "PIESA not booked 10 business days after quote accepted", since: ih.piesaUnlockedAt, button: { label: "Open job", to: "job", section: "piesa" } });
     if (ih.quoteMethod === "photos") {
       if (!ih.photoQuoteSent && ih.batchSentAt && photoQuoteOverdue(ih.batchSentAt, new Date(now))) add({ rank: 91, group: "week", kind: "in_house_photo_quote_overdue", line: PHOTO_QUOTE_WORDS.overdueFlag, since: ih.batchSentAt, button: { label: "Open job", to: "job", section: "ready-check" } });
-    } else if (!ih.readyCheckBooked && ih.batchSentAt && today > addVicBusinessDays(ih.batchSentAt, 5)) add({ rank: 91, group: "week", kind: "in_house_ready_check_not_booked", line: "Ready Check not booked after 5 business days", since: ih.batchSentAt, button: { label: "Open job", to: "job", section: "ready-check" } });
+    } else if (!ih.ownCustomer && !ih.readyCheckBooked && ih.batchSentAt && today > addVicBusinessDays(ih.batchSentAt, 5)) add({ rank: 91, group: "week", kind: "in_house_ready_check_not_booked", line: "Ready Check not booked after 5 business days", since: ih.batchSentAt, button: { label: "Open job", to: "job", section: "ready-check" } });
   }
   if (f.quoteExpiredBlocked) add({ rank: 9, group: "today", kind: "quote_expired_blocked", line: f.quoteExpiredBlocked.reason === QUOTE_EXPIRED_HELD_REASON ? QUOTE_EXPIRED_HELD_REASON : `Quote expired — owner can't be emailed (${f.quoteExpiredBlocked.reason})`, since: f.quoteExpiredBlocked.at, button: { label: "Open job", to: "job" } });
   if (f.newQuoteOffice) add({ rank: 9, group: "today", kind: f.newQuoteOffice.kind, line: f.newQuoteOffice.line, since: f.newQuoteOffice.at, button: { label: "Open job", to: "job", section: "ready-check" } });
@@ -332,7 +332,7 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   if (f.veecRefunded) add({ rank: 12, group: "today", kind: "veec_refunded", line: f.veecRefunded.text, since: f.veecRefunded.at, button: { label: "Open job", to: "job", section: "money" } });
   if (f.readyCheckPersonMissing) add({ rank: 24, group: "today", kind: "ready_check_person_missing", line: f.readyCheckPersonMissing.text, since: f.readyCheckPersonMissing.at, button: { label: "Open job", to: "job", section: "ready-check" } });
   if (f.eligibilityReview) add({ rank: 38, group: "today", kind: "eligibility_review", line: eligibilityReviewLine(f.eligibilityReview.reason), since: f.eligibilityReview.at, button: { label: "Review eligibility", to: "job", section: "ready-check" } });
-  if (f.quoteToCheck) add({ rank: 40, group: "today", kind: "quote_check", line: f.quoteToCheck.ready ? "Quote ready · all checks passed · press Send" : `Quote held · ${f.quoteToCheck.reason ?? "something is missing"}`, since: f.quoteToCheck.at, button: { label: "Check & send", to: "job", section: "quote" } });
+  if (f.quoteToCheck) add({ rank: 40, group: "today", kind: "quote_check", line: f.quoteToCheck.reason ?? (f.quoteToCheck.ready ? "Quote ready · all checks passed · press Send" : "Quote held · something is missing"), since: f.quoteToCheck.at, button: { label: "Check & send", to: "job", section: "quote" } });
   if (f.fixesQuoteToCheck) add({ rank: 45, group: "today", kind: "fixes_quote_check", line: `Electrical upgrades quote to check${f.fixesQuoteToCheck.reason ? ` · ${f.fixesQuoteToCheck.reason}` : ""}`, since: f.fixesQuoteToCheck.at, button: { label: "Review and send", to: "job", section: "piesa" } });
   if (f.finalCheck) add({ rank: 50, group: "today", kind: "final_check", line: `Final check · install complete · ${f.finalCheck.flags ? `${f.finalCheck.flags} flag${f.finalCheck.flags === 1 ? "" : "s"}` : "no flags"}`, since: f.finalCheck.at, button: { label: "Approve", to: "job", section: "final-check" } });
   if (!held && f.releaseLapsed) add({ rank: 98, group: "week", kind: "release_lapsed", line: `${LAPSED_NEEDS_LINE}${f.releaseLapsed.name ? ` · released to ${f.releaseLapsed.name}` : ""}`, since: f.releaseLapsed.at, button: { label: "Choose installer", to: "job", section: "ready-check" } });
@@ -412,7 +412,7 @@ export function ageLabel(since: string, now: number): string {
 }
 
 /** Partner & system fold (decision 221): one fold line; each item one line with one button. */
-export type SystemRow = { key: string; tag: string; who: string; line: string; since: string | null; button: string; href: string; jobId?: string };
+export type SystemRow = { key: string; tag: string; who: string; line: string; since: string | null; button: string; href: string; jobId?: string; auditId?: string };
 
 /** Part 9 Task 2: one Needs me row per ESC notice still live in the Registry on a job that won't go ahead (often a
  *  cancelled job, so it is a system row read directly, like review feedback). Wording DRAFT (JO-APPROVAL-LIST). */

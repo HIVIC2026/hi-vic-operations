@@ -59,6 +59,11 @@ export async function sweepReadyCheckForms(opts: { call?: MittiCall; now?: Date;
   for (const j of jobs) {
     if (results.length >= AUTOFORM_MAX_PER_TICK) break;
     if (photoJobs.has(j.id)) continue;
+    if(j.channel === 'installer_sourced') {
+      const {ownMittiChoice}=await import('./own-customer-mitti-choice.server');
+      const {ownCustomerMittiAllowed}=await import('./own-customer-mitti-choice.core');
+      if(!ownCustomerMittiAllowed({channel:j.channel,...await ownMittiChoice(j.id)})) continue;
+    }
     const asg = assignments.data?.find((a) => a.job_id === j.id) ?? null;
     const biz = businesses?.find((b) => b.id === (asg?.business_id ?? j.originating_installer_business_id)) ?? null;
     const lastFailure = failures.data?.find((f) => f.job_id === j.id) ?? null;
@@ -71,13 +76,13 @@ export async function sweepReadyCheckForms(opts: { call?: MittiCall; now?: Date;
       lastFailureReason: (lastFailure?.details as { reason?: string } | null)?.reason ?? null,
       bookedAt: bookings.data?.find((b) => b.job_id === j.id)?.created_at ?? null, // latest confirmed booking (sorted newest first)
     }, now, true);
-    if (d.action !== "create") continue;
+    if (d.action !== "create" || !asg?.user_id) continue;
     if (opts.dryRun) { wouldCreate.push(j.job_number); continue; }
     // Practice jobs (qa_test or a TEST partner's job) only ever reach the TEST Mitti account.
     let assignee: { userId: string; fullName: string | null; email: string } | undefined;
     if (j.source === "qa_test" || isTestPartner(biz)) {
       const { TEST_MITTI_ASSIGNEE } = await import("./onsite-ready-check.core");
-      assignee = { userId: asg!.user_id, fullName: null, email: TEST_MITTI_ASSIGNEE };
+      assignee = { userId: asg.user_id, fullName: null, email: TEST_MITTI_ASSIGNEE };
     }
     const { createAssignMittiAudit, realMittiCall } = await import("./mitti.server");
     const { MittiClaimHeld, MittiOutcomeUncertain } = await import("./mitti-create.server");

@@ -1,15 +1,16 @@
 // My work (installer home): one card per job, "Your turn" first. Pure; the Next step box decides each card.
 import { NEXT_STEP_WORDS, type NextStepBox, type NextStepKind } from "./next-step-box.core";
+import { quoteExpiresAt } from "./quote-expiry.core";
 
 export type MyWorkCard = {
   jobId: string; owner: string; hvSuburb: string; pill: "Home Insulation Victoria lead" | "Your customer";
   step: string; reason: string; by: string | null; overdue: boolean; button: string | null; yours: boolean;
 };
-export type MyWorkRow = { jobId: string; jobNumber: string; owner: string | null; street: string | null; suburb: string | null; channel: string | null; box: NextStepBox; reason: string };
+export type MyWorkRow = { jobId: string; jobNumber: string; owner: string | null; street: string | null; suburb: string | null; channel: string | null; box: NextStepBox; reason: string; mittiLinked?: boolean; mittiRequested?: boolean; quoteSentAt?: string | null };
 
 // Wording. Every line here is a DRAFT (no approved text yet) except where marked.
 export const MY_WORK_WORDS = {
-  greetingTitle: (business: string) => `Good morning, ${business} crew!`, // approved (Global Constraints)
+  greetingTitle: (business: string) => `Hi, ${business} team`, // Jo 5 Nov: neutral greeting stays correct at any Melbourne time.
   needYou: (n: number) => (n === 1 ? "1 job needs you today." : `${n} jobs need you today.`), // approved (Global Constraints)
   nothing: "Nothing needs you today.", // DRAFT
   leadPill: "Home Insulation Victoria lead" as const, // approved
@@ -27,6 +28,7 @@ export const greeting = (business: string, yourTurnCount: number): { title: stri
 });
 
 const REASON: Record<NextStepKind, string> = {
+  own_ready_check: "Ready Check",
   book_ready_check: "New job", // approved (plan Task 4 test)
   ready_check_booked: "Ready Check booked", // DRAFT
   ready_check_missing: "Ready Check needs finishing", // DRAFT
@@ -47,7 +49,7 @@ const REASON: Record<NextStepKind, string> = {
 /** `box` (fix wave I5): a "waiting_quote" box before any quote has gone is "Ready Check done" (approved), not "Waiting for the owner". */
 /** `photos`: a From photos job never says "Ready Check done" — its quote-being-prepared card reads "Photo quote sent" (DRAFT). */
 export const reasonFor = (kind: NextStepKind, box?: Pick<NextStepBox, "title">, photos = false): string =>
-  kind === "waiting_quote" && box?.title === NEXT_STEP_WORDS.quotePreparingTitle ? (photos ? "Photo quote sent" : REASON.enter_price) : REASON[kind];
+  kind === "waiting_quote" && box?.title.startsWith(NEXT_STEP_WORDS.quotePreparingTitle) ? (photos ? "Photo quote sent" : REASON.enter_price) : REASON[kind];
 
 /** The My work card reason from the same facts as the box: any photo job (a From photos give OR an installer's own photo
  *  quote) reads "Photo quote sent", never "Ready Check done" (review fix round). */
@@ -64,6 +66,30 @@ function byUrgency(a: MyWorkCard, b: MyWorkCard): number {
 // The card's one button is short: "Book" for both booking steps, "Price it" for the price step.
 const buttonFor = (b: NextStepBox): string | null => (b.kind === "enter_price" ? W.priceButton : b.kind === "book_install" ? W.bookButton : b.button);
 
+const shortDate = (at: Date): string => new Intl.DateTimeFormat("en-AU", { timeZone: "Australia/Melbourne", day: "numeric", month: "short" }).format(at);
+
+/** My work only: own-customer early actions have no Ready Check booking clock. Later boxes stay canonical. */
+function ownCustomerCard(r: MyWorkRow): Partial<MyWorkCard> {
+  if (r.channel !== "installer_sourced") return {};
+  const noDeadline = { by: null, overdue: false };
+  if (r.box.kind === "own_ready_check") return {
+    ...noDeadline, step: "Measure and quote", reason: r.mittiLinked ? 'New job · Mitti form ready' : r.mittiRequested ? 'New job · Mitti form on its way' : 'New job',
+    button: "Measure and quote", yours: true,
+  };
+  if (r.box.kind === "enter_price") return {
+    ...noDeadline, step: "Enter your price", reason: "Mitti form done", button: "Enter price", yours: true,
+  };
+  if (r.box.kind === "waiting_quote" && r.quoteSentAt) {
+    const sent = new Date(r.quoteSentAt);
+    if (!Number.isFinite(sent.getTime())) return {};
+    const validUntil = new Date(quoteExpiresAt(sent).getTime() - 1);
+    return { ...noDeadline, step: "Quote sent", reason: `Sent ${shortDate(sent)} · valid until ${shortDate(validUntil)}`, button: "See the quote", yours: false };
+  }
+  if (r.box.kind === "waiting_quote" && r.box.title.startsWith(NEXT_STEP_WORDS.quotePreparingTitle)) return {
+    ...noDeadline, step: "Quote being prepared", reason: "Home Insulation Victoria is checking it", button: null, yours: false,
+  };
+  return {};
+}
 
 // Part 7 Task 9 (join 4 Nov 2026): nobody is offered a job any more (the installer calls the owner and books), so there is
 // no "Job offer" card and no /field/offer link; a leftover pending offer is the office's to close by hand.
@@ -74,6 +100,7 @@ export function myWorkCards(rows: MyWorkRow[]): { yourTurn: MyWorkCard[]; all: M
     pill: r.channel === "installer_sourced" ? W.ownPill : W.leadPill,
     step: r.box.title, reason: r.reason, by: r.box.bookBy, overdue: r.box.overdue,
     button: buttonFor(r.box), yours: r.box.yours,
+    ...ownCustomerCard(r),
   }));
   const mine = cards.filter((c) => c.yours).sort(byUrgency);
   const rest = cards.filter((c) => !c.yours).sort(byUrgency);

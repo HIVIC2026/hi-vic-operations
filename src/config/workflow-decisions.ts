@@ -318,9 +318,9 @@ export const WORKFLOW_DECISIONS = {
     },
     leadCrew: {
       by: "Jo 27–29 Oct 2026",
-      replaces: "Jo 28 Oct 2026 (null = Crew unless Mitti access; Lead → Crew deactivates Mitti)",
+      replaces: "Jo 28 Oct 2026 (null = Crew unless Mitti access; Lead → Crew deactivates Mitti); Jo 5 Nov 2026 reversed the 29 Oct \"null = Lead\" line: no role = Crew",
       installerRoles: ["lead", "crew"],
-      nullReadsAs: "lead",
+      nullReadsAs: "crew", // Jo 5 Nov 2026 (was "lead", Jo 29 Oct); the 8 live no-role installers were set to crew in the database
       mittiAutoInviteOnlyFor: "lead",
       installLeadOnlyFor: "lead",
       leadNoEmailUses: "business_office_email",
@@ -329,9 +329,18 @@ export const WORKFLOW_DECISIONS = {
       everyInstallerNeedsCii: true,
       readyCheckNeedsMittiLogin: true,
       crewSwitchKeepsMitti: true,
-      teamAddedSignDeclarationsByLink: true,
-      signLinkNeedsMobileOrEmail: true,
       officeInvitesMittiByHand: true,
+    },
+    // Jo 5 Nov 2026: REPLACES "workers the boss adds directly must sign the 6 worker declarations before being sent to jobs" (Jo 29 Oct).
+    workerDeclarations: {
+      by: "Jo 5 Nov 2026",
+      replaces: "Jo 29 Oct 2026",
+      required: false,
+      addedOnTeamHeldBack: false,
+      joinLink: "details only: name, mobile, email, date of birth, licence (electrician) or qualification and EEC certificate (installer); no promises to tick, no signature",
+      completionLink: "certificate only, and only when one is needed (installer, not verified, none uploaded or last one rejected)",
+      kept: ["CII certificate checks", "Lead Installer ESC registration", "ESC collection notice acknowledgement", "date of birth and mobile on file", "every other gate"],
+      column: "partner_workers.declarations_due is ignored by app code (never read, never written). The live SQL (add_team_installer_with_identity, 0186, and pending add_team_person_with_identity) still sets it true on installer adds; a later SQL change should stop that or drop the column.",
     },
   },
   hardStops: [
@@ -393,8 +402,8 @@ export const INSURANCE_GATE_DECISIONS = {
 
 /** New job flow Part 9 Task 9 (Jo 2 Nov 2026): required on file before working + the Lead Installer lock. */
 export const REQUIRED_ON_FILE_DECISIONS = {
-  rule: "requiredOnFileBlockers (worker-compliance.core): every person on a booking has a date of birth (kept privately, partner_worker_identity) and a mobile; the Lead Installer and crew an office-verified current CII/EEC (crewClearance); the electrician a verified licence + REC (electricianVerified); boss/office people need no certificate",
-  where: "validateBooking on every kind (people-on-file.server: the proposed or allocated electrician, the Ready Check's allocated person, the install's current Lead + saved crew; nobody allocated yet = nothing to check here) and offers; a read error refuses (fail closed)",
+  rule: "requiredOnFileBlockers (worker-compliance.core): each working person has a mobile; only the Lead Installer needs a date of birth (kept privately, partner_worker_identity) for ESC; the Lead Installer and crew an office-verified current CII/EEC (crewClearance); the electrician a verified licence + REC (electricianVerified); boss/office people need no certificate",
+  where: "validateBooking for electrical and installation visits (people-on-file.server: the proposed or allocated electrician, the install's current Lead + saved crew; nobody allocated yet = nothing to check here) and offers; a read error refuses (fail closed). Jo 5 Nov: Ready Check is exempt from DOB, ESC registration, CII and White Card checks; any current Team attendee uses their Mitti login or the partner office login. Lead approval and install checks remain required. White Card is permanently retired everywhere (Jo 5 Nov 7:43pm); stored uploads/history retained.",
   wording: "Not on file yet: {name}: date of birth missing; {name}: mobile missing; {name}: CII/EEC certificate not verified by Home Insulation Victoria; {name}: electrical licence + REC not verified by Home Insulation Victoria.",
   lock: "leadInstallerLock(startIso) → 9:00 email / 17:00 lock Melbourne wall-clock two calendar days before the install's Melbourne date (DST-safe), lockLabel 'Wed 11 Nov, 5pm'; leadInstallerLocked(startIso, now, { installCompleted }) false once the install is recorded complete; LEAD_LOCKED_MESSAGE approved; Parts 5 and 7 import, never re-implement",
 } as const;
@@ -406,4 +415,15 @@ export const NO_ESC_DECISIONS = {
   gates: "the GO check and the PIISA timing rule drop only the ESC-notice lines (note 'No ESC (real-run job): ESC notice skipped' on the check); the 30-day PIESA rule, SWMS, Part C, certificate, deposit, insurance and every other gate still block",
   failClosed: "a marker read error throws → the recorder refuses, the sweep stops, the GO check is not recorded",
   unmarked: "byte-identical behaviour; no SQL",
+} as const;
+
+/** Jo 5 Nov 2026 (approved): ONE Electricians list per installer business — replaces "Usual electrician". */
+export const INSTALLER_ELECTRICIANS_DECISIONS = {
+  list: "electriciansForInstaller (installer-electricians.server.ts, rules in installer-electricians.core.ts): the electrician businesses linked to the installer (partner_relationships, active) + the installer's Team electricians, each Approved / Pending, ONE Main",
+  screens: "office Partners › business and the installer's My business › Electricians: Add electrician (approved electrician businesses, never another installer's own), Remove, Main tick; the old 'Usual electrician' section and its HIV-does-the-safety-check wording are gone",
+  pickers: "pickers keep what they could pick before: Team pickers (Add a job teamElectricianChoices, PIESA booking / in-house electricianPicker, Mitti card) list the Team with the Main as default; the job page swap (swapOptions) and the legacy picker (bulkElectricianChoices) list the linked businesses, Main first",
+  main: "Main = the default electrician everywhere; the latest installer_main_electrician_set admin_config_event decides (exactly one), partner_relationships.is_primary follows it; readMainElectrician is the one server read every old usual-electrician path uses (incl. teaming/allocation preferred); never ticked → the old saved usual electrician, unchanged",
+  change: "changeJobElectrician: allowed until the safety check (PIESA) is done; person + time saved together; the job-link text and the Mitti PIESA form only after that saved; a failed save keeps the old electrician and sends nothing; a failed hand-over after the save → in_house_form_sync_failed (Needs me) + a warning; same electrician = time only",
+  quoteHold: "usualElectricianChangedBlocker: the Main / usual electrician is compared by licence (case, spaces and dashes ignored), never by name (HV-3193)",
+  unchanged: "HIV leads: HIV pays the installer $275; own jobs: the installer's own PIESA price; ESC/licence checks; the 2 Nov rule (any electrician onboarded with HIV and connected to the installer); no schema change",
 } as const;

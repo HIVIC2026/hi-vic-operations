@@ -21,21 +21,18 @@ export async function allocationCandidates(businessId: string): Promise<Allocati
   // alongside the staff rows; a staff read error still throws first, then the crew facts' error, as before.
   const bizP = early(db.from("businesses").select("email").eq("id", businessId).maybeSingle() as PromiseLike<{ data: { email?: string | null } | null }>);
   const staffP = early(import("./piisa-a3.server").then((m) => m.crewStaff(businessId)));
-  let { data: workers, error } = await load(`${cols}, declarations_due`);
-  // Until 0230 is live the column is missing: re-read without it and treat everyone as signed (preflight ruling 10).
-  if (error && (await import("./schema-compat.core")).isMissingDbObject(error)) ({ data: workers, error } = await load(cols));
+  const { data: workers, error } = await load(cols);
   if (error) throw new WorkflowError(`Couldn't load your staff: ${error.message}`);
   const { data: biz } = await bizP;
   const businessEmail = (biz as { email?: string | null } | null)?.email ?? null;
   const staff = await staffP;
   const byId = new Map(staff.map((s) => [s.workerId, s]));
-  return ((workers ?? []) as { id: string; full_legal_name: string; trade_role: string; email: string | null; mobile: string | null; removed_at: string | null; worker_role?: string | null; declarations_due?: boolean | null }[]).map((w) => {
+  return ((workers ?? []) as { id: string; full_legal_name: string; trade_role: string; email: string | null; mobile: string | null; removed_at: string | null; worker_role?: string | null }[]).map((w) => {
     const s = byId.get(w.id);
     return {
       workerId: w.id, name: w.full_legal_name.trim(), tradeRole: w.trade_role, email: w.email, mobile: w.mobile, removedAt: w.removed_at, workerRole: s?.workerRole ?? effectiveWorkerRole({ tradeRole: w.trade_role, stored: w.worker_role }), businessEmail,
       clearance: s ? { certStatus: s.eecVerified ? "verified" : s.clearanceReason === CREW_CLEARANCE_REASON.withdrawn ? "rejected" : null, level: s.level ?? null, expiresOn: s.expiresOn ?? null } : null,
       whiteCard: s?.whiteCard ?? null,
-      declarationsDue: w.declarations_due === true,
     };
   });
 }
@@ -119,8 +116,13 @@ export async function allocateVisit(jobId: string, userId: string, kind: VisitKi
   const mitti = await import("./mitti.server");
   const useCall = call ?? mitti.realMittiCall;
   // TEST partners never reach a real installer's Mitti user; their forms live under the TEST Mitti account.
-  const lookupEmail = c.isTest || job?.source === "qa_test" ? (await import("./onsite-ready-check.core")).TEST_MITTI_ASSIGNEE : (mittiEmailFor({ role: cand.workerRole ?? null, ownEmail: cand.email, businessEmail: cand.businessEmail }).email ?? "");
-  const mittiUserId = await mitti.findMittiUserByEmail(lookupEmail, useCall);
+  const testIdentity = c.isTest || job?.source === "qa_test";
+  let lookupEmail = testIdentity ? (await import("./onsite-ready-check.core")).TEST_MITTI_ASSIGNEE : (mittiEmailFor({ role: cand.workerRole ?? null, ownEmail: cand.email, businessEmail: cand.businessEmail }).email ?? "");
+  let mittiUserId = lookupEmail ? await mitti.findMittiUserByEmail(lookupEmail, useCall) : null;
+  if (!mittiUserId && !testIdentity && kind === "ready_check" && cand.businessEmail?.trim() && cand.businessEmail.trim().toLowerCase() !== lookupEmail.trim().toLowerCase()) {
+    lookupEmail = cand.businessEmail.trim();
+    mittiUserId = await mitti.findMittiUserByEmail(lookupEmail, useCall);
+  }
   if (!mittiUserId) throw new WorkflowError(addInMittiFirst(cand.name, cand.email));
   const auditId = await visitFormAuditId(jobId, kind);
   await logEvent(jobId, userId, VISIT_ALLOCATED_EVENT, `${VISIT_LABEL[kind]} allocated to ${cand.name}${auditId ? "" : " (Mitti form not created yet)"}`,

@@ -1324,6 +1324,41 @@
       "when": 1793743897269,
       "tag": "0188_ceiling_layout_retail_prices",
       "breakpoints": true
+    },
+    {
+      "idx": 189,
+      "version": "7",
+      "when": 1793867231279,
+      "tag": "0189_portal_read_indexes_5nov",
+      "breakpoints": true
+    },
+    {
+      "idx": 190,
+      "version": "7",
+      "when": 1793875510006,
+      "tag": "0190_team_lead_only_birth_date",
+      "breakpoints": true
+    },
+    {
+      "idx": 191,
+      "version": "7",
+      "when": 1793879374660,
+      "tag": "0191_team_role_fields_atomic",
+      "breakpoints": true
+    },
+    {
+      "idx": 192,
+      "version": "7",
+      "when": 1793879577894,
+      "tag": "0192_team_certificate_number_only",
+      "breakpoints": true
+    },
+    {
+      "idx": 193,
+      "version": "7",
+      "when": 1793879827517,
+      "tag": "0193_team_certificate_expiry",
+      "breakpoints": true
     }
   ]
 }

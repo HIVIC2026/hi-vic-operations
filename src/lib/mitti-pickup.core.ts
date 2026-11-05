@@ -231,3 +231,37 @@ export function mittiReadyCheckStage(job: { stage: string; channel: string | nul
   if (job.channel !== "installer_sourced") return null;
   return (MITTI_HOLD_FROM_STAGES as readonly string[]).includes(job.stage) ? "ready_check_scheduled" : null;
 }
+
+// ---------- Needs me clean-up (Jo 5 Nov 2026) ----------
+
+/** True when the text carries "test" as a word on its own: "TEST Street", "E2E Test", "deep-test", "TEST_RC".
+ *  "Contest", "Latest" and "Attestation" do not count. */
+export const looksLikeTestText = (s: string | null | undefined): boolean => /(^|[^a-z])test(?![a-z])/i.test(s ?? "");
+
+/** A Mitti form is a TEST form when its owner name, address or reference says so. These stay off Needs me. */
+export const isTestPickupForm = (f: { homeownerName?: string | null; siteAddress?: string | null; mittiRef?: string | null }): boolean =>
+  looksLikeTestText(f.homeownerName) || looksLikeTestText(f.siteAddress) || looksLikeTestText(f.mittiRef);
+
+export const MITTI_PICKUP_DISMISSED_EVENT = "mitti_pickup_dismissed";
+
+/** Audit ids the pickup must never offer, link or adopt: forms the office dismissed, and the old forms named by any
+ *  job's `mitti_form_replaced` event (details.old_audit_id, same field the photo sync reads). */
+export function knownPickupAuditIds(input: { dismissed: { details: unknown }[]; replaced: { details: unknown }[] }): Set<string> {
+  const out = new Set<string>();
+  const take = (rows: { details: unknown }[], field: string) => {
+    for (const r of rows) {
+      const v = ((r.details ?? {}) as Record<string, unknown>)[field];
+      if (typeof v === "string" && v.trim()) out.add(v.trim());
+    }
+  };
+  take(input.dismissed, "audit_id");
+  take(input.replaced, "old_audit_id");
+  return out;
+}
+
+/** Drops forms the pickup must not show or adopt. `hideTest` is for the office list only. */
+export function visiblePickupForms<T extends { auditId: string; homeownerName?: string | null; siteAddress?: string | null; mittiRef?: string | null }>(
+  forms: readonly T[], known: ReadonlySet<string>, hideTest: boolean,
+): T[] {
+  return forms.filter((f) => !known.has(f.auditId) && !(hideTest && isTestPickupForm(f)));
+}

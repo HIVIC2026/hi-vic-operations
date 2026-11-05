@@ -133,6 +133,11 @@ export async function createAssignMittiAudit(jobId: string, actorId: string | nu
   // office button and the automatic sweep agree with each other whatever stage the website checks left the job in.
   const readyCheckStage = readyCheckFormStageAllowed(job.stage, job.channel);
   const measureOnly = !opts.inHousePreparation && (!!opts.readyCheck || readyCheckStage || scope.scope === "MEASURE_UP_ONLY");
+  if(measureOnly && job.channel === 'installer_sourced') {
+    const {ownMittiChoice}=await import('./own-customer-mitti-choice.server');
+    const {ownCustomerMittiAllowed}=await import('./own-customer-mitti-choice.core');
+    if(!ownCustomerMittiAllowed({channel:job.channel,...await ownMittiChoice(jobId)})) throw new WorkflowError('Choose Do a Ready Check on site on the job page before creating a Mitti form.');
+  }
   const role = measureOnly ? "installer" : "electrician";
   // Role-specific forms only; the old combined template is never used for new audits.
   // Ready Check variant: installer-sourced jobs get the priced form (A1), our leads the evidence-only form (A2).
@@ -472,7 +477,11 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
   const s = await jobScope(jobId);
   const m = s.measurementRow;
   const measureAudit = m?.external_source === "mitti" && m.external_id && m.external_id !== a?.external_mitti_id && m.status !== "complete" ? m.external_id : null;
-  if (!a?.external_mitti_id && !measureAudit) throw new WorkflowError("No Mitti assessment has been created for this job.");
+  if (!a?.external_mitti_id && !measureAudit) {
+    // A finished Ready Check (measurement complete, no PIESA form yet) still has its photos copied.
+    if (m?.external_source === "mitti" && m.external_id) await syncReadyCheckPhotos(jobId, call, fetchMedia);
+    throw new WorkflowError("No Mitti assessment has been created for this job.");
+  }
   const api = mittiApi(call);
   let issues: string[] = [];
   let syncFailed = false;
@@ -680,7 +689,15 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
       issues = [...issues, `Ready Check sync failed: ${msg}`];
     }
   }
+  await syncReadyCheckPhotos(jobId, call, fetchMedia);
   return { locked, completed, issues, syncFailed };
+}
+
+/** Deep fixes Task 1 (Jo 5 Nov 2026): Ready Check photos are copied after the answers, in their own try/catch, so a photo
+ *  problem never fails the sync. */
+async function syncReadyCheckPhotos(jobId: string, call: MittiCall, fetchMedia: MittiMediaFetch) {
+  try { await (await import("./mitti-photos.server")).syncMittiPhotos(jobId, call, fetchMedia); }
+  catch (e) { console.error("Mitti photo copy failed", jobId, e instanceof Error ? e.message : String(e)); }
 }
 
 export async function syncPendingMitti(actorId: string | null, call: MittiCall = realMittiCall, opts: { budgetMs?: number } = {}) {
@@ -855,8 +872,10 @@ export async function createPiisaMittiAudit(jobId: string, actorId: string | nul
       const a3Entries = Array.isArray(asmt?.mitti_raw_snapshot) ? (asmt!.mitti_raw_snapshot as unknown as { label: string; value: string | null }[]) : [];
       const a3Short = a3Entries.length ? (await import("./official-short.core")).shortAnswersFromEntries("piesa", a3Entries) : null;
       const piesaFacts = id.installDayPiesaFacts({ piesaAnswers: piisaCtx.piesaAnswers as Record<string, unknown> | null, a3Short, lifeSupportDeclared: piisaCtx.lifeSupportDeclared });
+      const beforeAreas=await (await import('./install-evidence.server')).jobUpgradeZones(jobId,{forPrefill:true});
       const facts = {
-        areaOrder: (await (await import('./install-evidence.server')).jobUpgradeZones(jobId)).map((z,i)=>`${i+1}. ${z.name?.trim()||`Area ${i+1}`}`).join(' · '),
+        beforeAreas,
+        areaOrder: beforeAreas.map((z,i)=>`${i+1}. ${z.name?.trim()||`Area ${i+1}`}`).join(' · '),
         jobNumber: job.job_number, address: hv("address"), installDate: hv("startDate"), apName: hv("p2.ap"), businessName: hv("p2.company"),
         leadName: lead?.name ?? null, leadCii: lead?.eecVerified ? lead.eec : null,
         // Decision 299: the rest of the crew pre-filled from the booking's crew picks (staff row, or an "Other" entry).
@@ -1000,7 +1019,9 @@ export async function updateMittiInstallCrew(jobId: string, auditId: string, act
   const routingEmail = source?.source === "qa_test" ? (await import("./onsite-ready-check.core")).TEST_MITTI_ASSIGNEE : null;
   const api = mittiApi(await mittiCallFor(call,routingEmail));
   const audit = await api.getAudit(auditId);
-  validateStoredMittiAudit(audit,{storedAuditId:auditId,jobNumber:job.job_number,templateId:ws.mitti_piisa_template_id});
+  const templateId=[ws.mitti_piisa_template_id].find(t=>sameMittiTemplateId(parseAudit(audit).templateId,t));
+  if(!templateId)throw new WorkflowError('The install form does not match a configured template.');
+  validateStoredMittiAudit(audit,{storedAuditId:auditId,jobNumber:job.job_number,templateId});
   if (parseAudit(audit).completed) return;
   const {staff,selection} = await (await import("./piisa-a3.server")).loadCrew(jobId);
   if (!selection) throw new WorkflowError("Choose the install crew first.");

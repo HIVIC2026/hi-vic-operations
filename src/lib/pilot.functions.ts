@@ -287,14 +287,6 @@ export const removeTeamMember = createServerFn({ method: "POST" }).middleware([r
     return { ok: true };
   });
 
-export const setPartnerRelationship = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ installerBusinessId: uuid, electricianBusinessId: uuid, preferred: z.boolean(), active: z.boolean().default(true) }).parse(d))
-  .handler(async ({ data, context }) => {
-    if (!(await isAdmin(context.supabase))) await requireMember(context.userId, data.installerBusinessId, true);
-    await admin.from("partner_relationships").upsert({ installer_business_id: data.installerBusinessId, electrician_business_id: data.electricianBusinessId, preferred: data.preferred, active: data.active, created_by: context.userId }, { onConflict: "installer_business_id,electrician_business_id" });
-    return { ok: true };
-  });
-
 /** Profile page data for the signed-in partner (or admin viewing a business). */
 export const getPartnerProfile = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ businessId: uuid.optional() }).parse(d))
@@ -306,16 +298,14 @@ export const getPartnerProfile = createServerFn({ method: "POST" }).middleware([
     if (!adminUser && mine.get(id) !== "business_admin") throw new WorkflowError(mine.has(id) ? "Only the business owner can see this." : "Not your business.");
     const { business, credentials } = await loadBusiness(id);
     if (!business) return null;
-    const [{ data: creds, error: credsError }, { data: members, error: membersError }, { data: workers, error: workersError }, { data: rels, error: relsError }, { data: agreements, error: agreementsError }, { data: cards, error: cardsError }, { data: electricians, error: electriciansError }] = await Promise.all([
+    const [{ data: creds, error: credsError }, { data: members, error: membersError }, { data: workers, error: workersError }, { data: agreements, error: agreementsError }, { data: cards, error: cardsError }] = await Promise.all([
       admin.from("business_credentials").select("*").eq("business_id", id).order("created_at"),
       admin.from("business_members").select("user_id, member_role, active, profiles!business_members_user_id_fkey(full_name, email)").eq("business_id", id),
       admin.from("partner_workers").select("id, profile_id, trade_role, full_legal_name, email, mobile, licence_number, qualification, account_status").eq("business_id", id).order("full_legal_name"),
-      admin.from("partner_relationships").select("id, electrician_business_id, preferred, active, businesses!partner_relationships_electrician_business_id_fkey(name, onboarding_status)").eq("installer_business_id", id),
       admin.from("partner_agreements").select("version, signer_name, signed_at, snapshot_sha256").eq("business_id", id).order("signed_at", { ascending: false }),
       admin.from("rate_cards").select("id, kind, name, version, effective_from, is_active").eq("business_id", id).order("version", { ascending: false }),
-      admin.from("businesses").select("id, name, onboarding_status, business_type, capabilities").or("business_type.eq.rec,capabilities.cs.{electrician}"),
     ]);
-    for (const [label, error] of [["credentials", credsError], ["members", membersError], ["workers", workersError], ["electrician relationships", relsError], ["agreements", agreementsError], ["rate cards", cardsError], ["electrician businesses", electriciansError]] as const) {
+    for (const [label, error] of [["credentials", credsError], ["members", membersError], ["workers", workersError], ["agreements", agreementsError], ["rate cards", cardsError]] as const) {
       if (error) throw new WorkflowError(`Could not read partner ${label}: ${error.message}`);
     }
     const { data: methods, error: methodsError } = await admin.from("partner_measurement_methods").select("*").eq("business_id", id).order("created_at", { ascending: false });
@@ -325,7 +315,7 @@ export const getPartnerProfile = createServerFn({ method: "POST" }).middleware([
     const collectionNotice = await (await import("./esc-collection-notice.server")).businessNoticeStatuses(id);
     const inHouseFacts = adminUser ? await (await import("./installer-paid-electricians.server")).inHouseFactsFor(id) : null;
     const { xero_contact_id: _x, xero_contact_error: _e, ...safe } = business;
-    return { business: adminUser ? business : safe, inHouseFacts, credentials: creds ?? [], members: members ?? [], workers: workers ?? [], relationships: rels ?? [], agreements: agreements ?? [], rateCards: cards ?? [], electricianBusinesses: adminUser ? (electricians ?? []) : [] /* trades never see HIV's electrician network */, measurementMethods: methods ?? [], checklist, collectionNotice, myRole: adminUser ? "hivic_admin" : mine.get(id) };
+    return { business: adminUser ? business : safe, inHouseFacts, credentials: creds ?? [], members: members ?? [], workers: workers ?? [], agreements: agreements ?? [], rateCards: cards ?? [], measurementMethods: methods ?? [], checklist, collectionNotice, myRole: adminUser ? "hivic_admin" : mine.get(id) };
   });
 
 // ---------- Import ----------

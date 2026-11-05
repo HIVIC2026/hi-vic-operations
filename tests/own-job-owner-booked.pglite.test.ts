@@ -44,7 +44,11 @@ const emails: string[] = [];
 const texts: string[] = [];
 mock.module("../src/lib/owner-email-send.server", () => ({ sendGuardedOwnerEmail: async (p: { jobId: string }) => { emails.push(p.jobId); return "sent"; } }));
 mock.module("../src/lib/sms.server", () => ({ sendRealSms: async (p: { jobId: string }) => { texts.push(p.jobId); return { status: "sent", detail: "", sid: null }; } }));
-const { notifyOwnerBooked } = await import("../src/lib/in-house-booking.server");
+const { notifyOwnerBooked: notify } = await import("../src/lib/in-house-booking.server");
+// Since #149 the PIESA "You're booked" wording is ON, so the send reads the ELECTRICIAN's business; the shim can't, so the
+// test supplies it (the gate under test comes before that read either way).
+const SPARKS = { name: "Sparks Electrical", tradingName: null, officePhone: "0300000001", email: "office@sparks.test" };
+const notifyOwnerBooked: typeof notify = (jobId, kind, startIso, who, now, deps = {}) => notify(jobId, kind, startIso, who, now, { electrician: async () => SPARKS, ...deps });
 const who = { id: id(9), name: "Sparky Sam", phone: "0411111111" };
 // The PGlite shim can't do embedded selects (owners(...), businesses(...)), so these check the GATE: an own job gets past it
 // (the next check, "booking is in the past", answers 'not current'); any other channel stops at 'held'. The send itself

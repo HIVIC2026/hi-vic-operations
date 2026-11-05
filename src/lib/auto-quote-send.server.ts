@@ -44,6 +44,9 @@ export async function maybeAutoSendInstallerQuote(jobId: string, opts: { formCom
     }
     return { sent: false, reasons: [] };
   }
+  // Jo 5 Nov: own-customer quotes are office Check & send only, even if a caller enables auto-send.
+  // Keep the draft and every release hold intact; never dispatch an owner delivery from this path.
+  if (draft.option_code === INSTALLER_QUOTE_CODE) return { sent: false, reasons: [] };
   const { officeQuoteBlockers, releaseQuoteToOwner } = await import("./office-quote-review.server");
   const blockers = await officeQuoteBlockers(jobId, draft);
   const d = autoSendDecision({ enabled, formCompleted: opts.formCompleted, quoteReady: true, blockers, sentBefore: !!lastSentAt });

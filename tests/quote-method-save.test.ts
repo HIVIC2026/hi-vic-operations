@@ -56,5 +56,7 @@ test("the Partners business page offers How they quote: both choices from the co
   expect(page).toContain("PHOTO_QUOTE_WORDS.settingLabel");
   expect(page).toContain("QUOTE_METHODS.map(m => ");
   expect(page).toContain("PHOTO_QUOTE_WORDS.methodLabel[m]");
-  expect(page).toContain("...(method !== quoteMethodOf(business) ? { quote_method: method } : {})");
+  // main (5 Nov): the In-house panel saves each choice straight away (no Save button) — so only a changed choice is sent.
+  expect(page).toContain("if (next === method) return;");
+  expect(page).toContain("{ id: businessId, name: business.name, quote_method: next }");
 });

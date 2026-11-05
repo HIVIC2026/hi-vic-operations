@@ -7,12 +7,12 @@ export { addJobConsentLine, consentProblem } from "./onsite-ready-check.core";
 /** Approved screen wording (plan Global Constraints / Task 7). */
 export const ADD_JOB_WORDS = {
   title: "Add a job", sub: "Your own customer. Takes a minute.",
-  name: "Owner's full name", mobile: "Mobile", email: "Email", address: "Address",
-  how: "How did you get this customer?", howNote: "Door-knocked or cold-called customers can't be added.",
-  electrician: "Electrician for the PIESA", button: "Add the job",
+  name: "Owner's name", mobile: "Mobile", email: "Email", address: "Address",
+  how: "How did they find you?", howNote: "Sorry, the rebate rules don't allow door-knocked or cold-called jobs, so this one can't be added.",
+  electrician: "Electrician for the safety check", button: "Add job",
 } as const;
 /** Approved: shown once the job is added (the page moves on to the job). */
-export const nextLine = (first: string): string => `Next: call ${first} and book the Ready Check on the job.`;
+export const nextLine = (_first: string): string => "Added";
 /** DRAFT: the electrician picker's "nothing chosen" problem; the Team list's own reason wins for a listed person. */
 export const ELECTRICIAN_MISSING = "Choose the electrician for the PIESA."; // DRAFT
 export type TeamElectricianChoice = { id: string; name: string; allowed: boolean; reason: string | null };
@@ -122,5 +122,5 @@ export function fieldErrors(problems: string[]): Partial<Record<AddJobField, str
 export function errorSummary(n: number): string | null {
   return n <= 0 ? null : `${n} thing${n === 1 ? "" : "s"} to fix before the job can be added.`;
 }
-export const ADD_JOB_OFFLINE_NOTE = "Your typed details stay on your phone if the signal drops.";
+export const ADD_JOB_OFFLINE_NOTE = "If your signal drops, what you've typed stays on your phone.";
 export const OWNER_CARD_TITLE = "Owner";

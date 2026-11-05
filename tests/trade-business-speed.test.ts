@@ -7,6 +7,7 @@
 // mock.module across files in one process).
 import { afterAll, beforeAll, describe, expect, mock, setSystemTime, test } from "bun:test";
 import { memoryPostgrest, type Tables } from "./helpers/memory-postgrest";
+import { ROUND_LIMIT } from "./helpers/round-counter";
 import { COLLECTION_NOTICE_SHA256 } from "../src/lib/esc-collection-notice.core";
 
 const tables: Tables = {};
@@ -222,7 +223,7 @@ describe("rounds", () => {
   // Known limit (no database function, ruling 30 Oct; owner-only reads gated on the owner check as today): round 1 finds the
   // business and whether this person is its owner, round 2 every owner read that needs only the business, round 3 the reads
   // that need the team rows (profiles, Mitti records) and the second step of the CII / notice records.
-  for (const [who, u, max, was] of [["installer owner", U_BOSS, 3, 8], ["electrician owner", U_ELEC, 3, 6]] as const) {
+  for (const [who, u, max, was] of [["installer owner", U_BOSS, ROUND_LIMIT, 8], ["electrician owner", U_ELEC, ROUND_LIMIT, 6]] as const) {
     test(`tradeBusiness ${who}: at most ${max} sequential rounds (was ${was})`, async () => {
       failWhen = null; seed();
       const r = await measured(() => tradeBusiness(u));
@@ -273,7 +274,7 @@ describe("staff are refused before any owner-only data is read", () => {
       reset();
       const s = await tradeBusiness(u);
       expect(s.boss).toBe(false);
-      expect([s.team, s.credentials, s.notice, s.bankLine, s.details, s.agreement, s.rate, s.usualElectrician]).toEqual([[], [], [], null, null, null, null, null]);
+      expect([s.team, s.credentials, s.notice, s.bankLine, s.details, s.agreement, s.rate]).toEqual([[], [], [], null, null, null, null]);
       await expect(tradeBusinessFile(u)).rejects.toThrow("Only the business owner can see this.");
       await new Promise((r) => setTimeout(r, 5));
       expect(log.map((l) => l.table).filter((t) => OWNER_TABLES.includes(t))).toEqual([]);
@@ -289,11 +290,13 @@ describe("staff are refused before any owner-only data is read", () => {
 });
 
 describe("failure rules unchanged", () => {
-  test("a failed usual-electrician read fails both loaders for an installer owner, as today", async () => {
+  // Jo 5 Nov 2026: My business reads the Main electrician (never ticked = the old usual electrician) for its NEXT panel; the
+  // business file no longer reads it (its unused usualElectrician field is gone).
+  test("a failed Main / usual-electrician read fails My business for an installer owner, as before; the business file no longer reads it", async () => {
     seed();
     failWhen = (t, _s, i) => t === "admin_config_events" && i.includes("installer_usual_electrician_saved");
-    await expect(tradeBusiness(U_BOSS)).rejects.toThrow("Could not load your usual electrician.");
-    await expect(tradeBusinessFile(U_BOSS)).rejects.toThrow("Could not load your usual electrician.");
+    await expect(tradeBusiness(U_BOSS)).rejects.toThrow("Could not load your Main electrician.");
+    expect((await tradeBusinessFile(U_BOSS)).businessId).toBeTruthy();
     failWhen = null;
   });
   test("a failed business row read fails the business file (Business not found.), as today", async () => {

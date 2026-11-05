@@ -143,10 +143,13 @@ describe("sweepReadyCheckForms", () => {
     await db.query(`insert into workflow_events (job_id, event_type, summary, details, created_at) values
       ($1,'in_house_quote_method','photo','{"batch_id":"B1","business_id":"${REAL}","quote_method":"photos"}','2026-10-22T09:00:00Z'),
       ($1,'in_house_batch_sent','sent','{"batch_id":"B1","business_id":"${REAL}"}','2026-10-22T09:01:00Z')`, [j(8)]);
+    // main (Jo 5 Nov): an own job gets a Mitti Ready Check form only after the installer chose Mitti on the job page.
+    await db.query(`insert into workflow_events (job_id, event_type, summary, details, created_at) values ($1,'own_customer_mitti_requested','mitti','{}','2026-10-23T06:33:30Z')`, [j(1)]);
     const r = await sweepReadyCheckForms({ now, dryRun: true, enabled: true });
     expect(r.wouldCreate).not.toContain("HV-3542");
     expect(r.wouldCreate).toContain("HV-3136");
     await db.query("delete from workflow_events where job_id = $1 and event_type in ('in_house_quote_method','in_house_batch_sent')", [j(8)]);
+    await db.query("delete from workflow_events where job_id = $1 and event_type = 'own_customer_mitti_requested'", [j(1)]);
     expect((await sweepReadyCheckForms({ now, dryRun: true, enabled: true })).wouldCreate).toContain("HV-3542");
   });
 
@@ -161,6 +164,10 @@ describe("sweepReadyCheckForms", () => {
       INSERT INTO jobs VALUES ('${j(21)}','HV-3601','installer_sourced','installer_onsite','ready_check_ready_to_schedule','2026-10-23T06:41:00Z',null,null,'${PHOTOB}');
       INSERT INTO job_assignments VALUES ('${j(21)}','${U}','${PHOTOB}','installer',true);`);
     await db.query(`insert into workflow_events (job_id, event_type, summary, details, created_at) values ($1,'photo_quote_submitted','own','{"own_customer":true,"business_id":"${PHOTOB}"}','2026-10-23T06:40:01Z')`, [j(20)]);
+    // main (Jo 5 Nov): an own job gets a Mitti Ready Check form only after the installer chose Mitti on the job page.
+    await db.query(`insert into workflow_events (job_id, event_type, summary, details, created_at) values ($1,'own_customer_mitti_requested','mitti','{}','2026-10-23T06:41:01Z')`, [j(21)]);
+    // main (Jo 5 Nov): an own job gets a Mitti Ready Check form only after the installer chose Mitti on the job page.
+    await db.query(`insert into workflow_events (job_id, event_type, summary, details, created_at) values ($1,'own_customer_mitti_requested','mitti','{}','2026-10-23T06:33:30Z')`, [j(1)]);
     try {
       const r = await sweepReadyCheckForms({ now, dryRun: true, enabled: true });
       expect(r.wouldCreate).not.toContain("HV-3600"); // own photo quote claim
@@ -170,7 +177,7 @@ describe("sweepReadyCheckForms", () => {
       const fresh = new Date(Date.parse("2026-10-23T06:41:00Z") + 5 * 60_000);
       expect((await sweepReadyCheckForms({ now: fresh, dryRun: true, enabled: true })).wouldCreate).not.toContain("HV-3601");
     } finally {
-      await db.exec(`DELETE FROM workflow_events WHERE job_id IN ('${j(20)}','${j(21)}'); DELETE FROM job_assignments WHERE job_id IN ('${j(20)}','${j(21)}'); DELETE FROM jobs WHERE id IN ('${j(20)}','${j(21)}'); DELETE FROM businesses WHERE id = '${PHOTOB}'; ALTER TABLE businesses DROP COLUMN quote_method;`);
+      await db.exec(`DELETE FROM workflow_events WHERE job_id IN ('${j(20)}','${j(21)}') OR (job_id = '${j(1)}' AND event_type = 'own_customer_mitti_requested'); DELETE FROM job_assignments WHERE job_id IN ('${j(20)}','${j(21)}'); DELETE FROM jobs WHERE id IN ('${j(20)}','${j(21)}'); DELETE FROM businesses WHERE id = '${PHOTOB}'; ALTER TABLE businesses DROP COLUMN quote_method;`);
     }
   });
 
@@ -181,6 +188,8 @@ describe("sweepReadyCheckForms", () => {
       INSERT INTO businesses (id, mitti_account_invited, quote_method) VALUES ('${PHOTOB}', true, 'photos');
       INSERT INTO jobs VALUES ('${j(22)}','HV-3602','installer_sourced','installer_onsite','ready_check_ready_to_schedule','2026-10-23T06:42:00Z',null,null,'${PHOTOB}');
       INSERT INTO job_assignments VALUES ('${j(22)}','${U}','${PHOTOB}','installer',true);`);
+    // main (Jo 5 Nov): an own job gets a Mitti Ready Check form only after the installer chose Mitti on the job page.
+    await db.query(`insert into workflow_events (job_id, event_type, summary, details, created_at) values ($1,'own_customer_mitti_requested','mitti','{}','2026-10-23T06:42:01Z')`, [j(22)]);
     try {
       expect((await sweepReadyCheckForms({ now, dryRun: true, enabled: true })).wouldCreate).toContain("HV-3602"); // no claim, past the grace
       await db.query(`insert into workflow_events (job_id, event_type, summary, details, created_at) values ($1,'own_photo_quote_failed','claim failed','{"needs_office":true}','2026-10-23T06:43:00Z')`, [j(22)]);

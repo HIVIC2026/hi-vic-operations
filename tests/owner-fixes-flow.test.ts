@@ -61,7 +61,7 @@ describe("approval stays in the fixes flow", () => {
   });
   test("respondToQuoteImpl: pickLater approval, accepted at the fixes-quote stages, no installer quotes regenerated on the new path", () => {
     const src = read("src/lib/portal.functions.ts");
-    const i = src.indexOf("export async function respondToQuoteImpl");
+    const i = src.indexOf("export const respondToQuoteImpl");
     const body = src.slice(i, src.indexOf("async function invoiceAfterAcceptance")).replace(/\s+/g, " "); // formatted over lines since main #133
     expect(body).toContain(`"awaiting_owner_rectification_approval", "piesa_complete", "electrical_variation_pending", "rectification_required"`);
     expect(body).toContain("data.pickLater");

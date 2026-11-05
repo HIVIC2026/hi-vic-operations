@@ -6,6 +6,9 @@ import { currentUser } from "@/lib/route-guards";
 import { readMyProfile, type ProfileClient } from "@/lib/my-profile";
 import { markOfficeChanged } from "@/lib/office-list-refresh";
 import { forgetHeadStarts } from "@/lib/trade-route-prefetch";
+import { isOptimistic } from "@/lib/optimistic.core";
+import { actionJobId, refreshAfterJobAction } from "@/lib/job-action-refresh.core";
+import { showTradeSaved } from '@/lib/trade-save-confirmation';
 
 export type AppRole = "admin" | "qa_office" | "electrician" | "installer" | "owner" | "property_manager";
 
@@ -28,7 +31,10 @@ export function useMe() {
 }
 
 /** Run a server action with toast feedback and refresh all data. */
-export function useAction<TIn, TOut>(fn: (opts: { data: TIn }) => Promise<TOut>, options?: { refresh?: boolean }) {
+/** `name` (the server function's export name): an audited screen-only action (optimistic.core OPTIMISTIC_ALLOWED) finishes
+ *  once its own save is done and the screen refreshes in the background (portal speed step 2, Task 7); every other action
+ *  — Send, Give, Pay, Book, Cancel included — still waits for the save and the fresh screen, as before. */
+export function useAction<TIn, TOut>(fn: (opts: { data: TIn }) => Promise<TOut>, options?: { refresh?: boolean; name?: string }) {
   const call = useServerFn(fn as never) as unknown as (opts: { data: TIn }) => Promise<TOut>;
   const qc = useQueryClient();
   return async (data: TIn, success?: string): Promise<TOut | undefined> => {
@@ -36,8 +42,16 @@ export function useAction<TIn, TOut>(fn: (opts: { data: TIn }) => Promise<TOut>,
       const out = await call({ data });
       forgetHeadStarts(); // a screen call started before this action must not be shown after it (trade-route-prefetch)
       markOfficeChanged(); // decision 383: the office lists work themselves out fresh on their next read
-      if (success) toast.success(success);
-      if (options?.refresh !== false) await qc.invalidateQueries();
+      if (success) { toast.success(success); showTradeSaved(success); }
+      if (options?.refresh !== false) {
+        const jobId = actionJobId(data);
+        // Mark ALL cached answers stale, including inactive lists; only defer their network reads.
+        // The next list visit still uses markOfficeChanged and the existing fresh-copy safety rules.
+        await qc.invalidateQueries({ refetchType: "none" });
+        const refreshed = qc.refetchQueries({ type: "active", predicate: (query) => refreshAfterJobAction(query.queryKey, jobId) });
+        if (isOptimistic(options?.name)) void refreshed.catch(() => undefined);
+        else await refreshed;
+      }
       return out;
     } catch (e) {
       forgetHeadStarts(); // a failed action may still have changed something: screens ask afresh

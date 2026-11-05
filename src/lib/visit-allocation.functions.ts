@@ -13,6 +13,12 @@ export const allocateElectricianFn = createServerFn({ method: "POST" }).middlewa
   .inputValidator(z.object({ jobId: uuid, workerId: uuid }))
   .handler(async ({ data, context }) => (await import("./in-house-electrician.server")).allocateElectrician(data.jobId, context.userId, data.workerId));
 
+/** Jo 5 Nov 2026: choose or change the safety-check electrician, with the time when there is one — saved together; the
+ *  job-link text and the Mitti form go only after both saved; refused once the safety check is done. */
+export const changeJobElectricianFn = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator(z.object({ jobId: uuid, workerId: uuid, start: z.string().datetime({ offset: true }).nullable().optional() }))
+  .handler(async ({ data, context }) => (await import("./in-house-electrician.server")).changeJobElectrician(context.userId, { jobId: data.jobId, workerId: data.workerId, start: data.start ?? null }));
+
 export const getVisitAllocation = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => plain(await (await import("./visit-allocation.server")).visitAllocationView(data.jobId, context.userId)));

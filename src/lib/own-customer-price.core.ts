@@ -144,7 +144,7 @@ export function jobMoneyRows(f: {
   const rows: [string, string][] = [];
   if (f.channel === "installer_sourced") {
     if (f.ownerPriceIncGst != null) rows.push(["Owner's quote", wholeAud(f.ownerPriceIncGst)]);
-    if (money && f.installerPriceIncGst != null) rows.push(["Your pay", pay(f.installerPriceIncGst)]);
+    if (money && f.installerPriceIncGst != null) rows.push(["Your pay", `You're paid ${wholeAud(f.installerPriceIncGst)} once the owner has paid in full.`]);
     return rows;
   }
   if (money && f.hivLeadPayIncGst != null) rows.push(["Your pay", pay(f.hivLeadPayIncGst)]);

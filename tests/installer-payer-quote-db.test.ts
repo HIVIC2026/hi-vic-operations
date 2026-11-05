@@ -175,6 +175,18 @@ describe("Mitti electrician answers on an installer's own job, on practice Postg
     await db.query("insert into admin_config_events(event_type,details) values ('installer_usual_electrician_saved',$1)", [JSON.stringify({business_id: BIZ, electrician: {name: "TEST Other REC", licence: "TEST-OTHER-LIC"}})]);
     expect(await quoteBillingBlocker(q.id)).toContain("profile changed");
   });
+  test("Jo 5 Nov 2026 (HV-3193): the usual electrician is matched by LICENCE (case and spaces ignored) — a different name with the same licence never holds; a different licence holds", async () => {
+    await db.query("insert into admin_config_events(event_type,details) values ('installer_usual_electrician_saved',$1)", [JSON.stringify({business_id: BIZ, electrician: {name: "ORLANDO POWERED", licence: "TEST-PROFILE-LIC"}})]);
+    await draftInstallerQuoteFromReadyCheck(JOB, U, entries("My usual electrician"), "audit_test");
+    const q = (await current())[0]; expect(q).toBeDefined(); if (!q) return;
+    expect(await quoteBillingBlocker(q.id)).toBeNull();
+    await db.query("insert into admin_config_events(event_type,details) values ('installer_usual_electrician_saved',$1)", [JSON.stringify({business_id: BIZ, electrician: {name: "Peter orlando", licence: " test-PROFILE-lic "}})]);
+    expect(await quoteBillingBlocker(q.id)).toBeNull();
+    await db.query("insert into admin_config_events(event_type,details) values ('installer_usual_electrician_saved',$1)", [JSON.stringify({business_id: BIZ, electrician: {name: "Peter orlando", licence: "TEST PROFILE LIC"}})]);
+    expect(await quoteBillingBlocker(q.id)).toBeNull(); // dashes ignored too
+    await db.query("insert into admin_config_events(event_type,details) values ('installer_usual_electrician_saved',$1)", [JSON.stringify({business_id: BIZ, electrician: {name: "Peter orlando", licence: "A99999"}})]);
+    expect(await quoteBillingBlocker(q.id)).toContain("profile changed");
+  });
   test("the installer's PIESA rate changes after the draft: the old draft holds 'does not match' and is never sent at the old amount (Jo 4 Nov 2026)", async () => {
     await db.query("insert into admin_config_events(event_type,details) values ('installer_usual_electrician_saved',$1)", [JSON.stringify({business_id: BIZ, electrician: {name: "TEST Profile REC", licence: "TEST-PROFILE-LIC"}})]);
     await draftInstallerQuoteFromReadyCheck(JOB, U, entries("My usual electrician"), "audit_test");

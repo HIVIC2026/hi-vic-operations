@@ -172,10 +172,10 @@ export function Veec({ jobId }: { jobId: string }) {
   );
 }
 
-function VeecQueryReply({ jobId, draft, sentAt }: { jobId: string; draft: string; sentAt: string | null }) {
+export function VeecQueryReply({ jobId, draft, sentAt }: { jobId: string; draft: string; sentAt: string | null }) {
   const qc = useQueryClient();
   const gen = useAction(draftVeecReply);
-  const mark = useAction(markVeecReplySent);
+  const mark = useAction(markVeecReplySent, { name: "markVeecReplySent" });
   const [text, setText] = useState(draft);
   const [busy, setBusy] = useState(false);
   return (
@@ -185,7 +185,7 @@ function VeecQueryReply({ jobId, draft, sentAt }: { jobId: string; draft: string
         <>
           <Button type="button" variant="outline" disabled={busy} onClick={async () => { setBusy(true); try { const r = await gen({ jobId }, "Draft ready"); if (r?.draft) setText(r.draft); } finally { setBusy(false); } }}>{busy ? "Drafting…" : "Draft reply (AI)"}</Button>
           <Textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Draft reply" rows={6} />
-          <form className="flex items-end gap-2" onSubmit={async (e) => { e.preventDefault(); const f = new FormData(e.currentTarget); setBusy(true); try { await mark({ jobId, replyDraft: text, sentDate: f.get("sent") as string }, "Reply recorded"); void qc.invalidateQueries({ queryKey: ["veec", jobId] }); } finally { setBusy(false); } }}>
+          <form className="flex items-end gap-2" onSubmit={async (e) => { e.preventDefault(); const f = new FormData(e.currentTarget); setBusy(true); try { await mark({ jobId, replyDraft: text, sentDate: f.get("sent") as string }, "Reply recorded"); await qc.invalidateQueries({ queryKey: ["veec", jobId] }); } finally { setBusy(false); } }}>
             <div><Label>Date sent</Label><Input name="sent" type="date" required max={melbourneToday()} /></div>
             <Button type="submit" disabled={busy || text.trim().length < 5}>Mark reply sent</Button>
           </form>

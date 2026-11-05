@@ -1,0 +1,384 @@
+{
+  "template": {
+    "revision_id": "35-5232e67deaa14cd3ac25e634c1868aad",
+    "items": [
+      {
+        "id": "4192c98f-7f1e-4221-aff5-764689fe78bc",
+        "label": "Before you start",
+        "children": [
+          {
+            "id": "e3c147db-3816-4b20-9bfc-7a3f4d14dcac",
+            "label": "Take these before you touch anything. One set per ceiling area.",
+            "children": [],
+            "instruction": {
+              "text": {}
+            }
+          },
+          {
+            "id": "71e29e9f-b298-4c33-8f44-d03323bcd293",
+            "label": "Ceiling area \u2013 before",
+            "children": [
+              {
+                "id": "16a416f4-94d2-410a-8e0f-c1b401577c0a",
+                "label": "Name this area",
+                "children": [],
+                "textsingle": {
+                  "options": {
+                    "is_mandatory": true,
+                    "weighting": null
+                  },
+                  "text_format": "TEXT",
+                  "calculation_data": null,
+                  "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+                  "reading_config_id": ""
+                }
+              },
+              {
+                "id": "8e417f0f-83fb-4acc-929c-c6c331c9ceb8",
+                "label": "BEFORE video: slow 360\u00b0 turn of this area",
+                "children": [],
+                "media": {
+                  "options": {
+                    "is_mandatory": true,
+                    "weighting": null
+                  }
+                }
+              },
+              {
+                "id": "57482f2e-47ea-46d5-a5c8-f43fe91eb913",
+                "label": "Turn a light on, say the area's name, then film slowly all the way round.",
+                "children": [],
+                "instruction": {
+                  "text": {}
+                }
+              },
+              {
+                "id": "64bf8346-89c2-4276-a4c2-5c6307445067",
+                "label": "Is there existing insulation in this ceiling area?",
+                "children": [
+                  {
+                    "id": "eaf64fdc-c947-45c4-92b2-8f34ddcbe04d",
+                    "label": "",
+                    "children": [
+                      {
+                        "id": "a5d87016-1e47-41bd-b285-066125fbbbd6",
+                        "label": "What type is the old insulation? Tick all that apply.",
+                        "children": [],
+                        "list": {
+                          "options": {
+                            "is_mandatory": true,
+                            "weighting": 0
+                          },
+                          "failed_responses": [],
+                          "response_set_id": "102ae88e-6615-4bf9-8b8a-144427df422b",
+                          "multiple_selection": true,
+                          "calculation_data": null
+                        }
+                      },
+                      {
+                        "id": "3588a7cc-494e-434e-ac0f-8e57ec47ca55",
+                        "label": "What is the determined R value of the existing ceiling insulation?",
+                        "children": [],
+                        "question": {
+                          "options": {
+                            "is_mandatory": true,
+                            "weighting": 0
+                          },
+                          "failed_responses": [
+                            "cc59f394-77f5-4052-983b-d76f27f9ef9c"
+                          ],
+                          "response_set_id": "33995e6f-ab94-419d-988d-d3e02a1d26b4",
+                          "calculation_data": null
+                        }
+                      },
+                      {
+                        "id": "0717546a-6453-4004-a14e-6319afe6496d",
+                        "label": "Depth of the old insulation (mm)",
+                        "children": [],
+                        "textsingle": {
+                          "options": {
+                            "is_mandatory": true,
+                            "weighting": null
+                          },
+                          "text_format": "NUMBER",
+                          "calculation_data": null,
+                          "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+                          "reading_config_id": ""
+                        }
+                      },
+                      {
+                        "id": "26147a3b-facf-452b-a963-77381e64f307",
+                        "label": "Photo: ruler standing straight up in the old insulation",
+                        "children": [],
+                        "media": {
+                          "options": {
+                            "is_mandatory": true,
+                            "weighting": null
+                          }
+                        }
+                      },
+                      {
+                        "id": "ae4087ee-b2e3-485d-b55a-1f01464f0369",
+                        "label": "Is the old insulation foil-backed or metal (anything that could carry electricity)?",
+                        "children": [],
+                        "question": {
+                          "options": {
+                            "is_mandatory": true,
+                            "weighting": 0
+                          },
+                          "failed_responses": [],
+                          "response_set_id": "01691fe8-6ce9-4df6-abc1-5965550203fa",
+                          "calculation_data": null
+                        }
+                      },
+                      {
+                        "id": "5764cf06-8fac-4c39-9915-201a2a71dfd0",
+                        "label": "Close-up photo of the old insulation's backing",
+                        "children": [],
+                        "media": {
+                          "options": {
+                            "is_mandatory": true,
+                            "weighting": null
+                          }
+                        }
+                      },
+                      {
+                        "id": "2bc76a1b-51a5-4b06-a625-024fea186112",
+                        "label": "What is required for the existing insulation?",
+                        "children": [
+                          {
+                            "id": "24ffc00f-1593-47c8-a3cd-9fb8e2be6dde",
+                            "label": "",
+                            "children": [
+                              {
+                                "id": "6e1a21ee-5051-454e-ad58-78a24aeedc05",
+                                "label": "How much old insulation is coming out? (m\u00b2)",
+                                "children": [],
+                                "textsingle": {
+                                  "options": {
+                                    "is_mandatory": true,
+                                    "weighting": null
+                                  },
+                                  "text_format": "NUMBER",
+                                  "calculation_data": null,
+                                  "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+                                  "reading_config_id": ""
+                                }
+                              }
+                            ],
+                            "logicfield": {
+                              "response_is": {
+                                "responses": [
+                                  "a12ad8b4-9678-49d2-95cc-a84d35b14ac7"
+                                ]
+                              },
+                              "require_note": false,
+                              "require_media": false,
+                              "require_action": false,
+                              "skip_to": null,
+                              "preset_action_type_ids": [],
+                              "procurement_trigger": false
+                            }
+                          },
+                          {
+                            "id": "17838328-21ac-4d18-b7ab-7661f457f8f8",
+                            "label": "",
+                            "children": [
+                              {
+                                "id": "fb356ac1-e855-4349-b405-7b228978fb36",
+                                "label": "Is the old insulation in good enough condition to lay new batts on top?",
+                                "children": [],
+                                "question": {
+                                  "options": {
+                                    "is_mandatory": true,
+                                    "weighting": 0
+                                  },
+                                  "failed_responses": [
+                                    "4328fdff-e91d-4af3-8afc-02cf7a40188c"
+                                  ],
+                                  "response_set_id": "01691fe8-6ce9-4df6-abc1-5965550203fa",
+                                  "calculation_data": null
+                                }
+                              },
+                              {
+                                "id": "707d4f41-2f0e-4534-82d2-817834f8234d",
+                                "label": "Why is the old insulation staying?",
+                                "children": [],
+                                "textsingle": {
+                                  "options": {
+                                    "is_mandatory": true,
+                                    "weighting": null
+                                  },
+                                  "text_format": "TEXT",
+                                  "calculation_data": null,
+                                  "unit_symbol": "MEASUREMENT_UNIT_SYMBOL_UNSPECIFIED",
+                                  "reading_config_id": ""
+                                }
+                              }
+                            ],
+                            "logicfield": {
+                              "response_is": {
+                                "responses": [
+                                  "0de962f4-155d-488b-9001-4c6d356129e5"
+                                ]
+                              },
+                              "require_note": false,
+                              "require_media": false,
+                              "require_action": false,
+                              "skip_to": null,
+                              "preset_action_type_ids": [],
+                              "procurement_trigger": false
+                            }
+                          }
+                        ],
+                        "question": {
+                          "options": {
+                            "is_mandatory": true,
+                            "weighting": 0
+                          },
+                          "failed_responses": [],
+                          "response_set_id": "0edbe399-53d0-42ad-a3e4-86e243c5f6b1",
+                          "calculation_data": null
+                        }
+                      }
+                    ],
+                    "logicfield": {
+                      "response_is": {
+                        "responses": [
+                          "4f1ac2a7-9c59-4601-82c4-a1c1a01d6e9c"
+                        ]
+                      },
+                      "require_note": false,
+                      "require_media": false,
+                      "require_action": false,
+                      "skip_to": null,
+                      "preset_action_type_ids": [],
+                      "procurement_trigger": false
+                    }
+                  }
+                ],
+                "question": {
+                  "options": {
+                    "is_mandatory": true,
+                    "weighting": 0
+                  },
+                  "failed_responses": [],
+                  "response_set_id": "01691fe8-6ce9-4df6-abc1-5965550203fa",
+                  "calculation_data": null
+                }
+              }
+            ],
+            "dynamicfield": {
+              "options": {
+                "is_mandatory": false,
+                "weighting": null
+              }
+            }
+          }
+        ],
+        "section": {
+          "section_type": "SECTION_TYPE_UNSPECIFIED",
+          "autoshares": null,
+          "approvers": null,
+          "user_defined_approvers": false
+        }
+      }
+    ],
+    "response_sets": [
+      {
+        "id": "01691fe8-6ce9-4df6-abc1-5965550203fa",
+        "responses": [
+          {
+            "id": "4f1ac2a7-9c59-4601-82c4-a1c1a01d6e9c",
+            "label": "Yes",
+            "score": 1,
+            "color": "127,127,127",
+            "score_enabled": true
+          },
+          {
+            "id": "4328fdff-e91d-4af3-8afc-02cf7a40188c",
+            "label": "No",
+            "score": 1,
+            "color": "198,0,34",
+            "score_enabled": true
+          }
+        ],
+        "is_grs": false
+      },
+      {
+        "id": "0edbe399-53d0-42ad-a3e4-86e243c5f6b1",
+        "responses": [
+          {
+            "id": "a12ad8b4-9678-49d2-95cc-a84d35b14ac7",
+            "label": "Remove",
+            "score": 1,
+            "color": "129,181,50",
+            "score_enabled": true
+          },
+          {
+            "id": "0de962f4-155d-488b-9001-4c6d356129e5",
+            "label": "Top up",
+            "score": 1,
+            "color": "129,181,50",
+            "score_enabled": true
+          },
+          {
+            "id": "7e29a409-4557-48a8-b3ad-e7a6c2b5c3ad",
+            "label": "Not sure",
+            "score": 1,
+            "color": "129,181,50",
+            "score_enabled": true
+          }
+        ],
+        "is_grs": false
+      },
+      {
+        "id": "102ae88e-6615-4bf9-8b8a-144427df422b",
+        "responses": [
+          {
+            "id": "72cda4e4-8bb9-47a0-8205-c0b7f7ba05c0",
+            "label": "Batts",
+            "score": 1,
+            "color": "129,181,50",
+            "score_enabled": true
+          },
+          {
+            "id": "b0374851-097d-475b-ab87-aadb4a1cee09",
+            "label": "Loose fill",
+            "score": 1,
+            "color": "129,181,50",
+            "score_enabled": true
+          },
+          {
+            "id": "fa57c9fa-b48d-41f4-8a50-0de6666a2bc1",
+            "label": "Other",
+            "score": 1,
+            "color": "129,181,50",
+            "score_enabled": true
+          }
+        ],
+        "is_grs": false
+      },
+      {
+        "id": "33995e6f-ab94-419d-988d-d3e02a1d26b4",
+        "responses": [
+          {
+            "id": "abab45eb-4f48-459e-94fd-acc245237077",
+            "label": "Below R2.0",
+            "score": 1,
+            "color": "129,181,50",
+            "score_enabled": true
+          },
+          {
+            "id": "cc59f394-77f5-4052-983b-d76f27f9ef9c",
+            "label": "R2.0 or above",
+            "score": 0,
+            "color": "198,0,34",
+            "score_enabled": true
+          }
+        ],
+        "is_grs": false
+      }
+    ]
+  }
+}

@@ -33,12 +33,16 @@ export async function quoteBillingBlocker(quoteId: string): Promise<string | nul
     // `mittiQuoteElectricalBlocker` below compares that identity and price with the current resolution.
     if (saved?.choice === "usual" && saved.source !== "team_worker") {
       if (!j.originating_installer_business_id) return "Installer has no usual electrician saved";
-      const profile = await (await import("./usual-electrician.server")).readUsualElectrician(j.originating_installer_business_id).catch(() => null);
+      // Jo 5 Nov 2026: compared with the installer's Main electrician (never ticked = the old saved usual electrician).
+      const profile = await (await import("./installer-electricians.server")).readMainElectrician(j.originating_installer_business_id).catch(() => null);
       const usual = profile?.electrician;
       // Decision 303: an approved-REC snapshot carries the REC's onboarded rate, not the declared price — identity must still
       // match. Decision 369: My business no longer records a price, so only the identity is compared (a re-save without a
       // price must not hold an existing quote).
-      if (!usual || usual.name !== saved.name || usual.licence !== saved.licence) return "Usual electrician profile changed or is missing — sync the Ready Check and prepare a new quote";
+      // Jo 5 Nov 2026 (HV-3193): the same electrician = the same LICENCE (case and spaces ignored), never the name
+      // ("ORLANDO POWERED" business vs "Peter orlando" person, both A63151).
+      const changed = (await import("./installer-electricians.core")).usualElectricianChangedBlocker(usual, saved);
+      if (changed) return changed;
     }
     const { data: lines, error: ie } = await admin.from("quote_items").select("code, line_total_inc_gst").eq("quote_id", quoteId);
     if (ie) return "Quote electrical lines could not be checked";
@@ -62,13 +66,15 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   // Decision 278: price, inclusions and electrician come from the business owner's portal entry (`installer_price_set`,
   // latest wins) FIRST; the Mitti answers are read only on old forms that still carry them.
   const entries = intakePrice ? formEntries : (await (await import("./installer-price.server")).entriesWithInstallerPrice(jobId, formEntries)) as { label: string; value: string | null }[];
+  const partialSubmission = !intakePrice && (await (await import("./installer-price.server")).readInstallerPrice(jobId))?.sendToQuote === true;
   // Fee awareness is an office quote-SEND prerequisite (Jo, 8 Oct 2026): the draft is still prepared, but held.
   const { data: feeConfirmation } = await admin.from("workflow_events").select("id, details").eq("job_id", jobId).eq("event_type", "installer_owner_fee_awareness").order("created_at", { ascending: false }).limit(1).maybeSingle();
   const { data: open } = await admin.from("quotes").select("id, status, subtotal_inc_gst, veec_discount_inc_gst, option_code, discount_note").eq("job_id", jobId).eq("kind", "installation").in("status", ["draft", "issued", "accepted"]);
   // A sent quote is never touched. An ACCEPTED quote is never changed either, but when its facts were corrected
   // (reconfirmation open) a replacement draft may be prepared so the owner can reconfirm at the corrected figures.
   const { reconfirmationOpen } = await import("./installer-intake.server");
-  if ((open ?? []).some((q) => q.status === "issued")) return null;
+  const priceChange = await (await import('./installer-price-change.server')).pendingChangeFor(jobId);
+  if ((open ?? []).some((q) => q.status === "issued") && !priceChange) return null;
   if ((open ?? []).some((q) => q.status === "accepted") && !(await reconfirmationOpen(jobId))) return null;
 
   // Jo 23 Oct hard stops (contact No, R2+, life support, built in last 5 years): no quote at all.
@@ -129,7 +135,7 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   // Jo 23 Oct: insulation product on the owner quote; incomplete product holds the quote.
   if (mittiProduct) {
     const { applyMittiProduct } = await import("./mitti-installer-quote.core");
-    applyMittiProduct(draft, mittiProduct, m2);
+    applyMittiProduct(draft, mittiProduct, m2, { optionalMissing: partialSubmission && !(await import('./mitti.core')).contactAnswersFromEntries(entries).productOption });
   }
   const accessIncluded = !intakePrice && (answers.a1DifficultAccessIncluded(entries) || !!accessFee.amountIncGst);
   if (!intakePrice) {

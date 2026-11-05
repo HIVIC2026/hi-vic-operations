@@ -21,8 +21,8 @@ test("installer: email is optional", () => {
 test("electrician: no email is refused", () => {
   expect(teamMemberDetails("electrician", ok, T)).toEqual({ ok: false, error: TEAM_ERRORS.email });
 });
-test("electrician: no date of birth is refused", () => {
-  expect(teamMemberDetails("electrician", { ...ok, email: "a@b.au", dateOfBirth: "" }, T).ok).toBe(false);
+test("electrician: date of birth is not required", () => {
+  expect(teamMemberDetails("electrician", { ...ok, email: "a@b.au", dateOfBirth: "" }, T).ok).toBe(true);
 });
 test("electrician: mobile + date of birth + email saves", () => {
   expect(teamMemberDetails("electrician", { ...ok, email: " A@B.au " }, T)).toMatchObject({ ok: true, email: "a@b.au" });
@@ -33,8 +33,8 @@ test("a typed bad email is refused for anyone", () => {
 test("existing-person prompts name exactly what is missing", () => {
   expect(teamMissingPrompt("Wayne Fletcher", teamMissingDetails("installer", { mobile: null, email: null, hasDateOfBirth: true }))).toBe("Add Wayne's mobile");
   expect(teamMissingPrompt("Liam Zontanos", teamMissingDetails("installer", { mobile: null, email: null, hasDateOfBirth: false }))).toBe("Add Liam's mobile and date of birth");
-  expect(teamMissingPrompt("Peter orlando", teamMissingDetails("electrician", { mobile: "0412345678", email: "p@o.au", hasDateOfBirth: false }))).toBe("Add Peter's date of birth");
-  expect(teamMissingPrompt("Sam", teamMissingDetails("electrician", { mobile: null, email: null, hasDateOfBirth: false }))).toBe("Add Sam's mobile, date of birth and email");
+  expect(teamMissingPrompt("Peter orlando", teamMissingDetails("electrician", { mobile: "0412345678", email: "p@o.au", hasDateOfBirth: false }))).toBeNull();
+  expect(teamMissingPrompt("Sam", teamMissingDetails("electrician", { mobile: null, email: null, hasDateOfBirth: false }))).toBe("Add Sam's mobile and email");
   expect(teamMissingDetails("installer", { mobile: "0412345678", email: null, hasDateOfBirth: true })).toEqual([]);
 });
 test("every business add path uses the shared rule", () => {

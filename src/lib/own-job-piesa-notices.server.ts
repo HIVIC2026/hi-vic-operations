@@ -27,7 +27,7 @@ export type InstallerOfficeEmailOutcome = { status: "sent" | "test_sent" | "not_
 
 /** One email to an installer office, once per key. Order: business → TEST partner (test-send) → approval → email on file →
  *  "Pause all trade messages" (before the claim, so a later try still sends) → claim once (deliverOnce) → partner sender. */
-export async function emailInstallerOffice(p: { jobId: string; businessId: string; key: string; subject: string; text: string; jobUrl?: string; approved: boolean; /** Suite look (5 Nov 2026): the structured email when the builder gives one; otherwise the text lines are laid out. */ mail?: import("./own-job-office-emails.core").OfficeEmail }): Promise<InstallerOfficeEmailOutcome> {
+export async function emailInstallerOffice(p: { jobId: string; businessId: string; key: string; subject: string; text: string; jobUrl?: string; approved: boolean; /** Exact own-customer approved template; never accepted from the browser. */ rendered?: { html: string; text: string }; /** Suite look (5 Nov 2026): the structured email when the builder gives one; otherwise the text lines are laid out. */ mail?: import("./own-job-office-emails.core").OfficeEmail }): Promise<InstallerOfficeEmailOutcome> {
   const { data: biz, error } = await admin.from("businesses").select("id, name, trading_name, email, onboarding_notes").eq("id", p.businessId).maybeSingle();
   if (error) throw new Error(`Installer could not be read: ${error.message}`);
   if (!biz) return { status: "not_sent", detail: "Installer not found." };
@@ -52,7 +52,7 @@ export async function emailInstallerOffice(p: { jobId: string; businessId: strin
   if (jobErr) throw new Error(`Job could not be read: ${jobErr.message}`);
   if ((jobRow?.source as string | null | undefined) === "qa_test" && !partnerIsTest) return { status: "not_sent", detail: "TEST job: not sent to a real installer." };
   const { officeEmailBlocks } = await import("./own-job-office-emails.core");
-  const render = (test: boolean) => ({ to, subject: p.subject, ...(p.mail
+  const render = (test: boolean) => ({ to, subject: p.subject, ...(p.rendered ? p.rendered : p.mail
     ? partnerEmailLayout({ subject: p.subject, heading: p.mail.heading, preview: p.mail.lines[0], test, blocks: officeEmailBlocks(p.mail, greetName, jobFacts, p.jobUrl ?? null) })
     : partnerEmailLayout({ subject: p.subject, test, blocks: [...p.text.split("\n").filter(Boolean).map((t) => ({ kind: "p" as const, text: t })), ...(p.jobUrl ? [{ kind: "button" as const, label: "Open the job", url: p.jobUrl }] : [])] })) });
   if (partnerIsTest) {

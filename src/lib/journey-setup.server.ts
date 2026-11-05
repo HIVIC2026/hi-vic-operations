@@ -11,7 +11,7 @@
 // every real check, and a TEST person the office REJECTED is never overridden.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { isTestPartner } from "./test-send.core";
-import { crewClearance, whiteCardPathPrefix, whiteCardState, withWhiteCardDecision, withWhiteCardUpload, WHITE_CARD_EVENTS } from "./worker-compliance.core";
+import { crewClearance } from "./worker-compliance.core";
 import { eecUploadMeta, mergeEec } from "./worker-invite.core";
 import { credentialState } from "./pilot.core";
 
@@ -154,24 +154,7 @@ async function ensureEecCleared(actorId: string, w: WorkerRow, log: SetupLog) {
   log.push(`${w.full_legal_name}: EEC/CII Full, current, verified (TEST)`);
 }
 
-/** White Card uploaded by the person, then verified once by the office (saveWhiteCard + officeDecideWhiteCard). */
-async function ensureWhiteCard(actorId: string, w: WorkerRow, log: SetupLog) {
-  const st = whiteCardState(w);
-  if (st === "verified" || st === "not_applicable") return;
-  if (st === "rejected") { log.push(`${w.full_legal_name}: White Card rejected by the office — left as is`); return; }
-  const now = new Date().toISOString();
-  let certification = (await admin.from("partner_workers").select("certification").eq("id", w.id).single()).data?.certification ?? w.certification;
-  if (whiteCardState({ trade_role: w.trade_role, certification }) === "missing") {
-    const path = await uploadTestFile(`${whiteCardPathPrefix(w.id)}${crypto.randomUUID()}.jpg`);
-    certification = withWhiteCardUpload(certification, { path, uploadedAt: now, number: "TEST-WC-0001" }) as never;
-    await configEvent(actorId, WHITE_CARD_EVENTS.uploaded, "White Card uploaded — office to verify", { worker_id: w.id, path, test_journey_setup: true });
-  }
-  const next = withWhiteCardDecision(certification, { verified: true, by: actorId, at: now, number: "TEST-WC-0001" });
-  const { error } = await admin.from("partner_workers").update({ certification: next as never }).eq("id", w.id);
-  fail("White Card", error);
-  await configEvent(actorId, WHITE_CARD_EVENTS.verified, "White Card verified", { worker_id: w.id, number: "TEST-WC-0001", reason: null, test_journey_setup: true });
-  log.push(`${w.full_legal_name}: White Card verified (TEST)`);
-}
+
 
 /** Decision 130: the ESC collection notice, acknowledged by each person on their OWN login (real My business path). A
  *  person with no login of their own stays unacknowledged (and so is not offered work), exactly as the rule says. */
@@ -195,7 +178,7 @@ async function ensureBossListed(actorId: string, installerBiz: string, boss: { i
   const listed = (await testWorkers(installerBiz, "installer")).some((w) => w.profile_id === boss.id || w.email.trim().toLowerCase() === boss.email.trim().toLowerCase());
   if (listed) return;
   const { installerQualification } = await import("./partner-activation.core");
-  const { error } = await admin.from("partner_workers").insert({ business_id: installerBiz, profile_id: boss.id, trade_role: "installer", full_legal_name: boss.full_name?.trim() || `${b.name} Owner`, email: boss.email.trim().toLowerCase(), mobile: "0400000101", qualification: installerQualification({}), approval_status: "pending", certification_status: "unverified", account_status: "linked", added_by: actorId } as never);
+  const { error } = await admin.from("partner_workers").insert({ business_id: installerBiz, profile_id: boss.id, trade_role: "installer", worker_role: "lead", full_legal_name: boss.full_name?.trim() || `${b.name} Owner`, email: boss.email.trim().toLowerCase(), mobile: "0400000101", qualification: installerQualification({}), approval_status: "pending", certification_status: "unverified", account_status: "linked", added_by: actorId } as never);
   fail("installer person", error);
   log.push(`${b.name}: business owner listed as an installer (TEST)`);
 }
@@ -210,11 +193,10 @@ export async function ensureTestInstallerPeople(actorId: string, installerBiz: s
     // CII verified first: the live guard (0082 guard_installer_worker_certified) refuses approving an unverified installer.
     await ensureEecCleared(actorId, w, log);
     await ensureApproved(actorId, w, log);
-    await ensureWhiteCard(actorId, w, log);
   }
   await ensureTestNoticeAcks(installerBiz, log);
   const mine = (await testWorkers(installerBiz, "installer")).find((w) => w.profile_id === boss.id);
-  if (!mine || mine.approval_status !== "approved" || mine.certification_status !== "verified" || whiteCardState(mine) !== "verified") return null;
+  if (!mine || mine.approval_status !== "approved" || mine.certification_status !== "verified") return null;
   return { workerId: mine.id, name: mine.full_legal_name };
 }
 

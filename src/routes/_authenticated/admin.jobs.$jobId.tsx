@@ -9,9 +9,13 @@ import { useServerFn } from "@tanstack/react-start";
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/portal/AppShell";
 import { getOfficeJobPage } from "@/lib/office-screens.functions";
+import { ReadyCheckPhotos } from "@/components/portal/ReadyCheckPhotos";
 import { AiReplyDrafts } from "@/components/portal/AiReplyDrafts";
 import { parseJobSection } from "@/lib/job-section.core";
 import type { CardKey } from "@/lib/office-stage-cards.core";
+import { isLastCopy, useRememberLastCopy } from "@/lib/office-last-copy";
+import { officeJobCopyName, officeJobKey, startOfficeJob } from "@/lib/office-route-prefetch";
+import { LastCopyWait } from "@/lib/last-copy-wait";
 import { ContactHistory, FileList, JobHeader, JobMoreMenu, LogNoteDialog, MoneyCard, NextPanel, StageCards, StageWorkspace } from "@/components/portal/office-job";
 
 const CARD_KEYS: CardKey[] = ["enquiry", "ready-check", "quote", "piesa", "install", "final-check"];
@@ -24,16 +28,24 @@ export const Route = createFileRoute("/_authenticated/admin/jobs/$jobId")({
     const legacy = parseJobSection(s["section"]);
     return { ...(legacy ? { section: legacy } : typeof s["section"] === "string" && CARD_KEYS.includes(s["section"] as CardKey) ? { section: s["section"] } : {}), ...(s["act"] === "cancel" ? { act: "cancel" as const } : {}) };
   },
+  // Portal speed step 2 (Task 5): a return visit draws at once from this job's last copy on this device (office-last-copy).
+  loader: ({ context, params, preload }) => startOfficeJob(context, params.jobId, preload),
   component: JobPageRoute,
 });
 
 function JobPageRoute() {
-  const { qaOffice } = Route.useRouteContext();
+  const { qaOffice, user } = Route.useRouteContext();
   const { jobId } = Route.useParams();
   const { section, act } = Route.useSearch();
   const navigate = Route.useNavigate();
   const load = useServerFn(getOfficeJobPage);
-  const { data, error, refetch } = useQuery({ queryKey: ["office-job-page", jobId], queryFn: () => load({ data: { jobId } }), staleTime: 15_000 });
+  const key = officeJobKey(jobId);
+  // The last copy (seeded by the loader) is always asked again on mount; it is kept again only from a fresh good answer.
+  const q = useQuery({ queryKey: key, queryFn: () => load({ data: { jobId } }), staleTime: 15_000, refetchOnMount: (query) => (isLastCopy(key, query.state.dataUpdatedAt) ? "always" : true) });
+  const { data, error, refetch } = q;
+  useRememberLastCopy(user?.id, officeJobCopyName(jobId), true, key, q);
+  // Until the fresh answer arrives the page's buttons wait (Send, Give, Pay, Book and Cancel never act on an old copy).
+  const waiting = isLastCopy(key, q.dataUpdatedAt) && !error;
   const [open, setOpen] = useState<CardKey | null>(null);
   const [logOpen, setLogOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(act === "cancel");
@@ -54,16 +66,19 @@ function JobPageRoute() {
   const h = data.header;
   return (
     <AppShell>
-      <JobHeader h={h} more={<JobMoreMenu h={h} cancelOpen={cancelOpen} setCancelOpen={setCancelOpen} onDeleted={() => void navigate({ to: "/admin/jobs/ours" })} />} />
+      <LastCopyWait waiting={waiting}>
+      <JobHeader h={h} more={<JobMoreMenu h={h} cancelOpen={cancelOpen && !waiting} setCancelOpen={setCancelOpen} onDeleted={() => void navigate({ to: "/admin/jobs/ours" })} />} />
       <NextPanel next={data.next} onGo={(k) => go(k)} />
       {!qaOffice && <RepeatPiesaPanel jobId={jobId} />}
       <StageCards cards={data.cards} open={open} onOpen={(k) => (open === k ? setOpen(null) : go(k))} />
       {open && <div id="stage-workspace" className="scroll-mt-24"><StageWorkspace jobId={jobId} k={open} page={data} onGo={go} /></div>}
       <MoneyCard jobId={jobId} />
+      {!qaOffice && <ReadyCheckPhotos jobId={jobId} />}
       {!qaOffice && <AiReplyDrafts jobId={jobId} />}
       <ContactHistory jobId={jobId} rows={data.contacts} waitingFor={data.waitingFor} emailBounced={data.emailBounced} onLog={() => setLogOpen(true)} />
       {qaOffice ? <p className="text-sm text-sub">Not available for the TEST office login</p> : <FileList jobId={jobId} />}
       <LogNoteDialog h={h} open={logOpen} onOpenChange={setLogOpen} />
+      </LastCopyWait>
     </AppShell>
   );
 }

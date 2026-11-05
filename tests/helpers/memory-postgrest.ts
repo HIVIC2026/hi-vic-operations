@@ -63,7 +63,9 @@ export function memoryPostgrest(tables: Tables, backKeys: Record<string, string>
     return out;
   };
   const get = (table: string, row: Row, path: string): unknown => {
-    if (path.includes("->>")) { const [col, ...keys] = path.split("->>"); return keys.reduce<unknown>((o, k) => (o && typeof o === "object" ? (o as Row)[k] : undefined), row[col!]) ?? null; }
+    // `details->>key` (PostgREST JSON text path): the key's value as text.
+    const jp = /^([a-z_0-9]+)->>([a-z_0-9]+)$/.exec(path);
+    if (jp) { const v = (row[jp[1]!] as Row | null | undefined)?.[jp[2]!]; return v == null ? null : typeof v === "object" ? JSON.stringify(v) : String(v); }
     if (!path.includes(".")) return row[path];
     const [rel, col] = path.split(".") as [string, string];
     const v = embed(table, row, rel);
