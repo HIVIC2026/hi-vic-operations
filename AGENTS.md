@@ -1,5 +1,3 @@
-- Own-customer partial A1 submissions use the existing price event's explicit submission intent and core area/removal/method check; no completion/evidence state is manufactured. Why: office drafting must not wait for optional answers or send to owners.
-
 <!-- LOVABLE:BEGIN -->
 > [!IMPORTANT]
 > This project is connected to [Lovable](https://lovable.dev). Avoid rewriting
