@@ -18,7 +18,7 @@ export const startOnsiteReadyCheck = createServerFn({ method: "POST" }).middlewa
     /** A6: one key per phone draft, kept across retries and reloads, so "Try again" finishes the same job. */
     requestKey: z.string().uuid().optional(),
     /** Photo-quote installers Part 2: the photo quote fields (From photos businesses only; refused otherwise). */
-    photoQuote: z.object({ underR2: z.boolean().nullable(), removeM2: z.number().finite().nullable(), installM2: z.number().finite().nullable(), product: z.string().max(80).nullable(), priceIncGst: z.number().finite().nullable() }).nullable().optional(),
+    photoQuote: z.object({ underR2: z.boolean().nullable(), removeM2: z.number().finite().nullable(), installM2: z.number().finite().nullable(), product: z.string().max(80).nullable(), priceIncGst: z.number().finite().nullable(), included: z.array(z.string().max(80)).max(5).nullable().optional(), includedOther: z.string().max(200).nullable().optional() }).nullable().optional(),
   }).parse(d))
   .handler(async ({ data, context }) => {
     const { startOnsiteReadyCheckFor } = await import("./onsite-ready-check.server");
@@ -27,7 +27,7 @@ export const startOnsiteReadyCheck = createServerFn({ method: "POST" }).middlewa
 
 /** Photo-quote installers Part 2: the live quote under "Your price" on Add a job (same builder as the issued quote). */
 export const ownPhotoQuotePreview = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ businessId: uuid, priceIncGst: z.number().finite(), installM2: z.number().finite(), removeM2: z.number().finite().nullable(), postcode: z.string().max(10), product: z.string().max(80).nullable() }).parse(d))
+  .inputValidator((d) => z.object({ businessId: uuid, priceIncGst: z.number().finite(), installM2: z.number().finite(), removeM2: z.number().finite().nullable(), postcode: z.string().max(10), product: z.string().max(80).nullable(), included: z.array(z.string().max(80)).max(5).nullable().optional(), includedOther: z.string().max(200).nullable().optional() }).parse(d))
   .handler(async ({ data, context }) => (await import("./own-photo-quote.server")).ownPhotoQuotePreviewFor(context.userId, data));
 
 /** Task 7: what Add a job needs before it renders — the business name (for the consent line) and its Team electricians. Read-only. */

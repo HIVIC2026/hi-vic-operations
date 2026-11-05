@@ -4,7 +4,8 @@
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError } from "./workflow.server";
 import { quoteMethodOf, isMissingQuoteMethodColumn, PHOTO_QUOTE_SUBMITTED_EVENT, sqm1, type QuoteMethod } from "./photo-quote.core";
-import { OWN_PHOTO_QUOTE_WORDS, ownPhotoIncludes, ownPhotoQuotePreview, ownPhotoQuoteProblems, type OwnPhotoPreview, type OwnPhotoQuoteInput } from "./own-photo-quote.core";
+import { OWN_PHOTO_QUOTE_WORDS, defaultPhotoTicks, ownPhotoPriceRecord, ownPhotoQuotePreview, ownPhotoQuoteProblems, type OwnPhotoPreview, type OwnPhotoQuoteInput } from "./own-photo-quote.core";
+import type { InstallerPriceRecord } from "./installer-price.core";
 import { insulationProduct } from "./insulation-product.core";
 import { isUniqueViolation, stableUuid } from "./mitti-create-claim.core";
 
@@ -19,7 +20,7 @@ export async function businessQuoteMethod(businessId: string, db: Db = admin as 
 }
 
 /** The live quote box on Add a job. Price-seeing people of a From photos business only. */
-export async function ownPhotoQuotePreviewFor(userId: string, i: { businessId: string; priceIncGst: number; installM2: number; removeM2: number | null; postcode: string; product: string | null }): Promise<OwnPhotoPreview> {
+export async function ownPhotoQuotePreviewFor(userId: string, i: { businessId: string; priceIncGst: number; installM2: number; removeM2: number | null; postcode: string; product: string | null; included?: string[] | null | undefined; includedOther?: string | null | undefined }): Promise<OwnPhotoPreview> {
   const c = await (await import("./trade-view.server")).pricesOrThrow(userId);
   if (c.biz.id !== i.businessId) throw new WorkflowError("You are not part of this business.");
   if ((await businessQuoteMethod(i.businessId)) !== "photos") throw new WorkflowError("This installer quotes from a Ready Check.");
@@ -33,7 +34,7 @@ export async function ownPhotoQuotePreviewFor(userId: string, i: { businessId: s
   const { wholeVeecDiscount } = await import("./estimate.core");
   const wholeVeec = loc && rs ? wholeVeecDiscount(m2, loc as never, Number(rs.indicative_veec_value)) : null;
   if (!wholeVeec) return { held: "Check the postcode — the rebate can't be worked out" };
-  return ownPhotoQuotePreview({ priceIncGst: i.priceIncGst, installM2: m2, removeM2: i.removeM2, product: i.product, piesaIncGst: piesa,
+  return ownPhotoQuotePreview({ underR2: true, priceIncGst: i.priceIncGst, installM2: m2, removeM2: i.removeM2, product: i.product, included: i.included ?? [], includedOther: i.includedOther ?? null, piesaIncGst: piesa,
     wholeVeec, metropolitan: (loc as { metropolitan_or_regional?: string }).metropolitan_or_regional === "Metropolitan", minCopay: rs ? Number(rs.minimum_customer_copayment_inc_gst) : 200 });
 }
 
@@ -48,7 +49,7 @@ export function ownPhotoQuoteGate(method: QuoteMethod, i: OwnPhotoQuoteInput | n
 type Logger = (jobId: string, actorId: string | null, type: string, summary: string, details?: Record<string, unknown>, opts?: { internal?: boolean }) => Promise<unknown>;
 export type OwnPhotoDeps = {
   db: Db; logEvent: Logger;
-  draft: (jobId: string, userId: string, ref: string, price: { totalIncGst: number; includes: string; areaM2: number }) => Promise<unknown>;
+  draft: (jobId: string, userId: string, ref: string, price: { totalIncGst: number; includes: string; areaM2: number; photo: { record: InstallerPriceRecord; product: string; removeM2: number } }) => Promise<unknown>;
   autoSend: (jobId: string, o: { formCompleted: true; formModifiedAt: string | null; entries: []; enabled?: boolean }) => Promise<{ sent: boolean; reasons: string[] }>;
   sendOnPress: boolean;
   getStage: (jobId: string) => Promise<string>;
@@ -69,15 +70,20 @@ function ownPhotoDeps(): OwnPhotoDeps {
 }
 
 export const OWN_PHOTO_REF = "photo:own";
-export type OwnPhotoInputs = { underR2: true; removeM2: number; installM2: number; product: string; priceIncGst: number };
+export type OwnPhotoInputs = { underR2: true; removeM2: number; installM2: number; product: string; priceIncGst: number;
+  /** Jo 5 Nov 16:44: the Your price card's ticks (canonical labels) and "Other" words. Claims before then have none. */ included?: string[]; includedOther?: string | null };
 /** The stored form of the Add a job photo quote (what the claim row and the price record carry). */
 export function ownPhotoInputs(i: OwnPhotoQuoteInput): OwnPhotoInputs {
   const product = insulationProduct(i.product);
   const installM2 = sqm1(i.installM2);
   if (!product || !(installM2 && installM2 > 0) || !(typeof i.priceIncGst === "number" && i.priceIncGst > 0)) throw new WorkflowError(ownPhotoQuoteProblems(i)[0] ?? "Fill in the photo quote.");
-  return { underR2: true, removeM2: sqm1(i.removeM2) ?? 0, installM2, product: product.option, priceIncGst: Math.round(i.priceIncGst * 100) / 100 };
+  const problems = ownPhotoQuoteProblems(i);
+  if (problems.length) throw new WorkflowError(problems[0]!);
+  const record = ownPhotoPriceRecord(i);
+  return { underR2: true, removeM2: sqm1(i.removeM2) ?? 0, installM2, product: product.option, priceIncGst: Math.round(i.priceIncGst * 100) / 100, included: record.included, includedOther: record.included_other };
 }
-const sameInputs = (a: unknown, b: OwnPhotoInputs) => !!a && typeof a === "object" && (["removeM2", "installM2", "product", "priceIncGst"] as const).every((k) => (a as Record<string, unknown>)[k] === b[k]);
+const sameInputs = (a: unknown, b: OwnPhotoInputs) => !!a && typeof a === "object" && (["removeM2", "installM2", "product", "priceIncGst"] as const).every((k) => (a as Record<string, unknown>)[k] === b[k])
+  && JSON.stringify((a as OwnPhotoInputs).included ?? null) === JSON.stringify(b.included ?? null) && ((a as OwnPhotoInputs).includedOther ?? null) === (b.includedOther ?? null);
 
 /** Fix round (review IMPORTANT 1b): the photo quote's claim row, written in the SAME request straight after the Add a job
  *  save, so a crash before the quote records still leaves the inputs for the 15-minute tick (`sweepOwnPhotoQuotes`).
@@ -145,14 +151,12 @@ async function finishOwnPhotoQuote(jobId: string, userId: string, businessId: st
   if (!latest("ready_check_form_eligible")) await d.logEvent(jobId, userId, "ready_check_form_eligible", "Eligible from the installer's photo quote (existing insulation under R2)", { audit_id: OWN_PHOTO_REF, basis: "photo_quote", source_ref: OWN_PHOTO_REF, ruleset: "photo-quote-v1" }, { internal: true });
   // Review IMPORTANT 1d: a Try again with a changed price (allowed only before a quote exists) writes a new price record
   // (latest wins), so the price record and the quote never disagree.
+  // Jo 5 Nov 16:44: the price record is built exactly as the "Your price" card builds it (validateInstallerPrice) from
+  // the installer's own ticks; an old claim without ticks gets the base tick (+ removal when there is removal).
+  const record = ownPhotoPriceRecord({ underR2: true, removeM2, installM2, product: product.option, priceIncGst: price, included: inputs.included ?? defaultPhotoTicks(removeM2), includedOther: inputs.includedOther ?? null });
   const lastPrice = latest("installer_price_set") as { photo_inputs?: unknown } | null;
-  if (!lastPrice || !sameInputs(lastPrice.photo_inputs, inputs)) {
-    const { validateInstallerPrice } = await import("./installer-price.core");
-    const { INCLUDED_OPTIONS } = await import("./ready-check-lean.core");
-    const v = validateInstallerPrice({ priceIncGst: price, included: removeM2 > 0 ? [INCLUDED_OPTIONS[0], INCLUDED_OPTIONS[1]] : [INCLUDED_OPTIONS[0]], productOption: product.option, removalRequired: removeM2 > 0 });
-    if (!v.ok || !v.record) throw new Error(v.issues.join(" "));
-    await d.logEvent(jobId, userId, "installer_price_set", `Price set on Add a job (photo quote): $${price}`, { ...v.record, business_id: businessId, set_by: userId, declared_not_verified: true, source_ref: OWN_PHOTO_REF, photo_inputs: inputs }, { internal: true });
-  }
+  if (!lastPrice || !sameInputs(lastPrice.photo_inputs, inputs))
+    await d.logEvent(jobId, userId, "installer_price_set", `Price set on Add a job (photo quote): $${price}`, { ...record, business_id: businessId, set_by: userId, declared_not_verified: true, source_ref: OWN_PHOTO_REF, photo_inputs: inputs }, { internal: true });
   // Like a completed Mitti Ready Check: the job moves to Ready Check complete (guarded), so the release can take it to the
   // quote stage. A refusal is held for the office; the quote is still drafted.
   if ((await d.getStage(jobId)) === "ready_check_ready_to_schedule") {
@@ -160,7 +164,7 @@ async function finishOwnPhotoQuote(jobId: string, userId: string, businessId: st
     if (!blockers.length) await d.transition(jobId, "ready_check_complete", userId, "Photo quote added with the job (no Ready Check visit)", { basis: "photo_quote", ref: OWN_PHOTO_REF });
     else await d.logEvent(jobId, userId, "own_photo_quote_failed", `Photo quote saved but the job couldn't move on: ${blockers.join(" • ")}`.slice(0, 500), { needs_office: true, blockers }, { internal: true });
   }
-  await d.draft(jobId, userId, OWN_PHOTO_REF, { totalIncGst: price, includes: ownPhotoIncludes({ product: product.option, removeM2 }), areaM2: installM2 });
+  await d.draft(jobId, userId, OWN_PHOTO_REF, { totalIncGst: price, includes: record.included.join(", "), areaM2: installM2, photo: { record, product: product.option, removeM2 } });
   const r = await d.autoSend(jobId, { formCompleted: true, formModifiedAt: new Date().toISOString(), entries: [], ...(d.sendOnPress ? { enabled: true } : {}) });
   return { sent: r.sent, held: r.reasons };
 }

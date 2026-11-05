@@ -5,9 +5,10 @@ import { memoryPostgrest, type Tables } from "./helpers/memory-postgrest";
 import { signaturePng } from "./helpers/sample-signature-png";
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: () => { throw new Error("live database used"); } } }));
 const { ownPhotoQuoteGate, recordOwnPhotoQuote, OWN_PHOTO_REF } = await import("../src/lib/own-photo-quote.server");
-const { viewQuoteAllowed, ownQuotePdfBlocks, ownPhotoIncludes } = await import("../src/lib/own-photo-quote.core");
+const { viewQuoteAllowed, ownQuotePdfBlocks } = await import("../src/lib/own-photo-quote.core");
+const { validateInstallerPrice } = await import("../src/lib/installer-price.core");
 
-const good = { underR2: true, removeM2: 10, installM2: 80, product: "Bradford Gold R5", priceIncGst: 2400 };
+const good = { underR2: true, removeM2: 10, installM2: 80, product: "Bradford Gold R5", priceIncGst: 2400, included: ["Ceiling insulation - supply & install", "Removal of existing insulation"] };
 test("gate: a photos business must send a valid photo quote; under R2 = No is refused; a Ready Check business is unchanged", () => {
   expect(ownPhotoQuoteGate("photos", { ...good, underR2: false })).toContain("Over R2 isn't eligible for the rebate.");
   expect(ownPhotoQuoteGate("photos", null)).toEqual(["Fill in the photo quote: existing insulation, sqm and your price."]);
@@ -38,10 +39,21 @@ test("valid → one current photo measurement, one installer_price_set, one prod
   expect(cur[0]).toMatchObject({ external_source: "photo_quote", external_id: OWN_PHOTO_REF, status: "complete", measured_area_m2: 80, removal_m2: 10, removal_required: true });
   expect(ev("installer_price_set")).toHaveLength(1);
   expect(ev("installer_price_set")[0]!["details"]).toMatchObject({ price_inc_gst: 2400, product_option: "Bradford Gold R5", business_id: "nogap" });
+  // Jo 16:44: the price record is exactly what the Your price card saves for the same answers.
+  const card = validateInstallerPrice({ priceIncGst: 2400, included: good.included, productOption: "Bradford Gold R5", removalRequired: true }).record!;
+  expect(ev("installer_price_set")[0]!["details"]).toMatchObject(card);
   expect(ev("mitti_product_recorded")).toHaveLength(1);
-  expect(drafts).toEqual([["j", "boss", OWN_PHOTO_REF, { totalIncGst: 2400, includes: ownPhotoIncludes({ product: "Bradford Gold R5", removeM2: 10 }), areaM2: 80 }]]);
+  expect(drafts).toEqual([["j", "boss", OWN_PHOTO_REF, { totalIncGst: 2400, includes: good.included.join(", "), areaM2: 80, photo: { record: card, product: "Bradford Gold R5", removeM2: 10 } }]]);
   expect(sends).toHaveLength(1); expect(sends[0]).toMatchObject({ formCompleted: true }); expect(sends[0]).not.toHaveProperty("enabled");
   expect(t.workflow_events!.some((e) => /mitti_audit|ready_check_form_created|will_call|partner_call/.test(String(e["event_type"])))).toBe(false);
+});
+test("the ticks are stored on the claim; sqm to remove without the removal tick is refused before anything is written", async () => {
+  seedJob();
+  await expect(recordOwnPhotoQuote("j", "boss", "nogap", { ...good, included: ["Ceiling insulation - supply & install"] }, deps())).rejects.toThrow(`You've put sqm to remove, so tick "Removal of existing insulation".`);
+  expect(t.workflow_events).toHaveLength(0);
+  await recordOwnPhotoQuote("j", "boss", "nogap", { ...good, included: [...good.included, "Other"], includedOther: "Downlight covers" }, deps());
+  expect(ev("photo_quote_submitted")[0]!["details"]).toMatchObject({ inputs: { included: [...good.included, "Other"], includedOther: "Downlight covers" } });
+  expect(ev("installer_price_set")[0]!["details"]).toMatchObject({ included: [...good.included, "Other"], included_other: "Downlight covers" });
 });
 test("Try again resumes: no second measurement, price or product", async () => {
   await recordOwnPhotoQuote("j", "boss", "nogap", good, deps());

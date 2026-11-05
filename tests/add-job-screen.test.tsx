@@ -111,6 +111,7 @@ describe("Add a job — From photos photo quote outcome", () => {
     fireEvent.change(r.getByLabelText("Sqm to install"), { target: { value: "80" } });
     fireEvent.change(r.getByLabelText("Product"), { target: { value: (r.getByLabelText("Product") as HTMLSelectElement).options[1]!.value } });
     fireEvent.change(r.getByLabelText(OWN_PHOTO_QUOTE_WORDS.price), { target: { value: "2400" } });
+    fireEvent.click(r.getByLabelText("Removal of existing insulation"));
   };
   const withPhotos = async (result: Record<string, unknown>, body: () => Promise<void>) => {
     const wasO = options, wasR = saveResult;
@@ -131,6 +132,22 @@ describe("Add a job — From photos photo quote outcome", () => {
     const key = (n: number) => (calls[n] as { data: { requestKey: string; photoQuote: { priceIncGst: number } } }).data;
     expect(key(1).requestKey).toBe(key(0).requestKey);
     expect(key(1).photoQuote.priceIncGst).toBe(2400);
+  }));
+  // Jo 5 Nov 16:44: the SAME "What's included" ticks as the Your price card; base ticked to start, as on the card.
+  test("ticks: the Your price card's options; the ticks go with the job; sqm to remove needs the removal tick", () => withPhotos({ photoQuote: { sent: false, held: ["x"] } }, async () => {
+    const r = draw();
+    fillAll(r); await typeAddress(r);
+    for (const o of ["Ceiling insulation - supply & install", "Removal of existing insulation", "Other"]) expect(r.getByLabelText(o)).toBeTruthy();
+    expect((r.getByLabelText("Ceiling insulation - supply & install") as HTMLInputElement).checked).toBe(true);
+    fillPhoto(r);
+    fireEvent.click(r.getByLabelText("Removal of existing insulation")); // untick again: 10 sqm to remove without the tick
+    await act(async () => { fireEvent.click(r.getByRole("button", { name: OWN_PHOTO_QUOTE_WORDS.submit })); });
+    expect(calls).toHaveLength(0);
+    expect(r.getByText(OWN_PHOTO_QUOTE_WORDS.removalTick)).toBeTruthy();
+    fireEvent.click(r.getByLabelText("Removal of existing insulation"));
+    await act(async () => { fireEvent.click(r.getByRole("button", { name: OWN_PHOTO_QUOTE_WORDS.submit })); });
+    expect(calls).toHaveLength(1);
+    expect((calls[0] as { data: { photoQuote: { included: string[] } } }).data.photoQuote.included).toEqual(["Ceiling insulation - supply & install", "Removal of existing insulation"]);
   }));
   test("held: the job is added and the installer is told plainly the quote is waiting (not 'sent')", () => withPhotos({ photoQuote: { sent: false, held: ["Waiting for office review before sending"] } }, async () => {
     const r = draw();
