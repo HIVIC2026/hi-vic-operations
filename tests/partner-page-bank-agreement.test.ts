@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { agreementPdfLink, bankChangedLine } from "../src/lib/office-partners.core";
+import { agreementPdfText, agreementRowState, bankChangedLine } from "../src/lib/office-partners.core";
 
-const biz = "11111111-1111-1111-1111-111111111111";
 
 describe("bank Changed row", () => {
   test("shows date and how, never a review status", () => {
@@ -14,15 +13,18 @@ describe("bank Changed row", () => {
   });
 });
 
-describe("agreement PDF link", () => {
-  test("a recorded path in the business's own folder opens", () => {
-    expect(agreementPdfLink({ pdfPath: `partners/${biz}/agreement.pdf` }, biz)).toEqual({ path: `partners/${biz}/agreement.pdf` });
+describe("agreement PDF", () => {
+  const a = { version: "v2", body: "Agreement text", signer_name: "Sam Lee", signed_at: "2026-10-08T01:00:00Z" };
+  test("uses the same wording as the installer page", () => {
+    const t = agreementPdfText(a, "Reinsulate");
+    expect(t.title).toBe("Home Insulation Victoria partner agreement vv2 - Reinsulate");
+    expect(t.body).toMatch(/^Agreement text\n\nSigned by Sam Lee on .* \(Melbourne time\)\.$/);
+    expect(t.fileName).toBe("agreement-vv2.pdf");
   });
-  test("no path, another business's path or a traversal path is none", () => {
-    expect(agreementPdfLink({ pdfPath: null }, biz)).toEqual({ none: true });
-    expect(agreementPdfLink({ pdfPath: "" }, biz)).toEqual({ none: true });
-    expect(agreementPdfLink({ pdfPath: "partners/other/agreement.pdf" }, biz)).toEqual({ none: true });
-    expect(agreementPdfLink({ pdfPath: `partners/${biz}/../x.pdf` }, biz)).toEqual({ none: true });
+  test("row opens unless the text is missing", () => {
+    expect(agreementRowState(a)).toBe("open");
+    expect(agreementRowState({ body: "  " })).toBe("missing");
+    expect(agreementRowState({ body: null })).toBe("missing");
   });
 });
 

@@ -17,8 +17,8 @@ import { openFileViewer } from "@/components/portal/file-viewer";
 import { useReasonDialog } from "@/components/portal/reason-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAction } from "@/hooks/use-me";
-import { agreementPdfLink, bankChangedLine, rateIncGst } from "@/lib/office-partners.core";
-import { getBusinessFile, resolvePartnerChangeRequest, revealPartnerBank } from "@/lib/office-partners.functions";
+import { agreementRowState, bankChangedLine, rateIncGst } from "@/lib/office-partners.core";
+import { getBusinessFile, getPartnerAgreementPdf, resolvePartnerChangeRequest, revealPartnerBank } from "@/lib/office-partners.functions";
 import { getPartnerProfile, partnerFileUrl } from "@/lib/pilot.functions";
 import { reviewHigherRates } from "@/lib/rate-requests.functions";
 import { moveInstallerToNewFlowFn } from "@/lib/new-flow-move.functions";
@@ -215,6 +215,15 @@ const BUSINESS_DOC_KINDS = ["public_liability_insurance", "electrical_licence", 
 function DocumentsPanel({ businessId, f, profile, onDone }: { businessId: string; f: FileData; profile: { credentials: unknown } | undefined; onDone: () => Promise<void> }) {
   const open = useServerFn(partnerFileUrl);
   const view = async (path: string) => { try { const r = await open({ data: { businessId, path } }); openFileViewer(r.url); } catch (e) { toast.error(e instanceof Error ? e.message : "Couldn't open"); } };
+  const agreementPdf = useServerFn(getPartnerAgreementPdf);
+  const viewAgreement = async (agreementId: string) => {
+    const w = window.open("", "_blank");
+    try {
+      const r = await agreementPdf({ data: { businessId, agreementId } });
+      const url = URL.createObjectURL(new Blob([Uint8Array.from(atob(r.base64), (c) => c.charCodeAt(0))], { type: "application/pdf" }));
+      if (w) w.location.href = url; else window.location.href = url;
+    } catch (e) { w?.close(); toast.error(e instanceof Error ? e.message : "Couldn't open"); }
+  };
   const b = f.business;
   const cover = f.credentials.filter((c) => BUSINESS_DOC_KINDS.includes(c.kind));
   const docs = f.credentials.filter((c) => c.document_path && !BUSINESS_DOC_KINDS.includes(c.kind));
@@ -230,10 +239,9 @@ function DocumentsPanel({ businessId, f, profile, onDone }: { businessId: string
       </dl>
       <ul className="divide-y divide-line border-t border-line text-sm" data-why="6-year record">
         {f.agreements.map((a) => {
-          const link = agreementPdfLink(a, businessId);
-          const label = <>{a.version.startsWith("v") ? "" : "Agreement "}{a.version} · signed<span className="block text-xs text-sub">{fmtDay(a.signed_at)} · signed record{"none" in link ? " (no PDF on file)" : ""}</span></>;
-          return "path" in link
-            ? <li key={a.id} className="flex items-center justify-between gap-3 py-2"><span className="min-w-0">{label}</span><Btn tone="secondary" onClick={() => void view(link.path)}>View</Btn></li>
+          const label = <>{a.version.startsWith("v") ? "" : "Agreement "}{a.version} · signed<span className="block text-xs text-sub">{fmtDay(a.signed_at)} · signed record{agreementRowState(a) === "missing" ? " (agreement text missing)" : ""}</span></>;
+          return agreementRowState(a) === "open"
+            ? <li key={a.id} className="flex items-center justify-between gap-3 py-2"><span className="min-w-0">{label}</span><Btn tone="secondary" onClick={() => void viewAgreement(a.id)}>View</Btn></li>
             : <li key={a.id} className="py-2">{label}</li>;
         })}
         {docs.map((c) => (

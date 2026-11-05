@@ -163,16 +163,15 @@ export function bankChangedLine(day: string | null | undefined, how: string | nu
   return `${day || "—"}${how ? ` · ${how}` : ""}`;
 }
 
-export type AgreementDoc = { id: string; version: string; signed_at: string; pdfPath: string | null };
-/**
- * Business file, Documents: where a signed partner agreement's PDF lives. Agreements are stored as text records
- * (partner_agreements has no file column), so a PDF exists only when a path under the business's own partners/ folder is
- * recorded. Anything else is "none" and the row says so; no file is ever made up.
- */
-export function agreementPdfLink(a: Pick<AgreementDoc, "pdfPath">, businessId: string): { path: string } | { none: true } {
-  const p = a.pdfPath;
-  if (!p || !p.startsWith(`partners/${businessId}/`) || p.split("/").some((x) => x === "." || x === "..") || p.includes("\\")) return { none: true };
-  return { path: p };
+/** Documents row for a signed agreement: opens the generated PDF unless the stored text is missing. */
+export function agreementRowState(a: { body?: string | null }): "open" | "missing" {
+  return a.body && a.body.trim() ? "open" : "missing";
+}
+
+/** The signed partner agreement PDF wording, shared by the installer page and the office business page (one builder, one wording). */
+export function agreementPdfText(a: { version: string; body: string; signer_name: string; signed_at: string }, businessName: string): { title: string; body: string; fileName: string } {
+  const signed = new Date(a.signed_at).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" });
+  return { title: `Home Insulation Victoria partner agreement v${a.version} - ${businessName}`, body: `${a.body}\n\nSigned by ${a.signer_name} on ${signed} (Melbourne time).`, fileName: `agreement-v${a.version}.pdf` };
 }
 
 /** Display only: a stored ex-GST rate shown inc GST (x 1.1, to the cent, so 27.27 shows $30.00 not $29.997). Stored values and quote maths never use this. */

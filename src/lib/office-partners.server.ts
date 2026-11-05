@@ -184,8 +184,7 @@ export async function businessFile(businessId: string) {
       xero: { status: b.xero_contact_status as string | null, error: b.xero_contact_error as string | null },
       coverage: { regions: b.service_regions ?? [], postcodes: b.service_postcodes ?? [], summary: postcodeSummary(b.service_postcodes), verifiedAt: b.coverage_verified_at, origin: b.declared_service_origin, radiusKm: b.declared_travel_radius_km },
     },
-    // partner_agreements keeps the signed text only (no file column), so no agreement has a stored PDF to link to yet.
-    agreements: ((agreements.data ?? []) as { id: string; version: string; signer_name: string; signed_at: string; snapshot_sha256: string; body: string }[]).map((a) => ({ ...a, pdfPath: null as string | null })),
+    agreements: ((agreements.data ?? []) as { id: string; version: string; signer_name: string; signed_at: string; snapshot_sha256: string; body: string }[]),
     notices: notices as { name: string; email: string; state: string; workerId?: string | null }[],
     credentials: ((creds.data ?? []) as { id: string; kind: string; label: string; number: string | null; issuer: string | null; expires_at: string | null; verification: string; document_path: string | null; created_at: string }[]).map((c) => ({ ...c, state: credentialState(c) })),
     rates: activeCard ? { version: activeCard.version, effective: activeCard.effective_from, items: [...(activeCard.rate_card_items ?? [])].sort((a, c) => a.sort - c.sort) } : null,
