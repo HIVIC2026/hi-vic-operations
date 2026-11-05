@@ -7,20 +7,20 @@ import { logEvent } from "./workflow.server";
 import { mittiApi, type MittiCall } from "./mitti.core";
 import type { MittiMediaFetch } from "./mitti.server";
 import {
-  MITTI_ARCHIVED_UNREADABLE_EVENT, MITTI_PHOTO_DOC_KIND, STALE_CLAIM_MS, archivedUnreadableText, mittiPhotoKey, mittiPhotoPath,
-  photoExt, photoRefsFromAudit, replacedAuditIds, type MittiPhotoRef,
+  MITTI_ARCHIVED_FLAG_DOC_KIND, MITTI_ARCHIVED_UNREADABLE_EVENT, MITTI_PHOTO_DOC_KIND, PENDING_EXT, STALE_CLAIM_MS, archivedFlagKey, archivedUnreadableText,
+  isMittiNotFound, mittiPhotoKey, mittiPhotoPath, photoExt, photoRefsFromAudit, replacedAuditIds, type MittiPhotoRef,
 } from "./mitti-photos.core";
 
 export type MittiPhotoSyncResult = { copied: number; skipped: number; failed: number; archivedUnreadable: string[] };
 
 type Outcome = "copied" | "skipped" | "failed";
 
+type ExistingPhoto = { id: string; size_bytes: number | null; created_at: string };
+
 /** One photo: claim the documents row first (unique job/source/external id), so an overlapping pull never downloads it
  *  twice; then download, store and complete the row. A failed copy removes its own claim so the next pull retries. */
-async function copyPhoto(jobId: string, auditId: string, ref: MittiPhotoRef, fetchMedia: MittiMediaFetch): Promise<Outcome> {
+async function copyPhoto(jobId: string, auditId: string, ref: MittiPhotoRef, existing: ExistingPhoto | undefined, fetchMedia: MittiMediaFetch): Promise<Outcome> {
   const key = mittiPhotoKey(auditId, ref.photoId);
-  const { data: existing, error } = await admin.from("documents").select("id,size_bytes,created_at").eq("job_id", jobId).eq("source_system", "mitti").eq("external_id", key).maybeSingle();
-  if (error) return "failed"; // a failed read never counts as "not copied yet"
   let claimId: string;
   let fresh = false;
   if (existing) {
@@ -29,7 +29,7 @@ async function copyPhoto(jobId: string, auditId: string, ref: MittiPhotoRef, fet
     claimId = existing.id;
   } else {
     const ins = await admin.from("documents").insert({
-      job_id: jobId, kind: MITTI_PHOTO_DOC_KIND, title: ref.label || "Ready Check photo", storage_path: mittiPhotoPath(jobId, auditId, ref.photoId, "pending"),
+      job_id: jobId, kind: MITTI_PHOTO_DOC_KIND, title: ref.label || "Ready Check photo", storage_path: mittiPhotoPath(jobId, auditId, ref.photoId, PENDING_EXT),
       mime_type: null, uploaded_by: null, source_system: "mitti", external_id: key,
     }).select("id").single();
     if (ins.error) return (ins.error as { code?: string }).code === "23505" ? "skipped" : "failed";
@@ -47,6 +47,34 @@ async function copyPhoto(jobId: string, auditId: string, ref: MittiPhotoRef, fet
     return "copied";
   } catch {
     if (fresh) await admin.from("documents").delete().eq("id", claimId).then(() => undefined, () => undefined);
+    return "failed";
+  }
+}
+
+/** Photo rows already on file for this audit, read once (200-key chunks). A failed read throws: never "not copied yet". */
+async function existingPhotos(jobId: string, keys: string[]): Promise<Map<string, ExistingPhoto>> {
+  const out = new Map<string, ExistingPhoto>();
+  for (let i = 0; i < keys.length; i += 200) {
+    const { data, error } = await admin.from("documents").select("id,external_id,size_bytes,created_at").eq("job_id", jobId).eq("source_system", "mitti").in("external_id", keys.slice(i, i + 200));
+    if (error) throw new Error(`Copied photos could not be read: ${error.message}`);
+    for (const d of data ?? []) out.set(String(d.external_id), { id: d.id, size_bytes: d.size_bytes, created_at: d.created_at });
+  }
+  return out;
+}
+
+/** ONE office row per archived form, even when pulls overlap: a documents claim (the same unique index as the photos)
+ *  is taken before the event; if the event can't be written the claim is removed so the next pull tries again. */
+async function flagArchivedOnce(jobId: string, jobNumber: string, auditId: string): Promise<"flagged" | "already" | "failed"> {
+  const ins = await admin.from("documents").insert({
+    job_id: jobId, kind: MITTI_ARCHIVED_FLAG_DOC_KIND, title: "Archived Mitti form flagged", storage_path: `${jobId}/mitti-photos/${auditId}/archived-flag`,
+    mime_type: null, uploaded_by: null, source_system: "mitti", external_id: archivedFlagKey(auditId),
+  }).select("id").single();
+  if (ins.error) return (ins.error as { code?: string }).code === "23505" ? "already" : "failed";
+  try {
+    await logEvent(jobId, null, MITTI_ARCHIVED_UNREADABLE_EVENT, archivedUnreadableText(jobNumber), { audit_id: auditId, needs_office: true }, { internal: true });
+    return "flagged";
+  } catch {
+    await admin.from("documents").delete().eq("id", ins.data.id).then(() => undefined, () => undefined);
     return "failed";
   }
 }
@@ -75,16 +103,19 @@ export async function syncMittiPhotos(jobId: string, call: MittiCall, fetchMedia
     }
     let audit: unknown;
     try { audit = await api.getAudit(auditId); }
-    catch {
-      if (!isArchived) { out.failed++; continue; }
+    catch (e) {
+      // Only Mitti's "not found" (an archived form) raises the office row; any other error is retried next pull.
+      if (!isArchived || !isMittiNotFound(e)) { out.failed++; continue; }
       out.archivedUnreadable.push(auditId);
-      const { data: flagged, error } = await admin.from("workflow_events").select("id,details").eq("job_id", jobId).eq("event_type", MITTI_ARCHIVED_UNREADABLE_EVENT);
-      if (error) { out.failed++; continue; }
-      if (!(flagged ?? []).some((e) => (e.details as { audit_id?: string } | null)?.audit_id === auditId))
-        await logEvent(jobId, null, MITTI_ARCHIVED_UNREADABLE_EVENT, archivedUnreadableText(job.job_number), { audit_id: auditId, needs_office: true }, { internal: true });
+      if (await flagArchivedOnce(jobId, job.job_number, auditId) === "failed") out.failed++;
       continue;
     }
-    for (const ref of photoRefsFromAudit(audit)) out[await copyPhoto(jobId, auditId, ref, media)]++;
+    const refs = photoRefsFromAudit(audit);
+    if (!refs.length) continue;
+    let existing: Map<string, ExistingPhoto>;
+    try { existing = await existingPhotos(jobId, refs.map((r) => mittiPhotoKey(auditId, r.photoId))); }
+    catch { out.failed += refs.length; continue; }
+    for (const ref of refs) out[await copyPhoto(jobId, auditId, ref, existing.get(mittiPhotoKey(auditId, ref.photoId)), media)]++;
   }
   return out;
 }

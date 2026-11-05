@@ -77,10 +77,12 @@ const audit = (id: string, items: unknown[]) => ({ audit_id: id, template_id: "t
 const ACCESS = "Upload a clear photo of the ceiling access point", OVERVIEW = "Upload an overview photo of this ceiling area";
 const audits: Record<string, unknown> = {};
 const unreadable = new Set<string>();
+const flaky = new Map<string, number>(); // audit id → HTTP status of a non-"not found" failure
 const calls: string[] = [];
 const call: MittiCall = async (method, path) => {
   calls.push(`${method} ${path}`);
   const id = decodeURIComponent(/^\/audits\/([^/]+)$/.exec(path)?.[1] ?? "");
+  if (method === "GET" && flaky.has(id)) { const { MittiError } = await import("../src/lib/mitti.core"); throw new MittiError("Mitti request failed.", { status: flaky.get(id)!, code: "api_error" }); }
   if (method === "GET" && unreadable.has(id)) { const { MittiError } = await import("../src/lib/mitti.core"); throw new MittiError("Mitti record not found.", { status: 404, code: "api_error" }); }
   if (method === "GET" && audits[id]) return audits[id];
   throw new Error(`unexpected Mitti call ${method} ${path}`);
@@ -99,7 +101,7 @@ const events = (type: string) => (tables["workflow_events"] ?? []).filter((e) =>
 beforeEach(() => {
   for (const k of Object.keys(tables)) delete tables[k];
   for (const k of Object.keys(audits)) delete audits[k];
-  stored.clear(); failRead.clear(); unreadable.clear(); brokenMedia.clear(); calls.length = 0; fetched.length = 0;
+  stored.clear(); failRead.clear(); unreadable.clear(); flaky.clear(); brokenMedia.clear(); calls.length = 0; fetched.length = 0;
   Object.assign(tables, {
     jobs: [{ id: J, job_number: "HV-3117", business_unit: "hivic", channel: "installer_sourced", stage: "quote", deleted_at: null, qa_archived_at: null }],
     ceiling_measurements: [{ id: "cm-1", job_id: J, is_current: true, external_source: "mitti", external_id: CURRENT, status: "complete" }],
@@ -163,6 +165,32 @@ describe("syncMittiPhotos", () => {
     expect(flags[0]!["details"]).toMatchObject({ audit_id: OLD, needs_office: true });
   });
 
+  test("archived form that fails for any other reason (timeout, 5xx, rate limit, token) is retried with no office row", async () => {
+    tables["workflow_events"]!.push({ id: "e1", job_id: J, event_type: "mitti_form_replaced", details: { old_audit_id: OLD, new_audit_id: CURRENT, photos_not_copied: [`${OVERVIEW} (5)`] } });
+    for (const status of [500, 429, 401]) {
+      flaky.set(OLD, status);
+      const r = await syncMittiPhotos(J, call, fetchMedia);
+      expect(r.archivedUnreadable).toEqual([]);
+      expect(r.failed).toBe(1);
+    }
+    const { MittiError } = await import("../src/lib/mitti.core");
+    const timeoutCall: MittiCall = async (m, p, b) => { if (p.includes(OLD)) throw new MittiError("Mitti could not be reached. Try again shortly.", { code: "unavailable" }); return call(m, p, b); };
+    expect((await syncMittiPhotos(J, timeoutCall, fetchMedia)).failed).toBe(1);
+    expect(events("mitti_archived_form_unreadable").length).toBe(0);
+    // Once Mitti answers again, the archived photos are copied.
+    flaky.clear(); audits[OLD] = audit(OLD, [photoItem(OVERVIEW, ["bbbb0000000000000000000000000001"])]);
+    expect((await syncMittiPhotos(J, call, fetchMedia)).copied).toBe(1);
+  });
+
+  test("archived_unreadable_flags_once under overlapping pulls", async () => {
+    tables["workflow_events"]!.push({ id: "e1", job_id: J, event_type: "mitti_form_replaced", details: { old_audit_id: OLD, new_audit_id: CURRENT, photos_not_copied: [`${OVERVIEW} (5)`] } });
+    unreadable.add(OLD);
+    audits[CURRENT] = audit(CURRENT, []); // no current photos: all pulls reach the archived form together
+    const runs = await Promise.all([1, 2, 3].map(() => syncMittiPhotos(J, call, fetchMedia)));
+    expect(runs.every((r) => r.archivedUnreadable.includes(OLD) && r.failed === 0)).toBe(true);
+    expect(events("mitti_archived_form_unreadable").length).toBe(1);
+  });
+
   test("download_failure_does_not_stop_answers", async () => {
     // One photo fails: the others are still copied, nothing throws, and the failed one is retried on the next run.
     brokenMedia.add("aaaa0000000000000000000000000001");
@@ -185,5 +213,26 @@ describe("syncMittiPhotos", () => {
     expect(a.skipped + b.skipped).toBe(2);
     expect(fetched.length).toBe(2);
     expect(photoDocs().length).toBe(2);
+  });
+});
+
+describe("Job File: Mitti photos", () => {
+  test("a mitti_photo is never for the owner, whatever its title says", async () => {
+    const { categoriseDocument } = await import("../src/lib/jobfile.core");
+    for (const title of ["What's included in your quote?", "Upload a photo of the invoice", "Upload your area sketch or floor plan.", "Electrical switchboard photo", "Owner consent photo"])
+      expect(categoriseDocument("mitti_photo", title).audience).not.toContain("owner");
+  });
+
+  test("photos still being copied and the archived-form claim are not listed", async () => {
+    const { buildDocumentIndex } = await import("../src/lib/jobfile.core");
+    const docs = [
+      { id: "p1", job_id: J, kind: "mitti_photo", title: ACCESS, storage_path: `${J}/mitti-photos/${CURRENT}/m1.jpg`, size_bytes: 3, created_at: "2026-11-05T00:00:00Z" },
+      { id: "p2", job_id: J, kind: "mitti_photo", title: OVERVIEW, storage_path: `${J}/mitti-photos/${CURRENT}/m2.pending`, size_bytes: null, created_at: "2026-11-05T00:00:00Z" },
+      { id: "p3", job_id: J, kind: "mitti_photo", title: OVERVIEW, storage_path: `${J}/mitti-photos/${CURRENT}/m3.pending`, size_bytes: 3, created_at: "2026-11-05T00:00:00Z" },
+      { id: "f1", job_id: J, kind: "mitti_archived_flag", title: "Archived Mitti form flagged", storage_path: `${J}/mitti-photos/${OLD}/archived-flag`, size_bytes: null, created_at: "2026-11-05T00:00:00Z" },
+    ];
+    const idx = buildDocumentIndex({ documents: docs, evidenceFiles: [], piesaRecords: [], piesaDeliveries: [], measurements: [], quotes: [], invoices: [], assignments: [], authorities: [], escNotifications: [], veec: [], propertyFacts: [], declarations: [] });
+    expect(idx.filter((d) => d.relatedEntity === "documents").map((d) => d.relatedId)).toEqual(["p1"]);
+    expect(idx.find((d) => d.relatedId === "p1")!.audience).toEqual([]);
   });
 });

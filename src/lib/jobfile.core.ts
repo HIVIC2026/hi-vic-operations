@@ -1,5 +1,6 @@
 import { melbourneToday } from "./melbourne-time.core";
 import { FFS_PROGRESS_EVENT } from "./ffs-progress.core";
+import { MITTI_PHOTO_DOC_KIND, hiddenMittiPhotoRow } from "./mitti-photos.core";
 // Pure Job File rules (no I/O): document index, correspondence, timeline, role visibility, retention, job pack plan.
 // Files are INDEXED IN PLACE from existing records/private storage – never copied into folders.
 
@@ -47,6 +48,8 @@ const EVIDENCE_CATEGORY: Record<string, [DocCategory, Audience[]]> = {
 export function categoriseDocument(kind: string, title: string): { category: DocCategory; alsoIn: DocCategory[]; sub: string | null; audience: Audience[]; status: DocStatus; immutable: boolean; deprecated?: boolean } {
   const k = kind.toLowerCase(), t = title.toLowerCase();
   if (k === "owner_authority") return { category: "Customer / Consent", alsoIn: [], sub: "Legacy Owner Authority (historical – no longer a gate)", audience: ["owner"], status: "historical", immutable: true, deprecated: true };
+  // Deep fixes Task 1 (Jo 5 Nov 2026): Ready Check photos copied from Mitti are never for the owner, whatever the Mitti question says.
+  if (k === MITTI_PHOTO_DOC_KIND) return { category: "Ready Check", alsoIn: [], sub: "Ready Check photos (Mitti)", audience: [], status: "current", immutable: true };
   if (k === "intake_media") return { category: "Property", alsoIn: [], sub: "Owner photos/videos (website)", audience: [], status: "current", immutable: true };
   if (k === "veec_assignment") {
     const final = t.includes("final") || t.includes("completed");
@@ -87,6 +90,7 @@ export function buildDocumentIndex(src: JobSources): DocItem[] {
   const addFile = (d: DocItem) => { if (d.storagePath) { if (seenPaths.has(d.storagePath) || d.storagePath.includes(EXPORT_PREFIX)) return; seenPaths.add(d.storagePath); } out.push(d); };
 
   for (const d of src.documents) {
+    if (hiddenMittiPhotoRow(d)) continue; // a photo still being copied, or the archived-form flag claim
     const c = categoriseDocument(String(d["kind"] ?? ""), String(d["title"] ?? ""));
     const path = s(d["storage_path"]);
     addFile(base({ id: `documents:${d["id"]}`, title: String(d["title"] ?? "Document"), category: c.category, alsoIn: c.alsoIn, subcategory: c.sub, docType: String(d["kind"] ?? "document"),
