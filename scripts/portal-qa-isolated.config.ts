@@ -5,7 +5,7 @@ import tailwindcss from '@tailwindcss/vite';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 const root = process.cwd();
-export default defineConfig({ root, plugins: [
+export default defineConfig({ root, cacheDir: 'node_modules/.vite-portal-isolated', plugins: [
   { name: 'isolated-boundaries', enforce: 'pre', configureServer(server) {
     server.middlewares.use((req, _res, next) => {
       if (req.headers.accept?.includes('text/html') && req.url && !req.url.includes('.')) req.url = '/tests/portal-isolated/index.html';
