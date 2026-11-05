@@ -26,7 +26,7 @@ async function snapshot(jobId: string) {
 async function person(jobId: string, role: "installer" | "electrician") {
   const { data: a } = await admin.from("job_assignments").select("user_id, business_id").eq("job_id", jobId).eq("role", role).eq("active", true).maybeSingle();
   if (!a) return null;
-  const { data: p } = a.user_id ? await admin.from("profiles").select("full_name, licence_number, business_id").eq("id", a.user_id).maybeSingle() : { data: null };
+  const { data: p } = await admin.from("profiles").select("full_name, licence_number, business_id").eq("id", a.user_id).maybeSingle();
   const bid = a.business_id ?? p?.business_id ?? null;
   const { data: b } = bid ? await admin.from("businesses").select("name, legal_name, abn, acn, licence_number, rec_number").eq("id", bid).maybeSingle() : { data: null };
   return { name: p?.full_name ?? null, licence: p?.licence_number ?? b?.licence_number ?? null, business: b?.legal_name ?? b?.name ?? null, abnAcn: b?.abn ?? b?.acn ?? null, recNumber: b?.rec_number ?? null };

@@ -2,7 +2,7 @@
 export type CommsTone = "good" | "warn" | "bad" | "neutral";
 export type CommsStatus = { label: string; tone: CommsTone };
 type Msg = { sender_id: string | null; created_at: string; internal: boolean | null };
-type Assign = { user_id: string | null; assigned_at: string; active: boolean | null };
+type Assign = { user_id: string; assigned_at: string; active: boolean | null };
 
 const H = 3_600_000;
 
