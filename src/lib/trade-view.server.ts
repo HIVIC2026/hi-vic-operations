@@ -2116,6 +2116,19 @@ export async function tradeSafetyCheckPdf(jobId: string, userId: string) {
   return { fileName: pdf.fileName, base64: toB64(pdf.bytes) };
 }
 
+/** Jo 5 Nov 2026 (HV-3117, "we can't see Mitti and photos"): the installer's own copy of the Mitti Ready Check report (the PDF
+ *  the portal keeps in the job file, photos included) — bytes, private, business-scoped through requireTradeJob. Installers only. */
+export async function tradeReadyCheckReportPdf(jobId: string, userId: string, deps: { access: (userId: string, jobId: string) => Promise<Pick<TradeJobAccess, "kind">> } = { access: requireTradeJob }) {
+  const c = await deps.access(userId, jobId);
+  if (c.kind !== "installer") throw new WorkflowError("Only the installing business can open the Ready Check report.");
+  const { data: doc } = await admin.from("documents").select("storage_path, title, created_at").eq("job_id", jobId).eq("kind", "mitti_report").ilike("title", "%Ready Check%").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (!doc?.storage_path) throw new WorkflowError("The Ready Check report hasn't been saved to the job yet — sync the form first.");
+  const dl = await admin.storage.from("job-files").download(doc.storage_path);
+  if (dl.error || !dl.data) throw new WorkflowError("The Ready Check report could not be opened.");
+  const { data: job } = await admin.from("jobs").select("job_number").eq("id", jobId).maybeSingle();
+  return { fileName: `${job?.job_number ?? "job"}-ready-check-report.pdf`, base64: toB64(new Uint8Array(await dl.data.arrayBuffer())) };
+}
+
 /** Decision 328: "Check my form now" on /field/day/{jobId} and /field/{jobId}. Installers only, business-scoped through
  *  requireTradeJob; runs the single-job A5 sync (install-day-confirm.server) and returns only the result lines — no
  *  prices, no other partners. A Complete form on the install day also gets the result text once per revision. */
