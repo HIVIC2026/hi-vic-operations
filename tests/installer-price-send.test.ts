@@ -128,6 +128,23 @@ describe('partial A1 Send to quote', () => {
     expect(await installerPriceView(JOB, 'u-stranger')).toBeNull();
     expect(priceEvents()).toHaveLength(0);
   });
+  test('before owner send, 2500 changes to 2700 and is marked for office without a sender', async () => {
+    await setInstallerPrice(JOB,BOSS,input,{sendToQuote:true});
+    const r=await setInstallerPrice(JOB,BOSS,{...input,priceIncGst:2700},{sendToQuote:true});
+    expect(r.stored.record.price_inc_gst).toBe(2700);
+    expect(priceEvents().at(-1)?.['details']).toMatchObject({price_changed_by_installer:true,previous_price_inc_gst:2500,price_inc_gst:2700});
+    expect(calls.some(c=>c.fn==='maybeAutoSendInstallerQuote')).toBe(false);
+  });
+  test('after owner send, reason is required; request preserves issued quote and cannot send', async () => {
+    await setInstallerPrice(JOB,BOSS,input,{sendToQuote:true});
+    T['quotes']=[{id:'q-old',job_id:JOB,kind:'installation',status:'issued',sent_at:'2026-11-05T09:00:00Z'}];
+    await expect(setInstallerPrice(JOB,BOSS,{...input,priceIncGst:2700},{sendToQuote:true})).rejects.toThrow('short reason');
+    const r=await setInstallerPrice(JOB,BOSS,{...input,priceIncGst:2700,changeReason:'Extra access work'},{sendToQuote:true});
+    expect(r.sent).toBe(false);
+    expect(T['quotes']?.[0]?.['status']).toBe('issued');
+    expect(r.stored.change).toMatchObject({oldPrice:2500,newPrice:2700,reason:'Extra access work',replacesQuoteId:'q-old'});
+    expect(calls.some(c=>c.fn==='maybeAutoSendInstallerQuote')).toBe(false);
+  });
 });
 
 describe("Send quote to owner — only through the guarded auto-send, only with the switch on", () => {

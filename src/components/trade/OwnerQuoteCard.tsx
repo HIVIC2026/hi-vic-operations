@@ -5,6 +5,7 @@ import { getMyOwnerQuote } from "@/lib/installer-quote-status.functions";
 import { LinkRow } from "@/components/trade/installer-kit";
 import { PRESS_COMPLETE_LINE, QUOTE_PRICE_NEXT_LINE } from "@/lib/installer-quote-status.core";
 import { quoteExpiresAt } from '@/lib/quote-expiry.core';
+import { PRICE_CHANGE_WAITING } from '@/lib/installer-price-change.core';
 
 // Jo 3 Nov 2026: after Complete the boss enters the price; only then is the quote sent. DRAFT wording (not yet seen by Jo).
 export const OWNER_QUOTE_NOT_SENT_LINE = PRESS_COMPLETE_LINE; // DRAFT
@@ -25,8 +26,9 @@ export function OwnerQuoteCard({ jobId, hideStatus = false, ownCustomerStatus = 
   const day = (date: string | Date) => new Intl.DateTimeFormat('en-AU', { timeZone: 'Australia/Melbourne', weekday: 'short', day: 'numeric', month: 'short' }).format(new Date(date)).replace(',', '');
   return (
     <div data-owner-quote>
-      {ownCustomerStatus && d.sentAt && <div className="space-y-2 text-[15px]" role="status">
-        <p>Quote sent to the owner on {day(d.sentAt)}. Valid until {day(new Date(quoteExpiresAt(d.sentAt).getTime() - 1))}.</p>
+      {ownCustomerStatus && d.priceChangePending && <p role="status" className="text-sm font-semibold">{PRICE_CHANGE_WAITING}</p>}
+      {ownCustomerStatus && d.sentAt && !d.priceChangePending && <div className="space-y-2 text-[15px]" role="status">
+        <p>Quote sent on {day(d.sentAt)}. Valid until {day(new Date(quoteExpiresAt(d.sentAt).getTime() - 1))}.</p>
         {d.acceptedAt && <p>Owner accepted on {day(d.acceptedAt)}</p>}
         {d.expiredAt && !d.acceptedAt && <p>Quote expired on {day(d.expiredAt)}</p>}
       </div>}

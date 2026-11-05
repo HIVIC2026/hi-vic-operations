@@ -1,6 +1,6 @@
 // Lead / Crew for installer people (Jo 28 Oct 2026). Pure rules only; persistence lives in mitti-invite.server.ts and
 // worker-links.functions.ts. Stored in the existing partner_workers.worker_role column ('lead' | 'crew' | null).
-// null = Lead (Jo 29 Oct); switching to Crew leaves Mitti alone. Only installers have a Lead/Crew role; electricians
+// No role (null) = Crew (Jo 5 Nov 2026, reverses 29 Oct "null = Lead"); switching to Crew leaves Mitti alone. Only installers have a Lead/Crew role; electricians
 // keep their existing Mitti rules.
 export { CREW_SKIP as CREW_NO_MITTI } from "./trade-shared-consts.core";
 
@@ -8,10 +8,10 @@ export type WorkerRole = "lead" | "crew";
 export const WORKER_ROLE_LABEL: Record<WorkerRole, string> = { lead: "Lead", crew: "Crew" };
 export const WORKER_ROLE_CHANGED_EVENT = "worker_role_changed";
 
-/** The role that applies. Non-installers → null (no Lead/Crew). Crew only when stored; anything else is Lead. */
+/** The role that applies. Non-installers → null (no Lead/Crew). Lead only when stored; no role (null/anything else) is Crew. */
 export function effectiveWorkerRole(p: { tradeRole: string; stored: string | null | undefined }): WorkerRole | null {
   if (p.tradeRole !== "installer") return null;
-  return p.stored === "crew" ? "crew" : "lead";
+  return p.stored === "lead" ? "lead" : "crew";
 }
 
 /** Same key for comparing emails; empty/null → "" (never matches anything). */

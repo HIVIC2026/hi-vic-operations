@@ -10,7 +10,7 @@ import type { NextStepFacts } from "../src/lib/next-step-box.core";
 const calls: { fn: string; data: unknown }[] = [];
 const fake = (name: string, answer: unknown = { ok: true, bookingId: "b1" }) => Object.assign(async (input: { data: unknown }) => { calls.push({ fn: name, data: input.data }); return answer; }, { id: name });
 mock.module("@/lib/trade-view.functions", () => ({ inHouseBookVisit: fake("inHouseBookVisit"), changeInHouseLeadInstaller: fake("changeInHouseLeadInstaller"), setA1ReadyCheckTimeFn: fake("setA1ReadyCheckTimeFn"), getInHouseBookingAccess: fake("getInHouseBookingAccess"), getInHouseBookingTeam: fake("getInHouseBookingTeam"), tradeHandBack: fake("tradeHandBack"), tradeOwnerCancelled: fake("tradeOwnerCancelled") }));
-mock.module("@/lib/visit-allocation.functions", () => ({ getTeamElectricians: fake("getTeamElectricians"), allocateElectricianFn: fake("allocateElectricianFn") }));
+mock.module("@/lib/visit-allocation.functions", () => ({ getTeamElectricians: fake("getTeamElectricians"), allocateElectricianFn: fake("allocateElectricianFn"), changeJobElectricianFn: fake("changeJobElectricianFn", { ok: true, warnings: [] }) }));
 mock.module("@tanstack/react-start", () => ({ useServerFn: (fn: unknown) => fn }));
 mock.module("sonner", () => ({ toast: { success: () => {} } }));
 mock.module("@/lib/office-list-refresh", () => ({ markOfficeChanged: () => {} }));

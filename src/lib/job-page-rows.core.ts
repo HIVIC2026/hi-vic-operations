@@ -8,7 +8,7 @@ import type { AccessPerson } from "./rental-answers.core";
 // Wording. Lines from the plan / decisions are marked approved; anything else is a DRAFT Jo has not seen.
 export const JOB_PAGE_WORDS = {
   hivicPayRule: "paid 7 days after we approve the paperwork", // approved (plan Task 5 test)
-  ownPayRule: (first: string) => `paid once ${first} has paid in full`, // approved (Money line, Global Constraints)
+  ownPayRule: (_first: string) => "paid once the owner has paid in full", // Jo 5 Nov: never the owner's name
   paidTick: "paid ✓", // approved (plan Task 5 test)
   noRate: "—", // approved (plan Task 5: missing rate shows a dash)
   letsYouIn: "Lets you in", // DRAFT (plan)

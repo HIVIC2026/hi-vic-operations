@@ -2,7 +2,8 @@ import { describe, expect, test } from "bun:test";
 import { a3MissingFields, a3Signature, crewPrefill, crewSelectionProblems, signatureAttachment, staffFromRecords, A3_NATIVE_IDS, A3_ALIASES } from "../src/lib/piisa-a3.core";
 
 // Shapes copied from the real records (8 Oct): verification_id links partner_workers -> partner_worker_certifications.
-const W = (id: string, name: string, ref: unknown, approval = "pending") => ({ id, full_legal_name: name, approval_status: approval, removed_at: null, trade_role: "installer", licence_expires_on: null, certification: { declared: { certificate_number: "DECLARED-ONLY" }, verification_id: ref } });
+// Stored as Lead (Jo 5 Nov 2026: no stored role = Crew), so the Lead tests reach the certificate checks.
+const W = (id: string, name: string, ref: unknown, approval = "pending") => ({ id, full_legal_name: name, approval_status: approval, removed_at: null, trade_role: "installer", worker_role: "lead", licence_expires_on: null, certification: { declared: { certificate_number: "DECLARED-ONLY" }, verification_id: ref } });
 const BH = "db4727ae-f390-4136-9c22-3242a806cc0b", BHC = "f334286a-9492-4c21-8508-aad48dfe4a77";
 const certs = [{ id: BHC, status: "verified", certificate_number: "CII-027", issuer: "EEC", worker_id: null }];
 const T = "2026-10-24";

@@ -10,10 +10,27 @@ export async function emailInstallerQuoteAccepted(jobId: string, quoteId: string
   const { count } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", "installer_accepted_email").contains("details", { quote_id: quoteId });
   if (count) return "already sent";
   const [{ data: job }, { data: asg }] = await Promise.all([
-    admin.from("jobs").select("job_number, source, owners(full_name), properties(address_line, suburb)").eq("id", jobId).single(),
+    admin.from("jobs").select("job_number, source, channel, originating_installer_business_id, owners(full_name), properties(address_line, suburb)").eq("id", jobId).single(),
     admin.from("job_assignments").select("user_id, business_id, profiles:user_id(full_name, email), businesses(onboarding_notes)").eq("job_id", jobId).eq("role", "installer").eq("active", true).limit(1).maybeSingle(),
   ]);
   const prof = (asg?.profiles ?? null) as { full_name: string | null; email: string | null } | null;
+  if (job?.channel === 'installer_sourced') {
+    const { approvedOwnMessage } = await import('./own-customer-messages.server');
+    if (!(await approvedOwnMessage('own_installer_owner_accepted'))) return 'awaiting wording approval';
+    if (await (await import('./qa-inbox.server')).qaDeliveryHeld(jobId)) return 'TEST delivery held';
+    if (!asg?.business_id || asg.business_id !== job.originating_installer_business_id) return 'own installer not assigned';
+    // Direct callers must meet the same payment gate as the canonical payment trigger.
+    const v = await (await import('./payments.server')).jobPaymentView(jobId);
+    if (!v || v.steps.find(s => s.key === 'safety_check')?.state !== 'paid' || !v.invoiceId) return 'not due — safety check not paid';
+    const { data: invoice, error: ie } = await admin.from('invoices').select('quote_id, quotes(status)').eq('id', v.invoiceId).eq('job_id', jobId).maybeSingle();
+    const quote = invoice?.quotes as { status?: string } | { status?: string }[] | null;
+    if (ie || invoice?.quote_id !== quoteId || (Array.isArray(quote) ? quote[0]?.status : quote?.status) !== 'accepted') return 'not due — quote not accepted';
+    const { data: biz, error: be } = await admin.from('businesses').select('name, trading_name').eq('id', asg.business_id).maybeSingle();
+    if (be || !biz) throw new Error('Installer office could not be checked.');
+    const p = job.properties as { address_line?: string; suburb?: string } | null;
+    const mail = (await import('./own-customer-quote-messages.core')).renderOwnInstallerAcceptedEmail({ name: biz.trading_name || biz.name, jobNumber: job.job_number, address: [p?.address_line, p?.suburb].filter(Boolean).join(', ') || job.job_number });
+    return (await (await import('./own-job-piesa-notices.server')).emailInstallerOffice({ jobId, businessId: asg.business_id, key: `installer-owner-accepted:v1:${quoteId}`, ...mail, rendered: mail, approved: true })).status;
+  }
   if (!job || !asg || !prof?.email) return "no installer email";
   const p = job.properties as { address_line: string | null; suburb: string | null } | null;
   const address = [p?.address_line, p?.suburb].filter(Boolean).join(", ") || null;

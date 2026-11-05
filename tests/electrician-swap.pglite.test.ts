@@ -27,6 +27,11 @@ CREATE TABLE customer_engagement_events (id uuid primary key default gen_random_
 CREATE TABLE customer_email_sends (id uuid primary key default gen_random_uuid(), job_id uuid, purpose text, idempotency_key text unique, status text default 'sending', provider text, sent_at timestamptz, error text, provider_message_id text);
 CREATE TABLE admin_config_events (id uuid primary key default gen_random_uuid(), actor_id uuid, event_type text, summary text, details jsonb);
 CREATE TABLE assessments (id uuid primary key default gen_random_uuid(), job_id uuid, external_mitti_id text);
+-- Jo 5 Nov 2026: swapOptions reads the ONE Electricians list (installer-electricians.server) — the live columns it reads.
+ALTER TABLE partner_relationships ADD COLUMN is_primary boolean NOT NULL DEFAULT false;
+ALTER TABLE businesses ADD COLUMN onboarding_status text, ADD COLUMN is_active boolean, ADD COLUMN IF NOT EXISTS rec_number text;
+ALTER TABLE partner_workers ADD COLUMN licence_number text, ADD COLUMN rec_number text, ADD COLUMN licence_expires_on text, ADD COLUMN licence_verified_at timestamptz;
+ALTER TABLE admin_config_events ADD COLUMN created_at timestamptz DEFAULT clock_timestamp();
 `);
 const id = (n: number) => `00000000-0000-0000-0000-${String(n).padStart(12, "0")}`;
 const INST = id(1), OLD = id(2), NEW = id(3), UNLINKED = id(4), UNBOARDED = id(5), OTHER_INST = id(6), NEW2 = id(7);

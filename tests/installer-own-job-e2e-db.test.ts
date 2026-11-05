@@ -424,7 +424,8 @@ describe("4. The Team electrician loses verification → held; verified again �
   // the Team worker picked at Add a job. Saving a "usual electrician" under My business (Sam Sparks, not on the Team, not an
   // onboarded REC) changes nothing on this job and must NOT release a quote.
   test("decisions 303/369: saving a usual electrician under My business releases nothing — no quote, no owner message", async () => {
-    await tv.tradeSaveUsualElectrician(INST, { name: "Sam Sparks", licence: "REC 12345", priceIncGst: 299 });
+    // The My business usual-electrician form is gone (Jo 5 Nov 2026: one Electricians list); an old saved record is what remains.
+    await q("insert into admin_config_events (actor_id, event_type, summary, details) values ($1, 'installer_usual_electrician_saved', 'Installer saved usual electrician', $2::jsonb)", [INST, JSON.stringify({ business_id: BIZ, electrician: { name: "Sam Sparks", licence: "REC 12345", priceIncGst: 299 } })]);
     await mc.sweepCompletedMittiReadyChecks({ enabled: true, sendEnabled: true, call });
     expect(await q("select id from quotes where job_id=$1 and status in ('issued','accepted')", [C])).toHaveLength(0);
     expect(await q("select qi.id from quote_items qi join quotes qq on qq.id = qi.quote_id where qq.job_id=$1 and qi.line_total_inc_gst = 299", [C])).toHaveLength(0);

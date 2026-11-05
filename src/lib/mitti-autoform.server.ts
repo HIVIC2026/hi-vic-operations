@@ -52,6 +52,11 @@ export async function sweepReadyCheckForms(opts: { call?: MittiCall; now?: Date;
   const wouldCreate: string[] = [];
   for (const j of jobs) {
     if (results.length >= AUTOFORM_MAX_PER_TICK) break;
+    if(j.channel === 'installer_sourced') {
+      const {ownMittiChoice}=await import('./own-customer-mitti-choice.server');
+      const {ownCustomerMittiAllowed}=await import('./own-customer-mitti-choice.core');
+      if(!ownCustomerMittiAllowed({channel:j.channel,...await ownMittiChoice(j.id)})) continue;
+    }
     const asg = assignments.data?.find((a) => a.job_id === j.id) ?? null;
     const biz = businesses?.find((b) => b.id === (asg?.business_id ?? j.originating_installer_business_id)) ?? null;
     const lastFailure = failures.data?.find((f) => f.job_id === j.id) ?? null;

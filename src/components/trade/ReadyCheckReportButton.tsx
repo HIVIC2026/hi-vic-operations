@@ -6,7 +6,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { getTradeReadyCheckReportPdf } from "@/lib/trade-view.functions";
 
-export function ReadyCheckReportButton({ jobId }: { jobId: string }) {
+export function ReadyCheckReportButton({ jobId, label = 'PDF with photos' }: { jobId: string; label?: string }) {
   const pdf = useServerFn(getTradeReadyCheckReportPdf);
   const [busy, setBusy] = useState(false);
   const open = async () => {
@@ -21,7 +21,7 @@ export function ReadyCheckReportButton({ jobId }: { jobId: string }) {
   };
   return (
     <button type="button" disabled={busy} onClick={() => void open()} className="font-semibold text-hiv-blue underline disabled:opacity-60" data-ready-check-report-pdf>
-      {busy ? "Opening…" : "PDF with photos"}
+      {busy ? "Opening…" : label}
     </button>
   );
 }

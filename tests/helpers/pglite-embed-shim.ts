@@ -158,6 +158,9 @@ export function embedShim(db: PGlite, rels: Rels, options: { jsonColumns?: Recor
             for (const f of filters) {
               if (f.col === "__or__") { conds.push(f.sql("t0", phFn)); continue; }
               const dot = f.col.indexOf(".");
+              // `details->>key` (PostgREST JSON text path) → (t0."details"->>'key').
+              const jp = /^([a-z_0-9]+)->>([a-z_0-9]+)$/.exec(f.col);
+              if (jp) { conds.push(f.sql(`(t0.${q(jp[1]!)}->>'${jp[2]}')`, phFn)); continue; }
               if (dot < 0) { conds.push(f.sql(`t0.${q(f.col)}`, phFn)); continue; }
               const [alias, col] = [f.col.slice(0, dot), f.col.slice(dot + 1)];
               const e = embeds.find((x) => x.alias === alias) ?? { alias, key: alias, inner: false, parts: [] };

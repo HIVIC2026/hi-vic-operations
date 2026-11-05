@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import ts from "typescript";
 import { readFileSync } from "node:fs";
 import * as compliance from "../src/lib/worker-compliance.core";
+import * as electricians from "../src/lib/installer-electricians.core";
 function fixture() {
   const worker = { id: "w", business_id: "b", profile_id: "electrician", full_legal_name: "Example Electrician", email: "e@example.invalid", trade_role: "electrician", approval_status: "approved", removed_at: null, licence_number: "A123", rec_number: "REC456", licence_expires_on: "2099-01-01", licence_verified_at: "2026-11-01" };
   const forms: unknown[] = [], writes: unknown[] = [], links: unknown[][] = [];
@@ -23,6 +24,10 @@ function fixture() {
     "./fixes-day.server":{existingRectificationForm:async()=>({auditId:"A4",closed:false})},
     "./electrician-link.server":{linkAfterAllocation:async(...a:unknown[])=>{links.push(a);}},
     "./mitti.server":{realMittiCall:()=>{},findMittiUserByEmail:async()=>"mitti-e",reassignMittiFormTo:async(p:unknown)=>forms.push(p)},
+    // Jo 5 Nov 2026: the Team pickers mark the Main from the ONE Electricians list (installer-electricians.server, its own
+    // PGlite test), built from the Team rows the picker already read; here nobody is Main.
+    "./installer-electricians.core": electricians,
+    "./installer-electricians.server": { electriciansForInstaller: async (_b: string, o: { team?: electricians.TeamElectricianRow[] } = {}) => electricians.buildInstallerElectricians({ linked: [], team: o.team ?? [], mainChoice: null, usual: null }) },
   };
   const api: any = {};
   return {worker,forms,writes,links,unassign:()=>{assigned=false;},deny:()=>{access=false;},load:()=>{new Function("exports","require",ts.transpile(readFileSync("src/lib/in-house-electrician.server.ts","utf8"),{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}))(api,(name:string)=>{if(!(name in deps))throw new Error(`Unexpected dependency ${name}`);return deps[name];});return api;}};
@@ -69,7 +74,7 @@ test("C1: picker and Add-a-job choices allow a no-profile verified electrician; 
   const f = fixture(); f.worker.profile_id = null as unknown as string;
   const api = f.load();
   const choices = await api.teamElectricianChoices("b");
-  expect(choices).toEqual([{ id: "w", name: "Example Electrician", licence: "A123", allowed: true, reason: null }]); // licence: the Add a job choice record names it (join ruling)
+  expect(choices).toEqual([{ id: "w", name: "Example Electrician", licence: "A123", allowed: true, reason: null, main: false }]); // licence: the Add a job choice record names it (join ruling)
   const picker = await api.electricianPicker("j", "owner");
   expect(picker.workers[0]).toMatchObject({ id: "w", allowed: true, reason: null, selected: true }); // fixture: latest event names "w"
   expect(await api.allocatedWorkerId("j")).toBe("w");

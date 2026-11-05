@@ -40,28 +40,18 @@ import { MittiFormLink } from "@/components/portal/MittiFormLink";
 import { ReadyCheckReportButton } from "@/components/trade/ReadyCheckReportButton";
 import { CheckMyFormButton } from "@/components/trade/CheckMyFormButton";
 import { NextStepBox } from "@/components/trade/NextStepBox";
-import { ContactButtons, Group, LinkRow, NextPanel, NoFormNoPay, Row, Screen, ScreenHead } from "@/components/trade/installer-kit";
+import { Group, LinkRow, NextPanel, NoFormNoPay, Row, Screen, ScreenHead } from "@/components/trade/installer-kit";
 import { completeView, ownerReadyLine } from "@/lib/installer-screens.core";
 import { OwnCustomerReadyCheckChoice } from "@/components/trade/OwnCustomerReadyCheckChoice";
 import { PortalReadyCheckView } from '@/components/trade/PortalReadyCheckView';
 import { ELECTRICIAN_ATTENDANCE_CONFIRMED } from "@/lib/trade-view.core";
 import { ReturnActions, useInHouseBookingAccess } from "@/components/trade/ReturnActions";
 import { MittiElectricianCard } from "@/components/trade/mitti-electrician-card";
-import { ReadyCheckPhotos } from "@/components/portal/ReadyCheckPhotos";
 import { nextLine } from "@/lib/add-job-flow.core";
 import { NO_LOGIN_NEEDED } from "@/lib/trade-access-role.core";
-import { onsiteFormStatus } from "@/lib/onsite-ready-check.functions";
 import { installerJobSections } from "@/lib/installer-job-sections.core";
 import { OWN_READY_CHECK_COPY } from "@/lib/own-customer-ready-check-copy.core";
-
-function PendingReadyCheckForm({ jobId }: { jobId: string }) {
-  const read = useServerFn(onsiteFormStatus);
-  const qc = useQueryClient();
-  const state = useQuery({ queryKey: ["onsite-form-state", jobId], queryFn: () => read({ data: { jobId } }), refetchInterval: q => q.state.data?.kind === "open" ? false : 5_000, retry: 1 });
-  useEffect(() => { if (state.data?.kind === "open") void qc.invalidateQueries({ queryKey: ["trade-job-page", jobId] }); }, [state.data?.kind, qc, jobId]);
-  if (state.data?.kind === "open") return null;
-  return <p role="status" className="mb-3 text-sm text-sub">{state.data?.kind === "preparing" ? "Mitti form on its way" : state.data?.message ?? "Mitti form on its way"}</p>;
-}
+import { PriceSavedConfirmation } from '@/components/trade/PriceSavedConfirmation';
 
 export const Route = createFileRoute("/_authenticated/field/$jobId")({
   head: () => ({
@@ -323,14 +313,18 @@ function Fold({ title, children }: { title: string; children: ReactNode }) {
 }
 
 /** Label / value rows inside a fold. A warned row is printed in the warning colour. */
-function FoldRows({ rows, empty }: { rows: ([string, string] | [string, string, boolean])[]; empty: string }) {
+function FoldRows({ rows, empty, contactLinks = false }: { rows: ([string, string] | [string, string, boolean])[]; empty: string; contactLinks?: boolean }) {
   if (!rows.length) return <p className="py-2 text-sm text-sub">{empty}</p>;
   return (
     <dl>
       {rows.map(([k, v, warn], i) => (
         <div key={k + i} className="flex flex-wrap justify-between gap-x-4 gap-y-0.5 border-b border-line py-2.5 text-[15px] last:border-b-0">
           <dt className="text-sub">{k}</dt>
-          <dd className={`min-w-0 break-words text-right font-medium ${warn ? "text-rose" : "text-ink"}`}>{v}</dd>
+          <dd className={`min-w-0 break-words text-right font-medium ${warn ? "text-rose" : "text-ink"}`}>
+            {contactLinks && (k === 'Phone' || k === 'Mobile' || k === 'Email' || k === 'Address') ? (
+              <a className="underline underline-offset-2" href={k === 'Email' ? `mailto:${v}` : k === 'Address' ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(v)}` : `tel:${v.replace(/\s/g, '')}`} {...(k === 'Address' ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>{v}</a>
+            ) : v}
+          </dd>
         </div>
       ))}
     </dl>
@@ -365,7 +359,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
   // as the Ready Check form exists — the rest of the form can be finished later; the quote drafts once size + product + price are in.
   const priceOpenEarly = page.channel === "installer_sourced" && page.prices && page.price.entered === false && page.form.linked && box.kind !== "enter_price";
   const showPrice = (page.channel === "installer_sourced" && page.prices && (box.kind === "enter_price" || box.kind === "waiting_quote")) || priceOpenEarly;
-  const ownReadyCheck = page.channel === "installer_sourced" && page.prices && (showPrice || box.kind === "own_ready_check");
+  const ownReadyCheck = page.channel === "installer_sourced" && page.prices && (showPrice || ['own_ready_check', 'book_ready_check', 'ready_check_booked'].includes(box.kind));
   const mittiAudit = page.form.auditId;
   const ownCustomer = page.channel === "installer_sourced";
   const sections = installerJobSections({ ownCustomer, quoteSent: page.quote?.sent === true || page.quote?.accepted === true, siteNotes: page.rows.siteNotes, jobDetails: page.rows.jobDetails });
@@ -399,7 +393,6 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
           </li>
         ))}
       </ol>
-      {page.channel === "installer_sourced" && !page.form.auditId && box.kind === "own_ready_check" && <PendingReadyCheckForm jobId={jobId} />}
       {page.countdown && (
         <p className={`text-sm font-semibold ${page.countdown.daysLeft <= 10 ? "text-rose" : "text-ink"}`} data-countdown>
           {page.countdown.line}
@@ -416,6 +409,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
 
       <div className="flex min-w-0 flex-col gap-3">
         <div className="min-w-0" data-job-section="Next step">
+        {!ownReadyCheck && ownCustomer && page.prices && <PriceSavedConfirmation jobId={jobId} />}
         {ownReadyCheck ? <OwnCustomerReadyCheckChoice jobId={jobId} auditId={mittiAudit} address={job.property_address ?? ''} jobNumber={job.job_number ?? ''} /> : <NextStepBox
           jobId={jobId}
           box={box}
@@ -463,20 +457,17 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
         </NextStepBox>}
         {/* #134 (Jo 3 Nov 2026): a Mitti pickup still waiting for the installer's one electrician answer — kept at the 4 Nov join
             (no Part 5 equivalent for Mitti pickups); the card renders nothing once answered. */}
-        {page.channel === "installer_sourced" && <MittiElectricianCard jobId={jobId} />}
+        {page.channel === "installer_sourced" && !ownReadyCheck && ['book_piesa', 'piesa_booked'].includes(box.kind) && <MittiElectricianCard jobId={jobId} />}
         </div>
 
         <div className="min-w-0">
           <Fold title="Owner">
-            <FoldRows rows={page.rows.owner} empty="Owner details show once the job is yours to visit." />
-            {page.rows.owner.length > 0 && job.property_address && <FoldRows rows={[["Address", job.property_address]]} empty={FOLD_EMPTY} />}
+            <FoldRows rows={page.rows.owner} empty="Owner details show once the job is yours to visit." contactLinks />
+            {page.rows.owner.length > 0 && job.property_address && <FoldRows rows={[["Address", job.property_address]]} empty={FOLD_EMPTY} contactLinks />}
             {sections.notes.length > 0 && <div className="mt-3" data-visit-notes>
               <h3 className="text-sm font-semibold text-ink">Notes for the visit</h3>
               <FoldRows rows={sections.notes} empty={FOLD_EMPTY} />
             </div>}
-            {job.owner_phone && (
-              <ContactButtons phone={job.owner_phone} address={job.owner_name ? job.property_address : null} />
-            )}
             {inHouseAccess.data?.allowed === true && <ReturnActions jobId={jobId} ownCustomer={ownCustomer} />}
           </Fold>
         </div>
@@ -509,7 +500,13 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
               ))}
             </ul>
             <SafetyPlanCard jobId={jobId} />
-            <ReadyCheckPhotos jobId={jobId} quietOnError />
+            <section aria-label="Ready Check" className="mt-4 border-t border-line pt-4">
+              <h3 className="font-display text-base font-semibold">Ready Check</h3>
+              {page.rows.paperwork.filter(r=>r.label === 'Ready Check').map(r=><p key={r.label} className="mt-1 flex flex-wrap items-center gap-x-1 text-sm text-sub">
+                <span>{r.ready || page.progress.some(p=>p.label === 'Ready Check' && p.state === 'done') ? r.note && r.note !== 'Not done yet' ? r.note : 'Done in Mitti' : 'Not done yet'}</span>
+                {(r.ready || page.progress.some(p=>p.label === 'Ready Check' && p.state === 'done')) && <><span>·</span>{r.source === 'portal' ? <PortalReadyCheckView jobId={jobId} /> : <ReadyCheckReportButton jobId={jobId} label="See report" />}</>}
+              </p>)}
+            </section>
           </Fold>
         </div>
       </div>

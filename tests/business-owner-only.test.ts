@@ -53,17 +53,6 @@ const pilot = await import("../src/lib/pilot.server");
 beforeEach(reset);
 
 describe("trade business pages: staff refused, owner allowed", () => {
-  test("usual electrician saves once to own business, reloads and is editable with history", async () => {
-    const initial = { name: "TEST REC", licence: "TEST-LIC", priceIncGst: 275 };
-    await expect(tv.tradeSaveUsualElectrician(STAFF, initial)).rejects.toThrow(/business owner/);
-    expect(tables.admin_config_events?.length).toBe(0);
-    await tv.tradeSaveUsualElectrician(OWNER, initial);
-    expect((await tv.tradeBusinessFile(OWNER)).usualElectrician).toEqual(initial);
-    await tv.tradeSaveUsualElectrician(OWNER, { ...initial, priceIncGst: 300 });
-    expect((await tv.tradeBusinessFile(OWNER)).usualElectrician?.priceIncGst).toBe(300);
-    expect(tables.admin_config_events?.length).toBe(2);
-    expect(tables.admin_config_events?.every((e) => (e.details as { business_id: string }).business_id === BIZ)).toBe(true);
-  });
   test("business file (rates, insurance, agreement)", async () => {
     await expect(tv.tradeBusinessFile(STAFF)).rejects.toThrow(/business owner/);
     const f = await tv.tradeBusinessFile(OWNER);

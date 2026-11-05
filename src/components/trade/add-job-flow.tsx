@@ -10,6 +10,7 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { CustomerFields, FieldError } from "./customer-fields";
 import { addJobOptions, startOnsiteReadyCheck } from "@/lib/onsite-ready-check.functions";
+import { defaultPick } from "@/lib/installer-electricians.core";
 import { LEAD_ORIGINS, leadOriginProblem, type LeadOrigin, type OnsiteInput } from "@/lib/onsite-ready-check.core";
 import {
   ADD_JOB_DRAFT_WORDS, ADD_JOB_OFFLINE_NOTE, ADD_JOB_WORDS, BUSY_LABEL, OWNER_CARD_TITLE, TRY_AGAIN_LABEL, addJobConsentLine, blankCustomer, customerProblems, electricianProblem,
@@ -42,6 +43,8 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
   const electricians = options.data?.electricians ?? [];
   const businessName = options.data?.businessName ?? null;
   const [electrician, setElectrician] = useState<string>("");
+  // Jo 5 Nov 2026: the Main electrician is the default pick on a new job (only when it can be picked here).
+  useEffect(() => { if (!electrician && options.data) { const m = defaultPick(options.data.electricians); if (m) setElectrician(m); } }, [options.data]); // eslint-disable-line react-hooks/exhaustive-deps
   // Consent integrity: the tick is only ever shown with the exact line for THIS business; if the name changes the tick is reset.
   useEffect(() => { setCustomer((c) => (c.contact_permission || c.consent_by ? { ...c, contact_permission: false, consent_by: null } : c)); }, [businessName]);
   // A1: asked fresh every time (not kept in the phone draft).
@@ -88,7 +91,6 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
   if (addedJobId) return (
     <div className="space-y-4" data-add-job-flow data-step="added">
       <h2 className="font-display text-xl font-semibold">Added</h2>
-      <p role="status" className="text-sm text-sub">Mitti form on its way</p>
       {electricianNotAllocated && <div role="alert" className="space-y-2 text-sm" data-electrician-not-allocated><p>{electricianReason ?? "The electrician couldn't be put on the job. Your choice is saved."}</p><Link to="/field/business/team" className="inline-flex min-h-12 items-center font-semibold text-hiv-blue underline">Open Team</Link></div>}
       <button type="button" className={PRIMARY_BTN} onClick={() => void navigate({ to: "/field/$jobId", params: { jobId: addedJobId }, search: { added: true } })}>{ADD_JOB_DRAFT_WORDS.goToJob}</button>
     </div>

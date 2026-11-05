@@ -103,6 +103,8 @@ import { nonComplianceNotice } from "./non-compliance-notice.core";
 import { renderInstallDepositOwnerEmail, renderInstallerDepositPaidEmail, depositOwnerText, type DepositMessageFacts } from './deposit-request-email.core';
 import { accessPersonBookedText, accessPersonTomorrowText } from "./access-person-texts.core";
 import { tenantNotice } from "./tenant-notice.core";
+import { ownMessageSwitch, type OwnCustomerMessageKey } from './own-customer-message-approval.core';
+import { renderOwnCustomerQuoteEmail, renderOwnCustomerUpdatedQuoteEmail, renderOwnInstallerAcceptedEmail } from './own-customer-quote-messages.core';
 
 /* ---------------------------------------------------------------- types */
 
@@ -154,6 +156,7 @@ export type TemplateEntry = {
   design?: string;
   /** Owner paperwork key whose stored approval the page shows live. */
   paperworkKey?: GateDocKey;
+  ownMessageKey?: OwnCustomerMessageKey;
   render: () => TemplatePreview;
 };
 
@@ -920,7 +923,12 @@ const DAY_JOBS = [
 
 /* ---------------------------------------------------------------- register */
 
-export const TEMPLATE_ENTRIES: TemplateEntry[] = [...OWNER, ...INSTALLER, ...ELECTRICIAN, ...OFFICE, ...MITTI, ...COMPLIANCE, ...INVOICES, ...WAITING];
+const ownMessages: TemplateEntry[] = ([
+  ['own_owner_quote', 'Owner quote — installer’s own customer', 'Owner', 'Office presses Send on the first quote', 'renderOwnCustomerQuoteEmail', () => renderOwnCustomerQuoteEmail({ ...QUOTE, v4: true, validDays: 30, ownCustomer: { installerName: 'Sample Insulation Co', installerLogoUrl: null }, readyCheckVisit: false })],
+  ['own_owner_updated_quote', 'Owner updated quote — installer’s own customer', 'Owner', 'Office checks the new price and presses Send', 'renderOwnCustomerUpdatedQuoteEmail', () => renderOwnCustomerUpdatedQuoteEmail({ firstName: 'Helen', installer: 'Sample Insulation Co', address: ADDRESS, link: JOB + '?screen=quote', previousSentDate: '6 Nov', validUntil: '6 Dec', officeNumber: '{office number}', unsubscribeUrl: UNSUB })],
+  ['own_installer_owner_accepted', 'Owner accepted — installer office', 'Installer business office', 'Owner accepts and the safety-check payment is confirmed', 'renderOwnInstallerAcceptedEmail', () => renderOwnInstallerAcceptedEmail({ name: 'Deep', jobNumber: 'HV-TEST', address: ADDRESS })],
+] as const).map(([key, name, who, when, fn, render]) => ENTRY({ id: `waiting:${key}`, section: 'waiting', step: 'quote', kind: 'email', code: '', name, who, when, approval: 'waiting', approvalNote: 'Jo 5 Nov 8:17pm — approve each email here; no sending from this page', ownMessageKey: key, gate: { kind: 'email', switchKey: ownMessageSwitch(key) }, source: { builder: 'src/lib/own-customer-quote-messages.core.ts', fn, sender: key.startsWith('own_owner') ? 'src/lib/quote-ready-notify.server.ts' : 'src/lib/installer-accepted-email.server.ts' }, render: () => email(render()) }));
+export const TEMPLATE_ENTRIES: TemplateEntry[] = [...OWNER, ...INSTALLER, ...ELECTRICIAN, ...OFFICE, ...MITTI, ...COMPLIANCE, ...INVOICES, ...WAITING, ...ownMessages];
 
 /** Entries of one section, in job order (stable within a step). */
 export function entriesFor(section: TemplateSection): TemplateEntry[] {
@@ -942,7 +950,7 @@ export type SwitchStates = Record<string, boolean | null>;
 export type StatusTone = "green" | "amber" | "rose" | "neutral";
 /** Plain status for the page: live / waits for the customer messages switch / waits for its text switch / off. */
 export function templateStatus(e: TemplateEntry, sw: SwitchStates | null): { label: string; tone: StatusTone } {
-  if (e.approval === "waiting") return { label: "Off — waiting for Jo's approval", tone: "rose" };
+  if (e.approval === "waiting" && (!e.ownMessageKey || sw?.[ownMessageSwitch(e.ownMessageKey)] !== true)) return { label: "Off — waiting for Jo's approval", tone: "rose" };
   const g = e.gate;
   if (g.kind === "always") return { label: "Live", tone: "green" };
   if (g.kind === "code_off") return { label: `Off (${g.flag})`, tone: "rose" };

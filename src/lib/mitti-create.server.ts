@@ -133,6 +133,8 @@ export async function readyCheckFormFacts(jobId: string) {
 /** Called after a Ready Check booking is confirmed. HV-3542 (Jo 30 Oct): makes the form in the request itself (one
  *  quick attempt, kept alive with waitUntil) instead of a fire-and-forget step that could be lost. Never throws. */
 export async function onReadyCheckBooked(jobId: string, actorId: string | null, call?: MittiCall): Promise<"scheduled" | "skipped"> {
+  const { data: job, error } = await admin.from('jobs').select('channel').eq('id',jobId).maybeSingle();
+  if(error || job?.channel === 'installer_sourced') return 'skipped';
   const { bookedSkipReason, bookedNoteSummary, BOOKED_SKIP_EVENT } = await import("./mitti-immediate.core");
   const note = (reason: string) => logEvent(jobId, actorId, BOOKED_SKIP_EVENT, bookedNoteSummary(reason), { reason }, { internal: true }).catch(() => undefined);
   const work = async (): Promise<"scheduled" | "skipped"> => {
@@ -161,6 +163,9 @@ export async function onReadyCheckBooked(jobId: string, actorId: string | null, 
 /** Decisions 34/115 (Jo 24 Oct): Add a job creates the installer's Mitti Ready Check form straight away — no booking
  *  needed. Same switches, same atomic claim; a booking entered later (decision 116) finds the form and skips. */
 export async function onReadyCheckJobAdded(jobId: string, actorId: string | null, call?: MittiCall): Promise<"scheduled" | "skipped"> {
+  // Jo 5 Nov: adding an own-customer job is never an A1 creation request.
+  const { data: job, error } = await admin.from('jobs').select('channel').eq('id',jobId).maybeSingle();
+  if(error || job?.channel === 'installer_sourced') return 'skipped';
   const { immediateSkipReason, immediateOutcomeNote, immediateNoteSummary, IMMEDIATE_SKIP_EVENT } = await import("./mitti-immediate.core");
   const note = (reason: string) => logEvent(jobId, actorId, IMMEDIATE_SKIP_EVENT, immediateNoteSummary(reason), { reason }, { internal: true }).catch(() => undefined);
   const work = async (): Promise<"scheduled" | "skipped"> => {

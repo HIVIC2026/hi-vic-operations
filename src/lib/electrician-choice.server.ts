@@ -29,6 +29,12 @@ export async function recordElectricianChoice(jobId: string, businessId: string,
     await logEvent(jobId, actorId, ELECTRICIAN_CHOICE_EVENT, electricianChoiceSummary(record), { ...record, business_id: businessId, declared_not_verified: false }, { internal: true });
     return record;
   }
+  // Jo 5 Nov 2026: the default (bulk upload, legacy callers) is the installer's Main electrician. A Main who is a Team
+  // person who can be put on jobs is recorded as that Team pick (the same record Add a job makes).
+  if (choice == null) {
+    const main = await (await import("./installer-electricians.server")).readMainElectrician(businessId);
+    if (main.workerId && main.entry?.allowed) return recordElectricianChoice(jobId, businessId, actorId, choice, source, { teamWorker: { id: main.workerId, name: main.entry.name, licence: main.entry.licence } });
+  }
   const status = await (await import("./usual-electrician.server")).readUsualElectricianStatus(businessId);
   const usual = status.onboarded ? status.electrician : null;
   const chosen = choice ?? defaultElectricianChoice(usual);
