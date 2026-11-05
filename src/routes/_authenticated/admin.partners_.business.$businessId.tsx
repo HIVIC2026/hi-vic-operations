@@ -19,7 +19,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { useAction } from "@/hooks/use-me";
 import { agreementRowState, bankChangedLine, rateIncGst } from "@/lib/office-partners.core";
 import { getBusinessFile, getPartnerAgreementPdf, resolvePartnerChangeRequest, revealPartnerBank } from "@/lib/office-partners.functions";
-import { getPartnerProfile, partnerFileUrl } from "@/lib/pilot.functions";
+import { getPartnerProfile, partnerFileUrl, saveBusiness } from "@/lib/pilot.functions";
+import { inHouseEnableBlockers, type InHouseFacts } from "@/lib/in-house.core";
+import { Switch } from "@/components/ui/switch";
 import { reviewHigherRates } from "@/lib/rate-requests.functions";
 import { moveInstallerToNewFlowFn } from "@/lib/new-flow-move.functions";
 import { approveInstallerElectrician, getInstallerElectricianReview, rejectInstallerElectrician } from "@/lib/my-electricians.functions";
@@ -64,6 +66,10 @@ function BusinessFile() {
           {b.owner.email && <a className="font-semibold text-hiv-blue hover:underline" href={`mailto:${b.owner.email}`}>Email {b.owner.email}</a>}
         </div>
       </section>
+      {p.error && <div role="alert" className="mb-5 flex flex-wrap items-center gap-3 rounded-[19px] border border-rose bg-pink p-4 text-sm text-ink" data-profile-error>
+        <span className="font-semibold">Couldn't load — try again.</span> Some actions on this page (certificate upload and verify, Move to the new flow, usual electrician) are hidden until it loads.
+        <Btn tone="secondary" onClick={() => void p.refetch()}>Try again</Btn>
+      </div>}
       <div className="grid gap-5 lg:grid-cols-2">
         <InstallerElectricianCard businessId={businessId} onDone={refresh} />
         <Panel title="Agreement" action={latest ? <Btn tone="secondary" onClick={() => setAgreementOpen(true)}>View agreement</Btn> : undefined}>
@@ -77,7 +83,7 @@ function BusinessFile() {
           </dl>
         </Panel>
         <RatesPanel f={f} onDone={refresh} />
-        {p.data?.myRole === "hivic_admin" && p.data.inHouseFacts && <InHousePanel key={JSON.stringify(p.data.business)} businessId={businessId} business={p.data.business as unknown as { in_house?: boolean }} onDone={refresh} />}
+        {p.data?.myRole === "hivic_admin" && p.data.inHouseFacts && <InHouseAndNewFlowPanel key={JSON.stringify(p.data.business)} businessId={businessId} business={p.data.business as unknown as { name: string; in_house?: boolean }} facts={p.data.inHouseFacts} onDone={refresh} />}
         <Panel className="lg:col-span-2" title={`People · ${f.people.length}`}><div data-why="153 CII, 130 privacy notice, 22/188 Mitti"><PeopleTable people={f.people} showBusiness={false} invalidate={["business-file"]} /></div></Panel>
         {f.canBeUsualElectrician && <Panel title="Usual electrician" action={f.usual ? <Link to="/admin/partners/business/$businessId" params={{ businessId: f.usual.id }} className="text-sm font-semibold text-hiv-blue hover:underline">Open {f.usual.name} ›</Link> : undefined}>
           <dl data-why="289/374: the usual electrician is an option on the installer's own customers (A1); on our leads we always choose the electrician">
@@ -145,16 +151,26 @@ function InstallerElectricianCard({ businessId, onDone }: { businessId: string; 
   );
 }
 
-// The In-house switch, "No electrician Mitti login" line and billing radio were removed from this page (Jo, 5 Nov 2026: the electrician
-// always bills the owner directly since 2 Nov). Only the existing "Move to the new flow" action stays. The saved in_house /
-// rectification_billed_by values are untouched.
-function InHousePanel({ businessId, business, onDone }: { businessId: string; business: { in_house?: boolean }; onDone: () => Promise<void> }) {
+// One In-house Yes/No switch (Rapid and No Gap book this way) and the "Move to the new flow" action. The billing radio, the
+// "No electrician Mitti login" line and the separate Save were removed (Jo, 5 Nov 2026: the electrician always bills the owner
+// directly since 2 Nov). The switch saves straight away through saveBusiness, as before; rectification_billed_by is not sent.
+function InHouseAndNewFlowPanel({ businessId, business, facts, onDone }: { businessId: string; business: { name: string; in_house?: boolean }; facts: InHouseFacts; onDone: () => Promise<void> }) {
+  const save = useServerFn(saveBusiness);
+  const inHouse = business.in_house ?? false;
+  const blockers = inHouseEnableBlockers(facts);
   const [busy, setBusy] = useState(false);
   const move = useServerFn(moveInstallerToNewFlowFn);
   const [moveBlockers, setMoveBlockers] = useState<string[]>([]);
-  if (business.in_house ?? false) return null;
-  return <Panel title="New flow">
-    <div data-new-flow-move>
+  const setInHouse = async (next: boolean) => {
+    setBusy(true);
+    try { await save({ data: { id: businessId, name: business.name, in_house: next } }); await onDone(); toast.success(next ? "In-house partner: Yes" : "In-house partner: No"); }
+    catch (e) { toast.error(e instanceof Error ? e.message : "Could not save in-house partner"); }
+    finally { setBusy(false); }
+  };
+  return <Panel title="In-house and new flow">
+    <label className="flex items-center justify-between gap-3 text-sm font-semibold">In-house: {inHouse ? "Yes" : "No"}<Switch checked={inHouse} onCheckedChange={(v) => void setInHouse(v)} disabled={busy || (!inHouse && blockers.length > 0)} aria-label="In-house partner" /></label>
+    {blockers.length > 0 && <ul className="mt-3 text-sm text-rose">{blockers.map((x) => <li key={x}>{x}</li>)}</ul>}
+    {!inHouse && <div className="mt-4 border-t pt-4" data-new-flow-move>
       <Btn tone="secondary" disabled={busy} onClick={async () => {
         setBusy(true); setMoveBlockers([]);
         try {
@@ -164,7 +180,7 @@ function InHousePanel({ businessId, business, onDone }: { businessId: string; bu
         finally { setBusy(false); }
       }}>Move to the new flow</Btn>
       {moveBlockers.length > 0 && <ul className="mt-3 text-sm text-rose" data-new-flow-move-blockers>{moveBlockers.map(b => <li key={b}>{b}</li>)}</ul>}
-    </div>
+    </div>}
   </Panel>;
 }
 
@@ -217,12 +233,18 @@ function DocumentsPanel({ businessId, f, profile, onDone }: { businessId: string
   const view = async (path: string) => { try { const r = await open({ data: { businessId, path } }); openFileViewer(r.url); } catch (e) { toast.error(e instanceof Error ? e.message : "Couldn't open"); } };
   const agreementPdf = useServerFn(getPartnerAgreementPdf);
   const viewAgreement = async (agreementId: string) => {
+    // The file viewer decides how to show a file from the end of its link (".pdf"), which a blob link does not have,
+    // so the PDF opens in a new tab instead. This tab is never navigated away.
     const w = window.open("", "_blank");
+    let url: string | null = null;
     try {
       const r = await agreementPdf({ data: { businessId, agreementId } });
-      const url = URL.createObjectURL(new Blob([Uint8Array.from(atob(r.base64), (c) => c.charCodeAt(0))], { type: "application/pdf" }));
-      if (w) w.location.href = url; else window.location.href = url;
-    } catch (e) { w?.close(); toast.error(e instanceof Error ? e.message : "Couldn't open"); }
+      url = URL.createObjectURL(new Blob([Uint8Array.from(atob(r.base64), (c) => c.charCodeAt(0))], { type: "application/pdf" }));
+      if (!w) { toast.error("Your browser blocked the new tab. Allow pop-ups for this site and tap again."); URL.revokeObjectURL(url); return; }
+      w.location.href = url;
+      const done = url;
+      setTimeout(() => URL.revokeObjectURL(done), 60_000);
+    } catch (e) { if (url) URL.revokeObjectURL(url); w?.close(); toast.error(e instanceof Error ? e.message : "Couldn't open"); }
   };
   const b = f.business;
   const cover = f.credentials.filter((c) => BUSINESS_DOC_KINDS.includes(c.kind));

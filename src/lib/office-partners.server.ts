@@ -160,7 +160,7 @@ export async function businessFile(businessId: string) {
     peopleFor([businessId]),
     (async () => (await import("./esc-collection-notice.server")).businessNoticeStatuses(businessId).catch(() => []))(),
   ]);
-  for (const [label, e] of [["agreements", agreements.error], ["bank details", bank.error], ["bank history", bankEv.error]] as const) if (e) throw new Error(`Could not read the business ${label}: ${e.message}`);
+  for (const [label, e] of [["people", members.error], ["agreements", agreements.error], ["documents and insurance", creds.error], ["rate cards", cards.error], ["electrician links", rels.error], ["bank details", bank.error], ["bank history", bankEv.error], ["electrician rates", eRates.error], ["rate requests", rateReqs.error], ["change requests", changeReqs.error], ["job assignments", asg.error], ["own jobs", own.error]] as const) if (e) throw new Error(`Could not read the business ${label}: ${e.message}`);
   const jobs = ((asg.data ?? []) as { job_id: string; assigned_at: string; jobs: { stage: string; source: string; deleted_at: string | null; installation_completed_at: string | null } }[]).filter((a) => a.jobs.source !== "qa_test" && !a.jobs.deleted_at);
   const usualRel = ((rels.data ?? []) as { preferred: boolean; businesses: { id: string; name: string; trading_name: string | null; rec_number: string | null; onboarding_status: string } | null }[]).find((r) => r.preferred) ?? null;
   let usual: { id: string; name: string; rec: string | null; approved: boolean; piesaRate: number | null; usedThisMonth: number; jobsThisMonth: number } | null = null;
@@ -184,7 +184,7 @@ export async function businessFile(businessId: string) {
       xero: { status: b.xero_contact_status as string | null, error: b.xero_contact_error as string | null },
       coverage: { regions: b.service_regions ?? [], postcodes: b.service_postcodes ?? [], summary: postcodeSummary(b.service_postcodes), verifiedAt: b.coverage_verified_at, origin: b.declared_service_origin, radiusKm: b.declared_travel_radius_km },
     },
-    agreements: ((agreements.data ?? []) as { id: string; version: string; signer_name: string; signed_at: string; snapshot_sha256: string; body: string }[]),
+    agreements: (agreements.data ?? []) as { id: string; version: string; signer_name: string; signed_at: string; snapshot_sha256: string; body: string }[],
     notices: notices as { name: string; email: string; state: string; workerId?: string | null }[],
     credentials: ((creds.data ?? []) as { id: string; kind: string; label: string; number: string | null; issuer: string | null; expires_at: string | null; verification: string; document_path: string | null; created_at: string }[]).map((c) => ({ ...c, state: credentialState(c) })),
     rates: activeCard ? { version: activeCard.version, effective: activeCard.effective_from, items: [...(activeCard.rate_card_items ?? [])].sort((a, c) => a.sort - c.sort) } : null,

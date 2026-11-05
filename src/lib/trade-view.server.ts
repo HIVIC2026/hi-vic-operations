@@ -1160,9 +1160,9 @@ export async function officeAgreementPdf(businessId: string, agreementId: string
   ]);
   if (ae) throw new WorkflowError(`Could not read the agreement: ${ae.message}`);
   if (be) throw new WorkflowError(`Could not read the business: ${be.message}`);
-  if (!a || !a.body) throw new WorkflowError("The signed agreement text is missing, so there is no PDF to open.");
+  const { agreementRowState, agreementPdfText } = await import("./office-partners.core");
+  if (!a || agreementRowState(a) === "missing") throw new WorkflowError("The signed agreement text is missing, so there is no PDF to open.");
   const { textToPdf } = await import("./signed-pdf.server");
-  const { agreementPdfText } = await import("./office-partners.core");
   const t = agreementPdfText(a, biz?.name ?? "Business");
   return { fileName: t.fileName, base64: toB64(await textToPdf(t.title, t.body)) };
 }

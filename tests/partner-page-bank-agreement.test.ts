@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { agreementPdfText, agreementRowState, bankChangedLine } from "../src/lib/office-partners.core";
+import { agreementPdfText, agreementRowState, bankChangedLine, rateCardLine, rateIncGst } from "../src/lib/office-partners.core";
 
 
 describe("bank Changed row", () => {
@@ -28,7 +28,6 @@ describe("agreement PDF", () => {
   });
 });
 
-import { rateCardLine, rateIncGst } from "../src/lib/office-partners.core";
 describe("installer rates show inc GST", () => {
   // Reinsulate's stored ex-GST rate card (2dp) and the inc-GST figures Jo expects to see.
   const stored: [string, number, string][] = [
