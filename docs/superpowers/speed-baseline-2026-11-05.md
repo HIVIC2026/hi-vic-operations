@@ -61,3 +61,17 @@ Existing tests failing on the base commit (snapshot drift, not part of this work
 | Buttons | every action waited for the whole screen to reload → audited screen-only actions (log a call/note, log a communication, VEEC reply ticked) finish once saved; Send / Give / Pay / Book / Cancel unchanged (wait) | — | optimistic.core, use-action-instant |
 
 Timed runs (`scripts/qa-timing.ts`, 390 px and 1280 px): NOT RUN — no TEST sessions in this sandbox.
+
+## What the instant-actions change actually does
+
+Commit bda34d6a is titled "write-and-return server functions". That wording is wrong. No server function changed.
+
+- Before: after a screen-only action (log a call or note, log a communication, tick a VEEC reply as sent), the button waited for the save, then waited for the whole screen to reload.
+- Now: the button still waits for the save. It no longer waits for the screen reload, which happens in the background.
+- If the save fails, the server's message shows and nothing else changes.
+- Send, Give, Pay, Book and Cancel are unchanged: they wait for the save and the fresh screen.
+- Follow-up fix: "Mark reply sent" now stays disabled until its own VEEC refresh finishes, so it cannot be tapped twice.
+
+## Note on Task 2 (installer screens)
+
+Commit 2bced340 is titled "load in one trip". That overstates it. It changed only tests and labels. My work, Money, My business and Team already made one server call for the first draw and read in at most three database rounds. The commit pins that with `ROUND_LIMIT` and adds business-scope tests. Rounds stay 3 → 3. Nothing got faster from it.
