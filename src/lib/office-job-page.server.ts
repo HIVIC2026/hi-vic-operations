@@ -13,6 +13,7 @@ import { withoutRetiredInstallDayPhotos } from "./ready-check-chase.core";
 import { installDaysLeft } from "./install-days.core";
 import { readJobAccess } from "./quick-taps-access.server";
 import { INSTALL_BEFORE_LINE_SHOWN } from "./install-before.core"; // G8 (5), Jo 4 Nov 2026 21:30
+import { early } from "./early-read";
 
 const s = (v: unknown) => (v == null ? null : String(v));
 const n = (v: unknown) => (v == null || v === "" ? null : Number(v));
@@ -38,15 +39,16 @@ async function contactRows(jobId: string, job: { created_at: string; source: str
 }
 
 export async function loadJobPage(jobId: string, testOffice = false) {
-  const { data: job, error } = await admin.from("jobs").select("id, job_number, stage, prior_stage, source, channel, created_at, hold_reason, hold_revisit_at, cancelled_reason, life_support, deleted_at, installation_completed_at, estimated_area_m2, eligibility_outcome, eligibility_review_required, originating_installer_business_id, external_refs, owners(full_name, email, phone), properties(address_line, suburb, postcode, state, occupancy, enrichment)").eq("id", jobId).maybeSingle();
-  if (error) throw new Error(`This job could not be loaded: ${error.message}`);
-  if (!job) throw new Error("Job not found.");
-  const now = Date.now();
-  const owner = job.owners as { full_name: string | null; email: string | null; phone: string | null } | null;
-  const prop = job.properties as { address_line: string | null; suburb: string | null; postcode: string | null; state: string | null; occupancy: string | null; enrichment: Record<string, unknown> | null } | null;
-  const addr = splitAddress(prop?.address_line, prop?.suburb, prop?.postcode);
-
-  const [gathered, consent, asg, offers, bookings, meas, diagram, quotes, piesa, rect, escConsent, escNotice, assignment, evidence, veec, campaign, links, media, readyForVeec, originBiz, proposals, contacts, access, certificate, beforePhotos] = await Promise.all([
+  // Portal speed step 2: every read below needs only the job id (the few that need the job row chain on it), so they all
+  // start together with the job read instead of after it — and the payment view, bounce and do-not-contact reads with them
+  // instead of one after another at the end. Each is still awaited, and its failure raised, in the same order as before.
+  const jobP = early(admin.from("jobs").select("id, job_number, stage, prior_stage, source, channel, created_at, hold_reason, hold_revisit_at, cancelled_reason, life_support, deleted_at, installation_completed_at, estimated_area_m2, eligibility_outcome, eligibility_review_required, originating_installer_business_id, external_refs, owners(full_name, email, phone), properties(address_line, suburb, postcode, state, occupancy, enrichment)").eq("id", jobId).maybeSingle());
+  type JobRow = NonNullable<Awaited<typeof jobP>["data"]>;
+  const withJob = <T,>(f: (j: JobRow) => PromiseLike<T> | T, none: T) => jobP.then(({ data: j }) => (j ? f(j) : none));
+  const payP = early(import("./payments.server").then((m) => m.jobPaymentView(jobId)));
+  const bouncedP = early(import("./office-lists.server").then((m) => m.emailBouncedSet([jobId])));
+  const dncP = early(import("./do-not-contact.server").then((m) => m.readDoNotContact(jobId)));
+  const allP = early(Promise.all([
     gatherNeedsFacts({ includeTest: true, onlyIds: [jobId], testOffice }),
     admin.from("owner_contact_consents").select("consent_status, consented_at, created_at").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("job_assignments").select("role, business_id, assigned_at, active, businesses(name)").eq("job_id", jobId).eq("active", true),
@@ -66,15 +68,24 @@ export async function loadJobPage(jobId: string, testOffice = false) {
     admin.from("customer_estimate_links").select("created_at, last_viewed_at").eq("job_id", jobId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("documents").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("kind", "intake_media"),
     admin.from("workflow_events").select("created_at").eq("job_id", jobId).eq("event_type", "stage_changed").eq("to_stage", "ready_for_veec").order("created_at", { ascending: false }).limit(1).maybeSingle(),
-    job.originating_installer_business_id ? admin.from("businesses").select("name").eq("id", job.originating_installer_business_id).maybeSingle() : Promise.resolve({ data: null as { name: string } | null }),
+    withJob((j) => j.originating_installer_business_id ? admin.from("businesses").select("name").eq("id", j.originating_installer_business_id).maybeSingle() : { data: null as { name: string } | null }, { data: null as { name: string } | null }),
     admin.from("appointment_proposals").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("install_day", true).eq("status", "proposed"),
-    contactRows(jobId, { created_at: job.created_at, source: job.source, channel: job.channel }),
+    withJob((j) => contactRows(jobId, { created_at: j.created_at, source: j.source, channel: j.channel }), [] as Awaited<ReturnType<typeof contactRows>>),
     // Quick taps (Jo 2 Nov 2026): who will be at the home; fails closed (a failed read shows nothing).
     readJobAccess(jobId),
     // Part 3 Task 3: the Certificate of Electrical Safety status line (read-only; nothing on a failed read).
     import("./certificate-later.server").then((m) => m.certificateLineFor(jobId)),
-    job.channel === 'installer_sourced' && !job.installation_completed_at ? (await import('./install-before.server')).readInstallBeforePlan(jobId) : Promise.resolve(null),
-  ]);
+    withJob(async (j) => j.channel === 'installer_sourced' && !j.installation_completed_at ? (await import('./install-before.server')).readInstallBeforePlan(jobId) : null, null),
+  ]));
+  const { data: job, error } = await jobP;
+  if (error) throw new Error(`This job could not be loaded: ${error.message}`);
+  if (!job) throw new Error("Job not found.");
+  const now = Date.now();
+  const owner = job.owners as { full_name: string | null; email: string | null; phone: string | null } | null;
+  const prop = job.properties as { address_line: string | null; suburb: string | null; postcode: string | null; state: string | null; occupancy: string | null; enrichment: Record<string, unknown> | null } | null;
+  const addr = splitAddress(prop?.address_line, prop?.suburb, prop?.postcode);
+
+  const [gathered, consent, asg, offers, bookings, meas, diagram, quotes, piesa, rect, escConsent, escNotice, assignment, evidence, veec, campaign, links, media, readyForVeec, originBiz, proposals, contacts, access, certificate, beforePhotos] = await allP;
   const bizOf = (role: string) => ((asg.data ?? []).find((a) => a.role === role)?.businesses as { name?: string } | null)?.name ?? null;
   const ownJob = job.channel === "installer_sourced";
   const installer = displayName(bizOf("installer") ?? (ownJob ? originBiz.data?.name ?? null : null)) || null;
@@ -95,7 +106,7 @@ export async function loadJobPage(jobId: string, testOffice = false) {
   const rcOffer = (offers.data ?? []).find((o) => o.kind === "ready_check" && o.status === "accepted") ?? (offers.data ?? []).find((o) => o.kind === "ready_check");
   const piesaOffer = (offers.data ?? []).find((o) => o.kind === "piesa");
   const book = (k: string) => (bookings.data ?? []).find((b) => b.kind === k)?.scheduled_start ?? null;
-  const pay = await (await import("./payments.server")).jobPaymentView(jobId).catch(() => null);
+  const pay = await payP.catch(() => null);
   const step = (k: string) => pay?.steps.find((x) => x.key === k) ?? null;
   const deadline = officeJob?.facts.installDeadline ?? null;
   const daysLeft = deadline ? installDaysLeft(deadline, new Date(now)) : null;
@@ -126,9 +137,8 @@ export async function loadJobPage(jobId: string, testOffice = false) {
       readyForVeecAt: s(readyForVeec.data?.created_at), lodged: veec.data?.submitted_date ? `VEEC lodged ${day(veec.data.submitted_date)}` : null },
   };
   const lastHeard = lastHeardFromUs(contacts);
-  const { emailBouncedSet } = await import("./office-lists.server");
-  const emailBounced = (await emailBouncedSet([jobId])).has(jobId);
-  const dnc = await (await import("./do-not-contact.server")).readDoNotContact(jobId);
+  const emailBounced = (await bouncedP).has(jobId);
+  const dnc = await dncP;
   return {
     now,
     emailBounced,

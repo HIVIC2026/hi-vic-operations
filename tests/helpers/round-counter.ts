@@ -6,7 +6,7 @@
 //             every query waits for the next timer tick, and queries started before that tick share the round.
 // Test-only; never wraps a real database. Same round model as tests/helpers/wave-counter.ts.
 type AnyClient = { from: (t: string) => unknown; rpc?: (...a: any[]) => unknown; [k: string]: unknown };
-export type RoundLog = { table: string; round: number }[];
+export type RoundLog = { table: string; round: number; site?: string }[];
 
 /** The per-screen budget: no screen's first-draw loader may take more than this many sequential database rounds. */
 export const ROUND_LIMIT = 3;
@@ -19,14 +19,16 @@ export function roundCounter(inner: AnyClient) {
   const flush = () => { scheduled = false; round++; const p = pending; pending = []; for (const f of p) f(); };
 
   // Wraps a query builder: chain methods return wrapped builders; awaiting it waits for the round's tick first.
-  function builder<T extends object>(b: T, table: string): T {
+  // ROUND_TRACE=1: name where each query was built (the first src/lib frames), to find a round's caller.
+  const siteNow = () => process.env["ROUND_TRACE"] ? (new Error().stack ?? "").split("\n").filter((l) => l.includes("/src/")).slice(0, 3).map((l) => l.replace(/.*\/src\/lib\//, "").replace(/\)$/, "")).join(" < ") : undefined;
+  function builder<T extends object>(b: T, table: string, site = siteNow()): T {
     return new Proxy(b, {
       get(target, prop, recv) {
         const v = Reflect.get(target, prop, recv);
         if (prop === "then" && typeof v === "function") {
           return (res?: (x: unknown) => unknown, rej?: (e: unknown) => unknown) =>
             new Promise<void>((go) => {
-              log.push({ table, round });
+              log.push({ table, round, ...(site ? { site } : {}) });
               pending.push(go);
               if (!scheduled) { scheduled = true; setTimeout(flush, 0); }
             }).then(() => (v as (a?: unknown, b?: unknown) => Promise<unknown>).call(target, res, rej));
@@ -34,7 +36,7 @@ export function roundCounter(inner: AnyClient) {
         if (typeof v !== "function") return v;
         return (...a: unknown[]) => {
           const out = (v as (...x: unknown[]) => unknown).apply(target, a);
-          return out && typeof out === "object" && typeof (out as { then?: unknown }).then === "function" ? builder(out as object, table) : out;
+          return out && typeof out === "object" && typeof (out as { then?: unknown }).then === "function" ? builder(out as object, table, site) : out;
         };
       },
     });
@@ -62,7 +64,7 @@ export function roundCounter(inner: AnyClient) {
   }
 
   const roundsOf = (l: RoundLog) => [...new Set(l.map((x) => x.round))].sort((a, b) => a - b)
-    .map((r) => `${r + 1}: ${[...new Set(l.filter((x) => x.round === r).map((x) => x.table))].join(", ")}`).join("\n");
+    .map((r) => `${r + 1}: ${[...new Set(l.filter((x) => x.round === r).map((x) => (x.site ? `${x.table} [${x.site}]` : x.table)))].join(", ")}`).join("\n");
 
   return { client: wrap(inner), wrap, countRounds, roundsOf, reset };
 }
