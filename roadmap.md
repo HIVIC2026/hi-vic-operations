@@ -1,3 +1,6 @@
+## Jo 5 Nov Add electrician email
+- [x] Shared Add/job picker disables missing email; failure explains repair and links Team; recorded failed choice is preselected for one-tap job-page retry. No real records, sends or publication.
+
 ## Jo 5 Nov fast button saves
 - [x] Add/Book Ready Check form creation uses tracked request lifetime with existing missing-form sweep fallback. Added screen no longer waits for job-page navigation; pending job form polls read-only. Booking owner notice intent saved before deferred delivery; committed electrician link SMS and Give owner call notice deferred with existing sweeps.
 - [ ] Remaining inline work: electrician Mitti membership preflight (safety check), rental taps lacks recovery intent, Give office email lacks sweep, handback cancellation email lacks retry sweep. Preserve these rather than silently lose messages. TEST protected existing-job retry showed Added in 1.840s; not comparable to fresh real HV-3794's 8s. Fresh Add/other-button timings unverified. 63 targeted tests pass, preview build OK; no real job runs or publication.

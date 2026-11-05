@@ -16,7 +16,7 @@ mock.module("@tanstack/react-start/server", () => ({ getCookie: () => undefined,
 // The address lookup's own server function module is not needed on this screen: the test types the address in.
 mock.module("@/lib/address-search.functions", () => ({ searchAddresses: async () => [], addressDetails: async () => null }));
 mock.module("@/components/trade/TradeShell", () => ({ inputCls: "input", card: "card", greenBtn: "green", ghostBtn: "ghost" }));
-mock.module("@tanstack/react-router", () => ({ useNavigate: () => async (to: unknown) => { navigated.push(to); } }));
+mock.module("@tanstack/react-router", () => ({ Link: ({children}: {children: unknown}) => children, useNavigate: () => async (to: unknown) => { navigated.push(to); } }));
 mock.module("@tanstack/react-query", () => ({ useQuery: () => options }));
 mock.module("sonner", () => ({ toast: { success: (m: string) => { toasts.push(m); } } }));
 mock.module("@/lib/onsite-ready-check.functions", () => ({
@@ -95,7 +95,7 @@ describe("Add a job screen", () => {
       await act(async () => { fireEvent.click(r.getByRole("button", { name: ADD_JOB_WORDS.button })); });
       expect(calls).toHaveLength(1);
       expect((calls[0] as { data: { electricianWorkerId: string } }).data.electricianWorkerId).toBe("e1");
-      expect(r.getByText(ADD_JOB_DRAFT_WORDS.electricianNotAllocated)).toBeTruthy();
+      expect(r.getByText("The electrician couldn't be put on the job. Your choice is saved.")).toBeTruthy();
       expect(navigated).toHaveLength(0);
       await act(async () => { fireEvent.click(r.getByRole("button", { name: ADD_JOB_DRAFT_WORDS.goToJob })); });
       expect(navigated).toEqual([{ to: "/field/$jobId", params: { jobId: "j-new" }, search: { added: true } }]);

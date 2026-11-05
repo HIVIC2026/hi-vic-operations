@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { useNavigate } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
 import { CustomerFields, FieldError } from "./customer-fields";
 import { addJobOptions, startOnsiteReadyCheck } from "@/lib/onsite-ready-check.functions";
@@ -33,6 +33,7 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
   // Jo 3 Nov ruling: a job whose electrician could not be put on it is still added; the installer is told, then goes to the job.
   const [addedJobId, setAddedJobId] = useState<string | null>(null);
   const [electricianNotAllocated, setElectricianNotAllocated] = useState(false);
+  const [electricianReason, setElectricianReason] = useState<string | null>(null);
   const bannerRef = useRef<HTMLParagraphElement>(null);
   const inFlight = useRef(false);
   // Task 7: the business name (for the consent line) and its Team electricians, read once before the form is used.
@@ -73,6 +74,7 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
       const r = await start({ data: { businessId, owner: customer, leadOrigin, requestKey, electricianWorkerId: electrician } });
       try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
       setElectricianNotAllocated(r.electrician === "not_allocated");
+      setElectricianReason(r.electricianReason ?? null);
       setAddedJobId(r.jobId);
       toast.success(nextLine(r.ownerFirstName ?? "the owner"));
     } catch (e) { setErr(saveErrorMessage(e instanceof Error ? e.message : null)); }
@@ -87,7 +89,7 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
     <div className="space-y-4" data-add-job-flow data-step="added">
       <h2 className="font-display text-xl font-semibold">Added</h2>
       <p role="status" className="text-sm text-sub">Mitti form on its way</p>
-      {electricianNotAllocated && <p role="alert" className="rounded-[12px] border-2 border-line bg-paper p-3 text-[15px]" data-electrician-not-allocated>{ADD_JOB_DRAFT_WORDS.electricianNotAllocated}</p>}
+      {electricianNotAllocated && <div role="alert" className="space-y-2 text-sm" data-electrician-not-allocated><p>{electricianReason ?? "The electrician couldn't be put on the job. Your choice is saved."}</p><Link to="/field/business/team" className="inline-flex min-h-12 items-center font-semibold text-hiv-blue underline">Open Team</Link></div>}
       <button type="button" className={PRIMARY_BTN} onClick={() => void navigate({ to: "/field/$jobId", params: { jobId: addedJobId }, search: { added: true } })}>{ADD_JOB_DRAFT_WORDS.goToJob}</button>
     </div>
   );

@@ -21,7 +21,7 @@ import type { ElectricianPlan } from "./job-electrician.core";
 import type { MittiCall } from "./mitti.core";
 
 export type AddJobBooking = "none" | "confirmed" | "blocked";
-export type AddJobResult = { jobId: string; jobNumber: string | null; booking: AddJobBooking; formCreation: "scheduled" | "skipped"; state: OnsiteState; /** Task 7: whether the chosen Team electrician was put on the job. */ electrician: "allocated" | "not_allocated" | "not_asked"; ownerFirstName: string | null };
+export type AddJobResult = { jobId: string; jobNumber: string | null; booking: AddJobBooking; formCreation: "scheduled" | "skipped"; state: OnsiteState; electricianReason?: string | null; /** Task 7: whether the chosen Team electrician was put on the job. */ electrician: "allocated" | "not_allocated" | "not_asked"; ownerFirstName: string | null };
 
 export async function startOnsiteReadyCheckFor(userId: string, businessId: string, input: OnsiteInput, _electrician: ElectricianPlan | null = null, call?: MittiCall, opts: { now?: Date; /** Task 7 + join ruling: the Team electrician for the PIESA — required; the installer's own electrician on this job. */ electricianWorkerId?: string | null; /** A1: how the installer got this customer; door-knock and cold call are refused. */ leadOrigin?: import("./onsite-ready-check.core").LeadOrigin | null; /** A6: the phone's key for this draft; a key already saved resumes that job. */ requestKey?: string | null } = {}): Promise<AddJobResult> {
   const { requireApprovedPartner, intakeSourceFor } = await import("./pilot.server");
@@ -136,9 +136,11 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
   // Task 7: the chosen Team electrician is put on the job through the existing allocation path (assignment RPC + Mitti form
   // hand-over). The job is already saved; a refusal here is logged on the job and the installer can pick again on the job page.
   let electricianAllocated: "allocated" | "not_allocated" | "not_asked" = "not_asked";
+  let electricianReason: string | null = null;
   try { await (await import("./in-house-electrician.server")).allocateElectrician(job.id, userId, teamWorker.id, call); electricianAllocated = "allocated"; }
   catch (error) {
     electricianAllocated = "not_allocated";
+    electricianReason = (await import('./electrician-allocation-message.core')).electricianAllocationMessage(error instanceof Error ? error.message : String(error), teamWorker.name);
     await logEvent(job.id, userId, "add_job_electrician_not_allocated", "The electrician chosen on Add a job could not be put on the job; choose again on the job page", { worker_id: teamWorker.id, reason: error instanceof Error ? error.message : String(error) }, { internal: true }).catch(console.error);
   }
   // Start the guarded create immediately after saving, booking or not. A booking background attempt can share
@@ -151,7 +153,7 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
   catch (e) { console.error("rental questions text not sent", (e as Error).message); }
   // The saved job is the durable missing-form sweep candidate. Do not read the whole form state before returning.
   const state: OnsiteState = { kind: "preparing", message: "Mitti form on its way" };
-  return { jobId: job.id, jobNumber: job.job_number, booking, formCreation, state, electrician: electricianAllocated, ownerFirstName: input.full_name.trim().split(/\s+/)[0] ?? null };
+  return { jobId: job.id, jobNumber: job.job_number, booking, formCreation, state, electrician: electricianAllocated, electricianReason, ownerFirstName: input.full_name.trim().split(/\s+/)[0] ?? null };
 }
 
 /**
