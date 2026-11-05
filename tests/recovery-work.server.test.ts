@@ -3,6 +3,7 @@ import { beforeEach, expect, mock, test } from "bun:test";
 type Row = Record<string, any>;
 let rows: Row[] = [];
 let tableError: { code: string; message: string } | null = null;
+let failUpdateFor: string | null = null;
 let claimResult: { data: Row[] | null; error: { code: string; message: string } | null } = { data: [], error: null };
 
 function builder(op: "insert" | "select" | "update", payload?: Row) {
@@ -14,6 +15,7 @@ function builder(op: "insert" | "select" | "update", payload?: Row) {
       rows.push({ attempts: 0, status: "open", ...payload }); return { data: null, error: null };
     }
     const hit = rows.filter((r) => filters.every(([k, v]) => r[k] === v));
+    if (op === "update" && failUpdateFor && filters.some(([k, v]) => k === "work_key" && v === failUpdateFor)) return { data: null, error: { code: "XX000", message: "update failed" } };
     if (op === "update") { hit.forEach((r) => Object.assign(r, payload)); return { data: null, error: null }; }
     return { data: hit[0] ?? null, error: null };
   };
@@ -41,7 +43,7 @@ const handlers = (over: Record<string, any> = {}) => ({
 }) as any;
 const claim = (...items: Row[]) => { claimResult = { data: items.map((i) => ({ job_id: null, payload: {}, attempts: 0, status: "open", last_error: null, ...i })), error: null }; };
 
-beforeEach(() => { rows = []; tableError = null; claimResult = { data: [], error: null }; });
+beforeEach(() => { rows = []; tableError = null; failUpdateFor = null; claimResult = { data: [], error: null }; });
 
 test("addWork twice: added then exists", async () => {
   expect(await addWork("veec_final_copy", "k1", null, { a: 1 })).toBe("added");
@@ -121,4 +123,25 @@ test("claim RPC missing returns zeros", async () => {
   expect(await runRecoveryWork(handlers())).toEqual({ done: 0, failed: 0, needsOffice: 0 });
   claimResult = { data: null, error: { code: "42883", message: "no function" } };
   expect(await runRecoveryWork(handlers())).toEqual({ done: 0, failed: 0, needsOffice: 0 });
+});
+
+test("other claim errors throw", async () => {
+  claimResult = { data: null, error: { code: "XX000", message: "db down" } };
+  await expect(runRecoveryWork(handlers())).rejects.toThrow("db down");
+});
+
+test("a bookkeeping failure on one item does not stop the next", async () => {
+  await addWork("veec_final_copy", "a", null, {});
+  await addWork("veec_copy_email", "b", null, {});
+  claim({ kind: "veec_final_copy", work_key: "a" }, { kind: "veec_copy_email", work_key: "b" });
+  failUpdateFor = "a";
+  const calls: string[] = [];
+  const res = await runRecoveryWork(handlers({
+    veec_final_copy: async () => { calls.push("a"); },
+    veec_copy_email: async () => { calls.push("b"); },
+  }));
+  expect(calls).toEqual(["a", "b"]);
+  expect(res).toEqual({ done: 1, failed: 1, needsOffice: 0 });
+  expect(rows[0].attempts).toBe(0);
+  expect(rows[1].status).toBe("done");
 });

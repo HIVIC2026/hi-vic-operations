@@ -9,6 +9,7 @@ export type RecoveryItem = {
 type Err = { code?: string; message?: string } | null;
 
 const table = () => admin.from("recovery_work" as never) as any;
+const CLAIM_NOT_DEPLOYED = new Set(["PGRST202", "42883", "42P01", "PGRST205"]);
 const missing = (e: Err) => e?.code === "PGRST205" || e?.code === "42P01";
 const fail = (e: NonNullable<Err>): never => { throw new Error(e.message ?? e.code ?? "recovery_work error"); };
 
@@ -57,17 +58,30 @@ export async function runRecoveryWork(
 ): Promise<{ done: number; failed: number; needsOffice: number }> {
   const out = { done: 0, failed: 0, needsOffice: 0 };
   const { data, error } = (await (admin as any).rpc("claim_recovery_work", { p_limit: 50, p_lease_seconds: 300 })) as { data: RecoveryItem[] | null; error: Err };
-  if (error) { console.error("recovery_work claim unavailable:", error.message ?? error.code); return out; }
+  if (error) {
+    if (CLAIM_NOT_DEPLOYED.has(error.code ?? "")) { console.error("recovery_work claim unavailable:", error.message ?? error.code); return out; }
+    return fail(error);
+  }
   for (const item of data ?? []) {
     const handler = handlers[item.kind];
+    let handlerError: string | null = null;
     try {
       if (!handler) throw new Error("no handler");
       await handler(item);
-      await markDone(item.kind, item.work_key);
-      out.done++;
     } catch (e) {
-      const status = await markFailed(item.kind, item.work_key, e instanceof Error ? e.message : String(e), now);
-      if (status === "needs_office") out.needsOffice++; else out.failed++;
+      handlerError = e instanceof Error ? e.message : String(e);
+    }
+    try {
+      if (handlerError === null) {
+        await markDone(item.kind, item.work_key);
+        out.done++;
+      } else {
+        const status = await markFailed(item.kind, item.work_key, handlerError, now);
+        if (status === "needs_office") out.needsOffice++; else out.failed++;
+      }
+    } catch (e) {
+      console.error("recovery_work bookkeeping failed:", item.kind, item.work_key, e);
+      out.failed++;
     }
   }
   return out;

@@ -16,6 +16,6 @@ export function nextAfterFailure(
   now: Date,
 ): { status: RecoveryStatus; nextAttemptAt: string | null } {
   if (attempts + 1 >= RECOVERY_MAX_ATTEMPTS) return { status: "needs_office", nextAttemptAt: null };
-  const min = RECOVERY_BACKOFF_MIN[Math.min(attempts, RECOVERY_BACKOFF_MIN.length - 1)];
+  const min = RECOVERY_BACKOFF_MIN[Math.min(attempts, RECOVERY_BACKOFF_MIN.length - 1)] ?? 0;
   return { status: "open", nextAttemptAt: new Date(now.getTime() + min * 60_000).toISOString() };
 }
