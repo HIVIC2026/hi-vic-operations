@@ -22,8 +22,8 @@ export function melbourneDateOf(v: unknown): string | null {
 const daysBetween = (a: string | null, b: string | null) => { if (!a || !b) return null; let n = 1, d = a; while (d < b && n < 60) { d = addYmd(d, 1); n++; } return n; };
 
 /** Upgrade zones the job records: the canonical Ready Check areas, else structured measurement zones, else the one measurement. */
-export async function jobUpgradeZones(jobId: string): Promise<JobZone[]> {
-  const zones = await readyCheckZones(jobId);
+export async function jobUpgradeZones(jobId: string, opts: {forPrefill?:boolean} = {}): Promise<JobZone[]> {
+  const zones = await readyCheckZones(jobId,opts.forPrefill===true);
   if (!zones.some((z) => !z.product)) return zones;
   // Jo 30 Oct 2026: the Ready Check asks the product once per job; areas without their own use it (latest ready answer).
   const { data: ev } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "mitti_product_recorded").order("created_at", { ascending: false }).limit(1).maybeSingle();
@@ -32,7 +32,7 @@ export async function jobUpgradeZones(jobId: string): Promise<JobZone[]> {
   return withJobProduct(zones, d?.ready ? insulationProduct(d.product)?.option ?? null : null);
 }
 
-async function readyCheckZones(jobId: string): Promise<JobZone[]> {
+async function readyCheckZones(jobId: string, forPrefill=false): Promise<JobZone[]> {
   // Canonical Ready Check areas (latest Ready Check, `measure.areas_v1` observation) read directly: this module sits on the
   // autoAdvanceJob import graph, so it must not pull the Ready Check draft module and its intake/Mitti imports.
   const { data: rcRow } = await admin.from("ready_checks").select("id").eq("job_id", jobId).neq("status", "superseded").order("version", { ascending: false }).limit(1).maybeSingle();
@@ -43,8 +43,9 @@ async function readyCheckZones(jobId: string): Promise<JobZone[]> {
   // Decision 264: whether each area's before video is on the Ready Check (the Mitti sync stores it on the measurement zones).
   const rawZones: unknown[] = Array.isArray(m?.zones) ? (m?.zones as unknown[]) : [];
   const mz = rawZones.filter((z): z is Record<string, unknown> => !!z && typeof z === "object" && !Array.isArray(z));
-  const { data: reviews, error: reviewError } = await admin.from("evidence_requirements").select("area_key, category, status").eq("job_id", jobId).eq("category", "before_ceiling_space");
-  if (reviewError) throw new Error("Ready Check ruler evidence could not be checked.");
+  // New A5 prefills never depend on optional Ready Check media; v23 sync retains its existing evidence reader.
+  const {data:reviews,error:reviewError}=forPrefill?{data:[],error:null}:await admin.from("evidence_requirements").select("area_key,category,status").eq("job_id",jobId).eq("category","before_ceiling_space");
+  if(reviewError)throw new Error("Ready Check ruler evidence could not be checked.");
   const depthAcceptedAt = (i: number, label: string | null, areaKey?: string): boolean => {
     const z = mz.find((x) => label && typeof x["label"] === "string" && String(x["label"]).trim().toLowerCase() === label.trim().toLowerCase()) ?? mz[i];
     if (!z || z["depthPhoto"] !== true) return false;
@@ -125,7 +126,7 @@ export async function installEvidenceContext(jobId: string, audit: unknown): Pro
   const nameOf = (c: (typeof crew)[number]) => (c.kind === "other" ? c.name : c.kind === "option" ? c.optionLabel : null);
   const leadName = nameOf(crew[0]!) ?? null;
   const yn = (k: string): boolean | null => (str(k) === "Yes" ? true : str(k) === "No" ? false : null);
-  return { installDate, zones: await jobUpgradeZones(jobId), multiDay: days > 1, leadName, solarPresent: yn("p4.present"), existingInsulation: yn("p6.present") };
+  return { installDate, zones: await jobUpgradeZones(jobId,{forPrefill:readInstallEvidence(audit).before?.onForm===true}), multiDay: days > 1, leadName, solarPresent: yn("p4.present"), existingInsulation: yn("p6.present") };
 }
 
 /** Job-file document kind for the A5 ruler photos (decision 396). */
@@ -138,9 +139,10 @@ export const RULER_PHOTO_DOC_KIND = "install_ruler_photo";
 export async function saveRulerPhotoFiles(jobId: string, actorId: string | null, auditId: string, summary: InstallEvidenceSummary, fetchMedia: MittiMediaFetch): Promise<string[]> {
   const saved: string[] = [];
   summary.copyFailures = [];
-  const captured: { area: string; which: "existing" | "new"; media_id: string; captured_at: string | null; geotagged: boolean }[] = [];
-  for (const a of summary.rulerPhotos ?? []) {
-    for (const [which, files] of [["existing", a.existing], ["new", a.after]] as const) {
+  const captured: { area: string; which: "existing" | "new" | "before"; media_id: string; captured_at: string | null; geotagged: boolean }[] = [];
+  const copyAreas=[...(summary.rulerPhotos??[]).map(a=>({...a,before:[] as import('./piesa-evidence.core').MittiMediaFile[]})),...(summary.beforePhotos??[]).map(a=>({...a,before:a.photo,after:[] as import('./piesa-evidence.core').MittiMediaFile[]}))];
+  for (const a of copyAreas) {
+    for (const [which, files] of [["existing", a.existing], ["new", a.after], ["before",a.before]] as const) {
       for (const file of files) {
         const key = `${auditId}:${file.mediaId}`;
         try {
@@ -161,8 +163,8 @@ export async function saveRulerPhotoFiles(jobId: string, actorId: string | null,
             const check = await admin.storage.from("job-files").download(path);
             if (check.error || !check.data?.size) throw new Error("stored photo could not be verified");
           }
-          const label = which === "existing" ? "existing insulation depth" : "new insulation depth after install";
-          const { error } = ex ? { error: null } : await admin.from("documents").insert({ job_id: jobId, kind: RULER_PHOTO_DOC_KIND, title: `Ruler photo – ${a.name} – ${label}`, storage_path: path, mime_type: contentType, uploaded_by: actorId, source_system: "mitti", external_id: key, original_name: `area${a.zone}-${which}-${file.mediaId}.${ext}`, size_bytes: bytes.length });
+          const label = which === "existing" ? "existing insulation depth" : which === "before" ? "ceiling area before work" : "new insulation depth after install";
+          const { error } = ex ? { error: null } : await admin.from("documents").insert({ job_id: jobId, kind: which === 'before' ? 'before_ceiling_space' : RULER_PHOTO_DOC_KIND, title: `${which === 'before' ? 'BEFORE photo' : 'Ruler photo'} – ${a.name} – ${label}`, storage_path: path, mime_type: contentType, uploaded_by: actorId, source_system: "mitti", external_id: key, original_name: `area${a.zone}-${which}-${file.mediaId}.${ext}`, size_bytes: bytes.length });
           if (error) {
             if (error.code !== "23505") throw new Error(error.message);
             const check = await admin.from("documents").select("id").eq("job_id", jobId).eq("source_system", "mitti").eq("external_id", key).maybeSingle();
@@ -203,12 +205,13 @@ export async function syncInstallEvidence(jobId: string, actorId: string | null,
   summary.jobId = jobId;
   summary.auditId = auditId;
   summary.auditFingerprint = await (await import("./mitti-create-claim.core")).stableUuid(JSON.stringify(audit));
-  if (summary.rulerPhotos?.length) {
+  if (summary.rulerPhotos?.length || summary.beforePhotos?.length) {
     if (fetchMedia) await saveRulerPhotoFiles(jobId, actorId, auditId, summary, fetchMedia);
-    else summary.copyFailures = summary.rulerPhotos.flatMap(a => [...a.existing, ...a.after].map(f => ({ mediaId: f.mediaId ?? "", area: a.name, which: "photo", reason: "Photo copy has not been checked" })));
+    else summary.copyFailures = [...(summary.rulerPhotos??[]).flatMap(a => [...a.existing, ...a.after].map(f => ({ mediaId: f.mediaId ?? "", area: a.name, which: "photo", reason: "Photo copy has not been checked" }))),...(summary.beforePhotos??[]).flatMap(a=>[...a.photo,...a.existing].map(f=>({mediaId:f.mediaId??'',area:a.name,which:'BEFORE',reason:'Photo copy has not been checked'})))];
     const copyLines = (summary.copyFailures ?? []).map(f => `${f.area}: ${f.which} ruler photo ${f.mediaId || "(missing id)"} could not be saved — sync again to retry`);
     summary.blockers = [...new Set([...summary.blockers, ...copyLines])];
     summary.rulerBlockers = [...new Set([...(summary.rulerBlockers ?? []), ...copyLines])];
+    summary.beforeBlockers = [...new Set([...(summary.beforeBlockers??[]),...(summary.copyFailures??[]).filter(f=>f.which==='before'||f.which==='BEFORE'||(summary.beforePhotos??[]).some(a=>a.existing.some(p=>p.mediaId===f.mediaId))).map(f=>`${f.area}: BEFORE photo could not be saved — sync again to retry`)])];
     for (const item of summary.items) if (item.id.startsWith("ruler_") && copyLines.length) { item.state = "review"; item.problems.push(...copyLines); }
   }
   const prev = await latestInstallEvidenceRecord(jobId);

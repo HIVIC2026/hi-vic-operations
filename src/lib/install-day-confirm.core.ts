@@ -50,7 +50,7 @@ export type InstallDayFormInput = {
   /** The single-job A5 sync outcome: the signed installer declaration saved (saved / already) or why not. */
   declaration: { ok: boolean; message: string };
   /** The install-day evidence read from the same audit (null = not read). */
-  summary: Pick<InstallEvidenceSummary, "applies" | "blockers" | "rulerBlockers"> | null;
+  summary: Pick<InstallEvidenceSummary, "applies" | "blockers" | "rulerBlockers" | "beforeBlockers"> | null;
   /** Part B read from the same audit; `onForm: false` / absent = an older form, never checked. */
   partB?: { onForm: boolean; ticked: boolean; signature: ReadSignature } | undefined;
 };
@@ -64,7 +64,7 @@ export function installDayFormResult(i: InstallDayFormInput): InstallDayFormResu
   if (!i.formCompleted) return { state: "not_complete", missing: [] };
   const missing: string[] = [];
   if (!i.summary) missing.push("The portal couldn't read the form yet");
-  else missing.push(...(i.summary.applies ? i.summary.blockers : i.summary.rulerBlockers ?? []));
+  else missing.push(...(i.summary.applies ? i.summary.blockers : [...(i.summary.beforeBlockers??[]),...(i.summary.rulerBlockers??[])]));
   if (!i.declaration.ok) missing.push(...i.declaration.message.split(" • ").map((s) => s.trim()).filter(Boolean));
   if (i.installDayForm && !i.finalTickTicked) missing.push(FINAL_TICK_MISSING);
   if (i.partB?.onForm && !(i.partB.ticked && i.partB.signature.present)) missing.push(PART_B_MISSING);

@@ -104,6 +104,38 @@ export const INSTALL_DAY_RULER_HELP = {
   existingDepth: "Only if this area had insulation before. Take it before any work starts.",
   newDepth: "Come back to this page when the insulation is in. Don't squash it.",
 } as const;
+/** Single A5 BEFORE page; absent on v23, so old audits stay readable. */
+export const INSTALL_DAY_BEFORE_Q = {
+ name: 'Ceiling area name',
+ photo: "Before photo: the whole ceiling area showing what's there",
+ existingDepth: 'Before photo: old insulation with a ruler standing upright in it',
+} as const;
+export type InstallDayBeforeRead = {onForm:boolean;areas:{name:string|null;photo:MittiMediaFile[];existing:MittiMediaFile[]}[]};
+export function installDayBeforePhotos(audit:unknown):InstallDayBeforeRead {
+ const groups=new Map<string,{name:string|null;photo:MittiMediaFile[];existing:MittiMediaFile[]}>();
+ let onForm=false;
+ const walk=(x:unknown,parent:string|null)=>{
+  if(Array.isArray(x)){x.forEach(v=>walk(v,parent));return;}
+  if(!x||typeof x!=='object')return;
+  const o=x as Record<string,any>;
+  if(o['inactive']===true)return;
+  const label=typeof o['label']==='string'?labelKey(o['label']):'';
+  const which=Object.entries(INSTALL_DAY_BEFORE_Q).find(([,v])=>label===labelKey(v))?.[0];
+  if(which){
+   onForm=true;
+   const group=String(o['parent_id']??parent??'flat');
+   const row=groups.get(group)??{name:null,photo:[],existing:[]};
+   const r=o['responses']??{};
+   if(which==='name')row.name=String(r.text??r.value??o['value']??'').trim()||null;
+   else {const media=o['media']??r.media??r.attachments??[];const files=Array.isArray(media)?media.map(mittiMediaFile):[];if(which==='photo')row.photo.push(...files);else row.existing.push(...files);}
+   groups.set(group,row);
+  }
+  const childParent=typeof o['label']==='string'&&(o['item_id']??o['id'])!=null?String(o['item_id']??o['id']):parent;
+  for(const [k,v] of Object.entries(o))if(v&&typeof v==='object'&&!['responses','media'].includes(k))walk(v,childParent);
+ };
+ walk((audit as any)?.template??audit,null);
+ return {onForm,areas:[...groups.values()]};
+}
 export type InstallDayRulerArea = { existing: MittiMediaFile[]; after: MittiMediaFile[] };
 export type InstallDayRulerRead = { onForm: boolean; areas: InstallDayRulerArea[] };
 /**
@@ -505,6 +537,7 @@ export type InstallDayPrefillFacts = {
   secondName?: string | null; secondCii?: string | null; thirdName?: string | null; thirdCii?: string | null;
   lifeSupport: boolean | null; solarPresent: boolean | null; electricianAtStart: boolean | null;
   areaOrder?:string|null;
+  beforeAreas?: {name:string|null;underInsulated:boolean|null}[];
 };
 type PrefillItem = { item_id: string; type: string; responses: Record<string, unknown> };
 /**
@@ -540,6 +573,8 @@ export function installDayPrefillItems(template: unknown, f: InstallDayPrefillFa
   const out: PrefillItem[] = [];
   const yn = (b: boolean | null) => (b == null ? null : b ? "Yes" : "No");
   if(f.areaOrder){const order=allWithLabel(items,'Ceiling areas in Ready Check order');if(order.length===1&&order[0]?.id)out.push({item_id:order[0].id,type:'text',responses:{text:f.areaOrder}});}
+  const beforeNames=allWithLabel(items,INSTALL_DAY_BEFORE_Q.name);
+  for(const [i,a] of (f.beforeAreas??[]).entries()){const field=beforeNames[i];if(field?.id&&a.name)out.push({item_id:field.id,type:'text',responses:{text:a.name}});}
   for (const q of INSTALL_DAY_QUESTIONS) {
     if (!q.prefill) continue;
     const raw: string | null = (() => {

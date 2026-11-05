@@ -1,3 +1,7 @@
+## Jo 5 Nov 7:32pm single A5 BEFORE page
+- [x] Removed alternate template/switch code and error; new A5 name-bound BEFORE photo + old-depth ruler checks, private retry-safe copies, v23 reader retained and AFTER unchanged. 121 checks pass across 11 isolated files; preview build OK. Exact paste in docs/MITTI_A5_BEFORE_SINGLE_FORM_5NOV.md. No Mitti edits, records, sends or publication.
+- [ ] New Mitti draft/readback and automatic creation of every repeated area name remain unverified until Jo supplies the draft; portal prefills actual existing item IDs and area-order field only, never invents repeat-instance payloads. Full hosted install completion not run.
+
 ## Jo 5 Nov 7:26pm measurement rules
 - [x] Required multiple floor-plan files/aerial file, onsite dimensions and editable calculated area, optional sketch, Other note/upload, nonblocking >10% nudge. 38 focused checks pass in isolated files including two-business read refusal; signed-in 390px TEST phone calculation/edit/nudge and choices checked, desktop no overflow, preview build OK. Upload/submit/readback not repeated; no records, sends or publication.
 

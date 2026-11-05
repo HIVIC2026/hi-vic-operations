@@ -76,7 +76,7 @@ describe("install day form (decisions 262–264)", () => {
     expect(s.blockers).toEqual([]);
     expect(s.prestartBlockers).toEqual([]);
     expect(s.zoneProducts).toEqual([{ zone: 1, name: "Main house", product: "Bradford Gold R5", areaM2: 120 }, { zone: 2, name: "Garage", product: "Bradford Gold R5", areaM2: 30 }]);
-    expect(s.items.find((i) => i.id === "before_videos")).toMatchObject({ state: "met", count: 2 });
+    expect(s.items.some((i) => i.id === "before_videos")).toBe(false);
   });
   test("solo area job needs one file of each; fewer files than Ready Check areas is short", () => {
     expect(evalDay({ after: 1, depth: 1 }, { zones: [rcZones[0]!] }).blockers).toEqual([]);
@@ -85,9 +85,9 @@ describe("install day form (decisions 262–264)", () => {
     expect(short.blockers).toContain("Depth photos with a ruler (one per area — 2 ceiling areas): 0 of 2 uploaded");
     expect(short.prestartBlockers.some((b) => b.startsWith("After videos"))).toBe(false);
   });
-  test("a Ready Check area without its before video is a before-work blocker", () => {
+  test("a Ready Check area without its optional video does not block current A5", () => {
     const s = evalDay({}, { zones: [rcZones[0]!, { ...rcZones[1]!, beforeVideo: false }] });
-    expect(s.prestartBlockers).toEqual(["Ready Check before video missing for Garage — the before video of every area is taken at the Ready Check"]);
+    expect(s.prestartBlockers).toEqual([]);
   });
   test("a Ready Check area without product or m² is listed (the final diagram and tax invoice need them)", () => {
     const s = evalDay({}, { zones: [{ ...rcZones[0]!, product: null, areaM2: null }, rcZones[1]!] });
