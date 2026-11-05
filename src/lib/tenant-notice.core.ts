@@ -52,9 +52,12 @@ export function tenantNotice(f: TenantNoticeFacts, opts: { test?: boolean } = {}
   const intro = `Ceiling insulation is being installed at ${address}. Here's what you need to know for the day.`;
   const row = (label: string, value: string) => `<tr><td style="padding:8px 0;color:#5B6478;white-space:nowrap;" width="40%">${K.esc(label)}</td><td style="padding:8px 0;font-weight:700;">${K.esc(value)}</td></tr>`;
   const body = [
-    `<mj-section><mj-column><mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">${K.esc(subject)}</mj-text><mj-text>Hi ${K.esc(hi)},</mj-text><mj-text>${K.esc(intro)}</mj-text></mj-column></mj-section>`,
-    `<mj-section><mj-column mj-class="panel"><mj-table padding="10px 18px">${row("Where", address)}${row("Day", day)}${row("Arriving", time)}${row("Who's coming", name)}</mj-table></mj-column></mj-section>`,
-    `<mj-section><mj-column><mj-text><b>Power:</b> ${K.esc(power)}</mj-text><mj-text>${K.esc(call)}</mj-text></mj-column></mj-section>`,
+    // Suite look (Jo 5 Nov 2026): greeting line first, then the big heading, the intro, the details card, the power line
+    // in an amber panel (it matters on the day), then the who-to-call card. Same words as the text.
+    `<mj-section><mj-column><mj-text mj-class="hi">Hi ${K.esc(hi)},</mj-text><mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">${K.esc(subject)}</mj-text><mj-text>${K.esc(intro)}</mj-text></mj-column></mj-section>`,
+    `<mj-section><mj-column mj-class="panel-card"><mj-table padding="10px 18px">${row("Where", address)}${row("Day", day)}${row("Arriving", time)}${row("Who's coming", name)}</mj-table></mj-column></mj-section>`,
+    `<mj-section><mj-column mj-class="panel-amber"><mj-text mj-class="h2" padding="18px 18px 6px">Power</mj-text><mj-text padding="0 18px 16px">${K.esc(power)}</mj-text></mj-column></mj-section>`,
+    `<mj-section><mj-column><mj-text padding="14px 12px 14px">${K.esc(call)}</mj-text></mj-column></mj-section>`,
   ].join("\n");
   const html = mjEmail({ subject, preview: intro, body, unsubscribe: null, testLabel: opts.test === true });
   const text = K.plainText([

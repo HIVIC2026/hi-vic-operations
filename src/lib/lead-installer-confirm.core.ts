@@ -3,7 +3,7 @@
 // 5pm today" (+ pick the crew) — and from 5pm that day the Lead Installer is locked (a change means moving the install
 // day). Replaces the 2pm day-before crew reminder (#110). PURE: wording, key, timing. The clock itself is Part 9's rule in
 // prestart.core (leadInstallerLock / leadInstallerLocked / LEAD_LOCKED_MESSAGE). No approved body text exists → DRAFT.
-import { partnerEmailLayout } from "./partner-email.core";
+import { partnerEmailLayout, partnerHi } from "./partner-email.core";
 import { leadInstallerLock } from "./prestart.core";
 
 /** DRAFT wording: nothing reaches a real installer office until Jo approves the rendered email. */
@@ -49,25 +49,21 @@ export const LEAD_CONFIRM_TEXT = {
   intro: "Your install is in two days. Check the Lead Installer and crew below on the job, and change them if you need to.", // DRAFT
   noLead: "Not picked yet", // DRAFT
   noCrew: "None picked yet", // DRAFT
-  button: "Confirm on the job", // DRAFT
+  button: "Confirm the Lead Installer", // Jo 5 Nov 2026: names the action; the link opens the install day page (crew picker)
   lockLine: "After 5pm the Lead Installer is locked because the ESC is told. To change it after that, the install day has to move.", // DRAFT
   rows: { install: "Install", address: "Address", lead: "Lead Installer", crew: "Crew" },
 } as const;
 
-export function renderLeadInstallerConfirm(i: { jobNumber: string; owner: string; startIso: string; address: string; lead: string | null; crew: string[]; jobUrl: string; lockLabel: string; test?: boolean }): { subject: string; html: string; text: string } {
+export function renderLeadInstallerConfirm(i: { jobNumber: string; owner: string; startIso: string; address: string; lead: string | null; crew: string[]; jobUrl: string; lockLabel: string; contactName?: string | null; ownerMobile?: string | null; test?: boolean }): { subject: string; html: string; text: string } {
   const T = LEAD_CONFIRM_TEXT;
-  const rows = [
-    `${T.rows.install}: ${leadConfirmWhen(i.startIso)}`,
-    `${T.rows.address}: ${i.address}${i.owner ? ` (${i.owner})` : ""}`,
-    `${T.rows.lead}: ${i.lead ?? T.noLead}`,
-    `${T.rows.crew}: ${i.crew.length ? i.crew.join(", ") : T.noCrew}`,
-  ];
   const subject = T.subject(i.jobNumber);
+  // Suite look (Jo 5 Nov 2026): greeting, heading, intro, the job card (install, address, owner, Lead Installer, crew), button, lock line.
   const out = partnerEmailLayout({
     subject, heading: T.heading, test: i.test ?? false,
     blocks: [
+      partnerHi(i.contactName),
       { kind: "p", text: T.intro },
-      { kind: "list", items: rows },
+      { kind: "details", rows: [["Job", i.jobNumber], [T.rows.install, leadConfirmWhen(i.startIso)], [T.rows.address, i.address], ["Owner", i.owner], ["Mobile", i.ownerMobile], [T.rows.lead, i.lead ?? T.noLead], [T.rows.crew, i.crew.length ? i.crew.join(", ") : T.noCrew]] },
       { kind: "button", label: T.button, url: i.jobUrl },
       { kind: "p", text: T.lockLine },
       { kind: "small", text: `Job ${i.jobNumber} · locked from ${i.lockLabel}` },

@@ -6,7 +6,8 @@
 import * as K from "./email-kit.core";
 import { genericMail } from "./mail-mjml.core";
 
-/** DRAFT: real owners get nothing until Jo approves; TEST jobs → test-send. */
+/** RETIRED (Jo 5 Nov 2026: "WE DON'T HAVE THE INSTALLER'S TIMES") — the portal never tells an owner a Ready Check time; the
+ *  installer calls to book (2 Nov 2026 rule). Stays false for good: real owners never get these (TEST jobs still test-send). */
 export const OWNER_WINDOW_CONFIRM_APPROVED = false as boolean;
 export const READY_CHECK_WINDOW_SMS_TYPE = "ready_check_window" as const;
 export const READY_CHECK_WINDOW_EMAIL_PURPOSE = "ready_check_window";

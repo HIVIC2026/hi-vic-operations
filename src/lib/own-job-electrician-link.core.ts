@@ -100,24 +100,9 @@ export const OWN_JOB_PIESA_CANT_DO_EMAIL_APPROVED: boolean = true;
 export const OWN_JOB_PIESA_NOT_BOOKED_EMAIL_APPROVED: boolean = true;
 
 /** The electrician's text (SMS type own_job_piesa_link, wordingApproved:false). */
-export function electricianLinkText(i: { installer: string; address: string; url: string }): string {
-  return `${i.installer} job: safety check (PIESA) to book at ${i.address}. Call the owner, then book it here: ${i.url}`;
+export function electricianLinkText(i: { installer: string; address: string; url: string; firstName?: string | null }): string {
+  // Suite text shape (Jo 5 Nov 2026): the sender adds "Home Insulation Victoria: " in front.
+  const hi = (i.firstName ?? "").trim().split(/\s+/)[0] || "there";
+  return `Hi ${hi}, ${i.installer} has a safety check (PIESA) for you to book at ${i.address}. Call the owner, then book it here: ${i.url}`;
 }
 
-/** The installer office: this job's safety check is ready to book. */
-export function officeToBookEmail(i: { address: string; electrician: string; booker: PiesaBooker; jobUrl: string }): { subject: string; text: string } {
-  const who = i.booker === "office" ? "Please call the owner and book it within 2 business days."
-    : i.booker === "electrician" ? `We've sent ${i.electrician} a link to call the owner and book it within 2 business days.`
-    : `We've sent ${i.electrician} a link too. Whoever books first, within 2 business days.`;
-  return { subject: `Safety check to book for ${i.address}`, text: `The owner has paid. ${who}\nJob page: ${i.jobUrl}` };
-}
-
-/** The installer office: the electrician can't do this one. */
-export function officeCantDoEmail(i: { address: string; electrician: string; reason: string; jobUrl: string }): { subject: string; text: string } {
-  return { subject: `${i.electrician} can't do the safety check for ${i.address}`, text: `Reason: ${i.reason}.\nPick another electrician on the job page: ${i.jobUrl}` };
-}
-
-/** The installer office: 2 business days passed and the safety check still isn't booked. */
-export function officeNotBookedEmail(i: { address: string; jobUrl: string }): { subject: string; text: string } {
-  return { subject: "Not booked yet — book it or pick another electrician", text: `The safety check (PIESA) at ${i.address} isn't booked yet.\nBook it on the job page, or pick another electrician: ${i.jobUrl}` };
-}

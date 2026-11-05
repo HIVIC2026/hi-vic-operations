@@ -135,7 +135,7 @@ export const SMS_MESSAGE_TYPES = {
   run_time_reminder: { audience: "owner", label: "Retired 2 Nov 2026 — Please confirm your free Ready Check – 12-hour reminder (A48 batch 2 runs)", wordingApproved: false, quietHours: true },
   // G8 (4), 4 Nov 2026 (LOOKS WRONG 1): the owner's Ready Check WINDOW to confirm on their link after the installer picks the run
   // day — DRAFT behind OWNER_WINDOW_CONFIRM_APPROVED (ready-check-window-notice.core); own switch, off until Jo switches it on.
-  ready_check_window: { audience: "owner", label: "Your free Ready Check is {day} {time} – tap to confirm (DRAFT, OWNER_WINDOW_CONFIRM_APPROVED; A2 run window)", wordingApproved: false, quietHours: true },
+  ready_check_window: { audience: "owner", label: "RETIRED 5 Nov 2026 (Jo: we don't have the installer's times) – owner Ready Check window; never sends", wordingApproved: false, quietHours: true },
   // A48 batch 2 part 2, Task 8: retired by Part 7 Task 9 (Jo 2 Nov 2026) — the cancelled window is still freed and shown on the run page, nobody is texted.
   run_slot_cancelled: { audience: "partner", label: "Retired 2 Nov 2026 — An owner cancelled their Ready Check in your run – offer the time to a nearby owner (A48 batch 2 runs). History labels only, never sent", wordingApproved: false, quietHours: true },
   // Decision #23 (Jo 2 Nov 2026, wording approved): Jo gives the job to an in-house installer → the OWNER is told

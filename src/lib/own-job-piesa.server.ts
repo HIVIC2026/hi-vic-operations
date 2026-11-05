@@ -244,13 +244,13 @@ export async function officeBookOwnJobPiesa(userId: string, jobId: string, start
 
 /** Email the installer office "Not booked yet". One key per hand-over event (a swap logs a new one, which restarts the clock), so it goes once (held wording is retried). */
 async function sendNotBookedEmail(jobId: string, installerId: string, handedEventId: string): Promise<void> {
-  const [{ officeNotBookedEmail, OWN_JOB_PIESA_NOT_BOOKED_EMAIL_APPROVED }, { emailInstallerOffice }, { SET_PASSWORD_BASE }] = await Promise.all([import("./own-job-electrician-link.core"), import("./own-job-piesa-notices.server"), import("./set-password-link.core")]);
+  const [{ OWN_JOB_PIESA_NOT_BOOKED_EMAIL_APPROVED }, { officeNotBookedEmail }, { emailInstallerOffice }, { SET_PASSWORD_BASE }] = await Promise.all([import("./own-job-electrician-link.core"), import("./own-job-office-emails.core"), import("./own-job-piesa-notices.server"), import("./set-password-link.core")]);
   const { data: ov, error } = await admin.from("job_overview").select("property_address, job_number").eq("id", jobId).maybeSingle();
   if (error) throw new Error(error.message);
   const address = (ov?.property_address as string | null | undefined) || (ov?.job_number as string | null | undefined) || "this job";
   const jobUrl = `${SET_PASSWORD_BASE}/field/${jobId}`;
   const mail = officeNotBookedEmail({ address, jobUrl });
-  await emailInstallerOffice({ jobId, businessId: installerId, key: `own-job-piesa:v1:${handedEventId}:not-booked`, subject: mail.subject, text: mail.text, jobUrl, approved: OWN_JOB_PIESA_NOT_BOOKED_EMAIL_APPROVED });
+  await emailInstallerOffice({ jobId, businessId: installerId, key: `own-job-piesa:v1:${handedEventId}:not-booked`, subject: mail.subject, text: mail.text, jobUrl, mail, approved: OWN_JOB_PIESA_NOT_BOOKED_EMAIL_APPROVED });
 }
 
 /** 15-minute tick: an own job handed to its electrician, still unbooked after the hand-over's due date (2 business days),

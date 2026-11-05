@@ -183,8 +183,12 @@ describe("electricianCantDo: the installer office email (DRAFT)", () => {
   test("the wording is DRAFT behind ELECTRICIAN_CANT_DO_EMAIL_APPROVED = false", () => {
     expect(core.ELECTRICIAN_CANT_DO_EMAIL_APPROVED).toBe(false);
     const m = mail.electricianCantDoEmail({ jobNumber: "HV-5001", electrician: "Sam Spark", reason: "Sick that week", test: false });
-    expect(m.subject).toBe("HV-5001: Sam Spark can't do this one. Choose another electrician on the job.");
-    expect(m.text).toContain("HV-5001: Sam Spark can't do this one. Choose another electrician on the job.");
+    expect(m.subject).toBe("HV-5001: Sam Spark can't do this one");
+    // Suite look (5 Nov 2026): greeting, heading, the reason, the approved "choose another" line.
+    expect(m.text).toContain("Sam Spark can't do this one");
+    expect(m.text).toContain("Job: HV-5001");
+    expect(m.text).toContain("They said: Sick that week");
+    expect(m.text).toContain("Choose another electrician on the job.");
     expect(m.text).toContain("Sick that week");
     expect(m.html).toContain("Choose another electrician on the job.");
     expect(m.text).not.toMatch(/HIV\b/);
@@ -195,7 +199,7 @@ describe("electricianCantDo: the installer office email (DRAFT)", () => {
     expect(calls.office).toHaveLength(0);
     expect(calls.testMail).toHaveLength(1);
     expect(calls.testMail[0]![1]).toBe("office@smith.test");
-    expect(calls.testMail[0]![2]).toBe("HV-5001: Sam Spark can't do this one. Choose another electrician on the job."); // the person, not the business
+    expect(calls.testMail[0]![2]).toBe("HV-5001: Sam Spark can't do this one"); // the person, not the business
     expect(events("electrician_cant_do_email")).toHaveLength(1);
   });
   test("real job, flag off → held: nothing sent, ONE held trace (awaiting approval); the hand-back still happens; the tick sends it once the flag is on", async () => {
@@ -214,7 +218,7 @@ describe("electricianCantDo: the installer office email (DRAFT)", () => {
     // The tick, flag on: sent once through the office sender with the same key; then never again.
     expect(await server.sweepHeldElectricianCantDoEmails(new Date(NOW), { emailApproved: true })).toEqual({ sent: 1 });
     expect(calls.office).toHaveLength(1);
-    expect(calls.office[0]).toMatchObject({ to: "office@smith.test", subject: "HV-5001: Sam Spark can't do this one. Choose another electrician on the job.", idempotencyKey: `electrician-cant-do:v1:${J}:a2` });
+    expect(calls.office[0]).toMatchObject({ to: "office@smith.test", subject: "HV-5001: Sam Spark can't do this one", idempotencyKey: `electrician-cant-do:v1:${J}:a2` });
     expect(events("electrician_cant_do_email")).toHaveLength(1);
     expect(await server.sweepHeldElectricianCantDoEmails(new Date(NOW), { emailApproved: true })).toEqual({ sent: 0 });
     expect(calls.office).toHaveLength(1);
@@ -225,7 +229,7 @@ describe("electricianCantDo: the installer office email (DRAFT)", () => {
     await server.electricianCantDo(t, "Sick that week", NOW, { emailApproved: true });
     expect(calls.testMail).toHaveLength(0);
     expect(calls.office).toHaveLength(1);
-    expect(calls.office[0]).toMatchObject({ recipient: "partner", to: "office@smith.test", record: { businessId: INST }, subject: "HV-5001: Sam Spark can't do this one. Choose another electrician on the job." });
+    expect(calls.office[0]).toMatchObject({ recipient: "partner", to: "office@smith.test", record: { businessId: INST }, subject: "HV-5001: Sam Spark can't do this one" });
     expect(calls.office[0]!["idempotencyKey"]).toBe(`electrician-cant-do:v1:${J}:a2`);
     expect(events("electrician_cant_do_email")).toHaveLength(1);
   });

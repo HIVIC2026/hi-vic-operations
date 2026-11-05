@@ -122,7 +122,7 @@ export const LEAN_ALIASES: Partial<Record<keyof typeof LEAN_Q, readonly string[]
   ],
   existingAction: ["What needs to happen to it?"],
   removeM2: ["Area to remove (m2)"],
-  beforeVideo: ["Slow 360° video of this ceiling area, lit, saying its name", "Upload an overview photo of this ceiling area", "Photo of the empty ceiling space"],
+  beforeVideo: ["Slow 360° video of this ceiling area, lit, saying its name", "Before any work starts: record a video of this ceiling area", "Upload an overview photo of this ceiling area", "Photo of the empty ceiling space"], // 5 Nov 2026 published A1/A2 wording added
   downlights: ["Recessed downlights in this area?"],
   downlightsCount: ["How many?"],
   issues: ["Are there any issues that could affect the insulation installation?", "Hazards in this area?"],

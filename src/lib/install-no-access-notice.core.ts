@@ -125,13 +125,16 @@ function renderInstallNoAccessEmailV2(f: InstallNoAccessFacts): { subject: strin
   const preview = "Nothing is charged for today. Your quote, rebate and deposit stay as they are.";
   const call = installNoAccessCallLine(installer, f.officePhone?.trim() ?? "");
   const clock = `Your install still needs to happen by <strong>${esc(f.installBy ?? "")}</strong>, 30 days after your safety check. After that, a new safety check would be needed.`;
+  // Suite look (Jo 5 Nov 2026): greeting line, then the big heading (without the name, which is in the greeting).
+  const hi = `Hi ${first},`;
+  const headline = "We couldn't get in today";
   const body = [
-    `<mj-section><mj-column><mj-text mj-class="h1" css-class="email-heading">${esc(subject)}</mj-text><mj-text>${esc(intro1)}</mj-text><mj-text>${esc(intro2)}</mj-text></mj-column></mj-section>`,
+    `<mj-section><mj-column><mj-text mj-class="hi">${esc(hi)}</mj-text><mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">${esc(headline)}</mj-text><mj-text>${esc(intro1)}</mj-text><mj-text>${esc(intro2)}</mj-text></mj-column></mj-section>`,
     `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px 6px">What happens next</mj-text><mj-text padding="0 18px 16px">${esc(call)}</mj-text></mj-column></mj-section>`,
     `<mj-section><mj-column mj-class="panel-amber"><mj-text mj-class="h2" padding="18px 18px 6px">The 30-day clock keeps running</mj-text><mj-text padding="0 18px 16px">${clock}</mj-text></mj-column></mj-section>`,
     `<mj-section><mj-column><mj-text mj-class="small" padding="18px 12px 0">Questions? Just reply to this email.</mj-text></mj-column></mj-section>`,
   ].join("");
   const html = mjEmail({ subject, preview, body, unsubscribe: null, testLabel: f.test === true });
-  const text = K.plainText([subject, "", intro1, intro2, "", "WHAT HAPPENS NEXT", call, "", "THE 30-DAY CLOCK KEEPS RUNNING", K.stripTags(clock), "", "Questions? Just reply to this email."], { testLabel: f.test === true });
+  const text = K.plainText([hi, "", headline, "", intro1, intro2, "", "WHAT HAPPENS NEXT", call, "", "THE 30-DAY CLOCK KEEPS RUNNING", K.stripTags(clock), "", "Questions? Just reply to this email."], { testLabel: f.test === true });
   return { subject, html, text };
 }

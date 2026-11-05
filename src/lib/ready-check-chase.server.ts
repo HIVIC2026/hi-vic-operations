@@ -63,11 +63,11 @@ async function textInstaller(jobId: string, auditId: string, missing: string[], 
 async function emailInstallerOffice(jobId: string, actorId: string | null, auditId: string, missing: string[], sig: string) {
   const { data: settings } = await admin.from("workflow_settings").select("mitti_auto_quote_enabled").eq("id", 1).maybeSingle();
   if ((settings as { mitti_auto_quote_enabled?: boolean } | null)?.mitti_auto_quote_enabled !== true) return { status: "off" };
-  const { data: j } = await admin.from("jobs").select("source, job_number, properties(address_line, suburb)").eq("id", jobId).maybeSingle();
+  const { data: j } = await admin.from("jobs").select("source, job_number, properties(address_line, suburb), owners(full_name, phone)").eq("id", jobId).maybeSingle();
   if (!j) return { status: "missing" };
   const { data: asg } = await admin.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true).limit(1).maybeSingle();
   if (!asg?.business_id) return { status: "no_installer" };
-  const { data: b } = await admin.from("businesses").select("email, name").eq("id", asg.business_id).maybeSingle();
+  const { data: b } = await admin.from("businesses").select("email, name, trading_name").eq("id", asg.business_id).maybeSingle();
   const textKey = `ready-check-incomplete:v1:${jobId}:${auditId}:${sig}`;
   const { data: texted } = await admin.from("sms_messages").select("id").eq("idempotency_key", textKey).maybeSingle();
   const plan = chaseEmailPlan({ approved: READY_CHECK_CHASE_EMAIL_APPROVED, test: j.source === "qa_test", officeEmail: b?.email, textAlreadySent: !!texted });
@@ -81,7 +81,8 @@ async function emailInstallerOffice(jobId: string, actorId: string | null, audit
   const claim = await admin.from("customer_email_sends").insert({ job_id: jobId, purpose: "ready_check_nearly_there_office", idempotency_key: key }).select("id").maybeSingle();
   if (claim.error || !claim.data) return { status: "already_attempted" };
   const prop = j.properties as { address_line: string | null; suburb: string | null } | null;
-  const m = readyCheckNearlyThereEmail({ jobNumber: j.job_number, address: [prop?.address_line, prop?.suburb].filter(Boolean).join(", "), missing, mittiFormUrl: mittiFormUrl(auditId), test: plan.action === "test_send" });
+  const owner = (Array.isArray(j.owners) ? j.owners[0] : j.owners) as { full_name: string | null; phone: string | null } | null;
+  const m = readyCheckNearlyThereEmail({ jobNumber: j.job_number, address: [prop?.address_line, prop?.suburb].filter(Boolean).join(", "), missing, mittiFormUrl: mittiFormUrl(auditId), contactName: ((b as { trading_name?: string | null } | null)?.trading_name ?? "").trim() || b?.name || null, owner: owner?.full_name ?? null, mobile: owner?.phone ?? null, test: plan.action === "test_send" });
   const r = plan.action === "test_send"
     ? await (await import("./test-send.server")).sendTestEmail({ jobId, jobSource: j.source, partnerIsTest: true, label: key, actorId: null }, plan.to, m.subject, m.html, m.text)
     : await (await import("./office-email.server")).sendOfficeEmail({ actorId: null, recipient: "partner", to: plan.to, contactName: b?.name ?? null, subject: m.subject, message: m.text, label: "ready_check_nearly_there", record: { businessId: asg.business_id }, html: m.html, text: m.text, idempotencyKey: key });

@@ -7,9 +7,10 @@ import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isMissingDbObject } from "./schema-compat.core";
 import { hashToken, isTokenShape, linkExpiry, newToken } from "./worker-links.core";
+import { officeCantDoEmail } from "./own-job-office-emails.core";
 import {
   JOB_NOT_GOING_AHEAD, LINK_NOT_ASSIGNED, LINK_UNAVAILABLE, OWN_JOB_PIESA_CANT_DO_EMAIL_APPROVED, OWN_JOB_PIESA_HANDED_BACK_EVENT,
-  CANT_DO_REASONS, cantDoReasonLabel, electricianLinkPath, electricianLinkRefusal, electricianStep, officeCantDoEmail, piesaBookingProblem, piesaDoneAtStage,
+  CANT_DO_REASONS, cantDoReasonLabel, electricianLinkPath, electricianLinkRefusal, electricianStep, piesaBookingProblem, piesaDoneAtStage,
   type CantDoReason, type ElectricianStep,
 } from "./own-job-electrician-link.core";
 import { OWN_JOB_PIESA_HANDED_EVENT } from "./own-job-piesa.core";
@@ -230,7 +231,7 @@ export async function linkCantDo(token: string, reason: CantDoReason, note?: str
       const address = (ov?.property_address as string | null | undefined) || (ov?.job_number as string | null | undefined) || "this job";
       const mail = officeCantDoEmail({ address, electrician: who.name, reason: label, jobUrl: `${SET_PASSWORD_BASE}/field/${r.jobId}` });
       const { emailInstallerOffice } = await import("./own-job-piesa-notices.server");
-      const out = await emailInstallerOffice({ jobId: r.jobId, businessId: installerId, key: `own-job-piesa:v1:${r.assignment.id}:cant-do`, subject: mail.subject, text: mail.text, jobUrl: `${SET_PASSWORD_BASE}/field/${r.jobId}`, approved: OWN_JOB_PIESA_CANT_DO_EMAIL_APPROVED });
+      const out = await emailInstallerOffice({ jobId: r.jobId, businessId: installerId, key: `own-job-piesa:v1:${r.assignment.id}:cant-do`, subject: mail.subject, text: mail.text, jobUrl: `${SET_PASSWORD_BASE}/field/${r.jobId}`, mail, approved: OWN_JOB_PIESA_CANT_DO_EMAIL_APPROVED });
       officeEmail = out.status;
     }
   } catch (e) { console.error("can't-do office email skipped", r.jobId, (e as Error).message); }

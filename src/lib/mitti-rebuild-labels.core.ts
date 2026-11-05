@@ -120,6 +120,10 @@ export const INSTALL_REBUILD_ALIASES: Record<string, string> = {
  'Every answer, photo and video on this form is filled in, and I won\'t leave site until the portal texts me "All filled in".': "Every answer, photo and video is filled in. I won't leave until the portal texts me 'All filled in'.",
 };
 export function installMittiLabel(label: string): string {
+ // 5 Nov 2026 published A5 (Jo's dump): "SWMS" wording and a plain after-video label.
+ if (key(label) === key('Is the SWMS for this job signed?')) return 'Is the safety plan for this job signed?';
+ if (key(label) === key('Are all the common hazards covered in the SWMS?')) return 'Are all the common hazards covered in it?';
+ if (key(label) === key('After the install: record a video of this ceiling area')) return "After videos: one slow 360° of each ceiling area, lit, saying the area's name, showing full coverage and no rubbish left";
  if (key(label) === key('Have the hazards been considered and their controls implemented for this job?')) return 'Are all the common hazards covered in it?';
  // 4 Nov published A5 (v23) wording.
  if (key(label) === key('Does the safety plan cover every hazard at this house, and are its controls in place?')) return 'Are all the common hazards covered in it?';

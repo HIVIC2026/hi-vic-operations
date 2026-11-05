@@ -108,10 +108,12 @@ export const ELECTRICIAN_LINK_SMS_TYPE = "electrician_job_link" as const;
 export const electricianLinkTextKey = (jobId: string, workerId: string) => `electrician-link:v1:${jobId}:${workerId}`;
 
 const tidy = (v: string | null | undefined) => (v ?? "").trim().replace(/\s+/g, " ");
-/** DRAFT (no approved wording yet): "Home Insulation Victoria: New PIESA job HV-1234, Kew, for Smith Insulation. Your job link: https://…" */
-export function electricianLinkText(i: { jobNumber: string; suburb: string | null; installer: string; url: string }): string {
+/** DRAFT, suite text shape (Jo 5 Nov 2026 — every text reads "Home Insulation Victoria: Hi X, …"):
+ *  "Home Insulation Victoria: Hi Sam, new PIESA job HV-1234 in Kew for Smith Insulation. Your job link: https://…" */
+export function electricianLinkText(i: { jobNumber: string; suburb: string | null; installer: string; url: string; firstName?: string | null }): string {
   const suburb = tidy(i.suburb);
-  return `Home Insulation Victoria: New PIESA job ${tidy(i.jobNumber)}${suburb ? `, ${suburb}` : ""}, for ${tidy(i.installer)}. Your job link: ${i.url}`;
+  const hi = tidy(i.firstName).split(" ")[0] || "there";
+  return `Home Insulation Victoria: Hi ${hi}, new PIESA job ${tidy(i.jobNumber)}${suburb ? ` in ${suburb}` : ""} for ${tidy(i.installer)}. Your job link: ${i.url}`;
 }
 
 /** The copy of the text we keep on the job: the link token is the only credential, so the path is masked ("…/e/••••"). */

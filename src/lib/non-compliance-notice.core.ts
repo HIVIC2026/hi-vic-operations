@@ -34,7 +34,7 @@ export function nonComplianceHeldReason(c: TradeContact): Held | null {
   return null;
 }
 
-export function nonComplianceNotice(i: { firstName: string | null; what: string; fix: string; contact: TradeContact }): { subject: string; text: string; html: string } | Held {
+export function nonComplianceNotice(i: { firstName: string | null; what: string; fix: string; contact: TradeContact; test?: boolean }): { subject: string; text: string; html: string } | Held {
   // Pack 1 item 39 (Jo 4 Nov 2026) — APPROVED redraft, text and html the same words. {Installer} = installerName(contact);
   // the phone is the installer's OFFICE number only (J1 (3): missing → `held`, like owner-will-call.core), never a mobile.
   const hold = nonComplianceHeldReason(i.contact);
@@ -51,11 +51,16 @@ export function nonComplianceNotice(i: { firstName: string | null; what: string;
   const p4 = "Nothing else changes — your rebate and your price stay as they are.";
   const p5 = `Questions? Reply to this email or call ${who} on ${phone}.`;
   const small = [line, AP_CERTIFICATES_LINE].filter((x): x is string => !!x);
+  // Suite look (Jo 5 Nov 2026): greeting line, big heading (the approved subject), the approved paragraphs, "What happens
+  // next" card (p3 + p4, same words), the question line, then the contact card. No new words.
+  const heading = "One thing we need to put right";
   const body = [
-    `<mj-section><mj-column><mj-text>${esc(greeting)}</mj-text><mj-text>${esc(p1)}</mj-text><mj-text>${esc(p2)}</mj-text><mj-text>${esc(p3)}</mj-text><mj-text>${esc(p4)}</mj-text><mj-text>${esc(p5)}</mj-text></mj-column></mj-section>`,
+    `<mj-section><mj-column><mj-text mj-class="hi">${esc(greeting)}</mj-text><mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">${esc(heading)}</mj-text><mj-text>${esc(p1)}</mj-text><mj-text>${esc(p2)}</mj-text></mj-column></mj-section>`,
+    `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px 6px">What happens next</mj-text><mj-text padding="0 18px 4px">${esc(p3)}</mj-text><mj-text padding="0 18px 16px">${esc(p4)}</mj-text></mj-column></mj-section>`,
+    `<mj-section><mj-column><mj-text padding="14px 12px 14px">${esc(p5)}</mj-text></mj-column></mj-section>`,
     `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="small" padding="14px 18px">${small.map(esc).join("<br/>")}</mj-text></mj-column></mj-section>`,
   ].join("\n");
-  const html = mjEmail({ subject, preview: p1, body, unsubscribe: null, testLabel: false });
-  const text = K.plainText([greeting, "", p1, p2, p3, p4, p5, "", ...small]);
+  const html = mjEmail({ subject, preview: p1, body, unsubscribe: null, testLabel: i.test === true });
+  const text = K.plainText([greeting, "", heading, "", p1, p2, "", "WHAT HAPPENS NEXT", p3, p4, "", p5, "", ...small], { testLabel: i.test === true });
   return { subject, text, html };
 }

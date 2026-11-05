@@ -22,14 +22,15 @@ export function visitCancelledDay(iso: string): string {
   return `${g("weekday")} ${g("day")} ${g("month")}`;
 }
 
-export function visitCancelledOwnerEmail(i: { firstName: string | null; startIso: string }): { subject: string; text: string; html: string } {
+export function visitCancelledOwnerEmail(i: { firstName: string | null; startIso: string; test?: boolean }): { subject: string; text: string; html: string } {
+  // Suite look (Jo 5 Nov 2026): greeting line, big heading (the draft subject), Jo's line. No other words.
   const day = visitCancelledDay(i.startIso);
   const first = K.cleanName(i.firstName) ?? "there";
   const subject = `Your visit on ${day} can't go ahead`; // draft for Jo
   const greeting = `Hi ${first},`; // draft for Jo
   const line = VISIT_CANT_GO_AHEAD_LINE(day);
-  const body = `<mj-section><mj-column><mj-text>${esc(greeting)}</mj-text><mj-text>${esc(line)}</mj-text></mj-column></mj-section>`;
-  const html = mjEmail({ subject, preview: line, body, unsubscribe: null, testLabel: false });
-  const text = K.plainText([greeting, "", line]);
+  const body = `<mj-section><mj-column><mj-text mj-class="hi">${esc(greeting)}</mj-text><mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">${esc(subject)}</mj-text><mj-text>${esc(line)}</mj-text></mj-column></mj-section>`;
+  const html = mjEmail({ subject, preview: line, body, unsubscribe: null, testLabel: i.test === true });
+  const text = K.plainText([greeting, "", subject, "", line], { testLabel: i.test === true });
   return { subject, text, html };
 }

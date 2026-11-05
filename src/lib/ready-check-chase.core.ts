@@ -3,8 +3,7 @@
 //          Photos are optional on the Ready Check; decision 396 retired carrying them to install day.
 // Stage 8: the "Office needs to…" Mitti items, from recorded workflow events (latest per job, resolved by a later event).
 import type { ReadyCheckFacts } from "./ready-check-complete.core";
-import * as K from "./email-kit.core";
-import { mjEmail, esc } from "./mail-mjml.core";
+import { jobDetails, partnerEmailLayout, partnerHi, type PartnerBlock } from "./partner-email.core";
 
 export const CHASE_AFTER_MS = 24 * 3_600_000;
 /** An unfinished form untouched this long (after its booked visit) counts as left incomplete. */
@@ -49,16 +48,20 @@ export function readyCheckIncompleteText(jobNumber: string, address: string | nu
  *  chase is only ever one version. */
 export const READY_CHECK_CHASE_EMAIL_APPROVED = false as boolean;
 
-export function readyCheckNearlyThereEmail(i: { jobNumber: string; address: string; missing: string[]; mittiFormUrl: string; test?: boolean }): { subject: string; text: string; html: string } {
+export function readyCheckNearlyThereEmail(i: { jobNumber: string; address: string; missing: string[]; mittiFormUrl: string; contactName?: string | null; owner?: string | null; mobile?: string | null; test?: boolean }): { subject: string; text: string; html: string } {
+  // Decision #27 words only (Jo 2 Nov 2026), in the suite look (5 Nov 2026): greeting, "Nearly there", the job card, what it
+  // still needs, "Add them in Mitti and we'll prepare the owner's quote.", the Mitti button.
   const subject = `${i.jobNumber} Ready Check: nearly there`;
-  const where = i.address.trim() || i.jobNumber;
-  const lead = `${where} still needs:`;
   const close = "Add them in Mitti and we'll prepare the owner's quote.";
-  const body = [
-    `<mj-section><mj-column><mj-text mj-class="h1" css-class="email-heading">Nearly there</mj-text><mj-text>${esc(lead)}</mj-text><mj-text>${i.missing.map((m) => `&bull; ${esc(m)}`).join("<br />")}</mj-text><mj-text>${esc(close)}</mj-text><mj-button href="${esc(i.mittiFormUrl)}">Open the Mitti form</mj-button></mj-column></mj-section>`,
-  ].join("");
-  const html = mjEmail({ subject, preview: close, body, unsubscribe: null, testLabel: i.test === true });
-  const text = K.plainText([lead, ...i.missing.map((m) => `• ${m}`), "", close, "", `Open the Mitti form: ${i.mittiFormUrl}`], { testLabel: i.test === true });
+  const blocks: PartnerBlock[] = [
+    partnerHi(i.contactName),
+    jobDetails({ jobNumber: i.jobNumber, address: i.address, owner: i.owner, mobile: i.mobile }),
+    { kind: "p", text: `${i.address.trim() || i.jobNumber} still needs:` },
+    { kind: "list", items: i.missing.map((m) => `– ${m}`) },
+    { kind: "p", text: close },
+    { kind: "button", label: "Finish the Ready Check form", url: i.mittiFormUrl }, // Jo 5 Nov 2026: the button names the action
+  ];
+  const { html, text } = partnerEmailLayout({ subject, heading: "Nearly there", preview: close, blocks, test: i.test === true });
   return { subject, text, html };
 }
 
