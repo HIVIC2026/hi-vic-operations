@@ -184,10 +184,13 @@ async function markOwnPhotoQuoteFinished(jobId: string, db: Db): Promise<void> {
 }
 
 export const OWN_PHOTO_SWEEP_MAX = 5;
+/** Re-review (5 Nov): claims younger than this are left to the live Add a job request that wrote them. */
+export const OWN_PHOTO_SWEEP_MIN_AGE_MS = 10 * 60_000;
 /** Review IMPORTANT 1b: the 15-minute tick finishes every Add a job photo quote whose claim exists but whose photo
  *  measurement or quote never got written (a crash or failure after the save). Re-review (5 Nov): a claim is
  *  finished once it carries `finished_at`, or (older claims) the job has an installation quote in ANY status or an
- *  installer_quote_drafted / held event — so a declined, expired or superseded quote is never re-drafted. A failure is flagged to the office at most
+ *  installer_quote_drafted / held event — so a declined, expired or superseded quote is never re-drafted; claims under
+ *  10 minutes old are left to the live Add a job request. A failure is flagged to the office at most
  *  once a day per job. Never sends anything itself (the release is the existing guarded one). */
 export async function sweepOwnPhotoQuotes(opts: { now?: Date } = {}, over: Partial<OwnPhotoDeps> = {}): Promise<{ checked: number; finished: string[]; failed: string[] }> {
   const d = await depsWith(over);
@@ -195,9 +198,9 @@ export async function sweepOwnPhotoQuotes(opts: { now?: Date } = {}, over: Parti
   const since = new Date(now.getTime() - 30 * 86_400_000).toISOString();
   const claims = await d.db.from("workflow_events").select("job_id, actor_id, details, created_at").eq("event_type", PHOTO_QUOTE_SUBMITTED_EVENT).contains("details", { own_customer: true }).gte("created_at", since).order("created_at", { ascending: true }).limit(500);
   if (claims.error) throw new Error("Own photo quote sweep could not read the photo quotes.");
-  // Re-review: finished claims (marker) are never touched.
+  // Re-review: finished claims (marker) and claims under 10 minutes old are never touched.
   const list = ((claims.data ?? []) as { job_id: string; actor_id: string | null; created_at?: string | null; details: { business_id?: string; inputs?: OwnPhotoInputs; finished_at?: string } | null }[])
-    .filter((c) => !c.details?.finished_at);
+    .filter((c) => !c.details?.finished_at && !!c.created_at && now.getTime() - new Date(c.created_at).getTime() >= OWN_PHOTO_SWEEP_MIN_AGE_MS);
   const out = { checked: list.length, finished: [] as string[], failed: [] as string[] };
   if (!list.length) return out;
   const { chunkIds } = await import("./sweep-batch.core");

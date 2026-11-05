@@ -144,3 +144,11 @@ test("older claims with no marker: a quote in ANY status, or an installer_quote_
     expect(drafts).toHaveLength(0);
   }
 });
+test("the tick skips claims under 10 minutes old (the live Add a job request is still finishing them)", async () => {
+  seedJob();
+  const t0 = new Date();
+  await claimOwnPhotoQuote("j", "boss", "nogap", good, memoryPostgrest(t) as never);
+  expect((await sweepOwnPhotoQuotes({ now: new Date(t0.getTime() + 9 * 60_000) }, tickDeps())).finished).toEqual([]);
+  expect(drafts).toHaveLength(0);
+  expect((await sweepOwnPhotoQuotes({ now: new Date(t0.getTime() + 11 * 60_000) }, tickDeps())).finished).toEqual(["j"]);
+});
