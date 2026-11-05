@@ -34,6 +34,7 @@ export const WORKFLOW_DECISIONS = {
   // with owner-picked times (#35, #40–43, #47, #50); types kept in sms.core as retired history, old events/log rows are history.
   tradeMessages: { retired: [
     "2pm day-before Lead Installer email", "Pick the crew for tomorrow", "We need your usual electrician",
+    "Confirm or change your Lead Installer by 5pm today", // Deep Part 5a (Jo 4–5 Nov 2026): replaced by the 3-day "Pick the Lead Installer" reminder + the 2-day red flag
     "You've got a run", "An owner cancelled their Ready Check in your run", "New Ready Check job offer (email + text)", "Installer job offer page",
     "The owner suggested other Ready Check days", "Booked: Ready Check (installer)",
   ] },
@@ -61,7 +62,7 @@ export const WORKFLOW_DECISIONS = {
     completionDocumentsWaitForBalance: false,
     // Part 4 Task 12 (Jo 2 Nov 2026, touchpoint 53): one reminder (email + text) on days 1, 3 and 7 after install day for whatever is
     // still undone (rebate form, balance); after day 7 no more owner messages, the job shows to the office as "Balance overdue".
-    // Replaces the balance day-5 / due emails and the separate rebate-form reminders. The balance is due on install day; overdue clock stays BALANCE_DUE_DAYS.
+    // Replaces the balance day-5 / due emails and the separate rebate-form reminders. The balance is due on install day (Part 5b: the due moment too, for installs booked after the cutover; the office overdue row stays after day 7).
     // Part 4 Task 13 (Jo 2 Nov 2026, answer 9, cl 27): faulty product / work notice. Office button only (Jo decides, same day), no automatic
     // trigger, no installer button; one email per note; compliance purpose, so Do not contact and Unsubscribe never block it.
     nonComplianceNotice: { purpose: "non_compliance_notice", trigger: "office_button", sameDay: true, flag: "NON_COMPLIANCE_NOTICE_APPROVED" },
@@ -267,15 +268,19 @@ export const WORKFLOW_DECISIONS = {
       held: ["no lead installer", "lead installer has no mobile", "install form not ready"],
       key: "install-tomorrow:v1:{job}:{booking}:{Melbourne date} (unchanged, one text per install day; a hold never claims it)",
     },
-    // Part 7 Task 6 (Jo 2 Nov 2026, "Lead Installer / ESC 24h rule"); the clock is Part 9 Task 9's rule (prestart.core).
-    leadInstallerConfirm: {
-      email: "ONE office email at 9am Melbourne two days before the install (at once if booked after 9am that day, until 5pm): Confirm or change your Lead Installer by 5pm today (+ pick the crew)",
-      to: "the installer business office email, every installer (not only in-house), one per job + install date (lead-confirm:v1:{job}:{Melbourne date})",
-      wording: "DRAFT behind LEAD_INSTALLER_CONFIRM_EMAIL_APPROVED=false — real offices held and recorded once (lead_installer_confirm_held), TEST → test-send",
-      lock: "from 5pm that day: Lead Installer and install day locked (leadInstallerLocked); LEAD_LOCKED_MESSAGE = Locked: ESC has been told. Email us to move this install. Part 9 Task 9 owns the rule (lead-installer-lock.core, re-exported by prestart.core; lockLabel 'Wed 11 Nov, 5pm'): a completed install is never locked, every reader (assertLeadInstallerUnlocked, refuseLockedLeadChange, recordLeadChange, validateBooking install move) reads currentLockableInstallBooking and fails CLOSED on a read error",
+    // Deep Part 5a (Jo 4–5 Nov 2026, "Lead Installer lock / reminders / GO email") — replaces Part 7 Task 6's 9am "Confirm or
+    // change your Lead Installer by 5pm today" email (retired 5 Nov 2026; its pure module deleted, the server file
+    // keeps only the lock helpers). Applies to EVERY installer business, own customers and Home Insulation Victoria leads alike.
+    leadInstallerLock: {
+      lock: "the Lead Installer and the install day lock 2 days before the install START (the install's own time of day, Melbourne wall-clock, DST-safe; lead-installer-lock.core leadInstallerLock/leadInstallerLocked, re-exported by prestart.core; lockLabel 'Wed 11 Nov, 7:30am'); LEAD_LOCKED_MESSAGE = Locked — call Home Insulation Victoria to change the Lead Installer or the day; a completed install is never locked; every reader (assertLeadInstallerUnlocked, refuseLockedLeadChange, recordLeadChange, validateBooking install move) reads currentLockableInstallBooking and fails CLOSED on a read error",
       writers: ["saveCrewWithLead (different Lead refused; crew-only allowed)", "changeInHouseLeadInstaller", "inHouseBookVisit (moved start or other Lead on an existing install booking)", "allocateVisit kind install (fix I2)"],
-      claim: "fix I1: the lead_installer_confirm_email claim is written only after the sender reports sent; comms off / trade pause / blocked / failed = lead_installer_confirm_held once, key unclaimed, retried next tick",
-      replaces: "the 2pm day-before crew reminder (#110)",
+      office: "the Home Insulation Victoria office keeps its own path after the lock: booking.server officeActor may move the install (install_moved_after_lock, ESC notice re-prepared, GO check re-runs); recordLeadChange → Update ESC flag + info@ email + prestart lock",
+      crew: "crew stay changeable up to the start (not on the ESC notice); anyone newly added gets their SWMS text as now",
+      reminder: "3 days before (same clock, 72h-ish: the install's time of day three calendar days earlier), no Lead Installer picked → ONE email to the partner's business office: subject 'Pick the Lead Installer for {address} on {date}', body 'Hi, {address} is booked for install on {date} but no Lead Installer is picked yet. Pick one on the job page in the portal by {lock date} so we can lodge it with the ESC. Jo' (lead-installer-reminder.core, key lead-reminder:v1:{job}:{Melbourne date}); DRAFT behind LEAD_INSTALLER_REMINDER_APPROVED=false — real offices held once (lead_installer_reminder_held), TEST → test-send; the claim (lead_installer_reminder_email) only after the sender reports sent",
+      flag: "2 days before (the lock), still none → ONE no_lead_installer office event (needs_office) per job + install day → red top Needs me row 'No Lead Installer: {HV} install {date}' (office-needs.core rank 1, Open job → install), cleared by one no_lead_installer_cleared when a Lead Installer is picked",
+      sweep: "lead-installer-reminder.server sweepLeadInstallerReminder on the 15-minute allocation tick, confirmed installation bookings within 4 days, Lead read through lead-installer-confirm.server leadInstallerLockState (same reader as the writers)",
+      goEmail: "the GO / DON'T START email (prestart.server sweepPrestart → go-email.server, 2pm the day before + 6:30am on the day, keys go-email:v1:{job}:{start}:{slot}, DON'T START copied to info@) is the only day-before office email: every pre-start blocker is mapped to plain words in go-email.core GO_EMAIL_PLAIN / tradeSafeFailureLine; Jo's V2 wording ('{HV} {address} – GO for {date}' / '… – DON'T START {date}', crew names, 'Everything's in place: deposit paid, safety check clear, ESC notice lodged, safety plan signed', 'Fix these first', 'Call Home Insulation Victoria on 0477 511 901') is built in behind GO_EMAIL_V2_APPROVED=false; the approved 4 Nov frame sends until she approves it",
+      replaces: "the 2pm day-before 'Tomorrow's installs — Lead Installer / Keep or change' office email (retired Part 7 Task 8) and the 9am 'Confirm or change your Lead Installer by 5pm today' email (retired 5 Nov 2026) — nothing retired sends again",
     },
     // Part 7 Task 7 (decision #26, Jo 2 Nov 2026).
     dailyJobsText: {
@@ -405,7 +410,7 @@ export const REQUIRED_ON_FILE_DECISIONS = {
   rule: "requiredOnFileBlockers (worker-compliance.core): each working person has a mobile; only the Lead Installer needs a date of birth (kept privately, partner_worker_identity) for ESC; the Lead Installer and crew an office-verified current CII/EEC (crewClearance); the electrician a verified licence + REC (electricianVerified); boss/office people need no certificate",
   where: "validateBooking for electrical and installation visits (people-on-file.server: the proposed or allocated electrician, the install's current Lead + saved crew; nobody allocated yet = nothing to check here) and offers; a read error refuses (fail closed). Jo 5 Nov: Ready Check is exempt from DOB, ESC registration, CII and White Card checks; any current Team attendee uses their Mitti login or the partner office login. Lead approval and install checks remain required. White Card is permanently retired everywhere (Jo 5 Nov 7:43pm); stored uploads/history retained.",
   wording: "Not on file yet: {name}: date of birth missing; {name}: mobile missing; {name}: CII/EEC certificate not verified by Home Insulation Victoria; {name}: electrical licence + REC not verified by Home Insulation Victoria.",
-  lock: "leadInstallerLock(startIso) → 9:00 email / 17:00 lock Melbourne wall-clock two calendar days before the install's Melbourne date (DST-safe), lockLabel 'Wed 11 Nov, 5pm'; leadInstallerLocked(startIso, now, { installCompleted }) false once the install is recorded complete; LEAD_LOCKED_MESSAGE approved; Parts 5 and 7 import, never re-implement",
+  lock: "Deep Part 5a (Jo 4–5 Nov 2026): leadInstallerLock(startIso) → reminderAt 3 days / lockAt 2 days before the install START, the install's own time of day, Melbourne wall-clock (DST-safe), lockLabel 'Wed 11 Nov, 7:30am'; leadInstallerLocked(startIso, now, { installCompleted }) false once the install is recorded complete; LEAD_LOCKED_MESSAGE = Locked — call Home Insulation Victoria to change the Lead Installer or the day; Parts 5 and 7 import, never re-implement",
 } as const;
 
 /** New job flow Part 9 Task 14 (Jo 2 Nov 2026, answers 18–19): real runs never reach the ESC. */

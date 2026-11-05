@@ -1,6 +1,7 @@
 import { IN_HOUSE_ELECTRICIAN_BOOKING_BLOCKER } from './worker-compliance.core';
 import { OWNER_BOOKED_V2_APPROVED, ownerBookedNotice, type BookedKind } from './owner-booked-notice.core';
 import type { TradeContact } from './owner-will-call.core';
+import { isOwnJobCallAndBook } from './own-job-piesa.core';
 export { OWNER_BOOKED_V2_APPROVED };
 export function emptyBookingTeamBlocker(kind:string,workers:BookingWorker[]):string|null {
   if((kind==='assessment'||kind==='rectification')&&!workers.some(w=>w.tradeRole==='electrician'&&w.electricianVerified))return IN_HOUSE_ELECTRICIAN_BOOKING_BLOCKER;
@@ -35,6 +36,18 @@ export const OWNER_UPGRADES_BOOKED_APPROVED: boolean = true; // Jo approved 4 No
 /** Part 3 Task 4: with no office phone on file, the owner is told to call Home Insulation Victoria — never "the number in your booking details" (there is none).
  *  Fix 1: keyed on `hivOffice` (the contact IS our office: no installer business on the job), never on an installer business's name. */
 export type BookingNoticeKind='ready_check'|'piesa'|'install'|'upgrades';
+/** Deep Part 4(b) (Jo 1–2 Nov 2026): every visit a partner books has an owner "You're booked" — the booking kind → notice kind. */
+const BOOKING_NOTICE_KIND:Readonly<Record<string,BookingNoticeKind>>={ready_check:'ready_check',assessment:'piesa',installation:'install',rectification:'upgrades'};
+export function bookingNoticeKindFor(bookingKind:string):BookingNoticeKind|null{return BOOKING_NOTICE_KIND[bookingKind]??null;}
+export const OWN_CUSTOMER_NO_READY_CHECK_NOTICE="No Ready Check booking on an installer's own customer (Jo 5 Nov 2026)";
+/** Which visit kinds send, per job (null = goes; a reason = held). In-house job: every kind. Installer's own customer (call
+ *  and book, not in-house): PIESA, upgrades day and install — there is no Ready Check booking there any more (Jo 5 Nov 2026).
+ *  Anything else: only the upgrades day (entered on the electrician's link on every job, Part 3 Task 3). */
+export function ownerBookedGate(f:{kind:BookingNoticeKind;channel:string|null;heldInHouse:boolean}):string|null{
+  if(f.kind==='upgrades'||f.heldInHouse)return null;
+  if(isOwnJobCallAndBook({channel:f.channel,heldInHouse:f.heldInHouse}))return f.kind==='ready_check'?OWN_CUSTOMER_NO_READY_CHECK_NOTICE:null;
+  return 'Owner booking notice: not an in-house or own job';
+}
 export function bookingNotice(i:{kind:BookingNoticeKind;start:string;who:Pick<BookingWorker,'name'|'phone'>;installer:string;phone:string|null;hivOffice?:boolean}) {
   const label={ready_check:'Ready Check',piesa:'Pre Insulation Electrical Safety Assessment (PIESA)',install:'install',upgrades:'electrical upgrades'}[i.kind];
   const when=new Date(i.start).toLocaleString('en-AU',{timeZone:'Australia/Melbourne',weekday:'long',day:'numeric',month:'long',hour:'numeric',minute:'2-digit'});
@@ -58,5 +71,6 @@ export function ownerBookedMessage(i:OwnerBookedInput,approved:Record<BookedKind
   const old=bookingNotice(i);
   return{version:'v1',subject:old.subject,text:old.text,sms:old.sms};
 }
-// Part 7 Task 8 (Jo 2 Nov 2026): the 2pm day-before Lead Installer email digest rule was retired — the
-// 9am two-days-before "Confirm or change your Lead Installer by 5pm today" email (lead-installer-confirm.core) replaces it.
+// Part 7 Task 8 (Jo 2 Nov 2026): the 2pm day-before Lead Installer email digest rule was retired. Deep Part 5a (Jo 4–5 Nov
+// 2026): the 9am "Confirm or change your Lead Installer by 5pm today" email that replaced it is retired too — the 3-day
+// "Pick the Lead Installer" reminder (lead-installer-reminder.core) and the GO / DON'T START email (go-email.core) remain.

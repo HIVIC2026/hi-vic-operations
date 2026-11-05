@@ -2,7 +2,7 @@
 // Rules in trade-pause.core.ts. Missing column (SQL not live) = NOT paused + a warning; any other read failure holds.
 // Never sends; safe to import from sender modules only.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
-import { readTradePause } from "./trade-pause.core";
+import { jobPauseLift, pauseLiftWanted, readTradePause, recipientPauseLift, type PauseLift } from "./trade-pause.core";
 
 let missingWarned = false;
 
@@ -17,30 +17,28 @@ export async function tradeMessagesPausedNow(opts?: { businessId?: string | null
   const out = readTradePause({ data: r.data as { trade_messages_paused?: boolean | null } | null, error: r.error });
   // The missing-column warning is logged once per process (it would repeat on every send); real read failures every time.
   if (out.warning && (out.reason !== null || !missingWarned)) { if (out.reason === null) missingWarned = true; console.warn(out.warning); }
-  if (!out.reason || (!opts?.businessId && !opts?.jobId)) return out.reason;
-  // Per-business exception (Jo 31 Oct; narrowed 3 Nov). Any read failure keeps the hold.
+  if (!pauseLiftWanted(out.reason, opts)) return out.reason;
+  // Per-business exception (Jo 31 Oct; narrowed 3 Nov; pure rules recipientPauseLift / jobPauseLift since Deep Part 1).
+  // Any read failure keeps the hold.
   // - Recipient business known: lifted only if it is flagged, or it is an electrician actively linked to a flagged
   //   installer AND (no job given, or that installer is the job's originating installer or an active assignee).
   //   The job's other businesses never lift a message to a known, uncovered recipient.
   // - Only a job given: lifted if the job's originating installer or an active assignee is flagged.
+  const answer = (lift: PauseLift) => (lift === "lift" ? null : out.reason);
   try {
-    if (opts.businessId) {
-      const pr = await (admin as any).from("partner_relationships").select("installer_business_id").eq("electrician_business_id", opts.businessId).eq("active", true); // eslint-disable-line @typescript-eslint/no-explicit-any
+    if (opts!.businessId) {
+      const pr = await (admin as any).from("partner_relationships").select("installer_business_id").eq("electrician_business_id", opts!.businessId).eq("active", true); // eslint-disable-line @typescript-eslint/no-explicit-any
       if (pr.error) return out.reason;
-      const ids = new Set<string>([opts.businessId]);
+      const ids = new Set<string>([opts!.businessId]);
       for (const r of (pr.data ?? []) as { installer_business_id: string | null }[]) if (r.installer_business_id) ids.add(r.installer_business_id);
       const flagged = await flaggedAmong([...ids]);
-      if (!flagged) return out.reason;
-      if (flagged.has(opts.businessId)) return null;
-      if (!flagged.size) return out.reason; // neither it nor any linked installer is flagged
-      if (!opts.jobId) return null;
-      const onJob = await jobBusinessIds(opts.jobId);
-      return onJob && [...flagged].some((id) => onJob.has(id)) ? null : out.reason;
+      const first = recipientPauseLift({ recipientId: opts!.businessId, flagged, jobId: opts!.jobId ?? null });
+      if (first !== "check_job") return answer(first);
+      return answer(jobPauseLift(flagged, await jobBusinessIds(opts!.jobId!)));
     }
-    const onJob = await jobBusinessIds(opts.jobId!);
+    const onJob = await jobBusinessIds(opts!.jobId!);
     if (!onJob || !onJob.size) return out.reason;
-    const flagged = await flaggedAmong([...onJob]);
-    return flagged && flagged.size ? null : out.reason;
+    return answer(jobPauseLift(await flaggedAmong([...onJob]), onJob));
   } catch { return out.reason; }
 }
 

@@ -1,6 +1,6 @@
 // "Pause all trade messages" (Jo 30 Oct 2026): pure rules only.
 import { describe, expect, test } from "bun:test";
-import { TRADE_MESSAGES_PAUSED_REASON, isMissingPauseColumn, businessPauseException, pauseLiftedByAny, readTradePause, tradeEmailPauseReason, tradeMessagesPausedReason } from "../src/lib/trade-pause.core";
+import { TRADE_MESSAGES_PAUSED_REASON, isMissingPauseColumn, businessPauseException, jobPauseLift, pauseLiftWanted, pauseLiftedByAny, readTradePause, recipientPauseLift, tradeEmailPauseReason, tradeMessagesPausedReason } from "../src/lib/trade-pause.core";
 import { smsBlocker } from "../src/lib/sms.core";
 
 describe("tradeMessagesPausedReason", () => {
@@ -90,5 +90,42 @@ describe("pauseLiftedByAny", () => {
   });
   test("not paused stays not paused", () => {
     expect(pauseLiftedByAny(null, [true])).toBeNull();
+  });
+});
+
+// Deep first-job Part 1 (5 Nov 2026): the per-business lift is a pure rule the server reads facts for. `businessId` is
+// always the RECIPIENT's business; an electrician linked to a flagged installer counts as that installer's business.
+describe("recipientPauseLift / jobPauseLift (per-business lift, pure)", () => {
+  const REIN = "reinsulate", PETER = "peter-electrical", OTHER = "other-installer";
+  test("global pause off, or no ids given: nothing to lift (the global answer stands)", () => {
+    expect(pauseLiftWanted(null, { businessId: REIN, jobId: "j" })).toBe(false);
+    expect(pauseLiftWanted("Trade messages paused", {})).toBe(false);
+    expect(pauseLiftWanted("Trade messages paused", { businessId: null, jobId: null })).toBe(false);
+    expect(pauseLiftWanted("Trade messages paused", { businessId: REIN })).toBe(true);
+    expect(pauseLiftWanted("Trade messages paused", { jobId: "j" })).toBe(true);
+  });
+  test("recipient flagged → lift (text or email, with or without a job)", () => {
+    expect(recipientPauseLift({ recipientId: REIN, flagged: new Set([REIN]), jobId: null })).toBe("lift");
+    expect(recipientPauseLift({ recipientId: REIN, flagged: new Set([REIN]), jobId: "j" })).toBe("lift");
+  });
+  test("recipient not flagged and nobody linked flagged → hold", () => {
+    expect(recipientPauseLift({ recipientId: OTHER, flagged: new Set(), jobId: null })).toBe("hold");
+    expect(recipientPauseLift({ recipientId: OTHER, flagged: new Set(), jobId: "j" })).toBe("hold");
+  });
+  test("electrician linked to a flagged installer: no job → lift; a job → only if that installer is on the job", () => {
+    expect(recipientPauseLift({ recipientId: PETER, flagged: new Set([REIN]), jobId: null })).toBe("lift");
+    expect(recipientPauseLift({ recipientId: PETER, flagged: new Set([REIN]), jobId: "j" })).toBe("check_job");
+    expect(jobPauseLift(new Set([REIN]), new Set([REIN, PETER]))).toBe("lift");
+    expect(jobPauseLift(new Set([REIN]), new Set([OTHER, PETER]))).toBe("hold");
+  });
+  test("job only: lifted when its originating installer or an active assignee is flagged", () => {
+    expect(jobPauseLift(new Set([REIN]), new Set([REIN]))).toBe("lift");
+    expect(jobPauseLift(new Set(), new Set([OTHER]))).toBe("hold");
+    expect(jobPauseLift(new Set(), new Set())).toBe("hold");
+  });
+  test("any read failure holds", () => {
+    expect(recipientPauseLift({ recipientId: REIN, flagged: null, jobId: null })).toBe("hold");
+    expect(jobPauseLift(null, new Set([REIN]))).toBe("hold");
+    expect(jobPauseLift(new Set([REIN]), null)).toBe("hold");
   });
 });

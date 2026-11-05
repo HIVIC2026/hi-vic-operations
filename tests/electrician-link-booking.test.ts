@@ -185,7 +185,10 @@ describe("bookFromElectricianLink: upgrades day", () => {
     const r = await server.bookFromElectricianLink(t, "rectification", START, NOW);
     expect(r).toEqual({ ok: true, start: START });
     expect(bookings()[0]).toMatchObject({ kind: "rectification", scheduled_start: START });
-    expect(calls.notify).toHaveLength(0);
+    // Deep Part 4(b): the owner's "You're booked" for the upgrades day, through the same in-house path, this electrician.
+    expect(calls.notify).toHaveLength(1);
+    expect(calls.notify[0]!.slice(0, 3)).toEqual([J, "upgrades", START]);
+    expect(calls.notify[0]![3]).toMatchObject({ id: W, name: "Sam Spark" });
     const v = await server.electricianLinkView(t, NOW);
     expect(v.view.step).toBe("upgrades_day");
     expect(v.upgradesDay).toBe(START);

@@ -415,15 +415,18 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['autoOffers'] = "failed";
         }
         // Part 7 Task 8 (Jo 2 Nov 2026): the 2pm crew reminder (#110) and the in-house 2pm "Tomorrow's installs" office email
-        // are retired — both replaced by the 9am two-days-before Lead Installer confirm email below.
+        // are retired; Deep Part 5a (Jo 4–5 Nov 2026) retired the 9am "Confirm or change your Lead Installer by 5pm" email too.
+        // The only Lead Installer office email is the 3-day "Pick the Lead Installer" reminder below; the only day-before
+        // office email is the GO / DON'T START email (sweepPrestart → go-email.server). Nothing retired sends again.
         try {
-          // Part 7 Task 6 (Jo 2 Nov): ONE office email at 9am two days before each install, "Confirm or change your Lead
-          // Installer by 5pm today"; every installer; DRAFT wording → real offices held until approved, TEST → test-send.
-          const { sweepLeadInstallerConfirm } = await import("@/lib/lead-installer-confirm.server");
-          (out as Record<string, unknown>)['leadInstallerConfirm'] = await timed("sweepLeadInstallerConfirm", () => sweepLeadInstallerConfirm());
+          // Deep Part 5a: 3 days before an install with no Lead Installer picked → ONE email to the installer office (every
+          // installer business; DRAFT → real offices held until LEAD_INSTALLER_REMINDER_APPROVED, TEST → test-send); 2 days
+          // before (the lock), still none → ONE red Needs me row (no_lead_installer, needs_office), cleared when picked.
+          const { sweepLeadInstallerReminder } = await import("@/lib/lead-installer-reminder.server");
+          (out as Record<string, unknown>)['leadInstallerReminder'] = await timed("sweepLeadInstallerReminder", () => sweepLeadInstallerReminder());
         } catch (e) {
-          console.error("allocation tick: lead installer confirm sweep failed", (e as Error).message);
-          (out as Record<string, unknown>)['leadInstallerConfirm'] = "failed";
+          console.error("allocation tick: lead installer reminder sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['leadInstallerReminder'] = "failed";
         }
         try {
           // G7 (Jo 4 Nov 2026): a Ready Check booked with "Not sure yet" and nobody picked by 5pm the day before → ONE email to the

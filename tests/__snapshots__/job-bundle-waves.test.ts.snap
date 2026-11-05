@@ -528,7 +528,7 @@ exports[`Job page bundle (Task 6): same value as before boss, staff, electrician
           "lines": [],
           "overdue": false,
           "phone": null,
-          "sub": "Your pay is paid 7 days after we approve the install paperwork.",
+          "sub": "Your pay is paid 7 days after Home Insulation Victoria approves the paperwork.",
           "title": "Install done",
           "yours": false,
         },

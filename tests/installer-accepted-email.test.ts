@@ -86,3 +86,39 @@ test("#36 'either' and a missing who-books are treated as the office books", () 
     expect(m.text).toContain("Pick your electrician on the job, call Sarah");
   }
 });
+
+// Part 5b (Jo 4–5 Nov 2026): the new-flow "owner accepted" email — the electrician's office books the PIESA on the job page;
+// no "electrician offers times", no "Offer 3 install days". A NEW template version, OFF until Jo approves it.
+import { INSTALLER_ACCEPTED_V3_APPROVED, renderInstallerAcceptedV3 } from "../src/lib/installer-accepted-email.core";
+const v3Job = { installerFirstName: "Deep", ownerName: "Sarah Lee", address: "1 Example St, Sampletown", jobNumber: "HV-3117", jobUrl: "https://estimate.homeinsulationvictoria.com.au/field/j" };
+
+test("Part 5b v3: OFF by default; the current wording still goes until Jo approves", () => {
+  expect(INSTALLER_ACCEPTED_V3_APPROVED).toBe(false);
+  const m = renderInstallerAcceptedEmail({ ...v3Job, useV2: true, whoBooks: "office" });
+  expect(m.subject).toBe("Owner accepted – HV-3117, 1 Example St, Sampletown"); // v2, not v3
+  expect(m.text).toContain("Book the PIESA");
+});
+
+test("Part 5b v3: Jo's wording, verbatim; nothing about offering times or 3 install days; no price", () => {
+  const m = renderInstallerAcceptedV3(v3Job);
+  expect(m.subject).toBe("HV-3117 – owner accepted");
+  expect(m.text).toContain("Hi Deep,");
+  expect(m.text).toContain("the owner at 1 Example St, Sampletown has accepted the quote and paid for the safety check.");
+  expect(m.text).toContain("Next step: book the safety check on the job page with your electrician.");
+  expect(m.text).toContain("Jo");
+  expect(m.text).toContain(v3Job.jobUrl);
+  for (const b of [unesc(m.html), unesc(m.text)]) {
+    expect(b).not.toMatch(/offers? .*times|3 install days|Offer .* install days|Nothing for you to do|HIV\b|\$\d/);
+    expect(b).toContain("book the safety check on the job page with your electrician");
+  }
+  // No name on file: "Hi there,"; no address: "the property".
+  const n = renderInstallerAcceptedV3({ ...v3Job, installerFirstName: null, address: null });
+  expect(n.text).toContain("Hi there,");
+  expect(n.text).toContain("the owner at the property has accepted");
+});
+
+test("Part 5b v3: the renderer takes the v3 flag (preview override) ahead of v2", () => {
+  const m = renderInstallerAcceptedEmail({ ...v3Job, useV3: true, useV2: true });
+  expect(m.subject).toBe("HV-3117 – owner accepted");
+  expect(m.text).not.toContain("Lead Installer in the portal");
+});

@@ -55,7 +55,8 @@ export async function runInHouseSavedWork(id:string,now=new Date()){
    if(d.kind==='assessment'&&d.bookingId){await step('electrician-intent',()=>import('./in-house-electrician-booked.server').then(m=>m.notifyInHouseElectricianBooked(row.job_id,d.bookingId??'')));}
    if((d.kind==='assessment'||d.kind==='rectification')&&d.start){await step('install-hold',async()=>{const holds=await import('./install-holds.server');await (d.kind==='assessment'?holds.moveHoldForPiesa:holds.moveHoldForRectification)(row.job_id,d.start??'',row.actor_id??'');});}
    if(d.kind==='assessment')await step('engagement',()=>import('./engagement.server').then(m=>m.recordBookingCompleted(row.job_id)));
-   const kind=d.kind==='installation'?'install':d.kind==='assessment'?'piesa':d.kind==='ready_check'?'ready_check':null;
+   // Deep Part 4(b): every booked visit, the electrical upgrades day (rectification) included, gets the owner's "You're booked".
+   const kind=(await import('./in-house-booking.core')).bookingNoticeKindFor(d.kind??'');
    // G7: no person yet ("Not sure yet") → no owner "You're booked" until the person is picked (that pick's saved work sends it).
    const who=d.who;
    if(kind&&book&&who){await step('owner-intent',()=>import('./in-house-booking.server').then(m=>m.notifyOwnerBooked(row.job_id,kind,book.scheduled_start,who,now)));}

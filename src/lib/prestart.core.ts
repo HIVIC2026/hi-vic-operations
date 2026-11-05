@@ -76,14 +76,16 @@ export const ESC_REMINDER_TITLES: Record<EscReminderCode, string> = {
   esc_details_changed: "Details changed after the ESC notification — update, or withdraw and resubmit",
 };
 
-// ── Lead Installer lock (Jo 2 Nov 2026, "Lead Installer / ESC 24h rule"): THE ONE lock rule, owned by Part 9 Task 9. The
-// clock itself lives in the tiny import-free `lead-installer-lock.core.ts` (the installer home's Next step box shows it and
-// must not pull this module's ESC/compliance imports onto its first load); these names are re-exported here, so Parts 5 and
-// 7 import them from prestart.core exactly as the plan says. Server readers: lead-installer-confirm.server
-// (assertLeadInstallerUnlocked), visit-allocation.server (refuseLockedLeadChange), in-house-booking.server (recordLeadChange),
-// booking.server (validateBooking reschedule) — all read the CURRENT confirmed install booking through install-booking.server
-// currentLockableInstallBooking, which ignores a completed install and throws on a read error (every gate fails closed).
-export { LEAD_CONFIRM_EMAIL_HOUR, LEAD_LOCK_DAYS_BEFORE, LEAD_LOCK_HOUR, LEAD_LOCKED_MESSAGE, leadInstallerLock, leadInstallerLocked } from "./lead-installer-lock.core";
+// ── Lead Installer lock (Deep Part 5a, Jo 4–5 Nov 2026: 2 days before the install start, Melbourne wall-clock; replaces the
+// 2 Nov "9am email / 5pm lock"): THE ONE lock rule. The clock itself lives in the tiny import-free
+// `lead-installer-lock.core.ts` (the installer home's Next step box shows it and must not pull this module's ESC/compliance
+// imports onto its first load); these names are re-exported here, so Parts 5 and 7 import them from prestart.core exactly
+// as the plan says. Server readers: lead-installer-confirm.server (assertLeadInstallerUnlocked), visit-allocation.server
+// (refuseLockedLeadChange), in-house-booking.server (recordLeadChange), booking.server (validateBooking reschedule) — all
+// read the CURRENT confirmed install booking through install-booking.server currentLockableInstallBooking, which ignores a
+// completed install and throws on a read error (every gate fails closed). The 3-day reminder / 2-day office flag sweep is
+// lead-installer-reminder.server.
+export { LEAD_LOCK_DAYS_BEFORE, LEAD_REMINDER_DAYS_BEFORE, LEAD_LOCKED_MESSAGE, leadInstallerLock, leadInstallerLocked } from "./lead-installer-lock.core";
 
 // ── GO / DON'T START slots (Part 9 Task 6). The 2pm-day-before slot is also the lock time (`prestartRunAt`).
 export const GO_SLOTS = [

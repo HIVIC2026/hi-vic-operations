@@ -1,6 +1,6 @@
 import { supabaseAdmin as admin } from '@/integrations/supabase/client.server';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { bookingWorkerBlocker, ownerBookedMessage, OWNER_BOOKED_V2_APPROVED, OWNER_UPGRADES_BOOKED_APPROVED, leadNoticePending, LEAD_INSTALLER_NOTICE_WAIT, type BookingNoticeKind, type BookingWorker } from './in-house-booking.core';
+import { bookingWorkerBlocker, ownerBookedGate, ownerBookedMessage, OWN_CUSTOMER_NO_READY_CHECK_NOTICE, OWNER_BOOKED_V2_APPROVED, OWNER_UPGRADES_BOOKED_APPROVED, leadNoticePending, LEAD_INSTALLER_NOTICE_WAIT, type BookingNoticeKind, type BookingWorker } from './in-house-booking.core';
 import type { BookedKind } from './owner-booked-notice.core';
 import type { TradeContact } from './owner-will-call.core';
 /** Tests inject the approval flags; production uses OWNER_BOOKED_V2_APPROVED (owner-booked-notice.core, re-exported by in-house-booking.core). */
@@ -62,9 +62,12 @@ export async function notifyOwnerBooked(jobId:string,kind:BookingNoticeKind,star
   // Part 3 Task 3 (controller ruling): the electrical upgrades day is entered on the electrician's link on EVERY job, so its
   // owner notice goes on every channel (HIV leads included) — the installer's office phone when there is an installer, else
   // the HIV office line. Every other kind keeps the in-house / own-job gate.
+  // Deep Part 4(b): which kinds send per job is the pure ownerBookedGate (own customer: PIESA, upgrades, install — no Ready Check, Jo 5 Nov).
   if(kind!=='upgrades'&&!held.held.has(jobId)){
     const ch=await read<{channel:string|null}|null>(db.from('jobs').select('channel').eq('id',jobId).maybeSingle());
-    if(!(await import('./own-job-piesa.core')).isOwnJobCallAndBook({channel:ch?.channel??null,heldInHouse:false}))return 'held';
+    const gate=ownerBookedGate({kind,channel:ch?.channel??null,heldInHouse:false});
+    if(gate===OWN_CUSTOMER_NO_READY_CHECK_NOTICE)return `held: ${gate}`;
+    if(gate)return 'held';
   }
   const bookingKind={ready_check:'ready_check',piesa:'assessment',install:'installation',upgrades:'rectification'}[kind];
   const booking=await read<{id:string;created_at:string}|null>(db.from('bookings').select('id,created_at').eq('job_id',jobId).eq('kind',bookingKind).eq('status','confirmed').eq('scheduled_start',startIso).order('created_at',{ascending:false}).limit(1).maybeSingle());

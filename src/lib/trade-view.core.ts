@@ -88,14 +88,14 @@ export function statementFileName(now: Date = new Date()): string {
 /** Pay state from facts: paid event wins; office AP approval starts the 7-day clock; otherwise it's being checked. */
 /** Jo's terms: the clock starts only once BOTH office AP approval and the owner's payment in full are recorded (later of the two).
  * `ownerPaidInFullAt` omitted = legacy callers (AP approval only). */
-/** Pay due 7 days after HIV approval. Installer-supplied jobs (agreement v1.16) ALSO wait for the owner to pay in full (later of the two); HIV leads never do. */
+/** Part 5b (Jo 1–5 Nov 2026): Home Insulation Victoria leads — 7 days after the office approves the paperwork, never waiting
+ *  for the owner. Installers' own customers — the moment BOTH the paperwork is approved and the owner has paid in full (the
+ *  later of the two), with no 7 days added. "No pay without the green light": approval is still needed on both. */
 export function payState(f: { paidAt: string | null; apApprovedAt: string | null; installerSupplied: boolean; ownerPaidInFullAt?: string | null }): PayState {
   if (f.paidAt) return { kind: "paid", on: f.paidAt };
   if (!f.installerSupplied) return f.apApprovedAt ? { kind: "coming", on: new Date(new Date(f.apApprovedAt).getTime() + 7 * 86_400_000).toISOString() } : { kind: "checking" };
-  if (!f.ownerPaidInFullAt) return { kind: "checking" };
-  const start = [f.apApprovedAt, f.ownerPaidInFullAt].filter((x): x is string => !!x).map((x) => new Date(x).getTime());
-  if (f.apApprovedAt) return { kind: "coming", on: new Date(Math.max(...start) + 7 * 86_400_000).toISOString() };
-  return { kind: "checking" };
+  if (!f.ownerPaidInFullAt || !f.apApprovedAt) return { kind: "checking" };
+  return { kind: "coming", on: Date.parse(f.ownerPaidInFullAt) >= Date.parse(f.apApprovedAt) ? f.ownerPaidInFullAt : f.apApprovedAt };
 }
 
 /** When the owner paid in full (the Xero mirror): every INSTALLATION invoice on the job fully paid → the latest paid time;
@@ -108,7 +108,7 @@ export function ownerPaidInFullAt(all: { kind?: string | null; status: string | 
   return invs.map((x) => x.balance_paid_at ?? x.paid_at ?? x.updated_at ?? null).filter((x): x is string => !!x).sort().at(-1) ?? null;
 }
 /** The office reason shown while an installer-supplied payout waits for the owner (payState "checking" with AP done). */
-export const INSTALLER_PAY_WAITING_OWNER = "Waiting for the owner to pay in full (installer-supplied job: paid 7 days after the later of Final check and the owner's payment in full)";
+export const INSTALLER_PAY_WAITING_OWNER = "Waiting for the owner to pay in full (installer's own customer: paid once Final check is done and the owner has paid in full)";
 /** The office reason shown while installer pay waits for Final check (AP approval) — payState "checking" with no AP. */
 export const INSTALLER_PAY_WAITING_AP = "Waiting for Final check (AP approval) — installer pay falls due 7 days after it";
 
@@ -130,8 +130,11 @@ export function installerPayHeldReasons(f: { installerSupplied: boolean; apAppro
 /** Jo 4 Nov 2026 21:20 (pack 2 batch 9): the installer's Money page says WHY their install pay is held in their words — an
  *  own customer: "Paid once the owner has paid in full." (Jo's rule for own customers; never the office's AP line), a Home
  *  Insulation Victoria lead: the 7-day line. Same gate as `installerPayHeldReasons` (the office's reasons); only the words differ. */
-export const OWN_CUSTOMER_PAY_HELD_LINE = "Paid once the owner has paid in full.";
-export const HIV_LEAD_PAY_HELD_LINE = "Paid 7 days after we approve the install paperwork."; // the approved Money rule (decisions 109/344) as a sentence
+/** Part 5b (Jo 1–5 Nov 2026): the two pay rules in Jo's words, one per job source. Own customers never see 7-day wording. */
+export const OWN_CUSTOMER_PAY_HELD_LINE = "You're paid once the owner has paid in full.";
+export const HIV_LEAD_PAY_HELD_LINE = "Paid 7 days after Home Insulation Victoria approves the paperwork.";
+/** The pay rule shown on the installer job page / Money for a job of this source. */
+export const installerPayRuleLine = (installerSupplied: boolean): string => (installerSupplied ? OWN_CUSTOMER_PAY_HELD_LINE : HIV_LEAD_PAY_HELD_LINE);
 export function installerMoneyHeldLines(f: { installerSupplied: boolean; apApprovedAt: string | null; ownerPaidInFullAt: string | null }): string[] {
   const office = installerPayHeldReasons(f);
   if (!office.length) return [];

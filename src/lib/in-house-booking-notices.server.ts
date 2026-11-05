@@ -42,6 +42,8 @@ export async function notifyOfficeLeadChanged(jobId:string,changeId:string,line:
  const mail={to:'info@homeinsulationvictoria.com.au',subject:line,...partnerEmailLayout({subject:line,blocks:[{kind:'p',text:line}],test:r.data.source==='qa_test'})};
  return deliverOnce(jobId,key,mail,frozen=>(import('./in-house-office-alert.server').then(m=>m.sendInHouseOfficeAlert({...frozen,jobId,jobSource:source,actorId,idempotencyKey:key}))));
 }
-// Part 7 Task 8 (Jo 2 Nov 2026): the 2pm "Tomorrow's installs — Lead Installer" office email was retired — replaced by the 9am
-// two-days-before "Confirm or change your Lead Installer by 5pm today" email (lead-installer-confirm.server). Old
-// `in-house-install-office:v1:{business}:{day}` claims stay as history and that sweep reads them so a day never gets both.
+// Part 7 Task 8 (Jo 2 Nov 2026): the 2pm "Tomorrow's installs — Lead Installer" office email was retired. Deep Part 5a (Jo
+// 4–5 Nov 2026): its 9am "Confirm or change your Lead Installer by 5pm today" replacement is retired too; the only Lead
+// Installer office email is the 3-day "Pick the Lead Installer" reminder (lead-installer-reminder.server) and the only
+// day-before office email is the GO / DON'T START email (go-email.server). The old in-house install office claims
+// (`in_house_office_email_claimed` rows) stay as history; nothing reads them any more.

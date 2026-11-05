@@ -79,7 +79,7 @@ describe("E4 statement formula safety", () => {
 describe("installerMoneyHeldLines (installer Money page)", () => {
   test("own customer → 'Paid once the owner has paid in full.' whenever held (Jo's own-customer rule) — never the office's AP line; HIV lead → the 7-day line; nothing held → nothing", async () => {
     const { installerMoneyHeldLines, OWN_CUSTOMER_PAY_HELD_LINE, HIV_LEAD_PAY_HELD_LINE } = await import("../src/lib/trade-view.core");
-    expect(OWN_CUSTOMER_PAY_HELD_LINE).toBe("Paid once the owner has paid in full.");
+    expect(OWN_CUSTOMER_PAY_HELD_LINE).toBe("You're paid once the owner has paid in full."); // Part 5b (Jo 1–5 Nov 2026)
     expect(installerMoneyHeldLines({ installerSupplied: true, apApprovedAt: null, ownerPaidInFullAt: null })).toEqual([OWN_CUSTOMER_PAY_HELD_LINE]);
     expect(installerMoneyHeldLines({ installerSupplied: true, apApprovedAt: "2026-11-09T00:00:00Z", ownerPaidInFullAt: null })).toEqual([OWN_CUSTOMER_PAY_HELD_LINE]);
     expect(installerMoneyHeldLines({ installerSupplied: true, apApprovedAt: null, ownerPaidInFullAt: "2026-11-04T00:00:00Z" })).toEqual([OWN_CUSTOMER_PAY_HELD_LINE]);

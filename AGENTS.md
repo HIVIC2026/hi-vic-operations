@@ -11,7 +11,7 @@
 
 - `docs/HIV_WORKFLOW_SOURCE_OF_TRUTH.md` + `src/config/workflow-decisions.ts` override older prompts/comments/labels; run `bun scripts/scan-retired-terms.ts` before workflow work. Pending DB changes live in `docs/pending-migrations/` and are proven on PGlite (`tests/helpers/pglite-*.ts`) before any live run. Why: stop retired rules returning and keep untested SQL off the live database.
 # Project rules
-- Balance dates/reminders/overdue use the pure core and recorded completion, not booking; existing invoice/payment guards own receipts/email claims. Why: one clock, no new invoice.
+- Balance dates/reminders/overdue use the pure core and recorded completion (due on install day since Part 5b; the booking timestamp only picks the cutover rule, never the date); existing invoice/payment guards own receipts/email claims. Why: one clock, no new invoice.
 - Private identity stays outside worker views; Team adds validate explicit roles and role-required identity via `team-required.core.ts` before the atomic RPC; other adds delete workers if required identity fails. Non-required identity rows are never manufactured. Reads are own-business-admin/office only. Same-start ESC updates keep prior notice time/ID. Why: prevent DOB disclosure, implicit roles and false late-notice holds.
 - Applied SQL is journaled in `drizzle/migrations/`; archive approved originals in `docs/applied-migrations/` and point practice proofs at journaled files. The 2 Nov releases applied 0183–0186; saved-work SQL remains blocked/pending. Why: prevent reapplication while preserving staged booking fallback.
 - SIM captures providers with a scoped clock; mocks are not whole-job proof. Why: honest evidence.

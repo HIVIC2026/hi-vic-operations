@@ -80,15 +80,15 @@ describe("J3 (3): a held own-customer PIESA cost is unknown on the Money card, n
 });
 
 describe("office installer payout date = installer's payState (audit F19)", () => {
-  test("A1 job, owner pays in full AFTER AP approval → due 7 days after the owner's payment (not AP + 7)", async () => {
+  test("A1 job, owner pays in full AFTER AP approval → due the moment the owner paid (Part 5b: no 7 days added, not AP + 7)", async () => {
     seed("installer_sourced", { status: "fully_paid", balance_paid_at: OWNER_PAID, paid_at: null, updated_at: OWNER_PAID });
     const r = await moneyPayouts();
     expect(r.held).toEqual([]);
     expect(r.due).toHaveLength(1);
-    expect(r.due[0]!.dueAt).toBe(day7(OWNER_PAID));
+    expect(r.due[0]!.dueAt).toBe(OWNER_PAID);
     expect(r.due[0]!.dueAt).not.toBe(day7(AP));
     // the installer's own screen says the same
-    expect(payState({ paidAt: null, apApprovedAt: AP, installerSupplied: true, ownerPaidInFullAt: OWNER_PAID })).toEqual({ kind: "coming", on: day7(OWNER_PAID) });
+    expect(payState({ paidAt: null, apApprovedAt: AP, installerSupplied: true, ownerPaidInFullAt: OWNER_PAID })).toEqual({ kind: "coming", on: OWNER_PAID });
   });
   test("A1 job, owner not paid in full yet → Held with the waiting reason, no due date", async () => {
     seed("installer_sourced", { status: "deposit_paid", balance_paid_at: null, paid_at: null, updated_at: AP });

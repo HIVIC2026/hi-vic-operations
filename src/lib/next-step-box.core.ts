@@ -6,6 +6,8 @@ import { melbourneYmd } from "./piesa-windows.core";
 import type { AccessPerson } from "./rental-answers.core";
 import { QUOTE_PRICE_NEXT_LINE, OWN_CUSTOMER_QUOTE_PREPARING_LINE } from "./installer-quote-status.core";
 import { READY_CHECK_PERSON_WORDS } from "./ready-check-person.core";
+// Lead Installer lock: the ONE rule lives in lead-installer-lock.core (re-exported by prestart.core); this screen only shows it.
+import { LEAD_LOCKED_MESSAGE, leadInstallerLock, leadInstallerLocked } from "./lead-installer-lock.core";
 
 export type NextStepFacts = {
   channel: string | null; stage: string; ownerFirst: string | null;
@@ -43,7 +45,7 @@ export const NEXT_STEP_WORDS = {
   bookInstallTitle: "Book the install", // approved (plan Task 3 table)
   bookInstallButton: "Book the install", // approved (plan Task 3 table)
   uploadCertificateTitle: "Upload the Certificate of Electrical Safety", // DRAFT
-  lockedLine: "Locked: ESC has been told. Email us to move this install.", // approved (Global Constraints)
+  lockedLine: LEAD_LOCKED_MESSAGE, // Deep Part 5a (Jo 4–5 Nov 2026): the ONE lock line, lead-installer-lock.core
   beforeUpgradesWarn: "Electrical upgrades aren't done yet. The install can't start until the Part C and certificate are in.", // approved (Part 9 Task 10 text in the plan)
   readyCheckLine: (when: string) => `Ready Check · ${when}`, // approved (plan Task 3 table)
   stillNeeds: (items: string) => `Still needs: ${items}`, // approved (plan Task 3 table)
@@ -76,16 +78,13 @@ export const NEXT_STEP_WORDS = {
   installLockedTitle: "Install locked in", // DRAFT
   afterInstallTitle: "Install done", // DRAFT
   paidSub: (date: string) => `Paid ✓ ${date}`, // approved (plan Task 3 table)
-  hivicPaySub: (money: string) => `Your ${money} is paid 7 days after we approve the install paperwork.`, // DRAFT sentence from the approved Money line
-  ownPaySub: (money: string, name: string) => `Your ${money} is paid once ${name} has paid in full.`, // DRAFT sentence from the approved Money line
+  hivicPaySub: (money: string) => `Your ${money} is paid 7 days after Home Insulation Victoria approves the paperwork.`, // Part 5b (Jo 1–5 Nov 2026): leads
+  ownPaySub: (money: string, name: string) => `You're paid your ${money} once ${name} has paid in full.`, // Part 5b (Jo 1–5 Nov 2026): own customers, no 7-day wording
   closedTitle: "Closed", // DRAFT
   theOwner: "the owner", // DRAFT
   theOwnersPossessive: "The owner's", // approved (plan Task 3 table)
 } as const;
 const W = NEXT_STEP_WORDS;
-
-// ---- Lead Installer lock: the ONE rule lives in prestart.core (Part 9 Task 9); this screen only shows it ----------
-import { leadInstallerLock, leadInstallerLocked } from "./lead-installer-lock.core";
 
 // ---- Formatting (Melbourne) -----------------------------------------------------------------------------------------
 const fmtDayMonth = (ymd: string): string => fmtDay(ymd).split(" ").slice(1).join(" ");

@@ -399,9 +399,12 @@ export async function bookFromElectricianLink(token: string, kind: "assessment" 
     const wf = await import("./workflow.server");
     await wf.logEvent(jobId, null, ELECTRICIAN_LINK_BOOKED_EVENT, `${kind === "assessment" ? "Safety check" : "Upgrades day"} booked from the electrician's link`, { kind, start, worker_id: w.id }, { internal: true })
       .catch((e) => console.error("Electrician link booking not logged", (e as Error).message));
-    // The owner's "You're booked" (PIESA) notice: the existing in-house path (held unless the job is an in-house one; TEST jobs go to test-send inside it).
-    if (kind === "assessment") {
-      await (await import("./in-house-booking.server")).notifyOwnerBooked(jobId, "piesa", start, { id: w.id, name: w.full_legal_name ?? "", phone: w.mobile ?? null })
+    // The owner's "You're booked" notice — PIESA, or (Deep Part 4(b)) the electrical upgrades day — through the existing
+    // in-house path (its own gate per channel; TEST jobs go to test-send inside it).
+    {
+      const { bookingNoticeKindFor } = await import("./in-house-booking.core");
+      const noticeKind = bookingNoticeKindFor(kind);
+      if (noticeKind) await (await import("./in-house-booking.server")).notifyOwnerBooked(jobId, noticeKind, start, { id: w.id, name: w.full_legal_name ?? "", phone: w.mobile ?? null })
         .catch((e) => console.error("Booking confirmation held", (e as Error).message));
     }
     return { ok: true as const, start };

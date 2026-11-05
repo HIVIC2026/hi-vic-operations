@@ -10,8 +10,8 @@ export const MONEY_WORDS = {
   sub: "What's coming to you and what's been paid.", // approved
   coming: "COMING TO YOU", // approved
   paidThisMonth: "PAID THIS MONTH", // approved
-  hivicRule: "Paid 7 days after we approve the install paperwork", // approved (decisions 109/344: 7 days after AP approval)
-  ownRule: (first: string) => `Paid once ${first} has paid in full`, // approved (own customers: after the owner pays in full)
+  hivicRule: "Paid 7 days after Home Insulation Victoria approves the paperwork", // Part 5b (Jo 1–5 Nov 2026): leads, 7 days after approval
+  ownRule: (first: string) => `You're paid once ${first} has paid in full`, // Part 5b: own customers, no 7-day wording
   piesaRule: "Paid 7 days after we approve the PIESA form", // DRAFT (decision 410 timing: 7 days after the office approves the completed Mitti form)
   installPay: "install pay", // approved (row title)
   piesaPay: "PIESA pay", // approved (row title)

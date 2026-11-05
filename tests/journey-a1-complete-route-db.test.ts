@@ -764,23 +764,22 @@ describe("A1 step 9b — the upgrades day: the A4 form, Part C and the certifica
   });
 });
 
-describe("A1 step 9c — two days before and the morning of the install: the Lead confirm email, the 5pm lock, the 6:30 text (Part 7) — after the upgrades day changed the safety plan, the Lead signs it again", () => {
-  test("9am two days before: ONE \"Confirm or change your Lead Installer by 5pm today\" email to the installer office; the Lead locks at 5pm", async () => {
+describe("A1 step 9c — three and two days before and the morning of the install: the Lead Installer reminder (Part 5a), the 2-day lock, the 6:30 text (Part 7) — after the upgrades day changed the safety plan, the Lead signs it again", () => {
+  test("Part 5a: a Lead Installer is picked, so the 3-day \"Pick the Lead Installer\" reminder sends nothing and raises no office flag; the Lead locks 2 days before the 8am start", async () => {
     const lc = await import("../src/lib/lead-installer-confirm.server");
-    const twoDaysBefore = new Date(`${installDay()}T09:05:00+11:00`); twoDaysBefore.setDate(twoDaysBefore.getDate() - 2);
+    const lr = await import("../src/lib/lead-installer-reminder.server");
+    const threeDaysBefore = new Date(`${installDay()}T08:05:00+11:00`); threeDaysBefore.setDate(threeDaysBefore.getDate() - 3);
     const n0 = providers.emails.length;
-    expect(await lc.sweepLeadInstallerConfirm(twoDaysBefore)).toEqual({ checked: 1, sent: 1, held: 0 });
-    expect(await lc.sweepLeadInstallerConfirm(twoDaysBefore)).toEqual({ checked: 1, sent: 0, held: 0 });
-    const sent = providers.emails.slice(n0);
-    expect(sent.map((e) => [e.to, e.subject])).toEqual([[[OWNER_EMAIL], "[TEST] HV-3300: Confirm or change your Lead Installer by 5pm today"]]);
-    expect(sent[0]!.text).toContain(`would have gone to: ${TRADE_EMAIL}`);
-    expect(sent[0]!.text).toContain("Lead Installer: Ivy Installer");
-    expect(sent[0]!.text).not.toMatch(/\$\s?\d/);
-    expect((await lc.leadInstallerLockState(JOB, twoDaysBefore)).locked).toBe(false);
-    const after5pm = new Date(twoDaysBefore); after5pm.setHours(after5pm.getHours() + 8);
-    expect((await lc.leadInstallerLockState(JOB, after5pm)).locked).toBe(true);
+    expect(await lr.sweepLeadInstallerReminder(threeDaysBefore)).toEqual({ checked: 1, sent: 0, held: 0, flagged: 0 });
+    expect(providers.emails.slice(n0)).toHaveLength(0);
+    expect(await events(JOB, "no_lead_installer")).toHaveLength(0);
+    const beforeLock = new Date(`${installDay()}T07:55:00+11:00`); beforeLock.setDate(beforeLock.getDate() - 2);
+    expect((await lc.leadInstallerLockState(JOB, beforeLock)).locked).toBe(false);
+    const afterLock = new Date(`${installDay()}T08:05:00+11:00`); afterLock.setDate(afterLock.getDate() - 2);
+    expect((await lc.leadInstallerLockState(JOB, afterLock)).locked).toBe(true);
+    expect(await lr.sweepLeadInstallerReminder(afterLock)).toEqual({ checked: 1, sent: 0, held: 0, flagged: 0 });
     // Locked: the install can't be moved or given another Lead through the in-house writer.
-    await expect((await import("../src/lib/lead-installer-confirm.server")).assertLeadInstallerUnlocked(JOB, { newStart: new Date(`${installDay()}T09:00:00+11:00`).toISOString(), newLeadId: LEAD }, after5pm)).rejects.toThrow();
+    await expect(lc.assertLeadInstallerUnlocked(JOB, { newStart: new Date(`${installDay()}T09:00:00+11:00`).toISOString(), newLeadId: LEAD }, afterLock)).rejects.toThrow();
   });
   test("6:30am on the day: the jobs text goes ONLY to workers who have not signed the safety plan — the Lead gets it with their sign link; after signing on the link, nothing more", async () => {
     const dm = await import("../src/lib/daily-mitti-text.server");
