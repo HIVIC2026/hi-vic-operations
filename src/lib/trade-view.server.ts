@@ -1410,6 +1410,8 @@ export type HandBackDeps = {
   requireEscWithdrawal: ((jobId: string, reason: "owner_cancelled" | "cant_do_this_one" | "address_changed", actorId: string | null) => Promise<number>) | null;
   queueVisitCancelledOwnerEmail: (jobId: string, bookingId: string, by: "installer" | "electrician") => Promise<string>;
   logEvent: typeof logEvent;
+  /** Photo-quote installers: refusal once the photo job's quote exists (null = allowed). Missing = not checked (old fixtures). */
+  photoQuoteLock?: (jobId: string) => Promise<string | null>;
 };
 async function handBackDeps(): Promise<HandBackDeps> {
   return {
@@ -1421,6 +1423,7 @@ async function handBackDeps(): Promise<HandBackDeps> {
     requireEscWithdrawal: (await import("./esc.server")).requireEscWithdrawal,
     queueVisitCancelledOwnerEmail: (await import("./visit-cancelled-owner.server")).queueVisitCancelledOwnerEmail,
     logEvent,
+    photoQuoteLock: async (jobId) => (await import("./photo-quote.server")).photoQuoteHandBackBlocker(jobId),
   };
 }
 
@@ -1431,6 +1434,9 @@ async function handBackDeps(): Promise<HandBackDeps> {
 export async function handBackJob(jobId: string, actorId: string, reason: string, deps?: HandBackDeps, now = new Date()): Promise<{ ok: true }> {
   const d = deps ?? (await handBackDeps());
   await d.bookingTeam(jobId, actorId);
+  // Photo-quote installers (Jo 5 Nov 2026): once the photo quote's quote exists it stands; the job can't be handed back.
+  const locked = d.photoQuoteLock ? await d.photoQuoteLock(jobId) : null;
+  if (locked) throw new WorkflowError(locked);
   const booked = await d.stillConfirmedBookings(jobId).catch(async (e) => { await logTradeFollowUpFailed(jobId, actorId, "read booked visits", e); return []; });
   await d.pullBackInHouseJob({ jobId, actorId, reason });
   await d.finishInHouseHandback(jobId, actorId).catch((e) => console.error("Handback cleanup pending", e));

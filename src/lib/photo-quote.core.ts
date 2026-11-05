@@ -43,6 +43,8 @@ export const PHOTO_QUOTE_WORDS = {
   overR2: "Over R2 isn't eligible. Use Can't do this one.",
   footnote: (installer: string) => `Your quote uses what ${installer} worked out from your photos.`,
   quoteGone: "The quote has gone. Email us if something's wrong.",
+  alreadySent: "This photo quote was already sent. Email us if something's wrong.",
+  notReady: "This job isn't waiting for a photo quote.",
   paperworkStep: "Photo quote",
   overdueFlag: "Photo quote not sent after 2 business days",
   giveEmailDue: "Quote each one from the owner's photos within 2 business days.",
