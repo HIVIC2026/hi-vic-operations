@@ -52,6 +52,7 @@ import { ReadyCheckPhotos } from "@/components/portal/ReadyCheckPhotos";
 import { nextLine } from "@/lib/add-job-flow.core";
 import { NO_LOGIN_NEEDED } from "@/lib/trade-access-role.core";
 import { onsiteFormStatus } from "@/lib/onsite-ready-check.functions";
+import { installerJobSections } from "@/lib/installer-job-sections.core";
 
 function PendingReadyCheckForm({ jobId }: { jobId: string }) {
   const read = useServerFn(onsiteFormStatus);
@@ -311,7 +312,7 @@ function useInstallerPage(jobId: string, enabled = true) {
 /** A folded row (jobA3-1/2): closed until tapped. */
 function Fold({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <details className={`${card} group`} data-fold={title}>
+    <details className={`${card.replace("p-[19px]", "px-[19px] py-2")} group min-w-0`} data-fold={title}>
       <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between font-display text-[15px] font-semibold">
         {title}
         <span aria-hidden className="text-xl text-sub transition group-open:rotate-90">›</span>
@@ -366,6 +367,8 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
   const showPrice = (page.channel === "installer_sourced" && page.prices && (box.kind === "enter_price" || box.kind === "waiting_quote")) || priceOpenEarly;
   const ownReadyCheck = page.channel === "installer_sourced" && page.prices && (showPrice || box.kind === "own_ready_check");
   const mittiAudit = page.form.auditId;
+  const ownCustomer = page.channel === "installer_sourced";
+  const sections = installerJobSections({ ownCustomer, quoteSent: page.quote?.sent === true || page.quote?.accepted === true, siteNotes: page.rows.siteNotes, jobDetails: page.rows.jobDetails });
   return (
     <div className="space-y-4" data-installer-job>
       <Link to="/field" className="inline-flex items-center text-sm font-bold text-estimate-blue">
@@ -411,8 +414,8 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
         <p className="text-[15px] font-semibold text-ink" data-added-next>{nextLine(page.ownerFirst ?? "the owner")}</p>
       )}
 
-      <div className="grid items-start gap-4 md:grid-cols-2">
-        <div className="md:col-start-1 md:row-span-3 md:row-start-1">
+      <div className="flex min-w-0 flex-col gap-3">
+        <div className="min-w-0" data-job-section="Next step">
         {ownReadyCheck ? <OwnCustomerReadyCheckChoice jobId={jobId} auditId={mittiAudit} /> : <NextStepBox
           jobId={jobId}
           box={box}
@@ -458,7 +461,6 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
             </div>
           )}
         </NextStepBox>}
-        {!ownReadyCheck && page.channel === 'installer_sourced' && page.prices && <OwnerQuoteCard jobId={jobId} ownCustomerStatus />}
         {showPrice && !ownReadyCheck && (
           <section className={`${card} mt-4 min-w-0`} aria-label="Your price" data-price-early={priceOpenEarly ? "true" : undefined}>
             {priceOpenEarly && <p className="mb-2 text-sm text-sub">Enter your price and send it to Home Insulation Victoria to prepare the quote. The Mitti form can still have blanks.</p>}
@@ -468,38 +470,39 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
         {/* #134 (Jo 3 Nov 2026): a Mitti pickup still waiting for the installer's one electrician answer — kept at the 4 Nov join
             (no Part 5 equivalent for Mitti pickups); the card renders nothing once answered. */}
         {page.channel === "installer_sourced" && <MittiElectricianCard jobId={jobId} />}
-        <ReadyCheckPhotos jobId={jobId} quietOnError />
         </div>
 
-        <div className="md:col-start-2 md:row-start-1">
+        <div className="min-w-0">
           <Fold title="Owner">
             <FoldRows rows={page.rows.owner} empty="Owner details show once the job is yours to visit." />
+            {page.rows.owner.length > 0 && job.property_address && <FoldRows rows={[["Address", job.property_address]]} empty={FOLD_EMPTY} />}
+            {sections.notes.length > 0 && <div className="mt-3" data-visit-notes>
+              <h3 className="text-sm font-semibold text-ink">Notes for the visit</h3>
+              <FoldRows rows={sections.notes} empty={FOLD_EMPTY} />
+            </div>}
             {job.owner_phone && (
               <ContactButtons phone={job.owner_phone} address={job.owner_name ? job.property_address : null} />
             )}
+            {inHouseAccess.data?.allowed === true && <ReturnActions jobId={jobId} ownCustomer={ownCustomer} />}
           </Fold>
         </div>
-        <div className="md:col-start-1 md:row-start-4">
+        {!ownCustomer && <div className="min-w-0">
           <Fold title="Visits">
             <FoldRows rows={page.rows.visits} empty={FOLD_EMPTY} />
           </Fold>
-        </div>
-        <div className="md:col-start-2 md:row-start-2">
-          <Fold title="Site notes">
-            <FoldRows rows={page.rows.siteNotes} empty={FOLD_EMPTY} />
+        </div>}
+        {sections.money.length > 0 && <div className="min-w-0">
+          <Fold title="Money">
+            <FoldRows rows={sections.money} empty={FOLD_EMPTY} />
           </Fold>
-        </div>
-        <div className="md:col-start-2 md:row-start-3">
-          <Fold title="Job details">
-            <FoldRows rows={page.rows.jobDetails} empty={FOLD_EMPTY} />
-          </Fold>
-        </div>
-        <div className="md:col-start-2 md:row-start-4">
+        </div>}
+        <div className="min-w-0">
           <Fold title="What the owner's been told">
             <FoldRows rows={page.rows.ownerTold} empty={page.channel === 'installer_sourced' ? "Nothing yet. The first message to the owner is the quote from Home Insulation Victoria." : FOLD_EMPTY} />
+            {!ownReadyCheck && ownCustomer && page.prices && <OwnerQuoteCard jobId={jobId} ownCustomerStatus />}
           </Fold>
         </div>
-        <div className="md:col-start-2 md:row-start-5">
+        <div className="min-w-0">
           <Fold title="Paperwork">
             <ul data-paperwork>
               {page.rows.paperwork.map((r) => (
@@ -512,13 +515,9 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
               ))}
             </ul>
             <SafetyPlanCard jobId={jobId} />
+            <ReadyCheckPhotos jobId={jobId} quietOnError />
           </Fold>
         </div>
-        {inHouseAccess.data?.allowed === true && (
-          <div className="md:col-start-1 md:row-start-5">
-            <ReturnActions jobId={jobId} ownCustomer={page.channel === 'installer_sourced'} />
-          </div>
-        )}
       </div>
     </div>
   );
