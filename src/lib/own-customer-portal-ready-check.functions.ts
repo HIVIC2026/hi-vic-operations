@@ -7,6 +7,10 @@ export const saveOwnCustomerReadyCheck = createServerFn({method:'POST'}).middlew
  .inputValidator(d=>z.object({jobId:z.string().uuid(),values:portalReadyCheckSchema}).parse(d))
  .handler(async({data,context})=> (await import('./own-customer-portal-ready-check.server')).savePortalReadyCheck(data.jobId,context.userId,data.values));
 
+export const getOwnCustomerReadyCheck = createServerFn({method:'POST'}).middleware([requireSupabaseAuth])
+ .inputValidator(d=>z.object({jobId:z.string().uuid()}).parse(d))
+ .handler(async({data,context})=>(await import('./own-customer-portal-ready-check.server')).readPortalReadyCheck(data.jobId,context.userId));
+
 export const portalReadyCheckUpload = createServerFn({method:'POST'}).middleware([requireSupabaseAuth])
  .inputValidator(d=>z.object({jobId:z.string().uuid(),file:z.preprocess(v=>({...v as object,path:'upload'}),portalRcFile)}).parse(d))
  .handler(async({data,context})=>{

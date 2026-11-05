@@ -44,6 +44,7 @@ import { ContactButtons, Group, LinkRow, NextPanel, NoFormNoPay, Row, Screen, Sc
 import { completeView, ownerReadyLine } from "@/lib/installer-screens.core";
 import { InstallerPriceCard } from "@/components/trade/InstallerPriceCard";
 import { OwnCustomerReadyCheckChoice } from "@/components/trade/OwnCustomerReadyCheckChoice";
+import { PortalReadyCheckView } from '@/components/trade/PortalReadyCheckView';
 import { ELECTRICIAN_ATTENDANCE_CONFIRMED } from "@/lib/trade-view.core";
 import { ReturnActions, useInHouseBookingAccess } from "@/components/trade/ReturnActions";
 import { MittiElectricianCard } from "@/components/trade/mitti-electrician-card";
@@ -495,7 +496,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
         </div>
         <div className="md:col-start-2 md:row-start-4">
           <Fold title="What the owner's been told">
-            <FoldRows rows={page.rows.ownerTold} empty={FOLD_EMPTY} />
+            <FoldRows rows={page.rows.ownerTold} empty={page.channel === 'installer_sourced' ? "Nothing yet. The first message to the owner is the quote from Home Insulation Victoria." : FOLD_EMPTY} />
           </Fold>
         </div>
         <div className="md:col-start-2 md:row-start-5">
@@ -504,8 +505,8 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
               {page.rows.paperwork.map((r) => (
                 <li key={r.label} className="flex flex-wrap items-center justify-between gap-x-4 border-b border-line py-2.5 text-[15px] last:border-b-0">
                   <span>{r.label}</span>
-                  <span className={r.ready ? "font-medium text-hiv-green" : "text-sub"}>
-                    {r.ready ? paperworkLink(r.label, page.form.auditId, page.install.form.auditId, jobId) : r.note}
+                  <span className={`min-w-0 ${r.ready ? "font-medium text-hiv-green" : "text-sub"}`}>
+                    {r.label === 'Ready Check' ? <span className="flex flex-wrap items-center gap-x-3"><span>{r.note}</span>{r.ready && (r.source === 'portal' ? <PortalReadyCheckView jobId={jobId} /> : paperworkLink(r.label,page.form.auditId,page.install.form.auditId,jobId))}</span> : r.ready ? paperworkLink(r.label, page.form.auditId, page.install.form.auditId, jobId) : r.note}
                   </span>
                 </li>
               ))}
@@ -515,7 +516,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
         </div>
         {inHouseAccess.data?.allowed === true && (
           <div className="md:col-start-1 md:row-start-5">
-            <ReturnActions jobId={jobId} />
+            <ReturnActions jobId={jobId} ownCustomer={page.channel === 'installer_sourced'} />
           </div>
         )}
       </div>
@@ -527,7 +528,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
  *  Jo 5 Nov 2026 (HV-3117): the Ready Check report row also opens the portal's saved PDF (photos included), for installers
  *  without a Mitti login. */
 function paperworkLink(label: string, readyCheckAudit: string | null, installAudit: string | null, jobId: string) {
-  const isReadyCheck = label.startsWith("Ready Check report");
+  const isReadyCheck = label === 'Ready Check' || label.startsWith("Ready Check report");
   const audit = isReadyCheck ? readyCheckAudit : label.startsWith("Install form") ? installAudit : null;
   if (!audit) return "Ready ✓";
   return (

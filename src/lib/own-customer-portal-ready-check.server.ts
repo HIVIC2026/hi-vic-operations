@@ -6,6 +6,17 @@ import { PRE_READY_CHECK_STAGES } from './installer-new-jobs.core';
 
 const PORTAL_RC_STAGES = [...PRE_READY_CHECK_STAGES, 'ready_check_complete', 'measured_estimate_ready', 'awaiting_quote_acceptance'] as const;
 
+/** Read-only submitted details; uses the same business/job boundary as the rest of the trade page. */
+export async function readPortalReadyCheck(jobId: string, userId: string) {
+ await (await import('./trade-view.server')).requireTradeJob(userId,jobId);
+ const {data:measurement,error}=await db.from('ceiling_measurements').select('external_source,raw_snapshot').eq('job_id',jobId).eq('is_current',true).maybeSingle();
+ if(error || measurement?.external_source !== PORTAL_READY_CHECK_SOURCE) throw Error('The portal Ready Check is not available.');
+ const price=await (await import('./installer-price.server')).readInstallerPrice(jobId);
+ if(!price?.sendToQuote) throw Error('The Ready Check has not been sent for quote yet.');
+ const entries=Array.isArray(measurement.raw_snapshot)?measurement.raw_snapshot as {label:string;value:string|null}[]:[];
+ return {submittedAt:price.setAt,entries:entries.filter(e=>e.value != null && String(e.value).trim() !== '' && !/quoted price|price inc GST/i.test(e.label))};
+}
+
 export async function requirePortalReadyCheck(jobId: string, userId: string) {
  const { data: job, error } = await db.from('jobs').select('channel, originating_installer_business_id, stage, deleted_at, qa_archived_at').eq('id', jobId).maybeSingle();
  if (error || !job || job.channel !== 'installer_sourced' || !job.originating_installer_business_id || job.deleted_at || job.qa_archived_at) throw Error('This job is not available.');

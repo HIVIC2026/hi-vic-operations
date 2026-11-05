@@ -1592,7 +1592,8 @@ function installerJobPageParts(i: {
   /** G7: who's going to the Ready Check — null = booked with "Not sure yet", nobody picked; undefined = nothing recorded. */
   readyCheckPerson?: string | null | undefined;
   a: { status: string | null; piesa_outcome: string | null; hazards?: string | null } | null;
-  m: { measured_area_m2: number | string | null; removal_m2: number | string | null; removal_required: boolean | null; access_difficulty: string | null; raw_snapshot: unknown } | null;
+  m: { measured_area_m2: number | string | null; removal_m2: number | string | null; removal_required: boolean | null; access_difficulty: string | null; raw_snapshot: unknown; external_source?: string | null; completed_at?: string | null } | null;
+  readyCheckSubmittedAt?: string | null;
   form: { auditId: string | null; complete: boolean }; clearance: { cleared: boolean };
   quote: { declined?: boolean; accepted?: boolean; sent?: boolean }; qq: { accepted_at?: string | null } | null; pay: number | null; elecName: string | null;
   piesaRec: { outcome: string | null; rectification_completed_at: string | null; section_c_signed_at: string | null } | null;
@@ -1678,7 +1679,7 @@ function installerJobPageParts(i: {
   const owner = showContact ? ownerRows({ name: ownerName, phone: ownerPhone, email: j?.owners?.email?.trim() || null, access: i.accessPerson }) : [];
   const installBooked = !!i.inBook && i.inBook.status !== "cancelled";
   const paperwork = paperworkRows({
-    readyCheckReport: readyCheckDone, signedPiesa: piesaDone, ownerConsent: i.consentSigned, safetyPlan: !!i.swmsRead, installForm: !!i.form.auditId, installBooked,
+    readyCheckReport: ownCustomer ? !!i.readyCheckSubmittedAt : readyCheckDone, readyCheckSource: i.m?.external_source === 'portal_ready_check' ? 'portal' : 'mitti', readyCheckSubmittedAt: i.readyCheckSubmittedAt ?? i.m?.completed_at ?? null, signedPiesa: i.a?.status === 'complete', ownerConsent: i.consentSigned, safetyPlan: !!i.swmsRead, installForm: !!i.form.auditId, installBooked,
   });
   const visits = visitsRows({ readyCheck: i.rcBook?.scheduled_start ?? null, piesa: i.piesaBook?.scheduled_start ?? null, install: i.inBook?.scheduled_start ?? null });
   return {
@@ -1704,7 +1705,7 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
   // Decision 251: the owner's side is read only once the install is booked (the M2-install-booked state); nothing is read before that.
   const ownerReadyP = early(inBookP.then(async ({ data: inBook }) => inBook?.status === "confirmed" ? await ownerReadyFacts(jobId).catch(() => null) : null));
   // Decision 278: only whether the boss has entered the price (true/false on the installer's own jobs, null otherwise).
-  const priceEnteredP = early(jobP.then(async ({ data: j }) => j?.channel === "installer_sourced" ? !!(await installerPriceServer.readInstallerPrice(jobId).catch(() => null)) : null));
+  const priceEnteredP = early(jobP.then(async ({ data: j }) => j?.channel === "installer_sourced" ? await installerPriceServer.readInstallerPrice(jobId).catch(() => null) : null));
   // Decision 296: the owner's PIESA confirmation; decision 327: the electrician at the start of the install day. Read only once cleared.
   const piesaConfirmedP = early(clearanceP.then((cl) => cl.cleared ? piesaOwnerConfirmServer.ownerPiesaConfirmedState(jobId).catch(() => null) : null));
   const attendanceP = early(clearanceP.then((cl) => cl.cleared ? installerAttendanceView(jobId).catch(() => null) : null));
@@ -1745,11 +1746,11 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
   const allocatedElecP = early(inHouseElectricianServer.allocatedWorkerId(jobId).then(async (id) => id ? (await admin.from("partner_workers").select("full_legal_name").eq("id", id).maybeSingle()).data : null).catch(() => null));
   const [{ data: j }, { data: rcBook }, { data: inBook }, { data: m }, { data: a }, rebateSigned, quote, pay, form, clearance, mitti, payRows,
     { data: declinedEv }, { data: basicsDone }, { data: piesaBooks }, { data: elecAsg }, { data: fixes }, { data: evEv }, { data: alloc }, { data: decl }, { data: finalAsg }, ownerReady, notes,
-    priceEntered, ownerPiesaConfirmed, electricianAttendance, released, { data: mineBk }, accessPerson, { data: piesaRec }, { data: sentRows }, ledger, depositPaid, { data: dl }, { data: given }, { data: consent }, { data: paidEv }, piesaPayRead, swmsRead, { data: quoteItemsRow }, whoBooks, coesOnFile, allocatedElec] = await Promise.all([
+    priceRecord, ownerPiesaConfirmed, electricianAttendance, released, { data: mineBk }, accessPerson, { data: piesaRec }, { data: sentRows }, ledger, depositPaid, { data: dl }, { data: given }, { data: consent }, { data: paidEv }, piesaPayRead, swmsRead, { data: quoteItemsRow }, whoBooks, coesOnFile, allocatedElec] = await Promise.all([
     jobP,
     admin.from("bookings").select("id, scheduled_start, status").eq("job_id", jobId).eq("kind", "ready_check").neq("status", "cancelled").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     inBookP,
-    admin.from("ceiling_measurements").select("measured_area_m2, removal_m2, removal_required, access_difficulty, raw_snapshot, external_source, external_id, zones").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
+    admin.from("ceiling_measurements").select("measured_area_m2, removal_m2, removal_required, access_difficulty, raw_snapshot, external_source, external_id, zones, completed_at").eq("job_id", jobId).eq("is_current", true).maybeSingle(),
     admin.from("assessments").select("status, piesa_outcome, completed_at, hazards, mitti_raw_snapshot").eq("job_id", jobId).maybeSingle(),
     rebateSignedByInstaller(jobId),
     shared ? shared.quote() : loadInstallerQuote(jobId),
@@ -1804,11 +1805,12 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
   const jobPage = installerJobPageParts({
     c, j: j as JobPageJob | null, rcBook, inBook, piesaBook, a, m, form, clearance, quote, qq, pay, elecName, piesaRec, accessPerson, mineBk: mineBk ?? [], released,
     readyCheckPerson: rcPerson.pending ? null : rcPerson.name ?? undefined,
+    readyCheckSubmittedAt: priceRecord?.sendToQuote ? priceRecord.setAt : null,
     sentRows: sentRows ?? [], ledger, depositPaid, deadline: dl?.install_deadline ? String(dl.install_deadline) : null, givenAt: (given as { assigned_at?: string | null } | null)?.assigned_at ?? null,
     consentSigned: !!consent, paidEv: (paidEv ?? []) as { created_at: string; details: unknown }[], piesaPayRead, swmsRead, quoteItems: ((quoteItemsRow as unknown as { quote_items: unknown }[] | null)?.[0]?.quote_items as { code: string | null; description: string | null; sort: number | null; line_total_inc_gst?: number | string | null }[] | null) ?? [],
     // Part 10 Task 9 / I3: the quotes the Job details money rows read (own customers only; figures never shown to staff).
     quotesForMoney: ((quoteItemsRow as unknown as { status: string | null; created_at: string | null; customer_total_inc_gst: number | string | null; quote_items: { code: string | null; line_total_inc_gst: number | string | null }[] | null }[] | null) ?? []).map((q) => ({ status: q.status, created_at: q.created_at, customer_total_inc_gst: q.customer_total_inc_gst, items: q.quote_items ?? [] })),
-    priceEntered, notes, product, payRow, mittiCompleted: mitti.applies ? mitti.completed === true : false, needsFinishingItems: needsFinishingList(j?.next_action ?? ""), mittiMissing: mitti.applies ? mitti.missing : [],
+    priceEntered: j?.channel === 'installer_sourced' ? !!priceRecord : null, notes, product, payRow, mittiCompleted: mitti.applies ? mitti.completed === true : false, needsFinishingItems: needsFinishingList(j?.next_action ?? ""), mittiMissing: mitti.applies ? mitti.missing : [],
     whoBooks, coesOnFile,
   });
   return {
@@ -1823,7 +1825,7 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
       : { linked: false, auditId: null as string | null, completed: false, missing: [] as string[], stops: [] as string[], electrician: null as string | null, needsFinishing: null as string | null, needsFinishingItems: [] as string[], completedAt: null as string | null, hasAnswers: null as boolean | null },
     // Decision 278: only whether the boss has entered the price (true/false on the installer's own jobs, null otherwise).
     // The price itself is read by the boss-only card (installer-price.functions) and never travels with the page.
-    price: { entered: priceEntered },
+    price: { entered: j?.channel === 'installer_sourced' ? !!priceRecord : null },
     boss: c.boss,
     // Fix wave C2: the page branches on these (an Office person has no my_job_role answer).
     role: c.role, kind: c.kind,

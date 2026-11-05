@@ -1,3 +1,8 @@
+## Jo 5 Nov 7:24pm lower own-customer job page
+- [x] Paperwork shows Ready Check source/date and read-only portal details from submission; PIESA/consent availability no longer tied to install booking, SWMS/install form retain booking timing.
+- [x] Own-customer cancel only; exact owner-message empty text and PIESA-price label; lead return action preserved. Existing cancellation still uses canonical cancel + guarded info@ notice, not exercised because no sending authorised.
+- [x] 39 isolated focused checks pass including two-user read refusal; 390px TEST HV-3798 paperwork/view read back, no overflow/runtime errors. Real HV-3794 untouched; no sends/publication.
+
 ## Jo 5 Nov 7:21pm own-customer Ready Check replacement
 - [x] Replaced old price block with exact Ready Check choice/form and simple Mitti price submission; A2 leads unchanged. Protected TEST HV-3798 Send for quote saved and preparing status read back after reload.
 - [x] Preparing/sent/expiry/accepted dates and existing read-only quote display; installer email exact-copy builder is an unconnected approval-off draft, no delivery wiring activated.
