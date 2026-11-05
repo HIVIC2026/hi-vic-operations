@@ -1,6 +1,7 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
-import { TEAM_ADD_SHEET, TEAM_SIGN } from "../src/lib/trade-view.core";
+import * as tradeCore from "../src/lib/trade-view.core";
+import { TEAM_ADD_SHEET } from "../src/lib/trade-view.core";
 const src = (p: string) => readFileSync(p, "utf8");
 const team = src("src/routes/_authenticated/field.business_.team.tsx");
 
@@ -29,13 +30,15 @@ test("intro: the approved Team line for installers, electrician text for electri
   expect(team).not.toContain("TEAM_RULE");
   expect(team.split("TEAM_INTRO").length - 1).toBe(3); // import + heading + Add a person sheet
 });
-test("signing line", () => {
-  expect(TEAM_SIGN).toEqual({ due: "Not signed yet · can't go on jobs", needContact: "Add a mobile or email to send their signing link.", link: "Make signing link" });
-  expect(team).toContain("m.declarationsDue");
-  expect(team).toContain("TEAM_SIGN.due");
-  expect(team).toContain("TEAM_SIGN.needContact");
-  expect(team).toContain("label={TEAM_SIGN.link}");
-  expect(team).not.toMatch(/data\.kind === "installer"[^\n]*TEAM_SIGN/); // electricians who are due get the link too
+test("no signing line: nothing on Team asks a person to sign (Jo 5 Nov 2026)", () => {
+  expect((tradeCore as Record<string, unknown>)["TEAM_SIGN"]).toBeUndefined();
+  expect(team).not.toContain("declarationsDue");
+  expect(team).not.toContain("TEAM_SIGN");
+  expect(team).not.toContain("data-sign-due");
+  expect(TEAM_ADD_SHEET.bodyInstaller).not.toMatch(/sign|declaration/i);
+  expect(TEAM_ADD_SHEET.bodyElectrician).not.toMatch(/sign|declaration/i);
+  // The certificate link stays for an installer whose CII is not cleared.
+  expect(team).toContain("m.certNeeded &&");
 });
 test("old invite-only keys are gone", () => {
   for (const k of ["body", "fields", "inviteButton", "linkNote"]) expect(Object.keys(TEAM_ADD_SHEET)).not.toContain(k);
@@ -45,10 +48,11 @@ test("CertLinkInline takes an optional label", () => {
   expect(wc).toContain("{ workerId: string; name: string; label?: string }");
   expect(wc).toContain("label ??");
 });
-test("server and view carry declarationsDue", () => {
-  expect(src("src/lib/trade-view.core.ts")).toContain("declarationsDue: boolean");
+test("server and view no longer carry declarationsDue", () => {
+  expect(src("src/lib/trade-view.core.ts")).not.toContain("declarationsDue");
   const srv = src("src/lib/trade-view.server.ts");
-  expect(srv).toContain("declarationsDue:");
+  expect(srv).not.toContain("declarationsDue");
+  expect(srv).not.toContain("declarations_due: true");
   expect(srv).toContain("isMissingDbObject");
 });
 test("My business: Add a team member goes to Team", () => {

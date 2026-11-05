@@ -3,17 +3,23 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { withRequestMeta } from "./request-meta";
 import { hashToken, isTokenShape, newToken } from "./worker-links.core";
-import { INVITE_STATE_MESSAGE, WORKER_DECLARATIONS_VERSION, completionErrors, eecUploadMeta, hasEecUpload, inviteExpiry, inviteMode, inviteState, isInviteCertPath, mergeEec, signLinkBlocker, workerDeclarations, workerSubmissionErrors } from "./worker-invite.core";
+import { INVITE_STATE_MESSAGE, completionErrors, completionNeedsCert, eecUploadMeta, inviteExpiry, inviteMode, inviteState, isInviteCertPath, mergeEec, signLinkBlocker, workerSubmissionErrors } from "./worker-invite.core";
 
 type AdminDb = { from: (t: string) => any }; // eslint-disable-line @typescript-eslint/no-explicit-any
-/** One partner_workers row with `declarations_due`. Until 0230 is live the column is missing: re-read without it and
- *  treat the person as not due (preflight ruling 10). */
-async function workerWithDue<T>(admin: AdminDb, id: string, cols: string): Promise<(T & { declarations_due: boolean }) | null> {
-  const load = (c: string) => admin.from("partner_workers").select(c).eq("id", id).maybeSingle();
-  let { data, error } = await load(`${cols}, declarations_due`);
-  if (error && (await import("./schema-compat.core")).isMissingDbObject(error)) ({ data, error } = await load(cols));
-  if (error || !data) return null;
-  return { ...(data as T), declarations_due: (data as { declarations_due?: unknown }).declarations_due === true };
+/** One partner_workers row by id (no declarations flag: Jo 5 Nov 2026). */
+async function workerById<T>(admin: AdminDb, id: string, cols: string): Promise<T | null> {
+  const { data, error } = await admin.from("partner_workers").select(cols).eq("id", id).maybeSingle();
+  return error || !data ? null : (data as T);
+}
+
+const COMPLETION_GONE = "This completion link is no longer available. Ask the business owner for a new one.";
+const COMPLETION_NOTHING_MORE = "Your certificate is already with us. There's nothing more to do on this link.";
+/** The words a completion link is refused with (null = usable): removed people and electricians (old signing links) get
+ *  "no longer available"; a verified certificate says so. */
+function completionRefusal(w: { trade_role: string; removed_at: string | null; certification_status: string | null }): string | null {
+  if (w.removed_at || w.trade_role !== "installer") return COMPLETION_GONE;
+  if (w.certification_status === "verified") return "This certificate is already verified — nothing more to do.";
+  return null;
 }
 
 const uuid = z.string().uuid();
@@ -81,11 +87,13 @@ export const getWorkerInvite = createServerFn({ method: "POST" })
     const businessName = biz?.trading_name || biz?.name || "your business";
     const t = inv.trade_role as "electrician" | "installer";
     const mode = inviteMode(inv);
-    if (mode === "registration") return { ok: true as const, mode, inviteeName: inv.invitee_name, trade: t, businessName, declarations: workerDeclarations(t, businessName), needsCert: t === "installer" };
-    // Completion: people added on Team (declarations_due) sign the declarations here; the certificate only when missing.
-    const w = await workerWithDue<{ certification: unknown }>(admin as never, inv.worker_id!, "certification");
-    const due = w?.declarations_due === true;
-    return { ok: true as const, mode, inviteeName: inv.invitee_name, trade: t, businessName, declarations: due ? workerDeclarations(t, businessName) : [], needsCert: t === "installer" && !hasEecUpload(w?.certification) };
+    if (mode === "registration") return { ok: true as const, mode, inviteeName: inv.invitee_name, trade: t, businessName, needsCert: t === "installer" };
+    // Completion: the certificate only, and only when one is needed (Jo 5 Nov 2026: no declarations to sign).
+    const w = await workerById<{ trade_role: string; removed_at: string | null; certification_status: string | null; certification: unknown }>(admin as never, inv.worker_id!, "trade_role, removed_at, certification_status, certification");
+    if (!w) return { ok: false as const, message: COMPLETION_GONE };
+    const refusal = completionRefusal(w);
+    if (refusal) return { ok: false as const, message: refusal };
+    return { ok: true as const, mode, inviteeName: inv.invitee_name, trade: t, businessName, needsCert: completionNeedsCert(w) };
   });
 
 /** Verify the worker's certificate upload exists in private storage and the bytes match an accepted type. */
@@ -122,7 +130,7 @@ export const createWorkerCompletionLink = createServerFn({ method: "POST" }).mid
   .inputValidator((d) => z.object({ workerId: uuid }).parse(d))
   .handler(async ({ data, context }) => {
     const { supabaseAdmin: admin } = await import("@/integrations/supabase/client.server");
-    const w = await workerWithDue<{ id: string; business_id: string; full_legal_name: string; trade_role: string; removed_at: string | null; certification_status: string | null; email: string | null; mobile: string | null }>(admin as never, data.workerId, "id, business_id, full_legal_name, trade_role, removed_at, certification_status, email, mobile");
+    const w = await workerById<{ id: string; business_id: string; full_legal_name: string; trade_role: string; removed_at: string | null; certification_status: string | null; email: string | null; mobile: string | null }>(admin as never, data.workerId, "id, business_id, full_legal_name, trade_role, removed_at, certification_status, email, mobile");
     if (!w || w.removed_at) throw new Error("That team member wasn't found.");
     const { data: isAdmin } = await context.supabase.rpc("is_admin");
     if (isAdmin !== true) { const { requireMember } = await import("./pilot.server"); await requireMember(context.userId, w.business_id, true); }
@@ -137,25 +145,13 @@ export const createWorkerCompletionLink = createServerFn({ method: "POST" }).mid
     return { token };
   });
 
-/** The worker's signature is saved but `declarations_due` could not be cleared: log it and leave the office an
- *  admin_config_events row (`worker_declarations_due_clear_failed`) so they can clear it by hand. Never throws. */
-async function recordDeclarationsDueClearFailed(admin: AdminDb, workerId: string, inviteId: string, message: string) {
-  console.error(`[worker-invite] declarations signed on invite ${inviteId} but declarations_due not cleared for worker ${workerId}: ${message}`);
-  const { error } = await admin.from("admin_config_events").insert({
-    actor_id: null, event_type: "worker_declarations_due_clear_failed",
-    summary: "Worker signed their declarations but is still marked as due. Clear declarations_due for this worker.",
-    details: { worker_id: workerId, invite_id: inviteId, error: message },
-  });
-  if (error) console.error(`[worker-invite] could not record worker_declarations_due_clear_failed for worker ${workerId}: ${error.message}`);
-}
-
 export const submitWorkerInvite = createServerFn({ method: "POST" }).middleware([withRequestMeta])
   .inputValidator((d) => z.object({
     token: z.string(),
     full_legal_name: z.string().trim().max(200), mobile: z.string().trim().max(30), email: z.string().trim().toLowerCase().max(254),
     licence_number: z.string().trim().max(60).optional(), qualification: z.string().trim().max(200).optional(),
     certificate_path: z.string().trim().max(300).optional(), certificate_number: z.string().trim().max(60).optional(),
-    accepted: z.array(z.string().max(40)).max(20), signed_name: z.string().trim().max(200), date_of_birth: z.string().trim().max(10).optional(),
+    date_of_birth: z.string().trim().max(10).optional(),
   }).parse(d))
   .handler(async ({ data, context }) => {
     if (!isTokenShape(data.token)) return { ok: false as const, errors: ["This invite link isn't valid."] };
@@ -171,21 +167,18 @@ export const submitWorkerInvite = createServerFn({ method: "POST" }).middleware(
 
     // ---- Completion mode: an existing worker uploads their own missing certificate. Never inserts a worker. ----
     if (inviteMode(inv) === "completion") {
-      const w = await workerWithDue<{ id: string; trade_role: string; removed_at: string | null; certification_status: string | null; certification: unknown }>(admin as never, inv.worker_id!, "id, trade_role, removed_at, certification_status, certification");
-      const gone = ["This completion link is no longer available. Ask the business owner for a new one."];
-      if (!w || w.removed_at) return { ok: false as const, errors: gone };
-      const due = w.declarations_due;
-      // Electricians only ever get a link to sign their declarations; installers also for the certificate.
-      if (w.trade_role !== "installer" && !due) return { ok: false as const, errors: gone };
-      if (!due && w.certification_status === "verified") return { ok: false as const, errors: ["This certificate is already verified — nothing more to do."] };
-      const wt = w.trade_role as "electrician" | "installer";
-      const biz = inv.businesses as { name: string; trading_name: string | null } | null;
-      const decls = due ? workerDeclarations(wt, biz?.trading_name || biz?.name || "your business") : [];
-      // Certificate-only links keep today's rule (always asked); a signing link asks only when none is uploaded yet.
-      const needsCert = wt === "installer" && (!due || !hasEecUpload(w.certification));
-      const errors = completionErrors(data, { cert: needsCert, declarationKeys: decls.map((d) => d.key) });
-      if (errors.length) return { ok: false as const, errors };
+      const w = await workerById<{ id: string; trade_role: string; removed_at: string | null; certification_status: string | null; certification: unknown }>(admin as never, inv.worker_id!, "id, trade_role, removed_at, certification_status, certification");
+      // Completion links are certificate links for installers only (electricians' old signing links stop here).
+      if (!w) return { ok: false as const, errors: [COMPLETION_GONE] };
+      const refusal = completionRefusal(w);
+      if (refusal) return { ok: false as const, errors: [refusal] };
+      const needsCert = completionNeedsCert(w);
       const certPath = data.certificate_path?.trim() || null;
+      // Nothing to collect and no file sent: the link has no job to do. (A file sent anyway is taken, so a retry after a
+      // failed claim — the certificate is saved first — still works.)
+      if (!needsCert && !certPath) return { ok: false as const, errors: [COMPLETION_NOTHING_MORE] };
+      const errors = completionErrors(data, { cert: needsCert });
+      if (errors.length) return { ok: false as const, errors };
       if (certPath) {
         try {
           // The file must exist and be a valid type BEFORE the single-use link is consumed.
@@ -195,7 +188,7 @@ export const submitWorkerInvite = createServerFn({ method: "POST" }).middleware(
         }
       }
       // A used invite can never be updated again (0072 trigger `signed_worker_invite_immutable`), so the certificate is
-      // saved first, then ONE update claims the link and records the signature. Nothing touches the invite row after it.
+      // saved first, then ONE update claims the link. Nothing touches the invite row after it.
       if (certPath) {
         const { error: ue } = await admin.from("partner_workers").update({
           // certification_status stays 'unverified' — the office must verify. Existing JSON fields are preserved.
@@ -205,24 +198,14 @@ export const submitWorkerInvite = createServerFn({ method: "POST" }).middleware(
       }
       const { data: claimed, error: ce } = await admin.from("partner_worker_invites").update({
         used_at: now, signed_ip: context.ip, signed_user_agent: context.userAgent,
-        // Same signed record as registration.
-        ...(due ? { signed_name: data.signed_name, declarations: { version: WORKER_DECLARATIONS_VERSION, accepted: decls, signed_at: now } } : {}),
       }).eq("id", inv.id).is("used_at", null).is("revoked_at", null).select("id");
-      if (ce) return { ok: false as const, errors: [due ? "We couldn't save your signature. Please try again." : "We couldn't save your certificate. Please try again."] };
+      if (ce) return { ok: false as const, errors: ["We couldn't save your certificate. Please try again."] };
       if (!claimed?.length) return { ok: false as const, errors: ["This link has already been used."] };
-      if (due) {
-        // The signature is recorded; now the person is no longer held back from jobs. If this write fails the link is
-        // already used, so tell the office instead of failing the worker.
-        const { error: de } = await admin.from("partner_workers").update({ declarations_due: false } as never).eq("id", w.id);
-        if (de) await recordDeclarationsDueClearFailed(admin as never, w.id, inv.id, de.message);
-      }
       return { ok: true as const };
     }
 
-    // ---- Registration mode: full details + declarations (+ required certificate for installers). ----
-    const biz = inv.businesses as { name: string; trading_name: string | null } | null;
-    const decls = workerDeclarations(t, biz?.trading_name || biz?.name || "your business");
-    const errors = workerSubmissionErrors(t, data, decls.map((x) => x.key));
+    // ---- Registration mode: details (+ required certificate for installers). Jo 5 Nov 2026: no declarations, no signature. ----
+    const errors = workerSubmissionErrors(t, data);
     // Jo 3 Nov ~3pm: the sign-up link asks the worker's date of birth (required), stored privately for ESC registration.
     const { joinDateOfBirthProblem } = await import("./team-required.core");
     const dobProblem = joinDateOfBirthProblem(data.date_of_birth, (await import("./melbourne-time.core")).melbourneToday());
@@ -236,7 +219,7 @@ export const submitWorkerInvite = createServerFn({ method: "POST" }).middleware(
       }
     }
     // A used invite can never be updated again (0072 trigger `signed_worker_invite_immutable`): the worker and their
-    // date of birth are saved first, then ONE update claims the invite and records the signature. If that claim does
+    // date of birth are saved first, then ONE update claims the invite. If that claim does
     // not happen, the just-created worker is deleted (identity cascades). Never reset used_at.
     const { data: w, error } = await admin.from("partner_workers").insert({
       business_id: inv.business_id, full_legal_name: data.full_legal_name, email: data.email, mobile: data.mobile, trade_role: t,
@@ -259,8 +242,7 @@ export const submitWorkerInvite = createServerFn({ method: "POST" }).middleware(
       return { ok: false as const, errors: ["We couldn't save your details. Please try again."] };
     }
     const { data: claimed, error: ce } = await admin.from("partner_worker_invites").update({
-      used_at: now, worker_id: w.id, signed_name: data.signed_name, signed_ip: context.ip, signed_user_agent: context.userAgent,
-      declarations: { version: WORKER_DECLARATIONS_VERSION, accepted: decls, signed_at: now },
+      used_at: now, worker_id: w.id, signed_ip: context.ip, signed_user_agent: context.userAgent,
     }).eq("id", inv.id).is("used_at", null).is("revoked_at", null).select("id");
     if (ce || !claimed?.length) {
       await dropWorker();
