@@ -175,7 +175,7 @@ export function Veec({ jobId }: { jobId: string }) {
 function VeecQueryReply({ jobId, draft, sentAt }: { jobId: string; draft: string; sentAt: string | null }) {
   const qc = useQueryClient();
   const gen = useAction(draftVeecReply);
-  const mark = useAction(markVeecReplySent);
+  const mark = useAction(markVeecReplySent, { name: "markVeecReplySent" });
   const [text, setText] = useState(draft);
   const [busy, setBusy] = useState(false);
   return (

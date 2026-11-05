@@ -185,7 +185,7 @@ function AttachmentList({ c }: { c: Correspondence }) {
 }
 
 function LogCommunication({ jobId }: { jobId: string }) {
-  const save = useAction(logCommunication);
+  const save = useAction(logCommunication, { name: "logCommunication" });
   const [f, setF] = useState({ channel: "phone" as "phone" | "email" | "sms" | "note" | "whatsapp" | "other", direction: "outbound" as "inbound" | "outbound" | "internal", party: "", subject: "", body: "", visibility: "internal" as "customer" | "trade" | "internal" });
   const [open, setOpen] = useState(false);
   if (!open) return <Button variant="outline" onClick={() => setOpen(true)}><Phone className="mr-1 h-4 w-4" /> Log phone call / external email</Button>;

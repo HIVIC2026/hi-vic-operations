@@ -496,7 +496,7 @@ export function HoldDialog({ h, open, onOpenChange }: { h: Header; open: boolean
 }
 
 export function LogNoteDialog({ h, open, onOpenChange }: { h: Header; open: boolean; onOpenChange: (v: boolean) => void }) {
-  const log = useAction(logOfficeCallOrNote);
+  const log = useAction(logOfficeCallOrNote, { name: "logOfficeCallOrNote" });
   const [what, setWhat] = useState<"call" | "note" | "email_received" | "text_received">("call");
   const [who, setWho] = useState<"owner" | "installer" | "electrician">("owner");
   const [said, setSaid] = useState("");

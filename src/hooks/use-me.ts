@@ -6,6 +6,7 @@ import { currentUser } from "@/lib/route-guards";
 import { readMyProfile, type ProfileClient } from "@/lib/my-profile";
 import { markOfficeChanged } from "@/lib/office-list-refresh";
 import { forgetHeadStarts } from "@/lib/trade-route-prefetch";
+import { isOptimistic } from "@/lib/optimistic.core";
 
 export type AppRole = "admin" | "qa_office" | "electrician" | "installer" | "owner" | "property_manager";
 
@@ -28,7 +29,10 @@ export function useMe() {
 }
 
 /** Run a server action with toast feedback and refresh all data. */
-export function useAction<TIn, TOut>(fn: (opts: { data: TIn }) => Promise<TOut>, options?: { refresh?: boolean }) {
+/** `name` (the server function's export name): an audited screen-only action (optimistic.core OPTIMISTIC_ALLOWED) finishes
+ *  once its own save is done and the screen refreshes in the background (portal speed step 2, Task 7); every other action
+ *  — Send, Give, Pay, Book, Cancel included — still waits for the save and the fresh screen, as before. */
+export function useAction<TIn, TOut>(fn: (opts: { data: TIn }) => Promise<TOut>, options?: { refresh?: boolean; name?: string }) {
   const call = useServerFn(fn as never) as unknown as (opts: { data: TIn }) => Promise<TOut>;
   const qc = useQueryClient();
   return async (data: TIn, success?: string): Promise<TOut | undefined> => {
@@ -37,7 +41,11 @@ export function useAction<TIn, TOut>(fn: (opts: { data: TIn }) => Promise<TOut>,
       forgetHeadStarts(); // a screen call started before this action must not be shown after it (trade-route-prefetch)
       markOfficeChanged(); // decision 383: the office lists work themselves out fresh on their next read
       if (success) toast.success(success);
-      if (options?.refresh !== false) await qc.invalidateQueries();
+      if (options?.refresh !== false) {
+        const refreshed = qc.invalidateQueries();
+        if (isOptimistic(options?.name)) void refreshed.catch(() => undefined);
+        else await refreshed;
+      }
       return out;
     } catch (e) {
       forgetHeadStarts(); // a failed action may still have changed something: screens ask afresh
