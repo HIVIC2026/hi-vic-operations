@@ -40,7 +40,7 @@ import { MittiFormLink } from "@/components/portal/MittiFormLink";
 import { ReadyCheckReportButton } from "@/components/trade/ReadyCheckReportButton";
 import { CheckMyFormButton } from "@/components/trade/CheckMyFormButton";
 import { NextStepBox } from "@/components/trade/NextStepBox";
-import { ContactButtons, Group, LinkRow, NextPanel, NoFormNoPay, Row, Screen, ScreenHead } from "@/components/trade/installer-kit";
+import { Group, LinkRow, NextPanel, NoFormNoPay, Row, Screen, ScreenHead } from "@/components/trade/installer-kit";
 import { completeView, ownerReadyLine } from "@/lib/installer-screens.core";
 import { OwnCustomerReadyCheckChoice } from "@/components/trade/OwnCustomerReadyCheckChoice";
 import { PortalReadyCheckView } from '@/components/trade/PortalReadyCheckView';
@@ -323,14 +323,18 @@ function Fold({ title, children }: { title: string; children: ReactNode }) {
 }
 
 /** Label / value rows inside a fold. A warned row is printed in the warning colour. */
-function FoldRows({ rows, empty }: { rows: ([string, string] | [string, string, boolean])[]; empty: string }) {
+function FoldRows({ rows, empty, contactLinks = false }: { rows: ([string, string] | [string, string, boolean])[]; empty: string; contactLinks?: boolean }) {
   if (!rows.length) return <p className="py-2 text-sm text-sub">{empty}</p>;
   return (
     <dl>
       {rows.map(([k, v, warn], i) => (
         <div key={k + i} className="flex flex-wrap justify-between gap-x-4 gap-y-0.5 border-b border-line py-2.5 text-[15px] last:border-b-0">
           <dt className="text-sub">{k}</dt>
-          <dd className={`min-w-0 break-words text-right font-medium ${warn ? "text-rose" : "text-ink"}`}>{v}</dd>
+          <dd className={`min-w-0 break-words text-right font-medium ${warn ? "text-rose" : "text-ink"}`}>
+            {contactLinks && (k === 'Phone' || k === 'Mobile' || k === 'Email' || k === 'Address') ? (
+              <a className="underline underline-offset-2" href={k === 'Email' ? `mailto:${v}` : k === 'Address' ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(v)}` : `tel:${v.replace(/\s/g, '')}`} {...(k === 'Address' ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>{v}</a>
+            ) : v}
+          </dd>
         </div>
       ))}
     </dl>
@@ -468,15 +472,12 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
 
         <div className="min-w-0">
           <Fold title="Owner">
-            <FoldRows rows={page.rows.owner} empty="Owner details show once the job is yours to visit." />
-            {page.rows.owner.length > 0 && job.property_address && <FoldRows rows={[["Address", job.property_address]]} empty={FOLD_EMPTY} />}
+            <FoldRows rows={page.rows.owner} empty="Owner details show once the job is yours to visit." contactLinks />
+            {page.rows.owner.length > 0 && job.property_address && <FoldRows rows={[["Address", job.property_address]]} empty={FOLD_EMPTY} contactLinks />}
             {sections.notes.length > 0 && <div className="mt-3" data-visit-notes>
               <h3 className="text-sm font-semibold text-ink">Notes for the visit</h3>
               <FoldRows rows={sections.notes} empty={FOLD_EMPTY} />
             </div>}
-            {job.owner_phone && (
-              <ContactButtons phone={job.owner_phone} address={job.owner_name ? job.property_address : null} />
-            )}
             {inHouseAccess.data?.allowed === true && <ReturnActions jobId={jobId} ownCustomer={ownCustomer} />}
           </Fold>
         </div>
