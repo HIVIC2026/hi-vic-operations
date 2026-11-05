@@ -34,28 +34,34 @@ export const OWN_CUSTOMER_LABELS = {
   piesa: "Electrical safety check (PIESA) — charged by Home Insulation Victoria",
   rebate: "Rebate",
   total: "Your price",
+  /** Task 6 (Jo 5 Nov 2026): the installer's discount version — one row under Insulation, amount negative. */
+  discount: "Discount",
 } as const;
 
-export type OwnCustomerRowKey = "insulation" | "extra" | "apFee" | "piesa" | "rebate" | "total";
+export type OwnCustomerRowKey = "insulation" | "extra" | "discount" | "apFee" | "piesa" | "rebate" | "total";
 
 export type OwnCustomerRow = {
   key: OwnCustomerRowKey;
   label: string;
   /** Insulation: the item's own description (product / area / inclusions). Everything else: null. */
   detail: string | null;
-  /** Inc GST. Rebate is negative (or 0). */
+  /** Inc GST. Rebate is negative (or 0); discount is negative. */
   amountIncGst: number;
 };
 
 export type OwnCustomerQuoteItem = { code: string | null; description: string; line_total_inc_gst: number };
 
 const EXTRA_CODES: ReadonlySet<string> = new Set(["INSTALLER_REMOVAL", "INSTALLER_EXTRA"]);
+/** installer-discount.core INSTALLER_DISCOUNT_CODE (kept as a literal here so this pure module imports nothing new). */
+const DISCOUNT_CODE = "INSTALLER_DISCOUNT";
 
 /**
- * Rows in the approved order: Insulation → (extras, in the order given, each under its own words) →
- * Home Insulation Victoria fee → Electrical safety check (PIESA) → Rebate → Your price.
+ * Rows in the approved order: Insulation → (Discount, only on a discount version) → (extras, in the order given, each
+ * under its own words) → Home Insulation Victoria fee → Electrical safety check (PIESA) → Rebate → Your price.
  *
  * - `INSTALLER_PRICE` → insulation (exactly one required; detail = its description).
+ * - `INSTALLER_DISCOUNT` → discount (Task 6, Jo 5 Nov 2026: at most one, a negative amount, straight under Insulation —
+ *   the discounted quote reads exactly like the first one plus that row; a positive or zero amount throws).
  * - `INSTALLER_REMOVAL` / `INSTALLER_EXTRA` → extra (label = its description).
  * - `AP_FEE` → the fixed $349 fee (exactly one, at $349). `PIESA` → exactly one positive line at the amount the quote
  *   carries (the installer's PIESA rate at the time it was prepared). I1 (final review): NEVER re-priced — the rows show
@@ -66,6 +72,7 @@ const EXTRA_CODES: ReadonlySet<string> = new Set(["INSTALLER_REMOVAL", "INSTALLE
  */
 export function ownCustomerRows(items: readonly OwnCustomerQuoteItem[], rebateIncGst: number, totalIncGst: number): OwnCustomerRow[] {
   let insulation: OwnCustomerRow | null = null;
+  let discount: OwnCustomerRow | null = null;
   const extras: OwnCustomerRow[] = [];
   const seen = { AP_FEE: 0, PIESA: 0 };
   let piesaIncGst = 0;
@@ -74,6 +81,10 @@ export function ownCustomerRows(items: readonly OwnCustomerQuoteItem[], rebateIn
     if (code === "INSTALLER_PRICE") {
       if (insulation) throw new Error("Own-customer quote has more than one INSTALLER_PRICE line");
       insulation = { key: "insulation", label: OWN_CUSTOMER_LABELS.insulation, detail: it.description, amountIncGst: it.line_total_inc_gst };
+    } else if (code === DISCOUNT_CODE) {
+      if (discount) throw new Error("Own-customer quote has more than one INSTALLER_DISCOUNT line");
+      if (!(Number(it.line_total_inc_gst) < 0)) throw new Error(`Own-customer quote INSTALLER_DISCOUNT line is ${aud(Number(it.line_total_inc_gst) || 0)}, not a discount`);
+      discount = { key: "discount", label: OWN_CUSTOMER_LABELS.discount, detail: null, amountIncGst: it.line_total_inc_gst };
     } else if (code != null && EXTRA_CODES.has(code)) {
       extras.push({ key: "extra", label: it.description, detail: null, amountIncGst: it.line_total_inc_gst });
     } else if (code === "AP_FEE") {
@@ -94,10 +105,11 @@ export function ownCustomerRows(items: readonly OwnCustomerQuoteItem[], rebateIn
     if (seen[code] > 1) throw new Error(`Own-customer quote has more than one ${code} line`);
   }
   const rebate = rebateIncGst === 0 ? 0 : -Math.abs(rebateIncGst);
-  const sum = insulation.amountIncGst + extras.reduce((a, e) => a + e.amountIncGst, 0) + OWN_CUSTOMER_AP_FEE_INC_GST + piesaIncGst + rebate;
+  const sum = insulation.amountIncGst + (discount?.amountIncGst ?? 0) + extras.reduce((a, e) => a + e.amountIncGst, 0) + OWN_CUSTOMER_AP_FEE_INC_GST + piesaIncGst + rebate;
   if (Math.abs(sum - totalIncGst) > 0.0101) throw new Error(`Own-customer quote rows add up to ${aud(sum)}, not the quote total ${aud(totalIncGst)}`);
   return [
     insulation,
+    ...(discount ? [discount] : []),
     ...extras,
     { key: "apFee", label: OWN_CUSTOMER_LABELS.apFee, detail: null, amountIncGst: OWN_CUSTOMER_AP_FEE_INC_GST },
     { key: "piesa", label: OWN_CUSTOMER_LABELS.piesa, detail: null, amountIncGst: piesaIncGst },
@@ -151,14 +163,21 @@ export function jobMoneyRows(f: {
   return rows;
 }
 
-/** I3: the quote the Job details money rows read — an ACCEPTED installation quote first (as `installerPayForJob`), else the
- *  newest; the installer's pay = their own lines (INSTALLER_PRICE + INSTALLER_REMOVAL + INSTALLER_EXTRA), never the fee,
- *  the PIESA or the owner's total. Nothing usable → nulls (rows left out). */
-export function ownCustomerQuoteFigures(quotes: readonly { status: string | null; created_at: string | null; customer_total_inc_gst: number | string | null; items: readonly { code: string | null; line_total_inc_gst: number | string | null }[] }[]): { installerPayIncGst: number | null; ownerPriceIncGst: number | null } {
+/** The quote the installer's job-page money reads: an ACCEPTED quote first, else the newest SENT (issued) one, else the
+ *  newest of what's left (a first quote still held as a draft). A held discount draft never shows while a sent quote
+ *  exists — the office hasn't sent it yet. */
+export function quoteForJobMoney<Q extends { status: string | null; created_at: string | null }>(quotes: readonly Q[]): Q | undefined {
   const sorted = [...quotes].sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")));
-  const pick = sorted.find((q) => q.status === "accepted") ?? sorted[0];
+  return sorted.find((q) => q.status === "accepted") ?? sorted.find((q) => q.status !== "draft") ?? sorted[0];
+}
+
+/** I3: the quote the Job details money rows read — `quoteForJobMoney` (accepted, else sent, else draft); the installer's pay = their own lines (INSTALLER_PRICE + INSTALLER_REMOVAL + INSTALLER_EXTRA, less their own
+ *  INSTALLER_DISCOUNT — Task 6, review 2: the discount comes off the installer's price, so the row shows what they are
+ *  actually paid), never the fee, the PIESA or the owner's total. Nothing usable → nulls (rows left out). */
+export function ownCustomerQuoteFigures(quotes: readonly { status: string | null; created_at: string | null; customer_total_inc_gst: number | string | null; items: readonly { code: string | null; line_total_inc_gst: number | string | null }[] }[]): { installerPayIncGst: number | null; ownerPriceIncGst: number | null } {
+  const pick = quoteForJobMoney(quotes);
   if (!pick) return { installerPayIncGst: null, ownerPriceIncGst: null };
-  const mine = pick.items.filter((it) => it.code === "INSTALLER_PRICE" || it.code === "INSTALLER_REMOVAL" || it.code === "INSTALLER_EXTRA");
+  const mine = pick.items.filter((it) => it.code === "INSTALLER_PRICE" || it.code === "INSTALLER_REMOVAL" || it.code === "INSTALLER_EXTRA" || it.code === DISCOUNT_CODE);
   const pay = mine.reduce((a, it) => a + (Number(it.line_total_inc_gst) || 0), 0);
   const total = pick.customer_total_inc_gst == null ? NaN : Number(pick.customer_total_inc_gst);
   return { installerPayIncGst: mine.some((it) => it.code === "INSTALLER_PRICE") && pay > 0 ? Math.round(pay * 100) / 100 : null, ownerPriceIncGst: Number.isFinite(total) ? total : null };

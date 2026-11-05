@@ -60,7 +60,8 @@ export function taxInvoiceModel(f: TaxInvoiceFacts, seam: TaxInvoiceSeam = {}): 
   const ownExtras: Partial<TaxInvoiceModel> = own ? {
     rows: [
       { label: `${OWN_CUSTOMER_LABELS.insulation} · ${f.productLine!}`, amount: aud(f.productCents) },
-      ...extras.map((e) => ({ label: e.label, amount: aud(e.cents) })),
+      // A negative extra is the installer's discount (Task 6): shown like the rebate, "– $200.00".
+      ...extras.map((e) => ({ label: e.label, amount: e.cents < 0 ? `– ${aud(-e.cents)}` : aud(e.cents) })),
       // The invoice keeps its own label: Jo's 16:44 PIESA wording is for quotes (OWN_CUSTOMER_LABELS.piesa).
       ...(f.piesaCents > 0 ? [{ label: PIESA_LINE_LABEL, amount: aud(f.piesaCents) }] : []),
     ],

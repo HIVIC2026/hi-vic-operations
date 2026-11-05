@@ -128,6 +128,7 @@ describe("ownCustomerRows", () => {
       piesa: "Electrical safety check (PIESA) — charged by Home Insulation Victoria",
       rebate: "Rebate",
       total: "Your price",
+      discount: "Discount", // Task 6 discount version (Jo 5 Nov 2026)
     });
   });
 
@@ -155,5 +156,40 @@ describe("Home Insulation Victoria leads are untouched", () => {
       '{"ready":true,"blockers":[],"lines":[{"code":"INSTALLER_PRICE","description":"Insulation works by your installer — includes: Supply, Install","quantity":1,"unit":"flat","unit_price_inc_gst":2000,"line_total_inc_gst":2000,"is_other":false,"explanation":"Supply\\nInstall","sort":0},{"code":"PIESA","description":"Mandatory Pre Insulation Electrical Safety Assessment (PIESA)","quantity":1,"unit":"flat","unit_price_inc_gst":349,"line_total_inc_gst":349,"is_other":false,"explanation":null,"sort":1},{"code":"AP_FEE","description":"Home Insulation Victoria — Accredited Person fee","quantity":1,"unit":"flat","unit_price_inc_gst":349,"line_total_inc_gst":349,"is_other":false,"explanation":null,"sort":2}],"subtotal":2698,"discount":600,"afterDiscount":2098,"discountNote":null}';
     expect(typeof ownCustomerRows).toBe("function");
     expect(JSON.stringify(buildInstallerQuoteDraft(input))).toBe(recordedAtBase);
+  });
+});
+
+// Review 1 + fix round 1 (Task 6 discount): the discounted version reads exactly like the first quote plus one
+// "Discount" row straight under Insulation; the sum check counts it.
+describe("ownCustomerRows: INSTALLER_DISCOUNT line (discount version of the quote)", () => {
+  const discounted = [...items, { code: "INSTALLER_DISCOUNT", description: "Discount −$200", line_total_inc_gst: -200 }];
+
+  test("one Discount row under Insulation, negative, adding up to the discounted total", () => {
+    const r = ownCustomerRows(discounted, 600, 1824);
+    expect(r.map((x) => [x.key, x.label, x.amountIncGst])).toEqual([
+      ["insulation", "Insulation", 2000],
+      ["discount", "Discount", -200],
+      ["apFee", "Home Insulation Victoria AP management fee", 349],
+      ["piesa", "Electrical safety check (PIESA) — charged by Home Insulation Victoria", 275],
+      ["rebate", "Rebate", -600],
+      ["total", "Your price", 1824],
+    ]);
+    expect(r[1]!.detail).toBeNull();
+    expect(OWN_CUSTOMER_LABELS.discount).toBe("Discount");
+  });
+
+  test("the discount goes under Insulation, before any extras", () => {
+    const r = ownCustomerRows([...discounted, { code: "INSTALLER_EXTRA", description: "Difficult access", line_total_inc_gst: 150 }], 600, 1974);
+    expect(r.map((x) => x.key)).toEqual(["insulation", "discount", "extra", "apFee", "piesa", "rebate", "total"]);
+  });
+
+  test("the old total without the discount no longer adds up", () => {
+    expect(() => ownCustomerRows(discounted, 600, 2024)).toThrow("Own-customer quote rows add up to $1,824.00, not the quote total $2,024.00");
+  });
+
+  test("a positive or zero discount, or two discount lines, throws (fail closed → generic rows)", () => {
+    expect(() => ownCustomerRows([...items, { code: "INSTALLER_DISCOUNT", description: "Discount", line_total_inc_gst: 200 }], 600, 2224)).toThrow("not a discount");
+    expect(() => ownCustomerRows([...items, { code: "INSTALLER_DISCOUNT", description: "Discount", line_total_inc_gst: 0 }], 600, 2024)).toThrow("not a discount");
+    expect(() => ownCustomerRows([...discounted, { code: "INSTALLER_DISCOUNT", description: "Discount", line_total_inc_gst: -50 }], 600, 1774)).toThrow("more than one INSTALLER_DISCOUNT");
   });
 });

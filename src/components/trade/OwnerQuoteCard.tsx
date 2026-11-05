@@ -1,10 +1,16 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getMyOwnerQuote } from "@/lib/installer-quote-status.functions";
-import { LinkRow } from "@/components/trade/installer-kit";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { refreshInstallerJob } from "@/components/trade/job-cache";
+import { ErrorLine, LinkRow, PrimaryButton } from "@/components/trade/installer-kit";
 import { PRESS_COMPLETE_LINE, QUOTE_PRICE_NEXT_LINE } from "@/lib/installer-quote-status.core";
 import { quoteExpiresAt } from '@/lib/quote-expiry.core';
+import { requestInstallerDiscountFn } from "@/lib/installer-discount.functions";
+import { DISCOUNT_ACTION_LABEL, DISCOUNT_SAVED_LINE } from "@/lib/installer-discount.core";
 import { PRICE_CHANGE_WAITING } from '@/lib/installer-price-change.core';
 
 // Jo 3 Nov 2026: after Complete the boss enters the price; only then is the quote sent. DRAFT wording (not yet seen by Jo).
@@ -32,6 +38,8 @@ export function OwnerQuoteCard({ jobId, hideStatus = false, ownCustomerStatus = 
         {d.acceptedAt && <p>Owner accepted on {day(d.acceptedAt)}</p>}
         {d.expiredAt && !d.acceptedAt && <p>Quote expired on {day(d.expiredAt)}</p>}
       </div>}
+      {ownCustomerStatus && d.discountPending && <p data-discount-pending className="py-2 text-[15px]" role="status">{DISCOUNT_SAVED_LINE} (Discount −{aud(d.discountPending.amountIncGst)}.)</p>}
+      {ownCustomerStatus && d.canDiscount && <DiscountOffer jobId={jobId} />}
       <LinkRow onClick={() => setOpen((o) => !o)}>{ownCustomerStatus ? 'See the quote as the owner sees it' : open ? "Hide the owner's quote" : "See the owner's quote"}</LinkRow>
       {open && <div className="space-y-2 pb-3">
         <p className="text-[13px] text-sub">This is exactly what the owner will see. All prices include GST.</p>
@@ -45,5 +53,50 @@ export function OwnerQuoteCard({ jobId, hideStatus = false, ownCustomerStatus = 
         {!d.sent && <p className="text-sm text-sub">{d.held || d.formCompleted ? OWNER_QUOTE_PRICE_NEXT_LINE : OWNER_QUOTE_NOT_SENT_LINE}</p>}
       </div>}
     </div>
+  );
+}
+
+/** Task 6 (Jo 5 Nov 2026): one amount (inc GST) and an optional note to the office. The server makes a new quote version
+ *  held for "Quotes to check"; the owner's quote doesn't change until the office sends the new one. */
+function DiscountOffer({ jobId }: { jobId: string }) {
+  const request = useServerFn(requestInstallerDiscountFn);
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [amount, setAmount] = useState("");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  if (saved) return <p data-discount-pending className="py-2 text-[15px]" role="status">{DISCOUNT_SAVED_LINE}</p>;
+  if (!open) return <LinkRow onClick={() => setOpen(true)}>{DISCOUNT_ACTION_LABEL}</LinkRow>;
+  const n = Number(amount.replace(/[^0-9.]/g, ""));
+  const ok = Number.isFinite(n) && n > 0;
+  return (
+    <form data-discount-offer className="space-y-3 py-2" onSubmit={async (e) => {
+      e.preventDefault();
+      if (!ok || busy) return;
+      setBusy(true); setError(null);
+      try {
+        await request({ data: { jobId, amountIncGst: Math.round(n * 100) / 100, note: note.trim() || null } });
+        setSaved(true);
+        void refreshInstallerJob(qc, jobId);
+      } catch (err) {
+        // The server's plain reason (too much, below the owner minimum, already waiting…) shown right here.
+        setError(err instanceof Error ? err.message : "The discount wasn't saved. Try again.");
+      } finally { setBusy(false); }
+    }}>
+      <div>
+        <Label htmlFor="discount-amount">Discount (inc GST)</Label>
+        <Input id="discount-amount" inputMode="decimal" placeholder="e.g. 200" value={amount} onChange={(e) => setAmount(e.target.value)} />
+      </div>
+      <div>
+        <Label htmlFor="discount-note">Note to Home Insulation Victoria (optional)</Label>
+        <Textarea id="discount-note" rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
+      </div>
+      <p className="text-[13px] text-sub">We check it, then send the owner a new quote with the discount. Their current quote stays as it is until then.</p>
+      {error && <ErrorLine>{error}</ErrorLine>}
+      <PrimaryButton type="submit" disabled={busy || !ok} data-discount-save>{busy ? "Saving…" : "Save"}</PrimaryButton>
+      <LinkRow onClick={() => setOpen(false)} muted>Cancel</LinkRow>
+    </form>
   );
 }

@@ -182,7 +182,7 @@ function ownCustomerQuoteRows(i: OwnerQuoteEmailInput): K.QuoteRow[] | null {
   return rows.map((r) => ({
     title: r.label,
     detail: r.detail,
-    amount: r.key === "rebate" ? `−${money(Math.abs(r.amountIncGst))}` : money(r.amountIncGst),
+    amount: r.key === "rebate" || r.key === "discount" ? `−${money(Math.abs(r.amountIncGst))}` : money(r.amountIncGst),
     ...(r.key === "rebate" ? { bold: true, color: "#057D40" } : r.key === "total" ? { bold: true } : {}),
   }));
 }

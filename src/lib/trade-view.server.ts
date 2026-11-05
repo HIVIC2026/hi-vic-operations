@@ -23,7 +23,7 @@ import { LOGO_MAX_BYTES, LOGO_TYPES, businessRows, logoFileProblem, needsYou, wh
 import { CUSTOMER_BASE } from "./engagement.core";
 import { PRESS_COMPLETE_LINE } from "./installer-quote-status.core";
 import { installCountdown } from "./next-step-dates.core";
-import { jobMoneyRows, ownCustomerQuoteFigures } from "./own-customer-price.core";
+import { jobMoneyRows, ownCustomerQuoteFigures, quoteForJobMoney } from "./own-customer-price.core";
 import { ownQuoteBreakdown } from "./own-photo-quote.core";
 import { JOB_PAGE_WORDS, jobDetailsRows, nextForOwner, ownerRows, ownerToldRows, ownerToldSummary, paperworkRows, progressSteps, siteNotesRows, visitsRows } from "./job-page-rows.core";
 import { swmsHouseFacts } from "./swms-house.core";
@@ -1683,7 +1683,7 @@ export function installerJobPageParts(i: {
   const issues = house.areas.flatMap((x) => (x.issue ? [`${x.name}: ${x.issue}`] : [])).join("; ") || null;
   const siteNotes = [...siteNotesRows(house, issues), ...i.notes.slice(0, 5).map((n): [string, string, boolean] => ["Notes from the office", n, false])];
 
-  const product = i.product ?? i.quoteItems.slice().sort((x, y) => (x.sort ?? 0) - (y.sort ?? 0)).find((it) => !["PIESA", "AP_FEE", "INSTALLER_PRICE"].includes(it.code ?? "") && !/removal|safety assessment|accredited person/i.test(it.description ?? ""))?.description ?? null;
+  const product = i.product ?? i.quoteItems.slice().sort((x, y) => (x.sort ?? 0) - (y.sort ?? 0)).find((it) => !["PIESA", "AP_FEE", "INSTALLER_PRICE", "INSTALLER_DISCOUNT"].includes(it.code ?? "") && !/removal|safety assessment|accredited person/i.test(it.description ?? ""))?.description ?? null;
   const removalM2 = i.m?.removal_required && i.m.removal_m2 != null ? Number(i.m.removal_m2) : null;
   const piesaPaysOwn = c.money && i.piesaPayRead != null && !!j?.electrician_choice && j.electrician_choice !== "hivic";
   const piesaPaidEv = i.paidEv.find((p) => (p.details as { kind?: string } | null)?.kind === "assessment") ?? null;
@@ -1705,8 +1705,7 @@ export function installerJobPageParts(i: {
   }), ...ownMoney];
   // Jo's one Money card uses the chosen recorded quote, never current rates or another invoice's payments.
   if (ownCustomer && c.money) {
-    const selected = [...(i.quotesForMoney ?? [])].sort((a, b) => String(b.created_at ?? '').localeCompare(String(a.created_at ?? '')));
-    const quoteForMoney = selected.find(q => q.status === 'accepted') ?? selected[0];
+    const quoteForMoney = quoteForJobMoney(i.quotesForMoney ?? []);
     const amount = (n: number) => n.toLocaleString('en-AU', { style: 'currency', currency: 'AUD' });
     if (figures.installerPayIncGst != null) {
       const oldPay = jobDetails.findIndex(([label]) => label === 'Your pay');
@@ -1947,7 +1946,7 @@ export async function tradeDayExtras(jobId: string, userId: string) {
   const { data: el } = await elP;
   const prof = (el?.profiles as unknown as { full_name: string | null; phone: string | null } | null) ?? null;
   const items = ((q?.quote_items as { code: string | null; description: string | null; sort: number | null }[] | null) ?? []).sort((x, y) => (x.sort ?? 0) - (y.sort ?? 0));
-  const product = items.find((i) => !["PIESA", "AP_FEE", "INSTALLER_PRICE"].includes(i.code ?? "") && !/removal|safety assessment|accredited person/i.test(i.description ?? ""))?.description ?? null;
+  const product = items.find((i) => !["PIESA", "AP_FEE", "INSTALLER_PRICE", "INSTALLER_DISCOUNT"].includes(i.code ?? "") && !/removal|safety assessment|accredited person/i.test(i.description ?? ""))?.description ?? null;
   // Approved M4 states: the 30-day end date (couldn't-get-in sheet), who the visit is allocated to, the owner's own
   // answers (Ready Check day "What we know"), the install form's Complete time and the PIISA signature (sign-rebate ticks).
   const [{ data: dl }, { data: alloc }, { data: decl }, { data: evEv }, says, { data: ownerRow }, { data: mineBk }] = await Promise.all([dlP, allocP, declP, evEvP, saysP, ownerRowP, mineBkP]);

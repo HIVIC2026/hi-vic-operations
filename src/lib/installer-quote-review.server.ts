@@ -61,7 +61,12 @@ export async function loadQuotesToCheck(data?: { showTestJobs?: boolean | undefi
     const qs = all.filter((q) => q.status !== "declined");
     const latestSend=qs.map(q=>q.sent_at).filter((at):at is string=>!!at).sort().pop() ?? null;
     const pending=(await import('./installer-price-change.core')).pendingPriceChange(priceChange,latestSend);
-    if (qs.some((q) => !quoteNeedsOfficeReview(q)) && !pending) continue;
+    // Task 6 (Jo 5 Nov 2026): an installer's discount version is a NEWER draft beside the quote the owner still has —
+    // it must show here, as does a price change waiting for a new quote (main). A job whose newest quote is already
+    // with the owner (and no price change waits), or that the owner accepted, has nothing to check. No quotes yet:
+    // fall through to the Ready Check "missing basics" rows.
+    if (qs.some((q) => q.status === "accepted")) continue;
+    if (qs.length && !quoteNeedsOfficeReview(qs[0]!) && !pending) continue;
     const draft = qs.filter(quoteNeedsOfficeReview).sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
     const h = (held ?? []).find((e) => e.job_id === j.id);
     const owner = j.owners as { full_name: string | null } | null;
