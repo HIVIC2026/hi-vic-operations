@@ -56,7 +56,9 @@ export async function loadQuotesToCheck(data?: { showTestJobs?: boolean | undefi
       continue;
     }
     const qs = all.filter((q) => q.status !== "declined");
-    if (qs.some((q) => !quoteNeedsOfficeReview(q))) continue;
+    // Task 6 (Jo 5 Nov 2026): an installer's discount version is a NEWER draft beside the quote the owner still has —
+    // it must show here. A job whose newest quote is already with the owner (or accepted) has nothing to check.
+    if (!qs.length || qs.some((q) => q.status === "accepted") || !quoteNeedsOfficeReview(qs[0]!)) continue;
     const draft = qs.filter(quoteNeedsOfficeReview).sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
     const h = (held ?? []).find((e) => e.job_id === j.id);
     const owner = j.owners as { full_name: string | null } | null;
