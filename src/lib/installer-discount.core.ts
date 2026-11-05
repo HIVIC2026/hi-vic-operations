@@ -22,6 +22,7 @@ export const DISCOUNT_NOT_SENT = "A discount can only be offered once the quote 
 export const DISCOUNT_ACCEPTED = "The owner has already accepted the quote, so it can't be discounted.";
 export const DISCOUNT_EXPIRED = "The quote has expired. Ask Home Insulation Victoria for a new quote instead.";
 export const DISCOUNT_ALREADY_PENDING = "A discount is already with Home Insulation Victoria to check.";
+export const DISCOUNT_PRICE_CHANGE_WAITING = "Your new price is with Home Insulation Victoria first. Offer a discount once the new quote has gone to the owner.";
 export const DISCOUNT_SOURCE_ACCEPTED = "The owner accepted the earlier quote while this discount was waiting — nothing sent.";
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -33,15 +34,24 @@ export const discountLineDescription = (amountIncGst: number) => `Discount −${
 
 export type DiscountQuoteFacts = { subtotal_inc_gst: number | string; veec_discount_inc_gst: number | string; minimumCopay: number; veecValue: number };
 
-/** Every reason the amount can't be used (empty = fine). ≤ the installer's price; the owner's $200 minimum payment
- *  rule (quoteAdjustmentDiscount: rebate ≤ subtotal − minimum) still holds after the discount; whole cents only. */
-export function discountErrors(amountIncGst: number, installerPriceIncGst: number, quote: DiscountQuoteFacts): string[] {
+/** What the quote already takes off (Review 1 finding 4): the sum of its INSTALLER_DISCOUNT lines, as a positive amount
+ *  (a sent quote can itself be a discount version; a second discount comes off what is left). */
+export function existingDiscountIncGst(lines: readonly { code: string | null; line_total_inc_gst: number | string }[]): number {
+  return r2(lines.filter((l) => l.code === INSTALLER_DISCOUNT_CODE).reduce((a, l) => a - Number(l.line_total_inc_gst), 0));
+}
+
+/** Every reason the amount can't be used (empty = fine). ≤ the installer's price less any discount already on the quote;
+ *  the owner's $200 minimum payment rule (quoteAdjustmentDiscount: rebate ≤ subtotal − minimum) still holds after the
+ *  discount; whole cents only. */
+export function discountErrors(amountIncGst: number, installerPriceIncGst: number, quote: DiscountQuoteFacts, alreadyOffIncGst = 0): string[] {
   const errors: string[] = [];
   if (!Number.isFinite(amountIncGst) || amountIncGst <= 0) return ["Enter the discount amount (inc GST)."];
   if (Math.abs(amountIncGst * 100 - Math.round(amountIncGst * 100)) > 1e-6) return ["The discount must be whole cents."];
-  const price = Number(installerPriceIncGst);
-  if (!(price > 0)) return ["Your price line could not be found on the quote."];
-  if (amountIncGst > price + 1e-9) errors.push(`The discount can't be more than your price (${money(price)}).`);
+  const fullPrice = Number(installerPriceIncGst);
+  if (!(fullPrice > 0)) return ["Your price line could not be found on the quote."];
+  const already = Math.max(0, r2(Number(alreadyOffIncGst) || 0));
+  const price = r2(fullPrice - already);
+  if (amountIncGst > price + 1e-9) errors.push(already > 0 ? `The discount can't be more than what's left of your price (${money(price)} after the ${money(already)} already taken off).` : `The discount can't be more than your price (${money(price)}).`);
   const subtotal = r2(Number(quote.subtotal_inc_gst) - amountIncGst);
   const rebate = r2(Number(quote.veec_discount_inc_gst));
   const check = quoteAdjustmentDiscount(rebate, subtotal, quote.veecValue, quote.minimumCopay, true);
@@ -56,11 +66,13 @@ export function discountErrors(amountIncGst: number, installerPriceIncGst: numbe
 export type QuoteLineIn = { code: string | null; description: string; quantity: number | string; unit: string; unit_price_inc_gst: number | string; line_total_inc_gst: number | string; is_other?: boolean | null; explanation?: string | null; sort: number; id?: string; quote_id?: string };
 export type QuoteLineOut = { code: string | null; description: string; quantity: number; unit: string; unit_price_inc_gst: number; line_total_inc_gst: number; is_other: boolean; explanation: string | null; sort: number };
 
-/** The sent quote's lines with "Discount −$X" straight under the installer's price line; sorts renumbered 0..n; row ids dropped. */
+/** The sent quote's lines with "Discount −$X" straight under the installer's price line; sorts renumbered 0..n; row ids
+ *  dropped. A quote that already carries a discount gets ONE combined line (the two amounts added), so the owner's rows
+ *  (own-customer-price.core: at most one Discount row) and the installer's price both keep one plain figure. */
 export function discountedLines(lines: QuoteLineIn[], amountIncGst: number): QuoteLineOut[] {
-  const amount = r2(amountIncGst);
+  const amount = r2(amountIncGst + existingDiscountIncGst(lines));
   const copy = (l: QuoteLineIn): QuoteLineOut => ({ code: l.code, description: l.description, quantity: Number(l.quantity), unit: l.unit, unit_price_inc_gst: Number(l.unit_price_inc_gst), line_total_inc_gst: Number(l.line_total_inc_gst), is_other: !!l.is_other, explanation: l.explanation ?? null, sort: l.sort });
-  const sorted = lines.map((l, n) => [l, n] as const).sort((a, b) => a[0].sort - b[0].sort || a[1] - b[1]).map(([l]) => copy(l));
+  const sorted = lines.filter((l) => l.code !== INSTALLER_DISCOUNT_CODE).map((l, n) => [l, n] as const).sort((a, b) => a[0].sort - b[0].sort || a[1] - b[1]).map(([l]) => copy(l));
   const at = sorted.findIndex((l) => l.code === "INSTALLER_PRICE");
   const discount: QuoteLineOut = { code: INSTALLER_DISCOUNT_CODE, description: discountLineDescription(amount), quantity: 1, unit: "flat", unit_price_inc_gst: -amount, line_total_inc_gst: -amount, is_other: false, explanation: null, sort: 0 };
   const out = at >= 0 ? [...sorted.slice(0, at + 1), discount, ...sorted.slice(at + 1)] : [...sorted, discount];

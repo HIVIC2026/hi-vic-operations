@@ -45,13 +45,18 @@ export async function myOwnerQuoteFor(sb: Rpc, userId: string, jobId: string, sh
   }
   const blockers = sent ? [] : await (await import("./office-quote-review.server")).officeQuoteBlockers(jobId, q);
   const { quoteIsExpired } = await import("./quote-expiry.core");
-  const canDiscount = !pending && q.status === "issued" && !!q.sent_at && !q.accepted_at && !q.expired_at && !quoteIsExpired({ kind: "installation", sent_at: q.sent_at });
+  // Review 1 finding 5: the owner accepting the earlier quote while the discount waits wins — no "sent to check" line.
+  const discountWaiting = pending && !(q.id === pending.sourceQuoteId && q.status === "accepted") ? pending : null;
+  // Main's price change (installer-price-change): a new price after Send waits for its own replacement quote; no discount
+  // is offered on top of it (the redraft it triggers supersedes any waiting discount draft, so the two never both wait).
+  const priceChangePending = !!(await (await import('./installer-price-change.server')).pendingChangeFor(jobId));
+  const canDiscount = !pending && !priceChangePending && q.status === "issued" && !!q.sent_at && !q.accepted_at && !q.expired_at && !quoteIsExpired({ kind: "installation", sent_at: q.sent_at });
   return {
     applies: true as const, priceHidden: false as const,
-    priceChangePending: !!(await (await import('./installer-price-change.server')).pendingChangeFor(jobId)),
+    priceChangePending,
     quoteId: q.id as string,
     canDiscount,
-    discountPending: pending ? { amountIncGst: pending.amountIncGst, at: pending.at } : null,
+    discountPending: discountWaiting ? { amountIncGst: discountWaiting.amountIncGst, at: discountWaiting.at } : null,
     sentAt: q.sent_at as string | null,
     acceptedAt: q.accepted_at as string | null,
     expiredAt: q.expired_at as string | null,

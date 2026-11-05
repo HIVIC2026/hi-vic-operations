@@ -18,7 +18,7 @@ mock.module("../src/lib/workflow.server", () => ({
 }));
 
 const core = await import("../src/lib/installer-discount.core");
-const { discountErrors, discountedLines, discountedTotals, discountLineDescription, INSTALLER_DISCOUNT_CODE, INSTALLER_DISCOUNT_EVENT, DISCOUNT_NOT_SENT, DISCOUNT_ACCEPTED, DISCOUNT_EXPIRED, DISCOUNT_NOT_OWN_JOB, DISCOUNT_REFUSED_ROLE, DISCOUNT_ALREADY_PENDING, DISCOUNT_QUOTE_LABEL } = core;
+const { discountErrors, discountedLines, discountedTotals, discountLineDescription, existingDiscountIncGst, INSTALLER_DISCOUNT_CODE, INSTALLER_DISCOUNT_EVENT, DISCOUNT_NOT_SENT, DISCOUNT_ACCEPTED, DISCOUNT_EXPIRED, DISCOUNT_NOT_OWN_JOB, DISCOUNT_REFUSED_ROLE, DISCOUNT_ALREADY_PENDING, DISCOUNT_PRICE_CHANGE_WAITING, DISCOUNT_QUOTE_LABEL } = core;
 const { requestInstallerDiscount, installerDiscountState, discountSourceFor } = await import("../src/lib/installer-discount.server");
 const { loadQuotesToCheck } = await import("../src/lib/installer-quote-review.server");
 mock.module("../src/lib/trade-view.server", () => ({ tradeContext: async () => ({ prices: true }) }));
@@ -196,5 +196,98 @@ describe("requestInstallerDiscount — valid", () => {
     const src = await discountSourceFor(JOB, r.quoteId);
     expect(src).toMatchObject({ sourceQuoteId: Q, status: "issued" });
     expect(await discountSourceFor(JOB, "some-other-quote")).toBeNull();
+  });
+});
+
+// Review 1 + fix round 1 (6 Nov 2026).
+describe("fix round 1: a second discount comes off what is left (finding 4)", () => {
+  const quote = { subtotal_inc_gst: 2924, veec_discount_inc_gst: 900, minimumCopay: 200, veecValue: 90 };
+  const alreadyDiscounted = () => [...sentLines(), { id: "l4", quote_id: Q, code: INSTALLER_DISCOUNT_CODE, description: "Discount −$200", quantity: 1, unit: "flat", unit_price_inc_gst: -200, line_total_inc_gst: -200, is_other: false, explanation: null, sort: 1 }];
+  test("existingDiscountIncGst sums the quote's discount lines as a positive amount", () => {
+    expect(existingDiscountIncGst(sentLines())).toBe(0);
+    expect(existingDiscountIncGst(alreadyDiscounted())).toBe(200);
+  });
+  test("discountErrors: the limit is the price less what is already off", () => {
+    const roomy = { subtotal_inc_gst: 9000, veec_discount_inc_gst: 900, minimumCopay: 200, veecValue: 90 }; // the $200 minimum never bites here
+    expect(discountErrors(2300, 2500, roomy, 200)).toEqual([]);
+    expect(discountErrors(2301, 2500, roomy, 200)[0]).toMatch(/what's left of your price \(\$2,300\.00 after the \$200\.00 already taken off\)/);
+    expect(discountErrors(2500, 2500, roomy)).toEqual([]); // no earlier discount: the full price, same words as before
+    expect(discountErrors(300, 2500, quote, 200)).toEqual([]);
+  });
+  test("discountedLines on an already-discounted quote: ONE combined Discount line under the price", () => {
+    const lines = discountedLines(alreadyDiscounted(), 300);
+    expect(lines.map((l) => l.code)).toEqual(["INSTALLER_PRICE", INSTALLER_DISCOUNT_CODE, "AP_FEE", "PIESA"]);
+    expect(lines[1]).toMatchObject({ description: "Discount −$500", line_total_inc_gst: -500, unit_price_inc_gst: -500 });
+  });
+  test("server: on a sent discount version, more than what is left is refused; a fair amount combines the lines", async () => {
+    seed();
+    T["quote_items"] = alreadyDiscounted();
+    sentQuote()["subtotal_inc_gst"] = 2924; sentQuote()["customer_total_inc_gst"] = 2024;
+    await expect(requestInstallerDiscount(JOB, BOSS, 2400, null)).rejects.toThrow(/what's left of your price/);
+    expect(newQuotes()).toHaveLength(0);
+    const r = await requestInstallerDiscount(JOB, BOSS, 300, null);
+    const items = (T["quote_items"] ?? []).filter((i) => i["quote_id"] === r.quoteId).sort((a, b) => a["sort"] - b["sort"]);
+    expect(items.map((i) => [i["code"], i["line_total_inc_gst"]])).toEqual([["INSTALLER_PRICE", 2500], [INSTALLER_DISCOUNT_CODE, -500], ["AP_FEE", 349], ["PIESA", 275]]);
+    expect(newQuotes()[0]).toMatchObject({ subtotal_inc_gst: 2624, customer_total_inc_gst: 1724 });
+    // the owner's rows read the combined version: Insulation · Discount · fee · PIESA · Rebate · Your price, adding up
+    const { ownCustomerRows } = await import("../src/lib/own-customer-price.core");
+    const rows = ownCustomerRows(items.map((i) => ({ code: i["code"], description: i["description"], line_total_inc_gst: i["line_total_inc_gst"] })), 900, 1724);
+    expect(rows.map((x) => [x.key, x.amountIncGst])).toEqual([["insulation", 2500], ["discount", -500], ["apFee", 349], ["piesa", 275], ["rebate", -900], ["total", 1724]]);
+  });
+});
+
+describe("fix round 1: the owner accepting the old quote while a discount waits wins (finding 5)", () => {
+  test("the installer's card shows the accepted quote and no 'sent to check' line; no new discount offered", async () => {
+    seed();
+    await requestInstallerDiscount(JOB, BOSS, 200, null);
+    sentQuote()["status"] = "accepted"; sentQuote()["accepted_at"] = new Date().toISOString();
+    const card = await myOwnerQuoteFor(SB, BOSS, JOB);
+    expect(card).toMatchObject({ applies: true, priceHidden: false, quoteId: Q, canDiscount: false, discountPending: null, sent: true });
+    expect((card as { acceptedAt: string | null }).acceptedAt).toBeTruthy();
+    // and the office list no longer carries the discount draft for an accepted job
+    expect((await loadQuotesToCheck({ onlyJobIds: [JOB] })).rows).toHaveLength(0);
+  });
+});
+
+describe("fix round 1: main's installer price change and the discount coexist", () => {
+  test("a new price waiting for its replacement quote: no discount offered, request refused", async () => {
+    seed();
+    T["workflow_events"]!.push({ id: "ev-price", job_id: JOB, event_type: "installer_price_set", summary: "", details: { price_changed_by_installer: true, previous_price_inc_gst: 2500, price_inc_gst: 2300, change_reason: "Owner asked", replaces_quote_id: Q }, created_at: new Date().toISOString() });
+    const card = await myOwnerQuoteFor(SB, BOSS, JOB);
+    expect(card).toMatchObject({ priceChangePending: true, canDiscount: false, discountPending: null });
+    await expect(requestInstallerDiscount(JOB, BOSS, 200, null)).rejects.toThrow(DISCOUNT_PRICE_CHANGE_WAITING);
+    expect(newQuotes()).toHaveLength(0);
+  });
+  test("a price change AFTER a discount draft: the redraft supersedes the draft, so the discount is no longer waiting", async () => {
+    seed();
+    const r = await requestInstallerDiscount(JOB, BOSS, 200, null);
+    // installer-quote.server's redraft (main) supersedes every draft on the job before writing the new one
+    (T["quotes"] ?? []).filter((q) => q["id"] === r.quoteId).forEach((q) => { q["status"] = "superseded"; });
+    T["workflow_events"]!.push({ id: "ev-price", job_id: JOB, event_type: "installer_price_set", summary: "", details: { price_changed_by_installer: true, previous_price_inc_gst: 2500, price_inc_gst: 2300, change_reason: "Owner asked", replaces_quote_id: Q }, created_at: new Date().toISOString() });
+    expect((await installerDiscountState(JOB)).pending).toBeNull();
+    const card = await myOwnerQuoteFor(SB, BOSS, JOB);
+    expect(card).toMatchObject({ priceChangePending: true, canDiscount: false, discountPending: null });
+    // Quotes to check still lists the job (main's "New price — resend?" not-drafted row), never the superseded discount draft
+    const list = await loadQuotesToCheck({ onlyJobIds: [JOB] });
+    expect(list.rows).toHaveLength(0);
+    expect(list.notDrafted).toHaveLength(1);
+    expect(list.notDrafted[0]).toMatchObject({ jobId: JOB, quoteId: null, reasons: ["Replacement quote being prepared"] });
+  });
+  test("a discount on a quote the office already re-sent after a price change: no price change pending, discount allowed", async () => {
+    seed();
+    T["workflow_events"]!.push({ id: "ev-price", job_id: JOB, event_type: "installer_price_set", summary: "", details: { price_changed_by_installer: true, previous_price_inc_gst: 2700, price_inc_gst: 2500, change_reason: "x", replaces_quote_id: "q-old" }, created_at: ago(5) }); // the sent quote (ago(2)) is newer than the change
+    expect(await myOwnerQuoteFor(SB, BOSS, JOB)).toMatchObject({ priceChangePending: false, canDiscount: true });
+    const r = await requestInstallerDiscount(JOB, BOSS, 200, null);
+    expect(r.quoteId).toBeTruthy();
+    expect((await loadQuotesToCheck({ onlyJobIds: [JOB] })).rows[0]).toMatchObject({ quoteId: r.quoteId });
+  });
+});
+
+describe("fix round 1: the installer's day screen never shows the discount as the product (finding 3)", () => {
+  test("both product fallbacks in trade-view.server skip INSTALLER_DISCOUNT", async () => {
+    const src = (await import("node:fs")).readFileSync("src/lib/trade-view.server.ts", "utf8");
+    const hits = src.match(/!\["PIESA", "AP_FEE", "INSTALLER_PRICE", "INSTALLER_DISCOUNT"\]\.includes\(/g) ?? [];
+    expect(hits).toHaveLength(2);
+    expect(src).not.toMatch(/!\["PIESA", "AP_FEE", "INSTALLER_PRICE"\]\.includes\(/);
   });
 });

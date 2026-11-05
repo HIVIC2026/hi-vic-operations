@@ -60,7 +60,8 @@ export function taxInvoiceModel(f: TaxInvoiceFacts, seam: TaxInvoiceSeam = {}): 
   const ownExtras: Partial<TaxInvoiceModel> = own ? {
     rows: [
       { label: `${OWN_CUSTOMER_LABELS.insulation} · ${f.productLine!}`, amount: aud(f.productCents) },
-      ...extras.map((e) => ({ label: e.label, amount: aud(e.cents) })),
+      // A negative extra is the installer's discount (Task 6): shown like the rebate, "– $200.00".
+      ...extras.map((e) => ({ label: e.label, amount: e.cents < 0 ? `– ${aud(-e.cents)}` : aud(e.cents) })),
       ...(f.piesaCents > 0 ? [{ label: OWN_CUSTOMER_LABELS.piesa, amount: aud(f.piesaCents) }] : []),
     ],
     priceBeforeLabel: "Price before rebate", rebateLabel: OWN_CUSTOMER_LABELS.rebate, payableLabel: `${OWN_CUSTOMER_LABELS.total} (incl. GST)`,

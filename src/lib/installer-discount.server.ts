@@ -9,8 +9,8 @@ import { canEnterPrice } from "./installer-price.core";
 import { quoteIsExpired } from "./quote-expiry.core";
 import {
   DISCOUNT_ACCEPTED, DISCOUNT_ALREADY_PENDING, DISCOUNT_EXPIRED, DISCOUNT_HOLD_REASON, DISCOUNT_NOT_OWN_JOB, DISCOUNT_NOT_SENT,
-  DISCOUNT_QUOTE_LABEL, DISCOUNT_REFUSED_ROLE, INSTALLER_DISCOUNT_EVENT, INSTALLER_DISCOUNT_REPLACED_EVENT,
-  discountErrors, discountedLines, discountedTotals,
+  DISCOUNT_PRICE_CHANGE_WAITING, DISCOUNT_QUOTE_LABEL, DISCOUNT_REFUSED_ROLE, INSTALLER_DISCOUNT_EVENT, INSTALLER_DISCOUNT_REPLACED_EVENT,
+  discountErrors, discountedLines, discountedTotals, existingDiscountIncGst,
 } from "./installer-discount.core";
 
 const MAIN_CODE = "INSTALLER_A1";
@@ -65,6 +65,9 @@ export async function requestInstallerDiscount(jobId: string, actorId: string, a
   }
   if (sent.expired_at || quoteIsExpired({ kind: "installation", sent_at: sent.sent_at })) throw new WorkflowError(DISCOUNT_EXPIRED);
   if ((await installerDiscountState(jobId)).pending) throw new WorkflowError(DISCOUNT_ALREADY_PENDING);
+  // Main's "installer changes the price after Send": while that new price waits for its replacement quote, a discount
+  // on the old sent price would be built from figures already withdrawn — refused until the office sends the new quote.
+  if (await (await import("./installer-price-change.server")).pendingChangeFor(jobId)) throw new WorkflowError(DISCOUNT_PRICE_CHANGE_WAITING);
 
   const [{ data: items, error: ie }, { data: rs, error: re }] = await Promise.all([
     admin.from("quote_items").select("code, description, quantity, unit, unit_price_inc_gst, line_total_inc_gst, is_other, explanation, sort").eq("quote_id", sent.id),
@@ -74,7 +77,8 @@ export async function requestInstallerDiscount(jobId: string, actorId: string, a
   if (re || !rs) throw new WorkflowError("Owner price settings could not be read.");
   const price = items.find((l) => l.code === "INSTALLER_PRICE");
   const amount = Math.round(Number(amountIncGst) * 100) / 100;
-  const errors = discountErrors(amount, Number(price?.line_total_inc_gst ?? 0), { subtotal_inc_gst: sent.subtotal_inc_gst, veec_discount_inc_gst: sent.veec_discount_inc_gst, minimumCopay: Number(rs.minimum_customer_copayment_inc_gst ?? 200), veecValue: Number(rs.indicative_veec_value) });
+  // Review 1 finding 4: the sent quote may already be a discount version — the new amount comes off what is left.
+  const errors = discountErrors(amount, Number(price?.line_total_inc_gst ?? 0), { subtotal_inc_gst: sent.subtotal_inc_gst, veec_discount_inc_gst: sent.veec_discount_inc_gst, minimumCopay: Number(rs.minimum_customer_copayment_inc_gst ?? 200), veecValue: Number(rs.indicative_veec_value) }, existingDiscountIncGst(items));
   if (errors.length) throw new WorkflowError(errors.join(" "));
 
   const totals = discountedTotals(sent, amount);
