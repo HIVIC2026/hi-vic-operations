@@ -112,7 +112,8 @@ async function electricianCandidates(jobId: string, channel: string | null, jobI
     try {
       const installerId = await (await import("./install-holds.server")).quotedInstaller(jobId);
       if (installerId) {
-        const { electrician } = await (await import("./usual-electrician.server")).readUsualElectrician(installerId);
+        // Jo 5 Nov 2026: that installer's Main electrician (never ticked = the old saved usual electrician).
+        const { electrician } = await (await import("./installer-electricians.server")).readMainElectrician(installerId);
         const approved = electrician ? await (await import("./rec-onboarded.server")).loadApprovedRecCandidates() : [];
         ourLeadUsualBusinessId = ourLeadPreferredId(electrician, approved, candidates.map((c) => c.business_id));
       }

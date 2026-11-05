@@ -109,7 +109,7 @@ function SignedApplication({ row, appId }: { row: Row; appId: string }) {
           {data.r6_rate != null && <div className="flex justify-between"><dt>Ceiling batts R6.0</dt><dd>${data.r6_rate}/m²</dd></div>}
           {data.r7_rate != null && <div className="flex justify-between"><dt>Ceiling batts R7.0</dt><dd>${data.r7_rate}/m²</dd></div>}
           {data.batts_removal_rate != null && <div className="flex justify-between"><dt>Batts removal</dt><dd>${data.batts_removal_rate}/m²</dd></div>}
-          <div className="flex justify-between"><dt>Usual electrician</dt><dd>{data.electrician_choice ? String(data.electrician_choice).replace(/_/g, " ") : "none named · HIV electrician for PIESAs"}</dd></div>
+          <div className="flex justify-between"><dt>Electrician</dt><dd>{data.electrician_choice ? String(data.electrician_choice).replace(/_/g, " ") : "Not given"}</dd></div>
         </> : <div className="flex justify-between"><dt>PIESA</dt><dd>{data.assessment_rate != null ? `$${data.assessment_rate}` : "—"}</dd></div>}</dl></Panel>
         <Panel title="Coverage requested"><dl className="grid grid-cols-[90px_1fr] gap-x-3 gap-y-1.5 text-sm">
           <dt className="text-sub">Areas</dt><dd>{row.service_areas?.join(" · ") || "—"}</dd>

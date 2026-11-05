@@ -17,6 +17,7 @@ import { answerMittiElectrician, getMittiElectricianQuestion } from "@/lib/mitti
 import { MITTI_ELECTRICIAN_QUESTION } from "@/lib/mitti-electrician.core";
 import { usualElectrician, type ElectricianPlan } from "@/lib/job-electrician.core";
 import { allocateElectricianFn, getTeamElectricians } from "@/lib/visit-allocation.functions";
+import { defaultPick } from "@/lib/installer-electricians.core";
 import { showTradeSaved } from '@/lib/trade-save-confirmation';
 
 export const TEAM_NONE_YET = "You have no electricians on your Team yet. Add them under My business › Team; the office checks their licence, then choose here.";
@@ -40,7 +41,8 @@ export function MittiElectricianCard({ jobId }: { jobId: string }) {
   if ((!q.data?.open && !team.data?.pendingWorkerId) || !team.isFetched) return null;
   if (team.data) {
     const workers = team.data.workers;
-    const picked = who || team.data.pendingWorkerId || "";
+    // Jo 5 Nov 2026: the Main electrician is the default pick (a choice already saved for the job wins).
+    const picked = who || team.data.pendingWorkerId || defaultPick(workers) || "";
     const none = !workers.length;
     return (
       <section className="space-y-2 rounded-[18px] border border-line bg-paper p-3 shadow-card" data-mitti-electrician-question data-team-picker>

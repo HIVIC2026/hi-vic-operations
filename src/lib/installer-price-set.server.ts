@@ -25,7 +25,7 @@ import { early } from "./early-read";
 import { sharedFor, type SharedJobReads } from "./job-shared-reads";
 import { partialA1QuoteCore } from "./own-customer-partial-a1.core";
 // Namespaces: tests replace these modules with partial mocks; a namespace never fails on a missing export.
-import * as usualElectricianServer from "./usual-electrician.server";
+import * as installerElectriciansServer from "./installer-electricians.server";
 import * as electricianChoiceServer from "./electrician-choice.server";
 import * as quoteStatusServer from "./installer-quote-status.server";
 const loadInstallerQuote = (jobId: string) => quoteStatusServer.loadInstallerQuote(jobId);
@@ -148,8 +148,9 @@ export async function installerPriceView(jobId: string, userId: string, sharedRe
   const usualP = early(
     jobP.then(({ data: jj }) =>
       jj?.originating_installer_business_id
-        ? usualElectricianServer
-            .readUsualElectrician(jj.originating_installer_business_id)
+        ? // Jo 5 Nov 2026: the installer's Main electrician (never ticked = the old saved usual electrician).
+          installerElectriciansServer
+            .readMainElectrician(jj.originating_installer_business_id)
             .catch(() => ({ electrician: null }))
         : { electrician: null },
     ),

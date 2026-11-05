@@ -4,7 +4,7 @@
 // saved-work RPC, canonical gates incl. installDepositBlocker) and, for the installer's own customer outside in-house,
 // `setA1ReadyCheckTimeFn` (confirmBooking). Nothing here decides a rule; refusals from the server are shown as they are.
 // A greyed-out button always has a visible reason beside it (aria-describedby) — never a silent grey button.
-import { useId, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useId, useState, type FormEvent, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -13,7 +13,8 @@ import { card, ghostBtn, greenBtn, inputCls } from "@/components/trade/TradeShel
 import { MittiFormLink } from "@/components/portal/MittiFormLink";
 import { getInHouseBookingTeam, inHouseBookVisit, changeInHouseLeadInstaller, setA1ReadyCheckTimeFn } from "@/lib/trade-view.functions";
 import { useInHouseBookingAccess } from "@/components/trade/ReturnActions";
-import { getTeamElectricians, allocateElectricianFn } from "@/lib/visit-allocation.functions";
+import { getTeamElectricians, changeJobElectricianFn } from "@/lib/visit-allocation.functions";
+import { defaultPick } from "@/lib/installer-electricians.core";
 import { bookingWorkerBlocker, emptyBookingTeamBlocker, type BookingWorker } from "@/lib/in-house-booking.core";
 import { NEXT_STEP_WORDS, type NextStepBox as NextStepBoxShape } from "@/lib/next-step-box.core";
 import { installStartAt, installTimeLabel } from "@/lib/install-days.core";
@@ -66,7 +67,7 @@ const KIND_OF: Partial<Record<NextStepBoxShape["kind"], Kind>> = {
 const LABEL: Record<Kind, string> = W.visit;
 
 type Team = { workers: BookingWorker[]; depositPaid: boolean; selection: { lead?: unknown; additional?: { workerId: string }[] } | null };
-type Electricians = { workers: { id: string; name: string; allowed: boolean; reason: string | null; selected: boolean }[] };
+type Electricians = { workers: { id: string; name: string; allowed: boolean; reason: string | null; selected: boolean; main?: boolean }[] };
 
 /** The box: `box` is the pure core's answer; `children` are the page's extra items for this kind (Today's job, sign, price…). */
 export function NextStepBox({ jobId, box, ownerFirst, installBy, ownCustomer = false, mittiAuditId = null, now, onDone, children }: {
@@ -208,7 +209,7 @@ function BookingForm({ jobId, kind, mode, state, button, below, onDone, onCancel
   jobId: string; kind: Kind; mode: "book" | "change"; state: TeamState; button: string; below: string | null; onDone: () => void; onCancel?: () => void;
 }) {
   const book = useServerFn(inHouseBookVisit);
-  const allocate = useServerFn(allocateElectricianFn);
+  const change = useServerFn(changeJobElectricianFn);
   const qc = useQueryClient();
   const id = useId();
   const team = state.team;
@@ -218,6 +219,9 @@ function BookingForm({ jobId, kind, mode, state, button, below, onDone, onCancel
   const [day, setDay] = useState("");
   const [arrival, setArrival] = useState("");
   const [who, setWho] = useState(kind === "installation" ? lead : kind === "assessment" ? current : "");
+  // Jo 5 Nov 2026: the Main electrician is the default pick (the one already on the job wins).
+  const fallback = kind === "assessment" ? current || defaultPick(state.electricians?.workers ?? []) || "" : "";
+  useEffect(() => { if (kind === "assessment" && !who && fallback) setWho(fallback); }, [fallback]); // eslint-disable-line react-hooks/exhaustive-deps
   const [crew, setCrew] = useState<string[]>(kind === "installation" ? savedCrew : []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -235,8 +239,11 @@ function BookingForm({ jobId, kind, mode, state, button, below, onDone, onCancel
     setBusy(true);
     setError("");
     try {
-      if (kind === "assessment" && who !== current) await allocate({ data: { jobId, workerId: who } });
-      const r = await book({ data: { jobId, kind, start: installStartAt(day, arrival).toISOString(), ...(who === NOT_SURE_YET ? {} : { workerId: who }), crewIds: kind === "installation" ? crew : [] } });
+      // Jo 5 Nov 2026: a NEW safety-check electrician and the time are saved TOGETHER; the job-link text and the Mitti form go
+      // only after. The same electrician as before = just the time (no Mitti calls), as before.
+      const r = kind === "assessment" && who !== current
+        ? { warnings: [] as string[], ...(await change({ data: { jobId, workerId: who, start: installStartAt(day, arrival).toISOString() } })) }
+        : await book({ data: { jobId, kind, start: installStartAt(day, arrival).toISOString(), ...(who === NOT_SURE_YET ? {} : { workerId: who }), crewIds: kind === "installation" ? crew : [] } });
       if (!r.ok) { setError(r.blockers.join(" ")); return; }
       // Part 9 Task 10: the booking's plain warnings (e.g. upgrades still to come) are shown with the success, never as a refusal.
       toast.success(mode === "book" ? W.booked(LABEL[kind]) : W.changed(`${LABEL[kind]} time`), r.warnings?.length ? { description: r.warnings.join(" ") } : undefined);
@@ -450,11 +457,10 @@ function ChangeLeadForm({ jobId, state, onDone, onCancel }: { jobId: string; sta
   );
 }
 
-/** Change electrician on a booked PIESA: re-allocate (Mitti form hand-over), then re-save the assessment booking at its
- *  existing time for the new electrician through the same guarded writer, so the booking names who is going. */
+/** Change electrician on a booked PIESA (Jo 5 Nov 2026): the new person and the existing time are saved together through
+ *  the guarded booking writer; only then are they texted their link and handed the Mitti form. A failed save changes nothing. */
 function ChangeElectricianForm({ jobId, state, onDone, onCancel }: { jobId: string; state: TeamState; onDone: () => void; onCancel: () => void }) {
-  const allocate = useServerFn(allocateElectricianFn);
-  const book = useServerFn(inHouseBookVisit);
+  const change = useServerFn(changeJobElectricianFn);
   const qc = useQueryClient();
   const id = useId();
   const [who, setWho] = useState("");
@@ -471,11 +477,10 @@ function ChangeElectricianForm({ jobId, state, onDone, onCancel }: { jobId: stri
       if (reason) return;
       setBusy(true); setError("");
       try {
-        await allocate({ data: { jobId, workerId: who } });
-        if (!state.piesaStart) return;
-        const r = await book({ data: { jobId, kind: "assessment", start: state.piesaStart, workerId: who, crewIds: [] } });
+        // Jo 5 Nov 2026: the new person and the booked time save together; the text and the Mitti form go only after.
+        const r = await change({ data: { jobId, workerId: who, start: state.piesaStart! } });
         if (!r.ok) { setError(r.blockers.join(" ")); return; }
-        toast.success(W.changed(W.electrician));
+        toast.success(W.changed(W.electrician), r.warnings?.length ? { description: r.warnings.join(" ") } : undefined);
         showTradeSaved(`Electrician saved: ${chosen?.name ?? 'Team electrician'}`);
         markOfficeChanged();
         await qc.invalidateQueries();

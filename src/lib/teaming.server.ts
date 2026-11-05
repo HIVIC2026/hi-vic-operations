@@ -33,6 +33,15 @@ export async function syncTeamUps(db: Db, actorId: string | null): Promise<numbe
   return linked;
 }
 
+/** Jo 5 Nov 2026: once the installer ticks a Main electrician, only that electrician business counts as preferred / Main
+ *  here (a Team Main = none); never ticked = the old flags. A failed Main read keeps the old flags (logged). */
+async function withMain<T extends { electrician_business_id: string; preferred?: boolean | null; is_primary?: boolean | null }>(installerBiz: string, rels: T[]): Promise<T[]> {
+  try {
+    const [{ readMainElectrician }, { preferredWithMain }] = await Promise.all([import("./installer-electricians.server"), import("./installer-electricians.core")]);
+    return preferredWithMain(rels, await readMainElectrician(installerBiz));
+  } catch (e) { console.error("teaming: Main electrician not read; old preferred flags used", (e as Error).message); return rels; }
+}
+
 /**
  * Installer-sourced job needs an electrician: assign the teamed Main (or backup) when approved + in area.
  * Returns the chosen business id or null (Home Insulation Victoria matching continues). Never touches QA test jobs.
@@ -44,7 +53,7 @@ export async function autoAssignTeamElectrician(
   const { data: job } = await db.from("jobs").select("channel, source").eq("id", jobId).single();
   if (!job || job.channel !== "installer_sourced" || job.source === "qa_test") return null;
   const { data: rels } = await db.from("partner_relationships").select("electrician_business_id, is_primary, preferred, active").eq("installer_business_id", installerBiz);
-  const pick = pickTeamElectrician(rels ?? [], ranked);
+  const pick = pickTeamElectrician(await withMain(installerBiz, rels ?? []), ranked);
   if (!pick) return null;
   const { data: m } = await db.from("business_members").select("user_id").eq("business_id", pick.id).eq("active", true).order("created_at").limit(1).maybeSingle();
   if (!m) return null;
@@ -66,9 +75,10 @@ export async function electricianCandidates(jobId: string) {
     admin.from("rate_cards").select("business_id").eq("kind", "electrical").eq("is_active", true),
     admin.from("job_assignments").select("business_id").eq("role", "electrician").eq("active", true),
   ]);
+  const prefRels = installerBiz ? await withMain(installerBiz, rels ?? []) : (rels ?? []);
   const cands: ElecCandidate[] = (bizs ?? []).map((b) => ({
     ...(b as unknown as BusinessLike), id: b.id, name: b.trading_name || b.name, weekly_capacity: b.weekly_capacity, lead_time_days: b.lead_time_days,
-    credentials: (creds ?? []).filter((c) => c.business_id === b.id), preferred: !!rels?.some((r) => r.electrician_business_id === b.id && r.preferred),
+    credentials: (creds ?? []).filter((c) => c.business_id === b.id), preferred: !!prefRels.some((r) => r.electrician_business_id === b.id && r.preferred),
     hasRates: !!cards?.some((c) => c.business_id === b.id), activeJobs: (load ?? []).filter((l) => l.business_id === b.id).length,
   }));
   const p = j?.properties as { postcode: string | null; suburb: string | null } | null;
