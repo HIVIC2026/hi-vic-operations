@@ -37,3 +37,11 @@ export const resolvePartnerChangeRequest = createServerFn({ method: "POST" }).mi
     if (data.status === "declined" && data.note.length < 3) throw new Error("Give a short reason for declining.");
     return (await import("./office-partners.server")).resolveChangeRequest(data.id, data.status, data.note, context.userId);
   });
+
+/** Office business file: open one signed partner agreement as a PDF built from its stored text. */
+export const getPartnerAgreementPdf = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ businessId: uuid, agreementId: uuid }).parse(d))
+  .handler(async ({ context, data }) => {
+    await requireAdmin(context.supabase);
+    return (await import("./trade-view.server")).officeAgreementPdf(data.businessId, data.agreementId);
+  });

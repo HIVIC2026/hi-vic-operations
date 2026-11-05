@@ -137,7 +137,7 @@ function Rates({ d }: { d: Board }) {
         <TabCaption>Agreed rate cards · {d.changes.length} change request{d.changes.length === 1 ? "" : "s"} waiting</TabCaption>
         <Link to="/admin/electrician-rates" className="text-sm font-semibold text-hiv-blue hover:underline" data-why="decision 157: the electrician (PIESA) rate card is versioned there">Electrician rate cards ›</Link>
       </div>
-      <OfficeTable why="approved partner rates (installer price lists ex GST, electrician rates inc GST)" isEmpty={!d.rates.length && !d.changes.length} empty="No agreed rate cards yet." head={["Rate card", "Business", "What it says", "Effective", ""]}>
+      <OfficeTable why="approved partner rates (all rates shown inc GST)" isEmpty={!d.rates.length && !d.changes.length} empty="No agreed rate cards yet." head={["Rate card", "Business", "What it says", "Effective", ""]}>
         {d.rates.map((r) => (
           <tr key={r.id}><td className="font-semibold">{r.card}</td><td><Link to="/admin/partners/business/$businessId" params={{ businessId: r.businessId }} className="text-hiv-blue hover:underline">{r.business}</Link></td><td className="text-xs">{r.says}</td><td>{fmtDay(r.effective)}</td><td /></tr>
         ))}

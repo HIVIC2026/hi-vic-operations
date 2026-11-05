@@ -1143,9 +1143,25 @@ export async function tradeAgreementPdf(userId: string) {
   const { data: a } = await admin.from("partner_agreements").select("version, body, signer_name, signed_at").eq("business_id", c.biz.id).order("signed_at", { ascending: false }).limit(1).maybeSingle();
   if (!a) throw new WorkflowError("There's no signed agreement on file yet.");
   const { textToPdf } = await import("./signed-pdf.server");
-  const signed = new Date(a.signed_at).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" });
-  const bytes = await textToPdf(`Home Insulation Victoria partner agreement v${a.version} - ${c.biz.name}`, `${a.body}\n\nSigned by ${a.signer_name} on ${signed} (Melbourne time).`);
-  return { fileName: `agreement-v${a.version}.pdf`, base64: toB64(bytes) };
+  const { agreementPdfText } = await import("./office-partners.core");
+  const t = agreementPdfText(a, c.biz.name);
+  const bytes = await textToPdf(t.title, t.body);
+  return { fileName: t.fileName, base64: toB64(bytes) };
+}
+
+/** Office: the same agreement PDF for one signed agreement of any business, built on demand from the stored text. */
+export async function officeAgreementPdf(businessId: string, agreementId: string) {
+  const [{ data: a, error: ae }, { data: biz, error: be }] = await Promise.all([
+    admin.from("partner_agreements").select("version, body, signer_name, signed_at").eq("id", agreementId).eq("business_id", businessId).maybeSingle(),
+    admin.from("businesses").select("name, trading_name").eq("id", businessId).maybeSingle(),
+  ]);
+  if (ae) throw new WorkflowError(`Could not read the agreement: ${ae.message}`);
+  if (be) throw new WorkflowError(`Could not read the business: ${be.message}`);
+  const { agreementRowState, agreementPdfText } = await import("./office-partners.core");
+  if (!a || agreementRowState(a) === "missing") throw new WorkflowError("The signed agreement text is missing, so there is no PDF to open.");
+  const { textToPdf } = await import("./signed-pdf.server");
+  const t = agreementPdfText(a, biz?.name ?? "Business");
+  return { fileName: t.fileName, base64: toB64(await textToPdf(t.title, t.body)) };
 }
 
 /** Jo 22 Oct: this nomination alone is editable; legal details, rate cards and approvals are unchanged. */

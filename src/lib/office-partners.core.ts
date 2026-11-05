@@ -76,10 +76,11 @@ const RATE_LABEL: Record<string, string> = {
   BATTS_REMOVAL: "removal", REMOVAL: "removal", LOOSE_FILL_REMOVAL: "loose-fill removal", VACUUM_ONLY: "vacuum only",
 };
 /** One line per rate card: "R5.0 batts $24.50/m² · R4.0 $21.00/m² · min job $900" (ex GST, as agreed). */
-export function rateCardLine(items: readonly { code: string; unit_price_ex_gst: number; unit?: string | null }[]): string {
+export function rateCardLine(items: readonly { code: string; unit_price_ex_gst: number; unit?: string | null }[], opts?: { incGst?: boolean }): string {
+  const shown = (n: number) => (opts?.incGst ? rateIncGst(n) : Number(n));
   const known = items.filter((i) => RATE_LABEL[i.code]);
   if (!known.length) return items.length ? `${items.length} items` : "No items";
-  return known.slice(0, 4).map((i) => `${RATE_LABEL[i.code]} $${Number(i.unit_price_ex_gst).toFixed(2)}${i.unit === "m2" || /BATTS|REMOVAL|TOPUP|VACUUM/.test(i.code) ? "/m²" : ""}`).join(" · ") + (known.length > 4 ? ` + ${known.length - 4} more` : "");
+  return known.slice(0, 4).map((i) => `${RATE_LABEL[i.code]} $${shown(i.unit_price_ex_gst).toFixed(2)}${i.unit === "m2" || /BATTS|REMOVAL|TOPUP|VACUUM/.test(i.code) ? "/m²" : ""}`).join(" · ") + (known.length > 4 ? ` + ${known.length - 4} more` : "");
 }
 
 /** Mask bank details for the business file (decision: full details only behind a logged reveal). */
@@ -155,4 +156,25 @@ export function whiteCardCell(state: string | null | undefined): { label: string
   if (state === "rejected") return { label: "Not accepted", tone: "rose", canDecide: false };
   if (state === "missing") return { label: "Missing", tone: "rose", canDecide: false };
   return { label: "—", tone: "plain", canDecide: false };
+}
+
+/** Business file, Bank details "Changed" row: date and how it was supplied only (no review status word). */
+export function bankChangedLine(day: string | null | undefined, how: string | null | undefined): string {
+  return `${day || "—"}${how ? ` · ${how}` : ""}`;
+}
+
+/** Documents row for a signed agreement: opens the generated PDF unless the stored text is missing. */
+export function agreementRowState(a: { body?: string | null }): "open" | "missing" {
+  return a.body && a.body.trim() ? "open" : "missing";
+}
+
+/** The signed partner agreement PDF wording, shared by the installer page and the office business page (one builder, one wording). */
+export function agreementPdfText(a: { version: string; body: string; signer_name: string; signed_at: string }, businessName: string): { title: string; body: string; fileName: string } {
+  const signed = new Date(a.signed_at).toLocaleString("en-AU", { timeZone: "Australia/Melbourne" });
+  return { title: `Home Insulation Victoria partner agreement v${a.version} - ${businessName}`, body: `${a.body}\n\nSigned by ${a.signer_name} on ${signed} (Melbourne time).`, fileName: `agreement-v${a.version}.pdf` };
+}
+
+/** Display only: a stored ex-GST rate shown inc GST (x 1.1, to the cent, so 27.27 shows $30.00 not $29.997). Stored values and quote maths never use this. */
+export function rateIncGst(exGst: number | string, gstRate = 0.1): number {
+  return Math.round(Number(exGst) * (1 + gstRate) * 100) / 100;
 }
