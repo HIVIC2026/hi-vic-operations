@@ -6,7 +6,7 @@ Date: 5 Nov 2026 · Approved design: Jo (chat, 5 Nov 2026) · Base: GitHub main 
 
 The portal must never say "done" when part of a job is still unfinished. Four places can do that today:
 
-Order of fixing (Jo, 5 Nov 2026): VEEC assignment → quotes → estimates → stage checks → Xero (empty answers, then invoice matching) → payments → emails → Mitti → SMS.
+Order of fixing (Jo, 5 Nov 2026): VEEC assignment → quotes → estimates → stage checks → bookings → Xero (empty answers, then invoice matching) → payments → emails → Mitti → SMS.
 
 1. **VEEC assignment:** the portal can say "signed copy stored" when the PDF upload failed. "Signed" can be logged when a signature didn't save. A failed variation check counts as "no variations". The signed-copy email can get stuck after one failure, and "emailed" can be logged when the sent date didn't save.
 2. **Quotes:** a rejected office edit still saves the line, and a database hiccup can save a $0 total.
@@ -15,6 +15,7 @@ Order of fixing (Jo, 5 Nov 2026): VEEC assignment → quotes → estimates → s
 5. **Emails:** a Spot saved email can show "Already sent to this owner" when nothing was sent.
 6. **Mitti:** the sweep only looks at the oldest 500 booked Ready Checks, so job 501 can be missed.
 7. **Xero:** an empty Xero answer can make a paid invoice look unpaid and undo recorded payments. A recovered invoice can be linked to the wrong Xero invoice that shares the reference. The payment check can say "0 failed" when Xero didn't answer, and it skips paid invoices, so a later reversal is missed.
+7c. **Bookings:** a failed reschedule can cancel the owner's existing booking (Ready Check, PIESA, install). An accepted offer can be left with no times, and the installer can't retry.
 7b. **Stage checks:** a database timeout can hide outstanding electrical fixes at install booking, and pending compliance checks at Ready for VEEC.
 8. **SMS:** a reply can be filed on the wrong job. A text that never reached the provider can't be retried. "Delivered" can go back to "sent".
 
@@ -106,6 +107,18 @@ New table `recovery_work` (pending SQL in `docs/pending-migrations/recovery-work
 - In `stageEntryBlockers`, every read checks `error` (compliance checks for `ready_for_veec`, VEEC lodgement for `complete`, and all others in the function). A failed read adds the blocker `Couldn't verify {what}. {Stage name} is paused. Please try again.` and nothing passes. For example, "Couldn't verify outstanding electrical fixes. Installation booking is paused. Please try again." and "Couldn't verify compliance checks. Ready for VEEC is paused. Please try again."
 - The same blocker text is shown wherever the stage blockers already show (office job page, installer booking). Nothing new is added on screen.
 
+## F. Bookings and offered times (`booking.server.ts`, `ready-check-times.server.ts`, `piesa-times.server.ts`)
+
+**Reschedule never loses the old booking (`confirmBooking`, Ready Check / PIESA / install)**
+- Cancel-old + insert-new becomes one RPC `replace_booking(p_job_id uuid, p_kind text, p_row jsonb) returns uuid` (pending SQL). In one transaction it cancels the job's `proposed`/`confirmed` bookings of that kind and inserts the new confirmed one. If the insert fails, the old booking stays confirmed and the person still sees "Booking could not be saved".
+- The existing "stage couldn't move → withdraw the new booking" step also restores the booking it replaced. Same RPC, `p_restore_id`, so a failed stage move leaves the original appointment confirmed.
+
+**Offer accepted but times not saved (`acceptOfferWithTimes`, `acceptPiesaOfferWithTimes`, `insertTimes`)**
+- Superseding old proposed times + inserting new ones becomes one RPC `replace_proposed_times(p_job_id uuid, p_kind text, p_note text, p_rows jsonb)`. Old times are never cleared without the new ones saved.
+- Accept + times becomes one RPC `accept_offer_with_times(p_offer uuid, p_user uuid, p_kind text, p_rows jsonb) returns text`. It calls the existing accept function and `replace_proposed_times` in one transaction. If the times fail, the offer isn't accepted.
+- Retry: if the offer is already accepted **and** this user's business holds the job's active assignment **and** there are no proposed times, `acceptOfferWithTimes` / `acceptPiesaOfferWithTimes` skip the accept and save the times. It doesn't say "closed". Anyone else still gets "This offer is no longer open."
+- Two installers accepting the same offer stays guarded by the existing accept function (unchanged, now inside the transaction).
+
 ## 1. Card payments (`stripe.server.ts` `recordStripePayment`)
 
 - Before the ledger insert: `addWork('stripe_payment_followup', receiptKey, jobId, fact)`.
@@ -187,13 +200,14 @@ Each review finding gets a test that fails on `a274d76` and passes after the fix
 12. Provider unavailable, then restored → the retry sends once. "delivered" then a late "sent" → stays delivered.
 13. Two Xero invoices share the reference ($500 other contact, $3,500 correct) → no link, conflict row. One times out in the poll → summary says 1 failed and names it.
 14. Xero returns no invoice → balance and ledger unchanged, sync reported failed. A paid invoice reversed in Xero → the poll still checks it and the reversal is recorded.
-15. Fixes count timeout → install booking blocked with the exact message. Compliance read timeout → Ready for VEEC blocked.
+N. Reschedule insert fails → the original booking is still confirmed. A stage move fails after a reschedule → the original is restored.
+17. Times save fails at offer acceptance → the offer isn't accepted. Already accepted with no times → the same installer's retry saves the times; another installer gets "no longer open".
 
 Plus: tick claim safety (two runs, one attempt), the 3-tries → Needs me rule, Mark sorted / Try again, and the SQL proven on PGlite. Run `bun scripts/scan-retired-terms.ts` and `bun test ./tests/`.
 
 ## Release
 
 1. Code in a pull request (Jo chooses who merges).
-2. Ask Jo, then apply the pending SQL live: `recovery-work.sql`, `complete-veec-assignment.sql`, `apply-quote-adjustment.sql`, `replace-current-estimate.sql`. Each comes with a rollback and a PGlite proof. The `not_sent` SMS status needs no SQL if `sms_messages.status` has no check constraint (the plan confirms this). If it does, add it to a `sms-not-sent-status.sql`.
+2. Ask Jo, then apply the pending SQL live: `recovery-work.sql`, `complete-veec-assignment.sql`, `apply-quote-adjustment.sql`, `replace-current-estimate.sql`, `booking-transactions.sql` (replace_booking, replace_proposed_times, accept_offer_with_times). Each comes with a rollback and a PGlite proof. The `not_sent` SMS status needs no SQL if `sms_messages.status` has no check constraint (the plan confirms this). If it does, add it to a `sms-not-sent-status.sql`.
 3. If the code goes live before the table exists, the payment/refund/email paths act exactly as they do today (the list is skipped and an error is logged). The new behaviour starts once the SQL is applied. Nothing is half-on.
 4. A list write that fails while the table exists throws. The webhook returns 500 and Stripe retries.
