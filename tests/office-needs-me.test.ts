@@ -82,3 +82,16 @@ test("Needs me 48h booking rule uses readyCheckOverdueApplies (Jo 28 Oct: instal
   const src = require("node:fs").readFileSync("src/lib/office-needs.server.ts", "utf8") as string;
   expect(src).toContain("readyCheckOverdueApplies(");
 });
+
+// Deep Part 5a (Jo 4–5 Nov 2026): no Lead Installer picked 2 days before the install → red (top) Today row, Open job → install.
+test("Part 5a: 'No Lead Installer' is the top Today row and beats every other row on the job", () => {
+  const f = job("4100", { noLeadInstaller: { at: "2026-10-24T02:00:00Z", text: "No Lead Installer: HV-4100 install Mon 26 Oct" }, sendFailed: { at: "2026-10-24T02:30:00Z", text: "Email failed" }, prestartFailed: { at: "2026-10-24T02:40:00Z", reasons: ["Install deposit not paid"] } });
+  const rows = needsCandidates(f, NOW);
+  expect(rows[0]).toMatchObject({ rank: 1, group: "today", kind: "no_lead_installer", line: "No Lead Installer: HV-4100 install Mon 26 Oct", since: "2026-10-24T02:00:00Z", button: { label: "Open job", to: "job", section: "install" } });
+  const g = buildNeedsRows({ now: NOW, jobs: [f, job("4101", { sendFailed: { at: "2026-10-24T01:00:00Z", text: "Email failed" } })] });
+  expect(g.today.map((r) => [r.jobNumber, r.kind])).toEqual([["HV-4100", "no_lead_installer"], ["HV-4101", "send_failed"]]);
+  // The server reads the flag minus its cleared event (lead-installer-reminder.server writes both).
+  const src = require("node:fs").readFileSync("src/lib/office-needs.server.ts", "utf8") as string;
+  expect(src).toContain("LEAD_REMINDER_FLAG_EVENT");
+  expect(src).toContain("LEAD_REMINDER_FLAG_CLEARED_EVENT");
+});

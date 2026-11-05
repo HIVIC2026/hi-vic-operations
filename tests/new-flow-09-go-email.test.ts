@@ -32,16 +32,16 @@ describe("goEmail (pure, DRAFT)", () => {
     const m = goEmail({ ...base, failures: [fx("Safety plan not signed: John Smith"), fx("Install deposit not paid")], slot: "day_before_2pm" });
     expect(m.subject).toBe("HV-1234: DON'T START — 2 things missing");
     expect(m.text).toContain("Don't start the install at 12 Example St, Box Hill VIC 3128 on Thu 12 Nov, 8:00am until these are fixed:");
-    expect(m.text).toContain("Fix before 6:30am:\n\n• Safety plan not signed: John Smith\n\n• Install deposit not paid");
+    expect(m.text).toContain(`Fix before 6:30am:\n\n• Safety plan not signed: John Smith\n\n• ${GO_EMAIL_PLAIN.depositNotPaid}`); // Part 5a: every blocker in plain words
     expect(m.text).toContain("We'll check again at 6:30am.");
     expect(m.text).not.toContain("must move"); expect(m.text).not.toContain("can't be fixed in time");
     expect(m.text).toContain("Open the job: https://p/field/J1");
-    expect(m.html).toContain("Install deposit not paid");
+    expect(m.html).toContain(GO_EMAIL_PLAIN.depositNotPaid);
   });
   test("DON'T START at 6:30am, everything fixable: singular, 'Fix before the install starts:', no 'check again' line", () => {
     const m = goEmail({ ...base, failures: [fx("Install deposit not paid")], slot: "on_day_630am" });
     expect(m.subject).toBe("HV-1234: DON'T START — 1 thing missing");
-    expect(m.text).toContain("Fix before the install starts:\n\n• Install deposit not paid");
+    expect(m.text).toContain(`Fix before the install starts:\n\n• ${GO_EMAIL_PLAIN.depositNotPaid}`);
     expect(m.text).not.toContain("check again");
   });
   test("DON'T START, the install must move (Jo 4 Nov 14:40): subject, plain intro, the can't-be-fixed list, then the fixable list, NO 'check again' line", () => {
@@ -49,7 +49,7 @@ describe("goEmail (pure, DRAFT)", () => {
     expect(m.subject).toBe("HV-1234: DON'T START — the install must move");
     expect(m.text).toContain("Don't start the install at 12 Example St, Box Hill VIC 3128 on Thu 12 Nov, 8:00am.\n");
     expect(m.text).not.toContain("until these are fixed");
-    expect(m.text).toContain("This can't be fixed in time — rebook the install for a later day and call the owner:\n\n• Owner consent: Owner ESC consent was completed less than 24h before start – reschedule\n\n• The 30-day window ended on 2026-11-10. New PIESA needed.\n\nFix before 6:30am:\n\n• Safety plan not signed: John Smith");
+    expect(m.text).toContain(`This can't be fixed in time — rebook the install for a later day and call the owner:\n\n• ${GO_EMAIL_PLAIN.consentTooLate}\n\n• ${GO_EMAIL_PLAIN.windowEnded("2026-11-10")}\n\nFix before 6:30am:\n\n• Safety plan not signed: John Smith`); // Part 5a: plain words
     expect(m.text).not.toContain("check again");
     expect(m.text).toContain("Open the job: https://p/field/J1");
     expect(m.html).toContain("rebook the install for a later day");
@@ -102,11 +102,13 @@ describe("goEmail (pure, DRAFT)", () => {
     expect(tradeSafeFailureLine("Lead installer has no office-verified EEC CII certification.")).toBe(GO_EMAIL_PLAIN.leadCertNotVerified(null));
     expect(tradeSafeFailureLine("Lead installer Lee: re-record certification as Full with expiry date.")).toBe(GO_EMAIL_PLAIN.leadCertRecheck("Lee"));
     expect(tradeSafeFailureLine("ESC notification is not marked submitted for this install date.")).toBe(GO_EMAIL_PLAIN.escNotSent);
-    expect(tradeSafeFailureLine("Lead installer Lee holds a provisional certification, not full.")).toBe("Lead Installer Lee holds a provisional certification, not full.");
-    expect(tradeSafeFailureLine("Lead installer's certification expired on 2026-10-15.")).toBe("Lead Installer's certification expired on 2026-10-15.");
-    expect(tradeSafeFailureLine("Lead installer Lee: White Card not verified")).toBe("Lead Installer Lee: White Card not verified");
-    expect(tradeSafeFailureLine("Install deposit not paid")).toBe("Install deposit not paid");
+    // Deep Part 5a: every blocker has its own plain line now (tests/deep-5a-go-email-plain.test.ts holds the full table).
+    expect(tradeSafeFailureLine("Lead installer Lee holds a provisional certification, not full.")).toBe(GO_EMAIL_PLAIN.leadCertProvisional("Lee"));
+    expect(tradeSafeFailureLine("Lead installer's certification expired on 2026-10-15.")).toBe(GO_EMAIL_PLAIN.leadCertExpired("2026-10-15"));
+    expect(tradeSafeFailureLine("Lead installer Lee: White Card not verified")).toBe(GO_EMAIL_PLAIN.leadWhiteCard("Lee"));
+    expect(tradeSafeFailureLine("Install deposit not paid")).toBe(GO_EMAIL_PLAIN.depositNotPaid);
     expect(tradeSafeFailureLine("Safety plan not signed: John Smith")).toBe("Safety plan not signed: John Smith");
+    expect(tradeSafeFailureLine("Something new about the lead installer")).toBe("Something new about the Lead Installer");
     // In the email: two read errors collapse to ONE plain line; the DB text never appears; classification is kept.
     const m = goEmail({ ...base, failures: [mv("Installer business: Couldn't read insurance records: connection reset by peer"), mv("ESC notices could not be read (relation missing) — check again"), fx("No lead installer is recorded for this job.")], slot: "day_before_2pm" });
     expect(m.text).not.toContain("connection reset"); expect(m.text).not.toContain("relation missing"); expect(m.text).not.toMatch(/[Ll]ead installer/);

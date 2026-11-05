@@ -1,7 +1,8 @@
 // New job flow Part 9 Task 9 (Jo 2 Nov 2026): required on file before working (DOB + mobile for everyone; Lead/crew a verified
-// CII; electrician licence + REC) and THE ONE Lead Installer lock — 9am email / 5pm lock two calendar days before the
-// install's Melbourne day (DST-safe), ignoring completed installs, failing CLOSED on a read error; validateBooking (install
-// move) and recordLeadChange refuse with LEAD_LOCKED_MESSAGE after the lock.
+// CII; electrician licence + REC) and THE ONE Lead Installer lock — since Deep Part 5a (Jo 4–5 Nov 2026) two days before
+// the install START (the install's own time of day, Melbourne wall-clock, DST-safe; tests/lead-installer-lock.test.ts owns
+// the clock), ignoring completed installs, failing CLOSED on a read error; validateBooking (install move) and
+// recordLeadChange refuse with LEAD_LOCKED_MESSAGE after the lock.
 import { describe, expect, test } from "bun:test";
 import ts from "typescript";
 import { readFileSync } from "node:fs";
@@ -10,7 +11,6 @@ import { LEAD_LOCKED_MESSAGE, leadInstallerLock, leadInstallerLocked } from "../
 import * as lockCore from "../src/lib/lead-installer-lock.core";
 import { REQUIRED_ON_FILE_WORDS, requiredOnFileBlockers, type PersonOnFile } from "../src/lib/worker-compliance.core";
 import * as workerCompliance from "../src/lib/worker-compliance.core";
-import * as leadConfirmCore from "../src/lib/lead-installer-confirm.core";
 import * as prestartCore from "../src/lib/prestart.core";
 import * as visitAllocationCore from "../src/lib/visit-allocation.core";
 import * as inHouseBookingCore from "../src/lib/in-house-booking.core";
@@ -33,27 +33,24 @@ describe("requiredOnFileBlockers (pure)", () => {
   });
 });
 
-describe("the ONE Lead Installer lock (prestart.core re-exports lead-installer-lock.core)", () => {
-  test("Fri 13 Nov 7:30am install → 9am email Tue 10 Nov, lock 5pm Wed 11 Nov, label 'Wed 11 Nov, 5pm'", () => {
-    expect(leadInstallerLock("2026-11-12T20:30:00Z")).toEqual({ emailAt: "2026-11-10T22:00:00.000Z", lockAt: "2026-11-11T06:00:00.000Z", lockLabel: "Wed 11 Nov, 5pm" });
-  });
-  test("DST: Tue 6 Oct 8am AEDT (the lock day is the first DST weekend) → 9am Sun 4 Oct = 22:00Z Sat, 5pm = 06:00Z", () => {
-    expect(leadInstallerLock("2026-10-05T21:00:00Z")).toMatchObject({ emailAt: "2026-10-03T22:00:00.000Z", lockAt: "2026-10-04T06:00:00.000Z", lockLabel: "Sun 4 Oct, 5pm" });
+describe("the ONE Lead Installer lock (prestart.core re-exports lead-installer-lock.core; the clock itself is tested in lead-installer-lock.test.ts)", () => {
+  test("Fri 13 Nov 7:30am install → lock Wed 11 Nov 7:30am (2 days before the start), label 'Wed 11 Nov, 7:30am'", () => {
+    expect(leadInstallerLock("2026-11-12T20:30:00Z")).toMatchObject({ lockAt: "2026-11-10T20:30:00.000Z", lockLabel: "Wed 11 Nov, 7:30am" });
   });
   test("locked from the instant, not a second before; a completed install is never locked; same names everywhere", () => {
     const start = "2026-11-12T20:30:00Z";
-    expect(leadInstallerLocked(start, new Date("2026-11-11T05:59:00Z"))).toBe(false);
-    expect(leadInstallerLocked(start, new Date("2026-11-11T06:00:00Z"))).toBe(true);
-    expect(leadInstallerLocked(start, new Date("2026-11-11T06:00:00Z"), { installCompleted: true })).toBe(false);
-    expect(LEAD_LOCKED_MESSAGE).toBe("Locked: ESC has been told. Email us to move this install.");
+    expect(leadInstallerLocked(start, new Date("2026-11-10T20:29:00Z"))).toBe(false);
+    expect(leadInstallerLocked(start, new Date("2026-11-10T20:30:00Z"))).toBe(true);
+    expect(leadInstallerLocked(start, new Date("2026-11-10T20:30:00Z"), { installCompleted: true })).toBe(false);
+    expect(LEAD_LOCKED_MESSAGE).toBe(lockCore.LEAD_LOCKED_MESSAGE);
     expect(prestartCore.leadInstallerLock).toBe(lockCore.leadInstallerLock);
     expect(prestartCore.leadInstallerLocked).toBe(lockCore.leadInstallerLocked);
     expect(prestartCore.LEAD_LOCKED_MESSAGE).toBe(lockCore.LEAD_LOCKED_MESSAGE);
     // Parts 5 and 7 import the names; nobody re-implements the clock.
-    for (const f of ["src/lib/next-step-box.core.ts", "src/lib/lead-installer-confirm.core.ts", "src/lib/lead-installer-confirm.server.ts", "src/lib/visit-allocation.core.ts"]) {
+    for (const f of ["src/lib/next-step-box.core.ts", "src/lib/lead-installer-reminder.core.ts", "src/lib/lead-installer-confirm.server.ts", "src/lib/visit-allocation.core.ts"]) {
       const src = readFileSync(f, "utf8");
       expect(src, f).toMatch(/from "\.\/(prestart|lead-installer-lock)\.core"/);
-      expect(src, f).not.toMatch(/17 \* 3600|- 7 \* 3600_000/);
+      expect(src, f).not.toMatch(/17 \* 3600|- 7 \* 3600_000|48 \* 3600/);
     }
   });
 });
@@ -72,9 +69,9 @@ function failingReads(shim: { from: (t: string) => unknown }, table: string) {
   const chain: Record<string, unknown> = new Proxy({}, { get: (_t, k) => (k === "then" ? (res: (v: unknown) => unknown) => Promise.resolve(failed).then(res) : () => chain) });
   return { from: (t: string) => (t === table ? chain : shim.from(t)) };
 }
-const THU_8AM = "2026-11-11T21:00:00Z"; // Thu 12 Nov 8:00am AEDT → lock Tue 10 Nov 5pm = 2026-11-10T06:00:00Z
-const TUE_1659 = new Date("2026-11-10T05:59:00Z");
-const TUE_1701 = new Date("2026-11-10T06:01:00Z");
+const THU_8AM = "2026-11-11T21:00:00Z"; // Thu 12 Nov 8:00am AEDT → lock Tue 10 Nov 8:00am (Part 5a: 2 days before the start) = 2026-11-09T21:00:00Z
+const TUE_1659 = new Date("2026-11-09T20:59:00Z"); // Tue 10 Nov 7:59am — a minute before the lock
+const TUE_1701 = new Date("2026-11-09T21:01:00Z"); // Tue 10 Nov 8:01am — a minute after the lock
 
 function lockFixture(now: Date) {
   const rows: Record<string, AnyRow[]> = {
@@ -105,7 +102,7 @@ function lockFixture(now: Date) {
     "./payments.server": { installDepositBlockerFor: async () => null }, "./job-live.server": { jobDeletedBlocker: async () => null },
     "./in-house-electrician.server": { allocatedWorkerId: async () => null },
     "./worker-compliance.core": workerCompliance, "./trade-expiry.core": tradeExpiryCore, "./melbourne-time.core": melbourne,
-    "./lead-installer-confirm.core": leadConfirmCore, "./prestart.core": prestartCore, "./visit-allocation.core": visitAllocationCore,
+    "./prestart.core": prestartCore, "./visit-allocation.core": visitAllocationCore,
     "./piisa-a3.core": { leadWorkerId: (sel: { lead?: unknown }) => (typeof sel.lead === "string" ? sel.lead : null) },
     "./people-on-file.server": { requirePeopleOnFileForBooking: async () => {} },
   };
@@ -119,7 +116,7 @@ function lockFixture(now: Date) {
 }
 
 describe("validateBooking: moving a booked install after the lock (server)", () => {
-  test("Thu 8am install: moved at Tue 17:01 → LEAD_LOCKED_MESSAGE; at Tue 16:59 → allowed; the same start is never a move", async () => {
+  test("Thu 8am install: moved at Tue 8:01am → LEAD_LOCKED_MESSAGE; at Tue 7:59am → allowed; the same start is never a move", async () => {
     const late = lockFixture(TUE_1701);
     await expect(late.booking.validateBooking("j", "installation", "2026-11-12T21:00:00Z", null)).rejects.toThrow(LEAD_LOCKED_MESSAGE);
     await expect(late.booking.validateBooking("j", "installation", THU_8AM, null)).resolves.toEqual({ stage: "installation_booked", target: "installation_booked", warnings: [] });
@@ -196,7 +193,7 @@ describe("recordLeadChange after the lock (server)", () => {
     const api = transpiled("src/lib/in-house-booking.server.ts", f.deps) as { recordLeadChange: (j: string, a: string, o: string | null, n: string, now: Date) => Promise<void> };
     return { ...f, api, sends };
   }
-  test("Thu 8am install: a Lead swap at Tue 17:01 → throws LEAD_LOCKED_MESSAGE and records nothing; at Tue 16:59 → allowed", async () => {
+  test("Thu 8am install: a Lead swap at Tue 8:01am → throws LEAD_LOCKED_MESSAGE and records nothing; at Tue 7:59am → allowed", async () => {
     const late = fixture(TUE_1701);
     await expect(late.api.recordLeadChange("j", "actor", "old", "new", TUE_1701)).rejects.toThrow(LEAD_LOCKED_MESSAGE);
     expect(late.rows["workflow_events"]!.filter((e) => e["event_type"] === "in_house_lead_changed")).toHaveLength(0);

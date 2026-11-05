@@ -35,7 +35,7 @@ export type NeedsKind =
   | "payment_not_in_xero" | "payment_overdue" | "ten_days_left" | "second_no_access" | "veec_day_10" | "lapsed_window" | "upgrades_past_30_days"
   | "release_lapsed" | "piesa_form_failed" | "prestart_failed" | "eligibility_review" | "payment_reversed" | "mitti_form_problem" | "booking_overdue" | "piesa_fixes_found" | "repeat_piesa_choose" | "payment_stalled" | "invoice_failed" | "old_fixes_invoice_unpaid" | "old_fixes_invoice_paid" | "stop_release_failed" | "quote_expired_blocked" | "new_quote_installer" | "new_quote_unfinished" | "piesa_rules_failed" | "coes_check" | "life_support_plan" | "tenant_notice_held"
   | "upgrades_day_not_set" | "upgrades_day_red" | "certificate_not_in"
-  | "veec_refunded" | "complaint_ack_due" | "complaint_resolve_due" | "ready_check_person_missing";
+  | "veec_refunded" | "complaint_ack_due" | "complaint_resolve_due" | "ready_check_person_missing" | "no_lead_installer";
 
 /** Where the one button takes the office. `section` is the Job page stage card id; `act` are inline row actions. */
 export type NeedsButton =
@@ -102,6 +102,9 @@ export type NeedsFacts = {
   veecRefunded?: { at: string; text: string } | null;
   /** G7: a Ready Check tomorrow booked with "Not sure yet" and nobody picked by 5pm the day before (the event's own line). */
   readyCheckPersonMissing?: { at: string; text: string } | null;
+  /** Deep Part 5a (Jo 4–5 Nov 2026): no Lead Installer picked 2 days before the install (`no_lead_installer`, needs_office,
+   *  minus its `no_lead_installer_cleared`; lead-installer-reminder.server) — the red top row: the ESC must be told. */
+  noLeadInstaller?: { at: string; text: string } | null;
   /** Part 9 Task 12: open complaint steps (complaints.core `complaintNeeds`) — acknowledge within 5 business days, resolve within 20. */
   complaints?: ComplaintNeed[] | null;
   /** A48 batch 1: the newest A3 safety check breaks the official PIESA rules (piesa-rules-notice.core) — every reason. */
@@ -259,6 +262,7 @@ export function needsCandidates(f: NeedsFacts, now: number): Candidate[] {
   if (f.piesaAutoCompleteHeld) add({ rank: 3, group: "today", kind: "piesa_auto_complete_held", line: `Safety check (PIESA) not completed by itself: ${f.piesaAutoCompleteHeld.reason}`, since: f.piesaAutoCompleteHeld.at, button: { label: "Open job", to: "job", section: "piesa" } });
   if(f.inHouseFormSyncFailed)add({rank:3,group:'today',kind:'in_house_form_sync_failed',line:`In-house forms need office attention: ${f.inHouseFormSyncFailed.reason}`,since:f.inHouseFormSyncFailed.at,button:{label:'Open job',to:'job',section:'install'}});
   if(f.depositRequestFailed)add({rank:8,group:'today',kind:'install_deposit_request_failed',line:`Installation deposit request needs office attention: ${f.depositRequestFailed.reason}`,since:f.depositRequestFailed.at,button:{label:'Open job',to:'job',section:'money'}});
+  if (f.noLeadInstaller) add({ rank: 1, group: "today", kind: "no_lead_installer", line: f.noLeadInstaller.text, since: f.noLeadInstaller.at, button: { label: "Open job", to: "job", section: "install" } });
   if(f.inHouseLeadChanged)add({rank:1,group:'today',kind:'in_house_esc_lead_changed',line:f.inHouseLeadChanged.line,since:f.inHouseLeadChanged.at,button:{label:'Open job',to:'job',section:'install'}});
   if(f.inHouseHandedBack)add({rank:2,group:'today',kind:'in_house_handed_back',line:`Installer can't do this one: ${f.inHouseHandedBack.reason}`,since:f.inHouseHandedBack.at,button:{label:'Open job',to:'job',section:'ready-check'}});
   if (f.ownJobPiesaHandedBack) add({ rank: 2, group: "today", kind: "own_job_piesa_handed_back", line: `Electrician can't do this one: ${f.ownJobPiesaHandedBack.reason}`, since: f.ownJobPiesaHandedBack.at, button: { label: "Open job", to: "job", section: "piesa" } });
