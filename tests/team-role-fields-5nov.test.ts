@@ -1,0 +1,14 @@
+import { expect, test } from 'bun:test';
+import { addPersonProblems, type AddPersonInput } from '../src/lib/team-screen.core';
+const base: AddPersonInput = { name:'TEST person', role:'lead', mobile:'0412345678', email:null, dateOfBirth:'1990-01-01', licenceNumber:null, recNumber:null, certificateNumber:'CII-123', certificateExpiry:'2027-11-05', certificatePath:'team-certificates/test/a.jpg', requireCertificate:true };
+const problems = (patch: Partial<AddPersonInput>) => addPersonProblems({...base,...patch},'2026-11-05');
+test('Office requires email, never DOB or certificate',()=>{expect(problems({role:'office',email:'office@hivic-test.example',dateOfBirth:null,certificatePath:null,certificateNumber:null})).toEqual([]);expect(problems({role:'office',email:null})).not.toEqual([]);});
+test('Lead requires DOB',()=>{expect(problems({dateOfBirth:null})).not.toEqual([]);});
+test('Crew requires DOB',()=>{expect(problems({role:'crew',dateOfBirth:null})).not.toEqual([]);});
+test('Lead and Crew require certificate number',()=>{for(const role of ['lead','crew'] as const)expect(problems({role,certificateNumber:''})).not.toEqual([]);});
+test('Lead and Crew can save a certificate number without a photo',()=>{for(const role of ['lead','crew'] as const)expect(problems({role,certificatePath:null})).toEqual([]);});
+test('Lead and Crew email is optional',()=>{for(const role of ['lead','crew'] as const)expect(problems({role,email:null})).toEqual([]);});
+test('Electrician requires email and licence and REC, never DOB or certificate',()=>{const electrician={role:'electrician' as const,dateOfBirth:null,certificatePath:null,certificateNumber:null,licenceNumber:'A63151',recNumber:'30614',email:'electrician@hivic-test.example'};expect(problems(electrician)).toEqual([]);for(const field of ['email','licenceNumber','recNumber'] as const)expect(problems({...electrician,[field]:null})).not.toEqual([]);});
+test('Every role requires full name and mobile',()=>{for(const role of ['office','lead','crew','electrician'] as const){expect(problems({role,name:''})).not.toEqual([]);expect(problems({role,mobile:''})).not.toEqual([]);}});
+test('Edit can retain privately recorded DOB but cannot bypass missing DOB',()=>{expect(problems({role:'crew',dateOfBirth:null,hasDob:true})).toEqual([]);expect(problems({role:'crew',dateOfBirth:null,hasDob:false})).not.toEqual([]);});
+test('Lead and Crew require a valid certificate expiry but can record an expired certificate',()=>{for(const role of ['lead','crew'] as const){expect(problems({role,certificateExpiry:null})).not.toEqual([]);expect(problems({role,certificateExpiry:'2026-02-30'})).not.toEqual([]);expect(problems({role,certificateExpiry:'2026-11-04'})).toEqual([]);}});

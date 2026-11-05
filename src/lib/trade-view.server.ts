@@ -227,6 +227,7 @@ export async function tradeHome(userId: string) {
   // real Promise: a query builder is a thenable that runs its query again for every `then`, so sharing it as-is would read twice.
   const msP = Promise.resolve(formReads ? admin.from("ceiling_measurements").select("job_id, external_source, external_id").in("job_id", liveIds).eq("is_current", true) : { data: [] as { job_id: string; external_source: string | null; external_id: string | null }[] });
   const basicsP = Promise.resolve(formReads ? admin.from("workflow_events").select("job_id, details, created_at").in("job_id", liveIds).eq("event_type", "ready_check_basics").order("created_at", { ascending: false }) : { data: [] as { job_id: string | null; details: unknown; created_at: string }[] });
+  const choiceP = Promise.resolve(formReads ? admin.from('workflow_events').select('job_id').in('job_id',liveIds).eq('event_type','own_customer_mitti_requested') : {data:[] as {job_id:string|null}[],error:null});
   // Round 3: every read that needs the job ids, together.
   const [{ data: books }, { data: missing }, { data: deadlines }, sf, rcQuotes, { data: ms }, { data: basics }, prices, { data: histJobs }, { data: assessRows }, ledgers, coesOnFile, { data: allocEvents }] = await Promise.all([
     admin.from("bookings").select("job_id, kind, status, scheduled_start, scheduled_end").in("job_id", ids).in("status", ["confirmed", "completed"]).order("scheduled_start"),
@@ -250,6 +251,9 @@ export async function tradeHome(userId: string) {
     formReads ? admin.from("workflow_events").select("job_id, details, created_at").in("job_id", liveIds).eq("event_type", "in_house_electrician_allocated").order("created_at", { ascending: false }) : Promise.resolve({ data: [] as { job_id: string | null; details: unknown; created_at: string }[] }),
   ]);
   const moneyAll = await moneyP;
+  const choiceRows=await choiceP;
+  if(choiceRows.error) throw new WorkflowError('The Ready Check choices could not be read.');
+  const mittiRequested=new Set((choiceRows.data??[]).map(r=>r.job_id));
   const depositIds = c.kind === 'installer' ? live.filter(j => j.stage === 'installation_scheduling' && !!sf.get(j.id)?.inHouseDispatch).map(j => j.id) : [];
   const depositFacts = await depositsP;
   const installDeposits = new Map<string, boolean | null>(depositIds.map((id) => [id, depositFacts?.get(id) ?? null]));
@@ -355,7 +359,7 @@ export async function tradeHome(userId: string) {
         pay: null, mittiFormUrl: null,
       };
       const box = nextStepBox(facts);
-      return { jobId: j.jobId, jobNumber: String(j.jobNumber), owner: j.owner, street: j.street, suburb: j.suburb, channel: j.channel, box, reason: reasonFor(box.kind, box) };
+      return { jobId: j.jobId, jobNumber: String(j.jobNumber), owner: j.owner, street: j.street, suburb: j.suburb, channel: j.channel, box, reason: reasonFor(box.kind, box), mittiLinked: formFacts.get(j.jobId)?.linked === true, mittiRequested:mittiRequested.has(j.jobId), quoteSentAt: facts.quote === "sent" ? q?.quote?.sent_at ?? null : null };
     });
     // A job with a pending offer shows as the offer card only (owner details stay hidden until the offer is taken); the card's key is the offer id.
     // Part 7 Task 9: no "Job offer" card — a job with a leftover pending offer stays hidden from My work (the office closes the offer).
@@ -971,7 +975,7 @@ export async function tradeBusiness(userId: string) {
     ciiBlocked: team.filter((m) => m.cii && !crewClearance(m.cii, today).cleared).map((m) => ({ name: m.name })),
   }, today);
   return {
-    ...staffOnly, boss: true, approvedSince: biz?.approved_at ?? agr?.signed_at ?? null,
+    ...staffOnly, businessId:c.biz.id, boss: true, approvedSince: biz?.approved_at ?? agr?.signed_at ?? null,
     area: c.biz.covers_all_victoria ? "Anywhere in Victoria" : `Up to ${c.biz.coverage_radius_km ?? "?"} km from ${c.biz.base_suburb ?? "your base"}`,
     licenceExpires: licence, liabilityExpires: liability, rate: rate ? Number((rate as { rate_inc_gst: number }).rate_inc_gst) : null,
     agreementSigned: !!agr?.signed_at, bankSaved: !!bank,
@@ -1281,7 +1285,7 @@ export async function tradeAddTeamPerson(userId: string, p: { name: string; role
   if (!v.ok) throw new WorkflowError(v.error);
   const email = p.email?.trim().toLowerCase() || null;
   if (c.kind === "installer") {
-    const role: import("./team-screen.core").AddPersonRole = p.role ?? p.workerRole ?? "lead";
+    const role: import("./team-screen.core").AddPersonRole = p.role ?? p.workerRole ?? "crew"; // unreachable: teamWorkerRoleProblem already needs an explicit role
     const { addPersonProblems } = await import("./team-screen.core");
     const problems = addPersonProblems({ name, role, mobile: v.mobile, dateOfBirth: p.dateOfBirth ?? null, licenceNumber: licence, recNumber: p.recNumber ?? null, email }, melbourneToday());
     if (problems.length) throw new WorkflowError(problems[0]!);
@@ -1597,6 +1601,7 @@ function installerJobPageParts(i: {
   piesaRec: { outcome: string | null; rectification_completed_at: string | null; section_c_signed_at: string | null } | null;
   accessPerson: import("./rental-answers.core").AccessPerson | null; mineBk: { status: string }[]; released: boolean;
   sentRows: { purpose: string; sent_at: string | null; created_at: string }[]; ledger: { amountCents: number; paidAt: string }[]; depositPaid: boolean;
+  receiptDates?: { depositPaidAt: string | null; balancePaidAt: string | null } | null;
   deadline: string | null; givenAt: string | null; consentSigned: boolean; paidEv: { created_at: string; details: unknown }[];
   piesaPayRead: { piesaIncGst: number | null } | null; swmsRead: { plan: { signers: { role?: string; name: string }[] }; status: { signed: unknown[] } } | null;
   quoteItems: { code: string | null; description: string | null; sort: number | null; line_total_inc_gst?: number | string | null }[]; quotesForMoney?: Parameters<typeof ownCustomerQuoteFigures>[0]; priceEntered: boolean | null; notes: string[]; product: string | null;
@@ -1670,6 +1675,31 @@ function installerJobPageParts(i: {
     installPayRule: ownCustomer ? JOB_PAGE_WORDS.ownPayRule(ownerFirst ?? "the owner") : JOB_PAGE_WORDS.hivicPayRule,
     piesaPay: i.piesaPayRead?.piesaIncGst ?? null, piesaPaidAt: piesaPaidEv?.created_at ?? null, piesaPayApplies: piesaPaysOwn, ownCustomer,
   }), ...ownMoney];
+  // Jo's one Money card uses the chosen recorded quote, never current rates or another invoice's payments.
+  if (ownCustomer && c.money) {
+    const selected = [...(i.quotesForMoney ?? [])].sort((a, b) => String(b.created_at ?? '').localeCompare(String(a.created_at ?? '')));
+    const quoteForMoney = selected.find(q => q.status === 'accepted') ?? selected[0];
+    const amount = (n: number) => n.toLocaleString('en-AU', { style: 'currency', currency: 'AUD' });
+    if (figures.installerPayIncGst != null) {
+      const oldPay = jobDetails.findIndex(([label]) => label === 'Your pay');
+      if (oldPay >= 0) jobDetails.splice(oldPay, 1);
+      jobDetails.push(['Your price inc GST', amount(figures.installerPayIncGst)]);
+    }
+    const safety = quoteForMoney?.items.filter(it => it.code === 'PIESA') ?? [];
+    if (safety.length === 1 && Number(safety[0]?.line_total_inc_gst) > 0) {
+      const oldSafety = jobDetails.findIndex(([label]) => label === 'Your PIESA price (owner pays you)');
+      if (oldSafety >= 0) jobDetails.splice(oldSafety, 1);
+      jobDetails.push(['Safety check (owner pays you)', amount(Number(safety[0]?.line_total_inc_gst))]);
+    }
+    const rebate = (quoteForMoney as { veec_discount_inc_gst?: number | string | null } | undefined)?.veec_discount_inc_gst;
+    if (rebate != null && Number.isFinite(Number(rebate))) jobDetails.push(["Rebate taken off the owner's total", amount(Number(rebate))]);
+  }
+  if (c.money) {
+    const day = (iso: string) => new Intl.DateTimeFormat('en-AU', { timeZone: 'Australia/Melbourne', day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(iso));
+    if (i.receiptDates?.depositPaidAt) jobDetails.push(['Deposit paid', day(i.receiptDates.depositPaidAt)]);
+    if (i.receiptDates?.balancePaidAt) jobDetails.push(['Balance paid', day(i.receiptDates.balancePaidAt)]);
+    if (i.payRow?.state.kind === 'paid') jobDetails.push(['Paid to you', day(i.payRow.state.on)]);
+  }
 
   const events = i.sentRows.flatMap((s) => { const t = ownerToldSummary(s.purpose); return t ? [{ at: s.sent_at ?? s.created_at, type: s.purpose, summary: t }] : []; });
   const payments = i.ledger.map((l) => ({ at: l.paidAt, label: `paid ${centsWords(l.amountCents)} ✓` }));
@@ -1718,7 +1748,8 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
   const piesaRecP = early(admin.from("piesa_records").select("kind, outcome, rectification_completed_at, section_c_signed_at").eq("job_id", jobId).eq("is_current", true).maybeSingle());
   const sentP = early(admin.from("customer_email_sends").select("purpose, sent_at, created_at").eq("job_id", jobId).eq("status", "sent").order("created_at", { ascending: true }));
   const ledgerP = early(paymentsServer.paymentLedger(jobId).catch(() => [] as { amountCents: number; paidAt: string }[]));
-  const depositP = early(import("./install-deposit-list.server").then((m2) => m2.installDepositPaidForJobs([jobId])).then((x) => x.get(jobId) === true).catch(() => false));
+  const receiptsP = early(import("./install-deposit-list.server").then((m2) => m2.installationReceiptFactsForJobs([jobId])).then((x) => x.get(jobId) ?? null));
+  const depositP = early(receiptsP.then(r => r?.depositPaid === true));
   // Join (Task 11 budget): the same deadlines query the overview's piesaStatus makes, so inside the bundle it is asked once.
   const deadlineP = early(piesaStatus(jobId).then((d) => ({ data: d as { install_deadline?: string | null } | null })));
   const givenP = early(admin.from("job_assignments").select("assigned_at").eq("job_id", jobId).eq("business_id", c.biz.id).eq("role", "installer").order("assigned_at", { ascending: true }).limit(1).maybeSingle());
@@ -1737,7 +1768,7 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
   const swmsP = early(inBookP.then(async ({ data: ib }) => ib ? await import("./swms.server").then((m2) => m2.loadSwms(jobId)).catch(() => null) : null));
   // I3: up to five quotes so the money rows can prefer an ACCEPTED quote over a newer draft (ownCustomerQuoteFigures); the
   // product detection below keeps reading the newest, as before.
-  const quoteItemsP = early(admin.from("quotes").select("status, created_at, customer_total_inc_gst, quote_items(code, description, sort, line_total_inc_gst)").eq("job_id", jobId).eq("kind", "installation").in("status", ["issued", "accepted", "draft"]).order("created_at", { ascending: false }).limit(5));
+  const quoteItemsP = early(admin.from("quotes").select("status, created_at, customer_total_inc_gst, veec_discount_inc_gst, quote_items(code, description, sort, line_total_inc_gst)").eq("job_id", jobId).eq("kind", "installation").in("status", ["issued", "accepted", "draft"]).order("created_at", { ascending: false }).limit(5));
   // Fix wave I4: who books (business setting), the CoES document, and the electrician the allocation event names.
   const whoBooksP = early(whoBooksFor(c.biz.id));
   const coesP = early(coesOnFileForJobs([jobId]).then((set) => set.has(jobId)).catch(() => false));
@@ -1807,7 +1838,8 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
     sentRows: sentRows ?? [], ledger, depositPaid, deadline: dl?.install_deadline ? String(dl.install_deadline) : null, givenAt: (given as { assigned_at?: string | null } | null)?.assigned_at ?? null,
     consentSigned: !!consent, paidEv: (paidEv ?? []) as { created_at: string; details: unknown }[], piesaPayRead, swmsRead, quoteItems: ((quoteItemsRow as unknown as { quote_items: unknown }[] | null)?.[0]?.quote_items as { code: string | null; description: string | null; sort: number | null; line_total_inc_gst?: number | string | null }[] | null) ?? [],
     // Part 10 Task 9 / I3: the quotes the Job details money rows read (own customers only; figures never shown to staff).
-    quotesForMoney: ((quoteItemsRow as unknown as { status: string | null; created_at: string | null; customer_total_inc_gst: number | string | null; quote_items: { code: string | null; line_total_inc_gst: number | string | null }[] | null }[] | null) ?? []).map((q) => ({ status: q.status, created_at: q.created_at, customer_total_inc_gst: q.customer_total_inc_gst, items: q.quote_items ?? [] })),
+    quotesForMoney: ((quoteItemsRow as unknown as { status: string | null; created_at: string | null; customer_total_inc_gst: number | string | null; veec_discount_inc_gst?: number | string | null; quote_items: { code: string | null; line_total_inc_gst: number | string | null }[] | null }[] | null) ?? []).map((q) => ({ status: q.status, created_at: q.created_at, customer_total_inc_gst: q.customer_total_inc_gst, veec_discount_inc_gst: q.veec_discount_inc_gst, items: q.quote_items ?? [] })),
+    receiptDates: c.money ? await receiptsP : null,
     priceEntered: j?.channel === 'installer_sourced' ? !!priceRecord : null, notes, product, payRow, mittiCompleted: mitti.applies ? mitti.completed === true : false, needsFinishingItems: needsFinishingList(j?.next_action ?? ""), mittiMissing: mitti.applies ? mitti.missing : [],
     whoBooks, coesOnFile,
   });
@@ -2138,7 +2170,7 @@ export async function tradeReadyCheckReportPdf(jobId: string, userId: string, de
   const c = await deps.access(userId, jobId);
   if (c.kind !== "installer") throw new WorkflowError("Only the installing business can open the Ready Check report.");
   const { data: doc } = await admin.from("documents").select("storage_path, title, created_at").eq("job_id", jobId).eq("kind", "mitti_report").ilike("title", "%Ready Check%").order("created_at", { ascending: false }).limit(1).maybeSingle();
-  if (!doc?.storage_path) throw new WorkflowError("The Ready Check report hasn't been saved to the job yet — sync the form first.");
+  if (!doc?.storage_path) throw new WorkflowError("Ready Check report not in yet. It comes through within 15 minutes of pressing Complete in Mitti.");
   const dl = await admin.storage.from("job-files").download(doc.storage_path);
   if (dl.error || !dl.data) throw new WorkflowError("The Ready Check report could not be opened.");
   const { data: job } = await admin.from("jobs").select("job_number").eq("id", jobId).maybeSingle();

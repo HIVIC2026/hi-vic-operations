@@ -10,6 +10,7 @@ import {supabase} from '@/integrations/supabase/client';
 import {saveOwnCustomerReadyCheck,portalReadyCheckUpload} from '@/lib/own-customer-portal-ready-check.functions';
 import {portalReadyCheckSchema,calculatedPortalArea,portalAreaNudge,type PortalReadyCheckInput} from '@/lib/own-customer-portal-ready-check.core';
 import {OWN_READY_CHECK_COPY as W} from '@/lib/own-customer-ready-check-copy.core';
+import {showTradeSaved} from '@/lib/trade-save-confirmation';
 
 import {inputCls} from './trade-classes';
 
@@ -41,12 +42,12 @@ export function OwnCustomerReadyCheck({jobId,onOpenChange}:{jobId:string;onOpenC
   const result=portalReadyCheckSchema.safeParse({installM2:install.trim()?Number(install):undefined,removalM2:removal.trim()?Number(removal):undefined,existing,rValue:r||undefined,method,areas:method==='onsite'?areas.map(a=>({name:a.name,m2:a.size.trim()?Number(a.size):undefined,lengthM:a.length.trim()?Number(a.length):undefined,widthM:a.width.trim()?Number(a.width):undefined})):[],access,priceIncGst:price.trim()?Number(price):undefined,files:visibleFiles,planM2:(method==='floor_plan'||method==='aerial')&&planArea.trim()?Number(planArea):undefined,measurementNote:method==='other'?measurementNote:'',other});
   if(!result.success){setError(result.error.issues.map(i=>i.message).join(' '));return;}
   setBusy(true);
-  try {await save({data:{jobId,values:result.data}});setSaved(true); await Promise.all(['trade-job-page','installer-price','job','job-files','ready-check-photos'].map(key=>qc.invalidateQueries({queryKey:[key,jobId]})));}
+  try {await save({data:{jobId,values:result.data}});showTradeSaved(`Ready Check details saved: ${result.data.installM2} m² install · ${result.data.removalM2} m² removal`);setSaved(true); await Promise.all(['trade-job-page','installer-price','job','job-files','ready-check-photos'].map(key=>qc.invalidateQueries({queryKey:[key,jobId]})));}
   catch(e){setError(e instanceof Error?e.message:'The details could not be saved. Try again.');}finally{setBusy(false);}
  }
  if(saved)return <p role="status" className="mt-4 text-sm font-semibold text-ink">{W.preparing}</p>;
  return <div className="mt-4 min-w-0">
-  <Button type="button" variant="outline" className="min-h-12 w-full whitespace-normal" onClick={()=>{setOpen(!open);onOpenChange?.(!open);}} aria-expanded={open}>Put the details in the portal</Button>
+  <Button type="button" variant="outline" className="h-auto min-h-12 w-full flex-col items-start gap-2 whitespace-normal py-4 text-left" onClick={()=>{setOpen(!open);onOpenChange?.(!open);}} aria-expanded={open}><span className="font-semibold">{W.portalOption}</span><span className="text-sm font-normal text-sub">{W.portalIntro}</span></Button>
   {open&&<form onSubmit={submit} className="mt-4 min-w-0 space-y-4" aria-label="Ready Check details">
    <h2 className="font-display text-[22px] font-semibold">{W.title}</h2><p className="text-sm text-sub">{W.intro}</p><div className="grid min-w-0 grid-cols-1 gap-4">
     <div className="min-w-0"><Label htmlFor={`${prefix}-install`}>Install m²</Label><p className="my-2 text-sm text-sub">{W.install}</p><Input id={`${prefix}-install`} className={inputCls} required type="number" min="0.01" step="0.01" inputMode="decimal" value={install} onChange={e=>setInstall(e.target.value)}/></div>

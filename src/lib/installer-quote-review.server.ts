@@ -26,16 +26,17 @@ export async function loadQuotesToCheck(data?: { showTestJobs?: boolean | undefi
   for (let from = 0; from < ids.length; from += 150) batches.push(ids.slice(from, from + 150));
   const parts = [];
   parts.push(...await Promise.all(batches.map(async batch => {
-    const [quotes, held, assigned, basics, forms, declines] = await Promise.all([
+    const [quotes, held, assigned, basics, forms, declines, prices] = await Promise.all([
       admin.from("quotes").select("id, job_id, status, sent_at, release_state, customer_total_inc_gst, created_at, release_hold_reason").in("job_id", batch).eq("kind", "installation").in("status", ["draft", "issued", "accepted", "declined"]),
       admin.from("workflow_events").select("job_id, created_at, details").in("job_id", batch).in("event_type", ["installer_quote_held", "ready_check_needs_office"]).order("created_at", { ascending: false }),
       admin.from("job_assignments").select("job_id, business_id").in("job_id", batch).eq("role", "installer").eq("active", true),
       admin.from("workflow_events").select("job_id, created_at, details").in("job_id", batch).eq("event_type", "ready_check_basics").order("created_at", { ascending: false }),
       admin.from("ceiling_measurements").select("job_id, external_id").in("job_id", batch).eq("is_current", true).eq("external_source", "mitti"),
       admin.from("workflow_events").select("job_id, created_at, details").in("job_id", batch).eq("event_type", "quote_declined").order("created_at", { ascending: false }),
+      admin.from('workflow_events').select('job_id,created_at,details').in('job_id',batch).eq('event_type','installer_price_set').order('created_at',{ascending:false}),
     ]);
-    if (quotes.error || held.error || assigned.error || basics.error || forms.error || declines.error) throw new Error("Quotes to check could not be read.");
-    return { quotes: quotes.data ?? [], held: held.data ?? [], assigned: assigned.data ?? [], basics: basics.data ?? [], forms: forms.data ?? [], declines: declines.data ?? [] };
+    if (quotes.error || held.error || assigned.error || basics.error || forms.error || declines.error || prices.error) throw new Error("Quotes to check could not be read.");
+    return { quotes: quotes.data ?? [], held: held.data ?? [], assigned: assigned.data ?? [], basics: basics.data ?? [], forms: forms.data ?? [], declines: declines.data ?? [],prices:prices.data ?? [] };
   })));
   const quotes = parts.flatMap(p => p.quotes), held = parts.flatMap(p => p.held).sort((a,b) => b.created_at.localeCompare(a.created_at)), assigned = parts.flatMap(p => p.assigned), forms = parts.flatMap(p => p.forms), basicsEv = parts.flatMap(p => p.basics).sort((a,b) => b.created_at.localeCompare(a.created_at));
   const businessIds = [...new Set([...jobs.map(j => j.originating_installer_business_id), ...assigned.map(a => a.business_id)].filter((id): id is string => !!id))];
@@ -47,6 +48,8 @@ export async function loadQuotesToCheck(data?: { showTestJobs?: boolean | undefi
   // Jo 24 Oct: quotes the owner said "Not for me" to, with their reason; the office can reopen one.
   const declined: { jobId: string; jobNumber: string; owner: string | null; suburb: string | null; installer: string | null; quoteId: string; total: number; reason: string | null; at: string }[] = [];
   for (const j of jobs ?? []) {
+    const price=parts.flatMap(p=>p.prices).filter(p=>p.job_id===j.id).sort((a,b)=>b.created_at.localeCompare(a.created_at))[0];
+    const priceChange=price ? (await import('./installer-price-change.core')).priceChangeFromEvent(price.details,price.created_at) : null;
     const all = (quotes ?? []).filter((q) => q.job_id === j.id).sort((a, b) => b.created_at.localeCompare(a.created_at));
     if (all[0]?.status === "declined") {
       const ev = declineEv.find((e) => e.job_id === j.id && (e.details as { quote_id?: string } | null)?.quote_id === all[0]!.id) ?? declineEv.find((e) => e.job_id === j.id);
@@ -56,13 +59,15 @@ export async function loadQuotesToCheck(data?: { showTestJobs?: boolean | undefi
       continue;
     }
     const qs = all.filter((q) => q.status !== "declined");
-    if (qs.some((q) => !quoteNeedsOfficeReview(q))) continue;
+    const latestSend=qs.map(q=>q.sent_at).filter((at):at is string=>!!at).sort().pop() ?? null;
+    const pending=(await import('./installer-price-change.core')).pendingPriceChange(priceChange,latestSend);
+    if (qs.some((q) => !quoteNeedsOfficeReview(q)) && !pending) continue;
     const draft = qs.filter(quoteNeedsOfficeReview).sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
     const h = (held ?? []).find((e) => e.job_id === j.id);
     const owner = j.owners as { full_name: string | null } | null;
     const p = j.properties as { address_line: string | null; suburb: string | null } | null;
     const bizId = assigned?.find(a => a.job_id === j.id)?.business_id ?? j.originating_installer_business_id;
-    const base = { jobId: j.id, jobNumber: j.job_number, owner: owner?.full_name ?? null, address: [p?.address_line, p?.suburb].filter(Boolean).join(", ") || null, suburb: p?.suburb ?? null, mittiAuditId: forms.find(f => f.job_id === j.id)?.external_id ?? null, installer: businesses?.find(b => b.id === bizId)?.name ?? null };
+    const base = { jobId: j.id, jobNumber: j.job_number, owner: owner?.full_name ?? null, address: [p?.address_line, p?.suburb].filter(Boolean).join(", ") || null, suburb: p?.suburb ?? null, mittiAuditId: forms.find(f => f.job_id === j.id)?.external_id ?? null, installer: businesses?.find(b => b.id === bizId)?.name ?? null, priceChange: priceChange && (!latestSend || pending) ? priceChange : null };
     const details = h?.details as { blockers?: string[]; reasons?: string[] } | null;
     const reasons = quoteReviewReasons(draft?.release_hold_reason, h ? { at: h.created_at, reasons: details?.blockers ?? details?.reasons ?? [] } : null, draft?.created_at ?? null);
     // Jo 23 Oct: every Ready Check comes here — a draft once the basics are in, otherwise exactly what is missing.
@@ -71,6 +76,7 @@ export async function loadQuotesToCheck(data?: { showTestJobs?: boolean | undefi
     const notes = bd?.notes ?? [];
     if (draft) rows.push({ ...base, quoteId: draft.id, total: Number(draft.customer_total_inc_gst), reasons, notes, kind: reasons.length ? "missing" as const : "ready" as const, at: draft.created_at, note: reasons.join(" · ") || "Quote drafted — check it and send it to the owner" });
     else if (bEv && bd && !bd.ready) { const r2 = [...(bd.missing ?? []).map((m) => `Missing: ${m}`), ...(bd.stops ?? [])]; rows.push({ ...base, quoteId: null, total: null, reasons: r2, notes, kind: "missing" as const, at: bEv.created_at, note: r2.join(" · ") }); }
+    else if (pending && priceChange) rows.push({...base,quoteId:null,total:null,reasons:['Replacement quote being prepared'],notes,kind:'missing' as const,at:priceChange.at,note:`New price from ${base.installer ?? 'installer'} — resend?`});
     else if (h) rows.push({ ...base, quoteId: null, total: null, reasons, notes, kind: "missing" as const, at: h.created_at, note: reasons.join(" · ") || "details missing" });
   }
   const { officeQuoteBlockers } = await import("./office-quote-review.server");
@@ -90,6 +96,7 @@ export async function loadQuotesToCheck(data?: { showTestJobs?: boolean | undefi
     }
   }));
   rows.sort((a, b) => (a.kind === b.kind ? b.at.localeCompare(a.at) : a.kind === "ready" ? -1 : 1));
+  for(const row of rows) if(row.priceChange) row.note=`${row.priceChange.replacesQuoteId ? `New price from ${row.installer ?? 'installer'} — resend?` : 'price changed by installer'} · $${row.priceChange.oldPrice.toLocaleString('en-AU')} → $${row.priceChange.newPrice.toLocaleString('en-AU')}${row.priceChange.reason ? ` · ${row.priceChange.reason}` : ''}${row.reasons.length ? ` · ${row.reasons.join(' · ')}` : ''}`;
   // Jo 24 Oct 2026: installers no longer approve quotes — every draft is on the office list for Check & send;
   // jobs with no draft yet are listed separately with what is missing.
   const { splitQuotesToCheck } = await import("./installer-quote-status.core");

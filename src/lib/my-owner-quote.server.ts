@@ -34,6 +34,7 @@ export async function myOwnerQuoteFor(sb: Rpc, userId: string, jobId: string, sh
   const q = a.quote;
   return {
     applies: true as const, priceHidden: false as const,
+    priceChangePending: !!(await (await import('./installer-price-change.server')).pendingChangeFor(jobId)),
     quoteId: q.id as string,
     sentAt: q.sent_at as string | null,
     acceptedAt: q.accepted_at as string | null,

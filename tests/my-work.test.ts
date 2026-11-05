@@ -22,10 +22,10 @@ const byDate = (id: string, givenAt: string) => row(id, { givenAt });
 
 describe("greeting", () => {
   test("business and count", () => {
-    expect(greeting("Rapid", 3)).toEqual({ title: "Good morning, Rapid crew!", sub: "3 jobs need you today." });
+    expect(greeting("Rapid", 3)).toEqual({ title: "Hi, Rapid team", sub: "3 jobs need you today." });
     // fix wave minor 11: a TEST partner's name loses its TEST mark in the greeting, like Money
-    expect(greeting("TEST Rapid", 1).title).toBe("Good morning, Rapid crew!");
-    expect(greeting("[TEST PARTNER] Rapid", 1).title).toBe("Good morning, Rapid crew!");
+    expect(greeting("TEST Rapid", 1).title).toBe("Hi, Rapid team");
+    expect(greeting("[TEST PARTNER] Rapid", 1).title).toBe("Hi, Rapid team");
     expect(greeting("Rapid", 1).sub).toBe("1 job needs you today.");
     expect(greeting("Rapid", 0).sub).toBe("Nothing needs you today."); // DRAFT
   });
@@ -56,9 +56,11 @@ describe("cards", () => {
     const c = myWorkCards([row("x")]).yourTurn[0]!;
     expect(c).toMatchObject({ owner: "Amy Clarke", hvSuburb: "HV-1250 · Ringwood", pill: "Home Insulation Victoria lead", step: "Book the Ready Check", reason: "New job", button: "Book" });
   });
-  test("own customer: price it", () => {
+  test("own customer: completed form awaits price", () => {
     const c = myWorkCards([row("p", { channel: "installer_sourced", readyCheck: { start: null, done: true, missing: [] }, priceEntered: false }, { channel: "installer_sourced" })]).yourTurn[0]!;
-    expect(c).toMatchObject({ pill: "Your customer", reason: "Ready Check done", button: "Price it" });
+    expect(c.pill).toBe("Your customer");
+    expect(c.yours).toBe(true);
+    expect(c.by).toBeNull();
   });
   test("book the install: deposit paid", () => {
     const c = myWorkCards([row("i", { quote: "accepted", acceptedAt: "2026-10-30T01:00:00Z", piesa: { start: null, outcome: "pass", upgradesDone: false, certificateIn: false }, depositPaidAt: "2026-11-02T01:00:00Z" })]).yourTurn[0]!;

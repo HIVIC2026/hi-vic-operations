@@ -131,6 +131,11 @@ export async function createAssignMittiAudit(jobId: string, actorId: string | nu
   // office button and the automatic sweep agree with each other whatever stage the website checks left the job in.
   const readyCheckStage = readyCheckFormStageAllowed(job.stage, job.channel);
   const measureOnly = !opts.inHousePreparation && (!!opts.readyCheck || readyCheckStage || scope.scope === "MEASURE_UP_ONLY");
+  if(measureOnly && job.channel === 'installer_sourced') {
+    const {ownMittiChoice}=await import('./own-customer-mitti-choice.server');
+    const {ownCustomerMittiAllowed}=await import('./own-customer-mitti-choice.core');
+    if(!ownCustomerMittiAllowed({channel:job.channel,...await ownMittiChoice(jobId)})) throw new WorkflowError('Choose Do a Ready Check on site on the job page before creating a Mitti form.');
+  }
   const role = measureOnly ? "installer" : "electrician";
   // Role-specific forms only; the old combined template is never used for new audits.
   // Ready Check variant: installer-sourced jobs get the priced form (A1), our leads the evidence-only form (A2).

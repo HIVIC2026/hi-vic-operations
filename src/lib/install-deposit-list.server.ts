@@ -1,15 +1,20 @@
 // Batched, authorised list-only deposit facts. No delivery or mutation dependencies.
 import { jobAdmin as admin } from "./job-facts.server"; // speed (Task 11): the admin client; inside the job page bundle it answers from the job's rows
-import { cumulativePaidCents, effectiveLedger, ledgerRecordFromEvent, toCents, withSeparateMarks, paymentPlan, paymentSteps, isStepPaid, type PaymentRecord } from "./payments.core";
+import { effectiveLedger, ledgerRecordFromEvent, withSeparateMarks, type PaymentRecord } from "./payments.core";
 import { PAYMENT_EVENT, PAYMENT_REVERSED_EVENT, PAYMENT_MATCH_SEPARATE_EVENT } from "./payment-ledger.server";
 import { safetyCheckCentsFor } from "./safety-check-amount.core";
 import { readByJobIds } from "./sweep-batch.server";
+import { installerMoneyReceipts } from './installer-money-receipts.core';
 type LedgerRow = { id: string; event_type: string; created_at: string; actor_id: string | null; details: Record<string, unknown> };
 /** Read-only list fact: the same installation-invoice threshold/reconciled money as jobPaymentView,
  * without reading the entire owner payment page once per list row. Callers supply already authorised job ids. */
 export async function installDepositPaidForJobs(jobIds: string[]): Promise<Map<string, boolean | null>> {
+  const facts = await installationReceiptFactsForJobs(jobIds);
+  return new Map([...facts].map(([id, receipt]) => [id, receipt?.depositPaid ?? null]));
+}
+export async function installationReceiptFactsForJobs(jobIds: string[]) {
   const ids = [...new Set(jobIds)];
-  const result = new Map<string, boolean | null>(ids.map(id => [id, null]));
+  const result = new Map<string, ReturnType<typeof installerMoneyReceipts> | null>(ids.map(id => [id, null]));
   if (!ids.length) return result;
   type Invoice = { id: string; job_id: string; quote_id: string | null; total_inc_gst: number | string; total_paid: number | string | null };
   type Event = LedgerRow & { job_id: string };
@@ -32,11 +37,8 @@ export async function installDepositPaidForJobs(jobIds: string[]): Promise<Map<s
     const own = (eventsByJob.get(jobId) ?? []).filter(e => e.details?.['invoice_id'] === invoice.id);
     const marks = own.filter(e => e.event_type === PAYMENT_MATCH_SEPARATE_EVENT).map(e => String(e.details['pair_key'] ?? '')).filter(Boolean);
     const raw = withSeparateMarks(own.filter(e => e.event_type !== PAYMENT_MATCH_SEPARATE_EVENT).map(e => ({ id: e.id, createdAt: e.created_at, ...ledgerRecordFromEvent(e.event_type, e.created_at, e.actor_id, e.details) })), marks);
-    const received = cumulativePaidCents(effectiveLedger(raw));
-    const paid = raw.some(r => r.source === 'xero') ? received : Math.max(received, toCents(invoice.total_paid));
     const safety = safetyCheckCentsFor({ lines: linesByQuote.get(invoice.quote_id ?? '') ?? [], settingIncGst: setting.data?.safety_check_payment_inc_gst ?? null });
-    const plan = paymentPlan({ quoteTotalCents: toCents(invoice.total_inc_gst), safetyCheckCents: safety.cents });
-    result.set(jobId, isStepPaid(paymentSteps(plan, { install: paid, fixes: 0, repeat: 0 }, {}, new Date().toISOString()), 'install_deposit'));
+    result.set(jobId, installerMoneyReceipts({ totalIncGst: invoice.total_inc_gst, totalPaid: invoice.total_paid, safetyCents: safety.cents, records: raw }));
   }
   return result;
 }

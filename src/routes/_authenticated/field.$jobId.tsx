@@ -40,27 +40,18 @@ import { MittiFormLink } from "@/components/portal/MittiFormLink";
 import { ReadyCheckReportButton } from "@/components/trade/ReadyCheckReportButton";
 import { CheckMyFormButton } from "@/components/trade/CheckMyFormButton";
 import { NextStepBox } from "@/components/trade/NextStepBox";
-import { ContactButtons, Group, LinkRow, NextPanel, NoFormNoPay, Row, Screen, ScreenHead } from "@/components/trade/installer-kit";
+import { Group, LinkRow, NextPanel, NoFormNoPay, Row, Screen, ScreenHead } from "@/components/trade/installer-kit";
 import { completeView, ownerReadyLine } from "@/lib/installer-screens.core";
-import { InstallerPriceCard } from "@/components/trade/InstallerPriceCard";
 import { OwnCustomerReadyCheckChoice } from "@/components/trade/OwnCustomerReadyCheckChoice";
 import { PortalReadyCheckView } from '@/components/trade/PortalReadyCheckView';
 import { ELECTRICIAN_ATTENDANCE_CONFIRMED } from "@/lib/trade-view.core";
 import { ReturnActions, useInHouseBookingAccess } from "@/components/trade/ReturnActions";
 import { MittiElectricianCard } from "@/components/trade/mitti-electrician-card";
-import { ReadyCheckPhotos } from "@/components/portal/ReadyCheckPhotos";
 import { nextLine } from "@/lib/add-job-flow.core";
 import { NO_LOGIN_NEEDED } from "@/lib/trade-access-role.core";
-import { onsiteFormStatus } from "@/lib/onsite-ready-check.functions";
-
-function PendingReadyCheckForm({ jobId }: { jobId: string }) {
-  const read = useServerFn(onsiteFormStatus);
-  const qc = useQueryClient();
-  const state = useQuery({ queryKey: ["onsite-form-state", jobId], queryFn: () => read({ data: { jobId } }), refetchInterval: q => q.state.data?.kind === "open" ? false : 5_000, retry: 1 });
-  useEffect(() => { if (state.data?.kind === "open") void qc.invalidateQueries({ queryKey: ["trade-job-page", jobId] }); }, [state.data?.kind, qc, jobId]);
-  if (state.data?.kind === "open") return null;
-  return <p role="status" className="mb-3 text-sm text-sub">{state.data?.kind === "preparing" ? "Mitti form on its way" : state.data?.message ?? "Mitti form on its way"}</p>;
-}
+import { installerJobSections } from "@/lib/installer-job-sections.core";
+import { OWN_READY_CHECK_COPY } from "@/lib/own-customer-ready-check-copy.core";
+import { PriceSavedConfirmation } from '@/components/trade/PriceSavedConfirmation';
 
 export const Route = createFileRoute("/_authenticated/field/$jobId")({
   head: () => ({
@@ -311,7 +302,7 @@ function useInstallerPage(jobId: string, enabled = true) {
 /** A folded row (jobA3-1/2): closed until tapped. */
 function Fold({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <details className={`${card} group`} data-fold={title}>
+    <details className={`${card.replace("p-[19px]", "px-[19px] py-2")} group min-w-0`} data-fold={title}>
       <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between font-display text-[15px] font-semibold">
         {title}
         <span aria-hidden className="text-xl text-sub transition group-open:rotate-90">›</span>
@@ -322,14 +313,18 @@ function Fold({ title, children }: { title: string; children: ReactNode }) {
 }
 
 /** Label / value rows inside a fold. A warned row is printed in the warning colour. */
-function FoldRows({ rows, empty }: { rows: ([string, string] | [string, string, boolean])[]; empty: string }) {
+function FoldRows({ rows, empty, contactLinks = false }: { rows: ([string, string] | [string, string, boolean])[]; empty: string; contactLinks?: boolean }) {
   if (!rows.length) return <p className="py-2 text-sm text-sub">{empty}</p>;
   return (
     <dl>
       {rows.map(([k, v, warn], i) => (
         <div key={k + i} className="flex flex-wrap justify-between gap-x-4 gap-y-0.5 border-b border-line py-2.5 text-[15px] last:border-b-0">
           <dt className="text-sub">{k}</dt>
-          <dd className={`min-w-0 break-words text-right font-medium ${warn ? "text-rose" : "text-ink"}`}>{v}</dd>
+          <dd className={`min-w-0 break-words text-right font-medium ${warn ? "text-rose" : "text-ink"}`}>
+            {contactLinks && (k === 'Phone' || k === 'Mobile' || k === 'Email' || k === 'Address') ? (
+              <a className="underline underline-offset-2" href={k === 'Email' ? `mailto:${v}` : k === 'Address' ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(v)}` : `tel:${v.replace(/\s/g, '')}`} {...(k === 'Address' ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>{v}</a>
+            ) : v}
+          </dd>
         </div>
       ))}
     </dl>
@@ -364,8 +359,10 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
   // as the Ready Check form exists — the rest of the form can be finished later; the quote drafts once size + product + price are in.
   const priceOpenEarly = page.channel === "installer_sourced" && page.prices && page.price.entered === false && page.form.linked && box.kind !== "enter_price";
   const showPrice = (page.channel === "installer_sourced" && page.prices && (box.kind === "enter_price" || box.kind === "waiting_quote")) || priceOpenEarly;
-  const ownReadyCheck = page.channel === "installer_sourced" && page.prices && (showPrice || box.kind === "own_ready_check");
+  const ownReadyCheck = page.channel === "installer_sourced" && page.prices && (showPrice || ['own_ready_check', 'book_ready_check', 'ready_check_booked'].includes(box.kind));
   const mittiAudit = page.form.auditId;
+  const ownCustomer = page.channel === "installer_sourced";
+  const sections = installerJobSections({ ownCustomer, quoteSent: page.quote?.sent === true || page.quote?.accepted === true, siteNotes: page.rows.siteNotes, jobDetails: page.rows.jobDetails });
   return (
     <div className="space-y-4" data-installer-job>
       <Link to="/field" className="inline-flex items-center text-sm font-bold text-estimate-blue">
@@ -374,7 +371,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
       <div className="min-w-0">
         <h1 className="font-display text-[24px] font-semibold leading-tight">{job.owner_name || streetAndSuburb(job.property_address) || "Your job"}</h1>
         <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-sub">
-          {page.label && <Pill tone="plain">{page.label}</Pill>}
+          {page.label && <Pill tone="plain">{ownReadyCheck ? OWN_READY_CHECK_COPY.stage : page.label}</Pill>}
           <span>
             {[job.job_number, streetAndSuburb(job.property_address)].filter(Boolean).join(" · ")}
           </span>
@@ -391,12 +388,11 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
           <li key={p.label}>
             <Pill tone={p.state === "done" ? "green" : p.state === "now" ? "amber" : "plain"}>
               {p.state === "done" ? "✓ " : ""}
-              {p.label}
+              {ownReadyCheck && p.label === 'Ready Check' ? OWN_READY_CHECK_COPY.stage : p.label}
             </Pill>
           </li>
         ))}
       </ol>
-      {page.channel === "installer_sourced" && !page.form.auditId && box.kind === "own_ready_check" && <PendingReadyCheckForm jobId={jobId} />}
       {page.countdown && (
         <p className={`text-sm font-semibold ${page.countdown.daysLeft <= 10 ? "text-rose" : "text-ink"}`} data-countdown>
           {page.countdown.line}
@@ -411,9 +407,10 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
         <p className="text-[15px] font-semibold text-ink" data-added-next>{nextLine(page.ownerFirst ?? "the owner")}</p>
       )}
 
-      <div className="grid items-start gap-4 md:grid-cols-2">
-        <div className="md:col-start-1 md:row-span-3 md:row-start-1">
-        {ownReadyCheck ? <OwnCustomerReadyCheckChoice jobId={jobId} auditId={mittiAudit} /> : <NextStepBox
+      <div className="flex min-w-0 flex-col gap-3">
+        <div className="min-w-0" data-job-section="Next step">
+        {!ownReadyCheck && ownCustomer && page.prices && <PriceSavedConfirmation jobId={jobId} />}
+        {ownReadyCheck ? <OwnCustomerReadyCheckChoice jobId={jobId} auditId={mittiAudit} address={job.property_address ?? ''} jobNumber={job.job_number ?? ''} /> : <NextStepBox
           jobId={jobId}
           box={box}
           ownerFirst={page.ownerFirst}
@@ -458,48 +455,39 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
             </div>
           )}
         </NextStepBox>}
-        {!ownReadyCheck && page.channel === 'installer_sourced' && page.prices && <OwnerQuoteCard jobId={jobId} ownCustomerStatus />}
-        {showPrice && !ownReadyCheck && (
-          <section className={`${card} mt-4 min-w-0`} aria-label="Your price" data-price-early={priceOpenEarly ? "true" : undefined}>
-            {priceOpenEarly && <p className="mb-2 text-sm text-sub">Enter your price and send it to Home Insulation Victoria to prepare the quote. The Mitti form can still have blanks.</p>}
-            <InstallerPriceCard jobId={jobId} />
-          </section>
-        )}
         {/* #134 (Jo 3 Nov 2026): a Mitti pickup still waiting for the installer's one electrician answer — kept at the 4 Nov join
             (no Part 5 equivalent for Mitti pickups); the card renders nothing once answered. */}
-        {page.channel === "installer_sourced" && <MittiElectricianCard jobId={jobId} />}
-        <ReadyCheckPhotos jobId={jobId} quietOnError />
+        {page.channel === "installer_sourced" && !ownReadyCheck && ['book_piesa', 'piesa_booked'].includes(box.kind) && <MittiElectricianCard jobId={jobId} />}
         </div>
 
-        <div className="md:col-start-2 md:row-start-1">
+        <div className="min-w-0">
           <Fold title="Owner">
-            <FoldRows rows={page.rows.owner} empty="Owner details show once the job is yours to visit." />
-            {job.owner_phone && (
-              <ContactButtons phone={job.owner_phone} address={job.owner_name ? job.property_address : null} />
-            )}
+            <FoldRows rows={page.rows.owner} empty="Owner details show once the job is yours to visit." contactLinks />
+            {page.rows.owner.length > 0 && job.property_address && <FoldRows rows={[["Address", job.property_address]]} empty={FOLD_EMPTY} contactLinks />}
+            {sections.notes.length > 0 && <div className="mt-3" data-visit-notes>
+              <h3 className="text-sm font-semibold text-ink">Notes for the visit</h3>
+              <FoldRows rows={sections.notes} empty={FOLD_EMPTY} />
+            </div>}
+            {inHouseAccess.data?.allowed === true && <ReturnActions jobId={jobId} ownCustomer={ownCustomer} />}
           </Fold>
         </div>
-        <div className="md:col-start-1 md:row-start-4">
+        {!ownCustomer && <div className="min-w-0">
           <Fold title="Visits">
             <FoldRows rows={page.rows.visits} empty={FOLD_EMPTY} />
           </Fold>
-        </div>
-        <div className="md:col-start-2 md:row-start-2">
-          <Fold title="Site notes">
-            <FoldRows rows={page.rows.siteNotes} empty={FOLD_EMPTY} />
+        </div>}
+        {sections.money.length > 0 && <div className="min-w-0">
+          <Fold title="Money">
+            <FoldRows rows={sections.money} empty={FOLD_EMPTY} />
           </Fold>
-        </div>
-        <div className="md:col-start-2 md:row-start-3">
-          <Fold title="Job details">
-            <FoldRows rows={page.rows.jobDetails} empty={FOLD_EMPTY} />
-          </Fold>
-        </div>
-        <div className="md:col-start-2 md:row-start-4">
+        </div>}
+        <div className="min-w-0">
           <Fold title="What the owner's been told">
             <FoldRows rows={page.rows.ownerTold} empty={page.channel === 'installer_sourced' ? "Nothing yet. The first message to the owner is the quote from Home Insulation Victoria." : FOLD_EMPTY} />
+            {!ownReadyCheck && ownCustomer && page.prices && <OwnerQuoteCard jobId={jobId} ownCustomerStatus />}
           </Fold>
         </div>
-        <div className="md:col-start-2 md:row-start-5">
+        <div className="min-w-0">
           <Fold title="Paperwork">
             <ul data-paperwork>
               {page.rows.paperwork.map((r) => (
@@ -512,13 +500,15 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
               ))}
             </ul>
             <SafetyPlanCard jobId={jobId} />
+            <section aria-label="Ready Check" className="mt-4 border-t border-line pt-4">
+              <h3 className="font-display text-base font-semibold">Ready Check</h3>
+              {page.rows.paperwork.filter(r=>r.label === 'Ready Check').map(r=><p key={r.label} className="mt-1 flex flex-wrap items-center gap-x-1 text-sm text-sub">
+                <span>{r.ready || page.progress.some(p=>p.label === 'Ready Check' && p.state === 'done') ? r.note && r.note !== 'Not done yet' ? r.note : 'Done in Mitti' : 'Not done yet'}</span>
+                {(r.ready || page.progress.some(p=>p.label === 'Ready Check' && p.state === 'done')) && <><span>·</span>{r.source === 'portal' ? <PortalReadyCheckView jobId={jobId} /> : <ReadyCheckReportButton jobId={jobId} label="See report" />}</>}
+              </p>)}
+            </section>
           </Fold>
         </div>
-        {inHouseAccess.data?.allowed === true && (
-          <div className="md:col-start-1 md:row-start-5">
-            <ReturnActions jobId={jobId} ownCustomer={page.channel === 'installer_sourced'} />
-          </div>
-        )}
       </div>
     </div>
   );

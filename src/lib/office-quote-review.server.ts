@@ -93,6 +93,9 @@ export async function releaseQuoteToOwner(
   how: "office" | "auto",
   mainOnly = false,
 ) {
+  const replacement = await (await import('./installer-price-change.server')).pendingChangeFor(jobId);
+  if(replacement && how !== 'office') throw new WorkflowError('The new price needs Home Insulation Victoria to check and press Send.');
+  const priceChange = replacement ?? await (await import('./installer-price-change.server')).readPriceChange(jobId);
   const { data: quote, error } = await admin
     .from("quotes")
     .select(
@@ -103,6 +106,7 @@ export async function releaseQuoteToOwner(
     .maybeSingle();
   if (error || !quote || !quoteNeedsOfficeReview(quote))
     throw new WorkflowError("This quote is no longer available to send.");
+  if(priceChange && quote.created_at < priceChange.at) throw new WorkflowError('The installer changed the price. Wait for the updated quote, then check it before Send.');
   const { assertCustomerDeliveryAllowed } = await import("./comms.server");
   const wf = await import("./workflow.server");
   // Read together, but surface refusals in the original order. Commercial setup
@@ -194,6 +198,11 @@ export async function releaseQuoteToOwner(
       .eq("id", s.id).eq("job_id", jobId).eq("status", s.status).is("sent_at", null);
     if (se) throw new WorkflowError(se.message);
   }
+  if(replacement?.replacesQuoteId) {
+    const {error: replaceError}=await admin.from('quotes').update({status:'superseded'}).eq('job_id',jobId).eq('kind','installation').eq('status','issued').not('sent_at','is',null).lt('sent_at',now).not('id','in',`(${[quoteId,...siblings.map(s=>s.id)].join(',')})`);
+    if(replaceError) throw new WorkflowError('The old quote could not be withdrawn. The office needs to check it before sending again.');
+    await logEvent(jobId,actorId,'installer_price_quote_replaced','Office sent the replacement installer price',{quote_id:quoteId,replaced_quote_id:replacement.replacesQuoteId,old_price_inc_gst:replacement.oldPrice,new_price_inc_gst:replacement.newPrice,reason:replacement.reason},{internal:true});
+  }
   if (how === "office")
     await logEvent(
       jobId,
@@ -215,6 +224,9 @@ export async function releaseQuoteToOwner(
   const notification = await (
     await import("./quote-ready-notify.server")
   ).notifyOwnerQuoteReady(jobId, quoteId, quote.kind);
+  // Companion options share one installer notice; unapproved wording returns without reads or sends.
+  await (await import('./installer-quote-sent.server')).notifyInstallerQuoteSent(jobId, quoteId)
+    .catch(error => console.warn('Installer quote notice held', jobId, String(error)));
   return { delivery: "ready_to_send" as const, notification };
 }
 /** Jo 24 Oct: a declined quote back to a draft on Quotes to check (fresh 14 days once sent again). Never sends. */

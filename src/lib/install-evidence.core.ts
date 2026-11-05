@@ -334,11 +334,11 @@ export function installBeforeStopReasons(summary:unknown):string[] {
 }
 
 type Phase = "before" | "after";
-function mediaProblems(label: string, files: MittiMediaFile[], opts: { min: number; video: boolean; workStartAt?: string | null | undefined; phase: Phase }): { state: InstallEvidenceItem["state"]; problems: string[] } {
+function mediaProblems(label: string, files: MittiMediaFile[], opts: { min: number; video: boolean; workStartAt?: string | null | undefined; phase: Phase; requireGps?: boolean }): { state: InstallEvidenceItem["state"]; problems: string[] } {
   const problems: string[] = [];
   if (files.length < opts.min) return { state: "missing", problems: [`${label}: ${files.length} of ${opts.min} uploaded`] };
   const noGeo = files.filter((f) => f.lat == null || f.lng == null).length;
-  if (noGeo) problems.push(`${label}: location (GPS) not recorded on ${noGeo} of ${files.length} — take it again with location on`);
+  if (noGeo && opts.requireGps !== false) problems.push(`${label}: location (GPS) not recorded on ${noGeo} of ${files.length} — take it again with location on`);
   const noTime = files.filter((f) => !f.capturedAt).length;
   if (noTime) problems.push(`${label}: capture time not recorded on ${noTime} of ${files.length} — office review`);
   if (opts.video) for (const f of files.filter((f) => f.sizeBytes != null && f.sizeBytes > VIDEO_MAX_BYTES)) problems.push(`${label}: video is ${Math.round(f.sizeBytes! / (1024 * 1024))} MB — over the 250 MB limit, record a shorter one`);
@@ -470,7 +470,7 @@ export function beforePhotoEvaluation(read:InstallDayBeforeRead|undefined,zones:
    if(row.depthMm==null)missing(INSTALL_DAY_BEFORE_Q.depthMm);
    if(row.conductive==null)missing(INSTALL_DAY_BEFORE_Q.conductive);
    if(row.rValueBand==='at_or_above_r2')blockers.push(`${name}: STOP — old insulation is R2.0 or above; office review required. Do not proceed with this area.`);
-   if(row.removal==null)missing(INSTALL_DAY_BEFORE_Q.treatment);
+   if(row.removal==null && row.treatmentAnswer!=='Not sure')missing(INSTALL_DAY_BEFORE_Q.treatment);
    if(row.removal==='yes'&&row.removalM2==null)missing(INSTALL_DAY_BEFORE_Q.removeM2);
    if(row.removal==='no'){
     if(row.suitable==null)missing(INSTALL_DAY_BEFORE_Q.suitable);
@@ -481,7 +481,7 @@ export function beforePhotoEvaluation(read:InstallDayBeforeRead|undefined,zones:
   const photo=row.photo,existing=row.existing;
   files.push({zone,name,photo,existing,backing:row.oldInsulation===true?row.backing??[]:[]});
   const check=(id:string,label:string,what:string,fs:MittiMediaFile[],video=false)=>{
-   const r=fs.length?mediaProblems(`${name}: ${what}`,fs,{min:1,video,workStartAt,phase:'before'}):{state:'missing' as const,problems:[`${name}: ${what} is missing`]};
+   const r=fs.length?mediaProblems(`${name}: ${what}`,fs,{min:1,video,workStartAt,phase:'before',requireGps:!video}):{state:'missing' as const,problems:[`${name}: ${what} is missing`]};
    items.push({id,zone,label,state:r.state,count:fs.length,problems:r.problems});blockers.push(...r.problems);
   };
   check('before_area_video',INSTALL_DAY_BEFORE_Q.photo,'BEFORE area video',photo,true);

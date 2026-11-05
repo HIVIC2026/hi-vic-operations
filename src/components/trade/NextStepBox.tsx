@@ -23,6 +23,8 @@ import { a1ReadyCheckTimeBlockers, allowedReadyCheckDays, allowedReadyCheckTimes
 import { readableError } from "@/lib/readable-error.core";
 import { READY_CHECK_PERSON_WORDS } from "@/lib/ready-check-person.core";
 import { markOfficeChanged } from "@/lib/office-list-refresh";
+import { Button } from '@/components/ui/button';
+import { showTradeSaved } from '@/lib/trade-save-confirmation';
 
 // Wording. Lines from the plan are marked approved; every DRAFT line is listed for Jo (Task 12 paste) and not yet seen by her.
 export const NEXT_STEP_BOX_WORDS = {
@@ -45,7 +47,10 @@ export const NEXT_STEP_BOX_WORDS = {
   changed: (what: string) => `${what} changed`, // DRAFT
   loadingElectricians: "Loading your electricians…", // DRAFT
   noPiesaTime: "Can't find the booked PIESA time. Refresh the page and try again.", // DRAFT
-  chooseElectrician: "Choose the electrician", // DRAFT (dropdown placeholder)
+  chooseElectrician: "Choose your electrician", // Jo 5 Nov
+  safetyCheckTitle: 'Book the safety check',
+  safetyCheckLine: 'The owner has accepted the quote and paid for the safety check. Call them, agree a day and time, then add it here.',
+  pickSafetyCheck: 'Pick the electrician, day and time first.',
   chooseLead: "Choose the Lead Installer", // existing in-house booking card wording (dropdown placeholder)
   choosePerson: "Choose the person going", // existing in-house booking card wording (dropdown placeholder)
   timePlaceholder: "Time…", // existing A1 Ready Check card wording (dropdown placeholder)
@@ -88,8 +93,8 @@ export function NextStepBox({ jobId, box, ownerFirst, installBy, ownCustomer = f
   return (
     <section data-next-step={box.kind} className={`${card} border-2 ${box.overdue ? "border-rose" : "border-action"}`}>
       <p className="text-[11px] font-bold uppercase tracking-[1.3px] text-hiv-blue">{W.eyebrow}</p>
-      <h2 className="mt-1 font-display text-[22px] font-semibold leading-tight">{box.title}</h2>
-      {box.sub && (
+      <h2 className="mt-1 font-display text-[22px] font-semibold leading-tight">{box.kind === 'book_piesa' ? W.safetyCheckTitle : box.title}</h2>
+      {box.kind === 'book_piesa' ? <p className="mt-1.5 text-[15px] text-ink">{W.safetyCheckLine}</p> : box.sub && (
         <p className="mt-1.5 text-[15px] text-ink">
           {subBefore}
           {subBookBy && <strong className={box.overdue ? "text-rose" : ""}>{subBookBy}</strong>}
@@ -242,6 +247,7 @@ function BookingForm({ jobId, kind, mode, state, button, below, onDone, onCancel
       if (!r.ok) { setError(r.blockers.join(" ")); return; }
       // Part 9 Task 10: the booking's plain warnings (e.g. upgrades still to come) are shown with the success, never as a refusal.
       toast.success(mode === "book" ? W.booked(LABEL[kind]) : W.changed(`${LABEL[kind]} time`), r.warnings?.length ? { description: r.warnings.join(" ") } : undefined);
+      showTradeSaved(`Booking saved: ${kind === 'assessment' ? 'Safety check' : LABEL[kind]} · ${fmtDay(day)} · ${installTimeLabel(arrival)}${r.warnings?.length ? ` · ${r.warnings.join(' ')}` : ''}`);
       markOfficeChanged();
       // Go-live 5 Nov 2026 (Tom: "takes 20 secs"): the booking is saved — close the form now and let the page refresh behind it.
       void qc.invalidateQueries();
@@ -254,7 +260,7 @@ function BookingForm({ jobId, kind, mode, state, button, below, onDone, onCancel
   };
 
   return (
-    <form className="mt-4 space-y-3" data-booking-form={kind} onSubmit={submit}>
+    <form className="mt-4 min-w-0 max-w-full space-y-3" data-booking-form={kind} onSubmit={submit}>
       {kind === "assessment" && (
         <label className="block min-w-0 text-sm font-medium">
           {W.electrician}
@@ -269,11 +275,11 @@ function BookingForm({ jobId, kind, mode, state, button, below, onDone, onCancel
       <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2">
         <label className="block min-w-0 text-sm font-medium">
           {W.day}
-          <input type="date" className={`${inputCls} mt-1`} value={day} onChange={(e) => { setError(""); setDay(e.target.value); }} />
+          <input type="date" className={`${inputCls} mt-1 box-border w-0 min-w-full max-w-full`} value={day} onChange={(e) => { setError(""); setDay(e.target.value); }} />
         </label>
         <label className="block min-w-0 text-sm font-medium">
           {W.arrival}
-          <input type="time" className={`${inputCls} mt-1`} value={arrival} onChange={(e) => { setError(""); setArrival(e.target.value); }} />
+          <input type="time" className={`${inputCls} mt-1 box-border w-0 min-w-full max-w-full`} value={arrival} onChange={(e) => { setError(""); setArrival(e.target.value); }} />
         </label>
       </div>
       {(kind === "ready_check" || kind === "installation") && (
@@ -302,12 +308,13 @@ function BookingForm({ jobId, kind, mode, state, button, below, onDone, onCancel
           </div>
         </fieldset>
       )}
-      {disabled && !error && <p id={reasonId} className="text-sm text-sub">{busy ? W.saving : reason}</p>}
+      {disabled && !error && !(kind === 'assessment' && mode === 'book' && (!who || !day || !arrival)) && <p id={reasonId} className="text-sm text-sub">{busy ? W.saving : reason}</p>}
       {error && <p id={reasonId} role="alert" className="text-sm text-rose">{error}</p>}
       <div className="flex flex-wrap items-center gap-2">
-        <button type="submit" className={greenBtn} disabled={disabled} aria-describedby={disabled ? reasonId : undefined}>{busy ? W.saving : button}</button>
+        <Button type="submit" size="field" className={`w-full md:w-auto ${disabled ? 'bg-muted text-muted-foreground opacity-100 disabled:opacity-100' : ''}`} disabled={disabled} aria-describedby={disabled ? reasonId : undefined}>{busy ? W.saving : button}</Button>
         {onCancel && <button type="button" className={ghostBtn} onClick={onCancel}>{W.neverMind}</button>}
       </div>
+      {kind === 'assessment' && mode === 'book' && <p id={!error && (!who || !day || !arrival) ? reasonId : undefined} className="text-sm text-sub">{W.pickSafetyCheck}</p>}
       {below && <p className="text-sm text-sub" data-booked-line>{below}</p>}
     </form>
   );
@@ -335,6 +342,7 @@ function PickPersonForm({ jobId, start, state, onDone }: { jobId: string; start:
         const r = await book({ data: { jobId, kind: "ready_check", start, workerId: who, crewIds: [] } });
         if (!r.ok) { setError(r.blockers.join(" ")); return; }
         toast.success(W.changed("Who's going"));
+        showTradeSaved(`Ready Check person saved: ${choices.find(w => w.id === who)?.name ?? "Team member"}`);
         markOfficeChanged();
         await qc.invalidateQueries();
         onDone();
@@ -380,6 +388,7 @@ function OwnCustomerReadyCheckForm({ jobId, now, onDone }: { jobId: string; now?
       try {
         await save({ data: { jobId, day, time } });
         toast.success(W.booked(LABEL.ready_check));
+        showTradeSaved(`Booking saved: Ready Check · ${fmtDay(day)} · ${installTimeLabel(time)}`);
         markOfficeChanged();
         await qc.invalidateQueries();
         onDone();
@@ -425,6 +434,7 @@ function ChangeLeadForm({ jobId, state, onDone, onCancel }: { jobId: string; sta
       try {
         await swap({ data: { jobId, workerId: who } });
         toast.success(W.changed(W.leadInstaller));
+        showTradeSaved(`Lead Installer saved: ${leads.find(w => w.id === who)?.name ?? 'Team member'}`);
         markOfficeChanged();
         await qc.invalidateQueries();
         onDone();
@@ -471,6 +481,7 @@ function ChangeElectricianForm({ jobId, state, onDone, onCancel }: { jobId: stri
         const r = await change({ data: { jobId, workerId: who, start: state.piesaStart! } });
         if (!r.ok) { setError(r.blockers.join(" ")); return; }
         toast.success(W.changed(W.electrician), r.warnings?.length ? { description: r.warnings.join(" ") } : undefined);
+        showTradeSaved(`Electrician saved: ${chosen?.name ?? 'Team electrician'}`);
         markOfficeChanged();
         await qc.invalidateQueries();
         onDone();

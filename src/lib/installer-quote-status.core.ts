@@ -9,7 +9,7 @@ export const A2_RATE_CARD_CODES = ["R5_BATTS", "R6_BATTS", "R7_BATTS"] as const;
 /** A Ready Check owner quote: the installer's own job (A1), one of our leads priced from the rate card (A2), or any
  *  quote on a job whose current measurement is a linked Mitti form. */
 export function isReadyCheckQuote(optionCode: string | null | undefined, mitti: { external_source?: string | null; external_id?: string | null } | null | undefined): boolean {
-  if (optionCode === INSTALLER_A1_CODE || (A2_RATE_CARD_CODES as readonly string[]).includes(optionCode ?? "")) return true;
+  if (optionCode === INSTALLER_A1_CODE || optionCode === 'INSTALLER_A1_THICKER' || (A2_RATE_CARD_CODES as readonly string[]).includes(optionCode ?? "")) return true;
   return mitti?.external_source === "mitti" && !!mitti.external_id;
 }
 

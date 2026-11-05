@@ -70,7 +70,8 @@ export async function draftInstallerQuoteFromReadyCheck(jobId: string, actorId: 
   // A sent quote is never touched. An ACCEPTED quote is never changed either, but when its facts were corrected
   // (reconfirmation open) a replacement draft may be prepared so the owner can reconfirm at the corrected figures.
   const { reconfirmationOpen } = await import("./installer-intake.server");
-  if ((open ?? []).some((q) => q.status === "issued")) return null;
+  const priceChange = await (await import('./installer-price-change.server')).pendingChangeFor(jobId);
+  if ((open ?? []).some((q) => q.status === "issued") && !priceChange) return null;
   if ((open ?? []).some((q) => q.status === "accepted") && !(await reconfirmationOpen(jobId))) return null;
 
   // Jo 23 Oct hard stops (contact No, R2+, life support, built in last 5 years): no quote at all.

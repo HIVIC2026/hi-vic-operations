@@ -18,6 +18,7 @@ import { MITTI_ELECTRICIAN_QUESTION } from "@/lib/mitti-electrician.core";
 import { usualElectrician, type ElectricianPlan } from "@/lib/job-electrician.core";
 import { allocateElectricianFn, getTeamElectricians } from "@/lib/visit-allocation.functions";
 import { defaultPick } from "@/lib/installer-electricians.core";
+import { showTradeSaved } from '@/lib/trade-save-confirmation';
 
 export const TEAM_NONE_YET = "You have no electricians on your Team yet. Add them under My business › Team; the office checks their licence, then choose here.";
 
@@ -60,6 +61,7 @@ export function MittiElectricianCard({ jobId }: { jobId: string }) {
           setBusy(true); setMsg(null);
           try {
             await allocate({ data: { jobId, workerId: picked } });
+            showTradeSaved(`Electrician saved: ${workers.find(w => w.id === picked)?.name ?? 'Team electrician'}`);
             await Promise.all([q.refetch(), refreshInstallerJob(qc, jobId)]);
           } catch (e) { setMsg(electricianAllocationMessage(e instanceof Error ? e.message : "Couldn't save. Please try again.", workers.find(w => w.id === picked)?.name)); }
           finally { setBusy(false); }
@@ -85,6 +87,7 @@ export function MittiElectricianCard({ jobId }: { jobId: string }) {
         setBusy(true); setMsg(null);
         try {
           await save({ data: { jobId, plan: { mode: "mine", business_id: value.business_id ?? null, nomination_id: value.nomination_id ?? null } } });
+          showTradeSaved('Electrician saved');
           await Promise.all([q.refetch(), refreshInstallerJob(qc, jobId)]);
         } catch (e) { setMsg(e instanceof Error ? e.message : "Couldn't save. Please try again."); }
         finally { setBusy(false); }

@@ -16,6 +16,13 @@ export function TradeShell({ children, installer, boss: bossProp, money: moneyPr
   const boss = bossProp ?? (!!access?.businessAdmin || !!access?.admin);
   // Money tab: the boss always; an Office person only when the boss turned "Can see Money" on (getTradeHome sends `money`).
   const money = moneyProp ?? boss;
+  const path = useRouterState({ select: s => s.location.pathname });
+  const [saved, setSaved] = React.useState<{path: string; line: string} | null>(null);
+  React.useEffect(() => {
+    const receive = (event: Event) => setSaved((event as CustomEvent<{path: string; line: string}>).detail);
+    window.addEventListener('trade-saved', receive);
+    return () => window.removeEventListener('trade-saved', receive);
+  }, []);
   return (
     <div className={`estimate-brand portal-theme min-h-screen text-ink ${redesign ? "installer-redesign bg-paper" : "bg-canvas"}`}>
       <header className="trade-safe-header sticky top-0 z-30 border-b border-line bg-paper pt-[env(safe-area-inset-top)]">
@@ -26,7 +33,7 @@ export function TradeShell({ children, installer, boss: bossProp, money: moneyPr
         </div>
       </header>
       {test && <p className="mx-auto max-w-[1180px] px-5 pt-3 md:px-[26px]"><span className="inline-flex rounded-[18px] bg-pink px-[9px] py-[5px] text-[11px] font-semibold text-rose">TEST account — practice jobs only</span></p>}
-      <main className={`trade-forms mx-auto min-w-0 max-w-[1180px] px-5 pb-28 pt-5 md:px-[26px] md:pb-[30px] md:pt-7 ${redesign ? "space-y-[22px]" : "space-y-[19px]"}`}>{children}</main>
+      <main className={`trade-forms mx-auto min-w-0 max-w-[1180px] px-5 pb-28 pt-5 md:px-[26px] md:pb-[30px] md:pt-7 ${redesign ? "space-y-[22px]" : "space-y-[19px]"}`}>{saved?.path === path && <p role="status" className="break-words text-sm font-semibold text-ink">{saved.line}</p>}{children}</main>
       <TradeTabBar installer={installer} boss={boss} money={money} />
     </div>
   );

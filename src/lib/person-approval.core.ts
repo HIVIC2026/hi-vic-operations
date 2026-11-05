@@ -25,7 +25,7 @@ export const escRegisteredLabel = (at: string | null | undefined) => (at ? `ESC 
 
 /**
  * People list sections, always in this order. Same rule as everywhere else (worker-role.core): an installer with no role set
- * is a Lead Installer; only a stored "crew" is Crew.
+ * is Crew (Jo 5 Nov 2026); only a stored "lead" is a Lead Installer.
  */
 export function groupPeople<T extends { role: string; workerRole?: "lead" | "crew" | null }>(people: readonly T[]) {
   const isLead = (p: T) => effectiveWorkerRole({ tradeRole: p.role, stored: p.workerRole }) === "lead";

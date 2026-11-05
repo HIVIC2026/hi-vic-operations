@@ -57,7 +57,7 @@ export const saveWorker = createServerFn({ method: "POST" }).middleware([require
       if (ue) throw new Error(ue.message);
       return { ok: true, pending: reapprove || before.approval_status === "pending" };
     }
-    const { data: added, error } = await admin.from("partner_workers").insert({ ...fields, added_by: context.userId, approval_status: office ? "approved" : "pending", ...(office ? { approved_by: context.userId, approved_at: new Date().toISOString() } : {}) } as never).select("id").single();
+    const { data: added, error } = await admin.from("partner_workers").insert({ ...fields, ...(data.trade_role === "installer" ? { worker_role: "crew" } : {}), added_by: context.userId, approval_status: office ? "approved" : "pending", ...(office ? { approved_by: context.userId, approved_at: new Date().toISOString() } : {}) } as never).select("id").single();
     if (error) throw new Error(error.code === "23505" ? "A worker with that email is already listed." : error.message);
     const workerId = (added as { id: string }).id;
     const ie = req?.ok && req.dateOfBirth ? (await admin.from("partner_worker_identity" as never).insert({ worker_id: workerId, date_of_birth: req.dateOfBirth, updated_by: context.userId } as never)).error : null;
@@ -96,7 +96,7 @@ export const setWorkerRole = createServerFn({ method: "POST" }).middleware([requ
     if (w.trade_role !== "installer") throw new Error("Lead and Crew are for installers only.");
     if (!(await isAdminCaller(context.supabase))) await requireMember(context.userId, w.business_id, true);
     const { workerRolesFor } = await import("./mitti-invite.server");
-    const from = (await workerRolesFor([w])).get(w.id) ?? "lead";
+    const from = (await workerRolesFor([w])).get(w.id) ?? "crew";
     const { WORKER_ROLE_CHANGED_EVENT, roleChangeSummary, roleSwitchMittiAction } = await import("./worker-role.core");
     if (from === data.role && w.worker_role === data.role) return { ok: true, changed: false, role: data.role };
     const { error } = await admin.from("partner_workers").update({ worker_role: data.role }).eq("id", w.id);
