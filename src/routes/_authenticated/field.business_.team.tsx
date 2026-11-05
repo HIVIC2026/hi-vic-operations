@@ -14,6 +14,7 @@ import { CertLinkInline, SendNoticeLinkInline } from "@/components/portal/worker
 import { WorkerRoleSwitch } from "@/components/portal/worker-role-switch";
 import { TeamPersonForm } from '@/components/trade/TeamPersonForm';
 import { Button } from '@/components/ui/button';
+import { showTradeSaved } from '@/lib/trade-save-confirmation';
 
 export const Route = createFileRoute("/_authenticated/field/business_/team")({
   head: () => ({ meta: [{ title: "Team – Home Insulation Victoria" }, { name: "description", content: "The people in your business who can take Ready Checks and install days." }, { property: "og:title", content: "Team – Home Insulation Victoria" }, { property: "og:description", content: "The people in your business who can take Ready Checks and install days." }, { property: "og:type", content: "website" }, { name: "twitter:card", content: "summary" }, { name: "robots", content: "noindex" }] }),
@@ -115,7 +116,7 @@ function MoneySwitch({ workerId, on, hasLogin, onSaved }: { workerId: string; on
         <span className="text-[15px] font-medium text-ink">{TEAM_WORDS.canSeeMoney}<span className="block text-[13px] font-normal text-sub">{TEAM_WORDS.canSeeMoneyNote}</span></span>
         <Switch on={on} label={TEAM_WORDS.canSeeMoney} disabled={busy} onChange={async (next) => {
           setBusy(true); setMsg(null);
-          try { await save({ data: { workerId, on: next } }); onSaved(); } catch (e) { setMsg((e as Error).message); } finally { setBusy(false); }
+          try { await save({ data: { workerId, on: next } }); showTradeSaved(`Money access saved: ${next ? 'On' : 'Off'}`); onSaved(); } catch (e) { setMsg((e as Error).message); } finally { setBusy(false); }
         }} />
       </div>
       {!hasLogin && !msg && <p className="text-[13px] text-sub">{TEAM_WORDS.moneyNeedsLogin}</p>}
@@ -173,7 +174,7 @@ function MobileInline({ workerId, mobile, onSaved }: { workerId: string; mobile:
       <div className="mt-2 flex gap-2">
         <button type="button" disabled={busy} className={greenBtn} onClick={async () => {
           setBusy(true); setMsg(null);
-          try { await save({ data: { workerId, mobile: v } }); setOpen(false); onSaved(); } catch (e) { setMsg((e as Error).message); } finally { setBusy(false); }
+          try { await save({ data: { workerId, mobile: v } }); showTradeSaved(`Mobile saved: ${v}`); setOpen(false); onSaved(); } catch (e) { setMsg((e as Error).message); } finally { setBusy(false); }
         }}>Save</button>
         <button type="button" className={ghostBtn} onClick={() => setOpen(false)}>Cancel</button>
       </div>

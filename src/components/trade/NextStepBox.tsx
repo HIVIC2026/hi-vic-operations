@@ -23,6 +23,7 @@ import { readableError } from "@/lib/readable-error.core";
 import { READY_CHECK_PERSON_WORDS } from "@/lib/ready-check-person.core";
 import { markOfficeChanged } from "@/lib/office-list-refresh";
 import { Button } from '@/components/ui/button';
+import { showTradeSaved } from '@/lib/trade-save-confirmation';
 
 // Wording. Lines from the plan are marked approved; every DRAFT line is listed for Jo (Task 12 paste) and not yet seen by her.
 export const NEXT_STEP_BOX_WORDS = {
@@ -239,6 +240,7 @@ function BookingForm({ jobId, kind, mode, state, button, below, onDone, onCancel
       if (!r.ok) { setError(r.blockers.join(" ")); return; }
       // Part 9 Task 10: the booking's plain warnings (e.g. upgrades still to come) are shown with the success, never as a refusal.
       toast.success(mode === "book" ? W.booked(LABEL[kind]) : W.changed(`${LABEL[kind]} time`), r.warnings?.length ? { description: r.warnings.join(" ") } : undefined);
+      showTradeSaved(`Booking saved: ${kind === 'assessment' ? 'Safety check' : LABEL[kind]} · ${fmtDay(day)} · ${installTimeLabel(arrival)}${r.warnings?.length ? ` · ${r.warnings.join(' ')}` : ''}`);
       markOfficeChanged();
       // Go-live 5 Nov 2026 (Tom: "takes 20 secs"): the booking is saved — close the form now and let the page refresh behind it.
       void qc.invalidateQueries();
@@ -333,6 +335,7 @@ function PickPersonForm({ jobId, start, state, onDone }: { jobId: string; start:
         const r = await book({ data: { jobId, kind: "ready_check", start, workerId: who, crewIds: [] } });
         if (!r.ok) { setError(r.blockers.join(" ")); return; }
         toast.success(W.changed("Who's going"));
+        showTradeSaved(`Ready Check person saved: ${choices.find(w => w.id === who)?.name ?? "Team member"}`);
         markOfficeChanged();
         await qc.invalidateQueries();
         onDone();
@@ -378,6 +381,7 @@ function OwnCustomerReadyCheckForm({ jobId, now, onDone }: { jobId: string; now?
       try {
         await save({ data: { jobId, day, time } });
         toast.success(W.booked(LABEL.ready_check));
+        showTradeSaved(`Booking saved: Ready Check · ${fmtDay(day)} · ${installTimeLabel(time)}`);
         markOfficeChanged();
         await qc.invalidateQueries();
         onDone();
@@ -423,6 +427,7 @@ function ChangeLeadForm({ jobId, state, onDone, onCancel }: { jobId: string; sta
       try {
         await swap({ data: { jobId, workerId: who } });
         toast.success(W.changed(W.leadInstaller));
+        showTradeSaved(`Lead Installer saved: ${leads.find(w => w.id === who)?.name ?? 'Team member'}`);
         markOfficeChanged();
         await qc.invalidateQueries();
         onDone();
@@ -467,9 +472,11 @@ function ChangeElectricianForm({ jobId, state, onDone, onCancel }: { jobId: stri
       setBusy(true); setError("");
       try {
         await allocate({ data: { jobId, workerId: who } });
-        const r = await book({ data: { jobId, kind: "assessment", start: state.piesaStart!, workerId: who, crewIds: [] } });
+        if (!state.piesaStart) return;
+        const r = await book({ data: { jobId, kind: "assessment", start: state.piesaStart, workerId: who, crewIds: [] } });
         if (!r.ok) { setError(r.blockers.join(" ")); return; }
         toast.success(W.changed(W.electrician));
+        showTradeSaved(`Electrician saved: ${chosen?.name ?? 'Team electrician'}`);
         markOfficeChanged();
         await qc.invalidateQueries();
         onDone();

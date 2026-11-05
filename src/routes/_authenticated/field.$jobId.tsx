@@ -51,6 +51,7 @@ import { nextLine } from "@/lib/add-job-flow.core";
 import { NO_LOGIN_NEEDED } from "@/lib/trade-access-role.core";
 import { installerJobSections } from "@/lib/installer-job-sections.core";
 import { OWN_READY_CHECK_COPY } from "@/lib/own-customer-ready-check-copy.core";
+import { PriceSavedConfirmation } from '@/components/trade/PriceSavedConfirmation';
 
 export const Route = createFileRoute("/_authenticated/field/$jobId")({
   head: () => ({
@@ -358,7 +359,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
   // as the Ready Check form exists — the rest of the form can be finished later; the quote drafts once size + product + price are in.
   const priceOpenEarly = page.channel === "installer_sourced" && page.prices && page.price.entered === false && page.form.linked && box.kind !== "enter_price";
   const showPrice = (page.channel === "installer_sourced" && page.prices && (box.kind === "enter_price" || box.kind === "waiting_quote")) || priceOpenEarly;
-  const ownReadyCheck = page.channel === "installer_sourced" && page.prices && (showPrice || box.kind === "own_ready_check");
+  const ownReadyCheck = page.channel === "installer_sourced" && page.prices && (showPrice || ['own_ready_check', 'book_ready_check', 'ready_check_booked'].includes(box.kind));
   const mittiAudit = page.form.auditId;
   const ownCustomer = page.channel === "installer_sourced";
   const sections = installerJobSections({ ownCustomer, quoteSent: page.quote?.sent === true || page.quote?.accepted === true, siteNotes: page.rows.siteNotes, jobDetails: page.rows.jobDetails });
@@ -408,6 +409,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
 
       <div className="flex min-w-0 flex-col gap-3">
         <div className="min-w-0" data-job-section="Next step">
+        {!ownReadyCheck && ownCustomer && page.prices && <PriceSavedConfirmation jobId={jobId} />}
         {ownReadyCheck ? <OwnCustomerReadyCheckChoice jobId={jobId} auditId={mittiAudit} address={job.property_address ?? ''} jobNumber={job.job_number ?? ''} /> : <NextStepBox
           jobId={jobId}
           box={box}
@@ -455,7 +457,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
         </NextStepBox>}
         {/* #134 (Jo 3 Nov 2026): a Mitti pickup still waiting for the installer's one electrician answer — kept at the 4 Nov join
             (no Part 5 equivalent for Mitti pickups); the card renders nothing once answered. */}
-        {page.channel === "installer_sourced" && <MittiElectricianCard jobId={jobId} />}
+        {page.channel === "installer_sourced" && !ownReadyCheck && ['book_piesa', 'piesa_booked'].includes(box.kind) && <MittiElectricianCard jobId={jobId} />}
         </div>
 
         <div className="min-w-0">
