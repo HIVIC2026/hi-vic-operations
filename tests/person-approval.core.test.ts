@@ -46,23 +46,31 @@ describe("groupPeople", () => {
   test("Lead Installers, Crew, Electricians in order, with counts; switching moves a person", () => {
     const people = [P("a", "installer", "crew"), P("b", "installer", "lead"), P("c", "electrician", null), P("d", "installer", null)];
     const g = groupPeople(people);
-    expect(g.map((x) => [x.title, x.people.map((p) => p.id)])).toEqual([["Lead Installers", ["b"]], ["Crew", ["a", "d"]], ["Electricians", ["c"]]]);
+    // no role set = Lead Installer (worker-role.core rule)
+    expect(g.map((x) => [x.title, x.people.map((p) => p.id)])).toEqual([["Lead Installers", ["b", "d"]], ["Crew", ["a"]], ["Electricians", ["c"]]]);
     const moved = groupPeople(people.map((p) => (p.id === "b" ? { ...p, workerRole: "crew" as const } : p)));
-    expect(moved.map((x) => x.people.length)).toEqual([0, 3, 1]);
+    expect(moved.map((x) => x.people.length)).toEqual([1, 2, 1]);
   });
 });
 
-import { readFileSync } from "node:fs";
-describe("People row source", () => {
-  const src = readFileSync("src/components/portal/partner-people.tsx", "utf8");
-  test("old big ESC date box is gone; small Lead-only control uses the existing server function", () => {
-    expect(src).not.toContain("ESC registration date");
-    expect(src).not.toContain("Record ESC registered");
-    expect(src).not.toContain("Mark ESC registered");
-    expect(src).toContain('"ESC registered"');
-    expect(src).toContain('role="switch"');
-    expect(src).toContain("registered: !on, date: on ? null : melbourneToday()");
-    expect(src).toContain("officeRecordEscRegistered");
-    expect(src).toContain("melbourneToday()");
+import { escRegistrationDate, escSwitchPayload } from "../src/lib/person-approval.core";
+import { displayName } from "../src/lib/display-name.core";
+describe("ESC registered switch date", () => {
+  test("Melbourne morning (Melbourne is a day ahead of UTC): sends the UTC date so the database does not refuse it", () => {
+    const morning = new Date("2026-11-05T20:00:00Z"); // 7am 6 Nov in Melbourne
+    expect(escRegistrationDate(morning)).toBe("2026-11-05");
+  });
+  test("Melbourne afternoon: today's date", () => {
+    expect(escRegistrationDate(new Date("2026-11-05T05:00:00Z"))).toBe("2026-11-05"); // 4pm 5 Nov
+  });
+  test("switch on records the date; switch off clears it", () => {
+    expect(escSwitchPayload(false, new Date("2026-11-05T20:00:00Z"))).toEqual({ registered: true, date: "2026-11-05" });
+    expect(escSwitchPayload(true)).toEqual({ registered: false, date: null });
+  });
+});
+describe("names show in normal case", () => {
+  test("all-caps names", () => {
+    expect(displayName("HYDER HUSSAIN")).toBe("Hyder Hussain");
+    expect(displayName("Wayne Fletcher")).toBe("Wayne Fletcher");
   });
 });

@@ -215,4 +215,8 @@ describe("collectionNoticeStatus matches by worker id first", () => {
     const [s] = collectionNoticeStatus([{ id: "w1", email: "a@x.au", full_legal_name: "A", trade_role: "installer" }], [{ ...ack(""), worker_id: "w2" }]);
     expect(s?.state).toBe("missing");
   });
+  test("a worker with no email and an acknowledgement with an empty email but another worker id is missing", () => {
+    const [s] = collectionNoticeStatus([{ id: "w1", email: null, full_legal_name: "A", trade_role: "installer" }], [{ ...ack(""), worker_id: "w2" }]);
+    expect(s?.state).toBe("missing");
+  });
 });

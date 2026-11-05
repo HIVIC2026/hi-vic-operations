@@ -17,8 +17,8 @@ import { checkMittiAccess } from "@/lib/mitti-membership.functions";
 import { mittiInviteLine } from "@/lib/mitti-membership.core";
 import { type PersonAction } from "@/lib/office-partners.core";
 import { WorkerRoleSwitch } from "@/components/portal/worker-role-switch";
-import { personApproval, dobLabel, escRegisteredLabel, groupPeople } from "@/lib/person-approval.core";
-import { melbourneToday } from "@/lib/melbourne-time.core";
+import { personApproval, dobLabel, escRegisteredLabel, escSwitchPayload, groupPeople } from "@/lib/person-approval.core";
+import { displayName } from "@/lib/display-name.core";
 
 export type PersonView = {
   dateOfBirth?:string|null;escRegistered?:boolean;escRegisteredAt?:string|null;
@@ -28,10 +28,8 @@ export type PersonView = {
   /** Jo 28 Oct: Lead / Crew for installers; null = not applicable. */
   workerRole?: "lead" | "crew" | null;
   licenceNumber?: string | null; recNumber?: string | null; licenceExpiresOn?: string | null; licenceVerifiedAt?: string | null;
-  ciiLabel: string; ciiTone: "green" | "rose" | "amber" | "plain"; noticeLabel: string; noticeTone: "green" | "rose" | "plain"; mittiLabel: string; inMitti: boolean; action: PersonAction; ciiOk?: boolean; noticeOk?: boolean; clearedReason: string | null;
+  ciiLabel: string; ciiTone: "green" | "rose" | "amber" | "plain"; noticeLabel: string; noticeTone: "green" | "rose" | "plain"; inMitti: boolean; action: PersonAction; ciiOk?: boolean; noticeOk?: boolean; clearedReason: string | null;
 };
-
-const ROLE: Record<string, string> = { installer: "Installer", electrician: "Electrician" };
 
 export function PeopleTable({ people, showBusiness = true, invalidate }: { people: PersonView[]; showBusiness?: boolean; invalidate: string[] }) {
   const [verify, setVerify] = useState<PersonView | null>(null);
@@ -68,8 +66,8 @@ export function PeopleTable({ people, showBusiness = true, invalidate }: { peopl
                       );
                       const nameCell = (
                         <td>
-                          <span className="text-sm font-semibold">{p.name}</span> <span className="break-all text-sub">{p.email}</span>
-                          {showBusiness && <> <Link to="/admin/partners/business/$businessId" params={{ businessId: p.businessId }} className="text-hiv-blue hover:underline">{p.business}</Link></>}
+                          <span className="text-sm font-semibold">{displayName(p.name)}</span> <span className="break-all text-sub">{p.email}</span>
+                          {showBusiness && <> <Link to="/admin/partners/business/$businessId" params={{ businessId: p.businessId }} className="text-hiv-blue hover:underline">{displayName(p.business)}</Link></>}
                           {p.workerRole && <div className="mt-1"><WorkerRoleSwitch tone="office" workerId={p.id} role={p.workerRole} onDone={() => void refreshAll()} /></div>}
                           {actions}
                         </td>
@@ -109,12 +107,12 @@ function EscRegisteredCell({ person, onDone }: { person: PersonView; onDone: () 
   const [busy, setBusy] = useState(false);
   const on = person.escRegistered === true;
   return (
-    <button type="button" role="switch" aria-checked={on} disabled={busy} aria-label={`ESC registered for ${person.name}`} title={on ? escRegisteredLabel(person.escRegisteredAt) : "Not ESC registered"}
+    <button type="button" role="switch" aria-checked={on} disabled={busy} aria-label={`ESC registered for ${displayName(person.name)}`} title={on ? escRegisteredLabel(person.escRegisteredAt) : "Not ESC registered"}
       className="inline-flex min-h-8 items-center gap-1.5 text-xs font-semibold disabled:opacity-60"
       onClick={async () => {
         setBusy(true);
         try {
-          await save({ data: { workerId: person.id, registered: !on, date: on ? null : melbourneToday() } });
+          await save({ data: { workerId: person.id, ...escSwitchPayload(on) } }); // date rule: see escRegistrationDate
           await onDone();
           toast.success(on ? "ESC registration cleared" : "Marked ESC registered");
         } catch (e) { toast.error(e instanceof Error ? e.message : "Could not change ESC registration. Nothing was saved."); }

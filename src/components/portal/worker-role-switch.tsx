@@ -9,7 +9,7 @@ import { WORKER_ROLE_LABEL, type WorkerRole } from "@/lib/worker-role.core";
 export function WorkerRoleSwitch({ workerId, role, onDone, tone = "trade" }: { workerId: string; role: WorkerRole; onDone: () => void; tone?: "trade" | "office" }) {
   const save = useServerFn(setWorkerRole);
   const [busy, setBusy] = useState(false);
-  const [shown, setShown] = useState(role); // moves at once; snaps back if the save fails
+  const [shown, setShown] = useState(role); // changes once the save has worked; if it fails it stays put and says why
   useEffect(() => setShown(role), [role]);
   const [err, setErr] = useState<string | null>(null);
   const trade = tone === "trade";

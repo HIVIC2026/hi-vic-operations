@@ -1,4 +1,5 @@
 import { melbourneToday } from "./melbourne-time.core";
+import { effectiveWorkerRole } from "./worker-role.core";
 // Partners › People: "Approved" is worked out from three facts and is DISPLAY ONLY (Jo 5 Nov 2026).
 // It never gates a job or booking; those rules stay in worker-compliance.core / crewClearance.
 export type ApprovalFacts = { ciiVerified: boolean; noticeSigned: boolean; dateOfBirth: string | null | undefined };
@@ -22,14 +23,32 @@ export const dobLabel = (dob: string | null | undefined) => (dob ? fmtYmd(dob, t
 /** Registration stamp is an ISO instant or a date; show the day only ("ESC registered · 5 Nov"). */
 export const escRegisteredLabel = (at: string | null | undefined) => (at ? `ESC registered · ${fmtYmd(at.includes("T") ? melbourneToday(new Date(at)) : at, false)}` : "ESC registered");
 
-/** People list sections, always in this order. An installer is a Lead Installer only when their role is lead; anyone else who installs is Crew. */
+/**
+ * People list sections, always in this order. Same rule as everywhere else (worker-role.core): an installer with no role set
+ * is a Lead Installer; only a stored "crew" is Crew.
+ */
 export function groupPeople<T extends { role: string; workerRole?: "lead" | "crew" | null }>(people: readonly T[]) {
-  const lead = people.filter((p) => p.role === "installer" && p.workerRole === "lead");
-  const crew = people.filter((p) => p.role === "installer" && p.workerRole !== "lead");
-  const electricians = people.filter((p) => p.role === "electrician");
+  const isLead = (p: T) => effectiveWorkerRole({ tradeRole: p.role, stored: p.workerRole }) === "lead";
+  const isCrew = (p: T) => effectiveWorkerRole({ tradeRole: p.role, stored: p.workerRole }) === "crew";
   return [
-    { key: "lead" as const, title: "Lead Installers", people: lead },
-    { key: "crew" as const, title: "Crew", people: crew },
-    { key: "electricians" as const, title: "Electricians", people: electricians },
+    { key: "lead" as const, title: "Lead Installers", people: people.filter(isLead) },
+    { key: "crew" as const, title: "Crew", people: people.filter(isCrew) },
+    { key: "electricians" as const, title: "Electricians", people: people.filter((p) => p.role === "electrician") },
   ];
+}
+
+/**
+ * Date sent when the office switches ESC registered on. The database function refuses any date after its own `current_date`,
+ * which is the UTC date. Every Melbourne morning (until about 10-11am) the Melbourne date is already one day ahead of UTC and
+ * would be refused, so we send the earlier of the two: in that window it records yesterday's date, never an error.
+ */
+export function escRegistrationDate(now: Date = new Date()): string {
+  const utc = now.toISOString().slice(0, 10);
+  const mel = melbourneToday(now);
+  return mel < utc ? mel : utc;
+}
+
+/** What the ESC registered switch sends: switching on records the safe date, switching off clears it. */
+export function escSwitchPayload(currentlyRegistered: boolean, now: Date = new Date()): { registered: boolean; date: string | null } {
+  return currentlyRegistered ? { registered: false, date: null } : { registered: true, date: escRegistrationDate(now) };
 }
