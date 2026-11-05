@@ -25,7 +25,7 @@ export function OwnCustomerReadyCheckChoice({ jobId, auditId, address, jobNumber
   const [error, setError] = useState('');
   const v = q.data;
   if (!v?.canSet) return null;
-  if (v.locked) return <OwnerQuoteCard jobId={jobId} ownCustomerStatus />;
+  if (v.locked) return <section className={card} aria-label="Next step"><OwnerQuoteCard jobId={jobId} ownCustomerStatus /></section>;
   if (submitted || v.current?.sendToQuote) return <section className={card} aria-label="Next step"><p role="status" className="text-[15px] font-semibold text-ink">{W.preparing}</p></section>;
   const included = [PRICE_INCLUDED_OPTIONS[0], ...(v.removalRequired === true ? [PRICE_INCLUDED_OPTIONS[1]] : [])];
   const valid = validateInstallerPrice({ priceIncGst: price, included });
@@ -48,6 +48,7 @@ export function OwnCustomerReadyCheckChoice({ jobId, auditId, address, jobNumber
     }}>
       <Label htmlFor={`mitti-price-${jobId}`}>Your price inc GST</Label>
       <Input id={`mitti-price-${jobId}`} inputMode="decimal" value={price} onChange={e => setPrice(e.target.value)} />
+      <p className="text-sm text-sub">{W.mitti}</p>
       {error && <p role="alert" className="text-sm text-rose">{error}</p>}
       <Button type="submit" className="min-h-12 w-full" disabled={busy || !valid.ok}>{busy ? 'Saving…' : W.submit}</Button>
       <p className="text-sm text-sub">{W.locked}</p>

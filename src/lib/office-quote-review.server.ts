@@ -215,6 +215,9 @@ export async function releaseQuoteToOwner(
   const notification = await (
     await import("./quote-ready-notify.server")
   ).notifyOwnerQuoteReady(jobId, quoteId, quote.kind);
+  // Companion options share one installer notice; unapproved wording returns without reads or sends.
+  await (await import('./installer-quote-sent.server')).notifyInstallerQuoteSent(jobId, quoteId)
+    .catch(error => console.warn('Installer quote notice held', jobId, String(error)));
   return { delivery: "ready_to_send" as const, notification };
 }
 /** Jo 24 Oct: a declined quote back to a draft on Quotes to check (fresh 14 days once sent again). Never sends. */

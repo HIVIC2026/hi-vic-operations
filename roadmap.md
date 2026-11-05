@@ -1,3 +1,10 @@
+## Jo 5 Nov 8pm combined outstanding batch
+- [x] Reconciled prior completed DOB/Ready Check, phone layouts, own-customer Measure & quote/measurement/form/status, Add job wording, A5 v35 BEFORE, White Card, compact cards/plain contacts, Team role fields and report/greeting changes. Remaining code: Money now includes recorded rebate and invoice-bound deposit/balance/payout dates, recorded quote PIESA takes precedence; thicker portal quote remains recognisable; Mitti inline price instruction restored. No Deep Parts 1/4/5 changed.
+- [x] Own-customer quote-sent notice wired at canonical release with one key per quote/send and existing office-email guards. Wording approval checked before any reads or TEST sends. No switches/activation; email remains held for Jo's wording approval.
+- [x] One final isolated focused pass: 27 files, 206 pass/2 fail (older Crew-no-DOB and call-to-book toast expectations conflict with Jo's later rules; not rewritten). One full isolated pass: 1294 files, 13371 pass/368 fail, 258s. Existing snapshots/source/mock checks and other failures remain, not represented as all passing. Automatic preview build OK; separate manual typecheck not run because platform owns it. Logs /tmp/combined-batch/.
+- [ ] Genuine signed-in 390px screenshots of Needs me/Add job/own-customer/Add person BLOCKED: Bravo TEST session mint permission unavailable; no existing sessions in /tmp/browser. Three safe page opens finish at /auth; no real job opened, no fake UI/screenshots. Under-2-second live Save and two-user hosted checks remain NOT RUN.
+- [ ] Installer quote-sent email live delivery waits for Jo's wording approval; own-customer owner-identical quote rendering browser check waits for permitted TEST sessions. No sends/publication/Mitti edits or live record changes.
+
 ## Jo 5 Nov 8pm portal greetings
 - [x] Reproduced fixed morning greeting; shared installer home now uses Jo's neutral "Hi, {business} team". All source greetings and message templates audited: remaining morning text is the scheduled 6:30am digest; emails unchanged. 49 focused checks pass and preview build OK; two separate home-size checks fail (not changed). Signed-in screen check NOT RUN: permitted TEST session remains unavailable. No sending, switches, live records or publication.
 
@@ -19,7 +26,7 @@
 - [ ] Normal TEST login/restored/delayed/expired/re-login matrix BLOCKED: reserved Bravo account found, but explicit TEST-session mint was refused because approval is unavailable; no password/session/role/data modification or workaround. Requires permitted TEST login/session.
 - [ ] Finish tonight's actionable fix queue; external verification blockers remain explicitly NOT RUN (Jo's Mitti republication, unavailable signed-in Team proof).
 - [ ] Part 1: retain only per-business pause switch; separate review/PR, no switch changes or sends.
-- [ ] Job page: remove Job details, exactly one conditional Money card with recorded channel-appropriate amounts/dates; compact collapsed Owner/Visits/Site notes/owner-message rows. Include in the ordered job-page work.
+- [x] Job-page presentation completed in tonight's batch: no Job details/Site notes, one conditional Money with recorded channel amounts and receipt dates, compact folds, plain contact links; signed-in verification remains blocked above.
 - [ ] Part 4: partner-booked owner visit notices, 30-day quotes, own-customer partner quote logo; new wording approval required before live.
 - [ ] Part 5: owner clearance/PIESA/ESC/deposit, partner-office install booking, two-day Lead/day lock, three-day reminder/two-day red flag, Crew until start, GO/DON'T START 2pm/6:30am office-only with DON'T START copy, install-day balance and installer payouts. Preserve recorded accepted terms.
 - [ ] Apply in-house lead parity for Reinsulate/Rapid/INSolation and draft corrected Owner accepted partner email. Parts 2/2b/3 and completed Crew repair not rebuilt.

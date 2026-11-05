@@ -19,7 +19,7 @@ export const OWN_READY_CHECK_COPY = {
   mitti: 'Mitti form done. Enter your price inc GST, then Send for quote.',
 } as const;
 
-// Draft only: intentionally not imported by any sender or release handler.
+// Draft only: the release notification returns before any delivery while approval is false.
 export const INSTALLER_QUOTE_SENT_EMAIL_APPROVED = false;
 export function installerQuoteSentDraft(v: { jobNumber: string; firstName: string; address: string; validUntil: string }) {
   return {
