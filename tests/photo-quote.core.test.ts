@@ -104,3 +104,14 @@ test("photoGiveFrom matches the photo record to the current give by batch id and
   expect(photoGiveFrom([sent("B1", "nogap", "2026-11-06T01:00:00Z"), rec("B1", "nogap"), sent("B2", "nogap", "2026-11-09T01:00:00Z")], ["nogap"])).toBeNull();
   expect(photoGiveFrom([], ["nogap"])).toBeNull();
 });
+
+// Review fix round (minor): the installer's "Send for quote" response on an HIV lead carries no hold reasons.
+import { readFileSync } from "node:fs";
+import { photoQuoteResponse } from "../src/lib/photo-quote.core";
+test("Send for quote response: only {ok, sent}; refusals keep their plain message", () => {
+  expect(photoQuoteResponse({ ok: true, sent: false, held: ["Quote is more than 15% off the estimate"] })).toEqual({ ok: true, sent: false });
+  expect(photoQuoteResponse({ ok: true, sent: true, held: [] })).toEqual({ ok: true, sent: true });
+  expect(photoQuoteResponse({ ok: false, message: "This job isn't quoted from photos." })).toEqual({ ok: false, message: "This job isn't quoted from photos." });
+  const fn = readFileSync("src/lib/trade-view.functions.ts", "utf8");
+  expect(fn.slice(fn.indexOf("export const tradeSubmitPhotoQuote"), fn.indexOf("export const getPhotoQuoteMedia"))).toContain("photoQuoteResponse(");
+});

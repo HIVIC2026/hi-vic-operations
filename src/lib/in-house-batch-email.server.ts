@@ -79,19 +79,24 @@ const pastBookingStep = (stage: string) => ["cancelled", "complete"].includes(st
 
 export async function sendInHousePartnerCall(jobId: string, over: Partial<WillCallDeps> = {}): Promise<string> {
   const d = { ...defaults(), ...over };
-  // Photo-quote installers: never "will call you" (email or text) on a From photos give.
-  const photo = await d.photoGive(jobId, d.db);
-  if (photo) return sendOwnerPhotoQuoteNotice(jobId, photo, d);
-  if (!d.approved) return "awaiting approval";
+  // Photo-quote installers: never "will call you" (email or text) on a From photos give. While the will-call switch is
+  // off only the photo notice can go, and a failed read changes nothing ("awaiting approval", as before); with it on,
+  // the give is read with the other safeguards and any failed read stops the send the same way.
+  if (!d.approved) {
+    const photo = await d.photoGive(jobId, d.db).catch(() => null);
+    return photo ? sendOwnerPhotoQuoteNotice(jobId, photo, d) : "awaiting approval";
+  }
   const db = d.db;
-  const [job, pending, assignments, ledger, booked] = await Promise.all([
+  const [photoRead, job, pending, assignments, ledger, booked] = await Promise.all([
+    d.photoGive(jobId, db).then((give) => ({ give }), () => null),
     db.from("jobs").select("id,source,stage,channel,owners(email,full_name,phone)").eq("id", jobId).is("deleted_at", null).neq("source", "qa_test").maybeSingle(),
     db.from("workflow_events").select("job_id,details,created_at").eq("job_id", jobId).eq("event_type", PENDING).order("created_at").limit(1).maybeSingle(),
     db.from("job_assignments").select("business_id").eq("job_id", jobId).eq("role", "installer").eq("active", true),
     db.from("customer_email_sends").select("id").eq("job_id", jobId).eq("purpose", PURPOSE).limit(1),
     db.from("bookings").select("job_id").eq("job_id", jobId).eq("kind", "ready_check").eq("status", "confirmed").limit(1),
   ]);
-  if (job.error || pending.error || assignments.error || ledger.error || booked.error) throw new Error("Could not read partner call email safeguards.");
+  if (!photoRead || job.error || pending.error || assignments.error || ledger.error || booked.error) throw new Error("Could not read partner call email safeguards.");
+  if (photoRead.give) return sendOwnerPhotoQuoteNotice(jobId, photoRead.give, d);
   // Part 10 Task 8: an installer's own customer never gets this (before any claim, send or held note).
   if (job.data && !willCallAllowed((job.data as { channel?: string | null }).channel ?? null)) return "not applicable: installer's own customer";
   const details = (pending.data as Pending | null)?.details;

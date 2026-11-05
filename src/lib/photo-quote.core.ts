@@ -107,3 +107,9 @@ export function photoGiveFrom(events: readonly GiveEventRow[], activeInstallerBu
   const photo = events.some((e) => e.event_type === PHOTO_QUOTE_GIVE_EVENT && str(e.details?.batch_id) === batchId && str(e.details?.business_id) === businessId);
   return photo ? { batchId, businessId, givenAt: sent.created_at } : null;
 }
+
+/** What the installer's "Send for quote" gets back (review fix round): on a Home Insulation Victoria lead the installer
+ *  never sees why an owner's quote is held (those reasons are about the owner's price), only whether it was sent. */
+export function photoQuoteResponse(r: { ok: true; sent: boolean; held?: string[] } | { ok: false; message: string }): { ok: true; sent: boolean } | { ok: false; message: string } {
+  return r.ok ? { ok: true, sent: r.sent } : { ok: false, message: r.message };
+}

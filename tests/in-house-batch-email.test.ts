@@ -97,3 +97,12 @@ test("sweep: a photos job gets the photo email once while only the photo switch 
   expect(await mod.sweepInHousePartnerCalls(p.d as never)).toEqual({checked:0,sent:0});
   expect(ledger).toHaveLength(1);expect(ledger[0]?.purpose).toBe("owner_photo_quote_notice");expect(p.sms).toEqual([]);
 });
+// Review fix round (minor): a failed photo read on a Ready Check job behaves as before — "awaiting approval" while the
+// will-call switch is off; with it on, the same safeguards failure as any other failed read (never "will call" on a
+// job that might be a photo job).
+test("failed photo read: switch off → awaiting approval (as before); switch on → the safeguards error, nothing sent",async()=>{
+  const broken=async()=>{throw new Error("read failed");};
+  expect(await mod.sendInHousePartnerCall("j",{...deps(),approved:false,photoApproved:false,photoGive:broken} as never)).toBe("awaiting approval");
+  await expect(mod.sendInHousePartnerCall("j",{...deps(),approved:true,photoApproved:false,photoGive:broken} as never)).rejects.toThrow("Could not read partner call email safeguards.");
+  expect(ledger).toEqual([]);expect(providerCalls).toEqual([]);
+});

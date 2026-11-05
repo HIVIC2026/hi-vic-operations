@@ -15,7 +15,7 @@ import { statusFactsFor, statusView } from "./job-status.server";
 import { installerTab, doneReason } from "./installer-progress.core";
 import { sourceLabel as installerSourceLabel } from "./installer-home.core";
 import { installerQuoteLine } from "./installer-quote-status.core";
-import { myWorkCards, greeting as myWorkGreeting, reasonFor } from "./my-work.core";
+import { myWorkCards, greeting as myWorkGreeting, myWorkReason } from "./my-work.core";
 import { nextStepBox, type NextStepFacts } from "./next-step-box.core";
 import { PHOTO_QUOTE_GIVE_EVENT, photoGiveFrom, type GiveEventRow } from "./photo-quote.core";
 import { READY_CHECK_PERSON_PENDING_EVENT, readyCheckPersonState } from "./ready-check-person.core";
@@ -363,7 +363,7 @@ export async function tradeHome(userId: string) {
         ...photoFacts,
       };
       const box = nextStepBox(facts);
-      return { jobId: j.jobId, jobNumber: String(j.jobNumber), owner: j.owner, street: j.street, suburb: j.suburb, channel: j.channel, box, reason: reasonFor(box.kind, box, !!give) };
+      return { jobId: j.jobId, jobNumber: String(j.jobNumber), owner: j.owner, street: j.street, suburb: j.suburb, channel: j.channel, box, reason: myWorkReason(box, facts) };
     });
     // A job with a pending offer shows as the offer card only (owner details stay hidden until the offer is taken); the card's key is the offer id.
     // Part 7 Task 9: no "Job offer" card — a job with a leftover pending offer stays hidden from My work (the office closes the offer).

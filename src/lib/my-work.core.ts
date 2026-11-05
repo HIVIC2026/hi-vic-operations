@@ -49,6 +49,10 @@ const REASON: Record<NextStepKind, string> = {
 export const reasonFor = (kind: NextStepKind, box?: Pick<NextStepBox, "title">, photos = false): string =>
   kind === "waiting_quote" && box?.title === NEXT_STEP_WORDS.quotePreparingTitle ? (photos ? "Photo quote sent" : REASON.enter_price) : REASON[kind];
 
+/** The My work card reason from the same facts as the box: any photo job (a From photos give OR an installer's own photo
+ *  quote) reads "Photo quote sent", never "Ready Check done" (review fix round). */
+export const myWorkReason = (box: Pick<NextStepBox, "kind" | "title">, facts: { quoteMethod?: string | null }): string => reasonFor(box.kind, box, facts.quoteMethod === "photos");
+
 // Overdue first, then the earliest book-by date, cards with no date last. Stable otherwise.
 function byUrgency(a: MyWorkCard, b: MyWorkCard): number {
   if (a.overdue !== b.overdue) return a.overdue ? -1 : 1;
