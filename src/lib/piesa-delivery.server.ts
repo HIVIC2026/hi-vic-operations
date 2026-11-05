@@ -45,7 +45,7 @@ export type PiesaDeliveryDeps = { route: (jobId: string) => Promise<PiesaResultR
    *  go standalone NOW, not after the 24h safety net. undefined = not checked (older callers: the safety net alone). */
   clearEmailStillDue?: (jobId: string) => Promise<boolean> };
 
-/** The clear-to-install email goes only while the 10% deposit is unpaid and the install unbooked (deposit-request.server). */
+/** The clear-to-install email goes only while the 50% deposit is unpaid and the install unbooked (deposit-request.server). */
 export async function clearToInstallEmailStillDue(jobId: string): Promise<boolean> {
   try {
     const [{ installDepositBlockerFor }, { installDayContext }] = await Promise.all([import("./payments.server"), import("./install-days.server")]);

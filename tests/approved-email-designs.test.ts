@@ -36,7 +36,7 @@ const FIG = { veuRebate: 1610, customerTotal: 2188, totalBeforeRebate: 3798, ins
 const REINSULATE = { name: "Reinsulate", phone: "0400 000 000" };
 
 /** Retired wording (scripts/scan-retired-terms.ts customer-visible terms) must never appear. */
-const RETIRED = [/\bHI ?VIC!?(?![a-z_])/, /50 ?% deposit/i, /measure[- ]up (?:&amp;|&|and) eligibility check/i, /combined ready check/i, /piesa before (quote|payment)/i, /\$220 lead fee/i, /5[- ]year workmanship/i];
+const RETIRED = [/\bHI ?VIC!?(?![a-z_])/, /10 ?% deposit/i, /measure[- ]up (?:&amp;|&|and) eligibility check/i, /combined ready check/i, /piesa before (quote|payment)/i, /\$220 lead fee/i, /5[- ]year workmanship/i];
 const shell = (html: string, text: string, unsubscribe: boolean) => {
   expect(html.startsWith("<!doctype html")).toBe(true);
   expect(html).toContain(`src="${MAIL_LOGO_URL}"`);
@@ -119,7 +119,7 @@ describe("approved owner email designs", () => {
   test("O22 You're in", () => {
     const m = renderYoureInEmail({ firstName: "Helen", rebate: 1850, totalIncGst: 2200, payment: { amount: 349, paidOn: "24 Oct 2026", cardLast4: "4242" }, installerName: "Reinsulate", myJobUrl: JOB });
     shell(m.html, m.text, false);
-    has(m.html, ["You're in, Helen!", "with $1,850 off", "Payment received", ">$349.00<", "Paid 24 Oct 2026 · card ending 4242", "Paid &#10003;", "Still to pay: $1,851.00 (10% to book your install day, the rest on install day)", "Electrical safety check (PIESA)", "Only if electrical upgrades are needed", "Book your install day", "Reinsulate will call you to book it", "signed acceptance and receipt are attached"]);
+    has(m.html, ["You're in, Helen!", "with $1,850 off", "Payment received", ">$349.00<", "Paid 24 Oct 2026 · card ending 4242", "Paid &#10003;", "Still to pay: $1,851.00 (50% to book your install day, the rest on install day)", "Electrical safety check (PIESA)", "Only if electrical upgrades are needed", "Book your install day", "Reinsulate will call you to book it", "signed acceptance and receipt are attached"]);
     expect(ACCEPTANCE_EMAIL_APPROVED).toBe(true); // approved by Jo 24 Oct 2026 (tests/approved-flags.test.ts lists the decision)
   });
   test("O28 PIESA copy", () => {
