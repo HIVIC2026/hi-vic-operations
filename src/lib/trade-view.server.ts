@@ -16,7 +16,7 @@ import { sourceLabel as installerSourceLabel } from "./installer-home.core";
 import { installerQuoteLine } from "./installer-quote-status.core";
 import { myWorkCards, greeting as myWorkGreeting, myWorkReason } from "./my-work.core";
 import { nextStepBox, type NextStepFacts } from "./next-step-box.core";
-import { PHOTO_QUOTE_GIVE_EVENT, photoGiveFrom, type GiveEventRow } from "./photo-quote.core";
+import { PHOTO_QUOTE_GIVE_EVENT, PHOTO_QUOTE_SUBMITTED_EVENT, OWN_PHOTO_QUOTE_FAILED_EVENT, hasOwnPhotoSignal, photoGiveFrom, type GiveEventRow } from "./photo-quote.core";
 import { READY_CHECK_PERSON_PENDING_EVENT, readyCheckPersonState } from "./ready-check-person.core";
 import { MONEY_WORDS, moneyScreen, type MoneyScreenRow } from "./money-screen.core";
 import { LOGO_MAX_BYTES, LOGO_TYPES, businessRows, logoFileProblem, needsYou, whoBooksOf, type BusinessScreenFacts, type WhoBooks } from "./business-screen.core";
@@ -251,7 +251,7 @@ export async function tradeHome(userId: string) {
     formReads ? installDepositListServer.paymentLedgersForJobs(liveIds) : Promise.resolve(new Map<string, { paidAt: string }[]>()),
     formReads ? coesOnFileForJobs(liveIds) : Promise.resolve(new Set<string>()),
     // Photo-quote installers (Jo 5 Nov 2026): the same read carries the gives and their method records (no extra round).
-    formReads ? admin.from("workflow_events").select("job_id, event_type, details, created_at").in("job_id", liveIds).in("event_type", ["in_house_electrician_allocated", "in_house_batch_sent", PHOTO_QUOTE_GIVE_EVENT]).order("created_at", { ascending: false }) : Promise.resolve({ data: [] as { job_id: string | null; event_type: string; details: unknown; created_at: string }[] }),
+    formReads ? admin.from("workflow_events").select("job_id, event_type, details, created_at").in("job_id", liveIds).in("event_type", ["in_house_electrician_allocated", "in_house_batch_sent", PHOTO_QUOTE_GIVE_EVENT, PHOTO_QUOTE_SUBMITTED_EVENT, OWN_PHOTO_QUOTE_FAILED_EVENT]).order("created_at", { ascending: false }) : Promise.resolve({ data: [] as { job_id: string | null; event_type: string; details: unknown; created_at: string }[] }),
   ]);
   const moneyAll = await moneyP;
   const choiceRows=await choiceP;
@@ -346,9 +346,11 @@ export async function tradeHome(userId: string) {
       const readyCheckDone = !!latest("ready_check", "completed") || formFacts.get(j.jobId)?.completed === true;
       const give = photoGiveFrom((allocEvents ?? []).filter((e) => e.job_id === j.jobId) as GiveEventRow[], [c.biz.id]);
       const photoMeasured = (ms ?? []).some((m) => m.job_id === j.jobId && m.external_source === "photo_quote");
+      // An own job is a photo job from its claim or failed save too, not only once the measurement lands (15-minute tick).
+      const ownPhotoJob = raw.channel === "installer_sourced" && (photoMeasured || hasOwnPhotoSignal((allocEvents ?? []).filter((e) => e.job_id === j.jobId)));
       // Photo-quote installers: a From photos give, or Part 2 — the installer's own customer added with a photo quote.
       const photoFacts: Partial<NextStepFacts> = give ? { quoteMethod: "photos", photoQuoteSent: photoMeasured, givenAt: give.givenAt }
-        : raw.channel === "installer_sourced" && photoMeasured ? { quoteMethod: "photos", photoQuoteSent: true } : {};
+        : ownPhotoJob ? { quoteMethod: "photos", photoQuoteSent: true } : {};
       const facts: NextStepFacts = {
         channel: raw.channel, stage, ownerFirst: o ? o.split(/\s+/)[0]! : null, ownerName: o, ownerPhone: null, now,
         givenAt: givenAt.get(j.jobId) ?? null,
@@ -1625,6 +1627,8 @@ export function installerJobPageParts(i: {
   whoBooks: WhoBooks; coesOnFile: boolean;
   /** Photo-quote installers: the job's current From photos give for this business (null = Ready Check). */
   photoGive?: import("./photo-quote.core").PhotoGive | null;
+  /** The own customer's photo-quote claim or failed-save event exists (before the measurement lands). */
+  ownPhotoSignal?: boolean;
 }) {
   const { c, j } = i;
   const now = new Date();
@@ -1644,9 +1648,9 @@ export function installerJobPageParts(i: {
   const piesaDone = outcome === "pass" || i.clearance.cleared;
   // Photo-quote installers: a From photos give (our lead), or Part 2 — the installer's own customer added with a photo quote.
   const photoMeasured = (i.m as { external_source?: string | null } | null)?.external_source === "photo_quote";
-  const ownPhoto = j?.channel === "installer_sourced" && photoMeasured;
+  const ownPhoto = j?.channel === "installer_sourced" && (photoMeasured || i.ownPhotoSignal === true);
   const photos = !!i.photoGive || ownPhoto;
-  const photoQuoteSent = photos && photoMeasured;
+  const photoQuoteSent = photos && (photoMeasured || ownPhoto);
   const readyCheckDone = photos ? photoQuoteSent : i.rcBook?.status === "completed" || i.mittiCompleted;
   const q = i.quote.declined ? "declined" : i.quote.accepted ? "accepted" : i.quote.sent ? "sent" : "none";
   const facts: NextStepFacts = {
@@ -1829,7 +1833,7 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
     admin.from("workflow_events").select("details, created_at").eq("job_id", jobId).eq("event_type", "install_evidence_synced").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     // G7: the same read also carries the "Not sure yet" marker rows (ready_check_person_pending) — currentAllocation ignores them.
     // Photo-quote installers: the same read carries the gives and their method records.
-    admin.from("workflow_events").select("event_type, details, created_at").eq("job_id", jobId).in("event_type", ["visit_allocated", READY_CHECK_PERSON_PENDING_EVENT, "in_house_batch_sent", PHOTO_QUOTE_GIVE_EVENT]).order("created_at", { ascending: false }),
+    admin.from("workflow_events").select("event_type, details, created_at").eq("job_id", jobId).in("event_type", ["visit_allocated", READY_CHECK_PERSON_PENDING_EVENT, "in_house_batch_sent", PHOTO_QUOTE_GIVE_EVENT, PHOTO_QUOTE_SUBMITTED_EVENT, OWN_PHOTO_QUOTE_FAILED_EVENT]).order("created_at", { ascending: false }),
     admin.from("installer_declarations").select("installer_name, signed_at, installed_product, installed_area_m2").eq("job_id", jobId).eq("status", "signed").order("signed_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("customer_assignments").select("installer_signed_at, consumer_final_signed_at, ap_signed_at, installed_product, installed_area_m2").eq("job_id", jobId).eq("record_kind", "final_veec_assignment").neq("status", "cancelled").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     ownerReadyP,
@@ -1867,6 +1871,7 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
     c, j: j as JobPageJob | null, rcBook, inBook, piesaBook, a, m, form, clearance, quote, qq, pay, elecName, piesaRec, accessPerson, mineBk: mineBk ?? [], released,
     readyCheckPerson: rcPerson.pending ? null : rcPerson.name ?? undefined,
     photoGive: photoGiveFrom((alloc ?? []) as GiveEventRow[], [c.biz.id]),
+    ownPhotoSignal: hasOwnPhotoSignal((alloc ?? []) as { event_type: string; details: unknown }[]),
     readyCheckSubmittedAt: priceRecord?.sendToQuote ? priceRecord.setAt : null,
     sentRows: sentRows ?? [], ledger, depositPaid, deadline: dl?.install_deadline ? String(dl.install_deadline) : null, givenAt: (given as { assigned_at?: string | null } | null)?.assigned_at ?? null,
     consentSigned: !!consent, paidEv: (paidEv ?? []) as { created_at: string; details: unknown }[], piesaPayRead, swmsRead, quoteItems: ((quoteItemsRow as unknown as { quote_items: unknown }[] | null)?.[0]?.quote_items as { code: string | null; description: string | null; sort: number | null; line_total_inc_gst?: number | string | null }[] | null) ?? [],

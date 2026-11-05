@@ -24,6 +24,12 @@ export function hasOwnerMedia(docs: readonly OwnerMediaDoc[]): boolean {
 export const PHOTO_QUOTE_GIVE_EVENT = "in_house_quote_method";
 /** The installer sent the photo quote (Task 5). */
 export const PHOTO_QUOTE_SUBMITTED_EVENT = "photo_quote_submitted";
+export const OWN_PHOTO_QUOTE_FAILED_EVENT = "own_photo_quote_failed";
+/** An own-customer job is a photo job from its first signal — the claim, a failed save, or a measurement (same signals as
+ *  the Ready Check form sweep) — so it is never shown the Mitti/portal Ready Check while the quote is still being made. */
+export function hasOwnPhotoSignal(events: { event_type: string; details?: unknown }[]): boolean {
+  return events.some((e) => e.event_type === OWN_PHOTO_QUOTE_FAILED_EVENT || (e.event_type === PHOTO_QUOTE_SUBMITTED_EVENT && (e.details as { own_customer?: unknown } | null)?.own_customer === true));
+}
 
 /** A missing `businesses.quote_method` column (pending SQL not run yet) reads as Ready Check; other errors are real. */
 export function isMissingQuoteMethodColumn(e: { code?: string | null; message?: string | null } | null | undefined): boolean {
