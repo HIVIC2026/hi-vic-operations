@@ -1,3 +1,6 @@
+## Jo 5 Nov Ready Check attendance
+- [x] Exempt Ready Check booking from private identity/install credential gate; keep Team membership and Mitti/office fallback. Preserve Lead approval/install checks and clarify Team Lead DOB wording. 43 focused tests pass; phone TEST picker/Book enabled, no submission or delivery. Team suite: 20 pass, one pre-existing source-name assertion fails (expects teamMemberDetails in form, already uses addPersonProblems). No real records or publication.
+
 ## Jo 5 Nov Add electrician email
 - [x] Shared Add/job picker disables missing email; failure explains repair and links Team; recorded failed choice is preselected for one-tap job-page retry. No real records, sends or publication.
 

@@ -237,6 +237,7 @@ function AddPerson({ count, kind, onAdded }: { count: number; kind: "installer" 
           {kind === "installer" && (
             <label className={label}>{TEAM_WORDS.dob}
               <input type="date" required max={today} className={`${inputCls} mt-1.5`} value={f.dateOfBirth} onChange={(e) => setF({ ...f, dateOfBirth: e.target.value })} />
+              {f.role === "lead" && <span className="mt-1 block text-sm font-normal text-sub">Needed to approve a Lead Installer for ESC registration, not to book a Ready Check.</span>}
             </label>
           )}
           <label className={label}>{f.role === "electrician" ? TEAM_ADD_SHEET.emailElectrician : TEAM_ADD_SHEET.email}
