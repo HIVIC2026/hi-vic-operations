@@ -4,6 +4,9 @@ import { USUAL_ELECTRICIAN_EVENT, usualElectrician, resolveMittiElectrician } fr
 import { contactAnswersFromEntries } from "./mitti.core";
 import { logEvent } from "./workflow.server";
 
+/** The OLD saved usual electrician (My business, decisions 157/173) — the raw event only. Every reader of "the installer's
+ *  electrician" uses `readMainElectrician` (installer-electricians.server), which falls back to this while no Main was
+ *  ever ticked. Direct callers: that fallback and the sign-up / auto-link writers of this same event. */
 export async function readUsualElectrician(businessId: string) {
   const { data, error } = await admin.from("admin_config_events").select("id, details")
     .eq("event_type", USUAL_ELECTRICIAN_EVENT).contains("details", { business_id: businessId })
@@ -24,7 +27,8 @@ export async function mittiElectricianForJob(jobId: string, actorId: string | nu
   if (job?.channel !== "installer_sourced") return null;
   const { resolveElectricianChoice } = await import("./electrician-choice.core");
   const { choice: recorded, workerId: recordedWorkerId } = await (await import("./electrician-choice.server")).readElectricianChoiceRecord(jobId);
-  const saved = job.originating_installer_business_id ? await readUsualElectrician(job.originating_installer_business_id) : null;
+  // Jo 5 Nov 2026: the installer's Main electrician (never ticked = the old saved usual electrician, unchanged).
+  const saved = job.originating_installer_business_id ? await (await import("./installer-electricians.server")).readMainElectrician(job.originating_installer_business_id) : null;
   const resolvedChoice = resolveElectricianChoice({ recorded, legacy: answers.electricianChoice, usual: saved?.electrician ?? null });
   // Old HIV defaults are kept as history only. Installer quotes use their own usual electrician, or hold.
   const choice = resolvedChoice === "hivic" ? (saved?.electrician ? "usual" : null) : resolvedChoice;
@@ -38,11 +42,13 @@ export async function mittiElectricianForJob(jobId: string, actorId: string | nu
   const { onboardedElectricianResolution, chosenRecResolution, teamElectricianResolution, ELECTRICIAN_ONBOARDING_NEEDED_EVENT } = await import("./rec-onboarded.core");
   // Join ruling (4 Nov 2026): the Team electrician on the job — the one put on it (latest `in_house_electrician_allocated`,
   // the job page's "choose again" included), else the one picked at Add a job — IS the installer's own electrician.
-  const teamWorkerId = (await (await import("./in-house-electrician.server")).allocatedWorkerId(jobId)) ?? recordedWorkerId;
-  const teamWorker = teamWorkerId && job.originating_installer_business_id ? await teamElectricianFor(teamWorkerId, job.originating_installer_business_id) : null;
+  const jobTeamWorkerId = (await (await import("./in-house-electrician.server")).allocatedWorkerId(jobId)) ?? recordedWorkerId;
   // Task 5 (3 Nov 2026): an electrician PICKED for this job (the nomination the hand-over and the swap use) wins over the
   // saved usual one — a non-usual pick names the right electrician, and an installer with no saved usual is not held.
-  const chosenId = teamWorkerId ? null : await (await import("./job-electrician.server")).jobChosenElectrician(jobId);
+  const chosenId = jobTeamWorkerId ? null : await (await import("./job-electrician.server")).jobChosenElectrician(jobId);
+  // Jo 5 Nov 2026: a Main that is a Team person stands in for "my usual electrician" when nobody else is named on the job.
+  const teamWorkerId = jobTeamWorkerId ?? (!chosenId && choice === "usual" ? saved?.workerId ?? null : null);
+  const teamWorker = teamWorkerId && job.originating_installer_business_id ? await teamElectricianFor(teamWorkerId, job.originating_installer_business_id) : null;
   const candidates = !teamWorkerId && (chosenId || !(legacy.choice === "hivic" || legacy.needsProfile)) ? await (await import("./rec-onboarded.server")).loadApprovedRecCandidates() : [];
   const chosen = chosenId ? candidates.find((c) => c.business_id === chosenId) ?? null : null;
   // pays_own_electricians OR in_house → the business's flat PIESA line, no REC rate needed; not a held-visit decision.
@@ -84,7 +90,8 @@ async function teamElectricianFor(workerId: string, businessId: string) {
 /** A3: the saved usual electrician and whether they are onboarded (approved REC; flat-paid installers need no rate).
  *  Reads candidates only when one is saved. */
 export async function readUsualElectricianStatus(businessId: string): Promise<{ electrician: import("./usual-electrician.core").UsualElectrician | null; onboarded: boolean }> {
-  const { electrician } = await readUsualElectrician(businessId);
+  // Jo 5 Nov 2026: the Main electrician (never ticked = the old saved usual electrician, unchanged).
+  const { electrician } = await (await import("./installer-electricians.server")).readMainElectrician(businessId);
   if (!electrician) return { electrician: null, onboarded: false };
   const candidates = await (await import("./rec-onboarded.server")).loadApprovedRecCandidates();
   const paysOwn = await (await import("./installer-paid-electricians.server")).readInstallerPaidElectricians(businessId);

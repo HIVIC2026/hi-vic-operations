@@ -318,9 +318,9 @@ export const WORKFLOW_DECISIONS = {
     },
     leadCrew: {
       by: "Jo 27–29 Oct 2026",
-      replaces: "Jo 28 Oct 2026 (null = Crew unless Mitti access; Lead → Crew deactivates Mitti)",
+      replaces: "Jo 28 Oct 2026 (null = Crew unless Mitti access; Lead → Crew deactivates Mitti); Jo 5 Nov 2026 reversed the 29 Oct \"null = Lead\" line: no role = Crew",
       installerRoles: ["lead", "crew"],
-      nullReadsAs: "lead",
+      nullReadsAs: "crew", // Jo 5 Nov 2026 (was "lead", Jo 29 Oct); the 8 live no-role installers were set to crew in the database
       mittiAutoInviteOnlyFor: "lead",
       installLeadOnlyFor: "lead",
       leadNoEmailUses: "business_office_email",
@@ -415,4 +415,15 @@ export const NO_ESC_DECISIONS = {
   gates: "the GO check and the PIISA timing rule drop only the ESC-notice lines (note 'No ESC (real-run job): ESC notice skipped' on the check); the 30-day PIESA rule, SWMS, Part C, certificate, deposit, insurance and every other gate still block",
   failClosed: "a marker read error throws → the recorder refuses, the sweep stops, the GO check is not recorded",
   unmarked: "byte-identical behaviour; no SQL",
+} as const;
+
+/** Jo 5 Nov 2026 (approved): ONE Electricians list per installer business — replaces "Usual electrician". */
+export const INSTALLER_ELECTRICIANS_DECISIONS = {
+  list: "electriciansForInstaller (installer-electricians.server.ts, rules in installer-electricians.core.ts): the electrician businesses linked to the installer (partner_relationships, active) + the installer's Team electricians, each Approved / Pending, ONE Main",
+  screens: "office Partners › business and the installer's My business › Electricians: Add electrician (approved electrician businesses, never another installer's own), Remove, Main tick; the old 'Usual electrician' section and its HIV-does-the-safety-check wording are gone",
+  pickers: "pickers keep what they could pick before: Team pickers (Add a job teamElectricianChoices, PIESA booking / in-house electricianPicker, Mitti card) list the Team with the Main as default; the job page swap (swapOptions) and the legacy picker (bulkElectricianChoices) list the linked businesses, Main first",
+  main: "Main = the default electrician everywhere; the latest installer_main_electrician_set admin_config_event decides (exactly one), partner_relationships.is_primary follows it; readMainElectrician is the one server read every old usual-electrician path uses (incl. teaming/allocation preferred); never ticked → the old saved usual electrician, unchanged",
+  change: "changeJobElectrician: allowed until the safety check (PIESA) is done; person + time saved together; the job-link text and the Mitti PIESA form only after that saved; a failed save keeps the old electrician and sends nothing; a failed hand-over after the save → in_house_form_sync_failed (Needs me) + a warning; same electrician = time only",
+  quoteHold: "usualElectricianChangedBlocker: the Main / usual electrician is compared by licence (case, spaces and dashes ignored), never by name (HV-3193)",
+  unchanged: "HIV leads: HIV pays the installer $275; own jobs: the installer's own PIESA price; ESC/licence checks; the 2 Nov rule (any electrician onboarded with HIV and connected to the installer); no schema change",
 } as const;

@@ -29,6 +29,7 @@ export const setInstallerPriceFn = createServerFn({ method: "POST" })
         notes: z.string().max(1000).optional().nullable(),
         send: z.boolean().optional(),
         sendToQuote: z.boolean().optional(),
+        changeReason: z.string().trim().max(300).optional(),
         // Jo 4 Nov 2026: per-area brand + batts (approved products only, checked on the server) and the thicker total.
         layout: z.object({
           mainPicks: z.array(z.object({ brand: z.enum(["Bradford Gold", "Pink Batts", "Earthwool", "Ecowool"]), r: z.number().min(0).max(10) }).nullable()).max(30),

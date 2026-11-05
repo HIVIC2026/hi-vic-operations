@@ -48,6 +48,7 @@ export async function myOwnerQuoteFor(sb: Rpc, userId: string, jobId: string, sh
   const canDiscount = !pending && q.status === "issued" && !!q.sent_at && !q.accepted_at && !q.expired_at && !quoteIsExpired({ kind: "installation", sent_at: q.sent_at });
   return {
     applies: true as const, priceHidden: false as const,
+    priceChangePending: !!(await (await import('./installer-price-change.server')).pendingChangeFor(jobId)),
     quoteId: q.id as string,
     canDiscount,
     discountPending: pending ? { amountIncGst: pending.amountIncGst, at: pending.at } : null,

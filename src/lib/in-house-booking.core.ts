@@ -14,10 +14,19 @@ export const LEAD_INSTALLER_BOOKING_REASON = 'Choose the Lead Installer to book.
 export const NO_ELIGIBLE_LEAD_REASON = 'Add a Lead Installer to your Team to book the install. ESC needs us to name a registered Lead Installer on the install notice at least 24 hours before.';
 export const registrationWaitingReason=(name:string)=>`Waiting for Home Insulation Victoria to register ${name} with ESC. Every Lead Installer must be registered with ESC before we can lodge the install notice.`;
 export const LEAD_INSTALLER_NOTICE_WAIT = 'Waiting for Home Insulation Victoria to update the ESC notice for your new Lead Installer.';
+/** `reason` is the INSTALL-DAY reason from the Team reader (Lead rules); the Ready Check never reads it. */
 export type BookingWorker = { id:string; name:string; phone:string|null; tradeRole:string; workerRole?:string|null; cleared:boolean; reason:string|null; crewAllowed?:boolean; electricianVerified?:boolean; escRegistered?:boolean; escRegisteredAt?:string|null };
+export const READY_CHECK_INSTALLER_ONLY_REASON='Choose someone from your installer Team for the Ready Check.';
+/** Part 7 Task 9 (Jo 5 Nov 2026): the Ready Check is just measuring up, so the "who's going" picker lists the WHOLE Team —
+ *  Leads and Crew, installers only (never an electrician). `workerRole` is whatever the Team reader resolved (PR #173:
+ *  no stored role = Crew), so a Crew member with no stored role is listed just the same. */
+export const readyCheckChoices=(workers:BookingWorker[]):BookingWorker[]=>workers.filter(w=>w.tradeRole==='installer');
+/** The install-day Lead picker is unchanged: Lead Installers only (ESC names the Lead on the install notice). */
+export const installLeadChoices=(workers:BookingWorker[]):BookingWorker[]=>workers.filter(w=>w.tradeRole==='installer'&&w.workerRole==='lead');
 export function bookingWorkerBlocker(kind:string,w:BookingWorker|null):string|null {
   if(!w)return kind==='installation'?LEAD_INSTALLER_BOOKING_REASON:'Choose the person going before booking.';
-  if(kind==='ready_check')return null;
+  // Ready Check: any installer on the Team (Lead or Crew), no install-day rules; an electrician is not an installer.
+  if(kind==='ready_check')return w.tradeRole==='installer'?null:READY_CHECK_INSTALLER_ONLY_REASON;
   if(kind==='assessment'||kind==='rectification')return w.tradeRole==='electrician'&&w.electricianVerified?null:'Choose a verified electrician from your Team before booking the safety check.';
   if(kind!=='installation')return w.reason;
   if(w.tradeRole!=='installer'||w.workerRole!=='lead')return LEAD_INSTALLER_BOOKING_REASON;

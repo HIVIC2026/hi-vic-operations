@@ -25,7 +25,7 @@ const fns = {
   tradeHandBack: fake("tradeHandBack"),
   tradeOwnerCancelled: fake("tradeOwnerCancelled"),
 };
-const vfns = { getTeamElectricians: fake("getTeamElectricians"), allocateElectricianFn: fake("allocateElectricianFn", { name: "Will Casdorff" }) };
+const vfns = { getTeamElectricians: fake("getTeamElectricians"), allocateElectricianFn: fake("allocateElectricianFn", { name: "Will Casdorff" }), changeJobElectricianFn: fake("changeJobElectricianFn", { ok: true, warnings: [] }) };
 mock.module("@/lib/trade-view.functions", () => fns);
 mock.module("@/lib/visit-allocation.functions", () => vfns);
 mock.module("@tanstack/react-start", () => ({ useServerFn: (fn: unknown) => fn }));
@@ -90,6 +90,19 @@ const disabledHaveReasons = (r: ReturnType<typeof render>) => {
 };
 
 describe("Next step box actions", () => {
+  test('safety check Book requires electrician, day and arrival independently', () => {
+    const r=draw(boxFor({quote:'accepted'}),{ownCustomer:true});
+    const button=r.getByRole('button',{name:'Book'}) as HTMLButtonElement;
+    expect(button.disabled).toBe(true);
+    fireEvent.change(r.getByLabelText('Electrician'),{target:{value:'elec1'}});
+    expect(button.disabled).toBe(true);
+    fireEvent.change(r.getByLabelText('Day'),{target:{value:'2026-11-10'}});
+    expect(button.disabled).toBe(true);
+    fireEvent.change(r.getByLabelText('Arrival'),{target:{value:'09:00'}});
+    expect(button.disabled).toBe(false);
+    fireEvent.change(r.getByLabelText('Electrician'),{target:{value:''}});
+    expect(button.disabled).toBe(true);
+  });
   test("book_ready_check: Day + Arrival + Who's going, Book → inHouseBookVisit kind ready_check", async () => {
     const r = draw(boxFor({}));
     expect(r.getByText("NEXT STEP")).toBeTruthy();
@@ -114,7 +127,7 @@ describe("Next step box actions", () => {
     expect(calls).toEqual([{ fn: "setA1ReadyCheckTimeFn", data: { jobId: "j1", day: "2026-11-10", time: "09:00" } }]);
   });
 
-  test("book_piesa: ONE form — electrician (from getTeamElectricians), Day, Arrival; Book → allocateElectricianFn then inHouseBookVisit assessment", async () => {
+  test("book_piesa: ONE form — electrician (from getTeamElectricians), Day, Arrival; Book a NEW electrician → changeJobElectricianFn (person + time saved together)", async () => {
     const r = draw(boxFor({ readyCheck: { start: null, done: true, missing: [] }, quote: "accepted", acceptedAt: "2026-10-30T00:00:00Z" }));
     expect(r.getByText("Book the PIESA")).toBeTruthy();
     expect(r.container.querySelectorAll("form").length).toBe(1);
@@ -124,9 +137,27 @@ describe("Next step box actions", () => {
     fireEvent.change(elec, { target: { value: "elec1" } });
     fill(r, "2026-11-12", "08:00");
     await click(r, "Book");
-    expect(calls.map((c) => c.fn)).toEqual(["allocateElectricianFn", "inHouseBookVisit"]);
-    expect(calls[0]!.data).toEqual({ jobId: "j1", workerId: "elec1" });
-    expect(calls[1]!.data).toEqual({ jobId: "j1", kind: "assessment", start: "2026-11-11T21:00:00.000Z", workerId: "elec1", crewIds: [] });
+    expect(calls).toEqual([{ fn: "changeJobElectricianFn", data: { jobId: "j1", workerId: "elec1", start: "2026-11-11T21:00:00.000Z" } }]);
+  });
+
+  test("book_piesa with the Main electrician as the default pick", async () => {
+    const was = electricians;
+    electricians = { workers: [{ id: "elec1", name: "Will Casdorff", allowed: true, reason: null, selected: false, main: false }, { id: "elec3", name: "Main Person", allowed: true, reason: null, selected: false, main: true }] };
+    try {
+      const r = draw(boxFor({ readyCheck: { start: null, done: true, missing: [] }, quote: "accepted", acceptedAt: "2026-10-30T00:00:00Z" }));
+      expect((r.getByLabelText("Electrician") as HTMLSelectElement).value).toBe("elec3");
+    } finally { electricians = was; cleanup(); calls.length = 0; }
+  });
+
+  test("book_piesa with the electrician already on the job: just the time (inHouseBookVisit), no electrician change, no Mitti", async () => {
+    const was = electricians;
+    electricians = { workers: [{ id: "elec1", name: "Will Casdorff", allowed: true, reason: null, selected: true }] };
+    try {
+      const r = draw(boxFor({ readyCheck: { start: null, done: true, missing: [] }, quote: "accepted", acceptedAt: "2026-10-30T00:00:00Z" }));
+      fill(r, "2026-11-12", "08:00");
+      await click(r, "Book");
+      expect(calls).toEqual([{ fn: "inHouseBookVisit", data: { jobId: "j1", kind: "assessment", start: "2026-11-11T21:00:00.000Z", workerId: "elec1", crewIds: [] } }]);
+    } finally { electricians = was; cleanup(); calls.length = 0; }
   });
 
   test("book_install: Day, Arrival, Lead Installer (Leads only), Crew ticks, Book the install + the booked line", async () => {
@@ -141,6 +172,29 @@ describe("Next step box actions", () => {
     fireEvent.click(r.getByLabelText("Sam Crew"));
     await click(r, "Book the install");
     expect(calls).toEqual([{ fn: "inHouseBookVisit", data: { jobId: "j1", kind: "installation", start: "2026-11-12T20:30:00.000Z", workerId: "lead1", crewIds: ["crew1"] } }]);
+  });
+
+  // Part 7 Task 9 (Jo 5 Nov 2026): anyone on the installer's Team can do the Ready Check (it's just measuring up).
+  test("Ready Check 'Who's going' lists the whole Team (6 installers, Leads and Crew, no electrician) + Not sure yet; install Lead lists the 2 Leads", async () => {
+    const saved = team;
+    const person = (id: string, name: string, role: "lead" | "crew") => ({ id, name, phone: null, tradeRole: "installer", workerRole: role, cleared: true, reason: role === "crew" ? "Crew can't be the install-day Lead" : null, crewAllowed: true, escRegistered: role === "lead", escRegisteredAt: role === "lead" ? "2026-11-01" : null });
+    team = { depositPaid: true, selection: null, workers: [person("deep", "Deep", "lead"), person("raj", "Raj", "lead"), person("amit", "Amit", "crew"), person("sunny", "Sunny", "crew"), person("harpreet", "Harpreet", "crew"), person("manny", "Manny", "crew"),
+      { id: "elec1", name: "Will Casdorff", phone: null, tradeRole: "electrician", cleared: true, reason: null, electricianVerified: true }] };
+    try {
+      const rc = draw(boxFor({}));
+      const who = rc.getByLabelText("Who's going") as HTMLSelectElement;
+      const ids = Array.from(who.options).map((o) => o.value).filter(Boolean);
+      expect(ids).toEqual(["__not_sure_yet__", "deep", "raj", "amit", "sunny", "harpreet", "manny"]);
+      expect(Array.from(who.options).filter((o) => o.value && o.value !== "__not_sure_yet__").every((o) => !o.disabled)).toBe(true);
+      fill(rc);
+      fireEvent.change(who, { target: { value: "manny" } });
+      await click(rc, "Book");
+      expect(calls).toEqual([{ fn: "inHouseBookVisit", data: { jobId: "j1", kind: "ready_check", start: "2026-11-09T22:00:00.000Z", workerId: "manny", crewIds: [] } }]);
+      cleanup(); calls.length = 0;
+      const inst = draw(boxFor({ readyCheck: { start: null, done: true, missing: [] }, quote: "accepted", piesa: { start: null, outcome: "pass", upgradesDone: false, certificateIn: false }, depositPaidAt: "2026-11-05T00:00:00Z" }));
+      const lead = inst.getByLabelText("Lead Installer") as HTMLSelectElement;
+      expect(Array.from(lead.options).map((o) => o.value).filter(Boolean)).toEqual(["deep", "raj"]);
+    } finally { team = saved; }
   });
 
   test("book_install stays blocked (with a visible reason) while the deposit is not confirmed paid", () => {
@@ -168,16 +222,13 @@ describe("Next step box actions", () => {
     calls.length = 0;
   });
 
-  test("Change electrician on a booked PIESA re-allocates AND re-saves the assessment booking at its existing time for the new electrician", async () => {
+  test("Change electrician on a booked PIESA saves the new person and the existing time together (changeJobElectricianFn)", async () => {
     access = { allowed: true, blockers: [], bookings: [{ id: "bk-a", kind: "assessment", scheduled_start: "2026-11-11T22:00:00Z", status: "confirmed" }] };
     const piesa = draw(boxFor({ readyCheck: { start: null, done: true, missing: [] }, quote: "accepted", piesa: { start: "2026-11-11T22:00:00Z", outcome: null, upgradesDone: false, certificateIn: false } }));
     await click(piesa, "Change electrician");
     fireEvent.change(piesa.getByLabelText("Electrician"), { target: { value: "elec1" } });
     await click(piesa, "Save the electrician");
-    expect(calls).toEqual([
-      { fn: "allocateElectricianFn", data: { jobId: "j1", workerId: "elec1" } },
-      { fn: "inHouseBookVisit", data: { jobId: "j1", kind: "assessment", start: "2026-11-11T22:00:00Z", workerId: "elec1", crewIds: [] } },
-    ]);
+    expect(calls).toEqual([{ fn: "changeJobElectricianFn", data: { jobId: "j1", workerId: "elec1", start: "2026-11-11T22:00:00Z" } }]);
   });
 
   test("Change electrician while the electricians are loading shows its own loading line, not the deposit line", async () => {

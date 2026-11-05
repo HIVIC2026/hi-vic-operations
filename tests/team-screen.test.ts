@@ -32,8 +32,8 @@ describe("teamRow — the one line under each name (team-phone.png)", () => {
     expect(teamRow(base({ name: "Ali Khan", workerRole: "crew", cii: { certStatus: null, level: null, expiresOn: null } }), TODAY)).toEqual({ name: "Ali Khan", line: "Crew · needs CII certificate ›", warn: true });
     expect(teamRow(base({ workerRole: "crew", cii: { certStatus: "verified", level: "CII", expiresOn: "2026-01-01" } }), TODAY)).toEqual({ name: "Person", line: "Crew · needs CII certificate ›", warn: true }); // expired = not cleared
   });
-  test("an installer row with no Lead/Crew recorded is a Lead Installer (worker-role rule: null = Lead)", () => {
-    expect(teamRow(base({ workerRole: null }), TODAY).line).toBe("Lead Installer · CII ✓ · ESC registered ✓ ›");
+  test("an installer row with no Lead/Crew recorded is Crew (worker-role rule: null = Crew, Jo 5 Nov 2026)", () => {
+    expect(teamRow(base({ workerRole: null }), TODAY).line).toBe("Crew · CII ✓ ›");
   });
   test("Electrician with and without licence + REC", () => {
     expect(teamRow(base({ name: "Will Casdorff", role: "electrician", workerRole: null, cii: null, licenceAndRec: true }), TODAY)).toEqual({ name: "Will Casdorff", line: "Electrician · licence + REC ✓ ›", warn: false });

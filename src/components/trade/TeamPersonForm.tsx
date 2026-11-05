@@ -8,6 +8,7 @@ import { readTeamPersonFn,saveTeamPersonFn } from '@/lib/team-person-form.functi
 import { ADD_PERSON_ROLES,ADD_PERSON_ROLE_LABEL,TEAM_WORDS,addPersonProblems,type AddPersonRole } from '@/lib/team-screen.core';
 import { melbourneToday } from '@/lib/melbourne-time.core';
 import { card } from './TradeShell';
+import { showTradeSaved } from '@/lib/trade-save-confirmation';
 
 export function TeamPersonForm({businessId,workerId=null,onSaved,onClose,kind='installer'}:{businessId:string;workerId?:string|null;onSaved:()=>void;onClose:()=>void;kind?:'installer'|'electrician'}) {
  const read=useServerFn(readTeamPersonFn);
@@ -27,7 +28,7 @@ function PersonFields({businessId,workerId,initial,onSaved,onClose,kind}:{busine
  const prefix=`team-person-${workerId??'new'}`;
  return <form className={`${card} mt-3 min-w-0 space-y-4`} aria-label={workerId?'Edit person':'Add a person'} onSubmit={async e=>{
   e.preventDefault();if(busy||problems.length)return;setBusy(true);setError('');
-  try{await save({data:{businessId,workerId,...f,email:f.email||null,dateOfBirth:installer?f.dateOfBirth||null:null,licenceNumber:f.role==='electrician'?f.licenceNumber:null,recNumber:f.role==='electrician'?f.recNumber:null,certificateNumber:installer?f.certificateNumber:null,certificatePath:installer?f.certificatePath||null:null}});void qc.invalidateQueries({queryKey:['team-person',businessId,workerId]});onSaved();onClose();}
+  try{await save({data:{businessId,workerId,...f,email:f.email||null,dateOfBirth:installer?f.dateOfBirth||null:null,licenceNumber:f.role==='electrician'?f.licenceNumber:null,recNumber:f.role==='electrician'?f.recNumber:null,certificateNumber:installer?f.certificateNumber:null,certificatePath:installer?f.certificatePath||null:null}});showTradeSaved(`Team member saved: ${f.name}`);void qc.invalidateQueries({queryKey:['team-person',businessId,workerId]});onSaved();onClose();}
   catch(e){setError(e instanceof Error?e.message:'The person could not be saved. Try again.');}finally{setBusy(false);}
  }}>
   <h3 className="font-display text-[20px] font-semibold text-ink">{workerId?'Edit person':'Add a person'}</h3>

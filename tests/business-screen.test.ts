@@ -76,7 +76,7 @@ describe("the folded rows", () => {
     expect(rows[4]).toBe("Being confirmed with the office");
     expect(rows[5]).toBe("Add where we pay you");
     expect(rows[6]).toBe("Not signed yet · 1 to acknowledge the ESC notice");
-    expect(businessRows({ ...facts, electricians: [] }, TODAY)[1]!.sub).toBe("No electricians on your Team yet");
+    expect(businessRows({ ...facts, electricians: [] }, TODAY)[1]!.sub).toBe("No electricians yet"); // Jo 5 Nov 2026: the row lists the one Electricians list
   });
   test("no row ever shows an owner price or our margin", () => {
     expect(JSON.stringify(businessRows(facts, TODAY))).not.toMatch(/margin|owner price/i);

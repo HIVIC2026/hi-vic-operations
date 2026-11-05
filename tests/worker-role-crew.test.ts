@@ -23,9 +23,10 @@ describe("1. people without an email", () => {
 });
 
 describe("2. Lead / Crew", () => {
-  test("null counts as Lead (Jo 29 Oct answer 1); Crew only when stored", () => {
-    expect(effectiveWorkerRole({ tradeRole: "installer", stored: null })).toBe("lead");
-    expect(effectiveWorkerRole({ tradeRole: "installer", stored: undefined })).toBe("lead");
+  test("no role counts as Crew (Jo 5 Nov 2026, reverses 29 Oct); Lead only when stored", () => {
+    expect(effectiveWorkerRole({ tradeRole: "installer", stored: null })).toBe("crew");
+    expect(effectiveWorkerRole({ tradeRole: "installer", stored: undefined })).toBe("crew");
+    expect(effectiveWorkerRole({ tradeRole: "installer", stored: "" })).toBe("crew");
     expect(effectiveWorkerRole({ tradeRole: "installer", stored: "crew" })).toBe("crew");
     expect(effectiveWorkerRole({ tradeRole: "installer", stored: "lead" })).toBe("lead");
     expect(effectiveWorkerRole({ tradeRole: "electrician", stored: null })).toBeNull();

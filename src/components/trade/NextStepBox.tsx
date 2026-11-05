@@ -4,7 +4,7 @@
 // saved-work RPC, canonical gates incl. installDepositBlocker) and, for the installer's own customer outside in-house,
 // `setA1ReadyCheckTimeFn` (confirmBooking). Nothing here decides a rule; refusals from the server are shown as they are.
 // A greyed-out button always has a visible reason beside it (aria-describedby) — never a silent grey button.
-import { useId, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useId, useState, type FormEvent, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
@@ -13,8 +13,9 @@ import { card, ghostBtn, greenBtn, inputCls } from "@/components/trade/TradeShel
 import { MittiFormLink } from "@/components/portal/MittiFormLink";
 import { getInHouseBookingTeam, inHouseBookVisit, changeInHouseLeadInstaller, setA1ReadyCheckTimeFn } from "@/lib/trade-view.functions";
 import { useInHouseBookingAccess } from "@/components/trade/ReturnActions";
-import { getTeamElectricians, allocateElectricianFn } from "@/lib/visit-allocation.functions";
-import { bookingWorkerBlocker, emptyBookingTeamBlocker, type BookingWorker } from "@/lib/in-house-booking.core";
+import { getTeamElectricians, changeJobElectricianFn } from "@/lib/visit-allocation.functions";
+import { defaultPick } from "@/lib/installer-electricians.core";
+import { bookingWorkerBlocker, emptyBookingTeamBlocker, installLeadChoices, readyCheckChoices, type BookingWorker } from "@/lib/in-house-booking.core";
 import { NEXT_STEP_WORDS, type NextStepBox as NextStepBoxShape } from "@/lib/next-step-box.core";
 import { installStartAt, installTimeLabel } from "@/lib/install-days.core";
 import { fmtDay } from "@/lib/next-step-dates.core";
@@ -22,6 +23,8 @@ import { a1ReadyCheckTimeBlockers, allowedReadyCheckDays, allowedReadyCheckTimes
 import { readableError } from "@/lib/readable-error.core";
 import { READY_CHECK_PERSON_WORDS } from "@/lib/ready-check-person.core";
 import { markOfficeChanged } from "@/lib/office-list-refresh";
+import { Button } from '@/components/ui/button';
+import { showTradeSaved } from '@/lib/trade-save-confirmation';
 
 // Wording. Lines from the plan are marked approved; every DRAFT line is listed for Jo (Task 12 paste) and not yet seen by her.
 export const NEXT_STEP_BOX_WORDS = {
@@ -44,7 +47,10 @@ export const NEXT_STEP_BOX_WORDS = {
   changed: (what: string) => `${what} changed`, // DRAFT
   loadingElectricians: "Loading your electricians…", // DRAFT
   noPiesaTime: "Can't find the booked PIESA time. Refresh the page and try again.", // DRAFT
-  chooseElectrician: "Choose the electrician", // DRAFT (dropdown placeholder)
+  chooseElectrician: "Choose your electrician", // Jo 5 Nov
+  safetyCheckTitle: 'Book the safety check',
+  safetyCheckLine: 'The owner has accepted the quote and paid for the safety check. Call them, agree a day and time, then add it here.',
+  pickSafetyCheck: 'Pick the electrician, day and time first.',
   chooseLead: "Choose the Lead Installer", // existing in-house booking card wording (dropdown placeholder)
   choosePerson: "Choose the person going", // existing in-house booking card wording (dropdown placeholder)
   timePlaceholder: "Time…", // existing A1 Ready Check card wording (dropdown placeholder)
@@ -61,7 +67,7 @@ const KIND_OF: Partial<Record<NextStepBoxShape["kind"], Kind>> = {
 const LABEL: Record<Kind, string> = W.visit;
 
 type Team = { workers: BookingWorker[]; depositPaid: boolean; selection: { lead?: unknown; additional?: { workerId: string }[] } | null };
-type Electricians = { workers: { id: string; name: string; allowed: boolean; reason: string | null; selected: boolean }[] };
+type Electricians = { workers: { id: string; name: string; allowed: boolean; reason: string | null; selected: boolean; main?: boolean }[] };
 
 /** The box: `box` is the pure core's answer; `children` are the page's extra items for this kind (Today's job, sign, price…). */
 export function NextStepBox({ jobId, box, ownerFirst, installBy, ownCustomer = false, mittiAuditId = null, now, onDone, children }: {
@@ -87,8 +93,8 @@ export function NextStepBox({ jobId, box, ownerFirst, installBy, ownCustomer = f
   return (
     <section data-next-step={box.kind} className={`${card} border-2 ${box.overdue ? "border-rose" : "border-action"}`}>
       <p className="text-[11px] font-bold uppercase tracking-[1.3px] text-hiv-blue">{W.eyebrow}</p>
-      <h2 className="mt-1 font-display text-[22px] font-semibold leading-tight">{box.title}</h2>
-      {box.sub && (
+      <h2 className="mt-1 font-display text-[22px] font-semibold leading-tight">{box.kind === 'book_piesa' ? W.safetyCheckTitle : box.title}</h2>
+      {box.kind === 'book_piesa' ? <p className="mt-1.5 text-[15px] text-ink">{W.safetyCheckLine}</p> : box.sub && (
         <p className="mt-1.5 text-[15px] text-ink">
           {subBefore}
           {subBookBy && <strong className={box.overdue ? "text-rose" : ""}>{subBookBy}</strong>}
@@ -203,7 +209,7 @@ function BookingForm({ jobId, kind, mode, state, button, below, onDone, onCancel
   jobId: string; kind: Kind; mode: "book" | "change"; state: TeamState; button: string; below: string | null; onDone: () => void; onCancel?: () => void;
 }) {
   const book = useServerFn(inHouseBookVisit);
-  const allocate = useServerFn(allocateElectricianFn);
+  const change = useServerFn(changeJobElectricianFn);
   const qc = useQueryClient();
   const id = useId();
   const team = state.team;
@@ -213,13 +219,17 @@ function BookingForm({ jobId, kind, mode, state, button, below, onDone, onCancel
   const [day, setDay] = useState("");
   const [arrival, setArrival] = useState("");
   const [who, setWho] = useState(kind === "installation" ? lead : kind === "assessment" ? current : "");
+  // Jo 5 Nov 2026: the Main electrician is the default pick (the one already on the job wins).
+  const fallback = kind === "assessment" ? current || defaultPick(state.electricians?.workers ?? []) || "" : "";
+  useEffect(() => { if (kind === "assessment" && !who && fallback) setWho(fallback); }, [fallback]); // eslint-disable-line react-hooks/exhaustive-deps
   const [crew, setCrew] = useState<string[]>(kind === "installation" ? savedCrew : []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const electricianChosen = kind !== "assessment" || !!who;
   const reason = bookingReason({ kind, state, day, arrival, who, electricianChosen });
   const workers = team?.workers ?? [];
-  const choices = kind === "installation" ? workers.filter((w) => w.tradeRole === "installer" && w.workerRole === "lead") : kind === "ready_check" ? workers : [];
+  // Part 7 Task 9 (Jo 5 Nov 2026): the Ready Check lists the whole installer Team (Leads and Crew); the install day lists Leads only.
+  const choices = kind === "installation" ? installLeadChoices(workers) : kind === "ready_check" ? readyCheckChoices(workers) : [];
   const crewChoices = kind === "installation" ? workers.filter((w) => w.id !== who && w.tradeRole === "installer" && w.crewAllowed === true) : [];
   const disabled = busy || !!reason || (!!error && !error.startsWith("Couldn’t save") && !error.startsWith("Couldn't save"));
   const reasonId = `${id}-reason`;
@@ -230,11 +240,15 @@ function BookingForm({ jobId, kind, mode, state, button, below, onDone, onCancel
     setBusy(true);
     setError("");
     try {
-      if (kind === "assessment" && who !== current) await allocate({ data: { jobId, workerId: who } });
-      const r = await book({ data: { jobId, kind, start: installStartAt(day, arrival).toISOString(), ...(who === NOT_SURE_YET ? {} : { workerId: who }), crewIds: kind === "installation" ? crew : [] } });
+      // Jo 5 Nov 2026: a NEW safety-check electrician and the time are saved TOGETHER; the job-link text and the Mitti form go
+      // only after. The same electrician as before = just the time (no Mitti calls), as before.
+      const r = kind === "assessment" && who !== current
+        ? { warnings: [] as string[], ...(await change({ data: { jobId, workerId: who, start: installStartAt(day, arrival).toISOString() } })) }
+        : await book({ data: { jobId, kind, start: installStartAt(day, arrival).toISOString(), ...(who === NOT_SURE_YET ? {} : { workerId: who }), crewIds: kind === "installation" ? crew : [] } });
       if (!r.ok) { setError(r.blockers.join(" ")); return; }
       // Part 9 Task 10: the booking's plain warnings (e.g. upgrades still to come) are shown with the success, never as a refusal.
       toast.success(mode === "book" ? W.booked(LABEL[kind]) : W.changed(`${LABEL[kind]} time`), r.warnings?.length ? { description: r.warnings.join(" ") } : undefined);
+      showTradeSaved(`Booking saved: ${kind === 'assessment' ? 'Safety check' : LABEL[kind]} · ${fmtDay(day)} · ${installTimeLabel(arrival)}${r.warnings?.length ? ` · ${r.warnings.join(' ')}` : ''}`);
       markOfficeChanged();
       // Go-live 5 Nov 2026 (Tom: "takes 20 secs"): the booking is saved — close the form now and let the page refresh behind it.
       void qc.invalidateQueries();
@@ -247,7 +261,7 @@ function BookingForm({ jobId, kind, mode, state, button, below, onDone, onCancel
   };
 
   return (
-    <form className="mt-4 space-y-3" data-booking-form={kind} onSubmit={submit}>
+    <form className="mt-4 min-w-0 max-w-full space-y-3" data-booking-form={kind} onSubmit={submit}>
       {kind === "assessment" && (
         <label className="block min-w-0 text-sm font-medium">
           {W.electrician}
@@ -262,11 +276,11 @@ function BookingForm({ jobId, kind, mode, state, button, below, onDone, onCancel
       <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-2">
         <label className="block min-w-0 text-sm font-medium">
           {W.day}
-          <input type="date" className={`${inputCls} mt-1`} value={day} onChange={(e) => { setError(""); setDay(e.target.value); }} />
+          <input type="date" className={`${inputCls} mt-1 box-border w-0 min-w-full max-w-full`} value={day} onChange={(e) => { setError(""); setDay(e.target.value); }} />
         </label>
         <label className="block min-w-0 text-sm font-medium">
           {W.arrival}
-          <input type="time" className={`${inputCls} mt-1`} value={arrival} onChange={(e) => { setError(""); setArrival(e.target.value); }} />
+          <input type="time" className={`${inputCls} mt-1 box-border w-0 min-w-full max-w-full`} value={arrival} onChange={(e) => { setError(""); setArrival(e.target.value); }} />
         </label>
       </div>
       {(kind === "ready_check" || kind === "installation") && (
@@ -295,12 +309,13 @@ function BookingForm({ jobId, kind, mode, state, button, below, onDone, onCancel
           </div>
         </fieldset>
       )}
-      {disabled && !error && <p id={reasonId} className="text-sm text-sub">{busy ? W.saving : reason}</p>}
+      {disabled && !error && !(kind === 'assessment' && mode === 'book' && (!who || !day || !arrival)) && <p id={reasonId} className="text-sm text-sub">{busy ? W.saving : reason}</p>}
       {error && <p id={reasonId} role="alert" className="text-sm text-rose">{error}</p>}
       <div className="flex flex-wrap items-center gap-2">
-        <button type="submit" className={greenBtn} disabled={disabled} aria-describedby={disabled ? reasonId : undefined}>{busy ? W.saving : button}</button>
+        <Button type="submit" size="field" className={`w-full md:w-auto ${disabled ? 'bg-muted text-muted-foreground opacity-100 disabled:opacity-100' : ''}`} disabled={disabled} aria-describedby={disabled ? reasonId : undefined}>{busy ? W.saving : button}</Button>
         {onCancel && <button type="button" className={ghostBtn} onClick={onCancel}>{W.neverMind}</button>}
       </div>
+      {kind === 'assessment' && mode === 'book' && <p id={!error && (!who || !day || !arrival) ? reasonId : undefined} className="text-sm text-sub">{W.pickSafetyCheck}</p>}
       {below && <p className="text-sm text-sub" data-booked-line>{below}</p>}
     </form>
   );
@@ -318,7 +333,7 @@ function PickPersonForm({ jobId, start, state, onDone }: { jobId: string; start:
   const reason = bookingReason({ kind: "ready_check", state, day: "x", arrival: "x", who, electricianChosen: true });
   const disabled = busy || !!reason || (!!error && !error.startsWith("Couldn’t save") && !error.startsWith("Couldn't save"));
   const reasonId = `${id}-reason`;
-  const choices = state.team?.workers ?? [];
+  const choices = readyCheckChoices(state.team?.workers ?? []);
   return (
     <form className="mt-4 space-y-3" data-pick-person onSubmit={async (e) => {
       e.preventDefault();
@@ -328,6 +343,7 @@ function PickPersonForm({ jobId, start, state, onDone }: { jobId: string; start:
         const r = await book({ data: { jobId, kind: "ready_check", start, workerId: who, crewIds: [] } });
         if (!r.ok) { setError(r.blockers.join(" ")); return; }
         toast.success(W.changed("Who's going"));
+        showTradeSaved(`Ready Check person saved: ${choices.find(w => w.id === who)?.name ?? "Team member"}`);
         markOfficeChanged();
         await qc.invalidateQueries();
         onDone();
@@ -373,6 +389,7 @@ function OwnCustomerReadyCheckForm({ jobId, now, onDone }: { jobId: string; now?
       try {
         await save({ data: { jobId, day, time } });
         toast.success(W.booked(LABEL.ready_check));
+        showTradeSaved(`Booking saved: Ready Check · ${fmtDay(day)} · ${installTimeLabel(time)}`);
         markOfficeChanged();
         await qc.invalidateQueries();
         onDone();
@@ -406,7 +423,7 @@ function ChangeLeadForm({ jobId, state, onDone, onCancel }: { jobId: string; sta
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const workers = state.team?.workers ?? [];
-  const leads = workers.filter((w) => w.tradeRole === "installer" && w.workerRole === "lead");
+  const leads = installLeadChoices(workers);
   const reason = !state.allowed ? W.notHere : state.failed ? W.teamFailed : !state.team ? W.checkingTeam : bookingWorkerBlocker("installation", workers.find((w) => w.id === who) ?? null);
   const disabled = busy || !!reason || (!!error && !error.startsWith("Couldn’t save") && !error.startsWith("Couldn't save"));
   const reasonId = `${id}-reason`;
@@ -418,6 +435,7 @@ function ChangeLeadForm({ jobId, state, onDone, onCancel }: { jobId: string; sta
       try {
         await swap({ data: { jobId, workerId: who } });
         toast.success(W.changed(W.leadInstaller));
+        showTradeSaved(`Lead Installer saved: ${leads.find(w => w.id === who)?.name ?? 'Team member'}`);
         markOfficeChanged();
         await qc.invalidateQueries();
         onDone();
@@ -440,11 +458,10 @@ function ChangeLeadForm({ jobId, state, onDone, onCancel }: { jobId: string; sta
   );
 }
 
-/** Change electrician on a booked PIESA: re-allocate (Mitti form hand-over), then re-save the assessment booking at its
- *  existing time for the new electrician through the same guarded writer, so the booking names who is going. */
+/** Change electrician on a booked PIESA (Jo 5 Nov 2026): the new person and the existing time are saved together through
+ *  the guarded booking writer; only then are they texted their link and handed the Mitti form. A failed save changes nothing. */
 function ChangeElectricianForm({ jobId, state, onDone, onCancel }: { jobId: string; state: TeamState; onDone: () => void; onCancel: () => void }) {
-  const allocate = useServerFn(allocateElectricianFn);
-  const book = useServerFn(inHouseBookVisit);
+  const change = useServerFn(changeJobElectricianFn);
   const qc = useQueryClient();
   const id = useId();
   const [who, setWho] = useState("");
@@ -461,10 +478,11 @@ function ChangeElectricianForm({ jobId, state, onDone, onCancel }: { jobId: stri
       if (reason) return;
       setBusy(true); setError("");
       try {
-        await allocate({ data: { jobId, workerId: who } });
-        const r = await book({ data: { jobId, kind: "assessment", start: state.piesaStart!, workerId: who, crewIds: [] } });
+        // Jo 5 Nov 2026: the new person and the booked time save together; the text and the Mitti form go only after.
+        const r = await change({ data: { jobId, workerId: who, start: state.piesaStart! } });
         if (!r.ok) { setError(r.blockers.join(" ")); return; }
-        toast.success(W.changed(W.electrician));
+        toast.success(W.changed(W.electrician), r.warnings?.length ? { description: r.warnings.join(" ") } : undefined);
+        showTradeSaved(`Electrician saved: ${chosen?.name ?? 'Team electrician'}`);
         markOfficeChanged();
         await qc.invalidateQueries();
         onDone();

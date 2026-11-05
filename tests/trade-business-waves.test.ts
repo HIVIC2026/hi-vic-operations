@@ -168,7 +168,8 @@ describe("My business (Task 7): same value as before", () => {
     // The fixture row still carries a stale declarations_due: true; it is ignored (Jo 5 Nov 2026).
     expect((staff as unknown as Record<string, unknown>)["declarationsDue"]).toBeUndefined();
     expect(JSON.stringify(nologin.missingDetails)).not.toBe(JSON.stringify(staff.missingDetails));
-    expect(b.usualElectrician?.name).toBe("New Sparky");
+    // Jo 5 Nov 2026: the saved usual electrician (never-ticked Main) is still read: no "Add your usual electrician" step.
+    expect(b.next?.title).not.toBe("Add your usual electrician");
   });
 });
 

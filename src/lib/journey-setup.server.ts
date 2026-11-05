@@ -178,7 +178,7 @@ async function ensureBossListed(actorId: string, installerBiz: string, boss: { i
   const listed = (await testWorkers(installerBiz, "installer")).some((w) => w.profile_id === boss.id || w.email.trim().toLowerCase() === boss.email.trim().toLowerCase());
   if (listed) return;
   const { installerQualification } = await import("./partner-activation.core");
-  const { error } = await admin.from("partner_workers").insert({ business_id: installerBiz, profile_id: boss.id, trade_role: "installer", full_legal_name: boss.full_name?.trim() || `${b.name} Owner`, email: boss.email.trim().toLowerCase(), mobile: "0400000101", qualification: installerQualification({}), approval_status: "pending", certification_status: "unverified", account_status: "linked", added_by: actorId } as never);
+  const { error } = await admin.from("partner_workers").insert({ business_id: installerBiz, profile_id: boss.id, trade_role: "installer", worker_role: "lead", full_legal_name: boss.full_name?.trim() || `${b.name} Owner`, email: boss.email.trim().toLowerCase(), mobile: "0400000101", qualification: installerQualification({}), approval_status: "pending", certification_status: "unverified", account_status: "linked", added_by: actorId } as never);
   fail("installer person", error);
   log.push(`${b.name}: business owner listed as an installer (TEST)`);
 }
