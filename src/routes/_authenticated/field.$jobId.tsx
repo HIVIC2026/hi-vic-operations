@@ -36,6 +36,7 @@ import { InstallFinishedButton } from "@/components/trade/InstallFinishedButton"
 import { completeInstallation } from "@/lib/portal.functions";
 import { Label } from "@/components/ui/label";
 import { MittiFormLink } from "@/components/portal/MittiFormLink";
+import { ReadyCheckReportButton } from "@/components/trade/ReadyCheckReportButton";
 import { CheckMyFormButton } from "@/components/trade/CheckMyFormButton";
 import { NextStepBox } from "@/components/trade/NextStepBox";
 import { ContactButtons, Group, LinkRow, NextPanel, NoFormNoPay, Row, Screen, ScreenHead } from "@/components/trade/installer-kit";
@@ -473,7 +474,7 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
                 <li key={r.label} className="flex flex-wrap items-center justify-between gap-x-4 border-b border-line py-2.5 text-[15px] last:border-b-0">
                   <span>{r.label}</span>
                   <span className={r.ready ? "font-medium text-hiv-green" : "text-sub"}>
-                    {r.ready ? paperworkLink(r.label, page.form.auditId, page.install.form.auditId) : r.note}
+                    {r.ready ? paperworkLink(r.label, page.form.auditId, page.install.form.auditId, jobId) : r.note}
                   </span>
                 </li>
               ))}
@@ -491,13 +492,19 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
   );
 }
 
-/** A ready paperwork row: the Mitti forms open in Mitti; the other documents read "Ready" (view/download only). */
-function paperworkLink(label: string, readyCheckAudit: string | null, installAudit: string | null) {
-  const audit = label.startsWith("Ready Check report") ? readyCheckAudit : label.startsWith("Install form") ? installAudit : null;
+/** A ready paperwork row: the Mitti forms open in Mitti; the other documents read "Ready" (view/download only).
+ *  Jo 5 Nov 2026 (HV-3117): the Ready Check report row also opens the portal's saved PDF (photos included), for installers
+ *  without a Mitti login. */
+function paperworkLink(label: string, readyCheckAudit: string | null, installAudit: string | null, jobId: string) {
+  const isReadyCheck = label.startsWith("Ready Check report");
+  const audit = isReadyCheck ? readyCheckAudit : label.startsWith("Install form") ? installAudit : null;
   if (!audit) return "Ready ✓";
   return (
-    <MittiFormLink auditId={audit} className="font-semibold text-hiv-blue underline">
-      Open ✓
-    </MittiFormLink>
+    <span className="flex flex-wrap items-center gap-x-3">
+      <MittiFormLink auditId={audit} className="font-semibold text-hiv-blue underline">
+        {isReadyCheck ? "Open in Mitti" : "Open ✓"}
+      </MittiFormLink>
+      {isReadyCheck && <ReadyCheckReportButton jobId={jobId} />}
+    </span>
   );
 }
