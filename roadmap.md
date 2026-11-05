@@ -1,3 +1,9 @@
+## Jo 5 Nov 7pm publishability repairs
+- [ ] Complete isolated full-suite before/after comparison and fix newly introduced failures only.
+- [ ] Reuse accepted Ready Check old-insulation ruler evidence; switchable A5 + BEFORE path, old forms readable.
+- [ ] Crew selectable for install crew and Ready Check; only Lead Installer slot requires Lead; preserve office Mitti fallback.
+- [ ] Verify preview checks and TEST-only journey; no sends, switches, real data, Mitti changes or publication.
+
 ## Jo 4 Nov 02:03 UTC approved A1 and current Mitti reads
 - [x] Test-first A1 optional media, corrected required ready-to-price tick and job missing-BEFORE area line; preserve A2 and old submissions. Focused new tests 19/19; related historical doc expectations remain disclosed.
 - [x] Read-only current A1–A5 GET snapshots saved and read back as private dump rows 57–66; full question inventory provided. Individual required flags and conditional rules are not exposed by these responses.

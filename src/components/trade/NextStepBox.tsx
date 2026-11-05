@@ -220,7 +220,7 @@ function BookingForm({ jobId, kind, mode, state, button, below, onDone, onCancel
   const reason = bookingReason({ kind, state, day, arrival, who, electricianChosen });
   const workers = team?.workers ?? [];
   const choices = kind === "installation" ? workers.filter((w) => w.tradeRole === "installer" && w.workerRole === "lead") : kind === "ready_check" ? workers : [];
-  const crewChoices = kind === "installation" ? workers.filter((w) => w.id !== who && w.tradeRole === "installer" && w.cleared && !w.reason) : [];
+  const crewChoices = kind === "installation" ? workers.filter((w) => w.id !== who && w.tradeRole === "installer" && w.crewAllowed === true) : [];
   const disabled = busy || !!reason;
   const reasonId = `${id}-reason`;
 

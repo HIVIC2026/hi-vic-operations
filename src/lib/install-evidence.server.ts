@@ -43,16 +43,26 @@ async function readyCheckZones(jobId: string): Promise<JobZone[]> {
   // Decision 264: whether each area's before video is on the Ready Check (the Mitti sync stores it on the measurement zones).
   const rawZones: unknown[] = Array.isArray(m?.zones) ? (m?.zones as unknown[]) : [];
   const mz = rawZones.filter((z): z is Record<string, unknown> => !!z && typeof z === "object" && !Array.isArray(z));
+  const { data: reviews, error: reviewError } = await admin.from("evidence_requirements").select("area_key, category, status").eq("job_id", jobId).eq("category", "before_ceiling_space");
+  if (reviewError) throw new Error("Ready Check ruler evidence could not be checked.");
+  const depthAcceptedAt = (i: number, label: string | null, areaKey?: string): boolean => {
+    const z = mz.find((x) => label && typeof x["label"] === "string" && String(x["label"]).trim().toLowerCase() === label.trim().toLowerCase()) ?? mz[i];
+    if (!z || z["depthPhoto"] !== true) return false;
+    const key = areaKey ?? (typeof z["key"] === "string" ? z["key"] : null);
+    const own = key ? (reviews ?? []).filter(r => r.area_key === key) : [];
+    // A file-presence flag is not acceptance. Require this area's office verification, and rejection always wins.
+    return own.some(r => r.status === "verified") && !own.some(r => r.status === "rejected");
+  };
   const videoAt = (i: number, label: string | null): boolean | null => {
     const z = mz.find((x) => label && typeof x["label"] === "string" && String(x["label"]).trim().toLowerCase() === label.trim().toLowerCase()) ?? mz[i];
     return z && typeof z["beforeVideo"] === "boolean" ? (z["beforeVideo"] as boolean) : null;
   };
-  if (rc.length) return rc.map((a, i) => ({ name: a.label?.trim() || null, underInsulated: a.existing === "present" ? true : a.existing === "none" ? false : null, areaM2: a.areaM2, product: a.product, beforeVideo: videoAt(i, a.label) }));
+  if (rc.length) return rc.map((a, i) => ({ name: a.label?.trim() || null, underInsulated: a.existing === "present" ? true : a.existing === "none" ? false : null, areaM2: a.areaM2, product: a.product, beforeVideo: videoAt(i, a.label), existingDepthAccepted: depthAcceptedAt(i, a.label, a.key) }));
   const { rcAreasFromRecord } = await import("./piisa-a3.core");
   const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
   return rcAreasFromRecord(m ?? null, null).map((a, i) => {
     const z = mz[i];
-    return { name: a.name ?? null, underInsulated: a.present ?? null, areaM2: num(z?.["areaM2"]), product: typeof z?.["product"] === "string" ? (z["product"] as string) : null, beforeVideo: videoAt(i, a.name ?? null) };
+    return { name: a.name ?? null, underInsulated: a.present ?? null, areaM2: num(z?.["areaM2"]), product: typeof z?.["product"] === "string" ? (z["product"] as string) : null, beforeVideo: videoAt(i, a.name ?? null), existingDepthAccepted: depthAcceptedAt(i, a.name ?? null) };
   });
 }
 

@@ -116,8 +116,13 @@ export async function allocateVisit(jobId: string, userId: string, kind: VisitKi
   const mitti = await import("./mitti.server");
   const useCall = call ?? mitti.realMittiCall;
   // TEST partners never reach a real installer's Mitti user; their forms live under the TEST Mitti account.
-  const lookupEmail = c.isTest || job?.source === "qa_test" ? (await import("./onsite-ready-check.core")).TEST_MITTI_ASSIGNEE : (mittiEmailFor({ role: cand.workerRole ?? null, ownEmail: cand.email, businessEmail: cand.businessEmail }).email ?? "");
-  const mittiUserId = await mitti.findMittiUserByEmail(lookupEmail, useCall);
+  const testIdentity = c.isTest || job?.source === "qa_test";
+  let lookupEmail = testIdentity ? (await import("./onsite-ready-check.core")).TEST_MITTI_ASSIGNEE : (mittiEmailFor({ role: cand.workerRole ?? null, ownEmail: cand.email, businessEmail: cand.businessEmail }).email ?? "");
+  let mittiUserId = lookupEmail ? await mitti.findMittiUserByEmail(lookupEmail, useCall) : null;
+  if (!mittiUserId && !testIdentity && kind === "ready_check" && cand.businessEmail?.trim() && cand.businessEmail.trim().toLowerCase() !== lookupEmail.trim().toLowerCase()) {
+    lookupEmail = cand.businessEmail.trim();
+    mittiUserId = await mitti.findMittiUserByEmail(lookupEmail, useCall);
+  }
   if (!mittiUserId) throw new WorkflowError(addInMittiFirst(cand.name, cand.email));
   const auditId = await visitFormAuditId(jobId, kind);
   await logEvent(jobId, userId, VISIT_ALLOCATED_EVENT, `${VISIT_LABEL[kind]} allocated to ${cand.name}${auditId ? "" : " (Mitti form not created yet)"}`,

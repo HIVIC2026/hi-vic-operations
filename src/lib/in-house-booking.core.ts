@@ -14,9 +14,10 @@ export const LEAD_INSTALLER_BOOKING_REASON = 'Choose the Lead Installer to book.
 export const NO_ELIGIBLE_LEAD_REASON = 'Add a Lead Installer to your Team to book the install. ESC needs us to name a registered Lead Installer on the install notice at least 24 hours before.';
 export const registrationWaitingReason=(name:string)=>`Waiting for Home Insulation Victoria to register ${name} with ESC. Every Lead Installer must be registered with ESC before we can lodge the install notice.`;
 export const LEAD_INSTALLER_NOTICE_WAIT = 'Waiting for Home Insulation Victoria to update the ESC notice for your new Lead Installer.';
-export type BookingWorker = { id:string; name:string; phone:string|null; tradeRole:string; workerRole?:string|null; cleared:boolean; reason:string|null; electricianVerified?:boolean; escRegistered?:boolean; escRegisteredAt?:string|null };
+export type BookingWorker = { id:string; name:string; phone:string|null; tradeRole:string; workerRole?:string|null; cleared:boolean; reason:string|null; crewAllowed?:boolean; electricianVerified?:boolean; escRegistered?:boolean; escRegisteredAt?:string|null };
 export function bookingWorkerBlocker(kind:string,w:BookingWorker|null):string|null {
   if(!w)return kind==='installation'?LEAD_INSTALLER_BOOKING_REASON:'Choose the person going before booking.';
+  if(kind==='ready_check')return null;
   if(kind==='assessment'||kind==='rectification')return w.tradeRole==='electrician'&&w.electricianVerified?null:'Choose a verified electrician from your Team before booking the safety check.';
   if(kind!=='installation')return w.reason;
   if(w.tradeRole!=='installer'||w.workerRole!=='lead')return LEAD_INSTALLER_BOOKING_REASON;
