@@ -1,7 +1,7 @@
 -- Photo-quote installers (No Gap, Jo 5 Nov 2026; spec docs/superpowers/specs/2026-11-05-photo-quote-installers-design.md):
 -- how an installer quotes Home Insulation Victoria leads — 'ready_check' (a Ready Check visit, the default) or 'photos'
 -- (from the owner's photos/videos, no visit). The code treats a missing column as 'ready_check'.
--- Pending: proven on PGlite (tests/installer-quote-method.pglite.test.ts); run live only with Jo's OK.
+-- APPLIED live 6 Nov 2026 ~08:15 AEDT (Jo OK). Proven on PGlite (tests/installer-quote-method.pglite.test.ts); run live only with Jo's OK.
 --
 -- Same audit style as installer-business-settings.sql: any change, whatever wrote it, bumps updated_at and writes ONE
 -- admin_config_events `quote_method_changed` row. Inserts are not changes. Every statement is idempotent.

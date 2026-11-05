@@ -13,8 +13,8 @@ await db.exec(`
   create table public.admin_config_events(id uuid primary key default gen_random_uuid(), actor_id uuid, event_type text not null, summary text not null, details jsonb not null default '{}'::jsonb, created_at timestamptz not null default now());
   insert into public.businesses(id, name) values ('00000000-0000-4000-8000-0000000000b1', 'No Gap Insulation');
 `);
-const MIGRATION = readFileSync("docs/pending-migrations/installer-quote-method.sql", "utf8");
-const ROLLBACK = readFileSync("docs/pending-migrations/installer-quote-method.rollback.sql", "utf8");
+const MIGRATION = readFileSync("drizzle/migrations/0194_installer_quote_method.sql", "utf8");
+const ROLLBACK = readFileSync("docs/applied-migrations/2026-11-06_installer-quote-method.rollback.sql", "utf8");
 const BIZ = "00000000-0000-4000-8000-0000000000b1";
 const method = async () => (await db.query<{ v: string }>("select quote_method v from public.businesses where id = $1", [BIZ])).rows[0]!.v;
 const events = async () => (await db.query<{ summary: string; details: Record<string, unknown> }>("select summary, details from public.admin_config_events where event_type = 'quote_method_changed' order by created_at, id")).rows;
