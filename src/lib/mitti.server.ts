@@ -470,7 +470,11 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
   const s = await jobScope(jobId);
   const m = s.measurementRow;
   const measureAudit = m?.external_source === "mitti" && m.external_id && m.external_id !== a?.external_mitti_id && m.status !== "complete" ? m.external_id : null;
-  if (!a?.external_mitti_id && !measureAudit) throw new WorkflowError("No Mitti assessment has been created for this job.");
+  if (!a?.external_mitti_id && !measureAudit) {
+    // A finished Ready Check (measurement complete, no PIESA form yet) still has its photos copied.
+    if (m?.external_source === "mitti" && m.external_id) await syncReadyCheckPhotos(jobId, call, fetchMedia);
+    throw new WorkflowError("No Mitti assessment has been created for this job.");
+  }
   const api = mittiApi(call);
   let issues: string[] = [];
   let syncFailed = false;
@@ -678,7 +682,15 @@ export async function syncMittiAssessment(jobId: string, actorId: string | null,
       issues = [...issues, `Ready Check sync failed: ${msg}`];
     }
   }
+  await syncReadyCheckPhotos(jobId, call, fetchMedia);
   return { locked, completed, issues, syncFailed };
+}
+
+/** Deep fixes Task 1 (Jo 5 Nov 2026): Ready Check photos are copied after the answers, in their own try/catch, so a photo
+ *  problem never fails the sync. */
+async function syncReadyCheckPhotos(jobId: string, call: MittiCall, fetchMedia: MittiMediaFetch) {
+  try { await (await import("./mitti-photos.server")).syncMittiPhotos(jobId, call, fetchMedia); }
+  catch (e) { console.error("Mitti photo copy failed", jobId, e instanceof Error ? e.message : String(e)); }
 }
 
 export async function syncPendingMitti(actorId: string | null, call: MittiCall = realMittiCall, opts: { budgetMs?: number } = {}) {
