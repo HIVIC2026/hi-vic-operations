@@ -340,7 +340,10 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
   const bookedKinds = ["install_booked", "install_locked"];
   const installKinds = [...bookedKinds, "after_install"];
   // Part 10 Task 4: Boss and Office enter the price (page.prices = Part 5 seesPrices); everyone else sees nothing about price.
-  const showPrice = box.kind === "enter_price" && page.prices && page.channel === "installer_sourced";
+  // Jo 5 Nov 2026 (Reinsulate, "he just wants to enter the price"): on the installer's own job the price box is open as soon
+  // as the Ready Check form exists — the rest of the form can be finished later; the quote drafts once size + product + price are in.
+  const priceOpenEarly = page.channel === "installer_sourced" && page.prices && page.price.entered === false && page.form.linked && box.kind !== "enter_price";
+  const showPrice = (box.kind === "enter_price" && page.prices && page.channel === "installer_sourced") || priceOpenEarly;
   const mittiAudit = page.form.auditId;
   return (
     <div className="space-y-4" data-installer-job>
@@ -416,7 +419,12 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
               {page.electricianAttendance.alert ?? page.electricianAttendance.line}
             </p>
           )}
-          {showPrice && <div className="mt-4"><InstallerPriceCard jobId={jobId} /></div>}
+          {showPrice && (
+            <div className="mt-4" data-price-early={priceOpenEarly ? "true" : undefined}>
+              {priceOpenEarly && <p className="mb-2 text-sm text-sub">You can enter your price now. Finish the rest of the Mitti form when you can — the quote goes to Home Insulation Victoria once the ceiling size, product and price are in.</p>}
+              <InstallerPriceCard jobId={jobId} />
+            </div>
+          )}
           {bookedKinds.includes(box.kind) && !signRebate && (
             <Link to="/field/day/$jobId" params={{ jobId }} className={`${ghostBtn} mt-4`} data-todays-job>
               Today's job
