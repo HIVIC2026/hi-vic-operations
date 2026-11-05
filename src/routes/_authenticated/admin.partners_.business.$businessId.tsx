@@ -162,6 +162,8 @@ function InHouseAndNewFlowPanel({ businessId, business, facts, onDone }: { busin
   const move = useServerFn(moveInstallerToNewFlowFn);
   const [moveBlockers, setMoveBlockers] = useState<string[]>([]);
   const setInHouse = async (next: boolean) => {
+    // Jo, 5 Nov 2026: turning in-house off takes the partner (e.g. Rapid, No Gap) off in-house booking at once, so ask first.
+    if (!next && !window.confirm(`Take ${business.name} off in-house? They won't be able to book in-house jobs until it's switched back on.`)) return;
     setBusy(true);
     try { await save({ data: { id: businessId, name: business.name, in_house: next } }); await onDone(); toast.success(next ? "In-house partner: Yes" : "In-house partner: No"); }
     catch (e) { toast.error(e instanceof Error ? e.message : "Could not save in-house partner"); }
