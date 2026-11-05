@@ -56,9 +56,26 @@ Not changed: #19–22 (Spot saved, texts, It's your turn, quick-taps thanks) sti
 - **Paperwork list / progress bar:** the "Ready Check" step shows as "Photo quote" on these jobs, so nothing shows missing or overdue. The Ready Check 5-business-day stall flag doesn't apply.
 - **Mitti:** No Gap still uses Mitti for the rest of the job: the electrician's PIESA form, the upgrades form and the Lead Installer's install-day form (incl. PIISA), all created as normal. Only the Mitti Ready Check form is skipped, and the 15-minute backup that makes missing Ready Check forms must skip these jobs.
 
+
+## Part 2 — From photos installers' own jobs (Jo, 5 Nov 2026, added after approval)
+
+No Gap won't do Ready Checks on their own customers either. For an installer set to "From photos":
+
+1. **Add a job** gets extra fields under the owner details (same page, one press):
+   - Existing insulation under R2? Yes / No ("No" can't be sent)
+   - Sqm to remove
+   - Sqm to install
+   - Product (same list as the Mitti Ready Check)
+   - Your price (inc GST, install + removal)
+   - Button: **Add the job and send the quote**
+2. **Live quote under the price**, worked out with the SAME calculation the owner's quote uses: "Your price $X + PIESA fee $349 + Home Insulation Victoria AP management fee $349 − rebate $Y = owner pays $Z", with the line "We add our $349 AP management fee and the $349 PIESA fee to your price." The PIESA figure is the installer's PIESA price on file (No Gap's must be $349; the office checks it before switching No Gap on). A test proves the screen and the issued quote always match.
+3. **Quote goes out the normal way** for installers' own customers: the portal adds the PIESA and AP fee, takes off the rebate, and releases it through the existing own-customer send-on-press path, unless a check holds it. While the "send on press" switch (`OWN_CUSTOMER_SEND_ON_PRESS_ENABLED`) is off, the quote waits on Quotes to check for the office to press Send. The switch is not changed by this build.
+4. **View and save the quote:** once the quote exists, the installer's job page shows "View quote (PDF)": the exact quote the owner gets, with the installer's own logo (installers' own customers already show the installer logo on the quote), downloadable as a PDF. Only people who can see prices (boss, or Office with Money on) see it.
+5. **No Ready Check:** no Mitti Ready Check form, no Ready Check booking, chase or flags, no "will call" email. The quote email is the owner's first email. After the $349, everything is the normal in-house flow (PIESA, upgrades, install, all in Mitti).
+6. Ready Check installers' Add a job is unchanged.
+
 ## Not in scope
 
-- Installers' own customers (photo quote is for Home Insulation Victoria leads only).
 - Partner agreement wording about the firm price (only if Jo asks).
 - Asking owners without photos for photos before giving them to No Gap.
 - Any change for installers on "Ready Check".
