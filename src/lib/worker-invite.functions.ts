@@ -208,7 +208,7 @@ export const submitWorkerInvite = createServerFn({ method: "POST" }).middleware(
     const errors = workerSubmissionErrors(t, data);
     // Jo 3 Nov ~3pm: the sign-up link asks the worker's date of birth (required), stored privately for ESC registration.
     const { joinDateOfBirthProblem } = await import("./team-required.core");
-    const dobProblem = joinDateOfBirthProblem(data.date_of_birth, (await import("./melbourne-time.core")).melbourneToday());
+    const dobProblem = t === "installer" ? joinDateOfBirthProblem(data.date_of_birth, (await import("./melbourne-time.core")).melbourneToday()) : null;
     if (dobProblem) errors.push(dobProblem);
     if (errors.length) return { ok: false as const, errors };
     if (t === "installer") {
@@ -236,7 +236,7 @@ export const submitWorkerInvite = createServerFn({ method: "POST" }).middleware(
       const { error: xe } = await admin.from("partner_workers").delete().eq("id", w.id);
       if (xe) console.error(`[worker-invite] could not delete unclaimed worker ${w.id} for invite ${inv.id}: ${xe.message}`);
     };
-    const { error: ide } = await admin.from("partner_worker_identity" as never).insert({ worker_id: w.id, date_of_birth: data.date_of_birth, updated_by: inv.created_by } as never);
+    const ide = t === "installer" ? (await admin.from("partner_worker_identity" as never).insert({ worker_id: w.id, date_of_birth: data.date_of_birth, updated_by: inv.created_by } as never)).error : null;
     if (ide) {
       await dropWorker();
       return { ok: false as const, errors: ["We couldn't save your details. Please try again."] };

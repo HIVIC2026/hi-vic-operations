@@ -2,6 +2,7 @@
 // installer office gets ONE email per slot — GO, or DON'T START with the list of what is missing. By email only (no text
 // to the Lead Installer); info@homeinsulationvictoria.com.au gets a copy of every DON'T START, never of GO. PURE: wording
 // and key. Wording APPROVED by Jo 4 Nov 2026 14:40; GO_EMAIL_APPROVED stays false until go-live flips it; the sender is go-email.server.
+import { currentWorkerRequirementLines } from "./worker-compliance.core";
 import { partnerEmailLayout, type PartnerBlock } from "./partner-email.core";
 import { isReadErrorLine, onDayGoCheck, type GoSlot, type PrestartFailure } from "./prestart.core";
 
@@ -78,6 +79,7 @@ export function tradeSafeFailureLine(line: string): string {
 export function tradeSafeFailures(failures: readonly PrestartFailure[]): PrestartFailure[] {
   const out: PrestartFailure[] = [];
   for (const f of failures) {
+    if(!currentWorkerRequirementLines([f.line]).length)continue;
     const line = tradeSafeFailureLine(f.line);
     if (!out.some((x) => x.line === line && x.cls === f.cls)) out.push({ line, cls: f.cls });
   }

@@ -939,7 +939,7 @@ export async function tradeBusiness(userId: string) {
   // (Part 5's private read above). Unknown births → left unset, never "everyone missing".
   if (births != null) {
     const { teamMissingDetails } = await import("./team-required.core");
-    for (const m of team) if (m.role !== "owner" && m.id) m.missingDetails = teamMissingDetails(m.role === "electrician" ? "electrician" : "installer", { mobile: m.mobile, email: m.email, hasDateOfBirth: births.has(m.id) });
+    for (const m of team) if (m.role !== "owner" && m.id) m.missingDetails = teamMissingDetails(m.role === "electrician" ? "electrician" : "installer", { mobile: m.mobile, email: m.email, hasDateOfBirth: births.has(m.id), workerRole:m.role === "office" ? "office" : m.workerRole });
   }
   const credentials: CredentialView[] = (creds ?? []).map((x) => ({ kind: x.kind, label: x.label, expires: x.expires_at, verified: x.verification === "verified" }));
   const liability = latestExpiry(credentials, "public_liability_insurance");
@@ -1275,11 +1275,13 @@ export async function tradeAddTeamPerson(userId: string, p: { name: string; role
   if (!name) throw new WorkflowError("Add their full name.");
   const licence = p.licenceNumber?.trim() || null;
   if (c.kind === "electrician" && !licence) throw new WorkflowError("Add their electrical licence number.");
+  if(c.kind === "electrician" && !p.recNumber?.trim())throw new WorkflowError("Add their REC number.");
   const { teamMemberDetails, teamWorkerRoleProblem } = await import("./team-required.core");
   // Task 10 roles (Office / Electrician) are checked by addPersonProblems below; the Lead/Crew rule applies to the rest.
   const roleProblem = p.role === "office" || p.role === "electrician" ? null : teamWorkerRoleProblem(c.kind, p.workerRole ?? (p.role === "lead" || p.role === "crew" ? p.role : undefined));
   if (roleProblem) throw new WorkflowError(roleProblem);
-  const v = teamMemberDetails(c.kind, { mobile: p.mobile, email: p.email, dateOfBirth: p.dateOfBirth }, (await import("./melbourne-time.core")).melbourneToday());
+  if(p.role === "electrician" && !p.email?.trim())throw new WorkflowError((await import("./team-screen.core")).ELECTRICIAN_EMAIL_NEEDED);
+  const v = teamMemberDetails(p.role === "electrician" ? "electrician" : c.kind, { mobile: p.mobile, email: p.email, dateOfBirth: p.dateOfBirth, workerRole:p.role ?? p.workerRole }, (await import("./melbourne-time.core")).melbourneToday());
   if (!v.ok) throw new WorkflowError(v.error);
   const email = p.email?.trim().toLowerCase() || null;
   if (c.kind === "installer") {
@@ -1289,10 +1291,10 @@ export async function tradeAddTeamPerson(userId: string, p: { name: string; role
     if (problems.length) throw new WorkflowError(problems[0]!);
     const rpc = admin as unknown as import("@supabase/supabase-js").SupabaseClient;
     const rec = p.recNumber?.trim() || null;
-    let r = await rpc.rpc("add_team_person_with_identity", { _business: c.biz.id, _actor: userId, _name: name, _role: role, _mobile: v.mobile, _email: email, _dob: p.dateOfBirth, _licence: role === "electrician" ? licence : null, _rec: role === "electrician" ? rec : null });
+    let r = await rpc.rpc("add_team_person_with_identity", { _business: c.biz.id, _actor: userId, _name: name, _role: role, _mobile: v.mobile, _email: email, _dob: v.dateOfBirth, _licence: role === "electrician" ? licence : null, _rec: role === "electrician" ? rec : null });
     // Lead/Crew before the pending SQL is live: the applied function (0186) adds them exactly as before.
     if (r.error && ["PGRST202", "42883"].includes(r.error.code) && (role === "lead" || role === "crew"))
-      r = await rpc.rpc("add_team_installer_with_identity", { _business: c.biz.id, _actor: userId, _name: name, _role: role, _mobile: v.mobile, _email: email, _dob: p.dateOfBirth });
+      r = await rpc.rpc("add_team_installer_with_identity", { _business: c.biz.id, _actor: userId, _name: name, _role: role, _mobile: v.mobile, _email: email, _dob: v.dateOfBirth });
     if (r.error) {
       // 5 Nov 2026 (Tom, go-live morning): the missing-function message names every argument, `_mobile` included, so the
       // mobile check must come AFTER the missing-function check or a pending SQL file reads as "Add their mobile number."
@@ -1304,7 +1306,7 @@ export async function tradeAddTeamPerson(userId: string, p: { name: string; role
     }
     return { workerId: r.data as string };
   }
-  const row = { trade_role: c.kind, licence_number: licence, worker_role: null };
+  const row = { trade_role: c.kind, licence_number: licence, rec_number:p.recNumber?.trim()??null, worker_role: null };
   const { data, error } = await admin.from("partner_workers").insert({ business_id: c.biz.id, full_legal_name: name, email, mobile: v.mobile, ...row, approval_status: "pending", added_by: userId } as never).select("id").single();
   if (error) {
     const needsDbUpdate = "Adding someone without an email needs the office's database update first.";
@@ -1317,7 +1319,7 @@ export async function tradeAddTeamPerson(userId: string, p: { name: string; role
   const workerId = (data as { id: string }).id;
   // Electrician date of birth: private identity row (same table/RLS as installers). If it can't be saved the new person is
   // removed again, so nobody is ever left without their required date of birth.
-  const { error: ie } = await admin.from("partner_worker_identity" as never).insert({ worker_id: workerId, date_of_birth: v.dateOfBirth, updated_by: userId } as never);
+  const ie = v.dateOfBirth ? (await admin.from("partner_worker_identity" as never).insert({ worker_id: workerId, date_of_birth: v.dateOfBirth, updated_by: userId } as never)).error : null;
   if (ie) {
     await admin.from("partner_workers").delete().eq("id", workerId);
     throw new WorkflowError("Couldn't add them. Please try again.");

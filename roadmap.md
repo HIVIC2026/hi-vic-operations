@@ -1,3 +1,9 @@
+## Jo 5 Nov 7:43pm remove White Cards
+- [x] Removed active White Card requests/gates/flags, stale Needs me/prestart holds and email lines; uploaded history retained. Lead-only DOB, Crew mobile+CII, electrician mobile/email/licence/REC/insurance retained; Office unchanged. New unsigned agreement version omits White Card sentence; earlier signed versions retained. No sending or publication.
+- [x] Team save change practice-proven (6 checks, two-business identity privacy/access) then applied as 0190 and permissions read back. 102 focused current-rule checks pass, plus 5 Team error checks. One older Team test source assertion still expects removed form wiring; not rewritten as it predates this request.
+- [x] 390px read-only installer onboarding and electrician signup checked, no White Card/DOB request for electrician; preview build OK.
+- [ ] Signed-in Team and two-user browser saves NOT RUN: managed sign-in could not mint Jo's account. Practice two-business guards verified; no real Team records changed.
+
 ## Jo 5 Nov 7:38pm A5 BEFORE shared A1/A2 labels
 - [x] Replaced superseded reader labels; required BEFORE video and old-insulation type/band/depth/conductivity/backing; shared aliases scoped to BEFORE repeats, official A5 facts and unchanged STOP/v23/AFTER paths. 133 focused isolated checks pass; private media retries verified on practice storage/database, preview build OK. No Mitti edits, records, sends or publication.
 - [ ] Actual republished A5 readback and hosted STOP/office flow await Jo's republication.
