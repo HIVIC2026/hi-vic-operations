@@ -118,9 +118,10 @@ const ALLOWED = [/business_unit/, /'hivic'/];
 // and Mitti question labels that the label-based sync parser matches on.
 const RETAINED: { file: RegExp; re: RegExp; why: string }[] = [
   { file: /./, re: /"HIVIC-[A-Z-]+"/, why: "Internal rule code" },
-  // Jo 5 Nov 2026: Customer Agreement v1.3 (signed by owners, 10% deposit) is kept word for word as the signed record, and
-  // v1.4 is built from it by AGREEMENT_V1_4_CHANGES; the PDF keeps v1.3's "10% deposit:" bold lead so signed copies still render.
-  { file: /^src\/lib\/customer-agreement(\.core|-pdf\.server)\.ts$/, re: /(?:10|50) ?% (deposit|to book)/, why: "Signed Customer Agreement v1.3 record and its v1.4 change list" },
+  // Jo 5–6 Nov 2026: Customer Agreement v1.3 (signed by owners, 10% deposit) is kept word for word as the signed record, and
+  // v1.4 (no percentage) is built from it by AGREEMENT_V1_4_CHANGES, whose "from" side quotes v1.3; the PDF keeps v1.3's
+  // "10% deposit:" bold lead so signed copies still render. No 50% exception: v1.4 names no percentage.
+  { file: /^src\/lib\/customer-agreement(\.core|-pdf\.server)\.ts$/, re: /10 ?% (deposit|to book)/, why: "Signed Customer Agreement v1.3 record and the v1.4 change list's v1.3 side" },
   {
     file: /^src\/lib\/mitti-forms\.core\.ts$/,
     re: /HI VIC/,
@@ -129,8 +130,6 @@ const RETAINED: { file: RegExp; re: RegExp; why: string }[] = [
   // Signed texts: any wording change needs a new version so earlier signatures keep their exact text.
   { file: /^src\/lib\/(installer|rec)-agreement\.text\.ts$/, re: /VEU discount/, why: "Signed partner agreement text (new version needed)" },
   { file: /^src\/lib\/owner-gates\.core\.ts$/, re: /^\s*body: "I (?:accept this quote|assign to DC Construction).*VEU discount/, why: "Signed owner gate bodies quote_acceptance and veec_assignment_consent (new version needed)" },
-  // Jo 6 Nov 2026 wording: the signed Customer Agreement v1.3 keeps its exact text until a new version is approved.
-  { file: /^src\/lib\/customer-agreement(?:-pdf\.server|\.core)\.ts$/, re: /(?:10|50)% deposit/, why: "Signed Customer Agreement v1.3 / approved v1.4 bodies and their bold lead-ins (new version needed)" },
   // Jo 6 Nov 2026 wording: the old Mitti answer text is still accepted as a legacy alias; history and audit lines are never rewritten.
   { file: /^src\/lib\/(?:usual-electrician|ready-check-lean|mitti)\.core\.ts$/, re: /"My usual electrician"/, why: "Legacy Mitti answer text kept as an alias" },
   { file: /^src\/lib\/(?:electrician-choice\.core|signup-electrician\.server|rec-auto-link\.server|mitti-electrician\.server)\.ts$/, re: /(?:summary|Summary|logEvent|the installer's usual electrician\$\{)/, why: "History / audit line (never rewritten)" },

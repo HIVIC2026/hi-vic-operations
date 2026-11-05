@@ -1,14 +1,15 @@
-# Owner paperwork — "Payment" (Gate B) — version `customer-agreement-1.3` — DRAFT for Jo's approval
+# Owner paperwork — "Payment" (Gate B) — version `customer-agreement-1.4` — DRAFT for Jo's approval
 
-New job flow (Jo 2 Nov 2026): the payment terms are the payment terms page of Customer Agreement v1.3, as plain text
-(agreement markup removed, every approved word kept). Replaces `steps-2026-10-29b`; signatures on older versions stay as
+New job flow (Jo 2 Nov 2026): the payment terms are the payment terms page of Customer Agreement v1.4, as plain text
+(agreement markup removed, every approved word kept). v1.4 (Jo 5–6 Nov 2026) = v1.3 with the deposit named and no
+percentage ("Deposit to book your install day"). Replaces `customer-agreement-1.3`; signatures on older versions stay as
 history. The agreement's `Job … · name · address` line is left out.
 
 Status: **NOT approved.** Until Jo approves it, real owners cannot sign this item (TEST jobs only). To approve: Office ›
 Settings › Owner paperwork (Gate B) › "Payment" › Approve. Any change to the wording below needs a new version.
 
 Placeholders are filled by the server from the accepted quote (never from the owner): `{total}` quote total after the rebate ·
-`{fee}` the safety check (PIESA) · `{deposit}` = 10% of (total − fee) · `{balance}` = the rest.
+`{fee}` the safety check (PIESA) · `{deposit}` the install deposit (worked out by the server) · `{balance}` = the rest.
 
 ## Exact wording (stored body)
 
@@ -17,7 +18,7 @@ Placeholders are filled by the server from the accepted quote (never from the ow
 Electrical safety check (PIESA): {fee}
 
 2. Once you're clear to install
-50% deposit to book your install day: {deposit}
+Deposit to book your install day: {deposit}
 
 3. On install day
 The rest: {balance}

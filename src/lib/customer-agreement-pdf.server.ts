@@ -8,7 +8,7 @@ export const PAYMENT_TERMS_BLOCK_ID = "payment-terms";
 /** Lead-ins the approved sample prints in bold. The stored body stays plain; a line that starts with one gets it in bold. */
 export const AGREEMENT_BOLD_LEADS: readonly string[] = [
   "Electrical safety check (PIESA):", "Electrical upgrades (only if needed):", "Install:", "The 30-day rule:", "Cooling-off:",
-  "If your home isn't eligible:", "The insulation:", "The workmanship:", "$349 electrical safety check:", "50% deposit:", "10% deposit:" /* signed v1.3 copies */,
+  "If your home isn't eligible:", "The insulation:", "The workmanship:", "$349 electrical safety check:", "10% deposit:" /* signed v1.3 copies */,
   "Now:", "Before your install:", "After your install:", "$349:", "Deposit:",
 ];
 /** Jo 4 Nov 2026 21:25: the two "$349…" lead-ins carry the quote's own PIESA amount after `applyPiesaAmount`, so they match by shape. */

@@ -33,7 +33,8 @@ describe("payment terms = the approved payment terms page of Customer Agreement 
     expect(text).not.toMatch(/lawyer/i);
     expect(PAYMENT_TERMS_BODY).not.toMatch(/lawyer/i);
     expect(text).toContain("Electrical safety check (PIESA): $349.00");
-    expect(text).toContain("50% deposit to book your install day: $183.90");
+    expect(text).toContain("Deposit to book your install day: $183.90");
+    expect(text).not.toMatch(/\d+ ?% (?:deposit|to book)/); // Jo 6 Nov 2026: no percentage in any deposit wording
     expect(text).toContain("The rest: $1,655.10");
     expect(text).toContain("Your price (incl. GST): $2,188.00");
   });

@@ -49,7 +49,7 @@ describe("Customer Agreement PDF", () => {
   });
 
   test("every bold lead-in is in the body and is drawn in the Bold font", async () => {
-    // v1.3 (signed copies) and v1.4 (Jo 5 Nov 2026) differ only in the deposit lead-in ("10% deposit:" / "50% deposit:").
+    // v1.3 (signed copies) and v1.4 (Jo 5–6 Nov 2026) differ only in the deposit lead-in ("10% deposit:" / "Deposit:").
     const lines = `${CUSTOMER_AGREEMENT_V1_3}\n${CUSTOMER_AGREEMENT_V1_4}`.split("\n").map((l) => l.replace(/^- /, ""));
     for (const lead of AGREEMENT_BOLD_LEADS) expect(lines.some((l) => l.startsWith(`${lead} `))).toBe(true);
     const r = await customerAgreementPdf(T, SAMPLE_FACTS);

@@ -42,12 +42,12 @@ export type GateDoc = {
 
 const DRAFT = "DRAFT — wording pending Jo's approval. Not for use on real jobs.";
 
-/** The payment terms page of Customer Agreement v1.4 (v1.3 approved 2 Nov 2026; v1.4 = 50% deposit, Jo 5 Nov 2026), as plain owner-readable text: the agreement's
+/** The payment terms page of Customer Agreement v1.4 (v1.3 approved 2 Nov 2026; v1.4 = the deposit with no percentage, Jo 5–6 Nov 2026), as plain owner-readable text: the agreement's
  *  markup ("## " headings, "$ " money rows, " | " separators, literal "\\n") is turned into plain lines, every approved word kept.
- *  Agreement placeholders map to the amounts `paymentPlan()` charges: {safety_check} = {fee}, {deposit} = {deposit} (50% of
- *  total − fee), {rest} = {balance}, {your_price} = {total}. The "Job … · owner · address" line is left out (job details are
+ *  Agreement placeholders map to the amounts `paymentPlan()` charges: {safety_check} = {fee}, {deposit} = {deposit} (the install
+ *  deposit paymentPlan() works out), {rest} = {balance}, {your_price} = {total}. The "Job … · owner · address" line is left out (job details are
  *  not a payment-terms placeholder). Amounts always come from the server, never from owner answers. */
-export const PAYMENT_TERMS_VERSION = "customer-agreement-1.4"; // Jo 5 Nov 2026: 50% deposit (1.3 said 10%)
+export const PAYMENT_TERMS_VERSION = "customer-agreement-1.4"; // Jo 5–6 Nov 2026: the deposit with no percentage (1.3 said 10%)
 const PT_PLACEHOLDERS: Record<string, string> = { safety_check: "{fee}", deposit: "{deposit}", rest: "{balance}", your_price: "{total}" };
 export function paymentTermsPlain(markup: string): string {
   const blocks: string[] = [];

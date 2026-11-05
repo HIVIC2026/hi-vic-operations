@@ -86,7 +86,7 @@ describe("Customer Agreement v1.3 template (practice database)", () => {
   });
 });
 
-describe("Customer Agreement v1.4 — 50% deposit (Jo 5 Nov 2026, practice database)", () => {
+describe("Customer Agreement v1.4 — the deposit named, no percentage (Jo 5–6 Nov 2026, practice database)", () => {
   const apply4 = () => db.exec(read("customer-agreement-v1-4.sql"));
   beforeEach(async () => { await apply(); await apply4(); });
   test("v1.4 is the one active row; v1.3 stays, unchanged, as history", async () => {
