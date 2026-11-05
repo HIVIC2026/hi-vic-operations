@@ -79,3 +79,12 @@ export function startInstallerWaitingList(ctx: Ctx, preload: boolean | undefined
     }).catch(() => undefined);
   });
 }
+
+/** Portal speed step 2 (Task 5): the office job page — the last copy of THIS job kept on this device for this signed-in
+ *  user goes into the page's cache entry first, so a return visit draws at once; the page then asks again (its copy is
+ *  older than its staleTime) and keeps its buttons waiting until the fresh answer arrives. */
+export const officeJobKey = (jobId: string) => ["office-job-page", jobId] as const;
+export const officeJobCopyName = (jobId: string) => `office-job:${jobId}`;
+export function startOfficeJob(ctx: Ctx, jobId: string, preload: boolean | undefined): void {
+  start(ctx, preload, (qc, uid) => { seedLastCopy(qc, uid, officeJobCopyName(jobId), officeJobKey(jobId)); });
+}
