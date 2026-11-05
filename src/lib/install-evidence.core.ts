@@ -322,9 +322,16 @@ export type InstallEvidenceSummary = {
    *  holds completion even when `applies` is false. Absent / empty = none. */
   adultBlockers?: string[];
   beforeBlockers?: string[];
+  beforeConditions?: InstallDayBeforeRead['areas'];
   beforePhotos?: {zone:number;name:string;photo:MittiMediaFile[];existing:MittiMediaFile[]}[];
 };
 export type RulerAreaFiles = { zone: number; name: string; existingRequired: boolean; existing: MittiMediaFile[]; after: MittiMediaFile[] };
+/** Only the latest evidence summary owns the office STOP; corrected form reads clear it. */
+export function installBeforeStopReasons(summary:unknown):string[] {
+ if(!summary||typeof summary!=='object')return [];
+ const lines=(summary as {beforeBlockers?:unknown}).beforeBlockers;
+ return Array.isArray(lines)?lines.filter((v):v is string=>typeof v==='string'&&v.includes('STOP')):[];
+}
 
 type Phase = "before" | "after";
 function mediaProblems(label: string, files: MittiMediaFile[], opts: { min: number; video: boolean; workStartAt?: string | null | undefined; phase: Phase }): { state: InstallEvidenceItem["state"]; problems: string[] } {
@@ -456,6 +463,18 @@ export function beforePhotoEvaluation(read:InstallDayBeforeRead|undefined,zones:
   const zone=matched?matched.index+1:i+1;
   if(!row.name?.trim())blockers.push(`${name}: Area name is missing`);
   if(row.oldInsulation==null)blockers.push(`${name}: Is there old insulation in this area? is not answered`);
+  if(read.conditionsOnForm&&row.oldInsulation===true){
+   const missing=(label:string)=>blockers.push(`${name}: ${label} is not answered`);
+   if(!row.oldRAnswer)missing(INSTALL_DAY_BEFORE_Q.oldR);
+   if(row.rValueBand==='at_or_above_r2')blockers.push(`${name}: STOP — old insulation is R2.0 or more; office review required. Do not proceed with this area.`);
+   if(row.removal==null)missing(INSTALL_DAY_BEFORE_Q.treatment);
+   if(row.removal==='yes'&&row.removalM2==null)missing(INSTALL_DAY_BEFORE_Q.removeM2);
+   if(row.removal==='no'){
+    if(row.suitable==null)missing(INSTALL_DAY_BEFORE_Q.suitable);
+    if(row.suitable===false)blockers.push(`${name}: STOP — old insulation condition is not suitable to lay new batts on top; office review required. Do not proceed with this area.`);
+    if(!row.keepReason)missing(INSTALL_DAY_BEFORE_Q.keepReason);
+   }
+  }
   const photo=row.photo,existing=row.existing;
   files.push({zone,name,photo,existing});
   const check=(id:string,label:string,what:string,fs:MittiMediaFile[])=>{
@@ -491,8 +510,8 @@ export function evaluateInstallEvidence(read: InstallEvidenceRead, ctx: InstallE
   const ruler = read.installDay ? rulerPhotoEvaluation(read.ruler, ctx.zones, workStartAt, { onForm: read.depthQuestionOnForm ?? read.files.depthPhotos.length > 0, files: read.files.depthPhotos },read.before?.onForm===true) : null;
   const beforePage=read.installDay?beforePhotoEvaluation(read.before,ctx.zones,workStartAt):null;
   const adultBlockers = read.installDay && read.adult?.onForm && read.adult.answer !== "Yes" ? [INSTALL_ADULT_BLOCKER] : [];
-  const base = { rule: INSTALL_EVIDENCE_RULE, ...(beforePage ? {beforeBlockers:beforePage.blockers,beforePhotos:beforePage.files} : {}), ...(adultBlockers.length ? { adultBlockers } : {}), applies, installDate: ctx.installDate, zoneCount, zoneProducts, foil: read.foil.foil, foilPhotoMediaId: read.foil.foilPhoto[0]?.mediaId ?? null, ...(ruler ? { rulerPhotos: ruler.files, rulerBlockers: [...new Set(ruler.blockers)] } : {}) } as const;
-  if (!applies) return { ...base, items: [...(beforePage?.items??[]),...(ruler?.items??[])], blockers: [...new Set([...(beforePage?.blockers??[]),...adultBlockers, ...(ruler?.blockers ?? [])])], prestartBlockers: [] };
+  const base = { rule: INSTALL_EVIDENCE_RULE, ...(beforePage ? {beforeBlockers:beforePage.blockers,beforePhotos:beforePage.files,...(read.before?.conditionsOnForm?{beforeConditions:read.before.areas}:{})} : {}), ...(adultBlockers.length ? { adultBlockers } : {}), applies, installDate: ctx.installDate, zoneCount, zoneProducts, foil: read.foil.foil, foilPhotoMediaId: read.foil.foilPhoto[0]?.mediaId ?? null, ...(ruler ? { rulerPhotos: ruler.files, rulerBlockers: [...new Set(ruler.blockers)] } : {}) } as const;
+  if (!applies) return { ...base, items: [...(beforePage?.items??[]),...(ruler?.items??[])], blockers: [...new Set([...(beforePage?.blockers??[]),...adultBlockers, ...(ruler?.blockers ?? [])])], prestartBlockers: beforePage?.blockers??[] };
   const items: InstallEvidenceItem[] = [];
   const before: string[] = [...(beforePage?.blockers??[])], after: string[] = [...adultBlockers]; // adult: a completion item, never a pre-start one (unanswered until the day)
   if (read.installDay) {

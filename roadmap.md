@@ -1,3 +1,7 @@
+## Jo 5 Nov 7:36pm expanded A5 BEFORE conditions
+- [x] Exact per-area condition readers and applicable requirements using shared area keys/label aliases; A5 snapshot and official Part 6 condition source; R2+ and top-up condition No STOP with latest-summary office form flag; no prefills, v23 retained. Focused isolated checks pass; no records/Mitti edits/sends/publication.
+- [ ] Actual republished A5 readback and hosted STOP/office flow await Jo's republication. Numeric old-depth and conductivity facts are not established by this field list; existing official missing-fact gates remain, never inferred from a photo or replaced with Ready Check conditions.
+
 ## Jo 5 Nov 7:34pm final A5 BEFORE correction
 - [x] Exact final labels; fresh area names without mismatch blocks; A5 Yes/No owns old-depth requiredness; no BEFORE name/order prefills; retain v23 and AFTER checks. 83 checks pass across six isolated files. Combined test run had shared-mock interference; each file passes separately. No Mitti edits, sends or publication.
 - [ ] Republished Mitti readback and hosted completion await Jo's new A5 publication; not claimed verified.
