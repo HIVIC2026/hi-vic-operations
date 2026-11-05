@@ -432,7 +432,7 @@ const NO_EXTRA: Part6Extra = { suitable: null, conductive: null, reason: null };
 /** New A5 owns before-condition facts; no Ready Check substitution or photo-to-numeric-depth inference. */
 export function installDayBeforePart6Answers(read:InstallDayBeforeRead):Part6Result|null {
  if(!read.onForm||!read.conditionsOnForm)return null;
- const areas:RcArea[]=read.areas.map(a=>({name:a.name,present:a.present,rValue:a.rValue,removal:a.removal==='yes'?true:a.removal==='no'?false:null,suitable:a.suitable??null,keepReason:a.keepReason??null,depthMm:null}));
+ const areas:RcArea[]=read.areas.map(a=>({name:a.name,present:a.present,rValue:a.rValue,removal:a.removal==='yes'?true:a.removal==='no'?false:null,suitable:a.suitable??null,keepReason:a.keepReason??null,depthMm:a.depthMm??null,conductive:a.conductive??null,conductiveEvidence:a.conductiveEvidence??null}));
  const result=readyCheckPart6Answers(areas);
  result.missing=result.missing.map(m=>m.replace(/Ready Check:/g,'A5 Before you start:'));
  return result;

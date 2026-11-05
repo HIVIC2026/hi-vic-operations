@@ -139,10 +139,10 @@ export const RULER_PHOTO_DOC_KIND = "install_ruler_photo";
 export async function saveRulerPhotoFiles(jobId: string, actorId: string | null, auditId: string, summary: InstallEvidenceSummary, fetchMedia: MittiMediaFetch): Promise<string[]> {
   const saved: string[] = [];
   summary.copyFailures = [];
-  const captured: { area: string; which: "existing" | "new" | "before"; media_id: string; captured_at: string | null; geotagged: boolean }[] = [];
-  const copyAreas=[...(summary.rulerPhotos??[]).map(a=>({...a,before:[] as import('./piesa-evidence.core').MittiMediaFile[]})),...(summary.beforePhotos??[]).map(a=>({...a,before:a.photo,after:[] as import('./piesa-evidence.core').MittiMediaFile[]}))];
+  const captured: { area: string; which: "existing" | "new" | "before" | "backing"; media_id: string; captured_at: string | null; geotagged: boolean }[] = [];
+  const copyAreas=[...(summary.rulerPhotos??[]).map(a=>({...a,backing:[] as import('./piesa-evidence.core').MittiMediaFile[],before:[] as import('./piesa-evidence.core').MittiMediaFile[]})),...(summary.beforePhotos??[]).map(a=>({...a,before:a.photo,backing:a.backing??[],after:[] as import('./piesa-evidence.core').MittiMediaFile[]}))];
   for (const a of copyAreas) {
-    for (const [which, files] of [["existing", a.existing], ["new", a.after], ["before",a.before]] as const) {
+    for (const [which, files] of [["existing", a.existing], ["new", a.after], ["before",a.before], ["backing",a.backing]] as const) {
       for (const file of files) {
         const key = `${auditId}:${file.mediaId}`;
         try {
@@ -155,7 +155,8 @@ export async function saveRulerPhotoFiles(jobId: string, actorId: string | null,
           }
           const { bytes, contentType } = await fetchMedia(auditId, file.mediaId);
           if (!bytes.length) throw new Error("empty media");
-          const ext = contentType.includes("png") ? "png" : contentType.includes("jpeg") || contentType.includes("jpg") ? "jpg" : contentType.includes("heic") ? "heic" : "bin";
+          if(which==='before'&&!contentType.toLowerCase().startsWith('video/'))throw new Error('BEFORE evidence is not a video');
+          const ext = contentType.includes("mp4") ? "mp4" : contentType.includes("quicktime") ? "mov" : contentType.includes("webm") ? "webm" : contentType.includes("png") ? "png" : contentType.includes("jpeg") || contentType.includes("jpg") ? "jpg" : contentType.includes("heic") ? "heic" : "bin";
           const path = ex?.storage_path || `${jobId}/mitti/ruler-photos/${auditId}-${file.mediaId}.${ext}`;
           const up = await admin.storage.from("job-files").upload(path, bytes, { contentType, upsert: false });
           if (up.error) {
@@ -163,8 +164,8 @@ export async function saveRulerPhotoFiles(jobId: string, actorId: string | null,
             const check = await admin.storage.from("job-files").download(path);
             if (check.error || !check.data?.size) throw new Error("stored photo could not be verified");
           }
-          const label = which === "existing" ? "existing insulation depth" : which === "before" ? "ceiling area before work" : "new insulation depth after install";
-          const { error } = ex ? { error: null } : await admin.from("documents").insert({ job_id: jobId, kind: which === 'before' ? 'before_ceiling_space' : RULER_PHOTO_DOC_KIND, title: `${which === 'before' ? 'BEFORE photo' : 'Ruler photo'} – ${a.name} – ${label}`, storage_path: path, mime_type: contentType, uploaded_by: actorId, source_system: "mitti", external_id: key, original_name: `area${a.zone}-${which}-${file.mediaId}.${ext}`, size_bytes: bytes.length });
+          const label = which === "backing" ? "old insulation backing" : which === "existing" ? "existing insulation depth" : which === "before" ? "ceiling area before work" : "new insulation depth after install";
+          const { error } = ex ? { error: null } : await admin.from("documents").insert({ job_id: jobId, kind: which === 'before' ? 'before_ceiling_space' : which === 'backing' ? 'evidence' : RULER_PHOTO_DOC_KIND, title: `${which === 'before' ? 'BEFORE video' : which === 'backing' ? 'Old insulation backing photo' : 'Ruler photo'} – ${a.name} – ${label}`, storage_path: path, mime_type: contentType, uploaded_by: actorId, source_system: "mitti", external_id: key, original_name: `area${a.zone}-${which}-${file.mediaId}.${ext}`, size_bytes: bytes.length });
           if (error) {
             if (error.code !== "23505") throw new Error(error.message);
             const check = await admin.from("documents").select("id").eq("job_id", jobId).eq("source_system", "mitti").eq("external_id", key).maybeSingle();
@@ -210,11 +211,11 @@ export async function syncInstallEvidence(jobId: string, actorId: string | null,
   summary.auditFingerprint = await (await import("./mitti-create-claim.core")).stableUuid(JSON.stringify(audit));
   if (summary.rulerPhotos?.length || summary.beforePhotos?.length) {
     if (fetchMedia) await saveRulerPhotoFiles(jobId, actorId, auditId, summary, fetchMedia);
-    else summary.copyFailures = [...(summary.rulerPhotos??[]).flatMap(a => [...a.existing, ...a.after].map(f => ({ mediaId: f.mediaId ?? "", area: a.name, which: "photo", reason: "Photo copy has not been checked" }))),...(summary.beforePhotos??[]).flatMap(a=>[...a.photo,...a.existing].map(f=>({mediaId:f.mediaId??'',area:a.name,which:'BEFORE',reason:'Photo copy has not been checked'})))];
+    else summary.copyFailures = [...(summary.rulerPhotos??[]).flatMap(a => [...a.existing, ...a.after].map(f => ({ mediaId: f.mediaId ?? "", area: a.name, which: "photo", reason: "Photo copy has not been checked" }))),...(summary.beforePhotos??[]).flatMap(a=>[...a.photo,...a.existing,...(a.backing??[])].map(f=>({mediaId:f.mediaId??'',area:a.name,which:'BEFORE',reason:'Photo copy has not been checked'})))];
     const copyLines = (summary.copyFailures ?? []).map(f => `${f.area}: ${f.which} ruler photo ${f.mediaId || "(missing id)"} could not be saved — sync again to retry`);
     summary.blockers = [...new Set([...summary.blockers, ...copyLines])];
     summary.rulerBlockers = [...new Set([...(summary.rulerBlockers ?? []), ...copyLines])];
-    summary.beforeBlockers = [...new Set([...(summary.beforeBlockers??[]),...(summary.copyFailures??[]).filter(f=>f.which==='before'||f.which==='BEFORE'||(summary.beforePhotos??[]).some(a=>a.existing.some(p=>p.mediaId===f.mediaId))).map(f=>`${f.area}: BEFORE photo could not be saved — sync again to retry`)])];
+    summary.beforeBlockers = [...new Set([...(summary.beforeBlockers??[]),...(summary.copyFailures??[]).filter(f=>f.which==='before'||f.which==='backing'||f.which==='BEFORE'||(summary.beforePhotos??[]).some(a=>a.existing.some(p=>p.mediaId===f.mediaId))).map(f=>`${f.area}: BEFORE evidence could not be saved — sync again to retry`)])];
     for (const item of summary.items) if (item.id.startsWith("ruler_") && copyLines.length) { item.state = "review"; item.problems.push(...copyLines); }
   }
   const prev = await latestInstallEvidenceRecord(jobId);

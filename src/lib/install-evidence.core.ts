@@ -257,7 +257,7 @@ export function zoneVideoFiles(audit: unknown): { before: MittiMediaFile[] | nul
   const r = readInstallEvidence(audit);
   // Install day form (decisions 263/264): the after-video item itself; the before videos are the Ready Check's (not on
   // this audit). Per-area coverage is checked by evaluateInstallEvidence against the Ready Check areas.
-  if (r.installDay) return { before: null, after: r.files.afterVideos.length ? r.files.afterVideos : null };
+  if (r.installDay) return { before: r.before?.onForm && r.before.areas.length && r.before.areas.every(a=>a.photo.length) ? r.before.areas.flatMap(a=>a.photo) : null, after: r.files.afterVideos.length ? r.files.afterVideos : null };
   const n = r.formZoneCount;
   if (!r.questionsOnForm || n == null || n < 1 || n > MAX_FORM_ZONES) return { before: null, after: null };
   const zones = r.zones.slice(0, n);
@@ -323,7 +323,7 @@ export type InstallEvidenceSummary = {
   adultBlockers?: string[];
   beforeBlockers?: string[];
   beforeConditions?: InstallDayBeforeRead['areas'];
-  beforePhotos?: {zone:number;name:string;photo:MittiMediaFile[];existing:MittiMediaFile[]}[];
+  beforePhotos?: {zone:number;name:string;photo:MittiMediaFile[];existing:MittiMediaFile[];backing?:MittiMediaFile[]}[];
 };
 export type RulerAreaFiles = { zone: number; name: string; existingRequired: boolean; existing: MittiMediaFile[]; after: MittiMediaFile[] };
 /** Only the latest evidence summary owns the office STOP; corrected form reads clear it. */
@@ -455,18 +455,21 @@ export function rulerPhotoEvaluation(ruler: InstallDayRulerRead | undefined, zon
 export function beforePhotoEvaluation(read:InstallDayBeforeRead|undefined,zones:JobZone[],workStartAt?:string|null) {
  const items:InstallEvidenceItem[]=[], blockers:string[]=[], files:NonNullable<InstallEvidenceSummary['beforePhotos']>=[];
  if(!read?.onForm)return {items,blockers,files};
- if(!read.areas.length)blockers.push('BEFORE area photo is missing');
+ if(!read.areas.length)blockers.push('BEFORE area video is missing');
  read.areas.forEach((row,i)=>{
   const name=row.name?.trim()||`Area ${i+1}`;
   const matches=zones.map((z,index)=>({z,index})).filter(({z})=>zoneNameCore(z.name)===zoneNameCore(row.name));
   const matched=matches.length===1?matches[0]:undefined;
   const zone=matched?matched.index+1:i+1;
-  if(!row.name?.trim())blockers.push(`${name}: Area name is missing`);
-  if(row.oldInsulation==null)blockers.push(`${name}: Is there old insulation in this area? is not answered`);
+  if(!row.name?.trim())blockers.push(`${name}: ${INSTALL_DAY_BEFORE_Q.name} is missing`);
+  if(row.oldInsulation==null)blockers.push(`${name}: ${INSTALL_DAY_BEFORE_Q.oldInsulation} is not answered`);
   if(read.conditionsOnForm&&row.oldInsulation===true){
    const missing=(label:string)=>blockers.push(`${name}: ${label} is not answered`);
-   if(!row.oldRAnswer)missing(INSTALL_DAY_BEFORE_Q.oldR);
-   if(row.rValueBand==='at_or_above_r2')blockers.push(`${name}: STOP — old insulation is R2.0 or more; office review required. Do not proceed with this area.`);
+   if(!row.oldType)missing(INSTALL_DAY_BEFORE_Q.oldType);
+   if(!row.rValueBand)missing(INSTALL_DAY_BEFORE_Q.oldR);
+   if(row.depthMm==null)missing(INSTALL_DAY_BEFORE_Q.depthMm);
+   if(row.conductive==null)missing(INSTALL_DAY_BEFORE_Q.conductive);
+   if(row.rValueBand==='at_or_above_r2')blockers.push(`${name}: STOP — old insulation is R2.0 or above; office review required. Do not proceed with this area.`);
    if(row.removal==null)missing(INSTALL_DAY_BEFORE_Q.treatment);
    if(row.removal==='yes'&&row.removalM2==null)missing(INSTALL_DAY_BEFORE_Q.removeM2);
    if(row.removal==='no'){
@@ -476,12 +479,13 @@ export function beforePhotoEvaluation(read:InstallDayBeforeRead|undefined,zones:
    }
   }
   const photo=row.photo,existing=row.existing;
-  files.push({zone,name,photo,existing});
-  const check=(id:string,label:string,what:string,fs:MittiMediaFile[])=>{
-   const r=fs.length?mediaProblems(`${name}: ${what}`,fs,{min:1,video:false,workStartAt,phase:'before'}):{state:'missing' as const,problems:[`${name}: ${what} is missing`]};
+  files.push({zone,name,photo,existing,backing:row.oldInsulation===true?row.backing??[]:[]});
+  const check=(id:string,label:string,what:string,fs:MittiMediaFile[],video=false)=>{
+   const r=fs.length?mediaProblems(`${name}: ${what}`,fs,{min:1,video,workStartAt,phase:'before'}):{state:'missing' as const,problems:[`${name}: ${what} is missing`]};
    items.push({id,zone,label,state:r.state,count:fs.length,problems:r.problems});blockers.push(...r.problems);
   };
-  check('before_area_photo',INSTALL_DAY_BEFORE_Q.photo,'BEFORE area photo',photo);
+  check('before_area_video',INSTALL_DAY_BEFORE_Q.photo,'BEFORE area video',photo,true);
+  if(row.oldInsulation===true)check('before_backing',INSTALL_DAY_BEFORE_Q.backing,INSTALL_DAY_BEFORE_Q.backing,row.backing??[]);
   if(row.oldInsulation===true)check('before_old_depth',INSTALL_DAY_BEFORE_Q.existingDepth,'BEFORE old-insulation ruler photo',existing);
  });
  return {items,blockers:[...new Set(blockers)],files};

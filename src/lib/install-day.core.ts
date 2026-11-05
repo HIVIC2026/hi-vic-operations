@@ -7,7 +7,7 @@
 // builds the "portal fills this in" prefill. The safety plan (SWMS) is NOT on this form (decision 261, swms.core.ts);
 // Q19 is the installer's own confirmation that it is signed. The light, cable and downlight answers of official Part 5
 // come from the stored PIESA (piesaPart5Answers) and official Part 6 (existing insulation) from the Ready Check record
-// (piisa-a3.core readyCheckPart6Answers) — never from this form.
+// (piisa-a3.core installDayBeforePart6Answers) on the new BEFORE page; v23 keeps Ready Check fallback.
 import { norm } from "./mitti.core";
 import { installMittiLabel } from "./mitti-rebuild-labels.core";
 import { ADULT_PRESENT_LABEL, onsiteStartTicked } from "./official-short.core";
@@ -17,6 +17,7 @@ import type { SwmsChange } from "./swms.core";
 import { INSTALLER_DECLARATION } from "./veec-assignment-form.core";
 import { mittiMediaFile, type MittiMediaFile } from "./piesa-evidence.core";
 import { canonicalMittiLabel } from './mitti-rebuild-labels.core';
+import { LEAN_Q, LEAN_ALIASES, EXISTING_DEPTH_Q, isBelowR2, isR2OrAbove } from './ready-check-lean.core';
 import type { MittiArea } from './mitti.core';
 
 export const INSTALL_DAY_TEMPLATE_NAME = "A5 – Install day";
@@ -108,58 +109,74 @@ export const INSTALL_DAY_RULER_HELP = {
 } as const;
 /** Single A5 BEFORE page; absent on v23, so old audits stay readable. */
 export const INSTALL_DAY_BEFORE_Q = {
- name: 'Area name',
- photo: 'Photo of this area before you start',
- oldInsulation: 'Is there old insulation in this area?',
- oldR: 'What R-value is the old insulation?',
- existingDepth: 'Photo with a ruler showing the depth of the old insulation',
- treatment: "What's happening with the old insulation?",
+ name: 'Name this area',
+ photo: 'BEFORE video: slow 360° turn of this area',
+ oldInsulation: LEAN_Q.existing,
+ oldType: 'What type is the old insulation? Tick all that apply.',
+ oldR: LEAN_Q.rValue,
+ depthMm: 'Depth of the old insulation (mm)',
+ existingDepth: 'Photo: ruler standing straight up in the old insulation',
+ conductive: 'Is the old insulation foil-backed or metal (anything that could carry electricity)?',
+ backing: "Close-up photo of the old insulation's backing",
+ treatment: LEAN_Q.existingAction,
  removeM2: 'How much old insulation is coming out? (m²)',
  suitable: 'Is the old insulation in good enough condition to lay new batts on top?',
  keepReason: 'Why is the old insulation staying?',
 } as const;
-export type InstallDayBeforeArea = Pick<MittiArea,'name'|'present'|'rValue'|'rValueBand'|'removal'|'removalM2'|'suitable'|'keepReason'> & {oldInsulation?:boolean|null;oldRAnswer?:string|null;photo:MittiMediaFile[];existing:MittiMediaFile[]};
+export type InstallDayBeforeArea = Pick<MittiArea,'name'|'present'|'rValue'|'rValueBand'|'removal'|'removalM2'|'suitable'|'keepReason'|'depthMm'|'conductive'|'conductiveEvidence'> & {oldInsulation?:boolean|null;oldType?:string|null;oldRAnswer?:string|null;treatmentAnswer?:string|null;photo:MittiMediaFile[];existing:MittiMediaFile[];backing?:MittiMediaFile[]};
 export type InstallDayBeforeRead = {onForm:boolean;conditionsOnForm?:boolean;areas:InstallDayBeforeArea[]};
 export function installDayBeforePhotos(audit:unknown):InstallDayBeforeRead {
- const groups=new Map<string,InstallDayBeforeRead['areas'][number]>();
+ const groups=new Map<string,InstallDayBeforeArea>();
  let onForm=false;
- let conditionsOnForm=false;
+ const leanKeys={name:'areaName',photo:'beforeVideo',oldInsulation:'existing',oldType:'existingType',oldR:'rValue',existingDepth:'depthPhoto',conductive:'existingConductive',backing:'existingConductivePhoto',treatment:'existingAction',removeM2:'removeM2',suitable:'existingSuitable',keepReason:'existingKeepReason'} as const;
+ const matches=(label:string,k:keyof typeof INSTALL_DAY_BEFORE_Q)=>{
+  const lean=k==='depthMm'?EXISTING_DEPTH_Q:LEAN_Q[leanKeys[k as keyof typeof leanKeys]];
+  const aliases=(k==='depthMm'?[]:LEAN_ALIASES[leanKeys[k as keyof typeof leanKeys]]??[]).filter(v=>k!=='photo'||/video/i.test(v));
+  return [INSTALL_DAY_BEFORE_Q[k],lean,...aliases].some(v=>labelKey(canonicalMittiLabel(label))===labelKey(canonicalMittiLabel(v)));
+ };
+ const root=(audit as any)?.template??audit;
+ const all=new Map<string,Record<string,any>>();
+ const index=(x:unknown)=>{if(Array.isArray(x)){x.forEach(index);return;}if(!x||typeof x!=='object')return;const o=x as Record<string,any>;if(o['item_id']??o['id'])all.set(String(o['item_id']??o['id']),o);for(const [k,v] of Object.entries(o))if(v&&typeof v==='object'&&!['responses','media'].includes(k))index(v);};
+ index(root);
+ const beforeLabel=(v:unknown)=>['Before you start','Ceiling area – before'].some(l=>labelKey(l)===labelKey(v));
  const walk=(x:unknown,parent:string|null,inBefore=false)=>{
   if(Array.isArray(x)){x.forEach(v=>walk(v,parent,inBefore));return;}
   if(!x||typeof x!=='object')return;
   const o=x as Record<string,any>;
-  if(['oldR','treatment','removeM2','suitable','keepReason'].some(k=>labelKey(canonicalMittiLabel(o['label']))===labelKey(canonicalMittiLabel(INSTALL_DAY_BEFORE_Q[k as keyof typeof INSTALL_DAY_BEFORE_Q]))))conditionsOnForm=true;
   if(o['inactive']===true)return;
-  const label=typeof o['label']==='string'?labelKey(o['label']):'';
-  const before=inBefore||['Before you start','Ceiling area – before','Ceiling area BEFORE work'].some(v=>label===labelKey(v));
-  const aliases={name:'Ceiling area name',photo:"Before photo: the whole ceiling area showing what's there",existingDepth:'Before photo: old insulation with a ruler standing upright in it'};
-  const which=label?Object.entries(INSTALL_DAY_BEFORE_Q).find(([k,v])=>(labelKey(canonicalMittiLabel(o['label']))===labelKey(canonicalMittiLabel(v))&&(k==='photo'||k==='existingDepth'||k==='oldInsulation'||before))||label===labelKey(aliases[k as keyof typeof aliases]??''))?.[0]:undefined;
+  let group=parent,before=inBefore||beforeLabel(o['label']);
+  let anc=o['parent_id'],guard=0;
+  while(anc&&guard++<20){const node=all.get(String(anc));if(!node)break;if(beforeLabel(node['label'])){before=true;if(labelKey(node['label'])===labelKey('Ceiling area – before'))group=String(anc);}anc=node['parent_id'];}
+  if(beforeLabel(o['label']))onForm=true;
+  const which=before&&typeof o['label']==='string'?Object.keys(INSTALL_DAY_BEFORE_Q).find(k=>matches(o['label'],k as keyof typeof INSTALL_DAY_BEFORE_Q)):undefined;
   if(which){
    onForm=true;
-   const group=String(o['parent_id']??parent??'flat');
-   const row=groups.get(group)??{name:null,present:null,rValue:null,rValueBand:null,removal:null,removalM2:null,suitable:null,keepReason:null,photo:[],existing:[]};
+   const id=group??String(o['parent_id']??'flat');
+   const row=groups.get(id)??{name:null,present:null,rValue:null,rValueBand:null,removal:null,removalM2:null,suitable:null,keepReason:null,depthMm:null,conductive:null,conductiveEvidence:null,photo:[],existing:[],backing:[]};
    const r=o['responses']??{};
-   const selected=r.selected??r.value??r.text??o['value'];
-   const answer=Array.isArray(selected)?selected.map(v=>typeof v==='object'?v?.label??v?.value:v).join(' '):String(selected??'');
+   const selected=r.selected??r.value??r.text??r.number??r.numeric??o['value'];
+   const answer=Array.isArray(selected)?selected.map(v=>typeof v==='object'?v?.label??v?.value:v).join(', '):String(selected??'');
    const ynAnswer=/^yes\b/i.test(answer)?true:/^no\b/i.test(answer)?false:null;
-   if(which==='name')row.name=String(r.text??r.value??o['value']??'').trim()||null;
-   else if(which==='oldInsulation'){
-    row.oldInsulation=ynAnswer;row.present=ynAnswer;
-   }
-   else if(which==='oldR'){conditionsOnForm=true;row.oldRAnswer=answer.trim()||null;const m=/^R(0\.5|1\.0|1\.5|2\.0)(?:\s+or more)?$/i.exec(answer.trim());row.rValue=m?Number(m[1]):null;row.rValueBand=/R2\.0 or more/i.test(answer)?'at_or_above_r2':m?'below_r2':null;}
-   else if(which==='treatment'){conditionsOnForm=true;row.removal=answer==='Taking it out'?'yes':answer==='Leaving it and laying new batts on top'?'no':null;}
-   else if(which==='removeM2'){conditionsOnForm=true;const n=Number(answer);row.removalM2=answer.trim()&&Number.isFinite(n)&&n>=0?n:null;}
-   else if(which==='suitable'){conditionsOnForm=true;row.suitable=ynAnswer;}
-   else if(which==='keepReason'){conditionsOnForm=true;row.keepReason=answer.trim()||null;}
-   else {const media=o['media']??r.media??r.attachments??[];const files=Array.isArray(media)?media.map(mittiMediaFile):[];if(which==='photo')row.photo.push(...files);else row.existing.push(...files);}
-   groups.set(group,row);
+   const n=answer.trim()?Number(answer):NaN;
+   if(which==='name')row.name=answer.trim()||null;
+   else if(which==='oldInsulation'){row.oldInsulation=ynAnswer;row.present=ynAnswer;}
+   else if(which==='oldType')row.oldType=answer.trim()||null;
+   else if(which==='oldR'){row.oldRAnswer=answer.trim()||null;row.rValueBand=isR2OrAbove(answer)?'at_or_above_r2':isBelowR2(answer)?'below_r2':null;}
+   else if(which==='depthMm')row.depthMm=Number.isFinite(n)&&n>=0?n:null;
+   else if(which==='conductive')row.conductive=ynAnswer;
+   else if(which==='treatment'){row.treatmentAnswer=answer.trim()||null;row.removal=answer==='Remove'?'yes':answer==='Top up'?'no':null;}
+   else if(which==='removeM2')row.removalM2=Number.isFinite(n)&&n>=0?n:null;
+   else if(which==='suitable')row.suitable=ynAnswer;
+   else if(which==='keepReason')row.keepReason=answer.trim()||null;
+   else {const media=o['media']??r.media??r.attachments??[];const files=Array.isArray(media)?media.filter(m=>which!=='photo'||!/^image\//i.test(String(m?.mime_type??m?.content_type??''))).map(mittiMediaFile):[];if(which==='photo')row.photo.push(...files);else if(which==='backing'){row.backing=[...(row.backing??[]),...files];row.conductiveEvidence=files[0]?.mediaId?`mitti:${(audit as any)?.audit_id??(audit as any)?.id??''}:media:${files[0].mediaId}`:null;}else row.existing.push(...files);}
+   groups.set(id,row);
   }
-  const repeat=['Ceiling area – before','Ceiling area BEFORE work'].some(v=>label===labelKey(v));
-  const childParent=repeat&&(o['item_id']??o['id'])!=null?String(o['item_id']??o['id']):before?parent:typeof o['label']==='string'&&(o['item_id']??o['id'])!=null?String(o['item_id']??o['id']):parent;
+  const repeat=labelKey(o['label'])===labelKey('Ceiling area – before');
+  const childParent=repeat?String(o['item_id']??o['id']??parent??'flat'):group;
   for(const [k,v] of Object.entries(o))if(v&&typeof v==='object'&&!['responses','media'].includes(k))walk(v,childParent,before);
  };
- walk((audit as any)?.template??audit,null);
- return {onForm,conditionsOnForm,areas:[...groups.values()]};
+ walk(root,null);
+ return {onForm,conditionsOnForm:onForm,areas:[...groups.values()]};
 }
 export type InstallDayRulerArea = { existing: MittiMediaFile[]; after: MittiMediaFile[] };
 export type InstallDayRulerRead = { onForm: boolean; areas: InstallDayRulerArea[] };

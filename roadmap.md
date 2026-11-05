@@ -1,6 +1,10 @@
-## Jo 5 Nov 7:36pm expanded A5 BEFORE conditions
+## Jo 5 Nov 7:38pm A5 BEFORE shared A1/A2 labels
+- [x] Replaced superseded reader labels; required BEFORE video and old-insulation type/band/depth/conductivity/backing; shared aliases scoped to BEFORE repeats, official A5 facts and unchanged STOP/v23/AFTER paths. 133 focused isolated checks pass; private media retries verified on practice storage/database, preview build OK. No Mitti edits, records, sends or publication.
+- [ ] Actual republished A5 readback and hosted STOP/office flow await Jo's republication.
+
+## Jo 5 Nov 7:36pm expanded A5 BEFORE conditions (superseded by 7:38pm)
 - [x] Exact per-area condition readers and applicable requirements using shared area keys/label aliases; A5 snapshot and official Part 6 condition source; R2+ and top-up condition No STOP with latest-summary office form flag; no prefills, v23 retained. Focused isolated checks pass; no records/Mitti edits/sends/publication.
-- [ ] Actual republished A5 readback and hosted STOP/office flow await Jo's republication. Numeric old-depth and conductivity facts are not established by this field list; existing official missing-fact gates remain, never inferred from a photo or replaced with Ready Check conditions.
+- [ ] Actual republished A5 readback and hosted STOP/office flow await Jo's republication. Superseded field-list omissions resolved by the 7:38pm recorded depth/conductivity fields; numeric R is not inferred from the R band.
 
 ## Jo 5 Nov 7:34pm final A5 BEFORE correction
 - [x] Exact final labels; fresh area names without mismatch blocks; A5 Yes/No owns old-depth requiredness; no BEFORE name/order prefills; retain v23 and AFTER checks. 83 checks pass across six isolated files. Combined test run had shared-mock interference; each file passes separately. No Mitti edits, sends or publication.
