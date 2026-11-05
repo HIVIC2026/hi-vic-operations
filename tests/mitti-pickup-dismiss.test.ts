@@ -69,4 +69,12 @@ describe("wiring", () => {
     expect(readFileSync("src/routes/_authenticated/admin.needs-me.tsx", "utf8")).toContain("<DismissPickupButton");
     expect(readFileSync("src/components/portal/mitti-piles.tsx", "utf8")).toContain("<DismissPickupButton");
   });
+  test("linking refuses a replaced old form, reads its events with the error checked, and ignores dismissed ids", () => {
+    const fn = server.slice(server.indexOf("export async function linkMittiReadyCheckToJob"), server.indexOf("const sel ="));
+    expect(fn).toContain('readEventDetails("workflow_events", "mitti_form_replaced")');
+    expect(fn).toContain("dismissed: []");
+    expect(fn).toContain("This is an old Mitti form that was replaced – it can't be linked.");
+    expect(server).toContain("Could not check which Mitti forms are already known");
+    expect(fn.indexOf("replaced")).toBeLessThan(fn.length);
+  });
 });

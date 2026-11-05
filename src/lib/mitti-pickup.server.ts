@@ -72,18 +72,19 @@ export type PickupScanOpts = {
 };
 
 /** Every audit id the pickup must never show or adopt: dismissed by the office, or an old form a job replaced. Fails closed. */
+async function readEventDetails(table: "admin_config_events" | "workflow_events", type: string) {
+  const all: { details: unknown }[] = [];
+  for (let offset = 0; ; offset += 200) {
+    const { data, error } = await admin.from(table).select("details").eq("event_type", type).order("created_at", { ascending: true }).order("id", { ascending: true }).range(offset, offset + 199);
+    if (error) throw new WorkflowError(`Could not check which Mitti forms are already known: ${error.message}`);
+    all.push(...(data ?? []));
+    if ((data?.length ?? 0) < 200) break;
+  }
+  return all;
+}
+
 async function knownAuditIds(): Promise<Set<string>> {
-  const read = async (table: "admin_config_events" | "workflow_events", type: string) => {
-    const all: { details: unknown }[] = [];
-    for (let offset = 0; ; offset += 200) {
-      const { data, error } = await admin.from(table).select("details").eq("event_type", type).order("created_at", { ascending: true }).order("id", { ascending: true }).range(offset, offset + 199);
-      if (error) throw new WorkflowError(`Could not check which Mitti forms are already known: ${error.message}`);
-      all.push(...(data ?? []));
-      if ((data?.length ?? 0) < 200) break;
-    }
-    return all;
-  };
-  const [dismissed, replaced] = await Promise.all([read("admin_config_events", MITTI_PICKUP_DISMISSED_EVENT), read("workflow_events", "mitti_form_replaced")]);
+  const [dismissed, replaced] = await Promise.all([readEventDetails("admin_config_events", MITTI_PICKUP_DISMISSED_EVENT), readEventDetails("workflow_events", "mitti_form_replaced")]);
   return knownPickupAuditIds({ dismissed, replaced });
 }
 
@@ -177,6 +178,9 @@ export async function linkMittiReadyCheckToJob(actorId: string | null, input: { 
   const auditId = String(input.auditId ?? "").trim();
   const jobRef = String(input.jobId ?? "").trim();
   if (!auditId || !jobRef) throw new WorkflowError("Choose the Mitti form and the job to link it to.");
+  // An old form a job already replaced must never be linked (dismissed forms may still be linked).
+  if (knownPickupAuditIds({ dismissed: [], replaced: await readEventDetails("workflow_events", "mitti_form_replaced") }).has(auditId))
+    throw new WorkflowError("This is an old Mitti form that was replaced – it can't be linked.");
   // The Office box takes the HV number; older callers pass the job id. Accept both.
   const sel = "id,job_number,business_unit,stage,channel,deleted_at";
   const { data: job } = UUID_RE.test(jobRef)
