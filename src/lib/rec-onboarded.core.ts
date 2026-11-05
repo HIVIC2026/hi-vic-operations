@@ -148,7 +148,7 @@ export const INVITE_SKIP_TEXT: Record<InviteSkip, string> = {
   already_issued: "An onboarding invite was already issued to this electrician.",
   already_onboarded: "This electrician is already signed up — the quote re-checks on the next sync.",
   nomination_exists: "This electrician was already added; invitation delivery needs an office check before another send.",
-  no_email: "No email on file for this electrician — the installer adds it under My business › My usual electrician.",
+  no_email: "No email on file for this electrician — the installer adds it under My business › My electrician.",
 };
 
 // ---------- Next-sweep outcome for a held quote (HV-3193 rule) ----------

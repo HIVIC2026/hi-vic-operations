@@ -458,7 +458,7 @@ const s7: StepFn = async (ctx, r) => {
   // Decision 296: the owner confirms the safety check on their secure link before an install day can be booked.
   await act(r, "owner confirms the safety check (PIESA) on the secure link", () => import("./piesa-owner-confirm.server").then((m) => m.signOwnerPiesaConfirmation({ jobId: ctx.jobId!, userId: null, codeId: null, fullName: "Test Journey", signatureName: "Test Journey", authority: "owner", confirmed: true, ip: "127.0.0.1", userAgent: "journey-test" })));
   // Locked rule: Demo TEST payment first, then install-day offers and booking.
-  await payStep(ctx, r, "install_deposit", "50% install deposit paid (TEST payment, Demo Company)");
+  await payStep(ctx, r, "install_deposit", "Install deposit paid (TEST payment, Demo Company)");
   // The installer's own allowed days (business days, 24h+ ahead, inside the PIESA window); the earliest three, so the booked
   // day sits inside the ESC notice window (24 hours to 5 days before the start) whatever weekday the run starts on.
   const idays = await import("./install-days.server");

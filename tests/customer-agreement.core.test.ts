@@ -64,12 +64,28 @@ describe("G7: render-time wording B and the PIESA amount", () => {
 describe("Customer Agreement v1.4 (Jo 5 Nov 2026: 50% deposit)", () => {
   test("only the deposit % changes; interest and refund rule stay", async () => {
     const { CUSTOMER_AGREEMENT_V1_3: v13, CUSTOMER_AGREEMENT_V1_4: v14, CUSTOMER_AGREEMENT_VERSION } = await import("../src/lib/customer-agreement.core");
-    expect(CUSTOMER_AGREEMENT_VERSION).toBe("1.4");
+    expect(CUSTOMER_AGREEMENT_VERSION).toBe("1.5"); // Jo 6 Nov 2026: v1.5 is current; v1.4 stays as the approved 5 Nov record
     expect(v14).toContain("(PIESA), 50% to book your install day, and the rest on install day.");
     expect(v14).toContain("- 50% deposit: refunded if you cancel at least 2 business days before your install day.");
     expect(v14).toContain("50% deposit to book your install day | {deposit}");
     expect(v14).toContain("(currently 10% a year)");
     expect(v14.match(/10 ?%/g)).toEqual(["10%"]); // the interest line only
     expect(v14.replace(/50%/g, "10%")).toBe(v13);
+  });
+});
+
+describe("Customer Agreement v1.5 (Jo 6 Nov 2026: the deposit named, no percentage)", () => {
+  test("only the three deposit lines change from v1.4; interest and refund rule stay; no percentage near the deposit", async () => {
+    const { CUSTOMER_AGREEMENT_V1_4: v14, CUSTOMER_AGREEMENT_V1_5: v15, CUSTOMER_AGREEMENT_CURRENT, AGREEMENT_V1_5_CHANGES } = await import("../src/lib/customer-agreement.core");
+    expect(CUSTOMER_AGREEMENT_CURRENT).toBe(v15);
+    expect(v15).toContain("(PIESA), then your deposit to book your install day, and the rest on install day.");
+    expect(v15).toContain("- Deposit: refunded if you cancel at least 2 business days before your install day. Not refunded after that.");
+    expect(v15).toContain("Once you're clear to install\\nDeposit to book your install day | {deposit}");
+    expect(v15).toContain("(currently 10% a year)");
+    expect(v15.match(/\d+ ?%/g)).toEqual(["10%"]); // the interest line only: no percentage in any deposit wording
+    expect(v15).not.toMatch(/50 ?%/);
+    // Word for word v1.4 otherwise: undoing the three changes gives v1.4 back.
+    const back = AGREEMENT_V1_5_CHANGES.reduce((b, [from, to]) => b.replace(to, from), v15);
+    expect(back).toBe(v14);
   });
 });

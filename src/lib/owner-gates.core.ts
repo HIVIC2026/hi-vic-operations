@@ -1,7 +1,7 @@
 // Owner paperwork gates A–D. Pure: one catalogue + one evaluator shared by every journey (web, installer single, bulk J1, bulk J2).
 // Wording that Jo has not approved is a clearly marked DRAFT slot: usable on TEST jobs only, blocks real jobs.
 
-import { CUSTOMER_AGREEMENT_V1_4, paymentTermsPart } from "./customer-agreement.core";
+import { CUSTOMER_AGREEMENT_V1_5, paymentTermsPart } from "./customer-agreement.core";
 
 export type Gate = "A" | "B" | "C" | "D";
 export const GATE_LABEL: Record<Gate, string> = {
@@ -42,12 +42,12 @@ export type GateDoc = {
 
 const DRAFT = "DRAFT — wording pending Jo's approval. Not for use on real jobs.";
 
-/** The payment terms page of Customer Agreement v1.4 (v1.3 approved 2 Nov 2026; v1.4 = 50% deposit, Jo 5 Nov 2026), as plain owner-readable text: the agreement's
+/** The payment terms page of Customer Agreement v1.5 (v1.3 approved 2 Nov 2026; v1.4 = 50% deposit, 5 Nov 2026; v1.5 = the deposit with no percentage, Jo 6 Nov 2026), as plain owner-readable text: the agreement's
  *  markup ("## " headings, "$ " money rows, " | " separators, literal "\\n") is turned into plain lines, every approved word kept.
- *  Agreement placeholders map to the amounts `paymentPlan()` charges: {safety_check} = {fee}, {deposit} = {deposit} (50% of
- *  total − fee), {rest} = {balance}, {your_price} = {total}. The "Job … · owner · address" line is left out (job details are
+ *  Agreement placeholders map to the amounts `paymentPlan()` charges: {safety_check} = {fee}, {deposit} = {deposit} (the install
+ *  deposit paymentPlan() works out), {rest} = {balance}, {your_price} = {total}. The "Job … · owner · address" line is left out (job details are
  *  not a payment-terms placeholder). Amounts always come from the server, never from owner answers. */
-export const PAYMENT_TERMS_VERSION = "customer-agreement-1.4"; // Jo 5 Nov 2026: 50% deposit (1.3 said 10%)
+export const PAYMENT_TERMS_VERSION = "customer-agreement-1.5"; // Jo 6 Nov 2026: the deposit with no percentage (1.4 said 50%, 1.3 said 10%)
 const PT_PLACEHOLDERS: Record<string, string> = { safety_check: "{fee}", deposit: "{deposit}", rest: "{balance}", your_price: "{total}" };
 export function paymentTermsPlain(markup: string): string {
   const blocks: string[] = [];
@@ -71,7 +71,7 @@ export function paymentTermsPlain(markup: string): string {
   }
   return blocks.join("\n\n");
 }
-export const PAYMENT_TERMS_BODY = paymentTermsPlain(paymentTermsPart(CUSTOMER_AGREEMENT_V1_4));
+export const PAYMENT_TERMS_BODY = paymentTermsPlain(paymentTermsPart(CUSTOMER_AGREEMENT_V1_5));
 
 /** What an owner sees for a document version: the stored id without a leading "lawyer-" (owner paperwork never says lawyer). Display only; never use for matching. */
 export function ownerVersionLabel(v: string | null | undefined): string {
@@ -186,7 +186,7 @@ export const GATE_DOCS: GateDoc[] = [
   // the retired 50/50 instalment choice of "jo-2026-10-21" (signed copies keep their stored text as history). No option is
   // chosen. New wording = NEW version, so it stays unapproved (DRAFT: TEST jobs only) until Jo approves it in Settings ›
   // Owner paperwork (owner_paperwork_approvals row for this exact version + body). Draft copy:
-  // docs/templates/owner/owner-payment-terms-customer-agreement-1.4.md.
+  // docs/templates/owner/owner-payment-terms-customer-agreement-1.5.md.
   {
     key: "payment_terms",
     gate: "B",

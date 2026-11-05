@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, test } from "bun:test";
 import { PGlite } from "@electric-sql/pglite";
 import { readFileSync } from "node:fs";
-import { CUSTOMER_AGREEMENT_V1_3, CUSTOMER_AGREEMENT_V1_4 } from "../src/lib/customer-agreement.core";
+import { CUSTOMER_AGREEMENT_V1_3, CUSTOMER_AGREEMENT_V1_4, CUSTOMER_AGREEMENT_V1_5 } from "../src/lib/customer-agreement.core";
 
 const read = (f: string) => readFileSync(new URL(`../docs/pending-migrations/${f}`, import.meta.url), "utf8");
 const JO = "950fa0b6-dc44-49af-a754-6a65f26a661e";
@@ -103,5 +103,27 @@ describe("Customer Agreement v1.4 — 50% deposit (Jo 5 Nov 2026, practice datab
     await db.exec(read("customer-agreement-v1-4.rollback.sql"));
     const r = await q("select version, is_active from compliance_templates where template_key='customer_agreement' order by version");
     expect(r.rows).toEqual([{ version: "1.3", is_active: true }]);
+  });
+});
+
+describe("Customer Agreement v1.5 — the deposit named, no percentage (Jo 6 Nov 2026, practice database)", () => {
+  const apply4 = () => db.exec(read("customer-agreement-v1-4.sql"));
+  const apply5 = () => db.exec(read("customer-agreement-v1-5.sql"));
+  beforeEach(async () => { await apply(); await apply4(); await apply5(); });
+  test("v1.5 is the one active row; v1.3 and v1.4 stay, unchanged, as history", async () => {
+    const r = await q("select version, approved, is_active, body from compliance_templates where template_key='customer_agreement' order by version");
+    expect(r.rows.map((x) => [x["version"], x["approved"], x["is_active"]])).toEqual([["1.3", true, false], ["1.4", true, false], ["1.5", true, true]]);
+    expect(r.rows[0]!["body"]).toBe(CUSTOMER_AGREEMENT_V1_3);
+    expect(r.rows[1]!["body"]).toBe(CUSTOMER_AGREEMENT_V1_4);
+    expect(r.rows[2]!["body"]).toBe(CUSTOMER_AGREEMENT_V1_5);
+  });
+  test("running twice is safe", async () => {
+    await apply5();
+    expect((await q("select 1 from compliance_templates where template_key='customer_agreement'")).rows).toHaveLength(3);
+  });
+  test("rollback re-activates v1.4", async () => {
+    await db.exec(read("customer-agreement-v1-5.rollback.sql"));
+    const r = await q("select version, is_active from compliance_templates where template_key='customer_agreement' order by version");
+    expect(r.rows).toEqual([{ version: "1.3", is_active: false }, { version: "1.4", is_active: true }]);
   });
 });

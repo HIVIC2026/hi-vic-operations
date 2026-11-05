@@ -23,7 +23,7 @@ test('wording (upg-both.png #42, answer 21 step 2 is a draft for Jo)', () => {
   for (const s of [
     'Old wiring near the manhole', 'Missing safety switch',
     '1. Viking Electrical will quote the upgrades and book them with you directly. You pay them, not us.',
-    "2. You don't need to wait for the upgrades: confirm your safety check and pay your 50% deposit now, then Rapid Insulation will call you to book your install day.",
+    "2. You don't need to wait for the upgrades: confirm your safety check and pay your deposit now, then Rapid Insulation will call you to book your install day.",
     '$157.00 inc GST',
     'Confirm and pay my deposit: https://example.invalid/my-job/t?screen=clear',
     'The 30-day rule: Your insulation must be installed within 30 days of this check, or it has to be done again.',

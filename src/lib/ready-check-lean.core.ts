@@ -173,7 +173,9 @@ export const OUTCOME_FAILED = "No - Ready Check failed";
 export const OUTCOME_OPTIONS = [OUTCOME_PASSED, OUTCOME_FAILED] as const;
 export const FAIL_REASON_OPTIONS = ["Existing insulation is R2.0 or above", "Ceiling or roof built or replaced in the last 5 years", "No safe access to the ceiling", "Homeowner does not want to proceed", "Homeowner has not agreed to be contacted", "Other – explain in a note"] as const;
 export const INCLUDED_OPTIONS = ["Ceiling insulation - supply & install", "Removal of existing insulation", "Other"] as const;
-export const ELECTRICIAN_OPTIONS = ["Home Insulation Victoria electrician", "My usual electrician", "A different electrician"] as const;
+export const ELECTRICIAN_OPTIONS = ["Home Insulation Victoria electrician", "My electrician", "A different electrician"] as const;
+/** Pre-6 Nov 2026 wording of the second option; old form answers still read as "usual" (see mitti.core / usual-electrician.core). */
+export const ELECTRICIAN_USUAL_LEGACY = "My usual electrician";
 export const AREA_GROUP_BUTTON = "Add a ceiling area";
 
 /** Help texts shown under a question (never read by the portal). */

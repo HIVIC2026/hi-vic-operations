@@ -8,7 +8,7 @@ import { keptInsulationNotice } from "./kept-insulation.core";
 import { UPGRADES_LINE_B } from "./quote-wording.core";
 
 export const CUSTOMER_AGREEMENT_KEY = "customer_agreement";
-export const CUSTOMER_AGREEMENT_VERSION = "1.4"; // Jo 5 Nov 2026: 50% deposit (1.3 said 10%)
+export const CUSTOMER_AGREEMENT_VERSION = "1.5"; // Jo 6 Nov 2026: the deposit named with no percentage (1.4 said 50%, 1.3 said 10%)
 
 export type AgreementFacts = Record<
   | "owner_name" | "address" | "job_number" | "installer_name" | "installer_phone" | "installer_email" | "product"
@@ -101,8 +101,20 @@ export const CUSTOMER_AGREEMENT_V1_4 = AGREEMENT_V1_4_CHANGES.reduce((body, [fro
   if (body.split(from).length !== 2) throw new Error(`Customer Agreement v1.4: expected exactly one "${from}" in v1.3`);
   return body.replace(from, to);
 }, CUSTOMER_AGREEMENT_V1_3);
+/** Customer Agreement v1.5 (Jo 6 Nov 2026): v1.4 word for word except the three deposit lines, which no longer name a
+ *  percentage ("your deposit" / "Deposit"; the amount is {deposit}, worked out by the server). The "10% a year" penalty interest
+ *  line is NOT the deposit and stays. v1.4 above (approved and live 5 Nov 2026) is kept unchanged as the signed record. */
+export const AGREEMENT_V1_5_CHANGES: readonly (readonly [string, string])[] = [
+  ["(PIESA), 50% to book your install day, and the rest on install day.", "(PIESA), then your deposit to book your install day, and the rest on install day."],
+  ["- 50% deposit: refunded if you cancel", "- Deposit: refunded if you cancel"],
+  ["Once you're clear to install\\n50% deposit to book your install day", "Once you're clear to install\\nDeposit to book your install day"],
+];
+export const CUSTOMER_AGREEMENT_V1_5 = AGREEMENT_V1_5_CHANGES.reduce((body, [from, to]) => {
+  if (body.split(from).length !== 2) throw new Error(`Customer Agreement v1.5: expected exactly one "${from}" in v1.4`);
+  return body.replace(from, to);
+}, CUSTOMER_AGREEMENT_V1_4);
 /** The agreement new quotes use. */
-export const CUSTOMER_AGREEMENT_CURRENT = CUSTOMER_AGREEMENT_V1_4;
+export const CUSTOMER_AGREEMENT_CURRENT = CUSTOMER_AGREEMENT_V1_5;
 
 export const AGREEMENT_REMOVAL_LINE = "Remove your old insulation, if your quote says so.";
 export function applyKeptInsulation(body: string): string {

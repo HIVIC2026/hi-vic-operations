@@ -1,6 +1,9 @@
 import { num, norm } from "./mitti.core";
 
-export const MITTI_ELECTRICIAN_OPTIONS = ["Home Insulation Victoria electrician", "My usual electrician", "A different electrician"] as const;
+export const MITTI_ELECTRICIAN_OPTIONS = ["Home Insulation Victoria electrician", "My electrician", "A different electrician"] as const;
+/** Jo 6 Nov 2026: "My usual electrician" became "My electrician". Forms published before then (and any Mitti template not yet
+ *  re-worded) still answer with the old text, so it stays accepted as a legacy alias of the second option. */
+export const MITTI_USUAL_ELECTRICIAN_LEGACY = "My usual electrician";
 export type MittiElectricianOption = "hivic" | "usual" | "different";
 /** Declared by the installer under My business (decisions 157/173); email/phone (decision 303) let the portal invite that
  *  electrician to onboard when they are not an approved REC yet. Declared, not verified. Decision 369 (Jo 25 Oct 2026):
@@ -8,13 +11,13 @@ export type MittiElectricianOption = "hivic" | "usual" | "different";
  *  only rate. `priceIncGst` is kept only on records saved before then (history / legacy reads); new saves have none. */
 export type UsualElectrician = { name: string; licence: string; priceIncGst?: number | null; email?: string | null; phone?: string | null };
 export const USUAL_ELECTRICIAN_EVENT = "installer_usual_electrician_saved";
-export const MISSING_USUAL_ELECTRICIAN = "Installer has no usual electrician saved";
+export const MISSING_USUAL_ELECTRICIAN = "Installer has no electrician saved";
 export const MITTI_INSTALLER_FEE_INC_GST = 349;
 export const MITTI_HIV_ELECTRICIAN_INC_GST = 349;
 
 export function electricianOption(value: string | null | undefined): MittiElectricianOption | null {
   const v = norm(value);
-  const i = MITTI_ELECTRICIAN_OPTIONS.findIndex((o) => norm(o) === v);
+  const i = v === norm(MITTI_USUAL_ELECTRICIAN_LEGACY) ? 1 : MITTI_ELECTRICIAN_OPTIONS.findIndex((o) => norm(o) === v);
   return i === 0 ? "hivic" : i === 1 ? "usual" : i === 2 ? "different" : null;
 }
 

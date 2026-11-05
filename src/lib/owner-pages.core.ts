@@ -67,8 +67,8 @@ export const P2 = {
   tick2For: thirtyDayTick,
   tick2: thirtyDayTick("$349"),
   /** The safety-check amount is $349 unless the job's electrician is on a different rate (e.g. $220). */
-  howYouPayFor: (safetyCheck: string) => `How you pay: ${safetyCheck} now for the electrical safety check (PIESA). 50% to book your install day. The rest on install day. Card or bank transfer, no fees.`,
-  howYouPay: "How you pay: $349 now for the electrical safety check (PIESA). 50% to book your install day. The rest on install day. Card or bank transfer, no fees.",
+  howYouPayFor: (safetyCheck: string) => `How you pay: ${safetyCheck} now for the electrical safety check (PIESA). Your deposit to book your install day. The rest on install day. Card or bank transfer, no fees.`,
+  howYouPay: "How you pay: $349 now for the electrical safety check (PIESA). Your deposit to book your install day. The rest on install day. Card or bank transfer, no fees.",
   timing: "Your install will be done within 30 days of your electrical safety check (PIESA). Your installer will confirm the day with you. Most installs are finished on the day they start.",
   signLabel: "Your full name",
   signSub: "Typing your name here is your signature. We record the time and the exact document you signed.",
@@ -86,7 +86,7 @@ export const P3 = {
   kicker: "STEP 1 OF 2 · BOOK YOUR INSTALL",
   /** "Tuesday 11 November, arriving 7:30am" */
   title: (startsAt: string) => `${weekdayDate(startsAt)}, arriving ${clock(startsAt)}`,
-  sub: (deposit: string | null) => `To lock this in: sign the consent below${deposit ? `, then pay your 50% deposit (${deposit})` : ""}. Takes about a minute.`,
+  sub: (deposit: string | null) => `To lock this in: sign the consent below${deposit ? `, then pay your deposit (${deposit})` : ""}. Takes about a minute.`,
   whyLead: "Why we need this:",
   why: " the Victorian Government requires us to tell the Essential Services Commission about every insulation install before it happens, so safety regulators can check the work. This is your consent for us to share the details below with them. It's the Commission's own form.",
   formEyebrow: "OWNER'S CONSENT · ESSENTIAL SERVICES COMMISSION",

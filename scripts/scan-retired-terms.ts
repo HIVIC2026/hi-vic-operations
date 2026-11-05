@@ -7,7 +7,7 @@ const ROOT = new URL("..", import.meta.url).pathname;
 type Kind = "customer-visible" | "test-only" | "doc-only" | "internal-identifier";
 type Hit = { file: string; line: number; term: string; kind: Kind; action: string };
 
-type Term = { term: string; re: RegExp; action: string; strict?: boolean };
+type Term = { term: string; re: RegExp; action: string; strict?: boolean; quoted?: boolean };
 // Global owner wording rules (Jo 2 Nov 2026, docs/hiv-touchpoint-decisions-2026-11-02.md). Strict in all src, comments included.
 export const OWNER_WORDING_TERMS: Term[] = [
   { term: "Thousands of Victorians", re: /Thousands of Victorians/g, action: 'Delete; keep "Spots are released in the order they were saved."', strict: true },
@@ -50,7 +50,7 @@ const TERMS: Term[] = [
   // Jo 5 Nov 2026: the install deposit is 50% of the price after the $349 (was 10%). The old 50%-before-PIESA rule stays
   // retired through its specific phrases below (Waiting on 50% deposit…, Owner to pay 50%…, AmountPaid >= 50%, total / 2).
   // strict = fails in ANY src file, comments included.
-  { term: "10% install deposit", re: /\b10 ?% (install(ation)? )?deposit|\b10 ?% to book|\b10 ?% of the (rest|install price)|deposit \(10 ?%\)|\(10 ?%\) to book|\b90 ?% balance/gi, action: "Jo 5 Nov 2026: say the 50% deposit", strict: true },
+  { term: "10% install deposit", re: /\b10 ?% (install(ation)? )?deposit|\b10 ?% to book|\b10 ?% of the (rest|install price)|deposit \(10 ?%\)|\(10 ?%\) to book|\b90 ?% balance/gi, action: "Jo 5 Nov 2026: the deposit is 50%; owners read \"your deposit\" (Jo 6 Nov 2026), never a percentage", strict: true },
   { term: "50% of this invoice", re: /50 ?% of (this|the) invoice/gi, action: "Retired: the deposit is 50% of the price after the $349, not of the invoice", strict: true },
   { term: "total / 2", re: /total(_inc_gst)?\)? ?\/ ?2\b/g, action: "Deposit is the configured minimum (requiredDepositCents)", strict: true },
   { term: "deposit_pct: 0.5", re: /deposit_pct:? ?0?\.50*\b|deposit_pct \?\? 0\.5/g, action: "Deposit % comes from depositPctFor", strict: true },
@@ -93,8 +93,8 @@ const TERMS: Term[] = [
   // Decisions 283/285 (Jo 25 Oct 2026): no priority number and no chip panel on Enquiries.
   { term: "Enquiries priority number / chip panel", re: /1 = hottest|Pick as many as you like · every column is sortable · 1/g, action: "Decisions 283/285: sort hottest first silently; headings filter (286)" },
   // Batch 3a (Jo 29 Oct 2026): the payment steps are safety check, fixes, install deposit (50% since Jo 5 Nov 2026), balance. No deposit tiers, no plan, no Xero deposit request.
-  { term: "3-instalment plan", re: /3-instalment plan/gi, action: "Retired: payment steps are safety check, fixes, 50% install deposit, balance" },
-  { term: "minimum upfront deposit", re: /minimum upfront deposit/gi, action: "Retired: say the 50% install deposit" },
+  { term: "3-instalment plan", re: /3-instalment plan/gi, action: "Retired: payment steps are safety check, fixes, install deposit, balance" },
+  { term: "minimum upfront deposit", re: /minimum upfront deposit/gi, action: "Retired: say the install deposit" },
   { term: "deposit request in Xero", re: /deposit request in Xero|requested in Xero/gi, action: "Retired: no Xero deposit request step (decisions 139-144)" },
   // Batch 3b (Jo 29 Oct 2026): fixes and repeat safety checks have their own invoices; nothing is added to the install invoice.
   { term: "fixes / repeat added to the Xero invoice", re: /(?:fixes|repeat (?:safety check|PIESA))[^.\n]{0,60}added (?:as (?:one|a) line )?to the (?:same |ONE |job's )?(?:Xero )?invoice|add (?:it|the fixes|the repeat[^.\n]{0,20}) to the SAME Xero invoice/gi, action: "Retired: fixes and repeat checks are their own invoices (batch 3b)" },
@@ -105,6 +105,12 @@ const TERMS: Term[] = [
     re: /\$220 lead fee/gi,
     action: "Not a live rule unless in the current signed agreement",
   },
+  // Jo 6 Nov 2026: owners, installers and the office read "your deposit" / "the deposit" (never a percentage) and
+  // "electrician" (never "usual electrician"). Fails on quoted strings in src/ and on templates; comments and names may stay.
+  { term: "10% deposit", re: /10 ?% deposit/gi, action: 'Say "your deposit" / "the deposit" (Jo 6 Nov 2026); never a percentage', quoted: true },
+  { term: "50% deposit", re: /50 ?% deposit/gi, action: 'Say "your deposit" / "the deposit" (Jo 6 Nov 2026); never a percentage', quoted: true },
+  { term: "50% to book / install deposit / of the", re: /50 ?% (?:to book|install deposit|of the)/gi, action: 'Say "your deposit" / "the deposit" / "deposit" (Jo 6 Nov 2026); never a percentage, amounts stay', quoted: true },
+  { term: "usual electrician", re: /usual electricians?\b/gi, action: 'Say "electrician" (Jo 6 Nov 2026); the legacy Mitti answer text stays only as an alias', quoted: true },
 ];
 
 // Approved exceptions: locked Xero reference and already-signed agreement texts (see project rules).
@@ -113,9 +119,10 @@ const ALLOWED = [/business_unit/, /'hivic'/];
 // and Mitti question labels that the label-based sync parser matches on.
 const RETAINED: { file: RegExp; re: RegExp; why: string }[] = [
   { file: /./, re: /"HIVIC-[A-Z-]+"/, why: "Internal rule code" },
-  // Jo 5 Nov 2026: Customer Agreement v1.3 (signed by owners, 10% deposit) is kept word for word as the signed record, and
-  // v1.4 is built from it by AGREEMENT_V1_4_CHANGES; the PDF keeps v1.3's "10% deposit:" bold lead so signed copies still render.
-  { file: /^src\/lib\/customer-agreement(\.core|-pdf\.server)\.ts$/, re: /10 ?% (deposit|to book)/, why: "Signed Customer Agreement v1.3 record and its v1.4 change list" },
+  // Jo 5–6 Nov 2026: Customer Agreement v1.3 (signed by owners, 10% deposit) and v1.4 (approved and live 5 Nov 2026, 50%
+  // deposit) are kept word for word as history: v1.4 is built from v1.3 by AGREEMENT_V1_4_CHANGES and v1.5 (no percentage)
+  // from v1.4 by AGREEMENT_V1_5_CHANGES; the PDF keeps both bold leads so signed v1.3/v1.4 copies still render. v1.5 needs no exception.
+  { file: /^src\/lib\/customer-agreement(\.core|-pdf\.server)\.ts$/, re: /(?:10|50) ?% (deposit|to book)/, why: "Signed Customer Agreement v1.3 / v1.4 records and their change lists (new version needed)" },
   {
     file: /^src\/lib\/mitti-forms\.core\.ts$/,
     re: /HI VIC/,
@@ -124,6 +131,10 @@ const RETAINED: { file: RegExp; re: RegExp; why: string }[] = [
   // Signed texts: any wording change needs a new version so earlier signatures keep their exact text.
   { file: /^src\/lib\/(installer|rec)-agreement\.text\.ts$/, re: /VEU discount/, why: "Signed partner agreement text (new version needed)" },
   { file: /^src\/lib\/owner-gates\.core\.ts$/, re: /^\s*body: "I (?:accept this quote|assign to DC Construction).*VEU discount/, why: "Signed owner gate bodies quote_acceptance and veec_assignment_consent (new version needed)" },
+  // Jo 6 Nov 2026 wording: the old Mitti answer text is still accepted as a legacy alias; history and audit lines are never rewritten.
+  { file: /^src\/lib\/(?:usual-electrician|ready-check-lean|mitti)\.core\.ts$/, re: /"My usual electrician"/, why: "Legacy Mitti answer text kept as an alias" },
+  { file: /^src\/lib\/(?:electrician-choice\.core|signup-electrician\.server|rec-auto-link\.server|mitti-electrician\.server)\.ts$/, re: /(?:summary|Summary|logEvent|the installer's usual electrician\$\{)/, why: "History / audit line (never rewritten)" },
+  { file: /^src\/lib\/(?:payments\.server|deposit-request\.server|install-booked-email\.server)\.ts$/, re: /(?:once\("install_deposit_received"|summary:'|logEvent\()/, why: "History / audit line (never rewritten)" },
 ];
 const SKIP_DIRS = new Set([
   "node_modules",
@@ -145,13 +156,15 @@ const SELF = new Set([
   "src/routeTree.gen.ts",
 ]);
 
-function kindOf(file: string, text: string, strict = false): Kind {
+function kindOf(file: string, text: string, strict = false, quoted?: RegExp): Kind {
   if (file.startsWith("tests/")) return "test-only";
   if (file.startsWith("docs/") || file.endsWith(".md")) return "doc-only";
   const line = text.trim();
   if (RETAINED.some((r) => r.file.test(file) && r.re.test(text))) return "internal-identifier";
   if (strict && /^(src|scripts)\//.test(file)) return "customer-visible";
   if (/^(\/\/|\*|\/\*|--)/.test(line)) return "internal-identifier";
+  // `quoted` terms: a hit inside a string literal (or JSX text) of src/scripts is customer-visible; a comment is not.
+  if (quoted && /^(src|scripts)\//.test(file) && new RegExp(`["'\`>][^"'\`<]*(?:${quoted.source})`, "i").test(text.replace(/\s\/\/ .*$/, ""))) return "customer-visible";
   if (/^src\/(routes|components)\/.*\.tsx$/.test(file)) return "customer-visible";
   if (/["'`>][^"'`<]*HI ?VIC|HI ?VIC[^"'`<]*["'`<]/.test(text) || file.endsWith(".html"))
     return "customer-visible";
@@ -191,7 +204,7 @@ export function scan(): Hit[] {
                 file,
                 line: i + 1,
                 term: t.term,
-                kind: kindOf(file, text, t.strict),
+                kind: kindOf(file, text, t.strict, t.quoted ? t.re : undefined),
                 action: t.action,
               });
           }

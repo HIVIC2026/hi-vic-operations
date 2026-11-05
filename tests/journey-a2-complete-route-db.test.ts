@@ -450,7 +450,7 @@ describe("A2 step 6 — the electrician's safety check (PIESA) with NO repair wo
 describe("A2 step 7 — the owner confirms the safety check, then the install day is agreed and booked (decisions 296/325)", () => {
   test("the owner pays the 10% deposit by card first (Jo 26 Oct 2026: install days are offered once it's paid; main #123 gate)", async () => {
     const af = await import("../src/lib/allocation.functions");
-    await expect(af.installerOfferInstallDays({ data: { jobId: JOB, days: [{ day: "2026-12-01", time: "08:00" }] }, context: instCtx })).rejects.toThrow(/10% deposit/);
+    await expect(af.installerOfferInstallDays({ data: { jobId: JOB, days: [{ day: "2026-12-01", time: "08:00" }] }, context: instCtx })).rejects.toThrow(/Waiting for the owner's deposit/);
     const ol = await import("../src/lib/owner-link.functions");
     const token = await ownerToken();
     const r = await ol.ownerCardCheckoutFn({ data: { token } }) as { url?: string; blocker?: string };

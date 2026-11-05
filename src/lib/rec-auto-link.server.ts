@@ -35,7 +35,7 @@ export async function autoLinkApprovedRec(recBusinessId: string, actorId: string
 
   // (a) every installer's saved usual electrician (latest config event per business)
   const { data: usualEvs, error: ue } = await admin.from("admin_config_events").select("details, created_at").eq("event_type", USUAL_ELECTRICIAN_EVENT).order("created_at", { ascending: false }).limit(5000);
-  if (ue) throw new Error("Could not read installers' usual electricians.");
+  if (ue) throw new Error("Could not read installers' electricians.");
   const usualBy = new Map<string, ReturnType<typeof usualElectrician>>();
   for (const e of usualEvs ?? []) {
     const d = e.details as { business_id?: string; electrician?: unknown } | null;
@@ -84,7 +84,7 @@ export async function autoLinkApprovedRec(recBusinessId: string, actorId: string
     }
     // Record the installer's usual electrician as the approved REC (append-only; latest wins for reads).
     const { error } = await admin.from("admin_config_events").insert({ actor_id: actorId, event_type: USUAL_ELECTRICIAN_EVENT, summary: `Usual electrician linked to approved REC ${recName} on approval (decision 303)`, details: { business_id: plan.installerBusinessId, electrician: plan.electrician, source: AUTO_LINK_SOURCE, rec_business_id: recBusinessId, via: plan.via } });
-    if (error) throw new Error("Could not link the installer's usual electrician.");
+    if (error) throw new Error("Could not link the installer's electrician.");
     // Lift the hold on this installer's open jobs by re-running the pipeline (re-priced PIESA line, draft stays on Quotes to check).
     const theirJobs = openJobs.filter((j) => j.originating_installer_business_id === plan.installerBusinessId).map((j) => j.id);
     let ready = 0;

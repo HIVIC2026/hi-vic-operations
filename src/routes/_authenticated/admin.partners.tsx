@@ -46,7 +46,7 @@ function Partners() {
   const d = q.data;
   const tabs: OfficeTabDef<Tab>[] = [
     { key: "applications", label: "Applications", count: d?.applications.length ?? null, why: "application queue rule; 107 welcome on approval" },
-    { key: "approved", label: "Approved", count: d?.approved.length ?? null, why: "audit §5 business file; 153 CII, 193 insurance re-check, 157 usual electrician" },
+    { key: "approved", label: "Approved", count: d?.approved.length ?? null, why: "audit §5 business file; 153 CII, 193 insurance re-check, 157 electrician" },
     { key: "people", label: "People", count: d?.people.length ?? null, why: "153 CII, 130 privacy notice, 22/188 Mitti invite per person" },
     { key: "rates", label: "Rates", count: d?.rates.length ?? null, why: "approved partner rates rule; 142 electrician rate card" },
     { key: "coverage", label: "Coverage", count: d?.coverage.length ?? null, why: "decision 229: Coverage kept; Choose installer filters by coverage" },
@@ -104,7 +104,7 @@ function Approved({ d }: { d: Board }) {
   const sweep = useAction(runPartnerExpirySweep);
   const installers = d.approved.filter((b) => b.kind === "Installer").length;
   return (
-    <section data-why="audit §5 business file; 153 CII, 193 insurance re-check, 157 usual electrician">
+    <section data-why="audit §5 business file; 153 CII, 193 insurance re-check, 157 electrician">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <TabCaption>{d.approved.length} businesses · {installers} installer{installers === 1 ? "" : "s"}, {d.approved.length - installers} electrician{d.approved.length - installers === 1 ? "" : "s"}</TabCaption>
         <Btn tone="secondary" data-why="decision 193: PL insurance and licences re-checked" onClick={() => void sweep(undefined as never, "Expiry check complete")}>Check expiries</Btn>

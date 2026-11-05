@@ -7,7 +7,7 @@ const RETIRED = [/3-instalment plan/i, /minimum upfront deposit/i, /deposit requ
 describe("retired payment wording (batch 3a task 4)", () => {
   test("acceptance record uses the approved line", () => {
     const s = read("src/lib/portal.functions.ts");
-    expect(s).toContain("safety check paid at acceptance; electrical fixes in full if needed; 50% install deposit to book the install; balance on installation day.");
+    expect(s).toContain("safety check paid at acceptance; electrical fixes in full if needed; install deposit to book the install; balance on installation day.");
     for (const re of RETIRED) expect(s).not.toMatch(re);
   });
   test("Xero office notes name today's steps", () => {

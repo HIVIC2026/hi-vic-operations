@@ -49,7 +49,7 @@ describe("signed acceptance PDF v2", () => {
     expect(r.layout.split).toEqual([]);
     const [p1] = await pdfText(r.bytes);
     for (const s of ["Signed acceptance of your quote", "Signed online on Sun 8 Nov 2026, 7:42pm (Melbourne time)", "Yes, 40 m²", "Not included. Your electrician quotes these if the safety check finds any.",
-      "How you pay: $349 now for the electrical safety check (PIESA). 50% to book your install day. The rest on install day.", AP_COUNTERSIGNER.name, AP_COUNTERSIGNER.role,
+      "How you pay: $349 now for the electrical safety check (PIESA). Your deposit to book your install day. The rest on install day.", AP_COUNTERSIGNER.name, AP_COUNTERSIGNER.role,
       "Version 1.3, 2 Nov 2026", "Bradford Gold R5.0 ceiling batts, 137 m², supplied and installed", "$3,798.00", "$1,610.00", "$2,188.00", "What Sarah agreed to",
       ...ACCEPTANCE_TICKS, "Sarah Brown", "8 Nov 2026, 7:42pm"]) expect(flat(p1!)).toContain(flat(s));
     for (const s of ["Old insulation removal", "Electrical upgrades", "Owner signature (typed online)", "Signed for Home Insulation Victoria", "Customer Agreement and payment terms"]) expect(flat(p1!)).toContain(flat(s));

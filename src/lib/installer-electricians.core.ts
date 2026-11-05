@@ -125,7 +125,7 @@ export function defaultPick(entries: PickerEntry[]): string | null {
 
 /** Quote hold (decision 303 / Jo 5 Nov 2026): the saved usual electrician is the same person when the LICENCE matches
  *  (case, spaces and dashes ignored). Names differ in practice ("ORLANDO POWERED" business vs "Peter orlando" person). */
-export const USUAL_CHANGED_REASON = "Usual electrician profile changed or is missing — sync the Ready Check and prepare a new quote";
+export const USUAL_CHANGED_REASON = "Electrician changed or missing — sync the Ready Check and prepare a new quote";
 export function usualElectricianChangedBlocker(usual: { licence: string | null } | null | undefined, saved: { licence: string | null } | null | undefined): string | null {
   return usual && saved && sameLicence(usual.licence, saved.licence) ? null : USUAL_CHANGED_REASON;
 }

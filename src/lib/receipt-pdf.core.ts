@@ -11,10 +11,10 @@ export type ReceiptInput = {
 export type ReceiptModel = { heading: string; paidLine: string; rows: { label: string; amount: string }[]; stillToPay: string; gstLine: string | null };
 
 export const SAFETY_CHECK_LABEL = "Electrical safety check (PIESA)";
-export const DEPOSIT_LABEL = "50% deposit";
+export const DEPOSIT_LABEL = "Deposit";
 const HEADING: Record<ReceiptStep, string> = { safety_check: "We've received your payment.", install_deposit: "We've received your deposit.", balance: "We've received your final payment." };
-const PAID_LINE: Record<ReceiptStep, string> = { safety_check: SAFETY_CHECK_LABEL, install_deposit: "50% deposit to book your install day", balance: "The rest of your price, due on install day" };
-const TODAY_LABEL: Record<ReceiptStep, string> = { safety_check: `${SAFETY_CHECK_LABEL}, paid today`, install_deposit: "50% deposit, paid today", balance: "Final payment, paid today" };
+const PAID_LINE: Record<ReceiptStep, string> = { safety_check: SAFETY_CHECK_LABEL, install_deposit: "Your deposit to book your install day", balance: "The rest of your price, due on install day" };
+const TODAY_LABEL: Record<ReceiptStep, string> = { safety_check: `${SAFETY_CHECK_LABEL}, paid today`, install_deposit: "Your deposit, paid today", balance: "Final payment, paid today" };
 
 /** GST inside a GST-inclusive amount (one eleventh), rounded half up to the cent. */
 const gstInside = (cents: number) => Math.floor(cents / 11 + 0.5);

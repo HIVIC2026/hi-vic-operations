@@ -11,7 +11,7 @@ export async function readUsualElectrician(businessId: string) {
   const { data, error } = await admin.from("admin_config_events").select("id, details")
     .eq("event_type", USUAL_ELECTRICIAN_EVENT).contains("details", { business_id: businessId })
     .order("created_at", { ascending: false }).limit(1).maybeSingle();
-  if (error) throw new Error("Could not load your usual electrician.");
+  if (error) throw new Error("Could not load your electrician.");
   return { electrician: usualElectrician((data?.details as { electrician?: unknown } | null)?.electrician), revision: data?.id ?? null };
 }
 

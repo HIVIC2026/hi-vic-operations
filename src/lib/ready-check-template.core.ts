@@ -22,7 +22,7 @@ export const READY_CHECK_TEMPLATE_PRICING = [
   "YOUR PRICE TO THE OWNER",
   "The business owner enters the price, what it includes and the electrician on the job page in the portal — not here.",
   "Home Insulation Victoria does not mark this figure up: the owner's invoice is that price plus our $349 Accredited",
-  "Person fee and the chosen electrician's price (Home Insulation Victoria electrician: $349; usual electrician: saved price; different electrician: the price entered), less the rebate.",
+  "Person fee and the chosen electrician's price (Home Insulation Victoria electrician: $349; my electrician: saved price; different electrician: the price entered), less the rebate.",
 ].join("\n");
 
 const HINTS: Record<FormField["type"], string> = {

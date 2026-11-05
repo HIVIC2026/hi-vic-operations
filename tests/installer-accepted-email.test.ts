@@ -67,7 +67,7 @@ test("#36 office books: approved wording, no price at all (pack 1 items 13/14, J
     expect(b).toContain("Electrical upgrades, if needed");
     expect(b).toContain("Quote, book and invoice them with Sarah directly. Upload the Part C and Certificate of Electrical Safety before the install.");
     expect(b).toContain("Book the install");
-    expect(b).toContain("Call Sarah and add the install day and Lead Installer in the portal. Sarah pays her 50% deposit to lock it in. Install within 30 days of the PIESA.");
+    expect(b).toContain("Call Sarah and add the install day and Lead Installer in the portal. Sarah pays her deposit to lock it in. Install within 30 days of the PIESA.");
     for (const bad of ["offers", "3 install days", "Nothing for you to do"]) expect(b).not.toContain(bad);
     expect(b.match(/\$[\d,.]+/g) ?? []).toEqual([]); // no dollar figure anywhere on the installer's email
   }

@@ -20,7 +20,7 @@ describe("copy", () => {
     expect(CONFIRM_SIGN_PAY).toEqual({
       kicker: "ONE LAST STEP", title: "Confirm, sign and pay your deposit", step1: "Confirm your safety check", step2: "Sign the government consent form",
       step2Sub: "The law says we must tell the Essential Services Commission about every install before it happens. This is the Commission's own form.",
-      step3: "Pay your 50% deposit", nameLabel: "Type your full name to sign steps 1 and 2", card: "Sign and pay by card", bank: "Sign and pay by bank transfer", viewForm: "View the full form ›",
+      step3: "Pay your deposit", nameLabel: "Type your full name to sign steps 1 and 2", card: "Sign and pay by card", bank: "Sign and pay by bank transfer", viewForm: "View the full form ›",
       signOnly: "Sign", // DRAFT (fix round 1): the consent-only page's button
     });
   });

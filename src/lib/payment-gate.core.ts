@@ -282,7 +282,7 @@ export function piesaRequestBlockers(f: PiesaRequestFacts): string[] {
  *  transfer / PayID, day held 48h), balance on install day (bank transfer / PayID), or pay in full any time. No card fee is ever shown. */
 /** Decision 302: the same sentence with the quote's own safety check figure (e.g. $220 for an approved REC). */
 export const paymentOptionSummary = (safetyCheckIncGst: number) =>
-  `The $${safetyCheckIncGst.toLocaleString("en-AU", { maximumFractionDigits: 2 })} Pre Insulation Electrical Safety Assessment (PIESA) payment is needed before the electrician's Pre Insulation Electrical Safety Assessment (PIESA) is booked. Then 50% of the rest to book your install day and the balance on install day, or pay in full any time.`;
+  `The $${safetyCheckIncGst.toLocaleString("en-AU", { maximumFractionDigits: 2 })} Pre Insulation Electrical Safety Assessment (PIESA) payment is needed before the electrician's Pre Insulation Electrical Safety Assessment (PIESA) is booked. Then your deposit to book your install day and the balance on install day, or pay in full any time.`;
 export const PAYMENT_OPTION_SUMMARY =
-  "The $349 Pre Insulation Electrical Safety Assessment (PIESA) payment is needed before the electrician's Pre Insulation Electrical Safety Assessment (PIESA) is booked. Then 50% of the rest to book your install day and the balance on install day, or pay in full any time.";
+  "The $349 Pre Insulation Electrical Safety Assessment (PIESA) payment is needed before the electrician's Pre Insulation Electrical Safety Assessment (PIESA) is booked. Then your deposit to book your install day and the balance on install day, or pay in full any time.";
 export const PAYMENT_DECISION_STATUS = "decided_2026_10_26_flat_10_pct" as const;

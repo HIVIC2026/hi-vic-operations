@@ -735,7 +735,7 @@ export function contactAnswersFromEntries(entries: { label: string; value: strin
   };
   const raw = find(["Who is doing the electrical safety check?"]);
   const choice = norm(raw);
-  const electricianChoice = choice === norm("My usual electrician") ? "usual" as const : choice === norm("A different electrician") ? "different" as const : choice === norm("Home Insulation Victoria electrician") || choice === norm("Home Insulation Victoria organises one") ? "hivic" as const : /own electrician/i.test(raw ?? "") ? "own" as const : null;
+  const electricianChoice = choice === norm("My electrician") || choice === norm("My usual electrician") ? "usual" as const : choice === norm("A different electrician") ? "different" as const : choice === norm("Home Insulation Victoria electrician") || choice === norm("Home Insulation Victoria organises one") ? "hivic" as const : /own electrician/i.test(raw ?? "") ? "own" as const : null;
   return {
     phone: find(["Homeowner phone", "Owner phone"]),
     email: find(["Homeowner email", "Owner email"]),

@@ -7,7 +7,7 @@ import {
   paymentTermsMoney,
   paymentTermsText,
 } from "../src/lib/owner-gates.core";
-import { CUSTOMER_AGREEMENT_V1_4, paymentTermsPart } from "../src/lib/customer-agreement.core";
+import { CUSTOMER_AGREEMENT_V1_5, paymentTermsPart } from "../src/lib/customer-agreement.core";
 
 const money = paymentTermsMoney({
   quoteTotalCents: 218_800,
@@ -16,12 +16,12 @@ const money = paymentTermsMoney({
   balanceCents: 165_510,
 });
 
-describe("payment terms = the approved payment terms page of Customer Agreement v1.3", () => {
+describe("payment terms = the approved payment terms page of Customer Agreement v1.5 (Jo 6 Nov 2026: the deposit named, no percentage)", () => {
   test("payment terms carry the approved text, not the old fixes line", () => {
     expect(PAYMENT_TERMS_BODY).not.toMatch(/Electrical fixes|on their own invoice/);
     expect(PAYMENT_TERMS_BODY).toContain("If you need electrical upgrades, you pay your electrician directly. They're not part of our price.");
     expect(PAYMENT_TERMS_BODY).toContain("We'll remind you 1, 3 and 7 days after install day. After 7 days, your balance is overdue and we may pass it to a debt collector.");
-    expect(PAYMENT_TERMS_VERSION).toBe("customer-agreement-1.4");
+    expect(PAYMENT_TERMS_VERSION).toBe("customer-agreement-1.5");
     expect(GATE_DOCS.find((d) => d.key === "payment_terms")!.version).toBe(PAYMENT_TERMS_VERSION);
   });
   test("plain owner text: no agreement markup, no literal \\n, nothing unfilled, no 'lawyer'", () => {
@@ -33,7 +33,8 @@ describe("payment terms = the approved payment terms page of Customer Agreement 
     expect(text).not.toMatch(/lawyer/i);
     expect(PAYMENT_TERMS_BODY).not.toMatch(/lawyer/i);
     expect(text).toContain("Electrical safety check (PIESA): $349.00");
-    expect(text).toContain("50% deposit to book your install day: $183.90");
+    expect(text).toContain("Deposit to book your install day: $183.90");
+    expect(text).not.toMatch(/\d+ ?% (?:deposit|to book)/); // Jo 6 Nov 2026: no percentage in any deposit wording
     expect(text).toContain("The rest: $1,655.10");
     expect(text).toContain("Your price (incl. GST): $2,188.00");
   });
@@ -50,7 +51,7 @@ describe("payment terms = the approved payment terms page of Customer Agreement 
     ])
       expect(text).toContain(s);
     // every word of the agreement's payment page is in the owner text (placeholders aside)
-    const words = paymentTermsPart(CUSTOMER_AGREEMENT_V1_4)
+    const words = paymentTermsPart(CUSTOMER_AGREEMENT_V1_5)
       .replace(/\{\w+\}|\\n|^Job .*$/gm, " ")
       .replace(/[#>$|✓!⚡↩]/g, " ")
       .split(/\s+/)

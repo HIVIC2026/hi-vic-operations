@@ -204,7 +204,7 @@ const PIESA = "electrical safety check (PIESA)";
 const PAY_STEP_WORDS: Record<DueStep["key"], { what: string; how: string }> = {
   safety_check: { what: "safety check payment", how: "by card or bank transfer, with no fee" },
   fixes: { what: "electrical fixes payment", how: "by card or bank transfer, with no fee" },
-  install_deposit: { what: "booking payment (50%)", how: "by card, bank transfer or PayID" },
+  install_deposit: { what: "install deposit", how: "by card, bank transfer or PayID" },
   balance: { what: "balance", how: "by bank transfer or PayID" },
   repeat_safety_check: { what: "repeat safety check (PIESA) payment", how: "by card or bank transfer, with no fee" },
 };

@@ -10,11 +10,11 @@ export const ELECTRICIAN_CHOICE_EVENT = "electrician_choice_set";
 export type ElectricianChoice = "hivic" | "usual";
 export const ELECTRICIAN_CHOICE_QUESTION = "Electrical safety check by";
 export const ELECTRICIAN_CHOICE_HIVIC = "Home Insulation Victoria's electrician";
-export const usualElectricianOptionLabel = (name: string) => `My usual electrician (${name})`;
+export const usualElectricianOptionLabel = (name: string) => `My electrician (${name})`;
 export const ELECTRICIAN_CHOICE_ISSUES = {
   missing: "Choose who does the electrical safety check.",
-  usual: "Add your usual electrician under My business › Electrician first.",
-  notOnboarded: "Your usual electrician must be approved before they can be chosen.",
+  usual: "Add your electrician under My business › Electrician first.",
+  notOnboarded: "Your electrician must be approved before they can be chosen.",
 } as const;
 
 /** A3: the usual electrician as Add a job sees it — saved, and whether they are onboarded. */
@@ -96,6 +96,6 @@ export function priceCardElectricianLine(i: { team: { name: string; gone: boolea
 /** Plain read-only line for the job page / price card. */
 export function electricianChoiceLine(choice: "hivic" | "usual" | "different" | null, usual: Pick<UsualElectrician, "name"> | null | undefined, legacyName?: string | null): string {
   if (choice === "hivic" || choice === null) return "Choose your own electrician";
-  if (choice === "usual") return usual?.name ? usualElectricianOptionLabel(usual.name) : "My usual electrician (not saved yet — add them under My business)";
+  if (choice === "usual") return usual?.name ? usualElectricianOptionLabel(usual.name) : "My electrician (not saved yet — add them under My business)";
   return `A different electrician${legacyName ? ` (${legacyName})` : ""}`;
 }

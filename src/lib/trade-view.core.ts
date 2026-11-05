@@ -454,7 +454,7 @@ export function businessNext(f: BusinessNextFacts, today: string): BusinessNext 
   }
   if (!f.bankSaved) return { title: "Add your bank details", sub: "We can't pay you until we know where to send it.", button: "Add bank details", to: "/field/business/bank" };
   if (f.noticeOutstanding.length) return { title: `${f.noticeOutstanding.length === 1 ? `${f.noticeOutstanding[0]!.name} still has` : `${f.noticeOutstanding.length} people still have`} to acknowledge the ESC privacy notice`, sub: "Nobody can be put on an install day until they've ticked it themselves.", button: "Send the notice link", to: "/field/business/esc-notice" };
-  if (f.installer && !f.usualElectrician) return { title: "Add your usual electrician", sub: "Their name and licence number. We use them on your jobs once they're an approved electrician with us.", button: "Add my usual electrician", to: "/field/business/electrician" };
+  if (f.installer && !f.usualElectrician) return { title: "Add your electrician", sub: "Their name and licence number. We use them on your jobs once they're an approved electrician with us.", button: "Add my electrician", to: "/field/business/electrician" };
   if (f.ciiBlocked.length) return { title: `${f.ciiBlocked.map((p) => p.name).join(", ")} ${f.ciiBlocked.length === 1 ? "isn't" : "aren't"} cleared for installs yet`, sub: "Their CII certificate has to be verified by the office with its level and expiry recorded.", button: "See the team", to: "/field/business/team" };
   if (!f.agreementSigned) return { title: "Your agreement isn't signed yet", sub: "The office will send it to you to sign.", button: "See your agreement", to: "/field/business/agreement" };
   return null;

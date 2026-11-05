@@ -32,7 +32,7 @@ export async function quoteBillingBlocker(quoteId: string): Promise<string | nul
     // Join ruling (4 Nov 2026): a Team-electrician snapshot names the worker, not the My business usual electrician;
     // `mittiQuoteElectricalBlocker` below compares that identity and price with the current resolution.
     if (saved?.choice === "usual" && saved.source !== "team_worker") {
-      if (!j.originating_installer_business_id) return "Installer has no usual electrician saved";
+      if (!j.originating_installer_business_id) return "Installer has no electrician saved";
       // Jo 5 Nov 2026: compared with the installer's Main electrician (never ticked = the old saved usual electrician).
       const profile = await (await import("./installer-electricians.server")).readMainElectrician(j.originating_installer_business_id).catch(() => null);
       const usual = profile?.electrician;

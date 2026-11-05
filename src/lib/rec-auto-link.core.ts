@@ -43,7 +43,7 @@ export function autoLinkPlans(rec: ApprovedRecCandidate, installers: InstallerNo
     }
     if (!legacyHits.length) return { action: "none", installerBusinessId: i.installerBusinessId };
     if (i.usual) return { action: "conflict", installerBusinessId: i.installerBusinessId, installerName: i.installerName, existing: i.usual, jobIds,
-      reason: `${rec.trading_name ?? rec.name ?? "The REC"} was named on ${jobIds.length} job${jobIds.length === 1 ? "" : "s"} but ${i.installerName ?? "the installer"}'s saved usual electrician is ${i.usual.name} — the office decides; nothing was changed` };
+      reason: `${rec.trading_name ?? rec.name ?? "The REC"} was named on ${jobIds.length} job${jobIds.length === 1 ? "" : "s"} but ${i.installerName ?? "the installer"}'s saved electrician is ${i.usual.name} — the office decides; nothing was changed` };
     const first = legacyHits[0]!;
     return { action: "link", installerBusinessId: i.installerBusinessId, installerName: i.installerName, via: "legacy", jobIds,
       electrician: { name: (first.name ?? rec.trading_name ?? rec.name ?? "").trim(), licence: (first.licence ?? rec.rec_number ?? "").trim(), priceIncGst: rate } };
@@ -54,4 +54,4 @@ export function autoLinkPlans(rec: ApprovedRecCandidate, installers: InstallerNo
 export const recLinkedLine = (recName: string, installerName: string, quotesReady: number) =>
   `${recName} onboarded and linked to ${installerName} — ${quotesReady} quote${quotesReady === 1 ? "" : "s"} ready to check`;
 export const recConflictLine = (recName: string, installerName: string) =>
-  `${recName} onboarded — ${installerName} named them on a job but has a different usual electrician saved · office to decide`;
+  `${recName} onboarded — ${installerName} named them on a job but has a different electrician saved · office to decide`;

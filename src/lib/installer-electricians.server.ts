@@ -156,7 +156,7 @@ export async function mainElectricianNamesFor(installerIds: string[]): Promise<M
   const untouched = installerIds.filter((id) => !choices.has(id));
   for (let i = 0; i < untouched.length; i += 200) {
     for (let offset = 0; ; offset += 200) {
-      const page = ((await must(admin.from("admin_config_events").select("details, created_at").eq("event_type", USUAL_ELECTRICIAN_EVENT).in("details->>business_id", untouched.slice(i, i + 200)).order("created_at", { ascending: false }).range(offset, offset + 199), "Couldn't read the usual electricians")) ?? []) as { details: { business_id?: string; electrician?: unknown } | null }[];
+      const page = ((await must(admin.from("admin_config_events").select("details, created_at").eq("event_type", USUAL_ELECTRICIAN_EVENT).in("details->>business_id", untouched.slice(i, i + 200)).order("created_at", { ascending: false }).range(offset, offset + 199), "Couldn't read the electricians")) ?? []) as { details: { business_id?: string; electrician?: unknown } | null }[];
       for (const r of page) { const b = r.details?.business_id; if (b && !usual.has(b)) usual.set(b, usualElectrician(r.details?.electrician)); }
       if (page.length < 200) break;
     }
