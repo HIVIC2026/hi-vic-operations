@@ -64,7 +64,7 @@ test("View quote (PDF): own customers only, boss / Office with Money only; never
 
 test("the quote PDF carries the installer logo and the Home Insulation Victoria logo", async () => {
   const items = [{ code: "INSTALLER_PRICE", description: "Bradford Gold R5 supplied and installed", line_total_inc_gst: 2400 }, { code: "AP_FEE", description: "fee", line_total_inc_gst: 349 }, { code: "PIESA", description: "piesa", line_total_inc_gst: 349 }];
-  const blocks = ownQuotePdfBlocks({ jobNumber: "HV-9", owner: "Sam Lee", address: "1 Main St, Richmond VIC 3121", items, rebateIncGst: 1200, totalIncGst: 1898, status: "Sent to the owner" }, { bytes: signaturePng(), width: 240, height: 80, alt: "No Gap" });
+  const blocks = ownQuotePdfBlocks({ jobNumber: "HV-9", owner: "Sam Lee", address: "1 Main St, Richmond VIC 3121", items, rebateIncGst: 1200, totalIncGst: 1898, status: "Sent to the owner", product: "Bradford Gold R5", installM2: 80, removeM2: 0, quoteDate: "2026-11-05T23:00:00Z" }, { bytes: signaturePng(), width: 240, height: 80, alt: "No Gap" });
   const head = blocks[0]!;
   expect(head.kind).toBe("header"); // the header always draws Home Insulation Victoria's logo
   const { renderPdf } = await import("../src/lib/pdf-look.server");

@@ -88,7 +88,7 @@ function measure(b: PdfBlock, w: number, F: Fonts): number {
   switch (b.kind) {
     case "header": {
       const n = BUSINESS_LINES.length + (b.withAddress ? 1 : 0);
-      return Math.max(LOGO_H, n * (b.compact ? K_BIZ_LH : BIZ_LH)) + (b.compact ? K.headGap + K.eyebrowLh : 18.2 + 11.4);
+      return headerRowH(b, n * (b.compact ? K_BIZ_LH : BIZ_LH)) + (b.compact ? K.headGap + K.eyebrowLh : 18.2 + 11.4);
     }
     case "title": if (b.compact) return K.h1Top + lines(F.x, K.h1, b.text, w).length * K.h1Lh + (b.sub ? K.subGap + lines(F.r, K.sub, b.sub, w).length * K.subLh : 0) + K.titleBottom;
       return 2.8 + lines(F.x, H1, b.text, w).length * H1_LH + (b.sub ? 2.8 + lines(F.r, SUB, b.sub, w).length * SUB_LH : 0) + 11.2;
@@ -147,6 +147,12 @@ function drawRuns(page: PDFPage, ls: Run[][], x: number, top: number, F: Fonts, 
     segs.forEach((r, k) => { const f = r.bold ? F.b : F.r; if (k) cx += sp; text(page, r.s, cx, base(top - i * lh, lh, size), f, size, color); cx += tw(f, size, r.s); });
   });
 }
+// Co-brand header (Jo 5 Nov 2026 16:10): with the installer's logo, theirs sits top-left at our logo's height and ours sits
+// top-right with our details right-aligned under it; without one, the header is unchanged (our logo left, details right).
+const hasPartnerLogo = (b: { partnerLogo?: { bytes: Uint8Array; height: number } }) => !!(b.partnerLogo && b.partnerLogo.bytes.length && b.partnerLogo.height > 0);
+const PARTNER_GAP = 4;
+const headerRowH = (b: { partnerLogo?: { bytes: Uint8Array; height: number } }, bizH: number) => (hasPartnerLogo(b) ? LOGO_H + PARTNER_GAP + bizH : Math.max(LOGO_H, bizH));
+
 // Money rows (Jo 5 Nov 2026): labels wrap left of the amount (moneyLabelLines); a label that fits keeps the old height.
 type MoneyRow = { strong?: boolean; label: string; amount: string };
 const moneyParts = (r: MoneyRow, w: number, F: Fonts) => {
@@ -285,19 +291,22 @@ async function draw(b: PdfBlock, page: PDFPage, pageNo: number, x: number, top: 
   switch (b.kind) {
     case "header": {
       const logo = await X.logo();
-      page.drawImage(logo, { x, y: top - LOGO_H, width: LOGO_W, height: LOGO_H });
-      // Part 10 Task 7: the installer's logo beside ours (same height, width from its own ratio, capped); counted as a picture.
-      if (b.partnerLogo && b.partnerLogo.bytes.length && b.partnerLogo.height > 0) {
+      const partner = hasPartnerLogo(b);
+      const right = x + w - (b.compact ? R_INSET : 0);
+      // Without the installer's logo: ours on the left (unchanged). With it: ours top-right, theirs top-left (Jo 5 Nov 2026).
+      page.drawImage(logo, { x: partner ? right - LOGO_W : x, y: top - LOGO_H, width: LOGO_W, height: LOGO_H });
+      if (partner) {
         let img = X.images.get(`${b.id}:partner`);
-        if (!img) { img = await embedImage(X.pdf, b.partnerLogo.bytes); X.images.set(`${b.id}:partner`, img); }
-        const pw = Math.min(LOGO_H * (b.partnerLogo.width / b.partnerLogo.height), LOGO_W * 1.5);
-        page.drawImage(img, { x: x + LOGO_W + 12, y: top - LOGO_H, width: pw, height: LOGO_H });
+        if (!img) { img = await embedImage(X.pdf, b.partnerLogo!.bytes); X.images.set(`${b.id}:partner`, img); }
+        const pw = Math.min(LOGO_H * (b.partnerLogo!.width / b.partnerLogo!.height), LOGO_W * 1.5);
+        page.drawImage(img, { x, y: top - LOGO_H, width: pw, height: LOGO_H });
         imgs.push({ block: b.id, page: pageNo });
       }
       const biz = b.withAddress ? [...BUSINESS_LINES.slice(0, 3), BUSINESS_ADDRESS, ...BUSINESS_LINES.slice(3)] : [...BUSINESS_LINES];
       const bizSize = b.compact ? K_BIZ : BIZ, bizLh = b.compact ? K_BIZ_LH : BIZ_LH;
-      biz.forEach((l, i) => text(page, l, x + w - (b.compact ? R_INSET : 0), base(top - i * bizLh, bizLh, bizSize), F.r, bizSize, C.muted, { right: true }));
-      const rowH = Math.max(LOGO_H, biz.length * bizLh);
+      const bizTop = partner ? top - LOGO_H - PARTNER_GAP : top;
+      biz.forEach((l, i) => text(page, l, right, base(bizTop - i * bizLh, bizLh, bizSize), F.r, bizSize, C.muted, { right: true }));
+      const rowH = headerRowH(b, biz.length * bizLh);
       if (b.compact) text(page, b.eyebrow, x, base(top - rowH - K.headGap, K.eyebrowLh, 7.35), F.b, 7.35, C.blue, { spacing: 1.1 });
       else text(page, b.eyebrow, x, base(top - rowH - 18.2, 11.4, EYEBROW), F.b, EYEBROW, C.blue, { spacing: 1.23 });
       return;
