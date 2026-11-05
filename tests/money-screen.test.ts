@@ -20,8 +20,9 @@ describe("Money screen (approved mock-up)", () => {
     expect(MONEY_WORDS.sub).toBe("What's coming to you and what's been paid.");
     expect(MONEY_WORDS.coming).toBe("COMING TO YOU");
     expect(MONEY_WORDS.paidThisMonth).toBe("PAID THIS MONTH");
-    expect(MONEY_WORDS.hivicRule).toBe("Paid 7 days after we approve the install paperwork");
-    expect(MONEY_WORDS.ownRule("Tom")).toBe("Paid once Tom has paid in full");
+    // Part 5b (Jo 1–5 Nov 2026): leads 7 days after Home Insulation Victoria approves; own customers once the owner has paid in full.
+    expect(MONEY_WORDS.hivicRule).toBe("Paid 7 days after Home Insulation Victoria approves the paperwork");
+    expect(MONEY_WORDS.ownRule("Tom")).toBe("You're paid once Tom has paid in full");
   });
   test("tiles: coming = every unpaid row ($6,550 · 4 jobs); paid this month = rows paid in this Melbourne month", () => {
     const s = moneyScreen(rows, NOW);
@@ -31,8 +32,8 @@ describe("Money screen (approved mock-up)", () => {
   test("rows: title, plain rule, paid tick", () => {
     const s = moneyScreen(rows, NOW);
     const by = (n: string) => s.rows.find((r) => r.title.startsWith(n))!;
-    expect(by("HV-1219")).toEqual({ jobId: "j1", title: "HV-1219 · Ben Ross · install pay $3,000", rule: "Paid 7 days after we approve the install paperwork ›", paid: false });
-    expect(by("HV-1241")).toEqual({ jobId: "j2", title: "HV-1241 · Tom Nguyen · install pay $3,275", rule: "Paid once Tom has paid in full ›", paid: false });
+    expect(by("HV-1219")).toEqual({ jobId: "j1", title: "HV-1219 · Ben Ross · install pay $3,000", rule: "Paid 7 days after Home Insulation Victoria approves the paperwork ›", paid: false });
+    expect(by("HV-1241")).toEqual({ jobId: "j2", title: "HV-1241 · Tom Nguyen · install pay $3,275", rule: "You're paid once Tom has paid in full ›", paid: false });
     expect(by("HV-1234")).toEqual({ jobId: "j5", title: "HV-1234 · Sarah Brown · PIESA pay $275", rule: "Paid ✓ 3 Nov", paid: true });
     expect(by("HV-1250").rule).toBe(`${MONEY_WORDS.piesaRule} ›`);
     // Unpaid first (as the mock-up), then paid, newest paid first.

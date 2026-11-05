@@ -27,11 +27,17 @@ export async function setInstallDueDate(jobId: string, startIso: string, actorId
 export async function setCompletedBalanceDueDate(jobId:string,completedAt:string,actorId:string|null){
   const inv = await hivicInvoice(jobId);
   if (!inv) return;
-  const end=(await import('./balance-q21.core')).balanceDueAt(completedAt);if(!end)return;
+  // Part 5b (Jo 1–5 Nov 2026): due on install day; an install booked before the cutover keeps the legacy +7 days (pure rule).
+  const {data:booking,error:be}=await admin.from("bookings").select("created_at").eq("job_id",jobId).eq("kind","installation").in("status",["confirmed","completed"]).order("created_at",{ascending:false}).limit(1).maybeSingle();
+  if(be)throw new Error("Could not read the install booking for the balance due date.");
+  const core=await import('./balance-q21.core');
+  const facts={bookedAt:booking?.created_at??null};
+  const end=core.balanceDueAt(completedAt,facts);if(!end)return;
   const due = melbourneDate(end);
   const patch = installDueDatePatch(inv, due);
   if (!patch) return;
   await patchInvoice(inv.id, patch);
-  await logEvent(jobId, actorId, "balance_due_set", `Balance due on install day; overdue after 7 days (${due})${patch.xero_update_pending ? " – Xero due date update pending" : ""}`, { invoice_id: inv.id });
+  const rule=core.balanceRule({completedAt,...facts})==='install_day'?`Balance due on install day (${due})`:`Balance due 7 days after the install (${due}; install booked before the install-day rule)`;
+  await logEvent(jobId, actorId, "balance_due_set", `${rule}${patch.xero_update_pending ? " – Xero due date update pending" : ""}`, { invoice_id: inv.id });
 }
 

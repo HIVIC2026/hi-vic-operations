@@ -61,7 +61,7 @@ export const WORKFLOW_DECISIONS = {
     completionDocumentsWaitForBalance: false,
     // Part 4 Task 12 (Jo 2 Nov 2026, touchpoint 53): one reminder (email + text) on days 1, 3 and 7 after install day for whatever is
     // still undone (rebate form, balance); after day 7 no more owner messages, the job shows to the office as "Balance overdue".
-    // Replaces the balance day-5 / due emails and the separate rebate-form reminders. The balance is due on install day; overdue clock stays BALANCE_DUE_DAYS.
+    // Replaces the balance day-5 / due emails and the separate rebate-form reminders. The balance is due on install day (Part 5b: the due moment too, for installs booked after the cutover; the office overdue row stays after day 7).
     // Part 4 Task 13 (Jo 2 Nov 2026, answer 9, cl 27): faulty product / work notice. Office button only (Jo decides, same day), no automatic
     // trigger, no installer button; one email per note; compliance purpose, so Do not contact and Unsubscribe never block it.
     nonComplianceNotice: { purpose: "non_compliance_notice", trigger: "office_button", sameDay: true, flag: "NON_COMPLIANCE_NOTICE_APPROVED" },

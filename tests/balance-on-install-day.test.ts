@@ -29,9 +29,10 @@ describe("balance due on install day", () => {
     expect(src).not.toMatch(/replace\(\/the rest on install day\/gi/);
     expect(src).toContain("The balance is due on install day");
   });
-  test("owner due date = install day; overdue clock unchanged", () => {
+  test("owner due date = install day; Part 5b: the due moment is install day too (legacy +7 only for installs booked before the cutover)", () => {
     expect(BALANCE_DUE_DAYS).toBe(7);
     expect(balanceDueDay("2026-11-13T03:00:00Z")).toBe("2026-11-13");
-    expect(balanceDueAt("2026-11-13T03:00:00Z")!.startsWith("2026-11-20")).toBe(true);
+    expect(balanceDueAt("2026-11-13T03:00:00Z")!.startsWith("2026-11-13")).toBe(true);
+    expect(balanceDueAt("2026-11-13T03:00:00Z", { bookedAt: "2026-10-20T00:00:00Z" })!.startsWith("2026-11-20")).toBe(true);
   });
 });

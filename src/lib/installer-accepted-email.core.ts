@@ -12,14 +12,37 @@ export const INSTALLER_DECLINED_EMAIL_APPROVED = true as boolean;
 /** Decision #36 (Jo 2 Nov 2026): the approved "Owner accepted" office email ("Book the PIESA now."). Stays false until Jo OKs the pictures; while false the old wording is sent, so an in-flight job gets one version. */
 export const INSTALLER_ACCEPTED_V2_APPROVED = true as boolean; // ON 5 Nov 2026 10:52
 
+/** Part 5b (Jo 4–5 Nov 2026, spec "Partner 'Owner accepted – HV…' email"): the new-flow wording — the installer books the safety
+ *  check on the job page with their electrician; nothing about the electrician offering times or "Offer 3 install days".
+ *  A NEW template version, OFF until Jo approves it one message at a time; while false the v2 wording goes out unchanged. */
+export const INSTALLER_ACCEPTED_V3_APPROVED = false as boolean;
+
 export type WhoBooks = "office" | "electrician" | "either";
 /** whoBooks / electricianName: Part 5's who-books setting and the job's chosen electrician. Until Part 5 lands every business is "office". */
-export type InstallerAcceptedInput = { installerFirstName: string | null; ownerName: string | null; address: string | null; jobNumber: string; jobUrl: string; test?: boolean; whoBooks?: WhoBooks; electricianName?: string | null; /** Preview/test override of INSTALLER_ACCEPTED_V2_APPROVED. */ useV2?: boolean };
+export type InstallerAcceptedInput = { installerFirstName: string | null; ownerName: string | null; address: string | null; jobNumber: string; jobUrl: string; test?: boolean; whoBooks?: WhoBooks; electricianName?: string | null; /** Preview/test override of INSTALLER_ACCEPTED_V2_APPROVED. */ useV2?: boolean; /** Preview/test override of INSTALLER_ACCEPTED_V3_APPROVED (wins over useV2). */ useV3?: boolean };
+
+/** Part 5b v3 (DRAFT, Jo's words): subject "{HV} – owner accepted"; "Hi {name}, the owner at {address} has accepted the quote
+ *  and paid for the safety check. Next step: book the safety check on the job page with your electrician. Jo". No price. */
+export function renderInstallerAcceptedV3(i: Pick<InstallerAcceptedInput, "installerFirstName" | "address" | "jobNumber" | "jobUrl" | "test">) {
+  const you = K.cleanName(i.installerFirstName) ?? "there";
+  const where = i.address?.trim() || "the property";
+  const subject = `${i.jobNumber} – owner accepted`;
+  const line1 = `Hi ${you}, the owner at ${where} has accepted the quote and paid for the safety check.`;
+  const line2 = "Next step: book the safety check on the job page with your electrician.";
+  const body = [
+    `<mj-section><mj-column><mj-text>${esc(line1)}</mj-text><mj-text>${esc(line2)}</mj-text></mj-column></mj-section>`,
+    `<mj-section><mj-column><mj-button href="${esc(i.jobUrl)}">Open the job</mj-button><mj-text>Jo</mj-text></mj-column></mj-section>`,
+  ].join("");
+  const html = mjEmail({ subject, preview: line2, body, unsubscribe: null, testLabel: i.test === true });
+  const text = K.plainText([line1, "", line2, "", `Open the job: ${i.jobUrl}`, "", "Jo"], { testLabel: i.test === true });
+  return { subject, html, text };
+}
 
 const num = (n: number, title: string, detail: string, last: boolean) => { const pad = last ? 12 : 14; return `<tr><td width="32" valign="top" style="padding:2px 0 ${pad}px;"><span class="num">${n}</span></td><td style="padding:0 0 ${pad}px;"><strong>${esc(title)}</strong><br /><span class="muted">${esc(detail)}</span></td></tr>`; };
 const intro = (hi: string, headline: string, lead: string) => `<mj-section><mj-column><mj-text mj-class="hi">${esc(hi)}</mj-text><mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">${esc(headline)}</mj-text><mj-text>${esc(lead)}</mj-text></mj-column></mj-section>`;
 
 export function renderInstallerAcceptedEmail(i: InstallerAcceptedInput) {
+  if (i.useV3 ?? INSTALLER_ACCEPTED_V3_APPROVED) return renderInstallerAcceptedV3(i);
   const owner = i.ownerName?.trim() || "The owner";
   // No name on file: "The owner has declined the quote", never "The has declined".
   const first = i.ownerName?.trim() ? owner.split(/\s+/)[0] ?? owner : owner;

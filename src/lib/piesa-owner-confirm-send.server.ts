@@ -30,6 +30,12 @@ export async function sendPiesaConfirmStep(jobId: string, step: PiesaConfirmStep
     return "office alerted";
   }
   if ((await doneSteps(jobId, recordId)).includes(step)) return "already handled";
+  // Part 5b (Jo 1–5 Nov 2026): with the one "You're clear to install" series on, the day 1/3 confirm reminders are that series
+  // (deposit-request.server, days 1/3/7); here only the timing marker is recorded so the day-5 office flag still follows.
+  if ((step === 'reminder_1' || step === 'reminder_3') && (await import('./clear-to-install-v2.core')).CLEAR_TO_INSTALL_V2_APPROVED) {
+    await logEvent(jobId, null, PIESA_OWNER_CONFIRM_STEP_EVENT, 'Owner reminder covered by the clear-to-install series', { step, piesa_record_id: recordId }, { internal: true });
+    return 'covered by the clear-to-install reminders';
+  }
   // Task 5: one combined signed-copy/declaration email owns the request. No separate O71 email or text.
   if (step === 'request' || step === 'reminder_1' || step === 'reminder_3') {
     const result = await (await import('./piesa-delivery.server')).deliverPiesaCopies(jobId);

@@ -4,6 +4,8 @@ import { supabaseAdmin as admin } from '@/integrations/supabase/client.server';
 import type { Database } from '@/integrations/supabase/types';
 import { readInHouseDispatchState } from './in-house-suppression.server';
 import { depositReminderDue, depositRequestEligible, INSTALL_DEPOSIT_REQUEST_EVENT, installDepositRequestKey, type DepositReminder } from './deposit-request.core';
+import { CLEAR_TO_INSTALL_REMINDER_DAYS, CLEAR_TO_INSTALL_V2_APPROVED, renderClearToInstallReminderV2, renderClearToInstallV2 } from './clear-to-install-v2.core';
+import type { ConfirmSignPayState } from './confirm-sign-pay.core';
 import { DEPOSIT_MESSAGES_V2_APPROVED, depositOwnerText, renderInstallDepositOwnerEmail, renderInstallerDepositPaidEmail, type DepositMessageFacts } from './deposit-request-email.core';
 import { INSTALL_DEPOSIT_DUE_STAGES, isStepPaid } from './payments.core';
 import { fullAddress } from './address';
@@ -64,6 +66,10 @@ export type ClearToInstallDeps={
   v2?:boolean;
   /** Task 6 (#44): office phone + receipt + owner-confirmed PIESA for Deposit received. */
   paid?:(a:DepositPaidArgs)=>Promise<DepositPaidInputs|{held:string}>;
+  /** Part 5b: CLEAR_TO_INSTALL_V2_APPROVED — Jo's one-page "You're clear to install" wording and the one day 1/3/7 reminder series. OFF until approved. */
+  v2Clear?:boolean;
+  /** Part 5b: the page's three step states for the reminder wording (read-only; null = list all three). */
+  clearSteps?:(jobId:string)=>Promise<ConfirmSignPayState|null>;
   record:(p:{jobId:string;recipient:'owner';piesaRecordId:string;signedCopyId:string;recipientUserId:string|null;to:string;detail:string})=>Promise<void>;
 };
 const CLEAR_HELD='Clear to install documents not ready';
@@ -72,6 +78,8 @@ export function defaultClearToInstallDeps():ClearToInstallDeps{
     approved:CLEAR_TO_INSTALL_EMAIL_APPROVED,
     upgradesApproved:UPGRADES_NEEDED_EMAIL_APPROVED,
     v2:DEPOSIT_MESSAGES_V2_APPROVED,
+    v2Clear:CLEAR_TO_INSTALL_V2_APPROVED,
+    clearSteps:clearStepsFor,
     paid:async a=>(await import('./deposit-paid-inputs.server')).depositPaidInputs(a),
     route:async j=>(await import('./piesa-delivery.server')).ownerPiesaRoute(j),
     inputs:async j=>(await import('./clear-to-install.server')).clearToInstallInputs(j),
@@ -85,6 +93,20 @@ export function defaultClearToInstallDeps():ClearToInstallDeps{
   };
 }
 type Facts=NonNullable<Awaited<ReturnType<typeof factsFor>>>;
+/** Part 5b: the confirm/sign step states for the reminder wording, READ-ONLY (no consent sync, no page load) — the existing
+ *  records only. The deposit step is the sweep's own `paid` fact (reminders only run while unpaid). Null when unreadable. */
+async function clearStepsFor(jobId:string):Promise<ConfirmSignPayState|null>{
+  try{
+    const [{ownerPiesaConfirmFacts},cs]=await Promise.all([import('./piesa-owner-confirm.server'),import('./consent.server')]);
+    const [facts,c]=await Promise.all([ownerPiesaConfirmFacts(jobId),cs.currentConsent(jobId)]);
+    return{
+      piesa:{checkedOn:facts?.completedDate??'',electrician:'',result:'Safe to insulate',done:!!facts?.confirmation},
+      consent:{name:'',address:'',phone:'',email:'',done:!!c?.owner_signed_at,signedOn:null},
+      deposit:{amountCents:0,paid:false},
+    };
+  }catch{return null;}
+}
+const ALL_TODO:ConfirmSignPayState={piesa:{checkedOn:'',electrician:'',result:'Safe to insulate',done:false},consent:{name:'',address:'',phone:'',email:'',done:false,signedOn:null},deposit:{amountCents:0,paid:false}};
 async function ownerNotice(jobId:string,c:Facts,step:'request'|'paid'|DepositReminder,at:string,now:Date,deps:ClearToInstallDeps){
   // Quiet hours are checked before either channel; no deferred text at a different time to its email.
   if((await import('./quote-hold.core')).smsQuietReason(now.toISOString()))return 'quiet hours';
@@ -133,12 +155,18 @@ async function ownerNotice(jobId:string,c:Facts,step:'request'|'paid'|DepositRem
     cf={...cf,officePhone:p.officePhone,balanceCents:p.balanceCents,depositCents:p.depositCents};
     paidMail={attachments:p.attachments,receiptAttached:p.receiptAttached};
   }
-  if(v2&&(step==='day3'||step==='day7'))cf={...cf,upgradesToCome:(await deps.route(jobId)).includes('upgrades_needed')};
+  if(v2&&(step==='day1'||step==='day3'||step==='day7'))cf={...cf,upgradesToCome:(await deps.route(jobId)).includes('upgrades_needed')};
+  // Part 5b (OFF until Jo approves): ONE "You're clear to install" email in Jo's words and ONE day 1/3/7 reminder series, both
+  // opening the one page (?screen=clear). Same keys, same guards, same PIESA attachment on the request; only the wording changes.
+  const v2Clear=!!deps.v2Clear&&step!=='paid';
+  const clearFacts=()=>({firstName:c.f.name,address:c.f.address,installer:c.f.installer,amountCents:c.f.amountCents,link:c.f.link.replace('screen=pay','screen=clear')});
+  const clearReminder=async()=>renderClearToInstallReminderV2({...clearFacts(),day:step==='day1'?1:step==='day3'?3:7,steps:(deps.clearSteps?await deps.clearSteps(jobId):null)??ALL_TODO});
+  const clearMail=v2Clear&&step!=='request'?await clearReminder():null;
   const e=await (await import('./owner-email-send.server')).sendGuardedOwnerEmail({jobId,jobSource:c.job.source,to:c.owner.email,purpose,key,retryAfterDefiniteFailure:true,beforeSend:async()=>{
     await (await import('./comms.server')).assertCustomerDeliveryAllowed(jobId,'Install deposit notice',purpose);
     const fresh=await factsFor(jobId,new Date());
     if(!fresh || fresh.v.invoiceId!==c.v.invoiceId || (step==='paid'?!fresh.paid:fresh.paid) || fresh.c.booked)throw Error('Deposit state changed; notice held.');
-  },build:()=>clear&&attachments?{...renderInstallDepositOwnerEmail(cf,'request',true),attachments}:paidMail?{...renderInstallDepositOwnerEmail(cf,step,false,true,{receiptAttached:paidMail.receiptAttached}),...(paidMail.attachments.length?{attachments:paidMail.attachments}:{})}:renderInstallDepositOwnerEmail(cf,step,false,v2)});
+  },build:()=>clear&&attachments&&v2Clear?{...renderClearToInstallV2(clearFacts()),attachments}:clearMail?clearMail:clear&&attachments?{...renderInstallDepositOwnerEmail(cf,'request',true),attachments}:paidMail?{...renderInstallDepositOwnerEmail(cf,step,false,true,{receiptAttached:paidMail.receiptAttached}),...(paidMail.attachments.length?{attachments:paidMail.attachments}:{})}:renderInstallDepositOwnerEmail(cf,step,false,v2)});
   if(clear&&piesa&&e==='sent')await deps.record({jobId,recipient:'owner',...piesa,recipientUserId:null,to:c.owner.email,detail:'with the "You\'re clear to install" email'});
   if(step==='paid')return e; // Jo 2 Nov: Deposit received is email only.
   // TEST jobs stay behind the canonical sender's TEST boundary (no real SMS).
@@ -233,7 +261,7 @@ export async function sweepDepositRequests(now=new Date(),deps:ClearToInstallDep
       const r=await requestRecord(jobId,c.v.invoiceId);
       // Retry only recorded intents; never release a historical clearance backlog on deployment.
       if(!r)continue;
-      const due=depositReminderDue({requestedAt:r.created_at,paid:c.paid,now});
+      const due=depositReminderDue({requestedAt:r.created_at,paid:c.paid,now,...(deps.v2Clear?{days:CLEAR_TO_INSTALL_REMINDER_DAYS}:{})});
       if(due)await ownerNotice(jobId,c,due,r.created_at,now,deps);
       else await requestInstallDeposit(jobId,now,deps);
     }catch(e){console.error('Deposit request held',jobId,e instanceof Error?e.message:'read failed');}
