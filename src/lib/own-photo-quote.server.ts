@@ -51,6 +51,9 @@ export type OwnPhotoDeps = {
   draft: (jobId: string, userId: string, ref: string, price: { totalIncGst: number; includes: string; areaM2: number }) => Promise<unknown>;
   autoSend: (jobId: string, o: { formCompleted: true; formModifiedAt: string | null; entries: []; enabled?: boolean }) => Promise<{ sent: boolean; reasons: string[] }>;
   sendOnPress: boolean;
+  getStage: (jobId: string) => Promise<string>;
+  stageEntryBlockers: (jobId: string, to: "ready_check_complete") => Promise<string[]>;
+  transition: (jobId: string, to: "ready_check_complete", actorId: string | null, summary: string, details?: Record<string, unknown>) => Promise<unknown>;
 };
 function ownPhotoDeps(): OwnPhotoDeps {
   return {
@@ -59,6 +62,9 @@ function ownPhotoDeps(): OwnPhotoDeps {
     draft: async (jobId, userId, ref, price) => (await import("./installer-quote.server")).draftInstallerQuoteFromReadyCheck(jobId, userId, [], ref, price),
     autoSend: async (jobId, o) => (await import("./auto-quote-send.server")).maybeAutoSendInstallerQuote(jobId, o),
     sendOnPress: false,
+    getStage: async (jobId) => (await import("./workflow.server")).getStage(jobId),
+    stageEntryBlockers: async (jobId, to) => (await import("./workflow.server")).stageEntryBlockers(jobId, to),
+    transition: async (jobId, to, actorId, summary, details) => (await import("./workflow.server")).transition(jobId, to, actorId, summary, details ?? {}),
   };
 }
 
@@ -95,6 +101,13 @@ export async function recordOwnPhotoQuote(jobId: string, userId: string, busines
     const v = validateInstallerPrice({ priceIncGst: price, included: removeM2 > 0 ? [INCLUDED_OPTIONS[0], INCLUDED_OPTIONS[1]] : [INCLUDED_OPTIONS[0]], productOption: product.option, removalRequired: removeM2 > 0 });
     if (!v.ok || !v.record) throw new Error(v.issues.join(" "));
     await d.logEvent(jobId, userId, "installer_price_set", `Price set on Add a job (photo quote): $${price}`, { ...v.record, business_id: businessId, set_by: userId, declared_not_verified: true, source_ref: OWN_PHOTO_REF }, { internal: true });
+  }
+  // Like a completed Mitti Ready Check: the job moves to Ready Check complete (guarded), so the release can take it to the
+  // quote stage. A refusal is held for the office; the quote is still drafted.
+  if ((await d.getStage(jobId)) === "ready_check_ready_to_schedule") {
+    const blockers = await d.stageEntryBlockers(jobId, "ready_check_complete");
+    if (!blockers.length) await d.transition(jobId, "ready_check_complete", userId, "Photo quote added with the job (no Ready Check visit)", { basis: "photo_quote", ref: OWN_PHOTO_REF });
+    else await d.logEvent(jobId, userId, "own_photo_quote_failed", `Photo quote saved but the job couldn't move on: ${blockers.join(" • ")}`.slice(0, 500), { needs_office: true, blockers }, { internal: true });
   }
   await d.draft(jobId, userId, OWN_PHOTO_REF, { totalIncGst: price, includes: ownPhotoIncludes({ product: product.option, removeM2 }), areaM2: installM2 });
   const r = await d.autoSend(jobId, { formCompleted: true, formModifiedAt: new Date().toISOString(), entries: [], ...(d.sendOnPress ? { enabled: true } : {}) });

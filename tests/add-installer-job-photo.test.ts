@@ -16,15 +16,18 @@ test("gate: a photos business must send a valid photo quote; under R2 = No is re
   expect(ownPhotoQuoteGate("ready_check", good)).toEqual(["This installer quotes from a Ready Check."]);
 });
 
-let t: Tables, drafts: unknown[], sends: unknown[];
+let t: Tables, drafts: unknown[], sends: unknown[], stage: string, moves: string[];
 const deps = () => ({
+  getStage: async () => stage,
+  stageEntryBlockers: async () => [] as string[],
+  transition: async (_j: string, to: string) => { moves.push(to); stage = to; },
   db: memoryPostgrest(t) as never,
   logEvent: async (job_id: string, actor_id: string | null, event_type: string, summary: string, details?: Record<string, unknown>) => { t.workflow_events!.push({ id: `e${t.workflow_events!.length}`, job_id, actor_id, event_type, summary, details: details ?? {} }); },
   draft: async (...a: unknown[]) => { drafts.push(a); },
   autoSend: async (_j: string, o: unknown) => { sends.push(o); return { sent: false, reasons: ["Waiting for office review before sending"] }; },
   sendOnPress: false,
 });
-beforeEach(() => { t = { workflow_events: [], ceiling_measurements: [] }; drafts = []; sends = []; });
+beforeEach(() => { t = { workflow_events: [], ceiling_measurements: [] }; drafts = []; sends = []; stage = "ready_check_ready_to_schedule"; moves = []; });
 const ev = (type: string) => t.workflow_events!.filter((e) => e["event_type"] === type);
 
 test("valid → one current photo measurement, one installer_price_set, one product, the own-customer draft, the guarded release; no Ready Check form", async () => {
@@ -70,4 +73,11 @@ test("the quote PDF carries the installer logo and the Home Insulation Victoria 
   expect(layout.images).toContainEqual({ block: "q-head", page: 1 }); // the installer's logo beside ours
   const money = blocks.find((b) => b.kind === "money") as { rows: { label: string; amount: string }[] };
   expect(money.rows.at(-1)).toMatchObject({ amount: "$1,898" });
+});
+
+test("final review fix: the own photo job moves to Ready Check complete so the release can take it to the quote stage", async () => {
+  await recordOwnPhotoQuote("j", "boss", "nogap", good, deps());
+  expect(moves).toEqual(["ready_check_complete"]);
+  await recordOwnPhotoQuote("j", "boss", "nogap", good, deps());
+  expect(moves).toEqual(["ready_check_complete"]);
 });
