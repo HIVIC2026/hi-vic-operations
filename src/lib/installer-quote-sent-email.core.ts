@@ -50,20 +50,23 @@ export type InstallerQuoteSentFacts = {
   /** Last instant the quote is valid (quote-expiry.core `quoteExpiresAt` − 1 ms). */
   validUntil: Date;
   quoteUrl: string;
+  /** Jo 6 Nov 2026: this quote replaces one already sent to the owner (a new installer price) — "Updated quote sent." */
+  updated?: boolean;
   test?: boolean;
 };
 
-/** Approved subject: "HV-1234: Quote sent to Sarah". */
-export const installerQuoteSentSubject = (jobNumber: string, ownerFirst: string | null) => `${jobNumber}: Quote sent to ${ownerFirst?.trim() || "the owner"}`;
+/** Approved subject: "HV-1234: Quote sent to Sarah"; a replacement: "HV-1234: Updated quote sent to Sarah". */
+export const installerQuoteSentSubject = (jobNumber: string, ownerFirst: string | null, updated = false) => `${jobNumber}: ${updated ? "Updated quote" : "Quote"} sent to ${ownerFirst?.trim() || "the owner"}`;
 
-/** The approved copy (Jo 5 Nov 2026 22:45) in the partner email look. "they" — the owner's gender isn't recorded. */
+/** The approved copy (Jo 5 Nov 2026 22:45; updated-quote variant 6 Nov) in the partner email look. "they" — the owner's gender isn't recorded. */
 export function renderInstallerQuoteSentEmail(f: InstallerQuoteSentFacts): { subject: string; html: string; text: string; mjml: string } {
   const owner = f.ownerFirst?.trim() || null;
-  const subject = installerQuoteSentSubject(f.jobNumber, owner);
+  const updated = f.updated === true;
+  const subject = installerQuoteSentSubject(f.jobNumber, owner, updated);
   const place = owner ? `${owner}'s place` : "the owner's place";
   const blocks: PartnerBlock[] = [
     { kind: "hi", text: `Hi ${f.recipientFirst?.trim() || "there"},` },
-    { kind: "p", text: `The quote for ${place} went out today.` },
+    { kind: "p", text: updated ? `Your new price is in. The updated quote for ${place} went out today.` : `The quote for ${place} went out today.` },
     {
       kind: "card", title: `${f.jobNumber} · ${f.ownerFull}`, subtitle: f.address,
       blocks: [
@@ -74,7 +77,7 @@ export function renderInstallerQuoteSentEmail(f: InstallerQuoteSentFacts): { sub
     { kind: "p", text: `We'll touch base with ${owner ?? "the owner"} on day 3 and again 2 days before it expires. You'll hear from us the moment they accept or decline.` },
     { kind: "button", label: "See the quote", url: f.quoteUrl },
   ];
-  const m = partnerEmailLayout({ subject, heading: "Quote sent.", blocks, preview: `${f.jobNumber} Quote sent — valid until ${quoteSentShortDayLabel(f.validUntil)}`, test: f.test === true });
+  const m = partnerEmailLayout({ subject, heading: updated ? "Updated quote sent." : "Quote sent.", blocks, preview: `${f.jobNumber} Quote sent — valid until ${quoteSentShortDayLabel(f.validUntil)}`, test: f.test === true });
   return { subject, ...m };
 }
 

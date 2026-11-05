@@ -143,6 +143,31 @@ describe("one branded email to the installer's office", () => {
     expect(sent[0]!.text).toContain("HV-1234 · the owner");
   });
 
+  test("replacement quote (office sent a new installer price): 'Updated quote sent' wording, own key per quote id; the old quote's email is untouched", async () => {
+    T["quotes"]!.push({ id: "q-2", job_id: JOB, kind: "installation", status: "issued", sent_at: "2026-11-06T03:00:00Z", customer_total_inc_gst: "5100.00" });
+    T["workflow_events"]!.push({ job_id: JOB, event_type: "installer_price_quote_replaced", summary: "Office sent the replacement installer price", details: { quote_id: "q-2", replaced_quote_id: QUOTE } });
+    expect(await run()).toContain("email sent");
+    expect(sent[0]!.subject).toBe("HV-1234: Quote sent to Sarah");
+    expect(await emailInstallerQuoteSent(JOB, "q-2")).toContain("email sent");
+    expect(sent).toHaveLength(2);
+    expect(sent[1]).toMatchObject({ kind: "real-email", to: "office@sample.example", subject: "HV-1234: Updated quote sent to Sarah", key: "installer-quote-sent:v1:q-2" });
+    expect(sent[1]!.text).toContain("Updated quote sent.");
+    expect(sent[1]!.text).toContain("Your new price is in. The updated quote for Sarah's place went out today.");
+    expect(sent[1]!.text).toContain("Quote: $5,100 inc GST");
+    expect(sent[1]!.text).toContain("Valid until Sun 6 Dec 2026");
+    expect(attempts().map((a) => a["idempotency_key"])).toEqual(["installer-quote-sent:v1:q-1", "installer-quote-sent:v1:q-2"]);
+    // Re-running the replacement never emails again.
+    expect(await emailInstallerQuoteSent(JOB, "q-2")).toContain("already attempted");
+    expect(sent).toHaveLength(2);
+  });
+
+  test("replacement whose old quote can't be read: nothing sent or claimed now (the sweep retries); never throws", async () => {
+    T["workflow_events"]!.push({ job_id: JOB, event_type: "installer_price_quote_replaced", summary: "x", details: { quote_id: QUOTE, replaced_quote_id: "q-gone" } });
+    await expect(run()).resolves.toContain("not sent");
+    expect(sent).toHaveLength(0);
+    expect(attempts()).toHaveLength(0);
+  });
+
   test("a failed send keeps the one attempt (status failed) and is never retried", async () => {
     mock.module("../src/lib/office-email.server", () => ({ sendOfficeEmail: async (p: { to: string }) => { sent.push({ kind: "real-email-failed", to: p.to }); return { channel: "email", to: p.to, status: "failed", detail: "provider refused" }; } }));
     expect(await run()).toContain("email failed");
@@ -173,6 +198,8 @@ describe("wiring (source facts)", () => {
     expect(idx("installerQuoteSentPlan({")).toBeLessThan(idx("insert({ job_id: jobId, purpose: INSTALLER_QUOTE_SENT_PURPOSE, idempotency_key: key })"));
     expect(idx("insert({ job_id: jobId, purpose: INSTALLER_QUOTE_SENT_PURPOSE, idempotency_key: key })")).toBeLessThan(idx("logEvent(jobId, null, INSTALLER_QUOTE_SENT_EVENT"));
     expect(idx("logEvent(jobId, null, INSTALLER_QUOTE_SENT_EVENT")).toBeLessThan(idx("renderInstallerQuoteSentEmail("));
+    // The replacement check comes before the claim, so a failed check never burns the one attempt.
+    expect(idx("ownQuoteReplacement(jobId, quoteId)")).toBeLessThan(idx("insert({ job_id: jobId, purpose: INSTALLER_QUOTE_SENT_PURPOSE, idempotency_key: key })"));
     expect(idx("INSTALLER_QUOTE_SENT_HELD_EVENT")).toBeGreaterThan(-1);
     expect(s).toContain('const test = j.source === "qa_test" || isTestPartner(b ?? {});');
     expect(s).toContain("const base = test ? TEST_APP_BASE : SET_PASSWORD_BASE;");

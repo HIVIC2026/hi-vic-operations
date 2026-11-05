@@ -7,7 +7,8 @@
 // recorded ONCE as `installer_quote_sent_email_held` and retried by `sweepInstallerQuoteSentEmails` on the 15-minute tick
 // (sent quotes of the last 30 days with no attempt yet); TEST jobs / TEST partners → test-send; real partners →
 // `sendOfficeEmail` (the one partner email sender, master switch + trade pause inside it).
-// Never throws to its caller; never changes a stage or a quote.
+// A replacement quote (office-quote-review's `installer_price_quote_replaced` event, read through `ownQuoteReplacement`)
+// gets the "Updated quote sent." wording. Never throws to its caller; never changes a stage or a quote.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import {
@@ -36,6 +37,9 @@ export async function emailInstallerQuoteSent(jobId: string, quoteId: string, op
     if (pre.action === "skip") return `skipped: ${pre.reason}`;
     if (pre.action === "done") return "email already attempted";
     if (!j.originating_installer_business_id) return "skipped: no installer business on the job";
+    // Jo 6 Nov 2026: a quote that replaces one already sent to the owner (the office sent a new installer price) reads
+    // "Updated quote sent." — same email, same one-per-quote key. A failed check throws → nothing sent now, the sweep retries.
+    const updated = !!(await (await import("./own-customer-messages.server")).ownQuoteReplacement(jobId, quoteId));
     const { data: biz } = await admin.from("businesses").select("id, name, signer_name, email, onboarding_notes").eq("id", j.originating_installer_business_id).maybeSingle();
     const b = (biz ?? null) as BizRow | null;
     const { isTestPartner } = await import("./test-send.core");
@@ -66,7 +70,7 @@ export async function emailInstallerQuoteSent(jobId: string, quoteId: string, op
     const m = renderInstallerQuoteSentEmail({
       recipientFirst: firstNameOf(b?.signer_name), ownerFirst: ownerFull === "the owner" ? null : firstNameOf(ownerFull), ownerFull,
       jobNumber: j.job_number, address, totalIncGst: Number(q.customer_total_inc_gst ?? 0),
-      validUntil: lastValidInstant(quoteExpiresAt(q.sent_at as string)), quoteUrl: installerQuoteSentLink(base, jobId), test,
+      validUntil: lastValidInstant(quoteExpiresAt(q.sent_at as string)), quoteUrl: installerQuoteSentLink(base, jobId), updated, test,
     });
     const r = test
       ? await sendTestEmail({ jobId, jobSource: j.source, partnerIsTest: isTestPartner(b ?? {}), label: key, actorId: null }, plan.to, m.subject, m.html, m.text)

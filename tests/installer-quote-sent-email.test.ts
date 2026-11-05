@@ -55,6 +55,25 @@ describe("renderInstallerQuoteSentEmail — approved copy (Jo 5 Nov 2026 22:45)"
     expect(m.text).toContain("The quote for the owner's place went out today.");
     expect(m.text).toContain("We'll touch base with the owner on day 3");
   });
+  test("updated quote (Jo 6 Nov 2026): subject, heading and first line change; everything else identical", () => {
+    const m = renderInstallerQuoteSentEmail({ ...sample, updated: true });
+    const first = renderInstallerQuoteSentEmail(sample);
+    expect(m.subject).toBe("HV-1234: Updated quote sent to Sarah");
+    expect(m.text).toContain("Updated quote sent.");
+    expect(m.text).toContain("Your new price is in. The updated quote for Sarah's place went out today.");
+    expect(m.text).not.toContain("The quote for Sarah's place went out today.");
+    expect(m.text).not.toContain("\nQuote sent.");
+    expect(m.html).toContain("HV-1234 Quote sent — valid until 5 Dec 2026");
+    for (const same of ["Hi Deep,", "HV-1234 · Sarah Brown", "12 Example St, Box Hill VIC 3128", "Quote: $4,850 inc GST", "Valid until Sat 5 Dec 2026",
+      "We'll touch base with Sarah on day 3 and again 2 days before it expires. You'll hear from us the moment they accept or decline.",
+      "See the quote: https://estimate.homeinsulationvictoria.com.au/field/job-1"]) { expect(m.text, same).toContain(same); expect(first.text, same).toContain(same); }
+    // No owner first name → "the owner" in the updated wording too.
+    const anon = renderInstallerQuoteSentEmail({ ...sample, updated: true, ownerFirst: null, ownerFull: "the owner" });
+    expect(anon.subject).toBe("HV-1234: Updated quote sent to the owner");
+    expect(anon.text).toContain("Your new price is in. The updated quote for the owner's place went out today.");
+    // Not a replacement (undefined / false) → the first-quote wording.
+    expect(renderInstallerQuoteSentEmail({ ...sample, updated: false }).subject).toBe("HV-1234: Quote sent to Sarah");
+  });
   test("TEST sends are marked; real sends are not", () => {
     expect(renderInstallerQuoteSentEmail({ ...sample, test: true }).text).toContain("TEST — only sent to Jo.");
     expect(renderInstallerQuoteSentEmail(sample).text).not.toContain("TEST — only sent to Jo.");
@@ -80,6 +99,7 @@ describe("money and date formatting (Melbourne)", () => {
   test("subject helper", () => {
     expect(installerQuoteSentSubject("HV-1", "Sarah")).toBe("HV-1: Quote sent to Sarah");
     expect(installerQuoteSentSubject("HV-1", "  ")).toBe("HV-1: Quote sent to the owner");
+    expect(installerQuoteSentSubject("HV-1", "Sarah", true)).toBe("HV-1: Updated quote sent to Sarah");
   });
 });
 
@@ -94,6 +114,11 @@ describe("plan: own-customer installation quotes only; held reasons; one attempt
     expect(installerQuoteSentPlan({ ...ok, kind: "rectification" })).toEqual({ action: "skip", reason: "not an installation quote" });
     expect(installerQuoteSentPlan({ ...ok, sentAt: null })).toEqual({ action: "skip", reason: "quote not sent to the owner" });
     expect(installerQuoteSentPlan({ ...ok, deleted: true })).toEqual({ action: "skip", reason: "job closed" });
+  });
+  test("a replacement quote plans exactly like a first quote (the wording is the only difference; same key per quote id)", () => {
+    expect(installerQuoteSentPlan(ok)).toEqual({ action: "send", to: "office@sample.example" });
+    expect(installerQuoteSentKey("q-new")).toBe("installer-quote-sent:v1:q-new");
+    expect(installerQuoteSentKey("q-new")).not.toBe(installerQuoteSentKey("q-old"));
   });
   test("idempotent: an existing attempt is done, whatever else is true", () => {
     expect(installerQuoteSentPlan({ ...ok, alreadyAttempted: true })).toEqual({ action: "done" });
