@@ -47,7 +47,7 @@ export function OwnCustomerReadyCheckChoice({ jobId, auditId, address, jobNumber
       <Button type="button" variant="outline" className="h-auto min-h-12 w-full flex-col items-start gap-2 whitespace-normal py-4 text-left" aria-expanded={mittiChosen} disabled={busy || mitti.data?.portalSaved === true} onClick={async () => {
         if(busy) return;
         setBusy(true); setError('');
-        try { const result=await requestMitti({jobId}); if(result) {setMittiOpen(true); void mitti.refetch();} }
+        try { const result=await requestMitti({jobId}); if(result) {setMittiOpen(true); void mitti.refetch();} else {setError('The Ready Check could not start. Try again.');} }
         catch(e) {setError(e instanceof Error ? e.message : 'The Ready Check could not start. Try again.');}
         finally {setBusy(false);}
       }}><span className="font-semibold">{W.onsiteOption}</span><span className="text-sm font-normal text-sub">{W.onsiteIntro(address, jobNumber)}</span></Button>
@@ -61,7 +61,7 @@ export function OwnCustomerReadyCheckChoice({ jobId, auditId, address, jobNumber
       setBusy(true); setError('');
       try {
         const r = await save({ jobId, priceIncGst: price, included, productOption: null, send: false, sendToQuote: true });
-        if (r && valid.record) { setSavedPrice({record: valid.record, setAt: r.setAt, setBy: null, sendToQuote: true}); setEditing(false); setSubmitted(true); void q.refetch(); }
+        if (r && valid.record) { setSavedPrice({record: valid.record, setAt: r.setAt, setBy: null, sendToQuote: true}); setEditing(false); setSubmitted(true); void q.refetch(); } else { setError('The price could not be saved. Try again.'); }
       } catch (e) { setError(e instanceof Error ? e.message : 'The price could not be saved. Try again.'); }
       finally { setBusy(false); }
     }}>
