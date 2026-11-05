@@ -41,8 +41,7 @@ describe("renderInstallerQuoteSentEmail — approved copy (Jo 5 Nov 2026 22:45)"
   test("matches the approved design file's wording", () => {
     const design = readFileSync("docs/templates/mjml/installer_quote-sent.mjml", "utf8");
     const m = renderInstallerQuoteSentEmail(sample);
-    // The mock says "Fri 5 Dec 2026"; 5 Dec 2026 is really a Saturday, so the weekday is compared without the mock's slip.
-    for (const s of ["Quote sent.", "The quote for Sarah's place went out today.", "HV-1234 · Sarah Brown", "Quote: $4,850 inc GST", "5 Dec 2026", "See the quote"]) {
+    for (const s of ["Quote sent.", "The quote for Sarah's place went out today.", "HV-1234 · Sarah Brown", "Quote: $4,850 inc GST", "Valid until Sat 5 Dec 2026", "See the quote"]) {
       expect(design, s).toContain(s);
       expect(m.text, s).toContain(s);
     }

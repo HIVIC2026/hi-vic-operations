@@ -4,8 +4,9 @@
 // quote, sent, job open) and does nothing for HIV leads. Same shape as the "Enter your price" email
 // (boss-price-link.server): ONE `customer_email_sends` attempt per quote (`installerQuoteSentKey`) claimed BEFORE the
 // `installer_quote_sent_email` event and the send; held reasons (flag off / no office email / trade messages paused) are
-// recorded ONCE as `installer_quote_sent_email_held` and retried on a later run; TEST jobs / TEST partners → test-send;
-// real partners → `sendOfficeEmail` (the one partner email sender, master switch + trade pause inside it).
+// recorded ONCE as `installer_quote_sent_email_held` and retried by `sweepInstallerQuoteSentEmails` on the 15-minute tick
+// (sent quotes of the last 30 days with no attempt yet); TEST jobs / TEST partners → test-send; real partners →
+// `sendOfficeEmail` (the one partner email sender, master switch + trade pause inside it).
 // Never throws to its caller; never changes a stage or a quote.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
@@ -47,7 +48,7 @@ export async function emailInstallerQuoteSent(jobId: string, quoteId: string, op
     if (plan.action === "held") {
       const { data: held } = await admin.from("workflow_events").select("id, details").eq("job_id", jobId).eq("event_type", INSTALLER_QUOTE_SENT_HELD_EVENT);
       const heldBefore = ((held ?? []) as { details: unknown }[]).some((e) => (e.details as { key?: string } | null)?.key === key);
-      if (!heldBefore) await logEvent(jobId, null, INSTALLER_QUOTE_SENT_HELD_EVENT, `"Quote sent" email to the installer's office not sent — ${plan.reason}. Retried the next time this quote's release runs.`, { key, quote_id: quoteId, business_id: b?.id ?? j.originating_installer_business_id, reason: plan.reason }, { internal: true });
+      if (!heldBefore) await logEvent(jobId, null, INSTALLER_QUOTE_SENT_HELD_EVENT, `"Quote sent" email to the installer's office not sent — ${plan.reason}. Retried on the 15-minute tick for 30 days.`, { key, quote_id: quoteId, business_id: b?.id ?? j.originating_installer_business_id, reason: plan.reason }, { internal: true });
       return `held: ${plan.reason}`;
     }
     // Claim the one attempt per quote BEFORE the event and the send; a lost race means another run already has it.
@@ -74,4 +75,49 @@ export async function emailInstallerQuoteSent(jobId: string, quoteId: string, op
     await admin.from("customer_email_sends").update({ status: r.status === "sent" ? "sent" : "failed", sent_at: r.status === "sent" ? new Date().toISOString() : null, error: r.status === "sent" ? null : r.detail ?? null }).eq("id", claim.data.id);
     return `email${test ? " (test)" : ""} ${r.status}: ${r.detail}`;
   } catch (e) { return `installer "Quote sent" email not sent — ${(e as Error).message}`; }
+}
+
+/** Sent quotes this many days back are looked at by the sweep; older held ones are left alone. */
+export const INSTALLER_QUOTE_SENT_SWEEP_DAYS = 30;
+/** Emails attempted per tick, at most. */
+export const INSTALLER_QUOTE_SENT_SWEEP_CAP = 50;
+
+async function pagedRows(what: string, page: (from: number, to: number) => PromiseLike<{ data: unknown[] | null; error: { message: string } | null }>): Promise<Record<string, unknown>[]> {
+  const out: Record<string, unknown>[] = [];
+  for (let from = 0; ; from += 200) {
+    const { data, error } = await page(from, from + 199);
+    if (error) throw new Error(`Could not read ${what}: ${error.message}`);
+    out.push(...((data ?? []) as Record<string, unknown>[]));
+    if ((data ?? []).length < 200) return out;
+  }
+}
+
+/** The 15-minute tick: every installation quote on an installer's own-customer job sent in the last 30 days with no
+ *  `customer_email_sends` attempt yet (held earlier — no office email, trade messages paused — or never reached) goes through
+ *  `emailInstallerQuoteSent` again, which decides and claims as usual. Reads page 200 rows at a time; any read error logs and
+ *  stops the run with nothing sent (never a partial list). At most 50 emails a run. */
+export async function sweepInstallerQuoteSentEmails(now = new Date()): Promise<{ checked: number; sent: number; held: number }> {
+  const out = { checked: 0, sent: 0, held: 0 };
+  let due: { jobId: string; quoteId: string }[] = [];
+  try {
+    const since = new Date(now.getTime() - INSTALLER_QUOTE_SENT_SWEEP_DAYS * 86_400_000).toISOString();
+    const quotes = await pagedRows("sent own-customer quotes", (a, b) => admin.from("quotes").select("id, job_id, jobs!inner(channel, deleted_at)").eq("kind", "installation").eq("jobs.channel", "installer_sourced").is("jobs.deleted_at", null).not("sent_at", "is", null).gte("sent_at", since).order("sent_at", { ascending: true }).range(a, b));
+    const keys = quotes.map((q) => installerQuoteSentKey(String(q["id"])));
+    const attempted = new Set<string>();
+    const { chunkIds } = await import("./sweep-batch.core");
+    for (const c of chunkIds(keys)) {
+      for (const r of await pagedRows("installer quote-sent attempts", (a, b) => admin.from("customer_email_sends").select("idempotency_key").eq("purpose", INSTALLER_QUOTE_SENT_PURPOSE).in("idempotency_key", c).range(a, b))) attempted.add(String(r["idempotency_key"]));
+    }
+    due = quotes.filter((q) => !attempted.has(installerQuoteSentKey(String(q["id"])))).map((q) => ({ jobId: String(q["job_id"]), quoteId: String(q["id"]) }));
+  } catch (e) {
+    console.error('installer "Quote sent" email sweep: read failed, nothing sent', (e as Error).message);
+    return out;
+  }
+  for (const d of due.slice(0, INSTALLER_QUOTE_SENT_SWEEP_CAP)) {
+    out.checked++;
+    const r = await emailInstallerQuoteSent(d.jobId, d.quoteId);
+    if (/\bsent:/.test(r)) out.sent++;
+    else if (r.startsWith("held")) out.held++;
+  }
+  return out;
 }

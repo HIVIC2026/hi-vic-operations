@@ -23,7 +23,7 @@
 <mj-text mj-class="h2" padding="18px 18px 2px">HV-1234 · Sarah Brown</mj-text>
 <mj-text mj-class="small" padding="0 18px 12px">12 Example St, Box Hill VIC 3128</mj-text>
 <mj-text font-size="15px" line-height="23px" padding="0 18px 12px">Quote: $4,850 inc GST</mj-text>
-<mj-text font-size="15px" line-height="23px" padding="0 18px 18px">Valid until Fri 5 Dec 2026</mj-text>
+<mj-text font-size="15px" line-height="23px" padding="0 18px 18px">Valid until Sat 5 Dec 2026</mj-text>
 </mj-column>
 </mj-section>
 <mj-section>

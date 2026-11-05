@@ -20,7 +20,7 @@ export const installerQuoteSentKey = (quoteId: string) => `installer-quote-sent:
 export const installerQuoteSentLink = (base: string, jobId: string) => `${base.replace(/\/+$/, "")}/field/${jobId}`;
 
 const TZ = "Australia/Melbourne";
-/** "Fri 5 Dec 2026" in Melbourne time (the panel line). */
+/** "Sat 5 Dec 2026" in Melbourne time (the panel line). */
 export function quoteSentDayLabel(d: Date): string {
   const p = new Intl.DateTimeFormat("en-GB", { timeZone: TZ, weekday: "short", day: "numeric", month: "short", year: "numeric" }).formatToParts(d);
   const get = (t: string) => p.find((x) => x.type === t)?.value ?? "";

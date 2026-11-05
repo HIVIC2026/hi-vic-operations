@@ -170,6 +170,15 @@ export const Route = createFileRoute("/api/public/hooks/allocation-tick")({
           (out as Record<string, unknown>)['upgradesNeeded'] = "failed";
         }
         try {
+          // Jo 5 Nov 2026: the installer office's "Quote sent" email held at release (no office email / trade messages paused)
+          // is retried here — sent own-customer quotes of the last 30 days with no attempt yet, at most 50 a tick.
+          const { sweepInstallerQuoteSentEmails } = await import("@/lib/installer-quote-sent-email.server");
+          (out as Record<string, unknown>)['installerQuoteSent'] = await timed("sweepInstallerQuoteSentEmails", () => sweepInstallerQuoteSentEmails());
+        } catch (e) {
+          console.error("allocation tick: installer quote sent email sweep failed", (e as Error).message);
+          (out as Record<string, unknown>)['installerQuoteSent'] = "failed";
+        }
+        try {
           // New job flow Part 6 (fix wave I2): every active electrician assignment gets its job link text once (held = one trace per reason).
           const { sweepElectricianLinks, sweepHeldElectricianCantDoEmails } = await import("@/lib/electrician-link.server");
           (out as Record<string, unknown>)['electricianLinks'] = await timed("sweepElectricianLinks", () => sweepElectricianLinks());
