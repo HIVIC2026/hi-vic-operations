@@ -4,6 +4,7 @@
 // (tests/helpers/memory-postgrest.ts). Run on its own (bun shares mock.module across files in one process).
 import { afterAll, beforeAll, describe, expect, mock, setSystemTime, test } from "bun:test";
 import { memoryPostgrest, type Tables } from "./helpers/memory-postgrest";
+import { ROUND_LIMIT } from "./helpers/round-counter";
 
 const tables: Tables = {};
 
@@ -183,12 +184,12 @@ describe("tradeHome speed (Task 5)", () => {
     { name: "staff, TEST in-house business", seed: { test: true, inHouse: true }, uid: U_STAFF, reads: 30 + P5_MY_WORK_READS },
   ];
   for (const ctx of CONTEXTS) {
-    test(`${ctx.name}: at most 3 sequential rounds and at most ${ctx.reads} reads`, async () => {
+    test(`${ctx.name}: at most ${ROUND_LIMIT} sequential rounds (ROUND_LIMIT) and at most ${ctx.reads} reads`, async () => {
       failWhen = null; seed(ctx.seed);
       const r = await measured(ctx.uid);
       if (ctx.uid !== U_ELEC) expect(r.out.myWork).not.toBeNull(); // Part 5: My work replaces the M1 home groups
-      if (r.rounds > 3 || r.log.length > ctx.reads) console.log(`${ctx.name}: rounds = ${r.rounds}, reads = ${r.log.length}\n${roundsOf(r.log)}`);
-      expect(r.rounds).toBeLessThanOrEqual(3);
+      if (r.rounds > ROUND_LIMIT || r.log.length > ctx.reads) console.log(`${ctx.name}: rounds = ${r.rounds}, reads = ${r.log.length}\n${roundsOf(r.log)}`);
+      expect(r.rounds).toBeLessThanOrEqual(ROUND_LIMIT);
       expect(r.log.length).toBeLessThanOrEqual(ctx.reads);
     });
   }
