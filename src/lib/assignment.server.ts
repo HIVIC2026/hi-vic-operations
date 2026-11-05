@@ -50,6 +50,7 @@ import {
   type VeecInstaller,
 } from "./veec-assignment-form.core";
 import { melbourneToday } from "./melbourne-time.core";
+import { addWork } from "./recovery-work.server";
 import { PDF_LOOK_APPROVED } from "./pdf-approvals.core";
 import { VEEC_PART_B_IMAGE_HELD_EVENT } from "./veec-part-b-mitti.core";
 
@@ -241,7 +242,7 @@ async function storeCopy(
   kind: string,
   actorId: string | null,
   renderedPdf?: Uint8Array | null,
-) {
+): Promise<{ ok: true; path: string } | { ok: false; reason: string }> {
   path = path.replace(/\.txt$/, ".pdf");
   const { textToPdf } = await import("./signed-pdf.server");
   const up = await admin.storage.from("job-files").upload(
@@ -251,8 +252,8 @@ async function storeCopy(
     }),
     { contentType: "application/pdf", upsert: false },
   );
-  if (up.error) return null;
-  await admin.from("documents").insert({
+  if (up.error) return { ok: false, reason: `Upload failed: ${up.error.message}` };
+  const { error: docError } = await admin.from("documents").insert({
     job_id: jobId,
     kind,
     title,
@@ -260,7 +261,8 @@ async function storeCopy(
     mime_type: "application/pdf",
     uploaded_by: actorId,
   });
-  return path;
+  if (docError) return { ok: false, reason: `Document record failed: ${docError.message}` };
+  return { ok: true, path };
 }
 
 export async function assertAgreementCanSign(input: AgreementSignInput) {
@@ -391,7 +393,7 @@ export async function signCustomerAgreement(p: {
   const legacyPdf = { ownerName: p.input.signatoryName, address: pkg.property_address,
     totalIncGst: pkg.final_customer_price_inc_gst, signedAt: now.toISOString(), jobNumber: pkg.job_number, items };
   const renderedPdf = PDF_LOOK_APPROVED.signedAcceptance ? ((await signedAcceptancePdfV2OrNull(pkg, { signatoryName: p.input.signatoryName, signatureName: p.input.signatureName }, now.toISOString(), pkg.job_id, p.actorId)) ?? await signedAcceptancePdf(legacyPdf)) : await signedAcceptancePdf(legacyPdf);
-  const path = await storeCopy(
+  const stored = await storeCopy(
     pkg.job_id,
     `${pkg.job_id}/agreement/quote-v${pkg.quote.version}-${hash.slice(0, 12)}.txt`,
     "",
@@ -434,7 +436,7 @@ export async function signCustomerAgreement(p: {
       signed_by: p.actorId,
       ip: p.ip,
       user_agent: p.userAgent,
-      copy_path: path,
+      copy_path: stored.ok ? stored.path : null,
       retain_until: retainUntil(now),
     })
     .select("id")
@@ -1226,11 +1228,12 @@ export async function signFinalAssignment(p: {
     throw new WorkflowError(
       "The VEEC assignment form has not been prepared yet (it is prepared once the installation is recorded complete).",
     );
-  const { count: openVar } = await admin
+  const { count: openVar, error: openVarError } = await admin
     .from("assignment_variations")
     .select("id", { count: "exact", head: true })
     .eq("assignment_id", a.id)
     .eq("status", "pending");
+  if (openVarError) throw new WorkflowError("Couldn't check for changes – try again.");
   const ob = signingOrderBlocker(
     {
       status: a.status,
@@ -1471,7 +1474,7 @@ export async function reconfirmVariation(p: {
     `IP: ${p.ip ?? "—"}`,
     `sha256 ${hash}`,
   ].join("\n");
-  await storeCopy(
+  const reconfirmCopy = await storeCopy(
     v.job_id,
     `${v.job_id}/assignment/reconfirm-${v.id}.txt`,
     copyText,
@@ -1479,6 +1482,7 @@ export async function reconfirmVariation(p: {
     "veec_assignment_reconfirm",
     p.actorId,
   );
+  if (!reconfirmCopy.ok) console.error("VEEC reconfirmation copy not stored:", reconfirmCopy.reason);
   await logEvent(
     v.job_id,
     p.actorId,
@@ -1527,11 +1531,17 @@ export async function evaluateAndApply(jobId: string, actorId: string | null) {
   const a = await currentAssignment(jobId);
   if (!a) return null;
   const { data: job } = await admin.from("jobs").select("job_number").eq("id", jobId).single();
-  const { count: openVar } = await admin
+  const { count: openVar, error: openVarError } = await admin
     .from("assignment_variations")
     .select("id", { count: "exact", head: true })
     .eq("assignment_id", a.id)
     .eq("status", "pending");
+  if (openVarError) {
+    // Never count an unreadable variation check as zero: stay as we are and let the still-to-finish list retry.
+    console.error("VEEC variation check failed:", openVarError.message);
+    await addWork("veec_final_copy", a.id, jobId, {});
+    return { status: a.status, missing: ["Couldn't check for changes"] };
+  }
   const templates = await loadTemplates();
   const r = evaluateAssignment({
     status: a.status,
@@ -1548,7 +1558,8 @@ export async function evaluateAndApply(jobId: string, actorId: string | null) {
   });
   if (r.status === a.status) return r;
   if (r.status !== "effective_complete") {
-    await admin.from("customer_assignments").update({ status: r.status }).eq("id", a.id);
+    const { error: statusError } = await admin.from("customer_assignments").update({ status: r.status }).eq("id", a.id);
+    if (statusError) throw new Error(statusError.message);
     return r;
   }
   const now = new Date();
@@ -1588,7 +1599,7 @@ export async function evaluateAndApply(jobId: string, actorId: string | null) {
   const built = PDF_LOOK_APPROVED.veecForm ? await veecFinalCopyPdf(a, f.form_values, job?.job_number ?? null, jobId, actorId) : null;
   if (built?.held) return { ...r, status: a.status }; // signature image unreadable: stay as we are, the office has been told, the next tick retries
   const renderedPdf = built ? (built.bytes ?? null) : undefined;
-  const path = await storeCopy(
+  const stored = await storeCopy(
     jobId,
     `${jobId}/assignment/final-${hash.slice(0, 12)}.txt`,
     finalText,
@@ -1597,35 +1608,50 @@ export async function evaluateAndApply(jobId: string, actorId: string | null) {
     actorId ?? a.consumer_signed_by ?? null,
     renderedPdf,
   );
+  if (!stored.ok) {
+    // No stored signed copy, no completion: nothing is marked done and the tick re-runs this.
+    console.error("VEEC signed copy not stored:", stored.reason);
+    await addWork("veec_final_copy", a.id, jobId, {});
+    return { ...r, status: a.status };
+  }
+  const path = stored.path;
   const { customerDeliveryState } = await import("./comms.server");
   const delivery = await customerDeliveryState(jobId); // global lock first, then owner contact consent
-  await admin
-    .from("customer_assignments")
-    .update({
-      status: "effective_complete",
-      effective_at: now.toISOString(),
-      completed_at: now.toISOString(),
-      final_copy_path: path,
-      final_copy_at: path ? now.toISOString() : null,
-      delivery_status: delivery,
-    })
-    .eq("id", a.id);
-  await admin
-    .from("compliance_checks")
-    .update({
-      status: "pass",
-      checked_at: now.toISOString(),
-      notes: "Final VEEC assignment effective",
-    })
-    .eq("job_id", jobId)
-    .eq("check_key", "owner_authority");
-  await logEvent(
-    jobId,
-    actorId,
-    EV.VEEC_ASSIGNMENT_EFFECTIVE,
-    `Final VEEC assignment effective – signed copy stored (customer delivery ${delivery === "pending_comms_lock" ? "pending: communications locked" : delivery === "not_ready" ? "blocked: no owner contact consent" : "ready"})`,
-    { assignment_id: a.id, sha256: hash },
-  );
+  const summary = `Final VEEC assignment effective – signed copy stored (customer delivery ${delivery === "pending_comms_lock" ? "pending: communications locked" : delivery === "not_ready" ? "blocked: no owner contact consent" : "ready"})`;
+  const { data: completed, error: rpcError } = await admin.rpc("complete_veec_assignment" as never, {
+    p_assignment_id: a.id, p_job_id: jobId, p_path: path, p_effective_at: now.toISOString(),
+    p_delivery: delivery, p_sha256: hash, p_actor: actorId, p_summary: summary,
+  } as never) as { data: boolean | null; error: { code?: string; message: string } | null };
+  if (rpcError && rpcError.code !== "PGRST202" && rpcError.code !== "42883") throw new Error(rpcError.message);
+  if (rpcError) {
+    // The completion function isn't deployed yet: the old three writes, each checked, the event last.
+    console.error("complete_veec_assignment not deployed, using the three writes:", rpcError.message);
+    const { error: e1 } = await admin
+      .from("customer_assignments")
+      .update({
+        status: "effective_complete",
+        effective_at: now.toISOString(),
+        completed_at: now.toISOString(),
+        final_copy_path: path,
+        final_copy_at: now.toISOString(),
+        delivery_status: delivery,
+      })
+      .eq("id", a.id);
+    if (e1) throw new Error(e1.message);
+    const { error: e2 } = await admin
+      .from("compliance_checks")
+      .update({
+        status: "pass",
+        checked_at: now.toISOString(),
+        notes: "Final VEEC assignment effective",
+      })
+      .eq("job_id", jobId)
+      .eq("check_key", "owner_authority");
+    if (e2) throw new Error(e2.message);
+    await logEvent(jobId, actorId, EV.VEEC_ASSIGNMENT_EFFECTIVE, summary, { assignment_id: a.id, sha256: hash });
+  } else if (completed === false) {
+    return r; // someone else already completed it: nothing more to write
+  }
   // Copy to the consumer within 10 business days: sent by the signing entry points / tick (veec-copy-email.server.ts),
   // never from here — this module sits in the autoAdvanceJob import graph, which must hold no sender.
   return r;
