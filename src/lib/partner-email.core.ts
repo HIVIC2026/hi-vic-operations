@@ -68,7 +68,7 @@ function blockText(b: PartnerBlock): string[] {
 }
 
 /** Generic partner email (send back / decline / notice / one-off): greeting, heading, paragraphs, boxes, one button, sign-off. */
-export function partnerEmailLayout(i: { subject: string; heading?: string | null; blocks: PartnerBlock[]; preview?: string; test?: boolean }) {
+export function partnerEmailLayout(i: { subject: string; heading?: string | null; blocks: PartnerBlock[]; preview?: string | undefined; test?: boolean }) {
   const preview = i.preview ?? i.blocks.find((b): b is Extract<PartnerBlock, { kind: "preview" }> => b.kind === "preview")?.text ?? null;
   const blocks = i.blocks.filter((b) => b.kind !== "preview");
   const hi = blocks[0]?.kind === "hi" ? blocks[0] : null;

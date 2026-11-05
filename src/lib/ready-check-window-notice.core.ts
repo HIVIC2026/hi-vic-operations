@@ -4,7 +4,7 @@
 // is the DRAFT message that invites them — one text + one email, behind OWNER_WINDOW_CONFIRM_APPROVED (false until Jo
 // approves the picture). PURE: wording and keys only; the sender is installer-run.server (textSlot / emailSlot).
 import * as K from "./email-kit.core";
-import { genericMail } from "./mail-mjml.core";
+import { mjEmail } from "./mail-mjml.core";
 
 /** DRAFT: real owners get nothing until Jo approves; TEST jobs → test-send. */
 export const OWNER_WINDOW_CONFIRM_APPROVED = false as boolean;
@@ -20,15 +20,23 @@ export type WindowNoticeFacts = { name: string | null | undefined; day: string; 
  *  9:00 and 10:00am with Rapid Insulation. Tap to confirm or pick another time: {link}". A team-entered exact time offers
  *  no other times. */
 export const readyCheckWindowText = (f: WindowNoticeFacts) =>
-  `Hi ${first(f.name)}, your free Ready Check is ${f.day} ${f.time} with ${f.installer}. ${f.team ? "Tap to confirm" : "Tap to confirm or pick another time"}: ${f.link} - Home Insulation Victoria`;
+  `Home Insulation Victoria: Hi ${first(f.name)}, your free Ready Check is ${f.day} ${f.time} with ${f.installer}. ${f.team ? "Tap to confirm" : "Tap to confirm or pick another time"}: ${f.link}`;
 
-/** DRAFT email: subject "Your free Ready Check: {day}", the window, who is coming, one Confirm button to ?screen=book. */
+/** DRAFT email, suite look (Jo 5 Nov 2026): greeting line, big heading "Your free Ready Check: {day}", the window, who is
+ *  coming, one Confirm button, then a "What to expect" card (the approved Ready Check sentence from the will-call email). */
+export const READY_CHECK_WINDOW_EXPECT_TITLE = "What to expect";
+export const READY_CHECK_WINDOW_EXPECT_LINE = "At the Ready Check they'll measure up and confirm your quote. It's free, with no obligation.";
 export function readyCheckWindowEmail(f: WindowNoticeFacts, opts: { test?: boolean } = {}): { subject: string; html: string; text: string } {
-  const hi = K.cleanName(f.name) || "there";
+  const hi = `Hi ${K.cleanName(f.name) || "there"},`;
   const subject = `Your free Ready Check: ${f.day}`;
   const line1 = `${f.installer} can do your free Ready Check ${f.day} ${f.time}.`;
   const line2 = f.team ? "Tap Confirm if that works. If it doesn't, tap Can't make it and we'll find another time." : "Tap Confirm if that works, or pick another time on the same day.";
-  const html = genericMail({ subject, heading: subject, lines: [`Hi ${hi},`, line1, line2], button: { label: "Confirm my Ready Check", url: f.link }, preview: line1, unsubscribe: null, testLabel: opts.test === true });
-  const text = K.plainText([subject, "", `Hi ${hi},`, line1, line2, "", `Confirm: ${f.link}`], { testLabel: opts.test === true });
+  const button = "Confirm my Ready Check";
+  const body = [
+    `<mj-section><mj-column><mj-text mj-class="hi">${K.esc(hi)}</mj-text><mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">${K.esc(subject)}</mj-text><mj-text>${K.esc(line1)}</mj-text><mj-text>${K.esc(line2)}</mj-text><mj-button href="${K.esc(f.link)}">${K.esc(button)}</mj-button></mj-column></mj-section>`,
+    `<mj-section><mj-column mj-class="panel-card"><mj-text mj-class="h2" padding="18px 18px 6px">${K.esc(READY_CHECK_WINDOW_EXPECT_TITLE)}</mj-text><mj-text padding="0 18px 16px">${K.esc(READY_CHECK_WINDOW_EXPECT_LINE)}</mj-text></mj-column></mj-section>`,
+  ].join("");
+  const html = mjEmail({ subject, preview: line1, body, unsubscribe: null, testLabel: opts.test === true });
+  const text = K.plainText([hi, "", subject, "", line1, line2, "", `${button}: ${f.link}`, "", READY_CHECK_WINDOW_EXPECT_TITLE.toUpperCase(), READY_CHECK_WINDOW_EXPECT_LINE], { testLabel: opts.test === true });
   return { subject, html, text };
 }

@@ -2,6 +2,7 @@
 // Part 2 (Jo 3 Nov 2026): the electrician's no-login link for an installer's own job (/e/<token>). The electrician calls
 // the owner, books the safety check (PIESA) on the link, or says "Can't do this one". Pure rules and held wording only;
 // persistence in electrician-link.server.ts, sends in own-job-piesa-notices.server.ts.
+import type { PartnerBlock } from "./partner-email.core";
 import { addMelbourneCalendarDays } from "./melbourne-time.core";
 import { weekdayDayMonthLabel } from "./owner-email-triggers.core";
 import { STAGE_ORDER } from "./workflow";
@@ -100,24 +101,42 @@ export const OWN_JOB_PIESA_CANT_DO_EMAIL_APPROVED: boolean = true;
 export const OWN_JOB_PIESA_NOT_BOOKED_EMAIL_APPROVED: boolean = true;
 
 /** The electrician's text (SMS type own_job_piesa_link, wordingApproved:false). */
-export function electricianLinkText(i: { installer: string; address: string; url: string }): string {
-  return `${i.installer} job: safety check (PIESA) to book at ${i.address}. Call the owner, then book it here: ${i.url}`;
+export function electricianLinkText(i: { installer: string; address: string; url: string; firstName?: string | null }): string {
+  // Suite text shape (Jo 5 Nov 2026): the sender adds "Home Insulation Victoria: " in front.
+  const hi = (i.firstName ?? "").trim().split(/\s+/)[0] || "there";
+  return `Hi ${hi}, ${i.installer} has a safety check (PIESA) for you to book at ${i.address}. Call the owner, then book it here: ${i.url}`;
 }
 
+/** One installer-office email in the suite look (Jo 5 Nov 2026): the subject, a big heading, the lines under it, an "action"
+ *  line in a box, and the plain text the record keeps. The sender adds "Hi {business}," and the Open the job button. */
+export type OfficeEmail = { subject: string; heading: string; lines: string[]; action: string; text: string };
+const officeEmail = (subject: string, heading: string, lines: string[], action: string, jobUrl: string): OfficeEmail =>
+  ({ subject, heading, lines, action, text: `${[...lines, action].join("\n")}\nJob page: ${jobUrl}` });
+
 /** The installer office: this job's safety check is ready to book. */
-export function officeToBookEmail(i: { address: string; electrician: string; booker: PiesaBooker; jobUrl: string }): { subject: string; text: string } {
+export function officeToBookEmail(i: { address: string; electrician: string; booker: PiesaBooker; jobUrl: string }): OfficeEmail {
   const who = i.booker === "office" ? "Please call the owner and book it within 2 business days."
     : i.booker === "electrician" ? `We've sent ${i.electrician} a link to call the owner and book it within 2 business days.`
     : `We've sent ${i.electrician} a link too. Whoever books first, within 2 business days.`;
-  return { subject: `Safety check to book for ${i.address}`, text: `The owner has paid. ${who}\nJob page: ${i.jobUrl}` };
+  return officeEmail(`Safety check to book for ${i.address}`, "Safety check to book", [`The owner at ${i.address} has paid.`], who, i.jobUrl);
 }
 
 /** The installer office: the electrician can't do this one. */
-export function officeCantDoEmail(i: { address: string; electrician: string; reason: string; jobUrl: string }): { subject: string; text: string } {
-  return { subject: `${i.electrician} can't do the safety check for ${i.address}`, text: `Reason: ${i.reason}.\nPick another electrician on the job page: ${i.jobUrl}` };
+export function officeCantDoEmail(i: { address: string; electrician: string; reason: string; jobUrl: string }): OfficeEmail {
+  return officeEmail(`${i.electrician} can't do the safety check for ${i.address}`, `${i.electrician} can't do the safety check`, [`${i.address}. Reason: ${i.reason}.`], "Pick another electrician on the job.", i.jobUrl);
 }
 
 /** The installer office: 2 business days passed and the safety check still isn't booked. */
-export function officeNotBookedEmail(i: { address: string; jobUrl: string }): { subject: string; text: string } {
-  return { subject: "Not booked yet — book it or pick another electrician", text: `The safety check (PIESA) at ${i.address} isn't booked yet.\nBook it on the job page, or pick another electrician: ${i.jobUrl}` };
+export function officeNotBookedEmail(i: { address: string; jobUrl: string }): OfficeEmail {
+  return officeEmail("Not booked yet — book it or pick another electrician", "Safety check not booked yet", [`The safety check (PIESA) at ${i.address} isn't booked yet.`], "Book it on the job, or pick another electrician.", i.jobUrl);
+}
+
+/** The blocks every installer-office email is laid out from (partnerEmailLayout): greeting, lines, action box, button. */
+export function officeEmailBlocks(m: OfficeEmail, business: string | null, jobUrl: string | null): PartnerBlock[] {
+  return [
+    { kind: "hi", text: business?.trim() ? `Hi ${business.trim()},` : "Hi," },
+    ...m.lines.map((t): PartnerBlock => ({ kind: "p", text: t })),
+    { kind: "box", text: m.action },
+    ...(jobUrl ? [{ kind: "button", label: "Open the job", url: jobUrl } as PartnerBlock] : []),
+  ];
 }

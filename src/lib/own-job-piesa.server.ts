@@ -250,7 +250,7 @@ async function sendNotBookedEmail(jobId: string, installerId: string, handedEven
   const address = (ov?.property_address as string | null | undefined) || (ov?.job_number as string | null | undefined) || "this job";
   const jobUrl = `${SET_PASSWORD_BASE}/field/${jobId}`;
   const mail = officeNotBookedEmail({ address, jobUrl });
-  await emailInstallerOffice({ jobId, businessId: installerId, key: `own-job-piesa:v1:${handedEventId}:not-booked`, subject: mail.subject, text: mail.text, jobUrl, approved: OWN_JOB_PIESA_NOT_BOOKED_EMAIL_APPROVED });
+  await emailInstallerOffice({ jobId, businessId: installerId, key: `own-job-piesa:v1:${handedEventId}:not-booked`, subject: mail.subject, text: mail.text, jobUrl, mail, approved: OWN_JOB_PIESA_NOT_BOOKED_EMAIL_APPROVED });
 }
 
 /** 15-minute tick: an own job handed to its electrician, still unbooked after the hand-over's due date (2 business days),

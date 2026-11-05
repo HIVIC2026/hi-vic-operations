@@ -247,7 +247,7 @@ describe("textElectricianLink", () => {
   test("a real job sends the DRAFT text once through the real sender, to the electrician's mobile", async () => {
     const x = deps();
     expect(await server.textElectricianLink(J, W, URL, x.d)).toBe("sent");
-    expect(x.sent).toEqual([{ type: "electrician_job_link", key: `electrician-link:v1:${J}:${W}`, to: "0422 222 222", body: `Home Insulation Victoria: New PIESA job HV-5001, Kew, for Smith Insulation Pty Ltd. Your job link: ${URL}` }]);
+    expect(x.sent).toEqual([{ type: "electrician_job_link", key: `electrician-link:v1:${J}:${W}`, to: "0422 222 222", body: `Home Insulation Victoria: Hi Sam, new PIESA job HV-5001 in Kew for Smith Insulation Pty Ltd. Your job link: ${URL}` }]);
     expect(x.tested).toHaveLength(0);
   });
   test("a TEST job goes to the test sender once, never the real one", async () => {

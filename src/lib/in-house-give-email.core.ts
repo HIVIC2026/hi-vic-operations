@@ -22,10 +22,18 @@ export function giveEmailLine(j: GiveEmailJob): string {
   return `${number} · ${owner} · ${mobile} · ${address}`;
 }
 
-/** One email for one Give: a line per job, then the call line. `test` adds the TEST label (test-send only). */
-export function renderInHouseGiveEmail(i: { jobs: GiveEmailJob[]; test?: boolean }): { subject: string; html: string; text: string } {
-  const blocks: PartnerBlock[] = [...i.jobs.map((j): PartnerBlock => ({ kind: "p", text: giveEmailLine(j) })), { kind: "p", text: IN_HOUSE_GIVE_CALL_LINE }];
-  const { html, text } = partnerEmailLayout({ subject: IN_HOUSE_GIVE_EMAIL_SUBJECT, blocks, test: i.test === true });
+export const IN_HOUSE_GIVE_EMAIL_HEADING = "New free Ready Check jobs";
+export const IN_HOUSE_GIVE_INTRO = (n: number) => n === 1 ? "Home Insulation Victoria has given you 1 new job." : `Home Insulation Victoria has given you ${n} new jobs.`;
+/** One email for one Give — suite look (Jo 5 Nov 2026): greeting line, big heading, how many, one card per job (number, owner,
+ *  mobile, address), then the call line in a box. `test` adds the TEST label (test-send only). */
+export function renderInHouseGiveEmail(i: { jobs: GiveEmailJob[]; business?: string | null; test?: boolean }): { subject: string; html: string; text: string } {
+  const hi = i.business?.trim() ? `Hi ${i.business.trim()},` : "Hi,";
+  const card = (j: GiveEmailJob): PartnerBlock => ({
+    kind: "card", title: (j.jobNumber ?? "").trim() || "Job", subtitle: displayName(j.ownerName) || "Owner",
+    blocks: [{ kind: "p", text: `Mobile: ${(j.ownerMobile ?? "").trim() || "no mobile on file"}` }, { kind: "p", text: `Address: ${(j.address ?? "").replace(/\s+/g, " ").trim() || "address not recorded"}` }],
+  });
+  const blocks: PartnerBlock[] = [{ kind: "hi", text: hi }, { kind: "p", text: IN_HOUSE_GIVE_INTRO(i.jobs.length) }, ...i.jobs.map(card), { kind: "box", text: IN_HOUSE_GIVE_CALL_LINE }];
+  const { html, text } = partnerEmailLayout({ subject: IN_HOUSE_GIVE_EMAIL_SUBJECT, heading: IN_HOUSE_GIVE_EMAIL_HEADING, preview: IN_HOUSE_GIVE_CALL_LINE, blocks, test: i.test === true });
   return { subject: IN_HOUSE_GIVE_EMAIL_SUBJECT, html, text };
 }
 

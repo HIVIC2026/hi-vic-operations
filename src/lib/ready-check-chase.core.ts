@@ -49,16 +49,22 @@ export function readyCheckIncompleteText(jobNumber: string, address: string | nu
  *  chase is only ever one version. */
 export const READY_CHECK_CHASE_EMAIL_APPROVED = false as boolean;
 
-export function readyCheckNearlyThereEmail(i: { jobNumber: string; address: string; missing: string[]; mittiFormUrl: string; test?: boolean }): { subject: string; text: string; html: string } {
+export function readyCheckNearlyThereEmail(i: { jobNumber: string; address: string; missing: string[]; mittiFormUrl: string; business?: string | null; test?: boolean }): { subject: string; text: string; html: string } {
+  // Suite look (Jo 5 Nov 2026): greeting line, big heading, the lead line, the missing items in a card, the close line, one button.
   const subject = `${i.jobNumber} Ready Check: nearly there`;
+  const hi = i.business?.trim() ? `Hi ${i.business.trim()},` : "Hi,";
   const where = i.address.trim() || i.jobNumber;
   const lead = `${where} still needs:`;
   const close = "Add them in Mitti and we'll prepare the owner's quote.";
+  const button = "Open the Mitti form";
+  const bullet = (m: string, last: boolean) => `<tr><td width="24" valign="top" style="padding:0 0 ${last ? 12 : 10}px;font-weight:700;">&bull;</td><td style="padding:0 0 ${last ? 12 : 10}px;">${esc(m)}</td></tr>`;
   const body = [
-    `<mj-section><mj-column><mj-text mj-class="h1" css-class="email-heading">Nearly there</mj-text><mj-text>${esc(lead)}</mj-text><mj-text>${i.missing.map((m) => `&bull; ${esc(m)}`).join("<br />")}</mj-text><mj-text>${esc(close)}</mj-text><mj-button href="${esc(i.mittiFormUrl)}">Open the Mitti form</mj-button></mj-column></mj-section>`,
+    `<mj-section><mj-column><mj-text mj-class="hi">${esc(hi)}</mj-text><mj-text mj-class="h1" css-class="email-heading" padding="4px 12px 10px">Nearly there</mj-text><mj-text>${esc(lead)}</mj-text></mj-column></mj-section>`,
+    `<mj-section><mj-column mj-class="panel-card"><mj-table padding="18px 18px 6px">${i.missing.map((m, n) => bullet(m, n === i.missing.length - 1)).join("")}</mj-table></mj-column></mj-section>`,
+    `<mj-section><mj-column><mj-text padding="14px 12px 14px">${esc(close)}</mj-text><mj-button href="${esc(i.mittiFormUrl)}">${esc(button)}</mj-button><mj-text mj-class="small">Job ${esc(i.jobNumber)}</mj-text></mj-column></mj-section>`,
   ].join("");
   const html = mjEmail({ subject, preview: close, body, unsubscribe: null, testLabel: i.test === true });
-  const text = K.plainText([lead, ...i.missing.map((m) => `• ${m}`), "", close, "", `Open the Mitti form: ${i.mittiFormUrl}`], { testLabel: i.test === true });
+  const text = K.plainText([hi, "", "Nearly there", "", lead, ...i.missing.map((m) => `• ${m}`), "", close, "", `${button}: ${i.mittiFormUrl}`, "", `Job ${i.jobNumber}`], { testLabel: i.test === true });
   return { subject, text, html };
 }
 

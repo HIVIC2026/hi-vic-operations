@@ -60,14 +60,20 @@ test("pack 1 item 39 (Jo 4 Nov 2026, approved): the exact words — what we foun
   const c = { name: "Sample Insulation Pty Ltd", tradingName: "Sample Insulation", officePhone: "03 9000 0000", email: "office@sample.example" };
   const m = core.nonComplianceNotice({ firstName: "Sarah", what: WHAT, fix: FIX, contact: c }) as { subject: string; text: string; html: string };
   expect(m.subject).toBe("About your ceiling insulation — one thing we need to put right");
+  // Suite look (Jo 5 Nov 2026): greeting, heading, the same approved sentences, the "What happens next" card title between them.
   const lines = m.text.split("\n");
-  expect(lines.slice(0, 7)).toEqual([
+  expect(lines.slice(0, 12)).toEqual([
     "Hi Sarah,",
+    "",
+    "One thing we need to put right",
     "",
     `We've checked your job and found one thing that doesn't meet the program's rules: ${WHAT}.`,
     `We'll fix it at no cost to you: ${FIX}.`,
+    "",
+    "WHAT HAPPENS NEXT",
     "Sample Insulation will call you to arrange a time.",
     "Nothing else changes — your rebate and your price stay as they are.",
+    "",
     "Questions? Reply to this email or call Sample Insulation on 03 9000 0000.",
   ]);
   expect(m.text).toContain("Sample Insulation · 03 9000 0000 · office@sample.example");

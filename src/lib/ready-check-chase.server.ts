@@ -81,7 +81,7 @@ async function emailInstallerOffice(jobId: string, actorId: string | null, audit
   const claim = await admin.from("customer_email_sends").insert({ job_id: jobId, purpose: "ready_check_nearly_there_office", idempotency_key: key }).select("id").maybeSingle();
   if (claim.error || !claim.data) return { status: "already_attempted" };
   const prop = j.properties as { address_line: string | null; suburb: string | null } | null;
-  const m = readyCheckNearlyThereEmail({ jobNumber: j.job_number, address: [prop?.address_line, prop?.suburb].filter(Boolean).join(", "), missing, mittiFormUrl: mittiFormUrl(auditId), test: plan.action === "test_send" });
+  const m = readyCheckNearlyThereEmail({ jobNumber: j.job_number, address: [prop?.address_line, prop?.suburb].filter(Boolean).join(", "), missing, mittiFormUrl: mittiFormUrl(auditId), business: b?.name ?? null, test: plan.action === "test_send" });
   const r = plan.action === "test_send"
     ? await (await import("./test-send.server")).sendTestEmail({ jobId, jobSource: j.source, partnerIsTest: true, label: key, actorId: null }, plan.to, m.subject, m.html, m.text)
     : await (await import("./office-email.server")).sendOfficeEmail({ actorId: null, recipient: "partner", to: plan.to, contactName: b?.name ?? null, subject: m.subject, message: m.text, label: "ready_check_nearly_there", record: { businessId: asg.business_id }, html: m.html, text: m.text, idempotencyKey: key });

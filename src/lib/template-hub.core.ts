@@ -9,7 +9,7 @@
 import { electricianLinkText } from "./electrician-link.core";
 import { electricianLinkText as ownJobElectricianLinkText } from "./own-job-electrician-link.core";
 import { rejectionEmail, welcomeSmsText } from "./my-electricians.core";
-import { officeCantDoEmail, officeNotBookedEmail, officeToBookEmail } from "./own-job-electrician-link.core";
+import { officeCantDoEmail, officeEmailBlocks, officeNotBookedEmail, officeToBookEmail, type OfficeEmail } from "./own-job-electrician-link.core";
 import { oldElectricianEmail, ownerSwapCancelledEmail } from "./electrician-swap.core";
 import { alertEmail } from "./mitti-retry.core";
 import { renderQuickTapsDeclineEmail } from "./quick-taps-email.core";
@@ -197,8 +197,10 @@ const S = (r: string | { held: string }) => (typeof r === "string" ? r : null);
 const text = (body: string | null): TemplatePreview => ({ kind: "text", body: brandSmsBody(body ?? "") });
 const texts = (variants: { label: string; body: string | null }[]): TemplatePreview => ({ kind: "texts", variants: variants.map((v) => ({ label: v.label, body: brandSmsBody(v.body ?? "") })) });
 /** Installer-office emails sent through emailInstallerOffice (own-job-piesa-notices.server): its exact partnerEmailLayout blocks. */
-const installerOfficeEmail = (m: { subject: string; text: string }, jobUrl: string | null) =>
-  email({ subject: m.subject, ...partnerEmailLayout({ subject: m.subject, test: false, blocks: [...m.text.split("\n").filter(Boolean).map((t) => ({ kind: "p" as const, text: t })), ...(jobUrl ? [{ kind: "button" as const, label: "Open the job", url: jobUrl }] : [])] }) });
+const installerOfficeEmail = (m: OfficeEmail | { subject: string; text: string }, jobUrl: string | null) =>
+  "heading" in m
+    ? email({ subject: m.subject, ...partnerEmailLayout({ subject: m.subject, heading: m.heading, preview: m.lines[0], test: false, blocks: officeEmailBlocks(m, "Sample Insulation Co", jobUrl) }) })
+    : email({ subject: m.subject, ...partnerEmailLayout({ subject: m.subject, test: false, blocks: [...m.text.split("\n").filter(Boolean).map((t) => ({ kind: "p" as const, text: t })), ...(jobUrl ? [{ kind: "button" as const, label: "Open the job", url: jobUrl }] : [])] }) });
 /** Partner/applicant emails that the office sender lays out itself (no html passed): exactly what sendOfficeEmail builds. */
 const officeLaidOut = (contactName: string | null, subject: string, message: string) => officeEmailLayout({ contactName, subject, message });
 const jo = (input: Parameters<typeof renderJoOutcomeEmail>[0]) => {
@@ -601,7 +603,7 @@ const INSTALLER: TemplateEntry[] = [
     render: () => text(readyCheckIncompleteText("HV-TEST", SHORT_ADDRESS, ["finish and submit the form", "who is doing the electrical safety check"])) }),
   ENTRY({ id: "installer:ready-check-nearly-there", section: "installer", step: "ready_check", kind: "email", code: "", name: "Ready Check: nearly there (office email)", when: "The Mitti Ready Check is missing answers; goes to the installer's business office email, never a worker (held with an office note if none on file)", who: "Installer business office", approvalNote: "Wording: Jo 2 Nov 2026, decision #27 (READY_CHECK_CHASE_EMAIL_APPROVED stays false until Jo OKs the picture; until then the earlier text goes out, so one chase is one version)", gate: { kind: "email" },
     source: { builder: "src/lib/ready-check-chase.core.ts", fn: "readyCheckNearlyThereEmail", sender: "src/lib/ready-check-chase.server.ts" },
-    render: () => email(readyCheckNearlyThereEmail({ jobNumber: "HV-TEST", address: SHORT_ADDRESS, missing: ["finish and submit the form", "whether the homeowner agrees to be contacted"], mittiFormUrl: "https://app.mitti.example/inspection/TEST" })) }),
+    render: () => email(readyCheckNearlyThereEmail({ jobNumber: "HV-TEST", address: SHORT_ADDRESS, missing: ["finish and submit the form", "whether the homeowner agrees to be contacted"], mittiFormUrl: "https://app.mitti.example/inspection/TEST", business: "Sample Insulation Co" })) }),
   ENTRY({ id: "installer:sms-boss_price_link", section: "installer", step: "quote", kind: "text", code: "", name: "Enter your price (text)", when: "A1 Ready Check marked Complete with no price yet (the business owner also gets the \"Enter your price\" email below — Jo 3 Nov 2026)", who: "Installer (business owner)", approvalNote: "Jo 25 Oct 2026, decision 288", gate: { kind: "text", smsType: "boss_price_link" },
     source: { builder: "src/lib/boss-price-link.core.ts", fn: "bossPriceLinkText", sender: "src/lib/boss-price-link.server.ts" },
     render: () => text(bossPriceLinkText({ jobNumber: "HV-TEST", street: "824 High Street Road", link: `${FIELD}#price` })) }),
@@ -636,7 +638,7 @@ const INSTALLER: TemplateEntry[] = [
     render: () => email(renderReadyCheckPersonEmail({ jobNumber: "HV-TEST", address: SHORT_ADDRESS, startIso: RC_ISO, jobUrl: `${FIELD}` })) }),
   ENTRY({ id: "installer:lead-installer-confirm", section: "installer", step: "install", kind: "email", code: "", name: "Confirm or change your Lead Installer by 5pm today (email)", when: "9am Melbourne two days before each install (or at once when booked after 9am that day, until the 5pm lock), one per job + install date, to the installer business's office email; from 5pm the Lead Installer and the install day are locked (the ESC is told)", who: "Installer office", approvalNote: "DRAFT body (no approved wording yet; the heading and 5pm rule are Jo's 2 Nov 2026 \"Lead Installer / ESC 24h rule\") — LEAD_INSTALLER_CONFIRM_EMAIL_APPROVED stays false; real offices held, TEST → test-send", gate: { kind: "code_off", flag: "LEAD_INSTALLER_CONFIRM_EMAIL_APPROVED" },
     source: { builder: "src/lib/lead-installer-confirm.core.ts", fn: "renderLeadInstallerConfirm", sender: "src/lib/lead-installer-confirm.server.ts" },
-    render: () => email(renderLeadInstallerConfirm({ jobNumber: "HV-TEST", owner: "Sample Owner", startIso: INSTALL_ISO, address: SHORT_ADDRESS, lead: "Sample Lead Installer", crew: ["Sample Crew One", "Sample Crew Two"], jobUrl: `${FIELD}`, lockLabel: leadInstallerLock(INSTALL_ISO).lockLabel })) }),
+    render: () => email(renderLeadInstallerConfirm({ jobNumber: "HV-TEST", owner: "Sample Owner", startIso: INSTALL_ISO, address: SHORT_ADDRESS, lead: "Sample Lead Installer", crew: ["Sample Crew One", "Sample Crew Two"], jobUrl: `${FIELD}`, lockLabel: leadInstallerLock(INSTALL_ISO).lockLabel , business: "Sample Insulation Co"})) }),
   // Part 9 Task 7: GO / DON'T START after each GO slot run (2pm the day before, 6:30am on the day) — installer office by email only; info@ copies every DON'T START, never a GO.
   ENTRY({ id: "installer:go-email", section: "installer", step: "install", kind: "email", code: "", name: "GO for tomorrow (email)", when: "After the 2pm day-before and 6:30am GO checks pass, one per job + install start + slot, to the installer business's office email", who: "Installer office", approvalNote: "Wording approved by Jo 4 Nov 2026 14:40; GO_EMAIL_APPROVED stays false until the coordinator flips it (real offices get nothing, nothing recorded), TEST → test-send", gate: { kind: "email" },
     source: { builder: "src/lib/go-email.core.ts", fn: "goEmail", sender: "src/lib/go-email.server.ts" },
@@ -747,15 +749,15 @@ const ELECTRICIAN: TemplateEntry[] = [
   // check. Listed at the 4 Nov 2026 join (templates-hub pin); it keeps working beside Part 6's link until Part 2 minting is retired at go-live.
   ENTRY({ id: "electrician:sms-own_job_piesa_link", section: "electrician", step: "safety_check", kind: "text", code: "", name: "Own job: your link to book the safety check (text)", when: "An installer's own job: the owner has paid and the electrician books the safety check", who: "Electrician", approvalNote: "Jo 3 Nov 2026 (Part 2, #130/131)", gate: { kind: "text", smsType: "own_job_piesa_link" },
     source: { builder: "src/lib/own-job-electrician-link.core.ts", fn: "electricianLinkText", sender: "src/lib/own-job-piesa-notices.server.ts" },
-    render: () => text(ownJobElectricianLinkText({ installer: "Example Insulation", address: SHORT_ADDRESS, url: "https://estimate.homeinsulationvictoria.com.au/e/EXAMPLE" })) }),
+    render: () => text(ownJobElectricianLinkText({ installer: "Example Insulation", address: SHORT_ADDRESS, url: "https://estimate.homeinsulationvictoria.com.au/e/EXAMPLE", firstName: "Sam" })) }),
   // DRAFT wording: ELECTRICIAN_LINK_TEXT_APPROVED stays false and the SMS type is wordingApproved:false (switch off).
   ENTRY({ id: "electrician:sms-electrician_job_link", section: "electrician", step: "safety_check", kind: "text", code: "", name: "Your job link (text)", when: "Right after the installer picks the electrician for a new safety check job", who: "Electrician", approvalNote: "DRAFT wording for Jo to approve (new job flow Part 6); ELECTRICIAN_LINK_TEXT_APPROVED stays false", gate: { kind: "text", smsType: "electrician_job_link" },
     source: { builder: "src/lib/electrician-link.core.ts", fn: "electricianLinkText", sender: "src/lib/electrician-link.server.ts" },
-    render: () => text(electricianLinkText({ jobNumber: "HV-TEST", suburb: "Glen Waverley", installer: "Example Insulation", url: "https://estimate.homeinsulationvictoria.com.au/e/EXAMPLE" })) }),
+    render: () => text(electricianLinkText({ jobNumber: "HV-TEST", suburb: "Glen Waverley", installer: "Example Insulation", url: "https://estimate.homeinsulationvictoria.com.au/e/EXAMPLE", firstName: "Sam" })) }),
   // DRAFT wording: ELECTRICIAN_CANT_DO_EMAIL_APPROVED stays false (TEST jobs go to test-send).
   ENTRY({ id: "installer:electrician-cant-do", section: "installer", step: "safety_check", kind: "email", code: "", name: "The electrician can't do this one", when: "The electrician taps \"Can't do this one\" on their job link; goes to the installer business's office email (held if none on file). Their booked safety check / upgrades day is cancelled and the owner gets \"Your visit can't go ahead\"", who: "Installer business office", approvalNote: "DRAFT wording for Jo to approve (new job flow Part 6, Task 6); ELECTRICIAN_CANT_DO_EMAIL_APPROVED stays false", gate: { kind: "code_off", flag: "ELECTRICIAN_CANT_DO_EMAIL_APPROVED" },
     source: { builder: "src/lib/electrician-cant-do-email.core.ts", fn: "electricianCantDoEmail", sender: "src/lib/electrician-link.server.ts" },
-    render: () => email(electricianCantDoEmail({ jobNumber: "HV-TEST", electrician: "Example Electrical", reason: "Double booked that week", test: false })) }),
+    render: () => email(electricianCantDoEmail({ jobNumber: "HV-TEST", electrician: "Example Electrical", reason: "Double booked that week", business: "Sample Insulation Co", jobUrl: "https://portal.homeinsulationvictoria.com.au/field/EXAMPLE", test: false })) }),
   // Part 6 Task 7 — DRAFT wording: UPGRADES_NUDGE_TEXT_APPROVED stays false and the SMS type is wordingApproved:false (switch off).
   ENTRY({ id: "electrician:sms-upgrades_nudge", section: "electrician", step: "fixes", kind: "text", code: "", name: "Upgrades form not in (text)", when: "9am the day after the booked upgrades day when the upgrades form isn't in; carries a fresh job link", who: "Electrician", approvalNote: "Approved by Jo 4 Nov 2026 13:55 (Part 6 Task 7); UPGRADES_NUDGE_TEXT_APPROVED flips at go-live", gate: { kind: "text", smsType: "upgrades_nudge" },
     source: { builder: "src/lib/upgrades-watch.core.ts", fn: "upgradesNudgeText", sender: "src/lib/upgrades-watch.server.ts" },
@@ -893,7 +895,7 @@ const WAITING: TemplateEntry[] = [
     render: () => email(renderInHouseGiveEmail({ jobs: [
       { jobId: "TEST-1", jobNumber: "HV-TEST", ownerName: "Helen Yang", ownerMobile: "0400 000 000", address: ADDRESS },
       { jobId: "TEST-2", jobNumber: "HV-TEST2", ownerName: null, ownerMobile: null, address: null },
-    ] })) }),
+    ], business: "Sample Insulation Co" })) }),
   ENTRY({ id: "installer:trade-invite", section: "installer", step: "enquiry", kind: "email", code: "", name: "Trade sign-in invite", when: "Goes when the office gives an approved trade worker their own sign-in", who: "Installer / electrician worker", approvalNote: "Jo 27 Oct 2026, decision 406 (the whole email refresh suite)", gate: { kind: "email" },
     source: { builder: "src/lib/trade-access.core.ts", fn: "renderTradeInviteEmail", sender: "src/lib/trade-access.functions.ts" },
     render: () => email(renderTradeInviteEmail({ firstName: "Sam", business: "Sample Insulation Co", setPasswordUrl: `${BASE}/reset-password?token_hash=TEST&type=invite`, signInUrl: `${BASE}/auth` })) }),

@@ -129,7 +129,7 @@ async function confirmOne(b: Booking, now: Date, approved: boolean): Promise<str
   const owner = (Array.isArray(j.owners) ? j.owners[0] : j.owners)?.full_name ?? "";
   const { TEST_APP_BASE } = await import("./test-send.server");
   const { SET_PASSWORD_BASE } = await import("./set-password-link.core");
-  const mail = renderLeadInstallerConfirm({ jobNumber: j.job_number, owner, startIso: b.scheduled_start, address, lead, crew, jobUrl: `${test ? TEST_APP_BASE : SET_PASSWORD_BASE}/field/${j.id}`, lockLabel: leadInstallerLock(b.scheduled_start).lockLabel, test });
+  const mail = renderLeadInstallerConfirm({ jobNumber: j.job_number, owner, startIso: b.scheduled_start, address, lead, crew, jobUrl: `${test ? TEST_APP_BASE : SET_PASSWORD_BASE}/field/${j.id}`, lockLabel: leadInstallerLock(b.scheduled_start).lockLabel, business: bz?.name ?? null, test });
   const claim = () => logEvent(j.id, null, LEAD_CONFIRM_EVENT, `Lead Installer confirm email to the installer office for the ${day} install`, { key, install_date: day, booking_id: b.id, business_id: bz!.id, to, test, lead_worker_id: leadId }, { internal: true });
   if (test) {
     // TEST sends are recorded once before the send (the test sender has no idempotency key of its own).

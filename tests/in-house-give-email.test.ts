@@ -63,7 +63,7 @@ test("3 given jobs → ONE office email to the installer's office listing all 3"
   expect(m.actorId).toBe("jo");
   expect(m.contactName).toBe("Rapid Insulation");
   for (const n of ["HV-2730", "HV-2731", "HV-2732"]) expect(m.text).toContain(n);
-  expect(m.text).toContain("HV-2731 · Owner · no mobile on file · address not recorded");
+  expect(m.text).toContain("HV-2731\nOwner\n\nMobile: no mobile on file\n\nAddress: address not recorded");
   expect(m.text).toContain("Call each owner to book their free Ready Check.");
   expect(m.html).not.toContain("TEST — only sent to Jo");
   expect(f.tests).toHaveLength(0);

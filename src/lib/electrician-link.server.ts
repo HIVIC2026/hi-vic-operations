@@ -102,7 +102,7 @@ export async function textElectricianLink(jobId: string, workerId: string, url: 
   if (!d.approved) return "held";
   const [{ data: job, error: je }, { data: w, error: we }] = await Promise.all([
     admin.from("jobs").select("id, job_number, source, deleted_at, properties(suburb)").eq("id", jobId).maybeSingle(),
-    admin.from("partner_workers").select("id, business_id, mobile, trade_role, removed_at").eq("id", workerId).maybeSingle(),
+    admin.from("partner_workers").select("id, business_id, mobile, trade_role, removed_at, full_legal_name").eq("id", workerId).maybeSingle(),
   ]);
   if (je) throw dbErr("the job", je);
   if (we) throw dbErr("the electrician", we);
@@ -112,7 +112,7 @@ export async function textElectricianLink(jobId: string, workerId: string, url: 
   const { data: done } = await admin.from("workflow_events").select("id").eq("job_id", jobId).eq("event_type", ELECTRICIAN_LINK_TEXT_SENT_EVENT).contains("details", { key }).limit(1).maybeSingle();
   if (done) return "held";
   const [installer, { data: eb }] = await Promise.all([installerOf(jobId), admin.from("businesses").select("onboarding_notes").eq("id", w.business_id).maybeSingle()]);
-  const body = electricianLinkText({ jobNumber: job.job_number, suburb: (job.properties as { suburb: string | null } | null)?.suburb ?? null, installer: installer.name, url });
+  const body = electricianLinkText({ jobNumber: job.job_number, suburb: (job.properties as { suburb: string | null } | null)?.suburb ?? null, installer: installer.name, url, firstName: (w as { full_legal_name?: string | null }).full_legal_name ?? null });
   const { isTestPartner } = await import("./test-send.core");
   const partnerIsTest = isTestPartner(eb ?? null);
   if (job.source === "qa_test" || partnerIsTest) {
@@ -598,7 +598,8 @@ async function tellInstallerOfficeCantDo(d: ElectricianCantDoDeps, i: CantDoEmai
   const test = i.source === "qa_test" || partnerIsTest;
   if (!test && !d.emailApproved) return held("awaiting approval");
   const { electricianCantDoEmail } = await import("./electrician-cant-do-email.core");
-  const mail = electricianCantDoEmail({ jobNumber: i.jobNumber, electrician: i.electrician.trim() || bizName(eb) || "The electrician", reason: i.reason, test });
+  const { TEST_APP_BASE } = await import("./test-send.server");
+  const mail = electricianCantDoEmail({ jobNumber: i.jobNumber, electrician: i.electrician.trim() || bizName(eb) || "The electrician", reason: i.reason, business: bizName(ib), jobUrl: `${test ? TEST_APP_BASE : SET_PASSWORD_BASE}/field/${i.jobId}`, test });
   // Recorded BEFORE the send, once per key.
   await d.record(i.jobId, ELECTRICIAN_CANT_DO_EMAIL_EVENT, "Installer office told the electrician can't do this one", { key, assignment_id: i.assignmentId, test });
   if (test) {

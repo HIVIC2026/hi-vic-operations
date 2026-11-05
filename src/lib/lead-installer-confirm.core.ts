@@ -54,8 +54,9 @@ export const LEAD_CONFIRM_TEXT = {
   rows: { install: "Install", address: "Address", lead: "Lead Installer", crew: "Crew" },
 } as const;
 
-export function renderLeadInstallerConfirm(i: { jobNumber: string; owner: string; startIso: string; address: string; lead: string | null; crew: string[]; jobUrl: string; lockLabel: string; test?: boolean }): { subject: string; html: string; text: string } {
+export function renderLeadInstallerConfirm(i: { jobNumber: string; owner: string; startIso: string; address: string; lead: string | null; crew: string[]; jobUrl: string; lockLabel: string; business?: string | null; test?: boolean }): { subject: string; html: string; text: string } {
   const T = LEAD_CONFIRM_TEXT;
+  const hi = i.business?.trim() ? `Hi ${i.business.trim()},` : "Hi,"; // suite look (Jo 5 Nov 2026): greeting line above the heading
   const rows = [
     `${T.rows.install}: ${leadConfirmWhen(i.startIso)}`,
     `${T.rows.address}: ${i.address}${i.owner ? ` (${i.owner})` : ""}`,
@@ -66,6 +67,7 @@ export function renderLeadInstallerConfirm(i: { jobNumber: string; owner: string
   const out = partnerEmailLayout({
     subject, heading: T.heading, test: i.test ?? false,
     blocks: [
+      { kind: "hi", text: hi },
       { kind: "p", text: T.intro },
       { kind: "list", items: rows },
       { kind: "button", label: T.button, url: i.jobUrl },

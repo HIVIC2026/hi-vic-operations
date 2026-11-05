@@ -23,7 +23,7 @@ export async function sendInHouseGiveEmail(p: { batchId: string; businessId: str
   const partnerIsTest = isTestPartner(biz);
   if (partnerIsTest) {
     if (!to) return { status: "no_email" };
-    const mail = { to, ...renderInHouseGiveEmail({ jobs: p.jobs, test: true }) };
+    const mail = { to, ...renderInHouseGiveEmail({ jobs: p.jobs, business: displayName(biz.name) || null, test: true }) };
     let r: { status: string; detail?: string } | null = null;
     const sent = await deliverOnce(first.jobId, key, mail, async (frozen) => {
       const { sendTestEmail } = await import("./test-send.server");
@@ -37,7 +37,7 @@ export async function sendInHouseGiveEmail(p: { batchId: string; businessId: str
   if (!to) return { status: "no_email" };
   const paused = await (await import("./trade-pause.server")).tradeMessagesPausedNow({ businessId: biz.id });
   if (paused) return { status: "held", detail: paused };
-  const mail = { to, ...renderInHouseGiveEmail({ jobs: p.jobs }) };
+  const mail = { to, ...renderInHouseGiveEmail({ jobs: p.jobs, business: displayName(biz.name) || null }) };
   let r: { status: string; detail?: string } | null = null;
   const sent = await deliverOnce(first.jobId, key, mail, async (frozen) => {
     const { sendOfficeEmail } = await import("./office-email.server");
