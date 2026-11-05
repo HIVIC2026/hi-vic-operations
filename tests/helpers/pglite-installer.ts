@@ -71,8 +71,8 @@ CREATE TABLE public.partner_workers (
 CREATE TRIGGER t_partner_workers BEFORE UPDATE ON public.partner_workers FOR EACH ROW EXECUTE FUNCTION touch_updated_at();
 CREATE FUNCTION public.repend_worker_identity() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
- IF ROW(NEW.full_legal_name,NEW.email,NEW.mobile,NEW.licence_number,NEW.qualification,NEW.trade_role)
- IS DISTINCT FROM ROW(OLD.full_legal_name,OLD.email,OLD.mobile,OLD.licence_number,OLD.qualification,OLD.trade_role) THEN
+ -- Jo 5 Nov 2026 (applied 0234): only a licence number change re-pends approval.
+ IF NEW.licence_number IS DISTINCT FROM OLD.licence_number THEN
   NEW.approval_status='pending'; NEW.approved_at=NULL; NEW.approved_by=NULL;
  END IF;
  RETURN NEW;
