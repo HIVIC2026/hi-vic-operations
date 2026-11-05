@@ -26,7 +26,7 @@ export const SPOT_RELEASED_APPROVED = true; // Jo approved the O77 picture + tex
 export const SPOT_RELEASED_SMS_TYPE = "spot_released" as const;
 /** Decisions #21/#22 (Jo 2 Nov 2026): the reworded "It's your turn" email + text (O77) that open the quick taps. false = real
  *  owners get nothing (TEST jobs work) until Jo sees the pictures; one flag covers the email, the text and both reminders. */
-export const IT_IS_YOUR_TURN_V2_APPROVED = false as boolean;
+export const IT_IS_YOUR_TURN_V2_APPROVED = true as boolean; // ON 5 Nov 2026 10:52 (Jo: all designed templates on)
 export const IT_IS_YOUR_TURN_V2_UNAPPROVED = "It's your turn wording not switched on yet";
 export const SPOT_RELEASED_PURPOSE = "spot_released";
 export const SPOT_RELEASE_UNAPPROVED = "The 'It's your turn' message isn't approved yet";

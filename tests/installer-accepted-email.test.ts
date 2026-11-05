@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { renderInstallerAcceptedEmail } from "../src/lib/installer-accepted-email.core";
 
 test("wording Jo approved, install days installer-first (to confirm in template review), and no prices", () => {
-  const m = renderInstallerAcceptedEmail({ installerFirstName: "Deep", ownerName: "Helen Yang", address: "824 High Street Road, Glen Waverley", jobNumber: "HV-3117", jobUrl: "https://estimate.homeinsulationvictoria.com.au/field/j" });
+  const m = renderInstallerAcceptedEmail({ installerFirstName: "Deep", ownerName: "Helen Yang", address: "824 High Street Road, Glen Waverley", jobNumber: "HV-3117", jobUrl: "https://estimate.homeinsulationvictoria.com.au/field/j" , useV2: false });
   expect(m.subject).toBe("Owner accepted – HV-3117, 824 High Street Road, Glen Waverley");
   // Decision 91 design (I23): "Good news, Deep. Helen accepted!", three next steps, Open the job.
   expect(m.text).toContain("Hi Deep,");
@@ -48,9 +48,9 @@ import { INSTALLER_ACCEPTED_V2_APPROVED } from "../src/lib/installer-accepted-em
 const unesc = (s: string) => s.replace(/&#39;|&#x27;/g, "'");
 const v2Job = { installerFirstName: "Deep", ownerName: "Sarah Lee", address: "1 Example St, Sampletown", jobNumber: "HV-3117", jobUrl: "https://estimate.homeinsulationvictoria.com.au/field/j", useV2: true };
 
-test("#36 flag stays false until Jo OKs the pictures, and the old wording is used while it is", () => {
-  expect(INSTALLER_ACCEPTED_V2_APPROVED).toBe(false);
-  const m = renderInstallerAcceptedEmail({ ...v2Job, useV2: undefined });
+test("#36 flag ON since 5 Nov 2026 (Jo: all designed templates on); the old wording stays reachable with useV2: false", () => {
+  expect(INSTALLER_ACCEPTED_V2_APPROVED).toBe(true);
+  const m = renderInstallerAcceptedEmail({ ...v2Job, useV2: false });
   expect(m.text).toContain("Offer Sarah 3 install days");
   expect(m.text).not.toContain("Book the PIESA");
 });

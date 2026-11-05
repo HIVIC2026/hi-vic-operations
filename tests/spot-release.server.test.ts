@@ -267,8 +267,8 @@ describe("15-minute tick", () => {
 describe("legacy Release: old wording, not gated by the V2 flag", () => {
   beforeEach(() => { seed(null); clock = Date.parse("2026-10-26T00:00:00.000Z"); });
   const at = (hours: number) => new Date(Date.parse("2026-10-26T00:00:00.000Z") + hours * 3_600_000);
-  test("with production approvals (V2 flag false) a real Release sends the old email + text, byte-identical", async () => {
-    expect(IT_IS_YOUR_TURN_V2_APPROVED).toBe(false);
+  test("a real Release sends the old email + text, byte-identical, whatever the V2 flag (ON since 5 Nov 2026)", async () => {
+    expect(typeof IT_IS_YOUR_TURN_V2_APPROVED).toBe("boolean");
     const r = await S.releaseSpot("job-1", "jo", "biz-1", { retired: false, now: at(0) });
     expect(r.mode).toBe("released");
     expect(sent.map((s) => s.via)).toEqual(["live-email", "real-sms"]);

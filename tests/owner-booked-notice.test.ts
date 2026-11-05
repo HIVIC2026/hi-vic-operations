@@ -57,15 +57,15 @@ describe("ownerBookedNotice — Ready Check (approved #24 + Fix 5 wording)", () 
     expect(ownerBookedNotice({ ...f, kind: "piesa" })).toEqual({ held: "No installer on file" });
     expect(ownerBookedNotice({ ...f, kind: "install" })).toEqual({ held: "No balance on file" });
   });
-  test("ships switched off for every kind", () => {
-    expect(OWNER_BOOKED_V2_APPROVED).toEqual({ ready_check: false, piesa: false, install: false });
+  test("ON for every kind since 5 Nov 2026 (Jo: all designed templates on)", () => {
+    expect(OWNER_BOOKED_V2_APPROVED).toEqual({ ready_check: true, piesa: true, install: true });
   });
 });
 
 describe("ownerBookedMessage (in-house-booking.core) — flag decides old or new wording", () => {
   const base = { kind: "ready_check" as const, start: "2025-11-03T22:00:00Z", who: { name: "John Smith", phone: "0411 111 111" }, installer: "Rapid Insulation", phone: "03 9000 0000", ownerName: "Sarah Jones", business: rapid, changed: false };
   test("flag off → the current bookingNotice wording, unchanged", () => {
-    const m = ownerBookedMessage(base);
+    const m = ownerBookedMessage(base, { ready_check: false, piesa: false, install: false });
     const old = bookingNotice(base);
     expect(m).toEqual({ version: "v1", subject: old.subject, text: old.text, sms: old.sms });
   });

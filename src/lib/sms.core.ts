@@ -10,7 +10,7 @@ import { melbourneHour, smsQuietReason } from "./quote-hold.core";
 export const SMS_MESSAGE_TYPES = {
   in_house_booked_owner: { audience:'owner',label:'In-house visit booking confirmation (Jo 1 Nov Task 7)',wordingApproved:true,quietHours:true },
   // DRAFT (Part 4 Task 10): held by AFTER_INSTALL_REMINDERS_APPROVED; flip both together when Jo approves the wording.
-  after_install_reminder: { audience: 'owner', label: 'After-install reminder: what is still undone, days 1/3/7 (Jo 2 Nov, touchpoint 53; wording is a draft behind AFTER_INSTALL_REMINDERS_APPROVED)', wordingApproved: false, quietHours: true },
+  after_install_reminder: { audience: 'owner', label: 'After-install reminder: what is still undone, days 1/3/7 (Jo 2 Nov, touchpoint 53; wording is a draft behind AFTER_INSTALL_REMINDERS_APPROVED)', wordingApproved: true /* ON 5 Nov 2026 (Jo: all designed templates on) */, quietHours: true },
   upgrades_needed: { audience: 'owner', label: 'Your safety check found electrical upgrades needed (Jo 2 Nov, touchpoint 42)', wordingApproved: true, quietHours: true },
   // Part 2 (Jo 3 Nov 2026): an installer's own job — the electrician's no-login link to call the owner and book the safety check. HELD until Jo approves.
   own_job_piesa_link: { audience: "partner", label: "Own job: electrician's link to book the safety check (Part 2)", wordingApproved: true, quietHours: true },
@@ -145,15 +145,15 @@ export const SMS_MESSAGE_TYPES = {
   // Task 19 (Jo 2 Nov 2026, answer 24): an installer's OWN customer gets the rental quick taps by text right after the
   // installer adds the job (no "It's your turn" text for them). Wording is a DRAFT: never sends until Jo approves it (also
   // behind OWN_CUSTOMER_RENTAL_TAPS_APPROVED); own switch, off until Jo switches it on.
-  own_customer_rental_taps: { audience: "owner", label: "A few quick questions about your home – installer's own customer, after the installer adds the job (answer 24; DRAFT wording, OWN_CUSTOMER_RENTAL_TAPS_APPROVED)", wordingApproved: false, quietHours: true },
+  own_customer_rental_taps: { audience: "owner", label: "A few quick questions about your home – installer's own customer, after the installer adds the job (answer 24; DRAFT wording, OWN_CUSTOMER_RENTAL_TAPS_APPROVED)", wordingApproved: true /* ON 5 Nov 2026 (Jo: all designed templates on) */, quietHours: true },
   // Part 4 Task 15 (Jo 2 Nov 2026, answer 7): the person who lets the trades in when it is NOT the owner (the tenant or the
   // property manager, from the owner's quick-taps answers) gets the PIESA / install "You're booked" text and the day-before
   // text — visit-time texts only (access-person-texts.core). `ownerSideContact`: an owner-side person on the job (the job's
   // owner consent and comms switches apply), but the OWNER's "Do not contact" is about the owner and does not hold these;
   // a STOP from the access person's own number does. DRAFT wording: never sends until Jo approves it (also behind
   // ACCESS_PERSON_TEXTS_APPROVED); own switches, off until Jo switches them on.
-  access_person_booked: { audience: "owner", ownerSideContact: true, label: "You're booked (PIESA / install) – to the tenant or property manager who lets the trades in (answer 7; DRAFT wording, ACCESS_PERSON_TEXTS_APPROVED)", wordingApproved: false, quietHours: true },
-  access_person_tomorrow: { audience: "owner", ownerSideContact: true, label: "See you tomorrow (PIESA / install) – to the tenant or property manager who lets the trades in (answer 7; DRAFT wording, ACCESS_PERSON_TEXTS_APPROVED)", wordingApproved: false, quietHours: true },
+  access_person_booked: { audience: "owner", ownerSideContact: true, label: "You're booked (PIESA / install) – to the tenant or property manager who lets the trades in (answer 7; DRAFT wording, ACCESS_PERSON_TEXTS_APPROVED)", wordingApproved: true /* ON 5 Nov 2026 (Jo: all designed templates on) */, quietHours: true },
+  access_person_tomorrow: { audience: "owner", ownerSideContact: true, label: "See you tomorrow (PIESA / install) – to the tenant or property manager who lets the trades in (answer 7; DRAFT wording, ACCESS_PERSON_TEXTS_APPROVED)", wordingApproved: true /* ON 5 Nov 2026 (Jo: all designed templates on) */, quietHours: true },
   // Part 4 Task 16 (cl 23; Jo 2 Nov 2026, answers 7 and 22): the TENANT is told the install day, time and power-off by text
   // (and email) once the install is booked and whenever its time changes (tenant-notice.core). A compliance send:
   // `compliancePurpose` makes the real sender read the owner's consent the compliance way (an unsubscribe never holds it) and
@@ -163,7 +163,7 @@ export const SMS_MESSAGE_TYPES = {
   // New job flow Part 6 Task 2: the electrician is texted their no-login job link (/e/{token}) right after the installer picks them.
   // DRAFT wording (electricianLinkText, electrician-link.core.ts) until Jo approves it; also behind ELECTRICIAN_LINK_TEXT_APPROVED.
   electrician_job_link: { audience: "partner", label: "New safety check job – electrician's job link (Part 6; DRAFT wording, ELECTRICIAN_LINK_TEXT_APPROVED)", wordingApproved: false, quietHours: true },
-  upgrades_nudge: { audience: "partner", label: "Upgrades form not in – nudge to the electrician the day after the upgrades day (Part 6; wording approved by Jo 4 Nov 2026, UPGRADES_NUDGE_TEXT_APPROVED flips at go-live)", wordingApproved: false, quietHours: true },
+  upgrades_nudge: { audience: "partner", label: "Upgrades form not in – nudge to the electrician the day after the upgrades day (Part 6; wording approved by Jo 4 Nov 2026, UPGRADES_NUDGE_TEXT_APPROVED flips at go-live)", wordingApproved: true /* ON 5 Nov 2026 (Jo: all designed templates on) */, quietHours: true },
 } as const;
 export type SmsMessageType = keyof typeof SMS_MESSAGE_TYPES;
 

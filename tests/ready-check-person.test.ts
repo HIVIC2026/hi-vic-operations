@@ -44,7 +44,7 @@ describe("words (Jo's) and the DRAFT email", () => {
     expect(READY_CHECK_PERSON_WORDS.notSureYet).toBe("Not sure yet");
     expect(READY_CHECK_PERSON_WORDS.pickBy).toBe("Pick who's going by 5pm the day before");
     expect(readyCheckPersonMissingLine("1 Journey Street, Frankston 3199")).toBe("Ready Check tomorrow at 1 Journey Street, Frankston 3199 — nobody picked yet");
-    expect(READY_CHECK_PERSON_EMAIL_APPROVED).toBe(false);
+    expect(READY_CHECK_PERSON_EMAIL_APPROVED).toBe(true); // ON 5 Nov 2026 (Jo: all designed templates on)
     const m = renderReadyCheckPersonEmail({ jobNumber: "HV-3300", address: "1 Journey Street, Frankston 3199", startIso: START, jobUrl: "https://p/field/J1" });
     expect(m.subject).toBe("HV-3300: who's doing the Ready Check tomorrow?");
     expect(m.subject).toBe(READY_CHECK_PERSON_EMAIL.subject("HV-3300"));
@@ -148,8 +148,8 @@ describe("sweep: ONE office email + ONE Needs me event per pending booking from 
     expect(events("ready_check_person_missing")).toHaveLength(0);
   });
   test("real office, flag off: Needs me event written once with Jo's line; email HELD once ('wording not approved yet'); nothing sent", async () => {
-    expect(await sweepReadyCheckPerson(at("2026-11-11T06:05:00Z"))).toEqual({ checked: 1, sent: 0, held: 1 });
-    await sweepReadyCheckPerson(at("2026-11-11T07:05:00Z"));
+    expect(await sweepReadyCheckPerson(at("2026-11-11T06:05:00Z"), { approved: false })).toEqual({ checked: 1, sent: 0, held: 1 }); // pins the held path; the flag is ON since 5 Nov 2026
+    await sweepReadyCheckPerson(at("2026-11-11T07:05:00Z"), { approved: false });
     const miss = events("ready_check_person_missing");
     expect(miss).toHaveLength(1);
     expect(miss[0]!.details).toMatchObject({ booking_id: B, needs_office: true, line: "Ready Check tomorrow at 1 Journey Street, Frankston 3199 — nobody picked yet" });

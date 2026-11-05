@@ -19,7 +19,10 @@ const tables: Tables = new Proxy({} as Tables, { get: (t, k: string) => (t[k] ??
 const reset = () => { for (const k of Object.keys(tables)) delete (tables as Record<string, unknown>)[k]; };
 type Sent = { channel: "email" | "sms"; purpose: string; key: string; subject?: string; text: string };
 let sent: Sent[] = [];
-const admin = memoryPostgrest(tables);
+const admin = Object.assign(memoryPostgrest(tables), {
+  // The tax-invoice look is ON since 5 Nov 2026: the All done email downloads the filed PDF; this stand-in serves a tiny one.
+  storage: { from: () => ({ download: async () => ({ data: new Blob([new TextEncoder().encode("%PDF-1.4 x")], { type: "application/pdf" }), error: null }) }) },
+});
 let depositPaid = false, installBooked = false;
 
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: admin }));

@@ -12,7 +12,12 @@ export const BUSINESS_LINES: readonly string[] = [
 ];
 export const BUSINESS_ADDRESS = "1/33 Altree Court, Phillip ACT 2606";
 
-export type PdfBlock = { id: string; keepTogether?: boolean; /** Page-1 sizes of the signed acceptance (the approved sample prints its first page smaller than the agreement). */ compact?: boolean } & (
+export type PdfBlock = { id: string; keepTogether?: boolean;
+  /** Jo's formatting rule (5 Nov 2026): a block that flows over pages (`keepTogether: false`) never leaves its heading or
+   *  lead-in lines orphaned at the foot of a page — the first `keepFirst` children start together on one page (a
+   *  section's first child already carries its heading; set it higher when lead-in lines sit before the first item). */
+  keepFirst?: number;
+  /** Page-1 sizes of the signed acceptance (the approved sample prints its first page smaller than the agreement). */ compact?: boolean } & (
   | { kind: "header"; eyebrow: string; withAddress?: boolean; /** Part 10 Task 7 (co-brand): a second logo drawn right of ours at the same height. */ partnerLogo?: { bytes: Uint8Array; width: number; height: number; alt: string } }
   | { kind: "title"; text: string; sub?: string }
   | { kind: "para"; text: string; muted?: boolean; small?: boolean; /** Bold lead-in drawn before `text` (wraps together). */ lead?: string }
@@ -88,6 +93,7 @@ export function packChildren(childHeights: number[], firstSpace: number, pageSpa
 }
 
 export type PaginateItem = { id: string; height: number; keepTogether: boolean; childHeights?: number[]; pageBreak?: boolean;
+  /** Leading children that must start together with the block (never a heading alone at a page foot). Default 1. */ keepFirst?: number;
   /** Extra height every split part takes besides its children (a box's padding and trailing gap). */ partOverhead?: number };
 export type PaginateResult = { page: number; id: string; part?: number };
 /** Same as PaginateResult, plus the child indexes drawn on this page for a split block (the renderer draws exactly these). */
@@ -117,9 +123,12 @@ export function paginateDetailed(items: PaginateItem[], firstPageSpace: number, 
       out.push({ page, id: it.id }); left -= it.height;
       continue;
     }
-    // Flows over pages: split between children, starting here unless the first child does not fit.
+    // Flows over pages: split between children, starting here unless the heading and its first real item do not fit
+    // together (Jo's rule: no heading or lead-in orphaned at the foot of a page).
     const oh = it.partOverhead ?? 0;
-    if (kids![0]! + oh > left + EPS && !atTop()) fresh();
+    const keepFirst = Math.max(1, Math.min(it.keepFirst ?? 1, kids!.length));
+    const firstNeed = kids!.slice(0, keepFirst).reduce((s, h) => s + h, 0) + oh;
+    if (firstNeed > left + EPS && !atTop()) fresh();
     const groups = packChildren(kids!, left, pageSpace, oh);
     groups.forEach((g, p) => {
       if (p > 0) fresh();

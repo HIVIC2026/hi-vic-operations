@@ -34,10 +34,10 @@ describe("pdf-look kit", () => {
     expect(t).not.toContain("🏠");
     expect(t).toContain("Sarah ? O’Brien");
   });
-  test("every swap flag starts off", () => {
+  test("every designed look is ON (Jo 5 Nov 2026: all designed templates on); the official DEECA form fill stays off (no sample)", () => {
     expect(Object.keys(PDF_LOOK_APPROVED).sort()).toEqual(["escConsent", "officialFormPdf", "receipts", "signedAcceptance", "swms", "taxInvoice", "veecForm"]);
-    expect(Object.entries(PDF_LOOK_APPROVED).filter(([k]) => k !== "swms").every(([, v]) => v === false)).toBe(true);
-    expect(PDF_LOOK_APPROVED.swms).toBe(true); // ON at go-live 5 Nov 2026 with SWMS_NOV2_WORDING_ON
+    expect(Object.entries(PDF_LOOK_APPROVED).filter(([k]) => k !== "officialFormPdf").every(([, v]) => v === true)).toBe(true);
+    expect(PDF_LOOK_APPROVED.officialFormPdf).toBe(false);
   });
 
   test("keepTogether false lets a block start on the current page and flow; default moves it whole", () => {

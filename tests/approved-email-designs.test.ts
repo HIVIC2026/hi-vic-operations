@@ -240,8 +240,8 @@ describe("approved owner email designs", () => {
 
 describe("approved installer email designs", () => {
   const job = { installerFirstName: "Sam", ownerName: "Helen Yang", address: "824 High Street Road, Glen Waverley", jobNumber: "HV-3117", jobUrl: "https://estimate.homeinsulationvictoria.com.au/field/j" };
-  test("I23 Owner accepted", () => {
-    const m = renderInstallerAcceptedEmail(job);
+  test("I23 Owner accepted (the 24 Oct design; v2 is ON since 5 Nov 2026 and has its own tests)", () => {
+    const m = renderInstallerAcceptedEmail({ ...job, useV2: false });
     shell(m.html, m.text, false);
     has(vis(m.html), ["Good news, Sam. | Helen accepted!"]);
     has(m.html, ["Helen Yang has accepted the quote for 824 High Street Road, Glen Waverley (HV-3117)", "paid for the electrical safety check", "Electrical safety check", "Offer Helen 3 install days", "Install within 30 days", ">Open the job<"]);

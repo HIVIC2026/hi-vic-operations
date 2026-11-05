@@ -183,7 +183,7 @@ describe("owner page and wording", () => {
       "They'll measure up and confirm your quote.",
     ]);
     expect(CONFIRM_BUTTON).toBe("Confirm my details");
-    expect(IT_IS_YOUR_TURN_V2_APPROVED).toBe(false);
+    expect(IT_IS_YOUR_TURN_V2_APPROVED).toBe(true); // ON 5 Nov 2026 (Jo: all designed templates on)
     expect(spotReleasePageLink("https://x/my-job/t")).toBe("https://x/my-job/t?screen=turn");
   });
   test("O77 (decisions #21/#22): quick taps intro, Confirm my details button, new steps; reminder variant", () => {

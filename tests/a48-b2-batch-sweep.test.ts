@@ -383,10 +383,10 @@ describe("decline retry and day-14 close happen once, and never re-close a reope
 
 describe("day-2 reminder behind IT_IS_YOUR_TURN_V2_APPROVED", () => {
   beforeEach(seed);
-  test("the flag is false in the code: a real owner gets no reminder (nothing held, nothing claimed); a TEST owner still does", async () => {
+  test("with the flag off a real owner gets no reminder (nothing held, nothing claimed); a TEST owner still does (the flag is ON since 5 Nov 2026)", async () => {
     addJob("b"); sendBatch("b1", ["b"]);
     addJob("t", { source: "qa_test" }); sendBatch("bt", ["t"], 0, { id: "biz-t", name: "[TEST PARTNER] Co" });
-    await S.sweepAreaBatches(at(49));
+    await S.sweepAreaBatches(at(49), { v2Approved: false });
     expect(realAttempts).toEqual([]);
     expect(emails.map((m) => m.via)).toEqual(["test-email"]);
     expect(events("quick_taps_reminded").map((e) => e["job_id"])).toEqual(["t"]);
@@ -476,7 +476,7 @@ describe("day-2 reminder follows how the batch was first sent", () => {
     tables["workflow_settings"]![0]!["sms_message_switches"] = { spot_released: true, quick_taps_reminder: true };
     addJob("b"); sendBatch("b1", ["b"], 0, undefined, [], "old");
     tables["customer_email_sends"] = [{ id: "ces-1", job_id: "b", purpose: "spot_released", idempotency_key: "spot-release:v1:b:b1:released", status: "sent" }];
-    await S.sweepAreaBatches(at(49));
+    await S.sweepAreaBatches(at(49), { v2Approved: false });
     expect(realAttempts).toEqual([]); expect(emails).toEqual([]);
     await S.sweepAreaBatches(at(50), { v2Approved: true });
     expect(sent.map((x) => [x.type, x.key])).toEqual([["spot_released", "spot-release:v1:b:b1:reminder:sms"]]);

@@ -10,7 +10,7 @@ export const INSTALLER_ACCEPTED_EMAIL_APPROVED = true as boolean;
 export const INSTALLER_DECLINED_EMAIL_APPROVED = true as boolean;
 
 /** Decision #36 (Jo 2 Nov 2026): the approved "Owner accepted" office email ("Book the PIESA now."). Stays false until Jo OKs the pictures; while false the old wording is sent, so an in-flight job gets one version. */
-export const INSTALLER_ACCEPTED_V2_APPROVED = false as boolean;
+export const INSTALLER_ACCEPTED_V2_APPROVED = true as boolean; // ON 5 Nov 2026 10:52
 
 export type WhoBooks = "office" | "electrician" | "either";
 /** whoBooks / electricianName: Part 5's who-books setting and the job's chosen electrician. Until Part 5 lands every business is "office". */

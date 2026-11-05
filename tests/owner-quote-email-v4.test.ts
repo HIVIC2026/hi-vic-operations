@@ -97,7 +97,7 @@ describe("v4 email (decision #29)", () => {
     expect(m.text).not.toContain("What's changed");
   });
   test("flag ships off; version recorded", () => {
-    expect(SHIPPED_V4).toBe(false);
+    expect(SHIPPED_V4).toBe(true); // ON 5 Nov 2026 (Jo: all designed templates on)
     expect(SHIPPED_V4_VERSION).toBe("v4-approved-2026-11-02");
   });
 });

@@ -30,7 +30,7 @@ describe("ownerWillCallEmail / ownerWillCallText (approved #23 wording)", () => 
     expect(m.text).toContain("Hi,");
     expect(ownerWillCallText(null, rapid)).toBe("Home Insulation Victoria: Hi there, Rapid Insulation will call you soon from 03 9000 0000 to book your free Ready Check.");
   });
-  test("ships switched off", () => { expect(OWNER_WILL_CALL_APPROVED).toBe(false); });
+  test("ON since 5 Nov 2026 (Jo: all designed templates on)", () => { expect(OWNER_WILL_CALL_APPROVED).toBe(true); });
 });
 
 /* ------------------------------------------------------------ sender (fake db, injected senders) */
