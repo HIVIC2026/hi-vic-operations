@@ -4,6 +4,7 @@ import { quoteReviewReasons, quoteNeedsOfficeReview } from "./office-quote-revie
 import { WorkflowError, logEvent } from "./workflow.server";
 import { intakeSendBlockers } from "./installer-intake.server";
 import { quoteBillingBlocker } from "./installer-quote.server";
+import { holdForTotals, quoteTotalsHoldReason } from "./quote-totals.server";
 
 export async function officeQuoteBlockers(
   jobId: string,
@@ -133,6 +134,14 @@ export async function releaseQuoteToOwner(
   if (!decision.ok) throw new WorkflowError(decision.reason);
   const siblings = decision.releaseCompanions ? companions.map((c) => c.row) : [];
   if (!permission.allowed) throw permission.error;
+  // Totals must add up (and be readable) before ANY quote becomes visible to the owner; otherwise it stays held for the office.
+  for (const row of [quote, ...siblings]) {
+    const why = await quoteTotalsHoldReason(row.id);
+    if (why) {
+      await holdForTotals(row.id, jobId, why, actorId);
+      throw new WorkflowError("Quote totals don't add up, so the quote was held and nothing was sent. Check the lines on Quotes to check.");
+    }
+  }
   // Jo 24 Oct: release only when the owner can actually accept it — right stage, invoicing settled, and a secure link.
   if (st?.stage === "ready_check_complete") {
     // Sending the quote IS the move to the quote stage; its entry checks (Ready Check complete, eligibility) still apply.

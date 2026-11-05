@@ -38,9 +38,10 @@ describe("wiring", () => {
   });
   test("Office Adjust keeps the audited helper and leaves a Ready Check draft for office Send (no reapproval)", () => {
     const s = readFileSync("src/lib/quotes.server.ts", "utf8");
-    const adj = s.slice(s.indexOf("export async function adjustQuote"), s.indexOf("export async function adjustQuote") + 4000);
+    const adj = s.slice(s.indexOf("export async function adjustQuote"), s.indexOf("export async function adjustQuote") + 9000);
     expect(adj).toContain('release_hold_reason: readyCheck ? "Waiting for office review before sending"');
-    expect(adj).toContain('from("quote_adjustments").insert');
+    expect(adj).toContain('apply_quote_adjustment'); // one RPC writes lines, totals and the quote_adjustments row together
+    expect(adj).toContain('from("quote_adjustments").insert'); // not-deployed fallback
     expect(adj).toContain('"quote_adjusted"');
     expect(adj).not.toMatch(/Waiting for installer reapproval|installer-quote-approval/);
   });

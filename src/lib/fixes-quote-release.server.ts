@@ -6,6 +6,7 @@
 import { UPGRADES_QUOTE_SEND_BLOCKER, electricianBillsUpgrades } from "./upgrades-billing.core";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { WorkflowError, logEvent } from "./workflow.server";
+import { holdForTotals, quoteTotalsHoldReason } from "./quote-totals.server";
 
 export type FixesReleaseHow = "office" | "auto";
 
@@ -36,6 +37,11 @@ export async function releaseFixesQuote(quoteId: string, actorId: string | null,
     const { data: ge } = await admin.from("workflow_events").select("details").eq("job_id", q.job_id).eq("event_type", "rectification_windows_given").order("created_at", { ascending: false }).limit(1).maybeSingle();
     const h = Number((ge?.details as { hours?: unknown } | null)?.hours);
     if (Number.isFinite(h) && h > 0) await admin.from("quotes").update({ rect_estimated_hours: h }).eq("id", q.id).eq("status", "draft");
+  }
+  const totalsWhy = await quoteTotalsHoldReason(q.id);
+  if (totalsWhy) {
+    await holdForTotals(q.id, q.job_id, totalsWhy, actorId);
+    throw new WorkflowError("Quote totals don't add up, so the quote was held and nothing was sent.");
   }
   const now = new Date().toISOString();
   const patch = how === "auto" ? { status: "issued" as const, sent_at: now, release_state: "released", release_hold_reason: null } : { status: "issued" as const, sent_at: now };

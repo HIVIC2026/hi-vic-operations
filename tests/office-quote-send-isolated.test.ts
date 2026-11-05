@@ -9,6 +9,7 @@ mock.module("../src/integrations/supabase/client.server", () => ({ supabaseAdmin
     if (table === "jobs") return { data: { channel, stage: "ready_check_complete", deleted_at: null, qa_archived_at: null }, error: null };
     if (table === "ceiling_measurements") return { data: { status: "complete", measured_area_m2: 100 }, error: null };
     if (table === "workflow_events") return { data: [], error: null };
+    if (table === "quote_items") return { data: [{ line_total_inc_gst: 1000 }], error: null }; // the send now checks the lines add up to the totals
     return { data: null, error: null };
   }
   return q;
@@ -24,7 +25,7 @@ mock.module("../src/lib/pilot.server", () => ({ applyCobrand: async () => {} }))
 mock.module("../src/lib/quote-ready-notify.server", () => ({ notifyOwnerQuoteReady: async () => { notifications++; return { email: "test accepted", sms: "test accepted" }; } }));
 const { sendOfficeReviewedQuote } = await import("../src/lib/office-quote-review.server");
 const { releaseQueuedQuotes } = await import("../src/lib/quotes.server");
-beforeEach(() => { stageBlockers = []; moved = []; channel = "installer_sourced"; blockers = []; notifications = 0; writes = 0; consent = true; quote = { id: "q", job_id: "j", kind: "installation", status: "draft", release_state: "held", release_hold_reason: "Waiting for office review before sending", sent_at: null, option_code: "INSTALLER_A1", created_at: "2026-10-23T00:00:00Z" }; });
+beforeEach(() => { stageBlockers = []; moved = []; channel = "installer_sourced"; blockers = []; notifications = 0; writes = 0; consent = true; quote = { id: "q", job_id: "j", kind: "installation", status: "draft", release_state: "held", release_hold_reason: "Waiting for office review before sending", sent_at: null, option_code: "INSTALLER_A1", created_at: "2026-10-23T00:00:00Z", subtotal_inc_gst: 1000, veec_discount_inc_gst: 200, customer_total_inc_gst: 800 }; });
 test.each(["INSTALLER_A1", "R5_BATTS"])("timer/tick never writes or sends %s", async code => {
   quote.option_code = code;
   expect(await releaseQueuedQuotes()).toEqual({ released: 0 });

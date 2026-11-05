@@ -9,6 +9,8 @@ import { lookupLocation } from "./activity48.core";
 import { applyDiscountRules, discountNotes, wholeVeecDiscount } from "./estimate.core";
 import { confirmedQuoteDecision, currentEstimateTotal, rectificationQuoteDecision } from "./quote-release.core";
 import { saveFixesQuote } from "./fixes-quote-save.server";
+import { holdForTotals, quoteTotalsHoldReason } from "./quote-totals.server";
+import { QUOTE_TOTALS_HOLD_REASON, quoteTotalsMismatch } from "./quote-totals.core";
 import { NEW_QUOTE_HOLD_REASON, NEW_QUOTE_REQUESTED_EVENT, newQuoteRebuildPending } from "./new-quote-request.core";
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -160,7 +162,9 @@ export async function generateInstallerQuotes(jobId: string, actorId: string | n
   // Jo 22 Oct 23:45: no confirmed approved product from the form → held, office confirms the product.
   const { PRODUCT_NEEDS_OFFICE } = await import("./insulation-product.core");
   const holds = [...(newQuote ? [NEW_QUOTE_HOLD_REASON] : []), ...calc.holdReasons, ...(chosen.product ? [] : [PRODUCT_NEEDS_OFFICE])];
-  const release: typeof baseRelease = holds.length ? { state: "held", status: "draft", reason: holds.join(" ") } : baseRelease;
+  // The lines are all in memory here: if they don't add up to the totals the quote is saved held, never released.
+  const totalsWhy = quoteTotalsMismatch({ subtotal_inc_gst: subtotal, veec_discount_inc_gst: veec, customer_total_inc_gst: customerTotal }, calc.lines);
+  const release: typeof baseRelease = totalsWhy ? { state: "held", status: "draft", reason: QUOTE_TOTALS_HOLD_REASON } : holds.length ? { state: "held", status: "draft", reason: holds.join(" ") } : baseRelease;
   const releasedAt = release.status === "issued" ? new Date().toISOString() : null;
   const availableToOwner = release.state !== "held";
   const discountNote = discountNotes(rules).join(" ") || null;
@@ -184,6 +188,7 @@ export async function generateInstallerQuotes(jobId: string, actorId: string | n
     throw new Error(`Quote lines could not be saved: ${(itemsError ?? internalsError)!.message}`);
   }
   await admin.from("quotes").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "installation").in("status", ["draft", "issued"]).neq("id", q.id);
+  if (totalsWhy) await holdForTotals(q.id, jobId, totalsWhy, actorId);
   const summary = release.state === "held" ? (release.reason ?? "Quote held for office review") : release.state === "queued" ? "Installation quote ready to send — queued behind the launch switches" : "Installation quote automatically released to the owner";
   await logEvent(jobId, actorId, release.state === "held" ? "installation_quote_held" : release.state === "queued" ? "installation_quote_queued" : "installation_quote_released", summary, { quote_ids: [q.id], rate_card: card.name, pricing_rule: HIV_PRICING_RULE, release_state: release.state }, { internal: release.state !== "released" });
   if (!chosen.product) await (await import("./ready-check-quote.server")).recordNeedsOffice(jobId, actorId, q.id, [PRODUCT_NEEDS_OFFICE]);
@@ -233,6 +238,10 @@ async function generateA4FixesQuote(jobId: string, actorId: string | null, busin
     externalSendingEnabled: workflow?.auto_send_quote === true && workflow?.customer_comms_enabled === true,
   });
   const now = new Date().toISOString();
+  if (release.state !== "held") {
+    const totalsWhy = await quoteTotalsHoldReason(q.id);
+    if (totalsWhy) { await holdForTotals(q.id, jobId, totalsWhy, actorId); return q.id; }
+  }
   await admin.from("quotes").update({ status: release.state === "held" ? "draft" : "issued", sent_at: release.state === "released" ? now : null, office_reviewed_at: release.state === "released" ? now : null, office_reviewed_by: null, release_state: release.state, release_hold_reason: release.reason }).eq("id", q.id);
   const summary = release.state === "held" ? (release.reason ?? "Electrical fixes quote held for office review") : release.state === "queued" ? "Electrical fixes quote ready to send — queued behind the launch switches" : "Electrical fixes quote automatically released to the owner";
   await logEvent(jobId, actorId, release.state === "held" ? "rectification_quote_held" : release.state === "queued" ? "rectification_quote_queued" : "rectification_quote_released", summary, { quote_id: q.id, release_state: release.state, pricing_source: A4_FIXES_PRICING_SOURCE }, { internal: release.state !== "released" });
@@ -291,6 +300,10 @@ export async function generateRectificationQuote(jobId: string, actorId: string 
     externalSendingEnabled: workflow?.auto_send_quote === true && workflow?.customer_comms_enabled === true,
   });
   const now = new Date().toISOString();
+  if (release.state !== "held") {
+    const totalsWhy = await quoteTotalsHoldReason(q.id);
+    if (totalsWhy) { await holdForTotals(q.id, jobId, totalsWhy, actorId); return q.id; }
+  }
   await admin.from("quotes").update({ status: release.state === "held" ? "draft" : "issued", sent_at: release.state === "released" ? now : null, office_reviewed_at: release.state === "released" ? now : null, office_reviewed_by: null, release_state: release.state, release_hold_reason: release.reason }).eq("id", q.id);
   const summary = release.state === "held" ? (release.reason ?? "Electrical fixes quote held for office review") : release.state === "queued" ? "Electrical fixes quote ready to send — queued behind the launch switches" : "Standard-rate electrical fixes quote automatically released to the owner";
   await logEvent(jobId, actorId, release.state === "held" ? "rectification_quote_held" : release.state === "queued" ? "rectification_quote_queued" : "rectification_quote_released", summary, { quote_id: q.id, release_state: release.state }, { internal: release.state !== "released" });
@@ -327,29 +340,64 @@ export async function approveHeldQuote(_quoteId: string, _actorId: string): Prom
 }
 
 export async function adjustQuote(quoteId: string, actorId: string, reason: string, changes: { id: string; quantity: number; unit_price_inc_gst: number }[], veecDiscount?: number, discountOverride = false) {
-  const { data: before } = await admin.from("quotes").select("*, quote_items(*)").eq("id", quoteId).single();
+  // 1. Read everything first (every read checks its error), 2. work the new lines and totals out in memory,
+  // 3. save in ONE database call. Nothing is written until the whole edit is known to be valid.
+  const { data: before, error: be } = await admin.from("quotes").select("*, quote_items(*)").eq("id", quoteId).single();
+  if (be) throw new WorkflowError("The quote could not be read, so nothing was changed. Please try again.");
   if (!before) throw new WorkflowError("Quote not found");
   if (!["issued", "draft"].includes(before.status)) throw new WorkflowError("Only open quotes can be adjusted.");
-  for (const c of changes)
-    await admin.from("quote_items").update({ quantity: c.quantity, unit_price_inc_gst: r2(c.unit_price_inc_gst), line_total_inc_gst: r2(c.quantity * c.unit_price_inc_gst) }).eq("id", c.id).eq("quote_id", quoteId);
-  const { data: items } = await admin.from("quote_items").select("line_total_inc_gst").eq("quote_id", quoteId);
-  const subtotal = r2((items ?? []).reduce((a, i) => a + Number(i.line_total_inc_gst), 0));
-  const { data: rs } = await admin.from("retail_estimator_settings").select("indicative_veec_value, minimum_customer_copayment_inc_gst").eq("is_current", true).maybeSingle();
+  const existing = (before.quote_items ?? []) as { id: string; line_total_inc_gst: number }[];
+  const edited = new Map<string, { id: string; quantity: number; unit_price_inc_gst: number; line_total_inc_gst: number }>();
+  for (const c of changes) {
+    if (!existing.some((i) => i.id === c.id)) throw new WorkflowError("A line in this edit isn't on the quote any more – reload");
+    edited.set(c.id, { id: c.id, quantity: c.quantity, unit_price_inc_gst: r2(c.unit_price_inc_gst), line_total_inc_gst: r2(c.quantity * c.unit_price_inc_gst) });
+  }
+  const subtotal = r2(existing.reduce((a, i) => a + Number(edited.get(i.id)?.line_total_inc_gst ?? i.line_total_inc_gst), 0));
+  const { data: rs, error: rse } = await admin.from("retail_estimator_settings").select("indicative_veec_value, minimum_customer_copayment_inc_gst").eq("is_current", true).maybeSingle();
+  if (rse) throw new WorkflowError("The rebate settings could not be read, so nothing was changed. Please try again.");
   const { quoteAdjustmentDiscount } = await import("./estimate.core");
   const dr = quoteAdjustmentDiscount(veecDiscount ?? Number(before.veec_discount_inc_gst), subtotal, Number(rs?.indicative_veec_value), Number(rs?.minimum_customer_copayment_inc_gst ?? 200), discountOverride);
   if (!dr.ok) throw new WorkflowError(dr.error);
   const veec = dr.discount;
-  const { data: s } = before.pricing_settings_id ? await admin.from("pricing_settings").select("gst_rate").eq("id", before.pricing_settings_id).maybeSingle() : { data: null };
+  const { data: s, error: se } = before.pricing_settings_id ? await admin.from("pricing_settings").select("gst_rate").eq("id", before.pricing_settings_id).maybeSingle() : { data: null, error: null };
+  if (se) throw new WorkflowError("The GST rate could not be read, so nothing was changed. Please try again.");
   const gst = 1 + Number(s?.gst_rate ?? 0.1);
   const after = { subtotal_inc_gst: subtotal, gst_amount: r2(subtotal - subtotal / gst), veec_discount_inc_gst: veec, customer_total_inc_gst: r2(subtotal - veec), manually_adjusted: true, ...(veec !== Number(before.veec_discount_inc_gst) ? { veec_count: dr.veecs, veec_unit_value_inc_gst: dr.veecs != null ? Number(rs?.indicative_veec_value) : null } : {}) };
-  await admin.from("quotes").update({ ...after, version: before.version + 1 }).eq("id", quoteId);
   // Jo 24 Oct 2026: no installer reapproval — an adjusted Ready Check draft simply stays on Quotes to check for office Send.
-  const readyCheck = (await (await import("./installer-quote-status.server")).loadInstallerQuote(before.job_id)).applies;
-  if (before.status === "draft") await admin.from("quotes").update({ release_state: "held", release_hold_reason: readyCheck ? "Waiting for office review before sending" : "Quote held: manually priced or adjusted" }).eq("id", quoteId);
+  let release: { status?: "draft"; release_state: string; release_hold_reason: string; sent_at?: null } | null = null;
+  if (before.status === "draft") {
+    const readyCheck = (await (await import("./installer-quote-status.server")).loadInstallerQuote(before.job_id)).applies;
+    release = { release_state: "held", release_hold_reason: readyCheck ? "Waiting for office review before sending" : "Quote held: manually priced or adjusted" };
+  }
   // Intake jobs: an adjusted issued quote goes back to held (not visible as current) until the office re-approves it.
-  else if (before.option_code === "INSTALLER_A1" && await (await import("./installer-intake.server")).isIntakeJob(before.job_id)) await admin.from("quotes").update({ status: "draft", release_state: "held", release_hold_reason: "Adjusted after sending — office must re-approve", sent_at: null }).eq("id", quoteId).eq("status", "issued");
-  const { data: afterFull } = await admin.from("quotes").select("*, quote_items(*)").eq("id", quoteId).single();
-  await admin.from("quote_adjustments").insert({ quote_id: quoteId, adjusted_by: actorId, reason, before_snapshot: before, after_snapshot: afterFull ?? {} });
+  else if (before.option_code === "INSTALLER_A1" && await (await import("./installer-intake.server")).isIntakeJob(before.job_id))
+    release = { status: "draft", release_state: "held", release_hold_reason: "Adjusted after sending — office must re-approve", sent_at: null };
+  const items = [...edited.values()];
+
+  const { error: rpcError } = await admin.rpc("apply_quote_adjustment" as never, {
+    p_quote_id: quoteId, p_expected_version: before.version, p_items: items, p_totals: after, p_release: release,
+    p_adjustment: { adjusted_by: actorId, reason, before_snapshot: before },
+  } as never) as { error: { code?: string; message: string } | null };
+  if (rpcError && rpcError.code !== "PGRST202" && rpcError.code !== "42883") {
+    if (/version_conflict/.test(rpcError.message)) throw new WorkflowError("This quote was changed by someone else – reload");
+    throw new Error(rpcError.message);
+  }
+  if (rpcError) {
+    // The save function isn't deployed yet: the old sequence, but already validated above and with every write checked.
+    // A failure after the first write can leave a partial save (accepted only until the SQL is deployed).
+    console.error("apply_quote_adjustment is not deployed (SQL not applied yet), using the separate writes:", rpcError.message);
+    const patch = { ...after, ...(release ?? {}), version: before.version + 1 };
+    const { data: moved, error: qe } = await admin.from("quotes").update(patch).eq("id", quoteId).eq("version", before.version).select("id").maybeSingle();
+    if (qe) throw new Error(`Quote totals could not be saved: ${qe.message}`);
+    if (!moved) throw new WorkflowError("This quote was changed by someone else – reload");
+    for (const it of items) {
+      const { error: ie } = await admin.from("quote_items").update({ quantity: it.quantity, unit_price_inc_gst: it.unit_price_inc_gst, line_total_inc_gst: it.line_total_inc_gst }).eq("id", it.id).eq("quote_id", quoteId);
+      if (ie) throw new Error(`Quote line could not be saved: ${ie.message}`);
+    }
+    const afterFull = { ...before, ...patch, quote_items: existing.map((i) => ({ ...i, ...(edited.get(i.id) ?? {}) })) };
+    const { error: ae } = await admin.from("quote_adjustments").insert({ quote_id: quoteId, adjusted_by: actorId, reason, before_snapshot: before, after_snapshot: afterFull });
+    if (ae) throw new Error(`Quote adjustment record could not be saved: ${ae.message}`);
+  }
   if (discountOverride && dr.veecs == null) await logEvent(before.job_id, actorId, "quote_discount_override", `Office discount override: ${reason}`, { quote_id: quoteId, requested: veecDiscount ?? null, applied: veec, reduced_for_minimum: dr.reducedForMin }, { internal: true });
   await logEvent(before.job_id, actorId, "quote_adjusted", `Quote manually adjusted: ${reason}`, { quote_id: quoteId, before_total: before.customer_total_inc_gst, after_total: after.customer_total_inc_gst }, { internal: true });
 }
