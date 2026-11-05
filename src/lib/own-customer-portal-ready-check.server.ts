@@ -41,7 +41,7 @@ export async function savePortalReadyCheck(jobId: string, userId: string, input:
   if(!portalReadyCheckFileOnJob(jobId,file.path)) throw Error('That file is not on this job.');
   await (await import('./upload-safety.server')).verifyStoredUpload('job-files',file.path,file.mime);
   const fileId = await (await import('./mitti-create-claim.core')).stableUuid(`portal-ready-check-file:${jobId}:${file.path}`);
-  const {error: fe} = await db.from('documents').upsert({id:fileId,job_id:jobId,kind:file.purpose === 'photo' ? 'ready_check_photo' : file.purpose === 'aerial' ? 'aerial_image' : 'floor_plan',title:file.name,original_name:file.name,storage_path:file.path,mime_type:file.mime,size_bytes:file.size,uploaded_by:userId,source_system:'portal',external_id:file.path},{onConflict:'id'});
+  const {error: fe} = await db.from('documents').upsert({id:fileId,job_id:jobId,kind:file.purpose === 'photo' || file.purpose === 'sketch' ? 'ready_check_photo' : file.purpose === 'aerial' ? 'aerial_image' : file.purpose === 'other' ? 'other' : 'floor_plan',title:file.name,original_name:file.name,storage_path:file.path,mime_type:file.mime,size_bytes:file.size,uploaded_by:userId,source_system:'portal',external_id:file.path},{onConflict:'id'});
   if(fe) throw Error('The file could not be saved. It has been kept; try again.');
  }
  const {logEvent} = await import('./workflow.server');

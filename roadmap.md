@@ -1,3 +1,6 @@
+## Jo 5 Nov 7:26pm measurement rules
+- [x] Required multiple floor-plan files/aerial file, onsite dimensions and editable calculated area, optional sketch, Other note/upload, nonblocking >10% nudge. 38 focused checks pass in isolated files including two-business read refusal; signed-in 390px TEST phone calculation/edit/nudge and choices checked, desktop no overflow, preview build OK. Upload/submit/readback not repeated; no records, sends or publication.
+
 ## Jo 5 Nov 7:24pm lower own-customer job page
 - [x] Paperwork shows Ready Check source/date and read-only portal details from submission; PIESA/consent availability no longer tied to install booking, SWMS/install form retain booking timing.
 - [x] Own-customer cancel only; exact owner-message empty text and PIESA-price label; lead return action preserved. Existing cancellation still uses canonical cancel + guarded info@ notice, not exercised because no sending authorised.
