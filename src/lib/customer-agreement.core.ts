@@ -8,7 +8,7 @@ import { keptInsulationNotice } from "./kept-insulation.core";
 import { UPGRADES_LINE_B } from "./quote-wording.core";
 
 export const CUSTOMER_AGREEMENT_KEY = "customer_agreement";
-export const CUSTOMER_AGREEMENT_VERSION = "1.3";
+export const CUSTOMER_AGREEMENT_VERSION = "1.4"; // Jo 5 Nov 2026: 50% deposit (1.3 said 10%)
 
 export type AgreementFacts = Record<
   | "owner_name" | "address" | "job_number" | "installer_name" | "installer_phone" | "installer_email" | "product"
@@ -90,6 +90,20 @@ If you need electrical upgrades, you pay your electrician directly. They're not 
 /** Section 1's removal bullet (v1.3 verbatim). Jo 4 Nov 2026 16:10: when the Ready Check says the old insulation is KEPT, this
  *  bullet is replaced by the approved "Your old insulation stays." paragraph (kept-insulation.core) at render time — the
  *  stored, approved template body is never changed. */
+/** Customer Agreement v1.4 (Jo 5 Nov 2026): v1.3 word for word except the deposit — 50% to book the install day (was 10%).
+ *  The "10% a year" penalty interest line is NOT the deposit and stays. v1.3 above is kept unchanged as the signed record. */
+export const AGREEMENT_V1_4_CHANGES: readonly (readonly [string, string])[] = [
+  ["(PIESA), 10% to book your install day, and the rest on install day.", "(PIESA), 50% to book your install day, and the rest on install day."],
+  ["- 10% deposit: refunded if you cancel", "- 50% deposit: refunded if you cancel"],
+  ["Once you're clear to install\\n10% deposit to book your install day", "Once you're clear to install\\n50% deposit to book your install day"],
+];
+export const CUSTOMER_AGREEMENT_V1_4 = AGREEMENT_V1_4_CHANGES.reduce((body, [from, to]) => {
+  if (body.split(from).length !== 2) throw new Error(`Customer Agreement v1.4: expected exactly one "${from}" in v1.3`);
+  return body.replace(from, to);
+}, CUSTOMER_AGREEMENT_V1_3);
+/** The agreement new quotes use. */
+export const CUSTOMER_AGREEMENT_CURRENT = CUSTOMER_AGREEMENT_V1_4;
+
 export const AGREEMENT_REMOVAL_LINE = "Remove your old insulation, if your quote says so.";
 export function applyKeptInsulation(body: string): string {
   const line = `- ${AGREEMENT_REMOVAL_LINE}`;
