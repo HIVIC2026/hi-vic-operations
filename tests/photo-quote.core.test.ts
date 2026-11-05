@@ -90,3 +90,17 @@ describe("isMissingQuoteMethodColumn", () => {
     expect(isMissingQuoteMethodColumn(null)).toBe(false);
   });
 });
+
+// Task 3/4: which give a job is under (pure match of the method record to the allocation by batch id).
+import { photoGiveFrom } from "../src/lib/photo-quote.core";
+test("photoGiveFrom matches the photo record to the current give by batch id and business", () => {
+  const sent = (b: string, biz: string, at: string) => ({ event_type: "in_house_batch_sent", created_at: at, details: { batch_id: b, business_id: biz } });
+  const rec = (b: string, biz: string) => ({ event_type: "in_house_quote_method", created_at: "2026-11-06T00:59:00Z", details: { batch_id: b, business_id: biz, quote_method: "photos" } });
+  expect(photoGiveFrom([sent("B1", "nogap", "2026-11-06T01:00:00Z"), rec("B1", "nogap")], ["nogap"])).toEqual({ batchId: "B1", businessId: "nogap", givenAt: "2026-11-06T01:00:00Z" });
+  expect(photoGiveFrom([sent("B1", "rapid", "2026-11-06T01:00:00Z")], ["rapid"])).toBeNull();
+  // handed back: the business is no longer the active installer
+  expect(photoGiveFrom([sent("B1", "nogap", "2026-11-06T01:00:00Z"), rec("B1", "nogap")], [])).toBeNull();
+  // re-given as Ready Check: an older photo record never applies to the newer batch
+  expect(photoGiveFrom([sent("B1", "nogap", "2026-11-06T01:00:00Z"), rec("B1", "nogap"), sent("B2", "nogap", "2026-11-09T01:00:00Z")], ["nogap"])).toBeNull();
+  expect(photoGiveFrom([], ["nogap"])).toBeNull();
+});

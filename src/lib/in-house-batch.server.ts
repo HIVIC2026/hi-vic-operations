@@ -198,7 +198,13 @@ export async function sendInHouseBatch(input: { businessId: string; jobIds: stri
       const j = screen.jobs.find(x => x.id === id);
       return { jobId: id, jobNumber: j?.job_number ?? "", ownerName: j?.ownerName ?? null, ownerMobile: j?.ownerPhone ?? null, address: j?.address ?? null, ownerSaid: said.get(id) ?? null };
     });
-    installerEmail = await sendInHouseGiveEmail({ batchId, businessId: input.businessId, jobs, actorId: input.actorId });
+    // Photo-quote installers: photo jobs get the From photos version; an installer's own customers keep the Ready Check one.
+    const photoIds = new Set(partner ? sent.filter(id => { const j = screen.jobs.find(x => x.id === id); return !!j && givenQuoteMethod(j, partner) === "photos"; }) : []);
+    const groups = [{ method: "ready_check" as const, jobs: jobs.filter(j => !photoIds.has(j.jobId)) }, { method: "photos" as const, jobs: jobs.filter(j => photoIds.has(j.jobId)) }].filter(g => g.jobs.length);
+    const outcomes: GiveEmailOutcome[] = [];
+    for (const g of groups) outcomes.push(await sendInHouseGiveEmail({ batchId, businessId: input.businessId, jobs: g.jobs, actorId: input.actorId, ...(g.method === "photos" ? { method: "photos" } : {}) }));
+    // One notice line: a not-sent outcome wins, so Jo is told to call.
+    installerEmail = outcomes.find(o => o.status !== "sent" && o.status !== "test_sent") ?? outcomes[0]!;
   } catch (error) {
     console.error("Installer email after Give failed", error instanceof Error ? error.message : "unknown");
     installerEmail = { status: "not_sent" };

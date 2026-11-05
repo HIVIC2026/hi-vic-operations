@@ -80,3 +80,18 @@ export function photoQuoteDueBy(givenAtIso: string): string {
 export function photoQuoteOverdue(givenAtIso: string, now: Date): boolean {
   return melbourneToday(now) > photoQuoteDueBy(givenAtIso);
 }
+
+export type GiveEventRow = { event_type: string; created_at: string; details: { batch_id?: unknown; business_id?: unknown } | null };
+export type PhotoGive = { batchId: string; businessId: string; givenAt: string };
+/** The job's current give, if it was a "From photos" give: the latest `in_house_batch_sent` to a business that is still the
+ *  job's active installer, matched by batch id + business to a PHOTO_QUOTE_GIVE_EVENT. Anything else (no give, handed back,
+ *  a Ready Check give, a method record from an older batch) → null, i.e. Ready Check. */
+export function photoGiveFrom(events: readonly GiveEventRow[], activeInstallerBusinessIds: readonly string[]): PhotoGive | null {
+  const str = (v: unknown) => (typeof v === "string" && v ? v : null);
+  const sent = events.filter((e) => e.event_type === "in_house_batch_sent" && activeInstallerBusinessIds.includes(str(e.details?.business_id) ?? ""))
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+  const batchId = str(sent?.details?.batch_id), businessId = str(sent?.details?.business_id);
+  if (!sent || !batchId || !businessId) return null;
+  const photo = events.some((e) => e.event_type === PHOTO_QUOTE_GIVE_EVENT && str(e.details?.batch_id) === batchId && str(e.details?.business_id) === businessId);
+  return photo ? { batchId, businessId, givenAt: sent.created_at } : null;
+}

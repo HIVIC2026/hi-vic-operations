@@ -283,3 +283,13 @@ test("photos installer: a failed photo read refuses the whole give; Ready Check 
   const rc = fixture("documents");
   expect((await rc.api.sendInHouseBatch({ businessId: "b", jobIds: ["j"], actorId: "office" })).sent).toEqual(["j"]);
 });
+test("photos installer: the installer's Give email is the From photos version", async () => {
+  const f = fixture(); (f.data.businesses[0] as any).quote_method = "photos";
+  f.data.documents = [{ job_id: "j", kind: "intake_media", mime_type: "image/jpeg", storage_path: "j/roof.jpg" }];
+  await f.api.sendInHouseBatch({ businessId: "b", jobIds: ["j"], actorId: "office" });
+  expect(f.giveCalls).toHaveLength(1);
+  expect(f.giveCalls[0]).toMatchObject({ method: "photos", businessId: "b" });
+  const rc = fixture();
+  await rc.api.sendInHouseBatch({ businessId: "b", jobIds: ["j"], actorId: "office" });
+  expect(rc.giveCalls[0].method).toBeUndefined();
+});

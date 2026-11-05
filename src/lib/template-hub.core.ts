@@ -16,6 +16,7 @@ import { alertEmail } from "./mitti-retry.core";
 import { renderQuickTapsDeclineEmail } from "./quick-taps-email.core";
 import { renderQuoteExpiredEmail } from "./quote-expired-email.core";
 import { renderInHouseGiveEmail } from "./in-house-give-email.core";
+import { ownerPhotoQuoteEmail } from "./owner-photo-quote-notice.core";
 import { bookingNotice, ownerBookedMessage } from './in-house-booking.core';
 import { renderJoOutcomeEmail } from "./jo-outcome-email.core";
 import { withUnsubscribe } from "./emailsafety.core";
@@ -896,6 +897,15 @@ const WAITING: TemplateEntry[] = [
       { jobId: "TEST-1", jobNumber: "HV-TEST", ownerName: "Helen Yang", ownerMobile: "0400 000 000", address: ADDRESS, ownerSaid: [["Insulation (owner said)", "Some — batts, about a hand thick, patchy"], ["Ceiling size (owner said)", "About 120 m²"]] },
       { jobId: "TEST-2", jobNumber: "HV-TEST2", ownerName: null, ownerMobile: null, address: null, ownerSaid: [["Insulation (owner said)", "None"], ["Ceiling size (owner said)", null]] },
     ], contactName: "Sample Insulation" })) }),
+  // Photo-quote installers (Jo 5 Nov 2026): the From photos Give email and the owner's "no visit needed" email. Both DRAFT.
+  ENTRY({ id: "waiting:in-house-give-photos", section: "waiting", step: "ready_check", kind: "email", code: "", name: "New photo quote jobs (one email per Give, From photos installers)", when: "Jo taps Give on ticked jobs for a From photos installer — one email per tap", who: "Installer office", approval: "waiting", approvalNote: "Photo-quote installers spec 5 Nov 2026; off until Jo approves (IN_HOUSE_PHOTO_GIVE_EMAIL_APPROVED)", gate: { kind: "code_off", flag: "IN_HOUSE_PHOTO_GIVE_EMAIL_APPROVED" },
+    source: { builder: "src/lib/in-house-give-email.core.ts", fn: "renderInHouseGiveEmail", sender: "src/lib/in-house-give-email.server.ts" },
+    render: () => email(renderInHouseGiveEmail({ method: "photos", jobs: [
+      { jobId: "TEST-1", jobNumber: "HV-TEST", ownerName: "Helen Yang", ownerMobile: "0400 000 000", address: ADDRESS, ownerSaid: [["Insulation (owner said)", "Some — batts, patchy"]] },
+    ], contactName: "Sample Insulation" })) }),
+  ENTRY({ id: "waiting:owner-photo-quote-notice", section: "waiting", step: "ready_check", kind: "email", code: "", name: "Good news: no visit needed", when: "Jo gives the job to a From photos installer (replaces \"{Installer} will call you\" for these jobs; no text); held with an office note if the installer has no office phone or business email", who: "Owner", approval: "waiting", approvalNote: "Photo-quote installers spec 5 Nov 2026, decision 3; off until Jo approves (OWNER_PHOTO_QUOTE_NOTICE_APPROVED)", gate: { kind: "code_off", flag: "OWNER_PHOTO_QUOTE_NOTICE_APPROVED" },
+    source: { builder: "src/lib/owner-photo-quote-notice.core.ts", fn: "ownerPhotoQuoteEmail", sender: "src/lib/in-house-batch-email.server.ts" },
+    render: () => email(ownerPhotoQuoteEmail({ firstName: "Helen", installer: WILL_CALL_SAMPLE, unsubscribeUrl: UNSUB }) as { subject: string; html: string }) }),
   ENTRY({ id: "installer:trade-invite", section: "installer", step: "enquiry", kind: "email", code: "", name: "Trade sign-in invite", when: "Goes when the office gives an approved trade worker their own sign-in", who: "Installer / electrician worker", approvalNote: "Jo 27 Oct 2026, decision 406 (the whole email refresh suite)", gate: { kind: "email" },
     source: { builder: "src/lib/trade-access.core.ts", fn: "renderTradeInviteEmail", sender: "src/lib/trade-access.functions.ts" },
     render: () => email(renderTradeInviteEmail({ firstName: "Sam", business: "Sample Insulation Co", setPasswordUrl: `${BASE}/reset-password?token_hash=TEST&type=invite`, signInUrl: `${BASE}/auth` })) }),
