@@ -1,3 +1,6 @@
+## Jo 5 Nov TEST Reinsulate 20-job phone checks
+- [ ] Sign in as existing TEST installer boss and TEST office; verify delivery guards, exercise 10 Add and 10 received jobs only if safe, time pages/buttons, fix/retest observed bugs. No real jobs/partners, sends or publishing.
+
 ## Jo 5 Nov phone speed
 - [x] Identified p_view RPC as office_enquiry_page; practice-proven 0189 indexes applied/read back. Enquiry facts plan 179.814→147.566 ms, photos-count plan 127.905→108.739 ms (same queries, one sample each, tool read role). property_facts already indexed: warm 1000-row query 0.783 ms. Health normal, no resize recommended.
 - [x] Single-job actions mark all queries stale but defer whole office lists/other job pages; active safety panels retain refresh/wait. Published assets prove #133 list-prefetch/identity/last-copy code is present, but global invalidation remains in published use-me. New code awaits Jo publication. Focused checks pass; existing last-copy field.guide assertion still fails.
