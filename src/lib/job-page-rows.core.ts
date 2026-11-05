@@ -21,9 +21,10 @@ export const JOB_PAGE_WORDS = {
 } as const;
 const W = JOB_PAGE_WORDS;
 
-export type ProgressLabel = "Ready Check" | "PIESA" | "Deposit" | "Install";
-export function progressSteps(f: { readyCheckDone: boolean; piesaDone: boolean; depositPaid: boolean; installDone: boolean }): { label: ProgressLabel; state: "done" | "now" | "later" }[] {
-  const steps: [ProgressLabel, boolean][] = [["Ready Check", f.readyCheckDone], ["PIESA", f.piesaDone], ["Deposit", f.depositPaid], ["Install", f.installDone]];
+export type ProgressLabel = "Ready Check" | "Photo quote" | "PIESA" | "Deposit" | "Install";
+export function progressSteps(f: { readyCheckDone: boolean; piesaDone: boolean; depositPaid: boolean; installDone: boolean; photoQuote?: boolean }): { label: ProgressLabel; state: "done" | "now" | "later" }[] {
+  // Photo-quote installers (Jo 5 Nov 2026): on a From photos job the first step is the photo quote (readyCheckDone = sent).
+  const steps: [ProgressLabel, boolean][] = [[f.photoQuote ? "Photo quote" : "Ready Check", f.readyCheckDone], ["PIESA", f.piesaDone], ["Deposit", f.depositPaid], ["Install", f.installDone]];
   let nowTaken = false;
   return steps.map(([label, done]) => {
     if (done) return { label, state: "done" as const };
@@ -103,10 +104,11 @@ export function ownerToldRows(events: { at: string; type: string; summary: strin
 }
 
 export type PaperworkRow = { label: string; ready: boolean; note: string | null };
-export function paperworkRows(f: { readyCheckReport: boolean; signedPiesa: boolean; ownerConsent: boolean; safetyPlan: boolean; installForm: boolean; installBooked: boolean }): PaperworkRow[] {
+export function paperworkRows(f: { readyCheckReport: boolean; signedPiesa: boolean; ownerConsent: boolean; safetyPlan: boolean; installForm: boolean; installBooked: boolean; photoQuote?: boolean }): PaperworkRow[] {
   const row = (label: string, ready: boolean): PaperworkRow => ({ label, ready, note: ready ? null : f.installBooked ? W.notInYet : W.notThereYet });
   return [
-    row("Ready Check report (Mitti, with photos)", f.readyCheckReport),
+    // Photo-quote installers: "Photo quote" (readyCheckReport = the photo quote was sent) instead of the Mitti report.
+    row(f.photoQuote ? "Photo quote" : "Ready Check report (Mitti, with photos)", f.readyCheckReport),
     row("Signed PIESA", f.signedPiesa),
     row("Owner's ESC consent", f.ownerConsent),
     row("Safety plan (SWMS)", f.safetyPlan),

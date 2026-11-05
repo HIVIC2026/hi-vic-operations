@@ -144,3 +144,13 @@ describe("what the owner's been told", () => {
     expect(nextForOwner("install_booked")).toBeNull();
   });
 });
+
+// Photo-quote installers Task 6: "Photo quote" replaces the Ready Check report row and progress step on photo jobs.
+import { paperworkRows as pw6, progressSteps as ps6 } from "../src/lib/job-page-rows.core";
+test("photos: paperwork lists Photo quote first; progress step label Photo quote", () => {
+  const rows = pw6({ readyCheckReport: true, signedPiesa: false, ownerConsent: false, safetyPlan: false, installForm: false, installBooked: false, photoQuote: true });
+  expect(rows[0]).toMatchObject({ label: "Photo quote", ready: true });
+  expect(rows.map((r) => r.label)).not.toContain("Ready Check report (Mitti, with photos)");
+  expect(ps6({ readyCheckDone: false, piesaDone: false, depositPaid: false, installDone: false, photoQuote: true })[0]).toEqual({ label: "Photo quote", state: "now" });
+  expect(ps6({ readyCheckDone: false, piesaDone: false, depositPaid: false, installDone: false })[0]!.label).toBe("Ready Check");
+});

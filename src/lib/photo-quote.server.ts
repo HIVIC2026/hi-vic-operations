@@ -163,3 +163,36 @@ export async function photoQuoteHandBackBlocker(jobId: string, db: Db = admin as
   if (!give) return null;
   return await installQuoteExists(db, jobId) ? PHOTO_QUOTE_WORDS.quoteGone : null;
 }
+
+// ---------------------------------------------------------------- Task 6: what the installer sees to quote from
+
+export type PhotoQuoteMedia = { media: { id: string; kind: "photo" | "video"; url: string; name: string }[]; ownerSaid: [string, string | null][] };
+/** The owner's photos/videos (1-hour app links, never storage-domain links) and what the owner told us on the website — the
+ *  same rows as the Give email. No prices, no quote, nothing else. The caller has already checked the trade's access. */
+export async function photoQuoteMediaFor(jobId: string, db: Db = admin as unknown as Db, sign?: (path: string) => Promise<string | null>): Promise<PhotoQuoteMedia> {
+  const signer = sign ?? (async (path: string) => (await (await import("./file-links.server")).signFile("job-files", path, 3600)).data?.signedUrl ?? null);
+  const [docs, job, saved] = await Promise.all([
+    db.from("documents").select("id, kind, mime_type, storage_path, title, created_at").eq("job_id", jobId).eq("kind", "intake_media").order("created_at"),
+    db.from("jobs").select("id, estimated_area_m2, properties(enrichment)").eq("id", jobId).maybeSingle(),
+    db.from("lead_campaign_responses").select("saved_insulation").eq("job_id", jobId).limit(1),
+  ]);
+  if (docs.error) throw new Error("Could not read the owner's photos.");
+  const { mediaType } = await import("./group-b-media.core");
+  const media: PhotoQuoteMedia["media"] = [];
+  for (const d of (docs.data ?? []) as { id: string; mime_type: string | null; storage_path: string | null; title: string | null }[]) {
+    if (!d.storage_path || !mediaType(d.mime_type, d.storage_path)) continue;
+    const url = await signer(d.storage_path);
+    if (!url) continue;
+    const video = /^video\//i.test(d.mime_type ?? "") || /\.(mp4|mov|webm|m4v)$/i.test(d.storage_path);
+    media.push({ id: d.id, kind: video ? "video" : "photo", url, name: d.title?.trim() || d.storage_path.split("/").pop() || "file" });
+  }
+  let ownerSaid: [string, string | null][] = [];
+  try {
+    const r = job.data as { estimated_area_m2: number | string | null; properties: { enrichment: Record<string, unknown> | null } | { enrichment: Record<string, unknown> | null }[] | null } | null;
+    const prop = Array.isArray(r?.properties) ? r?.properties[0] : r?.properties;
+    const b44 = (prop?.enrichment?.["base44"] ?? {}) as { raw?: { answers?: Record<string, unknown> }; declared?: Record<string, unknown> };
+    const savedIns = ((saved.data ?? []) as { saved_insulation: string | null }[])[0]?.saved_insulation ?? null;
+    ownerSaid = (await import("./owner-said.core")).ownerSaidRows({ answers: b44.raw?.answers ?? null, declared: b44.declared ?? null, savedInsulation: savedIns, estimatedAreaM2: r?.estimated_area_m2 ?? null });
+  } catch (e) { console.error("Photo quote: owner-said rows skipped", e instanceof Error ? e.message : "error"); }
+  return { media, ownerSaid };
+}

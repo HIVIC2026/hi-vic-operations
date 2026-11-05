@@ -374,3 +374,7 @@ export const uploadCoesForJob = createServerFn({ method: "POST" }).middleware([r
 export const tradeSubmitPhotoQuote = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, underR2: z.boolean().nullable(), removeM2: z.number().finite().nullable(), installM2: z.number().finite().nullable(), product: z.string().max(80).nullable() }).parse(d))
   .handler(async ({ data, context }) => plain(await (await import("./photo-quote.server")).submitPhotoQuote(data.jobId, context.userId, { underR2: data.underR2, removeM2: data.removeM2, installM2: data.installM2, product: data.product })));
+
+export const getPhotoQuoteMedia = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => plain(await (await import("./trade-view.server")).photoQuoteMedia(data.jobId, context.userId)));

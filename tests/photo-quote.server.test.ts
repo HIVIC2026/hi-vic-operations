@@ -95,3 +95,25 @@ test("a form failure is logged and never blocks the quote", async () => {
   const r = await submitPhotoQuote("j", "boss", good, deps({ ensureForms: async () => { throw new Error("Mitti down"); } }));
   expect(r.ok).toBe(true); expect(calls.gen).toBe(1); expect(ev("in_house_form_sync_failed")).toHaveLength(1);
 });
+
+// Task 6: what the installer quotes from — photos/videos as 1-hour app links and the owner's website answers; never a price.
+const { photoQuoteMediaFor } = await import("../src/lib/photo-quote.server");
+test("photoQuoteMediaFor: photos and videos only, app links, owner said rows, no $ amounts and no quote link", async () => {
+  const tables: Tables = {
+    documents: [
+      { id: "p", job_id: "j", kind: "intake_media", mime_type: "image/jpeg", storage_path: "j/roof.jpg", title: null, created_at: "1" },
+      { id: "v", job_id: "j", kind: "intake_media", mime_type: "video/mp4", storage_path: "j/attic.mp4", title: "Attic", created_at: "2" },
+      { id: "x", job_id: "j", kind: "intake_media", mime_type: "application/pdf", storage_path: "j/a.pdf", title: null, created_at: "3" },
+      { id: "q", job_id: "j", kind: "signed_quote", mime_type: "image/jpeg", storage_path: "j/quote.jpg", title: null, created_at: "4" },
+    ],
+    jobs: [{ id: "j", estimated_area_m2: 120, property_id: "pr" }],
+    properties: [{ id: "pr", enrichment: { base44: { declared: { insulation: "some" } } } }],
+    lead_campaign_responses: [],
+    quotes: [{ id: "q1", job_id: "j", kind: "installation", status: "issued", customer_total_inc_gst: 2400 }],
+  };
+  const r = await photoQuoteMediaFor("j", memoryPostgrest(tables) as never, async (p) => `/api/files/tok/${p.split("/").pop()}`);
+  expect(r.media).toEqual([{ id: "p", kind: "photo", url: "/api/files/tok/roof.jpg", name: "roof.jpg" }, { id: "v", kind: "video", url: "/api/files/tok/attic.mp4", name: "Attic" }]);
+  expect(Array.isArray(r.ownerSaid)).toBe(true);
+  const text = JSON.stringify(r);
+  expect(text).not.toMatch(/\$\s?\d|2400|quote_|my-job/i);
+});

@@ -17,6 +17,7 @@ import { sourceLabel as installerSourceLabel } from "./installer-home.core";
 import { installerQuoteLine } from "./installer-quote-status.core";
 import { myWorkCards, greeting as myWorkGreeting, reasonFor } from "./my-work.core";
 import { nextStepBox, type NextStepFacts } from "./next-step-box.core";
+import { PHOTO_QUOTE_GIVE_EVENT, photoGiveFrom, type GiveEventRow } from "./photo-quote.core";
 import { READY_CHECK_PERSON_PENDING_EVENT, readyCheckPersonState } from "./ready-check-person.core";
 import { MONEY_WORDS, moneyScreen, type MoneyScreenRow } from "./money-screen.core";
 import { LOGO_MAX_BYTES, LOGO_TYPES, businessRows, logoFileProblem, needsYou, whoBooksOf, type BusinessScreenFacts, type WhoBooks } from "./business-screen.core";
@@ -247,7 +248,8 @@ export async function tradeHome(userId: string) {
     // in) and the electrician allocation events (the electrician's name). A failed read fails the page, like the rest of this round.
     formReads ? installDepositListServer.paymentLedgersForJobs(liveIds) : Promise.resolve(new Map<string, { paidAt: string }[]>()),
     formReads ? coesOnFileForJobs(liveIds) : Promise.resolve(new Set<string>()),
-    formReads ? admin.from("workflow_events").select("job_id, details, created_at").in("job_id", liveIds).eq("event_type", "in_house_electrician_allocated").order("created_at", { ascending: false }) : Promise.resolve({ data: [] as { job_id: string | null; details: unknown; created_at: string }[] }),
+    // Photo-quote installers (Jo 5 Nov 2026): the same read carries the gives and their method records (no extra round).
+    formReads ? admin.from("workflow_events").select("job_id, event_type, details, created_at").in("job_id", liveIds).in("event_type", ["in_house_electrician_allocated", "in_house_batch_sent", PHOTO_QUOTE_GIVE_EVENT]).order("created_at", { ascending: false }) : Promise.resolve({ data: [] as { job_id: string | null; event_type: string; details: unknown; created_at: string }[] }),
   ]);
   const moneyAll = await moneyP;
   const depositIds = c.kind === 'installer' ? live.filter(j => j.stage === 'installation_scheduling' && !!sf.get(j.id)?.inHouseDispatch).map(j => j.id) : [];
@@ -326,7 +328,7 @@ export async function tradeHome(userId: string) {
     const piesaOutcome = new Map<string, "pass" | "upgrades">(); for (const r of assessRows ?? []) if (r.status === "complete") piesaOutcome.set(r.job_id, r.piesa_outcome === "pass" ? "pass" : "upgrades");
     const electricianName = new Map<string, string | null>();
     const teamElec = new Map((teamElectricians ?? []).map((w) => [w.id, w.full_legal_name]));
-    for (const ev of allocEvents ?? []) if (ev.job_id && !electricianName.has(ev.job_id)) { const id = (ev.details as { worker_id?: unknown } | null)?.worker_id; electricianName.set(ev.job_id, typeof id === "string" ? teamElec.get(id) ?? null : null); }
+    for (const ev of (allocEvents ?? []).filter((e) => e.event_type === "in_house_electrician_allocated")) if (ev.job_id && !electricianName.has(ev.job_id)) { const id = (ev.details as { worker_id?: unknown } | null)?.worker_id; electricianName.set(ev.job_id, typeof id === "string" ? teamElec.get(id) ?? null : null); }
     const rows = jobsTabbed.filter((j) => j.tab !== "done").map((j) => {
       const raw = byId.get(j.jobId)!;
       const jb = (books ?? []).filter((b) => b.job_id === j.jobId);
@@ -337,6 +339,7 @@ export async function tradeHome(userId: string) {
       const depositPaid = (installDeposits.get(j.jobId) ?? acceptedDeposits.get(j.jobId)) === true;
       const o = (raw.owners as { full_name: string | null } | null)?.full_name?.trim() || null;
       const readyCheckDone = !!latest("ready_check", "completed") || formFacts.get(j.jobId)?.completed === true;
+      const give = photoGiveFrom((allocEvents ?? []).filter((e) => e.job_id === j.jobId) as GiveEventRow[], [c.biz.id]);
       const facts: NextStepFacts = {
         channel: raw.channel, stage, ownerFirst: o ? o.split(/\s+/)[0]! : null, ownerName: o, ownerPhone: null, now,
         givenAt: givenAt.get(j.jobId) ?? null,
@@ -353,9 +356,10 @@ export async function tradeHome(userId: string) {
         install: { start: latest("installation", "confirmed"), lead: null, swmsSigned: 0, swmsTotal: 0 },
         installDone: ["evidence_outstanding", "ap_review", "ready_for_veec", "complete"].includes(stage) || !!latest("installation", "completed"),
         pay: null, mittiFormUrl: null,
+        ...(give ? { quoteMethod: "photos" as const, photoQuoteSent: (ms ?? []).some((m) => m.job_id === j.jobId && m.external_source === "photo_quote"), givenAt: give.givenAt } : {}),
       };
       const box = nextStepBox(facts);
-      return { jobId: j.jobId, jobNumber: String(j.jobNumber), owner: j.owner, street: j.street, suburb: j.suburb, channel: j.channel, box, reason: reasonFor(box.kind, box) };
+      return { jobId: j.jobId, jobNumber: String(j.jobNumber), owner: j.owner, street: j.street, suburb: j.suburb, channel: j.channel, box, reason: reasonFor(box.kind, box, !!give) };
     });
     // A job with a pending offer shows as the offer card only (owner details stay hidden until the offer is taken); the card's key is the offer id.
     // Part 7 Task 9: no "Job offer" card — a job with a leftover pending offer stays hidden from My work (the office closes the offer).
@@ -1593,6 +1597,8 @@ function installerJobPageParts(i: {
   quoteItems: { code: string | null; description: string | null; sort: number | null; line_total_inc_gst?: number | string | null }[]; quotesForMoney?: Parameters<typeof ownCustomerQuoteFigures>[0]; priceEntered: boolean | null; notes: string[]; product: string | null;
   payRow: { amount: number | null; state: PayState } | null; mittiCompleted: boolean; needsFinishingItems: string[]; mittiMissing: string[];
   whoBooks: WhoBooks; coesOnFile: boolean;
+  /** Photo-quote installers: the job's current From photos give for this business (null = Ready Check). */
+  photoGive?: import("./photo-quote.core").PhotoGive | null;
 }) {
   const { c, j } = i;
   const now = new Date();
@@ -1610,7 +1616,9 @@ function installerJobPageParts(i: {
   const swmsTotal = i.swmsRead?.plan.signers.length ?? 0;
   const lead = i.swmsRead?.plan.signers.find((s) => s.role === "lead")?.name ?? null;
   const piesaDone = outcome === "pass" || i.clearance.cleared;
-  const readyCheckDone = i.rcBook?.status === "completed" || i.mittiCompleted;
+  const photos = !!i.photoGive;
+  const photoQuoteSent = photos && (i.m as { external_source?: string | null } | null)?.external_source === "photo_quote";
+  const readyCheckDone = photos ? photoQuoteSent : i.rcBook?.status === "completed" || i.mittiCompleted;
   const q = i.quote.declined ? "declined" : i.quote.accepted ? "accepted" : i.quote.sent ? "sent" : "none";
   const facts: NextStepFacts = {
     channel: j?.channel ?? null, stage, ownerFirst, ownerName, ownerPhone, now, givenAt: i.givenAt,
@@ -1627,9 +1635,10 @@ function installerJobPageParts(i: {
     installDone,
     pay: installDone ? { kind: j?.channel === "installer_sourced" ? "own_after_owner_paid" : "hivic_after_paperwork", amount: c.money ? i.pay : null, paidAt: i.payRow?.state.kind === "paid" ? i.payRow.state.on : null } : null,
     mittiFormUrl: null,
+    ...(photos ? { quoteMethod: "photos" as const, photoQuoteSent, givenAt: i.photoGive!.givenAt } : {}),
   };
   const box = nextStepBox(facts);
-  const progress = progressSteps({ readyCheckDone, piesaDone, depositPaid: i.depositPaid, installDone });
+  const progress = progressSteps({ readyCheckDone, piesaDone, depositPaid: i.depositPaid, installDone, ...(photos ? { photoQuote: true } : {}) });
   const countdown = installDone ? null : installCountdown(i.deadline, now);
 
   const entries = Array.isArray(i.m?.raw_snapshot) ? (i.m!.raw_snapshot as unknown as { label: string; value: unknown }[]) : [];
@@ -1669,6 +1678,7 @@ function installerJobPageParts(i: {
   const installBooked = !!i.inBook && i.inBook.status !== "cancelled";
   const paperwork = paperworkRows({
     readyCheckReport: readyCheckDone, signedPiesa: piesaDone, ownerConsent: i.consentSigned, safetyPlan: !!i.swmsRead, installForm: !!i.form.auditId, installBooked,
+    ...(photos ? { photoQuote: true } : {}),
   });
   const visits = visitsRows({ readyCheck: i.rcBook?.scheduled_start ?? null, piesa: i.piesaBook?.scheduled_start ?? null, install: i.inBook?.scheduled_start ?? null });
   return {
@@ -1757,7 +1767,8 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
     admin.from("rectification_items").select("description, status").eq("job_id", jobId).not("status", "in", "(cancelled,removed)"),
     admin.from("workflow_events").select("details, created_at").eq("job_id", jobId).eq("event_type", "install_evidence_synced").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     // G7: the same read also carries the "Not sure yet" marker rows (ready_check_person_pending) — currentAllocation ignores them.
-    admin.from("workflow_events").select("event_type, details, created_at").eq("job_id", jobId).in("event_type", ["visit_allocated", READY_CHECK_PERSON_PENDING_EVENT]).order("created_at", { ascending: false }),
+    // Photo-quote installers: the same read carries the gives and their method records.
+    admin.from("workflow_events").select("event_type, details, created_at").eq("job_id", jobId).in("event_type", ["visit_allocated", READY_CHECK_PERSON_PENDING_EVENT, "in_house_batch_sent", PHOTO_QUOTE_GIVE_EVENT]).order("created_at", { ascending: false }),
     admin.from("installer_declarations").select("installer_name, signed_at, installed_product, installed_area_m2").eq("job_id", jobId).eq("status", "signed").order("signed_at", { ascending: false }).limit(1).maybeSingle(),
     admin.from("customer_assignments").select("installer_signed_at, consumer_final_signed_at, ap_signed_at, installed_product, installed_area_m2").eq("job_id", jobId).eq("record_kind", "final_veec_assignment").neq("status", "cancelled").order("created_at", { ascending: false }).limit(1).maybeSingle(),
     ownerReadyP,
@@ -1794,6 +1805,7 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
   const jobPage = installerJobPageParts({
     c, j: j as JobPageJob | null, rcBook, inBook, piesaBook, a, m, form, clearance, quote, qq, pay, elecName, piesaRec, accessPerson, mineBk: mineBk ?? [], released,
     readyCheckPerson: rcPerson.pending ? null : rcPerson.name ?? undefined,
+    photoGive: photoGiveFrom((alloc ?? []) as GiveEventRow[], [c.biz.id]),
     sentRows: sentRows ?? [], ledger, depositPaid, deadline: dl?.install_deadline ? String(dl.install_deadline) : null, givenAt: (given as { assigned_at?: string | null } | null)?.assigned_at ?? null,
     consentSigned: !!consent, paidEv: (paidEv ?? []) as { created_at: string; details: unknown }[], piesaPayRead, swmsRead, quoteItems: ((quoteItemsRow as unknown as { quote_items: unknown }[] | null)?.[0]?.quote_items as { code: string | null; description: string | null; sort: number | null; line_total_inc_gst?: number | string | null }[] | null) ?? [],
     // Part 10 Task 9 / I3: the quotes the Job details money rows read (own customers only; figures never shown to staff).
@@ -2175,4 +2187,14 @@ export async function tradeUploadCoes(jobId: string, userId: string, file: { nam
   const { saveUploadedCoes, CoesUploadError } = await import("./coes-upload.server");
   try { await saveUploadedCoes(jobId, file, { kind: "installer_office", userId }); return { ok: true }; }
   catch (e) { if (e instanceof CoesUploadError) return { ok: false, message: e.message }; throw e; }
+}
+
+/** Photo-quote installers (Jo 5 Nov 2026): the owner's photos/videos and website answers for the Quote from photos box.
+ *  Business-scoped: only the installer business the job was given to "From photos". Never a price or a quote. */
+export async function photoQuoteMedia(jobId: string, userId: string) {
+  const c = await requireTradeJob(userId, jobId);
+  const ps = await import("./photo-quote.server");
+  const give = await ps.photoGiveFor(jobId);
+  if (!give || give.businessId !== c.biz.id) throw new WorkflowError("This job isn't quoted from photos.");
+  return ps.photoQuoteMediaFor(jobId);
 }

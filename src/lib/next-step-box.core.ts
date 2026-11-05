@@ -6,6 +6,7 @@ import { melbourneYmd } from "./piesa-windows.core";
 import type { AccessPerson } from "./rental-answers.core";
 import { QUOTE_PRICE_NEXT_LINE } from "./installer-quote-status.core";
 import { READY_CHECK_PERSON_WORDS } from "./ready-check-person.core";
+import { PHOTO_QUOTE_WORDS, photoQuoteDueBy, photoQuoteOverdue, type QuoteMethod } from "./photo-quote.core";
 
 export type NextStepFacts = {
   channel: string | null; stage: string; ownerFirst: string | null;
@@ -22,8 +23,11 @@ export type NextStepFacts = {
   depositPaidAt: string | null; install: { start: string | null; lead: string | null; swmsSigned: number; swmsTotal: number };
   installDone: boolean; pay: { kind: "hivic_after_paperwork" | "own_after_owner_paid"; amount: number | null; paidAt: string | null } | null;
   mittiFormUrl: string | null;
+  /** Photo-quote installers (Jo 5 Nov 2026): how the current give is quoted (missing = Ready Check); `givenAt` is the give
+   *  time for photos. `photoQuoteSent`: the installer has sent the photo quote. */
+  quoteMethod?: QuoteMethod; photoQuoteSent?: boolean;
 };
-export type NextStepKind = "book_ready_check" | "ready_check_booked" | "ready_check_missing" | "enter_price" | "waiting_quote"
+export type NextStepKind = "quote_from_photos" | "book_ready_check" | "ready_check_booked" | "ready_check_missing" | "enter_price" | "waiting_quote"
   | "book_piesa" | "waiting_electrician_book" | "piesa_booked" | "upload_certificate" | "waiting_deposit" | "book_install"
   | "install_booked" | "install_locked" | "after_install" | "closed";
 export type NextStepBox = {
@@ -81,6 +85,8 @@ export const NEXT_STEP_WORDS = {
   closedTitle: "Closed", // DRAFT
   theOwner: "the owner", // DRAFT
   theOwnersPossessive: "The owner's", // approved (plan Task 3 table)
+  quoteFromPhotosTitle: PHOTO_QUOTE_WORDS.boxTitle, // approved (spec decision 4)
+  quoteFromPhotosSub: (by: string) => `Look at the owner's photos, fill this in and send it. Due by ${by}.`, // DRAFT (photo-quote plan Task 6)
 } as const;
 const W = NEXT_STEP_WORDS;
 
@@ -175,9 +181,18 @@ export function nextStepBox(f: NextStepFacts): NextStepBox {
     });
   }
 
-  // Ready Check done
-  if (f.readyCheck.done) {
-    if (f.readyCheck.missing.length) {
+  // Photo-quote installers: no Ready Check on a From photos give — the photo quote stands in for it.
+  const photos = f.quoteMethod === "photos";
+  if (photos && !f.photoQuoteSent) {
+    const due = f.givenAt ? photoQuoteDueBy(f.givenAt) : null;
+    return box("quote_from_photos", W.quoteFromPhotosTitle, {
+      sub: W.quoteFromPhotosSub(due ? fmtDay(due) : ""), yours: true, bookBy: due, overdue: f.givenAt ? photoQuoteOverdue(f.givenAt, f.now) : false,
+    });
+  }
+
+  // Ready Check done (or, for photos, the photo quote sent)
+  if (f.readyCheck.done || photos) {
+    if (!photos && f.readyCheck.missing.length) {
       return box("ready_check_missing", W.readyCheckMissingTitle, { sub: W.stillNeeds(f.readyCheck.missing.join(", ")), yours: true, button: W.mittiButton });
     }
     if (f.priceEntered === false) return box("enter_price", W.enterPriceTitle, { yours: true });
