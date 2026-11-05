@@ -7,7 +7,7 @@ const { installerJobPageParts } = await import("../src/lib/trade-view.server");
 
 const items = [
   { code: "INSTALLER_PRICE", description: "Supply and install of Bradford Gold R5 ceiling insulation – 80 m²", sort: 0, line_total_inc_gst: 2400 },
-  { code: "AP_FEE", description: "Home Insulation Victoria fee", sort: 1, line_total_inc_gst: 349 },
+  { code: "AP_FEE", description: "Home Insulation Victoria AP management fee", sort: 1, line_total_inc_gst: 349 },
   { code: "PIESA", description: "Electrical safety check (PIESA)", sort: 2, line_total_inc_gst: 349 },
 ];
 const parts = (o: { channel?: string; origin?: string | null; c?: Record<string, unknown> } = {}) => installerJobPageParts({
@@ -26,7 +26,7 @@ const parts = (o: { channel?: string; origin?: string | null; c?: Record<string,
 
 test("own customer, boss: the standard own-customer rows from the quote's own lines", () => {
   const b = parts().quoteBreakdown!;
-  expect(b.map((r) => r.label)).toEqual(["Insulation — Supply and install of Bradford Gold R5 ceiling insulation – 80 m²", "Home Insulation Victoria fee", "Electrical safety check (PIESA) — charged by Home Insulation Victoria", "Rebate", "Your price"]);
+  expect(b.map((r) => r.label)).toEqual(["Insulation — Supply and install of Bradford Gold R5 ceiling insulation – 80 m²", "Home Insulation Victoria AP management fee", "Electrical safety check (PIESA) — charged by Home Insulation Victoria", "Rebate", "Your price"]);
   expect(b.map((r) => r.amount)).toEqual(["$2,400", "$349", "$349", "−$1,200", "$1,898"]);
 });
 test("Office with Money on sees it; Office without Money, Lead Installer / Crew do not", () => {

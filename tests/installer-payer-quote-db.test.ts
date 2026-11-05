@@ -226,7 +226,7 @@ describe("server-drafted owner quote follows the CURRENT electrician payer", () 
     expect(await items(q!.id)).toEqual(["INSTALLER_PRICE:3450", "AP_FEE:349", "PIESA:275"]);
     expect(Number(q!.subtotal_inc_gst)).toBe(4074);
     const labels = (await db.query<{ description: string }>("select description from quote_items where quote_id=$1 and code in ('AP_FEE','PIESA') order by sort", [q!.id])).rows.map((r) => r.description);
-    expect(labels).toEqual(["Home Insulation Victoria fee", "Electrical safety check (PIESA) — charged by Home Insulation Victoria"]);
+    expect(labels).toEqual(["Home Insulation Victoria AP management fee", "Electrical safety check (PIESA) — charged by Home Insulation Victoria"]);
   });
 
   test("own electrician: the same $275 PIESA line (the installer's rate, billed through us and paid through), AP fee kept", async () => {

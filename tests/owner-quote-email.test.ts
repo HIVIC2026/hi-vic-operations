@@ -306,7 +306,7 @@ const withoutOwn = (i: OwnerQuoteEmailInput): OwnerQuoteEmailInput => { const { 
 
 test("Task 5: own-customer quote email (approved on) — approved lines by code, both logos, VEU box", () => {
   const m = render(ownInput);
-  expect(rowTitles(m.text)).toEqual(["Insulation", "Home Insulation Victoria fee", "Electrical safety check (PIESA) — charged by Home Insulation Victoria", "Rebate", "Your price"]);
+  expect(rowTitles(m.text)).toEqual(["Insulation", "Home Insulation Victoria AP management fee", "Electrical safety check (PIESA) — charged by Home Insulation Victoria", "Rebate", "Your price"]);
   expect(m.text).toContain("Rebate: −$600.00");
   expect(m.text).toContain("Your price: $2,024.00");
   expect(m.text).toContain("Electrical safety check (PIESA) — charged by Home Insulation Victoria: $275.00");
@@ -340,13 +340,13 @@ test("Task 5: own customer, no logo (or a bad one) → one logo, no empty img, s
     const m = render({ ...ownInput, ownCustomer: { installerName: "Rapid Insulation", installerLogoUrl: logo } });
     expect(m.html).not.toMatch(/src=""/);
     expect(m.html.match(/<img /g)?.length).toBe(1);
-    expect(rowTitles(m.text)).toEqual(["Insulation", "Home Insulation Victoria fee", "Electrical safety check (PIESA) — charged by Home Insulation Victoria", "Rebate", "Your price"]);
+    expect(rowTitles(m.text)).toEqual(["Insulation", "Home Insulation Victoria AP management fee", "Electrical safety check (PIESA) — charged by Home Insulation Victoria", "Rebate", "Your price"]);
   }
 });
 
 test("Task 5: separately agreed extras sit between Insulation and the fee under their own words", () => {
   const m = render({ ...ownInput, totalIncGst: 2324, subtotalIncGst: 2924, lines: [ownInput.lines[0]!, { code: "INSTALLER_REMOVAL", description: "Removal of existing insulation (40 m²)", lineTotalIncGst: 300 }, ownInput.lines[1]!, ownInput.lines[2]!] });
-  expect(rowTitles(m.text)).toEqual(["Insulation", "Removal of existing insulation (40 m²)", "Home Insulation Victoria fee", "Electrical safety check (PIESA) — charged by Home Insulation Victoria", "Rebate", "Your price"]);
+  expect(rowTitles(m.text)).toEqual(["Insulation", "Removal of existing insulation (40 m²)", "Home Insulation Victoria AP management fee", "Electrical safety check (PIESA) — charged by Home Insulation Victoria", "Rebate", "Your price"]);
   expect(m.text).toContain("Your price: $2,324.00");
 });
 

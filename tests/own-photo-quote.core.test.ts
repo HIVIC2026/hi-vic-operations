@@ -11,7 +11,7 @@ const veec = (m2: number) => wholeVeecDiscount(m2, loc, 40);
 test("preview for price 2400, 80 m², PIESA 349: the standard own-customer rows and owner pays = the builder's total", async () => {
   const p = ownPhotoQuotePreview({ underR2: true, removeM2: 0, included: ["Ceiling insulation - supply & install"], priceIncGst: 2400, installM2: 80, product: "Bradford Gold R5", piesaIncGst: 349, wholeVeec: veec(80), metropolitan: true, minCopay: 200 });
   if ("held" in p) throw new Error("held");
-  expect(p.rows.map((l) => l.label)).toEqual(["Insulation — Supply and install of Bradford Gold R5 ceiling insulation – 80 m²", "Home Insulation Victoria fee", "Electrical safety check (PIESA) — charged by Home Insulation Victoria", "Rebate", "Your price"]);
+  expect(p.rows.map((l) => l.label)).toEqual(["Insulation — Supply and install of Bradford Gold R5 ceiling insulation – 80 m²", "Home Insulation Victoria AP management fee", "Electrical safety check (PIESA) — charged by Home Insulation Victoria", "Rebate", "Your price"]);
   expect(p.rows.slice(0, 3).map((l) => l.amount)).toEqual(["$2,400", "$349", "$349"]);
   expect(p.rows[3]!.amount.startsWith("−$") || p.rows[3]!.amount === "$0").toBe(true);
   expect(p.rows[4]).toEqual({ label: "Your price", amount: `$${p.ownerPays.toLocaleString("en-AU", { maximumFractionDigits: 2 })}`, total: true });

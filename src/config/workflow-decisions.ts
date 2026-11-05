@@ -112,7 +112,7 @@ export const WORKFLOW_DECISIONS = {
         noRateSet: "quote held — Your PIESA price isn't set yet. Ask the office to add it, then send. (never $349; office-managed rate card, controller 4 Nov 2026)",
         supersedes: ["302", "303", "2026-11-02 FEES $349 PIESA", "main 6f759d0 $349 pass-through"] as const,
         supersededScope: "own_customer_owner_price_only",
-        lineLabels: ["Insulation", "Home Insulation Victoria fee", "Electrical safety check (PIESA) — charged by Home Insulation Victoria", "Rebate", "Your price"] as const, // PIESA wording: Jo 5 Nov 2026 16:44
+        lineLabels: ["Insulation", "Home Insulation Victoria AP management fee", "Electrical safety check (PIESA) — charged by Home Insulation Victoria", "Rebate", "Your price"] as const, // PIESA wording: Jo 5 Nov 2026 16:44
       },
       // Jo 3 Nov 2026 22:58 (Part 10 Task 3): after an A1 Ready Check is Complete with no price the BUSINESS OWNER gets BOTH the
       // decision-288 text AND the "Enter your price" email (`enter-price-email.core`, sent by `boss-price-link.server`) — the plan's
@@ -150,7 +150,7 @@ export const WORKFLOW_DECISIONS = {
         approvedFlag: "OWN_CUSTOMER_COBRAND_APPROVED (one switch: email rows/VEU box, My job page, tax invoice)",
         cobrandFlag: "OWN_CUSTOMER_COBRAND_APPROVED",
         rowsFrom: "ownCustomerRows (quote_items.code)",
-        rows: ["Insulation", "extras", "Home Insulation Victoria fee", "Electrical safety check (PIESA) — charged by Home Insulation Victoria", "Rebate", "Your price"] as const,
+        rows: ["Insulation", "extras", "Home Insulation Victoria AP management fee", "Electrical safety check (PIESA) — charged by Home Insulation Victoria", "Rebate", "Your price"] as const,
         installerLogo: "businessLogoUrl https only, else ours alone",
         veuBox: "owner-wording.core veuBoxMj (Fix 1) at the bottom",
         hivLeadsUnchanged: true,

@@ -71,7 +71,7 @@ No Gap won't do Ready Checks on their own customers either. For an installer set
    The ticks and product are saved as `installer_price_set` exactly as the "Your price" card saves them, so the quote text is the same as every other installer's own-customer quote.
 2. **Live quote under the price**, worked out with the SAME calculation the owner's quote uses, showing the SAME rows as every other installer's own-customer quote (`own-customer-price.core.ts` `ownCustomerRows`; Jo 5 Nov 16:44 — no split sqm rows):
    - "Insulation — {what it includes}" at the installer's price
-   - "Home Insulation Victoria fee $349" (the shared approved label; Jo's 16:44 note called it "Home Insulation Victoria AP management fee" — kept as the shared label so every own-customer quote reads the same, asked back to Jo)
+   - "Home Insulation Victoria fee $349" (renamed "Home Insulation Victoria AP management fee" on own-customer quotes, Jo 5 Nov 17:00; the tax invoice keeps the old label)
    - "Electrical safety check (PIESA) — charged by Home Insulation Victoria $349" (Jo's wording, 5 Nov 16:44; true for every own-customer quote, so the shared row label changed for all of them)
    - "Rebate −$Y"
    - "Your price $Z" (what the owner pays)
