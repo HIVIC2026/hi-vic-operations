@@ -1584,7 +1584,8 @@ type JobPageJob = { job_number: string | null; stage: string | null; channel: st
 const centsWords = (cents: number) => (cents % 100 === 0 ? `$${cents / 100}` : `$${(cents / 100).toFixed(2)}`);
 /** Installer Job page (Task 5): the Next step box, progress pills, countdown and folded rows, from facts the page already read.
  *  Missing facts stay empty (never guessed). Wording and rules live in the pure next-step-box / job-page-rows cores. */
-function installerJobPageParts(i: {
+/** Exported for tests (review fix round IMPORTANT 3c). */
+export function installerJobPageParts(i: {
   c: Awaited<ReturnType<typeof requireTradeJob>>; j: JobPageJob | null;
   rcBook: { scheduled_start: string; status: string } | null; inBook: { scheduled_start: string; status: string } | null; piesaBook: { scheduled_start: string } | null;
   /** G7: who's going to the Ready Check — null = booked with "Not sure yet", nobody picked; undefined = nothing recorded. */
