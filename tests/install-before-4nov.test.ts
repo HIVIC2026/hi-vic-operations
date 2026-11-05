@@ -15,8 +15,8 @@ test('scope change appears once in the office queue',()=>{
  const rows=buildNeedsRows({now:Date.parse('2026-11-04T00:00:00Z'),jobs:[{jobId:'test-job',jobNumber:'TEST',surname:'Test',suburb:null,installScopeChange:{at:'2026-11-04T00:00:00Z',areas:['Rear extension']}}]});
  expect(rows.today.filter(r=>r.kind==='install_scope_change').length).toBe(1);
 });
-test('area order uses a real unambiguous text item, not repeat-instance invention',()=>{
+test('BEFORE page never receives Ready Check order prefills',()=>{
  const facts={jobNumber:null,address:null,installDate:null,apName:null,businessName:null,leadName:null,leadCii:null,lifeSupport:null,solarPresent:null,electricianAtStart:null,areaOrder:'1. Main house · 2. Rear extension'};
  const result=installDayPrefillItems({items:[{id:'order',label:'Ceiling areas in Ready Check order'}]},facts,()=>null);
- expect(result).toEqual([{item_id:'order',type:'text',responses:{text:'1. Main house · 2. Rear extension'}}]);
+ expect(result).toEqual([]);
 });

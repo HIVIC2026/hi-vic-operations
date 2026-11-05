@@ -191,7 +191,10 @@ export async function syncInstallEvidence(jobId: string, actorId: string | null,
   const { data: job, error: je } = await admin.from("jobs").select("job_number").eq("id", jobId).maybeSingle();
   if (je || !job || parsed.auditId !== auditId || parsed.jobNumber?.trim().toUpperCase() !== job.job_number.trim().toUpperCase()) throw new Error("The A5 form does not match this job.");
   const ctx = await installEvidenceContext(jobId, audit);
-  const added=(await import('./install-before.core')).installScopeChanges(ctx.zones.map(z=>z.name??''),parsed.areas.map(a=>a.name??a.label));
+  const evidenceRead=readInstallEvidence(audit);
+  // Fresh BEFORE names describe evidence, not a declared change to measured scope.
+  const beforeNames=new Set((evidenceRead.before?.areas??[]).map(a=>a.name?.trim().toLowerCase()).filter(Boolean));
+  const added=(await import('./install-before.core')).installScopeChanges(ctx.zones.map(z=>z.name??''),parsed.areas.filter(a=>!beforeNames.has((a.name??a.label).trim().toLowerCase())).map(a=>a.name??a.label));
   if(added.length){
     const {data:previous,error}=await admin.from('workflow_events').select('details').eq('job_id',jobId).eq('event_type','install_scope_change_detected').order('created_at',{ascending:false}).limit(1).maybeSingle();
     if(error)throw new Error('Scope review history could not be checked.');
@@ -200,7 +203,7 @@ export async function syncInstallEvidence(jobId: string, actorId: string | null,
   }
   const { data: pre } = await admin.from("workflow_events").select("details").eq("job_id", jobId).eq("event_type", "piisa_prestart_captured").order("created_at", { ascending: false }).limit(1).maybeSingle();
   const workStartAt = (pre?.details as { snapshot?: { signature?: { signed_at?: string } } } | null)?.snapshot?.signature?.signed_at ?? null;
-  const summary = evaluateInstallEvidence(readInstallEvidence(audit), ctx, workStartAt);
+  const summary = evaluateInstallEvidence(evidenceRead, ctx, workStartAt);
   if(added.length)summary.blockers.push(`New ceiling area outside the Ready Check: ${added.join(', ')} – office scope review required; quote unchanged`);
   summary.jobId = jobId;
   summary.auditId = auditId;

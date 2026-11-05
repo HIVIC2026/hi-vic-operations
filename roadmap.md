@@ -1,6 +1,10 @@
-## Jo 5 Nov 7:32pm single A5 BEFORE page
+## Jo 5 Nov 7:34pm final A5 BEFORE correction
+- [x] Exact final labels; fresh area names without mismatch blocks; A5 Yes/No owns old-depth requiredness; no BEFORE name/order prefills; retain v23 and AFTER checks. 83 checks pass across six isolated files. Combined test run had shared-mock interference; each file passes separately. No Mitti edits, sends or publication.
+- [ ] Republished Mitti readback and hosted completion await Jo's new A5 publication; not claimed verified.
+
+## Jo 5 Nov 7:32pm single A5 BEFORE page (superseded by 7:34pm)
 - [x] Removed alternate template/switch code and error; new A5 name-bound BEFORE photo + old-depth ruler checks, private retry-safe copies, v23 reader retained and AFTER unchanged. 121 checks pass across 11 isolated files; preview build OK. Exact paste in docs/MITTI_A5_BEFORE_SINGLE_FORM_5NOV.md. No Mitti edits, records, sends or publication.
-- [ ] New Mitti draft/readback and automatic creation of every repeated area name remain unverified until Jo supplies the draft; portal prefills actual existing item IDs and area-order field only, never invents repeat-instance payloads. Full hosted install completion not run.
+- [ ] New Mitti draft/readback remains unverified until Jo republishes; automatic BEFORE name prefills withdrawn by 7:34pm correction. Full hosted install completion not run.
 
 ## Jo 5 Nov 7:26pm measurement rules
 - [x] Required multiple floor-plan files/aerial file, onsite dimensions and editable calculated area, optional sketch, Other note/upload, nonblocking >10% nudge. 38 focused checks pass in isolated files including two-business read refusal; signed-in 390px TEST phone calculation/edit/nudge and choices checked, desktop no overflow, preview build OK. Upload/submit/readback not repeated; no records, sends or publication.

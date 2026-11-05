@@ -448,22 +448,23 @@ export function rulerPhotoEvaluation(ruler: InstallDayRulerRead | undefined, zon
 export function beforePhotoEvaluation(read:InstallDayBeforeRead|undefined,zones:JobZone[],workStartAt?:string|null) {
  const items:InstallEvidenceItem[]=[], blockers:string[]=[], files:NonNullable<InstallEvidenceSummary['beforePhotos']>=[];
  if(!read?.onForm)return {items,blockers,files};
- if(!zones.length)blockers.push('No Ready Check ceiling areas are recorded — BEFORE photos need office review');
- zones.forEach((z,i)=>{
-  const name=areaName(z,i), matches=read.areas.filter(a=>zoneNameCore(a.name)===zoneNameCore(name));
-  if(z.underInsulated==null)blockers.push(`${name}: old-insulation presence is unknown — office review`);
-  if(matches.length>1)blockers.push(`${name}: BEFORE area name appears more than once — office review`);
-  const row=matches.length===1?matches[0]:undefined;
-  const photo=row?.photo??[],existing=row?.existing??[];
-  files.push({zone:i+1,name,photo,existing});
+ if(!read.areas.length)blockers.push('BEFORE area photo is missing');
+ read.areas.forEach((row,i)=>{
+  const name=row.name?.trim()||`Area ${i+1}`;
+  const matches=zones.map((z,index)=>({z,index})).filter(({z})=>zoneNameCore(z.name)===zoneNameCore(row.name));
+  const matched=matches.length===1?matches[0]:undefined;
+  const zone=matched?matched.index+1:i+1;
+  if(!row.name?.trim())blockers.push(`${name}: Area name is missing`);
+  if(row.oldInsulation==null)blockers.push(`${name}: Is there old insulation in this area? is not answered`);
+  const photo=row.photo,existing=row.existing;
+  files.push({zone,name,photo,existing});
   const check=(id:string,label:string,what:string,fs:MittiMediaFile[])=>{
    const r=fs.length?mediaProblems(`${name}: ${what}`,fs,{min:1,video:false,workStartAt,phase:'before'}):{state:'missing' as const,problems:[`${name}: ${what} is missing`]};
-   items.push({id,zone:i+1,label,state:r.state,count:fs.length,problems:r.problems});blockers.push(...r.problems);
+   items.push({id,zone,label,state:r.state,count:fs.length,problems:r.problems});blockers.push(...r.problems);
   };
   check('before_area_photo',INSTALL_DAY_BEFORE_Q.photo,'BEFORE area photo',photo);
-  if(z.underInsulated!==false)check('before_old_depth',INSTALL_DAY_BEFORE_Q.existingDepth,'BEFORE old-insulation ruler photo',existing);
+  if(row.oldInsulation===true)check('before_old_depth',INSTALL_DAY_BEFORE_Q.existingDepth,'BEFORE old-insulation ruler photo',existing);
  });
- for(const a of read.areas)if(!zones.some(z=>zoneNameCore(z.name)===zoneNameCore(a.name)))blockers.push(`${a.name??'Unnamed area'}: BEFORE area is not in the Ready Check — office scope review`);
  return {items,blockers:[...new Set(blockers)],files};
 }
 /** Decision 396: missing or old summaries are not proof that ruler photos passed. The Installation complete

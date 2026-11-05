@@ -106,32 +106,40 @@ export const INSTALL_DAY_RULER_HELP = {
 } as const;
 /** Single A5 BEFORE page; absent on v23, so old audits stay readable. */
 export const INSTALL_DAY_BEFORE_Q = {
- name: 'Ceiling area name',
- photo: "Before photo: the whole ceiling area showing what's there",
- existingDepth: 'Before photo: old insulation with a ruler standing upright in it',
+ name: 'Area name',
+ photo: 'Photo of this area before you start',
+ oldInsulation: 'Is there old insulation in this area?',
+ existingDepth: 'Photo with a ruler showing the depth of the old insulation',
 } as const;
-export type InstallDayBeforeRead = {onForm:boolean;areas:{name:string|null;photo:MittiMediaFile[];existing:MittiMediaFile[]}[]};
+export type InstallDayBeforeRead = {onForm:boolean;areas:{name:string|null;oldInsulation?:boolean|null;photo:MittiMediaFile[];existing:MittiMediaFile[]}[]};
 export function installDayBeforePhotos(audit:unknown):InstallDayBeforeRead {
- const groups=new Map<string,{name:string|null;photo:MittiMediaFile[];existing:MittiMediaFile[]}>();
+ const groups=new Map<string,InstallDayBeforeRead['areas'][number]>();
  let onForm=false;
- const walk=(x:unknown,parent:string|null)=>{
-  if(Array.isArray(x)){x.forEach(v=>walk(v,parent));return;}
+ const walk=(x:unknown,parent:string|null,inBefore=false)=>{
+  if(Array.isArray(x)){x.forEach(v=>walk(v,parent,inBefore));return;}
   if(!x||typeof x!=='object')return;
   const o=x as Record<string,any>;
   if(o['inactive']===true)return;
   const label=typeof o['label']==='string'?labelKey(o['label']):'';
-  const which=Object.entries(INSTALL_DAY_BEFORE_Q).find(([,v])=>label===labelKey(v))?.[0];
+  const before=inBefore||['Before you start','Ceiling area – before','Ceiling area BEFORE work'].some(v=>label===labelKey(v));
+  const aliases={name:'Ceiling area name',photo:"Before photo: the whole ceiling area showing what's there",existingDepth:'Before photo: old insulation with a ruler standing upright in it'};
+  const which=label?Object.entries(INSTALL_DAY_BEFORE_Q).find(([k,v])=>(label===labelKey(v)&&(k!=='name'||before))||label===labelKey(aliases[k as keyof typeof aliases]??''))?.[0]:undefined;
   if(which){
    onForm=true;
    const group=String(o['parent_id']??parent??'flat');
    const row=groups.get(group)??{name:null,photo:[],existing:[]};
    const r=o['responses']??{};
    if(which==='name')row.name=String(r.text??r.value??o['value']??'').trim()||null;
+   else if(which==='oldInsulation'){
+    const selected=r.selected??r.value??r.text??o['value'];
+    const answer=Array.isArray(selected)?selected.map(v=>typeof v==='object'?v?.label??v?.value:v).join(' '):String(selected??'');
+    row.oldInsulation=/^yes\b/i.test(answer)?true:/^no\b/i.test(answer)?false:null;
+   }
    else {const media=o['media']??r.media??r.attachments??[];const files=Array.isArray(media)?media.map(mittiMediaFile):[];if(which==='photo')row.photo.push(...files);else row.existing.push(...files);}
    groups.set(group,row);
   }
   const childParent=typeof o['label']==='string'&&(o['item_id']??o['id'])!=null?String(o['item_id']??o['id']):parent;
-  for(const [k,v] of Object.entries(o))if(v&&typeof v==='object'&&!['responses','media'].includes(k))walk(v,childParent);
+  for(const [k,v] of Object.entries(o))if(v&&typeof v==='object'&&!['responses','media'].includes(k))walk(v,childParent,before);
  };
  walk((audit as any)?.template??audit,null);
  return {onForm,areas:[...groups.values()]};
@@ -572,9 +580,6 @@ export function installDayPrefillItems(template: unknown, f: InstallDayPrefillFa
   const items = labelledItems(template);
   const out: PrefillItem[] = [];
   const yn = (b: boolean | null) => (b == null ? null : b ? "Yes" : "No");
-  if(f.areaOrder){const order=allWithLabel(items,'Ceiling areas in Ready Check order');if(order.length===1&&order[0]?.id)out.push({item_id:order[0].id,type:'text',responses:{text:f.areaOrder}});}
-  const beforeNames=allWithLabel(items,INSTALL_DAY_BEFORE_Q.name);
-  for(const [i,a] of (f.beforeAreas??[]).entries()){const field=beforeNames[i];if(field?.id&&a.name)out.push({item_id:field.id,type:'text',responses:{text:a.name}});}
   for (const q of INSTALL_DAY_QUESTIONS) {
     if (!q.prefill) continue;
     const raw: string | null = (() => {
