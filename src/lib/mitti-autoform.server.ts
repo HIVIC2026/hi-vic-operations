@@ -101,7 +101,7 @@ export async function sweepReadyCheckForms(opts: { call?: MittiCall; now?: Date;
 }
 
 /** Own jobs (installer_sourced) with an own photo quote: a `photo_quote_submitted` claim (own_customer) or a current
- *  photo_quote measurement. Also, for 10 minutes after it is made, an own job of a From photos business (Add a job writes
+ *  photo_quote measurement, or an `own_photo_quote_failed` event (the claim write failed after the save). Also, for 10 minutes after it is made, an own job of a From photos business (Add a job writes
  *  the claim straight after the save; this stops the tick racing it). A missing quote_method column = no From photos
  *  business; any other failed read throws (no forms this tick). */
 async function ownPhotoQuoteJobs(jobs: { id: string; channel: string | null; created_at: string; originating_installer_business_id: string | null }[], measurements: { job_id: string; external_source: string | null }[], now: Date): Promise<string[]> {
@@ -114,6 +114,10 @@ async function ownPhotoQuoteJobs(jobs: { id: string; channel: string | null; cre
     const r = await admin.from("workflow_events").select("job_id").in("job_id", chunk).eq("event_type", PHOTO_QUOTE_SUBMITTED_EVENT).contains("details", { own_customer: true });
     if (r.error) throw new Error("Ready Check form sweep could not read the photo quotes.");
     for (const e of (r.data ?? []) as { job_id: string }[]) out.add(e.job_id);
+    // Re-review (5 Nov): the claim write failed after the save (own_photo_quote_failed) — still a From photos job, never a form.
+    const f = await admin.from("workflow_events").select("job_id").in("job_id", chunk).eq("event_type", "own_photo_quote_failed");
+    if (f.error) throw new Error("Ready Check form sweep could not read the photo quotes.");
+    for (const e of (f.data ?? []) as { job_id: string }[]) out.add(e.job_id);
   }
   const fresh = own.filter((j) => !out.has(j.id) && j.originating_installer_business_id && now.getTime() - Date.parse(j.created_at) < 10 * 60_000);
   if (fresh.length) {

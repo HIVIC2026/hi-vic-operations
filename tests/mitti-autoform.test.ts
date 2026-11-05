@@ -174,6 +174,22 @@ describe("sweepReadyCheckForms", () => {
     }
   });
 
+  // Re-review (5 Nov): the claim write failed after the save -> own_photo_quote_failed; that job must never get a Ready Check form.
+  test("an own job whose photo quote claim write failed (own_photo_quote_failed) never gets a Ready Check form", async () => {
+    const PHOTOB = "00000000-0000-0000-0000-0000000000b4";
+    await db.exec(`ALTER TABLE businesses ADD COLUMN IF NOT EXISTS quote_method text;
+      INSERT INTO businesses (id, mitti_account_invited, quote_method) VALUES ('${PHOTOB}', true, 'photos');
+      INSERT INTO jobs VALUES ('${j(22)}','HV-3602','installer_sourced','installer_onsite','ready_check_ready_to_schedule','2026-10-23T06:42:00Z',null,null,'${PHOTOB}');
+      INSERT INTO job_assignments VALUES ('${j(22)}','${U}','${PHOTOB}','installer',true);`);
+    try {
+      expect((await sweepReadyCheckForms({ now, dryRun: true, enabled: true })).wouldCreate).toContain("HV-3602"); // no claim, past the grace
+      await db.query(`insert into workflow_events (job_id, event_type, summary, details, created_at) values ($1,'own_photo_quote_failed','claim failed','{"needs_office":true}','2026-10-23T06:43:00Z')`, [j(22)]);
+      expect((await sweepReadyCheckForms({ now, dryRun: true, enabled: true })).wouldCreate).not.toContain("HV-3602");
+    } finally {
+      await db.exec(`DELETE FROM workflow_events WHERE job_id = '${j(22)}'; DELETE FROM job_assignments WHERE job_id = '${j(22)}'; DELETE FROM jobs WHERE id = '${j(22)}'; DELETE FROM businesses WHERE id = '${PHOTOB}'; ALTER TABLE businesses DROP COLUMN quote_method;`);
+    }
+  });
+
   test("HIV leads need the plain Ready Check template, installer jobs the priced one", async () => {
     await db.query("update workflow_settings set mitti_ready_check_template_id = null");
     const r = await sweepReadyCheckForms({ now, dryRun: true, enabled: true });
