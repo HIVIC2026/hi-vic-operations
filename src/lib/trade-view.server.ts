@@ -340,6 +340,10 @@ export async function tradeHome(userId: string) {
       const o = (raw.owners as { full_name: string | null } | null)?.full_name?.trim() || null;
       const readyCheckDone = !!latest("ready_check", "completed") || formFacts.get(j.jobId)?.completed === true;
       const give = photoGiveFrom((allocEvents ?? []).filter((e) => e.job_id === j.jobId) as GiveEventRow[], [c.biz.id]);
+      const photoMeasured = (ms ?? []).some((m) => m.job_id === j.jobId && m.external_source === "photo_quote");
+      // Photo-quote installers: a From photos give, or Part 2 — the installer's own customer added with a photo quote.
+      const photoFacts: Partial<NextStepFacts> = give ? { quoteMethod: "photos", photoQuoteSent: photoMeasured, givenAt: give.givenAt }
+        : raw.channel === "installer_sourced" && photoMeasured ? { quoteMethod: "photos", photoQuoteSent: true } : {};
       const facts: NextStepFacts = {
         channel: raw.channel, stage, ownerFirst: o ? o.split(/\s+/)[0]! : null, ownerName: o, ownerPhone: null, now,
         givenAt: givenAt.get(j.jobId) ?? null,
@@ -356,7 +360,7 @@ export async function tradeHome(userId: string) {
         install: { start: latest("installation", "confirmed"), lead: null, swmsSigned: 0, swmsTotal: 0 },
         installDone: ["evidence_outstanding", "ap_review", "ready_for_veec", "complete"].includes(stage) || !!latest("installation", "completed"),
         pay: null, mittiFormUrl: null,
-        ...(give ? { quoteMethod: "photos" as const, photoQuoteSent: (ms ?? []).some((m) => m.job_id === j.jobId && m.external_source === "photo_quote"), givenAt: give.givenAt } : {}),
+        ...photoFacts,
       };
       const box = nextStepBox(facts);
       return { jobId: j.jobId, jobNumber: String(j.jobNumber), owner: j.owner, street: j.street, suburb: j.suburb, channel: j.channel, box, reason: reasonFor(box.kind, box, !!give) };
@@ -1616,8 +1620,11 @@ function installerJobPageParts(i: {
   const swmsTotal = i.swmsRead?.plan.signers.length ?? 0;
   const lead = i.swmsRead?.plan.signers.find((s) => s.role === "lead")?.name ?? null;
   const piesaDone = outcome === "pass" || i.clearance.cleared;
-  const photos = !!i.photoGive;
-  const photoQuoteSent = photos && (i.m as { external_source?: string | null } | null)?.external_source === "photo_quote";
+  // Photo-quote installers: a From photos give (our lead), or Part 2 — the installer's own customer added with a photo quote.
+  const photoMeasured = (i.m as { external_source?: string | null } | null)?.external_source === "photo_quote";
+  const ownPhoto = j?.channel === "installer_sourced" && photoMeasured;
+  const photos = !!i.photoGive || ownPhoto;
+  const photoQuoteSent = photos && photoMeasured;
   const readyCheckDone = photos ? photoQuoteSent : i.rcBook?.status === "completed" || i.mittiCompleted;
   const q = i.quote.declined ? "declined" : i.quote.accepted ? "accepted" : i.quote.sent ? "sent" : "none";
   const facts: NextStepFacts = {
@@ -1635,7 +1642,7 @@ function installerJobPageParts(i: {
     installDone,
     pay: installDone ? { kind: j?.channel === "installer_sourced" ? "own_after_owner_paid" : "hivic_after_paperwork", amount: c.money ? i.pay : null, paidAt: i.payRow?.state.kind === "paid" ? i.payRow.state.on : null } : null,
     mittiFormUrl: null,
-    ...(photos ? { quoteMethod: "photos" as const, photoQuoteSent, givenAt: i.photoGive!.givenAt } : {}),
+    ...(photos ? { quoteMethod: "photos" as const, photoQuoteSent, ...(i.photoGive ? { givenAt: i.photoGive.givenAt } : {}) } : {}),
   };
   const box = nextStepBox(facts);
   const progress = progressSteps({ readyCheckDone, piesaDone, depositPaid: i.depositPaid, installDone, ...(photos ? { photoQuote: true } : {}) });
@@ -1683,6 +1690,9 @@ function installerJobPageParts(i: {
   const visits = visitsRows({ readyCheck: i.rcBook?.scheduled_start ?? null, piesa: i.piesaBook?.scheduled_start ?? null, install: i.inBook?.scheduled_start ?? null });
   return {
     nextStep: box, progress, countdown, label: installerSourceLabel(j?.channel),
+    // Photo-quote installers Part 2: "View quote (PDF)" only on the business's own customer, for the boss / Office with Money
+    // (the server refuses it everywhere else too), once a quote exists.
+    viewQuote: own && c.prices === true && (c.boss || c.money === true) && i.quoteItems.length > 0,
     // Task 6: the box's "{first} gets a You're booked…" line and "Install by {date}" (the 30-day deadline, Melbourne day).
     ownerFirst, installBy: i.deadline,
     rows: { owner, visits, siteNotes, jobDetails, ownerTold, paperwork },

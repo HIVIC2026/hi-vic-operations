@@ -22,6 +22,7 @@ mock.module("sonner", () => ({ toast: { success: (m: string) => { toasts.push(m)
 mock.module("@/lib/onsite-ready-check.functions", () => ({
   addJobOptions: Object.assign(async () => options.data, { id: "options" }),
   startOnsiteReadyCheck: Object.assign(async (input: unknown) => { calls.push(input); return saveResult; }, { id: "start" }),
+  ownPhotoQuotePreview: Object.assign(async () => null, { id: "preview" }),
 }));
 
 const React = await import("react");

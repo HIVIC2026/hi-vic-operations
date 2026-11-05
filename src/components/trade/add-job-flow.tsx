@@ -16,6 +16,8 @@ import {
   errorSummary, fieldErrors, nextLine, restoreCustomer, restoreRequestKey, saveErrorMessage,
 } from "@/lib/add-job-flow.core";
 import { inputCls } from "@/components/trade/TradeShell";
+import { OwnPhotoQuoteFields } from "@/components/trade/OwnPhotoQuoteFields";
+import { OWN_PHOTO_QUOTE_WORDS, ownPhotoQuoteProblems, type OwnPhotoQuoteInput } from "@/lib/own-photo-quote.core";
 
 const DRAFT_KEY = "hiv-onsite-draft";
 /** 56px blue button (approved heavier design). */
@@ -40,6 +42,9 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
   const electricians = options.data?.electricians ?? [];
   const businessName = options.data?.businessName ?? null;
   const [electrician, setElectrician] = useState<string>("");
+  // Photo-quote installers Part 2: a From photos business adds the photo quote with the job.
+  const photos = options.data?.quoteMethod === "photos";
+  const [photoQuote, setPhotoQuote] = useState<OwnPhotoQuoteInput | null>(null);
   // Consent integrity: the tick is only ever shown with the exact line for THIS business; if the name changes the tick is reset.
   useEffect(() => { setCustomer((c) => (c.contact_permission || c.consent_by ? { ...c, contact_permission: false, consent_by: null } : c)); }, [businessName]);
   // A1: asked fresh every time (not kept in the phone draft).
@@ -59,7 +64,8 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
   const problems = (): string[] => {
     const lop = leadOriginProblem(leadOrigin);
     const ecp = electricianProblem(electrician, electricians);
-    return [...(lop ? [lop] : []), ...customerProblems(customer, { businessName }), ...(ecp ? [ecp] : [])];
+    return [...(lop ? [lop] : []), ...customerProblems(customer, { businessName }), ...(ecp ? [ecp] : []),
+      ...(photos ? (photoQuote ? ownPhotoQuoteProblems(photoQuote) : ownPhotoQuoteProblems({ underR2: null, removeM2: null, installM2: null, product: null, priceIncGst: null })) : [])];
   };
 
   const save = async () => {
@@ -68,7 +74,7 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
     if (p.length) return;
     inFlight.current = true; setBusy(true);
     try {
-      const r = await start({ data: { businessId, owner: customer, leadOrigin, requestKey, electricianWorkerId: electrician } });
+      const r = await start({ data: { businessId, owner: customer, leadOrigin, requestKey, electricianWorkerId: electrician, ...(photos && photoQuote ? { photoQuote } : {}) } });
       try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
       if (r.electrician === "not_allocated") { setAddedJobId(r.jobId); return; }
       toast.success(nextLine(r.ownerFirstName ?? "the owner"));
@@ -118,8 +124,10 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
         {options.isError && <p role="alert" className="mt-2 text-sm text-rose">{ADD_JOB_DRAFT_WORDS.teamFailed}</p>}
         <FieldError>{errors.electrician}</FieldError>
       </section>
+      {photos && <OwnPhotoQuoteFields businessId={businessId} postcode={customer.postcode} disabled={busy} onChange={setPhotoQuote} />}
+      {photos && shown.length > 0 && photoQuote && ownPhotoQuoteProblems(photoQuote)[0] && <p className="text-sm text-rose" data-photo-quote-problem>{ownPhotoQuoteProblems(photoQuote)[0]}</p>}
       {err && <p role="status" className="rounded-[12px] border-2 border-line bg-paper p-3 text-sm" data-save-error>{err}</p>}
-      <button type="button" className={PRIMARY_BTN} disabled={busy} aria-busy={busy} onClick={save}>{busy ? BUSY_LABEL : err && !/already has an open job/i.test(err) ? TRY_AGAIN_LABEL : ADD_JOB_WORDS.button}</button>
+      <button type="button" className={PRIMARY_BTN} disabled={busy} aria-busy={busy} onClick={save}>{busy ? BUSY_LABEL : err && !/already has an open job/i.test(err) ? TRY_AGAIN_LABEL : photos ? OWN_PHOTO_QUOTE_WORDS.submit : ADD_JOB_WORDS.button}</button>
       <p className="text-center text-[13px] leading-[1.5] text-sub" data-next-step>{ADD_JOB_OFFLINE_NOTE}</p>
     </div>
   );

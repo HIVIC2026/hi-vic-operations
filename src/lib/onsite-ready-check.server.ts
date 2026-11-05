@@ -21,9 +21,10 @@ import type { ElectricianPlan } from "./job-electrician.core";
 import type { MittiCall } from "./mitti.core";
 
 export type AddJobBooking = "none" | "confirmed" | "blocked";
-export type AddJobResult = { jobId: string; jobNumber: string | null; booking: AddJobBooking; formCreation: "scheduled" | "skipped"; state: OnsiteState; /** Task 7: whether the chosen Team electrician was put on the job. */ electrician: "allocated" | "not_allocated" | "not_asked"; ownerFirstName: string | null };
+export type AddJobResult = { jobId: string; jobNumber: string | null; booking: AddJobBooking; formCreation: "scheduled" | "skipped"; state: OnsiteState; /** Task 7: whether the chosen Team electrician was put on the job. */ electrician: "allocated" | "not_allocated" | "not_asked"; ownerFirstName: string | null;
+  /** Photo-quote installers Part 2: the own-customer photo quote's outcome (From photos businesses only). */ photoQuote?: { sent: boolean; held: string[] } };
 
-export async function startOnsiteReadyCheckFor(userId: string, businessId: string, input: OnsiteInput, _electrician: ElectricianPlan | null = null, call?: MittiCall, opts: { now?: Date; /** Task 7 + join ruling: the Team electrician for the PIESA — required; the installer's own electrician on this job. */ electricianWorkerId?: string | null; /** A1: how the installer got this customer; door-knock and cold call are refused. */ leadOrigin?: import("./onsite-ready-check.core").LeadOrigin | null; /** A6: the phone's key for this draft; a key already saved resumes that job. */ requestKey?: string | null } = {}): Promise<AddJobResult> {
+export async function startOnsiteReadyCheckFor(userId: string, businessId: string, input: OnsiteInput, _electrician: ElectricianPlan | null = null, call?: MittiCall, opts: { now?: Date; /** Task 7 + join ruling: the Team electrician for the PIESA — required; the installer's own electrician on this job. */ electricianWorkerId?: string | null; /** A1: how the installer got this customer; door-knock and cold call are refused. */ leadOrigin?: import("./onsite-ready-check.core").LeadOrigin | null; /** A6: the phone's key for this draft; a key already saved resumes that job. */ requestKey?: string | null; /** Photo-quote installers Part 2: the photo quote fields (From photos businesses only). */ photoQuote?: import("./own-photo-quote.core").OwnPhotoQuoteInput | null } = {}): Promise<AddJobResult> {
   const { requireApprovedPartner, intakeSourceFor } = await import("./pilot.server");
   // Task 7 (Task 1 roles): the boss and Office people add jobs for their own business; nobody else.
   const c = await (await import("./trade-view.server")).pricesOrThrow(userId);
@@ -45,6 +46,10 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
   const { electricianPlanBlocker, teamElectricianPlan } = await import("./job-electrician.core");
   const electrician: ElectricianPlan | null = teamWorker ? teamElectricianPlan(businessId, teamWorker.id) : null;
   const eb = electricianPlanBlocker(electrician); if (eb && !ecp) problems.push(eb);
+  // Photo-quote installers Part 2 (Jo 5 Nov 2026): a From photos business adds the photo quote with the job; checked before any write.
+  const ownPhoto = await import("./own-photo-quote.server");
+  const quoteMethod = await ownPhoto.businessQuoteMethod(businessId);
+  problems.push(...ownPhoto.ownPhotoQuoteGate(quoteMethod, opts.photoQuote));
   if (problems.length) throw new WorkflowError(problems.join(" • "));
   if (!electrician || !teamWorker) throw new WorkflowError(ELECTRICIAN_MISSING);
   const { teamElectricianChoiceRecord } = await import("./electrician-choice.core");
@@ -143,14 +148,24 @@ export async function startOnsiteReadyCheckFor(userId: string, businessId: strin
   }
   // Start the guarded create immediately after saving, booking or not. A booking background attempt can share
   // the atomic claim; an existing form skips. The tick remains the backup after a failure.
-  const { onReadyCheckJobAdded } = await import("./mitti-create.server");
-  const formCreation = await onReadyCheckJobAdded(job.id, userId, call).catch((e) => { console.error("ready check form not scheduled", (e as Error).message); return "skipped" as const; });
+  // Photo-quote installers Part 2: no Mitti Ready Check form; the photo quote's records, the draft and the guarded release instead.
+  let photoQuote: AddJobResult["photoQuote"];
+  let formCreation: "scheduled" | "skipped" = "skipped";
+  if (quoteMethod === "photos" && opts.photoQuote) {
+    photoQuote = await ownPhoto.recordOwnPhotoQuote(job.id, userId, businessId, opts.photoQuote).catch(async (e) => {
+      await logEvent(job.id, userId, "own_photo_quote_failed", `Photo quote on Add a job not finished: ${(e as Error).message}`.slice(0, 500), { needs_office: true }, { internal: true }).catch(console.error);
+      return { sent: false, held: [(e as Error).message] };
+    });
+  } else {
+    const { onReadyCheckJobAdded } = await import("./mitti-create.server");
+    formCreation = await onReadyCheckJobAdded(job.id, userId, call).catch((e) => { console.error("ready check form not scheduled", (e as Error).message); return "skipped" as const; });
+  }
   // Task 19 (Jo 2 Nov 2026, answer 24): the installer's own customer is texted the rental questions (draft wording, off until
   // Jo approves it). Not on this form; a failure here never fails Add a job.
   try { await (await import("./own-customer-rental-taps.server")).textOwnRentalTaps(job.id); }
   catch (e) { console.error("rental questions text not sent", (e as Error).message); }
   const state = await onsiteFormFor(job.id, userId, call, false);
-  return { jobId: job.id, jobNumber: job.job_number, booking, formCreation, state, electrician: electricianAllocated, ownerFirstName: input.full_name.trim().split(/\s+/)[0] ?? null };
+  return { jobId: job.id, jobNumber: job.job_number, booking, formCreation, state, electrician: electricianAllocated, ownerFirstName: input.full_name.trim().split(/\s+/)[0] ?? null, ...(photoQuote ? { photoQuote } : {}) };
 }
 
 /**
