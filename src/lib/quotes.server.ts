@@ -188,7 +188,7 @@ export async function generateInstallerQuotes(jobId: string, actorId: string | n
     throw new Error(`Quote lines could not be saved: ${(itemsError ?? internalsError)!.message}`);
   }
   await admin.from("quotes").update({ status: "superseded" }).eq("job_id", jobId).eq("kind", "installation").in("status", ["draft", "issued"]).neq("id", q.id);
-  if (totalsWhy) await holdForTotals(q.id, jobId, totalsWhy, actorId);
+  if (totalsWhy && !(await holdForTotals(q.id, jobId, totalsWhy, actorId))) throw new Error("Quote totals don't add up and the quote could not be held. Check it before sending.");
   const summary = release.state === "held" ? (release.reason ?? "Quote held for office review") : release.state === "queued" ? "Installation quote ready to send — queued behind the launch switches" : "Installation quote automatically released to the owner";
   await logEvent(jobId, actorId, release.state === "held" ? "installation_quote_held" : release.state === "queued" ? "installation_quote_queued" : "installation_quote_released", summary, { quote_ids: [q.id], rate_card: card.name, pricing_rule: HIV_PRICING_RULE, release_state: release.state }, { internal: release.state !== "released" });
   if (!chosen.product) await (await import("./ready-check-quote.server")).recordNeedsOffice(jobId, actorId, q.id, [PRODUCT_NEEDS_OFFICE]);
@@ -240,7 +240,10 @@ async function generateA4FixesQuote(jobId: string, actorId: string | null, busin
   const now = new Date().toISOString();
   if (release.state !== "held") {
     const totalsWhy = await quoteTotalsHoldReason(q.id);
-    if (totalsWhy) { await holdForTotals(q.id, jobId, totalsWhy, actorId); return q.id; }
+    if (totalsWhy) {
+      if (!(await holdForTotals(q.id, jobId, totalsWhy, actorId))) throw new Error("Quote totals don't add up and the quote could not be held. It was not released.");
+      return q.id;
+    }
   }
   await admin.from("quotes").update({ status: release.state === "held" ? "draft" : "issued", sent_at: release.state === "released" ? now : null, office_reviewed_at: release.state === "released" ? now : null, office_reviewed_by: null, release_state: release.state, release_hold_reason: release.reason }).eq("id", q.id);
   const summary = release.state === "held" ? (release.reason ?? "Electrical fixes quote held for office review") : release.state === "queued" ? "Electrical fixes quote ready to send — queued behind the launch switches" : "Electrical fixes quote automatically released to the owner";
@@ -302,7 +305,10 @@ export async function generateRectificationQuote(jobId: string, actorId: string 
   const now = new Date().toISOString();
   if (release.state !== "held") {
     const totalsWhy = await quoteTotalsHoldReason(q.id);
-    if (totalsWhy) { await holdForTotals(q.id, jobId, totalsWhy, actorId); return q.id; }
+    if (totalsWhy) {
+      if (!(await holdForTotals(q.id, jobId, totalsWhy, actorId))) throw new Error("Quote totals don't add up and the quote could not be held. It was not released.");
+      return q.id;
+    }
   }
   await admin.from("quotes").update({ status: release.state === "held" ? "draft" : "issued", sent_at: release.state === "released" ? now : null, office_reviewed_at: release.state === "released" ? now : null, office_reviewed_by: null, release_state: release.state, release_hold_reason: release.reason }).eq("id", q.id);
   const summary = release.state === "held" ? (release.reason ?? "Electrical fixes quote held for office review") : release.state === "queued" ? "Electrical fixes quote ready to send — queued behind the launch switches" : "Standard-rate electrical fixes quote automatically released to the owner";

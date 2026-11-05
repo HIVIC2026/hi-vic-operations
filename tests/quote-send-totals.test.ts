@@ -4,6 +4,7 @@ import { beforeEach, expect, mock, test } from "bun:test";
 type Row = Record<string, any>;
 let tables: Record<string, Row[]> = {};
 let failReads = new Set<string>();
+let failUpdates = new Set<string>();
 let writes: { table: string; patch: Row }[] = [];
 let events: { type: string; details: any; internal?: boolean }[] = [];
 let notifications = 0;
@@ -14,6 +15,7 @@ function builder(table: string) {
   const run = () => {
     const rows = (tables[table] ??= []);
     if (op === "update") {
+      if (failUpdates.has(table)) return { data: null, error: { message: `${table} write failed` } };
       const hit = rows.filter((r) => filters.every((f) => f(r)));
       for (const r of hit) Object.assign(r, patch);
       writes.push({ table, patch });
@@ -55,7 +57,7 @@ const { quoteTotalsHoldReason, holdForTotals } = await import("../src/lib/quote-
 
 const mismatchEvents = () => events.filter((e) => e.type === "quote_totals_mismatch");
 beforeEach(() => {
-  failReads = new Set(); writes = []; events = []; notifications = 0;
+  failReads = new Set(); failUpdates = new Set(); writes = []; events = []; notifications = 0;
   tables = {
     quotes: [{ id: "q", job_id: "j", kind: "installation", status: "draft", release_state: "held", release_hold_reason: "Waiting for office review before sending", sent_at: null, option_code: "R5_BATTS", created_at: "2026-10-23T00:00:00Z", office_reviewed_at: null, subtotal_inc_gst: 3000, veec_discount_inc_gst: 1470, customer_total_inc_gst: 1530 }],
     quote_items: [{ quote_id: "q", line_total_inc_gst: 2000 }, { quote_id: "q", line_total_inc_gst: 1000 }],
@@ -132,6 +134,33 @@ test("quoteTotalsHoldReason: a failed quote read is a reason; holdForTotals only
   failReads.clear();
   expect(await quoteTotalsHoldReason("q")).toBeNull();
   tables["quotes"]![0]!["status"] = "accepted";
-  await holdForTotals("q", "j", "why");
+  expect(await holdForTotals("q", "j", "why")).toBe(false);
   expect(tables["quotes"]![0]!["status"]).toBe("accepted");
+});
+
+test("holdForTotals: 0 rows held returns false and logs nothing (an issued quote is not un-sent)", async () => {
+  tables["quotes"]![0]!["status"] = "issued"; tables["quotes"]![0]!["sent_at"] = "2026-11-01T00:00:00Z";
+  expect(await holdForTotals("q", "j", "why")).toBe(false);
+  expect(tables["quotes"]![0]).toMatchObject({ status: "issued", sent_at: "2026-11-01T00:00:00Z" });
+  expect(mismatchEvents()).toHaveLength(0);
+});
+
+test("holdForTotals: a write error throws and logs nothing; office Send and fixes release never release then", async () => {
+  failUpdates.add("quotes");
+  await expect(holdForTotals("q", "j", "why")).rejects.toThrow(/could not be held/);
+  expect(mismatchEvents()).toHaveLength(0);
+  tables["quote_items"]![0]!["line_total_inc_gst"] = 2200;
+  await expect(sendOfficeReviewedQuote("j", "q", "office")).rejects.toThrow(/could not be held/);
+  Object.assign(tables["quotes"]![0]!, { kind: "rectification" });
+  await expect(releaseFixesQuote("q", "actor", "auto")).rejects.toThrow(/could not be held/);
+  expect(sent()).toBeNull();
+  expect(notifications).toBe(0);
+});
+
+test("office Send: a mismatched quote that is no longer a draft is refused, not released, and nothing is logged", async () => {
+  tables["quotes"]![0]!["status"] = "issued"; // quoteNeedsOfficeReview still true (issued, unsent, not released)
+  tables["quote_items"]![0]!["line_total_inc_gst"] = 2200;
+  await expect(sendOfficeReviewedQuote("j", "q", "office")).rejects.toThrow(/nothing was sent/);
+  expect(sent()).toBeNull();
+  expect(mismatchEvents()).toHaveLength(0);
 });

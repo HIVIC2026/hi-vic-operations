@@ -79,7 +79,7 @@ test("rejected_discount_saves_nothing: $3,000 to $3,200 with a rebate that is no
   expect(events).toEqual([]);
 });
 
-test("item_read_timeout_no_zero: the lines come from the one quote read, so a failing items read can't make the total $0", async () => {
+test("items_not_reread_no_zero: the lines come from the one quote read, so a failing separate items read can't make the total $0", async () => {
   failReads.add("quote_items");
   rpcResult = { data: { ok: true }, error: null };
   await adjustQuote("q1", U, "price up", changes(2200), 1470);
@@ -88,7 +88,7 @@ test("item_read_timeout_no_zero: the lines come from the one quote read, so a fa
   expect(writes).toEqual([]);
 });
 
-test("a failed quote read stops the edit and writes nothing", async () => {
+test("item_read_timeout_no_zero: a failed (embedded) quote read stops the edit, writes nothing, saves no $0", async () => {
   failReads.add("quotes");
   await expect(adjustQuote("q1", U, "price up", changes(2200), 1470)).rejects.toThrow();
   expect(writes).toEqual([]);

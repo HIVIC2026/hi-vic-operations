@@ -17,11 +17,14 @@ export async function quoteTotalsHoldReason(quoteId: string): Promise<string | n
   );
 }
 
-/** Puts the quote back to a held draft for the office and records why. */
-export async function holdForTotals(quoteId: string, jobId: string, reason: string, actorId: string | null = null): Promise<void> {
-  const { error } = await admin.from("quotes")
-    .update({ status: "draft", sent_at: null, release_state: "held", release_hold_reason: QUOTE_TOTALS_HOLD_REASON })
-    .eq("id", quoteId).in("status", ["draft", "issued"]);
-  if (error) console.error(`[quote-totals] could not hold quote ${quoteId}: ${error.message}`);
+/** Puts a DRAFT quote back to held for the office and records why. Returns true only when a row was actually held
+ *  (then the event is logged); false = nothing held (not a draft any more), nothing logged. Throws on a write error. */
+export async function holdForTotals(quoteId: string, jobId: string, reason: string, actorId: string | null = null): Promise<boolean> {
+  const { data, error } = await admin.from("quotes")
+    .update({ release_state: "held", release_hold_reason: QUOTE_TOTALS_HOLD_REASON })
+    .eq("id", quoteId).eq("status", "draft").select("id");
+  if (error) throw new Error(`Quote could not be held: ${error.message}`);
+  if (!data?.length) return false;
   await logEvent(jobId, actorId, "quote_totals_mismatch", QUOTE_TOTALS_HOLD_REASON, { quote_id: quoteId, reason, needs_office: true }, { internal: true });
+  return true;
 }

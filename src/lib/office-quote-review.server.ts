@@ -138,8 +138,8 @@ export async function releaseQuoteToOwner(
   for (const row of [quote, ...siblings]) {
     const why = await quoteTotalsHoldReason(row.id);
     if (why) {
-      await holdForTotals(row.id, jobId, why, actorId);
-      throw new WorkflowError("Quote totals don't add up, so the quote was held and nothing was sent. Check the lines on Quotes to check.");
+      const held = await holdForTotals(row.id, jobId, why, actorId); // throws if the hold can't be saved: nothing is sent either way
+      throw new WorkflowError(held ? "Quote totals don't add up, so the quote was held and nothing was sent. Check the lines on the Quotes to check page." : "Quote totals don't add up and nothing was sent. The quote could not be held – reload and check it.");
     }
   }
   // Jo 24 Oct: release only when the owner can actually accept it — right stage, invoicing settled, and a secure link.

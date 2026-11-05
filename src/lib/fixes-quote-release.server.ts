@@ -40,8 +40,8 @@ export async function releaseFixesQuote(quoteId: string, actorId: string | null,
   }
   const totalsWhy = await quoteTotalsHoldReason(q.id);
   if (totalsWhy) {
-    await holdForTotals(q.id, q.job_id, totalsWhy, actorId);
-    throw new WorkflowError("Quote totals don't add up, so the quote was held and nothing was sent.");
+    const held = await holdForTotals(q.id, q.job_id, totalsWhy, actorId); // throws if the hold can't be saved: nothing is sent either way
+    throw new WorkflowError(held ? "Quote totals don't add up, so the quote was held and nothing was sent." : "Quote totals don't add up and nothing was sent. The quote could not be held – reload and check it.");
   }
   const now = new Date().toISOString();
   const patch = how === "auto" ? { status: "issued" as const, sent_at: now, release_state: "released", release_hold_reason: null } : { status: "issued" as const, sent_at: now };
