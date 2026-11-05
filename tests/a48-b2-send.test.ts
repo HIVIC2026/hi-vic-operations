@@ -280,9 +280,9 @@ describe("sendBatch", () => {
     expect(m1.text).toContain("Confirm my details: https://estimate.homeinsulationvictoria.com.au/my-job/T-j1?screen=taps");
     expect(m1.text).toContain("Answer a few quick questions so we can book your free Ready Check.");
   });
-  test("IT_IS_YOUR_TURN_V2_APPROVED is false in the code: a real batch is refused, nothing recorded or sent", async () => {
+  test("with the V2 flag off a real batch is refused, nothing recorded or sent (the flag is ON since 5 Nov 2026)", async () => {
     addJob("j1");
-    await expect(S.sendBatch(["j1"], "biz-1", "jo", { now: NOW })).rejects.toThrow("It's your turn wording not switched on yet");
+    await expect(S.sendBatch(["j1"], "biz-1", "jo", { now: NOW, v2Approved: false })).rejects.toThrow("It's your turn wording not switched on yet");
     expect(events().length).toBe(0); expect(sent.length).toBe(0); expect(emails.length).toBe(0);
   });
   test("TEST jobs go through test-send, never the real sender", async () => {

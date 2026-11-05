@@ -56,7 +56,7 @@ test("the stored copy hides the link token", () => {
   expect(m).toContain("/e/••••");
 });
 
-test("flag starts off", () => { expect(core.PIESA_BOOKED_EMAIL_APPROVED).toBe(false); });
+test("flag ON since 5 Nov 2026 (Jo: all designed templates on)", () => { expect(core.PIESA_BOOKED_EMAIL_APPROVED).toBe(true); });
 
 // ---- the sender, real module against an in-memory database ----
 function load(deps: Record<string, unknown>) {
@@ -88,7 +88,7 @@ const on = (o: any = {}) => ({ approved: true, officeContact: async () => ({ nam
 
 test("flag off: the current email, to the worker, unchanged", async () => {
   const { api, sends } = setup(rows());
-  await api.notifyInHouseElectricianBooked("j", "b");
+  await api.notifyInHouseElectricianBooked("j", "b", new Date("2026-11-03T00:00:00Z"), { ...on(), approved: false }); // the flag is ON since 5 Nov 2026; this pins the old path
   expect(sends).toHaveLength(1);
   expect(sends[0].to).toBe("worker@example.invalid");
   expect(sends[0].subject).toBe("HV-1234: Pre Insulation Electrical Safety Assessment (PIESA) booked");

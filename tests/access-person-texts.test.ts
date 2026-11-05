@@ -25,11 +25,11 @@ const PIESA: BookedFacts & { street: string } = { street: STREET, kind: "piesa",
 const INSTALL: BookedFacts & { street: string } = { street: STREET, kind: "install", firstName: "Sarah", startIso: "2026-11-11T21:00:00Z", whoName: "John Smith", business: rapid, changed: false, balanceCents: 141200 };
 
 describe("access person texts — pure rules (DRAFT wording)", () => {
-  test("ships switched off; its own two text types are unapproved owner-side texts with quiet hours", () => {
-    expect(ACCESS_PERSON_TEXTS_APPROVED).toBe(false);
+  test("ON since 5 Nov 2026 (Jo: all designed templates on); its own two text types are approved owner-side texts with quiet hours", () => {
+    expect(ACCESS_PERSON_TEXTS_APPROVED).toBe(true);
     for (const t of [ACCESS_PERSON_BOOKED_SMS_TYPE, ACCESS_PERSON_TOMORROW_SMS_TYPE] as const) {
       expect({ t, audience: SMS_MESSAGE_TYPES[t].audience, approved: SMS_MESSAGE_TYPES[t].wordingApproved, quiet: SMS_MESSAGE_TYPES[t].quietHours, side: SMS_MESSAGE_TYPES[t].ownerSideContact })
-        .toEqual({ t, audience: "owner", approved: false, quiet: true, side: true });
+        .toEqual({ t, audience: "owner", approved: true, quiet: true, side: true });
     }
     expect(SMS_FRESHNESS.access_person_booked).toEqual({ kind: "event", maxAgeMinutes: 24 * 60 });
     expect(SMS_FRESHNESS.access_person_tomorrow).toEqual({ kind: "window" });
@@ -72,8 +72,8 @@ describe("access person texts — pure rules (DRAFT wording)", () => {
   });
   test("the real sender: a STOP from the access person's number blocks their text; the owner's Do not contact does not (it is about the owner)", () => {
     const base = { to: "+61400111222", commsEnabled: true, typeSwitchOn: true, senderConfigured: true, optedOut: false, consent: true, isTestRecord: false, nowIso: "2026-11-03T03:00:00Z" };
-    // DRAFT: while the wording is unapproved the real sender refuses both types before anything else.
-    for (const type of [ACCESS_PERSON_BOOKED_SMS_TYPE, ACCESS_PERSON_TOMORROW_SMS_TYPE]) expect(smsBlocker({ ...base, type })).toBe("Wording not approved yet");
+    // Approved 5 Nov 2026: the real sender no longer refuses either type on wording.
+    for (const type of [ACCESS_PERSON_BOOKED_SMS_TYPE, ACCESS_PERSON_TOMORROW_SMS_TYPE]) expect(smsBlocker({ ...base, type })).not.toBe("Wording not approved yet");
     // Same inputs with the wording approved: the owner's Do not contact still does not hold an access-person text, while it holds the owner's.
     const approved = { ...SMS_MESSAGE_TYPES.access_person_booked, wordingApproved: true };
     const types = SMS_MESSAGE_TYPES as unknown as Record<string, unknown>;

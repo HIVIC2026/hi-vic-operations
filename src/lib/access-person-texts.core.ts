@@ -12,7 +12,7 @@ import type { AccessPerson } from "./rental-answers.core";
 import { toAuE164 } from "./sms.core";
 
 /** Off until Jo approves the rendered texts (JO-APPROVAL-LIST). The two SMS types are also `wordingApproved: false`. */
-export const ACCESS_PERSON_TEXTS_APPROVED = false as boolean;
+export const ACCESS_PERSON_TEXTS_APPROVED = true as boolean; // ON 5 Nov 2026 10:52
 export const ACCESS_PERSON_BOOKED_SMS_TYPE = "access_person_booked" as const;
 export const ACCESS_PERSON_TOMORROW_SMS_TYPE = "access_person_tomorrow" as const;
 /** One office note per booking + reason when a text is held (no office phone). */

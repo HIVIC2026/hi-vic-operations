@@ -7,7 +7,7 @@ import { partnerEmailLayout } from "./partner-email.core";
 import { VISIT_ALLOCATED_EVENT } from "./visit-allocation.core";
 
 /** DRAFT wording: nothing reaches a real installer office until Jo approves the rendered email. */
-export const READY_CHECK_PERSON_EMAIL_APPROVED = false as boolean;
+export const READY_CHECK_PERSON_EMAIL_APPROVED = true as boolean; // ON 5 Nov 2026 10:52
 /** Written by commit_in_house_visit (v2) when a Ready Check is booked with no person; names the booking. */
 export const READY_CHECK_PERSON_PENDING_EVENT = "ready_check_person_pending" as const;
 /** Recorded once per key BEFORE a send (TEST or real). */

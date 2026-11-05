@@ -22,9 +22,9 @@ export type Held = { held: string };
 
 /** Sends of the new wording stay off until Jo OKs the rendered pictures (the wording itself is approved). Off → the
  *  current in-house `bookingNotice` wording keeps going out, with the same purpose and key. */
-export const OWNER_BOOKED_READY_CHECK_APPROVED = false as boolean;
-export const OWNER_BOOKED_PIESA_APPROVED = false as boolean;
-export const OWNER_BOOKED_INSTALL_APPROVED = false as boolean;
+export const OWNER_BOOKED_READY_CHECK_APPROVED = true as boolean; // ON 5 Nov 2026 10:52
+export const OWNER_BOOKED_PIESA_APPROVED = true as boolean; // ON 5 Nov 2026 10:52
+export const OWNER_BOOKED_INSTALL_APPROVED = true as boolean; // ON 5 Nov 2026 10:52
 export const OWNER_BOOKED_V2_APPROVED: Record<BookedKind, boolean> = { ready_check: OWNER_BOOKED_READY_CHECK_APPROVED, piesa: OWNER_BOOKED_PIESA_APPROVED, install: OWNER_BOOKED_INSTALL_APPROVED };
 
 const clean = (v: string | null | undefined) => (v ?? "").trim();

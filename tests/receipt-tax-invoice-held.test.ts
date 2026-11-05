@@ -12,16 +12,16 @@ const { fileReceiptPdf } = await import("../src/lib/receipt-pdf.server");
 const { fileTaxInvoicePdf } = await import("../src/lib/tax-invoice-pdf.server");
 const { PDF_LOOK_APPROVED } = await import("../src/lib/pdf-approvals.core");
 
-afterEach(() => { PDF_LOOK_APPROVED.receipts = false; PDF_LOOK_APPROVED.taxInvoice = false; touched.length = 0; });
+afterEach(() => { PDF_LOOK_APPROVED.receipts = true; PDF_LOOK_APPROVED.taxInvoice = true; touched.length = 0; });
 
 test("receipt: held while the receipt layout is not approved, and nothing is read or stored", async () => {
-  expect(PDF_LOOK_APPROVED.receipts).toBe(false);
+  PDF_LOOK_APPROVED.receipts = false; // the look is ON since 5 Nov 2026; this pins the held path
   expect(await fileReceiptPdf("job-1", "safety_check", "rk-1")).toEqual({ held: "Receipt not made: the new receipt layout is awaiting approval" });
   expect(touched).toEqual([]);
 });
 
 test("tax invoice: held while the tax invoice layout is not approved, and nothing is read or stored", async () => {
-  expect(PDF_LOOK_APPROVED.taxInvoice).toBe(false);
+  PDF_LOOK_APPROVED.taxInvoice = false; // the look is ON since 5 Nov 2026; this pins the held path
   expect(await fileTaxInvoicePdf("job-1")).toEqual({ held: "Tax invoice not made: the new tax invoice layout is awaiting approval" });
   expect(touched).toEqual([]);
 });

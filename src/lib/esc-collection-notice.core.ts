@@ -75,6 +75,9 @@ export const COLLECTION_NOTICE_SEND_EVENT = "esc_collection_notice_link_sent";
 /** Real (non-TEST) link texts/emails: on since decision 154 (Jo 24 Oct 2026; wording decisions 146/147). Delivery still waits on
  *  customer_comms_enabled + the esc_notice_link switch / the office email master switch. TEST partners use the test senders. */
 export const COLLECTION_NOTICE_SEND_APPROVED = true;
+/** Jo 5 Nov 2026 10:57: the notice LINK goes by text only (no link email, no reminder emails). The copy of the signed notice
+ *  still goes by email (`sendNoticeCopy`). */
+export const COLLECTION_NOTICE_LINK_BY_TEXT_ONLY = true as boolean;
 /** Emailed copy on acknowledgement: approved by Jo 24 Oct 2026 (decision 170; design docs/templates/mjml/installer_I62.mjml). */
 export const COLLECTION_NOTICE_EMAIL_APPROVED = true;
 export const COLLECTION_NOTICE_LINK_DAYS = 30;

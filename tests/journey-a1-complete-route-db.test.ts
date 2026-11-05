@@ -121,7 +121,8 @@ describe("A1 step 1 — Add a job (decisions 34/115/282/289)", () => {
     expect(await q("select role, business_id, user_id from job_assignments where job_id=$1 and active order by role", [JOB])).toEqual([{ role: "electrician", business_id: BIZ, user_id: null }, { role: "installer", business_id: BIZ, user_id: INST }]);
     expect((await events(JOB, "in_house_electrician_allocated")).map((e) => e.details["worker_id"])).toEqual([TEAM_ELEC]);
     expect(await q("select worker_id, revoked_at from worker_job_links where job_id=$1", [JOB])).toEqual([{ worker_id: TEAM_ELEC, revoked_at: null }]);
-    expect(providers.texts).toHaveLength(0);
+    // OWN_CUSTOMER_RENTAL_TAPS_APPROVED (ON 5 Nov 2026): the owner's "a few quick questions about your home" text goes at Add a job (TEST → test-send); nothing else.
+    expect(providers.texts.map((t) => [t.to, /added your ceiling insulation job. A few quick questions about your home/.test(t.body)])).toEqual([["+61477511901", true]]);
     expect([...providers.mitti.audits.values()].map((a) => a.template_id)).toEqual([TPL_A1]);
     expect(await q("select external_id from ceiling_measurements where job_id=$1 and is_current and external_source='mitti'", [JOB])).toEqual([{ external_id: "audit_1" }]);
     expect(await stageOf(JOB)).toBe("ready_check_ready_to_schedule");
@@ -381,9 +382,9 @@ describe("A1 step 5 — the installer office books the safety check for its Team
     expect(ownerTexts.map((t) => t.to)).toEqual(["+61477511901"]);
     expect(ownerTexts[0]!.body).not.toMatch(/\$\s?\d/);
     expect(await q("select status from sms_messages where job_id=$1 and message_type='in_house_booked_owner'", [JOB])).toEqual([]);
-    // The electrician's "PIESA booked" email (pre-approval wording while PIESA_BOOKED_EMAIL_APPROVED is off): day, address,
-    // owner phone — no price, no HIV PIESA rate, no pay line.
-    const elecBooked = sent.filter((e) => /PIESA\) booked/.test(e.subject));
+    // The electrician's "PIESA booked" email (PIESA_BOOKED_EMAIL_APPROVED, ON 5 Nov 2026: "HV-xxxx: PIESA booked, <day> <time>"
+    // to the electrician's office): day, address, owner phone — no price, no HIV PIESA rate, no pay line.
+    const elecBooked = sent.filter((e) => /PIESA booked,/.test(e.subject));
     // TEST job: the test sender redirects it to the TEST inbox with the original recipient (the electrician) marked.
     expect(elecBooked.map((e) => e.to)).toEqual([[OWNER_EMAIL]]);
     expect(elecBooked[0]!.text).toContain(`would have gone to: ${TRADE_EMAIL}`);
@@ -676,10 +677,13 @@ describe("A1 step 9 — the installer office books the install day with a Lead I
     expect((await q<{ status: string }>("select status from esc_notifications where job_id=$1 and status not in ('stale','cancelled')", [JOB])).map((x) => x.status)).toEqual(["ready"]);
     // The owner's "You're booked" install email: who is coming and the installer office number; the deposit is paid so no money line.
     const sent = providers.emails.slice(n0);
-    const booked = sent.filter((e) => /You're booked — install/.test(e.subject));
+    // OWNER_BOOKED_INSTALL_APPROVED (ON 5 Nov 2026): "You're booked for your insulation install".
+    const booked = sent.filter((e) => /You're booked for your insulation install/.test(e.subject));
     expect(booked.map((e) => e.to)).toEqual([[OWNER_EMAIL]]);
-    expect(booked[0]!.text).toContain("Ivy Installer (Lead Installer)");
-    expect(booked[0]!.text).not.toMatch(/\$\s?\d/);
+    expect(booked[0]!.text).toContain("Lead Installer: Ivy Installer"); // v2 wording (ON 5 Nov 2026)
+    // The v2 design (pack 1, approved; ON 5 Nov 2026) names the balance due on install day — the only dollar figure in it.
+    expect(booked[0]!.text).toContain("Your balance: The rest of your payment, $1,196.10, is due on install day.");
+    expect(booked[0]!.text.replace(/\$1,196\.10/, "")).not.toMatch(/\$\s?\d/);
     // Decision 377 / Part 7: the Lead's OWN safety plan (SWMS) sign link is texted to the Lead's mobile at booking (TEST → test-send), once.
     const swmsTexts = providers.texts.slice(t0).filter((t) => /\/sp\//.test(t.body));
     expect(swmsTexts.map((t) => t.to)).toEqual(["+61477511901"]);
@@ -1054,7 +1058,7 @@ describe("A1 branch B — a second own job whose safety check is all clear: no u
     expect(await stageOf(JOB_B)).toBe("piesa_scheduled");
     expect(await q("select mitti_template_id from assessments where job_id=$1 and external_mitti_id is not null", [JOB_B])).toEqual([{ mitti_template_id: TPL_A3 }]);
     expect(providers.emails.slice(n0).filter((e) => /You're booked/.test(e.subject)).map((e) => e.to)).toEqual([[OWNER_EMAIL]]);
-    expect(providers.emails.slice(n0).filter((e) => /PIESA\) booked/.test(e.subject))).toHaveLength(1);
+    expect(providers.emails.slice(n0).filter((e) => /PIESA booked,/.test(e.subject))).toHaveLength(1);
   });
   test("the A3 says no repair work → Complete PIESA → clear to install at once: no A4 form, no upgrades day, the link is All done, the deposit is asked, the installer's next step is the install", async () => {
     const forms = await import("./helpers/journey-forms");

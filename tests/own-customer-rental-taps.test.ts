@@ -33,17 +33,17 @@ function deps(over: Partial<OwnRentalTapsDeps> & { job?: Job | null } = {}) {
 }
 
 describe("own customer rental taps text", () => {
-  test("ships off; draft wording; link shows only the rental questions", () => {
-    expect(OWN_CUSTOMER_RENTAL_TAPS_APPROVED).toBe(false);
+  test("ON since 5 Nov 2026 (Jo: all designed templates on); link shows only the rental questions", () => {
+    expect(OWN_CUSTOMER_RENTAL_TAPS_APPROVED).toBe(true);
     expect(ownCustomerRentalTapsText({ firstName: "Helen", installer: "Sample Insulation", link: "https://x/y" }))
       .toBe("Home Insulation Victoria: Hi Helen, Sample Insulation has added your ceiling insulation job. A few quick questions about your home: https://x/y");
     expect(rentalOnlyLink(quickTapsLink("https://x/my-job/T"))).toBe("https://x/my-job/T?screen=taps&only=rental");
     expect(ownCustomerRentalTapsKey("j1")).toBe("own-rental-taps:v1:j1");
   });
-  test("a new owner SMS type: owner audience, quiet hours, wording NOT approved, its own cadence", () => {
+  test("a new owner SMS type: owner audience, quiet hours, wording approved 5 Nov 2026, its own cadence", () => {
     const t = SMS_MESSAGE_TYPES[OWN_CUSTOMER_RENTAL_SMS_TYPE];
     expect(t.audience).toBe("owner");
-    expect(t.wordingApproved).toBe(false);
+    expect(t.wordingApproved).toBe(true);
     expect(t.quietHours).toBe(true);
     expect(SMS_FRESHNESS[OWN_CUSTOMER_RENTAL_SMS_TYPE]).toEqual({ kind: "window" });
   });

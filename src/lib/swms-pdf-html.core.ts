@@ -157,7 +157,9 @@ export function swmsPdfBlocks(m: SwmsPdfModel): PdfBlock[] {
     { id: "swms-house", kind: "section", title: H.house, children: [
       m.house.length ? { id: "swms-house-lines", kind: "bullets", items: m.house.map((h) => (h.step ? "" : h.text)), leads: m.house.map((h) => (h.step ? h.text : "")) } : { id: "swms-house-none", kind: "para", text: H.houseNone },
     ] },
-    { id: "swms-hazards", kind: "section", title: H.hazards, keepTogether: false, children: [
+    // keepFirst 4: the heading, the task line, the once-box and the FIRST hazard start together (Jo 5 Nov 2026: the 2 Nov
+    // sample left the heading and lead-in lines at the foot of page 1 with every hazard on page 2).
+    { id: "swms-hazards", kind: "section", title: H.hazards, keepTogether: false, keepFirst: 4, children: [
       { id: "swms-task", kind: "para", lead: H.task, text: m.task },
       { id: "swms-once", kind: "box", children: [
         { id: "swms-once-1", kind: "para", lead: H.every, text: "" },

@@ -39,7 +39,7 @@ import { keptInsulationNotice } from "./kept-insulation.core";
 export const OWNER_QUOTE_EMAIL_APPROVED = true as boolean;
 export const OWNER_QUOTE_EMAIL_VERSION = "v3-approved-2026-10-24";
 /** Decision #29 (Jo 2 Nov 2026): v4 wording + What's changed box + quote documents attached. Off until Jo OKs the pictures. */
-export const OWNER_QUOTE_EMAIL_V4_APPROVED = false as boolean;
+export const OWNER_QUOTE_EMAIL_V4_APPROVED = true as boolean; // ON 5 Nov 2026 10:52
 export const OWNER_QUOTE_EMAIL_V4_VERSION = "v4-approved-2026-11-02";
 /** The v4 quote email is never sent without its documents: the sender holds it with this note instead. */
 export const QUOTE_DOCUMENTS_HELD = "Quote documents not ready";

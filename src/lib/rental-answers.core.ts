@@ -145,7 +145,7 @@ export function noticePersonOf(r: RentalAnswers | null): TenantContact | null {
 
 // ---- Installers' own customers (Jo 2 Nov, answer 24) ----------------------------------------------------------
 /** The text to an installer's own customer stays off until Jo approves the wording as a picture. */
-export const OWN_CUSTOMER_RENTAL_TAPS_APPROVED = false as boolean;
+export const OWN_CUSTOMER_RENTAL_TAPS_APPROVED = true as boolean; // ON 5 Nov 2026 10:52
 export const OWN_CUSTOMER_RENTAL_SMS_TYPE = "own_customer_rental_taps" as const;
 export const ownCustomerRentalTapsKey = (jobId: string) => `own-rental-taps:v1:${jobId}`;
 /** DRAFT (Jo approves at build time). */

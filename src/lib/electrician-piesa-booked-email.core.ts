@@ -6,7 +6,7 @@ import { genericMail, esc } from "./mail-mjml.core";
 import * as K from "./email-kit.core";
 
 /** Stays false until Jo OKs the picture. While false the earlier email (to the worker) keeps going. */
-export const PIESA_BOOKED_EMAIL_APPROVED = false as boolean;
+export const PIESA_BOOKED_EMAIL_APPROVED = true as boolean; // ON 5 Nov 2026 10:52
 /** Task 9 (Jo 2 Nov 2026, answer 7): the "Lets you in" row and the change line naming that person. DRAFT: while false the
  *  email is exactly Task 4's, whatever the caller passes; the job link shows the person regardless. */
 export const ELECTRICIAN_ACCESS_ROWS_APPROVED = false as boolean;

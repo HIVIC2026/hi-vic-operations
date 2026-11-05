@@ -623,7 +623,7 @@ export async function renderPdf(input: PdfDoc): Promise<{ bytes: Uint8Array; lay
       if (childHeights.length) childHeights[0]! += sectionHead(b);
     } else if (b.kind === "group") childHeights = b.children.map((c) => measure(c, CONTENT_W, fonts));
     else if (kids) childHeights = kids.map((c) => measure(c, CONTENT_W - 2 * BOX_PAD, fonts));
-    return { id: b.id, height: heights[i]!, keepTogether: b.keepTogether !== false, ...(childHeights ? { childHeights } : {}), ...(b.kind === "box" ? { partOverhead: BOX_PAD * 2 + GAP } : {}), ...(b.kind === "pageBreak" ? { pageBreak: true } : {}) };
+    return { id: b.id, height: heights[i]!, keepTogether: b.keepTogether !== false, ...(childHeights ? { childHeights } : {}), ...(b.keepFirst !== undefined ? { keepFirst: b.keepFirst } : {}), ...(b.kind === "box" ? { partOverhead: BOX_PAD * 2 + GAP } : {}), ...(b.kind === "pageBreak" ? { pageBreak: true } : {}) };
   });
   const placed = paginateDetailed(items, firstSpace, pageSpace);
 

@@ -9,7 +9,7 @@ import { WorkflowError } from "./workflow.server";
 import { hashToken, newToken } from "./worker-links.core";
 import { isTestPartner } from "./test-send.core";
 import {
-  COLLECTION_NOTICE_EMAIL_APPROVED, COLLECTION_NOTICE_EVENT, COLLECTION_NOTICE_LINK_EVENT, COLLECTION_NOTICE_SEND_APPROVED, COLLECTION_NOTICE_SEND_EVENT, COLLECTION_NOTICE_SMS_TYPE,
+  COLLECTION_NOTICE_EMAIL_APPROVED, COLLECTION_NOTICE_EVENT, COLLECTION_NOTICE_LINK_BY_TEXT_ONLY, COLLECTION_NOTICE_LINK_EVENT, COLLECTION_NOTICE_SEND_APPROVED, COLLECTION_NOTICE_SEND_EVENT, COLLECTION_NOTICE_SMS_TYPE,
   collectionNoticeEmail, noticeAckSubmissionErrors, noticeEmailKey, noticeEventDetails, noticeLinkDetails, noticeLinkEmail, noticeLinkSmsBody, noticeLinkState, noticeLinkUrl, noticeSendPlan,
   type NoticeStatus,
 } from "./esc-collection-notice.core";
@@ -89,7 +89,7 @@ export async function issueAndSendNoticeLink(p: { worker: NoticeWorkerRow; actor
     const { sendTestSms, sendTestEmail } = await import("./test-send.server");
     const ctx = { jobId: null, jobSource: null, partnerIsTest: true, label: `esc_notice_link:${p.attempt}`, actorId: p.actorId };
     sms = p.worker.mobile ? await sendTestSms(ctx, p.worker.mobile, noticeLinkSmsBody(first, url)) : { status: "blocked", detail: "No mobile on the worker record." };
-    email = p.worker.email?.trim() ? await sendTestEmail(ctx, p.worker.email, mail.subject, rendered.html, rendered.text) : { status: "blocked", detail: "No email on file." };
+    email = COLLECTION_NOTICE_LINK_BY_TEXT_ONLY ? { status: "blocked", detail: "Text only (Jo 5 Nov 2026)." } : p.worker.email?.trim() ? await sendTestEmail(ctx, p.worker.email, mail.subject, rendered.html, rendered.text) : { status: "blocked", detail: "No email on file." };
   } else {
     const { sendRealSms } = await import("./sms.server");
     // Decision 165 (`window` type): attempts 1/2/3 are planned from the recorded send history (held ones included), so a
@@ -97,7 +97,8 @@ export async function issueAndSendNoticeLink(p: { worker: NoticeWorkerRow; actor
     const key = p.manual ? `esc-notice-link:v1:${p.worker.id}:manual:${link.token_hash.slice(0, 16)}` : `esc-notice-link:v1:${p.worker.id}:${p.attempt}`;
     const r = await sendRealSms({ type: COLLECTION_NOTICE_SMS_TYPE, idempotencyKey: key, to: p.worker.mobile, body: noticeLinkSmsBody(first, url), businessId: p.worker.business_id });
     sms = { status: r.status, detail: r.detail };
-    if (!p.worker.email?.trim()) email = { status: "blocked", detail: "No email on file." };
+    if (COLLECTION_NOTICE_LINK_BY_TEXT_ONLY) email = { status: "blocked", detail: "Text only (Jo 5 Nov 2026)." };
+    else if (!p.worker.email?.trim()) email = { status: "blocked", detail: "No email on file." };
     else if (!COLLECTION_NOTICE_SEND_APPROVED) email = { status: "blocked", detail: "Email wording waiting for Jo's approval (COLLECTION_NOTICE_SEND_APPROVED)." };
     else {
       const r2 = await (await import("./office-email.server")).sendOfficeEmail({ actorId: p.actorId ?? "", recipient: "partner", to: p.worker.email, contactName: p.worker.full_legal_name, subject: mail.subject, message: rendered.text, label: "esc_notice_link", record: { businessId: p.worker.business_id }, html: rendered.html, text: rendered.text });

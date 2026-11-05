@@ -12,7 +12,7 @@ import { AP_CERTIFICATES_LINE, contactLine, type BusinessContact } from "./owner
 export type TradeContact = BusinessContact;
 
 /** Sends stay off until Jo OKs the rendered pictures (the wording itself is approved, decision #23). */
-export const OWNER_WILL_CALL_APPROVED = false as boolean;
+export const OWNER_WILL_CALL_APPROVED = true as boolean; // ON 5 Nov 2026 10:52
 export const OWNER_WILL_CALL_SMS_TYPE = "owner_will_call" as const;
 export const OWNER_WILL_CALL_HELD_EVENT = "owner_will_call_held";
 /** Part 10 Task 8: "{installer} will call you" is for Home Insulation Victoria leads only — an installer's own customer
