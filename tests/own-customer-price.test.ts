@@ -18,8 +18,8 @@ describe("ownCustomerRows", () => {
     const r = ownCustomerRows(items, 600, 2024);
     expect(r.map((x) => [x.label, x.amountIncGst])).toEqual([
       ["Insulation", 2000],
-      ["Home Insulation Victoria fee", 349],
-      ["Electrical safety check (PIESA)", 275],
+      ["Home Insulation Victoria AP management fee", 349],
+      ["Electrical safety check (PIESA) — charged by Home Insulation Victoria", 275],
       ["Rebate", -600],
       ["Your price", 2024],
     ]);
@@ -56,8 +56,8 @@ describe("ownCustomerRows", () => {
       ["insulation", "Insulation"],
       ["extra", "Extra hatch"],
       ["extra", "Removal of existing insulation – 40 m²"],
-      ["apFee", "Home Insulation Victoria fee"],
-      ["piesa", "Electrical safety check (PIESA)"],
+      ["apFee", "Home Insulation Victoria AP management fee"],
+      ["piesa", "Electrical safety check (PIESA) — charged by Home Insulation Victoria"],
       ["rebate", "Rebate"],
       ["total", "Your price"],
     ]);
@@ -124,8 +124,8 @@ describe("ownCustomerRows", () => {
   test("labels are the approved ones, verbatim", () => {
     expect(OWN_CUSTOMER_LABELS).toEqual({
       insulation: "Insulation",
-      apFee: "Home Insulation Victoria fee",
-      piesa: "Electrical safety check (PIESA)",
+      apFee: "Home Insulation Victoria AP management fee",
+      piesa: "Electrical safety check (PIESA) — charged by Home Insulation Victoria",
       rebate: "Rebate",
       total: "Your price",
     });

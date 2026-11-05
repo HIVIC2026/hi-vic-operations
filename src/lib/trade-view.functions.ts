@@ -369,3 +369,12 @@ export const tradeSwapElectrician = createServerFn({ method: "POST" }).middlewar
 export const uploadCoesForJob = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid, name: z.string().max(200), type: z.string().max(100), data: z.string().max(21_000_000) }).parse(d))
   .handler(async ({ data, context }) => (await import("./trade-view.server")).tradeUploadCoes(data.jobId, context.userId, { name: data.name, type: data.type, bytes: new Uint8Array(Buffer.from(data.data, "base64")) }));
+
+/** Photo-quote installers (Jo 5 Nov 2026): "Send for quote" on the Quote from photos box. Business-scoped in `submitPhotoQuote`. */
+export const tradeSubmitPhotoQuote = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid, underR2: z.boolean().nullable(), removeM2: z.number().finite().nullable(), installM2: z.number().finite().nullable(), product: z.string().max(80).nullable() }).parse(d))
+  .handler(async ({ data, context }) => plain((await import("./photo-quote.core")).photoQuoteResponse(await (await import("./photo-quote.server")).submitPhotoQuote(data.jobId, context.userId, { underR2: data.underR2, removeM2: data.removeM2, installM2: data.installM2, product: data.product }))));
+
+export const getPhotoQuoteMedia = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
+  .handler(async ({ data, context }) => plain(await (await import("./trade-view.server")).photoQuoteMedia(data.jobId, context.userId)));

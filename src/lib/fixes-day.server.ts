@@ -225,7 +225,9 @@ export async function createFixesForm(jobId: string, actorId: string | null, boo
   if (opts.atReadyCheckBooking) {
     if (!paired) throw new WorkflowError("In-house preparation requires an in-house partner");
     const facts = await (await import("./mitti-create.server")).readyCheckFormFacts(jobId);
-    if (!facts?.booked || !facts.mittiInvited || !facts.autoSend) throw new WorkflowError("In-house preparation requires an enabled partner and a confirmed Ready Check booking.");
+    // Photo-quote installers (Jo 5 Nov 2026): a From photos give stands in for the Ready Check booking (there is no visit).
+    const photoGiven = !facts?.booked && !!facts && await (await import("./photo-quote.server")).photoGiveFor(jobId);
+    if (!(facts?.booked || photoGiven) || !facts?.mittiInvited || !facts.autoSend) throw new WorkflowError("In-house preparation requires an enabled partner and a confirmed Ready Check booking.");
     preparation = await (await import("./in-house-forms.server")).inHousePreparationAssignee(jobId);
   }
   if (opts.atPiesaBooking && (!paired || job.source === 'qa_test')) return { status: 'not_needed', reason: 'not an in-house job' };

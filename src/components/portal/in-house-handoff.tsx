@@ -48,6 +48,9 @@ export function InHouseHandoff() {
               {n === 0 && <p className="mt-1 text-sm text-sub">Tick at least one job to give.</p>}
             </div>
           </div>
+          {/* Photo-quote installers: leads this installer can't take, greyed out with the reason (Jo 5 Nov 2026). */}
+          {(screen.blocked?.[partner.id] ?? []).length > 0 && <ul className="mt-2 text-sm text-sub" data-photo-blocked>{(screen.blocked?.[partner.id] ?? []).map(b => { const job = screen.jobs.find(j => j.id === b.jobId); const label = `${job?.job_number ?? b.jobId} · ${job?.address ?? ""}`; return <li key={b.jobId}><label className="flex min-h-11 items-center gap-3 opacity-60"><input type="checkbox" aria-label={label} checked={false} disabled readOnly /><span>{label}<span className="block text-ink">{b.reason}</span></span></label></li>; })}</ul>}
+          {screen.mediaReadFailed && partner.quote_method === "photos" && <p role="alert" className="mt-2 text-sm text-danger">Couldn't check the owner's photos. Try again.</p>}
           <ul className="mt-2 text-sm text-sub">{waiting.map(id => { const job = screen.jobs.find(j => j.id === id); const label = `${job?.job_number ?? id} · ${job?.address ?? ""}`; const yes = job ? saidYesLabel(job) : null; return <li key={id}><label className="flex min-h-11 cursor-pointer items-center gap-3"><input type="checkbox" aria-label={label} checked={mine.includes(id)} disabled={!!busy} onChange={() => toggle(partner.id, id)} /><span>{label}{yes && <span className="block text-ink">{yes}</span>}</span></label></li>; })}</ul>
         </li>;
       })}</ul>}

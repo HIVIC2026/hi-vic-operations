@@ -88,7 +88,7 @@ export function ChooseInstallerPanel({ jobId, reportLoad = false }: { jobId: str
   // Owner said yes and the nominated installer is an in-house partner: Jo gives the job with one tap (nothing sent before).
   const offer = gq.data ?? null;
   const giveNow = async () => {
-    if (busy || !offer) return;
+    if (busy || !offer || offer.blocked) return;
     setBusy("give");
     try {
       const r = await give({ data: { businessId: offer.businessId, jobIds: [jobId] } });
@@ -120,7 +120,10 @@ export function ChooseInstallerPanel({ jobId, reportLoad = false }: { jobId: str
             : offer ? (
               <div className="flex items-center justify-between gap-3 rounded-md border px-3 py-2" data-give="offer">
                 <p className="min-w-0">{offer.label}</p>
-                <Button size="sm" disabled={!!busy} onClick={() => void giveNow()}>{busy === "give" ? "Giving…" : `Give to ${offer.partnerName}`}</Button>
+                <div className="text-right">
+                  <Button size="sm" disabled={!!busy || !!offer.blocked} onClick={() => void giveNow()}>{busy === "give" ? "Giving…" : `Give to ${offer.partnerName}`}</Button>
+                  {offer.blocked && <p className="mt-1 text-sm text-muted-foreground" data-give="blocked">{offer.blocked}</p>}
+                </div>
               </div>
             )
             : pending ? <p className="rounded-md border px-3 py-2" data-release="pending">{rel?.line}. The installer is offered the job only once the owner confirms.</p>

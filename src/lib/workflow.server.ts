@@ -223,7 +223,8 @@ async function readyCheckBlockers(jobId: string, to: Stage): Promise<string[]> {
   }
   // Jo 24 Oct: an Add-a-job job whose Ready Check came from a Mitti form follows the measured route below (form
   // completed + eligibility from the form), like every other Mitti Ready Check.
-  const mittiReadyCheck = to === "measured_estimate_ready" && !!(await admin.from("ceiling_measurements").select("id").eq("job_id", jobId).eq("is_current", true).eq("external_source", "mitti").maybeSingle()).data;
+  // Photo-quote installers (Jo 5 Nov 2026): an installer's photo quote stands in for the Mitti form on this route too.
+  const mittiReadyCheck = to === "measured_estimate_ready" && !!(await admin.from("ceiling_measurements").select("id").eq("job_id", jobId).eq("is_current", true).in("external_source", ["mitti", "photo_quote"]).maybeSingle()).data;
   if (to === "measured_estimate_ready" && !mittiReadyCheck && (await (await import("./installer-intake.server")).isIntakeJob(jobId))) {
     // Installer-intake commercial route (Jo, 8 Oct 2026): owner quote stage on office-checked eligibility + qualifying
     // insulation + usable scope + installer quote. Ready Check evidence is deferred, never waived (ready_for_veec).

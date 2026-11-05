@@ -3,6 +3,7 @@
 // Pre-release owners get these too, so nothing here may give a date, timeframe or speed (aiPreReleaseViolations).
 
 import { OWNER_HIGHER_R_INC_PER_M2 } from "./hiv-quote.core";
+import { PHOTO_QUOTE_WORDS } from "./photo-quote.core";
 
 export type AiAnswer = { topic: string; answer: string };
 
@@ -56,4 +57,17 @@ export function rulesFromAnswers(rows: AiAnswer[] | null): string[] {
   // Q21 supersedes saved old balance answers without rewriting their audit history.
   const own = (rows ?? []).map((r) => r.answer.trim().replace(OLD_BALANCE_7_DAYS,'on install day').replace(/(?:The )?balance is (?:paid )?by bank transfer or PayID\.?/gi,'The balance is due on install day and can be paid by card, bank transfer or PayID.')).filter(Boolean);
   return own.length ? own : AI_SEED_ANSWERS.map((r) => r.answer.trim());
+}
+
+/** Photo-quote installers (Jo 5 Nov 2026, spec touchpoint 54): a photo job has no Ready Check visit, so only the
+ *  SENTENCES that mention the Ready Check are taken out of each answer (the rest of the answer stays; an answer left empty
+ *  goes). The photo line is added only with `newWording` (photoOwnerWording: approved AND given From photos — never an
+ *  installer's own customer). `rows` null/empty = the seed (as rulesFromAnswers). */
+export function answersForPhotoJob(rows: AiAnswer[] | null, installer: string, newWording: boolean): AiAnswer[] {
+  const base = rows?.length ? rows : AI_SEED_ANSWERS;
+  const kept = base.flatMap((r) => {
+    const answer = (r.answer.match(/[^.!?]+(?:[.!?]+|$)/g) ?? []).filter((s) => !/ready check/i.test(s)).join("").trim();
+    return answer ? [{ topic: r.topic.replace(/\s*ready check\s*/gi, " ").trim() || r.topic, answer }] : [];
+  });
+  return newWording ? [...kept, { topic: "No Ready Check visit", answer: PHOTO_QUOTE_WORDS.aiReply(installer) }] : kept;
 }

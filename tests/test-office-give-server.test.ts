@@ -18,6 +18,9 @@ import * as layout from "../src/lib/partner-email.core";
 import * as testCore from "../src/lib/test-send.core";
 import { stableUuid } from "../src/lib/mitti-create-claim.core";
 import { QUICK_TAPS_ANSWERED_EVENT } from "../src/lib/quick-taps.core";
+import * as photoQuote from "../src/lib/photo-quote.core";
+import * as photoNotice from "../src/lib/owner-photo-quote-notice.core";
+import * as sweepBatch from "../src/lib/sweep-batch.core";
 
 const load = (file: string, deps: Record<string, unknown>) => {
   const api: any = {};
@@ -59,6 +62,7 @@ function fixture() {
   // Real senders, with both approval switches forced ON so only the TEST routing can keep them quiet.
   const partnerCall = load("src/lib/in-house-batch-email.server.ts", {
     ...client, "./owner-will-call.core": { ...willCall, OWNER_WILL_CALL_APPROVED: true }, "./workflow": workflow, "./quote-hold.core": quoteHold, "./display-name.core": displayName,
+    "./owner-photo-quote-notice.core": photoNotice, "./photo-quote.core": photoQuote, "./sweep-batch.core": sweepBatch,
     "./owner-contact.server": { businessContactForJob: async () => ({ name: "Bravo", tradingName: "Bravo", phone: "0400 000 009", email: "bravo@hivic-test.example" }) },
     "./comms.server": { assertCustomerDeliveryAllowed: async () => undefined },
     "./owner-email-send.server": { sendGuardedOwnerEmail: async () => { real.push("sendGuardedOwnerEmail"); return "sent"; } },
@@ -79,7 +83,9 @@ function fixture() {
     "./owner-said.core": { ownerSaidRows: () => [] },
     "./installer-paid-electricians.server": { inHouseFactsFor: async () => ({ approvedElectricianWorkers: 1, hasActiveRateCardWithPiesa: true, mittiElectricianLogins: 1, mittiAccountInvited: true }) },
     "./in-house.core": inHouse, "./display-name.core": displayName,
-    "./sweep-batch.core": { chunkIds: (ids: unknown[], n: number) => Array.from({ length: Math.ceil(ids.length / n) }, (_, i) => ids.slice(i * n, (i + 1) * n)) },
+    "./sweep-batch.core": sweepBatch, "./photo-quote.core": photoQuote,
+    // Detached like production's runAfterResponse; the sender is the real one, so any real send would still hit a spy.
+    "./background.server": { runAfterResponse: (task: () => Promise<unknown>) => { void task().catch(() => undefined); return "dev_detached"; } },
   });
   return { api, rows, rpcCalls, real, tests };
 }

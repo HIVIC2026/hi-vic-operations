@@ -60,7 +60,7 @@ export function mittiQuoteElectricalBlocker(lines: { code: string | null; line_t
   if (!current?.ready || ["choice", "priceIncGst", "name", "licence", "source"].some((key) => saved[key as keyof MittiElectricianResolution] !== current[key as keyof MittiElectricianResolution])) return "Ready Check electrician details changed or are incomplete — prepare a new quote";
   const electrical = lines.filter((l) => l.code === "PIESA");
   const fees = lines.filter((l) => l.code === "AP_FEE");
-  if (fees.length !== 1 || Number(fees[0]?.line_total_inc_gst) !== MITTI_INSTALLER_FEE_INC_GST) return "Ready Check quote must include the $349 Home Insulation Victoria fee";
+  if (fees.length !== 1 || Number(fees[0]?.line_total_inc_gst) !== MITTI_INSTALLER_FEE_INC_GST) return "Ready Check quote must include the $349 Home Insulation Victoria AP management fee";
   const rate = Number(current.priceIncGst);
   if (!(rate > 0) || electrical.length !== 1 || Math.abs(Number(electrical[0]?.line_total_inc_gst) - rate) > 0.005) return "Ready Check quote electrician price does not match the recorded choice";
   return null;

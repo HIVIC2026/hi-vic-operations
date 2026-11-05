@@ -40,6 +40,9 @@ import { MittiFormLink } from "@/components/portal/MittiFormLink";
 import { ReadyCheckReportButton } from "@/components/trade/ReadyCheckReportButton";
 import { CheckMyFormButton } from "@/components/trade/CheckMyFormButton";
 import { NextStepBox } from "@/components/trade/NextStepBox";
+import { OwnQuoteBreakdown } from "@/components/trade/OwnQuoteBreakdown";
+import type { OwnQuoteRow } from "@/lib/own-photo-quote.core";
+import { PhotoQuoteForm } from "@/components/portal/PhotoQuoteForm";
 import { Group, LinkRow, NextPanel, NoFormNoPay, Row, Screen, ScreenHead } from "@/components/trade/installer-kit";
 import { completeView, ownerReadyLine } from "@/lib/installer-screens.core";
 import { OwnCustomerReadyCheckChoice } from "@/components/trade/OwnCustomerReadyCheckChoice";
@@ -359,7 +362,8 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
   // as the Ready Check form exists — the rest of the form can be finished later; the quote drafts once size + product + price are in.
   const priceOpenEarly = page.channel === "installer_sourced" && page.prices && page.price.entered === false && page.form.linked && box.kind !== "enter_price";
   const showPrice = (page.channel === "installer_sourced" && page.prices && (box.kind === "enter_price" || box.kind === "waiting_quote")) || priceOpenEarly;
-  const ownReadyCheck = page.channel === "installer_sourced" && page.prices && (showPrice || ['own_ready_check', 'book_ready_check', 'ready_check_booked'].includes(box.kind));
+  // Photo-quote installers Part 2: an own photo-quote job has no Ready Check — never the Mitti/portal Ready Check choice.
+  const ownReadyCheck = page.channel === "installer_sourced" && page.prices && !(page as { photoQuote?: boolean }).photoQuote && (showPrice || ['own_ready_check', 'book_ready_check', 'ready_check_booked'].includes(box.kind));
   const mittiAudit = page.form.auditId;
   const ownCustomer = page.channel === "installer_sourced";
   const sections = installerJobSections({ ownCustomer, quoteSent: page.quote?.sent === true || page.quote?.accepted === true, siteNotes: page.rows.siteNotes, jobDetails: page.rows.jobDetails });
@@ -438,6 +442,10 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
               {page.electricianAttendance.alert ?? page.electricianAttendance.line}
             </p>
           )}
+          {/* Photo-quote installers (Jo 5 Nov 2026): the photo quote form on a From photos job. */}
+          {box.kind === "quote_from_photos" && <PhotoQuoteForm jobId={jobId} />}
+          {/* Part 2 (Jo 5 Nov 16:50): the owner's price, read-only — own customers only, boss / Office with Money (the server sends it only then). */}
+          {(page as { quoteBreakdown?: OwnQuoteRow[] | null }).quoteBreakdown && <OwnQuoteBreakdown rows={(page as { quoteBreakdown: OwnQuoteRow[] }).quoteBreakdown} />}
           {bookedKinds.includes(box.kind) && !signRebate && (
             <Link to="/field/day/$jobId" params={{ jobId }} className={`${ghostBtn} mt-4`} data-todays-job>
               Today's job

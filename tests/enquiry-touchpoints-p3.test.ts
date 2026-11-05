@@ -99,9 +99,10 @@ describe("#12 Spot saved screen + one-tap save", () => {
 });
 
 describe("#13 3 quick questions page", () => {
-  test("no photos / video box; the asks elsewhere stay", () => {
+  // Reversed by the photo-quote installers spec (Jo 5 Nov 2026, decision 10): the optional box is back.
+  test("the optional photos / video box is back; the asks elsewhere stay", () => {
     const s = src("src/routes/estimate_.$token.video.tsx");
-    expect(s).not.toMatch(/Got photos or a video\? \(optional\)/);
+    expect(s).toMatch(/Got photos or a video\? \(optional\)/);
     expect(src("src/lib/owner-pages.core.ts")).not.toMatch(/addPhotos|addVideo/);
     expect(src("src/lib/jo-outcome-email.core.ts")).toContain("Got photos or a video?");
   });

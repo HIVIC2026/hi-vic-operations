@@ -22,6 +22,7 @@ mock.module("sonner", () => ({ toast: { success: (m: string) => { toasts.push(m)
 mock.module("@/lib/onsite-ready-check.functions", () => ({
   addJobOptions: Object.assign(async () => options.data, { id: "options" }),
   startOnsiteReadyCheck: Object.assign(async (input: unknown) => { calls.push(input); return saveResult; }, { id: "start" }),
+  ownPhotoQuotePreview: Object.assign(async () => null, { id: "preview" }),
 }));
 
 const React = await import("react");
@@ -124,4 +125,63 @@ describe("Add a job screen", () => {
     expect(navigated).toEqual([{ to: "/field/$jobId", params: { jobId: "j-new" }, search: { added: true } }]);
     expect(toasts).toEqual(["Next: call Sarah and book the Ready Check on the job."]);
   });
+});
+
+// Review fix round IMPORTANT 1c: a From photos business's Add a job never reports a failed photo quote as success.
+const { OWN_PHOTO_QUOTE_WORDS } = await import("../src/lib/own-photo-quote.core");
+const { TRY_AGAIN_LABEL } = await import("../src/lib/add-job-flow.core");
+describe("Add a job — From photos photo quote outcome", () => {
+  const fillPhoto = (r: ReturnType<typeof render>) => {
+    fireEvent.click(r.getByLabelText("Yes"));
+    fireEvent.change(r.getByLabelText("Sqm to remove"), { target: { value: "10" } });
+    fireEvent.change(r.getByLabelText("Sqm to install"), { target: { value: "80" } });
+    fireEvent.change(r.getByLabelText("Product"), { target: { value: (r.getByLabelText("Product") as HTMLSelectElement).options[1]!.value } });
+    fireEvent.change(r.getByLabelText(OWN_PHOTO_QUOTE_WORDS.price), { target: { value: "2400" } });
+    fireEvent.click(r.getByLabelText("Removal of existing insulation"));
+  };
+  const withPhotos = async (result: Record<string, unknown>, body: () => Promise<void>) => {
+    const wasO = options, wasR = saveResult;
+    options = { ...options, data: { ...(options.data as object), quoteMethod: "photos" } };
+    saveResult = { ...saveResult, ...result };
+    try { await body(); } finally { options = wasO; saveResult = wasR; }
+  };
+  test("failed: the plain message shows, nothing says success, the draft stays and Try again sends the same request key", () => withPhotos({ photoQuote: { sent: false, held: [], failed: OWN_PHOTO_QUOTE_WORDS.failed } }, async () => {
+    const r = draw();
+    fillAll(r); await typeAddress(r); fillPhoto(r);
+    await act(async () => { fireEvent.click(r.getByRole("button", { name: OWN_PHOTO_QUOTE_WORDS.submit })); });
+    expect(calls).toHaveLength(1);
+    expect(r.getByText(OWN_PHOTO_QUOTE_WORDS.failed)).toBeTruthy();
+    expect(toasts).toEqual([]); expect(navigated).toEqual([]);
+    expect(localStorage.getItem("hiv-onsite-draft")).toContain("Sarah Brown");
+    await act(async () => { fireEvent.click(r.getByRole("button", { name: TRY_AGAIN_LABEL })); });
+    expect(calls).toHaveLength(2);
+    const key = (n: number) => (calls[n] as { data: { requestKey: string; photoQuote: { priceIncGst: number } } }).data;
+    expect(key(1).requestKey).toBe(key(0).requestKey);
+    expect(key(1).photoQuote.priceIncGst).toBe(2400);
+  }));
+  // Jo 5 Nov 16:44: the SAME "What's included" ticks as the Your price card; base ticked to start, as on the card.
+  test("ticks: the Your price card's options; the ticks go with the job; sqm to remove needs the removal tick", () => withPhotos({ photoQuote: { sent: false, held: ["x"] } }, async () => {
+    const r = draw();
+    fillAll(r); await typeAddress(r);
+    for (const o of ["Ceiling insulation - supply & install", "Removal of existing insulation", "Other"]) expect(r.getByLabelText(o)).toBeTruthy();
+    expect((r.getByLabelText("Ceiling insulation - supply & install") as HTMLInputElement).checked).toBe(true);
+    fillPhoto(r);
+    fireEvent.click(r.getByLabelText("Removal of existing insulation")); // untick again: 10 sqm to remove without the tick
+    await act(async () => { fireEvent.click(r.getByRole("button", { name: OWN_PHOTO_QUOTE_WORDS.submit })); });
+    expect(calls).toHaveLength(0);
+    expect(r.getByText(OWN_PHOTO_QUOTE_WORDS.removalTick)).toBeTruthy();
+    fireEvent.click(r.getByLabelText("Removal of existing insulation"));
+    await act(async () => { fireEvent.click(r.getByRole("button", { name: OWN_PHOTO_QUOTE_WORDS.submit })); });
+    expect(calls).toHaveLength(1);
+    expect((calls[0] as { data: { photoQuote: { included: string[] } } }).data.photoQuote.included).toEqual(["Ceiling insulation - supply & install", "Removal of existing insulation"]);
+  }));
+  test("held: the job is added and the installer is told plainly the quote is waiting (not 'sent')", () => withPhotos({ photoQuote: { sent: false, held: ["Waiting for office review before sending"] } }, async () => {
+    const r = draw();
+    fillAll(r); await typeAddress(r); fillPhoto(r);
+    await act(async () => { fireEvent.click(r.getByRole("button", { name: OWN_PHOTO_QUOTE_WORDS.submit })); });
+    expect(r.getByText(OWN_PHOTO_QUOTE_WORDS.held)).toBeTruthy();
+    // main (5 Nov): every save shows the Added screen and the plain "Added" toast; nothing may say the quote was sent.
+    expect(toasts.some((t) => /sent/i.test(t))).toBe(false);
+    expect(r.container.querySelector("[data-electrician-not-allocated]")).toBeNull();
+  }));
 });

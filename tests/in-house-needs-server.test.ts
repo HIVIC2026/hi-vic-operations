@@ -1,5 +1,6 @@
 import { expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
+import * as photoCore from "../src/lib/photo-quote.core";
 import ts from "typescript";
 import * as rules from "../src/lib/office-needs.core";
 
@@ -35,6 +36,7 @@ function fixture() {
   const js = ts.transpile(part,{ module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022 });
   const output: any = {};
   new Function("exports","admin","require",js)(output,admin,(name:string) => {
+    if (name === "./photo-quote.core") return photoCore;
     if (name === "./install-deposit-list.server") return { installDepositPaidForJobs: async (ids: string[]) => { if (deposit.throws) throw new Error("deposit read failed"); return deposit.map ?? new Map(ids.map(id => [id, null])); } };
     if (name !== "./in-house-suppression.server") throw new Error(`Unexpected import ${name}`);
     return { readInHouseDispatchState: async(ids:string[]) => { scoped.push(ids); return { failed:false, held:new Set(ids) }; } };
@@ -69,4 +71,16 @@ test("piesaUnlockedAt is the latest move into the PIESA stage",async()=>{
   const f=fixture(); f.data.workflow_events.push({ id:"st1",job_id:"j",event_type:"stage_changed",to_stage:"piesa_and_install_window_pending",created_at:"2026-10-29T06:00:00Z",details:{} },{ id:"st2",job_id:"j",event_type:"stage_changed",to_stage:"piesa_and_install_window_pending",created_at:"2026-10-31T06:00:00Z",details:{} });
   expect((await f.api.inHouseNeedsFacts(["j"])).get("j").piesaUnlockedAt).toBe("2026-10-31T06:00:00Z");
   const g=fixture(); expect((await g.api.inHouseNeedsFacts(["j"])).get("j").piesaUnlockedAt).toBeNull();
+});
+// Photo-quote installers Task 4: the gather reader reports the give's method and the photo quote.
+test("photos give: quoteMethod photos until photo_quote_submitted; Ready Check give stays ready_check",async()=>{
+  const f=fixture();
+  f.data.workflow_events=[{id:"m",job_id:"j",event_type:"in_house_quote_method",created_at:"2026-11-05T22:59:00Z",details:{batch_id:"B1",business_id:"b",quote_method:"photos"}},
+    {id:"s",job_id:"j",event_type:"in_house_batch_sent",created_at:"2026-11-05T23:00:00Z",details:{batch_id:"B1",business_id:"b"}}];
+  let ih=(await f.api.inHouseNeedsFacts(["j"])).get("j");
+  expect([ih.quoteMethod,ih.photoQuoteSent]).toEqual(["photos",false]);
+  f.data.workflow_events.push({id:"p",job_id:"j",event_type:"photo_quote_submitted",created_at:"2026-11-07T01:00:00Z",details:{}});
+  ih=(await f.api.inHouseNeedsFacts(["j"])).get("j");
+  expect([ih.quoteMethod,ih.photoQuoteSent]).toEqual(["photos",true]);
+  const g=fixture(); expect((await g.api.inHouseNeedsFacts(["j"])).get("j").quoteMethod).toBe("ready_check");
 });

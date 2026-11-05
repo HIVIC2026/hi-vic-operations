@@ -123,7 +123,9 @@ export async function createAssignMittiAudit(jobId: string, actorId: string | nu
     const forms = await import("./in-house-forms.server");
     if (!await forms.isInHouseFormJob(jobId)) throw new WorkflowError("Not an in-house job");
     const facts = await (await import("./mitti-create.server")).readyCheckFormFacts(jobId);
-    if (!facts?.booked || !facts.mittiInvited || !facts.autoSend) throw new WorkflowError("In-house preparation requires an enabled partner and a confirmed Ready Check booking.");
+    // Photo-quote installers (Jo 5 Nov 2026): a From photos give stands in for the Ready Check booking (there is no visit).
+    const photoGiven = !facts?.booked && !!facts && await (await import("./photo-quote.server")).photoGiveFor(jobId);
+    if (!(facts?.booked || photoGiven) || !facts?.mittiInvited || !facts.autoSend) throw new WorkflowError("In-house preparation requires an enabled partner and a confirmed Ready Check booking.");
     opts = { ...opts, assignee: await forms.inHousePreparationAssignee(jobId) };
   }
   // The Ready Check comes before any PIESA, so in Ready Check stages the installer form is sent even though no PIESA exists yet.

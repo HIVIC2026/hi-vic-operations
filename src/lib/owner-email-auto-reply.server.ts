@@ -26,10 +26,11 @@ import {
   ANSWER_CODES, EMAIL_AUTO_REPLIED_EVENT, EMAIL_AUTO_REPLY_FILED_EVENT, EMAIL_AUTO_REPLY_HELD_EVENT, OWNER_EMAIL_AUTO_REPLY_APPROVED,
   OWNER_EMAIL_AUTO_REPLY_PURPOSE, REPLY_NEEDED_INTENT, answerDesign, answerNeedsInstaller, autoReplyKey, autoReplyMode, decideOwnerAutoReply,
   renderOwnerAutoReplyEmail, type AnswerFacts, type OwnerJobFacts, type VisitKind,
+  photoAnswerHeld,
 } from "./owner-email-auto-reply.core";
 import type { BusinessContact } from "./owner-wording.core";
 
-export type AutoReplyDeps = { businessContact?: (jobId: string, role: "installer" | "electrician") => Promise<BusinessContact | null> };
+export type AutoReplyDeps = { businessContact?: (jobId: string, role: "installer" | "electrician") => Promise<BusinessContact | null>; photoQuoteJob?: (jobId: string) => Promise<{ installer: string; fromPhotos: boolean } | null> };
 
 const loose = admin as unknown as SupabaseClient;
 const lower = (s: string | null | undefined) => (s ?? "").trim().toLowerCase();
@@ -152,6 +153,12 @@ export async function autoReplyToOwner(p: { jobIds: string[]; message: MailMessa
     const code = ANSWER_CODES[decision.answer].code;
     // Decisions 54–58: the installer's business office phone, read before the claim. Missing → held, never a blank or a mobile.
     let facts: AnswerFacts = decision.facts;
+    // Photo-quote installers (Jo 5 Nov 2026): a photo job never gets "will call you to book" or any Ready Check line; the new
+    // photo line only once Jo approves it and only on jobs given From photos. A failed read holds the reply.
+    const photoJob = await (p.deps?.photoQuoteJob ?? (async (id: string) => (await import("./photo-quote.server")).photoQuoteJobFor(id)))(jobId).catch(() => undefined);
+    if (photoJob === undefined) return draft("held", "couldn't check how this job is quoted");
+    if (photoJob) facts = { ...facts, photoQuote: { installer: photoJob.installer, newWording: (await import("./photo-quote.core")).photoOwnerWording(photoJob.fromPhotos) } };
+    if (photoAnswerHeld(decision.answer, facts)) return draft("held", "no Ready Check on this photo job; the office answers");
     if (answerNeedsInstaller(decision.answer, facts)) {
       const contactFor = p.deps?.businessContact ?? (await import("./owner-contact.server")).businessContactForJob;
       const c = await contactFor(jobId, "installer");

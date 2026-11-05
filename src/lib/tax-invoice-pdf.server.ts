@@ -100,10 +100,9 @@ export async function fileTaxInvoicePdf(jobId: string): Promise<{ path: string }
     if (namedErr) return { held: "Tax invoice not made: the quote or invoice could not be read" };
     const sorted = [...(named ?? [])].sort((a, b) => Number(a.sort ?? 0) - Number(b.sort ?? 0));
     productCents = sorted.filter((r) => r.code === "INSTALLER_PRICE").reduce((s, r) => s + cents(r.line_total_inc_gst), 0);
-    const { OWN_CUSTOMER_LABELS } = await import("./own-customer-price.core");
     extraLines = [
       ...sorted.filter((r) => (r.code === "INSTALLER_REMOVAL" || r.code === "INSTALLER_EXTRA") && cents(r.line_total_inc_gst) > 0).map((r) => ({ label: String(r.description ?? ""), cents: cents(r.line_total_inc_gst) })),
-      ...sorted.filter((r) => r.code === "AP_FEE" && cents(r.line_total_inc_gst) > 0).map((r) => ({ label: OWN_CUSTOMER_LABELS.apFee, cents: cents(r.line_total_inc_gst) })),
+      ...sorted.filter((r) => r.code === "AP_FEE" && cents(r.line_total_inc_gst) > 0).map((r) => ({ label: "Home Insulation Victoria fee", cents: cents(r.line_total_inc_gst) })),
     ];
     const other = sorted.filter((r) => !["INSTALLER_PRICE", "INSTALLER_REMOVAL", "INSTALLER_EXTRA", "AP_FEE", "PIESA"].includes(String(r.code)) && cents(r.line_total_inc_gst) > 0);
     if (other.length || !(productCents > 0)) return { held: "Tax invoice not made: the quote lines are not the approved own-customer lines" };

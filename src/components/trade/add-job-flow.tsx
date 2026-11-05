@@ -17,6 +17,8 @@ import {
   errorSummary, fieldErrors, nextLine, restoreCustomer, restoreRequestKey, saveErrorMessage,
 } from "@/lib/add-job-flow.core";
 import { inputCls } from "@/components/trade/TradeShell";
+import { OwnPhotoQuoteFields } from "@/components/trade/OwnPhotoQuoteFields";
+import { OWN_PHOTO_QUOTE_WORDS, ownPhotoQuoteProblems, type OwnPhotoQuoteInput } from "@/lib/own-photo-quote.core";
 
 const DRAFT_KEY = "hiv-onsite-draft";
 /** 56px blue button (approved heavier design). */
@@ -35,6 +37,7 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
   const [addedJobId, setAddedJobId] = useState<string | null>(null);
   const [electricianNotAllocated, setElectricianNotAllocated] = useState(false);
   const [electricianReason, setElectricianReason] = useState<string | null>(null);
+  const [photoHeld, setPhotoHeld] = useState(false);
   const bannerRef = useRef<HTMLParagraphElement>(null);
   const inFlight = useRef(false);
   // Task 7: the business name (for the consent line) and its Team electricians, read once before the form is used.
@@ -43,6 +46,9 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
   const electricians = options.data?.electricians ?? [];
   const businessName = options.data?.businessName ?? null;
   const [electrician, setElectrician] = useState<string>("");
+  // Photo-quote installers Part 2: a From photos business adds the photo quote with the job.
+  const photos = options.data?.quoteMethod === "photos";
+  const [photoQuote, setPhotoQuote] = useState<OwnPhotoQuoteInput | null>(null);
   // Jo 5 Nov 2026: the Main electrician is the default pick on a new job (only when it can be picked here).
   useEffect(() => { if (!electrician && options.data) { const m = defaultPick(options.data.electricians); if (m) setElectrician(m); } }, [options.data]); // eslint-disable-line react-hooks/exhaustive-deps
   // Consent integrity: the tick is only ever shown with the exact line for THIS business; if the name changes the tick is reset.
@@ -65,7 +71,8 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
   const problems = (): string[] => {
     const lop = leadOriginProblem(leadOrigin);
     const ecp = electricianProblem(electrician, electricians);
-    return [...(lop ? [lop] : []), ...customerProblems(customer, { businessName }), ...(ecp ? [ecp] : [])];
+    return [...(lop ? [lop] : []), ...customerProblems(customer, { businessName }), ...(ecp ? [ecp] : []),
+      ...(photos ? (photoQuote ? ownPhotoQuoteProblems(photoQuote) : ownPhotoQuoteProblems({ underR2: null, removeM2: null, installM2: null, product: null, priceIncGst: null })) : [])];
   };
 
   const save = async () => {
@@ -74,10 +81,15 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
     if (p.length) return;
     inFlight.current = true; setBusy(true);
     try {
-      const r = await start({ data: { businessId, owner: customer, leadOrigin, requestKey, electricianWorkerId: electrician } });
+      const r = await start({ data: { businessId, owner: customer, leadOrigin, requestKey, electricianWorkerId: electrician, ...(photos && photoQuote ? { photoQuote } : {}) } });
+      // Review IMPORTANT 1c: the job is saved but its photo quote didn't go through — say so plainly and keep the draft
+      // (same request key), so Try again finishes the same job and its quote.
+      if (r.photoQuote?.failed) { setErr(r.photoQuote.failed); return; }
       try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignore */ }
       setElectricianNotAllocated(r.electrician === "not_allocated");
       setElectricianReason(r.electricianReason ?? null);
+      // Photo-quote installers Part 2: the quote was made but held (a check, or the office sends it) — said on the Added screen.
+      setPhotoHeld(!!r.photoQuote && !r.photoQuote.sent);
       setAddedJobId(r.jobId);
       toast.success(nextLine(r.ownerFirstName ?? "the owner"));
     } catch (e) { setErr(saveErrorMessage(e instanceof Error ? e.message : null)); }
@@ -92,6 +104,7 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
     <div className="space-y-4" data-add-job-flow data-step="added">
       <h2 className="font-display text-xl font-semibold">Added</h2>
       {electricianNotAllocated && <div role="alert" className="space-y-2 text-sm" data-electrician-not-allocated><p>{electricianReason ?? "The electrician couldn't be put on the job. Your choice is saved."}</p><Link to="/field/business/team" className="inline-flex min-h-12 items-center font-semibold text-hiv-blue underline">Open Team</Link></div>}
+      {photoHeld && <p role="status" className="rounded-[12px] border-2 border-line bg-paper p-3 text-[15px]" data-photo-quote-held>{OWN_PHOTO_QUOTE_WORDS.held}</p>}
       <button type="button" className={PRIMARY_BTN} onClick={() => void navigate({ to: "/field/$jobId", params: { jobId: addedJobId }, search: { added: true } })}>{ADD_JOB_DRAFT_WORDS.goToJob}</button>
     </div>
   );
@@ -126,8 +139,10 @@ export function AddJobFlow({ businessId }: { businessId: string; onExit?: () => 
         {options.isError && <p role="alert" className="mt-2 text-sm text-rose">{ADD_JOB_DRAFT_WORDS.teamFailed}</p>}
         <FieldError>{errors.electrician}</FieldError>
       </section>
+      {photos && <OwnPhotoQuoteFields businessId={businessId} postcode={customer.postcode} disabled={busy} onChange={setPhotoQuote} />}
+      {photos && shown.length > 0 && photoQuote && ownPhotoQuoteProblems(photoQuote)[0] && <p className="text-sm text-rose" data-photo-quote-problem>{ownPhotoQuoteProblems(photoQuote)[0]}</p>}
       {err && <p role="status" className="rounded-[12px] border-2 border-line bg-paper p-3 text-sm" data-save-error>{err}</p>}
-      <button type="button" className={PRIMARY_BTN} disabled={busy || leadOrigin === "door_knock" || leadOrigin === "cold_call"} aria-busy={busy} onClick={save}>{busy ? BUSY_LABEL : err && !/already has an open job/i.test(err) ? TRY_AGAIN_LABEL : ADD_JOB_WORDS.button}</button>
+      <button type="button" className={PRIMARY_BTN} disabled={busy || leadOrigin === "door_knock" || leadOrigin === "cold_call"} aria-busy={busy} onClick={save}>{busy ? BUSY_LABEL : err && !/already has an open job/i.test(err) ? TRY_AGAIN_LABEL : photos ? OWN_PHOTO_QUOTE_WORDS.submit : ADD_JOB_WORDS.button}</button>
       <p className="text-center text-[13px] leading-[1.5] text-sub" data-next-step>{ADD_JOB_OFFLINE_NOTE}</p>
     </div>
   );

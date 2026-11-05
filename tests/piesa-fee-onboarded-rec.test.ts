@@ -141,7 +141,7 @@ describe("decision 303 — only onboarded electricians", () => {
     // Jo 4 Nov 2026 (final, replaces Part 10's "$349 whatever the rate"): the owner's PIESA line is the rate the resolution
     // carries ($220 here; on a real own-customer job `withOwnerSafetyCheckPrice` makes that the installer's own rate) — never $349.
     expect(r.priceIncGst).toBe(220);
-    expect(draft.lines.find((l) => l.code === "PIESA")).toMatchObject({ description: "Electrical safety check (PIESA)", line_total_inc_gst: 220 });
+    expect(draft.lines.find((l) => l.code === "PIESA")).toMatchObject({ description: "Electrical safety check (PIESA) — charged by Home Insulation Victoria", line_total_inc_gst: 220 });
     expect(mittiQuoteElectricalBlocker(draft.lines as never, r, r)).toBeNull();
   });
 
