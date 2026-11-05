@@ -4,6 +4,10 @@
 Finish actionable outstanding fixes before starting these parts. Reconcile older queue entries with tonight’s completed work; do not rebuild the portal Ready Check form, Crew repair or Parts 2/2b/3.
 Keep unavailable signed-in checks and republished A5 verification marked **NOT RUN**, never bypass their safeguards.
 
+### Installer refresh regression — launch check
+Investigate the reported HV-3675 refresh sign-out on a disposable TEST account, not the real job. Compare normal login and restored session, delayed authentication, expired session and exact job-link return after re-login. Repair only a reproduced defect and run the same assertions before/after; never weaken authentication.
+Initial clean signed-out browser check preserved the exact job path, query and hash through sign-in redirect and refresh. Signed-in cases are currently blocked: TEST-session permission was unavailable. No authentication changes are justified by that partial check.
+
 ## Part 1 — business pause
 Keep only the per-business pause switch requested tonight. Preserve current settings; do not turn messages on or send anything. Verify it cannot affect another business.
 

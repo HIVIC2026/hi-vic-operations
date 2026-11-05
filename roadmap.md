@@ -1,4 +1,7 @@
 ## Jo 5 Nov 7:44pm Deep first-job ordered work
+- [ ] Targeted installer refresh regression: disposable TEST browser normal login vs restored session; delayed hydration, expired session, exact job deep-link after re-login. Evidence HV-3675 opened /field/ffbbe968-8a21-43cd-982f-0eea5b2e7140 then reported F5 → /auth?next=%2Ffield; do not access/mutate real job or infer all installers affected. Reproduce before repair, same browser assertions after; no auth bypass or publication.
+- [x] Initial read-only auth investigation: clean browser nonexistent job path preserves exact path/query/hash into /auth and through reload; 6 login-core tests pass; no published Unauthorized logs in available hour. No auth source change or claim of reproduction/fix.
+- [ ] Normal TEST login/restored/delayed/expired/re-login matrix BLOCKED: reserved Bravo account found, but explicit TEST-session mint was refused because approval is unavailable; no password/session/role/data modification or workaround. Requires permitted TEST login/session.
 - [ ] Finish tonight's actionable fix queue; external verification blockers remain explicitly NOT RUN (Jo's Mitti republication, unavailable signed-in Team proof).
 - [ ] Part 1: retain only per-business pause switch; separate review/PR, no switch changes or sends.
 - [ ] Job page: remove Job details, exactly one conditional Money card with recorded channel-appropriate amounts/dates; compact collapsed Owner/Visits/Site notes/owner-message rows. Include in the ordered job-page work.
