@@ -14461,6 +14461,22 @@ export type Database = {
         Args: { p_answers: Json; p_token: string }
         Returns: Json
       }
+      save_team_person_details: {
+        Args: {
+          _actor: string
+          _business: string
+          _certificate: Json
+          _dob: string
+          _email: string
+          _licence: string
+          _mobile: string
+          _name: string
+          _rec: string
+          _role: string
+          _worker: string
+        }
+        Returns: string
+      }
       set_bulk_import_plan: {
         Args: { _actor: string; _batch: string; _plan: Json }
         Returns: undefined

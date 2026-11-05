@@ -25,11 +25,11 @@ export function teamMemberDetails(kind: TeamKind, p: { mobile: string | null | u
   if (!rawMobile) return { ok: false, error: TEAM_ERRORS.mobile };
   const m = crewMobileInput(rawMobile);
   if (!m.ok || !m.mobile) return { ok: false, error: m.ok ? TEAM_ERRORS.mobile : m.error };
-  const needsDob = kind === "installer" && p.workerRole !== "crew";
+  const needsDob = kind === "installer" && p.workerRole !== "office" && p.workerRole !== "electrician";
   const dob = needsDob ? dateOfBirthProblem(p.dateOfBirth, today) : null;
   if (dob) return { ok: false, error: dob };
   const email = (p.email ?? "").trim().toLowerCase() || null;
-  if (kind === "electrician" && !email) return { ok: false, error: TEAM_ERRORS.email };
+  if ((kind === "electrician" || p.workerRole === "office") && !email) return { ok: false, error: TEAM_ERRORS.email };
   if (email && !EMAIL.test(email)) return { ok: false, error: TEAM_ERRORS.badEmail };
   return { ok: true, mobile: m.mobile, email, dateOfBirth: needsDob ? p.dateOfBirth ?? null : null };
 }
@@ -38,8 +38,8 @@ export function teamMemberDetails(kind: TeamKind, p: { mobile: string | null | u
 export function teamMissingDetails(kind: TeamKind, w: { mobile: string | null; email: string | null; hasDateOfBirth: boolean; workerRole?: string | null | undefined }): string[] {
   const out: string[] = [];
   if (!(w.mobile ?? "").trim()) out.push("mobile");
-  if (kind === "installer" && w.workerRole !== "crew" && w.workerRole !== "office" && !w.hasDateOfBirth) out.push("date of birth");
-  if (kind === "electrician" && !(w.email ?? "").trim()) out.push("email");
+  if (kind === "installer" && w.workerRole !== "office" && !w.hasDateOfBirth) out.push("date of birth");
+  if ((kind === "electrician" || w.workerRole === "office") && !(w.email ?? "").trim()) out.push("email");
   return out;
 }
 
