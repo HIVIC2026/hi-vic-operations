@@ -38,8 +38,9 @@ import { Label } from "@/components/ui/label";
 import { MittiFormLink } from "@/components/portal/MittiFormLink";
 import { CheckMyFormButton } from "@/components/trade/CheckMyFormButton";
 import { NextStepBox } from "@/components/trade/NextStepBox";
+import { OwnQuoteBreakdown } from "@/components/trade/OwnQuoteBreakdown";
+import type { OwnQuoteRow } from "@/lib/own-photo-quote.core";
 import { PhotoQuoteForm } from "@/components/portal/PhotoQuoteForm";
-import { ViewQuotePdfButton } from "@/components/trade/ViewQuotePdfButton";
 import { ContactButtons, Group, LinkRow, NextPanel, NoFormNoPay, Row, Screen, ScreenHead } from "@/components/trade/installer-kit";
 import { completeView, ownerReadyLine } from "@/lib/installer-screens.core";
 import { InstallerPriceCard } from "@/components/trade/InstallerPriceCard";
@@ -419,8 +420,8 @@ function InstallerFlow({ jobId, job }: { jobId: string; job: Overview }) {
           )}
           {/* Photo-quote installers (Jo 5 Nov 2026): the photo quote form on a From photos job. */}
           {box.kind === "quote_from_photos" && <PhotoQuoteForm jobId={jobId} />}
-          {/* Part 2: own customers only, boss / Office with Money (page.viewQuote; the server checks again). */}
-          {(page as { viewQuote?: boolean }).viewQuote === true && <ViewQuotePdfButton jobId={jobId} className="mt-3" />}
+          {/* Part 2 (Jo 5 Nov 16:50): the owner's price, read-only — own customers only, boss / Office with Money (the server sends it only then). */}
+          {(page as { quoteBreakdown?: OwnQuoteRow[] | null }).quoteBreakdown && <OwnQuoteBreakdown rows={(page as { quoteBreakdown: OwnQuoteRow[] }).quoteBreakdown} />}
           {showPrice && <div className="mt-4"><InstallerPriceCard jobId={jobId} /></div>}
           {bookedKinds.includes(box.kind) && !signRebate && (
             <Link to="/field/day/$jobId" params={{ jobId }} className={`${ghostBtn} mt-4`} data-todays-job>

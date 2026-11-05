@@ -25,6 +25,7 @@ import { CUSTOMER_BASE } from "./engagement.core";
 import { PRESS_COMPLETE_LINE } from "./installer-quote-status.core";
 import { installCountdown } from "./next-step-dates.core";
 import { jobMoneyRows, ownCustomerQuoteFigures } from "./own-customer-price.core";
+import { ownQuoteBreakdown } from "./own-photo-quote.core";
 import { JOB_PAGE_WORDS, jobDetailsRows, nextForOwner, ownerRows, ownerToldRows, ownerToldSummary, paperworkRows, progressSteps, siteNotesRows, visitsRows } from "./job-page-rows.core";
 import { swmsHouseFacts } from "./swms-house.core";
 import * as rentalAnswersServer from "./rental-answers.server";
@@ -1599,7 +1600,7 @@ export function installerJobPageParts(i: {
   sentRows: { purpose: string; sent_at: string | null; created_at: string }[]; ledger: { amountCents: number; paidAt: string }[]; depositPaid: boolean;
   deadline: string | null; givenAt: string | null; consentSigned: boolean; paidEv: { created_at: string; details: unknown }[];
   piesaPayRead: { piesaIncGst: number | null } | null; swmsRead: { plan: { signers: { role?: string; name: string }[] }; status: { signed: unknown[] } } | null;
-  quoteItems: { code: string | null; description: string | null; sort: number | null; line_total_inc_gst?: number | string | null }[]; quotesForMoney?: Parameters<typeof ownCustomerQuoteFigures>[0]; priceEntered: boolean | null; notes: string[]; product: string | null;
+  quoteItems: { code: string | null; description: string | null; sort: number | null; line_total_inc_gst?: number | string | null }[]; quotesForMoney?: (Parameters<typeof ownCustomerQuoteFigures>[0][number] & Parameters<typeof ownQuoteBreakdown>[0][number])[]; priceEntered: boolean | null; notes: string[]; product: string | null;
   payRow: { amount: number | null; state: PayState } | null; mittiCompleted: boolean; needsFinishingItems: string[]; mittiMissing: string[];
   whoBooks: WhoBooks; coesOnFile: boolean;
   /** Photo-quote installers: the job's current From photos give for this business (null = Ready Check). */
@@ -1691,9 +1692,10 @@ export function installerJobPageParts(i: {
   const visits = visitsRows({ readyCheck: i.rcBook?.scheduled_start ?? null, piesa: i.piesaBook?.scheduled_start ?? null, install: i.inBook?.scheduled_start ?? null });
   return {
     nextStep: box, progress, countdown, label: installerSourceLabel(j?.channel),
-    // Photo-quote installers Part 2: "View quote (PDF)" only on the business's own customer, for the boss / Office with Money
-    // (the server refuses it everywhere else too), once a quote exists.
-    viewQuote: own && c.prices === true && (c.boss || c.money === true) && i.quoteItems.length > 0,
+    // Photo-quote installers Part 2 (Jo 5 Nov 16:50, replaces "View quote (PDF)"): the owner's price as the standard rows,
+    // read-only, only on the business's own customer and only for the boss / Office with Money. Never on an HIV lead (Jo 16:51:
+    // there the installer sees only their own pay line).
+    quoteBreakdown: own && c.prices === true && (c.boss || c.money === true) ? ownQuoteBreakdown(i.quotesForMoney ?? []) : null,
     // Task 6: the box's "{first} gets a You're booked…" line and "Install by {date}" (the 30-day deadline, Melbourne day).
     ownerFirst, installBy: i.deadline,
     rows: { owner, visits, siteNotes, jobDetails, ownerTold, paperwork },
@@ -1749,7 +1751,7 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
   const swmsP = early(inBookP.then(async ({ data: ib }) => ib ? await import("./swms.server").then((m2) => m2.loadSwms(jobId)).catch(() => null) : null));
   // I3: up to five quotes so the money rows can prefer an ACCEPTED quote over a newer draft (ownCustomerQuoteFigures); the
   // product detection below keeps reading the newest, as before.
-  const quoteItemsP = early(admin.from("quotes").select("status, created_at, customer_total_inc_gst, quote_items(code, description, sort, line_total_inc_gst)").eq("job_id", jobId).eq("kind", "installation").in("status", ["issued", "accepted", "draft"]).order("created_at", { ascending: false }).limit(5));
+  const quoteItemsP = early(admin.from("quotes").select("status, created_at, customer_total_inc_gst, veec_discount_inc_gst, quote_items(code, description, sort, line_total_inc_gst)").eq("job_id", jobId).eq("kind", "installation").in("status", ["issued", "accepted", "draft"]).order("created_at", { ascending: false }).limit(5));
   // Fix wave I4: who books (business setting), the CoES document, and the electrician the allocation event names.
   const whoBooksP = early(whoBooksFor(c.biz.id));
   const coesP = early(coesOnFileForJobs([jobId]).then((set) => set.has(jobId)).catch(() => false));
@@ -1820,7 +1822,7 @@ export async function tradeJobPage(jobId: string, userId: string, pre?: TradeJob
     sentRows: sentRows ?? [], ledger, depositPaid, deadline: dl?.install_deadline ? String(dl.install_deadline) : null, givenAt: (given as { assigned_at?: string | null } | null)?.assigned_at ?? null,
     consentSigned: !!consent, paidEv: (paidEv ?? []) as { created_at: string; details: unknown }[], piesaPayRead, swmsRead, quoteItems: ((quoteItemsRow as unknown as { quote_items: unknown }[] | null)?.[0]?.quote_items as { code: string | null; description: string | null; sort: number | null; line_total_inc_gst?: number | string | null }[] | null) ?? [],
     // Part 10 Task 9 / I3: the quotes the Job details money rows read (own customers only; figures never shown to staff).
-    quotesForMoney: ((quoteItemsRow as unknown as { status: string | null; created_at: string | null; customer_total_inc_gst: number | string | null; quote_items: { code: string | null; line_total_inc_gst: number | string | null }[] | null }[] | null) ?? []).map((q) => ({ status: q.status, created_at: q.created_at, customer_total_inc_gst: q.customer_total_inc_gst, items: q.quote_items ?? [] })),
+    quotesForMoney: ((quoteItemsRow as unknown as { status: string | null; created_at: string | null; customer_total_inc_gst: number | string | null; veec_discount_inc_gst: number | string | null; quote_items: { code: string | null; description: string | null; sort: number | null; line_total_inc_gst: number | string | null }[] | null }[] | null) ?? []).map((q) => ({ status: q.status, created_at: q.created_at, customer_total_inc_gst: q.customer_total_inc_gst, veec_discount_inc_gst: q.veec_discount_inc_gst, items: q.quote_items ?? [] })),
     priceEntered, notes, product, payRow, mittiCompleted: mitti.applies ? mitti.completed === true : false, needsFinishingItems: needsFinishingList(j?.next_action ?? ""), mittiMissing: mitti.applies ? mitti.missing : [],
     whoBooks, coesOnFile,
   });

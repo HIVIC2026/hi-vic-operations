@@ -6,7 +6,7 @@ import { LOGO_PNG } from "./email-hero-assets";
 import { OPEN_SANS_400, OPEN_SANS_700, OPEN_SANS_700_ITALIC, OPEN_SANS_800 } from "./pdf-fonts.data";
 import { pdfSafeText } from "./pdf-text.core";
 import {
-  BUSINESS_ADDRESS, BUSINESS_LINES, PDF_COLOURS, PDF_FOOTER_LEFT, PDF_PAGE, moneyLabelLines, paginateDetailed, wrapText,
+  BUSINESS_ADDRESS, BUSINESS_LINES, PDF_COLOURS, PDF_FOOTER_LEFT, PDF_PAGE, paginateDetailed, wrapText,
   type PdfBlock, type PdfDoc, type PdfLayoutReport,
 } from "./pdf-look.core";
 
@@ -88,7 +88,7 @@ function measure(b: PdfBlock, w: number, F: Fonts): number {
   switch (b.kind) {
     case "header": {
       const n = BUSINESS_LINES.length + (b.withAddress ? 1 : 0);
-      return headerRowH(b, n * (b.compact ? K_BIZ_LH : BIZ_LH)) + (b.compact ? K.headGap + K.eyebrowLh : 18.2 + 11.4);
+      return Math.max(LOGO_H, n * (b.compact ? K_BIZ_LH : BIZ_LH)) + (b.compact ? K.headGap + K.eyebrowLh : 18.2 + 11.4);
     }
     case "title": if (b.compact) return K.h1Top + lines(F.x, K.h1, b.text, w).length * K.h1Lh + (b.sub ? K.subGap + lines(F.r, K.sub, b.sub, w).length * K.subLh : 0) + K.titleBottom;
       return 2.8 + lines(F.x, H1, b.text, w).length * H1_LH + (b.sub ? 2.8 + lines(F.r, SUB, b.sub, w).length * SUB_LH : 0) + 11.2;
@@ -99,8 +99,8 @@ function measure(b: PdfBlock, w: number, F: Fonts): number {
     case "section": return sectionHead(b) + b.children.reduce((s, c) => s + measure(c, w, F), 0);
     case "bullets": if (b.compact) return b.items.reduce((s, t, i) => s + runLines(F, K.body, "", t, w - cBulletIndent(b.levels?.[i])).length * K.bodyLh + C_BULLET_GAP, 0);
       return b.items.reduce((s, t, i) => s + runLines(F, BODY, b.leads?.[i] ?? "", t, w - BULLET_INDENT).length * BODY_LH + BULLET_GAP, 0);
-    case "money": if (b.compact) return b.rows.reduce((sum, r) => sum + compactMoneyRowH(r, w, F), 0) + 4.5;
-      return b.rows.reduce((s, r) => s + moneyRowH(r, w, F), 0) + 1 + 5.6;
+    case "money": if (b.compact) return b.rows.reduce((sum, r) => sum + (r.strong ? 2 * K.rowPad + K.totLh : 2 * K.rowPad + K.bodyLh + 0.75), 0) + 4.5;
+      return b.rows.reduce((s, r) => s + moneyRowH(r), 0) + 1 + 5.6;
     case "ticks": if (b.compact) return b.items.reduce((sum, t) => sum + tickH(t, w, F), 0);
       return b.items.reduce((s, t) => s + Math.max(11, lines(F.r, BODY, t, w - 16).length * BODY_LH) + 2, 0) + GAP;
     case "signature": return 3 + sigH(b, w, F) + (b.sub ? 2 + lines(F.r, SMALL, b.sub, w).length * SMALL_LH : 0) + GAP;
@@ -147,29 +147,9 @@ function drawRuns(page: PDFPage, ls: Run[][], x: number, top: number, F: Fonts, 
     segs.forEach((r, k) => { const f = r.bold ? F.b : F.r; if (k) cx += sp; text(page, r.s, cx, base(top - i * lh, lh, size), f, size, color); cx += tw(f, size, r.s); });
   });
 }
-// Co-brand header (Jo 5 Nov 2026 16:10): with the installer's logo, theirs sits top-left at our logo's height and ours sits
-// top-right with our details right-aligned under it; without one, the header is unchanged (our logo left, details right).
-const hasPartnerLogo = (b: { partnerLogo?: { bytes: Uint8Array; height: number } }) => !!(b.partnerLogo && b.partnerLogo.bytes.length && b.partnerLogo.height > 0);
-const PARTNER_GAP = 4;
-const headerRowH = (b: { partnerLogo?: { bytes: Uint8Array; height: number } }, bizH: number) => (hasPartnerLogo(b) ? LOGO_H + PARTNER_GAP + bizH : Math.max(LOGO_H, bizH));
-
-// Money rows (Jo 5 Nov 2026): labels wrap left of the amount (moneyLabelLines); a label that fits keeps the old height.
-type MoneyRow = { strong?: boolean; label: string; amount: string };
-const moneyParts = (r: MoneyRow, w: number, F: Fonts) => {
-  const size = r.strong ? 9.8 : BODY, f = r.strong ? F.b : F.r;
-  const parts = r.label.split("\n");
-  if (parts.length > 1 && !r.strong) return { head: moneyLabelLines(parts[0]!, r.amount, w, (t) => tw(F.b, size, t)), detail: parts.slice(1).flatMap((l) => moneyLabelLines(l, r.amount, w, (t) => tw(F.r, BODY, t))) };
-  return { head: moneyLabelLines(r.label, r.amount, w, (t) => tw(f, size, t)), detail: null };
-};
-const moneyRowH = (r: MoneyRow, w: number, F: Fonts) => {
-  const p = moneyParts(r, w, F);
-  if (p.detail) return 9.8 + p.head.length * BODY_LH + p.detail.length * 11.4 + 0.7;
-  return (r.strong ? 24 : 22.4) + (p.head.length - 1) * (r.strong ? 13 : BODY_LH);
-};
-const compactMoneyLines = (r: MoneyRow, w: number, F: Fonts) => moneyLabelLines(r.label, r.amount, w, (t) => tw(r.strong ? F.x : F.r, r.strong ? K.tot : K.body, t));
-const compactMoneyRowH = (r: MoneyRow, w: number, F: Fonts) => {
-  const n = compactMoneyLines(r, w, F).length;
-  return r.strong ? 2 * K.rowPad + n * K.totLh : 2 * K.rowPad + n * K.bodyLh + 0.75;
+const moneyRowH = (r: { strong?: boolean; label?: string }) => {
+  const n = r.label ? r.label.split("\n").length : 1;
+  return r.strong ? 24 : n > 1 ? 9.8 + BODY_LH + (n - 1) * 11.4 + 0.7 : 22.4;
 };
 /** Three cells sit side by side in one row (as in the approved agreement); otherwise two per row. */
 const factRows = (rows: [string, string][]) => { const out: [string, string][][] = []; const n = rows.length === 3 ? 3 : 2; for (let i = 0; i < rows.length; i += n) out.push(rows.slice(i, i + n)); return out; };
@@ -291,22 +271,19 @@ async function draw(b: PdfBlock, page: PDFPage, pageNo: number, x: number, top: 
   switch (b.kind) {
     case "header": {
       const logo = await X.logo();
-      const partner = hasPartnerLogo(b);
-      const right = x + w - (b.compact ? R_INSET : 0);
-      // Without the installer's logo: ours on the left (unchanged). With it: ours top-right, theirs top-left (Jo 5 Nov 2026).
-      page.drawImage(logo, { x: partner ? right - LOGO_W : x, y: top - LOGO_H, width: LOGO_W, height: LOGO_H });
-      if (partner) {
+      page.drawImage(logo, { x, y: top - LOGO_H, width: LOGO_W, height: LOGO_H });
+      // Part 10 Task 7: the installer's logo beside ours (same height, width from its own ratio, capped); counted as a picture.
+      if (b.partnerLogo && b.partnerLogo.bytes.length && b.partnerLogo.height > 0) {
         let img = X.images.get(`${b.id}:partner`);
-        if (!img) { img = await embedImage(X.pdf, b.partnerLogo!.bytes); X.images.set(`${b.id}:partner`, img); }
-        const pw = Math.min(LOGO_H * (b.partnerLogo!.width / b.partnerLogo!.height), LOGO_W * 1.5);
-        page.drawImage(img, { x, y: top - LOGO_H, width: pw, height: LOGO_H });
+        if (!img) { img = await embedImage(X.pdf, b.partnerLogo.bytes); X.images.set(`${b.id}:partner`, img); }
+        const pw = Math.min(LOGO_H * (b.partnerLogo.width / b.partnerLogo.height), LOGO_W * 1.5);
+        page.drawImage(img, { x: x + LOGO_W + 12, y: top - LOGO_H, width: pw, height: LOGO_H });
         imgs.push({ block: b.id, page: pageNo });
       }
       const biz = b.withAddress ? [...BUSINESS_LINES.slice(0, 3), BUSINESS_ADDRESS, ...BUSINESS_LINES.slice(3)] : [...BUSINESS_LINES];
       const bizSize = b.compact ? K_BIZ : BIZ, bizLh = b.compact ? K_BIZ_LH : BIZ_LH;
-      const bizTop = partner ? top - LOGO_H - PARTNER_GAP : top;
-      biz.forEach((l, i) => text(page, l, right, base(bizTop - i * bizLh, bizLh, bizSize), F.r, bizSize, C.muted, { right: true }));
-      const rowH = headerRowH(b, biz.length * bizLh);
+      biz.forEach((l, i) => text(page, l, x + w - (b.compact ? R_INSET : 0), base(top - i * bizLh, bizLh, bizSize), F.r, bizSize, C.muted, { right: true }));
+      const rowH = Math.max(LOGO_H, biz.length * bizLh);
       if (b.compact) text(page, b.eyebrow, x, base(top - rowH - K.headGap, K.eyebrowLh, 7.35), F.b, 7.35, C.blue, { spacing: 1.1 });
       else text(page, b.eyebrow, x, base(top - rowH - 18.2, 11.4, EYEBROW), F.b, EYEBROW, C.blue, { spacing: 1.23 });
       return;
@@ -387,10 +364,10 @@ async function draw(b: PdfBlock, page: PDFPage, pageNo: number, x: number, top: 
       if (b.compact) {
         let cy = top - 1.5;
         b.rows.forEach((r, i) => {
-          const h = compactMoneyRowH(r, w, F);
-          const size = r.strong ? K.tot : K.body; const f = r.strong ? F.x : F.r; const lh = r.strong ? K.totLh : K.bodyLh;
-          const bl = base(cy - K.rowPad, lh, size);
-          compactMoneyLines(r, w, F).forEach((l, li) => text(page, l, x, bl - li * lh, f, size, C.ink));
+          const h = r.strong ? 2 * K.rowPad + K.totLh : 2 * K.rowPad + K.bodyLh + 0.75;
+          const size = r.strong ? K.tot : K.body; const f = r.strong ? F.x : F.r;
+          const bl = base(cy - K.rowPad, r.strong ? K.totLh : K.bodyLh, size);
+          text(page, r.label, x, bl, f, size, C.ink);
           text(page, r.amount, x + w, bl, f, size, C.ink, { right: true });
           cy -= h;
           if (!r.strong && i < b.rows.length - 1) page.drawLine({ start: { x, y: cy + 0.4 }, end: { x: x + w, y: cy + 0.4 }, thickness: 0.75, color: C.line });
@@ -399,17 +376,16 @@ async function draw(b: PdfBlock, page: PDFPage, pageNo: number, x: number, top: 
       }
       let y = top - 1;
       b.rows.forEach((r, i) => {
-        const h = moneyRowH(r, w, F);
+        const h = moneyRowH(r);
         const size = r.strong ? 9.8 : BODY; const f = r.strong ? F.b : F.r;
         const col = r.green ? C.dgreen : C.ink;
-        const p = moneyParts(r, w, F);
-        // The first line keeps the old one-line baseline; wrapped lines follow under it (the amount stays on line one).
-        const bl = base(y - 0.35, p.detail ? 9.8 + BODY_LH + (r.label.split("\n").length - 1) * 11.4 + 0.7 : r.strong ? 24 : 22.4, size);
-        if (p.detail) {
-          // Multi-line label: bold first line(s), muted detail lines under it.
-          p.head.forEach((l, li) => text(page, l, x, base(y - 4.9 - li * BODY_LH, BODY_LH, size), F.b, size, C.ink));
-          p.detail.forEach((l, li) => text(page, l, x, base(y - 4.9 - p.head.length * BODY_LH - li * 11.4, 11.4, BODY), F.r, BODY, C.muted));
-        } else p.head.forEach((l, li) => text(page, l, x, bl - li * (r.strong ? 13 : BODY_LH), r.strong ? F.b : F.r, size, r.green ? C.dgreen : C.ink));
+        const bl = base(y - 0.35, h, size);
+        const parts = r.label.split("\n");
+        if (parts.length > 1 && !r.strong) {
+          // Multi-line label: bold first line, muted detail lines under it.
+          text(page, parts[0]!, x, base(y - 4.9, BODY_LH, size), F.b, size, C.ink);
+          parts.slice(1).forEach((l, li) => text(page, l, x, base(y - 4.9 - BODY_LH - li * 11.4, 11.4, BODY), F.r, BODY, C.muted));
+        } else text(page, r.label, x, bl, r.strong ? F.b : F.r, size, r.green ? C.dgreen : C.ink);
         text(page, r.amount, x + w, bl, f, size, col, { right: true });
         y -= h;
         if (!r.strong && i < b.rows.length - 1) page.drawLine({ start: { x, y }, end: { x: x + w, y }, thickness: 0.75, color: C.line });

@@ -1,11 +1,8 @@
-// Photo-quote installers Part 2 (Task 10): From photos installers add their own job with the quote in one step; the quote
-// PDF exists only on their own customers and carries both logos.
+// Photo-quote installers Part 2 (Task 10): From photos installers add their own job with the quote in one step.
 import { beforeEach, expect, mock, test } from "bun:test";
 import { memoryPostgrest, type Tables } from "./helpers/memory-postgrest";
-import { signaturePng } from "./helpers/sample-signature-png";
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: { from: () => { throw new Error("live database used"); } } }));
 const { ownPhotoQuoteGate, recordOwnPhotoQuote, OWN_PHOTO_REF } = await import("../src/lib/own-photo-quote.server");
-const { viewQuoteAllowed, ownQuotePdfBlocks } = await import("../src/lib/own-photo-quote.core");
 const { validateInstallerPrice } = await import("../src/lib/installer-price.core");
 
 const good = { underR2: true, removeM2: 10, installM2: 80, product: "Bradford Gold R5", priceIncGst: 2400, included: ["Ceiling insulation - supply & install", "Removal of existing insulation"] };
@@ -65,26 +62,6 @@ test("Try again resumes: no second measurement, price or product", async () => {
 test("send-on-press switch on → the release is asked to send now (switch itself unchanged)", async () => {
   await recordOwnPhotoQuote("j", "boss", "nogap", good, { ...deps(), sendOnPress: true });
   expect(sends[0]).toMatchObject({ enabled: true });
-});
-
-test("View quote (PDF): own customers only, boss / Office with Money only; never an HIV lead", () => {
-  expect(viewQuoteAllowed({ channel: "installer_sourced", originatingBusinessId: "nogap", businessId: "nogap", seesPrices: true })).toBe(true);
-  expect(viewQuoteAllowed({ channel: "hivic_sourced", originatingBusinessId: null, businessId: "nogap", seesPrices: true })).toBe(false);
-  expect(viewQuoteAllowed({ channel: "installer_sourced", originatingBusinessId: "other", businessId: "nogap", seesPrices: true })).toBe(false);
-  expect(viewQuoteAllowed({ channel: "installer_sourced", originatingBusinessId: "nogap", businessId: "nogap", seesPrices: false })).toBe(false);
-});
-
-test("the quote PDF carries the installer logo and the Home Insulation Victoria logo", async () => {
-  const items = [{ code: "INSTALLER_PRICE", description: "Bradford Gold R5 supplied and installed", line_total_inc_gst: 2400 }, { code: "AP_FEE", description: "fee", line_total_inc_gst: 349 }, { code: "PIESA", description: "piesa", line_total_inc_gst: 349 }];
-  const blocks = ownQuotePdfBlocks({ jobNumber: "HV-9", owner: "Sam Lee", address: "1 Main St, Richmond VIC 3121", items, rebateIncGst: 1200, totalIncGst: 1898, status: "Sent to the owner", product: "Bradford Gold R5", installM2: 80, removeM2: 0, quoteDate: "2026-11-05T23:00:00Z" }, { bytes: signaturePng(), width: 240, height: 80, alt: "No Gap" });
-  const head = blocks[0]!;
-  expect(head.kind).toBe("header"); // the header always draws Home Insulation Victoria's logo
-  const { renderPdf } = await import("../src/lib/pdf-look.server");
-  const { bytes, layout } = await renderPdf({ title: "Quote", blocks });
-  expect(bytes.length).toBeGreaterThan(1000);
-  expect(layout.images).toContainEqual({ block: "q-head", page: 1 }); // the installer's logo beside ours
-  const money = blocks.find((b) => b.kind === "money") as { rows: { label: string; amount: string }[] };
-  expect(money.rows.at(-1)).toMatchObject({ amount: "$1,898" });
 });
 
 test("final review fix: the own photo job moves to Ready Check complete so the release can take it to the quote stage", async () => {

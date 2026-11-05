@@ -27,11 +27,15 @@ test("HIV lead after Send for quote: no $ amount and no quote link anywhere in t
   const all = JSON.stringify(p);
   expect(all).not.toContain("$");
   expect(all).not.toMatch(/my-job|screen=quote|https?:\/\//i);
-  expect(p.viewQuote).toBe(false);
+  expect(p.quoteBreakdown).toBeNull();
   expect(p.nextStep).toBeTruthy();
 });
+// Jo 5 Nov 16:51: on an HIV lead No Gap sees HIS price only — the existing installer pay line — and nothing else money-related.
 test("the only $ an HIV lead page may carry is the installer's own pay line (unchanged), never the owner's price", () => {
-  const all = JSON.stringify(parts({ pay: 1500 }));
+  const p = parts({ pay: 1500 });
+  const all = JSON.stringify(p);
   expect(all).toContain("1,500");
+  expect(all.match(/\$/g)).toHaveLength(1);
+  expect(p.quoteBreakdown).toBeNull();
   for (const ownerFigure of ["1,898", "1898", "2,400", "2400", "349"]) expect(all).not.toContain(ownerFigure);
 });

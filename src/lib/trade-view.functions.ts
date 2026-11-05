@@ -378,8 +378,3 @@ export const tradeSubmitPhotoQuote = createServerFn({ method: "POST" }).middlewa
 export const getPhotoQuoteMedia = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
   .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
   .handler(async ({ data, context }) => plain(await (await import("./trade-view.server")).photoQuoteMedia(data.jobId, context.userId)));
-
-/** Photo-quote installers Part 2: "View quote (PDF)" — own customers only, price-seeing people only (checked server side). */
-export const getOwnQuotePdf = createServerFn({ method: "POST" }).middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ jobId: uuid }).parse(d))
-  .handler(async ({ data, context }) => (await import("./own-photo-quote.server")).ownQuotePdfFor(data.jobId, context.userId));
