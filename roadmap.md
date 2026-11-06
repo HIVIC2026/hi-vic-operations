@@ -9,7 +9,7 @@
 - [x] Jo 7 Nov (b): TEST Photos Insulation in-house + Richmond 3121 — TEST electrician (simulated Mitti), $349 PIESA price, Mitti invite, office checklist passed; new login sees only its own business.
 - [x] Jo 7 Nov (c): electrician-link sweep read fixed, sending kept OFF (ELECTRICIAN_LINK_SWEEP_SENDS=false); same missing-column bug fixed on owner My job installer name and TEST quote-expired. Email 1 for TEST jobs: Test Centre jobs skip the automatic steps by design; wiring it would send, so left until Jo says send.
 - [x] Jo 7 Nov (d): owner estimate link shows the approved firm-quote thank-you after Proceed (Jo approved).
-- [ ] Jo 7 Nov: publish (approved) — security check, then publish.
+- [x] Jo 7 Nov: publish requested after a clean security check.
 - [ ] Earlier findings from tonight's firm-quote run (blank Choose installer box for TEST office etc.) — reported, not fixed (report-only).
 
 ## Jo 6 Nov 20:53 UTC — final email 1 + one-tap Proceed (switch stays OFF)
