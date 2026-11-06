@@ -112,7 +112,13 @@ Jo's decisions:
 11. Portal vs Mitti measurements: newest wins and the office is flagged to check.
 12. Bank detail changes need HIV office OK before any pay goes there.
 
-**Next:** dictate the problem-job boxes, then the spec. (Old note: all three journeys are approved, so write the spec at `docs/superpowers/specs/2026-11-06-installer-portal-redesign-design.md`, self-review it, then Jo reviews.
+### Problem-job boxes APPROVED
+- **Cancelled:** "This job's been cancelled ({reason}). We've told Jo. Please cancel anything you've booked on your end, like your electrician and crew."
+- **On hold:** "On hold · {reason}. We'll let you know the moment it's back on. Nothing for you to do."
+- **No access:** Today's job has a "Couldn't get in" button → "Couldn't get in on {day}. Call Jo, agree a new day and book it here. Install by {30-day date}." Day + Arrival + Book. Office flagged.
+- **Part installed:** "Part installed. Tell us what's left and book a day to finish it." What's left + Day + Arrival + Book. Office flagged. No paperwork approval or pay until finished.
+
+**Next:** write the spec. (Old note: all three journeys are approved, so write the spec at `docs/superpowers/specs/2026-11-06-installer-portal-redesign-design.md`, self-review it, then Jo reviews.
 
 ## Journeys 2 and 3 — still to dictate
 
