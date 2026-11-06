@@ -6,7 +6,7 @@ Decision log: `docs/superpowers/handoffs/2026-11-06-installer-portal-redesign-ha
 
 ## 1. Goal
 
-Every installer boss and office (on a phone or a computer) always knows the one thing to do next on every job. Nothing gets lost or frozen. Every page is fast.
+Every installer admin and office person (on a phone or a computer) always knows the one thing to do next on every job. Nothing gets lost or frozen. Every page is fast.
 
 No installer is using the current installer portal, so the new pages **replace** the old installer pages directly. There's no parallel run and no per-installer switch. Nothing goes live to real installers until Jo says go (§10).
 
@@ -50,7 +50,7 @@ No installer is using the current installer portal, so the new pages **replace**
   - PIESA: "The owner gets a new booking text and email."
   - Ready Check: "Just for your diary. The owner isn't messaged."
 - **Still to book:** jobs ready to book, each with a button.
-- Who can change bookings: the boss and office logins only (Leads and crew never log in).
+- Who can change bookings: admin and office logins only (Leads and crew never log in).
 
 ### 4.4 Jobs
 - Search filters as you type (name, address, HV).
@@ -93,7 +93,7 @@ Every ESC-approved product for new jobs (Bradford Gold, Earthwool, Pink Batts; n
 
 ### 4.9 My business
 - **Hub:** one list (Team · Business details · Rates · Products · Documents · Bank). Each line shows its state, amber when something needs fixing.
-- **Team:** "{n} people · {n} need something" + Add a person. Three boxes: **Lead Installers · Crew · Electricians**. Each person shows **Approved ✓** or **Missing: {what}**, with Boss and Main tags.
+- **Team:** "{n} people · {n} need something" + Add a person. Three boxes: **Lead Installers · Crew · Electricians**. Each person shows **Approved ✓** or **Missing: {what}**, with Admin and Main tags.
   - **Person panel:** a Missing box with an Upload or Add button per item; for installers a Lead Installer / Crew switch with what each means; for electricians **Make main** (picked first when booking a PIESA); then details (CII, ESC registered, date of birth "On file" only, Mitti; or licence, REC, public liability), Edit details, Remove from team.
   - **Add a person:** name, mobile, role, and "We'll need…" (Lead: CII, date of birth for ESC, email for Mitti; Crew: CII; Electrician: licence, REC, public liability).
 - **Business details:** business name, ABN, office phone and email ("Owners get this phone and email, never a worker's"), logo (shows on quotes for their own customers), **Who books the PIESA?** (Your office / Your electrician / Either), **Take our leads?** (Yes/No; open jobs carry on).
@@ -114,15 +114,15 @@ Every ESC-approved product for new jobs (Bradford Gold, Earthwool, Pink Batts; n
   - Rows show address, Install or PIESA, amount and date or status, and open the job.
 - **Paid tab:** date, jobs, amount, Remittance.
 - Shows the bank line with a link to change it.
-- Visible to the boss, and to office staff only if the boss turns it on (2 Nov rule).
+- Visible to admins, and to office staff only if an admin turns it on.
 
 ### 4.11 Pages added after review (canvas, 6 Nov; awaiting Jo's OK)
 - **Electrician's job link** (no login, phone, one link per job): for {electrician} · {business}; address, owner, Call, Directions. Shows only the next step: Book the PIESA (when the electrician books) → PIESA booked (Open the Mitti form; Change time · Can't do this one) → Pick the upgrades day (if upgrades are on another day; they quote and invoice the owner directly) → Upload the Certificate of Electrical Safety (install can be booked, can't start until it's in) → All done. Footer: the installer office's phone.
 - **Safety plan signing** (no login, text link): for {person} · {business} crew; address and install day; **This house** (auto-filled from the Ready Check and PIESA); **Every job** (the approved SWMS wording, unchanged, "Read the full safety plan"); tick "I've read the safety plan and will follow it" → Sign (greyed until ticked) → "Signed. Thanks, {name}. {Lead} can see you've signed." Lead view: who's signed, with "Sign on my phone" for a crew member whose phone is dead.
-- **Today's job** (boss/office, install day): GO or DON'T START banner (time checked, and the PIISA line); address, time, Call, Directions; who's going with safety plan status; job details (install m² and spaces, product, removal, watch-outs); **Open the Mitti install form**; "Something not right?" → Couldn't get in · Only part done today; balance due today.
+- **Today's job** (admin/office, install day): GO or DON'T START banner (time checked, and the PIISA line); address, time, Call, Directions; who's going with safety plan status; job details (install m² and spaces, product, removal, watch-outs); **Open the Mitti install form**; "Something not right?" → Couldn't get in · Only part done today; balance due today.
 - **Sign in and setup:** email → "Email me a sign-in link" (no password; stays signed in on that phone). First time: "Welcome, {name}. {n} things to set up before your first job" (Business details, Documents, Team, Bank, Products, each ticked when done; "I'll finish later"). Empty home: "No jobs yet. Add your own customer, or we'll email you when we give you one of our leads." + Add a job, and "{n} setup steps left".
 - **Uploads** (photos, plans, aerials, certificates, insurance): Take a photo / Choose files; each file shows progress; uploads keep going if they leave the page; with no signal: "Your photos are saved on this phone and will upload when you're back online. Nothing is lost." Failed files show "Didn't upload" + Retry.
-- **Team › Office staff:** a fourth group. An office person signs in with their email. **Can see Money** On/Off (only the boss can change it; default Off).
+- **Team › Office staff:** a fourth group. An office person signs in with their email. **Can see Money** On/Off (only an admin can change it; default Off) and **Make admin / Remove admin** (admins see everything, including Money, and can change the team). The person who signs the business up is the first admin.
 
 ### 4.12 Office screens (Home Insulation Victoria side)
 The office job page and To do list must show the new installer states and flags: on hold (reason), couldn't get in, part installed (what's left), measurements don't match (portal vs Mitti, newest shown, both viewable), electrician needed on install day, can't quote / can't do this one (reason, job back to the office to give to someone else), bank change to approve (approve / reject, with old and new last 4 digits), and diary-only Ready Checks (shown, no owner message). Office pages are otherwise unchanged.
@@ -193,7 +193,7 @@ Every new or changed message is drafted, shown to Jo **one at a time**, and appr
 
 ## 9. How it's checked (pages and functions)
 - Every part: tests first, then code. A separate reviewer checks it against this spec and the canvas. Then the design-review skill. Then phone and computer screenshots to Jo.
-- **Nightly automatic journey** (existing TEST job, `bun run portal-qa` / `journey --screens`): all three job types from start to Paid, plus every problem box, as boss, office, Lead, crew and electrician, at phone (390px) and computer (1280px) widths. It also runs:
+- **Nightly automatic journey** (existing TEST job, `bun run portal-qa` / `journey --screens`): all three job types from start to Paid, plus every problem box, as admin, office, Lead, crew and electrician, at phone (390px) and computer (1280px) widths. It also runs:
   - double tap
   - lost connection mid-save
   - failed upload

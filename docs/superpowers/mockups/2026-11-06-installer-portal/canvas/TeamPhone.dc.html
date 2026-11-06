@@ -70,7 +70,8 @@ a{color:#3C51C4}a:hover{color:#22376B}
 <p style="margin: 8px 0 0; font-size: 13px; color: #5B6785; line-height: 1.5">{{sel.roleNote}}</p>
 </sc-if>
 <sc-if value="{{sel.isOffice}}" hint-placeholder-val="{{ false }}">
-<div style="margin-top: 18px; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 16px; border: 1px solid #E3E8F2; border-radius: 12px; font-size: 15px"><span><b>Can see Money</b><br><span style="font-size: 13px; color: #5B6785">What you're owed and paid. Only the boss can change this.</span></span><button type="button" role="switch" aria-checked="{{moneyLabel}}" onClick="{{toggleMoney}}" style="{{moneyStyle}}">{{moneyLabel}}</button></div>
+<div style="margin-top: 18px; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 16px; border: 1px solid #E3E8F2; border-radius: 12px; font-size: 15px"><span><b>Can see Money</b><br><span style="font-size: 13px; color: #5B6785">What you're owed and paid. Only an admin can change this.</span></span><button type="button" role="switch" aria-checked="{{moneyLabel}}" onClick="{{toggleMoney}}" style="{{moneyStyle}}">{{moneyLabel}}</button></div>
+<div style="margin-top: 10px; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 16px; border: 1px solid #E3E8F2; border-radius: 12px; font-size: 15px"><span><b>Admin</b><br><span style="font-size: 13px; color: #5B6785">Admins see everything, including Money, and can change the team.</span></span><button type="button" onClick="{{toggleAdmin}}" style="{{adminStyle}}">{{adminLabel}}</button></div>
 </sc-if>
 <sc-if value="{{sel.isElec}}" hint-placeholder-val="{{ false }}">
 <div style="margin-top: 18px; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 16px; border: 1px solid #E3E8F2; border-radius: 12px; font-size: 15px"><span><b>Main electrician</b><br><span style="font-size: 13px; color: #5B6785">Picked first when you book a PIESA</span></span><button type="button" onClick="{{makeMain}}" style="{{mainStyle}}">{{mainLabel}}</button></div>
@@ -92,7 +93,7 @@ a{color:#3C51C4}a:hover{color:#22376B}
 </x-dc>
 <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":2000}}'>
 class Component extends DCLogic {
-  constructor(props) { super(props); this.state = { sel: 'wayne', main: 'james', money: false, newRole: 'Crew', roles: { tom: 'Lead', deep: 'Lead', raj: 'Crew', wayne: 'Crew' } }; }
+  constructor(props) { super(props); this.state = { sel: 'priya', main: 'james', money: false, admins: { tom: true }, newRole: 'Crew', roles: { tom: 'Lead', deep: 'Lead', raj: 'Crew', wayne: 'Crew' } }; }
   renderVals() {
 
     const st = this.state, OK = '#067A40', WARN = '#8A4B00', INK = '#22376B';
@@ -109,7 +110,7 @@ class Component extends DCLogic {
     const dec = p => {
       const lead = roles[p.id] === 'Lead', elec = p.kind === 'elec', office = p.kind === 'office';
       const tags = [];
-      if (p.boss) tags.push('Boss');
+      if (st.admins[p.id]) tags.push('Admin');
       if (elec && main === p.id) tags.push('Main');
       const chosen = st.sel === p.id;
       return Object.assign({}, p, {
@@ -150,7 +151,10 @@ class Component extends DCLogic {
       mainLabel: main === sel.id ? '✓ Main' : 'Make main',
       mainStyle: 'min-height: 44px; padding: 0 14px; font-family: inherit; font-size: 14px; font-weight: 800; border-radius: 10px; cursor: pointer; ' + (main === sel.id ? 'background: #E7F8EF; color: #067A40; border: 1px solid #BFE9D2' : 'background: #FFFFFF; color: #3C51C4; border: 1px solid #CED6E6'),
       makeMain: () => this.setState({ main: sel.id }),
-      moneyLabel: st.money ? 'On' : 'Off', toggleMoney: () => this.setState({ money: !st.money }),
+      adminLabel: st.admins[sel.id] ? 'Remove admin' : 'Make admin',
+      toggleAdmin: () => this.setState({ admins: Object.assign({}, st.admins, { [sel.id]: !st.admins[sel.id] }) }),
+      adminStyle: 'min-height: 44px; padding: 0 14px; font-family: inherit; font-size: 14px; font-weight: 800; border-radius: 10px; cursor: pointer; white-space: nowrap; ' + (st.admins[sel.id] ? 'background: #FFFFFF; color: #B42318; border: 1px solid #CED6E6' : 'background: #FFFFFF; color: #3C51C4; border: 1px solid #CED6E6'),
+      moneyLabel: st.money || st.admins[sel.id] ? 'On' : 'Off', toggleMoney: () => this.setState({ money: !st.money }),
       moneyStyle: 'min-height: 44px; min-width: 64px; padding: 0 14px; font-family: inherit; font-size: 14px; font-weight: 800; border-radius: 10px; cursor: pointer; ' + (st.money ? 'background: #E7F8EF; color: #067A40; border: 1px solid #BFE9D2' : 'background: #FFFFFF; color: #5B6785; border: 1px solid #CED6E6'),
       addNew: () => this.setState({ sel: 'new' }), closeNew: () => this.setState({ sel: 'tom' }),
       newRoles: ['Lead Installer', 'Crew', 'Electrician', 'Office staff'].map(label => ({ label, on: st.newRole === label ? 'true' : 'false', pick: () => this.setState({ newRole: label }), style: seg(st.newRole === label) })),
