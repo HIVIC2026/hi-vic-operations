@@ -69,7 +69,17 @@ Palette/fonts from `docs/templates/installer/portal/M7-business.html` (#22376B i
 - **Step 9 – Install done · Fri 21 Nov:** "Jo pays the balance on install day." (no "you're paid" line). What happens from here: "If Jo hasn't paid, we touch base on days 1, 3 and 7. Once she's paid in full, this job moves to Done."
 - Mock-up updated: `s789.png`. The Paid box wasn't discussed again.
 
-**Next:** journey 2 step 1.
+### 6 Nov — Journey 2 (our lead from photos) APPROVED
+
+- Installers do NOT enter a price on our leads. We do the quote from Home Insulation Victoria's prices and pay the installer their agreed rates.
+- **Step 1 – Quote from the owner's photos.** "Have a look at Helen's photos and videos, add the sqm, what's in the ceiling, product and access, then press Send. We'll do the quote and send it to Helen. You're paid your agreed rates for the job. We'd love it within 2 business days." Button: Measure from photos. What happens from here: "We put the quote together and send it to Helen. You'll get an email when it goes. You're paid your agreed rates 7 days after we approve the install paperwork."
+- Decline link "Can't quote this one" sends it back to our office, with a reason to pick (Photos not good enough / Too far / Too busy / Other).
+- **Step 2 – Quote being prepared.** "We're putting the quote together and sending it to Helen. You'll get an email when it goes. Nothing for you to do."
+- **Step 3 – Quote with the owner.** "Sent Thu 6 Nov · valid until Sat 6 Dec. We touch base with Helen on day 3 and 2 days before it expires. You'll hear from us the moment she accepts or declines." No buttons or links (they never see our price).
+- **Steps 4–8:** same words as journey 1 (incl. the redone 7/8).
+- **Install done:** "Install done · Fri 21 Nov. We check the install paperwork, then pay you your agreed rates 7 days after we approve it." **Paid:** "Paid ✓ Mon 1 Dec · $1,920.00".
+
+**Next:** journey 3.
 
 ## Journeys 2 and 3 — still to dictate
 
