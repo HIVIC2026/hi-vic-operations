@@ -54,7 +54,23 @@ describe("cards", () => {
   });
   test("card text for a Home Insulation Victoria lead", () => {
     const c = myWorkCards([row("x")]).yourTurn[0]!;
-    expect(c).toMatchObject({ owner: "Amy Clarke", hvSuburb: "HV-1250 · Ringwood", pill: "Home Insulation Victoria lead", step: "Book the Ready Check", reason: "New job", button: "Book" });
+    expect(c).toMatchObject({ owner: "Amy Clarke", hvSuburb: "HV-1250 · 3 Elm St, Ringwood", pill: "Home Insulation Victoria lead", step: "Book the Ready Check", reason: "New job", button: "Book" });
+  });
+  // Jo 6 Nov 2026: the second line is the full street address; suburb alone only when the street is missing.
+  test("second line: job number · street, suburb; suburb alone without a street", () => {
+    expect(myWorkCards([row("a", {}, { jobNumber: "HV-3821", street: "12 Smith St", suburb: "Melton" })]).all[0]!.hvSuburb).toBe("HV-3821 · 12 Smith St, Melton");
+    expect(myWorkCards([row("b", {}, { jobNumber: "HV-3821", street: null, suburb: "Melton" })]).all[0]!.hvSuburb).toBe("HV-3821 · Melton");
+    expect(myWorkCards([row("c", {}, { jobNumber: "HV-3821", street: "  ", suburb: "Melton" })]).all[0]!.hvSuburb).toBe("HV-3821 · Melton");
+    expect(myWorkCards([row("d", {}, { jobNumber: "HV-3821", street: "12 Smith St", suburb: null })]).all[0]!.hvSuburb).toBe("HV-3821 · 12 Smith St");
+    // tradeHome's street already ends with the suburb — it is not repeated
+    expect(myWorkCards([row("e", {}, { jobNumber: "HV-3821", street: "12 Smith St, Melton", suburb: "Melton" })]).all[0]!.hvSuburb).toBe("HV-3821 · 12 Smith St, Melton");
+  });
+  // Jo 6 Nov 2026: the own-customer "Measure and quote" card says just "New job", whatever the Mitti form's state.
+  test("own customer: Measure and quote reads New job with no Mitti form suffix", () => {
+    const own = (r: Record<string, unknown>) => myWorkCards([row("o", { channel: "installer_sourced" }, { channel: "installer_sourced", ...r })]).yourTurn[0]!;
+    for (const r of [{}, { mittiRequested: true }, { mittiLinked: true }, { mittiRequested: true, mittiLinked: true }]) {
+      expect(own(r)).toMatchObject({ step: "Measure and quote", reason: "New job", button: "Measure and quote" });
+    }
   });
   test("own customer: completed form awaits price", () => {
     const c = myWorkCards([row("p", { channel: "installer_sourced", readyCheck: { start: null, done: true, missing: [] }, priceEntered: false }, { channel: "installer_sourced" })]).yourTurn[0]!;

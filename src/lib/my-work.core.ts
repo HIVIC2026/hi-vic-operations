@@ -73,7 +73,7 @@ function ownCustomerCard(r: MyWorkRow): Partial<MyWorkCard> {
   if (r.channel !== "installer_sourced") return {};
   const noDeadline = { by: null, overdue: false };
   if (r.box.kind === "own_ready_check") return {
-    ...noDeadline, step: "Measure and quote", reason: r.mittiLinked ? 'New job · Mitti form ready' : r.mittiRequested ? 'New job · Mitti form on its way' : 'New job',
+    ...noDeadline, step: "Measure and quote", reason: "New job", // Jo 6 Nov 2026: just "New job" (no Mitti form suffix)
     button: "Measure and quote", yours: true,
   };
   if (r.box.kind === "enter_price") return {
@@ -91,12 +91,22 @@ function ownCustomerCard(r: MyWorkRow): Partial<MyWorkCard> {
   return {};
 }
 
+/** Jo 6 Nov 2026: the card's second line is the full address — "HV-3821 · 12 Smith St, Melton" (street + suburb); the suburb alone
+ *  only when the street is missing. `street` from tradeHome already ends ", Suburb" (address.ts shortAddress), so the suburb is
+ *  added only when it is not there yet. */
+export function cardAddress(street: string | null | undefined, suburb: string | null | undefined): string {
+  const st = street?.trim() || ""; const sub = suburb?.trim() || "";
+  if (!st) return sub;
+  if (!sub || st.toLowerCase().endsWith(sub.toLowerCase())) return st;
+  return `${st}, ${sub}`;
+}
+
 // Part 7 Task 9 (join 4 Nov 2026): nobody is offered a job any more (the installer calls the owner and books), so there is
 // no "Job offer" card and no /field/offer link; a leftover pending offer is the office's to close by hand.
 export function myWorkCards(rows: MyWorkRow[]): { yourTurn: MyWorkCard[]; all: MyWorkCard[] } {
   const cards = rows.map((r): MyWorkCard => ({
     jobId: r.jobId, owner: r.owner?.trim() || W.ownerFallback,
-    hvSuburb: [r.jobNumber, r.suburb].filter(Boolean).join(" · "),
+    hvSuburb: [r.jobNumber, cardAddress(r.street, r.suburb)].filter(Boolean).join(" · "),
     pill: r.channel === "installer_sourced" ? W.ownPill : W.leadPill,
     step: r.box.title, reason: r.reason, by: r.box.bookBy, overdue: r.box.overdue,
     button: buttonFor(r.box), yours: r.box.yours,
