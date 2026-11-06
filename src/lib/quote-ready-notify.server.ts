@@ -11,6 +11,9 @@
 //    purpose + key) with the "What's changed from your estimate" box and the quote documents attached (Customer
 //    Agreement + payment terms, Statement of rights); if any document can't be made the email is HELD ("Quote documents
 //    not ready") with an office note, never sent without them. Flag off, or a 14-day quote: the v3 email, unchanged.
+import { firmQuoteReadyEmail } from "./firm-quote-emails.core";
+import { firmQuoteReadyInput } from "./firm-quote.core";
+import { withUnsubscribe } from "./emailsafety.core";
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
 import { logEvent } from "./workflow.server";
 import { genericMail } from './mail-mjml.core';
@@ -320,7 +323,11 @@ export async function notifyOwnerQuoteReady(
   }
   const { renderOwnCustomerQuoteEmail: renderOwnCustomerQuoteEmailChecked, renderOwnCustomerUpdatedQuoteEmail } = await import('./own-customer-quote-messages.core');
   const date = (iso: string) => new Intl.DateTimeFormat('en-AU', { timeZone: 'Australia/Melbourne', day: 'numeric', month: 'short' }).format(new Date(iso));
+  // Firm-quote plan Task 9: firm-quote website jobs get the firm-quote-ready email (same guards, key and attachments).
+  const firmFacts = job.channel !== 'installer_sourced' && await (await import('./firm-quote.server')).isFirmQuoteJobId(jobId)
+    ? await (await import('./firm-quote.server')).firmQuoteReadyFacts(jobId) : null;
   const renderQuote = (input: import('./owner-quote-email.core').OwnerQuoteEmailInput) => {
+    if (firmFacts) return renderFirmQuoteReady(input, firmFacts);
     if (job.channel !== 'installer_sourced') return renderOwnerQuoteEmail(input);
     if (replacement) {
       if (!officeNumber || !input.validUntil || !input.ownCustomer?.installerName) throw new Error('Updated quote email details unavailable.');
@@ -522,4 +529,11 @@ export async function notifyOwnerQuoteReady(
     );
   }
   return { sms: `${s.status}: ${s.detail}`, email };
+}
+
+/** Task 9: firm-quote-ready email in the same { subject, html, text } shape the quote sender uses. */
+export function renderFirmQuoteReady(input: import('./owner-quote-email.core').OwnerQuoteEmailInput, facts: Parameters<typeof import('./firm-quote.core').firmQuoteReadyInput>[1]) {
+  const m = firmQuoteReadyEmail(firmQuoteReadyInput(input, facts));
+  const mail = input.unsubscribeUrl ? withUnsubscribe(m, input.unsubscribeUrl) : m;
+  return { subject: mail.subject, html: mail.html, text: mail.plainText };
 }

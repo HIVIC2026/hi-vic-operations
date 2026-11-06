@@ -82,3 +82,23 @@ export async function requestFirmQuoteToken(token: unknown, preview: boolean) {
   const result = await requestFirmQuote(c.link.job_id, c.link.id);
   return { ...result, firstName: result.ok ? c.firstName : null };
 }
+/** Task 9: facts for the firm-quote-ready email. Owner m² from the intake (null if unknown), confirmed/removal m² from the
+ *  current photo-quote measurement, removal rate from current pricing settings. Throws when any required fact is missing. */
+export async function firmQuoteReadyFacts(jobId: string): Promise<{ ownerM2: number | null; confirmedM2: number; removalM2: number; removalRatePerM2: number }> {
+  const [job, m, settings] = await Promise.all([
+    admin.from("jobs").select("estimated_area_m2, estimated_area_unknown").eq("id", jobId).maybeSingle(),
+    admin.from("ceiling_measurements").select("measured_area_m2, removal_m2").eq("job_id", jobId).eq("is_current", true).eq("external_source", "photo_quote").maybeSingle(),
+    admin.from("retail_estimator_settings").select("removal_inc_gst_per_m2").eq("is_current", true).maybeSingle(),
+  ]);
+  if (job.error || !job.data) throw new Error("Firm quote: owner estimate could not be read.");
+  if (m.error || !m.data) throw new Error("Firm quote: photo quote measurement not found.");
+  const rate = (settings.data as { removal_inc_gst_per_m2?: unknown } | null)?.removal_inc_gst_per_m2;
+  if (settings.error || typeof rate !== "number" || !Number.isFinite(rate) || rate < 0) throw new Error("Firm quote: current removal pricing required.");
+  const j = job.data as { estimated_area_m2: unknown; estimated_area_unknown: boolean | null };
+  const owner = j.estimated_area_unknown ? null : Number(j.estimated_area_m2);
+  const md = m.data as { measured_area_m2: unknown; removal_m2: unknown };
+  const confirmed = Number(md.measured_area_m2);
+  if (!Number.isFinite(confirmed) || confirmed <= 0) throw new Error("Firm quote: photo quote install m² missing.");
+  const removal = Number(md.removal_m2 ?? 0);
+  return { ownerM2: owner !== null && Number.isFinite(owner) && owner > 0 ? owner : null, confirmedM2: confirmed, removalM2: Number.isFinite(removal) && removal > 0 ? removal : 0, removalRatePerM2: rate };
+}

@@ -19,10 +19,14 @@ export const OWN_CUSTOMER_SEND_ON_PRESS_ENABLED = false;
 
 export const CHANGED_AFTER_SEND = "Ready Check changed after the quote was sent — office to check; the sent quote was not changed";
 
+export const FIRM_QUOTE_HOLD_REASON = "Firm quote: you press Send";
+
 export type AutoSendDecision = { send: true } | { send: false; reasons: string[]; quiet?: boolean };
 
 /** quiet = nothing for the office to do yet (switch off, form not complete). */
-export function autoSendDecision(i: { enabled: boolean; formCompleted: boolean; quoteReady: boolean; blockers: string[]; sentBefore: boolean }): AutoSendDecision {
+export function autoSendDecision(i: { enabled: boolean; formCompleted: boolean; quoteReady: boolean; blockers: string[]; sentBefore: boolean; firmQuote?: boolean }): AutoSendDecision {
+  // Firm-quote plan Task 9: a firm quote is always held for Jo, even when every other check passes.
+  if (i.firmQuote) return { send: false, reasons: [...new Set([FIRM_QUOTE_HOLD_REASON, ...i.blockers])] };
   if (!i.enabled) return { send: false, reasons: ["Automatic quote sending is switched off"], quiet: true };
   if (!i.formCompleted) return { send: false, reasons: ["Ready Check not marked Complete in Mitti yet"], quiet: true };
   const reasons = [...i.blockers];

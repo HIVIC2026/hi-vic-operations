@@ -38,3 +38,12 @@ export function formatDueDate(isoDate: string): string {
     timeZone: "Australia/Melbourne", weekday: "long", day: "numeric", month: "long",
   }).format(new Date(`${isoDate}T12:00:00Z`));
 }
+/** Task 9: the issued quote + firm facts → the firm-quote-ready email input (validUntil is the quote's own date). */
+export function firmQuoteReadyInput(q: { firstName: string | null; totalIncGst: number; rebateIncGst: number | null; subtotalIncGst?: number | null; validUntil: Date | null; quoteUrl: string },
+  f: { ownerM2: number | null; confirmedM2: number; removalM2: number; removalRatePerM2: number }) {
+  if (!q.validUntil) throw new Error("Firm quote: quote valid-until date missing.");
+  const rebate = q.rebateIncGst ?? 0;
+  const y = new Intl.DateTimeFormat("en-CA", { timeZone: "Australia/Melbourne", year: "numeric", month: "2-digit", day: "2-digit" }).format(q.validUntil);
+  return { firstName: q.firstName || "there", price: q.totalIncGst, rebate, fullPrice: q.subtotalIncGst ?? q.totalIncGst + rebate,
+    ownerM2: f.ownerM2, confirmedM2: f.confirmedM2, removalM2: f.removalM2, removalRatePerM2: f.removalRatePerM2, validUntil: y, acceptUrl: q.quoteUrl };
+}

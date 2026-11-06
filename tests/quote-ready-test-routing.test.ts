@@ -9,6 +9,7 @@ mock.module("../src/integrations/supabase/client.server", () => ({ supabaseAdmin
 }}}));
 mock.module("../src/lib/comms.server", () => ({ assertCustomerDeliveryAllowed: async () => { if(!allowed)throw Error("No contact permission"); } }));
 mock.module("../src/lib/workflow.server", () => ({ logEvent: async()=>{} }));
+mock.module("../src/lib/firm-quote.server", () => ({ isFirmQuoteJobId: async () => false, firmQuoteReadyFacts: async () => { throw Error("not a firm-quote job"); } }));
 mock.module("../src/lib/test-send.server", () => ({
   sendTestEmail: async(ctx:any,to:string) => { const {testSendBlocker}=await import("../src/lib/test-send.core");const block=testSendBlocker({channel:"email",to,jobSource:ctx.jobSource,partnerIsTest:ctx.partnerIsTest});if(!block)sent.push("email");return {status:block?"blocked":"sent",detail:block??"TEST accepted"}; },
   sendTestSms: async(ctx:any,to:string) => { const {testSendBlocker}=await import("../src/lib/test-send.core");const block=testSendBlocker({channel:"sms",to,jobSource:ctx.jobSource,partnerIsTest:ctx.partnerIsTest});if(!block)sent.push("sms");return {status:block?"blocked":"sent",detail:block??"TEST accepted"}; }

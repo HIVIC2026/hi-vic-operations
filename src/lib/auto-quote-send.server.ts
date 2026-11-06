@@ -49,7 +49,8 @@ export async function maybeAutoSendInstallerQuote(jobId: string, opts: { formCom
   if (draft.option_code === INSTALLER_QUOTE_CODE) return { sent: false, reasons: [] };
   const { officeQuoteBlockers, releaseQuoteToOwner } = await import("./office-quote-review.server");
   const blockers = await officeQuoteBlockers(jobId, draft);
-  const d = autoSendDecision({ enabled, formCompleted: opts.formCompleted, quoteReady: true, blockers, sentBefore: !!lastSentAt });
+  const firmQuote = await (await import("./firm-quote.server")).isFirmQuoteJobId(jobId);
+  const d = autoSendDecision({ enabled, formCompleted: opts.formCompleted, quoteReady: true, blockers, sentBefore: !!lastSentAt, ...(firmQuote ? { firmQuote } : {}) });
   if (!d.send) {
     if (!d.quiet) await held(jobId, `held:${draft.id}:${d.reasons.join("|")}`, d.reasons, draft.id);
     return { sent: false, reasons: d.reasons };
