@@ -15,6 +15,8 @@ import { Input } from "@/components/ui/input";
 const W = PHOTO_QUOTE_WORDS;
 const num = (v: string): number | null => (v.trim() === "" || !Number.isFinite(Number(v)) ? null : Number(v));
 
+import { sizeCheckParts } from "@/lib/photo-quote-size-check.core";
+
 export function PhotoQuoteForm({ jobId }: { jobId: string }) {
   const load = useServerFn(getPhotoQuoteMedia);
   const submit = useServerFn(tradeSubmitPhotoQuote);
@@ -64,6 +66,13 @@ export function PhotoQuoteForm({ jobId }: { jobId: string }) {
                 ? <video key={m.id} src={m.url} controls playsInline preload="metadata" className="aspect-square w-full rounded-md bg-black object-cover" />
                 : <a key={m.id} href={m.url} target="_blank" rel="noreferrer"><img src={m.url} alt={m.name} loading="lazy" className="aspect-square w-full rounded-md object-cover" /></a>)}
             </div>
+          )}
+          {media.data.sizeCheck && (
+            <p className="text-sm text-ink" data-size-check>
+              {sizeCheckParts(media.data.sizeCheck).map((p, i) => (
+                <span key={p.label}>{i > 0 && " · "}{p.href ? <a href={p.href} target="_blank" rel="noreferrer" className="underline">{p.text}</a> : p.text}</span>
+              ))}
+            </p>
           )}
           {media.data.ownerSaid.length > 0 && (
             <dl className="grid grid-cols-[auto,1fr] gap-x-3 gap-y-1 text-sm" data-owner-said>
