@@ -49,7 +49,28 @@ test("already asked shows the same confirmation from the page read", () => expec
 // Jo 7 Nov: reopening the estimate link after Proceed shows the same approved thank-you, from a read only.
 test("estimate link shows the thank-you once a firm quote is requested, without saving anything", () => {
   expect(campaign).toContain("firm.data?.available && firm.data.dueBy");
-  expect(campaign).toContain("{firmThanks ? <div");
-  expect(campaign).toContain("<FirmQuoteThanks firstName={firmThanks.firstName} dueBy={firmThanks.dueBy} />");
+  expect(campaign).toContain("<FirmQuoteThanks firstName={firmThanks.firstName} dueBy={firmThanks.dueBy} estimate=");
   expect(campaign).not.toContain("requestFirmQuoteFn");
 });
+
+// Jo 7 Nov (~9:50am, 3a): the estimate link after Proceed shows no Save my spot wording and shows the rebate amount,
+// using email 1's approved words only. The Proceed page itself stays exactly as approved (no box).
+import { preliminaryEstimateEmail } from "../src/lib/firm-quote-emails.core";
+import { firmEstimateBox } from "../src/lib/firm-quote-page-copy.core";
+test("estimate link thank-you shows the rebate with email 1's exact words and figures", () => {
+  const facts = { rebate: 1120, price: 3178, fullPrice: 4298, areaM2: 150 };
+  const email = preliminaryEstimateEmail({ firstName: "Alex", ...facts, removalRatePerM2: 15, proceedUrl: "https://x" }).plainText;
+  const box = firmEstimateBox(facts);
+  expect(box).toEqual({ rebateLabel: "Your estimated rebate", rebate: "You save $1,120", priceLabel: "Your estimated quote based on what you've told us", price: "$3,178", fullPrice: "incl. GST · full price $4,298", basis: "Based on what you told us: 150 m² ceiling." });
+  expect(email).toContain(box.rebateLabel.toUpperCase());
+  expect(email).toContain(box.rebate);
+  expect(email).toContain(`${box.priceLabel}: ${box.price} incl. GST (full price $4,298)`);
+  expect(email).toContain(box.basis);
+});
+test("estimate link thank-you passes the estimate figures; no Save my spot wording in the thank-you", () => {
+  expect(campaign).toContain("estimate={data?.pricing ? { rebate: data.pricing.discount, price: data.pricing.total, fullPrice: data.pricing.gross, areaM2: data.pricing.areaM2 } : null}");
+  expect(campaign).toContain("{firmThanks && !isLoading ? <div");
+  expect(thanks).toContain("{estimate && <FirmEstimateBox");
+  expect(thanks.toLowerCase()).not.toContain("spot");
+});
+test("Proceed page thank-you is unchanged (no rebate box)", () => expect(page).not.toContain("estimate="));

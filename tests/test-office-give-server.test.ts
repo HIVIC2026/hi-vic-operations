@@ -21,6 +21,7 @@ import { QUICK_TAPS_ANSWERED_EVENT } from "../src/lib/quick-taps.core";
 import * as photoQuote from "../src/lib/photo-quote.core";
 import * as photoNotice from "../src/lib/owner-photo-quote-notice.core";
 import * as sweepBatch from "../src/lib/sweep-batch.core";
+import * as firmQuote from "../src/lib/firm-quote.core";
 
 const load = (file: string, deps: Record<string, unknown>) => {
   const api: any = {};
@@ -83,7 +84,9 @@ function fixture() {
     "./owner-said.core": { ownerSaidRows: () => [] },
     "./installer-paid-electricians.server": { inHouseFactsFor: async () => ({ approvedElectricianWorkers: 1, hasActiveRateCardWithPiesa: true, mittiElectricianLogins: 1, mittiAccountInvited: true }) },
     "./in-house.core": inHouse, "./display-name.core": displayName,
-    "./sweep-batch.core": sweepBatch, "./photo-quote.core": photoQuote,
+    "./sweep-batch.core": sweepBatch, "./photo-quote.core": photoQuote, "./firm-quote.core": firmQuote,
+    // Switch NULL and no firm-quote request in this fixture: no job takes the firm-quote path.
+    "./firm-quote.server": { firmQuoteJobIdsFrom: async () => new Set<string>() },
     // Detached like production's runAfterResponse; the sender is the real one, so any real send would still hit a spy.
     "./background.server": { runAfterResponse: (task: () => Promise<unknown>) => { void task().catch(() => undefined); return "dev_detached"; } },
   });
