@@ -1,6 +1,7 @@
 import { beforeEach, expect, mock, test } from "bun:test";
 const token = "a".repeat(43);
 let live: string | null;
+let source: string;
 let stage: string;
 let opted: boolean;
 let quoted: boolean;
@@ -18,7 +19,7 @@ mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: {
       then: (resolve: (v: unknown) => unknown) => Promise.resolve({ error: null, data:
         table === "workflow_settings" ? { firm_quote_flow_live_at: live } :
         table === "documents" ? [{ kind: "intake_media", mime_type: "image/jpeg", storage_path: "job/photo.jpg" }] :
-        table === "jobs" ? { id: "job", source: "base44", created_at: "2026-11-06T06:00:00Z", stage, owners: { full_name: "Alex Example" } } :
+        table === "jobs" ? { id: "job", source, created_at: "2026-11-06T06:00:00Z", stage, owners: { full_name: "Alex Example" } } :
         table === "customer_estimate_links" ? (validToken && (!tokenFilter || tokenFilter === token) ? { id: "link", job_id: "job", status: "active", expires_at: "9999-12-31" } : null) : null }).then(resolve) };
     return q;
   },
@@ -37,7 +38,7 @@ mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: {
 mock.module("../src/lib/sms.server", () => ({ sendRealSms: () => { sends++; throw new Error("forbidden"); } }));
 mock.module("../src/lib/spot-saved-send.server", () => ({ sendSpotSavedConfirmation: () => { sends++; throw new Error("forbidden"); } }));
 const { requestFirmQuote, requestFirmQuoteToken, firmQuoteRequestPage } = await import("../src/lib/firm-quote.server");
-beforeEach(() => { live = "2026-11-06T06:00:00Z"; stage = "new_enquiry"; opted = quoted = rpcError = false; validToken = true; saved = null; events = []; queue = []; sends = rpcCalls = 0; });
+beforeEach(() => { live = "2026-11-06T06:00:00Z"; source = "base44"; stage = "new_enquiry"; opted = quoted = rpcError = false; validToken = true; saved = null; events = []; queue = []; sends = rpcCalls = 0; });
 test("first tap records one request with seven-business-day due date and nothing queued", async () => {
   expect(await requestFirmQuote("job", "link", "2026-11-06T06:00:00Z")).toEqual({ ok: true, dueBy: "2026-11-17", already: false });
   expect(events).toEqual([{ event_type: "firm_quote_requested", details: { due_by: "2026-11-17", firm_quote: true } }]); expect(queue).toHaveLength(0);
@@ -59,5 +60,14 @@ test("null switch records nothing, including no RPC", async () => { live = null;
 test("no owner message is sent on tap", async () => { await requestFirmQuoteToken(token, false); expect(sends).toBe(0); });
 test("invalid or revoked token cannot request another job", async () => { validToken = false; expect((await requestFirmQuoteToken(token, false)).ok).toBe(false); expect(rpcCalls).toBe(0); expect((await requestFirmQuoteToken("bad", false)).ok).toBe(false); });
 test("preview cannot write real website jobs", async () => { expect((await requestFirmQuoteToken(token, true)).ok).toBe(false); expect(rpcCalls).toBe(0); });
+test("preview qa_test request saves once and replays without messages", async () => {
+  source = "qa_test";
+  expect(await firmQuoteRequestPage(token)).toEqual({ available: true, firstName: "Alex" });
+  const first = await requestFirmQuoteToken(token, true);
+  expect(first.ok).toBe(true);
+  expect(first.ok && first.already).toBe(false);
+  expect(await requestFirmQuoteToken(token, true)).toEqual({ ...first, already: true });
+  expect(events).toHaveLength(1); expect(queue).toHaveLength(0); expect(sends).toBe(0);
+});
 test("reading the page does not request, enqueue or send", async () => { expect(await firmQuoteRequestPage(token)).toEqual({ available: true, firstName: "Alex" }); expect(rpcCalls).toBe(0); expect(queue).toHaveLength(0); expect(sends).toBe(0); });
 test("missing atomic writer fails closed without separate fallback writes", async () => { rpcError = true; await expect(requestFirmQuote("job", "link")).rejects.toThrow("couldn't save"); expect(events).toHaveLength(0); expect(queue).toHaveLength(0); });

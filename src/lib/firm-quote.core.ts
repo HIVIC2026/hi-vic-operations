@@ -17,7 +17,7 @@ export function firmQuoteRequestDueBy(events: readonly { event_type: string; det
 export const firmQuoteRequestTag = (date: string | null | undefined): string | null => date ? `Asked for firm quote · due ${formatDueDate(date)}` : null;
 
 export function isFirmQuoteJob(i: { createdAt: string; hasMedia: boolean; liveAt: string | null; source: string | null }): boolean {
-  if (i.source !== "base44" || !i.hasMedia || i.liveAt === null) return false;
+  if ((i.source !== "base44" && i.source !== "qa_test") || !i.hasMedia || i.liveAt === null) return false;
   const created = Date.parse(i.createdAt), live = Date.parse(i.liveAt);
   return Number.isFinite(created) && Number.isFinite(live) && created >= live;
 }

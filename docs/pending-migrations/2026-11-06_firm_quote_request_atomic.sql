@@ -11,7 +11,7 @@ BEGIN
     RETURN jsonb_build_object('ok',false,'reason','closed');
   END IF;
   SELECT firm_quote_flow_live_at INTO live_at FROM public.workflow_settings LIMIT 1;
-  IF live_at IS NULL OR j.source IS DISTINCT FROM 'base44' OR j.created_at < live_at THEN
+  IF live_at IS NULL OR (j.source IS DISTINCT FROM 'base44' AND j.source IS DISTINCT FROM 'qa_test') OR j.created_at < live_at THEN
     RETURN jsonb_build_object('ok',false,'reason','not_firm_quote');
   END IF;
   IF NOT EXISTS (SELECT 1 FROM public.documents WHERE job_id=p_job AND kind='intake_media'

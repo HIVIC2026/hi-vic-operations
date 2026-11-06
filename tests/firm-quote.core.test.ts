@@ -10,10 +10,15 @@ test("null go-live keeps the existing flow", () => expect(isFirmQuoteJob({ ...we
 test("pre-live website enquiries keep the existing flow", () => expect(isFirmQuoteJob({ ...website, createdAt: "2026-11-06T05:59:59Z" })).toBe(false));
 test("media is required", () => expect(isFirmQuoteJob({ ...website, hasMedia: false })).toBe(false));
 test("installer-added enquiries are excluded", () => expect(isFirmQuoteJob({ ...website, source: "installer_portal" })).toBe(false));
-test("unknown and TEST sources are excluded", () => {
+test("unknown sources are excluded", () => {
   expect(isFirmQuoteJob({ ...website, source: null })).toBe(false);
-  expect(isFirmQuoteJob({ ...website, source: "qa_test" })).toBe(false);
+  expect(isFirmQuoteJob({ ...website, source: "unknown" })).toBe(false);
 });
+test("qa_test enquiries at go-live with media qualify", () => expect(isFirmQuoteJob({ ...website, source: "qa_test" })).toBe(true));
+test("qa_test enquiries after go-live with media qualify", () => expect(isFirmQuoteJob({ ...website, source: "qa_test", createdAt: "2026-11-07T06:00:00Z" })).toBe(true));
+test("qa_test enquiries stay legacy with the switch off", () => expect(isFirmQuoteJob({ ...website, source: "qa_test", liveAt: null })).toBe(false));
+test("qa_test enquiries before go-live stay legacy", () => expect(isFirmQuoteJob({ ...website, source: "qa_test", createdAt: "2026-11-06T05:59:59Z" })).toBe(false));
+test("qa_test enquiries without media stay legacy", () => expect(isFirmQuoteJob({ ...website, source: "qa_test", hasMedia: false })).toBe(false));
 test("website enquiries at or after go-live with media qualify", () => {
   expect(isFirmQuoteJob(website)).toBe(true);
   expect(isFirmQuoteJob({ ...website, createdAt: "2026-11-07T06:00:00Z" })).toBe(true);

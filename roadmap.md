@@ -1,3 +1,7 @@
+## Jo 6 Nov firm quote — two pre-live fixes only
+- [x] Allow qa_test through the shared firm-quote core/server and pending atomic SQL under unchanged live-at/media rules; original source preserved for existing TEST inbox routing. New core/server/preview-request tests reproduced the refusal before the fix and pass afterwards.
+- [x] Office concurrency fake supports .in() and its subsequent .eq() chain; assertions unchanged. All 15 firm-quote files: 160 passed; concurrency + mocked TEST inbox: 7 passed; 167 total, 0 failed. Scan clear, preview build OK. No SQL executed (including practice), actual sends, switches or publication; Tasks 1–11 and size-check removal retained. Hosted end-to-end remains unrun while request SQL is pending. Stopped.
+
 ## Jo 6 Nov firm quote — Task 11 only
 - [x] New category/list tests failed before implementation; With photos, saved-request due tags and exclusive counts implemented. Older enquiries and normal exit scope retained.
 - [x] Each changed test file passes; all 15 firm-quote files pass (150 checks), affected enquiry/access files 27 checks pass. Unchanged legacy office-enquiry-page concurrency test fails on its missing mock .in method. Scan clear, preview build OK; Tasks 1–7, 9–10 and size-check removal unchanged. No SQL, sends, switches or publication; stop and report commit. Details: docs/firm-quote-task11-report.md.

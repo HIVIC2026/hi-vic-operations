@@ -18,6 +18,10 @@ test("missing PostgreSQL column reads as off", async () => { failure = { code: "
 test("missing schema-cache column reads as off", async () => { failure = { code: "PGRST204", message: "Could not find the 'firm_quote_flow_live_at' column of 'workflow_settings' in the schema cache" }; expect(await firmQuoteLiveAt()).toBeNull(); });
 test("other read errors never masquerade as a missing column", async () => { failure = { code: "42501", message: "permission denied" }; await expect(firmQuoteLiveAt()).rejects.toThrow(); });
 test("live timestamp and imported owner image qualify", async () => { liveAt = "2026-11-06T06:00:00Z"; expect(await firmQuoteLiveAt()).toBe(liveAt); expect(await isFirmQuoteJobId("job")).toBe(true); });
+test("qa_test job at go-live with owner media qualifies through the server check", async () => { liveAt = job.created_at; job.source = "qa_test"; expect(await isFirmQuoteJobId("job")).toBe(true); expect(reads).toContain("documents"); });
+test("qa_test job stays legacy with switch off and skips media reads", async () => { job.source = "qa_test"; expect(await isFirmQuoteJobId("job")).toBe(false); expect(reads).not.toContain("documents"); });
+test("qa_test job before go-live stays legacy and skips media reads", async () => { liveAt = "2026-11-06T06:00:01Z"; job.source = "qa_test"; expect(await isFirmQuoteJobId("job")).toBe(false); expect(reads).not.toContain("documents"); });
+test("qa_test job without owner media stays legacy", async () => { liveAt = job.created_at; job.source = "qa_test"; docs = []; expect(await isFirmQuoteJobId("job")).toBe(false); });
 test("pre-live job remains legacy", async () => { liveAt = "2026-11-06T06:00:01Z"; expect(await isFirmQuoteJobId("job")).toBe(false); });
 test("installer-source remains legacy", async () => { liveAt = "2026-11-06T06:00:00Z"; job.source = "installer_portal"; expect(await isFirmQuoteJobId("job")).toBe(false); });
 test("no media remains legacy", async () => { liveAt = "2026-11-06T06:00:00Z"; docs = []; expect(await isFirmQuoteJobId("job")).toBe(false); });

@@ -21,10 +21,13 @@ export async function isFirmQuoteJobId(jobId: string): Promise<boolean> {
   if (liveAt === null) return false;
   const { data: job, error } = await admin.from("jobs").select("source,created_at").eq("id", jobId).maybeSingle();
   if (error) throw new Error("Could not verify firm-quote job facts.");
-  if (!job || !isFirmQuoteJob({ source: job.source, createdAt: job.created_at, liveAt, hasMedia: true })) return false;
+  if (!job) return false;
+  // Website and TEST jobs share the same activation/media rules; retain source for guarded TEST-inbox delivery.
+  const facts = { source: job.source, createdAt: job.created_at, liveAt };
+  if (!isFirmQuoteJob({ ...facts, hasMedia: true })) return false;
   const docs = await admin.from("documents").select("kind,mime_type,storage_path").eq("job_id", jobId).eq("kind", "intake_media");
   if (docs.error) throw new Error("Could not verify owner media for firm quote.");
-  return isFirmQuoteJob({ source: job.source, createdAt: job.created_at, liveAt, hasMedia: hasOwnerMedia(docs.data ?? []) });
+  return isFirmQuoteJob({ ...facts, hasMedia: hasOwnerMedia(docs.data ?? []) });
 }
 
 /** Shared fail-closed exclusion for spot messages; null preserves the existing delivery path. */
