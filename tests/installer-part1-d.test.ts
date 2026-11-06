@@ -85,7 +85,7 @@ describe("Jo 29 Oct: old crews pick again", () => {
   });
 });
 describe("D5 Lead + 2, Lead from the Team list", () => {
-  const s = (id: string) => ({ workerId: id, name: id, eec: `CII-${id}`, eecVerified: true });
+  const s = (id: string) => ({ workerId: id, name: id, eec: `CII-${id}`, eecVerified: true, escRegistered: true });
   const staff = ["a", "b", "c", "d"].map(s);
   test("Lead and 2 more, no more", () => {
     expect(crewSelectionProblems({ lead: "a", additional: [{ workerId: "b" }, { workerId: "c" }] }, staff).problems).toEqual([]);

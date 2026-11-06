@@ -92,7 +92,7 @@ describe("prefill never answers safety or day-of facts", () => {
 });
 
 describe("crew", () => {
-  const staff = [{ workerId: "w1", name: "Ann", eec: "E1", eecVerified: true }, { workerId: "w2", name: "Bob", eec: "E2", eecVerified: true }, { workerId: "w3", name: "Cat", eec: null, eecVerified: false }];
+  const staff = [{ workerId: "w1", name: "Ann", eec: "E1", eecVerified: true, escRegistered: true }, { workerId: "w2", name: "Bob", eec: "E2", eecVerified: true, escRegistered: true }, { workerId: "w3", name: "Cat", eec: null, eecVerified: false }];
   test("verified lead; duplicates rejected; Other needs verification", () => {
     expect(crewSelectionProblems({ lead: "w1", additional: [{ workerId: "w2" }] }, staff).problems).toEqual([]);
     expect(crewSelectionProblems({ lead: "w1", additional: [{ workerId: "w1" }] }, staff).problems[0]).toMatch(/twice/);

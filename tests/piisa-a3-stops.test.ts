@@ -71,7 +71,7 @@ describe("one start date -> both official dates; completion same day, editable",
 
 describe("two companies: crew strictly scoped, nothing leaks through the shared form", () => {
   // Stored as Lead (Jo 5 Nov 2026: no stored role = Crew), so the Lead tests reach the certificate checks.
-  const W = (id: string, biz: string, name: string, cert: string, approved = "approved") => ({ id, full_legal_name: name, certification: { verification_id: cert }, approval_status: approved, removed_at: null, trade_role: "installer", worker_role: "lead", licence_expires_on: null, business_id: biz });
+  const W = (id: string, biz: string, name: string, cert: string, approved = "approved") => ({ id, full_legal_name: name, certification: { verification_id: cert }, approval_status: approved, removed_at: null, trade_role: "installer", worker_role: "lead", esc_registered: true, licence_expires_on: null, business_id: biz });
   const C = (id: string, worker: string, num: string) => ({ id, status: "verified", certificate_number: num, issuer: "EEC", worker_id: worker });
   const rowsA = [W("a1", "A", "Alice A", "00000000-0000-4000-8000-0000000000a1")], rowsB = [W("b1", "B", "Bob B", "00000000-0000-4000-8000-0000000000b1", "pending")];
   const certs = [C("00000000-0000-4000-8000-0000000000a1", "a1", "EEC-A1"), C("00000000-0000-4000-8000-0000000000b1", "b1", "EEC-B1")];

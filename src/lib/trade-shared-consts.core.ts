@@ -6,6 +6,10 @@
 /** esc-collection-notice.core.ts: plain message shown wherever an unacknowledged person is refused as lead or crew. */
 export const COLLECTION_NOTICE_BLOCK_MESSAGE = "ESC privacy collection notice not acknowledged — this person can't be listed as lead or crew until they open their link and acknowledge it.";
 
+/** in-house-booking.core.ts (re-exported there): a Lead Installer not yet registered with ESC. Also the crew picker's
+ *  refusal (piisa-crew.core, launch blocker Task 9). */
+export const registrationWaitingReason = (name: string) => `Waiting for Home Insulation Victoria to register ${name} with ESC. Every Lead Installer must be registered with ESC before we can lodge the install notice.`;
+
 /** mitti-invite.core.ts (also worker-role.core.ts as CREW_NO_MITTI). */
 export const CREW_SKIP = "Crew aren't invited automatically — the office adds them to Mitti by hand.";
 

@@ -15,7 +15,7 @@ describe("crew is never the install Lead", () => {
     expect(allocationBlocker("install", { ...cleared, workerRole: null }, today)).toBeNull();
   });
   test("picker", () => {
-    const s = (id: string, name: string, workerRole: "lead" | "crew") => ({ workerId: id, name, eec: `CII-${id}`, eecVerified: true, workerRole });
+    const s = (id: string, name: string, workerRole: "lead" | "crew") => ({ workerId: id, name, eec: `CII-${id}`, eecVerified: true, escRegistered: true, workerRole });
     const staff = [s("a", "Ann Crew", "crew"), s("b", "Bob Lead", "lead")];
     expect(crewSelectionProblems({ lead: "a", additional: [] }, staff).problems).toEqual([`Ann Crew ${CREW_NOT_LEAD_MESSAGE}`]);
     expect(crewSelectionProblems({ lead: "b", additional: [{ workerId: "a" }] }, staff).problems).toEqual([]);

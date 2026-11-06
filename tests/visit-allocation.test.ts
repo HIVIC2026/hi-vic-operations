@@ -132,12 +132,12 @@ mock.module("../src/lib/workflow.server", () => ({
   logEvent: async (jobId: string, actorId: string | null, type: string, summary: string, details: Record<string, unknown>) => { await db.query(`INSERT INTO workflow_events (job_id, actor_id, event_type, summary, details) VALUES ($1,$2,$3,$4,$5)`, [jobId, actorId, type, summary, JSON.stringify(details)]); },
 }));
 const crewList = () => [
-  { workerId: W_DEEP, name: "Bhavdeep Singh", eec: "CII-1", eecVerified: true, cleared: true, clearanceReason: null, level: "full", expiresOn: "2027-06-30" },
+  { workerId: W_DEEP, name: "Bhavdeep Singh", eec: "CII-1", eecVerified: true, cleared: true, clearanceReason: null, level: "full", expiresOn: "2027-06-30", escRegistered: true },
   { workerId: W_MAN, name: "Manminder Singh", eec: null, eecVerified: false, cleared: false, clearanceReason: CREW_CLEARANCE_REASON.unverified, level: null, expiresOn: null },
-  { workerId: W_NOMITTI, name: "New Person", eec: "CII-9", eecVerified: true, cleared: true, clearanceReason: null, level: "full", expiresOn: "2027-06-30" },
+  { workerId: W_NOMITTI, name: "New Person", eec: "CII-9", eecVerified: true, cleared: true, clearanceReason: null, level: "full", expiresOn: "2027-06-30", escRegistered: true },
   { workerId: W_CREW, name: "Cara Crew", eec: "CII-4", eecVerified: true, cleared: true, clearanceReason: null, level: "full", expiresOn: "2027-06-30", workerRole: "crew" },
   { workerId: W_CREW_NOMITTI, name: "Cory Crew", eec: "CII-5", eecVerified: true, cleared: true, clearanceReason: null, level: "full", expiresOn: "2027-06-30", workerRole: "crew" },
-  { workerId: W_LEAD_BIZ, name: "Lena Lead", eec: "CII-6", eecVerified: true, cleared: true, clearanceReason: null, level: "full", expiresOn: "2027-06-30", workerRole: "lead" },
+  { workerId: W_LEAD_BIZ, name: "Lena Lead", eec: "CII-6", eecVerified: true, cleared: true, clearanceReason: null, level: "full", expiresOn: "2027-06-30", escRegistered: true, workerRole: "lead" },
 ];
 mock.module("../src/lib/piisa-a3.server", () => ({
   crewStaff: async () => crewList(),

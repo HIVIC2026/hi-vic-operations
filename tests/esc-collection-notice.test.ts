@@ -83,7 +83,7 @@ describe("enforcement (decision 130): no lead or crew without acknowledgement", 
   });
   test("PIISA crew: lead and additional refused until acknowledged", () => {
     const cert = { id: "11111111-1111-4111-8111-111111111111", status: "verified", certificate_number: "C1", issuer: "EEC" };
-    const row = (id: string, name: string) => ({ id, full_legal_name: name, approval_status: "approved", removed_at: null, trade_role: "installer", worker_role: "lead", certification: { verification_id: cert.id } });
+    const row = (id: string, name: string) => ({ id, full_legal_name: name, approval_status: "approved", removed_at: null, trade_role: "installer", worker_role: "lead", esc_registered: true, certification: { verification_id: cert.id } });
     // Decision 153: both are cleared (verified + recorded level + current expiry) so only the notice stands in the way.
     const lv = { certification_id: cert.id, level: "full", expires_on: "2028-01-01", recorded_at: "2026-10-01T00:00:00Z" };
     const staff = staffFromRecords([row("w1", "Lead One"), row("w2", "Crew Two")] as never, [cert] as never, [lv], new Map([["w1", false], ["w2", true]]), "2026-10-24");

@@ -19,7 +19,7 @@ test('stale White Card Needs me inputs never raise a chase',()=>{
  expect(rows).toEqual([]);
 });
 test('stale crew White Card blockers no longer block Lead or Crew',()=>{
- const worker=(id:string)=>({workerId:id,name:id,eec:'CII-'+id,eecVerified:true,cleared:true,whiteCardBlocked:true});
+ const worker=(id:string)=>({workerId:id,name:id,eec:'CII-'+id,eecVerified:true,cleared:true,escRegistered:true,whiteCardBlocked:true});
  expect(crewSelectionProblems({lead:'lead',additional:[{workerId:'crew'}]},[worker('lead'),worker('crew')]).problems).toEqual([]);
 });
 test('historical White Card-only failed prestart no longer locks installation',()=>{

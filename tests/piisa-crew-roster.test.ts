@@ -1,9 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import { a3MissingFields, a3Signature, crewPrefill, crewSelectionProblems, signatureAttachment, staffFromRecords, A3_NATIVE_IDS, A3_ALIASES } from "../src/lib/piisa-a3.core";
+import { registrationWaitingReason } from "../src/lib/in-house-booking.core";
 
 // Shapes copied from the real records (8 Oct): verification_id links partner_workers -> partner_worker_certifications.
 // Stored as Lead (Jo 5 Nov 2026: no stored role = Crew), so the Lead tests reach the certificate checks.
-const W = (id: string, name: string, ref: unknown, approval = "pending") => ({ id, full_legal_name: name, approval_status: approval, removed_at: null, trade_role: "installer", worker_role: "lead", licence_expires_on: null, certification: { declared: { certificate_number: "DECLARED-ONLY" }, verification_id: ref } });
+const W = (id: string, name: string, ref: unknown, approval = "pending") => ({ id, full_legal_name: name, approval_status: approval, removed_at: null, trade_role: "installer", worker_role: "lead", esc_registered: true as boolean | undefined, licence_expires_on: null, certification: { declared: { certificate_number: "DECLARED-ONLY" }, verification_id: ref } });
 const BH = "db4727ae-f390-4136-9c22-3242a806cc0b", BHC = "f334286a-9492-4c21-8508-aad48dfe4a77";
 const certs = [{ id: BHC, status: "verified", certificate_number: "CII-027", issuer: "EEC", worker_id: null }];
 const T = "2026-10-24";
@@ -32,6 +33,21 @@ describe("certified crew roster from recorded facts", () => {
     const sel = { lead: BH, additional: [] };
     expect(crewSelectionProblems(sel, staff).problems).toEqual([]);
     expect(crewPrefill(sel, staff)).toContainEqual({ itemId: "p2.leadEec", row: 0, value: "CII-027" });
+  });
+  test("lead not ESC registered is refused", () => {
+    // Launch blocker Task 9 (QA 7 Nov 2026): the crew picker refuses a Lead the office hasn't registered with ESC, with
+    // the in-house booking's own words (in-house-booking.core registrationWaitingReason).
+    const notRegistered = staffFromRecords([{ ...W(BH, "Bhavdeep singh", BHC), esc_registered: false }], certs, full, undefined, T);
+    expect(notRegistered[0]).toMatchObject({ cleared: true, escRegistered: false });
+    expect(crewSelectionProblems({ lead: BH, additional: [] }, notRegistered).problems).toEqual([registrationWaitingReason("Bhavdeep singh")]);
+    const unknown = staffFromRecords([{ ...W(BH, "Bhavdeep singh", BHC), esc_registered: undefined }], certs, full, undefined, T);
+    expect(crewSelectionProblems({ lead: BH, additional: [] }, unknown).problems).toEqual([registrationWaitingReason("Bhavdeep singh")]); // not known = refused
+    const registered = staffFromRecords([W(BH, "Bhavdeep singh", BHC)], certs, full, undefined, T);
+    expect(registered[0]).toMatchObject({ escRegistered: true });
+    expect(crewSelectionProblems({ lead: BH, additional: [] }, registered).problems).toEqual([]);
+    // Crew members (not the Lead) don't need ESC registration.
+    const crew = staffFromRecords([W(BH, "Bhavdeep singh", BHC), { ...W("9be6fd7f-fdc8-4a94-b7c1-3ca0dbbb3dd5", "Crew Person", BHC), worker_role: "crew", esc_registered: false }], [{ ...certs[0]! }], full, undefined, T);
+    expect(crewSelectionProblems({ lead: BH, additional: [{ workerId: "9be6fd7f-fdc8-4a94-b7c1-3ca0dbbb3dd5" }] }, crew).problems.join()).not.toContain("register");
   });
   test("Other needs name + cert, and cannot duplicate a known staff member or another row", () => {
     const staff = staffFromRecords([W(BH, "Bhavdeep singh", BHC, "approved")], certs, full, undefined, T);

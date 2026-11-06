@@ -26,7 +26,7 @@ describe("people added on Team are not held back from jobs", () => {
     expect(allocationBlocker("install", { ...cleared, clearance: { certStatus: null, level: null, expiresOn: null } }, today)).not.toBeNull();
   });
   test("picker never refuses on a stale declarations flag", () => {
-    const s = (id: string, name: string) => ({ workerId: id, name, eec: "E1", eecVerified: true, cleared: true, workerRole: "lead" as const, declarationsDue: true }) as never;
+    const s = (id: string, name: string) => ({ workerId: id, name, eec: "E1", eecVerified: true, cleared: true, workerRole: "lead" as const, escRegistered: true, declarationsDue: true }) as never;
     const staff = [s("a", "Ann Lead"), s("b", "Bob Ok")];
     expect(crewSelectionProblems({ lead: "a", additional: [] }, staff).problems).toEqual([]);
     expect(crewSelectionProblems({ lead: "b", additional: [{ workerId: "a" }] }, staff).problems).toEqual([]);

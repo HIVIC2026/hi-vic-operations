@@ -523,7 +523,7 @@ export function readyCheckPart6Answers(areas: RcArea[], extra: Part6Extra = NO_E
 }
 
 // ---------- crew ----------
-type WorkerRow = { id: string; full_legal_name: string; approval_status: string | null; removed_at: string | null; trade_role: string | null; worker_role?: string | null; licence_expires_on?: string | null; certification: unknown };
+type WorkerRow = { id: string; full_legal_name: string; approval_status: string | null; removed_at: string | null; trade_role: string | null; worker_role?: string | null; licence_expires_on?: string | null; certification: unknown; esc_registered?: boolean | null };
 type CertRow = { id: string; status: string | null; certificate_number: string | null; issuer: string | null; worker_id?: string | null };
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const certificationRef = (c: unknown): string | null => { const v = (c as { verification_id?: unknown } | null)?.verification_id; return typeof v === "string" && UUID.test(v) ? v : null; };
@@ -547,7 +547,7 @@ export function staffFromRecords(workers: WorkerRow[], certs: CertRow[], levels:
     if (expiryWarning) { cl.cleared = false; cl.reason = expiryWarning; }
     const wc = whiteCardState({ trade_role: w.trade_role, certification: w.certification });
     return { workerId: w.id, name: w.full_legal_name.trim(), workerRole: effectiveWorkerRole({ tradeRole: w.trade_role ?? "", stored: w.worker_role }), eec: ok ? c!.certificate_number!.trim() : null, eecVerified: ok, approved: w.approval_status === "approved", cleared: cl.cleared, clearanceReason: cl.reason, issuer: ok ? c!.issuer?.trim() || null : null, certificationId: ok ? c!.id : null, level, expiresOn, ...(noticeAck ? { noticeAcknowledged: noticeAck.get(w.id) === true } : {}),
-      whiteCard: wc, ...(whiteCardFor ? { whiteCardBlocked: whiteCardBlocker(wc, whiteCardFor.bookingCreatedAt) !== null } : {}) };
+      whiteCard: wc, escRegistered: w.esc_registered === true, ...(whiteCardFor ? { whiteCardBlocked: whiteCardBlocker(wc, whiteCardFor.bookingCreatedAt) !== null } : {}) };
   }).sort((a, b) => a.name.localeCompare(b.name));
 }
 /** Crew -> official Part 2 prefill (lead + additional rows, with their verified certification numbers). */

@@ -1,7 +1,7 @@
 // The crew rules the installer crew picker needs, split out of piisa-a3.core.ts (speed: installer screens towards 1 second)
 // so the trade screens do not download mitti.core, install-day.core, official forms or the email code with them.
 // Code moved unchanged; piisa-a3.core re-exports every name, so other importers are unchanged.
-import { COLLECTION_NOTICE_BLOCK_MESSAGE, norm } from "./trade-shared-consts.core";
+import { COLLECTION_NOTICE_BLOCK_MESSAGE, norm, registrationWaitingReason } from "./trade-shared-consts.core";
 import { type WhiteCardState } from "./worker-compliance.core";
 import type { WorkerRole } from "./worker-role.core";
 
@@ -21,6 +21,9 @@ export type StaffOption = {
   noticeAcknowledged?: boolean;
   /** Decision 319: this person's White Card state (office-verified once). */
   whiteCard?: WhiteCardState;
+  /** Launch blocker Task 9: the office has registered this person with ESC (partner_workers.esc_registered, 0184). Only
+   *  `true` lets them be the Lead; false or not known refuses (the in-house booking's rule and words). */
+  escRegistered?: boolean;
   /** Decision 319: true = White Card not verified and this installation was booked on/after the cutoff → can't be lead or crew. Undefined = rule not applied (older callers). */
   whiteCardBlocked?: boolean;
 };
@@ -55,6 +58,7 @@ export function crewSelectionProblems(sel: CrewSelection, staff: StaffOption[]):
   else if (lead.workerRole === "crew") p.push(`${lead.name} ${CREW_NOT_LEAD_MESSAGE}`);
   else if (notCleared(lead)) p.push(clearMsg(lead));
   else if (!lead.eecVerified || !lead.eec) p.push(`${lead.name}: EEC certification not verified`);
+  else if (lead.escRegistered !== true) p.push(registrationWaitingReason(lead.name));
   else if (lead.noticeAcknowledged === false) p.push(`${lead.name}: ${COLLECTION_NOTICE_BLOCK_MESSAGE}`);
   if (lead) { seenName.add(norm(lead.name)); if (lead.eec) seenEec.add(norm(lead.eec)); }
   if (sel.additional.length > 2) p.push("The install form has room for a Lead and 2 more");

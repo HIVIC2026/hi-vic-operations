@@ -24,7 +24,9 @@ export async function crewStaff(businessId: string, whiteCardFor?: { bookingCrea
   // levels both need only the certification ids — one round.
   const notice = await import("./esc-collection-notice.server");
   const acksP = early(notice.loadNoticeAcks([businessId]));
-  const { data, error } = await load(cols);
+  // Launch blocker Task 9: the office's ESC registration stamp (0184) — a column not live is simply not known (refused as Lead).
+  let { data, error } = await load(`${cols}, esc_registered`);
+  if (error && /esc_registered/i.test(error.message)) ({ data, error } = await load(cols));
   if (error) throw new Error(`Couldn't load your staff: ${error.message}`);
   // Decision 130: a person who has not acknowledged the ESC collection notice can't be lead or crew.
   const ids = [...new Set((data ?? []).map((w) => certificationRef(w.certification)).filter((x): x is string => !!x))];

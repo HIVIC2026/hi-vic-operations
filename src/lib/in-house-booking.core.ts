@@ -12,7 +12,9 @@ export function emptyBookingTeamBlocker(kind:string,workers:BookingWorker[]):str
 }
 export const LEAD_INSTALLER_BOOKING_REASON = 'Choose the Lead Installer to book. We need to name them on the ESC install notice at least 24 hours before the install.';
 export const NO_ELIGIBLE_LEAD_REASON = 'Add a Lead Installer to your Team to book the install. ESC needs us to name a registered Lead Installer on the install notice at least 24 hours before.';
-export const registrationWaitingReason=(name:string)=>`Waiting for Home Insulation Victoria to register ${name} with ESC. Every Lead Installer must be registered with ESC before we can lodge the install notice.`;
+// Launch blocker Task 9: the words live in trade-shared-consts.core (no imports) so the crew picker can reuse them.
+import { registrationWaitingReason } from './trade-shared-consts.core';
+export { registrationWaitingReason };
 export const LEAD_INSTALLER_NOTICE_WAIT = 'Waiting for Home Insulation Victoria to update the ESC notice for your new Lead Installer.';
 /** `reason` is the INSTALL-DAY reason from the Team reader (Lead rules); the Ready Check never reads it. */
 export type BookingWorker = { id:string; name:string; phone:string|null; tradeRole:string; workerRole?:string|null; cleared:boolean; reason:string|null; crewAllowed?:boolean; electricianVerified?:boolean; escRegistered?:boolean; escRegisteredAt?:string|null };
