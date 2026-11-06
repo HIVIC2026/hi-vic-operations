@@ -7,7 +7,9 @@ import { logEvent } from "./workflow.server";
 export async function emailInstallerQuoteAccepted(jobId: string, quoteId: string): Promise<string> {
   const { INSTALLER_ACCEPTED_EMAIL_APPROVED, renderInstallerAcceptedEmail } = await import("./installer-accepted-email.core");
   if (!INSTALLER_ACCEPTED_EMAIL_APPROVED) return "not approved";
-  const { count } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", "installer_accepted_email").contains("details", { quote_id: quoteId });
+  const { count, error: historyError } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", "installer_accepted_email").contains("details", { quote_id: quoteId });
+  // Fails closed: unknown history sends nothing (the next payment follow-up or Xero poll tries again).
+  if (historyError || count == null) return "skipped — could not check whether it was already sent";
   if (count) return "already sent";
   const [{ data: job }, { data: asg }] = await Promise.all([
     admin.from("jobs").select("job_number, source, channel, originating_installer_business_id, owners(full_name), properties(address_line, suburb)").eq("id", jobId).single(),
@@ -38,16 +40,29 @@ export async function emailInstallerQuoteAccepted(jobId: string, quoteId: string
   const { isTestPartner } = await import("./test-send.core");
   const test = job.source === "qa_test" || isTestPartner(asg.businesses as never);
   const mail = renderInstallerAcceptedEmail({ installerFirstName: prof.full_name?.split(/\s+/)[0] ?? null, ownerName: (job.owners as { full_name: string | null } | null)?.full_name ?? null, address, jobNumber: job.job_number, jobUrl: `${SET_PASSWORD_BASE}/field/${jobId}`, test });
+  // Launch fix (7 Nov): claim BEFORE sending (same once-only reservation as the install deposit office email). A card
+  // payment's two Stripe deliveries can run this at the same moment; the unique key lets only one of them send.
+  const key = `installer-accepted:v1:${quoteId}`;
+  const claim = await admin.from("customer_email_sends").insert({ job_id: jobId, purpose: "installer_quote_accepted", idempotency_key: key }).select("id").maybeSingle();
+  if (claim.error?.code === "23505") return "already sent";
+  if (claim.error || !claim.data) return "skipped — could not reserve the email";
+  const claimId = (claim.data as { id: string }).id;
   let status: string, detail: string;
   if (test) {
     const r = await (await import("./test-send.server")).sendTestEmail({ jobId, jobSource: job.source, partnerIsTest: true, label: `installer_accepted:${quoteId}`, actorId: null } as never, prof.email, mail.subject, mail.html, mail.text);
     status = r.status; detail = r.detail;
   } else {
     const r = await (await import("./office-email.server")).sendOfficeEmail({ actorId: null as unknown as string, recipient: "partner", to: prof.email, contactName: prof.full_name, subject: mail.subject, message: mail.text, label: "installer_quote_accepted", record: { businessId: asg.business_id }, html: mail.html, text: mail.text });
-    // Jo 30 Oct 2026: a "Pause all trade messages" hold is recorded by the sender but never claims this quote's email.
-    if (r.status === "blocked" && (await import("./trade-pause.core")).isTradePauseHold(r.detail)) return `held: ${r.detail}`;
+    // Jo 30 Oct 2026: a "Pause all trade messages" hold is recorded by the sender but never claims this quote's email:
+    // the reservation is released so it goes once the pause lifts.
+    if (r.status === "blocked" && (await import("./trade-pause.core")).isTradePauseHold(r.detail)) {
+      await admin.from("customer_email_sends").delete().eq("id", claimId).eq("status", "sending");
+      return `held: ${r.detail}`;
+    }
     status = r.status; detail = r.detail;
   }
+  await admin.from("customer_email_sends").update({ status: status === "sent" ? "sent" : status === "blocked" || status === "failed" && /didn't accept|refused this address or message/i.test(detail ?? "") ? "failed" : "delivered_unrecorded",
+    sent_at: status === "sent" ? new Date().toISOString() : null, error: status === "sent" ? null : detail }).eq("id", claimId);
   await logEvent(jobId, null, "installer_accepted_email", `Installer told the owner accepted (${status}: ${detail})`, { quote_id: quoteId, status, to: prof.email }, { internal: true });
   return status;
 }

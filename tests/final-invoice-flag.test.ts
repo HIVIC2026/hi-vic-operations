@@ -7,6 +7,7 @@ import ts from "typescript";
 import * as core from "../src/lib/owner-email-triggers.core";
 import * as finalCore from "../src/lib/final-invoice-email.core";
 import * as sweepCore from "../src/lib/sweep-batch.core";
+import * as claimCore from "../src/lib/mitti-create-claim.core";
 
 function load(path: string, deps: Record<string, unknown>) {
   const api: Record<string, any> = {};
@@ -17,15 +18,17 @@ function load(path: string, deps: Record<string, unknown>) {
 function triggers(flag: boolean) {
   const sent: string[] = []; const events: string[] = [];
   const row = (data: unknown) => ({ data, error: null, count: 0 });
-  const q = (data: unknown, list: unknown[] = []): any => { const o: any = {}; for (const m of ["select", "eq", "in", "is", "gte", "order", "limit", "contains"]) o[m] = () => o; o.maybeSingle = async () => row(data); o.then = (r: any) => Promise.resolve(row(list)).then(r); return o; };
+  const q = (data: unknown, list: unknown[] = []): any => { const o: any = {}; for (const m of ["select", "eq", "in", "is", "gte", "order", "limit", "contains", "update"]) o[m] = () => o; o.maybeSingle = async () => row(data); o.then = (r: any) => Promise.resolve(row(list)).then(r); return o; };
   const admin = { from: (t: string) => t === "jobs" ? q({ stage: "evidence_outstanding", deleted_at: null, qa_archived_at: null, installation_completed_at: "2026-11-11T05:00:00Z" }, [{ id: "j" }])
     : t === "invoices" ? q({ id: "inv1", quote_id: "q1", total_inc_gst: 2200, total_paid: 0, xero_invoice_id: "x1", xero_invoice_number: "INV-1", quotes: { veec_discount_inc_gst: 1850, quote_items: [] } })
-    : t === "workflow_events" ? q([]) : q(null) };
+    // The trigger event is written directly as the once-only claim (fix 7 Nov), not through logEvent.
+    : t === "workflow_events" ? Object.assign(q([]), { insert: async (r: { event_type: string }) => { events.push(r.event_type); return { error: null }; } }) : q(null) };
   const api = load("src/lib/owner-email-triggers.server.ts", {
     "@/integrations/supabase/client.server": { supabaseAdmin: admin },
     "./workflow.server": { logEvent: async (_j: string, _a: unknown, type: string) => { events.push(type); } },
     "./in-house-suppression.server": { inHouseDispatchSkip: async () => null },
     "./owner-email-triggers.core": core,
+    "./mitti-create-claim.core": claimCore,
     "./completion-emails.core": { ALL_DONE_V2_APPROVED: flag },
     "./final-invoice-email.core": finalCore,
     "./payments.server": { paymentLedger: async () => [], bankDetails: () => ({ accountName: "HIV", bsb: "1", account: "2", payId: null }) },

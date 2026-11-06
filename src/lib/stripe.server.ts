@@ -78,8 +78,9 @@ export async function handleStripeWebhook(rawBody: string, signatureHeader: stri
     const outcome = ev.refund ? await recordStripeRefund(ev.refund) : await recordStripePayment(ev.fact!);
     return RETRYABLE_OUTCOMES.has(outcome) ? { status: 500, outcome: `retry:${outcome}` } : { status: 200, outcome };
   } catch (e) {
+    // The detail (it can be database error text) goes to the server log only, never into the outcome.
     console.error("stripe webhook will be retried", (e as Error).message);
-    return { status: 500, outcome: `retry:${(e as Error).message}` };
+    return { status: 500, outcome: "retry:error" };
   }
 }
 
@@ -120,8 +121,10 @@ export async function recordStripePayment(f: StripePaymentFact): Promise<string>
   const charge = f.chargeId ?? (f.paymentIntentId ? await stripeChargeFor(f.paymentIntentId, f.livemode) : null);
   const outcome = await insertLedgerEvent(inv.job_id, null, PAYMENT_EVENT, `Card payment of $${(f.amountCents / 100).toFixed(2)} received (Stripe, ${f.step.replace("_", " ")})`,
     { invoice_id: inv.id, amount_cents: f.amountCents, source: "card", paid_at: f.paidAt, step: f.step, note: `stripe:${key}`, stripe_event_id: f.eventId, stripe_payment_intent: f.paymentIntentId, stripe_session: f.sessionId, stripe_charge: charge, receipt_key: stripeReceiptKey(key) });
-  // Lost the race to a concurrent delivery of the same receipt: the row is recorded once; the follow-up is safe to repeat.
-  if (outcome === "duplicate") { await applyAfterStripeChange(inv); return "duplicate"; }
+  // Lost the race to a concurrent delivery of the same receipt: the row is recorded once and the winner is running the
+  // follow-up right now — running it again at the same moment would race its once-only emails. If the winner fails, its
+  // 500 makes Stripe retry it, and that retry finishes the follow-up through the fast path above.
+  if (outcome === "duplicate") return "duplicate";
   // Gates read invoices.total_paid; Stripe money is real money, so it counts now — until Xero shows the same money
   // (matched by the Stripe id in the Xero payment Reference; audit F01/R02), never twice.
   await flagUnclearPaymentMatches(inv.job_id, inv.id).catch((e) => console.error("payment match check skipped", (e as Error).message));

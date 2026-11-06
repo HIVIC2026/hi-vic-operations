@@ -6,7 +6,7 @@
 // customer_email_sends row, which send-failed.core.ts already turns into a Needs me row. Every function is best-effort:
 // it never throws, so the workflow action that called it is never broken by an email. Rules: owner-email-triggers.core.ts.
 import { supabaseAdmin as admin } from "@/integrations/supabase/client.server";
-import { logEvent } from "./workflow.server";
+import { stableUuid } from "./mitti-create-claim.core";
 import { inHouseDispatchSkip } from "./in-house-suppression.server";
 import {
   OWNER_EMAIL_LABEL, OWNER_EMAIL_TRIGGER_EVENT, OWNER_REVIEW_SCREEN_READY, REVIEW_REQUEST_AFTER_DAYS, REVIEW_REQUEST_LAST_DAY, directMoveFrom, installDayMove, ownerEmailKey, quoteReminderDue,
@@ -15,13 +15,19 @@ import {
 
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
-/** Once per key: record the event, then send. Never throws. */
+/** Once per key: record the event, then send. Never throws. Launch fix (7 Nov): the event IS the claim — its id comes
+ *  from the job + key, so when two runs overlap (a card payment's two Stripe deliveries) the database lets only one write
+ *  it (23505) and only that one sends. The read first still catches events written before this fix (random ids). */
 export async function fireOwnerEmailOnce(jobId: string, code: OwnerEmailCode, key: string, send: () => Promise<string>, details: Record<string, unknown> = {}): Promise<string> {
   try {
     const { count, error } = await admin.from("workflow_events").select("id", { count: "exact", head: true }).eq("job_id", jobId).eq("event_type", OWNER_EMAIL_TRIGGER_EVENT).contains("details", { key });
     if (error) return `skipped — ${error.message}`;
     if (count) return "already handled";
-    await logEvent(jobId, null, OWNER_EMAIL_TRIGGER_EVENT, `${code} ${OWNER_EMAIL_LABEL[code]} prepared for the owner`, { code, key, ...details }, { internal: true });
+    const claim = await admin.from("workflow_events").insert({ id: await stableUuid(`${OWNER_EMAIL_TRIGGER_EVENT}:${jobId}:${key}`), job_id: jobId, actor_id: null, event_type: OWNER_EMAIL_TRIGGER_EVENT,
+      summary: `${code} ${OWNER_EMAIL_LABEL[code]} prepared for the owner`, details: { code, key, ...details }, internal: true });
+    if (claim.error?.code === "23505") return "already handled";
+    if (claim.error) return `skipped — ${claim.error.message}`;
+    await admin.from("jobs").update({ last_activity_at: new Date().toISOString() }).eq("id", jobId); // as logEvent does
     return await send();
   } catch (e) {
     console.error(`owner email ${code} skipped`, jobId, errText(e));

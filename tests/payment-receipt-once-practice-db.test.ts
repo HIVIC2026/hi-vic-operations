@@ -170,20 +170,19 @@ describe("R06: concurrent Stripe callbacks through the real handler", () => {
     expect(await count("owner_payment_recorded")).toBe(1);
     const [row] = await rawPaymentLedger(JOB, INV);
     expect(row!.stripeIds).toContain("pi_3R06Race0001");
-    // Launch fix (7 Nov): the losing delivery also re-runs the follow-up (safe to repeat — it reads the reconciled
-    // total), so the invoice only ever gets the one $349; the downstream steps keep their own once-guards.
-    expect(new Set(calls.applyPaid)).toEqual(new Set([349]));
-    expect(calls.safetyPaid).toBeGreaterThanOrEqual(1);
-    expect(calls.advance).toBeGreaterThanOrEqual(1);
+    expect(calls.applyPaid).toEqual([349]);   // one accounting entry
+    expect(calls.safetyPaid).toBe(1);          // one downstream progression: the race loser leaves it to the winner
+    expect(calls.advance).toBe(1);
     expect(await reconciledInvoicePaidCents(JOB, INV, { totalPaid: 349 })).toBe(34_900);
-    // A later retry of either event is a duplicate: no new ledger row and no new money; the follow-up re-runs.
+    // Launch fix (7 Nov): a LATER retry of either event is a duplicate — no new ledger row, no new money — that re-runs
+    // the follow-up (so a delivery that failed after saving the receipt is finished by Stripe's retry).
     race.on = false;
-    const applied = calls.applyPaid.length, advanced = calls.advance;
     expect(await recordStripePayment(fact(intentEvent()))).toBe("duplicate");
     expect(await recordStripePayment(fact(checkoutEvent()))).toBe("duplicate");
     expect(await count("owner_payment_recorded")).toBe(1);
-    expect(calls.applyPaid.length).toBe(applied); // invoice already shows $349: nothing to apply
-    expect(calls.advance).toBe(advanced + 2);
+    expect(calls.applyPaid).toEqual([349]);   // invoice already shows $349: nothing to apply
+    expect(calls.safetyPaid).toBe(3);
+    expect(calls.advance).toBe(3);
     expect(await reconciledInvoicePaidCents(JOB, INV, { totalPaid: 349 })).toBe(34_900);
   });
   test("the same event delivered twice at once (Stripe retry overlap) also records once", async () => {
@@ -192,8 +191,9 @@ describe("R06: concurrent Stripe callbacks through the real handler", () => {
     const outcomes = await Promise.all([recordStripePayment(fact(intentEvent())), recordStripePayment(fact(intentEvent()))]);
     expect(outcomes.sort()).toEqual(["duplicate", "recorded"]);
     expect(await count("owner_payment_recorded")).toBe(1);
-    expect(new Set(calls.applyPaid)).toEqual(new Set([349]));
-    expect(calls.advance).toBeGreaterThanOrEqual(1);
+    expect(calls.applyPaid).toEqual([349]);
+    expect(calls.safetyPaid).toBe(1);
+    expect(calls.advance).toBe(1);
   });
   test("concurrent Xero syncs of one PaymentID record it once", async () => {
     await reset(true);

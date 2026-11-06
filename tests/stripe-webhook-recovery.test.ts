@@ -22,6 +22,7 @@ const invoice: Row = {};
 let invoiceRead: { data: unknown; error: unknown } | null = null;
 let refundLookup: { data: unknown; error: unknown } = { data: [], error: null };
 let failEffectsOnce = false;
+let loseInsertRace = false;
 
 mock.module("@/integrations/supabase/client.server", () => ({ supabaseAdmin: {
   from: (table: string) => {
@@ -46,7 +47,7 @@ mock.module("../src/lib/payments.server", () => ({
   PAYMENT_EVENT: "owner_payment_recorded", PAYMENT_REVERSED_EVENT: "owner_payment_reversed",
   rawPaymentLedger: async () => ledger.map((r) => ({ ...r })),
   insertLedgerEvent: async (_j: string, _a: unknown, eventType: string, _s: string, details: Row) => {
-    if (ledger.some((r) => r["receipt_key"] === details["receipt_key"])) return "duplicate";
+    if (loseInsertRace || ledger.some((r) => r["receipt_key"] === details["receipt_key"])) return "duplicate";
     ledger.push({ eventType, ...details }); return "recorded";
   },
   flagUnclearPaymentMatches: async () => 0,
@@ -67,7 +68,7 @@ const refundEvt = (id = "evt_ref_1") => JSON.stringify({ id, type: "charge.refun
 const deliver = (raw: string) => handleStripeWebhook(raw, sign(raw));
 
 beforeEach(() => {
-  ledger.length = 0; effects.length = 0; configLog.length = 0; failEffectsOnce = false; invoiceRead = null;
+  ledger.length = 0; effects.length = 0; configLog.length = 0; failEffectsOnce = false; loseInsertRace = false; invoiceRead = null;
   refundLookup = { data: [], error: null };
   Object.assign(invoice, { id: "inv-1", job_id: "job-1", kind: "installation", total_paid: 0, jobs: { source: "website", business_unit: "hivic" } });
 });
@@ -110,4 +111,25 @@ test("refund lookup error returns 500", async () => {
   const r = await deliver(refundEvt());
   expect(r.status).toBe(500);
   expect(ledger).toHaveLength(0);
+});
+
+// Fix round 1 (review of PR A): the database's error text never goes into the webhook outcome (the route can put an
+// outcome in the response body); the detail goes to the server log only.
+test("a database error is answered with a fixed retry outcome, never the raw error text", async () => {
+  invoiceRead = { data: null, error: { message: "relation \"invoices\" secret detail at 10.0.0.5" } };
+  const r = await deliver(payEvt());
+  expect(r).toEqual({ status: 500, outcome: "retry:error" });
+});
+
+// Fix round 1: losing the insert race to a concurrent delivery of the same receipt leaves the follow-up to the winner
+// (running it twice at once raced the once-only emails); a LATER duplicate (fast path) still finishes it.
+test("insert-race duplicate does not re-run the follow-up; a later fast-path duplicate does", async () => {
+  loseInsertRace = true;
+  const lost = await deliver(payEvt());
+  expect(lost).toEqual({ status: 200, outcome: "duplicate" });
+  expect(effects.filter((e) => e.startsWith("afterPaymentsChanged"))).toEqual([]);
+  loseInsertRace = false;
+  ledger.push({ eventType: "owner_payment_recorded", note: "stripe:pi_1", receipt_key: "stripe:pi_1" });
+  expect(await deliver(payEvt())).toEqual({ status: 200, outcome: "duplicate" });
+  expect(effects.filter((e) => e.startsWith("afterPaymentsChanged"))).toEqual(["afterPaymentsChanged:job-1"]);
 });
