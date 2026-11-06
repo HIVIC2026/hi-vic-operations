@@ -35,7 +35,7 @@ const { Route } = await import("../src/routes/_authenticated/field.index");
 const Page = (Route as unknown as { component: () => JSX.Element }).component;
 afterEach(() => { cleanup(); stops = {}; fail = false; });
 
-const waitingKind = { kind: "piesa_booked" as const, title: "PIESA booked", yours: false, button: null };
+const waitingKind = { kind: "waiting_deposit" as const, title: "Waiting for the deposit", yours: false, button: null };
 const full = () => {
   const fixRow = row("Melton", {}, { installAt: "2026-11-10T21:00:00Z" });
   stops = { [fixRow.jobId]: "Book an electrician for install day" };
@@ -46,7 +46,7 @@ describe("Action items page", () => {
   test("three groups in order", () => {
     full();
     const { container } = render(<Page />);
-    expect([...container.querySelectorAll("h2")].map((h) => h.textContent)).toEqual(["Fix before work starts", "Your turn", "Waiting on someone else", "This week"]);
+    expect([...container.querySelectorAll("h2")].map((h) => h.textContent)).toEqual(["Fix before work starts", "Your turn", "Waiting on owner or us", "This week"]);
     expect(container.querySelector("h1")!.textContent).toBe("Good morning, Deep");
     expect(container.textContent).toContain("3 jobs need you today. 1 must be fixed before work starts.");
     expect(container.querySelectorAll("[data-action-row]").length).toBe(3);
@@ -56,7 +56,7 @@ describe("Action items page", () => {
     full();
     const { container, getByRole } = render(<Page />);
     expect(container.querySelectorAll("[data-waiting-row]").length).toBe(0);
-    const btn = getByRole("button", { name: /Waiting on someone else/ });
+    const btn = getByRole("button", { name: /Waiting on owner or us/ });
     expect(btn.getAttribute("aria-expanded")).toBe("false");
     fireEvent.click(btn);
     const rows = [...container.querySelectorAll("[data-waiting-row]")];
@@ -73,7 +73,7 @@ describe("Action items page", () => {
     full();
     const { container, getByRole } = render(<Page />);
     fireEvent.change(container.querySelector('input[type="search"]')!, { target: { value: "melton" } });
-    fireEvent.click(getByRole("button", { name: /Waiting on someone else/ }));
+    fireEvent.click(getByRole("button", { name: /Waiting on owner or us/ }));
     expect(container.querySelectorAll("[data-action-row]").length).toBe(1);
     expect([...container.querySelectorAll("[data-waiting-row]")].map((r) => r.textContent).join()).toContain("Melton West");
     expect(container.querySelectorAll("[data-waiting-row]").length).toBe(1);
@@ -83,6 +83,17 @@ describe("Action items page", () => {
     const { container } = render(<Page />);
     expect(container.textContent).toContain("Your work couldn't load. Check your signal and try again.");
     expect(container.textContent).toContain("Try again");
+  });
+  test("own electrician jobs are in Your turn; a booked PIESA has no button and isn't counted", () => {
+    const a = row("Kew", { kind: "waiting_electrician_book", title: "Waiting for the electrician", yours: false, button: null }, { electricianName: "james wood" });
+    const b2 = row("Box Hill", { kind: "piesa_booked", title: "PIESA booked", yours: false, button: null }, { electricianName: "James Wood", piesaAt: "2026-11-09T22:00:00Z" });
+    home = makeHome([a, b2]);
+    const { container } = render(<Page />);
+    const rows = [...container.querySelectorAll("[data-action-row]")];
+    expect(rows.map((r) => r.querySelector("span")!.textContent)).toEqual(["Get James to book the PIESA", "PIESA booked Tue 10 Nov · James"]);
+    expect(rows[1]!.querySelectorAll("a").length).toBe(1);
+    expect(container.textContent).toContain("1 job needs you today.");
+    expect(container.textContent).not.toContain("Waiting on owner or us");
   });
   test("no boss word, no price", () => {
     full();

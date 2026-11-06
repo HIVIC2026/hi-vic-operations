@@ -23,9 +23,15 @@ describe("actionItems", () => {
     expect(r.turn).toEqual([]);
   });
   test("waiting says who", () => {
-    const r = actionItems([row({ box: box({ kind: "piesa_booked", title: "PIESA booked", yours: false }), waitingOn: "James (electrician)" })]);
-    expect(r.waiting[0]!.waitingOn).toBe("James (electrician)");
-    expect(r.waiting[0]!.status).toBe("PIESA booked");
+    const r = actionItems([row({ box: box({ kind: "waiting_deposit", title: "Waiting for the deposit", yours: false }), waitingOn: "Sam (owner)" })]);
+    expect(r.waiting[0]!.waitingOn).toBe("Sam (owner)");
+    expect(r.waiting[0]!.status).toBe("Waiting for the deposit");
+  });
+  test("own electrician: in Your turn, never waiting", () => {
+    const r = actionItems([row({ box: box({ kind: "waiting_electrician_book", yours: false, button: null }), electricianName: "JAMES WOOD" }), row({ box: box({ kind: "piesa_booked", yours: false, button: null }), electricianName: null })]);
+    expect(r.waiting).toEqual([]);
+    expect(r.turn.map((c) => [c.action, c.button])).toEqual([["Get James to book the PIESA", "Open"], ["PIESA booked · your electrician", null]]);
+    expect(r.count).toBe(1);
   });
   test("closed jobs are left out", () => {
     expect(actionItems([row({ box: box({ kind: "closed", yours: false }) })]).waiting).toEqual([]);

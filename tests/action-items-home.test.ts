@@ -33,11 +33,9 @@ describe("waitingOnFor", () => {
   const w = (kind: string, o: Partial<Parameters<typeof waitingOnFor>[0]> = {}) => waitingOnFor({ kind, title: "", channel: "hivic_sourced", ownerFirst: "SAM", electricianName: "james wood", ...o });
   test("by box kind", () => {
     expect(w("waiting_quote", { title: "Quote being prepared" })).toBe("Home Insulation Victoria");
-    expect(w("waiting_quote", { title: "Waiting for the owner to decide" })).toBe("Sam");
-    expect(w("piesa_booked")).toBe("James (electrician)");
-    expect(w("waiting_electrician_book")).toBe("James (electrician)");
-    expect(w("waiting_deposit")).toBe("Sam");
+    expect(w("waiting_quote", { title: "Waiting for the owner to decide" })).toBe("Sam (owner)");
+    expect(w("waiting_deposit")).toBe("Sam (owner)");
     expect(w("after_install")).toBe("Home Insulation Victoria");
-    expect(w("after_install", { channel: "installer_sourced" })).toBe("Sam");
+    expect(w("after_install", { channel: "installer_sourced" })).toBe("Sam (owner)");
   });
 });
