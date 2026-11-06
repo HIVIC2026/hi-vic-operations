@@ -60,6 +60,17 @@ Palette/fonts from `docs/templates/installer/portal/M7-business.html` (#22376B i
 
 **Paid** (DRAFT): "Paid ✓ Mon 24 Nov · $2,500.00."
 
+### 6 Nov 11:30 — steps 7–9 REDONE and APPROVED (replace the step 7/8/9/Paid text above)
+
+- Lead and crew are picked on Fridays for the next week, so **booking the install asks for Day + Arrival only**. Crew can be any number of people (tick boxes).
+- **Step 7 – title:** "Jo's deposit is in. Book the install by Fri 12 Dec." Text: "Call Jo, agree a day and time, and book it here. The install must happen by Fri 12 Dec (30 days from the PIESA). You pick who's going later." Fields: Day · Arrival. Button: Book the install.
+- **Days after the install-by date can't be picked (hard block).** Message: after Fri 12 Dec a new PIESA is needed, call Home Insulation Victoria.
+- **Step 8 – Install booked:** "Fri 21 Nov, 8:00am. Install by Fri 12 Dec. Pick your Lead Installer and crew by Wed 19 Nov (2 days before)." Pick one Lead Installer, tick any number of crew. Button: Save who's going. Link: Change the day. If they aren't picked, the installer office is emailed 2 days before the install.
+- **Step 9 – Install done · Fri 21 Nov:** "Jo pays the balance on install day." (no "you're paid" line). What happens from here: "If Jo hasn't paid, we touch base on days 1, 3 and 7. Once she's paid in full, this job moves to Done."
+- Mock-up updated: `s789.png`. The Paid box wasn't discussed again.
+
+**Next:** journey 2 step 1.
+
 ## Journeys 2 and 3 — still to dictate
 
 Today's words on our-lead jobs (for Jo to redo, one step at a time):
