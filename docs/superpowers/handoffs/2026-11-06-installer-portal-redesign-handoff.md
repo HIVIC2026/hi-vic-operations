@@ -95,7 +95,24 @@ Palette/fonts from `docs/templates/installer/portal/M7-business.html` (#22376B i
 - Journey 1 Paid box approved: "Paid ✓ Mon 24 Nov · $2,500.00".
 - Audit page artifact: https://claude.ai/artifact/4N9YDro7BhDLS3gTGmad4C
 
-**Next:** all three journeys are approved, so write the spec at `docs/superpowers/specs/2026-11-06-installer-portal-redesign-design.md`, self-review it, then Jo reviews.
+### 6 Nov 12:20 — ChatGPT audit (`2026-11-06-chatgpt-audit.pdf`) triaged with Jo
+Ignored, Jo already decided: keep "Book the install by {date}"; keep the Money page (boss only); keep both Offer a discount + Change my price.
+Just fix in spec/build: real 2026 dates in examples (today Fri 6 Nov); phone widths, save/retry, no double sends; HIV price hidden in files/emails/APIs too; only approved (CII) people pickable as Lead/crew.
+Jo's decisions:
+1. Installer CAN change the day after the 2-day lock; portal re-notifies ESC automatically (must still respect the ESC minimum notice).
+2. ADD Next step boxes for problem jobs: cancelled, on hold, no access on the day, partly installed (words still to dictate).
+3. "7 days" = calendar days.
+4. Own customers: installer paid 7 calendar days after the owner pays in full.
+5. GO email gets one line: "Your Lead still does the PIISA onsite before starting."
+6. If the PIESA says an electrician must attend install day, job page shows who and when; DON'T START if not booked.
+7. Reminder chips (e.g. certificate not uploaded) are AMBER; red only for stop/don't start.
+8. First progress dot renamed "Measure" on all jobs.
+9. Installer sees a box when the owner declines or the quote expires.
+10. Add a job gets "Save for now" (owner, contact, address only); finish later.
+11. Portal vs Mitti measurements: newest wins and the office is flagged to check.
+12. Bank detail changes need HIV office OK before any pay goes there.
+
+**Next:** dictate the problem-job boxes, then the spec. (Old note: all three journeys are approved, so write the spec at `docs/superpowers/specs/2026-11-06-installer-portal-redesign-design.md`, self-review it, then Jo reviews.
 
 ## Journeys 2 and 3 — still to dictate
 
