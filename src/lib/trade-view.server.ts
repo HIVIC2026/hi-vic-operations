@@ -16,6 +16,9 @@ import { sourceLabel as installerSourceLabel } from "./installer-home.core";
 import { installerQuoteLine } from "./installer-quote-status.core";
 import { myWorkCards, greeting as myWorkGreeting, myWorkReason } from "./my-work.core";
 import { nextStepBox, type NextStepFacts } from "./next-step-box.core";
+import { greetingLine, waitingOnFor } from "./action-items.core";
+import { homeStops } from "./action-items.server";
+import { displayName } from "./display-name.core";
 import { PHOTO_QUOTE_GIVE_EVENT, PHOTO_QUOTE_SUBMITTED_EVENT, OWN_PHOTO_QUOTE_FAILED_EVENT, hasOwnPhotoSignal, photoGiveFrom, type GiveEventRow } from "./photo-quote.core";
 import { READY_CHECK_PERSON_PENDING_EVENT, readyCheckPersonState } from "./ready-check-person.core";
 import { MONEY_WORDS, moneyScreen, type MoneyScreenRow } from "./money-screen.core";
@@ -370,16 +373,46 @@ export async function tradeHome(userId: string) {
         ...photoFacts,
       };
       const box = nextStepBox(facts);
-      return { jobId: j.jobId, jobNumber: String(j.jobNumber), owner: j.owner, street: j.street, suburb: j.suburb, channel: j.channel, box, reason: myWorkReason(box, facts), mittiLinked: formFacts.get(j.jobId)?.linked === true, mittiRequested:mittiRequested.has(j.jobId), quoteSentAt: facts.quote === "sent" ? q?.quote?.sent_at ?? null : null };
+      return { jobId: j.jobId, jobNumber: String(j.jobNumber), owner: j.owner, street: j.street, suburb: j.suburb, channel: j.channel, box, reason: myWorkReason(box, facts), mittiLinked: formFacts.get(j.jobId)?.linked === true, mittiRequested:mittiRequested.has(j.jobId), quoteSentAt: facts.quote === "sent" ? q?.quote?.sent_at ?? null : null,
+        // Installer redesign (Action items): the install start for the stop check, and who a waiting job is waiting on.
+        installAt: facts.install.start, ownerFirst: facts.ownerFirst,
+        waitingOn: waitingOnFor({ kind: box.kind, title: box.title, channel: raw.channel, ownerFirst: facts.ownerFirst, electricianName: facts.electricianName }) };
     });
     // A job with a pending offer shows as the offer card only (owner details stay hidden until the offer is taken); the card's key is the offer id.
     // Part 7 Task 9: no "Job offer" card — a job with a leftover pending offer stays hidden from My work (the office closes the offer).
     const cards = myWorkCards(rows.filter((r) => r.box.kind !== "closed" && !offerJobs.has(r.jobId)));
     const street = new Map(rows.map((r) => [r.jobId, r.street]));
     const withStreet = (list: typeof cards.all) => list.map((card) => ({ ...card, street: street.get(card.jobId) ?? null }));
-    return { greeting: myWorkGreeting(c.biz.name, cards.yourTurn.length), yourTurn: withStreet(cards.yourTurn), all: withStreet(cards.all) };
+    return { greeting: myWorkGreeting(c.biz.name, cards.yourTurn.length), yourTurn: withStreet(cards.yourTurn), all: withStreet(cards.all), rows: rows.filter((r) => r.box.kind !== "closed" && !offerJobs.has(r.jobId)) };
   })() : null;
-  return { kind: c.kind, boss: c.boss, role: c.role, money: c.money, business: c.biz.name, myWork, firstName: c.firstName, isTest: c.isTest, week, offers: offerList, yourMove, coming, jobs: jobsTabbed, done, month: c.money ? { jobs: month.length, earned: month.reduce((t, r) => t + (r.amount ?? 0), 0), paid: paidThisMonth } : null };
+  // Installer redesign — Action items (spec v2 §4.2). The rows go to the page, which sorts them into groups. The stop
+  // check (pre-start problems for installs in the next 7 days) is NOT read here: it is many reads per job, so the page
+  // asks for it separately (getTradeStops) and the home screen never waits on it.
+  const actionHome = myWork ? { greeting: greetingLine(c.firstName ?? null, c.biz.name, now), rows: myWork.rows.map((r) => ({ ...r, stop: null as string | null })) } : null;
+  const weekBookings = c.kind === "installer" ? (books ?? []).filter((b) => b.status === "confirmed" && byId.has(b.job_id) && ["installation", "assessment", "ready_check"].includes(b.kind)).map((b) => {
+    const j = byId.get(b.job_id)!; const own = (j.owners as { full_name: string | null } | null)?.full_name ?? null;
+    return { jobId: b.job_id, kind: b.kind, scheduled_start: b.scheduled_start, suburb: (j.properties as { suburb?: string | null } | null)?.suburb ?? null, who: displayName(own) };
+  }) : [];
+  if (myWork) delete (myWork as { rows?: unknown }).rows;
+  return { kind: c.kind, boss: c.boss, role: c.role, money: c.money, business: c.biz.name, myWork, actionHome, weekBookings, firstName: c.firstName, isTest: c.isTest, week, offers: offerList, yourMove, coming, jobs: jobsTabbed, done, month: c.money ? { jobs: month.length, earned: month.reduce((t, r) => t + (r.amount ?? 0), 0), paid: paidThisMonth } : null };
+}
+
+/** Installer redesign — the stop check for Action items, asked for after the home has loaded. Only this business's
+ *  jobs (the same assignment rule as the home), only confirmed installs in the next 7 days. */
+export async function tradeStops(userId: string, jobIds: string[]): Promise<Record<string, string>> {
+  const c = await ctxOrThrow(userId);
+  if (c.kind !== "installer" || jobIds.length === 0) return {};
+  const [{ data: asg }, { data: inst }] = await Promise.all([
+    assignmentQuery(c, userId).in("job_id", jobIds),
+    admin.from("bookings").select("job_id, scheduled_start").in("job_id", jobIds).eq("kind", "installation").eq("status", "confirmed").order("scheduled_start"),
+  ]);
+  const mine = new Set((asg ?? []).map((a) => a.job_id));
+  const first = new Map<string, string>();
+  for (const b of inst ?? []) if (mine.has(b.job_id) && new Date(b.scheduled_start).getTime() > Date.now() - 12 * 3_600_000 && !first.has(b.job_id)) first.set(b.job_id, b.scheduled_start);
+  const stops = await homeStops([...first].map(([jobId, installAt]) => ({ jobId, installAt })), new Date());
+  const out: Record<string, string> = {};
+  for (const [id, line] of stops) if (line) out[id] = line;
+  return out;
 }
 
 /** One offer, trade-side. Owner and address only once this business has taken it. */
