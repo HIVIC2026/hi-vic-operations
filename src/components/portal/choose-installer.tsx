@@ -63,7 +63,12 @@ export function ChooseInstallerPanel({ jobId, reportLoad = false }: { jobId: str
     </div>
   );
   if (reportLoad && state === "loading") return <p className="text-sm text-sub">Loading installers…</p>;
-  if (!d ||d.channel !== "hivic_sourced" || d.stage !== "ready_check_ready_to_schedule" || d.hasInstaller) return null;
+  if (!d) return null;
+  if (d.channel !== "hivic_sourced" || d.stage !== "ready_check_ready_to_schedule" || d.hasInstaller) {
+    // The embedded panel keeps its original gate. A dialog must not silently vanish,
+    // nor expose the legacy owner Send action for a job outside that gate.
+    return reportLoad ? <div role="alert" className="space-y-2 text-sm"><p>{CHOOSE_LOAD_FAILED}</p><Button variant="outline" disabled={q.isFetching} onClick={() => void q.refetch()}>Try again</Button></div> : null;
+  }
   const pick = async (id: string, name: string) => {
     if (busy) return;
     setBusy(id);

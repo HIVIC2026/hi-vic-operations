@@ -61,13 +61,14 @@ const trade = {
   alreadyOffered: null,
 };
 let openOffer: unknown = null;
+let stage = "ready_check_ready_to_schedule";
 mock.module("@tanstack/react-query", () => ({
   useQuery: ({ queryKey }: { queryKey: string[] }) => ({
     data:
       queryKey[0] === "choose-trades"
         ? {
             channel: "hivic_sourced",
-            stage: "ready_check_ready_to_schedule",
+            stage,
             hasInstaller: false,
             isTestJob: true,
             openOffer,
@@ -95,8 +96,18 @@ afterEach(() => {
   history = [];
   failure = false;
   openOffer = null;
+  stage = "ready_check_ready_to_schedule";
 });
 const mount = () => render(React.createElement(ChooseInstallerPanel, { jobId: "qa-test-job" }));
+
+test("a waiting-job dialog outside the embedded stage gate never renders blank or offers a legacy Send", () => {
+  stage = "spot_saved";
+  const r = render(React.createElement(ChooseInstallerPanel, { jobId: "qa-test-job", reportLoad: true }));
+  expect(r.getByRole("alert").textContent).toContain("Couldn't load installers");
+  expect(r.queryByRole("button", { name: "Send" })).toBeNull();
+  cleanup();
+  expect(mount().container.textContent).toBe("");
+});
 
 test("waiting TEST job sends one job through the existing batch action, then reads back the saved batch", async () => {
   const r = mount();

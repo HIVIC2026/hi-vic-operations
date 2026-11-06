@@ -1,3 +1,9 @@
+## Jo 6 Nov 11:33 UTC — broad TEST-only role audit
+- [ ] Jo 11:42 UTC: measure page/control timing, audit links/buttons and progression/gate checks; optimize measured bottlenecks without changing behaviour.
+- [ ] Run existing isolated browser journeys at phone/desktop sizes and the full isolated regression suite; no live record mutations, sends, publication or switch changes.
+- [ ] Reproduce actionable failures, repair only proven bugs without changing locked rules or approved wording, and repeat affected tests.
+- [ ] Report tested/failing/blocked coverage honestly; firm-quote switch remains OFF (NULL confirmed).
+
 ## Jo 6 Nov 11:09 UTC — TEST sends now
 - [x] Record Test Centre consent ticks with TEST-only provenance; repaired HV-3831 from its original durable tick/version/time. 59 consent/access checks pass, scan clear, build OK; future Test Centre handler fix saved, not published.
 - [ ] Published journey STOPPED at step 3: Choose installer dialog has no choices/Give; With photos also excludes the requested job. Potential real-owner blocker, switch immediately set NULL and read back. Email 1 sent to TEST inbox; Proceed twice produced one event; no spot messages. Steps 4–6 blocked, no second job or day-4 sweep. Await handover repair and explicit reactivation; details in docs/firm-quote-tonight-test-report.md.

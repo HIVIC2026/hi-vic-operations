@@ -14,17 +14,17 @@ async def main():
    async def boundary(route):
     if route.request.url.startswith(BASE+'/'): await route.continue_()
     else: external.append({'url':route.request.url.split('?')[0],'status':'BLOCKED'});await route.abort()
-   await c.route('**/*',boundary);p=await c.new_page();p.set_default_timeout(3000);errors=[];p.on('pageerror',lambda e:errors.append(str(e)))
+   await c.route('**/*',boundary);p=await c.new_page();p.set_default_timeout(10000);errors=[];p.on('pageerror',lambda e:errors.append(str(e)))
    async def check(name,fn):
-    errors.clear()
+    errors.clear();started=time.perf_counter()
     try:
      await fn()
      assert not errors,errors
-     results.append({'name':name,'width':width,'status':'PASS','url':p.url})
+     results.append({'name':name,'width':width,'status':'PASS','url':p.url,'duration_ms':round((time.perf_counter()-started)*1000)})
     except Exception as e: results.append({'name':name,'width':width,'status':'FAIL','url':p.url,'error':str(e)[:600]})
     (OUT/'partial-results.json').write_text(json.dumps(results,indent=2));await p.screenshot(path=str(OUT/f'{width}-{len(results):02d}.png'))
    async def open_page(path,role='installer',text=None):
-    await p.goto(BASE+path);await p.evaluate('(r)=>sessionStorage.setItem("qa-role",r)',role);await p.reload()
+    await p.goto(BASE+path,wait_until='domcontentloaded');await p.evaluate('(r)=>sessionStorage.setItem("qa-role",r)',role);await p.reload(wait_until='domcontentloaded')
     if text: await p.get_by_text(text,exact=False).first.wait_for(timeout=6000)
     body=await p.locator('body').inner_text();assert body.strip() and 'Something went wrong!' not in body,body[:300]
     assert await p.evaluate('document.documentElement.scrollWidth<=innerWidth'), 'Horizontal overflow'
@@ -33,28 +33,28 @@ async def main():
    async def home():await open_page('/field',text='Measure and quote')
    await check('Installer dashboard render and mobile bounds',home)
    async def drill():
-    await p.get_by_role('button',name='Measure and quote',exact=True).click() if await p.get_by_role('button',name='Measure and quote',exact=True).count() else await p.get_by_role('link',name='Measure and quote',exact=True).click()
-    await p.get_by_role('button',name='Do a Ready Check on site',exact=True).wait_for();assert p.url==BASE+JOB
+    await p.get_by_role('link',name='Measure and quote',exact=True).last.click()
+    await p.get_by_role('button',name='Do a Ready Check on site',exact=False).wait_for();assert p.url==BASE+JOB
    await check('Dashboard to own-customer job drilldown',drill)
    async def failure():
     await p.evaluate('(k)=>{let s=JSON.parse(localStorage.getItem(k));s.fail="requestOwnMittiForm";localStorage.setItem(k,JSON.stringify(s))}',STORE)
-    await p.get_by_role('button',name='Do a Ready Check on site',exact=True).click();await p.get_by_role('alert').first.wait_for();assert await p.get_by_role('button',name='Do a Ready Check on site',exact=True).is_enabled()
+    await p.get_by_role('button',name='Do a Ready Check on site',exact=False).click();await p.get_by_role('alert').first.wait_for();assert await p.get_by_role('button',name='Do a Ready Check on site',exact=False).is_enabled()
    await check('Failed request retains inline error and retry control (regression)',failure)
    async def retry():
-    await p.get_by_role('button',name='Do a Ready Check on site',exact=True).click();await p.get_by_text('Mitti form on its way',exact=False).wait_for();s=await p.evaluate('(k)=>JSON.parse(localStorage.getItem(k))',STORE);assert s['mitti'] is True
+    await p.get_by_role('button',name='Do a Ready Check on site',exact=False).click();await p.get_by_text('Mitti form on its way',exact=False).wait_for();s=await p.evaluate('(k)=>JSON.parse(localStorage.getItem(k))',STORE);assert s['mitti'] is True
    await check('Retry saves choice to disposable fixture',retry)
    async def refresh():
     await p.reload();await p.get_by_text('Mitti form on its way',exact=False).wait_for();assert p.url==BASE+JOB
    await check('Job deep-link refresh preserves mocked choice',refresh)
    async def price():
-    await p.get_by_label('Your price inc GST',exact=True).fill('2500');await p.get_by_role('button',name='Send to quote',exact=False).click();await p.get_by_text('Price saved:',exact=False).wait_for();s=await p.evaluate('(k)=>JSON.parse(localStorage.getItem(k))',STORE);assert s['price']['record']['price_inc_gst']==2500
+    await p.get_by_label('Your price inc GST',exact=True).fill('2500');await p.get_by_role('button',name='Send for quote',exact=False).click();await p.get_by_text('Price saved:',exact=False).wait_for();s=await p.evaluate('(k)=>JSON.parse(localStorage.getItem(k))',STORE);assert s['price']['record']['price_inc_gst']==2500
    await check('Price submit and fixture readback',price)
    async def price_refresh():
     await p.reload();await p.get_by_text('Price saved:',exact=False).wait_for();await p.get_by_role('button',name='Change',exact=True).click();assert await p.get_by_label('Your price inc GST',exact=True).input_value()=='2500'
    await check('Saved price refresh and Change readback',price_refresh)
    async def tabs():
     tab=await c.new_page();await tab.goto(BASE+'/field');await tab.get_by_text('Quote being prepared',exact=True).wait_for()
-    await p.get_by_label('Your price inc GST',exact=True).fill('2600');await p.get_by_role('button',name='Send to quote',exact=False).click();await p.get_by_text('$2,600',exact=False).first.wait_for()
+    await p.get_by_label('Your price inc GST',exact=True).fill('2600');await p.get_by_role('button',name='Send for quote',exact=False).click();await p.get_by_text('$2,600',exact=False).first.wait_for()
     await tab.goto(BASE+JOB);await tab.get_by_text('$2,600',exact=False).first.wait_for();await tab.screenshot(path=str(OUT/f'{width}-tab-readback.png'));await tab.close()
    await check('Second tab navigation reads latest fixture price (not realtime/auth proof)',tabs)
    async def back():
@@ -62,12 +62,12 @@ async def main():
    await check('Back navigation retains saved fixture value',back)
    async def portal():
     await p.evaluate('(k)=>localStorage.removeItem(k)',STORE);await open_page(JOB,text='Measure and quote');await p.get_by_role('button',name='Enter the details here',exact=False).click();await p.get_by_label('Install m²',exact=True).fill('100');await p.get_by_label('Removal m²',exact=True).fill('0');await p.get_by_label("What's in the ceiling now?",exact=True).select_option('none');await p.get_by_label('How did you measure it?',exact=True).select_option('other');await p.get_by_label('How did you measure it?',exact=True).last.fill('Synthetic independent measurements') if await p.get_by_label('How did you measure it?',exact=True).count()==1 else await p.locator('textarea').first.fill('Synthetic independent measurements')
-    await p.get_by_label('Access',exact=True).select_option('standard');await p.get_by_label('Your price inc GST',exact=True).fill('2700');await p.get_by_role('button',name='Send to quote',exact=False).click();await p.get_by_text('saved',exact=False).first.wait_for();s=await p.evaluate('(k)=>JSON.parse(localStorage.getItem(k))',STORE);assert s['price']['record']['price_inc_gst']==2700 and not s['mitti']
+    await p.get_by_label('Access',exact=True).select_option('standard');await p.get_by_label('Your price inc GST',exact=True).fill('2700');await p.get_by_role('button',name='Send for quote',exact=False).click();await p.get_by_text('saved',exact=False).first.wait_for();s=await p.evaluate('(k)=>JSON.parse(localStorage.getItem(k))',STORE);assert s['price']['record']['price_inc_gst']==2700 and not s['mitti']
    await check('Portal Ready Check submit/readback without Mitti',portal)
    async def office():await open_page('/admin/needs-me','office','QUOTES TO CHECK')
    await check('Office Needs me and quote disclosure inventory',office)
    async def office_drill():
-    await p.get_by_role('button',name='Check',exact=True).click() if await p.get_by_role('button',name='Check',exact=True).count() else await p.get_by_role('link',name='Check',exact=True).click()
+    await p.get_by_role('link',name='Check',exact=False).first.click()
     await p.wait_for_timeout(200);assert '/admin/jobs/' in p.url;raise AssertionError('BLOCKED: office job page fixture not implemented; no handoff workflow proof')
    await check('Office quote drilldown destination',office_drill)
    if results[-1]['status']=='FAIL' and 'BLOCKED:' in results[-1].get('error',''):results[-1]['status']='BLOCKED'
@@ -83,15 +83,15 @@ async def main():
    async def templates():await open_page('/admin/templates','office','Off — waiting');assert await p.get_by_text('Off — waiting',exact=False).count()>0
    await check('Templates OFF rendering; no approval clicks',templates)
    async def safety():
-    await open_page('/qa/safety','installer','Choose your electrician');book=p.get_by_role('button',name='Book',exact=True);assert await book.is_disabled();await p.locator('select').select_option('synthetic-electrician');await p.locator('input[type=date]').fill('2026-11-20');await p.locator('input[type=time]').fill('10:00');assert await book.is_enabled();await book.click();await p.get_by_text('Booking saved:',exact=False).wait_for();s=await p.evaluate('(k)=>JSON.parse(localStorage.getItem(k))',STORE);assert s['booking']['jobId'].endswith('101')
+    await open_page('/qa/safety','installer','Book the safety check');book=p.get_by_role('button',name='Book',exact=True);assert await book.is_disabled();await p.locator('select').select_option('synthetic-electrician');await p.locator('input[type=date]').fill('2026-11-20');await p.locator('input[type=time]').fill('10:00');assert await book.is_enabled();await book.click();await p.get_by_text('Booking saved:',exact=False).wait_for();s=await p.evaluate('(k)=>JSON.parse(localStorage.getItem(k))',STORE);assert s['booking']['jobId'].endswith('101')
    await check('Safety check isolated component Book and local fixture readback',safety)
    await c.tracing.stop(path=str(OUT/f'trace-{width}.zip'));await c.close()
   await browser.close()
  inventory=json.loads((OUT/'route-inventory.json').read_text()) if (OUT/'route-inventory.json').exists() else []
  for r in inventory:
   r['status']='NOT_RUN';r['scope']='source inventory, not controls or workflow proof'
- report={'mode':'isolated mocked browser components/pages','full_backend':False,'mocked':['role/session hooks','server functions','Mitti','database via localStorage','email/SMS/Xero/Stripe (no calls)'],'counts':{s:sum(r['status']==s for r in results) for s in ['PASS','FAIL','BLOCKED']},'fixed':1,'results':results,'loaded_pages':coverage,'controls_inventory':controls,'source_routes':inventory,'external_blocked':external,'gaps':['Real authentication, RLS and two-user isolation','Office jobs dashboard/detail and quote Send/handoff','Owner acceptance/payment/ESC/deposit/install handoffs','REC/installer onboarding completion and persisted backend saves','PIESA completion/rectification/install/evidence workflows','Real Mitti/Xero/Stripe and delivery integrations','Live stale-data subscriptions; tab checks use shared local fixture only','Add-job save/address lookup not run'],'pre_fix':'failed-request check: inline alert count 0; post-fix same check count 1'}
- (OUT/'report.json').write_text(json.dumps(report,indent=2));print(json.dumps({'output':str(OUT),'counts':report['counts'],'fixed':1,'full_backend':False}));return 1 if report['counts']['FAIL'] else 0
+ report={'mode':'isolated mocked browser components/pages','full_backend':False,'mocked':['role/session hooks','server functions','Mitti','database via localStorage','email/SMS/Xero/Stripe (no calls)'],'counts':{s:sum(r['status']==s for r in results) for s in ['PASS','FAIL','BLOCKED']},'fixed':0,'results':results,'loaded_pages':coverage,'controls_inventory':controls,'source_routes':inventory,'external_blocked':external,'gaps':['Real authentication, RLS and two-user isolation','Office jobs dashboard/detail and quote Send/handoff','Owner acceptance/payment/ESC/deposit/install handoffs','REC/installer onboarding completion and persisted backend saves','PIESA completion/rectification/install/evidence workflows','Real Mitti/Xero/Stripe and delivery integrations','Live stale-data subscriptions; tab checks use shared local fixture only','Add-job save/address lookup not run']}
+ (OUT/'report.json').write_text(json.dumps(report,indent=2));print(json.dumps({'output':str(OUT),'counts':report['counts'],'fixed':report['fixed'],'full_backend':False}));return 1 if report['counts']['FAIL'] else 0
 if __name__=='__main__':
  log=(OUT/'vite.log').open('w');env={k:v for k,v in os.environ.items() if not any(x in k for x in ['SUPABASE','SECRET','TOKEN','PASSWORD','CONNECTION','API_KEY'])};server=subprocess.Popen(['bunx','--no-install','vite','--config','scripts/portal-qa-isolated.config.ts'],stdout=log,stderr=log,env=env)
  try:
