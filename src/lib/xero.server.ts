@@ -353,7 +353,9 @@ export async function syncInvoiceFromXero(invoiceId: string, actorId: string | n
       .catch((e) => console.error("repeat PIESA payment check skipped", (e as Error).message));
     await admin.from("invoices").update({ xero_invoice_status: x.Status ?? null, xero_online_url: x.OnlineInvoiceUrl ?? inv.xero_online_url, last_synced_at: new Date().toISOString(), last_sync_error: null }).eq("id", invoiceId);
     await syncLog(invoiceId, true, { amount_paid: ev.paid, reconciled_paid: paidCents / 100 }, undefined, "inbound");
-    if (ledgerChanged) {
+    // Launch fix (QA 7 Nov): also when the ledger is unchanged but money is in, so follow-up steps that failed on an
+    // earlier sync are finished now (afterPaymentsChanged is safe to repeat; its once-checks fail closed).
+    if (ledgerChanged || paidCents > 0) {
       const { afterPaymentsChanged } = await import("./payments.server");
       await afterPaymentsChanged(inv.job_id, invoiceId, actorId).catch((e) => console.error("payment effects skipped", (e as Error).message));
     }
