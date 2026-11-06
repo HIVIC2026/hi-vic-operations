@@ -18,7 +18,7 @@ export const Route = createFileRoute("/_authenticated/field/")({
 });
 
 // Action items (installer redesign, spec v2 §4.2; canvas "Action items" + "Action items · phone"): greeting, search,
-// Fix before work starts · Your turn · Waiting on someone else (folded), and This week. Every fact comes from tradeHome.
+// Fix before work starts · Your turn · Waiting on owner or us (folded), and This week. Every fact comes from tradeHome.
 const squash = (s: string | null | undefined): string => (s ?? "").toLowerCase().replace(/[^a-z0-9]/g, ""); // same rule as matchesSearch
 const hit = (q: string, ...parts: (string | null | undefined)[]) => { const n = squash(q); return !n || parts.some((p) => squash(p).includes(n)); };
 
@@ -76,9 +76,9 @@ function ActionItems() {
           </section>
           {waiting.length > 0 && (
             <section aria-labelledby="ai-waiting">
-              <h2 id="ai-waiting" className="sr-only">Waiting on someone else</h2>
+              <h2 id="ai-waiting" className="sr-only">Waiting on owner or us</h2>
               <button type="button" aria-expanded={showWaiting} onClick={() => setShowWaiting((o) => !o)} className="flex min-h-11 w-full items-center justify-between rounded-[12px] border border-line bg-paper px-4 text-left text-[15px] font-bold text-ink">
-                <span>Waiting on someone else</span><span className="text-sub">{waiting.length} {showWaiting ? "▴" : "▾"}</span>
+                <span>Waiting on owner or us</span><span className="text-sub">{waiting.length} {showWaiting ? "▴" : "▾"}</span>
               </button>
               {showWaiting && <ul className="mt-2 space-y-2">{waiting.map((c) => <WaitingRowView key={c.jobId} c={c} />)}</ul>}
             </section>
@@ -100,7 +100,7 @@ function ActionRowView({ c }: { c: ActionCard }) {
         <span className="mt-0.5 block text-[13px] text-sub">{c.meta}</span>
         {c.due && <span className={`mt-2 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${c.stop ? "bg-paper text-rose" : c.overdue ? "bg-danger-soft text-rose" : "bg-warning-soft text-warning"}`}>{c.due}{c.overdue ? " · overdue" : ""}</span>}
       </Link>
-      <Link to="/field/$jobId" params={{ jobId: c.jobId }} className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-[10px] bg-hiv-blue px-4 text-sm font-bold text-white hover:opacity-90">{c.button}</Link>
+      {c.button && <Link to="/field/$jobId" params={{ jobId: c.jobId }} className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-[10px] bg-hiv-blue px-4 text-sm font-bold text-white hover:opacity-90">{c.button}</Link>}
     </li>
   );
 }

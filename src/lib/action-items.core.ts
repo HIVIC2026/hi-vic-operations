@@ -2,8 +2,9 @@
 import { cardAddress, type MyWorkRow } from "./my-work.core";
 import { displayName } from "./display-name.core";
 
-export type ActionRow = MyWorkRow & { stop: string | null; waitingOn: string | null; ownerFirst: string | null; installAt?: string | null };
-export type ActionCard = { jobId: string; action: string; address: string; meta: string; due: string | null; button: string; stop: boolean; overdue: boolean };
+export type ActionRow = MyWorkRow & { stop: string | null; waitingOn: string | null; ownerFirst: string | null; installAt?: string | null; electricianName?: string | null; piesaAt?: string | null };
+/** `button` null: nothing to tap (e.g. PIESA booked: their own electrician does it). Not counted as needing them today. */
+export type ActionCard = { jobId: string; action: string; address: string; meta: string; due: string | null; button: string | null; stop: boolean; overdue: boolean };
 export type WaitingCard = { jobId: string; address: string; status: string; waitingOn: string };
 export type WeekItem = { day: string; date: number; kind: "Install" | "PIESA" | "Ready Check"; time: string; place: string; who: string; flag: string | null; flagTone: "red" | "amber" | null };
 
@@ -21,6 +22,15 @@ export function greetingLine(firstName: string | null, business: string, now: Da
   return `${h < 12 ? "Good morning" : h < 17 ? "Good afternoon" : "Good evening"}, ${displayName(name)}`;
 }
 
+const firstName = (full: string | null | undefined): string => { const f = (displayName(full).split(/\s+/)[0] ?? ""); return f ? f[0]!.toUpperCase() + f.slice(1) : ""; };
+/** Jo 6 Nov 2026: the electrician is on the installer's own team, so these are THEIR jobs (Your turn), not "waiting on someone else". */
+function ownTeamCard(r: ActionRow, address: string): ActionCard | null {
+  const who = firstName(r.electricianName) || "your electrician";
+  if (r.box.kind === "waiting_electrician_book") return { jobId: r.jobId, action: `Get ${who} to book the PIESA`, address, meta: metaFor(r), due: r.box.bookBy ? `By ${niceDate(r.box.bookBy)}` : null, button: "Open", stop: false, overdue: r.box.overdue && !!r.box.bookBy };
+  if (r.box.kind === "piesa_booked") return { jobId: r.jobId, action: `PIESA booked${r.piesaAt ? ` ${dayLabel(new Date(r.piesaAt))}` : ""} · ${who}`, address, meta: metaFor(r), due: null, button: null, stop: false, overdue: false };
+  return null;
+}
+
 const metaFor = (r: ActionRow) => [displayName(r.owner) || "Owner", r.jobNumber, r.channel === "installer_sourced" ? "Your customer" : "Our lead"].join(" · ");
 
 export function actionItems(rows: ActionRow[]): { count: number; sub: string; fix: ActionCard[]; turn: ActionCard[]; waiting: WaitingCard[] } {
@@ -28,10 +38,11 @@ export function actionItems(rows: ActionRow[]): { count: number; sub: string; fi
   for (const r of rows) {
     const address = cardAddress(r.street, r.suburb);
     if (r.stop) fix.push({ jobId: r.jobId, action: r.stop, address, meta: metaFor(r), due: r.installAt ? `Install ${dayLabel(new Date(r.installAt))}` : null, button: r.box.button ?? "Open", stop: true, overdue: false });
+    else if (ownTeamCard(r, address)) turn.push(ownTeamCard(r, address)!);
     else if (r.box.yours) turn.push({ jobId: r.jobId, action: r.box.title, address, meta: metaFor(r), due: r.box.bookBy ? `By ${niceDate(r.box.bookBy)}` : null, button: r.box.button ?? "Open", stop: false, overdue: r.box.overdue && !!r.box.bookBy });
     else if (r.box.kind !== "closed") waiting.push({ jobId: r.jobId, address, status: r.box.title, waitingOn: r.waitingOn ?? "Home Insulation Victoria" });
   }
-  const count = fix.length + turn.length;
+  const count = fix.length + turn.filter((c) => c.button).length;
   const k = fix.length;
   const sub = count === 0 ? "Nothing needs you today." : count === 1 ? "1 job needs you today." : `${count} jobs need you today.${k >= 1 ? ` ${k} must be fixed before work starts.` : ""}`;
   return { count, sub, fix, turn, waiting };
@@ -63,13 +74,13 @@ export function thisWeek(bookings: { kind: string; scheduled_start: string; subu
 
 /** Who a waiting job is waiting on (spec v2 §4.2), by the box kind. Unknown → Home Insulation Victoria. */
 export function waitingOnFor(i: { kind: string; title: string; channel: string | null; ownerFirst: string | null; electricianName: string | null }): string {
-  const owner = displayName(i.ownerFirst) || "the owner";
+  const owner = displayName(i.ownerFirst);
+  const ownerTag = owner ? `${owner} (owner)` : "the owner";
   const hiv = "Home Insulation Victoria";
   switch (i.kind) {
-    case "waiting_quote": return i.title.startsWith("Quote being prepared") ? hiv : owner;
-    case "waiting_electrician_book": case "piesa_booked": { const e0 = displayName(i.electricianName).split(/\s+/)[0] ?? ""; const e = e0 && e0[0]!.toUpperCase() + e0.slice(1); return e ? `${e} (electrician)` : "the electrician"; }
-    case "waiting_deposit": return owner;
-    case "after_install": return i.channel === "installer_sourced" ? owner : hiv;
+    case "waiting_quote": return i.title.startsWith("Quote being prepared") ? hiv : ownerTag;
+    case "waiting_deposit": return ownerTag;
+    case "after_install": return i.channel === "installer_sourced" ? ownerTag : hiv;
     default: return hiv;
   }
 }

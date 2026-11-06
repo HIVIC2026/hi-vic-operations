@@ -375,7 +375,7 @@ export async function tradeHome(userId: string) {
       const box = nextStepBox(facts);
       return { jobId: j.jobId, jobNumber: String(j.jobNumber), owner: j.owner, street: j.street, suburb: j.suburb, channel: j.channel, box, reason: myWorkReason(box, facts), mittiLinked: formFacts.get(j.jobId)?.linked === true, mittiRequested:mittiRequested.has(j.jobId), quoteSentAt: facts.quote === "sent" ? q?.quote?.sent_at ?? null : null,
         // Installer redesign (Action items): the install start for the stop check, and who a waiting job is waiting on.
-        installAt: facts.install.start, ownerFirst: facts.ownerFirst,
+        installAt: facts.install.start, ownerFirst: facts.ownerFirst, electricianName: facts.electricianName, piesaAt: facts.piesa.start,
         waitingOn: waitingOnFor({ kind: box.kind, title: box.title, channel: raw.channel, ownerFirst: facts.ownerFirst, electricianName: facts.electricianName }) };
     });
     // A job with a pending offer shows as the offer card only (owner details stay hidden until the offer is taken); the card's key is the offer id.
