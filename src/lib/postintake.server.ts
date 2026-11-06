@@ -6,7 +6,7 @@ import type { TablesUpdate } from "@/integrations/supabase/types";
 import { addressHash, STALE_AFTER_DAYS } from "./intelligence.core";
 import { ACTIVE, LEASE_SECONDS, PROCESSING_NEXT_ACTION, WORK_TYPE, afterFailure, planEnqueue, retryDelayMs } from "./postintake.core";
 
-type Claimed = { id: string; job_id: string; attempts: number; locked_at: string; facts_version: string; reason: string | null };
+type Claimed = { id: string; job_id: string; attempts: number; locked_at: string; facts_version: string; reason: string | null; work_type?: string };
 
 /** Idempotent per job: unchanged facts never create or reset work; changed facts requeue the single row. */
 export async function enqueueInitialGate1(jobId: string, factsVersion: string, reason: string) {
@@ -45,6 +45,13 @@ export async function processPostIntakeWork(opts: { jobId?: string; limit?: numb
 async function processItem(item: Claimed) {
   const mine = (patch: TablesUpdate<"post_intake_work">) => admin.from("post_intake_work").update(patch).eq("id", item.id).eq("locked_at", item.locked_at);
   try {
+    if (item.work_type === "firm_quote_size_check") {
+      const { processFirmQuoteSizeCheck } = await import("./firm-quote-work.server");
+      await processFirmQuoteSizeCheck(item.job_id);
+      const { error } = await mine({ status: "complete", completed_at: new Date().toISOString(), locked_at: null, lease_expires_at: null, last_error: null });
+      if (error) throw new Error(error.message);
+      return { id: item.id, job_id: item.job_id, status: "complete" };
+    }
     const { data: p } = await admin.from("jobs").select("properties(address_line, suburb, postcode)").eq("id", item.job_id).single();
     const pr = p?.properties as { address_line: string; suburb: string | null; postcode: string | null } | null;
     if (pr) {
