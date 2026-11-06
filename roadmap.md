@@ -1,3 +1,8 @@
+## Jo 6 Nov firm quote from photos — Tasks 3 and 4 only
+- [x] Task 3: exact pending-only SQL and fail-closed go-live/job readers; missing column returns null, other errors block. No SQL executed, including practice SQL for this pending file.
+- [x] Task 4: preliminary email/purpose at existing automatic and office sender boundaries with caller-owned removal pricing, unchanged null-switch email bytes/keys/purposes, normal contact/history guards, scoped automatic quiet-hours and final media/activation recheck; no spot-offered event/flag for firm jobs.
+- [x] Isolated results: 24 new tests pass (12 reader, 8 automatic, 4 office); total requested new/existing checks 216 pass, 21 pre-existing failures in s20r01 automatic suite, identical before/after failed-case set. Retired-terms scan exits 0, 0 customer-visible failures; preview build OK. Providers/database mocked for sender proof; no actual sends, hosted record/settings changes or publication. Stop before Task 5; Proceed route intentionally not created.
+
 ## Jo 6 Nov firm quote from photos — Tasks 1 and 2 only
 - [x] Save Jo's exact approved spec and plan.
 - [x] Task 1: test-first pure firm-quote classification and date rules; 22 new tests and 2 shared calendar tests pass.

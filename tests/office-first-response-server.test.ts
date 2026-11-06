@@ -1,6 +1,7 @@
 import { beforeEach, expect, mock, test } from 'bun:test';
 type Row=Record<string,any>;
 const tables:Record<string,Row[]>={}; let seq=0, calls=0, mode='ok', commFailure=false, withdrawBeforeSend=false;
+const delivered: Row[] = [];
 function from(table:string){let operation='read',values:Row={},single=false,limit=1000,offset=0;const filters:((r:Row)=>boolean)[]=[];const q:any={
 select:()=>q,eq:(k:string,v:unknown)=>{filters.push(r=>r[k]===v);return q},neq:(k:string,v:unknown)=>{filters.push(r=>r[k]!==v);return q},in:(k:string,v:unknown[])=>{filters.push(r=>v.includes(r[k]));return q},order:()=>q,limit:(n:number)=>{limit=n;return q},range:(a:number,b:number)=>{offset=a;limit=b-a+1;return q},maybeSingle:()=>{single=true;return q},single:()=>{single=true;return q},insert:(v:Row)=>{operation='insert';values=v;return q},update:(v:Row)=>{operation='update';values=v;return q},then:(resolve:any)=>{
  const rows=tables[table]??=[];
@@ -16,9 +17,9 @@ let media={excluded:false,received:false,uncertain:false,pendingSync:false,count
 mock.module('../src/lib/group-b-media.server',()=>({groupBMediaForJob:async()=>media}));
 mock.module('../src/lib/comms-test-recipient.core',()=>({testRecipientBoundary:()=>({status:'allowed'})}));
 const {DeliveryRejectedError}=await import('../src/lib/delivery.core');
-mock.module('../src/lib/hot-leads-send.server',()=>({groupBGlobalsOn:async()=>true,realSendingOn:async()=>true,resendDeliveryAdapter:()=>({deliver:async(msg:Row)=>{calls++;expect(msg.purpose).toBe('existing_leads_launch_v1');if(mode==='reject')throw new DeliveryRejectedError('rejected');if(mode==='unknown')throw new Error('timeout');return {providerMessageId:'provider123'}}})}));
+mock.module('../src/lib/hot-leads-send.server',()=>({groupBGlobalsOn:async()=>true,realSendingOn:async()=>true,resendDeliveryAdapter:()=>({deliver:async(msg:Row)=>{calls++;delivered.push(msg);if(mode==='reject')throw new DeliveryRejectedError('rejected');if(mode==='unknown')throw new Error('timeout');return {providerMessageId:'provider123'}}})}));
 const {sendOfficeFirstResponse}=await import('../src/lib/office-first-response.server');
-beforeEach(()=>{for(const key of Object.keys(tables))delete tables[key];calls=0;mode='ok';commFailure=false;withdrawBeforeSend=false;media={excluded:false,received:false,uncertain:false,pendingSync:false,count:0};Object.assign(tables,{
+beforeEach(()=>{for(const key of Object.keys(tables))delete tables[key];calls=0;delivered.length=0;mode='ok';commFailure=false;withdrawBeforeSend=false;media={excluded:false,received:false,uncertain:false,pendingSync:false,count:0};Object.assign(tables,{
 office_enquiry_index:[{id:'job',job_number:'HV-3000',owner_name:'Fictional',owner_email:'person@gmail.com',email_key:'person@gmail.com',office_bucket:'enquiry',needs_first_response:true,source:'base44',channel:'hivic_sourced',stage:'preliminary_estimate_ready',removed:false,eligibility_outcome:'likely_eligible'}],
 jobs:[{id:'job',eligibility_review_required:false,eligibility_decision_source:'system',estimated_area_m2:120,estimated_area_unknown:false,properties:{enrichment:{base44:{raw:{answers:{existing_insulation:'No'},media:[]}}}}}],
 owner_contact_consents:[{job_id:'job',consent_status:'granted'}],
@@ -44,3 +45,34 @@ test('persisted files never bypass withdrawn consent immediately before send',as
 
 test('the full-address request emails are not a first response: own or same-property sibling ones never block the office response',async()=>{tables.jobs[0].property_id='home-a';tables.jobs.push({id:'other',property_id:'home-a'});tables.office_enquiry_index.push({id:'other',email_key:'person@gmail.com'});tables.customer_email_sends=[{id:'ask',job_id:'job',purpose:'address_request',idempotency_key:'address-request:v1:job',status:'sent'},{id:'rem',job_id:'job',purpose:'address_request_reminder',idempotency_key:'address-request-reminder:v1:job',status:'delivered_unrecorded'},{id:'sib',job_id:'other',purpose:'address_request',idempotency_key:'address-request:v1:other',status:'sent'}];expect((await sendOfficeFirstResponse('job','office')).status).toBe('sent');expect(calls).toBe(1)});
 test('any other earlier email still blocks the office response',async()=>{tables.customer_email_sends=[{id:'p',job_id:'job',purpose:'insulation_video_request',idempotency_key:'x',status:'sent'}];expect((await sendOfficeFirstResponse('job','office')).status).toBe('skipped');expect(calls).toBe(0)});
+
+const { renderJoOutcomeEmail } = await import('../src/lib/jo-outcome-email.core');
+const { withUnsubscribe } = await import('../src/lib/emailsafety.core');
+const { CUSTOMER_BASE } = await import('../src/lib/engagement.core');
+test('null firm-quote switch keeps office email bytes, purpose and key unchanged', async () => {
+  tables.workflow_settings=[{id:1,firm_quote_flow_live_at:null}];
+  const url=`${CUSTOMER_BASE}/estimate/${'x'.repeat(43)}`;
+  const legacy=renderJoOutcomeEmail({outcome:'likely_eligible',insulation:'none',ceilingSizeKnown:true,mediaAlreadyReceived:false,recipient:{firstName:'Fictional',propertyAddress:'',enquiryReference:'HV-3000'},figures:{veuRebate:1481.76,customerTotal:3716.24,totalBeforeRebate:5198,installation:4500,piesaFee:349,apFee:349,ceilingAreaM2:120,areaEstimated:false},links:{saveMySpotUrl:`${url}/campaign`,uploadMediaUrl:`${url}/video`,reviewResultUrl:url,calculatorUrl:`${url}/calculator`}});
+  if(!legacy)throw new Error('Legacy fixture must render');
+  const expected=withUnsubscribe(legacy,`https://example.org/api/public/unsubscribe?t=${'u'.repeat(32)}`);
+  expect((await sendOfficeFirstResponse('job','office')).status).toBe('sent');
+  expect(delivered[0]).toEqual({to:'person@gmail.com',subject:expected.subject,html:expected.html,text:expected.plainText,idempotencyKey:'existing_leads_launch_v1:save_my_spot:job',purpose:'existing_leads_launch_v1'});
+});
+function firmFixture(){
+  tables.workflow_settings=[{id:1,firm_quote_flow_live_at:'2026-11-06T06:00:00Z'}];
+  Object.assign(tables.jobs[0],{source:'base44',created_at:'2026-11-06T06:00:00Z'});
+  tables.documents=[{job_id:'job',kind:'intake_media',mime_type:'image/jpeg',storage_path:'job/intake/photo.jpg'}];
+  tables.retail_estimator_settings[0].removal_inc_gst_per_m2=12;
+}
+test('firm-quote office response gets new subject and purpose without spot flag',async()=>{
+  firmFixture();
+  expect((await sendOfficeFirstResponse('job','office')).status).toBe('sent');
+  expect(delivered[0]).toMatchObject({subject:'Fictional, your preliminary estimate: $3,716 after a $1,482 rebate',purpose:'firm_quote_preliminary',idempotencyKey:'firm_quote_preliminary:job'});
+  expect(delivered[0]?.text).toContain(`${CUSTOMER_BASE}/estimate/${'x'.repeat(43)}/firm-quote`);
+  expect(tables.customer_email_sends[0].purpose).toBe('firm_quote_preliminary');
+  expect(tables.job_communications[0].provider_message_id).toBe('provider123');
+  expect(tables.lead_campaign_responses??[]).toEqual([]);
+  expect((await sendOfficeFirstResponse('job','office')).status).toBe('skipped');expect(calls).toBe(1);
+});
+test('firm-quote office response rechecks consent before provider',async()=>{firmFixture();withdrawBeforeSend=true;expect((await sendOfficeFirstResponse('job','office')).status).toBe('blocked');expect(calls).toBe(0)});
+test('firm-quote office response requires caller pricing settings',async()=>{firmFixture();delete tables.retail_estimator_settings[0].removal_inc_gst_per_m2;expect((await sendOfficeFirstResponse('job','office')).status).toBe('skipped');expect(calls).toBe(0)});

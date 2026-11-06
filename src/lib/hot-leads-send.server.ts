@@ -25,6 +25,9 @@ import { AUTO_REPLY_OFF } from "./enquiry-auto-reply.core";
 import { classifyProviderStatus, SENT_UNKNOWN_PREFIX, UNCERTAIN_SEND_DETAIL, type ResendAttempt } from "./save-spot-delivery.core";
 import { testRecipientBoundary } from "./comms-test-recipient.core";
 import { firstResponseOutcome, type StoredAudit } from "./enquiry-groups.core";
+import { isFirmQuoteJobId } from "./firm-quote.server";
+import { preliminaryEstimateEmail } from "./firm-quote-emails.core";
+import { smsQuietReason } from "./quote-hold.core";
 
 export const HOT_SEND_BATCH = 10;
 /** Last TEST send detail per job (Resend id), for reporting. */
@@ -109,6 +112,8 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     if (facts && addressRequestOpen(facts)) return r("blocked", ADDRESS_REQUEST_BLOCK_REASON);
   }
   const isTest = job.source === "qa_test";
+  const firmQuote = (testOpts.automaticInitial === true || testOpts.automaticInsulation === true || (followup && actorId === null && mode === "send")) && !morePhotos && await isFirmQuoteJobId(jobId);
+  if (firmQuote && mode === "send" && smsQuietReason(new Date().toISOString())) return r("blocked", "Automatic email waits until 7am Melbourne time.");
   if (mode === "send" && !isTest && !followup && !morePhotos && !realOn) return r("blocked", "Sending is switched off.");
   if (followup && !["base44", "qa_test"].includes(job.source)) return r("blocked", "Follow-up is only for website owner enquiries.");
   if (followup && mode === "send" && !(await (await import("./comms.server")).customerCommsEnabled())) return r("blocked", "Customer emails are switched off — nothing sent.");
@@ -209,7 +214,8 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     const { INSULATION_DETAILS_REAL_SEND_APPROVED } = await import("./hot-leads.core");
     if (!isTest && mode === "send" && !INSULATION_DETAILS_REAL_SEND_APPROVED) return r("blocked", "Insulation email awaits final visual approval");
   }
-  const key = morePhotos ? morePhotosRequestKey(jobId, testOpts.morePhotosReviewId!) : `${LAUNCH_CAMPAIGN}:${followup ? "existing_insulation_save_spot" : sendGroup === "onsite" ? "insulation_details" : "save_my_spot"}:${jobId}${isTest && testOpts.subjectPrefix ? `:preview-test:${testOpts.variant ?? "savespot"}:${Date.now()}` : ""}`;
+  const purpose = firmQuote ? "firm_quote_preliminary" : morePhotos ? MORE_PHOTOS_REQUEST_PURPOSE : LAUNCH_CAMPAIGN;
+  const key = firmQuote ? `firm_quote_preliminary:${jobId}` : morePhotos ? morePhotosRequestKey(jobId, testOpts.morePhotosReviewId!) : `${LAUNCH_CAMPAIGN}:${followup ? "existing_insulation_save_spot" : sendGroup === "onsite" ? "insulation_details" : "save_my_spot"}:${jobId}${isTest && testOpts.subjectPrefix ? `:preview-test:${testOpts.variant ?? "savespot"}:${Date.now()}` : ""}`;
   const { data: ex, error: existingSendError } = await admin.from("customer_email_sends").select("id, status").eq("idempotency_key", key).maybeSingle();
   if (existingSendError) return r("blocked", "Could not check previous delivery. Nothing sent; try again.");
   // Follow-ups and more-photos requests are never re-sent, even after a recorded failure: the office checks the record first.
@@ -233,7 +239,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
       if (againError || !again?.length) return r("skipped", "Already being sent.");
       reservedAt = at;
     } else {
-      const { data, error } = await admin.from("customer_email_sends").insert({ job_id: jobId, estimate_link_id: link.id, purpose: morePhotos ? MORE_PHOTOS_REQUEST_PURPOSE : LAUNCH_CAMPAIGN, idempotency_key: key }).select("id, created_at").single();
+      const { data, error } = await admin.from("customer_email_sends").insert({ job_id: jobId, estimate_link_id: link.id, purpose, idempotency_key: key }).select("id, created_at").single();
       if (error || !data) return r("skipped", "Already being sent.");
       sendId = data.id;
       reservedAt = (data as { created_at?: string | null }).created_at ?? null;
@@ -325,6 +331,12 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
       facts = { outcome, insulation, ceilingSizeKnown: areaBasis.ceilingSizeKnown, deskCheckStatus: morePhotos ? null : deskCheckStatus, ...(declaredThinPatchy ? { declaredThinPatchy: true } : declaredExisting ? { declaredExisting: true, ...(declaredUnknown ? { declaredUnknown: true } : {}) } : {}), ...(sendGroup === "onsite" && testOpts.mediaAcknowledgement === true ? { mediaAlreadyReceived: true } : {}) };
     }
     try {
+      if (firmQuote) {
+        const settings = await admin.from("retail_estimator_settings").select("removal_inc_gst_per_m2").eq("is_current", true).maybeSingle();
+        const rate = settings.data?.removal_inc_gst_per_m2;
+        if (settings.error || typeof rate !== "number" || !Number.isFinite(rate) || rate < 0) throw new Error("Current removal pricing required");
+        return withUnsubscribe(preliminaryEstimateEmail({ firstName: firstName ?? "there", price: price.total, rebate: price.discount, fullPrice: price.gross, areaM2: areaBasis.areaM2, insulation: facts.insulation ?? "unknown", removalRatePerM2: rate, proceedUrl: `${base}/estimate/${linkToken}/firm-quote` }), unsubscribeUrl);
+      }
       // Jo 22 Oct: informational "up to" removal for existing insulation only, from the current removal rate.
       let removalUpToAmount: number | null = null;
       if (facts.insulation === "present" || facts.insulation === "unknown") {
@@ -426,7 +438,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
       // Final initial-response and contact facts are read AFTER link/render preparation and reservation.
       // Never exclude another purpose/attempt. Explicit later follow-ups do not run the initial-history guard.
       const [historyBlocker, consent, optout, response, suppression, mediaBlocker] = await Promise.all([
-        (testOpts.automaticInitial || testOpts.automaticInsulation) && !testOpts.backlog393 ? initialResponseHistoryBlocker(jobId, sendId) : Promise.resolve(null),
+        (firmQuote || testOpts.automaticInitial || testOpts.automaticInsulation) && !testOpts.backlog393 ? initialResponseHistoryBlocker(jobId, sendId) : Promise.resolve(null),
         (await import('./comms.server')).hasCurrentOwnerContactConsent(jobId),
         admin.from('customer_email_optouts').select('opted_out_at').eq('job_id', jobId).maybeSingle(),
         admin.from('lead_campaign_responses').select('opted_out_at,spot_saved_at').eq('job_id', jobId).maybeSingle(),
@@ -437,6 +449,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
       const finalBlocker = historyBlocker ?? contactBlocker ?? mediaBlocker;
       if (finalBlocker) { await finish('failed', 'not_sent', finalBlocker); return r('blocked', finalBlocker); }
       if (!followup && !morePhotos && sendGroup === 'likely' && !(await realSendingOn())) { await finish('failed', 'not_sent', 'Sending was switched off before delivery.'); return r('blocked', 'Sending was switched off before delivery.'); }
+      if (firmQuote && (!(await isFirmQuoteJobId(jobId)) || smsQuietReason(new Date().toISOString()))) { await finish('failed', 'not_sent', 'Firm-quote activation, owner media or send time changed.'); return r('blocked', 'Firm-quote activation, owner media or send time changed.'); }
       mayHaveSent = true;
       const d = await resendSend(to, mail.subject, mail.html, mail.plainText, key, unsubscribeUrl);
       if (d.outcome === "rejected" || d.outcome === "not_attempted") { mayHaveSent = false; await finish("failed", "resend", d.detail); return r("failed", d.detail); }
@@ -448,7 +461,7 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
       acceptedId = d.id;
       await finish("sent", "resend", null, d.id);
       const { recordCommunication } = await import("./comms.server");
-      await recordCommunication({ jobId, direction: "outbound", channel: "email", recipients: [to], subject: mail.subject, body: mail.plainText, provider: "resend", providerMessageId: d.id, visibility: 'customer', sourceEvent: morePhotos ? MORE_PHOTOS_REQUEST_EVENT : LAUNCH_CAMPAIGN, sourceReference: morePhotos ? morePhotosRequestReference(testOpts.morePhotosReviewId!) : key, createdBy: actorId, deliveryStatus: 'sent' } as never).catch(() => null);
+      await recordCommunication({ jobId, direction: "outbound", channel: "email", recipients: [to], subject: mail.subject, body: mail.plainText, provider: "resend", providerMessageId: d.id, visibility: 'customer', sourceEvent: firmQuote ? purpose : morePhotos ? MORE_PHOTOS_REQUEST_EVENT : LAUNCH_CAMPAIGN, sourceReference: morePhotos ? morePhotosRequestReference(testOpts.morePhotosReviewId!) : key, createdBy: actorId, deliveryStatus: 'sent' } as never).catch(() => null);
     }
   } catch (e) {
     const message = (e as Error).message;
@@ -467,7 +480,8 @@ async function sendOne(jobId: string, actorId: string | null, realOn: boolean, t
     await finish("failed", isTest ? "resend_test" : "resend", message.slice(0, 300));
     return r("failed", message);
   }
-  await logEvent(jobId, actorId, "save_my_spot_email_sent", `Save my spot email sent${followup ? " after preliminary existing-insulation qualification" : " from Hot leads"}${isTest ? " (TEST, allowlist only)" : ""}`, { campaign: LAUNCH_CAMPAIGN, to_test: isTest, existing_insulation_followup: followup }, { internal: true }).catch(() => null);
+  if (firmQuote) await logEvent(jobId, actorId, "firm_quote_preliminary_sent", "Preliminary estimate email sent", { purpose, idempotency_key: key }, { internal: true }).catch(() => null);
+  else await logEvent(jobId, actorId, "save_my_spot_email_sent", `Save my spot email sent${followup ? " after preliminary existing-insulation qualification" : " from Hot leads"}${isTest ? " (TEST, allowlist only)" : ""}`, { campaign: LAUNCH_CAMPAIGN, to_test: isTest, existing_insulation_followup: followup }, { internal: true }).catch(() => null);
   return r("sent", isTest ? "Sent to Jo's test inbox" : "Sent");
 }
 

@@ -15,6 +15,8 @@ import { unsubscribeUrlForJob } from './emailsafety.server';
 import { recordCommunication } from './comms.server';
 import { DeliveryRejectedError } from './delivery.core';
 import { countsAsFirstResponse } from './automatic-first-response.core';
+import { isFirmQuoteJobId } from './firm-quote.server';
+import { preliminaryEstimateEmail } from './firm-quote-emails.core';
 
 /** Fail-closed current history read; no write, link issuance or eligibility change. */
 export async function readCatchup(jobId: string, ownReservation?: string) {
@@ -108,13 +110,21 @@ async function prepareCatchup(jobId: string, ownReservation?: string) {
   const boundary = testRecipientBoundary(initial.email, initial.index.source);
   if (boundary.status === 'blocked') return { blocker: boundary.reason };
   const url = `${CUSTOMER_BASE}/estimate/${l.token}`;
-  const mail = renderJoOutcomeEmail({ outcome: route === 'offer' ? 'likely_eligible' : 'needs_onsite_confirmation', insulation, ceilingSizeKnown: area.ceilingSizeKnown, mediaAlreadyReceived: route === 'acknowledge',
+  const firmQuote = await isFirmQuoteJobId(jobId);
+  let removalRate = 0;
+  if (firmQuote) {
+    const settings = await admin.from('retail_estimator_settings').select('removal_inc_gst_per_m2').eq('is_current', true).maybeSingle();
+    const rate = settings.data?.removal_inc_gst_per_m2;
+    if (settings.error || typeof rate !== 'number' || !Number.isFinite(rate) || rate < 0) return { blocker: 'Current removal pricing required' };
+    removalRate = rate;
+  }
+  const mail = firmQuote ? preliminaryEstimateEmail({ firstName: initial.index.owner_name?.trim().split(/\s+/)[0] || 'there', price: price.total, rebate: price.discount, fullPrice: price.gross, areaM2: area.areaM2, insulation: insulation ?? 'unknown', removalRatePerM2: removalRate, proceedUrl: `${url}/firm-quote` }) : renderJoOutcomeEmail({ outcome: route === 'offer' ? 'likely_eligible' : 'needs_onsite_confirmation', insulation, ceilingSizeKnown: area.ceilingSizeKnown, mediaAlreadyReceived: route === 'acknowledge',
     recipient: { firstName: initial.index.owner_name?.trim().split(/\s+/)[0] || 'there', propertyAddress: initial.index.property_address ?? '', enquiryReference: initial.index.job_number ?? '' },
     figures: { veuRebate: price.discount, customerTotal: price.total, totalBeforeRebate: price.gross, installation: Number(installation), piesaFee: Number(piesa), apFee: Number(ap), ceilingAreaM2: area.areaM2, areaEstimated: area.areaEstimated },
     links: { saveMySpotUrl: `${url}/campaign`, uploadMediaUrl: `${url}/video`, reviewResultUrl: url, calculatorUrl: `${url}/calculator` },
   });
   if (!mail) return { blocker: 'No approved template applies' };
-  return { blocker: null, initial, route, mail, linkId: l.id, estimateId: est.id };
+  return { blocker: null, initial, route, mail, linkId: l.id, estimateId: est.id, firmQuote };
 }
 
 /** Only the authenticated admin RPC calls this; never normal automation or a public route. */
@@ -122,9 +132,10 @@ export async function sendOfficeFirstResponse(jobId: string, actorId: string) {
   const result = (status: string, reason: string) => ({ jobId, status, reason });
   const prepared = await prepareCatchup(jobId);
   if (prepared.blocker || !prepared.initial || !prepared.mail || !prepared.initial.email) return result('skipped', prepared.blocker ?? 'Preparation unavailable');
-  const key = `${LAUNCH_CAMPAIGN}:${prepared.route === 'offer' ? 'save_my_spot' : 'insulation_details'}:${jobId}`;
+  const purpose = prepared.firmQuote ? 'firm_quote_preliminary' : LAUNCH_CAMPAIGN;
+  const key = prepared.firmQuote ? `firm_quote_preliminary:${jobId}` : `${LAUNCH_CAMPAIGN}:${prepared.route === 'offer' ? 'save_my_spot' : 'insulation_details'}:${jobId}`;
   // Same unique reservation as normal senders. Never re-reserve an existing attempt in catch-up.
-  const reservation = await admin.from('customer_email_sends').insert({ job_id: jobId, estimate_link_id: prepared.linkId, purpose: LAUNCH_CAMPAIGN, idempotency_key: key, status: 'sending' }).select('id').single();
+  const reservation = await admin.from('customer_email_sends').insert({ job_id: jobId, estimate_link_id: prepared.linkId, purpose, idempotency_key: key, status: 'sending' }).select('id').single();
   if (reservation.error || !reservation.data) return result('skipped', 'Prior attempt or concurrent send — check history');
   const id = reservation.data.id;
   const write = async (status: string, error: string | null, providerId?: string | null, communicationId?: string) => {
@@ -136,16 +147,16 @@ export async function sendOfficeFirstResponse(jobId: string, actorId: string) {
     const unsubscribe = await unsubscribeUrlForJob(jobId);
     // Re-render from fresh facts immediately before provider call, ignoring only our own reservation.
     const fresh = await prepareCatchup(jobId, id);
-    if (fresh.blocker || !fresh.mail || !fresh.initial || fresh.initial.email !== prepared.initial.email || fresh.route !== prepared.route || fresh.estimateId !== prepared.estimateId || fresh.linkId !== prepared.linkId) {
+    if (fresh.blocker || !fresh.mail || !fresh.initial || fresh.initial.email !== prepared.initial.email || fresh.route !== prepared.route || fresh.estimateId !== prepared.estimateId || fresh.linkId !== prepared.linkId || fresh.firmQuote !== prepared.firmQuote) {
       await write('failed', fresh.blocker ?? 'Current facts changed');
       return result('blocked', fresh.blocker ?? 'Current facts changed');
     }
     const outgoing = withUnsubscribe(fresh.mail, unsubscribe);
     attempted = true;
-    const delivered = await resendDeliveryAdapter().deliver({ to: prepared.initial.email, subject: outgoing.subject, html: outgoing.html, text: outgoing.plainText, idempotencyKey: key, purpose: LAUNCH_CAMPAIGN });
+    const delivered = await resendDeliveryAdapter().deliver({ to: prepared.initial.email, subject: outgoing.subject, html: outgoing.html, text: outgoing.plainText, idempotencyKey: key, purpose });
     providerId = delivered.providerMessageId ?? null;
     if (!providerId) throw new Error('Provider acceptance lacks message ID');
-    const communicationId = await recordCommunication({ jobId, direction: 'outbound', channel: 'email', recipients: [prepared.initial.email], subject: outgoing.subject, body: outgoing.plainText, provider: 'resend', providerMessageId: providerId, visibility: 'customer', sourceEvent: LAUNCH_CAMPAIGN, sourceReference: key, createdBy: actorId, deliveryStatus: 'sent' });
+    const communicationId = await recordCommunication({ jobId, direction: 'outbound', channel: 'email', recipients: [prepared.initial.email], subject: outgoing.subject, body: outgoing.plainText, provider: 'resend', providerMessageId: providerId, visibility: 'customer', sourceEvent: purpose, sourceReference: key, createdBy: actorId, deliveryStatus: 'sent' });
     await write('sent', null, providerId, communicationId);
     return result('sent', 'Provider accepted; both delivery records saved');
   } catch (error) {

@@ -1,0 +1,1 @@
+ALTER TABLE public.workflow_settings ADD COLUMN IF NOT EXISTS firm_quote_flow_live_at timestamptz NULL;
